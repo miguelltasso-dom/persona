@@ -10,12 +10,14 @@ import {
   ScreenRepos,
   SqliteImportStore,
   SqliteInviteBook,
+  SqliteUsageStore,
   VaultRepos,
   openPersonaStore,
   type PersonaStore,
 } from '@deepseek-ai/dsh-persona-store'
-import { detectConnections, toUiConnection } from '@deepseek-ai/dsh-persona-runners'
+import { foldUsage } from '@deepseek-ai/dsh-persona-usage'
 import { resolveSessionActor, sessionCan } from './auth.ts'
+import { ConnectionProbe } from './connection-probe.ts'
 import { DeadLetterBook } from './dead-letter.ts'
 import { collectDiagnostics, stringifyDiagnostics } from './diagnostics.ts'
 import { exportMarkdown } from './export-md.ts'
@@ -135,6 +137,10 @@ import type {
   TriageRuleView,
   DeadLetterView,
   ExportArchiveView,
+  GetOfficialQuotaRequest,
+  GetUsageRequest,
+  OfficialQuotaView,
+  UsageView,
   ExportRequest,
   FetchGithubIssueRequest,
   GithubAvailableView,
@@ -149,6 +155,7 @@ export { ProactivityHost } from './proactivity.ts'
 export { ScreensHost } from './screens.ts'
 export { GithubSourceHost, detectGh } from './github.ts'
 export { createHostRunner, resolveHostRunner } from './runner.ts'
+export { ConnectionProbe } from './connection-probe.ts'
 export { ACL_EXCEPTIONS } from './auth.ts'
 export { OnboardingHost } from './onboarding.ts'
 export { HostScheduler } from './scheduler.ts'
@@ -203,6 +210,8 @@ export default class PersonaHost extends TypertRemoteService {
   readonly onboarding: OnboardingHost
   readonly scheduler: HostScheduler
   readonly deadLetters: DeadLetterBook
+  readonly connections: ConnectionProbe
+  readonly usage: SqliteUsageStore
   readonly webhookGuard: WebhookReplayGuard = new WebhookReplayGuard()
   sessionMemberId: string | undefined
   readonly lastErrors: string[] = []
@@ -220,11 +229,13 @@ export default class PersonaHost extends TypertRemoteService {
     this.routines = new RoutineRepos(this.store)
     const screenRepos = new ScreenRepos(this.store)
     this.deadLetters = new DeadLetterBook(screenRepos, () => this.orchestration.now())
+    this.usage = new SqliteUsageStore(this.store)
     this.orchestration = new Orchestration(
       this.product, this.events, this.store, () => new Date().toISOString(),
       hostRunnerFromContext(ctx),
       undefined,
       this.deadLetters,
+      this.usage,
     )
     this.proactivity = new ProactivityHost(
       this.product,
@@ -243,6 +254,8 @@ export default class PersonaHost extends TypertRemoteService {
     this.onboarding = new OnboardingHost(this.product, this.events, screenRepos, this.screens)
     this.scheduler = new HostScheduler(this.store, screenRepos)
     this.github = new GithubSourceHost(detectGh(), this.orchestration, this.proactivity)
+    this.connections = new ConnectionProbe()
+    if (process.env.VITEST !== 'true') this.connections.warm()
     this.mountGithubWebhook(ctx)
     for (const workspace of this.product.listWorkspaces()) {
       for (const project of this.product.listProjects(workspace.id)) {
@@ -1340,36 +1353,82 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
-   * Known CLI/connection kinds. Availability is not probed here (read-only later).
+   * CLI cards. First paint is `phase: 'checking'` (never a false `not_logged_in`);
+   * a 60 s cache and ≥8 s per-CLI timeout run in the background from boot.
    * @param request - Tenant (unused; required for ACL).
    * @returns Connection cards.
    */
   @Remote
   async listConnections(request: ProjectScopeRequest): Promise<ConnectionView[]> {
     this.requireProject(request)
-    try {
-      const snaps = await detectConnections({ timeoutMs: 400 })
-      return snaps.map((snap): ConnectionView => {
-        const row = toUiConnection(snap)
-        const card: ConnectionView = {
-          id: row.id,
-          kind: row.id === 'claude' || row.id === 'codex' || row.id === 'cursor' || row.id === 'opencode'
-            ? row.id
-            : 'dsh',
-          available: row.available,
-          loggedIn: row.loggedIn,
-          loginHint: row.loginHint,
-        }
-        if (row.error === undefined) return card
-        const { code, message } = row.error
-        if (code === 'cli_not_found' || code === 'not_logged_in' || code === 'quota_exhausted') {
-          return { ...card, error: { code, message } }
-        }
-        return card
-      })
-    } catch {
-      return [{ id: 'dsh', kind: 'dsh', available: true, loggedIn: false, loginHint: '' }]
+    return this.connections.list()
+  }
+
+  /**
+   * Folded spend for a period. Server actor + `can(read, project)`.
+   * Empty book is `origin: unavailable` — never `usedPercent: 0`.
+   * @param request - Period and optional tenant / persona.
+   */
+  @Remote
+  getUsage(request: GetUsageRequest): UsageView {
+    this.requireWorkspace(request)
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined && this.product.listMembers(request.workspaceId).length > 0) {
+      throw new Error('forbidden')
     }
+    const projects = request.projectId === undefined
+      ? this.product.listProjects(request.workspaceId)
+        .filter(project => actor === undefined || sessionCan(actor, 'read', {
+          type: 'project', workspaceId: request.workspaceId, projectId: project.id,
+        }))
+        .map(project => project.id)
+      : (this.requireProject({ workspaceId: request.workspaceId, projectId: request.projectId }), [request.projectId])
+    const rows = projects.flatMap(projectId => this.usage.list({
+      projectId,
+      from: request.period.from,
+      to: request.period.to,
+      ...(request.personaId === undefined ? {} : { personaId: request.personaId }),
+    }))
+    const folds = foldUsage(rows.map(row => ({
+      provider: row.provider,
+      model: row.model,
+      window: row.window,
+      inputTokens: row.inputTokens,
+      outputTokens: row.outputTokens,
+      origin: row.origin,
+      at: row.at,
+    })))
+    const tokens = rows.reduce((sum, row) => sum + row.inputTokens + row.outputTokens, 0)
+    const origin = folds.length === 0
+      ? 'unavailable'
+      : folds.reduce((weak, fold) => weakerOrigin(weak, fold.origin), folds[0]!.origin)
+    const limit = request.projectId === undefined
+      ? undefined
+      : this.screens.getLimits(request.workspaceId, request.projectId).tokensPerProjectMonth
+    const view: UsageView = {
+      period: request.period,
+      folds,
+      tokens,
+      runs: rows.length,
+      origin,
+      originLabel: originLabelOf(origin),
+    }
+    return limit === undefined ? view : { ...view, tokensPerMonthLimit: limit }
+  }
+
+  /**
+   * Official quota windows. Missing vendor data stays `unavailable` (not 0%).
+   * @param request - Tenant and optional provider.
+   */
+  @Remote
+  getOfficialQuota(request: GetOfficialQuotaRequest): OfficialQuotaView[] {
+    this.requireProject(request)
+    const stored = this.usage.listQuota(request.projectId, request.provider)
+    if (stored.length > 0) {
+      return stored.map((row): OfficialQuotaView => toOfficialView(row))
+    }
+    const providers = request.provider === undefined ? ['claude', 'codex', 'dsh'] : [request.provider]
+    return providers.map(provider => ({ provider, origin: 'unavailable' as const, windows: [] }))
   }
 
   /**
@@ -1910,6 +1969,38 @@ export default class PersonaHost extends TypertRemoteService {
     if (project.rootPath === undefined || project.rootPath === '') return undefined
     return project.rootPath
   }
+}
+
+function toOfficialView(row: import('@deepseek-ai/dsh-persona-store').StoredOfficialQuota): OfficialQuotaView {
+  const windows = row.windows.map((window) => {
+    const view: import('./types.ts').UsageWindowView = { id: window.id, origin: window.origin }
+    return {
+      ...view,
+      ...(window.usedPercent === undefined ? {} : { usedPercent: window.usedPercent }),
+      ...(window.windowMinutes === undefined ? {} : { windowMinutes: window.windowMinutes }),
+      ...(window.resetsAt === undefined ? {} : { resetsAt: window.resetsAt }),
+    }
+  })
+  return row.detail === undefined
+    ? { provider: row.provider, origin: row.origin, windows }
+    : { provider: row.provider, origin: row.origin, windows, detail: row.detail }
+}
+
+function originLabelOf(origin: import('./types.ts').UsageOrigin): string {
+  if (origin === 'official') return 'oficial da CLI'
+  if (origin === 'measured') return 'medido por nós'
+  if (origin === 'estimate') return 'estimado'
+  return 'indisponível'
+}
+
+function weakerOrigin(
+  left: import('./types.ts').UsageOrigin,
+  right: import('./types.ts').UsageOrigin,
+): import('./types.ts').UsageOrigin {
+  const rank: Record<import('./types.ts').UsageOrigin, number> = {
+    official: 4, measured: 3, estimate: 2, unavailable: 1,
+  }
+  return rank[left] <= rank[right] ? left : right
 }
 
 function emptyRootView(projectId: string, status: ProjectRootView['status'], message: string): ProjectRootView {

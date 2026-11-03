@@ -13,6 +13,7 @@ import {
 import type { SQLOutputValue } from 'node:sqlite'
 import { run, text } from '../sql.ts'
 import type { PersonaStore } from '../store.ts'
+import { SqliteUsageStore } from '../usage/store.ts'
 
 /**
  * Document-per-row retention on an open store (schema ≥ 6).
@@ -133,6 +134,11 @@ export function applySqliteRetention(
   now: number,
 ): RetentionApplyResult {
   const result = applyRetention(new SqliteRetention(store), policy, now)
+  const usage = policy.windows.find(item => item.kind === 'usage')
+  if (usage !== undefined) {
+    const cutoff = new Date(now - usage.archiveAfterMs).toISOString()
+    new SqliteUsageStore(store).purgeBefore(cutoff)
+  }
   if (result.deleted.length > 0) store.db.exec('VACUUM')
   return result
 }

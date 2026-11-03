@@ -17,6 +17,7 @@ process.env.PERSONA_REAL_CLI = '1'
 delete process.env.CLAUDE_CONFIG_DIR
 delete process.env.CODEX_HOME
 
+const startedAt = Date.now()
 const report: Record<string, unknown> = {
   home,
   usedPersonaRunners: false,
@@ -24,6 +25,7 @@ const report: Record<string, unknown> = {
   broke: [] as string[],
   reply: '',
   stages: [] as string[],
+  ms: 0,
 }
 
 const ctx = new Context()
@@ -47,16 +49,16 @@ const onb = await h.completeOnboarding({
   cofreSeed: '',
 })
 const scope = { workspaceId: 'ws', projectId: onb.personalProjectId || 'pp' }
-const snaps = await ctx.personaRunners.detectConnections({ timeoutMs: 8_000, force: true })
-const claude = snaps.find(item => item.id === 'claude')
+const firstPaint = await h.listConnections(scope)
+report.listConnectionsFirst = firstPaint.find(item => item.kind === 'claude')
+const cards = await h.connections.ready()
+const claude = cards.find(item => item.kind === 'claude')
 report.claude = claude === undefined
   ? 'missing'
-  : { available: claude.installed, loggedIn: claude.loggedIn, error: claude.error }
-report.listConnections400 = (await h.listConnections(scope)).find(item => item.kind === 'claude')
-
+  : { available: claude.available, loggedIn: claude.loggedIn, phase: claude.phase, error: claude.error }
 if (claude?.loggedIn !== true) {
   (report.broke as string[]).push(
-    `detectConnections 8s: ${claude?.error?.message ?? 'claude not logged in'} (native claude auth is logged in; listConnections 400ms is a false negative)`,
+    `listConnections ready: ${claude?.error?.message ?? 'claude not logged in'}`,
   )
 }
 {
@@ -103,7 +105,12 @@ if (claude?.loggedIn !== true) {
   report.stagesAfter = h.listTasks(scope).map(item => `${item.stage}:${item.title}`)
 }
 
+report.ms = Date.now() - startedAt
 const out = join(home, 'first-real-reply.json')
 writeFileSync(out, `${JSON.stringify(report, null, 2)}\n`)
 console.log(JSON.stringify(report, null, 2))
-await ctx.fiber.dispose()
+await Promise.race([
+  ctx.fiber.dispose(),
+  new Promise<void>((resolve) => { setTimeout(resolve, 3_000) }),
+])
+process.exit(0)

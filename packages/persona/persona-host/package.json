@@ -49,6 +49,7 @@
     "@deepseek-ai/dsh-persona-engine": "workspace:*",
     "@deepseek-ai/dsh-persona-store": "workspace:*",
     "@deepseek-ai/dsh-persona-runners": "workspace:*",
+    "@deepseek-ai/dsh-persona-usage": "workspace:*",
     "@deepseek-ai/dsh-persona-sync": "workspace:*",
     "zod": "4.4.3"
   },

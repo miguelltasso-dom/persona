@@ -28,6 +28,7 @@ import {
   createFakeRunner,
   isRunnerResolveError,
   loginHintFor,
+  RunnerResolveError,
   wordCount,
 } from '@deepseek-ai/dsh-persona-runners'
 import {
@@ -37,12 +38,14 @@ import {
   type ProductRepos,
   type StoredEvent,
   type StoredPersona,
+  type SqliteUsageStore,
 } from '@deepseek-ai/dsh-persona-store'
 import type { AutonomyMode } from './types.ts'
 import { ExecutionBudget } from './budget.ts'
 import type { DeadLetterBook } from './dead-letter.ts'
 import { reviewDeliveryOf } from './review.ts'
 import {
+  allowsScriptedReplies,
   autonomyLevelOf,
   createHostRunner,
   lastRunnerText,
@@ -52,6 +55,17 @@ import {
   type HostRunnerFactory,
   type HostRunnerRequest,
 } from './runner.ts'
+
+/** Fixture strings that must never reach a real-mode channel. */
+export const SCRIPTED_HELLO = 'Olá — em que posso ajudar?'
+
+const CLI_CHANNEL: Record<string, string> = {
+  claude: 'A Claude Code não está conectada — abra o terminal e rode `claude`/login',
+  codex: 'O Codex não está conectado — abra o terminal e rode `codex login`',
+  cursor: 'O Cursor Agent não está conectado — abra o Cursor e faça login no Agent',
+  opencode: 'O OpenCode não está conectado — abra o terminal e rode `opencode auth login`',
+  dsh: 'O executor DSH não está montado neste host.',
+}
 
 /** One project's live engine bound to SQLite. */
 export class ProjectRuntime {
@@ -142,6 +156,7 @@ export class Orchestration {
    * @param runnerFactory - Per-persona resolve (plugin inject when present).
    * @param budget - Concurrent execution slots.
    * @param deadLetters - Exhausted outbox/effect failures.
+   * @param usage - Measured-turn ledger (D5).
    */
   constructor(
     readonly product: ProductRepos,
@@ -151,18 +166,25 @@ export class Orchestration {
     runnerFactory: HostRunnerFactory = createHostRunner,
     budget: ExecutionBudget = new ExecutionBudget(),
     deadLetters?: DeadLetterBook,
+    usage?: SqliteUsageStore,
   ) {
     this.now = now
     this.runnerFactory = runnerFactory
     this.budget = budget
     this.deadLetters = deadLetters
+    this.usage = usage
   }
 
   now: () => string
   runnerFactory: HostRunnerFactory
   readonly deadLetters: DeadLetterBook | undefined
+  readonly usage: SqliteUsageStore | undefined
   /** Test hook: throw from here to fail the next outbox deliver. */
   outboxDeliver?: (id: string, text: string) => void
+  /** Test hook: next streamed model text (real-mode classify / empty). */
+  liveText: string | undefined = undefined
+  /** Test hook: force the scripted/real gate. Default follows env. */
+  scripted: boolean = allowsScriptedReplies()
 
   /**
    * Engine runtime for a project. Creates it on first use.
@@ -541,12 +563,32 @@ export class Orchestration {
     projectId: string,
     mode: AutonomyMode,
   ): Promise<Runner> {
+    const home = runnerHomeOf(projectId)
+    const usage = this.usage
     const request: HostRunnerRequest = {
       spec: specOfPersona(persona.runner),
       permissionMode: permissionModeOf(mode),
       autonomy: autonomyLevelOf(mode),
-      home: runnerHomeOf(projectId),
       personId: persona.id,
+      ...(home === '' ? {} : { home }),
+      ...(usage === undefined ? {} : {
+        usage: {
+          record: (entry) => {
+            usage.record({
+              id: `${projectId}:${persona.id}:${entry.at}:${entry.provider}`,
+              projectId,
+              personaId: persona.id,
+              provider: entry.provider,
+              model: entry.model,
+              window: entry.window,
+              inputTokens: entry.inputTokens,
+              outputTokens: entry.outputTokens,
+              origin: entry.origin,
+              at: entry.at,
+            })
+          },
+        },
+      }),
     }
     return this.runnerFactory(request)
   }
@@ -563,11 +605,7 @@ export class Orchestration {
       summary: error.message,
       question: error.message,
     })
-    const needsUser = error.code === 'not_logged_in' || error.code === 'quota_exhausted'
-    const hint = needsUser && error.code === 'not_logged_in'
-      ? loginHintFor(cliOf(error.message))
-      : error.message
-    this.postCoord(event, coordination, `coord-${ticketId}-done`, `Precisa de você: ${hint}`)
+    this.postCoord(event, coordination, `coord-${ticketId}-done`, channelLineFor(error))
   }
 
   private async runLaunched(
@@ -586,6 +624,18 @@ export class Orchestration {
       const coordinationPersona = coordination ?? this.coordinationOf(event.projectId)
       const executor = preferred ?? this.executorOf(event.projectId) ?? coordinationPersona
       if (executor === undefined) return
+      if (this.overTokenBudget(event.projectId, executor)) {
+        for (const ticket of rt.repo.tickets.list()) {
+          if (latestAssignment(ticket)?.state !== 'running') continue
+          rt.engine.report(ticket.id, {
+            state: 'blocked',
+            summary: 'orçamento de tokens do mês esgotado',
+            question: 'orçamento de tokens do mês esgotado',
+          })
+          this.postAs(event, coordinationPersona, `coord-${ticket.id}-done`, 'orçamento de tokens do mês esgotado')
+        }
+        return
+      }
       let runner: Runner
       try {
         runner = await this.resolveFor(executor, event.projectId, 'asked')
@@ -634,6 +684,7 @@ export class Orchestration {
           recovery ? 'steer' : 'queue',
         )
         await runner.whenIdle(sessionId)
+        this.noteUsage(event.projectId, executor, sessionId, runner)
         const ask = wantsAttention(ticket.title) || wantsAttention(event.body)
         if (ask) {
           rt.engine.report(ticket.id, {
@@ -647,14 +698,19 @@ export class Orchestration {
           rt.engine.report(ticket.id, { state: 'ready', summary: 'scripted' })
         }
         const speaker = executor
-        const live = lastRunnerText(runner)
+        const live = this.takeLive(runner)
+        const login = loginFailureFromText(live, cliOfPersona(speaker))
+        if (login !== undefined) {
+          this.reportResolveFailure(rt, event, coordinationPersona, ticket.id, login)
+          continue
+        }
         this.postAs(
           event,
           speaker,
           doneId,
           ask
             ? `Precisa de você: ${ticket.title}`
-            : clipWords(live !== '' ? live : `Pronto: ${ticket.title}`),
+            : clipWords(this.scriptedReady(live, ticket.title)),
         )
       }
     } catch (error) {
@@ -676,10 +732,12 @@ export class Orchestration {
       this.postAs(event, speaker, replyId, 'Resposta cancelada.')
       return
     }
-    try {
-      rt.engine.reply({ purpose: 'answer', triggerId: event.id, text: clipWords('Olá — em que posso ajudar?') })
-    } catch {
-      // Scripted path still posts even if the outbox purpose refuses.
+    if (this.scripted) {
+      try {
+        rt.engine.reply({ purpose: 'answer', triggerId: event.id, text: clipWords(SCRIPTED_HELLO) })
+      } catch {
+        // Scripted path still posts even if the outbox purpose refuses.
+      }
     }
     let runner: Runner
     try {
@@ -687,12 +745,23 @@ export class Orchestration {
       await runner.ensureSession(`talk-${event.id}`, '.', speaker.name, 'coordinator')
       await runner.deliver(`talk-${event.id}`, `talk:${event.id}`, event.body, 'queue')
       await runner.whenIdle(`talk-${event.id}`)
+      this.noteUsage(event.projectId, speaker, `talk-${event.id}`, runner)
     } catch (error: unknown) {
       this.failReply(event, speaker, error)
       return
     }
-    const live = lastRunnerText(runner)
-    this.postAs(event, speaker, replyId, clipWords(live !== '' ? live : 'Olá — em que posso ajudar?'))
+    const live = this.takeLive(runner)
+    const login = loginFailureFromText(live, cliOfPersona(speaker))
+    if (login !== undefined) {
+      this.failReply(event, speaker, login)
+      return
+    }
+    const body = this.scriptedHello(live)
+    if (body === undefined) {
+      this.failReply(event, speaker, new Error('resposta vazia'))
+      return
+    }
+    this.postAs(event, speaker, replyId, clipWords(body))
     this.deliverOutbox(rt, event, speaker)
   }
 
@@ -722,14 +791,77 @@ export class Orchestration {
   }
 
   private failReply(event: StoredEvent, speaker: StoredPersona | undefined, error: unknown): void {
-    const message = isRunnerResolveError(error)
-      ? error.message
-      : (error instanceof Error ? error.message : 'falha')
+    if (isRunnerResolveError(error)) {
+      const tickets = this.runtime(event.projectId).repo.tickets.list()
+        .filter(item => item.origin.triggerId === event.id)
+      if (tickets[0] !== undefined) {
+        this.reportResolveFailure(this.runtime(event.projectId), event, speaker, tickets[0].id, error)
+        return
+      }
+      this.postAs(event, speaker, `coord-${event.id}-reply`, channelLineFor(error), 'error')
+      this.postAs(event, speaker, `coord-${event.id}-action`, loginHintFor(cliOf(error.message)))
+      return
+    }
+    const message = error instanceof Error ? error.message : 'falha'
     const safe = /stack|token|sk-/iu.test(message) ? 'falha do executor' : message
     this.lastErrors.push(safe)
     if (this.lastErrors.length > 8) this.lastErrors.shift()
     this.postAs(event, speaker, `coord-${event.id}-reply`, `não consegui responder: ${safe}`, 'error')
     this.postAs(event, speaker, `coord-${event.id}-action`, 'Tente de novo ou escolha outra persona.')
+  }
+
+  private noteUsage(
+    projectId: string,
+    persona: StoredPersona,
+    sessionId: string,
+    runner: Runner,
+  ): void {
+    if (this.usage === undefined) return
+    const read = Reflect.get(runner, 'usage')
+    if (typeof read !== 'function') return
+    const at = this.now()
+    void Promise.resolve(read.call(runner, sessionId) as Promise<{ inputTokens: number; outputTokens: number }>).then((spent) => {
+      this.usage?.record({
+        id: `${projectId}:${persona.id}:${sessionId}:${at}`,
+        projectId,
+        personaId: persona.id,
+        provider: persona.runner.kind === 'cli' ? persona.runner.cli : 'dsh',
+        model: persona.runner.model,
+        window: 'turn',
+        inputTokens: spent.inputTokens,
+        outputTokens: spent.outputTokens,
+        origin: 'measured',
+        at,
+      })
+    }).catch(() => {
+      // Fake/real runners may omit usage(); the book stays empty (unavailable, not 0%).
+    })
+  }
+
+  private overTokenBudget(projectId: string, persona: StoredPersona): boolean {
+    const cap = persona.limits.tokensPerMonth
+    if (cap === undefined || this.usage === undefined) return false
+    const month = monthWindow(this.now())
+    return this.usage.tokens({
+      projectId, personaId: persona.id, from: month.from, to: month.to,
+    }) >= cap
+  }
+
+  private takeLive(runner: Runner): string {
+    const hooked = this.liveText
+    this.liveText = undefined
+    if (hooked !== undefined) return hooked
+    return lastRunnerText(runner)
+  }
+
+  private scriptedHello(live: string): string | undefined {
+    if (live !== '') return live
+    return this.scripted ? SCRIPTED_HELLO : undefined
+  }
+
+  private scriptedReady(live: string, title: string): string {
+    if (live !== '') return live
+    return this.scripted ? `Pronto: ${title}` : 'não consegui responder: resposta vazia'
   }
 
   private async recoverPartials(rt: ProjectRuntime, projectId: string): Promise<void> {
@@ -778,6 +910,10 @@ export class Orchestration {
     type: string = 'message',
   ): void {
     if (this.events.has(id)) return
+    if (looksLikeOarLogin(body)) {
+      this.failReply(event, speaker, new RunnerResolveError('not_logged_in', cliOfPersona(speaker)))
+      return
+    }
     this.events.append({
       id,
       workspaceId: event.workspaceId,
@@ -838,6 +974,13 @@ export class Orchestration {
   }
 }
 
+function monthWindow(iso: string): { from: string; to: string } {
+  const at = new Date(iso)
+  const from = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)).toISOString()
+  const to = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 0, 23, 59, 59, 999)).toISOString()
+  return { from, to }
+}
+
 function clip(value: string, max: number): string {
   return value.length <= max ? value : value.slice(0, max)
 }
@@ -859,4 +1002,31 @@ function wantsWork(text: string): boolean {
 function cliOf(message: string): string {
   const match = /CLI (\S+)/u.exec(message)
   return match?.[1] ?? 'dsh'
+}
+
+function cliOfPersona(speaker: StoredPersona | undefined): string {
+  const runner = speaker?.runner
+  return runner?.kind === 'cli' ? runner.cli : 'claude'
+}
+
+function channelLoginLine(cli: string): string {
+  return CLI_CHANNEL[cli] ?? `A CLI ${cli} não está conectada — abra o terminal e faça login.`
+}
+
+function channelLineFor(error: { code: string; message: string }): string {
+  if (error.code === 'not_logged_in') return channelLoginLine(cliOf(error.message))
+  return error.message
+}
+
+function looksLikeOarLogin(text: string): boolean {
+  return /not logged in|please run\s*\/login/iu.test(text)
+}
+
+/**
+ * Treat streamed OAR login failures as a typed resolve error (never post raw English).
+ * @param text - Last runner text.
+ * @param cli - Persona CLI id.
+ */
+export function loginFailureFromText(text: string, cli: string): RunnerResolveError | undefined {
+  return looksLikeOarLogin(text) ? new RunnerResolveError('not_logged_in', cli) : undefined
 }

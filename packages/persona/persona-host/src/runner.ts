@@ -12,6 +12,7 @@ import {
   type PersonaRunnerSpec,
   type RunEvent,
   type TurnRunner,
+  type UsageMeterSink,
 } from '@deepseek-ai/dsh-persona-runners'
 import type { AutonomyMode } from './types.ts'
 
@@ -20,8 +21,10 @@ export interface HostRunnerRequest {
   readonly spec: PersonaRunnerSpec
   readonly permissionMode: 'prompt' | 'allow-once' | 'deny'
   readonly autonomy: 'on_request' | 'propose' | 'act'
-  readonly home: string
+  /** Isolated CLI home. Empty/omitted = process home (native `~/.claude`). */
+  readonly home?: string
   readonly personId: string
+  readonly usage?: UsageMeterSink
 }
 
 /** Factory the orchestration uses per persona (optional request = default fake). */
@@ -46,12 +49,25 @@ export function autonomyLevelOf(mode: AutonomyMode): HostRunnerRequest['autonomy
 }
 
 /**
- * Isolated runner home for a project (`<PERSONA_HOME>/runners/<projectId>`).
- * @param projectId - Tenant.
+ * CLI config home for resolveRunner.
+ * Default is the process home (native `~/.claude` / `~/.codex`). Isolation
+ * (`<PERSONA_HOME>/runners/<projectId>`) is opt-in only — not a v1 field.
+ * @param projectId - Tenant (used only when `isolate` is true).
+ * @param isolate - Explicit per-persona/project opt-in. Absent in v1.
  */
-export function runnerHomeOf(projectId: string): string {
+export function runnerHomeOf(projectId: string, isolate = false): string {
+  if (!isolate) return ''
   const root = process.env.PERSONA_HOME ?? process.env.DSH_HOME ?? process.cwd()
   return join(root, 'runners', projectId)
+}
+
+/**
+ * Fake/scripted replies are tests (`VITEST`) or `PERSONA_SCRIPTED=1`.
+ * `PERSONA_REAL_CLI=1` and production never invent channel text.
+ */
+export function allowsScriptedReplies(): boolean {
+  if (process.env.PERSONA_REAL_CLI === '1') return false
+  return process.env.VITEST === 'true' || process.env.PERSONA_SCRIPTED === '1'
 }
 
 /**
@@ -87,12 +103,14 @@ export async function resolveHostRunner(
   }
   const resolve = runners?.resolveRunner ?? resolveRunner
   const capture: TextCapture = { last: '' }
+  const home = request.home === undefined || request.home === '' ? undefined : request.home
   const turn = tapTurn(await resolve({
     spec: request.spec,
     permissionMode: request.permissionMode,
     autonomy: request.autonomy,
-    home: request.home,
     personId: request.personId,
+    ...(home === undefined ? {} : { home }),
+    ...(request.usage === undefined ? {} : { usage: request.usage }),
   }), capture)
   const session = createOarSessionRunner({
     turn,

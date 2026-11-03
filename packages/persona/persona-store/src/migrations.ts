@@ -474,7 +474,34 @@ CREATE TABLE retention_cache (
 ) STRICT;
 `
 
-/** Adjacent shipped layout: v1 product… v5 screens, v6 retention. */
+const V7_USAGE = `
+CREATE TABLE usage_record (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  persona_id TEXT,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  window TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL,
+  output_tokens INTEGER NOT NULL,
+  origin TEXT NOT NULL CHECK (origin IN ('measured', 'estimate', 'official', 'unavailable')),
+  at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX usage_record_project_at ON usage_record (project_id, at);
+CREATE INDEX usage_record_persona_at ON usage_record (project_id, persona_id, at);
+
+CREATE TABLE usage_quota (
+  project_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  origin TEXT NOT NULL CHECK (origin IN ('measured', 'estimate', 'official', 'unavailable')),
+  body TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, provider)
+) STRICT;
+`
+
+/** Adjacent shipped layout: v1 product… v5 screens, v6 retention, v7 usage. */
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -499,5 +526,9 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 6,
     sql: V6_RETENTION,
+  },
+  {
+    version: 7,
+    sql: V7_USAGE,
   },
 ]

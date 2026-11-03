@@ -146,8 +146,8 @@ it('blocks with Precisa de você when resolveRunner fails login', async () => {
   await h.orchestration.flush('pp')
   const overview = h.getOverview({ workspaceId: 'ws', projectId: 'pp' })
   expect(overview.needsYou.length).toBeGreaterThan(0)
-  expect(channel(h).events.some(item => /não está logada|claude login/i.test(item.body))).toBe(true)
-  expect(JSON.stringify(channel(h).events)).not.toMatch(/stack|sk-|token/i)
+  expect(channel(h).events.some(item => /Claude Code não está conectada/i.test(item.body))).toBe(true)
+  expect(JSON.stringify(channel(h).events)).not.toMatch(/Not logged in|Please run|stack|sk-|token/i)
 })
 
 it('blocks with Precisa de você when resolveRunner reports quota exhausted', async () => {

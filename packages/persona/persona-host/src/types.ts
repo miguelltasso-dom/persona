@@ -1,5 +1,8 @@
 /** JSON-safe inputs and results of the Persona Remote namespace. */
 import type {} from '@deepseek-ai/dsh-typert-protocol'
+import type { UsageFold, UsageOrigin } from '@deepseek-ai/dsh-persona-usage'
+
+export type { OfficialQuota, UsageFold, UsageOrigin, UsageRecord, UsageWindow } from '@deepseek-ai/dsh-persona-usage'
 
 /** Result of the liveness probe. */
 export interface PingResult {
@@ -520,6 +523,8 @@ export interface ConnectionView {
   readonly available: boolean
   readonly loggedIn: boolean
   readonly loginHint: string
+  /** `checking` = still probing; UI must not show "desconectado". */
+  readonly phase: 'checking' | 'ready'
   readonly error?: ConnectionProbeError
 }
 
@@ -1019,6 +1024,55 @@ export interface PostGithubCommentRequest {
   readonly repository: string
   readonly number: number
   readonly body: string
+}
+
+/** Inclusive usage window (ISO instants). A month-crossing range is valid. */
+export interface UsagePeriod {
+  readonly from: string
+  readonly to: string
+}
+
+/** `getUsage` — server actor + `can(read, project)`. */
+export interface GetUsageRequest {
+  readonly workspaceId: string
+  readonly projectId?: string
+  readonly personaId?: string
+  readonly period: UsagePeriod
+}
+
+/** Folded spend. Absence is never `usedPercent: 0`. */
+export interface UsageView {
+  readonly period: UsagePeriod
+  readonly folds: readonly UsageFold[]
+  readonly tokens: number
+  readonly runs: number
+  readonly origin: UsageOrigin
+  readonly originLabel: string
+  readonly tokensPerMonthLimit?: number
+}
+
+/** `getOfficialQuota` — labelled official windows or `unavailable`. */
+export interface GetOfficialQuotaRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly provider?: string
+}
+
+/** Official quota on the wire (persona-usage `OfficialQuota`). */
+export interface OfficialQuotaView {
+  readonly provider: string
+  readonly origin: UsageOrigin
+  readonly windows: readonly UsageWindowView[]
+  readonly detail?: string
+}
+
+/** One official window. `usedPercent` omitted when the vendor did not publish it. */
+export interface UsageWindowView {
+  readonly id: string
+  readonly origin: UsageOrigin
+  readonly usedPercent?: number
+  readonly windowMinutes?: number
+  readonly resetsAt?: string
 }
 
 /** Global search that applies stream ACL. */

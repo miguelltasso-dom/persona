@@ -18,6 +18,7 @@ import {
 import { foldUsage } from '@deepseek-ai/dsh-persona-usage'
 import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
+import { MutantRunBook } from './mutant-run.ts'
 import { DeadLetterBook } from './dead-letter.ts'
 import { collectDiagnostics, stringifyDiagnostics } from './diagnostics.ts'
 import { exportMarkdown } from './export-md.ts'
@@ -28,7 +29,7 @@ import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { ScreensHost } from './screens.ts'
 import { draftPersonaWithDriver, draftTeamWithDriver } from './draft.ts'
-import { Orchestration } from './orchestration.ts'
+import { Orchestration, wantsWork } from './orchestration.ts'
 import { OnboardingHost } from './onboarding.ts'
 import { HostScheduler, inQuietWindow } from './scheduler.ts'
 import {
@@ -79,6 +80,8 @@ import type {
   CreateVaultRecordRequest,
   TicketCommandRequest,
   TurnContextView,
+  UsedContextRequest,
+  UsedContextView,
   VaultRecordView,
   PingResult,
   PostMessageRequest,
@@ -154,7 +157,14 @@ export { openHostSync, openHostSyncFromEnv } from './sync.ts'
 export { ProactivityHost } from './proactivity.ts'
 export { ScreensHost } from './screens.ts'
 export { GithubSourceHost, detectGh } from './github.ts'
-export { createHostRunner, resolveHostRunner } from './runner.ts'
+export {
+  assertCliPermission,
+  cliPermissionOf,
+  createHostRunner,
+  permissionFor,
+  resolveHostRunner,
+} from './runner.ts'
+export type { HostPermissionMode, RunnerPurpose } from './runner.ts'
 export { ConnectionProbe } from './connection-probe.ts'
 export { ACL_EXCEPTIONS } from './auth.ts'
 export { OnboardingHost } from './onboarding.ts'
@@ -236,7 +246,9 @@ export default class PersonaHost extends TypertRemoteService {
       undefined,
       this.deadLetters,
       this.usage,
+      new MutantRunBook(screenRepos),
     )
+    this.orchestration.vault = this.vault
     this.proactivity = new ProactivityHost(
       this.product,
       this.routines,
@@ -255,7 +267,10 @@ export default class PersonaHost extends TypertRemoteService {
     this.scheduler = new HostScheduler(this.store, screenRepos)
     this.github = new GithubSourceHost(detectGh(), this.orchestration, this.proactivity)
     this.connections = new ConnectionProbe()
-    if (process.env.VITEST !== 'true') this.connections.warm()
+    if (process.env.VITEST !== 'true') {
+      this.connections.warm()
+      this.orchestration.prewarmAll()
+    }
     this.mountGithubWebhook(ctx)
     for (const workspace of this.product.listWorkspaces()) {
       for (const project of this.product.listProjects(workspace.id)) {
@@ -264,6 +279,7 @@ export default class PersonaHost extends TypertRemoteService {
     }
     ctx.effect(() => () => {
       this.scheduler.dispose()
+      void this.orchestration.disposeRunners()
       this.store.close()
     })
   }
@@ -1170,6 +1186,7 @@ export default class PersonaHost extends TypertRemoteService {
       .some(ticket => ticket.origin.triggerId === request.id)
     const answered = this.events.has(`coord-${request.id}-reply`)
       || this.events.has(`coord-${request.id}-partial`)
+      || (!ticketed && !wantsWork(request.body) && this.canSpeak(request.projectId, request.body, request.responderId))
     if (ticketed || answered) {
       this.screens.recordTriage(request.projectId, {
         at: this.orchestration.now(),
@@ -1280,8 +1297,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   answerAttention(request: AttentionReplyRequest): boolean {
     this.requireProject(request)
-    this.orchestration.runtime(request.projectId).engine.note(request.ticketId, request.text)
-    return true
+    const ticket = this.orchestration.runtime(request.projectId).engine.answerAttention(
+      request.ticketId, request.text,
+    )
+    return ticket.attention === undefined
   }
 
   /**
@@ -1348,7 +1367,10 @@ export default class PersonaHost extends TypertRemoteService {
   async completeOnboarding(request: CompleteOnboardingRequest): Promise<OnboardingState> {
     const drafts = await this.onboarding.resolveTeam(request)
     const state = this.onboarding.complete(request, drafts)
-    if (state.personalProjectId !== '') this.scheduler.arm(state.personalProjectId)
+    if (state.personalProjectId !== '') {
+      this.scheduler.arm(state.personalProjectId)
+      void this.orchestration.prewarmProject(state.personalProjectId)
+    }
     return state
   }
 
@@ -1546,6 +1568,21 @@ export default class PersonaHost extends TypertRemoteService {
       ticketId: ticket.id,
       triggerIds: [...new Set([ticket.origin.triggerId, ...ticket.origin.triggerIds, ...extra])],
       title: ticket.title,
+      records: this.orchestration.usedContext.get(ticket.id) ?? [],
+    }
+  }
+
+  /**
+   * Cofre records that entered (or were restricted from) one human message.
+   * @param request - Tenant + event id.
+   * @returns Contexto usado.
+   */
+  @Remote
+  listUsedContext(request: UsedContextRequest): UsedContextView {
+    this.requireProject(request)
+    return {
+      eventId: request.eventId,
+      records: this.orchestration.usedContext.get(request.eventId) ?? [],
     }
   }
 
@@ -1661,6 +1698,7 @@ export default class PersonaHost extends TypertRemoteService {
   pauseTeam(request: ProjectScopeRequest): boolean {
     this.requireProject(request)
     this.routines.pauseTeam(request.projectId)
+    void this.orchestration.disposeRunners()
     return true
   }
 
@@ -1883,6 +1921,12 @@ export default class PersonaHost extends TypertRemoteService {
     return resolveSessionActor(this.product, workspaceId, this.sessionMemberId)
   }
 
+  private canSpeak(projectId: string, body: string, responderId?: string): boolean {
+    if (responderId !== undefined && responderId !== '') return true
+    if (/@\S+/u.test(body)) return true
+    return this.product.listPersonas(projectId).some(persona => persona.systemRoles.includes('coordination'))
+  }
+
   private requireWorkspace(request: { workspaceId: string }): void {
     if (this.product.getWorkspace(request.workspaceId) === undefined) {
       throw new Error('workspace-not-found')
@@ -2087,6 +2131,7 @@ function toMessageView(event: {
   occurredAt: string
   type?: string
 }): MessageView {
+  const type = event.type ?? 'message'
   return {
     id: event.id,
     streamId: event.streamId,
@@ -2095,7 +2140,8 @@ function toMessageView(event: {
     actorId: event.actorId,
     subjectId: event.subjectId,
     occurredAt: event.occurredAt,
-    type: event.type ?? 'message',
+    type,
+    source: type === 'runner' ? 'runner' : 'host',
   }
 }
 

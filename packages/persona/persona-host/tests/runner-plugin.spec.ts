@@ -1,6 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
+import { it } from './host-harness.ts'
 import PersonaRunners from '@deepseek-ai/dsh-persona-runners'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
 
 const roots: Context[] = []

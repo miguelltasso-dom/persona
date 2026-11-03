@@ -1,9 +1,10 @@
 import { Context } from '@deepseek-ai/cordis'
+import { it } from './host-harness.ts'
 import TypertGatewayService from '@deepseek-ai/dsh-api-gateway'
 import RemoteAccessService from '@deepseek-ai/dsh-api-remote-access'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import PersonaRunners from '@deepseek-ai/dsh-persona-runners'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
 
 const roots: Context[] = []

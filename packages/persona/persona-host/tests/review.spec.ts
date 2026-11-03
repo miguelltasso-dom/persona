@@ -3,21 +3,21 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
-import { Context } from '@deepseek-ai/cordis'
 import { confineWorktreeWrite } from '@deepseek-ai/dsh-persona-engine'
 import { createFakeRunner } from '@deepseek-ai/dsh-persona-runners'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
+import { bindHostFile, HOST_GIT_TIMEOUT_MS, it } from './host-harness.ts'
 
 const exec = promisify(execFile)
-const roots: Context[] = []
 const dirs: string[] = []
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
+afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
   if (previousHome === undefined) delete process.env.PERSONA_HOME
   else process.env.PERSONA_HOME = previousHome
 })
+
+const { host } = bindHostFile()
 
 const previousHome = process.env.PERSONA_HOME
 
@@ -34,14 +34,6 @@ async function gitRepo(): Promise<string> {
   await exec('git', ['-C', root, 'add', '.'])
   await exec('git', ['-C', root, 'commit', '-m', 'init'])
   return root
-}
-
-function host(): PersonaHost {
-  const ctx = new Context()
-  roots.push(ctx)
-  const created = new PersonaHost(ctx)
-  created.orchestration.now = () => '2026-11-03T15:00:00.000Z'
-  return created
 }
 
 function seed(h: PersonaHost, root: string): void {
@@ -121,7 +113,7 @@ it('prepare/summary/accept/requestChanges/discard on a real git repo with a file
   await h.discardReview({
     workspaceId: 'ws', projectId: 'pp', ticketId: second!.id, command: 'complete', reason: '',
   })
-}, 20_000)
+}, HOST_GIT_TIMEOUT_MS)
 
 it('conflict on accept blocks with Precisa de você and no half-merge', async () => {
   const root = await gitRepo()
@@ -150,4 +142,4 @@ it('conflict on accept blocks with Precisa de você and no half-merge', async ()
   expect(blocked.kind).toBe('blocked')
   expect(blocked.explanation.length).toBeGreaterThan(0)
   expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })[0]?.stage).toBe('blocked')
-}, 15_000)
+}, HOST_GIT_TIMEOUT_MS)

@@ -1,15 +1,11 @@
-import { Context } from '@deepseek-ai/cordis'
 import { looksLikeCredential } from '@deepseek-ai/dsh-persona-core'
-import { afterEach, expect, it } from 'vitest'
-import PersonaHost from '../src/index.ts'
+import { expect } from 'vitest'
+import { bindHostFile, it } from './host-harness.ts'
 
-const roots: Context[] = []
-afterEach(async () => { await Promise.all(roots.splice(0).map(root => root.fiber.dispose())) })
+const { host } = bindHostFile()
 
 it('exportDiagnostics is JSON without secrets or message bodies', async () => {
-  const ctx = new Context()
-  roots.push(ctx)
-  const h = new PersonaHost(ctx)
+  const h = host()
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
   h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
   h.createChannel({ id: 'geral', workspaceId: 'ws', projectId: 'pp', name: 'geral', topic: '' })

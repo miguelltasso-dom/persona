@@ -6,6 +6,8 @@
 import {
   Engine,
   RECOVERY_NOTE,
+  composeTalkPrompt,
+  milestoneSummary,
   followupOwners,
   internalSourceScope,
   latestAssignment,
@@ -24,36 +26,49 @@ import {
   type Trigger,
 } from '@deepseek-ai/dsh-persona-engine'
 import {
+  authorizeContext,
+  compileVaultContext,
+  isRequiredVaultKind,
+} from '@deepseek-ai/dsh-persona-core'
+import {
   createCoordinationDriver,
   createFakeRunner,
+  disposeRunnerSessions,
   isRunnerResolveError,
   loginHintFor,
+  prewarmCoordination,
   RunnerResolveError,
   wordCount,
 } from '@deepseek-ai/dsh-persona-runners'
 import {
   SqliteOutbox,
   SqliteRepositories,
+  StoreError,
   type EventRepos,
   type ProductRepos,
   type StoredEvent,
   type StoredPersona,
   type SqliteUsageStore,
+  type VaultRepos,
 } from '@deepseek-ai/dsh-persona-store'
-import type { AutonomyMode } from './types.ts'
+import type { AutonomyMode, UsedContextRecord } from './types.ts'
 import { ExecutionBudget } from './budget.ts'
 import type { DeadLetterBook } from './dead-letter.ts'
+import type { MutantRunBook } from './mutant-run.ts'
 import { reviewDeliveryOf } from './review.ts'
 import {
   allowsScriptedReplies,
+  assertCliPermission,
   autonomyLevelOf,
   createHostRunner,
+  lastRunnerQuestion,
   lastRunnerText,
-  permissionModeOf,
+  permissionFor,
   runnerHomeOf,
   specOfPersona,
   type HostRunnerFactory,
   type HostRunnerRequest,
+  type RunnerPurpose,
 } from './runner.ts'
 
 /** Fixture strings that must never reach a real-mode channel. */
@@ -139,6 +154,35 @@ export class ProjectRuntime {
 }
 
 /**
+ * One useful Coordination line: who does what, when it comes back.
+ * Never echoes the person's text; never a placeholder ("Recebido", "digitando").
+ * @param input - Message + who will execute.
+ */
+export function coordinationHandoff(input: {
+  readonly body: string
+  readonly executorName: string
+  readonly samePerson: boolean
+}): string {
+  const job = summarizeWork(input.body)
+  if (input.samePerson) return `Faço ${job} e te chamo na revisão.`
+  return `${input.executorName} assume ${job}. Te chamo na revisão quando estiver pronto.`
+}
+
+/**
+ * Short job noun for the handoff. Keywords only — not a quote of the message.
+ * @param body - Person's text.
+ */
+export function summarizeWork(body: string): string {
+  if (/readme/iu.test(body)) return 'o README'
+  if (/changelog/iu.test(body)) return 'o changelog'
+  if (/document|\bdocs?\b/iu.test(body)) return 'a documentação'
+  if (/deploy/iu.test(body)) return 'o deploy'
+  if (/testes?|\bspec\b/iu.test(body)) return 'os testes'
+  if (/corrig|consert|bug|\berro\b/iu.test(body)) return 'a correção'
+  return 'este pedido'
+}
+
+/**
  * Compose engines per project and turn human channel/DM messages into tickets.
  */
 export class Orchestration {
@@ -157,6 +201,7 @@ export class Orchestration {
    * @param budget - Concurrent execution slots.
    * @param deadLetters - Exhausted outbox/effect failures.
    * @param usage - Measured-turn ledger (D5).
+   * @param mutant - One run per ticket (B7).
    */
   constructor(
     readonly product: ProductRepos,
@@ -167,24 +212,89 @@ export class Orchestration {
     budget: ExecutionBudget = new ExecutionBudget(),
     deadLetters?: DeadLetterBook,
     usage?: SqliteUsageStore,
+    mutant?: MutantRunBook,
   ) {
     this.now = now
     this.runnerFactory = runnerFactory
     this.budget = budget
     this.deadLetters = deadLetters
     this.usage = usage
+    this.mutant = mutant
   }
 
   now: () => string
   runnerFactory: HostRunnerFactory
   readonly deadLetters: DeadLetterBook | undefined
   readonly usage: SqliteUsageStore | undefined
+  readonly mutant: MutantRunBook | undefined
+  vault: VaultRepos | undefined
+  /** Warm runner lease per project+persona+purpose (Rivet D10). */
+  readonly warmRunners: Map<string, Runner> = new Map<string, Runner>()
+  /** Stage timings from last ingest (ms from first mark). */
+  readonly stages: Array<{ name: string; ms: number }> = []
+  /** Last compiled Cofre records keyed by event / ticket id. */
+  readonly usedContext: Map<string, UsedContextRecord[]> = new Map<string, UsedContextRecord[]>()
+  private stageOrigin: number = 0
   /** Test hook: throw from here to fail the next outbox deliver. */
   outboxDeliver?: (id: string, text: string) => void
   /** Test hook: next streamed model text (real-mode classify / empty). */
   liveText: string | undefined = undefined
+  /** Test hook: `ended.report.question` (D-052). */
+  liveQuestion: string | undefined = undefined
   /** Test hook: force the scripted/real gate. Default follows env. */
   scripted: boolean = allowsScriptedReplies()
+
+  /**
+   * Record a named stage for the first-reply table.
+   * @param name - Stage id.
+   */
+  mark(name: string): void {
+    const now = Date.now()
+    if (this.stageOrigin === 0) this.stageOrigin = now
+    this.stages.push({ name, ms: now - this.stageOrigin })
+  }
+
+  /**
+   * Open one Coordination talk session with no model turn (Rivet D10).
+   * @param projectId - Tenant.
+   */
+  async prewarmProject(projectId: string): Promise<void> {
+    if (process.env.PERSONA_REAL_CLI !== '1' || process.env.VITEST === 'true') return
+    const coord = this.coordinationOf(projectId)
+    if (coord === undefined) return
+    const key = `${projectId}:${coord.id}:talk`
+    if (this.warmRunners.has(key)) return
+    try {
+      const cwd = process.env.PERSONA_HOME !== undefined && process.env.PERSONA_HOME !== ''
+        ? process.env.PERSONA_HOME
+        : '.'
+      await prewarmCoordination({
+        spec: specOfPersona(coord.runner),
+        permissionMode: 'deny',
+        personaId: coord.id,
+        personId: coord.id,
+        projectId,
+        cwd,
+      })
+    } catch {
+      // Missing CLI must not block boot.
+    }
+  }
+
+  /** Prewarm every project that already has Coordination. */
+  prewarmAll(): void {
+    for (const workspace of this.product.listWorkspaces()) {
+      for (const project of this.product.listProjects(workspace.id)) {
+        void this.prewarmProject(project.id)
+      }
+    }
+  }
+
+  /** Close warm leases and Rivet's process pool (quit / pause). */
+  async disposeRunners(): Promise<void> {
+    this.warmRunners.clear()
+    await disposeRunnerSessions()
+  }
 
   /**
    * Engine runtime for a project. Creates it on first use.
@@ -208,6 +318,10 @@ export class Orchestration {
       throw error
     })
     this.work = this.work.then(() => this.recoverPartials(created, projectId)).catch((error: unknown) => {
+      if (error instanceof Error && /not open/i.test(error.message)) return
+      throw error
+    })
+    this.work = this.work.then(() => this.recoverTalks(created, projectId)).catch((error: unknown) => {
       if (error instanceof Error && /not open/i.test(error.message)) return
       throw error
     })
@@ -236,6 +350,9 @@ export class Orchestration {
       ?? dmPeer
     const speaker = chosen ?? coordination
     if (speaker === undefined) return
+    this.stageOrigin = 0
+    this.stages.length = 0
+    this.mark('ingest')
     const rt = this.runtime(event.projectId)
     const trigger = this.triggerOf(event, streamKind, ownerId, mentioned !== undefined || streamKind === 'dm')
     const result = rt.engine.receive(trigger)
@@ -246,10 +363,10 @@ export class Orchestration {
       return
     }
     const work = wantsWork(event.body)
-    this.decidePending(rt, event.body, work)
+    this.mark(work ? 'triage:ticket' : 'triage:talk')
+    this.decidePending(rt, event.body, work, chosen)
     this.advanceAssignments(rt, event.projectId)
     if (!work) {
-      this.postAs(event, speaker, `coord-${event.id}-partial`, '…', 'partial')
       this.work = this.work.then(() => this.finishReply(rt, event, speaker)).catch((error: unknown) => {
         if (error instanceof Error && /not open/i.test(error.message)) return
         this.failReply(event, speaker, error)
@@ -257,6 +374,19 @@ export class Orchestration {
       return
     }
     this.bindExecution(rt, event.projectId, chosen)
+    const ticket = rt.repo.tickets.list().find(item => item.origin.triggerId === event.id)
+    const claim = ticket === undefined || this.mutant === undefined
+      ? 'running'
+      : this.mutant.claim(event.projectId, ticket.id, event.subjectId === '' ? event.id : event.subjectId, event.id)
+    if (claim === 'queued' || claim === 'refused') {
+      this.postAs(
+        event,
+        coordination,
+        `coord-${event.id}-queue`,
+        claim === 'queued' ? 'Esta execução entra na fila deste assunto.' : 'Já há uma execução neste assunto.',
+      )
+      return
+    }
     this.streamAck(event, coordination)
     this.work = this.work.then(() => this.runLaunched(rt, event, coordination, chosen)).catch((error: unknown) => {
       if (error instanceof Error && /not open/i.test(error.message)) return
@@ -339,7 +469,32 @@ export class Orchestration {
    * @param ticketId - Ticket in Em revisão.
    */
   completeReview(projectId: string, ticketId: string): void {
-    this.runtime(projectId).engine.threadClosed({ source: 'review', id: ticketId }, 'merged', this.now())
+    const rt = this.runtime(projectId)
+    rt.engine.threadClosed({ source: 'review', id: ticketId }, 'merged', this.now())
+    const ticket = rt.repo.tickets.get(ticketId)
+    const titles = [
+      ...(ticket?.title !== undefined ? [ticket.title] : []),
+      ...rt.repo.tickets.list()
+        .filter(row => row.ended !== undefined && row.id !== ticketId)
+        .map(row => row.title),
+    ]
+    const text = milestoneSummary(titles)
+    const speaker = this.coordinationOf(projectId)
+    const project = this.product.getProject(projectId)
+    const id = `coord-${ticketId}-milestone`
+    if (text === '' || speaker === undefined || project === undefined || this.events.has(id)) return
+    this.events.append({
+      id,
+      workspaceId: project.workspaceId,
+      projectId,
+      streamKind: 'channel',
+      ownerId: 'geral',
+      type: 'message',
+      body: text,
+      actorId: speaker.id,
+      subjectId: ticketId,
+      occurredAt: this.now(),
+    })
   }
 
   /**
@@ -396,8 +551,20 @@ export class Orchestration {
     this.runtime(projectId).engine.evaluateDue()
   }
 
-  private decidePending(rt: ProjectRuntime, text: string, work: boolean): void {
+  private decidePending(
+    rt: ProjectRuntime,
+    text: string,
+    work: boolean,
+    preferred?: StoredPersona,
+  ): void {
     const title = clip(text.split(/\r?\n/, 1)[0] ?? text, 80) || 'Pedido'
+    const executor = preferred ?? this.executorOf(rt.repo.projectId) ?? this.coordinationOf(rt.repo.projectId)
+    const coord = this.coordinationOf(rt.repo.projectId)
+    const acknowledgement = coordinationHandoff({
+      body: text,
+      executorName: executor?.name ?? coord?.name ?? 'a equipe',
+      samePerson: executor === undefined || coord === undefined || executor.id === coord.id,
+    })
     for (const candidate of rt.candidates.splice(0)) {
       const triggerId = candidate.triggers[0]?.id
       if (triggerId === undefined) continue
@@ -410,7 +577,7 @@ export class Orchestration {
         title,
         scope: 'small',
         reason: 'requested',
-        acknowledgement: clip(`${title}: recebido.`, 400),
+        acknowledgement,
         evalId: candidate.evalId,
       })
     }
@@ -488,8 +655,14 @@ export class Orchestration {
     if (ticket === undefined) throw new Error('ticket-not-found')
     const delivery = reviewDeliveryOf(this.product, this.runtimes, projectId)
     if (delivery === undefined) {
-      this.runtime(projectId).engine.note(ticketId, feedback)
-      this.runtime(projectId).engine.retryTicket(ticketId)
+      const rt = this.runtime(projectId)
+      rt.engine.note(ticketId, feedback)
+      const live = rt.repo.tickets.get(ticketId) ?? ticket
+      const report = latestAssignment(live)?.report?.state
+      if (report !== 'blocked' && report !== 'failed') {
+        rt.engine.report(ticketId, { state: 'blocked', summary: feedback, question: feedback })
+      }
+      rt.engine.retryTicket(ticketId)
     } else {
       await delivery.requestChanges(ticket, feedback)
     }
@@ -554,7 +727,6 @@ export class Orchestration {
   }
 
   private streamAck(event: StoredEvent, coordination: StoredPersona | undefined): void {
-    this.postCoord(event, coordination, `coord-${event.id}-ack`, 'Recebido. Vou encaminhar.')
     this.deliverOutbox(this.runtime(event.projectId), event, coordination)
   }
 
@@ -562,14 +734,38 @@ export class Orchestration {
     persona: StoredPersona,
     projectId: string,
     mode: AutonomyMode,
+    purpose: RunnerPurpose,
+    onFirstToken?: (text: string) => void,
   ): Promise<Runner> {
+    this.mark(`resolve:${purpose}:start`)
+    const key = `${projectId}:${persona.id}:${purpose}`
+    const cached = this.warmRunners.get(key)
+    if (cached !== undefined) {
+      this.mark(`resolve:${purpose}:warm`)
+      return cached
+    }
+    const spec = specOfPersona(persona.runner)
+    const permissionMode = permissionFor(spec, purpose, persona.tools, mode)
+    assertCliPermission(spec, permissionMode)
     const home = runnerHomeOf(projectId)
     const usage = this.usage
+    const talkCwd = purpose === 'talk'
+      ? (process.env.PERSONA_HOME !== undefined && process.env.PERSONA_HOME !== ''
+        ? process.env.PERSONA_HOME
+        : '')
+      : ''
     const request: HostRunnerRequest = {
-      spec: specOfPersona(persona.runner),
-      permissionMode: permissionModeOf(mode),
+      spec,
+      permissionMode,
       autonomy: autonomyLevelOf(mode),
       personId: persona.id,
+      personaName: persona.name,
+      personaTitle: persona.title,
+      purpose,
+      projectId,
+      tools: persona.tools,
+      ...(talkCwd === '' ? {} : { cwd: talkCwd }),
+      ...(onFirstToken === undefined ? {} : { onFirstToken }),
       ...(home === '' ? {} : { home }),
       ...(usage === undefined ? {} : {
         usage: {
@@ -590,7 +786,10 @@ export class Orchestration {
         },
       }),
     }
-    return this.runnerFactory(request)
+    const runner = await this.runnerFactory(request)
+    this.warmRunners.set(key, runner)
+    this.mark(`resolve:${purpose}:ready`)
+    return runner
   }
 
   private reportResolveFailure(
@@ -638,7 +837,9 @@ export class Orchestration {
       }
       let runner: Runner
       try {
-        runner = await this.resolveFor(executor, event.projectId, 'asked')
+        const contextWork = this.compileUsed(event, executor)
+        runner = await this.resolveFor(executor, event.projectId, 'asked', 'task')
+        await contextWork
       } catch (error: unknown) {
         if (!isRunnerResolveError(error)) throw error
         for (const ticket of rt.repo.tickets.list()) {
@@ -651,9 +852,6 @@ export class Orchestration {
       if (this.cancelled.has(event.id)) {
         this.postAs(event, coordinationPersona, `coord-${event.id}-reply`, 'Resposta cancelada.')
         return
-      }
-      if (coordinationPersona !== undefined && executor.id !== coordinationPersona.id) {
-        this.postAs(event, coordinationPersona, `coord-${event.id}-handoff`, `Encaminhei para ${executor.name}.`)
       }
       if (coordinationPersona !== undefined) {
         const driver = createCoordinationDriver({
@@ -685,10 +883,12 @@ export class Orchestration {
         )
         await runner.whenIdle(sessionId)
         this.noteUsage(event.projectId, executor, sessionId, runner)
-        const ask = wantsAttention(ticket.title) || wantsAttention(event.body)
+        const asked = this.takeQuestion(runner)
+        const ask = asked !== undefined || wantsAttention(ticket.title) || wantsAttention(event.body)
+        const question = asked ?? ticket.title
         if (ask) {
           rt.engine.report(ticket.id, {
-            state: 'waiting', summary: 'Precisa de uma decisão.', question: ticket.title,
+            state: 'waiting', summary: question, question,
           })
         } else {
           const live = rt.repo.tickets.get(ticket.id)
@@ -709,7 +909,7 @@ export class Orchestration {
           speaker,
           doneId,
           ask
-            ? `Precisa de você: ${ticket.title}`
+            ? `Precisa de você: ${question}`
             : clipWords(this.scriptedReady(live, ticket.title)),
         )
       }
@@ -741,10 +941,18 @@ export class Orchestration {
     }
     let runner: Runner
     try {
-      runner = await this.resolveFor(speaker, event.projectId, 'asked')
+      const contextWork = this.compileUsed(event, speaker)
+      runner = await this.resolveFor(speaker, event.projectId, 'asked', 'talk', (text) => {
+        this.mark('first-token')
+        this.postAs(event, speaker, `coord-${event.id}-token`, clipWords(text), 'partial')
+      })
+      const used = await contextWork
+      const talk = this.talkPrompt(event, speaker, used)
       await runner.ensureSession(`talk-${event.id}`, '.', speaker.name, 'coordinator')
-      await runner.deliver(`talk-${event.id}`, `talk:${event.id}`, event.body, 'queue')
+      this.mark('session')
+      await runner.deliver(`talk-${event.id}`, `talk:${event.id}`, talk, 'queue')
       await runner.whenIdle(`talk-${event.id}`)
+      this.mark('idle')
       this.noteUsage(event.projectId, speaker, `talk-${event.id}`, runner)
     } catch (error: unknown) {
       this.failReply(event, speaker, error)
@@ -761,8 +969,98 @@ export class Orchestration {
       this.failReply(event, speaker, new Error('resposta vazia'))
       return
     }
-    this.postAs(event, speaker, replyId, clipWords(body))
+    this.postAs(event, speaker, replyId, clipWords(body), live !== '' ? 'runner' : 'message')
+    this.mark('reply')
     this.deliverOutbox(rt, event, speaker)
+  }
+
+  /**
+   * Conversation prompt: display name, team, capped Cofre, user text as data.
+   * @param event - Human message.
+   * @param speaker - Persona that will answer.
+   * @param used - Compiled "Contexto usado".
+   */
+  talkPrompt(event: StoredEvent, speaker: StoredPersona, used: UsedContextRecord[]): string {
+    const role = speaker.systemRoles.includes('coordination')
+      ? 'coordenação'
+      : speaker.systemRoles.includes('watchdog') ? 'vigia' : speaker.title
+    const colleagues = this.product.listPersonas(event.projectId)
+      .filter(row => row.id !== speaker.id)
+      .map((row) => {
+        const fn = row.systemRoles.includes('coordination')
+          ? 'coordenação'
+          : row.systemRoles.includes('watchdog') ? 'vigia' : undefined
+        return {
+          name: row.name,
+          title: row.title,
+          ...(fn === undefined ? {} : { role: fn }),
+        }
+      })
+    const context = used
+      .filter(row => !row.restricted && row.body !== '')
+      .map(row => `${row.kind}: ${row.body}`)
+      .join('\n')
+    return composeTalkPrompt({
+      identity: { name: speaker.name, title: speaker.title },
+      personality: speaker.personality,
+      instructions: speaker.instructions,
+      functionLabel: role,
+      colleagues,
+      context,
+      userText: event.body,
+      capabilities: 'resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta',
+    })
+  }
+
+  /**
+   * Compile Cofre context in parallel with runner start; store "Contexto usado".
+   * @param event - Human message.
+   * @param speaker - Persona that will answer.
+   */
+  async compileUsed(event: StoredEvent, speaker: StoredPersona): Promise<UsedContextRecord[]> {
+    this.mark('compile-context')
+    const vault = this.vault
+    if (vault === undefined) return []
+    const records = vault.listRecords(event.projectId)
+    const actor = {
+      kind: 'user' as const,
+      id: event.actorId,
+      workspaceId: event.workspaceId,
+      workspaceRole: 'owner' as const,
+      projectIds: [event.projectId],
+    }
+    try {
+      await compileVaultContext({
+        scope: {
+          workspaceId: event.workspaceId,
+          projectId: event.projectId,
+          agentId: speaker.id,
+          actorId: event.actorId,
+          audienceId: event.actorId,
+          policyRevision: 'v1',
+        },
+        records,
+        snapshotRevision: this.now(),
+        budgetTokens: 2_000,
+        countTokens: (text: string) => Math.max(1, Math.ceil(text.length / 4)),
+        authorize: authorizeContext(actor),
+      })
+    } catch {
+      // Required Cofre denied still appears in Contexto usado as restricted.
+    }
+    const used = records.map(record => ({
+      id: record.id,
+      kind: record.kind,
+      body: record.visibility.kind === 'workspace' ? record.body : '',
+      required: isRequiredVaultKind(record.kind),
+      restricted: record.visibility.kind !== 'workspace',
+    }))
+    this.usedContext.set(event.id, used)
+    const ticket = this.runtime(event.projectId).repo.tickets.list()
+      .find(item => item.origin.triggerId === event.id)
+    if (ticket !== undefined) this.usedContext.set(ticket.id, used)
+    this.mark('compile-context:done')
+    return used
   }
 
   private deliverOutbox(
@@ -838,6 +1136,16 @@ export class Orchestration {
     })
   }
 
+  private capturedSubject(event: StoredEvent): string | undefined {
+    if (this.mutant === undefined) return undefined
+    for (const ticket of this.runtime(event.projectId).repo.tickets.list()) {
+      const captured = this.mutant.subjectOf(event.projectId, ticket.id)
+      if (captured === undefined) continue
+      if (ticket.origin.triggerId === event.id || event.subjectId === captured) return captured
+    }
+    return undefined
+  }
+
   private overTokenBudget(projectId: string, persona: StoredPersona): boolean {
     const cap = persona.limits.tokensPerMonth
     if (cap === undefined || this.usage === undefined) return false
@@ -845,6 +1153,13 @@ export class Orchestration {
     return this.usage.tokens({
       projectId, personaId: persona.id, from: month.from, to: month.to,
     }) >= cap
+  }
+
+  private takeQuestion(runner: Runner): string | undefined {
+    const hooked = this.liveQuestion
+    this.liveQuestion = undefined
+    if (hooked !== undefined) return hooked
+    return lastRunnerQuestion(runner)
   }
 
   private takeLive(runner: Runner): string {
@@ -883,15 +1198,70 @@ export class Orchestration {
       deleted: number
     }>
     for (const row of rows) {
+      if (!row.id.endsWith('-partial')) continue
       const eventId = row.id.replace(/^coord-/u, '').replace(/-partial$/u, '')
       if (this.events.has(`coord-${eventId}-reply`)) continue
+      const original = this.store.db.prepare(
+        'SELECT body, actor_id AS actorId, subject_id AS subjectId FROM event WHERE id = ?',
+      ).get(eventId) as { body: string; actorId: string; subjectId: string } | undefined
       const event: StoredEvent = {
         id: eventId,
         streamId: row.streamId,
         workspaceId: row.workspaceId,
         projectId: row.projectId,
         seq: row.seq,
-        type: row.type,
+        type: 'message',
+        body: original?.body ?? row.body,
+        actorId: original?.actorId ?? row.actorId,
+        subjectId: original?.subjectId ?? row.subjectId,
+        occurredAt: row.occurredAt,
+        deleted: row.deleted === 1,
+      }
+      await this.finishReply(rt, event, speaker)
+    }
+  }
+
+  /**
+   * Resume a talk that never got a Coordination line (crash before first token).
+   * @param rt - Runtime.
+   * @param projectId - Tenant.
+   */
+  private async recoverTalks(rt: ProjectRuntime, projectId: string): Promise<void> {
+    const rows = this.store.db.prepare(
+      `SELECT id, stream_id AS streamId, workspace_id AS workspaceId, project_id AS projectId,
+              seq, type, body, actor_id AS actorId, subject_id AS subjectId, occurred_at AS occurredAt, deleted
+         FROM event
+        WHERE project_id = ? AND type = 'message' AND deleted = 0 AND id NOT LIKE 'coord-%'`,
+    ).all(projectId) as Array<{
+      id: string
+      streamId: string
+      workspaceId: string
+      projectId: string
+      seq: number
+      type: string
+      body: string
+      actorId: string
+      subjectId: string
+      occurredAt: string
+      deleted: number
+    }>
+    for (const row of rows) {
+      if (this.product.getPersona(row.actorId) !== undefined) continue
+      if (wantsWork(row.body)) continue
+      if (this.events.has(`coord-${row.id}-reply`)) continue
+      const streamKind = row.streamId.startsWith('dm:') ? 'dm' : 'channel'
+      const ownerId = row.streamId.slice(row.streamId.indexOf(':') + 1)
+      const speaker = this.mentionedPersona(projectId, row.body)
+        ?? (streamKind === 'dm' ? this.dmPersona(ownerId, row.actorId) : undefined)
+        ?? this.coordinationOf(projectId)
+      if (speaker === undefined) continue
+      const event: StoredEvent = {
+        id: row.id,
+        streamId: row.streamId,
+        workspaceId: row.workspaceId,
+        projectId: row.projectId,
+        seq: row.seq,
+        type: 'message',
         body: row.body,
         actorId: row.actorId,
         subjectId: row.subjectId,
@@ -914,18 +1284,23 @@ export class Orchestration {
       this.failReply(event, speaker, new RunnerResolveError('not_logged_in', cliOfPersona(speaker)))
       return
     }
-    this.events.append({
-      id,
-      workspaceId: event.workspaceId,
-      projectId: event.projectId,
-      streamKind: event.streamId.startsWith('dm:') ? 'dm' : 'channel',
-      ownerId: event.streamId.slice(event.streamId.indexOf(':') + 1),
-      type,
-      body,
-      actorId: speaker?.id ?? 'coordination',
-      subjectId: event.subjectId,
-      occurredAt: this.now(),
-    })
+    try {
+      this.events.append({
+        id,
+        workspaceId: event.workspaceId,
+        projectId: event.projectId,
+        streamKind: event.streamId.startsWith('dm:') ? 'dm' : 'channel',
+        ownerId: event.streamId.slice(event.streamId.indexOf(':') + 1),
+        type,
+        body,
+        actorId: speaker?.id ?? 'coordination',
+        subjectId: this.capturedSubject(event) ?? event.subjectId,
+        occurredAt: this.now(),
+      })
+    } catch (error: unknown) {
+      if (error instanceof StoreError && (error.code === 'constraint' || error.code === 'not-open')) return
+      throw error
+    }
   }
 
   private postCoord(
@@ -995,7 +1370,7 @@ function wantsAttention(text: string): boolean {
   return /\?|precisa de você|aprovar/iu.test(text)
 }
 
-function wantsWork(text: string): boolean {
+export function wantsWork(text: string): boolean {
   return /preciso|implement|cri[ae]|adicion|consert|corrig|escrev|readme|deploy|faz(er)?\b|tarefa|ticket|aprov/iu.test(text)
 }
 

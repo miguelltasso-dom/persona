@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
+import { it } from './host-harness.ts'
 import { Context } from '@deepseek-ai/cordis'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
 import { signGithubBody, githubWebhookHandler, WebhookReplayGuard } from '../src/webhook-http.ts'
 
@@ -44,7 +45,7 @@ it('accepts a signed payload, refuses bad HMAC and replay', async () => {
       workspaceId: 'ws', projectId, deliveryId, event, action, repository,
       payloadJson: JSON.stringify(payload), agentLogin: 'persona-bot',
     }),
-    now: () => Date.now(),
+    now: () => 1_700_000_000_000,
   }, new WebhookReplayGuard())
   const server = createServer((req, res) => { void handler(req, res) })
   await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', () => { resolve() }) })

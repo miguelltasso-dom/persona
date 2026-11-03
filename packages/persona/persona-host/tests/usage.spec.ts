@@ -1,16 +1,11 @@
-import { Context } from '@deepseek-ai/cordis'
-import { afterEach, expect, it } from 'vitest'
+import { expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
+import { bindHostFile, it } from './host-harness.ts'
 
-const roots: Context[] = []
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
-})
+const { host: open } = bindHostFile()
 
 function host(): PersonaHost {
-  const ctx = new Context()
-  roots.push(ctx)
-  const created = new PersonaHost(ctx)
+  const created = open()
   created.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
   created.createMember({
     id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner',

@@ -194,6 +194,8 @@ export interface MessageView {
   readonly subjectId: string
   readonly occurredAt: string
   readonly type: string
+  /** `runner` = model text persisted from a live CLI/DSH turn. */
+  readonly source: 'runner' | 'host'
 }
 
 /** Message page plus exclusive cursor. */
@@ -588,10 +590,33 @@ export interface RetentionLogView {
 }
 
 /** Context a turn used (ticket origin + latest inputs). */
+export interface UsedContextRecord {
+  readonly id: string
+  readonly kind: string
+  readonly body: string
+  readonly required: boolean
+  readonly restricted: boolean
+}
+
+/** Triggers a ticket used (origin + later trigger inputs) plus Cofre compilation. */
 export interface TurnContextView {
   readonly ticketId: string
   readonly triggerIds: readonly string[]
   readonly title: string
+  readonly records: readonly UsedContextRecord[]
+}
+
+/** Cofre records that entered (or were restricted from) one turn. */
+export interface UsedContextView {
+  readonly eventId: string
+  readonly records: readonly UsedContextRecord[]
+}
+
+/** Look up Contexto usado for a human message. */
+export interface UsedContextRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly eventId: string
 }
 
 /** Editable persona draft (Forge schema fields). */

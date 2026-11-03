@@ -1,24 +1,21 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@deepseek-ai/cordis'
-import { afterEach, expect, it } from 'vitest'
-import PersonaHost from '../src/index.ts'
+import { afterEach, expect } from 'vitest'
+import { bindHostFile, it } from './host-harness.ts'
 
-const roots: Context[] = []
 const dirs: string[] = []
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
+afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
+
+const { host } = bindHostFile()
 
 it('fresh PERSONA_HOME is firstUse with zero personas (no auto-seed)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'persona-fresh-'))
   dirs.push(dir)
   process.env.PERSONA_HOME = dir
-  const ctx = new Context()
-  roots.push(ctx)
-  const h = new PersonaHost(ctx, { databasePath: join(dir, 'persona.db') })
+  const h = host(join(dir, 'persona.db'))
   const personal = h.createWorkspace({ id: 'ws', name: 'Fresh', personalProjectId: 'pp' })
   const scope = { workspaceId: 'ws', projectId: personal.id }
   expect(h.getOnboarding(scope).firstUse).toBe(true)
@@ -29,9 +26,7 @@ it('completeOnboarding is idempotent and writes welcome without a hardcoded name
   const dir = mkdtempSync(join(tmpdir(), 'persona-onb-'))
   dirs.push(dir)
   process.env.PERSONA_HOME = dir
-  const ctx = new Context()
-  roots.push(ctx)
-  const h = new PersonaHost(ctx, { databasePath: join(dir, 'persona.db') })
+  const h = host(join(dir, 'persona.db'))
   const first = await h.completeOnboarding({
     workspaceId: 'ws',
     personalProjectId: 'pp',

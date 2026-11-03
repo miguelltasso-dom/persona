@@ -48,6 +48,12 @@ export class ConnectionProbe {
   private cache: { at: number; cards: ConnectionView[] } | undefined
   private inflight: Promise<void> | undefined
 
+  /** Drop cache and in-flight probe (tests wipe between `it`s). */
+  reset(): void {
+    this.cache = undefined
+    this.inflight = undefined
+  }
+
   /** Kick a probe if the cache is cold or stale. */
   warm(): void {
     void this.ensure()

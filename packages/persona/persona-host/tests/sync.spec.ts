@@ -1,7 +1,8 @@
 import { IdentityCipher, MemorySyncLog, type SyncEnvelope } from '@deepseek-ai/dsh-persona-core'
+import { it } from './host-harness.ts'
 import { MemoryTransport } from '@deepseek-ai/dsh-persona-sync'
 import { openPersonaStore } from '@deepseek-ai/dsh-persona-store'
-import { expect, it } from 'vitest'
+import { expect } from 'vitest'
 import { openHostSync } from '../src/index.ts'
 
 function envelope(overrides: Partial<SyncEnvelope> = {}): SyncEnvelope {

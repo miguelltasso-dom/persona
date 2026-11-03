@@ -1,10 +1,8 @@
-import { Context } from '@deepseek-ai/cordis'
-import { afterEach, expect, it } from 'vitest'
+import { expect } from 'vitest'
 import { ExecutionBudget } from '../src/budget.ts'
-import PersonaHost from '../src/index.ts'
+import { bindHostFile, it } from './host-harness.ts'
 
-const roots: Context[] = []
-afterEach(async () => { await Promise.all(roots.splice(0).map(root => root.fiber.dispose())) })
+const { host } = bindHostFile()
 
 it('caps a noisy project so eight siblings still get a slot', () => {
   const budget = new ExecutionBudget(4, 2)
@@ -25,10 +23,7 @@ it('caps a noisy project so eight siblings still get a slot', () => {
 })
 
 it('host runLaunched waits when the project is over budget', async () => {
-  const ctx = new Context()
-  roots.push(ctx)
-  const h = new PersonaHost(ctx)
-  h.orchestration.now = () => '2026-11-03T15:00:00.000Z'
+  const h = host()
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'p0' })
   h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'p0', displayName: 'Ana', handle: 'ana', role: 'owner' })
   for (let index = 0; index < 8; index += 1) {

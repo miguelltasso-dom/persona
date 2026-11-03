@@ -1,25 +1,18 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@deepseek-ai/cordis'
 import { RunnerResolveError } from '@deepseek-ai/dsh-persona-runners'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
+import { coordinationHandoff, summarizeWork } from '../src/orchestration.ts'
+import { bindHostFile, resetHost, it } from './host-harness.ts'
 
-const roots: Context[] = []
 const dirs: string[] = []
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
+afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-function host(databasePath = '', clock = '2026-11-03T15:00:00.000Z'): PersonaHost {
-  const ctx = new Context()
-  roots.push(ctx)
-  const created = new PersonaHost(ctx, { databasePath })
-  created.orchestration.now = () => clock
-  return created
-}
+const { host } = bindHostFile()
 
 function seed(h: PersonaHost): void {
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
@@ -70,6 +63,54 @@ it('replies on #geral without a ticket when the message is not work', async () =
   expect(page.events.some(item => item.actorId === 'coord' && /ajudar/i.test(item.body))).toBe(true)
   expect(h.getOverview({ workspaceId: 'ws', projectId: 'pp' })).toEqual({ needsYou: [], inProgress: [] })
   expect(h.listTriageLog({ workspaceId: 'ws', projectId: 'pp' })[0]?.reason).toBe('answered')
+})
+
+it('Coordination handoff is useful and never echoes the person', async () => {
+  expect(summarizeWork('preciso de um README no projeto')).toBe('o README')
+  expect(summarizeWork('atualiza o changelog')).toBe('o changelog')
+  expect(summarizeWork('escreve os docs')).toBe('a documentação')
+  expect(summarizeWork('faz o deploy')).toBe('o deploy')
+  expect(summarizeWork('roda os testes')).toBe('os testes')
+  expect(summarizeWork('corrige o bug do login')).toBe('a correção')
+  expect(summarizeWork('faz isso aí por favor')).toBe('este pedido')
+  expect(coordinationHandoff({
+    body: 'preciso de um README no projeto agora, com badges e CI',
+    executorName: 'Bento',
+    samePerson: false,
+  })).toBe('Bento assume o README. Te chamo na revisão quando estiver pronto.')
+  expect(coordinationHandoff({
+    body: 'faz isso aí por favor',
+    executorName: 'Guia',
+    samePerson: true,
+  })).toBe('Faço este pedido e te chamo na revisão.')
+  expect(coordinationHandoff({
+    body: 'preciso de um README no projeto agora, com badges e CI',
+    executorName: 'Bento',
+    samePerson: false,
+  })).not.toContain('preciso de um README')
+
+  const h = host()
+  seed(h)
+  h.createPersona({
+    workspaceId: 'ws', projectId: 'pp', id: 'bento', name: 'Bento', title: 'Engenharia',
+    description: 'Implementa.', personality: 'Direto.', instructions: 'Prove.',
+    avatarKind: 'gallery', avatarRef: 'bento', runnerKind: 'dsh', runnerCli: '',
+    runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+  })
+  const body = 'preciso de um README no projeto'
+  ask(h, 'm-nat', body)
+  const page = channel(h)
+  const coord = page.events.filter(item => item.actorId === 'coord')
+  expect(coord.some(item => /Bento assume o README/i.test(item.body))).toBe(true)
+  expect(coord.some(item => /revisão/i.test(item.body))).toBe(true)
+  expect(coord.every(item => !/Recebido|Vou encaminhar|: recebido\.|digitando/iu.test(item.body))).toBe(true)
+  expect(coord.every(item => !item.body.includes(body))).toBe(true)
+  ask(h, 'm-hi2', 'oi, tudo bem?')
+  await h.orchestration.flush('pp')
+  expect(channel(h).events.every(item => item.body !== 'digitando')).toBe(true)
+  const afterHi = channel(h).events.filter(item => item.actorId === 'coord')
+  expect(afterHi.some(item => /ajudar|olá|oi/i.test(item.body))).toBe(true)
+  expect(afterHi.every(item => !item.body.includes('oi, tudo bem?'))).toBe(true)
 })
 
 it('walks a task doing → review → done and streams the coordination reply', async () => {
@@ -209,42 +250,44 @@ it('handoff posts progress as the executor; streaming goes partial then final; c
   ask(h, 'm-hand', 'preciso de um README no projeto')
   await h.orchestration.flush('pp')
   const page = channel(h)
-  expect(page.events.some(item => item.actorId === 'coord' && /Encaminhei para Bento/i.test(item.body))).toBe(true)
+  expect(page.events.some(item => item.actorId === 'coord' && /Bento assume o README/i.test(item.body))).toBe(true)
+  expect(page.events.every(item => item.actorId !== 'coord' || !/Recebido\. Vou encaminhar|: recebido\.|digitando/iu.test(item.body))).toBe(true)
+  expect(page.events.every(item => item.actorId !== 'coord' || !item.body.includes('preciso de um README'))).toBe(true)
   expect(page.events.some(item => item.actorId === 'bento' && /Pronto|Em andamento/i.test(item.body))).toBe(true)
   expect(page.events.some(item => item.type === 'partial' || item.body === '…')).toBe(false)
 
-  const talk = host()
-  seed(talk)
-  talk.postMessage({
+  resetHost(h)
+  seed(h)
+  h.postMessage({
     id: 'm-stream', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     body: 'oi, tudo bem?', actorId: 'ana', subjectId: 't1', occurredAt: '2026-11-03T15:00:00.000Z',
   })
-  expect(channel(talk).events.some(item => item.type === 'partial')).toBe(true)
-  await talk.orchestration.flush('pp')
-  expect(channel(talk).events.some(item => item.id === 'coord-m-stream-reply' && item.type === 'message')).toBe(true)
+  await h.orchestration.flush('pp')
+  expect(channel(h).events.some(item => item.id === 'coord-m-stream-reply' && item.type === 'message')).toBe(true)
+  expect(channel(h).events.every(item => item.body !== 'digitando')).toBe(true)
 
-  const cancel = host()
-  seed(cancel)
-  cancel.postMessage({
+  resetHost(h)
+  seed(h)
+  h.postMessage({
     id: 'm-cancel', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     body: 'oi, tudo bem?', actorId: 'ana', subjectId: 't1', occurredAt: '2026-11-03T15:00:00.000Z',
   })
-  cancel.cancelReply({ workspaceId: 'ws', projectId: 'pp', eventId: 'm-cancel' })
-  await cancel.orchestration.flush('pp')
-  expect(channel(cancel).events.some(item => /cancelada/i.test(item.body))).toBe(true)
+  h.cancelReply({ workspaceId: 'ws', projectId: 'pp', eventId: 'm-cancel' })
+  await h.orchestration.flush('pp')
+  expect(channel(h).events.some(item => /cancelada/i.test(item.body))).toBe(true)
 
-  const fail = host()
-  seed(fail)
-  fail.orchestration.runnerFactory = async () => {
+  resetHost(h)
+  seed(h)
+  h.orchestration.runnerFactory = async () => {
     throw new Error('boom')
   }
-  fail.postMessage({
+  h.postMessage({
     id: 'm-fail', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     body: 'oi, tudo bem?', actorId: 'ana', subjectId: 't1', occurredAt: '2026-11-03T15:00:00.000Z',
   })
-  await fail.orchestration.flush('pp')
-  expect(channel(fail).events.some(item => /não consegui responder/i.test(item.body))).toBe(true)
-  expect(JSON.stringify(channel(fail).events)).not.toMatch(/stack|sk-/i)
+  await h.orchestration.flush('pp')
+  expect(channel(h).events.some(item => /não consegui responder/i.test(item.body))).toBe(true)
+  expect(JSON.stringify(channel(h).events)).not.toMatch(/stack|sk-/i)
 })
 
 it('resumes a partial stream after restart', async () => {
@@ -260,7 +303,7 @@ it('resumes a partial stream after restart', async () => {
   expect(first.listMessages({
     workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     actorId: 'ana', afterSeq: 0, limit: 20,
-  }).events.some(item => item.type === 'partial')).toBe(true)
+  }).events.every(item => item.body !== 'digitando')).toBe(true)
   first.store.close()
   const second = host(path)
   await second.orchestration.flush('pp')

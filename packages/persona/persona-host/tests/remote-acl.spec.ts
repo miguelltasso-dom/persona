@@ -1,15 +1,12 @@
-import { Context } from '@deepseek-ai/cordis'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
-import { afterEach, expect, it } from 'vitest'
+import { expect } from 'vitest'
 import PersonaHost, { ACL_EXCEPTIONS } from '../src/index.ts'
+import { bindHostFile, it } from './host-harness.ts'
 
-const roots: Context[] = []
-afterEach(async () => { await Promise.all(roots.splice(0).map(root => root.fiber.dispose())) })
+const { host } = bindHostFile()
 
 it('every remote goes through can() except the documented list', () => {
-  const ctx = new Context()
-  roots.push(ctx)
-  const h = new PersonaHost(ctx)
+  const h = host()
   const remotes = remoteMethods(h).map(item => item.method)
   expect(remotes.length).toBeGreaterThan(10)
   for (const name of remotes) {
@@ -29,9 +26,7 @@ it('every remote goes through can() except the documented list', () => {
 })
 
 it('guest without DM/project access gets empty, not a revealing error', () => {
-  const ctx = new Context()
-  roots.push(ctx)
-  const h = new PersonaHost(ctx)
+  const h = host()
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
   h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
   h.createMember({ id: 'guest', workspaceId: 'ws', projectId: 'pp', displayName: 'G', handle: 'g', role: 'guest' })

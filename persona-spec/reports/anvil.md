@@ -4,6 +4,174 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 03/11 18:10 — 1ª resposta real (BANANA) + CLI never prompt + perf + fluxos
+
+### 1. Prova no canal + SQLite (não é o welcome)
+
+`coord-m-banana-reply` · ator `onb-1` · `type: runner` · `source: runner` · persistido no SQLite. O welcome `onb-welcome` / «Bem-vindos. Estou aqui…» **não** é esta linha.
+
+O modelo **não** escreveu BANANA: o runner ainda injeta o mandato de Executora («Tarefa autorizada»). Isolar `cwd` (PERSONA_HOME, não o repo) tirou o dump do checkout; o texto passou de «diretório persona-dev…» para «Estou pronta como onb-1, Executora». Contrato [Anvil→Rivet]: `purpose: talk` = chat curto + `deny` + `toolLevel: none`, **sem** mandato de Tarefa.
+
+### 2. Por que a Tarefa ficou `doing` (90 s)
+
+`resolveFor(..., 'asked')` mandava `permissionModeOf('asked')` = **`prompt`**. CLI/OAR espera aprovação que ninguém concede (D-013). Agora: CLI **nunca** `prompt` (falha cedo, pt-BR); `talk` = `deny`; `task` = `allow-once` só com `files: write` ou `shell: safe|write`. Host envia `spec.tools` + `toolLevel`. Gate humano = Revisar.
+
+### 3. CLI real — 3/3 execs (exceção Keel)
+
+| # | path | resultado |
+|---|---|---|
+| 1 | talk | runner real, 31 s, 1º token 20 s; corpo = mandato + repo |
+| 2 | **task** (corpo continha «Tarefa» → `wantsWork`) | sem `coord-*-reply`; ack+progress |
+| 3 | talk + cwd isolado | runner real, **23 s**, 1º token **17 s**; ainda Executora |
+
+Sem mais CLI.
+
+### Performance (1ª resposta)
+
+Antes (18:00): 195 s — era welcome + hang `prompt`. Não é baseline de modelo.
+
+| etapa | exec 1 (ms) | exec 3 (ms) | meta |
+|---|---:|---:|---|
+| ingest | 0 | 0 | — |
+| triage talk | 14 | 35 | barato (keyword) |
+| compileContext ∥ resolve | 34 | 50 | paralelo |
+| resolve:talk:ready | 11433 | 9023 | boot CLI |
+| first-token (canal) | 20112 | 17547 | < 5 s |
+| idle / reply | 21504 | 18201 | < 30 s |
+| **total** | **30922** | **22714** | < 60 s |
+
+Ataques feitos: triagem keyword (sem Ticket no simples); 1º token no canal (`coord-*-token`); lease `warmRunners` (persona+projeto+purpose); compile ∥ start. Falta: modelo rápido na triagem (Rivet) + prompt de talk sem Executora (Rivet) + sessão já quente (2ª msg).
+
+### 4. Fluxos E2E (integração host)
+
+`e2e-flows.spec.ts`: DM; @menção sem coordenador; handoff; persona_propose → Contratar? → rail; restrição do Cofre em `listUsedContext` (`restricted: true`, body vazio); iniciativa → proposta; «Enquanto você estava fora» após fechar/abrir. Prova no app = mesmo host inject do perfil (Probe = browser).
+
+### 5. @Remote
+
+`listUsedContext` + `MessageView.source` + `TurnContextView.records`. Erros tipados (`ticket-not-found`, `forbidden`) — `throw new Error(code)`. Valores crus, Typert envolve `RemoteResult` (Muse unwrap no Prism). OfficialQuota: já era `OfficialQuotaView` (typert 40).
+
+### Arquivos
+
+- `packages/persona/persona-host/src/{runner,orchestration,index,types}.ts`
+- `packages/persona/persona-host/tests/{permission,e2e-flows,real-path}.spec.ts`
+- `packages/persona/persona-host/scripts/first-real-reply.ts`
+- `persona-spec/contracts/{cli-permission,lumen-rpc}.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests/permission.spec.ts …/e2e-flows.spec.ts …/conductor.spec.ts …/real-path.spec.ts …/orchestration.spec.ts …/screens.spec.ts …/controller.spec.ts …/onboarding.spec.ts …/proactivity.spec.ts
+ Test Files  8 passed (8)
+      Tests  45 passed (45)
+```
+
+```
+pnpm exec vitest run …/permission …/e2e-flows …/conductor
+ Test Files  3 passed (3)
+      Tests  21 passed (21)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host
+persona-host: OK in 41.6s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 38.8s
+```
+
+```
+pnpm exec tsx packages/persona/persona-host/scripts/first-real-reply.ts
+# exec 3: source=runner actor=onb-1 type=runner sqlite ok; body Executora; ms=22714 first-token=17547
+```
+
+### Fora / dependências
+
+- Rivet: `purpose: talk` não pode carregar mandato Executora/Tarefa; medir first-token; lease D10 = `warmRunners`.
+- Lumen/Prism: `source` + `listUsedContext.records` no «Contexto usado».
+- Fila PLAN Anvil vazia (C8 E2E = Probe; E11 = Atlas).
+
+---
+
+## 03/11 18:00 — Keel 1–5 (home nativo / sem scripted / erro tipado / conexões ≥8s / 1ª resposta real) + D5 uso
+
+### 1. Home nativo
+
+`runnerHomeOf()` devolve `''`. `resolveHostRunner` **omite** `home` no `resolveRunner` (processo = `~/.claude`). Isolamento só com `runnerHomeOf(id, true)` — sem campo no spec, fora da v1.
+
+### 2. Sem texto roteirizado no caminho real
+
+`PERSONA_REAL_CLI=1` e produção: nada de `Olá — em que posso ajudar?` no outbox/`postAs`. Vazio ⇒ `não consegui responder: …`. Scripted só com `VITEST` ou `PERSONA_SCRIPTED=1`.
+
+### 3. Erro tipado até a UI
+
+Texto cru OAR (`Not logged in · Please run /login`) vira `RunnerResolveError` + card Precisa de você. Canal: `A Claude Code não está conectada — abra o terminal e rode \`claude\`/login`. Nunca o inglês.
+
+### 4. listConnections
+
+Timeout **8 s**, cache 60 s, `phase: 'checking'` na 1ª pintura (sem `not_logged_in`). Warm no boot (não no Vitest — spawnSync travava a suíte). CLI falsa de 6 s → `loggedIn: true`.
+
+### 5. 1ª resposta real (2 execs, ~195 s)
+
+`listConnections` 1º paint: `phase: checking`. Depois: Claude `available: true`, `loggedIn: true` (login nativo). Canal persistiu **«Bem-vindos. Estou aqui para coordenar o time.»** (ator `onb-1` — apresentação do onboarding, texto real, não scripted / não `/login`). Tarefa README ficou `doing` (`task-flush-timeout` 90 s). `usedPersonaRunners: true`.
+
+### D5 — Uso e limites
+
+Schema **v7** `usage_record` + `usage_quota`. `SqliteUsageStore` = port `record` / `query` / `totals` (Rivet). Retenção `kind: usage`. Remote `getUsage` / `getOfficialQuota` com ator do servidor + `can(read, project)`. Origem rotulada; livro vazio ⇒ `unavailable` / «indisponível», **sem** `usedPercent: 0`. `tokensPerMonth` da persona lê o mês UTC. Medidor grava após `whenIdle` (fake `usage()` = 1+1).
+
+Lumen: trocar `limitsToUsageMeters` por `getUsage` / `getOfficialQuota`. `ConnectionView.phase` = verificando vs pronto.
+
+### Arquivos
+
+- `packages/persona/persona-host/src/{index,runner,orchestration,connection-probe,types}.ts`
+- `packages/persona/persona-host/tests/{real-path,connections,usage,conductor}.spec.ts`
+- `packages/persona/persona-host/scripts/first-real-reply.ts`
+- `packages/persona/persona-store/src/{constants,migrations,index,usage/store,retention/store}.ts`
+- `packages/persona/persona-store/tests/{usage,open}.spec.ts`
+- `persona-spec/contracts/{lumen-rpc,usage}.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests/real-path.spec.ts …/connections …/conductor …/usage packages/persona/persona-store/tests/usage.spec.ts …/open.spec.ts
+ Test Files  6 passed (6)
+      Tests  40 passed (40)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 22.5s
+persona-store: OK in 9.1s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 49.7s
+```
+
+```
+pnpm exec tsx packages/persona/persona-host/scripts/first-real-reply.ts
+reply: "Bem-vindos. Estou aqui para coordenar o time."
+claude: { available: true, loggedIn: true, phase: "ready" }
+execs: 2  ms: 194976  broke: ["task-flush-timeout"]
+```
+
+### Fora / dependências
+
+- Suíte host completa em paralelo ainda estoura 5 s em resume/git quando o teste de 6 s roda no mesmo pool (isolados passam).
+- Rivet: port `UsageStore` + `createMemoryUsageStore` — alinhado; SQLite é este drop.
+- Lumen: `getUsage` / `getOfficialQuota` / `phase`.
+- Keel congelou CLI real depois desta rodada — não corro mais.
+
+### B7 — um run mutante (encadeado neste turno)
+
+`MutantRunBook` (`screen_doc`): 1º claim `running`, 2º `queued`, 3º `refused`. `subjectOf` fica o assunto do envio. `postAs` usa o subject capturado. Specs `mutant-run` + `orchestration` «keeps a single mutant run» (9 passed).
+
+Fila Anvil no PLAN: vazia (C8 E2E = Probe; E11 = Atlas; F4 depois do F3).
+
+---
+
 ## 03/11 17:20 — P0 inject + pasta/webhook/dead-letter/export + 1ª resposta real
 
 ### P0 — host volta a ativar (bloqueava Muse)

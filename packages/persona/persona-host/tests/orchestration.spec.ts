@@ -1,23 +1,17 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@deepseek-ai/cordis'
 import { RECOVERY_NOTE } from '@deepseek-ai/dsh-persona-engine'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
+import { bindHostFile, it } from './host-harness.ts'
 
-const roots: Context[] = []
 const dirs: string[] = []
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
+afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-function host(databasePath = ''): PersonaHost {
-  const ctx = new Context()
-  roots.push(ctx)
-  return new PersonaHost(ctx, { databasePath })
-}
+const { host } = bindHostFile()
 
 function seed(h: PersonaHost): void {
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
@@ -131,6 +125,9 @@ it('keeps a single mutant run per ticket', () => {
   expect(ticket).toBeDefined()
   expect(rt.started.size).toBe(1)
   expect(ticket?.assignments.filter(item => item.state !== 'ended')).toHaveLength(1)
+  expect(h.orchestration.mutant?.claim('pp', ticket!.id, 't1', 'm2')).toBe('queued')
+  expect(h.orchestration.mutant?.claim('pp', ticket!.id, 't1', 'm3')).toBe('refused')
+  expect(h.orchestration.mutant?.subjectOf('pp', ticket!.id)).toBe('t1')
 })
 
 it('ignores a channel message when no coordination function exists and nobody is mentioned', () => {

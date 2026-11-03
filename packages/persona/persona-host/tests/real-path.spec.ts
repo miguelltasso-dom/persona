@@ -1,6 +1,5 @@
-import { Context } from '@deepseek-ai/cordis'
 import { createFakeRunner, RunnerResolveError } from '@deepseek-ai/dsh-persona-runners'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
 import { SCRIPTED_HELLO } from '../src/orchestration.ts'
 import {
@@ -9,18 +8,13 @@ import {
   runnerHomeOf,
   type PersonaRunnersSlice,
 } from '../src/runner.ts'
+import { bindHostFile, it } from './host-harness.ts'
 
-const roots: Context[] = []
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
+afterEach(() => {
   delete process.env.PERSONA_REAL_CLI
 })
 
-function host(): PersonaHost {
-  const ctx = new Context()
-  roots.push(ctx)
-  return new PersonaHost(ctx)
-}
+const { host } = bindHostFile()
 
 function seed(h: PersonaHost): void {
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
@@ -74,7 +68,7 @@ it('calls resolveRunner without an isolated home by default', async () => {
   expect(runnerHomeOf('pp')).toBe('')
   await expect(resolveHostRunner({
     spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
-    permissionMode: 'prompt',
+    permissionMode: 'deny',
     autonomy: 'on_request',
     home: runnerHomeOf('pp'),
     personId: 'coord',

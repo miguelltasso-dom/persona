@@ -1,23 +1,17 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@deepseek-ai/cordis'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
 import { resolveProjectPath } from '../src/files.ts'
+import { bindHostFile, it } from './host-harness.ts'
 
-const roots: Context[] = []
 const dirs: string[] = []
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
+afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
-function host(): PersonaHost {
-  const ctx = new Context()
-  roots.push(ctx)
-  return new PersonaHost(ctx)
-}
+const { host } = bindHostFile()
 
 function tempRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), 'persona-files-'))

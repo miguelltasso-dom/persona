@@ -1,10 +1,11 @@
 import { Context } from '@deepseek-ai/cordis'
+import { it } from './host-harness.ts'
 import TypertGatewayService from '@deepseek-ai/dsh-api-gateway'
 import RemoteAccessService from '@deepseek-ai/dsh-api-remote-access'
 import { Peer } from '@deepseek-ai/dsh-client-connection'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import type { Principal, PrincipalMap } from '@deepseek-ai/dsh-typert-protocol'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect } from 'vitest'
 import PersonaHost, { PERSONA_PROTOCOL } from '../src/index.ts'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {

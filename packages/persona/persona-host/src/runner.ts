@@ -8,23 +8,39 @@ import type { Runner } from '@deepseek-ai/dsh-persona-engine'
 import {
   createFakeRunner,
   createOarSessionRunner,
+  effectiveToolLevel,
   resolveRunner,
   type PersonaRunnerSpec,
   type RunEvent,
+  type ToolLevel,
   type TurnRunner,
   type UsageMeterSink,
 } from '@deepseek-ai/dsh-persona-runners'
 import type { AutonomyMode } from './types.ts'
 
+/** Why this runner is opening. Talk has no tools; task runs in a worktree. */
+export type RunnerPurpose = 'talk' | 'task'
+
+/** CLI/DSH permission. Never inline a comment inside this union (Typert). */
+export type HostPermissionMode = 'prompt' | 'allow-once' | 'deny'
+
 /** Spec + host-derived permission for one persona. */
 export interface HostRunnerRequest {
   readonly spec: PersonaRunnerSpec
-  readonly permissionMode: 'prompt' | 'allow-once' | 'deny'
+  readonly permissionMode: HostPermissionMode
   readonly autonomy: 'on_request' | 'propose' | 'act'
   /** Isolated CLI home. Empty/omitted = process home (native `~/.claude`). */
   readonly home?: string
   readonly personId: string
   readonly usage?: UsageMeterSink
+  readonly tools?: Readonly<Record<string, ToolLevel>>
+  readonly purpose?: RunnerPurpose
+  readonly projectId?: string
+  readonly personaName?: string
+  readonly personaTitle?: string
+  readonly onFirstToken?: (text: string) => void
+  /** Talk uses an isolated home dir — never the repo checkout. */
+  readonly cwd?: string
 }
 
 /** Factory the orchestration uses per persona (optional request = default fake). */
@@ -34,8 +50,63 @@ export type HostRunnerFactory = (request?: HostRunnerRequest) => Promise<Runner>
  * Permission mode from autonomy (explicit — never implicit default inside resolve).
  * @param mode - Host autonomy.
  */
-export function permissionModeOf(mode: AutonomyMode): HostRunnerRequest['permissionMode'] {
+export function permissionModeOf(mode: AutonomyMode): HostPermissionMode {
   return mode === 'act' ? 'allow-once' : 'prompt'
+}
+
+/**
+ * CLI never uses `prompt` (D-013: OAR does not answer approvals).
+ * Talk / coordination with no tools → `deny`. Task in a confined worktree
+ * → `allow-once` when the persona may write files or run a safe shell.
+ * @param purpose - Talk vs ticket execution.
+ * @param tools - Persona `tools` map (files/shell/…).
+ */
+export function cliPermissionOf(
+  purpose: RunnerPurpose,
+  tools: Readonly<Record<string, string>> = {},
+): 'deny' | 'allow-once' {
+  if (purpose === 'talk') return 'deny'
+  if (tools.files === 'write' || tools.shell === 'safe' || tools.shell === 'write') return 'allow-once'
+  return 'deny'
+}
+
+/**
+ * Permission for one resolve. CLI rejects `prompt` (fails loud, pt-BR).
+ * @param spec - Runner spec.
+ * @param purpose - Talk vs task.
+ * @param tools - Persona tools.
+ * @param autonomy - Host autonomy (DSH only).
+ */
+export function permissionFor(
+  spec: PersonaRunnerSpec,
+  purpose: RunnerPurpose,
+  tools: Readonly<Record<string, string>>,
+  autonomy: AutonomyMode,
+): HostPermissionMode {
+  if (spec.kind === 'cli') return cliPermissionOf(purpose, tools)
+  return permissionModeOf(autonomy)
+}
+
+/**
+ * Invalid `prompt` on a CLI is a load-time / resolve-time failure.
+ * @param spec - Runner spec.
+ * @param mode - Requested mode.
+ */
+export function assertCliPermission(
+  spec: PersonaRunnerSpec,
+  mode: HostPermissionMode,
+): void {
+  if (spec.kind === 'cli' && mode === 'prompt') {
+    throw new Error('CLI não aceita modo prompt — a aprovação interativa não existe. Use deny (resposta) ou allow-once (tarefa no worktree).')
+  }
+}
+
+/**
+ * Highest grant on the persona tools map (`none` when empty).
+ * @param tools - Persona tools.
+ */
+export function toolLevelOf(tools: Readonly<Record<string, ToolLevel>> | undefined): ToolLevel {
+  return effectiveToolLevel(tools ?? {})
 }
 
 /**
@@ -101,15 +172,25 @@ export async function resolveHostRunner(
   if (request === undefined || process.env.PERSONA_REAL_CLI !== '1') {
     return runners?.createFakeRunner() ?? createFakeRunner()
   }
+  assertCliPermission(request.spec, request.permissionMode)
   const resolve = runners?.resolveRunner ?? resolveRunner
-  const capture: TextCapture = { last: '' }
+  const capture: TextCapture = {
+    last: '',
+    ...(request.onFirstToken === undefined ? {} : { onFirst: request.onFirstToken }),
+  }
   const home = request.home === undefined || request.home === '' ? undefined : request.home
+  const tools = request.tools
   const turn = tapTurn(await resolve({
     spec: request.spec,
     permissionMode: request.permissionMode,
     autonomy: request.autonomy,
     personId: request.personId,
+    toolLevel: request.purpose === 'talk' ? 'none' : toolLevelOf(tools),
+    ...(request.purpose === undefined ? {} : { purpose: request.purpose }),
+    ...(request.projectId === undefined ? {} : { projectId: request.projectId }),
+    ...(tools === undefined ? {} : { tools }),
     ...(home === undefined ? {} : { home }),
+    ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
     ...(request.usage === undefined ? {} : { usage: request.usage }),
   }), capture)
   const session = createOarSessionRunner({
@@ -117,6 +198,9 @@ export async function resolveHostRunner(
     personaId: request.personId,
     model: request.spec.model,
     permissionMode: request.permissionMode,
+    ...(request.purpose === undefined ? {} : { purpose: request.purpose }),
+    ...(request.personaName === undefined ? {} : { personaName: request.personaName }),
+    ...(request.personaTitle === undefined ? {} : { personaTitle: request.personaTitle }),
   })
   captures.set(session, capture)
   return session
@@ -125,6 +209,9 @@ export async function resolveHostRunner(
 /** Last streamed model text for a live runner (empty on fake/scripted). */
 export interface TextCapture {
   last: string
+  firstAt?: number
+  onFirst?: (text: string) => void
+  question?: string
 }
 
 const captures = new WeakMap<Runner, TextCapture>()
@@ -138,15 +225,41 @@ export function lastRunnerText(runner: Runner): string {
 }
 
 /**
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @returns `ended.report.question` when the CLI asked a person.
+ */
+export function lastRunnerQuestion(runner: Runner): string | undefined {
+  return captures.get(runner)?.question
+}
+
+/**
  * Tee OAR deltas so the host can persist the real reply.
  * @param turn - Rivet turn runner.
  * @param capture - Accumulator.
  */
 export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
   const take = (event: RunEvent): void => {
-    if (event.type === 'delta') capture.last += event.text
-    if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '') {
-      capture.last = event.report.summary
+    if (event.type === 'delta') {
+      const first = capture.last === ''
+      capture.last += event.text
+      if (first && capture.last.trim() !== '') {
+        capture.firstAt = Date.now()
+        capture.onFirst?.(capture.last)
+      }
+    }
+    if (event.type === 'partial' && event.text.trim() !== '') {
+      capture.last = event.text
+      if (capture.firstAt === undefined) {
+        capture.firstAt = Date.now()
+        capture.onFirst?.(event.text)
+      }
+    }
+    if (event.type === 'ended' || event.type === 'report') {
+      const question = event.report.question
+      if (typeof question === 'string' && question !== '') capture.question = question
+      if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '') {
+        capture.last = event.report.summary
+      }
     }
   }
   return {

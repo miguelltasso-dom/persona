@@ -4,6 +4,92 @@ Mais recente no topo.
 
 ---
 
+## 03/11 15:38 — PROACTIVITY nativa (BRIEFING 14 / PROACTIVITY.md) ✔ engine
+
+### O que ficou pronto
+- **Puxada:** `afterAssignmentSettled` / `nextEligible` — prioridade, deps prontas, `canAssign`, concorrência, tokens/runs. Dependente acorda por evento (`wakeDependents`).
+- **Objetivos:** `GoalBoard` + `MemoryGoalBoard` (host liga `dsh-goal` / `goal-round-driver` / `tool-goal`). `emptyQueueDecision`: fila+objetivo=`work`; vazia+objetivo aberto=`plan` (turno da Coordenação); vazia sem objetivo=`rest` (`spendsModel` false — sem IA). Tarefa grande → `ticketGoal` (1 goal/sessão, 256 rounds).
+- **Continuação:** `verifyReady` + `continuationAfterReady` — dentro do mandato faz (`act`) ou propõe; especulativo só registra.
+- **Vigia:** `vigiaTick` (relógio falso): ociosa+fila+objetivo ⇒ `assign` no mesmo ciclo; sem progresso N min; loop; espera colega (`nudge`/`escalate`); falha de runner (`retry_backoff`+`recover`). Tudo vira `VigiaAudit`.
+- **Orçamento:** propostas/dia, janela de silêncio, tokens/runs, taxa de aceitação alonga o intervalo; `proposalDigest` em vez de ping.
+- **Autonomia:** `on_request` | `propose` | `act`; especulativo começa em `observe`.
+
+### Arquivos
+- `packages/persona/persona-engine/src/{pull,goals,continue,budget,proactivity,watchdog}.ts`
+- `packages/persona/persona-engine/tests/proactivity-v1.spec.ts`
+- `persona-spec/ARCHITECTURE.md` (invariantes)
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 6.0s
+persona-engine: OK in 8.3s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-core packages/persona/persona-engine
+ Test Files  61 passed (61)
+      Tests  398 passed (398)
+   Start at  15:15:44
+   Duration  7.73s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 32.3s
+```
+
+### Limitações
+- `GoalBoard` é port: Rivet/Anvil ligam `ctx.goals` + round-driver (engine não importa Cordis).
+- `vigiaTick` não escreve Ticket — host aplica `assign`/`recover`.
+- Rotina diária de iniciativa (horário da persona) e cartão de Aprovações = UI (Lumen/Prism).
+- Fila vazia no território Forge.
+
+---
+
+## 03/11 15:17 — views/cards/13 cenários/skills/ARCHITECTURE/bench-context ✔
+
+### O que ficou pronto
+- **Read-models:** `persona-engine/src/views` sobre `Repositories` + `canRead*` (Anvil liga `can()`). `overview` (problems, Precisa de você, executor, flow 24h), `ticketList/Row/Detail`, `threadList/Detail` (cursor `<at>|<id>` via Triggers), `decisionList`, `search`. Chip "Aguardando evento". Saudável = listas vazias.
+- **Cartões/recursos:** `triggerCard`/`ticketCard` com `capped()` + `read`. `personaRead` / `personaRecall` (`persona-spill:` = B4); `readable()` = fronteira do Ticket do worker. Sem GitHub/Feishu.
+- **13 obrigatórios** em `persona-core/tests/mandatory/` + Super-agent em `persona-engine/tests/mandatory/`.
+- **`materializeSkills`:** dsh → seção; CLI → prefixo + MCP; candidata/DM não vazam; manifesto com versão.
+- **`persona-spec/ARCHITECTURE.md`** e contrato `persona-spec/contracts/views.md`.
+- **Microbench:** `persona-spec/reports/bench-context.md` (1k/10k/100k, 1 round).
+
+### Arquivos
+- `packages/persona/persona-engine/src/{views/*,cards,resources}.ts` + testes
+- `packages/persona/persona-core/src/domain/{skills,reply}.ts`, `src/context/bench.ts`, `tests/mandatory/*`
+- `persona-spec/{ARCHITECTURE.md,contracts/views.md,reports/bench-context.md}`
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 4.2s
+persona-engine: OK in 4.5s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-core packages/persona/persona-engine
+ Test Files  60 passed (60)
+      Tests  391 passed (391)
+```
+
+```
+pnpm exec tsx packages/persona/persona-core/scripts/bench-context.ts
+# 1k compile 257ms / 10k 10.3s / 100k 98.8s; recall 3.3 / 26.6 / 212 ms
+```
+
+### Limitações
+- Timeline de Thread vem de Triggers alcançáveis (port sem `turns`/`triggers.list`).
+- `persona-read` de `triggers` só enxerga pending/eval/origem/inputs.
+- compileContext 100k ~99s: `tokens()` em todo candidato após o orçamento encher.
+- Super-agent obrigatórios no engine (precisam de `Engine`); domínio no core.
+
+---
+
 ## 03/11 15:02 — sync/E7/E8/D6/F1/F3/G1/S2-cofre ✔ fila pura do marco E/F
 
 ### O que ficou pronto

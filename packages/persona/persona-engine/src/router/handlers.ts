@@ -8,6 +8,26 @@ import { liveTicket } from '../core/model.ts'
 import type { Engine } from '../core/engine.ts'
 import type { Repositories } from '../core/ports.ts'
 import { PERSONA_TOOL } from '../core/ids.ts'
+import { ticketOfSession } from '../ports/runner.ts'
+
+/**
+ * Identity for persona_* tools comes from the runner session, never from
+ * model-supplied ticket/actor/scope arguments.
+ * @param run - Host-bound session (and optional actor the host already resolved).
+ * @param claimed - Arguments the model tried to pass.
+ */
+export function bindRunIdentity(
+  run: { sessionId: string; actorId?: string },
+  claimed: { ticketId?: string; actorId?: string } = {},
+): { ticketId: string } {
+  const ticketId = ticketOfSession(run.sessionId)
+  if (ticketId === undefined) throw new UserError('unknownTicket')
+  if (claimed.ticketId !== undefined && claimed.ticketId !== ticketId) throw new UserError('unknownTicket')
+  if (run.actorId !== undefined && claimed.actorId !== undefined && claimed.actorId !== run.actorId) {
+    throw new UserError('unknownTicket')
+  }
+  return { ticketId }
+}
 
 export const PERSONA_ROUTE_LIMIT = 20
 
@@ -87,6 +107,25 @@ export function personaReport(
 }
 
 /**
+ * Worker report bound to the running session. Forged `ticketId`/`actorId` lose.
+ * @param engine - Domain engine.
+ * @param repo - Repositories.
+ * @param run - Host session.
+ * @param claimedTicketId - Model-supplied ticket id (ignored unless it matches).
+ * @param report - Worker report payload.
+ */
+export function personaReportFromRun(
+  engine: Pick<Engine, 'report'>,
+  repo: Repositories,
+  run: { sessionId: string; actorId?: string },
+  claimedTicketId: string | undefined,
+  report: Parameters<Engine['report']>[1],
+): ReturnType<Engine['report']> {
+  const { ticketId } = bindRunIdentity(run, claimedTicketId === undefined ? {} : { ticketId: claimedTicketId })
+  return personaReport(engine, repo, ticketId, report)
+}
+
+/**
  * @param engine - Domain engine.
  * @param repo - Repositories.
  * @param ticketId - Ticket.
@@ -103,6 +142,27 @@ export function personaAck(
   const ticket = repo.tickets.get(ticketId)
   if (ticket && !liveTicket(ticket)) throw new UserError('ticketEnded')
   return engine.reply({ purpose: 'acknowledgement', ticketId, triggerId, text })
+}
+
+/**
+ * Ack bound to the running session.
+ * @param engine - Domain engine.
+ * @param repo - Repositories.
+ * @param run - Host session.
+ * @param claimedTicketId - Model-supplied ticket id.
+ * @param triggerId - Trigger to acknowledge.
+ * @param text - Acknowledgement text.
+ */
+export function personaAckFromRun(
+  engine: Pick<Engine, 'reply'>,
+  repo: Repositories,
+  run: { sessionId: string; actorId?: string },
+  claimedTicketId: string | undefined,
+  triggerId: string,
+  text: string,
+): ReturnType<Engine['reply']> {
+  const { ticketId } = bindRunIdentity(run, claimedTicketId === undefined ? {} : { ticketId: claimedTicketId })
+  return personaAck(engine, repo, ticketId, triggerId, text)
 }
 
 /**

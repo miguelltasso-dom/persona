@@ -3,6 +3,7 @@
  * never more visibility or kind-power than the creator already has.
  */
 
+import { looksLikeCredential } from './secrets.ts'
 import { can, type Actor } from './acl.ts'
 import { DomainError, type ProposalPolicy, type VaultRecord, type VaultVisibility } from './schemas.ts'
 import { nextVaultRevision } from './vault.ts'
@@ -62,6 +63,7 @@ export function proposeVaultUpdate(input: {
   createdAt: string
 }): VaultProposal {
   if (input.creator.workspaceId !== input.current.workspaceId) throw new DomainError('ACL_DENIED')
+  if (looksLikeCredential(input.nextBody)) throw new DomainError('SECRET_REFUSED')
   if (vaultProposalExceedsCreator(input.creator, input.current, input.nextVisibility)) {
     throw new DomainError('ACCESS_ESCALATION')
   }

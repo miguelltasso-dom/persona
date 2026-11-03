@@ -40,6 +40,10 @@ Rivet exporta de `@deepseek-ai/dsh-persona-runners`:
 - DSH: o host monta `@deepseek-ai/dsh-goal-round-driver` (`GOAL_ROUND_DRIVER_NAME`). Equivalente CLI: `createGoalContinueDriver` usa `resume`/`steer` enquanto o goal está armado; sem goal a equipe descansa.
 - Prompt de executora: `executorPrompt` / `OWNER_NORMS` (terminar, verificar, evidência, próximo passo; nunca devolver trabalho do mandato).
 - Suíte `runLazinessSuite` (scripted/fake por padrão): multi-etapa, erro intermediário, ambiguidade pequena → `RunnerLazinessHint` (`completionRate`, `initiativeRate`, `grade`) para a UI. Real só com `PERSONA_LAZINESS_REAL=1` + `PERSONA_REAL_CLI=1`.
+- S4: `createDraftDriver` + `DRAFT_PERSONA_PROMPT` (Runner fake/scripted; tools vazias; `systemRoles` []; sem coordenador). Anvil pode trocar o draft determinístico do host por este driver.
+- ai-memory: `createAiMemory` / `PERSONA_AI_MEMORY=1` (padrão off; fake de captura/handoff).
+- E4: `withObserveGate` — regra `observe`/`off` ou trabalho especulativo ⇒ registra `would` e **não** chama o runner interno. `auto` + não especulativo encaminha.
+- E7: `assertLocalPersonaMachine` — a tarefa só sobe na máquina da persona. Amigo sem grant não executa.
 - `createFakeRunner` — testes e host sintético.
 - `createWatchdogDriver` — Vigia (abaixo).
 
@@ -47,7 +51,7 @@ Anvil injeta `claimDue` (RoutineRepos) e o `Runner`; não importar `persona-stor
 
 ## Vigia (`createWatchdogDriver`)
 
-Sessão `watchdog` (D-043 / D-032). Modelo barato vem da persona atribuída. `tick(leaseUntil)` só corre se `claimDue(projectId, leaseUntil)` devolver trabalho. Consome `watchdogSignals` / `watchdogWarnings` do Forge (ticket parado, efeito falhando, Eval `unavailable` repetida). Avisos já vêm deduplicados. **Sem escrita em tickets** — só `runner.deliver` na sessão vigia.
+Sessão `watchdog` (D-043 / D-032). Modelo barato vem da persona atribuída. `tick(leaseUntil)` só corre se `claimDue(projectId, leaseUntil)` devolver trabalho. Consome `watchdogSignals` / `watchdogWarnings` do Forge (ticket parado, efeito falhando, Eval `unavailable` repetida). Com `vigia()` + `rules`, também consome `vigiaTick` (ociosa/loop/peer). Avisos já vêm deduplicados. **Sem escrita em tickets** — só `runner.deliver` na sessão vigia. Cada tick com sinal vira `WatchdogAuditEntry` (version + ruleVersion).
 
 ```ts
 createWatchdogDriver({ runner, persona, cwd, projectId, claimDue, snapshot, now? })

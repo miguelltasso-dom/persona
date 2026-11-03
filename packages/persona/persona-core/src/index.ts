@@ -191,6 +191,7 @@ export {
   chatgptAdapter,
   claudeAdapter,
   grokAdapter,
+  looksLikeCredential,
   looksLikeSecret,
   markdownAdapter,
   previewImport,

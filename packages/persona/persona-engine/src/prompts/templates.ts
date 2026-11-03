@@ -16,6 +16,7 @@ export type PromptPart =
   | 'replies'
   | 'subscriptions'
   | 'handoff'
+  | 'owner_norms'
 
 export const PROMPT_TEMPLATES: Record<PromptPart, string> = {
   coordinator: `Você é {{persona_name}}, {{persona_title}}. Você coordena a equipe: avalia pedidos e despacha Tarefas.
@@ -42,7 +43,11 @@ Fique no escopo da autorização. Relate progresso, bloqueio ou resultado com as
 Não fale no canal: a coordenação responde às pessoas.
 Inspecione o diretório de trabalho e o histórico antes de repetir uma operação externa.
 
+Normas de dono: termine o que está no mandato; verifique o critério de pronto com evidência; relate; proponha o próximo passo. Não devolva trabalho que já está autorizado com "posso fazer se você quiser" — faça e reporte.
+
 {{policy}}
+`,
+  owner_norms: `Termine. Verifique. Relate com evidência. Proponha o próximo passo. Não devolva ao humano o que o mandato já cobre.
 `,
   dispatch: `Decida cada candidato com {{persona_name}} (função Coordenação).
 Aceite, ignore, anexe a uma Tarefa existente ou pare uma Tarefa.
@@ -78,12 +83,16 @@ export interface ComposePromptInput {
  * Fill required placeholders. Policy is applied last.
  * @param input - Part, identity of the persona holding the function, policy text.
  */
+const CREDENTIAL = /(?:sk-[A-Za-z0-9_\-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._\-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|xai-[A-Za-z0-9]{20,})/
+
 export function composePrompt(input: ComposePromptInput): string {
   const template = PROMPT_TEMPLATES[input.part]
-  return template
+  const text = template
     .replaceAll('{{persona_name}}', input.identity.name)
     .replaceAll('{{persona_title}}', input.identity.title)
     .replaceAll('{{policy}}', input.policy)
+  if (CREDENTIAL.test(text)) throw new Error('SECRET_IN_PROMPT')
+  return text
 }
 
 /**

@@ -3,7 +3,8 @@
  */
 
 import { spawn } from 'node:child_process'
-import { join } from 'node:path'
+import { isAbsolute } from 'node:path'
+import { confinePath, confineSegment } from './confine.ts'
 
 /**
  * Build the `git worktree add` argv for a ticket branch.
@@ -12,7 +13,8 @@ import { join } from 'node:path'
  * @param dest - Destination directory for the worktree.
  */
 export function worktreeArgv(repoRoot: string, ticketId: string, dest: string): string[] {
-  return ['-C', repoRoot, 'worktree', 'add', dest, '-b', `persona/${ticketId}`, 'HEAD']
+  const id = confineSegment(ticketId)
+  return ['-C', repoRoot, 'worktree', 'add', dest, '-b', `persona/${id}`, 'HEAD']
 }
 
 /**
@@ -21,7 +23,7 @@ export function worktreeArgv(repoRoot: string, ticketId: string, dest: string): 
  * @param ticketId - Ticket id.
  */
 export function worktreePath(root: string, ticketId: string): string {
-  return join(root, ticketId)
+  return confinePath(root, confineSegment(ticketId))
 }
 
 /**
@@ -37,7 +39,8 @@ export function addWorktree(
   dest: string,
   git: string = 'git',
 ): Promise<void> {
-  const args = worktreeArgv(repoRoot, ticketId, dest)
+  const safeDest = isAbsolute(dest) ? dest : confinePath(repoRoot, dest)
+  const args = worktreeArgv(repoRoot, ticketId, safeDest)
   return new Promise((resolve, reject) => {
     const child = spawn(git, args, { shell: false, windowsHide: true })
     const stderr: Buffer[] = []

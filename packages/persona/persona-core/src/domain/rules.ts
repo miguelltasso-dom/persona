@@ -2,6 +2,7 @@
  * Access-comparison and coordination-uniqueness rules for customizable personas.
  */
 
+import { looksLikeCredential } from './secrets.ts'
 import {
   DomainError,
   type Persona,
@@ -107,6 +108,7 @@ export function personaPropose(input: {
   if (!input.creator.canRecruit || input.creator.workspaceId !== input.workspaceId) {
     throw new DomainError('ACL_DENIED')
   }
+  if (looksLikeCredential(JSON.stringify(input.spec))) throw new DomainError('SECRET_REFUSED')
   assertProposalWithinCreatorAccess(input.creator, input.spec)
   return {
     id: input.id,

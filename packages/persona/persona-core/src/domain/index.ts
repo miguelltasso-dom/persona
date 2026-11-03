@@ -57,6 +57,8 @@ export {
   proposalExceedsCreatorAccess,
 } from './rules.ts'
 
+export { looksLikeCredential } from './secrets.ts'
+
 export {
   assertCan,
   authorizeContext,

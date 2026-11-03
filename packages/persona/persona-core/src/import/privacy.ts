@@ -2,13 +2,17 @@
  * Refuse cookies, tokens, and secret-looking values. Classify remaining rows.
  */
 
+import { looksLikeCredential } from '../domain/secrets.ts'
+
+export { looksLikeCredential } from '../domain/secrets.ts'
+
 const SECRET = /(cookie|authorization|api[-_]?key|secret|token|passwd|password|bearer\s+[a-z0-9._\-]+)/i
 
 /**
  * @param body - Candidate text.
  */
 export function looksLikeSecret(body: string): boolean {
-  return SECRET.test(body)
+  return SECRET.test(body) || looksLikeCredential(body)
 }
 
 /**

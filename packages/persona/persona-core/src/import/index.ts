@@ -10,7 +10,7 @@ export type {
   ImportStore,
 } from './types.ts'
 
-export { looksLikeSecret, refuseSecrets } from './privacy.ts'
+export { looksLikeCredential, looksLikeSecret, refuseSecrets } from './privacy.ts'
 export { MemoryImportStore, applyImport, previewImport, rollbackImport } from './apply.ts'
 export { chatgptAdapter } from './chatgpt.ts'
 export { claudeAdapter } from './claude.ts'

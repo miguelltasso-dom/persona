@@ -62,7 +62,7 @@ function ask(h: PersonaHost, id: string, body: string): void {
   })
 }
 
-it('turns a channel request into a kanban ticket and a coordination reply', () => {
+it('turns a channel request into a kanban ticket and a coordination reply', async () => {
   const h = host()
   seed(h)
   ask(h, 'm1', 'preciso de um README no projeto')
@@ -79,6 +79,16 @@ it('turns a channel request into a kanban ticket and a coordination reply', () =
     limit: 50,
   })
   expect(page.events.some(item => item.actorId === 'coord' && item.body.length > 0)).toBe(true)
+  await h.orchestration.flush('pp')
+  const after = h.listTasks({ workspaceId: 'ws', projectId: 'pp' })
+  expect(after[0]?.stage).toBe('done')
+  const streamed = h.listMessages({
+    workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    actorId: 'ana', afterSeq: 0, limit: 50,
+  })
+  expect(streamed.events.filter(item => item.actorId === 'coord').length).toBeGreaterThan(1)
+  const ticket = h.orchestration.runtime('pp').repo.tickets.list()[0]
+  expect(ticket?.execution?.name).toBeDefined()
 })
 
 it('passes a follow-up on a subscribed thread to the ticket without a second eval', () => {
@@ -127,4 +137,37 @@ it('ignores a channel message when no coordination function exists and nobody is
   h.createChannel({ id: 'geral', workspaceId: 'ws', projectId: 'pp', name: 'geral', topic: '' })
   ask(h, 'm1', 'oi pessoal')
   expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })).toEqual([])
+})
+
+it('accepts a direct @mention without a coordination persona', async () => {
+  const h = host()
+  h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
+  h.createMember({
+    id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner',
+  })
+  h.createChannel({ id: 'geral', workspaceId: 'ws', projectId: 'pp', name: 'geral', topic: '' })
+  h.product.createPersona({
+    id: 'p-bento', workspaceId: 'ws', name: 'Bento', title: 'Engenharia',
+    description: 'Implementa.', personality: 'Direto.', instructions: 'Prove.',
+    avatar: { kind: 'gallery', ref: 'bento' },
+    runner: { kind: 'dsh', model: 'm' },
+    tools: {}, skills: [], limits: {}, systemRoles: [],
+    canRecruit: false, createdAt: '2026-11-03T00:00:00.000Z', updatedAt: '2026-11-03T00:00:00.000Z',
+    createdBy: 'ana',
+  }, 'pp')
+  ask(h, 'm1', '@Bento faz o README')
+  expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' }).length).toBeGreaterThan(0)
+  await h.orchestration.flush('pp')
+})
+
+it('puts Attention on Precisa de você and keeps the subject', async () => {
+  const h = host()
+  seed(h)
+  ask(h, 'm1', 'aprovar o deploy em staging?')
+  await h.orchestration.flush('pp')
+  const overview = h.getOverview({ workspaceId: 'ws', projectId: 'pp' })
+  expect(overview.needsYou.length).toBeGreaterThan(0)
+  const ticket = h.orchestration.runtime('pp').repo.tickets.list()[0]
+  expect(ticket?.attention?.question).toMatch(/deploy/i)
+  expect(ticket?.origin.triggerId).toBe('m1')
 })

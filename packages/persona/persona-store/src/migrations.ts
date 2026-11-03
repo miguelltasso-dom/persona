@@ -440,7 +440,20 @@ CREATE TABLE attention_spend (
 ) STRICT;
 `
 
-/** Adjacent shipped layout: v1 product… v3 sync/invite/import, v4 proactivity. */
+const V5_SCREENS = `
+CREATE TABLE screen_doc (
+  project_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, kind, id)
+) STRICT;
+
+CREATE INDEX screen_doc_kind ON screen_doc (project_id, kind, updated_at);
+`
+
+/** Adjacent shipped layout: v1 product… v4 proactivity, v5 screen remotes. */
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -457,5 +470,9 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 4,
     sql: V4_PROACTIVITY,
+  },
+  {
+    version: 5,
+    sql: V5_SCREENS,
   },
 ]

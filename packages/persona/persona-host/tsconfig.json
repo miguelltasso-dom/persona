@@ -27,6 +27,9 @@
       "path": "../persona-store"
     },
     {
+      "path": "../persona-runners"
+    },
+    {
       "path": "../persona-sync"
     }
   ]

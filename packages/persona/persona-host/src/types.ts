@@ -125,6 +125,8 @@ export interface CreatePersonaRequest {
   readonly runnerModel: string
   readonly canRecruit: boolean
   readonly createdBy: string
+  /** When omitted, the first persona in the project receives Coordenação. */
+  readonly systemRoles?: readonly ('coordination' | 'watchdog')[]
 }
 
 /** Participate in a project or channel. */
@@ -476,6 +478,289 @@ export interface AwayEventView {
 export interface WhileAwayView {
   readonly since: string
   readonly events: readonly AwayEventView[]
+}
+
+/** Invite card. */
+export interface InviteView {
+  readonly id: string
+  readonly workspaceId: string
+  readonly token: string
+  readonly status: 'open' | 'used' | 'revoked' | 'expired'
+  readonly expiresAt: number
+}
+
+/** Issue a one-time invite. Empty token is generated. */
+export interface IssueInviteRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly inviteId: string
+  readonly token: string
+  readonly role: 'member' | 'guest'
+}
+
+/** Redeem a token as a new member. */
+export interface RedeemInviteRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly token: string
+  readonly memberId: string
+  readonly displayName: string
+  readonly handle: string
+}
+
+/** Revoke by id. */
+export interface InviteIdRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly inviteId: string
+}
+
+/** One file handed to an import adapter. */
+export interface ImportFileView {
+  readonly name: string
+  readonly text: string
+}
+
+/** Preview files. */
+export interface PreviewImportRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly files: readonly ImportFileView[]
+}
+
+/** Preview result. */
+export interface ImportPreviewView {
+  readonly adapterId: string
+  readonly accepted: number
+  readonly rejected: number
+  readonly bodies: readonly string[]
+}
+
+/** Confirm a preview into a batch. */
+export interface ConfirmImportRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly batchId: string
+  readonly files: readonly ImportFileView[]
+}
+
+/** Batch progress / rollback. */
+export interface ImportBatchRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly batchId: string
+}
+
+/** Applied batch. */
+export interface ImportBatchView {
+  readonly id: string
+  readonly adapterId: string
+  readonly applied: number
+  readonly rolledBack: boolean
+}
+
+/** One triage rule. */
+export interface TriageRuleView {
+  readonly id: string
+  readonly gateText: string
+  readonly assessmentText: string
+  readonly logOnly: boolean
+  readonly speculativeEnabled: boolean
+}
+
+/** Put a triage rule. */
+export interface PutTriageRuleRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly gateText: string
+  readonly assessmentText: string
+  readonly logOnly: boolean
+  readonly speculativeEnabled: boolean
+}
+
+/** Quiet window. */
+export interface QuietWindowView {
+  readonly id: string
+  readonly label: string
+  readonly start: string
+  readonly end: string
+}
+
+/** Put a quiet window. */
+export interface PutQuietWindowRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly label: string
+  readonly start: string
+  readonly end: string
+}
+
+/** Project attention limits. */
+export interface ProjectLimitsView {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly maxProposalsPerDay: number
+  readonly tokensPerPersonaMonth: number
+  readonly tokensPerProjectMonth: number
+}
+
+/** One triage simulation line. */
+export interface TriageLogView {
+  readonly id: string
+  readonly at: string
+  readonly summary: string
+  readonly mode: 'logOnly' | 'execute'
+}
+
+/** Simulate a triage rule against text. */
+export interface SimulateTriageRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly ruleId: string
+  readonly text: string
+}
+
+/** Document id in a project. */
+export interface ScreenDocRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+}
+
+/** One inbox card. */
+export interface ApprovalView {
+  readonly id: string
+  readonly kind: 'hire' | 'vault' | 'skill' | 'attention'
+  readonly title: string
+  readonly question: string
+  readonly status: 'pending' | 'approved' | 'rejected'
+}
+
+/** Decide an approval. */
+export interface DecideApprovalRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly kind: 'hire' | 'vault' | 'skill' | 'attention'
+  readonly accept: boolean
+}
+
+/** Hire proposal. */
+export interface ProposeHireRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly creatorPersonaId: string
+  readonly name: string
+  readonly title: string
+  readonly description: string
+}
+
+/** Vault proposal. */
+export interface ProposeVaultRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly creatorPersonaId: string
+  readonly recordId: string
+  readonly nextBody: string
+}
+
+/** Skill proposal. */
+export interface ProposeSkillRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly skillId: string
+  readonly title: string
+}
+
+/** Memory row. */
+export interface MemoryView {
+  readonly id: string
+  readonly body: string
+  readonly status: 'pending' | 'active' | 'revoked'
+  readonly origin: 'conversation' | 'vault' | 'import'
+}
+
+/** Propose or edit memory. */
+export interface MemoryWriteRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly authorId: string
+  readonly body: string
+}
+
+/** Skill card. */
+export interface SkillView {
+  readonly id: string
+  readonly name: string
+  readonly version: number
+  readonly status: 'active' | 'candidate'
+  readonly body: string
+  readonly sharedWithTeam: boolean
+}
+
+/** Create or replace a skill. */
+export interface PutSkillRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly name: string
+  readonly body: string
+  readonly sharedWithTeam: boolean
+}
+
+/** Revise a skill body. */
+export interface ReviseSkillRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly body: string
+}
+
+/** Whether `gh` is on PATH. */
+export interface GithubAvailableView {
+  readonly available: boolean
+}
+
+/** Worker-forwarded GitHub webhook (payload is JSON text). */
+export interface IngestGithubWebhookRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly deliveryId: string
+  readonly event: string
+  readonly action: string
+  readonly repository: string
+  readonly payloadJson: string
+  readonly agentLogin: string
+}
+
+/** Result of ingesting one webhook or `gh api` issue. */
+export interface GithubIngestView {
+  readonly kind: 'trigger' | 'threadClosed' | 'ignore' | 'duplicate'
+  readonly detail: string
+}
+
+/** Fetch one issue/PR through `gh`. */
+export interface FetchGithubIssueRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly repository: string
+  readonly number: number
+  readonly agentLogin: string
+}
+
+/** Post a comment through `gh api`. */
+export interface PostGithubCommentRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly repository: string
+  readonly number: number
+  readonly body: string
 }
 
 /** Global search that applies stream ACL. */

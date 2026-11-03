@@ -7,11 +7,16 @@ import {
   ProductRepos,
   ProactivityRepos,
   RoutineRepos,
+  ScreenRepos,
+  SqliteImportStore,
+  SqliteInviteBook,
   VaultRepos,
   openPersonaStore,
   type PersonaStore,
 } from '@deepseek-ai/dsh-persona-store'
+import { GithubSourceHost, detectGh } from './github.ts'
 import { ProactivityHost } from './proactivity.ts'
+import { ScreensHost } from './screens.ts'
 import { draftPersonaFromDescription, draftTeamFromDescription } from './draft.ts'
 import { Orchestration } from './orchestration.ts'
 import {
@@ -72,10 +77,45 @@ import type {
   ProactivityTickView,
   TickProactivityRequest,
   WhileAwayView,
+  ApprovalView,
+  ConfirmImportRequest,
+  DecideApprovalRequest,
+  ImportBatchRequest,
+  ImportBatchView,
+  ImportPreviewView,
+  InviteIdRequest,
+  InviteView,
+  IssueInviteRequest,
+  MemoryView,
+  MemoryWriteRequest,
+  PreviewImportRequest,
+  ProjectLimitsView,
+  ProposeHireRequest,
+  ProposeSkillRequest,
+  ProposeVaultRequest,
+  PutQuietWindowRequest,
+  PutSkillRequest,
+  PutTriageRuleRequest,
+  QuietWindowView,
+  RedeemInviteRequest,
+  ReviseSkillRequest,
+  ScreenDocRequest,
+  SimulateTriageRequest,
+  SkillView,
+  TriageLogView,
+  TriageRuleView,
+  FetchGithubIssueRequest,
+  GithubAvailableView,
+  GithubIngestView,
+  IngestGithubWebhookRequest,
+  PostGithubCommentRequest,
 } from './types.ts'
 
 export { openHostSync, openHostSyncFromEnv } from './sync.ts'
 export { ProactivityHost } from './proactivity.ts'
+export { ScreensHost } from './screens.ts'
+export { GithubSourceHost, detectGh } from './github.ts'
+export { createHostRunner } from './runner.ts'
 export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -117,6 +157,8 @@ export default class PersonaHost extends TypertRemoteService {
   readonly routines: RoutineRepos
   readonly orchestration: Orchestration
   readonly proactivity: ProactivityHost
+  readonly screens: ScreensHost
+  readonly github: GithubSourceHost
 
   /**
    * @param ctx - Host context.
@@ -136,6 +178,15 @@ export default class PersonaHost extends TypertRemoteService {
       new ProactivityRepos(this.store),
       this.orchestration,
     )
+    this.screens = new ScreensHost(
+      this.product,
+      this.vault,
+      new ScreenRepos(this.store),
+      new SqliteInviteBook(this.store),
+      new SqliteImportStore(this.store),
+      this.orchestration,
+    )
+    this.github = new GithubSourceHost(detectGh(), this.orchestration, this.proactivity)
     ctx.effect(() => () => {
       this.store.close()
     })
@@ -347,6 +398,364 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
+   * Issue a one-time workspace invite.
+   * @param request - Invite fields.
+   */
+  @Remote
+  issueInvite(request: IssueInviteRequest): InviteView {
+    this.requireProject(request)
+    return this.screens.issue(request)
+  }
+
+  /**
+   * List invites of the workspace.
+   * @param request - Tenant.
+   */
+  @Remote
+  listInvites(request: ProjectScopeRequest): InviteView[] {
+    this.requireWorkspace(request)
+    return this.screens.listInvites(request.workspaceId)
+  }
+
+  /**
+   * Redeem an invite token as a new member.
+   * @param request - Token and member.
+   */
+  @Remote
+  redeemInvite(request: RedeemInviteRequest): InviteView {
+    this.requireWorkspace(request)
+    return this.screens.redeem(request)
+  }
+
+  /**
+   * Revoke an open invite.
+   * @param request - Invite id.
+   */
+  @Remote
+  revokeInvite(request: InviteIdRequest): InviteView {
+    this.requireWorkspace(request)
+    return this.screens.revoke(request.workspaceId, request.inviteId)
+  }
+
+  /**
+   * Preview an import; cookies and tokens are refused.
+   * @param request - Files.
+   */
+  @Remote
+  previewImport(request: PreviewImportRequest): ImportPreviewView {
+    this.requireProject(request)
+    return this.screens.preview(request.files)
+  }
+
+  /**
+   * Apply a preview as proposed rows.
+   * @param request - Batch id and files.
+   */
+  @Remote
+  confirmImport(request: ConfirmImportRequest): ImportBatchView {
+    this.requireProject(request)
+    return this.screens.confirm(request)
+  }
+
+  /**
+   * Import batch progress.
+   * @param request - Batch id.
+   */
+  @Remote
+  getImportBatch(request: ImportBatchRequest): ImportBatchView {
+    this.requireProject(request)
+    return this.screens.importBatch(request.batchId)
+  }
+
+  /**
+   * Roll back an applied import batch.
+   * @param request - Batch id.
+   */
+  @Remote
+  rollbackImport(request: ImportBatchRequest): ImportBatchView {
+    this.requireProject(request)
+    return this.screens.rollback(request.batchId)
+  }
+
+  /**
+   * Triage rules of the project.
+   * @param request - Tenant.
+   */
+  @Remote
+  listTriageRules(request: ProjectScopeRequest): TriageRuleView[] {
+    this.requireProject(request)
+    return this.screens.listRules(request.projectId)
+  }
+
+  /**
+   * Create or replace a triage rule.
+   * @param request - Rule.
+   */
+  @Remote
+  putTriageRule(request: PutTriageRuleRequest): TriageRuleView {
+    this.requireProject(request)
+    return this.screens.putRule(request)
+  }
+
+  /**
+   * Delete a triage rule.
+   * @param request - Rule id.
+   */
+  @Remote
+  deleteTriageRule(request: ScreenDocRequest): boolean {
+    this.requireProject(request)
+    return this.screens.deleteRule(request.projectId, request.id)
+  }
+
+  /**
+   * Triage simulation log, newest first.
+   * @param request - Tenant.
+   */
+  @Remote
+  listTriageLog(request: ProjectScopeRequest): TriageLogView[] {
+    this.requireProject(request)
+    return this.screens.listLog(request.projectId)
+  }
+
+  /**
+   * Simulate a rule (log-only unless the rule allows execute).
+   * @param request - Rule and text.
+   */
+  @Remote
+  simulateTriage(request: SimulateTriageRequest): TriageLogView {
+    this.requireProject(request)
+    return this.screens.simulate(request)
+  }
+
+  /**
+   * Quiet windows of the project.
+   * @param request - Tenant.
+   */
+  @Remote
+  listQuietWindows(request: ProjectScopeRequest): QuietWindowView[] {
+    this.requireProject(request)
+    return this.screens.listQuiet(request.projectId)
+  }
+
+  /**
+   * Create or replace a quiet window.
+   * @param request - Window.
+   */
+  @Remote
+  putQuietWindow(request: PutQuietWindowRequest): QuietWindowView {
+    this.requireProject(request)
+    return this.screens.putQuiet(request)
+  }
+
+  /**
+   * Project attention limits.
+   * @param request - Tenant.
+   */
+  @Remote
+  getProjectLimits(request: ProjectScopeRequest): ProjectLimitsView {
+    this.requireProject(request)
+    return this.screens.getLimits(request.workspaceId, request.projectId)
+  }
+
+  /**
+   * Set project attention limits.
+   * @param request - Limits.
+   */
+  @Remote
+  setProjectLimits(request: ProjectLimitsView): ProjectLimitsView {
+    this.requireProject(request)
+    return this.screens.setLimits(request)
+  }
+
+  /**
+   * Approvals inbox (hire, vault, skill, attention).
+   * @param request - Tenant.
+   */
+  @Remote
+  listApprovals(request: ProjectScopeRequest): ApprovalView[] {
+    this.requireProject(request)
+    return this.screens.listApprovals(request.projectId)
+  }
+
+  /**
+   * Propose hiring a persona (always asks).
+   * @param request - Spec.
+   */
+  @Remote
+  proposeHire(request: ProposeHireRequest): ApprovalView {
+    this.requireProject(request)
+    return this.screens.proposeHire(request)
+  }
+
+  /**
+   * Propose a vault body update.
+   * @param request - Record and next body.
+   */
+  @Remote
+  proposeVault(request: ProposeVaultRequest): ApprovalView {
+    this.requireProject(request)
+    return this.screens.proposeVault(request)
+  }
+
+  /**
+   * Propose enabling a skill.
+   * @param request - Skill card.
+   */
+  @Remote
+  proposeSkill(request: ProposeSkillRequest): ApprovalView {
+    this.requireProject(request)
+    return this.screens.proposeSkill(request)
+  }
+
+  /**
+   * Accept or reject an approval card.
+   * @param request - Decision.
+   */
+  @Remote
+  decideApproval(request: DecideApprovalRequest): ApprovalView {
+    this.requireProject(request)
+    return this.screens.decide(request)
+  }
+
+  /**
+   * Per-persona memory rows (pending + vault).
+   * @param request - Tenant.
+   */
+  @Remote
+  listMemory(request: ProjectScopeRequest): MemoryView[] {
+    this.requireProject(request)
+    return this.screens.listMemory(request.projectId)
+  }
+
+  /**
+   * Propose a memory (pending until approved).
+   * @param request - Body.
+   */
+  @Remote
+  proposeMemory(request: MemoryWriteRequest): MemoryView {
+    this.requireProject(request)
+    return this.screens.proposeMemory(request)
+  }
+
+  /**
+   * Approve a pending memory into the vault.
+   * @param request - Memory id.
+   */
+  @Remote
+  approveMemory(request: MemoryWriteRequest): MemoryView {
+    this.requireProject(request)
+    return this.screens.approveMemory(request)
+  }
+
+  /**
+   * Edit pending or active memory.
+   * @param request - New body.
+   */
+  @Remote
+  editMemory(request: MemoryWriteRequest): MemoryView {
+    this.requireProject(request)
+    return this.screens.editMemory(request)
+  }
+
+  /**
+   * Forget a memory (revoke).
+   * @param request - Memory id.
+   */
+  @Remote
+  forgetMemory(request: ScreenDocRequest): MemoryView {
+    this.requireProject(request)
+    return this.screens.forgetMemory(request.projectId, request.id)
+  }
+
+  /**
+   * Skills of the project.
+   * @param request - Tenant.
+   */
+  @Remote
+  listSkills(request: ProjectScopeRequest): SkillView[] {
+    this.requireProject(request)
+    return this.screens.listSkills(request.projectId)
+  }
+
+  /**
+   * Create a skill at version 1.
+   * @param request - Skill.
+   */
+  @Remote
+  putSkill(request: PutSkillRequest): SkillView {
+    this.requireProject(request)
+    return this.screens.putSkill(request)
+  }
+
+  /**
+   * New skill version (candidate).
+   * @param request - Body.
+   */
+  @Remote
+  reviseSkill(request: ReviseSkillRequest): SkillView {
+    this.requireProject(request)
+    return this.screens.reviseSkill(request)
+  }
+
+  /**
+   * Roll back a skill to the previous body.
+   * @param request - Skill id.
+   */
+  @Remote
+  rollbackSkill(request: ScreenDocRequest): SkillView {
+    this.requireProject(request)
+    return this.screens.rollbackSkill(request.projectId, request.id)
+  }
+
+  /**
+   * Whether the `gh` CLI is available on this host.
+   * @param request - Tenant (ACL).
+   */
+  @Remote
+  githubAvailable(request: ProjectScopeRequest): GithubAvailableView {
+    this.requireProject(request)
+    return { available: this.github.cli.available }
+  }
+
+  /**
+   * Ingest a Worker-forwarded GitHub webhook into the project engine.
+   * @param request - Envelope as JSON text.
+   */
+  @Remote
+  ingestGithubWebhook(request: IngestGithubWebhookRequest): GithubIngestView {
+    this.requireProject(request)
+    const payload = JSON.parse(request.payloadJson) as Record<string, unknown>
+    return this.github.ingest(request.projectId, {
+      deliveryId: request.deliveryId,
+      event: asGithubEvent(request.event),
+      action: request.action,
+      repository: request.repository,
+      payload,
+    }, request.agentLogin)
+  }
+
+  /**
+   * Fetch one issue/PR via `gh api` and ingest it.
+   * @param request - Repository and number.
+   */
+  @Remote
+  fetchGithubIssue(request: FetchGithubIssueRequest): GithubIngestView {
+    this.requireProject(request)
+    return this.github.fetchIssue(request.projectId, request.repository, request.number, request.agentLogin)
+  }
+
+  /**
+   * Post a comment via `gh api`.
+   * @param request - Repository, number, body.
+   */
+  @Remote
+  postGithubComment(request: PostGithubCommentRequest): boolean {
+    this.requireProject(request)
+    this.github.comment(request.repository, request.number, request.body)
+    return true
+  }
+
+  /**
    * Create a workspace and its Pessoal project.
    * @param request - Workspace id, name, and personal project id.
    * @returns The personal project card.
@@ -452,13 +861,14 @@ export default class PersonaHost extends TypertRemoteService {
       tools: {},
       skills: [],
       limits: {},
-      systemRoles: [],
+      systemRoles: request.systemRoles === undefined ? [] : [...request.systemRoles],
       canRecruit: request.canRecruit,
       createdAt: now,
       updatedAt: now,
       createdBy: request.createdBy,
     }, request.projectId)
     this.proactivity.ensureInitiativeRoutine(stored)
+    this.orchestration.ensureCoordination(request.projectId)
     return toPersonaView(stored)
   }
 
@@ -909,6 +1319,14 @@ export default class PersonaHost extends TypertRemoteService {
     if (project.rootPath === undefined || project.rootPath === '') throw new Error('project-root-missing')
     return project.rootPath
   }
+}
+
+function asGithubEvent(event: string): 'issues' | 'issue_comment' | 'pull_request' | 'pull_request_review' | 'pull_request_review_comment' {
+  if (
+    event === 'issues' || event === 'issue_comment' || event === 'pull_request'
+    || event === 'pull_request_review' || event === 'pull_request_review_comment'
+  ) return event
+  throw new Error('github-event')
 }
 
 function toMemberView(member: { id: string; workspaceId: string; displayName: string; handle: string; role: MemberView['role'] }): MemberView {

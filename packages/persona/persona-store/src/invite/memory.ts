@@ -29,6 +29,13 @@ export class MemoryInviteBook implements InviteBook {
 
   /**
    * @param workspaceId - Workspace that issued the token.
+   */
+  listInvites(workspaceId: string): Invite[] {
+    return [...this.invites.values()].filter(invite => invite.workspaceId === workspaceId)
+  }
+
+  /**
+   * @param workspaceId - Workspace that issued the token.
    * @param token - One-time token.
    */
   getInviteByToken(workspaceId: string, token: string): Invite | undefined {

@@ -4,6 +4,83 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 03/11 15:29 — E-gh — GitHub Source IO via `gh` + webhook no engine
+
+### O que ficou pronto
+`GithubSourceHost` liga o Source puro do Forge ao host: webhook encaminhado → `githubWebhookToIntake` → `engine.receive` / `threadClosed` (reedelivery = `duplicate`). Scope do engine aceita `source: github`. Quando `gh` está no PATH, `fetchGithubIssue` (`gh api repos/…/issues/N`) e `postGithubComment` postam; sem `gh` o probe é `available: false` (não explode). Issue/PR opened também dispara iniciativa (`fireEvent`).
+
+### Arquivos
+- `packages/persona/persona-host/src/{github,orchestration,index,types}.ts`
+- `packages/persona/persona-host/tests/github.spec.ts`
+
+### Remotes
+`githubAvailable`, `ingestGithubWebhook`, `fetchGithubIssue`, `postGithubComment`.
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests/github.spec.ts packages/persona/persona-host/tests/orchestration.spec.ts
+ Test Files  2 passed (2)
+      Tests  9 passed (included in host 63)
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 31.9s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host
+persona-host: OK in 8.3s
+```
+
+### Limitações
+- Sem polling. `gh` é opcional; webhook não depende dele.
+- Payload do webhook chega como JSON text (Typert).
+- Comentário usa `gh api … -f body=`; sem retry/backoff.
+
+---
+
+## 03/11 15:27 — E-rpc — remotes Lumen (convite, import, regras, aprovações, memória, skills)
+
+### O que ficou pronto
+Schema v5 `screen_doc`. Remotes para as telas da Lumen: convites (issue/list/redeem/revoke + member no redeem), import markdown (preview→confirm→progress→rollback; mesmo `externalId` é no-op), regras de triagem + janela de silêncio + limites do projeto, inbox de Aprovações (hire/vault/skill/attention) com `decideApproval` (hire aprovado cria a persona; vault aplica o body), memória por persona (propor/editar/aprovar/esquecer), skills com versão e rollback (número sobe; body anterior volta).
+
+### Arquivos
+- `packages/persona/persona-store/src/screens/repos.ts` + migrations v5
+- `packages/persona/persona-store/src/invite/book.ts` (`listInvites`)
+- `packages/persona/persona-host/src/{screens,index,types}.ts`
+- `packages/persona/persona-host/tests/screens.spec.ts`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests packages/persona/persona-store/tests
+ Test Files  21 passed (21)
+      Tests  302 passed (302)
+   Start at  15:24:56
+   Duration  5.17s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 27.3s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-store persona-host
+persona-store: OK in 6.2s
+persona-host: OK in 8.3s
+```
+
+### Limitações
+- Hire usa spec mínimo (runner dsh, tools vazias); Lumen preenche o cartão.
+- Memória pendente vive em `screen_doc` até aprovar (aí vira vault `kind=memory`).
+- Attention na inbox lê tickets com `attention`; decide só anota no ticket.
+- Fila do Atlas esvaziou.
+
+---
+
 ## 03/11 15:21 — PROACTIVITY host — rotina, agora/away, autonomia, Vigia
 
 ### O que ficou pronto

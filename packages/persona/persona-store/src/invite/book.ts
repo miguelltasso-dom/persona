@@ -21,6 +21,10 @@ export interface InviteBook {
   getInvite(id: string): Invite | undefined
   /**
    * @param workspaceId - Workspace that issued the token.
+   */
+  listInvites(workspaceId: string): Invite[]
+  /**
+   * @param workspaceId - Workspace that issued the token.
    * @param token - One-time token.
    */
   getInviteByToken(workspaceId: string, token: string): Invite | undefined
@@ -89,6 +93,15 @@ export class SqliteInviteBook implements InviteBook {
   getInvite(id: string): Invite | undefined {
     const row = this.store.db.prepare('SELECT body FROM invite WHERE id = ?').get(id)
     return row === undefined ? undefined : readInvite(row)
+  }
+
+  /**
+   * @param workspaceId - Workspace that issued the token.
+   */
+  listInvites(workspaceId: string): Invite[] {
+    return this.store.db.prepare(
+      'SELECT body FROM invite WHERE workspace_id = ? ORDER BY rowid DESC',
+    ).all(workspaceId).map(readInvite)
   }
 
   /**

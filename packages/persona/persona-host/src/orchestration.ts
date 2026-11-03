@@ -10,13 +10,16 @@ import {
   internalSourceScope,
   latestAssignment,
   projectKanban,
+  workerSessionId,
   type Assessor,
   type Candidate,
   type Executor,
   type Policy,
+  type Runner,
   type Ticket,
   type Trigger,
 } from '@deepseek-ai/dsh-persona-engine'
+import { createCoordinationDriver, wordCount } from '@deepseek-ai/dsh-persona-runners'
 import {
   SqliteOutbox,
   SqliteRepositories,
@@ -25,6 +28,7 @@ import {
   type StoredEvent,
   type StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
+import { createHostRunner, type HostRunnerFactory } from './runner.ts'
 
 /** One project's live engine bound to SQLite. */
 export class ProjectRuntime {
@@ -35,14 +39,21 @@ export class ProjectRuntime {
   readonly launches: Array<{ ticketId: string; assignmentId: string }> = []
   readonly recoveryNotes: string[] = []
   readonly started: Set<string> = new Set<string>()
+  runner: Runner | undefined
+  readonly runnerReady: Promise<Runner>
 
   /**
    * @param repo - SQLite engine repositories for this project.
    * @param now - Instant factory.
+   * @param runnerFactory - Rivet Runner (scripted by default).
    */
-  constructor(repo: SqliteRepositories, now: () => string) {
+  constructor(repo: SqliteRepositories, now: () => string, runnerFactory: HostRunnerFactory = createHostRunner) {
     this.repo = repo
     this.outbox = new SqliteOutbox(repo.store, repo.projectId, now)
+    this.runnerReady = runnerFactory().then((runner) => {
+      this.runner = runner
+      return runner
+    })
     const assessor: Assessor = {
       request: (candidate: Candidate) => { this.candidates.push(candidate) },
     }
@@ -70,6 +81,14 @@ export class ProjectRuntime {
       policy: () => policy,
       scope: {
         scope: (input: { source: string; meta: Record<string, unknown> }) => {
+          if (input.source === 'github') {
+            const number = input.meta.number
+            return {
+              listened: true,
+              observed: false,
+              row: typeof number === 'number' ? String(number) : 'github',
+            }
+          }
           const kind = input.source === 'dm' ? 'dm' : 'channel'
           return internalSourceScope(kind).scope(input)
         },
@@ -87,6 +106,7 @@ export class ProjectRuntime {
  */
 export class Orchestration {
   readonly runtimes: Map<string, ProjectRuntime> = new Map<string, ProjectRuntime>()
+  work: Promise<void> = Promise.resolve()
 
   /**
    * @param product - Product repos.
@@ -99,6 +119,7 @@ export class Orchestration {
     readonly events: EventRepos,
     readonly store: SqliteRepositories['store'],
     readonly now: () => string = () => new Date().toISOString(),
+    readonly runnerFactory: HostRunnerFactory = createHostRunner,
   ) {}
 
   /**
@@ -109,7 +130,7 @@ export class Orchestration {
   runtime(projectId: string): ProjectRuntime {
     const existing = this.runtimes.get(projectId)
     if (existing !== undefined) return existing
-    const created = new ProjectRuntime(new SqliteRepositories(this.store, projectId), this.now)
+    const created = new ProjectRuntime(new SqliteRepositories(this.store, projectId), this.now, this.runnerFactory)
     this.runtimes.set(projectId, created)
     for (const ticket of created.repo.tickets.open()) {
       const latest = latestAssignment(ticket)
@@ -142,7 +163,30 @@ export class Orchestration {
     }
     this.decidePending(rt, event.body)
     this.advanceAssignments(rt)
-    this.deliverCoordination(event, coordination)
+    this.bindExecution(rt, event.projectId)
+    this.streamAck(event, coordination)
+    this.work = this.work.then(() => this.runLaunched(rt, event, coordination))
+  }
+
+  /**
+   * Wait for the scripted/real runner of the last ingest.
+   * @param projectId - Tenant.
+   */
+  async flush(projectId: string): Promise<void> {
+    await this.runtime(projectId).runnerReady
+    await this.work
+  }
+
+  /**
+   * First persona without Coordenação receives the function (D-043).
+   * @param projectId - Tenant.
+   */
+  ensureCoordination(projectId: string): void {
+    const personas = this.product.listPersonas(projectId)
+    if (personas.some(persona => persona.systemRoles.includes('coordination'))) return
+    const first = personas[0]
+    if (first === undefined) return
+    this.product.updatePersona({ ...first, systemRoles: ['coordination'] }, projectId)
   }
 
   /**
@@ -222,25 +266,98 @@ export class Orchestration {
     }
   }
 
-  private deliverCoordination(event: StoredEvent, coordination: StoredPersona | undefined): void {
+  private bindExecution(rt: ProjectRuntime, projectId: string): void {
+    const executor = this.executorOf(projectId)
+    const coordination = this.coordinationOf(projectId)
+    const name = executor?.name ?? coordination?.name
+    if (name === undefined) return
+    for (const ticket of rt.repo.tickets.list()) {
+      if (ticket.execution !== undefined || ticket.ended !== undefined) continue
+      const next: Ticket = {
+        ...ticket,
+        execution: { name, directory: '.', assignment: ticket.title },
+      }
+      rt.repo.tickets.save(next)
+    }
+  }
+
+  private streamAck(event: StoredEvent, coordination: StoredPersona | undefined): void {
+    this.postCoord(event, coordination, `coord-${event.id}-ack`, 'Recebido. Vou encaminhar.')
     const rt = this.runtime(event.projectId)
-    const pending = rt.outbox.pending()
-    for (const message of pending) {
-      const body = clip(message.text, 800)
-      this.events.append({
-        id: `coord-${message.id}`,
-        workspaceId: event.workspaceId,
-        projectId: event.projectId,
-        streamKind: event.streamId.startsWith('dm:') ? 'dm' : 'channel',
-        ownerId: event.streamId.slice(event.streamId.indexOf(':') + 1),
-        type: 'message',
-        body,
-        actorId: coordination?.id ?? 'coordination',
-        subjectId: message.ticketId ?? event.subjectId,
-        occurredAt: this.now(),
-      })
+    for (const message of rt.outbox.pending()) {
+      this.postCoord(event, coordination, `coord-${message.id}`, clipWords(message.text))
       rt.outbox.settle(message.id, 'sent')
     }
+  }
+
+  private async runLaunched(
+    rt: ProjectRuntime,
+    event: StoredEvent,
+    coordination: StoredPersona | undefined,
+  ): Promise<void> {
+    const runner = await rt.runnerReady
+    const coordinationPersona = coordination ?? this.coordinationOf(event.projectId)
+    if (coordinationPersona !== undefined) {
+      const driver = createCoordinationDriver({
+        runner,
+        persona: {
+          id: coordinationPersona.id,
+          name: coordinationPersona.name,
+          instructions: coordinationPersona.instructions,
+        },
+        cwd: '.',
+      })
+      await driver.start()
+      await driver.deliver(`ingest:${event.id}`, event.body, 'queue')
+    }
+    for (const ticket of rt.repo.tickets.list()) {
+      const latest = latestAssignment(ticket)
+      if (latest?.state !== 'running') continue
+      const sessionId = workerSessionId(ticket.id)
+      const recovery = rt.recoveryNotes.includes(RECOVERY_NOTE)
+      await runner.ensureSession(sessionId, ticket.execution?.directory ?? '.', ticket.title, 'worker')
+      await runner.deliver(
+        sessionId,
+        recovery ? `recovery:${latest.id}` : `launch:${latest.id}`,
+        recovery ? `${RECOVERY_NOTE}\n${ticket.title}` : (ticket.execution?.assignment ?? ticket.title),
+        recovery ? 'steer' : 'queue',
+      )
+      await runner.whenIdle(sessionId)
+      const ask = wantsAttention(ticket.title) || wantsAttention(event.body)
+      rt.engine.report(ticket.id, ask
+        ? { state: 'waiting', summary: 'Precisa de uma decisão.', question: ticket.title }
+        : { state: 'ready', summary: 'scripted' })
+      this.postCoord(
+        event,
+        coordinationPersona,
+        `coord-${ticket.id}-done`,
+        ask ? `Precisa de você: ${ticket.title}` : clipWords(`Pronto: ${ticket.title}`),
+      )
+    }
+  }
+
+  private postCoord(
+    event: StoredEvent,
+    coordination: StoredPersona | undefined,
+    id: string,
+    body: string,
+  ): void {
+    this.events.append({
+      id,
+      workspaceId: event.workspaceId,
+      projectId: event.projectId,
+      streamKind: event.streamId.startsWith('dm:') ? 'dm' : 'channel',
+      ownerId: event.streamId.slice(event.streamId.indexOf(':') + 1),
+      type: 'message',
+      body,
+      actorId: coordination?.id ?? 'coordination',
+      subjectId: event.subjectId,
+      occurredAt: this.now(),
+    })
+  }
+
+  private executorOf(projectId: string): StoredPersona | undefined {
+    return this.product.listPersonas(projectId).find(persona => !persona.systemRoles.includes('coordination'))
   }
 
   private coordinationOf(projectId: string): StoredPersona | undefined {
@@ -269,4 +386,14 @@ export class Orchestration {
 
 function clip(value: string, max: number): string {
   return value.length <= max ? value : value.slice(0, max)
+}
+
+function clipWords(value: string): string {
+  const words = value.trim().split(/\s+/u).filter(part => part.length > 0)
+  if (wordCount(value) <= 100) return value.trim()
+  return words.slice(0, 100).join(' ')
+}
+
+function wantsAttention(text: string): boolean {
+  return /\?|precisa de você|aprovar/iu.test(text)
 }

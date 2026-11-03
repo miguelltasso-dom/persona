@@ -75,11 +75,14 @@ import { DesktopBackgroundNotice } from './background-notice.ts'
 import { applyPersonaDesktopIdentity, PERSONA_PRODUCT_NAME, PERSONA_PROTOCOL, resolvePersonaProcessHome, personaUpdatesEnabled, shouldShowDeepSeekWelcome } from './product.ts'
 import { DesktopLoginItem } from './login-item.ts'
 import { readPersonaShellPrefs, writePersonaShellPrefs } from './shell-prefs.ts'
-import { DesktopNotifications } from './notifications.ts'
+import { DesktopNotifications, policyFromAutonomy } from './notifications.ts'
+import { allowShellNavigation, hardenSession, isExternalHttpUrl, secureWebPreferences, windowOpenAction } from './secure-shell.ts'
+import { copyPersonaDiagnostic, createPersonaLogger, personaLogsDir } from './persona-log.ts'
+import { bootSplashUrl, reconnectingPageUrl } from './reconnecting-page.ts'
+import { ALWAYS_ON_IPC, isAlwaysOnAttention, runningAssignmentCount } from './always-on-ipc.ts'
 import { DesktopPower } from './power.ts'
 import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
 import { parsePersonaDeepLink } from './deep-link.ts'
-import { reconnectingPageUrl } from './reconnecting-page.ts'
 import { HOST_RECONNECT_BACKOFF_MS } from './backend-controller.ts'
 import { isDeepSeekHost } from './deepseek-hosts.ts'
 import { aboutLegalText, formatDesktopLegalNotices } from './legal-notices.ts'
@@ -320,20 +323,23 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
       visualEffectState: 'active' as const,
       backgroundColor: '#00000000',
     } : {}),
-    webPreferences: {
-      preload,
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-      webSecurity: true,
-      webviewTag: primary,
-      devTools: true,
-    },
+    webPreferences: { ...secureWebPreferences(preload), devTools: true },
   })
   pinPersonaWindowTitle(window)
-  window.webContents.setWindowOpenHandler(({ url }) => {
-    if (['http:', 'https:'].includes(new URL(url).protocol)) void shell.openExternal(url)
-    return { action: 'deny' }
+  window.webContents.setWindowOpenHandler((details) => {
+    if (isExternalHttpUrl(details.url)) {
+      void dialog.showMessageBox(window, {
+        type: 'question',
+        message: currentDesktopLocale().messages.openExternalConfirm,
+        detail: details.url,
+        buttons: [currentDesktopLocale().messages.cancel, currentDesktopLocale().messages.openInBrowser],
+        defaultId: 0,
+        cancelId: 0,
+      }).then((choice) => {
+        if (choice.response === 1) void shell.openExternal(details.url)
+      }).catch((error: unknown) => { console.error(error) })
+    }
+    return windowOpenAction(details)
   })
   if (process.platform === 'darwin' || process.platform === 'win32') {
     // Fullscreen hides native window controls; overlays drop their caption clearance.
@@ -396,12 +402,19 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     }
   })
   window.webContents.on('will-navigate', (event, url) => {
-    const destination = new URL(url)
-    const current = new URL(window.webContents.getURL())
-    if (destination.protocol !== `${SCHEME}:`
-      && !(destination.protocol === 'http:' && destination.origin === current.origin)) {
-      event.preventDefault()
-      if (['http:', 'https:'].includes(destination.protocol)) void shell.openExternal(url)
+    if (allowShellNavigation(url)) return
+    event.preventDefault()
+    if (isExternalHttpUrl(url)) {
+      void dialog.showMessageBox(window, {
+        type: 'question',
+        message: currentDesktopLocale().messages.openExternalConfirm,
+        detail: url,
+        buttons: [currentDesktopLocale().messages.cancel, currentDesktopLocale().messages.openInBrowser],
+        defaultId: 0,
+        cancelId: 0,
+      }).then((choice) => {
+        if (choice.response === 1) void shell.openExternal(url)
+      }).catch((error: unknown) => { console.error(error) })
     }
   })
   return window
@@ -410,6 +423,9 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
 async function main(): Promise<void> {
   const desktopSettings = await readDesktopSettings(app.getPath('userData'))
   void pruneCrashReports(app.getPath('logs'))
+  const personaLogger = createPersonaLogger(resolvePersonaProcessHome())
+  void personaLogger.rotate().catch((error: unknown) => { console.error(error) })
+  void personaLogger.write('main', `desktop start v${app.getVersion()}`).catch((error: unknown) => { console.error(error) })
   const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
   const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
@@ -652,7 +668,8 @@ async function main(): Promise<void> {
     if (state.phase === 'reconnecting') {
       backendReady = false
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
-        void mainWindow.loadURL(reconnectingPageUrl(state.message)).catch((error: unknown) => { console.error(error) })
+        void mainWindow.loadURL(reconnectingPageUrl(state.message, currentDesktopLocale().id))
+          .catch((error: unknown) => { console.error(error) })
       }
       return
     }
@@ -867,8 +884,11 @@ async function main(): Promise<void> {
     return Promise.resolve(new Response(null, { status: 404 }))
   })
 
-  installDesktopDirectoryPicker(() => mainWindow)
+  installDesktopDirectoryPicker(() => mainWindow, {
+    personaHome: () => resolvePersonaProcessHome(),
+  })
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
+  hardenSession(session.defaultSession)
   const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),
     process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window))
   app.on('will-quit', () => { shortcuts.dispose() })
@@ -926,6 +946,7 @@ async function main(): Promise<void> {
   }
   installFileActions(assertMainApplication, () => hostUrl)
   ipcMain.on(PLATFORM_IPC.bootstrap, (event) => {
+    if (event.sender !== mainWindow?.webContents) { event.returnValue = null; return }
     try { event.returnValue = platformView.bootstrap(event) }
     catch { event.returnValue = null }
   })
@@ -1205,12 +1226,13 @@ async function main(): Promise<void> {
     blocker: powerSaveBlocker,
     onCatchUp: (limit) => {
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('dsh-desktop:catch-up', { limit })
+        mainWindow.webContents.send(ALWAYS_ON_IPC.catchUp, { limit })
       }
     },
   })
   const desktopNotifications = new DesktopNotifications({
-    policy: () => ({ delivery: 'summary', proposalBudget: 3, quietStart: '22:00', quietEnd: '07:00' }),
+    // Anvil Remote `getAutonomy` (proposalBudget / silenceStart / silenceEnd) — default until host posts it.
+    policy: () => policyFromAutonomy({ delivery: 'ping', proposalBudget: 3, silenceStart: '22:00', silenceEnd: '07:00' }),
     locale: () => currentDesktopLocale().messages,
     notify: {
       show: (payload) => {
@@ -1226,12 +1248,20 @@ async function main(): Promise<void> {
     },
     open: (href) => { openPersonaLink(href) },
   })
-  void desktopNotifications
+  ipcMain.on(ALWAYS_ON_IPC.attention, (event, payload: unknown) => {
+    assertDesktopSender(event, ['app'])
+    if (isAlwaysOnAttention(payload)) desktopNotifications.ingest(payload)
+  })
+  ipcMain.on(ALWAYS_ON_IPC.runningAssignments, (event, payload: unknown) => {
+    assertDesktopSender(event, ['app'])
+    const count = runningAssignmentCount(payload)
+    if (count !== undefined) desktopPower.setRunningAssignments(count)
+  })
   const openPersonaLink = (href: string): void => {
     const link = parsePersonaDeepLink(href)
     focusPrimaryWindow()
     if (link !== undefined && mainWindow !== undefined && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('dsh-desktop:open-task', link.ticketId)
+      mainWindow.webContents.send(ALWAYS_ON_IPC.openTask, link.ticketId)
     }
   }
   const runBackupNow = async (): Promise<void> => {
@@ -1275,7 +1305,7 @@ async function main(): Promise<void> {
     void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
       await writePersonaShellPrefs(app.getPath('userData'), { ...prefs, teamPaused: true })
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('dsh-desktop:pause-team')
+        mainWindow.webContents.send(ALWAYS_ON_IPC.pauseTeam)
       }
     }).catch((error: unknown) => { console.error(error) })
   }
@@ -1344,6 +1374,23 @@ async function main(): Promise<void> {
       label: currentDesktopLocale().messages.restoreBackup,
       click: () => { void runRestoreBackup().catch((error: unknown) => { console.error(error) }) },
     },
+    {
+      label: currentDesktopLocale().messages.openLogsFolder,
+      click: () => { void shell.openPath(personaLogsDir(resolvePersonaProcessHome())) },
+    },
+    {
+      label: currentDesktopLocale().messages.copyDiagnostic,
+      click: () => {
+        void copyPersonaDiagnostic(resolvePersonaProcessHome()).then(async () => {
+          await ordinaryMessageBox({
+            type: 'info',
+            title: currentDesktopLocale().messages.copyDiagnostic,
+            message: currentDesktopLocale().messages.diagnosticCopied,
+            buttons: [currentDesktopLocale().messages.backgroundNoticeConfirm],
+          })
+        }).catch((error: unknown) => { console.error(error) })
+      },
+    },
     { type: 'separator' },
     ...development ? [
       { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },
@@ -1377,8 +1424,22 @@ async function main(): Promise<void> {
   if (process.platform === 'win32') {
     // The tray is the way back to a hidden window; without it, relaunching the application still focuses it.
     try {
-      tray = new DesktopTray({ iconPath: trayIconPath, locale: currentDesktopLocale,
-        open: () => { focusPrimaryWindow() }, pause: pauseTeam, quit: () => { app.quit() } })
+      tray = new DesktopTray({
+        iconPath: trayIconPath, locale: currentDesktopLocale,
+        open: () => { focusPrimaryWindow() }, pause: pauseTeam,
+        openLogs: () => { void shell.openPath(personaLogsDir(resolvePersonaProcessHome())) },
+        copyDiagnostic: () => {
+          void copyPersonaDiagnostic(resolvePersonaProcessHome()).then(async () => {
+            await ordinaryMessageBox({
+              type: 'info',
+              title: currentDesktopLocale().messages.copyDiagnostic,
+              message: currentDesktopLocale().messages.diagnosticCopied,
+              buttons: [currentDesktopLocale().messages.backgroundNoticeConfirm],
+            })
+          }).catch((error: unknown) => { console.error(error) })
+        },
+        quit: () => { app.quit() },
+      })
     } catch (error) { console.warn('desktop tray: unavailable', error) }
   }
   const backgroundNotice = process.platform === 'win32'
@@ -1455,6 +1516,8 @@ async function main(): Promise<void> {
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
     mainWindow = window
+    void window.loadURL(bootSplashUrl(currentDesktopLocale().messages.bootSplash, currentDesktopLocale().id))
+      .catch((error: unknown) => { console.error(error) })
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)
     window.on('focus', automaticCheck)

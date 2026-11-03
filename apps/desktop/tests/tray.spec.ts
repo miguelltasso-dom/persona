@@ -45,7 +45,9 @@ it('shows the application icon with its name as the tooltip and an Open / Pause 
   expect(native.createFromPath).toHaveBeenCalledWith('C:/app/resources/tray.ico')
   expect(f.native.image).toEqual({ path: 'C:/app/resources/tray.ico' })
   expect(f.native.setToolTip).toHaveBeenCalledWith('Persona')
-  expect(labels(native.menus[0]!)).toEqual(['Open Persona', 'Pause the team', 'separator', 'Quit for good'])
+  expect(labels(native.menus[0]!)).toEqual([
+    'Open Persona', 'Pause the team', 'Open logs folder', 'Copy diagnostic', 'separator', 'Quit for good',
+  ])
   expect(f.native.setContextMenu).toHaveBeenCalledWith({ template: native.menus[0] })
 })
 
@@ -56,7 +58,7 @@ it('opens the window on a single click and routes menu entries to the open, paus
   const menu = native.menus[0]!
   ;(menu[0] as { click: () => void }).click()
   ;(menu[1] as { click: () => void }).click()
-  ;(menu[3] as { click: () => void }).click()
+  ;(menu[5] as { click: () => void }).click()
   expect(f.open).toHaveBeenCalledTimes(2)
   expect(f.pause).toHaveBeenCalledOnce()
   expect(f.quit).toHaveBeenCalledOnce()
@@ -66,7 +68,9 @@ it('relabels the menu in the current locale and ignores relabel after disposal',
   const f = setup()
   f.setLocale('pt')
   f.tray.relabel()
-  expect(labels(native.menus[1]!)).toEqual(['Abrir o Persona', 'Pausar a equipe', 'separator', 'Sair de vez'])
+  expect(labels(native.menus[1]!)).toEqual([
+    'Abrir o Persona', 'Pausar a equipe', 'Abrir pasta de logs', 'Copiar diagnóstico', 'separator', 'Sair de vez',
+  ])
   f.tray.dispose()
   f.tray.dispose()
   expect(f.native.destroy).toHaveBeenCalledOnce()

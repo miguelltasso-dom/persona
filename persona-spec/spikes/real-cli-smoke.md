@@ -1,5 +1,35 @@
 # Spike — smokes reais CLI (D9)
 
+## Codex re-smoke (03/11 16:23 UTC-3) — `done: true`
+
+Causa do `exec sem done`: (1) OAR 0.67 Codex emite `agent_message`/`item` e muitas vezes não manda `turn_ended`; (2) o literal `model: 'default'` (e `gpt-5.5`) é rejeitado pelo ChatGPT Codex. Adapter: mapeia esses kinds → `delta`; `status().idle` após `accepted` → `ended`; omite `model` quando é `default`.
+
+Cota desta passagem: **3 execs Codex** (duas falhas de modelo + 1 sucesso). Cursor: 0 execs.
+
+| CLI | execs | firstTokenMs | done | usage in/out | erro |
+|---|---|---|---|---|---|
+| codex | 1 | 3778 | true | 27401 / 5 | — (`kinds`: started, delta, report, ended; `ready`) |
+| cursor | 0 | — | — | — | `not_logged_in` + `loginHint` "Abra o Cursor e faça login no Agent" (esperado; sem stack) |
+
+```
+PERSONA_REAL_CLI=1 PERSONA_SMOKE_ONLY=codex node --import tsx/esm packages/persona/persona-runners/scripts/resolver-smoke.ts
+```
+
+```
+{
+  "id": "codex",
+  "execs": 1,
+  "done": true,
+  "usage": { "inputTokens": 27401, "outputTokens": 5 },
+  "kinds": ["started", "delta", "report", "ended"],
+  "firstTokenMs": 3778,
+  "lastState": "ready",
+  "summary": "turn ended"
+}
+```
+
+---
+
 ## Resolvedor — um round (03/11 15:53 UTC-3)
 
 Script: `packages/persona/persona-runners/scripts/resolver-smoke.ts`. Flag `PERSONA_REAL_CLI=1`. Prompt curto (`Responda só OK.`). Modelos baratos. 1 exec/CLI (limite 10). Sem token/e-mail.

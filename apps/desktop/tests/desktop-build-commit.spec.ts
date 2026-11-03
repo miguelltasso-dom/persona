@@ -73,6 +73,11 @@ describe('desktop toolchain preflight', () => {
     expect(failures.find(failure => failure.tool === 'vswhere')?.detail).toContain('ProgramFiles(x86)')
   })
 
+  it('skips the Windows installer compiler for an unsigned directory package', async () => {
+    const failures = await probeDesktopToolchain('win32', {}, { skipWindowsInstaller: true })
+    expect(failures.map(failure => failure.tool)).not.toContain('vswhere')
+  })
+
   it('writes nothing into the working directory while probing', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'dsh-probe-cwd-'))
     directories.push(directory)

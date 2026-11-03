@@ -58,6 +58,8 @@ it('requests macOS microphone access and reports operating-system rejection', as
     f.request(f.primary, 'media', done, denied); expect(done).toHaveBeenLastCalledWith(false)
   }
   f.request(f.primary, 'clipboard-sanitized-write', done, details)
+  expect(done).toHaveBeenLastCalledWith(false)
+  f.request(f.primary, 'notifications', done, details)
   expect(done).toHaveBeenLastCalledWith(true)
 })
 it.each(['win32', 'linux'] as const)('leaves system authorization to Chromium on %s', (platform) => {

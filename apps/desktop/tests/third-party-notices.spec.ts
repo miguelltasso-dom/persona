@@ -15,7 +15,7 @@ describe('THIRD_PARTY_NOTICES', () => {
         { name: 'ws', license: 'MIT' },
       ],
     )
-    expect(notices.map(item => item.name)).toEqual(['@deepseek-ai/dsh-desktop', 'semver', 'ws'])
+    expect(notices.map((item: { name: string }) => item.name)).toEqual(['@deepseek-ai/dsh-desktop', 'semver', 'ws'])
     expect(formatThirdPartyNoticesFile(notices)).toMatch(/ISC/u)
   })
 

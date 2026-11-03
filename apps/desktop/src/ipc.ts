@@ -4,7 +4,6 @@ import type { DesktopFileActions } from '@deepseek-ai/dsh-client-ui-file-actions
 export type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import type { DesktopChannelBridge, DesktopChannelState } from '@deepseek-ai/dsh-client-ui-settings-general/types'
 import type { DesktopKeyboardApi, DesktopShortcutsApi } from '@deepseek-ai/dsh-client-shortcuts/protocol'
-import type { IpcMainInvokeEvent } from 'electron'
 import type { DesktopBrowserBridge } from '@deepseek-ai/dsh-client-ui-sidebar-browser/types'
 import type { DesktopFileDrag } from '@deepseek-ai/dsh-util-file-drag'
 
@@ -27,6 +26,7 @@ export const DESKTOP_IPC = {
   browserRelease: 'dsh-desktop:browser-release',
   browserOpenRequested: 'dsh-desktop:browser-open-requested',
   directoryPick: 'dsh-desktop:directory-pick',
+  revealInFolder: 'dsh-desktop:reveal-in-folder',
   fileDragPrepare: 'dsh-desktop:file-drag-prepare',
   fileDragCancel: 'dsh-desktop:file-drag-cancel',
   fileDragStart: 'dsh-desktop:file-drag-start',
@@ -118,7 +118,10 @@ export const SCHEME = 'dsh-app'
  * @param event - IPC caller whose frame URL supplies the origin.
  * @param hostnames - Desktop document hosts allowed for this operation.
  */
-export function assertDesktopSender(event: IpcMainInvokeEvent, hostnames: readonly string[]): void {
+export function assertDesktopSender(
+  event: { readonly senderFrame: { readonly url: string } | null },
+  hostnames: readonly string[],
+): void {
   const senderFrame = event.senderFrame
   if (senderFrame === null) throw new Error('dsh desktop: rejected IPC without a sender frame')
   const url = new URL(senderFrame.url)

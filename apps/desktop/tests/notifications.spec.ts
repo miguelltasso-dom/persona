@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DesktopNotifications, inQuietWindow, type DesktopAttentionPolicy } from '../src/notifications.ts'
+import { DesktopNotifications, inQuietWindow, policyFromAutonomy, type DesktopAttentionPolicy } from '../src/notifications.ts'
 import { personaTaskHref } from '../src/deep-link.ts'
 
 function policy(partial: Partial<DesktopAttentionPolicy> = {}): DesktopAttentionPolicy {
@@ -22,9 +22,9 @@ function harness(partial: Partial<DesktopAttentionPolicy> = {}, iso = '2026-11-0
     }),
     clock: clock(iso),
     notify: {
-      show: (payload) => {
+      show: (payload: { title: string; body: string; href: string; tag: string }) => {
         shown.push(payload)
-        return { onClick: (href) => { open(href) } }
+        return { onClick: (href: string) => { open(href) } }
       },
     },
     open,
@@ -59,6 +59,14 @@ describe('desktop notifications', () => {
     expect(f.shown[0]?.href).toBe(personaTaskHref('t-1'))
     if (f.shown[0] !== undefined) f.open(f.shown[0].href)
     expect(f.open).toHaveBeenCalledWith('persona://task/t-1')
+  })
+
+  it('maps Anvil silence windows onto quietStart/quietEnd', () => {
+    expect(policyFromAutonomy({
+      proposalBudget: 2, silenceStart: '21:00', silenceEnd: '08:00',
+    })).toEqual({
+      delivery: 'summary', proposalBudget: 2, quietStart: '21:00', quietEnd: '08:00',
+    })
   })
 
   it('respects the daily proposal budget and titles review-ready in pt-BR', () => {

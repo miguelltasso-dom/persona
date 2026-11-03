@@ -173,6 +173,22 @@ describe('OAR CLI runners', () => {
     expect(order.indexOf('dispose')).toBeLessThan(order.length - 1)
   })
 
+  it('omits model when the caller asks for default so Codex uses the CLI default', async () => {
+    let seen: string | undefined
+    const inner = sayingRuntime('ok')
+    const runtime = {
+      ...inner,
+      session: async (_installation: AvailableInstallation, options: SessionOptions) => {
+        seen = options.model
+        return inner.session(_installation, options)
+      },
+    }
+    await createCodexRunner({ runtime }).start({ ...input, model: 'default' })
+    expect(seen).toBeUndefined()
+    await createCodexRunner({ runtime }).start({ ...input, model: 'gpt-5.4' })
+    expect(seen).toBe('gpt-5.4')
+  })
+
   it('ends a Codex turn when prompt settles without turn_ended and maps agent_message text', async () => {
     const inner = sayingRuntime()
     const runtime = {

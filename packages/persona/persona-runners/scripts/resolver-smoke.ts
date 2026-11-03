@@ -21,7 +21,12 @@ if (process.env.PERSONA_REAL_CLI !== '1') {
 
 restoreNativeCliLogin()
 const cwd = await mkdtemp(join(tmpdir(), 'persona-resolver-smoke-'))
-const rows = await runResolverSmoke({ real: true, cwd })
+const only = process.env.PERSONA_SMOKE_ONLY?.split(',').map(item => item.trim()).filter(item => item.length > 0)
+const rows = await runResolverSmoke({
+  real: true,
+  cwd,
+  ...(only === undefined || only.length === 0 ? {} : { only: only as Array<'claude' | 'codex' | 'opencode' | 'cursor'> }),
+})
 process.stdout.write(`${JSON.stringify({
   probedAt: new Date().toISOString(),
   cwd,

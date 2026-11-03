@@ -153,10 +153,11 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     const prompt = recovery ? `${RECOVERY_NOTE}\n\n${input.prompt}` : input.prompt
     const sessionOptions: {
       cwd: string
-      model: string
+      model?: string
       resume?: string
       env?: Readonly<Record<string, string | null>>
-    } = { cwd: input.cwd, model: input.model }
+    } = { cwd: input.cwd }
+    if (input.model !== 'default') sessionOptions.model = input.model
     if (input.resumeSessionId !== undefined) sessionOptions.resume = input.resumeSessionId
     if (options.env !== undefined) sessionOptions.env = options.env
     const session = await options.runtime.session(options.installation ?? BUNDLED, sessionOptions)

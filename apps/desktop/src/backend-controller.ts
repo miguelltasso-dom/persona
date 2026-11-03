@@ -2,12 +2,11 @@
 
 import { desktopErrorState } from './startup-error.ts'
 
-/** Backend availability presented by the desktop window. */
+/** Backend availability presented by the desktop window. `error.failure` keeps the original stack. */
 export type DesktopBackendState =
   | { readonly phase: 'starting' }
   | { readonly phase: 'ready' }
   | { readonly phase: 'reconnecting'; readonly message: string }
-  /** `message` is the rendered text; `failure` is the original error so a crash report keeps its stack, properties, and cause. */
   | { readonly phase: 'error'; readonly message: string; readonly failure: unknown }
 
 /** Host-death recovery: three tries with backoff, then a visible error. */

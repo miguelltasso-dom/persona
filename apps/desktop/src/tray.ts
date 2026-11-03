@@ -12,6 +12,8 @@ export interface DesktopTrayOptions {
   readonly open: () => void
   /** Pause scheduled team work (host `pauseTeam`). Optional so older call sites still typecheck. */
   readonly pause?: () => void
+  readonly openLogs?: () => void
+  readonly copyDiagnostic?: () => void
   /** Quit for good through the same confirmation as every other quit entry. */
   readonly quit: () => void
 }
@@ -37,6 +39,8 @@ export class DesktopTray {
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: messages.openApplication, click: () => { this.options.open() } },
       { label: messages.trayPauseTeam, click: () => { this.options.pause?.() } },
+      { label: messages.openLogsFolder, click: () => { this.options.openLogs?.() } },
+      { label: messages.copyDiagnostic, click: () => { this.options.copyDiagnostic?.() } },
       { type: 'separator' },
       { label: messages.trayQuitForGood, click: () => { this.options.quit() } },
     ]))

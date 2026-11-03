@@ -13,7 +13,8 @@ export const RESOLVER_SMOKE_MAX_EXEC = 10
 
 const CHEAP: Record<CliKind, string> = {
   claude: 'haiku',
-  codex: 'gpt-5.5',
+  // OAR lists gpt-5.5, but ChatGPT Codex rejects it at turn start. `default` lets the CLI pick.
+  codex: 'default',
   opencode: 'opencode/beam-free',
   cursor: 'default',
 }
@@ -23,6 +24,9 @@ export interface ResolverSmokeRow {
   execs: number
   firstTokenMs?: number
   done?: boolean
+  lastState?: string
+  summary?: string
+  kinds?: readonly string[]
   usage?: { inputTokens: number; outputTokens: number }
   error?: { code: string; message: string }
   skipped?: string
@@ -37,19 +41,41 @@ export interface ResolverSmokeOptions {
   only?: readonly CliKind[]
 }
 
-async function firstToken(events: AsyncIterable<RunEvent>, limitMs = 8_000): Promise<{ firstTokenMs?: number; done: boolean }> {
+async function firstToken(events: AsyncIterable<RunEvent>, limitMs = 8_000): Promise<{
+  firstTokenMs?: number
+  done: boolean
+  lastState?: string
+  summary?: string
+  kinds: string[]
+}> {
   const started = Date.now()
   let firstTokenMs: number | undefined
   let done = false
+  let lastState: string | undefined
+  let summary: string | undefined
+  const kinds: string[] = []
   for await (const event of events) {
+    kinds.push(event.type)
     if (event.type === 'delta' && firstTokenMs === undefined) firstTokenMs = Date.now() - started
     if (event.type === 'ended') {
+      lastState = event.report.state
+      summary = event.report.summary
       done = event.report.state !== 'failed' && event.report.state !== 'dropped'
       break
     }
     if (Date.now() - started > limitMs) break
   }
-  return firstTokenMs === undefined ? { done } : { firstTokenMs, done }
+  const timing: {
+    firstTokenMs?: number
+    done: boolean
+    lastState?: string
+    summary?: string
+    kinds: string[]
+  } = { done, kinds }
+  if (firstTokenMs !== undefined) timing.firstTokenMs = firstTokenMs
+  if (lastState !== undefined) timing.lastState = lastState
+  if (summary !== undefined) timing.summary = summary
+  return timing
 }
 
 /**
@@ -105,13 +131,17 @@ export async function runResolverSmoke(options: ResolverSmokeOptions = {}): Prom
       })
       const timing = await firstToken(runner.stream(handle), options.real === true ? 60_000 : 2_000)
       const usage = await runner.usage(handle)
-      rows.push({
+      const row: ResolverSmokeRow = {
         id: card.id,
         execs: 1,
         done: timing.done,
         usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
-        ...(timing.firstTokenMs === undefined ? {} : { firstTokenMs: timing.firstTokenMs }),
-      })
+        kinds: timing.kinds,
+      }
+      if (timing.firstTokenMs !== undefined) row.firstTokenMs = timing.firstTokenMs
+      if (timing.lastState !== undefined) row.lastState = timing.lastState
+      if (timing.summary !== undefined) row.summary = timing.summary
+      rows.push(row)
     } catch (error) {
       if (error instanceof RunnerResolveError) {
         rows.push({ id: card.id, execs: 0, error: { code: error.code, message: error.message } })

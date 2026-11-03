@@ -5,6 +5,7 @@ import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-
 import type { DesktopShortcutInput, ShortcutConfigSnapshot, ShortcutSaveResult } from '@deepseek-ai/dsh-client-shortcuts/protocol'
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { DESKTOP_IPC, SCHEME, type DshDesktopProductApi, type DesktopUpdatePresentation } from './ipc.ts'
+import { ALWAYS_ON_IPC } from './always-on-ipc.ts'
 import { PLATFORM_IPC } from './platform-ipc.ts'
 import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.ts'
 import { syncNativeTheme } from './preload-theme.ts'
@@ -104,11 +105,40 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
   contextBridge.exposeInMainWorld('__DSH_DIRECTORY_PICKER__', {
     pick: () => ipcRenderer.invoke(DESKTOP_IPC.directoryPick) as Promise<string | null>,
   })
+  // Persona "Novo projeto" / "Mostrar na pasta". The path is not persisted
+  // here; the host validates it in setProjectRoot.
+  contextBridge.exposeInMainWorld('personaDesktop', {
+    pickDirectory: (request: { title?: string } = {}) =>
+      ipcRenderer.invoke(DESKTOP_IPC.directoryPick, request) as Promise<string | null>,
+    revealInFolder: (path: string) =>
+      ipcRenderer.invoke(DESKTOP_IPC.revealInFolder, path) as Promise<boolean>,
+  })
   // The composer cites dropped, picked, and pasted files and folders that
   // have a real path as `@path` references instead of uploading them; a
   // File without one (pasted bytes) answers '' and uploads as before.
   contextBridge.exposeInMainWorld('__DSH_HOST_PATHS__', {
     pathFor: (file: File) => webUtils.getPathForFile(file),
+  })
+  contextBridge.exposeInMainWorld('personaAlwaysOn', {
+    attention: (event: unknown) => { ipcRenderer.send(ALWAYS_ON_IPC.attention, event) },
+    runningAssignments: (count: number) => { ipcRenderer.send(ALWAYS_ON_IPC.runningAssignments, count) },
+    onOpenTask: (listener: (ticketId: string) => void) => {
+      const handle = (_event: Electron.IpcRendererEvent, ticketId: string): void => { listener(ticketId) }
+      ipcRenderer.on(ALWAYS_ON_IPC.openTask, handle)
+      return () => { ipcRenderer.off(ALWAYS_ON_IPC.openTask, handle) }
+    },
+    onCatchUp: (listener: (limit: number) => void) => {
+      const handle = (_event: Electron.IpcRendererEvent, payload: { limit?: number }): void => {
+        listener(payload.limit ?? 3)
+      }
+      ipcRenderer.on(ALWAYS_ON_IPC.catchUp, handle)
+      return () => { ipcRenderer.off(ALWAYS_ON_IPC.catchUp, handle) }
+    },
+    onPauseTeam: (listener: () => void) => {
+      const handle = (): void => { listener() }
+      ipcRenderer.on(ALWAYS_ON_IPC.pauseTeam, handle)
+      return () => { ipcRenderer.off(ALWAYS_ON_IPC.pauseTeam, handle) }
+    },
   })
   contextBridge.exposeInMainWorld('dshDesktopBoot', {
     ready: () => ipcRenderer.invoke(DESKTOP_IPC.boot) as Promise<unknown>,

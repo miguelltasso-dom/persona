@@ -4,6 +4,170 @@ Mais recente no topo.
 
 ---
 
+## 03/11 17:15 — D8 `--dir` + picker + harden/logs/splash ✔
+
+### O que ficou pronto
+- **D8 `--dir`:** `skipWindowsInstaller` no preflight quando `unsigned && directory`. Junction `C:\p8` + cache `C:\p8c`. Launcher chama `node_modules/pnpm/bin/pnpm.cjs` (sem `npm_execpath` o `runPnpm` recusa). Tentativa 5: `toolchain` 230ms; `run-gates: PASS native addon (3.09s)` e Host Typert; **FAILED host compiler** em `persona-host`/`persona-e2e` (TS6133/2379/2304/2345 — dono Anvil/Forge, não VCTools). `electron-builder` nem rodou. `exePresent` false. Spike: `persona-spec/spikes/packaging-win.md`. NSIS segue no admin do Miguel.
+- **Picker (fila Keel, sem prioridade sobre D8):** `personaDesktop.pickDirectory({ title })` → caminho absoluto ou `null` (diálogo nativo, `dialog` injetável, sender validado, **nada gravado** — host valida em `setProjectRoot`). `personaDesktop.revealInFolder(path)` só em PERSONA_HOME, `projectRoots` do host, ou pick da sessão. Canal `dsh-desktop:reveal-in-folder`.
+- **Harden:** `secure-shell.ts` — sandbox + contextIsolation + sem node/webview; CSP sem eval; navigate/`windowOpen` só `dsh-app:`/`persona:`/`data:`; permissão só notifications; `assertDesktopSender` estrutural; deep link `persona://task/{id}` = `[a-z0-9-]{1,64}`; `ipc-audit` falha se algum `ipcMain.handle/on` pular sender.
+- **Logs:** `<PERSONA_HOME>/logs` 1 MiB / 7 dias; `looksLikeCredential` + corpo de msg/DM omitido; bandeja Abrir logs / Copiar diagnóstico.
+- **Splash/reconectando:** tokens Muse (`#FAF3E4`/`#34243F`/`#E8AF54`) pt-BR/en.
+
+### Dependências
+- **Prism:** ligar `window.personaDesktop.pickDirectory({ title })` no "Novo projeto" e `revealInFolder` em "Mostrar na pasta". Plugin directory-picker do Harness continua off no perfil persona.
+- **Anvil:** passar pastas de projeto registradas em `projectRoots` (hoje só PERSONA_HOME + picks da sessão). `setProjectRoot` continua no host.
+- **Probe:** gate de boot no `Persona.exe` empacotado só quando `exePresent`.
+- Host compiler vermelho bloqueia o `--dir` até Anvil/Forge limparem `persona-host`/`persona-e2e`.
+
+### Arquivos
+- `apps/desktop/src/{directory-picker,ipc,preload-app,main,secure-shell,persona-log,ipc-audit,deep-link,reconnecting-page,microphone-permissions,tray,locale}.ts`
+- `apps/desktop/scripts/{package-win.mjs,package-target.ts,desktop-toolchain-preflight.ts}`
+- testes: directory-picker, preload-app, ipc-audit, secure-shell, persona-log, deep-link, tray, desktop-build-commit, package-win, microphone-permissions
+- `persona-spec/spikes/packaging-win.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run apps/desktop/tests/directory-picker.spec.ts apps/desktop/tests/preload-app.spec.ts apps/desktop/tests/ipc-audit.spec.ts apps/desktop/tests/secure-shell.spec.ts apps/desktop/tests/persona-log.spec.ts apps/desktop/tests/deep-link.spec.ts apps/desktop/tests/tray.spec.ts apps/desktop/tests/desktop-build-commit.spec.ts apps/desktop/tests/package-win.spec.ts apps/desktop/tests/microphone-permissions.spec.ts
+ Test Files  10 passed (10)
+      Tests  67 passed (67)
+```
+
+```
+node scripts/persona/with-lock.mjs "Rivet D8 --dir" -- node --import tsx/esm apps/desktop/scripts/package-win.mjs --dir
+dir.packageExit=1  dir.exePresent=false  dir.nativeHint=null
+toolchain success 230ms
+run-gates: PASS native addon (3.09s)
+run-gates: PASS Host Typert (70.65s)
+run-gates: FAILED host compiler (18.23s)  — persona-host + persona-e2e
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json
+EXIT:0
+```
+
+```
+pnpm exec tsc -p tsconfig.host.json --noEmit  | apps/desktop/
+(saída vazia — 0 erros desktop; EXIT:2 só persona-host/tests/export.spec.ts)
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 44.5s
+```
+
+### Fora / dúvidas
+- Sem `Persona.exe`; boot empacotado não rodou.
+- `native addon` PASS usou artefato já compilado — rebuild node-gyp sem VCTools ainda não foi visto.
+- Fila Keel desta leva fechada. Sem "Atlas" no código.
+- Status: `maestri note edit` timeout (pipe ok, HTTP /list FAILED). Prism ainda precisa ler este relato / retry do Status.
+
+---
+
+
+## 03/11 16:50 — desktop always-on + Codex `done: true` ✔
+
+### O que ficou pronto
+- **Codex smoke:** causa = OAR 0.67 sem `turn_ended` + `model: 'default'`/`gpt-5.5` rejeitado pelo ChatGPT Codex. Adapter: `agent_message`/`item` → `delta`; `status().idle` após `accepted` → `ended`; omite `model` quando é `default`. Re-smoke (3ª exec): `done: true`, firstToken 3778 ms, 27401/5, `ready`.
+- **Cursor:** `not_logged_in` + `loginHint` "Abra o Cursor e faça login no Agent" (0 execs, sem stack). Lumen já mapeia `loginHint`/`errorCode` (relato 16:20).
+- **Background:** fechar esconde + aviso 1ª vez; bandeja Abrir · Pausar a equipe · Sair de vez; single-instance; "Iniciar com o Windows" off até consentir (`setLoginItemSettings`); shutdown 10 s + WAL + `taskkill /T`; host morto → 3 retries 15/30/60 s + página `Reconectando…` (data: URL, sem tela branca).
+- **Toasts:** budget/silêncio/agrupamento; `persona://task/{id}`; Notification injetável; AppUserModelID `com.persona.app`; IPC `personaAlwaysOn` (Prism/Anvil).
+- **Power:** `prevent-app-suspension` só com assignment viva; resume/clock-jump → catch-up burst 3.
+- **Backup:** zip PERSONA_HOME sem `.env`/plaintext; nota DPAPI mesma conta; restore só com confirmação + cópia `.safety-`.
+- **Locale:** en/pt completos; outras 6 línguas com as mesmas chaves.
+
+### Dependências (não bloqueiam)
+- Anvil: `getAutonomy` (`proposalBudget`/`silenceStart`/`silenceEnd`) → `policyFromAutonomy`; `pauseTeam` já existe no host; renderer deve `personaAlwaysOn.attention` / `runningAssignments`.
+- Keel: ecoar o contorno Codex em D-024 se quiser no DECISIONS.
+- D8: ainda bloqueado em E4/E5 (vswhere/LongPaths/Developer Mode). Sem "Atlas" no código.
+
+### Arquivos
+- `packages/persona/persona-runners/src/oar/adapter.ts` + `tests/oar-runners.spec.ts`
+- `apps/desktop/src/{main,preload-app,tray,notifications,power,backup,login-item,shutdown,host-process,backend-controller,always-on-ipc,deep-link,reconnecting-page,shell-prefs,locale,product}.ts`
+- testes desktop: always-on-ipc, notifications, power, backup, tray, login-item, deep-link, shutdown, backend-controller
+- `persona-spec/contracts/runner.md` · `persona-spec/spikes/real-cli-smoke.md`
+
+### Comandos e saída verbatim
+
+```
+PERSONA_REAL_CLI=1 PERSONA_SMOKE_ONLY=codex node --import tsx/esm packages/persona/persona-runners/scripts/resolver-smoke.ts
+{ "id": "codex", "execs": 1, "done": true, "usage": { "inputTokens": 27401, "outputTokens": 5 },
+  "kinds": ["started", "delta", "report", "ended"], "firstTokenMs": 3778, "lastState": "ready", "summary": "turn ended" }
+```
+
+```
+PERSONA_REAL_CLI=1 PERSONA_SMOKE_ONLY=cursor node --import tsx/esm packages/persona/persona-runners/scripts/resolver-smoke.ts
+{ "id": "cursor", "execs": 0, "error": { "code": "not_logged_in", "message": "Abra o Cursor e faça login no Agent" } }
+```
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/oar-runners.spec.ts packages/persona/persona-runners/tests/resolve-runner.spec.ts apps/desktop/tests/backup.spec.ts apps/desktop/tests/notifications.spec.ts apps/desktop/tests/tray.spec.ts apps/desktop/tests/login-item.spec.ts apps/desktop/tests/power.spec.ts apps/desktop/tests/deep-link.spec.ts apps/desktop/tests/always-on-ipc.spec.ts apps/desktop/tests/shutdown.spec.ts apps/desktop/tests/backend-controller.spec.ts
+ Test Files  11 passed (11)
+      Tests  45 passed (45)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 15.8s
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+EXIT:0
+```
+
+```
+pnpm exec tsc -p tsconfig.host.json --noEmit 2>&1 | Select-String "apps/desktop/"
+(saída vazia)
+```
+
+### Fora / próximo
+Fila Keel always-on fechada. D8 continua bloqueado (admin Miguel). S4/PRO-3/D5a/D7 já entregues. Sem próxima tarefa Rivet desbloqueada.
+
+---
+
+## 03/11 16:40 — tsc gates (adapter outcome + desktop backup/notify/tray) ✔
+
+### O que ficou pronto
+- **OAR adapter:** `event.outcome` agora pode ser `TurnOutcome` **ou** string (`compaction_ended`). Narrow `typeof outcome === 'string'` antes de `.kind`/`.reason`. `kind` lido como `string` para mapear `item`/`agent_message` (Codex) sem TS2367.
+- **`prompt()` ≠ fim de turno:** OAR 0.67 devolve `accepted`/`rejected` (o prompt começou). Tratar `accepted` como fim era o bug do smoke (`exec sem done` no Codex **e** quebrava o scripted). Fim = `turn_ended` **ou** `status().kind === 'idle'` depois do accept (contorno Codex sem `turn_ended`).
+- **Desktop tsc:** `backup.ts` chama `now()`; `notifications.ts` trata `exec` `null`; `DesktopTrayOptions.pause` opcional (main pode passar só `{iconPath,locale,open,quit}`).
+- **Keel:** D-024 addendum — contorno Codex no adapter + `contracts/runner.md`. Anvil: `listConnections` já manda `loginHint`; Lumen `connectionsToEntries` ainda descarta — UI precisa mostrar o hint (cursor `not_logged_in` esperado).
+
+### Arquivos
+- `packages/persona/persona-runners/src/oar/adapter.ts`
+- `apps/desktop/src/{backup,notifications,tray}.ts`
+- testes: `oar-runners.spec.ts`, `resolve-runner.spec.ts`, `backup.spec.ts`, `notifications.spec.ts`, `tray.spec.ts`, `backend-controller.spec.ts`
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 12.1s
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+EXIT:0
+```
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/oar-runners.spec.ts packages/persona/persona-runners/tests/resolve-runner.spec.ts apps/desktop/tests/backup.spec.ts apps/desktop/tests/notifications.spec.ts apps/desktop/tests/tray.spec.ts apps/desktop/tests/login-item.spec.ts apps/desktop/tests/power.spec.ts apps/desktop/tests/deep-link.spec.ts apps/desktop/tests/shutdown.spec.ts apps/desktop/tests/backend-controller.spec.ts
+ Test Files  10 passed (10)
+      Tests  40 passed (40)
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 34.4s
+```
+
+### Fora / próximo
+Re-smoke Codex ≤3 execs (fila always-on item 1) ainda pendente nesta passagem. Sem "Atlas" no código.
+
+---
+
 ## 03/11 16:05 — resolveRunner + detectConnections + smoke + D8 check + THIRD_PARTY_NOTICES ✔
 
 ### O que ficou pronto

@@ -21,7 +21,8 @@ export function installMicrophonePermissions(session: Pick<Session, 'setPermissi
       && (process.platform !== 'darwin' || systemPreferences.getMediaAccessStatus('microphone') === 'granted')
   })
   session.setPermissionRequestHandler((contents, permission, callback, details) => {
-    if (permission !== 'media') { callback(true); return }
+    if (permission === 'notifications') { callback(true); return }
+    if (permission !== 'media') { callback(false); return }
     const allowed = contents === primary() && details.isMainFrame && applicationFrame(details.requestingUrl)
       && 'mediaTypes' in details && details.mediaTypes.length === 1 && details.mediaTypes[0] === 'audio'
     if (!allowed) { callback(false); return }

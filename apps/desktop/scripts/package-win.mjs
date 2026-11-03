@@ -5,7 +5,7 @@
  */
 import { execFile, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -171,23 +171,114 @@ async function collectChecks() {
   }
 }
 
+function probeNativeNeeds() {
+  return {
+    'node:sqlite': { needsVcTools: false, detail: 'builtin in Electron/Node 24 (DatabaseSync)' },
+    '@cursor/sdk': { needsVcTools: false, detail: 'JavaScript SDK; no node-gyp' },
+    '@deepseek-ai/node-addon-system': {
+      needsVcTools: true,
+      detail: 'native/system flock/landlock host addon — `pnpm run build:native-system` / node-gyp',
+    },
+    'nsis-window-frame': {
+      needsVcTools: true,
+      detail: 'installer-only window-frame.dll (NSIS). Not used by electron-builder --dir',
+    },
+  }
+}
+
+function dirBlockers(checks) {
+  return [
+    !checks.disk.ok ? 'disk' : undefined,
+    !checks.node.ok ? 'node' : undefined,
+    !checks.electron.ok ? 'electron' : undefined,
+    !checks.sqlite.ok ? 'node:sqlite' : undefined,
+  ].filter(item => item !== undefined)
+}
+
+async function ensureShortJunction() {
+  if (process.platform !== 'win32') return { ok: false, path: undefined, detail: 'not windows' }
+  const short = 'C:\\p8'
+  const repo = fileURLToPath(new URL('../../..', import.meta.url))
+  if (existsSync(short)) {
+    return { ok: true, path: short, detail: 'existing', repo }
+  }
+  const made = spawnSync('cmd.exe', ['/c', 'mklink', '/J', short, repo], {
+    encoding: 'utf8', windowsHide: true, timeout: 15_000,
+  })
+  const ok = made.status === 0 && existsSync(short)
+  return {
+    ok,
+    path: ok ? short : undefined,
+    detail: ok ? 'created' : (made.stderr || made.stdout || `exit ${String(made.status)}`).slice(0, 400),
+    repo,
+  }
+}
+
+/** package-target.ts reads `npm_execpath` to spawn pnpm. Direct `node` launch has none. */
+function resolvePnpmEntry() {
+  const fromEnv = process.env.npm_execpath?.trim()
+  if (fromEnv) return fromEnv
+  const workspace = join(desktopRoot, '../../node_modules/pnpm/bin/pnpm.cjs')
+  return existsSync(workspace) ? workspace : undefined
+}
+
+function spawnPackageTarget(args, env) {
+  const pnpmEntry = resolvePnpmEntry()
+  const timeout = 20 * 60_000
+  if (pnpmEntry === undefined) {
+    return { status: 1, error: new Error('pnpm entry not found'), stdout: '', stderr: 'pnpm entry not found' }
+  }
+  return spawnSync(process.execPath, [pnpmEntry, 'exec', 'tsx', 'scripts/package-target.ts', ...args], {
+    cwd: desktopRoot,
+    encoding: 'utf8',
+    windowsHide: true,
+    env: { ...env, npm_execpath: pnpmEntry },
+    timeout,
+  })
+}
+
+async function runDir(checks) {
+  const short = await ensureShortJunction()
+  const cache = 'C:\\p8c'
+  await mkdir(cache, { recursive: true })
+  const logPath = join(cache, 'dir.log')
+  const packed = spawnPackageTarget(['win-x64', '--unsigned', '--dir'], {
+    ...process.env,
+    DSH_DESKTOP_UNSIGNED: '1',
+    DSH_DESKTOP_PACKAGE_CACHE_DIR: cache,
+  })
+  const spawnErr = packed.error instanceof Error ? packed.error.stack ?? packed.error.message : ''
+  const stderr = `${packed.stderr ?? ''}\n${packed.stdout ?? ''}\n${spawnErr}`
+  await writeFile(logPath, stderr)
+  const exeCandidates = [
+    join(desktopRoot, '.desktop-build', 'targets', 'win-x64', 'artifacts', 'win-unpacked', 'Persona.exe'),
+    join(desktopRoot, '.desktop-build', 'win-x64', 'dist', 'win-unpacked', 'Persona.exe'),
+    join(cache, 'win-unpacked', 'Persona.exe'),
+  ]
+  const exe = exeCandidates.find(path => existsSync(path))
+  const nativeHint = /node-gyp|MSB8020|VCINSTALLDIR|windows-build-tools|node-addon-system|landlock|flock|gyp ERR/iu.exec(stderr)
+  return {
+    ran: true,
+    shortPath: short,
+    cache,
+    cwd: desktopRoot,
+    packageExit: packed.status,
+    exePresent: exe !== undefined,
+    exe: exe ?? null,
+    logPath,
+    nativeHint: nativeHint?.[0] ?? null,
+    tail: stderr.slice(-3_000),
+  }
+}
+
 async function runDry(checks) {
   if (checks.blocked) {
     return { ran: false, reason: 'prerequisites missing' }
   }
   const dest = await mkdtemp(join(tmpdir(), 'persona-win-dry-'))
-  const packed = spawnSync(process.execPath, [
-    '--import', 'tsx/esm',
-    join(desktopRoot, 'scripts/package-target.ts'),
-    'win-x64',
-    '--unsigned',
-    '--dir',
-  ], {
-    cwd: desktopRoot,
-    encoding: 'utf8',
-    windowsHide: true,
-    env: { ...process.env, DSH_DESKTOP_UNSIGNED: '1' },
-    timeout: 30 * 60_000,
+  const packed = spawnPackageTarget(['win-x64', '--unsigned', '--dir'], {
+    ...process.env,
+    DSH_DESKTOP_UNSIGNED: '1',
   })
   const exe = join(desktopRoot, '.desktop-build', 'win-x64', 'dist', 'win-unpacked', 'Persona.exe')
   let boot
@@ -219,8 +310,17 @@ async function main() {
     unsigned: true,
     adminInstall: false,
     ...checks,
+    nativeNeeds: probeNativeNeeds(),
     miguel: MIGUEL_PHRASE,
     verify: 'node --import tsx/esm apps/desktop/scripts/package-win.mjs',
+  }
+  if (MODE === 'dir') {
+    const blockers = dirBlockers(checks)
+    report.dirBlockers = blockers
+    report.dirSkipsAdmin = ['vswhere/VCTools/SDK', 'LongPathsEnabled', 'Developer Mode']
+    if (blockers.length === 0) report.dir = await runDir(checks)
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
+    process.exit(report.dir?.exePresent === true ? 0 : 2)
   }
   if (MODE === 'dry') {
     report.dry = await runDry(checks)

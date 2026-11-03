@@ -29,4 +29,20 @@ describe('desktop power', () => {
     power.onResume(now)
     expect(onCatchUp).toHaveBeenCalledWith(3)
   })
+
+  it('polls catch-up only after a clock jump, not on every tick', () => {
+    let now = 1_000
+    const onCatchUp = vi.fn()
+    const power = new DesktopPower({
+      blocker: { start: vi.fn(() => 1), stop: vi.fn(() => true) },
+      onCatchUp,
+      clock: () => now,
+    })
+    power.poll()
+    expect(onCatchUp).not.toHaveBeenCalled()
+    now = 1_000 + 90_000
+    power.poll()
+    expect(onCatchUp).toHaveBeenCalledOnce()
+    expect(onCatchUp).toHaveBeenCalledWith(3)
+  })
 })

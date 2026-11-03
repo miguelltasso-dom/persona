@@ -47,6 +47,29 @@ export interface DesktopNotificationsOptions {
 
 const DEFAULT_BUDGET = 3
 
+/** Anvil Remote `getAutonomy` fields (silence*) plus the desktop quiet aliases. */
+export interface AutonomyNotifyPolicy {
+  readonly delivery?: 'summary' | 'ping'
+  readonly proposalBudget?: number
+  readonly silenceStart?: string
+  readonly silenceEnd?: string
+  readonly quietStart?: string
+  readonly quietEnd?: string
+}
+
+/**
+ * Map host autonomy onto toast policy. Missing times fall back to 22:00–07:00.
+ * @param raw - Anvil `getAutonomy` (or a test fixture).
+ */
+export function policyFromAutonomy(raw: AutonomyNotifyPolicy = {}): DesktopAttentionPolicy {
+  return {
+    delivery: raw.delivery === 'ping' ? 'ping' : 'summary',
+    proposalBudget: raw.proposalBudget !== undefined && raw.proposalBudget > 0 ? raw.proposalBudget : DEFAULT_BUDGET,
+    quietStart: raw.quietStart ?? raw.silenceStart ?? '22:00',
+    quietEnd: raw.quietEnd ?? raw.silenceEnd ?? '07:00',
+  }
+}
+
 function parseHm(value: string): number | undefined {
   const match = /^(\d{2}):(\d{2})$/u.exec(value.trim())
   if (match === null) return undefined

@@ -112,15 +112,26 @@ it('exposes a directory picker only to the local application document', async ()
   vi.stubGlobal('location', new URL('dsh-app://app/'))
   await import('../src/preload-app.ts')
   const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === '__DSH_DIRECTORY_PICKER__')?.[1] as { pick(): Promise<string | null> }
-  electron.ipcRenderer.invoke.mockResolvedValue('/workspace')
+  const persona = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'personaDesktop')?.[1] as {
+    pickDirectory(request?: { title?: string }): Promise<string | null>
+    revealInFolder(path: string): Promise<boolean>
+  }
+  electron.ipcRenderer.invoke.mockResolvedValueOnce('/workspace')
   await expect(api.pick()).resolves.toBe('/workspace')
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledExactlyOnceWith(DESKTOP_IPC.directoryPick)
+  electron.ipcRenderer.invoke.mockResolvedValueOnce('/picked')
+  await expect(persona.pickDirectory({ title: 'Novo projeto' })).resolves.toBe('/picked')
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.directoryPick, { title: 'Novo projeto' })
+  electron.ipcRenderer.invoke.mockResolvedValueOnce(true)
+  await expect(persona.revealInFolder('/picked')).resolves.toBe(true)
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.revealInFolder, '/picked')
   for (const url of ['dsh-app://shell/startup.html', 'https://example.com/']) {
     vi.resetModules()
     electron.contextBridge.exposeInMainWorld.mockClear()
     vi.stubGlobal('location', new URL(url))
     await import('../src/preload-app.ts')
     expect(electron.contextBridge.exposeInMainWorld.mock.calls.some(([name]) => name === '__DSH_DIRECTORY_PICKER__')).toBe(false)
+    expect(electron.contextBridge.exposeInMainWorld.mock.calls.some(([name]) => name === 'personaDesktop')).toBe(false)
   }
 })
 

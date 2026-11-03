@@ -42,20 +42,21 @@ export class DesktopPower {
    * Resume or a jumped clock: ask the host for a burst-limited Vigia catch-up.
    * @param at - Optional instant (tests).
    */
+  /**
+   * OS resume: always ask the host for a burst-limited Vigia catch-up.
+   * @param at - Optional instant (tests).
+   */
   onResume(at?: number): void {
-    const now = at ?? (this.options.clock ?? Date.now)()
-    const jumped = now - this.lastTick >= CLOCK_JUMP_MS || now < this.lastTick
-    this.lastTick = now
-    if (!jumped && at === undefined) {
-      this.options.onCatchUp(this.options.burst ?? CATCH_UP_BURST)
-      return
-    }
-    if (jumped) this.options.onCatchUp(this.options.burst ?? CATCH_UP_BURST)
+    this.lastTick = at ?? (this.options.clock ?? Date.now)()
+    this.options.onCatchUp(this.options.burst ?? CATCH_UP_BURST)
   }
 
-  /** Tick used to detect a clock jump without a resume event. */
+  /** Poll used to detect a clock jump without an OS resume event. */
   poll(): void {
-    this.onResume()
+    const now = (this.options.clock ?? Date.now)()
+    const jumped = now - this.lastTick >= CLOCK_JUMP_MS || now < this.lastTick
+    this.lastTick = now
+    if (jumped) this.options.onCatchUp(this.options.burst ?? CATCH_UP_BURST)
   }
 
   /** Drop the blocker (quit). */

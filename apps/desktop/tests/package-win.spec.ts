@@ -22,6 +22,7 @@ describe('D8 package-win check', () => {
       miguel: string
       verify: string
       defender: { suggested: boolean }
+      nativeNeeds: Record<string, { needsVcTools: boolean }>
     }
     expect(report.mode).toBe('check')
     expect(report.unsigned).toBe(true)
@@ -33,6 +34,8 @@ describe('D8 package-win check', () => {
     expect(report.verify).toBe('node --import tsx/esm apps/desktop/scripts/package-win.mjs')
     expect(report.defender.suggested).toBe(true)
     expect(result.stdout).not.toMatch(/Start-Process|msiexec/u)
+    expect(report.nativeNeeds['node:sqlite']?.needsVcTools).toBe(false)
+    expect(report.nativeNeeds['@cursor/sdk']?.needsVcTools).toBe(false)
     expect(JSON.stringify(report)).not.toMatch(/Atlas/u)
   })
 })

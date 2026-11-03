@@ -53,6 +53,8 @@ $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/re
 $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-b9-real-app.spec.ts
 ```
 
+**Boot gates (`ui-boot-check.mjs`, `real-app-shots.mjs`)** — default path walks the five-step onboarding on a clean `PERSONA_HOME`. For faster captures only, set `PERSONA_DEV_SEED=1` so Playwright writes `persona.devSeed.v1` before load (dev roster seed; never enabled in shipped UI).
+
 Tier 1 smoke (legacy composer wait; opt-in):
 
 ```sh

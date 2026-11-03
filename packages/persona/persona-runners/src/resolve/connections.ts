@@ -26,6 +26,8 @@ export interface ConnectionSnapshot {
   version?: string
   usageOrigin?: 'official' | 'unavailable'
   loginHint?: string
+  /** Auth probe timed out or threw — not a definitive logout. */
+  authUnknown?: boolean
   error?: { code: 'cli_not_found' | 'not_logged_in' | 'quota_exhausted'; message: string }
 }
 
@@ -113,8 +115,15 @@ async function probeCli(
       return redact(card)
     }
     if (probe.authStatus !== undefined && snap.kind === 'available') {
-      const auth = await withTimeout(timeoutMs, probe.authStatus(snap as never, { timeoutMs }))
-      card.loggedIn = auth.kind === 'logged_in'
+      try {
+        const auth = await withTimeout(timeoutMs, probe.authStatus(snap as never, { timeoutMs }))
+        card.loggedIn = auth.kind === 'logged_in'
+        if (auth.kind === 'logged_out' || auth.kind === 'unauthenticated') {
+          card.error = { code: 'not_logged_in', message: `CLI ${id} não está logada. ${loginHintFor(id)}` }
+        }
+      } catch {
+        card.authUnknown = true
+      }
     } else if (id === 'opencode') {
       card.loggedIn = card.installed
     }
@@ -135,9 +144,11 @@ async function probeCli(
   } catch {
     if (!card.installed) {
       card.error = { code: 'cli_not_found', message: `CLI ${id} não encontrada neste computador.` }
+    } else {
+      card.authUnknown = true
     }
   }
-  if (!card.loggedIn) card.loginHint = loginHintFor(id)
+  if (!card.loggedIn && card.authUnknown !== true) card.loginHint = loginHintFor(id)
   return redact(card)
 }
 
@@ -195,7 +206,8 @@ export interface ConnectionUiRow {
  * @param snap - detectConnections card.
  */
 export function toUiConnection(snap: ConnectionSnapshot): ConnectionUiRow {
-  const loginHint = snap.loginHint ?? (snap.loggedIn ? '' : loginHintFor(snap.id))
+  const loginHint = snap.loginHint
+    ?? (snap.loggedIn || snap.authUnknown === true ? '' : loginHintFor(snap.id))
   const row: ConnectionUiRow = {
     id: snap.id,
     available: snap.installed,
@@ -203,6 +215,7 @@ export function toUiConnection(snap: ConnectionSnapshot): ConnectionUiRow {
     loginHint,
   }
   if (snap.error !== undefined) return { ...row, error: snap.error }
+  if (snap.authUnknown === true) return row
   if (!snap.loggedIn) {
     return { ...row, error: { code: 'not_logged_in', message: loginHint } }
   }

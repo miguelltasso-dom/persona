@@ -158,6 +158,16 @@ export { createOarSessionRunner, type OarSessionOptions } from './oar/session.ts
 export { CLAUDE_CAPABILITIES, createClaudeRunner, type ClaudeRunnerOptions } from './oar/claude.ts'
 export { CODEX_CAPABILITIES, createCodexRunner, type CodexRunnerOptions } from './oar/codex.ts'
 export { CLI_ISOLATION_VARS, nativeSessionEnv, restoreNativeCliLogin } from './oar/native-cli-env.ts'
+export {
+  LOGIN_REQUIRED_PHRASES,
+  classifyLoginOutput,
+  type LoginRequiredMatch,
+} from './oar/login-output.ts'
+export {
+  prepareIsolatedHome,
+  type IsolatedHomeIo,
+  type IsolatedHomePlan,
+} from './oar/isolated-home.ts'
 export { createOpencodeRunner, OPENCODE_CAPABILITIES } from './oar/opencode.ts'
 export { createCursorRunner, CURSOR_CAPABILITIES } from './oar/cursor.ts'
 export {
@@ -181,7 +191,13 @@ export {
   type ConnectionUiRow,
   type DetectConnectionsOptions,
 } from './resolve/connections.ts'
-export { withUsageMeter, type MeasuredUsage, type UsageMeterSink } from './resolve/usage-meter.ts'
+export {
+  withUsageMeter,
+  usageStoreSink,
+  type MeasuredUsage,
+  type UsageMeterSink,
+  type UsageStorePort,
+} from './resolve/usage-meter.ts'
 export {
   RESOLVER_SMOKE_MAX_EXEC,
   RESOLVER_SMOKE_PROMPT,

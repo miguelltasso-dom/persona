@@ -12,9 +12,10 @@ import { createCursorRunner } from '../oar/cursor.ts'
 import { createOpencodeRunner } from '../oar/opencode.ts'
 import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/recovery.ts'
 import { withObserveGate } from '../proactivity/observe.ts'
+import { prepareIsolatedHome, type IsolatedHomeIo } from '../oar/isolated-home.ts'
 import { RunnerResolveError } from './errors.ts'
 import { asProbe, PROBE_TIMEOUT_MS, quotaExhausted, withTimeout } from './probe.ts'
-import { withUsageMeter, type UsageMeterSink } from './usage-meter.ts'
+import { usageStoreSink, withUsageMeter, type UsageMeterSink, type UsageStorePort } from './usage-meter.ts'
 
 export type PersonaRunnerSpec =
   | { kind: 'dsh'; model: string }
@@ -29,11 +30,15 @@ export interface ResolveRunnerOptions {
   permissionMode: NonNullable<StartTurnInput['permissionMode']>
   autonomy?: AutonomyLevel
   home?: string
+  /** Injectable fs for isolated-home tests. Production omits this. */
+  homeIo?: IsolatedHomeIo
   vault?: VaultSecretReader
   personId?: string
   agent?: DshAgentPort
   runtime?: Runtime
   usage?: UsageMeterSink
+  usageStore?: UsageStorePort
+  usageScope?: { personaId: string; projectId: string }
   infra?: InfraRecoveryOptions
   cwd?: string
 }
@@ -123,7 +128,12 @@ function wrap(
 ): Runner {
   let runner = withDefaultPermission(inner, options.permissionMode)
   runner = withInfraRecovery(runner, options.infra ?? { wait: async () => undefined })
-  if (options.usage !== undefined) runner = withUsageMeter(runner, options.usage, provider)
+  const meter = options.usage ?? (
+    options.usageStore !== undefined && options.usageScope !== undefined
+      ? usageStoreSink(options.usageStore, options.usageScope)
+      : undefined
+  )
+  if (meter !== undefined) runner = withUsageMeter(runner, meter, provider)
   if (options.autonomy === 'propose') {
     runner = withObserveGate(runner, {
       rule: { id: `autonomy:${provider}`, enabled: true, mode: 'observe' },
@@ -139,17 +149,19 @@ async function createCliRunner(
   installation: AvailableInstallation | undefined,
   home: string | undefined,
   vaultEnv: Readonly<Record<string, string | null>> | undefined,
+  homeIo: IsolatedHomeIo | undefined,
 ): Promise<Runner> {
   const extra = installation === undefined ? {} : { installation }
   const env = vaultEnv === undefined ? {} : { env: vaultEnv }
+  const plan = prepareIsolatedHome(spec.cli, home, homeIo ?? {})
   if (spec.cli === 'claude') {
     return createClaudeRunner({
-      runtime, ...extra, ...env, ...(home === undefined ? {} : { configDir: home }),
+      runtime, ...extra, ...env, ...(plan.kind === 'isolated' ? { configDir: plan.dir } : {}),
     })
   }
   if (spec.cli === 'codex') {
     return createCodexRunner({
-      runtime, ...extra, ...env, ...(home === undefined ? {} : { homeDir: home }),
+      runtime, ...extra, ...env, ...(plan.kind === 'isolated' ? { homeDir: plan.dir } : {}),
     })
   }
   if (spec.cli === 'opencode') return createOpencodeRunner({ runtime, ...extra, ...env })
@@ -175,6 +187,8 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
   }
   const runtime = await loadRuntime(options.spec.cli, options.runtime)
   const installation = await assertReady(runtime, options.spec, cwd)
-  const inner = await createCliRunner(options.spec, runtime, installation, options.home, vaultEnv)
+  const inner = await createCliRunner(
+    options.spec, runtime, installation, options.home, vaultEnv, options.homeIo,
+  )
   return wrap(inner, options, options.spec.cli)
 }

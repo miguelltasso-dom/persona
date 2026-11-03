@@ -4,6 +4,58 @@ Mais recente no topo.
 
 ---
 
+## 03/11 17:40 — login wall + descoberta CLI + D5a UsageStore ✔
+
+### 1. "Not logged in" nunca é resposta de modelo
+- Módulo `LOGIN_REQUIRED_PHRASES` por CLI (claude/codex/opencode/cursor) + `classifyLoginOutput`.
+- Adapter segura o texto (~240 chars) e lança `RunnerResolveError('not_logged_in')` com `loginHint`. Sem `delta` com "Please run /login".
+- Home isolado: `prepareIsolatedHome` copia só auth allowlist (`.credentials.json` / `auth.json`) ou **aponta** ao HOME real. Dir vazio **não** vira `CLAUDE_CONFIG_DIR`. Flag `PERSONA_ISOLATE_CLI_CONFIG=1` mantém isolamento cru.
+
+### 2. Descoberta de CLIs
+- Timeout/throw de `authStatus` ⇒ `authUnknown: true`, **não** `not_logged_in` (Claude auth ~5 s; 400 ms era falso negativo).
+- `toUiConnection` não inventa logout. Contrato `runner.md` atualizado.
+
+### 3. D5a UsageStore
+- Port `UsageStore` (`record` / `query` / `totals`) + `createMemoryUsageStore`. Origem rotulada: oficial da CLI / medido por nós / estimado / indisponível.
+- `officialQuota(cli)` timeout 8 s + cache 60 s; ausente ⇒ indisponível, nunca `usedPercent: 0`.
+- `resolveRunner({ usageStore, usageScope })` grava measured no port.
+- Anvil: SQLite + Remote `getUsage` / `getOfficialQuota`. Contrato `persona-spec/contracts/usage.md`.
+
+### Arquivos
+- `persona-runners/src/oar/{login-output,isolated-home,adapter,native-cli-env}.ts`
+- `persona-runners/src/resolve/{errors,resolve-runner,connections,usage-meter}.ts`
+- `persona-usage/src/{store,store-types,official-quota,types,plugin,index}.ts`
+- testes: login-output, isolated-home, resolve-runner, usage
+- `persona-spec/contracts/{runner,usage}.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/login-output.spec.ts …/isolated-home.spec.ts …/oar-runners.spec.ts …/resolve-runner.spec.ts packages/persona/persona-usage/tests/usage.spec.ts
+ Test Files  5 passed (5)
+      Tests  36 passed (36)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners persona-usage
+persona-runners: OK in 12.1s
+persona-usage: OK in 5.1s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+FAILED: persona-host/src/index.ts:1424 OfficialQuota must be exported from a public non-root type subpath
+(Anvil Remote — não é pasta do Rivet)
+```
+
+### Fora
+- Anvil troca o default do host para HOME real e implementa SQLite/`getUsage`/`getOfficialQuota`.
+- Typert host: Anvil precisa exportar `OfficialQuota` no subpath público.
+- Sem CLI real nesta leva.
+
+---
+
+
 ## 03/11 17:15 — D8 `--dir` + picker + harden/logs/splash ✔
 
 ### O que ficou pronto

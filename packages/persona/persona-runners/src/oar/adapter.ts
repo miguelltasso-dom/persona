@@ -4,6 +4,7 @@ import type { AvailableInstallation, Event, Runtime, Session } from '@botiverse/
 import {
   eventTime,
   RECOVERY_NOTE,
+  type CliKind,
   type RunEvent,
   type RunHandle,
   type Runner,
@@ -11,7 +12,11 @@ import {
   type RunnerUsage,
   type StartTurnInput,
 } from '../contract.ts'
+import { RunnerResolveError } from '../resolve/errors.ts'
+import { classifyLoginOutput } from './login-output.ts'
 import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/recovery.ts'
+
+const LOGIN_HOLD_CHARS = 240
 
 export interface OarRunnerOptions {
   runtime: Runtime
@@ -99,6 +104,8 @@ interface Live {
   finished: boolean
   accepted: boolean
   pending: RunEvent[]
+  heldText: string
+  loginError?: RunnerResolveError
   unsub: () => void
   rejected?: string
   wake?: () => void
@@ -110,10 +117,39 @@ interface Live {
  * @param live - In-flight run.
  * @param now - Clock.
  */
+function takeDelta(live: Live, mapped: Extract<RunEvent, { type: 'delta' }>, cli: CliKind | undefined, now: () => Date): void {
+  live.heldText += mapped.text
+  if (cli !== undefined && (
+    classifyLoginOutput(cli, mapped.text) !== undefined
+    || classifyLoginOutput(cli, live.heldText) !== undefined
+  )) {
+    live.loginError = new RunnerResolveError('not_logged_in', cli)
+    live.heldText = ''
+    live.finished = true
+    return
+  }
+  if (live.heldText.length < LOGIN_HOLD_CHARS) return
+  flushHeld(live, now)
+}
+
+function flushHeld(live: Live, now: () => Date): void {
+  if (live.heldText === '' || live.loginError !== undefined) return
+  const text = live.heldText
+  live.heldText = ''
+  const at = eventTime(now)
+  live.pending.push({ type: 'delta', at, text })
+  live.pending.push({ type: 'report', at, report: { state: 'progress', summary: text } })
+}
+
 function settleIfIdle(live: Live, now: () => Date): void {
   if (live.finished || !live.accepted) return
   const status = typeof live.session.status === 'function' ? live.session.status().value : undefined
   if (status === undefined || status.kind !== 'idle') return
+  flushHeld(live, now)
+  if (live.loginError !== undefined) {
+    live.finished = true
+    return
+  }
   live.pending.push({ type: 'ended', at: eventTime(now), report: { state: 'ready', summary: 'turn ended' } })
   live.finished = true
 }
@@ -172,15 +208,21 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     }
     const pending: RunEvent[] = []
     const live: Live = {
-      handle, session, cancelled: false, finished: false, accepted: false, pending, unsub: () => {},
+      handle, session, cancelled: false, finished: false, accepted: false, pending,
+      heldText: '', unsub: () => {},
     }
+    const cli = options.capabilities.cli
     live.unsub = session.events((event) => {
       const mapped = mapEvent(event, now)
       if (mapped !== undefined) {
         if (mapped.type === 'delta') {
-          pending.push(mapped)
-          pending.push({ type: 'report', at: mapped.at, report: { state: 'progress', summary: mapped.text } })
+          takeDelta(live, mapped, cli, now)
         } else {
+          flushHeld(live, now)
+          if (live.loginError !== undefined) {
+            live.wake?.()
+            return
+          }
           pending.push(mapped)
           if (mapped.type === 'ended') live.finished = true
         }
@@ -191,7 +233,12 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     sessions.set(handle.runId, live)
     void session.prompt(prompt).then((outcome) => {
       if (outcome.kind === 'rejected') {
-        live.rejected = outcome.reason
+        const reason = outcome.reason
+        const login = cli === undefined ? undefined : classifyLoginOutput(cli, reason)
+        if (login !== undefined) {
+          live.loginError = new RunnerResolveError('not_logged_in', login.cli)
+          live.finished = true
+        } else live.rejected = reason
       } else {
         // `accepted` is "prompt started", not "turn ended".
         live.accepted = true
@@ -199,7 +246,12 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       }
       live.wake?.()
     }).catch((error: unknown) => {
-      live.rejected = error instanceof Error ? error.message : String(error)
+      const reason = error instanceof Error ? error.message : String(error)
+      const login = cli === undefined ? undefined : classifyLoginOutput(cli, reason)
+      if (login !== undefined) {
+        live.loginError = new RunnerResolveError('not_logged_in', login.cli)
+        live.finished = true
+      } else live.rejected = reason
       live.wake?.()
     })
     return handle
@@ -211,6 +263,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     yield { type: 'started', at: eventTime(now), handle }
     try {
       while (!live.finished || live.pending.length > 0) {
+        if (live.loginError !== undefined) throw live.loginError
         if (live.rejected !== undefined && !live.finished) {
           live.pending.push({ type: 'ended', at: eventTime(now), report: { state: 'failed', summary: live.rejected } })
           live.finished = true
@@ -227,6 +280,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
         const next = live.pending.shift()
         if (next !== undefined) yield next
       }
+      if (live.loginError !== undefined) throw live.loginError
     } finally {
       live.unsub()
     }

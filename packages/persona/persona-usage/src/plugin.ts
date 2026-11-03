@@ -9,7 +9,11 @@ import {
   readDeepSeekBalance,
   readOarAccountUsage,
 } from './official.ts'
-import type { OfficialQuota, UsageEstimate, UsageFold, UsageRecord } from './types.ts'
+import { officialQuota, type OfficialQuotaOptions } from './official-quota.ts'
+import { createMemoryUsageStore } from './store.ts'
+import type { UsageStore } from './store-types.ts'
+import { originLabel } from './types.ts'
+import type { OfficialQuota, UsageEstimate, UsageFold, UsageOrigin, UsageRecord } from './types.ts'
 
 export interface Config {
   /** Codex sessions root for official rollouts. Empty means unset. */
@@ -44,6 +48,9 @@ export default class PersonaUsage extends Service {
     outputTokens: number
     basis: string
   }) => UsageEstimate
+  readonly officialQuota: (cli: string, options?: OfficialQuotaOptions) => Promise<OfficialQuota>
+  readonly originLabel: (origin: UsageOrigin) => string
+  readonly store: UsageStore
 
   /**
    * @param ctx - Host context.
@@ -57,5 +64,8 @@ export default class PersonaUsage extends Service {
     this.readCodexRolloutLimits = readCodexRolloutLimits
     this.readDeepSeekBalance = readDeepSeekBalance
     this.labelledEstimate = labelledEstimate
+    this.officialQuota = officialQuota
+    this.originLabel = originLabel
+    this.store = createMemoryUsageStore()
   }
 }

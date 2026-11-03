@@ -93,6 +93,25 @@ describe('resolveRunner', () => {
     expect(records[0]?.origin).toBe('measured')
   })
 
+  it('writes measured usage into an injected UsageStore', async () => {
+    const events: Array<{ personaId: string; projectId: string; origin: string; inputTokens: number }> = []
+    const runner = await resolveRunner({
+      spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
+      permissionMode: 'deny',
+      runtime: sayingRuntime(),
+      usageStore: { record: (entry) => { events.push(entry) } },
+      usageScope: { personaId: 'nina', projectId: 'p1' },
+      infra: { wait: async () => undefined },
+    })
+    const handle = await runner.start({
+      ticketId: 't', assignmentId: 'a', personaId: 'nina', cwd: 'C:/tmp', prompt: 'hi', model: 'haiku',
+    })
+    await collect(runner.stream(handle))
+    expect(events).toEqual([expect.objectContaining({
+      personaId: 'nina', projectId: 'p1', origin: 'measured',
+    })])
+  })
+
   it('throws typed pt-BR errors without stacks or secrets', async () => {
     const vault = { get: async () => 'sk-test-secret-xyz' }
     await expect(resolveRunner({
@@ -224,6 +243,30 @@ describe('resolver smoke (scripted)', () => {
 })
 
 describe('connection UI payload', () => {
+  it('does not treat an auth timeout as not_logged_in', async () => {
+    resetConnectionCache()
+    const hung = Object.assign(sayingRuntime(), {
+      authStatus: () => new Promise<{ kind: string }>(() => undefined),
+    })
+    const cards = await detectConnections({
+      timeoutMs: 40,
+      force: true,
+      runtimes: {
+        claude: hung,
+        codex: sayingRuntime(),
+        opencode: sayingRuntime(),
+        cursor: sayingRuntime(),
+      },
+    })
+    const claude = cards.find(item => item.id === 'claude')
+    expect(claude?.installed).toBe(true)
+    expect(claude?.authUnknown).toBe(true)
+    expect(claude?.error?.code).not.toBe('not_logged_in')
+    const row = toUiConnection(claude!)
+    expect(row.error?.code).not.toBe('not_logged_in')
+    expect(row.loginHint).toBe('')
+  })
+
   it('forwards typed not_logged_in plus loginHint without a stack', () => {
     const row = toUiConnection({
       id: 'cursor',

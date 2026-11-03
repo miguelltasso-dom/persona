@@ -38,6 +38,7 @@ export function loginHintFor(cli: string): string {
  */
 export class RunnerResolveError extends Error {
   readonly code: RunnerResolveErrorCode
+  readonly loginHint?: string
 
   /**
    * @param code - Stable machine code.
@@ -47,6 +48,7 @@ export class RunnerResolveError extends Error {
     super(MESSAGES[code](detail))
     this.name = 'RunnerResolveError'
     this.code = code
+    if (code === 'not_logged_in') this.loginHint = loginHintFor(detail)
   }
 }
 

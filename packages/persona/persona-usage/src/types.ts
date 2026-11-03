@@ -5,6 +5,22 @@
 /** How a figure was obtained. Always present on every published row. */
 export type UsageOrigin = 'measured' | 'estimate' | 'official' | 'unavailable'
 
+/** pt-BR labels for the Uso e limites screen. Never invent a percent. */
+export const USAGE_ORIGIN_LABEL: Readonly<Record<UsageOrigin, string>> = {
+  official: 'oficial da CLI',
+  measured: 'medido por nós',
+  estimate: 'estimado',
+  unavailable: 'indisponível',
+}
+
+/**
+ * Human label for an origin. Absence stays "indisponível", never 0%.
+ * @param origin - Ledger tag.
+ */
+export function originLabel(origin: UsageOrigin): string {
+  return USAGE_ORIGIN_LABEL[origin]
+}
+
 /** One measured or estimated turn folded into the book. */
 export interface UsageRecord {
   provider: string

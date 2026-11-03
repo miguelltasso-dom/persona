@@ -3,8 +3,11 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+  createMemoryUsageStore,
   foldUsage,
   labelledEstimate,
+  officialQuota,
+  originLabel,
   readCodexRolloutLimits,
   readDeepSeekBalance,
   readOarAccountUsage,
@@ -60,5 +63,58 @@ describe('official quota', () => {
       provider: 'claude', model: 'haiku', inputTokens: 20, outputTokens: 4, basis: 'chars/4',
     })
     expect(estimate.origin).toBe('estimate')
+  })
+
+  it('officialQuota missing payload is indisponível, never 0%', async () => {
+    const missing = await officialQuota('claude')
+    expect(missing.origin).toBe('unavailable')
+    expect(missing.windows).toEqual([])
+    expect(originLabel(missing.origin)).toBe('indisponível')
+    expect(JSON.stringify(missing)).not.toMatch(/"usedPercent":0/u)
+    const timed = await officialQuota('codex', {
+      timeoutMs: 20,
+      accountUsage: () => new Promise(() => undefined),
+    })
+    expect(timed.origin).toBe('unavailable')
+    expect(timed.windows).toEqual([])
+    expect(JSON.stringify(timed)).not.toMatch(/"usedPercent":0/u)
+  })
+})
+
+describe('UsageStore', () => {
+  it('totals fake runner events by persona, project and period', () => {
+    const store = createMemoryUsageStore()
+    store.record({
+      personaId: 'nina', projectId: 'p1', provider: 'claude', model: 'haiku',
+      inputTokens: 10, outputTokens: 2, origin: 'measured', at: '2026-11-03T10:00:00Z',
+    })
+    store.record({
+      personaId: 'nina', projectId: 'p1', provider: 'claude', model: 'haiku',
+      inputTokens: 5, outputTokens: 1, origin: 'measured', at: '2026-11-03T11:00:00Z',
+    })
+    store.record({
+      personaId: 'sol', projectId: 'p1', provider: 'codex', model: 'default',
+      inputTokens: 8, outputTokens: 3, origin: 'estimate', at: '2026-11-03T11:30:00Z',
+      estimatedCost: { amount: 0, currency: 'USD', origin: 'estimate', basis: 'chars/4' },
+    })
+    store.record({
+      personaId: 'nina', projectId: 'p2', provider: 'claude', model: 'haiku',
+      inputTokens: 99, outputTokens: 9, origin: 'measured', at: '2026-11-03T12:00:00Z',
+    })
+    const nina = store.totals({
+      from: '2026-11-03T00:00:00Z', to: '2026-11-03T23:59:59Z', personaId: 'nina', projectId: 'p1',
+    })
+    expect(nina).toMatchObject({
+      personaId: 'nina', projectId: 'p1', inputTokens: 15, outputTokens: 3, runs: 2,
+      origin: 'measured', originLabel: 'medido por nós',
+    })
+    const project = store.totals({ from: '2026-11-03T00:00:00Z', to: '2026-11-03T23:59:59Z', projectId: 'p1' })
+    expect(project.runs).toBe(3)
+    expect(project.originLabel).toBe('estimado')
+    const empty = store.totals({ from: '2020-01-01T00:00:00Z', to: '2020-01-02T00:00:00Z' })
+    expect(empty.origin).toBe('unavailable')
+    expect(empty.originLabel).toBe('indisponível')
+    expect(empty.runs).toBe(0)
+    expect(JSON.stringify(empty)).not.toMatch(/usedPercent/u)
   })
 })

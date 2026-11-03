@@ -76,7 +76,7 @@ export function FilesView({
   }
 
   return (
-    <div className={styles.shell} ref={motion.ref} style={motion.style}>
+    <div className={styles.shell} ref={motion.ref} style={motion.style} data-persona-surface="files">
       <header>
         <h1 className={styles.title}>{t('title')}</h1>
         <p className={styles.subtitle}>{t('subtitle')}</p>

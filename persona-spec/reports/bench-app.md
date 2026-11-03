@@ -11,6 +11,14 @@ Registro de boot e ociosidade — host real perfil `persona`. Meta Vigia: **CPU 
 | Memória renderer 5 min ocioso | _pending_ | requer amostragem processo Chrome/Electron |
 | CPU média 60 s ocioso | _pending_ | gate: falha se > 2% com fake runners (Anvil scheduler) |
 
+## Host (Anvil)
+
+| Medida | Valor | Notas |
+|--------|-------|-------|
+| Host ready (DB existente) | **376 ms** | `ready.spec.ts`; meta ≤ 1500 ms |
+| Poll mínimo | 1000 ms | `HostScheduler` + `attentionEvents`; sem `setInterval` |
+| Trabalho ocioso | nenhum | timer só com projeto armado; sem assignment/rotina não há tick de engine |
+
 ## Desktop (Tier 2)
 
 | Medida | Valor | Notas |

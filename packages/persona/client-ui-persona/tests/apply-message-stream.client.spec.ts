@@ -32,16 +32,12 @@ describe('applyMessageStreamFrame', () => {
   it('appends upserts in order', () => {
     const baseline = applyMessageStreamFrame([], {
       kind: 'baseline',
-      events: [{
-        id: 'm1', actorId: 'ana', body: 'a', subjectId: 't1', occurredAt: '2026-11-03T12:00:00.000Z',
-      }],
+      events: [msg('m1', 'a')],
       order: ['m1'],
     }, team, 'ana')
     const next = applyMessageStreamFrame(baseline, {
       kind: 'upsert',
-      events: [{
-        id: 'm2', actorId: 'ana', body: 'b', subjectId: 't1', occurredAt: '2026-11-03T12:01:00.000Z',
-      }],
+      events: [{ ...msg('m2', 'b'), occurredAt: '2026-11-03T12:01:00.000Z' }],
       order: ['m2'],
     }, team, 'ana')
     expect(next.map(row => row.id)).toEqual(['m1', 'm2'])

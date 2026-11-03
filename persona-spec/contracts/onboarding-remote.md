@@ -34,4 +34,4 @@ interface CompleteOnboardingResult {
 
 **Postconditions (Anvil):** owner display name updated; personas created per roster; `getOnboarding` returns `firstUse: false`; optional welcome message on `#geral`.
 
-**Prism:** `PersonaLiveStore.completeOnboarding()` calls this when present on `ctx.remote.persona`; otherwise falls back to `commitOnboardingRoster`.
+**Prism:** `PersonaLiveStore.completeOnboarding()` calls this when present on `ctx.remote.persona`; otherwise falls back to `commitOnboardingRoster`. No personas are created on bootstrap; `getOnboarding().firstUse` opens the overlay. Dev-only seed: `PERSONA_DEV_SEED=1` (harness) sets `persona.devSeed.v1` in localStorage — never shipped enabled.

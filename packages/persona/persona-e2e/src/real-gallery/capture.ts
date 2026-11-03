@@ -72,66 +72,69 @@ function buildIndexMarkdown(rows: readonly GalleryCaptureRow[]): string {
  */
 export async function runRealGalleryCapture(): Promise<{ rows: GalleryCaptureRow[]; indexPath: string }> {
   await mkdir(REAL_GALLERY_DIR, { recursive: true })
-  const host = await startWebHost({ profile: 'persona' })
   const rows: GalleryCaptureRow[] = []
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ channel: 'chrome' })
 
   try {
-    for (const viewport of GALLERY_VIEWPORTS) {
-      for (const theme of GALLERY_THEMES) {
-        const context = await browser.newContext({
-          locale: 'pt-BR',
-          viewport: { width: viewport.width, height: viewport.height },
-          colorScheme: theme,
-        })
-        await context.addInitScript((key) => {
-          localStorage.setItem(key, '1')
-        }, ONBOARDING_STORAGE_KEY)
-        const page = await context.newPage()
-        const consoleErrors: string[] = []
-        page.on('console', (m) => {
-          if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 400))
-        })
-
-        await page.goto(host.url, { waitUntil: 'load', timeout: 120_000 })
-        await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
-        await page.waitForTimeout(2_000)
-
-        for (const spec of REAL_GALLERY_PANELS) {
-          if (spec.kind === 'onboarding-step' || spec.kind === 'unmounted') continue
-          const panelErrors: string[] = []
-          page.removeAllListeners('console')
+    const host = await startWebHost({ profile: 'persona' })
+    try {
+      for (const viewport of GALLERY_VIEWPORTS) {
+        for (const theme of GALLERY_THEMES) {
+          const context = await browser.newContext({
+            locale: 'pt-BR',
+            viewport: { width: viewport.width, height: viewport.height },
+            colorScheme: theme,
+          })
+          await context.addInitScript((key) => {
+            localStorage.setItem(key, '1')
+          }, ONBOARDING_STORAGE_KEY)
+          const page = await context.newPage()
+          const consoleErrors: string[] = []
           page.on('console', (m) => {
-            if (m.type() === 'error') panelErrors.push(m.text().slice(0, 400))
+            if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 400))
           })
-          try {
-            await navigatePanel(page, spec)
-          } catch (error) {
-            panelErrors.push(error instanceof Error ? error.message : String(error))
+
+          await page.goto(host.url, { waitUntil: 'load', timeout: 120_000 })
+          await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
+          await page.waitForTimeout(2_000)
+
+          for (const spec of REAL_GALLERY_PANELS) {
+            if (spec.kind === 'onboarding-step' || spec.kind === 'unmounted') continue
+            const panelErrors: string[] = []
+            page.removeAllListeners('console')
+            page.on('console', (m) => {
+              if (m.type() === 'error') panelErrors.push(m.text().slice(0, 400))
+            })
+            try {
+              await navigatePanel(page, spec)
+            } catch (error) {
+              panelErrors.push(error instanceof Error ? error.message : String(error))
+            }
+            const file = `${spec.slug}-${theme}-${viewport.tag}.png`
+            const path = join(REAL_GALLERY_DIR, file)
+            await page.screenshot({ path, animations: 'disabled' })
+            const axe = await scanAccessibility(page)
+            rows.push({
+              panel: spec.slug,
+              owner: spec.owner,
+              theme,
+              viewport: viewport.tag,
+              file,
+              consoleErrors: [...panelErrors],
+              axe,
+            })
           }
-          const file = `${spec.slug}-${theme}-${viewport.tag}.png`
-          const path = join(REAL_GALLERY_DIR, file)
-          await page.screenshot({ path, animations: 'disabled' })
-          const axe = await scanAccessibility(page)
-          rows.push({
-            panel: spec.slug,
-            owner: spec.owner,
-            theme,
-            viewport: viewport.tag,
-            file,
-            consoleErrors: [...panelErrors],
-            axe,
-          })
+          await context.close()
         }
-        await context.close()
       }
+    } finally {
+      await host.stop()
     }
 
     await captureOnboardingGallery(browser, rows)
   } finally {
     await browser.close()
-    await host.stop()
   }
 
   const indexPath = join(REAL_GALLERY_DIR, 'index.md')

@@ -17,6 +17,15 @@ export const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`
 /** Environment variable that overrides the default DeepSeek Harness home. */
 export const DSH_HOME_ENV = 'DSH_HOME'
 
+/** Directory name for the default Persona product home under the OS home. */
+export const PERSONA_HOME_DIR_NAME = '.persona'
+
+/** Environment variable that overrides the default Persona home (also accepted as `DSH_HOME`). */
+export const PERSONA_HOME_ENV = 'PERSONA_HOME'
+
+/** Stable user-facing display form for the default Persona home. */
+export const DEFAULT_PERSONA_HOME_DISPLAY = `~/${PERSONA_HOME_DIR_NAME}`
+
 /** Directory name for the default shared agent configuration root under the OS home. */
 export const AGENTS_HOME_DIR_NAME = '.agents'
 
@@ -124,16 +133,49 @@ function rootDisplay(resolvedRoot: string, defaultRoot: string, defaultLabel: st
 /**
  * Resolve the single-root DeepSeek Harness home.
  *
- * Precedence, highest first: an explicit configured path, `$DSH_HOME`, then
- * `~/.dsh`. The harness keeps all user data under one root. An empty or
- * whitespace-only `$DSH_HOME` is treated as unset, so a blank override never
- * resolves the home to the current working directory.
+ * Precedence, highest first: an explicit configured path, `$PERSONA_HOME`,
+ * `$DSH_HOME`, then `~/.dsh`. The harness keeps all user data under one root.
+ * An empty or whitespace-only `$DSH_HOME` is treated as unset, so a blank
+ * override never resolves the home to the current working directory.
  * @param configured - explicit harness-home override, which has highest precedence.
  * @param env - environment mapping used to read `DSH_HOME`.
  * @returns the normalized absolute harness home path.
  */
 export function resolveDshHome(configured?: string, env: Record<string, string | undefined> = process.env): string {
+  if (configured !== undefined) return resolveRoot(configured, env, DSH_HOME_ENV, defaultDshHome)
+  const persona = env[PERSONA_HOME_ENV]
+  if (persona !== undefined && persona.trim().length > 0) return resolve(expandHomePath(persona))
   return resolveRoot(configured, env, DSH_HOME_ENV, defaultDshHome)
+}
+
+/**
+ * Resolve the default Persona product home using Node's platform path rules.
+ * @returns the absolute default Persona home path (`~/.persona`).
+ */
+export function defaultPersonaHome(): string {
+  return join(homedir(), PERSONA_HOME_DIR_NAME)
+}
+
+/**
+ * Resolve the Persona data home.
+ *
+ * Precedence, highest first: an explicit path, `$PERSONA_HOME`, `$DSH_HOME`,
+ * then `~/.persona`. Empty or whitespace-only env values are treated as unset.
+ * @param configured - explicit home override.
+ * @param env - environment mapping.
+ * @returns the normalized absolute home path.
+ */
+export function resolvePersonaHome(
+  configured?: string,
+  env: Record<string, string | undefined> = process.env,
+): string {
+  const fromPersona = env[PERSONA_HOME_ENV]
+  const fromDsh = env[DSH_HOME_ENV]
+  const selected = configured
+    ?? (fromPersona !== undefined && fromPersona.trim().length > 0 ? fromPersona : undefined)
+    ?? (fromDsh !== undefined && fromDsh.trim().length > 0 ? fromDsh : undefined)
+    ?? defaultPersonaHome()
+  return resolve(expandHomePath(selected))
 }
 
 /**

@@ -70,6 +70,10 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
+import { applyPersonaDesktopIdentity, PERSONA_PRODUCT_NAME, PERSONA_PROTOCOL, personaUpdatesEnabled, shouldShowDeepSeekWelcome } from './product.ts'
+import { isDeepSeekHost } from './deepseek-hosts.ts'
+
+applyPersonaDesktopIdentity()
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -259,8 +263,31 @@ function platformLoginUrl(authorizeUrl: string): string {
   return url.href
 }
 
+/**
+ * Keep the native and document titles on Persona even if the bundled web
+ * client still ships a DeepSeek / local-build document title.
+ */
+function pinPersonaWindowTitle(window: BrowserWindow): void {
+  const apply = (): void => {
+    if (window.isDestroyed()) return
+    window.setTitle(PERSONA_PRODUCT_NAME)
+  }
+  apply()
+  window.on('page-title-updated', (event) => {
+    event.preventDefault()
+    apply()
+  })
+  window.webContents.on('did-finish-load', () => {
+    apply()
+    void window.webContents.executeJavaScript(`document.title = ${JSON.stringify(PERSONA_PRODUCT_NAME)}`).catch(() => {
+      // Native title is already Persona when the renderer rejects the write.
+    })
+  })
+}
+
 function createWindow(preload: string, show = false, primary = false): BrowserWindow {
   const window = new BrowserWindow({
+    title: PERSONA_PRODUCT_NAME,
     width: 1280,
     height: 820,
     minWidth: 520,
@@ -292,6 +319,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
       devTools: true,
     },
   })
+  pinPersonaWindowTitle(window)
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (['http:', 'https:'].includes(new URL(url).protocol)) void shell.openExternal(url)
     return { action: 'deny' }
@@ -562,7 +590,7 @@ async function main(): Promise<void> {
           if (state.status === 'credential-stored' && attempt?.phase === 'succeeded' && welcomeWindow !== undefined) void enterWorkspace({ activate: false }).catch(() => undefined)
           if (previousAccountStatus === 'credential-stored' && state.status === 'signed-out') {
             void readWelcomeState().then(async (value) => {
-              if (needsWelcome(value) && !quitting) {
+              if (shouldShowDeepSeekWelcome() && needsWelcome(value) && !quitting) {
                 enteredWorkspace = false
                 await showWelcome()
                 if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) welcomeWindow.webContents.send(WELCOME_IPC.state, state)
@@ -575,7 +603,7 @@ async function main(): Promise<void> {
           // The stream reconnects; a transport failure does not change account state.
         }, () => {
           void readWelcomeState().then(async (value) => {
-            if (!needsWelcome(value) || quitting) return
+            if (!shouldShowDeepSeekWelcome() || !needsWelcome(value) || quitting) return
             pendingWelcomeNotice = 'session-expired'
             enteredWorkspace = false
             await showWelcome()
@@ -833,6 +861,13 @@ async function main(): Promise<void> {
     return browserGuests.release(event.sender, lease)
   })
 
+  session.defaultSession.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
+    if (isDeepSeekHost(details.url)) {
+      callback({ cancel: true })
+      return
+    }
+    callback({})
+  })
   session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['ws://127.0.0.1/*', 'wss://127.0.0.1/*'] }, (details, callback) => {
     if (hostUrl === undefined || hostCookie === undefined || details.webContentsId !== mainWindow?.webContents.id) {
       callback({})
@@ -1117,6 +1152,7 @@ async function main(): Promise<void> {
   }
 
   const automaticCheck = (): void => {
+    if (!personaUpdatesEnabled()) return
     if (!quitting) void mandatoryPolicy?.check('foreground-or-resume').catch((error: unknown) => { console.error(error) })
     if (!quitting) void updateSchedule.check().catch((error: unknown) => { console.error(error) })
   }
@@ -1130,7 +1166,7 @@ async function main(): Promise<void> {
   const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
     : join(process.resourcesPath, 'icon.png')
   app.setAboutPanelOptions({
-    applicationName: 'DeepSeek Harness',
+    applicationName: PERSONA_PRODUCT_NAME,
     applicationVersion: app.getVersion(),
     // The release has no separate build number; omit Electron's bundle version.
     version: '',
@@ -1408,7 +1444,7 @@ async function main(): Promise<void> {
     writeDesktopLocaleCache(app.getPath('userData'), locale.id)
     windowsLanguage = locale.id
     refreshApplicationMenu()
-    if (!enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
+    if (!enteredWorkspace && shouldShowDeepSeekWelcome() && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
       // A later login must retain its own activation policy instead of replaying startup focus.
       raiseAfterUpdate = false
       await showWelcome()
@@ -1432,10 +1468,16 @@ async function main(): Promise<void> {
     window.focus()
   }
 
-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
+  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') {
+    app.setAsDefaultProtocolClient(PERSONA_PROTOCOL)
+    app.setAsDefaultProtocolClient('dsh')
+  }
   app.on('open-url', (event, url) => {
     event.preventDefault()
-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
+    if (url === 'dsh://open' || url === 'dsh://open/'
+      || url === `${PERSONA_PROTOCOL}://open` || url === `${PERSONA_PROTOCOL}://open/`) {
+      focusPrimaryWindow()
+    }
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {
@@ -1488,7 +1530,9 @@ async function main(): Promise<void> {
       if (quitting || shellInstallerOwnsQuit) return
       if (approved) { finishQuit(); return }
       // A quit that started from closing the welcome window destroyed it; a cancelled quit needs it back.
-      if (!enteredWorkspace && !recovery.active) void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
+      if (!enteredWorkspace && !recovery.active && shouldShowDeepSeekWelcome()) {
+        void showWelcome().catch((error: unknown) => { reportFatal(error, 'main') })
+      }
     }).catch((error: unknown) => { console.error(error); if (!quitting && !shellInstallerOwnsQuit) finishQuit() })
   })
 

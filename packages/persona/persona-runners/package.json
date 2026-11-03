@@ -28,7 +28,8 @@
   "license": "MIT",
   "sideEffects": false,
   "dependencies": {
-    "@botiverse/oar": "0.67.0"
+    "@botiverse/oar": "0.67.0",
+    "@cursor/sdk": "1.0.37"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

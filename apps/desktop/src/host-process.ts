@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { PlatformSession } from '@deepseek-ai/dsh-deepseek-account'
 import { desktopNodeEnvironment } from './node-environment.ts'
 import { parsePluginOperationRecord, type PluginOperationRecord, type PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
+import { handlePersonaVaultRequest, isPersonaVaultHostRequest } from './persona-vault-ipc.ts'
 
 interface ReadyEvent {
   readonly type: 'ready'
@@ -227,6 +228,12 @@ export class DesktopHostProcess {
     child.stderr?.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-MAX_HOST_DIAGNOSTIC_CHARS) })
     child.stdout?.pipe(process.stdout)
     child.on('message', (message: unknown) => {
+      if (isPersonaVaultHostRequest(message)) {
+        child.send(handlePersonaVaultRequest(message), (_error) => {
+          // Host still owns the request timeout if the reply cannot be delivered.
+        })
+        return
+      }
       if (typeof message === 'object' && message !== null && 'type' in message && message.type === 'plugin-operation') {
         const record = 'record' in message ? parsePluginOperationRecord(message.record) : undefined
         if (record !== undefined && record.runId === this.runId) {

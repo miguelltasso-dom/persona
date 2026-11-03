@@ -17,6 +17,9 @@ import {
   expandHomePath,
   resolveAgentsHome,
   resolveDshHome,
+  PERSONA_HOME_DIR_NAME,
+  defaultPersonaHome,
+  resolvePersonaHome,
 } from '@deepseek-ai/dsh-home-paths'
 
 afterEach(() => {
@@ -36,6 +39,17 @@ describe('dsh path helpers', () => {
     expect(expandHomePath('~\\.dsh')).toBe(join(homedir(), '.dsh'))
     expect(expandHomePath('/tmp/.dsh')).toBe('/tmp/.dsh')
     expect(expandHomePath('~other/.dsh')).toBe('~other/.dsh')
+  })
+
+  it('reads PERSONA_HOME before DSH_HOME when resolving the harness home', () => {
+    expect(resolveDshHome(undefined, { PERSONA_HOME: '~/env-persona', DSH_HOME: '~/env-dsh' }))
+      .toBe(join(homedir(), 'env-persona'))
+  })
+
+  it('resolves the Persona home to ~/.persona by default', () => {
+    expect(PERSONA_HOME_DIR_NAME).toBe('.persona')
+    expect(defaultPersonaHome()).toBe(join(homedir(), '.persona'))
+    expect(resolvePersonaHome(undefined, {})).toBe(join(homedir(), '.persona'))
   })
 
   it('resolves explicit path before DSH_HOME and the default', () => {

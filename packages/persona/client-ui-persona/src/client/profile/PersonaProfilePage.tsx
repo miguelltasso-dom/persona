@@ -8,6 +8,8 @@ import { SkillsPanel } from '../skills/SkillsPanel.tsx'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './ProfileScreen.module.css'
 import { ProactivityMetricsPanel } from './ProactivityMetricsPanel.tsx'
+import type { MemoryRow } from '../memory/mock-data.ts'
+import type { SkillRecord } from '../skills/mock-data.ts'
 import type { PersonaLiveState, PersonaProfileSnapshot } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/profile/locales.ts'
 
@@ -34,6 +36,8 @@ export interface PersonaProfilePageProps {
   readonly snapshot?: PersonaProfileSnapshot
   readonly initialState?: ProfileSurfaceState
   readonly onRemoteRetry?: () => void
+  readonly memoryRows?: readonly MemoryRow[]
+  readonly skillRecords?: readonly SkillRecord[]
 }
 
 export function PersonaProfilePage({
@@ -41,6 +45,8 @@ export function PersonaProfilePage({
   snapshot,
   initialState = 'ready',
   onRemoteRetry,
+  memoryRows,
+  skillRecords,
 }: PersonaProfilePageProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [tab, setTab] = useState<ProfileTab>('overview')
@@ -141,8 +147,18 @@ export function PersonaProfilePage({
           </Card>
         </section>
       )}
-      {tab === 'memory' && <MemoryPanel />}
-      {tab === 'skills' && <SkillsPanel />}
+      {tab === 'memory' && (
+        <MemoryPanel
+          {...(memoryRows !== undefined ? { rows: memoryRows } : {})}
+          initialState={memoryRows !== undefined && memoryRows.length === 0 ? 'empty' : 'ready'}
+        />
+      )}
+      {tab === 'skills' && (
+        <SkillsPanel
+          {...(skillRecords !== undefined ? { skills: skillRecords } : {})}
+          initialState={skillRecords !== undefined && skillRecords.length === 0 ? 'empty' : 'ready'}
+        />
+      )}
     </Screen>
   )
 }

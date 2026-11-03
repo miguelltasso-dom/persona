@@ -77,6 +77,7 @@ function initials(name: string): string {
 /** "Sua equipe" in the rail: live state seal, DM unread, blink, top 6 + "ver todos", hire button. */
 export function RailTeam({ t, members, collapsed, onOpenDm, onOpenProfile, onHire }: RailTeamProps): ReactNode {
   const [showAll, setShowAll] = useState(false)
+  const [open, setOpen] = useState(true)
   const sorted = useMemo(
     () => [...members].sort((a, b) => (STATE_ORDER[a.state] - STATE_ORDER[b.state]) || (b.unread - a.unread) || a.name.localeCompare(b.name, 'pt-BR')),
     [members],
@@ -85,71 +86,81 @@ export function RailTeam({ t, members, collapsed, onOpenDm, onOpenProfile, onHir
 
   return (
     <section className={styles.group} data-collapsed={collapsed ? '' : undefined} aria-labelledby="persona-rail-team-title">
-      <p id="persona-rail-team-title" className={collapsed ? 'persona-sr-only' : styles.title}>
+      <button
+        type="button"
+        id="persona-rail-team-title"
+        className={collapsed ? 'persona-sr-only' : `${styles.title} ${styles.titleToggle}`}
+        aria-expanded={open}
+        aria-controls="persona-rail-team-list"
+        onClick={() => { setOpen(value => !value) }}
+      >
         {t('sidebar.team.title')}
         {members.length > 0 && <span className={styles.count}>{members.length}</span>}
-      </p>
-      <ul className={styles.list}>
-        {visible.map((member, index) => {
-          const status = t(STATE_LABEL[member.state])
-          const portrait = PORTRAITS[member.characterId]
-          const blink = PORTRAITS[`${member.characterId}-blink`]
-          const icon = STATE_ICON[member.state]
-          const label = [
-            t('sidebar.team.openDm', { name: member.name }),
-            member.role,
-            status,
-            member.unread > 0 ? t('sidebar.team.unread', { count: String(member.unread) }) : '',
-          ].filter(Boolean).join(' · ')
-          return (
-            <li key={member.id} className={styles.row} data-state={member.state}>
-              <button
-                type="button"
-                className={styles.person}
-                aria-label={label}
-                title={collapsed ? `${member.name} — ${status}` : undefined}
-                onClick={() => { onOpenDm?.(member.id) }}
-              >
-                <span className={styles.avatar} style={{ '--blink-delay': `${2.3 + index * 1.7}s` } as CSSProperties} aria-hidden="true">
-                  {portrait !== undefined ? (
-                    <>
-                      <img className={styles.face} src={portrait} alt="" draggable={false} />
-                      {blink !== undefined && <img className={styles.blink} src={blink} alt="" draggable={false} />}
-                    </>
-                  ) : (
-                    <span className={styles.initials}>{initials(member.name)}</span>
-                  )}
-                  <span className={styles.seal} data-state={member.state}>
-                    {icon !== undefined && <img src={OVERLAY_ICONS[icon]} alt="" />}
-                  </span>
-                </span>
-                {!collapsed && (
-                  <span className={styles.text} aria-hidden="true">
-                    <span className={styles.name}>{member.name}</span>
-                    <span className={styles.role}>{member.role}</span>
-                    <span className={styles.status}>{status}</span>
-                  </span>
-                )}
-                {member.unread > 0 && (
-                  <span className={styles.unread} aria-hidden="true">{member.unread > 99 ? '99+' : member.unread}</span>
-                )}
-              </button>
-              {!collapsed && onOpenProfile !== undefined && (
+        <UiIcon name="chevronDown" size={14} strokeWidth={2.4} className={styles.chevron} />
+      </button>
+      {(open || collapsed) && (
+        <ul className={styles.list} id="persona-rail-team-list">
+          {visible.map((member, index) => {
+            const status = t(STATE_LABEL[member.state])
+            const portrait = PORTRAITS[member.characterId]
+            const blink = PORTRAITS[`${member.characterId}-blink`]
+            const icon = STATE_ICON[member.state]
+            const label = [
+              t('sidebar.team.openDm', { name: member.name }),
+              member.role,
+              status,
+              member.unread > 0 ? t('sidebar.team.unread', { count: String(member.unread) }) : '',
+            ].filter(Boolean).join(' · ')
+            return (
+              <li key={member.id} className={styles.row} data-state={member.state}>
                 <button
                   type="button"
-                  className={styles.more}
-                  aria-label={t('sidebar.team.profile', { name: member.name })}
-                  title={t('sidebar.team.profile', { name: member.name })}
-                  onClick={() => { onOpenProfile(member.id) }}
+                  className={styles.person}
+                  aria-label={label}
+                  title={collapsed ? `${member.name} — ${status}` : undefined}
+                  onClick={() => { onOpenDm?.(member.id) }}
                 >
-                  <UiIcon name="more" size={18} />
+                  <span className={styles.avatar} style={{ '--blink-delay': `${2.3 + index * 1.7}s` } as CSSProperties} aria-hidden="true">
+                    {portrait !== undefined ? (
+                      <>
+                        <img className={styles.face} src={portrait} alt="" draggable={false} />
+                        {blink !== undefined && <img className={styles.blink} src={blink} alt="" draggable={false} />}
+                      </>
+                    ) : (
+                      <span className={styles.initials}>{initials(member.name)}</span>
+                    )}
+                    <span className={styles.seal} data-state={member.state}>
+                      {icon !== undefined && <img src={OVERLAY_ICONS[icon]} alt="" />}
+                    </span>
+                  </span>
+                  {!collapsed && (
+                    <span className={styles.text} aria-hidden="true">
+                      <span className={styles.name}>{member.name}</span>
+                      <span className={styles.role}>{member.role}</span>
+                      <span className={styles.status}>{status}</span>
+                    </span>
+                  )}
+                  {member.unread > 0 && (
+                    <span className={styles.unread} aria-hidden="true">{member.unread > 99 ? '99+' : member.unread}</span>
+                  )}
                 </button>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-      {sorted.length > VISIBLE_LIMIT && !collapsed && (
+                {!collapsed && onOpenProfile !== undefined && (
+                  <button
+                    type="button"
+                    className={styles.more}
+                    aria-label={t('sidebar.team.profile', { name: member.name })}
+                    title={t('sidebar.team.profile', { name: member.name })}
+                    onClick={() => { onOpenProfile(member.id) }}
+                  >
+                    <UiIcon name="more" size={18} />
+                  </button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {open && sorted.length > VISIBLE_LIMIT && !collapsed && (
         <button type="button" className={styles.seeAll} aria-expanded={showAll} onClick={() => { setShowAll(open => !open) }}>
           {showAll ? t('sidebar.team.seeLess') : t('sidebar.team.seeAll', { count: String(sorted.length) })}
         </button>

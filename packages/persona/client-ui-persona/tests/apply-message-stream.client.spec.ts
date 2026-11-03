@@ -7,22 +7,23 @@ const team: TeamView = {
   members: [{ id: 'ana', workspaceId: 'ws', displayName: 'Ana', handle: 'ana', role: 'owner' }],
 }
 
-const msg = (id: string, body: string) => ({
+const msg = (id: string, body: string, seq: number, occurredAt: string) => ({
   id,
   streamId: 'channel:geral',
-  seq: 1,
+  seq,
   type: 'message',
   actorId: 'ana',
   body,
   subjectId: 't1',
-  occurredAt: '2026-11-03T12:00:00.000Z',
+  occurredAt,
+  source: 'host' as const,
 })
 
 describe('applyMessageStreamFrame', () => {
   it('replaces messages on baseline', () => {
     const frame = {
       kind: 'baseline' as const,
-      events: [msg('m1', 'oi')],
+      events: [msg('m1', 'oi', 1, '2026-11-03T12:00:00.000Z')],
       order: ['m1'],
     }
     const rows = applyMessageStreamFrame([], frame, team, 'ana')
@@ -33,14 +34,27 @@ describe('applyMessageStreamFrame', () => {
   it('appends upserts in order', () => {
     const baseline = applyMessageStreamFrame([], {
       kind: 'baseline',
-      events: [msg('m1', 'a')],
+      events: [msg('m1', 'a', 1, '2026-11-03T12:00:00.000Z')],
       order: ['m1'],
     }, team, 'ana')
     const next = applyMessageStreamFrame(baseline, {
       kind: 'upsert',
-      events: [{ ...msg('m2', 'b'), occurredAt: '2026-11-03T12:01:00.000Z' }],
+      events: [msg('m2', 'b', 2, '2026-11-03T12:01:00.000Z')],
       order: ['m2'],
     }, team, 'ana')
     expect(next.map(row => row.id)).toEqual(['m1', 'm2'])
+  })
+
+  it('baseline sorts by seq, not frame.order (display time is not sort key)', () => {
+    const frame = {
+      kind: 'baseline' as const,
+      events: [
+        msg('late', 'coord welcome', 1, '2026-11-03T21:00:00.000Z'),
+        msg('early', 'user hello', 2, '2026-11-03T14:00:00.000Z'),
+      ],
+      order: ['late', 'early'],
+    }
+    const rows = applyMessageStreamFrame([], frame, team, 'ana')
+    expect(rows.map(row => row.id)).toEqual(['late', 'early'])
   })
 })

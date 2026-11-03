@@ -1,9 +1,11 @@
 import type { PersonaCharacterId } from '../assets/asset-url.ts'
 import { poseUrl } from '../assets/asset-url.ts'
-import type { KanbanCardModel, KanbanColumnId } from '../kanban/types.ts'
+import { resolveProjectDisplayName } from '../kanban/resolve-project-name.ts'
+import type { KanbanCardModel, KanbanColumnId, KanbanPersonaRef } from '../kanban/types.ts'
 import type { ChannelPersonaMember, PersonaNowSnapshot, PersonaWorkUiState } from '../team/persona-work-state.ts'
 import { uiStateToPose } from '../team/persona-work-state.ts'
 import type { AwayEventView, MessageView, PersonaNowView, PersonaView, TaskView, TeamView } from './persona-remote-types.ts'
+import { sortPersonasForUi } from '../team/sort-personas.ts'
 
 function taskColumn(stage: string): KanbanColumnId {
   if (stage === 'todo') return 'todo'
@@ -14,20 +16,75 @@ function taskColumn(stage: string): KanbanColumnId {
   return 'in_progress'
 }
 
-export function mapTaskToKanbanCard(task: TaskView): KanbanCardModel {
+function deriveCardAssigneeState(task: TaskView, column: KanbanColumnId): PersonaWorkUiState {
+  if (column === 'blocked') return 'stuck'
+  if (task.stageAction === 'waiting') return 'waiting'
+  if (column === 'in_progress' || column === 'in_review') return 'working'
+  return 'resting'
+}
+
+function personaInitials(name: string): string {
+  const parts = name.trim().split(/\s+/u)
+  if (parts.length >= 2) {
+    return `${parts[0]!.charAt(0)}${parts[1]!.charAt(0)}`.toUpperCase()
+  }
+  return name.slice(0, 2).toUpperCase()
+}
+
+function findAssigneeForTask(
+  task: TaskView,
+  nowRows: readonly PersonaNowSnapshot[],
+): KanbanPersonaRef | undefined {
+  for (const row of nowRows) {
+    const taskRef = row.currentTask ?? ''
+    if (taskRef.length === 0) continue
+    if (taskRef === task.id || taskRef === task.title) {
+      return {
+        id: row.member.id,
+        name: row.member.name,
+        initials: personaInitials(row.member.name),
+      }
+    }
+  }
+  return undefined
+}
+
+export function mapTaskToKanbanCard(
+  task: TaskView,
+  projects: readonly { readonly id: string; readonly name: string }[] = [],
+): KanbanCardModel {
   const column = taskColumn(task.stage)
   return {
     id: task.id,
     title: task.title,
     projectId: task.projectId,
-    projectName: task.projectId,
+    projectName: resolveProjectDisplayName(task.projectId, projects),
     teamId: 'default',
     teamName: 'Equipe',
     column,
     waitingEvent: task.stageAction === 'waiting',
     blocked: column === 'blocked',
     reviewApproved: false,
+    assigneeState: deriveCardAssigneeState(task, column),
   }
+}
+
+/** Host tasks → cards with project labels and persona assignment from `now` rows. */
+export function enrichKanbanCardsFromHost(
+  tasks: readonly TaskView[],
+  projects: readonly { readonly id: string; readonly name: string }[],
+  nowRows: readonly PersonaNowSnapshot[],
+): KanbanCardModel[] {
+  return tasks.map((task): KanbanCardModel => {
+    const card = mapTaskToKanbanCard(task, projects)
+    const assignee = findAssigneeForTask(task, nowRows)
+    if (assignee === undefined) return card
+    const row = nowRows.find(r => r.member.name === assignee.name)
+    const assigneeState = row?.member.state ?? card.assigneeState
+    return assigneeState === undefined
+      ? { ...card, assignee }
+      : { ...card, assignee, assigneeState }
+  })
 }
 
 const KNOWN_AVATARS = new Set<string>(['atlas', 'bento', 'nina', 'sol', 'luna'])
@@ -53,6 +110,20 @@ function resolveCharacterId(persona: PersonaView | undefined, fallback: string):
   return avatarToCharacterId(fallback)
 }
 
+/** UI character id or label → host persona id for Remote writes (DM, etc.). */
+export function resolveHostPersonaId(team: TeamView | null, ref: string): string {
+  if (team === null) return ref
+  if (team.personas.some(p => p.id === ref)) return ref
+  const lower = ref.toLowerCase()
+  const byAvatar = team.personas.find(
+    p => p.avatarRef.toLowerCase() === lower || p.name.toLowerCase() === lower,
+  )
+  if (byAvatar !== undefined) return byAvatar.id
+  const bySuffix = team.personas.find(p => p.id.toLowerCase().endsWith(`-${lower}`))
+  if (bySuffix !== undefined) return bySuffix.id
+  return ref
+}
+
 function stripMember(
   persona: PersonaView,
   state: PersonaWorkUiState,
@@ -65,8 +136,17 @@ function stripMember(
     name: persona.name,
     role: persona.title,
     state,
+    systemRoles: [...persona.systemRoles],
     ...(hasPose ? {} : { silhouette: true as const }),
   }
+}
+
+/** Stream order: monotonic seq, then occurredAt (display time is not sort key). */
+export function sortMessageStreamEvents(events: readonly MessageView[]): MessageView[] {
+  return [...events].sort((a, b) => {
+    if (a.seq !== b.seq) return a.seq - b.seq
+    return a.occurredAt.localeCompare(b.occurredAt)
+  })
 }
 
 export function mapPersonaNowRow(row: PersonaNowView, team: TeamView): PersonaNowSnapshot {
@@ -100,7 +180,7 @@ export function mapTeamToStrip(team: TeamView, now: readonly PersonaNowView[]): 
   if (team.personas.length === 0) {
     return now.map(row => mapPersonaNowRow(row, team).member)
   }
-  return team.personas.map((persona: PersonaView) => {
+  return sortPersonasForUi(team.personas).map((persona: PersonaView) => {
     const row = nowByPersona.get(persona.id)
     if (row !== undefined) return mapPersonaNowRow(row, team).member
     return stripMember(persona, 'resting')

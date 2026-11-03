@@ -103,6 +103,7 @@ export function registerPrismScreens(
       hooks: { live: live.observable },
       selectDm: (dmId: string | null) => { void live.selectDm(dmId) },
       postDmMessage: (body: string) => { void live.postDmMessage(body) },
+      startNewConversation: () => { void live.openFirstAvailableDm() },
     }),
   }, ConnectedDirectMessagesView)
 

@@ -192,6 +192,10 @@ Todo `HostObservable` derivado (selectors, bridges) devolve **a mesma referênci
 - **Cabeçalho de tela**: ícone da seção em selo quadrado wash com contorno (40px) + título h1 Fredoka + subtítulo ink-soft; ferramentas à direita (IconButtons + avatar do usuário).
 - **Área de conteúdo**: papel com grão; conteúdo em cartões; largura máx. de leitura 1120px.
 
+### 6.1 Quadros, fluxos e sprints (PROJECT-BOARDS)
+
+Especificação completa em `persona-spec/design/BOARDS-SPEC.md`. Tokens de **categoria de estágio** (claro/escuro): `--persona-cat-{todo|doing|review|needs-you|done|blocked}` + `-tint`. A cor da categoria só aparece como faixa de 4 px no topo da coluna, ponto do cabeçalho e segmento de barra — sempre com rótulo/ícone.
+
 ## 7. Ilustração integrada
 
 - **Faixa da equipe** (`#geral`): banner com cenário (céu wash → colinas lavanda + chão), personagens de corpo inteiro **grandes** (altura 180–200px) apoiados no mesmo chão, título "Sua equipe neste canal" em Fredoka h2 + chip "N membros". Arte final: `brand/banner-team-{light,dark}.webp` (Brush); enquanto não chega, cenário SVG do próprio tema. Nome/estado de cada um em **etiqueta-adesivo** sob os pés.

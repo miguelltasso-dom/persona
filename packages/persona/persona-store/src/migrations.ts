@@ -501,7 +501,74 @@ CREATE TABLE usage_quota (
 ) STRICT;
 `
 
-/** Adjacent shipped layout: v1 product… v5 screens, v6 retention, v7 usage. */
+const V8_BOARD = `
+CREATE TABLE project_workflow (
+  project_id TEXT PRIMARY KEY REFERENCES project(id) ON DELETE CASCADE,
+  template TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE workflow_column (
+  project_id TEXT NOT NULL REFERENCES project_workflow(project_id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('todo', 'doing', 'review', 'needs_you', 'done')),
+  color TEXT,
+  icon TEXT,
+  wip INTEGER,
+  ord INTEGER NOT NULL,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE INDEX workflow_column_ord ON workflow_column (project_id, ord);
+
+CREATE TABLE workflow_field (
+  project_id TEXT NOT NULL REFERENCES project_workflow(project_id) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('text', 'link', 'number', 'date', 'select')),
+  options_json TEXT,
+  ord INTEGER NOT NULL,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE INDEX workflow_field_ord ON workflow_field (project_id, ord);
+
+CREATE TABLE sprint (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  objective TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('planejado', 'ativo', 'encerrado')),
+  starts_at TEXT,
+  ends_at TEXT,
+  goal_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX sprint_project ON sprint (project_id, status);
+
+CREATE TABLE sprint_ticket (
+  sprint_id TEXT NOT NULL REFERENCES sprint(id) ON DELETE CASCADE,
+  ticket_id TEXT NOT NULL,
+  ord INTEGER NOT NULL,
+  PRIMARY KEY (sprint_id, ticket_id)
+) STRICT;
+
+CREATE TABLE ticket_seat (
+  ticket_id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  column_id TEXT,
+  sprint_id TEXT REFERENCES sprint(id) ON DELETE SET NULL,
+  blocked INTEGER NOT NULL CHECK (blocked IN (0, 1)),
+  campos_json TEXT
+) STRICT;
+
+CREATE INDEX ticket_seat_project ON ticket_seat (project_id);
+`
+
+/** Adjacent shipped layout: v1 product… v5 screens, v6 retention, v7 usage, v8 board. */
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -530,5 +597,9 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 7,
     sql: V7_USAGE,
+  },
+  {
+    version: 8,
+    sql: V8_BOARD,
   },
 ]

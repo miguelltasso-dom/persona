@@ -20,7 +20,10 @@ import { CanvasView } from '../canvas/CanvasView.tsx'
 import { approvalsToInbox } from './adapters/approvals.ts'
 import { connectionsToEntries } from './adapters/connections.ts'
 import { tasksToKanbanCards } from './adapters/kanban.ts'
-import { limitsToUsageMeters } from './adapters/usage.ts'
+import { memoryViewsToRows } from './adapters/memory.ts'
+import { skillViewsToRecords } from './adapters/skills.ts'
+import { currentUsagePeriod, usageBookToMeters } from './adapters/usage.ts'
+import { personaScreensRemote } from './persona-screens-remote.ts'
 import { canvasGraphToUi } from './adapters/canvas.ts'
 import { ReviewDeliveryPanel } from '../review/ReviewDeliveryPanel.tsx'
 import { KanbanReviewSheet } from '../review/KanbanReviewSheet.tsx'
@@ -115,10 +118,12 @@ function surfaceFromLoad<T>(state: { status: string; data?: T }, emptyWhen?: (da
 export function RemoteKanbanPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const loadKey = remoteScopeKey(scope)
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
   const load = useCallback(async () => {
-    if (scope === null) throw new Error('no-scope')
-    return unwrapRemote(await persona.listTasks(scope))
-  }, [persona, scope])
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    return unwrapRemote(await persona.listTasks({ workspaceId, projectId }))
+  }, [persona, workspaceId, projectId])
   const [reloadToken, setReloadToken] = useState(0)
   const { state, retry } = usePersonaRemoteLoad(scope !== null, `${loadKey}:${reloadToken}`, load)
   const cards = state.status === 'ready' ? tasksToKanbanCards(state.data, scope?.projectId ?? '') : []
@@ -141,7 +146,12 @@ export function RemoteKanbanPanel({ persona, useTenant }: LumenRemotePanelProps)
 
 export function RemoteKnowledgePanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
-  const load = useCallback(async () => unwrapRemote(await persona.listVaultRecords(scope!)), [persona, scope])
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
+  const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    return unwrapRemote(await persona.listVaultRecords({ workspaceId, projectId }))
+  }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const records = state.status === 'ready' ? vaultRecordsToKnowledge(state.data) : []
   return (
@@ -158,14 +168,17 @@ export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps):
   const actorId = useTenant(s => s.scope?.actorId ?? '')
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:${reloadToken}`
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
   const load = useCallback(async () => {
-    if (scope === null || actorId === '') throw new Error('no-scope')
+    if (workspaceId === undefined || projectId === undefined || actorId === '') throw new Error('no-scope')
     return unwrapRemote(await persona.listFiles({
-      ...scope,
+      workspaceId,
+      projectId,
       actorId,
       path: '',
     }))
-  }, [persona, scope, actorId])
+  }, [persona, workspaceId, projectId, actorId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null && actorId !== '', loadKey, load)
   const listing = state.status === 'ready' ? state.data : null
   const files: FileEntry[] = listing !== null && listing.status === 'ok'
@@ -205,7 +218,12 @@ export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps):
 
 export function RemoteRoutinesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
-  const load = useCallback(async () => unwrapRemote(await persona.listRoutineSchedule(scope!)), [persona, scope])
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
+  const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    return unwrapRemote(await persona.listRoutineSchedule({ workspaceId, projectId }))
+  }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const schedules = state.status === 'ready' ? state.data : []
   const routineRuns = routineScheduleToRuns(schedules)
@@ -222,14 +240,28 @@ export function RemoteRoutinesPanel({ persona, useTenant }: LumenRemotePanelProp
 
 export function RemoteUsagePanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
-  const load = useCallback(async () => unwrapRemote(await persona.getProjectLimits(scope!)), [persona, scope])
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
+  const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    const screens = personaScreensRemote(persona)
+    const scopeReq = { workspaceId, projectId }
+    const period = currentUsagePeriod()
+    const [usage, quotas] = await Promise.all([
+      unwrapRemote(await screens.getUsage({ ...scopeReq, period })),
+      unwrapRemote(await screens.getOfficialQuota(scopeReq)),
+    ])
+    return { usage, quotas }
+  }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const meters = state.status === 'ready' ? limitsToUsageMeters(state.data) : []
+  const meters = state.status === 'ready'
+    ? usageBookToMeters(state.data.usage, state.data.quotas)
+    : []
   return (
     <UsageLimits
       meters={meters}
       showLimitNotice={false}
-      initialState={remotePanelSurface(gate, state)}
+      initialState={remotePanelSurface(gate, state, () => meters.length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
     />
   )
@@ -237,7 +269,12 @@ export function RemoteUsagePanel({ persona, useTenant }: LumenRemotePanelProps):
 
 export function RemoteConnectionsPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
-  const load = useCallback(async () => unwrapRemote(await persona.listConnections(scope!)), [persona, scope])
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
+  const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    return unwrapRemote(await persona.listConnections({ workspaceId, projectId }))
+  }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const entries = state.status === 'ready' ? connectionsToEntries(state.data) : []
   return (
@@ -253,13 +290,17 @@ export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelPro
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:approvals:${reloadToken}`
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
   const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    const scopeReq = { workspaceId, projectId }
     const [approvals, summaries] = await Promise.all([
-      unwrapRemote(await persona.listApprovals(scope!)),
-      unwrapRemote(await persona.listDailySummaries(scope!)),
+      unwrapRemote(await persona.listApprovals(scopeReq)),
+      unwrapRemote(await persona.listDailySummaries(scopeReq)),
     ])
     return { approvals, summaries }
-  }, [persona, scope])
+  }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
   const items = payload === null ? [] : approvalsToInbox(payload.approvals)
@@ -296,15 +337,19 @@ export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps):
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:rules:${reloadToken}`
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
   const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    const scopeReq = { workspaceId, projectId }
     const [rules, quiet, limits, triageLog] = await Promise.all([
-      unwrapRemote(await persona.listTriageRules(scope!)),
-      unwrapRemote(await persona.listQuietWindows(scope!)),
-      unwrapRemote(await persona.getProjectLimits(scope!)),
-      unwrapRemote(await persona.listTriageLog(scope!)),
+      unwrapRemote(await persona.listTriageRules(scopeReq)),
+      unwrapRemote(await persona.listQuietWindows(scopeReq)),
+      unwrapRemote(await persona.getProjectLimits(scopeReq)),
+      unwrapRemote(await persona.listTriageLog(scopeReq)),
     ])
     return { rules, quiet, limits, triageLog }
-  }, [persona, scope])
+  }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
   const rulesProps = payload === null
@@ -351,13 +396,20 @@ export type RemoteProfilePanelProps = InjectFace<RemoteProfilePanelInject>
 export function RemoteProfilePanel({ persona, useTenant, useShell, live }: RemoteProfilePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const profilePersonaId = useShell((state: ShellState) => state.profilePersonaId)
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
   const load = useCallback(async () => {
     if (profilePersonaId === HIRE_PERSONA_PROFILE_ID) {
       return { hireMode: true as const }
     }
-    const [personas, now] = await Promise.all([
-      unwrapRemote(await persona.listPersonas(scope!)),
-      unwrapRemote(await persona.getOverviewNow(scope!)),
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    const scopeReq = { workspaceId, projectId }
+    const screens = personaScreensRemote(persona)
+    const [personas, now, memoryViews, skillViews] = await Promise.all([
+      unwrapRemote(await persona.listPersonas(scopeReq)),
+      unwrapRemote(await persona.getOverviewNow(scopeReq)),
+      unwrapRemote(await screens.listMemory(scopeReq)),
+      unwrapRemote(await screens.listSkills(scopeReq)),
     ])
     const picked = profilePersonaId === null
       ? personas[0]
@@ -368,16 +420,23 @@ export function RemoteProfilePanel({ persona, useTenant, useShell, live }: Remot
     if (persona.getAutonomy !== undefined) {
       try {
         autonomy = await unwrapRemote(await persona.getAutonomy({
-          workspaceId: scope!.workspaceId,
-          projectId: scope!.projectId,
+          workspaceId,
+          projectId,
           personaId: picked.id,
         }))
       } catch {
         autonomy = null
       }
     }
-    return { hireMode: false as const, primary: picked, row, autonomy }
-  }, [persona, scope, profilePersonaId])
+    return {
+      hireMode: false as const,
+      primary: picked,
+      row,
+      autonomy,
+      memoryRows: memoryViewsToRows(memoryViews, workspaceId, projectId),
+      skillRecords: skillViewsToRecords(skillViews),
+    }
+  }, [persona, workspaceId, projectId, profilePersonaId])
   const loadKey = scope === null ? '' : `${remoteScopeKey(scope)}:${profilePersonaId ?? 'default'}`
   const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const profileSurface = remotePanelSurface(gate, state, data => data === null)
@@ -465,12 +524,30 @@ export function RemoteProfilePanel({ persona, useTenant, useShell, live }: Remot
     )
   }
   if (state.status === 'error' || snapshot === null) return <PersonaProfilePage initialState="empty" />
-  return <PersonaProfilePage snapshot={snapshot} initialState="ready" />
+  const memoryRows = state.status === 'ready' && state.data !== null && state.data.hireMode === false
+    ? state.data.memoryRows
+    : []
+  const skillRecords = state.status === 'ready' && state.data !== null && state.data.hireMode === false
+    ? state.data.skillRecords
+    : []
+  return (
+    <PersonaProfilePage
+      snapshot={snapshot}
+      initialState="ready"
+      memoryRows={memoryRows}
+      skillRecords={skillRecords}
+    />
+  )
 }
 
 export function RemoteMembersPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
-  const load = useCallback(async () => unwrapRemote(await persona.listTeam(scope!)), [persona, scope])
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
+  const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    return unwrapRemote(await persona.listTeam({ workspaceId, projectId }))
+  }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const members = state.status === 'ready' ? teamToMembers(state.data) : []
   return (
@@ -489,7 +566,12 @@ export function RemoteImportPanel(_props: LumenRemotePanelProps): ReactNode {
 
 export function RemoteCanvasPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
-  const load = useCallback(async () => unwrapRemote(await persona.listCanvas(scope!)), [persona, scope])
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
+  const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    return unwrapRemote(await persona.listCanvas({ workspaceId, projectId }))
+  }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const graph = state.status === 'ready' ? canvasGraphToUi(state.data) : { nodes: [], edges: [] }
   return (

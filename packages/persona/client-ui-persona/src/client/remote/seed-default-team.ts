@@ -85,7 +85,7 @@ export type DevHarnessSeedRemote = PersonaCreatorRemote & {
     actorId: string
     afterSeq: number
     limit: number
-  }): { events: readonly { id: string }[] }
+  }): { events: readonly { id: string; occurredAt?: string }[] }
   postMessage(request: {
     id: string
     workspaceId: string
@@ -138,6 +138,26 @@ function personaIdByName(
   return team.personas.find(row => row.name === name)?.id
 }
 
+/** Dev harness posts: occurredAt strictly after existing stream tail (seq order matches clock). */
+export function devHarnessMessageTimes(
+  existing: readonly { occurredAt?: string }[],
+  count: number,
+  nowMs: number = Date.now(),
+): string[] {
+  let anchor = nowMs
+  for (const event of existing) {
+    if (event.occurredAt === undefined || event.occurredAt.length === 0) continue
+    const parsed = Date.parse(event.occurredAt)
+    if (!Number.isNaN(parsed)) anchor = Math.max(anchor, parsed)
+  }
+  const times: string[] = []
+  for (let index = 0; index < count; index += 1) {
+    anchor += 60_000
+    times.push(new Date(anchor).toISOString())
+  }
+  return times
+}
+
 /**
  * Dev harness scenario (Probe/Muse): Miguel + animal team, #geral thread, hire approval, work ticket.
  * Gated by {@link readClientDevSeedEnabled}; idempotent via fixed message ids.
@@ -181,7 +201,16 @@ export async function seedDevHarnessScenario(
   const bentoId = personaIdByName(team, 'Bento')
   const ninaId = personaIdByName(team, 'Nina')
   const channelId = tenant.channelId
-  const base = '2026-11-03T14:00:00.000Z'
+  const channelPage = await Promise.resolve(remote.listMessages({
+    workspaceId: tenant.workspaceId,
+    projectId: tenant.projectId,
+    streamKind: 'channel',
+    ownerId: channelId,
+    actorId: tenant.memberId,
+    afterSeq: 0,
+    limit: 300,
+  }))
+  const postTimes = devHarnessMessageTimes(channelPage.events, 4)
 
   const posts: readonly {
     readonly id: string
@@ -193,25 +222,25 @@ export async function seedDevHarnessScenario(
       id: DEV_HARNESS_SCENARIO_MARKER,
       actorId: tenant.memberId,
       body: 'Bom dia, equipe! Preciso fechar a proposta de contratação até amanhã.',
-      at: base,
+      at: postTimes[0]!,
     },
     {
       id: 'dev-harness-v1-atlas',
       actorId: atlasId ?? tenant.memberId,
       body: 'Coloquei no quadro e pedi à Nina uma revisão das cláusulas.',
-      at: '2026-11-03T14:02:00.000Z',
+      at: postTimes[1]!,
     },
     {
       id: 'dev-harness-v1-nina',
       actorId: ninaId ?? tenant.memberId,
       body: 'Encontrei dois pontos que precisam da sua aprovação antes de enviar.',
-      at: '2026-11-03T14:05:00.000Z',
+      at: postTimes[2]!,
     },
     {
       id: 'dev-harness-v1-bento',
       actorId: bentoId ?? tenant.memberId,
       body: 'Já deixei o rascunho do contrato no Cofre.',
-      at: '2026-11-03T14:08:00.000Z',
+      at: postTimes[3]!,
     },
   ]
 

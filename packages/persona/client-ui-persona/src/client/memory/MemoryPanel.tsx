@@ -18,10 +18,11 @@ function visibilityKey(row: MemoryRow): string {
 
 export interface MemoryPanelProps {
   readonly dict?: LocaleDict
+  readonly rows?: readonly MemoryRow[]
   readonly initialState?: MemorySurfaceState
 }
 
-export function MemoryPanel({ dict = defaultDict, initialState = 'ready' }: MemoryPanelProps): ReactNode {
+export function MemoryPanel({ dict = defaultDict, rows = MOCK_MEMORY_ROWS, initialState = 'ready' }: MemoryPanelProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
 
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
@@ -45,7 +46,7 @@ export function MemoryPanel({ dict = defaultDict, initialState = 'ready' }: Memo
       <h2 id="memory-heading" className={styles.sectionTitle}>{t('title')}</h2>
       <p className={styles.sectionSubtitle}>{t('subtitle')}</p>
       <ul className={styles.list}>
-        {MOCK_MEMORY_ROWS.map(row => (
+        {rows.map(row => (
           <li key={row.id}>
             <Card padding="m">
               <div className={styles.chipRow}>

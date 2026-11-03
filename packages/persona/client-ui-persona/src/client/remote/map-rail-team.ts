@@ -3,7 +3,8 @@ import type { KanbanCardModel } from '../kanban/types.ts'
 import type { RailPersona, RailPersonaState } from '../shell/RailTeam.tsx'
 import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
-import type { PersonaView, TeamView } from './persona-remote-types.ts'
+import type { PersonaView } from './persona-remote-types.ts'
+import { sortPersonasForUi } from '../team/sort-personas.ts'
 
 const KNOWN: ReadonlySet<string> = new Set(['atlas', 'bento', 'nina', 'sol', 'luna'])
 
@@ -63,24 +64,13 @@ function unreadForPersona(
   return 0
 }
 
-function sortPersonas(team: TeamView): readonly PersonaView[] {
-  const personas = [...team.personas]
-  personas.sort((a, b) => {
-    const aCoord = a.systemRoles.includes('coordination') ? 0 : 1
-    const bCoord = b.systemRoles.includes('coordination') ? 0 : 1
-    if (aCoord !== bCoord) return aCoord - bCoord
-    return a.name.localeCompare(b.name, 'pt-BR')
-  })
-  return personas
-}
-
 /** Live snapshot → sidebar rail rows (host persona ids + honest state). */
 export function mapRailTeamFromLive(
   snap: PersonaLiveSnapshot,
   hostOnline: boolean,
 ): readonly RailPersona[] {
   if (!snap.ready || snap.team === null) return []
-  return sortPersonas(snap.team).map((persona) => {
+  return sortPersonasForUi(snap.team.personas).map((persona) => {
     const now = nowForPersona(snap, persona)
     return {
       id: persona.id,

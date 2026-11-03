@@ -14,7 +14,7 @@ const SRC = join(ROOT, 'persona-assets')
 const OUT = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets')
 const MAX_GIT_BYTES = 10 * 1024 * 1024
 const AVATAR_SIZES = [256, 96, 48]
-const POSE_MAX_HEIGHT = 768
+const POSE_MAX_HEIGHT = 480
 
 /** @type {Array<{ rel: string, bytes: number }>} */
 const manifest = []
@@ -126,6 +126,7 @@ async function main() {
   copyTree('icons/nav', () => true)
   copyTree('icons/overlays', () => true)
   if (existsSync(join(SRC, 'accents'))) copyTree('accents', name => name.endsWith('.svg'))
+  if (existsSync(join(SRC, 'icons/flows'))) copyTree('icons/flows', name => name.endsWith('.svg'))
 
   for (const rel of [
     'brand/banner-team-light.webp',
@@ -154,6 +155,10 @@ async function main() {
     { from: 'illustrations/rail-foliage-dark@2x.png', to: 'illustrations/rail-foliage-dark.webp', width: 544, quality: 90 },
     { from: 'textures/paper-light.png', to: 'textures/paper-light.webp', width: 512, quality: 88 },
     { from: 'textures/paper-dark.png', to: 'textures/paper-dark.webp', width: 512, quality: 88 },
+    ...['todo', 'doing', 'review', 'needs-you', 'done'].map(name => (
+      { from: `illustrations/empty-col-${name}.png`, to: `illustrations/empty-col-${name}.webp`, width: 360, quality: 86 }
+    )),
+    { from: 'illustrations/sprint-concluida.png', to: 'illustrations/sprint-concluida.webp', width: 640, quality: 86 },
     ...['inbox', 'kanban', 'search', 'vault', 'routines', 'connections', 'error', 'dm'].map(name => (
       { from: `illustrations/empty-${name}.png`, to: `illustrations/empty-${name}.webp`, width: 480, quality: 86 }
     )),
@@ -259,6 +264,15 @@ async function main() {
   if (railFoliageDark !== undefined) {
     imports.push("import railFoliageDark from './brand/rail-foliage-dark.webp'")
   }
+  const flowFiles = manifest.filter(f => f.rel.startsWith('icons/flows/') && f.rel.endsWith('.svg'))
+  /** @type {string[]} */
+  const flowEntries = []
+  for (const { rel } of flowFiles) {
+    const id = basename(rel, '.svg')
+    const varName = id.replace(/-/gu, '_')
+    imports.push(`import flowicon_${varName} from './${rel}'`)
+    flowEntries.push(`  '${id}': flowicon_${varName},`)
+  }
   const accentFiles = manifest.filter(f => f.rel.startsWith('accents/') && f.rel.endsWith('.svg'))
   /** @type {string[]} */
   const accentEntries = []
@@ -305,6 +319,11 @@ async function main() {
     ...(railFoliage !== undefined ? ['export { railFoliage }', ''] : ['export const railFoliage: string | undefined = undefined', '']),
     ...(railFoliageLight !== undefined ? ['export { railFoliageLight }', ''] : ['export const railFoliageLight: string | undefined = undefined', '']),
     ...(railFoliageDark !== undefined ? ['export { railFoliageDark }', ''] : ['export const railFoliageDark: string | undefined = undefined', '']),
+    '/** Brush workflow-model icons, currentColor SVG (Muse, BOARDS-SPEC §6). */',
+    'export const FLOW_ICONS: Readonly<Record<string, string>> = {',
+    ...flowEntries,
+    '}',
+    '',
     '/** Brush hand-drawn accents, currentColor SVG (Muse, DESIGN-SYSTEM §5). */',
     'export const ACCENTS: Readonly<Record<string, string>> = {',
     ...accentEntries,

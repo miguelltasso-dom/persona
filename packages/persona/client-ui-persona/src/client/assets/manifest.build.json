@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-03T19:48:51.657Z",
+    "generatedAt": "2026-11-03T21:45:24.931Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 191,
-    "totalBytes": 4659855,
+    "files": 277,
+    "totalBytes": 9107613,
     "withinBudget": true
   },
   "files": [
@@ -15,6 +15,10 @@
     {
       "rel": "brand/app-icon.svg",
       "bytes": 688
+    },
+    {
+      "rel": "brand/installer-header.png",
+      "bytes": 12938
     },
     {
       "rel": "brand/logo-horizontal-dark.png",
@@ -43,6 +47,10 @@
     {
       "rel": "brand/monochrome.svg",
       "bytes": 378
+    },
+    {
+      "rel": "brand/share-team.png",
+      "bytes": 1001988
     },
     {
       "rel": "brand/symbol-small.svg",
@@ -337,6 +345,18 @@
       "bytes": 1706
     },
     {
+      "rel": "avatars/capivara-blink-256.webp",
+      "bytes": 12146
+    },
+    {
+      "rel": "avatars/capivara-blink-96.webp",
+      "bytes": 3760
+    },
+    {
+      "rel": "avatars/capivara-blink-48.webp",
+      "bytes": 1734
+    },
+    {
       "rel": "avatars/capivara-256.webp",
       "bytes": 12602
     },
@@ -347,6 +367,18 @@
     {
       "rel": "avatars/capivara-48.webp",
       "bytes": 1734
+    },
+    {
+      "rel": "avatars/cervo-blink-256.webp",
+      "bytes": 15588
+    },
+    {
+      "rel": "avatars/cervo-blink-96.webp",
+      "bytes": 4662
+    },
+    {
+      "rel": "avatars/cervo-blink-48.webp",
+      "bytes": 2020
     },
     {
       "rel": "avatars/cervo-256.webp",
@@ -361,6 +393,18 @@
       "bytes": 2026
     },
     {
+      "rel": "avatars/coelho-blink-256.webp",
+      "bytes": 12474
+    },
+    {
+      "rel": "avatars/coelho-blink-96.webp",
+      "bytes": 3734
+    },
+    {
+      "rel": "avatars/coelho-blink-48.webp",
+      "bytes": 1684
+    },
+    {
       "rel": "avatars/coelho-256.webp",
       "bytes": 12732
     },
@@ -371,6 +415,18 @@
     {
       "rel": "avatars/coelho-48.webp",
       "bytes": 1696
+    },
+    {
+      "rel": "avatars/coruja-blink-256.webp",
+      "bytes": 13590
+    },
+    {
+      "rel": "avatars/coruja-blink-96.webp",
+      "bytes": 4168
+    },
+    {
+      "rel": "avatars/coruja-blink-48.webp",
+      "bytes": 1844
     },
     {
       "rel": "avatars/coruja-256.webp",
@@ -385,6 +441,18 @@
       "bytes": 1868
     },
     {
+      "rel": "avatars/guaxinim-blink-256.webp",
+      "bytes": 13004
+    },
+    {
+      "rel": "avatars/guaxinim-blink-96.webp",
+      "bytes": 3996
+    },
+    {
+      "rel": "avatars/guaxinim-blink-48.webp",
+      "bytes": 1850
+    },
+    {
       "rel": "avatars/guaxinim-256.webp",
       "bytes": 13096
     },
@@ -397,6 +465,18 @@
       "bytes": 1826
     },
     {
+      "rel": "avatars/lobo-guara-blink-256.webp",
+      "bytes": 13182
+    },
+    {
+      "rel": "avatars/lobo-guara-blink-96.webp",
+      "bytes": 3826
+    },
+    {
+      "rel": "avatars/lobo-guara-blink-48.webp",
+      "bytes": 1704
+    },
+    {
       "rel": "avatars/lobo-guara-256.webp",
       "bytes": 13276
     },
@@ -407,6 +487,18 @@
     {
       "rel": "avatars/lobo-guara-48.webp",
       "bytes": 1712
+    },
+    {
+      "rel": "avatars/lontra-blink-256.webp",
+      "bytes": 12522
+    },
+    {
+      "rel": "avatars/lontra-blink-96.webp",
+      "bytes": 3834
+    },
+    {
+      "rel": "avatars/lontra-blink-48.webp",
+      "bytes": 1748
     },
     {
       "rel": "avatars/lontra-256.webp",
@@ -469,6 +561,18 @@
       "bytes": 2068
     },
     {
+      "rel": "avatars/ourico-blink-256.webp",
+      "bytes": 13586
+    },
+    {
+      "rel": "avatars/ourico-blink-96.webp",
+      "bytes": 4052
+    },
+    {
+      "rel": "avatars/ourico-blink-48.webp",
+      "bytes": 1758
+    },
+    {
       "rel": "avatars/ourico-256.webp",
       "bytes": 13590
     },
@@ -481,6 +585,18 @@
       "bytes": 1778
     },
     {
+      "rel": "avatars/panda-blink-256.webp",
+      "bytes": 12386
+    },
+    {
+      "rel": "avatars/panda-blink-96.webp",
+      "bytes": 4018
+    },
+    {
+      "rel": "avatars/panda-blink-48.webp",
+      "bytes": 1828
+    },
+    {
       "rel": "avatars/panda-256.webp",
       "bytes": 12674
     },
@@ -491,6 +607,18 @@
     {
       "rel": "avatars/panda-48.webp",
       "bytes": 1818
+    },
+    {
+      "rel": "avatars/raposa-blink-256.webp",
+      "bytes": 13400
+    },
+    {
+      "rel": "avatars/raposa-blink-96.webp",
+      "bytes": 3944
+    },
+    {
+      "rel": "avatars/raposa-blink-48.webp",
+      "bytes": 1806
     },
     {
       "rel": "avatars/raposa-256.webp",
@@ -529,6 +657,18 @@
       "bytes": 1506
     },
     {
+      "rel": "avatars/tamandua-blink-256.webp",
+      "bytes": 12460
+    },
+    {
+      "rel": "avatars/tamandua-blink-96.webp",
+      "bytes": 3830
+    },
+    {
+      "rel": "avatars/tamandua-blink-48.webp",
+      "bytes": 1804
+    },
+    {
       "rel": "avatars/tamandua-256.webp",
       "bytes": 12674
     },
@@ -539,6 +679,18 @@
     {
       "rel": "avatars/tamandua-48.webp",
       "bytes": 1832
+    },
+    {
+      "rel": "avatars/tucano-blink-256.webp",
+      "bytes": 10416
+    },
+    {
+      "rel": "avatars/tucano-blink-96.webp",
+      "bytes": 3296
+    },
+    {
+      "rel": "avatars/tucano-blink-48.webp",
+      "bytes": 1572
     },
     {
       "rel": "avatars/tucano-256.webp",
@@ -641,6 +793,118 @@
       "bytes": 61114
     },
     {
+      "rel": "poses/capivara-aguardando-aprovacao.webp",
+      "bytes": 55448
+    },
+    {
+      "rel": "poses/capivara-descansando.webp",
+      "bytes": 104936
+    },
+    {
+      "rel": "poses/capivara-disponivel.webp",
+      "bytes": 54306
+    },
+    {
+      "rel": "poses/capivara-trabalhando.webp",
+      "bytes": 58132
+    },
+    {
+      "rel": "poses/cervo-aguardando-aprovacao.webp",
+      "bytes": 61600
+    },
+    {
+      "rel": "poses/cervo-descansando.webp",
+      "bytes": 123332
+    },
+    {
+      "rel": "poses/cervo-disponivel.webp",
+      "bytes": 62092
+    },
+    {
+      "rel": "poses/cervo-trabalhando.webp",
+      "bytes": 68132
+    },
+    {
+      "rel": "poses/coelho-aguardando-aprovacao.webp",
+      "bytes": 53552
+    },
+    {
+      "rel": "poses/coelho-descansando.webp",
+      "bytes": 91196
+    },
+    {
+      "rel": "poses/coelho-disponivel.webp",
+      "bytes": 57986
+    },
+    {
+      "rel": "poses/coelho-trabalhando.webp",
+      "bytes": 52988
+    },
+    {
+      "rel": "poses/coruja-aguardando-aprovacao.webp",
+      "bytes": 57576
+    },
+    {
+      "rel": "poses/coruja-descansando.webp",
+      "bytes": 86044
+    },
+    {
+      "rel": "poses/coruja-disponivel.webp",
+      "bytes": 61578
+    },
+    {
+      "rel": "poses/coruja-trabalhando.webp",
+      "bytes": 61234
+    },
+    {
+      "rel": "poses/guaxinim-aguardando-aprovacao.webp",
+      "bytes": 54156
+    },
+    {
+      "rel": "poses/guaxinim-descansando.webp",
+      "bytes": 88352
+    },
+    {
+      "rel": "poses/guaxinim-disponivel.webp",
+      "bytes": 60786
+    },
+    {
+      "rel": "poses/guaxinim-trabalhando.webp",
+      "bytes": 56334
+    },
+    {
+      "rel": "poses/lobo-guara-aguardando-aprovacao.webp",
+      "bytes": 52466
+    },
+    {
+      "rel": "poses/lobo-guara-descansando.webp",
+      "bytes": 115538
+    },
+    {
+      "rel": "poses/lobo-guara-disponivel.webp",
+      "bytes": 57924
+    },
+    {
+      "rel": "poses/lobo-guara-trabalhando.webp",
+      "bytes": 57230
+    },
+    {
+      "rel": "poses/lontra-aguardando-aprovacao.webp",
+      "bytes": 51398
+    },
+    {
+      "rel": "poses/lontra-descansando.webp",
+      "bytes": 102892
+    },
+    {
+      "rel": "poses/lontra-disponivel.webp",
+      "bytes": 54356
+    },
+    {
+      "rel": "poses/lontra-trabalhando.webp",
+      "bytes": 53720
+    },
+    {
       "rel": "poses/luna-acenando.webp",
       "bytes": 58522
     },
@@ -729,6 +993,54 @@
       "bytes": 68962
     },
     {
+      "rel": "poses/ourico-aguardando-aprovacao.webp",
+      "bytes": 58430
+    },
+    {
+      "rel": "poses/ourico-descansando.webp",
+      "bytes": 101368
+    },
+    {
+      "rel": "poses/ourico-disponivel.webp",
+      "bytes": 62206
+    },
+    {
+      "rel": "poses/ourico-trabalhando.webp",
+      "bytes": 64562
+    },
+    {
+      "rel": "poses/panda-aguardando-aprovacao.webp",
+      "bytes": 45208
+    },
+    {
+      "rel": "poses/panda-descansando.webp",
+      "bytes": 78366
+    },
+    {
+      "rel": "poses/panda-disponivel.webp",
+      "bytes": 48030
+    },
+    {
+      "rel": "poses/panda-trabalhando.webp",
+      "bytes": 44388
+    },
+    {
+      "rel": "poses/raposa-aguardando-aprovacao.webp",
+      "bytes": 64790
+    },
+    {
+      "rel": "poses/raposa-descansando.webp",
+      "bytes": 96320
+    },
+    {
+      "rel": "poses/raposa-disponivel.webp",
+      "bytes": 64832
+    },
+    {
+      "rel": "poses/raposa-trabalhando.webp",
+      "bytes": 68000
+    },
+    {
       "rel": "poses/sol-acenando.webp",
       "bytes": 64864
     },
@@ -771,6 +1083,38 @@
     {
       "rel": "poses/sol-trabalhando.webp",
       "bytes": 83488
+    },
+    {
+      "rel": "poses/tamandua-aguardando-aprovacao.webp",
+      "bytes": 48840
+    },
+    {
+      "rel": "poses/tamandua-descansando.webp",
+      "bytes": 100288
+    },
+    {
+      "rel": "poses/tamandua-disponivel.webp",
+      "bytes": 51466
+    },
+    {
+      "rel": "poses/tamandua-trabalhando.webp",
+      "bytes": 51668
+    },
+    {
+      "rel": "poses/tucano-aguardando-aprovacao.webp",
+      "bytes": 49682
+    },
+    {
+      "rel": "poses/tucano-descansando.webp",
+      "bytes": 79822
+    },
+    {
+      "rel": "poses/tucano-disponivel.webp",
+      "bytes": 56876
+    },
+    {
+      "rel": "poses/tucano-trabalhando.webp",
+      "bytes": 59180
     }
   ]
 }

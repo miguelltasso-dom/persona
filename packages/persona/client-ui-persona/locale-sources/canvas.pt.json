@@ -19,5 +19,8 @@
   "empty.illustration": "Ilustração: canvas vazio",
   "loading": "Carregando canvas…",
   "error.title": "Não consegui falar com a equipe agora",
-  "error.retry": "Tentar de novo"
+  "error.retry": "Tentar de novo",
+  "a11y.graphRegion": "Mapa de relações do projeto",
+  "a11y.graphHint": "Use Tab para focar cada nó; Enter ou Espaço para selecionar. Prefira a aba Lista para navegação linear.",
+  "a11y.nodeType": "{type}: {label}"
 }

@@ -1,5 +1,5 @@
 /** G2 — spatial view + accessible list mode (SVG/CSS transform only). */
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Button, Card, Screen, ScreenHeader, Tabs } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
@@ -30,9 +30,17 @@ export function CanvasView({
   initialState = 'ready',
   onRemoteRetry,
 }: CanvasViewProps): ReactNode {
-  const t = (key: string) => bindLocale(dict, key)
+  const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [mode, setMode] = useState<ViewMode>('canvas')
   const [scale, setScale] = useState(1)
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
+  const [listFocusIndex, setListFocusIndex] = useState(0)
+
+  const onNodeKeyDown = useCallback((event: KeyboardEvent, nodeId: string): void => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    setFocusedNodeId(nodeId)
+  }, [])
 
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes])
 
@@ -115,8 +123,21 @@ export function CanvasView({
               </tr>
             </thead>
             <tbody>
-              {nodes.map(node => (
-                <tr key={node.id}>
+              {nodes.map((node, index) => (
+                <tr
+                  key={node.id}
+                  tabIndex={index === listFocusIndex ? 0 : -1}
+                  className={styles.listRow}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown') {
+                      event.preventDefault()
+                      setListFocusIndex(i => Math.min(nodes.length - 1, i + 1))
+                    } else if (event.key === 'ArrowUp') {
+                      event.preventDefault()
+                      setListFocusIndex(i => Math.max(0, i - 1))
+                    }
+                  }}
+                >
                   <td>{t(`legend.${node.kind}`)}</td>
                   <td>{node.label}</td>
                 </tr>
@@ -126,26 +147,59 @@ export function CanvasView({
         </Card>
       ) : (
         <Card padding="none" className={styles.viewportCard}>
-          <div className={styles.viewport} role="img" aria-label={t('title')}>
-            <svg width="100%" height="100%" viewBox="0 0 480 320" className={styles.scene} style={{ transform: `scale(${scale})` }}>
+          <p id="canvas-graph-hint" className={styles.graphHint}>{t('a11y.graphHint')}</p>
+          <div
+            className={styles.viewport}
+            role="region"
+            aria-label={t('a11y.graphRegion')}
+            aria-describedby="canvas-graph-hint"
+          >
+            <svg width="100%" height="100%" viewBox="0 0 480 320" className={styles.scene} style={{ transform: `scale(${scale})` }} role="presentation">
               {edges.map((edge) => {
                 const from = nodeMap.get(edge.from)
                 const to = nodeMap.get(edge.to)
                 if (from === undefined || to === undefined) return null
                 const a = nodeCenter(from)
                 const b = nodeCenter(to)
-                return <line key={edge.id} className={styles.edge} x1={a.cx} y1={a.cy} x2={b.cx} y2={b.cy} />
+                return (
+                  <line
+                    key={edge.id}
+                    className={styles.edge}
+                    x1={a.cx}
+                    y1={a.cy}
+                    x2={b.cx}
+                    y2={b.cy}
+                    aria-hidden="true"
+                  />
+                )
               })}
               {nodes.map(node => (
-                <g key={node.id} className={styles.node} tabIndex={0} role="button" aria-label={node.label}>
+                <g
+                  key={node.id}
+                  className={`${styles.node}${focusedNodeId === node.id ? ` ${styles.nodeSelected}` : ''}`}
+                  tabIndex={0}
+                  role="button"
+                  aria-pressed={focusedNodeId === node.id}
+                  aria-label={t('a11y.nodeType', { type: t(`legend.${node.kind}`), label: node.label })}
+                  onKeyDown={(event) => { onNodeKeyDown(event, node.id) }}
+                  onClick={() => { setFocusedNodeId(node.id) }}
+                >
                   <circle className={styles.nodeCircle} cx={node.x + 28} cy={node.y + 28} r="28" />
-                  <text className={styles.nodeLabel} x={node.x + 28} y={node.y + 64} textAnchor="middle">
+                  <text className={styles.nodeLabel} x={node.x + 28} y={node.y + 64} textAnchor="middle" aria-hidden="true">
                     {node.label}
                   </text>
                 </g>
               ))}
             </svg>
           </div>
+          {focusedNodeId !== null && (
+            <p className={styles.selectionStatus} role="status" aria-live="polite">
+              {t('a11y.nodeType', {
+                type: t(`legend.${nodes.find(n => n.id === focusedNodeId)?.kind ?? 'task'}`),
+                label: nodes.find(n => n.id === focusedNodeId)?.label ?? '',
+              })}
+            </p>
+          )}
         </Card>
       )}
     </Screen>

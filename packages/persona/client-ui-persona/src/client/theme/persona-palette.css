@@ -182,6 +182,22 @@ body[data-ds-dark-theme='true'] {
   --persona-scene-shadow: rgb(8 4 12 / 0.45);
 }
 
+/* ── Stage categories (PROJECT-BOARDS §1): custom columns map to these; color is never the only cue ── */
+body {
+  --persona-cat-todo: var(--persona-lilac-400);
+  --persona-cat-doing: var(--persona-brand);
+  --persona-cat-review: var(--persona-info);
+  --persona-cat-needs-you: var(--persona-accent);
+  --persona-cat-done: var(--persona-success);
+  --persona-cat-blocked: var(--persona-danger);
+  --persona-cat-todo-tint: var(--persona-wash);
+  --persona-cat-doing-tint: var(--persona-wash-strong);
+  --persona-cat-review-tint: var(--persona-info-tint);
+  --persona-cat-needs-you-tint: var(--persona-warning-tint);
+  --persona-cat-done-tint: var(--persona-success-tint);
+  --persona-cat-blocked-tint: var(--persona-danger-tint);
+}
+
 /* ── Compatibility aliases (existing Prism/Lumen code + DSW primitives) ── */
 body {
   --persona-active-rail: var(--persona-rail);

@@ -6,7 +6,7 @@ export function passThroughFollowers(rows: readonly PersonaNowSnapshot[]): reado
   for (const row of rows) {
     if (row.currentTask === undefined || row.currentTask.length === 0) continue
     if (row.member.state !== 'working' && row.member.state !== 'waiting') continue
-    if (/coordena/i.test(row.member.role)) continue
+    if (row.member.systemRoles?.includes('coordination') === true) continue
     out.push({ name: row.member.name })
   }
   return out

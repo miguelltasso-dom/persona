@@ -67,8 +67,7 @@ describe('ConnectedGlobalKanban (InjectFace)', () => {
         />
       </PreviewFrame>,
     )
-    expect(screen.getByRole('status')).toBeTruthy()
-    expect(screen.getByText(kanbanPt.loading)).toBeTruthy()
-    expect(document.querySelector('[data-persona-kanban="global"]')).toBeTruthy()
+    expect(document.querySelector('[data-persona-boards][aria-busy="true"]')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: kanbanPt['title.boards'] })).toBeTruthy()
   })
 })

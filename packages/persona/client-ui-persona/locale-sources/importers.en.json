@@ -20,7 +20,7 @@
   "empty.action": "Import export",
   "empty.illustration": "Illustration: import",
   "loading": "Preparing importer…",
-  "error.title": "Import failed",
+  "error.title": "Couldn't start the import right now",
   "error.retry": "Try again",
   "progressLabel": "Import progress"
 }

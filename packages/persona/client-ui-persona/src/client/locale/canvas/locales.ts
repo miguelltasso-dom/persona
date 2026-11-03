@@ -26,6 +26,9 @@ export const pt = {
   'loading': 'Carregando canvas…',
   'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
+  'a11y.graphRegion': 'Mapa de relações do projeto',
+  'a11y.graphHint': 'Use Tab para focar cada nó; Enter ou Espaço para selecionar. Prefira a aba Lista para navegação linear.',
+  'a11y.nodeType': '{type}: {label}',
 } as const
 
 /** English copy. */
@@ -51,6 +54,9 @@ export const en = {
   'loading': 'Loading canvas…',
   'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
+  'a11y.graphRegion': 'Project relationship map',
+  'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
+  'a11y.nodeType': '{type}: {label}',
 } as const
 
 export const zh = {
@@ -75,6 +81,9 @@ export const zh = {
   'loading': 'Loading canvas…',
   'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
+  'a11y.graphRegion': 'Project relationship map',
+  'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
+  'a11y.nodeType': '{type}: {label}',
 } as const
 export const ja = {
   'header.eyebrow': 'Work',
@@ -98,6 +107,9 @@ export const ja = {
   'loading': 'Loading canvas…',
   'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
+  'a11y.graphRegion': 'Project relationship map',
+  'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
+  'a11y.nodeType': '{type}: {label}',
 } as const
 export const es = {
   'header.eyebrow': 'Work',
@@ -121,6 +133,9 @@ export const es = {
   'loading': 'Loading canvas…',
   'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
+  'a11y.graphRegion': 'Project relationship map',
+  'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
+  'a11y.nodeType': '{type}: {label}',
 } as const
 export const fr = {
   'header.eyebrow': 'Work',
@@ -144,6 +159,9 @@ export const fr = {
   'loading': 'Loading canvas…',
   'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
+  'a11y.graphRegion': 'Project relationship map',
+  'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
+  'a11y.nodeType': '{type}: {label}',
 } as const
 export const de = {
   'header.eyebrow': 'Work',
@@ -167,6 +185,9 @@ export const de = {
   'loading': 'Loading canvas…',
   'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
+  'a11y.graphRegion': 'Project relationship map',
+  'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
+  'a11y.nodeType': '{type}: {label}',
 } as const
 export const ru = {
   'header.eyebrow': 'Work',
@@ -190,6 +211,9 @@ export const ru = {
   'loading': 'Loading canvas…',
   'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
+  'a11y.graphRegion': 'Project relationship map',
+  'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
+  'a11y.nodeType': '{type}: {label}',
 } as const
 
 export type CanvasKey = keyof typeof pt

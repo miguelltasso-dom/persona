@@ -9,6 +9,17 @@ Acerto (fake): **41/41** (100.0%).
 Decisões/Tarefa (proxy): 0.08. Tokens/Tarefa (proxy): 60.
 Chamadas do Router (lote): 1.
 
+### Pré-roteador determinístico (sem CLI)
+
+Regras em código **antes** de qualquer chamada de modelo: duplicado na janela, `@menção`, cortesia/ack, silêncio/orçamento, comandos `/pausar` `/retomar` `/tarefa` + ACL. Cada regra desligável por projeto e deixa trilha.
+
+| | antes | depois |
+|---|---:|---:|
+| chamadas de modelo | 41 | **29** |
+| acerto | 41/41 | **41/41** |
+
+Pulos: cortesia 5 · silêncio 4 · duplicado 3. Handoff sem `@` continua no modelo (as 2 falhas do CLI real eram `d1`/`h1` silent — `d1` agora cai na regra de duplicado quando a janela tem o mesmo texto; `h1` só sai do modelo com `@menção` explícita). Meta: menos chamadas, mesmo acerto. Sem CLI real.
+
 | classe | n | acertos | taxa |
 |---|---:|---:|---:|
 | simple_reply | 5 | 5 | 1.00 |

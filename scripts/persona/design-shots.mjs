@@ -29,7 +29,7 @@ const finish = async (code, note) => {
 const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), 180_000)
 
 async function open(url, scheme, { onboarded, collapsed = false, viewport = { width: 1440, height: 900 } }) {
-  const context = await browser.newContext({ viewport, deviceScaleFactor: 1, colorScheme: scheme, locale: 'pt-BR' })
+  const context = await browser.newContext({ reducedMotion: process.env.MUSE_REDUCED === '1' ? 'reduce' : 'no-preference', viewport, deviceScaleFactor: 1, colorScheme: scheme, locale: 'pt-BR' })
   await context.addInitScript(([dark, done, railCollapsed]) => {
     localStorage.setItem('persona.rail.collapsed.v1', railCollapsed ? '1' : '0')
     if (done) {
@@ -49,9 +49,27 @@ async function open(url, scheme, { onboarded, collapsed = false, viewport = { wi
     else if (process.env.MUSE_CONSOLE === '1' && /seed|persona|onboard/iu.test(m.text())) console.log(`[console ${scheme}] ${m.type()}: ${m.text().slice(0, 300)}`)
   })
   page.on('pageerror', (e) => errors.push(`[${scheme}] pageerror ${String(e).slice(0, 300)}`))
+  page.on('response', (r) => { if (r.status() >= 400 && process.env.MUSE_CONSOLE === '1') console.log(`[http ${scheme}] ${r.status()} ${r.url().slice(0, 200)}`) })
   await page.goto(url, { waitUntil: 'load' })
   await page.waitForTimeout(onboarded ? 9000 : 5000)
+  if (onboarded) {
+    // The dev seed completes onboarding after bootstrap; reload so the host no longer reports first use.
+    await page.reload({ waitUntil: 'load' })
+    await page.waitForTimeout(6000)
+  }
   return { context, page }
+}
+
+/** MUSE_AXE=<path to axe.min.js>: WCAG 2.x AA scan of the current page (no repo dependency). */
+async function axeReport(page, label) {
+  if (process.env.MUSE_AXE === undefined) return
+  await page.addScriptTag({ path: process.env.MUSE_AXE })
+  const result = await page.evaluate(async () => {
+    const r = await globalThis.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } })
+    return r.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes.slice(0, 3).map(n => n.target.join(' ')) }))
+  })
+  console.log(`[axe ${label}] violations: ${result.length}`)
+  for (const v of result) console.log(`[axe ${label}] ${v.impact} ${v.id} ×${v.nodes} :: ${v.sample.join(' | ').slice(0, 220)}`)
 }
 
 async function nav(page, label) {
@@ -65,6 +83,33 @@ async function nav(page, label) {
     throw error
   }
   await page.waitForTimeout(1600)
+}
+
+/** Wait for Lumen remote panels to leave infinite loading before Muse captures. */
+async function waitPanelSettled(page, label) {
+  const surfaceByLabel = new Map([
+    ['Conexões', 'connections'],
+    ['Aprovações', 'approvals'],
+    ['Uso e limites', 'usage'],
+    ['Conhecimento', 'knowledge'],
+    ['Arquivos', 'files'],
+    ['Rotinas', 'routines'],
+    ['Membros', 'members'],
+    ['Perfil', 'profile'],
+    ['Importar equipe', 'importers'],
+    ['Regras', 'rules'],
+    ['Canvas', 'canvas'],
+  ])
+  if (label === 'Kanban' || label === 'Quadros') {
+    await page.locator('[data-persona-boards]').waitFor({ timeout: 20_000 })
+    await page.locator('[data-persona-boards][aria-busy="true"]').waitFor({ state: 'detached', timeout: 25_000 }).catch(() => {})
+  }
+  const surface = surfaceByLabel.get(label)
+  if (surface !== undefined) {
+    await page.locator(`[data-persona-surface="${surface}"][aria-busy="true"]`).waitFor({ state: 'detached', timeout: 25_000 }).catch(() => {})
+    await page.locator(`[data-persona-surface="${surface}"] [aria-busy="true"]`).waitFor({ state: 'detached', timeout: 25_000 }).catch(() => {})
+  }
+  await page.waitForTimeout(400)
 }
 
 const onData = async (chunk) => {
@@ -104,11 +149,17 @@ const onData = async (chunk) => {
           await nav(page, 'Visão geral')
           const path = `${outDir}/overview-${scheme}.png`
           await page.screenshot({ path }); shots.push(path)
+          await axeReport(page, `overview ${scheme}`)
         }
         if (wanted.has('channel')) {
           await nav(page, 'Canais')
           const path = `${outDir}/channel-${scheme}.png`
           await page.screenshot({ path }); shots.push(path)
+          await axeReport(page, `channel ${scheme}`)
+          if (process.env.MUSE_REDUCED !== undefined) {
+            const running = await page.evaluate(() => document.getAnimations().filter(an => an.playState === 'running' && Number(an.effect?.getComputedTiming().iterations) === Infinity).length)
+            console.log(`[motion channel ${scheme}] reduced=${process.env.MUSE_REDUCED} infinite animations running: ${running}`)
+          }
           await page.keyboard.press('Tab')
           await page.keyboard.press('Tab')
           await page.keyboard.press('Tab')
@@ -133,7 +184,25 @@ const onData = async (chunk) => {
         await page.screenshot({ path }); shots.push(path)
         await context.close()
       }
-      const panels = [...wanted].filter(name => name.startsWith('panel:')).map(name => name.slice(6).replaceAll('_', ' '))
+      const panelLabelAliases = new Map([
+        ['Quadros', 'Quadros'],
+        ['Kanban', 'Quadros'],
+        ['Conexoes', 'Conexões'],
+        ['Aprovacoes', 'Aprovações'],
+        ['Importadores', 'Importar equipe'],
+        ['Uso', 'Uso e limites'],
+        ['Regras', 'Regras'],
+        ['Membros', 'Membros'],
+        ['Perfil', 'Perfil'],
+      ])
+      const panelSlugByLabel = new Map([
+        ['Conexões', 'conexoes'],
+        ['Aprovações', 'aprovacoes'],
+        ['Importar equipe', 'importadores'],
+      ])
+      const panels = [...wanted]
+        .filter(name => name.startsWith('panel:'))
+        .map(name => panelLabelAliases.get(name.slice(6).replaceAll('_', ' ')) ?? name.slice(6).replaceAll('_', ' '))
       if (panels.length > 0) {
         const { context, page } = await open(match[1], scheme, { onboarded: true })
         for (const label of panels) {
@@ -143,11 +212,12 @@ const onData = async (chunk) => {
           }
           try {
             await nav(page, label)
+            await waitPanelSettled(page, label)
           } catch (error) {
             console.log(`[panel ${label} ${scheme}] navigation failed: ${error instanceof Error ? error.message.slice(0, 120) : String(error)}`)
             continue
           }
-          const slug = label.normalize('NFD').replace(/[^a-zA-Z]+/g, '-').toLowerCase()
+          const slug = panelSlugByLabel.get(label) ?? label.normalize('NFD').replace(/[^a-zA-Z]+/g, '-').toLowerCase()
           const path = `${outDir}/panel-${slug}-${scheme}.png`
           await page.screenshot({ path }); shots.push(path)
           const mainText = await page.evaluate(() => (document.querySelector('[data-persona-main]')?.textContent ?? '').trim().length)

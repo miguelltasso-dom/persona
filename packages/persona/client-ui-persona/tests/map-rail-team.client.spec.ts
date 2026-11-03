@@ -54,4 +54,21 @@ describe('mapRailTeamFromLive', () => {
     const rows = mapRailTeamFromLive(base, false)
     expect(rows[0]?.state).toBe('offline')
   })
+
+  it('orders coordination before watchdog before name (before RailTeam state sort)', () => {
+    const snap: PersonaLiveSnapshot = {
+      ...base,
+      team: {
+        members: [],
+        personas: [
+          { id: 'p-luna', workspaceId: 'ws', projectId: 'pp', name: 'Luna', title: 'Vigia', description: '', avatarKind: 'gallery', avatarRef: 'luna', systemRoles: ['watchdog'], canRecruit: false },
+          { id: 'p-atlas', workspaceId: 'ws', projectId: 'pp', name: 'Atlas', title: 'Coordenação', description: '', avatarKind: 'gallery', avatarRef: 'atlas', systemRoles: ['coordination'], canRecruit: true },
+          { id: 'p-bento', workspaceId: 'ws', projectId: 'pp', name: 'Bento', title: 'Eng', description: '', avatarKind: 'gallery', avatarRef: 'bento', systemRoles: [], canRecruit: false },
+        ],
+      },
+      nowRows: [],
+    }
+    const rows = mapRailTeamFromLive(snap, true)
+    expect(rows.map(row => row.name)).toEqual(['Atlas', 'Bento', 'Luna'])
+  })
 })

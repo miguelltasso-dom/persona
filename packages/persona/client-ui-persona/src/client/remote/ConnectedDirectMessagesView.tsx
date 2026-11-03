@@ -11,6 +11,7 @@ export interface ConnectedDmInjected {
   hooks: { live: HostObservable<PersonaLiveSnapshot> }
   selectDm(dmId: string | null): void
   postDmMessage(body: string): void
+  startNewConversation(): void
 }
 
 export type ConnectedDirectMessagesViewProps =
@@ -24,6 +25,7 @@ export function ConnectedDirectMessagesView({
   useLive,
   selectDm,
   postDmMessage,
+  startNewConversation,
 }: ConnectedDirectMessagesViewProps): ReactNode {
   const live = useLive(state => state)
   // Presentation lives in chat/DirectMessagesView (Muse); this file only maps live data (Prism).
@@ -51,6 +53,7 @@ export function ConnectedDirectMessagesView({
       messages={live.dmMessages}
       onSelect={(dmId) => { selectDm(dmId) }}
       onSend={(body) => { postDmMessage(body) }}
+      onNewConversation={() => { startNewConversation() }}
     />
   )
 }

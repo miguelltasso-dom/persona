@@ -20,13 +20,20 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   readonly suggestedTask?: { readonly id: string; readonly title: string } | undefined
 }
 
+const PLACEHOLDER_NAMES: ReadonlySet<string> = new Set(['você', 'voce', 'owner', 'you'])
+
 /** Visão geral — "o que precisa de você" first, then what the team is doing now (RCD: never a blank dashboard). */
 export function OverviewView({
   t, attentionItems, nowRows, awayEvents, userName, onNavigate, suggestedTask,
 }: OverviewViewProps): ReactNode {
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 8 })
-  const greeting = userName !== undefined && userName.trim().length > 0
-    ? t('overview.greeting', { name: userName.trim().split(/\s+/u)[0] ?? userName })
+  const teamHasActiveTask = nowRows.some(row => row.currentTask !== undefined && row.currentTask.length > 0)
+  const showFirstTask = attentionItems.length === 0 && !teamHasActiveTask
+  const firstTaskTitle = suggestedTask?.title ?? t('overview.suggestedTaskBody')
+  // Placeholder member names ("Você", "Owner") are not names: greet without one.
+  const firstName = userName?.trim().split(/\s+/u)[0] ?? ''
+  const greeting = firstName.length > 0 && !PLACEHOLDER_NAMES.has(firstName.toLowerCase())
+    ? t('overview.greeting', { name: firstName })
     : t('overview.greetingFallback')
 
   return (
@@ -83,24 +90,26 @@ export function OverviewView({
 
           <AwayWhileOutPanel t={t} events={awayEvents} />
 
-          <Card
-            as="section"
-            titleAs="h2"
-            eyebrow={t('overview.suggestedTaskTitle')}
-            title={suggestedTask?.title ?? t('overview.suggestedTaskBody')}
-            tone="brand"
-          >
-            <p className={styles.introLine}>{t('overview.teamIntroLine')}</p>
-            <div className={styles.cardActions}>
-              <Button
-                variant="secondary"
-                icon={<UiIcon name="arrowRight" size={18} strokeWidth={2.2} />}
-                onClick={() => { onNavigate?.('channels') }}
-              >
-                {t('overview.suggestedTaskAction')}
-              </Button>
-            </div>
-          </Card>
+          {showFirstTask && (
+            <Card
+              as="section"
+              titleAs="h2"
+              eyebrow={t('overview.suggestedTaskTitle')}
+              title={firstTaskTitle}
+              tone="brand"
+            >
+              <p className={styles.introLine}>{t('overview.teamIntroLine')}</p>
+              <div className={styles.cardActions}>
+                <Button
+                  variant="secondary"
+                  icon={<UiIcon name="arrowRight" size={18} strokeWidth={2.2} />}
+                  onClick={() => { onNavigate?.('channels') }}
+                >
+                  {t('overview.suggestedTaskAction')}
+                </Button>
+              </div>
+            </Card>
+          )}
         </div>
 
         <aside className={styles.sideCol}>

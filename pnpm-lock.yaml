@@ -13766,7 +13766,11 @@ importers:
         specifier: ^1.49.0
         version: 1.61.1
 
-  packages/persona/persona-engine: {}
+  packages/persona/persona-engine:
+    dependencies:
+      '@deepseek-ai/dsh-persona-core':
+        specifier: workspace:*
+        version: link:../persona-core
 
   packages/persona/persona-host:
     dependencies:

@@ -1,7 +1,8 @@
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AwayEventLive, ChannelMessageUi } from './map-host-ui.ts'
-import { mapAwayEventLive, mapMessage, mapPersonaNowRow, mapTeamToStrip } from './map-host-ui.ts'
+import { mapAwayEventLive, mapMessage, mapPersonaNowRow, mapTeamToStrip, resolveHostPersonaId, sortMessageStreamEvents } from './map-host-ui.ts'
+import { readClientDevSeedEnabled } from './persona-dev-seed.ts'
 import { bootstrapPersonaTenant, hostReportsFirstUse, type TenantBootstrapRemote } from './bootstrap-tenant.ts'
 import { shouldWriteCacheComplete } from './onboarding-host.ts'
 import {
@@ -12,7 +13,7 @@ import {
 } from './seed-default-team.ts'
 import { writeOnboardingCacheComplete } from '../shell/onboarding-persistence.ts'
 import { applyMessageStreamFrame, type MessageStreamFrame } from './apply-message-stream.ts'
-import { mapTaskToKanbanCard } from './map-host-ui.ts'
+import { enrichKanbanCardsFromHost } from './map-host-ui.ts'
 import type { KanbanCardModel } from '../kanban/types.ts'
 import { passThroughFollowers } from './derive-pass-through.ts'
 import { mapDmList, type DmListItemUi } from './map-dm-list.ts'
@@ -76,6 +77,7 @@ export interface PersonaLiveStore {
   postChannelMessage(body: string): Promise<void>
   selectDm(dmId: string | null): Promise<void>
   openPersonaDm(personaId: string): Promise<void>
+  openFirstAvailableDm(): Promise<void>
   loadTurnContext(ticketId: string): Promise<void>
   postDmMessage(body: string): Promise<void>
   commitOnboardingRoster(
@@ -222,12 +224,27 @@ function slugId(name: string, index: number): string {
 }
 
 export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveStore {
-  // Every Remote method resolves to RemoteResult; unwrap once here so bootstrap/refresh/seed see raw values (Keel P0).
+  // Unwrap policy (Keel P0): `unwrapPersonaRemote` is the only unwrap for refresh/RPC/seed on `remote`.
+  // Bootstrap uses `rawRemote` (wire RemoteResult) + `unwrapRemote` inside bootstrap-tenant.ts — never both on the same call path.
   const remote = unwrapPersonaRemote(rawRemote)
+  const bootstrapWire = rawRemote as unknown as TenantBootstrapRemote
   const store = createSnapshotStore<PersonaLiveSnapshot>(EMPTY)
   let tenant: PersonaTenantScope | null = null
+  let hostOnboardingSink: ((firstUse: boolean) => void) | null = null
   let messageStreamAbort: AbortController | null = null
   let dmStreamAbort: AbortController | null = null
+
+  /** Re-read `getOnboarding.firstUse` after refresh/seed (localStorage is first-paint only). */
+  const publishHostOnboardingState = async (): Promise<void> => {
+    if (tenant === null || hostOnboardingSink === null) return
+    try {
+      const firstUse = await hostReportsFirstUse(bootstrapWire, tenant)
+      if (shouldWriteCacheComplete(firstUse)) writeOnboardingCacheComplete()
+      hostOnboardingSink(firstUse)
+    } catch {
+      /* keep overlay state */
+    }
+  }
 
   const stopMessageStream = (): void => {
     messageStreamAbort?.abort()
@@ -342,7 +359,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       const suggestedTask = suggestedPick !== null
         ? { id: suggestedPick.id, title: suggestedPick.title }
         : null
-      const messages = page.events.map(event => mapMessage(event, team, scope.memberId, taskTitleById))
+      const messages = sortMessageStreamEvents(page.events).map(event => mapMessage(event, team, scope.memberId, taskTitleById))
       const dms = mapDmList(dmRows, team, scope.memberId)
       let dmMessages = prior.dmMessages
       const selectedDmId = prior.selectedDmId
@@ -355,7 +372,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           afterSeq: 0,
           limit: 200,
         }))
-        dmMessages = dmPage.events.map(event => mapMessage(event, team, scope.memberId, taskTitleById))
+        dmMessages = sortMessageStreamEvents(dmPage.events).map(event => mapMessage(event, team, scope.memberId, taskTitleById))
       }
       const dmUnreadByPersonaId: Record<string, number> = {}
       for (const dm of dmRows) {
@@ -393,12 +410,13 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         selectedDmId,
         dmMessages,
         projects,
-        kanbanCards: tasks.map(mapTaskToKanbanCard),
+        kanbanCards: enrichKanbanCardsFromHost(tasks, projects, nowRows),
         dmUnreadByPersonaId,
         suggestedTask,
         turnContext: prior.turnContext,
         error: null,
       })
+      await publishHostOnboardingState()
     } catch (error) {
       store.set({
         ...store.getSnapshot(),
@@ -408,13 +426,10 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   }
 
   const bootstrap = async (onFirstUse: (firstUse: boolean) => void): Promise<void> => {
+    hostOnboardingSink = onFirstUse
     try {
-      tenant = await bootstrapPersonaTenant(remote)
-      const firstUse = await hostReportsFirstUse(remote, tenant)
-      if (shouldWriteCacheComplete(firstUse)) {
-        writeOnboardingCacheComplete()
-      }
-      onFirstUse(firstUse)
+      tenant = await bootstrapPersonaTenant(bootstrapWire)
+      await publishHostOnboardingState()
       await refresh()
       startMessageStream()
       if (tenant !== null) {
@@ -520,24 +535,32 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
 
   const openPersonaDm = async (personaId: string): Promise<void> => {
     if (tenant === null) return
-    let dm = store.getSnapshot().dms.find(row => row.peerId === personaId)
+    const snap = store.getSnapshot()
+    const hostPersonaId = resolveHostPersonaId(snap.team, personaId)
+    let dm = snap.dms.find(row => row.peerId === hostPersonaId)
     if (dm === undefined && remote.createDm !== undefined) {
-      const dmId = `dm-${personaId}`.replace(/[^a-zA-Z0-9_-]/gu, '-').slice(0, 48)
+      const dmId = `dm-${hostPersonaId}`.replace(/[^a-zA-Z0-9_-]/gu, '-').slice(0, 48)
       try {
         await Promise.resolve(remote.createDm({
           id: dmId,
           workspaceId: tenant.workspaceId,
           projectId: tenant.projectId,
           participantA: tenant.memberId,
-          participantB: personaId,
+          participantB: hostPersonaId,
         }))
       } catch {
         /* existing dm */
       }
       await refresh()
-      dm = store.getSnapshot().dms.find(row => row.peerId === personaId)
+      dm = store.getSnapshot().dms.find(row => row.peerId === hostPersonaId)
     }
     if (dm !== undefined) await selectDm(dm.id)
+  }
+
+  const openFirstAvailableDm = async (): Promise<void> => {
+    const peer = store.getSnapshot().stripMembers.find(m => !m.systemRoles?.includes('coordination'))
+    if (peer === undefined) return
+    await openPersonaDm(peer.id)
   }
 
   const postDmMessage = async (body: string): Promise<void> => {
@@ -625,7 +648,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
 
   /** Probe/gates only: `PERSONA_DEV_SEED=1` initScript; never invoked from {@link bootstrap}. */
   const runDevHarnessSeedIfEnabled = async (): Promise<void> => {
-    if (tenant === null) return
+    if (tenant === null || !readClientDevSeedEnabled()) return
     const seeded = await seedDevHarnessScenario(remote as unknown as DevHarnessSeedRemote, tenant)
     if (seeded) await refresh()
   }
@@ -676,6 +699,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     postChannelMessage,
     selectDm,
     openPersonaDm,
+    openFirstAvailableDm,
     loadTurnContext,
     postDmMessage,
     commitOnboardingRoster,

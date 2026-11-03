@@ -137,7 +137,7 @@ describe('ConnectedGlobalKanban with real observables', () => {
       </PreviewFrame>,
     )
 
-    expect(screen.getByRole('heading', { level: 1, name: kanbanPt['title.global'] })).toBeTruthy()
-    expect(screen.getByText('Briefing')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: kanbanPt['title.boards'] })).toBeTruthy()
+    expect(screen.getByText('Contratação — Designer')).toBeTruthy()
   })
 })

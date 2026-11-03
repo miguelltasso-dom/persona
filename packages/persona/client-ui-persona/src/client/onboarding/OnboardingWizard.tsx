@@ -57,7 +57,7 @@ function coordinatorReply(dict: LocaleDict, prompt: string): string {
   return bindLocale(dict, 'step4.coordinatorReply', { name: 'Colega novo', role })
 }
 
-/** Stage: Brush banner scene, the team walking in (stagger 80 ms), Atlas speech bubble per step. */
+/** Stage: Brush banner scene, the team walking in (stagger 80 ms), neutral Persona guide bubble per step. */
 function OnboardingStage({ t, step }: { readonly t: (key: string) => string; readonly step: number }): ReactNode {
   const banner = ILLUSTRATIONS['team-banner-light']
   const bannerDark = ILLUSTRATIONS['team-banner-dark']
@@ -67,8 +67,8 @@ function OnboardingStage({ t, step }: { readonly t: (key: string) => string; rea
       {banner !== undefined && <img className={styles.stageLight} src={banner} alt="" />}
       {bannerDark !== undefined && <img className={styles.stageDark} src={bannerDark} alt="" />}
       <div className={styles.bubble}>
-        <span className={styles.bubbleName}>Atlas</span>
-        {t(`step${step}.atlasSays`)}
+        <span className={styles.bubbleName}>{t('guide.name')}</span>
+        {t(`step${step}.guideSays`)}
       </div>
       <ul className={styles.cast}>
         {CAST.map((id, index) => {

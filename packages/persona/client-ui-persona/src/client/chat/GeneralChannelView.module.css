@@ -108,17 +108,31 @@
   padding: 0;
   list-style: none;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: var(--persona-space-2);
 }
 
+/* "X está acompanhando este assunto": quiet pill, eye glyph, never a full-width bar. */
 .passThrough {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
-  padding: var(--persona-space-2) var(--persona-space-3);
-  border-radius: var(--persona-radius-md, 0.5rem);
-  background: var(--persona-lilac-50, rgb(245 243 255));
-  font-size: 0.875rem;
-  color: var(--persona-ink-muted, rgb(71 71 80));
+  padding: 4px 12px 4px 10px;
+  border: var(--persona-border-width) dashed var(--persona-lilac-400);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-wash);
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.passThrough::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--persona-brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--persona-brand) 22%, transparent);
 }
 
 .stream {

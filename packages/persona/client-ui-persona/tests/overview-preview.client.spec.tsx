@@ -25,9 +25,15 @@ describe('overview preview', () => {
     )
     expect(screen.getByRole('heading', { name: pt['overview.nowTitle'] })).toBeTruthy()
     expect(screen.getByRole('heading', { name: pt['overview.awayTitle'] })).toBeTruthy()
-    expect(screen.getByText(pt['overview.teamIntroLine'])).toBeTruthy()
+    // With pending work the first-task nudge is hidden (Atlas: only while the team has no work).
+    expect(screen.queryByText(pt['overview.suggestedTaskBody'])).toBeNull()
     expect(screen.getByText(pt['overview.attentionSample'])).toBeTruthy()
     expect(screen.getByRole('button', { name: pt['overview.attentionAction'] })).toBeTruthy()
     expect(screen.getByText(pt['team.statusStuck'])).toBeTruthy()
+  })
+
+  it('shows the first-task nudge only while there is no work yet', () => {
+    render(<OverviewView t={shellTranslate} attentionItems={[]} nowRows={[]} awayEvents={[]} />)
+    expect(screen.getByText(pt['overview.suggestedTaskBody'])).toBeTruthy()
   })
 })

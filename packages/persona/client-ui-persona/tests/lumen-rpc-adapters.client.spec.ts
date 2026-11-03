@@ -6,6 +6,9 @@ import { routineScheduleToRuns } from '../src/client/data/adapters/routines.ts'
 import { deriveKanbanFilterOptions } from '../src/client/kanban/derive-filter-options.ts'
 import { connectionsToEntries } from '../src/client/data/adapters/connections.ts'
 import { reviewBlockedFromAccept, reviewSummaryFromHost } from '../src/client/data/adapters/review.ts'
+import { memoryViewsToRows } from '../src/client/data/adapters/memory.ts'
+import { skillViewsToRecords } from '../src/client/data/adapters/skills.ts'
+import { usageBookToMeters } from '../src/client/data/adapters/usage.ts'
 
 describe('lumen RPC adapters', () => {
   it('maps triage log rows for rules UI', () => {
@@ -135,5 +138,29 @@ describe('lumen RPC adapters', () => {
     ])
     expect(runs).toHaveLength(1)
     expect(runs[0]?.routineName).toBe('Stand-up')
+  })
+
+  it('maps usage book without faking 0% when unavailable', () => {
+    const meters = usageBookToMeters({
+      period: { from: '2026-11-01T00:00:00.000Z', to: '2026-11-30T00:00:00.000Z' },
+      folds: [],
+      tokens: 0,
+      runs: 0,
+      origin: 'unavailable',
+      originLabel: 'indisponível',
+    }, [{ provider: 'claude', origin: 'unavailable', windows: [] }])
+    expect(meters.some(m => m.origin === 'unavailable' && m.percent === undefined)).toBe(true)
+    expect(JSON.stringify(meters)).not.toMatch(/"percent":0/u)
+  })
+
+  it('maps memory and skill host views', () => {
+    const rows = memoryViewsToRows([
+      { id: 'm1', body: 'Prefere terças', status: 'pending', origin: 'conversation' },
+    ], 'ws', 'pp')
+    expect(rows[0]?.pendingApproval).toBe(true)
+    const skills = skillViewsToRecords([
+      { id: 's1', name: 'Revisão', version: 2, status: 'active', body: '', sharedWithTeam: true },
+    ])
+    expect(skills[0]?.name).toBe('Revisão')
   })
 })

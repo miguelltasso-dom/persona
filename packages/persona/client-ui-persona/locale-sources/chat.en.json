@@ -11,7 +11,7 @@
   "composer.placeholder": "Message #general…",
   "composer.send": "Send",
   "composer.modelLabel": "Responding persona",
-  "composer.modelAtlas": "Atlas — coordination",
+  "composer.modelAtlas": "Coordination — default",
   "composer.modelBento": "Bento — implementation",
   "composer.modelNina": "Nina — review",
   "composer.add": "Add option",

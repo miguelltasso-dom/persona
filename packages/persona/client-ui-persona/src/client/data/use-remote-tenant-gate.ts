@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
 import type { LumenRemotePanelProps } from './lumen-inject.ts'
 import type { PersonaTenantSnapshot } from './persona-tenant.ts'
@@ -23,19 +23,34 @@ export interface RemoteTenantGateResult {
 
 /** Tenant gate with bootstrap timeout → error (retry resets timer). */
 export function useRemoteTenantGate(useTenant: LumenRemotePanelProps['useTenant']): RemoteTenantGateResult {
-  const tenant = useTenant(state => state)
-  const gate = readRemoteTenantGate(tenant)
+  const status = useTenant(t => t.status)
+  const workspaceId = useTenant(t => t.scope?.workspaceId)
+  const projectId = useTenant(t => t.scope?.projectId)
   const [retryGen, setRetryGen] = useState(0)
   const [timedOut, setTimedOut] = useState(false)
-  const retryBootstrap = useCallback(() => { setRetryGen(n => n + 1) }, [])
+  const retryBootstrap = useCallback(() => {
+    setRetryGen(n => n + 1)
+    setTimedOut(false)
+  }, [])
+
+  const waitingScope = status !== 'ready' || workspaceId === undefined || projectId === undefined
 
   useEffect(() => {
+    if (!waitingScope) {
+      setTimedOut(false)
+      return
+    }
+    if (status === 'error') return
     setTimedOut(false)
-    if (gate !== 'loading') return
     const id = setTimeout(() => { setTimedOut(true) }, REMOTE_PANEL_TIMEOUT_MS)
     return () => { clearTimeout(id) }
-  }, [gate, retryGen])
+  }, [waitingScope, status, workspaceId, projectId, retryGen])
 
-  const effective: RemoteTenantGate = gate === 'loading' && timedOut ? 'error' : gate
-  return { gate: effective, retryBootstrap }
+  const gate: RemoteTenantGate = useMemo(() => {
+    if (status === 'error' || (waitingScope && timedOut)) return 'error'
+    if (waitingScope) return 'loading'
+    return { workspaceId: workspaceId!, projectId: projectId! }
+  }, [status, waitingScope, timedOut, workspaceId, projectId])
+
+  return { gate, retryBootstrap }
 }

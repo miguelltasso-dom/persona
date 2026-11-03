@@ -111,7 +111,7 @@
   right: 0;
   bottom: 0;
   z-index: -1;
-  height: 260px;
+  height: 150px;
   pointer-events: none;
 }
 
@@ -216,8 +216,11 @@
   overflow-x: hidden;
   overflow-y: auto;
   margin: 0 calc(-1 * var(--persona-space-1));
-  padding: var(--persona-space-1) var(--persona-space-1) var(--persona-space-12);
+  padding: var(--persona-space-1) var(--persona-space-1) var(--persona-space-6);
   scrollbar-color: color-mix(in srgb, var(--persona-rail-ink) 30%, transparent) transparent;
+  /* Ends above the foliage with a fade so the list reads as "there is more". */
+  mask-image: linear-gradient(to bottom, black calc(100% - 44px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 44px), transparent);
 }
 
 .group + .group {
@@ -337,9 +340,13 @@
   position: relative;
   flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-content: flex-end;
+  align-items: center;
   gap: var(--persona-space-2);
+  /* Reserve the foliage band: decoration lives behind the footer, never behind navigable items. */
+  min-height: 118px;
+  padding-top: var(--persona-space-2);
 }
 
 .hostStatus {
@@ -375,9 +382,45 @@
   display: none;
 }
 
+/* "Configurações" (DSW settings slot) as a solid pill: AA contrast over the foliage, ≥44px target. */
+.settingsFoot {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-cream-50);
+  color: var(--persona-plum-900);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
+  font: 700 13px/18px var(--persona-font-text);
+}
+
+.settingsFoot :global(*) {
+  color: inherit;
+  font: inherit;
+}
+
+.settingsFoot :global(button),
+.settingsFoot :global(a) {
+  min-height: 40px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .activeIndicator,
   .chevron {
     transition: none;
   }
+}
+
+/* Dark: the DSW settings slot paints light text; keep the pill dark so it stays legible (AA). */
+:global(body[data-ds-dark-theme='true']) .settingsFoot {
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  border-color: var(--persona-outline-control);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
 }

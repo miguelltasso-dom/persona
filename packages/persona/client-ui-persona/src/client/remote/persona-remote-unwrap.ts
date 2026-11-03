@@ -1,7 +1,7 @@
 /**
  * Single unwrap proxy over `ctx.remote.persona` (Keel P0, Muse). Generated Remote methods resolve to
- * `RemoteResult` ({ ok, value } | { ok: false, error }); the live store, tenant bootstrap and dev seed expect the
- * raw business value. Every method call through this proxy resolves to the value or rejects with a typed
+ * `RemoteResult` ({ ok, value } | { ok: false, error }); refresh/RPC/seed on the live store expect the raw value.
+ * Tenant bootstrap is the exception: it calls the raw remote with {@link unwrapRemote} in bootstrap-tenant.ts (see createPersonaLiveStore). Every method call through this proxy resolves to the value or rejects with a typed
  * {@link PersonaRemoteError} carrying a pt-BR message — never a `RemoteResult` and never `x.find is not a function`.
  * Non-result returns (streams/AsyncIterable, plain values from test fakes) pass through untouched.
  */
@@ -39,7 +39,7 @@ function failureMessage(method: string, code: string, hostMessage: string): stri
 async function settle(method: string, value: unknown): Promise<unknown> {
   if (!isRemoteResult(value)) return value
   if (value.ok) return unwrapRemote(value)
-  const error = value.error as { readonly code?: unknown; readonly message?: unknown }
+  const error = (value.error ?? {}) as { readonly code?: unknown; readonly message?: unknown }
   const code = typeof error.code === 'string' ? error.code : 'unknown'
   const hostMessage = typeof error.message === 'string' ? error.message : ''
   throw new PersonaRemoteError(method, code, failureMessage(method, code, hostMessage), hostMessage)

@@ -6,8 +6,8 @@
 
 | Signal | Owner | Rule |
 |--------|--------|------|
-| Overlay visible | `getOnboarding().firstUse` | Host wins on every boot |
-| `localStorage` `persona.onboarding.complete.v1` | Prism | Optimistic cache only after user finishes step 5; must not hide overlay when host still reports `firstUse: true` |
+| Overlay visible | `getOnboarding().firstUse` | Host wins on bootstrap, every `PersonaLiveStore.refresh`, and after dev seed `completeOnboarding` |
+| `localStorage` `persona.onboarding.complete.v1` | Prism | First-paint optimistic only; re-synced when host reports `firstUse: false` |
 
 ## `getOnboarding` (exists)
 

@@ -26,7 +26,7 @@ export const pt = {
   'empty.action': 'Importar exportação',
   'empty.illustration': 'Ilustração: importação',
   'loading': 'Preparando importador…',
-  'error.title': 'Falha na importação',
+  'error.title': 'Não deu para importar agora',
   'error.retry': 'Tentar de novo',
   'progressLabel': 'Progresso da importação',
 } as const
@@ -54,7 +54,7 @@ export const en = {
   'empty.action': 'Import export',
   'empty.illustration': 'Illustration: import',
   'loading': 'Preparing importer…',
-  'error.title': 'Import failed',
+  'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
 } as const
@@ -81,7 +81,7 @@ export const zh = {
   'empty.action': 'Import export',
   'empty.illustration': 'Illustration: import',
   'loading': 'Preparing importer…',
-  'error.title': 'Import failed',
+  'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
 } as const
@@ -107,7 +107,7 @@ export const ja = {
   'empty.action': 'Import export',
   'empty.illustration': 'Illustration: import',
   'loading': 'Preparing importer…',
-  'error.title': 'Import failed',
+  'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
 } as const
@@ -133,7 +133,7 @@ export const es = {
   'empty.action': 'Import export',
   'empty.illustration': 'Illustration: import',
   'loading': 'Preparing importer…',
-  'error.title': 'Import failed',
+  'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
 } as const
@@ -159,7 +159,7 @@ export const fr = {
   'empty.action': 'Import export',
   'empty.illustration': 'Illustration: import',
   'loading': 'Preparing importer…',
-  'error.title': 'Import failed',
+  'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
 } as const
@@ -185,7 +185,7 @@ export const de = {
   'empty.action': 'Import export',
   'empty.illustration': 'Illustration: import',
   'loading': 'Preparing importer…',
-  'error.title': 'Import failed',
+  'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
 } as const
@@ -211,7 +211,7 @@ export const ru = {
   'empty.action': 'Import export',
   'empty.illustration': 'Illustration: import',
   'loading': 'Preparing importer…',
-  'error.title': 'Import failed',
+  'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
 } as const

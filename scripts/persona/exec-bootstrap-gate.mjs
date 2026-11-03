@@ -1,7 +1,13 @@
 // Atlas boot gate checks (Playwright). Usage: node --import tsx/esm scripts/persona/exec-bootstrap-gate.mjs <app-url>
-import { chromium } from 'playwright'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const require = createRequire(join(dirname(fileURLToPath(import.meta.url)), '../../packages/persona/persona-e2e/package.json'))
+const { chromium } = require('playwright')
 import {
   formatBootstrapGateFailures,
+  recordBootstrapPageError,
   runBootstrapGateChecks,
 } from '../../packages/persona/persona-e2e/src/boot-gate-bootstrap.ts'
 
@@ -25,10 +31,10 @@ try {
   })
   const page = await context.newPage()
   page.on('pageerror', (error) => {
-    pageErrors.push(`pageerror ${String(error).slice(0, 400)}`)
+    recordBootstrapPageError(pageErrors, `pageerror ${String(error).slice(0, 400)}`)
   })
   page.on('console', (m) => {
-    if (m.type() === 'error') pageErrors.push(`console.error ${m.text().slice(0, 400)}`)
+    if (m.type() === 'error') recordBootstrapPageError(pageErrors, `console.error ${m.text().slice(0, 400)}`)
   })
   await page.goto(url, { waitUntil: 'load', timeout: 120_000 })
   const result = await runBootstrapGateChecks(page, pageErrors)

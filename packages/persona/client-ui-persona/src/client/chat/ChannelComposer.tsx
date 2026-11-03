@@ -3,10 +3,11 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 import { Avatar, IconButton, UiIcon } from '../primitives/index.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
+import { defaultChannelResponderId } from './default-channel-responder.ts'
 import styles from './ChannelComposer.module.css'
 
 export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
-  /** Channel roster; the first member (coordination) answers by default. */
+  /** Channel roster; coordination persona is the default responder when present. */
   readonly members?: readonly ChannelPersonaMember[]
   readonly onSend?: ((body: string) => void) | undefined
 }
@@ -16,7 +17,7 @@ const MAX_ROWS_PX = 8 * 24
 /** Composer card (dirD): auto-growing field, tool row, "Responde" persona chip, amber send. */
 export function ChannelComposer({ t, members = [], onSend }: ChannelComposerProps): ReactNode {
   const [draft, setDraft] = useState('')
-  const [responderId, setResponderId] = useState<string>(members[0]?.id ?? '')
+  const [responderId, setResponderId] = useState<string>(() => defaultChannelResponderId(members))
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fieldId = useId()
   const hintId = useId()
@@ -33,7 +34,7 @@ export function ChannelComposer({ t, members = [], onSend }: ChannelComposerProp
   useLayoutEffect(() => {
     if (members.length === 0) return
     if (members.some(member => member.id === responderId)) return
-    setResponderId(members[0]?.id ?? '')
+    setResponderId(defaultChannelResponderId(members))
   }, [members, responderId])
 
   const send = (): void => {

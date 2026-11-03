@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  devHarnessMessageTimes,
   galleryRefForRosterPerson,
   suggestedGalleryToHostTeam,
   SUGGESTED_TEAM_GALLERY,
@@ -36,5 +37,16 @@ describe('suggested team gallery', () => {
 describe('persona-dev-seed', () => {
   it('is off without harness flag', () => {
     expect(readClientDevSeedEnabled()).toBe(false)
+  })
+})
+
+describe('devHarnessMessageTimes', () => {
+  it('starts after onboarding welcome and increases monotonically', () => {
+    const welcomeAt = '2026-11-03T21:00:00.000Z'
+    const times = devHarnessMessageTimes([{ occurredAt: welcomeAt }], 3, Date.parse('2026-11-03T10:00:00.000Z'))
+    expect(times).toHaveLength(3)
+    expect(Date.parse(times[0]!)).toBeGreaterThan(Date.parse(welcomeAt))
+    expect(Date.parse(times[1]!)).toBeGreaterThan(Date.parse(times[0]!))
+    expect(Date.parse(times[2]!)).toBeGreaterThan(Date.parse(times[1]!))
   })
 })

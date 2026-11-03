@@ -64,24 +64,24 @@
   animation-delay: calc(var(--persona-breathe-delay, 0s) + 1.2s);
 }
 
-/* State overlay (Brush icons/overlays) in a sticker bubble near the head. */
+/* State overlay (Brush icons/overlays): a soft thought-cloud touching the head — decoration, never a control. */
 .overlay {
   position: absolute;
-  top: -6px;
-  right: -12px;
-  width: 34px;
-  height: 34px;
+  top: -4px;
+  right: -6px;
+  width: 30px;
+  height: 30px;
   box-sizing: border-box;
-  padding: 5px;
-  border: var(--persona-border-width) solid var(--persona-outline);
-  border-radius: 12px;
-  background: var(--persona-card);
-  box-shadow: 0 2px 0 0 var(--persona-outline);
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--persona-card) 88%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--persona-card) 40%, transparent);
   pointer-events: none;
 }
 
 .figure[data-state='waiting'] .overlay {
   background: var(--persona-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--persona-accent) 35%, transparent);
 }
 
 .silhouette {

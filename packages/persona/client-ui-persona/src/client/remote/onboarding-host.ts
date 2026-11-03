@@ -1,4 +1,7 @@
-/** Host onboarding truth vs optimistic client cache (Keel / contract onboarding-remote.md). */
+/**
+ * Host onboarding truth vs optimistic client cache (Keel / contract onboarding-remote.md).
+ * Overlay visibility follows live `getOnboarding.firstUse` on every {@link PersonaLiveStore.refresh}.
+ */
 
 /** Whether the overlay should show after host responded. */
 export function overlayOpenFromHost(firstUse: boolean): boolean {

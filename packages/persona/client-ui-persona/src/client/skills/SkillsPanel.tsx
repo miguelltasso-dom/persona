@@ -4,17 +4,18 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './SkillsPanel.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
-import { MOCK_SKILLS } from './mock-data.ts'
+import { MOCK_SKILLS, type SkillRecord } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/skills/locales.ts'
 
 export type SkillsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
 export interface SkillsPanelProps {
   readonly dict?: LocaleDict
+  readonly skills?: readonly SkillRecord[]
   readonly initialState?: SkillsSurfaceState
 }
 
-export function SkillsPanel({ dict = defaultDict, initialState = 'ready' }: SkillsPanelProps): ReactNode {
+export function SkillsPanel({ dict = defaultDict, skills = MOCK_SKILLS, initialState = 'ready' }: SkillsPanelProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
   if (initialState === 'empty') {
@@ -34,7 +35,7 @@ export function SkillsPanel({ dict = defaultDict, initialState = 'ready' }: Skil
       <h2 id="skills-heading" className={styles.sectionTitle}>{t('title')}</h2>
       <p className={styles.sectionSubtitle}>{t('subtitle')}</p>
       <ul className={styles.list}>
-        {MOCK_SKILLS.map(skill => (
+        {skills.map(skill => (
           <li key={skill.id}>
             <Card padding="m">
               <div className={styles.headRow}>

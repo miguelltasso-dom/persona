@@ -11,6 +11,7 @@ export interface ChannelPersonaMember {
   readonly role: string
   readonly state: PersonaWorkUiState
   readonly silhouette?: boolean
+  readonly systemRoles?: readonly ('coordination' | 'watchdog')[]
 }
 
 export interface PersonaNowSnapshot {

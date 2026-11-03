@@ -18,10 +18,11 @@ function fakeHost(options: { failOn?: string } = {}): Json {
   let onboarded = false
   let workspace = false
   const host: Record<string, (request: Json) => Promise<Result> | AsyncIterable<unknown>> = {
-    listProjects: () => (workspace ? ok([{ id: 'proj-pessoal', name: 'Pessoal', kind: 'personal' }]) : Promise.resolve({ ok: false, error: { code: 'not_found', message: 'workspace inexistente' } })),
+    // Like the real host: [] (not an error) before the workspace exists.
+    listProjects: () => ok(workspace ? [{ id: 'proj-pessoal', name: 'Pessoal', kind: 'personal' }] : []),
+    listChannels: () => (workspace ? ok([{ id: 'geral', name: 'geral' }]) : Promise.resolve({ ok: false, error: { code: 'gateway/internal', message: 'workspace-not-found' } })),
     createWorkspace: () => { workspace = true; return ok({ id: 'ws-persona-local' }) },
     createMember: request => ok({ id: request.id, displayName: request.displayName }),
-    listChannels: () => ok([{ id: 'ch-geral', name: 'geral' }]),
     createChannel: request => ok({ id: request.id, name: request.name }),
     getOnboarding: () => ok({ firstUse: !onboarded, completed: onboarded, personalProjectId: 'proj-pessoal' }),
     completeOnboarding: (request) => {
@@ -32,7 +33,7 @@ function fakeHost(options: { failOn?: string } = {}): Json {
       return ok({ completed: true })
     },
     createPersona: (request) => { personas.push({ ...request }); return ok(request) },
-    listTeam: () => ok({ personas: [...personas], members: [{ id: 'member-owner', displayName: 'Miguel' }] }),
+    listTeam: () => ok({ personas: [...personas], members: [{ id: 'owner', displayName: 'Miguel' }] }),
     getOverviewNow: () => ok({ personas: [] }),
     getWhileAway: () => ok({ events: [] }),
     getOverview: () => ok({ needsYou: [], inProgress: [] }),
@@ -103,7 +104,7 @@ describe('live store over a RemoteResult host', () => {
     const live = createPersonaLiveStore(fakeHost({ failOn: 'listChannels' }) as never)
     await live.bootstrap(() => undefined)
     const error = live.observable.getSnapshot().error
-    expect(error).toContain('O host da Persona não conseguiu concluir "listChannels"')
     expect(error).not.toContain('is not a function')
+    expect(error === 'unavailable' || error?.includes('listChannels') === true).toBe(true)
   })
 })

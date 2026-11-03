@@ -19,5 +19,8 @@
   "empty.illustration": "Illustration: empty canvas",
   "loading": "Loading canvas…",
   "error.title": "Couldn't reach the team right now",
-  "error.retry": "Try again"
+  "error.retry": "Try again",
+  "a11y.graphRegion": "Project relationship map",
+  "a11y.graphHint": "Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.",
+  "a11y.nodeType": "{type}: {label}"
 }

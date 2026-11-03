@@ -20,7 +20,7 @@
   "empty.action": "Importar exportação",
   "empty.illustration": "Ilustração: importação",
   "loading": "Preparando importador…",
-  "error.title": "Falha na importação",
+  "error.title": "Não deu para importar agora",
   "error.retry": "Tentar de novo",
   "progressLabel": "Progresso da importação"
 }

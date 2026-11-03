@@ -87,6 +87,10 @@ Porto Forge (`GitReviewDelivery`). Sem push. Ator do servidor + `can()`. Sem `ro
 
 Lumen: botão **Revisar** no Kanban (`in_review` / bloqueado) abre overlay com estas RPCs.
 
+## Contexto usado
+
+`listUsedContext({ workspaceId, projectId, eventId })` → registros do Cofre compilados no turno (`restricted: true` = visibilidade persona/projeto; `body` vazio). `getTurnContext` inclui o mesmo `records[]` no ticket.
+
 ## Fio condutor
 
 `postMessage` no `#geral` → Intake/Eval → Coordenação decide. Mensagem sem trabalho: resposta persistida, **sem Ticket**. Pedido: Ticket (`doing`) → runner scriptado → `review` (ou `blocked` + "Precisa de você") → `runTicketCommand({ command: 'complete' })` → `done`. `followMessages` entrega as respostas da Coordenação. Reinício: Assignment interrompida retoma; o id da resposta é idempotente.

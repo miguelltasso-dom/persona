@@ -72,3 +72,26 @@ bundle (with-lock) → Build complete, 99 files
 - `remote/persona-remote-unwrap.ts`: `unwrapPersonaRemote` (Proxy único; reusa `unwrapRemote`; falha → `PersonaRemoteError` com `code`, `method`, mensagem pt-BR + mensagem do host; streams/valores crus passam).
 - `createPersonaLiveStore` envolve o remote uma vez (bootstrap/refresh/semente recebem valores crus); `listProjects` com `await` no bootstrap; `markVisit` sem rejeição solta; `console.error` no catch do bootstrap.
 - Teste `tests/remote-unwrap.client.spec.ts`: host falso que só fala `RemoteResult` — bootstrap → refresh → semente popula os 5 bichos, ≥4 mensagens e a aprovação; falha vira mensagem legível; nenhum método do proxy devolve `RemoteResult` cru. Suite: 29 arquivos / 72 testes verdes.
+
+## 2026-11-03 18:25 — Lote semeado entregue ao Atlas
+
+- Bootstrap: o host responde `listProjects` com `[]` (não erro) sem workspace → checar `length > 0`; ids alinhados ao onboarding do host (`owner`, canal `geral`) — antes o `UNIQUE(project_id, name)` do canal abortava o `completeOnboarding` e o host ficava em "primeiro uso"; nome padrão "Você"; `createWorkspace` tolerante a `conflict` (Prism consolidou com `bootstrapWire`).
+- Rail (Keel): "Configurações" em pílula sólida ≥44 px (claro e escuro, AA); rolagem termina acima da folhagem com fade; folhagem 190 px.
+- Visão geral: saudação ignora nomes-placeholder ("Você"/"Owner"); "Sem tarefa agora".
+- "X está acompanhando": pílula tracejada discreta (era faixa branca no escuro).
+- Capturas semeadas (0 erros): `channel-*`, `overview-*`, `rail-collapsed-*`, `onboarding-*`, `panel-*`; comparação lado a lado `compare-dirD-channel-light.png` (fidelidade à dirD: banner, pílula "Hoje", composer, rail lilás com folhagem; diferenças intencionais: poses refletem estado real; rail com mais seções e "Sua equipe").
+- Testes: 36 arquivos / 94 verdes.
+
+## 2026-11-03 18:50 — Ajustes do Atlas/Keel + Quadros (BRIEFING 15)
+
+- Rail: faixa da folhagem reservada no rodapé (nenhum item navegável sob a decoração), rolagem com fade, "Sua equipe" recolhível (chevron, `aria-expanded`), avatares 36 px / selo 19 px; "Configurações" em pílula ≥44 px também no escuro.
+- Banner: overlay de estado vira "nuvem" encostada na cabeça, sem contorno/sombra de botão.
+- Visão geral: "Primeira tarefa sugerida" só aparece sem trabalho e com texto de sugestão (teste atualizado).
+- Pipeline: poses a 480 px (eram 768; nítidas em 2×) → assets 5,84 MiB (eram 8,69 de 10); prontos para `icons/flows/*`, `empty-col-*`, `sprint-concluida` (`FLOW_ICONS`, `ILLUSTRATIONS`).
+- **Quadros por projeto**: `persona-spec/design/BOARDS-SPEC.md` (grade de Quadros, página do projeto, faixa da sprint, quadro com colunas personalizadas, planejamento, encerrar sprint, editor de fluxo, visão global em raias) + tokens `--persona-cat-*`; assets pedidos ao Brush; Lumen avisado.
+- Respondido ao Keel: `Skeleton`/`EmptyState` são CSS puro, não causam laço.
+
+## 2026-11-03 19:25 — Acessibilidade verificada
+
+- `design-shots.mjs` ganhou varredura axe opcional (`MUSE_AXE=<caminho do axe.min.js>`, sem dependência no repo; axe-core 4.10.2): **0 violações WCAG 2.0/2.1/2.2 A+AA** em #geral e Visão geral, claro e escuro, com host real semeado.
+- Também loga respostas HTTP ≥ 400 com `MUSE_CONSOLE=1`.

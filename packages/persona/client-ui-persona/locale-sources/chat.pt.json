@@ -11,7 +11,7 @@
   "composer.placeholder": "Mensagem para #geral…",
   "composer.send": "Enviar",
   "composer.modelLabel": "Persona que responde",
-  "composer.modelAtlas": "Atlas — coordenação",
+  "composer.modelAtlas": "Coordenação — padrão",
   "composer.modelBento": "Bento — implementação",
   "composer.modelNina": "Nina — revisão",
   "composer.add": "Anexar opção",

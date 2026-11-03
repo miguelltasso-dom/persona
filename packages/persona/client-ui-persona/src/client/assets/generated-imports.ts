@@ -23,6 +23,34 @@ import pose_bento_erro from './poses/bento-erro.webp'
 import pose_bento_offline from './poses/bento-offline.webp'
 import pose_bento_revisando from './poses/bento-revisando.webp'
 import pose_bento_trabalhando from './poses/bento-trabalhando.webp'
+import pose_capivara_aguardando_aprovacao from './poses/capivara-aguardando-aprovacao.webp'
+import pose_capivara_descansando from './poses/capivara-descansando.webp'
+import pose_capivara_disponivel from './poses/capivara-disponivel.webp'
+import pose_capivara_trabalhando from './poses/capivara-trabalhando.webp'
+import pose_cervo_aguardando_aprovacao from './poses/cervo-aguardando-aprovacao.webp'
+import pose_cervo_descansando from './poses/cervo-descansando.webp'
+import pose_cervo_disponivel from './poses/cervo-disponivel.webp'
+import pose_cervo_trabalhando from './poses/cervo-trabalhando.webp'
+import pose_coelho_aguardando_aprovacao from './poses/coelho-aguardando-aprovacao.webp'
+import pose_coelho_descansando from './poses/coelho-descansando.webp'
+import pose_coelho_disponivel from './poses/coelho-disponivel.webp'
+import pose_coelho_trabalhando from './poses/coelho-trabalhando.webp'
+import pose_coruja_aguardando_aprovacao from './poses/coruja-aguardando-aprovacao.webp'
+import pose_coruja_descansando from './poses/coruja-descansando.webp'
+import pose_coruja_disponivel from './poses/coruja-disponivel.webp'
+import pose_coruja_trabalhando from './poses/coruja-trabalhando.webp'
+import pose_guaxinim_aguardando_aprovacao from './poses/guaxinim-aguardando-aprovacao.webp'
+import pose_guaxinim_descansando from './poses/guaxinim-descansando.webp'
+import pose_guaxinim_disponivel from './poses/guaxinim-disponivel.webp'
+import pose_guaxinim_trabalhando from './poses/guaxinim-trabalhando.webp'
+import pose_lobo_guara_aguardando_aprovacao from './poses/lobo-guara-aguardando-aprovacao.webp'
+import pose_lobo_guara_descansando from './poses/lobo-guara-descansando.webp'
+import pose_lobo_guara_disponivel from './poses/lobo-guara-disponivel.webp'
+import pose_lobo_guara_trabalhando from './poses/lobo-guara-trabalhando.webp'
+import pose_lontra_aguardando_aprovacao from './poses/lontra-aguardando-aprovacao.webp'
+import pose_lontra_descansando from './poses/lontra-descansando.webp'
+import pose_lontra_disponivel from './poses/lontra-disponivel.webp'
+import pose_lontra_trabalhando from './poses/lontra-trabalhando.webp'
 import pose_luna_acenando from './poses/luna-acenando.webp'
 import pose_luna_aguardando_aprovacao from './poses/luna-aguardando-aprovacao.webp'
 import pose_luna_aguardando_resposta from './poses/luna-aguardando-resposta.webp'
@@ -45,6 +73,18 @@ import pose_nina_erro from './poses/nina-erro.webp'
 import pose_nina_offline from './poses/nina-offline.webp'
 import pose_nina_revisando from './poses/nina-revisando.webp'
 import pose_nina_trabalhando from './poses/nina-trabalhando.webp'
+import pose_ourico_aguardando_aprovacao from './poses/ourico-aguardando-aprovacao.webp'
+import pose_ourico_descansando from './poses/ourico-descansando.webp'
+import pose_ourico_disponivel from './poses/ourico-disponivel.webp'
+import pose_ourico_trabalhando from './poses/ourico-trabalhando.webp'
+import pose_panda_aguardando_aprovacao from './poses/panda-aguardando-aprovacao.webp'
+import pose_panda_descansando from './poses/panda-descansando.webp'
+import pose_panda_disponivel from './poses/panda-disponivel.webp'
+import pose_panda_trabalhando from './poses/panda-trabalhando.webp'
+import pose_raposa_aguardando_aprovacao from './poses/raposa-aguardando-aprovacao.webp'
+import pose_raposa_descansando from './poses/raposa-descansando.webp'
+import pose_raposa_disponivel from './poses/raposa-disponivel.webp'
+import pose_raposa_trabalhando from './poses/raposa-trabalhando.webp'
 import pose_sol_acenando from './poses/sol-acenando.webp'
 import pose_sol_aguardando_aprovacao from './poses/sol-aguardando-aprovacao.webp'
 import pose_sol_aguardando_resposta from './poses/sol-aguardando-resposta.webp'
@@ -56,6 +96,14 @@ import pose_sol_erro from './poses/sol-erro.webp'
 import pose_sol_offline from './poses/sol-offline.webp'
 import pose_sol_revisando from './poses/sol-revisando.webp'
 import pose_sol_trabalhando from './poses/sol-trabalhando.webp'
+import pose_tamandua_aguardando_aprovacao from './poses/tamandua-aguardando-aprovacao.webp'
+import pose_tamandua_descansando from './poses/tamandua-descansando.webp'
+import pose_tamandua_disponivel from './poses/tamandua-disponivel.webp'
+import pose_tamandua_trabalhando from './poses/tamandua-trabalhando.webp'
+import pose_tucano_aguardando_aprovacao from './poses/tucano-aguardando-aprovacao.webp'
+import pose_tucano_descansando from './poses/tucano-descansando.webp'
+import pose_tucano_disponivel from './poses/tucano-disponivel.webp'
+import pose_tucano_trabalhando from './poses/tucano-trabalhando.webp'
 import nav_arquivos from './icons/nav/arquivos.svg'
 import nav_busca from './icons/nav/busca.svg'
 import nav_canais from './icons/nav/canais.svg'
@@ -78,23 +126,35 @@ import av96_atlas_blink from './avatars/atlas-blink-96.webp'
 import av96_atlas from './avatars/atlas-96.webp'
 import av96_bento_blink from './avatars/bento-blink-96.webp'
 import av96_bento from './avatars/bento-96.webp'
+import av96_capivara_blink from './avatars/capivara-blink-96.webp'
 import av96_capivara from './avatars/capivara-96.webp'
+import av96_cervo_blink from './avatars/cervo-blink-96.webp'
 import av96_cervo from './avatars/cervo-96.webp'
+import av96_coelho_blink from './avatars/coelho-blink-96.webp'
 import av96_coelho from './avatars/coelho-96.webp'
+import av96_coruja_blink from './avatars/coruja-blink-96.webp'
 import av96_coruja from './avatars/coruja-96.webp'
+import av96_guaxinim_blink from './avatars/guaxinim-blink-96.webp'
 import av96_guaxinim from './avatars/guaxinim-96.webp'
+import av96_lobo_guara_blink from './avatars/lobo-guara-blink-96.webp'
 import av96_lobo_guara from './avatars/lobo-guara-96.webp'
+import av96_lontra_blink from './avatars/lontra-blink-96.webp'
 import av96_lontra from './avatars/lontra-96.webp'
 import av96_luna_blink from './avatars/luna-blink-96.webp'
 import av96_luna from './avatars/luna-96.webp'
 import av96_nina_blink from './avatars/nina-blink-96.webp'
 import av96_nina from './avatars/nina-96.webp'
+import av96_ourico_blink from './avatars/ourico-blink-96.webp'
 import av96_ourico from './avatars/ourico-96.webp'
+import av96_panda_blink from './avatars/panda-blink-96.webp'
 import av96_panda from './avatars/panda-96.webp'
+import av96_raposa_blink from './avatars/raposa-blink-96.webp'
 import av96_raposa from './avatars/raposa-96.webp'
 import av96_sol_blink from './avatars/sol-blink-96.webp'
 import av96_sol from './avatars/sol-96.webp'
+import av96_tamandua_blink from './avatars/tamandua-blink-96.webp'
 import av96_tamandua from './avatars/tamandua-96.webp'
+import av96_tucano_blink from './avatars/tucano-blink-96.webp'
 import av96_tucano from './avatars/tucano-96.webp'
 import overlay_approval_badge from './icons/overlays/approval-badge.svg'
 import overlay_error_badge from './icons/overlays/error-badge.svg'
@@ -157,6 +217,34 @@ registerPoseUrl('bento-erro', pose_bento_erro)
 registerPoseUrl('bento-offline', pose_bento_offline)
 registerPoseUrl('bento-revisando', pose_bento_revisando)
 registerPoseUrl('bento-trabalhando', pose_bento_trabalhando)
+registerPoseUrl('capivara-aguardando-aprovacao', pose_capivara_aguardando_aprovacao)
+registerPoseUrl('capivara-descansando', pose_capivara_descansando)
+registerPoseUrl('capivara-disponivel', pose_capivara_disponivel)
+registerPoseUrl('capivara-trabalhando', pose_capivara_trabalhando)
+registerPoseUrl('cervo-aguardando-aprovacao', pose_cervo_aguardando_aprovacao)
+registerPoseUrl('cervo-descansando', pose_cervo_descansando)
+registerPoseUrl('cervo-disponivel', pose_cervo_disponivel)
+registerPoseUrl('cervo-trabalhando', pose_cervo_trabalhando)
+registerPoseUrl('coelho-aguardando-aprovacao', pose_coelho_aguardando_aprovacao)
+registerPoseUrl('coelho-descansando', pose_coelho_descansando)
+registerPoseUrl('coelho-disponivel', pose_coelho_disponivel)
+registerPoseUrl('coelho-trabalhando', pose_coelho_trabalhando)
+registerPoseUrl('coruja-aguardando-aprovacao', pose_coruja_aguardando_aprovacao)
+registerPoseUrl('coruja-descansando', pose_coruja_descansando)
+registerPoseUrl('coruja-disponivel', pose_coruja_disponivel)
+registerPoseUrl('coruja-trabalhando', pose_coruja_trabalhando)
+registerPoseUrl('guaxinim-aguardando-aprovacao', pose_guaxinim_aguardando_aprovacao)
+registerPoseUrl('guaxinim-descansando', pose_guaxinim_descansando)
+registerPoseUrl('guaxinim-disponivel', pose_guaxinim_disponivel)
+registerPoseUrl('guaxinim-trabalhando', pose_guaxinim_trabalhando)
+registerPoseUrl('lobo-guara-aguardando-aprovacao', pose_lobo_guara_aguardando_aprovacao)
+registerPoseUrl('lobo-guara-descansando', pose_lobo_guara_descansando)
+registerPoseUrl('lobo-guara-disponivel', pose_lobo_guara_disponivel)
+registerPoseUrl('lobo-guara-trabalhando', pose_lobo_guara_trabalhando)
+registerPoseUrl('lontra-aguardando-aprovacao', pose_lontra_aguardando_aprovacao)
+registerPoseUrl('lontra-descansando', pose_lontra_descansando)
+registerPoseUrl('lontra-disponivel', pose_lontra_disponivel)
+registerPoseUrl('lontra-trabalhando', pose_lontra_trabalhando)
 registerPoseUrl('luna-acenando', pose_luna_acenando)
 registerPoseUrl('luna-aguardando-aprovacao', pose_luna_aguardando_aprovacao)
 registerPoseUrl('luna-aguardando-resposta', pose_luna_aguardando_resposta)
@@ -179,6 +267,18 @@ registerPoseUrl('nina-erro', pose_nina_erro)
 registerPoseUrl('nina-offline', pose_nina_offline)
 registerPoseUrl('nina-revisando', pose_nina_revisando)
 registerPoseUrl('nina-trabalhando', pose_nina_trabalhando)
+registerPoseUrl('ourico-aguardando-aprovacao', pose_ourico_aguardando_aprovacao)
+registerPoseUrl('ourico-descansando', pose_ourico_descansando)
+registerPoseUrl('ourico-disponivel', pose_ourico_disponivel)
+registerPoseUrl('ourico-trabalhando', pose_ourico_trabalhando)
+registerPoseUrl('panda-aguardando-aprovacao', pose_panda_aguardando_aprovacao)
+registerPoseUrl('panda-descansando', pose_panda_descansando)
+registerPoseUrl('panda-disponivel', pose_panda_disponivel)
+registerPoseUrl('panda-trabalhando', pose_panda_trabalhando)
+registerPoseUrl('raposa-aguardando-aprovacao', pose_raposa_aguardando_aprovacao)
+registerPoseUrl('raposa-descansando', pose_raposa_descansando)
+registerPoseUrl('raposa-disponivel', pose_raposa_disponivel)
+registerPoseUrl('raposa-trabalhando', pose_raposa_trabalhando)
 registerPoseUrl('sol-acenando', pose_sol_acenando)
 registerPoseUrl('sol-aguardando-aprovacao', pose_sol_aguardando_aprovacao)
 registerPoseUrl('sol-aguardando-resposta', pose_sol_aguardando_resposta)
@@ -190,6 +290,14 @@ registerPoseUrl('sol-erro', pose_sol_erro)
 registerPoseUrl('sol-offline', pose_sol_offline)
 registerPoseUrl('sol-revisando', pose_sol_revisando)
 registerPoseUrl('sol-trabalhando', pose_sol_trabalhando)
+registerPoseUrl('tamandua-aguardando-aprovacao', pose_tamandua_aguardando_aprovacao)
+registerPoseUrl('tamandua-descansando', pose_tamandua_descansando)
+registerPoseUrl('tamandua-disponivel', pose_tamandua_disponivel)
+registerPoseUrl('tamandua-trabalhando', pose_tamandua_trabalhando)
+registerPoseUrl('tucano-aguardando-aprovacao', pose_tucano_aguardando_aprovacao)
+registerPoseUrl('tucano-descansando', pose_tucano_descansando)
+registerPoseUrl('tucano-disponivel', pose_tucano_disponivel)
+registerPoseUrl('tucano-trabalhando', pose_tucano_trabalhando)
 
 export const NAV_ICONS = {
   'arquivos': nav_arquivos,
@@ -217,23 +325,35 @@ export const AVATAR_96 = {
   'atlas': av96_atlas,
   'bento-blink': av96_bento_blink,
   'bento': av96_bento,
+  'capivara-blink': av96_capivara_blink,
   'capivara': av96_capivara,
+  'cervo-blink': av96_cervo_blink,
   'cervo': av96_cervo,
+  'coelho-blink': av96_coelho_blink,
   'coelho': av96_coelho,
+  'coruja-blink': av96_coruja_blink,
   'coruja': av96_coruja,
+  'guaxinim-blink': av96_guaxinim_blink,
   'guaxinim': av96_guaxinim,
+  'lobo-guara-blink': av96_lobo_guara_blink,
   'lobo-guara': av96_lobo_guara,
+  'lontra-blink': av96_lontra_blink,
   'lontra': av96_lontra,
   'luna-blink': av96_luna_blink,
   'luna': av96_luna,
   'nina-blink': av96_nina_blink,
   'nina': av96_nina,
+  'ourico-blink': av96_ourico_blink,
   'ourico': av96_ourico,
+  'panda-blink': av96_panda_blink,
   'panda': av96_panda,
+  'raposa-blink': av96_raposa_blink,
   'raposa': av96_raposa,
   'sol-blink': av96_sol_blink,
   'sol': av96_sol,
+  'tamandua-blink': av96_tamandua_blink,
   'tamandua': av96_tamandua,
+  'tucano-blink': av96_tucano_blink,
   'tucano': av96_tucano,
 } as const
 
@@ -257,6 +377,10 @@ export { railFoliage }
 export { railFoliageLight }
 
 export { railFoliageDark }
+
+/** Brush workflow-model icons, currentColor SVG (Muse, BOARDS-SPEC §6). */
+export const FLOW_ICONS: Readonly<Record<string, string>> = {
+}
 
 /** Brush hand-drawn accents, currentColor SVG (Muse, DESIGN-SYSTEM §5). */
 export const ACCENTS: Readonly<Record<string, string>> = {

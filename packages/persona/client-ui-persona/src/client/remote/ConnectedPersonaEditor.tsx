@@ -12,6 +12,7 @@ import { HIRE_PERSONA_PROFILE_ID, type ShellState } from '../shell/create-shell-
 import type { PersonaLiveStore } from './persona-live-store.ts'
 import type { LumenRemoteInjected } from '../data/lumen-inject.ts'
 import { unwrapRemote } from '../data/remote-call.ts'
+import { draftToCreatePersonaRequest } from '../hire/map-draft-to-create-persona.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { useRemoteTenantGate } from '../data/use-remote-tenant-gate.ts'
 import { PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
@@ -132,7 +133,20 @@ export function ConnectedPersonaEditor({
   const onSave = async (draft: PersonaDraft): Promise<void> => {
     if (scope === null || state.status !== 'ready' || state.data === null) return
     if (state.data.hireMode) {
-      /* createPersona wire when host runners stable — Muse owns hire card UX */
+      const tenant = live.observable.getSnapshot().tenant
+      if (tenant === null || !('createPersona' in persona)) return
+      const request = draftToCreatePersonaRequest(draft, {
+        workspaceId: scope.workspaceId,
+        projectId: scope.projectId,
+        memberId: tenant.memberId,
+      })
+      try {
+        await unwrapRemote(await persona.createPersona(request))
+        await live.setPersonaAutonomyLevel(request.id, draft.autonomyLevel)
+        await live.refresh()
+      } catch {
+        /* host/runners may reject — Muse hire card shows outcome later */
+      }
       return
     }
     const personaId = state.data.personaId

@@ -72,8 +72,8 @@
 .avatar {
   position: relative;
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   box-sizing: border-box;
   border: var(--persona-border-width) solid var(--persona-outline);
   border-radius: 999px;
@@ -118,8 +118,8 @@
   bottom: -5px;
   display: grid;
   place-items: center;
-  width: 17px;
-  height: 17px;
+  width: 19px;
+  height: 19px;
   box-sizing: border-box;
   border: var(--persona-border-width) solid var(--persona-outline);
   border-radius: 999px;
@@ -127,8 +127,8 @@
 }
 
 .seal img {
-  width: 11px;
-  height: 11px;
+  width: 13px;
+  height: 13px;
 }
 
 .seal[data-state='working'] { background: var(--persona-success-tint); }
@@ -320,4 +320,25 @@
   .seal[data-state='waiting'] {
     animation: none;
   }
+}
+
+.titleToggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--persona-radius-s);
+}
+
+.titleToggle:hover {
+  color: var(--persona-rail-ink);
+}
+
+.chevron {
+  margin-left: auto;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.titleToggle[aria-expanded='false'] .chevron {
+  transform: rotate(-90deg);
 }

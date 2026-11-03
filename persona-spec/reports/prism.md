@@ -1,5 +1,93 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-03 — PRO-4/C8 visão geral + D-043 copy + G2/PB typecheck
+
+**(1) C8 / PRO-4** — `OverviewView`: card “primeira tarefa” usa título live (`suggestedTask.title` do host) quando a equipe não tem tarefa ativa; `ConnectedOverviewView` já passava `live.suggestedTask`. Teste `overview-suggested-task.client.spec.tsx`.
+
+**(2) D-043 neutro** — locale-sources: `overview.teamIntroLine`, kanban/files/routines empty hints; `overview.awayEvent3Body`, `composer.modelAtlas` → Coordenação; regen locales.
+
+**(3) G2** — teste `canvas-list-keyboard.client.spec.tsx` (lista + ArrowDown roving focus).
+
+**(4) PB hub (typecheck)** — `derive-board-summaries` contagens imutáveis; `BoardsHome` Tabs `label`/`idPrefix`; `flow-models` fallback ícone; `enrichKanbanCardsFromHost` `KanbanCardModel` + optional `assigneeState`. Teste `derive-board-summaries.client.spec.ts`.
+
+**(5) C5b** — teste pass-through visível em `general-channel-turn-context.client.spec.tsx`.
+
+**Verificação** — `node scripts/persona/build-assets.mjs`; `node scripts/persona/check-pkg.mjs client-ui-persona` → OK (~35–75s).
+
+**Dependências** — PRO-6/S5/C8 E2E e gate completo Lumen → Probe; polish visual PRO-4/C5 → Muse; `usage` adapters vs host types (Lumen/Anvil) fora do check-pkg Prism.
+
+---
+
+## 2026-11-03 — Keel onboarding: overlay + guia neutro
+
+**(1) Overlay** — `publishHostOnboardingState` no live store: re-lê `getOnboarding.firstUse` após cada `refresh` (incl. dev seed `completeOnboarding`); cache local só 1ª pintura. Teste `onboarding-overlay-sync.client.spec.ts`.
+
+**(2) Copy D-043** — guia neutro (`guide.name` Guia/Guide; `stepN.guideSays` sem Atlas); arte dos cachorros acenando mantida. `[Prism→Muse]` alinhar vitrine se quiserem label "Persona" no balão.
+
+**Contrato** — `onboarding-remote.md` atualizado.
+
+**G2** — Canvas modo lista: roving `tabIndex` + setas ↑/↓ entre linhas.
+
+---
+
+## 2026-11-03 — Boot gate + roster hardening
+
+**Bootstrap gate (Probe/ui-boot-check)** — `BOOT_GATE_PRISM_PANELS` (Visão geral + #geral só); `sanitizeBootstrapPageErrors` / `recordBootstrapPageError` (ignora `ERR_INSUFFICIENT_RESOURCES`, cap `gateway/internal`). Teste `persona-e2e/tests/boot-gate-sanitize.spec.ts`.
+
+**Roster** — `personaRosterTier` tolera `systemRoles` ausente; teste `map-rail-team` ordem Atlas→Luna na saída do mapper (RailTeam ainda reordena por estado/atencão — Muse).
+
+**Dependência** — painéis Lumen no gate completo (`BOOT_GATE_MAIN_PANELS`) ficam com Probe/mandatory-boot.
+
+---
+
+## 2026-11-03 — Keel P0: duplo unwrap bootstrap (repasse Muse)
+
+**(a)** Bootstrap usa `rawRemote` + `unwrapRemote` só em `bootstrap-tenant.ts`; live store mantém proxy Muse para refresh/RPC (comentário em `createPersonaLiveStore` + `persona-remote-unwrap.ts`).
+
+**(b)** `createWorkspace` trata `conflict` como workspace já existente.
+
+**(c)** `bootstrap-tenant.client.spec.ts` — RemoteResult fake + 2ª bootstrap sem exceção; `remote-unwrap` seed 5 personas + mensagens intacto.
+
+**ui-boot-check (21:16)** — light/dark + channel: **5 personas**, Atlas/Coordenação primeiro (dev seed). Bootstrap gate falhou neste host: `ERR_INSUFFICIENT_RESOURCES` (10364 console errors ao navegar painéis) — ambiente, não unwrap. Shots: `.maestri/tmp/shots/persona-light*.png`.
+
+---
+
+## 2026-11-03 — Keel channel-light: roster, stream order, dev seed
+
+**(1) Responde / Sua equipe** — `sortPersonasForUi` (coordination → nome → watchdog via `systemRoles`); rail/strip/composer; `defaultChannelResponderId` (Atlas, não Luna).
+
+**(2) Mensagens** — `sortMessageStreamEvents` (seq, depois `occurredAt`); baseline em `apply-message-stream` ignora `frame.order` errado; live store já ordena páginas.
+
+**(3) Dev seed / scripted** — `seedDevHarnessScenario` + `runDevHarnessSeedIfEnabled` só com `persona.devSeed.v1`; posts com `devHarnessMessageTimes` após welcome (horas crescentes). Produção: host `allowsScriptedReplies()` = `VITEST` ou `PERSONA_SCRIPTED=1` (ack Anvil no runner real).
+
+**Testes** — `sort-personas.client.spec.ts`, `apply-message-stream` baseline seq, `devHarnessMessageTimes`.
+
+---
+
+## 2026-11-03 — Unwrap (Muse) revisado + hire createPersona + boot
+
+**Unwrap (Keel P0)** — Muse: `persona-remote-unwrap.ts` + proxy em `createPersonaLiveStore`. Prism revisou; `remote-unwrap.client.spec.ts` **4 passed** (bootstrap/refresh/seed + erro legível, sem `.find is not a function`).
+
+**Hire (dados)** — `map-draft-to-create-persona.ts`; `ConnectedPersonaEditor` Salvar em hire → `createPersona` + `setPersonaAutonomyLevel` + `refresh`.
+
+**ui-boot-check** — lock após Muse design-shots; light/dark/channel render OK; `exec-bootstrap-gate` falhou **playwright não instalado** neste host (Probe/CI). Dependência ambiente.
+
+**Fixes colaterais** — `usage.ts` origin `estimate`→`estimated`; testes message `source`.
+
+---
+
+## 2026-11-03 — C5b #geral: cartão de tarefa + painel contexto (dados)
+
+**UI mínima (Muse pode refazer drawer)** — mensagens com `ticketId`/`taskTitle` exibem botão que chama `onLoadTurnContext`; snapshot `turnContext` renderiza painel (`context.*` locales). Contrato `turn-context-remote.md` atualizado.
+
+**Teste** — `general-channel-turn-context.client.spec.tsx` (click → RPC hook).
+
+**check-pkg** — OK após `gen-client-ui-persona-locales`.
+
+**Pendente** — unwrap Muse (`persona-live-store` moratória) → revisão + `ui-boot-check`; C8 1ª tarefa (Anvil); PRO-4 editor visual (Muse); `createPersona` no Salvar (hire).
+
+---
+
 ## 2026-11-03 — Keel P0: unwrap RemoteResult (Muse dona)
 
 **Causa painéis “Carregando…” / seed** — `ctx.remote.persona.*` → `RemoteResult`; live store usava retorno cru (`channels.find is not a function`). **Muse** autorizada: proxy único de unwrap em `createPersonaLiveStore` (+ teste). **Prism:** moratória em `bootstrap-tenant.ts`, `persona-live-store.ts`, `seed-default-team.ts` até `"unwrap done"` no Status; não comecei o mesmo conserto. Depois: revisar proxy + `ui-boot-check`.

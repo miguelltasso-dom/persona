@@ -3,7 +3,7 @@
  * Rejects `..`, absolute paths, NUL, and symlink/junction escapes.
  */
 
-import { existsSync, lstatSync, realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { isAbsolute, normalize, resolve, sep } from 'node:path'
 
 /** Path escaped the trusted root. */
@@ -26,8 +26,6 @@ function underRoot(rootAbs: string, destAbs: string): boolean {
 function assertResolvedInside(rootAbs: string, destAbs: string, requested: string): void {
   if (!underRoot(rootAbs, destAbs)) throw new PathEscapeError(requested)
   if (!existsSync(destAbs)) return
-  const stat = lstatSync(destAbs)
-  if (!stat.isSymbolicLink()) return
   if (!underRoot(rootAbs, realpathSync(destAbs))) throw new PathEscapeError(requested)
 }
 

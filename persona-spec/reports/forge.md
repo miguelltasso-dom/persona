@@ -4,6 +4,49 @@ Mais recente no topo.
 
 ---
 
+## 03/11 16:00 — Endurecimento (security / properties / retention / bench / guia)
+
+### O que ficou pronto
+- **Segurança adversarial** (`tests/security/*.spec.ts`, título = ataque): injeção no Trigger não passa o gate nem muta Mandate (escopo maior = Tarefa nova); `bindRunIdentity` / `persona*FromRun` — identidade vem da sessão; `persona_propose` em cadeia de 3 (ferramentas/CLI/orçamento); `confinePath` + worktree (`..`, absoluto, junction); DM não vaza em compile/recall/chain/export/search; `looksLikeCredential` recusa chave em proposta, vault e prompt; revogação corta `can()` e `report` (`mandateRevoked`); replay de Trigger/outbox/webhook.
+- **Propriedades** (mulberry32, semente `0xC0FFEE` / `0xA11CE`, N=32–64): idempotência de Trigger, 1 Eval/Thread, Mandate imutável, SyncLog sem lacuna, DM sem `shared`, `can()` monotônico, outbox só após commit, resume reentrante.
+- **Retenção:** porto `RetentionPolicy` + `MemoryRetention` + suíte de contrato. Doc `persona-spec/contracts/retention.md`. Anvil: SQLite VACUUM/FTS na mesma suíte.
+- **Bench engine:** `persona-spec/reports/bench-engine.md` (10k tickets / 100k triggers; pipeline 200). Sem otimizar.
+- **Guia pt-BR** `docs/persona/*.md` + `README.persona.md` (créditos; produto = Persona, D-017).
+
+### Arquivos
+- `packages/persona/persona-core/src/{domain/secrets,import/privacy,domain/rules,domain/vault-propose,domain/schemas}.ts` + `tests/security` + `tests/properties`
+- `packages/persona/persona-engine/src/{retention,executor/confine,executor/worktree,router/handlers,core/assignments,prompts/templates,bench/engine}.ts` + testes
+- `persona-spec/contracts/retention.md`, `persona-spec/reports/bench-engine.md`, `docs/persona/*`, `README.persona.md`
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 5.5s
+persona-engine: OK in 5.0s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-core packages/persona/persona-engine
+ Test Files  67 passed (67)
+      Tests  422 passed (422)
+   Start at  15:55:54
+   Duration  9.24s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 34.5s
+```
+
+### Limitações
+- Pipeline do bench é 200 ciclos (não 100k receives); estoque 10k/100k mede store/views/`get`.
+- Exclusão de retenção em memória; VACUUM/FTS = Anvil.
+- Sem defeito em pacote alheio nesta onda (Anvil já tem retenção SQLite v6 no Status).
+- Fila de endurecimento vazia no território Forge.
+
+---
+
 ## 03/11 15:38 — PROACTIVITY nativa (BRIEFING 14 / PROACTIVITY.md) ✔ engine
 
 ### O que ficou pronto

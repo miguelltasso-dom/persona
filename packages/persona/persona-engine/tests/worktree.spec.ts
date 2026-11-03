@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { expect, it } from 'vitest'
 import { addWorktree, worktreeArgv, worktreePath } from '../src/index.ts'
@@ -23,7 +23,7 @@ it('builds git worktree argv without a shell string', () => {
   expect(worktreeArgv('/repo', 't9', '/wt/t9')).toEqual([
     '-C', '/repo', 'worktree', 'add', '/wt/t9', '-b', 'persona/t9', 'HEAD',
   ])
-  expect(worktreePath('/home/worktrees', 't9')).toBe(join('/home/worktrees', 't9'))
+  expect(worktreePath('/home/worktrees', 't9')).toBe(resolve('/home/worktrees', 't9'))
 })
 
 it('adds a worktree by spawning git with argv and shell:false', async () => {

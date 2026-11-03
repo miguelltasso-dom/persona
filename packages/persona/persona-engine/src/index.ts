@@ -44,6 +44,24 @@ export type {
 } from './sources/github/index.ts'
 export { formatRouterBenchReport, runRouterExperiment } from './bench/router.ts'
 export type { RouterBenchCounts, RouterBenchResult } from './bench/router.ts'
+export { formatEngineBenchReport, runEngineBench } from './bench/engine.ts'
+export type { EngineBenchPhase, EngineBenchResult, EngineBenchSizes } from './bench/engine.ts'
+export {
+  DAY_MS,
+  DEFAULT_RETENTION,
+  MemoryRetention,
+  RETENTION_KINDS,
+  applyRetention,
+  windowOf,
+} from './retention.ts'
+export type {
+  RetentionApplyResult,
+  RetentionKind,
+  RetentionPolicy,
+  RetentionRecord,
+  RetentionStore,
+  RetentionWindow,
+} from './retention.ts'
 export {
   ROUTER_FORBIDDEN_TOOLS,
   ticketOfSession,
@@ -75,12 +93,16 @@ export { bindExecutorEffects, redeliverUnread } from './executor/handlers.ts'
 export type { ExecutorHost } from './executor/handlers.ts'
 export { BACKGROUND_LIMIT_MS, idleOutcome, resumeExecutor } from './executor/resume.ts'
 export { addWorktree, worktreeArgv, worktreePath } from './executor/worktree.ts'
+export { PathEscapeError, confineAbsolute, confinePath, confineSegment } from './executor/confine.ts'
 export {
   NoticeLog,
   PERSONA_ROUTE_LIMIT,
+  bindRunIdentity,
   personaAck,
+  personaAckFromRun,
   personaHandback,
   personaReport,
+  personaReportFromRun,
   personaRoute,
   personaThreadFollow,
 } from './router/handlers.ts'
@@ -102,6 +124,17 @@ export type {
   VigiaAction, VigiaActionKind, VigiaAudit, VigiaPersonaState, VigiaRules, VigiaSnapshot,
 } from './watchdog.ts'
 export { applyProactivity, applyAutonomy, autonomyMode } from './proactivity.ts'
+export { applyAttentionAnswer, citedCardTicketId } from './attention.ts'
+export { approvalCard, milestoneSummary } from './approvals.ts'
+export type { ApprovalCard } from './approvals.ts'
+export { isOnShift, shouldRunDaily, shouldRunOnEvent } from './initiative.ts'
+export type { InitiativeClock, InitiativeEvent, Shift } from './initiative.ts'
+export { lazinessHint, scoreLaziness } from './laziness.ts'
+export type { LazinessRun, LazinessScenario, LazinessScore } from './laziness.ts'
+export {
+  channelMessageToTrigger, dmMessageToTrigger, internalMessageToTrigger, routineFireToTrigger,
+} from './sources/internal.ts'
+export type { InternalMessage } from './sources/internal.ts'
 export type { AutonomyDecision, AutonomyLevel, ObservedAction, ProactivityMode, ProactivityRule } from './proactivity.ts'
 export {
   isEligible, nextEligible, wakeDependents, afterAssignmentSettled,
@@ -121,10 +154,12 @@ export {
   overview, needsYou, ticketList, ticketRow, ticketSummary, ticketDetail, basisFacts,
   threadList, threadDetail, encodeCursor, decodeCursor, decisionList, decisionRow, search,
   page, newestFirst, stamp, listDecisions, knownTriggers, turnsFromRepo, preview, capped,
+  honestState, nowOverview, whileAway,
 } from './views/index.ts'
 export type {
   OverviewView, TicketRowView, TicketDetailView, BasisFact, ThreadRowView, TimelineTurn,
   DecisionRowView, SearchHit, ViewHost, ExecutorLoad,
+  HonestState, NowOverview, PersonaLoad, PersonaNow, WhileAway,
 } from './views/index.ts'
 export {
   ASSIGNMENTS, INPUTS, TICKET_STATES, triggerCard, ticketCard, inputLine, assignmentLine,

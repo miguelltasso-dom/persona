@@ -25,6 +25,37 @@ background? → { running, untilQuiet, kill, stopSubagents }
 - Sem capacidade `background`, o fim do turno vira `waiting`. Com background, o limite é 30 min (`BACKGROUND_LIMIT_MS`).
 - `resume()` (P8): assignment interrompida reinicia com `RECOVERY_NOTE` e reentrega inputs não lidos; relatos waiting/ready/blocked/failed mantêm a sessão.
 
+## Resolvedor (`ctx.personaRunners.resolveRunner`) — Anvil troca `createHostRunner`
+
+```ts
+type PersonaRunnerSpec =
+  | { kind: 'dsh'; model: string }
+  | { kind: 'cli'; cli: 'claude' | 'codex' | 'opencode' | 'cursor'; model: string }
+
+resolveRunner({
+  spec,
+  permissionMode: 'prompt' | 'allow-once' | 'deny',  // host deriva da autonomia/escopo
+  autonomy?: 'on_request' | 'propose' | 'act',       // propose ⇒ withObserveGate
+  home?: string,                                     // isolamento opcional
+  vault?: { get(personId, provider): Promise<string | undefined> },
+  personId?: string,
+  agent?: DshAgentPort,                              // obrigatório para kind:'dsh'
+  runtime?: Runtime,                                 // testes / fake CLI
+  usage?: { record(MeasuredUsage) },                 // persona-usage
+}): Promise<Runner>
+```
+
+Erros tipados (`RunnerResolveError`): `cli_not_found` | `not_logged_in` | `model_unavailable` | `quota_exhausted`. `message` é pt-BR curto para a UI (sem stack, sem token). Credenciais do vault só em env efêmero da sessão.
+
+## Conexões (`detectConnections`) — Anvil/Lumen `listConnections`
+
+```ts
+detectConnections({ timeoutMs?: 8000, cacheMs?: 60_000, force?, runtimes? }): Promise<ConnectionSnapshot[]>
+// { id, kind:'dsh'|'cli', installed, loggedIn, models, version?, usageOrigin?, loginHint?, error? }
+```
+
+Cache 60 s. Timeout curto por CLI. Sem segredos. `loginHint` pede para abrir o terminal (`claude login` / `codex login` / …) — nunca pede token.
+
 ## Fábricas (Anvil / `persona-host` orchestration)
 
 Rivet exporta de `@deepseek-ai/dsh-persona-runners`:
@@ -33,6 +64,7 @@ Rivet exporta de `@deepseek-ai/dsh-persona-runners`:
 - `createExecutorAdapter` — Effects → port `Runner`.
 - `createDshSessionRunner` / `createOarSessionRunner` / `createClaudeRunner` / `createCodexRunner` / `createOpencodeRunner` / `createCursorRunner`.
 - Login nativo por padrão: runners Claude/Codex/OpenCode passam `SessionOptions.env` que **remove** `CLAUDE_CONFIG_DIR` / `CODEX_HOME` herdados; isolamento só com `configDir` / `homeDir` explícitos ou `PERSONA_ISOLATE_CLI_CONFIG=1`. Cursor não recebe `env` (OAR recusa). Resume Codex faz `dispose` da sessão viva antes de reabrir (writer exclusivo).
+- **Codex / OAR 0.67 (contorno):** o runtime muitas vezes conclui `prompt()` sem emitir `turn_ended` e manda texto em `agent_message`/`item` em vez de `text_delta`. O adapter trata o settle do `prompt()` como fim de turno e mapeia esses kinds para `delta`. Sem isso o smoke fica `exec sem done`. (Keel: ecoar em D-024 se quiser no DECISIONS.)
 
 ## Proatividade (PRO-3)
 

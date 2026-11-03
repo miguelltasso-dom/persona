@@ -16,3 +16,5 @@ export {
   type ViewHost, type ExecutorLoad,
 } from './host.ts'
 export { preview, capped } from './text.ts'
+export { honestState, nowOverview, whileAway } from './now.ts'
+export type { HonestState, NowOverview, PersonaLoad, PersonaNow, WhileAway } from './now.ts'

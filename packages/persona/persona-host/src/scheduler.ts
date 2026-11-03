@@ -40,8 +40,8 @@ export class HostScheduler {
   readonly screens: ScreenRepos
   readonly nowMs: () => number
   timer: ReturnType<typeof setTimeout> | undefined
-  lastReadyMs = 0
-  readonly armed = new Set<string>()
+  lastReadyMs: number = 0
+  readonly armed: Set<string> = new Set<string>()
 
   /**
    * @param store - Open store.

@@ -1,0 +1,6 @@
+# Persona product layer. Rows are added by the Tech Lead as each package becomes mountable.
+- insert:
+    - id: persona-host
+      name: '@deepseek-ai/dsh-persona-host'
+    - id: ui-persona
+      name: '@deepseek-ai/dsh-client-ui-persona'

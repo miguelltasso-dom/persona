@@ -13666,6 +13666,121 @@ importers:
         specifier: workspace:*
         version: link:../../core/tools
 
+  packages/persona/client-ui-persona:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: workspace:*
+        version: link:../../api/gateway
+      '@deepseek-ai/dsh-api-remotes':
+        specifier: workspace:*
+        version: link:../../api/remotes
+      '@deepseek-ai/dsh-client-locale':
+        specifier: workspace:*
+        version: link:../../client/locale
+      '@deepseek-ai/dsh-client-store':
+        specifier: workspace:*
+        version: link:../../client/store
+      '@deepseek-ai/dsh-client-test-runtime':
+        specifier: workspace:*
+        version: link:../../test-support/client-runtime
+      '@deepseek-ai/dsh-client-ui-plugin-manager':
+        specifier: workspace:*
+        version: link:../../client/ui-plugin-manager
+      '@deepseek-ai/dsh-client-ui-primitives':
+        specifier: workspace:*
+        version: link:../../client/ui-primitives
+      '@deepseek-ai/dsh-client-ui-renderer':
+        specifier: workspace:*
+        version: link:../../client/ui-renderer
+      '@deepseek-ai/dsh-client-ui-session':
+        specifier: workspace:*
+        version: link:../../client/ui-session
+      '@deepseek-ai/dsh-client-ui-slots':
+        specifier: workspace:*
+        version: link:../../client/ui-slots
+      '@deepseek-ai/dsh-persona-host':
+        specifier: workspace:*
+        version: link:../persona-host
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:*
+        version: link:../../typert/protocol
+      '@testing-library/react':
+        specifier: ^16.3.3
+        version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+
+  packages/persona/persona-app:
+    dependencies:
+      '@deepseek-ai/dsh-client-ui-persona':
+        specifier: workspace:*
+        version: link:../client-ui-persona
+      '@deepseek-ai/dsh-persona-host':
+        specifier: workspace:*
+        version: link:../persona-host
+
+  packages/persona/persona-core: {}
+
+  packages/persona/persona-e2e:
+    devDependencies:
+      playwright:
+        specifier: ^1.49.0
+        version: 1.61.1
+
+  packages/persona/persona-engine: {}
+
+  packages/persona/persona-host:
+    dependencies:
+      '@deepseek-ai/dsh-persona-core':
+        specifier: workspace:*
+        version: link:../persona-core
+      '@deepseek-ai/dsh-persona-engine':
+        specifier: workspace:*
+        version: link:../persona-engine
+      '@deepseek-ai/dsh-persona-store':
+        specifier: workspace:*
+        version: link:../persona-store
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:*
+        version: link:../../typert/protocol
+
+  packages/persona/persona-runners:
+    dependencies:
+      '@botiverse/oar':
+        specifier: 0.67.0
+        version: 0.67.0(patch_hash=65de2ca1966421e30893d8d4fed6a3d88e4247e131e7575fe791246e594538d6)(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(supports-color@9.4.0)(zod@4.4.3))(@smithy/signature-v4@5.7.4)(supports-color@9.4.0)(ws@8.21.3)(zod@4.4.3)
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+
+  packages/persona/persona-store: {}
+
+  packages/persona/persona-usage: {}
+
+  packages/persona/persona-vault:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+
   packages/plan/plan-mode:
     dependencies:
       '@deepseek-ai/dsh-brand':

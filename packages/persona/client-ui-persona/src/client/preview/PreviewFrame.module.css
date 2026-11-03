@@ -1,0 +1,65 @@
+.frame {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 17rem 1fr;
+  background: var(--persona-active-surface);
+  color: var(--persona-active-ink);
+  font-family: system-ui, sans-serif;
+}
+
+.rail {
+  background: var(--persona-active-rail);
+  color: var(--persona-active-rail-ink);
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.main {
+  padding: 2rem;
+  max-width: 42rem;
+}
+
+.panel {
+  background: var(--persona-active-surface-alt);
+  border: 1px solid var(--persona-lilac-200);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--persona-lilac-900) 8%, transparent);
+}
+
+.primary {
+  background: var(--persona-active-accent);
+  color: var(--persona-active-accent-ink);
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary:focus-visible {
+  outline: 2px solid var(--persona-active-accent);
+  outline-offset: 2px;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--persona-active-ink);
+  border: 1px solid var(--persona-lilac-300);
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--persona-active-ink-muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}

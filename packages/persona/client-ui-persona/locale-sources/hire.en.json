@@ -1,0 +1,12 @@
+{
+  "title": "Hire {name}?",
+  "subtitle": "{creator} proposed a teammate.",
+  "editBeforeHire": "Review before hiring",
+  "field.role": "Role",
+  "field.harness": "Harness",
+  "field.tools": "Tools",
+  "action.approve": "Hire",
+  "action.edit": "Edit proposal",
+  "action.dismiss": "Not now",
+  "policy.note": "Workspace policy: manual approval (default)."
+}

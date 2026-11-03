@@ -1,0 +1,56 @@
+{
+  "inspectedOn": "2026-11-03",
+  "scope": "Source contracts inspected; no checkout commit or runtime integration verified.",
+  "files": [
+    {
+      "label": "deepseek-readme",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/master/README.md",
+      "blobSha": "7941e30f7bdca9391befe39b9115d211157fa42d"
+    },
+    {
+      "label": "dsh-architecture",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md",
+      "blobSha": "446c50e5bd3d0dcd6fc245f60f342d364785adfd"
+    },
+    {
+      "label": "dsh-extra-0",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/agent-team.md",
+      "blobSha": "49b27ea176f9ee67dda890e931652b3addfc0afc"
+    },
+    {
+      "label": "dsh-extra-2",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/cookbook/adding-a-tool.md",
+      "blobSha": "ebef4b6b03a2df160f1a10880cb79f8d829f4c1f"
+    },
+    {
+      "label": "native-tasks-0",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/team/agent-team/README.md",
+      "blobSha": "deaed3adf15ecd5ec347804f5e31fa864f7e7ecb"
+    },
+    {
+      "label": "native-tasks-1",
+      "url": "https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/team/agent-team/src/types.ts",
+      "blobSha": "83b3ceb5f652f7c65d971afd6da6bfe3c49ee38c"
+    },
+    {
+      "label": "t3-readme",
+      "url": "https://github.com/pingdotgg/t3code/blob/main/README.md",
+      "blobSha": "1f63f3609ae0dd709256623cf34f6fab8168d2f2"
+    },
+    {
+      "label": "t3-overview",
+      "url": "https://github.com/pingdotgg/t3code/blob/main/docs/internals/overview.md",
+      "blobSha": "9e5cf6c9d8a6ca66423a964b3a52c131b919e5fa"
+    },
+    {
+      "label": "t3-providers",
+      "url": "https://github.com/pingdotgg/t3code/blob/main/docs/internals/providers.md",
+      "blobSha": "3a31a9dac93cdd9982a562532966ccfa5e0b6ab6"
+    },
+    {
+      "label": "tucano-readme",
+      "url": "https://github.com/eduwxyz/tucano/blob/main/README.md",
+      "blobSha": "d1a0d077d9b6927be0c58bfc8803c718d688db3b"
+    }
+  ]
+}

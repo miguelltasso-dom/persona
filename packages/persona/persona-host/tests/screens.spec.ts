@@ -112,6 +112,12 @@ it('persists triage rules, quiet windows and project limits', () => {
   expect(h.setProjectLimits({
     ...scope, maxProposalsPerDay: 5, tokensPerPersonaMonth: 1, tokensPerProjectMonth: 2,
   }).maxProposalsPerDay).toBe(5)
+  h.putTriageRule({
+    ...scope, id: 'r1', gateText: 'Só admin.', assessmentText: 'Pedir.',
+    logOnly: true, speculativeEnabled: false,
+  })
+  expect(h.simulateTriage({ ...scope, ruleId: 'r1', text: 'deploy prod' }).mode).toBe('logOnly')
+  expect(h.listTriageLog(scope).length).toBe(1)
 })
 
 it('approvals cover hire, vault, skill and decide hire creates the persona', () => {

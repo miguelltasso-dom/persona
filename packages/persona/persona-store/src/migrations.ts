@@ -386,7 +386,61 @@ CREATE TABLE import_batch (
 ) STRICT;
 `
 
-/** Adjacent shipped layout: product/events/vault/routines (v1), engine (v2), sync/invite/import (v3). */
+const V4_PROACTIVITY = `
+CREATE TABLE autonomy (
+  project_id TEXT NOT NULL,
+  persona_id TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK (mode IN ('asked', 'propose', 'act')),
+  proposal_budget INTEGER NOT NULL,
+  token_budget INTEGER NOT NULL,
+  execution_budget INTEGER NOT NULL,
+  silence_start TEXT,
+  silence_end TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, persona_id)
+) STRICT;
+
+CREATE TABLE visit (
+  project_id TEXT NOT NULL PRIMARY KEY,
+  last_seen_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE initiative_fire (
+  project_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  persona_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  at TEXT NOT NULL,
+  title TEXT NOT NULL,
+  ticket_id TEXT,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE INDEX initiative_fire_project_at ON initiative_fire (project_id, at);
+
+CREATE TABLE watchdog_audit (
+  project_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  at TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE INDEX watchdog_audit_project_at ON watchdog_audit (project_id, at);
+
+CREATE TABLE attention_spend (
+  project_id TEXT NOT NULL,
+  persona_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  proposals INTEGER NOT NULL,
+  PRIMARY KEY (project_id, persona_id, day)
+) STRICT;
+`
+
+/** Adjacent shipped layout: v1 product… v3 sync/invite/import, v4 proactivity. */
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -399,5 +453,9 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 3,
     sql: V3_SYNC,
+  },
+  {
+    version: 4,
+    sql: V4_PROACTIVITY,
   },
 ]

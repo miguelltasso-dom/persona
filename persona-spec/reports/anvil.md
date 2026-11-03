@@ -4,6 +4,39 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 03/11 15:14 — E6 — persona-sync: só streams compartilhados, cifra, offline
+
+### O que ficou pronto
+`SyncClient` recusa DM/privado (`PRIVATE_NOT_SHARED`, outbox vazio). Dois hosts no mesmo `MemoryTransport` convergem. Offline enfileira; `flush` + `restoreCursors` retomam. `WorkspaceCipher` AES-256-GCM (chave no host). `HttpTransport` para o Worker. Host: `openHostSync` / `openHostSyncFromEnv` no SQLite.
+
+### Arquivos
+- `packages/persona/persona-sync/src/{identity,client,cipher,transport,index}.ts`
+- `packages/persona/persona-sync/tests/sync.spec.ts`
+- `packages/persona/persona-host/src/sync.ts` + `tests/sync.spec.ts` + `index.ts` / `package.json` / `tsconfig.json`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-sync packages/persona/persona-host/tests/sync.spec.ts
+ Test Files  3 passed (3)
+      Tests  6 passed (6)
+   Start at  15:13:51
+   Duration  4.19s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-sync persona-host
+persona-sync: OK in 7.8s
+persona-host: OK in 10.7s
+```
+
+### Limitações
+- Sem handshake WS no cliente (HTTP append/after). Cifra é AES-GCM Node (`node:crypto`).
+- `pnpm exec` religou workspace após `persona-sync` no host (já estava no monorepo; sem pacote novo).
+- Segue proatividade nativa no host (Atlas/Miguel).
+
+---
+
 ## 03/11 15:09 — E5 — persona-edge Worker + DO + D1 + R2 + convites + HMAC
 
 ### O que ficou pronto

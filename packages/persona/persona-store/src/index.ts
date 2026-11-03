@@ -37,6 +37,9 @@ export { zonedUtcMs } from './events/timezone.ts'
 export { RoutineRepos } from './routines/repos.ts'
 export type { CatchUp, CreateRoutineInput, Routine, RoutineRun } from './routines/repos.ts'
 
+export { ProactivityRepos } from './proactivity/repos.ts'
+export type { AutonomyMode, AutonomyRow, InitiativeFire, WatchdogAudit } from './proactivity/repos.ts'
+
 export { SqliteRepositories, openSqliteRepositories } from './engine/repos.ts'
 export { SqliteEffectPersistence } from './engine/effects.ts'
 export { SqliteOutbox } from './engine/outbox.ts'

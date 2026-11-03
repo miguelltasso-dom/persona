@@ -35,7 +35,7 @@ function pragma(db: DatabaseSync, name: 'user_version' | 'application_id' | 'for
 it('persona-store skeleton loads', () => {
   expect(PACKAGE_STORE).toBe('persona-store')
   expect(PERSONAL_PROJECT_NAME).toBe('Pessoal')
-  expect(PERSONA_SCHEMA_VERSION).toBe(3)
+  expect(PERSONA_SCHEMA_VERSION).toBe(4)
 })
 
 it('stamps application_id and user_version on a fresh file', async () => {
@@ -283,7 +283,7 @@ it('creates missing parent directories', async () => {
 })
 
 it('ships a contiguous v1 migration and creates STRICT product tables', async () => {
-  expect(PERSONA_MIGRATIONS.map(item => item.version)).toEqual([1, 2, 3])
+  expect(PERSONA_MIGRATIONS.map(item => item.version)).toEqual([1, 2, 3, 4])
   const { store } = await temp()
   const tables = (store.db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*' AND name NOT GLOB '*_fts*' ORDER BY name",
@@ -295,5 +295,6 @@ it('ships a contiguous v1 migration and creates STRICT product tables', async ()
     'routine', 'routine_run',
     'engine_trigger', 'engine_ticket', 'engine_effect', 'engine_outbox',
     'sync_envelope', 'invite', 'invite_actor', 'import_batch',
+    'autonomy', 'visit', 'initiative_fire', 'watchdog_audit', 'attention_spend',
   ]))
 })

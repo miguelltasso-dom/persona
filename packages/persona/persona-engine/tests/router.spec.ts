@@ -62,7 +62,7 @@ function routerHarness() {
 it('applies valid route items and refuses invalid ones individually', () => {
   const h = routerHarness()
   const ticketId = h.accept().ticketId!
-  h.engine.receive(trigger('2'))
+  h.engine.receive(trigger('2', { threads: [{ source: 'chat', id: 't2' }] }))
   h.engine.evaluateDue()
   const results = personaRoute(h.engine, h.repo, [
     { kind: 'accept', trigger_id: '2', title: 'More', scope: 'small', reason: 'also' },
@@ -127,7 +127,15 @@ it('reads a bounded thread window when the assessor is requested', () => {
   )
   assessor.request({
     evalId: 'e1',
-    thread: { key: 'chat:t1', source: 'chat', id: 't1', pending: [], subscriptions: [] },
+    thread: {
+      key: 'chat:t1',
+      ref: { source: 'chat', id: 't1' },
+      createdAt: '2026-09-23T00:00:00Z',
+      subscriptions: [],
+      correlated: [],
+      pending: [],
+      meta: {},
+    },
     triggers: [],
     strength: 'explicit',
     policyVersion: 'v1',

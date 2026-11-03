@@ -1,5 +1,72 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-03 19:10 — PROJECT-BOARDS.md §3 (aceite, BRIEFING 15)
+
+### Entregue
+- **`mandatory-project-boards.spec.ts`:** 7× `it.todo` mapeando §3 (projetos isolados, categoria coluna↔engine, editor de fluxo, sprints+marco, proposta Coordenação, nav Quadros, panorama opcional) com tags `[Forge|Anvil|Lumen|Prism|Muse]`.
+- **`persona-e2e/README.md`:** comando vitest.
+
+### Verificação
+```
+node scripts/persona/check-pkg.mjs persona-e2e → OK
+pnpm exec vitest run …/mandatory-project-boards.spec.ts → 7 todo
+```
+
+Promover cada `it.todo` → `it` quando o dono citado entregar host/store/UI.
+
+---
+
+## 2026-11-03 19:00 — Keel panel gate (loading preso, console storm, WS, onboarding)
+
+### Entregue
+- **`panel-gate.ts`:** stuck loading 5s (`Carregando`/skeleton/`aria-busy`), console fatals (`ERR_INSUFFICIENT_RESOURCES`, `Maximum update depth`, `#185`), WS storm ≤10 frames/3s, overlay com `persona.onboarding.complete.v1=1`.
+- **`real-gallery-blank-panel.spec.ts`:** health combinado `[Owner] slug`.
+- **`real-gallery-panel-gate.spec.ts`:** storm dedicado (conhecimento/uso/aprovacoes/…).
+- **`capture.ts`:** galeria com dev seed + colunas index Loading stuck / Console fatals / WS 3s / Onboarding bug.
+- **`keel-panel-diag.mjs`:** repro contra host já aberto (Keel :3191).
+
+### Verificação
+```
+node scripts/persona/check-pkg.mjs persona-e2e
+persona-e2e: OK in 9.5s
+```
+E2E host bloqueado por lock Muse `design-shots` neste turno — gate **deve falhar vermelho** em Conhecimento/Uso/Aprovações quando lock livre (Keel achado).
+
+### Comandos
+```
+$env:PERSONA_E2E='1'; vitest real-gallery-blank-panel.spec.ts
+$env:PERSONA_E2E='1'; vitest real-gallery-panel-gate.spec.ts
+node --import tsx/esm scripts/persona/keel-panel-diag.mjs <url>
+```
+
+---
+
+## 2026-11-03 21:45 — Atlas gate bootstrap live store + protocolo post-it
+
+### Protocolo (Keel/Atlas)
+- **Persona · Status / Memória / UX & Animação:** só `maestri note edit` com âncora (última linha em `== LINHAS ==` ou última linha própria); **nunca** `note write`. Correção = linha nova.
+
+### Gate bootstrap (Atlas)
+- **`boot-gate-bootstrap.ts`:** pageerror/console.error, equipe semeada (`Atlas`), 9 painéis principais sem `Carregando…` após 12s (poll).
+- **`exec-bootstrap-gate.mjs`:** hook em `ui-boot-check.mjs` (exit 1 se erros).
+- **`persona-boot-gate.ts`:** mesma verificação no smoke-persona.
+- **`mandatory-boot-bootstrap.spec.ts`:** vitest dedicado (dev seed + onboarding storage).
+
+### Evidência
+**Antes (unwrap cru / gate novo):** `mandatory-boot-bootstrap.spec.ts` falhou ~580s — pageerror `SlotAssemblyError`, nav bloqueada por scrim onboarding, `channels.find` não apareceu (bootstrap abortou cedo).
+
+**Depois (unwrap listChannels etc. + Prism rawRemote):** 2ª corrida falhou ~735s — `createWorkspace conflict` (host já existia; bootstrap trata conflict?), scrim ainda bloqueia nav, SlotAssemblyError transitório.
+
+```
+PERSONA_E2E=1 vitest mandatory-boot-bootstrap.spec.ts → 1 failed
+```
+
+### Próximo Probe
+- Gate: dismiss onboarding robusto + tratar `createWorkspace` conflict como ok (alinhar Prism/Muse).
+- Re-run smoke-persona + `ui-boot-check.mjs` sob lock quando árvore verde.
+
+---
+
 ## 2026-11-03 20:05 — Keel P1 painel em branco (detector + galeria)
 
 ### Probe (entregue)

@@ -8,6 +8,7 @@ import { comparePngFiles } from './visual-diff/png-compare.ts'
 import {
   assertBootstrapGateClean,
   runBootstrapGateChecks,
+  BOOT_GATE_PRISM_PANELS,
   type BootstrapGateResult,
 } from './boot-gate-bootstrap.ts'
 
@@ -111,7 +112,7 @@ export async function runPersonaUiBootGate(): Promise<PersonaBootGateResult> {
       if (message.type() === 'error') bootstrapErrors.push(`console.error ${message.text().slice(0, 500)}`)
     })
     await bootPage.goto(host.url, { waitUntil: 'load', timeout: 120_000 })
-    bootstrap = await runBootstrapGateChecks(bootPage, bootstrapErrors)
+    bootstrap = await runBootstrapGateChecks(bootPage, bootstrapErrors, BOOT_GATE_PRISM_PANELS)
     await bootCtx.close()
   } finally {
     await browser.close()

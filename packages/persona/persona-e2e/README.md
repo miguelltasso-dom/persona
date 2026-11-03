@@ -41,16 +41,29 @@ $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/sm
 node scripts/persona/with-lock.mjs "Probe real gallery" -- node --import tsx/esm scripts/persona/capture-real-gallery.mjs
 ```
 
-**Blank main panel gate** (Keel P1 — fails on cream-only Lumen/Prism panels):
+**Panel health gate** (Keel — blank cream, stuck `Carregando…`/skeleton >5s, console fatals `ERR_INSUFFICIENT_RESOURCES`/`Maximum update depth`/`#185`, onboarding overlay with cache complete; dev seed):
 
 ```sh
 $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/real-gallery-blank-panel.spec.ts
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/real-gallery-panel-gate.spec.ts
+```
+
+**Keel repro on running host** (e.g. porta 3191):
+
+```sh
+node --import tsx/esm scripts/persona/keel-panel-diag.mjs "http://127.0.0.1:3191/?token=..."
 ```
 
 **A11y matrix** (axe + Tab per nav panel; needs `@axe-core/playwright` when Keel adds it):
 
 ```sh
 $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/real-surface-a11y.spec.ts
+```
+
+**Project boards** (`PROJECT-BOARDS.md` §3 — todos until Forge/Anvil/Lumen/Prism ship):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-project-boards.spec.ts
 ```
 
 **B9 real app** (profile `persona`, no Harness shell; onboarding, kanban, dirD, reduced-motion):

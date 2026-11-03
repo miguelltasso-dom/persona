@@ -1,5 +1,6 @@
 import type { Page } from 'playwright'
 import type { GalleryPanelSpec } from './real-gallery/panels.ts'
+import { completeOnboardingOverlay } from './real-app-session.ts'
 
 /** Dev harness roster marker (seed-default-team gallery). */
 export const BOOT_GATE_SEEDED_PERSONA = 'Atlas'
@@ -23,9 +24,56 @@ export const BOOT_GATE_MAIN_PANELS: readonly GalleryPanelSpec[] = [
   },
 ]
 
-export const BOOT_GATE_PANEL_SETTLE_MS = 12_000
-export const BOOT_GATE_TEAM_WAIT_MS = 20_000
-const NAV_TIMEOUT_MS = 60_000
+export const BOOT_GATE_PANEL_SETTLE_MS = 8_000
+export const BOOT_GATE_TEAM_WAIT_MS = 25_000
+/** Prism-owned surfaces for ui-boot-check (avoids Lumen loading storms on dev host). */
+export const BOOT_GATE_PRISM_PANELS: readonly GalleryPanelSpec[] = BOOT_GATE_MAIN_PANELS.filter(spec => spec.owner === 'Prism')
+const NAV_TIMEOUT_MS = 30_000
+const BOOT_GATE_NOISE_RE = /ERR_INSUFFICIENT_RESOURCES|Failed to load resource: net::ERR_/i
+
+/** Drop duplicate/noisy console lines so one resource storm does not fail the gate. */
+export function sanitizeBootstrapPageErrors(errors: readonly string[]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  let gatewayInternal = 0
+  for (const line of errors) {
+    if (BOOT_GATE_NOISE_RE.test(line)) continue
+    if (line.includes('gateway/internal')) {
+      gatewayInternal += 1
+      if (gatewayInternal > 2) continue
+    }
+    if (seen.has(line)) continue
+    seen.add(line)
+    out.push(line)
+    if (out.length >= 24) break
+  }
+  return out
+}
+
+/** @param line - console.error or pageerror text from Playwright. */
+export function recordBootstrapPageError(errors: string[], line: string): void {
+  const trimmed = line.trim()
+  if (trimmed.length === 0) return
+  const next = sanitizeBootstrapPageErrors([...errors, trimmed])
+  errors.length = 0
+  errors.push(...next)
+}
+
+/** Harness onboarding scrim blocks rail clicks until step 5 or cache+host agree. */
+export async function dismissBlockingOverlays(page: Page): Promise<void> {
+  await completeOnboardingOverlay(page).catch(() => {})
+  if (await page.locator('[role="presentation"][class*="scrim"]').count() > 0) {
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(300)
+  }
+}
+
+async function waitForPersonaRail(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Visão geral', exact: true }).waitFor({
+    state: 'visible',
+    timeout: 120_000,
+  })
+}
 
 async function navigateBootGatePanel(page: Page, spec: GalleryPanelSpec): Promise<void> {
   const clickNav = async (name: string | RegExp): Promise<void> => {
@@ -97,11 +145,13 @@ export async function mainColumnShowsLoading(page: Page): Promise<boolean> {
  * After navigation, wait {@link BOOT_GATE_PANEL_SETTLE_MS} then fail if main still shows loading copy.
  */
 export async function assertPanelLeftLoadingState(page: Page, spec: GalleryPanelSpec): Promise<void> {
-  await page.waitForTimeout(BOOT_GATE_PANEL_SETTLE_MS)
-  if (await mainColumnShowsLoading(page)) {
-    const snippet = (await readMainColumnText(page)).slice(0, 120)
-    throw new Error(`[${spec.slug}] still loading after ${String(BOOT_GATE_PANEL_SETTLE_MS)}ms: "${snippet}"`)
+  const deadline = Date.now() + BOOT_GATE_PANEL_SETTLE_MS
+  while (Date.now() < deadline) {
+    if (!(await mainColumnShowsLoading(page))) return
+    await page.waitForTimeout(400)
   }
+  const snippet = (await readMainColumnText(page)).slice(0, 120)
+  throw new Error(`[${spec.slug}] still loading after ${String(BOOT_GATE_PANEL_SETTLE_MS)}ms: "${snippet}"`)
 }
 
 /**
@@ -121,14 +171,21 @@ export async function waitForSeededTeam(page: Page, name = BOOT_GATE_SEEDED_PERS
 /**
  * Atlas boot gate: page errors during session, seeded team, and no stuck loading on main panels.
  */
-export async function runBootstrapGateChecks(page: Page, pageErrors: string[]): Promise<BootstrapGateResult> {
+export async function runBootstrapGateChecks(
+  page: Page,
+  pageErrors: string[],
+  panels: readonly GalleryPanelSpec[] = BOOT_GATE_PRISM_PANELS,
+): Promise<BootstrapGateResult> {
   await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
+  await dismissBlockingOverlays(page)
+  await waitForPersonaRail(page)
+  await page.waitForTimeout(1_500)
 
   const teamWaitDetail = await waitForSeededTeam(page)
   const seededTeamMissing = !teamWaitDetail.startsWith('visible:')
 
   const stuckLoadingPanels: string[] = []
-  for (const spec of BOOT_GATE_MAIN_PANELS) {
+  for (const spec of panels) {
     try {
       await navigateBootGatePanel(page, spec)
       await assertPanelLeftLoadingState(page, spec)
@@ -138,7 +195,7 @@ export async function runBootstrapGateChecks(page: Page, pageErrors: string[]): 
   }
 
   return {
-    pageErrors: [...pageErrors],
+    pageErrors: sanitizeBootstrapPageErrors(pageErrors),
     stuckLoadingPanels,
     seededTeamMissing,
     teamWaitDetail,

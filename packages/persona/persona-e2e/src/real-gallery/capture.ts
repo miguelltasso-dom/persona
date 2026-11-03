@@ -14,6 +14,12 @@ import {
 } from './panels.ts'
 import { isMainPanelBlank, measureMainPanelContent } from './blank-main-panel.ts'
 import { navigateGalleryPanel } from './navigate-panel.ts'
+import {
+  createPanelConsoleTripwire,
+  measureOnboardingOverlayViolation,
+  measureRemoteStorm,
+  measureStuckLoading,
+} from './panel-gate.ts'
 
 export const REAL_GALLERY_DIR = join(REPO_ROOT, '.maestri', 'tmp', 'shots', 'real')
 
@@ -27,6 +33,10 @@ export interface GalleryCaptureRow {
   readonly axe: AxeScanResult
   readonly mainBlank?: boolean
   readonly mainDetail?: string
+  readonly stuckLoading?: boolean
+  readonly consoleFatals?: number
+  readonly wsFrames3s?: number
+  readonly onboardingOverlay?: boolean
   readonly note?: string
 }
 
@@ -40,8 +50,8 @@ function buildIndexMarkdown(rows: readonly GalleryCaptureRow[]): string {
   const lines = [
     '# Persona real-app gallery',
     '',
-    '| Painel | Dono | Arquivo | Main blank? | Console errors | Axe |',
-    '|--------|------|---------|-------------|----------------|-----|',
+    '| Painel | Dono | Arquivo | Main blank? | Loading stuck? | Console fatals | WS 3s | Onboarding bug? | Console errors | Axe |',
+    '|--------|------|---------|-------------|----------------|----------------|-------|-----------------|----------------|-----|',
   ]
   const byPanel = new Map<string, GalleryCaptureRow>()
   for (const row of rows) {
@@ -51,10 +61,16 @@ function buildIndexMarkdown(rows: readonly GalleryCaptureRow[]): string {
   for (const row of byPanel.values()) {
     const note = row.note !== undefined ? ` _${row.note}_` : ''
     const blankCol = row.mainBlank === undefined ? '—' : row.mainBlank ? '**SIM**' : 'não'
+    const stuckCol = row.stuckLoading === undefined ? '—' : row.stuckLoading ? '**SIM**' : 'não'
+    const fatalsCol = row.consoleFatals === undefined ? '—' : String(row.consoleFatals)
+    const wsCol = row.wsFrames3s === undefined ? '—' : String(row.wsFrames3s)
+    const onbCol = row.onboardingOverlay === undefined ? '—' : row.onboardingOverlay ? '**SIM**' : 'não'
     const errText = row.consoleErrors.length === 0
       ? '0'
       : row.consoleErrors.slice(0, 2).map(e => e.slice(0, 80)).join('; ')
-    lines.push(`| ${row.panel}${note} | ${row.owner} | \`${row.file}\` | ${blankCol} | ${errText} | ${formatAxe(row.axe)} |`)
+    lines.push(
+      `| ${row.panel}${note} | ${row.owner} | \`${row.file}\` | ${blankCol} | ${stuckCol} | ${fatalsCol} | ${wsCol} | ${onbCol} | ${errText} | ${formatAxe(row.axe)} |`,
+    )
   }
   lines.push('', `_Gerado ${new Date().toISOString()}_`, '')
   return lines.join('\n')
@@ -80,9 +96,10 @@ export async function runRealGalleryCapture(): Promise<{ rows: GalleryCaptureRow
             viewport: { width: viewport.width, height: viewport.height },
             colorScheme: theme,
           })
-          await context.addInitScript((key) => {
-            localStorage.setItem(key, '1')
-          }, ONBOARDING_STORAGE_KEY)
+          await context.addInitScript(({ onboardingKey, devSeedKey }: { onboardingKey: string; devSeedKey: string }) => {
+            localStorage.setItem(onboardingKey, '1')
+            localStorage.setItem(devSeedKey, '1')
+          }, { onboardingKey: ONBOARDING_STORAGE_KEY, devSeedKey: 'persona.devSeed.v1' })
           const page = await context.newPage()
           const consoleErrors: string[] = []
           page.on('console', (m) => {
@@ -95,31 +112,37 @@ export async function runRealGalleryCapture(): Promise<{ rows: GalleryCaptureRow
 
           for (const spec of REAL_GALLERY_PANELS) {
             if (spec.kind === 'onboarding-step' || spec.kind === 'unmounted') continue
-            const panelErrors: string[] = []
-            page.removeAllListeners('console')
-            page.on('console', (m) => {
-              if (m.type() === 'error') panelErrors.push(m.text().slice(0, 400))
-            })
+            const tripwire = createPanelConsoleTripwire()
+            tripwire.attach(page)
             try {
               await navigateGalleryPanel(page, spec)
             } catch (error) {
-              panelErrors.push(error instanceof Error ? error.message : String(error))
+              tripwire.errors.push(error instanceof Error ? error.message : String(error))
             }
+            const overlay = await measureOnboardingOverlayViolation(page)
+            const stuck = await measureStuckLoading(page)
+            const storm = await measureRemoteStorm(page)
             const file = `${spec.slug}-${theme}-${viewport.tag}.png`
             const path = join(REAL_GALLERY_DIR, file)
             await page.screenshot({ path, animations: 'disabled' })
             const axe = await scanAccessibility(page)
             const main = await measureMainPanelContent(page)
+            const panelErrors = tripwire.errors.map(e => e.slice(0, 400))
+            tripwire.detach(page)
             rows.push({
               panel: spec.slug,
               owner: spec.owner,
               theme,
               viewport: viewport.tag,
               file,
-              consoleErrors: [...panelErrors],
+              consoleErrors: panelErrors,
               axe,
               mainBlank: isMainPanelBlank(main),
               mainDetail: main.detail,
+              stuckLoading: stuck.stuck,
+              consoleFatals: tripwire.fatalCount(),
+              wsFrames3s: storm.frameCount,
+              onboardingOverlay: overlay.violated,
             })
           }
           await context.close()

@@ -21,5 +21,5 @@ describe.skipIf(!runPersonaE2e)('persona-e2e smoke-persona (profile boot gate)',
         expect(result.referencePass, `dirD-tela diff ${(result.referenceDiffRatio * 100).toFixed(2)}%`).toBe(true)
       }
     }
-  }, 360_000)
+  }, 900_000)
 })

@@ -15,6 +15,8 @@ export interface RealPersonaSession {
 export interface OpenRealPersonaAppOptions {
   /** Set `persona.onboarding.complete.v1` before first navigation (no reload). */
   dismissOnboardingViaStorage?: boolean
+  /** Set `persona.devSeed.v1` before first navigation (boot gate roster). */
+  devSeed?: boolean
   viewport?: { width: number; height: number }
 }
 
@@ -30,10 +32,11 @@ export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}
     locale: 'pt-BR',
     viewport: options.viewport ?? { width: 1440, height: 900 },
   })
-  if (options.dismissOnboardingViaStorage) {
-    await context.addInitScript(() => {
-      localStorage.setItem('persona.onboarding.complete.v1', '1')
-    })
+  if (options.dismissOnboardingViaStorage || options.devSeed) {
+    await context.addInitScript(({ onboarding, seed }: { onboarding: boolean; seed: boolean }) => {
+      if (onboarding) localStorage.setItem('persona.onboarding.complete.v1', '1')
+      if (seed) localStorage.setItem('persona.devSeed.v1', '1')
+    }, { onboarding: options.dismissOnboardingViaStorage === true, seed: options.devSeed === true })
   }
   const page = await context.newPage()
   const tripwire = watchConsole(page)

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Motion probe</title>
+  <link rel="stylesheet" href="preview-fixture.css" />
+</head>
+<body>
+  <div data-persona-preview="">
+    <div id="probe" data-motion-probe="" style="width:4rem;height:4rem;background:var(--persona-accent);opacity:0.5"></div>
+  </div>
+  <script>
+    const probe = document.getElementById('probe')
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) probe.classList.add('reduced')
+    requestAnimationFrame(() => { probe.style.opacity = '1' })
+  </script>
+</body>
+</html>

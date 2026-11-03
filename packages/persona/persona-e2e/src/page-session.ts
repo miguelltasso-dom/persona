@@ -29,7 +29,7 @@ export async function openPage(url: string): Promise<PersonaPageSession> {
   const page = await context.newPage()
   const tripwire = watchConsole(page)
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 120_000 })
-  await page.locator('[data-composer-input]').first().waitFor({ state: 'visible', timeout: 120_000 })
+  await page.locator('[data-composer-input], [data-persona-shell]').first().waitFor({ state: 'visible', timeout: 240_000 })
 
   async function screenshot(name: string, options: ScreenshotOptions): Promise<string> {
     if (options.viewport !== undefined) await page.setViewportSize(options.viewport)

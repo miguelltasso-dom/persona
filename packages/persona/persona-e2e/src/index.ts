@@ -3,7 +3,14 @@
 /** Package identity marker used by the skeleton smoke test. */
 export const PACKAGE_E2E = 'persona-e2e'
 
-export { startWebHost, type StartWebHostOptions, type WebHostHandle } from './web-host.ts'
+export { startWebHost, type StartWebHostOptions, type WebHostHandle, type WebHostProfile } from './web-host.ts'
+export {
+  runPersonaUiBootGate,
+  assertPersonaBootGateClean,
+  type PersonaBootGateResult,
+} from './persona-boot-gate.ts'
+export { launchUnderLock, type LockedLaunchOptions } from './locked-launch.ts'
+export { scanAccessibility, type AxeScanResult } from './axe-check.ts'
 export { openPage, type PersonaPageSession, type ScreenshotOptions } from './page-session.ts'
 export {
   startDesktop,

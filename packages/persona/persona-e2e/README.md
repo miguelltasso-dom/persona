@@ -1,12 +1,14 @@
 # @deepseek-ai/dsh-persona-e2e
 
-End-to-end harness for Persona: **Tier 1** (real `dsh web` + Playwright Chrome), **Tier 2** (Electron + CDP + OS screenshot), and **fake CLIs** on `PATH`. Owned by Probe; see `persona-spec/RECON.md` §6 and `persona-spec/PLAN.md` task A6.
+End-to-end harness for Persona: **Tier 1** (`persona` profile host + Playwright Chrome), **Tier 2** (Electron + CDP + OS screenshot), **preview visual diff**, motion/jank probes, and **fake CLIs** on `PATH`. Owned by Probe; see `persona-spec/RECON.md` §6 and `persona-spec/PLAN.md` task A6.
 
-Heavy repo commands (`build:artifacts`, `start:desktop`, packaging) must run under the shared lock:
+Long-running apps use the shared lock with **early release** (see `persona-spec/BUILDER-RULES.md`):
 
 ```sh
-node scripts/persona/with-lock.mjs "Probe <label>" -- <command>
+node scripts/persona/with-lock.mjs "Probe <label>" --release-on "dsh web:|DevTools listening" -- <command>
 ```
+
+`startWebHost` / `startDesktop` wrap this automatically so builds are not blocked while the app keeps running.
 
 Use disposable `PERSONA_HOME` / `DSH_HOME` (and `DSH_DESKTOP_USER_DATA_DIR` for desktop). Never point tests at the operator’s real home.
 
@@ -15,6 +17,7 @@ Use disposable `PERSONA_HOME` / `DSH_HOME` (and `DSH_DESKTOP_USER_DATA_DIR` for 
 - `pnpm run build:artifacts` (Keel/Probe, under lock) so `apps/web/dist` exists.
 - Chrome installed locally (Playwright `channel: 'chrome'`).
 - Tier 2: `pnpm --filter @deepseek-ai/dsh-desktop exec install-electron`.
+- Optional: `@axe-core/playwright` (ask Keel to add to this package) for a11y scans in preview-visual.
 
 ## Commands (from repository root)
 
@@ -24,20 +27,40 @@ Skeleton (always runs in default `vitest`):
 pnpm exec vitest run packages/persona/persona-e2e/tests/smoke.spec.ts
 ```
 
-Tier 1 smoke (real host + UI; opt-in):
+Persona profile boot gate (Keel `ui-boot-check`; fails on activation warnings + console errors):
 
 ```sh
-# PowerShell
-$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/smoke-web.spec.ts
-
-# bash
-PERSONA_E2E=1 pnpm exec vitest run packages/persona/persona-e2e/tests/smoke-web.spec.ts
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/smoke-persona.spec.ts
 ```
 
-Tier 2 smoke (Electron + CDP; opt-in; skips if Electron binary missing):
+Tier 1 smoke (legacy composer wait; opt-in):
+
+```sh
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/smoke-web.spec.ts
+```
+
+Harness profile fallback (`web` + composer):
+
+```sh
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/smoke-web-harness.spec.ts
+```
+
+Tier 2 smoke (Electron + CDP; opt-in):
 
 ```sh
 $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/smoke-desktop.spec.ts
+```
+
+Preview visual diff + motion/jank + HTML report (`artifacts/visual-diff-report.html`):
+
+```sh
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/preview-visual.spec.ts
+```
+
+Refresh preview baselines after intentional UI changes:
+
+```sh
+$env:UPDATE_BASELINE='1'; $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/preview-visual.spec.ts
 ```
 
 Fake CLI unit checks:
@@ -46,12 +69,11 @@ Fake CLI unit checks:
 pnpm exec vitest run packages/persona/persona-e2e/tests/fake-cli.spec.ts
 ```
 
-Mandatory product scenarios (SCOPE.md — tracked as `it.todo` until UI/host exist):
+Mandatory product scenarios (SCOPE.md — `it.todo` until features land):
 
 ```sh
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-scope.spec.ts
 ```
-
 
 Package typecheck:
 
@@ -59,14 +81,18 @@ Package typecheck:
 pnpm exec tsc -p packages/persona/persona-e2e/tsconfig.json --noEmit
 ```
 
-Screenshots land in `packages/persona/persona-e2e/artifacts/` (gitignored).
+Builder delivery log: `persona-spec/reports/probe.md`.
+
+Screenshots and reports live in `packages/persona/persona-e2e/artifacts/` (gitignored).
 
 ## API surface
 
-- `startWebHost({ home?, env? })` → `{ url, stop }`
+- `startWebHost({ profile?: 'persona' | 'web', home?, env? })` → `{ url, stop }`
 - `openPage(url)` → Playwright session with `screenshot`, `ariaSnapshot`, console tripwire
-- `startDesktop({ ... })` → `{ page, stop }` via CDP
+- `startDesktop({ ... })` → `{ page, stop }` via CDP (lock released on DevTools ready)
+- `launchUnderLock({ releaseOn, ... })` → shared lock helper
 - `osScreenshot(path)` → Windows full-screen capture
 - `withFakeCliOnPath()` → prepend `fixtures/fake-cli`
+- `scanAccessibility(page)` → axe when installed, otherwise skip
 
 Real CLIs stay **read-only** unless `PERSONA_REAL_CLI=1` and Atlas approves (D-022).

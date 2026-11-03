@@ -7,7 +7,7 @@ import { openPage } from '../src/page-session.ts'
 const runPersonaE2e = process.env.PERSONA_E2E === '1'
 
 describe.skipIf(!runPersonaE2e)('persona-e2e smoke web (Tier 1)', () => {
-  it('boots dsh web, opens Harness UI, captures light/dark screenshots without console errors', async () => {
+  it('boots persona profile host, opens UI, captures light/dark screenshots without console errors', async () => {
     const host = await startWebHost()
     try {
       const session = await openPage(host.url)

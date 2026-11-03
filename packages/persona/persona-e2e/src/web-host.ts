@@ -1,14 +1,17 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { spawn, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
-import { E2E_TMP_ROOT, REPO_ROOT, requireWebDist } from './paths.ts'
+import { E2E_TMP_ROOT, requireWebDist } from './paths.ts'
 import { probeFreePort } from './ports.ts'
-import { killProcessTree } from './process-tree.ts'
+import { launchUnderLock } from './locked-launch.ts'
 
 const WEB_URL_LINE = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/\?token=[^\s]+)/
 
+export type WebHostProfile = 'persona' | 'web'
+
 export interface StartWebHostOptions {
+  /** CLI profile shorthand (`persona` default). */
+  profile?: WebHostProfile
   /** Overrides both `PERSONA_HOME` and `DSH_HOME` when set. */
   home?: string
   /** Extra environment variables for the host process. */
@@ -18,15 +21,17 @@ export interface StartWebHostOptions {
 export interface WebHostHandle {
   readonly url: string
   readonly home: string
+  readonly profile: WebHostProfile
   stop(): Promise<void>
 }
 
 /**
- * Boot the real `dsh web` host against a disposable home (Tier 1).
- * @param options - optional home directory and extra env.
+ * Boot the real host against a disposable home (Tier 1), under with-lock with early release.
+ * @param options - profile, optional home directory and extra env.
  */
 export async function startWebHost(options: StartWebHostOptions = {}): Promise<WebHostHandle> {
   requireWebDist()
+  const profile = options.profile ?? 'persona'
   const id = randomUUID()
   const home = options.home ?? join(E2E_TMP_ROOT, `e2e-${id}`)
   await mkdir(home, { recursive: true })
@@ -40,57 +45,53 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
     DSH_TELEMETRY_DISABLED: '1',
   }
 
-  const args = [
+  const cliArgs = [
     '--import', 'tsx/esm',
     'apps/cli/src/bin.ts',
-    'web',
+    profile,
     '--no-open',
     '--host', '127.0.0.1',
     '--port', String(port),
   ]
 
-  const child: ChildProcess = spawn(process.execPath, args, {
-    cwd: REPO_ROOT,
+  const launch = launchUnderLock({
+    label: `Probe persona-e2e web host (${profile})`,
+    releaseOn: 'dsh web:',
+    command: process.execPath,
+    args: cliArgs,
     env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
   })
 
-  let stdout = ''
-  let stderr = ''
-  child.stdout?.setEncoding('utf8')
-  child.stderr?.setEncoding('utf8')
-  child.stdout?.on('data', (chunk: string) => { stdout += chunk })
-  child.stderr?.on('data', (chunk: string) => { stderr += chunk })
-
   const url = await new Promise<string>((resolve, reject) => {
-    const deadline = Date.now() + 180_000
+    const deadline = Date.now() + 240_000
     const tick = (): void => {
-      const match = WEB_URL_LINE.exec(stdout)
+      const match = WEB_URL_LINE.exec(launch.output.text())
       if (match?.[1] !== undefined) {
         resolve(match[1])
         return
       }
-      if (child.exitCode !== null) {
-        reject(new Error(`dsh web exited before printing URL (code ${String(child.exitCode)})\n${stderr}\n${stdout}`))
+      if (launch.child.exitCode !== null) {
+        reject(new Error(
+          `host exited before printing URL (code ${String(launch.child.exitCode)})\n${launch.output.text()}`,
+        ))
         return
       }
       if (Date.now() > deadline) {
-        reject(new Error(`timed out waiting for dsh web URL\n${stderr}\n${stdout}`))
+        reject(new Error(`timed out waiting for dsh web URL\n${launch.output.text()}`))
         return
       }
       setTimeout(tick, 250)
     }
-    child.on('error', reject)
+    launch.child.on('error', reject)
     tick()
   })
 
   async function stop(): Promise<void> {
-    if (child.pid !== undefined) await killProcessTree(child.pid)
+    await launch.stop()
     if (options.home === undefined) {
       await rm(home, { recursive: true, force: true }).catch(() => {})
     }
   }
 
-  return { url, home, stop }
+  return { url, home, profile, stop }
 }

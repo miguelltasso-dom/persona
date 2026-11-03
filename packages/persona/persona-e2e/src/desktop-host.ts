@@ -1,14 +1,13 @@
 import { createRequire } from 'node:module'
 import { mkdir, rm } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { spawn, type ChildProcess } from 'node:child_process'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { chromium, type Page } from 'playwright'
 import { E2E_TMP_ROOT, REPO_ROOT } from './paths.ts'
 import { probeFreePort } from './ports.ts'
-import { killProcessTree } from './process-tree.ts'
+import { launchUnderLock } from './locked-launch.ts'
 
 const execFileAsync = promisify(execFile)
 
@@ -56,7 +55,7 @@ async function waitForCdpVersion(port: number, deadlineMs: number): Promise<void
 }
 
 /**
- * Boot `pnpm start:desktop` under the build lock and attach to `dsh-app://app/` (Tier 2).
+ * Boot `pnpm start:desktop` under the build lock (early release) and attach to `dsh-app://app/` (Tier 2).
  * @param options - disposable homes and extra env.
  */
 export async function startDesktop(options: StartDesktopOptions = {}): Promise<DesktopHostHandle> {
@@ -77,6 +76,7 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
   const mainPort = await probeFreePort()
   const rendererPort = await probeFreePort()
   const hostPort = await probeFreePort()
+  const devtoolsLine = /DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//i
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -91,34 +91,38 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
     DSH_DESKTOP_HOST_INSPECT_PORT: String(hostPort),
   }
 
-  const lockArgs = [
-    join(REPO_ROOT, 'scripts', 'persona', 'with-lock.mjs'),
-    'Probe persona-e2e startDesktop',
-    '--',
-    'pnpm',
-    'start:desktop',
-  ]
-
-  const child: ChildProcess = spawn(process.execPath, lockArgs, {
-    cwd: REPO_ROOT,
+  const launch = launchUnderLock({
+    label: 'Probe persona-e2e startDesktop',
+    releaseOn: 'DevTools listening',
+    command: 'pnpm',
+    args: ['start:desktop'],
     env,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    windowsHide: true,
   })
 
-  let stderr = ''
-  child.stderr?.setEncoding('utf8')
-  child.stderr?.on('data', (chunk: string) => { stderr += chunk })
-
-  child.on('exit', (code) => {
-    if (code !== 0 && code !== null) {
-      stderr += `\ndesktop launcher exited with code ${String(code)}`
+  const cdpPort = await new Promise<number>((resolve, reject) => {
+    const deadline = Date.now() + 300_000
+    const tick = (): void => {
+      const match = devtoolsLine.exec(launch.output.text())
+      if (match?.[1] !== undefined) {
+        resolve(Number.parseInt(match[1], 10))
+        return
+      }
+      if (launch.child.exitCode !== null) {
+        reject(new Error(`desktop exited before DevTools line (code ${String(launch.child.exitCode)})\n${launch.output.text().slice(-2000)}`))
+        return
+      }
+      if (Date.now() > deadline) {
+        reject(new Error(`timed out waiting for DevTools line (expected port ${String(rendererPort)})\n${launch.output.text().slice(-2000)}`))
+        return
+      }
+      setTimeout(tick, 500)
     }
+    tick()
   })
 
-  await waitForCdpVersion(rendererPort, 300_000)
+  await waitForCdpVersion(cdpPort, 60_000)
 
-  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${String(rendererPort)}`)
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${String(cdpPort)}`)
   const deadline = Date.now() + 120_000
   let page: Page | undefined
   while (Date.now() < deadline) {
@@ -136,19 +140,19 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
   }
   if (page === undefined) {
     await browser.close()
-    if (child.pid !== undefined) await killProcessTree(child.pid)
-    throw new Error(`no dsh-app://app/ page found within timeout\n${stderr}`)
+    await launch.stop()
+    throw new Error(`no dsh-app://app/ page found within timeout\n${launch.output.text()}`)
   }
 
   async function stop(): Promise<void> {
     await browser.close().catch(() => {})
-    if (child.pid !== undefined) await killProcessTree(child.pid)
+    await launch.stop()
     if (options.home === undefined && options.userData === undefined) {
       await rm(runRoot, { recursive: true, force: true }).catch(() => {})
     }
   }
 
-  return { page, home, userData, rendererPort, stop }
+  return { page, home, userData, rendererPort: cdpPort, stop }
 }
 
 /**

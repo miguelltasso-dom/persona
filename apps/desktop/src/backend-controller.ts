@@ -6,12 +6,28 @@ import { desktopErrorState } from './startup-error.ts'
 export type DesktopBackendState =
   | { readonly phase: 'starting' }
   | { readonly phase: 'ready' }
+  | { readonly phase: 'reconnecting'; readonly message: string }
   /** `message` is the rendered text; `failure` is the original error so a crash report keeps its stack, properties, and cause. */
   | { readonly phase: 'error'; readonly message: string; readonly failure: unknown }
+
+/** Host-death recovery: three tries with backoff, then a visible error. */
+export interface DesktopBackendReconnect {
+  readonly attempts: number
+  readonly backoffMs: readonly number[]
+  readonly message: string
+  readonly wait?: (ms: number) => Promise<void>
+}
+
+export const HOST_RECONNECT_BACKOFF_MS = [15_000, 30_000, 60_000] as const
 
 /** The error state for one failure: rendered message plus the failure itself. */
 function errorState(failure: unknown): DesktopBackendState {
   return { ...desktopErrorState(failure), failure }
+}
+
+async function defaultWait(ms: number): Promise<void> {
+  if (ms <= 0) return
+  await new Promise<void>((resolve) => { setTimeout(resolve, ms).unref() })
 }
 
 /** Child lifecycle owned by the desktop backend controller. */
@@ -36,6 +52,8 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
   private pending: Promise<void> | undefined
   private stopping: Promise<void> | undefined
   private closed = false
+  private lastPrepare: (() => Promise<void>) | undefined
+  private reconnectLeft = 0
 
   /**
    * @param createHost - Allocate a child and route its fatal failures to the supplied callback.
@@ -44,6 +62,7 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
   constructor(
     private readonly createHost: (onFailure: (error: Error) => void) => Host,
     private readonly publish: (state: DesktopBackendState) => void,
+    private readonly reconnect?: DesktopBackendReconnect,
   ) {}
 
   /** Current availability, including the last startup or child failure. */
@@ -62,6 +81,7 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
     if (this.stopping !== undefined) return Promise.reject(new Error('desktop backend is stopping'))
     if (this.pending !== undefined) return this.pending
     if (this.current.phase === 'ready') return Promise.resolve()
+    this.lastPrepare = prepare
     const previous = this.attempt
     const attempt: Attempt<Host> = { cancelled: false, ...(previous?.cleanup === undefined ? {} : { cleanup: previous.cleanup }) }
     this.attempt = attempt
@@ -81,7 +101,10 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
         if (attempt.failure !== undefined) throw attempt.failure
         // stop() can cancel this attempt while the child starts.
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (!attempt.cancelled) this.update({ phase: 'ready' })
+        if (!attempt.cancelled) {
+          if (this.current.phase !== 'reconnecting') this.reconnectLeft = this.reconnect?.attempts ?? 0
+          this.update({ phase: 'ready' })
+        }
       } catch (error) {
         const cancelled = attempt.cancelled
         attempt.cancelled = true
@@ -138,13 +161,41 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
   private failed(attempt: Attempt<Host>, error: Error): void {
     if (this.attempt !== attempt || attempt.cancelled) return
     attempt.failure = error
-    if (this.current.phase !== 'ready') return
+    if (this.current.phase !== 'ready' && this.current.phase !== 'reconnecting') return
     attempt.cancelled = true
     const cleanup = this.cleanup(attempt)
+    if (this.reconnectLeft > 0 && !this.closed && this.stopping === undefined) {
+      const left = this.reconnectLeft
+      this.reconnectLeft -= 1
+      const message = this.reconnect?.message ?? 'Reconnecting…'
+      this.update({ phase: 'reconnecting', message })
+      void this.recover(attempt, cleanup, left, error)
+      return
+    }
     this.update(errorState(error))
     void cleanup.catch((cleanupError: unknown) => {
       if (this.attempt === attempt) this.update(errorState(new AggregateError([error, cleanupError], 'Desktop backend failed and could not stop')))
     })
+  }
+
+  private async recover(attempt: Attempt<Host>, cleanup: Promise<void>, left: number, error: Error): Promise<void> {
+    try {
+      await cleanup
+      if (this.closed || this.stopping !== undefined) return
+      const delay = this.reconnect?.backoffMs[this.reconnect.attempts - left] ?? 0
+      await (this.reconnect?.wait ?? defaultWait)(delay)
+      if (this.closed || this.stopping !== undefined) return
+      if (this.attempt === attempt) this.attempt = undefined
+      this.pending = undefined
+      await this.start(this.lastPrepare ?? (async () => {}))
+    } catch (failure) {
+      if (this.closed || this.stopping !== undefined) return
+      if (this.reconnectLeft > 0) {
+        this.failed({ ...attempt, cancelled: false }, failure instanceof Error ? failure : error)
+        return
+      }
+      this.update(errorState(failure))
+    }
   }
 
   private update(state: DesktopBackendState): void {

@@ -1,0 +1,35 @@
+@deepseek-ai/dsh-desktop
+MIT
+MIT License. See the dependency LICENSE file.
+
+electron-updater
+MIT
+MIT License. See the dependency LICENSE file.
+
+semver
+ISC
+ISC License. See the dependency LICENSE file.
+
+ws
+MIT
+MIT License. See the dependency LICENSE file.
+
+@deepseek-ai/dsh-api-gateway
+MIT
+MIT License. See the dependency LICENSE file.
+
+@deepseek-ai/cordis
+MIT
+MIT License. See the dependency LICENSE file.
+
+DeepSeek Harness
+MIT
+Persona is based on DeepSeek Harness. Internal dsh-* ids stay.
+
+@botiverse/oar
+Apache-2.0
+CLI runtime adapter (Claude, Codex, OpenCode, Cursor) via persona-runners.
+
+dsh-superagent-prototype (engine core)
+MIT
+Verbatim Super-agent core in persona-engine. See packages/persona/persona-engine/NOTICE.

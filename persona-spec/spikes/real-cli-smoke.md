@@ -1,5 +1,25 @@
 # Spike — smokes reais CLI (D9)
 
+## Resolvedor — um round (03/11 15:53 UTC-3)
+
+Script: `packages/persona/persona-runners/scripts/resolver-smoke.ts`. Flag `PERSONA_REAL_CLI=1`. Prompt curto (`Responda só OK.`). Modelos baratos. 1 exec/CLI (limite 10). Sem token/e-mail.
+
+| CLI | execs | firstTokenMs | done | usage in/out | erro |
+|---|---|---|---|---|---|
+| claude | 1 | 4090 | true | 31083 / 4 | — |
+| codex | 1 | — | false | 0 / 0 | turno sem `done` (sem 1º token medido) |
+| opencode | 1 | 3050 | true | 0 / 0 | — |
+| cursor | 0 | — | — | — | `not_logged_in` — "Abra o Cursor e faça login no Agent" |
+
+Cota desta rodada: **1+1+1+0 = 3**. Veredito: claude e opencode devolvem texto pelo `resolveRunner`; cursor erro tipado sem stack; codex abriu mas não fechou `done` nesta passagem.
+
+```
+PERSONA_REAL_CLI=1 node --import tsx/esm packages/persona/persona-runners/scripts/resolver-smoke.ts
+```
+
+---
+
+
 ## Correção de login (03/11 16:10)
 
 Causa do `logged_out`: o processo do agente herdava `CLAUDE_CONFIG_DIR` / `CODEX_HOME` do spike `ai-memory` (homes vazios). Login nativo do Miguel está em `%USERPROFILE%\.claude` e Codex ChatGPT.

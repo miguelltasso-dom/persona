@@ -7,6 +7,7 @@ import type { PlatformSession } from '@deepseek-ai/dsh-deepseek-account'
 import { desktopNodeEnvironment } from './node-environment.ts'
 import { parsePluginOperationRecord, type PluginOperationRecord, type PluginOperationRunId } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
 import { handlePersonaVaultRequest, isPersonaVaultHostRequest } from './persona-vault-ipc.ts'
+import { checkpointSqliteWal, killProcessTree, personaDbPath } from './shutdown.ts'
 
 interface ReadyEvent {
   readonly type: 'ready'
@@ -362,11 +363,20 @@ export class DesktopHostProcess {
     if (!graceful) child.kill('SIGTERM')
     if (!await exitsWithin(exited, 5_000)) {
       child.kill('SIGKILL')
+      if (child.pid !== undefined) await killProcessTree(child.pid)
       if (!await exitsWithin(exited, 5_000)) {
         throw new Error('dsh desktop host did not exit after SIGKILL')
       }
     }
     this.child = undefined
+    const home = this.environment.PERSONA_HOME ?? this.environment.DSH_HOME
+    if (home !== undefined && home.length > 0) {
+      try {
+        await checkpointSqliteWal(personaDbPath(home))
+      } catch (error) {
+        void error
+      }
+    }
     if (requireGraceful && (!graceful || child.exitCode !== 0 || !this.shutdownCompleted)) {
       // This diagnostic reaches expandable UI; arbitrary plugin stderr can contain credentials.
       throw new DesktopHostUncleanExitError(`desktop update: Host did not complete graceful task teardown (exit ${String(child.exitCode)}, signal ${String(child.signalCode)}, shutdown acknowledged ${String(this.shutdownCompleted)}, graceful deadline exceeded ${String(!graceful)})`)

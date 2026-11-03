@@ -21,6 +21,8 @@ export interface CodexRunnerOptions {
   /** Isolated Codex home (`CODEX_HOME`). Omitted uses the native login. */
   homeDir?: string
   installation?: AvailableInstallation
+  /** Ephemeral extras (vault). Never log. */
+  env?: Readonly<Record<string, string | null>>
 }
 
 /**
@@ -32,7 +34,7 @@ export function createCodexRunner(options: CodexRunnerOptions): Runner {
   const oar: OarRunnerOptions = {
     runtime: options.runtime,
     capabilities: CODEX_CAPABILITIES,
-    env: nativeSessionEnv(isolation),
+    env: nativeSessionEnv({ ...(isolation ?? {}), ...(options.env ?? {}) }),
     ...(options.installation === undefined ? {} : { installation: options.installation }),
   }
   return createOarRunner(oar)

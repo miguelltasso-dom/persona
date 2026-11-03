@@ -72,6 +72,7 @@ import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { applyPersonaDesktopIdentity, PERSONA_PRODUCT_NAME, PERSONA_PROTOCOL, personaUpdatesEnabled, shouldShowDeepSeekWelcome } from './product.ts'
 import { isDeepSeekHost } from './deepseek-hosts.ts'
+import { aboutLegalText, formatDesktopLegalNotices } from './legal-notices.ts'
 
 applyPersonaDesktopIdentity()
 
@@ -490,8 +491,19 @@ async function main(): Promise<void> {
   // Copy comes from the same locale as the update prompts so the dialog
   // chrome and its content never mix languages.
   const showAbout = async (): Promise<void> => {
+    let notices: string | undefined
+    try {
+      notices = await readFile(join(process.resourcesPath, 'THIRD_PARTY_NOTICES.txt'), 'utf8')
+    } catch (error) {
+      void error
+      try {
+        notices = await readFile(fileURLToPath(new URL('../resources/THIRD_PARTY_NOTICES.txt', import.meta.url)), 'utf8')
+      } catch (devError) {
+        void devError
+      }
+    }
     await ordinaryMessageBox({ type: 'info', title: locale.messages.aboutMenu, message: locale.messages.aboutProduct,
-      detail: `${formatDesktopMessage(locale.messages.aboutVersion, { version: app.getVersion() })}\n${locale.messages.aboutCredits}`,
+      detail: `${formatDesktopMessage(locale.messages.aboutVersion, { version: app.getVersion() })}\n${locale.messages.aboutCredits}\n${aboutLegalText(notices) || formatDesktopLegalNotices()}`,
       buttons: [locale.messages.updateAcknowledge], cancelId: 0 })
   }
   const commandManager = new DesktopCommandManager({

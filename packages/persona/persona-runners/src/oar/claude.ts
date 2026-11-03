@@ -21,6 +21,8 @@ export interface ClaudeRunnerOptions {
   /** Isolated Claude config directory (`CLAUDE_CONFIG_DIR`). Omitted uses native login. */
   configDir?: string
   installation?: AvailableInstallation
+  /** Ephemeral extras (vault). Never log. */
+  env?: Readonly<Record<string, string | null>>
 }
 
 /**
@@ -32,7 +34,7 @@ export function createClaudeRunner(options: ClaudeRunnerOptions): Runner {
   const oar: OarRunnerOptions = {
     runtime: options.runtime,
     capabilities: CLAUDE_CAPABILITIES,
-    env: nativeSessionEnv(isolation),
+    env: nativeSessionEnv({ ...(isolation ?? {}), ...(options.env ?? {}) }),
     ...(options.installation === undefined ? {} : { installation: options.installation }),
   }
   return createOarRunner(oar)

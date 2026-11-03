@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EDGE_ONLY_NOTICES, formatDesktopLegalNotices, isEdgeOnlyNotice, PERSONA_DESKTOP_NOTICES } from '../src/legal-notices.ts'
+import { aboutLegalText, EDGE_ONLY_NOTICES, formatDesktopLegalNotices, isEdgeOnlyNotice, PERSONA_DESKTOP_NOTICES } from '../src/legal-notices.ts'
 
 describe('Persona desktop legal notices', () => {
   it('credits DeepSeek, OAR and the engine NOTICE, and keeps Cloudflare tools out', () => {
@@ -9,5 +9,7 @@ describe('Persona desktop legal notices', () => {
     expect(text).toContain('dsh-superagent-prototype')
     expect(PERSONA_DESKTOP_NOTICES.every(item => !isEdgeOnlyNotice(item.name))).toBe(true)
     for (const name of EDGE_ONLY_NOTICES) expect(isEdgeOnlyNotice(name)).toBe(true)
+    expect(aboutLegalText('semver\nISC\n')).toBe('semver\nISC')
+    expect(aboutLegalText()).toContain('DeepSeek Harness (MIT)')
   })
 })

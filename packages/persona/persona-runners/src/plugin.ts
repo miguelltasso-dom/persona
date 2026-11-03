@@ -18,6 +18,8 @@ import { withInfraRecovery, type InfraRecoveryOptions } from './proactivity/reco
 import { withObserveGate, type ObserveGate, type ObserveGateOptions } from './proactivity/observe.ts'
 import { createDraftDriver, type DraftDriver, type DraftDriverOptions } from './draft/driver.ts'
 import { createAiMemory, type AiMemoryClient } from './memory/ai-memory.ts'
+import { resolveRunner, type ResolveRunnerOptions } from './resolve/resolve-runner.ts'
+import { detectConnections, type ConnectionSnapshot, type DetectConnectionsOptions } from './resolve/connections.ts'
 import type { AvailableInstallation, Runtime } from '@botiverse/oar'
 import type { Runner } from './contract.ts'
 
@@ -60,6 +62,8 @@ export default class PersonaRunners extends Service {
   readonly runLazinessSuite: (options?: LazinessSuiteOptions) => Promise<RunnerLazinessHint>
   readonly createDraftDriver: (options: DraftDriverOptions) => DraftDriver
   readonly createAiMemory: (options?: { enabled?: boolean; client?: AiMemoryClient }) => AiMemoryClient
+  readonly resolveRunner: (options: ResolveRunnerOptions) => Promise<Runner>
+  readonly detectConnections: (options?: DetectConnectionsOptions) => Promise<ConnectionSnapshot[]>
 
   /**
    * @param ctx - Host context.
@@ -84,5 +88,12 @@ export default class PersonaRunners extends Service {
     this.runLazinessSuite = runLazinessSuite
     this.createDraftDriver = createDraftDriver
     this.createAiMemory = createAiMemory
+    this.resolveRunner = (options: ResolveRunnerOptions) => {
+      const home = options.home ?? (this.config.home === '' ? undefined : this.config.home)
+      return home === undefined ? resolveRunner(options) : resolveRunner({ ...options, home })
+    }
+    this.detectConnections = (options?: DetectConnectionsOptions) => (
+      options === undefined ? detectConnections() : detectConnections(options)
+    )
   }
 }

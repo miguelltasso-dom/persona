@@ -71,6 +71,11 @@ export function applyPersonaDesktopIdentity(): void {
   } catch {
     // Test doubles omit setName.
   }
+  try {
+    app.setAppUserModelId(PERSONA_APP_ID)
+  } catch {
+    // Test doubles omit setAppUserModelId.
+  }
   const userData = process.env.DSH_DESKTOP_USER_DATA_DIR
   if (userData !== undefined && userData.length > 0) {
     try {

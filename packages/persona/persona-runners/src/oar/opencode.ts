@@ -20,12 +20,16 @@ export const OPENCODE_CAPABILITIES: RunnerCapabilities = {
  * OpenCode runner. Resume with a different cwd is refused (OAR matrix).
  * @param options - runtime (real CLI or `scriptedRuntime`).
  */
-export function createOpencodeRunner(options: { runtime: Runtime; installation?: AvailableInstallation }): Runner {
+export function createOpencodeRunner(options: {
+  runtime: Runtime
+  installation?: AvailableInstallation
+  env?: Readonly<Record<string, string | null>>
+}): Runner {
   const extra = options.installation === undefined ? {} : { installation: options.installation }
   const inner = createOarRunner({
     runtime: options.runtime,
     capabilities: OPENCODE_CAPABILITIES,
-    env: nativeSessionEnv(),
+    env: nativeSessionEnv(options.env),
     ...extra,
   })
   const cwdBySession = new Map<string, string>()

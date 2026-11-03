@@ -17,6 +17,8 @@ it('mounts personaRunners, personaVault/credentials and personaUsage on one Cont
   await ctx.plugin(PersonaUsage, { sessionsRoot: '' })
   await ctx.plugin(PersonaRunners, { home: '' })
   expect(ctx.personaRunners.createFakeRunner().session).toBeTypeOf('function')
+  expect(ctx.personaRunners.resolveRunner).toBeTypeOf('function')
+  expect(ctx.personaRunners.detectConnections).toBeTypeOf('function')
   expect(ctx.personaUsage.foldUsage([])).toEqual([])
   const ref = credentialRef('DEEPSEEK_API_KEY')
   await ctx.credentials.set(ref, 'sk-test-not-a-real-key')

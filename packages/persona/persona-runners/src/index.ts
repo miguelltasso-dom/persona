@@ -160,3 +160,33 @@ export { CODEX_CAPABILITIES, createCodexRunner, type CodexRunnerOptions } from '
 export { CLI_ISOLATION_VARS, nativeSessionEnv, restoreNativeCliLogin } from './oar/native-cli-env.ts'
 export { createOpencodeRunner, OPENCODE_CAPABILITIES } from './oar/opencode.ts'
 export { createCursorRunner, CURSOR_CAPABILITIES } from './oar/cursor.ts'
+export {
+  RunnerResolveError,
+  isRunnerResolveError,
+  loginHintFor,
+  type RunnerResolveErrorCode,
+} from './resolve/errors.ts'
+export {
+  resolveRunner,
+  type PersonaRunnerSpec,
+  type ResolveRunnerOptions,
+  type VaultSecretReader,
+} from './resolve/resolve-runner.ts'
+export {
+  detectConnections,
+  resetConnectionCache,
+  toUiConnection,
+  type ConnectionKind,
+  type ConnectionSnapshot,
+  type ConnectionUiRow,
+  type DetectConnectionsOptions,
+} from './resolve/connections.ts'
+export { withUsageMeter, type MeasuredUsage, type UsageMeterSink } from './resolve/usage-meter.ts'
+export {
+  RESOLVER_SMOKE_MAX_EXEC,
+  RESOLVER_SMOKE_PROMPT,
+  runResolverSmoke,
+  type ResolverSmokeOptions,
+  type ResolverSmokeRow,
+} from './resolve/smoke.ts'
+export { probeCliBinary, quotaExhausted, PROBE_TIMEOUT_MS } from './resolve/probe.ts'

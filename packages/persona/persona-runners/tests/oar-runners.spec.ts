@@ -172,4 +172,32 @@ describe('OAR CLI runners', () => {
     expect(order.at(-1)).toBe(`open:${first.sessionId}`)
     expect(order.indexOf('dispose')).toBeLessThan(order.length - 1)
   })
+
+  it('ends a Codex turn when prompt settles without turn_ended and maps agent_message text', async () => {
+    const inner = sayingRuntime()
+    const runtime = {
+      ...inner,
+      session: async () => {
+        const listeners: Array<(event: { kind: string; text?: string }) => void> = []
+        return {
+          id: 'codex-thread-1',
+          events: (listener: (event: { kind: string; text?: string }) => void) => {
+            listeners.push(listener)
+            return () => undefined
+          },
+          prompt: async () => {
+            for (const listener of listeners) listener({ kind: 'agent_message', text: 'OK' })
+            return { kind: 'ok' }
+          },
+          abort: async () => undefined,
+          dispose: async () => undefined,
+          usage: () => ({ value: { total: { input: 2, output: 1 } } }),
+        }
+      },
+    }
+    const runner = createCodexRunner({ runtime: runtime as never })
+    const events = await collect(runner.stream(await runner.start(input)))
+    expect(events.some(item => item.type === 'delta' && item.text === 'OK')).toBe(true)
+    expect(events.some(item => item.type === 'ended' && item.report.state === 'ready')).toBe(true)
+  })
 })

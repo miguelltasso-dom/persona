@@ -40,6 +40,15 @@ export function formatDesktopLegalNotices(notices: readonly ThirdPartyNotice[] =
 }
 
 /**
+ * Read the generated notices file for About. Missing file falls back to the static list.
+ * @param text - File contents (caller reads disk).
+ */
+export function aboutLegalText(text?: string): string {
+  if (text !== undefined && text.trim() !== '') return text.trim()
+  return formatDesktopLegalNotices()
+}
+
+/**
  * @param name - Dependency identity.
  * @returns true when the name is an edge-only Cloudflare tool.
  */

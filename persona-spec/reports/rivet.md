@@ -4,6 +4,84 @@ Mais recente no topo.
 
 ---
 
+## 03/11 16:05 — resolveRunner + detectConnections + smoke + D8 check + THIRD_PARTY_NOTICES ✔
+
+### O que ficou pronto
+- **`resolveRunner` / `ctx.personaRunners.resolveRunner`:** spec `{kind:'dsh',model}` | `{kind:'cli',cli,model}`, `permissionMode` explícito, home isolado opcional, vault só em env efêmero. Embrulha `withInfraRecovery` + medidor de uso + `withObserveGate` se autonomia=`propose`. Erros `RunnerResolveError`: `cli_not_found` / `not_logged_in` / `model_unavailable` / `quota_exhausted` (pt-BR curto, sem stack, sem token).
+- **`detectConnections`:** dsh+claude+codex+opencode+cursor; instalado/versão/logado/modelos/uso; `loginHint` de terminal; cache 60 s; timeout 8 s; sem segredos. Testes com fixtures `persona-e2e/fixtures/fake-cli`.
+- **Smoke real (D-022):** 1 round pelo resolvedor. claude `done` 4090 ms (31083/4); opencode `done` 3050 ms; codex exec sem `done`; cursor `not_logged_in`. Seção nova em `spikes/real-cli-smoke.md`.
+- **D8 `package-win.mjs --check`:** lista todos os pré-requisitos de uma vez. Bloqueado: VS Build Tools/SDK, LongPaths, Developer Mode. OK: disco 65.4 GB, Node v24.22.1, Electron, `node:sqlite`. `--dry` só monta pasta temp + boot gate quando desbloquear. Frase `miguel` + `verify` no JSON. Sem instalador admin. Sem "Atlas" no JSON.
+- **THIRD_PARTY_NOTICES:** script lê deps de produção do desktop; teste falha se licença desconhecida; About lê o arquivo (`aboutLegalText`). 9 notices geradas.
+
+### Anvil
+Trocar `createHostRunner` por `ctx.personaRunners.resolveRunner`. `listConnections` ← `detectConnections()` (mapear `installed`/`loggedIn`/`loginHint`). Contrato em `persona-spec/contracts/runner.md`.
+
+### Arquivos
+- `packages/persona/persona-runners/src/resolve/{errors,probe,usage-meter,resolve-runner,connections,smoke}.ts`
+- `packages/persona/persona-runners/src/{plugin,index,oar/claude,oar/codex,oar/opencode}.ts`
+- `packages/persona/persona-runners/tests/resolve-runner.spec.ts` + plugin-composition
+- `packages/persona/persona-runners/scripts/resolver-smoke.ts`
+- `apps/desktop/scripts/{package-win,generate-third-party-notices}.mjs` + electron-builder extraResources
+- `apps/desktop/src/{third-party-notices,legal-notices,main}.ts`
+- `apps/desktop/resources/THIRD_PARTY_NOTICES.txt`
+- `apps/desktop/tests/{package-win,third-party-notices,legal-notices}.spec.ts`
+- `persona-spec/contracts/runner.md` · `persona-spec/spikes/real-cli-smoke.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/resolve-runner.spec.ts
+ Test Files  1 passed (1) / Tests  5 passed (5)
+```
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/plugin-composition.spec.ts apps/desktop/tests/third-party-notices.spec.ts apps/desktop/tests/legal-notices.spec.ts apps/desktop/tests/package-win.spec.ts
+ Test Files  4 passed (4) / Tests  5 passed (5)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 13.1s
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 35.7s
+```
+
+```
+PERSONA_REAL_CLI=1 node --import tsx/esm packages/persona/persona-runners/scripts/resolver-smoke.ts
+claude execs=1 done firstTokenMs=4090 usage=31083/4
+codex execs=1 done=false usage=0/0
+opencode execs=1 done firstTokenMs=3050 usage=0/0
+cursor execs=0 not_logged_in
+```
+
+```
+node --import tsx/esm apps/desktop/scripts/package-win.mjs
+blockers: vswhere/VCTools/SDK, LongPathsEnabled, Developer Mode
+disk 65.4 GB · node v24.22.1 · electron · node:sqlite DatabaseSync  (exit 2)
+```
+
+```
+node --import tsx/esm apps/desktop/scripts/generate-third-party-notices.mjs
+apps/desktop/resources/THIRD_PARTY_NOTICES.txt
+9 notices
+```
+
+### Fora / dúvidas
+- `--dry` não montou (pré-requisitos ausentes). Pronto para correr quando Miguel aplicar a frase `miguel`.
+- Codex neste round não emitiu 1º token/`done`.
+- Host `createHostRunner` (Anvil) ainda é o fake/opencode por env — não toquei `persona-host`.
+- Sem "Atlas" em código (D-043).
+
+---
+
 ## 03/11 16:58 — S4 draft + legal NOTICE + ai-memory flag + D8 package-win ✔
 
 ### O que ficou pronto

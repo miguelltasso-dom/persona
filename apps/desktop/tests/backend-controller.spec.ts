@@ -160,6 +160,40 @@ describe('desktop backend controller', () => {
     await f.controller.close()
   })
 
+  it('reconnects a dead ready host three times with backoff, then errors', async () => {
+    const states: DesktopBackendState[] = []
+    let starts = 0
+    let fail!: (error: Error) => void
+    const wait = vi.fn(async () => {})
+    const controller = new DesktopBackendController((onFailure) => {
+      fail = onFailure
+      starts += 1
+      return {
+        start: vi.fn(async () => {}),
+        stop: vi.fn(async () => {}),
+      }
+    }, state => states.push(state), {
+      attempts: 3,
+      backoffMs: [15_000, 30_000, 60_000],
+      message: 'Reconectando…',
+      wait,
+    })
+    await controller.start(async () => {})
+    expect(controller.state).toEqual({ phase: 'ready' })
+    fail(new Error('host died 1'))
+    await vi.waitFor(() => { expect(starts).toBe(2) })
+    expect(states.some(item => item.phase === 'reconnecting' && item.message === 'Reconectando…')).toBe(true)
+    fail(new Error('host died 2'))
+    await vi.waitFor(() => { expect(starts).toBe(3) })
+    fail(new Error('host died 3'))
+    await vi.waitFor(() => { expect(starts).toBe(4) })
+    fail(new Error('host died 4'))
+    await vi.waitFor(() => { expect(controller.state.phase).toBe('error') })
+    expect(wait.mock.calls.map(call => call[0])).toEqual([15_000, 30_000, 60_000])
+    expect(starts).toBe(4)
+    await controller.close()
+  })
+
   it('propagates cleanup failure and prevents retry from overlapping the remaining child', async () => {
     const f = fixture()
     f.ready.resolve()

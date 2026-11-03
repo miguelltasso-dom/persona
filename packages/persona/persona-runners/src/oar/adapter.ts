@@ -41,19 +41,44 @@ function usageOf(session: Session): RunnerUsage {
   return { inputTokens: total?.input ?? 0, outputTokens: total?.output ?? 0 }
 }
 
+function eventText(event: Event): string | undefined {
+  if (event.kind === 'text_delta') return event.text
+  const record = event as Event & { text?: string; delta?: string; content?: string }
+  if (typeof record.text === 'string' && record.text.length > 0) return record.text
+  if (typeof record.delta === 'string' && record.delta.length > 0) return record.delta
+  if (typeof record.content === 'string' && record.content.length > 0) return record.content
+  return undefined
+}
+
+function isTurnEnd(kind: string): boolean {
+  return kind === 'turn_ended' || kind === 'turn_complete' || kind === 'completed' || kind === 'done'
+}
+
+/**
+ * Map OAR session events onto Runner events.
+ * Codex (OAR 0.67) often settles `prompt()` without `turn_ended` and may emit
+ * `item` / `agent_message` instead of `text_delta` — treat those as stream text
+ * and treat prompt settlement as the turn end (workaround; see runner.md).
+ * @param event - Vendor or scripted event.
+ * @param now - Clock.
+ */
 function mapEvent(event: Event, now: () => Date): RunEvent | undefined {
   const at = eventTime(now)
-  if (event.kind === 'text_delta') {
-    return { type: 'delta', at, text: event.text }
-  }
-  if (event.kind === 'turn_ended') {
-    if (event.outcome.kind === 'aborted') {
+  const kind = event.kind
+  if (isTurnEnd(kind)) {
+    const outcome = 'outcome' in event ? event.outcome : undefined
+    if (outcome !== undefined && outcome.kind === 'aborted') {
       return { type: 'ended', at, report: { state: 'dropped', summary: 'cancelled' } }
     }
-    if (event.outcome.kind === 'failed') {
-      return { type: 'ended', at, report: { state: 'failed', summary: event.outcome.reason } }
+    if (outcome !== undefined && outcome.kind === 'failed') {
+      return { type: 'ended', at, report: { state: 'failed', summary: outcome.reason } }
     }
     return { type: 'ended', at, report: { state: 'ready', summary: 'turn ended' } }
+  }
+  const text = eventText(event)
+  if (text !== undefined && (kind === 'text_delta' || kind.includes('text') || kind.includes('delta')
+    || kind === 'item' || kind === 'agent_message' || kind === 'message' || kind === 'output_item')) {
+    return { type: 'delta', at, text }
   }
   return undefined
 }
@@ -140,8 +165,11 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     void session.prompt(prompt).then((outcome) => {
       if (outcome.kind === 'rejected') {
         live.rejected = outcome.reason
-        live.wake?.()
+      } else if (!live.finished) {
+        live.pending.push({ type: 'ended', at: eventTime(now), report: { state: 'ready', summary: outcome.kind } })
+        live.finished = true
       }
+      live.wake?.()
     }).catch((error: unknown) => {
       live.rejected = error instanceof Error ? error.message : String(error)
       live.wake?.()

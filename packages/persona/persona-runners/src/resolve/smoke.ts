@@ -1,0 +1,128 @@
+/**
+ * One resolver round per ready CLI (D-022). Cheap model, short prompt, ≤10 execs.
+ */
+
+import type { Runtime } from '@botiverse/oar'
+import type { CliKind, RunEvent } from '../contract.ts'
+import { RunnerResolveError } from './errors.ts'
+import { detectConnections, resetConnectionCache, type DetectConnectionsOptions } from './connections.ts'
+import { resolveRunner, type PersonaRunnerSpec } from './resolve-runner.ts'
+
+export const RESOLVER_SMOKE_PROMPT = 'Responda só OK.'
+export const RESOLVER_SMOKE_MAX_EXEC = 10
+
+const CHEAP: Record<CliKind, string> = {
+  claude: 'haiku',
+  codex: 'gpt-5.5',
+  opencode: 'opencode/beam-free',
+  cursor: 'default',
+}
+
+export interface ResolverSmokeRow {
+  id: CliKind | 'dsh'
+  execs: number
+  firstTokenMs?: number
+  done?: boolean
+  usage?: { inputTokens: number; outputTokens: number }
+  error?: { code: string; message: string }
+  skipped?: string
+}
+
+export interface ResolverSmokeOptions {
+  real?: boolean
+  runtimes?: Partial<Record<CliKind, Runtime>>
+  cwd?: string
+  connections?: DetectConnectionsOptions
+  /** Limit the round to these CLIs (Codex re-smoke). */
+  only?: readonly CliKind[]
+}
+
+async function firstToken(events: AsyncIterable<RunEvent>, limitMs = 8_000): Promise<{ firstTokenMs?: number; done: boolean }> {
+  const started = Date.now()
+  let firstTokenMs: number | undefined
+  let done = false
+  for await (const event of events) {
+    if (event.type === 'delta' && firstTokenMs === undefined) firstTokenMs = Date.now() - started
+    if (event.type === 'ended') {
+      done = event.report.state !== 'failed' && event.report.state !== 'dropped'
+      break
+    }
+    if (Date.now() - started > limitMs) break
+  }
+  return firstTokenMs === undefined ? { done } : { firstTokenMs, done }
+}
+
+/**
+ * One turn per installed+logged-in CLI through `resolveRunner`.
+ * @param options - Injected runtimes for tests; `real` for PERSONA_REAL_CLI.
+ */
+export async function runResolverSmoke(options: ResolverSmokeOptions = {}): Promise<ResolverSmokeRow[]> {
+  if (options.real === true && process.env.PERSONA_REAL_CLI !== '1') {
+    throw new Error('set PERSONA_REAL_CLI=1 to run real CLI smokes')
+  }
+  resetConnectionCache()
+  const cards = await detectConnections({
+    ...options.connections,
+    force: true,
+    ...(options.runtimes === undefined ? {} : { runtimes: options.runtimes }),
+  })
+  const rows: ResolverSmokeRow[] = []
+  for (const card of cards) {
+    if (card.id === 'dsh') continue
+    if (options.only !== undefined && !options.only.includes(card.id)) continue
+    if (!card.installed) {
+      const row: ResolverSmokeRow = { id: card.id, execs: 0, skipped: 'cli_not_found' }
+      if (card.error !== undefined) row.error = card.error
+      rows.push(row)
+      continue
+    }
+    if (!card.loggedIn) {
+      rows.push({
+        id: card.id,
+        execs: 0,
+        error: { code: 'not_logged_in', message: card.loginHint ?? `CLI ${card.id} não está logada.` },
+      })
+      continue
+    }
+    const spec: PersonaRunnerSpec = { kind: 'cli', cli: card.id, model: CHEAP[card.id] }
+    try {
+      const runner = await resolveRunner({
+        spec,
+        permissionMode: 'allow-once',
+        autonomy: 'act',
+        ...(options.runtimes?.[card.id] === undefined ? {} : { runtime: options.runtimes[card.id] }),
+        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+        infra: { wait: async () => undefined },
+      })
+      const handle = await runner.start({
+        ticketId: `smoke-${card.id}`,
+        assignmentId: 'resolver-round',
+        personaId: 'smoke',
+        cwd: options.cwd ?? process.cwd(),
+        prompt: RESOLVER_SMOKE_PROMPT,
+        model: CHEAP[card.id],
+        permissionMode: 'allow-once',
+      })
+      const timing = await firstToken(runner.stream(handle), options.real === true ? 60_000 : 2_000)
+      const usage = await runner.usage(handle)
+      rows.push({
+        id: card.id,
+        execs: 1,
+        done: timing.done,
+        usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
+        ...(timing.firstTokenMs === undefined ? {} : { firstTokenMs: timing.firstTokenMs }),
+      })
+    } catch (error) {
+      if (error instanceof RunnerResolveError) {
+        rows.push({ id: card.id, execs: 0, error: { code: error.code, message: error.message } })
+        continue
+      }
+      rows.push({
+        id: card.id,
+        execs: 0,
+        error: { code: 'failed', message: error instanceof Error ? error.message : String(error) },
+      })
+    }
+  }
+  return rows
+}

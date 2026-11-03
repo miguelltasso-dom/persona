@@ -1,5 +1,29 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-03 17:43 — Muse captura (review-lumen-light): loading + Kanban + Import + layout
+
+**Pronto:** **Loading infinito** — causa principal: `initialState` congelado em `useState` (Kanban global, Cofre, Arquivos, Rotinas, Uso); agora sync + `initialCards` effect. **Timeout 8 s** em `usePersonaRemoteLoad` + tenant gate → `ErrorState` com microcópia Muse (`error.title` pt/en via `patch-lumen-remote-error-copy.mjs`) + **Tentar de novo** (`onRemoteRetry` nos painéis Remote). **Kanban:** filtros Equipe/Projeto/Persona com `KanbanFilterSelect` (chevron `UiIcon`); Estado = botões-adesivo `aria-pressed`; estágio usa `initialState` live. **Importar:** stepper estilo onboarding; um primário (Continuar); Escolher exportação = secondary + ícone attach. **Arquivos:** tabela `width:100%` (remove `max-width` shell). **Membros:** convite `size="m"`. **Perfil/Import:** `Screen` default (não reading).
+
+**Pendente (Atlas 17:56):** Uso → RPC D5a fold/official; Memória/Skills → `listMemory`/`listSkills`; fila a11y/microcópia/motion/en. **Capturas:** aguardo host; depois `design-shots.mjs panel:*`.
+
+**Testes:**
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx packages/persona/client-ui-persona/tests/connected-kanban.client.spec.tsx packages/persona/client-ui-persona/tests/live-tenant-bridge.client.spec.tsx
+→ 4 files / 19 passed
+```
+
+## 2026-11-03 17:29 — Muse polish: Memory/Skills/Proactive + rem sweep
+
+**Pronto:** **MemoryPanel**, **SkillsPanel**, **ProactiveDailySummaries** migrados para `Card`/`Chip`/`Button` + CSS próprio; removido **`LumenPage.module.css`**. **ApprovalsProactivity.module.css** — tokens semânticos/espaço. Sweep `rem` → `--persona-space-*` / `--persona-radius-*` em knowledge, routines, usage, files.
+
+**Fila Lumen (PLAN):** itens C6–C7, D4b, PRO-5 UI, E9/F2 preview **done**; **D5b** UI (`UsageLimits` + `RemoteUsagePanel` + `limitsToUsageMeters`) pronta — PLAN ainda `todo` aguarda **D5a Rivet** (livro/cota oficial no host). **Muse capturas** `panel:*` bloqueadas em **Anvil P0** (host).
+
+**Testes:**
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx … (8 arquivos)
+→ 8 files / 34 passed
+```
+
 ## 2026-11-03 17:12 — Muse revisão (e) parte 1 — SCREEN-SPECS + tokens
 
 **Pronto:** Telas pendentes alinhadas a `SCREEN-SPECS.md`: **ApprovalsInbox**, **TriageRulesView** (`Input` nos limites), **MembersView**, **CanvasView** (`Tabs` canvas/lista), **PersonaProfilePage** (`Screen`/`Tabs`/herói `Card`), **ImportWizard**. `header.eyebrow` + `subtitle` (perfil) nos `locale-sources` (en/pt) + `gen-client-ui-persona-locales.mjs`. Migração CSS Lumen: `--persona-active-*` / `--persona-lilac-*` → semânticos em knowledge, files, routines, usage, connections, kanban, canvas, `ProactivityMetrics`, `ApprovalsProactivity`; gaps kanban → `--persona-space-*`. **ProactivityMetricsPanel** deixou `LumenPage.module.css`.

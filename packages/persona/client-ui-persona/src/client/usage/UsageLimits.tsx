@@ -1,7 +1,7 @@
 /**
  * D5b — Uso e limites (Expansion is born of usage: contextual notice, never modal).
  */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { Button, Card, Chip, Screen, ScreenHeader, type ChipTone } from '../primitives/index.ts'
@@ -18,6 +18,7 @@ export interface UsageLimitsProps {
   readonly limitNotice?: UsageLimitNotice | null
   readonly initialState?: UsageSurfaceState
   readonly showLimitNotice?: boolean
+  readonly onRemoteRetry?: () => void
 }
 
 function originChipTone(origin: UsageOrigin): ChipTone {
@@ -73,9 +74,14 @@ export function UsageLimits({
   limitNotice = null,
   initialState = 'ready',
   showLimitNotice = true,
+  onRemoteRetry,
 }: UsageLimitsProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [surfaceState, setSurfaceState] = useState(initialState)
+
+  useEffect(() => {
+    setSurfaceState(initialState)
+  }, [initialState])
 
   const header = (
     <ScreenHeader
@@ -103,7 +109,7 @@ export function UsageLimits({
           dict={dict}
           titleKey="error.title"
           retryKey="error.retry"
-          onRetry={() => { setSurfaceState('ready') }}
+          onRetry={() => { onRemoteRetry?.() }}
         />
       </Screen>
     )

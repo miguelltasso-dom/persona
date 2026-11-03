@@ -16,6 +16,6 @@
   "empty.action": "Conectar harness",
   "empty.illustration": "Ilustração: medidor com patas",
   "loading": "Carregando uso…",
-  "error.title": "Não foi possível carregar uso",
+  "error.title": "Não consegui falar com a equipe agora",
   "error.retry": "Tentar de novo"
 }

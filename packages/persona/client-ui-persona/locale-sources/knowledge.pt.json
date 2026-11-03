@@ -24,7 +24,7 @@
   "empty.action": "Adicionar registro",
   "empty.illustration": "Ilustração: cofre aberto com documentos",
   "loading": "Carregando cofre…",
-  "error.title": "Não foi possível carregar o cofre",
+  "error.title": "Não consegui falar com a equipe agora",
   "error.retry": "Tentar de novo",
   "search.placeholder": "Buscar no cofre…"
 }

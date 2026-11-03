@@ -1,7 +1,7 @@
 .shell {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--persona-space-5);
   max-width: 52rem;
 }
 
@@ -19,30 +19,30 @@
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--persona-space-3);
   align-items: center;
 }
 
 .weekGrid {
   display: grid;
   grid-template-columns: repeat(7, minmax(4.5rem, 1fr));
-  gap: 0.5rem;
+  gap: var(--persona-space-2);
 }
 
 .dayCol {
   background: var(--persona-wash);
   border: 1px solid var(--persona-outline-soft);
-  border-radius: 0.625rem;
-  padding: 0.5rem;
+  border-radius: var(--persona-space-3);
+  padding: var(--persona-space-2);
   min-height: 6rem;
 }
 
 .dayLabel {
-  font-size: 0.75rem;
+  font-size: var(--persona-space-3);
   font-weight: 800;
   text-transform: uppercase;
   color: var(--persona-ink-soft);
-  margin-bottom: 0.375rem;
+  margin-bottom: var(--persona-space-1);
 }
 
 .runPaused {
@@ -51,7 +51,7 @@
 
 .runTitle {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: var(--persona-space-3);
   font-weight: 700;
 }
 
@@ -62,22 +62,22 @@
 }
 
 .runSummary {
-  margin: 0.375rem 0 0;
-  font-size: 0.75rem;
+  margin: var(--persona-space-1) 0 0;
+  font-size: var(--persona-space-3);
   line-height: 1.35;
 }
 
 .sectionTitle {
-  margin: 0 0 0.375rem;
+  margin: 0 0 var(--persona-space-1);
   font-size: 1.0625rem;
   font-weight: 700;
 }
 
 .runCard {
-  font-size: 0.75rem;
-  border-radius: 0.5rem;
-  padding: 0.375rem;
-  margin-bottom: 0.375rem;
+  font-size: var(--persona-space-3);
+  border-radius: var(--persona-space-2);
+  padding: var(--persona-space-1);
+  margin-bottom: var(--persona-space-1);
   background: var(--persona-paper);
   border: 1px solid var(--persona-outline-soft);
 }
@@ -93,15 +93,15 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--persona-space-2);
 }
 
 .quietItem {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.625rem 0.75rem;
-  border-radius: 0.5rem;
+  padding: var(--persona-space-3) var(--persona-space-3);
+  border-radius: var(--persona-space-2);
   background: var(--persona-wash);
 }
 
@@ -113,7 +113,7 @@
 }
 
 .hint {
-  font-size: 0.875rem;
+  font-size: var(--persona-space-3);
   color: var(--persona-ink-soft);
   margin: 0;
 }

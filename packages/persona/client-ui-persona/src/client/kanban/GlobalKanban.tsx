@@ -1,10 +1,10 @@
 /** C6b — Kanban global com filtros (equipe, projeto, persona, estado). */
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { Button, Card, Screen, ScreenHeader, UiIcon } from '../primitives/index.ts'
-import { KanbanFilterField } from './KanbanFilterField.tsx'
+import { KanbanFilterSelect, KanbanStageFilter } from './KanbanFilterSelect.tsx'
 import { KanbanBoard } from './KanbanBoard.tsx'
 import styles from './Kanban.module.css'
 import { deriveKanbanFilterOptions } from './derive-filter-options.ts'
@@ -17,6 +17,7 @@ export interface GlobalKanbanProps {
   readonly initialCards?: readonly KanbanCardModel[]
   readonly initialState?: KanbanSurfaceState
   readonly onOpenReview?: (card: KanbanCardModel) => void
+  readonly onRemoteRetry?: () => void
 }
 
 function columnLabelsFromDict(dict: LocaleDict): Record<KanbanColumnId, string> {
@@ -46,11 +47,15 @@ export function GlobalKanban({
   initialCards = [],
   initialState = 'ready',
   onOpenReview,
+  onRemoteRetry,
 }: GlobalKanbanProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
-  const [surfaceState] = useState<KanbanSurfaceState>(initialState)
   const [allCards, setAllCards] = useState<readonly KanbanCardModel[]>(initialCards)
   const [filters, setFilters] = useState<KanbanFilters>(DEFAULT_KANBAN_FILTERS)
+
+  useEffect(() => {
+    setAllCards(initialCards)
+  }, [initialCards])
 
   const labels = useMemo(() => columnLabelsFromDict(dict), [dict])
   const filterOptions = useMemo(() => deriveKanbanFilterOptions(allCards), [allCards])
@@ -68,7 +73,7 @@ export function GlobalKanban({
   }
 
   const boardSurface: KanbanSurfaceState =
-    visibleCards.length === 0 && surfaceState === 'ready' ? 'empty' : surfaceState
+    visibleCards.length === 0 && initialState === 'ready' ? 'empty' : initialState
 
   return (
     <Screen width="full" className={styles.boardShell} data-persona-kanban="global">
@@ -85,7 +90,7 @@ export function GlobalKanban({
       />
       <Card padding="m" className={styles.filtersCard}>
         <div className={styles.filters} role="search">
-          <KanbanFilterField
+          <KanbanFilterSelect
             id="kanban-filter-team"
             label={t('filter.team')}
             value={filters.teamId}
@@ -95,8 +100,8 @@ export function GlobalKanban({
             {filterOptions.teams.map(team => (
               <option key={team.id} value={team.id}>{team.name}</option>
             ))}
-          </KanbanFilterField>
-          <KanbanFilterField
+          </KanbanFilterSelect>
+          <KanbanFilterSelect
             id="kanban-filter-project"
             label={t('filter.project')}
             value={filters.projectId}
@@ -106,8 +111,8 @@ export function GlobalKanban({
             {filterOptions.projects.map(project => (
               <option key={project.id} value={project.id}>{project.name}</option>
             ))}
-          </KanbanFilterField>
-          <KanbanFilterField
+          </KanbanFilterSelect>
+          <KanbanFilterSelect
             id="kanban-filter-persona"
             label={t('filter.persona')}
             value={filters.personaId}
@@ -117,18 +122,14 @@ export function GlobalKanban({
             {filterOptions.personas.map(persona => (
               <option key={persona.id} value={persona.id}>{persona.name}</option>
             ))}
-          </KanbanFilterField>
-          <KanbanFilterField
-            id="kanban-filter-stage"
+          </KanbanFilterSelect>
+          <KanbanStageFilter
             label={t('filter.stage')}
+            allLabel={t('filter.all')}
             value={filters.column}
-            onChange={(e) => { updateFilter('column', e.target.value as KanbanFilters['column']) }}
-          >
-            <option value="all">{t('filter.all')}</option>
-            {(Object.keys(labels) as KanbanColumnId[]).map(col => (
-              <option key={col} value={col}>{labels[col]}</option>
-            ))}
-          </KanbanFilterField>
+            options={(Object.keys(labels) as KanbanColumnId[]).map(col => ({ id: col, label: labels[col] }))}
+            onChange={(column) => { updateFilter('column', column as KanbanFilters['column']) }}
+          />
         </div>
       </Card>
       <KanbanBoard
@@ -144,7 +145,7 @@ export function GlobalKanban({
             if (card !== undefined) onOpenReview(card)
           },
         })}
-        onRetry={() => {}}
+        onRetry={() => { onRemoteRetry?.() }}
         onEmptyPrimary={() => { setFilters(DEFAULT_KANBAN_FILTERS) }}
       />
     </Screen>

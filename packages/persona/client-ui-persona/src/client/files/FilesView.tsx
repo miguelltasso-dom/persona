@@ -1,6 +1,6 @@
 /** C7a — Arquivos do projeto (preview até Remote Anvil). */
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { Button, Card, Chip, Screen, ScreenHeader, Skeleton } from '../primitives/index.ts'
@@ -16,6 +16,7 @@ export interface FilesViewProps {
   readonly files?: readonly FileEntry[]
   readonly initialState?: FilesSurfaceState
   readonly onChooseProjectRoot?: () => void
+  readonly onRemoteRetry?: () => void
 }
 
 /** File list with open/download actions (host-backed). */
@@ -24,9 +25,14 @@ export function FilesView({
   files = [],
   initialState = 'ready',
   onChooseProjectRoot,
+  onRemoteRetry,
 }: FilesViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [surfaceState, setSurfaceState] = useState(initialState)
+
+  useEffect(() => {
+    setSurfaceState(initialState)
+  }, [initialState])
 
   const header = (
     <ScreenHeader
@@ -58,7 +64,7 @@ export function FilesView({
           dict={dict}
           titleKey="error.title"
           retryKey="error.retry"
-          onRetry={() => { setSurfaceState('ready') }}
+          onRetry={() => { onRemoteRetry?.() }}
         />
       </Screen>
     )

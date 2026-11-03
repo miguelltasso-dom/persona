@@ -26,7 +26,7 @@
   "empty.action": "Sugerir primeira tarefa",
   "empty.illustration": "Ilustração: quadro vazio com patas da equipe",
   "loading": "Carregando quadro…",
-  "error.title": "Não foi possível carregar o quadro",
+  "error.title": "Não consegui falar com a equipe agora",
   "error.retry": "Tentar de novo",
   "drag.hint": "Arraste para mover entre colunas",
   "celebration.label": "Tarefa revisada e concluída",

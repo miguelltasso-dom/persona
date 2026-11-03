@@ -26,7 +26,7 @@
   "empty.action": "Suggest first task",
   "empty.illustration": "Illustration: empty board with team paw prints",
   "loading": "Loading board…",
-  "error.title": "Could not load the board",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again",
   "drag.hint": "Drag to move between columns",
   "celebration.label": "Task reviewed and completed",

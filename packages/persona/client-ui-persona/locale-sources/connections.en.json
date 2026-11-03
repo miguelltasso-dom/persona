@@ -18,7 +18,7 @@
   "empty.action": "View install guide",
   "empty.illustration": "Illustration: terminals with paw prints",
   "loading": "Scanning for CLIs…",
-  "error.title": "Could not verify connections",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again",
   "valueFirst.note": "Connect only when you run — no block on first use."
 }

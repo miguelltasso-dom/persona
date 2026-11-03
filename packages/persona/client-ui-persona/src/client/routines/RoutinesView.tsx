@@ -1,6 +1,6 @@
 /** C7b — Rotinas: calendário semanal, resultados, silêncio, pausar equipe. */
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { Button, Card, Chip, Screen, ScreenHeader } from '../primitives/index.ts'
@@ -33,6 +33,7 @@ export interface RoutinesViewProps {
   readonly routineRuns?: readonly RoutineRun[]
   readonly quietWindows?: readonly QuietWindow[]
   readonly initialState?: RoutinesSurfaceState
+  readonly onRemoteRetry?: () => void
 }
 
 /** Weekly routine calendar preview. */
@@ -41,10 +42,15 @@ export function RoutinesView({
   routineRuns = [],
   quietWindows = [],
   initialState = 'ready',
+  onRemoteRetry,
 }: RoutinesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [surfaceState, setSurfaceState] = useState(initialState)
   const [teamPaused, setTeamPaused] = useState(false)
+
+  useEffect(() => {
+    setSurfaceState(initialState)
+  }, [initialState])
 
   const header = (
     <ScreenHeader
@@ -71,7 +77,7 @@ export function RoutinesView({
           dict={dict}
           titleKey="error.title"
           retryKey="error.retry"
-          onRetry={() => { setSurfaceState('ready') }}
+          onRetry={() => { onRemoteRetry?.() }}
         />
       </Screen>
     )

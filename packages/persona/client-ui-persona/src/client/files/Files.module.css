@@ -2,7 +2,6 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  max-width: 52rem;
 }
 
 .title {
@@ -19,11 +18,13 @@
 .breadcrumb {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  gap: var(--persona-space-1);
 }
 
 .tableCard {
   overflow: hidden;
+  width: 100%;
+  align-self: stretch;
 }
 
 .table {
@@ -34,17 +35,17 @@
 
 .table th {
   text-align: left;
-  padding: 0.625rem 0.75rem;
+  padding: var(--persona-space-3) var(--persona-space-3);
   border-bottom: var(--persona-border-width, 1px) solid var(--persona-outline-soft);
   color: var(--persona-ink-soft);
-  font-size: 0.75rem;
+  font-size: var(--persona-space-3);
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .table td {
-  padding: 0 0.75rem;
+  padding: 0 var(--persona-space-3);
   height: 3rem;
   border-bottom: var(--persona-border-width, 1px) solid var(--persona-outline-soft);
 }
@@ -55,7 +56,7 @@
 
 .rowActions {
   display: flex;
-  gap: 0.375rem;
+  gap: var(--persona-space-1);
 }
 
 .linkBtn {
@@ -77,8 +78,8 @@
 .skeletonRow {
   height: 2.5rem;
   background: var(--persona-wash);
-  border-radius: 0.375rem;
-  margin-bottom: 0.5rem;
+  border-radius: var(--persona-space-1);
+  margin-bottom: var(--persona-space-2);
 }
 
 .srOnly {

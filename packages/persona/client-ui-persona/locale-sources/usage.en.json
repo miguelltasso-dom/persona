@@ -16,6 +16,6 @@
   "empty.action": "Connect harness",
   "empty.illustration": "Illustration: meter with paw prints",
   "loading": "Loading usage…",
-  "error.title": "Could not load usage",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again"
 }

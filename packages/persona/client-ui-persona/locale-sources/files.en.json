@@ -14,7 +14,7 @@
   "empty.action": "Ask Atlas for a deliverable",
   "empty.illustration": "Illustration: empty folder with paw prints",
   "loading": "Loading files…",
-  "error.title": "Could not load files",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again",
   "needRoot.title": "Choose the project folder",
   "needRoot.hint": "Files stay confined to one folder on your computer. Nothing uploads without you seeing it.",

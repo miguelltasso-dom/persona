@@ -24,7 +24,7 @@
   "empty.action": "Add record",
   "empty.illustration": "Illustration: open vault with documents",
   "loading": "Loading vault…",
-  "error.title": "Could not load the vault",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again",
   "search.placeholder": "Search vault…"
 }

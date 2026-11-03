@@ -1,6 +1,6 @@
 /** Company vault: records, documents, visibility, update proposals. */
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { Button, Card, Chip, Input, Screen, ScreenHeader, Tabs, type ChipTone } from '../primitives/index.ts'
@@ -18,6 +18,7 @@ export interface KnowledgeVaultProps {
   readonly documents?: readonly KnowledgeDocument[]
   readonly proposals?: readonly KnowledgeProposal[]
   readonly initialState?: KnowledgeSurfaceState
+  readonly onRemoteRetry?: () => void
 }
 
 function typeLabel(dict: LocaleDict, type: KnowledgeRecord['type']): string {
@@ -42,11 +43,16 @@ export function KnowledgeVault({
   documents = [],
   proposals = [],
   initialState = 'ready',
+  onRemoteRetry,
 }: KnowledgeVaultProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [tab, setTab] = useState<KnowledgeTab>('records')
   const [query, setQuery] = useState('')
   const [surfaceState, setSurfaceState] = useState(initialState)
+
+  useEffect(() => {
+    setSurfaceState(initialState)
+  }, [initialState])
 
   const records = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -81,7 +87,7 @@ export function KnowledgeVault({
           dict={dict}
           titleKey="error.title"
           retryKey="error.retry"
-          onRetry={() => { setSurfaceState('ready') }}
+          onRetry={() => { onRemoteRetry?.() }}
         />
       </Screen>
     )

@@ -48,12 +48,40 @@ Sem `project.rootPath` os métodos **não lançam**. Devolvem `status: 'need-roo
 | RPC | Resultado |
 |---|---|
 | `listFiles` / `statFile` / `readFile` | `status: ok \| need-root` + `message` |
-| `setProjectRoot({ rootPath })` | `status: ok \| cleared` (vazio limpa) |
+| `setProjectRoot({ rootPath })` | `status: ok \| cleared \| invalid` (vazio limpa). Recusa UNC, raiz do sistema, home inteira, arquivo, pasta inexistente, overlap/aninhamento com outro projeto. pt-BR. |
+| `getProjectRoot` | pasta + `isRepo` / `defaultBranch` / `dirty` |
+| `pickDirectory` | Rivet IPC; host devolve `{ path: null }` |
 | `updateProject.rootPath` | equivalente; vazio limpa |
 
 ## Conexões — `listConnections(scope)` (async)
 
-Liga a `detectConnections()` do Rivet (probe dsh + CLIs, cache 60 s). `available` = CLI instalada. `resolveRunner` no laço: só quando `ctx.personaRunners.resolveRunner` estiver no Status do Rivet.
+Liga a `detectConnections()` do Rivet (probe dsh + CLIs, cache 60 s). `available` = CLI instalada; `loggedIn`, `loginHint`, `error?` (`cli_not_found` | `not_logged_in` | `quota_exhausted`) via `toUiConnection`. `resolveRunner` no laço: `PersonaHost.inject` inclui `personaRunners`; o factory do host usa `ctx.personaRunners.resolveRunner` quando o plugin está montado.
+
+## Webhook GitHub local
+
+`POST /api/persona/webhooks/github?projectId=` no host. HMAC SHA-256 (`X-Hub-Signature-256`); segredo em `PERSONA_GITHUB_WEBHOOK_SECRET` ou Cofre `factKey=github.webhook.secret` (nunca em log). Replay: delivery id + janela de 5 min → `200 {kind:duplicate}`. Corpo ≤ 256 KiB. Resposta `202` antes de `ingestGithubWebhook`.
+
+## Dead-letter (Precisa de você)
+
+Efeito/outbox que falha 3 vezes vira `listDeadLetters` (`cause` pt-BR, `Tentar de novo` / `Descartar`). Entra em `getOverview.needsYou` e `attentionEvents`. `retryDeadLetter` tira o card e reprocessa o outbox; `discardDeadLetter` só descarta.
+
+## Exportar
+
+`exportWorkspace` / `exportProject` → zip Markdown (`filename` + `base64`). DMs **fora** salvo `includeDmIds` explícito. Segredos redigidos (`looksLikeCredential`). Cofre em `cofre/*.md`.
+
+## Revisar — ReviewDelivery Remote
+
+Porto Forge (`GitReviewDelivery`). Sem push. Ator do servidor + `can()`. Sem `rootPath` → Tarefa sem código (sem worktree). Host chama `sweepOrphans` no resume.
+
+| RPC | Efeito |
+|---|---|
+| `prepareReview({ workspaceId, projectId, ticketId })` | Worktree/branch `persona/<id>` no início da Assignment; devolve o card. |
+| `reviewSummary({ workspaceId, projectId, ticketId })` | Card do painel (`hasWorktree`, arquivos, patch redigido/truncado, testes citados). |
+| `acceptReview({ …, mode: 'ff' \| 'squash' })` | Integra; conflito → `kind: 'blocked'` + `explanation` (Bloqueado · Precisa de você). |
+| `requestChanges({ …, feedback })` | Nova rodada de Assignment; Mandate imutável. |
+| `discardReview({ … })` | Remove worktree/branch. Sem push. |
+
+Lumen: botão **Revisar** no Kanban (`in_review` / bloqueado) abre overlay com estas RPCs.
 
 ## Fio condutor
 

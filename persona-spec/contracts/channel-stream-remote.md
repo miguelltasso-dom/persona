@@ -12,4 +12,13 @@ Same scope as `listMessages` (`streamKind: 'channel'`, `ownerId` = channel id, `
 
 ## Composer send
 
-`postMessage` then `refresh()` (optimistic path optional later).
+`postMessage` then `refresh()` (optimistic local line before RPC).
+
+## Direct messages
+
+- `listDms(scope)` → sidebar; `selectDm(id)` loads `listMessages` + `followMessages` with `streamKind: 'dm'`, `ownerId` = dm id.
+- Pass-through (C5b): derived from `getOverviewNow` rows (`passThroughFollowers` — workers with `currentTask`, not Coordenação).
+
+## Task cards (pending)
+
+Message `type` / ticket citation cards in stream — Anvil wire + Prism card component (not v1 yet).

@@ -1,5 +1,5 @@
 # @deepseek-ai/dsh-persona-core
 
-Pure TypeScript domain core (no I/O): branded ids, entities, access policy, `compileContext`/`recall` (port of `persona-spec/context.mjs`), Inline & Spill and Chain of Recall.
+Pure TypeScript domain core (no I/O): branded-style ids as strings, customizable personas, team templates, hire proposals, company vault, and `compileContext` / `recall` (port of `persona-spec/context.mjs`). The Super-agent engine model lives in `@deepseek-ai/dsh-persona-engine`.
 
-Part of the Persona product group (`packages/persona/*`). See `persona-spec/PLAN.md` and `persona-spec/DECISIONS.md` (D-002, D-026).
+Part of the Persona product group (`packages/persona/*`). See `persona-spec/PLAN.md`, `persona-spec/SCOPE.md`, `persona-spec/engine-port.md`, and `persona-spec/DECISIONS.md` (D-002, D-026).

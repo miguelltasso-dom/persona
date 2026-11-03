@@ -1,0 +1,42 @@
+The Super-agent engine core in this package is a verbatim import of
+`src/core` from dsh-superagent-prototype (MIT License), commit 8c32a9d.
+
+Copyright (c) 2026 DeepSeek Harness Team
+
+Files imported from that commit:
+
+  src/core/assignments.ts
+  src/core/engine.ts
+  src/core/errors.ts
+  src/core/evals.ts
+  src/core/ids.ts
+  src/core/index.ts
+  src/core/intake.ts
+  src/core/memory.ts
+  src/core/model.ts
+  src/core/part.ts
+  src/core/ports.ts
+  src/core/reasons.ts
+  src/core/replies.ts
+  src/core/stage.ts
+  src/core/tickets.ts
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

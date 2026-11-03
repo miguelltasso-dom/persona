@@ -43,7 +43,7 @@ export interface ContextSnapshot {
  * @param item - Candidate already present in the supplied snapshot or batch.
  * @param scope - Frozen compilation or recall scope.
  */
-export type ContextAuthorize<T> = (item: T, scope: ContextScope) => Promise<boolean>
+export type ContextAuthorize<T> = (item: T, scope: ContextScope) => Promise<unknown>
 
 /** Tokenizer supplied by the integrator; must return a non-negative integer. */
 export type CountTokens = (text: string) => number

@@ -23,7 +23,8 @@
   },
   "files": [
     "lib/index.js",
-    "lib/types/**/*.d.ts"
+    "lib/types/**/*.d.ts",
+    "NOTICE"
   ],
   "license": "MIT",
   "sideEffects": false

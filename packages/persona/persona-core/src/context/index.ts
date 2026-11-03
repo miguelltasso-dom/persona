@@ -4,6 +4,7 @@
  */
 
 import { createHash } from 'node:crypto'
+import { ContextError } from './error.ts'
 import type {
   CompiledContext, CompileContextInput, ContextAuthorize, ContextErrorCode, ContextKind,
   ContextManifest, ContextRecord, ContextScope, ContextSnapshot, RecallEventType,
@@ -16,16 +17,9 @@ export type {
   CountTokens, RecallEvent, RecallEventType, RecallInput, RecallResult, RecalledEvent,
 } from './types.ts'
 
-/** Integration failure with a stable machine code; message equals `code`. */
-export class ContextError extends Error {
-  /**
-   * @param code - Stable machine code from the integration contract.
-   */
-  constructor(readonly code: ContextErrorCode) {
-    super(code)
-    this.name = 'ContextError'
-  }
-}
+export { ContextError } from './error.ts'
+export { inlineRef, recallChain, spillId, spillPointer } from './chain.ts'
+export type { ChainHop, ChainRecallInput, InlineRef, RecallNode } from './chain.ts'
 
 const SCOPE_KEYS = ['workspaceId', 'projectId', 'agentId', 'actorId', 'audienceId', 'policyRevision'] as const
 
@@ -56,9 +50,13 @@ function isRecallEventType(value: string): value is RecallEventType {
   return (RECALL_TYPES as readonly string[]).includes(value)
 }
 
+function isArray<T>(value: readonly T[] | T[]): value is T[] {
+  return Array.isArray(value)
+}
+
 function checkScope(scope: ContextScope): void {
   for (const key of SCOPE_KEYS) {
-    if (!nonempty(scope?.[key])) fail('INVALID_SCOPE')
+    if (!nonempty(scope[key])) fail('INVALID_SCOPE')
   }
 }
 
@@ -72,14 +70,16 @@ function localScopeMatches(
 }
 
 function indexSnapshot(snapshot: ContextSnapshot): Map<string, ContextRecord> {
-  if (!nonempty(snapshot?.revision) || !Array.isArray(snapshot.records) ||
-      !Array.isArray(snapshot.requiredIds)) fail('INVALID_SNAPSHOT')
+  if (!nonempty(snapshot.revision) || !isArray(snapshot.records) || !isArray(snapshot.requiredIds)) {
+    fail('INVALID_SNAPSHOT')
+  }
   const index = new Map<string, ContextRecord>()
   for (const record of snapshot.records) {
+    const sourceIds = record.sourceIds
     if (!nonempty(record.id) || index.has(record.id) ||
         !Number.isInteger(record.revision) || record.revision < 1 ||
         typeof record.body !== 'string' || !isContextKind(record.kind) ||
-        !Array.isArray(record.sourceIds) || record.sourceIds.some(id => !nonempty(id))) {
+        !isArray(sourceIds) || sourceIds.some(id => !nonempty(id))) {
       fail('INVALID_SNAPSHOT')
     }
     index.set(record.id, record)
@@ -230,17 +230,18 @@ export async function recall({
   scope, events, subjectId, since, until, afterSequence = 0, limit = 50, authorize,
 }: RecallInput): Promise<RecallResult> {
   checkScope(scope)
-  if (!nonempty(subjectId) || !Array.isArray(events) || typeof authorize !== 'function' ||
+  if (!nonempty(subjectId) || !isArray(events) || typeof authorize !== 'function' ||
       !Number.isInteger(limit) || limit < 1 || limit > 200 ||
       !Number.isInteger(afterSequence) || afterSequence < 0) fail('INVALID_RECALL')
   const from = since === undefined ? -Infinity : timestamp(since)
   const to = until === undefined ? Infinity : timestamp(until)
   if (from > to) fail('INVALID_TIME_RANGE')
   scope = structuredClone(scope)
-  events = structuredClone(events)
+  const ordered = structuredClone(events).slice()
+  ordered.sort((a, b) => a.sequence - b.sequence)
   const seen = new Set<number>()
   const rows: RecalledEvent[] = []
-  for (const event of events.sort((a, b) => a.sequence - b.sequence)) {
+  for (const event of ordered) {
     if (!Number.isInteger(event.sequence) || event.sequence < 1 || seen.has(event.sequence)) fail('INVALID_EVENTS')
     seen.add(event.sequence)
     if (event.sequence <= afterSequence || event.subjectId !== subjectId ||

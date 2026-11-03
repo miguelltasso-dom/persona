@@ -1,0 +1,20 @@
+{
+  "title": "Usage and limits",
+  "subtitle": "Consumption by connection and persona — origin always visible",
+  "origin.measured": "Measured",
+  "origin.estimated": "Estimated",
+  "origin.official": "Official",
+  "origin.unavailable": "Unavailable",
+  "meter.unavailable": "—",
+  "limit.contextual": "Connection {connection} is near the limit ({percent}%). Switch model or persona.",
+  "limit.action": "See alternatives",
+  "section.connections": "Connections",
+  "section.personas": "Personas",
+  "empty.title": "No usage data yet",
+  "empty.hint": "After the first run with a connected CLI, usage appears here.",
+  "empty.action": "Connect harness",
+  "empty.illustration": "Illustration: meter with paw prints",
+  "loading": "Loading usage…",
+  "error.title": "Could not load usage",
+  "error.retry": "Try again"
+}

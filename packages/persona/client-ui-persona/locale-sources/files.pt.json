@@ -1,0 +1,18 @@
+{
+  "title": "Arquivos",
+  "subtitle": "Entregas e anexos do projeto, com preview quando disponível",
+  "column.name": "Nome",
+  "column.updated": "Atualizado",
+  "column.size": "Tamanho",
+  "column.project": "Projeto",
+  "column.actions": "Ações",
+  "action.open": "Abrir",
+  "action.download": "Baixar",
+  "empty.title": "Nenhum arquivo ainda",
+  "empty.hint": "Quando uma persona gerar entregas, elas aparecem aqui com link para o canal.",
+  "empty.action": "Pedir entrega ao Atlas",
+  "empty.illustration": "Ilustração: pasta vazia com patas",
+  "loading": "Carregando arquivos…",
+  "error.title": "Não foi possível carregar arquivos",
+  "error.retry": "Tentar de novo"
+}

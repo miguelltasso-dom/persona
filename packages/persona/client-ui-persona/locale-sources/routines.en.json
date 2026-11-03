@@ -1,0 +1,22 @@
+{
+  "title": "Routines",
+  "subtitle": "Weekly calendar, run outcomes, and team quiet hours",
+  "week.label": "Week of {start} – {end}",
+  "pauseTeam": "Pause team",
+  "pauseTeam.hint": "Stops scheduled runs until you resume",
+  "resumeTeam": "Resume team",
+  "quietHours": "Quiet hours",
+  "quietHours.hint": "No persona starts a routine in these windows",
+  "quiet.add": "Add window",
+  "run.result.ok": "Completed",
+  "run.result.partial": "Partial",
+  "run.result.failed": "Failed",
+  "run.result.skipped": "Skipped (quiet hours)",
+  "empty.title": "No routines yet",
+  "empty.hint": "Ask Atlas for a daily stand-up or weekly report.",
+  "empty.action": "Suggest routine",
+  "empty.illustration": "Illustration: calendar with paw prints",
+  "loading": "Loading routines…",
+  "error.title": "Could not load routines",
+  "error.retry": "Try again"
+}

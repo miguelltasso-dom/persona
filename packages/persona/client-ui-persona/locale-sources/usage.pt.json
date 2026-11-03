@@ -1,0 +1,20 @@
+{
+  "title": "Uso e limites",
+  "subtitle": "Consumo por conexão e persona — origem sempre visível",
+  "origin.measured": "Medido",
+  "origin.estimated": "Estimado",
+  "origin.official": "Oficial",
+  "origin.unavailable": "Indisponível",
+  "meter.unavailable": "—",
+  "limit.contextual": "A conexão {connection} está próxima do limite ({percent}%). Troque de modelo ou persona.",
+  "limit.action": "Ver alternativas",
+  "section.connections": "Conexões",
+  "section.personas": "Personas",
+  "empty.title": "Sem dados de uso ainda",
+  "empty.hint": "Após a primeira execução com CLI conectada, o consumo aparece aqui.",
+  "empty.action": "Conectar harness",
+  "empty.illustration": "Ilustração: medidor com patas",
+  "loading": "Carregando uso…",
+  "error.title": "Não foi possível carregar uso",
+  "error.retry": "Tentar de novo"
+}

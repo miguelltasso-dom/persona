@@ -1,0 +1,342 @@
+.boardShell {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: none;
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--persona-active-ink);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--persona-active-ink-muted);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 9rem;
+}
+
+.filterLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--persona-active-ink-muted);
+}
+
+.select {
+  border: 1px solid var(--persona-lilac-300);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--persona-active-surface);
+  color: var(--persona-active-ink);
+  font: inherit;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(11rem, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.column {
+  background: var(--persona-active-surface-alt);
+  border: 1px solid var(--persona-lilac-200);
+  border-radius: 0.75rem;
+  min-height: 12rem;
+  display: flex;
+  flex-direction: column;
+  transition: border-color var(--motion-fast, 140ms) var(--ease-standard, ease),
+    box-shadow var(--motion-fast, 140ms) var(--ease-standard, ease);
+}
+
+.columnDropTarget {
+  border-color: var(--persona-active-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--persona-active-accent) 35%, transparent);
+}
+
+.columnHeader {
+  padding: 0.625rem 0.75rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--persona-lilac-200);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.columnCount {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--persona-active-ink-muted);
+  background: var(--persona-lilac-100);
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+}
+
+.columnBody {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.card {
+  position: relative;
+  background: var(--persona-active-surface);
+  border: 1px solid var(--persona-lilac-200);
+  border-radius: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  cursor: grab;
+  touch-action: none;
+  will-change: transform, opacity;
+  transition: transform var(--motion-base, 220ms) var(--ease-spring, ease),
+    box-shadow var(--motion-base, 220ms) var(--ease-standard, ease),
+    opacity var(--motion-fast, 140ms) ease;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--persona-active-accent);
+  outline-offset: 2px;
+}
+
+.cardDragging {
+  cursor: grabbing;
+  transform: scale(1.02) rotate(1deg);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--persona-lilac-900) 18%, transparent);
+  z-index: 2;
+}
+
+.cardTitle {
+  margin: 0 0 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cardMeta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--persona-active-ink-muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.125rem 0.4375rem;
+  border-radius: 999px;
+}
+
+.chipWaiting {
+  background: var(--persona-lilac-100);
+  color: var(--persona-lilac-800);
+}
+
+.chipBlocked {
+  background: color-mix(in srgb, var(--persona-warning) 18%, var(--persona-active-surface));
+  color: var(--persona-warning);
+}
+
+.chipOutcome {
+  background: color-mix(in srgb, var(--persona-success) 16%, var(--persona-active-surface));
+  color: var(--persona-success);
+}
+
+.emptyIllustration {
+  margin: 0 auto 1rem;
+  display: block;
+}
+
+.avatar {
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 999px;
+  background: var(--persona-lilac-300);
+  color: var(--persona-lilac-900);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.carryLayer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.carryAvatar {
+  position: absolute;
+  top: -0.5rem;
+  left: 0.75rem;
+  z-index: 3;
+  animation: carryMove var(--motion-character, 700ms) var(--ease-spring, ease) forwards;
+}
+
+@keyframes carryMove {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0, 4.5rem) scale(0.85);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carryAvatar {
+    animation: none;
+    opacity: 0;
+  }
+
+  .cardDragging {
+    transform: none;
+  }
+
+  .celebrationPaws {
+    animation: none !important;
+  }
+}
+
+.celebrationPaws {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.375rem;
+  font-size: 1rem;
+  line-height: 1;
+  animation: pawPop var(--motion-slow, 360ms) var(--ease-enter, ease) forwards;
+  pointer-events: none;
+}
+
+@keyframes pawPop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+.statePanel {
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  background: var(--persona-active-surface-alt);
+  border: 1px dashed var(--persona-lilac-300);
+  border-radius: 1rem;
+}
+
+.stateTitle {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.stateHint {
+  margin: 0 0 1.25rem;
+  color: var(--persona-active-ink-muted);
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+.skeletonBoard {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.skeletonColumn {
+  border-radius: 0.75rem;
+  min-height: 10rem;
+  background: linear-gradient(
+    90deg,
+    var(--persona-lilac-100) 0%,
+    var(--persona-lilac-200) 50%,
+    var(--persona-lilac-100) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeletonColumn {
+    animation: none;
+    background: var(--persona-lilac-100);
+  }
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

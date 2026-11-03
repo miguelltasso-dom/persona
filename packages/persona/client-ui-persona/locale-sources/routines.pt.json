@@ -1,0 +1,22 @@
+{
+  "title": "Rotinas",
+  "subtitle": "Calendário semanal, resultados das execuções e silêncio da equipe",
+  "week.label": "Semana de {start} – {end}",
+  "pauseTeam": "Pausar equipe",
+  "pauseTeam.hint": "Interrompe execuções agendadas até você retomar",
+  "resumeTeam": "Retomar equipe",
+  "quietHours": "Janelas de silêncio",
+  "quietHours.hint": "Nenhuma persona inicia rotina nestes horários",
+  "quiet.add": "Adicionar janela",
+  "run.result.ok": "Concluída",
+  "run.result.partial": "Parcial",
+  "run.result.failed": "Falhou",
+  "run.result.skipped": "Ignorada (silêncio)",
+  "empty.title": "Nenhuma rotina ainda",
+  "empty.hint": "Peça ao Atlas para criar um stand-up diário ou relatório semanal.",
+  "empty.action": "Sugerir rotina",
+  "empty.illustration": "Ilustração: calendário com patas",
+  "loading": "Carregando rotinas…",
+  "error.title": "Não foi possível carregar rotinas",
+  "error.retry": "Tentar de novo"
+}

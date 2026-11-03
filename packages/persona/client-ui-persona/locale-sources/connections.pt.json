@@ -1,0 +1,18 @@
+{
+  "title": "Conexões",
+  "subtitle": "CLIs detectadas neste computador — login nativo, credenciais ficam no dispositivo",
+  "status.ready": "Pronta",
+  "status.missing": "Não detectada",
+  "status.expired": "Sessão expirada",
+  "action.connect": "Conectar",
+  "action.reconnect": "Reconectar",
+  "action.learn": "Como funciona",
+  "empty.title": "Nenhuma CLI detectada",
+  "empty.hint": "Instale Claude Code, Codex, Cursor agent ou OpenCode; detectamos automaticamente.",
+  "empty.action": "Ver guia de instalação",
+  "empty.illustration": "Ilustração: terminais com patas",
+  "loading": "Procurando CLIs…",
+  "error.title": "Não foi possível verificar conexões",
+  "error.retry": "Tentar de novo",
+  "valueFirst.note": "Conecte só quando for executar — sem bloqueio no primeiro uso."
+}

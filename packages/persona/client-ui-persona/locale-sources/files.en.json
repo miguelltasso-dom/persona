@@ -1,0 +1,18 @@
+{
+  "title": "Files",
+  "subtitle": "Project deliverables and attachments with preview when available",
+  "column.name": "Name",
+  "column.updated": "Updated",
+  "column.size": "Size",
+  "column.project": "Project",
+  "column.actions": "Actions",
+  "action.open": "Open",
+  "action.download": "Download",
+  "empty.title": "No files yet",
+  "empty.hint": "When a persona produces deliverables, they show up here with a link to the channel.",
+  "empty.action": "Ask Atlas for a deliverable",
+  "empty.illustration": "Illustration: empty folder with paw prints",
+  "loading": "Loading files…",
+  "error.title": "Could not load files",
+  "error.retry": "Try again"
+}

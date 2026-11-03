@@ -1,0 +1,18 @@
+{
+  "title": "Connections",
+  "subtitle": "CLIs detected on this device — native login, credentials stay local",
+  "status.ready": "Ready",
+  "status.missing": "Not detected",
+  "status.expired": "Session expired",
+  "action.connect": "Connect",
+  "action.reconnect": "Reconnect",
+  "action.learn": "How it works",
+  "empty.title": "No CLI detected",
+  "empty.hint": "Install Claude Code, Codex, Cursor agent, or OpenCode; we detect them automatically.",
+  "empty.action": "View install guide",
+  "empty.illustration": "Illustration: terminals with paw prints",
+  "loading": "Scanning for CLIs…",
+  "error.title": "Could not verify connections",
+  "error.retry": "Try again",
+  "valueFirst.note": "Connect only when you run — no block on first use."
+}

@@ -1,5 +1,19 @@
 # Spike — smokes reais CLI (D9)
 
+## Correção de login (03/11 16:10)
+
+Causa do `logged_out`: o processo do agente herdava `CLAUDE_CONFIG_DIR` / `CODEX_HOME` do spike `ai-memory` (homes vazios). Login nativo do Miguel está em `%USERPROFILE%\.claude` e Codex ChatGPT.
+
+| sonda | isolamento herdado | após `restoreNativeCliLogin` |
+|---|---|---|
+| `claude auth status` | loggedIn false, config no spike | loggedIn true, config `~\.claude`, plan max |
+| `codex login status` | Not logged in | Logged in using ChatGPT |
+| OAR `authStatus` | claude/codex `logged_out` | claude `logged_in` max/claude.ai; codex `logged_in` chatgpt |
+
+Fix: `nativeSessionEnv` / `restoreNativeCliLogin` (isolamento só explícito); Codex `dispose` antes do resume. Re-smoke autenticado pendente (interrupção; ≤3 execs/CLI).
+
+---
+
 Rodada 03/11 14:40 UTC-3. Script: `packages/persona/persona-runners/scripts/real-smoke.ts`. Flag: `PERSONA_REAL_CLI=1`. Modelos baratos. Sem token/e-mail na saída. Cota: **3+3+3+0 = 9 execuções** (limite 10/CLI).
 
 ## Resultado

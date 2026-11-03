@@ -4,6 +4,82 @@ Mais recente no topo.
 
 ---
 
+## 03/11 16:18 — PRO-3 proatividade nos runners ✔
+
+### O que ficou pronto
+- Recuperação automática (`withInfraRecovery`) nos runners DSH e OAR: contexto cheio / conexão / processo morto / prompt de confiança → evento `infra`, nova sessão com handoff (`RECOVERY_NOTE` + `persona_recall(id)`) e backoff 15s/30s/60s.
+- Goal: constante `GOAL_ROUND_DRIVER_NAME` para o host montar `@deepseek-ai/dsh-goal-round-driver` no DSH; `createGoalContinueDriver` + `continueDshGoal` fazem a continuação equivalente (resume/steer) nas CLIs; sem goal armado a equipe descansa.
+- Prompt de executora: `executorPrompt` / `OWNER_NORMS` (terminar, verificar, evidência, próximo passo; nunca devolver trabalho do mandato). Primeiro `deliver` do session OAR prefixa as normas.
+- Suíte `runLazinessSuite` (scripted/fake por padrão): multi-etapa, erro intermediário, ambiguidade pequena → `RunnerLazinessHint` para a UI. Real só com `PERSONA_LAZINESS_REAL=1` + `PERSONA_REAL_CLI=1`.
+- Keel: montar `goal-round-driver` no perfil DSH (`persona-app`); Prism/Lumen leem `RunnerLazinessHint`.
+
+### Arquivos
+- `packages/persona/persona-runners/src/proactivity/{recovery,goal-continue,owner-prompt,laziness}.ts`
+- `packages/persona/persona-runners/src/{contract,index,plugin,dsh/runner,oar/adapter,oar/session}.ts`
+- `packages/persona/persona-runners/tests/proactivity.spec.ts`
+- `persona-spec/contracts/runner.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/proactivity.spec.ts packages/persona/persona-runners/tests/plugin-composition.spec.ts
+ Test Files  2 passed (2)
+      Tests  10 passed (10)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners persona-vault
+persona-runners: OK in 10.4s
+persona-vault: OK in 4.2s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 31.2s
+```
+
+### Fora / dúvidas
+- Não montei `goal-round-driver` em `persona-app` (dir do Keel).
+- Suíte real de preguiça não rodou (cota). Fake/scripted cobre os 3 cenários.
+- Fila seguinte: identidade desktop / legal / ai-memory flag / D8 package-win.
+
+---
+
+## 03/11 16:10 — D9 login nativo + dispose Codex ✔
+
+### O que ficou pronto
+- Diagnóstico: D9 `logged_out` **não** era falta de login. Este processo herdava `CLAUDE_CONFIG_DIR` / `CODEX_HOME` do spike `ai-memory` (homes vazios). Sem esses overrides: `claude auth status` loggedIn true (max/claude.ai); `codex login status` ChatGPT.
+- Padrão: runner/sonda/plugin removem isolamento herdado. Isolamento só com `configDir` / `homeDir` ou `PERSONA_ISOLATE_CLI_CONFIG=1`. Cursor não recebe `env` (OAR recusa).
+- Codex: `dispose` da sessão viva antes do resume (writer exclusivo).
+- Comparação OAR `authStatus`: com isolamento → `logged_out`; após `restoreNativeCliLogin` → claude `logged_in` plan max; codex `logged_in` method chatgpt. Sem e-mail/token.
+- Smoke `PERSONA_REAL_CLI=1` interrompido ao relançar (não gastei a 2ª cota). Unitários cobrem env + dispose.
+
+### Arquivos
+- `packages/persona/persona-runners/src/oar/{native-cli-env,adapter,claude,codex,opencode}.ts`
+- `packages/persona/persona-runners/scripts/{real-smoke,probe-clis,compare-auth}.ts`
+- `packages/persona/persona-runners/tests/{native-cli-env,oar-runners}.spec.ts`
+- `persona-spec/spikes/real-cli-smoke.md` · `contracts/runner.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/native-cli-env.spec.ts packages/persona/persona-runners/tests/oar-runners.spec.ts
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+```
+
+```
+node --import tsx/esm packages/persona/persona-runners/scripts/compare-auth.ts
+oarAuthWithIsolationEnv: claude logged_out, codex logged_out
+oarAuthAfterRestoreNative: claude logged_in plan=max method=claude.ai; codex logged_in method=chatgpt
+```
+
+### Fora / dúvidas
+- Re-smoke autenticado ainda pendente (interrupção). Rodar de novo com ≤3 execs/CLI quando o Atlas liberar cota.
+- `HOME=''` neste shell também isolava; agora é removido.
+
+---
+
 ## 03/11 15:51 — D9 + D5a + D7 + D8 (preparo) ✔ Anvil sem pedido de API
 
 ### O que ficou pronto

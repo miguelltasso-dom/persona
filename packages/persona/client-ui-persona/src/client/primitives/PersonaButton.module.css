@@ -1,0 +1,35 @@
+.primary {
+  background: var(--persona-active-accent);
+  color: var(--persona-active-accent-ink);
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  font: inherit;
+}
+
+.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primary:focus-visible {
+  outline: 2px solid var(--persona-active-accent);
+  outline-offset: 2px;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--persona-active-ink);
+  border: 1px solid var(--persona-lilac-300);
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.secondary:focus-visible {
+  outline: 2px solid var(--persona-lilac-500);
+  outline-offset: 2px;
+}

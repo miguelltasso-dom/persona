@@ -1,0 +1,9 @@
+.item {
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item {
+    will-change: auto;
+  }
+}

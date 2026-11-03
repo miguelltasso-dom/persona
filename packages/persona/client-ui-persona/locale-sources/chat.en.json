@@ -1,0 +1,12 @@
+{
+  "header.section": "Conversations",
+  "header.channelGeneral": "General",
+  "message.reactionThanks": "Thanks",
+  "message.reactionEyes": "Eyes",
+  "composer.placeholder": "Message #general…",
+  "composer.send": "Send",
+  "composer.modelLabel": "Responding persona",
+  "composer.modelAtlas": "Atlas — coordination",
+  "composer.modelBento": "Bento — implementation",
+  "composer.modelNina": "Nina — review"
+}

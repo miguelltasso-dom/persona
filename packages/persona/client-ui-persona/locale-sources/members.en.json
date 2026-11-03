@@ -1,0 +1,22 @@
+{
+  "title": "Members and invites",
+  "subtitle": "Remote teams — roles, links, and what syncs",
+  "role.admin": "Admin",
+  "role.member": "Member",
+  "role.viewer": "Viewer",
+  "action.invite": "Invite by link",
+  "action.revoke": "Revoke access",
+  "sync.title": "What syncs",
+  "sync.projects": "Authorized projects and tasks",
+  "sync.vault": "Vault (per visibility)",
+  "sync.never": "DMs never leave the device",
+  "status.pending": "Invite pending",
+  "status.active": "Active",
+  "empty.title": "Just you for now",
+  "empty.hint": "Invite colleagues by link and pick a role before sharing data.",
+  "empty.action": "Generate invite",
+  "empty.illustration": "Illustration: empty team",
+  "loading": "Loading members…",
+  "error.title": "Could not load members",
+  "error.retry": "Try again"
+}

@@ -1,0 +1,23 @@
+{
+  "title": "Aprovações",
+  "subtitle": "Decisões que esperam você — uma pergunta por cartão",
+  "type.hire": "Contratação",
+  "type.vault": "Cofre",
+  "type.skill": "Skill",
+  "type.attention": "Tarefa",
+  "hire.title": "Contratar {name}?",
+  "attention.title": "Precisa de você",
+  "vault.title": "Atualizar Cofre",
+  "skill.title": "Nova skill proposta",
+  "action.primary.hire": "Revisar e contratar",
+  "action.primary.vault": "Revisar proposta",
+  "action.primary.skill": "Revisar skill",
+  "action.primary.attention": "Abrir tarefa",
+  "action.dismiss": "Dispensar",
+  "empty.title": "Nada pendente",
+  "empty.hint": "Quando um agente propor contratação, Cofre, skill ou bloqueio, aparece aqui.",
+  "empty.illustration": "Ilustração: caixa de aprovações vazia",
+  "loading": "Carregando aprovações…",
+  "error.title": "Não foi possível carregar aprovações",
+  "error.retry": "Tentar de novo"
+}

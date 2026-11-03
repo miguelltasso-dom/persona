@@ -1,0 +1,113 @@
+.strip {
+  padding: 0.75rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--persona-active-border, color-mix(in srgb, var(--persona-active-ink) 10%, transparent));
+  background: var(--persona-active-surface);
+}
+
+.title {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--persona-active-muted, color-mix(in srgb, var(--persona-active-ink) 55%, transparent));
+}
+
+.list {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.member {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 5.5rem;
+  animation: personaBreathe 4.2s ease-in-out infinite;
+  animation-delay: var(--persona-breathe-delay, 0s);
+}
+
+.figure {
+  height: 7.5rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.pose {
+  max-height: 7.5rem;
+  width: auto;
+  object-fit: contain;
+  object-position: bottom;
+  transition: opacity 220ms var(--persona-motion-ease, ease);
+}
+
+.silhouette {
+  display: block;
+  width: 3.5rem;
+  height: 6.5rem;
+  border-radius: 2rem 2rem 0.75rem 0.75rem;
+  background: color-mix(in srgb, var(--persona-active-ink) 12%, transparent);
+  border: 2px dashed color-mix(in srgb, var(--persona-active-ink) 28%, transparent);
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  text-align: center;
+}
+
+.name {
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.role {
+  font-size: 0.6875rem;
+  color: var(--persona-active-muted, color-mix(in srgb, var(--persona-active-ink) 55%, transparent));
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+}
+
+.statusIcon {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--persona-accent);
+}
+
+.statusIcon[data-state='idle'] {
+  background: color-mix(in srgb, var(--persona-active-ink) 40%, transparent);
+}
+
+.statusIcon[data-state='waiting'] {
+  background: var(--persona-warn, #c47a00);
+}
+
+@keyframes personaBreathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member {
+    animation: none;
+  }
+
+  .pose {
+    transition: none;
+  }
+}

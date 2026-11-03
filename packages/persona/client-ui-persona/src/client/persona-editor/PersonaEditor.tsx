@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { usePersonaMotion } from '../theme/usePersonaMotion.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import previewStyles from '../preview/PreviewFrame.module.css'
+import { PersonaButton } from '../primitives/index.ts'
 import { MOCK_PERSONA_DRAFT, type AvatarSource, type PersonaDraft, type ToolAccessLevel } from './persona-draft.ts'
 import styles from './PersonaEditor.module.css'
 
@@ -157,8 +157,8 @@ export function PersonaEditor({ dict, initial = MOCK_PERSONA_DRAFT }: PersonaEdi
         <div className={styles.previewRole}>{draft.jobTitle}</div>
       </div>
       <div className={styles.actions}>
-        <button type="button" className={previewStyles.primary}>{t('action.save')}</button>
-        <button type="button" className={previewStyles.secondary}>{t('action.cancel')}</button>
+        <PersonaButton>{t('action.save')}</PersonaButton>
+        <PersonaButton variant="secondary">{t('action.cancel')}</PersonaButton>
       </div>
     </div>
   )

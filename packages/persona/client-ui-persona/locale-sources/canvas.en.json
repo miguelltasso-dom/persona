@@ -1,0 +1,22 @@
+{
+  "title": "Canvas",
+  "subtitle": "Same product objects — relations, zoom, and accessible list",
+  "mode.canvas": "Canvas",
+  "mode.list": "List",
+  "legend.persona": "Persona",
+  "legend.task": "Task",
+  "legend.topic": "Topic",
+  "legend.decision": "Decision",
+  "column.type": "Type",
+  "column.label": "Name",
+  "action.zoomIn": "Zoom in",
+  "action.zoomOut": "Zoom out",
+  "action.resetView": "Reset view",
+  "empty.title": "Empty canvas",
+  "empty.hint": "Open a project with tasks and decisions to see relations.",
+  "empty.action": "Go to projects",
+  "empty.illustration": "Illustration: empty canvas",
+  "loading": "Loading canvas…",
+  "error.title": "Could not load canvas",
+  "error.retry": "Try again"
+}

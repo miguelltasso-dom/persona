@@ -1,9 +1,26 @@
 {
+  "sidebar.team": "Team",
+  "sidebar.search": "Search",
   "sidebar.overview": "Overview",
   "sidebar.projects": "Projects",
   "sidebar.kanban": "Kanban",
+  "sidebar.knowledge": "Knowledge",
   "sidebar.routines": "Routines",
+  "sidebar.files": "Files",
   "sidebar.channels": "Channels",
   "sidebar.directMessages": "Direct messages",
-  "sidebar.usage": "Usage and limits"
+  "sidebar.usage": "Usage and limits",
+  "sidebar.connections": "Connections",
+  "overview.attentionTitle": "Needs you",
+  "overview.attentionEmpty": "Nothing needs your attention right now.",
+  "overview.attentionSample": "Approve hire proposal",
+  "overview.hostConnected": "Connected",
+  "overview.hostOnline": "Persona host online",
+  "overview.hostOffline": "Persona host unavailable",
+  "overview.hostPending": "Connecting to host…",
+  "brand.name": "Persona",
+  "team.channelStripTitle": "Your team in this channel",
+  "team.statusWorking": "Working",
+  "team.statusIdle": "Available",
+  "team.statusWaiting": "Waiting on you"
 }

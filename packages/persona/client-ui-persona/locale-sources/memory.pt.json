@@ -1,0 +1,20 @@
+{
+  "title": "Memória da persona",
+  "subtitle": "O que a equipe já sabe — com origem e quem pode ver",
+  "action.approve": "Aprovar",
+  "action.edit": "Editar",
+  "action.forget": "Esquecer",
+  "origin.conversation": "Conversa",
+  "origin.vault": "Cofre",
+  "origin.import": "Importação",
+  "visibility.workspace": "Equipe",
+  "visibility.project": "Projeto",
+  "visibility.persona": "Só esta persona",
+  "empty.title": "Nenhuma memória ainda",
+  "empty.hint": "Memórias aprovadas aparecem aqui e entram no contexto com permissão.",
+  "empty.action": "Registrar memória",
+  "empty.illustration": "Ilustração: memórias vazias",
+  "loading": "Carregando memórias…",
+  "error.title": "Não foi possível carregar memórias",
+  "error.retry": "Tentar de novo"
+}

@@ -1,0 +1,22 @@
+{
+  "title": "Canvas",
+  "subtitle": "Mesmos objetos do produto — relações, zoom e lista acessível",
+  "mode.canvas": "Canvas",
+  "mode.list": "Lista",
+  "legend.persona": "Persona",
+  "legend.task": "Tarefa",
+  "legend.topic": "Assunto",
+  "legend.decision": "Decisão",
+  "column.type": "Tipo",
+  "column.label": "Nome",
+  "action.zoomIn": "Aumentar zoom",
+  "action.zoomOut": "Diminuir zoom",
+  "action.resetView": "Redefinir vista",
+  "empty.title": "Canvas vazio",
+  "empty.hint": "Abra um projeto com tarefas e decisões para ver relações.",
+  "empty.action": "Ir aos projetos",
+  "empty.illustration": "Ilustração: canvas vazio",
+  "loading": "Carregando canvas…",
+  "error.title": "Não foi possível carregar o canvas",
+  "error.retry": "Tentar de novo"
+}

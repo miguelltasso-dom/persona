@@ -1,0 +1,20 @@
+{
+  "title": "Persona memory",
+  "subtitle": "What the team already knows — with origin and visibility",
+  "action.approve": "Approve",
+  "action.edit": "Edit",
+  "action.forget": "Forget",
+  "origin.conversation": "Conversation",
+  "origin.vault": "Vault",
+  "origin.import": "Import",
+  "visibility.workspace": "Team",
+  "visibility.project": "Project",
+  "visibility.persona": "This persona only",
+  "empty.title": "No memories yet",
+  "empty.hint": "Approved memories show here and enter context with permission.",
+  "empty.action": "Record memory",
+  "empty.illustration": "Illustration: empty memories",
+  "loading": "Loading memories…",
+  "error.title": "Could not load memories",
+  "error.retry": "Try again"
+}

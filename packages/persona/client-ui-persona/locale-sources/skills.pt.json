@@ -1,0 +1,20 @@
+{
+  "title": "Skills",
+  "subtitle": "Catálogo, versões, avaliação e promoção para a equipe",
+  "status.active": "Ativa",
+  "status.candidate": "Candidata",
+  "action.activate": "Ativar",
+  "action.rollback": "Reverter versão",
+  "action.shareTeam": "Compartilhar com a equipe",
+  "action.reviewProposal": "Revisar proposta",
+  "field.version": "v{version}",
+  "field.rating": "Avaliação {rating}/5",
+  "proposal.fromAgent": "Proposta de {name}",
+  "empty.title": "Nenhuma skill",
+  "empty.hint": "Skills versionadas entram aqui; propostas de agentes precisam de promoção explícita.",
+  "empty.action": "Explorar catálogo",
+  "empty.illustration": "Ilustração: skills vazias",
+  "loading": "Carregando skills…",
+  "error.title": "Não foi possível carregar skills",
+  "error.retry": "Tentar de novo"
+}

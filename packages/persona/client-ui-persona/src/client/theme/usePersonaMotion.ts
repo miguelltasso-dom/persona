@@ -17,6 +17,8 @@ export interface PersonaMotionOptions {
   fromOpacity?: number
   /** Initial translateY in px (positive moves down). */
   fromTranslateY?: number
+  /** WAAPI start delay in ms (ignored when reduced-motion). */
+  delayMs?: number
 }
 
 export interface PersonaMotionResult {
@@ -65,6 +67,7 @@ export function usePersonaMotion(options: PersonaMotionOptions = {}): PersonaMot
   const fromOpacity = options.fromOpacity ?? 1
   const fromTranslateY = options.fromTranslateY ?? 0
   const loop = options.loop ?? false
+  const delayMs = options.delayMs ?? 0
 
   const [reducedMotion, setReducedMotion] = useState(prefersReducedMotion)
   const [documentHidden, setDocumentHidden] = useState(() =>
@@ -129,12 +132,13 @@ export function usePersonaMotion(options: PersonaMotionOptions = {}): PersonaMot
     const animation = element.animate(keyframes, {
       duration: durationMs,
       easing,
+      delay: delayMs,
       fill: 'both',
       iterations: loop ? Infinity : 1,
     })
     animationRef.current = animation
     return () => { animation.cancel() }
-  }, [durationMs, easing, element, fromOpacity, fromTranslateY, loop, paused, reducedMotion])
+  }, [delayMs, durationMs, easing, element, fromOpacity, fromTranslateY, loop, paused, reducedMotion])
 
   const style = useMemo((): CSSProperties => ({
     opacity: paused || reducedMotion ? fromOpacity : undefined,

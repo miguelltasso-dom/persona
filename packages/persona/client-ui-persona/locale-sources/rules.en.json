@@ -1,0 +1,19 @@
+{
+  "title": "Triage rules",
+  "subtitle": "Gate (who may ask) and assessment (what to do) in natural language",
+  "field.gate": "Gate — who may ask",
+  "field.assessment": "Assessment — what to do",
+  "mode.logOnly": "Log only what it would do",
+  "mode.executeOptIn": "Speculative execution (opt-in)",
+  "log.title": "Log of what would have happened",
+  "log.empty": "No simulations yet",
+  "action.addRule": "Add rule",
+  "action.save": "Save rules",
+  "empty.title": "No rules",
+  "empty.hint": "Describe in text when the persona may act alone.",
+  "empty.action": "Create first rule",
+  "empty.illustration": "Illustration: empty rules",
+  "loading": "Loading rules…",
+  "error.title": "Could not load rules",
+  "error.retry": "Try again"
+}

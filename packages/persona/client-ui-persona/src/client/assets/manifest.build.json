@@ -1,0 +1,332 @@
+{
+  "summary": {
+    "generatedAt": "2026-11-03T17:25:43.776Z",
+    "source": "persona-assets",
+    "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
+    "files": 80,
+    "totalBytes": 1737179,
+    "withinBudget": true
+  },
+  "files": [
+    {
+      "rel": "brand/app-icon.png",
+      "bytes": 44311
+    },
+    {
+      "rel": "brand/app-icon.svg",
+      "bytes": 688
+    },
+    {
+      "rel": "brand/logo-horizontal-dark.png",
+      "bytes": 47487
+    },
+    {
+      "rel": "brand/logo-horizontal-dark.svg",
+      "bytes": 1085
+    },
+    {
+      "rel": "brand/logo-horizontal-light.png",
+      "bytes": 47756
+    },
+    {
+      "rel": "brand/logo-horizontal-light.svg",
+      "bytes": 1085
+    },
+    {
+      "rel": "brand/logo-stacked.png",
+      "bytes": 35899
+    },
+    {
+      "rel": "brand/logo-stacked.svg",
+      "bytes": 1086
+    },
+    {
+      "rel": "brand/monochrome.svg",
+      "bytes": 378
+    },
+    {
+      "rel": "brand/symbol-small.svg",
+      "bytes": 375
+    },
+    {
+      "rel": "brand/symbol.png",
+      "bytes": 35231
+    },
+    {
+      "rel": "brand/symbol.svg",
+      "bytes": 579
+    },
+    {
+      "rel": "brand/tray-16.svg",
+      "bytes": 375
+    },
+    {
+      "rel": "brand/tray-24.svg",
+      "bytes": 375
+    },
+    {
+      "rel": "icons/nav/arquivos.svg",
+      "bytes": 281
+    },
+    {
+      "rel": "icons/nav/busca.svg",
+      "bytes": 242
+    },
+    {
+      "rel": "icons/nav/canais.svg",
+      "bytes": 224
+    },
+    {
+      "rel": "icons/nav/canvas.svg",
+      "bytes": 353
+    },
+    {
+      "rel": "icons/nav/configuracoes.svg",
+      "bytes": 524
+    },
+    {
+      "rel": "icons/nav/conhecimento-memoria.svg",
+      "bytes": 335
+    },
+    {
+      "rel": "icons/nav/conversa.svg",
+      "bytes": 320
+    },
+    {
+      "rel": "icons/nav/convidar.svg",
+      "bytes": 289
+    },
+    {
+      "rel": "icons/nav/decisoes.svg",
+      "bytes": 265
+    },
+    {
+      "rel": "icons/nav/equipe.svg",
+      "bytes": 290
+    },
+    {
+      "rel": "icons/nav/kanban.svg",
+      "bytes": 277
+    },
+    {
+      "rel": "icons/nav/mensagens-diretas.svg",
+      "bytes": 319
+    },
+    {
+      "rel": "icons/nav/projetos.svg",
+      "bytes": 247
+    },
+    {
+      "rel": "icons/nav/quadro.svg",
+      "bytes": 272
+    },
+    {
+      "rel": "icons/nav/rotinas.svg",
+      "bytes": 268
+    },
+    {
+      "rel": "icons/nav/skills.svg",
+      "bytes": 315
+    },
+    {
+      "rel": "icons/nav/uso-e-limites.svg",
+      "bytes": 234
+    },
+    {
+      "rel": "icons/nav/visao-geral.svg",
+      "bytes": 254
+    },
+    {
+      "rel": "avatars/atlas-blink-256.webp",
+      "bytes": 13040
+    },
+    {
+      "rel": "avatars/atlas-blink-96.webp",
+      "bytes": 3800
+    },
+    {
+      "rel": "avatars/atlas-blink-48.webp",
+      "bytes": 1822
+    },
+    {
+      "rel": "avatars/atlas-256.webp",
+      "bytes": 13214
+    },
+    {
+      "rel": "avatars/atlas-96.webp",
+      "bytes": 3840
+    },
+    {
+      "rel": "avatars/atlas-48.webp",
+      "bytes": 1836
+    },
+    {
+      "rel": "avatars/bento-blink-256.webp",
+      "bytes": 12162
+    },
+    {
+      "rel": "avatars/bento-blink-96.webp",
+      "bytes": 3566
+    },
+    {
+      "rel": "avatars/bento-blink-48.webp",
+      "bytes": 1700
+    },
+    {
+      "rel": "avatars/bento-256.webp",
+      "bytes": 12402
+    },
+    {
+      "rel": "avatars/bento-96.webp",
+      "bytes": 3616
+    },
+    {
+      "rel": "avatars/bento-48.webp",
+      "bytes": 1706
+    },
+    {
+      "rel": "avatars/nina-blink-256.webp",
+      "bytes": 15906
+    },
+    {
+      "rel": "avatars/nina-blink-96.webp",
+      "bytes": 4606
+    },
+    {
+      "rel": "avatars/nina-blink-48.webp",
+      "bytes": 2080
+    },
+    {
+      "rel": "avatars/nina-256.webp",
+      "bytes": 16258
+    },
+    {
+      "rel": "avatars/nina-96.webp",
+      "bytes": 4642
+    },
+    {
+      "rel": "avatars/nina-48.webp",
+      "bytes": 2068
+    },
+    {
+      "rel": "poses/atlas-aguardando-aprovacao.webp",
+      "bytes": 46962
+    },
+    {
+      "rel": "poses/atlas-aguardando-resposta.webp",
+      "bytes": 46672
+    },
+    {
+      "rel": "poses/atlas-descansando.webp",
+      "bytes": 45248
+    },
+    {
+      "rel": "poses/atlas-disponivel-blink.webp",
+      "bytes": 49288
+    },
+    {
+      "rel": "poses/atlas-disponivel-tail.webp",
+      "bytes": 51372
+    },
+    {
+      "rel": "poses/atlas-disponivel.webp",
+      "bytes": 49542
+    },
+    {
+      "rel": "poses/atlas-erro.webp",
+      "bytes": 50852
+    },
+    {
+      "rel": "poses/atlas-offline.webp",
+      "bytes": 48492
+    },
+    {
+      "rel": "poses/atlas-revisando.webp",
+      "bytes": 56954
+    },
+    {
+      "rel": "poses/atlas-trabalhando.webp",
+      "bytes": 53152
+    },
+    {
+      "rel": "poses/bento-aguardando-aprovacao.webp",
+      "bytes": 35834
+    },
+    {
+      "rel": "poses/bento-aguardando-resposta.webp",
+      "bytes": 37918
+    },
+    {
+      "rel": "poses/bento-descansando.webp",
+      "bytes": 33246
+    },
+    {
+      "rel": "poses/bento-disponivel-blink.webp",
+      "bytes": 45788
+    },
+    {
+      "rel": "poses/bento-disponivel-tail.webp",
+      "bytes": 46068
+    },
+    {
+      "rel": "poses/bento-disponivel.webp",
+      "bytes": 46228
+    },
+    {
+      "rel": "poses/bento-erro.webp",
+      "bytes": 46302
+    },
+    {
+      "rel": "poses/bento-offline.webp",
+      "bytes": 33250
+    },
+    {
+      "rel": "poses/bento-revisando.webp",
+      "bytes": 42274
+    },
+    {
+      "rel": "poses/bento-trabalhando.webp",
+      "bytes": 38900
+    },
+    {
+      "rel": "poses/nina-aguardando-aprovacao.webp",
+      "bytes": 47996
+    },
+    {
+      "rel": "poses/nina-aguardando-resposta.webp",
+      "bytes": 45120
+    },
+    {
+      "rel": "poses/nina-descansando.webp",
+      "bytes": 44940
+    },
+    {
+      "rel": "poses/nina-disponivel-blink.webp",
+      "bytes": 50838
+    },
+    {
+      "rel": "poses/nina-disponivel-tail.webp",
+      "bytes": 54738
+    },
+    {
+      "rel": "poses/nina-disponivel.webp",
+      "bytes": 51540
+    },
+    {
+      "rel": "poses/nina-erro.webp",
+      "bytes": 57406
+    },
+    {
+      "rel": "poses/nina-offline.webp",
+      "bytes": 40140
+    },
+    {
+      "rel": "poses/nina-revisando.webp",
+      "bytes": 50166
+    },
+    {
+      "rel": "poses/nina-trabalhando.webp",
+      "bytes": 49670
+    }
+  ]
+}

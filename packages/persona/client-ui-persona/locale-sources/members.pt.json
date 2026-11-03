@@ -1,0 +1,22 @@
+{
+  "title": "Membros e convites",
+  "subtitle": "Equipes à distância — papéis, links e o que sincroniza",
+  "role.admin": "Administrador",
+  "role.member": "Membro",
+  "role.viewer": "Visualizador",
+  "action.invite": "Convidar por link",
+  "action.revoke": "Revogar acesso",
+  "sync.title": "O que sincroniza",
+  "sync.projects": "Projetos e tarefas autorizados",
+  "sync.vault": "Cofre (conforme visibilidade)",
+  "sync.never": "DMs nunca sobem para a nuvem",
+  "status.pending": "Convite pendente",
+  "status.active": "Ativo",
+  "empty.title": "Só você por enquanto",
+  "empty.hint": "Convide colegas com link e escolha o papel antes de compartilhar dados.",
+  "empty.action": "Gerar convite",
+  "empty.illustration": "Ilustração: equipe vazia",
+  "loading": "Carregando membros…",
+  "error.title": "Não foi possível carregar membros",
+  "error.retry": "Tentar de novo"
+}

@@ -1,0 +1,23 @@
+{
+  "title": "Approvals",
+  "subtitle": "Decisions waiting on you — one question per card",
+  "type.hire": "Hire",
+  "type.vault": "Vault",
+  "type.skill": "Skill",
+  "type.attention": "Task",
+  "hire.title": "Hire {name}?",
+  "attention.title": "Needs you",
+  "vault.title": "Update vault",
+  "skill.title": "New skill proposed",
+  "action.primary.hire": "Review and hire",
+  "action.primary.vault": "Review proposal",
+  "action.primary.skill": "Review skill",
+  "action.primary.attention": "Open task",
+  "action.dismiss": "Dismiss",
+  "empty.title": "Nothing pending",
+  "empty.hint": "Agent proposals for hire, vault, skills, or blocks show up here.",
+  "empty.illustration": "Illustration: empty approvals inbox",
+  "loading": "Loading approvals…",
+  "error.title": "Could not load approvals",
+  "error.retry": "Try again"
+}

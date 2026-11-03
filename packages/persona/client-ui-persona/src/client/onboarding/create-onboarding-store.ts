@@ -2,6 +2,12 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { MockPersonaDraft, TeamTemplateId } from './mock-data.ts'
 import { MOCK_TEMPLATE_ROSTER } from './mock-data.ts'
 
+export interface BuilderMessage {
+  readonly id: string
+  readonly role: 'user' | 'coordinator'
+  readonly body: string
+}
+
 export interface OnboardingState {
   readonly step: 1 | 2 | 3 | 4 | 5
   readonly displayName: string
@@ -9,6 +15,7 @@ export interface OnboardingState {
   readonly templateId: TeamTemplateId
   readonly builderPrompt: string
   readonly roster: readonly MockPersonaDraft[]
+  readonly builderThread: readonly BuilderMessage[]
 }
 
 export interface OnboardingActions {
@@ -16,10 +23,12 @@ export interface OnboardingActions {
   setVaultText(text: string): void
   setTemplate(id: TeamTemplateId): void
   setBuilderPrompt(text: string): void
-  applyBuilderDraft(): void
+  applyBuilderDraft(coordinatorReply: string): void
   next(): void
   back(): void
 }
+
+let messageSeq = 0
 
 const INITIAL: OnboardingState = {
   step: 1,
@@ -28,6 +37,7 @@ const INITIAL: OnboardingState = {
   templateId: 'equipeAnimais',
   builderPrompt: '',
   roster: MOCK_TEMPLATE_ROSTER.equipeAnimais,
+  builderThread: [],
 }
 
 function draftFromPrompt(prompt: string): readonly MockPersonaDraft[] {
@@ -45,10 +55,20 @@ export function createOnboardingStore(): { store: ReturnType<typeof createSnapsh
       store.set({ ...store.getSnapshot(), templateId, roster: MOCK_TEMPLATE_ROSTER[templateId] })
     },
     setBuilderPrompt: (builderPrompt) => { store.set({ ...store.getSnapshot(), builderPrompt }) },
-    applyBuilderDraft: () => {
+    applyBuilderDraft: (coordinatorReply) => {
       const snapshot = store.getSnapshot()
-      const draft = draftFromPrompt(snapshot.builderPrompt)
-      if (draft.length > 0) store.set({ ...snapshot, roster: draft, templateId: 'emBranco' })
+      const trimmed = snapshot.builderPrompt.trim()
+      if (trimmed.length === 0) return
+      const draft = draftFromPrompt(trimmed)
+      const userMsg: BuilderMessage = { id: `m-${++messageSeq}`, role: 'user', body: trimmed }
+      const coordMsg: BuilderMessage = { id: `m-${++messageSeq}`, role: 'coordinator', body: coordinatorReply }
+      store.set({
+        ...snapshot,
+        builderPrompt: '',
+        builderThread: [...snapshot.builderThread, userMsg, coordMsg],
+        roster: draft.length > 0 ? draft : snapshot.roster,
+        templateId: draft.length > 0 ? 'emBranco' : snapshot.templateId,
+      })
     },
     next: () => {
       const snapshot = store.getSnapshot()

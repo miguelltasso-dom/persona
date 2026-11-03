@@ -1,0 +1,55 @@
+.viewport {
+  position: relative;
+  width: 100%;
+  min-height: 18rem;
+  border: 1px solid var(--persona-lilac-200);
+  border-radius: 0.75rem;
+  background: var(--persona-active-surface-alt);
+  overflow: hidden;
+}
+
+.scene {
+  transform-origin: 0 0;
+  transition: transform var(--motion-base) var(--ease-standard);
+}
+
+.edge {
+  stroke: var(--persona-lilac-400);
+  stroke-width: 2;
+  fill: none;
+}
+
+.node {
+  cursor: pointer;
+}
+
+.nodeCircle {
+  fill: var(--persona-lilac-300);
+  stroke: var(--persona-lilac-700);
+  stroke-width: 2;
+}
+
+.nodeLabel {
+  font-size: 0.75rem;
+  fill: var(--persona-active-ink);
+  font-weight: 600;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.listTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.listTable th,
+.listTable td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--persona-lilac-100);
+}

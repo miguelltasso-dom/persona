@@ -1,6 +1,7 @@
 /** Persona theme tokens and motion utilities. */
 
 import './persona-palette.css'
+import '../assets/generated-imports.ts'
 
 export {
   PERSONA_COLOR_TOKENS,

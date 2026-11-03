@@ -1,0 +1,20 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--persona-active-ink) 55%, transparent);
+}
+
+.panel {
+  width: min(42rem, 100%);
+  max-height: min(90vh, 48rem);
+  overflow: auto;
+  padding: 1.5rem;
+  border-radius: var(--persona-radius-lg, 12px);
+  background: var(--persona-active-surface);
+  color: var(--persona-active-ink);
+  box-shadow: 0 24px 48px color-mix(in srgb, var(--persona-active-ink) 25%, transparent);
+}

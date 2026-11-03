@@ -1,0 +1,24 @@
+.frame {
+  display: grid;
+  grid-template-columns: 17rem minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--persona-active-surface);
+  color: var(--persona-active-ink);
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.overlayLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.overlayLayer > * {
+  pointer-events: auto;
+}

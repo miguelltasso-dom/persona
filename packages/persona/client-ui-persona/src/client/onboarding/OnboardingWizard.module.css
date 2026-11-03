@@ -131,10 +131,77 @@
 }
 
 .introItem {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
   padding: 0.75rem;
   border-radius: 0.75rem;
   background: var(--persona-active-surface);
   border: 1px solid var(--persona-lilac-200);
+}
+
+.introAvatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--persona-lilac-300);
+  border: 2px solid var(--persona-lilac-500);
+}
+
+.vaultWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vaultWrapActive .badge {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--persona-active-accent) 35%, transparent);
+}
+
+.vaultActive {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--persona-success);
+}
+
+.builderThread {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.builderUser,
+.builderCoordinator {
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--persona-lilac-200);
+}
+
+.builderUser {
+  background: var(--persona-active-surface);
+}
+
+.builderCoordinator {
+  background: var(--persona-lilac-100);
+}
+
+.builderAuthor {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--persona-lilac-700);
+  margin-bottom: 0.25rem;
+}
+
+.builderBody {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
 }
 
 .introSpeaker {

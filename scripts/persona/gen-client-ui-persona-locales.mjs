@@ -18,6 +18,21 @@ const BUNDLES = [
   { file: 'onboarding', const: 'ONBOARDING_NS', ns: 'persona.onboarding', keyType: 'OnboardingKey' },
   { file: 'persona-editor', const: 'PERSONA_EDITOR_NS', ns: 'persona.personaEditor', keyType: 'PersonaEditorKey' },
   { file: 'hire', const: 'HIRE_NS', ns: 'persona.hire', keyType: 'HireKey' },
+  { file: 'chat', const: 'CHAT_NS', ns: 'persona.chat', keyType: 'ChatKey' },
+  { file: 'kanban', const: 'KANBAN_NS', ns: 'persona.kanban', keyType: 'KanbanKey' },
+  { file: 'knowledge', const: 'KNOWLEDGE_NS', ns: 'persona.knowledge', keyType: 'KnowledgeKey' },
+  { file: 'routines', const: 'ROUTINES_NS', ns: 'persona.routines', keyType: 'RoutinesKey' },
+  { file: 'files', const: 'FILES_NS', ns: 'persona.files', keyType: 'FilesKey' },
+  { file: 'usage', const: 'USAGE_NS', ns: 'persona.usage', keyType: 'UsageKey' },
+  { file: 'connections', const: 'CONNECTIONS_NS', ns: 'persona.connections', keyType: 'ConnectionsKey' },
+  { file: 'profile', const: 'PROFILE_NS', ns: 'persona.profile', keyType: 'ProfileKey' },
+  { file: 'memory', const: 'MEMORY_NS', ns: 'persona.memory', keyType: 'MemoryKey' },
+  { file: 'skills', const: 'SKILLS_NS', ns: 'persona.skills', keyType: 'SkillsKey' },
+  { file: 'approvals', const: 'APPROVALS_NS', ns: 'persona.approvals', keyType: 'ApprovalsKey' },
+  { file: 'rules', const: 'RULES_NS', ns: 'persona.rules', keyType: 'RulesKey' },
+  { file: 'members', const: 'MEMBERS_NS', ns: 'persona.members', keyType: 'MembersKey' },
+  { file: 'importers', const: 'IMPORTERS_NS', ns: 'persona.importers', keyType: 'ImportersKey' },
+  { file: 'canvas', const: 'CANVAS_NS', ns: 'persona.canvas', keyType: 'CanvasKey' },
 ]
 
 function readJson(name) {

@@ -36,6 +36,9 @@
       "path": "../persona-host"
     },
     {
+      "path": "../persona-core"
+    },
+    {
       "path": "../../api/gateway/tsconfig.client.json"
     },
     {

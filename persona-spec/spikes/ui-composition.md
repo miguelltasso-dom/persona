@@ -19,7 +19,7 @@ Como a Persona substitui o shell do DeepSeek Harness sem quebrar boot, RPC `/api
 | --- | --- |
 | `ui-layout` → `AppFrame` + `ctx.layout` + `ThemePresenter` no body | `client-ui-persona` → `PersonaAppFrame` (parte 2) em `'root'` |
 | Filhos declarados em `ui-layout/src/client/index.ts` | Re-declarar os mesmos nomes de slot filho no `register({ name: 'root', children: { … }})` da Persona |
-| `ui-sidebar` ocupa `sidebar` + `shell.leading` | Persona ocupa `sidebar` com navegação pt-BR (Visão geral, Projetos, …) |
+| `ui-sidebar` ocupa `sidebar` + `shell.leading` | Persona ocupa `sidebar` com navegação pt-BR (Visão geral, Projetos, …) e **declara filho `sidebar.settings`** + `renderSlot('sidebar.settings', { wide: true })` para `ui-settings-general` |
 | `ui-conversation` + `ui-chat` ocupam `main` key `conversation` | Persona ocupa `main` com chaves próprias (`overview`, `project`, `channel`, …) |
 
 **Dependência crítica:** desativar `ui-layout` remove `ctx.layout` e o `ThemePresenter` acoplado. A Persona deve **re-fornecer `ctx.layout`** (copiar/adaptar `LayoutController` + store) **ou** manter `ui-layout` desabilitado só depois que o frame Persona incluir presenter de tema (chama `ctx.theme` como hoje). Recomendação Keel: frame Persona reutiliza `ThemePresenter` importado de `ui-layout` via extrair para pacote compartilhado **ou** duplica mínima no plugin Persona (decisão de detalhe Prism + Keel na parte 2).
@@ -60,6 +60,7 @@ Cliente:
 - `modules`, `connection`, `file-upload`, `api-remotes`, `cordis-client-runner`, `client-hmr`
 - `ui-theme`, `locale`, `ui-renderer`, `ui-slots`
 - `ui-persona` (`@deepseek-ai/dsh-client-ui-persona`)
+- **`ui-settings`, `ui-settings-general`** (configForms + painel de preferências; ocupam `sidebar.settings`)
 - `shortcuts`, `ui-shortcuts` (atalhos globais; Persona pode registrar comandos próprios)
 - `resources` (hook `useResource` — regra client AGENTS.md)
 - `ui-session` (recomendado manter até provar que nenhum inject residual exige)
@@ -75,7 +76,9 @@ Cliente:
 - `ui-sidebar-documentpreview`, `ui-sidebar-browser`, `ui-sidebar-terminal`, `ui-sidebar-files`
 - `ui-workspace`, `ui-conversation`, `ui-chat`
 - `ui-brand-official`
-- `ui-settings`, `ui-settings-general`, `ui-settings-models`, `ui-settings-account`, `ui-settings-session-log`, `ui-settings-plugins`, `ui-settings-plugin-inventory`, `ui-settings-shell`, `ui-settings-agent-loop`, `ui-settings-subagent`, `ui-settings-web-search`
+- `ui-settings-models`, `ui-settings-account`, `ui-settings-session-log`, `ui-settings-plugins`, `ui-settings-plugin-inventory`, `ui-settings-shell`, `ui-settings-agent-loop`, `ui-settings-subagent`, `ui-settings-web-search`
+- **Correção 03/11 (Keel, perfil `persona`):** manter **`ui-settings`** + **`ui-settings-general` ATIVOS** — `ui-settings` provê `configForms`, exigido por `locale` / `ui-theme` / `ui-shortcuts`. Desativar quebrava boot silencioso ou plugins downstream.
+- **Também desativar (órfãos sem ui-conversation/ui-workspace):** `message-quotes`, `ui-secret-mask`, `directory-picker`.
 - `ui-plugin-manager`
 - `ui-approval`, `ui-deliverables`, `ui-workflow-run`, `ui-agent-team`, `ui-subagent`
 - `ui-input-trigger`, `ui-commands`, `ui-skill`, `ui-reference`, `ui-plan`, `ui-goal`, `ui-schedule`, `ui-jobs`
@@ -90,7 +93,7 @@ Cliente:
 **Manter ativos (além do mínimo acima)**
 
 - `ui-theme`, `locale`, `ui-renderer`, `ui-slots`, `ui-session`, `resources`, `shortcuts`, `ui-shortcuts`
-- `ui-attachment`, `ui-file-drag`, `ui-secret-mask`, `ui-tool` (render de ferramentas)
+- `ui-attachment`, `ui-file-drag`, `ui-tool` (render de ferramentas)
 - `office-to-pdf` (preview PDF se files voltar)
 - Host rows de sessão/workspace/terminal conforme runners (Keel/Rivet)
 

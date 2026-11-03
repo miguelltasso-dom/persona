@@ -16,6 +16,11 @@ import {
   de as hireDe, en as hireEn, es as hireEs, fr as hireFr, ja as hireJa, HIRE_NS,
   pt as hirePt, ru as hireRu, zh as hireZh, type HireKey,
 } from './locale/hire/locales.ts'
+import {
+  de as chatDe, en as chatEn, es as chatEs, fr as chatFr, ja as chatJa, CHAT_NS,
+  pt as chatPt, ru as chatRu, zh as chatZh, type ChatKey,
+} from './locale/chat/locales.ts'
+import { mountPersonaUi, personaRemote } from './mount.ts'
 import './theme/index.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -24,14 +29,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'persona.onboarding': OnboardingKey
     'persona.personaEditor': PersonaEditorKey
     'persona.hire': HireKey
+    'persona.chat': ChatKey
   }
 }
 
-/** Cordis services this plugin waits for. */
-export const inject = ['locale']
+export { inject } from './mount.ts'
 
-/** Mount Persona dictionaries and theme (shell surfaces register in later milestones). */
-export function apply(ctx: ClientContext): void {
+function registerLocales(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(SHELL_NS, { zh, en, ja, es, fr, de, ru, pt }), 'persona: shell dictionaries')
   ctx.effect(() => ctx.locale.register(ONBOARDING_NS, {
     zh: onboardingZh, en: onboardingEn, ja: onboardingJa, es: onboardingEs,
@@ -43,4 +47,13 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(HIRE_NS, {
     zh: hireZh, en: hireEn, ja: hireJa, es: hireEs, fr: hireFr, de: hireDe, ru: hireRu, pt: hirePt,
   }), 'persona: hire card dictionaries')
+  ctx.effect(() => ctx.locale.register(CHAT_NS, {
+    zh: chatZh, en: chatEn, ja: chatJa, es: chatEs, fr: chatFr, de: chatDe, ru: chatRu, pt: chatPt,
+  }), 'persona: chat dictionaries')
+}
+
+/** Mount Persona Remote, shell root, and locale dictionaries. */
+export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
+  registerLocales(ctx)
+  return mountPersonaUi(ctx, personaRemote)
 }

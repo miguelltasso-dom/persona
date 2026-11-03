@@ -1,0 +1,19 @@
+{
+  "title": "Regras de triagem",
+  "subtitle": "Gate (quem pode pedir) e assessment (o que fazer) em linguagem natural",
+  "field.gate": "Gate — quem pode pedir",
+  "field.assessment": "Assessment — o que fazer",
+  "mode.logOnly": "Só registrar o que faria",
+  "mode.executeOptIn": "Execução especulativa (opt-in)",
+  "log.title": "Log do que teria feito",
+  "log.empty": "Nenhuma simulação ainda",
+  "action.addRule": "Adicionar regra",
+  "action.save": "Salvar regras",
+  "empty.title": "Nenhuma regra",
+  "empty.hint": "Descreva em texto quando a persona pode agir sozinha.",
+  "empty.action": "Criar primeira regra",
+  "empty.illustration": "Ilustração: regras vazias",
+  "loading": "Carregando regras…",
+  "error.title": "Não foi possível carregar regras",
+  "error.retry": "Tentar de novo"
+}

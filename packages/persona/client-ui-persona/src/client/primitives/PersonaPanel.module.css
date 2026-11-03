@@ -1,0 +1,14 @@
+.panel {
+  background: var(--persona-active-surface-alt);
+  border: 1px solid var(--persona-lilac-200);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--persona-lilac-900) 8%, transparent);
+}
+
+.muted {
+  color: var(--persona-active-ink-muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  margin: 0;
+}

@@ -1,0 +1,20 @@
+{
+  "title": "Skills",
+  "subtitle": "Catalog, versions, ratings, and explicit team promotion",
+  "status.active": "Active",
+  "status.candidate": "Candidate",
+  "action.activate": "Activate",
+  "action.rollback": "Rollback version",
+  "action.shareTeam": "Share with team",
+  "action.reviewProposal": "Review proposal",
+  "field.version": "v{version}",
+  "field.rating": "Rating {rating}/5",
+  "proposal.fromAgent": "Proposal from {name}",
+  "empty.title": "No skills",
+  "empty.hint": "Versioned skills live here; agent proposals need explicit promotion.",
+  "empty.action": "Browse catalog",
+  "empty.illustration": "Illustration: empty skills",
+  "loading": "Loading skills…",
+  "error.title": "Could not load skills",
+  "error.retry": "Try again"
+}

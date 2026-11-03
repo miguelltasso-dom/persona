@@ -1,9 +1,26 @@
 {
+  "sidebar.team": "Equipe",
+  "sidebar.search": "Busca",
   "sidebar.overview": "Visão geral",
   "sidebar.projects": "Projetos",
   "sidebar.kanban": "Kanban",
+  "sidebar.knowledge": "Conhecimento",
   "sidebar.routines": "Rotinas",
+  "sidebar.files": "Arquivos",
   "sidebar.channels": "Canais",
   "sidebar.directMessages": "Mensagens diretas",
-  "sidebar.usage": "Uso e limites"
+  "sidebar.usage": "Uso e limites",
+  "sidebar.connections": "Conexões",
+  "overview.attentionTitle": "Precisa de você",
+  "overview.attentionEmpty": "Nada precisa da sua atenção agora.",
+  "overview.attentionSample": "Aprovar proposta de contratação",
+  "overview.hostConnected": "Conectado",
+  "overview.hostOnline": "Persona host online",
+  "overview.hostOffline": "Persona host indisponível",
+  "overview.hostPending": "Conectando ao host…",
+  "brand.name": "Persona",
+  "team.channelStripTitle": "Sua equipe neste canal",
+  "team.statusWorking": "Trabalhando",
+  "team.statusIdle": "Disponível",
+  "team.statusWaiting": "Aguardando você"
 }

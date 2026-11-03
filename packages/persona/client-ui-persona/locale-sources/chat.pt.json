@@ -36,6 +36,7 @@
   "context.drawerTitle": "Contexto usado",
   "context.taskLabel": "Tarefa",
   "context.triggersLabel": "Origens",
+  "context.show": "Ver contexto usado",
   "dm.emptyTitle": "Nenhuma conversa ainda",
   "dm.emptyBody": "Chame alguém da equipe no particular — cada persona responde com o contexto dela.",
   "dm.newConversation": "Nova conversa",

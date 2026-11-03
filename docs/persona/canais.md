@@ -1,8 +1,9 @@
 # Canais, conversas e @menções
 
-- **Geral** — o canal da equipe. A Coordenação responde aqui.
-- **Canal de projeto** — o mesmo, restrito àquele projeto.
-- **Conversa direta (DM)** — entre você e uma persona, ou entre pessoas. Não vaza para resumo, busca ou exportação de quem não participa.
-- **@menção** — chama aquela persona. Sem menção, a Coordenação decide quem entra.
+O **Geral** é o canal da equipe. Escreva o pedido ali. A Coordenação responde.
 
-Uma mensagem sua num assunto que uma Tarefa já segue vai direto a quem está executando. Não precisa repetir o pedido.
+**@menção** chama uma persona. Sem Coordenação, só a @menção gera trabalho.
+
+**Conversa direta** é só sua. Ela não sobe para o espaço enquanto você não compartilhar.
+
+Cartão citado abre a Tarefa real. Resumo de marco aponta para o que aconteceu, não para um texto solto.

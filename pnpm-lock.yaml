@@ -13785,6 +13785,9 @@ importers:
       '@deepseek-ai/dsh-persona-sync':
         specifier: workspace:*
         version: link:../persona-sync
+      '@deepseek-ai/dsh-persona-usage':
+        specifier: workspace:*
+        version: link:../persona-usage
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery

@@ -176,9 +176,19 @@ Importar de `src/client/primitives/index.ts`. Estados obrigatórios em todos: re
 | `Icon` | ícones da marca (`persona-assets/icons/nav`, traço 1,75 arredondado) via máscara CSS → herdam `currentColor`. Ícones de UI adicionais (enviar, anexar, imagem, emoji, mais, sino, ajuda, chevron, fechar, check) no mesmo traço em `primitives/icons.tsx`. Proibido emoji como ícone de UI. |
 | Acentos `Squiggle`, `PawTrail`, `Sparkle` | SVG à mão em `currentColor` (âmbar/lilás): sublinhado ondulado sob 1 título por tela, trilha de patinhas em estados vazios/celebração, faísca em "novo". **Máximo 2 acentos por tela.** |
 
+| `Screen` / `ScreenHeader` | Casca de toda tela principal: rolagem própria, largura máx. 1180 (`reading` 880), cabeçalho com selo do ícone do rail + eyebrow (grupo) + h1 Fredoka 28 + subtítulo + ações (no máx. 1 primária). |
+| `ErrorState` / `PanelBoundary` | Erro honesto: arte `empty-error` + título humano + "Tentar de novo" + detalhe técnico pequeno e selecionável. `PanelBoundary` é o error boundary por painel; o frame ainda tem um **guarda de painel vazio** (2 s sem conteúdo → `ErrorState`), porque o slot do DSH engole crashes. Nunca tela vazia. |
+| `Accent` | Acentos à mão do Brush (`persona-assets/accents`: squiggle-1..3, paw-prints, sparkle-1..2, leaf-1..2, doodle-arrow, doodle-circle, stars-cluster) pintados por máscara com `currentColor`. |
+
+### 5.1 Regra de dados para primitivos com estado externo
+
+Todo `HostObservable` derivado (selectors, bridges) devolve **a mesma referência** enquanto as entradas não mudam (cache por referência). Array/objeto novo a cada `getSnapshot` = React #185 = painel em branco. Teste obrigatório: `tests/observable-bridges.client.spec.ts`.
+
 ## 6. Shell e superfícies-vitrine (padrão para todas as telas)
 
 - **Rail** (272px): lilás com grão; logo = símbolo âmbar + "Persona" Fredoka 700 26px; itens Nunito 700 15px com ícone 22px; item ativo = **pílula creme com contorno ameixa e sombra press** (adesivo colado no rail) e texto ameixa; hover = creme 12%; grupos com sobretítulo eyebrow lilac-200. Rodapé = **colinas ilustradas** (SVG em 3 camadas de lilás) com folhinhas; status do host em pílula sobre a colina.
+- **"Sua equipe" no rail** (pedido do Miguel): logo abaixo da navegação principal. Linha = avatar circular 34 px com contorno ameixa + sombra press, piscar ocasional (`*-blink`), selo de estado 17 px com ícone do Brush (digitando · lupa · aprovação âmbar pulsando devagar · zzz · erro · offline esmaecido); nome Fredoka 15 + cargo 12; o cargo vira o estado no hover/foco (fixo para "aguardando você" e "travado"); contador de não lidas âmbar; clique abre a DM, "⋯" abre o Perfil. Ordem: aguardando você → travado → trabalhando → revisando → descansando → offline. Top 6 + "Ver todos (N)"; "+ Contratar persona" tracejado no fim.
+- **Rail recolhível** (botão ‹ no topo, 76 px): só ícones, avatares com selo e separadores; rótulos viram `aria-label`/`title`; estado em `persona.rail.collapsed.v1`.
 - **Cabeçalho de tela**: ícone da seção em selo quadrado wash com contorno (40px) + título h1 Fredoka + subtítulo ink-soft; ferramentas à direita (IconButtons + avatar do usuário).
 - **Área de conteúdo**: papel com grão; conteúdo em cartões; largura máx. de leitura 1120px.
 
@@ -189,6 +199,10 @@ Importar de `src/client/primitives/index.ts`. Estados obrigatórios em todos: re
 - **Onboarding**: a equipe entra em fila (stagger 80 ms), Atlas acena; o painel é um cartão grande, não um modal de formulário.
 - **Acentos à mão**: ver §5, com parcimônia.
 - Sem silhuetas tracejadas cinzas: persona sem arte usa `Avatar user` (iniciais) ou silhueta lilás preenchida com contorno.
+
+### 7.1 Poses — normalização (pipeline)
+
+`scripts/persona/build-assets.mjs` recorta cada pose pela área opaca (pad 1,5%; base/piscar/cauda com o mesmo recorte) para que todos pisem na mesma linha de chão. Altura exibida = altura da cena × escala da espécie (Atlas 1 · Sol .95 · Nina .92 · Bento .84 · Luna .72) × fator da pose (deitado .56). Personas sem arte: iniciais em círculo, nunca silhueta cinza.
 
 ## 8. Movimento
 

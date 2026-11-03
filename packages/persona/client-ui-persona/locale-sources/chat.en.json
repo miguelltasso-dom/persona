@@ -36,6 +36,7 @@
   "context.drawerTitle": "Context used",
   "context.taskLabel": "Task",
   "context.triggersLabel": "Sources",
+  "context.show": "Show context used",
   "dm.emptyTitle": "No conversations yet",
   "dm.emptyBody": "Message a teammate privately — each persona answers with its own context.",
   "dm.newConversation": "New conversation",

@@ -133,7 +133,7 @@ const onData = async (chunk) => {
         await page.screenshot({ path }); shots.push(path)
         await context.close()
       }
-      const panels = [...wanted].filter(name => name.startsWith('panel:')).map(name => name.slice(6))
+      const panels = [...wanted].filter(name => name.startsWith('panel:')).map(name => name.slice(6).replaceAll('_', ' '))
       if (panels.length > 0) {
         const { context, page } = await open(match[1], scheme, { onboarded: true })
         for (const label of panels) {

@@ -229,6 +229,66 @@
   opacity: 1;
 }
 
+.taskCard {
+  margin: var(--persona-space-2) 0 0;
+  font-size: var(--persona-text-sm);
+}
+
+.taskCardButton {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--persona-space-1);
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: 1px solid var(--persona-border);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-surface-raised);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.taskCardButton:hover {
+  border-color: var(--persona-accent);
+}
+
+.taskCardHint {
+  font-size: var(--persona-text-xs);
+  color: var(--persona-ink-muted);
+}
+
+.contextPanel {
+  margin-top: var(--persona-space-4);
+  padding: var(--persona-space-4);
+  border: 1px solid var(--persona-border);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-surface-raised);
+}
+
+.contextTitle {
+  margin: 0 0 var(--persona-space-2);
+  font-size: var(--persona-text-md);
+  font-weight: 600;
+}
+
+.contextMeta {
+  margin: 0 0 var(--persona-space-2);
+}
+
+.contextLabel {
+  font-size: var(--persona-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--persona-ink-muted);
+}
+
+.contextTriggers {
+  margin: var(--persona-space-1) 0 0;
+  padding-left: var(--persona-space-5);
+  font-size: var(--persona-text-sm);
+}
+
 /* ── Composer dock ──────────────────────────────────────── */
 .composerDock {
   flex-shrink: 0;

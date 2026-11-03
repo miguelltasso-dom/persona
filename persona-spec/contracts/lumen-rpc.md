@@ -55,7 +55,7 @@ Sem `project.rootPath` os métodos **não lançam**. Devolvem `status: 'need-roo
 
 ## Conexões — `listConnections(scope)` (async)
 
-Liga a `detectConnections()` do Rivet (probe dsh + CLIs, cache 60 s). `available` = CLI instalada; `loggedIn`, `loginHint`, `error?` (`cli_not_found` | `not_logged_in` | `quota_exhausted`) via `toUiConnection`. `resolveRunner` no laço: `PersonaHost.inject` inclui `personaRunners`; o factory do host usa `ctx.personaRunners.resolveRunner` quando o plugin está montado.
+Probe em segundo plano no boot do host (timeout **≥ 8 s** por CLI, cache 60 s). Primeira pintura: `phase: 'checking'`, **sem** `error: not_logged_in` (400 ms era falso negativo — auth do Claude ~5 s). UI mostra "verificando…" até `phase: 'ready'`. Só então `loggedIn: false` + `error?` (`cli_not_found` | `not_logged_in` | `quota_exhausted`) e `loginHint`. `resolveRunner` usa `ctx.get('personaRunners')`; `home` vazio = login nativo (`~/.claude`), isolamento só opt-in.
 
 ## Webhook GitHub local
 
@@ -64,6 +64,10 @@ Liga a `detectConnections()` do Rivet (probe dsh + CLIs, cache 60 s). `available
 ## Dead-letter (Precisa de você)
 
 Efeito/outbox que falha 3 vezes vira `listDeadLetters` (`cause` pt-BR, `Tentar de novo` / `Descartar`). Entra em `getOverview.needsYou` e `attentionEvents`. `retryDeadLetter` tira o card e reprocessa o outbox; `discardDeadLetter` só descarta.
+
+## Uso e limites
+
+`getUsage({ workspaceId, period: { from, to }, projectId?, personaId? })` → folds + tokens + runs + `origin` / `originLabel` (oficial da CLI · medido por nós · estimado · indisponível). Sem eventos ≠ 0%. `getOfficialQuota({ workspaceId, projectId, provider? })` → janelas oficiais ou `unavailable`. Limite do mês e spend vêm do mesmo livro SQLite.
 
 ## Exportar
 

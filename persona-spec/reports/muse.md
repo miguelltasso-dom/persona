@@ -44,3 +44,31 @@ bundle (with-lock) → Build complete, 99 files
 
 - Host persona não ativa (`personaRunners` sem inject em `persona-host/src/index.ts:1919`) → "Persona host indisponível", semente de dev não roda → capturas semeadas aguardam (Keel avisado).
 - Kanban do Lumen: laço React #185 no app real (mesma classe de bug; Lumen avisado).
+
+## 2026-11-03 17:30 — Rodada 3: telas do Prism (apresentação) + revisão (e)
+
+**Pronto (fronteira Keel: Muse = JSX/CSS, Prism = dados)**
+
+- **Mensagens diretas**: `chat/DirectMessagesView.tsx` (lista com avatar/última linha/hora/não lidas âmbar, cabeçalho da conversa com retrato + cargo + chip de estado, `MessageList` compartilhada com o #geral, composer, vazio ilustrado `empty-dm` + "Nova conversa", skeleton). `ConnectedDirectMessagesView` agora só mapeia dados → props (`DmRowUi`).
+- **Projetos**: `shell/ProjectsView.tsx` (grade de cartões-adesivo, skeleton, vazio `empty-kanban`, erro). `ProjectsPanel` só passa dados.
+- **Busca**: campo grande 60px raio xl + `Ctrl K` + filtros em `Tabs` (Tudo · Mensagens · Tarefas · Cofre · Arquivos) + vazio `empty-search`. Botão de busca do rail com `aria-label="Busca"` + `aria-keyshortcuts`.
+- **Contratar persona**: cartão com palco (pose acenando), eyebrow âmbar, cargo/harness/ferramentas em chips, nota de política, 1 primário.
+- `MessageList` exportada; cabeçalho do #geral alinhado à coluna de conteúdo em telas largas.
+- `DESIGN-SYSTEM.md` atualizado (§5 Screen/ErrorState/Accent + regra de snapshot estável §5.1; §6 "Sua equipe" + rail recolhível; §7.1 normalização de poses).
+- Teste novo: `tests/observable-bridges.client.spec.ts` (rail team + tenant: mesma referência entre chamadas). Suite: 26 arquivos / 64 testes verdes; tsc/oxlint limpos nos meus diretórios.
+
+**Revisão (e) por captura real (galeria Probe 17:27)** — prancha `.maestri/tmp/shots/design/review-lumen-light.png`
+
+- Lumen: todas as telas já usam Screen + ScreenHeader (ok). Ajustes enviados: loading infinito → timeout + ErrorState; filtros do Kanban sem `<select>` nativo; Importar com 2 primários; tabela de Arquivos estreita; botão de Membros size m; larguras consistentes.
+- **Achado sistêmico (dados)**: com host "Conectado", painéis presos em "Carregando…", #geral/Visão geral vazios e a semente de dev não roda (encadeada após `live.bootstrap`). Hipótese: `bootstrap`/tenant gate não resolve. Registrado no Status para Prism (instrumentar) e Lumen (timeout); Keel avisado.
+
+**Dependências abertas:** capturas semeadas (a) dependem do bootstrap/semente do Prism.
+
+## 2026-11-03 18:30 — P0 (Keel): unwrap único do Remote
+
+**Causa raiz** dos painéis vazios/"Carregando…" e da semente que não rodava: `ctx.remote.persona.*` resolve `RemoteResult` (`{ok,value}` | `{ok:false,error}`), mas `bootstrap-tenant.ts`, `persona-live-store.ts` e `seed-default-team.ts` usavam o retorno cru → `bootstrapPersonaTenant` lançava `channels.find is not a function` (visto no `ErrorState` de Projetos) e o `catch` engolia.
+
+**Correção (autorizada pelo Keel, combinada no Status com o Prism):**
+- `remote/persona-remote-unwrap.ts`: `unwrapPersonaRemote` (Proxy único; reusa `unwrapRemote`; falha → `PersonaRemoteError` com `code`, `method`, mensagem pt-BR + mensagem do host; streams/valores crus passam).
+- `createPersonaLiveStore` envolve o remote uma vez (bootstrap/refresh/semente recebem valores crus); `listProjects` com `await` no bootstrap; `markVisit` sem rejeição solta; `console.error` no catch do bootstrap.
+- Teste `tests/remote-unwrap.client.spec.ts`: host falso que só fala `RemoteResult` — bootstrap → refresh → semente popula os 5 bichos, ≥4 mensagens e a aprovação; falha vira mensagem legível; nenhum método do proxy devolve `RemoteResult` cru. Suite: 29 arquivos / 72 testes verdes.

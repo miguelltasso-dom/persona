@@ -1,35 +1,53 @@
 # Contrato `usage` (D5a)
 
-Dono do livro e dos parsers: **Rivet** (`packages/persona/persona-usage`).
-Remote no host: **Anvil** (`persona-host`) — reexporta estes tipos, não redefine.
-UI: **Lumen** (tela Uso e limites) consome o Remote.
+Dono do port e dos parsers: **Rivet** (`packages/persona/persona-usage`).
+Persistência SQLite + Remote: **Anvil** (`persona-host`) — implementa `UsageStore`, não redefine os tipos.
+UI: **Lumen** (Uso e limites) consome o Remote.
 
 ## Origem (obrigatória)
 
 `measured | estimate | official | unavailable`
 
-Ausência **nunca** é `0%`. Se o vendor não publicou `used_percent`, a janela fica `origin: unavailable` e o campo `usedPercent` é omitido.
+Rótulos pt-BR (`originLabel`):
 
-## Tipos
+| origin | label |
+|---|---|
+| official | oficial da CLI |
+| measured | medido por nós |
+| estimate | estimado |
+| unavailable | indisponível |
+
+Ausência **nunca** é `0%`. Se o vendor não publicou `used_percent`, a janela fica `origin: unavailable` e `usedPercent` é omitido.
+
+## Port `UsageStore`
 
 ```ts
-UsageRecord { provider, model, window, inputTokens, outputTokens, origin, at }
-UsageFold   { provider, model, window, inputTokens, outputTokens, origin, records }
-UsageWindow { id, origin, usedPercent?, windowMinutes?, resetsAt? }
-OfficialQuota { provider, origin, windows, detail? }
+record(event: UsageEvent): void
+query({ from, to, personaId?, projectId? }): UsageEvent[]
+totals({ from, to, personaId?, projectId? }): UsageTotals
 ```
 
-## Fontes oficiais (leitura)
+`UsageEvent`: persona, projeto, CLI/modelo (`provider`/`model`), tokens in/out, `estimatedCost?` (sempre `origin: 'estimate'` + `basis`), `at`.
 
-- OAR `runtime.accountUsage(installation)` — claude e codex → `readOarAccountUsage`
-- Rollouts Codex `~/.codex/sessions/**/rollout-*.jsonl` campo `rate_limits` (5h / weekly) → `readCodexRolloutLimits`
-- Saldo DeepSeek, se o payload existir → `readDeepSeekBalance` (valor não é percent; falta = unavailable)
+`UsageTotals`: tokens, `runs`, `origin` (a mais fraca do grupo), `originLabel`. Livro vazio → `origin: unavailable` / "indisponível" (os zeros são "sem eventos", não cota 0%).
 
-## Estimativa
+Anvil persiste em SQLite. O plugin Rivet traz `createMemoryUsageStore()` para testes. Limites do engine (`tokensPerMonth` / `runs`) leem `totals()` deste livro.
 
-`labelledEstimate` sempre carrega `origin: 'estimate'` e um `basis` visível na UI. Não misturar com oficial sem o rótulo.
+## `officialQuota(cli)`
 
-## Remote sugerido (Anvil)
+OAR `accountUsage` com timeout (8 s) e cache (60 s). Reader injetável (Anvil/runners passam o runtime). Sem token em log. Timeout/payload ausente → `{ origin: 'unavailable', windows: [], detail }` — **nunca** `usedPercent: 0`.
 
-`usage.fold(projectId)` → `UsageFold[]`
-`usage.official(projectId, provider)` → `OfficialQuota`
+## usage-meter (runners)
+
+`resolveRunner({ usageStore, usageScope: { personaId, projectId } })` grava `origin: 'measured'` no port após cada turno. Ou `usage: UsageMeterSink` direto.
+
+## Remote (Anvil) — SQLite v7 `usage_record` / `usage_quota`
+
+```
+getUsage({ workspaceId, period: { from, to }, personaId?, projectId? }): UsageView
+getOfficialQuota({ workspaceId, projectId, provider? }): OfficialQuota[]
+```
+
+Ator do servidor + `can(read, project)`. `UsageView` reexporta folds de `persona-usage` + `originLabel` pt-BR. Livro vazio ⇒ `origin: unavailable` / "indisponível". Período pode cruzar o mês. Medidor do resolveRunner grava `measured` no mesmo livro. `tokensPerMonth` da persona lê o mês UTC.
+
+Não redefinir tipos — importar de `@deepseek-ai/dsh-persona-usage`.

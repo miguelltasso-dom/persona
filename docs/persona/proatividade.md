@@ -1,11 +1,13 @@
 # Proatividade e autonomia
 
-Três modos, por persona:
+A equipe não espera você cobrar.
 
-- **Só quando pedido** — espera você.
-- **Propor** — sugere o próximo passo; você confirma.
-- **Agir** — faz o que o mandato já cobre e relata.
+Três níveis, por persona ou por projeto:
 
-Especulação (ideia fora do pedido) começa em **observar**: a equipe anota, não age.
+- **Só quando pedido** — executa o que você mandou.
+- **Propor** — padrão. Faz o autorizado. Pergunta antes de sair do mandato.
+- **Agir** — segue dentro dos limites. Ainda respeita silêncio e orçamento.
 
-A Coordenação não inventa trabalho contra a política. Pedido hostil no texto da mensagem não amplia o escopo e não muda quem pode originar Tarefa.
+Fora do turno a persona não começa o dia sozinha. Sem saldo de atenção ela fica quieta. Proposta recusada alonga o intervalo da próxima.
+
+A Vigia acorda quem parou. Ela não inventa trabalho novo.

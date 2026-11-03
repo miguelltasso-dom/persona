@@ -54,12 +54,25 @@ const onData = async (chunk) => {
       console.log(`[${scheme}] title="${await page.title()}" text: ${text}`)
       await context.close()
     }
+    let bootstrapNote = 'bootstrap gate: skipped'
+    try {
+      const bootOut = execFileSync(process.execPath, ['--import', 'tsx/esm', 'scripts/persona/exec-bootstrap-gate.mjs', match[1]], { cwd: root, encoding: 'utf8' })
+      bootstrapNote = bootOut.trim().split('\n').pop() ?? bootstrapNote
+    } catch (bootError) {
+      const msg = bootError instanceof Error ? bootError.message : String(bootError)
+      const stderr = bootError && typeof bootError === 'object' && 'stderr' in bootError ? String(bootError.stderr) : ''
+      errors.push(`[bootstrap] ${msg.slice(0, 200)}`)
+      if (stderr.length > 0) errors.push(`[bootstrap] ${stderr.slice(0, 800)}`)
+      bootstrapNote = 'bootstrap gate FAILED (see errors)'
+    }
     const channelCtx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light', locale: 'pt-BR' })
     await channelCtx.addInitScript((seed) => {
+      localStorage.setItem('persona.onboarding.complete.v1', '1')
       if (seed) localStorage.setItem('persona.devSeed.v1', '1')
     }, devSeed)
     const channelPage = await channelCtx.newPage()
     channelPage.on('console', (m) => { if (m.type() === 'error') errors.push(`[channel] ${m.text().slice(0, 300)}`) })
+    channelPage.on('pageerror', (e) => errors.push(`[channel] pageerror ${String(e).slice(0, 300)}`))
     await channelPage.goto(match[1], { waitUntil: 'load' })
     if (!devSeed) await completePersonaOnboardingOverlay(channelPage)
     await channelPage.waitForTimeout(4000)
@@ -98,7 +111,8 @@ const onData = async (chunk) => {
       dirDLine = `dirD compare failed: ${error instanceof Error ? error.message : String(error)}`
     }
     console.log(['--- all console (light) ---', ...all.slice(0, 40)].join('\n'))
-    await finish(0, `console errors (${errors.length}):\n${errors.slice(0, 12).join('\n') || '(none)'}\n${dirDLine}\nshots: ${outDir}/persona-light.png, persona-dark.png, persona-light-channel.png, persona-light-720.png, persona-light-1080.png`)
+    const exitCode = errors.length > 0 ? 1 : 0
+    await finish(exitCode, `${bootstrapNote}\nconsole errors (${errors.length}):\n${errors.slice(0, 12).join('\n') || '(none)'}\n${dirDLine}\nshots: ${outDir}/persona-light.png, persona-dark.png, persona-light-channel.png, persona-light-720.png, persona-light-1080.png`)
   } catch (error) {
     await finish(1, `failed: ${error instanceof Error ? error.message : String(error)}\n${out.slice(-800)}`)
   }

@@ -45,10 +45,16 @@ function avatarFor(authorId: string): string | undefined {
 
 /** #geral — header, illustrated team banner, grouped stream with reactions, full composer (DESIGN-SYSTEM §6–7). */
 export function GeneralChannelView({
-  t, shellT, members, messages, passThroughFollowers = [], turnContext: _turnContext, onLoadTurnContext: _onLoadTurnContext, onSendMessage, onBuildTeam,
+  t,
+  shellT,
+  members,
+  messages,
+  passThroughFollowers = [],
+  turnContext,
+  onLoadTurnContext,
+  onSendMessage,
+  onBuildTeam,
 }: GeneralChannelViewProps): ReactNode {
-  void _turnContext
-  void _onLoadTurnContext
   const composerProps = onSendMessage !== undefined ? { onSend: onSendMessage } : {}
   const userName = messages.find(message => message.authorId === 'user')?.authorName ?? t('message.you')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -102,9 +108,29 @@ export function GeneralChannelView({
                 body={t('stream.emptyBody')}
               />
             ) : (
-              <MessageList t={t} messages={messages} />
+              <MessageList t={t} messages={messages} onLoadTurnContext={onLoadTurnContext} />
             )}
           </div>
+          {turnContext !== null && turnContext !== undefined && (
+            <section className={styles.contextPanel} aria-labelledby="geral-turn-context-title">
+              <h2 id="geral-turn-context-title" className={styles.contextTitle}>{t('context.drawerTitle')}</h2>
+              <p className={styles.contextMeta}>
+                <span className={styles.contextLabel}>{t('context.taskLabel')}</span>
+                {' '}
+                {turnContext.title}
+              </p>
+              {turnContext.triggerIds.length > 0 && (
+                <div>
+                  <p className={styles.contextLabel}>{t('context.triggersLabel')}</p>
+                  <ul className={styles.contextTriggers}>
+                    {turnContext.triggerIds.map(id => (
+                      <li key={id}>{id}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </div>
 
@@ -118,9 +144,10 @@ export function GeneralChannelView({
 }
 
 /** Grouped message stream with day pill (shared by #geral and DMs). */
-export function MessageList({ t, messages }: {
+export function MessageList({ t, messages, onLoadTurnContext }: {
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly messages: readonly ChannelMessageUi[]
+  readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
 }): ReactNode {
   return (
     <>
@@ -133,6 +160,7 @@ export function MessageList({ t, messages }: {
             message={message}
             index={index}
             continued={index > 0 && messages[index - 1]?.authorId === message.authorId}
+            onLoadTurnContext={onLoadTurnContext}
           />
         ))}
       </ol>
@@ -145,8 +173,9 @@ function ChannelMessageRow(props: {
   readonly message: ChannelMessageUi
   readonly index: number
   readonly continued: boolean
+  readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
 }): ReactNode {
-  const { t, message, continued } = props
+  const { t, message, continued, onLoadTurnContext } = props
   const motion = usePersonaMotion({
     preset: 'base',
     fromOpacity: 0,
@@ -184,6 +213,22 @@ function ChannelMessageRow(props: {
           </div>
         )}
         <p className={styles.text}>{message.body}</p>
+        {message.taskTitle !== undefined && message.taskTitle.length > 0 && (
+          <p className={styles.taskCard}>
+            {message.ticketId !== undefined && onLoadTurnContext !== undefined ? (
+              <button
+                type="button"
+                className={styles.taskCardButton}
+                onClick={() => { onLoadTurnContext(message.ticketId!) }}
+              >
+                {message.taskTitle}
+                <span className={styles.taskCardHint}>{t('context.show')}</span>
+              </button>
+            ) : (
+              <span>{message.taskTitle}</span>
+            )}
+          </p>
+        )}
         {reactions.length > 0 && (
           <ul className={styles.reactions} aria-label={t('message.addReaction')}>
             {reactions.map(reaction => (

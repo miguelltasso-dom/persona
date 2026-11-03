@@ -1,11 +1,15 @@
 # Solução de problemas
 
-**CLI não encontrada.** A Persona procura a ferramenta no PATH. Instale a CLI, feche e abra o app. Em Configurações → Conexões o status aparece como ausente até o executável existir.
+**CLI não encontrada.** Instale a ferramenta. Feche e abra o app. Em Configurações → Conexões o status fica ausente até o executável existir no PATH. A Persona não pede token: faça `claude login` (ou o login da CLI) no terminal.
 
-**Host offline.** O app desktop é o anfitrião. Sem ele, a equipe não avalia pedidos novos. Abra o Persona de novo; Tarefas abertas retomam de onde pararam.
+**Não conectado.** A CLI está instalada, mas sem login, ou a chave falta. Abra o terminal, entre na conta, volte em Conexões e atualize.
 
-**Cota esgotada.** A persona chegou no limite de tokens ou de execuções do mês. Espere a janela virar, aumente o limite em Uso, ou troque a conexão. O trabalho já aceito não some; só para de gastar modelo.
+**Host reconectando.** O anfitrião caiu ou o computador dormiu. Espere o cartão voltar a “ligado”. Tarefas abertas retomam. Se travar, feche o app e abra de novo.
+
+**Cota esgotada.** A persona chegou no limite de tokens ou de execuções. Espere a janela virar, aumente o limite em Uso, ou troque a conexão. O trabalho já aceito não some.
 
 **A equipe não responde no canal.** Confira se a Coordenação está no espaço e se a conexão está ligada. Mensagem de robô ou de quem não é membro não vira Tarefa.
 
 **Pediu uma coisa e a Tarefa ficou pequena.** Escopo maior vira Tarefa nova. Isso é regra, não um bug.
+
+**Importação recusada.** O arquivo não é um formato conhecido, ou parece um segredo. Veja a prévia: ela diz o que foi descartado e por quê.

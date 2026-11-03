@@ -13,3 +13,5 @@ O que **pode** sair, só se você ligou a conexão:
 - um webhook que **você** encaminhou (por exemplo GitHub) para virar pedido
 
 Arquivar não apaga. Excluir não deixa resto em busca, resumo ou cache. Um convite revogado corta o acesso na hora — no meio do trabalho inclusive.
+
+Backup e exportação seguem as mesmas regras. Veja [Backup](./backup.md).

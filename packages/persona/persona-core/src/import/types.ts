@@ -6,9 +6,26 @@
 export type ImportKind = 'preference' | 'decision' | 'skill' | 'memory' | 'message'
 export type ImportPrivacy = 'workspace' | 'project' | 'private'
 
+/** Mark every adapter until Miguel drops a real sample. */
+export const IMPORT_SCHEMA_PRESUMED = 'esquema presumido — validar com amostra real'
+
+export const IMPORT_UNRECOGNIZED =
+  'Não reconheci este arquivo. Use uma pasta Markdown/Obsidian, um zip do Notion, ou a exportação do ChatGPT, do Claude ou do Gemini.'
+
 export interface ImportFile {
   name: string
   text: string
+  /** Persona DM. Never becomes workspace without {@link ImportFile.shared}. */
+  dm?: boolean
+  /** Person marked the private/DM payload as shared. */
+  shared?: boolean
+}
+
+export interface ImportCounts {
+  accepted: number
+  rejected: number
+  duplicates: number
+  discarded: number
 }
 
 export interface ImportCandidate {
@@ -23,12 +40,17 @@ export interface ImportCandidate {
 export interface ImportRejection {
   externalId: string
   reason: string
+  /** pt-BR, one idea. */
+  why?: string
 }
 
 export interface ImportPreview {
   adapterId: string
   accepted: ImportCandidate[]
   rejected: ImportRejection[]
+  counts?: ImportCounts
+  /** Always true until a real sample confirms the export. */
+  presumedSchema?: boolean
 }
 
 export interface ImportBatch {

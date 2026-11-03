@@ -242,6 +242,9 @@ export {
 export type {
   SoakOpen, SoakOutbox, SoakPersistence, SoakReport, SoakSize,
 } from './soak/sim.ts'
+export { CrashError, FaultyRepositories } from './crash/faulty.ts'
+export { CRASH_STEPS, formatCrashReport, openCrashWorld, runCrashSweep } from './crash/sweep.ts'
+export type { CrashOpen, CrashReport, CrashStep, CrashStepResult } from './crash/sweep.ts'
 export {
   ASSIGNMENTS, INPUTS, TICKET_STATES, triggerCard, ticketCard, inputLine, assignmentLine,
   newestPage, ticketDetails, threadCard, decisionCard, decisionDetails, textPage,

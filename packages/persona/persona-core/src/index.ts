@@ -187,23 +187,30 @@ export type {
 
 export {
   IMPORT_ADAPTERS,
+  IMPORT_SCHEMA_PRESUMED,
+  IMPORT_UNRECOGNIZED,
   MemoryImportStore,
   applyImport,
   chatgptAdapter,
   claudeAdapter,
+  expandWikilinks,
+  geminiAdapter,
   grokAdapter,
   looksLikeCredential,
   looksLikeSecret,
   markdownAdapter,
+  notionAdapter,
   previewImport,
   refuseSecrets,
   rollbackImport,
+  stripFrontmatter,
 } from './import/index.ts'
 
 export type {
   ImportAdapter,
   ImportBatch,
   ImportCandidate,
+  ImportCounts,
   ImportFile,
   ImportKind,
   ImportPreview,

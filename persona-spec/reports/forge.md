@@ -4,6 +4,92 @@ Mais recente no topo.
 
 ---
 
+## 03/11 17:50 — Queda+resume, importadores F1, guia
+
+### O que ficou pronto
+- **Consistência sob queda:** `FaultyRepositories` / `CrashError` em cada passo (receive → archive). Varre N escritas. Nenhum N falhou. Resume sem Tarefa perdida/duplicada nem reply duplicado. `defineCrashSuite` para o Anvil (SQLite aborta o tx). Relato em `bench-crash.md`.
+- **Importadores F1:** Markdown/Obsidian (wikilink, frontmatter, anexo com aviso), Notion (.md/.csv), ChatGPT, Claude.ai, Gemini Takeout. Prévia com contagem, duplicados e motivo. Credencial recusada. DM sem compartilhar não sobe. Reimportar não duplica. Rollback. Fixtures sintéticas. Cada formato marcado **esquema presumido — validar com amostra real**. Arquivo irreconhecível: pt-BR claro. Campos extras ignorados.
+- **Guia:** `docs/persona/*` + `README.persona.md` — onboarding, Revisar (Aceitar / Pedir ajustes / Descartar), conexões e Não conectado, login CLI, bandeja, Precisa de você, backup/DPAPI mesma conta, exportar, privacidade, problemas (CLI, host reconectando, cota). Uma ideia por frase.
+
+### Arquivos
+- `persona-engine/src/crash/*`, `tests/contract/crash.contract.ts`, `tests/crash.spec.ts`
+- `persona-core/src/import/{types,apply,markdown,notion,gemini,chatgpt,claude,index}.ts` + `tests/import.spec.ts`
+- `docs/persona/*`, `README.persona.md`, `persona-spec/contracts/crash.md`, `reports/bench-crash.md`
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 10.0s
+persona-engine: OK in 17.1s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-core packages/persona/persona-engine
+ Test Files  74 passed (74)   # review-delivery 5s flake 1×, retry 6/6
+      Tests  453 passed (453)
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 51.8s
+```
+
+### Limitações
+- Sem CLI real (Keel: orçamento da rodada já usado).
+- Esquemas de importação são presumidos até amostra real do Miguel.
+- Runner/archive: 0 escritas no repo em memória (entrega já no start; retenção é outro store).
+- Fila Keel (queda / F1 / guia) vazia no território Forge.
+
+---
+
+## 03/11 17:25 — F3 modelo real + parser sujo + soak 7 dias
+
+### O que ficou pronto
+- **F3 com modelo real:** `resolveRunner({ cli: claude, model: haiku, permissionMode: prompt })`, 10 cenários discriminantes (não o prefixo do corpus). Rodada 1 (prompts velhos) **5/10**; ajustes em `prompts/templates` (injeção → ignore, escopo maior → Tarefa nova, ambíguo → uma pergunta); rodada 2 **8/10**. Restam d1/h1 (silent). Sem tokens/segredos. O 41/41 do CI continua fake.
+- **Parser sujo:** reparo determinístico → 1 pedido de reparo → degrade "não entendi a resposta da persona" + Precisa de você. Sem Tarefa criada por saída duvidosa. Corpus: JSON truncado, cerca ```json, prosa, chaves duplicadas, enum errado, extras, unicode/CRLF, saída enorme, JSON de outro esquema + fuzz `0xD1B7`.
+- **Soak 7 dias** (semente `0x50A7`): 3 projetos × 5 personas; iniciativa, Vigia, puxada, orçamento, retenção, silêncio, runner falha/volta, host 10×, sono +8 h, DST Lisbon, fuso São Paulo→Lisboa. Invariantes verdes. Números em `bench-soak.md`. Memória + `defineSoakSuite` para o Anvil (SQLite).
+
+### Arquivos
+- `packages/persona/persona-engine/src/parse/model-output.ts`, `src/router/handlers.ts` (`personaRouteFromModel` / report / propose)
+- `src/bench/coord-eval.ts`, `src/prompts/templates.ts`, `src/soak/sim.ts`, `src/initiative.ts`, `scripts/coord-real-cli.ts`
+- testes `parse-model-output`, `soak`, `initiative-zone`, `contract/soak.contract.ts`
+- `persona-spec/reports/bench-router-eval.md`, `bench-soak.md`, `contracts/soak.md`
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 6.2s
+persona-engine: OK in 14.2s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-core packages/persona/persona-engine
+ Test Files  73 passed (73)
+      Tests  447 passed (447)
+   Start at  17:22:29
+   Duration  17.36s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 47.7s
+```
+
+```
+PERSONA_REAL_CLI=1 pnpm exec tsx packages/persona/persona-engine/scripts/coord-real-cli.ts
+r1 … 5/10   r2 … 8/10
+```
+
+### Limitações
+- Rodada 2: `d1` duplicate e `h1` handoff saíram `silent` (sem 3ª rodada; teto 2×10). Linha extra no despacho depois da 2ª, não remedida.
+- Soak cria 1 Tarefa/projeto (thread único; follow-ups não abrem outra).
+- F1 do PLAN ainda espera amostras reais do Miguel.
+- Fila Keel (real CLI / parser / soak) vazia no território Forge.
+
+---
+
 ## 03/11 16:10 — ReviewDelivery + eval F3 + equipes-modelo
 
 ### O que ficou pronto

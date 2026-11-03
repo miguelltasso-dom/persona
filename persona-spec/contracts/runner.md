@@ -54,7 +54,7 @@ detectConnections({ timeoutMs?: 8000, cacheMs?: 60_000, force?, runtimes? }): Pr
 // { id, kind:'dsh'|'cli', installed, loggedIn, models, version?, usageOrigin?, loginHint?, error? }
 ```
 
-Cache 60 s. Timeout curto por CLI. Sem segredos. `loginHint` pede para abrir o terminal (`claude login` / `codex login` / …) — nunca pede token.
+Cache 60 s. Timeout padrão 8 s por CLI (auth do Claude ~5 s; 400 ms era falso `not_logged_in`). Timeout/throw ⇒ `authUnknown: true`, **não** `not_logged_in`. Sem segredos. `loginHint` pede para abrir o terminal (`claude login` / `codex login` / …) — nunca pede token.
 
 ## Fábricas (Anvil / `persona-host` orchestration)
 
@@ -63,7 +63,8 @@ Rivet exporta de `@deepseek-ai/dsh-persona-runners`:
 - `createCoordinationDriver` — sessão longa da Coordenação (sem bash; P6 `composePrompt`).
 - `createExecutorAdapter` — Effects → port `Runner`.
 - `createDshSessionRunner` / `createOarSessionRunner` / `createClaudeRunner` / `createCodexRunner` / `createOpencodeRunner` / `createCursorRunner`.
-- Login nativo por padrão: runners Claude/Codex/OpenCode passam `SessionOptions.env` que **remove** `CLAUDE_CONFIG_DIR` / `CODEX_HOME` herdados; isolamento só com `configDir` / `homeDir` explícitos ou `PERSONA_ISOLATE_CLI_CONFIG=1`. Cursor não recebe `env` (OAR recusa). Resume Codex faz `dispose` da sessão viva antes de reabrir (writer exclusivo).
+- Login nativo por padrão: runners Claude/Codex/OpenCode passam `SessionOptions.env` que **remove** `CLAUDE_CONFIG_DIR` / `CODEX_HOME` herdados. `home` isolado (`<PERSONA_HOME>/runners/<id>`) **copia** só ficheiros de auth allowlist ou **aponta** ao HOME real — nunca aplica um dir vazio que derrube o login. Isolamento cru só com `configDir` / `homeDir` explícitos no factory ou `PERSONA_ISOLATE_CLI_CONFIG=1`. Cursor não recebe `env` (OAR recusa).
+- Saída de CLI tipo "Not logged in" / "Please run /login" / "please sign in" **não** vira `delta`: o adapter lança `RunnerResolveError('not_logged_in')` com `loginHint`. Resume Codex faz `dispose` da sessão viva antes de reabrir (writer exclusivo).
 - **Codex / OAR 0.67 (contorno):** o runtime muitas vezes conclui `prompt()` sem emitir `turn_ended` e manda texto em `agent_message`/`item` em vez de `text_delta`. O adapter trata `status().kind === 'idle'` depois do `accepted` como fim de turno e mapeia esses kinds para `delta`. `model: 'default'` **não** é enviado ao OAR (o ChatGPT Codex rejeita o literal `default`). Sem isso o smoke fica `exec sem done`. (Keel: ecoar em D-024 se quiser no DECISIONS.)
 
 ## Proatividade (PRO-3)

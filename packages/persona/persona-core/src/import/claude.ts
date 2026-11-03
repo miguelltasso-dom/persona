@@ -1,5 +1,6 @@
 /**
- * Claude.ai export (conversations array with chat_messages).
+ * Claude.ai export (conversations array with chat_messages). Extra fields ignored.
+ * esquema presumido — validar com amostra real.
  */
 
 import type { ImportAdapter, ImportCandidate, ImportFile } from './types.ts'
@@ -17,7 +18,7 @@ interface ClaudeConversation {
 
 export const claudeAdapter: ImportAdapter = {
   id: 'claude',
-  label: 'Claude.ai export',
+  label: 'Claude.ai export (esquema presumido — validar com amostra real)',
   sniff(files: readonly ImportFile[]): boolean {
     return files.some(file => file.text.includes('"chat_messages"') && file.text.includes('"uuid"'))
   },
@@ -38,6 +39,6 @@ export const claudeAdapter: ImportAdapter = {
       const body = [title, ...(conversation.chat_messages ?? []).map(item => item.text ?? '').filter(Boolean)].join('\n\n')
       accepted.push({ kind: 'message', externalId: `claude:${id}`, body, privacy: 'private', status: 'proposed' })
     }
-    return { adapterId: 'claude', accepted, rejected: [] }
+    return { adapterId: 'claude', accepted, rejected: [], presumedSchema: true }
   },
 }

@@ -1,5 +1,6 @@
 /**
- * ChatGPT export (`conversations.json`).
+ * ChatGPT export (`conversations.json`). Extra fields are ignored.
+ * esquema presumido — validar com amostra real.
  */
 
 import type { ImportAdapter, ImportCandidate, ImportFile } from './types.ts'
@@ -25,7 +26,7 @@ function partsOf(conversation: ChatGptConversation): string {
 
 export const chatgptAdapter: ImportAdapter = {
   id: 'chatgpt',
-  label: 'ChatGPT export',
+  label: 'ChatGPT export (esquema presumido — validar com amostra real)',
   sniff(files: readonly ImportFile[]): boolean {
     return files.some(file => file.name.endsWith('conversations.json') && file.text.includes('"mapping"'))
   },
@@ -46,6 +47,6 @@ export const chatgptAdapter: ImportAdapter = {
       const body = `${title}\n\n${partsOf(conversation)}`.trim()
       accepted.push({ kind: 'message', externalId: `chatgpt:${id}`, body, privacy: 'private', status: 'proposed' })
     }
-    return { adapterId: 'chatgpt', accepted, rejected: [] }
+    return { adapterId: 'chatgpt', accepted, rejected: [], presumedSchema: true }
   },
 }

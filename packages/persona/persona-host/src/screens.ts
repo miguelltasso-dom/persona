@@ -31,7 +31,11 @@ import {
 import type { Orchestration } from './orchestration.ts'
 import type {
   ApprovalView,
+  CanvasEdgeView,
+  CanvasGraphView,
+  CanvasNodeView,
   ConfirmImportRequest,
+  DailySummaryView,
   DecideApprovalRequest,
   ImportBatchView,
   ImportPreviewView,
@@ -82,6 +86,7 @@ interface SkillProposal {
   readonly skillId: string
   readonly title: string
   readonly status: 'pending' | 'approved' | 'rejected'
+  readonly creatorPersonaId: string
 }
 
 /**
@@ -320,6 +325,11 @@ export class ScreensHost {
         ? `Regra ${request.ruleId} ausente.`
         : `Teria aplicado «${rule.gateText}» a «${request.text.slice(0, 80)}».`,
       mode,
+      threadId: request.ruleId,
+      gateText: rule?.gateText ?? '',
+      assessmentText: rule?.assessmentText ?? '',
+      decidedBy: 'simulate',
+      reason: mode,
     }
     this.screens.put(request.projectId, KIND_LOG, row.id, row)
     return row
@@ -353,7 +363,7 @@ export class ScreensHost {
       createdAt: this.now(),
     })
     this.screens.put(request.projectId, KIND_HIRE, request.id, proposal)
-    return hireCard(proposal)
+    return hireCard(proposal, this.personaName(request.projectId, request.creatorPersonaId))
   }
 
   /**
@@ -378,7 +388,7 @@ export class ScreensHost {
       createdAt: this.now(),
     })
     this.screens.put(request.projectId, KIND_VAULT, request.id, proposal)
-    return vaultCard(proposal)
+    return vaultCard(proposal, this.personaName(request.projectId, request.creatorPersonaId))
   }
 
   /**
@@ -387,9 +397,85 @@ export class ScreensHost {
   proposeSkill(request: ProposeSkillRequest): ApprovalView {
     const row: SkillProposal = {
       id: request.id, skillId: request.skillId, title: request.title, status: 'pending',
+      creatorPersonaId: request.creatorPersonaId,
     }
     this.screens.put(request.projectId, KIND_SKILL_PROP, request.id, row)
-    return { id: row.id, kind: 'skill', title: row.title, question: `Ativar ${row.title}?`, status: 'pending' }
+    return {
+      id: row.id, kind: 'skill', title: row.title, question: `Ativar ${row.title}?`,
+      status: 'pending', personaId: request.creatorPersonaId, personaName: this.personaName(request.projectId, request.creatorPersonaId),
+    }
+  }
+
+  /**
+   * Persist a real intake decision (gate + assessment) for a thread.
+   * @param projectId - Tenant.
+   * @param entry - Trail line without id.
+   */
+  recordTriage(projectId: string, entry: Omit<TriageLogView, 'id'>): TriageLogView {
+    const row: TriageLogView = { ...entry, id: `triage:${entry.threadId}:${entry.at}` }
+    this.screens.put(projectId, KIND_LOG, row.id, row)
+    return row
+  }
+
+  /**
+   * Today's pending proposals grouped by the proposing persona.
+   * @param projectId - Tenant.
+   */
+  listDailySummaries(projectId: string): DailySummaryView[] {
+    const date = this.now().slice(0, 10)
+    const pending = this.listApprovals(projectId).filter(item => item.status === 'pending' && item.kind !== 'attention')
+    const byPersona = new Map<string, DailySummaryView>()
+    for (const item of pending) {
+      const key = item.personaId === '' ? 'team' : item.personaId
+      const existing = byPersona.get(key)
+      if (existing === undefined) {
+        byPersona.set(key, {
+          personaId: item.personaId,
+          personaName: item.personaName,
+          date,
+          proposals: [item],
+        })
+        continue
+      }
+      byPersona.set(key, { ...existing, proposals: [...existing.proposals, item] })
+    }
+    return [...byPersona.values()]
+  }
+
+  /**
+   * Personas, open tickets and decisions as a spatial graph.
+   * @param projectId - Tenant.
+   */
+  listCanvas(projectId: string): CanvasGraphView {
+    const personas = this.product.listPersonas(projectId)
+    const tickets = this.orchestration.runtime(projectId).repo.tickets.list()
+    const nodes: CanvasNodeView[] = []
+    const edges: CanvasEdgeView[] = []
+    personas.forEach((persona, index) => {
+      nodes.push({
+        id: `persona:${persona.id}`,
+        kind: 'persona',
+        label: persona.name,
+        x: 80,
+        y: 80 + index * 90,
+      })
+    })
+    tickets.forEach((ticket, index) => {
+      const nodeId = `task:${ticket.id}`
+      nodes.push({
+        id: nodeId,
+        kind: 'task',
+        label: ticket.title,
+        x: 280,
+        y: 80 + index * 90,
+      })
+      const owner = personas.find(persona => persona.name === ticket.execution?.name)
+        ?? personas.find(persona => persona.systemRoles.includes('coordination'))
+      if (owner !== undefined) {
+        edges.push({ id: `e:${owner.id}:${ticket.id}`, from: `persona:${owner.id}`, to: nodeId })
+      }
+    })
+    return { nodes, edges }
   }
 
   /**
@@ -397,16 +483,18 @@ export class ScreensHost {
    */
   listApprovals(projectId: string): ApprovalView[] {
     const cards: ApprovalView[] = [
-      ...this.screens.list<PersonaProposal>(projectId, KIND_HIRE).map(hireCard),
-      ...this.screens.list<VaultProposal>(projectId, KIND_VAULT).map(vaultCard),
+      ...this.screens.list<PersonaProposal>(projectId, KIND_HIRE).map(row => hireCard(row, this.personaName(projectId, row.creatorPersonaId))),
+      ...this.screens.list<VaultProposal>(projectId, KIND_VAULT).map(row => vaultCard(row, this.personaName(projectId, row.creatorPersonaId))),
       ...this.screens.list<SkillProposal>(projectId, KIND_SKILL_PROP).map(row => ({
         id: row.id, kind: 'skill' as const, title: row.title, question: `Ativar ${row.title}?`, status: row.status,
+        personaId: row.creatorPersonaId, personaName: this.personaName(projectId, row.creatorPersonaId),
       })),
     ]
     for (const ticket of this.orchestration.runtime(projectId).repo.tickets.list()) {
       if (ticket.attention === undefined) continue
       cards.push({
         id: ticket.id, kind: 'attention', title: ticket.title, question: ticket.title, status: 'pending',
+        personaId: '', personaName: ticket.execution?.name ?? '',
       })
     }
     return cards
@@ -425,7 +513,12 @@ export class ScreensHost {
     return {
       id: request.id, kind: 'attention', title: request.id,
       question: request.id, status: request.accept ? 'approved' : 'rejected',
+      personaId: '', personaName: '',
     }
+  }
+
+  private personaName(projectId: string, personaId: string): string {
+    return this.product.getPersona(personaId)?.name ?? this.product.listPersonas(projectId).find(item => item.id === personaId)?.name ?? personaId
   }
 
   /**
@@ -587,7 +680,7 @@ export class ScreensHost {
         createdBy: proposal.creatorPersonaId,
       }, request.projectId)
     }
-    return hireCard(next)
+    return hireCard(next, this.personaName(request.projectId, next.creatorPersonaId))
   }
 
   private decideVault(request: DecideApprovalRequest): ApprovalView {
@@ -601,7 +694,7 @@ export class ScreensHost {
       applyVaultProposal(current, decided)
       this.vault.updateRecord(proposal.recordId, proposal.nextBody, proposal.creatorPersonaId)
     }
-    return vaultCard(decided)
+    return vaultCard(decided, this.personaName(request.projectId, decided.creatorPersonaId))
   }
 
   private decideSkill(request: DecideApprovalRequest): ApprovalView {
@@ -615,7 +708,10 @@ export class ScreensHost {
         this.screens.put(request.projectId, KIND_SKILL, skill.id, { ...skill, enabled: true })
       }
     }
-    return { id: next.id, kind: 'skill', title: next.title, question: `Ativar ${next.title}?`, status: next.status }
+    return {
+      id: next.id, kind: 'skill', title: next.title, question: `Ativar ${next.title}?`, status: next.status,
+      personaId: next.creatorPersonaId, personaName: this.personaName(request.projectId, next.creatorPersonaId),
+    }
   }
 }
 
@@ -633,17 +729,19 @@ function toBatchView(batch: { id: string; adapterId: string; applied: readonly u
   return { id: batch.id, adapterId: batch.adapterId, applied: batch.applied.length, rolledBack: batch.rolledBack }
 }
 
-function hireCard(proposal: PersonaProposal): ApprovalView {
+function hireCard(proposal: PersonaProposal, personaName: string): ApprovalView {
   return {
     id: proposal.id, kind: 'hire', title: proposal.spec.name,
     question: `Contratar ${proposal.spec.name}?`, status: proposal.status,
+    personaId: proposal.creatorPersonaId, personaName,
   }
 }
 
-function vaultCard(proposal: VaultProposal): ApprovalView {
+function vaultCard(proposal: VaultProposal, personaName: string): ApprovalView {
   return {
     id: proposal.id, kind: 'vault', title: proposal.recordId,
     question: 'Atualizar registro no Cofre?', status: proposal.status,
+    personaId: proposal.creatorPersonaId, personaName,
   }
 }
 

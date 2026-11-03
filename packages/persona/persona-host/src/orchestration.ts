@@ -19,7 +19,13 @@ import {
   type Ticket,
   type Trigger,
 } from '@deepseek-ai/dsh-persona-engine'
-import { createCoordinationDriver, wordCount } from '@deepseek-ai/dsh-persona-runners'
+import {
+  createCoordinationDriver,
+  createFakeRunner,
+  isRunnerResolveError,
+  loginHintFor,
+  wordCount,
+} from '@deepseek-ai/dsh-persona-runners'
 import {
   SqliteOutbox,
   SqliteRepositories,
@@ -28,7 +34,16 @@ import {
   type StoredEvent,
   type StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
-import { createHostRunner, type HostRunnerFactory } from './runner.ts'
+import type { AutonomyMode } from './types.ts'
+import {
+  autonomyLevelOf,
+  createHostRunner,
+  permissionModeOf,
+  runnerHomeOf,
+  specOfPersona,
+  type HostRunnerFactory,
+  type HostRunnerRequest,
+} from './runner.ts'
 
 /** One project's live engine bound to SQLite. */
 export class ProjectRuntime {
@@ -45,12 +60,12 @@ export class ProjectRuntime {
   /**
    * @param repo - SQLite engine repositories for this project.
    * @param now - Instant factory.
-   * @param runnerFactory - Rivet Runner (scripted by default).
+   * @param _runnerFactory - Unused; per-persona resolve happens in {@link Orchestration.resolveFor}.
    */
-  constructor(repo: SqliteRepositories, now: () => string, runnerFactory: HostRunnerFactory = createHostRunner) {
+  constructor(repo: SqliteRepositories, now: () => string, _runnerFactory?: HostRunnerFactory) {
     this.repo = repo
     this.outbox = new SqliteOutbox(repo.store, repo.projectId, now)
-    this.runnerReady = runnerFactory().then((runner) => {
+    this.runnerReady = Promise.resolve(createFakeRunner()).then((runner) => {
       this.runner = runner
       return runner
     })
@@ -118,9 +133,15 @@ export class Orchestration {
     readonly product: ProductRepos,
     readonly events: EventRepos,
     readonly store: SqliteRepositories['store'],
-    readonly now: () => string = () => new Date().toISOString(),
-    readonly runnerFactory: HostRunnerFactory = createHostRunner,
-  ) {}
+    now: () => string = () => new Date().toISOString(),
+    runnerFactory: HostRunnerFactory = createHostRunner,
+  ) {
+    this.now = now
+    this.runnerFactory = runnerFactory
+  }
+
+  now: () => string
+  runnerFactory: HostRunnerFactory
 
   /**
    * Engine runtime for a project. Creates it on first use.
@@ -137,6 +158,13 @@ export class Orchestration {
       if (latest?.state !== 'running') continue
       created.engine.assignmentInterrupted(ticket.id, latest.id)
       created.recoveryNotes.push(RECOVERY_NOTE)
+    }
+    this.advanceAssignments(created)
+    if (created.recoveryNotes.length > 0) {
+      this.work = this.work.then(() => this.recover(created, projectId)).catch((error: unknown) => {
+        if (error instanceof Error && /not open/i.test(error.message)) return
+        throw error
+      })
     }
     return created
   }
@@ -161,11 +189,19 @@ export class Orchestration {
       this.advanceAssignments(rt)
       return
     }
-    this.decidePending(rt, event.body)
+    const work = wantsWork(event.body)
+    this.decidePending(rt, event.body, work)
     this.advanceAssignments(rt)
+    if (!work) {
+      this.replySimple(rt, event, coordination)
+      return
+    }
     this.bindExecution(rt, event.projectId)
     this.streamAck(event, coordination)
-    this.work = this.work.then(() => this.runLaunched(rt, event, coordination))
+    this.work = this.work.then(() => this.runLaunched(rt, event, coordination)).catch((error: unknown) => {
+      if (error instanceof Error && /not open/i.test(error.message)) return
+      throw error
+    })
   }
 
   /**
@@ -173,7 +209,11 @@ export class Orchestration {
    * @param projectId - Tenant.
    */
   async flush(projectId: string): Promise<void> {
-    await this.runtime(projectId).runnerReady
+    try {
+      await this.runtime(projectId).runnerReady
+    } catch (error: unknown) {
+      if (!isRunnerResolveError(error)) throw error
+    }
     await this.work
   }
 
@@ -196,8 +236,17 @@ export class Orchestration {
   tick(projectId: string): void {
     const rt = this.runtime(projectId)
     this.pass(projectId)
-    this.decidePending(rt, '')
+    this.decidePending(rt, '', true)
     this.advanceAssignments(rt)
+  }
+
+  /**
+   * Close the review thread so a ready ticket becomes Concluído.
+   * @param projectId - Tenant.
+   * @param ticketId - Ticket in Em revisão.
+   */
+  completeReview(projectId: string, ticketId: string): void {
+    this.runtime(projectId).engine.threadClosed({ source: 'review', id: ticketId }, 'merged', this.now())
   }
 
   /**
@@ -205,13 +254,31 @@ export class Orchestration {
    * @param projectId - Tenant.
    */
   resume(projectId: string): void {
-    const rt = this.runtime(projectId)
-    for (const ticket of rt.repo.tickets.open()) {
-      const latest = latestAssignment(ticket)
-      if (latest?.state !== 'running') continue
-      rt.engine.assignmentInterrupted(ticket.id, latest.id)
-      rt.recoveryNotes.push(RECOVERY_NOTE)
+    this.runtime(projectId)
+  }
+
+  private async recover(rt: ProjectRuntime, projectId: string): Promise<void> {
+    const ticket = rt.repo.tickets.list().find(item => latestAssignment(item)?.state === 'running')
+    if (ticket === undefined) return
+    const trigger = rt.repo.triggers.get(ticket.origin.triggerId)
+    const project = this.product.getProject(projectId)
+    const thread = trigger?.threads[0]
+    const ownerId = thread?.id ?? 'geral'
+    const streamKind = thread?.source === 'dm' ? 'dm' : 'channel'
+    const event: StoredEvent = {
+      id: ticket.origin.triggerId,
+      streamId: `${streamKind}:${ownerId}`,
+      workspaceId: project?.workspaceId ?? '',
+      projectId,
+      seq: 0,
+      type: 'message',
+      body: trigger?.text ?? ticket.title,
+      actorId: trigger?.actor.id ?? '',
+      subjectId: ticket.origin.triggerId,
+      occurredAt: this.now(),
+      deleted: false,
     }
+    await this.runLaunched(rt, event, this.coordinationOf(projectId))
   }
 
   /**
@@ -236,11 +303,15 @@ export class Orchestration {
     this.runtime(projectId).engine.evaluateDue()
   }
 
-  private decidePending(rt: ProjectRuntime, text: string): void {
+  private decidePending(rt: ProjectRuntime, text: string, work: boolean): void {
     const title = clip(text.split(/\r?\n/, 1)[0] ?? text, 80) || 'Pedido'
     for (const candidate of rt.candidates.splice(0)) {
       const triggerId = candidate.triggers[0]?.id
       if (triggerId === undefined) continue
+      if (!work) {
+        rt.engine.decide(triggerId, { kind: 'ignore', reason: 'answered', evalId: candidate.evalId })
+        continue
+      }
       rt.engine.decide(triggerId, {
         kind: 'accept',
         title,
@@ -290,49 +361,112 @@ export class Orchestration {
     }
   }
 
+  private async resolveFor(
+    persona: StoredPersona,
+    projectId: string,
+    mode: AutonomyMode,
+  ): Promise<Runner> {
+    const request: HostRunnerRequest = {
+      spec: specOfPersona(persona.runner),
+      permissionMode: permissionModeOf(mode),
+      autonomy: autonomyLevelOf(mode),
+      home: runnerHomeOf(projectId),
+      personId: persona.id,
+    }
+    return this.runnerFactory(request)
+  }
+
+  private reportResolveFailure(
+    rt: ProjectRuntime,
+    event: StoredEvent,
+    coordination: StoredPersona | undefined,
+    ticketId: string,
+    error: { code: string; message: string },
+  ): void {
+    rt.engine.report(ticketId, {
+      state: 'blocked',
+      summary: error.message,
+      question: error.message,
+    })
+    const needsUser = error.code === 'not_logged_in' || error.code === 'quota_exhausted'
+    const hint = needsUser && error.code === 'not_logged_in'
+      ? loginHintFor(cliOf(error.message))
+      : error.message
+    this.postCoord(event, coordination, `coord-${ticketId}-done`, `Precisa de você: ${hint}`)
+  }
+
   private async runLaunched(
     rt: ProjectRuntime,
     event: StoredEvent,
     coordination: StoredPersona | undefined,
   ): Promise<void> {
-    const runner = await rt.runnerReady
-    const coordinationPersona = coordination ?? this.coordinationOf(event.projectId)
-    if (coordinationPersona !== undefined) {
-      const driver = createCoordinationDriver({
-        runner,
-        persona: {
-          id: coordinationPersona.id,
-          name: coordinationPersona.name,
-          instructions: coordinationPersona.instructions,
-        },
-        cwd: '.',
-      })
-      await driver.start()
-      await driver.deliver(`ingest:${event.id}`, event.body, 'queue')
-    }
-    for (const ticket of rt.repo.tickets.list()) {
-      const latest = latestAssignment(ticket)
-      if (latest?.state !== 'running') continue
-      const sessionId = workerSessionId(ticket.id)
-      const recovery = rt.recoveryNotes.includes(RECOVERY_NOTE)
-      await runner.ensureSession(sessionId, ticket.execution?.directory ?? '.', ticket.title, 'worker')
-      await runner.deliver(
-        sessionId,
-        recovery ? `recovery:${latest.id}` : `launch:${latest.id}`,
-        recovery ? `${RECOVERY_NOTE}\n${ticket.title}` : (ticket.execution?.assignment ?? ticket.title),
-        recovery ? 'steer' : 'queue',
-      )
-      await runner.whenIdle(sessionId)
-      const ask = wantsAttention(ticket.title) || wantsAttention(event.body)
-      rt.engine.report(ticket.id, ask
-        ? { state: 'waiting', summary: 'Precisa de uma decisão.', question: ticket.title }
-        : { state: 'ready', summary: 'scripted' })
-      this.postCoord(
-        event,
-        coordinationPersona,
-        `coord-${ticket.id}-done`,
-        ask ? `Precisa de você: ${ticket.title}` : clipWords(`Pronto: ${ticket.title}`),
-      )
+    try {
+      await rt.runnerReady
+      const coordinationPersona = coordination ?? this.coordinationOf(event.projectId)
+      const executor = this.executorOf(event.projectId) ?? coordinationPersona
+      if (executor === undefined) return
+      let runner: Runner
+      try {
+        runner = await this.resolveFor(executor, event.projectId, 'asked')
+      } catch (error: unknown) {
+        if (!isRunnerResolveError(error)) throw error
+        for (const ticket of rt.repo.tickets.list()) {
+          if (latestAssignment(ticket)?.state !== 'running') continue
+          if (this.events.has(`coord-${ticket.id}-done`)) continue
+          this.reportResolveFailure(rt, event, coordinationPersona, ticket.id, error)
+        }
+        return
+      }
+      if (coordinationPersona !== undefined) {
+        const driver = createCoordinationDriver({
+          runner,
+          persona: {
+            id: coordinationPersona.id,
+            name: coordinationPersona.name,
+            instructions: coordinationPersona.instructions,
+          },
+          cwd: '.',
+        })
+        await driver.start()
+        await driver.deliver(`ingest:${event.id}`, event.body, 'queue')
+      }
+      for (const ticket of rt.repo.tickets.list()) {
+        const latest = latestAssignment(ticket)
+        if (latest?.state !== 'running') continue
+        const doneId = `coord-${ticket.id}-done`
+        if (this.events.has(doneId)) continue
+        const sessionId = workerSessionId(ticket.id)
+        const recovery = rt.recoveryNotes.includes(RECOVERY_NOTE)
+        await runner.ensureSession(sessionId, ticket.execution?.directory ?? '.', ticket.title, 'worker')
+        await runner.deliver(
+          sessionId,
+          recovery ? `recovery:${latest.id}` : `launch:${latest.id}`,
+          recovery ? `${RECOVERY_NOTE}\n${ticket.title}` : (ticket.execution?.assignment ?? ticket.title),
+          recovery ? 'steer' : 'queue',
+        )
+        await runner.whenIdle(sessionId)
+        const ask = wantsAttention(ticket.title) || wantsAttention(event.body)
+        if (ask) {
+          rt.engine.report(ticket.id, {
+            state: 'waiting', summary: 'Precisa de uma decisão.', question: ticket.title,
+          })
+        } else {
+          const live = rt.repo.tickets.get(ticket.id)
+          if (live !== undefined && (live.follows === undefined || live.follows.length === 0)) {
+            rt.engine.bindThread(ticket.id, { source: 'review', id: ticket.id }, true)
+          }
+          rt.engine.report(ticket.id, { state: 'ready', summary: 'scripted' })
+        }
+        this.postCoord(
+          event,
+          coordinationPersona,
+          doneId,
+          ask ? `Precisa de você: ${ticket.title}` : clipWords(`Pronto: ${ticket.title}`),
+        )
+      }
+    } catch (error) {
+      if (error instanceof Error && /not open/i.test(error.message)) return
+      throw error
     }
   }
 
@@ -342,6 +476,7 @@ export class Orchestration {
     id: string,
     body: string,
   ): void {
+    if (this.events.has(id)) return
     this.events.append({
       id,
       workspaceId: event.workspaceId,
@@ -354,6 +489,24 @@ export class Orchestration {
       subjectId: event.subjectId,
       occurredAt: this.now(),
     })
+  }
+
+  private replySimple(
+    rt: ProjectRuntime,
+    event: StoredEvent,
+    coordination: StoredPersona | undefined,
+  ): void {
+    const text = clipWords('Olá — em que posso ajudar?')
+    try {
+      rt.engine.reply({ purpose: 'answer', triggerId: event.id, text })
+    } catch {
+      // Scripted path still posts even if the outbox purpose refuses.
+    }
+    this.postCoord(event, coordination, `coord-${event.id}-reply`, text)
+    for (const message of rt.outbox.pending()) {
+      this.postCoord(event, coordination, `coord-${message.id}`, clipWords(message.text))
+      rt.outbox.settle(message.id, 'sent')
+    }
   }
 
   private executorOf(projectId: string): StoredPersona | undefined {
@@ -396,4 +549,13 @@ function clipWords(value: string): string {
 
 function wantsAttention(text: string): boolean {
   return /\?|precisa de você|aprovar/iu.test(text)
+}
+
+function wantsWork(text: string): boolean {
+  return /preciso|implement|cri[ae]|adicion|consert|corrig|escrev|readme|deploy|faz(er)?\b|tarefa|ticket|aprov/iu.test(text)
+}
+
+function cliOf(message: string): string {
+  const match = /CLI (\S+)/u.exec(message)
+  return match?.[1] ?? 'dsh'
 }

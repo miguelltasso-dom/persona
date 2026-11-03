@@ -453,7 +453,28 @@ CREATE TABLE screen_doc (
 CREATE INDEX screen_doc_kind ON screen_doc (project_id, kind, updated_at);
 `
 
-/** Adjacent shipped layout: v1 product… v4 proactivity, v5 screen remotes. */
+const V6_RETENTION = `
+CREATE TABLE retention_record (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  archived_at INTEGER,
+  body TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX retention_record_kind ON retention_record (kind, archived_at);
+
+CREATE TABLE retention_index (
+  key TEXT PRIMARY KEY,
+  record_id TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE retention_cache (
+  record_id TEXT PRIMARY KEY
+) STRICT;
+`
+
+/** Adjacent shipped layout: v1 product… v5 screens, v6 retention. */
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -474,5 +495,9 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 5,
     sql: V5_SCREENS,
+  },
+  {
+    version: 6,
+    sql: V6_RETENTION,
   },
 ]

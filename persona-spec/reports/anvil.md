@@ -4,6 +4,68 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 03/11 15:54 — Fio condutor + gaps Lumen + retenção + sync local
+
+### 1. Fio condutor real (prioridade 1)
+`#geral` → Intake/Eval → Coordenação decide. Mensagem sem trabalho (**sem Ticket**): resposta persistida. Pedido: Ticket `doing` → runner scriptado (`createHostRunner` = `createDefaultHostRunner`) → `review` (ou `blocked` + “Precisa de você”) → `runTicketCommand({ command: 'complete' })` → `done`. Resposta da Coordenação no SQLite; `followMessages` entrega o baseline. Reinício: Assignment interrompida retoma; id `coord-<ticket>-done` é idempotente (sem duplicar). Relógio do host é injetável (`orchestration.now`).
+
+`resolveRunner` **não** trocado: Rivet ainda não avisou no Status. `listConnections` já chama `detectConnections()` (timeout 400 ms, cache 60 s).
+
+### 2. Gaps Lumen
+Contrato: `persona-spec/contracts/lumen-rpc.md`.
+- `listCanvas` — personas + tickets
+- `listDailySummaries` — propostas do dia por persona
+- `listRoutineSchedule` — rotinas + runs do agendador
+- `listTriageLog` — trilha por thread (gate, assessment, quem, por quê)
+- Arquivos: `status: 'need-root'` + `message: "escolha a pasta do projeto"` (não lança); `setProjectRoot`
+
+### 3. Retenção
+Schema v6. `SqliteRetention` + `applySqliteRetention` (mesma `applyRetention` do Forge + VACUUM). Arquivar ≠ apagar; excluir recusado com derivados; índice/cache somem. Suíte `defineRetentionSuite(..., 'sqlite')`.
+
+### 4. Sync local
+`apps/persona-edge/tests/client-cycle.spec.ts`: 2 `SyncClient` + `HttpTransport` no `wrangler` local — convite, DM recusado no cliente, offline→flush, cifra. Sem conta/deploy.
+
+### Arquivos
+- `packages/persona/persona-host/src/{orchestration,index,types,screens,files}.ts`
+- `packages/persona/persona-host/tests/{conductor,orchestration,files,screens}.spec.ts`
+- `packages/persona/persona-store/src/{constants,migrations,index,events/repos,retention/store}.ts`
+- `packages/persona/persona-store/tests/{open,retention.contract}.spec.ts`
+- `apps/persona-edge/tests/client-cycle.spec.ts`
+- `persona-spec/contracts/lumen-rpc.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-store/tests packages/persona/persona-host/tests
+ Test Files  24 passed (24)
+      Tests  318 passed (318)
+```
+
+```
+pnpm exec vitest run apps/persona-edge/tests/client-cycle.spec.ts apps/persona-edge/tests/edge.spec.ts packages/persona/persona-sync/tests/sync.spec.ts
+ Test Files  3 passed (3)
+      Tests  9 passed (9)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 11.8s
+persona-store: OK in 6.3s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 33.2s
+```
+
+### Limitações
+- `ctx.personaRunners.resolveRunner` ainda não está no plugin; laço continua no fake/scripted (opt-in `PERSONA_REAL_CLI=1`).
+- Lumen precisa ligar os painéis aos RPCs novos (contrato publicado).
+- Retenção não tem tique automático no host — chamar `applySqliteRetention`.
+- Runner scriptado não gasta modelo.
+
+---
+
 ## 03/11 15:29 — E-gh — GitHub Source IO via `gh` + webhook no engine
 
 ### O que ficou pronto

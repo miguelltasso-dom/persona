@@ -227,24 +227,44 @@ export interface ProjectFileEntry {
   readonly kind: 'file' | 'directory'
 }
 
-/** Directory listing confined to the project root. */
+/** Directory listing confined to the project root. `need-root` means choose the folder. */
 export interface ProjectFileListing {
+  readonly status: 'ok' | 'need-root'
   readonly path: string
   readonly entries: readonly ProjectFileEntry[]
+  readonly message: string
 }
 
 /** Stat of one confined path. */
 export interface ProjectFileStat {
+  readonly status: 'ok' | 'need-root'
   readonly path: string
-  readonly kind: 'file' | 'directory'
+  readonly kind: 'file' | 'directory' | 'missing'
   readonly bytes: number
+  readonly message: string
 }
 
 /** UTF-8 file body confined to the project root. */
 export interface ProjectFileText {
+  readonly status: 'ok' | 'need-root'
   readonly path: string
   readonly text: string
   readonly bytes: number
+  readonly message: string
+}
+
+/** Set or clear the project file root. Empty `rootPath` clears it. */
+export interface SetProjectRootRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly rootPath: string
+}
+
+/** Result of {@link SetProjectRootRequest}. */
+export interface ProjectRootView {
+  readonly projectId: string
+  readonly rootPath: string
+  readonly status: 'ok' | 'cleared'
 }
 
 /** Create a routine. Empty silence fields mean no quiet window. */
@@ -331,7 +351,7 @@ export interface TicketCommandRequest {
   readonly workspaceId: string
   readonly projectId: string
   readonly ticketId: string
-  readonly command: 'stop' | 'retry' | 'reevaluate' | 'dismiss'
+  readonly command: 'stop' | 'retry' | 'reevaluate' | 'dismiss' | 'complete'
   readonly reason: string
 }
 
@@ -367,6 +387,34 @@ export interface OnboardingState {
   readonly hasPersonalProject: boolean
   readonly firstUse: boolean
   readonly personalProjectId: string
+  readonly completed: boolean
+}
+
+/** One persona on the onboarding wire (no hardcoded names). */
+export interface OnboardingPersonaSpec {
+  readonly name: string
+  readonly title: string
+  readonly description: string
+  readonly personality: string
+  readonly instructions: string
+  readonly avatarKind: 'gallery' | 'upload' | 'silhouette'
+  readonly avatarRef: string
+  readonly runnerKind: 'dsh' | 'cli'
+  readonly runnerCli: string
+  readonly runnerModel: string
+  readonly canRecruit: boolean
+  readonly systemRoles: readonly ('coordination' | 'watchdog')[]
+}
+
+/** Idempotent first-run. Empty `cofreSeed` skips the vault proposal. */
+export interface CompleteOnboardingRequest {
+  readonly workspaceId: string
+  readonly personalProjectId: string
+  readonly displayName: string
+  readonly team: readonly OnboardingPersonaSpec[]
+  readonly templateIds: readonly string[]
+  readonly runnerChoices: readonly string[]
+  readonly cofreSeed: string
 }
 
 /** Detected CLI or connection (read-only probe). */
@@ -374,6 +422,66 @@ export interface ConnectionView {
   readonly id: string
   readonly kind: 'claude' | 'codex' | 'cursor' | 'opencode' | 'dsh'
   readonly available: boolean
+  readonly loginHint: string
+}
+
+/** Desktop notification policy (Rivet). */
+export interface AttentionPolicyView {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly delivery: 'summary' | 'ping'
+  readonly proposalBudget: number
+  readonly quietStart: string
+  readonly quietEnd: string
+}
+
+/** Set the attention policy. */
+export interface PutAttentionPolicyRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly delivery: 'summary' | 'ping'
+  readonly proposalBudget: number
+  readonly quietStart: string
+  readonly quietEnd: string
+}
+
+/** One grouped attention line for the desktop. */
+export interface AttentionEventView {
+  readonly id: string
+  readonly kind: 'needs-you' | 'review'
+  readonly title: string
+  readonly ticketId: string
+  readonly at: string
+}
+
+/** Stream frame for {@link attentionEvents}. */
+export interface AttentionStreamFrame {
+  readonly kind: 'baseline' | 'upsert'
+  readonly events: readonly AttentionEventView[]
+}
+
+/** Retention policy (archive-only by default). */
+export interface RetentionPolicyView {
+  readonly archiveOnly: boolean
+  readonly quietStart: string
+  readonly quietEnd: string
+}
+
+/** Put retention policy. */
+export interface PutRetentionPolicyRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly archiveOnly: boolean
+  readonly quietStart: string
+  readonly quietEnd: string
+}
+
+/** One archive/delete log line. */
+export interface RetentionLogView {
+  readonly id: string
+  readonly at: string
+  readonly action: 'archived' | 'deleted'
+  readonly recordId: string
 }
 
 /** Context a turn used (ticket origin + latest inputs). */
@@ -606,12 +714,17 @@ export interface ProjectLimitsView {
   readonly tokensPerProjectMonth: number
 }
 
-/** One triage simulation line. */
+/** One triage trail line (gate + assessment per thread). */
 export interface TriageLogView {
   readonly id: string
   readonly at: string
   readonly summary: string
   readonly mode: 'logOnly' | 'execute'
+  readonly threadId: string
+  readonly gateText: string
+  readonly assessmentText: string
+  readonly decidedBy: string
+  readonly reason: string
 }
 
 /** Simulate a triage rule against text. */
@@ -636,6 +749,52 @@ export interface ApprovalView {
   readonly title: string
   readonly question: string
   readonly status: 'pending' | 'approved' | 'rejected'
+  readonly personaId: string
+  readonly personaName: string
+}
+
+/** Daily proactive proposals grouped by persona. */
+export interface DailySummaryView {
+  readonly personaId: string
+  readonly personaName: string
+  readonly date: string
+  readonly proposals: readonly ApprovalView[]
+}
+
+/** Canvas node (spatial graph). */
+export interface CanvasNodeView {
+  readonly id: string
+  readonly kind: 'persona' | 'task' | 'topic' | 'decision'
+  readonly label: string
+  readonly x: number
+  readonly y: number
+}
+
+/** Canvas edge. */
+export interface CanvasEdgeView {
+  readonly id: string
+  readonly from: string
+  readonly to: string
+}
+
+/** Spatial graph for the Canvas surface. */
+export interface CanvasGraphView {
+  readonly nodes: readonly CanvasNodeView[]
+  readonly edges: readonly CanvasEdgeView[]
+}
+
+/** Routine plus its scheduler runs (RoutinesView). */
+export interface RoutineScheduleView {
+  readonly id: string
+  readonly projectId: string
+  readonly name: string
+  readonly rrule: string
+  readonly timeZone: string
+  readonly paused: boolean
+  readonly catchUp: 'skip' | 'run_once' | 'run_all'
+  readonly silenceStart: string
+  readonly silenceEnd: string
+  readonly runs: readonly RoutineRunView[]
 }
 
 /** Decide an approval. */
@@ -675,6 +834,7 @@ export interface ProposeSkillRequest {
   readonly id: string
   readonly skillId: string
   readonly title: string
+  readonly creatorPersonaId: string
 }
 
 /** Memory row. */

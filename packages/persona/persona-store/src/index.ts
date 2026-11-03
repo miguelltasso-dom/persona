@@ -46,6 +46,8 @@ export { SqliteEffectPersistence } from './engine/effects.ts'
 export { SqliteOutbox } from './engine/outbox.ts'
 export type { OutboxPass } from './engine/outbox.ts'
 
+export { SqliteRetention, applySqliteRetention } from './retention/store.ts'
+
 export { SqliteSyncLog } from './sync/log.ts'
 export { SqliteImportStore } from './import/store.ts'
 export { SqliteInviteBook } from './invite/book.ts'

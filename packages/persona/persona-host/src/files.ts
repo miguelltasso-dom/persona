@@ -38,7 +38,7 @@ export function listProjectFiles(rootPath: string, rel: string): ProjectFileList
       kind: entry.isDirectory() ? 'directory' : 'file',
     }))
     .sort((left, right) => left.name.localeCompare(right.name))
-  return { path: rel, entries }
+  return { status: 'ok', path: rel, entries, message: '' }
 }
 
 /**
@@ -52,9 +52,11 @@ export function statProjectFile(rootPath: string, rel: string): ProjectFileStat 
   const info = statSync(target)
   if (!info.isFile() && !info.isDirectory()) throw new Error('not-regular')
   return {
+    status: 'ok',
     path: rel,
     kind: info.isDirectory() ? 'directory' : 'file',
     bytes: info.isFile() ? info.size : 0,
+    message: '',
   }
 }
 
@@ -70,7 +72,7 @@ export function readProjectFile(rootPath: string, rel: string): ProjectFileText 
   if (!info.isFile()) throw new Error('not-regular')
   const text = readFileSync(target, 'utf8')
   if (text.includes('\0')) throw new Error('not-text')
-  return { path: rel, text, bytes: info.size }
+  return { status: 'ok', path: rel, text, bytes: info.size, message: '' }
 }
 
 function resolveExisting(rootPath: string, rel: string): string {

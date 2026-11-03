@@ -132,7 +132,7 @@ it('approvals cover hire, vault, skill and decide hire creates the persona', () 
   })
   h.proposeVault({ ...scope, id: 'ap-v', creatorPersonaId: 'p1', recordId: vault.id, nextBody: 'Tom novo.' })
   h.putSkill({ ...scope, id: 'sk1', name: 'PR', body: 'Revise o diff.', sharedWithTeam: true })
-  h.proposeSkill({ ...scope, id: 'ap-s', skillId: 'sk1', title: 'PR' })
+  h.proposeSkill({ ...scope, id: 'ap-s', skillId: 'sk1', title: 'PR', creatorPersonaId: 'p1' })
   expect(h.listApprovals(scope).map(item => item.kind).sort()).toEqual(['hire', 'skill', 'vault'])
   expect(h.decideApproval({ ...scope, id: 'ap-h', kind: 'hire', accept: true }).status).toBe('approved')
   expect(h.listPersonas(scope).some(item => item.id === 'hire:ap-h')).toBe(true)
@@ -158,4 +158,22 @@ it('skill versions increment and rollback restores the previous body', () => {
   const rolled = h.rollbackSkill({ ...scope, id: 'sk1' })
   expect(rolled.body).toBe('v1')
   expect(rolled.version).toBe(3)
+})
+
+it('feeds daily summaries, canvas, triage trail and routine schedule', () => {
+  const h = host()
+  const { scope } = seed(h)
+  h.proposeHire({
+    ...scope, id: 'ap-h', creatorPersonaId: 'p1', name: 'Sol', title: 'Suporte', description: 'Atende.',
+  })
+  const summaries = h.listDailySummaries(scope)
+  expect(summaries[0]?.personaId).toBe('p1')
+  expect(summaries[0]?.proposals.length).toBe(1)
+  expect(h.listCanvas(scope).nodes.some(node => node.kind === 'persona')).toBe(true)
+  h.createRoutine({
+    ...scope, id: 'r1', name: 'Stand-up', rrule: 'FREQ=DAILY', timeZone: 'America/Sao_Paulo',
+    catchUp: 'skip', silenceStart: '', silenceEnd: '',
+  })
+  h.scheduleRoutine({ ...scope, id: 'r1', runId: 'run-1', scheduledFor: '2026-11-03T12:00:00.000Z' })
+  expect(h.listRoutineSchedule(scope)[0]?.runs).toHaveLength(1)
 })

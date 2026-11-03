@@ -14,11 +14,14 @@ import {
   openPersonaStore,
   type PersonaStore,
 } from '@deepseek-ai/dsh-persona-store'
+import { detectConnections } from '@deepseek-ai/dsh-persona-runners'
 import { GithubSourceHost, detectGh } from './github.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { ScreensHost } from './screens.ts'
 import { draftPersonaFromDescription, draftTeamFromDescription } from './draft.ts'
 import { Orchestration } from './orchestration.ts'
+import { OnboardingHost } from './onboarding.ts'
+import { HostScheduler, inQuietWindow } from './scheduler.ts'
 import {
   listProjectFiles,
   readProjectFile,
@@ -42,7 +45,15 @@ import type {
   MessagePage,
   MessageStreamFrame,
   MessageView,
+  AttentionEventView,
+  AttentionPolicyView,
+  AttentionStreamFrame,
+  CompleteOnboardingRequest,
   OnboardingState,
+  PutAttentionPolicyRequest,
+  PutRetentionPolicyRequest,
+  RetentionLogView,
+  RetentionPolicyView,
   OverviewView,
   ParticipationRequest,
   PauseRoutineRequest,
@@ -60,6 +71,9 @@ import type {
   ProjectFileRequest,
   ProjectFileStat,
   ProjectFileText,
+  ProjectRootView,
+  RoutineScheduleView,
+  SetProjectRootRequest,
   ProjectScopeRequest,
   ProjectView,
   RoutineRunRequest,
@@ -78,7 +92,9 @@ import type {
   TickProactivityRequest,
   WhileAwayView,
   ApprovalView,
+  CanvasGraphView,
   ConfirmImportRequest,
+  DailySummaryView,
   DecideApprovalRequest,
   ImportBatchRequest,
   ImportBatchView,
@@ -115,7 +131,9 @@ export { openHostSync, openHostSyncFromEnv } from './sync.ts'
 export { ProactivityHost } from './proactivity.ts'
 export { ScreensHost } from './screens.ts'
 export { GithubSourceHost, detectGh } from './github.ts'
-export { createHostRunner } from './runner.ts'
+export { createHostRunner, resolveHostRunner } from './runner.ts'
+export { OnboardingHost } from './onboarding.ts'
+export { HostScheduler } from './scheduler.ts'
 export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -159,6 +177,8 @@ export default class PersonaHost extends TypertRemoteService {
   readonly proactivity: ProactivityHost
   readonly screens: ScreensHost
   readonly github: GithubSourceHost
+  readonly onboarding: OnboardingHost
+  readonly scheduler: HostScheduler
 
   /**
    * @param ctx - Host context.
@@ -178,16 +198,25 @@ export default class PersonaHost extends TypertRemoteService {
       new ProactivityRepos(this.store),
       this.orchestration,
     )
+    const screenRepos = new ScreenRepos(this.store)
     this.screens = new ScreensHost(
       this.product,
       this.vault,
-      new ScreenRepos(this.store),
+      screenRepos,
       new SqliteInviteBook(this.store),
       new SqliteImportStore(this.store),
       this.orchestration,
     )
+    this.onboarding = new OnboardingHost(this.product, this.events, screenRepos, this.screens)
+    this.scheduler = new HostScheduler(this.store, screenRepos)
     this.github = new GithubSourceHost(detectGh(), this.orchestration, this.proactivity)
+    for (const workspace of this.product.listWorkspaces()) {
+      for (const project of this.product.listProjects(workspace.id)) {
+        this.scheduler.arm(project.id)
+      }
+    }
     ctx.effect(() => () => {
+      this.scheduler.dispose()
       this.store.close()
     })
   }
@@ -515,6 +544,68 @@ export default class PersonaHost extends TypertRemoteService {
   listTriageLog(request: ProjectScopeRequest): TriageLogView[] {
     this.requireProject(request)
     return this.screens.listLog(request.projectId)
+  }
+
+  /**
+   * Today's pending proposals grouped by persona (Aprovações — resumo diário).
+   * @param request - Tenant.
+   */
+  @Remote
+  listDailySummaries(request: ProjectScopeRequest): DailySummaryView[] {
+    this.requireProject(request)
+    return this.screens.listDailySummaries(request.projectId)
+  }
+
+  /**
+   * Spatial graph for Canvas: personas, tickets, edges.
+   * @param request - Tenant.
+   */
+  @Remote
+  listCanvas(request: ProjectScopeRequest): CanvasGraphView {
+    this.requireProject(request)
+    return this.screens.listCanvas(request.projectId)
+  }
+
+  /**
+   * Routines plus scheduler runs (RoutinesView).
+   * @param request - Tenant.
+   */
+  @Remote
+  listRoutineSchedule(request: ProjectScopeRequest): RoutineScheduleView[] {
+    this.requireProject(request)
+    return this.routines.list(request.projectId).map(routine => ({
+      id: routine.id,
+      projectId: routine.projectId,
+      name: routine.name,
+      rrule: routine.rrule,
+      timeZone: routine.timeZone,
+      paused: routine.paused,
+      catchUp: routine.catchUp,
+      silenceStart: routine.silenceStart ?? '',
+      silenceEnd: routine.silenceEnd ?? '',
+      runs: this.routines.listRuns(routine.id).map(toRunView),
+    }))
+  }
+
+  /**
+   * Set the project file root. Empty path clears it.
+   * @param request - Tenant and absolute path.
+   */
+  @Remote
+  setProjectRoot(request: SetProjectRootRequest): ProjectRootView {
+    this.requireProject(request)
+    const current = this.product.getProject(request.projectId)
+    if (current === undefined) throw new Error('project-not-found')
+    this.product.updateProject(request.projectId, {
+      name: current.name,
+      description: current.description,
+      rootPath: request.rootPath === '' ? null : request.rootPath,
+    })
+    return {
+      projectId: request.projectId,
+      rootPath: request.rootPath,
+      status: request.rootPath === '' ? 'cleared' : 'ok',
+    }
   }
 
   /**
@@ -963,6 +1054,22 @@ export default class PersonaHost extends TypertRemoteService {
       occurredAt: request.occurredAt,
     })
     this.orchestration.ingest(stored, request.streamKind, request.ownerId)
+    const ticketed = this.orchestration.runtime(request.projectId).repo.tickets.list()
+      .some(ticket => ticket.origin.triggerId === request.id)
+    const answered = this.events.has(`coord-${request.id}-reply`)
+    if (ticketed || answered) {
+      this.screens.recordTriage(request.projectId, {
+        at: this.orchestration.now(),
+        summary: request.body.slice(0, 80),
+        mode: 'execute',
+        threadId: request.ownerId,
+        gateText: 'mensagem humana',
+        assessmentText: ticketed ? 'Ticket' : 'Resposta',
+        decidedBy: this.product.listPersonas(request.projectId)
+          .find(persona => persona.systemRoles.includes('coordination'))?.name ?? '',
+        reason: ticketed ? 'accept' : 'answered',
+      })
+    }
     return toMessageView(stored)
   }
 
@@ -1028,6 +1135,7 @@ export default class PersonaHost extends TypertRemoteService {
     if (request.command === 'stop') engine.stopTicket(request.ticketId, request.reason)
     else if (request.command === 'retry') engine.retryTicket(request.ticketId)
     else if (request.command === 'reevaluate') engine.reevaluate(ticket.origin.triggerId)
+    else if (request.command === 'complete') this.orchestration.completeReview(request.projectId, request.ticketId)
     else engine.dismiss(ticket.decisionId)
     return true
   }
@@ -1094,13 +1202,22 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   getOnboarding(request: ProjectScopeRequest): OnboardingState {
-    this.requireWorkspace(request)
-    const personal = this.product.listProjects(request.workspaceId).find(item => item.kind === 'personal')
-    return {
-      hasPersonalProject: personal !== undefined,
-      firstUse: personal === undefined || this.product.listPersonas(personal.id).length === 0,
-      personalProjectId: personal?.id ?? '',
+    if (this.product.getWorkspace(request.workspaceId) === undefined) {
+      return { hasPersonalProject: false, firstUse: true, personalProjectId: '', completed: false }
     }
+    return this.onboarding.read(request.workspaceId)
+  }
+
+  /**
+   * Idempotent first-run: Pessoal, team, cofre proposal, welcome on #geral.
+   * @param request - Display name and drafts.
+   */
+  @Remote
+  async completeOnboarding(request: CompleteOnboardingRequest): Promise<OnboardingState> {
+    const drafts = await this.onboarding.resolveTeam(request)
+    const state = this.onboarding.complete(request, drafts)
+    if (state.personalProjectId !== '') this.scheduler.arm(state.personalProjectId)
+    return state
   }
 
   /**
@@ -1109,15 +1226,117 @@ export default class PersonaHost extends TypertRemoteService {
    * @returns Connection cards.
    */
   @Remote
-  listConnections(request: ProjectScopeRequest): ConnectionView[] {
+  async listConnections(request: ProjectScopeRequest): Promise<ConnectionView[]> {
     this.requireProject(request)
-    return [
-      { id: 'dsh', kind: 'dsh', available: true },
-      { id: 'claude', kind: 'claude', available: false },
-      { id: 'codex', kind: 'codex', available: false },
-      { id: 'cursor', kind: 'cursor', available: false },
-      { id: 'opencode', kind: 'opencode', available: false },
-    ]
+    try {
+      const snaps = await detectConnections({ timeoutMs: 400 })
+      return snaps.map(snap => ({
+        id: snap.id,
+        kind: snap.id === 'dsh' ? 'dsh' : snap.id,
+        available: snap.installed,
+        loginHint: snap.loginHint ?? '',
+      }))
+    } catch {
+      return [{ id: 'dsh', kind: 'dsh', available: true, loginHint: '' }]
+    }
+  }
+
+  /**
+   * Desktop notification policy: budget, quiet window, summary vs ping.
+   * @param request - Tenant.
+   */
+  @Remote
+  getAttentionPolicy(request: ProjectScopeRequest): AttentionPolicyView {
+    this.requireProject(request)
+    const stored = this.screens.screens.get<AttentionPolicyView>(request.projectId, 'attention_policy', 'default')
+    const limits = this.screens.getLimits(request.workspaceId, request.projectId)
+    return stored ?? {
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      delivery: 'summary',
+      proposalBudget: limits.maxProposalsPerDay,
+      quietStart: '22:00',
+      quietEnd: '07:00',
+    }
+  }
+
+  /**
+   * @param request - Policy.
+   */
+  @Remote
+  putAttentionPolicy(request: PutAttentionPolicyRequest): AttentionPolicyView {
+    this.requireProject(request)
+    const row: AttentionPolicyView = {
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      delivery: request.delivery,
+      proposalBudget: request.proposalBudget,
+      quietStart: request.quietStart,
+      quietEnd: request.quietEnd,
+    }
+    this.screens.screens.put(request.projectId, 'attention_policy', 'default', row)
+    return row
+  }
+
+  /**
+   * Grouped Precisa de você / review events, filtered by the attention policy.
+   * @param request - Tenant.
+   * @param signal - Observation lifetime.
+   */
+  @Remote({ mode: 'stream' })
+  async *attentionEvents(request: ProjectScopeRequest, signal: AbortSignal): AsyncIterable<AttentionStreamFrame> {
+    this.requireProject(request)
+    const snapshot = (): AttentionEventView[] => this.collectAttention(request)
+    yield { kind: 'baseline', events: snapshot() }
+    let previous = new Set(snapshot().map(item => item.id))
+    while (!signal.aborted) {
+      await sleep(1_000, signal)
+      const next = snapshot()
+      const fresh = next.filter(item => !previous.has(item.id))
+      previous = new Set(next.map(item => item.id))
+      if (fresh.length > 0) yield { kind: 'upsert', events: fresh }
+    }
+  }
+
+  /**
+   * @param request - Tenant.
+   */
+  @Remote
+  getRetentionPolicy(request: ProjectScopeRequest): RetentionPolicyView {
+    this.requireProject(request)
+    return this.scheduler.getPolicy(request.projectId)
+  }
+
+  /**
+   * @param request - Policy. `archiveOnly` true (default) never deletes.
+   */
+  @Remote
+  putRetentionPolicy(request: PutRetentionPolicyRequest): RetentionPolicyView {
+    this.requireProject(request)
+    return this.scheduler.putPolicy(request.projectId, {
+      archiveOnly: request.archiveOnly,
+      quietStart: request.quietStart,
+      quietEnd: request.quietEnd,
+    })
+  }
+
+  /**
+   * Archive tick (archive-only unless the user opted into delete).
+   * @param request - Tenant.
+   */
+  @Remote
+  tickRetention(request: ProjectScopeRequest): RetentionLogView[] {
+    this.requireProject(request)
+    return this.scheduler.tickRetention(request.projectId, true)
+  }
+
+  /**
+   * @param request - Tenant.
+   */
+  @Remote
+  listRetentionLog(request: ProjectScopeRequest): RetentionLogView[] {
+    this.requireProject(request)
+    return this.scheduler.listLog(request.projectId)
   }
 
   /**
@@ -1159,7 +1378,11 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   listFiles(request: ProjectFileRequest): ProjectFileListing {
-    return listProjectFiles(this.requireFileRoot(request), request.path)
+    const root = this.requireFileRoot(request)
+    if (root === undefined) {
+      return { status: 'need-root', path: request.path, entries: [], message: 'escolha a pasta do projeto' }
+    }
+    return listProjectFiles(root, request.path)
   }
 
   /**
@@ -1169,7 +1392,11 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   statFile(request: ProjectFileRequest): ProjectFileStat {
-    return statProjectFile(this.requireFileRoot(request), request.path)
+    const root = this.requireFileRoot(request)
+    if (root === undefined) {
+      return { status: 'need-root', path: request.path, kind: 'missing', bytes: 0, message: 'escolha a pasta do projeto' }
+    }
+    return statProjectFile(root, request.path)
   }
 
   /**
@@ -1179,7 +1406,11 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   readFile(request: ProjectFileRequest): ProjectFileText {
-    return readProjectFile(this.requireFileRoot(request), request.path)
+    const root = this.requireFileRoot(request)
+    if (root === undefined) {
+      return { status: 'need-root', path: request.path, text: '', bytes: 0, message: 'escolha a pasta do projeto' }
+    }
+    return readProjectFile(root, request.path)
   }
 
   /**
@@ -1308,7 +1539,28 @@ export default class PersonaHost extends TypertRemoteService {
     }
   }
 
-  private requireFileRoot(request: ProjectFileRequest): string {
+  private collectAttention(request: ProjectScopeRequest): AttentionEventView[] {
+    const policy = this.getAttentionPolicy(request)
+    if (policy.delivery === 'ping' && inQuietWindow(Date.now(), policy.quietStart, policy.quietEnd)) {
+      return []
+    }
+    const events: AttentionEventView[] = []
+    for (const card of this.listTasks(request)) {
+      if (card.stage === 'blocked') {
+        events.push({
+          id: `need:${card.id}`, kind: 'needs-you', title: card.title, ticketId: card.id, at: this.orchestration.now(),
+        })
+      }
+      if (card.stage === 'review') {
+        events.push({
+          id: `review:${card.id}`, kind: 'review', title: card.title, ticketId: card.id, at: this.orchestration.now(),
+        })
+      }
+    }
+    return events.slice(0, policy.proposalBudget)
+  }
+
+  private requireFileRoot(request: ProjectFileRequest): string | undefined {
     this.requireProject(request)
     const member = this.product.getMember(request.actorId)
     if (member === undefined || member.workspaceId !== request.workspaceId) {
@@ -1316,7 +1568,7 @@ export default class PersonaHost extends TypertRemoteService {
     }
     const project = this.product.getProject(request.projectId)
     if (project === undefined) throw new Error('project-not-found')
-    if (project.rootPath === undefined || project.rootPath === '') throw new Error('project-root-missing')
+    if (project.rootPath === undefined || project.rootPath === '') return undefined
     return project.rootPath
   }
 }

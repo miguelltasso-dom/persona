@@ -106,6 +106,14 @@ export class EventRepos {
   }
 
   /**
+   * Whether an event id is already stored (idempotent channel posts).
+   * @param id - Event id.
+   */
+  has(id: string): boolean {
+    return this.store.db.prepare('SELECT 1 AS ok FROM event WHERE id = ?').get(id) !== undefined
+  }
+
+  /**
    * Append one event; seq is last_seq+1 under IMMEDIATE.
    * @param input - Event fields.
    * @returns The stored event.

@@ -79,9 +79,14 @@ it('turns a channel request into a kanban ticket and a coordination reply', asyn
     limit: 50,
   })
   expect(page.events.some(item => item.actorId === 'coord' && item.body.length > 0)).toBe(true)
+  expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })[0]?.stage).toBe('doing')
   await h.orchestration.flush('pp')
   const after = h.listTasks({ workspaceId: 'ws', projectId: 'pp' })
-  expect(after[0]?.stage).toBe('done')
+  expect(after[0]?.stage).toBe('review')
+  h.runTicketCommand({
+    workspaceId: 'ws', projectId: 'pp', ticketId: after[0]!.id, command: 'complete', reason: '',
+  })
+  expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })[0]?.stage).toBe('done')
   const streamed = h.listMessages({
     workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     actorId: 'ana', afterSeq: 0, limit: 50,

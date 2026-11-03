@@ -72,7 +72,10 @@ it('refuses a project without a file root', () => {
   h.createMember({
     id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner',
   })
-  expect(() => {
-    h.listFiles({ workspaceId: 'ws', projectId: 'pp', actorId: 'ana', path: '' })
-  }).toThrow('project-root-missing')
+  const listing = h.listFiles({ workspaceId: 'ws', projectId: 'pp', actorId: 'ana', path: '' })
+  expect(listing.status).toBe('need-root')
+  expect(listing.message).toBe('escolha a pasta do projeto')
+  const root = tempRoot()
+  expect(h.setProjectRoot({ workspaceId: 'ws', projectId: 'pp', rootPath: root }).status).toBe('ok')
+  expect(h.listFiles({ workspaceId: 'ws', projectId: 'pp', actorId: 'ana', path: '' }).status).toBe('ok')
 })

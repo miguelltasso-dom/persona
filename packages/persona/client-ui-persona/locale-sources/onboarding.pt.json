@@ -33,5 +33,19 @@
   "action.back": "Voltar",
   "action.continue": "Continuar",
   "action.finish": "Entrar no Persona",
-  "action.skipHarness": "Continuar sem conectar"
+  "action.skipHarness": "Continuar sem conectar",
+  "progressLabel": "Progresso da configuração",
+  "steps.you": "Você",
+  "steps.company": "Empresa",
+  "steps.tools": "Ferramentas",
+  "steps.team": "Equipe",
+  "steps.start": "Começar",
+  "hero.eyebrow": "Bem-vindo ao Persona",
+  "hero.teamArriving": "Sua equipe está chegando",
+  "step1.atlasSays": "Oi! Eu sou o Atlas. Em 5 passos rápidos a gente monta sua equipe.",
+  "step2.atlasSays": "Me conte da empresa. Tudo que você escrever vira o Cofre — eu e a equipe lemos antes de cada tarefa.",
+  "step3.atlasSays": "Achei estas ferramentas neste computador. Nada de senha: usamos o login que você já tem.",
+  "step4.atlasSays": "Escolha um modelo de equipe ou descreva quem você precisa. Dá para editar tudo depois.",
+  "step5.atlasSays": "Tudo pronto! A equipe já está no #geral esperando sua primeira tarefa.",
+  "step3.statusLabel": "Status de {name}"
 }

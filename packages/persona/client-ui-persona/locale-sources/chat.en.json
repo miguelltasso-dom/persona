@@ -17,5 +17,16 @@
   "composer.add": "Add option",
   "composer.image": "Send image",
   "composer.attach": "Attach file",
-  "composer.emoji": "Insert emoji"
+  "composer.emoji": "Insert emoji",
+  "header.members": "{count} members",
+  "header.search": "Search channel",
+  "composer.placeholderChannel": "Write a message in #general…",
+  "composer.hint": "Enter sends · Shift + Enter adds a line",
+  "composer.mention": "Mention a persona",
+  "composer.respondsLabel": "Replies",
+  "message.reactionLabel": "{count} reactions {emoji}",
+  "message.addReaction": "Add reaction",
+  "message.you": "You",
+  "stream.emptyTitle": "The channel is quiet",
+  "stream.emptyBody": "Ask the team for something — coordination routes the work."
 }

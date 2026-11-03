@@ -33,5 +33,19 @@
   "action.back": "Back",
   "action.continue": "Continue",
   "action.finish": "Enter Persona",
-  "action.skipHarness": "Continue without connecting"
+  "action.skipHarness": "Continue without connecting",
+  "progressLabel": "Setup progress",
+  "steps.you": "You",
+  "steps.company": "Company",
+  "steps.tools": "Tools",
+  "steps.team": "Team",
+  "steps.start": "Start",
+  "hero.eyebrow": "Welcome to Persona",
+  "hero.teamArriving": "Your team is arriving",
+  "step1.atlasSays": "Hi! I’m Atlas. In 5 quick steps we’ll set up your team.",
+  "step2.atlasSays": "Tell me about the company. Everything goes into the Vault — the team reads it before every task.",
+  "step3.atlasSays": "I found these tools on this computer. No passwords: we use the login you already have.",
+  "step4.atlasSays": "Pick a team template or describe who you need. You can edit everything later.",
+  "step5.atlasSays": "All set! The team is in #general waiting for your first task.",
+  "step3.statusLabel": "{name} status"
 }

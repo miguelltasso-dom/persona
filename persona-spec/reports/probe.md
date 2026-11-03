@@ -1,5 +1,35 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-03 18:35 — Keel: inspect sync console + ui-boot-check + PRO-6/SCOPE
+
+### Veredito (cordis-client-runner / persona-app)
+- **Não é teardown do gate** (`capturas → stop`). Timeline `probe-inspect-console-timing.mjs`: o único `console.error` cai **entre `localStorage` + `reload()`** (~46 ms antes de `reload done`), **antes** de screenshot/context.close/taskkill. Carga única **sem reload** → **zero** erros inspect.
+- **Causa:** `ClientCordisInspectRegistry.publish()` no unload/reload da página (`cordis-client-runner` + providers em `client/providers.ts`); `syncInspectManifest` falha com `Failed to fetch` enquanto a navegação aborta o fetch — ruído de harness web-app, não regressão Persona UI.
+- **`persona-app/cordis.patch.yml`:** **não desabilitar** `cordis-client-runner` nem `cordis-inspect-providers` (este último está em `packages/bundle/web-app/cordis.patch.yml` ~L167, host global). Persona já desliga `ui-cordis` (L140); runner/inspect seguem necessários ao web-app + persona-runners.
+- **Patch aplicado (Probe):** `ui-boot-check.mjs` usa `addInitScript` + `persona.onboarding.complete.v1` **antes do primeiro `goto`** (sem `reload`) em channel/720/1080 → **0 erros de console**; dirD channel **~34,8%** (`persona-light-channel.png`).
+
+### Pronto
+- B9 harness: `real-app-session.ts`, `mandatory-b9-real-app.spec.ts`, `web-host` `--profile persona`, `fixtures/real-app-locale.pt.ts`.
+- SCOPE: `mandatory-scope.spec.ts` — 2 cenários verdes (reduced-motion real app + dirD via `runPersonaUiBootGate`); 4 `it.todo` produto.
+- PRO-6: `mandatory-proactivity.spec.ts` permanece 8× `it.todo` (aceite E2E quando PRO-1..5 existirem).
+
+### Comandos (verbatim)
+```
+node scripts/persona/check-pkg.mjs persona-e2e
+persona-e2e: OK in 3.9s
+
+node scripts/persona/with-lock.mjs "Probe ui-boot-check after initScript fix" --release-on "dsh web:" -- node scripts/persona/ui-boot-check.mjs
+console errors (0):
+(none)
+diffRatio channel vs dirD: 0.34818904320987654 pass:true
+```
+
+### Fora / donos
+- **Upstream (opcional):** `cordis-client-runner/inspect-registry.ts` — não `console.error` em falha de sync durante `pagehide`/abort (Forge/Harness).
+- B9 mandatory: 4× `it.todo` (runner reply, kanban host, edit persona, Tier 2 CDP).
+
+---
+
 ## 2026-11-03 15:40 — PROACTIVITY.md aceite (it.todo)
 
 ### Pronto

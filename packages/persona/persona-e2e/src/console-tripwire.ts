@@ -20,7 +20,7 @@ export function watchConsole(page: Page): ConsoleTripwire {
     const text = message.text()
     const type = message.type()
     if (type === 'error') consoleErrors.push(text)
-    if (/connection lost|gap repair|discontinuous|web boot: warning/i.test(text)) warnings.push(text)
+    if (/connection lost|gap repair|discontinuous|web boot: warning|did not activate/i.test(text)) warnings.push(text)
   })
   page.on('pageerror', (error) => { pageErrors.push(String(error)) })
   return { warnings, pageErrors, consoleErrors }

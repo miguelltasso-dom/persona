@@ -60,6 +60,10 @@ export async function runPersonaUiBootGate(): Promise<PersonaBootGateResult> {
       })
       if (scheme === 'light') {
         hasPersonaShell = await page.locator('[data-persona-shell]').count() > 0
+        const harnessComposer = await page.locator('[data-composer-input]').count()
+        if (harnessComposer > 0) {
+          consoleErrors.push('[light] Harness ui-conversation composer mounted (expected Persona shell only)')
+        }
       }
       await context.close()
     }

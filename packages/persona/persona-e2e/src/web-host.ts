@@ -48,7 +48,7 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
   const cliArgs = [
     '--import', 'tsx/esm',
     'apps/cli/src/bin.ts',
-    profile,
+    '--profile', profile,
     '--no-open',
     '--host', '127.0.0.1',
     '--port', String(port),

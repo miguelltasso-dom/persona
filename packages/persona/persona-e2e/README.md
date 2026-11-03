@@ -33,6 +33,12 @@ Persona profile boot gate (Keel `ui-boot-check`; fails on activation warnings + 
 $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/smoke-persona.spec.ts
 ```
 
+**B9 real app** (profile `persona`, no Harness shell; onboarding, kanban, dirD, reduced-motion):
+
+```sh
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-b9-real-app.spec.ts
+```
+
 Tier 1 smoke (legacy composer wait; opt-in):
 
 ```sh
@@ -69,13 +75,14 @@ Fake CLI unit checks:
 pnpm exec vitest run packages/persona/persona-e2e/tests/fake-cli.spec.ts
 ```
 
-Mandatory product scenarios (SCOPE.md — `it.todo` until features land):
+Mandatory product scenarios (SCOPE.md — `it.todo` until features land; reduced-motion + dirD under `PERSONA_E2E=1`):
 
 ```sh
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-scope.spec.ts
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-scope.spec.ts
 ```
 
-Proactivity v1 acceptance (PROACTIVITY.md / BRIEFING §14 — `it.todo` until engine + Vigia land):
+Proactivity v1 acceptance (PROACTIVITY.md / PRO-6 — `it.todo` until engine + Vigia land):
 
 ```sh
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-proactivity.spec.ts

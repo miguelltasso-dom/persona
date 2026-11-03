@@ -1,5 +1,26 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-03 — Brush banners + onboarding Remote + seed equipe
+
+**Banners (Brush)** — `node scripts/persona/build-assets.mjs` → 125 files, 2.54 MiB; exports `teamBannerLight/Dark`, `railFoliage`, `railFoliageLight/Dark`. Faixa `#geral` usa WebP claro/escuro; rodapé do rail com arte Brush (fallback gradiente).
+
+**Onboarding** — contrato `persona-spec/contracts/onboarding-remote.md`; `getOnboarding` autoritativo; `localStorage` só cache otimista; `PersonaLiveStore.completeOnboarding()` chama RPC quando Anvil expuser (senão `commitOnboardingRoster`).
+
+**Remote** — `seedDefaultTeamIfEmpty` (Atlas/Bento/Nina/Sol/Luna); `markVisit`; mocks só enquanto `!live.ready`.
+
+**Verificação**
+
+```
+node scripts/persona/check-pkg.mjs client-ui-persona → OK
+pnpm exec vitest run …/onboarding-remote.client.spec.ts …/seed-default-team.client.spec.ts → 5 passed
+node scripts/persona/with-lock.mjs "Prism banner shots" -- node scripts/persona/real-app-shots.mjs → exit 0
+Capturas: .maestri/tmp/shots/real/persona-{light,dark}-*.png
+```
+
+**Dependência:** Anvil `completeOnboarding` (wire já pronto). Muse: `DESIGN-SYSTEM.md` + dona theme/primitives — não editar até spec por tela.
+
+---
+
 ## 2026-11-03 — PROACTIVITY.md (UI v1): Agora, while away, editor, estados honestos
 
 **Escopo (Atlas / Miguel)**

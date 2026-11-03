@@ -1,5 +1,26 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-03 15:40 — PROACTIVITY.md aceite (it.todo)
+
+### Pronto
+- `tests/mandatory-proactivity.spec.ts`: 8 cenários de aceite v1 (Vigia + relógio falso, pull loop, deps, fila vazia ± objetivo, recuperação runner, limites proposta/orçamento/silêncio, "Enquanto você estava fora").
+- README atualizado com comando vitest.
+
+### Comandos (verbatim)
+```
+node scripts/persona/check-pkg.mjs persona-e2e
+persona-e2e: OK in 4.xs
+
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-proactivity.spec.ts
+ Test Files  1 skipped (1)
+      Tests  8 todo (8)
+```
+
+### Fora
+- Implementação real aguarda Forge (engine/Vigia), Anvil (store/host/events), Rivet (runner recovery).
+
+---
+
 ## 2026-11-03 14:52 — check-pkg + preview-visual TS fix
 
 ### Pronto

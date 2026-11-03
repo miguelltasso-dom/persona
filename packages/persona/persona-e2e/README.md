@@ -75,6 +75,12 @@ Mandatory product scenarios (SCOPE.md — `it.todo` until features land):
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-scope.spec.ts
 ```
 
+Proactivity v1 acceptance (PROACTIVITY.md / BRIEFING §14 — `it.todo` until engine + Vigia land):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-proactivity.spec.ts
+```
+
 Package typecheck:
 
 ```sh

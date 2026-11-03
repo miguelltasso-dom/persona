@@ -18,7 +18,7 @@ export const REAL_GALLERY_PANELS: readonly GalleryPanelSpec[] = [
   { slug: 'visao-geral', navLabel: 'Visão geral', owner: 'Prism', kind: 'nav' },
   { slug: 'geral', navLabel: 'Canais', owner: 'Prism', kind: 'nav' },
   { slug: 'equipe', navLabel: 'Equipe', owner: 'Prism', kind: 'nav' },
-  { slug: 'busca', navLabel: 'Busca', owner: 'Prism', kind: 'nav' },
+  { slug: 'busca', navLabel: 'Buscar em tudo…', owner: 'Prism', kind: 'nav' },
   { slug: 'projetos', navLabel: 'Projetos', owner: 'Prism', kind: 'nav' },
   { slug: 'kanban', navLabel: 'Kanban', owner: 'Lumen', readySelector: '[data-persona-kanban="global"]', kind: 'nav' },
   { slug: 'rotinas', navLabel: 'Rotinas', owner: 'Lumen', kind: 'nav' },

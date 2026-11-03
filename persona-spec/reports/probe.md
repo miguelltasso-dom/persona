@@ -1,5 +1,31 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-03 20:05 — Keel P1 painel em branco (detector + galeria)
+
+### Probe (entregue)
+- **`blank-main-panel.ts`**: mede só a coluna main (`[data-persona-shell] > child[1]` — rail também tinha `data-persona-grain`, falso negativo antes).
+- **`navigate-panel.ts`**: rail agrupado Muse (Buscar em tudo…, expandir **Mais**, Configurações).
+- **`real-gallery-blank-panel.spec.ts`**: 20 testes nomeados `[Owner] slug` — **regressão vermelha** quando main vazio.
+- **`capture.ts`**: index com colunas **Main blank?** + console (texto, não `—`).
+
+### Evidência (1ª corrida pós-fix main column)
+```
+PERSONA_E2E=1 vitest real-gallery-blank-panel.spec.ts
+ 8 passed | 12 failed (~457s)
+```
+Falhas esperadas Lumen (Keel): **kanban**, **conexoes**, **rotinas**, **conhecimento**, **arquivos**, **uso**, **aprovacoes**, **regras**, **perfil**, **membros**, **importar**, **canvas** (main cream / timeout nav). **visao-geral**, **geral**, **equipe**, **busca**, **projetos**, **canais**, **dms** passaram.
+
+### Galeria
+- `.maestri/tmp/shots/real/index.md` (77 png; re-run `capture-real-gallery.mjs` preenche blank+console).
+- `finish-real-gallery-index.mjs` para índice offline.
+
+### Donos (Status)
+- **Lumen**: Remote* / tenant scope — painel branco + error boundary pt-BR (Keel).
+- **Prism**: slot `main` / PersonaAppFrame vs registro Lumen.
+- **Muse**: empty/error Screen primitives.
+
+---
+
 ## 2026-11-03 19:52 — B9 Tier 1/2 verdes + fila Atlas (continuação)
 
 ### Pronto

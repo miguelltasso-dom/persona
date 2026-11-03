@@ -41,6 +41,12 @@ $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/sm
 node scripts/persona/with-lock.mjs "Probe real gallery" -- node --import tsx/esm scripts/persona/capture-real-gallery.mjs
 ```
 
+**Blank main panel gate** (Keel P1 — fails on cream-only Lumen/Prism panels):
+
+```sh
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/real-gallery-blank-panel.spec.ts
+```
+
 **A11y matrix** (axe + Tab per nav panel; needs `@axe-core/playwright` when Keel adds it):
 
 ```sh

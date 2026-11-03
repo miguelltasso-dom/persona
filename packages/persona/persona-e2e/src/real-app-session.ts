@@ -12,15 +12,29 @@ export interface RealPersonaSession {
   close(): Promise<void>
 }
 
+export interface OpenRealPersonaAppOptions {
+  /** Set `persona.onboarding.complete.v1` before first navigation (no reload). */
+  dismissOnboardingViaStorage?: boolean
+  viewport?: { width: number; height: number }
+}
+
 /**
  * Boot the real Persona profile (B9) in Chrome with console tripwire and fake CLIs on PATH.
  */
-export async function openRealPersonaApp(): Promise<RealPersonaSession> {
+export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}): Promise<RealPersonaSession> {
   const fakeCli = withFakeCliOnPath()
   const host = await startWebHost({ profile: 'persona' })
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ channel: 'chrome' })
-  const context = await browser.newContext({ locale: 'pt-BR', viewport: { width: 1440, height: 900 } })
+  const context = await browser.newContext({
+    locale: 'pt-BR',
+    viewport: options.viewport ?? { width: 1440, height: 900 },
+  })
+  if (options.dismissOnboardingViaStorage) {
+    await context.addInitScript(() => {
+      localStorage.setItem('persona.onboarding.complete.v1', '1')
+    })
+  }
   const page = await context.newPage()
   const tripwire = watchConsole(page)
   await page.goto(host.url, { waitUntil: 'load', timeout: 120_000 })

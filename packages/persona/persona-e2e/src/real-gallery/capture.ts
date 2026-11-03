@@ -11,8 +11,9 @@ import {
   GALLERY_VIEWPORTS,
   ONBOARDING_STORAGE_KEY,
   REAL_GALLERY_PANELS,
-  type GalleryPanelSpec,
 } from './panels.ts'
+import { isMainPanelBlank, measureMainPanelContent } from './blank-main-panel.ts'
+import { navigateGalleryPanel } from './navigate-panel.ts'
 
 export const REAL_GALLERY_DIR = join(REPO_ROOT, '.maestri', 'tmp', 'shots', 'real')
 
@@ -24,20 +25,9 @@ export interface GalleryCaptureRow {
   readonly file: string
   readonly consoleErrors: string[]
   readonly axe: AxeScanResult
+  readonly mainBlank?: boolean
+  readonly mainDetail?: string
   readonly note?: string
-}
-
-async function navigatePanel(page: Page, spec: GalleryPanelSpec): Promise<void> {
-  if (spec.kind === 'nav' || spec.kind === 'settings') {
-    await page.getByRole('button', { name: spec.navLabel, exact: true }).click()
-  }
-  if (spec.slug === 'geral') {
-    await page.getByPlaceholder('Mensagem para #geral…').waitFor({ state: 'visible', timeout: 60_000 })
-  } else if (spec.readySelector !== undefined) {
-    await page.locator(spec.readySelector).first().waitFor({ state: 'visible', timeout: 60_000 })
-  } else {
-    await page.waitForTimeout(800)
-  }
 }
 
 function formatAxe(axe: AxeScanResult): string {
@@ -50,8 +40,8 @@ function buildIndexMarkdown(rows: readonly GalleryCaptureRow[]): string {
   const lines = [
     '# Persona real-app gallery',
     '',
-    '| Painel | Dono | Arquivo | Console errors | Axe |',
-    '|--------|------|---------|----------------|-----|',
+    '| Painel | Dono | Arquivo | Main blank? | Console errors | Axe |',
+    '|--------|------|---------|-------------|----------------|-----|',
   ]
   const byPanel = new Map<string, GalleryCaptureRow>()
   for (const row of rows) {
@@ -59,9 +49,12 @@ function buildIndexMarkdown(rows: readonly GalleryCaptureRow[]): string {
     byPanel.set(key, row)
   }
   for (const row of byPanel.values()) {
-    const err = row.consoleErrors.length === 0 ? '0' : row.consoleErrors.length.toString()
     const note = row.note !== undefined ? ` _${row.note}_` : ''
-    lines.push(`| ${row.panel}${note} | ${row.owner} | \`${row.file}\` | ${err} | ${formatAxe(row.axe)} |`)
+    const blankCol = row.mainBlank === undefined ? '—' : row.mainBlank ? '**SIM**' : 'não'
+    const errText = row.consoleErrors.length === 0
+      ? '0'
+      : row.consoleErrors.slice(0, 2).map(e => e.slice(0, 80)).join('; ')
+    lines.push(`| ${row.panel}${note} | ${row.owner} | \`${row.file}\` | ${blankCol} | ${errText} | ${formatAxe(row.axe)} |`)
   }
   lines.push('', `_Gerado ${new Date().toISOString()}_`, '')
   return lines.join('\n')
@@ -108,7 +101,7 @@ export async function runRealGalleryCapture(): Promise<{ rows: GalleryCaptureRow
               if (m.type() === 'error') panelErrors.push(m.text().slice(0, 400))
             })
             try {
-              await navigatePanel(page, spec)
+              await navigateGalleryPanel(page, spec)
             } catch (error) {
               panelErrors.push(error instanceof Error ? error.message : String(error))
             }
@@ -116,6 +109,7 @@ export async function runRealGalleryCapture(): Promise<{ rows: GalleryCaptureRow
             const path = join(REAL_GALLERY_DIR, file)
             await page.screenshot({ path, animations: 'disabled' })
             const axe = await scanAccessibility(page)
+            const main = await measureMainPanelContent(page)
             rows.push({
               panel: spec.slug,
               owner: spec.owner,
@@ -124,6 +118,8 @@ export async function runRealGalleryCapture(): Promise<{ rows: GalleryCaptureRow
               file,
               consoleErrors: [...panelErrors],
               axe,
+              mainBlank: isMainPanelBlank(main),
+              mainDetail: main.detail,
             })
           }
           await context.close()

@@ -1,5 +1,23 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-03 15:16 — Proatividade v1 (PROACTIVITY.md) — UI Lumen
+
+**Pronto:** (1) **Aprovações** — `ProactiveDailySummaries` agrupa propostas do dia por persona (`data-persona-approvals="proactive-daily"`), aceitar/recusar/editar, prévia impacto + custo; reativas em seção “Precisa de você agora”. (2) **Regras** — limites (propostas/dia, tokens persona/projeto), janelas de silêncio, log modo “só registrar”. (3) **Perfil** — `ProactivityMetricsPanel` (propostas, aceitas, ociosidade, bench preguiça). Mocks em `proactivity-mock-data.ts`, locales pt/en, `tests/lumen-proactivity.client.spec.tsx`.
+
+**RCD:** orçamento de atenção (resumo vs ping); uma pergunta por cartão reativo; value-first nos limites editáveis.
+
+**Arquivos:** `approvals/{ApprovalsInbox,ProactiveDailySummaries,proactivity-mock-data}.*`, `rules/{TriageRulesView,mock-data,RulesProactivity.module.css}`, `profile/{ProactivityMetricsPanel,mock-data}.*`, `locale-sources/{approvals,rules,profile}.*`, `tests/lumen-proactivity.client.spec.tsx`, fix `tests/lumen-queue2` (h3 reativo).
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec tsc -p packages/persona/client-ui-persona/tsconfig.json --noEmit → exit 0
+pnpm exec vitest run packages/persona/client-ui-persona/tests --no-cache
+→ Test Files 14 passed (14) / Tests 31 passed (31)
+```
+
+**Fora:** wire RPC (engine/Vigia + host types); registrar approvals/rules/profile no shell; aceitar/recusar persistidos.
+
 ## 2026-11-03 17:26 — Mount shell + fila 2 + gate ui-boot
 
 **Pronto:** Seis superfícies registradas em `register-lumen-ui.tsx` (`main`: kanban, knowledge, routines, files, usage, connections) + locales; sidebar NAV com rótulos `persona.shell`; `mount.ts` chama `registerLumenUi` e ping host **após** inject; `tsconfig` inclui todo código Lumen; fila 2 (profile, memory, skills, approvals, rules, members, importers, canvas) com mocks tipados `@deepseek-ai/dsh-persona-core`, testes queue2 verdes; fixes tsc (CSS modules, `carry`, profile não repassa dict errado para Memory/Skills).

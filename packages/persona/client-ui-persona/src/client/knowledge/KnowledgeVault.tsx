@@ -7,12 +7,7 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Knowledge.module.css'
-import {
-  MOCK_KNOWLEDGE_DOCUMENTS,
-  MOCK_KNOWLEDGE_PROPOSALS,
-  MOCK_KNOWLEDGE_RECORDS,
-  type KnowledgeRecord,
-} from './mock-data.ts'
+import type { KnowledgeDocument, KnowledgeProposal, KnowledgeRecord } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/knowledge/locales.ts'
 
 export type KnowledgeSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -20,6 +15,9 @@ type KnowledgeTab = 'records' | 'documents' | 'proposals'
 
 export interface KnowledgeVaultProps {
   readonly dict?: LocaleDict
+  readonly records?: readonly KnowledgeRecord[]
+  readonly documents?: readonly KnowledgeDocument[]
+  readonly proposals?: readonly KnowledgeProposal[]
   readonly initialState?: KnowledgeSurfaceState
 }
 
@@ -32,7 +30,13 @@ function visibilityLabel(dict: LocaleDict, visibility: KnowledgeRecord['visibili
 }
 
 /** Cofre da empresa preview surface. */
-export function KnowledgeVault({ dict = defaultDict, initialState = 'ready' }: KnowledgeVaultProps): ReactNode {
+export function KnowledgeVault({
+  dict = defaultDict,
+  records: sourceRecords = [],
+  documents = [],
+  proposals = [],
+  initialState = 'ready',
+}: KnowledgeVaultProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [tab, setTab] = useState<KnowledgeTab>('records')
@@ -41,10 +45,10 @@ export function KnowledgeVault({ dict = defaultDict, initialState = 'ready' }: K
 
   const records = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (q.length === 0) return MOCK_KNOWLEDGE_RECORDS
-    return MOCK_KNOWLEDGE_RECORDS.filter(r =>
+    if (q.length === 0) return sourceRecords
+    return sourceRecords.filter(r =>
       r.title.toLowerCase().includes(q) || r.excerpt.toLowerCase().includes(q))
-  }, [query])
+  }, [query, sourceRecords])
 
   if (surfaceState === 'loading') {
     return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={3} />
@@ -126,7 +130,7 @@ export function KnowledgeVault({ dict = defaultDict, initialState = 'ready' }: K
       )}
       {tab === 'documents' && (
         <ul className={styles.list}>
-          {MOCK_KNOWLEDGE_DOCUMENTS.map(doc => (
+          {documents.map(doc => (
             <li key={doc.id} className={styles.item}>
               <h2 className={styles.itemTitle}>{doc.name}</h2>
               <p className={styles.meta}>
@@ -142,7 +146,7 @@ export function KnowledgeVault({ dict = defaultDict, initialState = 'ready' }: K
       )}
       {tab === 'proposals' && (
         <ul className={styles.list}>
-          {MOCK_KNOWLEDGE_PROPOSALS.map(proposal => (
+          {proposals.map(proposal => (
             <li key={proposal.id} className={styles.item}>
               <div className={styles.itemHeader}>
                 <span className={styles.badge}>{t('proposal.pending')}</span>

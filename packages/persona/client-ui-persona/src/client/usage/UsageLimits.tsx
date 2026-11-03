@@ -8,13 +8,15 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Usage.module.css'
-import { MOCK_LIMIT_NOTICE, MOCK_USAGE_METERS, type UsageMeter, type UsageOrigin } from './mock-data.ts'
+import type { UsageLimitNotice, UsageMeter, UsageOrigin } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/usage/locales.ts'
 
 export type UsageSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
 export interface UsageLimitsProps {
   readonly dict?: LocaleDict
+  readonly meters?: readonly UsageMeter[]
+  readonly limitNotice?: UsageLimitNotice | null
   readonly initialState?: UsageSurfaceState
   readonly showLimitNotice?: boolean
 }
@@ -50,6 +52,8 @@ function MeterRow({ dict, meter }: { dict: LocaleDict; meter: UsageMeter }): Rea
 /** Usage dashboard preview with labeled origins. */
 export function UsageLimits({
   dict = defaultDict,
+  meters = [],
+  limitNotice = null,
   initialState = 'ready',
   showLimitNotice = true,
 }: UsageLimitsProps): ReactNode {
@@ -90,16 +94,16 @@ export function UsageLimits({
         <h1 className={styles.title}>{t('title')}</h1>
         <p className={styles.subtitle}>{t('subtitle')}</p>
       </header>
-      {showLimitNotice && (
+      {showLimitNotice && limitNotice !== null && (
         <aside className={styles.notice} role="status">
-          <p>{t('limit.contextual', { connection: MOCK_LIMIT_NOTICE.connection, percent: MOCK_LIMIT_NOTICE.percent })}</p>
+          <p>{t('limit.contextual', { connection: limitNotice.connection, percent: limitNotice.percent })}</p>
           <PersonaButton variant="secondary">{t('limit.action')}</PersonaButton>
         </aside>
       )}
       <section aria-labelledby="usage-connections">
         <h2 id="usage-connections" className={styles.title}>{t('section.connections')}</h2>
         <ul className={styles.meterList}>
-          {MOCK_USAGE_METERS.map(meter => (
+          {meters.map(meter => (
             <MeterRow key={meter.id} dict={dict} meter={meter} />
           ))}
         </ul>

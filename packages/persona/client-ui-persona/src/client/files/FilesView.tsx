@@ -6,18 +6,19 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError } from '../kanban/PersonaSurface.tsx'
 import styles from './Files.module.css'
-import { MOCK_FILES } from './mock-data.ts'
+import type { FileEntry } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/files/locales.ts'
 
 export type FilesSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
 export interface FilesViewProps {
   readonly dict?: LocaleDict
+  readonly files?: readonly FileEntry[]
   readonly initialState?: FilesSurfaceState
 }
 
 /** File list with open/download actions (mock). */
-export function FilesView({ dict = defaultDict, initialState = 'ready' }: FilesViewProps): ReactNode {
+export function FilesView({ dict = defaultDict, files = [], initialState = 'ready' }: FilesViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -72,7 +73,7 @@ export function FilesView({ dict = defaultDict, initialState = 'ready' }: FilesV
           </tr>
         </thead>
         <tbody>
-          {MOCK_FILES.map(file => (
+          {files.map(file => (
             <tr key={file.id}>
               <td>{file.name}</td>
               <td>{file.projectName}</td>

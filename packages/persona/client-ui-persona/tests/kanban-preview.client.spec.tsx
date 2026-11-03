@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { GlobalKanban } from '../src/client/kanban/GlobalKanban.tsx'
-import { MOCK_PROJECT_KANBAN_CARDS } from '../src/client/kanban/mock-data.ts'
+import { MOCK_GLOBAL_KANBAN_CARDS, MOCK_PROJECT_KANBAN_CARDS } from '../src/client/kanban/mock-data.ts'
 import { pt } from '../src/client/locale/kanban/locales.ts'
 import { ProjectKanban } from '../src/client/kanban/ProjectKanban.tsx'
 import { columnFromTicketStage } from '../src/client/kanban/stage-map.ts'
@@ -59,7 +59,7 @@ describe.sequential('kanban preview (dom)', () => {
   })
 
   it('filters global board cards by project id', () => {
-    renderPreview(<GlobalKanban dict={pt} />)
+    renderPreview(<GlobalKanban dict={pt} initialCards={MOCK_GLOBAL_KANBAN_CARDS} />)
     const globalRoot = globalKanbanRoot()
     expect(within(globalRoot).getByRole('heading', { level: 1, name: pt['title.global'] })).toBeTruthy()
     expect(within(globalRoot).getByText('Mapear campos do processo civil')).toBeTruthy()

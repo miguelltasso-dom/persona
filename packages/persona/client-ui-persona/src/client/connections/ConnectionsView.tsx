@@ -8,7 +8,7 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Connections.module.css'
-import { MOCK_CONNECTIONS, type ConnectionEntry, type ConnectionStatus } from './mock-data.ts'
+import type { ConnectionEntry, ConnectionStatus } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/connections/locales.ts'
 
 export type ConnectionsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -30,11 +30,16 @@ function actionLabel(dict: LocaleDict, entry: ConnectionEntry): string {
 
 export interface ConnectionsViewProps {
   readonly dict?: LocaleDict
+  readonly entries?: readonly ConnectionEntry[]
   readonly initialState?: ConnectionsSurfaceState
 }
 
 /** CLI connection list preview. */
-export function ConnectionsView({ dict = defaultDict, initialState = 'ready' }: ConnectionsViewProps): ReactNode {
+export function ConnectionsView({
+  dict = defaultDict,
+  entries = [],
+  initialState = 'ready',
+}: ConnectionsViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -74,7 +79,7 @@ export function ConnectionsView({ dict = defaultDict, initialState = 'ready' }: 
         <p className={styles.note}>{t('valueFirst.note')}</p>
       </header>
       <ul className={styles.list}>
-        {MOCK_CONNECTIONS.map(entry => (
+        {entries.map(entry => (
           <li key={entry.id} className={styles.row}>
             <div>
               <div className={styles.name}>{entry.name}</div>

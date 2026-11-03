@@ -1,5 +1,22 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-03 18:35 — B9 Remote real (Keel): mocks só em testes
+
+**Pronto:** Produção usa `ctx.remote.persona` via `createLiveTenantObservable` (sem bootstrap duplicado). **Queue 1:** `ConnectedGlobalKanban` + `Remote*{Knowledge,Routines,Files,Usage,Connections}Panel` em `register-lumen-ui.tsx`. **Queue 2:** `register-prism-screens.tsx` registra `Remote*{Approvals,Rules,Profile,Members,Import,Canvas}Panel` (Prism mantém overview/canais/projetos). Adaptadores em `src/client/data/adapters/*`; painéis em `lumen-remote-panels.tsx`. Views sem defaults de mock (`initialCards`/`items`/`entries` vazios). Testes passam mocks explicitamente.
+
+**Gaps (Anvil / follow-up):** Canvas sem RPC (empty); resumo proativo diário vazio em aprovações; `RoutinesView` ainda renderiza grade mock quando host tem rotinas; triage log sem RPC; arquivos podem falhar sem `project.rootPath`.
+
+**Arquivos:** `data/{live-tenant-bridge,lumen-remote-panels,lumen-inject,use-persona-remote-load,remote-call}.ts`, `data/adapters/*`, `kanban/register-lumen-ui.tsx`, `shell/register-prism-screens.tsx`, testes `lumen-*` + `kanban-preview`.
+
+**Testes:**
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx packages/persona/client-ui-persona/tests/kanban-preview.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-proactivity.client.spec.tsx
+→ 4 files / 18 tests passed
+
+node scripts/persona/with-lock.mjs "Lumen real shots" -- node scripts/persona/real-app-shots.mjs
+→ .maestri/tmp/shots/real/{kanban,knowledge,…}.png
+```
+
 ## 2026-11-03 15:16 — Proatividade v1 (PROACTIVITY.md) — UI Lumen
 
 **Pronto:** (1) **Aprovações** — `ProactiveDailySummaries` agrupa propostas do dia por persona (`data-persona-approvals="proactive-daily"`), aceitar/recusar/editar, prévia impacto + custo; reativas em seção “Precisa de você agora”. (2) **Regras** — limites (propostas/dia, tokens persona/projeto), janelas de silêncio, log modo “só registrar”. (3) **Perfil** — `ProactivityMetricsPanel` (propostas, aceitas, ociosidade, bench preguiça). Mocks em `proactivity-mock-data.ts`, locales pt/en, `tests/lumen-proactivity.client.spec.tsx`.

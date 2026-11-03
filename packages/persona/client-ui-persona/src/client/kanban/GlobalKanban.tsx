@@ -6,11 +6,7 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { KanbanBoard } from './KanbanBoard.tsx'
 import styles from './Kanban.module.css'
-import {
-  DEFAULT_KANBAN_FILTERS,
-  MOCK_GLOBAL_KANBAN_CARDS,
-  MOCK_KANBAN_FILTERS,
-} from './mock-data.ts'
+import { DEFAULT_KANBAN_FILTERS, MOCK_KANBAN_FILTERS } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/kanban/locales.ts'
 import type { KanbanCardModel, KanbanColumnId, KanbanFilters, KanbanSurfaceState } from './types.ts'
 
@@ -44,7 +40,7 @@ function applyFilters(cards: readonly KanbanCardModel[], filters: KanbanFilters)
 /** Global board with filter toolbar. */
 export function GlobalKanban({
   dict = defaultDict,
-  initialCards = MOCK_GLOBAL_KANBAN_CARDS,
+  initialCards = [],
   initialState = 'ready',
 }: GlobalKanbanProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)

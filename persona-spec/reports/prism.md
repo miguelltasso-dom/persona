@@ -1,5 +1,15 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-03 — Keel P1: seed fora do bootstrap (D-043 / D-045)
+
+**Produção** — `PersonaLiveStore.bootstrap` só `getOnboarding` + `refresh`; zero personas até `completeOnboarding` / `commitOnboardingRoster`. Galeria `SUGGESTED_TEAM_GALLERY` (refs brush; nomes genéricos) não auto-cria.
+
+**Dev** — `runDevHarnessSeedIfEnabled` só em `mount.ts` após bootstrap, gated por `persona.devSeed.v1` (`PERSONA_DEV_SEED=1` nos gates). `real-app-shots.mjs` e `ui-boot-check.mjs`: onboarding real ou dev seed (removido skip via `persona.onboarding.complete.v1`).
+
+**Testes** — `persona-host/tests/onboarding.spec.ts` fresh home → `firstUse` + 0 personas; client gallery/dev-seed specs.
+
+---
+
 ## 2026-11-03 — Brush banners + onboarding Remote + seed equipe
 
 **Banners (Brush)** — `node scripts/persona/build-assets.mjs` → 125 files, 2.54 MiB; exports `teamBannerLight/Dark`, `railFoliage`, `railFoliageLight/Dark`. Faixa `#geral` usa WebP claro/escuro; rodapé do rail com arte Brush (fallback gradiente).

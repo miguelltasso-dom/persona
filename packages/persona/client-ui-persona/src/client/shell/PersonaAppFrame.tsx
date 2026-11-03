@@ -18,7 +18,7 @@ export function PersonaAppFrame({ renderSlot, useShell }: PersonaAppFrameProps):
   return (
     <div className={styles.frame} data-persona-shell="">
       {renderSlot('sidebar', {})}
-      <div className={styles.center}>
+      <div className={styles.center} data-persona-grain="">
         {renderSlot('main', {}, { entryKey: shell.activePanel })}
       </div>
       <div className={styles.overlayLayer}>

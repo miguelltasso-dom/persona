@@ -11,7 +11,7 @@ export interface TabItem<T extends string> {
 export interface TabsProps<T extends string> {
   readonly items: readonly TabItem<T>[]
   readonly value: T
-  onChange(id: T): void
+  readonly onChange: (id: T) => void
   /** Accessible name of the tablist. */
   readonly label: string
   /** id prefix used for aria-controls (`${idPrefix}-panel-${id}`). */

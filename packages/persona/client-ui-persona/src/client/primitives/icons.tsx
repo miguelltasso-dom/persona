@@ -13,7 +13,7 @@ export interface BrandIconProps {
   readonly name: BrandIconName
   /** Pixel size (default 20). */
   readonly size?: number
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /** Brush nav icon tinted with currentColor. */
@@ -51,7 +51,7 @@ export type UiIconName = keyof typeof UI_PATHS
 export interface UiIconProps {
   readonly name: UiIconName
   readonly size?: number
-  readonly className?: string
+  readonly className?: string | undefined
   /** Stroke width (default 1.75 like Brush nav icons). */
   readonly strokeWidth?: number
 }

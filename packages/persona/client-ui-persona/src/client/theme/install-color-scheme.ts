@@ -5,8 +5,9 @@ export function installPersonaColorScheme(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return
   const media = window.matchMedia('(prefers-color-scheme: dark)')
   const apply = (): void => {
-    if (document.body === null) return
-    document.body.toggleAttribute('data-ds-dark-theme', media.matches)
+    const body = document.body as HTMLElement | null
+    if (body === null) return
+    body.toggleAttribute('data-ds-dark-theme', media.matches)
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', apply, { once: true })

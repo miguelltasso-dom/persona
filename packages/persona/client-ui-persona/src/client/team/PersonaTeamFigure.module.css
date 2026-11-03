@@ -1,12 +1,20 @@
 .figure {
+  --figure-h: 188px;
   position: relative;
-  height: 10.625rem;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   width: 100%;
-  animation: personaBreathe 4.2s ease-in-out infinite;
+  height: var(--figure-h);
+  transform-origin: 50% 100%;
+  animation: personaBreathe 4.6s ease-in-out infinite;
   animation-delay: var(--persona-breathe-delay, 0s);
+  transition: transform var(--motion-base) var(--ease-spring);
+}
+
+.figure:hover {
+  animation-play-state: paused;
+  transform: rotate(-2.5deg) translateY(-3px);
 }
 
 .poseStack {
@@ -20,12 +28,12 @@
 .poseBase,
 .poseBlink,
 .poseTail {
-  max-height: 10.625rem;
-  max-width: min(7.5rem, 100%);
+  max-height: var(--figure-h);
+  max-width: min(170px, 100%);
   width: auto;
   object-fit: contain;
   object-position: bottom center;
-  filter: drop-shadow(0 6px 12px color-mix(in srgb, var(--persona-lilac-800) 18%, transparent));
+  user-select: none;
 }
 
 .poseBlink,
@@ -39,46 +47,71 @@
 }
 
 .poseBlink {
-  animation: personaBlinkFrame 5.5s ease-in-out infinite;
+  animation: personaBlinkFrame 5.5s steps(1, end) infinite;
   animation-delay: var(--persona-breathe-delay, 0s);
 }
 
 .poseTail {
-  animation: personaTailFrame 7s ease-in-out infinite;
+  animation: personaTailFrame 7s steps(1, end) infinite;
   animation-delay: calc(var(--persona-breathe-delay, 0s) + 1.2s);
 }
 
+/* State overlay (Brush icons/overlays) in a sticker bubble near the head. */
 .overlay {
   position: absolute;
-  top: 0.15rem;
-  right: 0;
-  width: 2.25rem;
-  height: auto;
+  top: 6px;
+  right: 4px;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 5px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 12px;
+  background: var(--persona-card);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
   pointer-events: none;
+}
+
+.figure[data-state='waiting'] .overlay {
+  background: var(--persona-accent);
 }
 
 .silhouette {
   display: block;
-  width: 4.5rem;
-  height: 9rem;
-  border-radius: 2.25rem 2.25rem 0.875rem 0.875rem;
-  background: color-mix(in srgb, var(--persona-active-ink) 10%, transparent);
-  border: 2px dashed color-mix(in srgb, var(--persona-lilac-700) 35%, transparent);
+  width: 84px;
+  height: 150px;
+  border-radius: 42px 42px 18px 18px;
+  background: var(--persona-wash-strong);
+  border: var(--persona-border-width) solid var(--persona-outline);
+}
+
+:global([data-ambient-paused]) .figure,
+:global([data-ambient-paused]) .poseBlink,
+:global([data-ambient-paused]) .poseTail {
+  animation-play-state: paused;
 }
 
 @keyframes personaBreathe {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-4px) scale(1.012); }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.012) translateY(-2px); }
 }
 
 @keyframes personaBlinkFrame {
-  0%, 92%, 100% { opacity: 0; }
+  0%, 93% { opacity: 0; }
   94%, 96% { opacity: 1; }
+  97%, 100% { opacity: 0; }
 }
 
 @keyframes personaTailFrame {
-  0%, 88%, 100% { opacity: 0; }
-  90%, 93% { opacity: 1; }
+  0%, 88% { opacity: 0; }
+  89%, 93% { opacity: 1; }
+  94%, 100% { opacity: 0; }
+}
+
+@media (max-width: 1180px) {
+  .figure {
+    --figure-h: 150px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -87,12 +120,8 @@
   .poseTail {
     animation: none;
   }
-}
 
-@media (document.hidden) {
-  .figure,
-  .poseBlink,
-  .poseTail {
-    animation-play-state: paused;
+  .figure:hover {
+    transform: none;
   }
 }

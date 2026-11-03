@@ -15,7 +15,7 @@ export interface AvatarProps {
   readonly presence?: AvatarPresence | undefined
   /** Decorative avatar next to a visible name. */
   readonly decorative?: boolean
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 const TONES = 4

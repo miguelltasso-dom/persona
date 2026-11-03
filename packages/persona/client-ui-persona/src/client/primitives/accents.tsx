@@ -7,7 +7,7 @@ import type { ReactNode } from 'react'
 import styles from './Accents.module.css'
 
 /** Wobbly amber underline drawn under one title per screen. */
-export function Squiggle({ className }: { readonly className?: string }): ReactNode {
+export function Squiggle({ className }: { readonly className?: string | undefined }): ReactNode {
   const merged = className === undefined ? styles.squiggle : `${styles.squiggle} ${className}`
   return (
     <svg className={merged} viewBox="0 0 120 12" preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -29,7 +29,7 @@ function Paw({ x, y, rotate, scale = 1 }: { x: number; y: number; rotate: number
 }
 
 /** Small trail of paw prints (empty states, celebrations). */
-export function PawTrail({ className }: { readonly className?: string }): ReactNode {
+export function PawTrail({ className }: { readonly className?: string | undefined }): ReactNode {
   const merged = className === undefined ? styles.paws : `${styles.paws} ${className}`
   return (
     <svg className={merged} viewBox="0 0 96 40" aria-hidden="true" focusable="false">
@@ -42,7 +42,7 @@ export function PawTrail({ className }: { readonly className?: string }): ReactN
 }
 
 /** Four-point sparkle ("novo", highlights). */
-export function Sparkle({ className, size = 16 }: { readonly className?: string; readonly size?: number }): ReactNode {
+export function Sparkle({ className, size = 16 }: { readonly className?: string | undefined; readonly size?: number }): ReactNode {
   const merged = className === undefined ? styles.sparkle : `${styles.sparkle} ${className}`
   return (
     <svg className={merged} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -52,7 +52,7 @@ export function Sparkle({ className, size = 16 }: { readonly className?: string;
 }
 
 /** Illustrated hills + leaves at the foot of the navigation rail (dirD-tela). */
-export function RailHills({ className }: { readonly className?: string }): ReactNode {
+export function RailHills({ className }: { readonly className?: string | undefined }): ReactNode {
   const merged = className === undefined ? styles.railHills : `${styles.railHills} ${className}`
   return (
     <svg className={merged} viewBox="0 0 272 150" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
@@ -73,7 +73,7 @@ export function RailHills({ className }: { readonly className?: string }): React
 }
 
 /** Team banner backdrop (sky → lavender hills → ground) used until Brush's banner art lands. */
-export function TeamScene({ className }: { readonly className?: string }): ReactNode {
+export function TeamScene({ className }: { readonly className?: string | undefined }): ReactNode {
   const merged = className === undefined ? styles.scene : `${styles.scene} ${className}`
   return (
     <svg className={merged} viewBox="0 0 1200 300" preserveAspectRatio="none" aria-hidden="true" focusable="false">

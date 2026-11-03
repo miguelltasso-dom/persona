@@ -1,16 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { avatarRefForPersonaName, DEFAULT_SUGGESTED_PERSONAS } from '../src/client/remote/seed-default-team.ts'
+import {
+  galleryRefForRosterPerson,
+  SUGGESTED_TEAM_GALLERY,
+} from '../src/client/remote/seed-default-team.ts'
+import { readClientDevSeedEnabled } from '../src/client/remote/persona-dev-seed.ts'
 
-describe('seed-default-team', () => {
-  it('maps onboarding names to gallery avatar refs', () => {
-    expect(avatarRefForPersonaName('Sol')).toBe('sol')
-    expect(avatarRefForPersonaName('Luna')).toBe('luna')
-    expect(avatarRefForPersonaName('Atlas')).toBe('atlas')
-  })
-
-  it('includes five suggested personas with brush ids', () => {
-    expect(DEFAULT_SUGGESTED_PERSONAS.map(row => row.avatarRef)).toEqual([
+describe('suggested team gallery', () => {
+  it('exposes five example gallery cards with brush refs', () => {
+    expect(SUGGESTED_TEAM_GALLERY).toHaveLength(5)
+    expect(SUGGESTED_TEAM_GALLERY.map(row => row.avatarRef)).toEqual([
       'atlas', 'bento', 'nina', 'sol', 'luna',
     ])
+  })
+
+  it('uses explicit galleryRef on roster rows', () => {
+    expect(galleryRefForRosterPerson({ name: 'Any', role: 'R', galleryRef: 'sol' })).toBe('sol')
+  })
+
+  it('slugifies name when galleryRef omitted (no fixed character names)', () => {
+    expect(galleryRefForRosterPerson({ name: 'Minha Persona', role: 'R' })).toBe('minha-persona')
+  })
+})
+
+describe('persona-dev-seed', () => {
+  it('is off without harness flag', () => {
+    expect(readClientDevSeedEnabled()).toBe(false)
   })
 })

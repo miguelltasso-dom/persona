@@ -4,7 +4,7 @@ import type { AwayEventLive, ChannelMessageUi } from './map-host-ui.ts'
 import { mapAwayEventLive, mapMessage, mapPersonaNowRow, mapTeamToStrip } from './map-host-ui.ts'
 import { bootstrapPersonaTenant, hostReportsFirstUse, type TenantBootstrapRemote } from './bootstrap-tenant.ts'
 import { shouldWriteCacheComplete } from './onboarding-host.ts'
-import { avatarRefForPersonaName, seedDefaultTeamIfEmpty } from './seed-default-team.ts'
+import { galleryRefForRosterPerson, seedDevTeamIfEmpty, type OnboardingRosterPerson } from './seed-default-team.ts'
 import { writeOnboardingCacheComplete } from '../shell/onboarding-persistence.ts'
 import { mapTaskToKanbanCard } from './map-host-ui.ts'
 import type { KanbanCardModel } from '../kanban/types.ts'
@@ -44,15 +44,16 @@ const EMPTY: PersonaLiveSnapshot = {
 export interface PersonaLiveStore {
   readonly observable: HostObservable<PersonaLiveSnapshot>
   bootstrap(onFirstUse: (firstUse: boolean) => void): Promise<void>
+  runDevHarnessSeedIfEnabled(): Promise<void>
   refresh(): Promise<void>
   postChannelMessage(body: string): Promise<void>
   commitOnboardingRoster(
     displayName: string,
-    roster: readonly { name: string; role: string }[],
+    roster: readonly OnboardingRosterPerson[],
   ): Promise<void>
   completeOnboarding(
     displayName: string,
-    roster: readonly { name: string; role: string }[],
+    roster: readonly OnboardingRosterPerson[],
   ): Promise<void>
 }
 
@@ -115,7 +116,7 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     projectId: string
     memberId: string
     displayName: string
-    roster: readonly { name: string; role: string }[]
+    roster: readonly OnboardingRosterPerson[]
   }): unknown
 }
 
@@ -187,8 +188,6 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
       onFirstUse(firstUse)
       await refresh()
       if (tenant !== null) {
-        const seeded = await seedDefaultTeamIfEmpty(remote, tenant)
-        if (seeded) await refresh()
         try {
           remote.markVisit(tenant)
         } catch {
@@ -222,7 +221,7 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
 
   const commitOnboardingRoster = async (
     displayName: string,
-    roster: readonly { name: string; role: string }[],
+    roster: readonly OnboardingRosterPerson[],
   ): Promise<void> => {
     if (tenant === null) return
     if (displayName.trim().length > 0) {
@@ -242,13 +241,9 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
     let index = 0
     for (const person of roster) {
       const id = slugId(person.name, index++)
-      const avatarRef = avatarRefForPersonaName(person.name)
-      const lower = person.name.toLowerCase()
-      const systemRoles = lower.includes('atlas')
-        ? (['coordination'] as const)
-        : lower.includes('luna')
-          ? (['watchdog'] as const)
-          : ([] as const)
+      const avatarRef = galleryRefForRosterPerson(person)
+      const systemRoles = person.systemRoles ?? []
+      const canRecruit = systemRoles.includes('coordination')
       try {
         await Promise.resolve(remote.createPersona({
           workspaceId: tenant.workspaceId,
@@ -264,7 +259,7 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
           runnerKind: 'dsh',
           runnerCli: '',
           runnerModel: 'default',
-          canRecruit: lower.includes('atlas'),
+          canRecruit,
           createdBy: tenant.memberId,
           systemRoles: [...systemRoles],
         }))
@@ -275,9 +270,16 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
     await refresh()
   }
 
+  /** Probe/gates only: `PERSONA_DEV_SEED=1` initScript; never invoked from {@link bootstrap}. */
+  const runDevHarnessSeedIfEnabled = async (): Promise<void> => {
+    if (tenant === null) return
+    const seeded = await seedDevTeamIfEmpty(remote, tenant)
+    if (seeded) await refresh()
+  }
+
   const completeOnboarding = async (
     displayName: string,
-    roster: readonly { name: string; role: string }[],
+    roster: readonly OnboardingRosterPerson[],
   ): Promise<void> => {
     if (tenant === null) return
     writeOnboardingCacheComplete()
@@ -305,6 +307,7 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
       subscribe: listener => store.subscribe(listener),
     },
     bootstrap,
+    runDevHarnessSeedIfEnabled,
     refresh,
     postChannelMessage,
     commitOnboardingRoster,

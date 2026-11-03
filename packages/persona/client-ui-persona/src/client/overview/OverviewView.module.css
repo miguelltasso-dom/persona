@@ -1,57 +1,146 @@
 .view {
-  padding: 1.5rem 2rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--persona-space-8) var(--persona-space-8) var(--persona-space-12);
 }
 
-.sectionTitle {
-  margin: 0 0 0.75rem;
-  font-size: 1.125rem;
-  font-weight: 700;
+.header,
+.grid {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--persona-space-6);
+  margin-bottom: var(--persona-space-8);
+}
+
+.headerTitles {
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0 0 var(--persona-space-1);
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-brand);
+}
+
+.title {
+  margin: 0;
+  font: 700 40px/46px var(--persona-font-display);
+  letter-spacing: -0.025em;
+  color: var(--persona-ink);
+}
+
+.titleInk {
+  position: relative;
+  display: inline-block;
+  padding-bottom: 6px;
+}
+
+.squiggle {
+  position: absolute;
+  left: 2px;
+  right: 8px;
+  bottom: -4px;
+  width: auto;
+}
+
+.subtitle {
+  margin: var(--persona-space-3) 0 0;
+  font-size: 17px;
+  line-height: 24px;
+  color: var(--persona-ink-soft);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr);
+  gap: var(--persona-space-6);
+  align-items: start;
+}
+
+.mainCol,
+.sideCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-6);
+  min-width: 0;
 }
 
 .attentionList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-}
-
-.introLine,
-.taskBody {
-  margin: 0 0 0.75rem;
-  line-height: 1.5;
-}
-
-.attentionText {
-  flex: 1;
-  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .attentionItem {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--persona-lilac-300);
-  background: var(--persona-active-surface-alt);
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-3) 0;
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.attentionItem:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .attentionIcon {
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 999px;
-  background: var(--persona-active-accent);
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
 }
 
-.empty {
-  padding: 1rem;
-  border-radius: 0.75rem;
-  border: 1px dashed var(--persona-lilac-400);
-  color: var(--persona-active-ink-muted);
+.attentionText {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.introLine {
+  margin: 0;
+  color: var(--persona-ink-soft);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-4);
+}
+
+@media (max-width: 1180px) {
+  .view {
+    padding: var(--persona-space-6);
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .title {
+    font-size: 32px;
+    line-height: 38px;
+  }
 }

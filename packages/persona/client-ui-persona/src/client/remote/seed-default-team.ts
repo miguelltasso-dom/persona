@@ -1,58 +1,30 @@
 import type { PersonaTenantScope } from './persona-remote-types.ts'
+import { readClientDevSeedEnabled } from './persona-dev-seed.ts'
 
-/** Suggested roster aligned with persona-core `suggested-animals` (gallery refs for Brush assets). */
-export const DEFAULT_SUGGESTED_PERSONAS = [
-  {
-    id: 'persona-atlas',
-    name: 'Atlas',
-    title: 'Coordenação',
-    avatarRef: 'atlas',
-    systemRoles: ['coordination'] as const,
-    canRecruit: true,
-  },
-  {
-    id: 'persona-bento',
-    name: 'Bento',
-    title: 'Engenharia',
-    avatarRef: 'bento',
-    systemRoles: [] as const,
-    canRecruit: false,
-  },
-  {
-    id: 'persona-nina',
-    name: 'Nina',
-    title: 'Exploração',
-    avatarRef: 'nina',
-    systemRoles: [] as const,
-    canRecruit: false,
-  },
-  {
-    id: 'persona-sol',
-    name: 'Sol',
-    title: 'Relacionamento',
-    avatarRef: 'sol',
-    systemRoles: [] as const,
-    canRecruit: false,
-  },
-  {
-    id: 'persona-luna',
-    name: 'Luna',
-    title: 'Vigia',
-    avatarRef: 'luna',
-    systemRoles: ['watchdog'] as const,
-    canRecruit: false,
-  },
+/** Example gallery cards for onboarding step 4 (user picks/edits/removes; not auto-created). */
+export const SUGGESTED_TEAM_GALLERY = [
+  { id: 'gallery-1', name: 'Coordenador', title: 'Coordenação', avatarRef: 'atlas', systemRoles: ['coordination'] as const, canRecruit: true },
+  { id: 'gallery-2', name: 'Implementador', title: 'Engenharia', avatarRef: 'bento', systemRoles: [] as const, canRecruit: false },
+  { id: 'gallery-3', name: 'Explorador', title: 'Exploração', avatarRef: 'nina', systemRoles: [] as const, canRecruit: false },
+  { id: 'gallery-4', name: 'Relações', title: 'Relacionamento', avatarRef: 'sol', systemRoles: [] as const, canRecruit: false },
+  { id: 'gallery-5', name: 'Vigia', title: 'Observação', avatarRef: 'luna', systemRoles: ['watchdog'] as const, canRecruit: false },
 ] as const
 
-/** Map display name from onboarding builder to gallery avatar ref. */
-export function avatarRefForPersonaName(name: string): string {
-  const lower = name.trim().toLowerCase()
-  if (lower.includes('atlas')) return 'atlas'
-  if (lower.includes('bento')) return 'bento'
-  if (lower.includes('nina')) return 'nina'
-  if (lower.includes('sol')) return 'sol'
-  if (lower.includes('luna')) return 'luna'
-  return lower.replace(/[^a-z0-9]+/gu, '-').slice(0, 32) || 'atlas'
+/** @deprecated Use {@link SUGGESTED_TEAM_GALLERY}. */
+export const DEFAULT_SUGGESTED_PERSONAS = SUGGESTED_TEAM_GALLERY
+
+export interface OnboardingRosterPerson {
+  readonly name: string
+  readonly role: string
+  readonly galleryRef?: string
+  readonly systemRoles?: readonly ('coordination' | 'watchdog')[]
+}
+
+/** Gallery ref from draft row (explicit ref wins; else neutral slug). */
+export function galleryRefForRosterPerson(person: OnboardingRosterPerson): string {
+  if (person.galleryRef !== undefined && person.galleryRef.length > 0) return person.galleryRef
+  const slug = person.name.trim().toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')
+  return slug.length > 0 ? slug.slice(0, 32) : 'neutral'
 }
 
 type PersonaCreatorRemote = {
@@ -72,21 +44,20 @@ type PersonaCreatorRemote = {
     runnerModel: string
     canRecruit: boolean
     createdBy: string
-    systemRoles?: readonly string[]
+    systemRoles?: readonly ('coordination' | 'watchdog')[]
   }): unknown
   listTeam(request: PersonaTenantScope): { personas: readonly { id: string }[] }
 }
 
 /**
- * Ensure the five suggested personas exist when the project roster is empty (dev + skipped onboarding).
- * @param remote - mounted persona Remote.
- * @param tenant - workspace scope.
+ * Dev harness only (`PERSONA_DEV_SEED=1` + localStorage flag). Never call in production bootstrap.
  */
-export async function seedDefaultTeamIfEmpty(remote: PersonaCreatorRemote, tenant: PersonaTenantScope): Promise<boolean> {
+export async function seedDevTeamIfEmpty(remote: PersonaCreatorRemote, tenant: PersonaTenantScope): Promise<boolean> {
+  if (!readClientDevSeedEnabled()) return false
   const team = await Promise.resolve(remote.listTeam(tenant))
   if (team.personas.length > 0) return false
 
-  for (const persona of DEFAULT_SUGGESTED_PERSONAS) {
+  for (const persona of SUGGESTED_TEAM_GALLERY) {
     try {
       await Promise.resolve(remote.createPersona({
         workspaceId: tenant.workspaceId,
@@ -111,4 +82,12 @@ export async function seedDefaultTeamIfEmpty(remote: PersonaCreatorRemote, tenan
     }
   }
   return true
+}
+
+/** @deprecated Use {@link seedDevTeamIfEmpty}. */
+export const seedDefaultTeamIfEmpty = seedDevTeamIfEmpty
+
+/** @deprecated Use {@link galleryRefForRosterPerson}. */
+export function avatarRefForPersonaName(name: string): string {
+  return galleryRefForRosterPerson({ name, role: '' })
 }

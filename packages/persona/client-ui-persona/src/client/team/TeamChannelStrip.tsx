@@ -1,6 +1,7 @@
-import { useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { teamBannerDark, teamBannerLight } from '../assets/generated-imports.ts'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { Avatar, BrandIcon, Chip, TeamScene } from '../primitives/index.ts'
 import type { ChannelPersonaMember } from './persona-work-state.ts'
 import { WORK_STATUS_KEY } from './persona-work-state.ts'
 import { PersonaTeamFigure } from './PersonaTeamFigure.tsx'
@@ -10,49 +11,86 @@ export interface TeamChannelStripProps extends PropsLocale<'persona.shell'> {
   readonly members: readonly ChannelPersonaMember[]
 }
 
-/** Full-body team banner (dirD): lilac scene, large poses on shared ground line. */
+/** Pause ambient loops when the tab is hidden or the banner scrolls away (UX-GUIDE §2.3). */
+function useAmbientPause(): [RefObject<HTMLElement>, boolean] {
+  const ref = useRef<HTMLElement>(null)
+  const [paused, setPaused] = useState(false)
+  useEffect(() => {
+    const node = ref.current
+    let visible = true
+    const update = (): void => { setPaused(document.hidden || !visible) }
+    const onVisibility = (): void => { update() }
+    document.addEventListener('visibilitychange', onVisibility)
+    let observer: IntersectionObserver | undefined
+    if (node !== null && typeof IntersectionObserver === 'function') {
+      observer = new IntersectionObserver((entries) => {
+        visible = entries.some(entry => entry.isIntersecting)
+        update()
+      })
+      observer.observe(node)
+    }
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      observer?.disconnect()
+    }
+  }, [])
+  return [ref, paused]
+}
+
+/** "Sua equipe neste canal" — Brush banner scene, full-body poses on one ground line, sticker name tags. */
 export function TeamChannelStrip({ t, members }: TeamChannelStripProps): ReactNode {
-  const delays = useMemo(() => members.map((_, index) => `${index * 0.35}s`), [members])
-  const hasBanner = teamBannerLight !== undefined || teamBannerDark !== undefined
-  const sceneStyle = hasBanner
-    ? ({
-      ...(teamBannerLight !== undefined ? { '--team-banner-url-light': `url(${teamBannerLight})` } : {}),
-      ...(teamBannerDark !== undefined ? { '--team-banner-url-dark': `url(${teamBannerDark})` } : {}),
-    } as CSSProperties)
-    : undefined
+  const [ref, paused] = useAmbientPause()
+  const bannerLight = ILLUSTRATIONS['team-banner-light']
+  const bannerDark = ILLUSTRATIONS['team-banner-dark']
 
   return (
-    <section className={styles.strip} aria-label={t('team.channelStripTitle')}>
-      <div className={styles.scene} style={sceneStyle} data-has-banner={hasBanner ? '' : undefined}>
-        <div className={styles.headerRow}>
-          <h2 className={styles.title}>{t('team.channelStripTitle')}</h2>
-          <span className={styles.memberChip}>
-            {t('team.memberCount', { count: String(members.length) })}
-          </span>
-        </div>
-        <div className={styles.stage}>
-          <ul className={styles.list}>
-            {members.map((member, index) => (
-              <li
-                key={member.id}
-                className={styles.member}
-                style={{ '--persona-breathe-delay': delays[index] } as CSSProperties}
-              >
-                <PersonaTeamFigure member={member} breatheDelay={delays[index] ?? '0s'} />
-                <span className={styles.meta}>
-                  <span className={styles.name}>{member.name}</span>
-                  <span className={styles.role}>{member.role}</span>
-                  <span className={styles.status}>
-                    <span className={styles.statusIcon} data-state={member.state} aria-hidden="true" />
-                    {t(WORK_STATUS_KEY[member.state])}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className={styles.groundLine} aria-hidden="true" />
-        </div>
+    <section
+      ref={ref}
+      className={styles.strip}
+      aria-labelledby="persona-team-strip-title"
+      data-ambient-paused={paused ? '' : undefined}
+    >
+      <div className={styles.scene} aria-hidden="true">
+        {bannerLight !== undefined ? (
+          <>
+            <img className={styles.bannerLight} src={bannerLight} alt="" />
+            <img className={styles.bannerDark} src={bannerDark ?? bannerLight} alt="" />
+          </>
+        ) : (
+          <TeamScene />
+        )}
       </div>
+
+      <div className={styles.intro}>
+        <h2 id="persona-team-strip-title" className={styles.title}>{t('team.channelStripTitle')}</h2>
+        <Chip tone="plain" icon={<BrandIcon name="equipe" size={16} />}>
+          {t('team.memberCount', { count: String(members.length) })}
+        </Chip>
+      </div>
+
+      <ul className={styles.cast}>
+        {members.map((member, index) => {
+          const status = t(WORK_STATUS_KEY[member.state])
+          return (
+            <li key={member.id} className={styles.member} data-state={member.state}>
+              <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
+              <span className={styles.tag}>
+                <span className={styles.tagName}>{member.name}</span>
+                <span className={styles.tagStatus}>
+                  <span className={styles.statusDot} data-state={member.state} aria-hidden="true" />
+                  {status}
+                </span>
+                <span className="persona-sr-only">{`, ${member.role}`}</span>
+              </span>
+            </li>
+          )
+        })}
+        {members.length === 0 && (
+          <li className={styles.member}>
+            <Avatar name="?" size={56} decorative />
+          </li>
+        )}
+      </ul>
     </section>
   )
 }

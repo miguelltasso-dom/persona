@@ -40,7 +40,7 @@ export interface SkeletonProps {
   readonly width?: number | string
   readonly height?: number | string
   readonly shape?: 'text' | 'block' | 'circle'
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 /** Sunken shimmer placeholder (no spinner). */

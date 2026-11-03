@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { StaggerEntrance } from '../primitives/index.ts'
+import { AVATAR_96 } from '../assets/generated-imports.ts'
+import { Avatar, StaggerEntrance } from '../primitives/index.ts'
 import styles from './OnboardingWizard.module.css'
 
 export interface IntroLine {
@@ -12,17 +13,21 @@ export interface TeamIntroQueueProps {
   readonly greetingName: string
 }
 
-/** Step 5: teammates introduce themselves in staggered queue (UX-GUIDE §3 onboarding). */
+function portraitOf(speaker: string): string | undefined {
+  return (AVATAR_96 as Readonly<Record<string, string>>)[speaker.toLowerCase()]
+}
+
+/** Step 5: teammates introduce themselves in a staggered queue (UX-GUIDE §3 onboarding). */
 export function TeamIntroQueue({ lines, greetingName }: TeamIntroQueueProps): ReactNode {
   return (
     <ul className={styles.introList} aria-label={greetingName}>
       {lines.map((line, index) => (
         <StaggerEntrance key={line.speaker} index={index}>
           <li className={styles.introItem}>
-            <div className={styles.introAvatar} aria-hidden="true" />
+            <Avatar name={line.speaker} src={portraitOf(line.speaker)} size={48} decorative />
             <div>
               <div className={styles.introSpeaker}>{line.speaker}</div>
-              <div>{line.text}</div>
+              <p className={styles.introText}>{line.text}</p>
             </div>
           </li>
         </StaggerEntrance>

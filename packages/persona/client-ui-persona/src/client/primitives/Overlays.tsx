@@ -17,7 +17,7 @@ export interface ModalProps {
   readonly footer?: ReactNode
   /** Accessible label of the close button; omit to hide it (blocking flows). */
   readonly closeLabel?: string
-  onClose?(): void
+  readonly onClose?: (() => void) | undefined
   readonly size?: 'm' | 'l'
   readonly children?: ReactNode
 }
@@ -91,7 +91,7 @@ export interface ToastProps {
   readonly body?: ReactNode
   readonly action?: ReactNode
   readonly dismissLabel?: string
-  onDismiss?(): void
+  readonly onDismiss?: (() => void) | undefined
 }
 
 const TOAST_ICON: Readonly<Record<ToastTone, UiIconName>> = {

@@ -1,20 +1,40 @@
 .scrim {
   position: fixed;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  background: color-mix(in srgb, var(--persona-active-ink) 55%, transparent);
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: var(--persona-space-6);
+  background: var(--persona-scrim);
+  backdrop-filter: blur(4px);
+  animation: persona-onboarding-fade var(--motion-base) var(--ease-enter);
 }
 
 .panel {
-  width: min(42rem, 100%);
-  max-height: min(90vh, 48rem);
-  overflow: auto;
-  padding: 1.5rem;
-  border-radius: var(--persona-radius-lg, 12px);
-  background: var(--persona-active-surface);
-  color: var(--persona-active-ink);
-  box-shadow: 0 24px 48px color-mix(in srgb, var(--persona-active-ink) 25%, transparent);
+  box-sizing: border-box;
+  width: min(980px, 100%);
+  overflow: hidden;
+  background: var(--persona-card);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-xl);
+  box-shadow: var(--persona-shadow-float);
+  animation: persona-onboarding-pop var(--motion-slow) var(--ease-spring);
+}
+
+@keyframes persona-onboarding-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes persona-onboarding-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrim,
+  .panel {
+    animation: persona-onboarding-fade var(--motion-reduced-fade) linear;
+  }
 }

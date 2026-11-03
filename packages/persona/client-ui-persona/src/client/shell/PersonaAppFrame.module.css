@@ -1,17 +1,25 @@
 .frame {
   display: grid;
-  grid-template-columns: 17rem minmax(0, 1fr);
+  grid-template-columns: 264px minmax(0, 1fr);
   min-height: 100vh;
   min-height: 100dvh;
   height: 100dvh;
-  background: var(--persona-active-surface);
-  color: var(--persona-active-ink);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
 }
 
 .center {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--persona-paper);
+}
+
+.center > * {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .overlayLayer {
@@ -23,4 +31,10 @@
 
 .overlayLayer > * {
   pointer-events: auto;
+}
+
+@media (max-width: 1100px) {
+  .frame {
+    grid-template-columns: 232px minmax(0, 1fr);
+  }
 }

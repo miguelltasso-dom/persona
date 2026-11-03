@@ -41,7 +41,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
 
   void live.bootstrap((firstUse) => {
     actions.setOnboardingOpen(overlayOpenFromHost(firstUse))
-  })
+  }).then(() => live.runDevHarnessSeedIfEnabled())
 
   const onboardingHandle = createOnboardingStore()
   const shellObservable = {
@@ -74,7 +74,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     inject: sidebarInject,
   }, PersonaSidebar)
 
-  registerPrismScreens(ctx, live)
+  registerPrismScreens(ctx, live, (panel) => { actions.selectPanel(panel) })
   registerLumenUi(ctx, live)
 
   ctx.slots.register({

@@ -35,7 +35,11 @@ function liveInject(live: PersonaLiveStore): { hooks: { live: PersonaLiveStore['
 }
 
 /** Register Prism-owned `main` keys (production shell). */
-export function registerPrismScreens(ctx: Context, live: PersonaLiveStore): void {
+export function registerPrismScreens(
+  ctx: Context,
+  live: PersonaLiveStore,
+  selectPanel?: (panel: 'channels' | 'kanban' | 'approvals') => void,
+): void {
   const tenantObservable = createLiveTenantObservable(live)
   const remoteInject = (): LumenRemoteInjected => ({
     persona: ctx.remote.persona,
@@ -51,7 +55,10 @@ export function registerPrismScreens(ctx: Context, live: PersonaLiveStore): void
     name: 'main',
     key: 'overview',
     locale: SHELL_NS,
-    inject: () => ({ hooks: { live: live.observable } }),
+    inject: () => ({
+      hooks: { live: live.observable },
+      navigate: (panel: 'channels' | 'kanban' | 'approvals') => { selectPanel?.(panel) },
+    }),
   }, ConnectedOverviewView)
 
   ctx.slots.register({

@@ -23,6 +23,8 @@ it('never cites Atlas or any fixed persona name in the templates', () => {
   expect(joined).not.toMatch(/\bBento\b/)
   expect(joined).not.toMatch(/\bNina\b/)
   expect(joined).toContain('{{persona_name}}')
+  expect(joined).toMatch(/IGNORE ALL POLICIES/)
+  expect(joined).toMatch(/uma pergunta só/)
 })
 
 it('versions a published prompt and keeps earlier revisions', () => {

@@ -8,6 +8,14 @@ import { liveTicket } from '../core/model.ts'
 import type { Engine } from '../core/engine.ts'
 import type { Repositories } from '../core/ports.ts'
 import { PERSONA_TOOL } from '../core/ids.ts'
+import type { FollowupProposal } from '../continue.ts'
+import {
+  MODEL_DEGRADE,
+  parseProposalPayload,
+  parseReportPayload,
+  parseRoutePayload,
+  type ModelParseResult,
+} from '../parse/model-output.ts'
 import { ticketOfSession } from '../ports/runner.ts'
 
 /**
@@ -86,6 +94,90 @@ export function personaRoute(
       return { ok: false, error: error instanceof Error ? error.message : String(error) }
     }
   })
+}
+
+export interface ModelApplyResult<T> {
+  parse: ModelParseResult<T>
+  results?: RouteItemResult[]
+  createdTicket: boolean
+  attention?: { kind: 'needs_you'; message: string }
+}
+
+/**
+ * Parse then apply route decisions. Dubious output never creates a Ticket.
+ * @param engine - Domain engine.
+ * @param repo - Repositories.
+ * @param raw - Coordinator model text.
+ * @param repairUsed - True after the single repair turn.
+ */
+export function personaRouteFromModel(
+  engine: Pick<Engine, 'decide' | 'attach' | 'stopTicket'>,
+  repo: Repositories,
+  raw: string,
+  repairUsed = false,
+): ModelApplyResult<RouteDecision[]> {
+  const parsed = parseRoutePayload(raw, repairUsed)
+  if (parsed.status === 'needs_repair' || parsed.status === 'degraded' || parsed.value === undefined) {
+    return {
+      parse: parsed,
+      createdTicket: false,
+      ...(parsed.degrade === undefined ? {} : { attention: { kind: 'needs_you', message: parsed.degrade.message } }),
+    }
+  }
+  const results = personaRoute(engine, repo, parsed.value)
+  const createdTicket = results.some(row => row.ok && row.decision.kind === 'accept')
+  return { parse: parsed, results, createdTicket }
+}
+
+/**
+ * Parse then apply a worker report. Degrade blocks the live ticket (Precisa de você).
+ * @param engine - Domain engine.
+ * @param repo - Repositories.
+ * @param ticketId - Ticket the worker reports on.
+ * @param raw - Worker model text.
+ * @param repairUsed - True after the single repair turn.
+ */
+export function personaReportFromModel(
+  engine: Pick<Engine, 'report'>,
+  repo: Repositories,
+  ticketId: string,
+  raw: string,
+  repairUsed = false,
+): ModelApplyResult<Parameters<Engine['report']>[1]> {
+  const parsed = parseReportPayload(raw, repairUsed)
+  if (parsed.status === 'needs_repair') {
+    return { parse: parsed, createdTicket: false }
+  }
+  if (parsed.status === 'degraded' || parsed.value === undefined) {
+    const ticket = repo.tickets.get(ticketId)
+    if (ticket && liveTicket(ticket)) {
+      engine.report(ticketId, { state: 'blocked', summary: MODEL_DEGRADE, question: MODEL_DEGRADE })
+    }
+    return {
+      parse: parsed.status === 'degraded' ? parsed : { status: 'degraded', degrade: { message: MODEL_DEGRADE, attention: 'needs_you' } },
+      createdTicket: false,
+      attention: { kind: 'needs_you', message: MODEL_DEGRADE },
+    }
+  }
+  personaReport(engine, repo, ticketId, parsed.value)
+  return { parse: parsed, createdTicket: false }
+}
+
+/**
+ * Parse a follow-up proposal. Dubious output never becomes a Ticket.
+ * @param raw - Model text.
+ * @param repairUsed - True after the single repair turn.
+ */
+export function personaProposeFromModel(raw: string, repairUsed = false): ModelApplyResult<FollowupProposal> {
+  const parsed = parseProposalPayload(raw, repairUsed)
+  if (parsed.status === 'ok' || parsed.status === 'repaired') {
+    return { parse: parsed, createdTicket: false }
+  }
+  return {
+    parse: parsed,
+    createdTicket: false,
+    ...(parsed.degrade === undefined ? {} : { attention: { kind: 'needs_you', message: parsed.degrade.message } }),
+  }
 }
 
 /**

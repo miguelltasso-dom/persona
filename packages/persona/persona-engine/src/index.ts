@@ -47,9 +47,16 @@ export type { RouterBenchCounts, RouterBenchResult } from './bench/router.ts'
 export { formatEngineBenchReport, runEngineBench } from './bench/engine.ts'
 export type { EngineBenchPhase, EngineBenchResult, EngineBenchSizes } from './bench/engine.ts'
 export {
+  COORD_PROMPT_BEFORE,
+  COORD_REAL_IDS,
+  COORD_REAL_SCENARIOS,
   COORD_SCENARIOS,
+  collectTurnText,
+  coordDecisionPrompt,
   decideFake,
+  decideFromModelText,
   formatCoordEvalReport,
+  formatRealCoordEval,
   runCoordEval,
 } from './bench/coord-eval.ts'
 export type {
@@ -57,7 +64,11 @@ export type {
   CoordDecision,
   CoordEvalCell,
   CoordEvalReport,
+  CoordPromptRound,
   CoordScenario,
+  RealCoordCell,
+  RealCoordRound,
+  TurnDelta,
 } from './bench/coord-eval.ts'
 export {
   GitReviewDelivery,
@@ -134,10 +145,34 @@ export {
   personaHandback,
   personaReport,
   personaReportFromRun,
+  personaProposeFromModel,
+  personaReportFromModel,
   personaRoute,
+  personaRouteFromModel,
   personaThreadFollow,
 } from './router/handlers.ts'
-export type { Notice, RouteDecision, RouteItemResult } from './router/handlers.ts'
+export type { ModelApplyResult, Notice, RouteDecision, RouteItemResult } from './router/handlers.ts'
+export {
+  MODEL_DEGRADE,
+  MODEL_JSON_LIMIT,
+  MODEL_REPAIR_LIMIT,
+  dirtyMulberry32,
+  dirtySample,
+  extractJsonText,
+  normalizeModelText,
+  parseCoordDecision,
+  parseProposalPayload,
+  parseReportPayload,
+  parseRoutePayload,
+} from './parse/model-output.ts'
+export type {
+  ModelDegrade,
+  ModelParseKind,
+  ModelParseResult,
+  ParseStatus,
+  ParsedCoordDecision,
+  ParsedRouteDecision,
+} from './parse/model-output.ts'
 export { MasterAssessor } from './router/assessor.ts'
 export type { ThreadContext } from './router/assessor.ts'
 export {
@@ -158,8 +193,10 @@ export { applyProactivity, applyAutonomy, autonomyMode } from './proactivity.ts'
 export { applyAttentionAnswer, citedCardTicketId } from './attention.ts'
 export { approvalCard, milestoneSummary } from './approvals.ts'
 export type { ApprovalCard } from './approvals.ts'
-export { isOnShift, shouldRunDaily, shouldRunOnEvent } from './initiative.ts'
-export type { InitiativeClock, InitiativeEvent, Shift } from './initiative.ts'
+export {
+  isOnShift, isOnShiftInZone, shouldRunDaily, shouldRunDailyInZone, shouldRunOnEvent, zonedParts,
+} from './initiative.ts'
+export type { InitiativeClock, InitiativeEvent, Shift, ZonedParts } from './initiative.ts'
 export { lazinessHint, scoreLaziness } from './laziness.ts'
 export type { LazinessRun, LazinessScenario, LazinessScore } from './laziness.ts'
 export {
@@ -192,6 +229,19 @@ export type {
   DecisionRowView, SearchHit, ViewHost, ExecutorLoad,
   HonestState, NowOverview, PersonaLoad, PersonaNow, WhileAway,
 } from './views/index.ts'
+export {
+  HOUR_MS,
+  SOAK_DAYS,
+  SOAK_PERSONAS,
+  SOAK_PROJECTS,
+  SOAK_SEED,
+  formatSoakReport,
+  openMemorySoak,
+  runSoak,
+} from './soak/sim.ts'
+export type {
+  SoakOpen, SoakOutbox, SoakPersistence, SoakReport, SoakSize,
+} from './soak/sim.ts'
 export {
   ASSIGNMENTS, INPUTS, TICKET_STATES, triggerCard, ticketCard, inputLine, assignmentLine,
   newestPage, ticketDetails, threadCard, decisionCard, decisionDetails, textPage,

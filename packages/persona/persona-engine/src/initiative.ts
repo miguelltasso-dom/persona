@@ -63,3 +63,59 @@ export function shouldRunOnEvent(clock: InitiativeClock, event: InitiativeEvent)
   if (!isOnShift(clock.shifts, new Date(clock.now))) return false
   return event === 'pr_opened' || event === 'recurring_error' || event === 'deadline'
 }
+
+export interface ZonedParts {
+  day: number
+  minutes: number
+  ymd: string
+}
+
+/**
+ * Local civil time in `timeZone` (DST-aware via ICU).
+ * @param at - Instant.
+ * @param timeZone - IANA zone (`America/Sao_Paulo`, `Europe/Lisbon`).
+ */
+export function zonedParts(at: Date, timeZone: string): ZonedParts {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  })
+  const map: Record<string, string> = {}
+  for (const part of fmt.formatToParts(at)) map[part.type] = part.value
+  const week: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return {
+    day: week[map.weekday ?? 'Sun'] ?? 0,
+    minutes: Number(map.hour ?? 0) * 60 + Number(map.minute ?? 0),
+    ymd: `${map.year ?? '1970'}-${map.month ?? '01'}-${map.day ?? '01'}`,
+  }
+}
+
+/**
+ * @param shifts - Weekly hours in `timeZone`.
+ * @param at - Instant.
+ * @param timeZone - IANA zone.
+ */
+export function isOnShiftInZone(shifts: readonly Shift[], at: Date, timeZone: string): boolean {
+  if (shifts.length === 0) return true
+  const parts = zonedParts(at, timeZone)
+  return shifts.some(shift => shift.day === parts.day && parts.minutes >= minutesOf(shift.start) && parts.minutes < minutesOf(shift.end))
+}
+
+/**
+ * Daily initiative once per local day in `timeZone`.
+ * @param clock - Fake or wall clock.
+ * @param timeZone - IANA zone.
+ */
+export function shouldRunDailyInZone(clock: InitiativeClock, timeZone: string): boolean {
+  if (clock.now < clock.silenceUntil) return false
+  const at = new Date(clock.now)
+  if (!isOnShiftInZone(clock.shifts, at, timeZone)) return false
+  if (clock.lastDailyAt === undefined) return true
+  return zonedParts(new Date(clock.lastDailyAt), timeZone).ymd !== zonedParts(at, timeZone).ymd
+}

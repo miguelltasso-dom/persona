@@ -31,6 +31,11 @@ export class FakeClock {
    * @param byMs - Milliseconds to add.
    */
   advance(byMs: number): void { this.ms += byMs }
+  /**
+   * Absolute jump (laptop sleep, DST, user-changed zone).
+   * @param ms - New clock reading.
+   */
+  jumpTo(ms: number): void { this.ms = ms }
 }
 
 export class FakeRunner implements Runner {

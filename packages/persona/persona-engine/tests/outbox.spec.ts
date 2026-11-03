@@ -25,6 +25,14 @@ it('withdraws only a pending message', () => {
   expect(box.pending()).toEqual([])
 })
 
+it('default clock and pass skip ids that are not pending', () => {
+  const box = new MemoryOutbox()
+  box.send(message('m1'))
+  expect(box.status('m1')).toBe('pending')
+  expect(box.pass('sent', ['missing', 'm1']).map(row => row.id)).toEqual(['m1'])
+  expect(box.pass('dropped', ['m1'])).toEqual([])
+})
+
 it('records sent and dropped passes without re-sending', () => {
   const box = new MemoryOutbox(() => '2026-11-03T14:00:00.000Z')
   box.send(message('m1'))

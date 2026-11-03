@@ -64,4 +64,8 @@ it('forwards a webhook by delivery id without interpreting the payload', () => {
   })
   expect(sameWebhookDelivery(hook, { ...hook, payload: { other: true } })).toBe(true)
   expect(sameWebhookDelivery(hook, { ...hook, deliveryId: 'del-2' })).toBe(false)
+  expect(IdentityCipher.open(IdentityCipher.seal('olá', 'wk1'), 'wk1')).toBe('olá')
+  const empty = new MemorySyncLog()
+  expect(empty.head('missing')).toBe(0)
+  expect(empty.after('missing', 0)).toEqual([])
 })

@@ -62,7 +62,11 @@ function branchOf(ticketId: string): string {
   return `${REVIEW_BRANCH_PREFIX}${confineSegment(ticketId)}`
 }
 
-function parseNumstat(text: string): ReviewFileChange[] {
+/**
+ * Parse `git diff --numstat`. Binary rows (`-`) count as 0; escaped paths drop.
+ * @param text - numstat stdout.
+ */
+export function parseNumstat(text: string): ReviewFileChange[] {
   const files: ReviewFileChange[] = []
   for (const line of text.split('\n')) {
     const match = /^(\d+|-)\t(\d+|-)\t(.+)$/.exec(line)
@@ -130,7 +134,7 @@ export class GitReviewDelivery implements ReviewDelivery {
       files,
       added: files.reduce((sum, file) => sum + file.added, 0),
       deleted: files.reduce((sum, file) => sum + file.deleted, 0),
-      patch: redacted.text,
+      patch,
       patchTruncated: truncated,
       patchLimitBytes: this.patchLimit,
       secretsRedacted: redacted.redacted,

@@ -66,5 +66,21 @@ export function defineRetentionSuite(open: RetentionFactory, label = 'memory'): 
       expect(DEFAULT_RETENTION.windows.find(window => window.kind === 'decision')?.deleteAfterMs).toBeUndefined()
       expect(DAY_MS).toBe(86_400_000)
     })
+
+    it('ignora tipo sem janela, não re-arquiva e lista por tipo', () => {
+      const store = open()
+      store.save(row('live', { kind: 'input', createdAt: 0 }))
+      store.save(row('gone', { kind: 'usage', createdAt: 0 }))
+      store.archive('live', 1)
+      store.archive('live', 2)
+      store.delete('missing')
+      expect(store.get('missing')).toBeUndefined()
+      expect(store.get('live')?.archivedAt).toBe(1)
+      expect(store.list('input').map(item => item.id)).toEqual(['live'])
+      const result = applyRetention(store, { windows: [{ kind: 'effect', archiveAfterMs: 1 }] }, 10)
+      expect(result.archived).toEqual([])
+      expect(store.hasIndex('idx:live')).toBe(true)
+      expect(store.hasCache('live')).toBe(true)
+    })
   })
 }

@@ -305,6 +305,10 @@ export interface Ticket {
   execution?: Execution
   /** The latest failed delivery of an Input to its worker, until a delivery succeeds. */
   delivery?: { error: string; at: string }
+  /** Board seat on the project workflow (D-053). */
+  columnId?: string
+  sprintId?: string
+  campos?: Record<string, string | number>
 }
 /**
  * A Thread a ticket follows, by its key: `own` when the ticket opened it, such as its own pull request, and when and how it

@@ -51,6 +51,15 @@ it('keeps the Grok adapter as an extension that does not sniff yet', () => {
   expect(grok?.sniff([{ name: 'grok.json', text: '{}' }])).toBe(false)
 })
 
+it('ChatGPT export sem id não cria candidato', () => {
+  const noId = previewImport(IMPORT_ADAPTERS, [{
+    name: 'conversations.json',
+    text: JSON.stringify([{ title: 'sem id', mapping: { n: { message: { content: { parts: ['oi'] } } } } }]),
+  }])
+  expect(noId.adapterId).toBe('chatgpt')
+  expect(noId.accepted).toEqual([])
+})
+
 it('recusa arquivo irreconhecível em pt-BR', () => {
   expect(() => previewImport(IMPORT_ADAPTERS, [{ name: 'lixo.bin', text: '????' }])).toThrow(/IMPORT_REFUSED/)
   try {

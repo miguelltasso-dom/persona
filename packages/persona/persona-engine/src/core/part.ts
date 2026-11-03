@@ -2,6 +2,7 @@
 import { UserError } from './errors.ts'
 import { followupOwners, reached, threadKey } from './model.ts'
 import type { Thread, ThreadRef, Ticket, Trigger } from './model.ts'
+import type { PreRouteResult } from '../preroute/rules.ts'
 import type { Assessor, AssessmentOutcome, DomainEvent, DomainEvents, Executor, Outbox, Policy, Repositories, SourceScope } from './ports.ts'
 
 export interface EngineOptions {
@@ -15,6 +16,11 @@ export interface EngineOptions {
   prepareTicket?: (ticket: Ticket, outcome: Extract<AssessmentOutcome, { kind: 'accept' }>) => Ticket
   now?: () => string
   emit?: (event: DomainEvent) => void
+  /**
+   * Deterministic pre-router. Called after an Eval starts, before the assessor
+   * (the model). `model` falls through. Other actions decide the Eval here.
+   */
+  preRoute?: (trigger: Trigger) => PreRouteResult
 }
 
 /**

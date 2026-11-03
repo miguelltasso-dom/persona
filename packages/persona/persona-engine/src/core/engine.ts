@@ -1,4 +1,5 @@
 /** The domain Engine: the single entry point of the core, and the role interfaces its callers receive. */
+import { applyAttentionAnswer } from '../attention.ts'
 import { UserError } from './errors.ts'
 import { isoTime, liveTicket } from './model.ts'
 import type { Decision, PolicyEffect, ThreadRef, Ticket, Trigger } from './model.ts'
@@ -164,6 +165,23 @@ export class Engine {
    * @throws UserError when the ticket is unknown, has ended, or is not retryable.
    */
   retryTicket(ticketId: string): Ticket { return this.repo.atomic(() => this.tickets.retry(ticketId)) }
+  /**
+   * Person answers the open Attention question. The text becomes a ticket input
+   * and the question is cleared so the worker can continue (C2).
+   * @param ticketId - Ticket waiting on a person.
+   * @param text - Person's answer.
+   * @returns The ticket without `attention`.
+   */
+  answerAttention(ticketId: string, text: string): Ticket {
+    return this.repo.atomic(() => {
+      const ticket = this.repo.tickets.get(ticketId)
+      if (ticket === undefined) throw new UserError('unknownTicket')
+      const at = this.options.now?.() ?? new Date().toISOString()
+      const next = applyAttentionAnswer(ticket, text, at)
+      this.repo.tickets.save(next)
+      return this.repo.tickets.get(ticketId) ?? next
+    })
+  }
 
   // The Executor
 
@@ -262,7 +280,7 @@ export type EngineForSources = Pick<Engine, 'receive' | 'bindThread' | 'threadCl
 /** What the main Session asks of the Engine. */
 export type EngineForMainSession = Pick<Engine, 'candidate' | 'candidateDelivered' | 'decide' | 'attach' | 'reply' | 'requestStatus' | 'note'>
 /** What people ask of the Engine, through the panel or the main Session. */
-export type EngineForPeople = Pick<Engine, 'stopTicket' | 'retryTicket' | 'reevaluate' | 'unsubscribe' | 'dismiss'>
+export type EngineForPeople = Pick<Engine, 'stopTicket' | 'retryTicket' | 'answerAttention' | 'reevaluate' | 'unsubscribe' | 'dismiss'>
 /** What Settings tells the Engine. */
 export type EngineForSettings = Pick<Engine, 'policyChanged'>
 /** What the Executor tells the Engine, and what its workers ask of it. */

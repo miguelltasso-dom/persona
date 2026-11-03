@@ -4,6 +4,85 @@ Mais recente no topo.
 
 ---
 
+## 03/11 18:55 — Jornadas J1–J10 (host)
+
+### O que ficou pronto
+Dez jornadas em `persona-host/tests/journeys/*.spec.ts` (arquivos novos; Anvil intocado). PersonaHost real, SQLite temporário, runner scriptado, relógio injetável. 10/10. Lista em `reports/journeys.md`. S7 do PLAN atualizado com honestidade (host verde; UI Probe ainda todo).
+
+### Arquivos
+- `packages/persona/persona-host/tests/journeys/{journey-host,j01–j10}.ts`
+- `persona-host/src/orchestration.ts` (`requestChanges` sem pasta: anota + blocked antes de retry)
+- `persona-spec/reports/journeys.md`, `PLAN.md` S7
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests/journeys
+ Test Files  10 passed (10)
+      Tests  10 passed (10)
+   Duration  14.36s
+```
+
+### Limitações
+- J2 Aceitar sem `setProjectRoot` devolve bloqueado «Projeto sem pasta» (merge real continua no teste git do Anvil).
+- Reduced-motion / dirD = Probe, não estas jornadas.
+
+---
+
+## 03/11 18:45 — purpose:talk (PRIORIDADE 1)
+
+### Antes
+Anvil mediu a 1ª resposta real: «Estou pronta como onb-1, Executora… Tarefa autorizada». Talk usava o wrap de Executora (`prefixOwnerNorms` / título default `Executora`) e o id interno no lugar do nome.
+
+### O que ficou pronto
+- Template `talk` + `composeTalkPrompt`: voz (nome de exibição, personalidade, instruções, função), colegas, Cofre/memória com teto 4000, pt-BR, 1–3 frases, sem mandato de Tarefa, sem «Executora», user/anexos em `<dado>`.
+- `purpose: talk` no session runner **não** aplica owner-norms; `personaName`/`personaTitle` saem do `resolveFor` e entram em `createOarSessionRunner`.
+- `finishReply` entrega `talkPrompt(...)` (nunca o body cru).
+
+### Arquivos
+- `persona-engine/src/prompts/{talk,templates}.ts`, `src/index.ts`, `tests/prompts.spec.ts`
+- `persona-host/src/{orchestration,runner}.ts`, `tests/talk-voice.spec.ts`
+- `persona-runners/src/oar/session.ts`, `tests/talk-session.spec.ts`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/prompts.spec.ts packages/persona/persona-runners/tests/talk-session.spec.ts
+ Test Files  2 passed (2)
+      Tests  7 passed (7)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-engine
+persona-engine: OK in 17.3s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 43.6s
+```
+
+```
+pnpm exec vitest run …/prompts.spec.ts …/talk-session.spec.ts …/talk-voice.spec.ts
+ Test Files  3 passed (3)
+      Tests  9 passed (9)
+```
+
+```
+pnpm exec tsx packages/persona/persona-host/scripts/first-real-reply.ts
+reply: "BANANA"  source: runner  actor: onb-1  sqlite type: runner
+broke: []  execs: 1  first-token 13644 ms  reply 13698 ms  total 18336 ms
+```
+
+Depois: o modelo obedeceu «Responda só BANANA». Sem «Executora», sem mandato de Tarefa no corpo. 1/3 execs da exceção.
+
+### Limitações
+- `actorId` do evento continua `onb-1` (id da linha); o prompt e o texto da resposta não vazam o id.
+- 1º token ainda ~13,6 s (pool/modelo rápido = Rivet).
+- `check-pkg persona-host` / `persona-runners`: falhas em testes do Anvil/Rivet (unused import, `warmTtlMs`, `nowMs`); nenhum erro nos arquivos desta onda.
+
+---
+
 ## 03/11 17:50 — Queda+resume, importadores F1, guia
 
 ### O que ficou pronto

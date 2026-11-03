@@ -25,6 +25,7 @@ export type DomainErrorCode =
   | 'SYNC_REFUSED'
   | 'IMPORT_REFUSED'
   | 'SECRET_REFUSED'
+  | 'INVALID_WORKFLOW'
 
 /** Domain validation or policy failure; message equals `code`. */
 export class DomainError extends Error {

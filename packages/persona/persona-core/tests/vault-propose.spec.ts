@@ -36,3 +36,23 @@ it('keeps an approval-policy proposal pending', () => {
   expect(proposal.status).toBe('pending')
   expect(() => applyVaultProposal(record, proposal)).toThrow('ACL_DENIED')
 })
+
+it('refuses a credential-shaped body and a foreign workspace', () => {
+  expect(() => proposeVaultUpdate({
+    id: 'p4', creator: worker, current: record, nextBody: 'sk-ant-api03-ABCDEFGHIJKLMNOP',
+    nextVisibility: { kind: 'project', projectId: 'launch' }, policy: 'auto', createdAt: '2026-11-03T15:01:00Z',
+  })).toThrow('SECRET_REFUSED')
+  const foreign: Actor = { ...worker, workspaceId: 'other' }
+  expect(() => proposeVaultUpdate({
+    id: 'p5', creator: foreign, current: record, nextBody: 'ok',
+    nextVisibility: { kind: 'project', projectId: 'launch' }, policy: 'auto', createdAt: '2026-11-03T15:01:00Z',
+  })).toThrow('ACL_DENIED')
+})
+
+it('applyVaultProposal refuses a mismatched record', () => {
+  const proposal = proposeVaultUpdate({
+    id: 'p6', creator: worker, current: record, nextBody: 'ok',
+    nextVisibility: { kind: 'project', projectId: 'launch' }, policy: 'auto', createdAt: '2026-11-03T15:01:00Z',
+  })
+  expect(() => applyVaultProposal({ ...record, id: 'other' }, proposal)).toThrow('INVALID_VAULT_RECORD')
+})

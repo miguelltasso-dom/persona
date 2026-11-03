@@ -4,6 +4,7 @@
  */
 
 import { parseCoordDecision } from '../parse/model-output.ts'
+import { preRoute, preRouteToCoord, type PreRouteInput, type PreRouteRule } from '../preroute/rules.ts'
 import { PROMPT_TEMPLATES } from '../prompts/templates.ts'
 import { runRouterExperiment, type RouterBenchResult } from './router.ts'
 
@@ -52,6 +53,15 @@ export interface CoordEvalReport {
   routerCalls: number
   ablation: RouterBenchResult
   realCli: { ran: boolean; n: number }
+  preRoute?: PreRouteEvalReport
+}
+
+export interface PreRouteEvalReport {
+  beforeModelCalls: number
+  afterModelCalls: number
+  beforeCorrect: number
+  afterCorrect: number
+  skipped: Partial<Record<PreRouteRule, number>>
 }
 
 const WORK = /\b(implemente|corrija|escreva|adicione|crie|arrume|refatore)\b/i
@@ -259,6 +269,53 @@ export async function runCoordEval(
     routerCalls: ablation.batched.inferences,
     ablation,
     realCli: { ran: real, n: real ? use.length : 0 },
+    ...real ? {} : { preRoute: measurePreRoute(use) },
+  }
+}
+
+function preInput(scenario: CoordScenario): PreRouteInput {
+  const threadKey = 'chat:t1'
+  const senderId = 'ana'
+  const window = scenario.class === 'duplicate'
+    ? [{ text: scenario.text, senderId, threadKey, at: 0 }]
+    : []
+  return {
+    text: scenario.text,
+    senderId,
+    threadKey,
+    at: 1_000,
+    personas: [],
+    budgetLeft: scenario.budgetLeft !== false,
+    silenceUntil: 0,
+    canCommand: () => true,
+    window,
+  }
+}
+
+/**
+ * Fake F3 with and without the pre-router. No real CLI.
+ * @param use - Corpus slice.
+ */
+export function measurePreRoute(use: readonly CoordScenario[] = COORD_SCENARIOS): PreRouteEvalReport {
+  const skipped: Partial<Record<PreRouteRule, number>> = {}
+  let afterModelCalls = 0
+  let afterCorrect = 0
+  let beforeCorrect = 0
+  for (const scenario of use) {
+    const fake = decideFake(scenario)
+    if (fake === scenario.expected) beforeCorrect += 1
+    const hit = preRoute(preInput(scenario))
+    const got = hit.modelCalled ? fake : preRouteToCoord(hit)
+    if (hit.modelCalled) afterModelCalls += 1
+    else if (hit.rule !== undefined) skipped[hit.rule] = (skipped[hit.rule] ?? 0) + 1
+    if (got === scenario.expected) afterCorrect += 1
+  }
+  return {
+    beforeModelCalls: use.length,
+    afterModelCalls,
+    beforeCorrect,
+    afterCorrect,
+    skipped,
   }
 }
 
@@ -278,6 +335,10 @@ export function formatCoordEvalReport(report: CoordEvalReport): string {
     `Acerto: **${String(report.correct)}/${String(report.total)}** (${(report.accuracy * 100).toFixed(1)}%).`,
     `Decisões/Tarefa (proxy): ${report.decisionsPerTicket.toFixed(2)}. Tokens/Tarefa (proxy): ${report.tokenProxyPerTicket.toFixed(0)}.`,
     `Chamadas do Router (lote): ${String(report.routerCalls)}. CLI real: ${report.realCli.ran ? String(report.realCli.n) : 'não rodou'}.`,
+    ...(report.preRoute === undefined ? [] : [
+      '',
+      `Pré-roteador (sem CLI): chamadas de modelo **${String(report.preRoute.beforeModelCalls)} → ${String(report.preRoute.afterModelCalls)}**. Acerto ${String(report.preRoute.beforeCorrect)}/${String(report.total)} → ${String(report.preRoute.afterCorrect)}/${String(report.total)}.`,
+    ]),
     '',
     '| classe | n | acertos | taxa |',
     '|---|---:|---:|---:|',

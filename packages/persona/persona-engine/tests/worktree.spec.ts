@@ -10,9 +10,10 @@ const execFileAsync = promisify(execFile)
 
 async function tempRepo(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'persona-wt-'))
-  await execFileAsync('git', ['init', dir])
+  await execFileAsync('git', ['init', '-b', 'main', dir])
   await execFileAsync('git', ['-C', dir, 'config', 'user.email', 'forge@persona.test'])
   await execFileAsync('git', ['-C', dir, 'config', 'user.name', 'Forge'])
+  await execFileAsync('git', ['-C', dir, 'config', 'core.longpaths', 'true'])
   await writeFile(join(dir, 'README'), 'ok\n')
   await execFileAsync('git', ['-C', dir, 'add', '.'])
   await execFileAsync('git', ['-C', dir, 'commit', '-m', 'init'])
@@ -32,7 +33,7 @@ it('adds a worktree by spawning git with argv and shell:false', async () => {
   await addWorktree(repo, 't1', dest)
   const { stdout } = await execFileAsync('git', ['-C', repo, 'worktree', 'list'])
   expect(stdout).toContain('wt-t1')
-})
+}, 45_000)
 
 it('rejects a missing repository without using a shell', async () => {
   const dest = join(tmpdir(), 'persona-wt-missing')

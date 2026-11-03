@@ -115,6 +115,21 @@ export class Evals extends EnginePart {
       this.repo.triggers.saveDisposition(trigger.id, { ...(this.repo.triggers.disposition(trigger.id) ?? { fanout: [], at }), evalId })
     }
     this.emit('eval.started', { evalId, threadKey: thread.key, triggerIds: thread.evaluating.triggerIds, strength: strongest.strength })
+    const routed = this.options.preRoute?.(strongest.trigger)
+    if (routed !== undefined && routed.action !== 'model') {
+      const triggerId = strongest.trigger.id
+      if (routed.action === 'assign' || (routed.action === 'command' && routed.command === 'tarefa')) {
+        this.decide(triggerId, {
+          kind: 'accept',
+          title: routed.title ?? strongest.trigger.text.slice(0, 48),
+          scope: 'small',
+          reason: routed.why,
+        })
+        return
+      }
+      this.decide(triggerId, { kind: 'ignore', reason: routed.why })
+      return
+    }
     this.options.assessor.request(this.candidateOf(thread))
   }
   /** The candidate of the Eval that holds `triggerId`, or undefined while no Eval holds it. */

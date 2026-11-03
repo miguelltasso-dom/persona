@@ -145,6 +145,30 @@ const cases: ReadonlyArray<[string, Actor, AclAction, AclResource, boolean]> = [
   ['member cannot write routine', member, 'write', { type: 'routine', workspaceId: 'ws', projectId: 'launch' }, false],
   ['coordinator writes routine', coordinator, 'write', { type: 'routine', workspaceId: 'ws', projectId: 'launch' }, true],
   ['watchdog cannot write routine', watchdog, 'write', { type: 'routine', workspaceId: 'ws', projectId: 'launch' }, false],
+  ['guest reads own persona', { ...guest, id: 'visitor' }, 'read', { type: 'persona', workspaceId: 'ws', personaId: 'visitor' }, true],
+  ['owner creates persona', owner, 'create', { type: 'persona', workspaceId: 'ws', personaId: 'new' }, true],
+  ['coordinator decides ticket', coordinator, 'decide', { type: 'ticket', workspaceId: 'ws', projectId: 'launch' }, true],
+  ['owner deletes ticket', owner, 'delete', { type: 'ticket', workspaceId: 'ws', projectId: 'launch' }, true],
+  ['member cannot delete ticket', member, 'delete', { type: 'ticket', workspaceId: 'ws', projectId: 'launch' }, false],
+  ['guest reads own proposal', guest, 'read', { type: 'proposal', workspaceId: 'ws', creatorPersonaId: 'visitor' }, true],
+  ['guest cannot read peer proposal', guest, 'read', { type: 'proposal', workspaceId: 'ws', creatorPersonaId: 'coord' }, false],
+  ['creator deletes proposal', coordinator, 'delete', { type: 'proposal', workspaceId: 'ws', creatorPersonaId: 'coord' }, true],
+  ['channel message without project is refused', member, 'read', {
+    type: 'message', workspaceId: 'ws', stream: 'channel', streamId: 'geral',
+  }, false],
+  ['owner deletes vault', owner, 'delete', {
+    type: 'vault', workspaceId: 'ws', visibility: { kind: 'workspace' }, status: 'active', kind: 'brief',
+  }, true],
+  ['owner creates workspace row', owner, 'create', { type: 'workspace', workspaceId: 'ws' }, true],
+  ['member follows channel', member, 'follow', { type: 'channel', workspaceId: 'ws', projectId: 'launch' }, true],
+  ['member follows ticket', member, 'follow', { type: 'ticket', workspaceId: 'ws', projectId: 'launch' }, true],
+  ['coordinator writes constraint', coordinator, 'write', {
+    type: 'vault', workspaceId: 'ws', visibility: { kind: 'workspace' }, status: 'active', kind: 'constraint',
+  }, true],
+  ['dm via dmIds', { ...worker, dmIds: ['dm1'] }, 'read', {
+    type: 'dm', workspaceId: 'ws', dmId: 'dm1', memberIds: ['ana'],
+  }, true],
+  ['owner deletes routine', owner, 'delete', { type: 'routine', workspaceId: 'ws', projectId: 'launch' }, true],
 ]
 
 it.each(cases)('%s', (_name, actor, action, resource, allowed) => {
@@ -181,6 +205,8 @@ it('authorizeContext admits only readable vault-backed records', async () => {
   expect(await allow(projectMemory, scope)).toBe(true)
   expect(await allow(personaMemory, scope)).toBe(false)
   expect(await deny(projectMemory, scope)).toBe(false)
+  expect(await allow({ ...projectMemory, kind: 'task' }, scope)).toBe(true)
+  expect(await allow({ ...projectMemory, status: 'revoked' }, scope)).toBe(false)
 })
 
 it('authorizeRecall admits channel events only in the actor projects', async () => {

@@ -10,6 +10,6 @@ export type {
   ReviewSummary,
   ReviewWorktree,
 } from './types.ts'
-export { GitReviewDelivery, confineWorktreeWrite } from './git.ts'
+export { GitReviewDelivery, confineWorktreeWrite, parseNumstat } from './git.ts'
 export type { GitReviewOptions } from './git.ts'
 export { looksLikeCredential, redactSecrets, testsClaimedOf } from './redact.ts'

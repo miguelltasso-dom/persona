@@ -20,6 +20,57 @@ export { MemoryOutbox } from './outbox.ts'
 export type { OutboxPass } from './outbox.ts'
 export { kanbanColumn, projectKanban, reviewThread } from './kanban.ts'
 export type { KanbanColumn, KanbanProjection } from './kanban.ts'
+export {
+  WorkflowError,
+  applyCategoryToTicket,
+  moveToColumn,
+  projectBoardCard,
+  resolveColumn,
+  stageBlocked,
+  stageCategory,
+  syncPlacementFromStage,
+} from './workflow.ts'
+export type { TicketPlacement, WorkflowFail } from './workflow.ts'
+export {
+  WORKFLOW_TEMPLATES,
+  MemoryPlacementStore,
+  MemoryWorkflowStore,
+  applyWorkflowEdit,
+  assertWorkflow,
+  boardCounts,
+  columnOccupancy,
+  firstColumnOf,
+  parseWorkflowProposal,
+  proposeWorkflow,
+  workflowFromTemplate,
+  workflowTemplateById,
+  wipWarning,
+} from '@deepseek-ai/dsh-persona-core'
+export type {
+  BoardCounts,
+  PlacementStore,
+  ProjectWorkflow,
+  StageCategory,
+  TicketBoardSeat,
+  WorkflowColumn,
+  WorkflowField,
+  WorkflowFieldKind,
+  WorkflowProposal,
+  WorkflowStore,
+  WorkflowTemplate,
+  WorkflowTemplateId,
+} from '@deepseek-ai/dsh-persona-core'
+export {
+  closeSprint,
+  openSprint,
+  planSprint,
+  sprintDaysLeft,
+  sprintGoal,
+  sprintMilestone,
+  unfinishedInSprint,
+  MemorySprintBoard,
+} from './sprint.ts'
+export type { CloseSprintResult, Sprint, SprintBoard, SprintRollover, SprintStatus } from './sprint.ts'
 export { internalSourceScope } from './sources.ts'
 export type { InternalSourceKind } from './sources.ts'
 export {
@@ -47,6 +98,18 @@ export type { RouterBenchCounts, RouterBenchResult } from './bench/router.ts'
 export { formatEngineBenchReport, runEngineBench } from './bench/engine.ts'
 export type { EngineBenchPhase, EngineBenchResult, EngineBenchSizes } from './bench/engine.ts'
 export {
+  DEFAULT_PRE_ROUTE,
+  MemoryPreRouteLog,
+  nearRatio,
+  normalizeRouteText,
+  preRoute,
+  preRouteToCoord,
+  routeHash,
+} from './preroute/rules.ts'
+export type {
+  PreRouteAction, PreRouteInput, PreRouteResult, PreRouteRule, PreRouteRules, PreRouteTrail, RouteWindowEntry,
+} from './preroute/rules.ts'
+export {
   COORD_PROMPT_BEFORE,
   COORD_REAL_IDS,
   COORD_REAL_SCENARIOS,
@@ -57,6 +120,7 @@ export {
   decideFromModelText,
   formatCoordEvalReport,
   formatRealCoordEval,
+  measurePreRoute,
   runCoordEval,
 } from './bench/coord-eval.ts'
 export type {
@@ -65,6 +129,7 @@ export type {
   CoordEvalCell,
   CoordEvalReport,
   CoordPromptRound,
+  PreRouteEvalReport,
   CoordScenario,
   RealCoordCell,
   RealCoordRound,
@@ -75,6 +140,7 @@ export {
   REVIEW_BRANCH_PREFIX,
   REVIEW_PATCH_LIMIT_BYTES,
   confineWorktreeWrite,
+  parseNumstat,
   looksLikeCredential as reviewLooksLikeCredential,
   redactSecrets,
   testsClaimedOf,
@@ -182,6 +248,14 @@ export {
   missingPlaceholders,
 } from './prompts/templates.ts'
 export type { ComposePromptInput, PromptIdentity, PromptPart } from './prompts/templates.ts'
+export {
+  TALK_CONTEXT_LIMIT,
+  capTalkContext,
+  composeTalkPrompt,
+  talkPolicy,
+  wrapAsData,
+} from './prompts/talk.ts'
+export type { TalkColleague, TalkPromptInput } from './prompts/talk.ts'
 export { MemoryPromptStore, publishPrompt } from './prompts/store.ts'
 export type { PromptSnapshot, PromptStore } from './prompts/store.ts'
 export { watchdogSignals, watchdogWarnings, vigiaTick } from './watchdog.ts'

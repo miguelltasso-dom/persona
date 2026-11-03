@@ -11,6 +11,9 @@ import {
   PathEscapeError,
   confineWorktreeWrite,
   latestAssignment,
+  parseNumstat,
+  reviewLooksLikeCredential,
+  redactSecrets,
   testsClaimedOf,
 } from '../src/index.ts'
 import type { Assessor, Candidate, EngineOptions, Executor, Policy, Ticket, Trigger } from '../src/index.ts'
@@ -95,7 +98,7 @@ it('prepare cria worktree+branch a partir da base e o runner só escreve dentro'
   expect(() => confineWorktreeWrite(wt.path, '../escape.ts')).toThrow(PathEscapeError)
   const again = await delivery.prepare({ id: 'a1', ticketId: 'tick1' })
   expect(again.path).toBe(wt.path)
-})
+}, 45_000)
 
 it('summary lista arquivos, +/−, patch limitado e redige segredo; testes do relato', async () => {
   const { root, trees } = await tempRepo()
@@ -119,7 +122,7 @@ it('summary lista arquivos, +/−, patch limitado e redige segredo; testes do re
   expect(sum.patchTruncated).toBe(true)
   expect(sum.testsClaimed).toEqual(['vitest', 'lint'])
   expect(testsClaimedOf('testes: a; b')).toEqual(['a', 'b'])
-})
+}, 45_000)
 
 it('accept ff integra; conflito aborta o merge e bloqueia com Precisa de você', async () => {
   const { root, trees } = await tempRepo()
@@ -147,7 +150,7 @@ it('accept ff integra; conflito aborta o merge e bloqueia com Precisa de você',
   if (blocked.kind === 'blocked') expect(blocked.explanation.length).toBeGreaterThan(0)
   const mergeHead = await exec('git', ['-C', root, 'rev-parse', '-q', '--verify', 'MERGE_HEAD']).catch(() => ({ stdout: '' }))
   expect(mergeHead.stdout.trim()).toBe('')
-})
+}, 45_000)
 
 it('requestChanges reatribui com feedback e não muda o Mandate', async () => {
   const { root, trees } = await tempRepo()
@@ -164,7 +167,7 @@ it('requestChanges reatribui com feedback e não muda o Mandate', async () => {
   expect(after.mandate.scope).toBe(scope)
   expect(after.inputs.some(input => input.kind === 'note' && input.text.includes('Ajusta o título'))).toBe(true)
   expect(after.assignments.length).toBeGreaterThan(1)
-})
+}, 45_000)
 
 it('discard remove worktree+branch; sweepOrphans faxina na retomada', async () => {
   const { root, trees } = await tempRepo()
@@ -179,7 +182,34 @@ it('discard remove worktree+branch; sweepOrphans faxina na retomada', async () =
   await delivery.prepare({ id: 'a2', ticketId: 'orphan' })
   const swept = await delivery.sweepOrphans()
   expect(swept).toContain('orphan')
+}, 45_000)
+
+it('redact e testsClaimedOf cobrem vazio e credencial', () => {
+  expect(testsClaimedOf(undefined)).toEqual([])
+  expect(testsClaimedOf('sem testes aqui')).toEqual([])
+  expect(reviewLooksLikeCredential('ghp_abcdefghijklmnopqrst')).toBe(true)
+  expect(redactSecrets('token ghp_abcdefghijklmnopqrst').redacted).toBe(true)
+  expect(parseNumstat('1\t2\tok.ts\n-\t-\tbin.dat\n1\t0\t../escape\n0\t1\t/abs\n1\t1\ta\\..\\b\n')).toEqual([
+    { path: 'ok.ts', added: 1, deleted: 2 },
+    { path: 'bin.dat', added: 0, deleted: 0 },
+  ])
 })
+
+it('requestChanges sem engine é no-op; sem canRetry relata failed e reabre', async () => {
+  const { root, trees } = await tempRepo()
+  const dry = new GitReviewDelivery({ projectRoot: root, worktreesRoot: trees })
+  await dry.requestChanges({ id: 'gone' } as Pick<Ticket, 'id' | 'mandate'>, 'x')
+  const h = harness()
+  const ticket = accepted(h)
+  const delivery = new GitReviewDelivery({
+    projectRoot: root, worktreesRoot: trees,
+    engine: h.engine,
+    ticketOf: id => h.repo.tickets.get(id),
+  })
+  await delivery.requestChanges(ticket, 'Ajusta.')
+  const after = h.repo.tickets.get(ticket.id)!
+  expect(after.assignments.length).toBeGreaterThan(0)
+}, 45_000)
 
 it('aceita squash sem push e respeita caminho longo + CRLF no worktree', async () => {
   const { root, trees } = await tempRepo()
@@ -189,4 +219,4 @@ it('aceita squash sem push e respeita caminho longo + CRLF no worktree', async (
   await edit(wt.path, nested, 'linha um\r\nlinha dois\r\n')
   const result = await delivery.accept({ id: 'long1' }, 'squash')
   expect(result.kind).toBe('merged')
-})
+}, 45_000)

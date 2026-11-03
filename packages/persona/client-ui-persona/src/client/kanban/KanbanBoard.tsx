@@ -1,9 +1,11 @@
 /** Shared Kanban grid: columns, drag-drop, surface states. */
 
-import { useCallback, useMemo, useState, type DragEvent, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
+import { useKanbanFlip } from './use-kanban-flip.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Chip } from '../primitives/index.ts'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { Chip, EmptyState } from '../primitives/index.ts'
 import { KanbanCard } from './KanbanCard.tsx'
 import styles from './Kanban.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from './PersonaSurface.tsx'
@@ -22,6 +24,7 @@ export interface KanbanBoardProps {
   readonly columnLabels: Readonly<Record<KanbanColumnId, string>>
   readonly onMoveCard?: (cardId: string, toColumn: KanbanColumnId) => void
   readonly onOpenReview?: (cardId: string) => void
+  readonly onRequestStatus?: (cardId: string) => void
   readonly onRetry?: () => void
   readonly onEmptyPrimary?: () => void
 }
@@ -47,14 +50,18 @@ export function KanbanBoard({
   columnLabels,
   onMoveCard,
   onOpenReview,
+  onRequestStatus,
   onRetry,
   onEmptyPrimary,
 }: KanbanBoardProps): ReactNode {
-  const t = (key: string) => bindLocale(dict, key)
+  const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropColumn, setDropColumn] = useState<KanbanColumnId | null>(null)
 
   const grouped = useMemo(() => groupByColumn(cards), [cards])
+  const boardRef = useRef<HTMLDivElement>(null)
+  const cardsKey = useMemo(() => cards.map(c => `${c.id}:${c.column}`).join('|'), [cards])
+  useKanbanFlip(boardRef, cardsKey)
 
   const onDragStart = useCallback((cardId: string) => {
     setDraggingId(cardId)
@@ -107,7 +114,7 @@ export function KanbanBoard({
   }
 
   return (
-    <div className={styles.board} role="region" aria-label={t('drag.hint')}>
+    <div ref={boardRef} className={styles.board} role="region" aria-label={t('a11y.boardRegion')}>
       {KANBAN_COLUMN_ORDER.map((columnId) => {
         const columnCards = grouped[columnId]
         const highlighted = dropColumn === columnId
@@ -122,11 +129,22 @@ export function KanbanBoard({
           >
             <header className={styles.columnHeader} id={`col-${columnId}`}>
               <span className={styles.columnTitle}>{columnLabels[columnId]}</span>
-              <Chip size="s" tone="neutral" aria-label={`${columnCards.length}`}>
+              <Chip
+                size="s"
+                tone="neutral"
+                aria-label={t('a11y.columnCount', { column: columnLabels[columnId], count: columnCards.length })}
+              >
                 {columnCards.length}
               </Chip>
             </header>
             <div className={styles.columnBody}>
+              {columnCards.length === 0 && (
+                <EmptyState
+                  compact
+                  illustration={ILLUSTRATIONS['empty-kanban']}
+                  title={t('empty.column')}
+                />
+              )}
               {columnCards.map(card => (
                 <KanbanCard
                   key={card.id}
@@ -134,9 +152,12 @@ export function KanbanBoard({
                   card={card}
                   draggingId={draggingId}
                   showProject={showProjectOnCard}
+                  columnLabels={columnLabels}
                   onDragStart={(id) => { onDragStart(id) }}
                   onDragEnd={onDragEnd}
+                  {...(onMoveCard !== undefined ? { onMoveCard } : {})}
                   {...(onOpenReview !== undefined ? { onOpenReview } : {})}
+                  {...(onRequestStatus !== undefined ? { onRequestStatus } : {})}
                 />
               ))}
             </div>

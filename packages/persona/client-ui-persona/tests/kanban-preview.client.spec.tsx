@@ -53,8 +53,9 @@ describe.sequential('kanban preview (dom)', () => {
     const projectRoot = document.querySelector('[data-persona-kanban="project"]')
     expect(projectRoot).toBeTruthy()
     expect(screen.getByRole('heading', { level: 1, name: pt['title.project'] })).toBeTruthy()
-    expect(within(projectRoot as HTMLElement).getByText(pt['column.todo'])).toBeTruthy()
-    expect(within(projectRoot as HTMLElement).getByText(pt['chip.waitingEvent'])).toBeTruthy()
+    const board = within(projectRoot as HTMLElement).getByRole('region', { name: pt['a11y.boardRegion'] })
+    expect(board.querySelector('#col-todo')?.textContent).toContain(pt['column.todo'])
+    expect(within(projectRoot as HTMLElement).getByText(pt['chip.state.waiting'])).toBeTruthy()
     view.unmount()
   })
 
@@ -68,9 +69,9 @@ describe.sequential('kanban preview (dom)', () => {
       />,
     )
     const globalRoot = globalKanbanRoot()
-    const buttons = within(globalRoot).getAllByRole('button', { name: pt['action.review'] })
-    expect(buttons.length).toBeGreaterThan(0)
-    fireEvent.click(buttons[0]!)
+    const reviewCard = within(globalRoot).getByRole('article', { name: 'Revisar copy da página de preços' })
+    fireEvent.click(within(reviewCard).getByRole('button', { name: pt['a11y.cardMenu'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: pt['action.open'] }))
     expect(opened.length).toBe(1)
   })
 
@@ -83,7 +84,7 @@ describe.sequential('kanban preview (dom)', () => {
     fireEvent.change(within(globalRoot).getByLabelText(pt['filter.project']), { target: { value: 'proj-site' } })
 
     expect(within(globalRoot).queryByText('Mapear campos do processo civil')).toBeNull()
-    const board = within(globalRoot).getByRole('region', { name: pt['drag.hint'] })
+    const board = within(globalRoot).getByRole('region', { name: pt['a11y.boardRegion'] })
     const briefingCards = within(board).getAllByRole('article', { name: 'Briefing do hero da landing' })
     expect(briefingCards).toHaveLength(1)
     expect(within(board).getAllByRole('article')).toHaveLength(MOCK_PROJECT_KANBAN_CARDS.length)

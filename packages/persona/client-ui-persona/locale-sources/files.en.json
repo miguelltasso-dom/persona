@@ -11,7 +11,7 @@
   "action.download": "Download",
   "empty.title": "No files yet",
   "empty.hint": "When a persona produces deliverables, they show up here with a link to the channel.",
-  "empty.action": "Ask Atlas for a deliverable",
+  "empty.action": "Ask the team for a deliverable",
   "empty.illustration": "Illustration: empty folder with paw prints",
   "loading": "Loading files…",
   "error.title": "Couldn't reach the team right now",

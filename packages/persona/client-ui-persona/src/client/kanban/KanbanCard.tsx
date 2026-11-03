@@ -1,20 +1,40 @@
-/** Single Kanban card with drag lift, chips, persona carry, and completion celebration. */
+/** Single Kanban card with drag lift, persona row, chips, and overflow menu. */
 
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
-import { Avatar, Button, Card, Chip, PawTrail } from '../primitives/index.ts'
+import { Avatar, Card, Chip, PawTrail, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
+import { KanbanCardMenu } from './KanbanCardMenu.tsx'
 import styles from './Kanban.module.css'
-import type { KanbanCardModel } from './types.ts'
+import type { KanbanCardModel, KanbanColumnId } from './types.ts'
 
 export interface KanbanCardProps {
   readonly dict: LocaleDict
   readonly card: KanbanCardModel
   readonly draggingId: string | null
   readonly showProject: boolean
+  readonly columnLabels: Readonly<Record<KanbanColumnId, string>>
   readonly onDragStart: (cardId: string) => void
   readonly onDragEnd: () => void
+  readonly onMoveCard?: (cardId: string, toColumn: KanbanColumnId) => void
   readonly onOpenReview?: (cardId: string) => void
+  readonly onRequestStatus?: (cardId: string) => void
+}
+
+function stateChipTone(state: PersonaWorkUiState): 'brand' | 'accent' | 'danger' | 'neutral' {
+  if (state === 'working') return 'brand'
+  if (state === 'waiting') return 'accent'
+  if (state === 'stuck') return 'danger'
+  return 'neutral'
+}
+
+function resolveWorkState(card: KanbanCardModel): PersonaWorkUiState {
+  if (card.assigneeState !== undefined) return card.assigneeState
+  if (card.blocked || card.column === 'blocked') return 'stuck'
+  if (card.waitingEvent) return 'waiting'
+  if (card.column === 'in_progress' || card.column === 'in_review') return 'working'
+  return 'resting'
 }
 
 /** Draggable ticket card. */
@@ -23,13 +43,19 @@ export function KanbanCard({
   card,
   draggingId,
   showProject,
+  columnLabels,
   onDragStart,
   onDragEnd,
+  onMoveCard,
   onOpenReview,
+  onRequestStatus,
 }: KanbanCardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [celebrate, setCelebrate] = useState(false)
   const dragging = draggingId === card.id
+  const workState = resolveWorkState(card)
+  const assigneeName = card.assignee?.name ?? t('card.unassigned')
+  const canOpenReview = card.column === 'in_review' || card.blocked
 
   useEffect(() => {
     if (!card.reviewApproved || card.column !== 'done') return
@@ -44,11 +70,14 @@ export function KanbanCard({
     onDragStart(card.id)
   }
 
+  const stateLabel = t(`chip.state.${workState}`)
+
   return (
     <Card
       as="article"
       padding="s"
       interactive
+      data-persona-kanban-card={card.id}
       className={`${styles.ticket}${dragging ? ` ${styles.ticketDragging}` : ''}`}
       draggable
       onDragStart={onDragStartCard}
@@ -65,46 +94,75 @@ export function KanbanCard({
           </span>
         </div>
       )}
-      <h3 className={styles.cardTitle}>{card.title}</h3>
-      {showProject && (
-        <p className={styles.cardMeta}>{t('card.project', { name: card.projectName })}</p>
-      )}
-      {card.assignee !== undefined && (
-        <p className={styles.cardMeta}>{t('card.assignee', { name: card.assignee.name })}</p>
-      )}
+      <div className={styles.cardTop}>
+        <Avatar
+          name={assigneeName}
+          size={24}
+          shape="portrait"
+          decorative={card.assignee !== undefined}
+        />
+        <h3 className={styles.cardTitle}>{card.title}</h3>
+        {onMoveCard !== undefined && (
+          <KanbanCardMenu
+            dict={dict}
+            currentColumn={card.column}
+            columnLabels={columnLabels}
+            canOpenReview={canOpenReview}
+            onMove={(toColumn) => { onMoveCard(card.id, toColumn) }}
+            {...(onOpenReview !== undefined && canOpenReview
+              ? { onOpen: () => { onOpenReview(card.id) } }
+              : {})}
+            {...(onRequestStatus !== undefined ? { onRequestStatus: () => { onRequestStatus(card.id) } } : {})}
+          />
+        )}
+      </div>
       <div className={styles.chips}>
-        {card.waitingEvent && (
-          <Chip tone="accent" size="s">{t('chip.waitingEvent')}</Chip>
+        <Chip tone={stateChipTone(workState)} size="s">{stateLabel}</Chip>
+        {showProject && (
+          <Chip tone="neutral" size="s">{card.projectName}</Chip>
         )}
-        {card.blocked && (
-          <Chip tone="danger" size="s">{t('chip.blocked')}</Chip>
-        )}
-        {card.column === 'done' && card.outcome !== undefined && (
+      </div>
+      {(card.flowFields !== undefined && card.flowFields.length > 0
+        || card.dueLabel !== undefined
+        || card.dependency === true
+        || card.evidence === true) && (
+        <div className={styles.metaChips}>
+          {card.flowFields?.map(field => (
+            <Chip key={`${field.label}:${field.value}`} tone="neutral" size="s">
+              {t('card.flowField', { label: field.label, value: field.value })}
+            </Chip>
+          ))}
+          {card.dueLabel !== undefined && (
+            <Chip tone="neutral" size="s" icon={<UiIcon name="clock" size={14} strokeWidth={2} />}>
+              {card.dueLabel}
+            </Chip>
+          )}
+          {card.dependency === true && (
+            <Chip tone="info" size="s" icon={<UiIcon name="chevronRight" size={14} strokeWidth={2} />}>
+              {card.dependencyCount !== undefined && card.dependencyCount > 0
+                ? t('chip.dependencyCount', { count: card.dependencyCount })
+                : t('chip.dependency')}
+            </Chip>
+          )}
+          {card.evidence === true && (
+            <Chip tone="info" size="s" icon={<UiIcon name="attach" size={14} strokeWidth={2} />}>
+              {card.evidenceCount !== undefined && card.evidenceCount > 0
+                ? t('chip.evidenceCount', { count: card.evidenceCount })
+                : t('chip.evidence')}
+            </Chip>
+          )}
+        </div>
+      )}
+      {(card.column === 'done' && card.outcome !== undefined) && (
+        <div className={styles.chips}>
           <Chip tone="success" size="s">{t(`outcome.${card.outcome}`)}</Chip>
-        )}
-      </div>
-      <div className={styles.cardFooter}>
-        {(card.column === 'in_review' || card.blocked) && onOpenReview !== undefined && (
-          <Button
-            size="s"
-            variant="secondary"
-            onClick={(event) => {
-              event.stopPropagation()
-              onOpenReview(card.id)
-            }}
-          >
-            {t('action.review')}
-          </Button>
-        )}
-        {card.assignee !== undefined && (
-          <Avatar name={card.assignee.name} size={24} shape="portrait" decorative />
-        )}
-        {celebrate && (
-          <span className={styles.celebrationPaws} role="img" aria-label={t('celebration.label')}>
-            <PawTrail />
-          </span>
-        )}
-      </div>
+        </div>
+      )}
+      {celebrate && (
+        <span className={styles.celebrationPaws} role="img" aria-label={t('celebration.label')}>
+          <PawTrail />
+        </span>
+      )}
     </Card>
   )
 }

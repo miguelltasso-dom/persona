@@ -2,10 +2,10 @@
  * D4b — Conexões (Value first, ask later: detect CLIs, native login at point of use).
  */
 import { useEffect, useState, type ReactNode } from 'react'
-import { Button, Card, Chip, Screen, ScreenHeader, Skeleton } from '../primitives/index.ts'
+import { Button, Card, Chip, Screen, ScreenHeader } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { PersonaSurfaceEmpty, PersonaSurfaceError } from '../kanban/PersonaSurface.tsx'
+import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Connections.module.css'
 import type { ConnectionEntry, ConnectionResolveErrorCode, ConnectionStatus } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/connections/locales.ts'
@@ -81,13 +81,7 @@ export function ConnectionsView({
 
   let body: ReactNode
   if (surfaceState === 'loading') {
-    body = (
-      <Card padding="l">
-        <Skeleton height={16} width="40%" />
-        <Skeleton height={120} shape="block" />
-        <Skeleton height={120} shape="block" />
-      </Card>
-    )
+    body = <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
   } else if (surfaceState === 'error') {
     body = (
       <PersonaSurfaceError
@@ -161,6 +155,11 @@ export function ConnectionsView({
   return (
     <Screen className={styles.shell} data-persona-surface="connections">
       {header}
+      {copiedId !== null && (
+        <p className={styles.srOnly} role="status" aria-live="polite">
+          {t('action.copied')}
+        </p>
+      )}
       {body}
     </Screen>
   )

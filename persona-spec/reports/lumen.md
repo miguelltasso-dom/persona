@@ -1,5 +1,95 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-03 19:18 — PB-5 §1 Quadros (BOARDS-SPEC) + cartão Kanban Muse
+
+**Pronto:** Rail **Kanban → Quadros** (`shell` locale). Slot `kanban` agora abre **`BoardsHome`** (`data-persona-boards`): grade 320px, selo do modelo (BrandIcon/UiIcon até Brush `flow-*`), chips modelo+sprint, **barra de categorias** (`--persona-cat-*`), avatares 24px sobrepostos, chip “Precisa de você”. Mocks **Contratação + Site** para captura Muse; `deriveBoardSummaries` usa host quando ≥2 projetos. Drill-down abre **`KanbanWithReview`** filtrado por projeto (interim até colunas de fluxo PB-4). **Cartão:** avatar 24 + chip estado, projeto, prazo/dep/evidência, menu ⋯ (sem `<select>`), coluna vazia `EmptyState` compact + min-height 420px. **`usePersonaRemoteLoad`:** `loadRef` + deps estáveis (P0 tempestade). Instrumentação `personaRemoteLoadStartCounts`.
+
+**Capturas Muse:** `node scripts/persona/design-shots.mjs panel:Quadros` → `.maestri/tmp/shots/design/panel-quadros-light.png`, `panel-quadros-dark.png` (380 chars main, **0** console errors).
+
+**Fila PB (próximo):** §2 quadro por fluxo (colunas 296px, faixa sprint, WIP, needs_you tint), §3 planejamento, §4 encerrar sprint, §5 editor — depende **Anvil PB-4** + assets Brush `empty-col-*` / `sprint-concluida`. Visão global raias recolhíveis.
+
+**Testes:**
+```
+pnpm exec vitest run …/boards-home.client.spec.tsx …/kanban-preview …/connected-kanban …/live-tenant-bridge …/lumen-a11y …/remote-load-storm
+→ 6 files / 22 passed (storm 3 + boards 1 + kanban 4 + connected 1 + bridge 2 + a11y 10)
+pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle
+```
+
+## 2026-11-03 18:20 — Capturas Muse pós-unwrap + design-shots wait
+
+**Pronto:** Após fix Prism (bootstrap/conflict), **`design-shots.mjs`** re-run **Kanban / Conexões / Aprovações** (light+dark) — Kanban **451 chars** (não mais skeleton infinito); 6 PNG em `.maestri/tmp/shots/design/`. Script: **`waitPanelSettled`** antes do screenshot; aliases de painel; waits para knowledge/files/routines/usage. **Canvas G2:** linhas da lista com `tabIndex` + foco visível. **D5b:** UI + `usageBookToMeters` + Remote já entregues (PLAN `todo` é flag Keel).
+
+**Pendente:** lote `panel:Conhecimento|Arquivos|Rotinas|Uso` **enfileirado** atrás do lock `ui-boot-check` (Prism). **axe/Lighthouse** = Probe PRO-6.
+
+**Testes:**
+```
+pnpm exec vitest run …/lumen-a11y …/connected-kanban …/lumen-rpc-adapters → 3 files / 19 passed
+```
+
+## 2026-11-03 18:12 — a11y sweep superfícies + Conexões live region
+
+**Pronto:** **`lumen-a11y.client.spec.tsx`** ampliado (10 casos): Aprovações (`h2` reativo + botão primário), Conexões (`aria-busy` loading + `role="status"` ao copiar comando), Cofre (tab focável), Membros (convite). **Conexões:** loading unificado em `PersonaSurfaceLoading`; anúncio SR ao copiar (`aria-live="polite"`). **G2 (PLAN):** modo lista + teclado nos nós Canvas já coberto nos testes anteriores.
+
+**Capturas Muse:** `design-shots.mjs panel:Kanban panel:Conexoes panel:Canvas` → 4 PNG (`panel-kanban-*`, `panel-canvas-*` em `.maestri/tmp/shots/design/`). Kanban ainda **“Carregando quadro…”** (bootstrap live store: `createWorkspace` conflict + unwrap); Conexões falhou nav **Conexoes** sem acento → corrigido alias no script. **Dependência:** Prism/Anvil bootstrap verde para shots úteis.
+
+**Fila Lumen restante:** re-shot painéis com dados reais pós-host; **axe/Lighthouse** = aceite Probe (PRO-6).
+
+**Testes:**
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-a11y.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-rpc-adapters.client.spec.ts
+→ 3 files / 26 passed
+```
+
+**Post-it:** `18:12 Lumen — a11y 10 tests (aprovações/conexões/cofre/membros); Conexões copy live region; capturas design-shots tentadas.`
+
+## 2026-11-03 18:05 — Canvas a11y + Kanban FLIP + testes
+
+**Pronto:** **Canvas (G2):** região `a11y.graphRegion`, dica `a11y.graphHint`, nós SVG com `Enter`/`Espaço`, `aria-pressed`, `role="status"` ao selecionar; foco visível no círculo; aba Lista com `<th scope="col">`. **Kanban FLIP:** `use-kanban-flip.ts` + `data-persona-kanban-card` (WAAPI, off em `prefers-reduced-motion`). **Testes:** `lumen-a11y` +2 (canvas teclado + lista).
+
+**Microcópia:** vazios/retries já consistentes nos 20 bundles (sem “Falha”/“Clique aqui”).
+
+**Fila restante (Atlas):** axe/Lighthouse manual (Probe pode assumir); **`design-shots.mjs panel:*`** → **depende host bootstrap** (Prism unwrap + Anvil P0). Escritas memória/skills no UI fora do escopo v1 read-only.
+
+**Testes:**
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-a11y.client.spec.tsx packages/persona/client-ui-persona/tests/kanban-preview.client.spec.tsx
+→ 2 files / 9 passed
+```
+
+**Post-it:** `18:05 Lumen — Canvas a11y+FLIP kanban; lumen-a11y 5 tests; capturas aguardam host.`
+
+## 2026-11-03 18:00 — Atlas fila: a11y Kanban + microcópia import + motion hover
+
+**Pronto (a11y, lente-acessibilidade):** Região do quadro com `a11y.boardRegion` (não mais só dica de arrastar). Contagem por coluna com `a11y.columnCount` interpolada. **WCAG 2.5.7:** `<select>` “Mover tarefa para” em cada card quando `onMoveCard` existe (teclado + leitor de tela). Filtro de estágio com `aria-labelledby` (`useId`). Foco visível no select. **`lumen-a11y.client.spec.tsx`** (região, move select, `aria-pressed`, stepper import).
+
+**Microcópia:** `importers` `error.title` pt/en humanizado (sem “Falha na importação” seco).
+
+**Motion (parcial UX-GUIDE):** hover lift nos cards Kanban + respeito `prefers-reduced-motion`. FLIP / carry avatar já existentes; capturas Muse ainda pendentes.
+
+**Locale en:** paridade pt/en verificada nos 20 `locale-sources` (sem chaves faltando).
+
+**Fila restante:** axe/Lighthouse manual em todas as telas; sweep microcópia completo (botões/vazios); FLIP kanban refinado; **`design-shots.mjs panel:*`** (depende host Anvil/Prism bootstrap).
+
+**Testes:**
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-a11y.client.spec.tsx packages/persona/client-ui-persona/tests/kanban-preview.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx
+→ 3 files / 15 passed (incl. 7 kanban+a11y)
+```
+
+**Post-it Persona · Status:** `18:00 Lumen — a11y Kanban (move select 2.5.7), lumen-a11y tests, import error copy, card hover; capturas aguardam host.`
+
+## 2026-11-03 17:50 — Atlas: D5a Uso + memória/skills Remote
+
+**Pronto:** **Uso (D5b UI + D5a livro):** `RemoteUsagePanel` chama `getUsage` (mês UTC) + `getOfficialQuota` via `personaScreensRemote`; `usageBookToMeters` (sem `0%` falso). **Perfil:** `listMemory` / `listSkills` no load do `RemoteProfilePanel` → `MemoryPanel` / `SkillsPanel` com dados reais (preview isolado mantém mocks). **`persona-screens-remote.ts`** (padrão review wire). Adaptadores `adapters/{usage,memory,skills}.ts`.
+
+**Fila Lumen (Atlas 17:56 restante):** a11y (axe/teclado), lente-microcópia sweep, motion UX-GUIDE (kanban FLIP/patinhas), locale `en` completo, capturas Muse pós-host.
+
+**Testes:**
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-rpc-adapters.client.spec.ts packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-proactivity.client.spec.tsx
+→ 3 files / 18 passed
+```
+
 ## 2026-11-03 17:43 — Muse captura (review-lumen-light): loading + Kanban + Import + layout
 
 **Pronto:** **Loading infinito** — causa principal: `initialState` congelado em `useState` (Kanban global, Cofre, Arquivos, Rotinas, Uso); agora sync + `initialCards` effect. **Timeout 8 s** em `usePersonaRemoteLoad` + tenant gate → `ErrorState` com microcópia Muse (`error.title` pt/en via `patch-lumen-remote-error-copy.mjs`) + **Tentar de novo** (`onRemoteRetry` nos painéis Remote). **Kanban:** filtros Equipe/Projeto/Persona com `KanbanFilterSelect` (chevron `UiIcon`); Estado = botões-adesivo `aria-pressed`; estágio usa `initialState` live. **Importar:** stepper estilo onboarding; um primário (Continuar); Escolher exportação = secondary + ícone attach. **Arquivos:** tabela `width:100%` (remove `max-width` shell). **Membros:** convite `size="m"`. **Perfil/Import:** `Screen` default (não reading).

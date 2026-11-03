@@ -1,5 +1,5 @@
 /** Kanban filters: custom chevron select + sticky stage chips. */
-import type { ReactNode, SelectHTMLAttributes } from 'react'
+import { useId, type ReactNode, type SelectHTMLAttributes } from 'react'
 import { UiIcon } from '../primitives/index.ts'
 import styles from './KanbanFilterSelect.module.css'
 
@@ -31,9 +31,10 @@ export interface KanbanStageFilterProps {
 }
 
 export function KanbanStageFilter({ label, allLabel, value, options, onChange }: KanbanStageFilterProps): ReactNode {
+  const groupId = useId()
   return (
-    <div className={styles.stageRow} role="group" aria-label={typeof label === 'string' ? label : undefined}>
-      <span className={styles.stageLabel}>{label}</span>
+    <div className={styles.stageRow} role="group" aria-labelledby={groupId}>
+      <span id={groupId} className={styles.stageLabel}>{label}</span>
       <div className={styles.stageChips}>
         <button
           type="button"

@@ -14,7 +14,7 @@
   "run.result.failed": "Failed",
   "run.result.skipped": "Skipped (quiet hours)",
   "empty.title": "No routines yet",
-  "empty.hint": "Ask Atlas for a daily stand-up or weekly report.",
+  "empty.hint": "Ask the team in a channel or set up a daily routine.",
   "empty.action": "Suggest routine",
   "empty.illustration": "Illustration: calendar with paw prints",
   "loading": "Loading routines…",

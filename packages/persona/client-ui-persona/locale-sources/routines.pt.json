@@ -14,7 +14,7 @@
   "run.result.failed": "Falhou",
   "run.result.skipped": "Ignorada (silêncio)",
   "empty.title": "Nenhuma rotina ainda",
-  "empty.hint": "Peça ao Atlas para criar um stand-up diário ou relatório semanal.",
+  "empty.hint": "Peça à equipe no canal ou configure uma rotina diária.",
   "empty.action": "Sugerir rotina",
   "empty.illustration": "Ilustração: calendário com patas",
   "loading": "Carregando rotinas…",

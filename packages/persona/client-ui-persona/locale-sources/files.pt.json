@@ -11,7 +11,7 @@
   "action.download": "Baixar",
   "empty.title": "Nenhum arquivo ainda",
   "empty.hint": "Quando uma persona gerar entregas, elas aparecem aqui com link para o canal.",
-  "empty.action": "Pedir entrega ao Atlas",
+  "empty.action": "Pedir entrega à equipe",
   "empty.illustration": "Ilustração: pasta vazia com patas",
   "loading": "Carregando arquivos…",
   "error.title": "Não consegui falar com a equipe agora",

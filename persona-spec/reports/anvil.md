@@ -4,6 +4,98 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 03/11 17:20 — P0 inject + pasta/webhook/dead-letter/export + 1ª resposta real
+
+### P0 — host volta a ativar (bloqueava Muse)
+
+Causa: `runnersOf` / `webserverOf` liam `ctx.personaRunners` / `ctx.webserver` no construct. Cordis (`vendor/cordis/src/reflect.ts`) lança `cannot get property "…" without inject` se a chave não está no `inject` do fiber. Colocar as chaves no `static inject` as torna **obrigatórias** (fiber PENDING até existirem) — testes e perfis sem o plugin não ativam.
+
+Correção (sintaxe confirmada no vendor): `static inject = ['typert']` só o obrigatório. Opcionais via `ctx.get('personaRunners')` e `ctx.get('webServer')` (`ReflectService.get` — sem a guarda de inject). `usedPersonaRunners` é getter ao vivo. `hostRunnerFromContext` relê o plugin a cada resolve. `cordis.patch.yml` **não mudou** (ordem já é persona-runners → persona-host).
+
+Spec `host-inject.spec.ts`: `ctx.plugin(PersonaHost)` **com e sem** `PersonaRunners` — os dois ativam (`ping` ok).
+
+Boot real (home limpo, sem `PERSONA_DEV_SEED`):
+
+```
+node scripts/persona/with-lock.mjs "Anvil host boot" --release-on "dsh web:" -- node scripts/persona/ui-boot-check.mjs
+[channel] … #geral … O canal está quietinho …
+console errors (0):
+(none)
+```
+
+Muse: `maestri ask "Muse" "host ok"` falhou — Muse **não** está no canvas (`maestri list` só Atlas/Keel/Forge/Prism/Probe). Recado no Status.
+
+### 1. Primeira resposta real (o que quebrou)
+
+App-host inject: `usedPersonaRunners: true`. Native `claude auth status`: loggedIn max. `listConnections` com `timeoutMs: 400` dá **falso** `not_logged_in` (auth do Claude ~5 s). Probe 8 s: loggedIn true.
+
+`PERSONA_REAL_CLI=1`, temp `PERSONA_HOME`, Coordenação `cli/claude/haiku`, 2 execs. SQLite:
+
+- `coord-m-hi-reply` = `Not logged in · Please run /login` (texto **real** do OAR, `tapTurn` persistiu)
+- tarefa `preciso de um README`: `doing` → `review` (ack + Em andamento + done)
+- outbox ainda postou o scripted `Olá — em que posso ajudar?`
+
+OAR com `home: <PERSONA_HOME>/runners/<projectId>` **não** herda o login nativo (`~/.claude`), apesar de `restoreNativeCliLogin`. Erro tipado chegou à UI como corpo da mensagem, não como `RunnerResolveError`. Probe: `maestri ask` E2E timeout (o pedido pode ter chegado).
+
+### 2. Pasta do projeto
+
+`setProjectRoot` / `getProjectRoot`: absoluto, existe, diretório; recusa UNC (`\\` / `//`), raiz (`C:\`, `/`), home inteira, overlap/aninhamento. Git: `isRepo`, `defaultBranch` (`origin/HEAD` ou `symbolic-ref HEAD`), `dirty`. pt-BR. `pickDirectory()` = `{ path: null }` (Rivet). Testes: pasta com espaço/acentos; UNC; home.
+
+### 3. Webhook GitHub local
+
+`POST /api/persona/webhooks/github?projectId=` — HMAC SHA-256, corpo ≤ 256 KiB, replay 5 min (`200 {kind:duplicate}`), `202` depois `ingest`. Segredo: `PERSONA_GITHUB_WEBHOOK_SECRET` ou Cofre `factKey=github.webhook.secret` (nunca em log). Relé Cloudflare = Atlas.
+
+### 4. Dead-letter
+
+Efeito/outbox falha 3× → `listDeadLetters` (`Tentar de novo` / `Descartar`) + `getOverview.needsYou`. `retryDeadLetter` reprocessa outbox; `discardDeadLetter` só some. Teste: falha → Precisa de você → retry recupera.
+
+### 5. Exportar
+
+`exportWorkspace` / `exportProject` → zip Markdown. DMs só com `includeDmIds`. `looksLikeCredential` redige. Cofre em `cofre/*.md`. Teste: DM ausente; `sk-ant-…` redigido.
+
+### Arquivos
+
+- `packages/persona/persona-host/src/{index,runner,orchestration,dead-letter,project-root,webhook-http,export-md,types,auth}.ts`
+- `packages/persona/persona-host/tests/{host-inject,runner-plugin,gateway,project-root,webhook-http,dead-letter,export}.spec.ts`
+- `packages/persona/persona-host/scripts/first-real-reply.ts`
+- `persona-spec/contracts/lumen-rpc.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests/host-inject.spec.ts …/gateway …/runner-plugin …/project-root
+ Test Files  4 passed (4)
+      Tests  8 passed (8)
+```
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests packages/persona/persona-store/tests
+ Test Files  2 failed | 36 passed (38)
+      Tests  2 failed | 344 passed (346)
+```
+
+Os 2 fails são resume (timeout 5 s só na suíte paralela; isolados: 3 passed).
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 16.6s
+persona-store: OK in 7.3s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 39.3s
+```
+
+### Limitações
+
+- `listConnections` 400 ms: falso `not_logged_in` no Claude.
+- OAR + `runnerHomeOf` não vê `~/.claude`; 1ª resposta real = «Not logged in · Please run /login».
+- Muse fora do canvas — «host ok» só no Status.
+- `cordis.patch.yml` intocado (Keel).
+
+---
+
 ## 03/11 16:55 — conversa + ACL + diagnostics + DB + ReviewDelivery + orçamento
 
 ### 1. Conversa no condutor

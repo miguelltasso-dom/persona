@@ -42,3 +42,8 @@ O `typecheck` do repo roda primeiro `tsx scripts/generate-typert.ts`, que analis
 ## Typecheck de pacote COM testes (03/11) — rode antes de relatar
 
 `node scripts/persona/check-pkg.mjs <pacote> [...]` (ex.: `persona-host client-ui-persona`): tsc em `src` + `tests` (+ `scripts`) do pacote, mostrando só os erros dele, em ~5–20 s. O `tsc -p packages/persona/<pkg>/tsconfig.json` cobre só `src`; os erros de teste só apareciam no typecheck agregado (minutos) que bloqueia o push de todo mundo. Vitest não checa tipos. Regra: **seu pacote deve sair OK desse comando** (e `pnpm exec tsx scripts/generate-typert.ts` quando mexer em host) antes de qualquer relato.
+
+## Apps (desktop) — o que o gate de push realmente compila (03/11)
+
+`check-pkg` NÃO cobre `apps/`. O typecheck de push compila `apps/desktop/src` (via `apps/desktop/tsconfig.host.json`) **e** `apps/desktop/tests/**` + `apps/desktop/scripts/**` (via o `tsconfig.host.json` da RAIZ). Quem mexe em `apps/desktop` roda os dois antes de relatar:
+`pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit` (rápido) e `pnpm exec tsc -p tsconfig.host.json --noEmit 2>&1 | grep "apps/desktop/"` (mais lento, ~1–2 min; saída vazia = ok). Mocks `vi.fn()` precisam de parâmetros tipados quando o teste lê `mock.calls[n][i]` (senão TS2493).

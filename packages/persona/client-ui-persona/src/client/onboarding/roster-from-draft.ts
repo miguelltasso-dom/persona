@@ -8,11 +8,16 @@ export function rosterFromDrafts(drafts: readonly MockPersonaDraft[]): readonly 
       name: draft.name,
       role: draft.role,
     }
-    if (draft.galleryRef !== undefined && draft.galleryRef.length > 0) {
-      return { ...row, galleryRef: draft.galleryRef, systemRoles: draft.systemRoles }
+    const galleryRef = draft.galleryRef !== undefined && draft.galleryRef.length > 0 ? draft.galleryRef : undefined
+    const systemRoles = draft.systemRoles !== undefined && draft.systemRoles.length > 0 ? draft.systemRoles : undefined
+    if (galleryRef !== undefined && systemRoles !== undefined) {
+      return { ...row, galleryRef, systemRoles }
     }
-    if (draft.systemRoles !== undefined && draft.systemRoles.length > 0) {
-      return { ...row, systemRoles: draft.systemRoles }
+    if (galleryRef !== undefined) {
+      return { ...row, galleryRef }
+    }
+    if (systemRoles !== undefined) {
+      return { ...row, systemRoles }
     }
     return row
   })

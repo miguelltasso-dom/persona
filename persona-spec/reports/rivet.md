@@ -4,6 +4,28 @@ Mais recente no topo.
 
 ---
 
+## 03/11 16:48 — locale.ts DesktopMessages (8 idiomas) ✔
+
+### O que ficou pronto
+- `aboutCredits` (exigida por `DesktopMessages` via `typeof en`) estava só em en/zh/ja/es/fr/de. Acrescentei em **ru** e **pt**.
+- Alinhei About/Quit desses dois (e `quitTitle` de) para Persona. Os 8 dicionários satisfazem `DesktopMessages`.
+- `pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit` — zero erros (nada em `locale.ts`).
+
+### Arquivos
+- `apps/desktop/src/locale.ts`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit 2>&1 | Select-String -Pattern "locale.ts|error TS"
+(exit 0, sem linhas)
+```
+
+### Fora / dúvidas
+- Sigo a fila (identidade visual / legal / ai-memory / D8). `check-pkg` não cobre `apps/`; daqui em diante este tsc roda antes de relatar desktop.
+
+---
+
 ## 03/11 16:18 — PRO-3 proatividade nos runners ✔
 
 ### O que ficou pronto

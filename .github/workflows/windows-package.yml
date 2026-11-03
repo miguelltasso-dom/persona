@@ -63,6 +63,7 @@ concurrency:
 
 jobs:
   package:
+    if: false # Persona D8: upstream DeepSeek publish/package disabled
     runs-on: dsh-win-package-trial
     timeout-minutes: 120
     defaults:

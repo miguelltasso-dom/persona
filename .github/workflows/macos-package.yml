@@ -57,6 +57,7 @@ concurrency:
 
 jobs:
   package:
+    if: false # Persona D8: upstream DeepSeek publish/package disabled
     runs-on: [self-hosted, macOS, ARM64, dsh-mac-package-trial]
     timeout-minutes: 180
     defaults:

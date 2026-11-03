@@ -573,6 +573,7 @@
     { "path": "./packages/persona/persona-usage" },
     { "path": "./packages/persona/persona-app" },
     { "path": "./packages/persona/persona-e2e" },
+    { "path": "./packages/persona/persona-sync" },
     { "path": "./packages/guard/repeat-tool-reminder" },
     { "path": "./packages/extensions/cordis-host-runner" },
     { "path": "./packages/extensions/tool-cordis" },

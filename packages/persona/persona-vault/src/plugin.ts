@@ -59,7 +59,7 @@ export default class PersonaVaultProvider extends CredentialProvider {
     this.config = config
     this.cipher = createMemoryCipher()
     this.vault = createPersonaVault(this.cipher)
-    ctx.personaVault = this
+    ctx.provide('personaVault', this)
   }
 
   /**

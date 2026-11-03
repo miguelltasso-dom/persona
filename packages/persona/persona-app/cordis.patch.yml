@@ -166,7 +166,23 @@
 - id: plugin-package-inventory-deepseek
   disabled: true
 
+# Replace the YAML credentials store with the Persona DPAPI vault (same ctx key).
+- id: credentials
+  name: '@deepseek-ai/dsh-persona-vault'
+  config:
+    path: !!js dshHomePath('persona-vault.json')
+
 - insert:
+    - id: persona-usage
+      name: '@deepseek-ai/dsh-persona-usage'
+      config:
+        sessionsRoot: !!js dshHomePath('codex-sessions')
+
+    - id: persona-runners
+      name: '@deepseek-ai/dsh-persona-runners'
+      config:
+        home: !!js dshHomePath()
+
     - id: persona-host
       name: '@deepseek-ai/dsh-persona-host'
 

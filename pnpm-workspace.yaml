@@ -29,6 +29,8 @@ peerDependencyRules:
 # default and only allow scripts we need. esbuild (native binary) and lefthook
 # (git hooks) genuinely need theirs.
 allowBuilds:
+  # Cloudflare workerd (Wrangler/Miniflare, apps/persona-edge): its install script validates the runtime binary.
+  workerd: true
   esbuild: true
   lefthook: true
   # Cross-platform boundary for the persistent PTY backend, including ConPTY on Windows.

@@ -1,0 +1,27 @@
+# Persona edge. Local development only until the CTO releases a Cloudflare account (D-034 / E11).
+name = "persona-edge"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[[durable_objects.bindings]]
+name = "WORKSPACE_HUB"
+class_name = "WorkspaceHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WorkspaceHub"]
+
+# Bindings below are filled in at deploy time; local dev uses wrangler's local simulators.
+[[d1_databases]]
+binding = "DB"
+database_name = "persona-edge"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "BLOBS"
+bucket_name = "persona-edge-blobs"
+
+# Local-only placeholder. Real secrets stay off this repo (E11 / Atlas).
+[vars]
+GITHUB_WEBHOOK_SECRET = "dev-only-local-secret"

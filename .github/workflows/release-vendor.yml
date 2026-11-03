@@ -28,6 +28,7 @@ env:
 
 jobs:
   pack:
+    if: false # Persona D8: upstream DeepSeek publish/package disabled
     name: Pack npm tarballs
     # Persistent runners accept only trusted, credential-free rehearsals.
     runs-on: >-

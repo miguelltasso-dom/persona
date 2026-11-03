@@ -146,6 +146,12 @@ Onboarding (RCD, valor antes de esforço): (1) nome e tratamento; (2) **Sobre a 
 ### D-047 · Gate de boot real da UI · vigente
 Toda tarefa de UI só é "done" depois de passar `scripts/persona/ui-boot-check.mjs` (host `--profile persona` + Chrome, claro/escuro, console limpo, sem "entries did not activate", captura visível) — vitest/jsdom não basta. O primeiro boot real (03/11) mostrou: `ui-settings` provê `configForms` e **não pode** ser desativado (locale/ui-theme/shortcuts dependem dele); `message-quotes`, `ui-secret-mask` e `directory-picker` ficam órfãos sem `ui-conversation`/`ui-workspace` e foram desativados; o namespace `remote.persona` só pode ser lido dentro do `ctx.inject([...'remote.persona'...])`.
 
+### D-048 · Proatividade nativa é requisito de aceite da v1 · vigente (BRIEFING item 14)
+Puxada (pull) em vez de espera por cobrança; objetivos com orçamento de rodadas (`dsh-goal` + `goal-round-driver` + `dsh-tool-goal`); definição de pronto e continuação; rotina de iniciativa por persona; **Vigia** determinístico primeiro (modelo barato depois) com auditoria em atividade, nunca spam no canal; orçamentos de atenção/tokens/execuções; níveis de autonomia **só quando pedido · propor (padrão) · agir dentro de limites**, com trabalho especulativo começando em "só registrar o que faria". Proatividade sem valor perde prioridade (taxa de aceitação realimenta a frequência). Sem objetivo aberto a equipe descansa sem gastar IA. Aceite do Probe: ver PRO-6.
+
+### D-049 · Verificação e push por worktree limpo · vigente
+O pre-push roda o typecheck COMPLETO; numa árvore compartilhada com 8 agentes ele nunca fica verde ao mesmo tempo. Procedimento: commits locais por entrega na árvore principal; para publicar, `git worktree add --detach C:/Users/migue/dev/persona-push HEAD` → `pnpm install --frozen-lockfile` → `pnpm run typecheck` → corrigir só o necessário no worktree → commit → `git push origin HEAD:refs/heads/persona-dev` (o hook roda de novo no worktree) → no checkout principal `git update-ref refs/heads/persona-dev <sha>` + `git reset -q` (não toca a árvore de trabalho). `tsc -b` que falha por rootDir deixa `.js/.d.ts` ao lado das fontes: apagar (e ignorar em `.gitignore`).
+
 ---
 
 ## 11. Proposta ao Atlas (alta demanda / informativo)

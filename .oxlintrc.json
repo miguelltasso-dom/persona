@@ -356,6 +356,25 @@
       "plugins": [
         "typescript"
       ]
+    },
+    {
+      // Persona product packages (D-006): correctness rules stay on; purely stylistic or ergonomic rules are relaxed because the
+      // acceptance is passing tests plus the running app (M6), not upstream style review.
+      "files": [
+        "packages/persona/**/*.{ts,tsx}",
+        "apps/persona-edge/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "@stylistic/max-len": "off",
+        "typescript/no-non-null-assertion": "off",
+        "typescript/no-dynamic-delete": "off"
+      },
+      "plugins": [
+        "typescript"
+      ],
+      "jsPlugins": [
+        "@stylistic/eslint-plugin"
+      ]
     }
   ]
 }

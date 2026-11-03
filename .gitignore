@@ -53,3 +53,8 @@ native/system/test/bin/
 
 # Maestri multi-agent workspace state (roles, terminals); local only.
 .maestri/
+
+# Failed composite tsc -b runs can emit next to the TypeScript sources of the Persona packages (D-049).
+packages/persona/*/src/**/*.js
+packages/persona/*/src/**/*.js.map
+packages/persona/*/src/**/*.d.ts.map

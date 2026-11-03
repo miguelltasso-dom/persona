@@ -1,5 +1,29 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-03 — PROACTIVITY.md (UI v1): Agora, while away, editor, estados honestos
+
+**Escopo (Atlas / Miguel)**
+
+- Visão geral: faixa **Agora** (estado + tarefa + fila por persona), painel **Enquanto você estava fora** (peak-end, `sessionStorage` por sessão, links secundários para tarefas).
+- Editor de persona: **autonomia** (só quando pedido · propor · agir dentro de limites) + **orçamento de atenção** com hints (PROACTIVITY §4–§6).
+- Faixa `#geral`: estados `working` · `resting` (zzz legítimo) · `stuck` · `waiting`; pose `descansando` quando em repouso.
+
+**Arquivos:** `team/persona-work-state.ts`, `overview/{OverviewNowStrip,AwayWhileOutPanel,mock-overview-proactivity}.tsx`, `OverviewView.tsx`, `PersonaEditor.tsx`, `persona-draft.ts`, `locale-sources/shell.*`, `persona-editor.*`, `mount.ts`, testes preview.
+
+**Verificação**
+
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+node scripts/persona/check-pkg.mjs client-ui-persona → OK in 16.2s
+pnpm exec vitest run …/overview-preview …/team-strip-preview …/persona-editor-preview
+→ Test Files  3 passed (3) | Tests  3 passed (3)
+node scripts/persona/with-lock.mjs "Prism bundle" -- pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle → OK
+```
+
+**Fora:** dados ainda mock (`MOCK_OVERVIEW_NOW` / host stream); links do away summary sem navegação real; wire autonomia/orçamento → Forge/host.
+
+---
+
 ## 2026-11-03 — Revisão Keel (dirD + UX-GUIDE): marca, rail, #geral, RCD chip, a11y
 
 **Princípios RCD / lentes**

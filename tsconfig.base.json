@@ -506,6 +506,7 @@
       "@deepseek-ai/dsh-persona-host": ["./packages/persona/persona-host/src"],
       "@deepseek-ai/dsh-persona-runners": ["./packages/persona/persona-runners/src"],
       "@deepseek-ai/dsh-persona-store": ["./packages/persona/persona-store/src"],
+      "@deepseek-ai/dsh-persona-sync": ["./packages/persona/persona-sync/src"],
       "@deepseek-ai/dsh-persona-usage": ["./packages/persona/persona-usage/src"],
       "@deepseek-ai/dsh-persona-vault": ["./packages/persona/persona-vault/src"],
       "@deepseek-ai/dsh-personalized-recommendations": ["./packages/experimental/personalized-recommendations/src"],

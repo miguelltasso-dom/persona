@@ -45,8 +45,45 @@ const onData = async (chunk) => {
       console.log(`[${scheme}] title="${await page.title()}" text: ${text}`)
       await context.close()
     }
+    const channelCtx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light', locale: 'pt-BR' })
+    const channelPage = await channelCtx.newPage()
+    channelPage.on('console', (m) => { if (m.type() === 'error') errors.push(`[channel] ${m.text().slice(0, 300)}`) })
+    await channelPage.goto(match[1], { waitUntil: 'load' })
+    await channelPage.evaluate(() => { localStorage.setItem('persona.onboarding.complete.v1', '1') })
+    await channelPage.reload({ waitUntil: 'load' })
+    await channelPage.waitForTimeout(6000)
+    await channelPage.screenshot({ path: `${outDir}/persona-light-channel.png` })
+    console.log(`[channel] text: ${(await channelPage.locator('body').innerText()).slice(0, 600).replace(/\n+/g, ' | ')}`)
+    await channelPage.keyboard.press('Tab')
+    await channelPage.keyboard.press('Tab')
+    const focused = await channelPage.evaluate(() => document.activeElement?.tagName ?? 'none')
+    console.log(`[a11y] focus after Tab×2: ${focused}`)
+    await channelCtx.close()
+    const narrowCtx = await browser.newContext({ viewport: { width: 1280, height: 720 }, colorScheme: 'light', locale: 'pt-BR' })
+    const narrowPage = await narrowCtx.newPage()
+    await narrowPage.goto(match[1], { waitUntil: 'load' })
+    await narrowPage.evaluate(() => { localStorage.setItem('persona.onboarding.complete.v1', '1') })
+    await narrowPage.reload({ waitUntil: 'load' })
+    await narrowPage.waitForTimeout(4000)
+    await narrowPage.screenshot({ path: `${outDir}/persona-light-720.png` })
+    await narrowCtx.close()
+    const wideCtx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, colorScheme: 'light', locale: 'pt-BR' })
+    const widePage = await wideCtx.newPage()
+    await widePage.goto(match[1], { waitUntil: 'load' })
+    await widePage.evaluate(() => { localStorage.setItem('persona.onboarding.complete.v1', '1') })
+    await widePage.reload({ waitUntil: 'load' })
+    await widePage.waitForTimeout(4000)
+    await widePage.screenshot({ path: `${outDir}/persona-light-1080.png` })
+    await wideCtx.close()
+    let dirDLine = 'dirD compare: skipped'
+    try {
+      const cmp = execFileSync(process.execPath, ['scripts/persona/compare-shot-dirD.mjs'], { cwd: root, encoding: 'utf8' })
+      dirDLine = cmp.trim().split('\n').pop() ?? dirDLine
+    } catch (error) {
+      dirDLine = `dirD compare failed: ${error instanceof Error ? error.message : String(error)}`
+    }
     console.log(['--- all console (light) ---', ...all.slice(0, 40)].join('\n'))
-    await finish(0, `console errors (${errors.length}):\n${errors.slice(0, 12).join('\n') || '(none)'}\nshots: ${outDir}/persona-light.png, persona-dark.png`)
+    await finish(0, `console errors (${errors.length}):\n${errors.slice(0, 12).join('\n') || '(none)'}\n${dirDLine}\nshots: ${outDir}/persona-light.png, persona-dark.png, persona-light-channel.png, persona-light-720.png, persona-light-1080.png`)
   } catch (error) {
     await finish(1, `failed: ${error instanceof Error ? error.message : String(error)}\n${out.slice(-800)}`)
   }

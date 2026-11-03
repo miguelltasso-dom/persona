@@ -1,0 +1,17 @@
+{
+  "name": "@deepseek-ai/dsh-persona-edge",
+  "description": "Persona remote-team edge: Cloudflare Worker, per-workspace Durable Object, D1 and R2 (local-first sync, invites, webhooks)",
+  "version": "0.2.2-alpha.3",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "check:types": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "miniflare": "^4.0.0",
+    "wrangler": "^4.0.0"
+  }
+}

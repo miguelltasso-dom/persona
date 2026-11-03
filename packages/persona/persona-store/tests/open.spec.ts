@@ -35,7 +35,7 @@ function pragma(db: DatabaseSync, name: 'user_version' | 'application_id' | 'for
 it('persona-store skeleton loads', () => {
   expect(PACKAGE_STORE).toBe('persona-store')
   expect(PERSONAL_PROJECT_NAME).toBe('Pessoal')
-  expect(PERSONA_SCHEMA_VERSION).toBe(1)
+  expect(PERSONA_SCHEMA_VERSION).toBe(3)
 })
 
 it('stamps application_id and user_version on a fresh file', async () => {
@@ -125,7 +125,7 @@ it('does not vacuum a brand-new empty file before v1', async () => {
 })
 
 it('backs up with VACUUM INTO before migrating', async () => {
-  const v1: readonly Migration[] = PERSONA_MIGRATIONS
+  const v1: readonly Migration[] = PERSONA_MIGRATIONS.filter(item => item.version === 1)
   const { path, store, dir } = await temp({ migrations: v1 })
   store.tx((db) => {
     db.prepare('INSERT INTO workspace (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
@@ -152,7 +152,7 @@ it('backs up with VACUUM INTO before migrating', async () => {
 })
 
 it('keeps the backup and rolls back the original when a migration fails', async () => {
-  const v1: readonly Migration[] = PERSONA_MIGRATIONS
+  const v1: readonly Migration[] = PERSONA_MIGRATIONS.filter(item => item.version === 1)
   const { path, store, dir } = await temp({ migrations: v1 })
   store.tx((db) => {
     db.prepare('INSERT INTO workspace (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)')
@@ -187,7 +187,7 @@ it('refuses a migration gap', async () => {
   store.close()
   const gapped: readonly Migration[] = [
     ...PERSONA_MIGRATIONS,
-    { version: 3, sql: 'CREATE TABLE skipped (id TEXT PRIMARY KEY) STRICT;' },
+    { version: PERSONA_SCHEMA_VERSION + 2, sql: 'CREATE TABLE skipped (id TEXT PRIMARY KEY) STRICT;' },
   ]
   try {
     openPersonaStore({ path, migrations: gapped, backupDir: join(dir, 'db', 'backups') })
@@ -283,7 +283,7 @@ it('creates missing parent directories', async () => {
 })
 
 it('ships a contiguous v1 migration and creates STRICT product tables', async () => {
-  expect(PERSONA_MIGRATIONS.map(item => item.version)).toEqual([1])
+  expect(PERSONA_MIGRATIONS.map(item => item.version)).toEqual([1, 2, 3])
   const { store } = await temp()
   const tables = (store.db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*' AND name NOT GLOB '*_fts*' ORDER BY name",
@@ -293,5 +293,7 @@ it('ships a contiguous v1 migration and creates STRICT product tables', async ()
     'stream', 'event', 'stream_cursor',
     'vault_record', 'vault_document', 'vault_version',
     'routine', 'routine_run',
+    'engine_trigger', 'engine_ticket', 'engine_effect', 'engine_outbox',
+    'sync_envelope', 'invite', 'invite_actor', 'import_batch',
   ]))
 })

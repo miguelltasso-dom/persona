@@ -48,6 +48,7 @@
     "@deepseek-ai/dsh-persona-core": "workspace:*",
     "@deepseek-ai/dsh-persona-engine": "workspace:*",
     "@deepseek-ai/dsh-persona-store": "workspace:*",
+    "@deepseek-ai/dsh-persona-sync": "workspace:*",
     "zod": "4.4.3"
   },
   "peerDependencies": {

@@ -8,6 +8,7 @@
     "src"
   ],
   "references": [
-    { "path": "../persona-core" }
+    { "path": "../persona-core" },
+    { "path": "../persona-engine" }
   ]
 }

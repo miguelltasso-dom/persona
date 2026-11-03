@@ -251,10 +251,153 @@ CREATE TABLE routine_run (
 ) STRICT;
 `
 
-/** Shipped product + event + vault + routine layout (schema v1). */
+const V2_ENGINE = `
+CREATE TABLE engine_trigger (
+  project_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE TABLE engine_disposition (
+  project_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE TABLE engine_thread (
+  project_id TEXT NOT NULL,
+  key TEXT NOT NULL,
+  pending_len INTEGER NOT NULL,
+  evaluating INTEGER NOT NULL CHECK (evaluating IN (0, 1)),
+  body TEXT NOT NULL,
+  PRIMARY KEY (project_id, key)
+) STRICT;
+
+CREATE TABLE engine_ticket (
+  project_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  stage_action TEXT,
+  ended INTEGER NOT NULL CHECK (ended IN (0, 1)),
+  undelivered_len INTEGER NOT NULL,
+  assignment_state TEXT,
+  body TEXT NOT NULL,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE TABLE engine_decision (
+  project_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  thread_key TEXT NOT NULL,
+  body TEXT NOT NULL,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE TABLE engine_effect (
+  project_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  key TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  generation INTEGER NOT NULL,
+  attempts INTEGER NOT NULL,
+  due INTEGER NOT NULL,
+  PRIMARY KEY (project_id, kind, key)
+) STRICT;
+
+CREATE TABLE engine_effect_seq (
+  project_id TEXT NOT NULL PRIMARY KEY,
+  last_seq INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE engine_outbox (
+  project_id TEXT NOT NULL,
+  id TEXT NOT NULL,
+  ticket_id TEXT NOT NULL,
+  conversation TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'sent', 'dropped')),
+  body TEXT NOT NULL,
+  PRIMARY KEY (project_id, id)
+) STRICT;
+
+CREATE TABLE engine_outbox_pass (
+  project_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  at TEXT NOT NULL,
+  PRIMARY KEY (project_id, seq)
+) STRICT;
+`
+
+const V3_SYNC = `
+CREATE TABLE sync_envelope (
+  workspace_id TEXT NOT NULL,
+  stream_id TEXT NOT NULL,
+  seq INTEGER NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  classification TEXT NOT NULL,
+  at TEXT NOT NULL,
+  shared INTEGER NOT NULL DEFAULT 0 CHECK (shared IN (0, 1)),
+  body TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, stream_id, seq)
+) STRICT;
+
+CREATE UNIQUE INDEX sync_envelope_idem ON sync_envelope (idempotency_key);
+CREATE INDEX sync_envelope_stream ON sync_envelope (stream_id, seq);
+
+CREATE TABLE invite (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  token TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER,
+  revoked_at INTEGER,
+  body TEXT NOT NULL
+) STRICT;
+
+CREATE UNIQUE INDEX invite_token ON invite (workspace_id, token);
+
+CREATE TABLE invite_actor (
+  workspace_id TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, actor_id)
+) STRICT;
+
+CREATE TABLE invite_vault (
+  id TEXT PRIMARY KEY,
+  body TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE invite_memory (
+  id TEXT PRIMARY KEY,
+  body TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE import_batch (
+  id TEXT PRIMARY KEY,
+  adapter_id TEXT NOT NULL,
+  rolled_back INTEGER NOT NULL CHECK (rolled_back IN (0, 1)),
+  body TEXT NOT NULL
+) STRICT;
+`
+
+/** Adjacent shipped layout: product/events/vault/routines (v1), engine (v2), sync/invite/import (v3). */
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
     sql: `${V1_PRODUCT}\n${V1_EVENTS}\n${V1_VAULT}\n${V1_ROUTINES}`,
+  },
+  {
+    version: 2,
+    sql: V2_ENGINE,
+  },
+  {
+    version: 3,
+    sql: V3_SYNC,
   },
 ]

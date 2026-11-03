@@ -324,6 +324,63 @@ export interface DraftTeamRequest {
   readonly description: string
 }
 
+/** Ticket command from the board. */
+export interface TicketCommandRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly ticketId: string
+  readonly command: 'stop' | 'retry' | 'reevaluate' | 'dismiss'
+  readonly reason: string
+}
+
+/** Answer an Attention question; the text returns to the ticket. */
+export interface AttentionReplyRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly ticketId: string
+  readonly text: string
+}
+
+/** Create a vault record. */
+export interface CreateVaultRecordRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly kind: 'brief' | 'constraint' | 'decision' | 'memory'
+  readonly body: string
+  readonly authorId: string
+}
+
+/** Vault record on the wire. */
+export interface VaultRecordView {
+  readonly id: string
+  readonly projectId: string
+  readonly kind: 'brief' | 'constraint' | 'decision' | 'memory'
+  readonly body: string
+  readonly status: 'active' | 'revoked'
+}
+
+/** First-use / Pessoal onboarding. */
+export interface OnboardingState {
+  readonly hasPersonalProject: boolean
+  readonly firstUse: boolean
+  readonly personalProjectId: string
+}
+
+/** Detected CLI or connection (read-only probe). */
+export interface ConnectionView {
+  readonly id: string
+  readonly kind: 'claude' | 'codex' | 'cursor' | 'opencode' | 'dsh'
+  readonly available: boolean
+}
+
+/** Context a turn used (ticket origin + latest inputs). */
+export interface TurnContextView {
+  readonly ticketId: string
+  readonly triggerIds: readonly string[]
+  readonly title: string
+}
+
 /** Editable persona draft (Forge schema fields). */
 export interface PersonaDraft {
   readonly name: string

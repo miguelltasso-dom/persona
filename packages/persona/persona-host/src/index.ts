@@ -11,6 +11,7 @@ import {
   type PersonaStore,
 } from '@deepseek-ai/dsh-persona-store'
 import { draftPersonaFromDescription, draftTeamFromDescription } from './draft.ts'
+import { Orchestration } from './orchestration.ts'
 import {
   listProjectFiles,
   readProjectFile,
@@ -34,11 +35,18 @@ import type {
   MessagePage,
   MessageStreamFrame,
   MessageView,
+  OnboardingState,
   OverviewView,
   ParticipationRequest,
   PauseRoutineRequest,
   PersonaDraft,
   PersonaView,
+  AttentionReplyRequest,
+  ConnectionView,
+  CreateVaultRecordRequest,
+  TicketCommandRequest,
+  TurnContextView,
+  VaultRecordView,
   PingResult,
   PostMessageRequest,
   ProjectFileListing,
@@ -57,6 +65,7 @@ import type {
   UpdateProjectRequest,
 } from './types.ts'
 
+export { openHostSync, openHostSyncFromEnv } from './sync.ts'
 export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -96,6 +105,7 @@ export default class PersonaHost extends TypertRemoteService {
   readonly events: EventRepos
   readonly vault: VaultRepos
   readonly routines: RoutineRepos
+  readonly orchestration: Orchestration
 
   /**
    * @param ctx - Host context.
@@ -108,6 +118,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.events = new EventRepos(this.store)
     this.vault = new VaultRepos(this.store)
     this.routines = new RoutineRepos(this.store)
+    this.orchestration = new Orchestration(this.product, this.events, this.store)
     ctx.effect(() => () => {
       this.store.close()
     })
@@ -197,25 +208,35 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
-   * List tasks for the project. Empty until engine repositories land.
+   * List tasks for the project from the engine kanban projection.
    * @param request - Workspace and project.
    * @returns Task cards.
    */
   @Remote
   listTasks(request: ProjectScopeRequest): TaskView[] {
     this.requireProject(request)
-    return []
+    return this.orchestration.kanban(request.projectId).map(card => ({
+      id: card.ticketId,
+      projectId: request.projectId,
+      title: card.title,
+      stage: card.column,
+      stageAction: card.chip === 'waiting' ? 'waiting' : card.stageAction,
+    }))
   }
 
   /**
-   * Visão geral: needs-you first. Empty while no tickets exist.
+   * Visão geral: needs-you first (blocked/failed/review), then in-progress.
    * @param request - Workspace and project.
    * @returns Attention and in-progress cards.
    */
   @Remote
   getOverview(request: ProjectScopeRequest): OverviewView {
     this.requireProject(request)
-    return { needsYou: [], inProgress: [] }
+    const cards = this.listTasks(request)
+    return {
+      needsYou: cards.filter(card => card.stage === 'blocked' || card.stage === 'review'),
+      inProgress: cards.filter(card => card.stage === 'doing' || card.stage === 'todo'),
+    }
   }
 
   /**
@@ -411,7 +432,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   postMessage(request: PostMessageRequest): MessageView {
     this.requireProject(request)
-    return toMessageView(this.events.append({
+    const stored = this.events.append({
       id: request.id,
       workspaceId: request.workspaceId,
       projectId: request.projectId,
@@ -422,7 +443,9 @@ export default class PersonaHost extends TypertRemoteService {
       actorId: request.actorId,
       subjectId: request.subjectId,
       occurredAt: request.occurredAt,
-    }))
+    })
+    this.orchestration.ingest(stored, request.streamKind, request.ownerId)
+    return toMessageView(stored)
   }
 
   /**
@@ -470,6 +493,132 @@ export default class PersonaHost extends TypertRemoteService {
       }
     } finally {
       dispose()
+    }
+  }
+
+  /**
+   * Board command: stop, retry, reevaluate, or dismiss.
+   * @param request - Ticket and command.
+   * @returns true when applied.
+   */
+  @Remote
+  runTicketCommand(request: TicketCommandRequest): boolean {
+    this.requireProject(request)
+    const engine = this.orchestration.runtime(request.projectId).engine
+    const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
+    if (ticket === undefined) throw new Error('ticket-not-found')
+    if (request.command === 'stop') engine.stopTicket(request.ticketId, request.reason)
+    else if (request.command === 'retry') engine.retryTicket(request.ticketId)
+    else if (request.command === 'reevaluate') engine.reevaluate(ticket.origin.triggerId)
+    else engine.dismiss(ticket.decisionId)
+    return true
+  }
+
+  /**
+   * A person's answer to Attention goes back to the ticket as a note.
+   * @param request - Ticket and text.
+   * @returns true when stored.
+   */
+  @Remote
+  answerAttention(request: AttentionReplyRequest): boolean {
+    this.requireProject(request)
+    this.orchestration.runtime(request.projectId).engine.note(request.ticketId, request.text)
+    return true
+  }
+
+  /**
+   * List vault records of the project, newest first.
+   * @param request - Tenant.
+   * @returns Record cards.
+   */
+  @Remote
+  listVaultRecords(request: ProjectScopeRequest): VaultRecordView[] {
+    this.requireProject(request)
+    return this.vault.listRecords(request.projectId).map(record => ({
+      id: record.id,
+      projectId: request.projectId,
+      kind: record.kind,
+      body: record.body,
+      status: record.status,
+    }))
+  }
+
+  /**
+   * Create a vault record visible to the workspace.
+   * @param request - Record fields.
+   * @returns The stored card.
+   */
+  @Remote
+  createVaultRecord(request: CreateVaultRecordRequest): VaultRecordView {
+    this.requireProject(request)
+    const record = this.vault.createRecord({
+      id: request.id,
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      kind: request.kind,
+      body: request.body,
+      authorId: request.authorId,
+      visibility: { kind: 'workspace' },
+    })
+    return {
+      id: record.id,
+      projectId: request.projectId,
+      kind: record.kind,
+      body: record.body,
+      status: record.status,
+    }
+  }
+
+  /**
+   * Onboarding: Pessoal exists; first use when the project has no personas.
+   * @param request - Tenant.
+   * @returns Flags.
+   */
+  @Remote
+  getOnboarding(request: ProjectScopeRequest): OnboardingState {
+    this.requireWorkspace(request)
+    const personal = this.product.listProjects(request.workspaceId).find(item => item.kind === 'personal')
+    return {
+      hasPersonalProject: personal !== undefined,
+      firstUse: personal === undefined || this.product.listPersonas(personal.id).length === 0,
+      personalProjectId: personal?.id ?? '',
+    }
+  }
+
+  /**
+   * Known CLI/connection kinds. Availability is not probed here (read-only later).
+   * @param request - Tenant (unused; required for ACL).
+   * @returns Connection cards.
+   */
+  @Remote
+  listConnections(request: ProjectScopeRequest): ConnectionView[] {
+    this.requireProject(request)
+    return [
+      { id: 'dsh', kind: 'dsh', available: true },
+      { id: 'claude', kind: 'claude', available: false },
+      { id: 'codex', kind: 'codex', available: false },
+      { id: 'cursor', kind: 'cursor', available: false },
+      { id: 'opencode', kind: 'opencode', available: false },
+    ]
+  }
+
+  /**
+   * Triggers a ticket used (origin + later trigger inputs).
+   * @param request - Ticket command envelope (`reason` unused).
+   * @returns Context card.
+   */
+  @Remote
+  getTurnContext(request: TicketCommandRequest): TurnContextView {
+    this.requireProject(request)
+    const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
+    if (ticket === undefined) throw new Error('ticket-not-found')
+    const extra = ticket.inputs
+      .filter(input => input.kind === 'trigger')
+      .map(input => input.triggerId)
+    return {
+      ticketId: ticket.id,
+      triggerIds: [...new Set([ticket.origin.triggerId, ...ticket.origin.triggerIds, ...extra])],
+      title: ticket.title,
     }
   }
 

@@ -25,6 +25,9 @@
     },
     {
       "path": "../persona-store"
+    },
+    {
+      "path": "../persona-sync"
     }
   ]
 }

@@ -1,6 +1,110 @@
 # Relatos — Anvil (persona-store / persona-host)
 
-Mais recente no topo.
+Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
+
+---
+
+## 03/11 15:09 — E5 — persona-edge Worker + DO + D1 + R2 + convites + HMAC
+
+### O que ficou pronto
+`WorkspaceHub` é o único ordenador (`commitEnvelope` / `SEQ_GAP`). Hibernação WS (`acceptWebSocket` + tags `stream:`/`device:` + `webSocketMessage`). Replay `GET /w/:id/sync/after`. D1 usa o mesmo SQL que a suíte `defineSyncLogContract('d1')`. R2 recusa anexo DM sem `shared`. Convites issue/redeem/revoke. Webhook GitHub: HMAC-SHA256 → `WebhookEnvelope` → DO (replay = `duplicate`) → sockets `device:`. Testes locais com `wrangler unstable_dev` (forceLocal; sem login/deploy). 2 clientes convergem; DM não sobe.
+
+### Arquivos
+- `apps/persona-edge/src/{index,env,workspace-hub,sql-log,do-sql,schema,hmac}.ts`
+- `apps/persona-edge/tests/{d1-log.contract,hmac,edge}.spec.ts` + `tests/node-sql.ts`
+- `apps/persona-edge/{wrangler.toml,README.md,migrations/0001_init.sql}`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run apps/persona-edge
+ Test Files  3 passed (3)
+      Tests  9 passed (9)
+   Start at  15:08:59
+   Duration  5.08s
+```
+
+```
+pnpm exec tsc -p apps/persona-edge/tsconfig.json --noEmit
+(exit 0)
+pnpm exec oxlint apps/persona-edge/src apps/persona-edge/tests
+(exit 0)
+```
+
+### Limitações
+- Miniflare puro não transpila TS; a suíte HTTP usa `wrangler unstable_dev` (Miniflare por baixo). Sem handshake WS no spec HTTP (hibernação está no DO).
+- D1 `exec` quebra DDL no newline — schema é statement-a-statement.
+- Sem `wrangler login` / deploy (E11).
+- Segue E6 `persona-sync`.
+
+---
+
+## 03/11 15:02 — E-persist — SyncLog / Invite / Import SQLite = suíte do Forge
+
+### O que ficou pronto
+Schema v3: `sync_envelope`, `invite`/`invite_actor`/`invite_vault`/`invite_memory`, `import_batch`. `SqliteSyncLog`, `SqliteImportStore`, `SqliteInviteBook` (+ `MemoryInviteBook`) implementam os ports do Forge. A mesma suíte de contrato (`tests/contract/{sync,import,invite}.contract.ts`) roda em memória e em SQLite; reopen em arquivo confirma persistência. Invite/Grant/purgeSource continuam funções do Forge — o book só grava o resultado.
+
+### Arquivos
+- `packages/persona/persona-store/src/{constants,migrations,index}.ts`
+- `packages/persona/persona-store/src/sync/log.ts`
+- `packages/persona/persona-store/src/import/store.ts`
+- `packages/persona/persona-store/src/invite/{book,memory}.ts`
+- `packages/persona/persona-store/tests/contract/{sync,import,invite}.contract.ts`
+- `packages/persona/persona-store/tests/{sync,import,invite}.contract.spec.ts`
+- `packages/persona/persona-store/tests/open.spec.ts`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-store
+ Test Files  12 passed (12)
+      Tests  263 passed (263)
+   Start at  15:00:02
+   Duration  4.31s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-store
+persona-store: OK in 6.1s
+```
+
+```
+pnpm exec oxlint packages/persona/persona-store/src/invite/book.ts packages/persona/persona-store/tests/contract/sync.contract.ts
+(exit 0)
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: TypertAnalysisError: typert(host): packages/persona/persona-runners/src/plugin.ts:44:66: type symbol unknown has no declaration
+(Rivet; nenhum artifact mudou; não editei persona-runners)
+```
+
+### Limitações
+- Invite não tem port no core — `InviteBook` é do store. Suíte replica `invite.spec.ts` via persistência.
+- Adaptadores de import (ChatGPT/Claude/md) ficam no core; a suíte compartilhada é preview construído + externalId + rollback.
+- `generate-typert` vermelho em `persona-runners` (Rivet). Store não é a causa.
+- Segue E5 `apps/persona-edge`.
+
+---
+
+## 03/11 15:17 — Typert C2 — anotação explícita em propriedades públicas
+
+### O que ficou pronto
+O gerador parava em `Orchestration.runtimes` ("public property is missing an explicit type annotation"). Anotados `runtimes: Map<…>`, `started: Set<string>`, e em `SqliteRepositories` os objetos `triggers`/`threads`/`tickets`/`decisions` como `Repositories['…']`.
+
+### Arquivos
+- `packages/persona/persona-host/src/orchestration.ts`
+- `packages/persona/persona-store/src/engine/repos.ts`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 26.8s
+```
+
+### Limitações
+- Nenhuma neste gate. C2/B7/REMOTE seguem.
 
 ---
 

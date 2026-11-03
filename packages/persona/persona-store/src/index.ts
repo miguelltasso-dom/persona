@@ -37,6 +37,17 @@ export { zonedUtcMs } from './events/timezone.ts'
 export { RoutineRepos } from './routines/repos.ts'
 export type { CatchUp, CreateRoutineInput, Routine, RoutineRun } from './routines/repos.ts'
 
+export { SqliteRepositories, openSqliteRepositories } from './engine/repos.ts'
+export { SqliteEffectPersistence } from './engine/effects.ts'
+export { SqliteOutbox } from './engine/outbox.ts'
+export type { OutboxPass } from './engine/outbox.ts'
+
+export { SqliteSyncLog } from './sync/log.ts'
+export { SqliteImportStore } from './import/store.ts'
+export { SqliteInviteBook } from './invite/book.ts'
+export type { InviteBook } from './invite/book.ts'
+export { MemoryInviteBook } from './invite/memory.ts'
+
 export { VaultRepos } from './vault/repos.ts'
 export type {
   CreateVaultDocumentInput,

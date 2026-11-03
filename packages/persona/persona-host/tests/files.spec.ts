@@ -1,0 +1,78 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Context } from '@deepseek-ai/cordis'
+import { afterEach, expect, it } from 'vitest'
+import PersonaHost from '../src/index.ts'
+import { resolveProjectPath } from '../src/files.ts'
+
+const roots: Context[] = []
+const dirs: string[] = []
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+})
+
+function host(): PersonaHost {
+  const ctx = new Context()
+  roots.push(ctx)
+  return new PersonaHost(ctx)
+}
+
+function tempRoot(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-files-'))
+  dirs.push(dir)
+  return dir
+}
+
+function seeded(): { h: PersonaHost; root: string; scope: { workspaceId: string; projectId: string } } {
+  const h = host()
+  const root = tempRoot()
+  writeFileSync(join(root, 'readme.txt'), 'olá')
+  mkdirSync(join(root, 'src'))
+  writeFileSync(join(root, 'src', 'app.ts'), 'export {}')
+  h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
+  h.createMember({
+    id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner',
+  })
+  h.updateProject({
+    workspaceId: 'ws', projectId: 'pp', name: 'Pessoal', description: '', rootPath: root,
+  })
+  return { h, root, scope: { workspaceId: 'ws', projectId: 'pp' } }
+}
+
+it('lists and reads files under the project root', () => {
+  const { h, scope } = seeded()
+  const listing = h.listFiles({ ...scope, actorId: 'ana', path: '' })
+  expect(listing.entries.map(item => item.name)).toEqual(['readme.txt', 'src'])
+  expect(h.readFile({ ...scope, actorId: 'ana', path: 'readme.txt' }).text).toBe('olá')
+  expect(h.statFile({ ...scope, actorId: 'ana', path: 'src' }).kind).toBe('directory')
+})
+
+it('refuses a path outside the project root', () => {
+  const { h, root, scope } = seeded()
+  expect(() => {
+    h.readFile({ ...scope, actorId: 'ana', path: '../secret' })
+  }).toThrow('path-outside-root')
+  expect(() => {
+    resolveProjectPath(root, '/etc/passwd')
+  }).toThrow('path-outside-root')
+})
+
+it('refuses a caller who is not a workspace member', () => {
+  const { h, scope } = seeded()
+  expect(() => {
+    h.listFiles({ ...scope, actorId: 'eve', path: '' })
+  }).toThrow('files-forbidden')
+})
+
+it('refuses a project without a file root', () => {
+  const h = host()
+  h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
+  h.createMember({
+    id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner',
+  })
+  expect(() => {
+    h.listFiles({ workspaceId: 'ws', projectId: 'pp', actorId: 'ana', path: '' })
+  }).toThrow('project-root-missing')
+})

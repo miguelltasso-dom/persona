@@ -26,5 +26,8 @@
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
-  "sideEffects": false
+  "sideEffects": false,
+  "dependencies": {
+    "@deepseek-ai/dsh-persona-core": "workspace:*"
+  }
 }

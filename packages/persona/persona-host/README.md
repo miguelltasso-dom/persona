@@ -1,5 +1,5 @@
 # @deepseek-ai/dsh-persona-host
 
-Host plugin (`ctx.personaHost`) exposing the Persona domain to the UI through a Typert Remote controller (namespace `persona`). Remote method rules: see `persona-spec/RECON.md` §5.
+Host plugin (`ctx.personaHost`) exposing the Persona domain to the UI through a Typert Remote controller (namespace `persona`). Remote v1: `ping`, lists (`listTeam`, `listPersonas`, `listProjects`, `listChannels`, `listDms`, `listTasks`, `getOverview`), writes (`createWorkspace`, `createProject`, `updateProject`, `createMember`, `createPersona`, `addParticipation`, `removeParticipation`, `createChannel`, `createDm`, `postMessage`), `listMessages`, stream `followMessages` (baseline then upserts), `search` (ACL, no DM leak), project files (`listFiles`, `statFile`, `readFile`) confined to `project.rootPath`, routines (`createRoutine`, `listRoutines`, `pauseRoutine`, `pauseTeam`, `scheduleRoutine`, `claimRoutines`, `retryRoutine`), and drafts (`draftPersona`, `draftTeam`). Peers without a role receive `no-allow`. Remote method rules: see `persona-spec/RECON.md` §5. After changing `@Remote` signatures run `pnpm exec tsx scripts/generate-typert.ts`. Public parameters must carry an explicit type (Typert gate).
 
 Part of the Persona product group (`packages/persona/*`). See `persona-spec/PLAN.md` and `persona-spec/DECISIONS.md` (D-002, D-026).

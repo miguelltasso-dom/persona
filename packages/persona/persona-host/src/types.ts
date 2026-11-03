@@ -397,6 +397,87 @@ export interface PersonaDraft {
   readonly systemRoles: readonly ('coordination' | 'watchdog')[]
 }
 
+/** Só quando pedido · Propor · Agir dentro de limites. */
+export type AutonomyMode = 'asked' | 'propose' | 'act'
+
+/** Autonomy + attention budget for one persona in a project. */
+export interface AutonomyConfig {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  readonly mode: AutonomyMode
+  readonly proposalBudget: number
+  readonly tokenBudget: number
+  readonly executionBudget: number
+  readonly silenceStart: string
+  readonly silenceEnd: string
+}
+
+/** Identify one persona in a project. */
+export interface PersonaScopeRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+}
+
+/** Scheduler tick (fake-clock friendly). */
+export interface TickProactivityRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly leaseUntil: string
+  readonly stallAfterMs: number
+}
+
+/** Counts from {@link TickProactivityRequest}. */
+export interface ProactivityTickView {
+  readonly initiatives: number
+  readonly skipped: number
+  readonly warnings: number
+}
+
+/** Event Source (PR, error, deadline). */
+export interface FireProactiveEventRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly title: string
+  readonly subjectId: string
+}
+
+/** One persona on the Visão geral "agora" strip. */
+export interface PersonaNowView {
+  readonly personaId: string
+  readonly name: string
+  readonly title: string
+  readonly state: 'working' | 'resting' | 'stuck' | 'waiting'
+  readonly currentTask: string
+  readonly currentTaskId: string
+  readonly queueCount: number
+  readonly idleMinutes: number
+  readonly deliveriesToday: number
+  readonly proposalsAcceptedToday: number
+}
+
+/** Visão geral — agora. */
+export interface OverviewNowView {
+  readonly personas: readonly PersonaNowView[]
+}
+
+/** One "Enquanto você estava fora" line. */
+export interface AwayEventView {
+  readonly id: string
+  readonly at: string
+  readonly body: string
+  readonly taskId: string
+  readonly taskTitle: string
+  readonly kind: 'delivery' | 'proposal' | 'watchdog'
+}
+
+/** Peak-end summary since the last visit. */
+export interface WhileAwayView {
+  readonly since: string
+  readonly events: readonly AwayEventView[]
+}
+
 /** Global search that applies stream ACL. */
 export interface SearchRequest {
   readonly workspaceId: string

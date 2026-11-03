@@ -109,14 +109,15 @@ export class ProactivityHost {
     const id = `${INITIATIVE_PREFIX}${persona.id}`
     if (this.routines.get(id) !== undefined) return
     const timeZone = persona.schedule?.timeZone ?? 'UTC'
+    const hour = initiativeHour(persona)
     this.routines.create({
       id,
       workspaceId: persona.workspaceId,
       projectId: persona.projectId,
       name: id,
-      rrule: 'FREQ=DAILY',
+      rrule: `FREQ=DAILY;BYHOUR=${hour}`,
       timeZone,
-      catchUp: 'skip',
+      catchUp: 'run_once',
     })
   }
 
@@ -234,6 +235,16 @@ export class ProactivityHost {
       }),
     })
     const warnings = watchdogWarnings(vigia.signals)
+    for (const warning of warnings) {
+      this.repos.recordAudit({
+        projectId,
+        id: warning.id,
+        at: now,
+        kind: warning.kind,
+        subjectId: warning.subjectId,
+        detail: warning.detail,
+      })
+    }
     for (const line of vigia.audit) {
       this.repos.recordAudit({
         projectId,
@@ -415,4 +426,15 @@ function minutesBetween(from: string, to: string): number {
   const delta = Date.parse(to) - Date.parse(from)
   if (!Number.isFinite(delta) || delta <= 0) return 0
   return Math.floor(delta / 60_000)
+}
+
+/**
+ * First weekly start hour, or 09:00 in the persona timezone.
+ * @param persona - Stored persona.
+ */
+function initiativeHour(persona: StoredPersona): number {
+  const start = persona.schedule?.weeklyHours?.[0]?.start
+  if (start === undefined) return 9
+  const hour = Number(start.slice(0, 2))
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 9
 }

@@ -5,11 +5,13 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   EventRepos,
   ProductRepos,
+  ProactivityRepos,
   RoutineRepos,
   VaultRepos,
   openPersonaStore,
   type PersonaStore,
 } from '@deepseek-ai/dsh-persona-store'
+import { ProactivityHost } from './proactivity.ts'
 import { draftPersonaFromDescription, draftTeamFromDescription } from './draft.ts'
 import { Orchestration } from './orchestration.ts'
 import {
@@ -63,9 +65,17 @@ import type {
   TaskView,
   TeamView,
   UpdateProjectRequest,
+  AutonomyConfig,
+  FireProactiveEventRequest,
+  OverviewNowView,
+  PersonaScopeRequest,
+  ProactivityTickView,
+  TickProactivityRequest,
+  WhileAwayView,
 } from './types.ts'
 
 export { openHostSync, openHostSyncFromEnv } from './sync.ts'
+export { ProactivityHost } from './proactivity.ts'
 export type * from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -106,6 +116,7 @@ export default class PersonaHost extends TypertRemoteService {
   readonly vault: VaultRepos
   readonly routines: RoutineRepos
   readonly orchestration: Orchestration
+  readonly proactivity: ProactivityHost
 
   /**
    * @param ctx - Host context.
@@ -119,6 +130,12 @@ export default class PersonaHost extends TypertRemoteService {
     this.vault = new VaultRepos(this.store)
     this.routines = new RoutineRepos(this.store)
     this.orchestration = new Orchestration(this.product, this.events, this.store)
+    this.proactivity = new ProactivityHost(
+      this.product,
+      this.routines,
+      new ProactivityRepos(this.store),
+      this.orchestration,
+    )
     ctx.effect(() => () => {
       this.store.close()
     })
@@ -240,6 +257,96 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
+   * Visão geral "agora": o que cada persona faz, fila, ociosidade, entregas do dia.
+   * @param request - Tenant.
+   */
+  @Remote
+  getOverviewNow(request: ProjectScopeRequest): OverviewNowView {
+    this.requireProject(request)
+    return this.proactivity.overviewNow(request.projectId)
+  }
+
+  /**
+   * "Enquanto você estava fora" since the last visit, then records this visit.
+   * @param request - Tenant.
+   */
+  @Remote
+  getWhileAway(request: ProjectScopeRequest): WhileAwayView {
+    this.requireProject(request)
+    return this.proactivity.whileAway(request.projectId)
+  }
+
+  /**
+   * Record that the human opened the project (without reading the summary).
+   * @param request - Tenant.
+   */
+  @Remote
+  markVisit(request: ProjectScopeRequest): boolean {
+    this.requireProject(request)
+    this.proactivity.markVisit(request.projectId)
+    return true
+  }
+
+  /**
+   * Autonomy and attention budget for one persona.
+   * @param request - Persona scope.
+   */
+  @Remote
+  getAutonomy(request: PersonaScopeRequest): AutonomyConfig {
+    this.requireProject(request)
+    return toAutonomyView(request.workspaceId, this.proactivity.getAutonomy(request.projectId, request.personaId))
+  }
+
+  /**
+   * Set autonomy mode and attention budget.
+   * @param request - Config.
+   */
+  @Remote
+  setAutonomy(request: AutonomyConfig): AutonomyConfig {
+    this.requireProject(request)
+    return toAutonomyView(request.workspaceId, this.proactivity.setAutonomy({
+      projectId: request.projectId,
+      personaId: request.personaId,
+      mode: request.mode,
+      proposalBudget: request.proposalBudget,
+      tokenBudget: request.tokenBudget,
+      executionBudget: request.executionBudget,
+      ...(request.silenceStart === '' ? {} : { silenceStart: request.silenceStart }),
+      ...(request.silenceEnd === '' ? {} : { silenceEnd: request.silenceEnd }),
+    }))
+  }
+
+  /**
+   * Ensure a daily initiative routine exists for every persona.
+   * @param request - Tenant.
+   */
+  @Remote
+  ensureInitiativeRoutines(request: ProjectScopeRequest): number {
+    this.requireProject(request)
+    return this.proactivity.ensureAllInitiativeRoutines(request.projectId)
+  }
+
+  /**
+   * Event Source: PR, recurring error, deadline. Fires initiative when policy allows.
+   * @param request - Event.
+   */
+  @Remote
+  fireProactiveEvent(request: FireProactiveEventRequest): string[] {
+    this.requireProject(request)
+    return this.proactivity.fireEvent(request.projectId, request.title, request.subjectId)
+  }
+
+  /**
+   * Scheduler: claim due initiative routines and run the Vigia snapshot.
+   * @param request - Tenant, lease, stall threshold.
+   */
+  @Remote
+  tickProactivity(request: TickProactivityRequest): ProactivityTickView {
+    this.requireProject(request)
+    return this.proactivity.tick(request.projectId, request.leaseUntil, request.stallAfterMs)
+  }
+
+  /**
    * Create a workspace and its Pessoal project.
    * @param request - Workspace id, name, and personal project id.
    * @returns The personal project card.
@@ -351,6 +458,7 @@ export default class PersonaHost extends TypertRemoteService {
       updatedAt: now,
       createdBy: request.createdBy,
     }, request.projectId)
+    this.proactivity.ensureInitiativeRoutine(stored)
     return toPersonaView(stored)
   }
 
@@ -891,6 +999,29 @@ function toRunView(run: {
     scheduledFor: run.scheduledFor,
     status: run.status,
     attempt: run.attempt,
+  }
+}
+
+function toAutonomyView(workspaceId: string, row: {
+  projectId: string
+  personaId: string
+  mode: AutonomyConfig['mode']
+  proposalBudget: number
+  tokenBudget: number
+  executionBudget: number
+  silenceStart?: string
+  silenceEnd?: string
+}): AutonomyConfig {
+  return {
+    workspaceId,
+    projectId: row.projectId,
+    personaId: row.personaId,
+    mode: row.mode,
+    proposalBudget: row.proposalBudget,
+    tokenBudget: row.tokenBudget,
+    executionBudget: row.executionBudget,
+    silenceStart: row.silenceStart ?? '',
+    silenceEnd: row.silenceEnd ?? '',
   }
 }
 

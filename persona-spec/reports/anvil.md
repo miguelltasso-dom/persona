@@ -4,6 +4,58 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 03/11 15:21 — PROACTIVITY host — rotina, agora/away, autonomia, Vigia
+
+### O que ficou pronto
+Rotina diária de iniciativa por persona (`FREQ=DAILY;BYHOUR=` no fuso/horário dela; catch-up `run_once`) no agendador do host. Gatilho por evento (PR/erro/prazo) usa a mesma política. Autonomia `asked|propose|act` + orçamento de propostas/tokens/execuções + janela de silêncio. `pauseTeam` cancela as runs. Visão geral "agora": estado honesto (working/resting/stuck/waiting), fila, ociosidade, entregas do dia, propostas aceitas. "Enquanto você estava fora" desde a última visita, com `taskId` das tarefas reais; segunda leitura vem vazia. Vigia do Forge (`vigiaTick`/`watchdogWarnings`) no `tickProactivity` — só auditoria, sem ping no canal.
+
+### Arquivos
+- `packages/persona/persona-store/src/proactivity/repos.ts` + schema v4
+- `packages/persona/persona-store/tests/proactivity.spec.ts`
+- `packages/persona/persona-host/src/{proactivity,index,types}.ts`
+- `packages/persona/persona-host/tests/proactivity.spec.ts`
+- `packages/persona/persona-host/README.md`
+
+### Remotes
+`getOverviewNow`, `getWhileAway`, `markVisit`, `getAutonomy`, `setAutonomy`, `ensureInitiativeRoutines`, `fireProactiveEvent`, `tickProactivity`.
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-store/tests/proactivity.spec.ts packages/persona/persona-host/tests/proactivity.spec.ts
+ Test Files  2 passed (2)
+      Tests  11 passed (11)
+   Start at  15:20:28
+   Duration  3.42s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests
+ Test Files  7 passed (7)
+      Tests  29 passed (29)
+   Start at  15:20:40
+   Duration  3.32s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 26.5s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-store persona-host
+persona-store: OK in 5.1s
+persona-host: OK in 6.2s
+```
+
+### Limitações
+- Iniciativa grava proposta no read-model; cartão estruturado de Aprovações entra no lote de remotes da UI.
+- `proposalsAcceptedToday` conta fires com `ticketId` (aceitação posterior).
+- Vigia não escreve Ticket aqui — só sinais/auditoria (contrato do Forge).
+- Segue remotes invites/import/rules/approvals/memory/skills e GitHub Source.
+
+---
+
 ## 03/11 15:14 — E6 — persona-sync: só streams compartilhados, cifra, offline
 
 ### O que ficou pronto

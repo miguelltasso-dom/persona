@@ -18,7 +18,7 @@ import { detectConnections } from '@deepseek-ai/dsh-persona-runners'
 import { GithubSourceHost, detectGh } from './github.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { ScreensHost } from './screens.ts'
-import { draftPersonaFromDescription, draftTeamFromDescription } from './draft.ts'
+import { draftPersonaWithDriver, draftTeamWithDriver } from './draft.ts'
 import { Orchestration } from './orchestration.ts'
 import { OnboardingHost } from './onboarding.ts'
 import { HostScheduler, inQuietWindow } from './scheduler.ts'
@@ -1509,9 +1509,9 @@ export default class PersonaHost extends TypertRemoteService {
    * @returns An editable draft.
    */
   @Remote
-  draftPersona(request: DraftPersonaRequest): PersonaDraft {
+  async draftPersona(request: DraftPersonaRequest): Promise<PersonaDraft> {
     this.requireProject(request)
-    return draftPersonaFromDescription(request.description)
+    return draftPersonaWithDriver(request.description)
   }
 
   /**
@@ -1520,9 +1520,9 @@ export default class PersonaHost extends TypertRemoteService {
    * @returns Editable drafts.
    */
   @Remote
-  draftTeam(request: DraftTeamRequest): PersonaDraft[] {
+  async draftTeam(request: DraftTeamRequest): Promise<PersonaDraft[]> {
     this.requireProject(request)
-    return draftTeamFromDescription(request.description)
+    return draftTeamWithDriver(request.description)
   }
 
   private requireWorkspace(request: { workspaceId: string }): void {

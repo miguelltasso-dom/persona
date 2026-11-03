@@ -12,6 +12,19 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
+it('fresh PERSONA_HOME is firstUse with zero personas (no auto-seed)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-fresh-'))
+  dirs.push(dir)
+  process.env.PERSONA_HOME = dir
+  const ctx = new Context()
+  roots.push(ctx)
+  const h = new PersonaHost(ctx, { databasePath: join(dir, 'persona.db') })
+  const personal = h.createWorkspace({ id: 'ws', name: 'Fresh', personalProjectId: 'pp' })
+  const scope = { workspaceId: 'ws', projectId: personal.id }
+  expect(h.getOnboarding(scope).firstUse).toBe(true)
+  expect(h.listTeam(scope).personas).toEqual([])
+})
+
 it('completeOnboarding is idempotent and writes welcome without a hardcoded name', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'persona-onb-'))
   dirs.push(dir)

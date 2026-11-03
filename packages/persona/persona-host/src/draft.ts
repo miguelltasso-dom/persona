@@ -1,24 +1,71 @@
-/** Deterministic conversational drafts (S4). A live Runner replaces this later. */
+/**
+ * S4 conversational drafts: Rivet `createDraftDriver`, else `fallbackDraft`.
+ * No coordination role is assigned (onboarding works before a coordinator).
+ */
 import { parsePersonaSpec } from '@deepseek-ai/dsh-persona-core'
+import {
+  createDraftDriver,
+  createScriptedRunner,
+  fallbackDraft,
+  type PersonaDraft as RivetDraft,
+} from '@deepseek-ai/dsh-persona-runners'
 import type { PersonaDraft } from './types.ts'
 
 /**
- * Build one editable persona draft from a natural-language description.
- * Tools stay empty so the draft never exceeds the creator's access.
+ * Deterministic draft when the driver is silent.
  * @param description - User text.
- * @returns A Forge-valid spec projected to the wire.
  */
 export function draftPersonaFromDescription(description: string): PersonaDraft {
-  const line = description.trim().split(/\r?\n/, 1)[0] ?? ''
-  const name = clip(line === '' ? 'Rascunho' : line, 80)
+  return toWire(fallbackDraft(description))
+}
+
+/**
+ * Split a team description into up to 8 deterministic drafts.
+ * @param description - Paragraphs or lines.
+ */
+export function draftTeamFromDescription(description: string): PersonaDraft[] {
+  const chunks = description.split(/\n\s*\n|\n/u).map(item => item.trim()).filter(item => item !== '')
+  const parts = chunks.length === 0 ? ['Membro'] : chunks.slice(0, 8)
+  return parts.map(part => draftPersonaFromDescription(part))
+}
+
+/**
+ * Draft through Rivet's driver (scripted runner → fallback when mute).
+ * @param description - User text.
+ */
+export async function draftPersonaWithDriver(description: string): Promise<PersonaDraft> {
+  try {
+    const driver = createDraftDriver({ runner: createScriptedRunner() })
+    return toWire(await driver.draftPersona(description))
+  } catch {
+    return draftPersonaFromDescription(description)
+  }
+}
+
+/**
+ * Team draft through the same driver.
+ * @param description - User text.
+ */
+export async function draftTeamWithDriver(description: string): Promise<PersonaDraft[]> {
+  try {
+    const driver = createDraftDriver({ runner: createScriptedRunner() })
+    return (await driver.draftTeam(description)).map(toWire)
+  } catch {
+    return draftTeamFromDescription(description)
+  }
+}
+
+function toWire(draft: RivetDraft): PersonaDraft {
   const spec = parsePersonaSpec({
-    name,
-    avatar: { kind: 'silhouette', ref: 'draft' },
-    title: clip(name, 80),
-    description: clip(description.trim() === '' ? name : description.trim(), 2000),
-    personality: 'Direto e claro.',
-    instructions: clip(description.trim() === '' ? `Atue como ${name}.` : description.trim(), 8000),
-    runner: { kind: 'dsh', model: 'default' },
+    name: draft.name,
+    avatar: { kind: draft.avatarKind, ref: draft.avatarRef },
+    title: draft.title,
+    description: draft.description,
+    personality: draft.personality,
+    instructions: draft.instructions,
+    runner: isCli(draft.runnerCli)
+      ? { kind: 'cli', cli: draft.runnerCli, model: draft.runnerModel === '' ? 'default' : draft.runnerModel }
+      : { kind: 'dsh', model: draft.runnerModel === '' ? 'default' : draft.runnerModel },
     tools: {},
     skills: [],
     limits: {},
@@ -41,18 +88,6 @@ export function draftPersonaFromDescription(description: string): PersonaDraft {
   }
 }
 
-/**
- * Split a team description into up to 8 persona drafts. No coordination role
- * is assigned (onboarding works before a coordinator exists).
- * @param description - User text; paragraphs or lines become members.
- * @returns Valid drafts.
- */
-export function draftTeamFromDescription(description: string): PersonaDraft[] {
-  const chunks = description.split(/\n\s*\n|\n/).map(item => item.trim()).filter(item => item !== '')
-  const parts = chunks.length === 0 ? ['Membro'] : chunks.slice(0, 8)
-  return parts.map(part => draftPersonaFromDescription(part))
-}
-
-function clip(value: string, max: number): string {
-  return value.length <= max ? value : value.slice(0, max)
+function isCli(value: string): value is 'claude' | 'codex' | 'opencode' | 'cursor' {
+  return value === 'claude' || value === 'codex' || value === 'opencode' || value === 'cursor'
 }

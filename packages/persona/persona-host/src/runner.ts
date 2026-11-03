@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import type { Runner } from '@deepseek-ai/dsh-persona-engine'
 import {
   createFakeRunner,
+  createOarSessionRunner,
   resolveRunner,
   type PersonaRunnerSpec,
 } from '@deepseek-ai/dsh-persona-runners'
@@ -70,12 +71,18 @@ export function specOfPersona(runner: { kind: 'dsh' | 'cli'; model: string; cli?
  */
 export async function resolveHostRunner(request?: HostRunnerRequest): Promise<Runner> {
   if (request === undefined || process.env.PERSONA_REAL_CLI !== '1') return createFakeRunner()
-  return resolveRunner({
+  const turn = await resolveRunner({
     spec: request.spec,
     permissionMode: request.permissionMode,
     autonomy: request.autonomy,
     home: request.home,
     personId: request.personId,
+  })
+  return createOarSessionRunner({
+    turn,
+    personaId: request.personId,
+    model: request.spec.model,
+    permissionMode: request.permissionMode,
   })
 }
 

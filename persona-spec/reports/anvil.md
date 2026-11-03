@@ -4,6 +4,60 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 03/11 16:10 — resolveRunner + S5 onboarding + atenção + retenção + ociosidade
+
+### 1. `createHostRunner` → `resolveHostRunner`
+Spec vem da Persona no store (`specOfPersona`). `permissionMode` explícito: `act` → `allow-once`, resto `prompt`. `autonomy` `asked` → `on_request`. Home isolado: `<PERSONA_HOME>/runners/<projectId>`. Fake/scripted salvo `PERSONA_REAL_CLI=1` — aí `resolveRunner` + `createOarSessionRunner` (TurnRunner → port de sessão). `RunnerResolveError` (`cli_not_found` / `not_logged_in` / `model_unavailable` / `quota_exhausted`) vira Report `blocked` com a mensagem pt-BR do resolvedor; login/cota postam “Precisa de você” com `loginHint` (sem stack, sem token). Testes: login e cota no conductor.
+
+### 2. Onboarding no host (S5)
+`completeOnboarding` idempotente em `store.tx`: workspace/Pessoal, owner, `#geral`, personas (`team[]` ou `createDraftDriver`+`fallbackDraft`), `cofreSeed` → `proposeMemory` (nunca Cofre direto), welcome da primeira Coordenação ou texto de sistema, `completed` no store. `getOnboarding` reflete. Contrato: `persona-spec/contracts/onboarding.md` (Prism). Teste: `PERSONA_HOME` temp → equipe Guia+Bento, kanban vazio, sem “Atlas”.
+
+### 3. Atenção (Rivet desktop)
+`getAttentionPolicy` / `putAttentionPolicy` (orçamento, silêncio, `summary`|`ping`). Stream `attentionEvents` (baseline+upsert, ≥1 s): `needs-you` (blocked) e `review`, cortados no budget; `ping` some na janela quieta. Contrato: `persona-spec/contracts/attention.md`.
+
+### 4. Retenção no agendador
+Tique diário no início da janela quieta (`02:00`–`06:00` default). Só arquiva (`archiveOnly: true`); apagar exige `archiveOnly: false` + tick. Log em `retention_log`. `get/putRetentionPolicy`, `tickRetention`, `listRetentionLog`.
+
+### 5. Ociosidade
+Sem `setInterval`. Timer único `setTimeout` ≥ 1 s alinhado ao próximo quiet start; `unref`. Sem projetos = sem timer. `attentionEvents` só dorme 1 s com cliente inscrito. Host ready (DB existente): **376 ms** (meta ≤ 1500 ms). Probe: `persona-spec/reports/bench-app.md`.
+
+### Arquivos
+- `packages/persona/persona-host/src/{runner,orchestration,onboarding,scheduler,index,types}.ts`
+- `packages/persona/persona-host/tests/{conductor,onboarding,attention-retention,ready}.spec.ts`
+- `persona-spec/contracts/{onboarding,attention}.md`
+- `persona-spec/reports/bench-app.md` (números do host)
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests packages/persona/persona-store/tests
+ Test Files  27 passed (27)
+      Tests  324 passed (324)
+```
+
+```
+ready.spec host-ready-ms=376
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-store: OK in 7.5s
+persona-host: OK in 13.1s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 37.8s
+```
+
+### Limitações
+- `ctx.personaRunners` ainda não é injetado no host: resolve vai pelo import `resolveRunner`; DSH real ainda precisa de `agent` no resolvedor.
+- `createDraftDriver` no onboarding e em `draftPersona`/`draftTeam` usa `createScriptedRunner` (cai em `fallbackDraft` se o turno for mudo).
+- S4 host: remotes async ligadas ao driver do Rivet (`draft.ts`). 3 testes `routines-draft` verdes; typert 40 / 42.0s.
+- Fila Keel 1–5 + S4 host fechadas. Próximo Anvil no PLAN: B7 (um run mutante por Tarefa).
+
+---
+
 ## 03/11 15:54 — Fio condutor + gaps Lumen + retenção + sync local
 
 ### 1. Fio condutor real (prioridade 1)

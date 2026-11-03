@@ -3,7 +3,7 @@
  * Cofre seed is proposed (approval), never written through.
  */
 
-import { createDraftDriver, createFakeRunner, fallbackDraft } from '@deepseek-ai/dsh-persona-runners'
+import { createDraftDriver, createScriptedRunner, fallbackDraft } from '@deepseek-ai/dsh-persona-runners'
 import type { EventRepos, ProductRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
 import type { ScreensHost } from './screens.ts'
 import type {
@@ -73,7 +73,7 @@ export class OnboardingHost {
       ? request.templateIds.slice(0, 8)
       : [request.displayName === '' ? 'Guia' : request.displayName]
     try {
-      const driver = createDraftDriver({ runner: createFakeRunner() })
+      const driver = createDraftDriver({ runner: createScriptedRunner() })
       const drafts: OnboardingPersonaSpec[] = []
       for (const seed of seeds) drafts.push(toSpec(await driver.draftPersona(seed)))
       return drafts

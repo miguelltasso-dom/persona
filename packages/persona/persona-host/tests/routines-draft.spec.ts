@@ -65,9 +65,9 @@ it('retries a failed run', () => {
   expect(h.retryRoutine({ workspaceId: 'ws', projectId: 'pp', runId: 'run-1' }).status).toBe('pending')
 })
 
-it('draftPersona and draftTeam are valid Forge specs without a coordinator', () => {
+it('draftPersona and draftTeam are valid Forge specs without a coordinator', async () => {
   const h = seeded()
-  const draft = h.draftPersona({
+  const draft = await h.draftPersona({
     workspaceId: 'ws', projectId: 'pp', description: 'Bento\nImplementa com prova.', createdBy: 'ana',
   })
   expect(draft.name).toBe('Bento')
@@ -87,7 +87,7 @@ it('draftPersona and draftTeam are valid Forge specs without a coordinator', () 
     systemRoles: [...draft.systemRoles],
     canRecruit: draft.canRecruit,
   })
-  const team = h.draftTeam({
+  const team = await h.draftTeam({
     workspaceId: 'ws', projectId: 'pp', description: 'Nina\n\nSol',
   })
   expect(team.map(item => item.name)).toEqual(['Nina', 'Sol'])

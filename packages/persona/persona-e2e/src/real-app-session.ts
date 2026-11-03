@@ -1,5 +1,5 @@
 import type { Page } from 'playwright'
-import { chat, onboarding, shell } from '../fixtures/real-app-locale.pt.ts'
+import { chat, onboarding, shell } from './real-app-locale.pt.ts'
 import { startWebHost, type WebHostHandle } from './web-host.ts'
 import { watchConsole, assertConsoleClean, type ConsoleTripwire } from './console-tripwire.ts'
 import { withFakeCliOnPath, type FakeCliPathScope } from './fake-cli.ts'
@@ -57,7 +57,7 @@ export async function assertNotHarnessShell(page: Page): Promise<void> {
  * @param page - Persona page with overlay visible.
  */
 export async function completeOnboardingOverlay(page: Page): Promise<void> {
-  const continueBtn = () => page.getByRole('button', { name: onboarding.continue })
+  const continueBtn = () => page.getByRole('button', { name: onboarding.continue, exact: true })
   if (await page.getByRole('heading', { name: onboarding.step1Title }).count() === 0) return
 
   await page.getByPlaceholder(onboarding.step1Placeholder).fill('Probe E2E')

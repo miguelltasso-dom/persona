@@ -43,7 +43,10 @@ log('typecheck in the clean worktree')
 const check = run(wt, 'pnpm', ['run', 'typecheck'])
 const output = `${check.stdout}${check.stderr}`
 if (check.status !== 0) {
-  const lines = output.split('\n').filter((l) => /error TS|TypertAnalysisError/.test(l) && !/TS6059|TS6307/.test(l))
+  let lines = output.split('\n').filter((l) => /error TS|TypertAnalysisError/.test(l) && !/TS6059|TS6307/.test(l))
+  // TS6059/TS6307 are normally cascades, but when they are the only errors they ARE the failure (a file outside rootDir/include).
+  if (lines.length === 0) lines = output.split('\n').filter((l) => /error TS/.test(l))
+  if (lines.length === 0) lines = output.split('\n').filter((l) => /FAILED|error/i.test(l)).slice(0, 12)
   const byPackage = new Map()
   for (const line of lines) {
     const owner = /^(packages\/persona\/[^/]+|apps\/[^/]+|packages\/[^/]+\/[^/]+)/.exec(line.replace(/^.*?(packages\/|apps\/)/, '$1'))?.[1] ?? 'other'

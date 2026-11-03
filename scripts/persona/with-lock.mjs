@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // Serialize heavy shared-checkout work (builds, desktop launches, packaging) across agents.
 //
-// Usage: node scripts/persona/with-lock.mjs <label> -- <command> [args...]
+// Usage: node scripts/persona/with-lock.mjs <label> [--release-on <regex>] -- <command> [args...]
 //   e.g. node scripts/persona/with-lock.mjs build -- pnpm run build:artifacts
+//   App launches: add --release-on so the lock is freed as soon as the app prints its ready line
+//   and keeps running without blocking builds, e.g.
+//   node scripts/persona/with-lock.mjs "Probe web host" --release-on "dsh web:|DevTools listening" -- pnpm start:web
 //
 // The lock is the directory `.maestri/locks/build.lock` (mkdir is atomic). It records the owner
 // label and pid; a lock whose pid is gone is stolen. Waits up to 45 minutes.
@@ -20,7 +23,14 @@ if (sep < 3 || sep === process.argv.length - 1) {
   console.error('usage: node scripts/persona/with-lock.mjs <label> -- <command> [args...]')
   process.exit(2)
 }
-const label = process.argv.slice(2, sep).join(' ')
+const head = process.argv.slice(2, sep)
+const releaseIndex = head.indexOf('--release-on')
+let releasePattern
+if (releaseIndex >= 0) {
+  releasePattern = new RegExp(head[releaseIndex + 1] ?? '', 'i')
+  head.splice(releaseIndex, 2)
+}
+const label = head.join(' ')
 const command = process.argv.slice(sep + 1)
 
 function alive(pid) {
@@ -76,7 +86,26 @@ function release() {
 process.on('exit', release)
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, () => { release(); process.exit(130) })
 
-const child = spawn(command[0], command.slice(1), { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' })
+const child = spawn(command[0], command.slice(1), {
+  cwd: root,
+  stdio: releasePattern ? ['inherit', 'pipe', 'pipe'] : 'inherit',
+  shell: process.platform === 'win32',
+})
+if (releasePattern) {
+  const watch = (stream, sink) => {
+    let buffer = ''
+    stream.on('data', (chunk) => {
+      sink.write(chunk)
+      buffer = (buffer + chunk.toString()).slice(-4096)
+      if (!released && releasePattern.test(buffer)) {
+        console.error('[with-lock] ready line seen; releasing the lock while the process keeps running')
+        release()
+      }
+    })
+  }
+  watch(child.stdout, process.stdout)
+  watch(child.stderr, process.stderr)
+}
 child.on('exit', (code, signal) => {
   release()
   process.exit(code ?? (signal ? 1 : 0))

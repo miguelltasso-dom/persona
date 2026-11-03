@@ -132,9 +132,9 @@ it('prefixes unread inputs with RECOVERY_NOTE on redeliverUnread', async () => {
 })
 
 it('maps idle to waiting without background, person when handed over, else background', () => {
-  expect(idleOutcome({ attention: undefined }, false, false)).toBe('waiting')
+  expect(idleOutcome({}, false, false)).toBe('waiting')
   expect(idleOutcome({ attention: { id: 'a', question: '?' } }, true, false)).toBe('person')
-  expect(idleOutcome({ attention: undefined }, true, true)).toBe('person')
-  expect(idleOutcome({ attention: undefined }, true, false)).toBe('background')
+  expect(idleOutcome({}, true, true)).toBe('person')
+  expect(idleOutcome({}, true, false)).toBe('background')
   expect(BACKGROUND_LIMIT_MS).toBe(30 * 60_000)
 })

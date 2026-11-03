@@ -1,6 +1,174 @@
-# Persona product layer. Rows are added by the Tech Lead as each package becomes mountable.
+# Persona product layer over dsh-base + dsh-web-app (Tech Lead owns this file; builders propose rows).
+# Disable list = persona-spec/spikes/ui-composition.md (A7 spike, verified against the web-app row ids).
+# Upstream rows stay installed; only their Cordis rows are switched off. D-002, D-004, D-016, D-028.
+
+# Harness shell and settings surfaces replaced by client-ui-persona.
+# NOT disabled: ui-settings (provides `configForms`, required by locale/ui-theme/shortcuts) and ui-settings-general
+# (language/appearance). Found by the first real-browser boot (03/11): disabling them left 11 entries pending.
+- id: ui-layout
+  disabled: true
+
+- id: ui-sidebar
+  disabled: true
+
+- id: ui-sidebar-right
+  disabled: true
+
+- id: ui-sidebar-documentpreview
+  disabled: true
+
+- id: ui-sidebar-browser
+  disabled: true
+
+- id: ui-sidebar-terminal
+  disabled: true
+
+- id: ui-sidebar-files
+  disabled: true
+
+- id: ui-workspace
+  disabled: true
+
+- id: ui-conversation
+  disabled: true
+
+- id: ui-chat
+  disabled: true
+
+- id: ui-brand-official
+  disabled: true
+
+- id: ui-settings-models
+  disabled: true
+
+- id: ui-settings-account
+  disabled: true
+
+- id: ui-settings-session-log
+  disabled: true
+
+- id: ui-settings-plugins
+  disabled: true
+
+- id: ui-settings-plugin-inventory
+  disabled: true
+
+- id: ui-settings-shell
+  disabled: true
+
+- id: ui-settings-agent-loop
+  disabled: true
+
+- id: ui-settings-subagent
+  disabled: true
+
+- id: ui-settings-web-search
+  disabled: true
+
+- id: ui-plugin-manager
+  disabled: true
+
+- id: ui-approval
+  disabled: true
+
+- id: ui-deliverables
+  disabled: true
+
+- id: ui-workflow-run
+  disabled: true
+
+- id: ui-agent-team
+  disabled: true
+
+- id: ui-subagent
+  disabled: true
+
+- id: ui-input-trigger
+  disabled: true
+
+- id: ui-commands
+  disabled: true
+
+- id: ui-skill
+  disabled: true
+
+- id: ui-reference
+  disabled: true
+
+- id: ui-plan
+  disabled: true
+
+- id: ui-goal
+  disabled: true
+
+- id: ui-schedule
+  disabled: true
+
+- id: ui-jobs
+  disabled: true
+
+- id: ui-model-selection
+  disabled: true
+
+- id: ui-permission
+  disabled: true
+
+- id: ui-agent-preset
+  disabled: true
+
+- id: ui-message-feedback
+  disabled: true
+
+- id: ui-user-questions
+  disabled: true
+
+- id: ui-trajectory
+  disabled: true
+
+- id: entry-customization
+  disabled: true
+
+- id: ui-file-actions
+  disabled: true
+
+- id: ui-open-in-app
+  disabled: true
+
+- id: ui-context-menu
+  disabled: true
+
+- id: ui-cordis
+  disabled: true
+
+# Orphans of the disabled Harness conversation/workspace UI (first real-browser boot, 03/11): they wait forever for uiConversation/uiWorkspace.
+- id: message-quotes
+  disabled: true
+
+- id: ui-secret-mask
+  disabled: true
+
+- id: directory-picker
+  disabled: true
+
+# DeepSeek telemetry, analytics and request extensions (D-016).
+- id: desktop-product-telemetry
+  disabled: true
+
+- id: product-analytics
+  disabled: true
+
+- id: session-telemetry-otel
+  disabled: true
+
+- id: session-log-deepseek
+  disabled: true
+
+- id: plugin-package-inventory-deepseek
+  disabled: true
+
 - insert:
     - id: persona-host
       name: '@deepseek-ai/dsh-persona-host'
+
     - id: ui-persona
       name: '@deepseek-ai/dsh-client-ui-persona'

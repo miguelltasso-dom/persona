@@ -12,9 +12,9 @@ Status: `todo` · `doing` · `blocked` · `done`. Só o Keel edita este arquivo;
 
 Persona é um app desktop (Windows primeiro) em que uma **equipe persistente de agentes-animais** trabalha em **projetos**, conversa em **canais** e **DMs**, mantém um **quadro kanban**, **arquivos** e **rotinas**, com **contexto explícito e recuperável**, **skills próprias** e **uso e limites** honestos — sobre uma arquitetura **Super-agent** nativa:
 
-- **Atlas (Router)** é uma sessão DSH longa em modo async (`start()/stop()`), sem Bash: recebe Triggers dos assuntos, faz a **Triagem** (Eval), cria **Tarefas** (Tickets com Mandate), despacha e é o **único que responde** nos canais (≤100 palavras, só decisão/resultado/bloqueio).
-- **Personas executoras (Workers)**: uma sessão + um diretório (worktree) por Tarefa, executadas por um **Runner**: DSH direto **ou** CLI delegada (Claude Code, Codex, Cursor agent, OpenCode, via OAR). Reportam ao Atlas (progress · waiting · ready · blocked · failed · dropped); nunca falam direto com o canal.
-- **Vigia (watchdog)** agendado (sessão independente, modelo barato; sugestão: Luna) detecta falha de infra, loop improdutivo e desvio de objetivo.
+- **A persona com a função Coordenação (no template inicial, Atlas) é o Router**: sessão DSH longa, sem Bash: recebe Triggers dos assuntos, faz a **Triagem** (Eval), cria **Tarefas** (Tickets com Mandate), despacha e é o **único que responde** nos canais (≤100 palavras, só decisão/resultado/bloqueio).
+- **Todas as demais personas são executoras (Workers) quando recebem uma Tarefa**: uma sessão + um diretório (worktree) por Tarefa, executadas por um **Runner**: DSH direto **ou** CLI delegada (Claude Code, Codex, Cursor agent, OpenCode, via OAR). Reportam ao Atlas (progress · waiting · ready · blocked · failed · dropped); nunca falam direto com o canal.
+- **Vigia (watchdog)** = função atribuível a qualquer persona, agendada (sessão independente, modelo barato; no template, Luna) detecta falha de infra, loop improdutivo e desvio de objetivo.
 - **Filosofia de atenção** ("mínima atenção humana, máximo valor"): a Visão geral mostra primeiro o que **precisa de você**; estado saudável não ocupa espaço; proatividade nasce em modo "só registrar o que faria".
 
 Tudo roda localmente (host Node derivado do host do Harness, SQLite próprio). Em equipes à distância (marco E) cada membro roda suas personas na própria máquina e o estado compartilhado vive na Cloudflare, local-first, sem credenciais saindo do desktop.
@@ -124,18 +124,20 @@ Desktop = compute + ambiente (BYOM): cada membro roda suas personas, com as pró
 
 ---
 
-## 4. Equipe, donos e diretórios (disjuntos)
+## 4. Equipe, donos e diretórios (disjuntos) — atualizado em 03/11 (Atlas: Anvil e Lumen recrutados)
 
 | Agente | Papel | Dono | Não toca |
 |---|---|---|---|
-| **Keel** | Plano, decisões, integração, commits/push, fiação raiz, post-it Status | `persona-spec/`, `packages/persona/persona-app/`, `packages/util/official-bundles/`, `scripts/persona/`, raiz (`pnpm-workspace.yaml`, `package.json`, `tsconfig*.json`, `vitest*.ts`, `.gitignore`, `lefthook.yml`) | funcionalidade (exceto colas) |
-| **Forge** (Cursor Grok 4.6 fast) | Domínio, engine, persistência, host, contexto, rotinas, import, sync/edge | `persona-core`, `persona-engine`, `persona-store`, `persona-host`, `persona-sync`, `apps/persona-edge` | `persona-runners`, `apps/desktop*`, `packages/client` |
-| **Rivet** (Cursor Grok 4.6 fast) | Execução (Runners/OAR/Router driver), credenciais, uso, desktop/empacotamento | `persona-runners`, `persona-vault`, `persona-usage`, `apps/desktop`, `apps/desktop-host`, `apps/cli`, `packages/{boot,credentials,llm,telemetry}`, `packages/session/session-telemetry-*`, `packages/host/product-telemetry-otel`, `packages/util/home-paths` | `persona-store`, `packages/client`, `apps/web` |
-| **Prism** (Cursor Composer 2.5 fast) | UI do renderer | `client-ui-persona`, `packages/client/**` (mínimo), `apps/web/**` | `persona-host`, `apps/desktop*` |
-| **Probe** (Cursor Composer 2.5 fast) | Testes e E2E | `persona-e2e`; único (com o Keel) que roda builds/empacotamento/E2E | produção |
+| **Keel** | Plano, decisões, integração, **B9** (bundle/perfil), commits/push, fiação raiz, placar no post-it Status, leitura periódica de `persona-spec/reports/*.md` | `persona-spec/`, `packages/persona/persona-app/`, `packages/util/official-bundles/`, `scripts/persona/`, raiz (`pnpm-workspace.yaml`, `package.json`, `tsconfig*.json`, `vitest*.ts`, `.gitignore`, `lefthook.yml`) | funcionalidade (exceto colas) |
+| **Forge** (Cursor Grok 4.6 fast) | Domínio puro e **engine Super-agent** | `persona-core`, `persona-engine` (P0, P1, P2a, P3a, P4a, P5, P11, P12, B1, S1, S2-domínio, S3, B4, P13-sinais, ideias do ai-memory) | `persona-store`, `persona-host`, `persona-runners`, `apps/desktop*`, `packages/client` |
+| **Anvil** (Cursor Grok 4.6 fast) | **Persistência e host** | `persona-store`, `persona-host`, `persona-sync`, `apps/persona-edge` (B2a/B2b/B2c, S2-store, P2b/P3b/P4b SQLite, B3, B7, C1a–c, C3, C4, S4-host, marco E de nuvem) | `persona-core`, `persona-engine`, `persona-runners`, `packages/client` |
+| **Rivet** (Cursor Grok 4.6 fast) | Execução, credenciais, uso, desktop/empacotamento | `persona-runners`, `persona-vault`, `persona-usage`, `apps/desktop/`, `apps/desktop-host/`, `apps/cli/` (exceto a linha de dependência do bundle, do Keel), `packages/{boot,credentials,llm,telemetry}`, `packages/session/session-telemetry-*`, `packages/host/product-telemetry-otel`, `packages/util/home-paths` (A3b, R-1, P6–P9, R-2, D1a/b, D2, D3, D4a, D5a, D7, D8, spike ai-memory) | `persona-store`, `packages/client`, `apps/web` |
+| **Prism** (Cursor Composer 2.5 fast) | UI: fundação e fluxo principal | `client-ui-persona/src/client/{theme,motion,primitives,shell,overview,chat,team,onboarding,persona-editor,hire,locale}`, `packages/client/**` (mínimo), `apps/web/**` (A7, S5, S6-editor, C5a–d, C8) | `persona-host`, `apps/desktop*`, subpastas do Lumen |
+| **Lumen** (Cursor Composer 2.5 fast) | UI: superfícies de dados | `client-ui-persona/src/client/{kanban,files,routines,usage,connections,knowledge}` (C6a/b, S6-Conhecimento/Cofre, C7a/b, D5b, D4b) | `persona-host`, `apps/desktop*`, subpastas do Prism |
+| **Probe** (Cursor Composer 2.5 fast) | Testes e E2E, verificação contínua | `persona-e2e`; único (com o Keel) que roda builds/empacotamento/E2E de ponta a ponta | produção |
 | **Brush** (GPT Terra 6.1) | Imagens | `persona-assets/` | tudo o mais |
 
-Regras (resumo; completas em `BUILDER-RULES.md`): testes ao lado do código; contratos entre donos (`persona-engine` ports, `persona-host` `@Remote`/`types.ts`, `Runner`) mudam via Keel; builds/launch só sob `scripts/persona/with-lock.mjs`; só o Keel comita; `pnpm install` só o Keel; relato com saída verbatim.
+Regras (resumo; completas em `BUILDER-RULES.md`): **relato em `persona-spec/reports/<nome>.md` + uma linha no post-it `Persona · Status`, e seguir direto para a próxima tarefa** (`maestri ask "Keel"` só para dúvida bloqueante: ele bloqueia o builder até a resposta); testes ao lado do código; contratos entre donos (`persona-engine` ports, `persona-host` `@Remote`/`types.ts`, `Runner`, ports de repositório) mudam via Keel — **o port é do produtor (Forge/Rivet) e a implementação SQLite é do Anvil, validada pela mesma suíte de contrato**; builds/launch só sob `scripts/persona/with-lock.mjs`; só o Keel comita; `pnpm install` só o Keel; relato com saída verbatim; testes de cliente em pacotes fora de `packages/client/` usam o sufixo `*.client.spec.ts(x)` (senão entram no typecheck do host).
 
 ---
 
@@ -166,19 +168,33 @@ Regras (resumo; completas em `BUILDER-RULES.md`): testes ao lado do código; con
 
 ## 7. Marcos e tarefas
 
+### Fechamento v1 — tarefas do SCOPE (BRIEFING item 13; D-043..D-046) — entram na fila na ordem de SCOPE §4
+
+Prevalece sobre trechos que sugerem equipe fixa: **o usuário monta a equipe**; "Coordenação" (Router) e "Vigia" são **funções** atribuíveis a qualquer persona; Atlas/Bento/Nina/Sol/Luna são só o template inicial. Onde o plano abaixo diz "Atlas", leia "a persona com função Coordenação".
+
+| ID | Tarefa | Dono | Dep. | Aceite | Status |
+|---|---|---|---|---|---|
+| S1 | **Persona personalizável** em `persona-core/domain`: entidade (nome, avatar {gallery|upload|silhouette}, cargo, descrição, personalidade, instruções, runner/modelo, ferramentas por nível, skills, memória, limites, horário, `reportsTo`, projetos/canais), **templates** (Equipe inicial Atlas/Bento/Nina/Sol/Luna, Startup de software, Agência, Escritório, Em branco), funções de sistema (`coordination`, `watchdog`) com `assertUniqueCoordination`/`assignSystemRole` | Forge | A1 | testes verdes: validações de campos, templates instanciam, função Coordenação única e trocável sem perder histórico, "sem coordenador" ⇒ só @menção | doing |
+| S2 | **Cofre da empresa** (domínio + store): registros `brief| Forge (domínio) + Anvil (store) |decision|memory` com proveniência/versão/visibilidade, documentos indexados (FTS5), obrigatórios (constraint/decision fixadas) alimentam `compileContext`; propostas de atualização com aprovação conforme política | Forge | S1, B2a | obrigatórios entram em todo turno; "obrigatório > orçamento" bloqueia com explicação; revogar fonte limpa derivados; ≥20 testes | todo |
+| S3 | **`persona_propose`**: entidade Proposta, política `approval|auto`, invariante "nunca mais acesso que o criador" (ferramentas ≤, sem credenciais novas, orçamento ≤ X), cartão "Contratar <nome>?" como read-model e item de Attention | Forge | S1, P5 | testes: escalonamento de acesso recusado; auto só dentro dos limites; aprovar cria persona; recusar não; permissão "Recrutar" exigida | todo |
+| S4 | **Construtor conversacional** de persona/equipe (host `draftPersona`/`draftTeam`: descrição em linguagem natural → rascunho completo editável; usa a persona com função Coordenação ou, no onboarding, um modelo disponível) | Anvil (host) + Rivet (prompt/Runner) | S1, R-1 | com Runner fake: descrição → rascunho válido contra o schema; ferramentas do rascunho ≤ nível permitido; sem coordenador no onboarding ainda funciona | todo |
+| S5 | UI: **onboarding em 5 passos** ligado ao host (nome → Sobre a empresa/Cofre → conectar harnesses detectados → montar equipe → `#geral` com apresentação e 1ª tarefa sugerida); critério RCD: valor antes de esforço, <60 s até a 1ª resposta útil | Prism | A7, S1, S2 | (app) pasta limpa → onboarding completo; capturas claro/escuro vs `dirD-tela.png`; reduced-motion; teclado | todo |
+| S6 | UI: **editor de persona** (todos os campos do SCOPE §1), galeria de avatares (Brush)/upload/silhueta, "Nova persona" com construtor, cartão "Contratar <nome>?", tela **Conhecimento** (Cofre) | Prism (editor, galeria, contratar) + Lumen (Conhecimento/Cofre) | S1–S4, BR-personagens | (app) criar/editar/apagar persona; trocar Coordenação; aprovar contratação | todo |
+| S7 | Testes dos cenários obrigatórios novos (hoje `it.todo`): onboarding do zero; `persona_propose` sem escalar acesso; troca de Coordenação sem perder histórico; Cofre em "Contexto usado"; reduced-motion; diff visual vs `dirD-tela.png` | Probe | S1–S6, A6 | 6/6 verdes | todo |
+
 ### Marco A — Fundação (esqueleto, esteira, desacoplar DeepSeek, spikes)
 
 | ID | Tarefa | Dono | Dep. | Aceite | Status |
 |---|---|---|---|---|---|
-| A0 | Esqueletos `packages/persona/*`, aliases/tsconfig, Typert, trava de build, regras dos builders, `pnpm install` | Keel | — | 9 testes fumaça verdes; Typert gera `persona-host`; `with-lock.mjs` | **done** (build:artifacts de verificação rodando) |
+| A0 | Esqueletos `packages/persona/*`, aliases/tsconfig, Typert, trava de build, regras dos builders, `pnpm install` | Keel | — | 9 testes fumaça verdes; Typert gera `persona-host`; `with-lock.mjs` | **done** — commit `7caef40` (push aguardando typecheck do pre-push) |
 | A1 | Porte `context.mjs` → `persona-core/src/context` + 14 testes | Forge | A0 | ≥14 verdes; tsc/oxlint limpos | doing |
 | A2 | *(legado/opcional)* Porte do `kanban-bridge` com as correções da D-024 | Forge | — | só se o Keel reativar | adiada |
-| A3a | Fumaça de base (`install-electron`, `start:web`, `dev:desktop` por CDP) → `spikes/baseline.md` | Rivet | A0 | 3 passos ou falha exata | doing |
+| A3a | Fumaça de base (`install-electron`, `start:web`, `dev:desktop` por CDP) → `spikes/baseline.md` | Rivet | A0 | 3 passos ou falha exata | **done** |
 | A3b | Desacoplar DeepSeek (telemetria, Welcome, updater, política), nome/appId/protocolo/home, ocupante de marca, template `persona` | Rivet | A3a, B9 | (app) janela "Persona" sem Welcome DeepSeek; zero requisições a `deepseek*`; specs de desktop verdes | todo |
-| A4 | Sonda OAR/CLIs (somente leitura) → `spikes/oar-windows.md` | Rivet | A0 | script roda; matriz e go/no-go | doing |
-| A5 | Spike `node:sqlite` no Electron RunAsNode | Rivet | A3a | saída `fts5:1` | doing |
-| A6 | Esteira Tier 1/Tier 2, CLI falsa, README | Probe | A0 | `PERSONA_E2E=1 vitest run …smoke-web` verde + capturas | doing |
-| A7 | UI p1: spike de composição, tema/movimento, locales; p2: protótipo do shell com dados falsos rodando | Prism | A0, A6, BR1 | p1: spike + vitest/tsc verdes; p2: (app) shell renderiza | doing (p1) |
+| A4 | Sonda OAR/CLIs (somente leitura) → `spikes/oar-windows.md` | Rivet | A0 | script roda; matriz e go/no-go | **done** (relatado) |
+| A5 | Spike `node:sqlite` no Electron RunAsNode | Rivet | A3a | saída `fts5:1` | **done** (relatado) |
+| A6 | Esteira Tier 1/Tier 2, CLI falsa, README | Probe | A0 | `PERSONA_E2E=1 vitest run …smoke-web` verde + capturas | **done** (smoke-web verde ~41 s; Tier 2 skip sem Electron — reexecutar) |
+| A7 | UI p1: spike de composição, tema/movimento, locales; p2: protótipo do shell com dados falsos rodando | Prism | A0, A6, BR1 | p1: spike + vitest/tsc verdes; p2: (app) shell renderiza | p1 **done** (GO D-004); p2 doing |
 | BR1 | Folha de estilo D + marca (B1–B5) | Brush | — | Atlas aprova | feita (direção D aprovada); lote P0 em andamento |
 
 ### Marco B — Engine, store e Router (integrar a base)
@@ -188,22 +204,22 @@ Aceite do marco: um pedido no canal vira Tarefa por Triagem, a executora (runner
 | ID | Tarefa | Dono | Dep. | Aceite | Status |
 |---|---|---|---|---|---|
 | B1 | `persona-core/domain`: IDs ramificados, entidades, ACL `can(actor, action, resource)` (+ adaptadores `authorize`) | Forge | A1 | ≥40 casos de acesso verdes | todo |
-| B2a | `persona-store`: abertura, `application_id`/`user_version`, backup, migrações, `tx()`, helpers de teste | Forge | A5 | reabrir preserva; versão maior recusada; falha de migração preserva backup; ≥15 testes | todo |
+| B2a | `persona-store`: abertura, `application_id`/`user_version`, backup, migrações, `tx()`, helpers de teste | Anvil | A5 | reabrir preserva; versão maior recusada; falha de migração preserva backup; ≥15 testes | todo |
 | E-1 | `persona-engine`: tipos, IDs, erros, reasons, **stages**, máquina de estados e ports (`Repositories`, `Executor`, `Channel`, `Clock`, `Ids`) — porte de `src/core/{model,stage,reasons,errors,ids,ports,part}.ts` + testes ported | Forge | A1 | testes do protótipo portados verdes; crédito MIT no NOTICE | todo |
 | E-2 | Engine: comandos Intake/Evals/Tickets/Assignments/Replies sobre repositórios em memória; outbox | Forge | E-1 | suíte do protótipo portada ≥ (n do digest) verde; idempotência de Trigger; 1 Eval por Thread; Mandate imutável | todo |
 | E-3 | `persona-store`: esquema v1 do engine + repositórios SQLite; testes de contrato rodando contra memória **e** SQLite | Forge | E-2, B2a | mesma suíte verde nos 2 backends; reinício preserva | todo |
 | E-4 | Despachante de efeitos (outbox após commit) + retomada de Assignment interrompida | Forge | E-3 | efeito só após commit; crash simulado reexecuta sem duplicar | todo |
 | E-5 | Projeção **estágio→coluna do kanban** e read-models ("Precisa de você", Visão geral, Tarefas por projeto) | Forge | E-3 | tabela estágio→coluna testada; "saudável não ocupa espaço" (lista vazia) | todo |
-| B2b | Repositórios de produto: workspace, member, project, persona, participation, channel, dm | Forge | B1, B2a | CRUD+restrições; ≥25 testes | todo |
-| B2c | Log de mensagens/eventos por stream (`seq`), FTS5, cursor, ACL na consulta, recall por intervalo com fuso | Forge | B2b | seq monotônica sob concorrência; recall exato; busca não vaza DM; ≥20 testes | todo |
-| B3 | `persona-host` controlador `@Remote` v1 (leitura: equipe, projetos, canais, DMs, tarefas, Visão geral) + montagem do Remote no cliente + papéis de peer | Forge | B2b, E-5 | cliente de teste pelo gateway real; peer sem papel recebe `no-allow`; `generate-typert` limpo | todo |
+| B2b | Repositórios de produto: workspace, member, project, persona, participation, channel, dm | Anvil | B1, B2a | CRUD+restrições; ≥25 testes | todo |
+| B2c | Log de mensagens/eventos por stream (`seq`), FTS5, cursor, ACL na consulta, recall por intervalo com fuso | Anvil | B2b | seq monotônica sob concorrência; recall exato; busca não vaza DM; ≥20 testes | todo |
+| B3 | `persona-host` controlador `@Remote` v1 (leitura: equipe, projetos, canais, DMs, tarefas, Visão geral) + montagem do Remote no cliente + papéis de peer | Anvil | B2b, E-5 | cliente de teste pelo gateway real; peer sem papel recebe `no-allow`; `generate-typert` limpo | todo |
 | E-6 | **Intake** de Persona: canais/DMs/rotinas como `Source` interno → Triggers (ator, idempotência) | Forge | E-3, B2c | mensagem de pessoa num canal gera Trigger único; bot/atores fora da lista caem no Gate | todo |
 | R-1 | Contrato `Runner` + runner `dsh` (executor do protótipo generalizado): sessão+diretório por Tarefa, eventos→`RunEvent`, cancel, usage, jobs em background (>5 s), limite pós-turno, slot reservado, concorrência, retomada com nota de recuperação | Rivet | A1, E-1 | com `llm-mock-server`: ordem de eventos, cancel, retomada após "reinício", troca de modelo preserva histórico | todo |
 | R-2 | **Router (Atlas)**: sessão DSH longa em modo async `start/stop`, lote entre inferências, prompts portados/traduzidos (orchestrator/dispatch/replies/subscriptions) com identidade Atlas, ferramentas de domínio no escopo do agent | Rivet | R-1, E-2, B3 | com LLM de mock: Trigger → decisão `accept` → Ticket → Assignment; resposta ≤100 palavras só pelo Atlas; conversa não trava durante ferramenta lenta | todo |
 | B4 | Contexto no host: `compileContext` + **Inline & Spill + Chain of Recall** (`persona_recall(id)` pela cadeia, autorização por salto), manifesto no `run`, revalidação antes do despacho | Forge | A1, B2c, E-3 | ID+resumo+vizinhos inline; spill em ponteiro; recall percorre a cadeia; revogação no meio cancela | todo |
-| B7 | Um run mutante por Tarefa; resposta pertence ao assunto/run capturados | Forge | R-1, E-3 | 2º run recusado/enfileirado; resposta ao assunto original | todo |
+| B7 | Um run mutante por Tarefa; resposta pertence ao assunto/run capturados | Anvil | R-1, E-3 | 2º run recusado/enfileirado; resposta ao assunto original | todo |
 | B8 | Suíte dos testes obrigatórios (parte B) + cenários Super-agent | Probe | B-todos | 9 cenários da spec + 7 do Super-agent nomeados e verdes | todo |
-| B9 | `persona-app` monta host + UI + desabilita rows (lista do spike A7) e telemetria; template `persona` | Keel | B3, A7p1, A3b | `dsh --profile web --dump-config` lista as linhas Persona; `dev:desktop` sobe e `ping` responde | todo |
+| B9 | `persona-app` monta host + UI + desabilita rows (lista do spike A7) e telemetria; template `persona` | Keel | B3, A7p1, A3b | `dsh --profile persona --dump-config` lista as linhas Persona; boot real mostra `client-ui-persona` e nenhum shell Harness | **done** (03/11: 29 entradas de boot; `dev:desktop` com perfil persona depende do A3b do Rivet) |
 
 ### Marco C — Experiência principal (conversa, canais, DMs, Visão geral, kanban, arquivos, rotinas)
 
@@ -211,21 +227,21 @@ Aceite: uma tarefa atualiza conversa e quadro; canais e DMs mantêm continuidade
 
 | ID | Tarefa | Dono | Dep. | Aceite | Status |
 |---|---|---|---|---|---|
-| C1a | Host: equipes/projetos/personas (CRUD, participação, Subscription = "seguir assunto") | Forge | B3, E-3 | RPC real; ACL por método | todo |
-| C1b | Host: canais, DMs, assuntos, mensagens (CRUD + stream baseline+incrementos) amarradas ao Intake | Forge | C1a, E-6 | reconecta com baseline; continuidade após reiniciar o host | todo |
-| C1c | Host: busca global respeitando acesso | Forge | C1b | não vaza DM/projeto | todo |
+| C1a | Host: equipes/projetos/personas (CRUD, participação, Subscription = "seguir assunto") | Anvil | B3, E-3 | RPC real; ACL por método | todo |
+| C1b | Host: canais, DMs, assuntos, mensagens (CRUD + stream baseline+incrementos) amarradas ao Intake | Anvil | C1a, E-6 | reconecta com baseline; continuidade após reiniciar o host | todo |
+| C1c | Host: busca global respeitando acesso | Anvil | C1b | não vaza DM/projeto | todo |
 | C2 | Host: resposta multicanal (só Atlas), resumos de marco, cartão citado abre a Tarefa real, **Attention** (pergunta estruturada, resposta da pessoa volta ao Ticket) | Forge | R-2, E-5 | pedido→Tarefa→executora→resposta; Attention respondida retoma a Tarefa | todo |
-| C3 | Host: **Rotinas v1** como `Source` temporal (D-014): `dsh-util-time`, idempotência `routine_id:scheduled_for`, lease, backoff, janelas de silêncio, catch-up por rotina, "Pausar equipe" | Forge | E-6 | relógio falso, sem duplicar; pausar cancela ativos; "retry de rotina" | todo |
-| C4 | Host: `persona-files` por `projectId` (D-020) | Forge | B3 | sem acesso → erro; fora da raiz recusado | todo |
+| C3 | Host: **Rotinas v1** como `Source` temporal (D-014): `dsh-util-time`, idempotência `routine_id:scheduled_for`, lease, backoff, janelas de silêncio, catch-up por rotina, "Pausar equipe" | Anvil | E-6 | relógio falso, sem duplicar; pausar cancela ativos; "retry de rotina" | todo |
+| C4 | Host: `persona-files` por `projectId` (D-020) | Anvil | B3 | sem acesso → erro; fora da raiz recusado | todo |
 | C5a | UI: shell/sidebar escura + **Visão geral** ("Precisa de você" primeiro) + navegação + estados vazios (RCD) | Prism | A7, B3, BR-ícones | (app) todas as seções com dados reais; teclado/foco; barra de UI | todo |
 | C5b | UI: conversa canal/DM com stream, cartões de tarefa, "Contexto usado", pass-through visível | Prism | C1b, C2 | (app) stream; trocar de aba não redireciona | todo |
 | C5c | UI: composer com seletor de modelo (identifica a persona) | Prism | C5b | (app) | todo |
 | C5d | UI: faixa "Sua equipe neste canal", avatares, poses por estado, perfil; **coreografia do UX-GUIDE §3** | Prism | C5b, BR-personagens | (app) estado vem de eventos reais; reduced-motion; ícone+texto | todo |
-| C6a | UI: Kanban por projeto (projeção dos estágios; FLIP quando a persona move o cartão) | Prism | E-5, C1a | (app) ação do cartão reflete na conversa | todo |
-| C6b | UI: Kanban global com filtros | Prism | C6a | (app) só projetos autorizados | todo |
-| C7a | UI: Arquivos | Prism | C4 | (app) | todo |
-| C7b | UI: Rotinas | Prism | C3 | (app) | todo |
-| C8 | Onboarding (projeto + Atlas em <60 s, conectar CLI no ponto de uso, checklist de ativação RCD) | Prism + Forge | C1b, A3b, BR-vazios | (app) pasta limpa → 1ª resposta útil | todo |
+| C6a | UI: Kanban por projeto (projeção dos estágios; FLIP quando a persona move o cartão) | Lumen | E-5, C1a | (app) ação do cartão reflete na conversa | todo |
+| C6b | UI: Kanban global com filtros | Lumen | C6a | (app) só projetos autorizados | todo |
+| C7a | UI: Arquivos | Lumen | C4 | (app) | todo |
+| C7b | UI: Rotinas | Lumen | C3 | (app) | todo |
+| C8 | Onboarding (projeto + Atlas em <60 s, conectar CLI no ponto de uso, checklist de ativação RCD) | Prism (UI) + Anvil (host) | C1b, A3b, BR-vazios | (app) pasta limpa → 1ª resposta útil | todo |
 | C9 | E2E do marco C + capturas claro/escuro vs `dirD-tela.png` | Probe | C1–C8 | verde em home limpo | todo |
 
 ### Marco D — Execução real (CLIs, cofre, uso, Vigia, jobs)
@@ -237,8 +253,8 @@ Aceite: uma tarefa atualiza conversa e quadro; canais e DMs mantêm continuidade
 | D2 | Runners `opencode` (resume só no mesmo `cwd`) e `cursor` (sem MCP) | Rivet | D1a | idem; `unavailable` visível | todo |
 | D3 | Ferramentas Persona nas CLIs por `serveMcpTools` (`persona_recall`, `persona_report`, `persona_ask`…) com identidade do run, não do argumento | Rivet+Forge | D1a, B4 | CLI falsa chama a ferramenta; ator forjado recusado; Report atualiza o Ticket | todo |
 | D4a | Cofre DPAPI (IPC main↔host) + conexões por pessoa; desligar OAuth de assinatura do `llm-pi-ai` | Rivet | A3b | varredura sem segredos em YAML/DB/logs/prompt | todo |
-| D4b | UI Conexões | Prism | D4a, D1a | (app) | todo |
-| D5a/b | Uso e limites: livro, cota oficial, estimativas rotuladas / UI | Rivet / Prism | D1a | ausência ≠ 0%; origem sempre; (app) | todo |
+| D4b | UI Conexões | Lumen | D4a, D1a | (app) | todo |
+| D5a/b | Uso e limites: livro, cota oficial, estimativas rotuladas / UI | Rivet (D5a) / Lumen (D5b) | D1a | ausência ≠ 0%; origem sempre; (app) | todo |
 | D6 | Política de conexão sem fallback silencioso | Forge | D1a | falha de A não dispara B | todo |
 | D7 | **Vigia (watchdog)**: sessão independente agendada (modelo barato), detecta falha de infra, loop improdutivo, desvio de objetivo; ajusta prompts/regras com trilha de auditoria; sugestão: Luna | Rivet + Forge | R-2, C3 | cenários sintéticos: Assignment travada → alerta; loop → pausa; mudança de regra versionada | todo |
 | D8 | Empacotamento Windows sem assinatura | Rivet (Probe executa) | A3b, E4, E5, BR-marca | `--check` → `:dir` → completo; instala/onboarding/desinstala | todo |
@@ -253,10 +269,10 @@ Aceite: uma tarefa atualiza conversa e quadro; canais e DMs mantêm continuidade
 | E2 | Skills próprias (catálogo, versões, avaliação, política, rollback, proposta) | Forge | B2c | skill de DM não vira pública; reverter | todo |
 | E3 | Memória (FTS5 + interface AI-memory do Akita) | Forge | B4 | herança de permissões; revogação limpa derivados | todo |
 | E4 | Proatividade por regra (modo "só registrar", depois execução especulativa opt-in) | Forge + Rivet | C3, R-2 | registro sem efeitos colaterais; opt-in por regra | todo |
-| E5 | `apps/persona-edge`: Worker + **Durable Object por workspace** (sequência por stream, WS hibernation) + D1 + R2; testes locais (Miniflare) | Forge | B2c | ordenação e replay por cursor; teste de 2 clientes | todo |
-| E6 | `persona-sync`: sincroniza só streams compartilhados (DM não sobe), payload cifrado opcional, retomada offline | Forge | E5 | 2 hosts convergem; DM não vaza; offline retoma | todo |
-| E7 | Convites e membros (Worker) + papéis (`remote-access`); tarefa roda na máquina da persona | Forge + Rivet | E5, E6 | "amigo sem acesso"; convite expira/revoga | todo |
-| E8 | **Source GitHub** (webhook via Worker → DO → desktop dono; ou polling): porte de `src/sources/github*` | Forge | E5, E-6 | webhook assinado vira Trigger; replay idempotente | todo |
+| E5 | `apps/persona-edge`: Worker + **Durable Object por workspace** (sequência por stream, WS hibernation) + D1 + R2; testes locais (Miniflare) | Anvil | B2c | ordenação e replay por cursor; teste de 2 clientes | todo |
+| E6 | `persona-sync`: sincroniza só streams compartilhados (DM não sobe), payload cifrado opcional, retomada offline | Anvil | E5 | 2 hosts convergem; DM não vaza; offline retoma | todo |
+| E7 | Convites e membros (Worker) + papéis (`remote-access`); tarefa roda na máquina da persona | Anvil + Rivet | E5, E6 | "amigo sem acesso"; convite expira/revoga | todo |
+| E8 | **Source GitHub** (webhook via Worker → DO → desktop dono; ou polling): porte de `src/sources/github*` | Forge (Source) + Anvil (relay) | E5, E-6 | webhook assinado vira Trigger; replay idempotente | todo |
 | E9 | UI: perfil da persona, membros/convites, handoffs, aprovações, regras de triagem editáveis | Prism | E1–E7 | (app) | todo |
 | E10 | Testes restantes (13/13 + Super-agent) + E2E | Probe | E1–E9 | verde | todo |
 | E11 | **Deploy Cloudflare** (conta, segredos) | Keel/Atlas | E5–E8 | **só com liberação do Atlas** | blocked (aprovação) |

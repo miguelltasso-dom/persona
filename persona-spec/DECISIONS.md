@@ -110,10 +110,10 @@ O kanban da Persona projeta os estágios do Ticket (SQLite próprio): A fazer (q
 ### D-030 · Engine Super-agent portado como `persona-engine` · vigente
 Porte do protótipo MIT `deepseek-ai/dsh-superagent-prototype` (`src/core/*`: engine, model, stage, reasons, intake, evals, tickets, assignments, replies, ports): código usa os termos do protótipo (Trigger, Thread, Eval, Mandate, Ticket, Assignment, Subscription, Report, Attention); a UI usa PT-BR (Assunto, Triagem, Autorização da tarefa, Tarefa, Execução, "Precisa de você"). Comandos síncronos, uma transação por comando, efeitos após commit (outbox). `persona-store` implementa os `Repositories`; os testes do protótipo são portados e rodam contra memória **e** SQLite. Crédito MIT no `THIRD_PARTY_NOTICES.md` e cabeçalhos preservados. Não portar Feishu.
 
-### D-031 · Atlas é o Router (DSH async); executoras rodam por Runner · vigente
+### D-031 · A persona com função Coordenação é o Router; executoras rodam por Runner · vigente (emendada por D-043: "Atlas" é só o nome no template)
 Atlas = sessão DSH longa em modo async `start()/stop()` (recurso existente e desligado por padrão no Harness), sem Bash, único a responder nos canais (≤100 palavras no chat; denso no GitHub/e-mail), lote de eventos durante uma inferência entra na próxima chamada. Executoras (Workers) = uma sessão + um diretório por Tarefa, via contrato `Runner` (DSH direto ou CLI/OAR; D-009), com as regras do executor do protótipo (shell >5 s vira job em background, 30 min de limite pós-turno, slot reservado para mensagem de pessoa, concorrência configurável, retomada com nota de recuperação). Prompts do protótipo (orchestrator/worker/dispatch/replies/subscriptions) são a base, traduzidos e com a identidade das personas. Plano B se o async do Router falhar: modo síncrono com lote.
 
-### D-032 · Vigia (watchdog) · vigente
+### D-032 · Vigia (watchdog) = função atribuível · vigente (emendada por D-043)
 Sessão independente agendada (modelo barato; sugestão Luna) que detecta falha de infra, loop improdutivo e desvio do objetivo e pode ajustar prompts/regras com trilha de auditoria e versão. Roda como rotina do sistema, nunca acorda IA só para animar a UI.
 
 ### D-033 · Inline & Spill + Chain of Recall em `persona-core/context` · vigente
@@ -130,6 +130,21 @@ O BRIEFING manda terminar as mensagens com `Co-Authored-By: Claude Opus 5.5 <nor
 
 ### D-037 · Trava de build compartilhada · vigente
 `scripts/persona/with-lock.mjs` (lock por diretório em `.maestri/locks/build.lock`, roubo de lock órfão por pid, espera até 45 min) serializa build, launch de app e empacotamento no checkout único. Implementa a D-023.
+
+### D-043 · A equipe é montada pelo usuário; Coordenação e Vigia são funções · vigente (BRIEFING item 13; prevalece sobre D-031/D-032 e sobre qualquer "Atlas = Router")
+Persona é totalmente personalizável (nome, avatar da galeria/upload/silhueta, cargo livre, personalidade, instruções, runner/modelo, ferramentas por nível none|read|read+write, skills, memória, limites, horário, `reportsTo`, projetos/canais). **Atlas, Bento, Nina, Sol e Luna são só um template inicial**, ao lado de "Startup de software", "Agência", "Escritório" e "Em branco". **"Coordenação" (o Router do Super-agent) e "Vigia" são funções do sistema atribuídas a uma persona escolhida**, trocáveis a qualquer momento sem perder histórico; no template a primeira persona criada coordena; sem coordenador o canal funciona só por @menção. Código e prompts do Router/Vigia **não** conhecem o nome Atlas: usam a identidade da persona com a função. Qualquer persona executa Tarefas dentro do que suas ferramentas permitem. Invariante: nunca existe mais de uma persona com a função Coordenação por projeto (`COORDINATION_NOT_UNIQUE`).
+
+### D-044 · Agente cria agente: `persona_propose` · vigente
+Persona com a permissão "Recrutar" cria uma **proposta** (nome, cargo, instruções, modelo sugerido, ferramentas) que aparece como cartão "Contratar <nome>?" no canal e em "Precisa de você", com prévia editável. Política por workspace: *sempre pedir aprovação* (padrão) ou *aprovar automaticamente dentro de limites* (ferramentas ≤ as do criador, **sem credenciais novas**, orçamento ≤ X). **Invariante:** nunca se cria persona com mais acesso do que o criador. Construtor conversacional (onboarding e "Nova persona", como o Tuca do Tucano): o usuário descreve em linguagem natural e a Coordenação monta o rascunho completo para revisar.
+
+### D-045 · Cofre da empresa e onboarding em 5 passos · vigente
+Onboarding (RCD, valor antes de esforço): (1) nome e tratamento; (2) **Sobre a empresa** (conversa guiada ou colar/importar texto, links, arquivos) → **Cofre da empresa**; (3) conectar harnesses detectados (CLIs já logadas aparecem prontas; nunca pedir senha); (4) montar a equipe (template ou construtor); (5) cai em `#geral` com a equipe se apresentando e uma primeira tarefa sugerida. O Cofre é conhecimento do workspace com proveniência: registros `brief`/`constraint`/`decision`/`memory` (modelo do `compileContext`), documentos anexados indexados (FTS), versões, "quem pode ver"; restrições e decisões fixadas entram como **contexto obrigatório em todo turno**, o resto por relevância e Chain of Recall; editável em "Conhecimento"; personas podem **propor** atualizações (aprovação conforme política).
+
+### D-046 · Ordem de fechamento da v1 (SCOPE §4) · vigente
+1) App abre como Persona (marco A) → 2) onboarding + Cofre + construtor + templates → 3) canais, DMs, @menções, Coordenação com resposta em stream e "Contexto usado" → 4) tarefas/kanban (estágios de Ticket), "Precisa de você", Visão geral por atenção → 5) execução real (DSH + CLIs via OAR, sessão+worktree por tarefa, jobs, retomada) → 6) agente cria agente, skills propostas, memória por persona (aprovar/editar/esquecer) → 7) rotinas, Vigia, Uso e limites → 8) equipes à distância (Cloudflare), convites, webhooks GitHub → 9) importadores, benchmarks, canvas. Animação e acabamento fazem parte do aceite de cada item. O plano mantém as letras A–G para relato ao Atlas, mas **as tarefas dentro dos marcos seguem esta ordem**.
+
+### D-047 · Gate de boot real da UI · vigente
+Toda tarefa de UI só é "done" depois de passar `scripts/persona/ui-boot-check.mjs` (host `--profile persona` + Chrome, claro/escuro, console limpo, sem "entries did not activate", captura visível) — vitest/jsdom não basta. O primeiro boot real (03/11) mostrou: `ui-settings` provê `configForms` e **não pode** ser desativado (locale/ui-theme/shortcuts dependem dele); `message-quotes`, `ui-secret-mask` e `directory-picker` ficam órfãos sem `ui-conversation`/`ui-workspace` e foram desativados; o namespace `remote.persona` só pode ser lido dentro do `ctx.inject([...'remote.persona'...])`.
 
 ---
 

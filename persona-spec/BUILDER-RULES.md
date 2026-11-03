@@ -13,7 +13,7 @@ Quem manda: Keel (Tech Lead). Plano: `PLAN.md`. Decisões: `DECISIONS.md`. Notas
 
 - Teste de pacote (plano-fonte, sem build): `cd /c/Users/migue/dev/persona && pnpm exec vitest run packages/persona/<pkg>` (ou arquivo/`-t nome`). Typecheck de um pacote: `pnpm exec tsc -p packages/persona/<pkg>/tsconfig.json --noEmit`. Lint: `pnpm exec oxlint <arquivos>`.
 - Mudou assinatura `@Remote` em `persona-host`: `pnpm exec tsx scripts/generate-typert.ts` (≈30 s).
-- **Builds pesados, `dev:desktop`/`start:desktop`/`start:web`, empacotamento: sempre sob a trava** (um de cada vez no checkout): `node scripts/persona/with-lock.mjs "<seu nome> <o quê>" -- <comando>` (ex.: `-- pnpm run build:artifacts`). Se a trava estiver ocupada o comando espera e diz quem a tem. Suba apps em segundo plano e **encerre a árvore de processos** ao terminar (`taskkill /T /F /PID <pid>`).
+- **Builds pesados, `dev:desktop`/`start:desktop`/`start:web`, empacotamento: sempre sob a trava** (um de cada vez no checkout): `node scripts/persona/with-lock.mjs "<seu nome> <o quê>" -- <comando>` (ex.: `-- pnpm run build:artifacts`). Se a trava estiver ocupada o comando espera e diz quem a tem. **Rodar um app não deve segurar a trava**: use `--release-on "<regex da linha de pronto>"` (ex.: `node scripts/persona/with-lock.mjs "Probe web host" --release-on "dsh web:|DevTools listening" -- pnpm start:web`) — a trava é liberada assim que o app imprime a linha de pronto e ele segue rodando; build/typecheck/empacotamento seguram a trava até o fim. Suba apps em segundo plano e **encerre a árvore de processos** ao terminar (`taskkill /T /F /PID <pid>`).
 - Use `PERSONA_HOME`/`DSH_HOME` e `DSH_DESKTOP_USER_DATA_DIR` **temporários** e portas distintas em execuções de app; nunca a pasta de dados real do Miguel.
 - CLIs reais (Claude Code, Codex, Cursor agent, OpenCode): **somente leitura** (versão/auth/modelos) até o Keel liberar prompts reais (consomem cota do Miguel). Nunca faça login nem imprima/guarde tokens. `agent` no PATH é o Grok; use `cursor-agent`.
 - Não faça telemetria/requisição externa nova. Segredos nunca em código, logs, testes ou relatos.
@@ -22,6 +22,23 @@ Quem manda: Keel (Tech Lead). Plano: `PLAN.md`. Decisões: `DECISIONS.md`. Notas
 
 `persona-spec/UX-GUIDE.md` (movimento, RCD, barra de qualidade), skill `.agents/skills/revenue-centric-design/` (cite o princípio usado), direção visual **D** (`persona-assets/references/dirD-model-sheet.png`, `dirD-tela.png`, tokens em `persona-assets/references/README.md`). Todo texto de UI em **pt-BR** por dicionários tipados. Toda tela: 1 ação primária, estado vazio com ilustração + 1 ação, carregando (skeleton), erro, cheio; teclado completo; AA; reduced-motion.
 
-## Relato ao concluir (ou ao travar)
+## Relato e fila (protocolo novo, 03/11) — **nunca fique sem tarefa**
 
-Envie com `maestri ask "Keel" "<relato>"` (curto): (1) o que ficou pronto; (2) arquivos tocados; (3) comandos de teste/verificação rodados com a **saída verbatim** do resultado (contagem de testes, erros); (4) edições em código do upstream com 1 linha de justificativa; (5) o que ficou de fora/dúvidas. Se travar > 20 min numa coisa, relate e pergunte em vez de insistir. Mantenha o post-it `Persona · Memória` com armadilhas novas.
+- **Não use `maestri ask "Keel"` para relatar**: o comando bloqueia você até o Keel responder. Use-o só para dúvida bloqueante.
+- Ao concluir uma tarefa: (1) escreva o relato em `persona-spec/reports/<seunome>.md` (mais recente no topo): o que ficou pronto; arquivos tocados; comandos de teste/verificação com a **saída verbatim** (contagem de testes, erros); edições em código do upstream com 1 linha de justificativa; o que ficou de fora/dúvidas; (2) acrescente **uma linha** ao post-it `Persona · Status` (`maestri note edit "Persona · Status" "<última linha>" "<última linha>
+- 03/11 [<nome>] <tarefa> ✔ <resultado em 1 linha>"`); (3) **siga direto para a próxima tarefa da sua fila** (PLAN.md, linhas com seu nome, na ordem de `DECISIONS.md` D-046). Se a fila acabou ou travou > 20 min, escreva isso no relato e no Status: o Keel designa a próxima por `maestri ask` em segundo plano.
+- O Keel lê `persona-spec/reports/*.md` e o Status a cada ~20 min, comita por marco e corrige a rota.
+- Armadilhas duráveis vão para o post-it `Persona · Memória` (curto e datado).
+- **Testes de cliente em pacotes fora de `packages/client/`** (ex.: `client-ui-persona`) usam o sufixo `*.client.spec.ts(x)`; sem ele entram no typecheck do host (`TS6307`) e o pre-push falha. Antes de relatar rode também `pnpm exec tsc -p packages/persona/<pkg>/tsconfig.json --noEmit`.
+
+## Gate de boot da UI (03/11) — obrigatório antes de relatar qualquer tarefa de UI
+
+`node scripts/persona/with-lock.mjs "<seu nome> ui boot" -- node scripts/persona/ui-boot-check.mjs`: sobe `--profile persona` num home temporário, abre no Chrome (claro/escuro), imprime o console completo e grava `.maestri/tmp/shots/persona-{light,dark}.png`. Critério: **zero** "web boot: warning: N entries did not activate" e **zero** erros de console; abra a captura (Read) e compare com `persona-assets/references/dirD-tela.png`. Rebuild antes: `node scripts/persona/with-lock.mjs "<nome> bundle" -- pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle`. Teste vitest/jsdom sozinho **não** prova que o plugin ativa no app (o primeiro boot real achou 2 defeitos que os previews não pegavam).
+
+## Gate do gerador Typert (03/11) — vale para TODO pacote de packages/persona/*
+
+O `typecheck` do repo roda primeiro `tsx scripts/generate-typert.ts`, que analisa os pacotes de host inteiros (não só controladores). Ele recusa **parâmetro público sem anotação de tipo explícita, mesmo com valor padrão** (ex.: `list(afterSeq = 0)` ⇒ `afterSeq: number = 0`; erro "public parameter is missing an explicit type annotation"). Antes de relatar qualquer tarefa que toque `persona-store`, `persona-host`, `persona-runners`, `persona-vault`, `persona-usage` ou `persona-engine`, rode `pnpm exec tsx scripts/generate-typert.ts` (≈30 s) e garanta que passa.
+
+## Typecheck de pacote COM testes (03/11) — rode antes de relatar
+
+`node scripts/persona/check-pkg.mjs <pacote> [...]` (ex.: `persona-host client-ui-persona`): tsc em `src` + `tests` (+ `scripts`) do pacote, mostrando só os erros dele, em ~5–20 s. O `tsc -p packages/persona/<pkg>/tsconfig.json` cobre só `src`; os erros de teste só apareciam no typecheck agregado (minutos) que bloqueia o push de todo mundo. Vitest não checa tipos. Regra: **seu pacote deve sair OK desse comando** (e `pnpm exec tsx scripts/generate-typert.ts` quando mexer em host) antes de qualquer relato.

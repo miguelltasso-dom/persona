@@ -23,6 +23,9 @@
     "packages/typert/generator/tests/fixtures/type-model/**", // tsgolint rejects this fixture's preserved project shapes before rules run.
     "website/.generated/**",
     "vendor/**", // Vendored source keeps upstream style and idioms.
+    "packages/persona/persona-engine/src/core/**", // MIT port of dsh-superagent-prototype src/core: keeps upstream style for provenance (D-042).
+    "packages/persona/persona-engine/tests/core-engine.spec.ts", // ported test suite, same reason.
+    "packages/persona/persona-engine/tests/stage.spec.ts",
     "packages/experimental/claude-code-mods/examples/*/{hooks,tests,types}/**", // Claude Code's published example mods and their tests keep the upstream style; see the headers.
     "native/**", // The imported landlock-run subtree has its own gates; see native/README.md.
     "**/*.js",

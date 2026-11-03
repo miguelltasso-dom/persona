@@ -13,6 +13,9 @@
     "**/.node-next-types-*/**",
     "website/.generated/**",
     "vendor/**",
+    "packages/persona/persona-engine/src/core/**", // MIT port of dsh-superagent-prototype src/core: keeps upstream style for provenance (D-042).
+    "packages/persona/persona-engine/tests/core-engine.spec.ts", // ported test suite, same reason.
+    "packages/persona/persona-engine/tests/stage.spec.ts",
     "native/**",
     "**/*.js",
     "**/*.mjs",

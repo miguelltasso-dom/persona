@@ -417,6 +417,9 @@ importers:
       '@deepseek-ai/dsh-persona':
         specifier: workspace:*
         version: link:../../packages/preset/persona
+      '@deepseek-ai/dsh-persona-app':
+        specifier: workspace:*
+        version: link:../../packages/persona/persona-app
       '@deepseek-ai/dsh-personalized-recommendations':
         specifier: workspace:*
         version: link:../../packages/experimental/personalized-recommendations
@@ -11002,7 +11005,7 @@ importers:
     devDependencies:
       '@botiverse/oar':
         specifier: 0.67.0
-        version: 0.67.0(patch_hash=65de2ca1966421e30893d8d4fed6a3d88e4247e131e7575fe791246e594538d6)(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(supports-color@9.4.0)(zod@4.4.3))(@smithy/signature-v4@5.7.4)(supports-color@9.4.0)(ws@8.21.3)(zod@4.4.3)
+        version: 0.67.0(patch_hash=65de2ca1966421e30893d8d4fed6a3d88e4247e131e7575fe791246e594538d6)(@aws-sdk/credential-provider-node@3.972.84)(@cursor/sdk@1.0.37)(@modelcontextprotocol/sdk@1.31.0(supports-color@9.4.0)(zod@4.4.3))(@smithy/signature-v4@5.7.4)(supports-color@9.4.0)(ws@8.21.3)(zod@4.4.3)
       '@deepseek-ai/cordis':
         specifier: workspace:~
         version: link:../../../vendor/cordis
@@ -13701,6 +13704,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:*
         version: link:../../client/ui-slots
+      '@deepseek-ai/dsh-persona-core':
+        specifier: workspace:*
+        version: link:../persona-core
       '@deepseek-ai/dsh-persona-host':
         specifier: workspace:*
         version: link:../persona-host
@@ -13726,7 +13732,11 @@ importers:
         specifier: workspace:*
         version: link:../persona-host
 
-  packages/persona/persona-core: {}
+  packages/persona/persona-core:
+    dependencies:
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
 
   packages/persona/persona-e2e:
     devDependencies:
@@ -13765,13 +13775,20 @@ importers:
     dependencies:
       '@botiverse/oar':
         specifier: 0.67.0
-        version: 0.67.0(patch_hash=65de2ca1966421e30893d8d4fed6a3d88e4247e131e7575fe791246e594538d6)(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(supports-color@9.4.0)(zod@4.4.3))(@smithy/signature-v4@5.7.4)(supports-color@9.4.0)(ws@8.21.3)(zod@4.4.3)
+        version: 0.67.0(patch_hash=65de2ca1966421e30893d8d4fed6a3d88e4247e131e7575fe791246e594538d6)(@aws-sdk/credential-provider-node@3.972.84)(@cursor/sdk@1.0.37)(@modelcontextprotocol/sdk@1.31.0(supports-color@9.4.0)(zod@4.4.3))(@smithy/signature-v4@5.7.4)(supports-color@9.4.0)(ws@8.21.3)(zod@4.4.3)
+      '@cursor/sdk':
+        specifier: 1.0.37
+        version: 1.0.37
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
         version: link:../../../vendor/cordis
 
-  packages/persona/persona-store: {}
+  packages/persona/persona-store:
+    dependencies:
+      '@deepseek-ai/dsh-persona-core':
+        specifier: workspace:*
+        version: link:../persona-core
 
   packages/persona/persona-usage: {}
 
@@ -19207,8 +19224,22 @@ packages:
     resolution: {integrity: sha512-PJikMBVoaCRh6TFD7GcmeISmsMq4IwUu1BD5FOsGUVDUxrVqZomWa6W6dF+a/zu4xRZu2Z2xX1nXVMDaCuZWsw==}
     engines: {node: '>=22.18.0'}
 
+  '@bufbuild/protobuf@1.10.0':
+    resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
+
   '@chevrotain/types@11.1.2':
     resolution: {integrity: sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==}
+
+  '@connectrpc/connect-web@1.7.0':
+    resolution: {integrity: sha512-qyP0YOnUPRWwCc/VfsoydMJvkb7EyUPr2q9sHgBuJzbADjiqck1gKH5V5ZPzPhTLBvmz5UvG+wiZ5sMRQHU1MQ==}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
+      '@connectrpc/connect': 1.7.0
+
+  '@connectrpc/connect@1.7.0':
+    resolution: {integrity: sha512-iNKdJRi69YP3mq6AePRT8F/HrxWCewrhxnLMNm0vpqXAR8biwzRtO6Hjx80C6UvtKJ5sFmffQT7I4Baecz389w==}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
 
   '@csstools/color-helpers@6.1.0':
     resolution: {integrity: sha512-064IFJdjTfUqnjpCVpMOdbr8FLQBhinbZj6yRv2An2E41O/pLEXqfFRWqGq/SxlE5PEUYTlvWsG2r8MswAVvkg==}
@@ -19245,6 +19276,40 @@ packages:
   '@csstools/css-tokenizer@4.0.0':
     resolution: {integrity: sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA==}
     engines: {node: '>=20.19.0'}
+
+  '@cursor/sdk-darwin-arm64@1.0.37':
+    resolution: {integrity: sha512-VlIlLlt23bPmagSaetELwDho3E0GGwSMPEtaUqzweG14XVypHEWCBTaMOVxU2MV/vmgp0EpyA/T4WXIfSGpp9g==}
+    cpu: [arm64]
+    os: [darwin]
+    hasBin: true
+
+  '@cursor/sdk-darwin-x64@1.0.37':
+    resolution: {integrity: sha512-yK8UoU2HJ1Q8gQyoluffwpcRjaFoK61MkpwyAHaBhWPp0vHKFVeUawdp1R81HrHvwwUqYvXIPaKXa+XG3CDVcQ==}
+    cpu: [x64]
+    os: [darwin]
+    hasBin: true
+
+  '@cursor/sdk-linux-arm64@1.0.37':
+    resolution: {integrity: sha512-rQzazu/FYibgMFtPp/oUyTYgKiTj43Moo0/dRs7wDn6qC8dUHzjuuyU/v/zUatllgOxgD+1hUjh3+VHdxeslKg==}
+    cpu: [arm64]
+    os: [linux]
+    hasBin: true
+
+  '@cursor/sdk-linux-x64@1.0.37':
+    resolution: {integrity: sha512-aSPPiD1Dh0ijSEJao+6lXIvuHC/asFSKQUSqKigcy2cXJLVDpHDAvbCfK3FS/OFlEFXBw5H6mxpe8G/GUj/0Ow==}
+    cpu: [x64]
+    os: [linux]
+    hasBin: true
+
+  '@cursor/sdk-win32-x64@1.0.37':
+    resolution: {integrity: sha512-94EKqfisz9mBWMdF1b9S6qu1NcTd0UYO4DdlhL4sPAU1QoIGLP7K7Fp5VI1MEKniYynu5JMZ7oBZFNq1p50oCg==}
+    cpu: [x64]
+    os: [win32]
+    hasBin: true
+
+  '@cursor/sdk@1.0.37':
+    resolution: {integrity: sha512-MWKMeqtkCOHOOi8uZqI7CYeUtOwwdWke1B4GEllERIGMsoKuxbk++tP/KzOXXxtOD9EUD1z3AQL6os6m3M1gIw==}
+    engines: {node: '>=22.13'}
 
   '@deepseek-ai/libreoffice-kit-darwin-arm64@0.1.5':
     resolution: {integrity: sha512-SjeXmyaTevEq2TxK7reb1rhCrQZ4QOXmXt/qEwfQD5Fx3odU0ILx2uiXN+nphSCQ95LFCzrElHGgv2c7a824yg==}
@@ -21519,6 +21584,12 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@statsig/client-core@3.31.0':
+    resolution: {integrity: sha512-SuxQD6TmVszPG7FoMKwTk/uyBuVFk7XnxI3T/E0uyb7PL7GNjONtfsoh+NqBBVUJVse0CUeSFfgJPoZy1ZOslQ==}
+
+  '@statsig/js-client@3.31.0':
+    resolution: {integrity: sha512-LFa5E0LjT6sTfZv3sNGoyRLSZ1078+agdgOA+Vm1ecjG+KbSOfBLTW7hMwimrJ29slRwbYDzbtKaPJo/R37N2g==}
 
   '@stylistic/eslint-plugin@5.10.0':
     resolution: {integrity: sha512-nPK52ZHvot8Ju/0A4ucSX1dcPV2/1clx0kLcH5wDmrE4naKso7TUC/voUyU1O9OTKTrR6MYip6LP0ogEMQ9jPQ==}
@@ -26511,6 +26582,9 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -27056,7 +27130,7 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@botiverse/oar@0.67.0(patch_hash=65de2ca1966421e30893d8d4fed6a3d88e4247e131e7575fe791246e594538d6)(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(supports-color@9.4.0)(zod@4.4.3))(@smithy/signature-v4@5.7.4)(supports-color@9.4.0)(ws@8.21.3)(zod@4.4.3)':
+  '@botiverse/oar@0.67.0(patch_hash=65de2ca1966421e30893d8d4fed6a3d88e4247e131e7575fe791246e594538d6)(@aws-sdk/credential-provider-node@3.972.84)(@cursor/sdk@1.0.37)(@modelcontextprotocol/sdk@1.31.0(supports-color@9.4.0)(zod@4.4.3))(@smithy/signature-v4@5.7.4)(supports-color@9.4.0)(ws@8.21.3)(zod@4.4.3)':
     dependencies:
       '@agentclientprotocol/sdk': 1.4.0(zod@4.4.3)
       '@earendil-works/pi-ai': 1.3.0(patch_hash=4e1c90fd00aea42989664504668633033c1962e53c07860901edb4f72d843765)(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(supports-color@9.4.0)(zod@4.4.3))(@smithy/signature-v4@5.7.4)(supports-color@9.4.0)(undici@8.10.2)(ws@8.21.3)(zod@4.4.3)
@@ -27064,6 +27138,8 @@ snapshots:
       cross-spawn: 7.0.6
       undici: 8.10.2
       which: 2.0.2
+    optionalDependencies:
+      '@cursor/sdk': 1.0.37
     transitivePeerDependencies:
       - '@aws-sdk/credential-provider-node'
       - '@modelcontextprotocol/sdk'
@@ -27106,7 +27182,18 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  '@bufbuild/protobuf@1.10.0': {}
+
   '@chevrotain/types@11.1.2': {}
+
+  '@connectrpc/connect-web@1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+
+  '@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0)':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
 
   '@csstools/color-helpers@6.1.0': {}
 
@@ -27131,6 +27218,35 @@ snapshots:
       css-tree: 3.2.1
 
   '@csstools/css-tokenizer@4.0.0': {}
+
+  '@cursor/sdk-darwin-arm64@1.0.37':
+    optional: true
+
+  '@cursor/sdk-darwin-x64@1.0.37':
+    optional: true
+
+  '@cursor/sdk-linux-arm64@1.0.37':
+    optional: true
+
+  '@cursor/sdk-linux-x64@1.0.37':
+    optional: true
+
+  '@cursor/sdk-win32-x64@1.0.37':
+    optional: true
+
+  '@cursor/sdk@1.0.37':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+      '@connectrpc/connect-web': 1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))
+      '@statsig/js-client': 3.31.0
+      zod: 3.25.76
+    optionalDependencies:
+      '@cursor/sdk-darwin-arm64': 1.0.37
+      '@cursor/sdk-darwin-x64': 1.0.37
+      '@cursor/sdk-linux-arm64': 1.0.37
+      '@cursor/sdk-linux-x64': 1.0.37
+      '@cursor/sdk-win32-x64': 1.0.37
 
   '@deepseek-ai/libreoffice-kit-darwin-arm64@0.1.5':
     optional: true
@@ -28937,6 +29053,12 @@ snapshots:
   '@stablelib/base64@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@statsig/client-core@3.31.0': {}
+
+  '@statsig/js-client@3.31.0':
+    dependencies:
+      '@statsig/client-core': 3.31.0
 
   '@stylistic/eslint-plugin@5.10.0(eslint@10.5.0(jiti@2.7.0)(supports-color@9.4.0))':
     dependencies:
@@ -34513,6 +34635,8 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:
       zod: 4.4.3
+
+  zod@3.25.76: {}
 
   zod@4.4.3: {}
 

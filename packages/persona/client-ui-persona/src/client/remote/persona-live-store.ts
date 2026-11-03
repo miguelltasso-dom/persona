@@ -3,6 +3,9 @@ import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AwayEventLive, ChannelMessageUi } from './map-host-ui.ts'
 import { mapAwayEventLive, mapMessage, mapPersonaNowRow, mapTeamToStrip } from './map-host-ui.ts'
 import { bootstrapPersonaTenant, hostReportsFirstUse, type TenantBootstrapRemote } from './bootstrap-tenant.ts'
+import { shouldWriteCacheComplete } from './onboarding-host.ts'
+import { avatarRefForPersonaName, seedDefaultTeamIfEmpty } from './seed-default-team.ts'
+import { writeOnboardingCacheComplete } from '../shell/onboarding-persistence.ts'
 import { mapTaskToKanbanCard } from './map-host-ui.ts'
 import type { KanbanCardModel } from '../kanban/types.ts'
 import type { OverviewView as HostOverviewView, PersonaTenantScope, TeamView } from './persona-remote-types.ts'
@@ -44,6 +47,10 @@ export interface PersonaLiveStore {
   refresh(): Promise<void>
   postChannelMessage(body: string): Promise<void>
   commitOnboardingRoster(
+    displayName: string,
+    roster: readonly { name: string; role: string }[],
+  ): Promise<void>
+  completeOnboarding(
     displayName: string,
     roster: readonly { name: string; role: string }[],
   ): Promise<void>
@@ -92,7 +99,9 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     runnerModel: string
     canRecruit: boolean
     createdBy: string
+    systemRoles?: readonly ('coordination' | 'watchdog')[]
   }): unknown
+  markVisit(request: PersonaTenantScope): boolean
   createMember(request: {
     id: string
     workspaceId: string
@@ -100,6 +109,13 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     displayName: string
     handle: string
     role: 'owner'
+  }): unknown
+  completeOnboarding?(request: {
+    workspaceId: string
+    projectId: string
+    memberId: string
+    displayName: string
+    roster: readonly { name: string; role: string }[]
   }): unknown
 }
 
@@ -165,8 +181,20 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
     try {
       tenant = await bootstrapPersonaTenant(remote)
       const firstUse = await hostReportsFirstUse(remote, tenant)
+      if (shouldWriteCacheComplete(firstUse)) {
+        writeOnboardingCacheComplete()
+      }
       onFirstUse(firstUse)
       await refresh()
+      if (tenant !== null) {
+        const seeded = await seedDefaultTeamIfEmpty(remote, tenant)
+        if (seeded) await refresh()
+        try {
+          remote.markVisit(tenant)
+        } catch {
+          /* visit marker best-effort */
+        }
+      }
     } catch (error) {
       store.set({
         ...EMPTY,
@@ -214,7 +242,13 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
     let index = 0
     for (const person of roster) {
       const id = slugId(person.name, index++)
-      const avatarRef = id.includes('atlas') ? 'atlas' : id.includes('bento') ? 'bento' : id.includes('nina') ? 'nina' : 'luna'
+      const avatarRef = avatarRefForPersonaName(person.name)
+      const lower = person.name.toLowerCase()
+      const systemRoles = lower.includes('atlas')
+        ? (['coordination'] as const)
+        : lower.includes('luna')
+          ? (['watchdog'] as const)
+          : ([] as const)
       try {
         await Promise.resolve(remote.createPersona({
           workspaceId: tenant.workspaceId,
@@ -230,14 +264,39 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
           runnerKind: 'dsh',
           runnerCli: '',
           runnerModel: 'default',
-          canRecruit: false,
+          canRecruit: lower.includes('atlas'),
           createdBy: tenant.memberId,
+          systemRoles: [...systemRoles],
         }))
       } catch {
         /* duplicate persona */
       }
     }
     await refresh()
+  }
+
+  const completeOnboarding = async (
+    displayName: string,
+    roster: readonly { name: string; role: string }[],
+  ): Promise<void> => {
+    if (tenant === null) return
+    writeOnboardingCacheComplete()
+    if (remote.completeOnboarding !== undefined) {
+      try {
+        await Promise.resolve(remote.completeOnboarding({
+          workspaceId: tenant.workspaceId,
+          projectId: tenant.projectId,
+          memberId: tenant.memberId,
+          displayName: displayName.trim(),
+          roster,
+        }))
+        await refresh()
+        return
+      } catch {
+        /* fall through to legacy roster RPCs */
+      }
+    }
+    await commitOnboardingRoster(displayName, roster)
   }
 
   return {
@@ -249,5 +308,6 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
     refresh,
     postChannelMessage,
     commitOnboardingRoster,
+    completeOnboarding,
   }
 }

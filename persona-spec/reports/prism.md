@@ -144,6 +144,28 @@ node scripts/persona/with-lock.mjs "Prism bundle" -- pnpm --filter @deepseek-ai/
 pnpm exec oxlint <pastas Prism> → exit 0
 ```
 
+## 2026-11-03 — Revisão 2 #geral: assets Sol/Luna + ui-boot-check
+
+**Pronto**
+
+- `node scripts/persona/build-assets.mjs` → 112 arquivos, 2.47 MiB (poses/avatares Sol e Luna incluídos).
+- Faixa/mensagens: `resolveCharacterId` + `mapTeamToStrip` lista **todos** os `team.personas`; silhueta só sem URL de pose; fallback `MOCK_CHANNEL_ROSTER` / `MOCK_GERAL_MESSAGES` quando host vazio.
+- Tema escuro: `installPersonaColorScheme()` no `mount.ts`; init script do gate ajustado (sem `body` nulo).
+- Logo rail: `symbol.svg` com `filter` invert no sidebar; pipeline reserva `banner-team-{light,dark}.webp` e `rail-foliage.webp` quando Brush entregar.
+- `check-pkg client-ui-persona` OK.
+
+**Arquivos:** `map-host-ui.ts`, `ConnectedGeneralChannelView.tsx`, `TeamChannelStrip.tsx`, `install-color-scheme.ts`, `mount.ts`, `PersonaSidebar.module.css`, `build-assets.mjs`, `ui-boot-check.mjs`, `lumen-remote-panels.tsx`.
+
+**Gate (verbatim)**
+
+```
+node scripts/persona/with-lock.mjs "Prism ui boot" -- node scripts/persona/ui-boot-check.mjs
+→ exit 0
+dirD compare: diffRatio=0.34817978395061727 pass=true
+shots: .maestri/tmp/shots/persona-light-channel.png, persona-light-channel.diff.png, persona-dark.png, …
+[channel text inclui Sol/Luna “Descansando · zzz” com roster completo]
+```
+
 **Fora / próximo**
 
 - (app) capturas claro/escuro vs `dirD-tela.png`, reduced-motion, teclado — Probe/aceite S5.

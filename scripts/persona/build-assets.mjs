@@ -91,6 +91,42 @@ async function main() {
   })
 
   copyTree('icons/nav', () => true)
+  copyTree('icons/overlays', () => true)
+
+  for (const rel of [
+    'brand/banner-team-light.webp',
+    'brand/banner-team-dark.webp',
+    'brand/rail-foliage.webp',
+    'brand/rail-foliage-light.webp',
+    'brand/rail-foliage-dark.webp',
+  ]) {
+    const abs = join(SRC, rel)
+    if (existsSync(abs)) copyRel(abs, rel)
+  }
+  const railLightIll = join(SRC, 'illustrations/rail-foliage-light.webp')
+  const railDarkIll = join(SRC, 'illustrations/rail-foliage-dark.webp')
+  if (!existsSync(join(SRC, 'brand/rail-foliage-light.webp')) && existsSync(railLightIll)) {
+    copyRel(railLightIll, 'brand/rail-foliage-light.webp')
+  }
+  if (!existsSync(join(SRC, 'brand/rail-foliage-dark.webp')) && existsSync(railDarkIll)) {
+    copyRel(railDarkIll, 'brand/rail-foliage-dark.webp')
+  }
+
+  // Muse: crisp illustration derivatives from Brush @2x masters (DESIGN-SYSTEM §7).
+  const ILLUSTRATION_SPECS = [
+    { from: 'illustrations/team-banner-light@2x.png', to: 'illustrations/team-banner-light.webp', width: 2400, quality: 84 },
+    { from: 'illustrations/team-banner-dark@2x.png', to: 'illustrations/team-banner-dark.webp', width: 2400, quality: 84 },
+    { from: 'illustrations/rail-foliage-light@2x.png', to: 'illustrations/rail-foliage-light.webp', width: 544, quality: 90 },
+    { from: 'illustrations/rail-foliage-dark@2x.png', to: 'illustrations/rail-foliage-dark.webp', width: 544, quality: 90 },
+  ]
+  for (const spec of ILLUSTRATION_SPECS) {
+    const fromAbs = join(SRC, spec.from)
+    if (!existsSync(fromAbs)) continue
+    const toAbs = join(OUT, spec.to)
+    ensureDir(dirname(toAbs))
+    await sharp(fromAbs).resize({ width: spec.width, withoutEnlargement: true }).webp({ quality: spec.quality, alphaQuality: 100 }).toFile(toAbs)
+    track(spec.to, toAbs)
+  }
 
   for (const file of readdirSync(join(SRC, 'avatars')).filter(f => f.endsWith('.png'))) {
     const stem = basename(file, '.png')
@@ -116,6 +152,12 @@ async function main() {
   const poseFiles = manifest.filter(f => f.rel.startsWith('poses/') && f.rel.endsWith('.webp'))
   const avatar96 = manifest.filter(f => f.rel.match(/^avatars\/[^/]+-96\.webp$/u))
   const navIcons = manifest.filter(f => f.rel.startsWith('icons/nav/') && f.rel.endsWith('.svg'))
+  const overlayIcons = manifest.filter(f => f.rel.startsWith('icons/overlays/') && f.rel.endsWith('.svg'))
+  const bannerLight = manifest.find(f => f.rel === 'brand/banner-team-light.webp')
+  const bannerDark = manifest.find(f => f.rel === 'brand/banner-team-dark.webp')
+  const railFoliage = manifest.find(f => f.rel === 'brand/rail-foliage.webp')
+  const railFoliageLight = manifest.find(f => f.rel === 'brand/rail-foliage-light.webp')
+  const railFoliageDark = manifest.find(f => f.rel === 'brand/rail-foliage-dark.webp')
 
   /** @type {string[]} */
   const imports = []
@@ -147,6 +189,38 @@ async function main() {
     imports.push(`import av96_${varName} from './${rel}'`)
     avatarEntries.push(`  '${stem}': av96_${varName},`)
   }
+  /** @type {string[]} */
+  const overlayEntries = []
+  for (const { rel } of overlayIcons) {
+    const id = basename(rel, '.svg')
+    const varName = id.replace(/-/gu, '_')
+    imports.push(`import overlay_${varName} from './${rel}'`)
+    overlayEntries.push(`  '${id}': overlay_${varName},`)
+  }
+  if (bannerLight !== undefined) {
+    imports.push("import teamBannerLight from './brand/banner-team-light.webp'")
+  }
+  if (bannerDark !== undefined) {
+    imports.push("import teamBannerDark from './brand/banner-team-dark.webp'")
+  }
+  if (railFoliage !== undefined) {
+    imports.push("import railFoliage from './brand/rail-foliage.webp'")
+  }
+  if (railFoliageLight !== undefined) {
+    imports.push("import railFoliageLight from './brand/rail-foliage-light.webp'")
+  }
+  if (railFoliageDark !== undefined) {
+    imports.push("import railFoliageDark from './brand/rail-foliage-dark.webp'")
+  }
+  const illustrationFiles = manifest.filter(f => f.rel.startsWith('illustrations/') && f.rel.endsWith('.webp'))
+  /** @type {string[]} */
+  const illustrationEntries = []
+  for (const { rel } of illustrationFiles) {
+    const id = basename(rel, '.webp')
+    const varName = id.replace(/-/gu, '_')
+    imports.push(`import ill_${varName} from './${rel}'`)
+    illustrationEntries.push(`  '${id}': ill_${varName},`)
+  }
   imports.push("import logoHorizontalLight from './brand/logo-horizontal-light.svg'")
   imports.push("import symbol from './brand/symbol.svg'")
 
@@ -165,6 +239,20 @@ async function main() {
     'export const AVATAR_96 = {',
     ...avatarEntries,
     '} as const',
+    '',
+    'export const OVERLAY_ICONS = {',
+    ...overlayEntries,
+    '} as const',
+    '',
+    ...(bannerLight !== undefined ? ['export { teamBannerLight }', ''] : ['export const teamBannerLight: string | undefined = undefined', '']),
+    ...(bannerDark !== undefined ? ['export { teamBannerDark }', ''] : ['export const teamBannerDark: string | undefined = undefined', '']),
+    ...(railFoliage !== undefined ? ['export { railFoliage }', ''] : ['export const railFoliage: string | undefined = undefined', '']),
+    ...(railFoliageLight !== undefined ? ['export { railFoliageLight }', ''] : ['export const railFoliageLight: string | undefined = undefined', '']),
+    ...(railFoliageDark !== undefined ? ['export { railFoliageDark }', ''] : ['export const railFoliageDark: string | undefined = undefined', '']),
+    '/** Brush illustrations (Muse, DESIGN-SYSTEM §7). */',
+    'export const ILLUSTRATIONS: Readonly<Record<string, string>> = {',
+    ...illustrationEntries,
+    '}',
     '',
     'export { logoHorizontalLight, symbol }',
   ]

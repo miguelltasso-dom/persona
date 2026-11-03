@@ -1,0 +1,91 @@
+.chip {
+  --chip-bg: var(--persona-wash-strong);
+  --chip-ink: var(--persona-ink);
+  --chip-border: var(--persona-outline);
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 0 11px;
+  border: var(--persona-border-width) solid var(--chip-border);
+  border-radius: var(--persona-radius-pill);
+  background: var(--chip-bg);
+  color: var(--chip-ink);
+  font: 700 13px/18px var(--persona-font-text);
+  white-space: nowrap;
+}
+
+.small {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+  gap: 4px;
+}
+
+.icon {
+  display: inline-flex;
+}
+
+.neutral { --chip-bg: var(--persona-wash-strong); }
+.plain { --chip-bg: var(--persona-card); }
+.brand { --chip-bg: var(--persona-brand); --chip-ink: var(--persona-rail-ink); }
+.accent { --chip-bg: var(--persona-accent); --chip-ink: var(--persona-accent-ink); }
+.success { --chip-bg: var(--persona-success-tint); --chip-ink: var(--persona-success); }
+.warning { --chip-bg: var(--persona-warning-tint); --chip-ink: var(--persona-warning); }
+.danger { --chip-bg: var(--persona-danger-tint); --chip-ink: var(--persona-danger); }
+.info { --chip-bg: var(--persona-info-tint); --chip-ink: var(--persona-info); }
+
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px 0 8px;
+  margin-bottom: 2px;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-card);
+  color: var(--persona-ink-soft);
+  font: 700 13px/1 var(--persona-font-text);
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+
+.reaction:hover {
+  border-color: var(--persona-outline);
+  transform: translateY(-1px);
+}
+
+.reaction:active {
+  transform: translateY(1px) scale(0.97);
+}
+
+.reaction[aria-pressed='true'] {
+  background: var(--persona-wash);
+  border-color: var(--persona-brand);
+  border-width: var(--persona-border-width-strong);
+  padding: 0 9.5px 0 7.5px;
+  color: var(--persona-brand);
+}
+
+.emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction,
+  .reaction:hover,
+  .reaction:active {
+    transform: none;
+  }
+}

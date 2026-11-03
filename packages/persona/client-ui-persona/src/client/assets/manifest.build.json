@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-03T18:33:34.221Z",
+    "generatedAt": "2026-11-03T19:01:27.277Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 112,
-    "totalBytes": 2591243,
+    "files": 129,
+    "totalBytes": 2818254,
     "withinBudget": true
   },
   "files": [
@@ -135,6 +135,74 @@
     {
       "rel": "icons/nav/visao-geral.svg",
       "bytes": 254
+    },
+    {
+      "rel": "icons/overlays/approval-badge.svg",
+      "bytes": 320
+    },
+    {
+      "rel": "icons/overlays/error-badge.svg",
+      "bytes": 228
+    },
+    {
+      "rel": "icons/overlays/paw-burst.svg",
+      "bytes": 727
+    },
+    {
+      "rel": "icons/overlays/review-loupe.svg",
+      "bytes": 215
+    },
+    {
+      "rel": "icons/overlays/sparkle-burst.svg",
+      "bytes": 304
+    },
+    {
+      "rel": "icons/overlays/thinking-bubble.svg",
+      "bytes": 460
+    },
+    {
+      "rel": "icons/overlays/typing-dots.svg",
+      "bytes": 216
+    },
+    {
+      "rel": "icons/overlays/zzz.svg",
+      "bytes": 281
+    },
+    {
+      "rel": "brand/banner-team-light.webp",
+      "bytes": 19388
+    },
+    {
+      "rel": "brand/banner-team-dark.webp",
+      "bytes": 17978
+    },
+    {
+      "rel": "brand/rail-foliage.webp",
+      "bytes": 8344
+    },
+    {
+      "rel": "brand/rail-foliage-light.webp",
+      "bytes": 13740
+    },
+    {
+      "rel": "brand/rail-foliage-dark.webp",
+      "bytes": 13220
+    },
+    {
+      "rel": "illustrations/team-banner-light.webp",
+      "bytes": 37084
+    },
+    {
+      "rel": "illustrations/team-banner-dark.webp",
+      "bytes": 32704
+    },
+    {
+      "rel": "illustrations/rail-foliage-light.webp",
+      "bytes": 42946
+    },
+    {
+      "rel": "illustrations/rail-foliage-dark.webp",
+      "bytes": 38856
     },
     {
       "rel": "avatars/atlas-blink-256.webp",

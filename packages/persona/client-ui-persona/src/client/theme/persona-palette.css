@@ -1,18 +1,13 @@
 /**
- * Persona direction-D palette. Hex literals live only in this file; components
- * consume --persona-* or mapped --dsw-alias-* variables.
+ * Persona design tokens — "escritório acolhedor" (persona-spec/DESIGN-SYSTEM.md, Muse).
+ * Hex literals live only in theme/*.css; components consume semantic --persona-* tokens.
+ * Dark scheme: body[data-ds-dark-theme='true'] (installPersonaColorScheme).
  */
 
 :root {
-  /* Light scheme primitives */
-  --persona-rail: #675290;
-  --persona-rail-ink: #ffffff;
-  --persona-surface: #faf3e4;
-  --persona-surface-alt: #f2eaf8;
-  --persona-ink: #34243f;
-  --persona-ink-muted: #60516b;
-  --persona-accent: #e8af54;
-  --persona-accent-ink: #34243f;
+  /* ── Primitives ─────────────────────────────────────────── */
+  --persona-plum-950: #120c18;
+  --persona-plum-900: #34243f;
   --persona-lilac-100: #f2eaf8;
   --persona-lilac-200: #e4d7f1;
   --persona-lilac-300: #c8b8e8;
@@ -22,12 +17,48 @@
   --persona-lilac-700: #675290;
   --persona-lilac-800: #4d3a6d;
   --persona-lilac-900: #34243f;
-  --persona-success: #28704e;
-  --persona-warning: #875200;
-  --persona-danger: #a53240;
-  --persona-info: #315f98;
+  --persona-cream-50: #fffbf3;
+  --persona-cream-100: #faf3e4;
+  --persona-cream-200: #f3e8d2;
+  --persona-amber-300: #f3c877;
+  --persona-amber-400: #e8af54;
+  --persona-amber-600: #c98a2e;
+  --persona-amber-800: #8a5500;
 
-  /* Motion (UX-GUIDE §2) */
+  /* Direction-D names kept for existing code */
+  --persona-surface: #faf3e4;
+  --persona-surface-alt: #f2eaf8;
+  --persona-ink-muted: #60516b;
+  --persona-accent-ink: #34243f;
+
+  /* ── Type ───────────────────────────────────────────────── */
+  --persona-font-display: 'Persona Fredoka', 'Fredoka', 'Nunito', ui-rounded, system-ui, sans-serif;
+  --persona-font-text: 'Persona Nunito', 'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --persona-font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  /* ── Shape ──────────────────────────────────────────────── */
+  --persona-border-width: 1.5px;
+  --persona-border-width-strong: 2px;
+  --persona-radius-xs: 6px;
+  --persona-radius-s: 10px;
+  --persona-radius-m: 14px;
+  --persona-radius-l: 18px;
+  --persona-radius-xl: 24px;
+  --persona-radius-pill: 999px;
+
+  /* ── Space (4/8 grid) ───────────────────────────────────── */
+  --persona-space-1: 4px;
+  --persona-space-2: 8px;
+  --persona-space-3: 12px;
+  --persona-space-4: 16px;
+  --persona-space-5: 20px;
+  --persona-space-6: 24px;
+  --persona-space-8: 32px;
+  --persona-space-10: 40px;
+  --persona-space-12: 48px;
+  --persona-space-16: 64px;
+
+  /* ── Motion (UX-GUIDE §2) ───────────────────────────────── */
   --motion-instant: 80ms;
   --motion-fast: 140ms;
   --motion-base: 220ms;
@@ -38,58 +69,143 @@
   --ease-enter: cubic-bezier(0, 0, 0.2, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --ease-spring: cubic-bezier(0.34, 1.25, 0.64, 1);
+  --persona-motion-ease: var(--ease-standard);
+
+  /* Paper grain (feTurbulence) — applied to paper + rail only */
+  --persona-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.2 0 0 0 0 0.14 0 0 0 0 0.25 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* ── Light scheme (default) ───────────────────────────────── */
 body:not([data-ds-dark-theme='true']) {
+  --persona-paper: var(--persona-cream-100);
+  --persona-paper-sunken: var(--persona-cream-200);
+  --persona-card: var(--persona-cream-50);
+  --persona-card-raised: #ffffff;
+  --persona-wash: var(--persona-lilac-100);
+  --persona-wash-strong: var(--persona-lilac-200);
+  --persona-ink: #34243f;
+  --persona-ink-soft: #5e4e6b;
+  --persona-ink-faint: #77678a;
+  --persona-outline: var(--persona-plum-900);
+  --persona-outline-control: var(--persona-plum-900);
+  --persona-outline-soft: rgb(52 36 63 / 0.16);
+  --persona-rail: var(--persona-lilac-700);
+  --persona-rail-ink: #ffffff;
+  --persona-rail-ink-soft: var(--persona-lilac-200);
+  --persona-rail-hill-1: var(--persona-lilac-600);
+  --persona-rail-hill-2: var(--persona-lilac-500);
+  --persona-rail-hill-3: var(--persona-lilac-400);
+  --persona-rail-leaf: var(--persona-lilac-300);
+  --persona-accent: var(--persona-amber-400);
+  --persona-accent-hover: var(--persona-amber-300);
+  --persona-accent-text: var(--persona-amber-800);
+  --persona-brand: var(--persona-lilac-700);
+  --persona-success: #28704e;
+  --persona-warning: #875200;
+  --persona-danger: #a53240;
+  --persona-info: #315f98;
+  --persona-success-tint: #e3f1e8;
+  --persona-warning-tint: #fbebd0;
+  --persona-danger-tint: #f8e1e3;
+  --persona-info-tint: #e3ecf7;
+  --persona-scrim: rgb(52 36 63 / 0.42);
+  --persona-focus-halo: rgb(232 175 84 / 0.5);
+  --persona-shadow-press: 0 3px 0 0 var(--persona-outline);
+  --persona-shadow-press-hover: 0 4px 0 0 var(--persona-outline);
+  --persona-shadow-press-active: 0 1px 0 0 var(--persona-outline);
+  --persona-shadow-sticker: 0 3px 0 0 rgb(52 36 63 / 0.16);
+  --persona-shadow-lift: 0 4px 0 0 rgb(52 36 63 / 0.18), 0 14px 24px -14px rgb(52 36 63 / 0.38);
+  --persona-shadow-float: 0 5px 0 0 rgb(52 36 63 / 0.18), 0 24px 48px -20px rgb(52 36 63 / 0.5);
+  --persona-grain-opacity: 0.05;
+  --persona-grain-blend: multiply;
+  /* Team banner scene */
+  --persona-scene-sky: var(--persona-lilac-100);
+  --persona-scene-sky-2: #fbf6ee;
+  --persona-scene-hill-far: var(--persona-lilac-200);
+  --persona-scene-hill-near: #d9caee;
+  --persona-scene-ground: #ece0f5;
+  --persona-scene-shadow: rgb(103 82 144 / 0.22);
+}
+
+/* ── Dark scheme: deep plum night, never grey ─────────────── */
+body[data-ds-dark-theme='true'] {
+  --persona-paper: #1e1526;
+  --persona-paper-sunken: #18111f;
+  --persona-card: #2a1e35;
+  --persona-card-raised: #33253f;
+  --persona-wash: #2e2140;
+  --persona-wash-strong: #3a2a4f;
+  --persona-ink: #f6eee0;
+  --persona-ink-soft: #cdbfdb;
+  --persona-ink-faint: #a795b8;
+  --persona-outline: var(--persona-plum-950);
+  --persona-outline-control: #8f7bb0;
+  --persona-outline-soft: rgb(200 184 232 / 0.16);
+  --persona-rail: #2a1e3a;
+  --persona-rail-ink: #f6eee0;
+  --persona-rail-ink-soft: var(--persona-lilac-300);
+  --persona-rail-hill-1: #3a2a4f;
+  --persona-rail-hill-2: #45335d;
+  --persona-rail-hill-3: #524070;
+  --persona-rail-leaf: #6a5690;
+  --persona-accent: var(--persona-amber-400);
+  --persona-accent-hover: var(--persona-amber-300);
+  --persona-accent-text: var(--persona-amber-400);
+  --persona-brand: var(--persona-lilac-300);
+  --persona-success: #7fd3a6;
+  --persona-warning: #f2c27a;
+  --persona-danger: #f19aa5;
+  --persona-info: #9dbfea;
+  --persona-success-tint: rgb(127 211 166 / 0.16);
+  --persona-warning-tint: rgb(242 194 122 / 0.16);
+  --persona-danger-tint: rgb(241 154 165 / 0.16);
+  --persona-info-tint: rgb(157 191 234 / 0.16);
+  --persona-scrim: rgb(8 4 12 / 0.6);
+  --persona-focus-halo: rgb(232 175 84 / 0.45);
+  --persona-shadow-press: 0 3px 0 0 var(--persona-outline);
+  --persona-shadow-press-hover: 0 4px 0 0 var(--persona-outline);
+  --persona-shadow-press-active: 0 1px 0 0 var(--persona-outline);
+  --persona-shadow-sticker: 0 3px 0 0 rgb(8 4 12 / 0.55);
+  --persona-shadow-lift: 0 4px 0 0 rgb(8 4 12 / 0.6), 0 16px 28px -14px rgb(8 4 12 / 0.8);
+  --persona-shadow-float: 0 5px 0 0 rgb(8 4 12 / 0.6), 0 28px 56px -20px rgb(8 4 12 / 0.9);
+  --persona-grain-opacity: 0.06;
+  --persona-grain-blend: soft-light;
+  --persona-scene-sky: #2a1e3a;
+  --persona-scene-sky-2: #231830;
+  --persona-scene-hill-far: #34274a;
+  --persona-scene-hill-near: #3f2f58;
+  --persona-scene-ground: #352849;
+  --persona-scene-shadow: rgb(8 4 12 / 0.45);
+}
+
+/* ── Compatibility aliases (existing Prism/Lumen code + DSW primitives) ── */
+body {
   --persona-active-rail: var(--persona-rail);
   --persona-active-rail-ink: var(--persona-rail-ink);
-  --persona-active-surface: var(--persona-surface);
-  --persona-active-surface-alt: var(--persona-surface-alt);
+  --persona-active-surface: var(--persona-paper);
+  --persona-active-surface-alt: var(--persona-wash);
   --persona-active-ink: var(--persona-ink);
-  --persona-active-ink-muted: var(--persona-ink-muted);
+  --persona-active-ink-muted: var(--persona-ink-soft);
   --persona-active-accent: var(--persona-accent);
   --persona-active-accent-ink: var(--persona-accent-ink);
+  --persona-active-muted: var(--persona-ink-soft);
+  --persona-warn: var(--persona-warning);
+  --persona-radius-lg: var(--persona-radius-l);
 
-  --dsw-alias-bg-base: var(--persona-active-surface);
-  --dsw-alias-bg-layer-1: var(--persona-active-surface-alt);
-  --dsw-alias-bg-layer-2: var(--persona-lilac-100);
-  --dsw-alias-bg-layer-3: var(--persona-lilac-200);
-  --dsw-alias-text-primary: var(--persona-active-ink);
-  --dsw-alias-text-secondary: var(--persona-active-ink-muted);
-  --dsw-alias-text-tertiary: var(--persona-lilac-600);
-  --dsw-alias-border-l2: var(--persona-lilac-200);
+  --dsw-alias-bg-base: var(--persona-paper);
+  --dsw-alias-bg-layer-1: var(--persona-card);
+  --dsw-alias-bg-layer-2: var(--persona-wash);
+  --dsw-alias-bg-layer-3: var(--persona-wash-strong);
+  --dsw-alias-text-primary: var(--persona-ink);
+  --dsw-alias-text-secondary: var(--persona-ink-soft);
+  --dsw-alias-text-tertiary: var(--persona-ink-faint);
+  --dsw-alias-border-l2: var(--persona-outline-soft);
   --dsw-alias-border-l3: var(--persona-lilac-300);
-  --dsw-alias-border-l4: var(--persona-lilac-400);
-  --dsw-alias-brand-primary: var(--persona-lilac-700);
-  --dsw-alias-state-business-primary: var(--persona-active-accent);
-  --dsw-alias-link: var(--persona-lilac-700);
-  --dsw-alias-illustration-accent: var(--persona-active-accent);
-}
-
-body[data-ds-dark-theme='true'] {
-  --persona-active-rail: var(--persona-lilac-900);
-  --persona-active-rail-ink: var(--persona-lilac-100);
-  --persona-active-surface: var(--persona-lilac-900);
-  --persona-active-surface-alt: var(--persona-lilac-800);
-  --persona-active-ink: var(--persona-lilac-100);
-  --persona-active-ink-muted: var(--persona-lilac-300);
-  --persona-active-accent: var(--persona-accent);
-  --persona-active-accent-ink: var(--persona-accent-ink);
-
-  --dsw-alias-bg-base: var(--persona-active-surface);
-  --dsw-alias-bg-layer-1: var(--persona-active-surface-alt);
-  --dsw-alias-bg-layer-2: var(--persona-lilac-800);
-  --dsw-alias-bg-layer-3: var(--persona-lilac-700);
-  --dsw-alias-text-primary: var(--persona-active-ink);
-  --dsw-alias-text-secondary: var(--persona-active-ink-muted);
-  --dsw-alias-text-tertiary: var(--persona-lilac-400);
-  --dsw-alias-border-l2: var(--persona-lilac-800);
-  --dsw-alias-border-l3: var(--persona-lilac-700);
-  --dsw-alias-border-l4: var(--persona-lilac-600);
-  --dsw-alias-brand-primary: var(--persona-lilac-300);
-  --dsw-alias-state-business-primary: var(--persona-active-accent);
-  --dsw-alias-link: var(--persona-lilac-200);
-  --dsw-alias-illustration-accent: var(--persona-active-accent);
+  --dsw-alias-border-l4: var(--persona-outline-control);
+  --dsw-alias-brand-primary: var(--persona-brand);
+  --dsw-alias-state-business-primary: var(--persona-accent);
+  --dsw-alias-link: var(--persona-brand);
+  --dsw-alias-illustration-accent: var(--persona-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {

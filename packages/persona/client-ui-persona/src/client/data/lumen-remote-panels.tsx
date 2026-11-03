@@ -1,6 +1,7 @@
 /** Main panels that load {@link PersonaRemoteClient} data (production path). */
 
-import { useCallback, useMemo, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import type { ProjectFileListing } from '@deepseek-ai/dsh-persona-host/types'
 import type { ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
 import { ApprovalsInbox } from '../approvals/ApprovalsInbox.tsx'
 import { ConnectionsView } from '../connections/ConnectionsView.tsx'
@@ -21,8 +22,14 @@ import { approvalsToInbox } from './adapters/approvals.ts'
 import { connectionsToEntries } from './adapters/connections.ts'
 import { tasksToKanbanCards } from './adapters/kanban.ts'
 import { limitsToUsageMeters } from './adapters/usage.ts'
+import { canvasGraphToUi } from './adapters/canvas.ts'
 import { teamToMembers } from './adapters/members.ts'
+import { dailySummariesToUi } from './adapters/proactive.ts'
+import { routineScheduleToQuiet, routineScheduleToRuns } from './adapters/routines.ts'
+import { triageLogFromHost } from './adapters/triage.ts'
 import { vaultRecordsToKnowledge } from './adapters/vault.ts'
+import { pickProjectRootPath } from '../files/pick-project-root.ts'
+import type { FilesSurfaceState } from '../files/FilesView.tsx'
 import type { ProactivityLimits, QuietWindow, TriageRule } from '../rules/mock-data.ts'
 import type { ProjectLimitsView, QuietWindowView, TriageRuleView } from '@deepseek-ai/dsh-persona-host/types'
 import type { LumenRemotePanelProps } from './lumen-inject.ts'
@@ -68,6 +75,12 @@ function limitsFromHost(limits: ProjectLimitsView): ProactivityLimits {
   }
 }
 
+function filesSurfaceFromListing(listing: ProjectFileListing): FilesSurfaceState {
+  if (listing.status === 'need-root') return 'needRoot'
+  if (listing.entries.length === 0) return 'empty'
+  return 'ready'
+}
+
 function surfaceFromLoad<T>(state: { status: string; data?: T }, emptyWhen?: (data: T) => boolean): 'loading' | 'error' | 'empty' | 'ready' {
   if (state.status === 'loading') return 'loading'
   if (state.status === 'error') return 'error'
@@ -107,6 +120,8 @@ export function RemoteKnowledgePanel({ persona, useTenant }: LumenRemotePanelPro
 export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const scope = useScope(useTenant)
   const actorId = useTenant(s => s.scope?.actorId ?? '')
+  const [reloadToken, setReloadToken] = useState(0)
+  const loadKey = `${remoteScopeKey(scope)}:${reloadToken}`
   const load = useCallback(async () => {
     if (scope === null || actorId === '') throw new Error('no-scope')
     return unwrapRemote(await persona.listFiles({
@@ -115,9 +130,10 @@ export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps):
       path: '',
     }))
   }, [persona, scope, actorId])
-  const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const files: FileEntry[] = state.status === 'ready'
-    ? state.data.entries.filter(e => e.kind === 'file').map((entry, index) => ({
+  const state = usePersonaRemoteLoad(scope !== null && actorId !== '', loadKey, load)
+  const listing = state.status === 'ready' ? state.data : null
+  const files: FileEntry[] = listing !== null && listing.status === 'ok'
+    ? listing.entries.filter(e => e.kind === 'file').map((entry, index) => ({
       id: `${entry.name}-${index}`,
       name: entry.name,
       projectName: scope?.projectId ?? '',
@@ -126,20 +142,45 @@ export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps):
       kind: 'other',
     }))
     : []
+  const initialState: FilesSurfaceState = state.status === 'loading'
+    ? 'loading'
+    : state.status === 'error'
+      ? 'error'
+      : listing === null
+        ? 'loading'
+        : filesSurfaceFromListing(listing)
+  const onChooseProjectRoot = useCallback(() => {
+    void (async () => {
+      if (scope === null) return
+      const rootPath = await pickProjectRootPath()
+      if (rootPath === null) return
+      await unwrapRemote(await persona.setProjectRoot({ ...scope, rootPath }))
+      setReloadToken(token => token + 1)
+    })()
+  }, [persona, scope])
   return (
     <FilesView
       files={files}
-      initialState={surfaceFromLoad(state, data => data.entries.length === 0)}
+      initialState={initialState}
+      onChooseProjectRoot={onChooseProjectRoot}
     />
   )
 }
 
 export function RemoteRoutinesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const scope = useScope(useTenant)
-  const load = useCallback(async () => unwrapRemote(await persona.listRoutines(scope!)), [persona, scope])
+  const load = useCallback(async () => unwrapRemote(await persona.listRoutineSchedule(scope!)), [persona, scope])
   const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const hasRoutines = state.status === 'ready' && state.data.length > 0
-  return <RoutinesView initialState={surfaceFromLoad(state, () => !hasRoutines)} />
+  const schedules = state.status === 'ready' ? state.data : []
+  const routineRuns = routineScheduleToRuns(schedules)
+  const quietWindows = routineScheduleToQuiet(schedules)
+  return (
+    <RoutinesView
+      routineRuns={routineRuns}
+      quietWindows={quietWindows}
+      initialState={surfaceFromLoad(state, data => data.length === 0)}
+    />
+  )
 }
 
 export function RemoteUsagePanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
@@ -171,14 +212,23 @@ export function RemoteConnectionsPanel({ persona, useTenant }: LumenRemotePanelP
 
 export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const scope = useScope(useTenant)
-  const load = useCallback(async () => unwrapRemote(await persona.listApprovals(scope!)), [persona, scope])
+  const load = useCallback(async () => {
+    const [approvals, summaries] = await Promise.all([
+      unwrapRemote(await persona.listApprovals(scope!)),
+      unwrapRemote(await persona.listDailySummaries(scope!)),
+    ])
+    return { approvals, summaries }
+  }, [persona, scope])
   const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const items = state.status === 'ready' ? approvalsToInbox(state.data) : []
+  const payload = state.status === 'ready' ? state.data : null
+  const items = payload === null ? [] : approvalsToInbox(payload.approvals)
+  const proactiveSummaries = payload === null ? [] : dailySummariesToUi(payload.summaries)
+  const inboxEmpty = items.length === 0 && !proactiveSummaries.some(summary => summary.proposals.length > 0)
   return (
     <ApprovalsInbox
       items={items}
-      proactiveSummaries={[]}
-      initialState={surfaceFromLoad(state, data => data.length === 0)}
+      proactiveSummaries={proactiveSummaries}
+      initialState={surfaceFromLoad(state, () => inboxEmpty)}
     />
   )
 }
@@ -186,12 +236,13 @@ export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelPro
 export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
   const scope = useScope(useTenant)
   const load = useCallback(async () => {
-    const [rules, quiet, limits] = await Promise.all([
+    const [rules, quiet, limits, triageLog] = await Promise.all([
       unwrapRemote(await persona.listTriageRules(scope!)),
       unwrapRemote(await persona.listQuietWindows(scope!)),
       unwrapRemote(await persona.getProjectLimits(scope!)),
+      unwrapRemote(await persona.listTriageLog(scope!)),
     ])
-    return { rules, quiet, limits }
+    return { rules, quiet, limits, triageLog }
   }, [persona, scope])
   const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const payload = state.status === 'ready' ? state.data : null
@@ -201,7 +252,7 @@ export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps):
       rules: triageRulesFromHost(payload.rules),
       quietWindows: quietFromHost(payload.quiet),
       limits: limitsFromHost(payload.limits),
-      triageLog: [] as const,
+      triageLog: triageLogFromHost(payload.triageLog),
     }
   return (
     <TriageRulesView
@@ -300,7 +351,16 @@ export function RemoteImportPanel(_props: LumenRemotePanelProps): ReactNode {
   return <ImportWizard />
 }
 
-/** Canvas RPC not on host yet — list mode with empty graph. */
-export function RemoteCanvasPanel(_props: LumenRemotePanelProps): ReactNode {
-  return <CanvasView initialState="empty" />
+export function RemoteCanvasPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
+  const scope = useScope(useTenant)
+  const load = useCallback(async () => unwrapRemote(await persona.listCanvas(scope!)), [persona, scope])
+  const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
+  const graph = state.status === 'ready' ? canvasGraphToUi(state.data) : { nodes: [], edges: [] }
+  return (
+    <CanvasView
+      nodes={graph.nodes}
+      edges={graph.edges}
+      initialState={surfaceFromLoad(state, data => data.nodes.length === 0)}
+    />
+  )
 }

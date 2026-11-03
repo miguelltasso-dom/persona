@@ -33,22 +33,58 @@ export function mapTaskToKanbanCard(task: TaskView): KanbanCardModel {
 const KNOWN_AVATARS = new Set<string>(['atlas', 'bento', 'nina', 'sol', 'luna'])
 
 function avatarToCharacterId(ref: string): PersonaCharacterId {
-  if (KNOWN_AVATARS.has(ref)) return ref as PersonaCharacterId
+  const lower = ref.toLowerCase()
+  if (KNOWN_AVATARS.has(lower)) return lower as PersonaCharacterId
+  const head = lower.split(/[-_.]/u)[0] ?? lower
+  if (KNOWN_AVATARS.has(head)) return head as PersonaCharacterId
+  for (const id of KNOWN_AVATARS) {
+    if (lower.includes(id)) return id as PersonaCharacterId
+  }
   return 'atlas'
+}
+
+function resolveCharacterId(persona: PersonaView | undefined, fallback: string): PersonaCharacterId {
+  const fromRef = persona !== undefined ? avatarToCharacterId(persona.avatarRef) : avatarToCharacterId(fallback)
+  if (fromRef !== 'atlas' || persona?.avatarRef.toLowerCase() === 'atlas') return fromRef
+  if (persona !== undefined) {
+    const fromName = avatarToCharacterId(persona.name)
+    if (fromName !== 'atlas' || persona.name.toLowerCase() === 'atlas') return fromName
+  }
+  return avatarToCharacterId(fallback)
+}
+
+function stripMember(
+  persona: PersonaView,
+  state: PersonaWorkUiState,
+): ChannelPersonaMember {
+  const id = resolveCharacterId(persona, persona.id)
+  const pose = uiStateToPose(state)
+  const hasPose = poseUrl(id, pose) !== undefined
+  return {
+    id,
+    name: persona.name,
+    role: persona.title,
+    state,
+    ...(hasPose ? {} : { silhouette: true as const }),
+  }
 }
 
 export function mapPersonaNowRow(row: PersonaNowView, team: TeamView): PersonaNowSnapshot {
   const persona = team.personas.find(p => p.id === row.personaId)
-  const charId = avatarToCharacterId(persona?.avatarRef ?? row.personaId)
-  const pose = uiStateToPose(row.state)
-  const hasPose = poseUrl(charId, pose) !== undefined
-  const member: ChannelPersonaMember = {
-    id: charId,
-    name: row.name,
-    role: row.title,
-    state: row.state,
-    silhouette: !hasPose,
-  }
+  const member = persona !== undefined
+    ? stripMember(persona, row.state)
+    : (() => {
+      const id = resolveCharacterId(undefined, row.personaId)
+      const pose = uiStateToPose(row.state)
+      const hasPose = poseUrl(id, pose) !== undefined
+      return {
+        id,
+        name: row.name,
+        role: row.title,
+        state: row.state,
+        ...(hasPose ? {} : { silhouette: true as const }),
+      }
+    })()
   const snap: PersonaNowSnapshot = {
     member,
     queueCount: row.queueCount,
@@ -60,19 +96,14 @@ export function mapPersonaNowRow(row: PersonaNowView, team: TeamView): PersonaNo
 }
 
 export function mapTeamToStrip(team: TeamView, now: readonly PersonaNowView[]): readonly ChannelPersonaMember[] {
-  if (now.length > 0) {
+  const nowByPersona = new Map(now.map(row => [row.personaId, row]))
+  if (team.personas.length === 0) {
     return now.map(row => mapPersonaNowRow(row, team).member)
   }
   return team.personas.map((persona: PersonaView) => {
-    const id = avatarToCharacterId(persona.avatarRef)
-    const hasPose = poseUrl(id, 'disponivel') !== undefined
-    return {
-      id,
-      name: persona.name,
-      role: persona.title,
-      state: 'resting' as PersonaWorkUiState,
-      silhouette: !hasPose,
-    }
+    const row = nowByPersona.get(persona.id)
+    if (row !== undefined) return mapPersonaNowRow(row, team).member
+    return stripMember(persona, 'resting')
   })
 }
 
@@ -104,7 +135,9 @@ export function mapMessage(event: MessageView, team: TeamView, memberId: string)
   const persona = team.personas.find(p => p.id === event.actorId)
   const member = team.members.find(m => m.id === event.actorId)
   const authorName = persona?.name ?? member?.displayName ?? (event.actorId === memberId ? 'Você' : event.actorId)
-  const authorId = persona !== undefined ? avatarToCharacterId(persona.avatarRef) : event.actorId === memberId ? 'user' : event.actorId
+  const authorId = persona !== undefined
+    ? resolveCharacterId(persona, persona.id)
+    : event.actorId === memberId ? 'user' : event.actorId
   const time = new Date(event.occurredAt)
   const timeLabel = Number.isNaN(time.getTime())
     ? event.occurredAt.slice(11, 16)

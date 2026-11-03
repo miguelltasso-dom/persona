@@ -21,9 +21,12 @@
 }
 
 .symbol {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2rem;
+  height: 2rem;
   flex-shrink: 0;
+  object-fit: contain;
+  /* symbol.svg is lilac-on-lilac on the rail — lift full mark */
+  filter: brightness(0) invert(1);
 }
 
 .wordmark {
@@ -113,14 +116,39 @@
 }
 
 .footerFoliage {
-  height: 2.75rem;
+  position: relative;
+  height: 4.0625rem;
   margin: 0 -0.15rem 0.15rem;
   border-radius: 0.75rem 0.75rem 0 0;
-  opacity: 0.85;
+  opacity: 0.92;
+  overflow: hidden;
   background:
     radial-gradient(ellipse 40% 100% at 15% 100%, color-mix(in srgb, var(--persona-lilac-300) 70%, transparent) 0%, transparent 70%),
     radial-gradient(ellipse 35% 90% at 45% 110%, color-mix(in srgb, var(--persona-lilac-400) 55%, transparent) 0%, transparent 65%),
     radial-gradient(ellipse 38% 95% at 78% 105%, color-mix(in srgb, var(--persona-lilac-300) 65%, transparent) 0%, transparent 68%);
+}
+
+.footerFoliageArt,
+.footerFoliageArtDark {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center bottom;
+  pointer-events: none;
+}
+
+.footerFoliageArtDark {
+  display: none;
+}
+
+:global(body[data-ds-dark-theme='true']) .footerFoliageArt {
+  display: none;
+}
+
+:global(body[data-ds-dark-theme='true']) .footerFoliageArtDark {
+  display: block;
 }
 
 .hostStatus {

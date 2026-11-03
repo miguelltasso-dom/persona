@@ -6,6 +6,7 @@ import { parsePersona } from '@deepseek-ai/dsh-persona-core'
 import { ApprovalsInbox } from '../src/client/approvals/ApprovalsInbox.tsx'
 import { MOCK_APPROVALS } from '../src/client/approvals/mock-data.ts'
 import { CanvasView } from '../src/client/canvas/CanvasView.tsx'
+import { MOCK_CANVAS_EDGES, MOCK_CANVAS_NODES } from '../src/client/canvas/mock-data.ts'
 import { ImportWizard } from '../src/client/importers/ImportWizard.tsx'
 import { pt as approvalsPt } from '../src/client/locale/approvals/locales.ts'
 import { pt as canvasPt } from '../src/client/locale/canvas/locales.ts'
@@ -13,7 +14,7 @@ import { pt as profilePt } from '../src/client/locale/profile/locales.ts'
 import { MembersView } from '../src/client/members/MembersView.tsx'
 import { MemoryPanel } from '../src/client/memory/MemoryPanel.tsx'
 import { MOCK_MEMBERS } from '../src/client/members/mock-data.ts'
-import { MOCK_PERSONA_ATLAS } from '../src/client/profile/mock-data.ts'
+import { MOCK_PERSONA_ATLAS, MOCK_PROFILE_ATLAS } from '../src/client/profile/mock-data.ts'
 import {
   MOCK_PROACTIVITY_LIMITS,
   MOCK_QUIET_WINDOWS,
@@ -46,7 +47,7 @@ describe('lumen queue 2 previews', () => {
   })
 
   it('renders persona profile with memory tab', () => {
-    wrap(<PersonaProfilePage dict={profilePt} />)
+    wrap(<PersonaProfilePage dict={profilePt} snapshot={MOCK_PROFILE_ATLAS} />)
     expect(screen.getByRole('heading', { level: 1, name: 'Atlas' })).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: profilePt['tab.memory'] }))
     expect(screen.getByRole('heading', { level: 2, name: 'Memória da persona' })).toBeTruthy()
@@ -77,7 +78,7 @@ describe('lumen queue 2 previews', () => {
   it('renders import wizard and canvas list mode', () => {
     wrap(<ImportWizard />)
     expect(screen.getByRole('button', { name: /Continuar/i })).toBeTruthy()
-    wrap(<CanvasView dict={canvasPt} />)
+    wrap(<CanvasView dict={canvasPt} nodes={MOCK_CANVAS_NODES} edges={MOCK_CANVAS_EDGES} />)
     fireEvent.click(screen.getByRole('button', { name: canvasPt['mode.list'] }))
     expect(screen.getByText('Hero landing')).toBeTruthy()
   })

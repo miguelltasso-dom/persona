@@ -1,14 +1,16 @@
 .panel {
-  background: var(--persona-active-surface-alt);
-  border: 1px solid var(--persona-lilac-200);
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--persona-lilac-900) 8%, transparent);
+  box-sizing: border-box;
+  padding: var(--persona-space-5) var(--persona-space-6);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  box-shadow: var(--persona-shadow-sticker);
 }
 
 .muted {
-  color: var(--persona-active-ink-muted);
-  font-size: 0.9375rem;
-  line-height: 1.5;
   margin: 0;
+  color: var(--persona-ink-soft);
+  font-size: 15px;
+  line-height: 22px;
 }

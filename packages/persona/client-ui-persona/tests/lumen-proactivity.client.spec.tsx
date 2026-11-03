@@ -7,6 +7,7 @@ import { MOCK_PERSONA_DAILY_SUMMARIES } from '../src/client/approvals/proactivit
 import { pt as approvalsPt } from '../src/client/locale/approvals/locales.ts'
 import { pt as profilePt } from '../src/client/locale/profile/locales.ts'
 import { pt as rulesPt } from '../src/client/locale/rules/locales.ts'
+import { MOCK_PROFILE_ATLAS } from '../src/client/profile/mock-data.ts'
 import { PersonaProfilePage } from '../src/client/profile/PersonaProfilePage.tsx'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
@@ -50,7 +51,7 @@ describe('proactivity UI (PROACTIVITY.md)', () => {
   })
 
   it('shows proactivity metrics on persona profile overview', () => {
-    wrap(<PersonaProfilePage dict={profilePt} />)
+    wrap(<PersonaProfilePage dict={profilePt} snapshot={MOCK_PROFILE_ATLAS} />)
     expect(screen.getByRole('heading', { name: profilePt['proactivity.title'] })).toBeTruthy()
     expect(screen.getByText(profilePt['proactivity.lazinessGrade.strong'])).toBeTruthy()
     expect(document.querySelector('[data-persona-surface="proactivity-metrics"]')).toBeTruthy()

@@ -1,0 +1,103 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from 'vitest'
+import { triageLogFromHost } from '../src/client/data/adapters/triage.ts'
+import { dailySummariesToUi } from '../src/client/data/adapters/proactive.ts'
+import { routineScheduleToRuns } from '../src/client/data/adapters/routines.ts'
+import { deriveKanbanFilterOptions } from '../src/client/kanban/derive-filter-options.ts'
+
+describe('lumen RPC adapters', () => {
+  it('maps triage log rows for rules UI', () => {
+    const rows = triageLogFromHost([
+      {
+        id: 'log-1',
+        at: '14:02',
+        summary: 'Teria aberto ticket',
+        mode: 'logOnly',
+        threadId: 'geral',
+        gateText: 'gate',
+        assessmentText: 'assess',
+        decidedBy: 'Atlas',
+        reason: 'logOnly',
+      },
+    ])
+    expect(rows[0]?.summary).toBe('Teria aberto ticket')
+    expect(rows[0]?.mode).toBe('logOnly')
+  })
+
+  it('excludes attention cards from daily proactive summaries', () => {
+    const summaries = dailySummariesToUi([
+      {
+        personaId: 'p1',
+        personaName: 'Nina',
+        date: '2026-11-03',
+        proposals: [
+          {
+            id: 'a1',
+            kind: 'attention',
+            title: 'Deploy',
+            question: 'Aprovar?',
+            status: 'pending',
+            personaId: 'p1',
+            personaName: 'Nina',
+          },
+          {
+            id: 'a2',
+            kind: 'vault',
+            title: 'Cofre',
+            question: 'Atualizar?',
+            status: 'pending',
+            personaId: 'p1',
+            personaName: 'Nina',
+          },
+        ],
+      },
+    ])
+    expect(summaries[0]?.proposals).toHaveLength(1)
+    expect(summaries[0]?.proposals[0]?.title).toBe('Cofre')
+  })
+
+  it('derives kanban filters from card rows', () => {
+    const options = deriveKanbanFilterOptions([
+      {
+        id: 'c1',
+        title: 'T',
+        projectId: 'p1',
+        projectName: 'Site',
+        teamId: 't1',
+        teamName: 'Equipe',
+        column: 'todo',
+        waitingEvent: false,
+        blocked: false,
+        reviewApproved: false,
+        assignee: { id: 'atlas', name: 'Atlas', initials: 'A' },
+      },
+    ])
+    expect(options.projects[0]?.name).toBe('Site')
+    expect(options.personas[0]?.name).toBe('Atlas')
+  })
+
+  it('maps routine schedule runs onto week grid', () => {
+    const runs = routineScheduleToRuns([
+      {
+        id: 'r1',
+        projectId: 'pp',
+        name: 'Stand-up',
+        rrule: '',
+        timeZone: 'UTC',
+        paused: false,
+        catchUp: 'skip',
+        silenceStart: '',
+        silenceEnd: '',
+        runs: [{
+          id: 'run1',
+          routineId: 'r1',
+          scheduledFor: '2026-11-03T12:00:00.000Z',
+          status: 'done',
+          attempt: 1,
+        }],
+      },
+    ])
+    expect(runs).toHaveLength(1)
+    expect(runs[0]?.routineName).toBe('Stand-up')
+  })
+})

@@ -1,21 +1,31 @@
 const STORAGE_KEY = 'persona.onboarding.complete.v1'
 
-/** Whether the first-run onboarding overlay should show (RCD: value before config). */
-export function readOnboardingOpen(): boolean {
-  if (typeof localStorage === 'undefined') return true
+/** Optimistic cache: user finished step 5 in this browser (not authoritative vs host). */
+export function readOnboardingCacheComplete(): boolean {
+  if (typeof localStorage === 'undefined') return false
   try {
-    return localStorage.getItem(STORAGE_KEY) !== '1'
+    return localStorage.getItem(STORAGE_KEY) === '1'
   } catch {
-    return true
+    return false
   }
 }
 
-/** Persist onboarding completion until host owns this flag. */
-export function persistOnboardingComplete(): void {
+/** Mark overlay complete locally until next `getOnboarding` refresh (optimistic). */
+export function writeOnboardingCacheComplete(): void {
   if (typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(STORAGE_KEY, '1')
   } catch {
     /* private mode */
   }
+}
+
+/** @deprecated Use {@link readOnboardingCacheComplete} — host `getOnboarding` is authoritative. */
+export function readOnboardingOpen(): boolean {
+  return !readOnboardingCacheComplete()
+}
+
+/** @deprecated Use {@link writeOnboardingCacheComplete}. */
+export function persistOnboardingComplete(): void {
+  writeOnboardingCacheComplete()
 }

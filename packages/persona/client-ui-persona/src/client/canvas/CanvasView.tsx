@@ -6,7 +6,7 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import page from '../profile/LumenPage.module.css'
 import styles from './Canvas.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
-import { MOCK_CANVAS_EDGES, MOCK_CANVAS_NODES, type CanvasNode } from './mock-data.ts'
+import type { CanvasEdge, CanvasNode } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/canvas/locales.ts'
 
 export type CanvasSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -18,15 +18,22 @@ function nodeCenter(node: CanvasNode): { cx: number; cy: number } {
 
 export interface CanvasViewProps {
   readonly dict?: LocaleDict
+  readonly nodes?: readonly CanvasNode[]
+  readonly edges?: readonly CanvasEdge[]
   readonly initialState?: CanvasSurfaceState
 }
 
-export function CanvasView({ dict = defaultDict, initialState = 'ready' }: CanvasViewProps): ReactNode {
+export function CanvasView({
+  dict = defaultDict,
+  nodes = [],
+  edges = [],
+  initialState = 'ready',
+}: CanvasViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [mode, setMode] = useState<ViewMode>('canvas')
   const [scale, setScale] = useState(1)
 
-  const nodeMap = useMemo(() => new Map(MOCK_CANVAS_NODES.map(n => [n.id, n])), [])
+  const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes])
 
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={3} />
   if (initialState === 'empty') {
@@ -75,7 +82,7 @@ export function CanvasView({ dict = defaultDict, initialState = 'ready' }: Canva
             </tr>
           </thead>
           <tbody>
-            {MOCK_CANVAS_NODES.map(node => (
+            {nodes.map(node => (
               <tr key={node.id}>
                 <td>{t(`legend.${node.kind}`)}</td>
                 <td>{node.label}</td>
@@ -86,7 +93,7 @@ export function CanvasView({ dict = defaultDict, initialState = 'ready' }: Canva
       ) : (
         <div className={styles.viewport} role="img" aria-label={t('title')}>
           <svg width="100%" height="100%" viewBox="0 0 480 320" className={styles.scene} style={{ transform: `scale(${scale})` }}>
-            {MOCK_CANVAS_EDGES.map((edge) => {
+            {edges.map((edge) => {
               const from = nodeMap.get(edge.from)
               const to = nodeMap.get(edge.to)
               if (from === undefined || to === undefined) return null
@@ -94,7 +101,7 @@ export function CanvasView({ dict = defaultDict, initialState = 'ready' }: Canva
               const b = nodeCenter(to)
               return <line key={edge.id} className={styles.edge} x1={a.cx} y1={a.cy} x2={b.cx} y2={b.cy} />
             })}
-            {MOCK_CANVAS_NODES.map(node => (
+            {nodes.map(node => (
               <g key={node.id} className={styles.node} tabIndex={0} role="button" aria-label={node.label}>
                 <circle className={styles.nodeCircle} cx={node.x + 28} cy={node.y + 28} r="28" />
                 <text className={styles.nodeLabel} x={node.x + 28} y={node.y + 64} textAnchor="middle">

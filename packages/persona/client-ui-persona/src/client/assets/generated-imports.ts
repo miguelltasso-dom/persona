@@ -79,6 +79,23 @@ import av96_nina_blink from './avatars/nina-blink-96.webp'
 import av96_nina from './avatars/nina-96.webp'
 import av96_sol_blink from './avatars/sol-blink-96.webp'
 import av96_sol from './avatars/sol-96.webp'
+import overlay_approval_badge from './icons/overlays/approval-badge.svg'
+import overlay_error_badge from './icons/overlays/error-badge.svg'
+import overlay_paw_burst from './icons/overlays/paw-burst.svg'
+import overlay_review_loupe from './icons/overlays/review-loupe.svg'
+import overlay_sparkle_burst from './icons/overlays/sparkle-burst.svg'
+import overlay_thinking_bubble from './icons/overlays/thinking-bubble.svg'
+import overlay_typing_dots from './icons/overlays/typing-dots.svg'
+import overlay_zzz from './icons/overlays/zzz.svg'
+import teamBannerLight from './brand/banner-team-light.webp'
+import teamBannerDark from './brand/banner-team-dark.webp'
+import railFoliage from './brand/rail-foliage.webp'
+import railFoliageLight from './brand/rail-foliage-light.webp'
+import railFoliageDark from './brand/rail-foliage-dark.webp'
+import ill_team_banner_light from './illustrations/team-banner-light.webp'
+import ill_team_banner_dark from './illustrations/team-banner-dark.webp'
+import ill_rail_foliage_light from './illustrations/rail-foliage-light.webp'
+import ill_rail_foliage_dark from './illustrations/rail-foliage-dark.webp'
 import logoHorizontalLight from './brand/logo-horizontal-light.svg'
 import symbol from './brand/symbol.svg'
 
@@ -166,5 +183,34 @@ export const AVATAR_96 = {
   'sol-blink': av96_sol_blink,
   'sol': av96_sol,
 } as const
+
+export const OVERLAY_ICONS = {
+  'approval-badge': overlay_approval_badge,
+  'error-badge': overlay_error_badge,
+  'paw-burst': overlay_paw_burst,
+  'review-loupe': overlay_review_loupe,
+  'sparkle-burst': overlay_sparkle_burst,
+  'thinking-bubble': overlay_thinking_bubble,
+  'typing-dots': overlay_typing_dots,
+  'zzz': overlay_zzz,
+} as const
+
+export { teamBannerLight }
+
+export { teamBannerDark }
+
+export { railFoliage }
+
+export { railFoliageLight }
+
+export { railFoliageDark }
+
+/** Brush illustrations (Muse, DESIGN-SYSTEM §7). */
+export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
+  'team-banner-light': ill_team_banner_light,
+  'team-banner-dark': ill_team_banner_dark,
+  'rail-foliage-light': ill_rail_foliage_light,
+  'rail-foliage-dark': ill_rail_foliage_dark,
+}
 
 export { logoHorizontalLight, symbol }

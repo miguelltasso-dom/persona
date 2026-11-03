@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import { NAV_ICONS, symbol } from '../assets/generated-imports.ts'
+import { NAV_ICONS, railFoliage, railFoliageDark, railFoliageLight, symbol } from '../assets/generated-imports.ts'
 import type { ShellKey } from '../locale/shell/locales.ts'
 import type { MainPanelId, ShellState } from './create-shell-store.ts'
 import { showPersonaDevHostBadge } from './persona-dev.ts'
@@ -97,7 +97,14 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
         </div>
       </div>
       <div className={styles.footer}>
-        <div className={styles.footerFoliage} aria-hidden="true" />
+        <div className={styles.footerFoliage} aria-hidden="true">
+          {(railFoliageLight ?? railFoliage) !== undefined && (
+            <img className={styles.footerFoliageArt} src={railFoliageLight ?? railFoliage} alt="" />
+          )}
+          {railFoliageDark !== undefined && (
+            <img className={styles.footerFoliageArtDark} src={railFoliageDark} alt="" />
+          )}
+        </div>
         <div className={styles.hostStatus} role="status">
           <span className={styles.statusDot} data-online={shell.hostStatus === 'online' ? '' : undefined} aria-hidden="true" />
           {hostLabel}

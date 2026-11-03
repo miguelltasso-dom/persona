@@ -18,7 +18,9 @@ import { registerPrismScreens } from './shell/register-prism-screens.tsx'
 import { PersonaAppFrame } from './shell/PersonaAppFrame.tsx'
 import { PersonaSidebar } from './shell/PersonaSidebar.tsx'
 import { createShellStore, type ShellStoreHandle } from './shell/create-shell-store.ts'
-import { readOnboardingOpen, persistOnboardingComplete } from './shell/onboarding-persistence.ts'
+import { overlayOpenFromHost } from './remote/onboarding-host.ts'
+import { writeOnboardingCacheComplete } from './shell/onboarding-persistence.ts'
+import { installPersonaColorScheme } from './theme/install-color-scheme.ts'
 
 export const inject = [
   'remote',
@@ -27,6 +29,7 @@ export const inject = [
 ]
 
 function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
+  installPersonaColorScheme()
   const { store, actions } = shellHandle
   const live = createPersonaLiveStore(ctx.remote.persona as unknown as Parameters<typeof createPersonaLiveStore>[0])
 
@@ -37,9 +40,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
   })
 
   void live.bootstrap((firstUse) => {
-    if (firstUse && readOnboardingOpen()) {
-      actions.setOnboardingOpen(true)
-    }
+    actions.setOnboardingOpen(overlayOpenFromHost(firstUse))
   })
 
   const onboardingHandle = createOnboardingStore()
@@ -87,9 +88,9 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       actions: onboardingHandle.actions,
       dismissOnboarding: () => {
         const snapshot = onboardingHandle.store.getSnapshot()
-        void live.commitOnboardingRoster(snapshot.displayName, snapshot.roster).finally(() => {
-          persistOnboardingComplete()
-          actions.dismissOnboarding()
+        actions.dismissOnboarding()
+        void live.completeOnboarding(snapshot.displayName, snapshot.roster).then(() => {
+          writeOnboardingCacheComplete()
           void live.refresh()
         })
       },

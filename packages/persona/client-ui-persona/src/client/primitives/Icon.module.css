@@ -1,0 +1,15 @@
+.brand {
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--persona-icon-size, 20px);
+  height: var(--persona-icon-size, 20px);
+  background-color: currentColor;
+  mask-image: var(--persona-icon-url);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-image: var(--persona-icon-url);
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}

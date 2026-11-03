@@ -1,0 +1,100 @@
+.card {
+  position: relative;
+  box-sizing: border-box;
+  margin: 0;
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  box-shadow: var(--persona-shadow-sticker);
+  list-style: none;
+}
+
+.pad-none { padding: 0; }
+.pad-s { padding: var(--persona-space-4); }
+.pad-m { padding: var(--persona-space-5) var(--persona-space-6); }
+.pad-l { padding: var(--persona-space-8); }
+
+.card[data-tone]::after {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: var(--card-tone);
+}
+
+.card[data-tone='accent'] { --card-tone: var(--persona-accent); }
+.card[data-tone='brand'] { --card-tone: var(--persona-brand); }
+.card[data-tone='success'] { --card-tone: var(--persona-success); }
+.card[data-tone='danger'] { --card-tone: var(--persona-danger); }
+
+.interactive {
+  cursor: pointer;
+  transition:
+    transform var(--motion-base) var(--ease-standard),
+    box-shadow var(--motion-base) var(--ease-standard);
+}
+
+.interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--persona-shadow-lift);
+}
+
+.interactive:active {
+  transform: translateY(1px);
+  box-shadow: var(--persona-shadow-sticker);
+  transition-duration: var(--motion-instant);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--persona-space-4);
+  margin-bottom: var(--persona-space-4);
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  font-family: var(--persona-font-text);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-brand);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--persona-font-display);
+  font-size: 19px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--persona-ink);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive,
+  .interactive:hover,
+  .interactive:active {
+    transform: none;
+  }
+}

@@ -9,7 +9,6 @@ import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSur
 import { ProactiveDailySummaries } from './ProactiveDailySummaries.tsx'
 import type { ApprovalItem } from './mock-data.ts'
 import type { PersonaDailyProactiveSummary } from './proactivity-mock-data.ts'
-import { MOCK_PROACTIVE_SUMMARY_DATE } from './proactivity-mock-data.ts'
 import { pt as defaultDict } from '../locale/approvals/locales.ts'
 
 export type ApprovalsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -40,7 +39,8 @@ export function ApprovalsInbox({
 }: ApprovalsInboxProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const motion = usePersonaMotion({ preset: 'fast', fromOpacity: 0, fromTranslateY: 6 })
-  const summaryDateLabel = formatSummaryDate(dict, MOCK_PROACTIVE_SUMMARY_DATE)
+  const summaryIso = proactiveSummaries.find(summary => summary.proposals.length > 0)?.summaryDate ?? ''
+  const summaryDateLabel = summaryIso === '' ? '' : formatSummaryDate(dict, summaryIso)
   const hasReactive = items.length > 0
   const hasProactive = proactiveSummaries.some(s => s.proposals.length > 0)
 

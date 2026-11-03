@@ -1,5 +1,6 @@
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { readOnboardingOpen } from './onboarding-persistence.ts'
+import { overlayOpenOptimisticInitial } from '../remote/onboarding-host.ts'
+import { readOnboardingCacheComplete } from './onboarding-persistence.ts'
 
 export type MainPanelId =
   | 'team'
@@ -36,7 +37,7 @@ export interface ShellActions {
   dismissOnboarding(): void
 }
 
-const onboardingOpen = readOnboardingOpen()
+const onboardingOpen = overlayOpenOptimisticInitial(readOnboardingCacheComplete())
 
 const INITIAL: ShellState = {
   activePanel: 'channels',

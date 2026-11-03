@@ -21,6 +21,10 @@ export const pt = {
   'loading': 'Carregando arquivos…',
   'error.title': 'Não foi possível carregar arquivos',
   'error.retry': 'Tentar de novo',
+  'needRoot.title': 'Escolha a pasta do projeto',
+  'needRoot.hint': 'Os arquivos ficam confinados a uma pasta no seu computador. Nada é enviado para a nuvem sem você ver.',
+  'needRoot.action': 'Escolher pasta',
+  'needRoot.illustration': 'Ilustração: pasta do projeto aguardando escolha',
 } as const
 
 /** English copy. */
@@ -41,6 +45,10 @@ export const en = {
   'loading': 'Loading files…',
   'error.title': 'Could not load files',
   'error.retry': 'Try again',
+  'needRoot.title': 'Choose the project folder',
+  'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
+  'needRoot.action': 'Choose folder',
+  'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 
 export const zh = {
@@ -60,6 +68,10 @@ export const zh = {
   'loading': 'Loading files…',
   'error.title': 'Could not load files',
   'error.retry': 'Try again',
+  'needRoot.title': 'Choose the project folder',
+  'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
+  'needRoot.action': 'Choose folder',
+  'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const ja = {
   'title': 'Files',
@@ -78,6 +90,10 @@ export const ja = {
   'loading': 'Loading files…',
   'error.title': 'Could not load files',
   'error.retry': 'Try again',
+  'needRoot.title': 'Choose the project folder',
+  'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
+  'needRoot.action': 'Choose folder',
+  'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const es = {
   'title': 'Files',
@@ -96,6 +112,10 @@ export const es = {
   'loading': 'Loading files…',
   'error.title': 'Could not load files',
   'error.retry': 'Try again',
+  'needRoot.title': 'Choose the project folder',
+  'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
+  'needRoot.action': 'Choose folder',
+  'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const fr = {
   'title': 'Files',
@@ -114,6 +134,10 @@ export const fr = {
   'loading': 'Loading files…',
   'error.title': 'Could not load files',
   'error.retry': 'Try again',
+  'needRoot.title': 'Choose the project folder',
+  'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
+  'needRoot.action': 'Choose folder',
+  'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const de = {
   'title': 'Files',
@@ -132,6 +156,10 @@ export const de = {
   'loading': 'Loading files…',
   'error.title': 'Could not load files',
   'error.retry': 'Try again',
+  'needRoot.title': 'Choose the project folder',
+  'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
+  'needRoot.action': 'Choose folder',
+  'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const ru = {
   'title': 'Files',
@@ -150,6 +178,10 @@ export const ru = {
   'loading': 'Loading files…',
   'error.title': 'Could not load files',
   'error.retry': 'Try again',
+  'needRoot.title': 'Choose the project folder',
+  'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
+  'needRoot.action': 'Choose folder',
+  'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 
 export type FilesKey = keyof typeof pt

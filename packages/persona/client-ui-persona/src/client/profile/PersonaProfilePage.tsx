@@ -8,7 +8,7 @@ import { SkillsPanel } from '../skills/SkillsPanel.tsx'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import page from './LumenPage.module.css'
 import { ProactivityMetricsPanel } from './ProactivityMetricsPanel.tsx'
-import { MOCK_PROFILE_ATLAS, type PersonaLiveState, type PersonaProfileSnapshot } from './mock-data.ts'
+import type { PersonaLiveState, PersonaProfileSnapshot } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/profile/locales.ts'
 
 export type ProfileSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -30,7 +30,7 @@ export interface PersonaProfilePageProps {
 
 export function PersonaProfilePage({
   dict = defaultDict,
-  snapshot = MOCK_PROFILE_ATLAS,
+  snapshot,
   initialState = 'ready',
 }: PersonaProfilePageProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
@@ -41,7 +41,7 @@ export function PersonaProfilePage({
   if (initialState === 'error') {
     return <PersonaSurfaceError dict={dict} titleKey="error.title" retryKey="error.retry" onRetry={() => {}} />
   }
-  if (initialState === 'empty') {
+  if (initialState === 'empty' || snapshot === undefined) {
     return (
       <PersonaSurfaceEmpty
         dict={dict}

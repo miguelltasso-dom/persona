@@ -20,6 +20,17 @@
     );
 }
 
+.scene[data-has-banner] {
+  background-image: var(--team-banner-url-light, none);
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+}
+
+:global(body[data-ds-dark-theme='true']) .scene[data-has-banner] {
+  background-image: var(--team-banner-url-dark, var(--team-banner-url-light, none));
+}
+
 .headerRow {
   display: flex;
   align-items: flex-start;

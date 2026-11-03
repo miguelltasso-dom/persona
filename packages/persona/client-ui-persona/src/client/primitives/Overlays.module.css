@@ -1,0 +1,185 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--persona-space-6);
+  background: var(--persona-scrim);
+  backdrop-filter: blur(3px);
+  animation: persona-fade-in var(--motion-base) var(--ease-enter);
+}
+
+.modal {
+  box-sizing: border-box;
+  width: min(560px, 100%);
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: var(--persona-space-8);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-xl);
+  box-shadow: var(--persona-shadow-float);
+  animation: persona-pop-in var(--motion-base) var(--ease-enter);
+}
+
+.modalL {
+  width: min(880px, 100%);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--persona-space-4);
+}
+
+.modalEyebrow {
+  margin: 0 0 var(--persona-space-2);
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-brand);
+}
+
+.modalTitle {
+  margin: 0;
+  font: 650 26px/32px var(--persona-font-display);
+  letter-spacing: -0.015em;
+}
+
+.modalDescription {
+  margin: var(--persona-space-2) 0 0;
+  color: var(--persona-ink-soft);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.modalBody {
+  margin-top: var(--persona-space-6);
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-8);
+}
+
+.toastRegion {
+  position: fixed;
+  right: var(--persona-space-6);
+  bottom: var(--persona-space-6);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  width: min(380px, calc(100vw - 48px));
+}
+
+.toast {
+  --toast-tone: var(--persona-brand);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-3) var(--persona-space-3) var(--persona-space-3) var(--persona-space-3);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  box-shadow: var(--persona-shadow-float);
+  animation: persona-toast-in var(--motion-slow) var(--ease-spring);
+}
+
+.toast[data-tone='success'] { --toast-tone: var(--persona-success); }
+.toast[data-tone='warning'] { --toast-tone: var(--persona-warning); }
+.toast[data-tone='danger'] { --toast-tone: var(--persona-danger); }
+.toast[data-tone='celebrate'] { --toast-tone: var(--persona-accent-text); }
+
+.toastIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--persona-radius-s);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  background: var(--persona-wash);
+  color: var(--toast-tone);
+}
+
+.toast[data-tone='celebrate'] .toastIcon {
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+}
+
+.toastText {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.toastTitle {
+  margin: 0;
+  font: 600 15px/20px var(--persona-font-display);
+}
+
+.toastBody {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--persona-ink-soft);
+}
+
+.tooltipAnchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  z-index: 60;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 10px;
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-ink);
+  color: var(--persona-paper);
+  font: 700 13px/18px var(--persona-font-text);
+  box-shadow: 0 3px 0 0 rgb(18 12 24 / 0.25);
+  pointer-events: none;
+  animation: persona-fade-in var(--motion-fast) var(--ease-enter);
+}
+
+.tooltip[data-side='bottom'] {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+@keyframes persona-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes persona-pop-in {
+  from { opacity: 0; transform: scale(0.98) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes persona-toast-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrim,
+  .modal,
+  .toast,
+  .tooltip {
+    animation: persona-fade-in var(--motion-reduced-fade) linear;
+  }
+}

@@ -28,3 +28,10 @@ export function poseUrl(character: PersonaCharacterId, state: PersonaPoseState):
   const key = `${character}-${state}`
   return POSE_IMPORTS[key] ?? POSE_IMPORTS[`${character}-disponivel`]
 }
+
+export type PersonaPoseLifeVariant = 'disponivel-blink' | 'disponivel-tail'
+
+/** Blink/tail frames for UX-GUIDE §3 idle choreography. */
+export function poseLifeUrl(character: PersonaCharacterId, variant: PersonaPoseLifeVariant): string | undefined {
+  return POSE_IMPORTS[`${character}-${variant}`]
+}

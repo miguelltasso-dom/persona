@@ -1,6 +1,8 @@
 /** Persona theme tokens and motion utilities. */
 
+import './fonts/persona-fonts.generated.css'
 import './persona-palette.css'
+import './persona-base.css'
 import '../assets/generated-imports.ts'
 
 export {

@@ -1,0 +1,100 @@
+/**
+ * Persona base layer (Muse): type, focus ring, selection, scrollbars, paper grain.
+ * Scoped to the Persona shell so DSW surfaces outside it are untouched.
+ */
+
+[data-persona-shell],
+[data-persona-root] {
+  font-family: var(--persona-font-text);
+  font-size: 15px;
+  line-height: 1.47;
+  font-weight: 500;
+  color: var(--persona-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1;
+}
+
+[data-persona-shell] h1,
+[data-persona-shell] h2,
+[data-persona-shell] h3,
+[data-persona-root] h1,
+[data-persona-root] h2,
+[data-persona-root] h3 {
+  font-family: var(--persona-font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+[data-persona-shell] button,
+[data-persona-shell] input,
+[data-persona-shell] textarea,
+[data-persona-shell] select,
+[data-persona-root] button,
+[data-persona-root] input,
+[data-persona-root] textarea,
+[data-persona-root] select {
+  font-family: inherit;
+}
+
+[data-persona-shell] :focus-visible,
+[data-persona-root] :focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--persona-focus-halo);
+}
+
+[data-persona-shell] ::selection,
+[data-persona-root] ::selection {
+  background: var(--persona-accent-hover);
+  color: var(--persona-accent-ink);
+}
+
+[data-persona-shell] * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--persona-lilac-300) transparent;
+}
+
+[data-persona-shell] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-persona-shell] ::-webkit-scrollbar-thumb {
+  background: var(--persona-lilac-300);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+/* Paper grain overlay — add data-persona-grain to a positioned surface. */
+[data-persona-grain] {
+  position: relative;
+  isolation: isolate;
+}
+
+[data-persona-grain]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--persona-grain-image);
+  background-size: 220px 220px;
+  opacity: var(--persona-grain-opacity);
+  mix-blend-mode: var(--persona-grain-blend);
+}
+
+.persona-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

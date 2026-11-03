@@ -1,5 +1,15 @@
-/** Shared Persona UI primitives (see README.md). */
+/** Shared Persona UI primitives — DESIGN-SYSTEM.md §5 (Muse). */
 
+export { Button, IconButton, type ButtonProps, type ButtonSize, type ButtonVariant, type IconButtonProps } from './Button.tsx'
+export { Card, Eyebrow, type CardProps } from './Card.tsx'
+export { Input, Textarea, type InputProps, type TextareaProps } from './Field.tsx'
+export { Chip, ReactionChip, type ChipProps, type ChipTone, type ReactionChipProps } from './Chip.tsx'
+export { Avatar, type AvatarPresence, type AvatarProps, type AvatarSize } from './Avatar.tsx'
+export { Tabs, type TabItem, type TabsProps } from './Tabs.tsx'
+export { Modal, Toast, ToastRegion, Tooltip, type ModalProps, type ToastProps, type ToastTone, type TooltipProps } from './Overlays.tsx'
+export { DayDivider, EmptyState, Skeleton, type EmptyStateProps, type SkeletonProps } from './Feedback.tsx'
+export { BrandIcon, UiIcon, type BrandIconName, type UiIconName } from './icons.tsx'
+export { PawTrail, RailHills, Sparkle, Squiggle, TeamScene } from './accents.tsx'
 export { PersonaButton, type PersonaButtonProps, type PersonaButtonVariant } from './PersonaButton.tsx'
 export { PersonaMuted, PersonaPanel, type PersonaPanelProps } from './PersonaPanel.tsx'
 export { StaggerEntrance, type StaggerEntranceProps } from './StaggerEntrance.tsx'

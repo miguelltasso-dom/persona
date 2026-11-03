@@ -37,6 +37,23 @@ export const WORK_STATUS_KEY: Readonly<Record<PersonaWorkUiState, ShellKey>> = {
 export function uiStateToPose(state: PersonaWorkUiState): PersonaPoseState {
   if (state === 'working') return 'trabalhando'
   if (state === 'resting') return 'descansando'
-  if (state === 'waiting' || state === 'stuck') return 'aguardando-resposta'
+  if (state === 'stuck') return 'erro'
+  if (state === 'waiting') return 'aguardando-aprovacao'
   return 'disponivel'
+}
+
+/** UX-GUIDE §3 overlay SVG id (Brush `icons/overlays/`). */
+export type WorkStateOverlayId =
+  | 'typing-dots'
+  | 'zzz'
+  | 'thinking-bubble'
+  | 'approval-badge'
+  | 'error-badge'
+  | 'review-loupe'
+
+export function workStateOverlay(state: PersonaWorkUiState): WorkStateOverlayId {
+  if (state === 'working') return 'typing-dots'
+  if (state === 'resting') return 'zzz'
+  if (state === 'stuck') return 'error-badge'
+  return 'approval-badge'
 }

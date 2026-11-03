@@ -140,9 +140,11 @@ it('posts, pages and searches messages with DM ACL', () => {
     limit: 50,
   })
   expect(page.events.map(item => item.id)).toEqual(['m1'])
+  h.sessionMemberId = 'cia'
   expect(h.search({
     workspaceId: 'ws', projectId: 'pp', actorId: 'cia', query: 'token-xyz', limit: 50,
-  }).map(item => item.id)).toEqual(['m1'])
+  }).map(item => item.id)).toEqual([])
+  h.sessionMemberId = undefined
   expect(h.search({
     workspaceId: 'ws', projectId: 'pp', actorId: 'ana', query: 'token-xyz', limit: 50,
   }).map(item => item.id).sort()).toEqual(['m1', 'm2'])

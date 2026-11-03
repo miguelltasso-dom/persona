@@ -10,6 +10,8 @@ import {
   createOarSessionRunner,
   resolveRunner,
   type PersonaRunnerSpec,
+  type RunEvent,
+  type TurnRunner,
 } from '@deepseek-ai/dsh-persona-runners'
 import type { AutonomyMode } from './types.ts'
 
@@ -65,25 +67,97 @@ export function specOfPersona(runner: { kind: 'dsh' | 'cli'; model: string; cli?
   return { kind: 'dsh', model: runner.model === '' ? 'default' : runner.model }
 }
 
+/** Cordis `ctx.personaRunners` slice the host prefers over a direct import. */
+export interface PersonaRunnersSlice {
+  resolveRunner: typeof resolveRunner
+  createFakeRunner: typeof createFakeRunner
+}
+
 /**
  * Fake unless PERSONA_REAL_CLI=1, then Rivet resolveRunner.
  * @param request - Persona spec; omitted → fake.
+ * @param runners - Plugin inject (`ctx.personaRunners`). Falls back to the import.
  */
-export async function resolveHostRunner(request?: HostRunnerRequest): Promise<Runner> {
-  if (request === undefined || process.env.PERSONA_REAL_CLI !== '1') return createFakeRunner()
-  const turn = await resolveRunner({
+export async function resolveHostRunner(
+  request?: HostRunnerRequest,
+  runners?: PersonaRunnersSlice,
+): Promise<Runner> {
+  if (request === undefined || process.env.PERSONA_REAL_CLI !== '1') {
+    return runners?.createFakeRunner() ?? createFakeRunner()
+  }
+  const resolve = runners?.resolveRunner ?? resolveRunner
+  const capture: TextCapture = { last: '' }
+  const turn = tapTurn(await resolve({
     spec: request.spec,
     permissionMode: request.permissionMode,
     autonomy: request.autonomy,
     home: request.home,
     personId: request.personId,
-  })
-  return createOarSessionRunner({
+  }), capture)
+  const session = createOarSessionRunner({
     turn,
     personaId: request.personId,
     model: request.spec.model,
     permissionMode: request.permissionMode,
   })
+  captures.set(session, capture)
+  return session
+}
+
+/** Last streamed model text for a live runner (empty on fake/scripted). */
+export interface TextCapture {
+  last: string
+}
+
+const captures = new WeakMap<Runner, TextCapture>()
+
+/**
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @returns Trimmed model text, or empty when the runner did not stream.
+ */
+export function lastRunnerText(runner: Runner): string {
+  return captures.get(runner)?.last.trim() ?? ''
+}
+
+/**
+ * Tee OAR deltas so the host can persist the real reply.
+ * @param turn - Rivet turn runner.
+ * @param capture - Accumulator.
+ */
+export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
+  const take = (event: RunEvent): void => {
+    if (event.type === 'delta') capture.last += event.text
+    if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '') {
+      capture.last = event.report.summary
+    }
+  }
+  return {
+    ...turn,
+    stream: handle => mapEvents(turn.stream(handle), take),
+    events: handle => mapEvents(turn.events(handle), take),
+  }
+}
+
+async function* mapEvents(
+  source: AsyncIterable<RunEvent>,
+  take: (event: RunEvent) => void,
+): AsyncGenerator<RunEvent> {
+  for await (const event of source) {
+    take(event)
+    yield event
+  }
+}
+
+/**
+ * Bind the factory to a live Cordis context so the app host uses the plugin.
+ * @param ctx - Reads `personaRunners` via `get` (optional inject) when present.
+ */
+export function hostRunnerFromContext(ctx: { get?(name: string): unknown; personaRunners?: PersonaRunnersSlice }): HostRunnerFactory {
+  return (request?: HostRunnerRequest) => {
+    const fromGet = ctx.get?.('personaRunners')
+    const runners = (fromGet ?? ctx.personaRunners) as PersonaRunnersSlice | undefined
+    return resolveHostRunner(request, runners)
+  }
 }
 
 /** @deprecated Use {@link resolveHostRunner}. Kept as the default factory alias. */

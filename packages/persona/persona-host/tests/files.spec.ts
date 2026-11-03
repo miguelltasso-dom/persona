@@ -61,9 +61,13 @@ it('refuses a path outside the project root', () => {
 
 it('refuses a caller who is not a workspace member', () => {
   const { h, scope } = seeded()
+  h.createMember({
+    id: 'eve', workspaceId: 'ws', projectId: 'pp', displayName: 'Eve', handle: 'eve', role: 'guest',
+  })
+  h.sessionMemberId = 'eve'
   expect(() => {
-    h.listFiles({ ...scope, actorId: 'eve', path: '' })
-  }).toThrow('files-forbidden')
+    h.listFiles({ ...scope, actorId: 'ana', path: '' })
+  }).toThrow('forbidden')
 })
 
 it('refuses a project without a file root', () => {

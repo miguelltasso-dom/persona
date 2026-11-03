@@ -14,8 +14,15 @@ import {
   openPersonaStore,
   type PersonaStore,
 } from '@deepseek-ai/dsh-persona-store'
-import { detectConnections } from '@deepseek-ai/dsh-persona-runners'
+import { detectConnections, toUiConnection } from '@deepseek-ai/dsh-persona-runners'
+import { resolveSessionActor, sessionCan } from './auth.ts'
+import { DeadLetterBook } from './dead-letter.ts'
+import { collectDiagnostics, stringifyDiagnostics } from './diagnostics.ts'
+import { exportMarkdown } from './export-md.ts'
 import { GithubSourceHost, detectGh } from './github.ts'
+import { detectProjectGit, validateProjectRoot } from './project-root.ts'
+import { hostRunnerFromContext } from './runner.ts'
+import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { ScreensHost } from './screens.ts'
 import { draftPersonaWithDriver, draftTeamWithDriver } from './draft.ts'
@@ -48,8 +55,14 @@ import type {
   AttentionEventView,
   AttentionPolicyView,
   AttentionStreamFrame,
+  AcceptReviewRequest,
+  CancelReplyRequest,
   CompleteOnboardingRequest,
+  DiagnosticsJson,
   OnboardingState,
+  RequestChangesRequest,
+  ReviewAcceptView,
+  ReviewSummaryView,
   PutAttentionPolicyRequest,
   PutRetentionPolicyRequest,
   RetentionLogView,
@@ -120,10 +133,14 @@ import type {
   SkillView,
   TriageLogView,
   TriageRuleView,
+  DeadLetterView,
+  ExportArchiveView,
+  ExportRequest,
   FetchGithubIssueRequest,
   GithubAvailableView,
   GithubIngestView,
   IngestGithubWebhookRequest,
+  PickDirectoryView,
   PostGithubCommentRequest,
 } from './types.ts'
 
@@ -132,6 +149,7 @@ export { ProactivityHost } from './proactivity.ts'
 export { ScreensHost } from './screens.ts'
 export { GithubSourceHost, detectGh } from './github.ts'
 export { createHostRunner, resolveHostRunner } from './runner.ts'
+export { ACL_EXCEPTIONS } from './auth.ts'
 export { OnboardingHost } from './onboarding.ts'
 export { HostScheduler } from './scheduler.ts'
 export type * from './types.ts'
@@ -166,6 +184,11 @@ export function resolvePersonaDatabasePath(configured: string): string {
 
 /** Persona domain methods for the authenticated owner and invited peers. */
 export default class PersonaHost extends TypertRemoteService {
+  /**
+   * `typert` is required. `personaRunners` and `webServer` are optional: Cordis
+   * treats every `inject` key as required (fiber stays PENDING), so those are
+   * read with {@link Context.get} (vendor/cordis reflect).
+   */
   static inject = ['typert']
 
   readonly store: PersonaStore
@@ -179,6 +202,10 @@ export default class PersonaHost extends TypertRemoteService {
   readonly github: GithubSourceHost
   readonly onboarding: OnboardingHost
   readonly scheduler: HostScheduler
+  readonly deadLetters: DeadLetterBook
+  readonly webhookGuard: WebhookReplayGuard = new WebhookReplayGuard()
+  sessionMemberId: string | undefined
+  readonly lastErrors: string[] = []
 
   /**
    * @param ctx - Host context.
@@ -191,14 +218,20 @@ export default class PersonaHost extends TypertRemoteService {
     this.events = new EventRepos(this.store)
     this.vault = new VaultRepos(this.store)
     this.routines = new RoutineRepos(this.store)
-    this.orchestration = new Orchestration(this.product, this.events, this.store)
+    const screenRepos = new ScreenRepos(this.store)
+    this.deadLetters = new DeadLetterBook(screenRepos, () => this.orchestration.now())
+    this.orchestration = new Orchestration(
+      this.product, this.events, this.store, () => new Date().toISOString(),
+      hostRunnerFromContext(ctx),
+      undefined,
+      this.deadLetters,
+    )
     this.proactivity = new ProactivityHost(
       this.product,
       this.routines,
       new ProactivityRepos(this.store),
       this.orchestration,
     )
-    const screenRepos = new ScreenRepos(this.store)
     this.screens = new ScreensHost(
       this.product,
       this.vault,
@@ -210,6 +243,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.onboarding = new OnboardingHost(this.product, this.events, screenRepos, this.screens)
     this.scheduler = new HostScheduler(this.store, screenRepos)
     this.github = new GithubSourceHost(detectGh(), this.orchestration, this.proactivity)
+    this.mountGithubWebhook(ctx)
     for (const workspace of this.product.listWorkspaces()) {
       for (const project of this.product.listProjects(workspace.id)) {
         this.scheduler.arm(project.id)
@@ -219,6 +253,14 @@ export default class PersonaHost extends TypertRemoteService {
       this.scheduler.dispose()
       this.store.close()
     })
+  }
+
+  /**
+   * True when Rivet's `personaRunners` plugin is live on this context.
+   * @returns Whether `ctx.get('personaRunners')` resolved.
+   */
+  get usedPersonaRunners(): boolean {
+    return runnersOf(this.ctx) !== undefined
   }
 
   /**
@@ -237,14 +279,19 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   listProjects(request: ProjectScopeRequest): ProjectView[] {
-    this.requireWorkspace(request)
-    return this.product.listProjects(request.workspaceId).map(project => ({
-      id: project.id,
-      workspaceId: project.workspaceId,
-      name: project.name,
-      description: project.description,
-      kind: project.kind,
-    }))
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) return []
+    return this.product.listProjects(request.workspaceId)
+      .filter(project => sessionCan(actor, 'read', {
+        type: 'project', workspaceId: request.workspaceId, projectId: project.id,
+      }))
+      .map(project => ({
+        id: project.id,
+        workspaceId: project.workspaceId,
+        name: project.name,
+        description: project.description,
+        kind: project.kind,
+      }))
   }
 
   /**
@@ -295,13 +342,18 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   listDms(request: ProjectScopeRequest): DmView[] {
-    this.requireProject(request)
-    return this.product.listDms(request.projectId).map(dm => ({
-      id: dm.id,
-      projectId: dm.projectId,
-      participantA: dm.participantA,
-      participantB: dm.participantB,
-    }))
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) return []
+    return this.product.listDms(request.projectId)
+      .filter(dm => sessionCan(actor, 'read', {
+        type: 'dm', workspaceId: request.workspaceId, dmId: dm.id, memberIds: [dm.participantA, dm.participantB],
+      }))
+      .map(dm => ({
+        id: dm.id,
+        projectId: dm.projectId,
+        participantA: dm.participantA,
+        participantB: dm.participantB,
+      }))
   }
 
   /**
@@ -330,8 +382,15 @@ export default class PersonaHost extends TypertRemoteService {
   getOverview(request: ProjectScopeRequest): OverviewView {
     this.requireProject(request)
     const cards = this.listTasks(request)
+    const letters = this.deadLetters.list(request.projectId).map((letter): TaskView => ({
+      id: letter.id,
+      projectId: request.projectId,
+      title: letter.cause,
+      stage: 'blocked',
+      stageAction: 'retry',
+    }))
     return {
-      needsYou: cards.filter(card => card.stage === 'blocked' || card.stage === 'review'),
+      needsYou: [...letters, ...cards.filter(card => card.stage === 'blocked' || card.stage === 'review')],
       inProgress: cards.filter(card => card.stage === 'doing' || card.stage === 'todo'),
     }
   }
@@ -596,16 +655,56 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     const current = this.product.getProject(request.projectId)
     if (current === undefined) throw new Error('project-not-found')
+    if (request.rootPath === '') {
+      this.product.updateProject(request.projectId, {
+        name: current.name, description: current.description, rootPath: null,
+      })
+      return emptyRootView(request.projectId, 'cleared', 'Pasta do projeto removida.')
+    }
+    const decision = validateProjectRoot(request.rootPath, this.product, request.projectId)
+    if (!decision.ok) return emptyRootView(request.projectId, 'invalid', decision.message)
     this.product.updateProject(request.projectId, {
-      name: current.name,
-      description: current.description,
-      rootPath: request.rootPath === '' ? null : request.rootPath,
+      name: current.name, description: current.description, rootPath: decision.path,
     })
+    const git = detectProjectGit(decision.path)
     return {
       projectId: request.projectId,
-      rootPath: request.rootPath,
-      status: request.rootPath === '' ? 'cleared' : 'ok',
+      rootPath: decision.path,
+      status: 'ok',
+      message: git.isRepo ? (git.dirty ? 'Repositório git com alterações locais.' : 'Repositório git.') : 'Pasta sem git.',
+      ...git,
     }
+  }
+
+  /**
+   * Current folder + git facts. Empty root → need-root.
+   * @param request - Tenant.
+   */
+  @Remote
+  getProjectRoot(request: ProjectScopeRequest): ProjectRootView {
+    this.requireProject(request)
+    const current = this.product.getProject(request.projectId)
+    const root = current?.rootPath
+    if (root === undefined || root === '') {
+      return emptyRootView(request.projectId, 'need-root', 'escolha a pasta do projeto')
+    }
+    const git = detectProjectGit(root)
+    return {
+      projectId: request.projectId,
+      rootPath: root,
+      status: 'ok',
+      message: git.isRepo ? (git.dirty ? 'Repositório git com alterações locais.' : 'Repositório git.') : 'Pasta sem git.',
+      ...git,
+    }
+  }
+
+  /**
+   * Rivet owns the OS dialog. This host never opens it.
+   * @returns Always `path: null` here (Rivet IPC fills it on desktop).
+   */
+  @Remote
+  pickDirectory(): PickDirectoryView {
+    return { path: null }
   }
 
   /**
@@ -1053,10 +1152,11 @@ export default class PersonaHost extends TypertRemoteService {
       subjectId: request.subjectId,
       occurredAt: request.occurredAt,
     })
-    this.orchestration.ingest(stored, request.streamKind, request.ownerId)
+    this.orchestration.ingest(stored, request.streamKind, request.ownerId, request.responderId ?? '')
     const ticketed = this.orchestration.runtime(request.projectId).repo.tickets.list()
       .some(ticket => ticket.origin.triggerId === request.id)
     const answered = this.events.has(`coord-${request.id}-reply`)
+      || this.events.has(`coord-${request.id}-partial`)
     if (ticketed || answered) {
       this.screens.recordTriage(request.projectId, {
         at: this.orchestration.now(),
@@ -1080,10 +1180,28 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   listMessages(request: ListMessagesRequest): MessagePage {
-    this.requireProject(request)
+    try {
+      this.requireProject(request)
+    } catch {
+      return { events: [], nextSeq: request.afterSeq }
+    }
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) return { events: [], nextSeq: request.afterSeq }
+    if (request.streamKind === 'dm') {
+      const dm = this.product.getDm(request.ownerId)
+      if (dm === undefined || !sessionCan(actor, 'read', {
+        type: 'dm', workspaceId: request.workspaceId, dmId: dm.id, memberIds: [dm.participantA, dm.participantB],
+      })) {
+        return { events: [], nextSeq: request.afterSeq }
+      }
+    }
     const streamId = `${request.streamKind}:${request.ownerId}`
-    const page = this.events.list(streamId, { id: request.actorId }, request.afterSeq, request.limit)
-    return { events: page.events.map(toMessageView), nextSeq: page.nextSeq }
+    try {
+      const page = this.events.list(streamId, { id: actor.id }, request.afterSeq, request.limit)
+      return { events: page.events.map(toMessageView), nextSeq: page.nextSeq }
+    } catch {
+      return { events: [], nextSeq: request.afterSeq }
+    }
   }
 
   /**
@@ -1102,7 +1220,8 @@ export default class PersonaHost extends TypertRemoteService {
       queue.push(toMessageView(event))
     })
     try {
-      const page = this.events.list(streamId, { id: request.actorId }, request.afterSeq, request.limit)
+      const actor = this.actorOf(request.workspaceId)
+      const page = this.events.list(streamId, { id: actor?.id ?? '' }, request.afterSeq, request.limit)
       const events = page.events.map(toMessageView)
       const seen = new Set(events.map(item => item.id))
       yield { kind: 'baseline', events, order: events.map(item => item.id) }
@@ -1230,14 +1349,26 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     try {
       const snaps = await detectConnections({ timeoutMs: 400 })
-      return snaps.map(snap => ({
-        id: snap.id,
-        kind: snap.id === 'dsh' ? 'dsh' : snap.id,
-        available: snap.installed,
-        loginHint: snap.loginHint ?? '',
-      }))
+      return snaps.map((snap): ConnectionView => {
+        const row = toUiConnection(snap)
+        const card: ConnectionView = {
+          id: row.id,
+          kind: row.id === 'claude' || row.id === 'codex' || row.id === 'cursor' || row.id === 'opencode'
+            ? row.id
+            : 'dsh',
+          available: row.available,
+          loggedIn: row.loggedIn,
+          loginHint: row.loginHint,
+        }
+        if (row.error === undefined) return card
+        const { code, message } = row.error
+        if (code === 'cli_not_found' || code === 'not_logged_in' || code === 'quota_exhausted') {
+          return { ...card, error: { code, message } }
+        }
+        return card
+      })
     } catch {
-      return [{ id: 'dsh', kind: 'dsh', available: true, loginHint: '' }]
+      return [{ id: 'dsh', kind: 'dsh', available: true, loggedIn: false, loginHint: '' }]
     }
   }
 
@@ -1366,8 +1497,14 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   search(request: SearchRequest): MessageView[] {
-    this.requireProject(request)
-    return this.events.search(request.projectId, { id: request.actorId }, request.query, request.limit)
+    try {
+      this.requireProject(request)
+    } catch {
+      return []
+    }
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) return []
+    return this.events.search(request.projectId, { id: actor.id }, request.query, request.limit)
       .map(toMessageView)
   }
 
@@ -1525,9 +1662,177 @@ export default class PersonaHost extends TypertRemoteService {
     return draftTeamWithDriver(request.description)
   }
 
+  /**
+   * Cancel an in-flight conversation reply.
+   * @param request - Human message id.
+   */
+  @Remote
+  cancelReply(request: CancelReplyRequest): boolean {
+    this.requireProject(request)
+    this.orchestration.cancelReply(request.eventId)
+    return true
+  }
+
+  /**
+   * Support dump (no secrets, no message bodies).
+   * @returns JSON string.
+   */
+  @Remote
+  async exportDiagnostics(): Promise<DiagnosticsJson> {
+    const json = stringifyDiagnostics(await collectDiagnostics({
+      protocol: PERSONA_PROTOCOL,
+      product: this.product,
+      store: this.store,
+      lastErrors: [...this.lastErrors, ...this.orchestration.lastErrors],
+      scheduler: this.scheduler,
+    }))
+    return { json }
+  }
+
+  /**
+   * Create the review worktree at assignment start. No folder → task without code.
+   * @param request - Ticket.
+   */
+  @Remote
+  async prepareReview(request: TicketCommandRequest): Promise<ReviewSummaryView> {
+    this.requireProject(request)
+    const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
+    const latest = ticket === undefined ? undefined : ticket.assignments.at(-1)
+    if (ticket === undefined || latest === undefined) throw new Error('ticket-not-found')
+    await this.orchestration.prepareReview(request.projectId, request.ticketId, latest.id)
+    return this.reviewSummary(request)
+  }
+
+  /**
+   * Revisar panel card.
+   * @param request - Ticket.
+   */
+  @Remote
+  async reviewSummary(request: TicketCommandRequest): Promise<ReviewSummaryView> {
+    this.requireProject(request)
+    const sum = await this.orchestration.reviewSummary(request.projectId, request.ticketId)
+    return {
+      ticketId: sum.ticketId,
+      files: sum.files,
+      added: sum.added,
+      deleted: sum.deleted,
+      patch: sum.patch,
+      patchTruncated: sum.patchTruncated,
+      secretsRedacted: sum.secretsRedacted,
+      testsClaimed: sum.testsClaimed,
+      hasWorktree: sum.patchLimitBytes > 0 || sum.files.length > 0,
+    }
+  }
+
+  /**
+   * Accept (ff or squash). Conflict → Bloqueado · Precisa de você.
+   * @param request - Ticket and mode.
+   */
+  @Remote
+  async acceptReview(request: AcceptReviewRequest): Promise<ReviewAcceptView> {
+    this.requireProject(request)
+    const result = await this.orchestration.acceptReview(request.projectId, request.ticketId, request.mode)
+    if (result.kind === 'merged') {
+      this.orchestration.completeReview(request.projectId, request.ticketId)
+      return { kind: 'merged', mode: result.mode, explanation: '' }
+    }
+    return { kind: 'blocked', mode: request.mode, explanation: result.explanation }
+  }
+
+  /**
+   * New assignment round with feedback. Mandate stays.
+   * @param request - Ticket and text.
+   */
+  @Remote
+  async requestChanges(request: RequestChangesRequest): Promise<boolean> {
+    this.requireProject(request)
+    await this.orchestration.requestChanges(request.projectId, request.ticketId, request.feedback)
+    return true
+  }
+
+  /**
+   * Drop worktree and branch. No push.
+   * @param request - Ticket.
+   */
+  @Remote
+  async discardReview(request: TicketCommandRequest): Promise<boolean> {
+    this.requireProject(request)
+    await this.orchestration.discardReview(request.projectId, request.ticketId)
+    return true
+  }
+
+  /**
+   * Failed effects/outbox that exhausted retries.
+   * @param request - Tenant.
+   */
+  @Remote
+  listDeadLetters(request: ProjectScopeRequest): DeadLetterView[] {
+    this.requireProject(request)
+    return this.deadLetters.list(request.projectId)
+  }
+
+  /**
+   * Retry a dead letter: drop the card so the next tick can run again.
+   * @param request - Letter id.
+   */
+  @Remote
+  retryDeadLetter(request: ScreenDocRequest): boolean {
+    this.requireProject(request)
+    const found = this.deadLetters.discard(request.projectId, request.id)
+    if (found) this.orchestration.retryOutbox(request.projectId)
+    return found
+  }
+
+  /**
+   * Discard a dead letter without retrying.
+   * @param request - Letter id.
+   */
+  @Remote
+  discardDeadLetter(request: ScreenDocRequest): boolean {
+    this.requireProject(request)
+    return this.deadLetters.discard(request.projectId, request.id)
+  }
+
+  /**
+   * Markdown zip of the workspace. DMs only when listed.
+   * @param request - Workspace + optional DMs.
+   */
+  @Remote
+  exportWorkspace(request: ExportRequest): ExportArchiveView {
+    this.requireWorkspace(request)
+    return toExportView(exportMarkdown(this.product, this.events, this.vault, {
+      workspaceId: request.workspaceId,
+      includeDmIds: request.includeDmIds,
+    }, this.actorOf(request.workspaceId)?.id ?? ''))
+  }
+
+  /**
+   * Markdown zip of one project. DMs only when listed.
+   * @param request - Project + optional DMs.
+   */
+  @Remote
+  exportProject(request: ExportRequest): ExportArchiveView {
+    this.requireProject(request)
+    return toExportView(exportMarkdown(this.product, this.events, this.vault, {
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      includeDmIds: request.includeDmIds,
+    }, this.actorOf(request.workspaceId)?.id ?? ''))
+  }
+
+  private actorOf(workspaceId: string) {
+    return resolveSessionActor(this.product, workspaceId, this.sessionMemberId)
+  }
+
   private requireWorkspace(request: { workspaceId: string }): void {
     if (this.product.getWorkspace(request.workspaceId) === undefined) {
       throw new Error('workspace-not-found')
+    }
+    if (this.product.listMembers(request.workspaceId).length === 0) return
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) throw new Error('forbidden')
+    if (!sessionCan(actor, 'read', { type: 'workspace', workspaceId: request.workspaceId })) {
+      throw new Error('forbidden')
     }
   }
 
@@ -1536,6 +1841,12 @@ export default class PersonaHost extends TypertRemoteService {
     const project = this.product.getProject(request.projectId)
     if (project === undefined || project.workspaceId !== request.workspaceId) {
       throw new Error('project-not-found')
+    }
+    if (this.product.listMembers(request.workspaceId).length === 0) return
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) throw new Error('forbidden')
+    if (!sessionCan(actor, 'read', { type: 'project', workspaceId: request.workspaceId, projectId: request.projectId })) {
+      throw new Error('forbidden')
     }
   }
 
@@ -1557,20 +1868,79 @@ export default class PersonaHost extends TypertRemoteService {
         })
       }
     }
+    for (const letter of this.deadLetters.list(request.projectId)) {
+      events.push({
+        id: `dead:${letter.id}`, kind: 'needs-you', title: letter.cause, ticketId: letter.id, at: letter.at,
+      })
+    }
     return events.slice(0, policy.proposalBudget)
+  }
+
+  private mountGithubWebhook(ctx: Context): void {
+    const server = webserverOf(ctx)
+    if (server === undefined) return
+    const handler = githubWebhookHandler({
+      secretOf: (projectId: string) => webhookSecretOf(this.vault, projectId),
+      ingest: (projectId: string, event: string, action: string, repository: string, deliveryId: string, payload: Record<string, unknown>) => {
+        const project = this.product.getProject(projectId)
+        if (project === undefined) return { kind: 'ignore', detail: 'project' }
+        return this.github.ingest(projectId, {
+          deliveryId,
+          event: asGithubEvent(event),
+          action,
+          repository,
+          payload,
+        }, '')
+      },
+      now: () => Date.now(),
+    }, this.webhookGuard)
+    ctx.effect(() => server.register({
+      kind: 'exact',
+      path: '/api/persona/webhooks/github',
+      handler,
+    }))
   }
 
   private requireFileRoot(request: ProjectFileRequest): string | undefined {
     this.requireProject(request)
-    const member = this.product.getMember(request.actorId)
-    if (member === undefined || member.workspaceId !== request.workspaceId) {
-      throw new Error('files-forbidden')
-    }
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) throw new Error('files-forbidden')
     const project = this.product.getProject(request.projectId)
     if (project === undefined) throw new Error('project-not-found')
     if (project.rootPath === undefined || project.rootPath === '') return undefined
     return project.rootPath
   }
+}
+
+function emptyRootView(projectId: string, status: ProjectRootView['status'], message: string): ProjectRootView {
+  return {
+    projectId, rootPath: '', status, message, isRepo: false, defaultBranch: '', dirty: false,
+  }
+}
+
+function toExportView(archive: { filename: string; bytes: Uint8Array }): ExportArchiveView {
+  return { filename: archive.filename, base64: Buffer.from(archive.bytes).toString('base64') }
+}
+
+function webhookSecretOf(vault: VaultRepos, projectId: string): string {
+  const env = process.env.PERSONA_GITHUB_WEBHOOK_SECRET
+  if (env !== undefined && env !== '') return env
+  const row = vault.listRecords(projectId).find(item => item.factKey === 'github.webhook.secret')
+  return row?.body ?? ''
+}
+
+function runnersOf(ctx: Context): import('./runner.ts').PersonaRunnersSlice | undefined {
+  return ctx.get('personaRunners')
+}
+
+function webserverOf(ctx: Context): {
+  register: (route: {
+    kind: 'exact'
+    path: string
+    handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void | Promise<void>
+  }) => () => void
+} | undefined {
+  return ctx.get('webServer')
 }
 
 function asGithubEvent(event: string): 'issues' | 'issue_comment' | 'pull_request' | 'pull_request_review' | 'pull_request_review_comment' {
@@ -1624,6 +1994,7 @@ function toMessageView(event: {
   actorId: string
   subjectId: string
   occurredAt: string
+  type?: string
 }): MessageView {
   return {
     id: event.id,
@@ -1633,6 +2004,7 @@ function toMessageView(event: {
     actorId: event.actorId,
     subjectId: event.subjectId,
     occurredAt: event.occurredAt,
+    type: event.type ?? 'message',
   }
 }
 

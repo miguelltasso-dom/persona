@@ -4,6 +4,59 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 03/11 16:55 — conversa + ACL + diagnostics + DB + ReviewDelivery + orçamento
+
+### 1. Conversa no condutor
+DM e `@menção` usam o mesmo laço do runner, sem Ticket quando não é trabalho. Seletor `responderId` (servidor, não o `actorId` do cliente). Resposta no fio; handoff (`Encaminhei para {nome}`; executor posta como ele). Streaming `partial` → final via `followMessages`. `cancelReply` não trava. Erro do runner: `não consegui responder: …` + ação. Relógio injetável; resume no meio do `partial`.
+
+### 2. ACL no Remote
+Todo método resolve o ator no servidor (`resolveSessionActor`: sessão local = owner, `sessionMemberId` só em teste/peer). `can()`. Exceções documentadas: `ping`, `getOnboarding`, `completeOnboarding`, `createWorkspace`, `exportDiagnostics`. Bootstrap: workspace/projeto sem membros ainda não exige ator. Guest sem projeto/DM recebe lista vazia, sem erro revelador. `actorId` do cliente não autoriza arquivos/busca/stream.
+
+### 3. `exportDiagnostics()`
+JSON: versões, schema, contagens, `lastErrors`, scheduler/Vigia, conexão `dsh` (sem spawn de CLI). Recusa se `looksLikeCredential`. Sem corpos de mensagem/DM. Probe live de CLIs fica em `listConnections`.
+
+### 4. Versão do DB
+Fixtures v1..v6 migram e preservam workspace. Banco mais novo que o app: `version-too-new` + `userMessage` pt-BR, sem down-migrate. `.db` corrompido: restaura o último `VACUUM INTO` (`recoveredFrom` + «O banco estava danificado. Restaurei o último backup.»). `migration-failed` **não** é recover (evita segundo backup e retry da migração quebrada).
+
+### 5. ReviewDelivery (Forge) no host — Lumen **Revisar**
+Remotes: `prepareReview`, `reviewSummary`, `acceptReview(mode)`, `requestChanges`, `discardReview`. Todas com `can()` + ator do servidor. Sem `rootPath` → Tarefa sem código (sem worktree). `prepare` no start da Assignment (`persona/<ticketId>`, `PERSONA_HOME/worktrees/<projectId>`). Conflito → `kind: 'blocked'` + `explanation` (engine) e kanban Bloqueado · Precisa de você; `merge --abort`. Aceite fecha a thread `review`. `sweepOrphans` no `runtime()`/resume. `GitReviewDelivery` não faz push. Contrato: `persona-spec/contracts/review-delivery.md` + `lumen-rpc.md`.
+
+### 6. Multi-projeto
+`ExecutionBudget` (global 4, por projeto 2). Projeto barulhento não esgota os outros. `runLaunched` sem vaga posta «Aguardando vaga neste projeto.» Teste: 8 projetos + cap.
+
+### Arquivos
+- `packages/persona/persona-host/src/{index,orchestration,auth,review,diagnostics,budget,types}.ts`
+- `packages/persona/persona-host/tests/{conductor,remote-acl,diagnostics,review,multi-project,files,controller}.spec.ts`
+- `packages/persona/persona-store/src/{store,errors,index}.ts`
+- `packages/persona/persona-store/tests/migrate-fixtures.spec.ts`
+- `persona-spec/contracts/lumen-rpc.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests packages/persona/persona-store/tests
+ Test Files  32 passed (32)
+      Tests  338 passed (338)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 14.6s
+persona-store: OK in 8.9s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 43.4s
+```
+
+### Limitações
+- Diagnostics lista só `dsh` (CLI probe no PATH bloqueava o event loop; `listConnections` continua o probe live).
+- `ctx.personaRunners.resolveRunner` ainda não injetado; `PERSONA_REAL_CLI=1` segue pelo import.
+- B7 (um run mutante) já tem teste em `orchestration.spec` («keeps a single mutant run»); próximo Anvil no PLAN se o Keel não mandar outra fila.
+
+---
+
 ## 03/11 16:10 — resolveRunner + S5 onboarding + atenção + retenção + ociosidade
 
 ### 1. `createHostRunner` → `resolveHostRunner`

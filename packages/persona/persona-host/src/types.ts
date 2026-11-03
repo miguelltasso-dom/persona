@@ -167,6 +167,7 @@ export interface PostMessageRequest {
   readonly actorId: string
   readonly subjectId: string
   readonly occurredAt: string
+  readonly responderId?: string
 }
 
 /** Page or follow messages. `afterSeq` is 0 to start; `limit` is 1–200. */
@@ -189,6 +190,7 @@ export interface MessageView {
   readonly actorId: string
   readonly subjectId: string
   readonly occurredAt: string
+  readonly type: string
 }
 
 /** Message page plus exclusive cursor. */
@@ -202,6 +204,61 @@ export interface MessageStreamFrame {
   readonly kind: 'baseline' | 'upsert'
   readonly events: readonly MessageView[]
   readonly order: readonly string[]
+}
+
+/** Cancel an in-flight conversation reply. */
+export interface CancelReplyRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly eventId: string
+}
+
+/** JSON diagnostics for support (no secrets). */
+export interface DiagnosticsJson {
+  readonly json: string
+}
+
+/** One file in the Revisar panel. */
+export interface ReviewFileView {
+  readonly path: string
+  readonly added: number
+  readonly deleted: number
+}
+
+/** Diff card for Lumen Revisar. */
+export interface ReviewSummaryView {
+  readonly ticketId: string
+  readonly files: readonly ReviewFileView[]
+  readonly added: number
+  readonly deleted: number
+  readonly patch: string
+  readonly patchTruncated: boolean
+  readonly secretsRedacted: boolean
+  readonly testsClaimed: readonly string[]
+  readonly hasWorktree: boolean
+}
+
+/** Accept the review (ff or squash). */
+export interface AcceptReviewRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly ticketId: string
+  readonly mode: 'ff' | 'squash'
+}
+
+/** Ask for another assignment round. */
+export interface RequestChangesRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly ticketId: string
+  readonly feedback: string
+}
+
+/** Result of accept. */
+export interface ReviewAcceptView {
+  readonly kind: 'merged' | 'blocked'
+  readonly mode: string
+  readonly explanation: string
 }
 
 /** Update a project's name, description, and file root. Empty `rootPath` clears it. */
@@ -264,7 +321,40 @@ export interface SetProjectRootRequest {
 export interface ProjectRootView {
   readonly projectId: string
   readonly rootPath: string
-  readonly status: 'ok' | 'cleared'
+  readonly status: 'ok' | 'cleared' | 'invalid' | 'need-root'
+  readonly message: string
+  readonly isRepo: boolean
+  readonly defaultBranch: string
+  readonly dirty: boolean
+}
+
+/** Rivet OS dialog. Host never opens it; null = cancelled / unavailable. */
+export interface PickDirectoryView {
+  readonly path: string | null
+}
+
+/** One dead-lettered effect/outbox row. */
+export interface DeadLetterView {
+  readonly id: string
+  readonly projectId: string
+  readonly cause: string
+  readonly actionRetry: string
+  readonly actionDiscard: string
+  readonly attempts: number
+  readonly at: string
+}
+
+/** Markdown zip. `base64` is the archive; never includes secrets in the filename. */
+export interface ExportArchiveView {
+  readonly filename: string
+  readonly base64: string
+}
+
+/** Opt-in DMs for {@link ExportArchiveView}. */
+export interface ExportRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly includeDmIds: readonly string[]
 }
 
 /** Create a routine. Empty silence fields mean no quiet window. */
@@ -417,12 +507,20 @@ export interface CompleteOnboardingRequest {
   readonly cofreSeed: string
 }
 
+/** Typed connection probe failure for the UI (no stack, no secrets). */
+export interface ConnectionProbeError {
+  readonly code: 'cli_not_found' | 'not_logged_in' | 'quota_exhausted'
+  readonly message: string
+}
+
 /** Detected CLI or connection (read-only probe). */
 export interface ConnectionView {
   readonly id: string
   readonly kind: 'claude' | 'codex' | 'cursor' | 'opencode' | 'dsh'
   readonly available: boolean
+  readonly loggedIn: boolean
   readonly loginHint: string
+  readonly error?: ConnectionProbeError
 }
 
 /** Desktop notification policy (Rivet). */

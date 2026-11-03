@@ -9,7 +9,7 @@ export {
   PERSONA_SCHEMA_VERSION,
 } from './constants.ts'
 
-export { StoreError } from './errors.ts'
+export { StoreError, STORE_USER_MESSAGES } from './errors.ts'
 export type { StoreErrorCode } from './errors.ts'
 
 export { PERSONA_MIGRATIONS } from './migrations.ts'

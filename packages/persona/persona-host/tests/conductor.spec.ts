@@ -64,6 +64,7 @@ it('replies on #geral without a ticket when the message is not work', async () =
   const h = host()
   seed(h)
   ask(h, 'm-hi', 'oi, tudo bem?')
+  await h.orchestration.flush('pp')
   expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })).toEqual([])
   const page = channel(h)
   expect(page.events.some(item => item.actorId === 'coord' && /ajudar/i.test(item.body))).toBe(true)
@@ -159,4 +160,113 @@ it('blocks with Precisa de você when resolveRunner reports quota exhausted', as
   await h.orchestration.flush('pp')
   expect(h.getOverview({ workspaceId: 'ws', projectId: 'pp' }).needsYou.length).toBeGreaterThan(0)
   expect(channel(h).events.some(item => /Cota de claude esgotada/i.test(item.body))).toBe(true)
+})
+
+it('DMs and @mentions reply without a ticket; selector and thread are respected', async () => {
+  const h = host()
+  seed(h)
+  h.createPersona({
+    workspaceId: 'ws', projectId: 'pp', id: 'bento', name: 'Bento', title: 'Engenharia',
+    description: 'Implementa.', personality: 'Direto.', instructions: 'Prove.',
+    avatarKind: 'gallery', avatarRef: 'bento', runnerKind: 'dsh', runnerCli: '',
+    runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+  })
+  h.createDm({ id: 'dm-bento', workspaceId: 'ws', projectId: 'pp', participantA: 'ana', participantB: 'bento' })
+  h.postMessage({
+    id: 'm-dm', workspaceId: 'ws', projectId: 'pp', streamKind: 'dm', ownerId: 'dm-bento',
+    body: 'oi, tudo bem?', actorId: 'ana', subjectId: 'dm-thread', occurredAt: '2026-11-03T15:00:00.000Z',
+  })
+  await h.orchestration.flush('pp')
+  expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })).toEqual([])
+  const dm = h.listMessages({
+    workspaceId: 'ws', projectId: 'pp', streamKind: 'dm', ownerId: 'dm-bento',
+    actorId: 'ana', afterSeq: 0, limit: 20,
+  })
+  expect(dm.events.some(item => item.actorId === 'bento' && item.subjectId === 'dm-thread')).toBe(true)
+
+  ask(h, 'm-at', 'oi @Bento, tudo bem?')
+  await h.orchestration.flush('pp')
+  expect(channel(h).events.some(item => item.actorId === 'bento' && item.subjectId === 't1')).toBe(true)
+
+  h.postMessage({
+    id: 'm-sel', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    body: 'oi, tudo bem?', actorId: 'ana', subjectId: 'pick', occurredAt: '2026-11-03T15:01:00.000Z',
+    responderId: 'bento',
+  })
+  await h.orchestration.flush('pp')
+  expect(channel(h).events.some(item => item.actorId === 'bento' && item.subjectId === 'pick')).toBe(true)
+})
+
+it('handoff posts progress as the executor; streaming goes partial then final; cancel and error do not hang', async () => {
+  const h = host()
+  seed(h)
+  h.createPersona({
+    workspaceId: 'ws', projectId: 'pp', id: 'bento', name: 'Bento', title: 'Engenharia',
+    description: 'Implementa.', personality: 'Direto.', instructions: 'Prove.',
+    avatarKind: 'gallery', avatarRef: 'bento', runnerKind: 'dsh', runnerCli: '',
+    runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+  })
+  ask(h, 'm-hand', 'preciso de um README no projeto')
+  await h.orchestration.flush('pp')
+  const page = channel(h)
+  expect(page.events.some(item => item.actorId === 'coord' && /Encaminhei para Bento/i.test(item.body))).toBe(true)
+  expect(page.events.some(item => item.actorId === 'bento' && /Pronto|Em andamento/i.test(item.body))).toBe(true)
+  expect(page.events.some(item => item.type === 'partial' || item.body === '…')).toBe(false)
+
+  const talk = host()
+  seed(talk)
+  talk.postMessage({
+    id: 'm-stream', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    body: 'oi, tudo bem?', actorId: 'ana', subjectId: 't1', occurredAt: '2026-11-03T15:00:00.000Z',
+  })
+  expect(channel(talk).events.some(item => item.type === 'partial')).toBe(true)
+  await talk.orchestration.flush('pp')
+  expect(channel(talk).events.some(item => item.id === 'coord-m-stream-reply' && item.type === 'message')).toBe(true)
+
+  const cancel = host()
+  seed(cancel)
+  cancel.postMessage({
+    id: 'm-cancel', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    body: 'oi, tudo bem?', actorId: 'ana', subjectId: 't1', occurredAt: '2026-11-03T15:00:00.000Z',
+  })
+  cancel.cancelReply({ workspaceId: 'ws', projectId: 'pp', eventId: 'm-cancel' })
+  await cancel.orchestration.flush('pp')
+  expect(channel(cancel).events.some(item => /cancelada/i.test(item.body))).toBe(true)
+
+  const fail = host()
+  seed(fail)
+  fail.orchestration.runnerFactory = async () => {
+    throw new Error('boom')
+  }
+  fail.postMessage({
+    id: 'm-fail', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    body: 'oi, tudo bem?', actorId: 'ana', subjectId: 't1', occurredAt: '2026-11-03T15:00:00.000Z',
+  })
+  await fail.orchestration.flush('pp')
+  expect(channel(fail).events.some(item => /não consegui responder/i.test(item.body))).toBe(true)
+  expect(JSON.stringify(channel(fail).events)).not.toMatch(/stack|sk-/i)
+})
+
+it('resumes a partial stream after restart', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-stream-'))
+  dirs.push(dir)
+  const path = join(dir, 'persona.db')
+  const first = host(path)
+  seed(first)
+  first.postMessage({
+    id: 'm-mid', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    body: 'oi, tudo bem?', actorId: 'ana', subjectId: 't1', occurredAt: '2026-11-03T15:00:00.000Z',
+  })
+  expect(first.listMessages({
+    workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    actorId: 'ana', afterSeq: 0, limit: 20,
+  }).events.some(item => item.type === 'partial')).toBe(true)
+  first.store.close()
+  const second = host(path)
+  await second.orchestration.flush('pp')
+  const page = second.listMessages({
+    workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    actorId: 'ana', afterSeq: 0, limit: 20,
+  })
+  expect(page.events.some(item => item.id === 'coord-m-mid-reply')).toBe(true)
 })

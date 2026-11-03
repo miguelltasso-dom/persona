@@ -2,7 +2,7 @@
  * Open, identify, migrate, and transact against `persona.db`.
  */
 
-import { closeSync, mkdirSync, openSync } from 'node:fs'
+import { closeSync, copyFileSync, mkdirSync, openSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
@@ -33,6 +33,8 @@ export class PersonaStore {
   readonly backupDir: string
   /** Live `DatabaseSync`. Callers must not close it. */
   readonly db: DatabaseSync
+  recoveredFrom: string | undefined
+  recoveryMessage: string | undefined
   #open = true
   #txDepth = 0
 
@@ -115,6 +117,22 @@ export class PersonaStore {
  * @returns An open store at {@link PERSONA_SCHEMA_VERSION} (or the last injected migration).
  */
 export function openPersonaStore(options: OpenPersonaStoreOptions): PersonaStore {
+  try {
+    return openPersonaStoreOnce(options)
+  } catch (error: unknown) {
+    if (options.path === ':memory:' || !isCorrupt(error)) throw error
+    const backupDir = options.backupDir ?? join(dirname(resolve(options.path)), 'backups')
+    const backup = latestBackup(backupDir)
+    if (backup === undefined) throw error
+    copyFileSync(backup, resolve(options.path))
+    const store = openPersonaStoreOnce(options)
+    store.recoveredFrom = backup
+    store.recoveryMessage = 'O banco estava danificado. Restaurei o último backup.'
+    return store
+  }
+}
+
+function openPersonaStoreOnce(options: OpenPersonaStoreOptions): PersonaStore {
   const path = options.path === ':memory:' ? ':memory:' : resolve(options.path)
   const migrations = options.migrations ?? PERSONA_MIGRATIONS
   const known = maxVersion(migrations)
@@ -167,6 +185,30 @@ export function openPersonaStore(options: OpenPersonaStoreOptions): PersonaStore
     db.close()
     throw error
   }
+}
+
+function isCorrupt(error: unknown): boolean {
+  if (error instanceof StoreError) {
+    return error.code === 'unrecognized-database'
+  }
+  const text = error instanceof Error ? error.message : String(error)
+  return /malformed|not a database|disk image|corrupt|SQLITE_CORRUPT|SQLITE_NOTADB|SQLITE_IOERR/iu.test(text)
+}
+
+function latestBackup(backupDir: string): string | undefined {
+  let names: string[]
+  try {
+    names = readdirSync(backupDir).filter(name => name.endsWith('.db'))
+  } catch {
+    return undefined
+  }
+  let best: { path: string; mtime: number } | undefined
+  for (const name of names) {
+    const path = join(backupDir, name)
+    const mtime = statSync(path).mtimeMs
+    if (best === undefined || mtime > best.mtime) best = { path, mtime }
+  }
+  return best?.path
 }
 
 function createDatabaseFile(path: string): void {

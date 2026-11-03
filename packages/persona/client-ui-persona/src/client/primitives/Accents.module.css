@@ -72,3 +72,15 @@
   stroke-linecap: round;
   opacity: 0.6;
 }
+
+.accent {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+  mask-image: var(--persona-accent-url);
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  -webkit-mask-image: var(--persona-accent-url);
+  -webkit-mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+}

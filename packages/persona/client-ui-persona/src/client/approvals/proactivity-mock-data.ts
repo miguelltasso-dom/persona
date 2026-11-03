@@ -10,6 +10,8 @@ export interface ProactiveCostEstimate {
 export interface ProactiveProposal {
   readonly id: string
   readonly kind: ProactiveProposalKind
+  /** Host {@link ApprovalView.kind} for `decideApproval`. */
+  readonly approvalKind?: 'hire' | 'vault' | 'skill'
   readonly title: string
   readonly oneQuestion: string
   readonly impactPreview: string

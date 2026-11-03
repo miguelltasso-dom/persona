@@ -21,16 +21,22 @@ import { RULES_NS } from '../locale/rules/locales.ts'
 import { ConnectedGeneralChannelView } from '../remote/ConnectedGeneralChannelView.tsx'
 import { ConnectedOverviewView } from '../remote/ConnectedOverviewView.tsx'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
+import { HIRE_PERSONA_PROFILE_ID, type ShellStoreHandle } from './create-shell-store.ts'
 import { CHAT_NS } from '../locale/chat/locales.ts'
 import { SHELL_NS } from '../locale/shell/locales.ts'
-import { DirectMessagesPanel } from './DirectMessagesPanel.tsx'
+import { ConnectedDirectMessagesView } from '../remote/ConnectedDirectMessagesView.tsx'
 import { ProjectsPanel } from './ProjectsPanel.tsx'
 import { SearchPlaceholderView } from './SearchPlaceholderView.tsx'
 
-function liveInject(live: PersonaLiveStore): { hooks: { live: PersonaLiveStore['observable'] }; postChannelMessage(body: string): void } {
+function liveInject(live: PersonaLiveStore): {
+  hooks: { live: PersonaLiveStore['observable'] }
+  postChannelMessage(body: string): void
+  loadTurnContext(ticketId: string): void
+} {
   return {
     hooks: { live: live.observable },
     postChannelMessage: (body: string) => { void live.postChannelMessage(body) },
+    loadTurnContext: (ticketId: string) => { void live.loadTurnContext(ticketId) },
   }
 }
 
@@ -38,6 +44,7 @@ function liveInject(live: PersonaLiveStore): { hooks: { live: PersonaLiveStore['
 export function registerPrismScreens(
   ctx: Context,
   live: PersonaLiveStore,
+  shellHandle: ShellStoreHandle,
   selectPanel?: (panel: 'channels' | 'kanban' | 'approvals') => void,
 ): void {
   const tenantObservable = createLiveTenantObservable(live)
@@ -49,6 +56,10 @@ export function registerPrismScreens(
   const channelInject = () => ({
     shellT: ctx.locale.bind(SHELL_NS),
     ...liveInject(live),
+    onBuildTeam: () => {
+      shellHandle.actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)
+      shellHandle.actions.selectPanel('profile')
+    },
   })
 
   ctx.slots.register({
@@ -86,12 +97,32 @@ export function registerPrismScreens(
   ctx.slots.register({
     name: 'main',
     key: 'directMessages',
-    locale: SHELL_NS,
-  }, DirectMessagesPanel)
+    locale: CHAT_NS,
+    inject: () => ({
+      shellT: ctx.locale.bind(SHELL_NS),
+      hooks: { live: live.observable },
+      selectDm: (dmId: string | null) => { void live.selectDm(dmId) },
+      postDmMessage: (body: string) => { void live.postDmMessage(body) },
+    }),
+  }, ConnectedDirectMessagesView)
 
   ctx.slots.register({ name: 'main', key: 'approvals', locale: APPROVALS_NS, inject: remoteInject }, RemoteApprovalsPanel)
   ctx.slots.register({ name: 'main', key: 'rules', locale: RULES_NS, inject: remoteInject }, RemoteRulesPanel)
-  ctx.slots.register({ name: 'main', key: 'profile', locale: PROFILE_NS, inject: remoteInject }, RemoteProfilePanel)
+  ctx.slots.register({
+    name: 'main',
+    key: 'profile',
+    locale: PROFILE_NS,
+    inject: () => ({
+      persona: ctx.remote.persona,
+      hooks: {
+        tenant: tenantObservable,
+        shell: {
+          getSnapshot: () => shellHandle.store.getSnapshot(),
+          subscribe: (listener: () => void) => shellHandle.store.subscribe(listener),
+        },
+      },
+    }),
+  }, RemoteProfilePanel)
   ctx.slots.register({ name: 'main', key: 'members', locale: MEMBERS_NS, inject: remoteInject }, RemoteMembersPanel)
   ctx.slots.register({ name: 'main', key: 'importers', locale: IMPORTERS_NS, inject: remoteInject }, RemoteImportPanel)
   ctx.slots.register({ name: 'main', key: 'canvas', locale: CANVAS_NS, inject: remoteInject }, RemoteCanvasPanel)

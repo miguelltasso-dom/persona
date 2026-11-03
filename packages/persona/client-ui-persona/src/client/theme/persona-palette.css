@@ -116,7 +116,9 @@ body:not([data-ds-dark-theme='true']) {
   --persona-shadow-sticker: 0 3px 0 0 rgb(52 36 63 / 0.16);
   --persona-shadow-lift: 0 4px 0 0 rgb(52 36 63 / 0.18), 0 14px 24px -14px rgb(52 36 63 / 0.38);
   --persona-shadow-float: 0 5px 0 0 rgb(52 36 63 / 0.18), 0 24px 48px -20px rgb(52 36 63 / 0.5);
-  --persona-grain-opacity: 0.05;
+  --persona-grain-image: url('../assets/textures/paper-light.webp');
+  --persona-grain-size: 512px 512px;
+  --persona-grain-opacity: 0.45;
   --persona-grain-blend: multiply;
   /* Team banner scene */
   --persona-scene-sky: var(--persona-lilac-100);
@@ -168,8 +170,10 @@ body[data-ds-dark-theme='true'] {
   --persona-shadow-sticker: 0 3px 0 0 rgb(8 4 12 / 0.55);
   --persona-shadow-lift: 0 4px 0 0 rgb(8 4 12 / 0.6), 0 16px 28px -14px rgb(8 4 12 / 0.8);
   --persona-shadow-float: 0 5px 0 0 rgb(8 4 12 / 0.6), 0 28px 56px -20px rgb(8 4 12 / 0.9);
-  --persona-grain-opacity: 0.06;
-  --persona-grain-blend: soft-light;
+  --persona-grain-image: url('../assets/textures/paper-dark.webp');
+  --persona-grain-size: 512px 512px;
+  --persona-grain-opacity: 0.18;
+  --persona-grain-blend: screen;
   --persona-scene-sky: #2a1e3a;
   --persona-scene-sky-2: #231830;
   --persona-scene-hill-far: #34274a;

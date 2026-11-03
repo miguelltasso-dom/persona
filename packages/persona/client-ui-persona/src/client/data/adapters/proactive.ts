@@ -9,13 +9,22 @@ export function dailySummariesToUi(rows: readonly DailySummaryView[]): readonly 
     summaryDate: row.date,
     proposals: row.proposals
       .filter(proposal => proposal.status === 'pending' && proposal.kind !== 'attention')
-      .map(proposal => ({
-        id: proposal.id,
-        kind: 'initiative' as const,
-        title: proposal.title,
-        oneQuestion: proposal.question,
-        impactPreview: proposal.personaName,
-        cost: { tokens: 0, runs: 0 },
-      })),
+      .map((proposal) => {
+        const kind = proposal.kind === 'skill' ? 'followUp' as const
+          : proposal.kind === 'vault' ? 'risk' as const
+            : 'initiative' as const
+        const row = {
+          id: proposal.id,
+          kind,
+          title: proposal.title,
+          oneQuestion: proposal.question,
+          impactPreview: proposal.personaName,
+          cost: { tokens: 0, runs: 0 },
+        }
+        if (proposal.kind === 'hire' || proposal.kind === 'vault' || proposal.kind === 'skill') {
+          return { ...row, approvalKind: proposal.kind }
+        }
+        return row
+      }),
   }))
 }

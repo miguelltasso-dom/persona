@@ -11,6 +11,7 @@ const msg = (id: string, body: string) => ({
   id,
   streamId: 'channel:geral',
   seq: 1,
+  type: 'message',
   actorId: 'ana',
   body,
   subjectId: 't1',

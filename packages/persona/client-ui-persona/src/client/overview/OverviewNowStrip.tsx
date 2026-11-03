@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
-import { Avatar, Card, Chip, type AvatarPresence, type ChipTone } from '../primitives/index.ts'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { Avatar, Card, Chip, EmptyState, type AvatarPresence, type ChipTone } from '../primitives/index.ts'
 import { WORK_STATUS_KEY, type PersonaNowSnapshot, type PersonaWorkUiState } from '../team/persona-work-state.ts'
 import styles from './OverviewNowStrip.module.css'
 
@@ -34,6 +35,9 @@ export function OverviewNowStrip({ t, rows }: OverviewNowStripProps): ReactNode 
       eyebrow={t('overview.nowSubtitle')}
       padding="m"
     >
+      {rows.length === 0 && (
+        <EmptyState compact illustration={ILLUSTRATIONS['empty-routines']} title={t('team.emptyTitle')} body={t('team.emptyBody')} />
+      )}
       <ul className={styles.list}>
         {rows.map(row => (
           <li key={row.member.id} className={styles.row} data-state={row.member.state}>

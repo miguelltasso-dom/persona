@@ -4,6 +4,8 @@ import { triageLogFromHost } from '../src/client/data/adapters/triage.ts'
 import { dailySummariesToUi } from '../src/client/data/adapters/proactive.ts'
 import { routineScheduleToRuns } from '../src/client/data/adapters/routines.ts'
 import { deriveKanbanFilterOptions } from '../src/client/kanban/derive-filter-options.ts'
+import { connectionsToEntries } from '../src/client/data/adapters/connections.ts'
+import { reviewBlockedFromAccept, reviewSummaryFromHost } from '../src/client/data/adapters/review.ts'
 
 describe('lumen RPC adapters', () => {
   it('maps triage log rows for rules UI', () => {
@@ -54,6 +56,7 @@ describe('lumen RPC adapters', () => {
     ])
     expect(summaries[0]?.proposals).toHaveLength(1)
     expect(summaries[0]?.proposals[0]?.title).toBe('Cofre')
+    expect(summaries[0]?.proposals[0]?.approvalKind).toBe('vault')
   })
 
   it('derives kanban filters from card rows', () => {
@@ -74,6 +77,38 @@ describe('lumen RPC adapters', () => {
     ])
     expect(options.projects[0]?.name).toBe('Site')
     expect(options.personas[0]?.name).toBe('Atlas')
+  })
+
+  it('maps reviewSummary host view to panel model', () => {
+    const ui = reviewSummaryFromHost({
+      ticketId: 't1',
+      files: [{ path: 'a.ts', added: 1, deleted: 0 }],
+      added: 1,
+      deleted: 0,
+      patch: 'diff',
+      patchTruncated: false,
+      secretsRedacted: true,
+      testsClaimed: ['vitest a.ts'],
+      hasWorktree: true,
+    })
+    expect(ui?.testsClaimed[0]).toBe('vitest a.ts')
+    expect(reviewBlockedFromAccept({ kind: 'blocked', mode: 'ff', explanation: 'conflito' })?.explanation).toBe('conflito')
+  })
+
+  it('maps listConnections rows with loginHint and copy command', () => {
+    const entries = connectionsToEntries([
+      {
+        id: 'cursor',
+        kind: 'cursor',
+        available: true,
+        loggedIn: false,
+        loginHint: 'Abra o terminal e rode cursor-agent login',
+        error: { code: 'not_logged_in', message: 'CLI cursor não está logada. Abra o terminal e rode cursor-agent login' },
+      },
+    ])
+    expect(entries[0]?.copyCommand).toBe('cursor-agent login')
+    expect(entries[0]?.errorCode).toBe('not_logged_in')
+    expect(entries[0]?.detail).toContain('cursor')
   })
 
   it('maps routine schedule runs onto week grid', () => {

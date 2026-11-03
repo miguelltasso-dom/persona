@@ -1,0 +1,52 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.memberCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.memberHead {
+  display: flex;
+  gap: var(--persona-space-3);
+  align-items: center;
+}
+
+.memberName {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.memberEmail {
+  margin: var(--persona-space-1) 0 0;
+  font-size: 0.875rem;
+  color: var(--persona-ink-soft);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.syncList {
+  margin: 0;
+  padding-left: var(--persona-space-5);
+  color: var(--persona-ink-soft);
+  font-size: 0.9375rem;
+}

@@ -1,19 +1,25 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { AVATAR_96 } from '../assets/generated-imports.ts'
+import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { usePersonaMotion } from '../motion/index.ts'
 import { Avatar, BrandIcon, DayDivider, EmptyState, IconButton, ReactionChip, UiIcon } from '../primitives/index.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { TeamChannelStrip } from '../team/TeamChannelStrip.tsx'
 import { ChannelComposer } from './ChannelComposer.tsx'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
+import type { TurnContextUi } from '../remote/turn-context-ui.ts'
 import styles from './GeneralChannelView.module.css'
 
 export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly shellT: PropsLocale<'persona.shell'>['t']
   readonly members: readonly ChannelPersonaMember[]
   readonly messages: readonly ChannelMessageUi[]
+  readonly passThroughFollowers?: readonly { readonly name: string }[]
+  readonly turnContext?: TurnContextUi | null
+  readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
   readonly onSendMessage?: ((body: string) => void) | undefined
+  /** Empty-team CTA in the banner (Prism wires: open onboarding/team builder). */
+  readonly onBuildTeam?: (() => void) | undefined
 }
 
 interface ParsedReaction {
@@ -38,7 +44,11 @@ function avatarFor(authorId: string): string | undefined {
 }
 
 /** #geral — header, illustrated team banner, grouped stream with reactions, full composer (DESIGN-SYSTEM §6–7). */
-export function GeneralChannelView({ t, shellT, members, messages, onSendMessage }: GeneralChannelViewProps): ReactNode {
+export function GeneralChannelView({
+  t, shellT, members, messages, passThroughFollowers = [], turnContext: _turnContext, onLoadTurnContext: _onLoadTurnContext, onSendMessage, onBuildTeam,
+}: GeneralChannelViewProps): ReactNode {
+  void _turnContext
+  void _onLoadTurnContext
   const composerProps = onSendMessage !== undefined ? { onSend: onSendMessage } : {}
   const userName = messages.find(message => message.authorId === 'user')?.authorName ?? t('message.you')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -75,29 +85,24 @@ export function GeneralChannelView({ t, shellT, members, messages, onSendMessage
 
       <div className={styles.scroll} ref={scrollRef}>
         <div className={styles.column}>
-          <TeamChannelStrip t={shellT} members={members} />
+          <TeamChannelStrip t={shellT} members={members} onBuildTeam={onBuildTeam} />
+          {passThroughFollowers.length > 0 && (
+            <ul className={styles.passThroughList} aria-live="polite">
+              {passThroughFollowers.map(row => (
+                <li key={row.name} className={styles.passThrough}>{t('stream.passThrough', { name: row.name })}</li>
+              ))}
+            </ul>
+          )}
           <div className={styles.stream} role="log" aria-label={t('header.channelGeneral')} aria-live="polite">
             {messages.length === 0 ? (
               <EmptyState
                 compact
+                illustration={ILLUSTRATIONS['empty-dm']}
                 title={t('stream.emptyTitle')}
                 body={t('stream.emptyBody')}
               />
             ) : (
-              <>
-                <DayDivider>{t('stream.today')}</DayDivider>
-                <ol className={styles.messages}>
-                  {messages.map((message, index) => (
-                    <ChannelMessageRow
-                      key={message.id}
-                      t={t}
-                      message={message}
-                      index={index}
-                      continued={index > 0 && messages[index - 1]?.authorId === message.authorId}
-                    />
-                  ))}
-                </ol>
-              </>
+              <MessageList t={t} messages={messages} />
             )}
           </div>
         </div>
@@ -109,6 +114,29 @@ export function GeneralChannelView({ t, shellT, members, messages, onSendMessage
         </div>
       </div>
     </div>
+  )
+}
+
+/** Grouped message stream with day pill (shared by #geral and DMs). */
+export function MessageList({ t, messages }: {
+  readonly t: PropsLocale<'persona.chat'>['t']
+  readonly messages: readonly ChannelMessageUi[]
+}): ReactNode {
+  return (
+    <>
+      <DayDivider>{t('stream.today')}</DayDivider>
+      <ol className={styles.messages}>
+        {messages.map((message, index) => (
+          <ChannelMessageRow
+            key={message.id}
+            t={t}
+            message={message}
+            index={index}
+            continued={index > 0 && messages[index - 1]?.authorId === message.authorId}
+          />
+        ))}
+      </ol>
+    </>
   )
 }
 

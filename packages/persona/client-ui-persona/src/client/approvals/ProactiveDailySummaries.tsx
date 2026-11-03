@@ -12,6 +12,7 @@ export interface ProactiveDailySummariesProps {
   readonly dict: LocaleDict
   readonly summaries: readonly PersonaDailyProactiveSummary[]
   readonly summaryDateLabel: string
+  readonly onDecide?: (proposal: ProactiveProposal, accept: boolean) => void
 }
 
 function formatCost(dict: LocaleDict, proposal: ProactiveProposal): string {
@@ -25,6 +26,7 @@ export function ProactiveDailySummaries({
   dict,
   summaries,
   summaryDateLabel,
+  onDecide,
 }: ProactiveDailySummariesProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -62,8 +64,19 @@ export function ProactiveDailySummaries({
                     <p className={styles.editHint} role="status">{t('proactive.editHint')}</p>
                   )}
                   <div className={page.actions}>
-                    <PersonaButton>{t('proactive.action.accept')}</PersonaButton>
-                    <PersonaButton variant="secondary">{t('proactive.action.reject')}</PersonaButton>
+                    <PersonaButton
+                      onClick={() => { onDecide?.(proposal, true) }}
+                      disabled={onDecide === undefined || proposal.approvalKind === undefined}
+                    >
+                      {t('proactive.action.accept')}
+                    </PersonaButton>
+                    <PersonaButton
+                      variant="secondary"
+                      onClick={() => { onDecide?.(proposal, false) }}
+                      disabled={onDecide === undefined || proposal.approvalKind === undefined}
+                    >
+                      {t('proactive.action.reject')}
+                    </PersonaButton>
                     <PersonaButton
                       variant="secondary"
                       onClick={() => { setEditingId(editingId === proposal.id ? null : proposal.id) }}

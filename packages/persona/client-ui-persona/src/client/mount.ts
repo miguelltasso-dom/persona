@@ -22,6 +22,8 @@ import { overlayOpenFromHost } from './remote/onboarding-host.ts'
 import { rosterFromDrafts } from './onboarding/roster-from-draft.ts'
 import { writeOnboardingCacheComplete } from './shell/onboarding-persistence.ts'
 import { installPersonaColorScheme } from './theme/install-color-scheme.ts'
+import { createLiveRailTeamObservable } from './remote/live-rail-bridge.ts'
+import { HIRE_PERSONA_PROFILE_ID } from './shell/create-shell-store.ts'
 
 export const inject = [
   'remote',
@@ -49,9 +51,22 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     getSnapshot: () => store.getSnapshot(),
     subscribe: (listener: () => void) => store.subscribe(listener),
   }
+  const railTeamObservable = createLiveRailTeamObservable(live, shellHandle)
   const sidebarInject = () => ({
-    hooks: { shell: shellObservable },
+    hooks: { shell: shellObservable, team: railTeamObservable },
     selectPanel: (id: Parameters<typeof actions.selectPanel>[0]) => { actions.selectPanel(id) },
+    openPersonaDm: (personaId: string) => {
+      actions.selectPanel('directMessages')
+      void live.openPersonaDm(personaId)
+    },
+    openPersonaProfile: (personaId: string) => {
+      actions.setProfilePersonaId(personaId)
+      actions.selectPanel('profile')
+    },
+    hirePersona: () => {
+      actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)
+      actions.selectPanel('profile')
+    },
   })
   const frameInject = () => ({ hooks: { shell: shellObservable } })
 
@@ -75,7 +90,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     inject: sidebarInject,
   }, PersonaSidebar)
 
-  registerPrismScreens(ctx, live, (panel) => { actions.selectPanel(panel) })
+  registerPrismScreens(ctx, live, shellHandle, (panel) => { actions.selectPanel(panel) })
   registerLumenUi(ctx, live)
 
   ctx.slots.register({

@@ -28,5 +28,18 @@
   "message.addReaction": "Adicionar reação",
   "message.you": "Você",
   "stream.emptyTitle": "O canal está quietinho",
-  "stream.emptyBody": "Peça algo à equipe — a coordenação distribui as tarefas."
+  "stream.emptyBody": "Peça algo à equipe — a coordenação distribui as tarefas.",
+  "stream.passThrough": "{name} está acompanhando este assunto",
+  "dm.listTitle": "Conversas",
+  "dm.threadEmpty": "Nenhuma mensagem nesta conversa ainda.",
+  "dm.composerPlaceholder": "Mensagem para {name}…",
+  "context.drawerTitle": "Contexto usado",
+  "context.taskLabel": "Tarefa",
+  "context.triggersLabel": "Origens",
+  "dm.emptyTitle": "Nenhuma conversa ainda",
+  "dm.emptyBody": "Chame alguém da equipe no particular — cada persona responde com o contexto dela.",
+  "dm.newConversation": "Nova conversa",
+  "dm.pickTitle": "Escolha com quem conversar",
+  "dm.pickBody": "As conversas ficam à esquerda; os não lidos aparecem em âmbar.",
+  "dm.subtitle": "Conversas particulares com cada persona"
 }

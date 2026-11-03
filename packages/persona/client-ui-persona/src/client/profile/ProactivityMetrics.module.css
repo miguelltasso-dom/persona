@@ -1,3 +1,22 @@
+.sectionTitle {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.sectionSubtitle {
+  margin: var(--persona-space-1) 0 var(--persona-space-3);
+  font-size: 0.9375rem;
+  color: var(--persona-ink-soft);
+}
+
+.meta {
+  margin: var(--persona-space-2) 0 0;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-faint);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
@@ -6,10 +25,10 @@
 }
 
 .metric {
-  border: 1px solid var(--persona-lilac-200);
+  border: 1px solid var(--persona-outline-soft);
   border-radius: 0.625rem;
   padding: 0.625rem 0.75rem;
-  background: var(--persona-active-surface-alt);
+  background: var(--persona-wash);
 }
 
 .metric dt {
@@ -18,22 +37,22 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--persona-active-ink-muted);
+  color: var(--persona-ink-soft);
 }
 
 .metric dd {
   margin: 0.25rem 0 0;
   font-size: 1.25rem;
   font-weight: 800;
-  color: var(--persona-active-ink);
+  color: var(--persona-ink);
 }
 
 .benchCard {
   margin-top: 0.75rem;
   padding: 0.875rem 1rem;
   border-radius: 0.75rem;
-  border: 1px solid var(--persona-lilac-300);
-  background: var(--persona-lilac-100);
+  border: 1px solid var(--persona-outline);
+  background: var(--persona-wash);
 }
 
 .benchTitle {
@@ -46,5 +65,5 @@
   margin: 0.5rem 0 0;
   font-size: 1.0625rem;
   font-weight: 700;
-  color: var(--persona-lilac-900, var(--persona-active-ink));
+  color: var(--persona-ink);
 }

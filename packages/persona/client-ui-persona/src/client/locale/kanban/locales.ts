@@ -5,6 +5,8 @@ export const KANBAN_NS = 'persona.kanban'
 
 /** Portuguese (Brazil) copy; keys define {@link KanbanKey}. */
 export const pt = {
+  'header.eyebrow': 'Trabalho',
+  'action.newTask': 'Nova tarefa',
   'title.project': 'Quadro do projeto',
   'title.global': 'Quadro global',
   'subtitle.project': 'Estágios das tarefas neste projeto',
@@ -12,6 +14,7 @@ export const pt = {
   'column.todo': 'A fazer',
   'column.inProgress': 'Em andamento',
   'column.inReview': 'Em revisão',
+  'action.review': 'Revisar',
   'column.blocked': 'Bloqueado / Precisa de você',
   'column.done': 'Concluído',
   'chip.waitingEvent': 'Aguardando evento',
@@ -40,6 +43,8 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Work',
+  'action.newTask': 'New task',
   'title.project': 'Project board',
   'title.global': 'Global board',
   'subtitle.project': 'Ticket stages in this project',
@@ -47,6 +52,7 @@ export const en = {
   'column.todo': 'To do',
   'column.inProgress': 'In progress',
   'column.inReview': 'In review',
+  'action.review': 'Review',
   'column.blocked': 'Blocked / Needs you',
   'column.done': 'Done',
   'chip.waitingEvent': 'Waiting for event',
@@ -74,6 +80,8 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Work',
+  'action.newTask': 'New task',
   'title.project': 'Project board',
   'title.global': 'Global board',
   'subtitle.project': 'Ticket stages in this project',
@@ -81,6 +89,7 @@ export const zh = {
   'column.todo': 'To do',
   'column.inProgress': 'In progress',
   'column.inReview': 'In review',
+  'action.review': 'Review',
   'column.blocked': 'Blocked / Needs you',
   'column.done': 'Done',
   'chip.waitingEvent': 'Waiting for event',
@@ -107,6 +116,8 @@ export const zh = {
   'card.project': 'Project: {name}',
 } as const
 export const ja = {
+  'header.eyebrow': 'Work',
+  'action.newTask': 'New task',
   'title.project': 'Project board',
   'title.global': 'Global board',
   'subtitle.project': 'Ticket stages in this project',
@@ -114,6 +125,7 @@ export const ja = {
   'column.todo': 'To do',
   'column.inProgress': 'In progress',
   'column.inReview': 'In review',
+  'action.review': 'Review',
   'column.blocked': 'Blocked / Needs you',
   'column.done': 'Done',
   'chip.waitingEvent': 'Waiting for event',
@@ -140,6 +152,8 @@ export const ja = {
   'card.project': 'Project: {name}',
 } as const
 export const es = {
+  'header.eyebrow': 'Work',
+  'action.newTask': 'New task',
   'title.project': 'Project board',
   'title.global': 'Global board',
   'subtitle.project': 'Ticket stages in this project',
@@ -147,6 +161,7 @@ export const es = {
   'column.todo': 'To do',
   'column.inProgress': 'In progress',
   'column.inReview': 'In review',
+  'action.review': 'Review',
   'column.blocked': 'Blocked / Needs you',
   'column.done': 'Done',
   'chip.waitingEvent': 'Waiting for event',
@@ -173,6 +188,8 @@ export const es = {
   'card.project': 'Project: {name}',
 } as const
 export const fr = {
+  'header.eyebrow': 'Work',
+  'action.newTask': 'New task',
   'title.project': 'Project board',
   'title.global': 'Global board',
   'subtitle.project': 'Ticket stages in this project',
@@ -180,6 +197,7 @@ export const fr = {
   'column.todo': 'To do',
   'column.inProgress': 'In progress',
   'column.inReview': 'In review',
+  'action.review': 'Review',
   'column.blocked': 'Blocked / Needs you',
   'column.done': 'Done',
   'chip.waitingEvent': 'Waiting for event',
@@ -206,6 +224,8 @@ export const fr = {
   'card.project': 'Project: {name}',
 } as const
 export const de = {
+  'header.eyebrow': 'Work',
+  'action.newTask': 'New task',
   'title.project': 'Project board',
   'title.global': 'Global board',
   'subtitle.project': 'Ticket stages in this project',
@@ -213,6 +233,7 @@ export const de = {
   'column.todo': 'To do',
   'column.inProgress': 'In progress',
   'column.inReview': 'In review',
+  'action.review': 'Review',
   'column.blocked': 'Blocked / Needs you',
   'column.done': 'Done',
   'chip.waitingEvent': 'Waiting for event',
@@ -239,6 +260,8 @@ export const de = {
   'card.project': 'Project: {name}',
 } as const
 export const ru = {
+  'header.eyebrow': 'Work',
+  'action.newTask': 'New task',
   'title.project': 'Project board',
   'title.global': 'Global board',
   'subtitle.project': 'Ticket stages in this project',
@@ -246,6 +269,7 @@ export const ru = {
   'column.todo': 'To do',
   'column.inProgress': 'In progress',
   'column.inReview': 'In review',
+  'action.review': 'Review',
   'column.blocked': 'Blocked / Needs you',
   'column.done': 'Done',
   'chip.waitingEvent': 'Waiting for event',

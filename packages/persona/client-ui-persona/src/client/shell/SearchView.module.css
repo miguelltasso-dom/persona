@@ -1,0 +1,48 @@
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  height: 60px;
+  padding: 0 var(--persona-space-4) 0 var(--persona-space-5);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-xl);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
+  transition: box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.field:focus-within {
+  box-shadow: var(--persona-shadow-sticker), 0 0 0 4px var(--persona-focus-halo);
+}
+
+.fieldIcon {
+  color: var(--persona-brand);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--persona-ink);
+  font: 600 18px/24px var(--persona-font-text);
+}
+
+.input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.input::placeholder {
+  color: var(--persona-ink-faint);
+}
+
+.kbd {
+  padding: 4px 8px;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: 8px;
+  background: var(--persona-paper);
+  font: 700 12px/1 var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}

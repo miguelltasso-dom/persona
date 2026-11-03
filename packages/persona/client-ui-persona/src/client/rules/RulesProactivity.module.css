@@ -1,32 +1,62 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+}
+
 .section {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
+  gap: var(--persona-space-3);
 }
 
 .fieldGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: 0.75rem;
+  gap: var(--persona-space-3);
+  margin-bottom: var(--persona-space-4);
 }
 
-.field {
+.quietList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.ruleList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: var(--persona-space-4);
 }
 
-.fieldLabel {
+.ruleRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  padding-bottom: var(--persona-space-3);
+  border-bottom: var(--persona-border-width, 1px) solid var(--persona-outline-soft);
+}
+
+.ruleRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.ruleText {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--persona-ink);
+  line-height: 1.45;
+}
+
+.ruleMeta {
+  margin: 0;
   font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--persona-active-ink-muted);
-}
-
-.input {
-  border: 1px solid var(--persona-lilac-300);
-  border-radius: 0.5rem;
-  padding: 0.5rem 0.625rem;
-  font: inherit;
-  background: var(--persona-active-surface);
-  color: var(--persona-active-ink);
+  color: var(--persona-ink-soft);
 }

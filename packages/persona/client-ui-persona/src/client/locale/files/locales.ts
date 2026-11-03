@@ -5,6 +5,7 @@ export const FILES_NS = 'persona.files'
 
 /** Portuguese (Brazil) copy; keys define {@link FilesKey}. */
 export const pt = {
+  'header.eyebrow': 'Empresa',
   'title': 'Arquivos',
   'subtitle': 'Entregas e anexos do projeto, com preview quando disponível',
   'column.name': 'Nome',
@@ -29,6 +30,7 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Company',
   'title': 'Files',
   'subtitle': 'Project deliverables and attachments with preview when available',
   'column.name': 'Name',
@@ -52,6 +54,7 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Company',
   'title': 'Files',
   'subtitle': 'Project deliverables and attachments with preview when available',
   'column.name': 'Name',
@@ -74,6 +77,7 @@ export const zh = {
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const ja = {
+  'header.eyebrow': 'Company',
   'title': 'Files',
   'subtitle': 'Project deliverables and attachments with preview when available',
   'column.name': 'Name',
@@ -96,6 +100,7 @@ export const ja = {
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const es = {
+  'header.eyebrow': 'Company',
   'title': 'Files',
   'subtitle': 'Project deliverables and attachments with preview when available',
   'column.name': 'Name',
@@ -118,6 +123,7 @@ export const es = {
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const fr = {
+  'header.eyebrow': 'Company',
   'title': 'Files',
   'subtitle': 'Project deliverables and attachments with preview when available',
   'column.name': 'Name',
@@ -140,6 +146,7 @@ export const fr = {
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const de = {
+  'header.eyebrow': 'Company',
   'title': 'Files',
   'subtitle': 'Project deliverables and attachments with preview when available',
   'column.name': 'Name',
@@ -162,6 +169,7 @@ export const de = {
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
 } as const
 export const ru = {
+  'header.eyebrow': 'Company',
   'title': 'Files',
   'subtitle': 'Project deliverables and attachments with preview when available',
   'column.name': 'Name',

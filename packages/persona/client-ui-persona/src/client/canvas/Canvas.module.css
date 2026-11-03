@@ -1,10 +1,20 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+}
+
+.viewportCard {
+  overflow: hidden;
+}
+
 .viewport {
   position: relative;
   width: 100%;
   min-height: 18rem;
-  border: 1px solid var(--persona-lilac-200);
-  border-radius: 0.75rem;
-  background: var(--persona-active-surface-alt);
+  border: 1px solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-l, 0.75rem);
+  background: var(--persona-wash);
   overflow: hidden;
 }
 
@@ -14,7 +24,7 @@
 }
 
 .edge {
-  stroke: var(--persona-lilac-400);
+  stroke: var(--persona-outline);
   stroke-width: 2;
   fill: none;
 }
@@ -24,22 +34,22 @@
 }
 
 .nodeCircle {
-  fill: var(--persona-lilac-300);
-  stroke: var(--persona-lilac-700);
+  fill: var(--persona-outline);
+  stroke: var(--persona-brand);
   stroke-width: 2;
 }
 
 .nodeLabel {
   font-size: 0.75rem;
-  fill: var(--persona-active-ink);
+  fill: var(--persona-ink);
   font-weight: 600;
 }
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: var(--persona-space-2);
+  margin-bottom: var(--persona-space-3);
 }
 
 .listTable {
@@ -50,6 +60,6 @@
 .listTable th,
 .listTable td {
   text-align: left;
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--persona-lilac-100);
+  padding: var(--persona-space-2);
+  border-bottom: 1px solid var(--persona-wash);
 }

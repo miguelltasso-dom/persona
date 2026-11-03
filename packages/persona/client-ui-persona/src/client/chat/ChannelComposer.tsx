@@ -30,6 +30,12 @@ export function ChannelComposer({ t, members = [], onSend }: ChannelComposerProp
     node.style.height = `${Math.min(node.scrollHeight, MAX_ROWS_PX)}px`
   }, [draft])
 
+  useLayoutEffect(() => {
+    if (members.length === 0) return
+    if (members.some(member => member.id === responderId)) return
+    setResponderId(members[0]?.id ?? '')
+  }, [members, responderId])
+
   const send = (): void => {
     const text = draft.trim()
     if (text.length === 0) return

@@ -19,17 +19,25 @@
 
 .poseStack {
   position: relative;
-  height: 100%;
   display: flex;
   align-items: flex-end;
   justify-content: center;
 }
 
+.figure[data-character='atlas'] { --species: 1; }
+.figure[data-character='sol'] { --species: 0.95; }
+.figure[data-character='nina'] { --species: 0.92; }
+.figure[data-character='bento'] { --species: 0.84; }
+.figure[data-character='luna'] { --species: 0.72; }
+.figure[data-pose='descansando'] { --pose-k: 0.56; }
+
+/* Poses are trimmed to their opaque box by build-assets: height = species scale, feet on the ground line. */
 .poseBase,
 .poseBlink,
 .poseTail {
+  height: calc(var(--figure-h) * var(--species, 0.9) * var(--pose-k, 1));
   max-height: var(--figure-h);
-  max-width: min(170px, 100%);
+  max-width: 210px;
   width: auto;
   object-fit: contain;
   object-position: bottom center;
@@ -59,8 +67,8 @@
 /* State overlay (Brush icons/overlays) in a sticker bubble near the head. */
 .overlay {
   position: absolute;
-  top: 6px;
-  right: 4px;
+  top: -6px;
+  right: -12px;
   width: 34px;
   height: 34px;
   box-sizing: border-box;

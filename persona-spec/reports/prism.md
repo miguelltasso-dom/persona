@@ -1,5 +1,106 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-03 — Keel: fronteira Muse + canal Status
+
+**Fronteira (ok)** — Muse: JSX/CSS DMs, Projetos, Busca, Contratar. Prism: `ConnectedDirectMessagesView`, DMs live, dados `ProjectsPanel`, `setPersonaAutonomyLevel`, hire remote.
+
+**Comunicação Prism↔Muse** — sem `maestri ask` direto; usar post-it **Persona · Status** com `[Prism→Muse] …` / `[Muse→Prism] …`; reler Status a cada relato; repasse via Keel se preciso.
+
+**Host** — inject `personaRunners`: Anvil P0 (Prism segue mocks/contratos até voltar).
+
+---
+
+## 2026-11-03 — check-pkg verde + PRO-4 autonomy seam + fronteira Muse
+
+**check-pkg** — `KnowledgeVault` Card `tone` spread; `live-tenant-bridge` test usa `snapStore.set` (sem cast); stubs `setPersonaAutonomyLevel`; `CanvasView` illustration `empty-vault`; `PersonaProfilePage` chip danger em `error` (não `blocked`). → **OK 39s**.
+
+**PRO-4 (dados)** — `autonomy-map.ts` (tier ↔ host mode); `PersonaRemote` `setAutonomy`/`getAutonomy` full row; `PersonaLiveStore.setPersonaAutonomyLevel` (patch budgets). UI editor ainda mock; Muse SCREEN-SPECS depois.
+
+**Observables** — `live-rail-bridge` (Muse) + `live-tenant-bridge` já cacheiam referência (React #185).
+
+**Fronteira Muse (auditoria e)** — resposta acordada: **Muse** JSX/CSS de DMs, Projetos, Busca, Contratar; **Prism** `ConnectedDirectMessagesView`, live DMs, `ProjectsPanel` dados, `setPersonaAutonomyLevel`, hire remote. `maestri ask "Muse"` falhou (`No route for POST /ask`) — Keel/Miguel repassar se necessário.
+
+**Testes** — `vitest` autonomy-map, live-tenant-bridge, observable-bridges → 7 passed.
+
+**Dependências** — host `personaRunners` inject (seed/capturas); C8 1ª tarefa Anvil; Muse vitrines antigas (editor/hire).
+
+---
+
+## 2026-11-03 — Muse: seed realista (#geral / Visão geral)
+
+**Template** — `SUGGESTED_TEAM_GALLERY` + `equipeAnimais` (via `GALLERY_SUGGESTED_DRAFTS`): Atlas/Bento/Nina/Sol/Luna com papéis Coordenação/Engenharia/Pesquisa/Relacionamento/Vigia + `avatarRef` + roles coordination/watchdog. `MOCK_INTRO_LINES` usa nomes dos bichos.
+
+**Dev harness** — `seedDevHarnessScenario` (gated `persona.devSeed.v1`): `completeOnboarding` displayName Miguel, 4 `postMessage` idempotentes no #geral, `proposeHire` `dev-harness-v1-hire` → títulos em `attentionTitles` (live store). Tarefa `doing` via ingest da msg do Miguel. Reações: sem RPC no host. Muse: `localStorage persona.devSeed.v1=1` no initScript de `design-shots.mjs` (avisado via `maestri ask`).
+
+**Arquivos** — `seed-default-team.ts`, `mock-data.ts`, `persona-live-store.ts` (refresh approvals + `runDevHarnessSeedIfEnabled`).
+
+**Testes** — `vitest` seed-default-team (4 passed).
+
+---
+
+## 2026-11-03 — Keel P1: painéis em branco (slot inject) + C5b dados
+
+**Causa kanban** — `InjectFace` expõe `useLive`/`useTenant`, não `hooks`; `ConnectedGlobalKanban` lia `hooks.live` → throw → main vazio. Corrigido: `refresh` no inject raiz; painel usa `useLive`/`useTenant`.
+
+**Connections** — `ConnectionsView` sincroniza `initialState` quando o Remote load muda (loading→ready/empty).
+
+**C5b (dados)** — `passThroughFollowers` + DMs (`selectDm`/`postDmMessage`/stream dm); `ChannelMessageUi.taskTitle` para cartões (Muse estiliza no #geral); contrato `channel-stream-remote.md`.
+
+**PRO-4** — Visão geral: `nowRows`/`awayEvents`/`attentionTitles` já live; `userName` do member owner (não mensagem).
+
+**Verificação**
+
+```
+node scripts/persona/check-pkg.mjs client-ui-persona → (ver abaixo)
+```
+
+**Pendente:** C8 1ª tarefa pós-onboarding (host); cartão de tarefa visual (Muse); `Contexto usado` Remote; Probe detector painel vazio.
+
+---
+
+## 2026-11-03 — check-pkg verde: kanban remoto, review wire, C5c roster sync
+
+**Kanban** — `ConnectedGlobalKanban` usa `useSyncExternalStore` nos observables (sem `InjectFace` quebrado); cards do live store.
+
+**Review (Lumen/Prism seam)** — `persona-review-remote.ts` tipa `reviewSummary`/`acceptReview`/… até Typert regen; `ReviewDeliveryPanel` empty illustration; locales `empty.illustration`.
+
+**C5c** — `ChannelComposer` re-sincroniza persona “Responde” quando `members` muda pós-onboarding.
+
+**Fixes** — `connectionsToEntries` omit `errorCode`; kanban `exactOptionalPropertyTypes` spreads.
+
+**Verificação**
+
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs → OK (review)
+node scripts/persona/check-pkg.mjs client-ui-persona → OK in 21.3s
+pnpm exec vitest run …/apply-message-stream …/roster-from-draft → 3 passed
+ui-boot-check → exit 1 (EADDRINUSE 127.0.0.1:3080; host já em execução — re-rodar sob with-lock quando Probe liberar)
+```
+
+**Pendente PLAN:** C5b cartões/pass-through/DM; PRO-4 dados Anvil; C8 1ª tarefa; F5 a11y; Typert regen review RPCs.
+
+---
+
+## 2026-11-03 — C5b stream + onboarding galeria + S5 roster host
+
+**Onboarding (S5/C8)** — passo 4 usa `GALLERY_SUGGESTED_DRAFTS` ← `SUGGESTED_TEAM_GALLERY` (nomes genéricos; refs brush); `rosterFromDrafts` envia `galleryRef` + `systemRoles` em `completeOnboarding`.
+
+**Canal (C5b)** — `followMessages` no `PersonaLiveStore` (pós-bootstrap, `AbortSignal`); merge `applyMessageStreamFrame`; contrato `persona-spec/contracts/channel-stream-remote.md`. `refresh`/`listMessages` mantidos; envio otimista local antes de `postMessage`.
+
+**Gates / Probe** — `persona-e2e/README.md`: onboarding real vs `PERSONA_DEV_SEED=1`. `PersonaSidebar` TS (`className ?? ''`) → `check-pkg` verde.
+
+**Verificação**
+
+```
+node scripts/persona/check-pkg.mjs client-ui-persona → OK in 17.9s
+pnpm exec vitest run …/apply-message-stream.client.spec.ts …/roster-from-draft.client.spec.ts …/seed-default-team.client.spec.ts → 7 passed
+ui-boot-check: bloqueado em with-lock aguardando "Probe real gallery" (não re-executado neste turno)
+```
+
+**Dependências:** C5c composer↔personas reais (Muse `ChannelComposer`); cartões de tarefa/pass-through; PRO-4 dados live (`PRO-2` Anvil).
+
+---
+
 ## 2026-11-03 — Keel P1: seed fora do bootstrap (D-043 / D-045)
 
 **Produção** — `PersonaLiveStore.bootstrap` só `getOnboarding` + `refresh`; zero personas até `completeOnboarding` / `commitOnboardingRoster`. Galeria `SUGGESTED_TEAM_GALLERY` (refs brush; nomes genéricos) não auto-cria.

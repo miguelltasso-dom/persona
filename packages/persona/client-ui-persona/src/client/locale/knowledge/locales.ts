@@ -5,6 +5,8 @@ export const KNOWLEDGE_NS = 'persona.knowledge'
 
 /** Portuguese (Brazil) copy; keys define {@link KnowledgeKey}. */
 export const pt = {
+  'header.eyebrow': 'Empresa',
+  'action.edit': 'Editar',
   'title': 'Cofre da empresa',
   'subtitle': 'Briefs, restrições, decisões e memória — com versões e quem pode ver',
   'tab.records': 'Registros',
@@ -35,6 +37,8 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Company',
+  'action.edit': 'Edit',
   'title': 'Company vault',
   'subtitle': 'Briefs, constraints, decisions, and memory — with versions and visibility',
   'tab.records': 'Records',
@@ -64,6 +68,8 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Company',
+  'action.edit': 'Edit',
   'title': 'Company vault',
   'subtitle': 'Briefs, constraints, decisions, and memory — with versions and visibility',
   'tab.records': 'Records',
@@ -92,6 +98,8 @@ export const zh = {
   'search.placeholder': 'Search vault…',
 } as const
 export const ja = {
+  'header.eyebrow': 'Company',
+  'action.edit': 'Edit',
   'title': 'Company vault',
   'subtitle': 'Briefs, constraints, decisions, and memory — with versions and visibility',
   'tab.records': 'Records',
@@ -120,6 +128,8 @@ export const ja = {
   'search.placeholder': 'Search vault…',
 } as const
 export const es = {
+  'header.eyebrow': 'Company',
+  'action.edit': 'Edit',
   'title': 'Company vault',
   'subtitle': 'Briefs, constraints, decisions, and memory — with versions and visibility',
   'tab.records': 'Records',
@@ -148,6 +158,8 @@ export const es = {
   'search.placeholder': 'Search vault…',
 } as const
 export const fr = {
+  'header.eyebrow': 'Company',
+  'action.edit': 'Edit',
   'title': 'Company vault',
   'subtitle': 'Briefs, constraints, decisions, and memory — with versions and visibility',
   'tab.records': 'Records',
@@ -176,6 +188,8 @@ export const fr = {
   'search.placeholder': 'Search vault…',
 } as const
 export const de = {
+  'header.eyebrow': 'Company',
+  'action.edit': 'Edit',
   'title': 'Company vault',
   'subtitle': 'Briefs, constraints, decisions, and memory — with versions and visibility',
   'tab.records': 'Records',
@@ -204,6 +218,8 @@ export const de = {
   'search.placeholder': 'Search vault…',
 } as const
 export const ru = {
+  'header.eyebrow': 'Company',
+  'action.edit': 'Edit',
   'title': 'Company vault',
   'subtitle': 'Briefs, constraints, decisions, and memory — with versions and visibility',
   'tab.records': 'Records',

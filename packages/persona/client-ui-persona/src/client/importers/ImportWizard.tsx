@@ -1,9 +1,9 @@
 /** Marco F — import wizard (preview). */
 import { useState, type ReactNode } from 'react'
-import { PersonaButton } from '../primitives/index.ts'
+import { Button, Card, Screen, ScreenHeader } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import page from '../profile/LumenPage.module.css'
+import styles from './ImportWizard.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import { pt as defaultDict } from '../locale/importers/locales.ts'
 
@@ -22,53 +22,71 @@ export function ImportWizard({ dict = defaultDict, initialState = 'ready' }: Imp
   const [step, setStep] = useState<ImportStep>('file')
   const [importing, setImporting] = useState(false)
 
-  if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={1} />
+  const header = (
+    <ScreenHeader
+      icon="arquivos"
+      eyebrow={t('header.eyebrow')}
+      title={t('title')}
+      subtitle={t('subtitle')}
+    />
+  )
+
+  if (initialState === 'loading') {
+    return (
+      <Screen width="reading" className={styles.shell} data-persona-surface="importers">
+        {header}
+        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={1} />
+      </Screen>
+    )
+  }
   if (initialState === 'empty') {
     return (
-      <PersonaSurfaceEmpty
-        dict={dict}
-        illustrationLabelKey="empty.illustration"
-        titleKey="empty.title"
-        hintKey="empty.hint"
-        primaryKey="empty.action"
-        onPrimary={() => { setStep('file') }}
-      />
+      <Screen width="reading" className={styles.shell} data-persona-surface="importers">
+        {header}
+        <PersonaSurfaceEmpty
+          dict={dict}
+          illustrationKey="empty-vault"
+          titleKey="empty.title"
+          hintKey="empty.hint"
+          primaryKey="empty.action"
+          onPrimary={() => { setStep('file') }}
+        />
+      </Screen>
     )
   }
 
   const stepIndex = STEP_ORDER.indexOf(step)
 
   return (
-    <div className={page.shell} data-persona-surface="importers">
-      <header>
-        <h1 className={page.title}>{t('title')}</h1>
-        <p className={page.subtitle}>{t('subtitle')}</p>
-      </header>
-      <p className={page.meta}>{t(`step.${step}`)}</p>
-      {step === 'file' && <PersonaButton>{t('action.chooseFile')}</PersonaButton>}
-      {step === 'progress' && (
-        <p role="status">{importing ? t('progress.running') : t('progress.done')}</p>
-      )}
-      <div className={page.actions}>
-        {stepIndex > 0 && (
-          <PersonaButton variant="secondary" onClick={() => { setStep(STEP_ORDER[stepIndex - 1] ?? step) }}>
-            {t('action.back')}
-          </PersonaButton>
+    <Screen width="reading" className={styles.shell} data-persona-surface="importers">
+      {header}
+      <Card padding="l" className={styles.stepCard}>
+        <p className={styles.stepLabel}>{t(`step.${step}`)}</p>
+        {step === 'file' && <Button variant="primary">{t('action.chooseFile')}</Button>}
+        {step === 'progress' && (
+          <p role="status">{importing ? t('progress.running') : t('progress.done')}</p>
         )}
-        {step !== 'progress' && step !== 'confirm' && (
-          <PersonaButton onClick={() => { setStep(STEP_ORDER[stepIndex + 1] ?? step) }}>
-            {t('action.next')}
-          </PersonaButton>
-        )}
-        {step === 'confirm' && (
-          <PersonaButton onClick={() => { setImporting(true); setStep('progress') }}>
-            {t('action.confirmImport')}
-          </PersonaButton>
-        )}
-        {step === 'progress' && !importing && (
-          <PersonaButton variant="secondary">{t('action.rollback')}</PersonaButton>
-        )}
-      </div>
-    </div>
+        <div className={styles.actions}>
+          {stepIndex > 0 && (
+            <Button variant="secondary" onClick={() => { setStep(STEP_ORDER[stepIndex - 1] ?? step) }}>
+              {t('action.back')}
+            </Button>
+          )}
+          {step !== 'progress' && step !== 'confirm' && (
+            <Button variant="primary" onClick={() => { setStep(STEP_ORDER[stepIndex + 1] ?? step) }}>
+              {t('action.next')}
+            </Button>
+          )}
+          {step === 'confirm' && (
+            <Button variant="primary" onClick={() => { setImporting(true); setStep('progress') }}>
+              {t('action.confirmImport')}
+            </Button>
+          )}
+          {step === 'progress' && !importing && (
+            <Button variant="secondary">{t('action.rollback')}</Button>
+          )}
+        </div>
+      </Card>
+    </Screen>
   )
 }

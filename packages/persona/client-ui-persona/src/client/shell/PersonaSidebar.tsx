@@ -1,15 +1,30 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS, symbol } from '../assets/generated-imports.ts'
 import type { ShellKey } from '../locale/shell/locales.ts'
 import { BrandIcon, UiIcon, type BrandIconName } from '../primitives/index.ts'
 import type { MainPanelId, ShellState } from './create-shell-store.ts'
 import { showPersonaDevHostBadge } from './persona-dev.ts'
+import { RailTeam, type RailPersona } from './RailTeam.tsx'
 import styles from './PersonaSidebar.module.css'
 
 export interface PersonaSidebarInjected {
-  hooks: { shell: HostObservable<ShellState> }
+  /** `team`: live "Sua equipe" rows (Prism wires from the live store). */
+  hooks: { shell: HostObservable<ShellState>; team: HostObservable<readonly RailPersona[]> }
   selectPanel(id: MainPanelId): void
+  readonly openPersonaDm?: ((personaId: string) => void) | undefined
+  readonly openPersonaProfile?: ((personaId: string) => void) | undefined
+  readonly hirePersona?: (() => void) | undefined
+}
+
+const COLLAPSED_KEY = 'persona.rail.collapsed.v1'
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 export type PersonaSidebarProps =
@@ -76,8 +91,22 @@ const GROUPS: readonly NavGroup[] = [
 ]
 
 /** Persona navigation rail: lilac paper, sticker active pill, Brush foliage at the foot. */
-export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: PersonaSidebarProps): ReactNode {
+export function PersonaSidebar({
+  t, useShell, useTeam, selectPanel, renderSlot, openPersonaDm, openPersonaProfile, hirePersona,
+}: PersonaSidebarProps): ReactNode {
   const shell = useShell(state => state)
+  const members = useTeam(rows => rows)
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const toggleCollapsed = useCallback((): void => {
+    setCollapsed((value) => {
+      try {
+        localStorage.setItem(COLLAPSED_KEY, value ? '0' : '1')
+      } catch {
+        /* storage unavailable */
+      }
+      return !value
+    })
+  }, [])
   const navRef = useRef<HTMLDivElement>(null)
   const moreActive = GROUPS.find(group => group.id === 'more')?.items.some(item => item.panel === shell.activePanel) ?? false
   const [moreOpen, setMoreOpen] = useState(false)
@@ -95,7 +124,7 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
     const rootBox = root.getBoundingClientRect()
     const box = active.getBoundingClientRect()
     setIndicator({ top: box.top - rootBox.top + root.scrollTop, height: box.height, opacity: 1 })
-  }, [shell.activePanel, showMore])
+  }, [shell.activePanel, showMore, collapsed, members.length])
 
   const hostLabel = shell.hostStatus === 'online'
     ? t('overview.hostConnected')
@@ -105,7 +134,7 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
   const devBadge = showPersonaDevHostBadge() && shell.hostProtocol !== null ? ` · p${shell.hostProtocol}` : ''
 
   return (
-    <nav className={styles.sidebar} aria-label={t('brand.name')} data-persona-grain="">
+    <nav className={styles.sidebar} aria-label={t('brand.name')} data-persona-grain="" data-collapsed={collapsed ? '' : undefined}>
       <div className={styles.foliage} aria-hidden="true">
         {ILLUSTRATIONS['rail-foliage-light'] !== undefined && (
           <img className={styles.foliageLight} src={ILLUSTRATIONS['rail-foliage-light']} alt="" />
@@ -120,11 +149,23 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
           <img className={styles.symbol} src={symbol} alt="" />
         </span>
         <p className={styles.wordmark}>{t('brand.name')}</p>
+        <button
+          type="button"
+          className={styles.collapse}
+          aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+          title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+          aria-pressed={collapsed}
+          onClick={toggleCollapsed}
+        >
+          <UiIcon name="chevronDown" size={16} strokeWidth={2.4} className={styles.collapseIcon} />
+        </button>
       </div>
 
       <button
         type="button"
         className={styles.search}
+        aria-label={t('sidebar.search')}
+        aria-keyshortcuts="Control+K"
         aria-current={shell.activePanel === 'search' ? 'page' : undefined}
         onClick={() => { selectPanel('search') }}
       >
@@ -167,6 +208,8 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
                         data-nav-item=""
                         className={styles.navItem}
                         aria-current={shell.activePanel === item.panel ? 'page' : undefined}
+                        aria-label={collapsed ? t(item.labelKey) : undefined}
+                        title={collapsed ? t(item.labelKey) : undefined}
                         onClick={() => { selectPanel(item.panel) }}
                       >
                         <BrandIcon name={item.icon} size={20} className={styles.navIcon ?? ''} />
@@ -175,6 +218,16 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
                     </li>
                   ))}
                 </ul>
+              )}
+              {group.id === 'main' && (members.length > 0 || hirePersona !== undefined) && (
+                <RailTeam
+                  t={t}
+                  members={members}
+                  collapsed={collapsed}
+                  onOpenDm={openPersonaDm}
+                  onOpenProfile={openPersonaProfile}
+                  onHire={hirePersona}
+                />
               )}
             </div>
           )

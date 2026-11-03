@@ -21,7 +21,7 @@ export type LazinessBenchGrade = 'strong' | 'fair' | 'weak'
 export interface PersonaProactivityMetrics {
   readonly proposalsToday: number
   readonly proposalsAccepted7d: number
-  readonly acceptanceRatePct: number
+  readonly acceptanceRatePct?: number
   readonly idleMinutesToday: number
   readonly lazinessBench: {
     readonly runner: string
@@ -37,6 +37,11 @@ export interface PersonaProfileSnapshot {
   readonly projectNames: readonly string[]
   readonly recentActivity: readonly PersonaActivityItem[]
   readonly proactivity?: PersonaProactivityMetrics
+  /** PRO-4 host {@link AutonomyConfig} (editor wiring). */
+  readonly autonomy?: {
+    readonly mode: 'asked' | 'propose' | 'act'
+    readonly proposalBudget: number
+  }
 }
 
 const basePersona = (overrides: Partial<Persona> & Pick<Persona, 'id' | 'name' | 'title'>): Persona => ({

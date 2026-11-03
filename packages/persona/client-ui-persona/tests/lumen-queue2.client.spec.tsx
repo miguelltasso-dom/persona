@@ -79,7 +79,7 @@ describe('lumen queue 2 previews', () => {
     wrap(<ImportWizard />)
     expect(screen.getByRole('button', { name: /Continuar/i })).toBeTruthy()
     wrap(<CanvasView dict={canvasPt} nodes={MOCK_CANVAS_NODES} edges={MOCK_CANVAS_EDGES} />)
-    fireEvent.click(screen.getByRole('button', { name: canvasPt['mode.list'] }))
+    fireEvent.click(screen.getByRole('tab', { name: canvasPt['mode.list'] }))
     expect(screen.getByText('Hero landing')).toBeTruthy()
   })
 })

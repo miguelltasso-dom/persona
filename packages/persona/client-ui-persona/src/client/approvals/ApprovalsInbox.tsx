@@ -1,14 +1,13 @@
 /** Central human decisions (one question per card — Neutrality is omission). */
 import type { ReactNode } from 'react'
-import { usePersonaMotion } from '../theme/usePersonaMotion.ts'
-import { PersonaButton } from '../primitives/index.ts'
+import { Avatar, Button, Card, Chip, Screen, ScreenHeader } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import page from '../profile/LumenPage.module.css'
+import styles from './Approvals.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import { ProactiveDailySummaries } from './ProactiveDailySummaries.tsx'
 import type { ApprovalItem } from './mock-data.ts'
-import type { PersonaDailyProactiveSummary } from './proactivity-mock-data.ts'
+import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
 import { pt as defaultDict } from '../locale/approvals/locales.ts'
 
 export type ApprovalsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -29,6 +28,8 @@ export interface ApprovalsInboxProps {
   readonly items?: readonly ApprovalItem[]
   readonly proactiveSummaries?: readonly PersonaDailyProactiveSummary[]
   readonly initialState?: ApprovalsSurfaceState
+  readonly onDecideItem?: (item: ApprovalItem, accept: boolean) => void
+  readonly onDecideProactive?: (proposal: ProactiveProposal, accept: boolean) => void
 }
 
 export function ApprovalsInbox({
@@ -36,60 +37,97 @@ export function ApprovalsInbox({
   items = [],
   proactiveSummaries = [],
   initialState = 'ready',
+  onDecideItem,
+  onDecideProactive,
 }: ApprovalsInboxProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
-  const motion = usePersonaMotion({ preset: 'fast', fromOpacity: 0, fromTranslateY: 6 })
   const summaryIso = proactiveSummaries.find(summary => summary.proposals.length > 0)?.summaryDate ?? ''
   const summaryDateLabel = summaryIso === '' ? '' : formatSummaryDate(dict, summaryIso)
   const hasReactive = items.length > 0
   const hasProactive = proactiveSummaries.some(s => s.proposals.length > 0)
 
-  if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
+  const header = (
+    <ScreenHeader
+      icon="decisoes"
+      eyebrow={t('header.eyebrow')}
+      title={t('title')}
+      subtitle={t('subtitle')}
+    />
+  )
+
+  if (initialState === 'loading') {
+    return (
+      <Screen className={styles.shell} data-persona-surface="approvals">
+        {header}
+        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
+      </Screen>
+    )
+  }
   if (initialState === 'empty' || (!hasReactive && !hasProactive)) {
     return (
-      <PersonaSurfaceEmpty
-        dict={dict}
-        illustrationLabelKey="empty.illustration"
-        titleKey="empty.title"
-        hintKey="empty.hint"
-      />
+      <Screen className={styles.shell} data-persona-surface="approvals">
+        {header}
+        <PersonaSurfaceEmpty
+          dict={dict}
+          illustrationKey="empty-inbox"
+          titleKey="empty.title"
+          hintKey="empty.hint"
+        />
+      </Screen>
     )
   }
 
   return (
-    <div className={page.shell} ref={motion.ref} style={motion.style} data-persona-surface="approvals">
-      <header>
-        <h1 className={page.title}>{t('title')}</h1>
-        <p className={page.subtitle}>{t('subtitle')}</p>
-      </header>
-
+    <Screen className={styles.shell} data-persona-surface="approvals">
+      {header}
       {hasProactive && (
         <ProactiveDailySummaries
           dict={dict}
           summaries={proactiveSummaries}
           summaryDateLabel={summaryDateLabel}
+          {...(onDecideProactive !== undefined ? { onDecide: onDecideProactive } : {})}
         />
       )}
-
       {hasReactive && (
         <section aria-labelledby="persona-reactive-approvals" data-persona-approvals="reactive">
-          <h2 id="persona-reactive-approvals" className={page.title}>{t('reactive.title')}</h2>
-          <p className={page.subtitle}>{t('reactive.subtitle')}</p>
-          <ul className={page.list}>
-            {items.map(item => (
-              <li key={item.id} className={page.card}>
-                <span className={page.chip}>{t(`type.${item.kind}`)}</span>
-                <h3 className={page.title}>{cardTitle(dict, item)}</h3>
-                <p className={page.meta}>{item.question}</p>
-                <div className={page.actions}>
-                  <PersonaButton>{t(item.primaryKey)}</PersonaButton>
-                  <PersonaButton variant="secondary">{t('action.dismiss')}</PersonaButton>
-                </div>
+          <h2 id="persona-reactive-approvals" className={styles.sectionTitle}>{t('reactive.title')}</h2>
+          <p className={styles.sectionHint}>{t('reactive.subtitle')}</p>
+          <ul className={styles.list}>
+            {items.map((item, index) => (
+              <li key={item.id}>
+                <Card padding="m" tone="accent" className={styles.approvalCard}>
+                  <div className={styles.approvalHead}>
+                    <Avatar name={item.title} size={40} shape="portrait" />
+                    <div>
+                      <Chip tone="accent" size="s">{t(`type.${item.kind}`)}</Chip>
+                      <h3 className={styles.question}>{cardTitle(dict, item)}</h3>
+                    </div>
+                  </div>
+                  <p className={styles.context}>{item.question}</p>
+                  <div className={styles.actions}>
+                    <Button
+                      variant="primary"
+                      size="s"
+                      onClick={() => { onDecideItem?.(item, true) }}
+                      disabled={index > 0 || onDecideItem === undefined}
+                    >
+                      {t(item.primaryKey)}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="s"
+                      onClick={() => { onDecideItem?.(item, false) }}
+                      disabled={onDecideItem === undefined}
+                    >
+                      {t('action.dismiss')}
+                    </Button>
+                  </div>
+                </Card>
               </li>
             ))}
           </ul>
         </section>
       )}
-    </div>
+    </Screen>
   )
 }

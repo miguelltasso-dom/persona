@@ -5,6 +5,7 @@ export const ROUTINES_NS = 'persona.routines'
 
 /** Portuguese (Brazil) copy; keys define {@link RoutinesKey}. */
 export const pt = {
+  'header.eyebrow': 'Trabalho',
   'title': 'Rotinas',
   'subtitle': 'Calendário semanal, resultados das execuções e silêncio da equipe',
   'week.label': 'Semana de {start} – {end}',
@@ -29,6 +30,7 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Work',
   'title': 'Routines',
   'subtitle': 'Weekly calendar, run outcomes, and team quiet hours',
   'week.label': 'Week of {start} – {end}',
@@ -52,6 +54,7 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Work',
   'title': 'Routines',
   'subtitle': 'Weekly calendar, run outcomes, and team quiet hours',
   'week.label': 'Week of {start} – {end}',
@@ -74,6 +77,7 @@ export const zh = {
   'error.retry': 'Try again',
 } as const
 export const ja = {
+  'header.eyebrow': 'Work',
   'title': 'Routines',
   'subtitle': 'Weekly calendar, run outcomes, and team quiet hours',
   'week.label': 'Week of {start} – {end}',
@@ -96,6 +100,7 @@ export const ja = {
   'error.retry': 'Try again',
 } as const
 export const es = {
+  'header.eyebrow': 'Work',
   'title': 'Routines',
   'subtitle': 'Weekly calendar, run outcomes, and team quiet hours',
   'week.label': 'Week of {start} – {end}',
@@ -118,6 +123,7 @@ export const es = {
   'error.retry': 'Try again',
 } as const
 export const fr = {
+  'header.eyebrow': 'Work',
   'title': 'Routines',
   'subtitle': 'Weekly calendar, run outcomes, and team quiet hours',
   'week.label': 'Week of {start} – {end}',
@@ -140,6 +146,7 @@ export const fr = {
   'error.retry': 'Try again',
 } as const
 export const de = {
+  'header.eyebrow': 'Work',
   'title': 'Routines',
   'subtitle': 'Weekly calendar, run outcomes, and team quiet hours',
   'week.label': 'Week of {start} – {end}',
@@ -162,6 +169,7 @@ export const de = {
   'error.retry': 'Try again',
 } as const
 export const ru = {
+  'header.eyebrow': 'Work',
   'title': 'Routines',
   'subtitle': 'Weekly calendar, run outcomes, and team quiet hours',
   'week.label': 'Week of {start} – {end}',

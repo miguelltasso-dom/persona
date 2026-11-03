@@ -3,7 +3,8 @@
  * team-banner scene. Pure inline SVG painted with theme tokens; max two accents per screen.
  */
 
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { ACCENTS } from '../assets/generated-imports.ts'
 import styles from './Accents.module.css'
 
 /** Wobbly amber underline drawn under one title per screen. */
@@ -97,4 +98,21 @@ export function TeamScene({ className }: { readonly className?: string | undefin
       </g>
     </svg>
   )
+}
+
+export interface AccentProps {
+  /** Brush accent id (persona-assets/accents): squiggle-1..3, paw-prints, sparkle-1..2, leaf-1..2, doodle-arrow, doodle-circle, stars-cluster. */
+  readonly name: string
+  readonly width: number
+  readonly height: number
+  readonly className?: string | undefined
+}
+
+/** Brush hand-drawn accent painted with currentColor through a mask (max two per screen). */
+export function Accent({ name, width, height, className }: AccentProps): ReactNode {
+  const url = ACCENTS[name]
+  if (url === undefined) return null
+  const style = { width, height, '--persona-accent-url': `url("${url}")` } as CSSProperties
+  const merged = className === undefined ? styles.accent : `${styles.accent} ${className}`
+  return <span className={merged} style={style} aria-hidden="true" />
 }

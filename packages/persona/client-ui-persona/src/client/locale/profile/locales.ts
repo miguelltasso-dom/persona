@@ -5,7 +5,9 @@ export const PROFILE_NS = 'persona.profile'
 
 /** Portuguese (Brazil) copy; keys define {@link ProfileKey}. */
 export const pt = {
+  'header.eyebrow': 'Mais',
   'title': 'Perfil da persona',
+  'subtitle': 'Estado ao vivo, memória, skills e proatividade desta persona',
   'tab.overview': 'Visão geral',
   'tab.memory': 'Memória',
   'tab.skills': 'Skills',
@@ -21,6 +23,7 @@ export const pt = {
   'proactivity.accepted7d': 'Aceitas (7 dias)',
   'proactivity.acceptanceRate': 'Taxa de aceitação',
   'proactivity.acceptanceRateValue': '{pct}%',
+  'proactivity.acceptanceRateUnavailable': '—',
   'proactivity.idleToday': 'Ocioso hoje',
   'proactivity.idleMinutesValue': '{minutes} min',
   'proactivity.lazinessTitle': 'Avaliação de preguiça (bench)',
@@ -47,7 +50,9 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'More',
   'title': 'Persona profile',
+  'subtitle': 'Live state, memory, skills, and proactivity for this teammate',
   'tab.overview': 'Overview',
   'tab.memory': 'Memory',
   'tab.skills': 'Skills',
@@ -63,6 +68,7 @@ export const en = {
   'proactivity.accepted7d': 'Accepted (7 days)',
   'proactivity.acceptanceRate': 'Acceptance rate',
   'proactivity.acceptanceRateValue': '{pct}%',
+  'proactivity.acceptanceRateUnavailable': '—',
   'proactivity.idleToday': 'Idle today',
   'proactivity.idleMinutesValue': '{minutes} min',
   'proactivity.lazinessTitle': 'Laziness evaluation (bench)',
@@ -88,7 +94,9 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'More',
   'title': 'Persona profile',
+  'subtitle': 'Live state, memory, skills, and proactivity for this teammate',
   'tab.overview': 'Overview',
   'tab.memory': 'Memory',
   'tab.skills': 'Skills',
@@ -104,6 +112,7 @@ export const zh = {
   'proactivity.accepted7d': 'Accepted (7 days)',
   'proactivity.acceptanceRate': 'Acceptance rate',
   'proactivity.acceptanceRateValue': '{pct}%',
+  'proactivity.acceptanceRateUnavailable': '—',
   'proactivity.idleToday': 'Idle today',
   'proactivity.idleMinutesValue': '{minutes} min',
   'proactivity.lazinessTitle': 'Laziness evaluation (bench)',
@@ -128,7 +137,9 @@ export const zh = {
   'error.retry': 'Try again',
 } as const
 export const ja = {
+  'header.eyebrow': 'More',
   'title': 'Persona profile',
+  'subtitle': 'Live state, memory, skills, and proactivity for this teammate',
   'tab.overview': 'Overview',
   'tab.memory': 'Memory',
   'tab.skills': 'Skills',
@@ -144,6 +155,7 @@ export const ja = {
   'proactivity.accepted7d': 'Accepted (7 days)',
   'proactivity.acceptanceRate': 'Acceptance rate',
   'proactivity.acceptanceRateValue': '{pct}%',
+  'proactivity.acceptanceRateUnavailable': '—',
   'proactivity.idleToday': 'Idle today',
   'proactivity.idleMinutesValue': '{minutes} min',
   'proactivity.lazinessTitle': 'Laziness evaluation (bench)',
@@ -168,7 +180,9 @@ export const ja = {
   'error.retry': 'Try again',
 } as const
 export const es = {
+  'header.eyebrow': 'More',
   'title': 'Persona profile',
+  'subtitle': 'Live state, memory, skills, and proactivity for this teammate',
   'tab.overview': 'Overview',
   'tab.memory': 'Memory',
   'tab.skills': 'Skills',
@@ -184,6 +198,7 @@ export const es = {
   'proactivity.accepted7d': 'Accepted (7 days)',
   'proactivity.acceptanceRate': 'Acceptance rate',
   'proactivity.acceptanceRateValue': '{pct}%',
+  'proactivity.acceptanceRateUnavailable': '—',
   'proactivity.idleToday': 'Idle today',
   'proactivity.idleMinutesValue': '{minutes} min',
   'proactivity.lazinessTitle': 'Laziness evaluation (bench)',
@@ -208,7 +223,9 @@ export const es = {
   'error.retry': 'Try again',
 } as const
 export const fr = {
+  'header.eyebrow': 'More',
   'title': 'Persona profile',
+  'subtitle': 'Live state, memory, skills, and proactivity for this teammate',
   'tab.overview': 'Overview',
   'tab.memory': 'Memory',
   'tab.skills': 'Skills',
@@ -224,6 +241,7 @@ export const fr = {
   'proactivity.accepted7d': 'Accepted (7 days)',
   'proactivity.acceptanceRate': 'Acceptance rate',
   'proactivity.acceptanceRateValue': '{pct}%',
+  'proactivity.acceptanceRateUnavailable': '—',
   'proactivity.idleToday': 'Idle today',
   'proactivity.idleMinutesValue': '{minutes} min',
   'proactivity.lazinessTitle': 'Laziness evaluation (bench)',
@@ -248,7 +266,9 @@ export const fr = {
   'error.retry': 'Try again',
 } as const
 export const de = {
+  'header.eyebrow': 'More',
   'title': 'Persona profile',
+  'subtitle': 'Live state, memory, skills, and proactivity for this teammate',
   'tab.overview': 'Overview',
   'tab.memory': 'Memory',
   'tab.skills': 'Skills',
@@ -264,6 +284,7 @@ export const de = {
   'proactivity.accepted7d': 'Accepted (7 days)',
   'proactivity.acceptanceRate': 'Acceptance rate',
   'proactivity.acceptanceRateValue': '{pct}%',
+  'proactivity.acceptanceRateUnavailable': '—',
   'proactivity.idleToday': 'Idle today',
   'proactivity.idleMinutesValue': '{minutes} min',
   'proactivity.lazinessTitle': 'Laziness evaluation (bench)',
@@ -288,7 +309,9 @@ export const de = {
   'error.retry': 'Try again',
 } as const
 export const ru = {
+  'header.eyebrow': 'More',
   'title': 'Persona profile',
+  'subtitle': 'Live state, memory, skills, and proactivity for this teammate',
   'tab.overview': 'Overview',
   'tab.memory': 'Memory',
   'tab.skills': 'Skills',
@@ -304,6 +327,7 @@ export const ru = {
   'proactivity.accepted7d': 'Accepted (7 days)',
   'proactivity.acceptanceRate': 'Acceptance rate',
   'proactivity.acceptanceRateValue': '{pct}%',
+  'proactivity.acceptanceRateUnavailable': '—',
   'proactivity.idleToday': 'Idle today',
   'proactivity.idleMinutesValue': '{minutes} min',
   'proactivity.lazinessTitle': 'Laziness evaluation (bench)',

@@ -82,7 +82,7 @@
   z-index: -1;
   pointer-events: none;
   background-image: var(--persona-grain-image);
-  background-size: 220px 220px;
+  background-size: var(--persona-grain-size, 220px 220px);
   opacity: var(--persona-grain-opacity);
   mix-blend-mode: var(--persona-grain-blend);
 }

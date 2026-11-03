@@ -47,9 +47,9 @@
 .squiggle {
   position: absolute;
   left: 2px;
-  right: 8px;
-  bottom: -4px;
-  width: auto;
+  bottom: -6px;
+  width: calc(100% - 8px) !important;
+  color: var(--persona-accent);
 }
 
 .subtitle {

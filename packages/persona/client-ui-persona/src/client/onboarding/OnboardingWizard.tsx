@@ -1,9 +1,9 @@
 /** Five-step onboarding (DESIGN-SYSTEM §7): illustrated stage with the team arriving + one focused form per step. */
 
 import { useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
-import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
-import { Button, Chip, Input, Textarea, UiIcon } from '../primitives/index.ts'
+import { Avatar, Button, Chip, Input, Textarea, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { MOCK_HARNESSES, MOCK_INTRO_LINES, type TeamTemplateId } from './mock-data.ts'
@@ -42,6 +42,16 @@ function useStoreSnapshot(store: OnboardingWizardProps['store']): OnboardingStat
   )
 }
 
+const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
+
+/** Face for a roster draft: explicit gallery ref, else the animal named like the persona, else a suggested animal. */
+function rosterFace(person: { readonly name: string; readonly galleryRef?: string }, index: number): { src: string | undefined; suggested: boolean } {
+  const ref = person.galleryRef ?? person.name.trim().toLowerCase()
+  const direct = PORTRAITS[ref]
+  if (direct !== undefined) return { src: direct, suggested: false }
+  return { src: PORTRAITS[CAST[index % CAST.length] ?? 'atlas'], suggested: true }
+}
+
 function coordinatorReply(dict: LocaleDict, prompt: string): string {
   const role = prompt.trim().slice(0, 80)
   return bindLocale(dict, 'step4.coordinatorReply', { name: 'Colega novo', role })
@@ -62,12 +72,13 @@ function OnboardingStage({ t, step }: { readonly t: (key: string) => string; rea
       </div>
       <ul className={styles.cast}>
         {CAST.map((id, index) => {
-          const src = poseUrl(id, 'disponivel')
+          const src = poseUrl(id, 'acenando')
           const here = visible.includes(id)
           return (
             <li
               key={id}
               className={styles.castMember}
+              data-character={id}
               data-here={here ? '' : undefined}
               style={{ '--cast-delay': `${index * 80}ms` } as CSSProperties}
             >
@@ -182,14 +193,18 @@ export function OnboardingWizard({ dict, store, actions, onComplete }: Onboardin
               </div>
               {state.roster.length > 0 && (
                 <ul className={styles.roster}>
-                  {state.roster.map(person => (
-                    <li key={person.name}>
-                      <Chip tone="plain">
-                        <strong>{person.name}</strong>
-                        {` · ${person.role}`}
-                      </Chip>
-                    </li>
-                  ))}
+                  {state.roster.map((person, index) => {
+                    const face = rosterFace(person, index)
+                    return (
+                      <li key={person.name} className={styles.rosterCard} data-suggested={face.suggested ? '' : undefined}>
+                        <Avatar name={person.name} src={face.src} shape="portrait" size={40} decorative />
+                        <span className={styles.rosterText}>
+                          <span className={styles.rosterName}>{person.name}</span>
+                          <span className={styles.rosterRole}>{person.role}</span>
+                        </span>
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
               <BuilderThread

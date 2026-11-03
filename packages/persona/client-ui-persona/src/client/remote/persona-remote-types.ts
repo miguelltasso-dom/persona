@@ -2,6 +2,7 @@
 export type {
   AwayEventView,
   ChannelView,
+  DmView,
   MessageView,
   OverviewNowView,
   OverviewView,

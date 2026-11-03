@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-03T19:01:27.277Z",
+    "generatedAt": "2026-11-03T19:48:51.657Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 129,
-    "totalBytes": 2818254,
+    "files": 191,
+    "totalBytes": 4659855,
     "withinBudget": true
   },
   "files": [
@@ -169,6 +169,50 @@
       "bytes": 281
     },
     {
+      "rel": "accents/doodle-arrow.svg",
+      "bytes": 257
+    },
+    {
+      "rel": "accents/doodle-circle.svg",
+      "bytes": 297
+    },
+    {
+      "rel": "accents/leaf-1.svg",
+      "bytes": 275
+    },
+    {
+      "rel": "accents/leaf-2.svg",
+      "bytes": 274
+    },
+    {
+      "rel": "accents/paw-prints.svg",
+      "bytes": 1079
+    },
+    {
+      "rel": "accents/sparkle-1.svg",
+      "bytes": 262
+    },
+    {
+      "rel": "accents/sparkle-2.svg",
+      "bytes": 329
+    },
+    {
+      "rel": "accents/squiggle-1.svg",
+      "bytes": 232
+    },
+    {
+      "rel": "accents/squiggle-2.svg",
+      "bytes": 245
+    },
+    {
+      "rel": "accents/squiggle-3.svg",
+      "bytes": 256
+    },
+    {
+      "rel": "accents/stars-cluster.svg",
+      "bytes": 327
+    },
+    {
       "rel": "brand/banner-team-light.webp",
       "bytes": 19388
     },
@@ -203,6 +247,46 @@
     {
       "rel": "illustrations/rail-foliage-dark.webp",
       "bytes": 38856
+    },
+    {
+      "rel": "textures/paper-light.webp",
+      "bytes": 22008
+    },
+    {
+      "rel": "textures/paper-dark.webp",
+      "bytes": 27646
+    },
+    {
+      "rel": "illustrations/empty-inbox.webp",
+      "bytes": 15888
+    },
+    {
+      "rel": "illustrations/empty-kanban.webp",
+      "bytes": 26554
+    },
+    {
+      "rel": "illustrations/empty-search.webp",
+      "bytes": 20402
+    },
+    {
+      "rel": "illustrations/empty-vault.webp",
+      "bytes": 23784
+    },
+    {
+      "rel": "illustrations/empty-routines.webp",
+      "bytes": 16580
+    },
+    {
+      "rel": "illustrations/empty-connections.webp",
+      "bytes": 19898
+    },
+    {
+      "rel": "illustrations/empty-error.webp",
+      "bytes": 15004
+    },
+    {
+      "rel": "illustrations/empty-dm.webp",
+      "bytes": 18196
     },
     {
       "rel": "avatars/atlas-blink-256.webp",
@@ -253,6 +337,90 @@
       "bytes": 1706
     },
     {
+      "rel": "avatars/capivara-256.webp",
+      "bytes": 12602
+    },
+    {
+      "rel": "avatars/capivara-96.webp",
+      "bytes": 3780
+    },
+    {
+      "rel": "avatars/capivara-48.webp",
+      "bytes": 1734
+    },
+    {
+      "rel": "avatars/cervo-256.webp",
+      "bytes": 15660
+    },
+    {
+      "rel": "avatars/cervo-96.webp",
+      "bytes": 4672
+    },
+    {
+      "rel": "avatars/cervo-48.webp",
+      "bytes": 2026
+    },
+    {
+      "rel": "avatars/coelho-256.webp",
+      "bytes": 12732
+    },
+    {
+      "rel": "avatars/coelho-96.webp",
+      "bytes": 3766
+    },
+    {
+      "rel": "avatars/coelho-48.webp",
+      "bytes": 1696
+    },
+    {
+      "rel": "avatars/coruja-256.webp",
+      "bytes": 14100
+    },
+    {
+      "rel": "avatars/coruja-96.webp",
+      "bytes": 4220
+    },
+    {
+      "rel": "avatars/coruja-48.webp",
+      "bytes": 1868
+    },
+    {
+      "rel": "avatars/guaxinim-256.webp",
+      "bytes": 13096
+    },
+    {
+      "rel": "avatars/guaxinim-96.webp",
+      "bytes": 3972
+    },
+    {
+      "rel": "avatars/guaxinim-48.webp",
+      "bytes": 1826
+    },
+    {
+      "rel": "avatars/lobo-guara-256.webp",
+      "bytes": 13276
+    },
+    {
+      "rel": "avatars/lobo-guara-96.webp",
+      "bytes": 3838
+    },
+    {
+      "rel": "avatars/lobo-guara-48.webp",
+      "bytes": 1712
+    },
+    {
+      "rel": "avatars/lontra-256.webp",
+      "bytes": 12474
+    },
+    {
+      "rel": "avatars/lontra-96.webp",
+      "bytes": 3832
+    },
+    {
+      "rel": "avatars/lontra-48.webp",
+      "bytes": 1744
+    },
+    {
       "rel": "avatars/luna-blink-256.webp",
       "bytes": 11710
     },
@@ -301,6 +469,42 @@
       "bytes": 2068
     },
     {
+      "rel": "avatars/ourico-256.webp",
+      "bytes": 13590
+    },
+    {
+      "rel": "avatars/ourico-96.webp",
+      "bytes": 4048
+    },
+    {
+      "rel": "avatars/ourico-48.webp",
+      "bytes": 1778
+    },
+    {
+      "rel": "avatars/panda-256.webp",
+      "bytes": 12674
+    },
+    {
+      "rel": "avatars/panda-96.webp",
+      "bytes": 4088
+    },
+    {
+      "rel": "avatars/panda-48.webp",
+      "bytes": 1818
+    },
+    {
+      "rel": "avatars/raposa-256.webp",
+      "bytes": 13544
+    },
+    {
+      "rel": "avatars/raposa-96.webp",
+      "bytes": 3930
+    },
+    {
+      "rel": "avatars/raposa-48.webp",
+      "bytes": 1792
+    },
+    {
       "rel": "avatars/sol-blink-256.webp",
       "bytes": 9626
     },
@@ -325,204 +529,248 @@
       "bytes": 1506
     },
     {
+      "rel": "avatars/tamandua-256.webp",
+      "bytes": 12674
+    },
+    {
+      "rel": "avatars/tamandua-96.webp",
+      "bytes": 3832
+    },
+    {
+      "rel": "avatars/tamandua-48.webp",
+      "bytes": 1832
+    },
+    {
+      "rel": "avatars/tucano-256.webp",
+      "bytes": 10580
+    },
+    {
+      "rel": "avatars/tucano-96.webp",
+      "bytes": 3294
+    },
+    {
+      "rel": "avatars/tucano-48.webp",
+      "bytes": 1572
+    },
+    {
+      "rel": "poses/atlas-acenando.webp",
+      "bytes": 58194
+    },
+    {
       "rel": "poses/atlas-aguardando-aprovacao.webp",
-      "bytes": 46962
+      "bytes": 50778
     },
     {
       "rel": "poses/atlas-aguardando-resposta.webp",
-      "bytes": 46672
+      "bytes": 52632
     },
     {
       "rel": "poses/atlas-descansando.webp",
-      "bytes": 45248
+      "bytes": 98794
     },
     {
       "rel": "poses/atlas-disponivel-blink.webp",
-      "bytes": 49288
+      "bytes": 54678
     },
     {
       "rel": "poses/atlas-disponivel-tail.webp",
-      "bytes": 51372
+      "bytes": 56606
     },
     {
       "rel": "poses/atlas-disponivel.webp",
-      "bytes": 49542
+      "bytes": 54958
     },
     {
       "rel": "poses/atlas-erro.webp",
-      "bytes": 50852
+      "bytes": 69106
     },
     {
       "rel": "poses/atlas-offline.webp",
-      "bytes": 48492
+      "bytes": 54072
     },
     {
       "rel": "poses/atlas-revisando.webp",
-      "bytes": 56954
+      "bytes": 62066
     },
     {
       "rel": "poses/atlas-trabalhando.webp",
-      "bytes": 53152
+      "bytes": 60036
+    },
+    {
+      "rel": "poses/bento-acenando.webp",
+      "bytes": 63562
     },
     {
       "rel": "poses/bento-aguardando-aprovacao.webp",
-      "bytes": 35834
+      "bytes": 52230
     },
     {
       "rel": "poses/bento-aguardando-resposta.webp",
-      "bytes": 37918
+      "bytes": 53024
     },
     {
       "rel": "poses/bento-descansando.webp",
-      "bytes": 33246
+      "bytes": 86462
     },
     {
       "rel": "poses/bento-disponivel-blink.webp",
-      "bytes": 45788
+      "bytes": 66416
     },
     {
       "rel": "poses/bento-disponivel-tail.webp",
-      "bytes": 46068
+      "bytes": 66940
     },
     {
       "rel": "poses/bento-disponivel.webp",
-      "bytes": 46228
+      "bytes": 67010
     },
     {
       "rel": "poses/bento-erro.webp",
-      "bytes": 46302
+      "bytes": 73532
     },
     {
       "rel": "poses/bento-offline.webp",
-      "bytes": 33250
+      "bytes": 50162
     },
     {
       "rel": "poses/bento-revisando.webp",
-      "bytes": 42274
+      "bytes": 59274
     },
     {
       "rel": "poses/bento-trabalhando.webp",
-      "bytes": 38900
+      "bytes": 61114
+    },
+    {
+      "rel": "poses/luna-acenando.webp",
+      "bytes": 58522
     },
     {
       "rel": "poses/luna-aguardando-aprovacao.webp",
-      "bytes": 40304
+      "bytes": 56522
     },
     {
       "rel": "poses/luna-aguardando-resposta.webp",
-      "bytes": 36888
+      "bytes": 51946
     },
     {
       "rel": "poses/luna-descansando.webp",
-      "bytes": 30378
+      "bytes": 75872
     },
     {
       "rel": "poses/luna-disponivel-blink.webp",
-      "bytes": 38576
+      "bytes": 53340
     },
     {
       "rel": "poses/luna-disponivel-tail.webp",
-      "bytes": 42802
+      "bytes": 60452
     },
     {
       "rel": "poses/luna-disponivel.webp",
-      "bytes": 39036
+      "bytes": 54262
     },
     {
       "rel": "poses/luna-erro.webp",
-      "bytes": 50522
+      "bytes": 74982
     },
     {
       "rel": "poses/luna-offline.webp",
-      "bytes": 31320
+      "bytes": 51424
     },
     {
       "rel": "poses/luna-revisando.webp",
-      "bytes": 39666
+      "bytes": 54736
     },
     {
       "rel": "poses/luna-trabalhando.webp",
-      "bytes": 41820
+      "bytes": 72996
+    },
+    {
+      "rel": "poses/nina-acenando.webp",
+      "bytes": 77552
     },
     {
       "rel": "poses/nina-aguardando-aprovacao.webp",
-      "bytes": 52828
+      "bytes": 75058
     },
     {
       "rel": "poses/nina-aguardando-resposta.webp",
-      "bytes": 45120
+      "bytes": 63466
     },
     {
       "rel": "poses/nina-descansando.webp",
-      "bytes": 44940
+      "bytes": 109224
     },
     {
       "rel": "poses/nina-disponivel-blink.webp",
-      "bytes": 50838
+      "bytes": 70946
     },
     {
       "rel": "poses/nina-disponivel-tail.webp",
-      "bytes": 54738
+      "bytes": 76956
     },
     {
       "rel": "poses/nina-disponivel.webp",
-      "bytes": 51540
+      "bytes": 72166
     },
     {
       "rel": "poses/nina-erro.webp",
-      "bytes": 57406
+      "bytes": 86522
     },
     {
       "rel": "poses/nina-offline.webp",
-      "bytes": 40140
+      "bytes": 62768
     },
     {
       "rel": "poses/nina-revisando.webp",
-      "bytes": 50166
+      "bytes": 73054
     },
     {
       "rel": "poses/nina-trabalhando.webp",
-      "bytes": 49670
+      "bytes": 68962
+    },
+    {
+      "rel": "poses/sol-acenando.webp",
+      "bytes": 64864
     },
     {
       "rel": "poses/sol-aguardando-aprovacao.webp",
-      "bytes": 41580
+      "bytes": 65084
     },
     {
       "rel": "poses/sol-aguardando-resposta.webp",
-      "bytes": 36856
+      "bytes": 58120
     },
     {
       "rel": "poses/sol-descansando.webp",
-      "bytes": 30212
+      "bytes": 77076
     },
     {
       "rel": "poses/sol-disponivel-blink.webp",
-      "bytes": 41052
+      "bytes": 62038
     },
     {
       "rel": "poses/sol-disponivel-tail.webp",
-      "bytes": 44022
+      "bytes": 66666
     },
     {
       "rel": "poses/sol-disponivel.webp",
-      "bytes": 41096
+      "bytes": 62182
     },
     {
       "rel": "poses/sol-erro.webp",
-      "bytes": 44302
+      "bytes": 67936
     },
     {
       "rel": "poses/sol-offline.webp",
-      "bytes": 30556
+      "bytes": 50468
     },
     {
       "rel": "poses/sol-revisando.webp",
-      "bytes": 42196
+      "bytes": 63252
     },
     {
       "rel": "poses/sol-trabalhando.webp",
-      "bytes": 43500
+      "bytes": 83488
     }
   ]
 }

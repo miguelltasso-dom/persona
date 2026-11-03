@@ -1,5 +1,7 @@
 {
+  "header.eyebrow": "More",
   "title": "Persona profile",
+  "subtitle": "Live state, memory, skills, and proactivity for this teammate",
   "tab.overview": "Overview",
   "tab.memory": "Memory",
   "tab.skills": "Skills",
@@ -15,6 +17,7 @@
   "proactivity.accepted7d": "Accepted (7 days)",
   "proactivity.acceptanceRate": "Acceptance rate",
   "proactivity.acceptanceRateValue": "{pct}%",
+  "proactivity.acceptanceRateUnavailable": "—",
   "proactivity.idleToday": "Idle today",
   "proactivity.idleMinutesValue": "{minutes} min",
   "proactivity.lazinessTitle": "Laziness evaluation (bench)",

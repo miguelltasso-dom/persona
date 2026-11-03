@@ -5,6 +5,7 @@ export const CANVAS_NS = 'persona.canvas'
 
 /** Portuguese (Brazil) copy; keys define {@link CanvasKey}. */
 export const pt = {
+  'header.eyebrow': 'Trabalho',
   'title': 'Canvas',
   'subtitle': 'Mesmos objetos do produto — relações, zoom e lista acessível',
   'mode.canvas': 'Canvas',
@@ -29,6 +30,7 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Work',
   'title': 'Canvas',
   'subtitle': 'Same product objects — relations, zoom, and accessible list',
   'mode.canvas': 'Canvas',
@@ -52,6 +54,7 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Work',
   'title': 'Canvas',
   'subtitle': 'Same product objects — relations, zoom, and accessible list',
   'mode.canvas': 'Canvas',
@@ -74,6 +77,7 @@ export const zh = {
   'error.retry': 'Try again',
 } as const
 export const ja = {
+  'header.eyebrow': 'Work',
   'title': 'Canvas',
   'subtitle': 'Same product objects — relations, zoom, and accessible list',
   'mode.canvas': 'Canvas',
@@ -96,6 +100,7 @@ export const ja = {
   'error.retry': 'Try again',
 } as const
 export const es = {
+  'header.eyebrow': 'Work',
   'title': 'Canvas',
   'subtitle': 'Same product objects — relations, zoom, and accessible list',
   'mode.canvas': 'Canvas',
@@ -118,6 +123,7 @@ export const es = {
   'error.retry': 'Try again',
 } as const
 export const fr = {
+  'header.eyebrow': 'Work',
   'title': 'Canvas',
   'subtitle': 'Same product objects — relations, zoom, and accessible list',
   'mode.canvas': 'Canvas',
@@ -140,6 +146,7 @@ export const fr = {
   'error.retry': 'Try again',
 } as const
 export const de = {
+  'header.eyebrow': 'Work',
   'title': 'Canvas',
   'subtitle': 'Same product objects — relations, zoom, and accessible list',
   'mode.canvas': 'Canvas',
@@ -162,6 +169,7 @@ export const de = {
   'error.retry': 'Try again',
 } as const
 export const ru = {
+  'header.eyebrow': 'Work',
   'title': 'Canvas',
   'subtitle': 'Same product objects — relations, zoom, and accessible list',
   'mode.canvas': 'Canvas',

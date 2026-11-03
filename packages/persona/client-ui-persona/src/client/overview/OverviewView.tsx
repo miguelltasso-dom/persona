@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { poseUrl } from '../assets/asset-url.ts'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { usePersonaMotion } from '../motion/index.ts'
-import { Button, Card, Chip, EmptyState, Squiggle, UiIcon } from '../primitives/index.ts'
+import { Accent, Button, Card, EmptyState, UiIcon } from '../primitives/index.ts'
 import type { AwaySummaryEvent, PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import { AwayWhileOutPanel } from './AwayWhileOutPanel.tsx'
 import { OverviewNowStrip } from './OverviewNowStrip.tsx'
@@ -16,15 +16,18 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   readonly userName?: string | undefined
   /** Navigate to another main panel (shell). */
   readonly onNavigate?: ((panel: 'channels' | 'kanban' | 'approvals') => void) | undefined
+  /** Live first task (C8); falls back to locale copy when absent. */
+  readonly suggestedTask?: { readonly id: string; readonly title: string } | undefined
 }
 
 /** Visão geral — "o que precisa de você" first, then what the team is doing now (RCD: never a blank dashboard). */
-export function OverviewView({ t, attentionItems, nowRows, awayEvents, userName, onNavigate }: OverviewViewProps): ReactNode {
+export function OverviewView({
+  t, attentionItems, nowRows, awayEvents, userName, onNavigate, suggestedTask,
+}: OverviewViewProps): ReactNode {
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 8 })
   const greeting = userName !== undefined && userName.trim().length > 0
     ? t('overview.greeting', { name: userName.trim().split(/\s+/u)[0] ?? userName })
     : t('overview.greetingFallback')
-  const restingPose = poseUrl('atlas', 'disponivel')
 
   return (
     <div className={styles.view} data-persona-root="" ref={motion.ref} style={motion.style}>
@@ -34,7 +37,7 @@ export function OverviewView({ t, attentionItems, nowRows, awayEvents, userName,
           <h1 className={styles.title}>
             <span className={styles.titleInk}>
               {greeting}
-              <Squiggle className={styles.squiggle} />
+              <Accent name="squiggle-2" width={220} height={16} className={styles.squiggle} />
             </span>
           </h1>
           <p className={styles.subtitle}>{t('overview.subtitle')}</p>
@@ -71,7 +74,7 @@ export function OverviewView({ t, attentionItems, nowRows, awayEvents, userName,
             ) : (
               <EmptyState
                 compact
-                illustration={restingPose}
+                illustration={ILLUSTRATIONS['empty-inbox']}
                 title={t('overview.attentionEmptyTitle')}
                 body={t('overview.attentionEmptyBody')}
               />
@@ -80,7 +83,13 @@ export function OverviewView({ t, attentionItems, nowRows, awayEvents, userName,
 
           <AwayWhileOutPanel t={t} events={awayEvents} />
 
-          <Card as="section" titleAs="h2" eyebrow={t('overview.suggestedTaskTitle')} title={t('overview.suggestedTaskBody')} tone="brand">
+          <Card
+            as="section"
+            titleAs="h2"
+            eyebrow={t('overview.suggestedTaskTitle')}
+            title={suggestedTask?.title ?? t('overview.suggestedTaskBody')}
+            tone="brand"
+          >
             <p className={styles.introLine}>{t('overview.teamIntroLine')}</p>
             <div className={styles.cardActions}>
               <Button
@@ -90,7 +99,6 @@ export function OverviewView({ t, attentionItems, nowRows, awayEvents, userName,
               >
                 {t('overview.suggestedTaskAction')}
               </Button>
-              <Chip tone="neutral" icon={<UiIcon name="sparkle" size={14} strokeWidth={2} />}>{t('overview.teamIntroTitle')}</Chip>
             </div>
           </Card>
         </div>

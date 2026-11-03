@@ -1,8 +1,7 @@
-import { useState, type ReactNode } from 'react'
-import { PersonaButton } from '../primitives/index.ts'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Button, Card, Chip, Input, Screen, ScreenHeader } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import page from '../profile/LumenPage.module.css'
 import styles from './RulesProactivity.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import type { ProactivityLimits, QuietWindow, TriageRule, TriageSimulationLog } from './mock-data.ts'
@@ -17,6 +16,7 @@ export interface TriageRulesViewProps {
   readonly limits?: ProactivityLimits
   readonly triageLog?: readonly TriageSimulationLog[]
   readonly initialState?: RulesSurfaceState
+  readonly onSaveLimits?: (limits: ProactivityLimits) => void
 }
 
 function quietWindowLabel(dict: LocaleDict, window: QuietWindow): string {
@@ -34,6 +34,7 @@ export function TriageRulesView({
   limits: limitsProp,
   triageLog = [],
   initialState = 'ready',
+  onSaveLimits,
 }: TriageRulesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [limits, setLimits] = useState<ProactivityLimits>(limitsProp ?? {
@@ -42,122 +43,126 @@ export function TriageRulesView({
     tokensPerProjectMonth: 1_000_000,
   })
 
-  if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={1} />
-  if (initialState === 'empty') {
+  useEffect(() => {
+    if (limitsProp !== undefined) setLimits(limitsProp)
+  }, [limitsProp])
+
+  const header = (
+    <ScreenHeader
+      icon="quadro"
+      eyebrow={t('header.eyebrow')}
+      title={t('title')}
+      subtitle={t('subtitle')}
+    />
+  )
+
+  if (initialState === 'loading') {
     return (
-      <PersonaSurfaceEmpty
-        dict={dict}
-        illustrationLabelKey="empty.illustration"
-        titleKey="empty.title"
-        hintKey="empty.hint"
-        primaryKey="empty.action"
-      />
+      <Screen className={styles.shell} data-persona-surface="rules">
+        {header}
+        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={1} />
+      </Screen>
     )
   }
-
+  if (initialState === 'empty') {
+    return (
+      <Screen className={styles.shell} data-persona-surface="rules">
+        {header}
+        <PersonaSurfaceEmpty
+          dict={dict}
+          illustrationKey="empty-inbox"
+          titleKey="empty.title"
+          hintKey="empty.hint"
+          primaryKey="empty.action"
+        />
+      </Screen>
+    )
+  }
   if (initialState === 'error') {
     return (
-      <PersonaSurfaceError
-        dict={dict}
-        titleKey="error.title"
-        retryKey="error.retry"
-        onRetry={() => {}}
-      />
+      <Screen className={styles.shell} data-persona-surface="rules">
+        {header}
+        <PersonaSurfaceError dict={dict} titleKey="error.title" retryKey="error.retry" onRetry={() => {}} />
+      </Screen>
     )
   }
 
   return (
-    <div className={page.shell} data-persona-surface="rules">
-      <header>
-        <h1 className={page.title}>{t('title')}</h1>
-        <p className={page.subtitle}>{t('subtitle')}</p>
-      </header>
-
-      <section aria-labelledby="persona-rules-limits" className={styles.section}>
-        <h2 id="persona-rules-limits" className={page.title}>{t('limits.title')}</h2>
-        <p className={page.subtitle}>{t('limits.subtitle')}</p>
+    <Screen className={styles.shell} data-persona-surface="rules">
+      {header}
+      <Card padding="m" as="section" aria-labelledby="persona-rules-limits" eyebrow={t('limits.title')} title={t('limits.subtitle')}>
         <div className={styles.fieldGrid}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>{t('limits.maxProposals')}</span>
-            <input
-              type="number"
-              className={styles.input}
-              value={limits.maxProposalsPerDay}
-              onChange={(e) => {
-                setLimits({ ...limits, maxProposalsPerDay: Number(e.target.value) || 0 })
-              }}
-            />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>{t('limits.tokensPersona')}</span>
-            <input
-              type="number"
-              className={styles.input}
-              value={limits.tokensPerPersonaMonth}
-              onChange={(e) => {
-                setLimits({ ...limits, tokensPerPersonaMonth: Number(e.target.value) || 0 })
-              }}
-            />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>{t('limits.tokensProject')}</span>
-            <input
-              type="number"
-              className={styles.input}
-              value={limits.tokensPerProjectMonth}
-              onChange={(e) => {
-                setLimits({ ...limits, tokensPerProjectMonth: Number(e.target.value) || 0 })
-              }}
-            />
-          </label>
+          <Input
+            type="number"
+            label={t('limits.maxProposals')}
+            value={String(limits.maxProposalsPerDay)}
+            onChange={(e) => {
+              setLimits({ ...limits, maxProposalsPerDay: Number(e.target.value) || 0 })
+            }}
+          />
+          <Input
+            type="number"
+            label={t('limits.tokensPersona')}
+            value={String(limits.tokensPerPersonaMonth)}
+            onChange={(e) => {
+              setLimits({ ...limits, tokensPerPersonaMonth: Number(e.target.value) || 0 })
+            }}
+          />
+          <Input
+            type="number"
+            label={t('limits.tokensProject')}
+            value={String(limits.tokensPerProjectMonth)}
+            onChange={(e) => {
+              setLimits({ ...limits, tokensPerProjectMonth: Number(e.target.value) || 0 })
+            }}
+          />
         </div>
-      </section>
+        <Button onClick={() => { onSaveLimits?.(limits) }} disabled={onSaveLimits === undefined}>
+          {t('action.save')}
+        </Button>
+      </Card>
 
-      <section aria-labelledby="persona-rules-quiet" className={styles.section}>
-        <h2 id="persona-rules-quiet" className={page.title}>{t('quiet.title')}</h2>
-        <p className={page.subtitle}>{t('quiet.subtitle')}</p>
-        <ul className={page.list}>
+      <Card padding="m" as="section" aria-labelledby="persona-rules-quiet" title={t('quiet.title')} eyebrow={t('quiet.subtitle')}>
+        <ul className={styles.quietList}>
           {quietWindows.map(window => (
-            <li key={window.id} className={page.card}>{quietWindowLabel(dict, window)}</li>
-          ))}
-        </ul>
-      </section>
-
-      <section aria-labelledby="persona-rules-triage" className={styles.section}>
-        <h2 id="persona-rules-triage" className={page.title}>{t('triage.title')}</h2>
-        <ul className={page.list}>
-          {rules.map(rule => (
-            <li key={rule.id} className={page.card}>
-              <label className={page.meta}>{t('field.gate')}</label>
-              <p>{rule.gateText}</p>
-              <label className={page.meta}>{t('field.assessment')}</label>
-              <p>{rule.assessmentText}</p>
-              <p className={page.meta}>{rule.logOnly ? t('mode.logOnly') : t('mode.executeOptIn')}</p>
+            <li key={window.id}>
+              <Chip tone="neutral" size="s">{quietWindowLabel(dict, window)}</Chip>
             </li>
           ))}
         </ul>
-        <PersonaButton>{t('action.save')}</PersonaButton>
-      </section>
+      </Card>
 
-      <section aria-labelledby="persona-rules-log" className={styles.section}>
-        <h2 id="persona-rules-log" className={page.title}>{t('log.title')}</h2>
-        <p className={page.subtitle}>{t('log.subtitle')}</p>
+      <Card padding="m" as="section" aria-labelledby="persona-rules-triage" title={t('triage.title')}>
+        <ul className={styles.ruleList}>
+          {rules.map(rule => (
+            <li key={rule.id} className={styles.ruleRow}>
+              <p className={styles.ruleText}>{rule.gateText}</p>
+              <p className={styles.ruleMeta}>{rule.assessmentText}</p>
+              <Chip tone={rule.logOnly ? 'neutral' : 'accent'} size="s">
+                {rule.logOnly ? t('mode.logOnly') : t('mode.executeOptIn')}
+              </Chip>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      <Card padding="m" as="section" aria-labelledby="persona-rules-log" title={t('log.title')} eyebrow={t('log.subtitle')}>
         {triageLog.length === 0
-          ? <p className={page.meta}>{t('log.empty')}</p>
+          ? <p className={styles.ruleMeta}>{t('log.empty')}</p>
           : (
-            <ul className={page.list}>
+            <ul className={styles.ruleList}>
               {triageLog.map(entry => (
-                <li key={entry.id} className={page.card}>
-                  <span className={page.chip}>
+                <li key={entry.id} className={styles.ruleRow}>
+                  <Chip tone="neutral" size="s">
                     {entry.mode === 'logOnly' ? t('mode.logOnly') : t('mode.executeOptIn')}
-                  </span>
-                  <p className={page.meta}>{entry.at}</p>
-                  <p>{entry.summary}</p>
+                  </Chip>
+                  <p className={styles.ruleMeta}>{entry.at}</p>
+                  <p className={styles.ruleText}>{entry.summary}</p>
                 </li>
               ))}
             </ul>
           )}
-      </section>
-    </div>
+      </Card>
+    </Screen>
   )
 }

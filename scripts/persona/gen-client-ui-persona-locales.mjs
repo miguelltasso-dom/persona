@@ -25,6 +25,7 @@ const BUNDLES = [
   { file: 'files', const: 'FILES_NS', ns: 'persona.files', keyType: 'FilesKey' },
   { file: 'usage', const: 'USAGE_NS', ns: 'persona.usage', keyType: 'UsageKey' },
   { file: 'connections', const: 'CONNECTIONS_NS', ns: 'persona.connections', keyType: 'ConnectionsKey' },
+  { file: 'review', const: 'REVIEW_NS', ns: 'persona.review', keyType: 'ReviewKey' },
   { file: 'profile', const: 'PROFILE_NS', ns: 'persona.profile', keyType: 'ProfileKey' },
   { file: 'memory', const: 'MEMORY_NS', ns: 'persona.memory', keyType: 'MemoryKey' },
   { file: 'skills', const: 'SKILLS_NS', ns: 'persona.skills', keyType: 'SkillsKey' },

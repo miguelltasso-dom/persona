@@ -5,6 +5,7 @@ export const IMPORTERS_NS = 'persona.importers'
 
 /** Portuguese (Brazil) copy; keys define {@link ImportersKey}. */
 export const pt = {
+  'header.eyebrow': 'Empresa',
   'title': 'Importar equipe',
   'subtitle': 'De exportação externa para personas e Cofre com classificação de privacidade',
   'step.file': 'Arquivo',
@@ -31,6 +32,7 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Company',
   'title': 'Import team',
   'subtitle': 'From external export to personas and vault with privacy classification',
   'step.file': 'File',
@@ -56,6 +58,7 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Company',
   'title': 'Import team',
   'subtitle': 'From external export to personas and vault with privacy classification',
   'step.file': 'File',
@@ -80,6 +83,7 @@ export const zh = {
   'error.retry': 'Try again',
 } as const
 export const ja = {
+  'header.eyebrow': 'Company',
   'title': 'Import team',
   'subtitle': 'From external export to personas and vault with privacy classification',
   'step.file': 'File',
@@ -104,6 +108,7 @@ export const ja = {
   'error.retry': 'Try again',
 } as const
 export const es = {
+  'header.eyebrow': 'Company',
   'title': 'Import team',
   'subtitle': 'From external export to personas and vault with privacy classification',
   'step.file': 'File',
@@ -128,6 +133,7 @@ export const es = {
   'error.retry': 'Try again',
 } as const
 export const fr = {
+  'header.eyebrow': 'Company',
   'title': 'Import team',
   'subtitle': 'From external export to personas and vault with privacy classification',
   'step.file': 'File',
@@ -152,6 +158,7 @@ export const fr = {
   'error.retry': 'Try again',
 } as const
 export const de = {
+  'header.eyebrow': 'Company',
   'title': 'Import team',
   'subtitle': 'From external export to personas and vault with privacy classification',
   'step.file': 'File',
@@ -176,6 +183,7 @@ export const de = {
   'error.retry': 'Try again',
 } as const
 export const ru = {
+  'header.eyebrow': 'Company',
   'title': 'Import team',
   'subtitle': 'From external export to personas and vault with privacy classification',
   'step.file': 'File',

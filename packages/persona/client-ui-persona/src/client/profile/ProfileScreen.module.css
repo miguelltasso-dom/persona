@@ -1,0 +1,48 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+}
+
+.heroCard {
+  display: flex;
+  gap: var(--persona-space-5);
+  align-items: flex-start;
+}
+
+.heroTitle {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.heroSubtitle {
+  margin: var(--persona-space-1) 0 var(--persona-space-2);
+  color: var(--persona-ink-soft);
+  font-size: 0.9375rem;
+}
+
+.heroMeta {
+  margin: var(--persona-space-3) 0 0;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-faint);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.simpleList {
+  margin: 0;
+  padding-left: var(--persona-space-5);
+  color: var(--persona-ink-soft);
+  font-size: 0.9375rem;
+}
+
+.faint {
+  color: var(--persona-ink-faint);
+  font-size: 0.8125rem;
+}

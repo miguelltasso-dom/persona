@@ -15,7 +15,7 @@
   margin: 0;
   font-size: 1.0625rem;
   font-weight: 700;
-  color: var(--persona-active-ink);
+  color: var(--persona-ink);
 }
 
 .proposalList {
@@ -28,7 +28,7 @@
 }
 
 .proposal {
-  border-top: 1px solid var(--persona-lilac-200);
+  border-top: 1px solid var(--persona-outline-soft);
   padding-top: 0.75rem;
 }
 
@@ -42,8 +42,8 @@
   margin-top: 0.625rem;
   padding: 0.625rem 0.75rem;
   border-radius: 0.5rem;
-  background: var(--persona-lilac-50, var(--persona-active-surface));
-  border: 1px dashed var(--persona-lilac-300);
+  background: var(--persona-lilac-50, var(--persona-paper));
+  border: 1px dashed var(--persona-outline);
   font-size: 0.875rem;
 }
 
@@ -53,11 +53,11 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--persona-active-ink-muted);
+  color: var(--persona-ink-soft);
 }
 
 .editHint {
   margin: 0.5rem 0 0;
   font-size: 0.8125rem;
-  color: var(--persona-active-ink-muted);
+  color: var(--persona-ink-soft);
 }

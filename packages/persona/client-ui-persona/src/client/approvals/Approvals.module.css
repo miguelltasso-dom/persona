@@ -1,0 +1,72 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.sectionHint {
+  margin: var(--persona-space-1) 0 var(--persona-space-3);
+  font-size: 0.9375rem;
+  color: var(--persona-ink-soft);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.approvalCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.approvalHead {
+  display: flex;
+  gap: var(--persona-space-3);
+  align-items: flex-start;
+}
+
+.question {
+  margin: var(--persona-space-2) 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--persona-ink);
+}
+
+.context {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--persona-ink-soft);
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

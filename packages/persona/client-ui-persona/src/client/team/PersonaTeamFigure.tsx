@@ -26,7 +26,7 @@ export function PersonaTeamFigure({ member, breatheDelay }: PersonaTeamFigurePro
   const style = { '--persona-breathe-delay': breatheDelay } as CSSProperties
 
   return (
-    <div className={styles.figure} style={style} data-state={member.state}>
+    <div className={styles.figure} style={style} data-state={member.state} data-character={member.id} data-pose={pose}>
       <div className={styles.poseStack}>
         <img className={styles.poseBase} src={src} alt="" aria-hidden="true" />
         {blink !== undefined && (
@@ -35,8 +35,8 @@ export function PersonaTeamFigure({ member, breatheDelay }: PersonaTeamFigurePro
         {tail !== undefined && (
           <img className={styles.poseTail} src={tail} alt="" aria-hidden="true" />
         )}
+        <img className={styles.overlay} src={overlaySrc} alt="" aria-hidden="true" />
       </div>
-      <img className={styles.overlay} src={overlaySrc} alt="" aria-hidden="true" />
     </div>
   )
 }

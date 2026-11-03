@@ -28,5 +28,18 @@
   "message.addReaction": "Add reaction",
   "message.you": "You",
   "stream.emptyTitle": "The channel is quiet",
-  "stream.emptyBody": "Ask the team for something — coordination routes the work."
+  "stream.emptyBody": "Ask the team for something — coordination routes the work.",
+  "stream.passThrough": "{name} is following this thread",
+  "dm.listTitle": "Threads",
+  "dm.threadEmpty": "No messages in this conversation yet.",
+  "dm.composerPlaceholder": "Message {name}…",
+  "context.drawerTitle": "Context used",
+  "context.taskLabel": "Task",
+  "context.triggersLabel": "Sources",
+  "dm.emptyTitle": "No conversations yet",
+  "dm.emptyBody": "Message a teammate privately — each persona answers with its own context.",
+  "dm.newConversation": "New conversation",
+  "dm.pickTitle": "Pick someone to talk to",
+  "dm.pickBody": "Conversations are on the left; unread ones show in amber.",
+  "dm.subtitle": "Private conversations with each persona"
 }

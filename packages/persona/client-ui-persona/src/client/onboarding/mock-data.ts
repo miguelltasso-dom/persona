@@ -47,6 +47,6 @@ export const MOCK_TEMPLATE_ROSTER: Readonly<Record<TeamTemplateId, readonly Mock
 
 export const MOCK_INTRO_LINES: readonly { readonly speaker: string; readonly text: string }[] = [
   { speaker: 'Atlas', text: 'Olá! Coordeno o time e respondo no #geral quando você precisar.' },
-  { speaker: 'Bento', text: 'Cuido de código e integrações — me marque com @Bento.' },
+  { speaker: 'Bento', text: 'Cuido de código e integrações — me marque quando precisar.' },
   { speaker: 'Nina', text: 'Pesquiso contexto e preparo briefings antes das tarefas.' },
 ]

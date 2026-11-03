@@ -47,16 +47,49 @@ async function avatarDerivatives(name, fromAbs) {
   }
 }
 
-async function poseDerivative(fromAbs, baseName) {
+/** Opaque bounding box of a PNG (alpha > 8). */
+async function alphaBox(fromAbs) {
+  const { data, info } = await sharp(fromAbs).ensureAlpha().extractChannel(3).raw().toBuffer({ resolveWithObject: true })
+  let left = info.width, top = info.height, right = -1, bottom = -1
+  for (let y = 0; y < info.height; y++) {
+    const row = y * info.width
+    for (let x = 0; x < info.width; x++) {
+      if (data[row + x] > 8) {
+        if (x < left) left = x
+        if (x > right) right = x
+        if (y < top) top = y
+        if (y > bottom) bottom = y
+      }
+    }
+  }
+  if (right < 0) return { left: 0, top: 0, width: info.width, height: info.height, full: { width: info.width, height: info.height } }
+  return { left, top, width: right - left + 1, height: bottom - top + 1, full: { width: info.width, height: info.height } }
+}
+
+function unionBox(boxes) {
+  const left = Math.min(...boxes.map(b => b.left))
+  const top = Math.min(...boxes.map(b => b.top))
+  const right = Math.max(...boxes.map(b => b.left + b.width))
+  const bottom = Math.max(...boxes.map(b => b.top + b.height))
+  return { left, top, width: right - left, height: bottom - top, full: boxes[0].full }
+}
+
+/**
+ * Muse (DESIGN-SYSTEM §7): poses are trimmed to their opaque box (small top/side pad, feet on the bottom edge) so every
+ * character stands on the same ground line; blink/tail frames reuse their base crop to stay pixel-aligned.
+ */
+async function poseDerivative(fromAbs, baseName, box) {
   const toRel = `poses/${baseName}.webp`
   const toAbs = join(OUT, toRel)
   ensureDir(dirname(toAbs))
-  const meta = await sharp(fromAbs).metadata()
-  const height = meta.height ?? POSE_MAX_HEIGHT
-  const resize = height > POSE_MAX_HEIGHT ? { height: POSE_MAX_HEIGHT } : undefined
-  let pipeline = sharp(fromAbs)
-  if (resize) pipeline = pipeline.resize(resize)
-  await pipeline.webp({ quality: 80 }).toFile(toAbs)
+  const pad = Math.round(box.full.height * 0.015)
+  const left = Math.max(0, box.left - pad)
+  const top = Math.max(0, box.top - pad)
+  const width = Math.min(box.full.width - left, box.width + pad * 2)
+  const height = Math.min(box.full.height - top, box.height + pad)
+  let pipeline = sharp(fromAbs).extract({ left, top, width, height })
+  if (height > POSE_MAX_HEIGHT) pipeline = pipeline.resize({ height: POSE_MAX_HEIGHT })
+  await pipeline.webp({ quality: 82, alphaQuality: 100 }).toFile(toAbs)
   track(toRel, toAbs)
 }
 
@@ -92,6 +125,7 @@ async function main() {
 
   copyTree('icons/nav', () => true)
   copyTree('icons/overlays', () => true)
+  if (existsSync(join(SRC, 'accents'))) copyTree('accents', name => name.endsWith('.svg'))
 
   for (const rel of [
     'brand/banner-team-light.webp',
@@ -118,6 +152,11 @@ async function main() {
     { from: 'illustrations/team-banner-dark@2x.png', to: 'illustrations/team-banner-dark.webp', width: 2400, quality: 84 },
     { from: 'illustrations/rail-foliage-light@2x.png', to: 'illustrations/rail-foliage-light.webp', width: 544, quality: 90 },
     { from: 'illustrations/rail-foliage-dark@2x.png', to: 'illustrations/rail-foliage-dark.webp', width: 544, quality: 90 },
+    { from: 'textures/paper-light.png', to: 'textures/paper-light.webp', width: 512, quality: 88 },
+    { from: 'textures/paper-dark.png', to: 'textures/paper-dark.webp', width: 512, quality: 88 },
+    ...['inbox', 'kanban', 'search', 'vault', 'routines', 'connections', 'error', 'dm'].map(name => (
+      { from: `illustrations/empty-${name}.png`, to: `illustrations/empty-${name}.webp`, width: 480, quality: 86 }
+    )),
   ]
   for (const spec of ILLUSTRATION_SPECS) {
     const fromAbs = join(SRC, spec.from)
@@ -133,9 +172,17 @@ async function main() {
     await avatarDerivatives(stem, join(SRC, 'avatars', file))
   }
 
-  for (const file of readdirSync(join(SRC, 'poses')).filter(f => f.endsWith('.png') && !f.startsWith('poses-preview-'))) {
+  const poseSources = readdirSync(join(SRC, 'poses')).filter(f => f.endsWith('.png') && !f.startsWith('poses-preview-'))
+  /** @type {Map<string, Awaited<ReturnType<typeof alphaBox>>>} */
+  const boxes = new Map()
+  for (const file of poseSources) boxes.set(basename(file, '.png'), await alphaBox(join(SRC, 'poses', file)))
+  for (const file of poseSources) {
     const stem = basename(file, '.png')
-    await poseDerivative(join(SRC, 'poses', file), stem)
+    const family = stem.replace(/-disponivel(-blink|-tail)?$/u, '-disponivel')
+    const familyBoxes = family.endsWith('-disponivel')
+      ? [family, `${family}-blink`, `${family}-tail`].map(key => boxes.get(key)).filter(Boolean)
+      : [boxes.get(stem)]
+    await poseDerivative(join(SRC, 'poses', file), stem, unionBox(familyBoxes))
   }
 
   const totalBytes = manifest.reduce((sum, row) => sum + row.bytes, 0)
@@ -212,6 +259,15 @@ async function main() {
   if (railFoliageDark !== undefined) {
     imports.push("import railFoliageDark from './brand/rail-foliage-dark.webp'")
   }
+  const accentFiles = manifest.filter(f => f.rel.startsWith('accents/') && f.rel.endsWith('.svg'))
+  /** @type {string[]} */
+  const accentEntries = []
+  for (const { rel } of accentFiles) {
+    const id = basename(rel, '.svg')
+    const varName = id.replace(/-/gu, '_')
+    imports.push(`import accent_${varName} from './${rel}'`)
+    accentEntries.push(`  '${id}': accent_${varName},`)
+  }
   const illustrationFiles = manifest.filter(f => f.rel.startsWith('illustrations/') && f.rel.endsWith('.webp'))
   /** @type {string[]} */
   const illustrationEntries = []
@@ -249,6 +305,11 @@ async function main() {
     ...(railFoliage !== undefined ? ['export { railFoliage }', ''] : ['export const railFoliage: string | undefined = undefined', '']),
     ...(railFoliageLight !== undefined ? ['export { railFoliageLight }', ''] : ['export const railFoliageLight: string | undefined = undefined', '']),
     ...(railFoliageDark !== undefined ? ['export { railFoliageDark }', ''] : ['export const railFoliageDark: string | undefined = undefined', '']),
+    '/** Brush hand-drawn accents, currentColor SVG (Muse, DESIGN-SYSTEM §5). */',
+    'export const ACCENTS: Readonly<Record<string, string>> = {',
+    ...accentEntries,
+    '}',
+    '',
     '/** Brush illustrations (Muse, DESIGN-SYSTEM §7). */',
     'export const ILLUSTRATIONS: Readonly<Record<string, string>> = {',
     ...illustrationEntries,

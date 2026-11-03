@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
-import { Avatar, BrandIcon, Chip, TeamScene } from '../primitives/index.ts'
+import { BrandIcon, Button, Chip, TeamScene, UiIcon } from '../primitives/index.ts'
 import type { ChannelPersonaMember } from './persona-work-state.ts'
 import { WORK_STATUS_KEY } from './persona-work-state.ts'
 import { PersonaTeamFigure } from './PersonaTeamFigure.tsx'
@@ -9,6 +9,8 @@ import styles from './TeamChannelStrip.module.css'
 
 export interface TeamChannelStripProps extends PropsLocale<'persona.shell'> {
   readonly members: readonly ChannelPersonaMember[]
+  /** Empty channel CTA ("Montar equipe"); hidden when not provided. */
+  readonly onBuildTeam?: (() => void) | undefined
 }
 
 /** Pause ambient loops when the tab is hidden or the banner scrolls away (UX-GUIDE §2.3). */
@@ -38,7 +40,7 @@ function useAmbientPause(): [RefObject<HTMLElement>, boolean] {
 }
 
 /** "Sua equipe neste canal" — Brush banner scene, full-body poses on one ground line, sticker name tags. */
-export function TeamChannelStrip({ t, members }: TeamChannelStripProps): ReactNode {
+export function TeamChannelStrip({ t, members, onBuildTeam }: TeamChannelStripProps): ReactNode {
   const [ref, paused] = useAmbientPause()
   const bannerLight = ILLUSTRATIONS['team-banner-light']
   const bannerDark = ILLUSTRATIONS['team-banner-dark']
@@ -62,10 +64,23 @@ export function TeamChannelStrip({ t, members }: TeamChannelStripProps): ReactNo
       </div>
 
       <div className={styles.intro}>
-        <h2 id="persona-team-strip-title" className={styles.title}>{t('team.channelStripTitle')}</h2>
-        <Chip tone="plain" icon={<BrandIcon name="equipe" size={16} />}>
-          {t('team.memberCount', { count: String(members.length) })}
-        </Chip>
+        <h2 id="persona-team-strip-title" className={styles.title}>
+          {members.length > 0 ? t('team.channelStripTitle') : t('team.emptyTitle')}
+        </h2>
+        {members.length > 0 ? (
+          <Chip tone="plain" icon={<BrandIcon name="equipe" size={16} />}>
+            {t('team.memberCount', { count: String(members.length) })}
+          </Chip>
+        ) : (
+          <>
+            <p className={styles.emptyBody}>{t('team.emptyBody')}</p>
+            {onBuildTeam !== undefined && (
+              <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />} onClick={onBuildTeam}>
+                {t('team.emptyAction')}
+              </Button>
+            )}
+          </>
+        )}
       </div>
 
       <ul className={styles.cast}>
@@ -85,11 +100,14 @@ export function TeamChannelStrip({ t, members }: TeamChannelStripProps): ReactNo
             </li>
           )
         })}
-        {members.length === 0 && (
-          <li className={styles.member}>
-            <Avatar name="?" size={56} decorative />
+        {members.length === 0 && [0.84, 1, 0.9].map((scale, index) => (
+          <li key={scale} className={styles.member}>
+            <span className={styles.seat} style={{ '--seat-scale': scale, animationDelay: `${index * 0.6}s` } as CSSProperties} aria-hidden="true">
+              <UiIcon name="plus" size={26} strokeWidth={2.4} />
+            </span>
+            <span className={`${styles.tag} ${styles.tagSeat}`}>{t('team.emptySeat')}</span>
           </li>
-        )}
+        ))}
       </ul>
     </section>
   )

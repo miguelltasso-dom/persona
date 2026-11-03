@@ -157,6 +157,51 @@
   background: var(--persona-card);
 }
 
+/* Empty channel: inviting open seats (dashed silhouettes) */
+.emptyBody {
+  margin: 0;
+  max-width: 26ch;
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 600;
+  color: var(--persona-ink-soft);
+}
+
+.seat {
+  display: grid;
+  place-items: center;
+  width: calc(96px * var(--seat-scale, 1));
+  height: calc(150px * var(--seat-scale, 1));
+  box-sizing: border-box;
+  border: 2px dashed var(--persona-lilac-500);
+  border-radius: 48px 48px 20px 20px;
+  background: color-mix(in srgb, var(--persona-card) 55%, transparent);
+  color: var(--persona-lilac-600);
+  animation: persona-seat-bob 3.6s ease-in-out infinite;
+}
+
+.tagSeat {
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  border-style: dashed;
+  box-shadow: none;
+}
+
+@keyframes persona-seat-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+:global([data-ambient-paused]) .seat {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat {
+    animation: none;
+  }
+}
+
 @media (max-width: 1180px) {
   .strip {
     grid-template-columns: 1fr;

@@ -5,6 +5,7 @@ export const USAGE_NS = 'persona.usage'
 
 /** Portuguese (Brazil) copy; keys define {@link UsageKey}. */
 export const pt = {
+  'header.eyebrow': 'Empresa',
   'title': 'Uso e limites',
   'subtitle': 'Consumo por conexão e persona — origem sempre visível',
   'origin.measured': 'Medido',
@@ -27,6 +28,7 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Company',
   'title': 'Usage and limits',
   'subtitle': 'Consumption by connection and persona — origin always visible',
   'origin.measured': 'Measured',
@@ -48,6 +50,7 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Company',
   'title': 'Usage and limits',
   'subtitle': 'Consumption by connection and persona — origin always visible',
   'origin.measured': 'Measured',
@@ -68,6 +71,7 @@ export const zh = {
   'error.retry': 'Try again',
 } as const
 export const ja = {
+  'header.eyebrow': 'Company',
   'title': 'Usage and limits',
   'subtitle': 'Consumption by connection and persona — origin always visible',
   'origin.measured': 'Measured',
@@ -88,6 +92,7 @@ export const ja = {
   'error.retry': 'Try again',
 } as const
 export const es = {
+  'header.eyebrow': 'Company',
   'title': 'Usage and limits',
   'subtitle': 'Consumption by connection and persona — origin always visible',
   'origin.measured': 'Measured',
@@ -108,6 +113,7 @@ export const es = {
   'error.retry': 'Try again',
 } as const
 export const fr = {
+  'header.eyebrow': 'Company',
   'title': 'Usage and limits',
   'subtitle': 'Consumption by connection and persona — origin always visible',
   'origin.measured': 'Measured',
@@ -128,6 +134,7 @@ export const fr = {
   'error.retry': 'Try again',
 } as const
 export const de = {
+  'header.eyebrow': 'Company',
   'title': 'Usage and limits',
   'subtitle': 'Consumption by connection and persona — origin always visible',
   'origin.measured': 'Measured',
@@ -148,6 +155,7 @@ export const de = {
   'error.retry': 'Try again',
 } as const
 export const ru = {
+  'header.eyebrow': 'Company',
   'title': 'Usage and limits',
   'subtitle': 'Consumption by connection and persona — origin always visible',
   'origin.measured': 'Measured',

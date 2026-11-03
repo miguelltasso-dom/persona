@@ -89,15 +89,17 @@
   transform: none;
 }
 
+.castMember[data-character='atlas'] { --species: 1; }
+.castMember[data-character='sol'] { --species: 0.95; }
+.castMember[data-character='nina'] { --species: 0.92; }
+.castMember[data-character='bento'] { --species: 0.86; }
+.castMember[data-character='luna'] { --species: 0.74; }
+
 .castMember img {
-  max-height: 150px;
-  max-width: 100%;
+  height: calc(150px * var(--species, 0.9));
+  max-width: 128px;
   object-fit: contain;
   object-position: bottom;
-}
-
-.castMember:first-child img {
-  max-height: 160px;
 }
 
 /* ── Content ────────────────────────────────────────────── */
@@ -319,12 +321,53 @@
 }
 
 .roster {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
   gap: var(--persona-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.rosterCard {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-2) var(--persona-space-3) var(--persona-space-2) var(--persona-space-2);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
+}
+
+.rosterCard[data-suggested] {
+  border-style: dashed;
+  box-shadow: none;
+  background: var(--persona-paper);
+}
+
+.rosterCard[data-suggested] img {
+  opacity: 0.55;
+  filter: saturate(0.6);
+}
+
+.rosterText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rosterName {
+  font: 600 15px/18px var(--persona-font-display);
+  color: var(--persona-ink);
+}
+
+.rosterRole {
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .builderRow {

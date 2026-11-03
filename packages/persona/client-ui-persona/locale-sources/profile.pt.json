@@ -1,5 +1,7 @@
 {
+  "header.eyebrow": "Mais",
   "title": "Perfil da persona",
+  "subtitle": "Estado ao vivo, memória, skills e proatividade desta persona",
   "tab.overview": "Visão geral",
   "tab.memory": "Memória",
   "tab.skills": "Skills",
@@ -15,6 +17,7 @@
   "proactivity.accepted7d": "Aceitas (7 dias)",
   "proactivity.acceptanceRate": "Taxa de aceitação",
   "proactivity.acceptanceRateValue": "{pct}%",
+  "proactivity.acceptanceRateUnavailable": "—",
   "proactivity.idleToday": "Ocioso hoje",
   "proactivity.idleMinutesValue": "{minutes} min",
   "proactivity.lazinessTitle": "Avaliação de preguiça (bench)",

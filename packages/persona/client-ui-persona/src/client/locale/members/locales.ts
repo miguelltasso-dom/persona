@@ -5,6 +5,7 @@ export const MEMBERS_NS = 'persona.members'
 
 /** Portuguese (Brazil) copy; keys define {@link MembersKey}. */
 export const pt = {
+  'header.eyebrow': 'Empresa',
   'title': 'Membros e convites',
   'subtitle': 'Equipes à distância — papéis, links e o que sincroniza',
   'role.admin': 'Administrador',
@@ -29,6 +30,7 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Company',
   'title': 'Members and invites',
   'subtitle': 'Remote teams — roles, links, and what syncs',
   'role.admin': 'Admin',
@@ -52,6 +54,7 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Company',
   'title': 'Members and invites',
   'subtitle': 'Remote teams — roles, links, and what syncs',
   'role.admin': 'Admin',
@@ -74,6 +77,7 @@ export const zh = {
   'error.retry': 'Try again',
 } as const
 export const ja = {
+  'header.eyebrow': 'Company',
   'title': 'Members and invites',
   'subtitle': 'Remote teams — roles, links, and what syncs',
   'role.admin': 'Admin',
@@ -96,6 +100,7 @@ export const ja = {
   'error.retry': 'Try again',
 } as const
 export const es = {
+  'header.eyebrow': 'Company',
   'title': 'Members and invites',
   'subtitle': 'Remote teams — roles, links, and what syncs',
   'role.admin': 'Admin',
@@ -118,6 +123,7 @@ export const es = {
   'error.retry': 'Try again',
 } as const
 export const fr = {
+  'header.eyebrow': 'Company',
   'title': 'Members and invites',
   'subtitle': 'Remote teams — roles, links, and what syncs',
   'role.admin': 'Admin',
@@ -140,6 +146,7 @@ export const fr = {
   'error.retry': 'Try again',
 } as const
 export const de = {
+  'header.eyebrow': 'Company',
   'title': 'Members and invites',
   'subtitle': 'Remote teams — roles, links, and what syncs',
   'role.admin': 'Admin',
@@ -162,6 +169,7 @@ export const de = {
   'error.retry': 'Try again',
 } as const
 export const ru = {
+  'header.eyebrow': 'Company',
   'title': 'Members and invites',
   'subtitle': 'Remote teams — roles, links, and what syncs',
   'role.admin': 'Admin',

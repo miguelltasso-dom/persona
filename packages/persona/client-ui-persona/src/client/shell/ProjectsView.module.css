@@ -1,0 +1,48 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--persona-space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  min-height: 148px;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-wash);
+  color: var(--persona-brand);
+}
+
+.name {
+  margin: 0;
+  font: 600 19px/24px var(--persona-font-display);
+  color: var(--persona-ink);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-2);
+  margin-top: auto;
+}
+
+.open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-brand);
+}

@@ -21,7 +21,7 @@ export function SkillsPanel({ dict = defaultDict, initialState = 'ready' }: Skil
     return (
       <PersonaSurfaceEmpty
         dict={dict}
-        illustrationLabelKey="empty.illustration"
+        illustrationKey="empty-inbox"
         titleKey="empty.title"
         hintKey="empty.hint"
         primaryKey="empty.action"

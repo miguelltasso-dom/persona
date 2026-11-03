@@ -5,6 +5,7 @@ export const RULES_NS = 'persona.rules'
 
 /** Portuguese (Brazil) copy; keys define {@link RulesKey}. */
 export const pt = {
+  'header.eyebrow': 'Empresa',
   'title': 'Regras de triagem',
   'subtitle': 'Limites de proatividade, silêncio e triagem em linguagem natural',
   'limits.title': 'Orçamento e propostas',
@@ -36,6 +37,7 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Company',
   'title': 'Triage rules',
   'subtitle': 'Proactivity limits, quiet hours, and natural-language triage',
   'limits.title': 'Budget and proposals',
@@ -66,6 +68,7 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Company',
   'title': 'Triage rules',
   'subtitle': 'Proactivity limits, quiet hours, and natural-language triage',
   'limits.title': 'Budget and proposals',
@@ -95,6 +98,7 @@ export const zh = {
   'error.retry': 'Try again',
 } as const
 export const ja = {
+  'header.eyebrow': 'Company',
   'title': 'Triage rules',
   'subtitle': 'Proactivity limits, quiet hours, and natural-language triage',
   'limits.title': 'Budget and proposals',
@@ -124,6 +128,7 @@ export const ja = {
   'error.retry': 'Try again',
 } as const
 export const es = {
+  'header.eyebrow': 'Company',
   'title': 'Triage rules',
   'subtitle': 'Proactivity limits, quiet hours, and natural-language triage',
   'limits.title': 'Budget and proposals',
@@ -153,6 +158,7 @@ export const es = {
   'error.retry': 'Try again',
 } as const
 export const fr = {
+  'header.eyebrow': 'Company',
   'title': 'Triage rules',
   'subtitle': 'Proactivity limits, quiet hours, and natural-language triage',
   'limits.title': 'Budget and proposals',
@@ -182,6 +188,7 @@ export const fr = {
   'error.retry': 'Try again',
 } as const
 export const de = {
+  'header.eyebrow': 'Company',
   'title': 'Triage rules',
   'subtitle': 'Proactivity limits, quiet hours, and natural-language triage',
   'limits.title': 'Budget and proposals',
@@ -211,6 +218,7 @@ export const de = {
   'error.retry': 'Try again',
 } as const
 export const ru = {
+  'header.eyebrow': 'Company',
   'title': 'Triage rules',
   'subtitle': 'Proactivity limits, quiet hours, and natural-language triage',
   'limits.title': 'Budget and proposals',

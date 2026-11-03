@@ -23,7 +23,8 @@ export function ConnectedOverviewView({ t, useLive, navigate }: ConnectedOvervie
       attentionItems={live.attentionTitles}
       nowRows={live.nowRows}
       awayEvents={awayEvents}
-      userName={live.messages.find(message => message.authorId === 'user')?.authorName}
+      userName={live.team?.members.find(member => member.id === live.tenant?.memberId)?.displayName}
+      suggestedTask={live.suggestedTask ?? undefined}
       onNavigate={navigate}
     />
   )

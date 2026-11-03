@@ -32,7 +32,7 @@ export function MemoryPanel({ dict = defaultDict, initialState = 'ready' }: Memo
     return (
       <PersonaSurfaceEmpty
         dict={dict}
-        illustrationLabelKey="empty.illustration"
+        illustrationKey="empty-inbox"
         titleKey="empty.title"
         hintKey="empty.hint"
         primaryKey="empty.action"

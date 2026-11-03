@@ -5,6 +5,7 @@ export const APPROVALS_NS = 'persona.approvals'
 
 /** Portuguese (Brazil) copy; keys define {@link ApprovalsKey}. */
 export const pt = {
+  'header.eyebrow': 'Decisões',
   'title': 'Aprovações',
   'subtitle': 'Decisões que esperam você — iniciativa agrupada, atenção imediata separada',
   'reactive.title': 'Precisa de você agora',
@@ -46,6 +47,7 @@ export const pt = {
 
 /** English copy. */
 export const en = {
+  'header.eyebrow': 'Decisions',
   'title': 'Approvals',
   'subtitle': 'Decisions waiting on you — grouped initiative, immediate attention separate',
   'reactive.title': 'Needs you now',
@@ -86,6 +88,7 @@ export const en = {
 } as const
 
 export const zh = {
+  'header.eyebrow': 'Decisions',
   'title': 'Approvals',
   'subtitle': 'Decisions waiting on you — grouped initiative, immediate attention separate',
   'reactive.title': 'Needs you now',
@@ -125,6 +128,7 @@ export const zh = {
   'error.retry': 'Try again',
 } as const
 export const ja = {
+  'header.eyebrow': 'Decisions',
   'title': 'Approvals',
   'subtitle': 'Decisions waiting on you — grouped initiative, immediate attention separate',
   'reactive.title': 'Needs you now',
@@ -164,6 +168,7 @@ export const ja = {
   'error.retry': 'Try again',
 } as const
 export const es = {
+  'header.eyebrow': 'Decisions',
   'title': 'Approvals',
   'subtitle': 'Decisions waiting on you — grouped initiative, immediate attention separate',
   'reactive.title': 'Needs you now',
@@ -203,6 +208,7 @@ export const es = {
   'error.retry': 'Try again',
 } as const
 export const fr = {
+  'header.eyebrow': 'Decisions',
   'title': 'Approvals',
   'subtitle': 'Decisions waiting on you — grouped initiative, immediate attention separate',
   'reactive.title': 'Needs you now',
@@ -242,6 +248,7 @@ export const fr = {
   'error.retry': 'Try again',
 } as const
 export const de = {
+  'header.eyebrow': 'Decisions',
   'title': 'Approvals',
   'subtitle': 'Decisions waiting on you — grouped initiative, immediate attention separate',
   'reactive.title': 'Needs you now',
@@ -281,6 +288,7 @@ export const de = {
   'error.retry': 'Try again',
 } as const
 export const ru = {
+  'header.eyebrow': 'Decisions',
   'title': 'Approvals',
   'subtitle': 'Decisions waiting on you — grouped initiative, immediate attention separate',
   'reactive.title': 'Needs you now',

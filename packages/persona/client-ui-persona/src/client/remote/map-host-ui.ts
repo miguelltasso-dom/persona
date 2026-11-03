@@ -129,9 +129,18 @@ export interface ChannelMessageUi {
   readonly body: string
   readonly timeLabel: string
   readonly reactions: readonly string[]
+  /** Ticket/task citation when the host marks the stream event (C5b). */
+  readonly taskTitle?: string
+  /** Host ticket id when the stream event references work (Contexto usado). */
+  readonly ticketId?: string
 }
 
-export function mapMessage(event: MessageView, team: TeamView, memberId: string): ChannelMessageUi {
+export function mapMessage(
+  event: MessageView,
+  team: TeamView,
+  memberId: string,
+  taskTitleById: ReadonlyMap<string, string> = new Map(),
+): ChannelMessageUi {
   const persona = team.personas.find(p => p.id === event.actorId)
   const member = team.members.find(m => m.id === event.actorId)
   const authorName = persona?.name ?? member?.displayName ?? (event.actorId === memberId ? 'Você' : event.actorId)
@@ -142,7 +151,11 @@ export function mapMessage(event: MessageView, team: TeamView, memberId: string)
   const timeLabel = Number.isNaN(time.getTime())
     ? event.occurredAt.slice(11, 16)
     : time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  return {
+  const citesTask = event.type !== 'message' && event.subjectId.length > 0
+  const ticketId = citesTask ? event.subjectId : undefined
+  const resolvedTitle = ticketId !== undefined ? taskTitleById.get(ticketId) : undefined
+  const taskTitle = resolvedTitle ?? (citesTask ? event.subjectId : undefined)
+  const row: ChannelMessageUi = {
     id: event.id,
     authorId,
     authorName,
@@ -150,4 +163,10 @@ export function mapMessage(event: MessageView, team: TeamView, memberId: string)
     timeLabel,
     reactions: [],
   }
+  if (taskTitle !== undefined && taskTitle.length > 0) {
+    return ticketId !== undefined
+      ? { ...row, taskTitle, ticketId }
+      : { ...row, taskTitle }
+  }
+  return row
 }

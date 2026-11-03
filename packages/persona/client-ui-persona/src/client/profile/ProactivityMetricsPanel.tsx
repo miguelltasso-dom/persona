@@ -3,7 +3,6 @@
 import type { ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import page from './LumenPage.module.css'
 import styles from './ProactivityMetrics.module.css'
 import type { PersonaProactivityMetrics } from './mock-data.ts'
 
@@ -18,8 +17,8 @@ export function ProactivityMetricsPanel({ dict, metrics }: ProactivityMetricsPan
 
   return (
     <section aria-labelledby="persona-proactivity-metrics" data-persona-surface="proactivity-metrics">
-      <h2 id="persona-proactivity-metrics" className={page.title}>{t('proactivity.title')}</h2>
-      <p className={page.subtitle}>{t('proactivity.subtitle')}</p>
+      <h2 id="persona-proactivity-metrics" className={styles.sectionTitle}>{t('proactivity.title')}</h2>
+      <p className={styles.sectionSubtitle}>{t('proactivity.subtitle')}</p>
       <dl className={styles.grid}>
         <div className={styles.metric}>
           <dt>{t('proactivity.proposalsToday')}</dt>
@@ -31,7 +30,11 @@ export function ProactivityMetricsPanel({ dict, metrics }: ProactivityMetricsPan
         </div>
         <div className={styles.metric}>
           <dt>{t('proactivity.acceptanceRate')}</dt>
-          <dd>{t('proactivity.acceptanceRateValue', { pct: metrics.acceptanceRatePct })}</dd>
+          <dd>
+            {metrics.acceptanceRatePct === undefined
+              ? t('proactivity.acceptanceRateUnavailable')
+              : t('proactivity.acceptanceRateValue', { pct: metrics.acceptanceRatePct })}
+          </dd>
         </div>
         <div className={styles.metric}>
           <dt>{t('proactivity.idleToday')}</dt>
@@ -40,11 +43,11 @@ export function ProactivityMetricsPanel({ dict, metrics }: ProactivityMetricsPan
       </dl>
       <div className={styles.benchCard}>
         <h3 className={styles.benchTitle}>{t('proactivity.lazinessTitle')}</h3>
-        <p className={page.meta}>
+        <p className={styles.meta}>
           {t('proactivity.lazinessRunner', { runner: bench.runner, model: bench.model })}
         </p>
         <p className={styles.benchGrade}>{t(`proactivity.lazinessGrade.${bench.grade}`)}</p>
-        <p className={page.meta}>{t('proactivity.lazinessUpdated', { at: bench.lastRunAt.slice(0, 10) })}</p>
+        <p className={styles.meta}>{t('proactivity.lazinessUpdated', { at: bench.lastRunAt.slice(0, 10) })}</p>
       </div>
     </section>
   )

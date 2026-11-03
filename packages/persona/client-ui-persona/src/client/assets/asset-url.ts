@@ -9,6 +9,7 @@ export type PersonaPoseState =
   | 'descansando'
   | 'offline'
   | 'erro'
+  | 'acenando'
 
 export type PersonaCharacterId = 'atlas' | 'bento' | 'nina' | 'sol' | 'luna'
 

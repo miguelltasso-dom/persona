@@ -20,14 +20,15 @@ export function applyMessageStreamFrame(
   frame: MessageStreamFrame,
   team: TeamView,
   memberId: string,
+  taskTitleById: ReadonlyMap<string, string> = new Map(),
 ): readonly ChannelMessageUi[] {
   if (frame.kind === 'baseline') {
-    const byId = new Map(frame.events.map(event => [event.id, mapMessage(event, team, memberId)]))
+    const byId = new Map(frame.events.map(event => [event.id, mapMessage(event, team, memberId, taskTitleById)]))
     return frame.order.map(id => byId.get(id)).filter((row): row is ChannelMessageUi => row !== undefined)
   }
   const byId = new Map(current.map(row => [row.id, row]))
   for (const event of frame.events) {
-    byId.set(event.id, mapMessage(event, team, memberId))
+    byId.set(event.id, mapMessage(event, team, memberId, taskTitleById))
   }
   const order = [...current.map(row => row.id)]
   for (const id of frame.order) {

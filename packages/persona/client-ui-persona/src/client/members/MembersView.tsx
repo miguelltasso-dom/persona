@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { PersonaButton } from '../primitives/index.ts'
+import { Avatar, Button, Card, Chip, Screen, ScreenHeader } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import page from '../profile/LumenPage.module.css'
+import styles from './Members.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import type { WorkspaceMember } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/members/locales.ts'
@@ -17,48 +17,70 @@ export interface MembersViewProps {
 
 export function MembersView({ dict = defaultDict, members = [], initialState = 'ready' }: MembersViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
-  if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
+
+  const header = (
+    <ScreenHeader
+      icon="convidar"
+      eyebrow={t('header.eyebrow')}
+      title={t('title')}
+      subtitle={t('subtitle')}
+      actions={<Button variant="primary" size="s">{t('action.invite')}</Button>}
+    />
+  )
+
+  if (initialState === 'loading') {
+    return (
+      <Screen className={styles.shell} data-persona-surface="members">
+        {header}
+        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
+      </Screen>
+    )
+  }
   if (initialState === 'empty') {
     return (
-      <PersonaSurfaceEmpty
-        dict={dict}
-        illustrationLabelKey="empty.illustration"
-        titleKey="empty.title"
-        hintKey="empty.hint"
-        primaryKey="empty.action"
-      />
+      <Screen className={styles.shell} data-persona-surface="members">
+        {header}
+        <PersonaSurfaceEmpty
+          dict={dict}
+          illustrationKey="empty-inbox"
+          titleKey="empty.title"
+          hintKey="empty.hint"
+          primaryKey="empty.action"
+        />
+      </Screen>
     )
   }
 
   return (
-    <div className={page.shell} data-persona-surface="members">
-      <header>
-        <h1 className={page.title}>{t('title')}</h1>
-        <p className={page.subtitle}>{t('subtitle')}</p>
-      </header>
-      <PersonaButton>{t('action.invite')}</PersonaButton>
-      <ul className={page.list}>
+    <Screen className={styles.shell} data-persona-surface="members">
+      {header}
+      <ul className={styles.list}>
         {members.map(member => (
-          <li key={member.id} className={page.card}>
-            <strong>{member.name}</strong>
-            <p className={page.meta}>{member.email}</p>
-            <span className={page.chip}>{t(`role.${member.role}`)}</span>
-            {' '}
-            <span className={page.chip}>{t(`status.${member.status}`)}</span>
-            <div className={page.actions}>
-              <PersonaButton variant="secondary">{t('action.revoke')}</PersonaButton>
-            </div>
+          <li key={member.id}>
+            <Card padding="m" className={styles.memberCard}>
+              <div className={styles.memberHead}>
+                <Avatar name={member.name} size={40} shape="person" />
+                <div>
+                  <h3 className={styles.memberName}>{member.name}</h3>
+                  <p className={styles.memberEmail}>{member.email}</p>
+                </div>
+              </div>
+              <div className={styles.chips}>
+                <Chip tone="brand" size="s">{t(`role.${member.role}`)}</Chip>
+                <Chip tone="neutral" size="s">{t(`status.${member.status}`)}</Chip>
+              </div>
+              <Button variant="secondary" size="s">{t('action.revoke')}</Button>
+            </Card>
           </li>
         ))}
       </ul>
-      <section aria-labelledby="sync-heading">
-        <h2 id="sync-heading" className={page.title}>{t('sync.title')}</h2>
-        <ul className={page.list}>
-          <li className={page.card}>{t('sync.projects')}</li>
-          <li className={page.card}>{t('sync.vault')}</li>
-          <li className={page.card}>{t('sync.never')}</li>
+      <Card padding="m" as="section" title={t('sync.title')}>
+        <ul className={styles.syncList}>
+          <li>{t('sync.projects')}</li>
+          <li>{t('sync.vault')}</li>
+          <li>{t('sync.never')}</li>
         </ul>
-      </section>
-    </div>
+      </Card>
+    </Screen>
   )
 }

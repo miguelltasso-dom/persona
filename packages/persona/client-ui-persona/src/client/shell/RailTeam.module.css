@@ -1,0 +1,323 @@
+.group {
+  margin-top: var(--persona-space-4);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--persona-space-1);
+  padding: 0 var(--persona-space-3);
+  font: 800 11px/20px var(--persona-font-text);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--persona-rail-ink-soft);
+}
+
+.count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--persona-rail-ink) 16%, transparent);
+  font: 800 11px/16px var(--persona-font-text);
+  letter-spacing: 0;
+  color: var(--persona-rail-ink);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.person {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-width: 0;
+  min-height: 46px;
+  padding: 4px var(--persona-space-2) 4px 6px;
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  color: var(--persona-rail-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.person:hover,
+.person:focus-visible {
+  background: color-mix(in srgb, var(--persona-rail-ink) 12%, transparent);
+}
+
+.row[data-state='waiting'] .person {
+  background: color-mix(in srgb, var(--persona-accent) 18%, transparent);
+}
+
+.row[data-state='offline'] .person {
+  opacity: 0.6;
+}
+
+/* ── Avatar with outline, blink and live seal ─────────────── */
+.avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-cream-50);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
+}
+
+.face,
+.blink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.blink {
+  opacity: 0;
+  animation: persona-rail-blink 6.5s steps(1, end) infinite;
+  animation-delay: var(--blink-delay, 2s);
+}
+
+.row[data-state='offline'] .face {
+  filter: grayscale(0.8);
+}
+
+.initials {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--persona-lilac-300);
+  color: var(--persona-plum-900);
+  font: 600 13px/1 var(--persona-font-display);
+}
+
+.seal {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-cream-50);
+}
+
+.seal img {
+  width: 11px;
+  height: 11px;
+}
+
+.seal[data-state='working'] { background: var(--persona-success-tint); }
+.seal[data-state='reviewing'] { background: var(--persona-info-tint); }
+.seal[data-state='waiting'] {
+  background: var(--persona-accent);
+  animation: persona-rail-pulse 2.4s ease-in-out infinite;
+}
+.seal[data-state='stuck'] { background: var(--persona-danger-tint); }
+.seal[data-state='resting'] { background: var(--persona-lilac-200); }
+.seal[data-state='offline'] {
+  width: 12px;
+  height: 12px;
+  right: -3px;
+  bottom: -3px;
+  background: var(--persona-lilac-400);
+}
+
+/* ── Text ───────────────────────────────────────────────── */
+.text {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  font: 600 15px/18px var(--persona-font-display);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role,
+.status {
+  grid-row: 2;
+  grid-column: 1;
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-rail-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity var(--motion-fast) linear;
+}
+
+/* State text replaces the role on hover/focus; "aguardando você" and "travado" always show it. */
+.status {
+  opacity: 0;
+  color: var(--persona-rail-ink);
+}
+
+.person:hover .role,
+.person:focus-visible .role,
+.row[data-state='waiting'] .role,
+.row[data-state='stuck'] .role {
+  opacity: 0;
+}
+
+.person:hover .status,
+.person:focus-visible .status,
+.row[data-state='waiting'] .status,
+.row[data-state='stuck'] .status {
+  opacity: 1;
+}
+
+.unread {
+  flex-shrink: 0;
+  min-width: 20px;
+  padding: 1px 6px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  font: 800 11px/16px var(--persona-font-text);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.more {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-rail);
+  color: var(--persona-rail-ink);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--motion-fast) linear;
+}
+
+.row:hover .more,
+.more:focus-visible {
+  opacity: 1;
+}
+
+.row:hover .unread {
+  visibility: hidden;
+}
+
+.seeAll {
+  margin: 2px 0 0 52px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: transparent;
+  color: var(--persona-rail-ink-soft);
+  font: 700 13px/18px var(--persona-font-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.seeAll:hover {
+  color: var(--persona-rail-ink);
+}
+
+.hire {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  width: 100%;
+  min-height: 40px;
+  margin-top: var(--persona-space-1);
+  padding: 0 var(--persona-space-2) 0 7px;
+  border: var(--persona-border-width) dashed color-mix(in srgb, var(--persona-rail-ink) 45%, transparent);
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  color: var(--persona-rail-ink);
+  font: 700 14px/1 var(--persona-font-text);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
+}
+
+.hire:hover {
+  border-style: solid;
+  background: color-mix(in srgb, var(--persona-rail-ink) 12%, transparent);
+}
+
+.hireIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+}
+
+/* ── Collapsed rail: avatars + seals only ─────────────────── */
+.group[data-collapsed] .person {
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.group[data-collapsed] .unread {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.group[data-collapsed] .hire {
+  justify-content: center;
+  padding: 0;
+}
+
+@keyframes persona-rail-blink {
+  0%, 95% { opacity: 0; }
+  96%, 98% { opacity: 1; }
+  99%, 100% { opacity: 0; }
+}
+
+@keyframes persona-rail-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgb(232 175 84 / 0.55); }
+  50% { transform: scale(1.08); box-shadow: 0 0 0 4px rgb(232 175 84 / 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink,
+  .seal[data-state='waiting'] {
+    animation: none;
+  }
+}

@@ -49,7 +49,7 @@ const DEFAULT_BUDGET = 3
 
 function parseHm(value: string): number | undefined {
   const match = /^(\d{2}):(\d{2})$/u.exec(value.trim())
-  if (match === undefined) return undefined
+  if (match === null) return undefined
   const hours = Number(match[1])
   const minutes = Number(match[2])
   if (hours > 23 || minutes > 59) return undefined
@@ -111,7 +111,6 @@ export class DesktopNotifications {
     }
     if (policy.delivery === 'summary') {
       this.pending.push(event)
-      this.flushSummary(now)
       return
     }
     this.showOne(event)

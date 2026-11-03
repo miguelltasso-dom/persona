@@ -186,6 +186,8 @@ const harness = await vi.hoisted(async () => {
     setAppLogsPath: vi.fn(),
     getPath: vi.fn<(name: string) => string>(),
     setName: vi.fn(),
+    setAppUserModelId: vi.fn(),
+    setLoginItemSettings: vi.fn(),
     setPath: vi.fn(),
     setAboutPanelOptions: vi.fn<(options: Electron.AboutPanelOptionsOptions) => void>(),
     requestSingleInstanceLock: () => true,

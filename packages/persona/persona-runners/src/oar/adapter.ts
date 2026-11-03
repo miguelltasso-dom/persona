@@ -64,14 +64,23 @@ function isTurnEnd(kind: string): boolean {
  */
 function mapEvent(event: Event, now: () => Date): RunEvent | undefined {
   const at = eventTime(now)
-  const kind = event.kind
+  const kind: string = event.kind
   if (isTurnEnd(kind)) {
     const outcome = 'outcome' in event ? event.outcome : undefined
-    if (outcome !== undefined && outcome.kind === 'aborted') {
-      return { type: 'ended', at, report: { state: 'dropped', summary: 'cancelled' } }
-    }
-    if (outcome !== undefined && outcome.kind === 'failed') {
-      return { type: 'ended', at, report: { state: 'failed', summary: outcome.reason } }
+    if (outcome !== undefined) {
+      if (typeof outcome === 'string') {
+        if (outcome === 'aborted') {
+          return { type: 'ended', at, report: { state: 'dropped', summary: 'cancelled' } }
+        }
+        if (outcome === 'failed') {
+          const reason = 'reason' in event && typeof event.reason === 'string' ? event.reason : outcome
+          return { type: 'ended', at, report: { state: 'failed', summary: reason } }
+        }
+      } else if (outcome.kind === 'aborted') {
+        return { type: 'ended', at, report: { state: 'dropped', summary: 'cancelled' } }
+      } else if (outcome.kind === 'failed') {
+        return { type: 'ended', at, report: { state: 'failed', summary: outcome.reason } }
+      }
     }
     return { type: 'ended', at, report: { state: 'ready', summary: 'turn ended' } }
   }
@@ -88,10 +97,25 @@ interface Live {
   session: Session
   cancelled: boolean
   finished: boolean
+  accepted: boolean
   pending: RunEvent[]
   unsub: () => void
   rejected?: string
   wake?: () => void
+}
+
+/**
+ * `prompt()` resolving `accepted` only means the turn started. Codex (OAR 0.67)
+ * often goes idle without `turn_ended` — treat idle-after-accept as the end.
+ * @param live - In-flight run.
+ * @param now - Clock.
+ */
+function settleIfIdle(live: Live, now: () => Date): void {
+  if (live.finished || !live.accepted) return
+  const status = typeof live.session.status === 'function' ? live.session.status().value : undefined
+  if (status === undefined || status.kind !== 'idle') return
+  live.pending.push({ type: 'ended', at: eventTime(now), report: { state: 'ready', summary: 'turn ended' } })
+  live.finished = true
 }
 
 /**
@@ -147,27 +171,30 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     }
     const pending: RunEvent[] = []
     const live: Live = {
-      handle, session, cancelled: false, finished: false, pending, unsub: () => {},
+      handle, session, cancelled: false, finished: false, accepted: false, pending, unsub: () => {},
     }
     live.unsub = session.events((event) => {
       const mapped = mapEvent(event, now)
-      if (mapped === undefined) return
-      if (mapped.type === 'delta') {
-        pending.push(mapped)
-        pending.push({ type: 'report', at: mapped.at, report: { state: 'progress', summary: mapped.text } })
-      } else {
-        pending.push(mapped)
-        if (mapped.type === 'ended') live.finished = true
+      if (mapped !== undefined) {
+        if (mapped.type === 'delta') {
+          pending.push(mapped)
+          pending.push({ type: 'report', at: mapped.at, report: { state: 'progress', summary: mapped.text } })
+        } else {
+          pending.push(mapped)
+          if (mapped.type === 'ended') live.finished = true
+        }
       }
+      settleIfIdle(live, now)
       live.wake?.()
     })
     sessions.set(handle.runId, live)
     void session.prompt(prompt).then((outcome) => {
       if (outcome.kind === 'rejected') {
         live.rejected = outcome.reason
-      } else if (!live.finished) {
-        live.pending.push({ type: 'ended', at: eventTime(now), report: { state: 'ready', summary: outcome.kind } })
-        live.finished = true
+      } else {
+        // `accepted` is "prompt started", not "turn ended".
+        live.accepted = true
+        settleIfIdle(live, now)
       }
       live.wake?.()
     }).catch((error: unknown) => {

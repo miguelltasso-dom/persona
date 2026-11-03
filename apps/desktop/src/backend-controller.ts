@@ -54,6 +54,7 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
   private closed = false
   private lastPrepare: (() => Promise<void>) | undefined
   private reconnectLeft = 0
+  private recovering = false
 
   /**
    * @param createHost - Allocate a child and route its fatal failures to the supplied callback.
@@ -102,7 +103,7 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
         // stop() can cancel this attempt while the child starts.
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (!attempt.cancelled) {
-          if (this.current.phase !== 'reconnecting') this.reconnectLeft = this.reconnect?.attempts ?? 0
+          if (!this.recovering) this.reconnectLeft = this.reconnect?.attempts ?? 0
           this.update({ phase: 'ready' })
         }
       } catch (error) {
@@ -187,7 +188,12 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
       if (this.closed || this.stopping !== undefined) return
       if (this.attempt === attempt) this.attempt = undefined
       this.pending = undefined
-      await this.start(this.lastPrepare ?? (async () => {}))
+      this.recovering = true
+      try {
+        await this.start(this.lastPrepare ?? (async () => {}))
+      } finally {
+        this.recovering = false
+      }
     } catch (failure) {
       if (this.closed || this.stopping !== undefined) return
       if (this.reconnectLeft > 0) {

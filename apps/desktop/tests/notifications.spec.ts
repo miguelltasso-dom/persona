@@ -52,6 +52,8 @@ describe('desktop notifications', () => {
         title: `item ${String(i)}`, ticketId: `t-${String(i)}`, at: '2026-11-03T15:00:00Z',
       })
     }
+    expect(f.shown).toHaveLength(0)
+    f.notifications.flush()
     expect(f.shown).toHaveLength(1)
     expect(f.shown[0]?.body).toBe('5 atualizações enquanto você estava ocupado')
     expect(f.shown[0]?.href).toBe(personaTaskHref('t-1'))

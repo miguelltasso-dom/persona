@@ -17,7 +17,9 @@ import {
   dialog,
   ipcMain,
   Menu,
+  Notification,
   powerMonitor,
+  powerSaveBlocker,
   nativeImage,
   nativeTheme,
   protocol,
@@ -70,7 +72,15 @@ import { DesktopUpdateOverlays } from './update-overlay.ts'
 import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
-import { applyPersonaDesktopIdentity, PERSONA_PRODUCT_NAME, PERSONA_PROTOCOL, personaUpdatesEnabled, shouldShowDeepSeekWelcome } from './product.ts'
+import { applyPersonaDesktopIdentity, PERSONA_PRODUCT_NAME, PERSONA_PROTOCOL, resolvePersonaProcessHome, personaUpdatesEnabled, shouldShowDeepSeekWelcome } from './product.ts'
+import { DesktopLoginItem } from './login-item.ts'
+import { readPersonaShellPrefs, writePersonaShellPrefs } from './shell-prefs.ts'
+import { DesktopNotifications } from './notifications.ts'
+import { DesktopPower } from './power.ts'
+import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
+import { parsePersonaDeepLink } from './deep-link.ts'
+import { reconnectingPageUrl } from './reconnecting-page.ts'
+import { HOST_RECONNECT_BACKOFF_MS } from './backend-controller.ts'
 import { isDeepSeekHost } from './deepseek-hosts.ts'
 import { aboutLegalText, formatDesktopLegalNotices } from './legal-notices.ts'
 
@@ -639,8 +649,23 @@ async function main(): Promise<void> {
       resolveDragResource: (address: string, signal?: AbortSignal) => host.resolveDragResource(address, signal),
     }
   }, (state) => {
+    if (state.phase === 'reconnecting') {
+      backendReady = false
+      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+        void mainWindow.loadURL(reconnectingPageUrl(state.message)).catch((error: unknown) => { console.error(error) })
+      }
+      return
+    }
+    if (state.phase === 'ready' && !shuttingDown && mainWindow !== undefined && !mainWindow.isDestroyed()
+      && mainWindow.webContents.getURL().startsWith('data:text/html')) {
+      void navigateMain(applicationUrl).catch((error: unknown) => { reportFatal(error, 'main') })
+    }
     if (state.phase === 'error') reportFatal(state.failure, 'host')
     else if (!shuttingDown) backendReady = state.phase === 'ready'
+  }, process.env.VITEST === 'true' ? undefined : {
+    attempts: 3,
+    backoffMs: HOST_RECONNECT_BACKOFF_MS,
+    message: currentDesktopLocale().messages.reconnecting,
   })
 
   const updateErrors = new WeakMap<DesktopUpdateState, Promise<void>>()
@@ -1168,8 +1193,96 @@ async function main(): Promise<void> {
     if (!quitting) void mandatoryPolicy?.check('foreground-or-resume').catch((error: unknown) => { console.error(error) })
     if (!quitting) void updateSchedule.check().catch((error: unknown) => { console.error(error) })
   }
+  const loginItem = new DesktopLoginItem({
+    apply: (settings) => {
+      try { app.setLoginItemSettings(settings) } catch { /* Test doubles omit setLoginItemSettings. */ }
+    },
+  })
+  void readPersonaShellPrefs(app.getPath('userData')).then((prefs) => {
+    loginItem.setOpenAtLogin(prefs.startWithWindows)
+  }).catch((error: unknown) => { console.error(error) })
+  const desktopPower = new DesktopPower({
+    blocker: powerSaveBlocker,
+    onCatchUp: (limit) => {
+      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('dsh-desktop:catch-up', { limit })
+      }
+    },
+  })
+  const desktopNotifications = new DesktopNotifications({
+    policy: () => ({ delivery: 'summary', proposalBudget: 3, quietStart: '22:00', quietEnd: '07:00' }),
+    locale: () => currentDesktopLocale().messages,
+    notify: {
+      show: (payload) => {
+        try {
+          const toast = new Notification({ title: payload.title, body: payload.body })
+          toast.on('click', () => { openPersonaLink(payload.href) })
+          toast.show()
+        } catch (error) {
+          void error
+        }
+        return {}
+      },
+    },
+    open: (href) => { openPersonaLink(href) },
+  })
+  void desktopNotifications
+  const openPersonaLink = (href: string): void => {
+    const link = parsePersonaDeepLink(href)
+    focusPrimaryWindow()
+    if (link !== undefined && mainWindow !== undefined && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('dsh-desktop:open-task', link.ticketId)
+    }
+  }
+  const runBackupNow = async (): Promise<void> => {
+    const dest = await dialog.showSaveDialog({
+      title: currentDesktopLocale().messages.backupNow,
+      defaultPath: join(app.getPath('documents'), 'persona-backup.zip'),
+    })
+    if (dest.canceled || dest.filePath === undefined) return
+    const result = await backupPersonaHome(resolvePersonaProcessHome(), dest.filePath)
+    await ordinaryMessageBox({
+      type: 'info',
+      title: currentDesktopLocale().messages.backupNow,
+      message: formatDesktopMessage(currentDesktopLocale().messages.backupDone, { path: result.path }),
+      detail: currentDesktopLocale().messages.backupVaultNote,
+      buttons: [currentDesktopLocale().messages.backgroundNoticeConfirm],
+    })
+  }
+  const runRestoreBackup = async (): Promise<void> => {
+    const confirm = await ordinaryMessageBox({
+      type: 'warning',
+      title: currentDesktopLocale().messages.restoreBackup,
+      message: currentDesktopLocale().messages.restoreConfirm,
+      detail: currentDesktopLocale().messages.backupVaultNote,
+      buttons: [currentDesktopLocale().messages.cancel, currentDesktopLocale().messages.restoreBackup],
+      defaultId: 0,
+      cancelId: 0,
+    })
+    if (confirm.response !== 1) return
+    const pick = await dialog.showOpenDialog({ properties: ['openFile'] })
+    if (pick.canceled || pick.filePaths[0] === undefined) return
+    await backend.stop()
+    await restorePersonaBackup({
+      home: resolvePersonaProcessHome(),
+      archivePath: pick.filePaths[0],
+      confirmed: true,
+    })
+    app.relaunch()
+    quitWithoutConfirmation()
+  }
+  const pauseTeam = (): void => {
+    void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
+      await writePersonaShellPrefs(app.getPath('userData'), { ...prefs, teamPaused: true })
+      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('dsh-desktop:pause-team')
+      }
+    }).catch((error: unknown) => { console.error(error) })
+  }
   powerMonitor.on('resume', automaticCheck)
+  powerMonitor.on('resume', () => { desktopPower.onResume() })
   app.on('will-quit', () => {
+    desktopPower.dispose()
     updateSchedule.dispose()
     powerMonitor.off('resume', automaticCheck)
     updates.dispose()
@@ -1211,6 +1324,27 @@ async function main(): Promise<void> {
     ...process.platform === 'darwin' || process.platform === 'win32'
       ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
     { type: 'separator' },
+    {
+      label: currentDesktopLocale().messages.startWithWindows,
+      type: 'checkbox',
+      checked: loginItem.openAtLogin,
+      click: (item) => {
+        const enabled = item.checked === true
+        loginItem.setOpenAtLogin(enabled)
+        void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
+          await writePersonaShellPrefs(app.getPath('userData'), { ...prefs, startWithWindows: enabled })
+        }).catch((error: unknown) => { console.error(error) })
+      },
+    },
+    {
+      label: currentDesktopLocale().messages.backupNow,
+      click: () => { void runBackupNow().catch((error: unknown) => { console.error(error) }) },
+    },
+    {
+      label: currentDesktopLocale().messages.restoreBackup,
+      click: () => { void runRestoreBackup().catch((error: unknown) => { console.error(error) }) },
+    },
+    { type: 'separator' },
     ...development ? [
       { label: currentDesktopLocale().messages.reloadPageMenu, role: 'reload' as const },
       { label: currentDesktopLocale().messages.restartAppHostMenu, click: () => {
@@ -1244,7 +1378,7 @@ async function main(): Promise<void> {
     // The tray is the way back to a hidden window; without it, relaunching the application still focuses it.
     try {
       tray = new DesktopTray({ iconPath: trayIconPath, locale: currentDesktopLocale,
-        open: () => { focusPrimaryWindow() }, quit: () => { app.quit() } })
+        open: () => { focusPrimaryWindow() }, pause: pauseTeam, quit: () => { app.quit() } })
     } catch (error) { console.warn('desktop tray: unavailable', error) }
   }
   const backgroundNotice = process.platform === 'win32'
@@ -1491,7 +1625,10 @@ async function main(): Promise<void> {
     if (url === 'dsh://open' || url === 'dsh://open/'
       || url === `${PERSONA_PROTOCOL}://open` || url === `${PERSONA_PROTOCOL}://open/`) {
       focusPrimaryWindow()
+      return
     }
+    const task = parsePersonaDeepLink(url)
+    if (task !== undefined) openPersonaLink(url)
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {

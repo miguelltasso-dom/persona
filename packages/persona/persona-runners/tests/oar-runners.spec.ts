@@ -192,6 +192,7 @@ describe('OAR CLI runners', () => {
           abort: async () => undefined,
           dispose: async () => undefined,
           usage: () => ({ value: { total: { input: 2, output: 1 } } }),
+          status: () => ({ value: { kind: 'idle' as const } }),
         }
       },
     }

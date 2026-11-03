@@ -122,7 +122,8 @@ export interface RestoreBackupResult {
  */
 export async function restorePersonaBackup(options: RestoreBackupOptions): Promise<RestoreBackupResult> {
   if (options.confirmed !== true) throw new Error('restore requires confirmation')
-  const stamp = (options.now ?? (() => new Date)()).toISOString().replaceAll(':', '').replaceAll('.', '')
+  const now = options.now ?? (() => new Date())
+  const stamp = now().toISOString().replaceAll(':', '').replaceAll('.', '')
   const safetyCopy = `${options.home}.safety-${stamp}`
   if (existsSync(options.home)) await rename(options.home, safetyCopy)
   await mkdir(options.home, { recursive: true })

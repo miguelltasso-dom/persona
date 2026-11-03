@@ -10,8 +10,8 @@ export interface DesktopTrayOptions {
   readonly locale: () => DesktopLocale
   /** Show and focus the primary window. */
   readonly open: () => void
-  /** Pause scheduled team work (host `pauseTeam`). */
-  readonly pause: () => void
+  /** Pause scheduled team work (host `pauseTeam`). Optional so older call sites still typecheck. */
+  readonly pause?: () => void
   /** Quit for good through the same confirmation as every other quit entry. */
   readonly quit: () => void
 }
@@ -36,7 +36,7 @@ export class DesktopTray {
     tray.setToolTip(messages.aboutProduct)
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: messages.openApplication, click: () => { this.options.open() } },
-      { label: messages.trayPauseTeam, click: () => { this.options.pause() } },
+      { label: messages.trayPauseTeam, click: () => { this.options.pause?.() } },
       { type: 'separator' },
       { label: messages.trayQuitForGood, click: () => { this.options.quit() } },
     ]))

@@ -24,6 +24,7 @@ export function createOpencodeRunner(options: {
   runtime: Runtime
   installation?: AvailableInstallation
   env?: Readonly<Record<string, string | null>>
+  policy?: import('../resolve/cli-policy.ts').CliSessionPolicy
 }): Runner {
   const extra = options.installation === undefined ? {} : { installation: options.installation }
   const inner = createOarRunner({
@@ -31,6 +32,7 @@ export function createOpencodeRunner(options: {
     capabilities: OPENCODE_CAPABILITIES,
     env: nativeSessionEnv(options.env),
     ...extra,
+    ...(options.policy === undefined ? {} : { policy: { ...options.policy, launchArgs: [], disallowedTools: [] } }),
   })
   const cwdBySession = new Map<string, string>()
   return {

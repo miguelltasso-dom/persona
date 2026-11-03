@@ -97,5 +97,7 @@ export function withUsageMeter(inner: Runner, sink: UsageMeterSink, provider: st
     cancel: handle => inner.cancel(handle),
     resume: input => inner.resume(input),
     usage: handle => inner.usage(handle),
+    ...(inner.prime === undefined ? {} : { prime: input => inner.prime!(input) }),
+    ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
   }
 }

@@ -4,6 +4,185 @@ Mais recente no topo.
 
 ---
 
+## 03/11 19:08 — DSH API-key (Cofre) + D8 identidade sem toolchain ✔
+
+### 1. DSH direto com chave no Cofre (Atlas 2)
+- `createHttpDshAgent`: OpenAI-compat (DeepSeek / OpenRouter / `baseUrl`). Stream SSE → `delta`/`partial` no 1º token.
+- `resolveRunner({ spec: { kind:'dsh', provider?, baseUrl? }, vault, personId })` sem `agent` lê `vault.get(personId, provider|'dsh')`. Sem chave → `not_logged_in` + hint do Cofre. Sem vault → `cli_not_found` (como antes).
+- Chave **nunca** em erro/evento/JSON. Testes com `node:http` (llm-mock-server do Harness é Anthropic Messages, não chat/completions).
+- Contrato em `contracts/runner.md`.
+
+### 2. D8 prep sem toolchain (Atlas 3)
+- `verifyPostInstall()` / `package-win.mjs --verify-identity`: protocol `persona://`, productName Persona, appId `com.persona.app`, flag unsigned, sem host deepseek.com, sem instalador admin. Não precisa de VS Build Tools. `exePresent` false até `--dir` desbloquear.
+- NSIS / `--dir` completo: ainda E4/E5 admin Miguel + compiler do host (Anvil/Forge).
+
+### [Rivet→Anvil]
+DSH API-key: passar `vault` + `personId` + `spec.provider` (`deepseek`|`openrouter`|`openai-compat`) e `baseUrl` se self-host. Não precisa montar `agent`. Encaminhar `not_logged_in` ao Cofre.
+
+### Arquivos
+- `persona-runners/src/dsh/http-agent.ts`, `resolve/resolve-runner.ts`, `index.ts`
+- `apps/desktop/scripts/{verify-post-install.ts,package-win.mjs}`
+- testes: `http-agent.spec.ts`, `verify-post-install.spec.ts`
+- `contracts/runner.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests
+ Test Files  21 passed (21)
+      Tests  105 passed (105)
+```
+
+```
+pnpm exec vitest run …/http-agent.spec.ts apps/desktop/tests/verify-post-install.spec.ts apps/desktop/tests/package-win.spec.ts
+ Test Files  3 passed (3)
+      Tests  6 passed (6)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 14.1s
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+### Fora / próximo
+- D8 NSIS/`--dir`: admin Miguel + host compiler. Sem mais item PLAN do Rivet (D5a já entregue; PLAN ainda diz todo — Keel). Fila Atlas 2+3 desta rodada fechada.
+
+---
+
+## 03/11 18:32 — latência da conversa: pool quente + talk barato + 1º token imediato ✔
+
+### O que ficou pronto
+- **Pool de sessões quentes** por `persona|project|purpose|provider|model|cwd|permission|toolLevel`. TTL 10 min, teto 8. 2ª mensagem no mesmo runner só faz `prompt()` — não paga `runtime.session()`. `dispose()` / `disposeRunnerSessions()` no «Sair de vez» / pausa / troca de modelo; slot expirado/evicto também fecha. Plugin `ctx.personaRunners.resolveRunner` injeta `defaultRunnerPool`; `resolveRunner` direto (testes) não compartilha o global.
+- **`prime()`** abre a CLI sem turno de modelo. **`prewarmCoordination`** = 1 sessão talk da Coordenação no boot.
+- **Modelo por finalidade:** `purpose: 'talk' | 'task'`. Talk usa `spec.talkModel` ou `TRIAGE_MODELS` (Claude `haiku`, Codex `default`, OpenCode `beam-free`, Cursor `default`, DSH `deepseek-chat`). Task mantém o modelo forte. Documentado em `contracts/runner.md`.
+- **1º token imediato:** `mayBecomeLogin` só segura prefixo de parede de login. Cada flush: `delta` + `partial` cumulativo + `report progress`. Anvil encaminha `partial` à UI sem esperar `ended`.
+- Probe cache 60 s (auth/models); `accountUsage` pulado quando auth já está em cache.
+
+### Smoke real (exceção Keel, 3 pares, claude haiku, mesma sessão)
+
+| par | 1ª firstToken / total | 2ª firstToken / total |
+|---|---|---|
+| 1 | 4474 / 4770 ms | 2097 / 2313 ms |
+| 2 | 5447 / 5613 ms | 795 / 841 ms |
+| 3 | 7423 / 7787 ms | 2012 / 2054 ms |
+
+2ª mensagem ~2–7× mais rápida (sem boot). 1º token da 1ª ainda oscila 4.5–7.4 s (meta <5 s: 1/3 abaixo). Totais ≪ 30 s. `partial` presente em todos.
+
+### [Rivet→Anvil]
+`resolveRunner({ purpose: 'talk' | 'task', … })`. Host boot: `ctx.personaRunners.prewarmCoordination({ spec, permissionMode: 'deny', personaId, projectId, cwd })` (1 sessão, sem gastar modelo). Encerrar: `disposeRunnerSessions()` / `runner.dispose()`. Encaminhar evento `partial` (texto acumulado) à UI no 1º chunk. Talk não manda o modelo forte.
+
+### Arquivos
+- `persona-runners/src/resolve/{session-pool,fastest-model,probe-cache,resolve-runner,smoke}.ts`
+- `persona-runners/src/oar/{adapter,login-output,claude,codex}.ts`
+- `persona-runners/src/{contract,index,plugin}.ts` + wrappers `prime`/`dispose`
+- testes: `session-pool`, `oar-runners`, `resolve-runner`, `login-output`, `runner-contract`
+- `persona-spec/contracts/runner.md`, `persona-spec/spikes/real-cli-smoke.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests
+ Test Files  20 passed (20)
+      Tests  102 passed (102)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 28.2s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 61.3s
+```
+
+```
+PERSONA_REAL_CLI=1 pnpm exec tsx packages/persona/persona-runners/scripts/warm-session-smoke.ts
+```
+
+(JSON no spike; 3 pares ready; sem token/e-mail.)
+
+### Fora / próximo
+- 1º token da 1ª mensagem ainda pode passar de 5 s (boot CLI). Prompt de talk = Forge.
+- DSH API-key (Atlas 2) e D8 sem toolchain (Atlas 3) ainda na fila.
+- D8 NSIS: admin Miguel. CLI real volta a congelar.
+
+---
+
+## 03/11 18:10 — permissões CLI sem `prompt` (D-013 / proposta D-052) + tool levels + smoke haiku ✔
+
+### O que ficou pronto
+- **CLIs nunca `prompt`.** `assertCliNeverPrompt` / `requireExplicitPermission(cli)` lançam pt-BR. `resolveRunner` recusa spec CLI + `prompt`.
+- **Matriz persona→CLI** (`cliPolicyOf` / `grantsOf`):
+  - (a) talk / `deny` / tools vazios → Claude `--permission-mode dontAsk` + denylist Bash/Edit/Write/Web*; Codex `OAR_CODEX_SANDBOX=read-only` (approval already `never`); Cursor `disallowedTools` sem `launchArgs`/`--force`; OpenCode sem denylist (ACP recusa).
+  - (b) tarefa `allow-once` + `files: write` → Claude `acceptEdits`; Codex `workspace-write`; cwd = worktree.
+  - (c) `app_request` / `can_use_tool` / `requestApproval` → `ended blocked` + `question: Precisa de você…`. Teste: `prompt()` do runtime pendura; o stream encerra em <1,5 s.
+- **`withToolLevel`** no `resolveRunner` (DSH+OAR emitem `tool:<nome>`). MCP: `none` não anuncia nada; `read` só `persona_recall`.
+- **ai-memory:** flag off; `shouldCaptureAiMemory` recusa `source: 'dm'`; `memoryNamespace(ws, project)`.
+- **Smoke real (exceção Keel, 1 exec):** claude haiku, worktree temp, `hello.txt` = ok, `lastState: ready`, 9083 ms, tokens in 64441 / out 297. Sem 2ª/3ª exec.
+
+### Contestação (Keel: D-052)
+- `shell: safe` não existe no schema (`none|read|write`). Allowlist `git status` / test runner **não** é canal OAR (Claude/Cursor/OpenCode).
+- OpenCode: só o gate do stream.
+- Cursor `force` interno do OAR no resume (thread preso) **não** é grant de escrita — Persona nunca passa `--force`.
+- Codex sandbox é `process.env.OAR_CODEX_SANDBOX` no `session()` (pin+restore).
+
+### [Rivet→Anvil]
+`permissionFor` / `cliPermissionOf` no host já mapeiam talk→deny e task+write→allow-once. **Nunca** passar `prompt` no resolve CLI. Passar `spec.tools` (`files`/`shell`/`web`). Tratar `ended.report.question` como Attention «Precisa de você».
+
+### Arquivos
+- `persona-runners/src/resolve/{cli-policy,tool-level,resolve-runner}.ts`
+- `persona-runners/src/oar/{adapter,claude,codex,opencode,cursor}.ts`
+- `persona-runners/src/mcp/persona-tools.ts`
+- `persona-runners/src/dsh/runner.ts` (`tool:<nome>`)
+- `persona-runners/src/memory/ai-memory.ts`
+- testes: `cli-policy`, `tool-level`, `persona-mcp`, `draft-ai-memory`, `oar-runners`
+- `persona-spec/contracts/runner.md` (matriz)
+
+### Comandos
+
+```
+pnpm exec vitest run …/cli-policy.spec.ts …/tool-level.spec.ts …/oar-runners.spec.ts …/persona-mcp.spec.ts …/resolve-runner.spec.ts
+ Test Files  5 passed (5)
+      Tests  34 passed (34)
+```
+
+```
+pnpm exec vitest run …/draft-ai-memory.spec.ts
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 13.7s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+FAILED: persona-host/src/orchestration.ts:197 public property missing explicit type annotation
+(Anvil — não é pasta do Rivet)
+```
+
+```
+PERSONA_REAL_CLI=1 pnpm exec tsx .maestri/tmp/rivet-claude-write-smoke.mts
+{"execs":1,"model":"haiku","ms":9083,"lastState":"ready","wrote":true,"tokens":{"in":64441,"out":297}}
+```
+
+### Fora / próximo
+- D8 NSIS: admin Miguel. `--dir` ainda depende do compiler do host.
+- D10 bench: Probe.
+- Preguiça real ≤2/CLI: congelada (esta exceção foi só o write haiku).
+- Desktop robustez (instância única / recover host / updater GitHub Releases só preparado): já na leva 16:50–17:15.
+- Fila Atlas 1–2 desta rodada fechada. Sem próxima Rivet desbloqueada além de mocks.
+
+---
+
 ## 03/11 17:40 — login wall + descoberta CLI + D5a UsageStore ✔
 
 ### 1. "Not logged in" nunca é resposta de modelo

@@ -5,17 +5,24 @@ import { scriptedRuntime } from '@botiverse/oar/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   RunnerResolveError,
+  createSessionPool,
   detectConnections,
+  disposeRunnerSessions,
   loginHintFor,
+  modelForPurpose,
+  pickFastestModel,
+  prewarmCoordination,
   toUiConnection,
   probeCliBinary,
   resetConnectionCache,
+  resetProbeCache,
   resolveRunner,
   type DshAgentPort,
   type MeasuredUsage,
   type RunEvent,
+  type TurnRunner,
 } from '../src/index.ts'
-import { runResolverSmoke } from '../src/resolve/smoke.ts'
+import { runResolverSmoke, runWarmPairSmoke } from '../src/resolve/smoke.ts'
 
 const FAKE_CLI = join(dirname(fileURLToPath(import.meta.url)), '../../persona-e2e/fixtures/fake-cli')
 
@@ -64,8 +71,10 @@ async function collect(events: AsyncIterable<RunEvent>): Promise<RunEvent[]> {
   return out
 }
 
-afterEach(() => {
+afterEach(async () => {
   resetConnectionCache()
+  resetProbeCache()
+  await disposeRunnerSessions()
 })
 
 describe('resolveRunner', () => {
@@ -121,21 +130,25 @@ describe('resolveRunner', () => {
       vault,
       personId: 'p1',
     })).rejects.toMatchObject({ code: 'cli_not_found' })
+    resetProbeCache()
     await expect(resolveRunner({
       spec: { kind: 'cli', cli: 'codex', model: 'gpt-5.5' },
       permissionMode: 'deny',
       runtime: sayingRuntime({ auth: { kind: 'logged_out' } }),
     })).rejects.toBeInstanceOf(RunnerResolveError)
+    resetProbeCache()
     await expect(resolveRunner({
       spec: { kind: 'cli', cli: 'claude', model: 'opus-missing' },
       permissionMode: 'deny',
       runtime: sayingRuntime({ models: ['haiku'] }),
     })).rejects.toMatchObject({ code: 'model_unavailable' })
+    resetProbeCache()
     await expect(resolveRunner({
       spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
       permissionMode: 'deny',
       runtime: sayingRuntime({ usage: { windows: [{ id: '5h', usedPercent: 100 }] } }),
     })).rejects.toMatchObject({ code: 'quota_exhausted' })
+    resetProbeCache()
     try {
       await resolveRunner({
         spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
@@ -175,6 +188,79 @@ describe('resolveRunner', () => {
       ticketId: 't', assignmentId: 'a', personaId: 'nina', cwd: 'C:/tmp', prompt: 'hi', model: 'deepseek-chat',
     })
     expect((await collect(dsh.stream(started))).some(item => item.type === 'delta')).toBe(true)
+  })
+
+  it('pins haiku for talk and keeps the persona model for task', () => {
+    expect(pickFastestModel({ kind: 'cli', cli: 'claude', model: '' })).toBe('haiku')
+    expect(modelForPurpose({ kind: 'cli', cli: 'claude', model: 'sonnet' }, 'talk')).toBe('haiku')
+    expect(modelForPurpose({ kind: 'cli', cli: 'claude', model: 'sonnet', talkModel: 'haiku' }, 'talk')).toBe('haiku')
+    expect(modelForPurpose({ kind: 'cli', cli: 'claude', model: 'sonnet' }, 'task')).toBe('sonnet')
+  })
+
+  it('reuses the pooled runner so the second resolve does not boot again', async () => {
+    let installs = 0
+    const runtime = Object.assign(sayingRuntime(), {
+      installation: async () => {
+        installs += 1
+        return { kind: 'available' as const, via: 'bundled' as const }
+      },
+    })
+    const pool = createSessionPool<TurnRunner>()
+    const options = {
+      spec: { kind: 'cli' as const, cli: 'claude' as const, model: 'haiku' },
+      permissionMode: 'deny' as const,
+      runtime,
+      personId: 'nina',
+      projectId: 'p1',
+      cwd: 'C:/tmp/pool',
+      pool,
+      infra: { wait: async () => undefined },
+    }
+    const first = await resolveRunner(options)
+    const second = await resolveRunner(options)
+    expect(second).toBe(first)
+    expect(installs).toBe(1)
+    await pool.disposeAll()
+  })
+
+  it('prewarms Coordination without a model prompt', async () => {
+    let opens = 0
+    let prompts = 0
+    const inner = sayingRuntime()
+    const runtime = {
+      ...inner,
+      session: async (installation: Parameters<typeof inner.session>[0], options: Parameters<typeof inner.session>[1]) => {
+        opens += 1
+        const session = await inner.session(installation, options)
+        return new Proxy(session, {
+          get(target, prop, receiver) {
+            if (prop === 'prompt') {
+              return async (...args: Parameters<typeof session.prompt>) => {
+                prompts += 1
+                return target.prompt(...args)
+              }
+            }
+            const value = Reflect.get(target, prop, receiver)
+            return typeof value === 'function' ? (value as (...args: never[]) => unknown).bind(target) : value
+          },
+        })
+      },
+    }
+    const runner = await prewarmCoordination({
+      spec: { kind: 'cli', cli: 'claude', model: 'sonnet' },
+      permissionMode: 'deny',
+      runtime,
+      personaId: 'coord',
+      projectId: 'p1',
+      cwd: 'C:/tmp/warm',
+      personId: 'coord',
+      pool: createSessionPool<TurnRunner>(),
+      infra: { wait: async () => undefined },
+    })
+    expect(opens).toBe(1)
+    expect(prompts).toBe(0)
+    expect(runner.prime).toBeTypeOf('function')
+    expect(runner.dispose).toBeTypeOf('function')
   })
 })
 
@@ -239,6 +325,21 @@ describe('resolver smoke (scripted)', () => {
     expect(cursor?.error?.message).toBe(loginHintFor('cursor'))
     expect(cursor?.error?.message).toMatch(/Cursor/u)
     expect(JSON.stringify(cursor)).not.toMatch(/at /u)
+  }, 15_000)
+
+  it('measures first and second message on the same warm session', async () => {
+    const rows = await runWarmPairSmoke({
+      pairs: 1,
+      cli: 'claude',
+      cwd: 'C:/tmp/warm',
+      runtimes: { claude: sayingRuntime() },
+      connections: { timeoutMs: 2_000, force: true },
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.first.done).toBe(true)
+    expect(rows[0]?.second.done).toBe(true)
+    expect(rows[0]?.first.kinds).toContain('delta')
+    expect(rows[0]?.second.kinds).toContain('partial')
   }, 15_000)
 })
 

@@ -14,13 +14,15 @@ import { statfs } from 'node:fs/promises'
 
 const run = promisify(execFile)
 const desktopRoot = fileURLToPath(new URL('..', import.meta.url))
-const MODE = process.argv.includes('--dry')
-  ? 'dry'
-  : process.argv.includes('--dir')
-    ? 'dir'
-    : process.argv.includes('--package')
-      ? 'package'
-      : 'check'
+const MODE = process.argv.includes('--verify-identity')
+  ? 'verify-identity'
+  : process.argv.includes('--dry')
+    ? 'dry'
+    : process.argv.includes('--dir')
+      ? 'dir'
+      : process.argv.includes('--package')
+        ? 'package'
+        : 'check'
 
 const MIGUEL_PHRASE = [
   'Para empacotar o Persona no Windows (sem assinatura, sem instalador admin):',
@@ -304,6 +306,17 @@ async function runDry(checks) {
 }
 
 async function main() {
+  if (MODE === 'verify-identity') {
+    const { verifyPostInstall } = await import('./verify-post-install.ts')
+    const identity = verifyPostInstall()
+    process.stdout.write(`${JSON.stringify({
+      mode: MODE,
+      unsigned: true,
+      adminInstall: false,
+      ...identity,
+    }, null, 2)}\n`)
+    process.exit(identity.ok ? 0 : 2)
+  }
   const checks = await collectChecks()
   const report = {
     mode: MODE,

@@ -29,6 +29,12 @@ export {
 export { createScriptedRunner, scriptedHistory } from './scripted.ts'
 
 export { createDshRunner, unboundDshHealth, type DshAgentEvent, type DshAgentPort, type DshRunnerOptions } from './dsh/runner.ts'
+export {
+  createHttpDshAgent,
+  PROVIDER_BASE,
+  type DshProvider,
+  type HttpDshAgentOptions,
+} from './dsh/http-agent.ts'
 
 export {
   ROUTER_FORBIDDEN_TOOLS,
@@ -146,9 +152,12 @@ export {
 export {
   AI_MEMORY_FLAG,
   aiMemoryEnabled,
+  memoryNamespace,
+  shouldCaptureAiMemory,
   createAiMemory,
   createDisabledAiMemory,
   createFakeAiMemory,
+  type AiMemorySource,
   type AiMemoryCapture,
   type AiMemoryClient,
   type AiMemoryHandoff,
@@ -161,6 +170,7 @@ export { CLI_ISOLATION_VARS, nativeSessionEnv, restoreNativeCliLogin } from './o
 export {
   LOGIN_REQUIRED_PHRASES,
   classifyLoginOutput,
+  mayBecomeLogin,
   type LoginRequiredMatch,
 } from './oar/login-output.ts'
 export {
@@ -177,11 +187,37 @@ export {
   type RunnerResolveErrorCode,
 } from './resolve/errors.ts'
 export {
+  defaultRunnerPool,
+  disposeRunnerSessions,
+  modelForPurpose,
+  prewarmCoordination,
   resolveRunner,
   type PersonaRunnerSpec,
   type ResolveRunnerOptions,
   type VaultSecretReader,
 } from './resolve/resolve-runner.ts'
+export {
+  createSessionPool,
+  sessionPoolKey,
+  SESSION_LEASE_MS,
+  SESSION_POOL_CAP,
+  type RunnerPurpose,
+  type SessionPool,
+  type SessionPoolKey,
+} from './resolve/session-pool.ts'
+export {
+  TRIAGE_MODELS,
+  modelIsUnpinned,
+  pickFastestModel,
+} from './resolve/fastest-model.ts'
+export {
+  PROBE_CACHE_MS,
+  cachedAuth,
+  cachedModels,
+  rememberAuth,
+  rememberModels,
+  resetProbeCache,
+} from './resolve/probe-cache.ts'
 export {
   detectConnections,
   resetConnectionCache,
@@ -199,10 +235,32 @@ export {
   type UsageStorePort,
 } from './resolve/usage-meter.ts'
 export {
+  allowsTool,
+  classifyToolAccess,
+  effectiveToolLevel,
+  toolNameFromEvent,
+  withToolLevel,
+  type ToolLevel,
+} from './resolve/tool-level.ts'
+export {
+  PRECISA_DE_VOCE,
+  assertCliNeverPrompt,
+  cliPermissionOf,
+  cliPolicyOf,
+  grantsOf,
+  isPermissionAsk,
+  type CliPermissionMode,
+  type CliSessionPolicy,
+  type ToolGrants,
+} from './resolve/cli-policy.ts'
+export {
   RESOLVER_SMOKE_MAX_EXEC,
   RESOLVER_SMOKE_PROMPT,
   runResolverSmoke,
+  runWarmPairSmoke,
   type ResolverSmokeOptions,
   type ResolverSmokeRow,
+  type WarmPairRow,
+  type WarmPairTiming,
 } from './resolve/smoke.ts'
 export { probeCliBinary, quotaExhausted, PROBE_TIMEOUT_MS } from './resolve/probe.ts'

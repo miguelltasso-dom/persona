@@ -18,10 +18,16 @@ import { withInfraRecovery, type InfraRecoveryOptions } from './proactivity/reco
 import { withObserveGate, type ObserveGate, type ObserveGateOptions } from './proactivity/observe.ts'
 import { createDraftDriver, type DraftDriver, type DraftDriverOptions } from './draft/driver.ts'
 import { createAiMemory, type AiMemoryClient } from './memory/ai-memory.ts'
-import { resolveRunner, type ResolveRunnerOptions } from './resolve/resolve-runner.ts'
+import {
+  defaultRunnerPool,
+  disposeRunnerSessions,
+  prewarmCoordination,
+  resolveRunner,
+  type ResolveRunnerOptions,
+} from './resolve/resolve-runner.ts'
+import type { Runner } from './contract.ts'
 import { detectConnections, type ConnectionSnapshot, type DetectConnectionsOptions } from './resolve/connections.ts'
 import type { AvailableInstallation, Runtime } from '@botiverse/oar'
-import type { Runner } from './contract.ts'
 
 type OarFactoryOptions = { runtime: Runtime; installation?: AvailableInstallation }
 
@@ -64,6 +70,12 @@ export default class PersonaRunners extends Service {
   readonly createAiMemory: (options?: { enabled?: boolean; client?: AiMemoryClient }) => AiMemoryClient
   readonly resolveRunner: (options: ResolveRunnerOptions) => Promise<Runner>
   readonly detectConnections: (options?: DetectConnectionsOptions) => Promise<ConnectionSnapshot[]>
+  readonly prewarmCoordination: (options: ResolveRunnerOptions & {
+    personaId: string
+    projectId: string
+    cwd: string
+  }) => Promise<Runner>
+  readonly disposeRunnerSessions: () => Promise<void>
 
   /**
    * @param ctx - Host context.
@@ -90,10 +102,20 @@ export default class PersonaRunners extends Service {
     this.createAiMemory = createAiMemory
     this.resolveRunner = (options: ResolveRunnerOptions) => {
       const home = options.home ?? (this.config.home === '' ? undefined : this.config.home)
-      return home === undefined ? resolveRunner(options) : resolveRunner({ ...options, home })
+      const pooled = { ...options, pool: options.pool ?? defaultRunnerPool }
+      return home === undefined ? resolveRunner(pooled) : resolveRunner({ ...pooled, home })
     }
     this.detectConnections = (options?: DetectConnectionsOptions) => (
       options === undefined ? detectConnections() : detectConnections(options)
     )
+    this.prewarmCoordination = (options: ResolveRunnerOptions & {
+      personaId: string
+      projectId: string
+      cwd: string
+    }) => {
+      const home = options.home ?? (this.config.home === '' ? undefined : this.config.home)
+      return home === undefined ? prewarmCoordination(options) : prewarmCoordination({ ...options, home })
+    }
+    this.disposeRunnerSessions = disposeRunnerSessions
   }
 }

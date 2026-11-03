@@ -87,6 +87,8 @@ export type InfraFailureKind = 'context_full' | 'connection_error' | 'process_de
 export type RunEvent =
   | { type: 'started'; at: string; handle: RunHandle }
   | { type: 'delta'; at: string; text: string }
+  /** Cumulative text so far — Anvil forwards this to the UI without waiting for `ended`. */
+  | { type: 'partial'; at: string; text: string }
   | { type: 'report'; at: string; report: NormalizedReport }
   | { type: 'usage'; at: string; usage: RunnerUsage }
   | { type: 'ended'; at: string; report: NormalizedReport }
@@ -117,6 +119,10 @@ export interface Runner {
   cancel(handle: RunHandle): Promise<void>
   resume(input: StartTurnInput): Promise<RunHandle>
   usage(handle?: RunHandle): Promise<RunnerUsage>
+  /** Open the CLI session without a model turn (host boot prewarm). */
+  prime?(input: StartTurnInput): Promise<RunHandle>
+  /** Drop warm CLI sessions (quit / pauseTeam / model change). */
+  dispose?(): Promise<void>
 }
 
 /** Engine recovery note copied from `persona-engine` (no package edge yet). */

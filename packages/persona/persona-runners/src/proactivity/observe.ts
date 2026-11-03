@@ -126,6 +126,8 @@ export function withObserveGate(inner: Runner, options: ObserveGateOptions): Obs
       if (live?.inner !== undefined) return inner.usage(live.inner)
       return inner.usage(handle)
     },
+    ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(input) }),
+    ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
   }
 
   return { runner, observed }

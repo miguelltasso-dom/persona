@@ -23,6 +23,9 @@ export interface CodexRunnerOptions {
   installation?: AvailableInstallation
   /** Ephemeral extras (vault). Never log. */
   env?: Readonly<Record<string, string | null>>
+  policy?: import('../resolve/cli-policy.ts').CliSessionPolicy
+  warmTtlMs?: number
+  warmCap?: number
 }
 
 /**
@@ -36,6 +39,9 @@ export function createCodexRunner(options: CodexRunnerOptions): Runner {
     capabilities: CODEX_CAPABILITIES,
     env: nativeSessionEnv({ ...(isolation ?? {}), ...(options.env ?? {}) }),
     ...(options.installation === undefined ? {} : { installation: options.installation }),
+    ...(options.policy === undefined ? {} : { policy: options.policy }),
+    ...(options.warmTtlMs === undefined ? {} : { warmTtlMs: options.warmTtlMs }),
+    ...(options.warmCap === undefined ? {} : { warmCap: options.warmCap }),
   }
   return createOarRunner(oar)
 }

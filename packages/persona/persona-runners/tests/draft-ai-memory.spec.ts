@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DRAFT_PERSONA_PROMPT,
   aiMemoryEnabled,
+  memoryNamespace,
+  shouldCaptureAiMemory,
   createAiMemory,
   createDisabledAiMemory,
   createDraftDriver,
@@ -45,6 +47,10 @@ describe('optional ai-memory', () => {
     await off.capture({ kind: 'note', text: 'secret' })
     expect(await off.handoff('claude', 'codex')).toEqual({ claimed: false, summary: 'ai-memory disabled' })
     expect(createAiMemory({ enabled: false })).toBeTypeOf('object')
+    expect(shouldCaptureAiMemory({ enabled: true, source: 'dm' })).toBe(false)
+    expect(shouldCaptureAiMemory({ enabled: true, source: 'task' })).toBe(true)
+    expect(shouldCaptureAiMemory({ source: 'task' })).toBe(false)
+    expect(memoryNamespace('ws', 'proj')).toBe('ws/proj')
   })
 
   it('fake client captures and hands off when the flag is on', async () => {

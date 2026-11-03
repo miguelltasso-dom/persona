@@ -6,6 +6,7 @@
 import type { Runtime } from '@botiverse/oar'
 import type { CliKind } from '../contract.ts'
 import { loginHintFor } from './errors.ts'
+import { rememberAuth, rememberModels, resetProbeCache } from './probe-cache.ts'
 import {
   asProbe,
   probeCliBinary,
@@ -117,6 +118,7 @@ async function probeCli(
     if (probe.authStatus !== undefined && snap.kind === 'available') {
       try {
         const auth = await withTimeout(timeoutMs, probe.authStatus(snap as never, { timeoutMs }))
+        rememberAuth(id, auth.kind)
         card.loggedIn = auth.kind === 'logged_in'
         if (auth.kind === 'logged_out' || auth.kind === 'unauthenticated') {
           card.error = { code: 'not_logged_in', message: `CLI ${id} não está logada. ${loginHintFor(id)}` }
@@ -133,6 +135,7 @@ async function probeCli(
         .map(item => item.id)
         .filter((model): model is string => typeof model === 'string')
         .slice(0, 32)
+      rememberModels(id, '', card.models)
     }
     if (probe.accountUsage !== undefined && card.loggedIn) {
       const usage = await withTimeout(timeoutMs, probe.accountUsage(snap as never))
@@ -190,6 +193,7 @@ export async function detectConnections(options: DetectConnectionsOptions = {}):
 /** Drop the 60 s cache (tests). */
 export function resetConnectionCache(): void {
   cache = undefined
+  resetProbeCache()
 }
 
 /** UI row: typed error + loginHint, never a stack. */

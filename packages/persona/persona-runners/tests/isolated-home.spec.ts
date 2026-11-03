@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { AvailableInstallation, SessionOptions } from '@botiverse/oar'
 import { scriptedRuntime } from '@botiverse/oar/testing'
-import { prepareIsolatedHome, resolveRunner } from '../src/index.ts'
+import { disposeRunnerSessions, prepareIsolatedHome, resolveRunner } from '../src/index.ts'
+
+afterEach(async () => {
+  await disposeRunnerSessions()
+})
 
 describe('prepareIsolatedHome', () => {
   it('uses the real HOME when no isolated path is given', () => {

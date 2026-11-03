@@ -5,6 +5,30 @@
 
 export const AI_MEMORY_FLAG = 'PERSONA_AI_MEMORY'
 
+export type AiMemorySource = 'dm' | 'channel' | 'task'
+
+/**
+ * Namespace for one workspace+project. DMs never share this.
+ * @param workspaceId - Tenant.
+ * @param projectId - Project.
+ */
+export function memoryNamespace(workspaceId: string, projectId: string): string {
+  return `${workspaceId}/${projectId}`
+}
+
+/**
+ * Capture is off by default, and always skipped for DM-originated work.
+ * @param input - Source + optional force-enable (tests).
+ */
+export function shouldCaptureAiMemory(input: {
+  source?: AiMemorySource
+  enabled?: boolean
+  env?: NodeJS.ProcessEnv
+} = {}): boolean {
+  if (input.source === 'dm') return false
+  return input.enabled === true || aiMemoryEnabled(input.env)
+}
+
 export interface AiMemoryCapture {
   kind: string
   text: string

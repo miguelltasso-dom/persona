@@ -1,5 +1,23 @@
 # Spike — smokes reais CLI (D9)
 
+## Warm session — 1ª vs 2ª mensagem (03/11 18:32 UTC-3)
+
+Exceção Keel (latência). Claude haiku, prompts curtos (`Responda só OK.` / `Responda só 2.`), **mesma sessão** por par, 3 pares (dispose entre pares). Script: `packages/persona/persona-runners/scripts/warm-session-smoke.ts`. Sem token/e-mail.
+
+| par | 1ª firstTokenMs | 1ª totalMs | 2ª firstTokenMs | 2ª totalMs | done |
+|---|---|---|---|---|---|
+| 1 | 4474 | 4770 | 2097 | 2313 | true / true |
+| 2 | 5447 | 5613 | 795 | 841 | true / true |
+| 3 | 7423 | 7787 | 2012 | 2054 | true / true |
+
+Cota: **6 turns / 3 boots**. 2ª mensagem não paga boot (`partial` em todos). Meta 1º token <5 s: só o par 1 na 1ª mensagem. Meta resposta <30 s: todos.
+
+```
+PERSONA_REAL_CLI=1 pnpm exec tsx packages/persona/persona-runners/scripts/warm-session-smoke.ts
+```
+
+---
+
 ## Codex re-smoke (03/11 16:23 UTC-3) — `done: true`
 
 Causa do `exec sem done`: (1) OAR 0.67 Codex emite `agent_message`/`item` e muitas vezes não manda `turn_ended`; (2) o literal `model: 'default'` (e `gpt-5.5`) é rejeitado pelo ChatGPT Codex. Adapter: mapeia esses kinds → `delta`; `status().idle` após `accepted` → `ended`; omite `model` quando é `default`.

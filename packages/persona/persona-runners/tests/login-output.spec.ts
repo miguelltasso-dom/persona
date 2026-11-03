@@ -8,6 +8,7 @@ import {
   createCursorRunner,
   createOpencodeRunner,
   loginHintFor,
+  mayBecomeLogin,
   type CliKind,
   type RunEvent,
 } from '../src/index.ts'
@@ -50,6 +51,13 @@ describe('classifyLoginOutput', () => {
     expect(classifyLoginOutput('claude', 'Please run /login')).toBeDefined()
     expect(classifyLoginOutput('claude', 'The files are listed.')).toBeUndefined()
     expect(classifyLoginOutput('codex', 'hello world')).toBeUndefined()
+  })
+
+  it('holds only a login-phrase prefix so ordinary first tokens flush', () => {
+    expect(mayBecomeLogin('claude', 'n')).toBe(true)
+    expect(mayBecomeLogin('claude', 'not log')).toBe(true)
+    expect(mayBecomeLogin('claude', 'Hi')).toBe(false)
+    expect(mayBecomeLogin('claude', 'OK')).toBe(false)
   })
 })
 

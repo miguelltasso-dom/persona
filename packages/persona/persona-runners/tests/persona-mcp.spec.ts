@@ -70,4 +70,14 @@ describe('Persona MCP tools (D3)', () => {
     const report = tools.find(tool => tool.name === 'persona_report')!
     expect((await report.handler({ ticketId: 't-forged', summary: 'x' })).content).toBe('forged actor refused')
   })
+
+  it('advertises only tools at or below the persona grant', () => {
+    const hooks = { report: () => {}, recall: () => '', ask: () => {} }
+    const run = { personaId: 'p1', ticketId: 't1', assignmentId: 'a1' }
+    expect(personaMcpTools(run, hooks, 'none').map(tool => tool.name)).toEqual([])
+    expect(personaMcpTools(run, hooks, 'read').map(tool => tool.name)).toEqual(['persona_recall'])
+    expect(personaMcpTools(run, hooks, 'write').map(tool => tool.name)).toEqual([
+      'persona_report', 'persona_recall', 'persona_ask',
+    ])
+  })
 })

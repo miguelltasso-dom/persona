@@ -2,6 +2,16 @@
 
 Data: 2026-11-03. Rivet. Sem instalador NSIS, sem assinatura, sem `pnpm install`.
 
+## Identidade sem toolchain (03/11 19:08)
+
+`node --import tsx/esm apps/desktop/scripts/package-win.mjs --verify-identity` (e `verifyPostInstall()`): protocol `persona://`, Persona, `com.persona.app`, unsigned, sem admin. Exit 0. Não precisa de VS Build Tools. `exePresent` false até haver unpacked.
+
+---
+
+# Spike — empacotamento Windows sem admin (D8 `--dir`)
+
+Data: 2026-11-03. Rivet. Sem instalador NSIS, sem assinatura, sem `pnpm install`.
+
 ## Comando
 
 ```

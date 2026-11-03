@@ -156,3 +156,75 @@ export async function runResolverSmoke(options: ResolverSmokeOptions = {}): Prom
   }
   return rows
 }
+
+export interface WarmPairTiming {
+  firstTokenMs?: number
+  totalMs: number
+  done: boolean
+  lastState?: string
+  kinds: string[]
+}
+
+export interface WarmPairRow {
+  pair: number
+  first: WarmPairTiming
+  second: WarmPairTiming
+}
+
+/**
+ * 3 pairs: 1st message (CLI boot) + 2nd message on the same warm session.
+ * @param options - Real CLI only; cheap model, short prompts.
+ */
+export async function runWarmPairSmoke(options: ResolverSmokeOptions & {
+  pairs?: number
+  cli?: CliKind
+} = {}): Promise<WarmPairRow[]> {
+  if (options.real === true && process.env.PERSONA_REAL_CLI !== '1') {
+    throw new Error('set PERSONA_REAL_CLI=1 to run real CLI smokes')
+  }
+  resetConnectionCache()
+  const cli = options.cli ?? 'claude'
+  const pairs = options.pairs ?? 3
+  const cwd = options.cwd ?? process.cwd()
+  const spec: PersonaRunnerSpec = { kind: 'cli', cli, model: CHEAP[cli] }
+  const rows: WarmPairRow[] = []
+  for (let pair = 1; pair <= pairs; pair += 1) {
+    const runner = await resolveRunner({
+      spec,
+      permissionMode: 'allow-once',
+      purpose: 'talk',
+      personId: `warm-${String(pair)}`,
+      projectId: 'warm-smoke',
+      cwd,
+      autonomy: 'act',
+      ...(options.runtimes?.[cli] === undefined ? {} : { runtime: options.runtimes[cli] }),
+      infra: { wait: async () => undefined },
+    })
+    const turn = async (prompt: string, assignmentId: string): Promise<WarmPairTiming> => {
+      const started = Date.now()
+      const handle = await runner.start({
+        ticketId: `warm-${cli}-${assignmentId}`,
+        assignmentId,
+        personaId: `warm-${String(pair)}`,
+        cwd,
+        prompt,
+        model: CHEAP[cli],
+        permissionMode: 'allow-once',
+      })
+      const timing = await firstToken(runner.stream(handle), options.real === true ? 60_000 : 2_000)
+      const row: WarmPairTiming = {
+        totalMs: Date.now() - started,
+        done: timing.done,
+        kinds: timing.kinds,
+      }
+      if (timing.firstTokenMs !== undefined) row.firstTokenMs = timing.firstTokenMs
+      if (timing.lastState !== undefined) row.lastState = timing.lastState
+      return row
+    }
+    const first = await turn(RESOLVER_SMOKE_PROMPT, `first-${String(pair)}`)
+    const second = await turn('Responda só 2.', `second-${String(pair)}`)
+    rows.push({ pair, first, second })
+    if (runner.dispose !== undefined) await runner.dispose()
+  }
+  return rows
+}

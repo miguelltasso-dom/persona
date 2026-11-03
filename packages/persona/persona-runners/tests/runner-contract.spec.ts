@@ -150,8 +150,9 @@ describe('DSH runner', () => {
     })
     const handle = await runner.start(baseInput)
     const events = await collect(runner.stream(handle))
-    expect(events.map(event => event.type)).toEqual(['started', 'delta', 'report', 'ended'])
-    expect(events[2]).toMatchObject({ report: { state: 'progress', summary: 'hello' } })
+    expect(events.map(event => event.type)).toEqual(['started', 'delta', 'partial', 'report', 'ended'])
+    expect(events[2]).toMatchObject({ type: 'partial', text: 'hello' })
+    expect(events[3]).toMatchObject({ report: { state: 'progress', summary: 'hello' } })
     expect(await runner.usage(handle)).toEqual({ inputTokens: 1, outputTokens: 2 })
   })
 

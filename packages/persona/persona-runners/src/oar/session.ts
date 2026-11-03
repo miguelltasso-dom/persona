@@ -11,6 +11,8 @@ export interface OarSessionOptions {
   personaId: string
   personaName?: string
   personaTitle?: string
+  /** Talk never receives owner-norm / worker wrapping. */
+  purpose?: 'talk' | 'task'
   model: string
   permissionMode: 'prompt' | 'allow-once' | 'deny'
   now?: () => Date
@@ -70,7 +72,8 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
       live.status = 'running'
       emit(mode === 'steer' ? 'userTurnStarted' : 'running', sessionId, requestId)
       let prompt = text
-      if (!live.ownerNorms) {
+      const wrapWorker = options.purpose !== 'talk' && live.role === 'worker'
+      if (wrapWorker && !live.ownerNorms) {
         prompt = prefixOwnerNorms(text, {
           id: options.personaId,
           name: options.personaName ?? options.personaId,

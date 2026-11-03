@@ -47,3 +47,22 @@ export function classifyLoginOutput(cli: CliKind, text: string): LoginRequiredMa
   }
   return undefined
 }
+
+/**
+ * True when `text` is a prefix of a login phrase (hold the first delta).
+ * Ordinary model text returns false so the 1st token is not delayed.
+ * @param cli - CLI that produced the text.
+ * @param text - Held stdout so far.
+ */
+export function mayBecomeLogin(cli: CliKind, text: string): boolean {
+  const normalized = text.normalize('NFKC').toLowerCase().trim()
+  if (normalized === '') return true
+  if (classifyLoginOutput(cli, text) !== undefined) return true
+  for (const phrase of LOGIN_REQUIRED_PHRASES[cli]) {
+    const needle = phrase.toLowerCase()
+    if (needle.startsWith(normalized) || normalized.startsWith(needle.slice(0, Math.min(12, needle.length)))) {
+      return true
+    }
+  }
+  return false
+}

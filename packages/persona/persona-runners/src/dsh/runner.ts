@@ -58,6 +58,7 @@ interface LiveRun {
   events: AsyncIterable<DshAgentEvent>
   cancelled: boolean
   usage: RunnerUsage
+  partialText: string
 }
 
 const CAPABILITIES: RunnerCapabilities = {
@@ -119,6 +120,7 @@ export function createDshRunner(options: DshRunnerOptions): Runner {
       events: launched.events,
       cancelled: false,
       usage: { inputTokens: 0, outputTokens: 0 },
+      partialText: '',
     })
     return handle
   }
@@ -134,9 +136,13 @@ export function createDshRunner(options: DshRunnerOptions): Runner {
           return
         }
         if (event.type === 'text') {
-          yield { type: 'delta', at: eventTime(now), text: event.text }
-          yield { type: 'report', at: eventTime(now), report: { state: 'progress', summary: event.text } }
+          const at = eventTime(now)
+          live.partialText += event.text
+          yield { type: 'delta', at, text: event.text }
+          yield { type: 'partial', at, text: live.partialText }
+          yield { type: 'report', at, report: { state: 'progress', summary: event.text } }
         } else if (event.type === 'tool') {
+          yield { type: 'report', at: eventTime(now), report: { state: 'progress', summary: `tool:${event.name}` } }
           const elapsed = event.elapsedMs ?? 0
           if (elapsed > backgroundShellAfterMs) {
             yield {

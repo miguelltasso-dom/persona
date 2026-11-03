@@ -156,5 +156,7 @@ export function withInfraRecovery(inner: Runner, options: InfraRecoveryOptions =
     cancel: handle => inner.cancel(handle),
     resume: async input => remember(await inner.resume(input), input),
     usage: handle => inner.usage(handle),
+    ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(input) }),
+    ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
   }
 }

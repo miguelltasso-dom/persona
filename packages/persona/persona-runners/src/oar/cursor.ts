@@ -19,7 +19,17 @@ export const CURSOR_CAPABILITIES: RunnerCapabilities = {
  * Cursor runner. Persona MCP tools stay unavailable (OAR refuses `mcpServers`).
  * @param options - runtime built with `@cursor/sdk` or a scripted stand-in.
  */
-export function createCursorRunner(options: { runtime: Runtime; installation?: AvailableInstallation }): Runner {
+export function createCursorRunner(options: {
+  runtime: Runtime
+  installation?: AvailableInstallation
+  policy?: import('../resolve/cli-policy.ts').CliSessionPolicy
+}): Runner {
   const extra = options.installation === undefined ? {} : { installation: options.installation }
-  return createOarRunner({ runtime: options.runtime, capabilities: CURSOR_CAPABILITIES, ...extra })
+  const policy = options.policy === undefined ? undefined : { ...options.policy, launchArgs: [] }
+  return createOarRunner({
+    runtime: options.runtime,
+    capabilities: CURSOR_CAPABILITIES,
+    ...extra,
+    ...(policy === undefined ? {} : { policy }),
+  })
 }

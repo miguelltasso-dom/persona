@@ -22,7 +22,7 @@ const input: StartTurnInput = {
   cwd: 'C:/tmp/ticket-cli',
   prompt: 'List the files',
   model: 'scripted-1',
-  permissionMode: 'prompt',
+  permissionMode: 'deny',
 }
 
 async function collect(events: AsyncIterable<RunEvent>): Promise<RunEvent[]> {
@@ -43,6 +43,11 @@ describe('OAR CLI runners', () => {
     const runner = createClaudeRunner({ runtime: sayingRuntime() })
     const { permissionMode: _ignored, ...bare } = input
     await expect(runner.start(bare)).rejects.toThrow(/permission mode required/u)
+  })
+
+  it('refuses prompt on a CLI (OAR cannot answer approvals)', async () => {
+    const runner = createClaudeRunner({ runtime: sayingRuntime() })
+    await expect(runner.start({ ...input, permissionMode: 'prompt' })).rejects.toThrow(/não aceita modo prompt/u)
   })
 
   it('streams Claude scriptedRuntime events without opening a real CLI', async () => {
@@ -111,7 +116,7 @@ describe('OAR CLI runners', () => {
       turn: createClaudeRunner({ runtime: sayingRuntime('from session') }),
       personaId: 'nina',
       model: 'scripted-1',
-      permissionMode: 'prompt',
+      permissionMode: 'deny',
     })
     await session.ensureSession('worker-cli', input.cwd, 'List', 'worker')
     await session.deliver('worker-cli', 'req-1', 'List the files', 'queue')
@@ -141,7 +146,37 @@ describe('OAR CLI runners', () => {
     expect(env?.CODEX_HOME).toBe('C:/tmp/iso-codex')
   })
 
-  it('disposes the live Codex session before resume', async () => {
+  it('reuses the warm CLI session on a second turn', async () => {
+    let opens = 0
+    const inner = sayingRuntime('ok')
+    const runtime = {
+      ...inner,
+      session: async (installation: AvailableInstallation, options: SessionOptions) => {
+        opens += 1
+        return inner.session(installation, options)
+      },
+    }
+    const runner = createClaudeRunner({ runtime })
+    const first = await runner.start(input)
+    await collect(runner.stream(first))
+    const second = await runner.start({ ...input, prompt: 'again' })
+    await collect(runner.stream(second))
+    expect(opens).toBe(1)
+    expect(second.sessionId).toBe(first.sessionId)
+    await runner.dispose?.()
+  })
+
+  it('emits the first delta immediately and a cumulative partial', async () => {
+    const runner = createClaudeRunner({ runtime: sayingRuntime('Hi') })
+    const events = await collect(runner.stream(await runner.start(input)))
+    const deltaAt = events.findIndex(event => event.type === 'delta' && event.text === 'Hi')
+    const partial = events.find(event => event.type === 'partial')
+    expect(deltaAt).toBeGreaterThan(0)
+    expect(partial).toMatchObject({ type: 'partial', text: 'Hi' })
+    await runner.dispose?.()
+  })
+
+  it('disposes the live Codex session before resume when the warm slot missed', async () => {
     const order: string[] = []
     const inner = sayingRuntime('ok')
     const runtime = {
@@ -163,7 +198,7 @@ describe('OAR CLI runners', () => {
         })
       },
     }
-    const runner = createCodexRunner({ runtime })
+    const runner = createCodexRunner({ runtime, warmTtlMs: 0 })
     const first = await runner.start(input)
     await collect(runner.stream(first))
     await runner.resume({ ...input, resumeSessionId: first.sessionId })

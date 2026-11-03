@@ -124,7 +124,7 @@ Desktop = compute + ambiente (BYOM): cada membro roda suas personas, com as pró
 
 ---
 
-## 4. Equipe, donos e diretórios (disjuntos) — atualizado em 03/11 (Atlas: Anvil e Lumen recrutados)
+## 4. Equipe, donos e diretórios (disjuntos) — atualizado em 03/11 (Atlas: Anvil, Lumen e Muse recrutados)
 
 | Agente | Papel | Dono | Não toca |
 |---|---|---|---|
@@ -135,6 +135,7 @@ Desktop = compute + ambiente (BYOM): cada membro roda suas personas, com as pró
 | **Prism** (Cursor Composer 2.5 fast) | UI: fundação e fluxo principal | `client-ui-persona/src/client/{theme,motion,primitives,shell,overview,chat,team,onboarding,persona-editor,hire,locale}`, `packages/client/**` (mínimo), `apps/web/**` (A7, S5, S6-editor, C5a–d, C8) | `persona-host`, `apps/desktop*`, subpastas do Lumen |
 | **Lumen** (Cursor Composer 2.5 fast) | UI: superfícies de dados | `client-ui-persona/src/client/{kanban,files,routines,usage,connections,knowledge}` (C6a/b, S6-Conhecimento/Cofre, C7a/b, D5b, D4b) | `persona-host`, `apps/desktop*`, subpastas do Prism |
 | **Probe** (Cursor Composer 2.5 fast) | Testes e E2E, verificação contínua | `persona-e2e`; único (com o Keel) que roda builds/empacotamento/E2E de ponta a ponta | produção |
+| **Muse** (Opus, Diretora de Design — recrutada pelo Atlas em 03/11) | Identidade visual e design system: `persona-spec/DESIGN-SYSTEM.md`, tokens/tema/primitivos e specs de passes visuais que Prism e Lumen aplicam (D-050) | `persona-spec/DESIGN-SYSTEM.md`, `client-ui-persona/src/client/{theme,primitives}` | `persona-host`, `persona-engine`, telas dos outros (só especifica; quem implementa a tela é o dono dela) |
 | **Brush** (GPT Terra 6.1) | Imagens | `persona-assets/` | tudo o mais |
 
 Regras (resumo; completas em `BUILDER-RULES.md`): **relato em `persona-spec/reports/<nome>.md` + uma linha no post-it `Persona · Status`, e seguir direto para a próxima tarefa** (`maestri ask "Keel"` só para dúvida bloqueante: ele bloqueia o builder até a resposta); testes ao lado do código; contratos entre donos (`persona-engine` ports, `persona-host` `@Remote`/`types.ts`, `Runner`, ports de repositório) mudam via Keel — **o port é do produtor (Forge/Rivet) e a implementação SQLite é do Anvil, validada pela mesma suíte de contrato**; builds/launch só sob `scripts/persona/with-lock.mjs`; só o Keel comita; `pnpm install` só o Keel; relato com saída verbatim; testes de cliente em pacotes fora de `packages/client/` usam o sufixo `*.client.spec.ts(x)` (senão entram no typecheck do host).

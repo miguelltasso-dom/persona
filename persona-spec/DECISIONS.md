@@ -152,6 +152,9 @@ Puxada (pull) em vez de espera por cobrança; objetivos com orçamento de rodada
 ### D-049 · Verificação e push por worktree limpo · vigente
 O pre-push roda o typecheck COMPLETO; numa árvore compartilhada com 8 agentes ele nunca fica verde ao mesmo tempo. Procedimento: commits locais por entrega na árvore principal; para publicar, `git worktree add --detach C:/Users/migue/dev/persona-push HEAD` → `pnpm install --frozen-lockfile` → `pnpm run typecheck` → corrigir só o necessário no worktree → commit → `git push origin HEAD:refs/heads/persona-dev` (o hook roda de novo no worktree) → no checkout principal `git update-ref refs/heads/persona-dev <sha>` + `git reset -q` (não toca a árvore de trabalho). `tsc -b` que falha por rootDir deixa `.js/.d.ts` ao lado das fontes: apagar (e ignorar em `.gitignore`).
 
+### D-050 · Direção de design: Muse dona do design system · vigente
+O Atlas recrutou a Muse (Opus, Diretora de Design). Ela é dona de `persona-spec/DESIGN-SYSTEM.md` e de `client-ui-persona/src/client/{theme,primitives}` (tokens, tipografia, cor, forma, movimento-base, identidade). Prism e Lumen continuam donos das telas e **aplicam** as specs publicadas pela Muse (devolvem capturas em `.maestri/tmp/shots/real/` a cada passe). Conflito de diretório: se Prism/Lumen precisarem de um token/primitivo novo, pedem à Muse pelo Status em vez de editar `theme/` ou `primitives/`. A crítica visual do Keel (direção D, dirD-tela.png) continua valendo como critério de aceite objetivo (diff + checklist) e passa a ser alimentada pela Muse. Não muda nenhuma decisão do Miguel.
+
 ---
 
 ## 11. Proposta ao Atlas (alta demanda / informativo)

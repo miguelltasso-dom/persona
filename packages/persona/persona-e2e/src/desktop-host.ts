@@ -99,12 +99,11 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
     env,
   })
 
-  const cdpPort = await new Promise<number>((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const deadline = Date.now() + 300_000
     const tick = (): void => {
-      const match = devtoolsLine.exec(launch.output.text())
-      if (match?.[1] !== undefined) {
-        resolve(Number.parseInt(match[1], 10))
+      if (devtoolsLine.test(launch.output.text())) {
+        resolve()
         return
       }
       if (launch.child.exitCode !== null) {
@@ -112,7 +111,7 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
         return
       }
       if (Date.now() > deadline) {
-        reject(new Error(`timed out waiting for DevTools line (expected port ${String(rendererPort)})\n${launch.output.text().slice(-2000)}`))
+        reject(new Error(`timed out waiting for DevTools line (renderer port ${String(rendererPort)})\n${launch.output.text().slice(-2000)}`))
         return
       }
       setTimeout(tick, 500)
@@ -120,9 +119,10 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
     tick()
   })
 
-  await waitForCdpVersion(cdpPort, 60_000)
+  // Electron prints DevTools for `--inspect` (main) before `--remote-debugging-port` (renderer); connect to the port we set.
+  await waitForCdpVersion(rendererPort, 120_000)
 
-  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${String(cdpPort)}`)
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${String(rendererPort)}`)
   const deadline = Date.now() + 120_000
   let page: Page | undefined
   while (Date.now() < deadline) {
@@ -152,7 +152,7 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
     }
   }
 
-  return { page, home, userData, rendererPort: cdpPort, stop }
+  return { page, home, userData, rendererPort, stop }
 }
 
 /**

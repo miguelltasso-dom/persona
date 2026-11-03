@@ -1,5 +1,44 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-03 19:52 — B9 Tier 1/2 verdes + fila Atlas (continuação)
+
+### Pronto
+- **Tier 2 CDP:** `desktop-host.ts` conecta ao `DSH_DESKTOP_RENDERER_DEBUG_PORT` injetado (não ao primeiro `DevTools listening` do processo main `--inspect`).
+- **smoke-desktop:** espera `[data-persona-shell]` + `assertNotHarnessShell` (B9 desktop boot).
+- **mandatory-b9:** sessão única `describe.sequential` (~82 s, 6 passed | 4 todo).
+- README: aviso de **não** paralelizar web host + desktop (contention no `with-lock`).
+
+### Comandos (verbatim)
+```
+node scripts/persona/check-pkg.mjs persona-e2e
+persona-e2e: OK in 4.5s
+
+PERSONA_E2E=1 vitest mandatory-b9-real-app.spec.ts
+ Test Files  1 passed (1)
+      Tests  6 passed | 4 todo (10)
+   Duration  84.40s
+
+PERSONA_E2E=1 vitest smoke-desktop.spec.ts
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Duration  247.87s
+
+PERSONA_E2E=1 vitest smoke-persona + smoke-web + fake-cli + smoke.spec → passed (b9 falhou só por lock paralelo com desktop; re-run isolado verde)
+PERSONA_E2E=1 vitest preview-visual.spec.ts → 1 passed (~10s)
+PERSONA_E2E=1 vitest mandatory-scope.spec.ts → 2 passed | 4 todo (turno anterior)
+```
+
+### Fila Probe (PLAN — não vazia; dependências)
+| Item | Estado |
+|------|--------|
+| B9 E2E real app Tier 1 | **6/6 verdes** (+ 4 todo produto) |
+| A6 Tier 2 desktop smoke | **verde** (~248 s) |
+| S7 scope obrigatório | **2/6** (reduced-motion + dirD); 4 todo (Prism/Anvil/Forge) |
+| PRO-6 proatividade | **8 todo** (PRO-1..5) |
+| B8 / C9 / D9 / E10 / F3 / F6 | todo, blocked em features |
+
+---
+
 ## 2026-11-03 18:35 — Keel: inspect sync console + ui-boot-check + PRO-6/SCOPE
 
 ### Veredito (cordis-client-runner / persona-app)

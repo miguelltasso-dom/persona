@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ARTIFACTS_DIR, REPO_ROOT } from '../src/paths.ts'
 import { comparePngFiles } from '../src/visual-diff/png-compare.ts'
 import {
@@ -12,6 +12,7 @@ import {
   openRealPersonaApp,
   selectSidebarPanel,
   shell,
+  type RealPersonaSession,
 } from '../src/real-app-session.ts'
 import { checkReducedMotionOnPersonaPage } from '../src/motion-jank.ts'
 
@@ -20,74 +21,49 @@ const REFERENCE = join(REPO_ROOT, 'persona-assets', 'references', 'dirD-tela.png
 
 /**
  * B9 real app (Keel): persona-host + client-ui-persona — not isolated HTML previews.
- * Tier 1 web; Tier 2 reuses the same flows in smoke-desktop when CDP is stable.
+ * Tier 1 web; one host boot per file (sequential).
  */
 describe.skipIf(!runPersonaE2e)('persona-e2e mandatory-b9 (real app, profile persona)', () => {
-  it('Tier 1: boots without Harness shell; zero console errors', async () => {
-    const session = await openRealPersonaApp()
-    try {
-      await assertNotHarnessShell(session.page)
-      await completeOnboardingOverlay(session.page)
-      assertConsoleClean(session.tripwire)
-    } finally {
-      await session.close()
-    }
-  }, 360_000)
+  describe.sequential('Tier 1 web (shared session)', () => {
+    let session: RealPersonaSession
 
-  it('Tier 1: onboarding completo em home limpo → #geral composer', async () => {
-    const session = await openRealPersonaApp()
-    try {
+    beforeAll(async () => {
+      session = await openRealPersonaApp()
       await assertNotHarnessShell(session.page)
       await completeOnboardingOverlay(session.page)
+    }, 360_000)
+
+    afterAll(async () => {
+      await session?.close()
+    }, 60_000)
+
+    it('zero console errors after onboarding', () => {
+      assertConsoleClean(session.tripwire)
+    })
+
+    it('#geral composer visible', async () => {
       await session.page.getByPlaceholder(chat.composerPlaceholder).waitFor({ state: 'visible' })
       await session.page.getByText('Geral', { exact: true }).waitFor({ state: 'visible' })
-      assertConsoleClean(session.tripwire)
-    } finally {
-      await session.close()
-    }
-  }, 360_000)
+    })
 
-  it('Tier 1: kanban global visível após navegação', async () => {
-    const session = await openRealPersonaApp()
-    try {
-      await completeOnboardingOverlay(session.page)
+    it('kanban global after navigation', async () => {
       await selectSidebarPanel(session.page, shell.kanban)
       await session.page.locator('[data-persona-kanban="global"]').waitFor({ state: 'visible' })
-      assertConsoleClean(session.tripwire)
-    } finally {
-      await session.close()
-    }
-  }, 360_000)
+      await selectSidebarPanel(session.page, shell.channels)
+    })
 
-  it('Tier 1: composer aceita rascunho (envio ainda sem runner)', async () => {
-    const session = await openRealPersonaApp()
-    try {
-      await completeOnboardingOverlay(session.page)
+    it('composer draft enables send (runner wire pending)', async () => {
       const textarea = session.page.getByPlaceholder(chat.composerPlaceholder)
       await textarea.fill('Probe: mensagem de teste E2E')
       expect(await session.page.getByRole('button', { name: chat.send }).isEnabled()).toBe(true)
-      assertConsoleClean(session.tripwire)
-    } finally {
-      await session.close()
-    }
-  }, 360_000)
+    })
 
-  it('Tier 1: reduced-motion no shell real', async () => {
-    const session = await openRealPersonaApp()
-    try {
-      await completeOnboardingOverlay(session.page)
+    it('reduced-motion on live shell', async () => {
       const motion = await checkReducedMotionOnPersonaPage(session.page)
       expect(motion.pass, `transition ${motion.transitionDurationMs}ms reduced=${motion.reducedMedia}`).toBe(true)
-      assertConsoleClean(session.tripwire)
-    } finally {
-      await session.close()
-    }
-  }, 360_000)
+    })
 
-  it('Tier 1: diff visual vs dirD-tela.png (informacional)', async () => {
-    const session = await openRealPersonaApp()
-    try {
-      await completeOnboardingOverlay(session.page)
+    it('diff visual vs dirD-tela.png (informacional)', async () => {
       await session.page.waitForTimeout(2_000)
       await mkdir(ARTIFACTS_DIR, { recursive: true })
       const shot = join(ARTIFACTS_DIR, 'b9-real-app-light.png')
@@ -111,14 +87,11 @@ describe.skipIf(!runPersonaE2e)('persona-e2e mandatory-b9 (real app, profile per
           await browser.close()
         }
       }
-      assertConsoleClean(session.tripwire)
-    } finally {
-      await session.close()
-    }
-  }, 360_000)
+    })
+  })
 
-  it.todo('Tier 1: enviar mensagem no #geral e ver resposta do runner scriptado / fake CLI')
-  it.todo('Tier 1: kanban reflete tarefa criada pelo host após mensagem')
-  it.todo('Tier 1: criar e editar persona na superfície Equipe/Members')
-  it.todo('Tier 2 desktop: mesmo fluxo B9 via CDP (smoke-desktop)')
+  it.todo('Tier 1: enviar mensagem no #geral e ver resposta do runner scriptado / fake CLI (Rivet/Anvil host wire)')
+  it.todo('Tier 1: kanban reflete tarefa criada pelo host após mensagem (Anvil store + host events)')
+  it.todo('Tier 1: criar e editar persona na superfície Equipe/Members (Prism + host)')
+  it.todo('Tier 2 desktop: onboarding + kanban + composer (smoke-desktop só boot shell hoje)')
 })

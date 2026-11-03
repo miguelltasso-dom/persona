@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { ARTIFACTS_DIR } from '../src/paths.ts'
 import { resolveElectronBinary, startDesktop, osScreenshot } from '../src/desktop-host.ts'
 import { watchConsole, assertConsoleClean } from '../src/console-tripwire.ts'
+import { assertNotHarnessShell } from '../src/real-app-session.ts'
 
 const runPersonaE2e = process.env.PERSONA_E2E === '1'
 
@@ -19,7 +20,8 @@ describe.skipIf(!runPersonaE2e)('persona-e2e smoke desktop (Tier 2)', () => {
     const desktop = await startDesktop()
     try {
       const tripwire = watchConsole(desktop.page)
-      await desktop.page.locator('[data-composer-input]').first().waitFor({ state: 'visible', timeout: 180_000 })
+      await desktop.page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
+      await assertNotHarnessShell(desktop.page)
       const rendererPath = join(ARTIFACTS_DIR, 'smoke-desktop-renderer.png')
       await desktop.page.screenshot({ path: rendererPath, animations: 'disabled' })
       expect(existsSync(rendererPath)).toBe(true)

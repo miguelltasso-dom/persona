@@ -2,6 +2,8 @@
 
 End-to-end harness for Persona: **Tier 1** (`persona` profile host + Playwright Chrome), **Tier 2** (Electron + CDP + OS screenshot), **preview visual diff**, motion/jank probes, and **fake CLIs** on `PATH`. Owned by Probe; see `persona-spec/RECON.md` §6 and `persona-spec/PLAN.md` task A6.
 
+Only **one** heavy host (web `persona` profile or `start:desktop`) at a time — parallel vitest files will block on `with-lock.mjs` and can time out. Run Tier 1 and Tier 2 smokes sequentially when diagnosing.
+
 Long-running apps use the shared lock with **early release** (see `persona-spec/BUILDER-RULES.md`):
 
 ```sh
@@ -31,6 +33,18 @@ Persona profile boot gate (Keel `ui-boot-check`; fails on activation warnings + 
 
 ```sh
 $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/smoke-persona.spec.ts
+```
+
+**Real gallery** (all panels → `.maestri/tmp/shots/real/` + `index.md`; ~15–25 min):
+
+```sh
+node scripts/persona/with-lock.mjs "Probe real gallery" --release-on "dsh web:" -- node --import tsx/esm scripts/persona/capture-real-gallery.mjs
+```
+
+**A11y matrix** (axe + Tab per nav panel; needs `@axe-core/playwright` when Keel adds it):
+
+```sh
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/real-surface-a11y.spec.ts
 ```
 
 **B9 real app** (profile `persona`, no Harness shell; onboarding, kanban, dirD, reduced-motion):

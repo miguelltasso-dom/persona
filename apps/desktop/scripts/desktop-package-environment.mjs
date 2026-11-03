@@ -29,7 +29,20 @@ const FILE_SETTINGS = ['DSH_DESKTOP_WINDOWS_CER_FILE', 'DSH_DESKTOP_WINDOWS_SIGN
 export function localMacOSPackageEnvironment(environment = process.env) {
   return {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) => !AMBIENT_RELEASE_SETTING.test(name))),
-    DSH_DESKTOP_APP_ID: 'com.deepseek.harness',
+    DSH_DESKTOP_APP_ID: 'com.persona.desktop',
+    DSH_DESKTOP_UNSIGNED: '1',
+  }
+}
+
+/**
+ * Select local Windows unsigned defaults without reading dotenv files or inheriting release settings.
+ * @param {NodeJS.ProcessEnv} environment Parent environment, retained for build tools and networking.
+ * @returns {NodeJS.ProcessEnv} Unsigned build environment with the Persona application identifier and no update policy.
+ */
+export function localWindowsPackageEnvironment(environment = process.env) {
+  return {
+    ...Object.fromEntries(Object.entries(environment).filter(([name]) => !AMBIENT_RELEASE_SETTING.test(name))),
+    DSH_DESKTOP_APP_ID: 'com.persona.desktop',
     DSH_DESKTOP_UNSIGNED: '1',
   }
 }
@@ -156,7 +169,7 @@ export function validateDesktopPackageEnvironment(environment, target, options =
   resolveDesktopTargetBuildPaths(environment, target.platform, target.arch)
   resolveDesktopAppId(environment)
   resolveNpmRegistry(environment)
-  if (target.platform !== 'darwin' || !options.unsigned) resolveDesktopPolicyEnvironment(environment)
+  if (!options.unsigned) resolveDesktopPolicyEnvironment(environment)
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
   if (options.unsigned) return

@@ -29,7 +29,9 @@
   "sideEffects": false,
   "dependencies": {
     "@botiverse/oar": "0.67.0",
-    "@cursor/sdk": "1.0.37"
+    "@cursor/sdk": "1.0.37",
+    "@deepseek-ai/dsh-persona-engine": "workspace:*",
+    "@deepseek-ai/schemastery": "workspace:~"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

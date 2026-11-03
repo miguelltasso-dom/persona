@@ -1,7 +1,8 @@
 /** OAR Claude Code runner (D1a). Permission mode is always required. */
 
-import type { Runtime } from '@botiverse/oar'
+import type { AvailableInstallation, Runtime } from '@botiverse/oar'
 import { createOarRunner, type OarRunnerOptions } from './adapter.ts'
+import { nativeSessionEnv } from './native-cli-env.ts'
 import type { Runner, RunnerCapabilities } from '../contract.ts'
 
 export const CLAUDE_CAPABILITIES: RunnerCapabilities = {
@@ -17,8 +18,9 @@ export const CLAUDE_CAPABILITIES: RunnerCapabilities = {
 
 export interface ClaudeRunnerOptions {
   runtime: Runtime
-  /** Isolated Claude config directory (`CLAUDE_CONFIG_DIR`). */
+  /** Isolated Claude config directory (`CLAUDE_CONFIG_DIR`). Omitted uses native login. */
   configDir?: string
+  installation?: AvailableInstallation
 }
 
 /**
@@ -26,11 +28,12 @@ export interface ClaudeRunnerOptions {
  * @param options - runtime and optional isolated config dir.
  */
 export function createClaudeRunner(options: ClaudeRunnerOptions): Runner {
-  const env = options.configDir === undefined ? undefined : { CLAUDE_CONFIG_DIR: options.configDir }
+  const isolation = options.configDir === undefined ? undefined : { CLAUDE_CONFIG_DIR: options.configDir }
   const oar: OarRunnerOptions = {
     runtime: options.runtime,
     capabilities: CLAUDE_CAPABILITIES,
-    ...(env === undefined ? {} : { env }),
+    env: nativeSessionEnv(isolation),
+    ...(options.installation === undefined ? {} : { installation: options.installation }),
   }
   return createOarRunner(oar)
 }

@@ -16,6 +16,7 @@ import {
   type RunnerUsage,
   type StartTurnInput,
 } from '../contract.ts'
+import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/recovery.ts'
 
 /** Minimal Agent surface the host will bind to `ctx.agents`. */
 export interface DshAgentPort {
@@ -47,6 +48,8 @@ export interface DshRunnerOptions {
   /** Extra concurrency slot reserved for a person's follow-up. */
   reservedPersonSlots?: number
   maxConcurrent?: number
+  /** Infra recovery (context full / connection / dead process / trust prompt). */
+  infra?: InfraRecoveryOptions
 }
 
 interface LiveRun {
@@ -197,7 +200,7 @@ export function createDshRunner(options: DshRunnerOptions): Runner {
       return live.usage
     },
   }
-  return runner
+  return withInfraRecovery(runner, options.infra ?? {})
 }
 
 /** Health helper used when the host is not yet bound. */

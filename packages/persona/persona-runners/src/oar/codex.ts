@@ -1,7 +1,8 @@
 /** OAR Codex runner (D1b). Permission mode is always required. */
 
-import type { Runtime } from '@botiverse/oar'
-import { createOarRunner } from './adapter.ts'
+import type { AvailableInstallation, Runtime } from '@botiverse/oar'
+import { createOarRunner, type OarRunnerOptions } from './adapter.ts'
+import { nativeSessionEnv } from './native-cli-env.ts'
 import type { Runner, RunnerCapabilities } from '../contract.ts'
 
 export const CODEX_CAPABILITIES: RunnerCapabilities = {
@@ -15,10 +16,24 @@ export const CODEX_CAPABILITIES: RunnerCapabilities = {
   permission: 'explicit',
 }
 
+export interface CodexRunnerOptions {
+  runtime: Runtime
+  /** Isolated Codex home (`CODEX_HOME`). Omitted uses the native login. */
+  homeDir?: string
+  installation?: AvailableInstallation
+}
+
 /**
  * Codex runner over an OAR runtime.
  * @param options - runtime (real CLI or `scriptedRuntime`).
  */
-export function createCodexRunner(options: { runtime: Runtime }): Runner {
-  return createOarRunner({ runtime: options.runtime, capabilities: CODEX_CAPABILITIES })
+export function createCodexRunner(options: CodexRunnerOptions): Runner {
+  const isolation = options.homeDir === undefined ? undefined : { CODEX_HOME: options.homeDir }
+  const oar: OarRunnerOptions = {
+    runtime: options.runtime,
+    capabilities: CODEX_CAPABILITIES,
+    env: nativeSessionEnv(isolation),
+    ...(options.installation === undefined ? {} : { installation: options.installation }),
+  }
+  return createOarRunner(oar)
 }

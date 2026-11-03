@@ -11,6 +11,7 @@ import {
   type RunnerUsage,
   type StartTurnInput,
 } from '../contract.ts'
+import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/recovery.ts'
 
 export interface OarRunnerOptions {
   runtime: Runtime
@@ -19,6 +20,8 @@ export interface OarRunnerOptions {
   now?: () => Date
   /** Extra env for the session (e.g. isolated `CLAUDE_CONFIG_DIR`). */
   env?: Readonly<Record<string, string | null>>
+  /** Infra recovery. Tests inject a no-op waiter. */
+  infra?: InfraRecoveryOptions
 }
 
 const BUNDLED: AvailableInstallation = { kind: 'available', via: 'bundled' }
@@ -55,13 +58,45 @@ function mapEvent(event: Event, now: () => Date): RunEvent | undefined {
   return undefined
 }
 
+interface Live {
+  handle: RunHandle
+  session: Session
+  cancelled: boolean
+  finished: boolean
+  pending: RunEvent[]
+  unsub: () => void
+  rejected?: string
+  wake?: () => void
+}
+
+/**
+ * Codex holds an exclusive writer on the thread until dispose.
+ * @param sessions - live runs keyed by run id.
+ * @param sessionId - native session to release, if any.
+ */
+async function releaseLive(sessions: Map<string, Live>, sessionId: string | undefined): Promise<void> {
+  if (sessionId === undefined) return
+  const victims = [...sessions.entries()].filter(([, live]) => live.handle.sessionId === sessionId)
+  for (const [runId, live] of victims) {
+    live.unsub()
+    live.finished = true
+    live.wake?.()
+    try {
+      await live.session.dispose()
+    } catch (error) {
+      void error
+    }
+    sessions.delete(runId)
+  }
+}
+
 /**
  * Wrap an OAR runtime as a Persona Runner.
  * @param options - runtime, advertised capabilities, optional installation.
  */
 export function createOarRunner(options: OarRunnerOptions): Runner {
   const now = options.now ?? (() => new Date())
-  const sessions = new Map<string, { handle: RunHandle; session: Session; cancelled: boolean; wake?: () => void }>()
+  const sessions = new Map<string, Live>()
   let seq = 0
 
   const open = async (input: StartTurnInput, recovery: boolean): Promise<RunHandle> => {
@@ -85,24 +120,11 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       cwd: input.cwd,
       model: input.model,
     }
-    sessions.set(handle.runId, { handle, session, cancelled: false })
-    const outcome = await session.prompt(prompt)
-    if (outcome.kind === 'rejected') {
-      await session.dispose()
-      sessions.delete(handle.runId)
-      throw new Error(outcome.reason)
-    }
-    return handle
-  }
-
-  async function *play(handle: RunHandle): AsyncIterable<RunEvent> {
-    const live = sessions.get(handle.runId)
-    if (live === undefined) throw new Error(`unknown run ${handle.runId}`)
-    yield { type: 'started', at: eventTime(now), handle }
     const pending: RunEvent[] = []
-    let notify: (() => void) | undefined
-    let finished = false
-    const unsub = live.session.events((event) => {
+    const live: Live = {
+      handle, session, cancelled: false, finished: false, pending, unsub: () => {},
+    }
+    live.unsub = session.events((event) => {
       const mapped = mapEvent(event, now)
       if (mapped === undefined) return
       if (mapped.type === 'delta') {
@@ -110,30 +132,47 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
         pending.push({ type: 'report', at: mapped.at, report: { state: 'progress', summary: mapped.text } })
       } else {
         pending.push(mapped)
-        if (mapped.type === 'ended') finished = true
+        if (mapped.type === 'ended') live.finished = true
       }
-      notify?.()
+      live.wake?.()
     })
+    sessions.set(handle.runId, live)
+    void session.prompt(prompt).then((outcome) => {
+      if (outcome.kind === 'rejected') {
+        live.rejected = outcome.reason
+        live.wake?.()
+      }
+    }).catch((error: unknown) => {
+      live.rejected = error instanceof Error ? error.message : String(error)
+      live.wake?.()
+    })
+    return handle
+  }
+
+  async function *play(handle: RunHandle): AsyncIterable<RunEvent> {
+    const live = sessions.get(handle.runId)
+    if (live === undefined) throw new Error(`unknown run ${handle.runId}`)
+    yield { type: 'started', at: eventTime(now), handle }
     try {
-      while (!finished || pending.length > 0) {
-        if (live.cancelled && !finished) {
-          pending.push({ type: 'ended', at: eventTime(now), report: { state: 'dropped', summary: 'cancelled' } })
-          finished = true
+      while (!live.finished || live.pending.length > 0) {
+        if (live.rejected !== undefined && !live.finished) {
+          live.pending.push({ type: 'ended', at: eventTime(now), report: { state: 'failed', summary: live.rejected } })
+          live.finished = true
         }
-        if (pending.length === 0) {
-          await new Promise<void>((resolve) => {
-            notify = resolve
-            live.wake = resolve
-          })
-          notify = () => {}
+        if (live.cancelled && !live.finished) {
+          live.pending.push({ type: 'ended', at: eventTime(now), report: { state: 'dropped', summary: 'cancelled' } })
+          live.finished = true
+        }
+        if (live.pending.length === 0) {
+          await new Promise<void>((resolve) => { live.wake = resolve })
           delete live.wake
           continue
         }
-        const next = pending.shift()
+        const next = live.pending.shift()
         if (next !== undefined) yield next
       }
     } finally {
-      unsub()
+      live.unsub()
     }
   }
 
@@ -159,6 +198,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     },
     resume: async (input) => {
       requireExplicitPermission(input)
+      await releaseLive(sessions, input.resumeSessionId)
       const next: StartTurnInput = {
         ticketId: input.ticketId,
         assignmentId: input.assignmentId,
@@ -178,5 +218,5 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       return live === undefined ? { inputTokens: 0, outputTokens: 0 } : usageOf(live.session)
     },
   }
-  return runner
+  return withInfraRecovery(runner, options.infra ?? {})
 }

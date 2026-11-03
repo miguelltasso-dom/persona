@@ -1,5 +1,9 @@
 /** Persona runners: engine Runner port adapters, DSH, OAR CLIs, coordination, MCP. */
 
+export { default } from './plugin.ts'
+export { default as PersonaRunners } from './plugin.ts'
+export type { Config as PersonaRunnersConfig } from './plugin.ts'
+
 export const PACKAGE_RUNNERS = 'persona-runners'
 
 export {
@@ -7,6 +11,7 @@ export {
   RECOVERY_NOTE,
   toWorkerReport,
   type CliKind,
+  type InfraFailureKind,
   type HistoryTurn,
   type NormalizedReport,
   type ReportState,
@@ -78,9 +83,54 @@ export {
   type ServeMcpToolsFn,
 } from './mcp/persona-tools.ts'
 
+export {
+  createWatchdogDriver,
+  WATCHDOG_SESSION_ID,
+  type ClaimDue,
+  type WatchdogDriver,
+  type WatchdogDriverOptions,
+  type WatchdogPersona,
+} from './watchdog/driver.ts'
+
+export {
+  INFRA_BACKOFF_MS,
+  INFRA_MAX_ATTEMPTS,
+  buildHandoffPrompt,
+  classifyInfraFailure,
+  withInfraRecovery,
+  type HandoffInput,
+  type InfraRecoveryOptions,
+} from './proactivity/recovery.ts'
+export {
+  GOAL_ROUND_DRIVER_NAME,
+  GOAL_ROUND_DRIVER_PACKAGE,
+  continueDshGoal,
+  createGoalContinueDriver,
+  renderPersonaGoalRound,
+  type GoalBudget,
+  type GoalContinueDriver,
+  type GoalContinueOptions,
+} from './proactivity/goal-continue.ts'
+export {
+  OWNER_NORMS,
+  executorPrompt,
+  prefixOwnerNorms,
+  type ExecutorPersona,
+} from './proactivity/owner-prompt.ts'
+export {
+  gradeLaziness,
+  runLazinessSuite,
+  scoreLazinessScenario,
+  type LazinessGrade,
+  type LazinessScenarioId,
+  type LazinessScenarioResult,
+  type LazinessSuiteOptions,
+  type RunnerLazinessHint,
+} from './proactivity/laziness.ts'
 export { createOarRunner, requireExplicitPermission, type OarRunnerOptions } from './oar/adapter.ts'
 export { createOarSessionRunner, type OarSessionOptions } from './oar/session.ts'
 export { CLAUDE_CAPABILITIES, createClaudeRunner, type ClaudeRunnerOptions } from './oar/claude.ts'
-export { CODEX_CAPABILITIES, createCodexRunner } from './oar/codex.ts'
+export { CODEX_CAPABILITIES, createCodexRunner, type CodexRunnerOptions } from './oar/codex.ts'
+export { CLI_ISOLATION_VARS, nativeSessionEnv, restoreNativeCliLogin } from './oar/native-cli-env.ts'
 export { createOpencodeRunner, OPENCODE_CAPABILITIES } from './oar/opencode.ts'
 export { createCursorRunner, CURSOR_CAPABILITIES } from './oar/cursor.ts'

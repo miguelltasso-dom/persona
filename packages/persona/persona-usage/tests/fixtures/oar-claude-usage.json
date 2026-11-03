@@ -1,0 +1,5 @@
+{
+  "kind": "ok",
+  "5h": { "used_percent": 12.5, "window_minutes": 300, "resets_at": "2026-11-03T20:00:00Z" },
+  "weekly": { "used_percent": 4, "window_minutes": 10080, "resets_at": "2026-11-09T00:00:00Z" }
+}

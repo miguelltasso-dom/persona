@@ -11,7 +11,7 @@ OAR `@botiverse/oar` 0.67.0. Node 24.22.1. Sem prompts, sem login, sem tokens.
 | `oar:claude` | `C:\Users\migue\.local\bin\claude.EXE` | 2.1.317 (bate com a conhecida) | `logged_in` (plan max, method claude.ai; e-mail omitido) | 13 (`default`, opus, fable, sonnet, haiku, …) | sim (`mcpToolsListChanged: additions`; sem recusa) | sim (`--resume`) | queue in-process; attribution `attributed`; images sim | **GO** |
 | `oar:codex` | `C:\Users\migue\AppData\Roaming\npm\codex.CMD` | 0.166.0 | `logged_in` (method chatgpt) | 53 (default `gpt-6.1-sol`) | sim (`mcpToolsListChanged: none`) | sim (thread nativa) | queue durável; attribution `nested`; images sim | **GO** |
 | `oar:opencode` | `C:\Users\migue\.bun\bin\opencode.EXE` | 1.19.3 | OAR **não** expõe `authStatus`; `listModels` respondeu (373 ids, catálogo + OpenRouter) | 373 | sim (`mcpToolsListChanged: full`) | sim, **só no mesmo cwd** | v1.19 → perfil v2: attribution `nested`; images não declaradas no adapter | **GO com ressalvas** (unverified upstream; sem status de login; resume amarra cwd) |
-| `oar:cursor` | `cursor-agent` em `C:\Users\migue\AppData\Local\cursor-agent\versions\2026.10.22-27dcf5f\cursor-agent.cmd` | conhecida 2026.10.22 (`.cmd` **não** executado: `promote-staged`) | OAR cursor exige `@cursor/sdk` 1.0.37 | — | recusado pelo OAR (ferramentas Persona indisponíveis) | sim no SDK, se existisse | queue in-process; attribution `attributed`; images sim | **NO-GO até o Keel instalar `@cursor/sdk@1.0.37`** (não instalei) |
+| `oar:cursor` | `@cursor/sdk` 1.0.37 (`installation.via: bundled`); `cursor-agent` no PATH 2026.10.22 (`.cmd` não executado) | 1.0.37 | `logged_out` (`Cursor.auth.status`) | `unauthenticated` (pede API key; sonda não logou) | **não** — OAR recusa `mcpServers` (D-018) | sim no SDK (model de novo) | queue in-process; attribution `attributed`; images sim | **GO com ressalvas** — SDK resolve; sem MCP; sem login/cota |
 
 `agent` no PATH é o Grok (`grokAgentOnPath: true`). A sonda só usou `cursor-agent` (via `where.exe`), nunca `agent`.
 
@@ -32,6 +32,6 @@ Capabilities de sessão vêm das constantes do adapter OAR 0.67.0; a sonda **nã
 | GO | `oar:claude` | Instalado, autenticado, modelos, MCP, resume. |
 | GO | `oar:codex` | Idem. |
 | GO (2ª classe) | `oar:opencode` | CLI ok e lista modelos; sem `authStatus`; resume só no mesmo cwd; upstream unverified. |
-| NO-GO agora | `oar:cursor` | `@cursor/sdk@1.0.37` ausente no workspace. CLI nativa está no PATH. Pedir ao Keel o peer; não rodar `pnpm install` daqui. |
+| GO (2ª classe) | `oar:cursor` | SDK 1.0.37 resolve (`package.json` não é exportado — a sonda lê o entry). Auth logged_out; MCP recusado pelo OAR (ferramentas Persona ficam no DSH/claude/codex). |
 
 Plano B da D-009 (SDKs próprios) **não** é necessário para claude/codex neste Windows. Cursor só desbloqueia com o peer do SDK.

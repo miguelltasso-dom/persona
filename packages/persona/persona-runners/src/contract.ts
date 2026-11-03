@@ -81,12 +81,16 @@ export interface StartTurnInput {
   permissionMode?: 'prompt' | 'allow-once' | 'deny'
 }
 
+/** Why a runner session was recovered (PRO-3 / PROACTIVITY.md). */
+export type InfraFailureKind = 'context_full' | 'connection_error' | 'process_dead' | 'trust_prompt'
+
 export type RunEvent =
   | { type: 'started'; at: string; handle: RunHandle }
   | { type: 'delta'; at: string; text: string }
   | { type: 'report'; at: string; report: NormalizedReport }
   | { type: 'usage'; at: string; usage: RunnerUsage }
   | { type: 'ended'; at: string; report: NormalizedReport }
+  | { type: 'infra'; at: string; kind: InfraFailureKind; attempt: number; summary: string }
 
 export interface RunnerHealth {
   ok: boolean

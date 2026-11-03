@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { loadDesktopPackageEnvironment, localMacOSPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
+import { loadDesktopPackageEnvironment, localMacOSPackageEnvironment, localWindowsPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
 import { resolveWindowsPackageSettings } from '../scripts/windows-package-settings.mjs'
 
 const WINDOWS = { platform: 'win32', arch: 'x64' } as const
@@ -114,11 +114,21 @@ describe('Desktop local packaging configuration', () => {
     const local = localMacOSPackageEnvironment(parent)
     expect(local).toEqual({
       PATH: parent.PATH, HTTPS_PROXY: parent.HTTPS_PROXY, DSH_DESKTOP_NPM_REGISTRY: parent.DSH_DESKTOP_NPM_REGISTRY,
-      DSH_DESKTOP_APP_ID: 'com.deepseek.harness', DSH_DESKTOP_UNSIGNED: '1',
+      DSH_DESKTOP_APP_ID: 'com.persona.desktop', DSH_DESKTOP_UNSIGNED: '1',
     })
     expect(() => { validateDesktopPackageEnvironment(local, MACOS, { unsigned: true }) }).not.toThrow()
     expect(parent.DSH_DESKTOP_UNSIGNED).toBe('0')
     expect(parent.DSH_DESKTOP_APP_ID).toBe('com.example.release')
+  })
+
+  it('selects Windows unsigned defaults without policy or dotenv', () => {
+    const local = localWindowsPackageEnvironment({
+      PATH: 'build-tools', DSH_DESKTOP_APP_ID: 'com.example.release', DSH_DESKTOP_UNSIGNED: '0',
+      DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
+    })
+    expect(local.DSH_DESKTOP_APP_ID).toBe('com.persona.desktop')
+    expect(local.DSH_DESKTOP_UNSIGNED).toBe('1')
+    expect(() => { validateDesktopPackageEnvironment(local, WINDOWS, { unsigned: true }) }).not.toThrow()
   })
 
   it('takes cache concurrency from the Windows file and defaults to four without ambient overrides', async () => {

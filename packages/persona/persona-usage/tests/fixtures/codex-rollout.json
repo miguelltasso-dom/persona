@@ -1,0 +1,6 @@
+{
+  "rate_limits": {
+    "5h": { "used_percent": 33, "window_minutes": 300, "resets_at": "2026-11-03T19:00:00Z" },
+    "weekly": { "used_percent": 8, "window_minutes": 10080 }
+  }
+}

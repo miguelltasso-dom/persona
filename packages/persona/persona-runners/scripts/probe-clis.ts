@@ -12,6 +12,7 @@ import {
   type AvailableInstallation,
   type Runtime,
 } from '@botiverse/oar'
+import { restoreNativeCliLogin } from '../src/oar/native-cli-env.ts'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const runnersRoot = join(here, '..')
@@ -93,9 +94,20 @@ function whereCommand(name: string): string | undefined {
 
 function loadCursorSdk(): { ok: true; version: string } | { ok: false; reason: string } {
   try {
-    const manifest = requireFromRunners.resolve('@cursor/sdk/package.json')
-    const pkg = requireFromRunners(manifest) as { version?: string }
-    return { ok: true, version: pkg.version ?? 'unknown' }
+    const entry = requireFromRunners.resolve('@cursor/sdk')
+    let dir = dirname(entry)
+    for (let i = 0; i < 6; i += 1) {
+      try {
+        const pkg = requireFromRunners(join(dir, 'package.json')) as { name?: string; version?: string }
+        if (pkg.name === '@cursor/sdk') return { ok: true, version: pkg.version ?? 'unknown' }
+      } catch {
+        // Walk toward the package root; exports hide package.json.
+      }
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+    return { ok: true, version: 'unknown' }
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? String((error as { code?: string }).code) : 'ERR'
     return { ok: false, reason: `@cursor/sdk not installed (${code}); required 1.0.37 — not installing` }
@@ -155,6 +167,7 @@ async function probeRuntime(id: string, runtime: Runtime): Promise<Record<string
 }
 
 async function main(): Promise<void> {
+  restoreNativeCliLogin()
   const cursorAgentPath = whereCommand('cursor-agent')
   const grokAgentPath = whereCommand('agent')
   const cursorSdk = loadCursorSdk()

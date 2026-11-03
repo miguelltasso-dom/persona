@@ -1,6 +1,7 @@
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { AvailableInstallation, Session, SessionOptions } from '@botiverse/oar'
 import { scriptedRuntime } from '@botiverse/oar/testing'
 import { describe, expect, it } from 'vitest'
 import {
@@ -117,5 +118,58 @@ describe('OAR CLI runners', () => {
     await session.deliver('worker-cli', 'req-1', 'List the files', 'queue')
     expect(session.status('worker-cli')).toBe('idle')
     expect(session.capabilities().tools).toBe('mcp')
+  })
+
+  it('unsets leftover isolation unless configDir or homeDir is explicit', async () => {
+    let env: Record<string, string | null> | undefined
+    const inner = sayingRuntime()
+    const runtime = {
+      ...inner,
+      session: async (installation: AvailableInstallation, options: SessionOptions) => {
+        env = options.env === undefined ? undefined : { ...options.env }
+        return inner.session(installation, options)
+      },
+    }
+    await createClaudeRunner({ runtime }).start(input)
+    expect(env?.CLAUDE_CONFIG_DIR).toBeNull()
+    expect(env?.CODEX_HOME).toBeNull()
+
+    await createClaudeRunner({ runtime, configDir: 'C:/tmp/iso-claude' }).start(input)
+    expect(env?.CLAUDE_CONFIG_DIR).toBe('C:/tmp/iso-claude')
+
+    await createCodexRunner({ runtime, homeDir: 'C:/tmp/iso-codex' }).start(input)
+    expect(env?.CODEX_HOME).toBe('C:/tmp/iso-codex')
+  })
+
+  it('disposes the live Codex session before resume', async () => {
+    const order: string[] = []
+    const inner = sayingRuntime('ok')
+    const runtime = {
+      ...inner,
+      session: async (installation: AvailableInstallation, options: SessionOptions) => {
+        order.push(`open:${options.resume ?? 'new'}`)
+        const session = await inner.session(installation, options)
+        return new Proxy(session, {
+          get(target: Session, prop: string | symbol, receiver: unknown) {
+            if (prop === 'dispose') {
+              return async () => {
+                order.push('dispose')
+                return target.dispose()
+              }
+            }
+            const value = Reflect.get(target, prop, receiver)
+            return typeof value === 'function' ? (value as (...args: never[]) => unknown).bind(target) : value
+          },
+        })
+      },
+    }
+    const runner = createCodexRunner({ runtime })
+    const first = await runner.start(input)
+    await collect(runner.stream(first))
+    await runner.resume({ ...input, resumeSessionId: first.sessionId })
+    expect(order[0]).toBe('open:new')
+    expect(order).toContain('dispose')
+    expect(order.at(-1)).toBe(`open:${first.sessionId}`)
+    expect(order.indexOf('dispose')).toBeLessThan(order.length - 1)
   })
 })

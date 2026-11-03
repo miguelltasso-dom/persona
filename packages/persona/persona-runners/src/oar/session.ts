@@ -4,10 +4,13 @@
 
 import type { RunHandle, Runner as TurnRunner, StartTurnInput } from '../contract.ts'
 import type { DeliverMode, Runner, RunnerCapabilities, RunnerEvent, RunnerRole, RunnerStatus } from '../port.ts'
+import { prefixOwnerNorms } from '../proactivity/owner-prompt.ts'
 
 export interface OarSessionOptions {
   turn: TurnRunner
   personaId: string
+  personaName?: string
+  personaTitle?: string
   model: string
   permissionMode: 'prompt' | 'allow-once' | 'deny'
   now?: () => Date
@@ -21,6 +24,7 @@ interface Live {
   seen: Set<string>
   ticketId: string
   handle?: RunHandle
+  ownerNorms: boolean
 }
 
 /**
@@ -56,7 +60,7 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
         existing.role = role
         return
       }
-      sessions.set(id, { cwd, title, role, status: 'idle', seen: new Set(), ticketId: id.replace(/^worker-/u, '') })
+      sessions.set(id, { cwd, title, role, status: 'idle', seen: new Set(), ticketId: id.replace(/^worker-/u, ''), ownerNorms: false })
     },
     deliver: async (sessionId: string, requestId: string, text: string, mode: DeliverMode) => {
       const live = sessions.get(sessionId)
@@ -65,12 +69,21 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
       live.seen.add(requestId)
       live.status = 'running'
       emit(mode === 'steer' ? 'userTurnStarted' : 'running', sessionId, requestId)
+      let prompt = text
+      if (!live.ownerNorms) {
+        prompt = prefixOwnerNorms(text, {
+          id: options.personaId,
+          name: options.personaName ?? options.personaId,
+          ...(options.personaTitle === undefined ? {} : { title: options.personaTitle }),
+        })
+        live.ownerNorms = true
+      }
       const input: StartTurnInput = {
         ticketId: live.ticketId,
         assignmentId: requestId,
         personaId: options.personaId,
         cwd: live.cwd,
-        prompt: text,
+        prompt,
         model: options.model,
         permissionMode: options.permissionMode,
       }

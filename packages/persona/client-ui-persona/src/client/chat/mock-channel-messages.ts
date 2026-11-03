@@ -33,6 +33,6 @@ export const MOCK_GERAL_MESSAGES: readonly ChannelMessage[] = [
     authorName: 'Nina',
     timeLabel: '14:05',
     body: 'Encontrei dois pontos que precisam da sua aprovação antes de enviar.',
-    reactions: ['🙏', '👀'],
+    reactions: ['👍 3', '🚀 1', '+'],
   },
 ]

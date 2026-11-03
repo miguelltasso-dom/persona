@@ -7,11 +7,9 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import page from '../profile/LumenPage.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import { ProactiveDailySummaries } from './ProactiveDailySummaries.tsx'
-import { MOCK_APPROVALS, type ApprovalItem } from './mock-data.ts'
-import {
-  MOCK_PERSONA_DAILY_SUMMARIES,
-  MOCK_PROACTIVE_SUMMARY_DATE,
-} from './proactivity-mock-data.ts'
+import type { ApprovalItem } from './mock-data.ts'
+import type { PersonaDailyProactiveSummary } from './proactivity-mock-data.ts'
+import { MOCK_PROACTIVE_SUMMARY_DATE } from './proactivity-mock-data.ts'
 import { pt as defaultDict } from '../locale/approvals/locales.ts'
 
 export type ApprovalsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -30,19 +28,21 @@ function formatSummaryDate(dict: LocaleDict, isoDate: string): string {
 export interface ApprovalsInboxProps {
   readonly dict?: LocaleDict
   readonly items?: readonly ApprovalItem[]
+  readonly proactiveSummaries?: readonly PersonaDailyProactiveSummary[]
   readonly initialState?: ApprovalsSurfaceState
 }
 
 export function ApprovalsInbox({
   dict = defaultDict,
-  items = MOCK_APPROVALS,
+  items = [],
+  proactiveSummaries = [],
   initialState = 'ready',
 }: ApprovalsInboxProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const motion = usePersonaMotion({ preset: 'fast', fromOpacity: 0, fromTranslateY: 6 })
   const summaryDateLabel = formatSummaryDate(dict, MOCK_PROACTIVE_SUMMARY_DATE)
   const hasReactive = items.length > 0
-  const hasProactive = MOCK_PERSONA_DAILY_SUMMARIES.some(s => s.proposals.length > 0)
+  const hasProactive = proactiveSummaries.some(s => s.proposals.length > 0)
 
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
   if (initialState === 'empty' || (!hasReactive && !hasProactive)) {
@@ -66,7 +66,7 @@ export function ApprovalsInbox({
       {hasProactive && (
         <ProactiveDailySummaries
           dict={dict}
-          summaries={MOCK_PERSONA_DAILY_SUMMARIES}
+          summaries={proactiveSummaries}
           summaryDateLabel={summaryDateLabel}
         />
       )}

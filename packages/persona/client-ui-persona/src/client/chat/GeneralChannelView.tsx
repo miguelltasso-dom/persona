@@ -2,43 +2,74 @@ import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 import { usePersonaMotion } from '../motion/index.ts'
-import { MOCK_CHANNEL_ROSTER } from '../team/mock-channel-roster.ts'
+import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { TeamChannelStrip } from '../team/TeamChannelStrip.tsx'
 import { ChannelComposer } from './ChannelComposer.tsx'
-import { MOCK_GERAL_MESSAGES } from './mock-channel-messages.ts'
+import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
 import styles from './GeneralChannelView.module.css'
 
 export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly shellT: PropsLocale<'persona.shell'>['t']
+  readonly members: readonly ChannelPersonaMember[]
+  readonly messages: readonly ChannelMessageUi[]
+  onSendMessage?(body: string): void
 }
 
-/** #geral channel — header, team strip, mock stream, composer (RCD: value in conversation). */
-export function GeneralChannelView({ t: tChat, shellT }: GeneralChannelViewProps): ReactNode {
+/** #geral channel — header, team strip, stream, composer (RCD: value in conversation). */
+export function GeneralChannelView({
+  t: tChat,
+  shellT,
+  members,
+  messages,
+  onSendMessage,
+}: GeneralChannelViewProps): ReactNode {
+  const composerProps = onSendMessage !== undefined ? { onSend: onSendMessage } : {}
+
   return (
     <div className={styles.view}>
       <header className={styles.header}>
-        <p className={styles.breadcrumb}>
-          <span className={styles.hash} aria-hidden="true">#</span>
-          <span className={styles.section}>{tChat('header.section')}</span>
-          <span className={styles.dot} aria-hidden="true">·</span>
-          <span className={styles.channel}>{tChat('header.channelGeneral')}</span>
-        </p>
+        <div className={styles.headerMain}>
+          <span className={styles.hashBadge} aria-hidden="true">#</span>
+          <div className={styles.headerTitles}>
+            <h1 className={styles.channelTitle}>
+              {tChat('header.section')}
+              <span className={styles.titleDot} aria-hidden="true"> · </span>
+              {tChat('header.channelGeneral')}
+            </h1>
+            <p className={styles.subtitle}>{tChat('header.subtitle')}</p>
+          </div>
+        </div>
+        <div className={styles.headerTools}>
+          <button type="button" className={styles.iconBtn} aria-label={tChat('header.notifications')}>
+            <span className={styles.bellIcon} aria-hidden="true" />
+            <span className={styles.notifyDot} aria-hidden="true" />
+          </button>
+          <button type="button" className={styles.iconBtn} aria-label={tChat('header.help')}>
+            ?
+          </button>
+          <button type="button" className={styles.userAvatar} aria-label={tChat('header.userMenu')}>
+            <span className={styles.userStatusDot} aria-hidden="true" />
+          </button>
+        </div>
       </header>
-      <TeamChannelStrip t={shellT} members={MOCK_CHANNEL_ROSTER} />
+      <TeamChannelStrip t={shellT} members={members} />
       <div className={styles.stream} role="log" aria-label={tChat('header.channelGeneral')}>
+        <div className={styles.dayDivider} role="separator">
+          <span>{tChat('stream.today')}</span>
+        </div>
         <ol className={styles.messages}>
-          {MOCK_GERAL_MESSAGES.map((message, index) => (
+          {messages.map((message, index) => (
             <ChannelMessageRow key={message.id} message={message} index={index} />
           ))}
         </ol>
       </div>
-      <ChannelComposer t={tChat} />
+      <ChannelComposer t={tChat} {...composerProps} />
     </div>
   )
 }
 
 function ChannelMessageRow(props: {
-  message: (typeof MOCK_GERAL_MESSAGES)[number]
+  message: ChannelMessageUi
   index: number
 }): ReactNode {
   const motion = usePersonaMotion({
@@ -67,7 +98,9 @@ function ChannelMessageRow(props: {
         {props.message.reactions.length > 0 && (
           <ul className={styles.reactions} aria-label="Reações">
             {props.message.reactions.map(reaction => (
-              <li key={reaction}><span className={styles.reactionChip}>{reaction}</span></li>
+              <li key={reaction}>
+                <button type="button" className={styles.reactionChip}>{reaction}</button>
+              </li>
             ))}
           </ul>
         )}

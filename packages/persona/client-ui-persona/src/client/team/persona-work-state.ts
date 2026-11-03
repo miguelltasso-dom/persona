@@ -21,8 +21,10 @@ export interface PersonaNowSnapshot {
 
 export interface AwaySummaryEvent {
   readonly id: string
-  readonly bodyKey: ShellKey
-  readonly taskLabelKey: ShellKey
+  readonly bodyKey?: ShellKey
+  readonly taskLabelKey?: ShellKey
+  readonly body?: string
+  readonly taskLabel?: string
 }
 
 export const WORK_STATUS_KEY: Readonly<Record<PersonaWorkUiState, ShellKey>> = {

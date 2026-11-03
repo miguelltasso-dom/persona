@@ -27,6 +27,15 @@ const NAV: readonly { panel: MainPanelId; labelKey: ShellKey; icon: NavIconId }[
   { panel: 'routines', labelKey: 'sidebar.routines', icon: 'rotinas' },
   { panel: 'channels', labelKey: 'sidebar.channels', icon: 'canais' },
   { panel: 'directMessages', labelKey: 'sidebar.directMessages', icon: 'mensagens-diretas' },
+  { panel: 'knowledge', labelKey: 'sidebar.knowledge', icon: 'conhecimento-memoria' },
+  { panel: 'files', labelKey: 'sidebar.files', icon: 'arquivos' },
+  { panel: 'connections', labelKey: 'sidebar.connections', icon: 'convidar' },
+  { panel: 'approvals', labelKey: 'sidebar.approvals', icon: 'decisoes' },
+  { panel: 'rules', labelKey: 'sidebar.rules', icon: 'quadro' },
+  { panel: 'profile', labelKey: 'sidebar.profile', icon: 'equipe' },
+  { panel: 'members', labelKey: 'sidebar.members', icon: 'convidar' },
+  { panel: 'importers', labelKey: 'sidebar.importers', icon: 'arquivos' },
+  { panel: 'canvas', labelKey: 'sidebar.canvas', icon: 'canvas' },
   { panel: 'usage', labelKey: 'sidebar.usage', icon: 'uso-e-limites' },
 ]
 
@@ -88,6 +97,7 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
         </div>
       </div>
       <div className={styles.footer}>
+        <div className={styles.footerFoliage} aria-hidden="true" />
         <div className={styles.hostStatus} role="status">
           <span className={styles.statusDot} data-online={shell.hostStatus === 'online' ? '' : undefined} aria-hidden="true" />
           {hostLabel}

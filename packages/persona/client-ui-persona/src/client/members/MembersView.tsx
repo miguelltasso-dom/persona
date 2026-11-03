@@ -4,17 +4,18 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import page from '../profile/LumenPage.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
-import { MOCK_MEMBERS } from './mock-data.ts'
+import type { WorkspaceMember } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/members/locales.ts'
 
 export type MembersSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
 export interface MembersViewProps {
   readonly dict?: LocaleDict
+  readonly members?: readonly WorkspaceMember[]
   readonly initialState?: MembersSurfaceState
 }
 
-export function MembersView({ dict = defaultDict, initialState = 'ready' }: MembersViewProps): ReactNode {
+export function MembersView({ dict = defaultDict, members = [], initialState = 'ready' }: MembersViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
   if (initialState === 'empty') {
@@ -37,7 +38,7 @@ export function MembersView({ dict = defaultDict, initialState = 'ready' }: Memb
       </header>
       <PersonaButton>{t('action.invite')}</PersonaButton>
       <ul className={page.list}>
-        {MOCK_MEMBERS.map(member => (
+        {members.map(member => (
           <li key={member.id} className={page.card}>
             <strong>{member.name}</strong>
             <p className={page.meta}>{member.email}</p>

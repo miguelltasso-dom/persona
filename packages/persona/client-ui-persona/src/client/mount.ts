@@ -9,20 +9,16 @@ import './shell/persona-slots.ts'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import { ONBOARDING_NS } from './locale/onboarding/locales.ts'
 import { pt as onboardingPt } from './locale/onboarding/locales.ts'
-import { SHELL_NS, type ShellKey } from './locale/shell/locales.ts'
+import { SHELL_NS } from './locale/shell/locales.ts'
 import { createOnboardingStore } from './onboarding/create-onboarding-store.ts'
 import { OnboardingShellOverlay } from './onboarding/OnboardingShellOverlay.tsx'
-import { GeneralChannelView } from './chat/GeneralChannelView.tsx'
-import { CHAT_NS } from './locale/chat/locales.ts'
-import { OverviewView } from './overview/OverviewView.tsx'
-import { MOCK_AWAY_SUMMARY, MOCK_OVERVIEW_NOW } from './overview/mock-overview-proactivity.ts'
-import { SearchPlaceholderView } from './shell/SearchPlaceholderView.tsx'
+import { registerLumenUi } from './kanban/register-lumen-ui.tsx'
+import { createPersonaLiveStore } from './remote/persona-live-store.ts'
+import { registerPrismScreens } from './shell/register-prism-screens.tsx'
 import { PersonaAppFrame } from './shell/PersonaAppFrame.tsx'
 import { PersonaSidebar } from './shell/PersonaSidebar.tsx'
-import { registerLumenUi } from './kanban/register-lumen-ui.tsx'
 import { createShellStore, type ShellStoreHandle } from './shell/create-shell-store.ts'
-
-const ATTENTION_KEYS: readonly ShellKey[] = ['overview.attentionSample']
+import { readOnboardingOpen, persistOnboardingComplete } from './shell/onboarding-persistence.ts'
 
 export const inject = [
   'remote',
@@ -32,11 +28,20 @@ export const inject = [
 
 function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
   const { store, actions } = shellHandle
+  const live = createPersonaLiveStore(ctx.remote.persona as unknown as Parameters<typeof createPersonaLiveStore>[0])
+
   void ctx.remote.persona.ping().then((result) => {
     actions.setHostPing(result.ok, result.ok ? result.value.protocol : null)
   }).catch(() => {
     actions.setHostPing(false, null)
   })
+
+  void live.bootstrap((firstUse) => {
+    if (firstUse && readOnboardingOpen()) {
+      actions.setOnboardingOpen(true)
+    }
+  })
+
   const onboardingHandle = createOnboardingStore()
   const shellObservable = {
     getSnapshot: () => store.getSnapshot(),
@@ -47,12 +52,6 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     selectPanel: (id: Parameters<typeof actions.selectPanel>[0]) => { actions.selectPanel(id) },
   })
   const frameInject = () => ({ hooks: { shell: shellObservable } })
-  const tShell = ctx.locale.bind(SHELL_NS)
-  const overviewInject = () => ({
-    attentionItems: ATTENTION_KEYS.map(key => tShell(key)),
-    nowRows: MOCK_OVERVIEW_NOW,
-    awayEvents: MOCK_AWAY_SUMMARY,
-  })
 
   ctx.slots.register({
     name: 'root',
@@ -74,32 +73,8 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     inject: sidebarInject,
   }, PersonaSidebar)
 
-  ctx.slots.register({
-    name: 'main',
-    key: 'overview',
-    locale: SHELL_NS,
-    inject: overviewInject,
-  }, OverviewView)
-
-  const channelInject = () => ({ shellT: ctx.locale.bind(SHELL_NS) })
-  ctx.slots.register({
-    name: 'main',
-    key: 'channels',
-    locale: CHAT_NS,
-    inject: channelInject,
-  }, GeneralChannelView)
-  ctx.slots.register({
-    name: 'main',
-    key: 'team',
-    locale: CHAT_NS,
-    inject: channelInject,
-  }, GeneralChannelView)
-
-  ctx.slots.register({
-    name: 'main',
-    key: 'search',
-    locale: SHELL_NS,
-  }, SearchPlaceholderView)
+  registerPrismScreens(ctx, live)
+  registerLumenUi(ctx, live)
 
   ctx.slots.register({
     name: 'shell.overlay',
@@ -110,11 +85,16 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       dict: onboardingPt,
       store: onboardingHandle.store,
       actions: onboardingHandle.actions,
-      dismissOnboarding: () => { actions.dismissOnboarding() },
+      dismissOnboarding: () => {
+        const snapshot = onboardingHandle.store.getSnapshot()
+        void live.commitOnboardingRoster(snapshot.displayName, snapshot.roster).finally(() => {
+          persistOnboardingComplete()
+          actions.dismissOnboarding()
+          void live.refresh()
+        })
+      },
     }),
   }, OnboardingShellOverlay)
-
-  registerLumenUi(ctx)
 }
 
 /**

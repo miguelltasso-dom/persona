@@ -1,0 +1,46 @@
+.panel {
+  padding: 1.5rem 2rem;
+}
+
+.title {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--persona-lilac-300);
+  background: var(--persona-active-surface-alt);
+}
+
+.name {
+  font-weight: 600;
+}
+
+.kind {
+  font-size: 0.8125rem;
+  color: var(--persona-active-muted, color-mix(in srgb, var(--persona-active-ink) 55%, transparent));
+}
+
+.muted,
+.error {
+  font-size: 0.9375rem;
+}
+
+.error {
+  color: var(--persona-danger, #b42318);
+}

@@ -21,6 +21,16 @@ import pose_bento_erro from './poses/bento-erro.webp'
 import pose_bento_offline from './poses/bento-offline.webp'
 import pose_bento_revisando from './poses/bento-revisando.webp'
 import pose_bento_trabalhando from './poses/bento-trabalhando.webp'
+import pose_luna_aguardando_aprovacao from './poses/luna-aguardando-aprovacao.webp'
+import pose_luna_aguardando_resposta from './poses/luna-aguardando-resposta.webp'
+import pose_luna_descansando from './poses/luna-descansando.webp'
+import pose_luna_disponivel_blink from './poses/luna-disponivel-blink.webp'
+import pose_luna_disponivel_tail from './poses/luna-disponivel-tail.webp'
+import pose_luna_disponivel from './poses/luna-disponivel.webp'
+import pose_luna_erro from './poses/luna-erro.webp'
+import pose_luna_offline from './poses/luna-offline.webp'
+import pose_luna_revisando from './poses/luna-revisando.webp'
+import pose_luna_trabalhando from './poses/luna-trabalhando.webp'
 import pose_nina_aguardando_aprovacao from './poses/nina-aguardando-aprovacao.webp'
 import pose_nina_aguardando_resposta from './poses/nina-aguardando-resposta.webp'
 import pose_nina_descansando from './poses/nina-descansando.webp'
@@ -31,6 +41,16 @@ import pose_nina_erro from './poses/nina-erro.webp'
 import pose_nina_offline from './poses/nina-offline.webp'
 import pose_nina_revisando from './poses/nina-revisando.webp'
 import pose_nina_trabalhando from './poses/nina-trabalhando.webp'
+import pose_sol_aguardando_aprovacao from './poses/sol-aguardando-aprovacao.webp'
+import pose_sol_aguardando_resposta from './poses/sol-aguardando-resposta.webp'
+import pose_sol_descansando from './poses/sol-descansando.webp'
+import pose_sol_disponivel_blink from './poses/sol-disponivel-blink.webp'
+import pose_sol_disponivel_tail from './poses/sol-disponivel-tail.webp'
+import pose_sol_disponivel from './poses/sol-disponivel.webp'
+import pose_sol_erro from './poses/sol-erro.webp'
+import pose_sol_offline from './poses/sol-offline.webp'
+import pose_sol_revisando from './poses/sol-revisando.webp'
+import pose_sol_trabalhando from './poses/sol-trabalhando.webp'
 import nav_arquivos from './icons/nav/arquivos.svg'
 import nav_busca from './icons/nav/busca.svg'
 import nav_canais from './icons/nav/canais.svg'
@@ -53,8 +73,12 @@ import av96_atlas_blink from './avatars/atlas-blink-96.webp'
 import av96_atlas from './avatars/atlas-96.webp'
 import av96_bento_blink from './avatars/bento-blink-96.webp'
 import av96_bento from './avatars/bento-96.webp'
+import av96_luna_blink from './avatars/luna-blink-96.webp'
+import av96_luna from './avatars/luna-96.webp'
 import av96_nina_blink from './avatars/nina-blink-96.webp'
 import av96_nina from './avatars/nina-96.webp'
+import av96_sol_blink from './avatars/sol-blink-96.webp'
+import av96_sol from './avatars/sol-96.webp'
 import logoHorizontalLight from './brand/logo-horizontal-light.svg'
 import symbol from './brand/symbol.svg'
 
@@ -78,6 +102,16 @@ registerPoseUrl('bento-erro', pose_bento_erro)
 registerPoseUrl('bento-offline', pose_bento_offline)
 registerPoseUrl('bento-revisando', pose_bento_revisando)
 registerPoseUrl('bento-trabalhando', pose_bento_trabalhando)
+registerPoseUrl('luna-aguardando-aprovacao', pose_luna_aguardando_aprovacao)
+registerPoseUrl('luna-aguardando-resposta', pose_luna_aguardando_resposta)
+registerPoseUrl('luna-descansando', pose_luna_descansando)
+registerPoseUrl('luna-disponivel-blink', pose_luna_disponivel_blink)
+registerPoseUrl('luna-disponivel-tail', pose_luna_disponivel_tail)
+registerPoseUrl('luna-disponivel', pose_luna_disponivel)
+registerPoseUrl('luna-erro', pose_luna_erro)
+registerPoseUrl('luna-offline', pose_luna_offline)
+registerPoseUrl('luna-revisando', pose_luna_revisando)
+registerPoseUrl('luna-trabalhando', pose_luna_trabalhando)
 registerPoseUrl('nina-aguardando-aprovacao', pose_nina_aguardando_aprovacao)
 registerPoseUrl('nina-aguardando-resposta', pose_nina_aguardando_resposta)
 registerPoseUrl('nina-descansando', pose_nina_descansando)
@@ -88,6 +122,16 @@ registerPoseUrl('nina-erro', pose_nina_erro)
 registerPoseUrl('nina-offline', pose_nina_offline)
 registerPoseUrl('nina-revisando', pose_nina_revisando)
 registerPoseUrl('nina-trabalhando', pose_nina_trabalhando)
+registerPoseUrl('sol-aguardando-aprovacao', pose_sol_aguardando_aprovacao)
+registerPoseUrl('sol-aguardando-resposta', pose_sol_aguardando_resposta)
+registerPoseUrl('sol-descansando', pose_sol_descansando)
+registerPoseUrl('sol-disponivel-blink', pose_sol_disponivel_blink)
+registerPoseUrl('sol-disponivel-tail', pose_sol_disponivel_tail)
+registerPoseUrl('sol-disponivel', pose_sol_disponivel)
+registerPoseUrl('sol-erro', pose_sol_erro)
+registerPoseUrl('sol-offline', pose_sol_offline)
+registerPoseUrl('sol-revisando', pose_sol_revisando)
+registerPoseUrl('sol-trabalhando', pose_sol_trabalhando)
 
 export const NAV_ICONS = {
   'arquivos': nav_arquivos,
@@ -115,8 +159,12 @@ export const AVATAR_96 = {
   'atlas': av96_atlas,
   'bento-blink': av96_bento_blink,
   'bento': av96_bento,
+  'luna-blink': av96_luna_blink,
+  'luna': av96_luna,
   'nina-blink': av96_nina_blink,
   'nina': av96_nina,
+  'sol-blink': av96_sol_blink,
+  'sol': av96_sol,
 } as const
 
 export { logoHorizontalLight, symbol }

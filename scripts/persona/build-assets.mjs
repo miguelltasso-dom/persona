@@ -4,7 +4,7 @@
  * Outputs tracked derivatives under client-ui-persona/src/client/assets/ (≤ 10 MB total in git).
  */
 
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
@@ -74,9 +74,15 @@ function copyTree(relDir, filter) {
   }
 }
 
+const ASSET_URL_STUB = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets/asset-url.ts')
+
 async function main() {
+  const assetUrlBackup = existsSync(ASSET_URL_STUB) ? readFileSync(ASSET_URL_STUB, 'utf8') : null
   rmSync(OUT, { recursive: true, force: true })
   ensureDir(OUT)
+  if (assetUrlBackup !== null) {
+    writeFileSync(ASSET_URL_STUB, assetUrlBackup)
+  }
 
   copyTree('brand', (name, rel) => {
     const ext = extname(name).toLowerCase()

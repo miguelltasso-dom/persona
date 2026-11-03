@@ -79,7 +79,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 1.125rem;
-  line-height: 1.25;
+  line-height: 1.35;
 }
 
 .navIcon {
@@ -110,6 +110,17 @@
   flex-direction: column;
   gap: 0.35rem;
   padding-top: 0.5rem;
+}
+
+.footerFoliage {
+  height: 2.75rem;
+  margin: 0 -0.15rem 0.15rem;
+  border-radius: 0.75rem 0.75rem 0 0;
+  opacity: 0.85;
+  background:
+    radial-gradient(ellipse 40% 100% at 15% 100%, color-mix(in srgb, var(--persona-lilac-300) 70%, transparent) 0%, transparent 70%),
+    radial-gradient(ellipse 35% 90% at 45% 110%, color-mix(in srgb, var(--persona-lilac-400) 55%, transparent) 0%, transparent 65%),
+    radial-gradient(ellipse 38% 95% at 78% 105%, color-mix(in srgb, var(--persona-lilac-300) 65%, transparent) 0%, transparent 68%);
 }
 
 .hostStatus {

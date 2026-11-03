@@ -1,5 +1,5 @@
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { readOnboardingOpen, persistOnboardingComplete } from './onboarding-persistence.ts'
+import { readOnboardingOpen } from './onboarding-persistence.ts'
 
 export type MainPanelId =
   | 'team'
@@ -14,6 +14,12 @@ export type MainPanelId =
   | 'connections'
   | 'channels'
   | 'directMessages'
+  | 'approvals'
+  | 'rules'
+  | 'profile'
+  | 'members'
+  | 'importers'
+  | 'canvas'
 
 export interface ShellState {
   readonly activePanel: MainPanelId
@@ -26,6 +32,7 @@ export interface ShellState {
 export interface ShellActions {
   selectPanel(id: MainPanelId): void
   setHostPing(online: boolean, protocol: number | null): void
+  setOnboardingOpen(open: boolean): void
   dismissOnboarding(): void
 }
 
@@ -53,8 +60,10 @@ export function createShellStore(): {
         hostProtocol: protocol,
       })
     },
+    setOnboardingOpen: (onboardingOpen) => {
+      store.set({ ...store.getSnapshot(), onboardingOpen })
+    },
     dismissOnboarding: () => {
-      persistOnboardingComplete()
       store.set({
         ...store.getSnapshot(),
         onboardingOpen: false,

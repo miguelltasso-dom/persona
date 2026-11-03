@@ -57,8 +57,10 @@ export function AwayWhileOutPanel({ t, events }: AwayWhileOutPanelProps): ReactN
             className={styles.item}
             style={{ animationDelay: `${index * 80}ms` }}
           >
-            <p className={styles.body}>{t(event.bodyKey)}</p>
-            <PersonaButton variant="secondary">{t(event.taskLabelKey)}</PersonaButton>
+            <p className={styles.body}>{event.body ?? (event.bodyKey !== undefined ? t(event.bodyKey) : '')}</p>
+            <PersonaButton variant="secondary">
+              {event.taskLabel ?? (event.taskLabelKey !== undefined ? t(event.taskLabelKey) : t('overview.awayDismiss'))}
+            </PersonaButton>
           </li>
         ))}
       </ul>

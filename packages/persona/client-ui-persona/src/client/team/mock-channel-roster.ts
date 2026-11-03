@@ -8,6 +8,6 @@ export const MOCK_CHANNEL_ROSTER: readonly ChannelPersonaMember[] = [
   { id: 'atlas', name: 'Atlas', role: 'Coordenação', state: 'working' },
   { id: 'bento', name: 'Bento', role: 'Implementação', state: 'stuck' },
   { id: 'nina', name: 'Nina', role: 'Revisão', state: 'waiting' },
-  { id: 'sol', name: 'Sol', role: 'Pesquisa', state: 'resting', silhouette: true },
-  { id: 'luna', name: 'Luna', role: 'Suporte', state: 'resting', silhouette: true },
+  { id: 'sol', name: 'Sol', role: 'Pesquisa', state: 'resting' },
+  { id: 'luna', name: 'Luna', role: 'Suporte', state: 'resting' },
 ]

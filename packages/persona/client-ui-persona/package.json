@@ -33,7 +33,9 @@
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "@deepseek-ai/dsh-persona-host": "workspace:*"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"
   },

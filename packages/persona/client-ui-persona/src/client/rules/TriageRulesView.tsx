@@ -4,21 +4,18 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import page from '../profile/LumenPage.module.css'
 import styles from './RulesProactivity.module.css'
-import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
-import {
-  MOCK_PROACTIVITY_LIMITS,
-  MOCK_QUIET_WINDOWS,
-  MOCK_TRIAGE_LOG,
-  MOCK_TRIAGE_RULES,
-  type ProactivityLimits,
-  type QuietWindow,
-} from './mock-data.ts'
+import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
+import type { ProactivityLimits, QuietWindow, TriageRule, TriageSimulationLog } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/rules/locales.ts'
 
 export type RulesSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
 export interface TriageRulesViewProps {
   readonly dict?: LocaleDict
+  readonly rules?: readonly TriageRule[]
+  readonly quietWindows?: readonly QuietWindow[]
+  readonly limits?: ProactivityLimits
+  readonly triageLog?: readonly TriageSimulationLog[]
   readonly initialState?: RulesSurfaceState
 }
 
@@ -30,14 +27,23 @@ function quietWindowLabel(dict: LocaleDict, window: QuietWindow): string {
   })
 }
 
-export function TriageRulesView({ dict = defaultDict, initialState = 'ready' }: TriageRulesViewProps): ReactNode {
+export function TriageRulesView({
+  dict = defaultDict,
+  rules = [],
+  quietWindows = [],
+  limits: limitsProp,
+  triageLog = [],
+  initialState = 'ready',
+}: TriageRulesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
-  const [rules, setRules] = useState(MOCK_TRIAGE_RULES)
-  const [limits, setLimits] = useState<ProactivityLimits>(MOCK_PROACTIVITY_LIMITS)
-  const [quietWindows] = useState(MOCK_QUIET_WINDOWS)
+  const [limits, setLimits] = useState<ProactivityLimits>(limitsProp ?? {
+    maxProposalsPerDay: 3,
+    tokensPerPersonaMonth: 500_000,
+    tokensPerProjectMonth: 1_000_000,
+  })
 
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={1} />
-  if (initialState === 'empty' || rules.length === 0) {
+  if (initialState === 'empty') {
     return (
       <PersonaSurfaceEmpty
         dict={dict}
@@ -45,7 +51,17 @@ export function TriageRulesView({ dict = defaultDict, initialState = 'ready' }: 
         titleKey="empty.title"
         hintKey="empty.hint"
         primaryKey="empty.action"
-        onPrimary={() => { setRules(MOCK_TRIAGE_RULES) }}
+      />
+    )
+  }
+
+  if (initialState === 'error') {
+    return (
+      <PersonaSurfaceError
+        dict={dict}
+        titleKey="error.title"
+        retryKey="error.retry"
+        onRetry={() => {}}
       />
     )
   }
@@ -126,11 +142,11 @@ export function TriageRulesView({ dict = defaultDict, initialState = 'ready' }: 
       <section aria-labelledby="persona-rules-log" className={styles.section}>
         <h2 id="persona-rules-log" className={page.title}>{t('log.title')}</h2>
         <p className={page.subtitle}>{t('log.subtitle')}</p>
-        {MOCK_TRIAGE_LOG.length === 0
+        {triageLog.length === 0
           ? <p className={page.meta}>{t('log.empty')}</p>
           : (
             <ul className={page.list}>
-              {MOCK_TRIAGE_LOG.map(entry => (
+              {triageLog.map(entry => (
                 <li key={entry.id} className={page.card}>
                   <span className={page.chip}>
                     {entry.mode === 'logOnly' ? t('mode.logOnly') : t('mode.executeOptIn')}

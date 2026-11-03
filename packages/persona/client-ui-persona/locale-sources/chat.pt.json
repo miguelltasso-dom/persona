@@ -1,6 +1,11 @@
 {
   "header.section": "Conversas",
   "header.channelGeneral": "Geral",
+  "header.subtitle": "Canal principal do projeto — decisões e entregas da equipe",
+  "header.notifications": "Notificações",
+  "header.help": "Ajuda do canal",
+  "header.userMenu": "Sua conta",
+  "stream.today": "Hoje",
   "message.reactionThanks": "Obrigado",
   "message.reactionEyes": "Olho",
   "composer.placeholder": "Mensagem para #geral…",
@@ -8,5 +13,9 @@
   "composer.modelLabel": "Persona que responde",
   "composer.modelAtlas": "Atlas — coordenação",
   "composer.modelBento": "Bento — implementação",
-  "composer.modelNina": "Nina — revisão"
+  "composer.modelNina": "Nina — revisão",
+  "composer.add": "Anexar opção",
+  "composer.image": "Enviar imagem",
+  "composer.attach": "Anexar arquivo",
+  "composer.emoji": "Inserir emoji"
 }

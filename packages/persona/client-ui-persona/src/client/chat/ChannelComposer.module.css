@@ -1,60 +1,117 @@
-.composer {
-  display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr) auto;
-  gap: 0.75rem;
-  align-items: end;
+.wrap {
   padding: 0.75rem 1.25rem 1.25rem;
-  border-top: 1px solid var(--persona-active-border, color-mix(in srgb, var(--persona-active-ink) 10%, transparent));
   background: var(--persona-active-surface);
+  border-top: 1px solid color-mix(in srgb, var(--persona-active-ink) 8%, transparent);
 }
 
-.modelLabel {
+.bar {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--persona-active-ink) 14%, transparent);
+  background: var(--persona-active-surface-alt, var(--persona-active-surface));
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--persona-active-ink) 6%, transparent);
 }
 
-.modelCaption {
+.toolBtn {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
   color: var(--persona-active-muted, color-mix(in srgb, var(--persona-active-ink) 55%, transparent));
 }
 
-.modelSelect {
-  font: inherit;
-  padding: 0.4rem 0.5rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--persona-active-border, color-mix(in srgb, var(--persona-active-ink) 18%, transparent));
-  background: var(--persona-active-surface);
-  color: inherit;
+.toolBtn:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 1px;
+}
+
+.divider {
+  width: 1px;
+  height: 1.5rem;
+  background: color-mix(in srgb, var(--persona-active-ink) 12%, transparent);
+  flex-shrink: 0;
+}
+
+.personaChip {
+  position: relative;
+  flex-shrink: 0;
+  max-width: 11rem;
+}
+
+.personaSelect {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+
+.chipLabel {
+  display: block;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: color-mix(in srgb, var(--persona-lilac-300) 50%, transparent);
+  color: var(--persona-lilac-900, var(--persona-active-ink));
+  border: 1px solid color-mix(in srgb, var(--persona-lilac-400) 40%, transparent);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
   font: inherit;
-  resize: vertical;
-  min-height: 2.75rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 0.65rem;
-  border: 1px solid var(--persona-active-border, color-mix(in srgb, var(--persona-active-ink) 18%, transparent));
-  background: var(--persona-active-surface);
+  font-size: 0.9375rem;
+  padding: 0.35rem 0.5rem;
   color: inherit;
 }
 
-.input:focus-visible,
-.modelSelect:focus-visible,
-.send:focus-visible {
-  outline: 2px solid var(--persona-accent);
-  outline-offset: 2px;
+.input:focus {
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--persona-active-muted, color-mix(in srgb, var(--persona-active-ink) 45%, transparent));
 }
 
 .send {
-  font: inherit;
-  font-weight: 600;
-  padding: 0.55rem 1.1rem;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
   border: none;
-  border-radius: 0.65rem;
+  border-radius: 999px;
   cursor: pointer;
   background: var(--persona-send, var(--persona-warn, #d4842c));
-  color: var(--persona-send-ink, var(--persona-active-surface));
+  color: var(--persona-send-ink, #fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .send:disabled {
@@ -62,8 +119,23 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 900px) {
-  .composer {
-    grid-template-columns: 1fr;
+.send:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.sendIcon {
+  display: block;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid currentColor;
+  margin-left: 2px;
+}
+
+@media (max-width: 720px) {
+  .chipLabel {
+    max-width: 5.5rem;
   }
 }

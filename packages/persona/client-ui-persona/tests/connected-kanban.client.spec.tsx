@@ -42,6 +42,7 @@ function liveStoreHarness(initial: PersonaLiveSnapshot): PersonaLiveStore {
     postChannelMessage: async () => {},
     selectDm: async () => {},
     openPersonaDm: async () => {},
+    openFirstAvailableDm: async () => {},
     loadTurnContext: async () => {},
     postDmMessage: async () => {},
     commitOnboardingRoster: async () => {},

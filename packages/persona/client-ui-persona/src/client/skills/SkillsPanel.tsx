@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
-import { PersonaButton } from '../primitives/index.ts'
+import { Button, Card, Chip } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import page from '../profile/LumenPage.module.css'
+import styles from './SkillsPanel.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import { MOCK_SKILLS } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/skills/locales.ts'
@@ -30,30 +30,33 @@ export function SkillsPanel({ dict = defaultDict, initialState = 'ready' }: Skil
   }
 
   return (
-    <section>
-      <h2 className={page.title}>{t('title')}</h2>
-      <p className={page.subtitle}>{t('subtitle')}</p>
-      <ul className={page.list}>
+    <section aria-labelledby="skills-heading">
+      <h2 id="skills-heading" className={styles.sectionTitle}>{t('title')}</h2>
+      <p className={styles.sectionSubtitle}>{t('subtitle')}</p>
+      <ul className={styles.list}>
         {MOCK_SKILLS.map(skill => (
-          <li key={skill.id} className={page.card}>
-            <strong>{skill.name}</strong>
-            {' '}
-            <span className={page.chip}>{t(`status.${skill.status}`)}</span>
-            <span className={page.chip}>{t('field.version', { version: skill.version })}</span>
-            {skill.rating !== undefined && (
-              <p className={page.meta}>{t('field.rating', { rating: skill.rating })}</p>
-            )}
-            {skill.proposer !== undefined && (
-              <p className={page.meta}>{t('proposal.fromAgent', { name: skill.proposer })}</p>
-            )}
-            <div className={page.actions}>
-              {skill.status === 'candidate'
-                ? <PersonaButton>{t('action.reviewProposal')}</PersonaButton>
-                : <PersonaButton variant="secondary">{t('action.rollback')}</PersonaButton>}
-              {!skill.sharedWithTeam && (
-                <PersonaButton variant="secondary">{t('action.shareTeam')}</PersonaButton>
+          <li key={skill.id}>
+            <Card padding="m">
+              <div className={styles.headRow}>
+                <span className={styles.skillName}>{skill.name}</span>
+                <Chip tone="accent" size="s">{t(`status.${skill.status}`)}</Chip>
+                <Chip tone="neutral" size="s">{t('field.version', { version: skill.version })}</Chip>
+              </div>
+              {skill.rating !== undefined && (
+                <p className={styles.meta}>{t('field.rating', { rating: skill.rating })}</p>
               )}
-            </div>
+              {skill.proposer !== undefined && (
+                <p className={styles.meta}>{t('proposal.fromAgent', { name: skill.proposer })}</p>
+              )}
+              <div className={styles.actions}>
+                {skill.status === 'candidate'
+                  ? <Button variant="primary" size="s">{t('action.reviewProposal')}</Button>
+                  : <Button variant="secondary" size="s">{t('action.rollback')}</Button>}
+                {!skill.sharedWithTeam && (
+                  <Button variant="secondary" size="s">{t('action.shareTeam')}</Button>
+                )}
+              </div>
+            </Card>
           </li>
         ))}
       </ul>

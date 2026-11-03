@@ -18,6 +18,9 @@ import styles from './PersonaEditor.module.css'
 export interface PersonaEditorProps {
   readonly dict: LocaleDict
   readonly initial?: PersonaDraft
+  /** Persists draft (Connected path: autonomy tier via host `setAutonomy`). */
+  readonly onSave?: (draft: PersonaDraft) => void | Promise<void>
+  readonly onCancel?: () => void
 }
 
 const LEVELS: readonly ToolAccessLevel[] = ['none', 'read', 'write']
@@ -38,7 +41,12 @@ const ATTENTION_LABEL: Readonly<Record<AttentionBudgetTier, string>> = {
 }
 
 /** Persona editor with gallery/upload/silhouette and system role toggles. */
-export function PersonaEditor({ dict, initial = MOCK_PERSONA_DRAFT }: PersonaEditorProps): ReactNode {
+export function PersonaEditor({
+  dict,
+  initial = MOCK_PERSONA_DRAFT,
+  onSave,
+  onCancel,
+}: PersonaEditorProps): ReactNode {
   const [draft, setDraft] = useState(initial)
   const t = (key: string) => bindLocale(dict, key)
   const motion = usePersonaMotion({ preset: 'fast', fromOpacity: 0 })
@@ -211,8 +219,15 @@ export function PersonaEditor({ dict, initial = MOCK_PERSONA_DRAFT }: PersonaEdi
         <div className={styles.previewRole}>{draft.jobTitle}</div>
       </div>
       <div className={styles.actions}>
-        <PersonaButton>{t('action.save')}</PersonaButton>
-        <PersonaButton variant="secondary">{t('action.cancel')}</PersonaButton>
+        <PersonaButton
+          type="button"
+          onClick={() => { void onSave?.(draft) }}
+        >
+          {t('action.save')}
+        </PersonaButton>
+        <PersonaButton type="button" variant="secondary" onClick={() => { onCancel?.() }}>
+          {t('action.cancel')}
+        </PersonaButton>
       </div>
     </div>
   )

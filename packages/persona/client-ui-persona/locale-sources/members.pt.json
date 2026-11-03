@@ -18,6 +18,6 @@
   "empty.action": "Gerar convite",
   "empty.illustration": "Ilustração: equipe vazia",
   "loading": "Carregando membros…",
-  "error.title": "Não foi possível carregar membros",
+  "error.title": "Não consegui falar com a equipe agora",
   "error.retry": "Tentar de novo"
 }

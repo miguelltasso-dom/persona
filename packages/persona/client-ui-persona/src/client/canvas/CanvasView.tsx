@@ -4,7 +4,7 @@ import { Button, Card, Screen, ScreenHeader, Tabs } from '../primitives/index.ts
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './Canvas.module.css'
-import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
+import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import type { CanvasEdge, CanvasNode } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/canvas/locales.ts'
 
@@ -20,6 +20,7 @@ export interface CanvasViewProps {
   readonly nodes?: readonly CanvasNode[]
   readonly edges?: readonly CanvasEdge[]
   readonly initialState?: CanvasSurfaceState
+  readonly onRemoteRetry?: () => void
 }
 
 export function CanvasView({
@@ -27,6 +28,7 @@ export function CanvasView({
   nodes = [],
   edges = [],
   initialState = 'ready',
+  onRemoteRetry,
 }: CanvasViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [mode, setMode] = useState<ViewMode>('canvas')
@@ -48,6 +50,19 @@ export function CanvasView({
       <Screen className={styles.shell} data-persona-surface="canvas">
         {header}
         <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={3} />
+      </Screen>
+    )
+  }
+  if (initialState === 'error') {
+    return (
+      <Screen className={styles.shell} data-persona-surface="canvas">
+        {header}
+        <PersonaSurfaceError
+          dict={dict}
+          titleKey="error.title"
+          retryKey="error.retry"
+          onRetry={() => { onRemoteRetry?.() }}
+        />
       </Screen>
     )
   }

@@ -24,7 +24,7 @@ export const pt = {
   'empty.action': 'Ver guia de instalação',
   'empty.illustration': 'Ilustração: terminais com patas',
   'loading': 'Procurando CLIs…',
-  'error.title': 'Não foi possível verificar conexões',
+  'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
   'valueFirst.note': 'Conecte só quando for executar — sem bloqueio no primeiro uso.',
 } as const
@@ -50,7 +50,7 @@ export const en = {
   'empty.action': 'View install guide',
   'empty.illustration': 'Illustration: terminals with paw prints',
   'loading': 'Scanning for CLIs…',
-  'error.title': 'Could not verify connections',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'valueFirst.note': 'Connect only when you run — no block on first use.',
 } as const
@@ -75,7 +75,7 @@ export const zh = {
   'empty.action': 'View install guide',
   'empty.illustration': 'Illustration: terminals with paw prints',
   'loading': 'Scanning for CLIs…',
-  'error.title': 'Could not verify connections',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'valueFirst.note': 'Connect only when you run — no block on first use.',
 } as const
@@ -99,7 +99,7 @@ export const ja = {
   'empty.action': 'View install guide',
   'empty.illustration': 'Illustration: terminals with paw prints',
   'loading': 'Scanning for CLIs…',
-  'error.title': 'Could not verify connections',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'valueFirst.note': 'Connect only when you run — no block on first use.',
 } as const
@@ -123,7 +123,7 @@ export const es = {
   'empty.action': 'View install guide',
   'empty.illustration': 'Illustration: terminals with paw prints',
   'loading': 'Scanning for CLIs…',
-  'error.title': 'Could not verify connections',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'valueFirst.note': 'Connect only when you run — no block on first use.',
 } as const
@@ -147,7 +147,7 @@ export const fr = {
   'empty.action': 'View install guide',
   'empty.illustration': 'Illustration: terminals with paw prints',
   'loading': 'Scanning for CLIs…',
-  'error.title': 'Could not verify connections',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'valueFirst.note': 'Connect only when you run — no block on first use.',
 } as const
@@ -171,7 +171,7 @@ export const de = {
   'empty.action': 'View install guide',
   'empty.illustration': 'Illustration: terminals with paw prints',
   'loading': 'Scanning for CLIs…',
-  'error.title': 'Could not verify connections',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'valueFirst.note': 'Connect only when you run — no block on first use.',
 } as const
@@ -195,7 +195,7 @@ export const ru = {
   'empty.action': 'View install guide',
   'empty.illustration': 'Illustration: terminals with paw prints',
   'loading': 'Scanning for CLIs…',
-  'error.title': 'Could not verify connections',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'valueFirst.note': 'Connect only when you run — no block on first use.',
 } as const

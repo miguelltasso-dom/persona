@@ -17,6 +17,7 @@ export interface TriageRulesViewProps {
   readonly triageLog?: readonly TriageSimulationLog[]
   readonly initialState?: RulesSurfaceState
   readonly onSaveLimits?: (limits: ProactivityLimits) => void
+  readonly onRemoteRetry?: () => void
 }
 
 function quietWindowLabel(dict: LocaleDict, window: QuietWindow): string {
@@ -35,6 +36,7 @@ export function TriageRulesView({
   triageLog = [],
   initialState = 'ready',
   onSaveLimits,
+  onRemoteRetry,
 }: TriageRulesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [limits, setLimits] = useState<ProactivityLimits>(limitsProp ?? {
@@ -82,7 +84,7 @@ export function TriageRulesView({
     return (
       <Screen className={styles.shell} data-persona-surface="rules">
         {header}
-        <PersonaSurfaceError dict={dict} titleKey="error.title" retryKey="error.retry" onRetry={() => {}} />
+        <PersonaSurfaceError dict={dict} titleKey="error.title" retryKey="error.retry" onRetry={() => { onRemoteRetry?.() }} />
       </Screen>
     )
   }

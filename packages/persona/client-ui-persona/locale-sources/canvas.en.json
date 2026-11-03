@@ -18,6 +18,6 @@
   "empty.action": "Go to projects",
   "empty.illustration": "Illustration: empty canvas",
   "loading": "Loading canvas…",
-  "error.title": "Could not load canvas",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again"
 }

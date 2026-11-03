@@ -38,6 +38,6 @@
   "empty.action": "Ver equipe",
   "empty.illustration": "Ilustração: persona ausente",
   "loading": "Carregando perfil…",
-  "error.title": "Não foi possível carregar o perfil",
+  "error.title": "Não consegui falar com a equipe agora",
   "error.retry": "Tentar de novo"
 }

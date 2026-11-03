@@ -1,6 +1,6 @@
 /** Marco F — import wizard (preview). */
 import { useState, type ReactNode } from 'react'
-import { Button, Card, Screen, ScreenHeader } from '../primitives/index.ts'
+import { Button, Card, Screen, ScreenHeader, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './ImportWizard.module.css'
@@ -33,7 +33,7 @@ export function ImportWizard({ dict = defaultDict, initialState = 'ready' }: Imp
 
   if (initialState === 'loading') {
     return (
-      <Screen width="reading" className={styles.shell} data-persona-surface="importers">
+      <Screen className={styles.shell} data-persona-surface="importers">
         {header}
         <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={1} />
       </Screen>
@@ -41,7 +41,7 @@ export function ImportWizard({ dict = defaultDict, initialState = 'ready' }: Imp
   }
   if (initialState === 'empty') {
     return (
-      <Screen width="reading" className={styles.shell} data-persona-surface="importers">
+      <Screen className={styles.shell} data-persona-surface="importers">
         {header}
         <PersonaSurfaceEmpty
           dict={dict}
@@ -58,11 +58,29 @@ export function ImportWizard({ dict = defaultDict, initialState = 'ready' }: Imp
   const stepIndex = STEP_ORDER.indexOf(step)
 
   return (
-    <Screen width="reading" className={styles.shell} data-persona-surface="importers">
+    <Screen className={styles.shell} data-persona-surface="importers">
       {header}
+      <ol className={styles.stepper} aria-label={t('progressLabel')}>
+        {STEP_ORDER.map((key, index) => {
+          const number = index + 1
+          const status = number < stepIndex + 1 ? 'done' : number === stepIndex + 1 ? 'current' : 'todo'
+          return (
+            <li key={key} className={styles.stepItem} data-status={status} aria-current={status === 'current' ? 'step' : undefined}>
+              <span className={styles.stepDot} aria-hidden="true">
+                {status === 'done' ? <UiIcon name="check" size={14} strokeWidth={2.8} /> : number}
+              </span>
+              <span className={styles.stepName}>{t(`step.${key}`)}</span>
+            </li>
+          )
+        })}
+      </ol>
       <Card padding="l" className={styles.stepCard}>
         <p className={styles.stepLabel}>{t(`step.${step}`)}</p>
-        {step === 'file' && <Button variant="primary">{t('action.chooseFile')}</Button>}
+        {step === 'file' && (
+          <Button variant="secondary" icon={<UiIcon name="attach" size={18} strokeWidth={2.2} />}>
+            {t('action.chooseFile')}
+          </Button>
+        )}
         {step === 'progress' && (
           <p role="status">{importing ? t('progress.running') : t('progress.done')}</p>
         )}

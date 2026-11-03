@@ -41,7 +41,7 @@ export const pt = {
   'empty.hint': 'Quando um agente propor contratação, Cofre, skill ou bloqueio, aparece aqui.',
   'empty.illustration': 'Ilustração: caixa de aprovações vazia',
   'loading': 'Carregando aprovações…',
-  'error.title': 'Não foi possível carregar aprovações',
+  'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
 } as const
 
@@ -83,7 +83,7 @@ export const en = {
   'empty.hint': 'Agent proposals for hire, vault, skills, or blocks show up here.',
   'empty.illustration': 'Illustration: empty approvals inbox',
   'loading': 'Loading approvals…',
-  'error.title': 'Could not load approvals',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 
@@ -124,7 +124,7 @@ export const zh = {
   'empty.hint': 'Agent proposals for hire, vault, skills, or blocks show up here.',
   'empty.illustration': 'Illustration: empty approvals inbox',
   'loading': 'Loading approvals…',
-  'error.title': 'Could not load approvals',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ja = {
@@ -164,7 +164,7 @@ export const ja = {
   'empty.hint': 'Agent proposals for hire, vault, skills, or blocks show up here.',
   'empty.illustration': 'Illustration: empty approvals inbox',
   'loading': 'Loading approvals…',
-  'error.title': 'Could not load approvals',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const es = {
@@ -204,7 +204,7 @@ export const es = {
   'empty.hint': 'Agent proposals for hire, vault, skills, or blocks show up here.',
   'empty.illustration': 'Illustration: empty approvals inbox',
   'loading': 'Loading approvals…',
-  'error.title': 'Could not load approvals',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const fr = {
@@ -244,7 +244,7 @@ export const fr = {
   'empty.hint': 'Agent proposals for hire, vault, skills, or blocks show up here.',
   'empty.illustration': 'Illustration: empty approvals inbox',
   'loading': 'Loading approvals…',
-  'error.title': 'Could not load approvals',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const de = {
@@ -284,7 +284,7 @@ export const de = {
   'empty.hint': 'Agent proposals for hire, vault, skills, or blocks show up here.',
   'empty.illustration': 'Illustration: empty approvals inbox',
   'loading': 'Loading approvals…',
-  'error.title': 'Could not load approvals',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ru = {
@@ -324,7 +324,7 @@ export const ru = {
   'empty.hint': 'Agent proposals for hire, vault, skills, or blocks show up here.',
   'empty.illustration': 'Illustration: empty approvals inbox',
   'loading': 'Loading approvals…',
-  'error.title': 'Could not load approvals',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 

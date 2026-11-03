@@ -24,7 +24,7 @@ export const pt = {
   'empty.action': 'Ir aos projetos',
   'empty.illustration': 'Ilustração: canvas vazio',
   'loading': 'Carregando canvas…',
-  'error.title': 'Não foi possível carregar o canvas',
+  'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
 } as const
 
@@ -49,7 +49,7 @@ export const en = {
   'empty.action': 'Go to projects',
   'empty.illustration': 'Illustration: empty canvas',
   'loading': 'Loading canvas…',
-  'error.title': 'Could not load canvas',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 
@@ -73,7 +73,7 @@ export const zh = {
   'empty.action': 'Go to projects',
   'empty.illustration': 'Illustration: empty canvas',
   'loading': 'Loading canvas…',
-  'error.title': 'Could not load canvas',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ja = {
@@ -96,7 +96,7 @@ export const ja = {
   'empty.action': 'Go to projects',
   'empty.illustration': 'Illustration: empty canvas',
   'loading': 'Loading canvas…',
-  'error.title': 'Could not load canvas',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const es = {
@@ -119,7 +119,7 @@ export const es = {
   'empty.action': 'Go to projects',
   'empty.illustration': 'Illustration: empty canvas',
   'loading': 'Loading canvas…',
-  'error.title': 'Could not load canvas',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const fr = {
@@ -142,7 +142,7 @@ export const fr = {
   'empty.action': 'Go to projects',
   'empty.illustration': 'Illustration: empty canvas',
   'loading': 'Loading canvas…',
-  'error.title': 'Could not load canvas',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const de = {
@@ -165,7 +165,7 @@ export const de = {
   'empty.action': 'Go to projects',
   'empty.illustration': 'Illustration: empty canvas',
   'loading': 'Loading canvas…',
-  'error.title': 'Could not load canvas',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ru = {
@@ -188,7 +188,7 @@ export const ru = {
   'empty.action': 'Go to projects',
   'empty.illustration': 'Illustration: empty canvas',
   'loading': 'Loading canvas…',
-  'error.title': 'Could not load canvas',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 

@@ -3,7 +3,7 @@ import { Avatar, Button, Card, Chip, Screen, ScreenHeader } from '../primitives/
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './Members.module.css'
-import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
+import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import type { WorkspaceMember } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/members/locales.ts'
 
@@ -13,9 +13,15 @@ export interface MembersViewProps {
   readonly dict?: LocaleDict
   readonly members?: readonly WorkspaceMember[]
   readonly initialState?: MembersSurfaceState
+  readonly onRemoteRetry?: () => void
 }
 
-export function MembersView({ dict = defaultDict, members = [], initialState = 'ready' }: MembersViewProps): ReactNode {
+export function MembersView({
+  dict = defaultDict,
+  members = [],
+  initialState = 'ready',
+  onRemoteRetry,
+}: MembersViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
 
   const header = (
@@ -24,7 +30,7 @@ export function MembersView({ dict = defaultDict, members = [], initialState = '
       eyebrow={t('header.eyebrow')}
       title={t('title')}
       subtitle={t('subtitle')}
-      actions={<Button variant="primary" size="s">{t('action.invite')}</Button>}
+      actions={<Button variant="primary" size="m">{t('action.invite')}</Button>}
     />
   )
 
@@ -33,6 +39,19 @@ export function MembersView({ dict = defaultDict, members = [], initialState = '
       <Screen className={styles.shell} data-persona-surface="members">
         {header}
         <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
+      </Screen>
+    )
+  }
+  if (initialState === 'error') {
+    return (
+      <Screen className={styles.shell} data-persona-surface="members">
+        {header}
+        <PersonaSurfaceError
+          dict={dict}
+          titleKey="error.title"
+          retryKey="error.retry"
+          onRetry={() => { onRemoteRetry?.() }}
+        />
       </Screen>
     )
   }

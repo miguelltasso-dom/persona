@@ -64,7 +64,7 @@ export async function bootstrapPersonaTenant(remote: TenantBootstrapRemote): Pro
 
   let hasWorkspace = false
   try {
-    remote.listProjects({ workspaceId, projectId })
+    await Promise.resolve(remote.listProjects({ workspaceId, projectId }))
     hasWorkspace = true
   } catch {
     hasWorkspace = false

@@ -1,5 +1,13 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-03 — Keel P0: unwrap RemoteResult (Muse dona)
+
+**Causa painéis “Carregando…” / seed** — `ctx.remote.persona.*` → `RemoteResult`; live store usava retorno cru (`channels.find is not a function`). **Muse** autorizada: proxy único de unwrap em `createPersonaLiveStore` (+ teste). **Prism:** moratória em `bootstrap-tenant.ts`, `persona-live-store.ts`, `seed-default-team.ts` até `"unwrap done"` no Status; não comecei o mesmo conserto. Depois: revisar proxy + `ui-boot-check`.
+
+**Paralelo (outros arquivos)** — `ConnectedPersonaEditor` (hire + `setPersonaAutonomyLevel` no Salvar), `autonomy-remote.md`, Members/Canvas `onRemoteRetry`, `KanbanReviewSheet` load `{state}`.
+
+---
+
 ## 2026-11-03 — Keel: fronteira Muse + canal Status
 
 **Fronteira (ok)** — Muse: JSX/CSS DMs, Projetos, Busca, Contratar. Prism: `ConnectedDirectMessagesView`, DMs live, dados `ProjectsPanel`, `setPersonaAutonomyLevel`, hire remote.

@@ -28,6 +28,7 @@ export const pt = {
   'loading': 'Preparando importador…',
   'error.title': 'Falha na importação',
   'error.retry': 'Tentar de novo',
+  'progressLabel': 'Progresso da importação',
 } as const
 
 /** English copy. */
@@ -55,6 +56,7 @@ export const en = {
   'loading': 'Preparing importer…',
   'error.title': 'Import failed',
   'error.retry': 'Try again',
+  'progressLabel': 'Import progress',
 } as const
 
 export const zh = {
@@ -81,6 +83,7 @@ export const zh = {
   'loading': 'Preparing importer…',
   'error.title': 'Import failed',
   'error.retry': 'Try again',
+  'progressLabel': 'Import progress',
 } as const
 export const ja = {
   'header.eyebrow': 'Company',
@@ -106,6 +109,7 @@ export const ja = {
   'loading': 'Preparing importer…',
   'error.title': 'Import failed',
   'error.retry': 'Try again',
+  'progressLabel': 'Import progress',
 } as const
 export const es = {
   'header.eyebrow': 'Company',
@@ -131,6 +135,7 @@ export const es = {
   'loading': 'Preparing importer…',
   'error.title': 'Import failed',
   'error.retry': 'Try again',
+  'progressLabel': 'Import progress',
 } as const
 export const fr = {
   'header.eyebrow': 'Company',
@@ -156,6 +161,7 @@ export const fr = {
   'loading': 'Preparing importer…',
   'error.title': 'Import failed',
   'error.retry': 'Try again',
+  'progressLabel': 'Import progress',
 } as const
 export const de = {
   'header.eyebrow': 'Company',
@@ -181,6 +187,7 @@ export const de = {
   'loading': 'Preparing importer…',
   'error.title': 'Import failed',
   'error.retry': 'Try again',
+  'progressLabel': 'Import progress',
 } as const
 export const ru = {
   'header.eyebrow': 'Company',
@@ -206,6 +213,7 @@ export const ru = {
   'loading': 'Preparing importer…',
   'error.title': 'Import failed',
   'error.retry': 'Try again',
+  'progressLabel': 'Import progress',
 } as const
 
 export type ImportersKey = keyof typeof pt

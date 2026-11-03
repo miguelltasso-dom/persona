@@ -102,6 +102,7 @@ describe('lumen RPC adapters', () => {
         kind: 'cursor',
         available: true,
         loggedIn: false,
+        phase: 'checking',
         loginHint: 'Abra o terminal e rode cursor-agent login',
         error: { code: 'not_logged_in', message: 'CLI cursor não está logada. Abra o terminal e rode cursor-agent login' },
       },

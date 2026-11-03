@@ -4,6 +4,64 @@
   gap: var(--persona-space-5);
 }
 
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  color: var(--persona-ink-faint);
+}
+
+.stepItem + .stepItem::before {
+  content: '';
+  width: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--persona-outline-soft);
+}
+
+.stepItem[data-status='done'] + .stepItem::before {
+  background: var(--persona-brand);
+}
+
+.stepDot {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: 999px;
+  background: var(--persona-paper);
+  font: 600 13px/1 var(--persona-font-display);
+}
+
+.stepName {
+  font: 700 13px/16px var(--persona-font-text);
+}
+
+.stepItem[data-status='current'] {
+  color: var(--persona-ink);
+}
+
+.stepItem[data-status='current'] .stepDot {
+  border-color: var(--persona-brand);
+  background: var(--persona-wash);
+}
+
+.stepItem[data-status='done'] {
+  color: var(--persona-ink-soft);
+}
+
 .stepCard {
   display: flex;
   flex-direction: column;

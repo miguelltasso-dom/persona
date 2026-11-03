@@ -114,6 +114,7 @@ export function registerPrismScreens(
     locale: PROFILE_NS,
     inject: () => ({
       persona: ctx.remote.persona,
+      live,
       hooks: {
         tenant: tenantObservable,
         shell: {

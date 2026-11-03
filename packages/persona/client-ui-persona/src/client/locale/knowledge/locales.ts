@@ -30,7 +30,7 @@ export const pt = {
   'empty.action': 'Adicionar registro',
   'empty.illustration': 'Ilustração: cofre aberto com documentos',
   'loading': 'Carregando cofre…',
-  'error.title': 'Não foi possível carregar o cofre',
+  'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
   'search.placeholder': 'Buscar no cofre…',
 } as const
@@ -62,7 +62,7 @@ export const en = {
   'empty.action': 'Add record',
   'empty.illustration': 'Illustration: open vault with documents',
   'loading': 'Loading vault…',
-  'error.title': 'Could not load the vault',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'search.placeholder': 'Search vault…',
 } as const
@@ -93,7 +93,7 @@ export const zh = {
   'empty.action': 'Add record',
   'empty.illustration': 'Illustration: open vault with documents',
   'loading': 'Loading vault…',
-  'error.title': 'Could not load the vault',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'search.placeholder': 'Search vault…',
 } as const
@@ -123,7 +123,7 @@ export const ja = {
   'empty.action': 'Add record',
   'empty.illustration': 'Illustration: open vault with documents',
   'loading': 'Loading vault…',
-  'error.title': 'Could not load the vault',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'search.placeholder': 'Search vault…',
 } as const
@@ -153,7 +153,7 @@ export const es = {
   'empty.action': 'Add record',
   'empty.illustration': 'Illustration: open vault with documents',
   'loading': 'Loading vault…',
-  'error.title': 'Could not load the vault',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'search.placeholder': 'Search vault…',
 } as const
@@ -183,7 +183,7 @@ export const fr = {
   'empty.action': 'Add record',
   'empty.illustration': 'Illustration: open vault with documents',
   'loading': 'Loading vault…',
-  'error.title': 'Could not load the vault',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'search.placeholder': 'Search vault…',
 } as const
@@ -213,7 +213,7 @@ export const de = {
   'empty.action': 'Add record',
   'empty.illustration': 'Illustration: open vault with documents',
   'loading': 'Loading vault…',
-  'error.title': 'Could not load the vault',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'search.placeholder': 'Search vault…',
 } as const
@@ -243,7 +243,7 @@ export const ru = {
   'empty.action': 'Add record',
   'empty.illustration': 'Illustration: open vault with documents',
   'loading': 'Loading vault…',
-  'error.title': 'Could not load the vault',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
   'search.placeholder': 'Search vault…',
 } as const

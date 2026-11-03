@@ -25,6 +25,6 @@
   "empty.action": "Create first rule",
   "empty.illustration": "Illustration: empty rules",
   "loading": "Loading rules…",
-  "error.title": "Could not load rules",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again"
 }

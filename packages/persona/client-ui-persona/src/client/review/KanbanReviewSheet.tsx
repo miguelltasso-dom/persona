@@ -37,7 +37,7 @@ export function KanbanReviewSheet({
     return reviewSummaryFromHost(raw)
   }, [review, scope.projectId, scope.workspaceId, ticketId])
 
-  const state = usePersonaRemoteLoad(true, loadKey, load)
+  const { state } = usePersonaRemoteLoad(true, loadKey, load)
   const summary = state.status === 'ready' ? state.data ?? null : null
   const [blocked, setBlocked] = useState<{ explanation: string } | null>(null)
   const [busy, setBusy] = useState(false)

@@ -33,12 +33,14 @@ export interface PersonaProfilePageProps {
   readonly dict?: LocaleDict
   readonly snapshot?: PersonaProfileSnapshot
   readonly initialState?: ProfileSurfaceState
+  readonly onRemoteRetry?: () => void
 }
 
 export function PersonaProfilePage({
   dict = defaultDict,
   snapshot,
   initialState = 'ready',
+  onRemoteRetry,
 }: PersonaProfilePageProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [tab, setTab] = useState<ProfileTab>('overview')
@@ -54,7 +56,7 @@ export function PersonaProfilePage({
 
   if (initialState === 'loading') {
     return (
-      <Screen width="reading" className={styles.shell} data-persona-surface="profile">
+      <Screen className={styles.shell} data-persona-surface="profile">
         {header}
         <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={3} />
       </Screen>
@@ -62,15 +64,20 @@ export function PersonaProfilePage({
   }
   if (initialState === 'error') {
     return (
-      <Screen width="reading" className={styles.shell} data-persona-surface="profile">
+      <Screen className={styles.shell} data-persona-surface="profile">
         {header}
-        <PersonaSurfaceError dict={dict} titleKey="error.title" retryKey="error.retry" onRetry={() => {}} />
+        <PersonaSurfaceError
+          dict={dict}
+          titleKey="error.title"
+          retryKey="error.retry"
+          onRetry={() => { onRemoteRetry?.() }}
+        />
       </Screen>
     )
   }
   if (initialState === 'empty' || snapshot === undefined) {
     return (
-      <Screen width="reading" className={styles.shell} data-persona-surface="profile">
+      <Screen className={styles.shell} data-persona-surface="profile">
         {header}
         <PersonaSurfaceEmpty
           dict={dict}

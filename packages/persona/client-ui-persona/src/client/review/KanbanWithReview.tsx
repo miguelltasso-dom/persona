@@ -8,6 +8,7 @@ export interface KanbanWithReviewProps extends Omit<GlobalKanbanProps, 'onOpenRe
   readonly persona: PersonaRemoteClient
   readonly scope: ProjectScopeRequest | null
   readonly onMutate: () => void
+  readonly onRemoteRetry?: () => void
 }
 
 /** Global kanban plus Revisar overlay wired to host review RPCs. */
@@ -15,6 +16,7 @@ export function KanbanWithReview({
   persona,
   scope,
   onMutate,
+  onRemoteRetry,
   ...kanbanProps
 }: KanbanWithReviewProps): ReactNode {
   const [reviewTarget, setReviewTarget] = useState<{ id: string; title: string } | null>(null)
@@ -23,6 +25,7 @@ export function KanbanWithReview({
     <>
       <GlobalKanban
         {...kanbanProps}
+        {...(onRemoteRetry !== undefined ? { onRemoteRetry } : {})}
         onOpenReview={(card) => { setReviewTarget({ id: card.id, title: card.title }) }}
       />
       {reviewTarget !== null && scope !== null && (

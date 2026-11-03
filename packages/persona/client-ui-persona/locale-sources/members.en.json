@@ -18,6 +18,6 @@
   "empty.action": "Generate invite",
   "empty.illustration": "Illustration: empty team",
   "loading": "Loading members…",
-  "error.title": "Could not load members",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again"
 }

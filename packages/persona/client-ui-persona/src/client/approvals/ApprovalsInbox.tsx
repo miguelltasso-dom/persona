@@ -4,7 +4,7 @@ import { Avatar, Button, Card, Chip, Screen, ScreenHeader } from '../primitives/
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './Approvals.module.css'
-import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
+import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import { ProactiveDailySummaries } from './ProactiveDailySummaries.tsx'
 import type { ApprovalItem } from './mock-data.ts'
 import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
@@ -30,6 +30,7 @@ export interface ApprovalsInboxProps {
   readonly initialState?: ApprovalsSurfaceState
   readonly onDecideItem?: (item: ApprovalItem, accept: boolean) => void
   readonly onDecideProactive?: (proposal: ProactiveProposal, accept: boolean) => void
+  readonly onRemoteRetry?: () => void
 }
 
 export function ApprovalsInbox({
@@ -39,6 +40,7 @@ export function ApprovalsInbox({
   initialState = 'ready',
   onDecideItem,
   onDecideProactive,
+  onRemoteRetry,
 }: ApprovalsInboxProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const summaryIso = proactiveSummaries.find(summary => summary.proposals.length > 0)?.summaryDate ?? ''
@@ -60,6 +62,19 @@ export function ApprovalsInbox({
       <Screen className={styles.shell} data-persona-surface="approvals">
         {header}
         <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
+      </Screen>
+    )
+  }
+  if (initialState === 'error') {
+    return (
+      <Screen className={styles.shell} data-persona-surface="approvals">
+        {header}
+        <PersonaSurfaceError
+          dict={dict}
+          titleKey="error.title"
+          retryKey="error.retry"
+          onRetry={() => { onRemoteRetry?.() }}
+        />
       </Screen>
     )
   }

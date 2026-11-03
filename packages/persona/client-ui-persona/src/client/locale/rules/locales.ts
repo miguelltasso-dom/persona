@@ -31,7 +31,7 @@ export const pt = {
   'empty.action': 'Criar primeira regra',
   'empty.illustration': 'Ilustração: regras vazias',
   'loading': 'Carregando regras…',
-  'error.title': 'Não foi possível carregar regras',
+  'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
 } as const
 
@@ -63,7 +63,7 @@ export const en = {
   'empty.action': 'Create first rule',
   'empty.illustration': 'Illustration: empty rules',
   'loading': 'Loading rules…',
-  'error.title': 'Could not load rules',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 
@@ -94,7 +94,7 @@ export const zh = {
   'empty.action': 'Create first rule',
   'empty.illustration': 'Illustration: empty rules',
   'loading': 'Loading rules…',
-  'error.title': 'Could not load rules',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ja = {
@@ -124,7 +124,7 @@ export const ja = {
   'empty.action': 'Create first rule',
   'empty.illustration': 'Illustration: empty rules',
   'loading': 'Loading rules…',
-  'error.title': 'Could not load rules',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const es = {
@@ -154,7 +154,7 @@ export const es = {
   'empty.action': 'Create first rule',
   'empty.illustration': 'Illustration: empty rules',
   'loading': 'Loading rules…',
-  'error.title': 'Could not load rules',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const fr = {
@@ -184,7 +184,7 @@ export const fr = {
   'empty.action': 'Create first rule',
   'empty.illustration': 'Illustration: empty rules',
   'loading': 'Loading rules…',
-  'error.title': 'Could not load rules',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const de = {
@@ -214,7 +214,7 @@ export const de = {
   'empty.action': 'Create first rule',
   'empty.illustration': 'Illustration: empty rules',
   'loading': 'Loading rules…',
-  'error.title': 'Could not load rules',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ru = {
@@ -244,7 +244,7 @@ export const ru = {
   'empty.action': 'Create first rule',
   'empty.illustration': 'Illustration: empty rules',
   'loading': 'Loading rules…',
-  'error.title': 'Could not load rules',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 

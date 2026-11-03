@@ -21,5 +21,6 @@
   "empty.illustration": "Illustration: import",
   "loading": "Preparing importer…",
   "error.title": "Import failed",
-  "error.retry": "Try again"
+  "error.retry": "Try again",
+  "progressLabel": "Import progress"
 }

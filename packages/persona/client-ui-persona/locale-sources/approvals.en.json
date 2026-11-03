@@ -35,6 +35,6 @@
   "empty.hint": "Agent proposals for hire, vault, skills, or blocks show up here.",
   "empty.illustration": "Illustration: empty approvals inbox",
   "loading": "Loading approvals…",
-  "error.title": "Could not load approvals",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again"
 }

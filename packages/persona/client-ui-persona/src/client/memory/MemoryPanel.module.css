@@ -1,0 +1,48 @@
+.sectionTitle {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.sectionSubtitle {
+  margin: var(--persona-space-1) 0 var(--persona-space-4);
+  font-size: 0.9375rem;
+  color: var(--persona-ink-soft);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin-bottom: var(--persona-space-2);
+}
+
+.body {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--persona-ink);
+  line-height: 1.45;
+}
+
+.meta {
+  margin: var(--persona-space-2) 0 0;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-faint);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-3);
+}

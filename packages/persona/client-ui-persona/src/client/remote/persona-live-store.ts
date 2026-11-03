@@ -22,6 +22,7 @@ import type { PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
 import { patchAutonomyMode } from '../persona-editor/autonomy-map.ts'
+import { unwrapPersonaRemote } from './persona-remote-unwrap.ts'
 
 export interface PersonaLiveSnapshot {
   readonly ready: boolean
@@ -220,7 +221,9 @@ function slugId(name: string, index: number): string {
   return `${base}-${index}`
 }
 
-export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore {
+export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveStore {
+  // Every Remote method resolves to RemoteResult; unwrap once here so bootstrap/refresh/seed see raw values (Keel P0).
+  const remote = unwrapPersonaRemote(rawRemote)
   const store = createSnapshotStore<PersonaLiveSnapshot>(EMPTY)
   let tenant: PersonaTenantScope | null = null
   let messageStreamAbort: AbortController | null = null
@@ -416,12 +419,13 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
       startMessageStream()
       if (tenant !== null) {
         try {
-          remote.markVisit(tenant)
+          void Promise.resolve(remote.markVisit(tenant)).catch(() => undefined)
         } catch {
           /* visit marker best-effort */
         }
       }
     } catch (error) {
+      console.error('[persona] bootstrap do live store falhou', error)
       store.set({
         ...EMPTY,
         error: error instanceof Error ? error.message : String(error),

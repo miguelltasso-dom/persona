@@ -35,6 +35,6 @@
   "empty.hint": "Quando um agente propor contratação, Cofre, skill ou bloqueio, aparece aqui.",
   "empty.illustration": "Ilustração: caixa de aprovações vazia",
   "loading": "Carregando aprovações…",
-  "error.title": "Não foi possível carregar aprovações",
+  "error.title": "Não consegui falar com a equipe agora",
   "error.retry": "Tentar de novo"
 }

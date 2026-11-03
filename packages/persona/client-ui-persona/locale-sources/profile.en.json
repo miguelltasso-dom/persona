@@ -38,6 +38,6 @@
   "empty.action": "View team",
   "empty.illustration": "Illustration: missing persona",
   "loading": "Loading profile…",
-  "error.title": "Could not load profile",
+  "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again"
 }

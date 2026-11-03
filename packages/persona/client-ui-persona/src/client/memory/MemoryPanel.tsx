@@ -1,9 +1,9 @@
 /** Persona memory tab (Retention is built — show what the team knows). */
 import type { ReactNode } from 'react'
-import { PersonaButton } from '../primitives/index.ts'
+import { Button, Card, Chip } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import page from '../profile/LumenPage.module.css'
+import styles from './MemoryPanel.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import { MOCK_MEMORY_ROWS, type MemoryRow } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/memory/locales.ts'
@@ -42,21 +42,24 @@ export function MemoryPanel({ dict = defaultDict, initialState = 'ready' }: Memo
 
   return (
     <section aria-labelledby="memory-heading">
-      <h2 id="memory-heading" className={page.title}>{t('title')}</h2>
-      <p className={page.subtitle}>{t('subtitle')}</p>
-      <ul className={page.list}>
+      <h2 id="memory-heading" className={styles.sectionTitle}>{t('title')}</h2>
+      <p className={styles.sectionSubtitle}>{t('subtitle')}</p>
+      <ul className={styles.list}>
         {MOCK_MEMORY_ROWS.map(row => (
-          <li key={row.id} className={page.card}>
-            <span className={page.chip}>{t(`origin.${row.uiOrigin}`)}</span>
-            {' '}
-            <span className={page.chip}>{t(visibilityKey(row))}</span>
-            <p>{row.body}</p>
-            <p className={page.meta}>rev {row.revision}</p>
-            <div className={page.actions}>
-              {row.pendingApproval && <PersonaButton>{t('action.approve')}</PersonaButton>}
-              <PersonaButton variant="secondary">{t('action.edit')}</PersonaButton>
-              <PersonaButton variant="secondary">{t('action.forget')}</PersonaButton>
-            </div>
+          <li key={row.id}>
+            <Card padding="m">
+              <div className={styles.chipRow}>
+                <Chip tone="neutral" size="s">{t(`origin.${row.uiOrigin}`)}</Chip>
+                <Chip tone="accent" size="s">{t(visibilityKey(row))}</Chip>
+              </div>
+              <p className={styles.body}>{row.body}</p>
+              <p className={styles.meta}>rev {row.revision}</p>
+              <div className={styles.actions}>
+                {row.pendingApproval && <Button variant="primary" size="s">{t('action.approve')}</Button>}
+                <Button variant="secondary" size="s">{t('action.edit')}</Button>
+                <Button variant="secondary" size="s">{t('action.forget')}</Button>
+              </div>
+            </Card>
           </li>
         ))}
       </ul>

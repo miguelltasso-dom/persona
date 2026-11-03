@@ -22,7 +22,7 @@ export const pt = {
   'empty.action': 'Conectar harness',
   'empty.illustration': 'Ilustração: medidor com patas',
   'loading': 'Carregando uso…',
-  'error.title': 'Não foi possível carregar uso',
+  'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
 } as const
 
@@ -45,7 +45,7 @@ export const en = {
   'empty.action': 'Connect harness',
   'empty.illustration': 'Illustration: meter with paw prints',
   'loading': 'Loading usage…',
-  'error.title': 'Could not load usage',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 
@@ -67,7 +67,7 @@ export const zh = {
   'empty.action': 'Connect harness',
   'empty.illustration': 'Illustration: meter with paw prints',
   'loading': 'Loading usage…',
-  'error.title': 'Could not load usage',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ja = {
@@ -88,7 +88,7 @@ export const ja = {
   'empty.action': 'Connect harness',
   'empty.illustration': 'Illustration: meter with paw prints',
   'loading': 'Loading usage…',
-  'error.title': 'Could not load usage',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const es = {
@@ -109,7 +109,7 @@ export const es = {
   'empty.action': 'Connect harness',
   'empty.illustration': 'Illustration: meter with paw prints',
   'loading': 'Loading usage…',
-  'error.title': 'Could not load usage',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const fr = {
@@ -130,7 +130,7 @@ export const fr = {
   'empty.action': 'Connect harness',
   'empty.illustration': 'Illustration: meter with paw prints',
   'loading': 'Loading usage…',
-  'error.title': 'Could not load usage',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const de = {
@@ -151,7 +151,7 @@ export const de = {
   'empty.action': 'Connect harness',
   'empty.illustration': 'Illustration: meter with paw prints',
   'loading': 'Loading usage…',
-  'error.title': 'Could not load usage',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ru = {
@@ -172,7 +172,7 @@ export const ru = {
   'empty.action': 'Connect harness',
   'empty.illustration': 'Illustration: meter with paw prints',
   'loading': 'Loading usage…',
-  'error.title': 'Could not load usage',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 

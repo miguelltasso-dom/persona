@@ -24,7 +24,7 @@ export const pt = {
   'empty.action': 'Gerar convite',
   'empty.illustration': 'Ilustração: equipe vazia',
   'loading': 'Carregando membros…',
-  'error.title': 'Não foi possível carregar membros',
+  'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
 } as const
 
@@ -49,7 +49,7 @@ export const en = {
   'empty.action': 'Generate invite',
   'empty.illustration': 'Illustration: empty team',
   'loading': 'Loading members…',
-  'error.title': 'Could not load members',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 
@@ -73,7 +73,7 @@ export const zh = {
   'empty.action': 'Generate invite',
   'empty.illustration': 'Illustration: empty team',
   'loading': 'Loading members…',
-  'error.title': 'Could not load members',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ja = {
@@ -96,7 +96,7 @@ export const ja = {
   'empty.action': 'Generate invite',
   'empty.illustration': 'Illustration: empty team',
   'loading': 'Loading members…',
-  'error.title': 'Could not load members',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const es = {
@@ -119,7 +119,7 @@ export const es = {
   'empty.action': 'Generate invite',
   'empty.illustration': 'Illustration: empty team',
   'loading': 'Loading members…',
-  'error.title': 'Could not load members',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const fr = {
@@ -142,7 +142,7 @@ export const fr = {
   'empty.action': 'Generate invite',
   'empty.illustration': 'Illustration: empty team',
   'loading': 'Loading members…',
-  'error.title': 'Could not load members',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const de = {
@@ -165,7 +165,7 @@ export const de = {
   'empty.action': 'Generate invite',
   'empty.illustration': 'Illustration: empty team',
   'loading': 'Loading members…',
-  'error.title': 'Could not load members',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ru = {
@@ -188,7 +188,7 @@ export const ru = {
   'empty.action': 'Generate invite',
   'empty.illustration': 'Illustration: empty team',
   'loading': 'Loading members…',
-  'error.title': 'Could not load members',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 

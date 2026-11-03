@@ -37,14 +37,34 @@ import type { ProjectLimitsView, QuietWindowView, TriageRuleView } from '@deepse
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ShellState } from '../shell/create-shell-store.ts'
 import { HIRE_PERSONA_PROFILE_ID } from '../shell/create-shell-store.ts'
-import type { LumenRemoteInjected, LumenRemotePanelProps } from './lumen-inject.ts'
+import { ConnectedPersonaEditor } from '../remote/ConnectedPersonaEditor.tsx'
+import { pt as editorDict } from '../locale/persona-editor/locales.ts'
+import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
+import type { LumenRemotePanelProps, PersonaRemoteClient } from './lumen-inject.ts'
+import type { PersonaTenantSnapshot } from './persona-tenant.ts'
 import { unwrapRemote } from './remote-call.ts'
 import { usePersonaRemoteLoad } from './use-persona-remote-load.ts'
-import { useRemoteTenantGate } from './use-remote-tenant-gate.ts'
+import { type RemoteTenantGate, useRemoteTenantGate } from './use-remote-tenant-gate.ts'
+import type { RemoteLoadState } from './remote-call.ts'
 
-function useScope(useTenant: LumenRemotePanelProps['useTenant']): ProjectScopeRequest | null {
-  const gate = useRemoteTenantGate(useTenant)
-  return gate === 'loading' || gate === 'error' ? null : gate
+function useTenantScope(useTenant: LumenRemotePanelProps['useTenant']): {
+  readonly scope: ProjectScopeRequest | null
+  readonly gate: RemoteTenantGate
+  readonly retryBootstrap: () => void
+} {
+  const { gate, retryBootstrap } = useRemoteTenantGate(useTenant)
+  const scope = gate === 'loading' || gate === 'error' ? null : gate
+  return { scope, gate, retryBootstrap }
+}
+
+function remotePanelSurface<T>(
+  gate: RemoteTenantGate,
+  loadState: RemoteLoadState<T>,
+  emptyWhen?: (data: T) => boolean,
+): 'loading' | 'error' | 'empty' | 'ready' {
+  if (gate === 'error') return 'error'
+  if (gate === 'loading') return 'loading'
+  return surfaceFromLoad(loadState, emptyWhen)
 }
 
 function remoteScopeKey(scope: ProjectScopeRequest | null): string {
@@ -93,41 +113,48 @@ function surfaceFromLoad<T>(state: { status: string; data?: T }, emptyWhen?: (da
 }
 
 export function RemoteKanbanPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const loadKey = remoteScopeKey(scope)
   const load = useCallback(async () => {
     if (scope === null) throw new Error('no-scope')
     return unwrapRemote(await persona.listTasks(scope))
   }, [persona, scope])
   const [reloadToken, setReloadToken] = useState(0)
-  const state = usePersonaRemoteLoad(scope !== null, `${loadKey}:${reloadToken}`, load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, `${loadKey}:${reloadToken}`, load)
   const cards = state.status === 'ready' ? tasksToKanbanCards(state.data, scope?.projectId ?? '') : []
+  const onRemoteRetry = (): void => {
+    retryBootstrap()
+    retry()
+    setReloadToken(token => token + 1)
+  }
   return (
     <KanbanWithReview
       persona={persona}
       scope={scope}
       initialCards={cards}
-      initialState={surfaceFromLoad(state, data => data.length === 0)}
+      initialState={remotePanelSurface(gate, state, data => data.length === 0)}
       onMutate={() => { setReloadToken(token => token + 1) }}
+      onRemoteRetry={onRemoteRetry}
     />
   )
 }
 
 export function RemoteKnowledgePanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const load = useCallback(async () => unwrapRemote(await persona.listVaultRecords(scope!)), [persona, scope])
-  const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const records = state.status === 'ready' ? vaultRecordsToKnowledge(state.data) : []
   return (
     <KnowledgeVault
       records={records}
-      initialState={surfaceFromLoad(state, data => data.length === 0)}
+      initialState={remotePanelSurface(gate, state, data => data.length === 0)}
+      onRemoteRetry={() => { retryBootstrap(); retry() }}
     />
   )
 }
 
 export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const actorId = useTenant(s => s.scope?.actorId ?? '')
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:${reloadToken}`
@@ -139,7 +166,7 @@ export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps):
       path: '',
     }))
   }, [persona, scope, actorId])
-  const state = usePersonaRemoteLoad(scope !== null && actorId !== '', loadKey, load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null && actorId !== '', loadKey, load)
   const listing = state.status === 'ready' ? state.data : null
   const files: FileEntry[] = listing !== null && listing.status === 'ok'
     ? listing.entries.filter(e => e.kind === 'file').map((entry, index) => ({
@@ -151,13 +178,12 @@ export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps):
       kind: 'other',
     }))
     : []
-  const initialState: FilesSurfaceState = state.status === 'loading'
-    ? 'loading'
-    : state.status === 'error'
-      ? 'error'
-      : listing === null
-        ? 'loading'
-        : filesSurfaceFromListing(listing)
+  const panelSurface = remotePanelSurface(gate, state)
+  const initialState: FilesSurfaceState = panelSurface === 'loading' || panelSurface === 'error'
+    ? panelSurface
+    : listing === null
+      ? 'loading'
+      : filesSurfaceFromListing(listing)
   const onChooseProjectRoot = useCallback(() => {
     void (async () => {
       if (scope === null) return
@@ -172,14 +198,15 @@ export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps):
       files={files}
       initialState={initialState}
       onChooseProjectRoot={onChooseProjectRoot}
+      onRemoteRetry={() => { retryBootstrap(); retry(); setReloadToken(token => token + 1) }}
     />
   )
 }
 
 export function RemoteRoutinesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const load = useCallback(async () => unwrapRemote(await persona.listRoutineSchedule(scope!)), [persona, scope])
-  const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const schedules = state.status === 'ready' ? state.data : []
   const routineRuns = routineScheduleToRuns(schedules)
   const quietWindows = routineScheduleToQuiet(schedules)
@@ -187,43 +214,43 @@ export function RemoteRoutinesPanel({ persona, useTenant }: LumenRemotePanelProp
     <RoutinesView
       routineRuns={routineRuns}
       quietWindows={quietWindows}
-      initialState={surfaceFromLoad(state, data => data.length === 0)}
+      initialState={remotePanelSurface(gate, state, data => data.length === 0)}
+      onRemoteRetry={() => { retryBootstrap(); retry() }}
     />
   )
 }
 
 export function RemoteUsagePanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const load = useCallback(async () => unwrapRemote(await persona.getProjectLimits(scope!)), [persona, scope])
-  const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const meters = state.status === 'ready' ? limitsToUsageMeters(state.data) : []
   return (
     <UsageLimits
       meters={meters}
       showLimitNotice={false}
-      initialState={surfaceFromLoad(state)}
+      initialState={remotePanelSurface(gate, state)}
+      onRemoteRetry={() => { retryBootstrap(); retry() }}
     />
   )
 }
 
 export function RemoteConnectionsPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const gate = useRemoteTenantGate(useTenant)
-  const scope = gate === 'loading' || gate === 'error' ? null : gate
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const load = useCallback(async () => unwrapRemote(await persona.listConnections(scope!)), [persona, scope])
-  const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const entries = state.status === 'ready' ? connectionsToEntries(state.data) : []
-  if (gate === 'loading') return <ConnectionsView initialState="loading" />
-  if (gate === 'error') return <ConnectionsView initialState="error" />
   return (
     <ConnectionsView
       entries={entries}
-      initialState={surfaceFromLoad(state, data => data.length === 0)}
+      initialState={remotePanelSurface(gate, state, data => data.length === 0)}
+      onRetry={() => { retryBootstrap(); retry() }}
     />
   )
 }
 
 export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:approvals:${reloadToken}`
   const load = useCallback(async () => {
@@ -233,7 +260,7 @@ export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelPro
     ])
     return { approvals, summaries }
   }, [persona, scope])
-  const state = usePersonaRemoteLoad(scope !== null, loadKey, load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
   const items = payload === null ? [] : approvalsToInbox(payload.approvals)
   const proactiveSummaries = payload === null ? [] : dailySummariesToUi(payload.summaries)
@@ -254,7 +281,8 @@ export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelPro
     <ApprovalsInbox
       items={items}
       proactiveSummaries={proactiveSummaries}
-      initialState={surfaceFromLoad(state, () => inboxEmpty)}
+      initialState={remotePanelSurface(gate, state, () => inboxEmpty)}
+      onRemoteRetry={() => { retryBootstrap(); retry(); reload() }}
       onDecideItem={(item, accept) => { void decide(item.id, item.kind, accept) }}
       onDecideProactive={(proposal, accept) => {
         if (proposal.approvalKind === undefined) return
@@ -265,7 +293,7 @@ export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelPro
 }
 
 export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:rules:${reloadToken}`
   const load = useCallback(async () => {
@@ -277,7 +305,7 @@ export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps):
     ])
     return { rules, quiet, limits, triageLog }
   }, [persona, scope])
-  const state = usePersonaRemoteLoad(scope !== null, loadKey, load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
   const rulesProps = payload === null
     ? { rules: [] as const, quietWindows: [] as const, triageLog: [] as const }
@@ -290,7 +318,8 @@ export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps):
   return (
     <TriageRulesView
       {...rulesProps}
-      initialState={surfaceFromLoad(state)}
+      initialState={remotePanelSurface(gate, state)}
+      onRemoteRetry={() => { retryBootstrap(); retry(); setReloadToken(token => token + 1) }}
       onSaveLimits={(limits) => {
         if (scope === null) return
         void (async () => {
@@ -308,13 +337,20 @@ export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps):
   )
 }
 
-export type RemoteProfilePanelProps = InjectFace<LumenRemoteInjected & {
-  hooks: LumenRemoteInjected['hooks'] & { shell: HostObservable<ShellState> }
-}>
+export type RemoteProfilePanelInject = {
+  readonly persona: PersonaRemoteClient
+  readonly live: PersonaLiveStore
+  readonly hooks: {
+    readonly tenant: HostObservable<PersonaTenantSnapshot>
+    readonly shell: HostObservable<ShellState>
+  }
+}
 
-export function RemoteProfilePanel({ persona, useTenant, useShell }: RemoteProfilePanelProps): ReactNode {
-  const scope = useScope(useTenant)
-  const profilePersonaId = useShell(state => state.profilePersonaId)
+export type RemoteProfilePanelProps = InjectFace<RemoteProfilePanelInject>
+
+export function RemoteProfilePanel({ persona, useTenant, useShell, live }: RemoteProfilePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+  const profilePersonaId = useShell((state: ShellState) => state.profilePersonaId)
   const load = useCallback(async () => {
     if (profilePersonaId === HIRE_PERSONA_PROFILE_ID) {
       return { hireMode: true as const }
@@ -343,7 +379,8 @@ export function RemoteProfilePanel({ persona, useTenant, useShell }: RemoteProfi
     return { hireMode: false as const, primary: picked, row, autonomy }
   }, [persona, scope, profilePersonaId])
   const loadKey = scope === null ? '' : `${remoteScopeKey(scope)}:${profilePersonaId ?? 'default'}`
-  const state = usePersonaRemoteLoad(scope !== null, loadKey, load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
+  const profileSurface = remotePanelSurface(gate, state, data => data === null)
   const snapshot = useMemo((): PersonaProfileSnapshot | null => {
     if (state.status !== 'ready' || state.data === null) return null
     if (state.data.hireMode) return null
@@ -407,23 +444,40 @@ export function RemoteProfilePanel({ persona, useTenant, useShell }: RemoteProfi
       },
     }
   }, [state, scope?.projectId])
-  if (state.status === 'loading') return <PersonaProfilePage initialState="loading" />
+  if (profileSurface === 'loading') return <PersonaProfilePage initialState="loading" />
+  if (profileSurface === 'error') {
+    return (
+      <PersonaProfilePage
+        initialState="error"
+        onRemoteRetry={() => { retryBootstrap(); retry() }}
+      />
+    )
+  }
   if (state.status === 'ready' && state.data?.hireMode === true) {
-    return <PersonaProfilePage initialState="empty" />
+    return (
+      <ConnectedPersonaEditor
+        dict={editorDict}
+        persona={persona}
+        useTenant={useTenant}
+        useShell={useShell}
+        live={live}
+      />
+    )
   }
   if (state.status === 'error' || snapshot === null) return <PersonaProfilePage initialState="empty" />
   return <PersonaProfilePage snapshot={snapshot} initialState="ready" />
 }
 
 export function RemoteMembersPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const load = useCallback(async () => unwrapRemote(await persona.listTeam(scope!)), [persona, scope])
-  const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const members = state.status === 'ready' ? teamToMembers(state.data) : []
   return (
     <MembersView
       members={members}
-      initialState={surfaceFromLoad(state, data => data.members.length === 0)}
+      initialState={remotePanelSurface(gate, state, data => data.members.length === 0)}
+      onRemoteRetry={() => { retryBootstrap(); retry() }}
     />
   )
 }
@@ -434,15 +488,16 @@ export function RemoteImportPanel(_props: LumenRemotePanelProps): ReactNode {
 }
 
 export function RemoteCanvasPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const scope = useScope(useTenant)
+  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
   const load = useCallback(async () => unwrapRemote(await persona.listCanvas(scope!)), [persona, scope])
-  const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const graph = state.status === 'ready' ? canvasGraphToUi(state.data) : { nodes: [], edges: [] }
   return (
     <CanvasView
       nodes={graph.nodes}
       edges={graph.edges}
-      initialState={surfaceFromLoad(state, data => data.nodes.length === 0)}
+      initialState={remotePanelSurface(gate, state, data => data.nodes.length === 0)}
+      onRemoteRetry={() => { retryBootstrap(); retry() }}
     />
   )
 }
@@ -452,7 +507,7 @@ export function RemoteReviewDeliveryPanel(props: LumenRemotePanelProps & {
   readonly ticketId?: string
   readonly taskTitle?: string
 }): ReactNode {
-  const scope = useScope(props.useTenant)
+  const { scope } = useTenantScope(props.useTenant)
   const ticketId = props.ticketId ?? ''
   if (scope === null || ticketId === '') {
     return <ReviewDeliveryPanel initialState="empty" summary={null} />

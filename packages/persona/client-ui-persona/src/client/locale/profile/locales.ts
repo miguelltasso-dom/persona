@@ -44,7 +44,7 @@ export const pt = {
   'empty.action': 'Ver equipe',
   'empty.illustration': 'Ilustração: persona ausente',
   'loading': 'Carregando perfil…',
-  'error.title': 'Não foi possível carregar o perfil',
+  'error.title': 'Não consegui falar com a equipe agora',
   'error.retry': 'Tentar de novo',
 } as const
 
@@ -89,7 +89,7 @@ export const en = {
   'empty.action': 'View team',
   'empty.illustration': 'Illustration: missing persona',
   'loading': 'Loading profile…',
-  'error.title': 'Could not load profile',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 
@@ -133,7 +133,7 @@ export const zh = {
   'empty.action': 'View team',
   'empty.illustration': 'Illustration: missing persona',
   'loading': 'Loading profile…',
-  'error.title': 'Could not load profile',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ja = {
@@ -176,7 +176,7 @@ export const ja = {
   'empty.action': 'View team',
   'empty.illustration': 'Illustration: missing persona',
   'loading': 'Loading profile…',
-  'error.title': 'Could not load profile',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const es = {
@@ -219,7 +219,7 @@ export const es = {
   'empty.action': 'View team',
   'empty.illustration': 'Illustration: missing persona',
   'loading': 'Loading profile…',
-  'error.title': 'Could not load profile',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const fr = {
@@ -262,7 +262,7 @@ export const fr = {
   'empty.action': 'View team',
   'empty.illustration': 'Illustration: missing persona',
   'loading': 'Loading profile…',
-  'error.title': 'Could not load profile',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const de = {
@@ -305,7 +305,7 @@ export const de = {
   'empty.action': 'View team',
   'empty.illustration': 'Illustration: missing persona',
   'loading': 'Loading profile…',
-  'error.title': 'Could not load profile',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 export const ru = {
@@ -348,7 +348,7 @@ export const ru = {
   'empty.action': 'View team',
   'empty.illustration': 'Illustration: missing persona',
   'loading': 'Loading profile…',
-  'error.title': 'Could not load profile',
+  'error.title': 'Couldn\'t reach the team right now',
   'error.retry': 'Try again',
 } as const
 

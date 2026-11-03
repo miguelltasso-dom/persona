@@ -4,6 +4,66 @@ Mais recente no topo.
 
 ---
 
+## 03/11 19:15 — C2 + PB-1/PB-2 + proposta PB-3 (BRIEFING 15)
+
+### C2
+`Engine.answerAttention` persiste a resposta e limpa `attention`. Host `answerAttention` chama o engine (não só `note`). `completeReview` posta `milestoneSummary` em `#geral` (`coord-<ticket>-milestone`) mesmo se a Tarefa ainda não tiver `ended`. Jornada `j11-c2-attention.spec.ts`.
+
+### PB-1 (domínio, persona-core)
+`persona-core/src/board`: Workflow (colunas + categoria `todo|doing|review|needs_you|done`, WIP aviso, campos tipados), 7 templates pt-BR, Sprint `planejado|ativo|encerrado`, invariantes (≥1 todo/done, `needs_you` única, destino ao remover coluna). `Ticket.columnId/sprintId/campos` no engine Ticket. WIP **não** trava a máquina.
+
+### PB-2 (engine)
+Projeção estágio↔coluna: coluna explícita vence se a categoria bate; senão 1ª coluna da categoria. Move manual ajusta o estágio. Attention → `needs_you`; ended → 1ª `done`. Sprint ↔ `dsh-goal` (`sprintGoal`); encerrar com confirmação + rolagem + resumo de marco. Puxada/Attention classificam por categoria em Contratação/Site/Software.
+
+### PB-3 (parser Forge; Remote = Anvil PB-4)
+`proposeWorkflow` + `parseWorkflowProposal` (JSON sujo) devolvem cartão «Usar este fluxo?» — **nunca aplicam**. Degrade honesto sem JSON/template.
+
+### Dependências
+- **Anvil PB-4**: persistir workflow/seats/sprints (v8), Remote, aplicar proposta só após aprovação.
+- **Keel**: `persona-engine` agora declara `@deepseek-ai/dsh-persona-core` (`workspace:*`) — precisa `pnpm install` no próximo commit.
+- **F1**: ainda aguarda amostras reais do Miguel; sintético extra (ChatGPT sem id).
+- **F4**: depois do F3.
+
+### Arquivos
+- `persona-core/src/board/{workflow,sprint,index}.ts`, `domain/schemas.ts` (`INVALID_WORKFLOW`), `tests/workflow.spec.ts`, `tests/import.spec.ts`
+- `persona-engine/src/{workflow,workflow-error,sprint}.ts`, `core/{engine,model}.ts`, `index.ts`, `package.json`
+- `persona-engine/tests/{attention,workflow,sprint}.spec.ts`
+- `persona-host/src/{index,orchestration}.ts`, `tests/journeys/j11-c2-attention.spec.ts`
+- `persona-spec/{PLAN.md,reports/forge.md,reports/journeys.md}`
+
+### Comandos
+
+```
+pnpm exec vitest run …/persona-core/tests/workflow.spec.ts …/import.spec.ts …/persona-engine/tests/{workflow,sprint,attention}.spec.ts …/j11-c2-attention.spec.ts
+ Test Files  6 passed (quando o import extra entrou: 4+attention+j11)
+```
+
+Verbatim desta rodada (core+engine board):
+
+```
+ Test Files  4 passed (4)
+      Tests  28 passed (28)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-core
+persona-core: OK in 6.9s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-engine
+persona-engine: OK in 16.8s
+```
+
+### Limitações
+- Proposta da Coordenação ainda não tem prompt de modelo no host (Anvil Remote).
+- Assentos em memória; SQLite = Anvil.
+- `coordinationHandoff` foi içado no topo de `orchestration.ts` (ReferenceError por import circular / `export function` no fim do módulo).
+- Sem commit. CLI real continua congelada.
+
+---
+
+
 ## 03/11 18:55 — Jornadas J1–J10 (host)
 
 ### O que ficou pronto

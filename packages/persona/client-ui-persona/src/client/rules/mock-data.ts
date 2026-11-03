@@ -10,6 +10,32 @@ export interface TriageSimulationLog {
   readonly id: string
   readonly at: string
   readonly summary: string
+  readonly mode: 'logOnly' | 'execute'
+}
+
+export interface QuietWindow {
+  readonly id: string
+  readonly label: string
+  readonly days: readonly string[]
+  readonly start: string
+  readonly end: string
+}
+
+export interface ProactivityLimits {
+  readonly maxProposalsPerDay: number
+  readonly tokensPerPersonaMonth: number
+  readonly tokensPerProjectMonth: number
+}
+
+export const MOCK_QUIET_WINDOWS: readonly QuietWindow[] = [
+  { id: 'qw-1', label: 'Noites de semana', days: ['mon', 'tue', 'wed', 'thu', 'fri'], start: '22:00', end: '07:00' },
+  { id: 'qw-2', label: 'Fim de semana', days: ['sat', 'sun'], start: '00:00', end: '23:59' },
+]
+
+export const MOCK_PROACTIVITY_LIMITS: ProactivityLimits = {
+  maxProposalsPerDay: 5,
+  tokensPerPersonaMonth: 500_000,
+  tokensPerProjectMonth: 1_200_000,
 }
 
 export const MOCK_TRIAGE_RULES: readonly TriageRule[] = [
@@ -23,5 +49,16 @@ export const MOCK_TRIAGE_RULES: readonly TriageRule[] = [
 ]
 
 export const MOCK_TRIAGE_LOG: readonly TriageSimulationLog[] = [
-  { id: 'log-1', at: '13:58', summary: 'Teria aberto ticket de revisão para copy (não executou).' },
+  {
+    id: 'log-1',
+    at: '13:58',
+    summary: 'Teria aberto ticket de revisão para copy (não executou).',
+    mode: 'logOnly',
+  },
+  {
+    id: 'log-2',
+    at: '11:20',
+    summary: 'Teria pausado propostas extras após atingir limite diário (Nina).',
+    mode: 'logOnly',
+  },
 ]

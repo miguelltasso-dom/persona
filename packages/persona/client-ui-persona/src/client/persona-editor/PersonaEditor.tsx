@@ -5,7 +5,14 @@ import { usePersonaMotion } from '../theme/usePersonaMotion.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { PersonaButton } from '../primitives/index.ts'
-import { MOCK_PERSONA_DRAFT, type AvatarSource, type PersonaDraft, type ToolAccessLevel } from './persona-draft.ts'
+import {
+  MOCK_PERSONA_DRAFT,
+  type AttentionBudgetTier,
+  type AutonomyLevel,
+  type AvatarSource,
+  type PersonaDraft,
+  type ToolAccessLevel,
+} from './persona-draft.ts'
 import styles from './PersonaEditor.module.css'
 
 export interface PersonaEditorProps {
@@ -15,6 +22,20 @@ export interface PersonaEditorProps {
 
 const LEVELS: readonly ToolAccessLevel[] = ['none', 'read', 'write']
 const AVATARS: readonly AvatarSource[] = ['gallery', 'upload', 'silhouette']
+const AUTONOMY_LEVELS: readonly AutonomyLevel[] = ['on-request', 'propose', 'act-within-limits']
+const ATTENTION_TIERS: readonly AttentionBudgetTier[] = ['quiet', 'balanced', 'active']
+
+const AUTONOMY_LABEL: Readonly<Record<AutonomyLevel, string>> = {
+  'on-request': 'field.autonomy.onRequest',
+  propose: 'field.autonomy.propose',
+  'act-within-limits': 'field.autonomy.actWithinLimits',
+}
+
+const ATTENTION_LABEL: Readonly<Record<AttentionBudgetTier, string>> = {
+  quiet: 'field.attention.quiet',
+  balanced: 'field.attention.balanced',
+  active: 'field.attention.active',
+}
 
 /** Persona editor with gallery/upload/silhouette and system role toggles. */
 export function PersonaEditor({ dict, initial = MOCK_PERSONA_DRAFT }: PersonaEditorProps): ReactNode {
@@ -112,6 +133,39 @@ export function PersonaEditor({ dict, initial = MOCK_PERSONA_DRAFT }: PersonaEdi
         <label className={styles.field}>
           <span className={styles.label}>{t('field.skills')}</span>
           <input className={styles.input} value={draft.skills} onChange={(e) => { patch({ skills: e.target.value }) }} />
+        </label>
+      </section>
+      <section className={styles.section} aria-labelledby="persona-proactivity">
+        <h2 id="persona-proactivity" className={styles.sectionTitle}>{t('section.proactivity')}</h2>
+        <label className={styles.field}>
+          <span className={styles.label}>{t('field.autonomyLevel')}</span>
+          <select
+            className={styles.select}
+            value={draft.autonomyLevel}
+            onChange={(e) => { patch({ autonomyLevel: e.target.value as AutonomyLevel }) }}
+          >
+            {AUTONOMY_LEVELS.map(level => (
+              <option key={level} value={level}>
+                {t(AUTONOMY_LABEL[level])}
+              </option>
+            ))}
+          </select>
+          <span className={styles.hint}>{t('field.autonomyHint')}</span>
+        </label>
+        <label className={styles.field}>
+          <span className={styles.label}>{t('field.attentionBudget')}</span>
+          <select
+            className={styles.select}
+            value={draft.attentionBudget}
+            onChange={(e) => { patch({ attentionBudget: e.target.value as AttentionBudgetTier }) }}
+          >
+            {ATTENTION_TIERS.map(tier => (
+              <option key={tier} value={tier}>
+                {t(ATTENTION_LABEL[tier])}
+              </option>
+            ))}
+          </select>
+          <span className={styles.hint}>{t('field.attentionBudgetHint')}</span>
         </label>
       </section>
       <section className={styles.section} aria-labelledby="persona-limits">

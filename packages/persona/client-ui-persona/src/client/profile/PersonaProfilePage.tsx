@@ -7,6 +7,7 @@ import { MemoryPanel } from '../memory/MemoryPanel.tsx'
 import { SkillsPanel } from '../skills/SkillsPanel.tsx'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import page from './LumenPage.module.css'
+import { ProactivityMetricsPanel } from './ProactivityMetricsPanel.tsx'
 import { MOCK_PROFILE_ATLAS, type PersonaLiveState, type PersonaProfileSnapshot } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/profile/locales.ts'
 
@@ -52,7 +53,7 @@ export function PersonaProfilePage({
     )
   }
 
-  const { persona, liveState, projectNames, recentActivity } = snapshot
+  const { persona, liveState, projectNames, recentActivity, proactivity } = snapshot
 
   return (
     <div className={page.shell} ref={motion.ref} style={motion.style} data-persona-surface="profile">
@@ -88,6 +89,9 @@ export function PersonaProfilePage({
       </div>
       {tab === 'overview' && (
         <section>
+          {proactivity !== undefined && (
+            <ProactivityMetricsPanel dict={dict} metrics={proactivity} />
+          )}
           <h2 className={page.title}>{t('field.projects')}</h2>
           <ul className={page.list}>
             {projectNames.map(name => (

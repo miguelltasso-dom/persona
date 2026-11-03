@@ -20,6 +20,17 @@
   gap: 0.5rem;
 }
 
+.introLine,
+.taskBody {
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+}
+
+.attentionText {
+  flex: 1;
+  min-width: 0;
+}
+
 .attentionItem {
   display: flex;
   align-items: center;

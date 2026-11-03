@@ -154,7 +154,7 @@ export function OnboardingWizard({ dict, store, actions, onComplete }: Onboardin
             <h1 className={styles.title}>{t('step5.title')}</h1>
             <PersonaMuted>{t('step5.hint')}</PersonaMuted>
             <TeamIntroQueue lines={MOCK_INTRO_LINES} greetingName={state.displayName || t('brand.name')} />
-            <PersonaButton>{t('step5.suggestedTask')}</PersonaButton>
+            <PersonaButton variant="secondary">{t('step5.suggestedTask')}</PersonaButton>
           </>
         )}
       </OnboardingStepMotion>

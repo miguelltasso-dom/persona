@@ -39,6 +39,13 @@
   gap: 0.25rem;
 }
 
+.hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--persona-active-muted, color-mix(in srgb, var(--persona-active-ink) 55%, transparent));
+}
+
 .label {
   font-size: 0.875rem;
   font-weight: 600;

@@ -19,6 +19,8 @@ describe('persona editor preview', () => {
     expect(screen.getByRole('heading', { level: 1, name: pt['title.edit'] })).toBeTruthy()
     expect(screen.getByLabelText(pt['field.coordination'])).toBeTruthy()
     expect(screen.getByLabelText(pt['field.watchdog'])).toBeTruthy()
+    expect(screen.getByText(pt['section.proactivity'])).toBeTruthy()
+    expect(screen.getByText(pt['field.autonomyHint'])).toBeTruthy()
     expect(screen.getByText('Luna')).toBeTruthy()
   })
 })

@@ -4,6 +4,11 @@ export type ToolAccessLevel = 'none' | 'read' | 'write'
 
 export type AvatarSource = 'gallery' | 'upload' | 'silhouette'
 
+/** PROACTIVITY §4 autonomy tiers (UI → host policy later). */
+export type AutonomyLevel = 'on-request' | 'propose' | 'act-within-limits'
+
+export type AttentionBudgetTier = 'quiet' | 'balanced' | 'active'
+
 export interface PersonaDraft {
   readonly name: string
   readonly avatarSource: AvatarSource
@@ -20,6 +25,8 @@ export interface PersonaDraft {
   readonly tokenLimit: string
   readonly responseLimit: string
   readonly concurrency: string
+  readonly autonomyLevel: AutonomyLevel
+  readonly attentionBudget: AttentionBudgetTier
   readonly coordination: boolean
   readonly watchdog: boolean
 }
@@ -40,6 +47,8 @@ export const MOCK_PERSONA_DRAFT: PersonaDraft = {
   tokenLimit: '500000',
   responseLimit: '8192',
   concurrency: '2',
+  autonomyLevel: 'propose',
+  attentionBudget: 'balanced',
   coordination: false,
   watchdog: false,
 }

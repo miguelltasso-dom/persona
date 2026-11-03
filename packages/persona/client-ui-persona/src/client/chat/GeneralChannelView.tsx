@@ -18,6 +18,7 @@ export function GeneralChannelView({ t: tChat, shellT }: GeneralChannelViewProps
     <div className={styles.view}>
       <header className={styles.header}>
         <p className={styles.breadcrumb}>
+          <span className={styles.hash} aria-hidden="true">#</span>
           <span className={styles.section}>{tChat('header.section')}</span>
           <span className={styles.dot} aria-hidden="true">·</span>
           <span className={styles.channel}>{tChat('header.channelGeneral')}</span>

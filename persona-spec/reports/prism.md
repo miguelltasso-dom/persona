@@ -1,5 +1,41 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-03 — Revisão Keel (dirD + UX-GUIDE): marca, rail, #geral, RCD chip, a11y
+
+**Princípios RCD / lentes**
+
+1. **Marca (lente acessibilidade AA):** símbolo âmbar 40 px + wordmark branco ~28 px (`--persona-active-rail-ink`), sem wordmark escuro sobre roxo.
+2. **Rodapé (usabilidade):** sidebar coluna flex — marca fixa, `navScroll`, rodapé fixo + `padding-bottom`/`safe-area-inset-bottom` (Configurações visível em 1280×720 e 1920×1080).
+3. **Toque (AA):** nav ~18 px, linhas `min-height: 3.5rem`, ícones 24 px, `:focus-visible` no rail.
+4. **Neutrality is omission:** chip de atenção na Visão geral = `overview.attentionAction` (“Revisar”); ação primária âmbar só na tarefa sugerida; atenção em `secondary`.
+5. **Never blank dashboard:** default `activePanel: channels` → `#geral` (faixa “Sua equipe neste canal”, mensagens, composer); Visão geral com intro da equipe + 1ª tarefa quando o usuário navega.
+6. **Foco:** onboarding input + itens do rail com anel `focus-visible`; gate registra `Tab×2` → `BUTTON`.
+
+**Arquivos (principal):** `PersonaSidebar.{tsx,module.css}`, `PersonaAppFrame.module.css`, `create-shell-store.ts`, `GeneralChannelView.tsx`, `TeamChannelStrip.tsx`, `OverviewView.tsx`, `OnboardingWizard.module.css`, `locale-sources/shell.{pt,en}.json`, `scripts/persona/{ui-boot-check,compare-shot-dirD}.mjs`
+
+**Verificação**
+
+```
+node scripts/persona/check-pkg.mjs client-ui-persona
+→ client-ui-persona: OK in 13.4s
+
+pnpm exec vitest run …/overview-preview.client.spec.tsx …/team-strip-preview.client.spec.tsx
+→ Test Files  2 passed (2) | Tests  2 passed (2)
+
+node scripts/persona/with-lock.mjs "Prism ui boot" -- node scripts/persona/ui-boot-check.mjs
+console errors (0):
+(none)
+[a11y] focus after Tab×2: BUTTON
+{"actualPath":"…/persona-light-channel.png","referencePath":"…/dirD-tela.png","diffRatio":0.3485262345679012,"diffPixels":451690,"pass":true,"diffOverlay":"…/persona-light-channel.diff.png"}
+shots: …/persona-light.png, persona-dark.png, persona-light-channel.png, persona-light-720.png, persona-light-1080.png
+```
+
+**Capturas:** `.maestri/tmp/shots/persona-light.png` (1ª visita + overlay onboarding), `persona-dark.png`, `persona-light-channel.png` (Probe vs dirD), `persona-light-channel.diff.png`, `persona-light-720.png`, `persona-light-1080.png`.
+
+**Fora / próximo:** diff ~35% ainda esperado (viewport 1440×900 vs ref 1671×941, motion/tokens); Tab completo rail+composer no gate; Probe axe/motion-jank separado.
+
+---
+
 ## 2026-11-03 — build-assets gerador + check-pkg + assets/shell/#geral (em curso)
 
 **Correções**

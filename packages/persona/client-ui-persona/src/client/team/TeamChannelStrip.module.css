@@ -89,8 +89,12 @@
   background: var(--persona-accent);
 }
 
-.statusIcon[data-state='idle'] {
-  background: color-mix(in srgb, var(--persona-active-ink) 40%, transparent);
+.statusIcon[data-state='resting'] {
+  background: color-mix(in srgb, var(--persona-active-ink) 35%, transparent);
+}
+
+.statusIcon[data-state='stuck'] {
+  background: var(--persona-danger, #b42318);
 }
 
 .statusIcon[data-state='waiting'] {

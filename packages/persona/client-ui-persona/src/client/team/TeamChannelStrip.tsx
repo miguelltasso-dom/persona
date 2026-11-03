@@ -1,16 +1,9 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { poseUrl } from '../assets/asset-url.ts'
-import type { ShellKey } from '../locale/shell/locales.ts'
-import type { ChannelMemberUiState, ChannelPersonaMember } from './mock-channel-roster.ts'
-import { uiStateToPose } from './mock-channel-roster.ts'
+import type { ChannelPersonaMember } from './persona-work-state.ts'
+import { uiStateToPose, WORK_STATUS_KEY } from './persona-work-state.ts'
 import styles from './TeamChannelStrip.module.css'
-
-const STATUS_KEY: Readonly<Record<ChannelMemberUiState, ShellKey>> = {
-  working: 'team.statusWorking',
-  idle: 'team.statusIdle',
-  waiting: 'team.statusWaiting',
-}
 
 export interface TeamChannelStripProps extends PropsLocale<'persona.shell'> {
   readonly members: readonly ChannelPersonaMember[]
@@ -45,7 +38,7 @@ export function TeamChannelStrip({ t, members }: TeamChannelStripProps): ReactNo
                 <span className={styles.role}>{member.role}</span>
                 <span className={styles.status}>
                   <span className={styles.statusIcon} data-state={member.state} aria-hidden="true" />
-                  {t(STATUS_KEY[member.state])}
+                  {t(WORK_STATUS_KEY[member.state])}
                 </span>
               </span>
             </li>

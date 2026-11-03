@@ -1,0 +1,94 @@
+.strip {
+  padding: 0;
+}
+
+.title {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) minmax(6.5rem, auto) minmax(0, 2fr) auto;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--persona-lilac-300);
+  background: var(--persona-active-surface-alt);
+  font-size: 0.9375rem;
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.role {
+  font-size: 0.75rem;
+  color: var(--persona-active-muted, color-mix(in srgb, var(--persona-active-ink) 55%, transparent));
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+.statusIcon {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--persona-accent);
+  flex-shrink: 0;
+}
+
+.statusIcon[data-state='resting'] {
+  background: color-mix(in srgb, var(--persona-active-ink) 35%, transparent);
+}
+
+.statusIcon[data-state='stuck'] {
+  background: var(--persona-danger, #b42318);
+}
+
+.statusIcon[data-state='waiting'] {
+  background: var(--persona-warn, #c47a00);
+}
+
+.task {
+  min-width: 0;
+  line-height: 1.35;
+  color: var(--persona-active-ink);
+}
+
+.queue {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--persona-active-muted, color-mix(in srgb, var(--persona-active-ink) 55%, transparent));
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+}

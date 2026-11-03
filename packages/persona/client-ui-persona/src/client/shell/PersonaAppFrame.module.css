@@ -2,6 +2,8 @@
   display: grid;
   grid-template-columns: 17rem minmax(0, 1fr);
   min-height: 100vh;
+  min-height: 100dvh;
+  height: 100dvh;
   background: var(--persona-active-surface);
   color: var(--persona-active-ink);
 }

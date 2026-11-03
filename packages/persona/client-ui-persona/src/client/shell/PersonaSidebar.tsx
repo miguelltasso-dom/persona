@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import { logoHorizontalLight, NAV_ICONS, symbol } from '../assets/generated-imports.ts'
+import { NAV_ICONS, symbol } from '../assets/generated-imports.ts'
 import type { ShellKey } from '../locale/shell/locales.ts'
 import type { MainPanelId, ShellState } from './create-shell-store.ts'
 import { showPersonaDevHostBadge } from './persona-dev.ts'
@@ -33,11 +33,11 @@ const NAV: readonly { panel: MainPanelId; labelKey: ShellKey; icon: NavIconId }[
 /** Persona navigation rail (pt-BR labels via locale). */
 export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: PersonaSidebarProps): ReactNode {
   const shell = useShell(state => state)
-  const navRef = useRef<HTMLElement>(null)
+  const navScrollRef = useRef<HTMLDivElement>(null)
   const [indicator, setIndicator] = useState({ top: 0, height: 0, opacity: 0 })
 
   useLayoutEffect(() => {
-    const root = navRef.current
+    const root = navScrollRef.current
     if (root === null) return
     const active = root.querySelector('[aria-current="page"]')
     if (!(active instanceof HTMLElement)) {
@@ -57,33 +57,35 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
     : ''
 
   return (
-    <nav className={styles.sidebar} aria-label={t('brand.name')} ref={navRef}>
+    <nav className={styles.sidebar} aria-label={t('brand.name')}>
       <div className={styles.brandRow}>
         <img className={styles.symbol} src={symbol} alt="" aria-hidden="true" />
-        <img className={styles.wordmark} src={logoHorizontalLight} alt={t('brand.name')} />
+        <p className={styles.wordmark}>{t('brand.name')}</p>
       </div>
-      <div className={styles.navList}>
-        <span
-          className={styles.activeIndicator}
-          style={{
-            transform: `translateY(${indicator.top}px)`,
-            height: `${indicator.height}px`,
-            opacity: indicator.opacity,
-          }}
-          aria-hidden="true"
-        />
-        {NAV.map(item => (
-          <button
-            key={item.panel}
-            type="button"
-            className={styles.navItem}
-            aria-current={shell.activePanel === item.panel ? 'page' : undefined}
-            onClick={() => { selectPanel(item.panel) }}
-          >
-            <img className={styles.navIcon} src={NAV_ICONS[item.icon]} alt="" aria-hidden="true" />
-            <span>{t(item.labelKey)}</span>
-          </button>
-        ))}
+      <div className={styles.navScroll} ref={navScrollRef}>
+        <div className={styles.navList}>
+          <span
+            className={styles.activeIndicator}
+            style={{
+              transform: `translateY(${indicator.top}px)`,
+              height: `${indicator.height}px`,
+              opacity: indicator.opacity,
+            }}
+            aria-hidden="true"
+          />
+          {NAV.map(item => (
+            <button
+              key={item.panel}
+              type="button"
+              className={styles.navItem}
+              aria-current={shell.activePanel === item.panel ? 'page' : undefined}
+              onClick={() => { selectPanel(item.panel) }}
+            >
+              <img className={styles.navIcon} src={NAV_ICONS[item.icon]} alt="" aria-hidden="true" />
+              <span>{t(item.labelKey)}</span>
+            </button>
+          ))}
+        </div>
       </div>
       <div className={styles.footer}>
         <div className={styles.hostStatus} role="status">

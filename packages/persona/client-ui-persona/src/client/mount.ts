@@ -15,6 +15,7 @@ import { OnboardingShellOverlay } from './onboarding/OnboardingShellOverlay.tsx'
 import { GeneralChannelView } from './chat/GeneralChannelView.tsx'
 import { CHAT_NS } from './locale/chat/locales.ts'
 import { OverviewView } from './overview/OverviewView.tsx'
+import { MOCK_AWAY_SUMMARY, MOCK_OVERVIEW_NOW } from './overview/mock-overview-proactivity.ts'
 import { SearchPlaceholderView } from './shell/SearchPlaceholderView.tsx'
 import { PersonaAppFrame } from './shell/PersonaAppFrame.tsx'
 import { PersonaSidebar } from './shell/PersonaSidebar.tsx'
@@ -49,6 +50,8 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
   const tShell = ctx.locale.bind(SHELL_NS)
   const overviewInject = () => ({
     attentionItems: ATTENTION_KEYS.map(key => tShell(key)),
+    nowRows: MOCK_OVERVIEW_NOW,
+    awayEvents: MOCK_AWAY_SUMMARY,
   })
 
   ctx.slots.register({

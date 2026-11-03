@@ -32,7 +32,7 @@ export interface ShellActions {
 const onboardingOpen = readOnboardingOpen()
 
 const INITIAL: ShellState = {
-  activePanel: onboardingOpen ? 'overview' : 'channels',
+  activePanel: 'channels',
   hostStatus: 'unknown',
   hostProtocol: null,
   onboardingOpen,

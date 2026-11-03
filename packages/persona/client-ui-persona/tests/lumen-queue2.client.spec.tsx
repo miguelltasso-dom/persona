@@ -46,7 +46,7 @@ describe('lumen queue 2 previews', () => {
 
   it('renders approvals inbox with hire card', () => {
     wrap(<ApprovalsInbox dict={approvalsPt} />)
-    expect(screen.getByRole('heading', { level: 2, name: 'Contratar Sol?' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3, name: 'Contratar Sol?' })).toBeTruthy()
   })
 
   it('renders memory panel actions', () => {

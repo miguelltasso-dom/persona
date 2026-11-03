@@ -16,11 +16,27 @@ export interface PersonaActivityItem {
   readonly summary: string
 }
 
+export type LazinessBenchGrade = 'strong' | 'fair' | 'weak'
+
+export interface PersonaProactivityMetrics {
+  readonly proposalsToday: number
+  readonly proposalsAccepted7d: number
+  readonly acceptanceRatePct: number
+  readonly idleMinutesToday: number
+  readonly lazinessBench: {
+    readonly runner: string
+    readonly model: string
+    readonly grade: LazinessBenchGrade
+    readonly lastRunAt: string
+  }
+}
+
 export interface PersonaProfileSnapshot {
   readonly persona: Persona
   readonly liveState: PersonaLiveState
   readonly projectNames: readonly string[]
   readonly recentActivity: readonly PersonaActivityItem[]
+  readonly proactivity?: PersonaProactivityMetrics
 }
 
 const basePersona = (overrides: Partial<Persona> & Pick<Persona, 'id' | 'name' | 'title'>): Persona => ({
@@ -67,4 +83,16 @@ export const MOCK_PROFILE_ATLAS: PersonaProfileSnapshot = {
     { id: 'a1', at: '14:05', summary: 'Moveu tarefa para revisão no Site da agência' },
     { id: 'a2', at: '13:40', summary: 'Respondeu no #geral sobre prioridades' },
   ],
+  proactivity: {
+    proposalsToday: 1,
+    proposalsAccepted7d: 9,
+    acceptanceRatePct: 72,
+    idleMinutesToday: 6,
+    lazinessBench: {
+      runner: 'claude',
+      model: 'claude-sonnet',
+      grade: 'strong',
+      lastRunAt: '2026-11-02T18:00:00Z',
+    },
+  },
 }

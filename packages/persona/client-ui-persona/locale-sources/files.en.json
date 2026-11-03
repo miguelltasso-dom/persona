@@ -14,5 +14,9 @@
   "empty.illustration": "Illustration: empty folder with paw prints",
   "loading": "Loading files…",
   "error.title": "Could not load files",
-  "error.retry": "Try again"
+  "error.retry": "Try again",
+  "needRoot.title": "Choose the project folder",
+  "needRoot.hint": "Files stay confined to one folder on your computer. Nothing uploads without you seeing it.",
+  "needRoot.action": "Choose folder",
+  "needRoot.illustration": "Illustration: project folder awaiting selection"
 }

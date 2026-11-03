@@ -6,7 +6,8 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { KanbanBoard } from './KanbanBoard.tsx'
 import styles from './Kanban.module.css'
-import { DEFAULT_KANBAN_FILTERS, MOCK_KANBAN_FILTERS } from './mock-data.ts'
+import { deriveKanbanFilterOptions } from './derive-filter-options.ts'
+import { DEFAULT_KANBAN_FILTERS } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/kanban/locales.ts'
 import type { KanbanCardModel, KanbanColumnId, KanbanFilters, KanbanSurfaceState } from './types.ts'
 
@@ -50,6 +51,7 @@ export function GlobalKanban({
   const [filters, setFilters] = useState<KanbanFilters>(DEFAULT_KANBAN_FILTERS)
 
   const labels = useMemo(() => columnLabelsFromDict(dict), [dict])
+  const filterOptions = useMemo(() => deriveKanbanFilterOptions(allCards), [allCards])
   const visibleCards = useMemo(() => applyFilters(allCards, filters), [allCards, filters])
 
   const onMoveCard = useCallback((cardId: string, toColumn: KanbanColumnId) => {
@@ -79,7 +81,7 @@ export function GlobalKanban({
             onChange={(e) => { updateFilter('teamId', e.target.value) }}
           >
             <option value="all">{t('filter.all')}</option>
-            {MOCK_KANBAN_FILTERS.teams.map(team => (
+            {filterOptions.teams.map(team => (
               <option key={team.id} value={team.id}>{team.name}</option>
             ))}
           </select>
@@ -93,7 +95,7 @@ export function GlobalKanban({
             onChange={(e) => { updateFilter('projectId', e.target.value) }}
           >
             <option value="all">{t('filter.all')}</option>
-            {MOCK_KANBAN_FILTERS.projects.map(project => (
+            {filterOptions.projects.map(project => (
               <option key={project.id} value={project.id}>{project.name}</option>
             ))}
           </select>
@@ -107,7 +109,7 @@ export function GlobalKanban({
             onChange={(e) => { updateFilter('personaId', e.target.value) }}
           >
             <option value="all">{t('filter.all')}</option>
-            {MOCK_KANBAN_FILTERS.personas.map(persona => (
+            {filterOptions.personas.map(persona => (
               <option key={persona.id} value={persona.id}>{persona.name}</option>
             ))}
           </select>

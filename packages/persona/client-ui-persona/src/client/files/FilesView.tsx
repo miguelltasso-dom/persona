@@ -9,16 +9,22 @@ import styles from './Files.module.css'
 import type { FileEntry } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/files/locales.ts'
 
-export type FilesSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
+export type FilesSurfaceState = 'loading' | 'error' | 'empty' | 'ready' | 'needRoot'
 
 export interface FilesViewProps {
   readonly dict?: LocaleDict
   readonly files?: readonly FileEntry[]
   readonly initialState?: FilesSurfaceState
+  readonly onChooseProjectRoot?: () => void
 }
 
-/** File list with open/download actions (mock). */
-export function FilesView({ dict = defaultDict, files = [], initialState = 'ready' }: FilesViewProps): ReactNode {
+/** File list with open/download actions (host-backed). */
+export function FilesView({
+  dict = defaultDict,
+  files = [],
+  initialState = 'ready',
+  onChooseProjectRoot,
+}: FilesViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -40,6 +46,19 @@ export function FilesView({ dict = defaultDict, files = [], initialState = 'read
         titleKey="error.title"
         retryKey="error.retry"
         onRetry={() => { setSurfaceState('ready') }}
+      />
+    )
+  }
+
+  if (surfaceState === 'needRoot') {
+    return (
+      <PersonaSurfaceEmpty
+        dict={dict}
+        illustrationLabelKey="needRoot.illustration"
+        titleKey="needRoot.title"
+        hintKey="needRoot.hint"
+        primaryKey="needRoot.action"
+        {...(onChooseProjectRoot !== undefined ? { onPrimary: onChooseProjectRoot } : {})}
       />
     )
   }

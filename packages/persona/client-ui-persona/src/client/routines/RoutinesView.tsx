@@ -7,7 +7,7 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Routines.module.css'
-import { MOCK_QUIET_WINDOWS, MOCK_ROUTINE_RUNS, WEEK_DAYS, type RoutineRun } from './mock-data.ts'
+import { WEEK_DAYS, type QuietWindow, type RoutineRun } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/routines/locales.ts'
 
 export type RoutinesSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -34,11 +34,18 @@ function resultClass(result: RoutineRun['result']): string {
 
 export interface RoutinesViewProps {
   readonly dict?: LocaleDict
+  readonly routineRuns?: readonly RoutineRun[]
+  readonly quietWindows?: readonly QuietWindow[]
   readonly initialState?: RoutinesSurfaceState
 }
 
 /** Weekly routine calendar preview. */
-export function RoutinesView({ dict = defaultDict, initialState = 'ready' }: RoutinesViewProps): ReactNode {
+export function RoutinesView({
+  dict = defaultDict,
+  routineRuns = [],
+  quietWindows = [],
+  initialState = 'ready',
+}: RoutinesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -86,7 +93,7 @@ export function RoutinesView({ dict = defaultDict, initialState = 'ready' }: Rou
         {WEEK_DAYS.map(day => (
           <div key={day} className={styles.dayCol} role="gridcell">
             <div className={styles.dayLabel}>{DAY_LABELS[day]}</div>
-            {MOCK_ROUTINE_RUNS.filter(run => run.day === day).map(run => (
+            {routineRuns.filter(run => run.day === day).map(run => (
               <div key={run.id} className={`${styles.runCard} ${resultClass(run.result)}`}>
                 <strong>{run.time}</strong> {run.routineName}
                 <div>{t(`run.result.${run.result}`)}</div>
@@ -100,7 +107,7 @@ export function RoutinesView({ dict = defaultDict, initialState = 'ready' }: Rou
         <h2 id="quiet-heading" className={styles.title}>{t('quietHours')}</h2>
         <p className={styles.hint}>{t('quietHours.hint')}</p>
         <ul className={styles.quietList}>
-          {MOCK_QUIET_WINDOWS.map(window => (
+          {quietWindows.map(window => (
             <li key={window.id} className={styles.quietItem}>
               <span>{window.label}</span>
               <span>{window.range}</span>

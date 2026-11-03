@@ -1,5 +1,31 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-03 19:58 — Contrato `lumen-rpc.md` (Anvil) ligado nos painéis
+
+**Pronto:** RPCs `listCanvas`, `listDailySummaries`, `listRoutineSchedule`, `listTriageLog`, arquivos `need-root` + `setProjectRoot` (estado `needRoot` pt-BR, ação primária). Adaptadores `triage`, `proactive`, `routines`, `canvas`; `GlobalKanban` deriva filtros dos cards (sem `MOCK_KANBAN_FILTERS` em produção). Overview/canal sem fallback mock. **Muse:** não toquei `theme/` nem `primitives/`; aguardo `DESIGN-SYSTEM.md` + specs por tela.
+
+**Dependências:** seletor nativo de pasta (hoje `prompt` de caminho absoluto até picker desktop); `listConnections` async Rivet; memória/skills no perfil ainda preview local.
+
+**Arquivos:** `data/lumen-remote-panels.tsx`, `data/adapters/{triage,proactive,routines,canvas}.ts`, `files/{FilesView,pick-project-root}.ts`, `kanban/{derive-filter-options,GlobalKanban}.tsx`, `remote/Connected*.tsx`, `locale-sources/files.{pt,en}.json`, `tests/lumen-rpc-adapters.client.spec.ts`, `scripts/persona/real-app-shots.mjs`.
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-rpc-adapters.client.spec.ts packages/persona/client-ui-persona/tests/kanban-preview.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-proactivity.client.spec.tsx
+→ 5 files / 23 tests passed
+
+node scripts/persona/with-lock.mjs "Lumen lumen-rpc shots" -- node scripts/persona/real-app-shots.mjs
+→ parcial: kanban.png, routines.png, usage.png (+ shell/channel); demais nav — script ajustado (labels pt/en + navigation scope) para próximo run
+```
+
+## 2026-11-03 19:15 — Muse (design) + B9 fechamento Remote
+
+**Design:** Muse (Opus) passa a ser dona de theme/primitivos/identidade; Lumen mantém telas e aplica specs da Muse quando publicadas (devolver `.maestri/tmp/shots/real/` após cada pass).
+
+**Pronto (Remote):** Canal #geral sem fallback de mock (`ConnectedGeneralChannelView`); `RoutinesView`/`CanvasView`/`PersonaProfilePage` só dados via props (Remote ou testes); fila 1+2 já em `Remote*Panel` + `ConnectedGlobalKanban`.
+
+**Gaps Anvil:** histórico de execuções de rotina, grafo canvas, log triage, resumo proativo RPC.
+
 ## 2026-11-03 18:35 — B9 Remote real (Keel): mocks só em testes
 
 **Pronto:** Produção usa `ctx.remote.persona` via `createLiveTenantObservable` (sem bootstrap duplicado). **Queue 1:** `ConnectedGlobalKanban` + `Remote*{Knowledge,Routines,Files,Usage,Connections}Panel` em `register-lumen-ui.tsx`. **Queue 2:** `register-prism-screens.tsx` registra `Remote*{Approvals,Rules,Profile,Members,Import,Canvas}Panel` (Prism mantém overview/canais/projetos). Adaptadores em `src/client/data/adapters/*`; painéis em `lumen-remote-panels.tsx`. Views sem defaults de mock (`initialCards`/`items`/`entries` vazios). Testes passam mocks explicitamente.

@@ -15,6 +15,7 @@ import { pt as routinesPt } from '../src/client/locale/routines/locales.ts'
 import { pt as usagePt } from '../src/client/locale/usage/locales.ts'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
+import { MOCK_QUIET_WINDOWS, MOCK_ROUTINE_RUNS } from '../src/client/routines/mock-data.ts'
 import { RoutinesView } from '../src/client/routines/RoutinesView.tsx'
 import { UsageLimits } from '../src/client/usage/UsageLimits.tsx'
 import { MOCK_LIMIT_NOTICE, MOCK_USAGE_METERS } from '../src/client/usage/mock-data.ts'
@@ -37,7 +38,7 @@ describe('lumen surface previews', () => {
   })
 
   it('renders routines week grid', () => {
-    wrap(<RoutinesView dict={routinesPt} />)
+    wrap(<RoutinesView dict={routinesPt} routineRuns={MOCK_ROUTINE_RUNS} quietWindows={MOCK_QUIET_WINDOWS} />)
     expect(screen.getByRole('heading', { level: 1, name: routinesPt.title })).toBeTruthy()
     expect(screen.getByText(routinesPt['run.result.failed'])).toBeTruthy()
   })
@@ -46,6 +47,12 @@ describe('lumen surface previews', () => {
     wrap(<FilesView dict={filesPt} files={MOCK_FILES} />)
     expect(screen.getByRole('heading', { level: 1, name: filesPt.title })).toBeTruthy()
     expect(screen.getByText('hero-v3.png')).toBeTruthy()
+  })
+
+  it('shows need-root state with choose-folder action', () => {
+    wrap(<FilesView dict={filesPt} initialState="needRoot" onChooseProjectRoot={() => {}} />)
+    expect(screen.getByRole('heading', { level: 2, name: filesPt['needRoot.title'] })).toBeTruthy()
+    expect(screen.getByRole('button', { name: filesPt['needRoot.action'] })).toBeTruthy()
   })
 
   it('shows unavailable usage as em dash not zero', () => {

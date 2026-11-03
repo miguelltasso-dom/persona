@@ -14,5 +14,9 @@
   "empty.illustration": "Ilustração: pasta vazia com patas",
   "loading": "Carregando arquivos…",
   "error.title": "Não foi possível carregar arquivos",
-  "error.retry": "Tentar de novo"
+  "error.retry": "Tentar de novo",
+  "needRoot.title": "Escolha a pasta do projeto",
+  "needRoot.hint": "Os arquivos ficam confinados a uma pasta no seu computador. Nada é enviado para a nuvem sem você ver.",
+  "needRoot.action": "Escolher pasta",
+  "needRoot.illustration": "Ilustração: pasta do projeto aguardando escolha"
 }

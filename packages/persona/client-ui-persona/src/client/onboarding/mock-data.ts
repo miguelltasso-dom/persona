@@ -1,5 +1,7 @@
 /** Mock harness detection for onboarding preview. */
 
+import { SUGGESTED_TEAM_GALLERY } from '../remote/seed-default-team.ts'
+
 export interface HarnessRow {
   readonly id: string
   readonly label: string
@@ -18,14 +20,20 @@ export type TeamTemplateId = 'equipeAnimais' | 'startup' | 'agencia' | 'emBranco
 export interface MockPersonaDraft {
   readonly name: string
   readonly role: string
+  readonly galleryRef?: string
+  readonly systemRoles?: readonly ('coordination' | 'watchdog')[]
 }
 
+/** Default cards for step 4 (user edits before confirm). */
+export const GALLERY_SUGGESTED_DRAFTS: readonly MockPersonaDraft[] = SUGGESTED_TEAM_GALLERY.map(row => ({
+  name: row.name,
+  role: row.title,
+  galleryRef: row.avatarRef,
+  systemRoles: [...row.systemRoles],
+}))
+
 export const MOCK_TEMPLATE_ROSTER: Readonly<Record<TeamTemplateId, readonly MockPersonaDraft[]>> = {
-  equipeAnimais: [
-    { name: 'Atlas', role: 'Coordenação' },
-    { name: 'Bento', role: 'Desenvolvimento' },
-    { name: 'Nina', role: 'Pesquisa' },
-  ],
+  equipeAnimais: GALLERY_SUGGESTED_DRAFTS,
   startup: [
     { name: 'Lead', role: 'Produto' },
     { name: 'Dev', role: 'Engenharia' },

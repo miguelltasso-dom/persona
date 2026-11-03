@@ -6,6 +6,7 @@ import { bootstrapPersonaTenant, hostReportsFirstUse, type TenantBootstrapRemote
 import { shouldWriteCacheComplete } from './onboarding-host.ts'
 import { galleryRefForRosterPerson, seedDevTeamIfEmpty, type OnboardingRosterPerson } from './seed-default-team.ts'
 import { writeOnboardingCacheComplete } from '../shell/onboarding-persistence.ts'
+import { applyMessageStreamFrame, type MessageStreamFrame } from './apply-message-stream.ts'
 import { mapTaskToKanbanCard } from './map-host-ui.ts'
 import type { KanbanCardModel } from '../kanban/types.ts'
 import type { OverviewView as HostOverviewView, PersonaTenantScope, TeamView } from './persona-remote-types.ts'
@@ -74,6 +75,18 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     afterSeq: number
     limit: number
   }): { events: readonly import('./persona-remote-types.ts').MessageView[] }
+  followMessages?(
+    request: {
+      workspaceId: string
+      projectId: string
+      streamKind: 'channel'
+      ownerId: string
+      actorId: string
+      afterSeq: number
+      limit: number
+    },
+    signal: AbortSignal,
+  ): AsyncIterable<MessageStreamFrame>
   postMessage(request: {
     id: string
     workspaceId: string
@@ -128,6 +141,42 @@ function slugId(name: string, index: number): string {
 export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore {
   const store = createSnapshotStore<PersonaLiveSnapshot>(EMPTY)
   let tenant: PersonaTenantScope | null = null
+  let messageStreamAbort: AbortController | null = null
+
+  const stopMessageStream = (): void => {
+    messageStreamAbort?.abort()
+    messageStreamAbort = null
+  }
+
+  const startMessageStream = (): void => {
+    if (tenant === null || remote.followMessages === undefined) return
+    stopMessageStream()
+    const scope = tenant
+    const ac = new AbortController()
+    messageStreamAbort = ac
+    void (async () => {
+      try {
+        const stream = remote.followMessages!({
+          workspaceId: scope.workspaceId,
+          projectId: scope.projectId,
+          streamKind: 'channel',
+          ownerId: scope.channelId,
+          actorId: scope.memberId,
+          afterSeq: 0,
+          limit: 200,
+        }, ac.signal)
+        for await (const frame of stream) {
+          if (ac.signal.aborted) break
+          const snap = store.getSnapshot()
+          if (snap.team === null) continue
+          const messages = applyMessageStreamFrame(snap.messages, frame, snap.team, scope.memberId)
+          store.set({ ...snap, messages })
+        }
+      } catch {
+        /* stream closed */
+      }
+    })()
+  }
 
   const refresh = async (): Promise<void> => {
     if (tenant === null) return
@@ -187,6 +236,7 @@ export function createPersonaLiveStore(remote: PersonaRemote): PersonaLiveStore 
       }
       onFirstUse(firstUse)
       await refresh()
+      startMessageStream()
       if (tenant !== null) {
         try {
           remote.markVisit(tenant)

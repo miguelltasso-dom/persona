@@ -19,6 +19,7 @@ import { PersonaAppFrame } from './shell/PersonaAppFrame.tsx'
 import { PersonaSidebar } from './shell/PersonaSidebar.tsx'
 import { createShellStore, type ShellStoreHandle } from './shell/create-shell-store.ts'
 import { overlayOpenFromHost } from './remote/onboarding-host.ts'
+import { rosterFromDrafts } from './onboarding/roster-from-draft.ts'
 import { writeOnboardingCacheComplete } from './shell/onboarding-persistence.ts'
 import { installPersonaColorScheme } from './theme/install-color-scheme.ts'
 
@@ -89,7 +90,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       dismissOnboarding: () => {
         const snapshot = onboardingHandle.store.getSnapshot()
         actions.dismissOnboarding()
-        void live.completeOnboarding(snapshot.displayName, snapshot.roster).then(() => {
+        void live.completeOnboarding(snapshot.displayName, rosterFromDrafts(snapshot.roster)).then(() => {
           writeOnboardingCacheComplete()
           void live.refresh()
         })

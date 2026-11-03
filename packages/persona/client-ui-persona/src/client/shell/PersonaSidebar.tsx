@@ -153,7 +153,7 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
                   onClick={() => { setMoreOpen(open => !open) }}
                 >
                   {t(group.labelKey)}
-                  <UiIcon name="chevronDown" size={14} strokeWidth={2.4} className={styles.chevron} />
+                  <UiIcon name="chevronDown" size={14} strokeWidth={2.4} className={styles.chevron ?? ''} />
                 </button>
               ) : (
                 <p className={styles.groupLabel}>{t(group.labelKey)}</p>
@@ -169,7 +169,7 @@ export function PersonaSidebar({ t, useShell, selectPanel, renderSlot }: Persona
                         aria-current={shell.activePanel === item.panel ? 'page' : undefined}
                         onClick={() => { selectPanel(item.panel) }}
                       >
-                        <BrandIcon name={item.icon} size={20} className={styles.navIcon} />
+                        <BrandIcon name={item.icon} size={20} className={styles.navIcon ?? ''} />
                         <span className={styles.navLabel}>{t(item.labelKey)}</span>
                       </button>
                     </li>

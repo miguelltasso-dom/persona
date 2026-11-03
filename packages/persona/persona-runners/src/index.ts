@@ -46,6 +46,7 @@ export {
 } from './port.ts'
 
 export { createFakeRunner, type FakeDelivery, type FakeRunner, type FakeRunnerOptions, type FakeSessionSnapshot } from './fake.ts'
+export { createDefaultHostRunner, createOpencodeHostRunner } from './host-runner.ts'
 
 export {
   createDshSessionRunner,

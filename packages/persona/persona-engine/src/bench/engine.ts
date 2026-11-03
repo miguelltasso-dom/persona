@@ -71,7 +71,7 @@ function viewHost(repo: MemoryRepositories): ViewHost {
     now: () => '2026-01-02T00:00:00.000Z',
     canReadTicket: () => true,
     canReadThread: () => true,
-    maxWorkers: 4,
+    load: { running: 0, queued: 0, maxWorkers: 4 },
   }
 }
 

@@ -159,7 +159,6 @@ it('requestChanges reatribui com feedback e não muda o Mandate', async () => {
     engine: h.engine,
     ticketOf: id => h.repo.tickets.get(id),
   })
-  h.engine.report(ticket.id, { state: 'ready', summary: 'para revisar' })
   await delivery.requestChanges(ticket, 'Ajusta o título. Não abra a empresa inteira neste Mandate.')
   const after = h.repo.tickets.get(ticket.id)!
   expect(after.mandate.scope).toBe(scope)

@@ -82,6 +82,12 @@ it('ships the five required templates, with Atlas coordinating and Luna watching
   expect(TEAM_TEMPLATES.map(template => template.id)).toEqual([
     'suggested-animals',
     'software-startup',
+    'software-dev',
+    'content-marketing',
+    'research',
+    'customer-support',
+    'study',
+    'personal-org',
     'agency',
     'office',
     'blank',

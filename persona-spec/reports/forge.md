@@ -4,6 +4,47 @@ Mais recente no topo.
 
 ---
 
+## 03/11 16:10 — ReviewDelivery + eval F3 + equipes-modelo
+
+### O que ficou pronto
+- **ReviewDelivery** (git no PATH, argv, sem shell): `prepare` worktree/branch `persona/<id>` (`confinePath`, longpaths); `summary` arquivos +/− + patch teto + testes citados + segredos redigidos; `accept` ff/squash, conflito aborta e bloqueia (nunca meio-merge); `requestChanges` nota + reassignment, Mandate imutável; `discard`; `sweepOrphans` na retomada. Sem push. Contrato `persona-spec/contracts/review-delivery.md` (Anvil Remote / Lumen painel Revisar).
+- **F3 eval da Coordenação:** 41 cenários pt-BR; fake determinístico no CI (41/41); CLI real só com `PERSONA_REAL_CLI=1` (≤10). Ablação batch/pass-through no mesmo relatório. `persona-spec/reports/bench-router-eval.md`. Sem otimizar. CLI real: não rodou.
+- **Biblioteca de equipes** (8 modelos de onboarding): software-dev, conteúdo, pesquisa, suporte, estudos, pessoal, agência, escritório. Funções, não nomes Atlas/Router. Autonomia padrão = propor. Snapshot das instruções. Muse mapeia avatares; Prism usa no passo da equipe.
+
+### Arquivos
+- `packages/persona/persona-engine/src/review/*`, `src/bench/coord-eval.ts` + testes
+- `packages/persona/persona-core/src/domain/{onboarding-teams,templates,schemas}.ts` + `tests/team-library.spec.ts`
+- `persona-spec/contracts/review-delivery.md`, `persona-spec/reports/bench-router-eval.md`
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 6.3s
+persona-engine: OK in 7.3s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-core packages/persona/persona-engine
+ Test Files  70 passed (70)
+      Tests  432 passed (432)
+   Start at  16:08:21
+   Duration  18.19s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 37.2s
+```
+
+### Limitações
+- `GitReviewDelivery` não faz push; o host chama `sweepOrphans` no resume.
+- 100% do corpus é o fake do CI, não um modelo. CLI real não rodou (`PERSONA_REAL_CLI` ausente).
+- `suggested-animals` continua com nomes Atlas/Bento (template inicial já existente; onboarding novo não usa).
+- Fila vazia no território Forge.
+
+---
+
 ## 03/11 16:00 — Endurecimento (security / properties / retention / bench / guia)
 
 ### O que ficou pronto

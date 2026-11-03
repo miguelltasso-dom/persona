@@ -54,7 +54,7 @@ export interface CoordEvalReport {
 
 const WORK = /\b(implemente|corrija|escreva|adicione|crie|arrume|refatore)\b/i
 const THANKS = /^(obrigad[oa]|valeu|ok|oi|olá)[.!]?$/i
-const INJECT = /ignore (all |todas as )?pol[ií]ticas|enlarge the mandate|você é o dono/i
+const INJECT = /ignore (all |todas as )?(pol[ií]ticas|policies)|enlarge the mandate|você é o dono/i
 const BIGGER = /empresa inteira|todos os projetos|cofre todo|escopo (maior|ampliado)/i
 const OUT = /hackeie|senha do banco|vazue credencial|fora da empresa/i
 const HANDOFF = /passa (isso |a tarefa )?para|entregue para a colega/i

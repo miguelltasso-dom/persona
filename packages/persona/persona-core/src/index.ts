@@ -42,6 +42,7 @@ export type {
 export {
   DomainError,
   REQUIRED_VAULT_KINDS,
+  ONBOARDING_TEMPLATE_IDS,
   TEAM_TEMPLATES,
   admitTrigger,
   applySkillEval,

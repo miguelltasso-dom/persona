@@ -121,7 +121,7 @@ export type { AgedMemory, MemoryLayer } from './aging.ts'
 
 export { markdownToVault, memoryToMarkdown, vaultToMarkdown } from './markdown.ts'
 
-export { TEAM_TEMPLATES, teamTemplateById } from './templates.ts'
+export { ONBOARDING_TEMPLATE_IDS, TEAM_TEMPLATES, teamTemplateById } from './templates.ts'
 
 export {
   applyGrant,

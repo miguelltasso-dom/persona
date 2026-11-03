@@ -86,7 +86,7 @@ export class GitReviewDelivery implements ReviewDelivery {
 
   constructor(private readonly options: GitReviewOptions) {
     this.git = options.git ?? 'git'
-    this.baseBranch = options.baseBranch ?? 'HEAD'
+    this.baseBranch = options.baseBranch ?? 'main'
     this.patchLimit = options.patchLimitBytes ?? REVIEW_PATCH_LIMIT_BYTES
   }
 
@@ -120,10 +120,10 @@ export class GitReviewDelivery implements ReviewDelivery {
     const num = await runGit(this.git, ['-C', dest, 'diff', '--numstat', this.baseBranch], dest)
     const files = parseNumstat(num.stdout)
     const raw = await runGit(this.git, ['-C', dest, 'diff', this.baseBranch], dest)
-    let patch = raw.stdout
+    const redacted = redactSecrets(raw.stdout)
+    let patch = redacted.text
     const truncated = Buffer.byteLength(patch, 'utf8') > this.patchLimit
     if (truncated) patch = Buffer.from(patch, 'utf8').subarray(0, this.patchLimit).toString('utf8')
-    const redacted = redactSecrets(patch)
     const latest = ticket.assignments.at(-1)?.report?.summary
     return {
       ticketId,
@@ -155,11 +155,13 @@ export class GitReviewDelivery implements ReviewDelivery {
       await runGit(this.git, ['-C', root, 'merge', '--abort'], root)
       await runGit(this.git, ['-C', root, 'reset', '--merge'], root)
       const explanation = result.stderr.trim() || result.stdout.trim() || 'conflito no merge'
-      await this.options.engine?.report(ticketId, {
-        state: 'blocked',
-        summary: explanation,
-        question: `Não deu para integrar a Tarefa. ${explanation}`,
-      })
+      if (this.options.ticketOf?.(ticketId) !== undefined) {
+        await this.options.engine?.report(ticketId, {
+          state: 'blocked',
+          summary: explanation,
+          question: `Não deu para integrar a Tarefa. ${explanation}`,
+        })
+      }
       return { kind: 'blocked', explanation }
     }
     if (mode === 'squash') {

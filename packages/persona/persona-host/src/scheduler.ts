@@ -82,7 +82,7 @@ export class HostScheduler {
    * @param projectId - Tenant.
    * @param force - Skip the quiet-window check (tests / explicit user action).
    */
-  tickRetention(projectId: string, force = false): RetentionLogView[] {
+  tickRetention(projectId: string, force: boolean = false): RetentionLogView[] {
     const policy = this.getPolicy(projectId)
     if (!force && !inQuietWindow(this.nowMs(), policy.quietStart, policy.quietEnd)) return []
     const enginePolicy = policy.archiveOnly

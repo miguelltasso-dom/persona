@@ -158,6 +158,12 @@ export type VaultRecord = z.infer<typeof vaultRecordSchema>
 export const teamTemplateIdSchema = z.enum([
   'suggested-animals',
   'software-startup',
+  'software-dev',
+  'content-marketing',
+  'research',
+  'customer-support',
+  'study',
+  'personal-org',
   'agency',
   'office',
   'blank',

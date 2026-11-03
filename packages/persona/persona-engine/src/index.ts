@@ -47,6 +47,37 @@ export type { RouterBenchCounts, RouterBenchResult } from './bench/router.ts'
 export { formatEngineBenchReport, runEngineBench } from './bench/engine.ts'
 export type { EngineBenchPhase, EngineBenchResult, EngineBenchSizes } from './bench/engine.ts'
 export {
+  COORD_SCENARIOS,
+  decideFake,
+  formatCoordEvalReport,
+  runCoordEval,
+} from './bench/coord-eval.ts'
+export type {
+  CoordClass,
+  CoordDecision,
+  CoordEvalCell,
+  CoordEvalReport,
+  CoordScenario,
+} from './bench/coord-eval.ts'
+export {
+  GitReviewDelivery,
+  REVIEW_BRANCH_PREFIX,
+  REVIEW_PATCH_LIMIT_BYTES,
+  confineWorktreeWrite,
+  looksLikeCredential as reviewLooksLikeCredential,
+  redactSecrets,
+  testsClaimedOf,
+} from './review/index.ts'
+export type {
+  GitReviewOptions,
+  MergeMode,
+  ReviewAcceptResult,
+  ReviewDelivery,
+  ReviewFileChange,
+  ReviewSummary,
+  ReviewWorktree,
+} from './review/index.ts'
+export {
   DAY_MS,
   DEFAULT_RETENTION,
   MemoryRetention,

@@ -35,6 +35,13 @@ const onData = async (chunk) => {
     const all = globalThis.__all = []
     for (const scheme of ['light', 'dark']) {
       const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: scheme, locale: 'pt-BR' })
+      if (scheme === 'dark') {
+        await context.addInitScript(() => {
+          const apply = () => { document.body?.setAttribute('data-ds-dark-theme', 'true') }
+          if (document.body) apply()
+          else document.addEventListener('DOMContentLoaded', apply, { once: true })
+        })
+      }
       const page = await context.newPage()
       page.on('console', (m) => { if (scheme === 'light') all.push(`${m.type()}: ${m.text().slice(0, 900)}`); if (m.type() === 'error') errors.push(`[${scheme}] ${m.text().slice(0, 300)}`) })
       page.on('pageerror', (e) => errors.push(`[${scheme}] pageerror ${String(e).slice(0, 300)}`))

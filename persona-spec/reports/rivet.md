@@ -4,6 +4,87 @@ Mais recente no topo.
 
 ---
 
+## 03/11 16:58 — S4 draft + legal NOTICE + ai-memory flag + D8 package-win ✔
+
+### O que ficou pronto
+- **S4:** `createDraftDriver` + `DRAFT_PERSONA_PROMPT`. Runner fake/scripted devolve JSON; sanitiza `systemRoles: []`, `canRecruit: false`, tools implícitas vazias. Sem coordenador no onboarding: `fallbackDraft` determinístico. Anvil pode trocar o draft do host por esta fábrica.
+- **Legal (D-017):** NOTICE em runners/vault/usage (OAR Apache-2.0 + engine NOTICE). Desktop `PERSONA_DESKTOP_NOTICES` (DeepSeek MIT, OAR, engine). `wrangler`/`miniflare`/`workerd` só em `EDGE_ONLY_NOTICES` (persona-edge). Não toquei `scripts/gen-third-party-notices.ts`.
+- **ai-memory:** `PERSONA_AI_MEMORY` padrão off; `createDisabledAiMemory` / `createFakeAiMemory` / `createAiMemory`. Sem binário, sem cota.
+- **D8:** `apps/desktop/scripts/package-win.mjs` + `package:win`. Só `--check` (nunca admin install). Bloqueado: vswhere ausente + `LongPathsEnabled=0`.
+
+### Arquivos
+- `packages/persona/persona-runners/src/{draft/driver,memory/ai-memory,plugin,index}.ts`
+- `packages/persona/persona-runners/tests/draft-ai-memory.spec.ts`
+- `packages/persona/{persona-runners,persona-vault,persona-usage}/NOTICE`
+- `apps/desktop/src/legal-notices.ts` + `apps/desktop/tests/legal-notices.spec.ts`
+- `apps/desktop/scripts/package-win.mjs` + `apps/desktop/package.json` (`package:win`)
+- `persona-spec/contracts/runner.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/draft-ai-memory.spec.ts packages/persona/persona-runners/tests/plugin-composition.spec.ts apps/desktop/tests/legal-notices.spec.ts
+ Test Files  3 passed (3)
+      Tests  6 passed (6)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 12.2s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 37.3s
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0, sem linhas)
+```
+
+```
+node --import tsx/esm apps/desktop/scripts/package-win.mjs
+{
+  "mode": "check",
+  "unsigned": true,
+  "adminInstall": false,
+  "vswhere": { "ok": false, "detail": "vswhere.exe not found (E4: VS C++ Build Tools)" },
+  "longPaths": { "ok": false, "detail": "LongPathsEnabled=0" },
+  "blocked": true,
+  "next": "Atlas/Miguel: E4 VS Build Tools + E5 LongPathsEnabled=1 / Developer Mode"
+}
+(exit 2)
+```
+
+### Fora / dúvidas
+- Anvil: ligar `createDraftDriver` no host (`draftPersona`/`draftTeam`).
+- D8 `:dir`/NSIS bloqueado em E4/E5 (Miguel/Atlas). Wrapper não instala.
+- Re-smoke D9 autenticado ainda pendente (cota).
+- Sigo: E4 observe-gate + D7 trilha de auditoria + E7 token de convite no cofre (máquina local).
+
+---
+
+## 03/11 16:52 — ícones desktop Persona (Brush) ✔
+
+### O que ficou pronto
+- SVG da marca Brush (lilás + Atlas) em `icon.svg` / `icon-windows.svg` / `icon-macos.svg` com `tray-glyph`.
+- `render:tray-icon` gera tray ICO (16–64) e PNG 1024 (windows/macos/app).
+
+### Arquivos
+- `apps/desktop/resources/{icon,icon-windows,icon-macos}.svg` + `.png` + `tray-windows.ico`
+- `apps/desktop/scripts/render-tray-icon.ts`
+
+### Comandos
+```
+pnpm --filter @deepseek-ai/dsh-desktop run render:tray-icon
+pnpm exec vitest run apps/desktop/tests/tray-icon.spec.ts apps/desktop/tests/installer-packaging.spec.ts
+ Test Files  2 passed (2) / Tests  9 passed (9)
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit  → limpo
+```
+
+---
+
 ## 03/11 16:48 — locale.ts DesktopMessages (8 idiomas) ✔
 
 ### O que ficou pronto

@@ -16,6 +16,7 @@ import {
   type ResolvedCredential,
 } from '@deepseek-ai/dsh-credentials'
 import { createMemoryCipher, type VaultCipher } from './cipher.ts'
+import { dropInviteToken, openInviteToken, sealInviteToken } from './invite-token.ts'
 import { createPersonaVault, type PersonaVault } from './vault.ts'
 
 export interface Config {
@@ -47,6 +48,9 @@ export default class PersonaVaultProvider extends CredentialProvider {
   readonly config: Config
   readonly vault: PersonaVault
   readonly cipher: VaultCipher
+  readonly sealInviteToken: (inviteId: string, token: string) => Promise<void>
+  readonly openInviteToken: (inviteId: string) => Promise<string | undefined>
+  readonly dropInviteToken: (inviteId: string) => Promise<void>
   private readonly refs: Map<string, string> = new Map()
   private readonly records: Map<string, CredentialRecord> = new Map()
 
@@ -59,6 +63,9 @@ export default class PersonaVaultProvider extends CredentialProvider {
     this.config = config
     this.cipher = createMemoryCipher()
     this.vault = createPersonaVault(this.cipher)
+    this.sealInviteToken = (inviteId: string, token: string) => sealInviteToken(this.vault, inviteId, token)
+    this.openInviteToken = (inviteId: string) => openInviteToken(this.vault, inviteId)
+    this.dropInviteToken = (inviteId: string) => dropInviteToken(this.vault, inviteId)
     ctx.provide('personaVault', this)
   }
 

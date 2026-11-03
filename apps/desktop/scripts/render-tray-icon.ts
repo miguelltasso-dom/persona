@@ -1,11 +1,11 @@
 /**
- * Render the Windows tray icon with an enlarged whale from `resources/icon-windows.svg`.
+ * Render Persona app and tray icons from `resources/icon-windows.svg`.
  *
  * The tray shows the icon at 16 logical pixels, so Windows picks one of the
  * bundled bitmaps by display scale. Each size is rasterized from the vector
  * source separately instead of downscaling one large bitmap, which keeps edges
- * crisp at every scale. The committed `resources/tray-windows.ico` is the output;
- * rerun `pnpm run render:tray-icon` in `apps/desktop` after changing the vector source.
+ * crisp at every scale. Rerun `pnpm run render:tray-icon` in `apps/desktop`
+ * after changing the vector source.
  */
 
 import { readFile, writeFile } from 'node:fs/promises'
@@ -16,10 +16,13 @@ import sharp from 'sharp'
 /** Bitmap edge lengths bundled in the tray icon: 16 px at 100 % through 400 % display scale. */
 export const TRAY_ICON_SIZES = [16, 20, 24, 32, 40, 48, 64] as const
 
-/** Vector source and committed output of the tray icon. */
+/** Vector source and committed icon outputs. */
 export const TRAY_ICON_PATHS = {
   source: fileURLToPath(new URL('../resources/icon-windows.svg', import.meta.url)),
   output: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)),
+  windowsPng: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)),
+  macosPng: fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)),
+  appPng: fileURLToPath(new URL('../resources/icon.png', import.meta.url)),
 } as const
 
 /** Coordinate space of the vector source; sharp's SVG density is scaled against it. */
@@ -101,8 +104,8 @@ export async function renderTrayIconEntries(svg: Buffer, sizes: readonly number[
   const source = svg.toString('utf8')
   const glyph = '<g id="tray-glyph"'
   if (!source.includes(glyph)) throw new Error('tray icon: SVG requires a tray-glyph group')
-  // Scale around the application tile center, retaining its background and the whale's aspect ratio.
-  const tray = Buffer.from(source.replace(glyph, `${glyph} transform="translate(552 544) scale(1.2) translate(-552 -544)"`))
+  // Scale around the application tile center, retaining its background and the mark's aspect ratio.
+  const tray = Buffer.from(source.replace(glyph, `${glyph} transform="translate(512 512) scale(1.15) translate(-512 -512)"`))
   return Promise.all(sizes.map(async size => ({
     size,
     png: await sharp(tray, { density: SOURCE_DENSITY * size / SOURCE_EDGE }).resize(size, size).png().toBuffer(),
@@ -115,8 +118,13 @@ function pngDimensions(png: Buffer): { width: number; height: number } {
 }
 
 async function main(): Promise<void> {
-  const entries = await renderTrayIconEntries(await readFile(TRAY_ICON_PATHS.source))
+  const svg = await readFile(TRAY_ICON_PATHS.source)
+  const entries = await renderTrayIconEntries(svg)
   await writeFile(TRAY_ICON_PATHS.output, packIco(entries))
+  const png = await sharp(svg, { density: SOURCE_DENSITY }).resize(1024, 1024).png().toBuffer()
+  await writeFile(TRAY_ICON_PATHS.windowsPng, png)
+  await writeFile(TRAY_ICON_PATHS.macosPng, png)
+  await writeFile(TRAY_ICON_PATHS.appPng, png)
   console.info(`tray icon: wrote ${TRAY_ICON_PATHS.output} with ${entries.map(entry => String(entry.size)).join(', ')} px bitmaps`)
 }
 

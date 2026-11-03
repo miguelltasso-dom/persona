@@ -87,10 +87,17 @@ export {
   createWatchdogDriver,
   WATCHDOG_SESSION_ID,
   type ClaimDue,
+  type WatchdogAuditEntry,
   type WatchdogDriver,
   type WatchdogDriverOptions,
   type WatchdogPersona,
 } from './watchdog/driver.ts'
+export { withObserveGate, type ObserveGate, type ObserveGateOptions } from './proactivity/observe.ts'
+export {
+  WrongMachineError,
+  assertLocalPersonaMachine,
+  isLocalPersonaMachine,
+} from './invite/local-machine.ts'
 
 export {
   INFRA_BACKOFF_MS,
@@ -127,6 +134,24 @@ export {
   type LazinessSuiteOptions,
   type RunnerLazinessHint,
 } from './proactivity/laziness.ts'
+export {
+  DRAFT_PERSONA_PROMPT,
+  createDraftDriver,
+  fallbackDraft,
+  type DraftDriver,
+  type DraftDriverOptions,
+  type PersonaDraft,
+} from './draft/driver.ts'
+export {
+  AI_MEMORY_FLAG,
+  aiMemoryEnabled,
+  createAiMemory,
+  createDisabledAiMemory,
+  createFakeAiMemory,
+  type AiMemoryCapture,
+  type AiMemoryClient,
+  type AiMemoryHandoff,
+} from './memory/ai-memory.ts'
 export { createOarRunner, requireExplicitPermission, type OarRunnerOptions } from './oar/adapter.ts'
 export { createOarSessionRunner, type OarSessionOptions } from './oar/session.ts'
 export { CLAUDE_CAPABILITIES, createClaudeRunner, type ClaudeRunnerOptions } from './oar/claude.ts'

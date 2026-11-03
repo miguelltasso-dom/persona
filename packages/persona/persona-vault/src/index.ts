@@ -22,3 +22,10 @@ export {
   type PersonaVaultSnapshot,
   type VaultConnection,
 } from './vault.ts'
+
+export {
+  INVITE_TOKEN_PROVIDER,
+  dropInviteToken,
+  openInviteToken,
+  sealInviteToken,
+} from './invite-token.ts'

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  INVITE_TOKEN_PROVIDER,
   assertNoPlaintextSecrets,
   createIpcVaultCipher,
   createMemoryCipher,
   createPersonaVault,
+  dropInviteToken,
+  openInviteToken,
   PACKAGE_VAULT,
+  sealInviteToken,
   VAULT_SCOPE,
 } from '../src/index.ts'
 
@@ -45,5 +49,15 @@ describe('persona-vault', () => {
     expect(vault.list().connections[0]?.sealed).toBe('sealed:key-nina')
     expect(await vault.get('nina', 'dsh')).toBe('key-nina')
     expect(calls).toEqual(['seal', 'open'])
+  })
+
+  it('seals invite tokens without leaving plaintext in the snapshot', async () => {
+    const vault = createPersonaVault(createMemoryCipher())
+    await sealInviteToken(vault, 'inv-1', 'tok-live-invite')
+    expect(vault.list().connections[0]?.provider).toBe(INVITE_TOKEN_PROVIDER)
+    expect(() => assertNoPlaintextSecrets(vault.list(), ['tok-live-invite'])).not.toThrow()
+    expect(await openInviteToken(vault, 'inv-1')).toBe('tok-live-invite')
+    await dropInviteToken(vault, 'inv-1')
+    expect(await openInviteToken(vault, 'inv-1')).toBeUndefined()
   })
 })

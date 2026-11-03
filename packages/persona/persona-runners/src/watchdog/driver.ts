@@ -4,8 +4,13 @@
  */
 
 import {
+  vigiaTick,
   watchdogSignals,
   watchdogWarnings,
+  type VigiaAction,
+  type VigiaAudit,
+  type VigiaRules,
+  type VigiaSnapshot,
   type WatchdogSnapshot,
   type WatchdogWarning,
 } from '@deepseek-ai/dsh-persona-engine'
@@ -22,6 +27,16 @@ export interface WatchdogPersona {
 /** Anvil `RoutineRepos.claimDue` — injected so runners stay free of the store. */
 export type ClaimDue = (projectId: string, leaseUntil: string) => readonly { id: string }[]
 
+export interface WatchdogAuditEntry {
+  version: number
+  ruleVersion: number
+  at: string
+  warnings: readonly WatchdogWarning[]
+  actions: readonly VigiaAction[]
+  audit: readonly VigiaAudit[]
+  adjustment: string
+}
+
 export interface WatchdogDriverOptions {
   runner: Runner
   persona: WatchdogPersona
@@ -29,6 +44,8 @@ export interface WatchdogDriverOptions {
   projectId: string
   claimDue: ClaimDue
   snapshot: () => WatchdogSnapshot
+  vigia?: () => VigiaSnapshot
+  rules?: VigiaRules
   now?: () => string
 }
 
@@ -36,6 +53,7 @@ export interface WatchdogDriver {
   sessionId: string
   start(): Promise<void>
   tick(leaseUntil: string): Promise<WatchdogWarning[]>
+  audit(): readonly WatchdogAuditEntry[]
 }
 
 /**
@@ -45,6 +63,10 @@ export interface WatchdogDriver {
  */
 export function createWatchdogDriver(options: WatchdogDriverOptions): WatchdogDriver {
   const now = options.now ?? (() => new Date().toISOString())
+  const trail: WatchdogAuditEntry[] = []
+  let version = 0
+  let ruleVersion = 1
+  let lastRules = JSON.stringify(options.rules ?? { noProgressMs: 600_000, loopCount: 3 })
   return {
     sessionId: WATCHDOG_SESSION_ID,
     start: async () => {
@@ -53,11 +75,40 @@ export function createWatchdogDriver(options: WatchdogDriverOptions): WatchdogDr
     tick: async (leaseUntil: string) => {
       const due = options.claimDue(options.projectId, leaseUntil)
       if (due.length === 0) return []
-      const warnings = watchdogWarnings(watchdogSignals(options.snapshot()))
-      if (warnings.length === 0) return []
-      const text = warnings.map(item => `${item.kind} ${item.subjectId}: ${item.detail}`).join('\n')
+      const snapshot = options.snapshot()
+      const warnings = watchdogWarnings(watchdogSignals(snapshot))
+      const vigia = options.vigia === undefined ? undefined : vigiaTick(options.vigia(), options.rules)
+      const actions = vigia?.actions ?? []
+      const audit = vigia?.audit ?? []
+      const merged = vigia === undefined
+        ? warnings
+        : watchdogWarnings([...watchdogSignals(snapshot), ...vigia.signals])
+      if (merged.length === 0 && actions.length === 0) return []
+      const rulesKey = JSON.stringify(options.rules ?? { noProgressMs: 600_000, loopCount: 3 })
+      if (rulesKey !== lastRules) {
+        ruleVersion += 1
+        lastRules = rulesKey
+      }
+      version += 1
+      const adjustment = actions.map(item => `${item.kind}:${item.subjectId}`).join(',')
+        || merged.map(item => item.kind).join(',')
+      trail.push({
+        version,
+        ruleVersion,
+        at: now(),
+        warnings: merged,
+        actions,
+        audit,
+        adjustment,
+      })
+      const text = [
+        `audit v${String(version)} rules=${String(ruleVersion)}`,
+        ...merged.map(item => `${item.kind} ${item.subjectId}: ${item.detail}`),
+        ...actions.map(item => `action ${item.kind} ${item.subjectId}: ${item.detail}`),
+      ].join('\n')
       await options.runner.deliver(WATCHDOG_SESSION_ID, `watchdog:${now()}`, text, 'queue')
-      return warnings
+      return merged
     },
+    audit: () => trail,
   }
 }

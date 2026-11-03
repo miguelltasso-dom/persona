@@ -15,6 +15,9 @@ import { createGoalContinueDriver, type GoalContinueDriver, type GoalContinueOpt
 import { executorPrompt, type ExecutorPersona } from './proactivity/owner-prompt.ts'
 import { runLazinessSuite, type LazinessSuiteOptions, type RunnerLazinessHint } from './proactivity/laziness.ts'
 import { withInfraRecovery, type InfraRecoveryOptions } from './proactivity/recovery.ts'
+import { withObserveGate, type ObserveGate, type ObserveGateOptions } from './proactivity/observe.ts'
+import { createDraftDriver, type DraftDriver, type DraftDriverOptions } from './draft/driver.ts'
+import { createAiMemory, type AiMemoryClient } from './memory/ai-memory.ts'
 import type { AvailableInstallation, Runtime } from '@botiverse/oar'
 import type { Runner } from './contract.ts'
 
@@ -52,8 +55,11 @@ export default class PersonaRunners extends Service {
   readonly createCursorRunner: (options: OarFactoryOptions) => Runner
   readonly createGoalContinueDriver: (options: GoalContinueOptions) => GoalContinueDriver
   readonly withInfraRecovery: (inner: Runner, options?: InfraRecoveryOptions) => Runner
+  readonly withObserveGate: (inner: Runner, options: ObserveGateOptions) => ObserveGate
   readonly executorPrompt: (persona: ExecutorPersona) => string
   readonly runLazinessSuite: (options?: LazinessSuiteOptions) => Promise<RunnerLazinessHint>
+  readonly createDraftDriver: (options: DraftDriverOptions) => DraftDriver
+  readonly createAiMemory: (options?: { enabled?: boolean; client?: AiMemoryClient }) => AiMemoryClient
 
   /**
    * @param ctx - Host context.
@@ -73,7 +79,10 @@ export default class PersonaRunners extends Service {
     this.createCursorRunner = createCursorRunner
     this.createGoalContinueDriver = createGoalContinueDriver
     this.withInfraRecovery = withInfraRecovery
+    this.withObserveGate = withObserveGate
     this.executorPrompt = executorPrompt
     this.runLazinessSuite = runLazinessSuite
+    this.createDraftDriver = createDraftDriver
+    this.createAiMemory = createAiMemory
   }
 }

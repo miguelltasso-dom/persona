@@ -1,0 +1,10 @@
+Persona vault (`@deepseek-ai/dsh-persona-vault`)
+
+Copyright (c) 2026 Persona contributors
+
+Part of Persona, based on DeepSeek Harness (MIT).
+Stores credentials as sealed blobs (DPAPI on Windows). No third-party
+runtime besides the Host CredentialProvider contract.
+
+DeepSeek Harness: MIT — see the repository LICENSE.
+OAR and Cloudflare workers are not dependencies of this package.

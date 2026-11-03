@@ -13,6 +13,7 @@ import {
   runLazinessSuite,
   scoreLazinessScenario,
   withInfraRecovery,
+  withObserveGate,
   type DshBoundSession,
   type RunEvent,
   type StartTurnInput,
@@ -154,5 +155,49 @@ describe('PRO-3 owner norms and laziness suite', () => {
     await expect(runLazinessSuite()).rejects.toThrow(/PERSONA_REAL_CLI/u)
     if (previous === undefined) delete process.env.PERSONA_LAZINESS_REAL
     else process.env.PERSONA_LAZINESS_REAL = previous
+  })
+})
+
+describe('E4 observe gate', () => {
+  it('records would-do and never starts the inner runner in observe mode', async () => {
+    const inner = createScriptedRunner({
+      turns: [{ events: [{ type: 'delta', at: 't', text: 'should not run' }] }],
+    })
+    const gate = withObserveGate(inner, {
+      rule: { id: 'r-obs', enabled: true, mode: 'observe' },
+      now: () => new Date('2026-11-03T17:00:00.000Z'),
+    })
+    const handle = await gate.runner.start(base)
+    const events = await collect(gate.runner.stream(handle))
+    expect(gate.observed).toEqual([{ ruleId: 'r-obs', would: 'start:a-pro Finish the mandate' }])
+    expect(events.map(item => item.type)).toEqual(['started', 'report', 'ended'])
+    expect(events.some(item => item.type === 'delta')).toBe(false)
+    expect(events.at(-1)).toMatchObject({ type: 'ended', report: { state: 'waiting' } })
+  })
+
+  it('keeps speculative work observe-only even when the rule is auto', async () => {
+    const inner = createScriptedRunner({
+      turns: [{ events: [{ type: 'delta', at: 't', text: 'ran' }] }],
+    })
+    const gate = withObserveGate(inner, {
+      rule: { id: 'r-auto', enabled: true, mode: 'auto' },
+      autonomy: 'act',
+      speculative: true,
+    })
+    await gate.runner.start(base)
+    expect(gate.observed).toHaveLength(1)
+  })
+
+  it('forwards to the inner runner when the rule is auto and not speculative', async () => {
+    const inner = createScriptedRunner({
+      turns: [{ events: [{ type: 'delta', at: 't', text: 'ran' }] }],
+    })
+    const gate = withObserveGate(inner, {
+      rule: { id: 'r-run', enabled: true, mode: 'auto' },
+    })
+    const handle = await gate.runner.start(base)
+    const events = await collect(gate.runner.stream(handle))
+    expect(gate.observed).toEqual([])
+    expect(events.some(item => item.type === 'delta' && item.text === 'ran')).toBe(true)
   })
 })

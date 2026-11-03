@@ -1,0 +1,10 @@
+Persona usage (`@deepseek-ai/dsh-persona-usage`)
+
+Copyright (c) 2026 Persona contributors
+
+Part of Persona, based on DeepSeek Harness (MIT).
+Reads official quota from OAR `accountUsage` / Codex rollouts when present.
+Those readers do not vendor OAR; the runner package does.
+
+DeepSeek Harness: MIT — see the repository LICENSE.
+wrangler / miniflare / workerd belong only to `apps/persona-edge`.

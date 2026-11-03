@@ -1,0 +1,13 @@
+Persona runners (`@deepseek-ai/dsh-persona-runners`)
+
+Copyright (c) 2026 Persona contributors
+
+This package is part of Persona, based on DeepSeek Harness (MIT).
+It embeds `@botiverse/oar` 0.67.0 (Apache License 2.0) as the CLI runtime
+adapter for Claude Code, Codex, OpenCode, and Cursor.
+
+OAR: https://github.com/botiverse/oar — Apache-2.0
+DeepSeek Harness: MIT — see the repository LICENSE.
+
+Cloudflare wrangler / miniflare / workerd are NOT dependencies of this
+package; they belong only to `apps/persona-edge`.

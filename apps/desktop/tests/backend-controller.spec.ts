@@ -164,7 +164,7 @@ describe('desktop backend controller', () => {
     const states: DesktopBackendState[] = []
     let starts = 0
     let fail!: (error: Error) => void
-    const wait = vi.fn(async () => {})
+    const wait = vi.fn(async (ms: number) => { void ms })
     const controller = new DesktopBackendController((onFailure) => {
       fail = onFailure
       starts += 1

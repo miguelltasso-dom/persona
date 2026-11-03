@@ -71,6 +71,7 @@ function buildIndexMarkdown(rows: readonly GalleryCaptureRow[]): string {
  * Capture all real-app panels (web persona profile) into `.maestri/tmp/shots/real/`.
  */
 export async function runRealGalleryCapture(): Promise<{ rows: GalleryCaptureRow[]; indexPath: string }> {
+  process.env.PERSONA_HOST_NO_LOCK = '1'
   await mkdir(REAL_GALLERY_DIR, { recursive: true })
   const rows: GalleryCaptureRow[] = []
   const { chromium } = await import('playwright')

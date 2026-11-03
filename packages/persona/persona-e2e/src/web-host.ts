@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { E2E_TMP_ROOT, requireWebDist } from './paths.ts'
 import { probeFreePort } from './ports.ts'
-import { launchUnderLock } from './locked-launch.ts'
+import { launchDirect, launchUnderLock } from './locked-launch.ts'
 
 const WEB_URL_LINE = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/\?token=[^\s]+)/
 
@@ -54,13 +54,15 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
     '--port', String(port),
   ]
 
-  const launch = launchUnderLock({
-    label: `Probe persona-e2e web host (${profile})`,
-    releaseOn: 'dsh web:',
-    command: process.execPath,
-    args: cliArgs,
-    env,
-  })
+  const launch = process.env.PERSONA_HOST_NO_LOCK === '1'
+    ? launchDirect({ command: process.execPath, args: cliArgs, env })
+    : launchUnderLock({
+      label: `Probe persona-e2e web host (${profile})`,
+      releaseOn: 'dsh web:',
+      command: process.execPath,
+      args: cliArgs,
+      env,
+    })
 
   const url = await new Promise<string>((resolve, reject) => {
     const deadline = Date.now() + 240_000

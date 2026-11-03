@@ -38,7 +38,7 @@ $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/sm
 **Real gallery** (all panels → `.maestri/tmp/shots/real/` + `index.md`; ~15–25 min):
 
 ```sh
-node scripts/persona/with-lock.mjs "Probe real gallery" --release-on "dsh web:" -- node --import tsx/esm scripts/persona/capture-real-gallery.mjs
+node scripts/persona/with-lock.mjs "Probe real gallery" -- node --import tsx/esm scripts/persona/capture-real-gallery.mjs
 ```
 
 **A11y matrix** (axe + Tab per nav panel; needs `@axe-core/playwright` when Keel adds it):

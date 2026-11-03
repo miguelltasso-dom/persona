@@ -18,6 +18,38 @@ export interface LockedLaunchHandle {
   stop(): Promise<void>
 }
 
+/**
+ * Spawn without nested with-lock (caller already holds the build lock).
+ */
+export function launchDirect(options: Omit<LockedLaunchOptions, 'label' | 'releaseOn'>): LockedLaunchHandle {
+  const chunks: string[] = []
+  const output = {
+    append(chunk: string): void { chunks.push(chunk) },
+    text(): string { return chunks.join('') },
+  }
+  const spawnOptions: SpawnOptions = {
+    cwd: options.cwd ?? REPO_ROOT,
+    env: options.env ?? process.env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+    shell: process.platform === 'win32',
+  }
+  const child = spawn(options.command, options.args, spawnOptions)
+  child.stdout?.setEncoding('utf8')
+  child.stderr?.setEncoding('utf8')
+  child.stdout?.on('data', (chunk: string) => { output.append(chunk) })
+  child.stderr?.on('data', (chunk: string) => { output.append(chunk) })
+  return {
+    child,
+    output,
+    stop: async () => {
+      if (child.pid === undefined) return
+      const { killProcessTree } = await import('./process-tree.ts')
+      await killProcessTree(child.pid)
+    },
+  }
+}
+
 const WITH_LOCK = join(REPO_ROOT, 'scripts', 'persona', 'with-lock.mjs')
 
 /**

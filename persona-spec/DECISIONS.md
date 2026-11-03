@@ -155,6 +155,9 @@ O pre-push roda o typecheck COMPLETO; numa árvore compartilhada com 8 agentes e
 ### D-050 · Direção de design: Muse dona do design system · vigente
 O Atlas recrutou a Muse (Opus, Diretora de Design). Ela é dona de `persona-spec/DESIGN-SYSTEM.md` e de `client-ui-persona/src/client/{theme,primitives}` (tokens, tipografia, cor, forma, movimento-base, identidade). Prism e Lumen continuam donos das telas e **aplicam** as specs publicadas pela Muse (devolvem capturas em `.maestri/tmp/shots/real/` a cada passe). Conflito de diretório: se Prism/Lumen precisarem de um token/primitivo novo, pedem à Muse pelo Status em vez de editar `theme/` ou `primitives/`. A crítica visual do Keel (direção D, dirD-tela.png) continua valendo como critério de aceite objetivo (diff + checklist) e passa a ser alimentada pela Muse. Não muda nenhuma decisão do Miguel.
 
+### D-051 · Contornos do adapter OAR (Codex e fim de turno) · vigente
+Com OAR 0.67: (a) `prompt()` devolve `accepted`/`rejected` (o turno COMEÇOU), nunca é fim de turno; o fim é `turn_ended` **ou** `status().kind === 'idle'` depois do accept (o Codex não emite `turn_ended`); (b) o campo `model` é omitido quando é `default` (o ChatGPT Codex rejeita `default`/`gpt-5.5`); (c) itens `agent_message`/`item` do Codex viram `delta`; (d) `event.outcome` pode ser string (`compaction_ended`) — estreitar antes de ler `.kind`/`.reason`. Re-smoke real do Codex: `done: true`, 1º token 3,8 s, ≤3 execs (D-022). Cursor sem login devolve `not_logged_in` + `loginHint` e 0 execs. Se o OAR passar a emitir `turn_ended` no Codex, o contorno (b)/(a) vira redundante e pode sair. Dono: Rivet (`persona-runners/src/oar/adapter.ts`).
+
 ---
 
 ## 11. Proposta ao Atlas (alta demanda / informativo)

@@ -2,7 +2,7 @@
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { bindObservableForTest } from './bind-observable-for-test.ts'
+import { bindObservableForTest } from './bind-observable-for-test.client.ts'
 import { createLiveTenantObservable } from '../src/client/data/live-tenant-bridge.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from '../src/client/remote/persona-live-store.ts'
 import { ConnectedGlobalKanban, type ConnectedGlobalKanbanProps } from '../src/client/remote/ConnectedGlobalKanban.tsx'

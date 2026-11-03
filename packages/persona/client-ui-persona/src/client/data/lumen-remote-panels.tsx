@@ -12,6 +12,8 @@ import { RoutinesView } from '../routines/RoutinesView.tsx'
 import { UsageLimits } from '../usage/UsageLimits.tsx'
 import { TriageRulesView } from '../rules/TriageRulesView.tsx'
 import { PersonaProfilePage } from '../profile/PersonaProfilePage.tsx'
+import type { PersonaProfileSnapshot } from '../profile/mock-data.ts'
+import type { PersonaAvatar } from '@deepseek-ai/dsh-persona-core'
 import { MembersView } from '../members/MembersView.tsx'
 import { ImportWizard } from '../importers/ImportWizard.tsx'
 import { CanvasView } from '../canvas/CanvasView.tsx'
@@ -222,20 +224,25 @@ export function RemoteProfilePanel({ persona, useTenant }: LumenRemotePanelProps
     return { primary, row }
   }, [persona, scope])
   const state = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const snapshot = useMemo(() => {
+  const snapshot = useMemo((): PersonaProfileSnapshot | null => {
     if (state.status !== 'ready' || state.data === null) return null
     const { primary, row } = state.data
-    return {
+    const avatar: PersonaAvatar = primary.avatarKind === 'upload'
+      ? { kind: 'upload', ref: primary.avatarRef }
+      : primary.avatarKind === 'silhouette'
+        ? { kind: 'silhouette', ref: primary.avatarRef }
+        : { kind: 'gallery', ref: primary.avatarRef }
+    const base: PersonaProfileSnapshot = {
       persona: {
         id: primary.id,
         workspaceId: primary.workspaceId,
         name: primary.name,
         title: primary.title,
         description: primary.description,
-        avatar: { kind: primary.avatarKind, ref: primary.avatarRef },
+        avatar,
         personality: '',
         instructions: '',
-        runner: { kind: 'dsh' as const, model: 'default' },
+        runner: { kind: 'dsh', model: 'default' },
         tools: {},
         skills: [],
         limits: {},
@@ -245,14 +252,18 @@ export function RemoteProfilePanel({ persona, useTenant }: LumenRemotePanelProps
         updatedAt: '',
         createdBy: '',
       },
-      liveState: row?.state === 'working' ? 'working' as const
-        : row?.state === 'resting' ? 'resting' as const
-          : row?.state === 'waiting' ? 'waiting' as const
-            : row?.state === 'stuck' ? 'error' as const
-              : 'idle' as const,
+      liveState: row?.state === 'working' ? 'working'
+        : row?.state === 'resting' ? 'resting'
+          : row?.state === 'waiting' ? 'waiting'
+            : row?.state === 'stuck' ? 'error'
+              : 'idle',
       projectNames: [scope?.projectId ?? ''],
       recentActivity: [],
-      proactivity: row === undefined ? undefined : {
+    }
+    if (row === undefined) return base
+    return {
+      ...base,
+      proactivity: {
         proposalsToday: row.proposalsAcceptedToday,
         proposalsAccepted7d: row.proposalsAcceptedToday,
         acceptanceRatePct: 70,
@@ -260,7 +271,7 @@ export function RemoteProfilePanel({ persona, useTenant }: LumenRemotePanelProps
         lazinessBench: {
           runner: 'dsh',
           model: 'default',
-          grade: 'fair' as const,
+          grade: 'fair',
           lastRunAt: '',
         },
       },

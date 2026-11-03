@@ -13,7 +13,7 @@
 
 .subtitle {
   margin: 0;
-  color: var(--persona-active-ink-muted);
+  color: var(--persona-ink-soft);
 }
 
 .toolbar {
@@ -30,8 +30,8 @@
 }
 
 .dayCol {
-  background: var(--persona-active-surface-alt);
-  border: 1px solid var(--persona-lilac-200);
+  background: var(--persona-wash);
+  border: 1px solid var(--persona-outline-soft);
   border-radius: 0.625rem;
   padding: 0.5rem;
   min-height: 6rem;
@@ -41,8 +41,36 @@
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: uppercase;
-  color: var(--persona-active-ink-muted);
+  color: var(--persona-ink-soft);
   margin-bottom: 0.375rem;
+}
+
+.runPaused {
+  opacity: 0.7;
+}
+
+.runTitle {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.runTime {
+  margin: 0.25rem 0;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-soft);
+}
+
+.runSummary {
+  margin: 0.375rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.sectionTitle {
+  margin: 0 0 0.375rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
 }
 
 .runCard {
@@ -50,14 +78,14 @@
   border-radius: 0.5rem;
   padding: 0.375rem;
   margin-bottom: 0.375rem;
-  background: var(--persona-active-surface);
-  border: 1px solid var(--persona-lilac-200);
+  background: var(--persona-paper);
+  border: 1px solid var(--persona-outline-soft);
 }
 
 .runOk { border-left: 3px solid var(--persona-success); }
 .runPartial { border-left: 3px solid var(--persona-warning); }
 .runFailed { border-left: 3px solid var(--persona-danger); }
-.runSkipped { border-left: 3px solid var(--persona-lilac-400); opacity: 0.85; }
+.runSkipped { border-left: 3px solid var(--persona-outline); opacity: 0.85; }
 
 .quietList {
   list-style: none;
@@ -74,18 +102,18 @@
   gap: 1rem;
   padding: 0.625rem 0.75rem;
   border-radius: 0.5rem;
-  background: var(--persona-lilac-100);
+  background: var(--persona-wash);
 }
 
 .statePanel {
   text-align: center;
   padding: 2rem;
-  border: 1px dashed var(--persona-lilac-300);
+  border: 1px dashed var(--persona-outline);
   border-radius: 1rem;
 }
 
 .hint {
   font-size: 0.875rem;
-  color: var(--persona-active-ink-muted);
+  color: var(--persona-ink-soft);
   margin: 0;
 }

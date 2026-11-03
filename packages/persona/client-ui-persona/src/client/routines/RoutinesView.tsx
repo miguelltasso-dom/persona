@@ -1,10 +1,9 @@
 /** C7b — Rotinas: calendário semanal, resultados, silêncio, pausar equipe. */
 
 import { useState, type ReactNode } from 'react'
-import { PersonaButton } from '../primitives/PersonaButton.tsx'
-import { usePersonaMotion } from '../theme/usePersonaMotion.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import { Button, Card, Chip, Screen, ScreenHeader } from '../primitives/index.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Routines.module.css'
 import { WEEK_DAYS, type QuietWindow, type RoutineRun } from './mock-data.ts'
@@ -22,14 +21,11 @@ const DAY_LABELS: Record<(typeof WEEK_DAYS)[number], string> = {
   sun: 'Dom',
 }
 
-function resultClass(result: RoutineRun['result']): string {
-  switch (result) {
-    case 'ok': return styles.runOk ?? ''
-    case 'partial': return styles.runPartial ?? ''
-    case 'failed': return styles.runFailed ?? ''
-    case 'skipped': return styles.runSkipped ?? ''
-    default: return styles.runSkipped ?? ''
-  }
+function resultChipTone(result: RoutineRun['result']): 'success' | 'accent' | 'danger' | 'neutral' {
+  if (result === 'ok') return 'success'
+  if (result === 'partial') return 'accent'
+  if (result === 'failed') return 'danger'
+  return 'neutral'
 }
 
 export interface RoutinesViewProps {
@@ -47,46 +43,66 @@ export function RoutinesView({
   initialState = 'ready',
 }: RoutinesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
-  const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [surfaceState, setSurfaceState] = useState(initialState)
   const [teamPaused, setTeamPaused] = useState(false)
 
+  const header = (
+    <ScreenHeader
+      icon="rotinas"
+      eyebrow={t('header.eyebrow')}
+      title={t('title')}
+      subtitle={t('subtitle')}
+    />
+  )
+
   if (surfaceState === 'loading') {
-    return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={7} />
+    return (
+      <Screen className={styles.shell} data-persona-surface="routines">
+        {header}
+        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={7} />
+      </Screen>
+    )
   }
   if (surfaceState === 'error') {
     return (
-      <PersonaSurfaceError
-        dict={dict}
-        titleKey="error.title"
-        retryKey="error.retry"
-        onRetry={() => { setSurfaceState('ready') }}
-      />
+      <Screen className={styles.shell} data-persona-surface="routines">
+        {header}
+        <PersonaSurfaceError
+          dict={dict}
+          titleKey="error.title"
+          retryKey="error.retry"
+          onRetry={() => { setSurfaceState('ready') }}
+        />
+      </Screen>
     )
   }
   if (surfaceState === 'empty') {
     return (
-      <PersonaSurfaceEmpty
-        dict={dict}
-        illustrationLabelKey="empty.illustration"
-        titleKey="empty.title"
-        hintKey="empty.hint"
-        primaryKey="empty.action"
-      />
+      <Screen className={styles.shell} data-persona-surface="routines">
+        {header}
+        <PersonaSurfaceEmpty
+          dict={dict}
+          illustrationKey="empty-routines"
+          titleKey="empty.title"
+          hintKey="empty.hint"
+          primaryKey="empty.action"
+        />
+      </Screen>
     )
   }
 
   return (
-    <div className={styles.shell} ref={motion.ref} style={motion.style} data-persona-surface="routines">
-      <header>
-        <h1 className={styles.title}>{t('title')}</h1>
-        <p className={styles.subtitle}>{t('subtitle')}</p>
-        <p className={styles.hint}>{t('week.label', { start: '03/11', end: '09/11' })}</p>
-      </header>
+    <Screen className={styles.shell} data-persona-surface="routines">
+      {header}
+      <p className={styles.hint}>{t('week.label', { start: '03/11', end: '09/11' })}</p>
       <div className={styles.toolbar}>
-        <PersonaButton aria-pressed={teamPaused} onClick={() => { setTeamPaused(p => !p) }}>
+        <Button
+          variant="secondary"
+          aria-pressed={teamPaused}
+          onClick={() => { setTeamPaused(p => !p) }}
+        >
           {teamPaused ? t('resumeTeam') : t('pauseTeam')}
-        </PersonaButton>
+        </Button>
         <p className={styles.hint}>{t('pauseTeam.hint')}</p>
       </div>
       <div className={styles.weekGrid} role="grid" aria-label={t('title')}>
@@ -94,28 +110,32 @@ export function RoutinesView({
           <div key={day} className={styles.dayCol} role="gridcell">
             <div className={styles.dayLabel}>{DAY_LABELS[day]}</div>
             {routineRuns.filter(run => run.day === day).map(run => (
-              <div key={run.id} className={`${styles.runCard} ${resultClass(run.result)}`}>
-                <strong>{run.time}</strong> {run.routineName}
-                <div>{t(`run.result.${run.result}`)}</div>
-                <div>{run.summary}</div>
-              </div>
+              <Card
+                key={run.id}
+                padding="s"
+                className={`${styles.runCard}${teamPaused ? ` ${styles.runPaused}` : ''}`}
+              >
+                <h3 className={styles.runTitle}>{run.routineName}</h3>
+                <p className={styles.runTime}>{run.time}</p>
+                <Chip tone={resultChipTone(run.result)} size="s">{t(`run.result.${run.result}`)}</Chip>
+                <p className={styles.runSummary}>{run.summary}</p>
+              </Card>
             ))}
           </div>
         ))}
       </div>
-      <section aria-labelledby="quiet-heading">
-        <h2 id="quiet-heading" className={styles.title}>{t('quietHours')}</h2>
+      <Card padding="m" as="section" aria-labelledby="quiet-heading">
+        <h2 id="quiet-heading" className={styles.sectionTitle}>{t('quietHours')}</h2>
         <p className={styles.hint}>{t('quietHours.hint')}</p>
         <ul className={styles.quietList}>
           {quietWindows.map(window => (
-            <li key={window.id} className={styles.quietItem}>
-              <span>{window.label}</span>
-              <span>{window.range}</span>
+            <li key={window.id}>
+              <Chip tone="neutral" size="s">{window.label} · {window.range}</Chip>
             </li>
           ))}
         </ul>
-        <PersonaButton variant="secondary">{t('quiet.add')}</PersonaButton>
-      </section>
-    </div>
+        <Button variant="secondary" size="s">{t('quiet.add')}</Button>
+      </Card>
+    </Screen>
   )
 }

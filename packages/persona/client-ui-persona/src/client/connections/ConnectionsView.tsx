@@ -1,101 +1,169 @@
 /**
  * D4b — Conexões (Value first, ask later: detect CLIs, native login at point of use).
  */
-import { useState, type ReactNode } from 'react'
-import { PersonaButton } from '../primitives/PersonaButton.tsx'
-import { usePersonaMotion } from '../theme/usePersonaMotion.ts'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Button, Card, Chip, Screen, ScreenHeader, Skeleton } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
+import { PersonaSurfaceEmpty, PersonaSurfaceError } from '../kanban/PersonaSurface.tsx'
 import styles from './Connections.module.css'
-import type { ConnectionEntry, ConnectionStatus } from './mock-data.ts'
+import type { ConnectionEntry, ConnectionResolveErrorCode, ConnectionStatus } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/connections/locales.ts'
 
 export type ConnectionsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
-function statusClass(status: ConnectionStatus): string {
-  switch (status) {
-    case 'ready': return styles.statusReady ?? ''
-    case 'missing': return styles.statusMissing ?? ''
-    case 'expired': return styles.statusExpired ?? ''
-    default: return styles.statusMissing ?? ''
-  }
+function chipTone(entry: ConnectionEntry): 'success' | 'neutral' | 'accent' | 'danger' {
+  if (entry.errorCode === 'quota_exhausted') return 'danger'
+  if (entry.status === 'ready') return 'success'
+  if (entry.status === 'expired') return 'accent'
+  return 'neutral'
 }
 
-function actionLabel(dict: LocaleDict, entry: ConnectionEntry): string {
-  if (entry.status === 'ready') return bindLocale(dict, 'action.learn')
-  if (entry.status === 'expired') return bindLocale(dict, 'action.reconnect')
-  return bindLocale(dict, 'action.connect')
+function statusKey(entry: ConnectionEntry): string {
+  if (entry.errorCode === 'quota_exhausted') return 'status.quota'
+  return `status.${entry.status}`
+}
+
+function actionKey(entry: ConnectionEntry): string | undefined {
+  if (entry.status === 'ready') return 'action.learn'
+  if (entry.errorCode === 'cli_not_found') return 'action.install'
+  if (entry.errorCode === 'quota_exhausted') return 'action.usage'
+  if (entry.copyCommand !== undefined) return undefined
+  return 'action.connect'
+}
+
+async function copyText(text: string): Promise<void> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText !== undefined) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const area = document.createElement('textarea')
+  area.value = text
+  area.setAttribute('readonly', 'true')
+  area.style.position = 'fixed'
+  area.style.left = '-9999px'
+  document.body.appendChild(area)
+  area.select()
+  document.execCommand('copy')
+  document.body.removeChild(area)
 }
 
 export interface ConnectionsViewProps {
   readonly dict?: LocaleDict
   readonly entries?: readonly ConnectionEntry[]
   readonly initialState?: ConnectionsSurfaceState
+  readonly onRetry?: () => void
 }
 
-/** CLI connection list preview. */
+/** CLI connection list. */
 export function ConnectionsView({
   dict = defaultDict,
   entries = [],
   initialState = 'ready',
+  onRetry,
 }: ConnectionsViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
-  const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [surfaceState, setSurfaceState] = useState(initialState)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
+  useEffect(() => {
+    setSurfaceState(initialState)
+  }, [initialState])
+
+  const header = (
+    <ScreenHeader
+      icon="skills"
+      eyebrow={t('header.eyebrow')}
+      title={t('title')}
+      subtitle={t('subtitle')}
+    />
+  )
+
+  let body: ReactNode
   if (surfaceState === 'loading') {
-    return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
-  }
-
-  if (surfaceState === 'error') {
-    return (
+    body = (
+      <Card padding="l">
+        <Skeleton height={16} width="40%" />
+        <Skeleton height={120} shape="block" />
+        <Skeleton height={120} shape="block" />
+      </Card>
+    )
+  } else if (surfaceState === 'error') {
+    body = (
       <PersonaSurfaceError
         dict={dict}
         titleKey="error.title"
         retryKey="error.retry"
-        onRetry={() => { setSurfaceState('ready') }}
+        onRetry={() => {
+          onRetry?.()
+          setSurfaceState('ready')
+        }}
       />
     )
-  }
-
-  if (surfaceState === 'empty') {
-    return (
+  } else if (surfaceState === 'empty') {
+    body = (
       <PersonaSurfaceEmpty
         dict={dict}
-        illustrationLabelKey="empty.illustration"
+        illustrationKey="empty-connections"
         titleKey="empty.title"
         hintKey="empty.hint"
         primaryKey="empty.action"
       />
     )
+  } else {
+    body = (
+      <>
+        <p className={styles.note}>{t('valueFirst.note')}</p>
+        <ul className={styles.list}>
+          {entries.map((entry) => {
+            const secondaryKey = actionKey(entry)
+            const showCopy = entry.copyCommand !== undefined
+            return (
+              <li key={entry.id}>
+                <Card padding="m" className={styles.cliCard}>
+                  <div className={styles.body}>
+                    <h3 className={styles.name}>{entry.name}</h3>
+                    <Chip tone={chipTone(entry)} size="s">{t(statusKey(entry))}</Chip>
+                    {entry.detail !== '' && (
+                      <p className={styles.detail}>{entry.detail}</p>
+                    )}
+                  </div>
+                  <div className={styles.actions}>
+                    {showCopy && (
+                      <Button
+                        variant="primary"
+                        size="s"
+                        onClick={() => {
+                          void copyText(entry.copyCommand ?? '').then(() => {
+                            setCopiedId(entry.id)
+                            window.setTimeout(() => { setCopiedId(current => (current === entry.id ? null : current)) }, 2000)
+                          })
+                        }}
+                      >
+                        {copiedId === entry.id ? t('action.copied') : t('action.copyCommand')}
+                      </Button>
+                    )}
+                    {secondaryKey !== undefined && (
+                      <Button variant={showCopy ? 'secondary' : 'primary'} size="s">
+                        {t(secondaryKey)}
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              </li>
+            )
+          })}
+        </ul>
+      </>
+    )
   }
 
   return (
-    <div className={styles.shell} ref={motion.ref} style={motion.style} data-persona-surface="connections">
-      <header>
-        <h1 className={styles.title}>{t('title')}</h1>
-        <p className={styles.subtitle}>{t('subtitle')}</p>
-        <p className={styles.note}>{t('valueFirst.note')}</p>
-      </header>
-      <ul className={styles.list}>
-        {entries.map(entry => (
-          <li key={entry.id} className={styles.row}>
-            <div>
-              <div className={styles.name}>{entry.name}</div>
-              <span className={`${styles.status} ${statusClass(entry.status)}`}>
-                <span aria-hidden="true">{entry.status === 'ready' ? '●' : entry.status === 'expired' ? '◐' : '○'}</span>
-                {t(`status.${entry.status}`)}
-              </span>
-            </div>
-            <div className={styles.actions}>
-              <PersonaButton variant={entry.status === 'ready' ? 'secondary' : 'primary'}>
-                {actionLabel(dict, entry)}
-              </PersonaButton>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <Screen className={styles.shell} data-persona-surface="connections">
+      {header}
+      {body}
+    </Screen>
   )
 }
+
+export type { ConnectionResolveErrorCode, ConnectionStatus }

@@ -1,4 +1,6 @@
 {
+  "header.eyebrow": "Company",
+  "action.edit": "Edit",
   "title": "Company vault",
   "subtitle": "Briefs, constraints, decisions, and memory — with versions and visibility",
   "tab.records": "Records",

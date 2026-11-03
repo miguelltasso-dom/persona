@@ -1,4 +1,6 @@
 {
+  "header.eyebrow": "Work",
+  "action.newTask": "New task",
   "title.project": "Project board",
   "title.global": "Global board",
   "subtitle.project": "Ticket stages in this project",
@@ -6,6 +8,7 @@
   "column.todo": "To do",
   "column.inProgress": "In progress",
   "column.inReview": "In review",
+  "action.review": "Review",
   "column.blocked": "Blocked / Needs you",
   "column.done": "Done",
   "chip.waitingEvent": "Waiting for event",

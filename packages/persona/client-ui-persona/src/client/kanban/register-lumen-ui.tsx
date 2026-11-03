@@ -19,6 +19,10 @@ import {
   type ConnectionsKey,
 } from '../locale/connections/locales.ts'
 import {
+  de as reviewDe, en as reviewEn, es as reviewEs, fr as reviewFr, ja as reviewJa, REVIEW_NS,
+  pt as reviewPt, ru as reviewRu, zh as reviewZh, type ReviewKey,
+} from '../locale/review/locales.ts'
+import {
   de as filesDe, en as filesEn, es as filesEs, fr as filesFr, ja as filesJa, FILES_NS,
   pt as filesPt, ru as filesRu, zh as filesZh, type FilesKey,
 } from '../locale/files/locales.ts'
@@ -71,6 +75,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'persona.files': FilesKey
     'persona.usage': UsageKey
     'persona.connections': ConnectionsKey
+    'persona.review': ReviewKey
     'persona.approvals': ApprovalsKey
     'persona.rules': RulesKey
     'persona.profile': ProfileKey
@@ -103,6 +108,9 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore): void {
     zh: connectionsZh, en: connectionsEn, ja: connectionsJa, es: connectionsEs, fr: connectionsFr,
     de: connectionsDe, ru: connectionsRu, pt: connectionsPt,
   }), 'persona: connections dictionaries')
+  ctx.effect(() => ctx.locale.register(REVIEW_NS, {
+    zh: reviewZh, en: reviewEn, ja: reviewJa, es: reviewEs, fr: reviewFr, de: reviewDe, ru: reviewRu, pt: reviewPt,
+  }), 'persona: review dictionaries')
   ctx.effect(() => ctx.locale.register(APPROVALS_NS, {
     zh: approvalsZh, en: approvalsEn, ja: approvalsJa, es: approvalsEs, fr: approvalsFr,
     de: approvalsDe, ru: approvalsRu, pt: approvalsPt,
@@ -134,7 +142,14 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore): void {
     name: 'main',
     key: 'kanban',
     locale: KANBAN_NS,
-    inject: () => ({ hooks: { live: live.observable } }),
+    inject: () => ({
+      persona: ctx.remote.persona,
+      refreshKanban: () => live.refresh(),
+      hooks: {
+        live: live.observable,
+        tenant: tenantObservable,
+      },
+    }),
   }, ConnectedGlobalKanban)
 
   const panels = [

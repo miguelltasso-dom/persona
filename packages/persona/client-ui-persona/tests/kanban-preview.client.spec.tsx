@@ -58,6 +58,22 @@ describe.sequential('kanban preview (dom)', () => {
     view.unmount()
   })
 
+  it('shows Revisar on in-review cards when handler is set', () => {
+    const opened: string[] = []
+    renderPreview(
+      <GlobalKanban
+        dict={pt}
+        initialCards={MOCK_GLOBAL_KANBAN_CARDS}
+        onOpenReview={(card) => { opened.push(card.id) }}
+      />,
+    )
+    const globalRoot = globalKanbanRoot()
+    const buttons = within(globalRoot).getAllByRole('button', { name: pt['action.review'] })
+    expect(buttons.length).toBeGreaterThan(0)
+    fireEvent.click(buttons[0]!)
+    expect(opened.length).toBe(1)
+  })
+
   it('filters global board cards by project id', () => {
     renderPreview(<GlobalKanban dict={pt} initialCards={MOCK_GLOBAL_KANBAN_CARDS} />)
     const globalRoot = globalKanbanRoot()

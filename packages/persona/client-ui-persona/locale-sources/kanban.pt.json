@@ -1,4 +1,6 @@
 {
+  "header.eyebrow": "Trabalho",
+  "action.newTask": "Nova tarefa",
   "title.project": "Quadro do projeto",
   "title.global": "Quadro global",
   "subtitle.project": "Estágios das tarefas neste projeto",
@@ -6,6 +8,7 @@
   "column.todo": "A fazer",
   "column.inProgress": "Em andamento",
   "column.inReview": "Em revisão",
+  "action.review": "Revisar",
   "column.blocked": "Bloqueado / Precisa de você",
   "column.done": "Concluído",
   "chip.waitingEvent": "Aguardando evento",

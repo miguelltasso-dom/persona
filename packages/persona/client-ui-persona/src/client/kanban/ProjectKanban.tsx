@@ -1,6 +1,7 @@
 /** C6a — Kanban por projeto (projeção dos estágios de Ticket). */
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { Screen, ScreenHeader } from '../primitives/index.ts'
 import { usePersonaMotion } from '../theme/usePersonaMotion.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
@@ -59,21 +60,25 @@ export function ProjectKanban({
   }, [])
 
   return (
-    <div className={styles.boardShell} data-persona-kanban="project" ref={motion.ref} style={motion.style}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{t('title.project')}</h1>
-        <p className={styles.subtitle}>{t('subtitle.project')} · {projectName}</p>
-      </header>
-      <KanbanBoard
-        dict={dict}
-        cards={cards}
-        surfaceState={surfaceState}
-        showProjectOnCard={false}
-        columnLabels={labels}
-        onMoveCard={onMoveCard}
-        onRetry={() => { setSurfaceState('ready') }}
-        onEmptyPrimary={() => { setSurfaceState('ready') }}
-      />
-    </div>
+    <Screen width="full" className={styles.boardShell} data-persona-kanban="project">
+      <div className={styles.motionWrap} ref={motion.ref} style={motion.style}>
+        <ScreenHeader
+          icon="kanban"
+          eyebrow={t('header.eyebrow')}
+          title={t('title.project')}
+          subtitle={`${t('subtitle.project')} · ${projectName}`}
+        />
+        <KanbanBoard
+          dict={dict}
+          cards={cards}
+          surfaceState={surfaceState}
+          showProjectOnCard={false}
+          columnLabels={labels}
+          onMoveCard={onMoveCard}
+          onRetry={() => { setSurfaceState('ready') }}
+          onEmptyPrimary={() => { setSurfaceState('ready') }}
+        />
+      </div>
+    </Screen>
   )
 }

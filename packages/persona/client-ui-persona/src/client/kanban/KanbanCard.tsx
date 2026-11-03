@@ -1,6 +1,7 @@
 /** Single Kanban card with drag lift, chips, persona carry, and completion celebration. */
 
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
+import { Avatar, Button, Card, Chip, PawTrail } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './Kanban.module.css'
@@ -13,6 +14,7 @@ export interface KanbanCardProps {
   readonly showProject: boolean
   readonly onDragStart: (cardId: string) => void
   readonly onDragEnd: () => void
+  readonly onOpenReview?: (cardId: string) => void
 }
 
 /** Draggable ticket card. */
@@ -23,6 +25,7 @@ export function KanbanCard({
   showProject,
   onDragStart,
   onDragEnd,
+  onOpenReview,
 }: KanbanCardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [celebrate, setCelebrate] = useState(false)
@@ -42,8 +45,11 @@ export function KanbanCard({
   }
 
   return (
-    <article
-      className={`${styles.card}${dragging ? ` ${styles.cardDragging}` : ''}`}
+    <Card
+      as="article"
+      padding="s"
+      interactive
+      className={`${styles.ticket}${dragging ? ` ${styles.ticketDragging}` : ''}`}
       draggable
       onDragStart={onDragStartCard}
       onDragEnd={onDragEnd}
@@ -54,7 +60,7 @@ export function KanbanCard({
       {card.carry !== undefined && (
         <div className={styles.carryLayer} aria-live="polite">
           <span className={styles.carryAvatar} title={t('personaMove.label', { name: card.carry.persona.name })}>
-            <span className={styles.avatar} aria-hidden="true">{card.carry.persona.initials}</span>
+            <Avatar name={card.carry.persona.name} size={24} shape="portrait" decorative />
             <span className={styles.srOnly}>{t('personaMove.label', { name: card.carry.persona.name })}</span>
           </span>
         </div>
@@ -68,34 +74,37 @@ export function KanbanCard({
       )}
       <div className={styles.chips}>
         {card.waitingEvent && (
-          <span className={`${styles.chip} ${styles.chipWaiting}`}>
-            <span aria-hidden="true">⏳</span>
-            {t('chip.waitingEvent')}
-          </span>
+          <Chip tone="accent" size="s">{t('chip.waitingEvent')}</Chip>
         )}
         {card.blocked && (
-          <span className={`${styles.chip} ${styles.chipBlocked}`}>
-            <span aria-hidden="true">✋</span>
-            {t('chip.blocked')}
-          </span>
+          <Chip tone="danger" size="s">{t('chip.blocked')}</Chip>
         )}
         {card.column === 'done' && card.outcome !== undefined && (
-          <span className={`${styles.chip} ${styles.chipOutcome}`}>
-            <span aria-hidden="true">✓</span>
-            {t(`outcome.${card.outcome}`)}
-          </span>
+          <Chip tone="success" size="s">{t(`outcome.${card.outcome}`)}</Chip>
         )}
       </div>
       <div className={styles.cardFooter}>
+        {(card.column === 'in_review' || card.blocked) && onOpenReview !== undefined && (
+          <Button
+            size="s"
+            variant="secondary"
+            onClick={(event) => {
+              event.stopPropagation()
+              onOpenReview(card.id)
+            }}
+          >
+            {t('action.review')}
+          </Button>
+        )}
         {card.assignee !== undefined && (
-          <span className={styles.avatar} aria-hidden="true">{card.assignee.initials}</span>
+          <Avatar name={card.assignee.name} size={24} shape="portrait" decorative />
         )}
         {celebrate && (
           <span className={styles.celebrationPaws} role="img" aria-label={t('celebration.label')}>
-            🐾
+            <PawTrail />
           </span>
         )}
       </div>
-    </article>
+    </Card>
   )
 }

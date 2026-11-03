@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState, type DragEvent, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import { Chip } from '../primitives/index.ts'
 import { KanbanCard } from './KanbanCard.tsx'
 import styles from './Kanban.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from './PersonaSurface.tsx'
@@ -20,6 +21,7 @@ export interface KanbanBoardProps {
   readonly showProjectOnCard: boolean
   readonly columnLabels: Readonly<Record<KanbanColumnId, string>>
   readonly onMoveCard?: (cardId: string, toColumn: KanbanColumnId) => void
+  readonly onOpenReview?: (cardId: string) => void
   readonly onRetry?: () => void
   readonly onEmptyPrimary?: () => void
 }
@@ -44,6 +46,7 @@ export function KanbanBoard({
   showProjectOnCard,
   columnLabels,
   onMoveCard,
+  onOpenReview,
   onRetry,
   onEmptyPrimary,
 }: KanbanBoardProps): ReactNode {
@@ -94,7 +97,7 @@ export function KanbanBoard({
     return (
       <PersonaSurfaceEmpty
         dict={dict}
-        illustrationLabelKey="empty.illustration"
+        illustrationKey="empty-kanban"
         titleKey="empty.title"
         hintKey="empty.hint"
         primaryKey="empty.action"
@@ -118,10 +121,10 @@ export function KanbanBoard({
             onDrop={(e) => { onColumnDrop(e, columnId) }}
           >
             <header className={styles.columnHeader} id={`col-${columnId}`}>
-              <span>{columnLabels[columnId]}</span>
-              <span className={styles.columnCount} aria-label={`${columnCards.length}`}>
+              <span className={styles.columnTitle}>{columnLabels[columnId]}</span>
+              <Chip size="s" tone="neutral" aria-label={`${columnCards.length}`}>
                 {columnCards.length}
-              </span>
+              </Chip>
             </header>
             <div className={styles.columnBody}>
               {columnCards.map(card => (
@@ -133,6 +136,7 @@ export function KanbanBoard({
                   showProject={showProjectOnCard}
                   onDragStart={(id) => { onDragStart(id) }}
                   onDragEnd={onDragEnd}
+                  {...(onOpenReview !== undefined ? { onOpenReview } : {})}
                 />
               ))}
             </div>

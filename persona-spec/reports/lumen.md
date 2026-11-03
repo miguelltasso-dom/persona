@@ -1,5 +1,87 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-03 17:12 — Muse revisão (e) parte 1 — SCREEN-SPECS + tokens
+
+**Pronto:** Telas pendentes alinhadas a `SCREEN-SPECS.md`: **ApprovalsInbox**, **TriageRulesView** (`Input` nos limites), **MembersView**, **CanvasView** (`Tabs` canvas/lista), **PersonaProfilePage** (`Screen`/`Tabs`/herói `Card`), **ImportWizard**. `header.eyebrow` + `subtitle` (perfil) nos `locale-sources` (en/pt) + `gen-client-ui-persona-locales.mjs`. Migração CSS Lumen: `--persona-active-*` / `--persona-lilac-*` → semânticos em knowledge, files, routines, usage, connections, kanban, canvas, `ProactivityMetrics`, `ApprovalsProactivity`; gaps kanban → `--persona-space-*`. **ProactivityMetricsPanel** deixou `LumenPage.module.css`.
+
+**Pendente Muse (captura):** `design-shots.mjs panel:*` quando host (Anvil P0) voltar. **Opcional follow-up:** `MemoryPanel`/`SkillsPanel`/`ProactiveDailySummaries` ainda importam `LumenPage.module.css`; sweep rem restante em usage/knowledge/routines CSS.
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-proactivity.client.spec.tsx packages/persona/client-ui-persona/tests/observable-bridges.client.spec.ts packages/persona/client-ui-persona/tests/connected-kanban.client.spec.tsx packages/persona/client-ui-persona/tests/live-tenant-bridge.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx
+→ 6 files / 24 passed
+```
+
+## 2026-11-03 17:05 — React #185 + SCREEN-SPECS (Cofre, Uso, Rotinas, Arquivos)
+
+**Pronto:** `createLiveTenantObservable` com cache referencial (fix #185 Kanban/remotos). Pass Muse em **KnowledgeVault**, **UsageLimits**, **Usage.module.css** (barras sunken + âmbar/danger), **RoutinesView**, **FilesView** — `Screen`/`ScreenHeader`/`Card`/`Chip`/`Tabs`/`Button`/`Skeleton`, `header.eyebrow` nos locales.
+
+**Fila Muse (resto):** Aprovações, Regras, Perfil, Membros, Importadores (receita comum).
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run --project thread-safe packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx packages/persona/client-ui-persona/tests/live-tenant-bridge.client.spec.tsx
+→ 11 passed
+```
+
+## 2026-11-03 17:00 — Kanban + Conexões (SCREEN-SPECS)
+
+**Pronto:** `Screen` + `ScreenHeader` + `Card`/`Chip` + `EmptyState`/`ErrorState`/`Skeleton` (illustrações Brush). Kanban: filtros em `Card`, colunas `--persona-paper-sunken`, tickets `Card padding="s" interactive`, chips sem emoji, `PawTrail` na celebração. Conexões: grade 2 col, `empty-connections`. Removido `withLumenPanelBoundary` (Muse `PanelBoundary` no frame). Host: `listConnections` tipado (`kind: row.id`, filtro de `error.code`).
+
+**Fix React #185 (Muse):** `createLiveTenantObservable` alocava um `PersonaTenantSnapshot` novo a cada `getSnapshot()` → `useTenant(s => s)` via uSES entrava em loop. Agora cache por referência do live snap + snapshots canônicos loading/error + igualdade de scope.
+
+**Testes:** `live-tenant-bridge.client.spec.tsx` (estabilidade + `ConnectedGlobalKanban` com `createSnapshotStore` + `bindSnapshotSelector`), `connected-kanban`, `kanban-preview` → 8 passed nesse trio.
+
+## 2026-11-03 — Galeria real (`real-app-shots`)
+
+**Pronto:** run com skip de onboarding (`persona.onboarding.complete.v1`) concluiu; `.maestri/tmp/shots/real/` inclui os 12 painéis Lumen (`kanban`, `knowledge`, `routines`, `files`, `usage`, `connections`, `approvals`, `rules`, `profile`, `members`, `importers`, `canvas`) + shell/canal. Disponível para pass Muse.
+
+## 2026-11-03 16:35 — PRO-5 Remote: decide + limites + métricas
+
+**Pronto:** `RemoteApprovalsPanel` → `decideApproval` (reativo + resumo diário com `approvalKind`); `RemoteRulesPanel` → `setProjectLimits` (Salvar nos limites); perfil: taxa de aceitação derivada de `getOverviewNow` (ou `—` sem entregas). **D5b** uso: já via `RemoteUsagePanel` + `limitsToUsageMeters` (origem rotulada).
+
+**Dependências:** `putAttentionPolicy` / editar janelas de silêncio na UI; bench preguiça real (Rivet); PRO-6 E2E (Probe); aceite `(app)` PRO-5.
+
+**Arquivos:** `approvals/*`, `rules/TriageRulesView.tsx`, `data/{lumen-remote-panels,adapters/proactive}.ts`, `profile/ProactivityMetricsPanel.tsx`, `locale-sources/profile.*`.
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-*.client.spec.tsx packages/persona/client-ui-persona/tests/kanban-preview.client.spec.tsx
+→ 5 files / 28 tests passed
+```
+
+## 2026-11-03 16:25 — Revisar ligado ao Remote + Kanban
+
+**Pronto:** `reviewSummaryFromHost` + `KanbanReviewSheet` (`acceptReview` / `requestChanges` / `discardReview`, conflito → chip Bloqueado). **Kanban produção:** `ConnectedGlobalKanban` + `KanbanWithReview` (inject `persona` + `refresh`); botão **Revisar** em `in_review`/bloqueado. Locale `persona.review` registrado. Contrato `lumen-rpc.md` § Revisar.
+
+**Dependências:** `acceptReview.mode` fixo `ff` até política de merge no projeto; taxa de aceitação no perfil ainda estimada (70%); PRO-6 E2E (Probe).
+
+**Arquivos:** `review/{KanbanReviewSheet,KanbanWithReview}.tsx`, `remote/ConnectedGlobalKanban.tsx`, `kanban/{KanbanCard,GlobalKanban}.tsx`, `register-lumen-ui.tsx`, `data/adapters/review.ts`, `contracts/lumen-rpc.md`.
+
+**Testes:**
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-rpc-adapters.client.spec.ts packages/persona/client-ui-persona/tests/kanban-preview.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-proactivity.client.spec.tsx
+→ 5 files / 28 tests passed
+```
+
+## 2026-11-03 16:20 — Conexões (loginHint + erros) + painel Revisar (ReviewDelivery)
+
+**Pronto:** `connectionsToEntries` preserva `loginHint` / `error` do host (`loggedIn`, códigos `cli_not_found` | `not_logged_in` | `quota_exhausted`), mensagem pt-BR na linha, **Copiar comando** (sem campo de token, D-015). Anvil: `listConnections` passa por `toUiConnection`. **Revisar:** `ReviewDeliveryPanel` (arquivos +/−, patch, truncagem/redação, testes citados, Aceitar âmbar / Pedir ajustes / Descartar com confirmação; conflito = chip Bloqueado · Precisa de você). `RemoteReviewDeliveryPanel` stub até RPC Anvil.
+
+**Dependências:** `persona.reviewSummary` / accept / requestChanges / discard no Remote; abrir painel a partir do card Kanban em revisão.
+
+**Arquivos:** `connections/*`, `data/adapters/{connections,review}.ts`, `review/*`, `locale-sources/{connections,review}.*`, `persona-host/{types,index}.ts`, `gen-client-ui-persona-locales.mjs`, testes `lumen-surfaces` + `lumen-rpc-adapters`.
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run packages/persona/client-ui-persona/tests/lumen-surfaces.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-rpc-adapters.client.spec.ts packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx packages/persona/client-ui-persona/tests/kanban-preview.client.spec.tsx packages/persona/client-ui-persona/tests/lumen-proactivity.client.spec.tsx
+→ 5 files / 26 tests passed
+```
+
 ## 2026-11-03 19:58 — Contrato `lumen-rpc.md` (Anvil) ligado nos painéis
 
 **Pronto:** RPCs `listCanvas`, `listDailySummaries`, `listRoutineSchedule`, `listTriageLog`, arquivos `need-root` + `setProjectRoot` (estado `needRoot` pt-BR, ação primária). Adaptadores `triage`, `proactive`, `routines`, `canvas`; `GlobalKanban` deriva filtros dos cards (sem `MOCK_KANBAN_FILTERS` em produção). Overview/canal sem fallback mock. **Muse:** não toquei `theme/` nem `primitives/`; aguardo `DESIGN-SYSTEM.md` + specs por tela.

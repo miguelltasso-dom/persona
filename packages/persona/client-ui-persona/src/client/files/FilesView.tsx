@@ -1,9 +1,9 @@
 /** C7a — Arquivos do projeto (preview até Remote Anvil). */
 
 import { useState, type ReactNode } from 'react'
-import { usePersonaMotion } from '../theme/usePersonaMotion.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import { Button, Card, Chip, Screen, ScreenHeader, Skeleton } from '../primitives/index.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError } from '../kanban/PersonaSurface.tsx'
 import styles from './Files.module.css'
 import type { FileEntry } from './mock-data.ts'
@@ -26,88 +26,112 @@ export function FilesView({
   onChooseProjectRoot,
 }: FilesViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
-  const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [surfaceState, setSurfaceState] = useState(initialState)
+
+  const header = (
+    <ScreenHeader
+      icon="arquivos"
+      eyebrow={t('header.eyebrow')}
+      title={t('title')}
+      subtitle={t('subtitle')}
+    />
+  )
 
   if (surfaceState === 'loading') {
     return (
-      <div className={styles.shell} role="status" aria-busy="true">
-        <p>{t('loading')}</p>
-        <div className={styles.skeletonRow} />
-        <div className={styles.skeletonRow} />
-      </div>
+      <Screen className={styles.shell} data-persona-surface="files" role="status" aria-busy="true">
+        {header}
+        <Card padding="l">
+          <Skeleton height={14} width="30%" />
+          <Skeleton height={48} shape="block" />
+          <Skeleton height={48} shape="block" />
+        </Card>
+      </Screen>
     )
   }
 
   if (surfaceState === 'error') {
     return (
-      <PersonaSurfaceError
-        dict={dict}
-        titleKey="error.title"
-        retryKey="error.retry"
-        onRetry={() => { setSurfaceState('ready') }}
-      />
+      <Screen className={styles.shell} data-persona-surface="files">
+        {header}
+        <PersonaSurfaceError
+          dict={dict}
+          titleKey="error.title"
+          retryKey="error.retry"
+          onRetry={() => { setSurfaceState('ready') }}
+        />
+      </Screen>
     )
   }
 
   if (surfaceState === 'needRoot') {
     return (
-      <PersonaSurfaceEmpty
-        dict={dict}
-        illustrationLabelKey="needRoot.illustration"
-        titleKey="needRoot.title"
-        hintKey="needRoot.hint"
-        primaryKey="needRoot.action"
-        {...(onChooseProjectRoot !== undefined ? { onPrimary: onChooseProjectRoot } : {})}
-      />
+      <Screen className={styles.shell} data-persona-surface="files">
+        {header}
+        <PersonaSurfaceEmpty
+          dict={dict}
+          illustrationKey="empty-vault"
+          titleKey="needRoot.title"
+          hintKey="needRoot.hint"
+          primaryKey="needRoot.action"
+          {...(onChooseProjectRoot !== undefined ? { onPrimary: onChooseProjectRoot } : {})}
+        />
+      </Screen>
     )
   }
 
   if (surfaceState === 'empty') {
     return (
-      <PersonaSurfaceEmpty
-        dict={dict}
-        illustrationLabelKey="empty.illustration"
-        titleKey="empty.title"
-        hintKey="empty.hint"
-        primaryKey="empty.action"
-      />
+      <Screen className={styles.shell} data-persona-surface="files">
+        {header}
+        <PersonaSurfaceEmpty
+          dict={dict}
+          illustrationKey="empty-inbox"
+          titleKey="empty.title"
+          hintKey="empty.hint"
+          primaryKey="empty.action"
+        />
+      </Screen>
     )
   }
 
   return (
-    <div className={styles.shell} ref={motion.ref} style={motion.style} data-persona-surface="files">
-      <header>
-        <h1 className={styles.title}>{t('title')}</h1>
-        <p className={styles.subtitle}>{t('subtitle')}</p>
-      </header>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th scope="col">{t('column.name')}</th>
-            <th scope="col">{t('column.project')}</th>
-            <th scope="col">{t('column.updated')}</th>
-            <th scope="col">{t('column.size')}</th>
-            <th scope="col"><span className={styles.srOnly}>{t('column.actions')}</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {files.map(file => (
-            <tr key={file.id}>
-              <td>{file.name}</td>
-              <td>{file.projectName}</td>
-              <td>{file.updatedAt}</td>
-              <td>{file.sizeLabel}</td>
-              <td>
-                <div className={styles.rowActions}>
-                  <button type="button" className={styles.linkBtn}>{t('action.open')}</button>
-                  <button type="button" className={styles.linkBtn}>{t('action.download')}</button>
-                </div>
-              </td>
+    <Screen className={styles.shell} data-persona-surface="files">
+      {header}
+      {files.length > 0 && (
+        <div className={styles.breadcrumb}>
+          <Chip tone="neutral" size="s">{files[0]?.projectName ?? t('column.project')}</Chip>
+        </div>
+      )}
+      <Card padding="none" className={styles.tableCard}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th scope="col">{t('column.name')}</th>
+              <th scope="col">{t('column.project')}</th>
+              <th scope="col">{t('column.updated')}</th>
+              <th scope="col">{t('column.size')}</th>
+              <th scope="col"><span className={styles.srOnly}>{t('column.actions')}</span></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {files.map(file => (
+              <tr key={file.id}>
+                <td>{file.name}</td>
+                <td>{file.projectName}</td>
+                <td>{file.updatedAt}</td>
+                <td>{file.sizeLabel}</td>
+                <td>
+                  <div className={styles.rowActions}>
+                    <Button variant="ghost" size="s">{t('action.open')}</Button>
+                    <Button variant="ghost" size="s">{t('action.download')}</Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </Screen>
   )
 }

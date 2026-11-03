@@ -4,6 +4,55 @@ Mais recente no topo.
 
 ---
 
+## 03/11 14:27 — C3 + S4 — rotinas (lease/idempotência) e drafts
+
+### O que ficou pronto
+`RoutineRepos` no store: criar/listar, `schedule` com chave `routine_id:scheduled_for` (ON CONFLICT mantém a linha), `claimDue` com lease IMMEDIATE + catch-up `skip|run_once|run_all`, janela de silêncio, `pauseTeam` cancela pending/leased, `fail`+`retry`. Relógio injetável. Host: remotes `createRoutine`/`listRoutines`/`pauseRoutine`/`pauseTeam`/`scheduleRoutine`/`claimRoutines`/`retryRoutine`. S4: `draftPersona`/`draftTeam` determinísticos, válidos no schema Forge, tools vazias, sem função Coordenação.
+
+### Arquivos
+- `packages/persona/persona-store/src/routines/repos.ts`
+- `packages/persona/persona-store/src/index.ts`
+- `packages/persona/persona-store/tests/routines.spec.ts`
+- `packages/persona/persona-store/README.md`
+- `packages/persona/persona-host/src/{index,types,draft}.ts`
+- `packages/persona/persona-host/tests/routines-draft.spec.ts`
+- `packages/persona/persona-host/README.md`
+
+### Comandos e saída verbatim
+
+```
+pnpm exec vitest run packages/persona/persona-store packages/persona/persona-host
+ Test Files  10 passed (10)
+      Tests  115 passed (115)
+   Start at  14:26:32
+   Duration  4.64s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 37.5s
+```
+
+```
+pnpm exec tsc -p packages/persona/persona-store/tsconfig.json --noEmit
+(exit 0)
+pnpm exec tsc -p packages/persona/persona-host/tsconfig.json --noEmit
+(exit 0)
+```
+
+```
+pnpm exec oxlint packages/persona/persona-store/src/routines/repos.ts packages/persona/persona-store/tests/routines.spec.ts packages/persona/persona-host/src/index.ts packages/persona/persona-host/src/types.ts packages/persona/persona-host/src/draft.ts packages/persona/persona-host/tests/routines-draft.spec.ts
+(exit 0)
+```
+
+### Limitações
+- Rotinas ainda não são Source do Intake (E-6, Forge); sem expansão Cron/RRule via `dsh-util-time` (sem `pnpm install` para nova dep) — o host agenda `scheduledFor` explícito.
+- Drafts sem Runner/Rivet: template determinístico, não LLM.
+- Sem remotes update/delete de persona/canal; sem tabela Subscription (v2).
+- Fila imediata (B2, S2, B3, C1, C3, C4, S4) concluída. Próximos Anvil dependem de Forge/Rivet: B7 (R-1/E-3), engine SQLite (contrato), C8 host, marco E nuvem.
+
+---
+
 ## 03/11 14:23 — C4 — arquivos por projectId (D-020)
 
 ### O que ficou pronto

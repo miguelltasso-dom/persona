@@ -4,6 +4,105 @@ Mais recente no topo.
 
 ---
 
+## 03/11 15:02 — sync/E7/E8/D6/F1/F3/G1/S2-cofre ✔ fila pura do marco E/F
+
+### O que ficou pronto
+- **SYNC (D-034):** envelope `workspaceId/streamId/seq/idempotencyKey/classification/payload` + cifra opcional; DO é o único ordenador (`SEQ_GAP`); DM/privado sem `shared: true` não sobe; replay idempotente; retomada por cursor; `WebhookEnvelope` para o Worker. Port `SyncLog` (`MemorySyncLog` = suíte). Contrato `persona-spec/contracts/sync.md` — Anvil persiste.
+- **E7:** Invite (TTL, uso único), Grant, revogação, `purgeSource` (revoga vault + arquiva memórias). Amigo sem grant não lê DM/cofre.
+- **E8:** Source GitHub pura (`persona-engine/src/sources/github`) — evento→Trigger, humano×bot, comentário editado = novo id, PR closed/merged → `threadClosed`, reentrega = `duplicate`. Sem polling.
+- **D6:** `chooseConnection` sem fallback silencioso; Cursor descrito sem MCP.
+- **F1:** framework de importação (preview, privacidade, externalId, rollback); adaptadores ChatGPT / Claude.ai / Markdown; Grok registrado mas não fareja (amostra pendente). Candidatas sempre `proposed`. Cookies/tokens recusados.
+- **F3:** experimento sintético do Router — batching −87.5% inferências; pass-through −92.3% decisões/tokens nesta carga. Relatório em `persona-spec/reports/bench-router.md` (metodologia do paper, número dele não prometido).
+- **G1:** relação não concede acesso nem inicia trabalho; posição não entra em `can()`.
+- **S2:** `proposeVaultUpdate` (approval|auto; nunca mais visibilidade que o criador).
+
+### Arquivos
+- `packages/persona/persona-core/src/{sync,import,domain/invite,connection,relations,vault-propose}.*` + testes + fixtures
+- `packages/persona/persona-engine/src/{sources/github,bench/router}.ts` + testes
+- `persona-spec/contracts/sync.md`, `persona-spec/reports/bench-router.md`
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 68.0s
+persona-engine: OK in 6.8s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-core packages/persona/persona-engine
+ Test Files  36 passed (36)
+      Tests  357 passed (357)
+   Start at  14:49:54
+   Duration  5.46s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: TypertAnalysisError: typert(host): packages/persona/persona-host/src/orchestration.ts:89:3
+  public property is missing an explicit type annotation
+(nenhum artifact mudou; o arquivo é do Anvil — não editei)
+```
+
+### Limitações
+- Persistência sync/import/convites é port; Anvil implementa D1/SQLite com a mesma suíte.
+- GitHub: sem `send`/`read` via `gh` (IO do Rivet/Anvil). Webhook assinado fica no Worker.
+- Export Grok-bot: ponto de extensão pronto; sniff = false até o Miguel mandar amostra.
+- F3 é carga sintética; percentuais ≠ paper.
+- `router.spec.ts` Thread usa `ref: { source, id }` (check-pkg engine OK).
+- Fila vazia.
+
+---
+
+## 03/11 14:51 — typecheck + fila P7→P8→P9→P6→Vigia→E1→E2→memória→E4 ✔
+
+### O que ficou pronto
+- Gate `check-pkg` (src+tests): (1) `resume.ts` — removido `liveTicket` não lido (TS6133); (2) `aging.ts` `restoreMemory` — omite `restoredFrom` quando `supersededBy` é `undefined` (TS2375 / `exactOptionalPropertyTypes`).
+- **P7** Runner port em `persona-engine` (D-040/D-041): `ensureSession/deliver/cancel/status/whenIdle/onEvent/capabilities/background`, `toolsForRole` sem `bash` no coordinator, `WorkerSlots` (+1 person), launch/delivery via `EffectQueue`, transient 3× 15/30/60s, `PrepareFailed` sem retry + `ticket.delivery` mesmo com assignment ainda pending. `FakeRunner`/`FakeClock`. Contrato `persona-spec/contracts/runner.md` — Rivet importa o tipo daqui.
+- **P8** `resumeExecutor` + `RECOVERY_NOTE` + `idleOutcome` + `addWorktree` por argv (`shell: false`). Resume não relança pending com `ticket.delivery`.
+- **P9** `personaRoute` (≤20, recusa item a item) / `personaReport` / `personaAck` (`engine.reply`) / `personaHandback` / `personaThreadFollow` + `MasterAssessor` + `NoticeLog`.
+- **P6** prompts pt-BR com `{{persona_name}}` — nenhum Atlas/Bento/Nina no template (D-043). `MemoryPromptStore` versionado.
+- **Vigia** sinais puros (`ticket_stalled` / `effect_failing` / `eval_unavailable`) + dedupe.
+- **E1** handoff claim-once, ciclo/profundidade/orçamento.
+- **E2** skill DM não publica para project/team; versão + rollback.
+- **Memória** aging nativo (decay/reinforce/near-dup/contradiction/supersede/restore) + markdown vault/memory.
+- **E4** `applyProactivity`: `off`/`observe` (só registra) / `auto`.
+
+### Arquivos
+- `packages/persona/persona-engine/src/{ports/runner,executor/*,router/*,prompts/*,watchdog,proactivity}.ts`
+- `packages/persona/persona-engine/src/index.ts` + `tests/{runner,executor,resume,worktree,router,prompts,watchdog,proactivity}.spec.ts`
+- `packages/persona/persona-core/src/domain/{handoff,skills,aging,markdown}.ts` + testes
+- `persona-spec/contracts/runner.md`
+
+### Comandos e saída verbatim
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 4.9s
+persona-engine: OK in 4.3s
+```
+
+```
+pnpm exec vitest run packages/persona/persona-core packages/persona/persona-engine
+ Test Files  28 passed (28)
+      Tests  332 passed (332)
+   Start at  14:34:44
+   Duration  3.46s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 29.4s
+```
+
+### Limitações
+- `Engine.deliveryFailed` só grava se a assignment já está `running`; falha de launch persiste `ticket.delivery` direto no repo.
+- Backoff 15/30/60s é classificado no handler; o `EffectQueue` remarca `due` com +50 ms (o relógio de teste avança). Anvil pode persistir o due real no SQLite.
+- Adaptadores dsh/OAR continuam com o Rivet — só o port e o Fake de engine estão aqui.
+- Fila Forge (Keel 14:45/14:51) concluída. Sem `maestri ask Keel`.
+
+---
+
 ## 03/11 14:15 — P3a–P5, S3, P11, P12, B4 ✔ fila do engine/domínio fechada
 
 ### O que ficou pronto

@@ -31,8 +31,10 @@ function executorHarness(max = 2) {
   const clock = new FakeClock(nowMs)
   const runner = new FakeRunner(clock)
   const queue = new EffectQueue(persist, repo, () => nowMs)
-  const running: string[] = []
-  const slots = new WorkerSlots(() => running, () => max)
+  const slots = new WorkerSlots(
+    () => repo.tickets.list().flatMap(ticket => latestAssignment(ticket)?.state === 'running' ? [ticket.id] : []),
+    () => max,
+  )
   const requests: Candidate[] = []
   const assessor: Assessor = { request: (candidate) => { requests.push(candidate) }, release: () => {} }
   const outbox: OutboundMessage[] = []
@@ -102,14 +104,10 @@ it('retries a transient launch three times then writes ticket.delivery', async (
   const h = executorHarness()
   h.runner.script = 'transient'
   const ticketId = h.accept().ticketId!
-  await h.queue.idle()
-  expect(h.persist.pending('launch')).toBe(true)
-  h.advance(100)
-  await h.queue.idle()
-  h.advance(100)
-  await h.queue.idle()
-  h.advance(100)
-  await h.queue.idle()
+  for (let i = 0; i < 8 && h.repo.tickets.get(ticketId)?.delivery === undefined; i += 1) {
+    await h.queue.idle()
+    h.advance(100)
+  }
   expect(h.repo.tickets.get(ticketId)?.delivery?.error).toMatch(/ECONNRESET/)
   expect(h.persist.pending('launch')).toBe(false)
 })

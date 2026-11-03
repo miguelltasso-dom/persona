@@ -20,6 +20,8 @@ export type {
 export { ContextError } from './error.ts'
 export { inlineRef, recallChain, spillId, spillPointer } from './chain.ts'
 export type { ChainHop, ChainRecallInput, InlineRef, RecallNode } from './chain.ts'
+export { formatContextBenchReport, runContextBench } from './bench.ts'
+export type { BenchSample } from './bench.ts'
 
 const SCOPE_KEYS = ['workspaceId', 'projectId', 'agentId', 'actorId', 'audienceId', 'policyRevision'] as const
 

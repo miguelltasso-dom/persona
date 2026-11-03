@@ -24,10 +24,9 @@ export class WorkerSlots {
     return new Set([...this.running(), ...this.starting.keys()]).size
   }
 
-  /** How many launches may start now (wakes keep their reservations). */
+  /** How many launches may start now. Starting reservations and wakes occupy a slot. */
   launches(): number {
-    const wakes = [...this.starting].flatMap(([ticketId, by]) => by !== 'launch' ? [ticketId] : [])
-    return this.max() - new Set([...this.running(), ...wakes]).size
+    return Math.max(0, this.max() - this.used())
   }
 
   /**

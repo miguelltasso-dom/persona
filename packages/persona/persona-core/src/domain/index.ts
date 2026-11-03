@@ -93,11 +93,18 @@ export type { HandoffEvidence, HandoffObject } from './handoff.ts'
 
 export {
   applySkillEval,
+  materializeSkills,
   nextSkillVersion,
   publishSkill,
   rollbackSkill,
+  skillAdmitted,
 } from './skills.ts'
-export type { SkillEval, SkillOrigin, SkillRecord, SkillScope } from './skills.ts'
+export type {
+  MaterializedSkills, SkillAudience, SkillEval, SkillOrigin, SkillRecord, SkillRuntime, SkillScope,
+} from './skills.ts'
+
+export { captureReplyTarget, replyUsesCapture } from './reply.ts'
+export type { ReplyCapture } from './reply.ts'
 
 export {
   contradicts,
@@ -113,3 +120,38 @@ export type { AgedMemory, MemoryLayer } from './aging.ts'
 export { markdownToVault, memoryToMarkdown, vaultToMarkdown } from './markdown.ts'
 
 export { TEAM_TEMPLATES, teamTemplateById } from './templates.ts'
+
+export {
+  applyGrant,
+  inviteStatus,
+  issueInvite,
+  peerCanRead,
+  purgeSource,
+  redeemInvite,
+  revokeGrant,
+  revokeInvite,
+} from './invite.ts'
+export type { Grant, Invite } from './invite.ts'
+
+export {
+  CONNECTION_CAPABILITIES,
+  chooseConnection,
+  describeConnection,
+  refuseSilentFallback,
+} from './connection.ts'
+export type { Connection, ConnectionCapabilities, ConnectionChoice, ConnectionKind } from './connection.ts'
+
+export {
+  canWithLayout,
+  positionAffectsPolicy,
+  relationGrantsAccess,
+  relationStartsWork,
+} from './relations.ts'
+export type { CanvasPosition, Delegation, Relation, RelationKind } from './relations.ts'
+
+export {
+  applyVaultProposal,
+  proposeVaultUpdate,
+  vaultProposalExceedsCreator,
+} from './vault-propose.ts'
+export type { VaultProposal } from './vault-propose.ts'

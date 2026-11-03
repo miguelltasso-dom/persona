@@ -1,0 +1,7 @@
+[
+  {
+    "uuid": "u1",
+    "name": "Decisão",
+    "chat_messages": [{ "uuid": "m1", "text": "Vamos fixar o lilás." }]
+  }
+]

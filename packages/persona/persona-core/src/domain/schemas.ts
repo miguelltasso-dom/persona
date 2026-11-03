@@ -20,6 +20,10 @@ export type DomainErrorCode =
   | 'COORDINATION_NOT_UNIQUE'
   | 'UNKNOWN_PERSONA'
   | 'ACL_DENIED'
+  | 'INVITE_INVALID'
+  | 'CONNECTION_UNDECIDED'
+  | 'SYNC_REFUSED'
+  | 'IMPORT_REFUSED'
 
 /** Domain validation or policy failure; message equals `code`. */
 export class DomainError extends Error {

@@ -1,0 +1,9 @@
+[
+  {
+    "id": "c1",
+    "title": "Briefing",
+    "mapping": {
+      "n1": { "message": { "id": "m1", "content": { "parts": ["O cliente prefere fatura semanal."] } } }
+    }
+  }
+]

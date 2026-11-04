@@ -24,6 +24,7 @@ export function storedQuotaFromPut(row: OfficialQuotaPutRow): StoredOfficialQuot
     accountId: row.accountId,
     accountLabel: row.accountLabel,
     ...(row.detail === undefined ? {} : { detail: row.detail }),
+    ...(row.at === undefined ? {} : { at: row.at }),
   }
 }
 

@@ -3,6 +3,8 @@
  * Coordination is a function, never a hardcoded persona name (D-043).
  */
 
+import { existsSync } from 'node:fs'
+import { isAbsolute, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import {
   Engine,
@@ -16,8 +18,8 @@ import {
   foldHostTalkUsed,
   withTurnActivityEmit,
   milestoneSummary,
-  followupOwners,
   firstDeliveryExecutionPrompt,
+  hasPendingDelivery,
   internalSourceScope,
   latestAssignment,
   preRoute,
@@ -78,16 +80,19 @@ import {
 } from '@deepseek-ai/dsh-persona-store'
 import { compileSubjectVault } from './wave2.ts'
 import { doneEventId } from './ticket-done.ts'
-import { QuotaWaitBook } from './quota-wait.ts'
+import { QuotaWaitBook, type QuotaWaitRow } from './quota-wait.ts'
 import { safeUsedContext } from './used-context-safety.ts'
 import { foldSubjectSummary, shouldFoldSubject, SUBJECT_RECENT } from './subject-summary.ts'
 import type { AutonomyMode, EngineStatusView, UsedContextRecord } from './types.ts'
 import { ExecutionBudget } from './budget.ts'
 import { silenceUntilOf } from './proactivity.ts'
+import { HeldMessages, heldLine } from './held-messages.ts'
+import { MessageFlags } from './message-flags.ts'
+import { ReplyStream } from './reply-stream.ts'
 import { FIRST_DELIVERY_EVENT_ID } from './onboarding.ts'
 import type { DeadLetterBook } from './dead-letter.ts'
 import type { MutantRunBook } from './mutant-run.ts'
-import { reviewDeliveryOf, type HostReviewOptions } from './review.ts'
+import { reviewDeliveryOf, reviewTreesOf, type HostReviewOptions } from './review.ts'
 import {
   allowsScriptedReplies,
   assertCliPermission,
@@ -96,6 +101,7 @@ import {
   lastRunnerQuestion,
   lastRunnerReport,
   lastRunnerReportAt,
+  setRunnerPartialSink,
   lastRunnerText,
   permissionFor,
   runnerHomeOf,
@@ -248,7 +254,10 @@ export class ProjectRuntime {
    */
   route(trigger: Trigger, ports: HostPreRoutePorts): PreRouteResult {
     const thread = trigger.threads[0]
-    const threadKey = thread === undefined ? trigger.id : `${thread.source}:${thread.id}`
+    // The anti-duplicate window is per conversation (the channel), not per message thread.
+    const threadKey = trigger.channel !== undefined
+      ? `${trigger.channel.source}:${trigger.channel.thread}`
+      : (thread === undefined ? trigger.id : `${thread.source}:${thread.id}`)
     const parsed = Date.parse(trigger.at)
     const at = Number.isFinite(parsed) ? parsed : 0
     const firstDelivery = ports.firstDelivery?.(trigger)
@@ -342,6 +351,10 @@ export class Orchestration {
   work: Promise<void> = Promise.resolve()
   readonly budget: ExecutionBudget
   readonly cancelled: Set<string> = new Set<string>()
+  /** Minimum gap between two writes of a reply that is streaming into the thread. */
+  streamThrottleMs: number = 120
+  /** Tickets whose open turn a person stopped (Parar): the run loop must not report them afterwards. */
+  readonly stopped: Set<string> = new Set<string>()
   readonly lastErrors: string[] = []
   private readonly meteredRunners = new WeakSet<Runner>()
   private readonly usageContexts = new WeakMap<Runner, RunnerUsageContext>()
@@ -394,7 +407,7 @@ export class Orchestration {
   /** Arm host reconnection polling after intake retains a message. */
   onEngineDeferred: (() => void) | undefined = undefined
   /** A Task was stopped by the quota window (IV-7): the host arms its re-check (reset clock, or a fixed period). */
-  onQuotaWaiting: (() => void) | undefined = undefined
+  onQuotaWaiting: ((info: { readonly projectId: string; readonly ticketId: string }) => void) | undefined = undefined
   vault: VaultRepos | undefined
   opt: OptRepos | undefined
   accounts: AccountRepos | undefined
@@ -566,6 +579,12 @@ export class Orchestration {
     this.stages.length = 0
     this.mark('ingest')
     if (firstDelivery !== undefined) this.screens?.put(event.projectId, 'first_delivery_route', event.id, firstDelivery)
+    // A paused persona does not take the message: it is kept as it is (not even routed) and starts when /retomar comes.
+    if (speaker !== undefined && resumed === undefined && firstDelivery === undefined
+      && pauseCommandOf(event.body) === undefined && this.isPersonaPaused(event.projectId, speaker.id)) {
+      this.holdPaused(event, streamKind, ownerId, responderId, speaker)
+      return
+    }
     const rt = this.runtime(event.projectId)
     const original = this.triggerOf(event, streamKind, ownerId, mentioned !== undefined || streamKind === 'dm')
     const trigger = resumed ?? { ...original, meta: { ...original.meta, responderId,
@@ -612,12 +631,24 @@ export class Orchestration {
             this.failReply(event, speaker, error)
           })
         }
+        // A work request held back by silence or a full project must not vanish: say so now, keep it, retry later.
+        if (routed.action === 'silent' && wantsWork(event.body)) this.holdSilenced(event, streamKind, ownerId, responderId, speaker)
+        // A work request the rules turned down (duplicate, injection, out of scope, refused command) is told so: never silence.
+        if (routed.action === 'ignore' && routed.rule !== 'empty' && wantsWork(event.body)) {
+          this.postAs(event, speaker, `coord-${event.id}-ignored`, ignoredLine(routed))
+        }
         return
       }
     }
-    if (followupOwners(trigger, rt.repo).length > 0) {
-      this.advanceAssignments(rt, event.projectId)
-      return
+    // D-079: a message continues a task only when that task is RUNNING in this conversation on the same subject, or when it
+    // answers the question the persona asked there. Anything else is a message of its own (Ticket or conversation).
+    if (firstDeliveryTarget === undefined) {
+      const absorber = this.absorbingTicket(rt, event, streamKind, ownerId)
+      if (absorber !== undefined && this.absorb(rt, event, absorber)) {
+        this.settleCandidates(rt, event)
+        return
+      }
+      this.noteBusy(rt, event, speaker)
     }
     const work = firstDeliveryTarget !== undefined || wantsWork(event.body)
     this.mark(work ? 'triage:ticket' : 'triage:talk')
@@ -702,24 +733,53 @@ export class Orchestration {
     })
   }
 
+  /** Post a line in the thread of `event` as `speaker` (the account switch and its Notice). Idempotent on `id`. */
+  postThreadLine(event: StoredEvent, speaker: StoredPersona | undefined, id: string, body: string): void {
+    this.postAs(event, speaker, id, body)
+  }
+
   private quotaBook(): QuotaWaitBook | undefined {
     return this.screens === undefined ? undefined : new QuotaWaitBook(this.screens)
   }
 
   /** Remember a Task the quota window stopped, so it runs again when the engine is ready (IV-7). */
-  private waitForQuota(projectId: string, ticket: { readonly id: string; readonly assignments: readonly { readonly id: string }[] }, error: { readonly code: string }): void {
+  private waitForQuota(projectId: string, ticket: { readonly id: string; readonly assignments: readonly { readonly id: string }[]; readonly execution?: { readonly name?: string } }, error: { readonly code: string }): void {
     const book = this.quotaBook()
     const latest = ticket.assignments.at(-1)
     if (book === undefined || latest === undefined) return
     const extra = error as { resetAt?: string; provider?: string }
+    const persona = this.product.listPersonas(projectId).find(row => row.name === ticket.execution?.name)
+    const account = persona === undefined ? undefined : this.screens?.get<{ accountId: string }>(projectId, 'active_account', persona.id)?.accountId
     book.record(projectId, {
       ticketId: ticket.id,
       assignmentId: latest.id,
       provider: extra.provider ?? '',
+      ...(persona === undefined ? {} : { personaId: persona.id }),
+      ...(account === undefined ? {} : { accountId: account }),
       ...(extra.resetAt === undefined ? {} : { resetAt: extra.resetAt }),
       since: this.now(),
     })
-    this.onQuotaWaiting?.()
+    this.onQuotaWaiting?.({ projectId, ticketId: ticket.id })
+  }
+
+  /** The Tasks the quota stopped in one project, oldest first, with the persona and account they ran on ("na hora, com outra conta"). */
+  quotaRows(projectId: string): QuotaWaitRow[] {
+    return this.quotaBook()?.list(projectId) ?? []
+  }
+
+  /** Drop the warm runners of a persona: they are bound to the home of the account she used (after a switch). */
+  evictWarmRunners(projectId: string, personaId: string): number {
+    let evicted = 0
+    for (const [key, runner] of [...this.warmRunners]) {
+      if (!key.startsWith(`${projectId}:${personaId}:`)) continue
+      this.warmRunners.delete(key)
+      evicted += 1
+      const dispose: unknown = Reflect.get(runner, 'dispose')
+      if (typeof dispose === 'function') {
+        void Promise.resolve(dispose.call(runner)).catch((error: unknown) => { void error })
+      }
+    }
+    return evicted
   }
 
   /**
@@ -741,12 +801,13 @@ export class Orchestration {
    * @param projectId - Tenant.
    * @returns How many Tasks were run again.
    */
-  async resumeQuotaWaiting(projectId: string): Promise<number> {
+  async resumeQuotaWaiting(projectId: string, options: { readonly ticketId?: string; readonly force?: boolean } = {}): Promise<number> {
     const book = this.quotaBook()
-    if (book === undefined || this.engineReadinessOf?.().state !== 'ready') return 0
+    // `force`: the person chose another account (confirmAccountSwap); the runner re-checks that account before the turn.
+    if (book === undefined || (options.force !== true && this.engineReadinessOf?.().state !== 'ready')) return 0
     const rt = this.runtime(projectId)
     let resumed = 0
-    for (const row of book.list(projectId)) {
+    for (const row of book.list(projectId).filter(item => options.ticketId === undefined || item.ticketId === options.ticketId)) {
       book.clear(projectId, row.ticketId)
       const ticket = rt.repo.tickets.get(row.ticketId)
       if (ticket === undefined || ticket.ended !== undefined || latestAssignment(ticket)?.id !== row.assignmentId) continue
@@ -840,7 +901,7 @@ export class Orchestration {
     if (ticket === undefined || ticket.ended !== undefined || latestAssignment(ticket)?.state !== 'running') return Promise.resolve()
     const trigger = rt.repo.triggers.get(ticket.origin.triggerId)
     const thread = trigger?.threads[0]
-    const streamKind = thread?.source === 'dm' ? 'dm' : 'channel'
+    const streamKind = thread?.source.startsWith('dm') === true ? 'dm' : 'channel'
     const event: StoredEvent = {
       id: ticket.origin.triggerId,
       streamId: `${streamKind}:${thread?.id ?? 'geral'}`,
@@ -859,6 +920,356 @@ export class Orchestration {
     const run = this.work.then(() => this.settleTask(rt, event, this.coordinationOf(projectId), persona, ticketId))
     this.work = run.catch(() => undefined)
     return run
+  }
+
+  /** Texts of the Inputs a worker has not read yet (answers, notes, later messages), never the request that started the ticket. */
+  private pendingInputs(rt: ProjectRuntime, ticket: Ticket): { ids: string[]; texts: string[] } {
+    const ids: string[] = []
+    const texts: string[] = []
+    for (const id of ticket.undelivered) {
+      const input = ticket.inputs.find(item => item.id === id)
+      if (input === undefined) continue
+      if (input.kind === 'text' || input.kind === 'note') {
+        ids.push(id)
+        texts.push(input.text)
+      } else if (input.kind === 'trigger' && input.human === true && !ticket.origin.triggerIds.includes(input.triggerId)) {
+        const text = rt.repo.triggers.get(input.triggerId)?.text
+        if (text !== undefined) {
+          ids.push(id)
+          texts.push(text)
+        }
+      }
+    }
+    return { ids, texts }
+  }
+
+  /** The conversation (`channel:geral`, `dm:<id>`) a ticket was asked in. */
+  private conversationOf(rt: ProjectRuntime, ticket: Ticket): string {
+    const channel = rt.repo.triggers.get(ticket.origin.triggerId)?.channel
+    return channel === undefined ? 'channel:geral' : `${channel.source}:${channel.thread}`
+  }
+
+  /**
+   * IV-10: where a ticket was asked, so the person's answer is posted in that very thread.
+   * @param projectId - Tenant.
+   * @param ticketId - Ticket that asks.
+   * @returns Stream, conversation subject (`topicId`) and the thread subject of the message that started the ticket.
+   */
+  conversationOfTicket(projectId: string, ticketId: string): { streamKind: 'channel' | 'dm'; ownerId: string; topicId: string; subjectId: string } | undefined {
+    const rt = this.runtime(projectId)
+    const ticket = rt.repo.tickets.get(ticketId)
+    if (ticket === undefined) return undefined
+    const [kind, ...rest] = this.conversationOf(rt, ticket).split(':')
+    const ownerId = rest.join(':')
+    const streamKind = kind === 'dm' ? 'dm' : 'channel'
+    return {
+      streamKind,
+      ownerId: kind === 'dm' || kind === 'channel' ? ownerId : 'geral',
+      topicId: this.screens?.get<{ subjectId: string }>(projectId, 'ticket_subject', ticketId)?.subjectId ?? '',
+      subjectId: this.events.get(ticket.origin.triggerId)?.subjectId ?? '',
+    }
+  }
+
+  /**
+   * The ticket a new message of the person continues, if any: one asking a question in this conversation (the message answers
+   * it in plain words), or one RUNNING here on the same subject whose turn can take the text. Finished, ready, in-review,
+   * blocked or other-subject tickets never absorb.
+   */
+  private absorbingTicket(
+    rt: ProjectRuntime,
+    event: StoredEvent,
+    streamKind: 'channel' | 'dm',
+    ownerId: string,
+  ): { ticket: Ticket; kind: 'answer' | 'continuation' } | undefined {
+    const here = `${streamKind}:${ownerId}`
+    const subject = event.topicId ?? ''
+    const open = rt.repo.tickets.list().filter(ticket => ticket.ended === undefined && this.conversationOf(rt, ticket) === here)
+    // An answer in plain words (not a new request), or any reply written ON the line where the persona asked.
+    const asking = open.find(ticket => ticket.attention !== undefined && latestAssignment(ticket)?.report?.state === 'waiting'
+      && (!wantsWork(event.body) || event.replyToId === doneEventId(ticket)))
+    if (asking !== undefined) return { ticket: asking, kind: 'answer' }
+    for (const ticket of open) {
+      const latest = latestAssignment(ticket)
+      const turnOpen = latest?.state === 'running' && (latest.report === undefined || latest.report.state === 'progress')
+      const ticketSubject = this.screens?.get<{ subjectId: string }>(event.projectId, 'ticket_subject', ticket.id)?.subjectId ?? ''
+      if (turnOpen && ticketSubject === subject && this.taskRunnerOf(event.projectId, ticket.id)?.status(workerSessionId(ticket.id)) === 'running') {
+        return { ticket, kind: 'continuation' }
+      }
+    }
+    return undefined
+  }
+
+  /** Hand the message to the ticket and say so in the thread. false when it could not be handed over (then it flows normally). */
+  private absorb(rt: ProjectRuntime, event: StoredEvent, found: { ticket: Ticket; kind: 'answer' | 'continuation' }): boolean {
+    const { ticket, kind } = found
+    const persona = this.product.listPersonas(event.projectId).find(item => item.name === ticket.execution?.name)
+    const name = persona?.name ?? 'a equipe'
+    if (kind === 'continuation') {
+      const runner = this.taskRunnerOf(event.projectId, ticket.id)
+      if (runner === undefined) return false
+      // "Direcionar agora" delivers itself into the turn (as a steer); the message in the thread is its visible reaction.
+      if (event.id.startsWith('steer:')) return true
+      // Straight into the open turn's queue (the running task itself holds the work chain): it reads the text after this step.
+      void runner.deliver(workerSessionId(ticket.id), `msg:${event.id}`, event.body, 'queue').catch((error: unknown) => {
+        this.lastErrors.push(error instanceof Error ? error.message : String(error))
+      })
+      this.postAs(event, persona, `coord-${event.id}-absorbed`, `Passei para ${name}: lê assim que terminar o passo atual.`)
+      return true
+    }
+    try {
+      // IV-10: files attached to the reply reach the worker too (named in the answer, copied next to it).
+      const files = this.attachmentNamesOf?.(event.id) ?? []
+      const stage = files.length > 0 ? workerDirOf(event.projectId, ticket) : undefined
+      if (stage !== undefined) this.stageAttachments?.(event.id, stage, false)
+      rt.engine.answerAttention(ticket.id, citeAttachments(event.body, files))
+      this.postAs(event, persona, `coord-${event.id}-absorbed`, `Resposta enviada para ${name}: continua “${ticket.title}”.`)
+      void this.wakeAfterAnswer(event.projectId, ticket.id).catch((error: unknown) => {
+        this.lastErrors.push(error instanceof Error ? error.message : String(error))
+      })
+    } catch (error: unknown) {
+      this.lastErrors.push(error instanceof Error ? error.message : String(error))
+      this.postAs(event, persona, `coord-${event.id}-absorbed`, `Guardei sua resposta para ${name}; ela lê quando voltar a trabalhar.`)
+    }
+    return true
+  }
+
+  /** The persona is in the middle of a task: say so, so the message is never met with silence. */
+  private noteBusy(rt: ProjectRuntime, event: StoredEvent, speaker: StoredPersona): void {
+    if (this.budget.of(event.projectId) === 0) return
+    const running = rt.repo.tickets.list().find(ticket => ticket.ended === undefined && latestAssignment(ticket)?.state === 'running')
+    if (running === undefined) return
+    const mine = running.execution?.name === speaker.name
+    this.postAs(event, speaker, `coord-${event.id}-busy`, mine
+      ? `Estou terminando “${running.title}”; respondo em seguida.`
+      : `A equipe está terminando “${running.title}”; respondo em seguida.`)
+  }
+
+  /**
+   * IV-10: the person's answer (text and any files already bound to `messageId`) reaches the ticket that asked. The files are
+   * copied next to the worker (`inputs/`) and named in the answer; the question is cleared; the worker wakes and reads it.
+   * @param projectId - Tenant.
+   * @param ticketId - Ticket that asked.
+   * @param text - Answer text.
+   * @param messageId - The person's message in the thread, which carries the files.
+   * @returns true when the question is cleared.
+   */
+  deliverAttentionAnswer(projectId: string, ticketId: string, text: string, messageId: string): boolean {
+    const rt = this.runtime(projectId)
+    const ticket = rt.repo.tickets.get(ticketId)
+    if (ticket === undefined) return false
+    const files = this.attachmentNamesOf?.(messageId) ?? []
+    const stage = files.length > 0 ? workerDirOf(projectId, ticket) : undefined
+    if (stage !== undefined) this.stageAttachments?.(messageId, stage, false)
+    const answered = rt.engine.answerAttention(ticketId, citeAttachments(text, files))
+    void this.wakeAfterAnswer(projectId, ticketId).catch((error: unknown) => {
+      this.lastErrors.push(error instanceof Error ? error.message : String(error))
+    })
+    return answered.attention === undefined
+  }
+
+  /**
+   * After a person answered the question of a ticket (the `answerAttention` Remote or a plain-words reply), wake its worker:
+   * a new Assignment that reads the answer, run at once.
+   * @param projectId - Tenant.
+   * @param ticketId - Ticket that asked.
+   */
+  wakeAfterAnswer(projectId: string, ticketId: string): Promise<void> {
+    const rt = this.runtime(projectId)
+    const ticket = rt.repo.tickets.get(ticketId)
+    if (ticket === undefined || ticket.ended !== undefined || latestAssignment(ticket)?.state !== 'running') return Promise.resolve()
+    rt.engine.resumeTicket(ticketId, 'Continue a tarefa com a resposta da pessoa.')
+    return this.driveTicket(projectId, ticketId)
+  }
+
+  /** The message was handled (handed to a task): tell the engine, so its Eval candidate is not accepted as a new task later. */
+  private settleCandidates(rt: ProjectRuntime, event: StoredEvent): void {
+    const mine = rt.candidates.filter(candidate => candidate.triggers.some(trigger => trigger.id === event.id))
+    for (const candidate of mine) {
+      rt.candidates.splice(rt.candidates.indexOf(candidate), 1)
+      rt.engine.decide(event.id, { kind: 'ignore', reason: 'answered', evalId: candidate.evalId })
+    }
+  }
+
+  /** Take a message out of the anti-duplicate window (it was not taken, so asking again is not a repeat). */
+  private forgetRouted(rt: ProjectRuntime, trigger: Trigger): void {
+    const at = Date.parse(trigger.at)
+    for (let index = rt.routeLog.window.length - 1; index >= 0; index -= 1) {
+      const seen = rt.routeLog.window[index]
+      if (seen !== undefined && seen.senderId === trigger.actor.id && seen.text === trigger.text && seen.at === at) rt.routeLog.window.splice(index, 1)
+    }
+  }
+
+  private holdPaused(
+    event: StoredEvent,
+    streamKind: 'channel' | 'dm',
+    ownerId: string,
+    responderId: string,
+    speaker: StoredPersona,
+  ): void {
+    if (this.screens !== undefined) {
+      new HeldMessages(this.screens).hold(event.projectId, {
+        eventId: event.id, streamKind, ownerId, responderId, speakerId: speaker.id, at: this.now(),
+      })
+    }
+    this.postAs(event, speaker, `coord-${event.id}-paused`, `${speaker.name} está pausada. Use /retomar para voltar.`)
+  }
+
+  private holdSilenced(
+    event: StoredEvent,
+    streamKind: 'channel' | 'dm',
+    ownerId: string,
+    responderId: string,
+    speaker: StoredPersona,
+  ): void {
+    const coord = this.coordinationOf(event.projectId)
+    const autonomy = coord === undefined ? undefined : new ProactivityRepos(this.store, this.now).getAutonomy(event.projectId, coord.id)
+    const silenceEnd = autonomy !== undefined && silenceUntilOf(this.now(), autonomy.silenceStart, autonomy.silenceEnd) > 0 ? (autonomy.silenceEnd ?? '') : ''
+    if (this.screens !== undefined) {
+      new HeldMessages(this.screens).hold(event.projectId, { eventId: event.id, streamKind, ownerId, responderId, at: this.now() })
+    }
+    this.postAs(event, speaker, `coord-${event.id}-held`, heldLine(speaker.name, silenceEnd))
+  }
+
+  /**
+   * Re-evaluate the work requests that were held back, once the gate (silence window, free slot, budget) is open. Used by
+   * the proactivity scheduler; safe to call any time.
+   * @param projectId - Tenant.
+   * @returns How many requests were handed back to routing.
+   */
+  releaseHeld(projectId: string): number {
+    if (this.screens === undefined) return 0
+    const book = new HeldMessages(this.screens)
+    const held = book.list(projectId)
+    if (held.length === 0) return 0
+    if (!this.routeBudgetLeft(projectId) || this.routeSilenceUntil(projectId) > 0) return 0
+    const rt = this.runtime(projectId)
+    let released = 0
+    for (const row of held) {
+      if (row.speakerId !== undefined && this.isPersonaPaused(projectId, row.speakerId)) continue
+      book.drop(projectId, row.eventId)
+      const event = this.events.get(row.eventId)
+      const trigger = rt.repo.triggers.get(row.eventId)
+      if (event === undefined) continue
+      if (trigger === undefined) {
+        // Never routed (the persona was paused): it comes in now, like a message that just arrived.
+        this.ingest(event, row.streamKind, row.ownerId, row.responderId)
+        released += 1
+        continue
+      }
+      // The pre-router remembered this very message; replaying it must not look like a duplicate of itself.
+      this.forgetRouted(rt, trigger)
+      rt.engine.reevaluate(row.eventId)
+      this.ingest(event, row.streamKind, row.ownerId, row.responderId, trigger)
+      released += 1
+    }
+    return released
+  }
+
+  /** The warm task runner of the persona that executes a ticket, when its turn can be reached. */
+  private taskRunnerOf(projectId: string, ticketId: string): Runner | undefined {
+    const owner = this.runtime(projectId).repo.tickets.get(ticketId)?.execution?.name
+    const persona = owner === undefined ? undefined : this.product.listPersonas(projectId).find(item => item.name === owner)
+    if (persona === undefined) return undefined
+    return this.warmRunners.get(`${projectId}:${persona.id}:task`) ?? this.warmRunners.get(`${projectId}:${persona.id}:task:answer-only`)
+  }
+
+  /**
+   * The persona's ticket with a turn open right now (running, no final report yet).
+   * @param projectId - Tenant.
+   * @param personaId - Persona.
+   */
+  runningTicketOf(projectId: string, personaId: string): Ticket | undefined {
+    const persona = this.product.getPersona(personaId)
+    if (persona === undefined) return undefined
+    return this.runtime(projectId).repo.tickets.list().find((ticket) => {
+      const latest = latestAssignment(ticket)
+      return ticket.ended === undefined && ticket.execution?.name === persona.name && latest?.state === 'running'
+        && (latest.report === undefined || latest.report.state === 'progress')
+    })
+  }
+
+  /**
+   * “Direcionar agora”: put text into the open turn of a ticket's worker right away.
+   * @param projectId - Tenant.
+   * @param ticketId - Ticket whose turn is open.
+   * @param requestId - Idempotent delivery id.
+   * @param text - What the person wants the worker to do differently.
+   * @returns false when no turn is open to steer.
+   */
+  async steerTicket(projectId: string, ticketId: string, requestId: string, text: string): Promise<boolean> {
+    const runner = this.taskRunnerOf(projectId, ticketId)
+    if (runner === undefined || runner.status(workerSessionId(ticketId)) !== 'running') return false
+    await runner.deliver(workerSessionId(ticketId), requestId, text, 'steer')
+    return true
+  }
+
+  /**
+   * Parar: cancel the open turn (keeping what is queued for it) and end the ticket as stopped by the person.
+   * @param projectId - Tenant.
+   * @param ticketId - Ticket to stop.
+   * @param reason - Why it ended.
+   * @returns false when the ticket is unknown or already ended.
+   */
+  async stopTicketRun(projectId: string, ticketId: string, reason: string): Promise<boolean> {
+    const rt = this.runtime(projectId)
+    const ticket = rt.repo.tickets.get(ticketId)
+    if (ticket === undefined || ticket.ended !== undefined) return false
+    const runner = this.taskRunnerOf(projectId, ticketId)
+    const live = runner !== undefined && runner.status(workerSessionId(ticketId)) === 'running'
+    if (live) this.stopped.add(ticketId)
+    rt.engine.stopTicket(ticketId, reason)
+    if (live) await runner.cancel(workerSessionId(ticketId), { keepInbox: true })
+    return true
+  }
+
+  private replyStream(event: StoredEvent, speaker: StoredPersona, replyId: string): ReplyStream {
+    const guard = (work: () => void): void => {
+      try {
+        work()
+      } catch (error: unknown) {
+        // A write that fails (store closing) must never break the model's stream.
+        this.lastErrors.push(error instanceof Error ? error.message : String(error))
+        if (this.lastErrors.length > 20) this.lastErrors.shift()
+      }
+    }
+    return new ReplyStream({
+      open: (text) => { guard(() => { this.postAs(event, speaker, replyId, clipWords(text), 'partial') }) },
+      update: (text) => { guard(() => { this.events.updatePartial(replyId, clipWords(text)) }) },
+    }, this.streamThrottleMs)
+  }
+
+  /** Settle the streaming message under the same id; with nothing streamed, post the reply as usual. Idempotent. */
+  private settleReply(event: StoredEvent, speaker: StoredPersona, id: string, body: string, type: string): void {
+    if (this.events.settlePartial(id, body, type)) return
+    this.postAs(event, speaker, id, body, type)
+  }
+
+  private finishStopped(event: StoredEvent, speaker: StoredPersona, replyId: string, partial: string): void {
+    const text = clipWords(partial).trim()
+    if (text === '') {
+      this.postAs(event, speaker, replyId, 'Resposta cancelada.')
+      return
+    }
+    this.settleReply(event, speaker, replyId, text, 'runner')
+    if (this.screens !== undefined) new MessageFlags(this.screens).set(event.projectId, replyId, { stopped: true })
+  }
+
+  /**
+   * Parar a reply that is being written: cancel the talk turn and let the reply settle with what was written.
+   * @param projectId - Tenant.
+   * @param eventId - The person's message the reply answers.
+   * @returns true when a turn was open and was cancelled.
+   */
+  async stopReply(projectId: string, eventId: string): Promise<boolean> {
+    this.cancelled.add(eventId)
+    let live = false
+    for (const [key, runner] of this.warmRunners) {
+      if (!key.startsWith(`${projectId}:`) || !key.includes(':talk')) continue
+      if (runner.status(`talk-${eventId}`) !== 'running') continue
+      await runner.cancel(`talk-${eventId}`, { keepInbox: false })
+      live = true
+    }
+    return live
   }
 
   /**
@@ -986,7 +1397,7 @@ export class Orchestration {
     const project = this.product.getProject(projectId)
     const thread = trigger?.threads[0]
     const ownerId = thread?.id ?? 'geral'
-    const streamKind = thread?.source === 'dm' ? 'dm' : 'channel'
+    const streamKind = thread?.source.startsWith('dm') === true ? 'dm' : 'channel'
     const event: StoredEvent = {
       id: ticket.origin.triggerId,
       streamId: `${streamKind}:${ownerId}`,
@@ -1154,13 +1565,20 @@ export class Orchestration {
   }
 
   /**
+   * Descartar: drop the draft, and end the Task the person just turned down (outcome `stopped`). FLOW-1 refuses to drag a
+   * card with a result waiting to Concluído, so a Ticket left `ready` after its draft is gone would be stuck in Revisar
+   * for good. A Task that is not waiting for review any more (a newer assignment is working) is left running.
    * @param projectId - Tenant.
    * @param ticketId - Ticket.
    */
   async discardReview(projectId: string, ticketId: string): Promise<void> {
     const delivery = await this.reviewDelivery(projectId)
     if (delivery === undefined) return
+    const waiting = this.runtime(projectId).repo.tickets.get(ticketId)
     await delivery.discard({ id: ticketId })
+    if (waiting !== undefined && hasPendingDelivery(waiting)) {
+      await this.stopTicketRun(projectId, ticketId, 'discarded')
+    }
   }
 
   /**
@@ -1284,6 +1702,8 @@ export class Orchestration {
                 layers: EMPTY_LAYERS,
                 at: entry.at,
                 origin: 'measured',
+                // OPT-9: the wall time of the turn, only when the runner measured it (never a made-up 0).
+                ...(entry.durationMs === undefined ? {} : { durationMs: entry.durationMs }),
                 ...(usageContext.ticketId === undefined ? {} : { ticketId: usageContext.ticketId }),
                 ...(accountId === undefined ? {} : { accountId }),
               })
@@ -1415,7 +1835,10 @@ export class Orchestration {
         const recovery = rt.recoveryNotes.includes(RECOVERY_NOTE)
         this.postAs(event, executor, `exec-${ticket.id}-progress`, `Em andamento: ${ticket.title}`)
         await runner.ensureSession(sessionId, ticket.execution?.directory ?? '.', ticket.title, 'worker')
-        const assignment = recovery ? `${RECOVERY_NOTE}\n${ticket.title}` : (ticket.execution?.assignment ?? ticket.title)
+        const base = recovery ? `${RECOVERY_NOTE}\n${ticket.title}` : (ticket.execution?.assignment ?? ticket.title)
+        // What the person said since the last turn (an answer, a note) goes into the prompt of the resumed Assignment.
+        const heard = firstDelivery === undefined ? this.pendingInputs(rt, ticket) : { ids: [], texts: [] }
+        const assignment = heard.texts.length === 0 ? base : `${base}\n\nDesde a última rodada a pessoa disse:\n${heard.texts.map(text => `- ${text}`).join('\n')}`
         const prompt = firstDelivery === undefined ? assignment : firstDeliveryExecutionPrompt({
           fields: {
             identity: { name: executor.name, title: executor.title },
@@ -1432,8 +1855,10 @@ export class Orchestration {
           prompt,
           recovery ? 'steer' : 'queue',
         )
+        if (heard.ids.length > 0) rt.engine.inputsDelivered(ticket.id, latest.id, heard.ids)
         await runner.whenIdle(sessionId)
         await this.noteUsage(event.projectId, executor, sessionId, runner)
+        if (this.stopped.delete(ticket.id)) continue // Parar: the ticket already ended as stopped by the person
         const report = lastRunnerReport(runner)
         const live = this.takeLive(runner)
         if (report !== undefined) {
@@ -1455,7 +1880,9 @@ export class Orchestration {
           continue
         }
         const asked = this.takeQuestion(runner)
-        const ask = asked !== undefined || wantsAttention(ticket.title) || wantsAttention(event.body)
+        // Once the person answered (a later Assignment), the title/body heuristic must not ask the same thing again.
+        const firstRun = ticket.assignments.length <= 1
+        const ask = asked !== undefined || (firstRun && (wantsAttention(ticket.title) || wantsAttention(event.body)))
         const question = asked ?? ticket.title
         if (!ask && live === '' && !this.scripted) {
           rt.engine.report(ticket.id, { state: 'failed', summary: 'O motor terminou sem entregar uma resposta.' })
@@ -1506,13 +1933,13 @@ export class Orchestration {
       this.postAs(event, speaker, replyId, 'Resposta cancelada.')
       return
     }
+    const stream = this.replyStream(event, speaker, replyId)
     let runner: Runner
     try {
       const contextWork = this.compileUsed(event, speaker)
-      runner = await this.resolveFor(speaker, event.projectId, 'asked', 'talk', (text) => {
-        this.mark('first-token')
-        this.postAs(event, speaker, `coord-${event.id}-token`, clipWords(text), 'partial')
-      })
+      runner = await this.resolveFor(speaker, event.projectId, 'asked', 'talk', () => { this.mark('first-token') })
+      // The reply grows in the thread as ONE message while the model writes (streaming); it settles under the same id below.
+      setRunnerPartialSink(runner, (text) => { stream.push(text) })
       const used = await contextWork
       const talkHome = process.env.PERSONA_HOME ?? process.env.DSH_HOME ?? ''
       if (talkHome !== '') this.stageAttachments?.(event.id, talkHome, runnerHasVision(runner))
@@ -1522,11 +1949,21 @@ export class Orchestration {
       await runner.deliver(`talk-${event.id}`, `talk:${event.id}`, talk, 'queue')
       await runner.whenIdle(`talk-${event.id}`)
       this.mark('idle')
+      setRunnerPartialSink(runner, undefined)
+      stream.flush()
+      if (this.cancelled.has(event.id)) {
+        // Parar during the reply: keep what was written, marked as stopped (or say it was cancelled if nothing came out).
+        stream.stop()
+        this.finishStopped(event, speaker, replyId, stream.text)
+        return
+      }
       await this.noteUsage(event.projectId, speaker, `talk-${event.id}`, runner)
     } catch (error: unknown) {
+      stream.stop()
       this.failReply(event, speaker, error)
       return
     }
+    stream.stop()
     const live = this.takeLive(runner)
     const login = loginFailureFromText(live, cliOfPersona(speaker))
     if (login !== undefined) {
@@ -1548,7 +1985,7 @@ export class Orchestration {
           void error
         }
       }
-      this.postAs(event, speaker, replyId, clipWords(body), live !== '' ? 'runner' : 'message')
+      this.settleReply(event, speaker, replyId, clipWords(body), live !== '' ? 'runner' : 'message')
       if (queuedId !== undefined && this.events.has(replyId)) rt.outbox.settle(queuedId, 'sent')
     })
     this.mark('reply')
@@ -2119,6 +2556,8 @@ export class Orchestration {
         ? `${target.name} pausada. Sem conversa nem tarefa até /retomar.`
         : `${target.name} retomada.`,
     )
+    // What was asked while the persona was paused starts now.
+    if (command === 'retomar') this.releaseHeld(event.projectId)
   }
 
   /**
@@ -2172,9 +2611,10 @@ export class Orchestration {
     return {
       id: event.id,
       source: streamKind,
-      // A request from the team itself (routine, plan, initiative) is its own conversation: on the shared #geral thread it
-      // would be read as a follow-up of whichever ticket is still open there. Replies still go to `channel` below.
-      threads: [{ source: /^(routine|team):/u.test(event.actorId) ? `${streamKind}:${event.id}` : streamKind, id: ownerId }],
+      // Each message is its own conversation (D-079). On the shared channel thread the engine read every message as a
+      // follow-up of whichever ticket was still open there — or woke a finished one — and nothing answered. A continuation is
+      // decided on purpose by `absorbingTicket`; replies still go to `channel` below.
+      threads: [{ source: `${streamKind}:${event.id}`, id: ownerId }],
       actor: { source: streamKind, id: event.actorId },
       human: true,
       ...(addressed ? { addressed: streamKind === 'dm' ? 'direct' : 'mention' } : {}),
@@ -2191,6 +2631,18 @@ function monthWindow(iso: string): { from: string; to: string } {
   const from = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1)).toISOString()
   const to = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 0, 23, 59, 59, 999)).toISOString()
   return { from, to }
+}
+
+/**
+ * The line a request gets when the deterministic rules turn it down.
+ * @param routed - The ignore decision.
+ */
+function ignoredLine(routed: PreRouteResult): string {
+  if (routed.rule === 'duplicate') return 'Já tenho esse pedido, igual ao de agora há pouco; não abri outra tarefa.'
+  if (routed.rule === 'injection') return 'Não vou seguir esse pedido.'
+  if (routed.rule === 'scope') return 'Isso fica fora do que posso fazer aqui.'
+  if (routed.rule === 'command') return `Não consegui usar esse comando: ${routed.why}.`
+  return `Não consegui tratar esse pedido (${routed.why}).`
 }
 
 function clip(value: string, max: number): string {
@@ -2214,6 +2666,24 @@ function wantsAttention(text: string): boolean {
 }
 
 export { wantsWork }
+
+/**
+ * Where files may be copied for a worker: only its own review worktree (like the files of the request that started it).
+ * A task without a folder runs in the host's working directory, which is never written to; a relative or missing folder
+ * is refused too.
+ * @param projectId - Tenant.
+ * @param ticket - Ticket with an `execution`.
+ */
+function workerDirOf(projectId: string, ticket: Ticket): string | undefined {
+  const directory = ticket.execution?.directory
+  if (directory === undefined || !isAbsolute(directory) || !existsSync(directory)) return undefined
+  try {
+    const trees = resolve(reviewTreesOf(projectId))
+    return resolve(directory).startsWith(`${trees}${sep}`) ? directory : undefined
+  } catch {
+    return undefined
+  }
+}
 
 function citeAttachments(text: string, names: readonly string[]): string {
   if (names.length === 0) return text

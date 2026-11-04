@@ -4,6 +4,7 @@
  */
 
 import {
+  hasPendingDelivery,
   latestAssignment,
   scoreInitiative,
   vigiaTick,
@@ -24,6 +25,9 @@ import {
 import type { RoutineRepos } from '@deepseek-ai/dsh-persona-store'
 import type { Orchestration } from './orchestration.ts'
 import type { ProductRepos } from '@deepseek-ai/dsh-persona-store'
+import type {
+  ApprovalView, AwayEventView, AwayPersonaView, AwayWaitingView, WhileAwayView,
+} from './types.ts'
 
 /** Honest UI work state (PROACTIVITY §7). */
 export type PersonaWorkState = 'working' | 'resting' | 'stuck' | 'waiting'
@@ -49,20 +53,18 @@ export interface OverviewNowView {
   readonly personas: readonly PersonaNowView[]
 }
 
-/** One line of "Enquanto você estava fora". */
-export interface AwayEventView {
-  readonly id: string
-  readonly at: string
-  readonly body: string
-  readonly taskId: string
-  readonly taskTitle: string
-  readonly kind: 'delivery' | 'proposal' | 'watchdog'
-}
+export type { AwayEventView, AwayPersonaView, AwayWaitingView, WhileAwayView } from './types.ts'
 
-/** Peak-end summary since the last visit. */
-export interface WhileAwayView {
-  readonly since: string
-  readonly events: readonly AwayEventView[]
+/** How long between two writes of the presence marker (a refresh every few seconds must not write every time). */
+const PRESENCE_WRITE_MS = 30_000
+/** A gap longer than this since the person was last looking is an absence: the next read opens a new window. */
+const AWAY_GAP_MS = 10 * 60_000
+/** Most Tasks listed under one persona in "Enquanto você estava fora". */
+const AWAY_TASKS_PER_PERSONA = 5
+
+/** A Task counts as DELIVERED only when it ended as completed or merged (stopped, dropped and closed are not deliveries). */
+export function isDelivered(ticket: Ticket): boolean {
+  return ticket.ended !== undefined && (ticket.ended.outcome === 'completed' || ticket.ended.outcome === 'merged')
 }
 
 /** Result of one scheduler tick. */
@@ -87,6 +89,8 @@ export class ProactivityHost {
   readonly now: () => string
   /** Draft size of a running ticket (the scheduler keeps it fresh). Unset = no draft information. */
   draftFilesOf: ((projectId: string, ticketId: string) => number | undefined) | undefined = undefined
+  /** The proposals and questions waiting in Aprovações (the same list the screen shows). Unset = none are listed. */
+  approvalsOf: ((projectId: string) => readonly ApprovalView[]) | undefined = undefined
 
   /**
    * @param product - Personas.
@@ -289,35 +293,50 @@ export class ProactivityHost {
   }
 
   /**
-   * Events since the last visit; then records this visit.
+   * "Enquanto você estava fora" (P1-7): what the team did since the person was last here, and what waits for them now, all
+   * from the host's real records and linked to the real Task. Reading does NOT consume it: the window opens once per session
+   * (at the first read) and stays the same until {@link dismissWhileAway}, so a client that refreshes every few seconds keeps
+   * the summary on screen. The presence marker is refreshed on reads (throttled), so after a restart "last here" is the last
+   * time the person was actually looking.
    * @param projectId - Tenant.
    */
   whileAway(projectId: string): WhileAwayView {
-    const since = this.repos.lastVisit(projectId) ?? EPOCH
+    const { since, openedAt } = this.openWindow(projectId)
+    const personas = this.product.listPersonas(projectId)
     const tickets = this.orchestration.runtime(projectId).repo.tickets.list()
+    const ticketById = new Map(tickets.map(ticket => [ticket.id, ticket]))
+    const ownerOf = (ticket: Ticket): StoredPersona | undefined => personas.find(persona => ownsTicket(ticket, persona))
+    const byPersona = (persona: StoredPersona | undefined): { personaId?: string; personaName?: string } =>
+      persona === undefined ? {} : { personaId: persona.id, personaName: persona.name }
+
     const events: AwayEventView[] = []
     for (const fire of this.repos.firesSince(projectId, since)) {
+      const ticket = fire.ticketId === undefined ? undefined : ticketById.get(fire.ticketId)
       events.push({
         id: fire.id,
         at: fire.at,
         body: fire.title,
         taskId: fire.ticketId ?? '',
-        taskTitle: fire.title,
+        taskTitle: ticket?.title ?? fire.title,
         kind: 'proposal',
+        ...byPersona(personas.find(persona => persona.id === fire.personaId)),
       })
     }
     for (const audit of this.repos.auditsSince(projectId, since)) {
+      const ticket = ticketById.get(audit.subjectId)
       events.push({
         id: audit.id,
         at: audit.at,
         body: audit.detail,
         taskId: audit.subjectId,
-        taskTitle: audit.subjectId,
+        // The real title, never the raw id; empty when the subject is not a Task.
+        taskTitle: ticket?.title ?? '',
         kind: 'watchdog',
+        ...byPersona(ticket === undefined ? undefined : ownerOf(ticket)),
       })
     }
     for (const ticket of tickets) {
-      if (ticket.ended === undefined || ticket.ended.at <= since) continue
+      if (!isDelivered(ticket) || ticket.ended === undefined || ticket.ended.at <= since) continue
       events.push({
         id: `delivery:${ticket.id}`,
         at: ticket.ended.at,
@@ -325,18 +344,117 @@ export class ProactivityHost {
         taskId: ticket.id,
         taskTitle: ticket.title,
         kind: 'delivery',
+        ...byPersona(ownerOf(ticket)),
       })
     }
     events.sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id))
-    this.repos.markVisit(projectId, this.now())
-    return { since, events }
+
+    const waiting = this.waitingOnPerson(projectId, tickets, ticketById, ownerOf)
+    this.touch(projectId)
+    // How long they were away, fixed at the moment they came back (it does not grow while they read). Absent when there is
+    // no absence to speak of: the very first visit (no earlier one), or a window the person restarted by dismissing.
+    const awayMs = since === EPOCH ? 0 : Date.parse(openedAt) - Date.parse(since)
+    const awayMinutes = Number.isFinite(awayMs) && awayMs >= 60_000 ? Math.floor(awayMs / 60_000) : undefined
+    return {
+      since,
+      events,
+      waiting,
+      byPersona: awayByPersona(personas, events, waiting),
+      summary: {
+        deliveries: events.filter(event => event.kind === 'delivery').length,
+        waitingOnYou: waiting.length,
+        ...(awayMinutes === undefined ? {} : { awayMinutes }),
+      },
+    }
   }
 
   /**
+   * Record that the human opened the project: opens this session's window if it is not open yet (so the summary the first
+   * read shows is not lost) and refreshes the presence marker. It never resets an open window.
    * @param projectId - Tenant.
    */
   markVisit(projectId: string): void {
-    this.repos.markVisit(projectId, this.now())
+    this.openWindow(projectId)
+    this.touch(projectId)
+  }
+
+  /**
+   * The person saw the summary: the window restarts now. Events after this moment form the next one.
+   * @param projectId - Tenant.
+   */
+  dismissWhileAway(projectId: string): void {
+    const now = this.now()
+    this.repos.setAwayWindow(projectId, now, now)
+    this.repos.markVisit(projectId, now)
+  }
+
+  /**
+   * The window of this sitting. It stays the same while the person keeps looking (a refresh marks presence, so the gap
+   * stays small) and across a quick restart; a longer gap since they were last looking is an absence, and the window then
+   * starts at that moment. It is stored, so it does not depend on the process.
+   */
+  private openWindow(projectId: string): { readonly since: string; readonly openedAt: string } {
+    const now = this.now()
+    const seen = this.repos.lastVisit(projectId)
+    const current = this.repos.awayWindow(projectId)
+    if (current !== undefined && seen !== undefined && Date.parse(now) - Date.parse(seen) < AWAY_GAP_MS) return current
+    const since = seen ?? EPOCH
+    this.repos.setAwayWindow(projectId, since, now)
+    return { since, openedAt: now }
+  }
+
+  private touch(projectId: string): void {
+    const now = this.now()
+    const last = this.repos.lastVisit(projectId)
+    if (last !== undefined && Date.parse(now) - Date.parse(last) < PRESENCE_WRITE_MS) return
+    this.repos.markVisit(projectId, now)
+  }
+
+  /**
+   * What waits for the person right now: the Aprovações list the screen shows (proposals and Task questions) plus the results
+   * waiting in Revisar (only where a draft can exist: a project with a folder). A Task with a question is listed once.
+   */
+  private waitingOnPerson(
+    projectId: string,
+    tickets: readonly Ticket[],
+    ticketById: ReadonlyMap<string, Ticket>,
+    ownerOf: (ticket: Ticket) => StoredPersona | undefined,
+  ): AwayWaitingView[] {
+    const waiting: AwayWaitingView[] = []
+    const asking = new Set<string>()
+    for (const card of this.approvalsOf?.(projectId) ?? []) {
+      if (card.status !== 'pending') continue
+      if (card.kind === 'attention') {
+        asking.add(card.id)
+        const ticket = ticketById.get(card.id)
+        waiting.push({
+          id: `question:${card.id}`, kind: 'question', title: ticket?.title ?? card.title, taskId: card.id,
+          // The same card the Aprovações screen lists (its id is the Task's), so the link needs no translation.
+          approvalId: card.id, approvalKind: 'attention',
+          personaId: card.personaId, personaName: card.personaName,
+          ...(ticket === undefined ? {} : { at: ticket.updatedAt }),
+        })
+        continue
+      }
+      waiting.push({
+        id: `approval:${card.kind}:${card.id}`, kind: 'approval', title: card.title, taskId: '', approvalId: card.id,
+        approvalKind: card.kind, personaId: card.personaId, personaName: card.personaName,
+      })
+    }
+    const root = this.product.getProject(projectId)?.rootPath
+    if (root !== undefined && root !== '') {
+      for (const ticket of tickets) {
+        if (asking.has(ticket.id) || !hasPendingDelivery(ticket)) continue
+        const owner = ownerOf(ticket)
+        waiting.push({
+          id: `review:${ticket.id}`, kind: 'review', title: ticket.title, taskId: ticket.id,
+          personaId: owner?.id ?? '', personaName: owner?.name ?? ticket.execution?.name ?? '',
+          at: latestAssignment(ticket)?.report?.at ?? ticket.updatedAt,
+        })
+      }
+    }
+    // Newest first; what has no recorded time (an approval) goes last, in a stable order.
+    return waiting.sort((a, b) => (b.at ?? '').localeCompare(a.at ?? '') || a.id.localeCompare(b.id))
   }
 
   /**
@@ -384,7 +502,7 @@ export class ProactivityHost {
     const lastAt = current?.updatedAt ?? latestFire?.at ?? persona.updatedAt
     const idleMinutes = state === 'resting' ? minutesBetween(lastAt, now) : 0
     const day = now.slice(0, 10)
-    const deliveriesToday = mine.filter(ticket => ticket.ended?.at.startsWith(day)).length
+    const deliveriesToday = mine.filter(ticket => isDelivered(ticket) && ticket.ended?.at.startsWith(day) === true).length
     const proposalsAcceptedToday = fires.filter(item => item.personaId === persona.id && item.ticketId !== undefined).length
     const changed = state === 'working' && current !== undefined ? this.draftFilesOf?.(projectId, current.id) : undefined
     const draftFiles = changed !== undefined && changed > 0 ? changed : undefined
@@ -412,6 +530,52 @@ export class ProactivityHost {
       return typeof key === 'string' ? key : ''
     }).filter(key => key.length > 0)
   }
+}
+
+/**
+ * What each persona did for the person while away, and what of hers waits for them. Only personas with something are listed.
+ * @param personas - The team, in its order.
+ * @param events - The window's events (each already attributed).
+ * @param waiting - What waits for the person now.
+ */
+function awayByPersona(
+  personas: readonly StoredPersona[],
+  events: readonly AwayEventView[],
+  waiting: readonly AwayWaitingView[],
+): AwayPersonaView[] {
+  type TaskRef = AwayPersonaView['tasks'][number]
+  const rows = new Map<string, { delivered: number; proposed: number; waitingOnYou: number; tasks: Map<string, TaskRef> }>()
+  const rowOf = (personaId: string): { delivered: number; proposed: number; waitingOnYou: number; tasks: Map<string, TaskRef> } => {
+    const existing = rows.get(personaId)
+    if (existing !== undefined) return existing
+    const created = { delivered: 0, proposed: 0, waitingOnYou: 0, tasks: new Map<string, TaskRef>() }
+    rows.set(personaId, created)
+    return created
+  }
+  // What a persona DID for the person: deliveries and proposals. The Vigia's notes are the system's, not hers.
+  for (const event of events) {
+    if (event.personaId === undefined || event.personaId === '' || event.kind === 'watchdog') continue
+    const row = rowOf(event.personaId)
+    if (event.kind === 'delivery') row.delivered += 1
+    else row.proposed += 1
+    if (event.taskId !== '') row.tasks.set(`${event.kind}:${event.taskId}`, { taskId: event.taskId, taskTitle: event.taskTitle, kind: event.kind, at: event.at })
+  }
+  for (const item of waiting) {
+    if (item.personaId === '') continue
+    const row = rowOf(item.personaId)
+    row.waitingOnYou += 1
+    if (item.taskId !== '') {
+      row.tasks.set(`${item.kind}:${item.taskId}`, { taskId: item.taskId, taskTitle: item.title, kind: item.kind, ...(item.at === undefined ? {} : { at: item.at }) })
+    }
+  }
+  return personas.flatMap((persona) => {
+    const row = rows.get(persona.id)
+    if (row === undefined) return []
+    const tasks = [...row.tasks.values()]
+      .sort((a, b) => (b.at ?? '').localeCompare(a.at ?? '') || a.taskId.localeCompare(b.taskId))
+      .slice(0, AWAY_TASKS_PER_PERSONA)
+    return [{ personaId: persona.id, name: persona.name, delivered: row.delivered, proposed: row.proposed, waitingOnYou: row.waitingOnYou, tasks }]
+  })
 }
 
 /**
@@ -502,23 +666,29 @@ function scoreInitiativeProposal(
   const facts: ProjectFact[] = []
   const existing: ExistingWorkItem[] = []
   for (const ticket of tickets) {
-    existing.push({ kind: 'ticket', title: ticket.title })
-    if (ticket.ended !== undefined) continue
+    // A fact ABOUT a Ticket (waiting on a question, no progress) is the reason to act on it, so that Ticket must not count as
+    // "work that already exists": it would be dropped as a duplicate of itself and the initiative would stay silent exactly
+    // when something is stuck. An external event is compared against every Ticket.
+    if (source === 'event' || ticket.ended !== undefined) {
+      existing.push({ kind: 'ticket', title: ticket.title })
+      continue
+    }
     if (ticket.attention !== undefined) {
-      facts.push({ kind: 'blocked', title: ticket.title, detail: ticket.attention.question })
+      facts.push({ kind: 'blocked', title: ticket.title, detail: ticket.attention.question, ticketId: ticket.id })
       continue
     }
     const updated = Date.parse(ticket.updatedAt)
     if (Number.isFinite(now) && Number.isFinite(updated) && now - updated > STALE_MS) {
-      facts.push({ kind: 'stale_ticket', title: ticket.title, detail: 'Sem progresso recente.' })
+      facts.push({ kind: 'stale_ticket', title: ticket.title, detail: 'Sem progresso recente.', ticketId: ticket.id })
+    } else {
+      existing.push({ kind: 'ticket', title: ticket.title })
     }
   }
-  if (facts.length === 0) {
-    facts.push({
-      kind: source === 'event' ? 'deadline' : 'gap',
-      title,
-      detail: title,
-    })
+  if (source === 'event') {
+    // The event (PR, recurring error, deadline) IS the fact: the state of some Ticket never replaces it.
+    facts.push({ kind: 'deadline', title, detail: title })
+  } else if (facts.length === 0) {
+    facts.push({ kind: 'gap', title, detail: title })
   }
   const budget: AttentionBudget = {
     proposalsPerDay,

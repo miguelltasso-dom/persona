@@ -26,6 +26,7 @@ import {
   syncPlacementFromStage,
   closeSprint,
   MemoryGoalBoard,
+  hasPendingDelivery,
   moveToColumn,
   projectBoardCard,
   WorkflowError,
@@ -105,6 +106,7 @@ export class BoardsHost {
     }
     const cards = tickets.map(ticket => toCard(
       workflow, ticket, this.board.of(ticket.id), this.topicOf(projectId, ticket.id),
+      this.pendingDelivery(projectId, ticket),
     ))
     const current = this.board.current(projectId)
     return {
@@ -199,24 +201,47 @@ export class BoardsHost {
     }
   }
 
+  /** @param projectId - Tenant. @returns Whether the project has a folder, i.e. a private draft can exist (Revisar). */
+  private hasDraftFolder(projectId: string): boolean {
+    const root = this.product.getProject(projectId)?.rootPath
+    return root !== undefined && root !== ''
+  }
+
+  /**
+   * FLOW-1: a result waits for Aplicar/Descartar — the engine's rule (latest assignment `ready`, ticket open) restricted
+   * to projects that have a folder (without one there is no draft to lose).
+   * @param projectId - Tenant.
+   * @param ticket - Engine ticket.
+   */
+  private pendingDelivery(projectId: string, ticket: Ticket): boolean {
+    return hasPendingDelivery(ticket) && this.hasDraftFolder(projectId)
+  }
+
   /**
    * Move a ticket onto a column. WIP is a warning.
    * @param projectId - Tenant.
    * @param ticketId - Ticket.
    * @param columnId - Destination.
+   * @returns Updated card and WIP warning; a pending delivery refuses the move before writes.
    */
   moveTicket(projectId: string, ticketId: string, columnId: string): MoveTicketView {
     const ticket = this.orchestration.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
     const workflow = this.board.get(projectId) ?? workflowFromTemplate(projectId, 'simples')
+    // FLOW-1: a task of a project without a folder has no draft to apply or discard, so nothing waits on the person.
+    const moveOptions = this.hasDraftFolder(projectId) ? {} : { deliveryPending: false }
     try {
       const moved = moveToColumn(
         workflow, ticket, columnId, this.board.list(projectId), this.orchestration.now(),
+        moveOptions,
       )
       this.orchestration.runtime(projectId).repo.tickets.save(moved.ticket)
       this.board.save(moved.placement)
       return {
-        card: toCard(workflow, moved.ticket, moved.placement, this.topicOf(projectId, moved.ticket.id)),
+        card: toCard(
+          workflow, moved.ticket, moved.placement, this.topicOf(projectId, moved.ticket.id),
+          this.pendingDelivery(projectId, moved.ticket),
+        ),
         wipWarning: moved.wipWarning,
       }
     } catch (error: unknown) {
@@ -493,6 +518,7 @@ function toCard(
   ticket: Ticket,
   seat?: TicketBoardSeat,
   topicId?: string,
+  deliveryPending = false,
 ): BoardCardView {
   const card = projectBoardCard(workflow, ticket, seat)
   return {
@@ -500,6 +526,7 @@ function toCard(
     title: ticket.title,
     category: card.category,
     blocked: card.blocked,
+    ...(deliveryPending ? { deliveryPending: true } : {}),
     ...(card.columnId === undefined ? {} : { columnId: card.columnId }),
     ...(card.columnName === undefined ? {} : { columnName: card.columnName }),
     ...(card.chip === undefined ? {} : { chip: card.chip }),
@@ -598,6 +625,10 @@ function boardMessage(code: string, error: unknown): string {
 
 /** Remote refusal: `code` is stable; `message` is pt-BR for the UI. */
 export class BoardRemoteError extends Error {
+  /** Preserve the workflow code when the gateway serializes this refusal. */
+  readonly isDSHRemoteError: true = true
+  readonly details: Record<string, never> = {}
+
   /**
    * @param code - Stable machine code (`column-needs-destination`, …).
    * @param message - pt-BR line.
@@ -612,6 +643,7 @@ export class BoardRemoteError extends Error {
 }
 
 const WORKFLOW_CODES: Readonly<Record<string, string>> = {
+  delivery_pending: 'delivery_pending',
   missing_destination: 'column-needs-destination',
   duplicate_column: 'duplicate-column',
   needs_you_unique: 'needs-you-unique',
@@ -623,6 +655,7 @@ const WORKFLOW_CODES: Readonly<Record<string, string>> = {
 }
 
 const WORKFLOW_FALLBACK: Readonly<Record<string, string>> = {
+  delivery_pending: 'Revise, aplique ou descarte a entrega pendente antes de mover a Tarefa.',
   'column-needs-destination': 'Essa coluna ainda tem Tarefas. Escolha um destino antes de removê-la.',
   'duplicate-column': 'Há colunas com o mesmo id. Cada coluna precisa de um id único.',
   'needs-you-unique': 'Só pode haver uma coluna Precisa de você.',

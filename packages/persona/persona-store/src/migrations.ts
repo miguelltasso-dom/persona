@@ -1030,6 +1030,20 @@ DROP TABLE usage_quota;
 ALTER TABLE usage_quota_account RENAME TO usage_quota;
 `
 
+/** OPT-9: wall time of a measured turn, in ms. NULL = the runner did not report it (old rows stay NULL; nothing is back-filled). */
+const V20_LEDGER_DURATION = `
+ALTER TABLE turn_ledger ADD COLUMN duration_ms INTEGER CHECK (duration_ms IS NULL OR duration_ms >= 0);
+`
+
+/**
+ * P1-7: the person's current 'while you were away' window, kept so it survives a restart and stays stable: where it starts
+ * (`window_since`) and when it was opened (`window_opened_at`), so how long they were away is known at the moment they came back.
+ */
+const V21_AWAY_WINDOW = `
+ALTER TABLE visit ADD COLUMN window_since TEXT;
+ALTER TABLE visit ADD COLUMN window_opened_at TEXT;
+`
+
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -1106,5 +1120,13 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 19,
     sql: V19_QUOTA_ACCOUNT,
+  },
+  {
+    version: 20,
+    sql: V20_LEDGER_DURATION,
+  },
+  {
+    version: 21,
+    sql: V21_AWAY_WINDOW,
   },
 ]

@@ -42,6 +42,7 @@ import { inSilence } from './proactivity.ts'
 import { nextOccurrence, occurrencesBetween, RruleError, zonedParts } from './rrule-lite.ts'
 import { doneEventId } from './ticket-done.ts'
 import type { TeamStateBook } from './team-state.ts'
+import type { TaskProposalPort } from './task-proposals.ts'
 
 /** `screen_doc` kind holding what a custom routine does (who, what). Written by the routine Remotes. */
 export const ROUTINE_SPEC_KIND = 'routine_spec'
@@ -74,8 +75,8 @@ export interface RoutineChargeLite {
 export type SchedulerEventKind =
   | 'sched:team_paused' | 'sched:team_resumed' | 'sched:no_engine' | 'sched:engine_ready'
   | 'sched:routine_run' | 'sched:routine_skipped' | 'sched:routine_bad_rule' | 'sched:routine_lost'
-  | 'sched:initiative_act' | 'sched:initiative_skipped'
-  | 'sched:assigned' | 'sched:stalled' | 'sched:retry' | 'sched:retry_exhausted' | 'sched:planned' | 'sched:not_delivered'
+  | 'sched:initiative_act' | 'sched:initiative_skipped' | 'sched:initiative_proposed' | 'sched:proposal_card'
+  | 'sched:assigned' | 'sched:stalled' | 'sched:retry' | 'sched:retry_exhausted' | 'sched:planned' | 'sched:not_delivered' | 'sched:released' | 'sched:queue_sent'
   | 'sched:budget' | 'sched:silence' | 'sched:error'
 
 /** One request the scheduler hands to the normal message pipeline (so the run is a real Ticket). */
@@ -89,7 +90,7 @@ export interface TeamRequest {
   readonly personaId: string
   /** Already addresses the persona (`@Name …`). */
   readonly body: string
-  readonly kind: 'routine' | 'plan' | 'initiative'
+  readonly kind: 'routine' | 'plan' | 'initiative' | 'proposal'
 }
 
 /** Whether the pipeline turned a {@link TeamRequest} into a Ticket (the pre-router may refuse: silence, budget, injection…). */
@@ -125,10 +126,16 @@ export interface SchedulerDeps {
   postRequest(request: TeamRequest): PostResult
   /** Run a ticket nobody executes. Serialized with human messages by the host. */
   driveTicket(projectId: string, ticketId: string, personaId: string): Promise<void>
+  /** Send the dashed queues of idle personas (IV-5). Returns how many bubbles went. */
+  flushQueues?(projectId: string): number
+  /** Hand back requests the pre-router held (silence, full project) once the gate is open. Returns how many. */
+  releaseHeld?(projectId: string): number
   /** Re-measure the draft of a running ticket (SW-7 “Num rascunho · N arquivos”). Failures are not fatal. */
   refreshDraft?(projectId: string, ticketId: string): Promise<void>
   /** Tokens a persona spent since `fromIso` (0 when unmetered). */
   tokensSince?(projectId: string, personaId: string, fromIso: string): number
+  /** P1-9: visible “Proposta de {persona}” cards. Absent ⇒ the initiative stays an audit line, as before. */
+  readonly proposals?: TaskProposalPort
 }
 
 /** Timer pair; the handle is opaque to the scheduler. */
@@ -302,19 +309,19 @@ export class ProactivityScheduler {
   }
 
   /** One Vigia cycle over every project. Never throws; a failure becomes an audit row. */
-  async cycle(): Promise<CycleReport> {
+  cycle(): Promise<CycleReport> {
     const at = new Date(this.nowMs()).toISOString()
-    if (this.disposed) return { at, skipped: 'disposed', projects: [] }
-    if (this.cycling) return { at, skipped: 'busy', projects: [] }
+    if (this.disposed) return Promise.resolve({ at, skipped: 'disposed', projects: [] })
+    if (this.cycling) return Promise.resolve({ at, skipped: 'busy', projects: [] })
     this.cycling = true
     const projects: ProjectCycleReport[] = []
     try {
       for (const workspace of this.deps.product.listWorkspaces()) {
         for (const project of this.deps.product.listProjects(workspace.id)) {
-          projects.push(await this.cycleProject(workspace.id, project.id))
+          projects.push(this.cycleProject(workspace.id, project.id))
         }
       }
-      return { at, skipped: undefined, projects }
+      return Promise.resolve({ at, skipped: undefined, projects })
     } finally {
       this.cycling = false
       this.lastCycleMs = this.nowMs()
@@ -350,10 +357,10 @@ export class ProactivityScheduler {
     }, delayMs)
   }
 
-  private async cycleProject(workspaceId: string, projectId: string): Promise<ProjectCycleReport> {
+  private cycleProject(workspaceId: string, projectId: string): ProjectCycleReport {
     const nowIso = new Date(this.nowMs()).toISOString()
     try {
-      return await this.runProject(workspaceId, projectId, nowIso)
+      return this.runProject(workspaceId, projectId, nowIso)
     } catch (error: unknown) {
       this.remember(error)
       this.states.set(projectId, 'error')
@@ -362,7 +369,7 @@ export class ProactivityScheduler {
     }
   }
 
-  private async runProject(workspaceId: string, projectId: string, nowIso: string): Promise<ProjectCycleReport> {
+  private runProject(workspaceId: string, projectId: string, nowIso: string): ProjectCycleReport {
     const { deps } = this
     if (deps.teamState.isPaused(projectId)) {
       this.states.set(projectId, 'paused')
@@ -385,7 +392,12 @@ export class ProactivityScheduler {
 
     const tally: Tally = { routinesRun: 0, routinesSkipped: 0, modelStarts: 0, assigned: [], retried: [], planned: [] }
     deps.orchestration.tick(projectId)
+    const released = deps.releaseHeld?.(projectId) ?? 0
+    if (released > 0) {
+      this.audit(projectId, 'sched:released', projectId, `${String(released)} pedido(s) que ficaram esperando foram retomados.`, nowIso)
+    }
     this.reclaimExpired(projectId, nowIso)
+    deps.proposals?.expire(projectId, nowIso)
     this.materialize(projectId, nowIso)
     for (const run of deps.routines.claimDue(projectId, new Date(this.nowMs() + this.leaseMs).toISOString())) {
       const outcome = this.runRoutine(workspaceId, projectId, run, nowIso)
@@ -393,8 +405,15 @@ export class ProactivityScheduler {
       else tally.routinesRun += 1
       if (outcome === 'model') tally.modelStarts += 1
     }
+    if (deps.proposals?.flush(projectId, nowIso) === true) {
+      this.audit(projectId, 'sched:proposal_card', projectId, 'A equipe deixou uma proposta no #geral.', nowIso)
+    }
     this.retryFailed(projectId, personas, nowIso, tally)
     this.pull(projectId, personas, nowIso, tally)
+    const sentQueued = deps.flushQueues?.(projectId) ?? 0
+    if (sentQueued > 0) {
+      this.audit(projectId, 'sched:queue_sent', projectId, `Enviei ${String(sentQueued)} mensagem(ns) que estavam na fila.`, nowIso)
+    }
     this.planIfEmpty(workspaceId, projectId, personas, nowIso, tally)
     this.refreshDrafts(projectId)
 
@@ -483,10 +502,18 @@ export class ProactivityScheduler {
       this.audit(projectId, 'sched:initiative_skipped', persona.id, `${persona.name} está fora do horário de trabalho: a iniciativa de hoje foi pulada.`, nowIso, `${run.id}:hours`)
       return 'skipped'
     }
-    const fired = deps.proactivity.fire(projectId, persona.id, 'routine', 'Revisar o projeto e propor o próximo passo')
-    if (!fired) return 'skipped'
     const autonomy = deps.proactivity.getAutonomy(projectId, persona.id)
     const goal = deps.goalsOf(projectId).find(item => item.phase === 'active')
+    if (autonomy.mode === 'propose') {
+      // P1-9: "Propor" — what is worth proposing is recorded now and shown as ONE card when the project's cycle ends. It does
+      // not wait for `fire` below: that legacy scorer drops a fact about an existing Ticket as a "duplicate" of that very Ticket.
+      const recorded = deps.proposals?.offer({
+        workspaceId, projectId, personaId: persona.id, nowIso, ...(goal === undefined ? {} : { goalObjective: goal.objective }),
+      }) ?? 0
+      if (recorded > 0) this.audit(projectId, 'sched:initiative_proposed', persona.id, `${persona.name} tem ${String(recorded)} proposta(s) para você.`, nowIso, run.id)
+    }
+    const fired = deps.proactivity.fire(projectId, persona.id, 'routine', 'Revisar o projeto e propor o próximo passo')
+    if (!fired) return 'skipped'
     if (autonomy.mode !== 'act' || goal === undefined) return 'done'
     // "Agir dentro de limites": only with an open goal (no goal ⇒ the team rests) and inside the budget.
     if (!this.mayStartModel(projectId, persona, autonomy, nowIso)) return 'done'
@@ -507,9 +534,11 @@ export class ProactivityScheduler {
     const { deps } = this
     const spec = deps.screens.get<RoutineSpecDoc>(projectId, ROUTINE_SPEC_KIND, routine.id)
     const charge = deps.chargeOf?.(workspaceId, routine.id)
-    const personaId = spec?.personaId ?? charge?.executorPersonaId
-    if (personaId === undefined || personaId === '') {
-      this.audit(projectId, 'sched:routine_skipped', routine.id, `A rotina “${routine.name}” venceu, mas não tem responsável. Defina quem faz.`, nowIso, run.id)
+    // No named owner ⇒ the Coordenação decides (Muse/Ember, IV-9).
+    const coordination = deps.product.listPersonas(projectId).find(item => item.systemRoles.includes('coordination'))
+    const personaId = [spec?.personaId, charge?.executorPersonaId].find(id => id !== undefined && id !== '') ?? coordination?.id
+    if (personaId === undefined) {
+      this.audit(projectId, 'sched:routine_skipped', routine.id, `A rotina “${routine.name}” venceu, mas não há ninguém para fazer (nem Coordenação). Defina quem faz.`, nowIso, run.id)
       return 'skipped'
     }
     if (charge?.requiresApproval === true) {
@@ -657,7 +686,7 @@ export class ProactivityScheduler {
         this.audit(projectId, 'sched:retry_exhausted', ticket.id, `“${ticket.title}” falhou ${String(attempts)} vezes seguidas. Preciso de você para seguir.`, nowIso, `${ticket.id}:exhausted`)
         continue
       }
-      const dueAt = doc === undefined ? Date.parse(failed.at) + (RETRY_BACKOFF_MS[0] ?? 0) : Date.parse(doc.nextAt)
+      const dueAt = doc === undefined ? Date.parse(failed.at) + RETRY_BACKOFF_MS[0] : Date.parse(doc.nextAt)
       if (!Number.isFinite(dueAt) || now < dueAt) continue
       if (!this.mayStartModel(projectId, persona, deps.proactivity.getAutonomy(projectId, persona.id), nowIso)) continue
       deps.orchestration.runtime(projectId).engine.retryTicket(ticket.id)
@@ -709,11 +738,11 @@ export class ProactivityScheduler {
 
   /** While a task runs, keep its draft file count fresh for the “agora” strip (one measurement in flight per ticket). */
   private refreshDrafts(projectId: string): void {
-    const refresh = this.deps.refreshDraft
-    if (refresh === undefined) return
+    const { deps } = this
+    if (deps.refreshDraft === undefined) return
     for (const ticket of this.deps.orchestration.runtime(projectId).repo.tickets.list()) {
       if (ticket.ended !== undefined || latestAssignment(ticket)?.state !== 'running' || this.measuring.has(ticket.id)) continue
-      const pending = refresh(projectId, ticket.id)
+      const pending = deps.refreshDraft(projectId, ticket.id)
         .catch((error: unknown) => { this.remember(error) })
         .finally(() => { this.measuring.delete(ticket.id) })
       this.measuring.set(ticket.id, pending)

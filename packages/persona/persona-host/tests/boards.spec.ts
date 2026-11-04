@@ -105,6 +105,23 @@ it('moves a ticket without losing it when the flow is edited', async () => {
   expect(h.getProjectBoard(scope).workflow.columns.some(column => column.id === 'software-sprint')).toBe(false)
 })
 
+it('FLOW-1 allows completing an answer-only task without a folder or draft', async () => {
+  const h = host()
+  seed(h)
+  h.postMessage({ id: 'm-no-draft', ...scope, streamKind: 'channel', ownerId: 'geral',
+    body: 'preciso de um README no projeto', actorId: 'ana', subjectId: 'no-draft' })
+  await h.orchestration.flush('pp')
+  const task = h.listTasks(scope)[0]
+  if (task === undefined) throw new Error('missing-answer-task')
+  expect((await h.reviewSummary({ ...scope, ticketId: task.id })).hasWorktree).toBe(false)
+  const done = h.getProjectBoard(scope).workflow.columns.find(column => column.category === 'done')
+  if (done === undefined) throw new Error('missing-done-column')
+  expect(h.getProjectBoard(scope).cards.find(card => card.ticketId === task.id)?.deliveryPending).toBeUndefined()
+  const moved = h.moveTicket({ ...scope, ticketId: task.id, columnId: done.id })
+  expect(moved.card.category).toBe('done')
+  expect(moved.card.deliveryPending).toBeUndefined()
+})
+
 it('isolates Contratação and Site boards and lists Quadros summaries', () => {
   const h = host()
   seed(h)

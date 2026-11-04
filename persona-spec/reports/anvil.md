@@ -4,6 +4,50 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 04/11 18:30 — FLOW-1 no host fechado; Descartar encerra a Tarefa; reação da persona ao vivo
+
+Sessão retomada (Claude Sonnet 5.5, antes Codex). Li o resume, todos os recados do inbox e o `20261104-164000-Atlas.md`: hireCard/nome-bicho únicos, `draftFiles`, `firstRequest` e o pré-roteador que silencia ficaram com o Bolt e **não foram refeitos**. O que encontrei pela metade (FLOW-1, iniciado às 17:27) foi concluído; nada mais estava aberto.
+
+**FLOW-1 (Keel/Forge/Lumen).** `moveTicket` devolve o erro tipado `delivery_pending` (underscore, mensagem pt-BR; `BoardRemoteError` agora serializa `isDSHRemoteError`/`details`, então o gateway gerado o repassa sem engolir). `BoardCardView.deliveryPending?: boolean` só aparece quando `true`: regra do engine (`hasPendingDelivery`) restrita a projeto com pasta; projeto sem pasta passa `deliveryPending:false` ao `moveToColumn` (não há rascunho a perder). Meu primeiro rascunho usava `ticket.delivery` como critério; estava errado (o Forge definiu que é o report `ready`/conflito) e foi trocado. O `it.fails` do caso de conflito (FLOW-1b) passou a `it` depois que o Forge estendeu o critério.
+**Descartar encerra o Ticket** (decisão do Keel 18:05): `discardReview` = `delivery.discard` + `stopTicketRun(…, 'discarded')`, só quando há entrega pendente (uma Tarefa que já recomeçou após "pedir ajustes" não é encerrada); idempotente. Sem isso o cartão ficava preso em Revisar para sempre, porque o Ticket seguia `ready`. Nenhum ouvinte do host transforma `ticket.ended` em mensagem de canal (conferido), então não há ruído novo.
+**Reação ao vivo (pedido do Tally, feito 2x).** `EventRepos.addReaction/removeReaction` passam a chamar `announce()` só quando a linha mudou de fato; o `followMessages` reenvia a mensagem como upsert com `reactions` atualizadas. `remote-team` também escuta, mas deduplica pela chave do evento.
+
+```text
+with-lock check -- vitest run review boards gateway controller courtesy-reaction (host) + events (store)
+Test Files  6 passed (6)   Tests  55 passed (55)
+with-lock check -- vitest run history.host.spec.ts   -> 2 passed (2)  (Descartar x RestorePoint, abaixo)
+with-lock check -- vitest run review.spec.ts         -> 4 passed (4)
+check-pkg persona-host: OK (27,7s)   check-pkg persona-store: OK (14,7s)
+oxlint nos meus arquivos: exit 0      generate-typert: 40 artefatos (45,6s)
+```
+Testes novos: `review.spec` (Descartar encerra só aquele Ticket, outro rascunho intacto, 2º Descartar inofensivo; conflito recusado), `boards.spec` (sem pasta passa), `gateway.spec` (erro tipado pelo gateway gerado), `history.host.spec` (descartar a Tarefa B mantém o ponto de restauração da A listado e ainda desfazível byte a byte — pedido do Keel), `controller.spec` + store `events.spec` (reação ao vivo).
+
+**Captura do chat.** A recaptura de 17:31 passou (`proof.json` passed:true, escuros composer/board agora `true`). A captura escura prova que a mensagem enviada e a linha honesta do host aparecem no fio; a **clara** saiu com o fio vazio (foto antes de assentar). O harness agora espera dois frames + 400 ms e **falha** se o texto não estiver dentro do quadro. Recaptura na fila `build` atrás do ship H2 do Keel; até lá a clara anterior não vale como evidência. Observação para o Lumen/Prism (não é meu): na captura escura o cartão de erro do Guia mostra o retrato duas vezes (dentro do cartão e ao lado).
+
+**Limitações.** Zero IA real, commit ou deploy. O RestorePoint intacto foi provado só em pasta comum (histórico privado); em Git o `ff` não cria ponto. O oxlint acusa `orchestration.ts:918` (`autonomy?.silenceEnd`, bloco "held" do Bolt); o `check-pkg` não falha por isso. Avisos lidos sem ação minha: Tally (skipTriage, cortesia, estimateAsk, IV-7, account-swap, getAccountLimitBook), Bolt (IV-1, D-079 mexe em ingest/triggerOf), Quill (E13), Prism (SW-7/A-6, entregues pelo Bolt).
+
+---
+
+## 04/11 17:09 — FECHADO SB credencial curta no consumidor host
+
+Forge corrigiu o produtor report-facts para preservar a verificação bruta existente e consultar containsSecretValue sobre o texto normalizado/sem controles antes do corte. Não editei engine/core. O caso RED capturado pelo host agora passa: nenhuma página criada e report_curation registra written0/facts[]/rejected reason secret, sem carregar o fato rejeitado. Os casos positivos e de audiência/replay continuam passando no mesmo arquivo.
+
+```text
+with-lock check -- vitest run persona-host/tests/real-path.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  1 passed (1)
+Tests  19 passed (19)
+Duration  16.90s
+
+with-lock check -- node scripts/persona/check-pkg.mjs persona-host
+persona-host: OK in 25.3s
+```
+
+Lint de real-path/used-context-safety/orchestration, node --check do harness e git diff --check exit0. Reap-orphans: nenhuma árvore Vitest antiga; cerca de16GB livres. Todos os checks de código próprios foram concluídos; nenhuma fonte está aberta comigo. A suíte obrigatória SB do Gauge ainda precisa de facts explícitos na fixture para validar a ligação completa sem inventar página genérica; esta prova19/19 não substitui esse aceite do dono.
+
+Em conformidade com D-076, não abro outro item. O fechamento de código foi entregue: SCOPE-4 43/43, BYC Alfa/Beta normal+legado27/27, uso persistido na falha29/29 e19/19 final, WIRE gerado9pass2expected e app nativo aprovado. Restam a recaptura enquadrada do chat já na fila build atrás de H e os aceites de UI/SW/instalador/primeira entrega real nos respectivos donos. D-077 permite H de validação; não é aceite para entregar instalador ao usuário. Zero IA real, commit ou deploy.
+
+---
+
 ## 04/11 17:01 — App real aprovado: FR-3 60ms, envio nativo e Site com Sprint 1
 
 A fila build liberou a rodada `engine-unavailable-real.mjs`: home temporário e porta livre, perfil dsh persona, detector explicitamente sem motores e zero chamadas de modelo. Nenhum seed de produto mascara disponibilidade. O compositor nativo recebeu texto/Enter, o gateway aceitou o payload sem occurredAt e listMessages confirmou corpo e horário persistidos. GES criou quatro personas somente após aprovação, cada uma com responsável humano/setor, fluxo Site e Sprint 1; replay não duplicou contratação. Captura de Quadros agora mostra os cartões Site/Pessoal e Sprint 1, sem skeleton, e foi conferida.

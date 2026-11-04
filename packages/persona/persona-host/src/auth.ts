@@ -10,6 +10,7 @@ import type { Member, ProductRepos } from '@deepseek-ai/dsh-persona-store'
 export const ACL_EXCEPTIONS: Record<string, string> = {
   ping: 'liveness probe, no tenant',
   getOnboarding: 'workspace may not exist yet',
+  suggestFirstRequests: 'pure text derivation from the caller\'s own text; runs before the workspace exists',
   completeOnboarding: 'creates the first owner',
   createWorkspace: 'creates the tenant; no member yet',
   exportDiagnostics: 'local support dump; actor is the session, no client ids',

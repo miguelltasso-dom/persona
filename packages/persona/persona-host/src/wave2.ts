@@ -278,7 +278,8 @@ export function storedSwapPolicy(
   personaId?: string,
 ): { policy: RunnerSwapPolicy; scope: RunnerSwapPolicyScope } {
   const row = accounts.getPolicy(workspaceId, provider, personaId)
-  if (row === undefined) return { policy: 'next_on_limit', scope: 'workspace' }
+  // D-078: "perguntar antes de trocar" is the DEFAULT; switching alone needs a policy the person chose (a stored row).
+  if (row === undefined) return { policy: 'ask_before_swap', scope: 'workspace' }
   return { policy: toHostPolicy(row.mode), scope: row.scope }
 }
 

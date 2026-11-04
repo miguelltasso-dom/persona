@@ -141,7 +141,17 @@ try {
     actorId: 'ana', afterSeq: 0, limit: 100 })).events.find(event => event.body === composerText)
   if (posted === undefined || !Number.isFinite(Date.parse(posted.occurredAt))) throw new Error('composer did not persist host time')
   await page.getByText(composerText, { exact: true }).last().waitFor({ timeout: 30_000 })
-  await page.getByText(composerText, { exact: true }).last().scrollIntoViewIfNeeded()
+  const sent = page.getByText(composerText, { exact: true }).last()
+  await sent.scrollIntoViewIfNeeded()
+  // Let the thread settle (two frames + a short pause), then prove the sent text is inside the framed area: a shot that
+  // does not show the message the person just sent is not evidence, so it fails loudly instead of being saved.
+  await page.evaluate(() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done))))
+  await page.waitForTimeout(400)
+  const framed = await sent.boundingBox()
+  const viewport = page.viewportSize()
+  if (framed === null || viewport === null || framed.y < 0 || framed.y + framed.height > viewport.height) {
+    throw new Error('composer text is not framed in the capture')
+  }
   await page.screenshot({ path: join(out, 'wire-1-composer.png'), fullPage: true })
   const composerDark = await captureDark(page, 'wire-1-composer-dark.png')
   await rpc('dismissEngineTrigger', { ...scope, triggerId: posted.id })

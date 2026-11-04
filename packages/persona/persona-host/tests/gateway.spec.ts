@@ -6,8 +6,9 @@ import RemoteAccessService from '@deepseek-ai/dsh-api-remote-access'
 import { Peer } from '@deepseek-ai/dsh-client-connection'
 import TypertRegistry, { type TypertContribution } from '@deepseek-ai/dsh-typert-registry'
 import type { Principal, PrincipalMap } from '@deepseek-ai/dsh-typert-protocol'
-import { afterEach, expect, it as vitestIt } from 'vitest'
+import { afterEach, expect, it as vitestIt, vi } from 'vitest'
 import PersonaHost, { PERSONA_PROTOCOL } from '../src/index.ts'
+import { BoardRemoteError } from '../src/boards.ts'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface PrincipalMap {
@@ -117,4 +118,21 @@ builtIt('review summary, preparation and discard accept ticket scope without com
   await expect(invoke(ctx, OWNER, 'acceptReview', { request: { ...request, mode: 'ff', conflicts: [] } }))
     .resolves.toMatchObject({ kind: 'blocked' })
   await expect(invoke(ctx, OWNER, 'discardReview', { request })).resolves.toBe(true)
+}, HOST_TEST_TIMEOUT_MS)
+
+builtIt('FLOW-1 forwards delivery_pending as a typed refusal through the generated moveTicket gateway', async () => {
+  const ctx = await setup(true)
+  const h = ctx.personaHost
+  h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
+  const refusal = new BoardRemoteError('delivery_pending', 'Revise, aplique ou descarte a entrega pendente antes de mover a Tarefa.')
+  const move = vi.spyOn(h.boards, 'moveTicket').mockImplementation(() => { throw refusal })
+  try {
+    await expect(invoke(ctx, OWNER, 'moveTicket', { request: {
+      workspaceId: 'ws', projectId: 'pp', ticketId: 'pending-ticket', columnId: 'done',
+    } })).rejects.toMatchObject({ code: 'delivery_pending', isDSHRemoteError: true, message: refusal.message })
+    expect(move).toHaveBeenCalledWith('pp', 'pending-ticket', 'done')
+    expect(h.boards.board.list('pp')).toEqual([])
+  } finally {
+    move.mockRestore()
+  }
 }, HOST_TEST_TIMEOUT_MS)

@@ -17,6 +17,9 @@ export interface QuotaWaitRow {
   readonly assignmentId: string
   /** Display name of the provider ("Claude"). */
   readonly provider: string
+  /** The persona that ran it and the account she was using when the window ran out (for "usar outra conta e retomar"). */
+  readonly personaId?: string
+  readonly accountId?: string
   /** ISO clock the vendor gave for the window to reset; absent when it gave none. */
   readonly resetAt?: string
   readonly since: string

@@ -85,6 +85,9 @@ it('persists Rivet officialQuota puts per account and exposes next refill', () =
       }],
     },
   }])
+  // `at` = when the quota was read; the footer pill shows "há X min" from it.
+  expect(views[0]?.at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u)
+  expect(Math.abs(Date.now() - Date.parse(views[0]!.at!))).toBeLessThan(60_000)
   const again = h.getOfficialQuota({ workspaceId: 'ws', projectId: 'pp', provider: 'claude' })
   expect(again[0]?.refillHistory?.map(point => point.resetsAt)).toEqual([
     '2026-11-04T18:00:00.000Z',

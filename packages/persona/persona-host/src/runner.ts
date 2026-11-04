@@ -254,6 +254,7 @@ export async function resolveHostRunner(
     ...(request.personaName === undefined ? {} : { personaName: request.personaName }),
     ...(request.personaTitle === undefined ? {} : { personaTitle: request.personaTitle }),
   })
+  capture.onPartial = (text) => { partialSinks.get(session)?.(text) }
   captures.set(session, capture)
   return session
 }
@@ -265,10 +266,34 @@ export interface TextCapture {
   reportAt?: string
   firstAt?: number
   onFirst?: (text: string) => void
+  /** Every cumulative piece of text of the turn (streaming into the thread); wired by {@link setRunnerPartialSink}. */
+  onPartial?: (text: string) => void
   question?: string
 }
 
 const captures = new WeakMap<Runner, TextCapture>()
+const partialSinks = new WeakMap<Runner, (text: string) => void>()
+
+/**
+ * Per-turn receiver of the text a runner is writing (cumulative). A cached warm runner serves many turns, so the sink is
+ * set before a turn and cleared after it, never fixed at creation.
+ * @param runner - Session runner.
+ * @param sink - Receiver, or undefined to clear.
+ */
+export function setRunnerPartialSink(runner: Runner, sink: ((text: string) => void) | undefined): void {
+  if (sink === undefined) partialSinks.delete(runner)
+  else partialSinks.set(runner, sink)
+}
+
+/**
+ * Deliver a piece of text to the sink of the current turn. Live runners reach it through the OAR tap; tests call it to
+ * play a stream without any model.
+ * @param runner - Session runner.
+ * @param text - Cumulative text so far.
+ */
+export function emitRunnerPartial(runner: Runner, text: string): void {
+  partialSinks.get(runner)?.(text)
+}
 
 /**
  * @param runner - Session runner from {@link resolveHostRunner}.
@@ -321,6 +346,7 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
         capture.firstAt = Date.now()
         capture.onFirst?.(capture.last)
       }
+      capture.onPartial?.(capture.last)
     }
     if (event.type === 'partial' && event.text.trim() !== '') {
       capture.last = event.text
@@ -328,6 +354,7 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
         capture.firstAt = Date.now()
         capture.onFirst?.(event.text)
       }
+      capture.onPartial?.(event.text)
     }
     if (event.type === 'ended' || event.type === 'report') {
       capture.report = event.report

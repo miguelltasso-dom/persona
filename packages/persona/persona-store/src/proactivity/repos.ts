@@ -116,6 +116,32 @@ export class ProactivityRepos {
   }
 
   /**
+   * Start of the person's current "while you were away" window (P1-7), kept so it stays the same across refreshes and restarts.
+   * @param projectId - Tenant.
+   * @returns Where it starts and when it was opened; absent until a window has been opened.
+   */
+  awayWindow(projectId: string): { readonly since: string; readonly openedAt: string } | undefined {
+    const row = this.store.db.prepare('SELECT window_since AS since, window_opened_at AS opened FROM visit WHERE project_id = ?').get(projectId)
+    if (row === undefined) return undefined
+    const since = optionalText(row, 'since')
+    return since === undefined ? undefined : { since, openedAt: optionalText(row, 'opened') ?? since }
+  }
+
+  /**
+   * Open (or restart) the away window at `since`, opened at `openedAt`. The last-seen marker is kept; a first-ever row is
+   * stamped with `openedAt`.
+   * @param projectId - Tenant.
+   * @param since - Window start.
+   * @param openedAt - Now.
+   */
+  setAwayWindow(projectId: string, since: string, openedAt: string): void {
+    this.store.tx((db) => {
+      run(db, `INSERT INTO visit (project_id, last_seen_at, window_since, window_opened_at) VALUES (?, ?, ?, ?)
+        ON CONFLICT(project_id) DO UPDATE SET window_since = excluded.window_since, window_opened_at = excluded.window_opened_at`, [projectId, openedAt, since, openedAt])
+    })
+  }
+
+  /**
    * @param projectId - Tenant.
    * @param at - Visit instant.
    */

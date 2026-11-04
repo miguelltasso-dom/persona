@@ -102,6 +102,117 @@ export interface OverviewView {
   readonly engineStatus?: EngineStatusView
 }
 
+/** The thread line of an account switch (ACCOUNT-SWAP-SPEC §1). `undone` flips after Desfazer. */
+export interface AccountSwapEventView {
+  readonly swapId: string
+  readonly personaId: string
+  readonly personaName: string
+  /** Engine id ("claude"). */
+  readonly provider: string
+  readonly from: { readonly accountId: string; readonly label: string }
+  readonly to: { readonly accountId: string; readonly label: string }
+  /** ISO: when the account that ran out resets (absent = the vendor gave none; never an invented hour). */
+  readonly until?: string
+  /** True when the persona's policy switched it (the person chose "usar a próxima"); false when the person confirmed. */
+  readonly auto: boolean
+  readonly undone: boolean
+}
+
+/** The "Perguntar antes de trocar" Notice in the thread (ACCOUNT-SWAP-SPEC §2); `resolved` once the person chose. */
+export interface AccountAskEventView {
+  readonly ticketId: string
+  readonly personaId: string
+  readonly personaName: string
+  readonly provider: string
+  readonly from: { readonly accountId: string; readonly label: string }
+  readonly to: { readonly accountId: string; readonly label: string }
+  readonly quota: 'livre' | 'desconhecida'
+  readonly until?: string
+  readonly resolved?: 'continued' | 'waiting'
+}
+
+/** A recent switch, for the "na conta Pessoal" subtitle and the Desfazer (`undoable` while the persona is still on it). */
+export interface AccountSwapRecordView extends AccountSwapEventView {
+  readonly at: string
+  readonly ticketId?: string
+  readonly undoable: boolean
+}
+
+/** One time an account hit its limit (the book kept for "Uso e limites"). `active` while it is still at the limit. */
+export interface AccountLimitRecordView {
+  readonly accountId: string
+  readonly label: string
+  readonly provider: string
+  readonly at: string
+  /** The vendor's reset clock; absent when it gave none. */
+  readonly resetAt?: string
+  /** When the limit was cleared; absent while `active`. */
+  readonly clearedAt?: string
+  readonly active: boolean
+}
+
+/** The auditable history of limits and account switches (append-only), newest first. */
+export interface AccountLimitBookView {
+  readonly limits: readonly AccountLimitRecordView[]
+  readonly swaps: readonly AccountSwapRecordView[]
+}
+
+export interface GetAccountLimitBookRequest extends ProjectScopeRequest {
+  /** How many of each, newest first (default 50, max 200). */
+  readonly limit?: number
+}
+
+export interface UndoAccountSwapRequest extends ProjectScopeRequest {
+  readonly swapId: string
+}
+
+export interface UndoAccountSwapResultView {
+  readonly undone: boolean
+  readonly reason?: 'not-found' | 'already-undone' | 'stale'
+}
+
+export interface DeclineAccountSwapRequest extends ProjectScopeRequest {
+  readonly ticketId: string
+}
+
+/** One account the Task could move to now. `desconhecida` = the vendor published nothing for it: a try, not a promise. */
+export interface AccountSwapOptionView {
+  readonly accountId: string
+  readonly label: string
+  readonly quota: 'livre' | 'desconhecida'
+}
+
+/** "Usar a conta X e retomar agora?" for a Task the quota window stopped (IV-7, persona-spec/contracts/account-swap.md). */
+export interface AccountSwapProposalView {
+  readonly ticketId: string
+  readonly ticketTitle: string
+  readonly personaId: string
+  readonly personaName: string
+  /** Engine id ("claude"); the client owns the display name. */
+  readonly provider: string
+  readonly policy: RunnerSwapPolicy
+  readonly from: { readonly accountId: string; readonly label: string }
+  readonly to: AccountSwapOptionView
+  readonly alternatives: readonly AccountSwapOptionView[]
+  /** When the account that ran out resets, if the vendor said ("ou esperar até {hora}"). */
+  readonly waitUntil?: string
+}
+
+export interface ConfirmAccountSwapRequest extends ProjectScopeRequest {
+  readonly ticketId: string
+  readonly toAccountId: string
+}
+
+export interface AccountSwapResultView {
+  /** The persona now uses the chosen account. */
+  readonly applied: boolean
+  /** The stopped Task was run again on it. */
+  readonly resumed: boolean
+  readonly reason?: 'not-waiting' | 'unknown-account'
+  /** The line the team feed shows ("Nina passou para claude · Trabalho"). */
+  readonly activity?: string
+}
+
 /** What the person is about to send (the composer, or step 5 of onboarding). */
 export interface EstimateAskRequest extends ProjectScopeRequest {
   readonly texto: string
@@ -119,8 +230,13 @@ export interface EstimateAskView {
   readonly tokens: { readonly min: number; readonly max: number } | null
   readonly baseDoVendorIncluida: boolean
   readonly custo: { readonly microUsd: { readonly min: number; readonly max: number } } | null
-  readonly tempo: { readonly segundos: { readonly min: number; readonly max: number } } | null
+  /** Seconds. `null` until a measured calibration exists for EVERY call. `mediana` only from the person's own history (OPT-9). */
+  readonly tempo: { readonly segundos: { readonly min: number; readonly max: number }; readonly mediana?: number } | null
   readonly origin: 'estimate' | 'calibrated' | 'unknown'
+  /** `historico` = the person's own measured turns; `referencia-dev` = a one-machine development reference. Absent for a plain estimate. */
+  readonly fonte?: 'historico' | 'referencia-dev'
+  /** Measured turns behind the statement in `motivo`. Only with `fonte: 'historico'`. */
+  readonly amostras?: number
   /** Ready-to-show line (pt-BR). */
   readonly rotulo: string
   /** One short reason for a tooltip. */
@@ -135,6 +251,12 @@ export interface EngineStatusView {
   readonly state: 'ready' | 'checking' | 'unavailable'
   readonly reason: EngineUnavailableReason | null
   readonly pending: number
+  /** Tasks the quota window stopped, waiting to run again (IV-7). Absent when none. */
+  readonly quotaWaiting?: number
+  /** ISO reset clock of the earliest one that has it ("No limite até {hora}"). Absent when the vendor gave none. */
+  readonly quotaResetsAt?: string
+  /** Other connected engines that still have quota, for "Usar {outro motor} enquanto isso". Only while a Task waits. */
+  readonly alternativeEngines?: readonly string[]
 }
 
 /** A person's action on one durable, retained message. */
@@ -304,6 +426,75 @@ export interface MessageView {
   readonly conversationSubjectId?: string
   /** Typed execution failure (RUN-ERRORS-SPEC). Host sends code, not user-facing text. */
   readonly runError?: RunErrorPayload
+  /** The line "A Bia passou para a conta Pessoal…" with its Desfazer (ACCOUNT-SWAP-SPEC §1). */
+  readonly accountSwap?: AccountSwapEventView
+  /** The Notice "Perguntar antes de trocar" (ACCOUNT-SWAP-SPEC §2). */
+  readonly accountAsk?: AccountAskEventView
+  /** The reply is still being written: ONE message that grows (same id, `followMessages` re-sends it) until this is absent. */
+  readonly streaming?: true
+  /** “Direcionar agora”: the persona whose open turn this message was steered into (survives a reload). */
+  readonly steeredPersonaId?: string
+  /** The line a Parar left in the thread (“Você parou aqui · Continuar”). */
+  readonly stopped?: true
+  readonly stoppedTicketId?: string
+  /** P1-9 “Proposta de {persona}”: the card with Aceitar · Agora não (read from the body marker; the live status is `listTaskProposals`). */
+  readonly taskProposal?: TaskProposalCardView
+}
+
+/** One thing a persona proposes (P1-9, contracts/task-proposals.md). The words are final; the UI draws what comes. */
+export interface TaskProposalItemView {
+  /** Goes in `decideTaskProposal`. */
+  readonly id: string
+  readonly personaId: string
+  readonly personaName: string
+  /** “Posso retomar “Relatório de sexta”?” */
+  readonly question: string
+  /** One line, only fact. */
+  readonly reason: string
+}
+
+/** The card as the thread stores it: one item = “Proposta de {persona}”, 2–3 = “Propostas da equipe”. */
+export interface TaskProposalCardView {
+  readonly kind: 'single' | 'digest'
+  readonly items: readonly TaskProposalItemView[]
+}
+
+/** A proposal with its live state. `expired`: nobody answered in 3 days (neutral for the acceptance rate). */
+export interface TaskProposalView extends TaskProposalItemView {
+  readonly status: 'open' | 'accepted' | 'declined' | 'expired'
+  /** The message that carries the card. */
+  readonly cardId: string
+  readonly createdAt: string
+  readonly decidedAt?: string
+  /** The Ticket an accepted proposal became (may appear a moment after, when the request waited for a free slot). */
+  readonly ticketId?: string
+  /** Title of that Ticket, for “Aceita · virou a tarefa {título}”. */
+  readonly ticketTitle?: string
+}
+
+/** Aceitar (`accept: true`) or Agora não (`false`). Deciding again returns the state; it never creates a second Ticket. */
+export interface DecideTaskProposalRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly accept: boolean
+}
+
+/** Desfazer of “Agora não”: the proposal is open again (only a declined one; an accepted one already is a Ticket). */
+export interface ReopenTaskProposalRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+}
+
+/** How each persona's proposals were received (PROACTIVITY §7 “propostas aceitas”). */
+export interface ProposalStatsView {
+  readonly personaId: string
+  readonly personaName: string
+  readonly accepted: number
+  readonly declined: number
+  /** Rolling acceptance 0–1 (starts at 0.5). */
+  readonly rate: number
 }
 
 /** Machine code for a run-error card. UI owns the human text. */
@@ -543,6 +734,13 @@ export interface CreateRoutineRequest {
   readonly catchUp: 'skip' | 'run_once' | 'run_all'
   readonly silenceStart: string
   readonly silenceEnd: string
+  /**
+   * IV-9 “O que fazer”: the request the routine makes to its owner each time it is due (≤ 2000 characters). Absent ⇒ the
+   * scheduler's default sentence built from the name. A present value must not be blank.
+   */
+  readonly prompt?: string
+  /** IV-9 “Quem faz”: a persona of the project. Absent or `''` ⇒ the Coordenação decides. */
+  readonly ownerPersonaId?: string
 }
 
 /** Routine card. */
@@ -554,6 +752,16 @@ export interface RoutineView {
   readonly timeZone: string
   readonly paused: boolean
   readonly catchUp: 'skip' | 'run_once' | 'run_all'
+  /** “O que fazer”; `''` when the routine has none (the scheduler uses its default sentence). */
+  readonly prompt: string
+  /** “Quem faz”; absent when the Coordenação decides. */
+  readonly ownerPersonaId?: string
+  /** The schedule in plain pt-BR (“De segunda a sexta, às 9h”); the raw rule when it cannot be read. */
+  readonly humanSchedule: string
+  /** Next due instant (ISO); `''` when paused or unknown. */
+  readonly nextRunAt: string
+  /** `true` on the routines the team keeps for each persona (`initiative:<id>`): they can be paused and edited, never deleted. */
+  readonly system?: true
 }
 
 /** Pause or resume one routine. */
@@ -562,6 +770,32 @@ export interface PauseRoutineRequest {
   readonly projectId: string
   readonly id: string
   readonly paused: boolean
+}
+
+/**
+ * Edit a routine (IV-9). Every field but the ids is optional: absent = unchanged. `silenceStart`/`silenceEnd`: `''` clears
+ * the quiet window (both ends clear together); `ownerPersonaId: ''` hands the routine back to the Coordenação. A new
+ * `rrule` or `timeZone` cancels the occurrences still queued for the old one.
+ */
+export interface UpdateRoutineRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly name?: string
+  readonly prompt?: string
+  readonly ownerPersonaId?: string
+  readonly rrule?: string
+  readonly timeZone?: string
+  readonly catchUp?: 'skip' | 'run_once' | 'run_all'
+  readonly silenceStart?: string
+  readonly silenceEnd?: string
+}
+
+/** Delete a routine with its “what/who” document and its runs. Creating the same id again is allowed (Desfazer). */
+export interface DeleteRoutineRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
 }
 
 /** Schedule one occurrence. */
@@ -620,12 +854,17 @@ export interface TicketCommandRequest {
   readonly reason: string
 }
 
-/** Answer an Attention question; the text returns to the ticket. */
+/**
+ * Answer an Attention question (IV-10). The answer is the person's message in the thread the question was asked in; the text
+ * (and any files) go back to the ticket. `text` may be empty when `attachmentIds` has at least one file.
+ */
 export interface AttentionReplyRequest {
   readonly workspaceId: string
   readonly projectId: string
   readonly ticketId: string
   readonly text: string
+  /** Files uploaded with `attachFile` to the conversation the question was asked in (`channel geral`, or that DM). */
+  readonly attachmentIds?: readonly string[]
 }
 
 /** Create a vault record. */
@@ -702,6 +941,22 @@ export interface CompleteOnboardingRequest {
   readonly templateIds: readonly string[]
   readonly runnerChoices: readonly string[]
   readonly cofreSeed: string
+  /**
+   * The person's own first request (step 5), ≤ 500 characters after trimming. The host uses this very text in the #geral
+   * message and in the first-delivery assignment. Absent or blank ⇒ the default ask built from `cofreSeed`.
+   */
+  readonly firstRequest?: string
+}
+
+/** Ask for suggested first requests. No workspace is needed: step 5 runs before one exists. */
+export interface SuggestFirstRequestsRequest {
+  /** “Contexto da empresa” text of step 2. */
+  readonly cofreSeed: string
+}
+
+/** 0–3 short pt-BR requests derived from what the person wrote; empty when there is nothing to derive from. */
+export interface SuggestFirstRequestsView {
+  readonly suggestions: readonly string[]
 }
 
 /** Typed connection probe failure for the UI (no stack, no secrets). */
@@ -1086,20 +1341,65 @@ export interface OverviewNowView {
   readonly personas: readonly PersonaNowView[]
 }
 
-/** One "Enquanto você estava fora" line. */
+/** One "Enquanto você estava fora" line: something that HAPPENED since the person was last here. */
 export interface AwayEventView {
   readonly id: string
   readonly at: string
   readonly body: string
+  /** The real Task to open (empty when the event has none, e.g. an initiative that did not become a Task). */
   readonly taskId: string
+  /** The Task's real title (empty when unknown; never the raw id). */
   readonly taskTitle: string
   readonly kind: 'delivery' | 'proposal' | 'watchdog'
+  /** Who did it, from the team (absent when the host cannot tell). */
+  readonly personaId?: string
+  readonly personaName?: string
 }
 
-/** Peak-end summary since the last visit. */
+/** Something that waits for the person RIGHT NOW (state, not event; it stays until they decide). */
+export interface AwayWaitingView {
+  readonly id: string
+  /** `review`: a result waits for Aplicar/Descartar · `question`: a Task asks something · `approval`: a proposal waits in Aprovações. */
+  readonly kind: 'review' | 'question' | 'approval'
+  readonly title: string
+  /** The real Task (review/question). */
+  readonly taskId: string
+  /** The Aprovações card: an `approval`, and also a `question` (the card of a Task's question has the Task's id). Same id as `ApprovalView.id`. */
+  readonly approvalId?: string
+  readonly approvalKind?: 'hire' | 'vault' | 'skill' | 'attention'
+  readonly personaId: string
+  readonly personaName: string
+  /** When it started waiting; absent when the host does not record it. */
+  readonly at?: string
+}
+
+/** What one persona did while the person was away, and what of hers waits for them. */
+export interface AwayPersonaView {
+  readonly personaId: string
+  readonly name: string
+  readonly delivered: number
+  readonly proposed: number
+  readonly waitingOnYou: number
+  /** Real Tasks, newest first (at most 5). */
+  readonly tasks: readonly { readonly taskId: string; readonly taskTitle: string; readonly kind: AwayEventView['kind'] | AwayWaitingView['kind']; readonly at?: string }[]
+}
+
+/**
+ * Peak-end summary since the person was last here (P1-7). `events` is the window since then; `waiting` is what is still
+ * open now. Reading it does NOT consume it: it stays the same for the whole session until `dismissWhileAway`.
+ */
 export interface WhileAwayView {
   readonly since: string
   readonly events: readonly AwayEventView[]
+  /** Absent on an older host: the client then shows only `events`. */
+  readonly waiting?: readonly AwayWaitingView[]
+  readonly byPersona?: readonly AwayPersonaView[]
+  /**
+   * Counts that match the lists above exactly (never a separate estimate). `awayMinutes` is how long the person was away,
+   * measured by the host at the moment they came back (it does not grow while they read); absent on a first visit and on a
+   * window restarted by `dismissWhileAway`. `since` (above) is when they left, so the header needs no client clock.
+   */
+  readonly summary?: { readonly deliveries: number; readonly waitingOnYou: number; readonly awayMinutes?: number }
 }
 
 /** Invite card. */
@@ -1371,6 +1671,16 @@ export interface RoutineScheduleView {
   readonly catchUp: 'skip' | 'run_once' | 'run_all'
   readonly silenceStart: string
   readonly silenceEnd: string
+  /** IV-9 “O que fazer”; `''` when none. */
+  readonly prompt: string
+  /** IV-9 “Quem faz”; absent when the Coordenação decides. */
+  readonly ownerPersonaId?: string
+  /** The schedule in plain pt-BR. */
+  readonly humanSchedule: string
+  /** Next due instant (ISO); `''` when paused or unknown. */
+  readonly nextRunAt: string
+  /** `true` on the routines the team keeps for each persona; never deletable. */
+  readonly system?: true
   readonly runs: readonly RoutineRunView[]
 }
 
@@ -1532,6 +1842,8 @@ export interface TurnLedgerView {
   readonly ticketId?: string
   readonly accountId?: string
   readonly origin?: LedgerOrigin
+  /** Measured wall time of the turn in ms (OPT-9); absent when the runner did not report it. Never a made-up 0. */
+  readonly durationMs?: number
 }
 
 /** Persist one core turn. Kinds stay `execution` / `evaluation`. */
@@ -1653,6 +1965,8 @@ export interface OfficialQuotaView {
   /** WAVE2 — when quota is scoped to one connected account. */
   readonly accountId?: string
   readonly accountLabel?: string
+  /** ISO instant this quota was read. Absent on rows saved before the field existed: the UI then shows no "há X min". */
+  readonly at?: string
   /** Soonest `windows.resetsAt` (or last refill-history point). */
   readonly nextRefillAt?: string
   /** Short trail of reset clocks for the Lumen «próximo refill» strip. */
@@ -1719,6 +2033,11 @@ export interface BoardCardView {
   readonly chip?: 'waiting'
   /** WAVE2 assunto (`ticket_subject`). */
   readonly topicId?: string
+  /**
+   * FLOW-1: a result still waits for Aplicar/Descartar in Revisar. Only present when `true`; moving the card to a Concluído
+   * column is refused with the typed error `delivery_pending` until the person decides.
+   */
+  readonly deliveryPending?: boolean
 }
 
 /** Counts by category for Quadros. */
@@ -2918,6 +3237,11 @@ export interface EnqueueWorkingMessageRequest extends ProjectScopeRequest {
   readonly personaId: string
   readonly subjectId: string
   readonly text: string
+  /** Conversation the bubble is sent to; default the project channel #geral. */
+  readonly streamKind?: 'channel' | 'dm'
+  readonly ownerId?: string
+  /** `quota`: queued because the AI quota is used up. It does not leave by itself when the persona is idle; it waits for the quota. */
+  readonly reason?: 'quota'
 }
 
 /** One queued composer row. */
@@ -2927,6 +3251,11 @@ export interface QueuedMessageView {
   readonly subjectId: string
   readonly text: string
   readonly createdAt: string
+  /** Where the bubble goes when it is sent (filled by the host). */
+  readonly streamKind?: 'channel' | 'dm'
+  readonly ownerId?: string
+  /** Why it waits beyond the persona being busy: `quota` = until the quota is back. */
+  readonly reason?: 'quota'
 }
 
 /** List or flush the dashed queue. */
@@ -3073,3 +3402,45 @@ export interface ProviderLimitPoolView {
 // ---- IV-1: the team acts on its own (Bolt) --------------------------------------------------------------------
 export type { ProactivityStatusView, SchedulerActionView, SchedulerEventKind, SchedulerState } from './proactivity-scheduler.ts'
 export type { TeamStateView } from './team-state.ts'
+
+// ---- IV-5: steer, queue and Parar for real (Bolt) -------------------------------------------------------------
+/** “Direcionar agora”: send now; steers the persona's open turn when there is one. */
+export interface SteerWorkingTurnRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly subjectId: string
+  readonly text: string
+  readonly streamKind?: 'channel' | 'dm'
+  readonly ownerId?: string
+}
+
+/** `steer` = the open turn took it; `sent` = no turn was open, it went as a normal message. */
+export interface SteerWorkingTurnView {
+  readonly mode: 'steer' | 'sent'
+  readonly messageId: string
+  readonly ticketId?: string
+}
+
+/** Send the dashed queue now: all of it, or only `queueItemId`. */
+export interface FlushWorkingQueueRequest extends WorkingQueueRequest {
+  readonly queueItemId?: string
+}
+
+/** Put a removed bubble back (the “Desfazer” of Tirar) at its old place. */
+export interface RestoreQueuedMessageRequest extends WorkingQueueRequest {
+  readonly item: QueuedMessageView
+}
+
+/** Parar: the open task turn (`ticketId` or the persona's running one) and/or the reply in flight (`eventId`). */
+export interface StopTurnRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly subjectId?: string
+  readonly ticketId?: string
+  readonly eventId?: string
+}
+
+/** `none` is not an error: nothing was running. */
+export interface StopTurnView {
+  readonly stopped: 'ticket' | 'reply' | 'none'
+  readonly ticketId: string
+  readonly line: string
+}

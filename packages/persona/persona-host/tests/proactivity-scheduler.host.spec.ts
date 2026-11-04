@@ -56,6 +56,7 @@ function live(h: PersonaHost): Live {
     teamState: new TeamStateBook(h.screens.screens, routines, nowIso),
     governance: h.governance,
     draftFiles: h.draftFiles,
+    workingControl: h.workingControl,
   }, { nowMs: () => clock.ms, cycleMs: 0 })
   return {
     h, scheduler, routines, clock, modelCalls,
@@ -160,6 +161,28 @@ it('a routine is its own Ticket even while another ticket is still open on #gera
   const tickets = r.h.orchestration.runtime('pp').repo.tickets.list()
   expect(tickets.map(item => item.execution?.name).sort()).toEqual(['Bento', 'Iris'])
   expect(r.routines.listRuns('r1').map(run => run.status)).toEqual(['done'])
+})
+
+it('a request held back by the silence window is released by the scheduler as soon as the window ends', async () => {
+  const r = live(host())
+  r.h.setAutonomy({ ...r.scope, personaId: 'p1', mode: 'propose', proposalBudget: 3, tokenBudget: 1000, executionBudget: 8, silenceStart: '07:00', silenceEnd: '09:00' })
+  r.h.postMessage({
+    id: 'm1', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    body: 'Faça o relatório do dia', actorId: 'ana', subjectId: '', occurredAt: new Date(START).toISOString(),
+  })
+  await r.h.orchestration.flush('pp')
+  expect(channelBodies(r.h)).toContain('Recebi. Bento está em horário de silêncio até 09:00; começo assim que acabar.')
+  const early = await r.scheduler.cycle()
+  expect(early.projects[0]?.modelStarts).toBe(0)
+  expect(r.h.orchestration.runtime('pp').repo.tickets.list()).toHaveLength(0)
+  r.advance(2 * 3_600_000)
+  await r.scheduler.cycle()
+  await r.settle()
+  const tickets = r.h.orchestration.runtime('pp').repo.tickets.list()
+  expect(tickets).toHaveLength(1)
+  expect(tickets[0] === undefined ? undefined : latestAssignment(tickets[0])?.report?.state).toBe('ready')
+  const audits = r.h.proactivity.repos.auditsSince('pp', '1970-01-01T00:00:00.000Z').map(row => row.detail)
+  expect(audits.some(line => line.startsWith('1 pedido(s) que ficaram esperando foram retomados'))).toBe(true)
 })
 
 it('an open goal and an empty queue make Coordenação plan one real Ticket', async () => {

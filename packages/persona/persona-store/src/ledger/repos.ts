@@ -29,7 +29,7 @@ export interface TurnLedgerQuery {
 }
 
 /**
- * SQLite book for `turn_ledger` (schema ≥ 18).
+ * SQLite book for `turn_ledger` (schema ≥ 18; the measured wall time `duration_ms` arrives with schema 20 and stays absent on older rows).
  */
 export class TurnLedgerRepos {
   /**
@@ -52,8 +52,8 @@ export class TurnLedgerRepos {
         (id, project_id, persona_id, engine, account_id, kind,
          input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
          layer_system, layer_tools, layer_required, layer_subject, layer_recall, layer_message,
-         ticket_id, origin, at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ticket_id, origin, at, duration_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           project_id = excluded.project_id,
           persona_id = excluded.persona_id,
@@ -72,7 +72,8 @@ export class TurnLedgerRepos {
           layer_message = excluded.layer_message,
           ticket_id = excluded.ticket_id,
           origin = excluded.origin,
-          at = excluded.at`, [
+          at = excluded.at,
+          duration_ms = excluded.duration_ms`, [
         entry.id,
         projectId,
         entry.personaId,
@@ -92,6 +93,7 @@ export class TurnLedgerRepos {
         entry.ticketId === undefined || entry.ticketId === '' ? null : entry.ticketId,
         entry.origin === undefined ? null : entry.origin,
         entry.at,
+        entry.durationMs ?? null,
       ])
     })
     return entry
@@ -106,7 +108,7 @@ export class TurnLedgerRepos {
       `SELECT id, persona_id, engine, account_id, kind,
               input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
               layer_system, layer_tools, layer_required, layer_subject, layer_recall, layer_message,
-              ticket_id, origin, at
+              ticket_id, origin, at, duration_ms
          FROM turn_ledger
         WHERE (? IS NULL OR project_id = ?)
           AND (? IS NULL OR persona_id = ?)
@@ -146,6 +148,7 @@ function readEntry(row: Record<string, SQLOutputValue>): TurnLedgerEntry {
   const ticketId = optionalText(row, 'ticket_id')
   const accountId = optionalText(row, 'account_id')
   const origin = readOrigin(optionalText(row, 'origin'))
+  const durationMs = row.duration_ms === null || row.duration_ms === undefined ? undefined : integer(row, 'duration_ms')
   return {
     id: text(row, 'id'),
     personaId: text(row, 'persona_id'),
@@ -167,5 +170,6 @@ function readEntry(row: Record<string, SQLOutputValue>): TurnLedgerEntry {
     ...(ticketId === undefined || ticketId === '' ? {} : { ticketId }),
     ...(accountId === undefined || accountId === '' ? {} : { accountId }),
     ...(origin === undefined ? {} : { origin }),
+    ...(durationMs === undefined ? {} : { durationMs }),
   }
 }

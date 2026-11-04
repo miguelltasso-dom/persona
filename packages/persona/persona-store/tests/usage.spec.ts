@@ -46,6 +46,28 @@ it('stores official quota without inventing 0%', () => {
   }
 })
 
+it('stamps when an official quota was read, keeps an explicit instant, and refreshes it on every write', async () => {
+  const { store, usage } = book()
+  try {
+    const before = Date.now()
+    usage.putQuota('pp', { provider: 'claude', origin: 'unavailable', windows: [], accountId: 'a' })
+    const stamped = usage.listQuota('pp', 'claude')[0]?.at
+    expect(stamped).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u)
+    expect(Date.parse(stamped!)).toBeGreaterThanOrEqual(before)
+    expect(Date.parse(stamped!)).toBeLessThanOrEqual(Date.now())
+
+    // An even "found nothing" read has a time: the pill can say "checked 2 min ago".
+    await new Promise(resolve => setTimeout(resolve, 5))
+    usage.putQuota('pp', { provider: 'claude', origin: 'unavailable', windows: [], accountId: 'a' })
+    expect(Date.parse(usage.listQuota('pp', 'claude')[0]!.at!)).toBeGreaterThan(Date.parse(stamped!))
+
+    usage.putQuota('pp', { provider: 'claude', origin: 'official', windows: [], accountId: 'b', at: '2026-11-04T12:00:00.000Z' })
+    expect(usage.listQuota('pp', 'claude').find(row => row.accountId === 'b')?.at).toBe('2026-11-04T12:00:00.000Z')
+  } finally {
+    store.close()
+  }
+})
+
 it('keeps one official quota row per account and a short refill trail', () => {
   const { store, usage } = book()
   try {

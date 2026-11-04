@@ -78,3 +78,23 @@ it('keeps Vigia audit newest-after-cursor and ignores duplicate ids', async () =
   expect(repos.auditsSince('pp', '1970-01-01T00:00:00.000Z')).toHaveLength(1)
   expect(repos.auditsSince('pp', '2026-11-03T11:00:00.000Z')).toEqual([])
 })
+
+it('P1-7: the away window is stored apart from the last-seen marker, and refreshing presence never moves it', async () => {
+  const repos = await setup()
+  expect(repos.awayWindow('pp')).toBeUndefined() // nothing opened yet
+  // A first-ever window stamps the visit row with "now"; the window start is what was asked.
+  repos.setAwayWindow('pp', '1970-01-01T00:00:00.000Z', '2026-11-03T10:00:00.000Z')
+  expect(repos.awayWindow('pp')).toEqual({ since: '1970-01-01T00:00:00.000Z', openedAt: '2026-11-03T10:00:00.000Z' })
+  expect(repos.lastVisit('pp')).toBe('2026-11-03T10:00:00.000Z')
+  // Presence moves on every refresh; the window does not.
+  repos.markVisit('pp', '2026-11-03T10:05:00.000Z')
+  expect(repos.lastVisit('pp')).toBe('2026-11-03T10:05:00.000Z')
+  expect(repos.awayWindow('pp')).toEqual({ since: '1970-01-01T00:00:00.000Z', openedAt: '2026-11-03T10:00:00.000Z' })
+  // Restarting the window keeps the last-seen marker as it was.
+  repos.setAwayWindow('pp', '2026-11-03T10:06:00.000Z', '2026-11-03T10:06:00.000Z')
+  expect(repos.awayWindow('pp')).toEqual({ since: '2026-11-03T10:06:00.000Z', openedAt: '2026-11-03T10:06:00.000Z' })
+  expect(repos.lastVisit('pp')).toBe('2026-11-03T10:05:00.000Z')
+  // A project that only ever marked presence (an older row) has no window.
+  repos.markVisit('other', '2026-11-03T09:00:00.000Z')
+  expect(repos.awayWindow('other')).toBeUndefined()
+})

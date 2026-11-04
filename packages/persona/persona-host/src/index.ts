@@ -30,11 +30,13 @@ import {
   wipeProject,
   wipeWorkspace,
   type PersonaStore,
+  type Routine,
 } from '@deepseek-ai/dsh-persona-store'
 import { dedupeLimitAccounts, foldUsage, poolProviderLimits } from '@deepseek-ai/dsh-persona-usage'
 import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
 import { cachedEngineReadiness } from './engine-readiness.ts'
+import { calibrationFromLedger, calibrationWindowStart } from './estimate-calibration.ts'
 import { ticketAttention } from './attention.ts'
 import { curateSettledReport, rememberReportAudience } from './report-curation.ts'
 import { RemoteTeamHost, type RemoteTeamVault } from './remote-team.ts'
@@ -56,10 +58,40 @@ import { detectProjectGit, validateProjectRoot } from './project-root.ts'
 import { allowsScriptedReplies, ensureProductionRealCli, hostRunnerFromContext, loggedCliFromCards, specFromConnection, type DetectedCli } from './runner.ts'
 import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
-import { createProactivityScheduler } from './proactivity-wire.ts'
-import type { ProactivityScheduler, ProactivityStatusView } from './proactivity-scheduler.ts'
+import { createProactivityScheduler, postTeamRequest } from './proactivity-wire.ts'
+import { TaskProposalHost } from './task-proposals.ts'
+import { taskProposalFromBody } from './task-proposal-wire.ts'
+import { ROUTINE_SPEC_KIND, type ProactivityScheduler, type ProactivityStatusView } from './proactivity-scheduler.ts'
 import { TeamStateBook, type TeamStateView } from './team-state.ts'
 import { DraftFilesBook } from './draft-files.ts'
+import { MessageFlags } from './message-flags.ts'
+import { WorkingControl } from './working-control.ts'
+import type {
+  FlushWorkingQueueRequest,
+  RestoreQueuedMessageRequest,
+  SteerWorkingTurnRequest,
+  SteerWorkingTurnView,
+  StopTurnRequest,
+  StopTurnView,
+} from './types.ts'
+import { checkAttentionAnswer } from './attention-answer.ts'
+import { firstRequestAsk, normalizeFirstRequest, suggestFirstRequests } from './first-request.ts'
+import {
+  checkRoutineCatchUp,
+  checkRoutineId,
+  checkRoutineName,
+  checkRoutineOwner,
+  checkRoutinePrompt,
+  checkRoutineRrule,
+  checkRoutineSilence,
+  checkRoutineTimeZone,
+  INITIATIVE_ROUTINE_PREFIX,
+  readRoutineSpec,
+  requireRoutineIn,
+  routineViewOf,
+  writeRoutineSpec,
+} from './routine-remotes.ts'
+import type { SuggestFirstRequestsRequest, SuggestFirstRequestsView } from './types.ts'
 import { BoardsHost } from './boards.ts'
 import { MediaHost, mediaHttpHandler } from './media.ts'
 import { VaultDocsHost } from './vault-docs.ts'
@@ -80,6 +112,8 @@ import { ScreensHost } from './screens.ts'
 import { draftPersonaWithDriver, draftTeamWithDriver } from './draft.ts'
 import { Orchestration, wantsWork } from './orchestration.ts'
 import { quotaRecheckDelay } from './quota-wait.ts'
+import { AccountSwapHost } from './account-swap-host.ts'
+import { accountAskFromBody, accountSwapFromBody } from './account-swap-wire.ts'
 import { rememberReviewFeedback } from './feedback-wire.ts'
 import {
   computeActivationFunnel,
@@ -142,6 +176,15 @@ import {
   statProjectFile,
 } from './files.ts'
 import type {
+  AccountLimitBookView,
+  AccountSwapProposalView,
+  AccountSwapRecordView,
+  GetAccountLimitBookRequest,
+  AccountSwapResultView,
+  ConfirmAccountSwapRequest,
+  DeclineAccountSwapRequest,
+  UndoAccountSwapRequest,
+  UndoAccountSwapResultView,
   ChannelView,
   EstimateAskRequest,
   EstimateAskView,
@@ -152,6 +195,8 @@ import type {
   CreatePersonaRequest,
   CreateProjectRequest,
   CreateRoutineRequest,
+  DecideTaskProposalRequest,
+  DeleteRoutineRequest,
   CreateWorkspaceRequest,
   DmView,
   DraftPersonaRequest,
@@ -213,6 +258,10 @@ import type {
   ProjectRootListView,
   ProjectRootView,
   RoutineScheduleView,
+  UpdateRoutineRequest,
+  ProposalStatsView,
+  ReopenTaskProposalRequest,
+  TaskProposalView,
   SetProjectRootRequest,
   ProjectScopeRequest,
   ProjectView,
@@ -564,6 +613,8 @@ export default class PersonaHost extends TypertRemoteService {
   readonly usage: SqliteUsageStore
   readonly topics: TopicRepos
   readonly accounts: AccountRepos
+  /** The account switch at the quota limit (D-078): limit book, proposals, switch, Desfazer. */
+  readonly accountSwap: AccountSwapHost
   readonly teach: TeachRepos
   readonly vaultDocs: VaultDocsHost
   readonly brain: BrainHost
@@ -571,6 +622,9 @@ export default class PersonaHost extends TypertRemoteService {
   readonly workingSend: WorkingSendHost
   readonly teamState: TeamStateBook
   readonly draftFiles: DraftFilesBook
+  readonly messageFlags: MessageFlags
+  readonly workingControl: WorkingControl
+  readonly taskProposals: TaskProposalHost
   readonly proactivityScheduler: ProactivityScheduler
   readonly opt: OptRepos
   readonly ledger: TurnLedgerRepos
@@ -618,6 +672,7 @@ export default class PersonaHost extends TypertRemoteService {
       this.routines,
       new ProactivityRepos(this.store),
       this.orchestration,
+      () => this.orchestration.now(), // one clock for the whole host (a test that injects it moves Vigia, fires and away together)
     )
     this.boards = new BoardsHost(
       this.product,
@@ -673,7 +728,13 @@ export default class PersonaHost extends TypertRemoteService {
       ? { state: 'ready', reason: null }
       : cachedEngineReadiness(this.connections.list())
     this.orchestration.onEngineDeferred = () => { this.armEngineRetry() }
-    this.orchestration.onQuotaWaiting = () => { this.armQuotaRecheck() }
+    this.orchestration.onQuotaWaiting = (info) => {
+      this.armQuotaRecheck()
+      // after the current failure is fully recorded (its done line is posted synchronously, under the Assignment that failed)
+      queueMicrotask(() => {
+        void this.accountSwap.onQuotaStop(info.projectId, info.ticketId).catch((error: unknown) => { void error })
+      })
+    }
     for (const value of [config.historyMaxCopyBytes, config.historyGitTimeoutMs]) {
       if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) throw new Error('invalid-history-limit')
     }
@@ -691,6 +752,16 @@ export default class PersonaHost extends TypertRemoteService {
     })
     this.topics = new TopicRepos(this.store, () => this.orchestration.now())
     this.accounts = new AccountRepos(this.store, () => this.orchestration.now())
+    this.accountSwap = new AccountSwapHost({
+      product: this.product,
+      accounts: this.accounts,
+      screens: this.screens.screens,
+      events: this.events,
+      usage: this.usage,
+      orchestration: this.orchestration,
+      connections: () => this.connections.list(),
+      loginStatus: accountLoginStatus,
+    })
     this.teach = new TeachRepos(this.store, () => this.orchestration.now())
     this.vaultDocs = new VaultDocsHost(this.product, this.vault, workspaceId => this.actorOf(workspaceId))
     const brainRepos = new BrainRepos(this.store, () => this.orchestration.now())
@@ -705,7 +776,32 @@ export default class PersonaHost extends TypertRemoteService {
     this.workingSend = new WorkingSendHost(screenRepos, () => this.orchestration.now())
     this.teamState = new TeamStateBook(screenRepos, this.routines, () => this.orchestration.now())
     this.draftFiles = new DraftFilesBook(screenRepos, () => this.orchestration.now())
+    this.messageFlags = new MessageFlags(screenRepos)
+    this.workingControl = new WorkingControl({
+      product: this.product,
+      events: this.events,
+      screens: screenRepos,
+      workingSend: this.workingSend,
+      flags: this.messageFlags,
+      orchestration: this.orchestration,
+      send: request => this.appendMessage(request),
+      actorOf: workspaceId => this.actorOf(workspaceId),
+    })
     this.proactivity.draftFilesOf = (projectId, ticketId) => this.draftFiles.get(projectId, ticketId)
+    this.proactivity.approvalsOf = projectId => this.screens.listApprovals(projectId)
+    this.taskProposals = new TaskProposalHost({
+      product: this.product,
+      screens: screenRepos,
+      events: this.events,
+      proactivity: this.proactivity,
+      orchestration: this.orchestration,
+      activeGoal: (projectId) => {
+        this.boards.listSprintGoals(projectId) // rebuilds the in-memory board from the stored sprints
+        return this.boards.goals.list(projectId).find(goal => goal.phase === 'active')?.objective
+      },
+      postRequest: request => postTeamRequest(this, request),
+      humanActorId: workspaceId => this.actorOf(workspaceId)?.id ?? this.product.listMembers(workspaceId).find(row => row.role === 'owner')?.id,
+    })
     this.proactivityScheduler = createProactivityScheduler({
       product: this.product,
       events: this.events,
@@ -717,6 +813,8 @@ export default class PersonaHost extends TypertRemoteService {
       teamState: this.teamState,
       governance: this.governance,
       draftFiles: this.draftFiles,
+      workingControl: this.workingControl,
+      taskProposals: this.taskProposals,
     }, { cycleMs: config.proactivityCycleMs ?? 30_000 })
     this.opt = new OptRepos(this.store, () => this.orchestration.now())
     this.ledger = new TurnLedgerRepos(this.store)
@@ -1327,7 +1425,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   enqueueWorkingMessage(request: EnqueueWorkingMessageRequest): QueuedMessageView {
     this.requireProject(request)
-    return this.workingSend.enqueue(request)
+    return this.workingControl.enqueue(request)
   }
 
   /**
@@ -1336,7 +1434,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listWorkingQueue(request: WorkingQueueRequest): QueuedMessageView[] {
     this.requireProject(request)
-    return this.workingSend.list(request)
+    return this.workingControl.list(request)
   }
 
   /**
@@ -1356,13 +1454,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   dropQueuedMessage(request: EditQueuedMessageRequest): QueuedMessageView[] {
     this.requireProject(request)
-    return this.workingSend.edit({
-      workspaceId: request.workspaceId,
-      projectId: request.projectId,
-      personaId: request.personaId,
-      subjectId: request.subjectId,
-      id: request.id,
-    })
+    return this.workingControl.drop(request)
   }
 
   /**
@@ -1370,9 +1462,44 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - Persona + subject.
    */
   @Remote
-  flushWorkingQueue(request: WorkingQueueRequest): QueuedMessageView[] {
-    this.requireProject(request)
-    return this.workingSend.flush(request)
+  flushWorkingQueue(request: FlushWorkingQueueRequest): QueuedMessageView[] {
+    this.requireWrite(request)
+    return this.workingControl.flush(request)
+  }
+
+  /**
+   * “Direcionar agora”: the text is the person's message and goes into the persona's open turn right away; with no open
+   * turn it is a normal send. The message keeps a `steeredPersonaId` flag so the chip survives a reload.
+   * @param request - Persona, subject, text and conversation.
+   * @returns `steer` or `sent`, with the message id.
+   */
+  @Remote
+  async steerWorkingTurn(request: SteerWorkingTurnRequest): Promise<SteerWorkingTurnView> {
+    this.requireWrite(request)
+    return this.workingControl.steer(request)
+  }
+
+  /**
+   * Parar: cancel the open turn (the queue is kept), end the task as stopped by the person and say so in the thread.
+   * `none` (nothing was running) is not an error.
+   * @param request - Persona and, optionally, the ticket or the reply in flight.
+   * @returns What was stopped and the line posted.
+   */
+  @Remote
+  async stopTurn(request: StopTurnRequest): Promise<StopTurnView> {
+    this.requireWrite(request)
+    return this.workingControl.stop(request)
+  }
+
+  /**
+   * Put a removed dashed bubble back where it was (“Desfazer” of Tirar).
+   * @param request - The removed row.
+   * @returns The queue after the restore.
+   */
+  @Remote
+  restoreQueuedMessage(request: RestoreQueuedMessageRequest): QueuedMessageView[] {
+    this.requireWrite(request)
+    return this.workingControl.restore(request)
   }
 
   /**
@@ -1722,7 +1849,9 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
-   * "Enquanto você estava fora" since the last visit, then records this visit.
+   * "Enquanto você estava fora": what the team did since the person was last here, and what waits for them now, from the
+   * host's real records with a link to the real Task. Reading does NOT consume it: it stays the same for the whole session
+   * until {@link dismissWhileAway}.
    * @param request - Tenant.
    */
   @Remote
@@ -1732,13 +1861,24 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
-   * Record that the human opened the project (without reading the summary).
+   * Record that the human opened the project (opens this session's window if needed; never resets an open one).
    * @param request - Tenant.
    */
   @Remote
   markVisit(request: ProjectScopeRequest): boolean {
     this.requireProject(request)
     this.proactivity.markVisit(request.projectId)
+    return true
+  }
+
+  /**
+   * The person saw "Enquanto você estava fora": the next summary starts now.
+   * @param request - Tenant.
+   */
+  @Remote
+  dismissWhileAway(request: ProjectScopeRequest): boolean {
+    this.requireProject(request)
+    this.proactivity.dismissWhileAway(request.projectId)
     return true
   }
 
@@ -2032,9 +2172,99 @@ export default class PersonaHost extends TypertRemoteService {
     return dismissed
   }
 
+  /**
+   * "Na hora, com outra conta": for each Task the quota window stopped, the other logged-in account of the same engine it could
+   * move to now (or none). A proposal only: nothing changes until `confirmAccountSwap` (or the person's own policy switches it).
+   * @param request - Project scope.
+   * @returns One proposal per Task that has somewhere else to go.
+   */
+  @Remote
+  getAccountSwapProposals(request: ProjectScopeRequest): AccountSwapProposalView[] {
+    this.requireProject(request)
+    return this.accountSwap.proposals(request.projectId)
+  }
+
+  /**
+   * The person confirms the swap ("Continuar na {conta}"): the persona uses the chosen account from now on and the stopped Task
+   * runs again on it, at once. Refused when the Task no longer waits or the account is not one of the proposed ones.
+   * @param request - Task and the account chosen among the proposal's.
+   * @returns Whether it was applied and whether the Task was run again.
+   */
+  @Remote
+  async confirmAccountSwap(request: ConfirmAccountSwapRequest): Promise<AccountSwapResultView> {
+    this.requireWrite(request)
+    if (this.actorOf(request.workspaceId)?.kind !== 'user') throw new Error('forbidden')
+    return this.accountSwap.confirm(request.projectId, request.ticketId, request.toAccountId)
+  }
+
+  /**
+   * "Esperar até {hora}": the Task keeps waiting for the window and the Notice closes.
+   * @param request - The waiting Task.
+   * @returns True when it was waiting.
+   */
+  @Remote
+  declineAccountSwap(request: DeclineAccountSwapRequest): boolean {
+    this.requireWrite(request)
+    if (this.actorOf(request.workspaceId)?.kind !== 'user') throw new Error('forbidden')
+    return this.accountSwap.decline(request.projectId, request.ticketId)
+  }
+
+  /**
+   * "Desfazer": the persona goes back to the account she left and waits there until that limit clears.
+   * @param request - The switch (`swapId` of the thread line).
+   * @returns Whether it was undone, or why not.
+   */
+  @Remote
+  undoAccountSwap(request: UndoAccountSwapRequest): UndoAccountSwapResultView {
+    this.requireWrite(request)
+    if (this.actorOf(request.workspaceId)?.kind !== 'user') throw new Error('forbidden')
+    return this.accountSwap.undo(request.projectId, request.swapId)
+  }
+
+  /**
+   * The auditable history for "Uso e limites": every time an account hit its limit (with the vendor's clock and when it was
+   * cleared) and every switch (automatic or confirmed, with whether it was undone), newest first. Append-only.
+   * @param request - Project scope and an optional page size.
+   * @returns The limit and switch history.
+   */
+  @Remote
+  getAccountLimitBook(request: GetAccountLimitBookRequest): AccountLimitBookView {
+    this.requireProject(request)
+    return this.accountSwap.book(request.projectId, request.limit)
+  }
+
+  /**
+   * Switches of the last 24 h, newest first: the "na conta Pessoal" subtitle and the Desfazer (`undoable`).
+   * @param request - Project scope.
+   * @returns The recent switches.
+   */
+  @Remote
+  getAccountSwaps(request: ProjectScopeRequest): AccountSwapRecordView[] {
+    this.requireProject(request)
+    return this.accountSwap.recent(request.projectId)
+  }
+
+  /** Other engines that are connected, logged in and not at their limit ("Usar {outro motor} enquanto isso"). */
+  private alternativeEngines(projectId: string): string[] {
+    const waitingProviders = new Set(this.orchestration.quotaRows(projectId).flatMap((row) => {
+      const persona = row.personaId === undefined ? undefined : this.product.getPersona(row.personaId)
+      return persona?.runner.kind === 'cli' && persona.runner.cli !== undefined ? [persona.runner.cli] : []
+    }))
+    return this.connections.list()
+      .filter(card => card.kind !== 'dsh' && card.available && card.loggedIn && card.error?.code !== 'quota_exhausted' && !waitingProviders.has(card.kind))
+      .map(card => card.kind)
+  }
+
   private engineStatus(projectId: string): EngineStatusView {
     const status = this.orchestration.engineReadinessOf?.() ?? { state: 'checking' as const, reason: null }
-    return { ...status, pending: this.orchestration.runtime(projectId).engine.pendingEngineTriggers().length }
+    const waiting = this.orchestration.quotaWaiting().filter(row => row.projectId === projectId)
+    const resetsAt = waiting.map(row => row.resetAt).filter((clock): clock is string => clock !== undefined).sort()[0]
+    return {
+      ...status,
+      pending: this.orchestration.runtime(projectId).engine.pendingEngineTriggers().length,
+      ...(waiting.length === 0 ? {} : { quotaWaiting: waiting.length, alternativeEngines: this.alternativeEngines(projectId) }),
+      ...(resetsAt === undefined ? {} : { quotaResetsAt: resetsAt }),
+    }
   }
 
   private requireEngineTriggerActor(request: EngineTriggerActionRequest): void {
@@ -2050,6 +2280,7 @@ export default class PersonaHost extends TypertRemoteService {
     if (cachedEngineReadiness(this.connections.list()).state !== 'ready') return
     for (const workspace of this.product.listWorkspaces()) {
       for (const project of this.product.listProjects(workspace.id)) {
+        this.accountSwap.expireLimits(project.id)
         this.orchestration.resumeEngineTriggers(project.id)
         // A Task the quota window stopped runs again now that an engine is ready (IV-7).
         void this.orchestration.resumeQuotaWaiting(project.id).catch((error: unknown) => {
@@ -2227,18 +2458,15 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listRoutineSchedule(request: ProjectScopeRequest): RoutineScheduleView[] {
     this.requireProject(request)
-    return this.routines.list(request.projectId).map(routine => ({
-      id: routine.id,
-      projectId: routine.projectId,
-      name: routine.name,
-      rrule: routine.rrule,
-      timeZone: routine.timeZone,
-      paused: routine.paused,
-      catchUp: routine.catchUp,
-      silenceStart: routine.silenceStart ?? '',
-      silenceEnd: routine.silenceEnd ?? '',
-      runs: this.routines.listRuns(routine.id).map(toRunView),
-    }))
+    return this.routines.list(request.projectId).map((routine) => {
+      const view = this.routineView(routine)
+      return {
+        ...view,
+        silenceStart: routine.silenceStart ?? '',
+        silenceEnd: routine.silenceEnd ?? '',
+        runs: this.routines.listRuns(routine.id).map(toRunView),
+      }
+    })
   }
 
   /**
@@ -2787,6 +3015,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   postMessage(request: PostMessageRequest): MessageView {
+    this.requireProject(request)
     return this.appendMessage(request)
   }
 
@@ -3009,11 +3238,17 @@ export default class PersonaHost extends TypertRemoteService {
   async *followMessages(request: ListMessagesRequest, signal: AbortSignal): AsyncIterable<MessageStreamFrame> {
     this.requireProject(request)
     const streamId = `${request.streamKind}:${request.ownerId}`
-    const queue: MessageView[] = []
-    const dispose = this.events.subscribe((event) => {
+    const queue: Array<{ view: MessageView; changed: boolean }> = []
+    const disposeAppends = this.events.subscribe((event) => {
       if (event.streamId !== streamId) return
-      queue.push(this.viewMessage(event))
+      queue.push({ view: this.viewMessage(event), changed: false })
     })
+    // A reply that is being written grows in place: its changes are re-sent as upserts of the same id.
+    const disposeChanges = this.events.subscribeChanges((event) => {
+      if (event.streamId !== streamId) return
+      queue.push({ view: this.viewMessage(event), changed: true })
+    })
+    const dispose = (): void => { disposeAppends(); disposeChanges() }
     try {
       const actor = this.actorOf(request.workspaceId)
       const page = this.events.list(streamId, { id: actor?.id ?? '' }, request.afterSeq, request.limit)
@@ -3021,9 +3256,12 @@ export default class PersonaHost extends TypertRemoteService {
       const seen = new Set(events.map(item => item.id))
       yield { kind: 'baseline', events, order: events.map(item => item.id) }
       while (!signal.aborted) {
-        const next = queue.shift()
-        if (next !== undefined) {
-          if (seen.has(next.id)) continue
+        const head = queue.shift()
+        if (head !== undefined) {
+          const next = head.view
+          // Skip a stale intermediate state when a newer one of the same message is already waiting.
+          if (head.changed && queue.some(item => item.changed && item.view.id === next.id)) continue
+          if (!head.changed && seen.has(next.id)) continue
           seen.add(next.id)
           yield { kind: 'upsert', events: [next], order: [next.id] }
           continue
@@ -3446,17 +3684,50 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
-   * A person's answer to Attention goes back to the ticket as a note.
-   * @param request - Ticket and text.
-   * @returns true when stored.
+   * A person's answer to a persona's question (IV-10): text and/or files, INSIDE the thread. The answer is posted as the
+   * person's own message in the conversation the question was asked in (files bound to it), the ticket receives the text with
+   * the file names, the files are copied next to the worker, and the worker wakes and reads it. Answering twice is refused
+   * (`conflict`) — one answer per question, and the first one stays.
+   * @param request - Ticket, text and optional `attachFile` ids (uploaded to the conversation the question was asked in).
+   * @returns true when the question is cleared.
    */
   @Remote
   answerAttention(request: AttentionReplyRequest): boolean {
-    this.requireProject(request)
-    const ticket = this.orchestration.runtime(request.projectId).engine.answerAttention(
-      request.ticketId, request.text,
-    )
-    return ticket.attention === undefined
+    this.requireWrite(request)
+    const answer = checkAttentionAnswer(request.text, request.attachmentIds)
+    const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
+    if (ticket === undefined) throw new HostRemoteFault('not-found', 'Tarefa não encontrada neste projeto.')
+    const question = ticket.attention
+    if (question === undefined) throw new HostRemoteFault('conflict', 'Essa pergunta já foi respondida.')
+    const where = this.orchestration.conversationOfTicket(request.projectId, ticket.id)
+    const owner = this.actorOf(request.workspaceId) ?? this.product.listMembers(request.workspaceId).find(row => row.role === 'owner')
+    if (where === undefined || owner === undefined) throw new HostRemoteFault('forbidden', 'forbidden')
+    const messageId = `answer:${ticket.id}:${question.id}`
+    // Files first: a bad id fails before anything is posted. They belong to the conversation of the question.
+    try {
+      this.media.bindToMessage(messageId, answer.attachmentIds, request.projectId, where.streamKind, where.ownerId)
+    } catch (error: unknown) {
+      if (error instanceof Error && /attachment-(not-found|mismatch|bound)|too-many-files/u.test(error.message)) {
+        throw new HostRemoteFault('invalid-payload', 'Um dos arquivos não pertence a esta conversa. Anexe de novo.')
+      }
+      throwMedia(error)
+    }
+    if (!this.events.has(messageId)) {
+      this.events.append({
+        id: messageId,
+        workspaceId: request.workspaceId,
+        projectId: request.projectId,
+        streamKind: where.streamKind,
+        ownerId: where.ownerId,
+        type: 'message',
+        body: answer.text,
+        actorId: owner.id,
+        subjectId: where.subjectId,
+        occurredAt: this.orchestration.now(),
+        ...(where.topicId === '' ? {} : { topicId: where.topicId }),
+      })
+    }
+    return this.orchestration.deliverAttentionAnswer(request.projectId, ticket.id, answer.text, messageId)
   }
 
   /**
@@ -3891,6 +4162,17 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
+   * Step 5 chips: up to three requests derived from what the person wrote about the business (no AI, no invented facts).
+   * Empty when there is nothing to derive from, so the UI keeps its fixed suggestions.
+   * @param request - The step-2 company text.
+   * @returns 0–3 short pt-BR requests.
+   */
+  @Remote
+  suggestFirstRequests(request: SuggestFirstRequestsRequest): SuggestFirstRequestsView {
+    return { suggestions: suggestFirstRequests(typeof request.cofreSeed === 'string' ? request.cofreSeed : '') }
+  }
+
+  /**
    * What an ask will cost before it is sent: how many calls of the person's AI, whether it becomes a Ticket, token and cost
    * ranges, and time only when a real run measured it. Local and synchronous: no model is called
    * (persona-spec/contracts/estimate-ask.md).
@@ -3908,6 +4190,15 @@ export default class PersonaHost extends TypertRemoteService {
     const logged = this.orchestration.loggedCliOf?.(request.projectId)
     const spec = persona === undefined ? undefined : specFromConnection(persona.runner, logged)
     const cli = spec?.kind === 'cli' ? spec.cli : (logged ?? 'none')
+    // OPT-9: this person's own measured turns on the same engine and account (read-only; none ⇒ no calibration, never a guess).
+    const account = persona === undefined ? undefined
+      : this.screens.screens.get<{ accountId: string }>(request.projectId, 'active_account', persona.id)?.accountId
+    const now = this.orchestration.now()
+    const windowStart = calibrationWindowStart(now)
+    const calibracao = cli === 'none' ? undefined : calibrationFromLedger(
+      this.ledger.list({ projectId: request.projectId, ...(windowStart === undefined ? {} : { from: windowStart }) }),
+      { engine: cli, ...(account === undefined || account === '' ? {} : { accountId: account }), now },
+    )
     return estimateAskFor({
       texto: request.texto,
       ...(persona === undefined ? {} : {
@@ -3919,6 +4210,7 @@ export default class PersonaHost extends TypertRemoteService {
         pendenteDaPersona: this.orchestration.pendingFromPersonaIn(request.projectId, `${request.streamKind}:${request.ownerId}`),
       },
       host: { skipTriage: this.orchestration.skipTriage, courtesyNoModel: this.orchestration.courtesyNoModel },
+      ...(calibracao === undefined ? {} : { calibracao }),
     })
   }
 
@@ -3968,6 +4260,7 @@ export default class PersonaHost extends TypertRemoteService {
         ?? this.product.listMembers(request.workspaceId)[0]
       if (owner === undefined) return
       const brief = request.cofreSeed !== '' ? request.cofreSeed : request.displayName
+      const firstRequest = normalizeFirstRequest(request.firstRequest)
       const executor = this.product.listPersonas(projectId).find(persona => !persona.systemRoles.includes('coordination'))
         ?? this.product.listPersonas(projectId).find(persona => persona.systemRoles.includes('coordination'))
       if (executor === undefined) return
@@ -3977,7 +4270,7 @@ export default class PersonaHost extends TypertRemoteService {
         projectId,
         streamKind: 'channel',
         ownerId: 'geral',
-        body: firstDeliveryAsk({ companyBrief: brief }),
+        body: firstRequest === '' ? firstDeliveryAsk({ companyBrief: brief }) : firstRequestAsk(firstRequest, brief),
         actorId: owner.id,
         subjectId: 'first-delivery',
         occurredAt: this.orchestration.now(),
@@ -5056,18 +5349,85 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   createRoutine(request: CreateRoutineRequest): RoutineView {
-    this.requireProject(request)
-    return toRoutineView(this.routines.create({
-      id: request.id,
+    this.requireWrite(request)
+    const id = checkRoutineId(request.id)
+    const silence = checkRoutineSilence(request.silenceStart, request.silenceEnd)
+    const fields = {
+      name: checkRoutineName(request.name),
+      rrule: checkRoutineRrule(request.rrule),
+      timeZone: checkRoutineTimeZone(request.timeZone),
+      catchUp: checkRoutineCatchUp(request.catchUp),
+    }
+    const prompt = request.prompt === undefined ? '' : checkRoutinePrompt(request.prompt)
+    const ownerPersonaId = checkRoutineOwner(this.product, request.projectId, request.ownerPersonaId)
+    if (this.routines.get(id) !== undefined) {
+      throw new HostRemoteFault('conflict', 'Já existe uma rotina com esta identificação. Nada foi gravado.')
+    }
+    const created = this.routines.create({
+      id,
       workspaceId: request.workspaceId,
       projectId: request.projectId,
-      name: request.name,
-      rrule: request.rrule,
-      timeZone: request.timeZone,
-      catchUp: request.catchUp,
-      ...(request.silenceStart === '' ? {} : { silenceStart: request.silenceStart }),
-      ...(request.silenceEnd === '' ? {} : { silenceEnd: request.silenceEnd }),
-    }))
+      ...fields,
+      ...(silence ?? {}),
+    })
+    try {
+      writeRoutineSpec(this.screens.screens, request.projectId, id, { prompt, ownerPersonaId })
+    } catch (error: unknown) {
+      this.routines.delete(id) // no half-made routine: either both rows or none
+      throw error
+    }
+    return this.routineView(created)
+  }
+
+  /**
+   * Edit a routine (IV-9): name, “O que fazer”, “Quem faz”, schedule, zone, catch-up and quiet window. Absent fields stay.
+   * A new schedule or zone cancels the occurrences still queued for the old one.
+   * @param request - Routine id and the fields to change.
+   * @returns The updated card.
+   */
+  @Remote
+  updateRoutine(request: UpdateRoutineRequest): RoutineView {
+    this.requireWrite(request)
+    const current = requireRoutineIn(this.routines, request.projectId, request.id)
+    const spec = readRoutineSpec(this.screens.screens, request.projectId, current.id)
+    const nextSpec = {
+      prompt: request.prompt === undefined ? spec.prompt : checkRoutinePrompt(request.prompt),
+      ownerPersonaId: request.ownerPersonaId === undefined
+        ? spec.ownerPersonaId
+        : checkRoutineOwner(this.product, request.projectId, request.ownerPersonaId),
+    }
+    const silenceTouched = request.silenceStart !== undefined || request.silenceEnd !== undefined
+    const silence = silenceTouched
+      ? checkRoutineSilence(request.silenceStart ?? current.silenceStart ?? '', request.silenceEnd ?? current.silenceEnd ?? '')
+      : undefined
+    const updated = this.routines.update(current.id, {
+      ...(request.name === undefined ? {} : { name: checkRoutineName(request.name) }),
+      ...(request.rrule === undefined ? {} : { rrule: checkRoutineRrule(request.rrule) }),
+      ...(request.timeZone === undefined ? {} : { timeZone: checkRoutineTimeZone(request.timeZone) }),
+      ...(request.catchUp === undefined ? {} : { catchUp: checkRoutineCatchUp(request.catchUp) }),
+      ...(silenceTouched ? { silenceStart: silence?.silenceStart ?? null, silenceEnd: silence?.silenceEnd ?? null } : {}),
+    })
+    writeRoutineSpec(this.screens.screens, request.projectId, current.id, nextSpec)
+    return this.routineView(updated)
+  }
+
+  /**
+   * Delete a routine, its “what/who” document, its runs and its governance charge. The same id can be created again
+   * (the client's Desfazer). The routines the host keeps alive for each persona (`initiative:`) are paused, never deleted.
+   * @param request - Routine id.
+   * @returns true when deleted.
+   */
+  @Remote
+  deleteRoutine(request: DeleteRoutineRequest): boolean {
+    this.requireWrite(request)
+    const current = requireRoutineIn(this.routines, request.projectId, request.id)
+    if (current.id.startsWith(INITIATIVE_ROUTINE_PREFIX)) {
+      throw new HostRemoteFault('invalid-payload', 'Esta rotina é da própria equipe e não pode ser apagada. Pause-a se não quiser que rode.')
+    }
+    this.routines.delete(current.id)
+    this.screens.screens.delete(request.projectId, ROUTINE_SPEC_KIND, current.id)
+    this.governance.gov.deleteRoutineCharge(request.workspaceId, current.id)
+    return true
   }
 
   /**
@@ -5078,7 +5438,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listRoutines(request: ProjectScopeRequest): RoutineView[] {
     this.requireProject(request)
-    return this.routines.list(request.projectId).map(toRoutineView)
+    return this.routines.list(request.projectId).map(routine => this.routineView(routine))
   }
 
   /**
@@ -5088,8 +5448,62 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   pauseRoutine(request: PauseRoutineRequest): RoutineView {
+    this.requireWrite(request)
+    const current = requireRoutineIn(this.routines, request.projectId, request.id)
+    return this.routineView(this.routines.setPaused(current.id, request.paused))
+  }
+
+  private routineView(routine: Routine): RoutineView {
+    return routineViewOf(routine, readRoutineSpec(this.screens.screens, routine.projectId, routine.id), Date.parse(this.orchestration.now()))
+  }
+
+  /**
+   * P1-9: what the team proposed in #geral, newest first, with the live state of each (open · accepted · declined · expired).
+   * @param request - Tenant.
+   * @returns Proposals.
+   */
+  @Remote
+  listTaskProposals(request: ProjectScopeRequest): TaskProposalView[] {
     this.requireProject(request)
-    return toRoutineView(this.routines.setPaused(request.id, request.paused))
+    return this.taskProposals.list(request.projectId)
+  }
+
+  /**
+   * P1-9: Aceitar (a real Ticket is made from the proposal) or Agora não (the same proposal stays quiet for 7 days). The answer
+   * feeds the persona's acceptance rate, which sets how often she proposes. Idempotent: deciding again returns the state.
+   * @param request - Proposal and the choice.
+   * @returns The proposal with its new state.
+   */
+  @Remote
+  decideTaskProposal(request: DecideTaskProposalRequest): TaskProposalView {
+    this.requireWrite(request)
+    if (typeof request.id !== 'string' || request.id === '' || typeof request.accept !== 'boolean') {
+      throw new HostRemoteFault('invalid-payload', 'Escolha Aceitar ou Agora não.')
+    }
+    return this.taskProposals.decide(request.workspaceId, request.projectId, request.id, request.accept)
+  }
+
+  /**
+   * P1-9: Desfazer of “Agora não” — only a declined proposal opens again, and the acceptance goes back to what it was.
+   * @param request - Proposal.
+   * @returns The proposal with its new state.
+   */
+  @Remote
+  reopenTaskProposal(request: ReopenTaskProposalRequest): TaskProposalView {
+    this.requireWrite(request)
+    if (typeof request.id !== 'string' || request.id === '') throw new HostRemoteFault('invalid-payload', 'Proposta inválida.')
+    return this.taskProposals.reopen(request.projectId, request.id)
+  }
+
+  /**
+   * P1-9 / PROACTIVITY §7: how each persona's proposals were received (accepted, declined, rolling rate).
+   * @param request - Tenant.
+   * @returns One row per persona.
+   */
+  @Remote
+  getProposalStats(request: ProjectScopeRequest): ProposalStatsView[] {
+    this.requireProject(request)
+    return this.taskProposals.stats(request.projectId)
   }
 
   /**
@@ -5631,10 +6045,15 @@ export default class PersonaHost extends TypertRemoteService {
     replyToId?: string
     editedAt?: string
     topicId?: string
+    projectId?: string
   }): MessageView {
     const reactions = groupReactions(this.events.listReactions(event.id))
+    const flags = event.projectId === undefined ? {} : this.messageFlags.of(event.projectId, event.id)
     return {
       ...toMessageView(event),
+      ...(flags.steeredPersonaId === undefined ? {} : { steeredPersonaId: flags.steeredPersonaId }),
+      ...(flags.stopped === true ? { stopped: true as const } : {}),
+      ...(flags.stoppedTicketId === undefined ? {} : { stoppedTicketId: flags.stoppedTicketId }),
       attachmentIds: this.media.listByMessage(event.id).map(row => row.id),
       replyToId: event.replyToId ?? '',
       editedAt: event.editedAt ?? '',
@@ -5675,11 +6094,14 @@ export default class PersonaHost extends TypertRemoteService {
     const workspaceId = project?.workspaceId ?? ''
     const provider = persona.runner.kind === 'cli' ? (persona.runner.cli ?? 'dsh') : 'dsh'
     const seats = this.accounts.list(workspaceId, provider)
+    this.accountSwap.expireLimits(projectId)
     const swap = storedSwapPolicy(this.accounts, workspaceId, provider, persona.id)
     const last = this.screens.screens.get<{ accountId: string }>(projectId, 'active_account', persona.id)
+    // Desfazer holds the persona on the account she went back to: the policy must not take her away again until it clears.
+    const held = last?.accountId !== undefined && this.accountSwap.isHeld(projectId, persona.id, last.accountId)
     const resolved = resolveAccountSeat({
       accounts: seats,
-      policy: swap.policy,
+      policy: held ? 'fixed' : swap.policy,
       policyScope: swap.scope,
       preferredEngines: [
         provider === 'claude' || provider === 'codex' || provider === 'cursor'
@@ -5697,9 +6119,12 @@ export default class PersonaHost extends TypertRemoteService {
       this.screens.screens.put(projectId, 'account_activity', `${persona.id}:${this.orchestration.now()}`, {
         body: resolved.activity,
       })
-    }
-    if (resolved.ask !== undefined) {
-      this.screens.screens.put(projectId, 'account_ask', persona.id, resolved.ask)
+      if (last?.accountId !== undefined && resolved.accountId !== undefined) {
+        // a policy the person chose moved her at resolve time: leave the record Desfazer works on (never silent)
+        this.accountSwap.recordSeatSwitch(projectId, {
+          personaId: persona.id, personaName: persona.name, provider, fromId: last.accountId, toId: resolved.accountId,
+        })
+      }
     }
     return {
       home: resolved.home,
@@ -5964,6 +6389,7 @@ function toOfficialView(row: import('@deepseek-ai/dsh-persona-store').StoredOffi
     ...(row.detail === undefined ? {} : { detail: row.detail }),
     ...(row.accountId === undefined || row.accountId === '' ? {} : { accountId: row.accountId }),
     ...(row.accountLabel === undefined || row.accountLabel === '' ? {} : { accountLabel: row.accountLabel }),
+    ...(row.at === undefined || row.at === '' ? {} : { at: row.at }),
     ...(nextRefillAt === undefined ? {} : { nextRefillAt }),
     ...(row.refillHistory === undefined || row.refillHistory.length === 0
       ? {}
@@ -6140,6 +6566,9 @@ function toMessageView(event: {
   const type = event.type ?? 'message'
   const topicId = event.topicId ?? ''
   const runError = runErrorFromBody(event.body)
+  const accountSwap = accountSwapFromBody(event.body)
+  const accountAsk = accountAskFromBody(event.body)
+  const taskProposal = taskProposalFromBody(event.body)
   return {
     id: event.id,
     streamId: event.streamId,
@@ -6157,7 +6586,11 @@ function toMessageView(event: {
     reactions: [],
     topicId,
     conversationSubjectId: topicId,
+    ...(type === 'partial' ? { streaming: true as const } : {}),
     ...(runError === undefined ? {} : { runError }),
+    ...(accountSwap === undefined ? {} : { accountSwap }),
+    ...(accountAsk === undefined ? {} : { accountAsk }),
+    ...(taskProposal === undefined ? {} : { taskProposal }),
   }
 }
 
@@ -6169,26 +6602,6 @@ function groupReactions(rows: readonly { stickerId: string; actorId: string }[])
     by.set(row.stickerId, list)
   }
   return [...by.entries()].map(([stickerId, actorIds]) => ({ stickerId, actorIds }))
-}
-
-function toRoutineView(routine: {
-  id: string
-  projectId: string
-  name: string
-  rrule: string
-  timeZone: string
-  paused: boolean
-  catchUp: RoutineView['catchUp']
-}): RoutineView {
-  return {
-    id: routine.id,
-    projectId: routine.projectId,
-    name: routine.name,
-    rrule: routine.rrule,
-    timeZone: routine.timeZone,
-    paused: routine.paused,
-    catchUp: routine.catchUp,
-  }
 }
 
 function toRunView(run: {

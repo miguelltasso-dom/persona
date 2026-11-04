@@ -143,6 +143,32 @@ it('posts, pages and searches messages with DM ACL', () => {
   }).map(item => item.id).sort()).toEqual(['m1', 'm2'])
 })
 
+it('followMessages re-sends a message as an upsert when a persona reacts to it on its own', async () => {
+  const h = host()
+  h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
+  h.createMember({
+    id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner',
+  })
+  h.createChannel({ id: 'geral', workspaceId: 'ws', projectId: 'pp', name: 'geral', topic: '' })
+  h.postMessage({
+    id: 'm1', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    body: 'obrigado', actorId: 'ana', subjectId: 't1', occurredAt: '2026-11-03T12:00:00.000Z',
+  })
+  const abort = new AbortController()
+  const stream = h.followMessages({
+    workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 50,
+  }, abort.signal)[Symbol.asyncIterator]()
+  const baseline = await stream.next()
+  expect(baseline.value).toMatchObject({ kind: 'baseline', order: ['m1'] })
+  // Not a request: the host's own code (the persona's courtesy reaction) writes straight to the log.
+  h.events.addReaction({ eventId: 'm1', actorId: 'p1', stickerId: 'heart', projectId: 'pp' })
+  const upsert = await stream.next()
+  expect(upsert.value).toMatchObject({ kind: 'upsert', order: ['m1'] })
+  const view = (upsert.value as { events: Array<{ id: string; reactions: Array<{ stickerId: string }> }> }).events[0]
+  expect(view?.reactions.map(item => item.stickerId)).toEqual(['heart'])
+  abort.abort()
+})
+
 it('followMessages yields a baseline then an upsert', async () => {
   const h = host()
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })

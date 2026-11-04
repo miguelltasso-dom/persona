@@ -288,3 +288,42 @@ it('subscribe receives events after they commit', async () => {
   msg(events, { id: 'e2', body: 'depois' })
   expect(seen).toEqual(['e1'])
 })
+
+it('streaming: a partial reply grows without becoming "edited", followers hear every change, and it settles once', async () => {
+  const { events } = await setup()
+  const base = { workspaceId: 'ws', projectId: 'pp', streamKind: 'channel' as const, ownerId: 'geral', actorId: 'p1', subjectId: '' }
+  events.append({ ...base, id: 'r1', type: 'partial', body: 'Olá', occurredAt: '2026-11-03T15:00:00.000Z' })
+  const heard: string[] = []
+  const stop = events.subscribeChanges((event) => { heard.push(`${event.type}:${event.body}`) })
+  expect(events.updatePartial('r1', 'Olá, tudo')).toBe(true)
+  expect(events.updatePartial('r1', 'Olá, tudo bem?')).toBe(true)
+  expect(events.get('r1')).toMatchObject({ body: 'Olá, tudo bem?', type: 'partial' })
+  expect(events.get('r1')?.editedAt).toBeUndefined() // a stream is not an edit by a person
+  expect(events.settlePartial('r1', 'Olá! Tudo bem por aqui.', 'runner')).toBe(true)
+  expect(events.get('r1')).toMatchObject({ body: 'Olá! Tudo bem por aqui.', type: 'runner' })
+  expect(events.settlePartial('r1', 'de novo', 'runner')).toBe(false) // idempotent: already settled
+  expect(events.updatePartial('r1', 'tarde demais')).toBe(false) // a settled reply no longer grows
+  expect(events.get('r1')?.body).toBe('Olá! Tudo bem por aqui.')
+  expect(heard).toEqual(['partial:Olá, tudo', 'partial:Olá, tudo bem?', 'runner:Olá! Tudo bem por aqui.'])
+  stop()
+  events.append({ ...base, id: 'm2', type: 'message', body: 'normal', occurredAt: '2026-11-03T15:00:05.000Z' })
+  expect(events.updatePartial('m2', 'x')).toBe(false) // only a partial can stream
+  expect(events.updatePartial('nope', 'x')).toBe(false)
+})
+
+it('reactions: followers hear a reaction that is new or removed, never a repeat or a no-op', async () => {
+  const { events } = await setup()
+  const base = { workspaceId: 'ws', projectId: 'pp', streamKind: 'channel' as const, ownerId: 'geral', actorId: 'ana', subjectId: '' }
+  events.append({ ...base, id: 'm1', type: 'message', body: 'oi', occurredAt: '2026-11-03T15:00:00.000Z' })
+  const heard: string[] = []
+  const stop = events.subscribeChanges((event) => { heard.push(`${event.id}:${events.listReactions(event.id).map(row => row.stickerId).join(',')}`) })
+  const reaction = { eventId: 'm1', actorId: 'p1', stickerId: 'heart', projectId: 'pp' }
+  events.addReaction(reaction)
+  events.addReaction(reaction) // idempotent: the repeat changes nothing, so nobody is told again
+  events.removeReaction({ eventId: 'm1', actorId: 'p1', stickerId: 'thumbs-up' }) // not there: no-op, silent
+  events.removeReaction({ eventId: 'm1', actorId: 'p1', stickerId: 'heart' })
+  expect(heard).toEqual(['m1:heart', 'm1:'])
+  stop()
+  events.addReaction(reaction)
+  expect(heard).toHaveLength(2)
+})

@@ -7,10 +7,12 @@
 import type { EventRepos, ProductRepos, RoutineRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
 import type { BoardsHost } from './boards.ts'
 import type { DraftFilesBook } from './draft-files.ts'
+import type { WorkingControl } from './working-control.ts'
 import type { GovernanceHost } from './governance.ts'
 import type { Orchestration, ProjectRuntime } from './orchestration.ts'
 import type { ProactivityHost } from './proactivity.ts'
 import { ProactivityScheduler, type PostResult, type SchedulerOptions, type TeamRequest } from './proactivity-scheduler.ts'
+import type { TaskProposalPort } from './task-proposals.ts'
 import type { TeamStateBook } from './team-state.ts'
 
 /** What the host hands over. */
@@ -25,6 +27,9 @@ export interface ProactivityWireHost {
   readonly teamState: TeamStateBook
   readonly governance: Pick<GovernanceHost, 'gov'>
   readonly draftFiles: DraftFilesBook
+  readonly workingControl: WorkingControl
+  /** P1-9 “Proposta de {persona}”; absent ⇒ no cards. */
+  readonly taskProposals?: TaskProposalPort
 }
 
 /**
@@ -87,6 +92,8 @@ export function createProactivityScheduler(host: ProactivityWireHost, options: S
       return host.boards.goals.list(projectId)
     },
     engineReady: () => (host.orchestration.engineReadinessOf?.().state ?? 'ready') === 'ready',
+    releaseHeld: projectId => host.orchestration.releaseHeld(projectId),
+    flushQueues: projectId => host.workingControl.autoFlush(projectId),
     refreshDraft: async (projectId, ticketId) => {
       const summary = await host.orchestration.reviewSummary(projectId, ticketId)
       host.draftFiles.record(projectId, ticketId, summary.files.length)
@@ -96,5 +103,6 @@ export function createProactivityScheduler(host: ProactivityWireHost, options: S
     tokensSince: (projectId, personaId, fromIso) => host.orchestration.usage?.tokens({
       projectId, personaId, from: fromIso, to: host.orchestration.now(),
     }) ?? 0,
+    ...(host.taskProposals === undefined ? {} : { proposals: host.taskProposals }),
   }, options)
 }

@@ -140,13 +140,15 @@ it('rechecks while a message waits and stops polling after dismissal', async () 
   expect(probe).toHaveBeenCalledTimes(count)
 }, 60_000)
 
-it('another member cannot dismiss the original author’s retained message', () => {
+it('another member cannot dismiss or confirm the original author’s retained message', async () => {
   const h = open()
   seed(h)
   post(h, 'private-action')
   h.createMember({ ...scope, id: 'bob', displayName: 'Bob', handle: 'bob', role: 'member' })
   h.sessionMemberId = 'bob'
   expect(() => h.dismissEngineTrigger({ ...scope, triggerId: 'private-action' })).toThrow('forbidden')
+  // Confirming goes through the same guard (the static ACL check in remote-acl.spec relies on it).
+  await expect(h.confirmEngineTrigger({ ...scope, triggerId: 'private-action' })).rejects.toThrow('forbidden')
   h.sessionMemberId = 'ana'
   expect(h.getEngineStatus(scope).pending).toBe(1)
 }, 60_000)

@@ -198,6 +198,19 @@ export class SqliteGovernanceRepos {
   }
 
   /**
+   * Forget everything governance holds for a deleted routine (its charge and its delegation to Coordenação), so no ghost
+   * row stays in “Quem cuida de quem”. Missing rows are fine.
+   * @param workspaceId - Workspace.
+   * @param routineId - Routine that no longer exists.
+   */
+  deleteRoutineCharge(workspaceId: string, routineId: string): void {
+    this.store.tx((db) => {
+      run(db, 'DELETE FROM routine_charge WHERE workspace_id = ? AND routine_id = ?', [workspaceId, routineId])
+      run(db, 'DELETE FROM governance_delegate WHERE workspace_id = ? AND routine_id = ?', [workspaceId, routineId])
+    })
+  }
+
+  /**
    * @param workspaceId - Workspace.
    */
   listDelegates(workspaceId: string): readonly string[] {

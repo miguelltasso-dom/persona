@@ -77,6 +77,22 @@ export class WorkingSendHost {
   }
 
   /**
+   * Put a removed bubble back in its place (ordered by its original time). Idempotent on the row id.
+   * @param request - Persona + subject.
+   * @param row - The removed row.
+   */
+  restore(request: WorkingQueueRequest, row: QueuedMessageView): QueuedMessageView[] {
+    const current = this.queueOf(request)
+    if (current.some(item => item.id === row.id)) return current
+    const restored: QueuedUserMessage = {
+      id: row.id, personaId: row.personaId, subjectId: row.subjectId, text: row.text, createdAt: row.createdAt,
+    }
+    const next = [...current, restored].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    this.docs.put(request.projectId, QUEUE_KIND, queueId(request), next)
+    return next
+  }
+
+  /**
    * @param request - Persona + subject.
    */
   flush(request: WorkingQueueRequest): QueuedMessageView[] {

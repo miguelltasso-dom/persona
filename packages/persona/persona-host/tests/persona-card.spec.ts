@@ -29,7 +29,8 @@ it('getPersonaCard defaults to workspace ACL, charge names, omitted quota, resti
   const h = seed()
   const card = h.getPersonaCard({ ...scope, personaId: 'dev' })
   expect(card.handle).toBe('bento')
-  expect(card.systemRoles).toEqual(['coordination'])
+  // The first persona of a project is its Coordenação and, by default, also its Gestor (GES-1).
+  expect(card.systemRoles).toEqual(['coordination', 'team_manager'])
   expect(card.nowKind).toBe('resting')
   expect(card.nowText).toBe('Descansando — nada na fila')
   expect(card.presence.online).toBe(true)
@@ -123,13 +124,24 @@ it('getPersonaCard surfaces official quota and omits unavailable or 0%', () => {
   expect(card.nowText).toMatch(/claude renovar/)
   expect(card.nowText).toMatch(/09:15/)
 
+  // A 0% the vendor REPORTED is a measurement ("nothing used yet"), not an invented number (footer-pill.md: only a window with
+  // no usedPercent is "indisponível"). It shows as 0 and is not a limit.
   h.usage.putQuota('team', {
     provider: 'claude', origin: 'official',
     windows: [{ id: '5h', origin: 'official', usedPercent: 0 }],
   })
-  const empty = h.getPersonaCard({ ...scope, personaId: 'dev' })
-  expect(empty.quota).toBeUndefined()
-  expect(empty.nowKind).toBe('resting')
+  const fresh = h.getPersonaCard({ ...scope, personaId: 'dev' })
+  expect(fresh.quota).toEqual({ fiveHourPct: 0 })
+  expect(fresh.nowKind).toBe('resting')
+
+  // Nothing measured (no percent at all) is omitted: never a made-up 0.
+  h.usage.putQuota('team', {
+    provider: 'claude', origin: 'official',
+    windows: [{ id: '5h', origin: 'official' }],
+  })
+  const unknown = h.getPersonaCard({ ...scope, personaId: 'dev' })
+  expect(unknown.quota).toBeUndefined()
+  expect(unknown.nowKind).toBe('resting')
 })
 
 it('pausePersona / resumePersona / setPersonaEngine require card editor and audit', () => {

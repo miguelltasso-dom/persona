@@ -66,6 +66,9 @@ it('creates a daily initiative routine and fires it on the scheduler tick', () =
   expect(now.personas[0]?.currentTask).toMatch(/projeto/i)
   const away = h.getWhileAway(scope)
   expect(away.events.some(item => item.kind === 'proposal')).toBe(true)
+  // Reading does not consume the summary (P1-7): a client that refreshes keeps seeing it until the person dismisses it.
+  expect(h.getWhileAway(scope).events).toEqual(away.events)
+  expect(h.dismissWhileAway(scope)).toBe(true)
   expect(h.getWhileAway(scope).events).toEqual([])
 })
 
@@ -137,7 +140,7 @@ it('autonomy RPC persists and overview counts idle, deliveries, accepted proposa
   })
   expect(saved.mode).toBe('act')
   expect(h.getAutonomy({ ...scope, personaId }).proposalBudget).toBe(5)
-  const day = new Date().toISOString().slice(0, 10)
+  const day = h.orchestration.now().slice(0, 10) // the host's own (injected) clock, the one the strip counts "today" by
   h.orchestration.runtime('pp').repo.tickets.save(ticket({
     ended: { at: `${day}T10:00:00.000Z`, by: 'executor', outcome: 'completed' },
     assignments: [{ id: 'a1', state: 'ended', createdAt: `${day}T09:00:00.000Z` }],

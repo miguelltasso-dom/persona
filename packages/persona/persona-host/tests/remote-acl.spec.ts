@@ -17,7 +17,9 @@ it('every remote goes through can() except the documented list', () => {
     expect(
       src.includes('requireProject') || src.includes('requireWorkspace') || src.includes('requireFileRoot')
       || src.includes('requireWrite') || src.includes('requireGovOwner') || src.includes('requireGovAvailability')
-      || src.includes('actorOf') || src.includes('sessionCan'),
+      || src.includes('actorOf') || src.includes('sessionCan')
+      // Calls requireWrite and then also demands the workspace owner or the message's own author (engine-wait.host.spec proves it).
+      || src.includes('requireEngineTriggerActor'),
       `${name} skipped can()`,
     ).toBe(true)
   }

@@ -3,6 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { workerSessionId } from '@deepseek-ai/dsh-persona-engine'
 import { createFakeRunner } from '@deepseek-ai/dsh-persona-runners'
 import { afterEach, expect, it, vi } from 'vitest'
 import PersonaHost from '../src/index.ts'
@@ -80,4 +81,63 @@ it('an existing project applies, lists, reopens and undoes a binary file without
   reopened.setProjectRoot({ workspaceId: 'ws', projectId: 'other', rootPath: otherRoot })
   await expect(reopened.undoApply({ workspaceId: 'ws', projectId: 'other', restorePointId: point.id }))
     .rejects.toMatchObject({ code: 'not-found' })
+}, 90_000)
+
+it('Descartar ends only that Task and leaves another draft and an earlier RestorePoint intact (FLOW-1)', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'persona-history-discard-'))
+  homes.push(home)
+  vi.stubEnv('PERSONA_HOME', home)
+  const root = join(home, 'documents')
+  mkdirSync(root)
+  const before = Buffer.from([0, 255, 13, 10, 20])
+  const after = Buffer.from([3, 99, 0, 250, 50])
+  writeFileSync(join(root, 'menu.bin'), before)
+  const h = profile(join(home, 'persona.db'))
+  h.createWorkspace({ id: 'ws', name: 'Padaria', personalProjectId: 'pp' })
+  h.createMember({ ...scope, id: 'ana', displayName: 'Ana', handle: 'ana', role: 'owner' })
+  h.createPersona({ ...scope, id: 'worker', name: 'Bia', title: 'Documentos', description: '', personality: '', instructions: '',
+    avatarKind: 'gallery', avatarRef: 'bia', runnerKind: 'dsh', runnerCli: '', runnerModel: 'default', canRecruit: false, createdBy: 'ana' })
+  h.product.updatePersona({ ...h.product.getPersona('worker')!, systemRoles: ['coordination'] }, 'pp')
+  h.createChannel({ ...scope, id: 'geral', name: 'geral', topic: '' })
+  h.createChannel({ ...scope, id: 'docs', name: 'docs', topic: '' })
+  h.setProjectRoot({ ...scope, rootPath: root })
+  // Each worker edits the draft folder of ITS OWN Task.
+  h.orchestration.runnerFactory = async () => {
+    const runner = createFakeRunner()
+    return { ...runner, deliver: async (sessionId, requestId, text, mode) => {
+      await runner.deliver(sessionId, requestId, text, mode)
+      if (!sessionId.startsWith('worker-')) return
+      const own = h.orchestration.runtime('pp').repo.tickets.list().find(row => workerSessionId(row.id) === sessionId)
+      const directory = own?.execution?.directory
+      if (directory === undefined) throw new Error('draft missing')
+      writeFileSync(join(directory, 'menu.bin'), after)
+    } }
+  }
+  h.postMessage({ ...scope, id: 'edit-a', streamKind: 'channel', ownerId: 'geral', actorId: 'ana',
+    body: 'preciso de um README no projeto', subjectId: 'a', occurredAt: '2026-11-04T12:00:00.000Z' })
+  await h.orchestration.flush('pp')
+  const first = h.listTasks(scope)[0]!.id
+  expect((await h.acceptReview({ ...scope, ticketId: first, mode: 'ff' })).kind).toBe('merged')
+  const points = await h.listRestorePoints(scope)
+  expect(points.points).toHaveLength(1)
+  const point = points.points[0]!
+
+  h.postMessage({ ...scope, id: 'edit-b', streamKind: 'channel', ownerId: 'docs', actorId: 'ana',
+    body: 'preciso escrever docs', subjectId: 'b', occurredAt: '2026-11-04T12:01:00.000Z' })
+  await h.orchestration.flush('pp')
+  const second = h.listTasks(scope).find(row => row.id !== first)!.id
+  const secondTicket = () => h.orchestration.runtime('pp').repo.tickets.get(second)!
+  const draft = secondTicket().execution?.directory
+  expect(draft).toBeDefined()
+  expect(existsSync(draft!)).toBe(true)
+  expect(h.getProjectBoard(scope).cards.find(card => card.ticketId === second)?.deliveryPending).toBe(true)
+
+  await h.discardReview({ ...scope, ticketId: second, command: 'dismiss', reason: 'Rascunho descartado na revisão' })
+  expect(secondTicket().ended).toMatchObject({ by: 'human', outcome: 'stopped', reason: 'discarded' })
+  expect(h.getProjectBoard(scope).cards.find(card => card.ticketId === second)?.deliveryPending).toBeUndefined()
+  // The earlier apply is untouched: same point, still undoable byte for byte, the Task it belongs to still ended as applied.
+  expect((await h.listRestorePoints(scope)).points).toEqual(points.points)
+  expect(h.orchestration.runtime('pp').repo.tickets.get(first)?.ended?.outcome).not.toBe('stopped')
+  expect(await h.undoApply({ ...scope, restorePointId: point.id })).toMatchObject({ kind: 'restored' })
+  expect(readFileSync(join(root, 'menu.bin'))).toEqual(before)
 }, 90_000)

@@ -73,6 +73,7 @@ export class EventRepos {
   readonly store: PersonaStore
   readonly now: () => string
   readonly #listeners = new Set<(event: StoredEvent) => void>()
+  readonly #changeListeners = new Set<(event: StoredEvent) => void>()
 
   /**
    * @param store - Open store.
@@ -302,6 +303,51 @@ export class EventRepos {
   }
 
   /**
+   * Subscribe to events whose body or type changed after they were appended (a reply that is still being written).
+   * The listener gets the event as it is now.
+   * @param listener - Synchronous observer; must not throw.
+   * @returns Disposer.
+   */
+  subscribeChanges(listener: (event: StoredEvent) => void): () => void {
+    this.#changeListeners.add(listener)
+    return () => {
+      this.#changeListeners.delete(listener)
+    }
+  }
+
+  /**
+   * Streaming: grow the body of a reply that is still being written. It is not an edit by a person, so `edited_at` stays
+   * empty. Followers of the stream are told.
+   * @param id - Event (type `partial`).
+   * @param body - Text so far.
+   * @returns false when the event is missing, deleted or no longer `partial`.
+   */
+  updatePartial(id: string, body: string): boolean {
+    const changed = this.store.tx(db => db.prepare("UPDATE event SET body = ? WHERE id = ? AND deleted = 0 AND type = 'partial'").run(body, id).changes)
+    return this.announce(Number(changed) > 0, id)
+  }
+
+  /**
+   * Streaming: the reply is written. Sets its final body and type (it is no longer `partial`). Idempotent: a reply that
+   * already settled is left alone.
+   * @param id - Event (type `partial`).
+   * @param body - Final text.
+   * @param type - Final type (`message` or `runner`).
+   * @returns false when there was nothing partial to settle.
+   */
+  settlePartial(id: string, body: string, type: string): boolean {
+    const changed = this.store.tx(db => db.prepare("UPDATE event SET body = ?, type = ? WHERE id = ? AND deleted = 0 AND type = 'partial'").run(body, type, id).changes)
+    return this.announce(Number(changed) > 0, id)
+  }
+
+  private announce(changed: boolean, id: string): boolean {
+    if (!changed) return false
+    const event = this.get(id)
+    if (event !== undefined) for (const listener of this.#changeListeners) listener(event)
+    return true
+  }
+
+  /**
    * Replace the body and stamp `edited_at`.
    * @param id - Event.
    * @param body - New text.
@@ -322,27 +368,27 @@ export class EventRepos {
   }
 
   /**
-   * Add a sticker reaction (idempotent).
+   * Add a sticker reaction (idempotent). Followers of the stream are told when the reaction is new, so a reaction made
+   * outside a request (a persona reacting on its own) shows up live instead of only after a reload.
    * @param input - Event, actor, sticker.
    */
   addReaction(input: { eventId: string; actorId: string; stickerId: string; projectId: string }): void {
-    this.store.tx((db) => {
-      run(db, `INSERT INTO event_reaction (event_id, actor_id, sticker_id, project_id, created_at)
-        VALUES (?, ?, ?, ?, ?) ON CONFLICT(event_id, actor_id, sticker_id) DO NOTHING`, [
-        input.eventId, input.actorId, input.stickerId, input.projectId, this.now(),
-      ])
-    })
+    const changed = this.store.tx(db => db.prepare(`INSERT INTO event_reaction (event_id, actor_id, sticker_id, project_id, created_at)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT(event_id, actor_id, sticker_id) DO NOTHING`).run(
+      input.eventId, input.actorId, input.stickerId, input.projectId, this.now(),
+    ).changes)
+    this.announce(Number(changed) > 0, input.eventId)
   }
 
   /**
+   * Remove a sticker reaction; followers are told when a reaction was actually removed.
    * @param input - Event, actor, sticker.
    */
   removeReaction(input: { eventId: string; actorId: string; stickerId: string }): void {
-    this.store.tx((db) => {
-      run(db, 'DELETE FROM event_reaction WHERE event_id = ? AND actor_id = ? AND sticker_id = ?', [
-        input.eventId, input.actorId, input.stickerId,
-      ])
-    })
+    const changed = this.store.tx(db => db.prepare('DELETE FROM event_reaction WHERE event_id = ? AND actor_id = ? AND sticker_id = ?').run(
+      input.eventId, input.actorId, input.stickerId,
+    ).changes)
+    this.announce(Number(changed) > 0, input.eventId)
   }
 
   /**

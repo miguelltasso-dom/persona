@@ -161,6 +161,7 @@ it('stops after a few drives of the same assignment and says so', async () => {
   r.h.orchestration.runtime('pp').repo.tickets.save(ticket())
   for (let i = 0; i < 5; i += 1) {
     await r.scheduler.cycle()
+    await r.scheduler.whenIdle()
     r.advance(30_000)
   }
   expect(r.drives).toEqual(['t1', 't1', 't1'])
@@ -186,14 +187,14 @@ it('a due routine runs exactly once and is queued for its persona', async () => 
   expect(r.posts).toHaveLength(2)
 })
 
-it('a routine without who/what is skipped out loud, not silently', async () => {
+it('a routine without a named owner goes to the Coordenação, with its name as the instruction', async () => {
   const r = rig(host())
   r.routines.create({ id: 'r1', workspaceId: 'ws', projectId: 'pp', name: 'Faxina', rrule: 'FREQ=DAILY;BYHOUR=9', timeZone: 'UTC', catchUp: 'run_once' })
   r.advance(2 * 3_600_000)
   const report = await r.scheduler.cycle()
-  expect(report.projects[0]?.routinesSkipped).toBe(1)
-  expect(r.posts).toEqual([])
-  expect(audits(r, 'sched:routine_skipped')[0]).toMatch(/não tem responsável. Defina quem faz/)
+  expect(report.projects[0]?.routinesSkipped).toBe(0)
+  expect(r.posts).toHaveLength(1)
+  expect(r.posts[0]).toMatchObject({ personaId: 'p1', body: '@Bento Faça a rotina “Faxina” agora e relate com evidência.' })
 })
 
 it('a routine takes its executor from the governance charge and its own name as the instruction', async () => {
@@ -435,12 +436,19 @@ it('timers: start arms once, the cycle re-arms itself, dispose stops it', async 
   expect((await r.scheduler.cycle()).skipped).toBe('disposed')
 })
 
-it('cycleMs 0 never arms a timer, and two overlapping cycles do not both run', async () => {
+it('cycleMs 0 never arms a timer, and a cycle never starts inside another one', async () => {
   const r = rig(host())
   r.scheduler.start()
   expect(r.scheduler.status('pp').running).toBe(false)
-  const [a, b] = await Promise.all([r.scheduler.cycle(), r.scheduler.cycle()])
-  expect([a.skipped, b.skipped].filter(item => item === 'busy')).toHaveLength(1)
+  const first = await r.scheduler.cycle()
+  expect(first.skipped).toBeUndefined()
+  // a cycle that is running (a drive failing inside one calls back into the scheduler) is never re-entered
+  const reentrant = new ProactivityScheduler({ ...r.scheduler.deps, goalsOf: () => { void inner.cycle().then((report) => { nested = report.skipped }); return [] } }, { nowMs: () => r.clock.ms, cycleMs: 0 })
+  const inner = reentrant
+  let nested: string | undefined = 'untouched'
+  await reentrant.cycle()
+  await new Promise(resolve => setTimeout(resolve, 5))
+  expect(nested).toBe('busy')
 })
 
 it('a failing model port is recorded and does not break the cycle', async () => {

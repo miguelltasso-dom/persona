@@ -58,6 +58,8 @@ export interface StoredOfficialQuota {
   /** Connected account id from Rivet `OfficialQuotaPutRow`. Never `default`. */
   readonly accountId?: string
   readonly accountLabel?: string
+  /** ISO instant this snapshot was read (even when the read found nothing). Absent on rows written before the field existed. */
+  readonly at?: string
   /** Last few reset clocks (capped at {@link QUOTA_REFILL_HISTORY}). */
   readonly refillHistory?: readonly QuotaRefillPoint[]
 }
@@ -208,7 +210,7 @@ export class SqliteUsageStore implements UsageStore {
     const accountId = quota.accountId ?? ''
     const previous = this.listQuota(projectId, quota.provider)
       .find(row => (row.accountId ?? '') === accountId)
-    const stored = mergeQuotaHistory(quota, previous, updatedAt)
+    const stored = mergeQuotaHistory({ ...quota, at: quota.at ?? updatedAt }, previous, updatedAt)
     this.store.tx((db) => {
       run(db, `INSERT INTO usage_quota (project_id, provider, account_id, origin, body, updated_at)
         VALUES (?, ?, ?, ?, ?, ?)

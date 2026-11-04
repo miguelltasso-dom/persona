@@ -68,7 +68,10 @@ export class RemoteTeamHost {
   constructor(readonly options: RemoteTeamOptions) {
     if (!Number.isInteger(options.pollMs) || options.pollMs < 0) throw new Error('invalid-remote-team-poll-ms')
     if (!Number.isInteger(options.timeoutMs) || options.timeoutMs <= 0) throw new Error('invalid-remote-team-timeout-ms')
-    this.stopListening = options.events.subscribe((event) => { this.enqueue(event) })
+    // A reply that is still streaming is not shared; it goes out once, when it settles into its final text.
+    const stopAppends = options.events.subscribe((event) => { if (event.type !== 'partial') this.enqueue(event) })
+    const stopChanges = options.events.subscribeChanges((event) => { if (event.type !== 'partial') this.enqueue(event) })
+    this.stopListening = () => { stopAppends(); stopChanges() }
   }
 
   /** @returns Current Cofre capability, including an absent provider. */

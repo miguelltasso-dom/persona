@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   createHttpDshAgent,
   resolveRunner,
+  vendorUsageOf,
   type RunEvent,
 } from '../src/index.ts'
 
@@ -102,5 +103,20 @@ describe('HTTP DSH agent', () => {
     }
     expect(texts[0]).toMatch(/HTTP 401/u)
     expect(texts.join('')).not.toContain(SECRET)
+  })
+
+  it('copies official cache counters and omits missing cache', () => {
+    expect(vendorUsageOf({
+      prompt_tokens: 40,
+      completion_tokens: 8,
+      prompt_cache_hit_tokens: 16,
+      prompt_cache_miss_tokens: 4,
+    })).toEqual({
+      inputTokens: 40,
+      outputTokens: 8,
+      cacheReadTokens: 16,
+      cacheWriteTokens: 4,
+    })
+    expect(JSON.stringify(vendorUsageOf({ prompt_tokens: 10, completion_tokens: 2 }))).not.toMatch(/cacheReadTokens/u)
   })
 })

@@ -20,9 +20,11 @@ const MODE = process.argv.includes('--verify-identity')
     ? 'dry'
     : process.argv.includes('--dir')
       ? 'dir'
-      : process.argv.includes('--package')
+      : process.argv.includes('--package') || process.argv.includes('--portable-installer')
         ? 'package'
-        : 'check'
+        : process.argv.includes('--nsis-stop')
+          ? 'nsis-stop'
+          : 'check'
 
 const MIGUEL_PHRASE = [
   'Para empacotar o Persona no Windows (sem assinatura, sem instalador admin):',
@@ -182,8 +184,8 @@ function probeNativeNeeds() {
       detail: 'native/system flock/landlock host addon — `pnpm run build:native-system` / node-gyp',
     },
     'nsis-window-frame': {
-      needsVcTools: true,
-      detail: 'installer-only window-frame.dll (NSIS). Not used by electron-builder --dir',
+      needsVcTools: false,
+      detail: 'optional branded NSIS chrome. Absent → stock per-user NSIS + Electron titleBarOverlay',
     },
   }
 }
@@ -199,21 +201,17 @@ function dirBlockers(checks) {
 
 async function ensureShortJunction() {
   if (process.platform !== 'win32') return { ok: false, path: undefined, detail: 'not windows' }
-  const short = 'C:\\p8'
   const repo = fileURLToPath(new URL('../../..', import.meta.url))
-  if (existsSync(short)) {
-    return { ok: true, path: short, detail: 'existing', repo }
+  for (const short of ['C:\\p8', 'C:\\pb']) {
+    if (existsSync(short)) return { ok: true, path: short, detail: 'existing', repo }
+    const made = spawnSync('cmd.exe', ['/c', 'mklink', '/J', short, repo], {
+      encoding: 'utf8', windowsHide: true, timeout: 15_000,
+    })
+    if (made.status === 0 && existsSync(short)) {
+      return { ok: true, path: short, detail: 'created', repo }
+    }
   }
-  const made = spawnSync('cmd.exe', ['/c', 'mklink', '/J', short, repo], {
-    encoding: 'utf8', windowsHide: true, timeout: 15_000,
-  })
-  const ok = made.status === 0 && existsSync(short)
-  return {
-    ok,
-    path: ok ? short : undefined,
-    detail: ok ? 'created' : (made.stderr || made.stdout || `exit ${String(made.status)}`).slice(0, 400),
-    repo,
-  }
+  return { ok: false, path: undefined, detail: 'junction C:\\pb and C:\\p8 failed', repo }
 }
 
 /** package-target.ts reads `npm_execpath` to spawn pnpm. Direct `node` launch has none. */
@@ -239,6 +237,64 @@ function spawnPackageTarget(args, env) {
   })
 }
 
+async function runNsisPackage() {
+  const short = await ensureShortJunction()
+  const cache = 'C:\\pbc'
+  await mkdir(cache, { recursive: true })
+  const logPath = join(cache, 'nsis.log')
+  const started = Date.now()
+  const packed = spawnPackageTarget(['win-x64', '--unsigned'], {
+    ...process.env,
+    DSH_DESKTOP_UNSIGNED: '1',
+    DSH_DESKTOP_PACKAGE_CACHE_DIR: cache,
+    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+  })
+  const spawnErr = packed.error instanceof Error ? packed.error.stack ?? packed.error.message : ''
+  const stderr = `${packed.stderr ?? ''}\n${packed.stdout ?? ''}\n${spawnErr}`
+  await writeFile(logPath, stderr)
+  const artifactRoots = [
+    join(desktopRoot, '.desktop-build', 'targets', 'win-x64', 'unsigned-artifacts'),
+    join(desktopRoot, '.desktop-build', 'targets', 'win-x64', 'artifacts'),
+    join(desktopRoot, '.desktop-build', 'win-x64', 'dist'),
+    cache,
+  ]
+  const setupCandidates = []
+  for (const root of artifactRoots) {
+    setupCandidates.push(
+      join(root, 'Persona-Setup.exe'),
+      join(root, 'persona-Setup.exe'),
+    )
+  }
+  let setup = setupCandidates.find(path => existsSync(path))
+  if (setup === undefined) {
+    for (const root of artifactRoots) {
+      if (!existsSync(root)) continue
+      const listed = spawnSync('cmd.exe', ['/c', 'dir', '/b', '/s', root], {
+        encoding: 'utf8', windowsHide: true, timeout: 15_000,
+      })
+      const match = (listed.stdout ?? '').split(/\r?\n/u).find(line =>
+        /persona-.*-win-x64-unsigned\.exe$/iu.test(line) || /Persona-Setup\.exe$/iu.test(line))
+      if (match) {
+        setup = match.trim()
+        break
+      }
+    }
+  }
+  return {
+    ran: true,
+    shortPath: short,
+    cache,
+    cwd: desktopRoot,
+    elapsedMs: Date.now() - started,
+    packageExit: packed.status,
+    setupPresent: setup !== undefined,
+    setup: setup ?? null,
+    bytes: setup !== undefined ? undefined : null,
+    logPath,
+    tail: stderr.slice(-3_000),
+  }
+}
+
 async function runDir(checks) {
   const short = await ensureShortJunction()
   const cache = 'C:\\p8c'
@@ -253,6 +309,7 @@ async function runDir(checks) {
   const stderr = `${packed.stderr ?? ''}\n${packed.stdout ?? ''}\n${spawnErr}`
   await writeFile(logPath, stderr)
   const exeCandidates = [
+    join(desktopRoot, '.desktop-build', 'targets', 'win-x64', 'unsigned-artifacts', 'win-unpacked', 'Persona.exe'),
     join(desktopRoot, '.desktop-build', 'targets', 'win-x64', 'artifacts', 'win-unpacked', 'Persona.exe'),
     join(desktopRoot, '.desktop-build', 'win-x64', 'dist', 'win-unpacked', 'Persona.exe'),
     join(cache, 'win-unpacked', 'Persona.exe'),
@@ -306,6 +363,64 @@ async function runDry(checks) {
 }
 
 async function main() {
+  if (MODE === 'nsis-stop') {
+    const {
+      nsisAdminStop, remainingAdminNeeds, windowFramePrebuildPresent, findNativeAddonPrebuild,
+      SHORT_ROOT, NSIS_PER_USER, WINDOW_FRAME_UPSTREAM,
+    } = await import('../src/win-package-policy.ts')
+    const repo = fileURLToPath(new URL('../../..', import.meta.url))
+    const frame = windowFramePrebuildPresent()
+    const native = findNativeAddonPrebuild(repo)
+    const report = {
+      mode: MODE,
+      unsigned: true,
+      adminInstall: false,
+      perUser: NSIS_PER_USER,
+      shortRoot: SHORT_ROOT,
+      winCodeSign: 'disabled',
+      nativeReuse: native ?? null,
+      windowFramePrebuild: frame,
+      windowFrameOptional: true,
+      upstream: WINDOW_FRAME_UPSTREAM,
+      note: nsisAdminStop(),
+      remainingAdmin: remainingAdminNeeds(),
+    }
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
+    process.exit(0)
+  }
+  if (MODE === 'package') {
+    const {
+      nsisAdminStop, remainingAdminNeeds, windowFramePrebuildPresent, findNativeAddonPrebuild,
+      SHORT_ROOT, NSIS_PER_USER, WINDOW_FRAME_UPSTREAM,
+    } = await import('../src/win-package-policy.ts')
+    const { statSync } = await import('node:fs')
+    const repo = fileURLToPath(new URL('../../..', import.meta.url))
+    const nsis = await runNsisPackage()
+    if (nsis.setup !== null) {
+      try {
+        nsis.bytes = statSync(nsis.setup).size
+      } catch {
+        nsis.bytes = null
+      }
+    }
+    const report = {
+      mode: MODE,
+      unsigned: true,
+      adminInstall: false,
+      perUser: NSIS_PER_USER,
+      shortRoot: SHORT_ROOT,
+      winCodeSign: 'disabled',
+      nativeReuse: findNativeAddonPrebuild(repo) ?? null,
+      windowFramePrebuild: windowFramePrebuildPresent(),
+      windowFrameOptional: true,
+      upstream: WINDOW_FRAME_UPSTREAM,
+      note: nsisAdminStop(),
+      remainingAdmin: remainingAdminNeeds(),
+      nsis,
+    }
+    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
+    process.exit(nsis.setupPresent === true && nsis.packageExit === 0 ? 0 : 2)
+  }
   if (MODE === 'verify-identity') {
     const { verifyPostInstall } = await import('./verify-post-install.ts')
     const identity = verifyPostInstall()

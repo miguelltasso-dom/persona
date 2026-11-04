@@ -23,6 +23,8 @@ const HINTS: Record<string, string> = {
   opencode: 'Abra o terminal e rode opencode auth login',
   cursor: 'Abra o Cursor e faça login no Agent',
   dsh: 'Configure a chave no Cofre. Nunca cole o token na conversa.',
+  ollama: 'Ollama local, sem custo.',
+  lmstudio: 'LM Studio local, sem custo.',
 }
 
 /**

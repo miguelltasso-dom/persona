@@ -6,12 +6,14 @@
 import type { DshAgentEvent, DshAgentPort } from './runner.ts'
 import type { HistoryTurn, RunnerUsage } from '../contract.ts'
 
-export type DshProvider = 'deepseek' | 'openrouter' | 'openai-compat'
+export type DshProvider = 'deepseek' | 'openrouter' | 'openai-compat' | 'ollama' | 'lmstudio'
 
 export const PROVIDER_BASE: Readonly<Record<DshProvider, string>> = {
   deepseek: 'https://api.deepseek.com/v1',
   openrouter: 'https://openrouter.ai/api/v1',
   'openai-compat': 'http://127.0.0.1:0',
+  ollama: 'http://127.0.0.1:11434/v1',
+  lmstudio: 'http://127.0.0.1:1234/v1',
 }
 
 export interface HttpDshAgentOptions {
@@ -30,12 +32,35 @@ function contentOf(value: unknown): string {
   return typeof delta === 'string' ? delta : ''
 }
 
-function usageOf(value: unknown): { input: number; output: number } {
-  if (value === null || typeof value !== 'object') return { input: 0, output: 0 }
-  const record = value as { prompt_tokens?: unknown; completion_tokens?: unknown }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+}
+
+function vendorNumber(row: Record<string, unknown>, keys: readonly string[]): number | undefined {
+  for (const key of keys) {
+    const value = row[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  return undefined
+}
+
+/**
+ * Official token + cache counters from an OpenAI-compatible `usage` object.
+ * Missing cache stays omitted (never 0%).
+ * @param value - Provider `usage` payload.
+ * @returns Tokens. Cache fields omitted when the vendor did not publish them.
+ */
+export function vendorUsageOf(value: unknown): RunnerUsage {
+  if (!isRecord(value)) return { inputTokens: 0, outputTokens: 0 }
+  const details = isRecord(value.prompt_tokens_details) ? value.prompt_tokens_details : undefined
+  const read = vendorNumber(value, ['prompt_cache_hit_tokens', 'cache_read_input_tokens', 'cached_tokens'])
+    ?? (details === undefined ? undefined : vendorNumber(details, ['cached_tokens']))
+  const write = vendorNumber(value, ['prompt_cache_miss_tokens', 'cache_creation_input_tokens'])
   return {
-    input: typeof record.prompt_tokens === 'number' ? record.prompt_tokens : 0,
-    output: typeof record.completion_tokens === 'number' ? record.completion_tokens : 0,
+    inputTokens: vendorNumber(value, ['prompt_tokens', 'input_tokens']) ?? 0,
+    outputTokens: vendorNumber(value, ['completion_tokens', 'output_tokens']) ?? 0,
+    ...(read === undefined ? {} : { cacheReadTokens: read }),
+    ...(write === undefined ? {} : { cacheWriteTokens: write }),
   }
 }
 
@@ -107,9 +132,15 @@ export function createHttpDshAgent(options: HttpDshAgentOptions): DshAgentPort {
     if (streamed.length === 0) {
       const body: unknown = await response.json().catch(() => undefined)
       const text = choiceText(body)
-      const counted = usageOf(body !== null && typeof body === 'object' ? (body as { usage?: unknown }).usage : undefined)
-      usage.inputTokens += counted.input
-      usage.outputTokens += counted.output === 0 ? text.length : counted.output
+      const counted = vendorUsageOf(isRecord(body) ? body.usage : undefined)
+      usage.inputTokens += counted.inputTokens
+      usage.outputTokens += counted.outputTokens === 0 ? text.length : counted.outputTokens
+      if (counted.cacheReadTokens !== undefined) {
+        usage.cacheReadTokens = (usage.cacheReadTokens ?? 0) + counted.cacheReadTokens
+      }
+      if (counted.cacheWriteTokens !== undefined) {
+        usage.cacheWriteTokens = (usage.cacheWriteTokens ?? 0) + counted.cacheWriteTokens
+      }
       if (text !== '') yield { type: 'text', text }
       yield { type: 'ended', text }
       return

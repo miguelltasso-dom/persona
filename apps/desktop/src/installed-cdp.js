@@ -1,0 +1,63 @@
+/**
+ * Launch argv for an installed (or unpacked) Persona.exe so Probe can attach CDP.
+ * Does not spawn Electron from unit tests.
+ */
+/**
+ * Build the process command Probe uses on a packaged or `--dir` binary.
+ * @param input - Exe path, disposable homes, renderer debug port.
+ */
+export function installedDesktopLaunch(input) {
+    const mainPort = input.mainPort ?? input.rendererPort + 1;
+    return {
+        exe: input.exe,
+        args: [
+            `--remote-debugging-port=${String(input.rendererPort)}`,
+            `--inspect=${String(mainPort)}`,
+        ],
+        env: {
+            PERSONA_HOME: input.home,
+            DSH_HOME: input.home,
+            DSH_DESKTOP_USER_DATA_DIR: input.userData,
+            DSH_TELEMETRY_DISABLED: '1',
+            DSH_DESKTOP_OPEN_DEVTOOLS: '0',
+            DSH_DESKTOP_UPDATES: '0',
+            DSH_DESKTOP_WELCOME: '0',
+            DSH_DESKTOP_RENDERER_DEBUG_PORT: String(input.rendererPort),
+        },
+        rendererPort: input.rendererPort,
+    };
+}
+/**
+ * Poll Chromium `/json/version` until the renderer CDP is up.
+ * @param port - `--remote-debugging-port`.
+ * @param timeoutMs - Deadline.
+ * @param fetchImpl - Injected fetch (fake in tests).
+ */
+export async function waitForInstalledCdp(port, timeoutMs, fetchImpl = fetch) {
+    const deadline = Date.now() + timeoutMs;
+    let last = '';
+    while (Date.now() < deadline) {
+        try {
+            const response = await fetchImpl(`http://127.0.0.1:${String(port)}/json/version`);
+            if (response.ok) {
+                const body = await response.json();
+                const ws = body !== null && typeof body === 'object' && 'webSocketDebuggerUrl' in body
+                    ? String(body.webSocketDebuggerUrl)
+                    : '';
+                if (ws !== '')
+                    return ws;
+                last = 'missing webSocketDebuggerUrl';
+            }
+            else
+                last = `${String(response.status)}`;
+        }
+        catch (error) {
+            last = error instanceof Error ? error.message : String(error);
+        }
+        await new Promise((done) => {
+            setTimeout(done, 40);
+        });
+    }
+    throw new Error(`CDP not ready on ${String(port)}: ${last}`);
+}
+//# sourceMappingURL=installed-cdp.js.map

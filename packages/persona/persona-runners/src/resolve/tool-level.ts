@@ -7,8 +7,8 @@ export type ToolLevel = 'none' | 'read' | 'write'
 
 const RANK: Record<ToolLevel, number> = { none: 0, read: 1, write: 2 }
 
-const WRITE = /^(?:bash|shell|write|edit|str_replace|apply_patch|rm|delete|notebook_edit|persona_report|persona_ask)$/iu
-const READ = /^(?:read|glob|grep|list|ls|search|web_fetch|persona_recall)$/iu
+const WRITE = /^(?:bash|shell|write|edit|str_replace|apply_patch|rm|delete|notebook_edit|persona_report|persona_ask|persona_browser_act|persona_computer_click|persona_computer_type|persona_telegram_send|persona_email_send|brain_propose|gestor_hire|gestor_allocate|gestor_reorganize|gestor_assemble)$/iu
+const READ = /^(?:read|glob|grep|list|ls|search|web_fetch|persona_recall|persona_browser_open|persona_browser_read|persona_computer_screenshot|brain_search|brain_read)$/iu
 
 /**
  * Classify a vendor or Persona tool name.

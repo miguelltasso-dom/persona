@@ -207,6 +207,14 @@ it.each(['--unsigned', '--prepare-only'])('keeps %s hardware-free and creates no
   expect(stages.includes('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')).toBe(mode === '--unsigned')
 })
 
+it('skips packaged-runtime smoke when --skip-smoke is set', async () => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['win-x64', '--unsigned', '--skip-smoke'], 'win32', 'x64'),
+    environment, run)
+  expect(stages.some(stage => stage.includes('smoke-packaged-runtime'))).toBe(false)
+  expect(stages.some(stage => stage.includes('electron-builder'))).toBe(true)
+})
+
 it.each(['mac-arm64', 'mac-x64', 'win-x64'] as const)('selects branding from the signing mode for %s', async (target) => {
   const modes = [[], ['--unsigned'], ['--dir'], ['--unsigned', '--dir'], ['--prepare-only'],
     ...(target === 'win-x64' ? [] : [['--skip-notarization'], ['--skip-notarization', '--dir']])]

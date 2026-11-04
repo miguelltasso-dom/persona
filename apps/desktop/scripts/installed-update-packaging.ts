@@ -56,7 +56,7 @@ async function inputHashes(manifest: string, version: string, environment: NodeJ
     join(REPOSITORY, 'pnpm-lock.yaml'), join(APP_ROOT, 'package.json'),
     ...['electron-builder-config.mjs', 'installed-update-builder.ts', 'build-installed-update-worker.mjs',
       'windows-sign.mjs', 'windows-sign.cmd', 'windows-signing-state.mjs', 'windows-timestamp.mjs', 'windows-directory-installer.mjs',
-      'installer.nsh', 'prepare-windows-installer.ps1'].map(path => join(import.meta.dirname, path)),
+      'installer.nsh', 'installer-select.nsh', 'installer-stock.nsh', 'prepare-windows-installer.ps1'].map(path => join(import.meta.dirname, path)),
     environment.DSH_DESKTOP_WINDOWS_CER_FILE!, environment.DSH_DESKTOP_WINDOWS_SIGNTOOL!]
   const files = []
   for (const path of paths) {

@@ -1,10 +1,16 @@
 /**
  * Turn usage → persona-usage ledger rows. Tokens only; never secrets.
+ * Speaks core kinds (`execution` / `evaluation`). Legacy `exec`/`eval`
+ * map only through `usagePortKind` in persona-usage.
  */
 
-import type { RunEvent, RunHandle, Runner } from '../contract.ts'
+import { usagePortKind, usagePortWindow, type CanonicalTurnKind } from '@deepseek-ai/dsh-persona-usage'
+import type { RunEvent, RunHandle, Runner, RunnerUsage } from '../contract.ts'
 
-/** One measured turn. Matches persona-usage `UsageRecord` fields. */
+/** Core ledger kinds the meter writes. */
+export type MeterTurnKind = CanonicalTurnKind
+
+/** One measured turn. Matches persona-usage `UsageEvent` fields. */
 export interface MeasuredUsage {
   provider: string
   model: string
@@ -13,6 +19,10 @@ export interface MeasuredUsage {
   outputTokens: number
   origin: 'measured'
   at: string
+  kind: MeterTurnKind
+  accountId?: string
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
 }
 
 export interface UsageMeterSink {
@@ -32,7 +42,37 @@ export interface UsageStorePort {
     at: string
     runId?: string
     window?: string
+    kind?: MeterTurnKind
+    accountId?: string
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
   }): void
+}
+
+export interface UsageMeterOptions {
+  readonly kind?: MeterTurnKind
+  readonly accountId?: string
+}
+
+/**
+ * talk → triage, task → execution. Other cheap work keeps its name.
+ * @param work - Host purpose or cheap kind (may still say `exec`/`eval`).
+ */
+export function meterTurnKind(work: string): MeterTurnKind {
+  if (work === 'talk') return 'triage'
+  if (work === 'task') return 'execution'
+  return usagePortKind(work)
+}
+
+/**
+ * Copy vendor cache counters. Missing fields stay omitted (never 0%).
+ * @param usage - Runner snapshot.
+ */
+export function meterCacheOf(usage: RunnerUsage): Pick<MeasuredUsage, 'cacheReadTokens' | 'cacheWriteTokens'> {
+  return {
+    ...(usage.cacheReadTokens === undefined ? {} : { cacheReadTokens: usage.cacheReadTokens }),
+    ...(usage.cacheWriteTokens === undefined ? {} : { cacheWriteTokens: usage.cacheWriteTokens }),
+  }
 }
 
 /**
@@ -56,6 +96,9 @@ export function usageStoreSink(
         origin: 'measured',
         at: entry.at,
         window: entry.window,
+        kind: entry.kind,
+        ...(entry.accountId === undefined ? {} : { accountId: entry.accountId }),
+        ...meterCacheOf(entry),
       })
     },
   }
@@ -66,8 +109,15 @@ export function usageStoreSink(
  * @param inner - Resolved runner.
  * @param sink - Ledger (Anvil wires persona-usage).
  * @param provider - CLI id or `dsh`.
+ * @param options - Canonical kind + account.
  */
-export function withUsageMeter(inner: Runner, sink: UsageMeterSink, provider: string): Runner {
+export function withUsageMeter(
+  inner: Runner,
+  sink: UsageMeterSink,
+  provider: string,
+  options: UsageMeterOptions = {},
+): Runner {
+  const kind = options.kind ?? 'execution'
   const play = async function *(handle: RunHandle): AsyncIterable<RunEvent> {
     for await (const event of inner.stream(handle)) {
       yield event
@@ -76,11 +126,14 @@ export function withUsageMeter(inner: Runner, sink: UsageMeterSink, provider: st
         sink.record({
           provider,
           model: handle.model,
-          window: 'turn',
+          window: usagePortWindow(kind),
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           origin: 'measured',
           at: event.at,
+          kind,
+          ...(options.accountId === undefined ? {} : { accountId: options.accountId }),
+          ...meterCacheOf(usage),
         })
         yield { type: 'usage', at: event.at, usage }
       }

@@ -2,12 +2,16 @@
 
 import type { HandlerDetails, PermissionRequest, Session, WebPreferences } from 'electron'
 
+/** sha256 of `web-document` BOOT and host `READY_MARKUP` (inline, no unsafe-inline). */
+const BOOT_SCRIPT_HASH = "'sha256-ikYDEfGOZZNuGAdbu2YAz9STcFnRaWk0u5Dc0unuOyI='"
+const READY_SCRIPT_HASH = "'sha256-W1J9ifi3GWzqjTB2F6YQEv18k/YCJPpN1tANFrO28pg='"
+
 export const PERSONA_CSP = [
   "default-src 'self' dsh-app:",
-  "script-src 'self' dsh-app:",
+  `script-src 'self' dsh-app: ${BOOT_SCRIPT_HASH} ${READY_SCRIPT_HASH}`,
   "style-src 'self' 'unsafe-inline' dsh-app:",
   "img-src 'self' data: dsh-app:",
-  "font-src 'self' dsh-app:",
+  "font-src 'self' data: dsh-app:",
   "connect-src 'self' dsh-app:",
   "object-src 'none'",
   "base-uri 'none'",

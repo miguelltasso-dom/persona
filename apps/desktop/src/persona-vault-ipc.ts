@@ -1,6 +1,11 @@
 /** Main-process DPAPI via Electron `safeStorage` for host vault requests (D4a). */
 
-import { safeStorage } from 'electron'
+import * as electron from 'electron'
+
+function vaultStorage(): Electron.SafeStorage | undefined {
+  const mod = electron as { safeStorage?: Electron.SafeStorage; default?: { safeStorage?: Electron.SafeStorage } }
+  return mod.safeStorage ?? mod.default?.safeStorage
+}
 
 export const PERSONA_VAULT_IPC = 'persona-vault' as const
 
@@ -33,7 +38,8 @@ export function isPersonaVaultHostRequest(message: unknown): message is PersonaV
  */
 export function handlePersonaVaultRequest(request: PersonaVaultHostRequest): PersonaVaultHostResponse {
   try {
-    if (!safeStorage.isEncryptionAvailable()) {
+    const safeStorage = vaultStorage()
+    if (safeStorage === undefined || !safeStorage.isEncryptionAvailable()) {
       return { type: PERSONA_VAULT_IPC, requestId: request.requestId, error: 'safeStorage unavailable' }
     }
     if (request.op === 'seal') {

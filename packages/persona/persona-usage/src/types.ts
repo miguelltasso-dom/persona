@@ -58,6 +58,8 @@ export interface UsageWindow {
 /** Snapshot the host Remote exposes and the Uso e limites screen consumes. */
 export interface OfficialQuota {
   provider: string
+  /** WAVE2: which isolated login this snapshot belongs to. */
+  accountId?: string
   origin: UsageOrigin
   windows: UsageWindow[]
   detail?: string

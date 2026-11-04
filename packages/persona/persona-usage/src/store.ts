@@ -1,6 +1,7 @@
 /** In-memory UsageStore for tests. Anvil persists the same port in SQLite. */
 
 import { foldUsage } from './book.ts'
+import { usagePortKind } from './turn-ledger.ts'
 import { originLabel } from './types.ts'
 import type { UsageEvent, UsageQuery, UsageStore, UsageTotals } from './store-types.ts'
 
@@ -12,7 +13,10 @@ export function createMemoryUsageStore(): UsageStore {
   const rows: UsageEvent[] = []
   return {
     record(event: UsageEvent): void {
-      rows.push({ ...event })
+      rows.push({
+        ...event,
+        ...(event.kind === undefined ? {} : { kind: usagePortKind(event.kind) }),
+      })
     },
     query(filter: UsageQuery): UsageEvent[] {
       return rows.filter(row => match(row, filter))

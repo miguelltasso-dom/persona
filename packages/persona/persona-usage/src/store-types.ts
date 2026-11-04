@@ -1,5 +1,6 @@
 /** UsageStore port. Anvil implements SQLite; tests use the memory store. */
 
+import type { TurnKind } from './turn-ledger.ts'
 import type { UsageOrigin } from './types.ts'
 
 /** Labelled cost guess. Never an official quota percent. */
@@ -23,6 +24,11 @@ export interface UsageEvent {
   readonly runId?: string
   readonly window?: string
   readonly estimatedCost?: UsageCostEstimate
+  /** Canonical after {@link usagePortKind}; leftover `exec`/`eval` still accepted. */
+  readonly kind?: TurnKind
+  readonly accountId?: string
+  readonly cacheReadTokens?: number
+  readonly cacheWriteTokens?: number
 }
 
 /** Query window. Persona/project omitted = all. */

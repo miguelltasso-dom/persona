@@ -2,6 +2,47 @@
 
 export type RunnerPurpose = 'talk' | 'task'
 
+/** Cheap work reuses the talk model and talk pool slot (OPT-5). */
+export const CHEAP_WORK = ['talk', 'triage', 'librarian', 'watchdog', 'initiative'] as const
+
+/** Work kinds that must not open a heavy persona model. */
+export type CheapWork = (typeof CHEAP_WORK)[number]
+
+/**
+ * True for triage / librarian / watchdog / initiative / talk.
+ * @param work - Host purpose or cheap kind.
+ */
+export function isCheapWork(work: string): boolean {
+  return (CHEAP_WORK as readonly string[]).includes(work)
+}
+
+/**
+ * Pool/resolve purpose: cheap work shares the talk slot; everything else is task.
+ * @param work - Host purpose or cheap kind.
+ */
+export function poolPurposeFor(work: string): RunnerPurpose {
+  return work === 'task' || !isCheapWork(work) ? 'task' : 'talk'
+}
+
+/**
+ * Idle team with no goal must not open a model (OPT-5).
+ * @param hasObjective - Coordination has an open goal.
+ */
+export function idleTeamMayCallModel(hasObjective: boolean): boolean {
+  return hasObjective
+}
+
+/** OPT-5: one cheap model call per message that needs a decision. */
+export const TRIAGE_CALL_CAP = 1
+
+/**
+ * True while triage is still under the one-call cap.
+ * @param already - Cheap calls already spent on this message.
+ */
+export function triageCallsAllowed(already: number): boolean {
+  return already < TRIAGE_CALL_CAP
+}
+
 /** Idle TTL. Anvil "Sair de vez" / pauseTeam call `disposeAll`. */
 export const SESSION_LEASE_MS = 10 * 60_000
 
@@ -17,6 +58,7 @@ export interface SessionPoolKey {
   cwd?: string
   permissionMode?: string
   toolLevel?: string
+  accountId?: string
 }
 
 /**
@@ -24,7 +66,7 @@ export interface SessionPoolKey {
  * @param input - Persona, project, purpose, runner, model, cwd.
  */
 export function sessionPoolKey(input: SessionPoolKey): string {
-  return `${input.personaId}|${input.projectId}|${input.purpose}|${input.provider}|${input.model}|${input.cwd ?? ''}|${input.permissionMode ?? ''}|${input.toolLevel ?? ''}`
+  return `${input.personaId}|${input.projectId}|${input.purpose}|${input.provider}|${input.model}|${input.cwd ?? ''}|${input.permissionMode ?? ''}|${input.toolLevel ?? ''}|${input.accountId ?? ''}`
 }
 
 interface Slot<T> {

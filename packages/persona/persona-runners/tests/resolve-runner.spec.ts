@@ -9,7 +9,11 @@ import {
   detectConnections,
   disposeRunnerSessions,
   loginHintFor,
+  idleTeamMayCallModel,
   modelForPurpose,
+  modelForWork,
+  TRIAGE_CALL_CAP,
+  triageCallsAllowed,
   pickFastestModel,
   prewarmCoordination,
   toUiConnection,
@@ -100,6 +104,7 @@ describe('resolveRunner', () => {
     expect(records).toHaveLength(1)
     expect(records[0]?.provider).toBe('claude')
     expect(records[0]?.origin).toBe('measured')
+    expect(records[0]?.kind).toBe('execution')
   })
 
   it('writes measured usage into an injected UsageStore', async () => {
@@ -117,7 +122,7 @@ describe('resolveRunner', () => {
     })
     await collect(runner.stream(handle))
     expect(events).toEqual([expect.objectContaining({
-      personaId: 'nina', projectId: 'p1', origin: 'measured',
+      personaId: 'nina', projectId: 'p1', origin: 'measured', kind: 'execution',
     })])
   })
 
@@ -195,6 +200,40 @@ describe('resolveRunner', () => {
     expect(modelForPurpose({ kind: 'cli', cli: 'claude', model: 'sonnet' }, 'talk')).toBe('haiku')
     expect(modelForPurpose({ kind: 'cli', cli: 'claude', model: 'sonnet', talkModel: 'haiku' }, 'talk')).toBe('haiku')
     expect(modelForPurpose({ kind: 'cli', cli: 'claude', model: 'sonnet' }, 'task')).toBe('sonnet')
+    expect(modelForWork({ kind: 'cli', cli: 'claude', model: 'sonnet' }, 'librarian')).toBe('haiku')
+    expect(modelForWork({ kind: 'cli', cli: 'claude', model: 'sonnet' }, 'watchdog')).toBe('haiku')
+    expect(modelForWork({ kind: 'cli', cli: 'claude', model: 'sonnet' }, 'task')).toBe('sonnet')
+    expect(idleTeamMayCallModel(false)).toBe(false)
+    expect(idleTeamMayCallModel(true)).toBe(true)
+    expect(TRIAGE_CALL_CAP).toBe(1)
+    expect(triageCallsAllowed(0)).toBe(true)
+    expect(triageCallsAllowed(1)).toBe(false)
+  })
+
+  it('skips a second cheap triage call without booting the CLI', async () => {
+    let installs = 0
+    const runtime = Object.assign(sayingRuntime(), {
+      installation: async () => {
+        installs += 1
+        return { kind: 'available' as const, via: 'bundled' as const }
+      },
+    })
+    const runner = await resolveRunner({
+      spec: { kind: 'cli', cli: 'claude', model: 'sonnet' },
+      permissionMode: 'deny',
+      runtime,
+      purpose: 'talk',
+      turnKind: 'triage',
+      triageCallsAlready: 1,
+      infra: { wait: async () => undefined },
+    })
+    const handle = await runner.start({
+      ticketId: 't', assignmentId: 'a', personaId: 'nina', cwd: 'C:/tmp', prompt: 'hi', model: 'haiku',
+    })
+    const events = await collect(runner.stream(handle))
+    expect(installs).toBe(0)
+    expect(events.some(item => item.type === 'ended')).toBe(true)
+    expect(await runner.usage(handle)).toEqual({ inputTokens: 0, outputTokens: 0 })
   })
 
   it('reuses the pooled runner so the second resolve does not boot again', async () => {
@@ -303,6 +342,61 @@ describe('detectConnections + fake CLI fixtures', () => {
   })
 })
 
+describe('detectConnections official quota', () => {
+  it('keeps Claude Max / Codex ChatGPT official windows (0% is official, timeout is not checking)', async () => {
+    resetConnectionCache()
+    const cards = await detectConnections({
+      force: true,
+      timeoutMs: 2_000,
+      runtimes: {
+        claude: sayingRuntime({
+          usage: {
+            kind: 'ok',
+            plan: 'max',
+            five_hour: { utilization: 0, window_minutes: 300, resets_at: 1_762_286_400 },
+            seven_day: { remaining_percent: 91, window_minutes: 10_080 },
+          },
+        }),
+        codex: sayingRuntime({
+          auth: { kind: 'logged_in' },
+          usage: {
+            kind: 'logged_in',
+            subscription: 'chatgpt',
+            rate_limits: {
+              '5h': { used_percent: 18, window_minutes: 300 },
+              weekly: { used_percent: 6, window_minutes: 10_080 },
+            },
+          },
+        }),
+        opencode: sayingRuntime(),
+        cursor: sayingRuntime({ auth: { kind: 'logged_out' } }),
+      },
+    })
+    const claude = cards.find(item => item.id === 'claude')
+    expect(claude?.usageOrigin).toBe('official')
+    expect(claude?.officialQuota?.windows[0]).toMatchObject({ id: '5h', usedPercent: 0 })
+    expect(claude?.officialQuota?.windows[1]?.id).toBe('week')
+    const codex = cards.find(item => item.id === 'codex')
+    expect(codex?.usageOrigin).toBe('official')
+    expect(codex?.officialQuota?.detail).toBe('chatgpt')
+    resetConnectionCache()
+    const hung = Object.assign(sayingRuntime(), {
+      accountUsage: () => new Promise<unknown>(() => undefined),
+    })
+    const timed = await detectConnections({
+      force: true,
+      timeoutMs: 40,
+      runtimes: {
+        claude: hung,
+        codex: sayingRuntime({ auth: { kind: 'logged_out' } }),
+        opencode: sayingRuntime(),
+        cursor: sayingRuntime({ auth: { kind: 'logged_out' } }),
+      },
+    })
+    expect(timed.find(item => item.id === 'claude')?.officialQuota?.detail).toBe('accountUsage timeout')
+  })
+})
+
 describe('resolver smoke (scripted)', () => {
   it('measures first token and types a not_logged_in row', async () => {
     const rows = await runResolverSmoke({
@@ -382,5 +476,64 @@ describe('connection UI payload', () => {
     expect(row.error?.code).toBe('not_logged_in')
     expect(row.error?.message).toContain(row.loginHint)
     expect(row.error?.message).not.toMatch(/RunnerResolveError/u)
+  })
+
+  it('executes WAVE2 account policy at the limit and isolates config dirs', async () => {
+    const work = {
+      id: 'work', provider: 'claude', label: 'Trabalho', configDir: 'C:/p/accounts/m/claude/work',
+    }
+    const personal = {
+      id: 'personal', provider: 'claude', label: 'Pessoal', configDir: 'C:/p/accounts/m/claude/personal',
+    }
+    await expect(resolveRunner({
+      spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
+      permissionMode: 'deny',
+      runtime: sayingRuntime(),
+      accounts: [work, personal],
+      accountPolicy: { kind: 'fixed', scope: 'persona', accountIds: ['work'] },
+      accountQuotas: [{ accountId: 'work', exhausted: true }],
+      accountId: 'work',
+      infra: { wait: async () => undefined },
+    })).rejects.toMatchObject({ code: 'quota_exhausted' })
+    await expect(resolveRunner({
+      spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
+      permissionMode: 'deny',
+      runtime: sayingRuntime(),
+      accounts: [work, personal],
+      accountPolicy: { kind: 'ask_before_swap', scope: 'workspace', accountIds: ['work', 'personal'] },
+      accountQuotas: [{ accountId: 'work', exhausted: true }],
+      accountId: 'work',
+      infra: { wait: async () => undefined },
+    })).rejects.toMatchObject({ code: 'quota_exhausted' })
+
+    let env: Record<string, string | null> | undefined
+    const inner = sayingRuntime()
+    const open = inner.session.bind(inner)
+    const runtime = Object.assign(inner, {
+      session: async (installation: Parameters<typeof open>[0], options: Parameters<typeof open>[1]) => {
+        env = options.env === undefined ? undefined : { ...options.env }
+        return open(installation, options)
+      },
+    })
+    const runner = await resolveRunner({
+      spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
+      permissionMode: 'deny',
+      runtime,
+      accounts: [work, personal],
+      accountPolicy: { kind: 'next_on_limit', scope: 'workspace', accountIds: ['work', 'personal'] },
+      accountQuotas: [
+        { accountId: 'work', exhausted: true },
+        { accountId: 'personal', exhausted: false, remainingPercent: 70 },
+      ],
+      accountId: 'work',
+      homeIo: { mkdir: () => undefined },
+      infra: { wait: async () => undefined },
+    })
+    await runner.start({
+      ticketId: 't', assignmentId: 'a', personaId: 'nina', cwd: 'C:/tmp',
+      prompt: 'hi', model: 'haiku', permissionMode: 'deny',
+    })
+    expect(env?.CLAUDE_CONFIG_DIR?.replaceAll('\\', '/')).toMatch(/accounts\/m\/claude\/personal$/u)
+    expect(env?.CODEX_HOME).toBeNull()
   })
 })

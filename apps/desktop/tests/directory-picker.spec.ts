@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow, IpcMainInvokeEvent, OpenDialogOptions, OpenDialogReturnValue } from 'electron'
 import { DESKTOP_IPC } from '../src/ipc.ts'
-import { isAllowedRevealPath } from '../src/directory-picker.ts'
+import { directoryPickTitle, isAllowedRevealPath } from '../src/directory-picker.ts'
 
 const electron = vi.hoisted(() => ({
   handle: vi.fn<(
@@ -82,6 +82,41 @@ describe('Desktop directory picker', () => {
     electron.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] })
     await expect(f.pick(f.event)).resolves.toBeNull()
     expect(electron.showOpenDialog).toHaveBeenCalledTimes(2)
+  })
+
+  it('forwards SB-6 "Exportar vault" as the native dialog title', async () => {
+    const showOpenDialog = vi.fn<(window: BrowserWindow, options: OpenDialogOptions) => Promise<OpenDialogReturnValue>>()
+    showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [join(tmpdir(), 'obsidian-vault')] })
+    const f = fixture({ dialog: { showOpenDialog } })
+    await expect(f.pick(f.event, { title: 'Exportar vault' })).resolves.toBe(resolve(join(tmpdir(), 'obsidian-vault')))
+    expect(showOpenDialog).toHaveBeenCalledExactlyOnceWith(f.window, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Exportar vault',
+    })
+  })
+
+  it('maps purpose vault/export to the native dialog title', async () => {
+    const showOpenDialog = vi.fn<(window: BrowserWindow, options: OpenDialogOptions) => Promise<OpenDialogReturnValue>>()
+    showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [join(tmpdir(), 'vault-obsidian')] })
+    const f = fixture({ dialog: { showOpenDialog } })
+    expect(directoryPickTitle({ purpose: 'vault' })).toBe('Escolher pasta do vault')
+    expect(directoryPickTitle({ purpose: 'export' })).toBe('Exportar vault')
+    await expect(f.pick(f.event, { purpose: 'vault' })).resolves.toBe(resolve(join(tmpdir(), 'vault-obsidian')))
+    expect(showOpenDialog).toHaveBeenCalledExactlyOnceWith(f.window, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Escolher pasta do vault',
+    })
+  })
+
+  it('forwards BYC "Escolher pasta" as the native dialog title', async () => {
+    const showOpenDialog = vi.fn<(window: BrowserWindow, options: OpenDialogOptions) => Promise<OpenDialogReturnValue>>()
+    showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [join(tmpdir(), 'vault-obsidian')] })
+    const f = fixture({ dialog: { showOpenDialog } })
+    await expect(f.pick(f.event, { title: 'Escolher pasta' })).resolves.toBe(resolve(join(tmpdir(), 'vault-obsidian')))
+    expect(showOpenDialog).toHaveBeenCalledExactlyOnceWith(f.window, {
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Escolher pasta',
+    })
   })
 
   it('forwards a title to an injected dialog and does not persist the path', async () => {

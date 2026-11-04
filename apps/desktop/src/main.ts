@@ -6,7 +6,13 @@ import type { DesktopChannelState, DesktopChannelChangeResult } from '@deepseek-
 import { DesktopUpdateSettings } from './update-settings.ts'
 import { isDesktopUpdateChannel } from './settings-file.ts'
 import type { ProductEventMap, ProductEvent } from '@deepseek-ai/dsh-client-product-analytics/types'
-import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
+import {
+  WINDOWS_TITLEBAR_COLOR_DARK,
+  WINDOWS_TITLEBAR_COLOR_LIGHT,
+  WINDOWS_TITLEBAR_HEIGHT,
+  WINDOWS_TITLEBAR_SYMBOL_DARK,
+  WINDOWS_TITLEBAR_SYMBOL_LIGHT,
+} from './windows-layout.ts'
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,7 +20,9 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  desktopCapturer,
   dialog,
+  globalShortcut,
   ipcMain,
   Menu,
   Notification,
@@ -26,6 +34,7 @@ import {
   session,
   shell,
   type IpcMainInvokeEvent,
+  type Input,
   type MenuItemConstructorOptions,
 } from 'electron'
 import { resolveDesktopPaths } from './paths.ts'
@@ -34,6 +43,9 @@ import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError 
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
 import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
+import { installTeachCapture } from './teach-ipc.ts'
+import { createComputerUseComHost, installComputerUseBind } from './computer-use-bind.ts'
+import { spawnSync } from 'node:child_process'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
@@ -73,12 +85,14 @@ import { DesktopQuitConfirmation } from './quit-confirmation.ts'
 import { DesktopTray } from './tray.ts'
 import { DesktopBackgroundNotice } from './background-notice.ts'
 import { applyPersonaDesktopIdentity, PERSONA_PRODUCT_NAME, PERSONA_PROTOCOL, resolvePersonaProcessHome, personaUpdatesEnabled, shouldShowDeepSeekWelcome } from './product.ts'
+import { applyChromiumResourceBudget } from './resource-budget.ts'
+import { skipUpdaterAtBoot, skipWelcomeAtBoot } from './cold-start.ts'
 import { DesktopLoginItem } from './login-item.ts'
 import { readPersonaShellPrefs, writePersonaShellPrefs } from './shell-prefs.ts'
 import { DesktopNotifications, policyFromAutonomy } from './notifications.ts'
 import { allowShellNavigation, hardenSession, isExternalHttpUrl, secureWebPreferences, windowOpenAction } from './secure-shell.ts'
 import { copyPersonaDiagnostic, createPersonaLogger, personaLogsDir } from './persona-log.ts'
-import { bootSplashUrl, reconnectingPageUrl } from './reconnecting-page.ts'
+import { bootErrorUrl, bootSplashUrl, reconnectingPageUrl } from './reconnecting-page.ts'
 import { ALWAYS_ON_IPC, isAlwaysOnAttention, runningAssignmentCount } from './always-on-ipc.ts'
 import { DesktopPower } from './power.ts'
 import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
@@ -88,6 +102,7 @@ import { isDeepSeekHost } from './deepseek-hosts.ts'
 import { aboutLegalText, formatDesktopLegalNotices } from './legal-notices.ts'
 
 applyPersonaDesktopIdentity()
+applyChromiumResourceBudget(app.commandLine)
 
 let focusPrimaryWindow = (): void => {}
 let stopForRecovery = async (): Promise<void> => { await stopOperationReports() }
@@ -253,14 +268,21 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
 }
 
 /**
- * Opaque chrome fallback matching the built-in sidebar palette (the resolved
- * `--dsw-static-neutral-bluish-900` / `-50` tokens). An approximation for
- * custom themes: Windows swaps in the renderer's measured palette over the
- * windowsAppearance IPC, and macOS shows it only while minimized or hidden.
- * @returns the sidebar fill hex for the active system color scheme.
+ * Opaque chrome fallback matching Muse paper (DESKTOP-CHROME.md). Windows
+ * swaps in the renderer's measured palette over the windowsAppearance IPC;
+ * macOS shows it only while minimized or hidden.
+ * @returns the paper fill hex for the active system color scheme.
  */
 function chromeFallbackFill(): string {
-  return nativeTheme.shouldUseDarkColors ? '#1b1b1c' : '#f9fafb'
+  return nativeTheme.shouldUseDarkColors ? WINDOWS_TITLEBAR_COLOR_DARK : WINDOWS_TITLEBAR_COLOR_LIGHT
+}
+
+/**
+ * Caption-button tint matching Muse ink on the paper overlay.
+ * @returns the symbol hex for the active system color scheme.
+ */
+function chromeFallbackSymbol(): string {
+  return nativeTheme.shouldUseDarkColors ? WINDOWS_TITLEBAR_SYMBOL_DARK : WINDOWS_TITLEBAR_SYMBOL_LIGHT
 }
 
 /**
@@ -309,8 +331,11 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     show,
     ...(process.platform === 'win32' && primary ? {
       titleBarStyle: 'hidden' as const,
-      titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT, color: chromeFallbackFill(),
-        symbolColor: nativeTheme.shouldUseDarkColors ? '#f9fafb' : '#0f1115' },
+      titleBarOverlay: {
+        height: WINDOWS_TITLEBAR_HEIGHT,
+        color: chromeFallbackFill(),
+        symbolColor: chromeFallbackSymbol(),
+      },
     } : {}),
     // hiddenInset places traffic lights inside the sidebar; sidebar vibrancy
     // needs a transparent window background to show through the page.
@@ -351,6 +376,17 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     // Reloads and navigations re-register the preload listener; resend the
     // current state so a fullscreen reload does not fall back to windowed CSS.
     window.webContents.on('did-finish-load', sendFullscreen)
+  }
+  if (process.platform === 'win32' && primary) {
+    const applyOverlay = (): void => {
+      if (window.isDestroyed()) return
+      window.setTitleBarOverlay({
+        height: WINDOWS_TITLEBAR_HEIGHT,
+        color: chromeFallbackFill(),
+        symbolColor: chromeFallbackSymbol(),
+      })
+    }
+    nativeTheme.on('updated', applyOverlay)
   }
   if (process.platform === 'darwin') {
     // Deminiaturize reattaches the NSVisualEffectView material late
@@ -491,6 +527,8 @@ async function main(): Promise<void> {
   let mandatoryUI: DesktopMandatoryUpdateWindow | undefined
   let policyAuth: DesktopPolicyTestAuth | undefined
   let tray: DesktopTray | undefined
+  let trayWorking = 0
+  let trayNeedsYou = 0
   /**
    * The operating system is ending the session: the quit skips its confirmation. Windows sets it
    * on the definitive session-end message. macOS sets it on the power-off notification, which
@@ -677,7 +715,19 @@ async function main(): Promise<void> {
       && mainWindow.webContents.getURL().startsWith('data:text/html')) {
       void navigateMain(applicationUrl).catch((error: unknown) => { reportFatal(error, 'main') })
     }
-    if (state.phase === 'error') reportFatal(state.failure, 'host')
+    if (state.phase === 'error') {
+      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+        const { messages, id } = currentDesktopLocale()
+        void mainWindow.loadURL(bootErrorUrl({
+          message: messages.fatalSummary,
+          help: messages.startupReinstallAdvice,
+          retry: messages.bootRetry,
+          copy: messages.copyDiagnostic,
+          lang: id,
+        })).catch((error: unknown) => { console.error(error) })
+      }
+      reportFatal(state.failure, 'host')
+    }
     else if (!shuttingDown) backendReady = state.phase === 'ready'
   }, process.env.VITEST === 'true' ? undefined : {
     attempts: 3,
@@ -886,6 +936,45 @@ async function main(): Promise<void> {
 
   installDesktopDirectoryPicker(() => mainWindow, {
     personaHome: () => resolvePersonaProcessHome(),
+  })
+  installTeachCapture(() => mainWindow, {
+    personaHome: () => resolvePersonaProcessHome(),
+    listSources: async () => {
+      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] })
+      return sources.map(source => ({
+        id: source.id,
+        name: source.name,
+        kind: source.id.startsWith('screen:') ? 'screen' as const : 'window' as const,
+      }))
+    },
+  })
+  installComputerUseBind(() => mainWindow, {
+    ...createComputerUseComHost({
+      spawn: (command, args, env) => {
+        const result = spawnSync(command, [...args], {
+          encoding: 'utf8', windowsHide: true, timeout: 8_000, env,
+        })
+        return { stdout: result.stdout ?? '', status: result.status }
+      },
+    }),
+    subscribeHook: (listener) => {
+      const window = mainWindow
+      if (window === undefined) return () => undefined
+      const onInput = (_event: Electron.Event, input: Input) => {
+        listener({
+          kind: 'key',
+          control: input.control || input.meta,
+          shift: input.shift,
+          key: input.key,
+        })
+      }
+      window.webContents.on('before-input-event', onInput)
+      return () => { window.webContents.off('before-input-event', onInput) }
+    },
+    registerShortcut: (accelerator, callback) => {
+      globalShortcut.register(accelerator, callback)
+      return () => { globalShortcut.unregister(accelerator) }
+    },
   })
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
   hardenSession(session.defaultSession)
@@ -1210,7 +1299,7 @@ async function main(): Promise<void> {
   }
 
   const automaticCheck = (): void => {
-    if (!personaUpdatesEnabled()) return
+    if (skipUpdaterAtBoot() || !personaUpdatesEnabled()) return
     if (!quitting) void mandatoryPolicy?.check('foreground-or-resume').catch((error: unknown) => { console.error(error) })
     if (!quitting) void updateSchedule.check().catch((error: unknown) => { console.error(error) })
   }
@@ -1250,12 +1339,20 @@ async function main(): Promise<void> {
   })
   ipcMain.on(ALWAYS_ON_IPC.attention, (event, payload: unknown) => {
     assertDesktopSender(event, ['app'])
-    if (isAlwaysOnAttention(payload)) desktopNotifications.ingest(payload)
+    if (isAlwaysOnAttention(payload)) {
+      desktopNotifications.ingest(payload)
+      if (payload.kind === 'needs-you') trayNeedsYou += 1
+      tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: false })
+    }
   })
   ipcMain.on(ALWAYS_ON_IPC.runningAssignments, (event, payload: unknown) => {
     assertDesktopSender(event, ['app'])
     const count = runningAssignmentCount(payload)
-    if (count !== undefined) desktopPower.setRunningAssignments(count)
+    if (count !== undefined) {
+      desktopPower.setRunningAssignments(count)
+      trayWorking = count
+      tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: false })
+    }
   })
   const openPersonaLink = (href: string): void => {
     const link = parsePersonaDeepLink(href)
@@ -1304,9 +1401,16 @@ async function main(): Promise<void> {
   const pauseTeam = (): void => {
     void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
       await writePersonaShellPrefs(app.getPath('userData'), { ...prefs, teamPaused: true })
+      tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: true })
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(ALWAYS_ON_IPC.pauseTeam)
       }
+    }).catch((error: unknown) => { console.error(error) })
+  }
+  const resumeTeam = (): void => {
+    void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
+      await writePersonaShellPrefs(app.getPath('userData'), { ...prefs, teamPaused: false })
+      tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: false })
     }).catch((error: unknown) => { console.error(error) })
   }
   powerMonitor.on('resume', automaticCheck)
@@ -1425,8 +1529,13 @@ async function main(): Promise<void> {
     // The tray is the way back to a hidden window; without it, relaunching the application still focuses it.
     try {
       tray = new DesktopTray({
-        iconPath: trayIconPath, locale: currentDesktopLocale,
-        open: () => { focusPrimaryWindow() }, pause: pauseTeam,
+        iconPath: trayIconPath,
+        iconDir: development ? join(app.getAppPath(), 'resources') : process.resourcesPath,
+        locale: currentDesktopLocale,
+        open: () => { focusPrimaryWindow() },
+        openNeedsYou: () => { focusPrimaryWindow() },
+        pause: pauseTeam,
+        resume: resumeTeam,
         openLogs: () => { void shell.openPath(personaLogsDir(resolvePersonaProcessHome())) },
         copyDiagnostic: () => {
           void copyPersonaDiagnostic(resolvePersonaProcessHome()).then(async () => {
@@ -1587,7 +1696,7 @@ async function main(): Promise<void> {
   }
   let openingWelcome: Promise<void> | undefined
   const showWelcome = (): Promise<void> => {
-    if (quitting) return Promise.resolve()
+    if (skipWelcomeAtBoot() || quitting) return Promise.resolve()
     if (welcomeWindow !== undefined && !welcomeWindow.isDestroyed()) {
       if (!welcomeWindow.isVisible()) void track('auth_page_view', {})
       welcomeWindow.show()
@@ -1756,7 +1865,7 @@ async function main(): Promise<void> {
   const policyInput: unknown = app.isPackaged
     ? ('dshMandatoryUpdatePolicy' in manifest ? manifest.dshMandatoryUpdatePolicy : undefined)
     : developmentPolicy === undefined ? undefined : JSON.parse(developmentPolicy) as unknown
-  const policyConfig = resolveDesktopPolicyConfig(policyInput, !app.isPackaged)
+  const policyConfig = skipUpdaterAtBoot() ? undefined : resolveDesktopPolicyConfig(policyInput, !app.isPackaged)
   if (policyConfig !== undefined) {
     if (policyConfig.authentication === 'feishu-test') {
       policyAuth = new DesktopPolicyTestAuth(policyConfig.origin, policyConfig.allowedAuthOrigins, locale,

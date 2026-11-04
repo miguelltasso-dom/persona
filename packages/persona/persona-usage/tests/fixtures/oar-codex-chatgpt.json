@@ -1,0 +1,8 @@
+{
+  "kind": "logged_in",
+  "subscription": "chatgpt",
+  "rate_limits": {
+    "5h": { "used_percent": 18, "window_minutes": 300, "resets_at": "2026-11-04T10:30:00Z" },
+    "weekly": { "used_percent": 6, "window_minutes": 10080 }
+  }
+}

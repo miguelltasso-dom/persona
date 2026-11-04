@@ -31,6 +31,8 @@ export interface LazinessSuiteOptions {
   runnerId?: string
   model?: string
   now?: () => Date
+  /** Default 3. Minimal real eval uses 2 (≤2 execs / CLI). */
+  maxScenarios?: number
 }
 
 const MULTI = 'Do three steps: (1) list files (2) write notes.md (3) report done with evidence.'
@@ -128,11 +130,12 @@ export async function runLazinessSuite(options: LazinessSuiteOptions = {}): Prom
   }
   const runner = options.runner ?? diligentTurns()
   const now = options.now ?? (() => new Date())
-  const prompts: readonly (readonly [LazinessScenarioId, string])[] = [
+  const all: readonly (readonly [LazinessScenarioId, string])[] = [
     ['multi-step', MULTI],
     ['mid-error', MID],
     ['small-ambiguity', AMBIG],
   ]
+  const prompts = options.maxScenarios === undefined ? all : all.slice(0, Math.max(1, options.maxScenarios))
   const scenarios: LazinessScenarioResult[] = []
   for (const [id, prompt] of prompts) {
     const input: StartTurnInput = {
@@ -159,4 +162,12 @@ export async function runLazinessSuite(options: LazinessSuiteOptions = {}): Prom
     lastRunAt: eventTime(now),
     scenarios,
   }
+}
+
+/**
+ * Minimal laziness eval: 2 scenarios, cheapest model. Real CLI stays gated.
+ * @param options - Same as the full suite; `maxScenarios` forced to 2.
+ */
+export async function runMinimalLaziness(options: LazinessSuiteOptions = {}): Promise<RunnerLazinessHint> {
+  return runLazinessSuite({ ...options, maxScenarios: 2, model: options.model ?? 'haiku' })
 }

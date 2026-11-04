@@ -6,5 +6,11 @@ Part of Persona, based on DeepSeek Harness (MIT).
 Reads official quota from OAR `accountUsage` / Codex rollouts when present.
 Those readers do not vendor OAR; the runner package does.
 
+Limit-pool identity, refill order, reset-credit gating, native-history
+"never estimate missing tokens", and the 5-minute auto-check interval are
+adapted from T3 Code (MIT, Copyright (c) 2026 T3 Tools Inc.). The original
+license text is in C:/Users/migue/dev/_ext/t3code/LICENSE. Algorithms were
+rewritten; this package does not vendor T3 source.
+
 DeepSeek Harness: MIT — see the repository LICENSE.
 wrangler / miniflare / workerd belong only to `apps/persona-edge`.

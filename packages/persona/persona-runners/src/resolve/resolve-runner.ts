@@ -11,9 +11,17 @@ import { createClaudeRunner } from '../oar/claude.ts'
 import { createCodexRunner } from '../oar/codex.ts'
 import { createCursorRunner } from '../oar/cursor.ts'
 import { createOpencodeRunner } from '../oar/opencode.ts'
+import { createScriptedRunner } from '../scripted.ts'
 import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/recovery.ts'
 import { withObserveGate } from '../proactivity/observe.ts'
+import {
+  accountIsolationEnv,
+  prepareAccountHome,
+  type AccountEngine,
+} from '../oar/account-home.ts'
+import { nativeSessionEnv } from '../oar/native-cli-env.ts'
 import { prepareIsolatedHome, type IsolatedHomeIo } from '../oar/isolated-home.ts'
+import { pickProviderAccount, type AccountPolicy, type AccountQuota, type ProviderAccount } from './accounts.ts'
 import { RunnerResolveError } from './errors.ts'
 import { asProbe, PROBE_TIMEOUT_MS, quotaExhausted, withTimeout } from './probe.ts'
 import { assertCliNeverPrompt, cliPolicyOf } from './cli-policy.ts'
@@ -21,12 +29,23 @@ import { pickFastestModel } from './fastest-model.ts'
 import { cachedAuth, cachedModels, rememberAuth, rememberModels } from './probe-cache.ts'
 import {
   createSessionPool,
+  poolPurposeFor,
   sessionPoolKey,
+  triageCallsAllowed,
   type RunnerPurpose,
   type SessionPool,
 } from './session-pool.ts'
 import { effectiveToolLevel, withToolLevel, type ToolLevel } from './tool-level.ts'
-import { usageStoreSink, withUsageMeter, type UsageMeterSink, type UsageStorePort } from './usage-meter.ts'
+import {
+  meterTurnKind,
+  usageStoreSink,
+  withUsageMeter,
+  type MeterTurnKind,
+  type UsageMeterSink,
+  type UsageStorePort,
+} from './usage-meter.ts'
+import { isLocalProvider } from '../dsh/local.ts'
+import { withSpendBudget, type SpendBudgetOptions } from './spend-budget.ts'
 
 export type PersonaRunnerSpec =
   | { kind: 'dsh'; model: string; talkModel?: string; provider?: DshProvider; baseUrl?: string }
@@ -45,6 +64,15 @@ export interface ResolveRunnerOptions {
   tools?: Readonly<Record<string, ToolLevel>>
   autonomy?: AutonomyLevel
   home?: string
+  /** WAVE2 isolated account dir. Never copies native credentials. */
+  accountHome?: string
+  /** WAVE2 account id (pool key + quota). */
+  accountId?: string
+  /** WAVE2 accounts + policy. When set, Rivet picks at the limit before opening a session. */
+  accounts?: readonly ProviderAccount[]
+  accountPolicy?: AccountPolicy
+  accountQuotas?: readonly AccountQuota[]
+  personaName?: string
   /** Injectable fs for isolated-home tests. Production omits this. */
   homeIo?: IsolatedHomeIo
   vault?: VaultSecretReader
@@ -54,6 +82,10 @@ export interface ResolveRunnerOptions {
   usage?: UsageMeterSink
   usageStore?: UsageStorePort
   usageScope?: { personaId: string; projectId: string }
+  /** OPT-1 ledger kind. Talk defaults to triage; leftover `exec`/`eval` go through `usagePortKind`. */
+  turnKind?: MeterTurnKind | 'exec' | 'eval' | 'talk' | 'task'
+  /** OPT-5: cheap triage calls already spent on this message. */
+  triageCallsAlready?: number
   infra?: InfraRecoveryOptions
   cwd?: string
   /** talk = cheap model + warm session; task = persona model. */
@@ -62,10 +94,46 @@ export interface ResolveRunnerOptions {
   pool?: SessionPool<Runner>
   /** Injected fetch for HTTP DSH tests. */
   fetch?: typeof fetch
+  /** Persona + project spend caps. Hard stop; never another paid connection. */
+  spend?: Omit<SpendBudgetOptions, 'personaId' | 'projectId'> & {
+    personaId?: string
+    projectId?: string
+  }
 }
 
 function providerOf(spec: PersonaRunnerSpec): string {
   return spec.kind === 'dsh' ? 'dsh' : spec.cli
+}
+
+function applyAccountPolicy(
+  options: ResolveRunnerOptions,
+  provider: string,
+): { accountId?: string; accountHome?: string } {
+  if (options.accounts === undefined || options.accountPolicy === undefined) {
+    return {
+      ...(options.accountId === undefined ? {} : { accountId: options.accountId }),
+      ...(options.accountHome === undefined ? {} : { accountHome: options.accountHome }),
+    }
+  }
+  const pick = pickProviderAccount({
+    accounts: options.accounts,
+    policy: options.accountPolicy,
+    quotas: options.accountQuotas ?? [],
+    ...(options.accountId === undefined ? {} : { currentId: options.accountId }),
+    ...(options.personaName === undefined ? {} : { personaName: options.personaName }),
+  })
+  if (pick.action === 'ask') {
+    throw new RunnerResolveError('quota_exhausted', `${provider}:${pick.accountId}:ask`)
+  }
+  if (pick.action === 'stop') {
+    throw new RunnerResolveError('quota_exhausted', `${provider}:${pick.accountId}`)
+  }
+  const accountId = pick.action === 'switch' ? pick.to : pick.accountId
+  const account = options.accounts.find(row => row.id === accountId)
+  return {
+    ...(accountId === undefined ? {} : { accountId }),
+    ...(account === undefined ? {} : { accountHome: account.configDir }),
+  }
 }
 
 async function loadRuntime(cli: CliKind, injected?: Runtime): Promise<Runtime> {
@@ -102,6 +170,15 @@ async function readVaultEnv(
 export function modelForPurpose(spec: PersonaRunnerSpec, purpose: RunnerPurpose): string {
   if (purpose === 'talk') return spec.talkModel ?? pickFastestModel({ ...spec, model: spec.talkModel ?? '' })
   return spec.model
+}
+
+/**
+ * Cheap work (triage/librarian/watchdog/initiative) uses the talk model.
+ * @param spec - Runner spec.
+ * @param work - Host purpose or cheap kind.
+ */
+export function modelForWork(spec: PersonaRunnerSpec, work: string): string {
+  return modelForPurpose(spec, poolPurposeFor(work))
 }
 
 function specForPurpose(spec: PersonaRunnerSpec, purpose: RunnerPurpose): PersonaRunnerSpec {
@@ -221,7 +298,24 @@ function wrap(
       ? usageStoreSink(options.usageStore, options.usageScope)
       : undefined
   )
-  if (meter !== undefined) runner = withUsageMeter(runner, meter, provider)
+  if (meter !== undefined) {
+    runner = withUsageMeter(runner, meter, provider, {
+      kind: meterTurnKind(options.turnKind ?? purpose),
+      ...(options.accountId === undefined ? {} : { accountId: options.accountId }),
+    })
+  }
+  if (options.spend !== undefined) {
+    const personaId = options.spend.personaId ?? options.personId ?? options.usageScope?.personaId ?? ''
+    const projectId = options.spend.projectId ?? options.projectId ?? options.usageScope?.projectId ?? ''
+    runner = withSpendBudget(runner, {
+      personaId,
+      projectId,
+      persona: options.spend.persona,
+      project: options.spend.project,
+      ledger: options.spend.ledger,
+      ...(options.spend.now === undefined ? {} : { now: options.spend.now }),
+    })
+  }
   if (options.autonomy === 'propose') {
     runner = withObserveGate(runner, {
       rule: { id: `autonomy:${provider}`, enabled: true, mode: 'observe' },
@@ -236,27 +330,58 @@ async function createCliRunner(
   runtime: Runtime,
   installation: AvailableInstallation | undefined,
   home: string | undefined,
+  accountHome: string | undefined,
   vaultEnv: Readonly<Record<string, string | null>> | undefined,
   homeIo: IsolatedHomeIo | undefined,
   permissionMode: NonNullable<StartTurnInput['permissionMode']>,
   tools: Readonly<Record<string, ToolLevel>> | undefined,
 ): Promise<Runner> {
   const extra = installation === undefined ? {} : { installation }
-  const env = vaultEnv === undefined ? {} : { env: vaultEnv }
-  const plan = prepareIsolatedHome(spec.cli, home, homeIo ?? {})
   const policy = cliPolicyOf(spec.cli, tools ?? {}, permissionMode)
+  const isolation = sessionIsolation(spec.cli, home, accountHome, vaultEnv, homeIo)
+  const env = { env: isolation.env }
   if (spec.cli === 'claude') {
     return createClaudeRunner({
-      runtime, ...extra, ...env, policy, ...(plan.kind === 'isolated' ? { configDir: plan.dir } : {}),
+      runtime, ...extra, ...env, policy, ...(isolation.configDir === undefined ? {} : { configDir: isolation.configDir }),
     })
   }
   if (spec.cli === 'codex') {
     return createCodexRunner({
-      runtime, ...extra, ...env, policy, ...(plan.kind === 'isolated' ? { homeDir: plan.dir } : {}),
+      runtime, ...extra, ...env, policy, ...(isolation.homeDir === undefined ? {} : { homeDir: isolation.homeDir }),
     })
   }
   if (spec.cli === 'opencode') return createOpencodeRunner({ runtime, ...extra, ...env, policy })
-  return createCursorRunner({ runtime, ...extra, policy })
+  return createCursorRunner({ runtime, ...extra, ...env, policy })
+}
+
+function sessionIsolation(
+  cli: CliKind,
+  home: string | undefined,
+  accountHome: string | undefined,
+  vaultEnv: Readonly<Record<string, string | null>> | undefined,
+  homeIo: IsolatedHomeIo | undefined,
+): {
+  env: Record<string, string | null>
+  configDir?: string
+  homeDir?: string
+} {
+  const extra = vaultEnv ?? {}
+  if (accountHome !== undefined && accountHome.trim() !== '') {
+    const prepared = prepareAccountHome(accountHome, cli as AccountEngine, {
+      ...(homeIo?.mkdir === undefined ? {} : { mkdir: homeIo.mkdir }),
+    })
+    const env = nativeSessionEnv({ ...prepared.env, ...extra })
+    return cli === 'claude'
+      ? { env, configDir: prepared.dir }
+      : cli === 'codex' ? { env, homeDir: prepared.dir } : { env }
+  }
+  const plan = prepareIsolatedHome(cli, home, homeIo ?? {})
+  const isolated = plan.kind === 'isolated' ? accountIsolationEnv(cli as AccountEngine, plan.dir) : {}
+  const env = nativeSessionEnv({ ...isolated, ...extra })
+  if (plan.kind !== 'isolated') return { env }
+  return cli === 'claude'
+    ? { env, configDir: plan.dir }
+    : cli === 'codex' ? { env, homeDir: plan.dir } : { env }
 }
 
 /** Process-wide warm pool. Anvil passes this (or its own) on every resolve. */
@@ -283,6 +408,7 @@ function poolKeyOf(options: ResolveRunnerOptions, spec: PersonaRunnerSpec, purpo
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     permissionMode: options.permissionMode,
     toolLevel: options.toolLevel ?? '',
+    ...(options.accountId === undefined ? {} : { accountId: options.accountId }),
   })
 }
 
@@ -292,6 +418,14 @@ async function resolveDshAgent(
 ): Promise<DshAgentPort> {
   if (options.agent !== undefined) return options.agent
   const provider = spec.provider ?? 'deepseek'
+  if (isLocalProvider(provider)) {
+    return createHttpDshAgent({
+      provider,
+      apiKey: 'local',
+      baseUrl: spec.baseUrl ?? (provider === 'ollama' ? 'http://127.0.0.1:11434/v1' : 'http://127.0.0.1:1234/v1'),
+      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+    })
+  }
   const personId = options.personId
   const vault = options.vault
   let key: string | undefined
@@ -320,9 +454,27 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
   const purpose = options.purpose ?? 'task'
   const spec = specForPurpose(options.spec, purpose)
   const provider = providerOf(spec)
+  const ledgerKind = meterTurnKind(options.turnKind ?? purpose)
+  if (ledgerKind === 'triage' && !triageCallsAllowed(options.triageCallsAlready ?? 0)) {
+    return wrap(
+      createScriptedRunner({
+        turns: [{ events: [], usage: { inputTokens: 0, outputTokens: 0 } }],
+      }),
+      options,
+      provider,
+      spec.model,
+      purpose,
+    )
+  }
+  const chosen = applyAccountPolicy(options, provider)
   const cwd = options.cwd ?? process.cwd()
   const pool = options.pool
-  const key = poolKeyOf(options, spec, purpose)
+  const accountId = chosen.accountId ?? options.accountId
+  const key = poolKeyOf(
+    accountId === undefined ? options : { ...options, accountId },
+    spec,
+    purpose,
+  )
   if (pool !== undefined) {
     const hit = pool.get(key)
     if (hit !== undefined) {
@@ -338,7 +490,7 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
       createDshRunner(options.infra === undefined
         ? { agent }
         : { agent, infra: options.infra }),
-      { ...options, spec },
+      accountId === undefined ? { ...options, spec } : { ...options, spec, accountId },
       'dsh',
       spec.model,
       purpose,
@@ -348,10 +500,16 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
     const runtime = await loadRuntime(spec.cli, options.runtime)
     const installation = await assertReady(runtime, spec, cwd)
     const inner = await createCliRunner(
-      spec, runtime, installation, options.home, vaultEnv, options.homeIo,
+      spec, runtime, installation, options.home, chosen.accountHome ?? options.accountHome, vaultEnv, options.homeIo,
       options.permissionMode, options.tools,
     )
-    resolved = wrap(inner, { ...options, spec }, spec.cli, spec.model, purpose)
+    resolved = wrap(
+      inner,
+      accountId === undefined ? { ...options, spec } : { ...options, spec, accountId },
+      spec.cli,
+      spec.model,
+      purpose,
+    )
   }
   pool?.set(key, resolved)
   return resolved

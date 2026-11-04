@@ -3,6 +3,7 @@
  * Tools never exceed the creator; no coordination role is assigned.
  */
 
+import { parseStructureAsk, recommendStructure, type StructureRecommendation } from '@deepseek-ai/dsh-persona-engine'
 import type { RunEvent, Runner, StartTurnInput } from '../contract.ts'
 
 export type DraftAvatarKind = 'gallery' | 'upload' | 'silhouette'
@@ -44,7 +45,17 @@ export interface DraftDriverOptions {
 export interface DraftDriver {
   draftPersona(description: string): Promise<PersonaDraft>
   draftTeam(description: string): Promise<PersonaDraft[]>
+  recommendStructure(text: string): Promise<StructureRecommendation>
 }
+
+export const STRUCTURE_PROMPT = [
+  'Você recomenda a estrutura de uma equipe Persona.',
+  'Responda APENAS com um objeto JSON: company, sectorNames, recurring.',
+  'company: agencia | loja_online | saas | consultoria | criador | escritorio.',
+  'Uma persona por FUNÇÃO contínua, nunca por tarefa pontual.',
+  'Tarefa de um dia vira Tarefa; trabalho que se repete vira rotina com dono.',
+  'Comece com 3 a 5 personas.',
+].join(' ')
 
 function clip(value: string, max: number): string {
   const trimmed = value.trim()
@@ -167,5 +178,31 @@ export function createDraftDriver(options: DraftDriverOptions): DraftDriver {
       }
       return out
     },
+    recommendStructure: async (text) => {
+      const model = await turn('structure', `${STRUCTURE_PROMPT}\n\n${text}`)
+      return recommendStructure(parseAskFromModel(model, text))
+    },
   }
+}
+
+function parseAskFromModel(modelText: string, fallback: string) {
+  const start = modelText.indexOf('{')
+  const end = modelText.lastIndexOf('}')
+  if (start >= 0 && end > start) {
+    try {
+      const raw = JSON.parse(modelText.slice(start, end + 1)) as {
+        company?: string
+        sectorNames?: string[]
+        recurring?: string[]
+      }
+      if (typeof raw.company === 'string' && raw.company.trim() !== '') {
+        const sectors = Array.isArray(raw.sectorNames) ? `setores: ${raw.sectorNames.join(', ')}` : ''
+        const recurring = Array.isArray(raw.recurring) ? `rotinas: ${raw.recurring.join(', ')}` : ''
+        return parseStructureAsk([raw.company, sectors, recurring].filter(item => item !== '').join('. '))
+      }
+    } catch (error) {
+      void error
+    }
+  }
+  return parseStructureAsk(modelText.trim() === '' ? fallback : `${fallback}\n${modelText}`)
 }

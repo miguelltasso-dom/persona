@@ -1,7 +1,12 @@
 import { parsePluginOperationRecord } from '@deepseek-ai/dsh-plugin-manager/diagnostic'
 import type { DesktopHostProcess } from '../src/host-process.ts'
 import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
-import { WINDOWS_TITLEBAR_HEIGHT } from '../src/windows-layout.ts'
+import {
+  WINDOWS_TITLEBAR_COLOR_DARK,
+  WINDOWS_TITLEBAR_COLOR_LIGHT,
+  WINDOWS_TITLEBAR_HEIGHT,
+  WINDOWS_TITLEBAR_SYMBOL_LIGHT,
+} from '../src/windows-layout.ts'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
@@ -190,6 +195,7 @@ const harness = await vi.hoisted(async () => {
     setLoginItemSettings: vi.fn(),
     setPath: vi.fn(),
     setAboutPanelOptions: vi.fn<(options: Electron.AboutPanelOptionsOptions) => void>(),
+    commandLine: { appendSwitch: vi.fn() },
     requestSingleInstanceLock: () => true,
     setAsDefaultProtocolClient: vi.fn(),
     exit: vi.fn(),
@@ -208,11 +214,12 @@ const harness = await vi.hoisted(async () => {
   let analyticsEnabled = true
   let analyticsEnabledListener: ((enabled: boolean) => void) | undefined
   const analytics = vi.fn(async (_event: unknown) => {})
-  const nativeTheme = { themeSource: 'system', shouldUseDarkColors: false }
+  const nativeTheme = { themeSource: 'system', shouldUseDarkColors: false, on: vi.fn() }
   const trays: FakeTray[] = []
   class FakeTray extends EventEmitter {
     readonly setToolTip = vi.fn()
     readonly setContextMenu = vi.fn()
+    readonly setImage = vi.fn()
     readonly destroy = vi.fn()
     constructor(readonly image: unknown) { super(); trays.push(this) }
   }
@@ -1144,7 +1151,14 @@ describe('desktop main startup', () => {
     if (platform === 'darwin') {
       expect(window.options).toMatchObject({ titleBarStyle: 'hiddenInset', vibrancy: 'sidebar', backgroundColor: '#00000000' })
     } else if (platform === 'win32') {
-      expect(window.options).toMatchObject({ titleBarStyle: 'hidden', titleBarOverlay: { height: WINDOWS_TITLEBAR_HEIGHT } })
+      expect(window.options).toMatchObject({
+        titleBarStyle: 'hidden',
+        titleBarOverlay: {
+          height: WINDOWS_TITLEBAR_HEIGHT,
+          color: WINDOWS_TITLEBAR_COLOR_LIGHT,
+          symbolColor: WINDOWS_TITLEBAR_SYMBOL_LIGHT,
+        },
+      })
       expect(window.options).not.toHaveProperty('vibrancy')
       expect(harness.menu.mock.calls[0]![0]).toEqual([
         { role: 'toggleDevTools', visible: false },
@@ -1211,7 +1225,7 @@ describe('desktop main startup', () => {
     window.minimized = true
     window.emit('minimize')
     expect(window.setVibrancy).toHaveBeenLastCalledWith(null)
-    expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#f9fafb')
+    expect(window.setBackgroundColor).toHaveBeenLastCalledWith(WINDOWS_TITLEBAR_COLOR_LIGHT)
     // Restoring re-requests the material and returns to the transparent base.
     window.minimized = false
     window.emit('restore')
@@ -1222,7 +1236,7 @@ describe('desktop main startup', () => {
     window.visible = false
     window.emit('hide')
     expect(window.setVibrancy).toHaveBeenLastCalledWith(null)
-    expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#1b1b1c')
+    expect(window.setBackgroundColor).toHaveBeenLastCalledWith(WINDOWS_TITLEBAR_COLOR_DARK)
     window.visible = true
     window.emit('show')
     expect(window.setBackgroundColor).toHaveBeenLastCalledWith('#00000000')

@@ -108,10 +108,26 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
   // Persona "Novo projeto" / "Mostrar na pasta". The path is not persisted
   // here; the host validates it in setProjectRoot.
   contextBridge.exposeInMainWorld('personaDesktop', {
-    pickDirectory: (request: { title?: string } = {}) =>
+    pickDirectory: (request: { title?: string; purpose?: 'project' | 'vault' | 'export' } = {}) =>
       ipcRenderer.invoke(DESKTOP_IPC.directoryPick, request) as Promise<string | null>,
+    pickVaultFolder: () =>
+      ipcRenderer.invoke(DESKTOP_IPC.directoryPick, { purpose: 'vault' }) as Promise<string | null>,
+    pickExportFolder: () =>
+      ipcRenderer.invoke(DESKTOP_IPC.directoryPick, { purpose: 'export' }) as Promise<string | null>,
     revealInFolder: (path: string) =>
       ipcRenderer.invoke(DESKTOP_IPC.revealInFolder, path) as Promise<boolean>,
+    teach: {
+      listSources: () => ipcRenderer.invoke(DESKTOP_IPC.teachListSources) as Promise<unknown>,
+      start: (sourceId: string, microphone: boolean, consent: unknown) =>
+        ipcRenderer.invoke(DESKTOP_IPC.teachStart, sourceId, microphone, consent) as Promise<void>,
+      pause: () => ipcRenderer.invoke(DESKTOP_IPC.teachPause) as Promise<void>,
+      resume: () => ipcRenderer.invoke(DESKTOP_IPC.teachResume) as Promise<void>,
+      ingestFrame: (png: string) => ipcRenderer.invoke(DESKTOP_IPC.teachIngest, png) as Promise<boolean>,
+      blur: (rect: { x: number; y: number; width: number; height: number }) =>
+        ipcRenderer.invoke(DESKTOP_IPC.teachBlur, rect) as Promise<boolean>,
+      state: () => ipcRenderer.invoke(DESKTOP_IPC.teachState) as Promise<unknown>,
+      stop: (typed?: string) => ipcRenderer.invoke(DESKTOP_IPC.teachStop, typed) as Promise<unknown>,
+    },
   })
   // The composer cites dropped, picked, and pasted files and folders that
   // have a real path as `@path` references instead of uploading them; a

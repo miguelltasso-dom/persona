@@ -1,0 +1,6 @@
+{
+  "kind": "ok",
+  "plan": "max",
+  "five_hour": { "utilization": 0, "window_minutes": 300, "resets_at": 1762286400 },
+  "seven_day": { "remaining_percent": 91, "window_minutes": 10080, "resets_at": "2026-11-09T00:00:00Z" }
+}

@@ -1,7 +1,7 @@
 import { readInstallerLocales, renderInstallerStrings } from './installer-locales.mjs'
 import { officePackageDirectories } from '../../../scripts/libreoffice-packages.mjs'
 import { X509Certificate } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -134,8 +134,9 @@ export function createElectronBuilderConfig(
         env: scrubWindowsSigningEnvironment(env), windowsHide: true,
       })
       await writeFile(join(buildPaths.root, 'installer-ui', 'strings.nsh'), renderInstallerStrings(readInstallerLocales()), 'utf8')
-      if (windowsSigner !== undefined) {
-        await windowsSigner({ path: join(buildPaths.root, 'installer-ui', 'window-frame.dll'), hash: 'sha256', isNest: false })
+      const frameDll = join(buildPaths.root, 'installer-ui', 'window-frame.dll')
+      if (windowsSigner !== undefined && existsSync(frameDll)) {
+        await windowsSigner({ path: frameDll, hash: 'sha256', isNest: false })
       }
       // A falsy result tells electron-builder to omit its production node_modules collection.
       return true
@@ -163,7 +164,13 @@ export function createElectronBuilderConfig(
       { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
       { from: fileURLToPath(new URL('../resources/THIRD_PARTY_NOTICES.txt', import.meta.url)), to: 'THIRD_PARTY_NOTICES.txt' },
       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
-      ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
+      ...(packagesWindows ? [
+        { from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' },
+        { from: fileURLToPath(new URL('../resources/tray-idle-32.png', import.meta.url)), to: 'tray-idle-32.png' },
+        { from: fileURLToPath(new URL('../resources/tray-working-32.png', import.meta.url)), to: 'tray-working-32.png' },
+        { from: fileURLToPath(new URL('../resources/tray-needs-you-32.png', import.meta.url)), to: 'tray-needs-you-32.png' },
+        { from: fileURLToPath(new URL('../resources/tray-paused-32.png', import.meta.url)), to: 'tray-paused-32.png' },
+      ] : []),
     ],
     mac: {
       icon: fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)),
@@ -264,10 +271,11 @@ export function createElectronBuilderConfig(
       uninstallDisplayName: '${productName}',
       installerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
       uninstallerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
-      include: fileURLToPath(new URL('./installer.nsh', import.meta.url)),
+      include: fileURLToPath(new URL('./installer-select.nsh', import.meta.url)),
       oneClick: false,
       perMachine: false,
       allowElevation: false,
+      packElevateHelper: false,
       allowToChangeInstallationDirectory: false,
       installerLanguages: readInstallerLocales().map(locale => locale.id),
       differentialPackage: true,

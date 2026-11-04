@@ -7,6 +7,7 @@ describe('Persona desktop legal notices', () => {
     expect(text).toContain('DeepSeek Harness (MIT)')
     expect(text).toContain('@botiverse/oar (Apache-2.0)')
     expect(text).toContain('dsh-superagent-prototype')
+    expect(text).toContain('T3 Code (T3 Tools Inc.) (MIT)')
     expect(PERSONA_DESKTOP_NOTICES.every((item: { name: string }) => !isEdgeOnlyNotice(item.name))).toBe(true)
     for (const name of EDGE_ONLY_NOTICES) expect(isEdgeOnlyNotice(name)).toBe(true)
     expect(aboutLegalText('semver\nISC\n')).toBe('semver\nISC')

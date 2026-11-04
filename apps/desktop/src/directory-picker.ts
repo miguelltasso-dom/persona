@@ -60,7 +60,7 @@ export function installDesktopDirectoryPicker(
     window.show()
     window.focus()
     const options: OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] }
-    const title = pickTitle(request)
+    const title = directoryPickTitle(request)
     if (title !== undefined) options.title = title
     const result = chooser.showOpenDialog(window, options).then(
       ({ canceled, filePaths }) => {
@@ -100,8 +100,18 @@ function ownedWindow(
   return window
 }
 
-function pickTitle(request: unknown): string | undefined {
+/** Why the renderer opened the native folder dialog. */
+export type DirectoryPickPurpose = 'project' | 'vault' | 'export'
+
+/**
+ * Dialog title for BYC vault, SB-6 export, or an explicit renderer title.
+ * @param request - IPC payload `{ title?, purpose? }`.
+ */
+export function directoryPickTitle(request: unknown): string | undefined {
   if (typeof request !== 'object' || request === null) return undefined
+  const purpose = Reflect.get(request, 'purpose')
+  if (purpose === 'vault') return 'Escolher pasta do vault'
+  if (purpose === 'export') return 'Exportar vault'
   const title = Reflect.get(request, 'title')
   if (typeof title !== 'string') return undefined
   const trimmed = title.trim()

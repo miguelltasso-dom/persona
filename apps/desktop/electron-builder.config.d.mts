@@ -52,6 +52,7 @@ export interface DesktopElectronBuilderConfig {
     readonly oneClick: false
     readonly perMachine: false
     readonly allowElevation: false
+    readonly packElevateHelper: false
     readonly allowToChangeInstallationDirectory: false
     readonly installerLanguages: readonly string[]
   }

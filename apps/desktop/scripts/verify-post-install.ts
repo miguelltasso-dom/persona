@@ -36,6 +36,13 @@ export function verifyPostInstall(options: { unpackedDir?: string } = {}): PostI
   if (!builder.includes("productName: 'Persona'")) blockers.push('builder-productName')
   if (!builder.includes('DSH_DESKTOP_UNSIGNED')) blockers.push('unsigned-flag')
   if (builder.includes('adminInstall: true')) blockers.push('admin-install')
+  if (!builder.includes('perMachine: false')) blockers.push('nsis-per-user')
+  if (!builder.includes('allowElevation: false')) blockers.push('nsis-no-elevation')
+  if (!builder.includes('packElevateHelper: false')) blockers.push('nsis-no-elevate-helper')
+  const bundles = readFileSync(join(desktopRoot, '../../packages/util/official-bundles/src/bundles.ts'), 'utf8')
+  const cli = readFileSync(join(desktopRoot, '../../apps/cli/package.json'), 'utf8')
+  if (!bundles.includes("'@deepseek-ai/dsh-persona-app'")) blockers.push('persona-profile-bundle')
+  if (!cli.includes('"@deepseek-ai/dsh-persona-app"')) blockers.push('cli-persona-app')
   if (/https?:\/\/(?:api\.)?deepseek\.com/iu.test(builder) || /https?:\/\/(?:api\.)?deepseek\.com/iu.test(product)) {
     blockers.push('deepseek-host')
   }

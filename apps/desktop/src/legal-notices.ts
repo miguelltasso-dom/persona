@@ -26,6 +26,11 @@ export const PERSONA_DESKTOP_NOTICES: readonly ThirdPartyNotice[] = [
     license: 'MIT',
     note: 'Verbatim Super-agent core in persona-engine. See packages/persona/persona-engine/NOTICE.',
   },
+  {
+    name: 'T3 Code (T3 Tools Inc.)',
+    license: 'MIT',
+    note: 'Adapted account-limit pool, identity, reset credits, native history. See packages/persona/persona-usage/NOTICE.',
+  },
 ]
 
 /** Names that must not appear as desktop runtime dependencies. */

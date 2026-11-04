@@ -12,18 +12,74 @@ function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
-function windowOf(id: string, raw: Record<string, unknown>): UsageWindow {
-  const usedPercent = numberField(raw.used_percent) ?? numberField(raw.usedPercent)
-  const windowMinutes = numberField(raw.window_minutes) ?? numberField(raw.windowMinutes)
-  const resetsAt = stringField(raw.resets_at) ?? stringField(raw.resetsAt)
-  if (usedPercent === undefined && windowMinutes === undefined && resetsAt === undefined) {
-    return { id, origin: 'unavailable' }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function clampPct(value: number): number {
+  return Math.min(100, Math.max(0, value))
+}
+
+function usedPercentOf(raw: Record<string, unknown>): number | undefined {
+  const direct = numberField(raw.used_percent) ?? numberField(raw.usedPercent)
+  if (direct !== undefined) return clampPct(direct)
+  const remaining = numberField(raw.remaining_percent) ?? numberField(raw.remainingPercent)
+  if (remaining !== undefined) return clampPct(100 - remaining)
+  const util = numberField(raw.utilization) ?? numberField(raw.utilized)
+  if (util === undefined) return undefined
+  return util <= 1 ? clampPct(util * 100) : clampPct(util)
+}
+
+function resetsAtOf(raw: Record<string, unknown>): string | undefined {
+  const text = stringField(raw.resets_at) ?? stringField(raw.resetsAt)
+  if (text !== undefined) {
+    if (/^\d+$/u.test(text)) {
+      const n = Number(text)
+      return new Date(n < 1e12 ? n * 1000 : n).toISOString()
+    }
+    const parsed = Date.parse(text)
+    return Number.isNaN(parsed) ? text : new Date(parsed).toISOString()
   }
-  const window: UsageWindow = { id, origin: 'official' }
+  const n = numberField(raw.resets_at) ?? numberField(raw.resetsAt)
+  if (n === undefined) return undefined
+  return new Date(n < 1e12 ? n * 1000 : n).toISOString()
+}
+
+function canonicalWindowId(id: string, windowMinutes: number | undefined): string {
+  if (/5h|five|session/iu.test(id) || windowMinutes === 300) return '5h'
+  if (/week|semana|7d/iu.test(id) || windowMinutes === 10_080) return 'week'
+  return id
+}
+
+function windowOf(id: string, raw: Record<string, unknown>): UsageWindow {
+  const usedPercent = usedPercentOf(raw)
+  const windowMinutes = numberField(raw.window_minutes) ?? numberField(raw.windowMinutes)
+  const resetsAt = resetsAtOf(raw)
+  const canonical = canonicalWindowId(id, windowMinutes)
+  if (usedPercent === undefined && windowMinutes === undefined && resetsAt === undefined) {
+    return { id: canonical, origin: 'unavailable' }
+  }
+  const window: UsageWindow = { id: canonical, origin: 'official' }
   if (usedPercent !== undefined) window.usedPercent = usedPercent
   if (windowMinutes !== undefined) window.windowMinutes = windowMinutes
   if (resetsAt !== undefined) window.resetsAt = resetsAt
   return window
+}
+
+function planOf(record: Record<string, unknown>): string | undefined {
+  const nested = record.account
+  return stringField(record.plan)
+    ?? stringField(record.subscription)
+    ?? stringField(record.rate_limit_tier)
+    ?? (isRecord(nested) ? stringField(nested.plan) ?? stringField(nested.subscription) : undefined)
+}
+
+function unwrapLimits(record: Record<string, unknown>): Record<string, unknown> {
+  const limits = record.rate_limits
+  if (isRecord(limits) && (limits['5h'] !== undefined || limits.weekly !== undefined || limits.week !== undefined)) {
+    return { ...record, ...limits }
+  }
+  return record
 }
 
 /**
@@ -42,28 +98,25 @@ export function readOarAccountUsage(provider: string, raw: unknown): OfficialQuo
     if (detail !== undefined) quota.detail = detail
     return quota
   }
+  const body = unwrapLimits(record)
   const windows: UsageWindow[] = []
-  const five = record['5h'] ?? record.fiveHour ?? record.rate_limits
-  if (five !== null && typeof five === 'object' && !Array.isArray(five)) {
-    windows.push(windowOf('5h', five as Record<string, unknown>))
-  }
-  const week = record.weekly ?? record.week
-  if (week !== null && typeof week === 'object' && !Array.isArray(week)) {
-    windows.push(windowOf('weekly', week as Record<string, unknown>))
-  }
-  if (Array.isArray(record.windows)) {
-    for (const item of record.windows) {
-      if (item !== null && typeof item === 'object') {
-        const row = item as Record<string, unknown>
-        windows.push(windowOf(stringField(row.id) ?? 'window', row))
-      }
+  const five = body['5h'] ?? body.fiveHour ?? body.five_hour ?? body.session
+  if (isRecord(five)) windows.push(windowOf('5h', five))
+  const week = body.weekly ?? body.week ?? body.seven_day ?? body.sevenDay
+  if (isRecord(week)) windows.push(windowOf('week', week))
+  if (Array.isArray(body.windows)) {
+    for (const item of body.windows) {
+      if (isRecord(item)) windows.push(windowOf(stringField(item.id) ?? 'window', item))
     }
   }
   if (windows.length === 0) {
     return { provider, origin: 'unavailable', windows: [], detail: 'no windows in accountUsage' }
   }
-  const origin = windows.every(item => item.origin === 'official') ? 'official' : 'unavailable'
-  return { provider, origin, windows }
+  const origin = windows.some(item => item.origin === 'official') ? 'official' : 'unavailable'
+  const plan = planOf(body)
+  return plan === undefined
+    ? { provider, origin, windows }
+    : { provider, origin, windows, detail: plan }
 }
 
 /**

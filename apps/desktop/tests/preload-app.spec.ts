@@ -113,8 +113,11 @@ it('exposes a directory picker only to the local application document', async ()
   await import('../src/preload-app.ts')
   const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === '__DSH_DIRECTORY_PICKER__')?.[1] as { pick(): Promise<string | null> }
   const persona = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'personaDesktop')?.[1] as {
-    pickDirectory(request?: { title?: string }): Promise<string | null>
+    pickDirectory(request?: { title?: string; purpose?: 'project' | 'vault' | 'export' }): Promise<string | null>
+    pickVaultFolder(): Promise<string | null>
+    pickExportFolder(): Promise<string | null>
     revealInFolder(path: string): Promise<boolean>
+    teach: { blur(rect: { x: number; y: number; width: number; height: number }): Promise<boolean> }
   }
   electron.ipcRenderer.invoke.mockResolvedValueOnce('/workspace')
   await expect(api.pick()).resolves.toBe('/workspace')
@@ -122,9 +125,18 @@ it('exposes a directory picker only to the local application document', async ()
   electron.ipcRenderer.invoke.mockResolvedValueOnce('/picked')
   await expect(persona.pickDirectory({ title: 'Novo projeto' })).resolves.toBe('/picked')
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.directoryPick, { title: 'Novo projeto' })
+  electron.ipcRenderer.invoke.mockResolvedValueOnce('/vault')
+  await expect(persona.pickVaultFolder()).resolves.toBe('/vault')
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.directoryPick, { purpose: 'vault' })
+  electron.ipcRenderer.invoke.mockResolvedValueOnce('/export')
+  await expect(persona.pickExportFolder()).resolves.toBe('/export')
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.directoryPick, { purpose: 'export' })
   electron.ipcRenderer.invoke.mockResolvedValueOnce(true)
   await expect(persona.revealInFolder('/picked')).resolves.toBe(true)
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.revealInFolder, '/picked')
+  electron.ipcRenderer.invoke.mockResolvedValueOnce(true)
+  await expect(persona.teach.blur({ x: 1, y: 2, width: 3, height: 4 })).resolves.toBe(true)
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.teachBlur, { x: 1, y: 2, width: 3, height: 4 })
   for (const url of ['dsh-app://shell/startup.html', 'https://example.com/']) {
     vi.resetModules()
     electron.contextBridge.exposeInMainWorld.mockClear()

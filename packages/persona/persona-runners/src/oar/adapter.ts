@@ -81,7 +81,34 @@ export function requireExplicitPermission(input: StartTurnInput, cli?: CliKind):
 
 function usageOf(session: Session): RunnerUsage {
   const total = session.usage().value.total
-  return { inputTokens: total?.input ?? 0, outputTokens: total?.output ?? 0 }
+  const extra = total === undefined || total === null ? {} : cacheFromVendor(total)
+  return { inputTokens: total?.input ?? 0, outputTokens: total?.output ?? 0, ...extra }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object'
+}
+
+function vendorNumber(row: Record<string, unknown>, keys: readonly string[]): number | undefined {
+  for (const key of keys) {
+    const value = row[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  return undefined
+}
+
+/**
+ * OPT-3: copy vendor cache counters when the CLI published them.
+ * @param total - OAR usage total.
+ */
+function cacheFromVendor(total: object): Pick<RunnerUsage, 'cacheReadTokens' | 'cacheWriteTokens'> {
+  if (!isRecord(total)) return {}
+  const read = vendorNumber(total, ['cacheRead', 'cacheReadTokens', 'cached', 'cache_read'])
+  const write = vendorNumber(total, ['cacheWrite', 'cacheWriteTokens', 'cacheCreation', 'cache_write'])
+  return {
+    ...(read === undefined ? {} : { cacheReadTokens: read }),
+    ...(write === undefined ? {} : { cacheWriteTokens: write }),
+  }
 }
 
 function eventText(event: Event): string | undefined {

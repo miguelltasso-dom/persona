@@ -18,7 +18,7 @@ export type IsolatedHomePlan =
   | { readonly kind: 'isolated'; readonly dir: string }
 
 interface CliAuthLayout {
-  readonly envVar?: 'CLAUDE_CONFIG_DIR' | 'CODEX_HOME'
+  readonly envVar?: 'CLAUDE_CONFIG_DIR' | 'CODEX_HOME' | 'CURSOR_CONFIG_DIR' | 'OPENCODE_CONFIG_DIR'
   readonly dirName: string
   readonly files: readonly string[]
   readonly userFiles: readonly string[]
@@ -38,11 +38,17 @@ const LAYOUT: Readonly<Record<CliKind, CliAuthLayout | undefined>> = {
     userFiles: [],
   },
   opencode: {
+    envVar: 'OPENCODE_CONFIG_DIR',
     dirName: '.opencode',
     files: ['auth.json'],
     userFiles: [],
   },
-  cursor: undefined,
+  cursor: {
+    envVar: 'CURSOR_CONFIG_DIR',
+    dirName: '.cursor',
+    files: ['auth.json', '.credentials.json'],
+    userFiles: [],
+  },
 }
 
 /**

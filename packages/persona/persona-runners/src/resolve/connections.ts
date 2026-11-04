@@ -5,8 +5,10 @@
 
 import type { Runtime } from '@botiverse/oar'
 import type { CliKind } from '../contract.ts'
+import { detectLocalProviders, LOCAL_LABEL } from '../dsh/local.ts'
 import { loginHintFor } from './errors.ts'
 import { rememberAuth, rememberModels, resetProbeCache } from './probe-cache.ts'
+import { readOarAccountUsage, type OfficialQuota } from '@deepseek-ai/dsh-persona-usage'
 import {
   asProbe,
   probeCliBinary,
@@ -16,17 +18,21 @@ import {
   type ProbeRuntime,
 } from './probe.ts'
 
-export type ConnectionKind = CliKind | 'dsh'
+export type ConnectionKind = CliKind | 'dsh' | 'ollama' | 'lmstudio'
 
 export interface ConnectionSnapshot {
   id: ConnectionKind
-  kind: 'dsh' | 'cli'
+  kind: 'dsh' | 'cli' | 'local'
   installed: boolean
   loggedIn: boolean
   models: readonly string[]
   version?: string
   usageOrigin?: 'official' | 'unavailable'
+  /** Official windows for Anvil `putQuota` / Lumen pool. Never `default`. */
+  officialQuota?: OfficialQuota
   loginHint?: string
+  /** Shown on local cards — never a price. */
+  costLabel?: string
   /** Auth probe timed out or threw — not a definitive logout. */
   authUnknown?: boolean
   error?: { code: 'cli_not_found' | 'not_logged_in' | 'quota_exhausted'; message: string }
@@ -39,6 +45,9 @@ export interface DetectConnectionsOptions {
   force?: boolean
   runtimes?: Partial<Record<CliKind, Runtime | ProbeRuntime>>
   env?: NodeJS.ProcessEnv
+  fetch?: typeof fetch
+  ollama?: string
+  lmstudio?: string
 }
 
 const CACHE_MS = 60_000
@@ -60,6 +69,8 @@ function redact(value: ConnectionSnapshot): ConnectionSnapshot {
       installed: value.installed,
       loggedIn: value.loggedIn,
       models: value.models,
+      ...(value.usageOrigin === undefined ? {} : { usageOrigin: value.usageOrigin }),
+      ...(value.officialQuota === undefined ? {} : { officialQuota: value.officialQuota }),
     }
   }
   return value
@@ -138,9 +149,20 @@ async function probeCli(
       rememberModels(id, '', card.models)
     }
     if (probe.accountUsage !== undefined && card.loggedIn) {
-      const usage = await withTimeout(timeoutMs, probe.accountUsage(snap as never))
-      card.usageOrigin = quotaExhausted(usage) ? 'official' : 'unavailable'
-      if (quotaExhausted(usage)) {
+      let usage: unknown
+      try {
+        usage = await withTimeout(timeoutMs, probe.accountUsage(snap as never))
+      } catch {
+        card.usageOrigin = 'unavailable'
+        card.officialQuota = {
+          provider: id, origin: 'unavailable', windows: [], detail: 'accountUsage timeout',
+        }
+        return redact(card)
+      }
+      const quota = readOarAccountUsage(id, usage)
+      card.officialQuota = quota
+      card.usageOrigin = quota.origin === 'official' ? 'official' : 'unavailable'
+      if (quotaExhausted(usage) || quota.windows.some(window => (window.usedPercent ?? 0) >= 100)) {
         card.error = { code: 'quota_exhausted', message: `Cota de ${id} esgotada. Espere a janela resetar.` }
       }
     }
@@ -186,6 +208,23 @@ export async function detectConnections(options: DetectConnectionsOptions = {}):
     const runtime = options.runtimes === undefined ? await defaultRuntime(id) : options.runtimes[id]
     cards.push(await probeCli(id, runtime, timeoutMs, env))
   }
+  const locals = await detectLocalProviders({
+    timeoutMs: Math.min(timeoutMs, 400),
+    ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+    ...(options.ollama === undefined ? {} : { ollama: options.ollama }),
+    ...(options.lmstudio === undefined ? {} : { lmstudio: options.lmstudio }),
+  })
+  for (const local of locals) {
+    cards.push({
+      id: local.id,
+      kind: 'local',
+      installed: local.installed,
+      loggedIn: local.installed,
+      models: local.models,
+      costLabel: LOCAL_LABEL,
+      loginHint: LOCAL_LABEL,
+    })
+  }
   cache = { at: now(), value: cards }
   return cards
 }
@@ -217,6 +256,9 @@ export function toUiConnection(snap: ConnectionSnapshot): ConnectionUiRow {
     available: snap.installed,
     loggedIn: snap.loggedIn,
     loginHint,
+  }
+  if (snap.kind === 'local') {
+    return { ...row, loginHint: snap.costLabel ?? LOCAL_LABEL }
   }
   if (snap.error !== undefined) return { ...row, error: snap.error }
   if (snap.authUnknown === true) return row

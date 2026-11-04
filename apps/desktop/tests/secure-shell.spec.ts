@@ -16,6 +16,9 @@ describe('secure shell', () => {
     expect(prefs.nodeIntegration).toBe(false)
     expect(prefs.webviewTag).toBe(false)
     expect(PERSONA_CSP).toContain("default-src 'self' dsh-app:")
+    expect(PERSONA_CSP).toContain('sha256-ikYDEfGOZZNuGAdbu2YAz9STcFnRaWk0u5Dc0unuOyI=')
+    expect(PERSONA_CSP).toContain('sha256-W1J9ifi3GWzqjTB2F6YQEv18k/YCJPpN1tANFrO28pg=')
+    expect(PERSONA_CSP).toContain("font-src 'self' data: dsh-app:")
     expect(PERSONA_CSP).not.toMatch(/https:/u)
   })
 

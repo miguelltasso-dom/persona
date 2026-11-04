@@ -4,13 +4,17 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   createMemoryUsageStore,
+  evaluateSpend,
   foldUsage,
   labelledEstimate,
   officialQuota,
   originLabel,
+  quotaCardMeters,
+  quotaUiState,
   readCodexRolloutLimits,
   readDeepSeekBalance,
   readOarAccountUsage,
+  readableAccountLabel,
   type UsageRecord,
 } from '../src/index.ts'
 
@@ -40,14 +44,36 @@ describe('official quota', () => {
     const quota = readOarAccountUsage('claude', load('oar-claude-usage.json'))
     expect(quota.origin).toBe('official')
     expect(quota.windows[0]).toMatchObject({ id: '5h', origin: 'official', usedPercent: 12.5, windowMinutes: 300 })
-    expect(quota.windows[1]).toMatchObject({ id: 'weekly', origin: 'official', usedPercent: 4 })
+    expect(quota.windows[1]).toMatchObject({ id: 'week', origin: 'official', usedPercent: 4 })
+  })
+
+  it('reads Claude Max and Codex ChatGPT official windows (0% is official)', () => {
+    const claude = readOarAccountUsage('claude', load('oar-claude-max.json'))
+    expect(claude.origin).toBe('official')
+    expect(claude.detail).toBe('max')
+    expect(claude.windows[0]).toMatchObject({ id: '5h', origin: 'official', usedPercent: 0, windowMinutes: 300 })
+    expect(claude.windows[1]).toMatchObject({ id: 'week', origin: 'official', usedPercent: 9 })
+    expect(quotaUiState(claude)).toBe('ready')
+    expect(readableAccountLabel({ provider: 'claude', accountId: 'default', plan: 'max' })).toBe('Claude Max')
+    const meters = quotaCardMeters(claude)
+    expect(meters?.fiveHourPct).toBe(0)
+    expect(meters?.weekPct).toBe(9)
+    const timed = { provider: 'codex', origin: 'unavailable' as const, windows: [], detail: 'accountUsage timeout' }
+    expect(quotaUiState(timed)).toBe('timeout')
+    expect(readableAccountLabel({ provider: 'codex', accountId: 'default' })).toBe('ChatGPT')
+    expect(readableAccountLabel({ provider: 'codex', accountId: 'codex' })).toBe('ChatGPT')
+    const codex = readOarAccountUsage('codex', load('oar-codex-chatgpt.json'))
+    expect(codex.origin).toBe('official')
+    expect(codex.detail).toBe('chatgpt')
+    expect(codex.windows.map(item => item.id)).toEqual(['5h', 'week'])
+    expect(codex.windows[0]?.usedPercent).toBe(18)
   })
 
   it('reads Codex rollout rate_limits', () => {
     const quota = readCodexRolloutLimits(load('codex-rollout.json'))
     expect(quota.provider).toBe('codex')
     expect(quota.origin).toBe('official')
-    expect(quota.windows.map(item => item.id)).toEqual(['5h', 'weekly'])
+    expect(quota.windows.map(item => item.id)).toEqual(['5h', 'week'])
     expect(quota.windows[0]?.usedPercent).toBe(33)
   })
 
@@ -78,6 +104,64 @@ describe('official quota', () => {
     expect(timed.origin).toBe('unavailable')
     expect(timed.windows).toEqual([])
     expect(JSON.stringify(timed)).not.toMatch(/"usedPercent":0/u)
+  })
+
+  it('quotaCardMeters omits missing windows and never publishes 0%', () => {
+    expect(quotaCardMeters({ provider: 'claude', origin: 'unavailable', windows: [] })).toBeUndefined()
+    const meters = quotaCardMeters({
+      provider: 'claude',
+      origin: 'official',
+      windows: [
+        { id: '5h', origin: 'official', usedPercent: 100, windowMinutes: 300, resetsAt: '2026-11-03T21:30:00.000Z' },
+        { id: 'weekly', origin: 'official', usedPercent: 17 },
+      ],
+    })
+    expect(meters).toEqual({
+      fiveHourPct: 100,
+      weekPct: 17,
+      limitedUntil: '2026-11-03T21:30:00.000Z',
+    })
+    const absent = quotaCardMeters({
+      provider: 'claude',
+      origin: 'official',
+      windows: [{ id: '5h', origin: 'unavailable', usedPercent: 0 }],
+    })
+    expect(absent).toBeUndefined()
+    expect(JSON.stringify(absent ?? {})).not.toMatch(/"fiveHourPct":0/u)
+  })
+
+  it('officialQuota caches each account separately', async () => {
+    let calls = 0
+    const cache = new Map<string, { at: number; value: import('../src/types.ts').OfficialQuota }>()
+    const work = await officialQuota('claude', {
+      accountId: 'work',
+      cache,
+      accountUsage: async () => {
+        calls += 1
+        return { windows: [{ id: '5h', usedPercent: 90, windowMinutes: 300 }] }
+      },
+    })
+    const personal = await officialQuota('claude', {
+      accountId: 'personal',
+      cache,
+      accountUsage: async () => {
+        calls += 1
+        return { windows: [{ id: '5h', usedPercent: 10, windowMinutes: 300 }] }
+      },
+    })
+    expect(work.accountId).toBe('work')
+    expect(personal.accountId).toBe('personal')
+    expect(work.windows[0]?.usedPercent).toBe(90)
+    expect(personal.windows[0]?.usedPercent).toBe(10)
+    await officialQuota('claude', {
+      accountId: 'work',
+      cache,
+      accountUsage: async () => {
+        calls += 1
+        return { windows: [{ id: '5h', usedPercent: 1, windowMinutes: 300 }] }
+      },
+    })
+    expect(calls).toBe(2)
   })
 })
 
@@ -116,5 +200,22 @@ describe('UsageStore', () => {
     expect(empty.originLabel).toBe('indisponível')
     expect(empty.runs).toBe(0)
     expect(JSON.stringify(empty)).not.toMatch(/usedPercent/u)
+  })
+})
+
+describe('spend limits', () => {
+  it('blocks a project executions/day cap with Precisa de você options', () => {
+    const stop = evaluateSpend({
+      persona: {},
+      project: { executionsPerDay: 3 },
+      personaMonthTokens: 0,
+      projectMonthTokens: 0,
+      personaDayRuns: 0,
+      projectDayRuns: 3,
+    })
+    expect(stop.allow).toBe(false)
+    expect(stop.scope).toBe('project')
+    expect(stop.question).toMatch(/Precisa de você/u)
+    expect(stop.question).toMatch(/Aumente o limite/u)
   })
 })

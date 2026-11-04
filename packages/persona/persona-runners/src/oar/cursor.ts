@@ -22,6 +22,7 @@ export const CURSOR_CAPABILITIES: RunnerCapabilities = {
 export function createCursorRunner(options: {
   runtime: Runtime
   installation?: AvailableInstallation
+  env?: Readonly<Record<string, string | null>>
   policy?: import('../resolve/cli-policy.ts').CliSessionPolicy
 }): Runner {
   const extra = options.installation === undefined ? {} : { installation: options.installation }
@@ -29,6 +30,7 @@ export function createCursorRunner(options: {
   return createOarRunner({
     runtime: options.runtime,
     capabilities: CURSOR_CAPABILITIES,
+    ...(options.env === undefined ? {} : { env: options.env }),
     ...extra,
     ...(policy === undefined ? {} : { policy }),
   })

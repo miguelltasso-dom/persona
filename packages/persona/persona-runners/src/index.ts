@@ -32,9 +32,18 @@ export { createDshRunner, unboundDshHealth, type DshAgentEvent, type DshAgentPor
 export {
   createHttpDshAgent,
   PROVIDER_BASE,
+  vendorUsageOf,
   type DshProvider,
   type HttpDshAgentOptions,
 } from './dsh/http-agent.ts'
+export {
+  LOCAL_BASE,
+  LOCAL_LABEL,
+  detectLocalProviders,
+  isLocalProvider,
+  probeLocalModels,
+  type LocalModelCard,
+} from './dsh/local.ts'
 
 export {
   ROUTER_FORBIDDEN_TOOLS,
@@ -89,6 +98,80 @@ export {
   type PersonaToolHooks,
   type ServeMcpToolsFn,
 } from './mcp/persona-tools.ts'
+export {
+  classifySensitive,
+  createMcpGateway,
+  escapesWorktree,
+  type McpCallResult,
+  type McpGateway,
+  type McpTurnLease,
+  type PendingApproval,
+  type SensitiveKind,
+} from './mcp/gateway.ts'
+export {
+  ACTING_TOOLS,
+  actingMcpTools,
+  actingPortsFromComputerUse,
+  gateComputerActing,
+  type ActingPorts,
+} from './mcp/acting-tools.ts'
+export {
+  BRAIN_TOOLS,
+  brainMcpTools,
+  type BrainPorts,
+} from './mcp/brain-tools.ts'
+export {
+  GESTOR_TOOLS,
+  gestorMcpTools,
+  type GestorPorts,
+} from './mcp/gestor-tools.ts'
+export {
+  EMAIL_SOURCE,
+  emailMessageToTrigger,
+  pollEmail,
+  replyEmail,
+  type EmailMessage,
+} from './sources/email.ts'
+export {
+  TELEGRAM_SOURCE,
+  pollTelegram,
+  replyTelegram,
+  telegramUpdateToTrigger,
+  type TelegramUpdate,
+} from './sources/telegram.ts'
+export {
+  outboundMcpTools,
+  type OutboundPorts,
+} from './sources/outbound-tools.ts'
+export {
+  VAULT_CALDAV,
+  VAULT_DISCORD,
+  VAULT_IMAP,
+  VAULT_SLACK,
+  VAULT_SMTP,
+  VAULT_TELEGRAM,
+} from './sources/vault-keys.ts'
+export {
+  SLACK_SOURCE,
+  pollSlack,
+  replySlack,
+  slackEventToTrigger,
+  type SlackEvent,
+} from './sources/slack.ts'
+export {
+  DISCORD_SOURCE,
+  discordMessageToTrigger,
+  pollDiscord,
+  replyDiscord,
+  type DiscordMessage,
+} from './sources/discord.ts'
+export {
+  CALENDAR_SOURCE,
+  calendarEventToTrigger,
+  parseIcsEvents,
+  pollCalDav,
+  type CalendarEvent,
+} from './sources/calendar.ts'
 
 export {
   createWatchdogDriver,
@@ -134,6 +217,7 @@ export {
 export {
   gradeLaziness,
   runLazinessSuite,
+  runMinimalLaziness,
   scoreLazinessScenario,
   type LazinessGrade,
   type LazinessScenarioId,
@@ -143,6 +227,7 @@ export {
 } from './proactivity/laziness.ts'
 export {
   DRAFT_PERSONA_PROMPT,
+  STRUCTURE_PROMPT,
   createDraftDriver,
   fallbackDraft,
   type DraftDriver,
@@ -168,6 +253,27 @@ export { CLAUDE_CAPABILITIES, createClaudeRunner, type ClaudeRunnerOptions } fro
 export { CODEX_CAPABILITIES, createCodexRunner, type CodexRunnerOptions } from './oar/codex.ts'
 export { CLI_ISOLATION_VARS, nativeSessionEnv, restoreNativeCliLogin } from './oar/native-cli-env.ts'
 export {
+  ACCOUNT_ISOLATION_VARS,
+  ACCOUNT_AUTH_MARKERS,
+  accountHomeDir,
+  accountLoginStatus,
+  accountIsolationEnv,
+  accountsShareHome,
+  prepareAccountHome,
+  type AccountEngine,
+} from './oar/account-home.ts'
+export {
+  accountAskNotice,
+  formatAccountSwitch,
+  pickProviderAccount,
+  type AccountPick,
+  type AccountPolicy,
+  type AccountPolicyKind,
+  type AccountPolicyScope,
+  type AccountQuota,
+  type ProviderAccount,
+} from './resolve/accounts.ts'
+export {
   LOGIN_REQUIRED_PHRASES,
   classifyLoginOutput,
   mayBecomeLogin,
@@ -190,6 +296,7 @@ export {
   defaultRunnerPool,
   disposeRunnerSessions,
   modelForPurpose,
+  modelForWork,
   prewarmCoordination,
   resolveRunner,
   type PersonaRunnerSpec,
@@ -197,10 +304,17 @@ export {
   type VaultSecretReader,
 } from './resolve/resolve-runner.ts'
 export {
+  CHEAP_WORK,
   createSessionPool,
+  idleTeamMayCallModel,
+  isCheapWork,
+  poolPurposeFor,
   sessionPoolKey,
   SESSION_LEASE_MS,
   SESSION_POOL_CAP,
+  TRIAGE_CALL_CAP,
+  triageCallsAllowed,
+  type CheapWork,
   type RunnerPurpose,
   type SessionPool,
   type SessionPoolKey,
@@ -228,9 +342,13 @@ export {
   type DetectConnectionsOptions,
 } from './resolve/connections.ts'
 export {
+  meterCacheOf,
+  meterTurnKind,
   withUsageMeter,
   usageStoreSink,
   type MeasuredUsage,
+  type MeterTurnKind,
+  type UsageMeterOptions,
   type UsageMeterSink,
   type UsageStorePort,
 } from './resolve/usage-meter.ts'
@@ -264,3 +382,24 @@ export {
   type WarmPairTiming,
 } from './resolve/smoke.ts'
 export { probeCliBinary, quotaExhausted, PROBE_TIMEOUT_MS } from './resolve/probe.ts'
+export {
+  RESOURCE_CHILD_CAP,
+  RESOURCE_CONNECTION_CAP,
+  RESOURCE_TURN_CAP,
+  SOURCE_REQUEST_CAP,
+  createProcessBudget,
+  measureResourceBudget,
+  wouldExceedTurnBudget,
+  withSourceRequest,
+  type ProcessBudget,
+  type ResourceSnapshot,
+} from './resolve/resource-budget.ts'
+export {
+  evaluateSpend,
+  withSpendBudget,
+  type SpendBudgetOptions,
+  type SpendDecision,
+  type SpendKind,
+  type SpendLedger,
+  type SpendLimits,
+} from './resolve/spend-budget.ts'

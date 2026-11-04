@@ -11,6 +11,7 @@ import {
   gradeLaziness,
   renderPersonaGoalRound,
   runLazinessSuite,
+  runMinimalLaziness,
   scoreLazinessScenario,
   withInfraRecovery,
   withObserveGate,
@@ -136,6 +137,13 @@ describe('PRO-3 owner norms and laziness suite', () => {
     expect(hint.completionRate).toBe(1)
     expect(hint.initiativeRate).toBe(1)
     expect(hint.scenarios).toHaveLength(3)
+  })
+
+  it('runs a 2-scenario cheapest-model hint for the UI', async () => {
+    const hint = await runMinimalLaziness({ runnerId: 'scripted' })
+    expect(hint.scenarios).toHaveLength(2)
+    expect(hint.model).toBe('haiku')
+    expect(hint.grade).toBe('strong')
   })
 
   it('marks a lazy stop as weak', () => {

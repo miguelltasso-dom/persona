@@ -4,6 +4,805 @@ Mais recente no topo.
 
 ---
 
+## 04/11 02:34 — W2-10 blur · W3-5 hook no main · putQuota rows · SB-6 apply
+
+Keel 02:15: `JANELA ENCERRADA` (candidato 4884366950). Folha desktop + `persona-usage` (cota). Sem pack D8.
+
+### W2-10
+`createTeachSession.addBlur` + cópia de `blurRects` no `state()`. IPC `teachBlur` + `personaDesktop.teach.blur`. Overlay mostra `N borrões`. Consent + clock sem pixels.
+
+### W3-5
+`main` liga `subscribeHook` (`before-input-event`) + `registerShortcut(CommandOrControl+Shift+Space)`. Pause no input físico; Devolver retoma. uiohook global ainda falta (Keel `pnpm add`). Overlay HTML continua placeholder (Muse `createWindow`).
+
+### Cota → Anvil
+`officialQuotaPuts` em `persona-usage` e leaf `apps/desktop/src/usage-quota-bridge.ts`. Rótulo via `readableAccountLabel` (id=`provider` não vira `default`/`codex`). Timeout não é plan.
+
+### SB-6 / BYC-5
+`applyVaultExport` escreve e lista leftover (nunca apaga). `personaDesktop.pickExportFolder()` (`purpose: 'export'`).
+
+### PRO / v1
+PRO-3 já done. Fechamento v1 = Probe PRO-6 + D8 instalador. W2-4 isolamento 2 contas já em `wave2-accounts.spec.ts` (Pessoal/Trabalho).
+
+### Dep
+**[Rivet→Anvil]** `for (const row of officialQuotaPuts(snaps)) usage.putQuota(projectId, row)` — painel real + captura. **[Rivet→Muse]** overlay `createWindow`. **[Rivet→Keel]** D8 pack só com hash VERDE publicado; uiohook.
+
+### Comandos
+```
+pnpm exec vitest run apps/desktop/tests/teach-capture.spec.ts apps/desktop/tests/teach-ipc.spec.ts apps/desktop/tests/computer-use-hook.spec.ts apps/desktop/tests/computer-use-bind.spec.ts apps/desktop/tests/usage-quota-bridge.spec.ts apps/desktop/tests/preload-app.spec.ts apps/desktop/tests/vault-export.spec.ts
+ Test Files  7 passed (7)
+      Tests  38 passed (38)
+
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+ (exit 0)
+
+pnpm exec vitest run packages/persona/persona-usage/tests/harvest-limits.spec.ts packages/persona/persona-usage/tests/usage.spec.ts
+ Test Files  2 passed (2)
+      Tests  13 passed (13)
+
+node scripts/persona/check-pkg.mjs persona-usage
+ persona-usage: OK in 7.9s
+```
+
+### Arquivos
+- `apps/desktop/src/{teach-capture,teach-ipc,ipc,preload-app,main,usage-quota-bridge,vault-export}.ts`
+- `apps/desktop/tests/{teach-capture,teach-ipc,computer-use-hook,computer-use-bind,usage-quota-bridge,preload-app,vault-export}.spec.ts`
+- `packages/persona/persona-usage/src/{harvest-limits,account-label,index}.ts`
+- `packages/persona/persona-usage/tests/{harvest-limits,usage}.spec.ts`
+- `persona-spec/contracts/{official-quota-pool,vault-export}.md`
+- `persona-spec/spikes/teach-persona.md`
+
+### Limitações
+- Painel Uso e limites no app real ainda vazio até Anvil `putQuota`.
+- Hook = janela em foco (`before-input-event`), não uiohook global.
+- D8: publicado ainda 96333ef934 / #root vazio; não empacotei (sem hash VERDE no Status).
+- Fila não vazia: Anvil persist + W3-5 uiohook + D8.
+
+---
+
+## 04/11 02:04 — Cota oficial → pool (Uso e limites)
+
+Atlas: Claude/Codex barras vazias + `default` em Conferindo…. Cota OAR já existia; o parse/id/rótulo não chegavam no pool.
+
+### Rivet
+- `readOarAccountUsage`: Claude Max / Codex ChatGPT (`logged_in`, `five_hour`, `seven_day`, `utilization`, `remaining_percent`, unix `resets_at`). Janelas `5h` + `week` (Lumen). 0% oficial fica 0%.
+- `readableAccountLabel` / `quotaUiState`: nunca `default`; timeout ≠ Conferindo…; indisponível só sem janela do vendor.
+- `harvestLimitReports` usa o rótulo legível (email local-part).
+- `detectConnections` grava `officialQuota` + `usageOrigin: official` quando o vendor publicou janela; timeout 8 s com `detail: accountUsage timeout`.
+
+### Anvil / Lumen (dep)
+**[Rivet→Anvil]** em `listConnections` ready: `putQuota` com `snap.officialQuota` + label. Sem isso `getOfficialQuota` continua stub vazio. Contrato `official-quota-pool.md`.
+**[Rivet→Lumen]** ids agora `week`; `checking` só enquanto o probe voa. Timeout copy se `detail` contém `timeout`.
+
+### Prova
+Vitest 27 + check-pkg usage/runners OK. Captura do app real espera o `putQuota` do Anvil (instalador primeiro).
+
+### Comandos
+```
+pnpm exec vitest run packages/persona/persona-usage/tests/usage.spec.ts packages/persona/persona-usage/tests/harvest-limits.spec.ts packages/persona/persona-runners/tests/resolve-runner.spec.ts
+ Test Files  3 passed / Tests  27 passed
+
+node scripts/persona/check-pkg.mjs persona-usage persona-runners
+ persona-usage: OK in 4.8s
+ persona-runners: OK in 12.4s
+```
+
+---
+
+## 04/11 01:53 — W3-5 COM host no main · Devolver · BYC pickVaultFolder (folha)
+
+Keel 01:50: snapshot cortado; sem editar core/engine/store/host/runners/client.
+
+### W3-5
+`runWindowsUiaScript` + `createComputerUseComHost` (spawn injetável). `main` liga o COM host **sem** overlay no boot. `overlayMouseIgnore` (Devolver hover). `isComputerUseResumeAccelerator` = `CommandOrControl+Shift+Space`.
+
+### BYC-5
+`directoryPickTitle({ purpose: 'vault'|'export' })` + `personaDesktop.pickVaultFolder()`.
+
+### W2-10
+`teachOverlayDocumentUrl(clock)`.
+
+### Comandos
+```
+pnpm exec vitest run apps/desktop/tests/computer-use-bind.spec.ts apps/desktop/tests/computer-use-overlay.spec.ts apps/desktop/tests/computer-use-control.spec.ts apps/desktop/tests/directory-picker.spec.ts apps/desktop/tests/teach-capture.spec.ts apps/desktop/tests/preload-app.spec.ts
+ Test Files  6 passed / Tests  44 passed
+
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+ (exit 0)
+```
+
+### Fora / dep
+**[Rivet→Prism/Lumen]** `pickVaultFolder()` no BYC. **[Rivet→Muse]** hover Devolver = `overlayMouseIgnore(true)`. W2-4/OPT congelados; D8 sem hash VERDE; hook uiohook real ainda falta.
+
+---
+
+## 04/11 01:41 — W3-5 COM+overlay HTML · W2-10 teach chrome · SB-6 plan (folha)
+
+Janela ainda sem `JANELA ENCERRADA` — só `apps/desktop` + `persona-spec`. Pacotes fechados intocados.
+
+### W3-5
+`WINDOWS_UIA_INVOKE_SCRIPT` (`InvokePattern`) + `invokeWindowsUiaNamed`; `WINDOWS_UIA_SETVALUE_SCRIPT` (`ValuePattern` só depois de `IsPassword`). Bind `invokeCom`/`setValueCom` injetáveis; humano não lança COM. `computerUseOverlayHtml` / `overlayDocumentUrl` — click-through, Devolver, rAF, `cu:*`, cap 2, senha `digitando ••••`. Muse substitui o renderer.
+
+### W2-10
+`teachOverlayHtml(clock)` — relógio, Pausar/Parar, aviso de senha; sem PNG/`imageRef`. `teachState` agora devolve `{ ...clock, overlayHtml }`.
+
+### SB-6
+`planVaultExport` → `{ written, skipped, leftover }`. Dest extras listados, nunca apagados. Contrato `persona-spec/contracts/vault-export.md`.
+
+### Comandos
+```
+pnpm exec vitest run apps/desktop/tests/computer-use-bind.spec.ts apps/desktop/tests/computer-use-overlay.spec.ts apps/desktop/tests/teach-capture.spec.ts apps/desktop/tests/vault-export.spec.ts
+ Test Files  4 passed / Tests  9 passed
+
+pnpm exec vitest run apps/desktop/tests/teach-ipc.spec.ts
+ Test Files  1 passed / Tests  4 passed
+
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+ (exit 0)
+```
+
+### Fora / dep
+**[Rivet→Muse]** overlay HTML placeholder em `computerUseOverlayHtml` — cursor Bézier/avatar ainda é de vocês. **[Rivet→Prism]** `teachOverlayHtml` no chrome Ensinar. **[Rivet→Anvil]** `planVaultExport.leftover` no dest picker. W2-4/OPT runners congelados; D8 pack sem hash VERDE.
+
+---
+
+## 04/11 01:33 — VERDE janela (usage / vault / runners)
+
+Keel: janela 01:30–01:45. check-pkg fechou os três pacotes Rivet.
+
+### check-pkg
+- persona-usage: OK 5.1s (foldTurnLedger passou a draft mutável + `toFold`; teste não compara `kind === 'exec'`).
+- persona-vault: OK 5.7s (sem edição).
+- persona-runners: OK 14.1s (`cacheFromVendor` só com `total` objeto; meter spec `ended` + `report`).
+
+### Comandos
+```
+node scripts/persona/check-pkg.mjs persona-usage persona-vault persona-runners
+ persona-usage: OK in 5.1s
+ persona-vault: OK in 5.7s
+ persona-runners: OK in 14.1s
+
+pnpm exec vitest run packages/persona/persona-usage/tests/turn-ledger.spec.ts packages/persona/persona-runners/tests/usage-meter.spec.ts
+ Test Files  2 passed / Tests  3 passed
+```
+
+### Fora / dep
+**[Rivet→Keel]** VERDE usage/vault/runners. Sem editar esses pacotes até JANELA ENCERRADA. D8 pack ainda sem hash VERDE de publicação.
+
+---
+
+## 04/11 01:28 — D8 tipo NSIS · OPT-3 cache DSH · W2-10 promote · W3-5 clickNamed
+
+Keel: `packElevateHelper` no teste sem campo no tipo do instalador. Encadeei sem pack.
+
+### D8
+`DesktopElectronBuilderConfig.nsis.packElevateHelper: false` no `.d.mts` (alinha teste + `electron-builder-config.mjs` + `NSIS_PER_USER`). Sem hash VERDE — pack não relançado.
+
+### OPT-3
+`vendorUsageOf` lê `prompt_cache_hit_tokens` / `prompt_tokens_details.cached_tokens` + miss/creation. Ausência omitida. Medidor já encaminha cache.
+
+### W2-10
+`teachPublicPublishOk` — DM/projeto nunca viram skill pública; `public` só com promote explícito. Draft continua `candidate`.
+
+### W3-5
+`clickNamedUia` + bind `clickNamed` (MCP). Humano/senha não clicam. HTML Muse / COM invoke ainda falta.
+
+### PRO-*
+PRO-3 done.
+
+### Comandos
+```
+pnpm exec vitest run apps/desktop/tests/teach-capture.spec.ts apps/desktop/tests/computer-use-bind.spec.ts packages/persona/persona-runners/tests/http-agent.spec.ts
+ Test Files  3 passed / Tests  12 passed
+
+pnpm exec vitest run apps/desktop/tests/installer-select.spec.ts --testTimeout=30000
+ Test Files  1 passed / Tests  3 passed
+```
+
+### Fora / dep
+**[Rivet→Keel]** tipo NSIS alinhado; hash VERDE p/ pack. **[Rivet→Prism]** `teachPublicPublishOk` no botão Ensinar. **[Rivet→Muse]** overlay HTML. **[Rivet→Anvil]** cache DSH no ledger.
+
+---
+
+
+## 04/11 01:22 — Anvil window=exec|eval · OPT-5 teto · W3-5 UIA script · SB-6 leftovers
+
+Anvil 01:35 pediu `window=exec|eval` no UsageStore. Encadeei sem pack.
+
+### OPT-1 (Anvil)
+`usagePortWindow(kind)` é o inverso de `usagePortKind` (só essa tabela). Medidor grava `kind` canônico + `window` `exec`/`eval`/`triage`… Host `persistTurn` já fazia o mesmo.
+
+### OPT-5
+`triageCallsAlready >= 1` → `resolveRunner` devolve runner scriptado 0 tokens **sem** `installation()`/CLI.
+
+### W3-5
+`createWindowsUiaPort` + `WINDOWS_UIA_SNAPSHOT_SCRIPT` (UIAutomation, sem ValuePattern). Clique COM real / HTML Muse ainda falta.
+
+### SB-6
+`leftoverDestFiles` lista extras do destino; export **não** apaga.
+
+### PRO-*
+PRO-3 done. Sem trabalho novo.
+
+### D8
+Sem hash VERDE de pack. Não relançado.
+
+### Comandos
+```
+pnpm exec vitest run packages/persona/persona-usage/tests/turn-ledger.spec.ts packages/persona/persona-runners/tests/usage-meter.spec.ts packages/persona/persona-runners/tests/resolve-runner.spec.ts apps/desktop/tests/computer-use-bind.spec.ts apps/desktop/tests/vault-export.spec.ts
+ Test Files  5 passed (5)
+      Tests  20 passed (20)
+```
+
+### Fora / dep
+**[Rivet→Anvil]** `window` do medidor = `usagePortWindow(kind)` (`exec`/`eval`). **[Rivet→Keel]** hash VERDE p/ pack; `pnpm install` se lock `runners`→`usage`. **[Rivet→Muse]** HTML overlay. UIA COM invoke real = resto W3-5. **[Rivet→Prism]** cronômetro Ensinar (`teach.state`).
+
+---
+
+
+## 04/11 01:20 — OPT-1 kinds canônicos · cache no medidor · harvest→Anvil
+
+Keel/Forge: alinhar o port do `persona-usage` + medidor do `resolveRunner` aos kinds do core (`execution`/`evaluation`). Sem rename atômico.
+
+### OPT-1
+`usagePortKind` no port Rivet (`persona-usage`) é o único mapa legado→canônico: `exec`→`execution`, `eval`→`evaluation`. `foldTurnLedger` e `UsageStore.record` saem em kind canônico. `exec`/`eval` ainda typecheckam na entrada (`LegacyTurnKind`).
+Medidor: `meterTurnKind` (talk→triage, task→execution, resto via `usagePortKind`). `withUsageMeter` grava `kind` + `cacheReadTokens`/`cacheWriteTokens` quando o vendor publicou (ausência omitida, nunca 0%). OAR `usageOf` copia cache se existir no total. `usageStoreSink` encaminha kind/cache/accountId.
+`runners` passa a depender de `persona-usage` (`workspace:*`; Keel `pnpm install` se o lock pedir).
+
+### Anvil
+Host já tem `putProviderLimitReports`. Payload: `harvestLimitReports` → `LimitAccountReport[]`. Store deve persistir `TurnLedgerEntry` do core (kinds canônicos + cache).
+
+**[Rivet→Anvil]** persistir `kind` canônico (`execution`/`evaluation`, não `exec`/`eval`) + `cacheReadTokens`/`cacheWriteTokens` omitidos quando o vendor não publicou; ligar `harvestLimitReports` em `putProviderLimitReports`. Painel: `foldUsagePanel` (Forge `tokens-baseline.md`).
+
+### Também nesta fila (sem pack)
+W2-9 `measureTeachSpike` (3 frames / 8 ms / whisper no-go). W2-10 cronômetro `teachState` sem PNG. W3-5 `invokeUiaTarget` + `parseUiaSnapshot` (COM ainda falta). OPT-5 `TRIAGE_CALL_CAP=1`. T3 `redeemReset` só com `nextCreditId`.
+
+### D8
+Status ainda sem VERDE de pack para `bbf24b3a61`. Pack não relançado.
+
+### PRO-*
+PRO-3 done. Sem trabalho novo.
+
+### Comandos
+```
+pnpm exec vitest run packages/persona/persona-usage/tests/turn-ledger.spec.ts packages/persona/persona-runners/tests/usage-meter.spec.ts packages/persona/persona-runners/tests/resolve-runner.spec.ts
+ Test Files  3 passed (3)
+      Tests  16 passed (16)
+
+pnpm exec vitest run packages/persona/persona-usage/tests/usage.spec.ts packages/persona/persona-core/tests/token-ledger.spec.ts
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+```
+
+### Fora / dep
+**[Rivet→Anvil]** kinds + cache no SQLite / Remote OPT-7; harvest no `putProviderLimitReports`. **[Rivet→Keel]** `pnpm install` se o lock do `persona-runners`→`persona-usage` pedir; hash VERDE p/ pack. **[Rivet→Lumen]** painel lê kinds canônicos. **[Rivet→Muse]** HTML overlay W3-5. UIA COM = resto W3-5.
+
+---
+
+
+## 04/11 00:50 — W2-4 status · OPT-3 prefixo · W3-5 bind · GES MCP
+
+### D8
+`origin/persona-dev` agora `bbf24b3a61` (chore Keel). Status **não** tem linha VERDE desse hash. Pack **não** relançado (um pesado; #root do 96333ef ainda pode estar neste chore).
+
+### W2-4
+`accountLoginStatus(dir)` — `logged_in` só se existir `auth.json` / credentials; **não lê** o arquivo.
+
+### OPT-3
+`composeStablePrefix` ordem system→persona→tools→required; variável fora do fingerprint. `volatilePrefixHits` pega relógio/hoje. `prefixCacheHit` quando o prefixo estável não muda. Histórico nativo: `foldClaudeJsonl` / `foldCodexRollout` sem estimar texto.
+
+### W3-5
+`installComputerUseBind` no main: resume/state IPC + hook físico + overlay factory (Muse HTML depois). Clique real UIA COM ainda falta.
+
+### GES
+`gestor_*` MCP já no gateway; spec write-only + identidade do run.
+
+### Comandos
+```
+pnpm exec vitest run …/accounts.spec.ts …/gestor-tools.spec.ts …/stable-prefix.spec.ts …/computer-use-bind.spec.ts
+ Test Files  4 passed / Tests  10 passed
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+### Fora / dep
+**[Rivet→Keel]** hash VERDE explícito no Status para pack+CDP. **[Rivet→Forge]** prefixo estável no compose do prompt. **[Rivet→Muse]** HTML do overlay no createWindow.
+
+---
+
+## 04/11 00:40 — W2-10 / W3-5 / OPT-1+5 / SB-6 (contratos)
+
+Encadeei a fila sem pack (D8 ainda sem hash verde).
+
+### W2-10 (Rivet)
+Consentimento obrigatório no `teachStart` (4 flags). `blurTeachPixels` zera retângulo RGBA. `teachDraftStatus()` = `candidate` (nunca ativa). Redact no stop já existia. UI moldura/botão = Prism/Muse.
+
+### W3-5
+`classifyInputOrigin` / `applyPhysicalInput`: sintético ignorado; físico pausa todas. Overlay/UIA fake + `gateComputerActing` já no turno anterior. UIA COM Windows + janela Electron real = depois do pack / Muse HTML.
+
+### OPT-1 / OPT-5
+`foldTurnLedger` + `cacheHitRate` (ausência ≠ 0%). `bench-tokens.md` baseline scripted. `modelForWork` (triage/librarian/watchdog/initiative) = modelo de talk; `idleTeamMayCallModel(false)` = 0 chamadas. Pool já aquece talk.
+
+### SB-6
+`exportMarkdownOneWay`: escreve `.md`, skip hash igual, **não** apaga extras. Destino = `pickDirectory({ title: 'Exportar vault' })`. Host `exportBrainVault` = Anvil.
+
+### PRO-*
+PRO-3 já done (recuperação/handoff/laziness). Sem trabalho novo.
+
+### Comandos
+```
+pnpm exec vitest run apps/desktop/tests/teach-capture.spec.ts …/teach-ipc.spec.ts …/computer-use-control.spec.ts …/vault-export.spec.ts packages/persona/persona-usage/tests/turn-ledger.spec.ts packages/persona/persona-runners/tests/resolve-runner.spec.ts
+ Test Files  6 passed / Tests  23 passed
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+### Fora / dep
+D8: **[Rivet→Keel]** origin ainda `96333ef934`. **[Rivet→Prism]** consent no start do Ensinar. **[Rivet→Forge]** rodada real em bench-tokens. **[Rivet→Lumen]** pool + ledger. UIA COM = W3-5 resto.
+
+---
+
+## 04/11 00:22 — T3 harvest (contas): doc + pool/identidade/GROK_HOME
+
+Atlas: t3code MIT como base de várias contas. Comparado com WAVE2 §3 (`accountHomeDir` + Forge `pickAccount`). Política explícita **fica**.
+
+### Harvest
+`persona-spec/T3-ACCOUNTS-HARVEST.md` — portar / adaptar / não portar.
+
+### Portado agora (depois do instalador na fila; D8 ainda sem hash verde)
+- Grok: `GROK_HOME` + `XAI_CONFIG_DIR` no mesmo dir
+- Identidade: email ou fingerprint; mesma conta em vários ambientes = 1
+- Pool por provedor, contas pelo próximo refill (5h/session)
+- `canUseReset` só com `nextCreditId` (redeem = port; sem API inventada)
+- Auto-check 5 min (`AUTO_QUOTA_CHECK_MS`); `force` no refresh
+- Histórico nativo: turno sem tokens = skip, **nunca** estima do texto
+- NOTICE MIT T3 + linha About
+
+### Não portado
+Shadow-home Codex, hubs CLIProxy, Keychain Cursor, Antigravity/Pi/Muse, UI da barra (Lumen/Muse).
+
+### Arquivos
+- `persona-spec/T3-ACCOUNTS-HARVEST.md` + `contracts/accounts.md`
+- `packages/persona/persona-usage/src/{limit-pool,native-history,official-quota,index}.ts` + `NOTICE` + `tests/limit-pool.spec.ts`
+- `packages/persona/persona-runners/src/oar/{account-home,native-cli-env}.ts`
+- `apps/desktop/src/legal-notices.ts`
+
+### Comandos
+```
+pnpm exec vitest run packages/persona/persona-usage/tests/limit-pool.spec.ts …/usage.spec.ts packages/persona/persona-runners/tests/accounts.spec.ts …/mcp-gateway.spec.ts …/wave2-accounts.spec.ts apps/desktop/tests/legal-notices.spec.ts
+ Test Files  6 passed / Tests  27 passed
+```
+
+### Fora / dep
+D8 pack+CDP: **[Rivet→Keel]** `origin/persona-dev` ainda `96333ef934`. Redeem real Claude/Codex: **[Rivet→Forge]** email/fingerprint no Remote. UI pool: **[Rivet→Lumen/Muse]**.
+
+---
+
+## 03/11 23:53 — #root: não é pack; skip-smoke; Ensinar IPC + frames Forge
+
+### (1) #root vazio no Setup `96333ef934`
+**Não é perda de bundle.** O `win-unpacked` de `C:\Users\migue\dev\persona-push\apps\desktop\.desktop-build\targets\win-x64\unsigned-artifacts` tem no `app.asar`:
+- `dsh-persona-app` + `cordis.patch.yml`
+- `dsh-client-ui-persona/lib/client.js` + assets
+- host/runners/store/vault/usage/engine/core
+
+Perfil `persona` = `dsh-base` + `dsh-web-app` + `dsh-persona-app` (`official-bundles` + CLI). `#root` vazio = cliente do commit publicado (`96333ef934`) não monta (onboarding 5 passos / UI posterior). CSP já estava limpo no 2º CDP.
+
+Asserção nova: `assertPackedPersonaRuntime` + `verify-post-install` exige `persona-app` no CLI/profile.
+
+### (2) Reempacote
+`origin/persona-dev` **ainda** `96333ef934`. Sem hash verde novo no Status. Pack **não** relançado (um pesado). `package-clean` agora passa `--skip-smoke` (LibreOffice/host smoke era o estouro de 40 min **depois** do NSIS). Smoke real = Probe CDP + shell renderizando. 340 MB = Electron + runtime + poses; sem corte seguro agora.
+
+### (3) WAVE2
+- Contas: contrato alinhado — `accountHomeDir(PERSONA_HOME, personId, engine, accountId)` + `pickAccount`/`pickProviderAccount` no `resolveFor`.
+- Ensinar: `projectTeachFrames` → `{atMs, imageRef, changeScore}`; IPC `personaDesktop.teach` (list/start/pause/resume/ingest/stop); `desktopCapturer` no main; transcript digitado (whisper NO-GO); draft nunca ativa.
+- W3-5: `createComputerUseController` — humano pausa todas; resume só explícito; IPC `cu:*` (overlay/UIA real ainda falta).
+
+### Arquivos
+- `apps/desktop/src/{teach-capture.ts,teach-ipc.ts,computer-use-control.ts,ipc.ts,preload-app.ts,main.ts}`
+- `apps/desktop/scripts/{package-target.ts,verify-post-install.ts,persona-runtime-assert.ts}`
+- `scripts/persona/package-clean.mjs`
+- testes desktop + `persona-spec/contracts/{accounts.md,teach-capture.md}` + spike
+
+### Comandos
+```
+pnpm exec vitest run apps/desktop/tests/teach-capture.spec.ts …/teach-ipc.spec.ts …/computer-use-control.spec.ts …/persona-runtime-assert.spec.ts …/verify-post-install.spec.ts …/package-target.spec.ts …/package-target-stages.spec.ts
+ Test Files  7 passed / Tests  70 passed
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+### Fora / dep
+D8 pack+CDP+captura: **[Rivet→Keel]** hash verde no Status. **[Rivet→Probe]** Setup atual ainda é 96333ef (shell vazio). Overlay Electron/UIA = W3-5 resto. UI Ensinar consume `personaDesktop.teach` = Prism.
+
+---
+
+## 03/11 23:06 — D8 Setup + WAVE2 §3 contas + §2 spike captura
+
+### D8
+`--check` `"blocked": false`. Pack limpo `96333ef934` + overlay CSP (`secure-shell.ts`). `package-clean --no-install` 2425618 ms; `packageExit` null (timeout 40 min no `smoke-packaged-runtime` **depois** do NSIS). Setup e DLL prontos.
+
+| artefato | bytes | quando |
+|---|---:|---|
+| `C:\p8c\Persona-Setup.exe` | **340904639** | 22:49 |
+| fonte `persona-…-win-x64-unsigned.exe` | 340904639 | worktree `persona-push` |
+| `window-frame.dll` | **150528** | 22:38 (MSVC 14.44) |
+
+NSIS per-user unsigned (`perMachine=false` `allowElevation=false` `packElevateHelper=false`). Fico com `persona-push` (Keel foi para `persona-ship`).
+
+| passo | ms | exit | nota |
+|---|---:|---:|---|
+| `/S /D=C:\p8i` | 85455 | 0 | `C:\p8i\Persona.exe` 246302720 |
+| CDP onboarding | 196431 | 1 | `dsh-app://app/` título Persona; **CSP limpo** (0 console); `#root` vazio 180s — plugin cliente do commit publicado não monta |
+| `Uninstall Persona.exe /S` | 23088 | 0 | `C:\p8i` sumiu; sem processo Persona |
+
+**[Rivet→Probe]** instalador `C:\p8c\Persona-Setup.exe`. Onboarding 5 passos ainda não no exe (UI do 96333ef não ativa). CSP do pack anterior está corrigido.
+
+### WAVE2 §3 (W2-4 / W2-5 execução)
+Contas isoladas + política do host (`fixed` / `next_on_limit` / `round_robin` / `ask_before_swap`):
+- `accountHomeDir` + `prepareAccountHome` — **não** copia login nativo
+- env: `CLAUDE_CONFIG_DIR` `CODEX_HOME` `CURSOR_CONFIG_DIR` `OPENCODE_CONFIG_DIR`/`XDG_CONFIG_HOME` `GEMINI_CONFIG_DIR` `XAI_CONFIG_DIR`
+- Cofre `setAccount`/`getAccount` (duas chaves, sem plaintext)
+- `officialQuota(..., { accountId })` cache por conta
+- `pickProviderAccount` + `resolveRunner` na hora do limite (`ask`/`stop` → `quota_exhausted`; troca com linha de atividade)
+
+### WAVE2 §2 spike (W2-9)
+`apps/desktop/src/teach-capture.ts`. **GO** desktopCapturer + MediaRecorder + pausa/mic + arquivo local + retenção + quadros por hash. **NO-GO** whisper.cpp nesta máquina (texto digitado). Relatório: `persona-spec/spikes/teach-persona.md`.
+
+### Arquivos
+- `packages/persona/persona-runners/src/{resolve/accounts.ts,resolve/resolve-runner.ts,resolve/session-pool.ts,oar/account-home.ts,oar/isolated-home.ts,oar/native-cli-env.ts,oar/cursor.ts,index.ts}`
+- `packages/persona/persona-vault/src/vault.ts`
+- `packages/persona/persona-usage/src/{official-quota.ts,types.ts}`
+- `apps/desktop/src/{teach-capture.ts,reconnecting-page.ts,secure-shell.ts,main.ts}` + chrome fonts/symbol/splash-equipe webp
+- testes + `persona-spec/contracts/{accounts.md,runner.md}` + `persona-spec/spikes/teach-persona.md`
+
+### Comandos
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/accounts.spec.ts …/isolated-home.spec.ts …/native-cli-env.spec.ts …/resolve-runner.spec.ts packages/persona/persona-vault/tests/vault.spec.ts packages/persona/persona-usage/tests/usage.spec.ts apps/desktop/tests/teach-capture.spec.ts apps/desktop/tests/deep-link.spec.ts
+ Test Files  8 passed / Tests  47 passed
+node scripts/persona/check-pkg.mjs persona-runners persona-vault persona-usage
+persona-runners: OK · persona-vault: OK · persona-usage: OK
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+### Splash Muse 2ª revisão (encadeado)
+Ordem Luna→Sol→Nina→Bento→Atlas (Atlas à direita); alturas 60/80/77/71/84; walk-*.webp 168px; colina faixa 14px `#3B2B52`; retry 12px + focus-visible; selo escuro `#8E78B0`. `deep-link.spec.ts` 3/3.
+
+### Fora
+Onboarding 5 passos no exe (cliente do commit verde não monta). IPC Ensinar no main = W2-10. UI Conexões = Lumen/Anvil.
+
+---
+
+## 03/11 21:51 — D8 Setup.exe completo (NSIS + window-frame.dll)
+
+Pedido: `--check` + instalador completo no worktree limpo (`package-clean`), NSIS per-user sem assinatura, install temp, CDP, uninstall.
+
+### Check
+`node --import tsx/esm apps/desktop/scripts/package-win.mjs` → `"blocked": false`. vswhere `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools`. LongPaths + Developer Mode ok.
+
+### Pack (um build pesado)
+```
+node scripts/persona/with-lock.mjs "Rivet D8 Setup.exe" -- node scripts/persona/package-clean.mjs --no-install
+exit 0 · 1887460 ms (~31,5 min) · commit 96333ef934
+```
+- Setup: `C:\p8c\Persona-Setup.exe` (cópia) = **340907112** bytes
+- Fonte: `C:\Users\migue\dev\persona-push\apps\desktop\.desktop-build\targets\win-x64\unsigned-artifacts\persona-0.2.2-alpha.3-win-x64-unsigned.exe`
+- `window-frame.dll` compilado: `C:\p8w\apps\desktop\.desktop-build\targets\win-x64\installer-ui\window-frame.dll` (**150528** bytes) → `installer-select.nsh` pegou `installer.nsh` branded
+- NSIS: `perMachine=false` `allowElevation=false` `packElevateHelper=false` unsigned
+
+### Install / uninstall (C:\p8i)
+| passo | ms | exit | nota |
+|---|---:|---:|---|
+| `/S /D=C:\p8i` | 50871 | 0 | `C:\p8i\Persona.exe` 246302720 bytes |
+| `Uninstall Persona.exe /S` | 11526 | 0 | `C:\p8i` sumiu; sem processo Persona |
+
+### CDP
+`installed-onboarding-cdp.mjs` conectou (`dsh-app://app/`, título Persona) mas `#root` ficou vazio 180s. Console:
+1. CSP bloqueia o script inline `__DSH_BOOT_READY__` (`script-src 'self' dsh-app:` — hash `sha256-ikYDEfGOZZNuGAdbu2YAz9STcFnRaWk0u5Dc0unuOyI=`)
+2. `unsafe-eval` blocked
+3. `font-src` bloqueia `data:` woff2
+
+Host chegou a criar `persona.db`. `maestri ask Probe` falhou (`No route for POST /ask`). **[Rivet→Probe]** path era `C:\p8i\Persona.exe` (já desinstalado).
+
+### Correção no checkout (não reempacotado)
+`secure-shell.ts`: hashes BOOT+READY no `script-src`; `font-src` inclui `data:`. Overlay `package-clean` agora copia esse arquivo. Teste `secure-shell.spec.ts` 3/3. Segundo pack **não** rodado (um pesado por vez).
+
+### Fora
+Onboarding 5 passos no exe deste Setup. Precisa de pack com o CSP novo.
+
+---
+
+## 03/11 20:59 — Cromo Muse: splash + bandeja 4 estados
+
+Pedido Muse (DESKTOP-CHROME §2–3). D8 continua sem exe (Anvil/Prism).
+
+### Splash
+`reconnecting-page.ts`: selo −4°, "Persona" Fredoka 32, colina `hill.webp` / `hill-dark.webp`, 5 walkers webp com passo 1.2s defasado, 3 patinhas, `prefers-reduced-motion` para. Bytes Brush reamostrados em `apps/desktop/resources/chrome/` (data: webp, ~77 KB). Sem URL de rede.
+
+### Bandeja
+`trayKindOf`: paused > needs-you > working > idle. Ícones Brush `tray-*-32.png` em `resources/`. Menu: status desabilitado, Abrir, "Ver o que precisa de você" só em needs-you, Pausar/Retomar, logs, diagnóstico, Sair. Tooltip pt-BR. `setPresence` no `runningAssignments` / attention / pause.
+
+### Comandos
+```
+pnpm exec vitest run apps/desktop/tests/tray.spec.ts apps/desktop/tests/deep-link.spec.ts apps/desktop/tests/win-package-policy.spec.ts
+ Test Files  3 passed / Tests  10 passed
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+### Fora
+Captura real splash/bandeja (Playwright da janela) — **[Rivet→Muse]** revisar no app. D8 ainda bloqueado.
+
+---
+
+## 03/11 20:48 — X-4 + GOV-4 + quotaCardMeters verdes; D8 sem exe
+
+### Feito (meus pacotes)
+- **X-4:** `SOURCE_REQUEST_CAP = 4` + `withSourceRequest` em poll telegram/email/slack/discord/caldav. Tempestade: 20 polls, só 4 `fetch` começam. **[Rivet→Anvil]** passar `budget` no poll do host.
+- **GOV-4:** `createDraftDriver.recommendStructure(text)` — `STRUCTURE_PROMPT` + JSON sujo + fallback `parseStructureAsk`. Uma persona por função; "fazer landing hoje" vira Tarefa. **[Rivet→Anvil]** host pode trocar o `recommendStructure` determinístico por este driver.
+- **D5a:** `quotaCardMeters(quota)` em `persona-usage`. Ausente/unavailable → `undefined`, nunca 0%. `limitedUntil` = ISO `resetsAt` da janela ≥100% (o host formata a hora). **[Rivet→Anvil]** `getPersonaCard` pode consumir o helper.
+- **D8 prep:** `@botiverse/oar@0.67.0` passou de `workspace-only` para `shared` em `runtime-patch-policy.ts` (runners importam OAR de verdade). `package-clean.mjs` faz `git clean` no worktree de publish e overlay do policy.
+
+### D8 `--dir` — sem Persona.exe
+1. Árvore suja: Host Typert 63.7s **[Rivet→Anvil]** `persona-host/src/boards.ts:65` falta anotação no membro público. Log `C:\p8c\dir.log`.
+2. Worktree limpo `96333ef934` (`package-clean --dir`, 259s): typert+host compiler OK; client compiler vermelho em `client-ui-persona` (BoardColumn/CategoryBar/structureDict/onSendToPersona/locales). **[Rivet→Prism/Lumen/Muse]** testes/locales do cliente no pack. Log `C:\p8c\package-clean.log`.
+3. **[Rivet→Probe]** sem path absoluto.
+
+### Comandos
+```
+pnpm exec vitest run packages/persona/persona-runners/tests/resource-budget.spec.ts
+  packages/persona/persona-runners/tests/draft-ai-memory.spec.ts
+  packages/persona/persona-runners/tests/sources.spec.ts
+  packages/persona/persona-usage/tests/usage.spec.ts
+  apps/desktop/tests/prepare-runtime-patches.spec.ts
+  apps/desktop/tests/win-package-policy.spec.ts
+ Test Files  6 passed (re-run do classifies: 1 passed / 20s)
+      Tests  40 passed (classifies timeout 5s → 20s; resto verde na 1ª)
+
+node scripts/persona/check-pkg.mjs persona-runners persona-vault persona-usage
+persona-runners: OK in 17.0s / persona-vault: OK in 6.9s / persona-usage: OK in 7.7s
+
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+### Fila
+D8 `--dir` quando Anvil anotar `boards.ts` e o client pack fechar. Depois cromo Muse (splash-equipe + tray 4 estados). X-3 host = Anvil/Forge.
+
+---
+
+## 03/11 20:21 — SNAPSHOT: sem código; fila planejada
+
+Keel: não editar código/testes/locales até `SNAPSHOT CORTADO`. Vigia pediu continuar. Pacotes já VERDE (20:14). Avancei só contrato/relato.
+
+### Fila (nessa ordem, no CORTADO)
+
+1. **D8** — `package-clean.mjs` no worktree `persona-push` @ `96333ef934`. Parada real do `--resume`: `prepare:dsh` lança `desktop patches: workspace-only dependency entered the runtime: @botiverse/oar@0.67.0`. Causa: `runtime-patch-policy.ts` marca OAR `workspace-only` (“embedded in the provider bundle”), mas Persona **importa** `@botiverse/oar` em `persona-runners` e o install de runtime puxa o pacote. Correção no CORTADO: mudar o scope para `shared` (patch do workspace vai no runtime) **ou** excluir OAR do projeto temporário se o bundle já embutir os adapters — o 1º é o honesto (runners usam OAR de verdade). Depois: Setup.exe unsigned NSIS per-user, install `/S`, **[Rivet→Probe]** path absoluto do `Persona.exe`, uninstall, tempos/tamanhos. Árvore suja continua vermelha no host compiler se GOV alheio quebrar; empacotar só o worktree limpo.
+2. **X-4** — caps de turno/filho/conexão já existem; falta cap de *request* nas fontes (`pollTelegram` etc. disparam `fetch` sem teto). Contrato em `runner.md`. Teste de tempestade no fake HTTP.
+3. **GOV-4 prompt/draft** — Forge `recommendStructure` done. Rivet: `createDraftDriver.recommendStructure(text)` no mesmo molde S4 (prompt + JSON sujo + fallback `parseStructureAsk`). Contrato em `runner.md`. **[Rivet→Anvil]** host troca o determinístico pelo driver se houver Runner.
+4. **D5a cartão** — `officialQuota` já devolve `{ origin, windows[] }` (ausente ≠ 0%). Anvil já mapeia `fiveHourPct`/`weekPct`/`limitedUntil` em `getPersonaCard`. No CORTADO, se o host ainda inventar 0, exportar `quotaCardMeters(quota)` em `persona-usage` (só janelas oficiais; `limitedUntil` = `resetsAt` da janela ≥100%). **[Rivet→Anvil]** consumir o helper.
+
+### Não é fila vazia
+PRO-* Rivet (PRO-3) done. S4 done (modelo real congelado). X-1/X-2 done. X-3 fonte done (host = Anvil). CLI real congelada.
+
+### Comandos deste intervalo
+```
+node scripts/persona/check-pkg.mjs persona-runners persona-vault persona-usage
+persona-runners: OK in 27.3s / persona-vault: OK in 8.4s / persona-usage: OK in 6.2s
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+---
+
+## 03/11 20:16 — D8 `--dir` relançado; sem Persona.exe (host compiler GOV)
+
+Pedido Keel: `--dir` em `C:\p8` + avisar Probe. Relancei sob `with-lock`. **Não há `Persona.exe`.**
+
+### O que passou
+- Junction `C:\p8`, cache `C:\p8c`, cwd real, unsigned, sem admin.
+- `dirBlockers: []`. Native addon PASS. Host Typert PASS.
+- Import e2e→desktop (TS6059/6307) corrigido: `persona-e2e/src/installed-cdp.ts` (cópia local). `installed-desktop.ts` importa `./installed-cdp.ts`.
+- `window-frame.dll` opcional; `--portable-installer` = NSIS stock per-user (sem DLL, sem elevação). App: overlay Muse `#FAF3E4`/`#1E1526`. Branded NSIS = E4.
+
+### Parada
+host compiler 57.80s exit 2, árvore suja (publish #7 verde é worktree limpo):
+
+- `persona-core/src/governance/health.ts` TS6133 / TS2379 / TS2375 (`fix?:` vs `exactOptionalPropertyTypes`)
+- `persona-core/src/governance/recommend.ts` TS2379 / TS2322 (`sectorId` / `executorPersonaId`)
+
+Log: `C:\p8c\dir.log`. Spike: `persona-spec/spikes/packaging-win.md`. **[Rivet→Forge]** esses arquivos GOV são de vocês — sem typecheck verde não sai `--dir` nem Setup.
+
+### Comandos
+```
+pnpm exec vitest run apps/desktop/tests/win-package-policy.spec.ts
+ Test Files  1 passed (1) / Tests  4 passed
+pnpm exec tsc -p apps/desktop/tsconfig.host.json
+(exit 0)
+node scripts/persona/with-lock.mjs "Rivet D8 --dir" -- node --import tsx/esm apps/desktop/scripts/package-win.mjs --dir
+(exit 2; exePresent false)
+```
+
+### Fora
+- Path absoluto do Persona.exe: não existe. Probe: esperar o `--dir` depois do typecheck GOV.
+
+---
+
+
+## 03/11 19:34 — Instalador sem admin (parada) + feed GitHub falso + CDP Probe ✔
+
+### 1. Instalador sem admin — PARADO no que exige toolchain
+Mitigações prontas (sem admin):
+- Raiz curta `C:\pb` (junction; fallback `C:\p8`) + cache `C:\pbc` — contorna LongPaths.
+- Addon nativo: `findNativeAddonPrebuild` (reusa `.node` se existir).
+- Unsigned / `CSC_IDENTITY_AUTO_DISCOVERY=false` / winCodeSign off.
+- NSIS já per-user: `perMachine: false`, `allowElevation: false`, **`packElevateHelper: false`**. `installer.nsh` recusa all-users/HKLM.
+
+**Parada exata:** `Persona-Setup.exe` branded precisa de `window-frame.dll` compilado de `apps/desktop/installer/window-frame.cpp` com **VS C++ x86 + Windows SDK** (E4, admin). Não há prebuild no repo. `package-win --package` sai 2 e imprime o motivo. Não instalei / não elevei.
+
+`--dir` (Persona.exe unpacked) não precisa do DLL; ainda depende do host compiler + lock. Não relancei.
+
+### 2. Updates GitHub Releases (falso, sem publicar)
+- `personaGithubPublish` → owner `miguelltasso-dom` / repo `persona`.
+- `renderLatestYml` / `parseLatestYml` + HTTP local (`/stable/latest.yml`). Nada enviado ao GitHub.
+
+### 3. Probe Tier 2
+- `installedDesktopLaunch` + `waitForInstalledCdp`: argv `--remote-debugging-port` + homes temporários para um `Persona.exe` instalado/unpacked.
+- **[Rivet→Probe]** ligar isso em `startDesktop` quando houver exe. Sem exe nesta máquina.
+
+### Arquivos
+- `apps/desktop/src/{win-package-policy,github-releases-feed,installed-cdp}.ts`
+- `apps/desktop/scripts/{package-win.mjs,electron-builder-config.mjs,verify-post-install.ts}`
+- testes: `win-package-policy`, `github-releases-feed`, `installed-cdp`, verify-post-install, package-win
+- `persona-spec/spikes/packaging-win.md`
+
+### Comandos
+
+```
+pnpm exec vitest run apps/desktop/tests/github-releases-feed.spec.ts apps/desktop/tests/installed-cdp.spec.ts apps/desktop/tests/win-package-policy.spec.ts apps/desktop/tests/verify-post-install.spec.ts apps/desktop/tests/package-win.spec.ts
+ Test Files  5 passed (5)
+      Tests  9 passed (9)
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json
+(exit 0)
+```
+
+### Fora
+- Persona-Setup.exe / instalar / onboarding / desinstalar: bloqueado em E4 (window-frame.dll).
+- Fila item 1 parada como pedido; 2 e 3 entregues.
+
+---
+
+## 03/11 19:28 — Gasto + locais + Slack/Discord/ICS + soak + cold start ✔
+
+Fila de 5 itens, encadeada.
+
+### 1. Orçamento aplicado
+- `evaluateSpend` / `withSpendBudget` / `resolveRunner({ spend })`: tokens/mês, tokens/resposta, execuções/dia — persona **e** projeto.
+- Estouro → `ended.blocked` + `Precisa de você: … Aumente o limite, troque o modelo ou pause. Não há troca automática para outra conexão paga.`
+- 80% → `report.progress` contextual (sem modal). Sem fallback de provider.
+
+### 2. Modelos locais
+- Ollama `:11434/v1` e LM Studio `:1234/v1`. `detectLocalProviders` + etiqueta `local, sem custo`.
+- `resolveRunner({ spec: { kind:'dsh', provider:'ollama'|'lmstudio' } })` sem chave no Cofre. Fake HTTP.
+
+### 3. Slack / Discord / calendário
+- Eventos → Trigger (assunto = thread). Reply no channel de origem. ICS/CalDAV → `meta.dtstart` para rotinas.
+- Cofre: `slack` | `discord` | `caldav`. Sem token real.
+- **[Rivet→Forge]** `engine.receive` (Forge já tem telegram/email em 20:25). **[Rivet→Anvil]** poll + vault.
+
+### 4. Estabilidade
+- Soak acelerado 2 h (8 ticks × 15 min): 5 personas, spend, pool, 3 reconexões. rss delta < 80 MB; filhos 0 no fim.
+- Cold start: 3 custos cortados no boot padrão (updater 180→0, stack 90→0, welcome/mandatory 70→0 ms estimados). `skipUpdaterAtBoot` / `skipWelcomeAtBoot` — policy e Welcome não sobem; `automaticCheck` no-op.
+
+### 5. Preguiça
+- `runMinimalLaziness`: 2 cenários, modelo `haiku`. Suite scripted = strong. CLI real **não** rodada (congelada no Status). Hint da UI alimentada pelo scripted.
+
+### Arquivos
+- `persona-runners/src/resolve/spend-budget.ts`, `dsh/local.ts`, `sources/{slack,discord,calendar}.ts`, `connections.ts`, `resolve-runner.ts`, `laziness.ts`, `http-agent.ts`
+- `persona-usage/src/limits.ts`
+- `persona-vault/src/channel-providers.ts`
+- `apps/desktop/src/{cold-start,main}.ts`
+- `contracts/runner.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests packages/persona/persona-vault/tests packages/persona/persona-usage/tests apps/desktop/tests/cold-start.spec.ts apps/desktop/tests/resource-budget.spec.ts
+ Test Files  34 passed (34)
+      Tests  147 passed (147)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners persona-vault persona-usage
+persona-runners: OK in 13.3s
+persona-vault: OK in 4.7s
+persona-usage: OK in 4.7s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 42.8s
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json
+(exit 0)
+```
+
+### Fora / próximo
+- CLI real preguiça: congelada; scripted only.
+- Electron RSS ocioso/5 personas: não medido (trava). Soak é in-process.
+- Fila desta rodada fechada.
+
+---
+
+## 03/11 19:12 — Gateway MCP + acting + Telegram/e-mail + orçamento ✔
+
+Fila Atlas (4 itens, encadeada).
+
+### 1. Gateway MCP endurecido
+- `createMcpGateway`: URL/token secretos por turno (`mcp://turn/<id>/<token>`). `list` só o mandato (`none|read|write`). Recusa token de outro turno, ferramenta fora do grant, e injeção (`mcp://turn/` / `Authorization: Bearer` no conteúdo de arquivo).
+- Sensível (write fora do worktree, rede, credenciais, envio para fora, browser_act / computer click|type) → `approvalId` + `Precisa de você`. `approve` executa **exatamente** os args. Testes adversariais no spec.
+
+### 2. Browser / computer como ferramentas de persona
+- `persona_browser_{open,read,act}` e `persona_computer_{screenshot,click,type}` com `none|read|write`. Ações externas passam pelo gate. Ports injetados (sem Electron no teste). Harness `packages/browser-use` / `computer-use` continuam registros Cordis — wrapper é o da persona.
+
+### 3. Fontes Telegram / e-mail
+- `telegramUpdateToTrigger` / `emailMessageToTrigger` → `Trigger` (assunto = thread; `channel` = origem). Fake `node:http` + lista IMAP; sem token real. Reply no channel de origem.
+- Cofre: providers `telegram` | `imap` | `smtp` (selados). **[Rivet→Forge]** `engine.receive(trigger)`. **[Rivet→Anvil]** `vault.get(personId, 'telegram'|'imap'|'smtp')` e `replyTelegram` / `replyEmail`.
+
+### 4. Orçamento / ERR_INSUFFICIENT_RESOURCES
+- Caps: 5 turnos de modelo, 6 filhos (CLIs + 1 host), 8 conexões (= pool). `wouldExceedTurnBudget` / `createProcessBudget`.
+- Desktop: `applyChromiumResourceBudget` → `renderer-process-limit=4` antes do `ready`.
+- Amostra Node (este processo): rss 74 MB, heap 8 MB. Electron ocioso / 5 personas **não** medidos nesta rodada (trava + CLI real congelada). Causa do ERR: sockets/renderers Chromium (Probe/Prism 18:48), não o host Node único.
+
+### Arquivos
+- `persona-runners/src/mcp/{gateway,acting-tools}.ts`, `sources/{telegram,email,outbound-tools,vault-keys}.ts`, `resolve/{tool-level,resource-budget}.ts`, `index.ts`
+- `persona-vault/src/channel-providers.ts`
+- `apps/desktop/src/{resource-budget,main}.ts`
+- testes: `mcp-gateway`, `sources`, `resource-budget` (runners + desktop), `vault`, `tool-level`
+- `contracts/runner.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-runners/tests packages/persona/persona-vault/tests
+ Test Files  26 passed (26)
+      Tests  125 passed (125)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-runners persona-vault
+persona-runners: OK in 19.9s
+persona-vault: OK in 13.0s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 60.5s
+```
+
+```
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+(exit 0)
+```
+
+```
+pnpm exec tsc -p tsconfig.host.json --noEmit | apps/desktop/
+(vazio — sem erro desktop)
+```
+
+### Fora / próximo
+- Forge ainda não liga `engine.receive` nas fontes (contrato escrito).
+- Anvil ainda não chama `wouldExceedTurnBudget` no startTurn.
+- RSS Electron ocioso/5 personas: precisa do app sob trava.
+- Fila Atlas desta rodada fechada.
+
+---
+
 ## 03/11 19:08 — DSH API-key (Cofre) + D8 identidade sem toolchain ✔
 
 ### 1. DSH direto com chave no Cofre (Atlas 2)

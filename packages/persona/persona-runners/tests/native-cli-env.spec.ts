@@ -19,6 +19,7 @@ describe('native CLI login env', () => {
   it('unsets isolation by default and keeps an explicit config dir', () => {
     expect(nativeSessionEnv().CLAUDE_CONFIG_DIR).toBeNull()
     expect(nativeSessionEnv().CODEX_HOME).toBeNull()
+    expect(nativeSessionEnv().GROK_HOME).toBeNull()
     expect(nativeSessionEnv({ CLAUDE_CONFIG_DIR: 'C:/iso' }).CLAUDE_CONFIG_DIR).toBe('C:/iso')
   })
 
@@ -26,11 +27,13 @@ describe('native CLI login env', () => {
     const env: NodeJS.ProcessEnv = {
       CLAUDE_CONFIG_DIR: 'C:/spike',
       CODEX_HOME: 'C:/spike-codex',
+      GROK_HOME: 'C:/spike-grok',
       HOME: '',
     }
     restoreNativeCliLogin(env)
     expect(env.CLAUDE_CONFIG_DIR).toBeUndefined()
     expect(env.CODEX_HOME).toBeUndefined()
+    expect(env.GROK_HOME).toBeUndefined()
     expect(env.HOME).toBeUndefined()
 
     const isolated: NodeJS.ProcessEnv = {

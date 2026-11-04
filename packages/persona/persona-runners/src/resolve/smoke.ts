@@ -94,45 +94,46 @@ export async function runResolverSmoke(options: ResolverSmokeOptions = {}): Prom
   })
   const rows: ResolverSmokeRow[] = []
   for (const card of cards) {
-    if (card.id === 'dsh') continue
-    if (options.only !== undefined && !options.only.includes(card.id)) continue
+    const cli = card.id
+    if (cli === 'dsh' || cli === 'ollama' || cli === 'lmstudio') continue
+    if (options.only !== undefined && !options.only.includes(cli)) continue
     if (!card.installed) {
-      const row: ResolverSmokeRow = { id: card.id, execs: 0, skipped: 'cli_not_found' }
+      const row: ResolverSmokeRow = { id: cli, execs: 0, skipped: 'cli_not_found' }
       if (card.error !== undefined) row.error = card.error
       rows.push(row)
       continue
     }
     if (!card.loggedIn) {
       rows.push({
-        id: card.id,
+        id: cli,
         execs: 0,
-        error: { code: 'not_logged_in', message: card.loginHint ?? `CLI ${card.id} não está logada.` },
+        error: { code: 'not_logged_in', message: card.loginHint ?? `CLI ${cli} não está logada.` },
       })
       continue
     }
-    const spec: PersonaRunnerSpec = { kind: 'cli', cli: card.id, model: CHEAP[card.id] }
+    const spec: PersonaRunnerSpec = { kind: 'cli', cli, model: CHEAP[cli] }
     try {
       const runner = await resolveRunner({
         spec,
         permissionMode: 'allow-once',
         autonomy: 'act',
-        ...(options.runtimes?.[card.id] === undefined ? {} : { runtime: options.runtimes[card.id] }),
+        ...(options.runtimes?.[cli] === undefined ? {} : { runtime: options.runtimes[cli] }),
         ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
         infra: { wait: async () => undefined },
       })
       const handle = await runner.start({
-        ticketId: `smoke-${card.id}`,
+        ticketId: `smoke-${cli}`,
         assignmentId: 'resolver-round',
         personaId: 'smoke',
         cwd: options.cwd ?? process.cwd(),
         prompt: RESOLVER_SMOKE_PROMPT,
-        model: CHEAP[card.id],
+        model: CHEAP[cli],
         permissionMode: 'allow-once',
       })
       const timing = await firstToken(runner.stream(handle), options.real === true ? 60_000 : 2_000)
       const usage = await runner.usage(handle)
       const row: ResolverSmokeRow = {
-        id: card.id,
+        id: cli,
         execs: 1,
         done: timing.done,
         usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens },
@@ -144,11 +145,11 @@ export async function runResolverSmoke(options: ResolverSmokeOptions = {}): Prom
       rows.push(row)
     } catch (error) {
       if (error instanceof RunnerResolveError) {
-        rows.push({ id: card.id, execs: 0, error: { code: error.code, message: error.message } })
+        rows.push({ id: cli, execs: 0, error: { code: error.code, message: error.message } })
         continue
       }
       rows.push({
-        id: card.id,
+        id: cli,
         execs: 0,
         error: { code: 'failed', message: error instanceof Error ? error.message : String(error) },
       })

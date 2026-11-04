@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DRAFT_PERSONA_PROMPT,
+  STRUCTURE_PROMPT,
   aiMemoryEnabled,
   memoryNamespace,
   shouldCaptureAiMemory,
@@ -37,6 +38,34 @@ describe('S4 conversational drafts', () => {
     expect(team.map(item => item.name)).toEqual(['Nina', 'Sol'])
     expect(team.every(item => item.systemRoles.length === 0)).toBe(true)
     expect(fallbackDraft('codex reviewer').runnerCli).toBe('codex')
+  })
+
+  it('GOV-4 recommendStructure keeps one persona per function, never per task', async () => {
+    const runner = createScriptedRunner({
+      turns: [{
+        events: [{
+          type: 'delta',
+          at: 't',
+          text: '{"company":"saas","sectorNames":["Produto","Suporte"],"recurring":["triage","fazer landing hoje"]}',
+        }],
+      }],
+    })
+    const rec = await createDraftDriver({ runner }).recommendStructure('Somos um SaaS. Setores: Produto, Suporte. Toda semana: triage, fazer landing hoje')
+    expect(STRUCTURE_PROMPT).toMatch(/nunca por tarefa/u)
+    expect(rec.company).toBe('saas')
+    expect(rec.personas.length).toBeGreaterThanOrEqual(3)
+    expect(rec.personas.length).toBeLessThanOrEqual(5)
+    expect(rec.personas.every(row => row.continuous)).toBe(true)
+    expect(rec.personas.some(row => /landing/iu.test(row.title))).toBe(false)
+    expect(rec.tasks.some(item => /landing/iu.test(item))).toBe(true)
+  })
+
+  it('GOV-4 silent runner falls back to parseStructureAsk of the ask', async () => {
+    const runner = createScriptedRunner({ turns: [{ events: [] }] })
+    const rec = await createDraftDriver({ runner }).recommendStructure('Somos um escritório. Setores: Jurídico. Toda semana: pauta')
+    expect(rec.company).toBe('escritorio')
+    expect(rec.personas.length).toBeGreaterThanOrEqual(3)
+    expect(rec.personas.length).toBeLessThanOrEqual(5)
   })
 })
 

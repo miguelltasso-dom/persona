@@ -16,6 +16,9 @@
     },
     {
       "path": "../persona-engine"
+    },
+    {
+      "path": "../persona-usage"
     }
   ]
 }

@@ -29,3 +29,12 @@ export {
   openInviteToken,
   sealInviteToken,
 } from './invite-token.ts'
+
+export {
+  VAULT_CALDAV,
+  VAULT_DISCORD,
+  VAULT_IMAP,
+  VAULT_SLACK,
+  VAULT_SMTP,
+  VAULT_TELEGRAM,
+} from './channel-providers.ts'

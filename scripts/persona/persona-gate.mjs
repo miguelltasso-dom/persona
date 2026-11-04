@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { tokenGateStep } from './token-gate-step.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const skipSmoke = process.argv.includes('--skip-smoke')
@@ -56,9 +57,15 @@ for (const line of checkText.split(NL)) {
 if (failingFiles.size > 0) console.log(`PERSONA_FILES=${[...failingFiles].join(',')}`)
 log(`check-pkg over ${names.length} packages: ${failing.size === 0 ? 'ok' : `failing = ${[...failing].join(', ')}`}`)
 
+// OPT-2 token gate (Tally): informative by default; PERSONA_TOKEN_GATE=block makes it fail the gate. 60 s cap, never hangs the gate.
+if (tokenGateStep({ run, log }).failed) failing.add('persona-engine')
+
 const bundle = run('pnpm', ['--filter', '@deepseek-ai/dsh-client-ui-persona', 'run', 'bundle'])
 if (bundle.status !== 0) {
   log(`client bundle FAILED:${NL}${`${bundle.stdout}${bundle.stderr}`.split(NL).filter((line) => /error|purity|Error/i.test(line)).slice(0, 6).join(NL)}`)
+  // the bundler does not name the CSS file lightningcss rejects (check-pkg never sees CSS): find it and print it (04/11: three red cycles)
+  const css = run('node', ['scripts/persona/find-bad-css.mjs'])
+  if (css.status === 0 && css.stdout.trim() !== '[]') log(`CSS rejected by lightningcss (fix this file):${NL}${css.stdout.trim().slice(0, 700)}`)
   failing.add('client-ui-persona')
 } else log('client bundle ok')
 

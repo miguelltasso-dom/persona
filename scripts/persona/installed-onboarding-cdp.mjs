@@ -19,6 +19,7 @@ import {
   completeOnboardingOverlay,
   chat,
 } from '../../packages/persona/persona-e2e/src/real-app-session.ts'
+import { geralComposerLocator } from '../../packages/persona/persona-e2e/src/geral-composer.ts'
 import { watchConsole } from '../../packages/persona/persona-e2e/src/console-tripwire.ts'
 import { osScreenshot } from '../../packages/persona/persona-e2e/src/desktop-host.ts'
 import { ARTIFACTS_DIR } from '../../packages/persona/persona-e2e/src/paths.ts'
@@ -55,7 +56,7 @@ try {
   await completeOnboardingOverlay(desktop.page)
 
   await assertNotHarnessShell(desktop.page)
-  await desktop.page.getByPlaceholder(chat.composerPlaceholder).waitFor({ state: 'visible', timeout: 60_000 })
+  await geralComposerLocator(desktop.page).first().waitFor({ state: 'visible', timeout: 60_000 })
 
   const rendererPath = join(ARTIFACTS_DIR, 'installed-onboarding-renderer.png')
   await desktop.page.screenshot({ path: rendererPath, animations: 'disabled' })

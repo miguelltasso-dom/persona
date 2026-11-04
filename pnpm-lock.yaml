@@ -13768,6 +13768,9 @@ importers:
 
   packages/persona/persona-engine:
     dependencies:
+      '@deepseek-ai/dsh-brand':
+        specifier: workspace:*
+        version: link:../../util/brand
       '@deepseek-ai/dsh-persona-core':
         specifier: workspace:*
         version: link:../persona-core

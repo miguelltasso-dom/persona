@@ -586,3 +586,59 @@ bundle (with-lock) → Build complete, 99 files
     - o texto pt e en;
     - o aceite em E2E nos 3 caminhos, todos com ação.
   - O UX-PHASE item 1 foi reescrito com esse estado real.
+- **13:20, item 4 do UX-PHASE com o Lumen:** `persona-spec/design/DECISIONS-SPEC.md`. Causa do UX-01: a Visão geral recebe `attentionTitles: string[]`, sem id. A spec traz uma fonte única `Decision[]` com dedupe por id no store; o mesmo ciclo nas duas telas (o carimbo e os 750 ms que já existem, saída de todas as listas e contadores juntos, desfazer só se `reversible`, foco e aria-live); "Aprovar" direto para o risco baixo e "Revisar" com `focus=<id>`; contratação só com o porquê. Entregue ao Lumen; do Anvil precisa `id`, `blocking`, `risk` e `reversible` no host.
+
+## 2026-11-04 13:40 — Revisão do 1º uso no app instalado (item 4 do Atlas): `persona-spec/design/FIRST-RUN-REVIEW.md`
+
+- **Pacote `b3a4e5b933`**, perfil limpo, sem IA conectada. **O boot funciona**: o ENOENT sumiu, o onboarding vai do 1 ao 5 e há 0 erros de console.
+- **Achados:**
+  - **FR-1 P0 (Rivet):** a splash do harness de origem, "HARNESS · Loading plugins…" em inglês e fundo branco, por 17 s.
+  - **FR-2 P0 (Prism):** "Pedir agora" não muda o passo 5; a entrega falha no #geral (o `RunErrorCard` "motor não disponível") e o onboarding não diz nada. É a prova da FIRST-DELIVERY-SPEC.
+  - **FR-3 P1:** a 2ª mensagem fica 90 s sem resposta e sem aviso.
+  - **FR-4 P1:** 17 a 19 s até o passo 1.
+  - **FR-5 P2:** o avatar do cartão de erro sai como inicial.
+  - **FR-6 a11y:** listas inválidas nos passos 3 e 5.
+- **Funcionou de ponta a ponta:** o `RunErrorCard` no app instalado, o glossário, o passo "Primeira entrega".
+- **Limitação:** o escuro não foi testado (o app segue o `nativeTheme`). Corrigi também um falso positivo do meu script.
+- Entregue ao Prism e ao Rivet.
+- **13:55, specs dos 4 pontos do Prism:** `persona-spec/design/UX-PHASE-PRISM-SPEC.md` (seletor de DM e "Quem responde" com a dica de 1ª vez; "Estou fora" com o `Switch`, `ChoiceCards` e a consequência; chip de autonomia e "O que {persona} pode fazer"; balão tracejado do steer). Só primitivos existentes. Entregue ao Prism.
+- **14:05, caminho feliz do 1º uso:** o fake CLI do Probe só responde versão e auth (não faz turno), então não mede a 1ª entrega aceita. Perguntei ao Keel: (a) `PERSONA_REAL_TALK` com a conta real (precisa de ok), (b) o Probe estender o fake, (c) esperar o dogfood real. Não rodo nada com conta real sem ok.
+- **14:10, decisão do Keel:** opção (b). O Probe estende o fake-cli para responder um turno curto (com latência e, se der, modo de falha por env), e o pedido foi combinado com ele. O `first-run.mts` já aceita `MUSE_FAKE_CLI=1` (`withFakeCliOnPath`) e marca a ativação ("Aceitar"). Vou medir na execução real única do V1-P0-5 em vez de gastar outra. O encadeamento está rearmado para o próximo pack (`b3a4e5b933` + overlay), sem o fake, para comparar com FR-1 e FR-2.
+- **14:20, caminho feliz com o fake novo:** o Probe estendeu o fake (`FAKE_CLI_TURN_MS`, `FAKE_CLI_FAIL`, `FAKE_CLI_REPLY`…) e o meu vigia rodou sozinho. Deu o mesmo resultado sem IA (passo 3 com tudo "Não detectada"). Causa: `mergeLoginShellEnvironment` (desktop) põe o PATH do login shell por cima do herdado, e o fake no PATH não chega ao app instalado. É limitação do teste, não do produto. Propus ao Probe e ao Rivet uma `PERSONA_E2E_EXTRA_PATH` prefixada depois do merge, só para teste.
+- **14:30, NSIS `b3a4e5b933`:** FR-1 confirmado por medição própria (1º quadro é a splash da Persona). O tempo até o passo 1 caiu de 17,5–19,2 s para 14,3 s. P3 novo: a splash usa a fonte do sistema, e o `color-contrast` ×1 continua. O `FIRST-RUN-REVIEW` foi atualizado.
+- **14:40, FR-1b com precisão:** o `color-contrast` da splash é a splash antiga do harness, que ficou no DOM por baixo ("Loading plugins…" 3.7:1, lida pelo leitor de tela em inglês). Correção entregue ao Rivet: não renderizar no perfil persona. O `first-run.mts` ganhou o detalhe do axe (seletor e cores) e o `MUSE_ONLY_BOOT=1`.
+- **14:50, FR-6 com seletores exatos:** no passo 3, o Notice `role=note` está dentro do `ul.harnessList`; no passo 5, o `li` fica dentro do `div` do `StaggerEntrance` (**meu**), e a lista tem `aria-label` = nome do usuário. Corrigi o meu primitivo (`as="li"` e `className`, teste 2/2) e entreguei ao Prism o resto.
+- **15:05, SW-7 (D-064) entregue ao Lumen:** `persona-spec/design/SIMPLE-WORKSPACE-SPEC.md`.
+  - Glossário novo: rascunho, mudanças, Aplicar na pasta, Desfazer, versão de antes.
+  - O estado "Num rascunho" na faixa da equipe.
+  - Revisar com antes e depois por tipo (texto, planilha, imagem, PDF).
+  - Aplicar com os casos do Windows (arquivo aberto, OneDrive), Desfazer por 30 dias no Histórico, e o conflito com 3 escolhas.
+  - Configurações avançadas só com pasta git.
+  - Tabela trocando as chaves atuais do `review`, que hoje dizem "diff", "integrar", "worktree e a branch".
+  - Aceite com a varredura de jargão.
+- **15:05, caminho feliz:** o Probe entregou o fake que faz turno inteiro e também pina `OAR_*_BIN`, que pode contornar o merge do PATH do login shell. Minha medição no instalado está na fila do lock, atrás do Probe e do Rivet.
+- **15:20, `FileChangeRow` (SW-7) pronto:** primitivo com `fileTypeOf` e `summarizeFileChanges` (resumo em palavras), os ícones novos `file`, `fileText` e `fileSheet`, o apagado com risco e frase (nunca só cor), e expandir acessível. Testes 4/4. Na página viva do DS, com axe 0 nas 3 variantes. Entregue ao Lumen.
+- **15:40, caminho feliz no instalado (2ª tentativa, com o fake novo + `OAR_*_BIN`):** continua tudo "Não detectada" e "motor não disponível". Nem o PATH nem as `OAR_*` herdadas parecem chegar ao processo que detecta as ferramentas. **Correção (Probe, 15:50):** não há allowlist de env, porque no Windows o `hostEnvironment` é o `process.env`. A minha hipótese estava errada, e a causa real está sendo medida pelo Probe com o `FAKE_CLI_LOG`. Confirmado ao Probe e ao Rivet, com a proposta de o desktop repassar explicitamente o PATH extra e as `OAR_*` em modo de teste. Fica bloqueado nisso.
+- **16:00, BR-P1 para o Brush:** `persona-spec/design/BR-P1-SPEC.md`.
+  - **P1, piscar:** frames PNG de 1536 com o mesmo enquadramento da `disponivel` (é o que o `PersonaTeamFigure` já sobrepõe), com as 6 poses de vida nos 12 extras e a ordem por uso nos modelos (amostra: o tamanduá).
+  - **P2:** 5 ilustrações de estado (`empty-sem-ia` primeiro, do P0) e os ícones de Ajuda e Novidades.
+  - **P3:** 4 animais novos (mico-leão-dourado, preguiça, tatu-bola, arara-azul), com amostra.
+  - Nenhum fundo novo, pelo teto de 10 MiB.
+  - Anotado o D-065: a trava `check` com 2 vagas para check-pkg e vitest.
+
+**16:25, amostra BR-P1 do tamanduá (revisão por pixel e no tamanho real):**
+- **`blink`: aprovado.** Só os olhos mudam (0,25%), a caixa opaca é igual à da base e o arquivo tem 1,26 MB.
+- **`tail` (orelha): ajustar a amplitude.** A 188 px ela anda ~1 px.
+- **Conferido no código:** a troca de frame é por `steps(1)`, sem fantasma; a respiração fica no wrapper; o `build-assets` recorta a família com o mesmo box.
+- **Nota para todo o lote:** traço solto ameaixado some no escuro.
+- **Faltam para fechar a amostra:** `acenando` + `pensando-1/2/3`.
+- Detalhes: BR-P1-SPEC §Revisões.
+- **D-067 conferido:** o harness do instalado já sobe com porta livre e home por execução.
+
+**16:40, amostra P3 do mico-leão-dourado:**
+- **Cara e pose aprovadas.**
+- **Antes do kit, ajustar:**
+  - a saturação do pelo: mediana 0,72, quando a casa vai até 0,53;
+  - o avatar, que deve ser 1024² (eu tinha especificado 256 por engano; corrigido na spec);
+  - a pose, que veio em PNG de paleta (P) e precisa ser RGBA.
+- **Prioridade lembrada ao Brush:** a `empty-sem-ia` (P0) vem antes do kit P3.

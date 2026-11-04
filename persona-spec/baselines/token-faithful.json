@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "origin": "estimate",
+  "note": "Faithful scripted runner (persona-engine bench/token-faithful). Counts come from the real prompt composers over Padaria Lua fixtures; provider cache = longest common prefix; real CLI runs stay opt-in.",
+  "optimized": [
+    {
+      "id": "geral-simple",
+      "tokens": 501,
+      "freshTokens": 501,
+      "costMicroUsd": 1969,
+      "calls": 1,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "multi-review",
+      "tokens": 1417,
+      "freshTokens": 1417,
+      "costMicroUsd": 3296,
+      "calls": 3,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "idle-routines",
+      "tokens": 0,
+      "freshTokens": 0,
+      "costMicroUsd": 0,
+      "calls": 0,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "initiative-30",
+      "tokens": 0,
+      "freshTokens": 0,
+      "costMicroUsd": 0,
+      "calls": 0,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "initiative-30-busy",
+      "tokens": 1746,
+      "freshTokens": 1746,
+      "costMicroUsd": 2371,
+      "calls": 5,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "padaria-lua",
+      "tokens": 2488,
+      "freshTokens": 2488,
+      "costMicroUsd": 7950,
+      "calls": 3,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "dia-padaria",
+      "tokens": 5655,
+      "freshTokens": 3347,
+      "costMicroUsd": 11603,
+      "calls": 9,
+      "cacheHitRate": 0.421,
+      "prefixHitRate": 1,
+      "quality": 1
+    }
+  ],
+  "legacy": [
+    {
+      "id": "geral-simple",
+      "tokens": 983,
+      "freshTokens": 580,
+      "costMicroUsd": 2510,
+      "calls": 2,
+      "cacheHitRate": 0.418,
+      "prefixHitRate": 0.922,
+      "quality": 1
+    },
+    {
+      "id": "multi-review",
+      "tokens": 1928,
+      "freshTokens": 1928,
+      "costMicroUsd": 9424,
+      "calls": 3,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "idle-routines",
+      "tokens": 23931,
+      "freshTokens": 4088,
+      "costMicroUsd": 61388,
+      "calls": 99,
+      "cacheHitRate": 0.974,
+      "prefixHitRate": 1,
+      "quality": 1
+    },
+    {
+      "id": "initiative-30",
+      "tokens": 21313,
+      "freshTokens": 21313,
+      "costMicroUsd": 97482,
+      "calls": 30,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "initiative-30-busy",
+      "tokens": 24874,
+      "freshTokens": 23235,
+      "costMicroUsd": 108105,
+      "calls": 35,
+      "cacheHitRate": 0.071,
+      "prefixHitRate": 1,
+      "quality": 1
+    },
+    {
+      "id": "padaria-lua",
+      "tokens": 2945,
+      "freshTokens": 2945,
+      "costMicroUsd": 13057,
+      "calls": 3,
+      "cacheHitRate": 0,
+      "prefixHitRate": 0,
+      "quality": 1
+    },
+    {
+      "id": "dia-padaria",
+      "tokens": 8366,
+      "freshTokens": 4291,
+      "costMicroUsd": 22275,
+      "calls": 11,
+      "cacheHitRate": 0.514,
+      "prefixHitRate": 0.98,
+      "quality": 1
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 // Real Persona profile walkthrough + screenshots (B9). Run under lock:
 // node scripts/persona/with-lock.mjs "Lumen real shots" -- node scripts/persona/real-app-shots.mjs
 import { spawn, execFileSync } from 'node:child_process'
+import { freePort } from './free-port.mjs'
 import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { completePersonaOnboardingOverlay } from './playwright-onboarding.mjs'
@@ -9,12 +10,12 @@ const root = 'C:/Users/migue/dev/persona'
 const require = createRequire(`${root}/packages/persona/persona-e2e/package.json`)
 const { chromium } = require('playwright')
 const devSeed = process.env.PERSONA_DEV_SEED === '1'
-const home = `${root}/.maestri/tmp/real-shot-home`
+const home = `${root}/.maestri/tmp/real-shot-home-${process.pid}`
 const outDir = `${root}/.maestri/tmp/shots/real`
 mkdirSync(home, { recursive: true })
 mkdirSync(outDir, { recursive: true })
 const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
-const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
+const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open', '--port', String(await freePort())], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
 let out = ''
 let browser
 

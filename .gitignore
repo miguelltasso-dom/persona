@@ -58,3 +58,6 @@ native/system/test/bin/
 packages/persona/*/src/**/*.js
 packages/persona/*/src/**/*.js.map
 packages/persona/*/src/**/*.d.ts.map
+
+# Persona: local dev state (miniflare/wrangler) never goes to git
+.wrangler/

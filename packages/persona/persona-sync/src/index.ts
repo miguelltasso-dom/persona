@@ -2,7 +2,7 @@
 
 export { PACKAGE_SYNC } from './identity.ts'
 export { WorkspaceCipher } from './cipher.ts'
-export { HttpTransport, MemoryTransport } from './transport.ts'
+export { HttpTransport, MemoryTransport, SyncTransportError } from './transport.ts'
 export type { PushResult, SyncTransport } from './transport.ts'
 export { SyncClient, isLocalOnlyStream } from './client.ts'
 export type { SyncClientOptions } from './client.ts'

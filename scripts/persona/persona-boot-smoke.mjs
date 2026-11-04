@@ -10,11 +10,12 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { freePort } from './free-port.mjs'
 
 const args = process.argv.slice(2)
 const option = (name, fallback) => { const index = args.indexOf(name); return index >= 0 && args[index + 1] !== undefined ? args[index + 1] : fallback }
 const root = resolve(option('--root', resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')))
-const port = option('--port', '3291')
+const port = option('--port', String(await freePort()))
 const hostTimeoutMs = Number(option('--host-timeout-ms', process.env.PERSONA_BOOT_HOST_TIMEOUT_MS ?? '180000'))
 const home = mkdtempSync(join(tmpdir(), 'persona-smoke-'))
 const log = (message) => console.log(`[boot-smoke] ${message}`)

@@ -95,7 +95,7 @@ it('two desks: invite, #geral converges, DM/task stay local, B offline/resume, r
 
   const issued = await fetchImpl(`http://edge.test/w/${WORKSPACE}/invites`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-persona-actor': 'ana' },
     body: JSON.stringify({
       id: 'inv-ab',
       token: 'tok-ab',
@@ -183,6 +183,7 @@ it('two desks: invite, #geral converges, DM/task stay local, B offline/resume, r
 
   const revoked = await fetchImpl(`http://edge.test/w/${WORKSPACE}/invites/inv-ab/revoke`, {
     method: 'POST',
+    headers: { 'x-persona-actor': 'ana' },
   })
   expect(revoked.ok).toBe(true)
 

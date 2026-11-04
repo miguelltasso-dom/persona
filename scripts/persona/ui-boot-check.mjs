@@ -3,6 +3,7 @@
 // .maestri/tmp/shots/. Run under the lock: node scripts/persona/with-lock.mjs "<you> ui boot" -- node scripts/persona/ui-boot-check.mjs
 // Gate: zero 'did not activate' warnings and zero console errors before any UI task is reported done.
 import { spawn, execFileSync } from 'node:child_process'
+import { freePort } from './free-port.mjs'
 import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { completePersonaOnboardingOverlay } from './playwright-onboarding.mjs'
@@ -10,13 +11,13 @@ import { completePersonaOnboardingOverlay } from './playwright-onboarding.mjs'
 const root = 'C:/Users/migue/dev/persona'
 const require = createRequire(`${root}/packages/persona/persona-e2e/package.json`)
 const { chromium } = require('playwright')
-const home = `${root}/.maestri/tmp/keel-shot-home`
+const home = `${root}/.maestri/tmp/keel-shot-home-${process.pid}`
 const outDir = `${root}/.maestri/tmp/shots`
 mkdirSync(home, { recursive: true }); mkdirSync(outDir, { recursive: true })
 // Default seeded channel (Probe/design-shots); production-like gate: PERSONA_BOOT_NO_DEV_SEED=1
 const devSeed = process.env.PERSONA_BOOT_NO_DEV_SEED !== '1'
 const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
-const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
+const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open', '--port', String(await freePort())], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
 let out = ''
 let browser
 const finish = async (code, note) => {

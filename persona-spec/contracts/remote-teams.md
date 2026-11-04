@@ -24,7 +24,7 @@ Dois desks (homes isolados) + um Worker local. Deploy real = E11 (Atlas).
 | `GET /w/:id/webhooks/github` | deliveries |
 | `GET/PUT /w/:id/blobs/:key` | R2; `mayUpload` ou `403 SYNC_REFUSED` |
 
-Header `x-persona-actor` em `sync/append` e `sync/after`. Sem header = caminho antigo (testes). Com header de membro revogado = `403 ACCESS_REVOKED`. Estranho com membros ativos = `403 NOT_A_MEMBER`. Cliente desktop: `persona-sync` `SyncClient` + `HttpTransport` / `WorkspaceCipher`.
+Header `x-persona-actor` em `sync/append` e `sync/after`; após o primeiro dono, ausência de membro = `403 NOT_A_MEMBER`. Membro revogado = `403 ACCESS_REVOKED`; canal fora do grant = `403 CHANNEL_NOT_GRANTED`. Só o dono emite e revoga convites. `POST /w/:id/invites/redeem` recebe `{token, actor}` no corpo; o edge persiste somente o digest do token. Cliente desktop: `persona-sync` `SyncClient` + `HttpTransport` / `WorkspaceCipher`. A composição dos apps e os Remotes estão em `remote-team.md`.
 
 ## O que nunca sobe
 

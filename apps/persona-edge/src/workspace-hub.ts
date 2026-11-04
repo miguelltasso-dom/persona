@@ -55,45 +55,65 @@ export class WorkspaceHub implements DurableObject {
       return Response.json({ ok: true, workspaceHub: String(this.state.id), workspaceId })
     }
     if (rest[0] === 'sync' && request.headers.get('Upgrade') === 'websocket') {
-      return this.acceptSocket(url)
+      const denied = this.denyStream(request, url.searchParams.get('streamId') ?? '')
+      if (denied !== undefined) return denied
+      return this.acceptSocket(url, request.headers.get('x-persona-actor') ?? '')
     }
     try {
       if (rest[0] === 'sync' && rest[1] === 'append' && request.method === 'POST') {
         const denied = this.denyActor(request)
         if (denied !== undefined) return denied
         const envelope: SyncEnvelope = await request.json()
+        if (envelope.workspaceId !== workspaceId) {
+          return Response.json({ status: 'refused', code: 'WORKSPACE_MISMATCH', seq: 0 }, { status: 403 })
+        }
+        const streamDenied = this.denyStream(request, envelope.streamId)
+        if (streamDenied !== undefined) return streamDenied
         return this.append(envelope)
       }
       if (rest[0] === 'sync' && rest[1] === 'after' && request.method === 'GET') {
         const denied = this.denyActor(request)
         if (denied !== undefined) return denied
         const streamId = url.searchParams.get('streamId') ?? ''
+        const streamDenied = this.denyStream(request, streamId)
+        if (streamDenied !== undefined) return streamDenied
         const afterSeq = Number(url.searchParams.get('afterSeq') ?? '0')
         return Response.json({ envelopes: this.log.after(streamId, afterSeq) })
       }
       if (rest[0] === 'members' && request.method === 'POST' && rest.length === 1) {
         const actor: Actor = await request.json()
+        if (actor.workspaceId !== workspaceId) return Response.json({ code: 'WORKSPACE_MISMATCH' }, { status: 403 })
         return this.join(actor)
       }
       if (rest[0] === 'members' && rest[2] === 'revoke' && request.method === 'POST') {
+        const denied = this.denyOwner(request)
+        if (denied !== undefined) return denied
         return this.revokeMember(rest[1] ?? '')
       }
       if (rest[0] === 'members' && request.method === 'GET' && rest.length === 1) {
         return Response.json({ members: this.listMembers() })
       }
       if (rest[0] === 'invites' && request.method === 'POST' && rest.length === 1) {
+        const denied = this.denyOwner(request)
+        if (denied !== undefined) return denied
         const input: InviteInput = await request.json()
-        return this.issue(workspaceId, input)
+        return await this.issue(workspaceId, input)
+      }
+      if (rest[0] === 'invites' && rest[1] === 'redeem' && request.method === 'POST') {
+        const input: { token: string; actor: Actor } = await request.json()
+        return await this.redeem(workspaceId, input.token, input.actor)
       }
       if (rest[0] === 'invites' && rest[2] === 'redeem' && request.method === 'POST') {
         const actor: Actor = await request.json()
-        return this.redeem(workspaceId, rest[1] ?? '', actor)
+        return await this.redeem(workspaceId, rest[1] ?? '', actor)
       }
       if (rest[0] === 'invites' && rest[2] === 'revoke' && request.method === 'POST') {
+        const denied = this.denyOwner(request)
+        if (denied !== undefined) return denied
         return this.revoke(rest[1] ?? '')
       }
       if (rest[0] === 'invites' && rest.length === 2 && request.method === 'GET') {
-        const invite = this.getInviteByToken(workspaceId, rest[1] ?? '')
+        const invite = await this.getInviteByToken(workspaceId, rest[1] ?? '')
         return invite === undefined
           ? Response.json({ error: 'INVITE_INVALID' }, { status: 404 })
           : Response.json({ invite })
@@ -119,7 +139,16 @@ export class WorkspaceHub implements DurableObject {
     if (typeof message !== 'string') return
     const parsed: unknown = JSON.parse(message)
     if (typeof parsed !== 'object' || parsed === null || !('type' in parsed)) return
+    if (parsed.type !== 'resume' && parsed.type !== 'append') return
+    if (parsed.type === 'append' && (!('envelope' in parsed) || typeof parsed.envelope !== 'object'
+      || parsed.envelope === null || !('streamId' in parsed.envelope) || typeof parsed.envelope.streamId !== 'string')) return
     const body = parsed as WsIn
+    const actorId = this.state.getTags(ws).find(tag => tag.startsWith('actor:'))?.slice('actor:'.length) ?? ''
+    const streamId = body.type === 'resume' ? body.streamId : body.envelope.streamId
+    if (this.denyStream(new Request('http://edge.local/', { headers: { 'x-persona-actor': actorId } }), streamId) !== undefined) {
+      ws.close(1008, 'SYNC_REFUSED')
+      return
+    }
     switch (body.type) {
       case 'resume':
         for (const envelope of this.log.after(body.streamId, body.afterSeq)) {
@@ -141,14 +170,16 @@ export class WorkspaceHub implements DurableObject {
 
   /**
    * @param url - Query `streamId` / `deviceId` become hibernation tags.
+   * @param actorId - Authenticated desktop member; omitted only before workspace bootstrap.
    */
-  acceptSocket(url: URL): Response {
+  acceptSocket(url: URL, actorId: string = ''): Response {
     const pair = new WebSocketPair()
     const tags: string[] = []
     const streamId = url.searchParams.get('streamId')
     const deviceId = url.searchParams.get('deviceId')
     if (streamId !== null && streamId.length > 0) tags.push(`stream:${streamId}`)
     if (deviceId !== null && deviceId.length > 0) tags.push(`device:${deviceId}`)
+    if (actorId !== '') tags.push(`actor:${actorId}`)
     this.state.acceptWebSocket(pair[1], tags)
     return new Response(null, { status: 101, webSocket: pair[0] })
   }
@@ -187,6 +218,11 @@ export class WorkspaceHub implements DurableObject {
   broadcast(envelope: SyncEnvelope): void {
     const payload = JSON.stringify({ type: 'envelope', envelope })
     for (const socket of this.state.getWebSockets(`stream:${envelope.streamId}`)) {
+      const actorId = this.state.getTags(socket).find(tag => tag.startsWith('actor:'))?.slice('actor:'.length) ?? ''
+      if (this.denyStream(new Request('http://edge.local/', { headers: { 'x-persona-actor': actorId } }), envelope.streamId) !== undefined) {
+        socket.close(1008, 'ACCESS_REVOKED')
+        continue
+      }
       socket.send(payload)
     }
   }
@@ -195,7 +231,7 @@ export class WorkspaceHub implements DurableObject {
    * @param workspaceId - Workspace.
    * @param input - Issue body.
    */
-  issue(workspaceId: string, input: InviteInput): Response {
+  async issue(workspaceId: string, input: InviteInput): Promise<Response> {
     const invite = issueInvite(input.now ?? Date.now(), {
       id: input.id,
       workspaceId,
@@ -203,7 +239,7 @@ export class WorkspaceHub implements DurableObject {
       grant: input.grant,
       ...(input.ttlMs === undefined ? {} : { ttlMs: input.ttlMs }),
     })
-    this.putInvite(invite)
+    this.putInvite({ ...invite, token: await inviteTokenDigest(invite.token) })
     return Response.json({ invite })
   }
 
@@ -212,8 +248,8 @@ export class WorkspaceHub implements DurableObject {
    * @param token - One-time token.
    * @param actor - Redeemer.
    */
-  redeem(workspaceId: string, token: string, actor: Actor): Response {
-    const invite = this.getInviteByToken(workspaceId, token)
+  async redeem(workspaceId: string, token: string, actor: Actor): Promise<Response> {
+    const invite = await this.getInviteByToken(workspaceId, token)
     if (invite === undefined) return Response.json({ error: 'INVITE_INVALID' }, { status: 404 })
     const next = redeemInvite(invite, Date.now(), actor)
     this.putInvite(next.invite)
@@ -243,6 +279,9 @@ export class WorkspaceHub implements DurableObject {
     const existing = this.getMember(actor.id)
     if (existing !== undefined && existing.revokedAt === undefined) {
       return Response.json({ member: existing })
+    }
+    if (this.hasActiveMembers() || existing?.revokedAt !== undefined || actor.workspaceRole !== 'owner' || actor.kind !== 'user') {
+      return Response.json({ status: 'refused', code: 'INVITE_REQUIRED' }, { status: 403 })
     }
     const member: WorkspaceMember = { actor, joinedAt: Date.now() }
     this.putMember(member)
@@ -341,10 +380,10 @@ export class WorkspaceHub implements DurableObject {
    * @param workspaceId - Workspace.
    * @param token - Token.
    */
-  getInviteByToken(workspaceId: string, token: string): Invite | undefined {
+  async getInviteByToken(workspaceId: string, token: string): Promise<Invite | undefined> {
     const body = firstBody(this.sql.all(
       'SELECT body FROM invite WHERE workspace_id = ? AND token = ?',
-      [workspaceId, token],
+      [workspaceId, await inviteTokenDigest(token)],
     ))
     return body === undefined ? undefined : JSON.parse(body) as Invite
   }
@@ -355,7 +394,11 @@ export class WorkspaceHub implements DurableObject {
    */
   denyActor(request: Request): Response | undefined {
     const actorId = request.headers.get('x-persona-actor')
-    if (actorId === null || actorId.length === 0) return undefined
+    if (actorId === null || actorId.length === 0) {
+      return this.hasActiveMembers()
+        ? Response.json({ status: 'refused', code: 'NOT_A_MEMBER', seq: 0 }, { status: 403 })
+        : undefined
+    }
     const member = this.getMember(actorId)
     if (member !== undefined && member.revokedAt !== undefined) {
       return Response.json({ status: 'refused', code: 'ACCESS_REVOKED', seq: 0 }, { status: 403 })
@@ -366,10 +409,38 @@ export class WorkspaceHub implements DurableObject {
     return undefined
   }
 
+  /** @param request - Management caller; a redeemed member cannot mint or revoke grants. */
+  denyOwner(request: Request): Response | undefined {
+    const denied = this.denyActor(request)
+    if (denied !== undefined) return denied
+    if (!this.hasActiveMembers()) return undefined
+    const actorId = request.headers.get('x-persona-actor')
+    if (actorId !== null && this.getMember(actorId)?.actor.workspaceRole === 'owner') return undefined
+    return Response.json({ status: 'refused', code: 'OWNER_REQUIRED', seq: 0 }, { status: 403 })
+  }
+
+  /** @param request - Member identity. @param streamId - Exact channel stream requested. */
+  denyStream(request: Request, streamId: string): Response | undefined {
+    const denied = this.denyActor(request)
+    if (denied !== undefined) return denied
+    if (!this.hasActiveMembers()) return undefined
+    const member = this.getMember(request.headers.get('x-persona-actor') ?? '')
+    if (member?.actor.workspaceRole === 'owner') return undefined
+    const invite = member?.inviteId === undefined ? undefined : this.getInvite(member.inviteId)
+    const grant = invite?.grant
+    if (grant !== undefined && grant.channelIds.some(channelId =>
+      streamId === `channel:${channelId}` || grant.projectIds.some(projectId => streamId === `project:${projectId}:channel:${channelId}`),
+    )) return undefined
+    return Response.json({ status: 'refused', code: 'CHANNEL_NOT_GRANTED', seq: 0 }, { status: 403 })
+  }
+
   /**
    * @param member - Redeemed or bootstrapped desktop.
    */
   putMember(member: WorkspaceMember): void {
+    if (member.revokedAt !== undefined) {
+      for (const socket of this.state.getWebSockets(`actor:${member.actor.id}`)) socket.close(1008, 'ACCESS_REVOKED')
+    }
     this.sql.exec(
       `INSERT INTO member (actor_id, workspace_id, invite_id, revoked_at, body)
         VALUES (?, ?, ?, ?, ?)
@@ -467,6 +538,11 @@ function firstBody(rows: Array<Record<string, string | number | null>>): string 
   if (rows.length === 0) return undefined
   const body = rows[0].body
   return typeof body === 'string' ? body : undefined
+}
+
+async function inviteTokenDigest(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 /**

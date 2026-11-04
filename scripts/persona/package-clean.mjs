@@ -24,7 +24,6 @@ const argv = process.argv.slice(2)
 const wantDir = argv.includes('--dir')
 const noInstall = argv.includes('--no-install')
 const noOverlay = argv.includes('--no-overlay')
-const resume = argv.includes('--resume')
 const commitFlag = argv.indexOf('--commit')
 const requested = commitFlag >= 0 ? argv[commitFlag + 1] : 'origin/persona-dev'
 
@@ -39,7 +38,7 @@ if (process.env.PERSONA_LOCK === 'build') {
 }
 if (process.env.PERSONA_LOCK !== 'pack') {
   const locked = spawnSync('node', [
-    join(main, 'scripts', 'persona', 'with-lock.mjs'), 'Rivet D8 package-clean', '--lock', 'pack', '--wait-max', String(90 * 60_000),
+    join(main, 'scripts', 'persona', 'with-lock.mjs'), 'Rivet D8 package-clean', '--lock', 'pack', '--exclusive', '--wait-max', String(90 * 60_000),
     '--', 'node', fileURLToPath(import.meta.url), ...argv,
   ], { cwd: main, stdio: 'inherit', windowsHide: true })
   process.exit(locked.status ?? 1)
@@ -119,12 +118,6 @@ function streamRun(cwd, cmd, args, timeoutMs, env = {}, stallMs = 20 * 60_000) {
   })
 }
 
-function ensureJunction(short, target) {
-  if (existsSync(short)) return { ok: true, path: short, detail: 'existing' }
-  const made = run(main, 'cmd.exe', ['/c', 'mklink', '/J', short, target])
-  return { ok: made.status === 0 && existsSync(short), path: short, detail: made.stdout || made.stderr || 'created' }
-}
-
 function applyOverlay(wt) {
   const desktop = join(wt, 'apps', 'desktop')
   const scripts = join(desktop, 'scripts')
@@ -135,7 +128,7 @@ function applyOverlay(wt) {
   const hostManifest = JSON.parse(readFileSync(hostManifestPath, 'utf8'))
   hostManifest.files = [...new Set([...hostManifest.files, 'config/'])]
   writeFileSync(hostManifestPath, `${JSON.stringify(hostManifest, null, 2)}\n`)
-  for (const file of ['core-package-set.ts', 'preload-app.ts', 'ipc.ts', 'boot-ui.ts']) {
+  for (const file of ['core-package-set.ts', 'runtime-tree.ts', 'preload-app.ts', 'ipc.ts', 'boot-ui.ts']) {
     copyFileSync(join(main, 'apps/desktop/src', file), join(desktop, 'src', file))
   }
   cpSync(join(main, 'apps/desktop/renderer/persona-boot'), join(desktop, 'renderer/persona-boot'), { recursive: true })
@@ -215,7 +208,7 @@ function applyOverlay(wt) {
     'smoke-runtime.ts', 'package-target.ts',
     'persona-about-settings.client.spec.tsx',
     'desktop-host/index.ts', 'desktop-host/electron.cordis.patch.yml',
-    'desktop-host/package.json files=config/', 'core-package-set.ts',
+    'desktop-host/package.json files=config/', 'core-package-set.ts', 'runtime-tree.ts',
     'preload-app.ts', 'ipc.ts', 'boot-ui.ts', 'renderer/persona-boot/',
     'vendor/loader src+lib', 'apps/web/dist',
   ]

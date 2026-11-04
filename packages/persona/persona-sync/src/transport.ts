@@ -16,6 +16,15 @@ export interface PushResult {
   readonly code?: string
 }
 
+/** A replay was refused or unavailable; an empty successful replay has a different meaning. */
+export class SyncTransportError extends Error {
+  /** @param code - Stable refusal or transport failure. @param status - HTTP status, zero for network failure. */
+  constructor(readonly code: string, readonly status: number) {
+    super(code)
+    this.name = 'SyncTransportError'
+  }
+}
+
 /** Edge (or a test double) that sequences envelopes. */
 export interface SyncTransport {
   /**
@@ -130,10 +139,18 @@ export class HttpTransport implements SyncTransport {
         { headers: this.headers() },
       )
       const body: unknown = await response.json()
-      if (typeof body !== 'object' || body === null || !('envelopes' in body)) return []
+      if (!response.ok) {
+        const code = typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string'
+          ? body.code : 'SYNC_REFUSED'
+        throw new SyncTransportError(code, response.status)
+      }
+      if (typeof body !== 'object' || body === null || !('envelopes' in body) || !Array.isArray(body.envelopes)) {
+        throw new SyncTransportError('SYNC_INVALID_RESPONSE', response.status)
+      }
       return (body as { envelopes: SyncEnvelope[] }).envelopes
-    } catch {
-      return []
+    } catch (error) {
+      if (error instanceof SyncTransportError) throw error
+      throw new SyncTransportError('SYNC_UNAVAILABLE', 0)
     }
   }
 }

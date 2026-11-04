@@ -3,19 +3,20 @@
 // Run under the lock: node scripts/persona/with-lock.mjs "<you> design shots" -- node scripts/persona/design-shots.mjs [screen...]
 // Screens: channel, overview, onboarding (default: all). Also prints console errors.
 import { spawn, execFileSync } from 'node:child_process'
+import { freePort } from './free-port.mjs'
 import { mkdirSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 
 const root = 'C:/Users/migue/dev/persona'
 const require = createRequire(`${root}/packages/persona/persona-e2e/package.json`)
 const { chromium } = require('playwright')
-const home = `${root}/.maestri/tmp/muse-shot-home`
+const home = `${root}/.maestri/tmp/muse-shot-home-${process.pid}`
 const outDir = `${root}/.maestri/tmp/shots/design`
 rmSync(home, { recursive: true, force: true })
 mkdirSync(home, { recursive: true }); mkdirSync(outDir, { recursive: true })
 const wanted = new Set(process.argv.slice(2).length > 0 ? process.argv.slice(2) : ['channel', 'overview', 'onboarding'])
 const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
-const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
+const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open', '--port', String(await freePort())], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
 let out = ''
 let browser
 const errors = []

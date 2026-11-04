@@ -13,7 +13,7 @@ import paletteCss from '../../../packages/persona/client-ui-persona/src/client/t
 import iconsSrc from '../../../packages/persona/client-ui-persona/src/client/primitives/icons.tsx?raw'
 import {
   ABOUT_LABELS_PT, AboutPersona, ActivityGroup, ApprovedStamp, Avatar, Button, Card, Chip, ChoiceCards, EmptyState,
-  ErrorState, GestorPlanCard, Input, Notice, PooledQuotaBar, Skeleton, Switch, Tabs, Textarea, Toast, UiIcon, type UiIconName,
+  ErrorState, FileChangeRow, GestorPlanCard, Input, Notice, PooledQuotaBar, Skeleton, Switch, Tabs, Textarea, Toast, UiIcon, type UiIconName,
 } from '../../../packages/persona/client-ui-persona/src/client/primitives/index.ts'
 import { AVATAR_96, ILLUSTRATIONS } from '../../../packages/persona/client-ui-persona/src/client/assets/generated-imports.ts'
 import './system.css'
@@ -290,6 +290,14 @@ function App(): ReactNode {
 
             <Spec name="GestorPlanCard" use="O Gestor de equipe propõe contratar ou reorganizar: plano com passos, custo e três saídas." avoid="Mudança pequena e rotineira (registre na atividade).">
               <GestorPlanCard gestor={{ name: 'Atlas', avatarSrc: A.atlas }} summary="Vou contratar 2 personas e criar o quadro Site." reason="Hoje ninguém cobre design." steps={[{ id: '1', kind: 'hire', title: 'Pipoca · Designer', detail: 'raposa · Claude · Sonnet', avatarSrc: A.raposa }, { id: '2', kind: 'board', title: 'Quadro Site', detail: 'fluxo Site · sprint de 2 semanas', flowModel: 'site' }]} cost="≈ 40 tarefas médias por mês a mais" state="pending" onApprove={() => {}} onAdjust={() => {}} onDecline={() => {}} labels={planLabels} />
+            </Spec>
+
+            <Spec name="FileChangeRow" use="Revisar mudanças de um rascunho: um arquivo por linha, em palavras (Novo · Mudou · Apagado)." avoid="Mostrar diff, linhas +/− ou caminho absoluto para quem não programa.">
+              <ul style={{ margin: 0, padding: 0 }}>
+                <FileChangeRow change={{ id: 'a', name: 'cardapio.docx', folder: 'Cardápio/2026', kind: 'changed', type: 'text' }} labels={{ kind: { new: 'Novo', changed: 'Mudou', deleted: 'Apagado' }, deletedNote: 'Este arquivo sai da pasta', show: 'Ver antes e depois', hide: 'Esconder antes e depois' }} expanded onToggle={() => {}}><p className="p">Antes: “Pão de queijo R$ 6” → Depois: “Pão de queijo R$ 7”</p></FileChangeRow>
+                <FileChangeRow change={{ id: 'b', name: 'precos.xlsx', folder: 'Financeiro', kind: 'new', type: 'sheet' }} labels={{ kind: { new: 'Novo', changed: 'Mudou', deleted: 'Apagado' }, deletedNote: 'Este arquivo sai da pasta', show: 'Ver antes e depois', hide: 'Esconder antes e depois' }} onToggle={() => {}} />
+                <FileChangeRow change={{ id: 'c', name: 'cardapio-2025.docx', folder: 'Cardápio', kind: 'deleted', type: 'text' }} labels={{ kind: { new: 'Novo', changed: 'Mudou', deleted: 'Apagado' }, deletedNote: 'Este arquivo sai da pasta', show: 'Ver antes e depois', hide: 'Esconder antes e depois' }} />
+              </ul>
             </Spec>
 
             <Spec name="AboutPersona" use="Tela Sobre: o que é o app, versão e créditos honestos." avoid="—">

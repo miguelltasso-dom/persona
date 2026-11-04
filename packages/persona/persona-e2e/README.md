@@ -252,23 +252,7 @@ Screenshots and reports live in `packages/persona/persona-e2e/artifacts/` (gitig
 - `startDesktop({ ... })` → `{ page, stop }` via CDP (lock released on DevTools ready)
 - `launchUnderLock({ releaseOn, ... })` → shared lock helper
 - `osScreenshot(path)` → Windows full-screen capture
-- `withFakeCliOnPath({ turnMs?, fail?, reply? })` → prepend `fixtures/fake-cli` to `PATH` **and pin `OAR_CLAUDE_BIN`/`OAR_CODEX_BIN`/`OAR_OPENCODE_BIN` to the stubs** (a fake run can never reach a real engine; `restore()` undoes both). The stub answers a whole stream-json turn (claude) / JSON-RPC turn (codex): `FAKE_CLI_TURN_MS` latency, `FAKE_CLI_FAIL` (`1`, a message, `crash`, `quota`), `FAKE_CLI_REPLY` text, `FAKE_CLI_INPUT_TOKENS`, `FAKE_CLI_MODEL`; the success `result` carries measured `usage`/`modelUsage` so the ledger records a **measured** execution.
-- `scope.invocations()` / `scope.logFile` → every call the app (or the test) made through the stubs (`FAKE_CLI_LOG`, one JSON line per process start and per answered turn): proof that the delivery came from a real CLI turn, and a way to see why a detection card says "Não detectada" (empty log = the app never ran the stub).
-- `withNoEngineOnPath()` → the opposite: minimal `PATH`, OAR pins to a missing file, no `DEEPSEEK_API_KEY` (the "Falta uma IA" path, deterministic on a PC that has real CLIs)
-- `openRealPersonaApp({ engine: { kind: 'fake', turnMs?, reply?, fail? } | { kind: 'none' }, liveRunner?, keepOnboarding? })` → `liveRunner` boots the host like the desktop (`PERSONA_REAL_CLI=1`, `VITEST` cleared) so the stubs answer instead of the scripted runner; `keepOnboarding` leaves the five-step overlay for the test to walk
+- `withFakeCliOnPath()` → prepend `fixtures/fake-cli`
 - `scanAccessibility(page)` → axe when installed, otherwise skip
 
 Real CLIs stay **read-only** unless `PERSONA_REAL_CLI=1` and Atlas approves (D-022).
-
-## First delivery (V1-P0) with the fake CLI
-
-UI end to end, no model call, opt-in `PERSONA_E2E=1` (one host boot per scenario, ~90 s):
-
-```powershell
-$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-first-delivery-fake.spec.ts --testTimeout 400000 --hookTimeout 400000
-```
-
-- **happy**: onboarding 1–5 → "Pedir agora" → "Equipe trabalhando" → "Sua equipe entregou o primeiro trabalho!" → "Aceitar e entrar" → the reply is in #geral and the board is open; ask → celebrate < 2 min.
-- **no-engine**: step 5 shows "Falta uma IA para a equipe trabalhar." + "Conectar uma IA"; no working/celebrate state; the person can enter.
-- Installed exe: `mandatory-first-delivery-installed.spec.ts` (`PERSONA_INSTALLED_EXE=<Persona.exe>`), same two scenarios.
-- Evidence: `artifacts/first-delivery/<scenario>/proof.json` + screenshots. The REAL-engine run is `mandatory-first-delivery-real.spec.ts` (Keel-approved budget only).

@@ -9,8 +9,8 @@ import {
   assertConsoleClean,
   assertNotHarnessShell,
   completeOnboardingOverlay,
+  chat,
 } from '../src/real-app-session.ts'
-import { geralComposerLocator } from '../src/geral-composer.ts'
 import { watchConsole } from '../src/console-tripwire.ts'
 
 const exe = process.env.PERSONA_INSTALLED_EXE
@@ -24,7 +24,7 @@ describe.skipIf(!run)('mandatory installed onboarding (D8, CDP)', () => {
       await desktop.page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
       await completeOnboardingOverlay(desktop.page)
       await assertNotHarnessShell(desktop.page)
-      await geralComposerLocator(desktop.page).first().waitFor({ state: 'visible', timeout: 60_000 })
+      await desktop.page.getByPlaceholder(chat.composerPlaceholder).waitFor({ state: 'visible', timeout: 60_000 })
       assertConsoleClean(tripwire)
       expect(desktop.home).toContain('e2e-installed')
     } finally {

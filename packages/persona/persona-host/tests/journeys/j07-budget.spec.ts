@@ -24,7 +24,12 @@ it('J7 — estouro de tokens bloqueia com Precisa de você; silêncio não pinga
   const page = h.listMessages({
     ...SCOPE, streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 40,
   })
-  expect(page.events.some(item => /orçamento|Precisa de você/i.test(item.body))).toBe(true)
+  expect(page.events.some(item =>
+    /\[\[run-error:/u.test(item.body)
+    && /"code":"budget_exhausted"/u.test(item.body)
+    && /"provider":/u.test(item.body)
+    && /"persona":/u.test(item.body),
+  )).toBe(true)
 
   h.setAutonomy({
     ...SCOPE, personaId: 'bento', mode: 'propose', proposalBudget: 3, tokenBudget: 1, executionBudget: 1,

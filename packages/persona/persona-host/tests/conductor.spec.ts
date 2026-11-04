@@ -189,7 +189,12 @@ it('blocks with Precisa de você when resolveRunner fails login', async () => {
   await h.orchestration.flush('pp')
   const overview = h.getOverview({ workspaceId: 'ws', projectId: 'pp' })
   expect(overview.needsYou.length).toBeGreaterThan(0)
-  expect(channel(h).events.some(item => /Claude Code não está conectada/i.test(item.body))).toBe(true)
+  expect(channel(h).events.some(item =>
+    /\[\[run-error:/u.test(item.body)
+    && /"code":"not_logged_in"/u.test(item.body)
+    && /"provider":"Claude"/u.test(item.body)
+    && /"persona":"Guia"/u.test(item.body),
+  )).toBe(true)
   expect(JSON.stringify(channel(h).events)).not.toMatch(/Not logged in|Please run|stack|sk-|token/i)
 })
 
@@ -202,7 +207,12 @@ it('blocks with Precisa de você when resolveRunner reports quota exhausted', as
   ask(h, 'm-quota', 'preciso de um README no projeto')
   await h.orchestration.flush('pp')
   expect(h.getOverview({ workspaceId: 'ws', projectId: 'pp' }).needsYou.length).toBeGreaterThan(0)
-  expect(channel(h).events.some(item => /Cota de claude esgotada/i.test(item.body))).toBe(true)
+  expect(channel(h).events.some(item =>
+    /\[\[run-error:/u.test(item.body)
+    && /"code":"quota_exhausted"/u.test(item.body)
+    && /"provider":"Claude"/u.test(item.body)
+    && /"persona":"Guia"/u.test(item.body),
+  )).toBe(true)
 })
 
 it('DMs and @mentions reply without a ticket; selector and thread are respected', async () => {

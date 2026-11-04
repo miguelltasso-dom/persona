@@ -57,7 +57,8 @@ it('completeOnboarding is idempotent and writes welcome without a hardcoded name
     workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     actorId: 'owner', afterSeq: 0, limit: 20,
   })
-  expect(page.events.some(item => /Bem-vindos/.test(item.body))).toBe(true)
+  expect(page.events.some(item => /Boas-vindas! Estou aqui para coordenar a equipe/u.test(item.body))).toBe(true)
+  expect(JSON.stringify(page.events)).not.toMatch(/Boas-vindas ao Persona/u)
   expect(JSON.stringify(page.events)).not.toMatch(/Atlas/)
   expect(h.listMemory({ workspaceId: 'ws', projectId: 'pp' }).some(item => item.status === 'pending')).toBe(true)
   const again = await h.completeOnboarding({
@@ -66,4 +67,30 @@ it('completeOnboarding is idempotent and writes welcome without a hardcoded name
   })
   expect(again.completed).toBe(true)
   expect(h.listPersonas({ workspaceId: 'ws', projectId: 'pp' })).toHaveLength(2)
+})
+
+it('posts SYSTEM_WELCOME as Boas-vindas à Persona. when there is no coordination', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-onb-sys-'))
+  dirs.push(dir)
+  process.env.PERSONA_HOME = dir
+  const h = host(join(dir, 'persona.db'))
+  await h.completeOnboarding({
+    workspaceId: 'ws',
+    personalProjectId: 'pp',
+    displayName: 'Ana',
+    team: [{
+      name: 'Bento', title: 'Engenharia', description: 'Implementa.', personality: 'Direto.',
+      instructions: 'Prove.', avatarKind: 'gallery', avatarRef: 'bento',
+      runnerKind: 'dsh', runnerCli: '', runnerModel: 'default', canRecruit: false,
+      systemRoles: [],
+    }],
+    templateIds: [],
+    runnerChoices: ['dsh'],
+    cofreSeed: '',
+  })
+  const page = h.listMessages({
+    workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    actorId: 'owner', afterSeq: 0, limit: 20,
+  })
+  expect(page.events.some(item => item.body === 'Boas-vindas à Persona.')).toBe(true)
 })

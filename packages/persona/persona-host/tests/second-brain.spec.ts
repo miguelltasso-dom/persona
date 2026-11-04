@@ -128,6 +128,8 @@ it('exports readable markdown one-way and reimports without duplicates', () => {
   writeFileSync(join(dir, 'diario.md'), 'Nota solta do Obsidian.\n', 'utf8')
   const added = h.importBrainVault({ ...scope, folderPath: dir })
   expect(added.created).toBe(1)
+  expect(added.leftover.some(path => path.endsWith('diario.md'))).toBe(true)
+  expect(h.getBrainHome(scope).leftover.some(path => path.endsWith('diario.md'))).toBe(true)
   expect(h.listBrainPages({ ...scope, kind: 'learning' }).some(item => item.body.includes('Fato novo'))).toBe(true)
   expect(h.brain.lastForeignPreview?.proposals.some(row => row.body.includes('Nota solta'))).toBe(true)
 })

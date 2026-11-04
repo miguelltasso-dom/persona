@@ -4,6 +4,206 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 04/11 08:16 — RUN-ERRORS-SPEC no host (Muse)
+
+Não usei `note write`. Keel: só `note edit`.
+
+Handoff Muse via Atlas: posts de CLI/orçamento no canal levam `[[run-error:{code,provider,persona}]]` (a UI monta o texto). `SYSTEM_WELCOME` = `Boas-vindas à Persona.`
+
+### Canal
+`CLI_CHANNEL` saiu. `channelLineFor` / orçamento esgotado postam o marcador (`not_logged_in`, `quota_exhausted`, `cli_not_found`, `model_unavailable`, `engine_unavailable`, `budget_exhausted`) com `provider` (nunca nome de CLI) e `persona`. Sem segundo post de hint — o cartão da UI tem o botão.
+
+### Prova
+```
+pnpm exec vitest run …/conductor.spec.ts …/real-path.spec.ts …/onboarding.spec.ts …/journeys/j07-budget.spec.ts
+  Test Files  4 passed (4)
+  Tests  17 passed (17)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 22.0s
+```
+
+### Arquivos
+`persona-host/src/{orchestration,onboarding}.ts`
+`persona-host/tests/{conductor,real-path,onboarding}.spec.ts`
+`persona-host/tests/journeys/j07-budget.spec.ts`
+
+### Dependências
+- **[Anvil→Muse]** host manda `code` + `provider` + `persona`; texto humano é da UI (`RUN-ERRORS-SPEC.md`).
+- **Muse 08:25:** conferido de ponta a ponta (marcador → `parseRunErrorMarker` → cartão certo, sem jargão).
+- **[Anvil→Atlas]** app-real: lock = Rivet D8 `package-clean` V28.
+
+### Fora
+`persona-runners` `MESSAGES` (Rivet: `cli_not_found` / `model_unavailable` / quota `resetAt` / `provider_unreachable`). `engine.report` do ticket ainda usa o `error.message` no quadro.
+
+---
+
+## 04/11 07:20 — OPT-3..6 Remotes + measureV1CloseView
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. app-real: lock = **Keel ship**. Não subi hosts.
+
+### Fechamento v1
+`measureV1Close` = `measureV1CloseView(liveEntries)` (já no 07:18).
+Novos `@Remote measureOpt3/4/5/6` → `measureOpt*Acceptance` (3/3 cada). Probe sem remount.
+
+### Prova
+```
+pnpm exec vitest run …/token-opt.spec.ts
+  Test Files  1 passed (1)
+  Tests  6 passed (6)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 18.9s
+```
+
+### Dependências
+- **[Anvil→Probe]** `measureOpt3`..`measureOpt6` + `measureV1CloseView`.
+- **[Anvil→Atlas]** app-real: lock Keel ship.
+
+---
+
+## 04/11 07:18 — measureV1Close = measureV1CloseView(liveEntries)
+
+`@Remote measureV1Close` agora `return measureV1CloseView(liveEntries)`. Livro live pontua `cut-40`. token-opt 6/6.
+
+---
+
+## 04/11 07:12 — listProjectRoots (Rivet reveal)
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. Próximo = app-real. Lock ainda **Rivet dest:desktop CDP**. Não subi hosts.
+
+### C4 / desktop
+`@Remote listProjectRoots({ workspaceId })` → pastas com `rootPath`. ACL `read` por projeto. Rivet usa na allowlist de `revealInFolder` (hoje só PERSONA_HOME + picks da sessão).
+
+### Prova
+```
+pnpm exec vitest run …/project-root.spec.ts
+  Test Files  1 passed (1)
+  Tests  2 passed (2)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 19.2s
+```
+
+### Dependências
+- **[Anvil→Rivet]** `listProjectRoots` no IPC `revealInFolder`.
+- **[Anvil→Atlas]** app-real 3080/3081: lock Rivet CDP. Script pronto.
+
+### Arquivos
+`persona-host/src/{index,types}.ts`, `tests/project-root.spec.ts`, `persona-spec/contracts/lumen-rpc.md`.
+
+---
+
+## 04/11 07:05 — W2-3 topicId no cartão + leftover persistido
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. Próximo do turno anterior = app-real. Lock ainda **Rivet dest:desktop CDP** (`dev-desktop-cdp.mjs`). RAM 23.1 GB (≥15). Um pesado por vez — não subi os dois hosts.
+
+### W2-3 — bolinha no cartão
+`listTasks` e `getProjectBoard.cards` devolvem `topicId` (+ `conversationSubjectId` no `TaskView`) a partir de `ticket_subject` no ingest. Prism/Lumen ligam o chip sem outro RPC.
+
+### SB-6 leftover persist
+`exportBrainVault` / `importBrainVault` gravam `screen_doc` `brain_vault_leftover/last`. `getBrainHome.leftover` lê o store (reinício). Dest extras nunca apagados.
+
+### Prova
+```
+pnpm exec vitest run …/wave2.spec.ts …/second-brain.spec.ts …/boards.spec.ts
+  Test Files  3 passed (3)
+  Tests  17 passed (17)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 36.2s
+
+pnpm exec oxlint …/index.ts …/boards.ts …/brain.ts …/types.ts
+  exit 0
+```
+
+### Dependências
+- **[Anvil→Prism]** `TaskView.topicId` / `conversationSubjectId` no cartão (W2-3).
+- **[Anvil→Lumen]** `BoardCardView.topicId` + `getBrainHome.leftover`.
+- **[Anvil→Atlas]** app-real 3080/3081: lock Rivet CDP. Script `.maestri/tmp/capture-app-real.mjs` pronto.
+
+### Arquivos
+`persona-host/src/{index,boards,brain,types}.ts`, `tests/{wave2,second-brain}.spec.ts`, `persona-spec/contracts/{conversation-subjects,lumen-rpc}.md`.
+
+---
+
+## 04/11 06:45 — W2 workingPersonaIds + measureOpt8View + leftover vault + measureV1Close
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. Itens anteriores (oxlint/docs) já no relato 06:20. Este turno fechou os dois testes vermelhos e a fila Forge `measureOpt8View`.
+
+### W2-2 — persona trabalhando
+`ticket_subject` grava no ingest (não só no `compileUsed` assíncrono). `mutant.claim` usa `topicId`. `workingBySubject` + `listConversationSubjects` devolvem `workingPersonaIds`.
+
+### OPT-8 / fechamento v1
+`measureOpt8` = `measureOpt8View(entries)` (Forge 06:06). Livro live pontua −40%; o livro de teste falha `cut-40` (esperado). `measureV1Close()` sem live — `cut-40` blocked, gate verde. `opt8.liveEntries` = tamanho do livro.
+
+### SB-6 leftover
+`exportBrainVault` / `importBrainVault` devolvem `leftover[]` (`leftoverDestFiles`). Dest extras nunca apagados. `BrainHost.lastLeftover` guarda o último sync.
+
+### Prova
+```
+pnpm exec vitest run …/wave2.spec.ts …/token-opt.spec.ts …/second-brain.spec.ts …/working-send.spec.ts
+  Test Files  4 passed (4)
+  Tests  20 passed (20)
+  Duration  12.21s
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 17.5s
+
+pnpm exec oxlint …/index.ts …/wave2.ts …/orchestration.ts …/brain.ts …/types.ts
+  exit 0
+```
+
+### PLAN Anvil
+PRO-2, W2-2/W2-6, GES-1/5, SB-1/3, OPT-7, GOV-5, B7, C8-host — código done. W2-10 retenção já no scheduler. SB-6 leftover agora no fio.
+
+### Dependências
+- **[Anvil→Prism]** `workingPersonaIds` live no `listConversationSubjects` (SubjectBar).
+- **[Anvil→Lumen]** `BrainVaultFolderView.leftover` no export/import.
+- **[Anvil→Probe]** `@Remote measureV1Close` + `measureOpt8View`; gate v1 não remonta flags.
+- **[Anvil→Atlas]** app-real 3080/3081: RAM 21.1 GB (≥15). Lock = **Rivet D8 CDP** (`installed-cdp-diag` no exe). Um pesado por vez. Script `.maestri/tmp/capture-app-real.mjs` pronto.
+
+### Arquivos
+`persona-host/src/{index,wave2,orchestration,brain,types}.ts`, `tests/{wave2,token-opt,second-brain}.spec.ts`, `persona-spec/contracts/{lumen-rpc,conversation-subjects}.md`.
+
+---
+
+## 04/11 06:05 — Forge emit→recordTurnActivity + PLAN Anvil
+
+Não usei `note write` no Status. Keel: só `note edit`.
+
+### Forge 06:22/06:28
+`EngineOptions.emit` = `withTurnActivityEmit` → `orchestration.recordActivity` → `workingSend.recordActivity`. `assignment.reported` vira linha T3 §9.
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests/working-send.spec.ts
+  Test Files  1 passed (1)
+  Tests  3 passed (3)
+```
+
+### Atlas (1)(2) já no relato 06:20
+oxlint 3 pkgs exit 0; check-pkg store/host/sync OK; ARCHITECTURE + contracts v19/ACL/edge.
+
+### (3) app-real
+RAM 22.3 GB (≥15). Lock = **Keel ship (persona gate)** — um pesado por vez. Script `.maestri/tmp/capture-app-real.mjs` pronto. **[Anvil→Atlas]** reenfileirar quando o lock cair.
+
+### PLAN
+GES-1/5, SB-1, OPT-7 RPC, GOV-5 export/sync, B7 → **done** (já no código).
+
+### Dependências
+- **[Anvil→Prism]** ActivityGroup lê `listTurnActivity` após `Engine.report`.
+- **[Anvil→Probe]** store `screens/repos.ts` `get<T>` (gate FAIL antigo).
+
+---
+
 ## 04/11 06:20 — oxlint 3 pkgs + docs host/store/edge (Atlas leve)
 
 Atlas: (1) oxlint nos três pacotes + mortos; (2) ARCHITECTURE + contracts; (3) apps reais só com ≥15 GB.

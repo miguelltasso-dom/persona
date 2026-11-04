@@ -92,7 +92,9 @@ export class BoardsHost {
     const workflow = stored ?? workflowFromTemplate(projectId, 'simples')
     const tickets = this.tickets(projectId)
     const seats = this.board.list(projectId)
-    const cards = tickets.map(ticket => toCard(workflow, ticket, this.board.of(ticket.id)))
+    const cards = tickets.map(ticket => toCard(
+      workflow, ticket, this.board.of(ticket.id), this.topicOf(projectId, ticket.id),
+    ))
     const current = this.board.current(projectId)
     return {
       projectId,
@@ -199,7 +201,7 @@ export class BoardsHost {
       this.orchestration.runtime(projectId).repo.tickets.save(moved.ticket)
       this.board.save(moved.placement)
       return {
-        card: toCard(workflow, moved.ticket, moved.placement),
+        card: toCard(workflow, moved.ticket, moved.placement, this.topicOf(projectId, moved.ticket.id)),
         wipWarning: moved.wipWarning,
       }
     } catch (error: unknown) {
@@ -384,6 +386,10 @@ export class BoardsHost {
     return toWorkflowView(this.board.get(projectId) ?? workflowFromTemplate(projectId, 'simples'))
   }
 
+  private topicOf(projectId: string, ticketId: string): string | undefined {
+    return this.orchestration.screens?.get<{ subjectId: string }>(projectId, 'ticket_subject', ticketId)?.subjectId
+  }
+
   private tickets(projectId: string): Ticket[] {
     return this.orchestration.runtime(projectId).repo.tickets.list()
   }
@@ -435,7 +441,12 @@ function seatsForCounts(
   })
 }
 
-function toCard(workflow: ProjectWorkflow, ticket: Ticket, seat?: TicketBoardSeat): BoardCardView {
+function toCard(
+  workflow: ProjectWorkflow,
+  ticket: Ticket,
+  seat?: TicketBoardSeat,
+  topicId?: string,
+): BoardCardView {
   const card = projectBoardCard(workflow, ticket, seat)
   return {
     ticketId: ticket.id,
@@ -445,6 +456,7 @@ function toCard(workflow: ProjectWorkflow, ticket: Ticket, seat?: TicketBoardSea
     ...(card.columnId === undefined ? {} : { columnId: card.columnId }),
     ...(card.columnName === undefined ? {} : { columnName: card.columnName }),
     ...(card.chip === undefined ? {} : { chip: card.chip }),
+    ...(topicId === undefined || topicId === '' ? {} : { topicId }),
   }
 }
 

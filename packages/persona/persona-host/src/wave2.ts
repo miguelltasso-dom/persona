@@ -64,14 +64,39 @@ export function toHostPolicy(mode: 'fixed' | 'next' | 'split' | 'ask'): RunnerSw
 }
 
 /**
+ * Open tickets → subject → mandate actors (WAVE2 "persona trabalhando").
+ * @param tickets - Engine tickets.
+ * @param subjectOf - Bound assunto (`ticket_subject` screen).
+ */
+export function workingBySubject(
+  tickets: readonly { readonly id: string; readonly ended?: unknown; readonly mandate?: { readonly actor: { readonly id: string } } }[],
+  subjectOf: (ticketId: string) => string | undefined,
+): Readonly<Record<string, readonly string[]>> {
+  const collected = new Map<string, string[]>()
+  for (const ticket of tickets) {
+    if (ticket.ended !== undefined) continue
+    const personaId = ticket.mandate?.actor.id
+    const subjectId = subjectOf(ticket.id)
+    if (personaId === undefined || subjectId === undefined || subjectId === '') continue
+    const row = collected.get(subjectId) ?? []
+    if (!row.includes(personaId)) row.push(personaId)
+    collected.set(subjectId, row)
+  }
+  return Object.fromEntries(collected)
+}
+
+/**
+ * Colored subjects for one stream, plus who is working on each.
  * @param topics - Topic repo.
  * @param input - Stream.
- * @param actorId - Reader.
+ * @param actorId - Reader (unread counts).
+ * @param working - Persona ids per subject from {@link workingBySubject}.
  */
 export function subjectViews(
   topics: TopicRepos,
   input: { workspaceId: string; projectId: string; streamKind: 'channel' | 'dm'; ownerId: string },
   actorId: string,
+  working: Readonly<Record<string, readonly string[]>> = {},
 ): ConversationSubjectView[] {
   let rows = topics.list(input.projectId, input.streamKind, input.ownerId, true)
   if (rows.length === 0) {
@@ -91,7 +116,7 @@ export function subjectViews(
     name: row.name,
     colorIndex: row.colorIndex,
     unreadCount: topics.unreadCount(row.id, actorId),
-    workingPersonaIds: [],
+    workingPersonaIds: working[row.id] ?? [],
     archived: row.archived,
   }))
 }

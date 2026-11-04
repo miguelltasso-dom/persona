@@ -41,6 +41,7 @@ export class ScreenRepos {
    * @param kind - Document kind.
    * @param id - Document id.
    */
+  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- caller names the stored document
   get<T>(projectId: string, kind: string, id: string): T | undefined {
     const row = this.store.db.prepare(
       'SELECT body FROM screen_doc WHERE project_id = ? AND kind = ? AND id = ?',

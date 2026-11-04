@@ -86,7 +86,9 @@ if (reply === undefined) (report.broke as string[]).push('no coord-m-banana-repl
 if (reply !== undefined && reply.actorId === 'owner') (report.broke as string[]).push('actor is owner')
 if (reply !== undefined && reply.source !== 'runner') (report.broke as string[]).push(`source=${reply.source}`)
 if (reply !== undefined && !/BANANA/u.test(reply.body)) (report.broke as string[]).push('body is not BANANA')
-if (reply !== undefined && /Bem-vindos/u.test(reply.body)) (report.broke as string[]).push('onboarding welcome, not model')
+if (reply !== undefined && /Boas-vindas! Estou aqui para coordenar a equipe/u.test(reply.body)) {
+  (report.broke as string[]).push('onboarding welcome, not model')
+}
 
 const sqlite = h.store.db.prepare(
   'SELECT id, actor_id AS actorId, type, body FROM event WHERE id = ?',

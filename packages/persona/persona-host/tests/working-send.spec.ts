@@ -74,3 +74,19 @@ it('listTurnActivity folds events; empty is not 0% success; failure is not done'
   expect(fold?.unfinished).toBe(true)
   expect(fold?.shownKinds).toEqual(['command'])
 })
+
+it('Engine.report persists assignment.reported through withTurnActivityEmit', () => {
+  const h = host()
+  seed(h)
+  h.createChannel({ id: 'geral', workspaceId: 'ws', projectId: 'pp', name: 'geral', topic: '' })
+  h.postMessage({
+    id: 'm-act', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
+    body: 'preciso de um README no projeto', actorId: 'ana', subjectId: 't',
+    occurredAt: '2026-11-04T15:00:00.000Z',
+  })
+  const ticket = h.listTasks({ workspaceId: 'ws', projectId: 'pp' })[0]
+  expect(ticket).toBeDefined()
+  h.orchestration.runtime('pp').engine.report(ticket!.id, { state: 'progress', summary: 'npm test' })
+  const folds = h.listTurnActivity({ workspaceId: 'ws', projectId: 'pp', subjectId: 'geral' })
+  expect(folds.some(fold => fold.items.some(item => item.title === 'npm test'))).toBe(true)
+})

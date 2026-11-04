@@ -15,8 +15,8 @@ import type {
 
 const KIND = 'onboarding'
 const COMPLETE_ID = 'complete'
-const SYSTEM_WELCOME = 'Bem-vindos ao Persona.'
-const COORD_WELCOME = 'Bem-vindos. Estou aqui para coordenar o time.'
+const SYSTEM_WELCOME = 'Boas-vindas à Persona.'
+const COORD_WELCOME = 'Boas-vindas! Estou aqui para coordenar a equipe.'
 
 /**
  * Persist and apply first-run setup.

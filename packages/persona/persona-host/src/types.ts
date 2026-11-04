@@ -87,6 +87,10 @@ export interface TaskView {
   readonly title: string
   readonly stage: string
   readonly stageAction: string
+  /** WAVE2 assunto of the ticket (`ticket_subject`). */
+  readonly topicId?: string
+  /** Same id as `topicId` — Prism card chip. */
+  readonly conversationSubjectId?: string
 }
 
 /** Visão geral: "Precisa de você" first, then in-progress. Healthy work is omitted. */
@@ -358,6 +362,18 @@ export interface ProjectRootView {
 /** Rivet OS dialog. Host never opens it; null = cancelled / unavailable. */
 export interface PickDirectoryView {
   readonly path: string | null
+}
+
+/** One registered project folder (desktop reveal allowlist). */
+export interface ProjectRootRow {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly rootPath: string
+}
+
+/** Registered folders for a workspace. Empty rootPath is omitted. */
+export interface ProjectRootListView {
+  readonly roots: readonly ProjectRootRow[]
 }
 
 /** One dead-lettered effect/outbox row. */
@@ -1310,6 +1326,28 @@ export interface ProactivityMeasureView {
   readonly failed: readonly string[]
 }
 
+/** OPT-3/4/5/6 scripted policy score. Probe does not remount flags. */
+export interface OptPolicyMeasureView {
+  readonly passed: number
+  readonly total: 3
+  readonly failed: readonly string[]
+}
+
+/** Combined v1 close (PRO-6 + GES-6 + OPT-8). Probe calls this; do not remount flags. */
+export interface V1CloseMeasureView {
+  readonly passed: boolean
+  readonly proactivity: ProactivityMeasureView
+  readonly gestor: { readonly passed: number; readonly total: 3; readonly failed: readonly string[] }
+  readonly opt8: {
+    readonly passed: number
+    readonly total: 4
+    readonly failed: readonly string[]
+    readonly blocked: readonly string[]
+    readonly liveEntries: number
+    readonly liveOrigin: LedgerOrigin
+  }
+}
+
 /** OPT-8 scripted + live book size (cut-40 stays blocked until enough live rows). */
 export interface Opt8MeasureView {
   readonly passed: number
@@ -1412,6 +1450,8 @@ export interface BoardCardView {
   readonly columnName?: string
   readonly blocked: boolean
   readonly chip?: 'waiting'
+  /** WAVE2 assunto (`ticket_subject`). */
+  readonly topicId?: string
 }
 
 /** Counts by category for Quadros. */
@@ -2335,6 +2375,8 @@ export interface BrainHomeView {
   readonly changedToday: readonly BrainPageView[]
   readonly activeGrants: readonly BrainGrantView[]
   readonly contradictions: readonly BrainPageView[]
+  /** Dest extras from the last vault sync. Never deleted. */
+  readonly leftover: readonly string[]
 }
 
 /** One-way (default) or two-way folder sync. */
@@ -2345,12 +2387,13 @@ export interface BrainVaultFolderRequest {
   readonly twoWay?: boolean
 }
 
-/** Export/import counts. */
+/** Export/import counts. Dest extras stay on disk. */
 export interface BrainVaultFolderView {
   readonly files: number
   readonly created: number
   readonly skipped: number
   readonly direction: 'export' | 'import'
+  readonly leftover: readonly string[]
 }
 
 /** BYC paste organize request. */

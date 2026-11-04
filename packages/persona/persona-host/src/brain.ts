@@ -10,6 +10,7 @@ import {
   can,
   canReadVault,
   foreignVaultToBringFiles,
+  leftoverDestFiles,
   parseVaultRecord,
   planBrainVaultSync,
   previewBringVault,
@@ -45,6 +46,8 @@ export class BrainHost {
 
   /** Last two-way dest notes that are not our pack (BYC, no write). */
   lastForeignPreview: BringContextPreview | undefined
+  /** Dest extras after the last sync. Never deleted. */
+  lastLeftover: readonly string[] = []
 
   /**
    * @param request - Page.
@@ -182,6 +185,7 @@ export class BrainHost {
       changedToday: changed.map(page => this.toView(workspaceId, page)),
       activeGrants: grants.map(toGrantView),
       contradictions: contradictions.map(page => this.toView(workspaceId, page)),
+      leftover: this.lastLeftover,
     }
   }
 
@@ -236,16 +240,18 @@ export class BrainHost {
     folderPath: string,
     twoWay: boolean,
     actorId: string,
-  ): { files: number; created: number; skipped: number; direction: 'export' | 'import' } {
+  ): { files: number; created: number; skipped: number; direction: 'export' | 'import'; leftover: readonly string[] } {
     this.assertWrite(workspaceId, projectId)
     const exported = this.brain.exportFolder(projectId, folderPath)
-    const known = new Set(this.brain.list(projectId).map(page => `${page.kind}/${page.slug}.md`))
+    const dest = listDestMarkdown(folderPath)
+    const destRels = dest.map(file => file.path.replaceAll('\\', '/'))
+    const packRels = this.brain.list(projectId).map(page => `${page.kind}/${page.slug}.md`)
     if (!twoWay) {
       this.lastForeignPreview = undefined
-      return { files: exported.files, created: 0, skipped: 0, direction: 'export' }
+      this.lastLeftover = leftoverDestFiles(destRels, packRels)
+      return { files: exported.files, created: 0, skipped: 0, direction: 'export', leftover: this.lastLeftover }
     }
-    const dest = listDestMarkdown(folderPath)
-    const extras = dest.filter(file => !known.has(file.path.replaceAll('\\', '/')))
+    const extras = dest.filter(file => !packRels.includes(file.path.replaceAll('\\', '/')))
     const applied = applyBrainVaultSync(planBrainVaultSync({
       pages: [],
       dest: extras,
@@ -269,7 +275,15 @@ export class BrainHost {
     const foreign = foreignVaultToBringFiles(applied.imports)
     this.lastForeignPreview = foreign.length === 0 ? undefined : previewBringVault({ files: foreign })
     const imported = this.brain.importFolder(workspaceId, projectId, folderPath, actorId)
-    return { files: exported.files, created: imported.created, skipped: imported.skipped, direction: 'import' }
+    const knownAfter = this.brain.list(projectId).map(page => `${page.kind}/${page.slug}.md`)
+    this.lastLeftover = leftoverDestFiles(destRels, knownAfter)
+    return {
+      files: exported.files,
+      created: imported.created,
+      skipped: imported.skipped,
+      direction: 'import',
+      leftover: this.lastLeftover,
+    }
   }
 
   private visible(workspaceId: string, page: BrainPage): boolean {

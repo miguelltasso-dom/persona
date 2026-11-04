@@ -13,6 +13,7 @@ import {
   composeHostTalk,
   finishHostTalk,
   foldHostTalkUsed,
+  withTurnActivityEmit,
   milestoneSummary,
   followupOwners,
   internalSourceScope,
@@ -41,6 +42,7 @@ import {
   EMPTY_LAYERS,
   isRequiredVaultKind,
   parseVaultRecord,
+  type TurnActivityEvent,
   type TurnLedgerEntry,
 } from '@deepseek-ai/dsh-persona-core'
 import {
@@ -48,7 +50,6 @@ import {
   createFakeRunner,
   disposeRunnerSessions,
   isRunnerResolveError,
-  loginHintFor,
   prewarmCoordination,
   RunnerResolveError,
   wordCount,
@@ -94,12 +95,15 @@ import {
 /** Fixture strings that must never reach a real-mode channel. */
 export const SCRIPTED_HELLO = 'Olá — em que posso ajudar?'
 
-const CLI_CHANNEL: Record<string, string> = {
-  claude: 'A Claude Code não está conectada — abra o terminal e rode `claude`/login',
-  codex: 'O Codex não está conectado — abra o terminal e rode `codex login`',
-  cursor: 'O Cursor Agent não está conectado — abra o Cursor e faça login no Agent',
-  opencode: 'O OpenCode não está conectado — abra o terminal e rode `opencode auth login`',
-  dsh: 'O executor DSH não está montado neste host.',
+/** Display name for RUN-ERRORS-SPEC. Never a CLI binary. */
+const PROVIDER_LABEL: Record<string, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  cursor: 'Cursor',
+  opencode: 'OpenCode',
+  gemini: 'Gemini',
+  grok: 'Grok',
+  ollama: 'Ollama',
 }
 
 /** Host-bound inputs for {@link preRoute} (roster, budget, ACL). */
@@ -142,12 +146,14 @@ export class ProjectRuntime {
    * @param now - Instant factory.
    * @param _runnerFactory - Unused; per-persona resolve happens in {@link Orchestration.resolveFor}.
    * @param ports - Roster / budget / ACL for the pre-router.
+   * @param onActivity - Persist `assignment.reported` (host `recordTurnActivity`).
    */
   constructor(
     repo: SqliteRepositories,
     now: () => string,
     _runnerFactory?: HostRunnerFactory,
     ports: HostPreRoutePorts = defaultPreRoutePorts(),
+    onActivity?: (row: TurnActivityEvent) => void,
   ) {
     this.repo = repo
     this.outbox = new SqliteOutbox(repo.store, repo.projectId, now)
@@ -199,6 +205,7 @@ export class ProjectRuntime {
       outbox: this.outbox,
       now,
       preRoute: trigger => this.route(trigger, ports),
+      emit: withTurnActivityEmit((row) => { onActivity?.(row) }),
     })
     this.restoreRouteWindow()
   }
@@ -341,6 +348,8 @@ export class Orchestration {
   readonly mutant: MutantRunBook | undefined
   /** Persist a core turn (host maps `usagePortWindow` at the Rivet port). */
   recordLedger: ((projectId: string, entry: TurnLedgerEntry) => void) | undefined = undefined
+  /** Persist T3 §9 rows from `Engine.report` (`assignment.reported`). */
+  recordActivity: ((projectId: string, row: TurnActivityEvent) => void) | undefined = undefined
   vault: VaultRepos | undefined
   opt: OptRepos | undefined
   accounts: AccountRepos | undefined
@@ -439,6 +448,7 @@ export class Orchestration {
         silenceUntil: () => this.routeSilenceUntil(projectId),
         canCommand: (command, senderId) => this.routeCanCommand(projectId, command, senderId),
       },
+      (row) => { this.recordActivity?.(projectId, row) },
     )
     this.runtimes.set(projectId, created)
     for (const ticket of created.repo.tickets.open()) {
@@ -540,9 +550,15 @@ export class Orchestration {
     }
     this.bindExecution(rt, event.projectId, chosen)
     const ticket = rt.repo.tickets.list().find(item => item.origin.triggerId === event.id)
+    const topicId = event.topicId !== undefined && event.topicId !== ''
+      ? event.topicId
+      : (event.subjectId === '' ? event.id : event.subjectId)
+    if (ticket !== undefined && event.topicId !== undefined && event.topicId !== '') {
+      this.screens?.put(event.projectId, 'ticket_subject', ticket.id, { subjectId: event.topicId })
+    }
     const claim = ticket === undefined || this.mutant === undefined
       ? 'running'
-      : this.mutant.claim(event.projectId, ticket.id, event.subjectId === '' ? event.id : event.subjectId, event.id)
+      : this.mutant.claim(event.projectId, ticket.id, topicId, event.id)
     if (claim === 'queued' || claim === 'refused') {
       this.postAs(
         event,
@@ -999,7 +1015,7 @@ export class Orchestration {
       summary: error.message,
       question: error.message,
     })
-    this.postCoord(event, coordination, `coord-${ticketId}-done`, channelLineFor(error))
+    this.postCoord(event, coordination, `coord-${ticketId}-done`, channelLineFor(error, coordination?.name))
   }
 
   private async runLaunched(
@@ -1026,7 +1042,11 @@ export class Orchestration {
             summary: 'orçamento de tokens do mês esgotado',
             question: 'orçamento de tokens do mês esgotado',
           })
-          this.postAs(event, coordinationPersona, `coord-${ticket.id}-done`, 'orçamento de tokens do mês esgotado')
+          this.postAs(event, coordinationPersona, `coord-${ticket.id}-done`, runErrorLine({
+            code: 'budget_exhausted',
+            provider: providerOf(cliOfPersona(executor)),
+            persona: executor.name,
+          }))
         }
         return
       }
@@ -1404,8 +1424,7 @@ export class Orchestration {
         this.reportResolveFailure(this.runtime(event.projectId), event, speaker, tickets[0].id, error)
         return
       }
-      this.postAs(event, speaker, `coord-${event.id}-reply`, channelLineFor(error), 'error')
-      this.postAs(event, speaker, `coord-${event.id}-action`, loginHintFor(cliOf(error.message)))
+      this.postAs(event, speaker, `coord-${event.id}-reply`, channelLineFor(error, speaker?.name), 'error')
       return
     }
     const message = error instanceof Error ? error.message : 'falha'
@@ -1817,18 +1836,65 @@ function cliOf(message: string): string {
   return match?.[1] ?? 'dsh'
 }
 
+function detailOf(error: { code: string; message: string }): string {
+  const cli = /CLI (\S+)/u.exec(error.message)?.[1]
+  if (cli !== undefined) return cli
+  const quota = /Cota de (\S+)/u.exec(error.message)?.[1]
+  if (quota !== undefined) return quota
+  const model = /Modelo (\S+)/u.exec(error.message)?.[1]
+  if (model !== undefined) return model
+  if (/DSH/u.test(error.message)) return 'dsh'
+  return cliOf(error.message)
+}
+
 function cliOfPersona(speaker: StoredPersona | undefined): string {
   const runner = speaker?.runner
   return runner?.kind === 'cli' ? runner.cli : 'claude'
 }
 
-function channelLoginLine(cli: string): string {
-  return CLI_CHANNEL[cli] ?? `A CLI ${cli} não está conectada — abra o terminal e faça login.`
+const LOGIN_COMMAND: Record<string, string> = {
+  claude: 'claude login',
+  codex: 'codex login',
+  opencode: 'opencode auth login',
 }
 
-function channelLineFor(error: { code: string; message: string }): string {
-  if (error.code === 'not_logged_in') return channelLoginLine(cliOf(error.message))
-  return error.message
+function providerOf(cli: string): string {
+  return PROVIDER_LABEL[cli] ?? cli
+}
+
+function runErrorLine(payload: {
+  code: string
+  provider?: string
+  persona?: string
+  model?: string
+  command?: string
+}): string {
+  return `[[run-error:${JSON.stringify(payload)}]]`
+}
+
+function channelLineFor(error: { code: string; message: string }, persona?: string): string {
+  const cli = detailOf(error)
+  const extra = persona === undefined || persona === '' ? {} : { persona }
+  if (error.code === 'not_logged_in') {
+    const command = LOGIN_COMMAND[cli]
+    return runErrorLine({
+      code: 'not_logged_in',
+      provider: providerOf(cli),
+      ...extra,
+      ...(command === undefined ? {} : { command }),
+    })
+  }
+  if (error.code === 'cli_not_found') {
+    if (cli === 'dsh') return runErrorLine({ code: 'engine_unavailable', ...extra })
+    return runErrorLine({ code: 'cli_not_found', provider: providerOf(cli), ...extra })
+  }
+  if (error.code === 'quota_exhausted') {
+    return runErrorLine({ code: 'quota_exhausted', provider: providerOf(cli), ...extra })
+  }
+  if (error.code === 'model_unavailable') {
+    return runErrorLine({ code: 'model_unavailable', provider: providerOf(cli), model: cli, ...extra })
+  }
+  return runErrorLine({ code: 'engine_unavailable', provider: providerOf(cli), ...extra })
 }
 
 function looksLikeOarLogin(text: string): boolean {

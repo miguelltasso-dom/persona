@@ -70,8 +70,13 @@ import {
   computePersonaImpact,
   emitGestorPropose,
   listPersonaImpact,
-  measureOpt8Acceptance,
+  measureOpt3Acceptance,
+  measureOpt4Acceptance,
+  measureOpt5Acceptance,
+  measureOpt6Acceptance,
+  measureOpt8View,
   measureProactivityAcceptance,
+  measureV1CloseView,
 } from '@deepseek-ai/dsh-persona-engine'
 import {
   defaultSkillDirIo,
@@ -169,6 +174,7 @@ import type {
   ProjectFileRequest,
   ProjectFileStat,
   ProjectFileText,
+  ProjectRootListView,
   ProjectRootView,
   RoutineScheduleView,
   SetProjectRootRequest,
@@ -224,7 +230,9 @@ import type {
   GetUsagePanelRequest,
   GetUsageRequest,
   Opt8MeasureView,
+  OptPolicyMeasureView,
   ProactivityMeasureView,
+  V1CloseMeasureView,
   OfficialQuotaView,
   RecordTurnLedgerRequest,
   TurnLedgerView,
@@ -386,6 +394,7 @@ import {
   resolveAccountSeat,
   storedSwapPolicy,
   subjectViews,
+  workingBySubject,
   teachDraftFrom,
   TEACH_CONSENT,
   TEACH_RETENTION_DAYS,
@@ -597,6 +606,21 @@ export default class PersonaHost extends TypertRemoteService {
     this.orchestration.opt = this.opt
     this.orchestration.recordLedger = (projectId, entry) => {
       this.persistTurn(projectId, entry)
+    }
+    this.orchestration.recordActivity = (projectId, row) => {
+      const project = this.product.getProject(projectId)
+      if (project === undefined) return
+      this.workingSend.recordActivity({
+        workspaceId: project.workspaceId,
+        projectId,
+        id: row.id,
+        personaId: row.personaId,
+        subjectId: row.threadId,
+        kind: row.kind,
+        title: row.title,
+        status: row.status,
+        at: row.at,
+      })
     }
     this.orchestration.accounts = this.accounts
     this.orchestration.accountSeatOf = (projectId, persona) => this.seatForPersona(projectId, persona)
@@ -1309,13 +1333,23 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listTasks(request: ProjectScopeRequest): TaskView[] {
     this.requireProject(request)
-    return this.orchestration.kanban(request.projectId).map(card => ({
-      id: card.ticketId,
-      projectId: request.projectId,
-      title: card.title,
-      stage: card.column,
-      stageAction: card.chip === 'waiting' ? 'waiting' : card.stageAction,
-    }))
+    return this.orchestration.kanban(request.projectId).map((card) => {
+      const subjectLink = this.screens.screens.get<{ subjectId: string }>(
+        request.projectId,
+        'ticket_subject',
+        card.ticketId,
+      )
+      return {
+        id: card.ticketId,
+        projectId: request.projectId,
+        title: card.title,
+        stage: card.column,
+        stageAction: card.chip === 'waiting' ? 'waiting' : card.stageAction,
+        ...(subjectLink === undefined || subjectLink.subjectId === ''
+          ? {}
+          : { topicId: subjectLink.subjectId, conversationSubjectId: subjectLink.subjectId }),
+      }
+    })
   }
 
   /**
@@ -1888,6 +1922,26 @@ export default class PersonaHost extends TypertRemoteService {
       message: git.isRepo ? (git.dirty ? 'Repositório git com alterações locais.' : 'Repositório git.') : 'Pasta sem git.',
       ...git,
     }
+  }
+
+  /**
+   * Registered project folders for Rivet `revealInFolder` (not PERSONA_HOME / session picks).
+   * @param request - Workspace.
+   */
+  @Remote
+  listProjectRoots(request: WorkspaceScopeRequest): ProjectRootListView {
+    this.requireWorkspace(request)
+    const actor = this.actorOf(request.workspaceId)
+    const roots = this.product.listProjects(request.workspaceId)
+      .filter(project => actor === undefined || sessionCan(actor, 'read', {
+        type: 'project', workspaceId: request.workspaceId, projectId: project.id,
+      }))
+      .flatMap((project) => {
+        const rootPath = project.rootPath
+        if (rootPath === undefined || rootPath === '') return []
+        return [{ workspaceId: request.workspaceId, projectId: project.id, rootPath }]
+      })
+    return { roots }
   }
 
   /**
@@ -3187,7 +3241,13 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   getBrainHome(request: ProjectScopeRequest): BrainHomeView {
     this.requireProject(request)
-    return this.brain.home(request.workspaceId, request.projectId)
+    const stored = this.screens.screens.get<{ leftover: readonly string[] }>(
+      request.projectId, 'brain_vault_leftover', 'last',
+    )
+    return {
+      ...this.brain.home(request.workspaceId, request.projectId),
+      leftover: stored?.leftover ?? this.brain.lastLeftover,
+    }
   }
 
   /**
@@ -3238,13 +3298,15 @@ export default class PersonaHost extends TypertRemoteService {
   exportBrainVault(request: BrainVaultFolderRequest): BrainVaultFolderView {
     this.requireWrite(request)
     const actor = this.actorOf(request.workspaceId)
-    return this.brain.syncFolder(
+    const result = this.brain.syncFolder(
       request.workspaceId,
       request.projectId,
       request.folderPath,
       request.twoWay === true,
       actor?.id ?? 'owner',
     )
+    this.persistVaultLeftover(request.projectId, request.folderPath, result.leftover)
+    return result
   }
 
   /**
@@ -3255,13 +3317,15 @@ export default class PersonaHost extends TypertRemoteService {
   importBrainVault(request: BrainVaultFolderRequest): BrainVaultFolderView {
     this.requireWrite(request)
     const actor = this.actorOf(request.workspaceId)
-    return this.brain.syncFolder(
+    const result = this.brain.syncFolder(
       request.workspaceId,
       request.projectId,
       request.folderPath,
       true,
       actor?.id ?? 'owner',
     )
+    this.persistVaultLeftover(request.projectId, request.folderPath, result.leftover)
+    return result
   }
 
   /**
@@ -3383,7 +3447,11 @@ export default class PersonaHost extends TypertRemoteService {
     const hit = this.subjectListCache.get(cacheKey)
     const now = Date.parse(this.orchestration.now())
     if (hit !== undefined && now - hit.at < SUBJECT_LIST_CACHE_MS) return hit.value
-    const subjects = subjectViews(this.topics, request, actor.id)
+    const working = workingBySubject(
+      this.orchestration.runtime(request.projectId).repo.tickets.list(),
+      ticketId => this.screens.screens.get<{ subjectId: string }>(request.projectId, 'ticket_subject', ticketId)?.subjectId,
+    )
+    const subjects = subjectViews(this.topics, request, actor.id, working)
       .filter(row => !row.archived)
     const active = this.activeSubjectId(request.projectId, request.streamKind, request.ownerId)
       ?? subjects[0]?.id ?? ''
@@ -3739,24 +3807,61 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
-   * OPT-8 scripted score plus how many live ledger rows the host holds.
-   * `cut-40` stays blocked until the live book can compare before/after.
-   * @param request - Workspace to count live entries.
+   * OPT-3 prefix/cache. Probe does not remount flags.
+   */
+  @Remote
+  measureOpt3(): OptPolicyMeasureView {
+    return measureOpt3Acceptance()
+  }
+
+  /**
+   * OPT-4 min tools / dedupe / layer budget.
+   */
+  @Remote
+  measureOpt4(): OptPolicyMeasureView {
+    return measureOpt4Acceptance()
+  }
+
+  /**
+   * OPT-5 cheap vs persona + session reuse.
+   */
+  @Remote
+  measureOpt5(): OptPolicyMeasureView {
+    return measureOpt5Acceptance()
+  }
+
+  /**
+   * OPT-6 lean channel + initiative batch + router burst.
+   */
+  @Remote
+  measureOpt6(): OptPolicyMeasureView {
+    return measureOpt6Acceptance()
+  }
+
+  /**
+   * PRO-6 + GES-6 + OPT-8 via `measureV1CloseView`. Probe does not remount flags.
+   * @param request - Workspace whose live ledger feeds OPT-8.
+   */
+  @Remote
+  measureV1Close(request: WorkspaceScopeRequest): V1CloseMeasureView {
+    this.requireWorkspace(request)
+    return measureV1CloseView(
+      this.product.listProjects(request.workspaceId)
+        .flatMap(project => this.ledger.list({ projectId: project.id })),
+    )
+  }
+
+  /**
+   * OPT-8 via `measureOpt8View`. Empty book keeps `cut-40` blocked; live book scores −40%.
+   * @param request - Workspace whose ledger is the live book.
    */
   @Remote
   measureOpt8(request: WorkspaceScopeRequest): Opt8MeasureView {
     this.requireWorkspace(request)
-    const scripted = measureOpt8Acceptance()
-    const entries = this.product.listProjects(request.workspaceId)
-      .flatMap(project => this.ledger.list({ projectId: project.id }))
-    return {
-      passed: scripted.passed,
-      total: scripted.total,
-      failed: scripted.failed,
-      blocked: scripted.blocked,
-      liveEntries: entries.length,
-      liveOrigin: foldUsagePanel(entries, []).origin,
-    }
+    return measureOpt8View(
+      this.product.listProjects(request.workspaceId)
+        .flatMap(project => this.ledger.list({ projectId: project.id })),
+    )
   }
 
   /**
@@ -4423,6 +4528,22 @@ export default class PersonaHost extends TypertRemoteService {
         persistProbeQuota(this.usage, project.id, snaps)
       }
     }
+  }
+
+  /**
+   * Dest extras after vault sync. Never deleted.
+   * @param projectId - Tenant.
+   * @param folderPath - Dest folder.
+   * @param leftover - Relative markdown paths still on disk.
+   */
+  private persistVaultLeftover(
+    projectId: string,
+    folderPath: string,
+    leftover: readonly string[],
+  ): void {
+    this.screens.screens.put(projectId, 'brain_vault_leftover', 'last', {
+      leftover, folderPath, at: this.orchestration.now(),
+    })
   }
 
   private requireWorkspace(request: { workspaceId: string }): void {

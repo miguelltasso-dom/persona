@@ -52,5 +52,8 @@ it('refuses UNC, missing, file, system root, and nested projects', () => {
   expect(h.setProjectRoot({ workspaceId: 'ws', projectId: 'pp', rootPath: 'C:\\' }).status).toBe('invalid')
   expect(h.setProjectRoot({ workspaceId: 'ws', projectId: 'pp', rootPath: parent }).status).toBe('ok')
   expect(h.setProjectRoot({ workspaceId: 'ws', projectId: 'other', rootPath: child }).message).toMatch(/dentro/i)
+  expect(h.listProjectRoots({ workspaceId: 'ws' }).roots).toEqual([
+    { workspaceId: 'ws', projectId: 'pp', rootPath: parent },
+  ])
   expect(h.pickDirectory()).toEqual({ path: null })
 })

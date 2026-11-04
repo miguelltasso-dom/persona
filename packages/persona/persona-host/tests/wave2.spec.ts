@@ -54,6 +54,24 @@ it('lists Geral by default, creates a second subject, and isolates message histo
   expect(uiPage.events[0]?.topicId).toBe(created.activeSubjectId)
 })
 
+it('lists the working persona on the subject of an open ticket', () => {
+  const h = host()
+  seed(h)
+  const geral = h.listConversationSubjects(stream).subjects[0]!
+  h.postMessage({
+    id: 'm-work', ...stream, body: 'preciso de um README no projeto', actorId: 'ana', subjectId: 's',
+    occurredAt: '2026-11-03T15:00:00.000Z', topicId: geral.id,
+  })
+  const tasks = h.listTasks({ workspaceId: 'ws', projectId: 'pp' })
+  expect(tasks.length).toBeGreaterThan(0)
+  expect(tasks[0]?.topicId).toBe(geral.id)
+  expect(tasks[0]?.conversationSubjectId).toBe(geral.id)
+  expect(h.getProjectBoard(scope).cards[0]?.topicId).toBe(geral.id)
+  const again = h.listConversationSubjects(stream)
+  const row = again.subjects.find(item => item.id === geral.id)
+  expect(row?.workingPersonaIds.length).toBeGreaterThan(0)
+})
+
 it('moves a message and binds the ticket subject chip', () => {
   const h = host()
   seed(h)

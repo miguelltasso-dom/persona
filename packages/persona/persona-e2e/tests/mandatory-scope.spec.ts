@@ -1,5 +1,6 @@
 /**
  * Mandatory E2E scenarios from persona-spec/SCOPE.md (user-built team, Atlas 03/11/2026).
+ * Host layer 1 (J1–J5): {@link ./mandatory-scope-contract.spec.ts} + {@link ./mandatory-s7-host-contract.spec.ts}.
  * Run under PERSONA_E2E=1 with Tier 1/2 harness; UI quality bar: UX-GUIDE §4 vs dirD-tela.png.
  */
 import { describe, expect, it } from 'vitest'

@@ -39,6 +39,13 @@ export const REAL_GALLERY_PANELS: readonly GalleryPanelSpec[] = [
   { slug: 'canais', navLabel: 'Canais', owner: 'Prism', kind: 'nav' },
   { slug: 'dms', navLabel: 'Mensagens diretas', owner: 'Prism', kind: 'nav' },
   { slug: 'conhecimento', navLabel: 'Conhecimento', owner: 'Lumen', kind: 'nav' },
+  {
+    slug: 'segundo-cerebro',
+    navLabel: 'Segundo cérebro',
+    owner: 'Lumen',
+    readySelector: '[data-persona-surface="second-brain"]',
+    kind: 'nav',
+  },
   { slug: 'arquivos', navLabel: 'Arquivos', owner: 'Lumen', kind: 'nav' },
   { slug: 'uso', navLabel: 'Uso e limites', owner: 'Lumen', kind: 'nav' },
   { slug: 'conexoes', navLabel: 'Conexões', owner: 'Lumen', kind: 'nav' },

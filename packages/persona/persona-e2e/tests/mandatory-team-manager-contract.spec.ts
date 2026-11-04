@@ -17,13 +17,9 @@ describe('GES — domain + invariantes (Forge persona-core)', () => {
 })
 
 describe('GES — ferramentas host (§ Ações 1–4)', () => {
-  it.todo(
-    '[Anvil] plan → approve → apply atomically or rollback (persist team_manager_*)',
-  )
-})
-
-describe('GES — auditoria persistida', () => {
-  it.todo('[Anvil] audit lines with reason text (getTeamHealth.gestorAudit)')
+  it('host: propose/approve/comment/tie + gestorAudit reason (persona-host gestor.spec)', () => {
+    runVitestSubprocess('packages/persona/persona-host/tests/gestor.spec.ts')
+  }, 120_000)
 })
 
 const runGallery = process.env.PERSONA_E2E === '1' && process.env.PERSONA_CONTRACT_INCLUDE_GALLERY === '1'

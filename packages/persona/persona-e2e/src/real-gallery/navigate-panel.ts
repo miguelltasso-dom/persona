@@ -4,7 +4,7 @@ import { dismissBlockingOverlays } from '../boot-gate-bootstrap.ts'
 import { waitForGeralComposer } from '../geral-composer.ts'
 
 const MORE_PANELS = new Set(['membros', 'importar', 'canvas'])
-const COMPANY_PANELS = new Set(['conhecimento', 'arquivos', 'uso', 'conexoes', 'regras'])
+const COMPANY_PANELS = new Set(['conhecimento', 'segundo-cerebro', 'arquivos', 'uso', 'conexoes', 'regras'])
 const TEAM_PANELS = new Set(['equipe', 'org-chart', 'team-health'])
 const WORK_PANELS = new Set(['projetos', 'kanban', 'rotinas', 'aprovacoes'])
 

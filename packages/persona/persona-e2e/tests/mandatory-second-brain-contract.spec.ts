@@ -41,7 +41,9 @@ describe('SB — export/import vault (§6.4)', () => {
 const runGallery = process.env.PERSONA_E2E === '1' && process.env.PERSONA_CONTRACT_INCLUDE_GALLERY === '1'
 
 describe.skipIf(!runGallery)('SB — gallery (opt-in)', () => {
-  it.todo(
-    '[Lumen+Probe] Empresa › Segundo cérebro após slug `segundo-cerebro` em real-gallery/panels.ts',
-  )
+  it('SB-5a: Segundo cérebro home (real-gallery-second-brain)', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-second-brain.spec.ts', [], {
+      inheritPersonaE2e: true,
+    })
+  }, 360_000)
 })

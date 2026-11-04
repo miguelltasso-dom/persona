@@ -15,6 +15,8 @@ import {
   type RealPersonaSession,
 } from '../src/real-app-session.ts'
 import { checkReducedMotionOnPersonaPage } from '../src/motion-jank.ts'
+import { geralComposerLocator } from '../src/geral-composer.ts'
+import { resetGalleryHome } from '../src/real-gallery/navigate-panel.ts'
 
 const runPersonaE2e = process.env.PERSONA_E2E === '1'
 const REFERENCE = join(REPO_ROOT, 'persona-assets', 'references', 'dirD-tela.png')
@@ -47,7 +49,8 @@ describe.skipIf(!runPersonaE2e)('persona-e2e mandatory-b9 (real app, profile per
 
     it('#geral composer visible', async () => {
       await ensureGeralComposer(session.page)
-      await session.page.getByText('Geral', { exact: true }).waitFor({ state: 'visible' })
+      await session.page.getByRole('heading', { name: 'Geral', exact: true }).waitFor({ state: 'visible' })
+      expect(await geralComposerLocator(session.page).first().isVisible()).toBe(true)
     }, 180_000)
 
     it('kanban global after navigation', async () => {
@@ -57,8 +60,10 @@ describe.skipIf(!runPersonaE2e)('persona-e2e mandatory-b9 (real app, profile per
     })
 
     it('composer draft enables send (runner wire pending)', async () => {
+      await resetGalleryHome(session.page)
       await ensureGeralComposer(session.page)
-      const textarea = session.page.getByPlaceholder(chat.composerPlaceholder)
+      const textarea = session.page.locator('[data-persona-area="composer"] textarea')
+      await textarea.waitFor({ state: 'visible', timeout: 60_000 })
       await textarea.fill('Probe: mensagem de teste E2E')
       expect(await session.page.getByRole('button', { name: chat.send, exact: true }).isEnabled()).toBe(true)
     }, 180_000)

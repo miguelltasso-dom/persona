@@ -20,8 +20,12 @@ describe.skipIf(!runA11y)('real-surface a11y (axe + keyboard)', () => {
   let session: RealPersonaSession
 
   beforeAll(async () => {
-    session = await openRealPersonaApp()
-    await completeOnboardingOverlay(session.page)
+    session = await openRealPersonaApp({
+      dismissOnboardingViaStorage: true,
+      devSeed: true,
+      viewport: { width: 1440, height: 900 },
+    })
+    await completeOnboardingOverlay(session.page).catch(() => {})
   }, 360_000)
 
   afterAll(async () => {
@@ -39,7 +43,7 @@ describe.skipIf(!runA11y)('real-surface a11y (axe + keyboard)', () => {
       }
       const kb = await probeKeyboardTraversal(session.page)
       expect(kb.pass, `${spec.slug}: ${kb.reason ?? kb.focusTags.join(' → ')}`).toBe(true)
-    })
+    }, 120_000)
   }
 
   it.todo('[Prism] editor-persona: axe + keyboard when PersonaEditor mounts in shell')

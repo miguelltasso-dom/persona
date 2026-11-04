@@ -4,6 +4,8 @@ End-to-end harness for Persona: **Tier 1** (`persona` profile host + Playwright 
 
 Only **one** heavy host (web `persona` profile or `start:desktop`) at a time — parallel vitest files will block on `with-lock.mjs` and can time out. Run Tier 1 and Tier 2 smokes sequentially when diagnosing.
 
+**Vitest hygiene (Atlas / Keel):** always `pnpm exec vitest run …` — never `vitest watch`. Prefer one E2E spec file at a time on Windows. Subprocess contracts pass `--testTimeout 120000 --hookTimeout 180000 --teardownTimeout 120000` via `run-vitest-subprocess.ts`. Stale fork trees (>15 min, multi‑GB): `node scripts/persona/reap-orphans.mjs` then `node scripts/persona/reap-orphans.mjs --kill` (never kills `apps/cli/src/bin.ts` / Maestri).
+
 Long-running apps use the shared lock with **early release** (see `persona-spec/BUILDER-RULES.md`):
 
 ```sh
@@ -77,6 +79,7 @@ pnpm exec vitest run packages/persona/persona-e2e/tests/org-chart-fixtures.spec.
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-working-send-contract.spec.ts
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-import-contract.spec.ts
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-s7-host-contract.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-scope-contract.spec.ts
 ```
 
 **Org-chart scale** (60/150 personas — GOVERNANCE-SPEC § muitas personas):

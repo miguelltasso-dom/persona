@@ -14,4 +14,11 @@ describe('playwright-onboarding.mjs (publish boot)', () => {
     expect(source).toContain('Descreva em linguagem natural ou cole um texto…')
     expect(source).not.toMatch(/locator\('input'\)\.first\(\)\.fill/)
   })
+
+  it('mirrors onboarding step 3 and 5 titles (persona-spec/design/MICROCOPY.md)', () => {
+    const source = readFileSync(join(REPO_ROOT, 'scripts/persona/playwright-onboarding.mjs'), 'utf8')
+    expect(source).toContain(onboarding.step3Title)
+    expect(source).toContain(onboarding.step5Title)
+    expect(source).not.toContain('Harnesses detectados')
+  })
 })

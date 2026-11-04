@@ -32,7 +32,7 @@ describe('BYC — merge into Cofre (§Organização 3–4)', () => {
 const runGallery = process.env.PERSONA_E2E === '1' && process.env.PERSONA_CONTRACT_INCLUDE_GALLERY === '1'
 
 describe.skipIf(!runGallery)('BYC — import surfaces gallery (layer 2)', () => {
-  it.todo(
-    '[Lumen+Probe] Importadores panel: bloco BYC visível após navegação galeria slug importar (sem stuck loading)',
-  )
+  it('BYC-1b: Importadores panel BYC block (real-gallery-byc-import)', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-byc-import.spec.ts', [], { inheritPersonaE2e: true })
+  }, 420_000)
 })

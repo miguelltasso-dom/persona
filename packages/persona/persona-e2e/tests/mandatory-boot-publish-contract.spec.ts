@@ -45,4 +45,8 @@ describe('Publish boot — clean HOME tour (Atlas / Keel)', () => {
   it('onboarding Playwright driver matches real-app step-1 placeholder', () => {
     runVitestSubprocess('packages/persona/persona-e2e/tests/playwright-onboarding-contract.spec.ts')
   }, 60_000)
+
+  it('boot smoke benign gateway rate-limit cap (listConversationSubjects)', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/boot-smoke-benign-errors.spec.ts')
+  }, 60_000)
 })

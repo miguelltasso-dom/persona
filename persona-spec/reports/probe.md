@@ -1,5 +1,227 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 06:12 — **PERSONA_GATE ok** + bootstrap 10/10
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **`persona-gate.mjs`** | **`PERSONA_GATE ok`** — check-pkg 11/11, bundle, **boot smoke clean home 9/9** (~238 s) |
+| **`mandatory-boot-bootstrap`** | **10/10** dev seed (~150 s) |
+| **Contracts** | boot-publish + D8 harness + GES/GOV/PB layer-1 — **19 pass**, 1 todo (GES Prism gallery) |
+| **reap-orphans** | 0 árvores >15 min (free ~24 GB) |
+
+### Fila (não vazia)
+D8 exe Rivet CSP; PRO-6 layer-2 (8 todo); S7 UI (4); B9 (3 todo); PB-9/GOV-10 aceite nomeado+capturas; axe 23×; BYC/SB app surface todos.
+
+---
+
+## 2026-11-04 06:01 — contracts v1 + B9 + gate bloqueio store
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **Contracts keyless** | scope/S7/PRO/boot/import/activity — **20/20** |
+| **B9 Tier 1** | **6/6** (+3 todo Rivet/Prism) ~90 s |
+| **`mandatory-installed-boot-contract`** | **3/3** (D8 scripts + reap-orphans) |
+| **check-pkg persona-e2e** | OK |
+
+### FALHOU / bloqueio
+| Item | Evidência |
+|------|-----------|
+| **`persona-gate.mjs`** | **persona-store** `screens/repos.ts` TS2322/TS2558 (2 erros) → **[Anvil/Forge]**; bundle ok, boot smoke não rodou |
+| **D8 exe** | continua **FALHOU** (CSP, ver 05:48) → **[Rivet]** |
+
+### PRO-6 / S7 (Probe fila)
+- PRO-6: layer 1 **verde**; layer 2 **8 todo** + UI smoke 2/2 em gallery.
+- S7: host **verde**; UI **4 todo** (Prism/Anvil).
+
+---
+
+## 2026-11-04 05:48 — D8 Setup 1d4e5e95b8 boot/onboarding gate **FALHOU** (Rivet)
+
+### Repro (Probe)
+1. `C:\p8c\Persona-Setup.exe` (343134036 B) → `/S /D=C:\Users\migue\dev\persona\.maestri\tmp\probe-p8-install` → `Persona.exe` 246302720 B.
+2. `installed-cdp-diag.mjs` (90s): `dsh-app://app/`, title Persona, **`[data-persona-shell]=0`**, `#root` vazio.
+3. `installed-onboarding-cdp.mjs`: **timeout 180s** waiting `[data-persona-shell]` (onboarding 5 passos **não** apareceu).
+
+### Evidência
+| Artefato | Caminho |
+|----------|---------|
+| CDP diag JSON/png | `packages/persona/persona-e2e/artifacts/installed-cdp-diag.{json,png}` |
+| Espelho Miguel | `.maestri/tmp/shots/installer/blank-root.png` (atualizado `probe-p8-blank-root-diag.png`) |
+| Console | **CSP** `script-src` bloqueia **`unsafe-eval`** no bundle (`pageerror` no diag) |
+
+### Veredito → **[Rivet]** (+ desktop CSP `secure-shell.ts` / pack)
+Instala/desinstala OK; **app renderer não monta** → gate boot/onboarding **FALHOU**. Source `persona-gate` boot smoke 9/9 **não** cobre NSIS.
+
+### Harness Probe
+- `scripts/persona/reap-orphans.mjs` (list/`--kill`, >15 min).
+- `installed-onboarding-cdp.mjs` grava `installed-onboarding-fail.png` + JSON em falha.
+- Vitest subprocess timeouts 120/180/120s (`run-vitest-subprocess.ts`).
+
+### Memória (Atlas urgente)
+Vitest órfãos encerrados (~9 → **~29 GB** livres). Regra no `persona-e2e/README.md`.
+
+### Fila (não vazia)
+D8 verde após fix CSP/mount; PRO-6 layer-2; S7/B9 todos; PB-9/GOV-10; persona-gate após Prism TS.
+
+---
+
+## 2026-11-04 05:18 — PRO-6 contract gallery + gate bloqueado (Prism)
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **PRO-6 layer 1** | `mandatory-proactivity-contract` engine/runner/jsdom **4/4** |
+| **PRO-6 layer 2 (parcial)** | bloco gallery: `mandatory-proactivity-ui` **2/2** + contract **6/6** com `PERSONA_CONTRACT_INCLUDE_GALLERY=1` |
+| **Gallery batch** | GOV/PB/BYC/W2/B9 **37/37** (+4 B9 todo); SB flake em batch → **afterAll 180s** fix, isolado **OK** |
+| **Import/activity/working-send contracts** | **24/24** |
+| **check-pkg persona-e2e** | OK |
+
+### FALHOU / bloqueio
+| Item | Evidência |
+|------|-----------|
+| **`persona-gate.mjs`** | **check-pkg** `client-ui-persona` (8) + `persona-host` (7): `subjects.retry` locale, `persona-live-store` undefined invoke, stubs `conversationScopeFromKey` → **[Prism/Anvil]**; bundle **ok**, boot smoke **não rodou** |
+
+### PRO-6 v1 (Probe)
+| Camada | Status |
+|--------|--------|
+| § Aceite 1–5 (fake clock) | **verde** via engine/runner |
+| § Aceite 6 app + 7 bullets layer-2 | **2/8** UI smoke; **8 `it.todo`** (`mandatory-proactivity.spec.ts`) — fake clock + awayEvents seed |
+
+### Fila (não vazia)
+S7 UI 4 todo, B9 4 todo, GOV/PB/W2 aceite nomeado §4/§3, BYC/SB/GES app todos, axe 23×, gate após Prism, capturas claro/escuro.
+
+---
+
+## 2026-11-04 05:07 — Muse microcópia onboarding (espelho E2E)
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **`real-app-locale.pt.ts`** | step3 **Ferramentas de IA neste computador**; step5 **Boas-vindas ao #geral** (Muse; glossário `persona-spec/design/MICROCOPY.md`) |
+| **Harness sync** | `playwright-onboarding.mjs` alinhado; contract novo step3/5 vs mirror |
+| **`dogfood-padaria`** | **PASS** (~281 s, home limpo) |
+| **boot-publish + onboarding contract** | **8/8** |
+| **check-pkg persona-e2e** | OK |
+
+### Nota
+- `dogfood-padaria` + `real-app-session` já importam `real-app-locale.pt.ts` — só o driver de publish boot estava defasado.
+
+---
+
+## 2026-11-04 04:38 — contracts batch + a11y harness
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **Contracts keyless batch** | scope + PRO + boot-publish + W2 + GOV + PB — **28/28** |
+| **`real-surface-a11y` harness** | `testTimeout` **120s** + dev seed (antes 5s flake) |
+
+### FALHOU (devolver builder)
+| Item | Evidência |
+|------|-----------|
+| **SB axe/teclado** | `real-surface-a11y` `segundo-cerebro`: **possible focus trap on button** — **[Lumen/Prism]** |
+
+---
+
+## 2026-11-04 04:29 — SB-5a gallery + health panel
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **`real-gallery-second-brain`** | **1/1** (~28 s) — `[data-persona-surface="second-brain"]`, heading Segundo cérebro |
+| **`mandatory-second-brain-contract`** + gallery | **7/7** (layer-1 + SB-5a subprocess) |
+| **Galeria** | slug `segundo-cerebro` em `panels.ts` + nav Empresa; health matrix **23** painéis (+1) |
+| **check-pkg persona-e2e** | OK |
+
+### Deps (fila ainda aberta)
+PRO-6 layer-2, B9/S7 UI todos, PB-9/GOV-10/W2-11 aceite nomeado+capturas, BYC app todos, GES Prism gallery, axe matrix, onboarding teclado.
+
+---
+
+## 2026-11-04 04:36 — PERSONA_GATE ok + BYC Importadores + ws-storm
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **`PERSONA_GATE ok`** | check-pkg + bundle + boot smoke 9/9 (após cap `listConversationSubjects` rate-limited no smoke) |
+| **BYC-1b** | `real-gallery-byc-import` + contract gallery **PASS** |
+| **GES host** | `persona-host/gestor.spec` promovido no contract (**4/4** + 1 todo Prism gallery) |
+| **ws-storm** | `real-gallery-panel-gate` **6/6** |
+| **W2/BYC contracts** | gallery subprocess **verde** |
+
+### Harness / deps
+- **`persona-boot-smoke.mjs`:** até 4 pageerrors benignos `listConversationSubjects` rate-limited no tour (dependência **Anvil** throttle em clean home rápido).
+- **`boot-smoke-benign-errors.spec.ts`** no publish contract.
+
+### Fila Probe (não vazia)
+PRO-6 layer-2 (7), B9 todos (4), S7 UI (4), PB-9/GOV-10 aceite nomeado+capturas, SB/second-brain gallery todo, GES Prism gallery, axe matrix completo, onboarding teclado.
+
+---
+
+## 2026-11-04 04:22 — S7 host contracts + Padaria + W2 SubjectBar
+
+### Entregue (persona-e2e)
+- **`mandatory-scope-contract.spec.ts`:** J1/J3+propose/J4/J5 host (**4/4**).
+- **`mandatory-s7-host-contract`:** J1–J10 (**1/1** batch).
+- **Padaria dogfood** (`dogfood-padaria.spec.ts`): **PASS** (~191 s, home limpo).
+- **W2 SubjectBar:** harness `getByRole('tab', Geral)` — **`real-gallery-wave2-subjects` PASS** (id `#persona-subject-subject-geral` flake → **[Prism]** se tablist sem chip).
+
+### S7 fechamento v1 (Probe)
+| Camada | Status |
+|--------|--------|
+| Host J1–J10 | **verde** (s7 + scope contracts) |
+| UI motion + dirD | **2/2** |
+| UI onboarding zero / teclado / cards SCOPE | **4 todo** (Prism+Anvil) |
+
+### Fila (não vazia)
+PRO-6 layer-2 (7), B9 todos (4), PB-9/GOV-10/W2-11 aceite nomeado+capturas, BYC/SB app todos, axe matrix, onboarding UI S7.
+
+---
+
+## 2026-11-04 04:05 — PERSONA_GATE ok + GOV/PB gallery contracts + S7 2/6
+
+### PASSOU
+| Suíte | Resultado |
+|-------|-----------|
+| **`persona-gate.mjs`** | **`PERSONA_GATE ok`** (check-pkg + bundle + boot smoke 9/9) |
+| Bootstrap dev seed | **10/10** |
+| S7 scope UI bar | **2/2** (reduced-motion + dirD informacional) |
+| GOV/PB contracts + **`PERSONA_CONTRACT_INCLUDE_GALLERY=1`** | **7/7** (incl. gallery subprocess) |
+| Org chart mandatory + real 60/150 + two-day health | **9/9** E2E |
+| Layer-1 contracts batch (PRO/BYC/SB/GES/TOK/activity) | **23 pass**, 5 todo |
+| Turno 03:46 | galeria 22/22, B9 6/6 |
+
+### Fila Probe (não vazia)
+- **S7** 4 cenários `it.todo` (onboarding zero, persona_propose, handoff Coordenação, Cofre contexto).
+- **PRO-6** layer-2 (7 todos app/fake clock).
+- **B9** 4 todos (runner/members/desktop).
+- **PB-9 / GOV-10 / W2-11** aceite completo (5+5+3 cenários nomeados + capturas claro/escuro).
+- **BYC/SB** surface `it.todo`; **Padaria** dogfood; axe matrix opcional.
+
+---
+
+## 2026-11-04 03:46 — Galeria 22/22 + GOV/PB smoke; gate bloqueado (Prism WIP)
+
+### PASSOU (E2E, host único `PERSONA_HOST_NO_LOCK=1`)
+| Suíte | Resultado |
+|-------|-----------|
+| Boot smoke isolado (`--port 3366`) | **9/9** clean-home |
+| **`real-gallery-blank-panel`** | **22/22** (~134 s) — PB-9/GOV-10 loading preso (parcial) |
+| **`real-gallery-governance` + `real-gallery-project-boards`** | **3/3** |
+| **`mandatory-b9-real-app` Tier 1** | **6/6** (+4 todo Rivet/Prism); harness WAVE2 (`heading` Geral, composer textarea) |
+| Turno anterior: bootstrap **10/10**, S7 reduced-motion, PRO-6 UI **2/2** |
+
+### FALHOU / bloqueio
+- **`persona-gate.mjs`:** **check-pkg + bundle vermelhos** — `GestorPlanAdjustModal.tsx` (TS1024 `readonly`, locale keys, size `"s"`) + `GeneralChannelView` import morto; **`persona-host`** 1 erro → **[Prism]** (Probe não conserta feature).
+- Smoke no gate: só roda se check-pkg limpo; boot smoke isolado **OK**.
+
+### Fila Probe (não vazia)
+- B9 **4 todos** (runner/kanban/members/desktop); PRO-6 layer-2 (7 todos); scope **4 todos** + dirD; BYC/SB/W2 gallery todos; Padaria; org-chart browser E2E; gate verde após **Prism** fechar `GestorPlanAdjustModal`.
+
+---
+
 ## 2026-11-04 03:08 — JANELA ENCERRADA (Keel 4884366950): bootstrap 10/10 + S7 motion
 
 ### Keel
@@ -12,7 +234,7 @@
   - Teste 2 fatiado por slug (fail loud).
 - **S7 / scope:** `mandatory-scope` **reduced-motion** verde (~98 s).
 - **PRO-6 UI:** `mandatory-proactivity-ui` 2/2 (turno anterior, revalidado).
-- **Publish:** `persona-gate` re-run pendente neste bloco (comando abaixo).
+- **Publish:** `persona-gate` **check-pkg + bundle OK**; **boot smoke FALHOU** (host sem `dsh web:` em 120 s — CLI preso em plugins/services; reproduzível após rajada E2E). Re-run isolado quando host subir → **[Anvil/Rivet infra host]** se persistir fora de carga Probe.
 
 ### Infra E2E
 - Host boot timeout intermitente se vários vitest browser competem → usar **`PERSONA_HOST_NO_LOCK=1`** e um host por vez.

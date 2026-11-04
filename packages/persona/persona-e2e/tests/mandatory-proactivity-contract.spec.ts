@@ -22,3 +22,13 @@ describe('PRO-6 — proactivity contracts (PROACTIVITY.md § Aceite 1–5)', () 
     runVitestSubprocess('packages/persona/client-ui-persona/tests/overview-preview.client.spec.tsx')
   }, 120_000)
 })
+
+const runGallery = process.env.PERSONA_E2E === '1' && process.env.PERSONA_CONTRACT_INCLUDE_GALLERY === '1'
+
+describe.skipIf(!runGallery)('PRO-6 — UI smoke (layer 2, PERSONA_E2E=1)', () => {
+  it('PRO-6 partial: Visão geral + #geral composer (mandatory-proactivity-ui)', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-proactivity-ui.spec.ts', [], {
+      inheritPersonaE2e: true,
+    })
+  }, 420_000)
+})

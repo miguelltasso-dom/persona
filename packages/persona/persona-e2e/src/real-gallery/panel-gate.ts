@@ -13,6 +13,9 @@ export interface PanelConsoleTripwire {
   errors: string[]
   attach(page: Page): void
   detach(page: Page): void
+  mark(): number
+  fatalCountSince(mark: number): number
+  fatalsSince(mark: number): string[]
   fatalCount(): number
   fatals(): string[]
 }
@@ -49,6 +52,15 @@ export function createPanelConsoleTripwire(): PanelConsoleTripwire {
     detach(page) {
       page.off('console', onConsole)
     },
+    mark() {
+      return errors.length
+    },
+    fatalCountSince(mark) {
+      return errors.slice(mark).filter(line => PANEL_CONSOLE_FATAL_RE.test(line)).length
+    },
+    fatalsSince(mark) {
+      return errors.slice(mark).filter(line => PANEL_CONSOLE_FATAL_RE.test(line)).slice(0, 8)
+    },
     fatalCount() {
       return errors.filter(line => PANEL_CONSOLE_FATAL_RE.test(line)).length
     },
@@ -82,9 +94,15 @@ export async function measureStuckLoading(page: Page): Promise<StuckLoadingResul
 
 async function readMainLoadingSignals(page: Page): Promise<{ loading: boolean; reason: string; snippet: string }> {
   return page.evaluate(() => {
-    const shell = document.querySelector('[data-persona-shell]')
-    const main = shell?.children[1]
-    if (!(main instanceof HTMLElement)) {
+    const grain = document.querySelector('[data-persona-grain]')
+    const main = grain instanceof HTMLElement
+      ? grain
+      : (() => {
+        const shell = document.querySelector('[data-persona-shell]')
+        const legacy = shell?.children[1]
+        return legacy instanceof HTMLElement ? legacy : null
+      })()
+    if (main === null) {
       return { loading: true, reason: 'missing main column', snippet: '' }
     }
     const text = (main.textContent ?? '').replace(/\s+/g, ' ').trim()

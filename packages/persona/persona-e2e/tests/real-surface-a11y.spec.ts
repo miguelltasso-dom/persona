@@ -6,21 +6,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Page } from 'playwright'
 import { scanAccessibility } from '../src/axe-check.ts'
 import { probeKeyboardTraversal } from '../src/real-gallery/keyboard.ts'
-import { REAL_GALLERY_PANELS, type GalleryPanelSpec } from '../src/real-gallery/panels.ts'
+import { realGalleryHealthPanelSpecs, type GalleryPanelSpec } from '../src/real-gallery/panels.ts'
+import { navigateGalleryPanel } from '../src/real-gallery/navigate-panel.ts'
 import { completeOnboardingOverlay, openRealPersonaApp, type RealPersonaSession } from '../src/real-app-session.ts'
 
 const runA11y = process.env.PERSONA_A11Y === '1' || process.env.PERSONA_E2E === '1'
 
 async function goPanel(page: Page, spec: GalleryPanelSpec): Promise<void> {
-  if (spec.kind !== 'nav' && spec.kind !== 'settings') return
-  await page.getByRole('button', { name: spec.navLabel, exact: true }).click()
-  if (spec.slug === 'geral') {
-    await page.getByPlaceholder('Mensagem para #geral…').waitFor({ state: 'visible', timeout: 60_000 })
-  } else if (spec.readySelector !== undefined) {
-    await page.locator(spec.readySelector).first().waitFor({ state: 'visible', timeout: 60_000 })
-  } else {
-    await page.waitForTimeout(600)
-  }
+  await navigateGalleryPanel(page, spec)
 }
 
 describe.skipIf(!runA11y)('real-surface a11y (axe + keyboard)', () => {
@@ -35,7 +28,7 @@ describe.skipIf(!runA11y)('real-surface a11y (axe + keyboard)', () => {
     await session?.close()
   }, 60_000)
 
-  const navPanels = REAL_GALLERY_PANELS.filter(p => p.kind === 'nav' || p.kind === 'settings')
+  const navPanels = realGalleryHealthPanelSpecs()
 
   for (const spec of navPanels) {
     it(`[${spec.owner}] ${spec.slug}: axe WCAG + Tab traversal`, async () => {

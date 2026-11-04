@@ -12,12 +12,16 @@ export const onboarding = {
 } as const
 
 export const shell = {
-  kanban: 'Kanban',
+  kanban: 'Quadros',
   channels: 'Canais',
   team: 'Equipe',
 } as const
 
 export const chat = {
-  composerPlaceholder: 'Mensagem para #geral…',
+  /** Matches `persona.chat` `composer.placeholderChannel` (dirD #geral field). */
+  composerPlaceholder: 'Escreva uma mensagem em #geral…',
+  composerPlaceholderLegacy: 'Mensagem para #geral…',
+  /** WAVE2 default assunto "Geral" via `composer.placeholderInSubject`. */
+  composerPlaceholderInSubject: 'Mensagem em Geral…',
   send: 'Enviar',
 } as const

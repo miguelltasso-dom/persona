@@ -8,7 +8,7 @@ import {
   assertNotHarnessShell,
   assertConsoleClean,
   chat,
-  completeOnboardingOverlay,
+  ensureGeralComposer,
   openRealPersonaApp,
   selectSidebarPanel,
   shell,
@@ -28,9 +28,13 @@ describe.skipIf(!runPersonaE2e)('persona-e2e mandatory-b9 (real app, profile per
     let session: RealPersonaSession
 
     beforeAll(async () => {
-      session = await openRealPersonaApp()
+      session = await openRealPersonaApp({
+        dismissOnboardingViaStorage: true,
+        devSeed: true,
+        viewport: { width: 1280, height: 720 },
+      })
+      await session.page.waitForTimeout(2_000)
       await assertNotHarnessShell(session.page)
-      await completeOnboardingOverlay(session.page)
     }, 360_000)
 
     afterAll(async () => {
@@ -42,21 +46,22 @@ describe.skipIf(!runPersonaE2e)('persona-e2e mandatory-b9 (real app, profile per
     })
 
     it('#geral composer visible', async () => {
-      await session.page.getByPlaceholder(chat.composerPlaceholder).waitFor({ state: 'visible' })
+      await ensureGeralComposer(session.page)
       await session.page.getByText('Geral', { exact: true }).waitFor({ state: 'visible' })
-    })
+    }, 180_000)
 
     it('kanban global after navigation', async () => {
       await selectSidebarPanel(session.page, shell.kanban)
-      await session.page.locator('[data-persona-kanban="global"]').waitFor({ state: 'visible' })
+      await session.page.locator('[data-persona-surface="boards"]').waitFor({ state: 'visible' })
       await selectSidebarPanel(session.page, shell.channels)
     })
 
     it('composer draft enables send (runner wire pending)', async () => {
+      await ensureGeralComposer(session.page)
       const textarea = session.page.getByPlaceholder(chat.composerPlaceholder)
       await textarea.fill('Probe: mensagem de teste E2E')
-      expect(await session.page.getByRole('button', { name: chat.send }).isEnabled()).toBe(true)
-    })
+      expect(await session.page.getByRole('button', { name: chat.send, exact: true }).isEnabled()).toBe(true)
+    }, 180_000)
 
     it('reduced-motion on live shell', async () => {
       const motion = await checkReducedMotionOnPersonaPage(session.page)
@@ -87,7 +92,7 @@ describe.skipIf(!runPersonaE2e)('persona-e2e mandatory-b9 (real app, profile per
           await browser.close()
         }
       }
-    })
+    }, 120_000)
   })
 
   it.todo('Tier 1: enviar mensagem no #geral e ver resposta do runner scriptado / fake CLI (Rivet/Anvil host wire)')

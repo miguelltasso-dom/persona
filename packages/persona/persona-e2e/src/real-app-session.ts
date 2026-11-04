@@ -3,6 +3,12 @@ import { chat, onboarding, shell } from './real-app-locale.pt.ts'
 import { startWebHost, type WebHostHandle } from './web-host.ts'
 import { watchConsole, assertConsoleClean, type ConsoleTripwire } from './console-tripwire.ts'
 import { withFakeCliOnPath, type FakeCliPathScope } from './fake-cli.ts'
+import { dismissBlockingOverlays } from './boot-gate-bootstrap.ts'
+import { waitForGeralComposer } from './geral-composer.ts'
+import { navigateGalleryPanel, resetGalleryHome } from './real-gallery/navigate-panel.ts'
+import { REAL_GALLERY_PANELS } from './real-gallery/panels.ts'
+
+const geralPanel = REAL_GALLERY_PANELS.find(p => p.slug === 'geral')!
 
 export interface RealPersonaSession {
   readonly host: WebHostHandle
@@ -17,6 +23,8 @@ export interface OpenRealPersonaAppOptions {
   dismissOnboardingViaStorage?: boolean
   /** Set `persona.devSeed.v1` before first navigation (boot gate roster). */
   devSeed?: boolean
+  /** Force Lumen `mockLargeOrgChart` roster (60 or 150) for Quem cuida de quem captures. */
+  orgChartScaleSeed?: 60 | 150
   viewport?: { width: number; height: number }
 }
 
@@ -32,16 +40,22 @@ export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}
     locale: 'pt-BR',
     viewport: options.viewport ?? { width: 1440, height: 900 },
   })
-  if (options.dismissOnboardingViaStorage || options.devSeed) {
-    await context.addInitScript(({ onboarding, seed }: { onboarding: boolean; seed: boolean }) => {
+  if (options.dismissOnboardingViaStorage || options.devSeed || options.orgChartScaleSeed !== undefined) {
+    await context.addInitScript(({ onboarding, seed, orgScale }: { onboarding: boolean; seed: boolean; orgScale: string | null }) => {
       if (onboarding) localStorage.setItem('persona.onboarding.complete.v1', '1')
       if (seed) localStorage.setItem('persona.devSeed.v1', '1')
-    }, { onboarding: options.dismissOnboardingViaStorage === true, seed: options.devSeed === true })
+      if (orgScale !== null) localStorage.setItem('persona.orgChartScaleSeed', orgScale)
+    }, {
+      onboarding: options.dismissOnboardingViaStorage === true,
+      seed: options.devSeed === true,
+      orgScale: options.orgChartScaleSeed === undefined ? null : String(options.orgChartScaleSeed),
+    })
   }
   const page = await context.newPage()
   const tripwire = watchConsole(page)
   await page.goto(host.url, { waitUntil: 'load', timeout: 120_000 })
   await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
+  await dismissBlockingOverlays(page).catch(() => {})
 
   return {
     host,
@@ -88,7 +102,7 @@ export async function completeOnboardingOverlay(page: Page): Promise<void> {
   await continueBtn().click()
   await page.getByRole('heading', { name: onboarding.step5Title }).waitFor({ state: 'visible' })
   await page.getByRole('button', { name: onboarding.finish }).click()
-  await page.getByPlaceholder(chat.composerPlaceholder).waitFor({ state: 'visible', timeout: 60_000 })
+  await waitForGeralComposer(page, 60_000)
 }
 
 /**
@@ -97,6 +111,25 @@ export async function completeOnboardingOverlay(page: Page): Promise<void> {
  */
 export async function selectSidebarPanel(page: Page, panelLabel: string): Promise<void> {
   await page.getByRole('button', { name: panelLabel, exact: true }).click()
+}
+
+/**
+ * Open #geral channel composer (Visão geral does not mount the channel view).
+ */
+export async function ensureGeralComposer(page: Page): Promise<void> {
+  await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 120_000 })
+  let lastError: unknown
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await resetGalleryHome(page)
+      await navigateGalleryPanel(page, geralPanel)
+      await waitForGeralComposer(page, 45_000)
+      return
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
 }
 
 export { assertConsoleClean, shell, chat, onboarding }

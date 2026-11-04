@@ -4,6 +4,20 @@ import { join } from 'node:path'
 import { E2E_TMP_ROOT, requireWebDist } from './paths.ts'
 import { probeFreePort } from './ports.ts'
 import { launchDirect, launchUnderLock } from './locked-launch.ts'
+import {
+  BUILD_LOCK_READY,
+  hostBootTimeoutMs,
+  lockQueueTimeoutMs,
+  webHostBootFailure,
+} from './web-host-boot.ts'
+
+export {
+  BuildLockContentionError,
+  WebHostBootTimeoutError,
+  isBuildLockBootFailure,
+  lockHolderFromOutput,
+  outputIndicatesLockQueueOnly,
+} from './web-host-boot.ts'
 
 const WEB_URL_LINE = /dsh web: (http:\/\/127\.0\.0\.1:\d+\/\?token=[^\s]+)/
 
@@ -64,22 +78,32 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
       env,
     })
 
+  const usingLock = process.env.PERSONA_HOST_NO_LOCK !== '1'
   const url = await new Promise<string>((resolve, reject) => {
-    const deadline = Date.now() + 240_000
+    const started = Date.now()
+    let hostBootStartedAt = usingLock ? undefined as number | undefined : started
     const tick = (): void => {
-      const match = WEB_URL_LINE.exec(launch.output.text())
+      const text = launch.output.text()
+      if (hostBootStartedAt === undefined && (BUILD_LOCK_READY.test(text) || WEB_URL_LINE.test(text))) {
+        hostBootStartedAt = Date.now()
+      }
+      const match = WEB_URL_LINE.exec(text)
       if (match?.[1] !== undefined) {
         resolve(match[1])
         return
       }
       if (launch.child.exitCode !== null) {
-        reject(new Error(
-          `host exited before printing URL (code ${String(launch.child.exitCode)})\n${launch.output.text()}`,
-        ))
+        reject(webHostBootFailure(text, launch.child.exitCode))
         return
       }
-      if (Date.now() > deadline) {
-        reject(new Error(`timed out waiting for dsh web URL\n${launch.output.text()}`))
+      const now = Date.now()
+      if (usingLock && hostBootStartedAt === undefined && now - started > lockQueueTimeoutMs()) {
+        reject(webHostBootFailure(text, null))
+        return
+      }
+      const bootDeadline = (hostBootStartedAt ?? started) + hostBootTimeoutMs()
+      if (now > bootDeadline) {
+        reject(webHostBootFailure(text, null))
         return
       }
       setTimeout(tick, 250)

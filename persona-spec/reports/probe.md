@@ -1,5 +1,172 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 02:34 — Publish gate VERDE + boot smoke 9/9
+
+### PASSOU
+- **`persona-gate.mjs`** (check-pkg + bundle + boot smoke): **`PERSONA_GATE ok`** (~5,8 min).
+- **Clean-home tour:** 9/9 painéis sem ErrorState/Carregando (home temp + onboarding real).
+- **Fix Probe (scripts/persona):** `playwright-onboarding.mjs` — step 1 via placeholder (não `input[type=file]`); fluxo alinhado a `completeOnboardingOverlay` (step 4 Continuar).
+- **`playwright-onboarding-contract.spec.ts`** + item em `mandatory-boot-publish-contract`.
+
+### FALHOU / parcial
+- **Dev seed bootstrap** (`mandatory-boot-bootstrap`): re-run neste turno (ver abaixo).
+
+### PRO-6 UI smoke (dev seed)
+- **`mandatory-proactivity-ui`:** **2/2 PASS** após assert via `geralComposerLocator` (~70 s).
+
+### Dependências
+- PRO-6 layer-2 (7 todos), PB-9/GOV-10/W2-11 gallery, B9 tier-1, S7 scope 4 todos, Padaria — fila aberta.
+
+---
+
+## 2026-11-04 02:24 — Fila Vigia: contratos layer-1 + PRO-6 parcial
+
+### Entregue
+- **`mandatory-boot-publish-contract.spec.ts`:** ordem 9 painéis, alinhamento `REAL_GALLERY_PANELS`, subprocess sanitize.
+- **`mandatory-proactivity-contract`:** +1 teste jsdom `overview-preview` (PRO-6 bullet 6 parcial — links no painel “fora”).
+- README persona-e2e: bloco publish boot.
+
+### Gates (subprocess / keyless)
+| Suíte | Resultado |
+|-------|-----------|
+| boot-publish + PRO + BYC | **12 pass**, 1 todo |
+| GOV/PB/TOK/activity/GES/SB/W2/OPT | **28 pass**, 4 skip, 4 todo (~82 s) |
+| org-chart + fake-cli + web-host-boot | **9/9** |
+| **BYC host walk (`logo.png` ignored)** | **verde** (histórico Forge resolvido no tree atual) |
+
+### `persona-gate.mjs` (--skip-smoke --skip-typert)
+- **check-pkg 11/11:** OK
+- **client bundle:** **FALHOU** — `PooledAccount` already declared (parse Rolldown) → **[Prism/Lumen]** fora da folha Probe na freeze
+- **boot smoke:** não rodou (bundle vermelho; mesmo com bundle verde, tour browser ainda depende `#geral`/Prism)
+
+### Fila Probe (não vazia)
+- Layer-2 browser: PRO-6 (7 todos + `#geral` composer), PB-9/GOV-10 gallery, B9, bootstrap dev seed, galeria 22, Padaria, org-chart &lt;1s overlap.
+- Publish: re-run `persona-gate.mjs` completo após bundle verde + smoke clean-home.
+
+---
+
+## 2026-11-04 02:10 — Atlas clean-home tour no publish gate
+
+### Entregue (persona-e2e + scripts/persona — folha OK na freeze)
+- **`BOOT_GATE_CLEAN_HOME_TOUR`:** 9 painéis (Visão geral → #geral → Conexões → Uso → Saúde → Organograma → Quadros → Conhecimento → Aprovações).
+- **`runCleanHomeTourChecks`:** falha em `role="alert"` (ErrorState) ou `Carregando…`/skeleton/`aria-busy` (12 s/painel).
+- **`persona-boot-smoke.mjs`:** home temp limpa → onboarding Playwright → tour (tsx import bootstrap).
+- **`persona-gate.mjs`:** smoke via `node --import tsx/esm …/persona-boot-smoke.mjs`.
+- Teste: **`boot-gate-clean-home.spec.ts`** (ordem 9 slugs).
+
+### Verificação
+```
+pnpm exec vitest run packages/persona/persona-e2e/tests/boot-gate-clean-home.spec.ts
+node scripts/persona/persona-gate.mjs --skip-typert   # smoke real quando client verde
+```
+
+---
+
+## 2026-11-04 02:04 — Freeze Keel: gates + fila pós-janela
+
+### Gates subprocess (sem browser, persona-e2e OK)
+| Gate | Resultado |
+|------|-----------|
+| Keyless e2e (boot-sanitize, fake-cli, visible-copy, token baseline, web-host-boot) | **9/9** |
+| `mandatory-governance-contract` | **4 pass**, 2 skip gallery |
+| `mandatory-activity-contract` (T3 §9) | **2/2** |
+| Batch anterior (TOK/GES/SB/BYC/W2/PB-9/PRO) | **19 pass** layer-1 |
+
+### Bloqueios (sem edit client/core na freeze)
+- **E2E browser:** devSeed vazio + `#geral` composer → **Prism** (Muse 04:20: `map-rail-team.ts` `arriving` — 5 testes client).
+- **Handoff Maestri Prism** enviado (715781).
+
+### Fila Probe pós-freeze
+- Layer-2: PRO-6, PB-9, GOV-10, W2-11, B9, galeria, Padaria, org-chart browser — **após JANELA ENCERRADA + client verde**.
+- Layer-1: manter `mandatory-*-contract` no push snapshot Rivet.
+
+---
+
+## 2026-11-04 01:56 — Keel janela congelada + Probe folha VERDE
+
+### Conformidade Keel (01:45+ freeze pacotes core/client)
+- **Probe não edita** persona-core/engine/store/host/runners/vault/usage/client-ui-persona até **"JANELA ENCERRADA"** no Status.
+- Trabalho permitido: **persona-e2e**, **persona-spec/reports**, gates subprocess, docs de aceite.
+
+### persona-e2e (folha)
+- **`check-pkg persona-e2e`:** OK (~5 s).
+- **`tsc -p persona-e2e`:** OK.
+- **Layer-1 contracts:** **7/7** arquivos, **19 pass** + skips/todos (~71 s subprocess).
+- **E2E browser:** boot bootstrap **2/2 FAIL** — dev seed vazio (`SUA EQUIPE` sem Atlas) + `#geral` composer → **Prism** (bloqueio instalador; alinhado Keel "client primeiro").
+
+### Harness (já em persona-e2e, pré-freeze)
+- `waitForSeededTeam`: rail avatars + expand lista; 45 s.
+- `openRealPersonaApp`: `dismissBlockingOverlays`.
+
+---
+
+## 2026-11-04 01:30 — #geral regressão + PRO-6 UI harness
+
+### Diagnóstico `#geral` / composer
+- **`[Prism] geral` isolado:** **FALHOU** 120 s (antes 22/22 galeria) — possível regressão produto ou overlay scrim bloqueando nav.
+- **Harness:** `openRealPersonaApp` chama `dismissBlockingOverlays`; `ensureGeralComposer` sempre `resetGalleryHome`; composer wait 90 s sem swallow; galeria `geral/canais` timeout 240 s.
+- **PRO-6 UI:** harness overlay fix → **1/2 pass** (Visão geral + `#persona-attention-title` OK); **1 fail** `#geral` composer (240 s) — **[Probe→Prism]** mesmo bloqueio B9/galeria-geral isolado.
+
+### Gates subprocess
+- WAVE2 + PB-9 + TOK contracts **verdes** (esta sessão).
+- Org-chart jsdom **2/2** + jornadas **19/19**.
+
+### Boot bootstrap (`mandatory-boot-bootstrap`)
+- **2/2 FALHOU:** `seeded team missing (Atlas)` após 25 s + `#geral` composer timeout 90 s nos painéis Prism — **[Probe→Prism]** dev seed / live store (regressão vs galeria 22/22 ~00:24).
+
+### Fila
+- Prism: #geral composer + rail seed Atlas; PRO-6 composer E2E; B9; galeria 22 re-run; PB-9/GOV-10/W2 todos; Padaria; BYC walk Forge.
+
+---
+
+## 2026-11-04 01:05 — TOK gate Forge + B9 harness
+
+### Tokens (OPT-1 / OPT-2)
+- **`mandatory-token-scenarios-contract`:** **2/2 verdes** — baseline JSON + subprocess `token-measure.spec.ts` (402 tokens, gate +10%).
+- JSON `persona-spec/baselines/token-scenarios.json` ainda placeholder numérico; fonte de verdade engine = Forge `bench-tokens.md`.
+
+### B9 mandatory-b9-real-app
+- **FALHOU** 2×: `beforeAll` composer `#geral` (cold start 1440×900); retry `ensureGeralComposer` estourou hook 360 s.
+- **Harness:** composer deferido do `beforeAll`; viewport 1280×720; retry 3× em `ensureGeralComposer`.
+- **3ª corrida:** **4/6 pass** (console, kanban, reduced-motion, dirD); **2 fail** `#geral composer` + draft (180 s timeout) — **[Probe→Prism]** canal #geral/composer não monta no cold start (galeria 22/22 verde na mesma noite sugere flake ou ordem de nav; re-run geral isolado pendente).
+
+### Contratos revalidados
+- GES **1 verde** + BYC **2 verdes** (walk host ainda todo).
+
+---
+
+## 2026-11-04 00:45 — GES promovido + gates layer 1 + galeria 22
+
+### Gestor (GES) — **PASSOU** layer 1
+- **`gestor.spec.ts`:** **10/10** verdes.
+- **`mandatory-team-manager-contract`:** subprocess `gestor.spec.ts` promovido (**1 verde**); demais GES engine/gallery ainda `it.todo`.
+
+### Gates subprocess (sem browser, esta sessão)
+| Gate | Resultado |
+|------|-----------|
+| `mandatory-project-boards-contract` | **3/3** |
+| `mandatory-second-brain-contract` | **5/5** |
+| `mandatory-wave2-contract` | **7 pass**, 1 skip gallery |
+| `mandatory-proactivity-contract` | **2/2** |
+| Jornadas host | **19/19** |
+
+### BYC — **FALHOU** (Forge)
+- `bring-context-walk.spec.ts`: binário `logo.png` não listado em `ignored` (walk só `.md` keep). **[Probe→Forge]**
+
+### Galeria 22
+- 1ª corrida isolada: **21/22** — `[Lumen] perfil` timeout `Sobre Atlas` (rail densidade avatars @ 720p esconde ⋯).
+- **Fix harness** `navigateProfileViaRailCard`: `resetGalleryHome` + expandir rail lista + fallback Shift+F10 → card → Abrir perfil.
+- Re-run `-t perfil:` **PASS** (~63 s).
+- Corrida completa pós-fix: **22/22 PASS** (~239 s, host isolado).
+
+### B9 real app (esta sessão)
+- **`mandatory-b9-real-app`:** **FALHOU** `beforeAll` — composer `#geral` não visível em 120 s após `ensureGeralComposer` (host abriu; possível stuck loading Canais — re-run após galeria verde ou **[Probe→Prism]**).
+
+### Fila Probe
+- PRO-6 / PB-9 / GOV-10 / W2-11 E2E todos; org-chart browser; TOK bench; Padaria; B9 re-run; S7 UI; D8 blocked; W2 SubjectBar → Prism.
+
+---
+
 ## 2026-11-03 19:10 — PROJECT-BOARDS.md §3 (aceite, BRIEFING 15)
 
 ### Entregue

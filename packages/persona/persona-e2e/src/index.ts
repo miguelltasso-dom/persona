@@ -22,3 +22,8 @@ export {
 export { withFakeCliOnPath, type FakeCliPathScope } from './fake-cli.ts'
 export { ARTIFACTS_DIR, REPO_ROOT, requireWebDist } from './paths.ts'
 export { watchConsole, assertConsoleClean, type ConsoleTripwire } from './console-tripwire.ts'
+export {
+  gluedSiblingTextContent,
+  isGluedCopyFalsePositive,
+  visibleSiblingText,
+} from './visible-copy.ts'

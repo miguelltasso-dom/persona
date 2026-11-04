@@ -1,11 +1,10 @@
 /**
- * Mandatory acceptance from persona-spec/PROACTIVITY.md (Miguel item 14, Atlas 03/11/2026).
- * Implement with fake clock + engine fixtures as Forge (persona-engine), Anvil (store/host),
- * and Rivet (runners/recovery) land. Prefer `@botiverse/oar/testing` and fake CLI — no real AI spend.
+ * PRO-6 layer 2 — app/E2E (PROACTIVITY.md § Aceite + UI).
+ * Layer 1 (engine/runner, fake clock): {@link ./mandatory-proactivity-contract.spec.ts}.
  */
 import { describe, it } from 'vitest'
 
-describe('mandatory proactivity — native v1 (PROACTIVITY.md)', () => {
+describe('mandatory proactivity — native v1 app (PRO-6 layer 2)', () => {
   it.todo(
     'idle cap: with backlog + open project goal, no persona stays idle longer than one Vigia watchdog cycle (fake clock); Vigia audit log shows assign/replan action, not human ping',
   )
@@ -35,6 +34,9 @@ describe('mandatory proactivity — native v1 (PROACTIVITY.md)', () => {
   )
 
   it.todo(
-    'while you were away: after simulated user absence, opening the app shows "Enquanto você estava fora" with deliveries, proposals accepted/rejected, and deep links to real Tickets/runs (peak-end honest states: idle vs stuck vs waiting-on-you)',
+    '[Prism+Lumen] "Enquanto você estava fora" on open: lists real events with links to Tickets/tasks (peak-end); matches PROACTIVITY.md § Aceite bullet 6',
   )
+
 })
+
+/** Partial PRO-6 UI: {@link ./mandatory-proactivity-ui.spec.ts} (overview + #geral). Away panel E2E when dev seed exposes awayEvents. */

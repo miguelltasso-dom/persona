@@ -6,9 +6,11 @@ import {
   assertBootstrapGateClean,
   BOOT_GATE_MAIN_PANELS,
   BOOT_GATE_PRISM_PANELS,
+  dismissBlockingOverlays,
   formatBootstrapGateFailures,
   runBootstrapGateChecks,
 } from '../src/boot-gate-bootstrap.ts'
+import { resetGalleryHome } from '../src/real-gallery/navigate-panel.ts'
 import { openRealPersonaApp, type RealPersonaSession } from '../src/real-app-session.ts'
 
 const run = process.env.PERSONA_E2E === '1'
@@ -21,7 +23,8 @@ describe.skipIf(!run)('mandatory boot — live store bootstrap', () => {
       devSeed: true,
       viewport: { width: 1440, height: 900 },
     })
-    await session.page.waitForTimeout(3_000)
+    await session.page.waitForTimeout(5_000)
+    await dismissBlockingOverlays(session.page)
   }, 360_000)
 
   afterAll(async () => {
@@ -40,6 +43,7 @@ describe.skipIf(!run)('mandatory boot — live store bootstrap', () => {
   }, 240_000)
 
   it('bootstrap healthy (all main panels): no page errors, Atlas visible, panels leave loading', async () => {
+    await resetGalleryHome(session.page)
     const pageErrors = [
       ...session.tripwire.pageErrors.map(e => `pageerror ${e.slice(0, 400)}`),
       ...session.tripwire.consoleErrors.map(e => `console.error ${e.slice(0, 400)}`),

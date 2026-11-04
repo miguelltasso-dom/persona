@@ -16,10 +16,16 @@ const DEFAULT_MIN_BLOCKS = 2
  */
 export async function measureMainPanelContent(page: Page): Promise<BlankMainPanelResult> {
   return page.evaluate(() => {
-    const shell = document.querySelector('[data-persona-shell]')
-    const root = shell?.children[1] ?? null
+    const grain = document.querySelector('[data-persona-grain]')
+    const root = grain instanceof HTMLElement
+      ? grain
+      : (() => {
+        const shell = document.querySelector('[data-persona-shell]')
+        const legacy = shell?.children[1]
+        return legacy instanceof HTMLElement ? legacy : null
+      })()
     if (root === null) {
-      return { blank: true, mainTextLength: 0, visibleBlockCount: 0, detail: 'missing main column under [data-persona-shell]' }
+      return { blank: true, mainTextLength: 0, visibleBlockCount: 0, detail: 'missing main column ([data-persona-grain])' }
     }
     const text = (root.textContent ?? '').replace(/\s+/g, ' ').trim()
     const selectors = [

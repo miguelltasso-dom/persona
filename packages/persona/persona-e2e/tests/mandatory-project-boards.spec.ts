@@ -9,7 +9,7 @@ import { describe, it } from 'vitest'
 /** PLAN PB-9: 5/5 §3 verdes + galeria/axe/loading quando PB-5..PB-7 existirem. */
 describe('mandatory project boards — PB-9 / PROJECT-BOARDS.md §3 (5 core)', () => {
   it.todo(
-    '[PB-9.1 · Anvil+Lumen · PB-5] create project "Contratação" and "Site": each board shows only its workflow columns; tasks never cross projects',
+    '[PB-9.1 · Anvil+Lumen · PB-5] create project "Contratação" and "Site": each board shows only its workflow columns; tasks never cross projects (host: Forge J12 verde — journeys.md; UI E2E pending Lumen PB-5)',
   )
 
   it.todo(
@@ -29,12 +29,4 @@ describe('mandatory project boards — PB-9 / PROJECT-BOARDS.md §3 (5 core)', (
   )
 })
 
-describe('mandatory project boards — PB-9 extras (galeria / nav)', () => {
-  it.todo(
-    '[PB-9+ · Prism+Lumen · PB-5] sidebar "Quadros" project list with mini-summary — no mixed global kanban',
-  )
-
-  it.todo(
-    '[PB-9+ · Probe · PB-5..7] galeria claro/escuro + axe + panel gate (loading/console) on Quadros, editor de fluxo, sprints UI',
-  )
-})
+/** PB-9+ gallery hub: {@link ./real-gallery-project-boards.spec.ts}; full §3 UI still PB-9.1–9.5 below. */

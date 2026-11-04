@@ -1,0 +1,501 @@
+{
+  "workspaceId": "ws",
+  "groupBy": "person",
+  "rightHand": {
+    "id": "p-gestor",
+    "name": "Atlas",
+    "role": "Gestor de equipe",
+    "characterId": "atlas",
+    "state": "working"
+  },
+  "rightHandCaption": "Gestor de equipe",
+  "personaCount": 61,
+  "humanCount": 8,
+  "groups": [
+    {
+      "id": "h-0",
+      "title": "Responsável 1",
+      "subtitle": "Setor",
+      "kind": "person",
+      "away": true,
+      "members": [
+        {
+          "id": "p-scale-0",
+          "name": "Persona 0",
+          "role": "Cargo 0",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-8",
+          "name": "Persona 8",
+          "role": "Cargo 8",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-16",
+          "name": "Persona 16",
+          "role": "Cargo 4",
+          "characterId": "tamandua",
+          "state": "stuck"
+        },
+        {
+          "id": "p-scale-24",
+          "name": "Persona 24",
+          "role": "Cargo 0",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-32",
+          "name": "Persona 32",
+          "role": "Cargo 8",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-40",
+          "name": "Persona 40",
+          "role": "Cargo 4",
+          "characterId": "tamandua",
+          "state": "stuck"
+        },
+        {
+          "id": "p-scale-48",
+          "name": "Persona 48",
+          "role": "Cargo 0",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-56",
+          "name": "Persona 56",
+          "role": "Cargo 8",
+          "characterId": "panda",
+          "state": "waiting"
+        }
+      ]
+    },
+    {
+      "id": "h-1",
+      "title": "Responsável 2",
+      "subtitle": "Setor",
+      "kind": "person",
+      "members": [
+        {
+          "id": "p-scale-1",
+          "name": "Persona 1",
+          "role": "Cargo 1",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-9",
+          "name": "Persona 9",
+          "role": "Cargo 9",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-17",
+          "name": "Persona 17",
+          "role": "Cargo 5",
+          "characterId": "atlas",
+          "state": "offline"
+        },
+        {
+          "id": "p-scale-25",
+          "name": "Persona 25",
+          "role": "Cargo 1",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-33",
+          "name": "Persona 33",
+          "role": "Cargo 9",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-41",
+          "name": "Persona 41",
+          "role": "Cargo 5",
+          "characterId": "atlas",
+          "state": "offline"
+        },
+        {
+          "id": "p-scale-49",
+          "name": "Persona 49",
+          "role": "Cargo 1",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-57",
+          "name": "Persona 57",
+          "role": "Cargo 9",
+          "characterId": "tucano",
+          "state": "resting"
+        }
+      ]
+    },
+    {
+      "id": "h-2",
+      "title": "Responsável 3",
+      "subtitle": "Setor",
+      "kind": "person",
+      "members": [
+        {
+          "id": "p-scale-2",
+          "name": "Persona 2",
+          "role": "Cargo 2",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-10",
+          "name": "Persona 10",
+          "role": "Cargo 10",
+          "characterId": "tamandua",
+          "state": "stuck"
+        },
+        {
+          "id": "p-scale-18",
+          "name": "Persona 18",
+          "role": "Cargo 6",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-26",
+          "name": "Persona 26",
+          "role": "Cargo 2",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-34",
+          "name": "Persona 34",
+          "role": "Cargo 10",
+          "characterId": "tamandua",
+          "state": "stuck"
+        },
+        {
+          "id": "p-scale-42",
+          "name": "Persona 42",
+          "role": "Cargo 6",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-50",
+          "name": "Persona 50",
+          "role": "Cargo 2",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-58",
+          "name": "Persona 58",
+          "role": "Cargo 10",
+          "characterId": "tamandua",
+          "state": "stuck"
+        }
+      ]
+    },
+    {
+      "id": "h-3",
+      "title": "Responsável 4",
+      "subtitle": "Setor",
+      "kind": "person",
+      "members": [
+        {
+          "id": "p-scale-3",
+          "name": "Persona 3",
+          "role": "Cargo 3",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-11",
+          "name": "Persona 11",
+          "role": "Cargo 11",
+          "characterId": "atlas",
+          "state": "offline"
+        },
+        {
+          "id": "p-scale-19",
+          "name": "Persona 19",
+          "role": "Cargo 7",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-27",
+          "name": "Persona 27",
+          "role": "Cargo 3",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-35",
+          "name": "Persona 35",
+          "role": "Cargo 11",
+          "characterId": "atlas",
+          "state": "offline"
+        },
+        {
+          "id": "p-scale-43",
+          "name": "Persona 43",
+          "role": "Cargo 7",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-51",
+          "name": "Persona 51",
+          "role": "Cargo 3",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-59",
+          "name": "Persona 59",
+          "role": "Cargo 11",
+          "characterId": "atlas",
+          "state": "offline"
+        }
+      ]
+    },
+    {
+      "id": "h-4",
+      "title": "Responsável 5",
+      "subtitle": "Setor",
+      "kind": "person",
+      "members": [
+        {
+          "id": "p-scale-4",
+          "name": "Persona 4",
+          "role": "Cargo 4",
+          "characterId": "tamandua",
+          "state": "stuck"
+        },
+        {
+          "id": "p-scale-12",
+          "name": "Persona 12",
+          "role": "Cargo 0",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-20",
+          "name": "Persona 20",
+          "role": "Cargo 8",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-28",
+          "name": "Persona 28",
+          "role": "Cargo 4",
+          "characterId": "tamandua",
+          "state": "stuck"
+        },
+        {
+          "id": "p-scale-36",
+          "name": "Persona 36",
+          "role": "Cargo 0",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-44",
+          "name": "Persona 44",
+          "role": "Cargo 8",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-52",
+          "name": "Persona 52",
+          "role": "Cargo 4",
+          "characterId": "tamandua",
+          "state": "stuck"
+        }
+      ]
+    },
+    {
+      "id": "h-5",
+      "title": "Responsável 6",
+      "subtitle": "Setor",
+      "kind": "person",
+      "members": [
+        {
+          "id": "p-scale-5",
+          "name": "Persona 5",
+          "role": "Cargo 5",
+          "characterId": "atlas",
+          "state": "offline"
+        },
+        {
+          "id": "p-scale-13",
+          "name": "Persona 13",
+          "role": "Cargo 1",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-21",
+          "name": "Persona 21",
+          "role": "Cargo 9",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-29",
+          "name": "Persona 29",
+          "role": "Cargo 5",
+          "characterId": "atlas",
+          "state": "offline"
+        },
+        {
+          "id": "p-scale-37",
+          "name": "Persona 37",
+          "role": "Cargo 1",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-45",
+          "name": "Persona 45",
+          "role": "Cargo 9",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-53",
+          "name": "Persona 53",
+          "role": "Cargo 5",
+          "characterId": "atlas",
+          "state": "offline"
+        }
+      ]
+    },
+    {
+      "id": "h-6",
+      "title": "Responsável 7",
+      "subtitle": "Setor",
+      "kind": "person",
+      "members": [
+        {
+          "id": "p-scale-6",
+          "name": "Persona 6",
+          "role": "Cargo 6",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-14",
+          "name": "Persona 14",
+          "role": "Cargo 2",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-22",
+          "name": "Persona 22",
+          "role": "Cargo 10",
+          "characterId": "tamandua",
+          "state": "stuck"
+        },
+        {
+          "id": "p-scale-30",
+          "name": "Persona 30",
+          "role": "Cargo 6",
+          "characterId": "sol",
+          "state": "working"
+        },
+        {
+          "id": "p-scale-38",
+          "name": "Persona 38",
+          "role": "Cargo 2",
+          "characterId": "panda",
+          "state": "waiting"
+        },
+        {
+          "id": "p-scale-46",
+          "name": "Persona 46",
+          "role": "Cargo 10",
+          "characterId": "tamandua",
+          "state": "stuck"
+        },
+        {
+          "id": "p-scale-54",
+          "name": "Persona 54",
+          "role": "Cargo 6",
+          "characterId": "sol",
+          "state": "working"
+        }
+      ]
+    },
+    {
+      "id": "h-7",
+      "title": "Responsável 8",
+      "subtitle": "Setor",
+      "kind": "person",
+      "members": [
+        {
+          "id": "p-scale-7",
+          "name": "Persona 7",
+          "role": "Cargo 7",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-15",
+          "name": "Persona 15",
+          "role": "Cargo 3",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-23",
+          "name": "Persona 23",
+          "role": "Cargo 11",
+          "characterId": "atlas",
+          "state": "offline"
+        },
+        {
+          "id": "p-scale-31",
+          "name": "Persona 31",
+          "role": "Cargo 7",
+          "characterId": "raposa",
+          "state": "reviewing"
+        },
+        {
+          "id": "p-scale-39",
+          "name": "Persona 39",
+          "role": "Cargo 3",
+          "characterId": "tucano",
+          "state": "resting"
+        },
+        {
+          "id": "p-scale-47",
+          "name": "Persona 47",
+          "role": "Cargo 11",
+          "characterId": "atlas",
+          "state": "offline"
+        },
+        {
+          "id": "p-scale-55",
+          "name": "Persona 55",
+          "role": "Cargo 7",
+          "characterId": "raposa",
+          "state": "reviewing"
+        }
+      ]
+    }
+  ]
+}

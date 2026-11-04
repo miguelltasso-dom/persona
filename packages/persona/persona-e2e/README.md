@@ -12,6 +12,8 @@ node scripts/persona/with-lock.mjs "Probe <label>" --release-on "dsh web:|DevToo
 
 `startWebHost` / `startDesktop` wrap this automatically so builds are not blocked while the app keeps running.
 
+**Lock queue vs host boot:** if another builder holds `.maestri/locks/build.lock` (e.g. Rivet packaging), `startWebHost` fails with `BuildLockContentionError` after `PERSONA_LOCK_WAIT_MS` (default 12 min) — not a P0 “app won’t start”. After the lock is released, a separate `PERSONA_HOST_BOOT_MS` (default 240 s) applies for the `dsh web:` line. Dogfood/gallery already use disposable homes/ports; they only acquire the lock during host spawn (`--release-on "dsh web:"`). Retry when the lock is free, or `PERSONA_HOST_NO_LOCK=1` when artifacts are already built.
+
 Use disposable `PERSONA_HOME` / `DSH_HOME` (and `DSH_DESKTOP_USER_DATA_DIR` for desktop). Never point tests at the operator’s real home.
 
 ## Prerequisites
@@ -41,6 +43,59 @@ $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/sm
 node scripts/persona/with-lock.mjs "Probe real gallery" -- node --import tsx/esm scripts/persona/capture-real-gallery.mjs
 ```
 
+**Wave 2 aceite** (BRIEFING 17 — `persona-spec/WAVE2.md`; skeleton `it.todo` until builders land):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-wave2.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-wave2-contract.spec.ts
+```
+
+Layer-1 contract gates ignore inherited `PERSONA_E2E` in subprocesses; optional gallery block needs `PERSONA_CONTRACT_INCLUDE_GALLERY=1` in addition to `PERSONA_E2E=1`.
+
+**Bring your context** (BRIEFING 18 — `persona-spec/BRING-YOUR-CONTEXT.md`; skeleton `it.todo` until Forge/Lumen/Prism land):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-bring-your-context.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-bring-your-context-contract.spec.ts
+```
+
+**Gestor de equipe** (BRIEFING 20 — `persona-spec/MAESTRO.md`; selo **Gestor**; never "Maestro" in UI):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-team-manager.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-team-manager-contract.spec.ts
+```
+
+**Token optimization** (`persona-spec/TOKEN-OPTIMIZATION.md`; gate with Forge):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-token-scenarios.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-token-scenarios-contract.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-activity-contract.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-opt-levers-contract.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/org-chart-fixtures.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-working-send-contract.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-import-contract.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-s7-host-contract.spec.ts
+```
+
+**Org-chart scale** (60/150 personas — GOVERNANCE-SPEC § muitas personas):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-org-chart-scale.spec.ts
+```
+
+Muse capture in the real app: `applyDevSeedLargeTeam(150)` from `client-ui-persona/src/client/data/dev-seed-large-team.ts` (or `localStorage` keys `persona.devSeed.v1` + `persona.orgChartScaleSeed`), reload, open **Quem cuida de quem** (seed wins over host RPC). Gallery E2E: `PERSONA_E2E=1` + `real-gallery-org-chart-scale.spec.ts` / `real-gallery-two-day-health.spec.ts`.
+
+Layer-1 contract gates drop inherited `PERSONA_E2E` in subprocesses; optional gallery needs `PERSONA_CONTRACT_INCLUDE_GALLERY=1` with `PERSONA_E2E=1`.
+
+**Second brain** (BRIEFING 19 — `persona-spec/SECOND-BRAIN.md`; permission adversarial matrix in contract spec):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-second-brain.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-second-brain-contract.spec.ts
+```
+
 **Panel health gate** (Keel — blank cream, stuck `Carregando…`/skeleton >5s, console fatals `ERR_INSUFFICIENT_RESOURCES`/`Maximum update depth`/`#185`, onboarding overlay with cache complete; dev seed):
 
 ```sh
@@ -58,6 +113,12 @@ node --import tsx/esm scripts/persona/keel-panel-diag.mjs "http://127.0.0.1:3191
 
 ```sh
 $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/real-surface-a11y.spec.ts
+```
+
+**Team governance** (`GOVERNANCE.md` §4 — todos until Forge/Anvil/Lumen/Prism/Muse ship):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-governance.spec.ts
 ```
 
 **Project boards** (`PROJECT-BOARDS.md` §3 — todos until Forge/Anvil/Lumen/Prism ship):
@@ -108,6 +169,45 @@ Fake CLI unit checks:
 
 ```sh
 pnpm exec vitest run packages/persona/persona-e2e/tests/fake-cli.spec.ts
+
+### GOV-10 / PB-9 contracts (layer 1, no browser)
+
+```powershell
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-governance-contract.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-project-boards-contract.spec.ts
+```
+
+Gallery smoke: `real-gallery-governance.spec.ts`, `real-gallery-project-boards.spec.ts` (needs `PERSONA_E2E=1`).
+
+### Publish boot (clean HOME tour, keyless)
+
+```powershell
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-boot-publish-contract.spec.ts
+node --import tsx/esm scripts/persona/persona-boot-smoke.mjs --root .
+```
+
+### PRO-6 proactivity (layer 1, no browser)
+
+```powershell
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-proactivity-contract.spec.ts
+```
+
+Replays `persona-engine` `proactivity-v1` + `persona-runners` PRO-3 recovery. App/E2E layer 2: `mandatory-proactivity.spec.ts` (`it.todo`).
+
+### Installed NSIS / unpacked `Persona.exe` (D8, CDP)
+
+DeepSeek **Welcome** is skipped via `DSH_DESKTOP_WELCOME=0` in `installedDesktopLaunch`; **Persona onboarding (5 steps) is not skipped** — clean `PERSONA_HOME` + `DSH_DESKTOP_USER_DATA_DIR`.
+
+After Miguel installs with `/S /D=…`, pass the exe path:
+
+```powershell
+node --import tsx/esm scripts/persona/installed-onboarding-cdp.mjs "C:\pb\persona-probe\Persona.exe"
+# or
+$env:PERSONA_INSTALLED_EXE='C:\...\Persona.exe'
+node --import tsx/esm scripts/persona/installed-onboarding-cdp.mjs
+```
+
+Artifacts: `packages/persona/persona-e2e/artifacts/installed-onboarding-{renderer,os}.png`. Optional `PERSONA_E2E_KEEP_HOME=1` retains homes under `.maestri/tmp/e2e-installed-*`.
 ```
 
 Mandatory product scenarios (SCOPE.md — `it.todo` until features land; reduced-motion + dirD under `PERSONA_E2E=1`):

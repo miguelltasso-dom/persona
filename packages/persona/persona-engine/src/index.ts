@@ -324,6 +324,7 @@ export {
   prefixCacheHitRate,
   prefixLooksVolatile,
   toolsForTurn,
+  trimVariableAlreadyInPrefix,
 } from './prompts/stable-prefix.ts'
 export type { StablePrefix, StablePrefixInput } from './prompts/stable-prefix.ts'
 export {
@@ -370,16 +371,18 @@ export {
   activateTaughtSkill,
   assertTeachConsent,
   draftTaughtSkill,
+  editTaughtSteps,
   fakeVisionPort,
   omitBlurredTeachFrames,
   publishTaughtSkill,
   redactTeachNarration,
+  rollbackTaughtSkill,
   sampleKeyFrames,
   teachRetentionExpiresAt,
 } from './teach.ts'
 export { deliverWorkingSend, flushWorkingQueue } from './working-deliver.ts'
 export type {
-  TeachFrame, TeachStepDraft, TeachTranscriptSlice, TaughtSkillDraft, VisionDescribe, VisionPort,
+  TeachFrame, TeachStepDraft, TeachTranscriptSlice, TaughtSkillDraft, TaughtStepEdit, VisionDescribe, VisionPort,
 } from './teach.ts'
 export {
   DEFAULT_COMPUTER_USE_LIMITS,
@@ -427,6 +430,7 @@ export type {
 export { DEFAULT_GESTOR_LIMITS } from '@deepseek-ai/dsh-persona-core'
 export {
   runAssembleTeam,
+  runGestorAssemble,
   runGestorAllocate,
   runGestorComment,
   runGestorHire,

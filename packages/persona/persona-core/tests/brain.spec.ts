@@ -13,6 +13,7 @@ import {
   exportBrainVault,
   leftoverDestFiles,
   planBrainVaultExport,
+  applyBrainVaultExport,
   shouldImportVaultFile,
   brainPropose,
   brainRead,
@@ -381,4 +382,12 @@ it('exports an Obsidian pack one-way and skips a file whose hash already exists'
   ], ['keep.md', 'company/c1.md'])
   expect(planned.pack.mode).toBe('one_way')
   expect(planned.leftover).toEqual(['keep.md'])
+  const same = planned.pack.files.find(file => file.path === 'company/c1.md')
+  const applied = applyBrainVaultExport(planned, {
+    'company/c1.md': same?.hash ?? '',
+    'keep.md': 'old',
+  })
+  expect(applied.skip).toEqual(['company/c1.md'])
+  expect(applied.write.some(file => file.path === 'Comece aqui.md')).toBe(true)
+  expect(applied.leftover).toEqual(['keep.md'])
 })

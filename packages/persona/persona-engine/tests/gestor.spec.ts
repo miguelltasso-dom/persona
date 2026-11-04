@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import type { GestorMandate, GestorPlan, Persona, PersonaSpec } from '@deepseek-ai/dsh-persona-core'
 import { DEFAULT_GESTOR_LIMITS } from '../../persona-core/src/index.ts'
-import { runAssembleTeam, runGestorAllocate, runGestorComment, runGestorHire, runGestorReorganize, runGestorTie } from '../src/index.ts'
+import { runAssembleTeam, runGestorAllocate, runGestorAssemble, runGestorComment, runGestorHire, runGestorReorganize, runGestorTie } from '../src/index.ts'
 
 const now = '2026-11-04T03:00:00.000Z'
 
@@ -169,4 +169,35 @@ it('assembles a team plus sprint 1 from a goal', () => {
   const pack = runAssembleTeam('Monte um time para o Site', 'site', 'sp1', now)
   expect(pack.sprint.name).toBe('Sprint 1')
   expect(pack.structure.personas.length).toBeGreaterThan(0)
+  const mandate: GestorMandate = {
+    personaId: 'atlas',
+    workspaceId: 'ws',
+    limits: DEFAULT_GESTOR_LIMITS,
+  }
+  const pending = runGestorAssemble({
+    mandate,
+    plan: { ...plan, action: 'assemble', id: 'plan-s' },
+    goal: 'Monte um time para o Site',
+    projectId: 'site',
+    sprintId: 'sp1',
+    accepted: false,
+    auditId: 'as1',
+    at: now,
+  })
+  expect(pending.decision.kind).toBe('ask')
+  expect(pending.assemble).toBeUndefined()
+  const done = runGestorAssemble({
+    mandate,
+    plan: { ...plan, action: 'assemble', id: 'plan-s' },
+    goal: 'Monte um time para o Site',
+    projectId: 'site',
+    sprintId: 'sp1',
+    accepted: true,
+    auditId: 'as2',
+    at: now,
+  })
+  expect(done.decision.kind).toBe('apply')
+  if (done.decision.kind !== 'apply') throw new Error('expected apply')
+  expect(done.decision.plan.status).toBe('applied')
+  expect(done.assemble?.sprint.name).toBe('Sprint 1')
 })

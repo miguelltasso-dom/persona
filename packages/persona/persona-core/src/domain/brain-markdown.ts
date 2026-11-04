@@ -155,3 +155,29 @@ export function planBrainVaultExport(
   const pack = exportBrainVault(pages)
   return { pack, leftover: leftoverDestFiles(destRels, pack.files.map(file => file.path)) }
 }
+
+export interface BrainVaultApply {
+  readonly write: readonly BrainVaultFile[]
+  readonly skip: readonly string[]
+  readonly leftover: readonly string[]
+}
+
+/**
+ * Apply a one-way pack: write new/changed files, skip same-hash, never delete leftovers.
+ * @param plan - {@link planBrainVaultExport} result.
+ * @param destHashes - Dest path → content hash.
+ * @returns Files to write, skipped paths, leftover dest extras.
+ */
+export function applyBrainVaultExport(
+  plan: BrainVaultExportPlan,
+  destHashes: Readonly<Record<string, string>> = {},
+): BrainVaultApply {
+  const write: BrainVaultFile[] = []
+  const skip: string[] = []
+  for (const file of plan.pack.files) {
+    if (file.path.includes('..') || !file.path.endsWith('.md')) continue
+    if (destHashes[file.path] === file.hash) skip.push(file.path)
+    else write.push(file)
+  }
+  return { write, skip, leftover: plan.leftover }
+}

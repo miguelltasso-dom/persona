@@ -97,6 +97,21 @@ export function toolsForTurn(allowed: readonly string[], needed: readonly string
 }
 
 /**
+ * Drop variable blocks already present in the cached prefix (OPT-4).
+ * @param prefix - Stable prefix text.
+ * @param variable - Subject / recall / message tail.
+ * @returns Tail without duplicated blocks.
+ */
+export function trimVariableAlreadyInPrefix(prefix: string, variable: string): string {
+  const hay = prefix.toLowerCase()
+  return variable
+    .split(/\n\n+/)
+    .map(block => block.trim())
+    .filter(block => block !== '' && !hay.includes(block.toLowerCase()))
+    .join('\n\n')
+}
+
+/**
  * One turn: stable prefix + variable tail. Message never enters the prefix.
  * @param input - Voice, tools, required vault, and variable slices.
  */
@@ -130,6 +145,7 @@ export function composeTurnPrompt(input: {
     ...(input.recall === undefined ? {} : { recall: input.recall }),
     ...(input.message === undefined ? {} : { message: input.message }),
   })
-  const text = built.variable === '' ? built.prefix : `${built.prefix}\n\n${built.variable}`
-  return { ...built, text }
+  const variable = trimVariableAlreadyInPrefix(built.prefix, built.variable)
+  const text = variable === '' ? built.prefix : `${built.prefix}\n\n${variable}`
+  return { ...built, variable, text }
 }

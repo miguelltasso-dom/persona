@@ -91,6 +91,50 @@ export function runAssembleTeam(
   return assembleTeamForGoal({ goal, projectId, sprintId, at })
 }
 
+/**
+ * Same approval / conflict gate as hire, then assemble sprint 1.
+ * @param input - Mandate, draft plan, goal, whether a human accepted.
+ */
+export function runGestorAssemble(input: {
+  readonly mandate: GestorMandate
+  readonly plan: GestorPlan
+  readonly goal: string
+  readonly projectId: string
+  readonly sprintId: string
+  readonly accepted: boolean
+  readonly auditId: string
+  readonly at: string
+  readonly openPlans?: readonly GestorPlan[]
+}): { readonly decision: GestorDecision; readonly assemble?: GestorAssemble } {
+  const clash = claimGestorScope(input.openPlans ?? [], input.plan.scopeKey)
+  if (clash.kind === 'conflict' && clash.existingPlanId !== input.plan.id) {
+    return {
+      decision: {
+        kind: 'conflict',
+        existingPlanId: clash.existingPlanId,
+        comment: 'já tem um plano neste escopo — comentei',
+      },
+    }
+  }
+  const decision = decideGestorAction({
+    mandate: input.mandate,
+    plan: input.plan,
+    accepted: input.accepted,
+    auditId: input.auditId,
+    at: input.at,
+  })
+  if (decision.kind !== 'apply' && decision.kind !== 'notify') return { decision }
+  return {
+    decision,
+    assemble: assembleTeamForGoal({
+      goal: input.goal,
+      projectId: input.projectId,
+      sprintId: input.sprintId,
+      at: input.at,
+    }),
+  }
+}
+
 export { gestorInitiative }
 
 /**

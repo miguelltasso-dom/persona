@@ -4,6 +4,73 @@ Mais recente no topo.
 
 ---
 
+## 04/11 02:41 — GES assemble gate + W2-10 edit/rollback + SB-6 apply + OPT-4 trim
+
+Vigia: não parar. Sem "seguindo fila" — PLAN Forge ainda aberto (GES-2 assemble sem gate, W2-10 revisão, SB-6 apply, OPT-4 tail).
+
+### GES-2
+`runGestorAssemble` usa o mesmo gate (ask sem aceite; apply+`plan.status=applied` depois). `runAssembleTeam` fica só núcleo/preview.
+
+### W2-10
+`editTaughtSteps` revisa o rascunho sem ativar e sem crescer ferramentas. `rollbackTaughtSkill` desliga e sobe a versão.
+
+### SB-6
+`applyBrainVaultExport`: escreve novo/mudado, skip same-hash, leftover nunca apagado.
+
+### OPT-4
+`trimVariableAlreadyInPrefix` no `composeTurnPrompt` — blocos do tail que já estão no prefixo não vão de novo.
+
+### Testes
+```
+pnpm exec vitest run …/brain.spec.ts …/stable-prefix.spec.ts …/teach-skill.spec.ts …/gestor.spec.ts
+  Test Files  4 passed (4)  Tests  27 passed (27)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 12.8s
+  persona-engine: OK in 28.3s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `gestorDecisionRows` + `runGestorAssemble`; Remote GES/atividade/Uso; `TEACH_*` / apply vault no host.
+- **Rivet**: pool cheap; leftover/apply do core no desktop.
+- **Prism**: ActivityGroup; UI Ensinar.
+- **Probe / Miguel**: S7 UI; PRO-6; `PERSONA_REAL_IMPORTS`.
+- OPT-8 −40% após integração. PLAN ainda marca GES/OPT/W2-10/SB-6 como todo/doing (Keel).
+
+---
+
+## 04/11 02:31 — OPT-4 compile prefix + W2-10 consent + GES persist rows
+
+Vigia: não parar. Sem "seguindo fila" — peguei PLAN Forge ainda aberto (OPT-4, W2-10, GES-2).
+
+### OPT-4
+`compileContext` / `compileActiveSubject` aceitam `prefix?`. Records opcionais cujo body já está no prefixo saem (`dropRecordsInPrefix`); obrigatórios ficam. Contrato em `token-ledger.md`.
+
+### W2-10
+No engine: `TEACH_CONSENT_VERSION=teach-v1`, `TEACH_RETENTION_DAYS=30`, `assertTeachConsent`, `teachRetentionExpiresAt`, `redactTeachNarration`, `omitBlurredTeachFrames`. `draftTaughtSkill` redige senha/token e omite frames borrados. Host Anvil ainda tem constantes locais — pode importar do engine.
+
+### GES-2
+`gestorDecisionRows(decision)` = o que o host grava num write (plan+audit no apply/notify). `runGestorAllocate` / `runGestorReorganize` aplicam `plan.status=applied` após aceite.
+
+### Testes
+```
+pnpm exec vitest run …/context.spec.ts …/gestor.spec.ts …/teach-skill.spec.ts …/engine gestor.spec.ts
+  Test Files  4 passed (4)  Tests  39 passed (39)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 14.8s
+  persona-engine: OK in 23.4s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: persistir `gestorDecisionRows`; Remote GES/atividade/Uso; importar `TEACH_*` do engine.
+- **Rivet**: pool cheap OPT-5; leftoverDestFiles do core; captura já usa blur/overlay.
+- **Prism**: ActivityGroup no fio.
+- **Probe / Miguel**: S7 UI; PRO-6 E2E; `PERSONA_REAL_IMPORTS`.
+- OPT-8 −40% após integração. PLAN ainda marca GES/OPT/W2-10 como todo (Keel).
+
+---
+
 ## 04/11 02:22 — janela encerrada: GES apply + OPT-5 + SB-6 leftover + W2-4 homes
 
 Vigia: não parar. Keel: JANELA ENCERRADA — voltei ao core/engine.

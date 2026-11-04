@@ -7,6 +7,7 @@ import {
   prefixCacheHitRate,
   prefixLooksVolatile,
   toolsForTurn,
+  trimVariableAlreadyInPrefix,
 } from '../src/index.ts'
 
 it('keeps system → persona → tools → required and rejects a volatile prefix', () => {
@@ -42,4 +43,24 @@ it('keeps system → persona → tools → required and rejects a volatile prefi
   expect(turn.prefix).not.toContain('Cardápio')
   expect(turn.variable).toContain('Cardápio')
   expect(turn.text.startsWith(turn.prefix)).toBe(true)
+  expect(trimVariableAlreadyInPrefix(
+    'Nunca inventar preço.\nAtlas coordena.',
+    'Nunca inventar preço.\n\nAna pediu 20 pães.',
+  )).toBe('Ana pediu 20 pães.')
+  const dup = composeTurnPrompt({
+    fields: {
+      identity: { name: 'Atlas', title: 'Coordenação' },
+      personality: 'Calmo.',
+      instructions: 'Despache.',
+      functionLabel: 'coordenação',
+      vault: '',
+    },
+    part: 'talk',
+    tools: ['files'],
+    required: 'Nunca inventar preço.',
+    subject: 'Nunca inventar preço.',
+    message: 'Cardápio de sábado?',
+  })
+  expect(dup.variable).not.toContain('Nunca inventar preço.')
+  expect(dup.variable).toContain('Cardápio')
 })

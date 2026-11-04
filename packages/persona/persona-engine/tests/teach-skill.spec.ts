@@ -7,10 +7,12 @@ import {
   activateTaughtSkill,
   assertTeachConsent,
   draftTaughtSkill,
+  editTaughtSteps,
   fakeVisionPort,
   omitBlurredTeachFrames,
   publishTaughtSkill,
   redactTeachNarration,
+  rollbackTaughtSkill,
   sampleKeyFrames,
   subjectThreadRef,
   teachRetentionExpiresAt,
@@ -87,6 +89,15 @@ it('never expands tools beyond the allow-list and never auto-enables', async () 
   expect(publishTaughtSkill(candidate, 'team', true).scope).toBe('team')
   expect(() => activateTaughtSkill(candidate, ['browser'], ['bash'])).toThrow('ACCESS_ESCALATION')
   expect(activateTaughtSkill(candidate, ['browser'], ['browser']).enabled).toBe(true)
+  const edited = editTaughtSteps(draft, [{ order: 1, instruction: 'Abra o catálogo da loja.' }])
+  expect(edited.skill.enabled).toBe(false)
+  expect(edited.steps[0]?.instruction).toBe('Abra o catálogo da loja.')
+  expect(edited.steps[0]?.tools).toEqual(['browser'])
+  const live = activateTaughtSkill(candidate, ['browser'], ['browser'])
+  const rolled = rollbackTaughtSkill(live)
+  expect(rolled.enabled).toBe(false)
+  expect(rolled.version).toBe(live.version + 1)
+  expect(() => rollbackTaughtSkill({ ...live, origin: 'library' })).toThrow('INVALID_TEACH')
 })
 
 it('requires teach-v1 consent, redacts secrets, and drops blurred frames (W2-10)', async () => {

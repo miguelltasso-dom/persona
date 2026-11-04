@@ -299,8 +299,8 @@ export type {
   BrainSearchHit,
 } from './brain-tools.ts'
 
-export { brainPageToMarkdown, exportBrainVault, leftoverDestFiles, markdownToBrainPage, planBrainVaultExport, shouldImportVaultFile } from './brain-markdown.ts'
-export type { BrainVaultExport, BrainVaultExportPlan, BrainVaultFile } from './brain-markdown.ts'
+export { applyBrainVaultExport, brainPageToMarkdown, exportBrainVault, leftoverDestFiles, markdownToBrainPage, planBrainVaultExport, shouldImportVaultFile } from './brain-markdown.ts'
+export type { BrainVaultApply, BrainVaultExport, BrainVaultExportPlan, BrainVaultFile } from './brain-markdown.ts'
 
 export {
   EMPTY_LAYERS,

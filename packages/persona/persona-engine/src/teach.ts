@@ -286,3 +286,65 @@ export function publishTaughtSkill(
   }
   return publishSkill({ ...skill, enabled: skill.enabled }, scope)
 }
+
+export interface TaughtStepEdit {
+  readonly order: number
+  readonly title?: string
+  readonly instruction?: string
+  readonly verify?: string
+}
+
+/**
+ * Human edits the step list before accept. Skill stays disabled.
+ * @param draft - Candidate draft.
+ * @param edits - Fields to replace by `order`.
+ * @returns New draft; tools never grow.
+ */
+export function editTaughtSteps(
+  draft: TaughtSkillDraft,
+  edits: readonly TaughtStepEdit[],
+): TaughtSkillDraft {
+  if (draft.skill.enabled) throw new DomainError('INVALID_TEACH', 'AUTO')
+  const byOrder = new Map(edits.map(row => [row.order, row]))
+  const steps = draft.steps.map((step) => {
+    const edit = byOrder.get(step.order)
+    if (edit === undefined) return step
+    return {
+      ...step,
+      title: edit.title?.trim() || step.title,
+      instruction: edit.instruction?.trim() || step.instruction,
+      verify: edit.verify?.trim() || step.verify,
+      tools: step.tools,
+    }
+  })
+  const body = [
+    `# ${draft.skill.name}`,
+    '',
+    ...steps.map(step => [
+      `## ${String(step.order)}. ${step.title}`,
+      step.instruction,
+      `Verificar: ${step.verify}`,
+      step.thumbnailRef === '' ? undefined : `Miniatura: ${step.thumbnailRef}`,
+      step.tools.length === 0 ? undefined : `Ferramentas: ${step.tools.join(', ')}`,
+    ].filter((line): line is string => line !== undefined).join('\n')),
+    '',
+    draft.skill.body.includes('Pronto quando:')
+      ? draft.skill.body.slice(draft.skill.body.lastIndexOf('Pronto quando:'))
+      : 'Pronto quando: Todos os passos conferidos na tela.',
+  ].join('\n')
+  return {
+    local: true,
+    steps,
+    skill: { ...draft.skill, body, enabled: false, origin: 'taught' },
+  }
+}
+
+/**
+ * Turn an activated taught skill back off. Version still increases.
+ * @param skill - Live taught skill.
+ * @returns Disabled taught skill.
+ */
+export function rollbackTaughtSkill(skill: SkillRecord): SkillRecord {
+  if (skill.origin !== 'taught') throw new DomainError('INVALID_TEACH', 'ORIGIN')
+  return { ...skill, enabled: false, version: skill.version + 1 }
+}

@@ -6,6 +6,9 @@ Gate **verde**. Probe / `@Remote measureV1Close` chamam `measureV1CloseView(entr
 |---|---|---|---|
 | PRO-6 | 6/6 | — | — |
 | GES-6 | 3/3 | — | — |
+| GES-2 | 4/4 | — | — |
+| GES-3 | 3/3 | — | — |
+| V1-P0-1 | 4/4 | — | — |
 | OPT-8 | 3/4 | — | cut-40 |
 
 OPT-8 `cut-40` fica `blocked` até o livro live (`measureV1CloseView(entries)` / `measureOpt8View`). Não falha o gate.

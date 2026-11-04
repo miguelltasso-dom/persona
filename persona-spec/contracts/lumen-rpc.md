@@ -54,13 +54,23 @@ Sem `project.rootPath` os métodos **não lançam**. Devolvem `status: 'need-roo
 | `pickDirectory` | Rivet IPC; host devolve `{ path: null }` |
 | `updateProject.rootPath` | equivalente; vazio limpa |
 
+## Primeira entrega (Forge, P0 v1)
+
+`wantsWork(text)` vive no engine. "Monte a equipe…", "Resuma o Cofre…", "proponha a primeira tarefa" abrem Tarefa. `oi` / `obrigado` continuam conversa. `firstDeliveryAsk` / `firstDeliveryTask` = Ticket barato pós-onboarding (UX-PHASE A). Host `orchestration.wantsWork` reexporta o engine.
+
+`completeOnboarding` posta `firstDeliveryAsk` no #geral (id `first-delivery`) e ingere → Ticket; persiste `first_delivery` `working`. `startFirstDelivery` dá flush, sela `ready`/`failed` e posta o marco `first-delivery-milestone` no feed (append, sem ingest). `@Remote getFirstDelivery` e `getOverview.firstDelivery` devolvem `idle|working|ready|failed` — nunca "Carregando…". Fora de Vitest o host seta `PERSONA_REAL_CLI=1` (`ensureProductionRealCli`) para `resolveHostRunner` não ficar fake. Rivet dest:desktop idem. `loggedCli` = `preferConnectedCli` (Claude>Codex>OpenCode>Cursor). Persona `dsh` + model vazio/default → `cheapModelForFirstDelivery` (`haiku` no Claude).
+
+## Client bootstrap (Forge, dest:desktop splash)
+
+`createPersonaLiveStore.bootstrap` publishes `getOnboarding.firstUse` **before** `refresh()`. Overlay / `persona:first-paint` must not wait on `listGestorPlans` or `listConversationSubjects`. Those remotes have a 1.5 s fallback in refresh. Desktop splash (`data:` URL) still waits host `phase=ready` (Rivet; BOOT-SPEC 20 s / 60 s → `bootErrorUrl`).
+
 ## Gateway Remote (04/11)
 
 Todo `@Remote` passa por `installRemoteGuard`. JSON ≤ 256 KB; `attach*`/`putFile`/`upload*` ≤ 12 MB. Leitura 2000/10s, escrita 240/10s (por peer+método). `rate-limited` é `RemoteFault` com `isDSHRemoteError` + `retryAfterMs`. Envelope `z.looseObject` (ids ≤ 200). ACL `can()`; exceções em `ACL_EXCEPTIONS` (`ping`, onboarding, backup, diagnostics, stickers, skills locais, store health). Guest = vazio, não id.
 
 Schema store **v19**. Catálogo de versões: `ARCHITECTURE.md` (v1→v19).
 
-Medidas (Probe, sem remount): `measureProactivityV1()` → `{ passed, total, failed }`; `measureOpt3()` / `measureOpt4()` / `measureOpt5()` / `measureOpt6()` → `{ passed, total: 3, failed }`; `measureOpt8({ workspaceId })` → `measureOpt8View(entries)`; `@Remote measureV1Close({ workspaceId })` = `measureV1CloseView(liveEntries)` (PRO+GES+OPT; livro live pontua `cut-40`). `measureGestorV1` / `measureGestorToolsAcceptance` / `assertV1Close` continuam engine.
+Medidas (Probe, sem remount): `measureProactivityV1()` → `{ passed, total, failed }`; `measureGestorV1()` → `{ passed, total: 3, failed }`; `measureGestorToolsAcceptance()` → `{ passed, total: 4, failed }`; `measureGestorMultiAcceptance()` → `{ passed, total: 3, failed }`; `measureFirstDeliveryAcceptance()` → `{ passed, total: 4, failed }` (V1-P0-1); `measureOpt3()` / `measureOpt4()` / `measureOpt5()` / `measureOpt6()` → `{ passed, total: 3, failed }`; `measureOpt8({ workspaceId })` → `measureOpt8View(entries)`; `@Remote measureV1Close({ workspaceId })` = `measureV1CloseView(liveEntries)` (PRO+GES-6+GES-2+GES-3+V1-P0-1+OPT; livro live pontua `cut-40`). `assertV1Close` continua engine.
 
 ## Conexões — `listConnections(scope)` (síncrono)
 
@@ -162,7 +172,10 @@ Forge: `resolveWorkingSend` / `enqueueWorkingMessage` / `openAsideAsk`. Anvil pe
 | `composeCitedMessage({ quote, comment })` | Chip citar (T3 §5) |
 | `listTurnActivity({ subjectId, personaId? })` | T3 §9: folds `groupTurnActivity` (falha ≠ feito; waiting ≠ terminou). Host: `EngineOptions.emit` = `withTurnActivityEmit` → `recordTurnActivity` em `assignment.reported`. |
 | `pauseAtLimit` / `resumeAfterLimit` | Faixa "No limite"; fila permanece (T3 §12) |
-| `acceptTaughtCandidate` / `activateTaughtSkill` | Ensinar: candidato; só ativa no aceite (W2-10) |
+| `acceptTaughtCandidate({ sessionId })` | Ensinar: candidata `origin: taught`, `enabled: false`. Nunca liga. |
+| `activateTaughtSkill({ skillId })` | Ensinar: liga após review. Tools além do mandato → `ACCESS_ESCALATION`. |
+| `publishTaughtSkill({ skillId, scope, explicit })` | Ensinar: promover. `scope` ≠ persona sem `explicit` → `ACCESS_ESCALATION`. |
+| `rollbackTaughtSkill({ skillId })` | Ensinar: desliga a skill ensinada. Versão sobe. Origin ≠ taught → `INVALID_TEACH`. |
 
 **[Anvil→Prism]** composer: botão fila/direcionar; Ctrl+Enter inverte. `/lado` abre aba lateral.
 
@@ -236,6 +249,7 @@ Fluxo e sprint são do projeto (compartilháveis). DM nunca entra.
 | `updateWorkflow({ columns, fields, destByRemoved })` | Edita; coluna removida exige destino. Sem perda de Tarefas. Recusa: `BoardRemoteError.code` (`column-needs-destination`, …) + `message` pt-BR |
 | `moveTicket({ ticketId, columnId })` | Move; `wipWarning` não recusa |
 | `listSprints` / `createSprint` / `updateSprint` / `deleteSprint` / `planSprint` / `startSprint` / `closeSprint` / `sprintSummary` | CRUD + ciclo. `closeSprint` exige `confirmed`; resumo vai ao 1º canal do projeto |
+| `listSprintGoals(scope)` | Goals do `startSprint` hidratados do SQLite (GoalBoard em memória sobrevive remount) |
 | `proposeWorkflow({ description })` | Cartão "Usar este fluxo?" — **nunca aplica sozinho** |
 | `acceptWorkflowProposal({ columns, fields, destByRemoved? })` | Aplica o cartão. Único `save` deste caminho |
 | `rejectWorkflowProposal(scope)` | Recusa; store intacto |
@@ -268,7 +282,7 @@ ACL no servidor: leitura `can(read, project)`; mutação `can(write, project)`. 
 | `suggestMentions({ query })` | Personas que o ator pode `@` (talk ACL). |
 | `checkpointWal()` | `PRAGMA wal_checkpoint(TRUNCATE)`. Local. |
 
-`MessageView` traz `replyToId`, `editedAt`, `pinned`, `reactions[]`. Schema v12.
+`MessageView` traz `replyToId`, `editedAt`, `pinned`, `reactions[]` e `runError?` (`RunErrorPayload`: code + provider/persona/command). O body ainda pode carregar `[[run-error:{json}]]`; `listMessages` / `followMessages` preenchem o campo no fio. Schema v12.
 
 **[Anvil→Muse]** ligar o compositor às mesmas ids de `listStickers`.
 

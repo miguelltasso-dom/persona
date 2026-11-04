@@ -5,7 +5,8 @@
  *
  * Never packages the shared dirty checkout (GOVERNANCE in flight).
  *
- *   node scripts/persona/with-lock.mjs "Rivet D8 clean" -- node scripts/persona/package-clean.mjs
+ *   node scripts/persona/package-clean.mjs [--commit <rev>] ...
+ *     (D-062: it takes the `pack` lock by itself; do NOT wrap it in the `build` lock — that one is for builds/E2E/gate)
  *
  * Options: --commit <rev>  --dir  --no-install  --no-overlay
  * Exit: 0 Setup/exe ready, 1 typecheck/package red, 2 setup failure.
@@ -31,6 +32,20 @@ const requested = commitFlag >= 0 ? argv[commitFlag + 1] : 'origin/persona-dev'
 
 const PACK_LOG = join(CACHE, 'package-clean.log')
 const LIVE = join(CACHE, 'package-clean.live.json')
+
+// D-062: packaging runs in its own worktree (persona-push / C:\p8*), so it holds ITS OWN lock (`pack`) and never the global
+// `build` lock (that one belongs to builds, E2E and the publish gate on the main tree, which must keep running meanwhile).
+if (process.env.PERSONA_LOCK === 'build') {
+  console.error('[package-clean] do not wrap this script in the `build` lock (D-062). Run it directly: node scripts/persona/package-clean.mjs ...')
+  process.exit(2)
+}
+if (process.env.PERSONA_LOCK !== 'pack') {
+  const locked = spawnSync('node', [
+    join(main, 'scripts', 'persona', 'with-lock.mjs'), 'Rivet D8 package-clean', '--lock', 'pack', '--wait-max', String(90 * 60_000),
+    '--', 'node', fileURLToPath(import.meta.url), ...argv,
+  ], { cwd: main, stdio: 'inherit', windowsHide: true })
+  process.exit(locked.status ?? 1)
+}
 
 const run = (cwd, cmd, args, options = {}) => spawnSync(cmd, args, {
   cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 28,
@@ -129,6 +144,18 @@ function applyOverlay(wt) {
   copyFileSync(join(main, 'apps/desktop/src/rewrite-boot-injections.ts'), join(desktop, 'src/rewrite-boot-injections.ts'))
   copyFileSync(join(main, 'apps/desktop/src/web-document.ts'), join(desktop, 'src/web-document.ts'))
   copyFileSync(join(main, 'apps/desktop/src/main.ts'), join(desktop, 'src/main.ts'))
+  copyFileSync(join(main, 'apps/desktop/src/locale.ts'), join(desktop, 'src/locale.ts'))
+  copyFileSync(join(main, 'apps/desktop/src/legal-notices.ts'), join(desktop, 'src/legal-notices.ts'))
+  copyFileSync(join(main, 'apps/desktop/src/persona-about-shell.ts'), join(desktop, 'src/persona-about-shell.ts'))
+  copyFileSync(join(main, 'apps/desktop/scripts/packaging-step.d.mts'), join(scripts, 'packaging-step.d.mts'))
+  copyFileSync(join(main, 'apps/desktop/scripts/smoke-runtime.ts'), join(scripts, 'smoke-runtime.ts'))
+  copyFileSync(join(main, 'apps/desktop/scripts/package-target.ts'), join(scripts, 'package-target.ts'))
+  // Pack-only: published spec fails tsconfig.client (GlobalStandardProps).
+  // Cast the component, not `as never` props (TS2698). Copy is Muse's "Sobre a Persona".
+  copyFileSync(
+    join(main, 'scripts/persona/pack-overlay/persona-about-settings.client.spec.tsx'),
+    join(wt, 'packages/persona/client-ui-persona/tests/persona-about-settings.client.spec.tsx'),
+  )
   mkdirSync(hostConfig, { recursive: true })
   copyFileSync(join(main, 'apps/desktop-host/src/index.ts'), join(host, 'src/index.ts'))
   copyFileSync(
@@ -176,7 +203,10 @@ function applyOverlay(wt) {
     'installer-select.nsh', 'installer-stock.nsh', 'prepare-windows-installer.ps1',
     'runtime-patch-policy.ts',
     'electron-builder-config.mjs', 'persona-vault-ipc.ts', 'secure-shell.ts',
-    'rewrite-boot-injections.ts', 'web-document.ts', 'main.ts',
+    'rewrite-boot-injections.ts', 'web-document.ts', 'main.ts', 'locale.ts',
+    'legal-notices.ts', 'persona-about-shell.ts', 'packaging-step.d.mts',
+    'smoke-runtime.ts', 'package-target.ts',
+    'persona-about-settings.client.spec.tsx',
     'desktop-host/index.ts', 'desktop-host/electron.cordis.patch.yml',
     'vendor/loader src+lib', 'apps/web/dist',
   ]

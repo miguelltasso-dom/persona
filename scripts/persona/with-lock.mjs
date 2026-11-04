@@ -1,27 +1,30 @@
 #!/usr/bin/env node
 // Serialize heavy shared-checkout work (builds, desktop launches, packaging) across agents.
 //
-// Usage: node scripts/persona/with-lock.mjs <label> [--release-on <regex>] -- <command> [args...]
+// Usage: node scripts/persona/with-lock.mjs <label> [--lock <name>] [--release-on <regex>] [--wait-max ms] -- <command> [args...]
 //   e.g. node scripts/persona/with-lock.mjs build -- pnpm run build:artifacts
 //   App launches: add --release-on so the lock is freed as soon as the app prints its ready line
 //   and keeps running without blocking builds, e.g.
 //   node scripts/persona/with-lock.mjs "Probe web host" --release-on "dsh web:|DevTools listening" -- pnpm start:web
 //
-// The lock is the directory `.maestri/locks/build.lock` (mkdir is atomic). It records the owner
+// D-062: there are TWO independent locks, at most one holder of each at a time, so they can run together:
+//   `build` (default) = builds, E2E, app launches and the publish gate on the MAIN tree (`.maestri/locks/build.lock`);
+//   `pack`            = installer packaging in its own worktree (`persona-push` / `C:\p8*`; `.maestri/locks/pack.lock`).
+//   Use `--lock pack` only for packaging (scripts/persona/package-clean.mjs does it by itself).
+//
+// The lock is the directory `.maestri/locks/<name>.lock` (mkdir is atomic). It records the owner
 // label and pid; a lock whose pid is gone is stolen. Default wait is 12 minutes (`--wait-max ms`).
-// Queue pulse every 15s → stderr + `.maestri/locks/build.queue.json`.
+// Queue pulse every 15s → stderr + `.maestri/locks/<name>.queue.json`. The child gets `PERSONA_LOCK=<name>`.
 import { spawn } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const lockDir = join(root, '.maestri', 'locks', 'build.lock')
-const ownerFile = join(lockDir, 'owner.json')
 
 const sep = process.argv.indexOf('--')
 if (sep < 3 || sep === process.argv.length - 1) {
-  console.error('usage: node scripts/persona/with-lock.mjs <label> -- <command> [args...]')
+  console.error('usage: node scripts/persona/with-lock.mjs <label> [--lock build|pack] -- <command> [args...]')
   process.exit(2)
 }
 const head = process.argv.slice(2, sep)
@@ -34,9 +37,18 @@ if (releaseIndex >= 0) {
 const waitMaxIndex = head.indexOf('--wait-max')
 const waitMaxMs = waitMaxIndex >= 0 ? Number(head[waitMaxIndex + 1]) : 12 * 60_000
 if (waitMaxIndex >= 0) head.splice(waitMaxIndex, 2)
+const lockIndex = head.indexOf('--lock')
+const lockName = lockIndex >= 0 ? String(head[lockIndex + 1] ?? '') : 'build'
+if (lockIndex >= 0) head.splice(lockIndex, 2)
+if (!/^[a-z0-9][a-z0-9-]*$/u.test(lockName)) {
+  console.error(`[with-lock] invalid --lock name "${lockName}" (use lowercase letters, digits and dashes; known: build, pack)`)
+  process.exit(2)
+}
+const lockDir = join(root, '.maestri', 'locks', `${lockName}.lock`)
+const ownerFile = join(lockDir, 'owner.json')
 const label = head.join(' ')
 const command = process.argv.slice(sep + 1)
-const queueFile = join(root, '.maestri', 'locks', 'build.queue.json')
+const queueFile = join(root, '.maestri', 'locks', `${lockName}.queue.json`)
 
 function alive(pid) {
   try { process.kill(pid, 0); return true } catch (error) { return error.code === 'EPERM' }
@@ -66,7 +78,7 @@ for (;;) {
     if (error.code !== 'EEXIST') throw error
     const owner = readOwner()
     if (owner && !alive(owner.pid)) {
-      console.error(`[with-lock] stealing stale lock from "${owner.label}" (pid ${owner.pid} is gone)`)
+      console.error(`[with-lock:${lockName}] stealing stale lock from "${owner.label}" (pid ${owner.pid} is gone)`)
       rmSync(lockDir, { recursive: true, force: true })
       continue
     }
@@ -85,12 +97,12 @@ for (;;) {
       holder: owner ?? null,
     })
     if (Date.now() > deadline) {
-      console.error(`[with-lock] timed out after ${Math.round(waitMaxMs / 1000)}s waiting for "${owner?.label ?? 'unknown'}" (pid ${owner?.pid})`)
+      console.error(`[with-lock:${lockName}] timed out after ${Math.round(waitMaxMs / 1000)}s waiting for "${owner?.label ?? 'unknown'}" (pid ${owner?.pid})`)
       process.exit(75)
     }
     if (Date.now() - lastPulse > 15_000) {
       lastPulse = Date.now()
-      console.error(`[with-lock] fila: "${label}" espera "${owner?.label}" desde ${owner?.since} (${Math.round(remain / 1000)}s restantes): ${owner?.command}`)
+      console.error(`[with-lock:${lockName}] fila: "${label}" espera "${owner?.label}" desde ${owner?.since} (${Math.round(remain / 1000)}s restantes): ${owner?.command}`)
     }
     await sleep(3000)
   }
@@ -107,6 +119,7 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, () =>
 
 const child = spawn(command[0], command.slice(1), {
   cwd: root,
+  env: { ...process.env, PERSONA_LOCK: lockName },
   stdio: releasePattern ? ['inherit', 'pipe', 'pipe'] : 'inherit',
   shell: process.platform === 'win32',
 })

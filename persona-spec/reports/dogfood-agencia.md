@@ -1,50 +1,62 @@
 # Dogfood #2 — Agência Ponto
 
-04/11 · Forge · relógio falso. Execuções reais de CLI: **0 / 20**. App instalado **não percorrido** (D8 `#root` vazio, CSP).
+04/11 · Forge · host perfil `persona` em **dev** (não instalador). Home: `C:/Users/migue/dev/persona/.maestri/tmp/e2e-917c927f-0961-47c3-83c7-933595168640`. Execuções reais de CLI: **0 / 20**.
 
-## Escopo pedido (Atlas)
-Gestor montando equipe (cartão de plano), quadros por projeto com sprint, Ensinar, Segundo cérebro com permissão lembrada (repetir sem pergunta + revogar), BYC colado, assuntos coloridos na DM, Quem cuida de quem.
+## Escopo (Atlas)
+Gestor montando equipe (cartão de plano), quadros com sprint, Ensinar, Segundo cérebro com permissão lembrada + revogar, BYC colado, assuntos na DM, Quem cuida de quem.
 
-## Engine (este turno) — PASS
+## App real — passos
+- ok: boot shell
+- ok: Gestor cartão de plano
+- ok: #geral pedido assemble
+- ok: Segundo cérebro (vazio honesto)
+- ok: BYC colado em Importar
+- ok: assuntos na DM
+- ok: Quem cuida de quem
 
-Suíte `packages/persona/persona-engine/tests/dogfood-agencia.spec.ts` (1/1):
+## Bugs / donos (4)
 
-| Passo | Resultado |
-|---|---|
-| Gestor `assemble` sem aceite | cartão `[[gestor-plan:plan-agencia]]` + activity `waiting` |
-| Gestor após aceite | Sprint 1 + personas da recomendação |
-| Quadro `site` | colunas `todo` + `done` |
-| Ensinar | rascunho local, `enabled: false` |
-| Permissão `publish`/`cms:blog` | 2ª chamada `skip`; após revogar, `ask` |
-| BYC colado (Claude) | propostas a partir de `## Decisões já tomadas` |
-| Assuntos na DM | 7 cores, nome+cor sempre |
-| Quem cuida | orgChart pessoa: Nina sob Miguel |
-| F1 | fixtures oficiais: chatgpt/claude/gemini/notion/markdown/grok (Atlas: exportação real opcional) |
+### AG-001 — Sprint ausente nos Quadros
 
-```
-pnpm exec vitest run packages/persona/persona-engine/tests/dogfood-agencia.spec.ts
-  Test Files  1 passed (1)  Tests  1 passed (1)
-```
+- Severidade: **P2**
+- Dono: **Lumen**
+- Passos: Quadros após pedido de equipe
+- Captura: `C:/Users/migue/dev/persona/.maestri/tmp/shots/dogfood-agencia/20-sprint-ausente.png`
+- Esperado: Planejar/Iniciar sprint
+- Obtido: botão ausente
 
-## App real — BLOQUEADO (D8)
+### AG-002 — Navegação falhou: perfil
 
-Probe 05:48: Setup `1d4e5e95b8` → `#root` vazio. `pageerror`: CSP `script-src` bloqueia `unsafe-eval`.
+- Severidade: **P1**
+- Dono: **Lumen**
+- Passos: Rail → Perfil
+- Captura: `C:/Users/migue/dev/persona/.maestri/tmp/shots/dogfood-agencia/nav-perfil-fail.png`
+- Esperado: painel visível
+- Obtido: TimeoutError: locator.waitFor: Timeout 60000ms exceeded.
+Call log:
+  - waiting for getByRole('button', { name: /Conversar com Atlas/ }).first() to be visible
 
-Causa no bundle empacotado `apps/web/dist/assets/index-B2q7cWGa.js`:
 
-```
-const o7=new Function("ctx","expr",` with (ctx) { return eval(expr) } `)
-```
+### AG-003 — Ensinar ausente no perfil
 
-É `vendor/loader/src/config/utils.ts` (`evaluate`) no init do chunk. O client importa `Loader` em `boot-client.ts`. **V28**: `evaluate` preguiçoso (só no primeiro `!!js`). **Não** acrescentar `'unsafe-eval'` em `secure-shell.ts`.
+- Severidade: **P1** → **resolvido 04/11 (Prism)**
+- Dono: **Prism**
+- Passos: Perfil Atlas → Ensinar; DM → ⋯ Ensinar
+- Esperado: botão Ensinar (hero + DM)
+- Obtido: `PersonaProfilePage` + `dogfood-ag-003` verde; cabeçalho DM com menu Ensinar
 
-**[Forge→Rivet]** dist novo: `apps/web/dist/assets/index-ZjNmkjRJ.js` (scan CSP ok). Empacote este hash. Probe retesta o exe.
+### AG-004 — Nenhuma permissão lembrada para revogar (esperado com fake CLI / seed vazio)
 
-## Bugs / donos (UI ainda sem captura)
+- Severidade: **P2**
+- Dono: **Anvil**
+- Passos: Segundo cérebro → Permissões
+- Captura: `C:/Users/migue/dev/persona/.maestri/tmp/shots/dogfood-agencia/40-sem-grant.png`
+- Esperado: grant + Revogar após Aprovações "Lembrar"
+- Obtido: lista vazia — precisa de um grant no host
 
-| ID | Item | Dono | Nota |
-|---|---|---|---|
-| AG-001 | `#root` vazio no Setup (CSP eval no loader) | Rivet (pack) + Forge (V28) | correção no source; falta rebuild |
-| AG-002 | Dogfood visual (cartão, quadro, Ensinar, Cérebro, BYC, assuntos, organograma) | Probe + Prism/Lumen | depois do exe novo |
+## Notas
 
-Padaria (DF-001..010) continua válida para onboarding/UI; não reaberta aqui.
+- Host e Chrome encerrados no `finally` (dispose).
+- Sem `PERSONA_REAL_TALK`: fake CLI no PATH. Um host por vez sob `with-lock`.
+- Engine walk (0 execs) continua em `packages/persona/persona-engine/tests/dogfood-agencia.spec.ts`.
+- **Rivet pack ok** `hash=BsxPADcs` (04/11). Probe: retestar o exe instalado (`#root` + dogfood UI). Dist de trabalho ainda aponta `index-ZjNmkjRJ.js`; o hash do pack é o do asar/NSIS limpo.

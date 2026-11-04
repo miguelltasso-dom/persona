@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Same strictness as the app: no inline script or style. If this page works, the splash works under the app CSP. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'">
+<meta name="color-scheme" content="light dark">
+<title>Persona</title>
+<link rel="stylesheet" href="boot.css">
+<script src="boot.js" defer></script>
+</head>
+<body>
+<!--
+  Muse · protótipo da 1ª janela (design/BOOT-SPEC.md). Estático, sem depender do bundle do app.
+  Parâmetros de demo: ?lang=en · ?theme=dark · ?first=1 (1º uso) · ?timeout=6 (segundos até a tela de erro)
+  · ?cause=generic|locked|profile · ?state=error (abre direto no erro)
+-->
+<main class="boot" data-state="splash">
+  <section class="splash" aria-live="polite" aria-labelledby="boot-status">
+    <img class="symbol" src="assets/symbol.svg" alt="" width="56" height="56">
+    <img class="pose" src="assets/atlas-disponivel.webp" alt="" width="200" height="200">
+    <p class="status" id="boot-status" data-i18n="opening">Abrindo a Persona…</p>
+    <p class="hint" id="boot-hint" hidden data-i18n="firstRun">Na primeira vez leva até um minuto.</p>
+    <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+  </section>
+
+  <section class="error" aria-labelledby="boot-error-title" hidden>
+    <img class="symbol small" src="assets/symbol.svg" alt="" width="40" height="40">
+    <img class="pose" src="assets/atlas-erro.webp" alt="" width="180" height="180">
+    <h1 id="boot-error-title" tabindex="-1" data-i18n="errorTitle">Não conseguimos abrir a Persona</h1>
+    <p class="body" id="boot-error-body" data-i18n="errorGeneric">Isso costuma se resolver tentando de novo. Se continuar, reinicie o computador.</p>
+    <div class="actions">
+      <button type="button" class="primary" id="boot-retry" data-i18n="retry">Tentar de novo</button>
+      <button type="button" class="link" id="boot-copy" data-i18n="copyDiag">Copiar diagnóstico</button>
+    </div>
+    <details class="details">
+      <summary data-i18n="details">Detalhes para o suporte</summary>
+      <code id="boot-diag">persona 0.2.2-alpha.3 · boot_timeout · %APPDATA%\Persona\logs\main.log</code>
+    </details>
+  </section>
+</main>
+</body>
+</html>

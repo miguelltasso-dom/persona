@@ -16,3 +16,7 @@ Gate: `measureOpt8Acceptance`. Host `@Remote measureOpt8` deve passar o livro pe
 ```
 pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts
 ```
+
+## Livro live (fixture −40%)
+
+Score **4/4**. Falhou: —. Bloqueado: —.

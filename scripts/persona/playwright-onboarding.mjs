@@ -8,6 +8,7 @@ const onboardingPt = {
   step3Title: 'Ferramentas de IA neste computador',
   step4TemplateBlank: 'Em branco',
   step5Title: 'Boas-vindas ao #geral',
+  step5SkipFirstDelivery: 'Entrar sem pedir agora',
   continue: 'Continuar',
   finish: 'Entrar na Persona',
 }
@@ -45,8 +46,12 @@ export async function completePersonaOnboardingOverlay(page, opts = {}) {
   await page.waitForTimeout(400)
   await page.getByRole('button', { name: onboardingPt.step4TemplateBlank }).click()
   await continueBtn().click()
-  await page.getByRole('heading', { name: onboardingPt.step5Title }).waitFor({ state: 'visible', timeout: 60_000 })
-  await page.getByRole('button', { name: onboardingPt.finish }).click({ timeout: 15_000 })
+  // Step 5 is either the classic welcome ("Entrar na Persona") or, since V1-P0-4, the "Primeira entrega" step whose
+  // gate-safe exit is "Entrar sem pedir agora" (never "Pedir agora": that would start a real execution).
+  const skipFirstDelivery = page.getByRole('button', { name: onboardingPt.step5SkipFirstDelivery, exact: true })
+  await page.getByRole('heading', { name: onboardingPt.step5Title }).or(skipFirstDelivery).first().waitFor({ state: 'visible', timeout: 60_000 })
+  if (await skipFirstDelivery.isVisible().catch(() => false)) await skipFirstDelivery.click({ timeout: 15_000 })
+  else await page.getByRole('button', { name: onboardingPt.finish }).click({ timeout: 15_000 })
   await page.waitForTimeout(5000)
   return true
 }

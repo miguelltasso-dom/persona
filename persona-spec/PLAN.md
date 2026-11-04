@@ -183,6 +183,21 @@ Prevalece sobre trechos que sugerem equipe fixa: **o usuário monta a equipe**; 
 | S6 | UI: **editor de persona** (todos os campos do SCOPE §1), galeria de avatares (Brush)/upload/silhueta, "Nova persona" com construtor, cartão "Contratar <nome>?", tela **Conhecimento** (Cofre) | Prism (editor, galeria, contratar) + Lumen (Conhecimento/Cofre) | S1–S4, BR-personagens | (app) criar/editar/apagar persona; trocar Coordenação; aprovar contratação | doing — editor + contratar (prism) + Conhecimento/Cofre (lumen) |
 | S7 | Testes dos cenários obrigatórios novos (hoje `it.todo`): onboarding do zero; `persona_propose` sem escalar acesso; troca de Coordenação sem perder histórico; Cofre em "Contexto usado"; reduced-motion; diff visual vs `dirD-tela.png` | Probe | S1–S6, A6 | 6/6 verdes | doing — host J1–J10 verdes (`reports/journeys.md`, Forge); UI Probe 2/6 (reduced-motion + dirD ainda todo) |
 
+### V1-P0 — Primeira entrega real ponta a ponta (BRIEFING item 21; D-061) — **critério de aceite nº 1 da v1, junto com o instalador**
+
+Fluxo que o app precisa provar com o motor conectado, em **< 2 min**: home limpo → onboarding → pedido no #geral → Tarefa → **execução real** (CLI/DSH conectado) → entrega no #geral e no quadro → marco **"Primeira entrega"**. Achado da Muse: os dogfoods fecharam com 0 execuções reais.
+
+| # | Tarefa | Dono | Depende | Critério de aceite (testável) | Status |
+|---|---|---|---|---|---|
+| V1-P0-1 | **Causa das 0 execuções reais** nos dogfoods: diagnosticar por que a Tarefa não vira execução real (Coordenação/pré-roteador/Assignment/runner/ACL/cota) e corrigir no engine; relatório com a cadeia causal | Forge | — | `reports/forge.md` com a causa raiz + teste de regressão que falha antes e passa depois; a Tarefa do pedido chega a `Executing` com runner real | **todo** (distribuído 04/11) |
+| V1-P0-2 | **Host ponta a ponta**: pedido → Ticket → execução → entrega publicada no #geral e no quadro; marco `first_delivery` persistido e exposto no Remote; sem ficar preso em "Carregando…" | Anvil | V1-P0-1 | contrato do host: do `postMessage` ao `first_delivery` com runner real (opt-in) e com runner fake (sempre); evento do marco no feed | **todo** (distribuído 04/11) |
+| V1-P0-3 | **Runner real**: `resolveRunner` escolhe o motor conectado sem login wall, sessão quente, 1º token < 5 s, erro tipado e visível se faltar CLI/cota; modelo mais barato para o smoke | Rivet | V1-P0-1 | execução real de um pedido trivial concluída com o motor conectado; latência registrada em `reports/rivet.md` | **todo** (distribuído 04/11) |
+| V1-P0-4 | **Onboarding + marco "Primeira entrega"** na UI: fim do onboarding leva ao pedido guiado; cartão/celebração discreta (Muse) quando a entrega chega; estados de espera honestos (persona trabalhando) | Prism (+ Muse no visual) | V1-P0-2 | jsdom + captura do fluxo; o marco aparece uma vez e some do "Precisa de você" | **todo** (distribuído 04/11) |
+| V1-P0-5 | **Aceite E2E real, opt-in** (Probe): home limpo no app/exe instalado → onboarding → pedido → execução real → entrega no #geral e no quadro → marco, medindo o tempo (< 2 min); roda só com `PERSONA_REAL_E2E=1`, modelo mais barato, no máximo as execuções que o Atlas liberou | Probe | V1-P0-1..4, D8 | 1 execução verde com tempo e custo registrados em `reports/probe.md`; falha dá o passo exato e a captura | **todo** (distribuído 04/11) |
+| V1-P0-6 | **Instalador (D8) com o mesmo fluxo**: o exe instalado do hash publicado passa o V1-P0-5 (CSP ok, `#root` montado) | Rivet + Probe | V1-P0-5, D8 | exe instalado + V1-P0-5 verde dentro dele | **doing** — CSP corrigida (b26d8b99a2); NSIS e teste do instalado pendentes |
+
+Regra de acompanhamento (Keel): a cada ciclo de 25 min conferir `reports/{forge,anvil,rivet,prism,probe}.md`, atualizar a coluna Status e cobrar dono parado. Execuções reais continuam congeladas fora deste fluxo; aqui o Atlas liberou o opt-in.
+
 ### Proatividade nativa — PRO-1..PRO-6 (BRIEFING item 14; `PROACTIVITY.md`; D-048) — **requisito de aceite da v1**
 
 Personas nunca preguiçosas nem dependentes de alguém cobrando. Lições do próprio projeto viram regra: relatar não bloqueia; responder não é despachar; fila vazia é evento; ociosidade/travamento detectados por máquina; contexto cheio/erro de conexão/prompt de confiança = falha de infraestrutura que o Vigia recupera.
@@ -327,6 +342,15 @@ Pedido do Miguel: a Persona não pode ser um harness gastão — gasto normal, s
 | OPT-6 | **Saídas enxutas, proatividade com orçamento e batching**: limite por canal (chat ≤ 100 palavras), sem eco nem narração de passos, relatórios estruturados curtos; iniciativa em lote diário, cadência pela taxa de aceitação; batching de eventos do Router sob rajada | Forge | OPT-1 | menos tokens por resposta; rajada processada em lote | todo |
 | OPT-7 | **Painel em Uso e limites**: tokens por tarefa concluída, por persona, por tipo, cache hit e tendência, com rótulo medido/estimado | Lumen (+ Anvil: RPC) | OPT-1, D5b | (app) painel com dados reais | **done** 04/11 (anvil RPC) — `recordTurnLedger` / `getUsagePanel`; UI Lumen |
 | OPT-8 | **Metas e aceite**: −40% de tokens por tarefa concluída vs. a linha de base; ≥ 60% de cache read; zero chamadas de IA com equipe ociosa sem objetivo; metas ajustadas após a 1ª medição; relatório final antes/depois | Forge + Probe + Keel | OPT-2..OPT-7 | metas atingidas ou renegociadas com números | doing — `measureV1Close` (PRO 6/6, GES 3/3, OPT 3/4; corte -40% bloqueado) + `opt8-acceptance.md` / `v1-close.md` (forge) |
+
+### Dogfood Agência — AG-001..AG-004 (achados do Atlas em `reports/dogfood-agencia.md`; 04/11)
+
+| # | Tarefa | Dono | Depende | Critério de aceite (testável) | Status |
+|---|---|---|---|---|---|
+| AG-001 | **Sprint ausente nos Quadros**: `sprintsEnabled` também para site/simples/marketing e dogfood clica `Abrir quadro` | Lumen (feito por Probe com OK do Keel) | PB-5 | `dogfood-ag-001.client.spec.tsx` (site + Pessoal/simples) | **done** 04/11 (probe) |
+| AG-002 | **Navegação do perfil**: `navigateProfileViaRailCard` cai no primeiro "Conversar com"; rail sem nome fixo | Forge + Probe | — | `rail-persona-name.spec.ts` + E2E do rail | **done** 04/11 (forge+probe) |
+| AG-003 | **Ensinar no perfil**: hero do `PersonaProfilePage` com botão **Ensinar** (Conversar · Editar · Ensinar) | Prism | W2-10 | trocar o `it.fails` por `it` em `dogfood-ag-003.client.spec.tsx` e passar; captura do hero | **doing** — teste `it.fails` pronto (probe); falta o botão (prism) |
+| AG-004 | **Permissão lembrada para revogar**: first-run vazio → grant → lista → revogar; grant só no harness de dev | Anvil + Probe | SB-5 | `onboarding.spec.ts` (host) + `seedDevHarnessBrainGrant` atrás de `readClientDevSeedEnabled` | **done** 04/11 (anvil+probe) |
 
 ### Marco A — Fundação (esqueleto, esteira, desacoplar DeepSeek, spikes)
 

@@ -43,6 +43,7 @@ const child = spawn(electron, [
     DSH_HOME: home,
     PERSONA_HOME: home,
     DSH_PROFILE: 'persona',
+    PERSONA_REAL_CLI: '1',
     DSH_DESKTOP_USER_DATA_DIR: userData,
     DSH_DESKTOP_OPEN_DEVTOOLS: '0',
     DSH_DESKTOP_WELCOME: '0',

@@ -67,3 +67,19 @@ Na revisão do primeiro uso instalado (pacote `dfe13272c6`, 04/11 06:45), a jane
 4. Com o host forçado a falhar (variável de ambiente de teste do Rivet), a tela de erro aparece dentro do prazo e "Tentar de novo" volta para a splash.
 5. axe 0 na splash e na tela de erro.
 6. Com reduced-motion, 0 animações infinitas.
+
+## Protótipo funcional (porte direto)
+
+`persona-spec/design/boot-prototype/` contém `index.html`, `boot.css`, `boot.js` e `assets/` (cerca de 145 KB): splash e tela de erro em HTML estático, sem o bundle do app. A página declara o **mesmo CSP estrito** do app (`script-src 'self'`, sem script nem estilo inline) e não gera nenhuma violação.
+
+Parâmetros de demonstração: `?lang=en`, `?theme=dark`, `?first=1`, `?timeout=9` e `?cause=locked|profile`. No app, o Rivet troca os timers pelas fases reais do host e pelo sinal `persona:first-paint`.
+
+Medido em 04/11, claro e escuro:
+- fundo do tema no 1º quadro;
+- splash visível em ≤ 320 ms;
+- "Chamando a equipe…" aos 3 s e o aviso de 1º uso aos 8 s;
+- tela de erro no prazo, com o foco em "Tentar de novo"; Enter volta à splash, e Esc não fecha;
+- axe 0;
+- reduced-motion com 0 animações infinitas.
+
+Capturas: `.maestri/tmp/shots/design/boot/`.

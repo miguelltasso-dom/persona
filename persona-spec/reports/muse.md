@@ -541,4 +541,38 @@ bundle (with-lock) → Build complete, 99 files
   - Os posts de CLI e de orçamento agora saem como `[[run-error:{code,provider,persona,command}]]`, nunca em prosa, e o `SYSTEM_WELCOME` virou "Boas-vindas à Persona.".
   - Conferi de ponta a ponta com uma linha no formato do host: `parseRunErrorMarker` → `describeRunError` → cartão certo nos 3 códigos (Tentar de novo / Ajustar limite / Escolher outro motor), sem resto de marcador visível e sem jargão.
   - Falta o lado do runner (Rivet): `cli_not_found`, `model_unavailable`, `quota_exhausted` com `resetAt`, e `provider_unreachable`.
+- **08:40, ponte para erros em texto cru** (enquanto o runner do Rivet não manda `code`, e para o histórico): `legacyRunErrorFromText(body, persona)` reconhece só os textos exatos de hoje (runner, `CLI_CHANNEL` antigo e orçamento), com casamento ancorado da mensagem inteira, e devolve o mesmo payload do marcador. O Prism usa só como reserva, e só para mensagem de persona. 7 testes, inclusive a conversa normal que não pode virar cartão. Entregue ao Prism.
 
+- **08:55, BOOT-SPEC com protótipo funcional** (avanço por contrato enquanto o Rivet está desconectado): `persona-spec/design/boot-prototype/`.
+  - Splash e erro em HTML estático, sob o mesmo CSP estrito do app (0 violações), em pt e en, claro e escuro.
+  - Atende todos os critérios mensuráveis: fundo do tema no 1º quadro, splash ≤ 320 ms, status aos 3 s, aviso de 1º uso, erro no prazo com foco em "Tentar de novo", Enter volta à splash, axe 0, reduced-motion com 0 animações infinitas.
+  - O Rivet porta direto e troca os timers pelas fases do host.
+- **09:10, fechamento de pendências com o Rivet de volta:**
+  - O pack D8 das 10:08Z caiu em 2 gates.
+  - Um era **meu**: o rename para "a Persona" quebrou o teste `persona-about-settings` do Prism, que procurava "Sobre o Persona". Corrigi o texto (1/1) e avisei o Prism.
+  - O outro é do Rivet: `prepare-dsh.ts` com TS2554. Entreguei a ele o motivo exato.
+  - Varredura do rename: os testes do Probe e do Anvil já checam a ausência do texto antigo. Sobra o `aboutMenu` do desktop (Rivet), pedido.
+  - Handoffs pendentes entregues ao Rivet: códigos no runner (RUN-ERRORS) e o protótipo da BOOT-SPEC.
+  - **Lição:** uma troca de texto que é contrato (título, botão) precisa de um grep nos testes de todos os pacotes antes, não só no meu.
+
+## 2026-11-04 09:40 — Fase de UX pós-v1 e fechamento do backlog
+
+- **`persona-spec/design/UX-PHASE.md`:** as 10 maiores melhorias, cada uma com problema (com a evidência dos dogfoods e do backlog), solução, impacto (ativação, retenção ou confiança, com o princípio RCD), esforço/dono e métrica local (sem telemetria).
+  - **Achado que ordena a lista:** nos dois dogfoods, a equipe nunca entregou trabalho real (Agência: 0/20 execuções reais; Padaria: presa no onboarding). A ativação da Persona é a 1ª entrega aceita.
+  - **Ordem:**
+    - A: 1ª entrega no onboarding, onboarding que nunca prende, conectar a IA sem terminal misterioso;
+    - B: uma decisão num lugar, falar com quem você quer, projeto e sprint;
+    - C: "Estou fora", avisos só quando importa, autonomia visível, corrigir o rumo (steer).
+  - **Regra da fase:** nenhum controle morto, com checagem automática no gate.
+- **UX-BACKLOG:**
+  - 11 itens meus mudaram de "feito" para **fechado**, com prova (quadros antes/depois ou teste);
+  - nova seção com 8 problemas resolvidos hoje (UX-19 a UX-26: `?` morto → Ajuda, erros crus → cartão, janela branca → BOOT, switch no escuro, botão carregando sem nome, jargão, carry do quadro, detalhe técnico do erro);
+  - quadros novos em `.maestri/tmp/shots/design/fase-ux/antes-depois/`.
+- **Rivet:** RUN-ERRORS já está no código do runner; `aboutMenu` corrigido. Decidi que este NSIS leva só o fundo do tema na janela (risco zero, preserva a validação do `#root` pedida pelo Keel); o porte do protótipo de boot vai no próximo.
+- O pack de 10:39Z caiu num overlay do Rivet (`as never`), já retirado. O vigia do instalador está rearmado.
+- **10:00, 1º uso instalado:** o pack de `b26d8b99a2` passou nos gates (10/10) mas caiu no `prepare:dsh` (`dsh plugin --profile desktop` pede um perfil inicializado; mesmo tema do `#root`). Causa exata enviada ao Rivet. O encadeamento "espera o pack ok → roda o first-run claro e escuro sob lock" está rearmado.
+- **11:25, 1º uso instalado, pacote `b26d8b99a2`** (o encadeamento rodou sozinho; win-unpacked, perfil limpo, claro e escuro):
+  - A janela anexa em 1,0 s no claro e 0,76 s no escuro, mas **o boot falha**: `dsh-desktop:boot … failed to read overlay …\app.asar\dsh\node_modules\@deepseek-ai\dsh-desktop-host\config\electron.cordis.patch.yml: ENOENT`. A pasta `config/` do `dsh-desktop-host` ficou fora do asar.
+  - **Para quem usa:** a página congela (até o screenshot por CDP estoura 30 s) e **nenhuma mensagem aparece**. É o caso exato da tela de erro da BOOT-SPEC, que ainda não foi portada.
+  - Causa exata enviada ao Rivet; Probe avisado. O script agora guarda o erro inteiro (900 caracteres).
+  - **11:35, causa raiz do ENOENT:** `apps/desktop-host/package.json` tem `"files": ["lib/index.js", "lib/cli.js"]` e deixa `config/electron.cordis.patch.yml` fora do pacote montado (conferido em `targets/win-x64/dsh/...`). A correção é uma linha (`"config/"` em `files`) e foi entregue ao Rivet.

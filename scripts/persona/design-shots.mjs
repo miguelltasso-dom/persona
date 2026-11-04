@@ -11,7 +11,9 @@ const root = 'C:/Users/migue/dev/persona'
 const require = createRequire(`${root}/packages/persona/persona-e2e/package.json`)
 const { chromium } = require('playwright')
 const home = `${root}/.maestri/tmp/muse-shot-home-${process.pid}`
-const outDir = `${root}/.maestri/tmp/shots/design`
+// MUSE_VIEWPORT=960x640 changes the default viewport; MUSE_OUT=<sub> writes to shots/design/<sub>/ (no overwrite).
+const outDir = `${root}/.maestri/tmp/shots/design${process.env.MUSE_OUT ? `/${process.env.MUSE_OUT}` : ''}`
+const [vw, vh] = (process.env.MUSE_VIEWPORT ?? '1440x900').split('x').map(Number)
 rmSync(home, { recursive: true, force: true })
 mkdirSync(home, { recursive: true }); mkdirSync(outDir, { recursive: true })
 const wanted = new Set(process.argv.slice(2).length > 0 ? process.argv.slice(2) : ['channel', 'overview', 'onboarding'])
@@ -29,7 +31,7 @@ const finish = async (code, note) => {
 }
 const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), 180_000)
 
-async function open(url, scheme, { onboarded, emptyHome = false, collapsed = false, viewport = { width: 1440, height: 900 }, extraLs }) {
+async function open(url, scheme, { onboarded, emptyHome = false, collapsed = false, viewport = { width: vw, height: vh }, extraLs }) {
   const context = await browser.newContext({ reducedMotion: process.env.MUSE_REDUCED === '1' ? 'reduce' : 'no-preference', viewport, deviceScaleFactor: 1, colorScheme: scheme, locale: 'pt-BR' })
   await context.addInitScript(([dark, done, railCollapsed, emptyOnly]) => {
     localStorage.setItem('persona.rail.collapsed.v1', railCollapsed ? '1' : '0')
@@ -406,6 +408,30 @@ const onData = async (chunk) => {
           } catch (error) {
             console.log(`[card ${who} ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
           }
+        }
+        await context.close()
+      }
+      if (wanted.has('gestor')) {
+        // GES-4: the Gestor de equipe switch, badge and approval choices in Atlas's editor.
+        const { context, page } = await open(match[1], scheme, { onboarded: true })
+        try {
+          await openCard(page, 'Atlas')
+          const card = `${outDir}/gestor-card-${scheme}.png`
+          await page.screenshot({ path: card }); shots.push(card)
+          await page.getByRole('button', { name: 'Mais ações para Atlas' }).click()
+          await page.getByRole('menuitem', { name: 'Editar persona' }).click()
+          await page.waitForTimeout(1800)
+          const heading = page.getByRole('heading', { name: 'Gestor de equipe' }).first()
+          await heading.evaluate((node) => { node.scrollIntoView({ block: 'start' }) })
+          await page.waitForTimeout(500)
+          const path = `${outDir}/gestor-editor-${scheme}.png`
+          await page.screenshot({ path }); shots.push(path)
+          await axeReport(page, `gestor editor ${scheme}`)
+          const sw = page.getByRole('switch', { name: /Gestor de equipe/u }).first()
+          console.log(`[gestor ${scheme}] switch checked: ${await sw.getAttribute('aria-checked').catch(() => 'n/a')}`)
+        } catch (error) {
+          await page.screenshot({ path: `${outDir}/debug-gestor-${scheme}.png` }).catch(() => undefined)
+          console.log(`[gestor ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
         }
         await context.close()
       }

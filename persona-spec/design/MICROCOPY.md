@@ -14,6 +14,7 @@ Muse, 04/11. Este guia vale para pt-BR e en. Quem escreve texto de interface (di
 
 | Diga | Nunca diga para quem usa | en |
 |---|---|---|
+| skill ("o que {persona} sabe fazer" na 1ª vez em cada tela) | habilidade, plugin, tool (ferramenta é outra coisa: a IA conectada) | skill |
 | **a Persona** (o app, P maiúsculo, feminino: "abrir a Persona", "Sobre a Persona", "Entrar na Persona") | "o Persona" | Persona (sem artigo) |
 | **persona** (cada agente, minúsculo) | agente, bot, assistente | persona |
 | equipe / toda a equipe | workspace, tenant | team / everyone on the team |

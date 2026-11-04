@@ -1,0 +1,11 @@
+# Gestor: montar equipe sem duplicar funções
+
+Referência da integração core/engine/host para GES-6. `assembleTeamForGoal` recebe `existingFunctions?: readonly {personaId: string; function: string}[]`. O host fornece somente funções de personas que o Gestor pode usar no escopo autorizado. A lista ausente preserva a recomendação anterior: todas as funções são contratações. O core compara função com normalização de acentos, caixa e espaços nas extremidades; nunca compara o nome da persona.
+
+O resultado `GestorAssemble` inclui `hire` (funções recomendadas que precisam de contratação) e `reuse` (`{function,personaId}` para funções já disponíveis). `structure` continua descrevendo a equipe completa recomendada; não deve ser usada como lista de contratações. Prévia e plano persistido mostram `hire` e `reuse` exatamente como serão aplicados. Objetivo vazio, comando sem objetivo e tarefa avulsa sem pedido de equipe retornam `INVALID_GESTOR` com orientação para informar o projeto ou objetivo.
+
+Ao aprovar, o host revalida mandato, acesso e limites para cada contratação, cria somente `hire`, aloca `reuse` sem ampliar acesso e aplica quadro/sprint junto com as contratações. A transação é do host/store. Reaplicar o mesmo plano já aplicado é no-op, inclusive para personas, quadro, sprint e auditoria. Mudanças de roster ou limites que invalidem a prévia exigem nova revisão, sem substituir silenciosamente o que foi aprovado.
+
+`assertGestorAssemblyHires({gestor,limits,specs,rosterCount,spentTokens,scope})` valida antecipadamente a lista completa de specs derivadas de `hire`, acumulando pessoas e orçamento reservado entre candidatas. Não grava nada. Uma lista pode falhar mesmo quando cada candidata isolada cabe no limite; o host chama a validação antes das gravações e mantém a transação de aplicação. `reuse` não entra como nova contratação e continua sujeito à validação de alocação no escopo.
+
+`runAssembleTeam` aceita a lista como quinto argumento opcional; `runGestorAssemble` aceita `existingFunctions` no input. Ambos delegam ao core. O core não grava nada e chamadas repetidas com o mesmo input produzem a mesma prévia; a idempotência da aplicação é responsabilidade do host pelo ID do plano.

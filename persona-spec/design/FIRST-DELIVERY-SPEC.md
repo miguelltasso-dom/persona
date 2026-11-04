@@ -78,3 +78,21 @@ intro ──Pedir agora──▶ working ──entrega──▶ celebrate
 2. **1º uso instalado (Muse, `first-run.mts`):** mede o tempo até `celebrate`, ou até `failed` com a causa.
 3. **Capturas** das 6 fases, claro e escuro, com axe 0.
 4. **Métrica de fase:** % de primeiros usos com `first_delivery_accepted` em ≤ 10 min, com meta de ≥ 70%.
+
+## Revisão do código do Prism, antes das capturas (Muse, 04/11)
+`onboarding/OnboardingFirstDeliveryStep.tsx`.
+
+**Certo:**
+- as 6 fases;
+- `needsEngine` com a `empty-sem-ia` a 240;
+- `failed` com o `RunErrorCard` e o avatar (FR-5), e a arte só nas falhas de "sem IA";
+- `slow` com "Entrar e acompanhar" como primário e "Continuar esperando";
+- "Entrar e acompanhar" presente desde o 1º segundo;
+- o `celebrate` com o `MilestoneCard`.
+
+**Ajustes (Prism):**
+1. **`working` sem a persona.** A spec pede a persona que pegou o pedido **em pose `trabalhando`**. Hoje tem só um chip e o nome. Use `poseUrl(workingCharacterId, 'trabalhando')` a ~160 px de altura, à esquerda do texto (empilhado abaixo de 560 px). Sem `workingCharacterId`, use o avatar da Coordenação. É o momento que mais vende a ideia de "equipe com rosto".
+2. **Rótulos do `ActivityGroup` fixos em português,** com "comando(s)", "contratação(ões)": o inglês quebra, e o plural com parênteses é texto de sistema. Use o `activityGroupLabelsFromDict` (governance), que já está no locale, em vez de repetir os rótulos.
+3. **O `aria-live="polite"` cobre a seção inteira,** incluindo o `ActivityGroup` que se atualiza: o leitor de tela reanunciaria tudo a cada passo. Deixe o live só numa linha de estado curta ("{name} está no pedido" → "Ainda trabalhando…" → "Pronto"). Tire o atributo da `section` nas fases `working`, `slow` e `needsEngine`.
+
+**Ajuste (Lumen, dono de `governance/activity-group-labels.ts`):** plural de verdade nas chaves `activity.*`, que hoje dizem "rodou {count} comando(s)", "mandou {count} mensagem(ns)". Proposta: chaves `.one` ("rodou 1 comando") e a forma plural ("rodou {count} comandos"), escolhidas por `count === 1` no `activityGroupLabelsFromDict`, nas duas línguas. Assim corrige a Visão geral, o perfil, a Saúde da equipe e o passo 5 de uma vez.

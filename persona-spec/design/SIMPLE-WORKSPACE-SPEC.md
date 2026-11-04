@@ -147,3 +147,27 @@ Chaves novas: `apply.applying`, `apply.fileLocked`, `apply.onedrive`, `apply.don
    - conflito seguido de Desfazer.
    Em cada um, uma ação clara e axe 0.
 3. **O aceite da SIMPLE-WORKSPACE:** "atualize o cardápio.docx" → rascunho → antes e depois → Aplicar → Desfazer, sem nenhuma palavra técnica na tela.
+
+## Aceite visual da galeria SW-8 (Muse, 04/11)
+Capturas do Lumen: `.maestri/tmp/shots/lumen-review/`, 48 quadros (claro e escuro; 1280×720, 960×640 e zoom 200%). Todos com axe 0, sem overflow e sem animação infinita.
+
+**Aprovado no conjunto:**
+- Revisar segue o §3 inteiro: a pergunta em Fredoka, o resumo em palavras, ícone por tipo, os chips Novo/Mudou/Apagado, a frase "Este arquivo sai da pasta" e as colunas de antes e depois alinhadas (riscado + `danger-tint`, sublinhado + `success-tint`).
+- **Conflito:** os 3 `ChoiceCards` com "Recomendado"; o Aplicar desabilitado com o motivo "Escolha o que fica em 1 arquivo antes de aplicar.".
+- **Arquivo aberto:** o Notice "Feche precos.xlsx…" + Tentar de novo.
+- **Histórico:** agrupado por dia, Desfazer e o chip Desfeito.
+- **Nenhuma palavra técnica** em nenhuma tela.
+
+**Ajustes (Lumen), em ordem:**
+1. **Captura vazia:** `review-failed-light-zoom200.png` é uma página em branco com axe 0. Uma página vazia passa no axe, então refaça o quadro e faça o script falhar quando o `main` não tiver texto.
+2. **Fonte dos rótulos em caixa alta:** "ARQUIVOS", "PRECISA DE VOCÊ" (lido como "PRECISA DEVOCÊ") e "HOJE" saem apertados, com cara de Fredoka sem espaçamento, embora o CSS peça Nunito 800 com 0,06em. Os 2 erros 404 do `report.json` devem ser a fonte que não carregou na galeria. Conferir no app real antes de mexer no CSS.
+3. **Antes e depois de imagem:** os botões "Antes · Depois" não mostram qual está ativo, e as duas imagens já aparecem lado a lado. Em janela larga, só lado a lado, sem os botões. Em janela estreita, uma imagem e um `SegmentedControl` com `aria-pressed` e o estado ativo visível.
+4. **Conflito:** a linha do arquivo em conflito continua com o chip "Mudou". Troque por `Chip tone="warning"` **"Escolha o que fica"**, ligando a linha ao cartão abaixo. Falta o "ver as duas versões lado a lado" do §6.
+5. **Histórico:**
+   - dentro do grupo HOJE ou ONTEM, o título não repete o dia: "Bia aplicou 3 mudanças · 11:00";
+   - no vazio, o rodapé "Guardamos as versões de antes por 30 dias." sai, porque solto à esquerda, embaixo do vazio centralizado, parece sobra.
+6. **Linha apagada:** o fundo lilás (`wash`) lê como "selecionado". Use o fundo `card` normal; o chip Apagado e a frase já dizem o estado.
+
+**Do meu lado, já feito:**
+- `ChoiceCards` ganhou o selo ✓ no cartão escolhido, para a escolha não depender só de fundo e sombra (`choicecards-check-{light,dark}.png`);
+- `--persona-ink-muted` no escuro.

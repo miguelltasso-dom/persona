@@ -23,6 +23,10 @@ Tarefa sem `columnId` cai na primeira coluna da categoria do estágio (`projectB
 
 Recusa de fluxo: `BoardRemoteError` — `code` estável + `message` pt-BR. Códigos: `column-needs-destination` (removeu coluna com Tarefas sem destino), `duplicate-column`, `needs-you-unique`, `empty-workflow`, `todo-done-required`, `unknown-column`, `no-category-column`, `invalid-workflow`. Nunca `INVALID_WORKFLOW` no fio.
 
+Na remoção de colunas, o host usa `applyBoardWorkflowEdit(current, columns, fields, seats, tickets, destByRemoved)` do engine e persiste `{workflow,seats}` na mesma transação. O helper inclui cartões cuja coluna era apenas projetada, exige destino para colunas ocupadas e não altera Tickets, Assignments nem a categoria de execução. Somente seats migrados recebem `workflowMove?: {stageCategory: StageCategory}` com a categoria atual do Ticket. Reaplicar a edição é idempotente. `applyWorkflowEdit` puro do core continua disponível, mas sozinho não mantém a projeção de destino quando as categorias diferem.
+
+`resolveColumn` respeita o destino marcado enquanto a categoria do Ticket coincide com a marca. Sem marca, o comportamento anterior permanece. Na mudança automática de categoria, o host usa e persiste `syncPlacementFromStage`, que volta ao mapeamento normal e remove a marca; `moveToColumn` também devolve seat sem marca na movimentação manual. A marca é metadado interno de posicionamento e não muda a categoria exibida da execução. Persistência é aditiva, por JSON validado no store do Anvil; dados antigos sem a chave continuam válidos. Uma nova coluna SQLite, se necessária, exige versão monotônica e teste de migração do store pelo seu dono.
+
 ## Proposta da Coordenação (PB-3)
 
 `proposeWorkflow({ description })` **nunca escreve**. Devolve o cartão «Usar este fluxo?» (`WorkflowProposalView`). Blob JSON sujo passa por `parseWorkflowProposal`; se ilegível, `degraded: true` + fallback Simples.

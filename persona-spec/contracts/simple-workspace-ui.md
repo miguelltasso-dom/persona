@@ -50,20 +50,27 @@ Para cada `files[i].conflict === true` a tela mostra "Você e {Persona} mudaram 
 
 **Nunca** marcadores `<<<<` em arquivo da pessoa. O nome da cópia é calculado pela UI (`conflictCopyName`) só para mostrar; o host é quem grava e deve usar a mesma regra.
 
-## 5. Histórico e Desfazer
+## 5. Histórico e Desfazer (host SW-6, `contracts/simple-workspace.md`: já consumido)
 
-Remotes novos (SW-6), alcançados por `data/history-remote.ts` — sem eles a aba Histórico mostra "Nada aplicado ainda" e fica somente leitura:
+A UI usa os Remotes e tipos que o host publicou (`data/history-remote.ts`):
 
 ```ts
-listRestorePoints({ workspaceId, projectId }): RestorePointView[]
-// { id, createdAt: ISO, actorName?: string, files: { path }[], undone?: boolean }
-undoApply({ workspaceId, projectId, id }): void   // volta os arquivos para a versão de antes
+listRestorePoints({ workspaceId, projectId }): RestorePointListView
+// { status: 'available' | 'unsupported' | 'unconfigured', points: RestorePointView[] }
+// RestorePointView: { id, ticketId, createdAt, expiresAt, state: 'available' | 'undone' | 'expired', files: string[] }
+undoApply({ workspaceId, projectId, restorePointId }): UndoApplyView
+// { kind: 'restored' | 'expired' | 'blocked' (+ explanation em português seguro) }
 ```
 
-- `actorName` vazio = a própria pessoa ("Você").
-- Itens com mais de **30 dias** podem sair do host; a UI também os esconde (`HISTORY_KEEP_DAYS`).
-- "O que você mudou depois, nesses arquivos, também volta" — é o comportamento do `undoApply`; a UI avisa isso na confirmação.
-- `undone: true` → a linha mostra "Desfeito" e não oferece um segundo Desfazer.
+- `status` diferente de `available` (pasta que já usa git, ou histórico não configurado): a tela diz "O histórico fica disponível quando a pasta do projeto tem a Persona ativa", nunca "Nada aplicado ainda".
+- O ponto não traz quem aplicou: a UI mostra o **nome da Tarefa** pelo `ticketId` (cartões do quadro) e, como autor, a persona atribuída à Tarefa ("A persona" se não souber).
+- `files` são caminhos relativos ao projeto; a UI mostra só o nome do arquivo.
+- `state: 'expired'` some da lista; `'undone'` fica como "Desfeito", sem segundo Desfazer.
+- `blocked`: a UI mostra a `explanation` do host como está (por isso ela precisa ser frase para a pessoa, sem jargão); `expired`: "Passou do prazo de 30 dias…".
+
+### Pedido ao host para o toast "Aplicado na pasta · Desfazer"
+
+`ReviewAcceptView` `accepted` deveria trazer `restorePointId` (o ponto criado por aquele Aplicar). A UI já lê `result.restorePointId` quando existir: com ele o toast mostra Desfazer (chama `undoApply`); sem ele, mostra só "Aplicado na pasta" (nunca um Desfazer falso).
 
 ## 6. Abrir o arquivo do rascunho (PDF e outros)
 

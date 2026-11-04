@@ -2,7 +2,7 @@
 // Boots `--profile persona` on a temp home with a free port (D-067), opens the web UI in Chrome (dev seed) and walks a scenario.
 // Run under the build lock (bundle first when the client changed):
 //   node scripts/persona/with-lock.mjs "Quill shots" --lock build -- node scripts/persona/quill-shots.mjs <scenario> [viewport...]
-// Scenarios: connections. Viewports: 960x640 | zoom200 | 1440x900 (default: 960x640 and zoom200).
+// Scenarios: connections | teach. Viewports: 960x640 | zoom200 | 1440x900 (default: 960x640 and zoom200).
 // Env: QUILL_AXE=<path to axe.min.js> (WCAG A/AA scan of each state), QUILL_REDUCED=1 (reduced motion), QUILL_SCHEMES=light|dark.
 // Output: .maestri/tmp/shots/quill/<scenario>-<state>-<scheme>-<viewport>.png and a JSON summary on the last line.
 import { spawn, execFileSync } from 'node:child_process'
@@ -42,7 +42,7 @@ const finish = async (code, note) => {
   try { rmSync(home, { recursive: true, force: true }) } catch { /* temp home in use: reap-orphans cleans later */ }
   process.exit(code)
 }
-const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), 900_000)
+const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), 2_400_000)
 
 async function open(url, scheme, viewport) {
   const context = await browser.newContext({
@@ -56,6 +56,8 @@ async function open(url, scheme, viewport) {
     localStorage.setItem('persona.rail.collapsed.v1', '0')
     localStorage.setItem('persona.onboarding.complete.v1', '1')
     localStorage.setItem('persona.devSeed.v1', '1')
+    // Ensinar: the example recorder (records nothing) so the whole flow can be walked in a plain browser.
+    localStorage.setItem('persona.teach.synthetic', '1')
     const apply = () => { if (dark) document.body?.setAttribute('data-ds-dark-theme', 'true') }
     if (document.body) apply()
     else document.addEventListener('DOMContentLoaded', apply, { once: true })
@@ -65,8 +67,12 @@ async function open(url, scheme, viewport) {
   page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 240)}`))
   await page.goto(url, { waitUntil: 'load' })
   await page.waitForTimeout(9000)
-  await page.reload({ waitUntil: 'load' })
-  await page.waitForTimeout(6000)
+  // A cold host can race the plugin boot order (SlotAssemblyError on the first load): reload until the app answers.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.reload({ waitUntil: 'load' })
+    await page.waitForTimeout(6000)
+    if (await page.getByRole('button', { name: 'Visão geral', exact: true }).first().isVisible().catch(() => false)) break
+  }
   return { context, page }
 }
 
@@ -141,10 +147,11 @@ const SCENARIOS = {
     const suggestion = page.getByRole('dialog').getByRole('group', { name: 'Sugestões de nome' }).getByRole('button').first()
     await suggestion.click()
     await page.getByRole('dialog').getByRole('button', { name: 'Continuar' }).click()
-    await page.getByText('Passo 2 de 3').waitFor({ timeout: 15_000 })
+    await page.getByText(/Passo [23] de 3/u).waitFor({ timeout: 15_000 })
     await page.waitForTimeout(500)
     await shot('add-2-login')
-    await page.getByRole('dialog').getByRole('button', { name: 'Terminar depois' }).click()
+    const later = page.getByRole('dialog').getByRole('button', { name: /Terminar depois|Concluir/u })
+    await later.click()
     await page.waitForTimeout(500)
     await shot('list-after-add')
 
@@ -169,18 +176,65 @@ const SCENARIOS = {
   },
 }
 
+SCENARIOS.teach = async function teach(page, shot) {
+  // Reach the DM of the first persona in the rail, then its ⋯ menu → "Ensinar a …".
+  const rail = page.locator('[data-persona-area="rail"]')
+  const personaRow = rail.getByRole('button', { name: /Atlas/u }).first()
+  await personaRow.scrollIntoViewIfNeeded()
+  await personaRow.click()
+  await page.waitForTimeout(1500)
+  await page.getByRole('button', { name: /^Mais ações para /u }).first().click()
+  await page.getByRole('menuitem', { name: /^Ensinar a /u }).click()
+  await page.getByRole('dialog').waitFor({ timeout: 10_000 })
+  await page.waitForTimeout(500)
+  await shot('1-consent')
+  await page.getByRole('button', { name: 'Escolher o que gravar' }).click()
+  await page.getByRole('radio', { name: 'Tela de exemplo' }).waitFor({ timeout: 10_000 })
+  await shot('2-source')
+  await page.getByRole('radio', { name: 'Tela de exemplo' }).check({ force: true })
+  await page.getByRole('button', { name: 'Começar a gravar' }).click()
+  await page.getByRole('region', { name: 'Gravação em andamento' }).waitFor({ timeout: 10_000 })
+  await shot('3-countdown')
+  await page.waitForTimeout(6500)
+  await shot('4-recording')
+  await page.getByRole('button', { name: 'Parar e revisar' }).click()
+  await page.getByRole('dialog', { name: 'Quer contar o que você fez?' }).waitFor({ timeout: 10_000 })
+  await page.getByLabel('O que você fez').fill('Abro o pedido, confiro o valor e aviso o cliente.')
+  await shot('5-narrate')
+  await page.getByRole('button', { name: 'Montar o passo a passo' }).click()
+  await page.getByRole('heading', { name: /^Revise o que .* aprendeu$/u }).waitFor({ timeout: 30_000 })
+  await page.waitForTimeout(600)
+  await shot('6-review')
+  await page.getByRole('button', { name: 'Adicionar passo' }).click()
+  await page.waitForTimeout(300)
+  await shot('7-review-added')
+  await page.getByRole('button', { name: 'Salvar como skill candidata' }).click()
+  await page.getByText(/aprendeu /u).first().waitFor({ timeout: 15_000 })
+  await page.waitForTimeout(800)
+  await shot('8-done')
+  await page.getByRole('button', { name: /^Ativar para / }).click()
+  await page.waitForTimeout(1500)
+  await shot('9-activated-or-refused')
+  await page.getByRole('button', { name: 'Compartilhar com mais gente' }).click().catch(() => undefined)
+  await page.waitForTimeout(400)
+  await shot('10-share')
+  await page.getByRole('button', { name: 'Concluir' }).click()
+}
+
 const run = SCENARIOS[scenario]
 if (run === undefined) await finish(2, `unknown scenario "${scenario}" (known: ${Object.keys(SCENARIOS).join(', ')})`)
 
 child.stdout.on('data', (chunk) => { out += chunk.toString() })
 child.stderr.on('data', (chunk) => { out += chunk.toString() })
 let url
-for (let i = 0; i < 240 && url === undefined; i += 1) {
+// A busy machine (several app launches at once) can take minutes to boot the host: wait up to 7 minutes, but fail fast if it exits.
+for (let i = 0; i < 840 && url === undefined; i += 1) {
   const match = out.match(/https?:\/\/(?:127\.0\.0\.1|localhost):\d+[^\s]*/u)
   if (match !== null) url = match[0]
+  else if (child.exitCode !== null) break
   else await new Promise((r) => { setTimeout(r, 500) })
 }
-if (url === undefined) await finish(1, `host did not print a URL\n${out.slice(-1200)}`)
+if (url === undefined) await finish(1, `host did not print a URL (exit=${String(child.exitCode)})\n${out.slice(-1500)}`)
 console.log(`host: ${url.replace(/token=[^&\s]+/u, 'token=…')}`)
 
 browser = await chromium.launch({ channel: 'chrome', headless: true })

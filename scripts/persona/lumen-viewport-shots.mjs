@@ -67,6 +67,7 @@ async function open(url, scheme, viewport) {
   const page = await context.newPage()
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 240)}`) })
   page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 240)}`))
+  if (process.env.LUMEN_TRACE === '1') page.on('console', (m) => { if (m.type() === 'info' && m.text().includes('dev seed')) console.log(`[trace ${scheme} ${viewport.tag}] ${new Date().toISOString().slice(11, 23)} ${m.text().slice(0, 200)}`) })
   await page.goto(url, { waitUntil: 'load' })
   await page.waitForTimeout(9000)
   await page.reload({ waitUntil: 'load' })
@@ -112,8 +113,10 @@ async function decisionShots(page, scheme, viewport) {
     return id ? document.getElementById(id)?.textContent ?? '' : ''
   })
   const rows = async () => page.locator('[data-persona-root] ul[role="list"] > li[data-decision-id]').count()
+  const titles = async () => page.locator('[data-persona-root] ul[role="list"] > li[data-decision-id]').evaluateAll(nodes => nodes.map(node => `${node.getAttribute('data-decision-id')}:${node.getAttribute('data-decision-state')}`))
+  const portraits = async () => page.locator('[data-persona-root] ul[role="list"] > li[data-decision-id]').evaluateAll(nodes => nodes.map(node => { const img = node.querySelector('img'); return img === null ? 'no-img' : `${img.naturalWidth}x${img.naturalHeight}:${(img.getAttribute('src') ?? '').slice(0, 40)}` }))
   await nav(page, 'Visão geral')
-  const before = { chip: await chip(), rail: await railBadge(), rows: await rows() }
+  const before = { chip: await chip(), rail: await railBadge(), rows: await rows(), titles: await titles(), portraits: await portraits() }
   await page.screenshot({ path: `${outDir}/decisions-overview-${tag}.png` })
   const axe1 = await axeViolations(page)
   const approve = page.locator('[data-persona-root] ul[role="list"] > li[data-decision-id] button', { hasText: /^Aprovar$/ }).first()
@@ -125,12 +128,14 @@ async function decisionShots(page, scheme, viewport) {
     await page.screenshot({ path: `${outDir}/decisions-overview-stamp-${tag}.png` })
     await page.waitForTimeout(1300)
   }
-  const gone = { rows: await rows(), chip: await chip(), rail: await railBadge() }
+  const gone = { rows: await rows(), chip: await chip(), rail: await railBadge(), titles: await titles() }
+  await page.waitForTimeout(4500)
+  const late = { rows: await rows(), chip: await chip(), rail: await railBadge(), titles: await titles() }
   await nav(page, 'Aprovações')
   const cards = await page.locator('[data-persona-approvals="reactive"] [data-decision-id]').count()
   await page.screenshot({ path: `${outDir}/decisions-approvals-${tag}.png` })
   const axe2 = await axeViolations(page)
-  const line = { tag, before, afterClick, gone, approvalsReactiveCards: cards, axeOverview: axe1?.length ?? 'skipped', axeApprovals: axe2?.length ?? 'skipped' }
+  const line = { tag, before, afterClick, gone, late, approvalsReactiveCards: cards, axeOverview: axe1?.length ?? 'skipped', axeApprovals: axe2?.length ?? 'skipped' }
   console.log(`[decisions ${tag}] ${JSON.stringify(line)}`)
   for (const [name, list] of [['overview', axe1], ['approvals', axe2]]) for (const v of list ?? []) console.log(`[axe ${name} ${tag}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 200)}`)
   decisionReport.push(line)
@@ -162,20 +167,20 @@ function probeOverflow() {
     if (r.width === 0 || r.height === 0) continue
     const cs = getComputedStyle(el)
     if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') && el.scrollWidth > el.clientWidth + 1) scrollers += 1
+    // Walk ALL ancestors: an svg (overflow hidden by default) must not hide the scroller further up; but an ancestor
+    // that clips the element (it pokes out of that box) makes it unreachable even if a scroller sits above.
     let scrolled = false
     let cutBy = null
     for (let p = el.parentElement; p && p !== document.documentElement; p = p.parentElement) {
       const ox = getComputedStyle(p).overflowX
       if (ox === 'auto' || ox === 'scroll') { scrolled = true; break }
-      if (ox === 'hidden' || ox === 'clip') {
+      if ((ox === 'hidden' || ox === 'clip') && cutBy === null) {
         const pr = p.getBoundingClientRect()
-        if (r.right > pr.right + 1.5 || r.left < pr.left - 1.5) { cutBy = p }
-        break
+        if (r.right > pr.right + 1.5 || r.left < pr.left - 1.5) cutBy = p
       }
     }
-    if (scrolled) continue
     if (cutBy !== null) hits.push('cut:' + label(el, r))
-    else if (r.right > vw + 1 || r.left < -1) hits.push(label(el, r))
+    else if (!scrolled && (r.right > vw + 1 || r.left < -1)) hits.push(label(el, r))
   }
   return {
     vw,
@@ -196,6 +201,7 @@ const onData = async (chunk) => {
     browser = await chromium.launch({ channel: 'chrome', headless: true })
     for (const viewport of VIEWPORTS) {
       for (const scheme of ['light', 'dark']) {
+        if (process.env.LUMEN_ONLY !== undefined && process.env.LUMEN_ONLY !== `${scheme}-${viewport.tag}`) continue
         const { context, page } = await open(match[1], scheme, viewport)
         for (const label of panels) {
           try {

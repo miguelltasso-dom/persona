@@ -21,7 +21,15 @@ A Persona não cria conta nesses serviços por você.
 
 Você pode ligar mais de uma conta (Pessoal e Trabalho). Cada uma tem pasta de login própria — um login nunca copia o outro.
 
-A política é explícita, por persona ou pelo espaço:
+Para adicionar: em **Conexões**, no cartão do provedor, escolha **Adicionar outra conta**. O passo a passo tem três etapas:
+
+1. **Nome.** Escolha um nome para reconhecer a conta (Pessoal, Trabalho…). Dois nomes iguais no mesmo provedor não são aceitos.
+2. **Entrar.** A Persona mostra o comando de login **dessa conta** (ele guarda o login numa pasta só dela). Cole no terminal, entre com a conta e volte para confirmar em **Já fiz login**. Nunca use o login padrão do provedor para a conta nova: ele entraria na sua conta principal.
+3. **Pronta.** Quando a Persona vê o login, a conta aparece como pronta. Se você fechar antes, a conta fica na lista como **Precisa entrar** e você termina quando quiser.
+
+Pelo menu ⋯ de cada conta dá para **Renomear** e **Remover conta**.
+
+A política é explícita, para toda a equipe ou para **uma persona** (a regra da persona vale antes da regra da equipe). Escolher a aba não muda nada: a regra só é salva quando você escolhe um dos cartões.
 
 - **Uma conta fixa** — para no limite
 - **Próxima ao chegar no limite**

@@ -25,7 +25,7 @@ Se mudar qualquer outro pixel, o frame "pula" na sobreposição.
 | `{animal}-disponivel-blink.png` | Igual à `disponivel`, com os olhos fechados | piscar de 120 ms a cada 3 a 6 s |
 | `{animal}-disponivel-tail.png` | Igual à `disponivel`, com rabo, orelha ou pena deslocados (o que o bicho tiver) | o balanço lento |
 | `{animal}-acenando.png` | Acenando para a câmera | a chegada na equipe |
-| `{animal}-pensando-1/2/3.png` | 3 quadros de "pensando" (olhar para cima, mão no queixo, balão) | estado trabalhando/pensando |
+| `{animal}-pensando-1/2/3.png` | 3 quadros de "pensando" (olhar para cima → meio fechado → fechado, mão/asa no queixo), **sem balão**: a nuvem é o `.overlay` da faixa | estado trabalhando/pensando |
 
 - **Ordem dos lotes**, pelo uso real nos modelos de equipe: **tamanduá, tucano, raposa, panda** → guaxinim, coruja (aparecem no plano do Gestor) → capivara, cervo, coelho, lobo-guará, lontra, ouriço.
 - **Amostra primeiro:** o pacote completo do **tamanduá** (as 6 imagens acima).
@@ -83,3 +83,57 @@ Prova: `br-p1/mico-pose.png` e `mico-avatars.png`, lado a lado com o tamanduá e
   2. **Avatar em 1024²** (veio 256²). Os 17 atuais são 1024. Correção minha: a spec dizia 256 por engano.
   3. **A pose veio em PNG de paleta (modo `P`)**, quantizado. Exportar em RGBA de 8 bits por canal, senão o gradiente do pelo vira faixas quando o pipeline converte para webp.
 - **Prioridade:** P3 continua depois de P1 e P2. A próxima amostra que eu preciso é a **`empty-sem-ia`** (P2 nº 1, que entra no P0 da ativação), antes do kit do mico.
+
+### Amostra 1 fechada · kit de vida do tamanduá (04/11)
+- **`disponivel-tail` v2 aprovado.** A orelha agora inclina para fora e anda 2–3 px a 188 px. Só a orelha muda (1,0%), com a mesma caixa.
+- **`acenando` aprovado.** O braço mais alto e a mão aberta, bem distinto da `disponivel`.
+- **`pensando-1/2/3` aprovados.** A mesma caixa nos 3; olhar para cima → meio fechado → fechado, com balão lilás. Hoje nenhuma tela usa `pensando`. Quando um ciclo de "pensando" entrar na faixa, ele deve esconder o `.overlay` de nuvem do `PersonaTeamFigure`, para não aparecerem duas nuvens. A Luna também tem balão: é o padrão aceito.
+- **Pesos:** 0,97 a 1,27 MB ✓.
+- **No app:** gerados pelo `build-assets`, e o tamanduá já pisca e mexe a orelha na faixa. A árvore de assets está em 9,05 MiB, abaixo do teto de 10.
+- **Lote liberado:** tucano, raposa e panda, no mesmo método.
+- **Teto de peso, medido:** os 6 frames novos do tamanduá somam 172 KB em webp. Para os 11 restantes, são ~1,85 MiB, o que leva a árvore de 9,05 a ~10,9 MiB, acima do teto de 10. Isso sem contar o P3 (4 animais com kit completo, ~0,4 MB cada). Fica com o Keel e a Muse, antes do 2º lote: subir o teto para 12 MiB ou baixar só as poses de vida para 360 px de altura (elas aparecem a 188).
+
+### Amostra 3 · `empty-sem-ia` (P2 nº 1, P0 da ativação) · aprovada (04/11)
+- **Cena:** o Atlas sentado, sorrindo, segurando o plugue desconectado, com a faísca âmbar. Dá o recado "falta uma ligação" sem drama, no traço da casa.
+- **Dados:** 480² RGBA, 176 KB.
+- **Contraste:** o fio lilás tem 8,3:1 sobre o escuro. O contorno ameixa some no escuro, como nas outras ilustrações; ela é decorativa e o texto carrega a mensagem.
+- **Ajuste menor, sem bloquear:** a ponta das orelhas encosta no topo (4 px). Na próxima exportação, deixar uma margem de 16 px.
+- **No app:** `ILLUSTRATIONS['empty-sem-ia']` (480 → webp), em `build-assets`.
+
+### Lote P1 · tucano (04/11)
+Revisado com `.maestri/tmp/muse/review-life.py tucano`; quadro em `br-p1/tucano-life-board.png`.
+
+- **Aprovados:**
+  - `blink`: 0,44%, só os olhos;
+  - `tail`: as penas do rabo, 1,44%. A caixa abre 40 px à esquerda; o `build-assets` une a caixa da família, então fica alinhado;
+  - `acenando`: os tracinhos de aceno são laranja e aparecem no escuro, ao contrário dos ameixa.
+  - Todos ≤ 1,1 MB e RGBA.
+- **Refazer `pensando-1/2/3`:** o balão está **acima** da cabeça. Como a altura da pose na faixa vem da caixa opaca, o tucano fica desenhado ~25% menor que na `disponivel` e "encolhe" ao começar a pensar.
+- **Regra para todos os lotes:** em `pensando`, o bicho fica **na mesma escala e no mesmo chão** da `disponivel` (topo da cabeça e pés na mesma linha, ±2%), com o balão **ao lado** da cabeça, como no tamanduá.
+
+### Amostra 2b · avatar do mico v2 · aprovado (04/11)
+- **Dados:** 1024² RGBA; saturação mediana 0,55, na faixa da casa (capivara 0,55).
+- **Desenho:** o sorriso aberto, o contorno ameixa e as sombras chapadas estão certos; o `-blink` muda só os olhos.
+- **A pose `disponivel`** ainda precisa seguir o avatar novo. Isso fica no kit P3, depois de P1 e P2.
+- **Tucano `pensando-1` v2 (04/11):** escala e chão certos (topo 33, pés 1464). Falta aproximar o balão: a caixa começa em x=62, contra 276 na `disponivel`, e o bicho escorregaria ~12 px na faixa. **Regra para todos:** a caixa opaca do `pensando` fica a ±50 px da `disponivel` nas 4 bordas, com o balão encostado na cabeça.
+
+### Tucano `pensando-1/2/3` v3 · aprovados, menos o balão (04/11)
+- **Aprovado:**
+  - escala e chão iguais à `disponivel` (topo 33/34, pés 1462/1465);
+  - a mesma caixa nos 3 quadros;
+  - o 2 e o 3 mudam só os olhos;
+  - a borda direita mais estreita vem da asa no queixo (pose diferente), não do balão. Aceito.
+- **Decisão da Muse, que revisa a minha própria spec:** no `pensando` dos extras, **não vai balão**.
+  - Compacto, ele vira uma mancha de ~12 px a 188 px. Grande, encolhe o bicho ou desloca a caixa.
+  - A faixa já mostra a nuvem do estado pelo `.overlay` (30 px, igual para os 17), e 4 dos 5 principais não têm balão.
+  - O pensar fica na pose: o olhar subindo e a mão ou asa no queixo.
+  - Quando o ciclo de `pensando` entrar, o `.overlay` **fica**. Retiro a nota anterior de escondê-lo.
+- **Pedido ao Brush:**
+  - tirar o balão (recomposição só na área do balão) do tucano `pensando-1/2/3` e do tamanduá `pensando-1/2/3`;
+  - de raposa em diante, já sem balão.
+  - **Exceção conhecida:** a Luna, principal, tem balão; fica para a revisão do conjunto principal.
+- **Pensando sem balão, tucano e tamanduá (04/11): aprovado.**
+  - 0 pixels de balão;
+  - a crista e as orelhas intactas, sem resto de halo (`br-p1/pensando-sem-balao.png`);
+  - a mesma caixa nos 3 quadros, com escala e chão iguais à `disponivel`.
+  - Regenerado no app.

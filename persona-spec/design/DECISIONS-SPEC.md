@@ -70,7 +70,7 @@ No máximo 3 linhas, com "Ver todas (n)" quando houver mais. O vazio continua o 
 
 ## Regra 4 · Contratação só para função que se repete (UX-02)
 
-O cartão "Contratar {nome}?" mostra o **porquê** em uma linha, vinda do host: "Toda semana chegam contratos para revisar". Uma tarefa pontual não vira contratação, vira cartão no quadro (regra do Forge no `recommend`). Sem o porquê, a proposta não é mostrada.
+O cartão "Contratar {nome}?" mostra o **porquê** em uma linha, vinda do host: "Toda semana chegam contratos para revisar". Uma tarefa pontual não vira contratação, vira cartão no quadro (regra do Forge no `recommend`). Sem o porquê, a proposta **continua aparecendo**, só sem a linha. **Uma decisão pendente nunca some da tela por falta de dado**: escondê-la prende quem espera, sem aviso. A forma estrita (contratação sem porquê nem chega a ser proposta) é regra do Forge no `recommend` e do host (`ApprovalView.reason`, Anvil), não da UI. (Revisado em 04/11, achado do Lumen.)
 
 ## Texto (pt e en)
 

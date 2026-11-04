@@ -20,7 +20,9 @@ Função atribuível (`systemRoles: librarian`, não única). Padrão: a persona
 
 `curateBrain` após tarefa/conversa/aprovação: cria, atualiza, liga, ou `contradiction` (não sobrescreve). Regras/decisões obrigatórias → `propose` até aceite humano (`acceptLibrarianProposal`).
 
-Higiene sem LLM: `hygieneBrain` (dedupe Jaccard ≥ 0.8, lembrete 90 dias). `applyHygiene` marca `replaced`; o corpo fica.
+O host chama `curateAfterWork` após a conclusão confirmada, usando fatos autorizados e a audiência da origem, e persiste as ações com sua fonte. Uma mensagem privada não pode atualizar, deduplicar ou produzir aviso de contradição contra página de outra audiência; o core compara workspace e visibilidade, incluindo o conjunto exato de participantes da DM. Uma página pública de mesmo título permanece intacta e recebe-se uma página privada separada. Reentregas da conclusão preservam a fonte e não duplicam fatos já curados. Extração e curadoria não acrescentam um turno de modelo à primeira entrega.
+
+Higiene sem LLM: `hygieneBrain` (dedupe Jaccard ≥ 0.8 somente dentro do mesmo workspace e audiência, lembrete 90 dias). `applyHygiene` marca `replaced`; o corpo fica. Cópias públicas e privadas do mesmo fato não substituem umas às outras.
 
 ## Permissões lembradas
 

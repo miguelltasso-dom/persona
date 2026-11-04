@@ -1,0 +1,119 @@
+{
+  "mode": "dry",
+  "summary": {
+    "calls": 9,
+    "vendorBaseEstimate": 71,
+    "tokenizerRatio": 0.2050580997949419,
+    "cacheSurvivedGap": false
+  },
+  "results": [
+    {
+      "arm": "cli_direct",
+      "step": "direct",
+      "pass": "cold",
+      "estimatedPromptTokens": 29,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 1
+    },
+    {
+      "arm": "persona",
+      "step": "triage",
+      "pass": "cold",
+      "estimatedPromptTokens": 542,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 0
+    },
+    {
+      "arm": "persona",
+      "step": "execution",
+      "pass": "cold",
+      "estimatedPromptTokens": 792,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 0
+    },
+    {
+      "arm": "persona",
+      "step": "evaluation",
+      "pass": "cold",
+      "estimatedPromptTokens": 379,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 0
+    },
+    {
+      "arm": "cli_direct",
+      "step": "direct",
+      "pass": "warm",
+      "estimatedPromptTokens": 29,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 1
+    },
+    {
+      "arm": "persona",
+      "step": "triage",
+      "pass": "warm",
+      "estimatedPromptTokens": 42,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 0
+    },
+    {
+      "arm": "persona",
+      "step": "execution",
+      "pass": "warm",
+      "estimatedPromptTokens": 792,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 0
+    },
+    {
+      "arm": "persona",
+      "step": "evaluation",
+      "pass": "warm",
+      "estimatedPromptTokens": 379,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 0
+    },
+    {
+      "arm": "persona",
+      "step": "ttl_probe",
+      "pass": "after_gap",
+      "estimatedPromptTokens": 42,
+      "inputTokens": 100,
+      "outputTokens": 10,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "text": "resposta de ensaio (sem CLI)",
+      "durationMs": 0
+    }
+  ]
+}

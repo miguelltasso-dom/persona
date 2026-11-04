@@ -642,3 +642,56 @@ bundle (with-lock) → Build complete, 99 files
   - o avatar, que deve ser 1024² (eu tinha especificado 256 por engano; corrigido na spec);
   - a pose, que veio em PNG de paleta (P) e precisa ser RGBA.
 - **Prioridade lembrada ao Brush:** a `empty-sem-ia` (P0) vem antes do kit P3.
+
+**17:20, rodada BR-P1, orçamento, paleta e SW-8:**
+- **Arte aprovada e na árvore do app (`build-assets`):**
+  - kit de vida do tamanduá (o tail v2 lê a 188 px);
+  - `empty-sem-ia`, que o Prism já usou no passo 5;
+  - `spot-sem-ia` (FR-3);
+  - avatar do mico v2 (saturação 0,55);
+  - tucano: blink, tail e acenando. Os `pensando` voltaram: o balão acima da cabeça encolhia o bicho ~25%. Criei a regra da mesma escala e chão para todos.
+  - Script de revisão reutilizável: `.maestri/tmp/muse/review-life.py <animal>`.
+- **Orçamento (Keel aprovou a opção b):**
+  - poses de vida a 376 px e q76 (indistinguível a 3×);
+  - os PNGs de marca saíram da árvore do app (−1,1 MiB; o site, o README e o desktop leem de `persona-assets`/`resources`);
+  - a árvore foi de 9,05 para **7,64 MiB**. O P1 e o P2 inteiros cabem; o P3 entra sob demanda.
+  - Registrado em PLAN-assets-brush §8.
+- **Paleta:** `--persona-ink-muted` no escuro (#b9a8ca, ≥ 5,8:1), achado do Lumen. Guarda novo em `palette-dark-contrast.client.spec.ts` (5/5): todo `ink-*` precisa existir no escuro com 4,5:1.
+- **`ChoiceCards`:** selo ✓ no cartão escolhido (capturas em `design/choicecards-check-*`).
+- **Galeria SW-8 do Lumen:** aprovada no conjunto, com 6 ajustes (SIMPLE-WORKSPACE-SPEC §Aceite visual). O principal: uma captura em branco tinha passado no axe.
+- **Testes:**
+  - meu `ux-backlog-muse` atualizado para a cópia nova "Tokens por mês, por persona";
+  - os testes de assets e figura estão verdes;
+  - o check-pkg do client só falha em `teach-flow.client.spec` (7 TS, Quill avisado).
+
+**17:45, tucano `pensando` v3:** a escala, o chão, a caixa e os olhos estão aprovados.
+- **Decisão (revisa a minha spec):** no `pensando` dos extras, sem balão. A nuvem do estado é o `.overlay` da faixa.
+- **Pedido ao Brush:** tirar o balão do tucano e do tamanduá; raposa e panda já vêm sem.
+- **Registrado em:** BR-P1-SPEC e no post-it UX.
+
+**18:10, revisão por captura do app real** (C5a, C5d, PRO-4; `design-shots.mjs`, claro e escuro, 0 erros de console): `design/CAPTURE-REVIEW-0411.md`.
+- **À altura das ilustrações:** a faixa da equipe e a Visão geral.
+- **10 ajustes:** 9 do Prism e 1 do Lumen. Os principais:
+  - o passo 5 com `MOCK_INTRO_LINES` fixos;
+  - o modal do passo 5 cortado em 1440×900;
+  - "1 PENDENTES";
+  - "Descansando · zzz" lido em voz alta;
+  - o cartão da 1ª entrega creditando "Equipe" sem rosto;
+  - o avatar com inicial em "Precisa de você".
+- **Antes das capturas do Prism:** revisei o código do passo 5 (FIRST-DELIVERY-SPEC §Revisão do código). Faltam a pose `trabalhando`, os rótulos do `ActivityGroup` em locale e o live só na linha de estado.
+- **PLAN:** SW-7, BR-P1 e W3-6 atualizados.
+- **PRO-4:** os estados `stuck` e `waiting` esperam a captura com o host real.
+
+**18:40, avisos nativos (UX-PHASE nº 9) e outros:**
+- **`design/NOTIFICATIONS-SPEC.md`** (Rivet e Anvil):
+  - 5 eventos que avisam, e só esses;
+  - silêncio com a janela em foco;
+  - "{persona} terminou / precisa de você / perguntou / não conseguiu terminar", com o rosto;
+  - o orçamento só para `done`/`review`;
+  - o agrupado "Enquanto você estava fora";
+  - o clique leva ao lugar exato;
+  - Configurações › Avisos;
+  - referências do refcat: Slack, Teams e GitHub.
+- **Gerei os rostos do aviso:** `apps/desktop/resources/notify-avatars/*.png` (128², 18 bichos, 412 KB, no `build-assets`, fora da árvore do client). Falta o Rivet incluir a pasta no pacote.
+- **DECISIONS-SPEC Regra 4 corrigida** (achado do Lumen): uma decisão pendente nunca some por falta de dado; sem o porquê, o cartão aparece sem a linha.
+- **BR-P1:** pensando sem balão do tucano e do tamanduá aprovado e regenerado. A árvore está em 7,63 MiB.

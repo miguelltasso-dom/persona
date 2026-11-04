@@ -109,3 +109,32 @@ Total: ~75 SVGs. Micro-glifos de UI (chevron, fechar, check) reaproveitam os de 
 
 - Cada lote vem com `MANIFEST.json` (`id`, caminho, tamanho, formato, prompt/semente resumida).
 - Aceite do Brush: Atlas aprova a folha de estilo (B0) e cada personagem (referência) antes das poses; Prism confirma que os assets carregam no app (teste de renderização: nenhum 404 e contraste mínimo dos ícones sobre `--surface` claro/escuro).
+
+## 8. Orçamento de peso (Muse, 04/11; aprovado pelo Keel, opção b)
+
+**Teto:** a árvore `client-ui-persona/src/client/assets/` fica em **≤ 10 MiB** (`MAX_GIT_BYTES` em `scripts/persona/build-assets.mjs`; o build falha acima disso).
+
+| Medida | Valor |
+|---|---|
+| Antes do BR-P1 | 9,05 MiB |
+| Hoje (com o kit de vida do tamanduá e a `empty-sem-ia`) | **7,58 MiB** |
+
+**O que mudou no pipeline** (`build-assets.mjs`):
+1. **Poses de vida** (`disponivel-blink`, `disponivel-tail`, `acenando`, `pensando-1/2/3`): altura máxima **376 px** (2× exato dos 188 px da faixa da equipe) e webp q76. As outras poses ficam em 480 px, q82. A q76 é indistinguível a 3× de zoom (`.maestri/tmp/shots/design/br-p1/q-compare-blink.png`).
+2. **PNGs de marca fora da árvore do app** (−1,1 MiB): `share-team`, `app-icon`, os logos raster, `installer-header` e o `tray/*.png`. O app só importa os SVGs de `brand/`. O site, o README e o instalador leem direto de `persona-assets/` ou de `apps/desktop/resources/`.
+
+**Tamanho-alvo para o Brush:**
+
+| Arte | Mestre (PNG RGBA 8 bits) | Sai no app (webp) |
+|---|---|---|
+| Frame de vida, 1536² | ≤ 1,5 MB | ~20 KB (6 frames ≈ 118 KB por animal) |
+| Pose comum, 1536² | ≤ 1,5 MB | ~25–35 KB |
+| Avatar e `-blink`, 1024² | ≤ 0,8 MB | ~12–15 KB por tamanho |
+| Ilustração de vazio, 480² | ≤ 0,3 MB | ~25–40 KB |
+| Spot, 192² | ≤ 60 KB | ~6 KB |
+
+O mestre nunca vem em PNG de paleta (modo `P`).
+
+**Projeção:**
+- P1 (11 animais × 118 KB ≈ 1,24 MiB) + P2 (~0,2 MiB) → **~9,0 MiB**, cabe.
+- **P3** (4 animais novos com o kit completo, ~0,45 MiB cada ≈ 1,8 MiB) → ~10,8 MiB, não cabe. Pelo Keel, os animais novos entram **sob demanda** (lazy, fora do bundle inicial). O teto de 12 MiB é aprovado só com o número real do lote medido.

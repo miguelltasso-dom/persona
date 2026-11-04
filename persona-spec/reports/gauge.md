@@ -1,5 +1,24 @@
 # Gauge — relatórios (QA nº 2; mais recente no topo)
 
+## 2026-11-04 13:20 — suítes de host fechadas: BYC/GOV/PB/GES/SB/W2 (93 pass, 12 bugs rastreados); app real no ar; achados de F5/fidelidade
+
+### Placar (camada HOST real em memória, 0 IA; `vitest run packages/persona/persona-e2e/tests/mandatory-*-host.spec.ts`)
+| Suíte | Arquivo | Resultado | Bugs rastreados (`it.fails`) |
+|-------|---------|-----------|------------------------------|
+| BYC-6 (§Aceite 1–3) | `mandatory-bring-your-context-host.spec.ts` | 15 pass | BYC-3b (reimportar nota ALTERADA é descartada), BYC-4c (dedup não reconhece o que o BYC gravou) |
+| GOV-10 (§4, 5 cenários) | `mandatory-governance-host.spec.ts` | 17 pass | GOV-4 (routeApproval sem chamador no host) |
+| PB-9 (§3 adversarial) | `mandatory-project-boards-host.spec.ts` | 14 pass | PB-9.3 (remover coluna com destino deixa cartão sem coluna) |
+| GES-6 (§Aceite) | `mandatory-team-manager-host.spec.ts` | 15 pass | GES-1b (aprovar "assemble" não monta nada) |
+| SB-7 (§6) | `mandatory-second-brain-host.spec.ts` | 20 pass | SB-1a (curadoria não ligada), SB-4b (two-way ignora edição da pasta) |
+| W2-11 (§Aceite) | `mandatory-wave2-host.spec.ts` | 14 pass | resposta sem topicId, resposta duplicada, cor repetida renomeia, rótulo ../, rótulo duplicado |
+
+**CORRIGIDOS pelos donos DURANTE a rodada** (o teste `it.fails` virou verde → removi o marcador e agora é teste normal): vazamento de item "só para mim" em `listVaultRecords` e na prévia (Anvil); editar linha com CPF (Forge); colisão da auditoria no mesmo ms; "Comece aqui" e export do Segundo cérebro respeitam ACL; permissão expirada fora das ativas; grant de escopo vazio; objetivo vazio no Gestor; aprovar plano do Gestor só dono; escrita cruzada de assuntos entre DMs; Ensinar entre projetos. Obrigado Anvil/Forge.
+
+### Achados do APP REAL (host persistente; home limpo + onboarding "Em branco")
+1. **Fidelidade (ALTA, Lumen)**: Saúde da equipe mostra "Atividade do Gestor de equipe — Atlas mudou 1 arquivo(s) e contratou 1 · 1 falhou" numa instalação limpa sem Gestor: `ConnectedTeamHealthPanel` cai em `MOCK_GESTOR_AUDIT_ACTIVITY` (gestor-audit-mock.ts) quando o host não tem auditoria. Atividade FABRICADA com nome de persona que não existe. Captura: `.maestri/tmp/gauge/explore-app/team-health.png`.
+2. **F5 vazio (ALTA, Keel/Probe)**: `@axe-core/playwright` NÃO está instalado → `scanAccessibility` devolve `skipped:true` e `real-surface-a11y.spec.ts` só asserta `if (!axe.skipped)`: o "axe 0 em todas as telas" está VAZIO. Preciso do Keel para instalar `@axe-core/playwright` (devDependency de persona-e2e); sem isso não fecho F5.
+3. Copy (baixa, Lumen): "1 personas" (plural fixo) em Quem cuida de quem; Saúde diz "A equipe se sustenta · 100" enquanto o Teste dos 2 dias mostra a única persona esperando aprovação ("ninguém substitui você").
+
 ## 2026-11-04 12:50 — BYC-6 host 12 ✔ + 5 bugs; GOV-10 host 16 ✔ + 2 bugs (camada app na fila da trava build)
 
 ### Specs novos (packages/persona/persona-e2e)

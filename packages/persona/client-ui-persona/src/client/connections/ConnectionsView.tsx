@@ -85,7 +85,8 @@ function entriesToAccountsUi(entries: readonly ConnectionEntry[]): ConnectionsAc
   }))
   return {
     groups,
-    swapPolicy: 'next_on_limit',
+    // Nobody chose anything yet: the default is to ASK before switching accounts (a switch on its own is an explicit choice).
+    swapPolicy: 'ask_before_swap',
     swapPolicyScope: 'workspace',
     legacySingleSeat: true,
   }
@@ -94,6 +95,9 @@ function entriesToAccountsUi(entries: readonly ConnectionEntry[]): ConnectionsAc
 function accountCount(ui: ConnectionsAccountsUi): number {
   return ui.groups.reduce((sum, g) => sum + g.accounts.length, 0)
 }
+
+/** The three choices offered (D-078), in this order. `round_robin` is no longer offered; a host that still reports it gets a note. */
+const OFFERED_POLICIES: readonly AccountPolicy[] = ['ask', 'next_on_limit', 'fixed']
 
 /** A persona the team rule can be overridden for ("Uma persona"). */
 export interface PolicyPersona {
@@ -362,12 +366,16 @@ export function ConnectionsView({
               </fieldset>
             )
           )}
+          {(scopeDraft === 'workspace' || selectedPersona !== undefined) && shownPolicy === 'split_balance' && (
+            <p className={styles.sectionHint}>{t('swapPolicy.legacyRule')}</p>
+          )}
           {(scopeDraft === 'workspace' || selectedPersona !== undefined) && (
             <AccountPolicyPicker
               legend={t('accountPolicy.legend')}
+              policies={OFFERED_POLICIES}
               name={`${policyCardId}-policy-${scopeDraft}-${selectedPersona?.id ?? 'team'}`}
-              value={shownPolicy}
-              recommended="next_on_limit"
+              value={shownPolicy === 'split_balance' ? undefined : shownPolicy}
+              recommended="ask"
               recommendedLabel={t('accountPolicy.recommended')}
               disabled={policyDisabled || policyBusy}
               copy={policyCopy}

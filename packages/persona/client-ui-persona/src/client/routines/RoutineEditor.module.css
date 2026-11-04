@@ -1,0 +1,215 @@
+/* "Nova rotina" / "Editar rotina" (IV-9). Tokens only; every pressed state also changes the selo, never only the colour. */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--persona-space-2);
+  font: 800 12px/1.2 var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+/* A sticker toggle: day of the week, project. aria-pressed carries the state; the check also says it. */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  min-height: 36px;
+  padding: 0 var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  font: 800 14px/1 var(--persona-font-text);
+  cursor: pointer;
+  box-shadow: var(--persona-shadow-sticker);
+  transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.toggle:hover {
+  background: var(--persona-wash);
+}
+
+.toggle[aria-pressed='true'],
+.toggle[aria-checked='true'],
+.person[aria-checked='true'] {
+  background: var(--persona-accent-tint);
+  box-shadow: none;
+  transform: translateY(2px);
+}
+
+.toggle:focus-visible,
+.person:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.toggleMark {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+}
+
+.people {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: var(--persona-space-2);
+}
+
+.person {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--persona-space-1);
+  padding: var(--persona-space-2);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  font: 700 13px/1.2 var(--persona-font-text);
+  cursor: pointer;
+}
+
+.person:hover {
+  background: var(--persona-wash);
+}
+
+.person[aria-checked='true'] {
+  border-color: var(--persona-outline);
+}
+
+.personName {
+  max-width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.timeField {
+  max-width: 10rem;
+}
+
+.summary {
+  margin: 0;
+  padding: var(--persona-space-3);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-wash);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--persona-ink);
+}
+
+.note {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--persona-ink-soft);
+}
+
+.error {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-danger);
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-2);
+  width: 100%;
+}
+
+.footerEnd {
+  display: flex;
+  gap: var(--persona-space-2);
+  margin-left: auto;
+}
+
+/* ---- the list of routines on the screen ---- */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--persona-wash);
+}
+
+.item:focus-within {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.itemText {
+  min-width: 0;
+}
+
+.itemName {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 15px/1.25 var(--persona-font-text);
+}
+
+.itemWhen {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: var(--persona-ink-soft);
+}
+
+.itemEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.toastRegion {
+  position: relative;
+}

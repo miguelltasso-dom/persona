@@ -85,7 +85,9 @@ describe('lumen surface previews', () => {
     const panel = view.container.querySelector('[data-persona-surface="review-delivery"]')
     expect(panel).toBeTruthy()
     const scope = within(panel as HTMLElement)
-    expect(scope.getByRole('heading', { level: 1, name: reviewPt.title })).toBeTruthy()
+    // Two-pane review: the h1 says who prepared what; "Revisar mudanças" is the small label above it.
+    expect(scope.getByRole('heading', { level: 1, name: 'A persona preparou mudanças em Contrato v2' })).toBeTruthy()
+    expect(scope.getByText(reviewPt.title)).toBeTruthy()
     expect(scope.getByText(reviewPt.question)).toBeTruthy()
     expect(scope.getByRole('button', { name: reviewPt['action.accept'] })).toBeTruthy()
     expect(scope.getByText('pnpm exec vitest run tests/auth/login.spec.ts')).toBeTruthy()

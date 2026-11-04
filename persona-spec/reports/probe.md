@@ -1,5 +1,70 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 08:02 — Keel D-062/B9: lock livre; harness deadlock fix; B9 5/6
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **Fila build** | Rivet `package-clean b26d8b99a2` soltou lock (~08:00); **sem exit 75** nesta rodada |
+| **Harness** | `web-host.ts`: com `PERSONA_LOCK` do `with-lock` externo → `launchDirect` (evita nested lock / falso `WebHostBootTimeoutError`) |
+| **B9 Tier1 retry** | Host ~87 s; **5 pass** (#geral composer, kanban, dirD, reduced-motion, not harness shell) |
+
+### FALHOU
+| Item | Evidência |
+|------|-----------|
+| **B9 console gate** | `persona/createWorkspace` **HTTP 404** → bootstrap live store + dev seed falham no browser → **[Lumen/Anvil]** rota/host persona no profile `persona` |
+| **D8** | `C:\p8c\Persona-Setup.exe` ainda 343148924 @ 05:56 → **[Rivet]** NSIS pós-pack (trava `pack` D-062) |
+
+### Notas Keel
+- B9 atrás do Rivet antigo: **confirmado** na 1ª tentativa (espera fila + timeout 240 s por deadlock interno, não só pack).
+- **Exit 75**: repetir `with-lock` conforme orientação; próximas packs Rivet não seguram `build.lock`.
+- Re-run B9 após `createWorkspace` verde (ou smoke 9/9 explicar delta).
+
+### Fila (não vazia)
+D8 exe; B9 console 404; first-delivery contract run; P0 real CLI; PRO-6; GOV/PB §3.
+
+---
+
+## 2026-11-04 07:35 — B9 boot timeout + contracts 12/12; D8/Rivet pendente
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **Contracts** | v1-close + boot-publish + D8 harness **12/12** (~88 s) |
+| **`run-persona-e2e-vitest.mjs`** | helper OK; B9 chamou com `PERSONA_E2E=1` |
+| **AG-001/003 re-run** | **3/3** — Prism AG-003 Ensinar no perfil verde (`dogfood-ag-003.client.spec.tsx`) |
+
+### FALHOU / bloqueio
+| Item | Evidência |
+|------|-----------|
+| **B9 Tier1 (lock)** | `WebHostBootTimeoutError` — `dsh web` não subiu em 240 s pós-lock (fila Rivet `b26d8b99a2`); **infra**, não regressão de gate smoke 9/9 anterior |
+| **D8 PRIORIDADE** | `C:\p8c\Persona-Setup.exe` ainda 343148924 @ 05:56 → **[Rivet]** NSIS novo pós-pack |
+| **persona-gate (--skip-smoke)** | **persona-host** + **persona-runners** TS (`wave2.ts`, `resolve-runner.spec.ts`) → **[Anvil/Rivet]** mid-publish |
+
+### Fila (não vazia)
+D8 exe + gate full; B9 Tier1 re-run pós-lock livre; PRO-6 fake-clock; GOV/PB §3 E2E; axe 23×.
+
+---
+
+## 2026-11-04 07:20 — Keel AG-001/003 + sprints site + dev brain grant
+
+### PASSOU (Keel ~07:30 publish)
+| Item | Resultado |
+|------|-----------|
+| **AG-001** | `ProjectFlowBoard.tsx` `sprintsEnabled` + site/simples/marketing; `dogfood-ag-001.client.spec.tsx` **PASS** |
+| **AG-003** | `dogfood-ag-003.client.spec.tsx` — só `it.fails` Ensinar (Prism); 1 expected fail |
+| **AG-004 dev** | `seed-default-team.ts` `seedDevHarnessBrainGrant` só com `readClientDevSeedEnabled` + `seedDevHarnessScenario` (onboarding real intocado); Anvil host AG-004 4/4 |
+| **Kanban tests** | 8 files **32 pass** + 1 expected fail |
+| **check-pkg** | `client-ui-persona` OK |
+
+### Arquivos tocados (Lumen/Prism ao voltar)
+`ProjectFlowBoard.tsx`, `seed-default-team.ts`, `dogfood-ag-001.client.spec.tsx`, `dogfood-ag-003.client.spec.tsx`, `seed-default-team.client.spec.ts`
+
+### Fila (não vazia)
+D8 exe Rivet pos-V28; PRO-6 fake-clock; GOV/PB §3; AG-003 verde quando Prism Ensinar; persona-gate smoke já ok 10:08 UTC.
+
+---
+
 ## 2026-11-04 07:10 — Contracts 21/21 + gate Prism TS + promo PRO/S7/GES
 
 ### PASSOU

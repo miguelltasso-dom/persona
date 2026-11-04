@@ -14,7 +14,7 @@ node scripts/persona/with-lock.mjs "Probe <label>" --release-on "dsh web:|DevToo
 
 `startWebHost` / `startDesktop` wrap this automatically so builds are not blocked while the app keeps running.
 
-**Lock queue vs host boot:** if another builder holds `.maestri/locks/build.lock` (e.g. Rivet packaging), `startWebHost` fails with `BuildLockContentionError` after `PERSONA_LOCK_WAIT_MS` (default 12 min) — not a P0 “app won’t start”. After the lock is released, a separate `PERSONA_HOST_BOOT_MS` (default 240 s) applies for the `dsh web:` line. Dogfood/gallery already use disposable homes/ports; they only acquire the lock during host spawn (`--release-on "dsh web:"`). Retry when the lock is free, or `PERSONA_HOST_NO_LOCK=1` when artifacts are already built.
+**Lock queue vs host boot:** D-062 splits **`build.lock`** (builds, E2E, gate) from **`pack.lock`** (Rivet installer worktree). Old Rivet runs may still hold `build.lock` until they finish; `with-lock` exit **75** = wait-max — retry. If another builder holds `build.lock`, `startWebHost` fails with `BuildLockContentionError` after `PERSONA_LOCK_WAIT_MS` (default 12 min). After the lock is released, `PERSONA_HOST_BOOT_MS` (default 240 s) applies for the `dsh web:` line. Wrapping a spec in outer `with-lock` sets `PERSONA_LOCK` → `startWebHost` uses direct launch (no nested lock). Optional `PERSONA_HOST_NO_LOCK=1` when artifacts are already built.
 
 Use disposable `PERSONA_HOME` / `DSH_HOME` (and `DSH_DESKTOP_USER_DATA_DIR` for desktop). Never point tests at the operator’s real home.
 

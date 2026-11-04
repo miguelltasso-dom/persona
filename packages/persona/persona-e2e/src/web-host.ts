@@ -68,7 +68,8 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
     '--port', String(port),
   ]
 
-  const launch = process.env.PERSONA_HOST_NO_LOCK === '1'
+  const callerHoldsBuildLock = process.env.PERSONA_LOCK !== undefined && process.env.PERSONA_LOCK !== ''
+  const launch = process.env.PERSONA_HOST_NO_LOCK === '1' || callerHoldsBuildLock
     ? launchDirect({ command: process.execPath, args: cliArgs, env })
     : launchUnderLock({
       label: `Probe persona-e2e web host (${profile})`,
@@ -78,7 +79,7 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
       env,
     })
 
-  const usingLock = process.env.PERSONA_HOST_NO_LOCK !== '1'
+  const usingLock = process.env.PERSONA_HOST_NO_LOCK !== '1' && !callerHoldsBuildLock
   const url = await new Promise<string>((resolve, reject) => {
     const started = Date.now()
     let hostBootStartedAt = usingLock ? undefined as number | undefined : started

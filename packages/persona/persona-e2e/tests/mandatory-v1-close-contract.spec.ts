@@ -9,7 +9,7 @@ import { REPO_ROOT } from '../src/paths.ts'
 import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
 
 describe('V1 close — engine gate (persona-engine)', () => {
-  it('measureV1Close + assertV1Close: PRO 6/6, GES 3/3, OPT 3/4 (cut-40 blocked without live book)', () => {
+  it('measureV1Close + assertV1Close: PRO 6/6, GES, V1-P0-1 4/4, OPT 3/4 (cut-40 blocked without live book)', () => {
     runVitestSubprocess('packages/persona/persona-engine/tests/v1-close.spec.ts')
   }, 120_000)
 

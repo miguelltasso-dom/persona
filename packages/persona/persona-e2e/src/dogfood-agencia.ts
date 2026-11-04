@@ -187,9 +187,15 @@ async function walkAgencia(
   const boards = REAL_GALLERY_PANELS.find(p => p.slug === 'kanban')!
   await tryNav(page, boards, note, shot)
   await shot('20-quadros')
-  const sprint = page.getByRole('button', { name: /Planejar|Iniciar sprint|Sprint/i })
+  const openBoard = page.getByRole('article', { name: /Abrir quadro/i }).first()
+  if (await openBoard.count() > 0) {
+    await openBoard.click({ timeout: 30_000 })
+    await page.waitForTimeout(800)
+    await shot('20-quadro-aberto')
+  }
+  const sprint = page.getByRole('button', { name: /Planejar|Iniciar sprint/i })
   if (await sprint.count() === 0) {
-    note('Sprint ausente nos Quadros', 'P2', 'Lumen', 'Quadros após pedido de equipe', await shot('20-sprint-ausente'), 'Planejar/Iniciar sprint', 'botão ausente')
+    note('Sprint ausente nos Quadros', 'P2', 'Lumen', 'Quadros → abrir projeto após pedido de equipe', await shot('20-sprint-ausente'), 'Planejar/Iniciar sprint', 'botão ausente')
   } else {
     await sprint.first().click()
     await page.waitForTimeout(800)

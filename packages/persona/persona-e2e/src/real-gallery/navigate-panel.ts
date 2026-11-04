@@ -2,6 +2,7 @@ import type { Page } from 'playwright'
 import { DEV_SEED_PROFILE_PERSONA, type GalleryPanelSpec } from './panels.ts'
 import { dismissBlockingOverlays } from '../boot-gate-bootstrap.ts'
 import { waitForGeralComposer } from '../geral-composer.ts'
+import { personaNameFromRailTalkLabel } from './rail-persona-name.ts'
 
 const MORE_PANELS = new Set(['membros', 'importar', 'canvas'])
 const COMPANY_PANELS = new Set(['conhecimento', 'segundo-cerebro', 'arquivos', 'uso', 'conexoes', 'regras'])
@@ -66,20 +67,36 @@ export async function navigateProfileViaRailCard(
     await teamTitle.click({ timeout: 30_000 })
   }
 
-  const sobre = page.getByRole('button', { name: `Sobre ${personaName}`, exact: true }).first()
+  const resolved = await resolveRailPersonaName(page, personaName)
+  const sobre = page.getByRole('button', { name: `Sobre ${resolved}`, exact: true }).first()
   if (await sobre.isVisible().catch(() => false)) {
     await sobre.click({ timeout: 60_000 })
   } else {
-    const dm = page.getByRole('button', { name: new RegExp(`Conversar com ${escapeRegExp(personaName)}`) }).first()
+    const dm = page.getByRole('button', { name: new RegExp(`Conversar com ${escapeRegExp(resolved)}`) }).first()
     await dm.waitFor({ state: 'visible', timeout: 60_000 })
     await dm.focus()
     await page.keyboard.press('Shift+F10')
   }
 
-  await page.getByRole('button', { name: `Mais ações para ${personaName}`, exact: true }).first()
+  await page.getByRole('button', { name: `Mais ações para ${resolved}`, exact: true }).first()
     .click({ timeout: 30_000 })
   await page.getByRole('menuitem', { name: 'Abrir perfil', exact: true }).click({ timeout: 30_000 })
   await page.locator('[data-persona-surface="profile"]').first().waitFor({ state: 'visible', timeout: 60_000 })
+}
+
+/** Prefer the requested name; otherwise the first rail "Conversar com" (first-run ≠ Atlas). */
+async function resolveRailPersonaName(page: Page, preferred: string): Promise<string> {
+  const preferredSobre = page.getByRole('button', { name: `Sobre ${preferred}`, exact: true }).first()
+  if (await preferredSobre.isVisible().catch(() => false)) return preferred
+  const preferredDm = page.getByRole('button', { name: new RegExp(`Conversar com ${escapeRegExp(preferred)}`) }).first()
+  if (await preferredDm.isVisible().catch(() => false)) return preferred
+
+  const anyDm = page.getByRole('button', { name: /^Conversar com / }).first()
+  if (await anyDm.isVisible().catch(() => false)) {
+    const label = (await anyDm.getAttribute('aria-label')) ?? (await anyDm.innerText())
+    return personaNameFromRailTalkLabel(label) ?? preferred
+  }
+  return preferred
 }
 
 function escapeRegExp(value: string): string {

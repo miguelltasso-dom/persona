@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow, IpcMainInvokeEvent } from 'electron'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DESKTOP_IPC } from '../src/ipc.ts'
@@ -37,6 +37,7 @@ function fixture(url: string = 'dsh-app://app/') {
     personaHome: () => home,
     listSources: async () => [{ id: 'screen:0', name: 'Tela 1', kind: 'screen' }],
     now: () => 5_000,
+    prepareImage: (_png, rects) => ({ png: Buffer.from(`sanitized:${String(rects.length)}`), thumbnail: 'data:image/png;base64,cHJldmlldw==' }),
   })
   const handler = (channel: string) => electron.handle.mock.calls.find(call => call[0] === channel)?.[1]
   const event = { sender: window.webContents, senderFrame: frame } as unknown as IpcMainInvokeEvent
@@ -80,19 +81,37 @@ describe('teach capture IPC', () => {
     expect(stopped.transcript).toBe('clique em salvar')
     expect(stopped.artifactPath).toMatch(/teach-5000\.webm$/u)
     expect(stopped.frames).toHaveLength(1)
-    expect(stopped.frames[0]?.imageRef).toMatch(/^file:/u)
+    expect(stopped.frames[0]?.imageRef).toBe('data:image/png;base64,cHJldmlldw==')
+    const stored = readdirSync(join(f.home, 'teach')).find(name => name.startsWith('teach-frame-'))!
+    expect(readFileSync(join(f.home, 'teach', stored), 'utf8')).toBe('sanitized:1')
     expect(stopped.frames[0]?.changeScore).toBe(1)
     expect(stopped.blurRects).toEqual([{ x: 1, y: 2, width: 3, height: 4 }])
   })
 
   it('strips imageRef when stop asks for redaction', () => {
     const f = fixture()
+    const dir = join(f.home, 'teach')
     f.handler(DESKTOP_IPC.teachStart)!(f.event, 'screen:0', false, CONSENT)
     f.handler(DESKTOP_IPC.teachIngest)!(f.event, Buffer.from('frame-a'))
     const stopped = f.handler(DESKTOP_IPC.teachStop)!(f.event, { typed: 'ok', redact: true }) as {
       frames: Array<{ imageRef: string }>
     }
     expect(stopped.frames[0]?.imageRef).toBe('redacted')
+    expect(readdirSync(dir).filter(name => name.endsWith('.png'))).toEqual([])
+  })
+
+  it('does not remove previously saved frames when a different capture is discarded', () => {
+    const f = fixture()
+    f.handler(DESKTOP_IPC.teachStart)!(f.event, 'screen:0', false, CONSENT)
+    f.handler(DESKTOP_IPC.teachIngest)!(f.event, Buffer.from('first'))
+    f.handler(DESKTOP_IPC.teachStop)!(f.event, { typed: 'first' })
+    const dir = join(f.home, 'teach')
+    const original = readdirSync(dir).find(name => name.endsWith('.png'))!
+    writeFileSync(join(dir, original), 'previous')
+    f.handler(DESKTOP_IPC.teachStart)!(f.event, 'screen:0', false, CONSENT)
+    f.handler(DESKTOP_IPC.teachIngest)!(f.event, Buffer.from('second'))
+    f.handler(DESKTOP_IPC.teachStop)!(f.event, { redact: true })
+    expect(readFileSync(join(dir, original), 'utf8')).toBe('previous')
   })
 
   it('refuses start without the four consent flags', () => {

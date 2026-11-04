@@ -15,6 +15,8 @@ export interface TeachSource {
   readonly id: string
   readonly name: string
   readonly kind: 'screen' | 'window'
+  /** Local 16:10 PNG preview, omitted when the operating system supplies none. */
+  readonly thumbnail?: string
 }
 
 export interface TeachFrame {
@@ -178,10 +180,11 @@ export function isKeyframe(previous: Buffer | undefined, next: Buffer): boolean 
 export function projectTeachFrames(
   dir: string,
   frames: readonly TeachFrame[],
-  write: (path: string, bytes: Buffer) => void = writeFileSync,
+  write: (path: string, bytes: Buffer) => void = (path, bytes) => { writeFileSync(path, bytes, { mode: 0o600, flag: 'wx' }) },
+  prefix: string = 'teach-frame',
 ): TeachProjectedFrame[] {
   return frames.map((frame, index) => {
-    const path = join(dir, `teach-frame-${String(index).padStart(3, '0')}.png`)
+    const path = join(dir, `${prefix}-${String(index).padStart(3, '0')}.png`)
     write(path, frame.png)
     const previous = frames[index - 1]
     return {
@@ -240,9 +243,10 @@ export function teachConsentOk(raw: unknown): raw is TeachConsent {
 export function teachBlurRectOk(raw: unknown): raw is TeachBlurRect {
   if (raw === null || typeof raw !== 'object') return false
   const row = raw as Record<string, unknown>
-  return [row.x, row.y, row.width, row.height].every(
-    value => typeof value === 'number' && Number.isFinite(value),
-  )
+  return typeof row.x === 'number' && Number.isFinite(row.x) && row.x >= 0
+    && typeof row.y === 'number' && Number.isFinite(row.y) && row.y >= 0
+    && typeof row.width === 'number' && Number.isFinite(row.width) && row.width > 0
+    && typeof row.height === 'number' && Number.isFinite(row.height) && row.height > 0
 }
 
 /**
@@ -371,8 +375,8 @@ export function createTeachSession(io: TeachCaptureIo = {}): {
   stop: (dir: string, bytes?: Buffer) => { artifactPath: string; frames: readonly TeachFrame[] }
 } {
   const now = io.now ?? Date.now
-  const write = io.write ?? writeFileSync
-  const mkdir = io.mkdir ?? ((path: string) => { mkdirSync(path, { recursive: true }) })
+  const write = io.write ?? ((path: string, bytes: Buffer) => { writeFileSync(path, bytes, { mode: 0o600 }) })
+  const mkdir = io.mkdir ?? ((path: string) => { mkdirSync(path, { recursive: true, mode: 0o700 }) })
   const listSources = io.listSources ?? (async () => [])
   const state: TeachSessionState = { phase: 'idle', mic: false, pausedMs: 0, frames: [], blurRects: [] }
   let pauseStarted = 0
@@ -426,7 +430,9 @@ export function createTeachSession(io: TeachCaptureIo = {}): {
       const artifactPath = join(dir, name)
       write(artifactPath, bytes ?? Buffer.alloc(0))
       state.artifactPath = artifactPath
-      return { artifactPath, frames: [...state.frames] }
+      const frames = [...state.frames]
+      state.frames = []
+      return { artifactPath, frames }
     },
   }
 }

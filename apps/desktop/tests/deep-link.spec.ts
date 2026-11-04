@@ -10,6 +10,7 @@ describe('persona deep links', () => {
     expect(parsePersonaDeepLink('persona://task/Ticket_9')).toBeUndefined()
     expect(parsePersonaDeepLink('persona://task/t-1/extra')).toBeUndefined()
     expect(parsePersonaDeepLink('persona://task/t-1?action=x')).toBeUndefined()
+    expect(parsePersonaDeepLink('persona://task/%')).toBeUndefined()
     expect(() => personaTaskHref('Ticket_9')).toThrow(/invalid persona ticket id/u)
   })
 })

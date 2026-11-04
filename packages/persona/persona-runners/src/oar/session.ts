@@ -13,6 +13,8 @@ export interface OarSessionOptions {
   personaTitle?: string
   /** Talk never receives owner-norm / worker wrapping. */
   purpose?: 'talk' | 'task'
+  /** OPT-6 / W3: ask the worker for a short final report. Default off (needs a real-model check first). */
+  leanReport?: boolean
   model: string
   permissionMode: 'prompt' | 'allow-once' | 'deny'
   now?: () => Date
@@ -78,7 +80,7 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
           id: options.personaId,
           name: options.personaName ?? options.personaId,
           ...(options.personaTitle === undefined ? {} : { title: options.personaTitle }),
-        })
+        }, options.leanReport === true ? { leanReport: true } : {})
         live.ownerNorms = true
       }
       const input: StartTurnInput = {
@@ -90,7 +92,17 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
         model: options.model,
         permissionMode: options.permissionMode,
       }
-      const handle = await options.turn.start(input)
+      let handle: RunHandle
+      try {
+        handle = await options.turn.start(input)
+      } catch (error) {
+        // The turn never started (e.g. the real-turn cap refused it). Undo the optimistic bookkeeping so a retry of
+        // this request is a real attempt, not a silent "already delivered", and the session does not stay "running".
+        live.seen.delete(requestId)
+        live.status = 'idle'
+        emit('idle', sessionId, requestId)
+        throw error
+      }
       live.handle = handle
       for await (const event of options.turn.stream(handle)) {
         if (event.type === 'ended') break

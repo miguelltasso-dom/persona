@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Engine, MemoryRepositories } from '@deepseek-ai/dsh-persona-engine'
 import type { Assessor, Candidate, Executor, Outcome, Policy, Trigger } from '@deepseek-ai/dsh-persona-engine'
-import { personaMcpTools, servePersonaMcpTools } from '../src/index.ts'
+import { personaMcpTools, servePersonaMcpTools, toWorkerReport } from '../src/index.ts'
 
 const member = { source: 'chat', id: 'alice' }
 function trigger(id: string): Trigger {
@@ -17,7 +17,7 @@ describe('Persona MCP tools (D3)', () => {
     const calls: Array<{ facts?: unknown }> = []
     const tools = personaMcpTools(
       { personaId: 'p1', ticketId: 't1', assignmentId: 'a1' },
-      { report: input => { calls.push(input) }, recall: () => '', ask: () => {} },
+      { report: (input) => { calls.push(input) }, recall: () => '', ask: () => {} },
     )
     const report = tools.find(tool => tool.name === 'persona_report')!
     const facts = [{ kind: 'decision', title: 'Escolha', body: 'Cor lilás', evidence: 'Cor lilás' }]
@@ -28,6 +28,8 @@ describe('Persona MCP tools (D3)', () => {
     expect(Object.hasOwn(calls[1]!, 'facts')).toBe(false)
     expect(calls[2]?.facts).toEqual([])
     expect(report.inputSchema.properties).toHaveProperty('facts')
+    const event = { type: 'ended' as const, at: 'now', report: { state: 'ready' as const, summary: 'Cor lilás', facts } }
+    expect(toWorkerReport(event).facts).toEqual(facts)
   })
 
   it('uses the run identity, refuses a forged actor, and reports onto the ticket', async () => {

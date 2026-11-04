@@ -30,6 +30,8 @@ export interface NormalizedReport {
   question?: string | null
   askedBy?: string
   answers?: string
+  /** Untrusted model-supplied facts; the Host validates source and audience before persistence. */
+  facts?: unknown
 }
 
 /** Token / cost snapshot a runner can report. */

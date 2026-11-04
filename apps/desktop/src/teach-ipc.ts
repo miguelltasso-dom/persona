@@ -1,6 +1,7 @@
 /** WAVE2 W2-10 — teach capture IPC. Frames leave as { atMs, imageRef, changeScore }. */
 
 import { ipcMain, type BrowserWindow } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DESKTOP_IPC, assertDesktopSender } from './ipc.ts'
 import { resolvePersonaProcessHome } from './product.ts'
@@ -9,8 +10,6 @@ import {
   applyTeachRetention,
   createTeachSession,
   projectTeachFrames,
-  redactProjectedFrames,
-  redactTeachArtifacts,
   teachClockView,
   teachBlurRectOk,
   teachConsentOk,
@@ -20,12 +19,14 @@ import {
   type TeachProjectedFrame,
   type TeachSource,
 } from './teach-capture.ts'
+import { prepareTeachImage } from './teach-image.ts'
 
 /** Injectable home and source list for tests. */
 export interface TeachCaptureHost {
   personaHome?: () => string
   listSources?: () => Promise<readonly TeachSource[]>
   now?: () => number
+  prepareImage?: typeof prepareTeachImage
 }
 
 /** `stop` payload consumed by host `teachDraftFrom`. */
@@ -97,17 +98,22 @@ export function installTeachCapture(
     const dir = join(personaHome(), 'teach')
     applyTeachRetention(dir, TEACH_RETENTION_MS)
     const stopped = session.stop(dir)
-    const projected = projectTeachFrames(dir, stopped.frames)
     const redact = typed !== null && typeof typed === 'object' && (typed as { redact?: unknown }).redact === true
     const typedText = typeof typed === 'string'
       ? typed
       : typed !== null && typeof typed === 'object' && typeof (typed as { typed?: unknown }).typed === 'string'
         ? (typed as { typed: string }).typed
         : ''
-    if (redact) redactTeachArtifacts(dir)
+    const prepared = redact ? [] : stopped.frames.map(frame => ({
+      atMs: frame.atMs, ...((host.prepareImage ?? prepareTeachImage)(frame.png, session.state().blurRects)),
+    }))
+    const projected = redact
+      ? stopped.frames.map(frame => ({ atMs: frame.atMs, imageRef: 'redacted', changeScore: 0 }))
+      : projectTeachFrames(dir, prepared, undefined, `teach-frame-${randomUUID()}`)
+        .map((frame, index) => ({ ...frame, imageRef: prepared[index]?.thumbnail ?? 'redacted' }))
     return {
       artifactPath: stopped.artifactPath,
-      frames: redact ? redactProjectedFrames(projected) : projected,
+      frames: projected,
       transcript: teachTranscript({ typed: typedText }),
       blurRects: session.state().blurRects,
     }

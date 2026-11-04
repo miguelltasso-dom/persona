@@ -414,3 +414,14 @@ export {
   type SpendLedger,
   type SpendLimits,
 } from './resolve/spend-budget.ts'
+export {
+  REAL_TURN_CAP_ENV,
+  REAL_TURN_LEDGER_ENV,
+  RealTurnCapError,
+  isRealTurnCapError,
+  realTurnCapFromEnv,
+  reserveRealTurn,
+  withRealTurnCap,
+  type RealTurnCapOptions,
+  type RealTurnCapReason,
+} from './resolve/real-turn-cap.ts'

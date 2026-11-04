@@ -46,6 +46,7 @@ import {
   type UsageStorePort,
 } from './usage-meter.ts'
 import { isLocalProvider } from '../dsh/local.ts'
+import { realTurnCapFromEnv, withRealTurnCap } from './real-turn-cap.ts'
 import { withSpendBudget, type SpendBudgetOptions } from './spend-budget.ts'
 
 export type PersonaRunnerSpec =
@@ -95,6 +96,8 @@ export interface ResolveRunnerOptions {
   pool?: SessionPool<Runner>
   /** Injected fetch for HTTP DSH tests. */
   fetch?: typeof fetch
+  /** Environment read for the real-turn cap (`PERSONA_REAL_TURN_CAP`). Defaults to `process.env`. */
+  env?: NodeJS.ProcessEnv
   /** Persona + project spend caps. Hard stop; never another paid connection. */
   spend?: Omit<SpendBudgetOptions, 'personaId' | 'projectId'> & {
     personaId?: string
@@ -519,8 +522,11 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
       spec, runtime, installation, options.home, chosen.accountHome ?? options.accountHome, vaultEnv, options.homeIo,
       options.permissionMode, options.tools,
     )
+    // Innermost, so infra-recovery retries and warm-session turns are counted and refused before the CLI runs.
+    // Only real CLI runners: fake/scripted/dsh never reach this branch. Unset env = no effect.
+    const turnCap = realTurnCapFromEnv(options.env ?? process.env)
     resolved = wrap(
-      inner,
+      turnCap === undefined ? inner : withRealTurnCap(inner, turnCap),
       accountId === undefined ? { ...options, spec } : { ...options, spec, accountId },
       spec.cli,
       spec.model,

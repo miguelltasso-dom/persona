@@ -165,6 +165,7 @@ export function createElectronBuilderConfig(
       { from: fileURLToPath(new URL('../resources/THIRD_PARTY_NOTICES.txt', import.meta.url)), to: 'THIRD_PARTY_NOTICES.txt' },
       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
       ...(packagesWindows ? [
+        { from: fileURLToPath(new URL('../resources/notify-avatars', import.meta.url)), to: 'notify-avatars', filter: ['*.png'] },
         { from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' },
         { from: fileURLToPath(new URL('../resources/tray-idle-32.png', import.meta.url)), to: 'tray-idle-32.png' },
         { from: fileURLToPath(new URL('../resources/tray-working-32.png', import.meta.url)), to: 'tray-working-32.png' },
@@ -224,6 +225,11 @@ export function createElectronBuilderConfig(
       // Unsigned Windows builds skip electron-builder's afterSign hook.
       if (packagesWindows && unsigned) await verifyWindowsAsarUnpack(buildPaths.dsh, resourcesDir, windowsCode)
       if (packagesWindows) {
+        if (appId === 'com.persona.desktop') {
+          if (resolvedArch !== 'x64') throw new Error('Persona MinGit is available only for Windows x64')
+          const { installPersonaMinGit } = await import('./persona-mingit.mjs')
+          await installPersonaMinGit(resourcesDir, env)
+        }
         const { inspectPersonaPackage } = await import('./persona-package-inventory.ts')
         const inventory = await inspectPersonaPackage(join(resourcesDir, 'app.asar'), buildPaths.dsh)
         if (inventory.missing.length > 0) {

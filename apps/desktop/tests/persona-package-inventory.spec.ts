@@ -95,6 +95,8 @@ it.each([
   'app.asar:dsh/node_modules/@deepseek-ai/dsh-client-ui-persona/lib/remote.js',
   'app.asar:renderer/persona-boot/assets/atlas-erro.webp',
   'resources:runtime/primary-runtime/dependencies/pnpm/bin/pnpm.mjs',
+  'resources:mingit/cmd/git.exe',
+  'resources:mingit/LICENSE.txt',
 ])('reports the exact omitted runtime file: %s', async (missing) => {
   expect((await inspectPersonaPackage(await fixture([missing]))).missing).toEqual([missing])
 })

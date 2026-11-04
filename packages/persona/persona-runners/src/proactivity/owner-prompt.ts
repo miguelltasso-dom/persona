@@ -24,8 +24,9 @@ export const OWNER_NORMS = [
 /**
  * Worker system prompt: Forge worker template + owner norms + persona instructions.
  * @param persona - executor identity.
+ * @param options - `leanReport` (OPT-6 / W3, default false): ask for a short "Resultado:" / "Bloqueio:" final report.
  */
-export function executorPrompt(persona: ExecutorPersona): string {
+export function executorPrompt(persona: ExecutorPersona, options: { leanReport?: boolean } = {}): string {
   const extra = persona.instructions === undefined || persona.instructions.length === 0
     ? ''
     : `\n\nPersona instructions:\n${persona.instructions}`
@@ -33,6 +34,7 @@ export function executorPrompt(persona: ExecutorPersona): string {
     part: 'worker',
     identity: { name: persona.name, title: persona.title ?? 'Executora' },
     policy: `${OWNER_NORMS}${extra}`,
+    ...(options.leanReport === true ? { leanReport: true } : {}),
   })
 }
 
@@ -40,7 +42,8 @@ export function executorPrompt(persona: ExecutorPersona): string {
  * Prefix a first-turn user prompt with owner norms (once per session).
  * @param text - assignment text.
  * @param persona - executor identity.
+ * @param options - Same as {@link executorPrompt}.
  */
-export function prefixOwnerNorms(text: string, persona: ExecutorPersona): string {
-  return `${executorPrompt(persona)}\n\n${text}`
+export function prefixOwnerNorms(text: string, persona: ExecutorPersona, options: { leanReport?: boolean } = {}): string {
+  return `${executorPrompt(persona, options)}\n\n${text}`
 }

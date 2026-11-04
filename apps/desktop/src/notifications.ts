@@ -1,6 +1,7 @@
 /** Honest Windows toasts: attention budget, silence windows, grouping, internal deep links. */
 
 import { personaTaskHref } from './deep-link.ts'
+import { nativeNotificationMessages } from './notification-locale.ts'
 
 /** Policy from Anvil Remote `getAttentionPolicy` (Status contract). */
 export interface DesktopAttentionPolicy {
@@ -12,10 +13,16 @@ export interface DesktopAttentionPolicy {
 
 export interface DesktopAttentionEvent {
   readonly id: string
-  readonly kind: 'needs-you' | 'review'
+  readonly kind: 'needs-you' | 'review' | 'question' | 'failed' | 'done'
   readonly title: string
   readonly ticketId: string
   readonly at: string
+  readonly personaName?: string
+  readonly avatarId?: string
+  readonly question?: string
+  readonly code?: string
+  readonly threadId?: string
+  readonly streamId?: string
 }
 
 export interface DesktopNotificationPayload {
@@ -23,6 +30,7 @@ export interface DesktopNotificationPayload {
   readonly body: string
   readonly href: string
   readonly tag: string
+  readonly avatarId?: string
 }
 
 export interface DesktopNotificationClock {
@@ -35,12 +43,10 @@ export interface DesktopNotificationSink {
 
 export interface DesktopNotificationsOptions {
   readonly policy: () => DesktopAttentionPolicy
-  readonly locale: () => {
-    needsYouTitle: string
-    reviewReadyTitle: string
-    notifyGroupedBody: string
-  }
   readonly clock?: DesktopNotificationClock
+  readonly localeId?: () => string
+  /** True only while a visible Persona window has keyboard focus. */
+  readonly isAppFocused: () => boolean
   readonly notify: DesktopNotificationSink
   readonly open: (href: string) => void
 }
@@ -101,6 +107,11 @@ function formatCount(template: string, count: number): string {
   return template.replaceAll('{count}', String(count))
 }
 
+function trimText(text: string): string {
+  const chars = Array.from(text.trim())
+  return chars.length > 80 ? `${chars.slice(0, 79).join('')}…` : chars.join('')
+}
+
 /**
  * Native toasts that refuse to spam: budget, silence, grouping. No network.
  */
@@ -108,9 +119,10 @@ export class DesktopNotifications {
   private shownToday = 0
   private day = ''
   private pending: DesktopAttentionEvent[] = []
+  private quietPending = false
   private readonly seen = new Set<string>()
 
-  /** @param options - Policy, locale, injectable Notification, deep-link opener. */
+  /** @param options - Policy, locale ID, focus, native notification sink and deep-link opener. */
   constructor(private readonly options: DesktopNotificationsOptions) {}
 
   /**
@@ -120,19 +132,22 @@ export class DesktopNotifications {
   ingest(event: DesktopAttentionEvent): void {
     if (this.seen.has(event.id)) return
     this.seen.add(event.id)
+    if (this.options.isAppFocused()) return
     const now = this.options.clock?.now() ?? new Date()
     this.rollDay(now)
     const policy = this.options.policy()
     if (inQuietWindow(now, policy.quietStart, policy.quietEnd)) {
       this.pending.push(event)
+      this.quietPending = true
       return
     }
     const budget = policy.proposalBudget > 0 ? policy.proposalBudget : DEFAULT_BUDGET
-    if (this.shownToday >= budget) {
+    const limited = event.kind === 'review' || event.kind === 'done'
+    if (limited && this.shownToday >= budget) {
       this.pending.push(event)
       return
     }
-    if (policy.delivery === 'summary') {
+    if (limited && policy.delivery === 'summary') {
       this.pending.push(event)
       return
     }
@@ -144,6 +159,23 @@ export class DesktopNotifications {
     this.flushSummary(this.options.clock?.now() ?? new Date())
   }
 
+  /** Release events held during quiet hours when the app is no longer focused. */
+  flushQuietHours(): void {
+    if (!this.quietPending) return
+    const now = this.options.clock?.now() ?? new Date()
+    const policy = this.options.policy()
+    if (this.options.isAppFocused() || inQuietWindow(now, policy.quietStart, policy.quietEnd)) return
+    this.flushSummary(now)
+    this.quietPending = false
+  }
+
+  /** Remove resolved events before they can appear in a later summary. */
+  resolve(ids: readonly string[]): void {
+    const resolved = new Set(ids)
+    this.pending = this.pending.filter(event => !resolved.has(event.id))
+    if (this.pending.length === 0) this.quietPending = false
+  }
+
   private rollDay(now: Date): void {
     const key = dayKey(now)
     if (this.day === key) return
@@ -153,24 +185,20 @@ export class DesktopNotifications {
 
   private flushSummary(now: Date): void {
     if (this.pending.length === 0) return
+    if (this.options.isAppFocused()) return
     const policy = this.options.policy()
     if (inQuietWindow(now, policy.quietStart, policy.quietEnd)) return
-    const budget = policy.proposalBudget > 0 ? policy.proposalBudget : DEFAULT_BUDGET
-    if (this.shownToday >= budget) return
     const held = this.pending
     this.pending = []
     const first = held[0]
     if (first === undefined) return
-    const locale = this.options.locale()
-    if (held.length === 1) {
-      this.showOne(first)
-      return
-    }
-    this.shownToday += 1
+    const locale = nativeNotificationMessages(this.options.localeId?.() ?? 'en')
     const href = personaTaskHref(first.ticketId)
+    const needs = held.filter(event => event.kind !== 'done' && event.kind !== 'review').length
+    const done = held.length - needs
     const toast = this.options.notify.show({
-      title: locale.needsYouTitle,
-      body: formatCount(locale.notifyGroupedBody, held.length),
+      title: locale.grouped,
+      body: `${formatCount(needs === 1 ? locale.needsOne : locale.needsMany, needs)} · ${formatCount(done === 1 ? locale.doneOne : locale.doneMany, done)}`,
       href,
       tag: 'persona-attention',
     })
@@ -178,15 +206,22 @@ export class DesktopNotifications {
   }
 
   private showOne(event: DesktopAttentionEvent): void {
-    const locale = this.options.locale()
-    const title = event.kind === 'review' ? locale.reviewReadyTitle : locale.needsYouTitle
+    const locale = nativeNotificationMessages(this.options.localeId?.() ?? 'en')
+    const label = event.kind === 'needs-you' ? locale.needsYou : locale[event.kind]
+    const title = label.replaceAll('{persona}', event.personaName ?? 'Persona')
+    const task = trimText(event.title)
+    const body = event.kind === 'review' ? locale.reviewBody.replaceAll('{task}', task)
+      : event.kind === 'done' ? `“${task}”`
+        : event.kind === 'question' ? trimText(event.question ?? task)
+          : event.kind === 'failed' ? locale.failures[event.code ?? ''] ?? locale.unknownFailure : task
     const href = personaTaskHref(event.ticketId)
-    this.shownToday += 1
+    if (event.kind === 'review' || event.kind === 'done') this.shownToday += 1
     const toast = this.options.notify.show({
       title,
-      body: event.title,
+      body,
       href,
       tag: `persona-${event.kind}-${event.ticketId}`,
+      ...(event.avatarId === undefined ? {} : { avatarId: event.avatarId }),
     })
     toast.onClick = (link) => { this.options.open(link) }
   }

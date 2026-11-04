@@ -28,6 +28,7 @@ export const PERSONA_PACKAGE_EXTERNAL_FILES = [
   'icon.png', 'THIRD_PARTY_NOTICES.txt', 'tray.ico', 'tray-idle-32.png', 'tray-working-32.png',
   'tray-needs-you-32.png', 'tray-paused-32.png', 'runtime/versions.json', 'runtime/bin/node.cmd',
   'runtime/primary-runtime/runtime.json', 'runtime/primary-runtime/dependencies/pnpm/bin/pnpm.mjs',
+  'mingit/cmd/git.exe', 'mingit/ucrt64/bin/git.exe', 'mingit/LICENSE.txt',
 ] as const
 
 /** Inventory findings; missing paths use app.asar: or resources: to identify their owner. */

@@ -48,6 +48,7 @@ import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installPersonaAboutShellIpc } from './persona-about-shell.ts'
 import { installTeachCapture } from './teach-ipc.ts'
+import { teachSourceView } from './teach-sources.ts'
 import { createComputerUseComHost, installComputerUseBind } from './computer-use-bind.ts'
 import { interpretOverlayConsole } from './computer-use-cursor-renderer.ts'
 import { overlayBrowserWindowOptions, overlayMouseIgnore } from './computer-use-overlay.ts'
@@ -105,7 +106,7 @@ import { DesktopNotifications, policyFromAutonomy } from './notifications.ts'
 import { allowShellNavigation, hardenSession, isExternalHttpUrl, secureWebPreferences, windowOpenAction } from './secure-shell.ts'
 import { copyPersonaDiagnostic, createPersonaLogger, personaLogsDir } from './persona-log.ts'
 import { reconnectingPageUrl } from './reconnecting-page.ts'
-import { ALWAYS_ON_IPC, isAlwaysOnAttention, runningAssignmentCount } from './always-on-ipc.ts'
+import { ALWAYS_ON_IPC, isAlwaysOnAttention, isAlwaysOnResolved, runningAssignmentCount } from './always-on-ipc.ts'
 import { DesktopPower } from './power.ts'
 import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
 import { parsePersonaDeepLink } from './deep-link.ts'
@@ -650,6 +651,8 @@ async function main(): Promise<void> {
       hostInspectPort, {
         ...hostEnvironment,
         DSH_CLIENT_VERSION: desktopClientVersion(),
+        ...(app.isPackaged && process.platform === 'win32'
+          ? { PERSONA_BUNDLED_GIT: join(process.resourcesPath, 'mingit', 'cmd', 'git.exe') } : {}),
         ...(process.env.VITEST === 'true' || process.env.PERSONA_SCRIPTED === '1'
           ? {}
           : { PERSONA_REAL_CLI: '1' }),
@@ -983,12 +986,8 @@ async function main(): Promise<void> {
   installTeachCapture(() => mainWindow, {
     personaHome: () => resolvePersonaProcessHome(),
     listSources: async () => {
-      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] })
-      return sources.map(source => ({
-        id: source.id,
-        name: source.name,
-        kind: source.id.startsWith('screen:') ? 'screen' as const : 'window' as const,
-      }))
+      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 200 } })
+      return sources.map(teachSourceView)
     },
   })
   let computerUseBind!: ReturnType<typeof installComputerUseBind>
@@ -1416,11 +1415,17 @@ async function main(): Promise<void> {
   const desktopNotifications = new DesktopNotifications({
     // Anvil Remote `getAutonomy` (proposalBudget / silenceStart / silenceEnd) — default until host posts it.
     policy: () => policyFromAutonomy({ delivery: 'ping', proposalBudget: 3, silenceStart: '22:00', silenceEnd: '07:00' }),
-    locale: () => currentDesktopLocale().messages,
+    localeId: () => currentDesktopLocale().id,
+    isAppFocused: () => mainWindow !== undefined && !mainWindow.isDestroyed()
+      && mainWindow.isVisible() && mainWindow.isFocused(),
     notify: {
       show: (payload) => {
         try {
-          const toast = new Notification({ title: payload.title, body: payload.body })
+          const avatarPath = payload.avatarId !== undefined && /^[a-z0-9-]+$/u.test(payload.avatarId)
+            ? join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources'), 'notify-avatars', `${payload.avatarId}.png`)
+            : undefined
+          const icon = avatarPath !== undefined && existsSync(avatarPath) ? nativeImage.createFromPath(avatarPath) : undefined
+          const toast = new Notification({ title: payload.title, body: payload.body, ...(icon === undefined ? {} : { icon }) })
           toast.on('click', () => { openPersonaLink(payload.href) })
           toast.show()
         } catch (error) {
@@ -1431,8 +1436,15 @@ async function main(): Promise<void> {
     },
     open: (href) => { openPersonaLink(href) },
   })
+  const notificationTimer = setInterval(() => { desktopNotifications.flushQuietHours() }, 60_000)
+  notificationTimer.unref()
+  app.once('will-quit', () => { clearInterval(notificationTimer) })
   ipcMain.on(ALWAYS_ON_IPC.attention, (event, payload: unknown) => {
     assertDesktopSender(event, ['app'])
+    if (isAlwaysOnResolved(payload)) {
+      desktopNotifications.resolve(payload.eventIds)
+      return
+    }
     if (isAlwaysOnAttention(payload)) {
       desktopNotifications.ingest(payload)
       if (payload.kind === 'needs-you') trayNeedsYou += 1

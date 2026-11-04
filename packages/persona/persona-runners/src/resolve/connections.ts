@@ -61,7 +61,7 @@ const CLI_BINS: Record<CliKind, string> = {
 }
 
 let cache: { kind: 'ready'; at: number; value: ConnectionSnapshot[] }
-  | { kind: 'checking'; promise: Promise<ConnectionSnapshot[]> }
+  | { kind: 'checking'; options: DetectConnectionsOptions; promise: Promise<ConnectionSnapshot[]> }
   | undefined
 
 function redact(value: ConnectionSnapshot): ConnectionSnapshot {
@@ -120,7 +120,7 @@ async function probeCli(
       card.loginHint = loginHintFor(id)
       return redact(card)
     }
-    card.loginHint = loginHintFor(id)
+    card.authUnknown = true
     return redact(card)
   }
   const probe = asProbe(runtime)
@@ -197,15 +197,12 @@ async function probeCli(
 
 async function defaultRuntime(cli: CliKind): Promise<Runtime | undefined> {
   try {
-    const oar = await import('@botiverse/oar')
-    if (cli === 'cursor') {
-      const registry = oar.createRuntimeRegistry([
-        ...oar.defaultRuntimes.list(),
-        oar.createCursorRuntime({ sdk: () => import('@cursor/sdk') }),
-      ])
-      return registry.get('cursor')
+    switch (cli) {
+      case 'claude': return (await import('@botiverse/oar/runtimes/claude')).claudeRuntime
+      case 'codex': return (await import('@botiverse/oar/runtimes/codex')).codexRuntime
+      case 'opencode': return (await import('@botiverse/oar/runtimes/opencode')).opencodeRuntime
+      case 'cursor': return (await import('@botiverse/oar/runtimes/cursor')).createCursorRuntime({ sdk: () => import('@cursor/sdk') })
     }
-    return oar.defaultRuntimes.get(cli)
   } catch {
     return undefined
   }
@@ -220,9 +217,12 @@ async function defaultRuntime(cli: CliKind): Promise<Runtime | undefined> {
 export async function detectConnections(options: DetectConnectionsOptions = {}): Promise<ConnectionSnapshot[]> {
   const now = options.now ?? Date.now
   const cacheMs = options.cacheMs ?? CACHE_MS
-  if (cache?.kind === 'checking') return cache.promise
+  if (cache?.kind === 'checking' && cache.options.runtimes === options.runtimes
+    && cache.options.env === options.env && cache.options.fetch === options.fetch
+    && cache.options.ollama === options.ollama && cache.options.lmstudio === options.lmstudio
+    && cache.options.timeoutMs === options.timeoutMs) return cache.promise
   if (options.force !== true && cache?.kind === 'ready' && now() - cache.at < cacheMs) return cache.value
-  const pending = { kind: 'checking' as const, promise: readConnections(options) }
+  const pending = { kind: 'checking' as const, options, promise: readConnections(options) }
   cache = pending
   try {
     const cards = await pending.promise

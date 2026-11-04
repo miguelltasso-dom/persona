@@ -25,7 +25,14 @@ export function parsePersonaDeepLink(url: string): PersonaTaskDeepLink | undefin
   const host = parsed.hostname === '' ? parsed.host : parsed.hostname
   if (host !== 'task') return undefined
   if (parsed.search !== '' || parsed.hash !== '') return undefined
-  const ticketId = decodeURIComponent(parsed.pathname.replace(/^\/+/u, '')).trim()
+  let ticketId: string
+  try {
+    ticketId = decodeURIComponent(parsed.pathname.replace(/^\/+/u, '')).trim()
+  } catch (error) {
+    // Malformed URL escapes do not identify a task.
+    void error
+    return undefined
+  }
   if (!PERSONA_TICKET_ID.test(ticketId)) return undefined
   return { kind: 'task', ticketId }
 }

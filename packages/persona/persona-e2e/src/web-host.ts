@@ -53,6 +53,9 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
+    // No vault flag here on purpose (Keel 04/11): the client-connection scope has an in-memory layer, so the web host
+    // boots without the DPAPI channel and this e2e covers the real behavior. Specs that write real secrets (Anvil's E12)
+    // pass `PERSONA_VAULT_TEST_CIPHER: '1'` through `options.env`.
     ...options.env,
     DSH_HOME: home,
     PERSONA_HOME: home,

@@ -1,2 +1,2 @@
 @echo off
-node "%~dp0fake-cli.mjs" opencode %*
+node "%~dp0opencode.mjs" %*

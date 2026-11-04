@@ -6,6 +6,7 @@ import { chromium, type Page } from 'playwright'
 import { installedDesktopLaunch, waitForInstalledCdp } from './installed-cdp.ts'
 import { E2E_TMP_ROOT } from './paths.ts'
 import { probeFreePort } from './ports.ts'
+import { killProcessTree } from './process-tree.ts'
 
 export interface StartInstalledDesktopOptions {
   readonly exe: string
@@ -22,6 +23,8 @@ export interface InstalledDesktopHandle {
   readonly userData: string
   readonly rendererPort: number
   readonly exe: string
+  /** Everything the Electron main + host printed so far (stdout and stderr), for failure evidence. */
+  log(): string
   stop(): Promise<void>
 }
 
@@ -90,6 +93,9 @@ export async function startInstalledDesktop(options: StartInstalledDesktopOption
   async function stop(): Promise<void> {
     await browser.close().catch(() => {})
     if (child.exitCode === null) {
+      // Kill the whole tree (host, plugin processes and any warm CLI session such as a real `claude`): `kill('SIGTERM')`
+      // only ends the Electron main process on Windows and used to leave its children running.
+      if (child.pid !== undefined) await killProcessTree(child.pid)
       child.kill('SIGTERM')
       await new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
@@ -107,5 +113,5 @@ export async function startInstalledDesktop(options: StartInstalledDesktopOption
     }
   }
 
-  return { page, home, userData, rendererPort, exe: options.exe, stop }
+  return { page, home, userData, rendererPort, exe: options.exe, log: () => bootLog, stop }
 }

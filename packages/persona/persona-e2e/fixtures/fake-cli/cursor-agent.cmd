@@ -1,2 +1,2 @@
 @echo off
-node "%~dp0fake-cli.mjs" cursor-agent %*
+node "%~dp0cursor-agent.mjs" %*

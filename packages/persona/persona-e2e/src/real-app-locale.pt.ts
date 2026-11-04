@@ -6,9 +6,12 @@ export const onboarding = {
   step2VaultBadge: 'Cofre da empresa',
   step3Title: 'Ferramentas de IA neste computador',
   step4TemplateBlank: 'Em branco',
-  step5Title: 'Boas-vindas ao #geral',
+  step5Title: 'Primeira entrega',
+  step5TitleLegacy: 'Boas-vindas ao #geral',
   continue: 'Continuar',
   finish: 'Entrar na Persona',
+  enterApp: 'Entrar sem pedir agora',
+  requestNow: 'Pedir agora',
 } as const
 
 export const shell = {

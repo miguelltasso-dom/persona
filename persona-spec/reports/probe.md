@@ -1,5 +1,63 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 14:00 — web+fake v3: foco nas fases OK, Quadros real OK; NSIS desinstala limpo; spec da execução REAL pronto (travado)
+
+### PASSOU
+| Item | Evidência |
+|------|-----------|
+| **1ª entrega, UI web + fake, 5/9** | `mandatory-first-delivery-fake.spec.ts` (v3): ask → celebrar em **14,7 s**; **foco nas fases do passo 5**: "Equipe trabalhando" → H1 no diálogo; "Primeira entrega" celebrada → SECTION (`data-persona-step-focus`) no diálogo; **1 turno pago** visto pelo stub (23 chamadas ao stub no total, 1 `turn`); entrega no #geral; **Quadros mostra o projeto real "Pessoal" com "1 concluído" e 0 fixtures** (corrigido desde as 13:40; `happy/09-quadros.png`). |
+| **NSIS — desinstalação** | `Uninstall Persona.exe /currentuser /S`: **56 s**; `C:\p8i` removido, atalhos (Menu Iniciar e Área de Trabalho) removidos, entrada de registro removida. Instalação silenciosa seguiu 303 s. |
+| **Spec da execução REAL pronto** | `tests/mandatory-first-delivery-real-installed.spec.ts`: dupla trava (`PERSONA_REAL_E2E=1` + `PERSONA_REAL_E2E_OK=<autorização do Atlas>` + `PERSONA_INSTALLED_EXE`), recusa se houver fake no ambiente, 120 s, **um** run sem laço, `desktop.stop()` agora mata a árvore inteira (taskkill /T) para não sobrar `claude` quente. Verificado só o gate (1 passa, 1 skip). Rodar (quando o Atlas liberar): `node scripts/persona/with-lock.mjs "Probe real" --lock real --wait-max 3600000 -- …`. Nada real gasto. |
+
+### AINDA FALHA (devolvido; mesmas causas do 13:40)
+- Passo 3: cartões **não atualizam depois da detecção** (40 s depois, "Claude: Não detectada" com o motor funcionando) → **Prism/Anvil**.
+- Sem IA: OpenCode "Pronta para usar" e "Falta uma IA" não aparece (installed forçado `true` em `connections.ts`) → **Rivet**. O 4º teste do bloco ("Carregando…") falha em cascata (o onboarding fica aberto).
+- Instalado: aguardo NSIS novo (Rivet; no momento só o SW-4/MinGit está sendo preparado).
+- Detalhe visual aberto: barra branca vazia sob "Sua equipe" por cima de "Organização" (Lumen/Muse).
+
+### Fila
+V1-P0-5 real: aguarda OK do Atlas (Keel repassa). V1-P0-6/D8: aguarda NSIS novo. SW-9/10: aguardam SW-1..8 (Forge SW-1..3 em andamento; resto `todo`). S7 (UI): propose/coordenação/Cofre-no-contexto ainda `it.todo` (host J3/J4/J5 verdes).
+
+---
+
+## 2026-11-04 13:40 — 1ª entrega web+fake PASSOU (1 turno pago, 11 s); S7 teclado PASSOU; instalado b3a4e5b933 FALHOU 2/2 (anterior às correções); 4 achados devolvidos
+
+### PASSOU
+| Item | Evidência |
+|------|-----------|
+| **1ª entrega, UI real (web persona) com fake CLI** | `mandatory-first-delivery-fake.spec.ts` (comando: `PERSONA_E2E=1 pnpm exec vitest run … --testTimeout 600000 --hookTimeout 400000` sob `with-lock`): onboarding 1–5 → Pedir agora → "Equipe trabalhando" → "Sua equipe entregou o primeiro trabalho!" em **10,97 s** (turno do fake 2,5 s) → Aceitar e entrar → entrega no #geral; console limpo; o stub viu **1 turno pago** (alvo do Keel: 1; teto 3). `artifacts/first-delivery/happy/proof.json` + 10 capturas. **4/7 PASS**, 3 FALHARAM (abaixo). |
+| **S7 — onboarding só com teclado** | `mandatory-onboarding-keyboard.spec.ts` **1/1 PASS** (129 s com o rebuild do bundle `client-ui-persona`, 37 s): após cada troca de passo o foco está no H1 dentro do `role=dialog`; 28 paradas de Tab, **0 fora do diálogo**; entra no app só por teclado. Antes do conserto do Prism: FALHOU (foco no `<body>` após o passo 4→5 e 129 de 152 paradas fora do modal). `artifacts/first-delivery/keyboard/proof.json`. |
+| **Host + runner real (OAR) + fake, sem UI** | repetível: `mandatory-first-delivery-host-fake.spec.ts` (+ `scripts/first-delivery-fake-host.ts`); antes das correções do Forge/Anvil: 3 turnos pagos, 25,7 s, ledger 3/3 `measured`, `broke: []`. **Reexecutado com o código novo (13:28): 2/2 PASS** — `broke: []`, `verification.passed`, **1 chamada** (1 095 tokens de entrada / 56 de saída, só `execution`, 0 triagem), Tarefa `done`, marco `ready`; inclui o teste "no máximo 1 turno pago". |
+| **Fake-cli** | `fake-cli.spec.ts` + `simple-workspace-fixtures.spec.ts` **20/20**; `check-pkg persona-e2e` OK. Corrigido hoje: **codex e opencode respondiam como claude** (o OAR "desembrulha" o `.cmd` e roda `node fake-cli.mjs` sem o nome da ferramenta que estava no argumento do atalho) → cada ferramenta tem agora o seu `.mjs` (`FAKE_CLI_TOOL`), teste de identidade incluído. |
+
+### FALHOU (devolvido, com evidência)
+| Item | Evidência | Dono |
+|------|-----------|------|
+| **Instalado NSIS b3a4e5b933 — caminho feliz** | `mandatory-first-delivery-installed.spec.ts`: 2 min em "Equipe trabalhando", volta ao passo 5 intro **sem erro**; `fakeCliInvocations: 0` (nem `--version`): o PATH/`OAR_*_BIN` do Electron não produziram nenhuma execução do stub. Anterior às correções (PERSONA_E2E_EXTRA_PATH, probe assíncrono, 1 turno). `artifacts/first-delivery/installed-happy/{proof.json,electron.log,zz-failed.png}` | **Rivet** (NSIS novo) |
+| **Instalado — sem IA** | passo 5 mostra o intro (Pedir agora), não "Falta uma IA" (FR-2/3 ainda não no instalado). `installed-no-engine/` | Rivet (NSIS novo) |
+| **Detecção sempre `installed=true`** | `scripts/detect-connections-diag.ts` (sem gasto): com PATH mínimo + pins para arquivo inexistente, `detectConnections` devolve claude/codex/opencode/cursor `installed=true` e **opencode `loggedIn=true`** (`probeCli`: com runtime OAR faz `binary = { ok: true }`). Efeito: OpenCode "Pronta para usar" sem CLI nenhuma e "Falta uma IA" (FR-3) não dispara. Spec: "step 3 does not call any tool ready when none is installed" e "step 5 says an AI is missing" (web 2 falhas). | **Rivet** (`persona-runners/src/resolve/connections.ts`) |
+| **Detecção lenta e passo 3 enganoso** | 26,6 s sem CLI, 10,3 s com o fake; durante esse tempo os cartões dizem "Não detectada" (nunca "Verificando…"). | Rivet (latência) / **Prism** (estado "verificando") |
+| **Quadros mostra dados de demonstração** | home limpo, depois da 1ª entrega aceita: "Contratação — Designer" e "Site da agência" (são `boards/mock-data.ts`), sem o projeto real nem o cartão entregue; balão branco vazio na barra lateral sobre "Organização". `happy/09-quadros.png`. Spec "has the card done on the board" (exige 0 fixtures e "1 concluído"). | **Lumen** |
+
+### Achados de infraestrutura (resolvidos por mim)
+- **Host web do persona não sobe sem `PERSONA_VAULT_TEST_CIPHER=1`**: o plugin `connection` (required) chama `vault.modifyRecord` e o Cofre novo lança `VaultUnavailableError` fora do Electron → o boot inteiro falha ("Cofre indisponível neste modo"). `startWebHost` liga a flag (nunca no exe). Quem sobe `dsh web --profile persona` sem ela (dev, ui-boot-check, smoke) quebra → **[Keel/Rivet/Anvil]** considerar o `connection` degradar sem Cofre.
+- `startInstalledDesktop` expõe `log()`; os specs instalados gravam `electron.log`, `proof.json` e a lista de chamadas do stub **mesmo quando falham**.
+- `withFakeCliOnPath` grava `FAKE_CLI_LOG` (`scope.invocations()`): prova de que o app chamou o motor.
+
+### Instalador NSIS b3a4e5b933 (D8, parcial)
+Silencioso `/S /D=C:\p8i`: exit 0, **303 s** (lento), atalhos Menu Iniciar + Área de Trabalho, desinstalador registrado (HKCU), 1 168 MB, sem MinGit (SW-4 `todo`). Metadados: CompanyName "Hangzhou DeepSeek Artificial Intelligence Co., Ltd."; Setup com FileDescription do upstream. Tela de erro de boot por cima do app em 1 de 3 execuções do exe (intermitente; `installed-happy/01-step1.png` da 1ª rodada). **Desinstalação ainda não exercitada** (deixo para depois do NSIS novo).
+
+### Estado da fila
+- V1-P0-5 (execução REAL única): **aguardo** o OK explícito do Atlas via Keel; plano: claude/haiku, timeout 120 s + dispose, dentro do exe instalado, **só depois** do fake web+instalado verdes; alvo 1 turno pago.
+- V1-P0-6 / D8: aguardo **NSIS novo** (Rivet) para reexecutar o spec instalado; o spec já está pronto.
+- Repasse ao Gauge feito: `reports/probe-handoff-gauge.md`.
+- SW-9/SW-10: fixtures prontas (`src/simple-workspace-fixtures.ts`: .docx/.xlsx reais, pasta sem `.git`, PATH sem git, trava exclusiva de arquivo); cenários aguardam SW-1..8.
+
+### Arquivos tocados (Probe)
+`packages/persona/persona-e2e/`: `src/{fake-cli,real-app-session,web-host,installed-desktop,first-delivery-flow,simple-workspace-fixtures,index}.ts`, `fixtures/fake-cli/*` (stubs por ferramenta), `scripts/{first-delivery-fake-host,detect-connections-diag}.ts`, `tests/{fake-cli,simple-workspace-fixtures,mandatory-first-delivery-fake|installed|host-fake,mandatory-onboarding-keyboard,mandatory-onboarding-from-zero}.spec.ts`, `README.md`. `check-pkg persona-e2e` OK.
+
+---
+
 ## 2026-11-04 12:15 — fake-cli responde 1 turno (11/11); host + runner real + fake PASSOU; NSIS b3a4e5b933 instala; UI/instalado na fila da trava
 
 ### PASSOU

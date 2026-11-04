@@ -27,6 +27,7 @@ export function installedDesktopLaunch(input: {
     args: [
       `--remote-debugging-port=${String(input.rendererPort)}`,
       `--inspect=${String(mainPort)}`,
+      `--user-data-dir=${input.userData}`,
     ],
     env: {
       PERSONA_HOME: input.home,

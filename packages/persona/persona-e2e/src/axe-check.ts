@@ -3,7 +3,7 @@ import type { Page } from 'playwright'
 export interface AxeScanResult {
   skipped: boolean
   reason?: string
-  violations: Array<{ id: string; impact?: string; nodes: number }>
+  violations: Array<{ id: string; impact?: string; nodes: number; detail?: string }>
   pass: boolean
 }
 
@@ -14,12 +14,14 @@ export interface AxeScanResult {
 export async function scanAccessibility(page: Page): Promise<AxeScanResult> {
   try {
     const { AxeBuilder } = await import('@axe-core/playwright' as string) as { AxeBuilder: new (opts: { page: Page }) => {
-      analyze(): Promise<{ violations: Array<{ id: string; impact?: string; nodes: Array<unknown> }> }>
+      analyze(): Promise<{ violations: Array<{ id: string; impact?: string; help?: string; nodes: Array<{ target?: unknown }> }> }>
     } }
     const results = await new AxeBuilder({ page }).analyze()
     const violations = results.violations.map((v) => {
-      const row: { id: string; impact?: string; nodes: number } = { id: v.id, nodes: v.nodes.length }
+      const row: { id: string; impact?: string; nodes: number; detail?: string } = { id: v.id, nodes: v.nodes.length }
       if (v.impact !== undefined) row.impact = v.impact
+      const targets = v.nodes.slice(0, 3).map(node => JSON.stringify(node.target)).join(' ')
+      row.detail = `${v.help ?? v.id} → ${targets}`
       return row
     })
     return { skipped: false, violations, pass: violations.length === 0 }

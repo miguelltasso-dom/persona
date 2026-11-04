@@ -1,2 +1,2 @@
 @echo off
-node "%~dp0fake-cli.mjs" claude %*
+node "%~dp0claude.mjs" %*

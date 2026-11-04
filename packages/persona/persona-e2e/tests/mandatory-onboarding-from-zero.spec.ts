@@ -18,12 +18,22 @@ describe.skipIf(!runApp)('S7 partial — boot gate (dev seed path)', () => {
   }, 120_000)
 })
 
-describe('mandatory onboarding — from zero (UI, S7)', () => {
-  it.todo(
-    '[Prism+Anvil · J1 UI] clean PERSONA_HOME: five-step overlay → #geral with user roster (no fixed Atlas); first useful reply within 60s (fake runner); captures light/dark vs dirD-tela.png',
-  )
+describe.skipIf(!runApp)('mandatory onboarding — from zero (UI, S7)', () => {
+  it('[Probe · S7] clean PERSONA_HOME: five-step overlay → ask → delivery in #geral → accept (fake CLI, < 2 min), and the no-AI path', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-first-delivery-fake.spec.ts', [
+      '--testTimeout', '600000', '--hookTimeout', '400000',
+    ], { inheritPersonaE2e: true })
+  }, 1_200_000)
 
+  it('[Probe · S7] keyboard-only path through onboarding steps 1–5 without focus trap violations', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-onboarding-keyboard.spec.ts', [
+      '--testTimeout', '400000', '--hookTimeout', '400000',
+    ], { inheritPersonaE2e: true })
+  }, 600_000)
+})
+
+describe('mandatory onboarding — from zero (UI, S7) — still open', () => {
   it.todo(
-    '[Probe · S7] keyboard-only path through onboarding steps 1–5 without focus trap violations',
+    '[Gauge · C9] clean PERSONA_HOME onboarding steps: captures light/dark vs dirD-tela.png (no fixed Atlas in the roster)',
   )
 })

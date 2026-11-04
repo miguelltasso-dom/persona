@@ -828,3 +828,18 @@
   height: 100%;
   overflow: hidden;
 }
+
+@media (max-width: 960px) {
+  .editorSplit {
+    grid-template-columns: 1fr;
+  }
+
+  .skeletonBoard {
+    overflow-x: auto;
+    padding-bottom: var(--persona-space-2);
+  }
+
+  .closeSprintStats {
+    grid-template-columns: 1fr;
+  }
+}

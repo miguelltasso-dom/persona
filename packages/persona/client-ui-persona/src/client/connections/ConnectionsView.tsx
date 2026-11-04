@@ -2,11 +2,12 @@
  * D4b — Conexões (Value first, ask later: detect CLIs, native login at point of use).
  * WAVE2 — várias contas por provedor + política de troca (WAVE2-SPEC §c).
  */
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   AccountList,
   AccountPolicyPicker,
   AccountRow,
+  Avatar,
   Button,
   Card,
   Notice,
@@ -33,6 +34,8 @@ import type {
 import { runnerLabel } from '../team/engine-label.ts'
 import { accountPolicyToRunnerSwapPolicy, runnerSwapPolicyToAccountPolicy } from './connection-swap-policy-map.ts'
 import { EngineBrandIcon } from './engine-brand-icon.tsx'
+import { personaPortraitSrc } from '../approvals/approvals-ui-helpers.ts'
+import { AddAccountDialog, RemoveAccountDialog, RenameAccountDialog } from './AccountDialogs.tsx'
 
 export type ConnectionsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
@@ -92,6 +95,19 @@ function accountCount(ui: ConnectionsAccountsUi): number {
   return ui.groups.reduce((sum, g) => sum + g.accounts.length, 0)
 }
 
+/** A persona the team rule can be overridden for ("Uma persona"). */
+export interface PolicyPersona {
+  readonly id: string
+  readonly name: string
+  /** Gallery key of the portrait (`avatarRef`). */
+  readonly characterId?: string | undefined
+}
+
+type AccountDialogState =
+  | { readonly kind: 'add'; readonly provider: ConnectionProviderGroupUi['provider']; readonly providerName: string }
+  | { readonly kind: 'rename'; readonly provider: ConnectionProviderGroupUi['provider']; readonly providerName: string; readonly id: string; readonly label: string }
+  | { readonly kind: 'remove'; readonly provider: ConnectionProviderGroupUi['provider']; readonly providerName: string; readonly id: string; readonly label: string }
+
 export interface ConnectionsViewProps {
   readonly dict?: LocaleDict
   /** @deprecated Prefer {@link accountsUi}. Kept for previews. */
@@ -99,12 +115,22 @@ export interface ConnectionsViewProps {
   readonly accountsUi?: ConnectionsAccountsUi | undefined
   readonly initialState?: ConnectionsSurfaceState
   readonly onRetry?: () => void
-  readonly onSwapPolicyChange?: ((policy: RunnerSwapPolicy, scope: RunnerSwapPolicyScope) => void) | undefined
+  /** Persist a rule. `personaId` is set only for "Uma persona". Reject to show "Não consegui salvar a regra". */
+  readonly onSwapPolicyChange?: ((policy: RunnerSwapPolicy, scope: RunnerSwapPolicyScope, personaId?: string) => void | Promise<void>) | undefined
   readonly swapPolicyReadOnly?: boolean | undefined
-  readonly onAddAccount?: ((provider: ConnectionProviderGroupUi['provider']) => void) | undefined
-  readonly onRenameAccount?: ((accountId: string, label: string) => void) | undefined
-  readonly onRemoveAccount?: ((accountId: string) => void) | undefined
+  /** Personas for the "Uma persona" scope (retrato + nome). */
+  readonly personas?: readonly PolicyPersona[] | undefined
+  /** Save the new seat (step 1 of the add dialog). Reject when the host refuses. */
+  readonly onAddAccount?: ((provider: ConnectionProviderGroupUi['provider'], label: string) => void | Promise<void>) | undefined
+  readonly onRenameAccount?: ((accountId: string, label: string) => void | Promise<void>) | undefined
+  readonly onRemoveAccount?: ((accountId: string) => void | Promise<void>) | undefined
   readonly onEmptyPrimary?: (() => void) | undefined
+  /** "Já fiz login": probe the tools again, live (UX-PHASE #3). The new `accountsUi` is the answer. */
+  readonly onRecheck?: (() => void) | undefined
+  /** "Ver guia de instalação" / "Conectar" when there is no command to copy. */
+  readonly onOpenGuide?: (() => void) | undefined
+  /** "Ver uso e cotas" on a seat that ran out. */
+  readonly onOpenUsage?: (() => void) | undefined
 }
 
 /** CLI connection list. */
@@ -116,23 +142,54 @@ export function ConnectionsView({
   onRetry,
   onSwapPolicyChange,
   swapPolicyReadOnly = false,
+  personas = [],
   onAddAccount,
   onRenameAccount,
   onRemoveAccount,
   onEmptyPrimary,
+  onRecheck,
+  onOpenGuide,
+  onOpenUsage,
 }: ConnectionsViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string>>) => bindLocale(dict, key, params)
   const [surfaceState, setSurfaceState] = useState(initialState)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const policyCardId = useId()
+  // "Já fiz login": which provider is being checked, and what the check found (spoken, never a silent spinner).
+  const [checking, setChecking] = useState<string | null>(null)
+  const [recheckNote, setRecheckNote] = useState<string | null>(null)
+  const checkingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const ui = useMemo(
     () => accountsUi ?? entriesToAccountsUi(entries),
     [accountsUi, entries],
   )
 
+  // A new answer from the host while a check is running is the result of that check.
+  const lastUi = useRef(ui)
+  useEffect(() => {
+    if (lastUi.current === ui) return
+    lastUi.current = ui
+    if (checking === null) return
+    const group = ui.groups.find(candidate => candidate.provider === checking)
+    // Positive only when every seat of the tool answers ready; anything else (still signed out, still checking) is honest "not yet".
+    const allReady = group?.accounts.every(account => accountState(account) === 'ready') === true
+    const providerName = group?.providerName ?? checking
+    setRecheckNote(allReady ? t('recheck.ready', { provider: providerName }) : t('recheck.still', { provider: providerName }))
+    setChecking(null)
+    if (checkingTimer.current !== null) { clearTimeout(checkingTimer.current); checkingTimer.current = null }
+  }, [ui])
+  useEffect(() => () => { if (checkingTimer.current !== null) clearTimeout(checkingTimer.current) }, [])
+
   const [policyDraft, setPolicyDraft] = useState<AccountPolicy>(runnerSwapPolicyToAccountPolicy(ui.swapPolicy))
-  const [scopeDraft, setScopeDraft] = useState<RunnerSwapPolicyScope>(ui.swapPolicyScope)
+  // Which tab is open. Opening "Uma persona" only changes what is shown; nothing is saved until a card is chosen.
+  const [scopeDraft, setScopeDraft] = useState<RunnerSwapPolicyScope>('workspace')
+  const [personaId, setPersonaId] = useState<string | null>(null)
+  // Rules the person set in this session, on top of what the host reported (host may not echo them back yet).
+  const [personaOverrides, setPersonaOverrides] = useState<Readonly<Record<string, RunnerSwapPolicy>>>({})
+  const [policyNote, setPolicyNote] = useState<{ readonly tone: 'ok' | 'error'; readonly text: string } | null>(null)
+  const [policyBusy, setPolicyBusy] = useState(false)
+  const [dialog, setDialog] = useState<AccountDialogState | null>(null)
 
   useEffect(() => {
     setSurfaceState(initialState)
@@ -140,8 +197,37 @@ export function ConnectionsView({
 
   useEffect(() => {
     setPolicyDraft(runnerSwapPolicyToAccountPolicy(ui.swapPolicy))
-    setScopeDraft(ui.swapPolicyScope)
-  }, [ui.swapPolicy, ui.swapPolicyScope])
+  }, [ui.swapPolicy])
+
+  const selectedPersona = scopeDraft === 'persona'
+    ? (personas.find(row => row.id === personaId) ?? personas[0])
+    : undefined
+  const hostPersonaPolicy = (id: string): RunnerSwapPolicy | undefined =>
+    personaOverrides[id] ?? ui.personaPolicies?.find(row => row.personaId === id)?.policy
+  const shownPolicy: AccountPolicy = selectedPersona === undefined
+    ? policyDraft
+    : runnerSwapPolicyToAccountPolicy(hostPersonaPolicy(selectedPersona.id) ?? ui.swapPolicy)
+  const selectedHasOwnRule = selectedPersona !== undefined && hostPersonaPolicy(selectedPersona.id) !== undefined
+
+  const savePolicy = (next: AccountPolicy): void => {
+    if (onSwapPolicyChange === undefined || policyBusy) return
+    const policy = accountPolicyToRunnerSwapPolicy(next)
+    const target = selectedPersona
+    const previous = policyDraft
+    if (target === undefined) setPolicyDraft(next)
+    setPolicyBusy(true)
+    setPolicyNote(null)
+    // A synchronous throw from the host call is a failed save like any other.
+    void Promise.resolve().then(() => (target === undefined
+      ? onSwapPolicyChange(policy, 'workspace')
+      : onSwapPolicyChange(policy, 'persona', target.id))).then(() => {
+      if (target !== undefined) setPersonaOverrides(current => ({ ...current, [target.id]: policy }))
+      setPolicyNote({ tone: 'ok', text: t('swapPolicy.saved') })
+    }).catch(() => {
+      if (target === undefined) setPolicyDraft(previous)
+      setPolicyNote({ tone: 'error', text: t('swapPolicy.saveError') })
+    }).finally(() => { setPolicyBusy(false) })
+  }
 
   const policyCopy = useMemo(() => ({
     fixed: { title: t('accountPolicy.fixed.title'), body: t('accountPolicy.fixed.body') },
@@ -149,6 +235,29 @@ export function ConnectionsView({
     split_balance: { title: t('accountPolicy.split_balance.title'), body: t('accountPolicy.split_balance.body') },
     ask: { title: t('accountPolicy.ask.title'), body: t('accountPolicy.ask.body') },
   }), [dict])
+
+  const startRecheck = (provider: string, providerName: string): void => {
+    if (onRecheck === undefined) return
+    setRecheckNote(null)
+    setChecking(provider)
+    onRecheck()
+    // The host answers with new data; if it never does, say so instead of spinning forever.
+    if (checkingTimer.current !== null) clearTimeout(checkingTimer.current)
+    // (The timer is cleared as soon as an answer arrives, so firing means: no answer.)
+    checkingTimer.current = setTimeout(() => {
+      checkingTimer.current = null
+      setChecking(null)
+      setRecheckNote(t('recheck.still', { provider: providerName }))
+    }, 8000)
+  }
+
+  const dialogT = (key: string, params?: Readonly<Record<string, string | number>>): string => bindLocale(dict, key, params)
+  const groupOf = (provider: string): ConnectionProviderGroupUi | undefined => ui.groups.find(row => row.provider === provider)
+  const copyForDialog = async (text: string): Promise<void> => { await copyText(text) }
+  const attempt = async (run: (() => void | Promise<void>) | undefined): Promise<boolean> => {
+    if (run === undefined) return false
+    try { await run(); return true } catch { return false }
+  }
 
   const header = (
     <ScreenHeader
@@ -211,28 +320,67 @@ export function ConnectionsView({
             idPrefix={`${policyCardId}-scope`}
             label={t('swapPolicy.scopeLabel')}
             value={scopeDraft}
-            onChange={(next) => {
-              setScopeDraft(next)
-              onSwapPolicyChange?.(accountPolicyToRunnerSwapPolicy(policyDraft), next)
-            }}
+            onChange={(next) => { setScopeDraft(next); setPolicyNote(null) }}
             items={[
               { id: 'workspace', label: t('swapPolicy.scope.workspace') },
               { id: 'persona', label: t('swapPolicy.scope.persona') },
             ]}
           />
-          <AccountPolicyPicker
-            legend={t('accountPolicy.legend')}
-            name={`${policyCardId}-policy-${scopeDraft}`}
-            value={policyDraft}
-            recommended="next_on_limit"
-            recommendedLabel={t('accountPolicy.recommended')}
-            disabled={policyDisabled}
-            copy={policyCopy}
-            onChange={(next) => {
-              setPolicyDraft(next)
-              onSwapPolicyChange?.(accountPolicyToRunnerSwapPolicy(next), scopeDraft)
-            }}
-          />
+          {scopeDraft === 'persona' && (
+            personas.length === 0 ? (
+              <p className={styles.sectionHint}>{t('swapPolicy.noPersonas')}</p>
+            ) : (
+              <fieldset className={styles.personaPicker} disabled={policyDisabled || policyBusy}>
+                <legend className={styles.personaLegend}>{t('swapPolicy.personaLabel')}</legend>
+                <div className={styles.personaOptions}>
+                  {personas.map((row) => {
+                    const checked = selectedPersona?.id === row.id
+                    const src = personaPortraitSrc(row.characterId, row.name)
+                    return (
+                      <label key={row.id} className={styles.personaOption} data-checked={checked ? '' : undefined}>
+                        <input
+                          type="radio"
+                          className="persona-sr-only"
+                          name={`${policyCardId}-persona`}
+                          value={row.id}
+                          checked={checked}
+                          onChange={() => { setPersonaId(row.id); setPolicyNote(null) }}
+                        />
+                        <Avatar name={row.name} {...(src === undefined ? {} : { src })} size={32} decorative />
+                        <span>{row.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+                {selectedPersona !== undefined && (
+                  <p className={styles.sectionHint}>
+                    {selectedHasOwnRule
+                      ? t('swapPolicy.personaOwn', { name: selectedPersona.name })
+                      : t('swapPolicy.personaFollowsTeam', { name: selectedPersona.name })}
+                  </p>
+                )}
+              </fieldset>
+            )
+          )}
+          {(scopeDraft === 'workspace' || selectedPersona !== undefined) && (
+            <AccountPolicyPicker
+              legend={t('accountPolicy.legend')}
+              name={`${policyCardId}-policy-${scopeDraft}-${selectedPersona?.id ?? 'team'}`}
+              value={shownPolicy}
+              recommended="next_on_limit"
+              recommendedLabel={t('accountPolicy.recommended')}
+              disabled={policyDisabled || policyBusy}
+              copy={policyCopy}
+              onChange={savePolicy}
+            />
+          )}
+          <p
+            className={policyNote?.tone === 'error' ? styles.policyError : styles.policyOk}
+            role="status"
+            aria-live="polite"
+          >
+            {policyNote?.text ?? ''}
+          </p>
         </Card>
 
         <div className={styles.providerList}>
@@ -243,9 +391,11 @@ export function ConnectionsView({
                   <EngineBrandIcon engineId={group.provider} size={22} />
                 </span>
                 <h3 className={styles.providerName}>{group.providerName}</h3>
-                <Button size="s" variant="ghost" className={styles.learnLink}>
-                  {t('action.learn')}
-                </Button>
+                {onOpenGuide !== undefined && (
+                  <Button size="s" variant="ghost" className={styles.learnLink} onClick={onOpenGuide}>
+                    {t('action.learn')}
+                  </Button>
+                )}
               </div>
               <AccountList label={group.providerName}>
                 {group.accounts.map((entry) => {
@@ -255,7 +405,9 @@ export function ConnectionsView({
                     menu.push({
                       id: 'rename',
                       label: t('account.menuRename'),
-                      onSelect: () => { onRenameAccount(entry.id, entry.accountLabel) },
+                      onSelect: () => {
+                        setDialog({ kind: 'rename', provider: group.provider, providerName: group.providerName, id: entry.id, label: entry.accountLabel })
+                      },
                     })
                   }
                   if (onRemoveAccount !== undefined) {
@@ -263,26 +415,29 @@ export function ConnectionsView({
                       id: 'remove',
                       label: t('account.menuRemove'),
                       tone: 'danger',
-                      onSelect: () => { onRemoveAccount(entry.id) },
+                      onSelect: () => {
+                        setDialog({ kind: 'remove', provider: group.provider, providerName: group.providerName, id: entry.id, label: entry.accountLabel })
+                      },
                     })
                   }
                   let action: { label: string; onClick: () => void } | undefined
-                  if (entry.copyCommand !== undefined) {
+                  const seatCommand = entry.loginCommand ?? entry.copyCommand
+                  if (seatCommand !== undefined) {
                     action = {
                       label: copiedId === entry.id ? t('action.copied') : t('action.copyCommand'),
                       onClick: () => {
-                        void copyText(entry.copyCommand ?? '').then(() => {
+                        void copyText(seatCommand).then(() => {
                           setCopiedId(entry.id)
                           window.setTimeout(() => { setCopiedId(current => (current === entry.id ? null : current)) }, 2000)
                         })
                       },
                     }
                   } else if (state === 'login') {
-                    action = { label: t('action.connect'), onClick: () => {} }
+                    action = { label: t('action.connect'), onClick: () => { onOpenGuide?.() } }
                   } else if (entry.errorCode === 'quota_exhausted') {
-                    action = { label: t('action.usage'), onClick: () => {} }
+                    action = { label: t('action.usage'), onClick: () => { onOpenUsage?.() } }
                   } else if (entry.errorCode === 'cli_not_found') {
-                    action = { label: t('action.install'), onClick: () => {} }
+                    action = { label: t('action.install'), onClick: () => { onOpenGuide?.() } }
                   }
                   return (
                     <AccountRow
@@ -300,9 +455,27 @@ export function ConnectionsView({
                   )
                 })}
               </AccountList>
+              {onRecheck !== undefined && group.accounts.some(account => accountState(account) === 'login') && (
+                <div className={styles.nextStep}>
+                  <p className={styles.nextStepText}>{t('nextStep.login')}</p>
+                  <Button
+                    variant="primary"
+                    size="s"
+                    loading={checking === group.provider}
+                    disabled={checking !== null}
+                    onClick={() => { startRecheck(group.provider, group.providerName) }}
+                  >
+                    {checking === group.provider ? t('action.checking') : t('action.alreadyLoggedIn')}
+                  </Button>
+                </div>
+              )}
               {onAddAccount !== undefined ? (
                 <div className={styles.addAccountRow}>
-                  <Button variant="secondary" size="s" onClick={() => { onAddAccount(group.provider) }}>
+                  <Button
+                    variant="secondary"
+                    size="s"
+                    onClick={() => { setDialog({ kind: 'add', provider: group.provider, providerName: group.providerName }) }}
+                  >
                     {t('account.addButton', { provider: group.providerName })}
                   </Button>
                   <p className={styles.addAccountHint}>{t('account.addIsolatedHint', { provider: group.providerName })}</p>
@@ -323,7 +496,44 @@ export function ConnectionsView({
           {t('action.copied')}
         </p>
       )}
+      {recheckNote !== null && dialog === null && (
+        <Notice tone="info">{recheckNote}</Notice>
+      )}
       {body}
+      {dialog?.kind === 'add' && (
+        <AddAccountDialog
+          t={dialogT}
+          providerName={dialog.providerName}
+          accounts={groupOf(dialog.provider)?.accounts ?? []}
+          onSubmitName={label => attempt(onAddAccount === undefined ? undefined : () => onAddAccount(dialog.provider, label))}
+          {...(onRecheck === undefined ? {} : { onRecheck: () => { startRecheck(dialog.provider, dialog.providerName) } })}
+          checking={checking === dialog.provider}
+          recheckNote={recheckNote}
+          onCopy={copyForDialog}
+          onClose={() => { setDialog(null); setRecheckNote(null) }}
+        />
+      )}
+      {dialog?.kind === 'rename' && (
+        <RenameAccountDialog
+          t={dialogT}
+          providerName={dialog.providerName}
+          currentLabel={dialog.label}
+          otherLabels={(groupOf(dialog.provider)?.accounts ?? []).map(row => row.accountLabel)}
+          onSubmit={label => attempt(onRenameAccount === undefined ? undefined : () => onRenameAccount(dialog.id, label))}
+          onClose={() => { setDialog(null) }}
+        />
+      )}
+      {dialog?.kind === 'remove' && (
+        <RemoveAccountDialog
+          t={dialogT}
+          providerName={dialog.providerName}
+          label={dialog.label}
+          usedRecently={(groupOf(dialog.provider)?.accounts.find(row => row.id === dialog.id)?.inUseCount ?? 0) > 0}
+          isLastOfProvider={(groupOf(dialog.provider)?.accounts.length ?? 0) <= 1}
+          onConfirm={() => attempt(onRemoveAccount === undefined ? undefined : () => onRemoveAccount(dialog.id))}
+          onClose={() => { setDialog(null) }}
+        />
+      )}
     </Screen>
   )
 }

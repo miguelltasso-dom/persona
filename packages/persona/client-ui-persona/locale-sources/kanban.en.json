@@ -187,5 +187,6 @@
   "planSprint.start": "Start sprint",
   "planSprint.emptySprint": "Pick tasks from the backlog",
   "a11y.planningRegion": "Sprint planning",
-  "a11y.boardsGrid": "Project grid"
+  "a11y.boardsGrid": "Project grid",
+  "project.tabs.history": "History"
 }

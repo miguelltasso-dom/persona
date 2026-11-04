@@ -111,6 +111,7 @@ export interface LumenShellBridge {
   openPersonaProfile(personaId: string): void
   setProjectWorkspaceProjectId(projectId: string | null): void
   openTeamSetup(): void
+  openHelp?(docId: string): void
   shell: HostObservable<ShellState>
   personaCard?: LumenPersonaCardBridge
 }
@@ -211,6 +212,7 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
       ? {}
       : { sendToPersona: shell.personaCard.sendToPersona }),
     ...(shell?.selectPanel === undefined ? {} : { selectMainPanel: shell.selectPanel }),
+    ...(shell?.openHelp === undefined ? {} : { openHelp: (docId: string) => { shell.openHelp!(docId) } }),
   })
 
   ctx.slots.register({

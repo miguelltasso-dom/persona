@@ -187,5 +187,6 @@
   "planSprint.start": "Iniciar sprint",
   "planSprint.emptySprint": "Escolha tarefas do backlog",
   "a11y.planningRegion": "Planejamento de sprint",
-  "a11y.boardsGrid": "Grade de projetos"
+  "a11y.boardsGrid": "Grade de projetos",
+  "project.tabs.history": "Histórico"
 }

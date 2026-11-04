@@ -109,3 +109,112 @@
     gap: 0.5rem;
   }
 }
+
+/* UX-PHASE #3: the one next step for a tool that still needs a sign-in. */
+.nextStep {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-3);
+  padding-top: var(--persona-space-3);
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.nextStepText {
+  flex: 1 1 220px;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--persona-ink-soft);
+}
+
+/* W2-7: "Uma persona" — pick who the rule is for. */
+.personaPicker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.personaLegend {
+  padding: 0;
+  margin-bottom: var(--persona-space-2);
+  font-family: var(--persona-font-text);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 800;
+  color: var(--persona-ink-soft);
+}
+
+.personaOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.personaOption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-height: 44px;
+  padding: 0 var(--persona-space-4) 0 var(--persona-space-2);
+  border: var(--persona-border-width) solid var(--persona-outline-control);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  font-family: var(--persona-font-text);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.personaOption:hover {
+  transform: translateY(-1px);
+}
+
+.personaOption[data-checked] {
+  border-color: var(--persona-outline);
+  background: var(--persona-wash);
+  box-shadow: var(--persona-shadow-press);
+}
+
+.personaOption:focus-within {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--persona-focus-halo);
+}
+
+.policyOk,
+.policyError {
+  min-height: 20px;
+  margin: 0;
+  font-family: var(--persona-font-text);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.policyOk {
+  color: var(--persona-success);
+}
+
+.policyError {
+  color: var(--persona-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personaOption {
+    transition: none;
+  }
+
+  .personaOption:hover {
+    transform: none;
+  }
+}

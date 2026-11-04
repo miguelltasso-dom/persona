@@ -52,11 +52,12 @@ it('completeOnboarding is idempotent and writes welcome without a hardcoded name
   expect(h.listPersonas({ workspaceId: 'ws', projectId: 'pp' }).map(item => item.name).sort()).toEqual(['Bento', 'Guia'])
   const guia = h.listPersonas({ workspaceId: 'ws', projectId: 'pp' }).find(row => row.name === 'Guia')
   expect(guia?.systemRoles).toEqual(['coordination', 'team_manager'])
-  expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })).toEqual([])
+  expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })).toHaveLength(1)
   const page = h.listMessages({
     workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     actorId: 'owner', afterSeq: 0, limit: 20,
   })
+  expect(page.events.some(item => /Resuma o Cofre/u.test(item.body))).toBe(true)
   expect(page.events.some(item => /Boas-vindas! Estou aqui para coordenar a equipe/u.test(item.body))).toBe(true)
   expect(JSON.stringify(page.events)).not.toMatch(/Boas-vindas ao Persona/u)
   expect(JSON.stringify(page.events)).not.toMatch(/Atlas/)
@@ -93,4 +94,60 @@ it('posts SYSTEM_WELCOME as Boas-vindas à Persona. when there is no coordinatio
     actorId: 'owner', afterSeq: 0, limit: 20,
   })
   expect(page.events.some(item => item.body === 'Boas-vindas à Persona.')).toBe(true)
+})
+
+it('binds runnerChoices CLI onto dsh drafts', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-onb-cli-'))
+  dirs.push(dir)
+  process.env.PERSONA_HOME = dir
+  const h = host(join(dir, 'persona.db'))
+  await h.completeOnboarding({
+    workspaceId: 'ws',
+    personalProjectId: 'pp',
+    displayName: 'Ana',
+    team: [{
+      name: 'Guia', title: 'Coordenação', description: 'Triagem.', personality: 'Calma.',
+      instructions: 'Receba o time.', avatarKind: 'gallery', avatarRef: 'guia',
+      runnerKind: 'dsh', runnerCli: '', runnerModel: 'default', canRecruit: true,
+      systemRoles: ['coordination'],
+    }],
+    templateIds: [],
+    runnerChoices: ['claude'],
+    cofreSeed: '',
+  })
+  const guia = h.product.listPersonas('pp').find(row => row.name === 'Guia')
+  expect(guia?.runner).toEqual({ kind: 'cli', cli: 'claude', model: 'default' })
+})
+
+it('AG-004: first-run has no grant; after onboarding grant → list → revoke', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-onb-grant-'))
+  dirs.push(dir)
+  process.env.PERSONA_HOME = dir
+  const h = host(join(dir, 'persona.db'))
+  const first = await h.completeOnboarding({
+    workspaceId: 'ws',
+    personalProjectId: 'pp',
+    displayName: 'Ana',
+    team: [{
+      name: 'Guia', title: 'Coordenação', description: 'Triagem.', personality: 'Calma.',
+      instructions: 'Receba o time.', avatarKind: 'gallery', avatarRef: 'guia',
+      runnerKind: 'dsh', runnerCli: '', runnerModel: 'default', canRecruit: true,
+      systemRoles: ['coordination'],
+    }],
+    templateIds: [],
+    runnerChoices: ['dsh'],
+    cofreSeed: '',
+  })
+  expect(first.completed).toBe(true)
+  const scope = { workspaceId: 'ws', projectId: 'pp' }
+  expect(h.listBrainPermissions(scope)).toEqual([])
+  const personaId = h.listPersonas(scope)[0]?.id
+  expect(personaId).toBeDefined()
+  const grant = h.grantBrainPermission({
+    ...scope, id: 'g-onb', personaId: personaId!,
+    action: 'reply-whatsapp', target: 'clientes-aprovados', validity: 'until-revoke',
+  })
+  expect(h.listBrainPermissions(scope).map(item => item.id)).toEqual(['g-onb'])
+  expect(h.revokeBrainPermission({ ...scope, grantId: grant.id }).revokedAt).toBeDefined()
+  expect(h.listBrainPermissions(scope).find(item => item.id === 'g-onb')?.revokedAt).toBeDefined()
 })

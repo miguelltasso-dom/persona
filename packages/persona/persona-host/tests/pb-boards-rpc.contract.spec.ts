@@ -16,6 +16,7 @@ const PB_REMOTES = [
   'rejectWorkflowProposal',
   'getProjectConversation',
   'listSprints',
+  'listSprintGoals',
   'createSprint',
   'updateSprint',
   'planSprint',

@@ -189,6 +189,13 @@ it('blocks with Precisa de você when resolveRunner fails login', async () => {
   await h.orchestration.flush('pp')
   const overview = h.getOverview({ workspaceId: 'ws', projectId: 'pp' })
   expect(overview.needsYou.length).toBeGreaterThan(0)
+  const login = channel(h).events.find(item => item.runError?.code === 'not_logged_in')
+  expect(login?.runError).toMatchObject({
+    code: 'not_logged_in',
+    provider: 'Claude',
+    persona: 'Guia',
+  })
+  expect(login?.runError?.command === undefined || login?.runError?.command === 'claude login').toBe(true)
   expect(channel(h).events.some(item =>
     /\[\[run-error:/u.test(item.body)
     && /"code":"not_logged_in"/u.test(item.body)
@@ -196,6 +203,7 @@ it('blocks with Precisa de você when resolveRunner fails login', async () => {
     && /"persona":"Guia"/u.test(item.body),
   )).toBe(true)
   expect(JSON.stringify(channel(h).events)).not.toMatch(/Not logged in|Please run|stack|sk-|token/i)
+  expect(JSON.stringify(h.getWhileAway({ workspaceId: 'ws', projectId: 'pp' }))).not.toMatch(/\bCLI\b|DSH|executor|runner/i)
 })
 
 it('blocks with Precisa de você when resolveRunner reports quota exhausted', async () => {
@@ -207,6 +215,8 @@ it('blocks with Precisa de você when resolveRunner reports quota exhausted', as
   ask(h, 'm-quota', 'preciso de um README no projeto')
   await h.orchestration.flush('pp')
   expect(h.getOverview({ workspaceId: 'ws', projectId: 'pp' }).needsYou.length).toBeGreaterThan(0)
+  expect(channel(h).events.find(item => item.runError?.code === 'quota_exhausted')?.runError)
+    .toMatchObject({ code: 'quota_exhausted', provider: 'Claude', persona: 'Guia' })
   expect(channel(h).events.some(item =>
     /\[\[run-error:/u.test(item.body)
     && /"code":"quota_exhausted"/u.test(item.body)
@@ -324,4 +334,15 @@ it('resumes a partial stream after restart', async () => {
     actorId: 'ana', afterSeq: 0, limit: 20,
   })
   expect(page.events.some(item => item.id === 'coord-m-mid-reply')).toBe(true)
+})
+
+it('P0 Agência: Monte a equipe creates a Ticket (was talk / 0 execs)', async () => {
+  const h = host()
+  seed(h)
+  ask(h, 'm-ag', 'Monte a equipe da Agência Ponto para o site e a campanha do cliente.')
+  const launched = h.listTasks({ workspaceId: 'ws', projectId: 'pp' })
+  expect(launched.length).toBeGreaterThan(0)
+  expect(launched[0]?.title).toMatch(/Monte a equipe/i)
+  expect(launched[0]?.stage).toBe('doing')
+  await h.orchestration.flush('pp')
 })

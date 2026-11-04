@@ -145,4 +145,57 @@ it('drafts a taught skill without enabling it', async () => {
   expect(saved.candidateSkillId).toBe(`taught-${start.sessionId}`)
   const skill = h.screens.listSkills(scope.projectId).find(row => row.id === saved.candidateSkillId)
   expect(skill?.status).toBe('candidate')
+  expect(h.screens.getSkillRecord(scope.projectId, saved.candidateSkillId!)?.origin).toBe('taught')
+  const live = h.activateTaughtSkill({ ...scope, skillId: saved.candidateSkillId! })
+  expect(live.status).toBe('active')
+  const rolled = h.rollbackTaughtSkill({ ...scope, skillId: saved.candidateSkillId! })
+  expect(rolled.status).toBe('candidate')
+})
+
+it('accepts a taught candidate only through acceptTaughtCandidate', async () => {
+  const h = host()
+  seed(h)
+  const start = h.startTeachSession({ ...scope, personaId: 'nina', consentVersion: TEACH_CONSENT })
+  await h.stopTeachSession({
+    ...scope, sessionId: start.sessionId, includeMicrophone: false,
+    transcript: 'Abra o catálogo e publique.',
+    frames: [{ atMs: 0, imageRef: 'file://local/f0.webp', changeScore: 1 }],
+  })
+  const accepted = h.acceptTaughtCandidate({ ...scope, sessionId: start.sessionId })
+  expect(accepted.status).toBe('candidate')
+  expect(h.screens.getSkillRecord(scope.projectId, accepted.id)?.origin).toBe('taught')
+})
+
+it('refuses to publish a taught skill to the team without explicit confirm', async () => {
+  const h = host()
+  seed(h)
+  const start = h.startTeachSession({ ...scope, personaId: 'nina', consentVersion: TEACH_CONSENT })
+  await h.stopTeachSession({
+    ...scope, sessionId: start.sessionId, includeMicrophone: false,
+    transcript: 'Abra o catálogo e publique.',
+    frames: [{ atMs: 0, imageRef: 'file://local/f0.webp', changeScore: 1 }],
+  })
+  const accepted = h.acceptTaughtCandidate({ ...scope, sessionId: start.sessionId })
+  expect(() => h.publishTaughtSkill({
+    ...scope, skillId: accepted.id, scope: 'team', explicit: false,
+  })).toThrow('ACCESS_ESCALATION')
+  const published = h.publishTaughtSkill({
+    ...scope, skillId: accepted.id, scope: 'team', explicit: true,
+  })
+  expect(published.sharedWithTeam).toBe(true)
+  expect(published.status).toBe('candidate')
+})
+
+it('refuses to activate a taught skill that adds tools', () => {
+  const h = host()
+  seed(h)
+  h.screens.putCandidateSkill({
+    id: 'taught-escalation',
+    projectId: 'pp',
+    personaId: 'nina',
+    name: 'Bash',
+    body: '# Bash\n\n## 1. Passo\nRode.\nFerramentas: bash',
+    origin: 'taught',
+  })
+  expect(() => h.activateTaughtSkill({ ...scope, skillId: 'taught-escalation' })).toThrow('ACCESS_ESCALATION')
 })

@@ -40,6 +40,9 @@ it('J15 — sprint: planejar, iniciar, encerrar com rolagem e marco; goalId do o
     ...SCOPE, sprintId: 'sp-1', ticketIds: tasks.map(item => item.id),
   }).ticketIds).toEqual(tasks.map(item => item.id))
   expect(h.startSprint({ ...SCOPE, sprintId: 'sp-1' }).status).toBe('ativo')
+  h.boards.goals.clear()
+  const goals = h.listSprintGoals(SCOPE)
+  expect(goals.some(item => item.id === 'goal-sprint-sp-1' && item.phase === 'active')).toBe(true)
 
   const closed = h.closeSprint({
     ...SCOPE, sprintId: 'sp-1', leftover: 'next', confirmed: true,

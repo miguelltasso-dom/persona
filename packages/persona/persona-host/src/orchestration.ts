@@ -20,6 +20,7 @@ import {
   latestAssignment,
   preRoute,
   projectKanban,
+  wantsWork,
   workerSessionId,
   type Assessor,
   type Candidate,
@@ -86,7 +87,8 @@ import {
   lastRunnerText,
   permissionFor,
   runnerHomeOf,
-  specOfPersona,
+  specFromConnection,
+  type DetectedCli,
   type HostRunnerFactory,
   type HostRunnerRequest,
   type RunnerPurpose,
@@ -354,6 +356,8 @@ export class Orchestration {
   opt: OptRepos | undefined
   accounts: AccountRepos | undefined
   accountSeatOf?: (projectId: string, persona: StoredPersona) => { home: string; accountId?: string; activity?: string }
+  /** Logged-in CLI from `listConnections` (no extra engine step). */
+  loggedCliOf?: (projectId: string) => DetectedCli | undefined
   /** `persona_runtime` docs (same rows as `pausePersona`). */
   screens: ScreenRepos | undefined
   /** Warm runner lease per project+persona+purpose (Rivet D10). */
@@ -391,7 +395,7 @@ export class Orchestration {
    * @param projectId - Tenant.
    */
   async prewarmProject(projectId: string): Promise<void> {
-    if (process.env.PERSONA_REAL_CLI !== '1' || process.env.VITEST === 'true') return
+    if (allowsScriptedReplies()) return
     const coord = this.coordinationOf(projectId)
     if (coord === undefined) return
     const key = `${projectId}:${coord.id}:talk`
@@ -401,7 +405,7 @@ export class Orchestration {
         ? process.env.PERSONA_HOME
         : '.'
       await prewarmCoordination({
-        spec: specOfPersona(coord.runner),
+        spec: specFromConnection(coord.runner, this.loggedCliOf?.(projectId)),
         permissionMode: 'deny',
         personaId: coord.id,
         personId: coord.id,
@@ -934,7 +938,7 @@ export class Orchestration {
       this.mark(`resolve:${purpose}:warm`)
       return cached
     }
-    const spec = specOfPersona(persona.runner)
+    const spec = specFromConnection(persona.runner, this.loggedCliOf?.(projectId))
     const permissionMode = permissionFor(spec, purpose, persona.tools, mode)
     assertCliPermission(spec, permissionMode)
     const seat = this.accountSeatOf?.(projectId, persona)
@@ -1010,10 +1014,11 @@ export class Orchestration {
     ticketId: string,
     error: { code: string; message: string },
   ): void {
+    const line = reportLineFor(error, coordination?.name)
     rt.engine.report(ticketId, {
       state: 'blocked',
-      summary: error.message,
-      question: error.message,
+      summary: line,
+      question: line,
     })
     this.postCoord(event, coordination, `coord-${ticketId}-done`, channelLineFor(error, coordination?.name))
   }
@@ -1037,10 +1042,11 @@ export class Orchestration {
       if (this.overTokenBudget(event.projectId, executor)) {
         for (const ticket of rt.repo.tickets.list()) {
           if (latestAssignment(ticket)?.state !== 'running') continue
+          const line = reportLineFor({ code: 'budget_exhausted', message: '' }, executor.name)
           rt.engine.report(ticket.id, {
             state: 'blocked',
-            summary: 'orçamento de tokens do mês esgotado',
-            question: 'orçamento de tokens do mês esgotado',
+            summary: line,
+            question: line,
           })
           this.postAs(event, coordinationPersona, `coord-${ticket.id}-done`, runErrorLine({
             code: 'budget_exhausted',
@@ -1822,9 +1828,7 @@ function wantsAttention(text: string): boolean {
   return /\?|precisa de você|aprovar/iu.test(text)
 }
 
-export function wantsWork(text: string): boolean {
-  return /preciso|implement|cri[ae]|adicion|consert|corrig|escrev|readme|deploy|faz(er)?\b|tarefa|ticket|aprov/iu.test(text)
-}
+export { wantsWork }
 
 function citeAttachments(text: string, names: readonly string[]): string {
   if (names.length === 0) return text
@@ -1859,6 +1863,7 @@ const LOGIN_COMMAND: Record<string, string> = {
 }
 
 function providerOf(cli: string): string {
+  if (cli === 'dsh') return 'Claude'
   return PROVIDER_LABEL[cli] ?? cli
 }
 
@@ -1870,6 +1875,21 @@ function runErrorLine(payload: {
   command?: string
 }): string {
   return `[[run-error:${JSON.stringify(payload)}]]`
+}
+
+function reportLineFor(error: { code: string; message: string }, persona?: string): string {
+  const who = persona === undefined || persona === '' ? 'esta persona' : persona
+  if (error.code === 'budget_exhausted') return `O orçamento deste mês para ${who} acabou.`
+  const cli = detailOf(error)
+  const provider = providerOf(cli)
+  if (error.code === 'not_logged_in') return `O ${provider} não está conectado neste computador.`
+  if (error.code === 'cli_not_found') {
+    if (cli === 'dsh') return `O motor de ${who} não está disponível neste computador.`
+    return `O ${provider} não está instalado neste computador.`
+  }
+  if (error.code === 'quota_exhausted') return `A conta do ${provider} chegou ao limite.`
+  if (error.code === 'model_unavailable') return `O modelo não está disponível no ${provider}.`
+  return `O motor de ${who} não está disponível neste computador.`
 }
 
 function channelLineFor(error: { code: string; message: string }, persona?: string): string {

@@ -29,7 +29,7 @@ import {
   wipeWorkspace,
   type PersonaStore,
 } from '@deepseek-ai/dsh-persona-store'
-import { dedupeLimitAccounts, foldUsage, poolProviderLimits, usagePortWindow } from '@deepseek-ai/dsh-persona-usage'
+import { dedupeLimitAccounts, foldUsage, poolProviderLimits } from '@deepseek-ai/dsh-persona-usage'
 import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
 import { persistProbeQuota } from './official-quota-persist.ts'
@@ -42,7 +42,7 @@ import { GithubSourceHost, detectGh } from './github.ts'
 import { ExternalSourcesHost } from './external-sources.ts'
 import { CofreSecretVault } from './cofre-secrets.ts'
 import { detectProjectGit, validateProjectRoot } from './project-root.ts'
-import { hostRunnerFromContext } from './runner.ts'
+import { ensureProductionRealCli, hostRunnerFromContext, loggedCliFromCards, type DetectedCli } from './runner.ts'
 import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { BoardsHost } from './boards.ts'
@@ -70,11 +70,20 @@ import {
   computePersonaImpact,
   emitGestorPropose,
   listPersonaImpact,
+  measureGestorToolsAcceptance,
+  measureGestorV1,
   measureOpt3Acceptance,
   measureOpt4Acceptance,
   measureOpt5Acceptance,
   measureOpt6Acceptance,
   measureOpt8View,
+  acceptTaughtCandidate,
+  activateTaughtSkill,
+  cheapModelForFirstDelivery,
+  firstDeliveryAsk,
+  measureFirstDeliveryAcceptance as scoreFirstDeliveryAcceptance,
+  publishTaughtSkill as promoteTaughtSkill,
+  rollbackTaughtSkill as disableTaughtSkill,
   measureProactivityAcceptance,
   measureV1CloseView,
 } from '@deepseek-ai/dsh-persona-engine'
@@ -82,11 +91,13 @@ import {
   defaultSkillDirIo,
   foldUsagePanel,
   parseBringPaste,
+  usagePortKind,
   vaultToBringExisting,
   type GestorPlan,
   type SkillDirIo,
 } from '@deepseek-ai/dsh-persona-core'
 import { selectedBringWrites } from './bring-context-apply.ts'
+import { runErrorFromBody } from './run-error-wire.ts'
 import { tickInitiativeBatch, tickLibrarianBatch } from './opt-batch.ts'
 import { previewBringContextVaultFolder } from './bring-context-walk.ts'
 import { foldInsightEvents } from './insights-fold.ts'
@@ -102,7 +113,7 @@ import {
   specOfPersona,
   specsFromTemplate,
 } from './share-remote.ts'
-import { OnboardingHost } from './onboarding.ts'
+import { FIRST_DELIVERY_EVENT_ID, FIRST_DELIVERY_MILESTONE_EVENT_ID, OnboardingHost } from './onboarding.ts'
 import { HostScheduler, inQuietWindow } from './scheduler.ts'
 import { CHAT_STICKERS, isChatSticker } from './stickers.ts'
 import {
@@ -134,6 +145,8 @@ import type {
   AcceptReviewRequest,
   CancelReplyRequest,
   CompleteOnboardingRequest,
+  FirstDeliveryStartView,
+  FirstDeliveryView,
   DiagnosticsJson,
   OnboardingState,
   RequestChangesRequest,
@@ -229,6 +242,9 @@ import type {
   GetOfficialQuotaRequest,
   GetUsagePanelRequest,
   GetUsageRequest,
+  FirstDeliveryMeasureView,
+  GestorMeasureView,
+  GestorToolsMeasureView,
   Opt8MeasureView,
   OptPolicyMeasureView,
   ProactivityMeasureView,
@@ -256,6 +272,7 @@ import type {
   ProjectBoardView,
   ProjectConversationView,
   ProposeWorkflowRequest,
+  SprintGoalView,
   SprintIdRequest,
   SprintView,
   UpdateSprintRequest,
@@ -331,6 +348,8 @@ import type {
   RemoveConnectionAccountRequest,
   RenameConversationSubjectRequest,
   SetRunnerSwapPolicyRequest,
+  ActivateTaughtSkillRequest,
+  PublishTaughtSkillRequest,
   StartTeachSessionRequest,
   StopTeachSessionRequest,
   SubmitTeachDraftRequest,
@@ -395,6 +414,9 @@ import {
   storedSwapPolicy,
   subjectViews,
   workingBySubject,
+  allowedToolsOf,
+  taughtDraftOf,
+  taughtStepToolsOf,
   teachDraftFrom,
   TEACH_CONSENT,
   TEACH_RETENTION_DAYS,
@@ -417,6 +439,7 @@ export type { ExternalSourceEndpoints, SecretVault } from './external-sources.ts
 export {
   assertCliPermission,
   cliPermissionOf,
+  ensureProductionRealCli,
   permissionFor,
   resolveHostRunner,
 } from './runner.ts'
@@ -523,6 +546,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   constructor(ctx: Context, config: Config = { databasePath: '' }) {
     super(ctx, 'personaHost', { namespace: 'persona' })
+    ensureProductionRealCli()
     this.store = openPersonaStore({ path: resolvePersonaDatabasePath(config.databasePath) })
     this.product = new ProductRepos(this.store)
     this.events = new EventRepos(this.store)
@@ -586,6 +610,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.connections = new ConnectionProbe({
       persistQuota: (snaps) => { this.persistOfficialQuota(snaps) },
     })
+    this.orchestration.loggedCliOf = () => this.loggedCli()
     this.remoteGuard = new RemoteGuard({
       peerOf: () => this.sessionMemberId ?? 'local',
     })
@@ -1355,7 +1380,7 @@ export default class PersonaHost extends TypertRemoteService {
   /**
    * Visão geral: needs-you first (blocked/failed/review), then in-progress.
    * @param request - Workspace and project.
-   * @returns Attention and in-progress cards.
+   * @returns Attention, in-progress cards, and the first-delivery milestone when not idle.
    */
   @Remote
   getOverview(request: ProjectScopeRequest): OverviewView {
@@ -1368,9 +1393,11 @@ export default class PersonaHost extends TypertRemoteService {
       stage: 'blocked',
       stageAction: 'retry',
     }))
+    const firstDelivery = this.readFirstDelivery(request.projectId)
     return {
       needsYou: [...letters, ...cards.filter(card => card.stage === 'blocked' || card.stage === 'review')],
       inProgress: cards.filter(card => card.stage === 'doing' || card.stage === 'todo'),
+      ...(firstDelivery.status === 'idle' ? {} : { firstDelivery }),
     }
   }
 
@@ -1441,6 +1468,16 @@ export default class PersonaHost extends TypertRemoteService {
   listSprints(request: ProjectScopeRequest): SprintView[] {
     this.requireProject(request)
     return this.boards.listSprints(request.projectId)
+  }
+
+  /**
+   * Coordination goals bound to sprints. Rebuilds from SQLite after remount.
+   * @param request - Tenant.
+   */
+  @Remote
+  listSprintGoals(request: ProjectScopeRequest): SprintGoalView[] {
+    this.requireProject(request)
+    return this.boards.listSprintGoals(request.projectId)
   }
 
   /**
@@ -3416,10 +3453,287 @@ export default class PersonaHost extends TypertRemoteService {
     const drafts = await this.onboarding.resolveTeam(request)
     const state = this.onboarding.complete(request, drafts)
     if (state.personalProjectId !== '') {
+      this.bindPersonasToLoggedCli(state.personalProjectId)
       this.scheduler.arm(state.personalProjectId)
       void this.orchestration.prewarmProject(state.personalProjectId)
+      this.postFirstDeliveryAsk(request, state.personalProjectId)
     }
     return state
+  }
+
+  /**
+   * Kick Intake→Ticket→Assignment on #geral for the first real delivery.
+   * Idempotent. Uses the logged-in CLI when the persona is still `dsh`.
+   * @param request - Tenant.
+   * @returns Ticket created (or the previous one).
+   */
+  @Remote
+  async startFirstDelivery(request: ProjectScopeRequest): Promise<FirstDeliveryStartView> {
+    this.requireWrite(request)
+    this.bindPersonasToLoggedCli(request.projectId)
+    const prior = this.readFirstDelivery(request.projectId)
+    if (prior.status === 'ready' || prior.status === 'failed') {
+      return { started: true, eventId: prior.eventId, ticketId: prior.ticketId, idempotent: true }
+    }
+    const workspace = this.product.getWorkspace(request.workspaceId)
+    this.postFirstDeliveryAsk({
+      workspaceId: request.workspaceId,
+      personalProjectId: request.projectId,
+      displayName: workspace?.name ?? '',
+      team: [],
+      templateIds: [],
+      runnerChoices: [],
+      cofreSeed: '',
+    }, request.projectId)
+    try {
+      await this.orchestration.flush(request.projectId)
+    } catch (error) {
+      this.sealFirstDelivery(request, 'failed')
+      throw error
+    }
+    this.sealFirstDelivery(request)
+    const sealed = this.readFirstDelivery(request.projectId)
+    return {
+      started: true,
+      eventId: sealed.eventId || FIRST_DELIVERY_EVENT_ID,
+      ticketId: sealed.ticketId,
+      idempotent: false,
+    }
+  }
+
+  /**
+   * Persisted first-delivery status. Always idle|working|ready|failed — never a hang.
+   * @param request - Tenant.
+   * @returns Milestone card; idle before the ask.
+   */
+  @Remote
+  getFirstDelivery(request: ProjectScopeRequest): FirstDeliveryView {
+    this.requireProject(request)
+    return this.readFirstDelivery(request.projectId)
+  }
+
+  /**
+   * Persist the logged-in CLI on personas that are still `dsh`.
+   * @param projectId - Tenant.
+   * @returns Bound CLI, or undefined when none is logged in.
+   */
+  bindPersonasToLoggedCli(projectId: string): DetectedCli | undefined {
+    const logged = this.orchestration.loggedCliOf?.(projectId)
+    if (logged === undefined) return undefined
+    for (const persona of this.product.listPersonas(projectId)) {
+      if (persona.runner.kind === 'cli') continue
+      this.product.updatePersona({
+        ...persona,
+        runner: {
+          kind: 'cli',
+          cli: logged,
+          model: persona.runner.model === '' || persona.runner.model === 'default'
+            ? cheapModelForFirstDelivery(logged)
+            : persona.runner.model,
+        },
+        updatedAt: this.orchestration.now(),
+      }, projectId)
+    }
+    return logged
+  }
+
+  /**
+   * First logged-in CLI card (not `dsh`).
+   * @returns Detected CLI or undefined while checking / logged out.
+   */
+  loggedCli(): DetectedCli | undefined {
+    return loggedCliFromCards(this.connections.list())
+  }
+
+  /**
+   * Post the engine `firstDeliveryAsk` on #geral and ingest it (Ticket).
+   * Idempotent on `first-delivery`.
+   * @param request - Onboarding fields (brief from Cofre seed or display name).
+   * @param projectId - Tenant.
+   */
+  postFirstDeliveryAsk(request: CompleteOnboardingRequest, projectId: string): void {
+    if (!this.events.has(FIRST_DELIVERY_EVENT_ID)) {
+      const owner = this.actorOf(request.workspaceId)
+        ?? this.product.listMembers(request.workspaceId).find(row => row.role === 'owner')
+        ?? this.product.listMembers(request.workspaceId)[0]
+      if (owner === undefined) return
+      const brief = request.cofreSeed !== '' ? request.cofreSeed : request.displayName
+      this.postMessage({
+        id: FIRST_DELIVERY_EVENT_ID,
+        workspaceId: request.workspaceId,
+        projectId,
+        streamKind: 'channel',
+        ownerId: 'geral',
+        body: firstDeliveryAsk({ companyBrief: brief }),
+        actorId: owner.id,
+        subjectId: 'first-delivery',
+        occurredAt: this.orchestration.now(),
+      })
+    }
+    this.markFirstDeliveryWorking(projectId)
+  }
+
+  /**
+   * Persist `working` after the ask is on #geral. Ready/failed stay sealed.
+   * @param projectId - Tenant.
+   */
+  markFirstDeliveryWorking(projectId: string): void {
+    const current = this.readFirstDelivery(projectId)
+    if (current.status === 'ready' || current.status === 'failed') return
+    const ticket = this.firstDeliveryTicket(projectId)
+    const who = this.firstDeliveryActor(projectId, ticket?.execution?.name ?? current.personaName)
+    this.persistFirstDelivery(projectId, {
+      status: 'working',
+      eventId: FIRST_DELIVERY_EVENT_ID,
+      ticketId: ticket?.id ?? current.ticketId,
+      title: ticket?.title ?? current.title,
+      personaId: who.id,
+      personaName: who.name,
+      feedEventId: current.feedEventId,
+    })
+  }
+
+  /**
+   * Seal after flush: ready when the runner delivered, failed when blocked, else working.
+   * Posts `first-delivery-milestone` on #geral without ingest. Auto-completes review.
+   * @param request - Tenant.
+   * @param force - Optional failed seal when flush throws.
+   */
+  sealFirstDelivery(request: ProjectScopeRequest, force?: 'failed'): void {
+    const current = this.readFirstDelivery(request.projectId)
+    if (current.status === 'ready') return
+    const ticket = this.firstDeliveryTicket(request.projectId)
+    const who = this.firstDeliveryActor(request.projectId, ticket?.execution?.name ?? current.personaName)
+    if (force === 'failed' || ticket === undefined) {
+      this.persistFirstDelivery(request.projectId, {
+        status: 'failed',
+        eventId: FIRST_DELIVERY_EVENT_ID,
+        ticketId: ticket?.id ?? current.ticketId,
+        title: ticket?.title ?? current.title,
+        personaId: who.id,
+        personaName: who.name,
+        feedEventId: current.feedEventId,
+      })
+      return
+    }
+    const column = this.orchestration.kanban(request.projectId)
+      .find(card => card.ticketId === ticket.id)?.column
+    if (column === 'blocked') {
+      this.persistFirstDelivery(request.projectId, {
+        status: 'failed',
+        eventId: FIRST_DELIVERY_EVENT_ID,
+        ticketId: ticket.id,
+        title: ticket.title,
+        personaId: who.id,
+        personaName: who.name,
+        feedEventId: current.feedEventId,
+      })
+      return
+    }
+    if (column !== 'review' && column !== 'done') {
+      this.persistFirstDelivery(request.projectId, {
+        status: 'working',
+        eventId: FIRST_DELIVERY_EVENT_ID,
+        ticketId: ticket.id,
+        title: ticket.title,
+        personaId: who.id,
+        personaName: who.name,
+        feedEventId: current.feedEventId,
+      })
+      return
+    }
+    if (column === 'review') this.orchestration.completeReview(request.projectId, ticket.id)
+    this.postFirstDeliveryMilestone(request, ticket.title, who.id)
+    this.persistFirstDelivery(request.projectId, {
+      status: 'ready',
+      eventId: FIRST_DELIVERY_EVENT_ID,
+      ticketId: ticket.id,
+      title: ticket.title,
+      personaId: who.id,
+      personaName: who.name,
+      feedEventId: FIRST_DELIVERY_MILESTONE_EVENT_ID,
+    })
+  }
+
+  /**
+   * Append-only milestone on #geral. Does not ingest (no second Ticket).
+   * @param request - Tenant.
+   * @param title - Ticket title.
+   * @param actorId - Executor or owner.
+   */
+  postFirstDeliveryMilestone(request: ProjectScopeRequest, title: string, actorId: string): void {
+    if (this.events.has(FIRST_DELIVERY_MILESTONE_EVENT_ID)) return
+    const speaker = actorId !== ''
+      ? actorId
+      : (this.actorOf(request.workspaceId)?.id
+        ?? this.product.listMembers(request.workspaceId).find(row => row.role === 'owner')?.id
+        ?? '')
+    if (speaker === '') return
+    this.events.append({
+      id: FIRST_DELIVERY_MILESTONE_EVENT_ID,
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      streamKind: 'channel',
+      ownerId: 'geral',
+      type: 'message',
+      body: `Primeira entrega pronta: ${title}`,
+      actorId: speaker,
+      subjectId: 'first-delivery',
+      occurredAt: this.orchestration.now(),
+    })
+  }
+
+  /**
+   * Ticket opened by `first-delivery`, or the persisted id.
+   * @param projectId - Tenant.
+   */
+  firstDeliveryTicket(projectId: string): { id: string; title: string; execution?: { name: string } } | undefined {
+    const tickets = this.orchestration.runtime(projectId).repo.tickets.list()
+    const byOrigin = tickets.find(row => row.origin.triggerId === FIRST_DELIVERY_EVENT_ID)
+    if (byOrigin !== undefined) return byOrigin
+    const stored = this.readFirstDelivery(projectId)
+    if (stored.ticketId === '') return undefined
+    return tickets.find(row => row.id === stored.ticketId)
+  }
+
+  /**
+   * Executor (or coordination) for the milestone card.
+   * @param projectId - Tenant.
+   * @param preferredName - Ticket execution name when present.
+   */
+  firstDeliveryActor(projectId: string, preferredName: string): { id: string; name: string } {
+    const personas = this.product.listPersonas(projectId)
+    const named = preferredName === '' ? undefined : personas.find(row => row.name === preferredName)
+    const executor = personas.find(row => !row.systemRoles.includes('coordination'))
+    const coord = personas.find(row => row.systemRoles.includes('coordination'))
+    const who = named ?? executor ?? coord
+    return { id: who?.id ?? '', name: who?.name ?? '' }
+  }
+
+  /**
+   * Idle when nothing is persisted. Never a loading sentinel.
+   * @param projectId - Tenant.
+   */
+  readFirstDelivery(projectId: string): FirstDeliveryView {
+    return this.screens.screens.get<FirstDeliveryView>(projectId, 'first_delivery', 'v1')
+      ?? {
+        status: 'idle',
+        eventId: '',
+        ticketId: '',
+        title: '',
+        personaId: '',
+        personaName: '',
+        feedEventId: '',
+      }
+  }
+
+  /**
+   * Persist the milestone row (screen `first_delivery` / `v1`).
+   * @param projectId - Tenant.
+   * @param row - Status and card fields.
+   */
+  persistFirstDelivery(projectId: string, row: FirstDeliveryView): void {
+    this.screens.screens.put(projectId, 'first_delivery', 'v1', row)
   }
 
   /**
@@ -3735,7 +4049,7 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
-   * Saves the candidate. `activate` is ignored unless the person already confirmed in UI.
+   * Saves the candidate. `activate` is ignored — only {@link activateTaughtSkill} enables it.
    * @param request - Edited steps.
    */
   @Remote
@@ -3748,14 +4062,105 @@ export default class PersonaHost extends TypertRemoteService {
       steps: request.steps,
       activate: false,
     }))
-    this.screens.putCandidateSkill({
-      id: `taught-${request.sessionId}`,
-      projectId: request.projectId,
-      personaId: row.personaId,
-      name: 'Skill ensinada',
-      body: request.steps.map(step => `${String(step.order)}. ${step.instruction}`).join('\n'),
-    })
-    return { steps: request.steps, skillTitle: 'Skill ensinada', candidateSkillId: `taught-${request.sessionId}` }
+    const accepted = this.acceptTaughtCandidate(request)
+    return { steps: request.steps, skillTitle: accepted.name, candidateSkillId: accepted.id }
+  }
+
+  /**
+   * Persist the reviewed draft as a disabled taught candidate. Never enables it.
+   * @param request - Session that already has a draft.
+   * @returns Candidate skill (`status: candidate`).
+   */
+  @Remote
+  acceptTaughtCandidate(request: TeachSessionIdRequest): SkillView {
+    this.requireWrite(request)
+    const row = this.teach.get(request.sessionId)
+    if (row === undefined) throw new Error('not-found')
+    const draftView = this.getTeachDraft(request)
+    if (draftView.steps.length === 0) throw new Error('not-found')
+    try {
+      const skill = acceptTaughtCandidate(taughtDraftOf({
+        sessionId: request.sessionId,
+        personaId: row.personaId,
+        projectId: request.projectId,
+        title: draftView.skillTitle,
+        steps: draftView.steps,
+      }))
+      return this.screens.putCandidateSkill({
+        id: skill.id,
+        projectId: request.projectId,
+        personaId: skill.personaId ?? row.personaId,
+        name: skill.name,
+        body: skill.body,
+        origin: 'taught',
+      })
+    } catch (error) {
+      return rethrowShare(error)
+    }
+  }
+
+  /**
+   * Enable a taught candidate after review. Extra tools throw `ACCESS_ESCALATION`.
+   * @param request - Skill id.
+   * @returns Enabled skill (`status: active`).
+   */
+  @Remote
+  activateTaughtSkill(request: ActivateTaughtSkillRequest): SkillView {
+    this.requireWrite(request)
+    const stored = this.screens.getSkillRecord(request.projectId, request.skillId)
+    if (stored === undefined) throw new Error('skill-not-found')
+    const personaId = stored.personaId
+    if (personaId === undefined) throw new Error('persona-not-found')
+    const persona = this.product.getPersona(personaId)
+    if (persona === undefined || persona.projectId !== request.projectId) {
+      throw new Error('persona-not-found')
+    }
+    try {
+      const next = activateTaughtSkill(
+        stored,
+        allowedToolsOf(persona.tools),
+        taughtStepToolsOf(stored.body),
+      )
+      return this.screens.saveSkillRecord(request.projectId, next)
+    } catch (error) {
+      return rethrowShare(error)
+    }
+  }
+
+  /**
+   * Promote a taught skill. Team/project scope requires `explicit: true`.
+   * @param request - Skill + requested scope + human confirmation.
+   * @returns Skill with the new scope. Stays disabled unless already active.
+   */
+  @Remote
+  publishTaughtSkill(request: PublishTaughtSkillRequest): SkillView {
+    this.requireWrite(request)
+    const stored = this.screens.getSkillRecord(request.projectId, request.skillId)
+    if (stored === undefined) throw new Error('skill-not-found')
+    try {
+      const next = promoteTaughtSkill(stored, request.scope, request.explicit)
+      return this.screens.saveSkillRecord(request.projectId, next)
+    } catch (error) {
+      return rethrowShare(error)
+    }
+  }
+
+  /**
+   * Turn an activated taught skill back off. Version still increases.
+   * @param request - Skill id.
+   * @returns Disabled taught skill (`status: candidate`).
+   */
+  @Remote
+  rollbackTaughtSkill(request: ActivateTaughtSkillRequest): SkillView {
+    this.requireWrite(request)
+    const stored = this.screens.getSkillRecord(request.projectId, request.skillId)
+    if (stored === undefined) throw new Error('skill-not-found')
+    try {
+      const next = disableTaughtSkill(stored)
+      return this.screens.saveSkillRecord(request.projectId, next)
+    } catch (error) {
+      return rethrowShare(error)
+    }
   }
 
   /**
@@ -3804,6 +4209,32 @@ export default class PersonaHost extends TypertRemoteService {
   measureProactivityV1(): ProactivityMeasureView {
     const measured = measureProactivityAcceptance()
     return { passed: measured.passed, total: measured.total, failed: measured.failed }
+  }
+
+  /**
+   * V1-P0-1 engine checklist. Probe does not remount flags.
+   */
+  @Remote
+  measureFirstDeliveryAcceptance(): FirstDeliveryMeasureView {
+    const measured = scoreFirstDeliveryAcceptance()
+    return { passed: measured.passed, total: measured.total, failed: measured.failed }
+  }
+
+  /**
+   * GES-6 / fechamento v1. Probe scores this; do not reassemble flags.
+   */
+  @Remote
+  measureGestorV1(): GestorMeasureView {
+    const measured = measureGestorV1()
+    return { passed: measured.passed, total: measured.total, failed: measured.failed }
+  }
+
+  /**
+   * GES-2 hire / allocate / reorganize / assemble. Probe does not remount flags.
+   */
+  @Remote
+  measureGestorToolsAcceptance(): GestorToolsMeasureView {
+    return measureGestorToolsAcceptance()
   }
 
   /**
@@ -4925,7 +5356,7 @@ export default class PersonaHost extends TypertRemoteService {
       personaId: stored.personaId,
       provider: stored.engine,
       model: stored.engine,
-      window: usagePortWindow(stored.kind),
+      window: usagePortKind(stored.kind),
       kind: stored.kind,
       inputTokens: stored.inputTokens,
       outputTokens: stored.outputTokens,
@@ -5143,6 +5574,7 @@ function toMessageView(event: {
 }): MessageView {
   const type = event.type ?? 'message'
   const topicId = event.topicId ?? ''
+  const runError = runErrorFromBody(event.body)
   return {
     id: event.id,
     streamId: event.streamId,
@@ -5160,6 +5592,7 @@ function toMessageView(event: {
     reactions: [],
     topicId,
     conversationSubjectId: topicId,
+    ...(runError === undefined ? {} : { runError }),
   }
 }
 

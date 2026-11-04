@@ -97,6 +97,7 @@ export interface TaskView {
 export interface OverviewView {
   readonly needsYou: readonly TaskView[]
   readonly inProgress: readonly TaskView[]
+  readonly firstDelivery?: FirstDeliveryView
 }
 
 /** Create a workspace and its Pessoal project. */
@@ -222,6 +223,25 @@ export interface MessageView {
   readonly reactions: readonly ReactionView[]
   readonly topicId: string
   readonly conversationSubjectId?: string
+  /** Typed execution failure (RUN-ERRORS-SPEC). Host sends code, not user-facing text. */
+  readonly runError?: RunErrorPayload
+}
+
+/** Machine code for a run-error card. UI owns the human text. */
+export type RunErrorCode =
+  | 'not_logged_in' | 'cli_not_found' | 'model_unavailable' | 'quota_exhausted'
+  | 'budget_exhausted' | 'provider_unreachable' | 'engine_unavailable' | 'app_offline'
+
+/** Wire payload for `MessageView.runError`. */
+export interface RunErrorPayload {
+  readonly code: RunErrorCode
+  readonly provider?: string
+  readonly model?: string
+  readonly account?: string
+  readonly persona?: string
+  readonly resetAt?: string
+  readonly command?: string
+  readonly otherAccount?: boolean
 }
 
 /** Message page plus exclusive cursor. */
@@ -539,6 +559,28 @@ export interface OnboardingPersonaSpec {
   readonly systemRoles: readonly SystemRoleView[]
 }
 
+/** Result of kicking the first real delivery on #geral. */
+export interface FirstDeliveryStartView {
+  readonly started: boolean
+  readonly eventId: string
+  readonly ticketId: string
+  readonly idempotent: boolean
+}
+
+/** Persisted first-delivery milestone (V1-P0-2). Never a hang / "Carregando…". */
+export type FirstDeliveryStatus = 'idle' | 'working' | 'ready' | 'failed'
+
+/** Marco "Primeira entrega" on the Remote. */
+export interface FirstDeliveryView {
+  readonly status: FirstDeliveryStatus
+  readonly eventId: string
+  readonly ticketId: string
+  readonly title: string
+  readonly personaId: string
+  readonly personaName: string
+  readonly feedEventId: string
+}
+
 /** Idempotent first-run. Empty `cofreSeed` skips the vault proposal. */
 export interface CompleteOnboardingRequest {
   readonly workspaceId: string
@@ -690,6 +732,18 @@ export interface StopTeachSessionRequest extends TeachSessionIdRequest {
 export interface SubmitTeachDraftRequest extends TeachSessionIdRequest {
   readonly steps: readonly TeachStepView[]
   readonly activate: boolean
+}
+
+/** Enable a taught candidate after review. Tools cannot exceed the persona allow-list. */
+export interface ActivateTaughtSkillRequest extends ProjectScopeRequest {
+  readonly skillId: string
+}
+
+/** Promote a taught skill. Non-persona scope requires `explicit: true`. */
+export interface PublishTaughtSkillRequest extends ProjectScopeRequest {
+  readonly skillId: string
+  readonly scope: 'persona' | 'project' | 'team'
+  readonly explicit: boolean
 }
 
 /** One numbered teach step. */
@@ -1333,11 +1387,32 @@ export interface OptPolicyMeasureView {
   readonly failed: readonly string[]
 }
 
+/** V1-P0-1 engine checklist. Probe does not remount flags. */
+export interface FirstDeliveryMeasureView {
+  readonly passed: number
+  readonly total: 4
+  readonly failed: readonly string[]
+}
+
+/** GES-6 / fechamento v1 — Probe chama; o host não remonta flags. */
+export interface GestorMeasureView {
+  readonly passed: number
+  readonly total: 3
+  readonly failed: readonly string[]
+}
+
+/** GES-2 tools score. Probe does not remount flags. */
+export interface GestorToolsMeasureView {
+  readonly passed: number
+  readonly total: 4
+  readonly failed: readonly string[]
+}
+
 /** Combined v1 close (PRO-6 + GES-6 + OPT-8). Probe calls this; do not remount flags. */
 export interface V1CloseMeasureView {
   readonly passed: boolean
   readonly proactivity: ProactivityMeasureView
-  readonly gestor: { readonly passed: number; readonly total: 3; readonly failed: readonly string[] }
+  readonly gestor: GestorMeasureView
   readonly opt8: {
     readonly passed: number
     readonly total: 4
@@ -1476,6 +1551,15 @@ export interface SprintView {
   readonly startsAt?: string
   readonly endsAt?: string
   readonly daysLeft?: number
+}
+
+/** Coordination goal bound to a sprint (`startSprint` / restart hydrate). */
+export interface SprintGoalView {
+  readonly id: string
+  readonly projectId: string
+  readonly objective: string
+  readonly phase: 'active' | 'paused' | 'blocked' | 'complete'
+  readonly activation: 'armed' | 'disarmed'
 }
 
 /** Full project board. */

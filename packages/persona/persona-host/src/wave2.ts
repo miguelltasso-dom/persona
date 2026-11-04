@@ -14,7 +14,12 @@ import {
   type ProviderAccount as DomainAccount,
   type VaultRecord,
 } from '@deepseek-ai/dsh-persona-core'
-import { draftTaughtSkill, fakeVisionPort } from '@deepseek-ai/dsh-persona-engine'
+import {
+  draftTaughtSkill,
+  fakeVisionPort,
+  type TaughtSkillDraft,
+  type TeachStepDraft,
+} from '@deepseek-ai/dsh-persona-engine'
 import { accountHomeDir, formatAccountSwitch, pickProviderAccount } from '@deepseek-ai/dsh-persona-runners'
 import type { AccountRepos, ConversationTopic, ProviderAccount, TopicRepos } from '@deepseek-ai/dsh-persona-store'
 import type {
@@ -290,4 +295,88 @@ export async function teachDraftFrom(input: {
     vision: fakeVisionPort(),
   })
   return { body: draft.skill.body, steps: teachStepsOf(draft.steps), title: draft.skill.name }
+}
+
+/**
+ * Rebuild the engine draft from the reviewed host steps. Stays disabled.
+ * @param input - Session, persona, edited steps.
+ * @returns Engine draft with `origin: taught` and `enabled: false`.
+ */
+export function taughtDraftOf(input: {
+  readonly sessionId: string
+  readonly personaId: string
+  readonly projectId: string
+  readonly title: string
+  readonly steps: readonly TeachStepView[]
+}): TaughtSkillDraft {
+  const title = input.title.trim() || 'Skill ensinada'
+  const steps: TeachStepDraft[] = input.steps.map(step => ({
+    order: step.order,
+    title: `Passo ${String(step.order)}`,
+    instruction: step.instruction,
+    verify: step.verifyHint ?? '',
+    thumbnailRef: step.thumbnailAssetId ?? '',
+    tools: toolsListedIn(step.instruction),
+  }))
+  const body = [
+    `# ${title}`,
+    '',
+    ...steps.map(step => [
+      `## ${String(step.order)}. ${step.title}`,
+      step.instruction,
+      step.verify === '' ? undefined : `Verificar: ${step.verify}`,
+      step.thumbnailRef === '' ? undefined : `Miniatura: ${step.thumbnailRef}`,
+      step.tools.length === 0 ? undefined : `Ferramentas: ${step.tools.join(', ')}`,
+    ].filter((line): line is string => line !== undefined).join('\n')),
+  ].join('\n')
+  return {
+    local: true,
+    steps,
+    skill: {
+      id: `taught-${input.sessionId}`,
+      name: title.slice(0, 64),
+      version: 1,
+      scope: 'persona',
+      origin: 'taught',
+      body,
+      enabled: false,
+      personaId: input.personaId,
+      projectId: input.projectId,
+    },
+  }
+}
+
+/**
+ * Union of `Ferramentas:` lines in a taught body.
+ * @param body - Skill markdown.
+ * @returns Tool names in first-seen order.
+ */
+export function taughtStepToolsOf(body: string): string[] {
+  const tools: string[] = []
+  for (const line of body.split('\n')) {
+    const hit = line.match(/^Ferramentas:\s*(.+)$/)
+    if (hit === null) continue
+    for (const name of hit[1]!.split(',')) {
+      const trimmed = name.trim()
+      if (trimmed !== '' && !tools.includes(trimmed)) tools.push(trimmed)
+    }
+  }
+  return tools
+}
+
+/**
+ * Persona mandate names that are not `none`.
+ * @param tools - Stored tool levels.
+ * @returns Allow-list for engine `activateTaughtSkill`.
+ */
+export function allowedToolsOf(tools: Readonly<Record<string, string>>): string[] {
+  return Object.entries(tools)
+    .filter(([, level]) => level !== 'none')
+    .map(([name]) => name)
+}
+
+function toolsListedIn(instruction: string): string[] {
+  const hit = instruction.match(/^Ferramentas:\s*(.+)$/m)
+  if (hit === null) return []
+  return hit[1]!.split(',').map(part => part.trim()).filter(part => part !== '')
 }

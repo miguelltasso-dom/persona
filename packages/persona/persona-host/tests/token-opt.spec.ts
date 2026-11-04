@@ -151,6 +151,8 @@ it('persists TurnLedgerEntry kinds and folds the Uso panel', () => {
   const pro6 = h.measureProactivityV1()
   expect(pro6.total).toBe(6)
   expect(pro6.passed).toBe(6)
+  expect(h.measureGestorV1()).toEqual({ passed: 3, total: 3, failed: [] })
+  expect(h.measureGestorToolsAcceptance()).toEqual({ passed: 4, total: 4, failed: [] })
   expect(h.measureOpt3()).toEqual({ passed: 3, total: 3, failed: [] })
   expect(h.measureOpt4()).toEqual({ passed: 3, total: 3, failed: [] })
   expect(h.measureOpt5()).toEqual({ passed: 3, total: 3, failed: [] })

@@ -42,6 +42,7 @@ import type {
   PlanSprintRequest,
   ProjectBoardView,
   ProposeWorkflowRequest,
+  SprintGoalView,
   SprintView,
   UpdateSprintRequest,
   UpdateWorkflowRequest,
@@ -213,8 +214,24 @@ export class BoardsHost {
    * @param projectId - Tenant.
    */
   listSprints(projectId: string): SprintView[] {
+    this.hydrateGoals(projectId)
     const now = this.orchestration.now()
     return this.board.listSprints(projectId).map(row => toSprintView(row, now))
+  }
+
+  /**
+   * Goals bound from SQLite sprints (survives host remount).
+   * @param projectId - Tenant.
+   */
+  listSprintGoals(projectId: string): SprintGoalView[] {
+    this.hydrateGoals(projectId)
+    return this.goals.list(projectId).map(goal => ({
+      id: goal.id,
+      projectId: goal.projectId,
+      objective: goal.objective,
+      phase: goal.phase,
+      activation: goal.activation,
+    }))
   }
 
   /**
@@ -254,6 +271,7 @@ export class BoardsHost {
     if (current === undefined) throw new Error('sprint-not-found')
     const next: Sprint = { ...current, status: 'ativo' }
     this.board.saveSprint(next)
+    this.hydrateGoals(projectId)
     bindSprintGoal(this.goals, next)
     return toSprintView(next, this.orchestration.now())
   }
@@ -412,6 +430,18 @@ export class BoardsHost {
       subjectId: id,
       occurredAt: this.orchestration.now(),
     })
+  }
+
+  /**
+   * Rebuild in-memory goals from persisted sprints (empty after remount).
+   * @param projectId - Tenant.
+   */
+  private hydrateGoals(projectId: string): void {
+    const have = new Set(this.goals.list(projectId).map(goal => goal.id))
+    for (const sprint of this.board.listSprints(projectId)) {
+      if (sprint.status === 'planejado' || have.has(sprint.goalId)) continue
+      bindSprintGoal(this.goals, sprint)
+    }
   }
 }
 

@@ -4,8 +4,11 @@ import PersonaHost from '../src/index.ts'
 import { SCRIPTED_HELLO } from '../src/orchestration.ts'
 import {
   allowsScriptedReplies,
+  ensureProductionRealCli,
   resolveHostRunner,
   runnerHomeOf,
+  loggedCliFromCards,
+  specFromConnection,
   type PersonaRunnersSlice,
 } from '../src/runner.ts'
 import { bindHostFile, it } from './host-harness.ts'
@@ -54,6 +57,63 @@ function bodies(h: PersonaHost): string {
     actorId: 'ana', afterSeq: 0, limit: 50,
   }).events.map(item => item.body).join('\n')
 }
+
+it('sets PERSONA_REAL_CLI=1 outside VITEST', () => {
+  const prevVitest = process.env.VITEST
+  const prevReal = process.env.PERSONA_REAL_CLI
+  delete process.env.VITEST
+  delete process.env.PERSONA_SCRIPTED
+  delete process.env.PERSONA_REAL_CLI
+  ensureProductionRealCli()
+  expect(process.env.PERSONA_REAL_CLI).toBe('1')
+  expect(allowsScriptedReplies()).toBe(false)
+  if (prevVitest === undefined) delete process.env.VITEST
+  else process.env.VITEST = prevVitest
+  if (prevReal === undefined) delete process.env.PERSONA_REAL_CLI
+  else process.env.PERSONA_REAL_CLI = prevReal
+})
+
+it('production (no VITEST) never scripts and calls resolveRunner', async () => {
+  const prev = process.env.VITEST
+  delete process.env.VITEST
+  delete process.env.PERSONA_SCRIPTED
+  delete process.env.PERSONA_REAL_CLI
+  try {
+    expect(allowsScriptedReplies()).toBe(false)
+    const seen: string[] = []
+    const runners: PersonaRunnersSlice = {
+      resolveRunner: async () => {
+        seen.push('live')
+        throw new RunnerResolveError('cli_not_found', 'claude')
+      },
+      createFakeRunner,
+    }
+    await expect(resolveHostRunner({
+      spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
+      permissionMode: 'deny',
+      autonomy: 'on_request',
+      personId: 'coord',
+    }, runners)).rejects.toBeInstanceOf(RunnerResolveError)
+    expect(seen).toEqual(['live'])
+  } finally {
+    process.env.VITEST = prev
+  }
+})
+
+it('uses the logged-in CLI when the persona is still dsh', () => {
+  expect(specFromConnection({ kind: 'dsh', model: 'default' }, 'claude')).toEqual({
+    kind: 'cli', cli: 'claude', model: 'haiku',
+  })
+  expect(loggedCliFromCards([
+    { kind: 'cursor', loggedIn: true },
+    { kind: 'codex', loggedIn: true },
+    { kind: 'claude', loggedIn: true },
+  ])).toBe('claude')
+  expect(loggedCliFromCards([{ kind: 'dsh', loggedIn: true }])).toBeUndefined()
+  expect(specFromConnection({ kind: 'cli', cli: 'codex', model: 'm' }, 'claude')).toEqual({
+    kind: 'cli', cli: 'codex', model: 'm',
+  })
+})
 
 it('calls resolveRunner without an isolated home by default', async () => {
   const seen: Array<{ home?: string }> = []
@@ -106,5 +166,6 @@ it('turns a streamed OAR login line into Precisa de você, never the raw English
   expect(text).toMatch(/"provider":"Claude"/u)
   expect(text).toMatch(/"persona":"Guia"/u)
   expect(h.getOverview({ workspaceId: 'ws', projectId: 'pp' }).needsYou.length).toBeGreaterThan(0)
-  expect(h.getOverview({ workspaceId: 'ws', projectId: 'pp' }).needsYou[0]?.title).toMatch(/não está logada|README/i)
+  expect(h.getOverview({ workspaceId: 'ws', projectId: 'pp' }).needsYou[0]?.title).toMatch(/não está conectado|README/i)
+  expect(JSON.stringify(h.getWhileAway({ workspaceId: 'ws', projectId: 'pp' }))).not.toMatch(/\bCLI\b|DSH|executor|runner/i)
 })

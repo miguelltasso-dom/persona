@@ -4,7 +4,11 @@
  */
 
 import { join } from 'node:path'
-import type { Runner } from '@deepseek-ai/dsh-persona-engine'
+import {
+  cheapModelForFirstDelivery,
+  preferConnectedCli,
+  type Runner,
+} from '@deepseek-ai/dsh-persona-engine'
 import {
   createFakeRunner,
   createOarSessionRunner,
@@ -142,6 +146,51 @@ export function allowsScriptedReplies(): boolean {
 }
 
 /**
+ * Desktop / production host: force the live CLI. Tests stay fake.
+ * Without this, `resolveHostRunner` used a fake and dogfoods recorded 0 execs.
+ * @returns Nothing. Sets `PERSONA_REAL_CLI=1` when not under Vitest.
+ */
+export function ensureProductionRealCli(): void {
+  if (process.env.VITEST === 'true' || process.env.PERSONA_SCRIPTED === '1') return
+  process.env.PERSONA_REAL_CLI = '1'
+}
+
+/** Logged-in CLI kinds the host may bind without a manual engine step. */
+export type DetectedCli = 'claude' | 'codex' | 'opencode' | 'cursor'
+
+/**
+ * Prefer the persona's stored CLI. If the persona is still `dsh` and a CLI
+ * is already logged in, use that connection — no extra UI step.
+ * @param runner - Stored persona runner.
+ * @param logged - Probe card that is `loggedIn` (not `dsh`).
+ * @returns Rivet spec for {@link resolveHostRunner}.
+ */
+export function specFromConnection(
+  runner: { kind: 'dsh' | 'cli'; model: string; cli?: string },
+  logged?: DetectedCli,
+): PersonaRunnerSpec {
+  const stored = specOfPersona(runner)
+  if (stored.kind === 'cli') return stored
+  if (logged !== undefined) {
+    const model = runner.model === '' || runner.model === 'default'
+      ? cheapModelForFirstDelivery(logged)
+      : runner.model
+    return { kind: 'cli', cli: logged, model }
+  }
+  return stored
+}
+
+/**
+ * Rivet order on host cards: Claude > Codex > OpenCode > Cursor.
+ * @param cards - `listConnections` rows.
+ */
+export function loggedCliFromCards(
+  cards: readonly { kind: string; loggedIn: boolean }[],
+): DetectedCli | undefined {
+  return preferConnectedCli(cards.filter(row => row.loggedIn && row.kind !== 'dsh').map(row => row.kind))
+}
+
+/**
  * Persona store runner → Rivet spec.
  * @param runner - Stored runner.
  */
@@ -161,7 +210,7 @@ export interface PersonaRunnersSlice {
 }
 
 /**
- * Fake unless PERSONA_REAL_CLI=1, then Rivet resolveRunner.
+ * Fake in tests / `PERSONA_SCRIPTED`. Production and `PERSONA_REAL_CLI=1` resolve live.
  * @param request - Persona spec; omitted → fake.
  * @param runners - Plugin inject (`ctx.personaRunners`). Falls back to the import.
  */
@@ -169,7 +218,7 @@ export async function resolveHostRunner(
   request?: HostRunnerRequest,
   runners?: PersonaRunnersSlice,
 ): Promise<Runner> {
-  if (request === undefined || process.env.PERSONA_REAL_CLI !== '1') {
+  if (request === undefined || allowsScriptedReplies()) {
     return runners?.createFakeRunner() ?? createFakeRunner()
   }
   assertCliPermission(request.spec, request.permissionMode)

@@ -4,6 +4,247 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 04/11 08:25 — V1-P0-2 first_delivery persistido + Remote + marco no feed
+
+Não usei `note write`. Keel: só `note edit`.
+
+D-062: pack do Rivet saiu do `build.lock` (`pack.lock` próprio). Build agora é **Probe B9**. Não subi host.
+
+### Host
+- `completeOnboarding` persiste `first_delivery` `working` (nunca "Carregando…").
+- `startFirstDelivery` dá flush, sela `ready`/`failed`, completa review → `done`.
+- `@Remote getFirstDelivery` + `getOverview.firstDelivery` (`idle|working|ready|failed`).
+- Marco `first-delivery-milestone` no #geral (append, sem ingest).
+- `@Remote measureFirstDeliveryAcceptance` 4/4 (engine).
+
+### Prova
+```
+pnpm exec vitest run …/first-delivery.host.spec.ts …/onboarding.spec.ts …/conductor.spec.ts
+  Test Files  3 passed (3)
+  Tests  18 passed | 1 skipped (19)
+  (skip = PERSONA_REAL_E2E≠1)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 7.1s
+```
+
+### Arquivos
+`persona-host/src/{index,types,onboarding}.ts`
+`persona-host/tests/first-delivery.host.spec.ts`
+`persona-host/scripts/first-delivery-real-cli.ts` (TS18046)
+`persona-e2e/tests/mandatory-first-delivery-contract.spec.ts`
+`persona-spec/contracts/lumen-rpc.md`
+
+### Dependências
+- **[Anvil→Prism]** `getFirstDelivery` / `overview.firstDelivery` — status honesto; marco some de Precisa de você (ticket vai a `done`).
+- **[Anvil→Probe]** contrato fake sempre; real = `PERSONA_REAL_E2E=1`.
+- **[Anvil→Atlas]** app-real: lock Probe B9. Pack Rivet paralelo (D-062).
+
+### Fora
+E11 blocked. UI Ensinar (Prism). Instalador (Rivet pack.lock). ≤10 execs quando build lock livre.
+
+---
+
+## 04/11 08:52 — P0 firstDeliveryAsk + PERSONA_REAL_CLI fora de Vitest
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. P0 Atlas/Muse: 0 execs reais. **Não subi host** (lock Rivet D8).
+
+### Causa das 0 execs (Forge)
+`resolveHostRunner` ficava fake salvo `PERSONA_REAL_CLI=1`. Desktop nunca setava. Dogfood Agência: fake no PATH + "Monte a equipe" não era `wantsWork` (agora engine).
+
+### Host
+- `orchestration.wantsWork` reexporta o engine (Monte a equipe / Resuma o Cofre).
+- `completeOnboarding` posta `firstDeliveryAsk` no #geral (`first-delivery`) e ingere → Ticket.
+- `startFirstDelivery` idempotente (flush).
+- `ensureProductionRealCli()`: fora de Vitest / `PERSONA_SCRIPTED` seta `PERSONA_REAL_CLI=1`.
+- `runnerChoices` CLI + bind da conexão logada em personas `dsh`.
+
+### Prova
+```
+pnpm exec vitest run …/onboarding.spec.ts …/real-path.spec.ts …/j01-onboarding.spec.ts
+  Test Files  3 passed (3)
+  Tests  12 passed (12)
+
+pnpm exec vitest run …/share-insights.spec.ts
+  Tests  4 passed (4)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 19.1s
+```
+
+### Arquivos
+`persona-host/src/{index,runner,onboarding,orchestration}.ts`
+`persona-host/tests/{onboarding,real-path}.spec.ts`
+`persona-spec/contracts/lumen-rpc.md`
+
+### Dependências
+- **[Anvil→Prism]** passo 5: o ask já nasce no `completeOnboarding`; `startFirstDelivery` só espera o flush.
+- **[Anvil→Forge]** 0 execs = fake runner + wantsWork estreito. Host agora força REAL_CLI fora de teste.
+- **[Anvil→Atlas]** app-real: lock Rivet. Não subi hosts.
+
+### Fora
+E11 blocked. UI Ensinar (Prism). Instalador (Rivet). ≤10 execs reais quando o lock liberar.
+
+---
+
+## 04/11 08:42 — W2-10 accept / activate / publish / rollback Remotes
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. Encadeei W2-10 Remotes + `usagePortKind` no port + promoção explícita + rollback. app-real: lock = **Rivet D8 b26d8b99a2 retry2**. Não subi hosts.
+
+### W2-10
+`submitTeachDraft` ignora `activate` e grava candidata `origin: taught`. `@Remote acceptTaughtCandidate` persiste desligada. `@Remote activateTaughtSkill` liga só no aceite; tools além do mandato → `ACCESS_ESCALATION`. `@Remote publishTaughtSkill` exige `explicit` para scope ≠ persona. `@Remote rollbackTaughtSkill` desliga (versão sobe).
+
+### OPT-7 port
+`persistTurn` mapeia a janela Rivet só por `usagePortKind` do core (`execution`→`exec`). Livro canônico intacto.
+
+### Prova
+```
+pnpm exec vitest run …/wave2.spec.ts …/token-opt.spec.ts
+  Test Files  2 passed (2)
+  Tests  16 passed (16)
+
+pnpm exec vitest run …/wave2.spec.ts
+  Test Files  1 passed (1)
+  Tests  10 passed (10)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 23.3s
+
+node scripts/persona/check-pkg.mjs persona-store
+  persona-store: OK in 12.7s
+
+node scripts/persona/check-pkg.mjs persona-sync
+  persona-sync: OK in 7.8s
+```
+
+### Arquivos
+`persona-host/src/{index,types,screens,wave2}.ts`
+`persona-host/tests/wave2.spec.ts`
+`persona-spec/contracts/lumen-rpc.md`
+
+### Dependências
+- **[Anvil→Lumen/Prism]** `acceptTaughtCandidate` / `activateTaughtSkill` / `publishTaughtSkill` no Remote. `submitTeachDraft({ activate: true })` continua candidata.
+- **[Anvil→Atlas]** app-real: lock Rivet `package-clean --commit b26d8b99a2`.
+
+### Fora
+E11 blocked. Runner codes (Rivet). UI Ensinar (Prism/Lumen). C8 E2E (Probe). PLAN.md = Keel.
+
+---
+
+## 04/11 08:36 — listSprintGoals (PB-4 caveat)
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. app-real: lock = **Rivet D8 b26d8b99a2**. Não subi hosts.
+
+### PB-4
+`startSprint` já chamava `bindSprintGoal` na memória. Depois do remount o GoalBoard ficava vazio. Agora hidrata dos sprints SQLite (`ativo`/`encerrado`) e `@Remote listSprintGoals` devolve o objetivo.
+
+### Prova
+```
+pnpm exec vitest run …/j15-sprint.spec.ts …/pb-boards-rpc.contract.spec.ts …/boards.spec.ts
+  Test Files  3 passed (3)
+  Tests  8 passed (8)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 15.6s
+```
+
+### Arquivos
+`persona-host/src/{boards,index,types}.ts`
+`persona-host/tests/{journeys/j15-sprint,pb-boards-rpc.contract}.spec.ts`
+`persona-spec/contracts/lumen-rpc.md`
+
+### Dependências
+- **[Anvil→Lumen]** `listSprintGoals` no Remote.
+- **[Anvil→Atlas]** app-real: lock Rivet `package-clean --commit b26d8b99a2`.
+
+### Fora
+E11 blocked. Runner codes (Rivet).
+
+---
+
+## 04/11 08:34 — AG-004 ok (sem seed no onboarding)
+
+**ok.** Host src: nenhum. Sem Remote novo (`grantBrainPermission` / `listBrainPermissions` / `revokeBrainPermission` já existem). First-run continua vazio.
+
+`it` no host: `completeOnboarding` → lista vazia → grant → list → revoke. `onboarding.spec.ts` 4/4. seed-default-team = Prism.
+
+---
+
+## 04/11 08:32 — MessageView.runError no fio
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. app-real: lock = **Probe B9 e2e**. Não subi hosts.
+
+### Prism / RUN-ERRORS
+`listMessages` / `followMessages` preenchem `MessageView.runError` a partir do marcador (`runErrorFromBody`). `dsh` no fio vira provider `Claude`. Sem chaves `undefined`.
+
+### Prova
+```
+pnpm exec vitest run …/run-error-wire.spec.ts …/conductor.spec.ts …/j07-budget.spec.ts
+  Test Files  3 passed (3)
+  Tests  13 passed (13)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 14.1s
+```
+
+### Arquivos
+`persona-host/src/{types,index,run-error-wire,orchestration}.ts`
+`persona-host/tests/{run-error-wire,conductor}.spec.ts`
+`persona-spec/contracts/lumen-rpc.md`
+
+### Dependências
+- **[Anvil→Prism]** `event.runError` no Remote; marker no body permanece para clientes velhos.
+- **[Anvil→Atlas]** app-real: lock Probe `mandatory-b9-real-app`.
+
+### Fora
+Runner ainda manda prosa (Rivet). E11 blocked.
+
+---
+
+## 04/11 08:30 — GES remotes + report sem jargão
+
+Não usei `note write`. Keel: só `note edit`.
+
+Vigia: não parar. app-real: lock = **Probe persona-gate**. Não subi hosts.
+
+### Fechamento v1 / GES-6
+`@Remote measureGestorV1()` e `measureGestorToolsAcceptance()` — Probe sem remount. `measureV1Close` já inclui o score GES.
+
+### Quadro / Enquanto fora
+`engine.report` de login/cota/orçamento usa texto de reserva do RUN-ERRORS-SPEC (sem CLI, DSH, runner, executor). O post do canal continua só o marcador.
+
+### Prova
+```
+pnpm exec vitest run …/conductor.spec.ts …/real-path.spec.ts …/token-opt.spec.ts …/journeys/j07-budget.spec.ts
+  Test Files  4 passed (4)
+  Tests  20 passed (20)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 16.4s
+```
+
+### Arquivos
+`persona-host/src/{index,types,orchestration}.ts`
+`persona-host/tests/{conductor,real-path,token-opt}.spec.ts`
+`persona-spec/contracts/lumen-rpc.md`
+
+### Dependências
+- **[Anvil→Probe]** `measureGestorV1` / `measureGestorToolsAcceptance` no Remote.
+- **[Anvil→Atlas]** app-real: lock Probe `persona-gate.mjs`. Script `.maestri/tmp/capture-app-real.mjs` pronto.
+
+### Fora
+`assertV1Close` continua engine. Runner codes (Rivet). E11 blocked.
+
+---
+
 ## 04/11 08:16 — RUN-ERRORS-SPEC no host (Muse)
 
 Não usei `note write`. Keel: só `note edit`.

@@ -136,9 +136,7 @@ export class OnboardingHost {
         personality: draft.personality,
         instructions: draft.instructions,
         avatar: { kind: draft.avatarKind, ref: draft.avatarRef },
-        runner: draft.runnerKind === 'cli' && isCli(draft.runnerCli)
-          ? { kind: 'cli', cli: draft.runnerCli, model: draft.runnerModel === '' ? 'default' : draft.runnerModel }
-          : { kind: 'dsh', model: draft.runnerModel === '' ? 'default' : draft.runnerModel },
+        runner: runnerOfDraft(draft, request.runnerChoices),
         tools: {},
         skills: [],
         limits: {},
@@ -202,6 +200,25 @@ function toSpec(draft: ReturnType<typeof fallbackDraft>): OnboardingPersonaSpec 
     canRecruit: draft.canRecruit,
     systemRoles: withDefaultGestor(draft.systemRoles),
   }
+}
+
+/** First-run ask id on #geral (`firstDeliveryAsk` from the engine). */
+export const FIRST_DELIVERY_EVENT_ID = 'first-delivery'
+
+/** Feed event for the sealed milestone. Append only — do not ingest. */
+export const FIRST_DELIVERY_MILESTONE_EVENT_ID = 'first-delivery-milestone'
+
+function runnerOfDraft(
+  draft: OnboardingPersonaSpec,
+  choices: readonly string[],
+): { kind: 'dsh'; model: string } | { kind: 'cli'; cli: 'claude' | 'codex' | 'opencode' | 'cursor'; model: string } {
+  const model = draft.runnerModel === '' ? 'default' : draft.runnerModel
+  if (draft.runnerKind === 'cli' && isCli(draft.runnerCli)) {
+    return { kind: 'cli', cli: draft.runnerCli, model }
+  }
+  const chosen = choices.find(isCli)
+  if (chosen !== undefined) return { kind: 'cli', cli: chosen, model }
+  return { kind: 'dsh', model }
 }
 
 function isCli(value: string): value is 'claude' | 'codex' | 'opencode' | 'cursor' {

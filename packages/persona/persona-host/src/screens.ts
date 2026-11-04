@@ -640,13 +640,14 @@ export class ScreensHost {
     id: string
     name: string
     body: string
+    origin?: SkillRecord['origin']
   }): SkillView {
     const row: StoredSkill = {
       id: request.id,
       name: request.name,
       version: 1,
       scope: 'persona',
-      origin: 'learned',
+      origin: request.origin ?? 'learned',
       body: request.body,
       enabled: false,
       personaId: request.personaId,
@@ -656,6 +657,31 @@ export class ScreensHost {
     }
     this.screens.put(request.projectId, KIND_SKILL, request.id, row)
     return toSkillView(row)
+  }
+
+  /**
+   * Stored skill row, including origin. Missing id is undefined.
+   * @param projectId - Tenant.
+   * @param id - Skill.
+   */
+  getSkillRecord(projectId: string, id: string): SkillRecord | undefined {
+    return this.screens.get<StoredSkill>(projectId, KIND_SKILL, id)
+  }
+
+  /**
+   * Replace a stored skill (activate / rollback). Keeps history.
+   * @param projectId - Tenant.
+   * @param skill - Next record.
+   */
+  saveSkillRecord(projectId: string, skill: SkillRecord): SkillView {
+    const current = this.screens.get<StoredSkill>(projectId, KIND_SKILL, skill.id)
+    const stored: StoredSkill = {
+      ...skill,
+      history: current === undefined ? [skill.body] : [...current.history, skill.body],
+      sharedWithTeam: skill.scope !== 'persona',
+    }
+    this.screens.put(projectId, KIND_SKILL, skill.id, stored)
+    return toSkillView(stored)
   }
 
   /**

@@ -37,6 +37,42 @@ export function capChannelReply(text: string): string {
   return words.slice(0, CHANNEL_WORD_LIMIT).join(' ')
 }
 
+const NARRATION = /^(?:vou |deixa eu |estou |agora vou |ok,? vou |certo,? vou |passo \d+[.:])/iu
+
+export interface LeanStructuredReport {
+  readonly decision: string
+  readonly result: string
+  readonly block?: string
+}
+
+/**
+ * Short structured report: decision / result / optional block. Then lean-capped.
+ * @param report - Three fields, already in the product language.
+ * @returns Channel text ≤ 100 words.
+ */
+export function formatLeanStructuredReport(report: LeanStructuredReport): string {
+  const lines = [report.decision, report.result, report.block ?? '']
+    .map(line => line.trim())
+    .filter(line => line !== '')
+  return leanChannelReply(lines.join('\n'))
+}
+
+/**
+ * Drop echo of the user line and step-narration (OPT-6). Then cap at 100 words.
+ * @param text - Model reply.
+ * @param userMessage - Last human line (may be empty).
+ * @returns Lean channel text.
+ */
+export function leanChannelReply(text: string, userMessage = ''): string {
+  let out = text.trim()
+  const user = userMessage.trim()
+  if (user !== '' && out.toLowerCase().startsWith(user.toLowerCase())) {
+    out = out.slice(user.length).replace(/^[\s.:,-]+/, '').trim()
+  }
+  const kept = out.split(/\n/).map(line => line.trim()).filter(line => line !== '' && !NARRATION.test(line))
+  return capChannelReply(kept.join(' '))
+}
+
 /**
  * One batch per persona per calendar day — no per-item pings.
  * @param drafts - Proposed initiatives.

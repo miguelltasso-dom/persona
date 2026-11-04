@@ -4,6 +4,460 @@ Mais recente no topo.
 
 ---
 
+## 04/11 06:28 — T3 `withTurnActivityEmit` (host sem emit)
+
+Vigia: não parar. Keel: só `note edit` no Status (não fui eu no `note write`). Atlas T3: `ProjectRuntime` cria o Engine sem `emit`.
+
+### T3
+`withTurnActivityEmit(persist, next?)` — Anvil põe em `EngineOptions.emit`:
+`emit: withTurnActivityEmit(row => this.recordTurnActivity({ workspaceId, projectId, ...row }))`.
+Persiste `assignment.reported`; encaminha os outros eventos.
+
+### Testes
+```
+pnpm exec vitest run …/activity.spec.ts
+  Test Files  1 passed (1)  Tests  2 passed (2)
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 23.7s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: essa linha de `emit` em `orchestration.ts` (~180); `measureOpt8({ liveEntries })`.
+- **Probe**: `measureV1Close` no E2E v1.
+- **Miguel**: amostras F1.
+- GES/OPT/SB domínio já no código — marcar done é do Keel.
+
+---
+
+## 04/11 06:22 — T3 loop: `assignment.reported` → fold
+
+Vigia: não parar. Atlas 06:05 / Prism 06:17: Forge `[[gestor-plan:id]]` auto + `recordTurnActivity` no loop.
+
+### T3
+`Engine.report` emite `assignment.reported` (persona = mandate actor, thread = canal). Host `emit` → `activityFromDomainEvent` → `recordTurnActivity` RPC. Fold deixa de nascer vazio. Marker gestor já é `emitGestorPropose` (`[[gestor-plan:id]]` + activity waiting) — host já chama no propose.
+
+### Testes
+```
+pnpm exec vitest run …/activity.spec.ts
+  Test Files  1 passed (1)  Tests  2 passed (2)
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 34.2s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `EngineOptions.emit` → `activityFromDomainEvent` → `recordTurnActivity`; `measureOpt8({ liveEntries })`; opcional `measureV1Close`.
+- **Probe**: `measureV1Close` no E2E v1.
+- **Miguel**: amostras F1.
+- GES/OPT/SB domínio já no código — marcar done é do Keel.
+
+---
+
+## 04/11 06:10 — fechamento v1 `measureV1Close` + OPT-8 relatório
+
+Vigia: não parar. Sem "seguindo fila" — Atlas 06:05 pediu marker Forge; PLAN PRO-* + fechamento v1.
+
+### Fechamento v1
+`measureV1Close()` = PRO-6 (6/6) + GES-6 (3/3) + OPT-8 (3/4, `cut-40` blocked). `passed` ignora `blocked`. Probe / `@Remote measureV1Close` chamam; não remontam. Relatório: `persona-spec/reports/v1-close.md`.
+
+### OPT-8
+`ticketIdsFromLedger` no core. `measureOpt8Acceptance({ liveEntries })` deriva os ticket ids se omitidos. Host deve passar o livro, não só contar linhas. Relatório: `persona-spec/reports/opt8-acceptance.md` (3/4, cache 0.63, baseline 134.0).
+
+### Testes
+```
+pnpm exec vitest run …/token-ledger.spec.ts …/token-measure.spec.ts …/v1-close.spec.ts
+  Test Files  3 passed (3)  Tests  14 passed (14)
+
+pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts
+  wrote opt8-acceptance.md / v1-close.md
+
+node scripts/persona/check-pkg.mjs persona-core
+  persona-core: OK in 5.9s
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 14.3s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `@Remote measureOpt8` → `measureOpt8Acceptance({ liveEntries })`; opcional `@Remote measureV1Close`; importar `withDefaultGestor` do core.
+- **Probe**: `measureV1Close` no E2E de fechamento v1 (PRO-6 / GES-6 / OPT-8).
+- **Miguel**: amostras reais F1.
+- GES/OPT/SB domínio já no código — marcar done é do Keel.
+
+---
+
+## 04/11 05:50 — GES-1 withDefaultGestor no core + OPT-8 live
+
+Vigia: não parar. Sem "seguindo fila" — furo GES-1: `assignSystemRole` só dava `coordination`; host tinha cópia local de `withDefaultGestor`.
+
+### GES-1
+`withDefaultGestor` em `rules.ts` (evita ciclo gestor↔rules). `assignSystemRole(..., 'coordination')` também concede `team_manager`; o coordenador anterior perde só Coordenação. Onboarding (`personaSpecToOnboardingWire` / parse) e `personaPropose` usam a mesma função. Host deve importar do core, não copiar.
+
+### GES-6 / PRO-6
+`measureGestorV1` = `measureGestorAcceptance` (3/3). `measureProactivityV1` = `measureProactivityAcceptance` (6/6). Probe / `@Remote` chamam; não remontam bullets.
+
+### OPT-8
+`measureOpt8Acceptance({ liveEntries, successfulTicketIds, baselineTokensPerTask? })` — sem livro, `cut-40` continua `blocked` (3/4). Com tickets+entries, o corte −40% entra no score.
+
+### Testes
+```
+pnpm exec vitest run …/domain.spec.ts …/onboarding-wire.spec.ts …/token-measure.spec.ts …/gestor.spec.ts
+  Test Files  4 passed (4)  Tests  23 passed (23)
+
+pnpm exec vitest run …/proactivity-v1.spec.ts
+  Test Files  1 passed (1)  Tests  9 passed (9)
+
+node scripts/persona/check-pkg.mjs persona-core
+  persona-core: OK in 7.8s
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 20.8s / 21.9s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: trocar a cópia local `withDefaultGestor` pelo export do core; `@Remote measureGestorV1`; livro live antes/depois para `cut-40`.
+- **Probe**: `measureGestorV1` / `measureProactivityV1` / `measureOpt8Acceptance` no E2E GES-6 / PRO-6 / OPT-8; S7 UI; `PERSONA_REAL_IMPORTS`.
+- **Miguel**: amostras reais F1.
+- GES/OPT/SB domínio já no código — marcar done é do Keel.
+
+---
+
+## 04/11 05:52 — composeHostTalk = talkLayers (colegas + recall)
+
+Vigia: não parar. Sem "seguindo fila" — Anvil 05:10: `composeHostTalk` cortava colegas/recall, então o host ficou em `composeTurnPrompt`.
+
+### OPT-3
+`foldHostTalkUsed` — mesmo fold do host (Cofre obrigatório / `subject_summary` / recall; restricted fora).
+`composeHostTalk` agora aceita `required` + `subject` + `recall`; colegas vão no prefixo (cache). Mensagem e recall no tail.
+`composePersonaStable` = `composeHostTalk`. Host troca `talkLayers` por `foldHostTalkUsed` + `composeHostTalk` + `finishHostTalk`.
+
+### Testes
+```
+pnpm exec vitest run …/lean-output.spec.ts …/voice.spec.ts …/talk-eval.spec.ts
+  Test Files  3 passed (3)  Tests  10 passed (10)
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 19.6s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `talkLayers` → `foldHostTalkUsed` + `composeHostTalk` (já tem `finishHostTalk`).
+- **Probe**: `measureGestorAcceptance` / `measureProactivityAcceptance` / `measureOpt8Acceptance`; S7 UI; `PERSONA_REAL_IMPORTS`.
+- **Anvil**: livro live para OPT-8 `cut-40`.
+- GES/OPT/SB domínio já no código — marcar done é do Keel.
+
+---
+
+## 04/11 05:38 — GES aceite + emit kind + OPT-8 scripted
+
+Vigia: não parar. Sem "seguindo fila" — GES-6 sem gate de domínio; `emitGestorPropose` gravava kind `hire` em allocate; OPT-8 sem score.
+
+### GES / MAESTRO
+`measureGestorAcceptance()` — 3 bullets (assemble Site+sprint 1; limits/always_ask; escopos+auditoria). Probe chama esta função.
+`emitGestorPropose` usa `plan.action` (`assemble` → hire; `allocate`/`reorganize` → command).
+
+### OPT-8
+`measureOpt8Acceptance` — idle zero, cache ≥ 60%, paridade CLI = 3/4. `cut-40` em `blocked` até o livro live.
+
+### Testes
+```
+pnpm exec vitest run …/gestor.spec.ts …/token-measure.spec.ts
+  Test Files  2 passed (2)  Tests  11 passed (11)
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 59.1s
+```
+
+### Dependências (fila NÃO vazia)
+- **Probe**: `measureGestorAcceptance` no E2E GES-6; `measureProactivityAcceptance` no PRO-6; `measureOpt8Acceptance` no OPT-8; S7 UI; `PERSONA_REAL_IMPORTS`.
+- **Anvil**: livro live para `cut-40`; two-way `applyBrainVaultSync`+`foreignVaultToBringFiles`; paste `vaultToBringExisting`.
+- **Rivet / Lumen**: pool cheap; painel Uso.
+- GES/OPT/SB domínio já no código — marcar done é do Keel.
+
+---
+
+## 04/11 05:22 — PRO-6 measure + composeHostTalk + foreignVaultToBringFiles
+
+Vigia: não parar. Sem "seguindo fila" — PRO-6 só pontuava flags; host ainda no snapshot de talk; two-way foreign sem caminho BYC.
+
+### PRO-6 / fechamento v1
+`measureProactivityAcceptance()` — relógio falso nos 6 bullets (puxada, Vigia, fila+objetivo, recover, silêncio, whileAway) e devolve `scoreProactivityAcceptance`. Probe chama esta função; E2E/capturas continuam Probe.
+
+### OPT-3 / OPT-6
+`composeHostTalk` + `finishHostTalk` (lean + recusa hedge). `measureLeanVsNaive` mede economia scriptada (não é OPT-8 −40%). Host deve trocar `composePersonaPrompt`.
+
+### SB-6
+`foreignVaultToBringFiles(imports)` → `{ path, text }` para `previewBringVault`.
+
+### Testes
+```
+pnpm exec vitest run …/proactivity-v1.spec.ts …/lean-output.spec.ts …/brain.spec.ts
+  Test Files  3 passed (3)  Tests  26 passed (26)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 26.8s
+  persona-engine: OK in 41.7s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `composeHostTalk`+`finishHostTalk` no talk; `foreignVaultToBringFiles` no import two-way; `applyBrainVaultSync` no export; `vaultToBringExisting` no paste; `emitGestorPropose` no propose.
+- **Probe**: `measureProactivityAcceptance` no E2E PRO-6; S7 UI; `PERSONA_REAL_IMPORTS`.
+- **Rivet / Prism / Lumen**: pool cheap; cartão topicId.
+- OPT-8 −40% após integração. GES/OPT/SB domínio já no código — marcar done é do Keel.
+
+---
+
+## 04/11 05:12 — SB-6 applyBrainVaultSync + F1 Notion + dedupe oficial
+
+Vigia: não parar. Sem "seguindo fila" — PLAN SB-6 persist e F1 ainda abertos no domínio.
+
+### SB-6
+`markdownToBrainPage` agora devolve `visibility` + `properties`. Dest sem pack → `tryParseBrainPageMarkdown` = null (não lança). `applyBrainVaultSync(plan)` classifica imports: `page` (upsert) ou `foreign` (BYC). Leftover nunca apagado.
+
+### F1
+Fixture oficial Notion (`pages.csv` + `.md` + anexo). Aceite "reimportar não duplica" nas 6 fixtures oficiais (ChatGPT, Claude, Gemini, Grok, Notion, Obsidian). Amostra real continua `it.skipIf` até `PERSONA_REAL_IMPORTS`.
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-core/tests/brain.spec.ts packages/persona/persona-core/tests/official-import.spec.ts
+  Test Files  2 passed (2)
+      Tests  24 passed | 1 skipped (25)
+
+node scripts/persona/check-pkg.mjs persona-core
+  persona-core: OK in 9.3s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil / Rivet**: `exportBrainVault` / `importBrainVault` chamam `applyBrainVaultSync`; `page` upsert; `foreign` → `previewBringVault`.
+- **Anvil**: paste RPC com `vaultToBringExisting`; `emitGestorPropose` no propose.
+- **Probe / Miguel**: PRO-6 E2E; S7 UI; `PERSONA_REAL_IMPORTS`.
+- **Rivet / Prism / Lumen**: pool cheap; talk estável; cartão topicId.
+- OPT-8 −40% após integração. GES/OPT/SB domínio já no código — marcar done é do Keel.
+
+---
+
+## 04/11 04:55 — BYC existing + emitGestorPropose + PRO-6 score
+
+Vigia: não parar. Sem "seguindo fila" — Atlas ainda pedia marker+atividade no loop; Lumen `existing: []` no paste; PRO-6 sem gate de domínio.
+
+### BYC / Lumen
+`vaultToBringExisting` mapeia o Cofre para `parseBringPaste({ existing })`. `applyContextProposals` = nome do RPC para `decideBringApply`. Host não deve passar `[]` se o Cofre tem linhas.
+
+### GES / Atlas
+`emitGestorPropose({ plan, threadId, at })` — um write: corpo `[[gestor-plan:id]]` + `recordTurnActivity` waiting.
+
+### PRO-6
+`scoreProactivityAcceptance` — 6/6 ou `failed[]`. E2E/capturas = Probe.
+
+### Testes
+```
+pnpm exec vitest run …/bring-context.spec.ts …/engine/gestor.spec.ts …/proactivity-v1.spec.ts
+  Test Files  3 passed (3)  Tests  19 passed (19)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 23.5s
+  persona-engine: OK in 36.0s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `vaultToBringExisting` no paste RPC; `emitGestorPropose` no propose; `applyContextProposals` no Remote.
+- **Probe**: `scoreProactivityAcceptance` no E2E PRO-6; S7 UI; `PERSONA_REAL_IMPORTS`.
+- **Rivet / Prism / Lumen**: pool, talk estável, cartão topicId.
+- OPT-8 −40% após integração. F1 amostra real = Miguel.
+
+---
+
+## 04/11 04:46 — GES marker + T3 recordTurnActivity + GOV foldTwoDay + topicId
+
+Vigia: não parar. Sem "seguindo fila" — Atlas/Lumen pediram `[[gestor-plan:id]]`, atividade no loop, linhas do Teste 2 dias e `TaskView.topicId`.
+
+### GES (Atlas)
+`attachGestorPlanMarker` / `parseGestorPlanId` / `proposeGestorChannelBody` — host posta o corpo com `[[gestor-plan:id]]` ao propor.
+
+### T3
+`recordTurnActivity` = alias do loop para `activityFromReport`. Anvil já tem o RPC.
+
+### GOV / Lumen
+`foldTwoDayLines` agrupa rotina / aprovação / persona. Eventos levam `personaId`.
+
+### WAVE2 / Lumen
+`ticketCardTopic` → `{ topicId, name, color, colorIndex }` para o cartão live.
+
+### Testes
+```
+pnpm exec vitest run …/gestor.spec.ts …/governance.spec.ts …/subjects.spec.ts …/engine/gestor.spec.ts …/activity.spec.ts
+  Test Files  5 passed (5)  Tests  34 passed (34)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 13.7s
+  persona-engine: OK in 22.8s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: postar `proposeGestorChannelBody` no propose; `recordTurnActivity` no conductor; `foldTwoDayLines` no Remote de Saúde; `TaskView.topicId` via `ticketCardTopic`.
+- **Prism / Lumen**: parse do marker (já existe no client); cartão com topicId.
+- **Rivet**: pool cheap; two-way; cache prefixo.
+- **Probe / Miguel**: S7 UI; PRO-6; `PERSONA_REAL_IMPORTS`.
+- OPT-8 −40% após integração.
+
+---
+
+## 04/11 04:36 — SB-6 two-way + OPT-5 reuse + OPT-3 persona estável + PRO-1 hedge
+
+Vigia: não parar. Sem "seguindo fila" — PLAN Forge ainda aberto (SB-6 persist, OPT-3/5 host, PRO-1 hedge no conductor, OPT-8).
+
+### SB-6
+`planBrainVaultSync` — default `one_way` (import vazio). `two_way` lista dest cujo hash não está no cérebro (`importFiles`). Nunca apaga leftover.
+
+### OPT-5
+`sessionReuseForTurn` — `reuse` só com a mesma persona e o mesmo prefixo (não reenviar). Senão `new`.
+
+### OPT-3
+`composePersonaStable` — vault+setor em `required`; mensagem/anexos no tail. `composePersonaPrompt` permanece o snapshot.
+
+### PRO-1
+`looksLikeHesitantOffer` / `refuseHesitantOffer` — corta "posso fazer se você quiser" quando o trabalho já está no mandato.
+
+### Bibliotecário
+`runBrainHygiene(pages, now, changedIds)` — `[]` = no-op (só o que mudou).
+
+### Testes
+```
+pnpm exec vitest run …/brain.spec.ts …/engine-policy.spec.ts …/proactivity-v1.spec.ts …/stable-prefix.spec.ts …/second-brain-curation.spec.ts …/voice.spec.ts
+  Test Files  6 passed (6)  Tests  34 passed (34)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 16.9s
+  persona-engine: OK in 34.0s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `planBrainVaultSync` no Remote; `runBrainHygiene(..., changedIds)` no lote; host talk → `composePersonaStable`.
+- **Rivet**: `sessionReuseForTurn` no pool; two-way no desktop; cache hit do prefixo.
+- **Prism**: composer no caminho estável; sem hedge no canal.
+- **Probe / Miguel**: S7 UI; PRO-6; `PERSONA_REAL_IMPORTS`.
+- OPT-8 −40% após integração.
+
+---
+
+## 04/11 04:12 — OPT-3 talk estável + OPT-4 subject prefix/digest + GES-3 commentPlan
+
+Vigia: não parar. O próximo era o talk sem prefixo estável (OPT-3) — fechei e encadeei OPT-4 + GES-3.
+
+### OPT-3
+`composeTalkStable` — identidade/voz/capacidades no prefixo; Cofre + colegas + mensagem no tail. `composeTalkPrompt` permanece o snapshot. `finalizeTalkReply` = `leanChannelReply`. Host deve preferir o caminho novo.
+
+### OPT-4
+`compileActiveSubject` agora passa `prefix` para `compileContext` (opcionais já no prefixo saem). `subjectDigest` → `digest` via `incrementalSubjectSummary`.
+
+### GES-3
+`gestorConflictDecision` — segundo Gestor no mesmo escopo devolve `commentPlan` (`commented` + `commentOnId`). `runGestor*` usa isso. `gestorDecisionRows` persiste a linha de comentário.
+
+### BYC (Probe)
+`classifyVaultPath('logo.png')` = `binary` (domínio já ignorava anexo). Walk do host = Anvil.
+
+### Testes
+```
+pnpm exec vitest run …/stable-prefix.spec.ts …/prompts.spec.ts …/voice.spec.ts
+  Test Files  3 passed (3)  Tests  11 passed (11)
+
+pnpm exec vitest run …/gestor.spec.ts …/subject-context.spec.ts …/engine/tests/gestor.spec.ts …/stable-prefix.spec.ts
+  Test Files  4 passed (4)  Tests  24 passed (24)
+
+pnpm exec vitest run …/bring-context.spec.ts
+  Test Files  1 passed (1)  Tests  6 passed (6)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 8.1s
+  persona-engine: OK in 18.0s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: persistir `commentPlan` via `gestorDecisionRows`; passar `prefix` + `subjectDigest` em `compileActiveSubject`; host talk → `composeTalkStable` + `finalizeTalkReply`. Walk BYC `logo.png` no host.
+- **Rivet**: pool cheap; cache hit do prefixo no adapter; apply vault; purge teach.
+- **Prism**: ActivityGroup; UI Ensinar; composer talk estável.
+- **Probe / Miguel**: S7 UI; PRO-6; `PERSONA_REAL_IMPORTS`.
+- OPT-8 −40% após integração. PLAN ainda marca GES/OPT como todo (Keel).
+
+### Contrato (Keel)
+`GestorDecision.conflict.commentPlan?` opcional; `gestorConflictDecision` novo; `CompiledSubjectContext.digest?`; `composeTalkStable` / `finalizeTalkReply`. Compatível com leitores antigos.
+
+---
+
+## 04/11 03:33 — GES reject + T3 book + OPT-6 report + teach purge list
+
+Vigia: não parar. Sem "seguindo fila" — PLAN Forge ainda aberto (GES-2 recusar, T3 listTurnActivity, OPT-6 relatório curto, W2-10 purge).
+
+### GES-2
+`rejectGestorPlan` marca `rejected`; plano já `applied` lança.
+
+### T3 §9
+`foldTurnActivityBook` = folds + `successRate` (`null` se vazio / só waiting). Anvil pode devolver isso em `listTurnActivity`.
+
+### OPT-6
+`formatLeanStructuredReport` = decisão / resultado / bloqueio, já capado.
+
+### W2-10
+`listTeachArtifactsToPurge` lista ids vencidos para Anvil/Rivet apagarem.
+
+### Testes
+```
+pnpm exec vitest run …/gestor.spec.ts …/activity.spec.ts …/lean-output.spec.ts …/teach-skill.spec.ts
+  Test Files  4 passed (4)  Tests  21 passed (21)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 13.0s
+  persona-engine: OK in 35.1s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `rejectGestorPlan` / `foldTurnActivityBook` / `listTeachArtifactsToPurge` no host.
+- **Rivet**: pool cheap; apply vault; purge teach.
+- **Prism**: ActivityGroup; UI Ensinar.
+- **Probe / Miguel**: S7 UI; PRO-6; `PERSONA_REAL_IMPORTS`.
+- OPT-8 −40% após integração. PLAN ainda marca GES/OPT como todo (Keel).
+
+---
+
+## 04/11 03:24 — T3 taxa nula + OPT-6 lean + GES-5 audit + OPT-1 bench-tokens
+
+Vigia: não parar. Sem "seguindo fila" — PLAN Forge ainda aberto (OPT-1 aceite `bench-tokens.md`, OPT-6 eco, T3 §9 vazio≠0%, GES-5, W2-10 purge).
+
+### T3 §9
+`activitySuccessRate`: sem eventos ou só waiting/running = `null` (não 0%).
+
+### OPT-6
+`leanChannelReply` tira eco da linha do humano e narração (`Vou agora` / `Passo 1`) e cap 100 palavras.
+
+### GES-5
+`formatGestorAuditFromPlan` — linha de Saúde/perfil a partir do plano. Persistência = Anvil.
+
+### W2-10
+`teachShouldPurge` — Anvil/Rivet apagam o artefato no vencimento (30 dias).
+
+### OPT-1 aceite
+`persona-spec/reports/bench-tokens.md` alinhado aos números scripted (idle/initiative-30 = 0; cache 0.63; pareado parity). OPT-8 −40% ainda não.
+
+### Testes
+```
+pnpm exec vitest run …/activity.spec.ts …/gestor.spec.ts …/lean-output.spec.ts …/teach-skill.spec.ts
+  Test Files  4 passed (4)  Tests  21 passed (21)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 18.5s
+  persona-engine: OK in 93.9s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `gestorDecisionRows` / assemble / `formatGestorAuditFromPlan` / `activitySuccessRate` / `teachShouldPurge` no host.
+- **Rivet**: pool cheap; apply vault; purge teach.
+- **Prism**: ActivityGroup; UI Ensinar.
+- **Probe / Miguel**: S7 UI; PRO-6; `PERSONA_REAL_IMPORTS`.
+- OPT-8 −40% após integração. PLAN ainda marca GES/OPT como todo (Keel).
+
+---
+
 ## 04/11 02:41 — GES assemble gate + W2-10 edit/rollback + SB-6 apply + OPT-4 trim
 
 Vigia: não parar. Sem "seguindo fila" — PLAN Forge ainda aberto (GES-2 assemble sem gate, W2-10 revisão, SB-6 apply, OPT-4 tail).

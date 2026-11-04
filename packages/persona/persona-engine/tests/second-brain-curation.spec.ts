@@ -83,4 +83,7 @@ it('dedupes without an LLM and keeps the dropped page in history', () => {
   expect(pages.find(row => row.id === 'a')?.status).toBe('replaced')
   expect(pages.find(row => row.id === 'b')?.status).toBe('active')
   expect(pages.find(row => row.id === 'a')?.body).toBe(a.body)
+  const idle = runBrainHygiene([a, b], now, [])
+  expect(idle.pages.find(row => row.id === 'a')?.status).toBe('active')
+  expect(idle.reminders).toEqual([])
 })

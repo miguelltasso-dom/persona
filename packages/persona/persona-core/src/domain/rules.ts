@@ -108,13 +108,14 @@ export function personaPropose(input: {
   if (!input.creator.canRecruit || input.creator.workspaceId !== input.workspaceId) {
     throw new DomainError('ACL_DENIED')
   }
-  if (looksLikeCredential(JSON.stringify(input.spec))) throw new DomainError('SECRET_REFUSED')
-  assertProposalWithinCreatorAccess(input.creator, input.spec)
+  const spec = { ...input.spec, systemRoles: withDefaultGestor(input.spec.systemRoles) }
+  if (looksLikeCredential(JSON.stringify(spec))) throw new DomainError('SECRET_REFUSED')
+  assertProposalWithinCreatorAccess(input.creator, spec)
   return {
     id: input.id,
     workspaceId: input.workspaceId,
     creatorPersonaId: input.creator.id,
-    spec: input.spec,
+    spec,
     policy: input.policy,
     status: input.policy === 'auto' ? 'approved' : 'pending',
     createdAt: input.createdAt,
@@ -122,7 +123,18 @@ export function personaPropose(input: {
 }
 
 /**
- * Assign a system function. Coordination moves: the previous holder loses it.
+ * GES-1: Coordenação also holds Gestor de equipe. Other roles stay as given.
+ * @param roles - Requested system roles.
+ * @returns A new array; `team_manager` appended when coordination is present.
+ */
+export function withDefaultGestor(roles: readonly SystemRole[]): SystemRole[] {
+  if (!roles.includes('coordination') || roles.includes('team_manager')) return [...roles]
+  return [...roles, 'team_manager']
+}
+
+/**
+ * Assign a system function. Coordination moves: the previous holder loses it
+ * but keeps Gestor. The new coordinator also receives `team_manager` (GES-1).
  * @param personas - Current roster.
  * @param personaId - Persona that receives the function.
  * @param role - Function to assign.
@@ -137,7 +149,9 @@ export function assignSystemRole(
   if (target === undefined) throw new DomainError('UNKNOWN_PERSONA')
   const next = personas.map((persona) => {
     if (role === 'coordination') {
-      if (persona.id === personaId) return withRoles(persona, [...persona.systemRoles, 'coordination'])
+      if (persona.id === personaId) {
+        return withRoles(persona, withDefaultGestor([...persona.systemRoles, 'coordination']))
+      }
       if (persona.workspaceId === target.workspaceId) {
         return withRoles(persona, persona.systemRoles.filter(item => item !== 'coordination'))
       }

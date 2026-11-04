@@ -3,12 +3,14 @@
  * Persistence is the host/store; this file only sequences domain checks.
  */
 
+import { recordTurnActivity } from './activity.ts'
 import {
   assembleTeamForGoal,
-  claimGestorScope,
+  attachGestorPlanMarker,
   commentGestorPlan,
   decideGestorAction,
   gestorAllocate,
+  gestorConflictDecision,
   gestorHire,
   gestorInitiative,
   gestorReorganize,
@@ -24,6 +26,15 @@ import {
   type PersonaProposal,
   type PersonaSpec,
 } from '@deepseek-ai/dsh-persona-core'
+
+function clashOnScope(open: readonly GestorPlan[] | undefined, draft: GestorPlan, at: string): GestorDecision | undefined {
+  return gestorConflictDecision({
+    open: open ?? [],
+    draft,
+    commentId: `${draft.id}-comment`,
+    at,
+  })
+}
 
 export type { GestorAssemble, GestorDecision, GestorInitiative }
 
@@ -44,16 +55,8 @@ export function runGestorHire(input: {
   readonly at: string
   readonly openPlans?: readonly GestorPlan[]
 }): { readonly decision: GestorDecision; readonly proposal?: PersonaProposal } {
-  const clash = claimGestorScope(input.openPlans ?? [], input.plan.scopeKey)
-  if (clash.kind === 'conflict' && clash.existingPlanId !== input.plan.id) {
-    return {
-      decision: {
-        kind: 'conflict',
-        existingPlanId: clash.existingPlanId,
-        comment: 'já tem um plano neste escopo — comentei',
-      },
-    }
-  }
+  const clash = clashOnScope(input.openPlans, input.plan, input.at)
+  if (clash !== undefined) return { decision: clash }
   const decision = decideGestorAction({
     mandate: input.mandate,
     plan: input.plan,
@@ -106,16 +109,8 @@ export function runGestorAssemble(input: {
   readonly at: string
   readonly openPlans?: readonly GestorPlan[]
 }): { readonly decision: GestorDecision; readonly assemble?: GestorAssemble } {
-  const clash = claimGestorScope(input.openPlans ?? [], input.plan.scopeKey)
-  if (clash.kind === 'conflict' && clash.existingPlanId !== input.plan.id) {
-    return {
-      decision: {
-        kind: 'conflict',
-        existingPlanId: clash.existingPlanId,
-        comment: 'já tem um plano neste escopo — comentei',
-      },
-    }
-  }
+  const clash = clashOnScope(input.openPlans, input.plan, input.at)
+  if (clash !== undefined) return { decision: clash }
   const decision = decideGestorAction({
     mandate: input.mandate,
     plan: input.plan,
@@ -155,16 +150,8 @@ export function runGestorAllocate(input: {
   readonly reportsTo?: string
   readonly openPlans?: readonly GestorPlan[]
 }): { readonly decision: GestorDecision; readonly allocation?: GestorAllocation } {
-  const clash = claimGestorScope(input.openPlans ?? [], input.plan.scopeKey)
-  if (clash.kind === 'conflict' && clash.existingPlanId !== input.plan.id) {
-    return {
-      decision: {
-        kind: 'conflict',
-        existingPlanId: clash.existingPlanId,
-        comment: 'já tem um plano neste escopo — comentei',
-      },
-    }
-  }
+  const clash = clashOnScope(input.openPlans, input.plan, input.at)
+  if (clash !== undefined) return { decision: clash }
   const decision = decideGestorAction({
     mandate: input.mandate,
     plan: input.plan,
@@ -205,16 +192,8 @@ export function runGestorReorganize(input: {
   readonly ceiling?: GestorReorganize['nextAutonomy']
   readonly openPlans?: readonly GestorPlan[]
 }): { readonly decision: GestorDecision; readonly change?: GestorReorganize } {
-  const clash = claimGestorScope(input.openPlans ?? [], input.plan.scopeKey)
-  if (clash.kind === 'conflict' && clash.existingPlanId !== input.plan.id) {
-    return {
-      decision: {
-        kind: 'conflict',
-        existingPlanId: clash.existingPlanId,
-        comment: 'já tem um plano neste escopo — comentei',
-      },
-    }
-  }
+  const clash = clashOnScope(input.openPlans, input.plan, input.at)
+  if (clash !== undefined) return { decision: clash }
   const decision = decideGestorAction({
     mandate: input.mandate,
     plan: input.plan,
@@ -264,4 +243,38 @@ export function runGestorTie(
   chosenId: string,
 ): ReturnType<typeof resolveGestorTie> {
   return resolveGestorTie({ plans, chosenId })
+}
+
+/**
+ * Channel body when a plan is proposed. Host posts this so Prism can parse
+ * `[[gestor-plan:id]]`.
+ * @param plan - Open plan.
+ * @returns Summary plus the marker, once.
+ */
+export function proposeGestorChannelBody(plan: GestorPlan): string {
+  return attachGestorPlanMarker(plan.summary, plan.id)
+}
+
+/**
+ * One host write when a plan is proposed: channel body + activity row.
+ * @param input - Plan, conversation thread, clock.
+ * @returns Body to post and the activity row to persist.
+ */
+export function emitGestorPropose(input: {
+  readonly plan: GestorPlan
+  readonly threadId: string
+  readonly at: string
+}): { readonly channelBody: string; readonly activity: ReturnType<typeof recordTurnActivity> } {
+  return {
+    channelBody: proposeGestorChannelBody(input.plan),
+    activity: recordTurnActivity({
+      id: `act-${input.plan.id}`,
+      personaId: input.plan.gestorId,
+      threadId: input.threadId,
+      title: input.plan.summary,
+      at: input.at,
+      tool: input.plan.action,
+      state: 'waiting',
+    }),
+  }
 }

@@ -384,6 +384,33 @@ export interface BringApplyItem {
  * @param preview - Last preview.
  * @param items - Person choices.
  */
+/**
+ * Map Cofre / vault rows so paste preview can flag duplicate and conflict.
+ * Host must pass this instead of `existing: []`.
+ * @param records - Active vault rows the actor can read.
+ * @returns Rows ready for {@link parseBringPaste} `existing`.
+ */
+export function vaultToBringExisting(
+  records: readonly { readonly id: string; readonly kind: string; readonly body: string }[],
+): BringExistingRecord[] {
+  return records
+    .filter(row => row.id !== '' && row.body.trim() !== '')
+    .map(row => ({ id: row.id, kind: row.kind, body: row.body }))
+}
+
+/**
+ * Lumen / Anvil RPC name for {@link decideBringApply}.
+ * @param preview - Last preview.
+ * @param items - Person choices.
+ * @returns Rows that may be written (never blocked/conflict/discard).
+ */
+export function applyContextProposals(
+  preview: BringContextPreview,
+  items: readonly BringApplyItem[],
+): BringContextProposal[] {
+  return decideBringApply(preview, items)
+}
+
 export function decideBringApply(
   preview: BringContextPreview,
   items: readonly BringApplyItem[],

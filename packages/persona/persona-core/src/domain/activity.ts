@@ -61,6 +61,17 @@ export function sortActivity(events: readonly TurnActivityEvent[]): TurnActivity
  * @param events - Raw ledger of the turn.
  * @returns One fold per persona+thread.
  */
+/**
+ * Done / (done + failed). Empty or still-running turns are not 0%.
+ * @param events - Turn rows (one thread or the whole book).
+ * @returns Rate 0–1, or `null` when there is nothing finished.
+ */
+export function activitySuccessRate(events: readonly TurnActivityEvent[]): number | null {
+  const finished = events.filter(row => row.status === 'done' || row.status === 'failed')
+  if (finished.length === 0) return null
+  return finished.filter(row => row.status === 'done').length / finished.length
+}
+
 export function groupTurnActivity(events: readonly TurnActivityEvent[]): ActivityGroupFold[] {
   const order: string[] = []
   const groups = new Map<string, TurnActivityEvent[]>()

@@ -4,6 +4,7 @@ import {
   assertProposalWithinCreatorAccess,
   assertUniqueCoordination,
   assignSystemRole,
+  withDefaultGestor,
   parsePersona,
   parsePersonaProposal,
   parsePersonaSpec,
@@ -194,7 +195,25 @@ it('allows only one coordination assignment per workspace', () => {
     .toThrow('COORDINATION_NOT_UNIQUE')
   assertUniqueCoordination([atlas, bento])
   const moved = assignSystemRole([atlas, bento], 'bento', 'coordination')
-  expect(moved.find(item => item.id === 'bento')?.systemRoles).toEqual(['coordination'])
+  expect(moved.find(item => item.id === 'bento')?.systemRoles).toEqual(['coordination', 'team_manager'])
   expect(moved.find(item => item.id === 'atlas')?.systemRoles).toEqual([])
   assertUniqueCoordination(moved)
+  expect(withDefaultGestor(['coordination'])).toEqual(['coordination', 'team_manager'])
+  expect(withDefaultGestor(['coordination', 'team_manager'])).toEqual(['coordination', 'team_manager'])
+  expect(withDefaultGestor(['watchdog'])).toEqual(['watchdog'])
+  const kept = assignSystemRole([
+    persona({ id: 'atlas', systemRoles: ['coordination', 'team_manager'] }),
+    persona({ id: 'bento', name: 'Bento' }),
+  ], 'bento', 'coordination')
+  expect(kept.find(item => item.id === 'atlas')?.systemRoles).toEqual(['team_manager'])
+  expect(kept.find(item => item.id === 'bento')?.systemRoles).toEqual(['coordination', 'team_manager'])
+  const hired = personaPropose({
+    id: 'prop-coord',
+    workspaceId: 'ws',
+    creator: persona({ id: 'atlas', canRecruit: true, systemRoles: ['coordination', 'team_manager'] }),
+    spec: spec({ systemRoles: ['coordination'] }),
+    policy: 'auto',
+    createdAt: '2026-11-03T13:00:00Z',
+  })
+  expect(hired.spec.systemRoles).toEqual(['coordination', 'team_manager'])
 })

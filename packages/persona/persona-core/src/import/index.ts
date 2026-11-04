@@ -24,6 +24,8 @@ export {
   classifyVaultPath,
   contentHash,
   decideBringApply,
+  applyContextProposals,
+  vaultToBringExisting,
   listVaultFolderFiles,
   parseBringPaste,
   previewBringVault,

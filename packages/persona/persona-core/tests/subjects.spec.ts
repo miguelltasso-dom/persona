@@ -11,6 +11,7 @@ import {
   renameSubject,
   subjectThreadKey,
   ticketSubjectChip,
+  ticketCardTopic,
 } from '../src/index.ts'
 
 const dm = { kind: 'dm' as const, id: 'nina' }
@@ -77,5 +78,11 @@ it('ticket chip is color + name, never color only', () => {
   const link = bindTicketToSubject('t-1', ui)
   expect(ticketSubjectChip(link)).toEqual({ color: ui.color, colorIndex: ui.colorIndex, name: ui.name })
   expect(ticketSubjectChip(link).name.trim()).not.toBe('')
+  expect(ticketCardTopic(link)).toEqual({
+    topicId: ui.id,
+    color: ui.color,
+    colorIndex: ui.colorIndex,
+    name: ui.name,
+  })
   expect(() => bindTicketToSubject('  ', ui)).toThrow('INVALID_SUBJECT')
 })

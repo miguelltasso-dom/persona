@@ -12,6 +12,7 @@ import {
   consultPermissionPages,
   curateBrain,
   hygieneBrain,
+  hygieneChangedOnly,
   markPermissionUsed,
   rememberPermission,
   revokePermission,
@@ -50,17 +51,23 @@ export function curateAfterWork(input: {
 
 /**
  * LLM-free hygiene pass. Duplicates are marked replaced; 90-day reminders listed.
+ * Pass `changedIds` to scan only what moved (OPT §2.9). Empty change → no-op.
  * @param pages - Current pages.
  * @param now - Clock (ms).
+ * @param changedIds - Pages touched since the last cursor.
+ * @returns Reminders and pages after hygiene (unchanged when `changedIds` is empty).
  */
 export function runBrainHygiene(
   pages: readonly BrainPage[],
   now: number,
+  changedIds?: readonly string[],
 ): {
   readonly reminders: readonly { readonly pageId: string; readonly silentDays: number }[]
   readonly pages: readonly BrainPage[]
 } {
-  const report = hygieneBrain(pages, now)
+  const report = changedIds === undefined
+    ? hygieneBrain(pages, now)
+    : hygieneChangedOnly(pages, changedIds, now)
   return { reminders: report.reminders, pages: applyHygiene(pages, report) }
 }
 

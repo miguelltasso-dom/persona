@@ -78,6 +78,45 @@ export function teachRetentionExpiresAt(
 }
 
 /**
+ * Anvil/Rivet delete the local artifact when this is true.
+ * @param startedAt - ISO start.
+ * @param now - Clock.
+ * @param days - Retention window.
+ * @returns True on or after the expiry instant.
+ */
+export function teachShouldPurge(
+  startedAt: string,
+  now: string,
+  days: number = TEACH_RETENTION_DAYS,
+): boolean {
+  const start = Date.parse(startedAt)
+  const at = Date.parse(now)
+  if (!Number.isFinite(start) || !Number.isFinite(at) || days < 1) {
+    throw new DomainError('INVALID_TEACH', 'RETENTION')
+  }
+  return at >= start + days * 86_400_000
+}
+
+export interface TeachArtifactStamp {
+  readonly id: string
+  readonly startedAt: string
+}
+
+/**
+ * @param artifacts - Local teach sessions.
+ * @param now - Clock.
+ * @param days - Retention window.
+ * @returns Ids Anvil/Rivet may delete.
+ */
+export function listTeachArtifactsToPurge(
+  artifacts: readonly TeachArtifactStamp[],
+  now: string,
+  days: number = TEACH_RETENTION_DAYS,
+): readonly string[] {
+  return artifacts.filter(row => teachShouldPurge(row.startedAt, now, days)).map(row => row.id)
+}
+
+/**
  * Strip password / token material from typed narration (W2-10).
  * @param text - Transcript slice.
  * @returns Same text with secrets replaced.

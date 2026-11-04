@@ -47,6 +47,7 @@ export {
   assessTeamHealth,
   isHumanOut,
   runTwoDayTest,
+  foldTwoDayLines,
 } from './health.ts'
 export type {
   GovernanceFix,
@@ -55,6 +56,8 @@ export type {
   HealthReport,
   TimelineFate,
   TwoDayEvent,
+  TwoDayLine,
+  TwoDayLineKind,
   TwoDayResult,
 } from './health.ts'
 

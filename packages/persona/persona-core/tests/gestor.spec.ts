@@ -6,10 +6,15 @@ import {
   assertGestorHire,
   claimGestorScope,
   applyGestorPlan,
+  rejectGestorPlan,
   commentGestorPlan,
   decideGestorAction,
+  gestorConflictDecision,
   gestorDecisionRows,
   formatGestorAudit,
+  formatGestorAuditFromPlan,
+  attachGestorPlanMarker,
+  parseGestorPlanId,
   isGestor,
   gestorAllocate,
   gestorHire,
@@ -110,6 +115,10 @@ it('hires within Gestor access and writes the audit reason', () => {
     detail: 'Pipoca (Designer) para o projeto Site',
     reason: 'a fila de design estava com 6 tarefas',
   })).toBe('Atlas contratou Pipoca (Designer) para o projeto Site — porque a fila de design estava com 6 tarefas')
+  expect(formatGestorAuditFromPlan('Atlas', plan({
+    summary: 'Pipoca (Designer) para o projeto Site',
+    reason: 'a fila de design estava com 6 tarefas',
+  }))).toBe('Atlas contratou Pipoca (Designer) para o projeto Site — porque a fila de design estava com 6 tarefas')
 })
 
 it('never creates a hire with more access than the Gestor (adversarial)', () => {
@@ -178,11 +187,29 @@ it('always_ask never applies a hire without approval (adversarial)', () => {
   expect(applied.plan.status).toBe('applied')
   expect(applyGestorPlan(plan()).status).toBe('applied')
   expect(() => applyGestorPlan({ ...plan(), status: 'rejected' })).toThrow('INVALID_GESTOR')
+  expect(rejectGestorPlan(plan()).status).toBe('rejected')
+  expect(() => rejectGestorPlan({ ...plan(), status: 'applied' })).toThrow('INVALID_GESTOR')
   const rows = gestorDecisionRows(applied)
   expect(rows.persist).toBe(true)
   expect(rows.plan?.status).toBe('applied')
   expect(rows.audit?.id).toBe('aud-2')
   expect(gestorDecisionRows({ kind: 'refuse', why: 'no' }).persist).toBe(false)
+  const clash = gestorConflictDecision({
+    open: [plan()],
+    draft: plan({ id: 'plan-iris', gestorId: 'iris', summary: 'prefiro a Nina' }),
+    commentId: 'plan-iris-comment',
+    at: now,
+  })
+  expect(clash?.kind).toBe('conflict')
+  if (clash === undefined) throw new Error('expected conflict')
+  expect(clash.commentPlan?.status).toBe('commented')
+  expect(clash.commentPlan?.commentOnId).toBe('plan-1')
+  expect(gestorDecisionRows(clash).persist).toBe(true)
+  expect(gestorDecisionRows(clash).plan?.id).toBe('plan-iris-comment')
+  expect(attachGestorPlanMarker('contratar Pipoca', 'plan-1')).toBe('contratar Pipoca\n\n[[gestor-plan:plan-1]]')
+  expect(parseGestorPlanId(attachGestorPlanMarker('contratar Pipoca', 'plan-1'))).toBe('plan-1')
+  expect(attachGestorPlanMarker('contratar Pipoca\n\n[[gestor-plan:old]]', 'plan-1'))
+    .toBe('contratar Pipoca\n\n[[gestor-plan:plan-1]]')
 })
 
 it('respects max personas and budget (adversarial)', () => {

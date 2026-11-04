@@ -5,9 +5,11 @@ import {
   TOKEN_SCENARIO_IDS,
   assertPairAcceptable,
   assertScenarioRegression,
+  formatOpt8AcceptanceMarkdown,
   formatTokenMeasureReport,
   formatTokensBaselineMarkdown,
   measureEngineLevers,
+  measureOpt8Acceptance,
   pairVerdict,
   runPairedSuite,
   runPairedTask,
@@ -60,6 +62,72 @@ it('runs the five reference scenarios and gates a 10% regression', () => {
   expect(() => assertScenarioRegression(100, 112)).toThrow('TOKEN_REGRESSION')
   expect(() => assertScenarioRegression(100, 109)).not.toThrow()
   expect(() => assertScenarioRegression(100, 120, 0.2)).not.toThrow()
+  const opt8 = measureOpt8Acceptance()
+  expect(opt8.failed).toEqual([])
+  expect(opt8.blocked).toEqual(['cut-40'])
+  expect(opt8.passed).toBe(3)
+  expect(opt8.total).toBe(4)
+  const emptyLayers = { system: 0, tools: 0, required: 0, subject: 0, recall: 0, message: 10 }
+  const live = measureOpt8Acceptance({
+    successfulTicketIds: ['t1'],
+    baselineTokensPerTask: 100,
+    liveEntries: [{
+      id: 'e1',
+      personaId: 'atlas',
+      engine: 'claude',
+      kind: 'execution',
+      inputTokens: 40,
+      outputTokens: 10,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      layers: emptyLayers,
+      at: '2026-11-04T05:00:00.000Z',
+      ticketId: 't1',
+    }],
+  })
+  expect(live.blocked).toEqual([])
+  expect(live.failed).toEqual([])
+  expect(live.passed).toBe(4)
+  const missed = measureOpt8Acceptance({
+    successfulTicketIds: ['t1'],
+    baselineTokensPerTask: 100,
+    liveEntries: [{
+      id: 'e2',
+      personaId: 'atlas',
+      engine: 'claude',
+      kind: 'execution',
+      inputTokens: 80,
+      outputTokens: 20,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      layers: emptyLayers,
+      at: '2026-11-04T05:00:00.000Z',
+      ticketId: 't1',
+    }],
+  })
+  expect(missed.blocked).toEqual([])
+  expect(missed.failed).toEqual(['cut-40'])
+  expect(missed.passed).toBe(3)
+  const derived = measureOpt8Acceptance({
+    baselineTokensPerTask: 100,
+    liveEntries: [{
+      id: 'e3',
+      personaId: 'atlas',
+      engine: 'claude',
+      kind: 'execution',
+      inputTokens: 40,
+      outputTokens: 10,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      layers: emptyLayers,
+      at: '2026-11-04T05:00:00.000Z',
+      ticketId: 't1',
+    }],
+  })
+  expect(derived.blocked).toEqual([])
+  expect(derived.failed).toEqual([])
+  expect(derived.passed).toBe(4)
+  expect(formatOpt8AcceptanceMarkdown()).toContain('blocked')
 })
 
 it('pairs CLI-direct vs Persona and allows extra spend only with a quality gain', () => {

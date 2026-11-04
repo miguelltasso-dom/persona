@@ -3,6 +3,7 @@
  * The live store must not send `roster` / `projectId` (Padaria DF-002).
  */
 
+import { withDefaultGestor } from './rules.ts'
 import { DomainError, type PersonaSpec, type SystemRole } from './schemas.ts'
 
 /** One persona on the first-run wire (no hardcoded names). */
@@ -52,7 +53,7 @@ export function personaSpecToOnboardingWire(spec: PersonaSpec): OnboardingPerson
     runnerCli: spec.runner.kind === 'cli' ? spec.runner.cli : '',
     runnerModel: spec.runner.model,
     canRecruit: spec.canRecruit,
-    systemRoles: [...spec.systemRoles],
+    systemRoles: withDefaultGestor(spec.systemRoles),
   }
 }
 
@@ -153,6 +154,6 @@ function parseOnboardingPersonaWire(value: unknown): OnboardingPersonaWire {
     runnerCli: typeof value.runnerCli === 'string' ? value.runnerCli : '',
     runnerModel: typeof value.runnerModel === 'string' ? value.runnerModel : 'default',
     canRecruit: value.canRecruit === true,
-    systemRoles: roles,
+    systemRoles: withDefaultGestor(roles),
   }
 }

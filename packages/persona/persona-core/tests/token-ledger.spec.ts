@@ -9,6 +9,7 @@ import {
   estimateTokens,
   fitLayersToBudget,
   foldUsagePanel,
+  ticketIdsFromLedger,
   incrementalSubjectSummary,
   measureLayers,
   minifyToolDescription,
@@ -125,6 +126,9 @@ it('folds the Uso panel by persona, kind, task, cache, and origin', () => {
   expect(usagePortKind('execution')).toBe('exec')
   expect(usagePortKind('evaluation')).toBe('eval')
   expect(foldUsagePanel([]).origin).toBe('estimate')
+  const { ticketId: _omit, ...noTicket } = second
+  expect(ticketIdsFromLedger([first, second, { ...noTicket, id: 't3' }])).toEqual(['task-1'])
+  expect(ticketIdsFromLedger([])).toEqual([])
 })
 
 it('refuses a negative counter and layers larger than input', () => {

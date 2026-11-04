@@ -1,8 +1,11 @@
 import { expect, it } from 'vitest'
 import {
   FakeClock, MemoryGoalBoard, afterAssignmentSettled, applyAutonomy, autonomyMode,
-  continuationAfterReady, emptyQueueDecision, inSilence, mayPropose, nextEligible,
+  continuationAfterReady, emptyQueueDecision, inSilence, looksLikeHesitantOffer, mayPropose, nextEligible, refuseHesitantOffer,
   nextProposalIntervalHours, proposalDigest, recordProposalOutcome, spend, spendsModel,
+  scoreProactivityAcceptance,
+  measureProactivityAcceptance,
+  measureProactivityV1,
   ticketGoal, verifyReady, vigiaTick, wakeDependents,
 } from '../src/index.ts'
 import type { AttentionBudget, EligibleTicket, PullContext } from '../src/index.ts'
@@ -75,6 +78,11 @@ it('continuação: critério de pronto e follow-ups dentro do mandato', () => {
   expect(continuationAfterReady({ testsPass: true, evidence: [], leftover: [] }, found, 'propose').kind).toBe('propose')
   expect(continuationAfterReady({ testsPass: true, evidence: [], leftover: [] }, found, 'act', true).kind).toBe('observe')
   expect(continuationAfterReady({ testsPass: true, evidence: [], leftover: [] }, found, 'on_request').kind).toBe('done')
+  expect(looksLikeHesitantOffer('Posso fazer o e2e se você quiser.')).toBe(true)
+  expect(refuseHesitantOffer('Pronto. Posso fazer o e2e se você quiser.', true))
+    .toBe('Pronto.')
+  expect(refuseHesitantOffer('Posso fazer o e2e se você quiser.', false))
+    .toBe('Posso fazer o e2e se você quiser.')
 })
 
 it('autonomia: especulativo começa só registrando', () => {
@@ -140,4 +148,44 @@ it('orçamentos: silêncio, teto de propostas, tokens/runs e taxa de aceitação
   expect(nextProposalIntervalHours(24, 0)).toBe(48)
   expect(nextProposalIntervalHours(24, 1)).toBe(24)
   expect(proposalDigest(['A', 'B'])).toBe('Resumo (2): A; B')
+})
+
+it('measures the six PRO-6 bullets on engine primitives (fake clock)', () => {
+  const measured = measureProactivityAcceptance()
+  expect(measured.passed).toBe(6)
+  expect(measured.failed).toEqual([])
+  expect(measured.input.emptyQueueWithGoal).toBe('plan')
+  expect(measured.input.emptyQueueWithoutGoalCalls).toBe(0)
+  expect(measureProactivityV1()).toEqual(measured)
+})
+
+it('scores the six PRO-6 bullets from a fake-clock run', () => {
+  const green = scoreProactivityAcceptance({
+    idleCyclesWithBacklog: 1,
+    pulledNextOnComplete: true,
+    wokeDependent: true,
+    emptyQueueWithGoal: 'plan',
+    emptyQueueWithoutGoalCalls: 0,
+    recoveredFromFullContext: true,
+    silenceHonored: true,
+    awaySummaryHasLinks: true,
+  })
+  expect(green).toEqual({ passed: 6, total: 6, failed: [] })
+  expect(scoreProactivityAcceptance({
+    idleCyclesWithBacklog: 3,
+    pulledNextOnComplete: true,
+    wokeDependent: false,
+    emptyQueueWithGoal: 'idle_ai',
+    emptyQueueWithoutGoalCalls: 2,
+    recoveredFromFullContext: false,
+    silenceHonored: true,
+    awaySummaryHasLinks: false,
+  }).failed).toEqual([
+    'idle-with-backlog',
+    'pull-and-wake',
+    'empty-queue-plans',
+    'rest-without-goal',
+    'recover-full-context',
+    'quiet-and-away',
+  ])
 })

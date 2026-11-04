@@ -14,6 +14,7 @@ import {
   recommendStructure,
   resolveApproval,
   runTwoDayTest,
+  foldTwoDayLines,
   type GovernanceSnapshot,
 } from '../src/index.ts'
 
@@ -135,6 +136,11 @@ it('2-day test: with substituto the routine continues; without, it lists what wa
   expect(broken.stops).toBeGreaterThan(0)
   expect(broken.waits).toBeGreaterThan(0)
   expect(broken.events.some(row => row.fate === 'stops' && row.title === 'Sem dono')).toBe(true)
+  const lines = foldTwoDayLines(broken)
+  expect(lines.routines.some(row => row.title === 'Sem dono' && row.fate === 'stops')).toBe(true)
+  expect(lines.approvals.length).toBeGreaterThan(0)
+  expect(lines.personas.some(row => row.personaId === 'ops')).toBe(true)
+  expect(broken.events.find(row => row.title === 'Pagamento')?.personaId).toBe('ops')
 })
 
 it('1-click substituto then autonomy ceiling: fix applies; raise above sector is refused', () => {

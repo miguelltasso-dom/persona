@@ -37,6 +37,31 @@ export function verifyReady(check: ReadyCheck): { ready: boolean; leftover: stri
  * @param autonomy - Persona/project autonomy.
  * @param speculative - Speculative work always starts as record-only.
  */
+const HESITANT = /posso fazer\b|se você quiser|if you (?:want|like)|want me to/iu
+
+/**
+ * "posso fazer X se você quiser" is forbidden when X is already in the mandate.
+ * @param text - Model or channel text.
+ * @returns True when the text offers authorized work as optional.
+ */
+export function looksLikeHesitantOffer(text: string): boolean {
+  return HESITANT.test(text)
+}
+
+/**
+ * Drop hedge sentences when the work is already authorized.
+ * @param text - Model output.
+ * @param withinMandate - The offered work is inside the current mandate.
+ * @returns Text without the hedge, or the original when outside the mandate.
+ */
+export function refuseHesitantOffer(text: string, withinMandate: boolean): string {
+  if (!withinMandate || !looksLikeHesitantOffer(text)) return text
+  return text
+    .replace(/[^.?!]*(?:posso fazer\b|se você quiser|if you (?:want|like)|want me to)[^.?!]*[.?!]?/giu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function continuationAfterReady(
   check: ReadyCheck,
   discovered: readonly FollowupProposal[],

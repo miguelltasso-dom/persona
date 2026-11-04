@@ -79,6 +79,22 @@ it('Grok oficial: conversation_id, content[] e campos extras', () => {
   expect(preview.accepted[0]?.body).toContain('日本語')
 })
 
+it('Notion oficial: csv+md, colunas extras, caracteres e anexo', () => {
+  const csv = readFileSync(join(official, 'notion/pages.csv'), 'utf8')
+  const brief = readFileSync(join(official, 'notion/Brief do projeto.md'), 'utf8')
+  const preview = previewImport(IMPORT_ADAPTERS, [
+    { name: 'Notion/pages.csv', text: csv },
+    { name: 'Notion/Brief do projeto.md', text: brief },
+    { name: 'Notion/assets/diagrama.png', text: 'binary' },
+  ])
+  expect(preview.adapterId).toBe('notion')
+  expect(preview.presumedSchema).toBe(true)
+  expect(preview.accepted.some(row => row.body.includes('São Paulo'))).toBe(true)
+  expect(preview.accepted.some(row => row.body.includes('日本語'))).toBe(true)
+  expect(preview.accepted.every(row => row.externalId.startsWith('notion:'))).toBe(true)
+  expect(preview.rejected.some(row => row.reason === 'ATTACHMENT' && row.externalId.includes('diagrama.png'))).toBe(true)
+})
+
 it('Obsidian oficial: frontmatter, wikilinks e anexo do vault', () => {
   const home = readFileSync(join(official, 'obsidian/Home.md'), 'utf8')
   const brief = readFileSync(join(official, 'obsidian/Brief do projeto.md'), 'utf8')
@@ -110,6 +126,38 @@ function collectImportFiles(root: string, prefix = ''): { name: string; text: st
   }
   return out
 }
+
+it('F1 oficial: 2º passe não duplica em ChatGPT, Claude, Gemini, Grok, Notion e Obsidian', () => {
+  const packs: { name: string; files: { name: string; text: string }[] }[] = [
+    { name: 'conversations.json', files: [{ name: 'conversations.json', text: readFileSync(join(official, 'chatgpt-conversations.json'), 'utf8') }] },
+    { name: 'claude.json', files: [{ name: 'conversations.json', text: readFileSync(join(official, 'claude-conversations.json'), 'utf8') }] },
+    { name: 'gemini.json', files: [{ name: 'Takeout/Gemini/conversations.json', text: readFileSync(join(official, 'gemini-conversations.json'), 'utf8') }] },
+    { name: 'grok.json', files: [{ name: 'grok-conversations.json', text: readFileSync(join(official, 'grok-conversations.json'), 'utf8') }] },
+    {
+      name: 'notion',
+      files: [
+        { name: 'Notion/pages.csv', text: readFileSync(join(official, 'notion/pages.csv'), 'utf8') },
+        { name: 'Notion/Brief do projeto.md', text: readFileSync(join(official, 'notion/Brief do projeto.md'), 'utf8') },
+      ],
+    },
+    {
+      name: 'obsidian',
+      files: [
+        { name: 'Home.md', text: readFileSync(join(official, 'obsidian/Home.md'), 'utf8') },
+        { name: 'Brief do projeto.md', text: readFileSync(join(official, 'obsidian/Brief do projeto.md'), 'utf8') },
+      ],
+    },
+  ]
+  for (const pack of packs) {
+    const store = new MemoryImportStore()
+    const first = previewImport(IMPORT_ADAPTERS, pack.files, store)
+    expect(first.accepted.length, pack.name).toBeGreaterThan(0)
+    expect(applyImport(store, first, `${pack.name}-1`).applied).toHaveLength(first.accepted.length)
+    const again = previewImport(IMPORT_ADAPTERS, pack.files, store)
+    expect(again.counts?.duplicates, pack.name).toBe(first.accepted.length)
+    expect(applyImport(store, again, `${pack.name}-2`).applied).toHaveLength(0)
+  }
+})
 
 it('F1: mensagem com cara de segredo não entra (fixture oficial + api_key)', () => {
   const text = JSON.stringify([{

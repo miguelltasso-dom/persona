@@ -16,6 +16,8 @@ import {
   sampleKeyFrames,
   subjectThreadRef,
   teachRetentionExpiresAt,
+  teachShouldPurge,
+  listTeachArtifactsToPurge,
 } from '../src/index.ts'
 import type { TeachFrame, VisionPort } from '../src/index.ts'
 
@@ -105,6 +107,12 @@ it('requires teach-v1 consent, redacts secrets, and drops blurred frames (W2-10)
   assertTeachConsent(TEACH_CONSENT_VERSION)
   expect(() => assertTeachConsent('teach-v0')).toThrow('INVALID_TEACH')
   expect(teachRetentionExpiresAt('2026-11-04T00:00:00.000Z')).toBe('2026-12-04T00:00:00.000Z')
+  expect(teachShouldPurge('2026-11-04T00:00:00.000Z', '2026-12-03T23:59:59.000Z')).toBe(false)
+  expect(teachShouldPurge('2026-11-04T00:00:00.000Z', '2026-12-04T00:00:00.000Z')).toBe(true)
+  expect(listTeachArtifactsToPurge([
+    { id: 'keep', startedAt: '2026-11-04T00:00:00.000Z' },
+    { id: 'gone', startedAt: '2026-10-01T00:00:00.000Z' },
+  ], '2026-11-04T00:00:00.000Z')).toEqual(['gone'])
   expect(redactTeachNarration('senha: supersecret e token: abc')).toContain('••••')
   expect(omitBlurredTeachFrames(frames, ['file://local/frame-0.webp']).map(row => row.imageRef))
     .toEqual(['file://local/frame-1.webp', 'file://local/frame-2.webp'])

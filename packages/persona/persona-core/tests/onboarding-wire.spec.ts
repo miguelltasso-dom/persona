@@ -70,4 +70,27 @@ it('maps a domain spec onto avatar/runner wire fields', () => {
   expect(row.canRecruit).toBe(true)
   expect(row.systemRoles).toEqual(['coordination', 'team_manager'])
   expect(row.avatarKind).toBe('silhouette')
+  const granted = parseCompleteOnboardingWire({
+    workspaceId: 'ws',
+    personalProjectId: 'proj-pessoal',
+    displayName: 'Clara',
+    team: [{
+      name: 'Atlas',
+      title: 'Coordenação',
+      description: '',
+      personality: '',
+      instructions: '',
+      avatarKind: 'gallery',
+      avatarRef: 'atlas',
+      runnerKind: 'dsh',
+      runnerCli: '',
+      runnerModel: 'deepseek-chat',
+      canRecruit: true,
+      systemRoles: ['coordination'],
+    }],
+    templateIds: [],
+    runnerChoices: ['dsh'],
+    cofreSeed: '',
+  })
+  expect(granted.team[0]?.systemRoles).toEqual(['coordination', 'team_manager'])
 })

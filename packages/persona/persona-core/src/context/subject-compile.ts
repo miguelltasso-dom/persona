@@ -33,15 +33,24 @@ function recordBelongs(
   return record.subjectId === activeSubjectId
 }
 
+/** Incremental subject digest (OPT-4): keep the last note, append, trim oldest. */
+export interface SubjectDigestInput {
+  readonly previous: string
+  readonly added: string
+  readonly budget: number
+}
+
 /** Trusted compile input plus the subject in view and optional citations. */
 export interface CompileActiveSubjectInput extends CompileContextInput {
   readonly activeSubjectId: string
   readonly citedSubjectIds?: readonly string[]
   readonly subjectNodes?: readonly RecallNode[]
+  readonly subjectDigest?: SubjectDigestInput
 }
 
 /** Active-subject payload plus optional Chain of Recall hops. */
 export interface CompiledSubjectContext {
   readonly compiled: CompiledContext
   readonly chain: readonly ChainHop[]
+  readonly digest?: string
 }

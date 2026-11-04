@@ -9,6 +9,7 @@ import {
   estimateTokens,
   foldUsagePanel,
   measureLayers,
+  ticketIdsFromLedger,
   totalTokens,
   turnFromLayers,
   type TurnKind,
@@ -637,6 +638,98 @@ export function measureEngineLevers(): EngineLeverReport {
     initiativeKept: trimInitiativeToBudget(drafts, 200).length,
     vigiaNeedsModel: vigia.needsModel,
   }
+}
+
+export interface Opt8Acceptance {
+  readonly passed: number
+  readonly total: 4
+  readonly failed: readonly string[]
+  readonly blocked: readonly string[]
+}
+
+/**
+ * OPT-8 scripted metas. −40% stays blocked until Anvil passes a live
+ * ledger (`liveEntries`; `successfulTicketIds` optional — derived if omitted);
+ * idle zero, cache ≥ 60% and CLI parity are scored now.
+ * @param input - Optional live compare. Default (no live book) keeps cut-40 blocked.
+ * @returns Passed count, failed ids, and blocked ids.
+ */
+export function measureOpt8Acceptance(input?: {
+  readonly liveEntries?: readonly TurnLedgerEntry[]
+  readonly successfulTicketIds?: readonly string[]
+  readonly baselineTokensPerTask?: number
+}): Opt8Acceptance {
+  const reports = TOKEN_SCENARIO_IDS.map(runTokenScenario)
+  const book = reports.flatMap(row => row.entries)
+  const ticketIds = ticketIdsFromLedger(book)
+  const panel = foldUsagePanel(book, ticketIds)
+  const pairs = runPairedSuite()
+  const levers = measureEngineLevers()
+  const failed: string[] = []
+  if (levers.idleCalls !== 0 || levers.initiative30Calls !== 0) failed.push('idle-zero')
+  if (panel.cacheHitRate < 0.60) failed.push('cache-60')
+  if (pairs.some(row => row.verdict === 'persona_worse')) failed.push('pair-parity')
+  const live = input?.liveEntries ?? []
+  if (live.length > 0) {
+    const ready = input?.successfulTicketIds ?? ticketIdsFromLedger(live)
+    if (ready.length === 0 || foldUsagePanel(live, ready).tokensPerSuccessfulTask
+      > (input?.baselineTokensPerTask ?? panel.tokensPerSuccessfulTask) * 0.6) {
+      failed.push('cut-40')
+    }
+    return {
+      passed: 4 - failed.length,
+      total: 4,
+      failed,
+      blocked: [],
+    }
+  }
+  return {
+    passed: 3 - failed.length,
+    total: 4,
+    failed,
+    blocked: ['cut-40'],
+  }
+}
+
+/**
+ * OPT-8 report for `persona-spec/reports/opt8-acceptance.md`.
+ * @param input - Same live compare as {@link measureOpt8Acceptance}.
+ * @returns Markdown. Scripted 3/4; cut-40 blocked without a live book.
+ */
+export function formatOpt8AcceptanceMarkdown(input?: {
+  readonly liveEntries?: readonly TurnLedgerEntry[]
+  readonly successfulTicketIds?: readonly string[]
+  readonly baselineTokensPerTask?: number
+}): string {
+  const scored = measureOpt8Acceptance(input)
+  const reports = TOKEN_SCENARIO_IDS.map(runTokenScenario)
+  const book = reports.flatMap(row => row.entries)
+  const panel = foldUsagePanel(book, ticketIdsFromLedger(book))
+  const live = input?.liveEntries ?? []
+  const liveLine = live.length === 0
+    ? 'Livro live: **ausente** — `cut-40` em `blocked`. Anvil passa `liveEntries` (+ ticket ids, ou `ticketIdsFromLedger`).'
+    : `Livro live: ${String(live.length)} linhas, tokens/tarefa ${foldUsagePanel(live, input?.successfulTicketIds ?? ticketIdsFromLedger(live)).tokensPerSuccessfulTask.toFixed(1)}.`
+  return [
+    '# OPT-8 — aceite (Forge, 04/11)',
+    '',
+    `Score **${String(scored.passed)}/${String(scored.total)}**. Falhou: ${scored.failed.length === 0 ? '—' : scored.failed.join(', ')}. Bloqueado: ${scored.blocked.length === 0 ? '—' : scored.blocked.join(', ')}.`,
+    '',
+    '| meta | resultado |',
+    '|---|---|',
+    `| idle-zero (ociosa sem objetivo) | ${scored.failed.includes('idle-zero') ? 'falhou' : 'passou'} |`,
+    `| cache ≥ 60% | ${scored.failed.includes('cache-60') ? 'falhou' : `passou (${panel.cacheHitRate.toFixed(2)})`} |`,
+    `| paridade CLI ±10% | ${scored.failed.includes('pair-parity') ? 'falhou' : 'passou'} |`,
+    `| −40% tokens/tarefa vs linha de base (${panel.tokensPerSuccessfulTask.toFixed(1)}) | ${scored.blocked.includes('cut-40') ? 'blocked (sem livro live)' : scored.failed.includes('cut-40') ? 'falhou' : 'passou'} |`,
+    '',
+    liveLine,
+    '',
+    'Gate: `measureOpt8Acceptance`. Host `@Remote measureOpt8` deve passar o livro persistido, não só contar linhas.',
+    '',
+    '```',
+    'pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts',
+    '```',
+    '',
+  ].join('\n')
 }
 
 /**

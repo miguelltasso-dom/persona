@@ -129,7 +129,7 @@ Rivet exporta de `@deepseek-ai/dsh-persona-runners`:
 
 - `withInfraRecovery` (ligado nos runners DSH e OAR): contexto cheio / conexão / processo morto / prompt de confiança ⇒ evento `infra`, nova sessão com handoff (`RECOVERY_NOTE` + `persona_recall(id)`) e backoff 15s/30s/60s.
 - DSH: o host monta `@deepseek-ai/dsh-goal-round-driver` (`GOAL_ROUND_DRIVER_NAME`). Equivalente CLI: `createGoalContinueDriver` usa `resume`/`steer` enquanto o goal está armado; sem goal a equipe descansa.
-- Prompt de executora: `executorPrompt` / `OWNER_NORMS` (terminar, verificar, evidência, próximo passo; nunca devolver trabalho do mandato).
+- Prompt de executora: `executorPrompt` / `OWNER_NORMS` (terminar, verificar, evidência, próximo passo; nunca devolver trabalho do mandato). `refuseHesitantOffer` / `looksLikeHesitantOffer` cortam "posso fazer se você quiser" quando o trabalho já está no mandato.
 - Suíte `runLazinessSuite` (scripted/fake por padrão): multi-etapa, erro intermediário, ambiguidade pequena → `RunnerLazinessHint` (`completionRate`, `initiativeRate`, `grade`) para a UI. Real só com `PERSONA_LAZINESS_REAL=1` + `PERSONA_REAL_CLI=1`.
 - S4: `createDraftDriver` + `DRAFT_PERSONA_PROMPT` (Runner fake/scripted; tools vazias; `systemRoles` []; sem coordenador). Anvil pode trocar o draft determinístico do host por este driver.
 - GOV-4 (Rivet, após SNAPSHOT CORTADO): `createDraftDriver.recommendStructure(text)` — prompt + parser sujo; o domínio `recommendStructure`/`parseStructureAsk` do Forge continua a fonte da verdade. Runner silencioso ⇒ `parseStructureAsk(text)` + `recommendStructure`. Nunca uma persona por tarefa. **[Rivet→Anvil]** o host pode trocar o `recommendStructure` determinístico por este driver quando houver Runner.

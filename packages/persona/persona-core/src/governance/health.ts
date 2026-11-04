@@ -51,6 +51,8 @@ export type GovernanceFix =
 
 export type TimelineFate = 'continues' | 'waits' | 'stops'
 
+export type TwoDayLineKind = 'routine' | 'approval' | 'persona'
+
 export interface TwoDayEvent {
   at: string
   subjectId: string
@@ -58,6 +60,16 @@ export interface TwoDayEvent {
   fate: TimelineFate
   why: string
   fix?: GovernanceFix
+  personaId?: string
+}
+
+export interface TwoDayLine {
+  readonly kind: TwoDayLineKind
+  readonly subjectId: string
+  readonly title: string
+  readonly fate: TimelineFate
+  readonly why: string
+  readonly personaId?: string
 }
 
 export interface TwoDayResult {
@@ -178,28 +190,32 @@ function suggestedFix(snapshot: GovernanceSnapshot, routine: RoutineCharge): Gov
   return { kind: 'delegate_to_coordination', routineId: routine.routineId }
 }
 
+function stampPersona(event: TwoDayEvent, personaId: string | undefined): TwoDayEvent {
+  return personaId === undefined || personaId === '' ? event : { ...event, personaId }
+}
+
 function fateOf(
   snapshot: GovernanceSnapshot,
   routine: RoutineCharge,
   at: string,
   delegated: ReadonlySet<string>,
 ): TwoDayEvent {
+  const personaId = routine.executorPersonaId
   if (routineOwnerMissing(routine)) {
-    return {
+    return stampPersona({
       at, subjectId: routine.routineId, title: routine.title, fate: 'stops',
       why: `A rotina “${routine.title}” não tem dono. Sem dono, ela para.`,
-    }
+    }, personaId)
   }
   const needsHuman = sectorRequiresApproval(snapshot, routine)
   const autonomy = routineAutonomy(snapshot, routine)
   if (!needsHuman && autonomy === 'act') {
-    return {
+    return stampPersona({
       at, subjectId: routine.routineId, title: routine.title, fate: 'continues',
       why: `“${routine.title}” segue sozinha (autonomia dentro do limite).`,
-    }
+    }, personaId)
   }
-  const personaId = routine.executorPersonaId ?? ''
-  const route = resolveApproval(snapshot, personaId, at, delegated.has(routine.routineId))
+  const route = resolveApproval(snapshot, personaId ?? '', at, delegated.has(routine.routineId))
   if (route.kind === 'wait') {
     const event: TwoDayEvent = {
       at, subjectId: routine.routineId, title: routine.title, fate: 'waits',
@@ -207,24 +223,71 @@ function fateOf(
     }
     const fix = suggestedFix(snapshot, routine)
     if (fix !== undefined) event.fix = fix
-    return event
+    return stampPersona(event, personaId)
   }
   if (route.kind === 'human' && route.role === 'substitute') {
-    return {
+    return stampPersona({
       at, subjectId: routine.routineId, title: routine.title, fate: 'continues',
       why: `O substituto cobre “${routine.title}” enquanto o responsável está fora.`,
-    }
+    }, personaId)
   }
   if (route.kind === 'coordination') {
-    return {
+    return stampPersona({
       at, subjectId: routine.routineId, title: routine.title, fate: 'continues',
       why: `A Coordenação cobre a aprovação de “${routine.title}” dentro do orçamento.`,
-    }
+    }, personaId)
   }
-  return {
+  return stampPersona({
     at, subjectId: routine.routineId, title: routine.title, fate: 'continues',
     why: `“${routine.title}” segue com o responsável disponível.`,
+  }, personaId)
+}
+
+/**
+ * Group the 48h walk for Saúde: one line per routine, per waiting approval,
+ * and per persona (worst fate wins).
+ * @param result - {@link runTwoDayTest}.
+ * @returns Lines grouped for Saúde / Lumen.
+ */
+export function foldTwoDayLines(result: TwoDayResult): {
+  readonly routines: readonly TwoDayLine[]
+  readonly approvals: readonly TwoDayLine[]
+  readonly personas: readonly TwoDayLine[]
+} {
+  const routines: TwoDayLine[] = []
+  const approvals: TwoDayLine[] = []
+  for (const event of result.events) {
+    const line: TwoDayLine = {
+      kind: event.fate === 'waits' ? 'approval' : 'routine',
+      subjectId: event.subjectId,
+      title: event.title,
+      fate: event.fate,
+      why: event.why,
+      ...(event.personaId === undefined ? {} : { personaId: event.personaId }),
+    }
+    if (line.kind === 'approval') approvals.push(line)
+    else routines.push(line)
   }
+  const personas: TwoDayLine[] = []
+  const seen = new Set<string>()
+  for (const event of result.events) {
+    const id = event.personaId
+    if (id === undefined || seen.has(id)) continue
+    seen.add(id)
+    const rows = result.events.filter(row => row.personaId === id)
+    const fate: TimelineFate = rows.some(row => row.fate === 'stops')
+      ? 'stops'
+      : rows.some(row => row.fate === 'waits') ? 'waits' : 'continues'
+    personas.push({
+      kind: 'persona',
+      subjectId: id,
+      title: id,
+      fate,
+      why: rows[0]?.why ?? '',
+      personaId: id,
+    })
+  }
+  return { routines, approvals, personas }
 }
 
 /**

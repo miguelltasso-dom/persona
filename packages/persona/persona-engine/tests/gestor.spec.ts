@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import type { GestorMandate, GestorPlan, Persona, PersonaSpec } from '@deepseek-ai/dsh-persona-core'
 import { DEFAULT_GESTOR_LIMITS } from '../../persona-core/src/index.ts'
-import { runAssembleTeam, runGestorAllocate, runGestorAssemble, runGestorComment, runGestorHire, runGestorReorganize, runGestorTie } from '../src/index.ts'
+import { emitGestorPropose, measureGestorAcceptance, measureGestorV1, proposeGestorChannelBody, runAssembleTeam, runGestorAllocate, runGestorAssemble, runGestorComment, runGestorHire, runGestorReorganize, runGestorTie } from '../src/index.ts'
 
 const now = '2026-11-04T03:00:00.000Z'
 
@@ -146,6 +146,10 @@ it('comments when another Gestor already claimed the scope (adversarial)', () =>
     openPlans: [plan],
   })
   expect(hit.decision.kind).toBe('conflict')
+  if (hit.decision.kind !== 'conflict') throw new Error('expected conflict')
+  expect(hit.decision.commentPlan?.status).toBe('commented')
+  expect(hit.decision.commentPlan?.commentOnId).toBe('plan-1')
+  expect(hit.decision.commentPlan?.gestorId).toBe('iris')
 })
 
 it('second Gestor comments and a human tie picks the winner', () => {
@@ -200,4 +204,28 @@ it('assembles a team plus sprint 1 from a goal', () => {
   if (done.decision.kind !== 'apply') throw new Error('expected apply')
   expect(done.decision.plan.status).toBe('applied')
   expect(done.assemble?.sprint.name).toBe('Sprint 1')
+  expect(proposeGestorChannelBody(plan)).toBe('contratar Pipoca\n\n[[gestor-plan:plan-1]]')
+  const posted = emitGestorPropose({ plan, threadId: 'geral', at: now })
+  expect(posted.channelBody).toContain('[[gestor-plan:plan-1]]')
+  expect(posted.activity.personaId).toBe('atlas')
+  expect(posted.activity.status).toBe('waiting')
+  expect(posted.activity.kind).toBe('hire')
+  const allocated = emitGestorPropose({
+    plan: { ...plan, id: 'plan-a', action: 'allocate', summary: 'alocar Nina' },
+    threadId: 'geral',
+    at: now,
+  })
+  expect(allocated.activity.kind).toBe('command')
+  const assembled = emitGestorPropose({
+    plan: { ...plan, id: 'plan-s', action: 'assemble', summary: 'montar Site' },
+    threadId: 'geral',
+    at: now,
+  })
+  expect(assembled.activity.kind).toBe('hire')
+})
+
+it('scores the three MAESTRO aceite bullets', () => {
+  const scored = measureGestorAcceptance()
+  expect(scored).toEqual({ passed: 3, total: 3, failed: [] })
+  expect(measureGestorV1()).toEqual(scored)
 })

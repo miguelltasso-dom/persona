@@ -67,7 +67,7 @@ export type GestorDecision =
   | { readonly kind: 'apply'; readonly plan: GestorPlan; readonly audit: GestorAudit }
   | { readonly kind: 'ask'; readonly plan: GestorPlan }
   | { readonly kind: 'notify'; readonly plan: GestorPlan; readonly audit: GestorAudit }
-  | { readonly kind: 'conflict'; readonly existingPlanId: string; readonly comment: string }
+  | { readonly kind: 'conflict'; readonly existingPlanId: string; readonly comment: string; readonly commentPlan?: GestorPlan }
   | { readonly kind: 'refuse'; readonly why: string }
 
 export interface GestorAssemble {
@@ -450,6 +450,18 @@ export function applyGestorPlan(plan: GestorPlan): GestorPlan {
 }
 
 /**
+ * Human refused the plan. Applied plans stay applied.
+ * @param plan - Open plan.
+ * @returns Rejected copy.
+ */
+export function rejectGestorPlan(plan: GestorPlan): GestorPlan {
+  if (plan.status === 'applied') {
+    throw new DomainError('INVALID_GESTOR', 'ALREADY_APPLIED')
+  }
+  return { ...plan, status: 'rejected' }
+}
+
+/**
  * Rows the host persists in one write (GES-2 apply atomically).
  * @param decision - Gate result.
  * @returns Plan/audit to store, or `persist: false`.
@@ -463,7 +475,43 @@ export function gestorDecisionRows(decision: GestorDecision): {
     return { persist: true, plan: decision.plan, audit: decision.audit }
   }
   if (decision.kind === 'ask') return { persist: true, plan: decision.plan }
+  if (decision.kind === 'conflict' && decision.commentPlan !== undefined) {
+    return { persist: true, plan: decision.commentPlan }
+  }
   return { persist: false }
+}
+
+/**
+ * Second Gestor on a claimed scope: comment row ready for the host to persist.
+ * @param input - Open plans and the draft that lost the claim.
+ * @returns Conflict decision, or `undefined` when the scope is free.
+ */
+export function gestorConflictDecision(input: {
+  readonly open: readonly GestorPlan[]
+  readonly draft: GestorPlan
+  readonly commentId: string
+  readonly at: string
+}): Extract<GestorDecision, { readonly kind: 'conflict' }> | undefined {
+  const clash = claimGestorScope(input.open, input.draft.scopeKey)
+  if (clash.kind === 'claim' || clash.existingPlanId === input.draft.id) return undefined
+  const note = commentGestorPlan({
+    open: input.open,
+    scopeKey: input.draft.scopeKey,
+    commenterId: input.draft.gestorId,
+    workspaceId: input.draft.workspaceId,
+    commentId: input.commentId,
+    comment: input.draft.summary.trim() === ''
+      ? 'já tem um plano neste escopo — comentei'
+      : input.draft.summary,
+    at: input.at,
+  })
+  if (note.kind === 'claim') return undefined
+  return {
+    kind: 'conflict',
+    existingPlanId: clash.existingPlanId,
+    comment: note.plan.summary,
+    commentPlan: note.plan,
+  }
 }
 
 /**
@@ -578,4 +626,60 @@ export function formatGestorAudit(input: {
 }): string {
   const reason = input.reason.startsWith('porque') ? input.reason : `porque ${input.reason}`
   return `${input.gestorName} ${input.verb} ${input.detail} — ${reason}`
+}
+
+const GESTOR_AUDIT_VERB: Readonly<Record<GestorActionKind, string>> = {
+  hire: 'contratou',
+  allocate: 'alocou',
+  reorganize: 'reorganizou',
+  assemble: 'montou a equipe',
+}
+
+/**
+ * Health / profile line from an applied plan (GES-5).
+ * @param gestorName - Display name, never an id.
+ * @param plan - Applied or proposed plan.
+ * @returns Same sentence as {@link formatGestorAudit}.
+ */
+/** Channel card marker. Host appends this when the plan is proposed. */
+export const GESTOR_PLAN_MARK = /\[\[gestor-plan:([a-zA-Z0-9_-]+)\]\]/
+
+/**
+ * @param planId - Open plan id.
+ * @returns Marker token, never empty.
+ */
+export function gestorPlanMarker(planId: string): string {
+  if (planId.trim() === '') throw new DomainError('INVALID_GESTOR', 'MARKER')
+  return `[[gestor-plan:${planId.trim()}]]`
+}
+
+/**
+ * @param body - Channel or DM text.
+ * @returns Plan id when the marker is present.
+ */
+export function parseGestorPlanId(body: string): string | undefined {
+  const hit = body.match(GESTOR_PLAN_MARK)
+  const id = hit?.[1]
+  return id === undefined || id === '' ? undefined : id
+}
+
+/**
+ * Append the marker once. Replaces a trailing marker if the id changed.
+ * @param body - Visible summary.
+ * @param planId - Open plan id.
+ * @returns Body ready to post.
+ */
+export function attachGestorPlanMarker(body: string, planId: string): string {
+  const mark = gestorPlanMarker(planId)
+  const stripped = body.replace(/\s*\[\[gestor-plan:[a-zA-Z0-9_-]+\]\]\s*$/u, '').trimEnd()
+  return stripped === '' ? mark : `${stripped}\n\n${mark}`
+}
+
+export function formatGestorAuditFromPlan(gestorName: string, plan: GestorPlan): string {
+  return formatGestorAudit({
+    gestorName,
+    verb: GESTOR_AUDIT_VERB[plan.action],
+    detail: plan.summary,
+    reason: plan.reason,
+  })
 }

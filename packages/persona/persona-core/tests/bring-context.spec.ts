@@ -6,6 +6,8 @@ import {
   classifyVaultPath,
   contentHash,
   decideBringApply,
+  applyContextProposals,
+  vaultToBringExisting,
   listVaultFolderFiles,
   parseBringPaste,
   previewBringVault,
@@ -101,6 +103,12 @@ it('dedupes against the Cofre and turns a clash with a fixed decision into a que
     { id: dup!.id, action: 'accept' },
     { id: clash!.id, action: 'accept' },
   ])).toEqual([])
+  const existing = vaultToBringExisting([
+    { id: 'v-brief', kind: 'brief', body: 'Padaria Lua, pão e café em São Paulo.' },
+    { id: '', kind: 'decision', body: 'x' },
+  ])
+  expect(existing).toEqual([{ id: 'v-brief', kind: 'brief', body: 'Padaria Lua, pão e café em São Paulo.' }])
+  expect(applyContextProposals(preview, [{ id: clash!.id, action: 'accept' }])).toEqual([])
 })
 
 it('walks an Obsidian vault: ignores .obsidian/.trash/binaries and reimports by path+hash', () => {
@@ -114,6 +122,8 @@ it('walks an Obsidian vault: ignores .obsidian/.trash/binaries and reimports by 
   expect(listed.keep).toEqual(['notas/clientes.md'])
   expect(listed.ignored.map(row => row.why).join(' ')).toMatch(/obsidian|trash|Anexo/i)
   expect(classifyVaultPath('.obsidian/app.json')).toBe('obsidian')
+  expect(classifyVaultPath('logo.png')).toBe('binary')
+  expect(listVaultFolderFiles(['logo.png']).ignored[0]?.why).toMatch(/Anexo/)
 
   const first = previewBringVault({ files })
   expect(first.source).toBe('vault')

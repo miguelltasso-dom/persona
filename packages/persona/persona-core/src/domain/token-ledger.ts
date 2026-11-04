@@ -246,6 +246,23 @@ export function tokensPerSuccessfulTask(
 }
 
 /**
+ * Distinct ticket ids that appear on the book. Host passes this into
+ * {@link foldUsagePanel} / OPT-8 when it has no separate ready list.
+ * @param entries - Book.
+ * @returns Unique ids, order of first appearance. Rows without a ticket stay out.
+ */
+export function ticketIdsFromLedger(entries: readonly TurnLedgerEntry[]): string[] {
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (const row of entries) {
+    if (row.ticketId === undefined || seen.has(row.ticketId)) continue
+    seen.add(row.ticketId)
+    ids.push(row.ticketId)
+  }
+  return ids
+}
+
+/**
  * Map a domain kind onto Rivet's usage-port tags (`exec` / `eval`).
  * @param kind - Canonical ledger kind.
  * @returns Port tag. Anvil persists {@link TurnKind}.

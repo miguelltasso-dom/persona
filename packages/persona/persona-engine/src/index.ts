@@ -305,6 +305,8 @@ export {
   talkPolicy,
   wrapAsData,
 } from './prompts/talk.ts'
+export { composeHostTalk, composePersonaStable, composeTalkStable, finalizeTalkReply, finishHostTalk, foldHostTalkUsed, measureLeanVsNaive } from './prompts/talk-output.ts'
+export type { HostTalkCompose, HostTalkInput, HostTalkUsedFold, HostTalkUsedRow, LeanVsNaiveReport } from './prompts/talk-output.ts'
 export type { TalkColleague, TalkPromptInput } from './prompts/talk.ts'
 export {
   ENGINE_COPY,
@@ -332,13 +334,15 @@ export {
   INITIATIVE_DAILY_TOKEN_BUDGET,
   batchInitiative,
   capChannelReply,
+  leanChannelReply,
+  formatLeanStructuredReport,
   countWords,
   initiativeCadenceDays,
   trimInitiativeToBudget,
 } from './lean-output.ts'
-export type { InitiativeBatch, InitiativeDraft } from './lean-output.ts'
-export { engineClassForTurn } from './engine-policy.ts'
-export type { EngineClass } from './engine-policy.ts'
+export type { InitiativeBatch, InitiativeDraft, LeanStructuredReport } from './lean-output.ts'
+export { engineClassForTurn, sessionReuseForTurn } from './engine-policy.ts'
+export type { EngineClass, SessionReuse } from './engine-policy.ts'
 export { MemoryPromptStore, publishPrompt } from './prompts/store.ts'
 export type { PromptSnapshot, PromptStore } from './prompts/store.ts'
 export { watchdogSignals, watchdogWarnings, vigiaTick } from './watchdog.ts'
@@ -379,10 +383,12 @@ export {
   rollbackTaughtSkill,
   sampleKeyFrames,
   teachRetentionExpiresAt,
+  teachShouldPurge,
+  listTeachArtifactsToPurge,
 } from './teach.ts'
 export { deliverWorkingSend, flushWorkingQueue } from './working-deliver.ts'
 export type {
-  TeachFrame, TeachStepDraft, TeachTranscriptSlice, TaughtSkillDraft, TaughtStepEdit, VisionDescribe, VisionPort,
+  TeachArtifactStamp, TeachFrame, TeachStepDraft, TeachTranscriptSlice, TaughtSkillDraft, TaughtStepEdit, VisionDescribe, VisionPort,
 } from './teach.ts'
 export {
   DEFAULT_COMPUTER_USE_LIMITS,
@@ -436,16 +442,25 @@ export {
   runGestorHire,
   runGestorReorganize,
   runGestorTie,
+  proposeGestorChannelBody,
+  emitGestorPropose,
   gestorInitiative,
 } from './gestor.ts'
+export { measureGestorAcceptance, measureGestorV1 } from './gestor-accept.ts'
+export type { GestorAcceptance } from './gestor-accept.ts'
 export {
+  activityFromDomainEvent,
   activityFromReport,
+  recordTurnActivity,
+  withTurnActivityEmit,
   activityKindOfTool,
   activityStatusOfReport,
   batchRouterBurst,
   foldTurnActivity,
+  foldTurnActivityBook,
 } from './activity.ts'
 export type { GestorAssemble, GestorDecision, GestorInitiative } from './gestor.ts'
+export type { TurnActivityBook } from './activity.ts'
 export {
   PAIR_REAL_LIMIT,
   PAIR_REAL_TURN_MS,
@@ -459,10 +474,12 @@ export {
   collectPairUsage,
   comparePair,
   compareScenariosToBaseline,
+  formatOpt8AcceptanceMarkdown,
   formatTokenMeasureReport,
   formatTokensBaselineMarkdown,
   ledgerFromTurnLayers,
   measureEngineLevers,
+  measureOpt8Acceptance,
   pairVerdict,
   recordOverhead,
   runPairArm,
@@ -473,6 +490,7 @@ export {
 } from './token-measure.ts'
 export type {
   EngineLeverReport,
+  Opt8Acceptance,
   PairArm,
   PairEngine,
   PairPath,
@@ -528,7 +546,13 @@ export {
   emptyQueueDecision, spendsModel, ticketGoal, MemoryGoalBoard,
 } from './goals.ts'
 export type { GoalActivation, GoalBoard, GoalPhase, PersonaGoal, QueueDecision } from './goals.ts'
-export { verifyReady, continuationAfterReady } from './continue.ts'
+export { verifyReady, continuationAfterReady, looksLikeHesitantOffer, refuseHesitantOffer } from './continue.ts'
+export { scoreProactivityAcceptance } from './proactivity-accept.ts'
+export type { ProactivityAcceptance, ProactivityAcceptanceInput } from './proactivity-accept.ts'
+export { measureProactivityAcceptance, measureProactivityV1 } from './proactivity-measure.ts'
+export { formatV1CloseMarkdown, measureV1Close } from './v1-close.ts'
+export type { V1CloseMeasure } from './v1-close.ts'
+export type { ProactivityMeasure } from './proactivity-measure.ts'
 export type { Continuation, FollowupProposal, ReadyCheck } from './continue.ts'
 export {
   inSilence, leftoverOnProject, mayPropose, maySpendOnProject, nextProposalIntervalHours,

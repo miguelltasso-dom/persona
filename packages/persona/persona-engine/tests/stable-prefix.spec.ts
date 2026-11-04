@@ -8,6 +8,9 @@ import {
   prefixLooksVolatile,
   toolsForTurn,
   trimVariableAlreadyInPrefix,
+  composeTalkStable,
+  composePersonaStable,
+  finalizeTalkReply,
 } from '../src/index.ts'
 
 it('keeps system → persona → tools → required and rejects a volatile prefix', () => {
@@ -63,4 +66,42 @@ it('keeps system → persona → tools → required and rejects a volatile prefi
   })
   expect(dup.variable).not.toContain('Nunca inventar preço.')
   expect(dup.variable).toContain('Cardápio')
+})
+
+it('talk stable prefix keeps the user line out of the cache; reply is lean (OPT-3/6)', () => {
+  const built = composeTalkStable({
+    identity: { name: 'Atlas', title: 'Coordenação' },
+    personality: 'Calmo.',
+    instructions: 'Despache.',
+    functionLabel: 'coordenação',
+    colleagues: [{ name: 'Nina', title: 'Design' }],
+    context: 'Nunca inventar preço.',
+    userText: 'Cardápio de sábado?',
+    capabilities: 'resposta de conversa',
+  })
+  expect(built.prefix).not.toContain('Cardápio')
+  expect(built.variable).toContain('Cardápio')
+  expect(built.variable).toContain('Nunca inventar preço.')
+  expect(built.prefix).toContain('Atlas')
+  expect(finalizeTalkReply('Cardápio de sábado? Sábado tem pão.', 'Cardápio de sábado?'))
+    .toBe('Sábado tem pão.')
+})
+
+it('persona stable keeps the user line out of the cache and vault in required (OPT-3)', () => {
+  const built = composePersonaStable({
+    fields: {
+      identity: { name: 'Atlas', title: 'Coordenação' },
+      personality: 'Calmo.',
+      instructions: 'Despache.',
+      functionLabel: 'coordenação',
+      vault: 'Nunca inventar preço.',
+      capabilities: 'resposta de conversa',
+    },
+    surface: 'channel',
+    userText: 'Cardápio de sábado?',
+  })
+  expect(built.prefix).toContain('Atlas')
+  expect(built.prefix).toContain('Nunca inventar preço.')
+  expect(built.prefix).not.toContain('Cardápio')
+  expect(built.variable).toContain('Cardápio')
 })

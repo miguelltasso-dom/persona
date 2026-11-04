@@ -131,6 +131,15 @@ export class Assignments extends EnginePart {
     // A dropped report after a close the ticket deferred ends it as the close did, which its final notice tells.
     const outcome = report.state === 'dropped' ? this.tickets.followsDone(ticket)?.outcome ?? 'dropped' : report.state === 'ready' ? ready : undefined
     if (outcome) this.tickets.end(ticketId, 'executor', outcome, at)
+    const channel = ticket.channels[0]
+    this.emit('assignment.reported', {
+      ticketId,
+      assignmentId: assignment.id,
+      state: report.state,
+      summary: report.summary,
+      personaId: ticket.mandate.actor.id,
+      threadId: channel === undefined ? ticket.origin.triggerId : channel.thread,
+    })
     return this.require(ticketId)
   }
   /** The ticket, while it is open and `assignmentId` runs it. */

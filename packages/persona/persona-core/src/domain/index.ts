@@ -53,6 +53,7 @@ export {
   assertProposalWithinCreatorAccess,
   assertUniqueCoordination,
   assignSystemRole,
+  withDefaultGestor,
   coordinationHolders,
   personaPropose,
   proposalExceedsCreatorAccess,
@@ -214,6 +215,7 @@ export {
   renameSubject,
   subjectThreadKey,
   ticketSubjectChip,
+  ticketCardTopic,
 } from './subjects.ts'
 export type {
   ConversationMessage,
@@ -299,8 +301,8 @@ export type {
   BrainSearchHit,
 } from './brain-tools.ts'
 
-export { applyBrainVaultExport, brainPageToMarkdown, exportBrainVault, leftoverDestFiles, markdownToBrainPage, planBrainVaultExport, shouldImportVaultFile } from './brain-markdown.ts'
-export type { BrainVaultApply, BrainVaultExport, BrainVaultExportPlan, BrainVaultFile } from './brain-markdown.ts'
+export { applyBrainVaultExport, applyBrainVaultSync, brainPageToMarkdown, exportBrainVault, foreignVaultToBringFiles, leftoverDestFiles, markdownToBrainPage, planBrainVaultExport, planBrainVaultSync, shouldImportVaultFile, tryParseBrainPageMarkdown } from './brain-markdown.ts'
+export type { BrainPageMarkdown, BrainVaultApply, BrainVaultExport, BrainVaultExportPlan, BrainVaultFile, BrainVaultForeignImport, BrainVaultImportItem, BrainVaultMode, BrainVaultPageImport, BrainVaultSyncApply, BrainVaultSyncPlan } from './brain-markdown.ts'
 
 export {
   EMPTY_LAYERS,
@@ -318,6 +320,7 @@ export {
   measureLayers,
   minifyToolDescription,
   sumLayers,
+  ticketIdsFromLedger,
   tokensPerSuccessfulTask,
   totalTokens,
   turnFromLayers,
@@ -350,6 +353,7 @@ export type { AsideAsk, CitedComposer, LimitPause, QueuedUserMessage, WorkingSen
 
 export {
   activityCountsAsDone,
+  activitySuccessRate,
   groupTurnActivity,
   sortActivity,
   ACTIVITY_KIND_ORDER,
@@ -372,9 +376,16 @@ export {
   commentGestorPlan,
   gestorAllocate,
   applyGestorPlan,
+  rejectGestorPlan,
   decideGestorAction,
+  gestorConflictDecision,
   gestorDecisionRows,
   formatGestorAudit,
+  formatGestorAuditFromPlan,
+  GESTOR_PLAN_MARK,
+  gestorPlanMarker,
+  parseGestorPlanId,
+  attachGestorPlanMarker,
   isGestor,
   gestorHire,
   gestorHolders,

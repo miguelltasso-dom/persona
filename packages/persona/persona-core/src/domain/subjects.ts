@@ -217,3 +217,17 @@ export function bindTicketToSubject(ticketId: string, subject: ConversationSubje
 export function ticketSubjectChip(link: TicketSubjectLink): { color: SubjectColor; colorIndex: SubjectColorIndex; name: string } {
   return { color: link.color, colorIndex: link.colorIndex, name: link.name }
 }
+
+/**
+ * Live board card: subject id for `TaskView.topicId` plus the chip.
+ * @param link - Ticket origin.
+ * @returns Topic id and chip fields.
+ */
+export function ticketCardTopic(link: TicketSubjectLink): {
+  readonly topicId: string
+  readonly name: string
+  readonly color: SubjectColor
+  readonly colorIndex: SubjectColorIndex
+} {
+  return { topicId: link.subjectId, ...ticketSubjectChip(link) }
+}

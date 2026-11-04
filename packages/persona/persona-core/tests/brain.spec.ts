@@ -13,8 +13,12 @@ import {
   exportBrainVault,
   leftoverDestFiles,
   planBrainVaultExport,
+  planBrainVaultSync,
   applyBrainVaultExport,
+  applyBrainVaultSync,
+  foreignVaultToBringFiles,
   shouldImportVaultFile,
+  tryParseBrainPageMarkdown,
   brainPropose,
   brainRead,
   brainSearch,
@@ -341,6 +345,8 @@ it('exports markdown with [[links]] and reimports the same id without a new page
   expect(back.id).toBe('c1')
   expect(back.links).toEqual(['r1'])
   expect(back.body).toContain('Pão e café')
+  expect(back.visibility).toEqual({ kind: 'workspace' })
+  expect(back.properties).toEqual({})
 })
 
 it('copies a Cofre record onto a page and leaves the vault row intact', () => {
@@ -390,4 +396,61 @@ it('exports an Obsidian pack one-way and skips a file whose hash already exists'
   expect(applied.skip).toEqual(['company/c1.md'])
   expect(applied.write.some(file => file.path === 'Comece aqui.md')).toBe(true)
   expect(applied.leftover).toEqual(['keep.md'])
+  const extra = { path: 'inbox/nota.md', body: 'Do vault.', hash: 'vault-note-1' }
+  const oneWay = planBrainVaultSync({
+    pages: [page({ id: 'c1', kind: 'company', title: 'Padaria Lua' })],
+    dest: [extra],
+  })
+  expect(oneWay.mode).toBe('one_way')
+  expect(oneWay.importFiles).toEqual([])
+  const twoWay = planBrainVaultSync({
+    pages: [page({ id: 'c1', kind: 'company', title: 'Padaria Lua' })],
+    dest: [extra],
+    mode: 'two_way',
+  })
+  expect(twoWay.mode).toBe('two_way')
+  expect(twoWay.importFiles.map(file => file.path)).toEqual(['inbox/nota.md'])
+  expect(twoWay.export.leftover).toEqual(['inbox/nota.md'])
+  expect(tryParseBrainPageMarkdown(extra.body)).toBeNull()
+  const foreignApply = applyBrainVaultSync(twoWay)
+  expect(foreignApply.imports).toEqual([{
+    kind: 'foreign',
+    path: 'inbox/nota.md',
+    hash: 'vault-note-1',
+    body: 'Do vault.',
+  }])
+  const scoped = page({
+    id: 'hid',
+    kind: 'rule',
+    title: 'DM',
+    body: 'Segredo.',
+    required: true,
+    visibility: { kind: 'members', memberIds: ['miguel'] },
+    properties: { owner: 'atlas' },
+  })
+  const scopedMd = brainPageToMarkdown(scoped)
+  const scopedBack = markdownToBrainPage(scopedMd)
+  expect(scopedBack.visibility).toEqual({ kind: 'members', memberIds: ['miguel'] })
+  expect(scopedBack.required).toBe(true)
+  expect(scopedBack.properties).toEqual({ owner: 'atlas' })
+  const destPage = {
+    path: 'rule/hid.md',
+    body: scopedMd,
+    hash: 'incoming-hid',
+  }
+  const pageApply = applyBrainVaultSync(planBrainVaultSync({
+    pages: [page({ id: 'c1', kind: 'company', title: 'Padaria Lua' })],
+    dest: [destPage],
+    mode: 'two_way',
+  }))
+  expect(pageApply.imports).toHaveLength(1)
+  expect(pageApply.imports[0]).toMatchObject({
+    kind: 'page',
+    path: 'rule/hid.md',
+    page: { id: 'hid', visibility: { kind: 'members', memberIds: ['miguel'] } },
+  })
+  expect(foreignVaultToBringFiles(foreignApply.imports)).toEqual([
+    { path: 'inbox/nota.md', text: 'Do vault.' },
+  ])
+  expect(foreignVaultToBringFiles(pageApply.imports)).toEqual([])
 })

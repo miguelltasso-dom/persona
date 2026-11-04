@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import { recallChain } from './chain.ts'
 import { dropRecordsInPrefix } from './dedupe-prefix.ts'
 import { ContextError } from './error.ts'
+import { incrementalSubjectSummary } from '../domain/token-ledger.ts'
 import { restrictSnapshotToSubject, type CompileActiveSubjectInput, type CompiledSubjectContext } from './subject-compile.ts'
 import type {
   CompiledContext, CompileContextInput, ContextAuthorize, ContextErrorCode, ContextKind,
@@ -27,7 +28,7 @@ export { formatContextBenchReport, runContextBench } from './bench.ts'
 export type { BenchSample } from './bench.ts'
 export { restrictSnapshotToSubject } from './subject-compile.ts'
 export { dropRecordsInPrefix } from './dedupe-prefix.ts'
-export type { CompileActiveSubjectInput, CompiledSubjectContext } from './subject-compile.ts'
+export type { CompileActiveSubjectInput, CompiledSubjectContext, SubjectDigestInput } from './subject-compile.ts'
 
 const SCOPE_KEYS = ['workspaceId', 'projectId', 'agentId', 'actorId', 'audienceId', 'policyRevision'] as const
 
@@ -300,10 +301,20 @@ export async function compileActiveSubject(input: CompileActiveSubjectInput): Pr
     budgetTokens: input.budgetTokens,
     countTokens: input.countTokens,
     authorize: input.authorize,
+    ...(input.prefix === undefined ? {} : { prefix: input.prefix }),
   })
+  const digest = input.subjectDigest === undefined
+    ? undefined
+    : incrementalSubjectSummary(
+      input.subjectDigest.previous,
+      input.subjectDigest.added,
+      input.subjectDigest.budget,
+    )
   const cited = input.citedSubjectIds ?? []
   const nodes = input.subjectNodes ?? []
-  if (cited.length === 0 || nodes.length === 0) return { compiled, chain: [] }
+  if (cited.length === 0 || nodes.length === 0) {
+    return { compiled, chain: [], ...(digest === undefined ? {} : { digest }) }
+  }
   const byId = new Map(nodes.map(node => [node.id, node]))
   const chain = await recallChain({
     startId: input.activeSubjectId,
@@ -312,5 +323,9 @@ export async function compileActiveSubject(input: CompileActiveSubjectInput): Pr
     load: id => byId.get(id),
     authorize: node => Promise.resolve(node.id === input.activeSubjectId || cited.includes(node.id)),
   })
-  return { compiled, chain: chain.filter(hop => hop.id !== input.activeSubjectId) }
+  return {
+    compiled,
+    chain: chain.filter(hop => hop.id !== input.activeSubjectId),
+    ...(digest === undefined ? {} : { digest }),
+  }
 }

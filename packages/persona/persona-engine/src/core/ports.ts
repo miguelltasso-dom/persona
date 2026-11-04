@@ -92,6 +92,24 @@ export interface DomainEvents {
   'ticket.ended': { ticketId: string; by: TicketEndBy; outcome: TicketOutcome; reason?: string }
   'assignment.started': { ticketId: string; assignmentId: string }
   'assignment.ended': { ticketId: string; assignmentId: string; reason: string }
+  /**
+   * Worker status on an open assignment. Host persist via `activityFromDomainEvent`.
+   * @mode event
+   * @param ticketId - Ticket that received the report.
+   * @param assignmentId - Assignment that wrote it.
+   * @param state - Report state.
+   * @param summary - Worker summary (activity title).
+   * @param personaId - Mandate actor id.
+   * @param threadId - Channel thread, or origin trigger when the ticket has no channel.
+   */
+  'assignment.reported': {
+    ticketId: string
+    assignmentId: string
+    state: import('./model.ts').ReportState
+    summary: string
+    personaId: string
+    threadId: string
+  }
   'thread.subscribed': { threadKey: string; ticketId: string }
   /** A person dropped every ticket's Subscription, or a ticket's Executor its own, for `reason`. */
   'thread.unsubscribed': { threadKey: string; ticketId: string; by: 'person' | 'executor'; reason?: string }

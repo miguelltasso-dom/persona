@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { groupTurnActivity } from '../src/index.ts'
+import { activitySuccessRate, groupTurnActivity } from '../src/index.ts'
 import type { TurnActivityEvent } from '../src/index.ts'
 
 const at = '2026-11-04T04:40:00.000Z'
@@ -32,4 +32,10 @@ it('groups a turn: mutations first, failures out of done, waiting is unfinished'
   expect(nina?.unfinished).toBe(true)
   expect(nina?.moreCount).toBe(0)
   expect(fold.find(row => row.personaId === 'atlas')?.doneByKind.hire).toBe(1)
+  expect(activitySuccessRate([])).toBeNull()
+  expect(activitySuccessRate([ev({ id: 'w', kind: 'command', status: 'waiting' })])).toBeNull()
+  expect(activitySuccessRate([
+    ev({ id: 'ok', kind: 'command', status: 'done' }),
+    ev({ id: 'no', kind: 'file', status: 'failed' }),
+  ])).toBe(0.5)
 })

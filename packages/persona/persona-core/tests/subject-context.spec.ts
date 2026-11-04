@@ -80,6 +80,30 @@ it('compileContext of subject A omits B unless cited via Chain of Recall', async
   expect(cited.chain[0]?.body).toBe('preço do pão')
 })
 
+it('drops optional subject rows already in the prefix and keeps an incremental digest (OPT-4)', async () => {
+  const snapshot = {
+    revision: 's1',
+    requiredIds: ['rule'],
+    records: [
+      record('rule', { kind: 'decision', body: 'Nunca inventar preço.' }),
+      record('ui-mem', { subjectId: 'subject-ui', body: 'layout do card' }),
+    ],
+  }
+  const built = await compileActiveSubject({
+    scope,
+    snapshot,
+    budgetTokens: 10_000,
+    countTokens: text => text.length,
+    authorize: async () => true,
+    activeSubjectId: 'subject-ui',
+    prefix: 'layout do card\nAtlas coordena.',
+    subjectDigest: { previous: 'ontem pão', added: 'hoje café da Ana', budget: 20 },
+  })
+  expect(built.compiled.text).toContain('Nunca inventar preço.')
+  expect(built.compiled.text).not.toContain('layout do card')
+  expect(built.digest).toContain('café')
+})
+
 it('recall stays on the asked subject and date window', async () => {
   const events: RecallEvent[] = [
     {

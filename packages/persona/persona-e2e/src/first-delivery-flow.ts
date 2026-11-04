@@ -318,6 +318,79 @@ export async function sendGeralMessageAndReload(page: Page, rec: FirstDeliveryRe
   await rec.shot('11-chat-after-reload')
 }
 
+/** What happened to one message the person sent in #geral (D-079: every message gets a reply, a reaction or a visible line). */
+export interface ConversationOutcome {
+  readonly text: string
+  readonly sent: boolean
+  /** A reaction chip (Joinha, Coração, Rindo, Comemorando, Pensando, Feito) appeared on the person's message. */
+  readonly reaction: string | null
+  /** The first new message in #geral after the person's own (any author but the person), if any. */
+  readonly reply: { readonly id: string; readonly text: string } | null
+  /** A new visible state line (`role=status` / `aria-live`) that was not on screen before the send. */
+  readonly stateLine: string | null
+  readonly waitedMs: number
+}
+
+/** D-079: never silence: a reaction, a reply or a visible state line. */
+export function acknowledged(outcome: ConversationOutcome): boolean {
+  return outcome.sent && (outcome.reaction !== null || outcome.reply !== null || outcome.stateLine !== null)
+}
+
+const REACTION_LABEL = /^(Joinha|Coração|Rindo|Comemorando|Pensando|Feito)/u
+
+/**
+ * Bolt's P0 (04/11, D-079): with a Task open in #geral (the first delivery waiting for review), the person's NEXT conversational
+ * message became a continuation and NOTHING answered. Type `text` in #geral + Enter and wait (up to `timeoutMs`) for a reaction on it or
+ * a new message from anyone else. Returns what was seen; the caller asserts (`obrigado` → reaction or reply, a question → a reply).
+ * Read-only apart from the send itself; no retry.
+ * @param page - Persona page after onboarding.
+ * @param rec - Recorder (marks, notes, screenshot).
+ * @param text - Unique message text.
+ * @param timeoutMs - How long to wait for the acknowledgement.
+ */
+export async function converseInGeral(page: Page, rec: FirstDeliveryRecorder, text: string, timeoutMs = 30_000): Promise<ConversationOutcome> {
+  await ensureGeralComposer(page)
+  const idsNow = async (): Promise<string[]> => page.evaluate(() => [...document.querySelectorAll('[data-message-id]')].map(node => node.getAttribute('data-message-id') ?? ''))
+  const statusLines = async (): Promise<string[]> => page.evaluate(() => [...document.querySelectorAll('[role="status"], [aria-live]')]
+    .map(node => (node.textContent ?? '').replace(/\s+/gu, ' ').trim()).filter(line => line !== ''))
+  const before = new Set(await idsNow())
+  const statusBefore = new Set(await statusLines())
+  const composer = geralComposerLocator(page).first()
+  await composer.click()
+  await composer.fill(text)
+  await composer.press('Enter')
+  const startedAt = Date.now()
+  const own = page.locator('[data-message-id]').filter({ hasText: text }).last()
+  try {
+    await own.waitFor({ state: 'visible', timeout: 30_000 })
+  } catch {
+    await rec.shot('zz-converse-not-sent')
+    return { text, sent: false, reaction: null, reply: null, stateLine: null, waitedMs: Date.now() - startedAt }
+  }
+  const ownId = (await own.getAttribute('data-message-id')) ?? ''
+  let reaction: string | null = null
+  let reply: { id: string; text: string } | null = null
+  let stateLine: string | null = null
+  while (Date.now() - startedAt < timeoutMs && reaction === null && reply === null && stateLine === null) {
+    const chip = own.getByRole('button', { name: REACTION_LABEL }).first()
+      .or(own.locator('xpath=..').getByRole('button', { name: REACTION_LABEL }).first())
+    if (await chip.count() > 0) reaction = (await chip.getAttribute('aria-label')) ?? 'reaction'
+    const fresh = (await idsNow()).filter(id => !before.has(id) && id !== ownId && !id.endsWith('-progress'))
+    for (const id of fresh) {
+      const body = ((await page.locator(`[data-message-id="${id}"]`).first().innerText().catch(() => '')) ?? '').trim()
+      if (body !== '' && !body.includes(text)) { reply = { id, text: body.slice(0, 240) }; break }
+    }
+    if (reaction === null && reply === null) {
+      stateLine = (await statusLines()).find(line => !statusBefore.has(line) && !line.includes(text)) ?? null
+    }
+    if (reaction === null && reply === null && stateLine === null) await page.waitForTimeout(500)
+  }
+  const waitedMs = Date.now() - startedAt
+  rec.notes.push(`converse "${text}": reaction=${reaction ?? 'none'}, reply=${reply === null ? 'none' : JSON.stringify(reply)}, stateLine=${stateLine === null ? 'none' : JSON.stringify(stateLine.slice(0, 160))}, after ${String(waitedMs)} ms`)
+  await rec.shot(`13-converse-${text.replace(/[^a-z]/giu, '').slice(0, 12).toLowerCase()}`)
+  return { text, sent: true, reaction, reply, stateLine, waitedMs }
+}
+
 /** Milestones of the real run in ms since the window attached (Muse's FIRST-DELIVERY-SPEC "Medição na rodada real"). */
 export interface RealDeliveryTimeline {
   /** Instant right before the click on "Pedir agora". */

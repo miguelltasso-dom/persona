@@ -12,6 +12,10 @@ export interface FakeCliOptions {
   readonly fail?: string | boolean
   /** Configurable assistant reply text (env `FAKE_CLI_REPLY`). */
   readonly reply?: string
+  /** The reply of model turn N is element N, the last repeats (env `FAKE_CLI_REPLIES`, a JSON array): script a whole conversation. */
+  readonly replies?: readonly string[]
+  /** The FIRST rule whose regex matches the text of the user turn decides the reply (env `FAKE_CLI_RULES`): content-based, independent of the turn number. */
+  readonly rules?: readonly { readonly match: string; readonly reply: string }[]
   /** During a turn, write this RELATIVE text file in the stub's working directory (the task draft): a real revision to review (env `FAKE_CLI_WRITE_FILE`). */
   readonly writeFile?: string
   /** Text of that file (env `FAKE_CLI_WRITE_CONTENT`). */
@@ -22,7 +26,7 @@ export interface FakeCliOptions {
   readonly conflictContent?: string
 }
 
-const WRITE_ENVS = ['FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT'] as const
+const WRITE_ENVS = ['FAKE_CLI_RULES', 'FAKE_CLI_REPLIES', 'FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT'] as const
 
 /** One line of the stub's invocation log (`FAKE_CLI_LOG`). */
 export interface FakeCliInvocation {
@@ -141,6 +145,8 @@ export function withFakeCliOnPath(options?: FakeCliOptions): FakeCliPathScope {
   if (options?.fail !== undefined) {
     process.env.FAKE_CLI_FAIL = typeof options.fail === 'boolean' ? (options.fail ? '1' : '0') : options.fail
   }
+  if (options?.replies !== undefined) process.env.FAKE_CLI_REPLIES = JSON.stringify(options.replies)
+  if (options?.rules !== undefined) process.env.FAKE_CLI_RULES = JSON.stringify(options.rules)
   if (options?.writeFile !== undefined) process.env.FAKE_CLI_WRITE_FILE = options.writeFile
   if (options?.writeContent !== undefined) process.env.FAKE_CLI_WRITE_CONTENT = options.writeContent
   if (options?.conflictDir !== undefined) process.env.FAKE_CLI_CONFLICT_DIR = options.conflictDir

@@ -13,7 +13,7 @@
  * - FAKE_CLI_REPLY / FAKE_CLI_RESPONSE: Custom response text for the turn.
  */
 
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import readline from 'node:readline'
 
@@ -120,7 +120,59 @@ const DEFAULT_REPLY = [
   'Tarefa proposta: preparar texto do cardápio; dona: Coordenação; pronto quando revisado.',
 ].join('\n')
 
-function getReplyText() {
+/**
+ * Which model turn this is (1-based), counted from the shared invocation log (`FAKE_CLI_LOG`): every stub process of a run appends to it,
+ * so the count survives a new process per turn. Without a log it is always 1.
+ */
+function turnNumber() {
+  const target = process.env.FAKE_CLI_LOG
+  if (!target || !existsSync(target)) return 1
+  let turns = 0
+  for (const line of readFileSync(target, 'utf8').split('\n')) {
+    if (line.includes('"event":"turn"')) turns += 1
+  }
+  return Math.max(1, turns)
+}
+
+/**
+ * `FAKE_CLI_REPLIES` (a JSON array of strings): the reply of turn N is element N (the last one repeats). Lets one run script a whole
+ * conversation — e.g. turn 2 a worker report `{"state":"waiting","summary":"…","question":"…"}`, turn 3 the final report.
+ * Falls back to `FAKE_CLI_REPLY` / the default.
+ */
+/**
+ * `FAKE_CLI_RULES` (a JSON array of `{ "match": "<regex>", "reply": "<text>" }`): the FIRST rule whose regex matches the text of the
+ * user turn decides the reply. Content-based, so a run can script "the work request makes the persona ask a question, the answer finishes
+ * it" no matter how many other model turns (conversation replies, triage) happen in between. Put the most specific rule first.
+ */
+function ruleReply(promptText) {
+  const rules = process.env.FAKE_CLI_RULES
+  if (!rules || promptText === undefined) return undefined
+  try {
+    const list = JSON.parse(rules)
+    if (!Array.isArray(list)) return undefined
+    for (const rule of list) {
+      if (rule && typeof rule.match === 'string' && typeof rule.reply === 'string' && new RegExp(rule.match, 'iu').test(promptText)) return rule.reply
+    }
+  } catch {
+    // A malformed rule list falls through to the sequence / single reply.
+  }
+  return undefined
+}
+
+function getReplyText(promptText) {
+  const byRule = ruleReply(promptText)
+  if (byRule !== undefined) return byRule
+  const sequence = process.env.FAKE_CLI_REPLIES
+  if (sequence) {
+    try {
+      const replies = JSON.parse(sequence)
+      if (Array.isArray(replies) && replies.length > 0 && replies.every(item => typeof item === 'string')) {
+        return replies[Math.min(turnNumber(), replies.length) - 1]
+      }
+    } catch {
+      // A malformed sequence falls through to the single reply.
+    }
+  }
   return process.env.FAKE_CLI_REPLY ?? process.env.FAKE_CLI_RESPONSE ?? DEFAULT_REPLY
 }
 
@@ -289,6 +341,7 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
     if (msg.type === 'user') {
       logInvocation('turn')
       applyConfiguredWrites()
+      const promptText = JSON.stringify(msg.message?.content ?? '')
       const latency = getLatencyMs()
       if (latency > 0) await sleep(latency)
 
@@ -331,7 +384,7 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
           content: [
             {
               type: 'text',
-              text: getReplyText(),
+              text: getReplyText(promptText),
             },
           ],
         },
@@ -339,8 +392,7 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
 
       // Real Claude stamps every success result with measured token counters (`usage` = this turn's main loop,
       // `modelUsage` = running total per model). Ledger/first-delivery evidence only counts those as `measured`.
-      const replyText = getReplyText()
-      const promptText = JSON.stringify(msg.message?.content ?? '')
+      const replyText = getReplyText(promptText)
       const inputTokens = baseInputTokens() + Math.ceil(promptText.length / 4)
       const outputTokens = Math.max(1, Math.ceil(replyText.length / 4))
       totals.input += inputTokens

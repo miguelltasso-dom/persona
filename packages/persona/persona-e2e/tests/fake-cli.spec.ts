@@ -348,4 +348,43 @@ describe('persona-e2e fake CLI fixtures', () => {
       expect(process.env.FAKE_CLI_CONFLICT_DIR).toBeUndefined()
     })
   })
+
+  it('FAKE_CLI_REPLIES scripts the conversation: turn N answers with element N (counted from the shared log), the last one repeats', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fake-replies-'))
+    const log = join(dir, 'calls.jsonl')
+    try {
+      const replies = JSON.stringify(['primeira', '{"state":"waiting","summary":"preciso do preço","question":"Qual o preço novo?"}', 'final'])
+      const seen: string[] = []
+      for (let turn = 1; turn <= 4; turn += 1) {
+        const { parsed } = await runCliSession(['claude', '-p', '--input-format', 'stream-json'],
+          [{ type: 'user', uuid: `cmd-${String(turn)}`, message: { role: 'user', content: [{ type: 'text', text: 'oi' }] } }],
+          { FAKE_CLI_REPLIES: replies, FAKE_CLI_LOG: log })
+        const assistant = parsed.find(row => (row as { type?: string }).type === 'assistant') as { message: { content: { text: string }[] } }
+        seen.push(assistant.message.content[0]!.text)
+      }
+      expect(seen[0]).toBe('primeira')
+      expect(seen[1]).toContain('"question":"Qual o preço novo?"')
+      expect(seen[2]).toBe('final')
+      expect(seen[3]).toBe('final')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('FAKE_CLI_RULES answers by WHAT was asked (first matching rule), independent of the turn number', async () => {
+    const rules = JSON.stringify([
+      { match: 'R\\$ ?1,10', reply: 'final' },
+      { match: 'Atualize o cardápio', reply: 'pergunta' },
+    ])
+    const ask = async (text: string): Promise<string> => {
+      const { parsed } = await runCliSession(['claude', '-p', '--input-format', 'stream-json'],
+        [{ type: 'user', uuid: 'cmd-rule', message: { role: 'user', content: [{ type: 'text', text }] } }],
+        { FAKE_CLI_RULES: rules, FAKE_CLI_REPLY: 'padrão' })
+      const assistant = parsed.find(row => (row as { type?: string }).type === 'assistant') as { message: { content: { text: string }[] } }
+      return assistant.message.content[0]!.text
+    }
+    expect(await ask('Atualize o cardápio com os preços novos')).toBe('pergunta')
+    expect(await ask('Atualize o cardápio. O pão francês passa a custar R$ 1,10')).toBe('final') // most specific rule first
+    expect(await ask('bom dia')).toBe('padrão')
+  })
 })

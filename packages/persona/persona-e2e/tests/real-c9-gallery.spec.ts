@@ -65,7 +65,7 @@ describe.skipIf(!run)('C9 — galeria real claro/escuro vs direção D', () => {
     expect(channelDistance(lightSurface, hexToRgb('#FAF3E4')), `superfície clara = ${JSON.stringify(lightSurface)}`).toBeLessThanOrEqual(22)
   }, 120_000)
 
-  vitestIt.fails('[BUG→Prism+Muse] [C9] com prefers-color-scheme: dark o tema ESCURO é de fato aplicado (body[data-ds-dark-theme="true"] — hoje installPersonaColorScheme grava "" e todo o CSS da Persona espera "true": o shell fica creme sob o corpo escuro)', async () => {
+  vitestIt('[C9] com prefers-color-scheme: dark o tema ESCURO é de fato aplicado (body[data-ds-dark-theme="true"] no escuro, atributo AUSENTE no claro; superfície escura de verdade)', async () => {
     await panelHealth(s, 'kanban')
     const dir = await captureDir(SUITE)
     await s.page.emulateMedia({ colorScheme: 'light' })
@@ -93,7 +93,7 @@ describe.skipIf(!run)('C9 — galeria real claro/escuro vs direção D', () => {
     expect(luminance(lightSurface) - luminance(darkSurface), 'contraste entre temas').toBeGreaterThan(0.5)
   }, 120_000)
 
-  vitestIt.fails('[BUG→Prism+Muse] [C9] em TODAS as telas a captura escura é diferente da clara (hoje sai idêntica: o tema escuro não é aplicado — mesma causa do teste acima)', () => {
+  vitestIt('[C9] em TODAS as telas a captura escura é diferente da clara (o tema escuro chega a todas as telas)', () => {
     expect(pairs.size, 'as capturas por tela vêm dos testes [C9] acima').toBe(SCREENS.length)
     const same = [...pairs].filter(([, [light, dark]]) => hash(light) === hash(dark)).map(([slug]) => slug)
     expect(same, `telas com a captura escura IDÊNTICA à clara (${String(same.length)}/${String(pairs.size)})`).toEqual([])

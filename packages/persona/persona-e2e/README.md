@@ -263,6 +263,14 @@ Real CLIs stay **read-only** unless `PERSONA_REAL_CLI=1` and Atlas approves (D-0
 ## Real-engine first delivery (D-069) and the installed exe
 
 - `mandatory-first-delivery-installed.spec.ts` — the installed `Persona.exe` (set `PERSONA_INSTALLED_EXE` and `PERSONA_NSIS_COMMIT`): happy path with the fake CLI (ask → delivery → accept → **type in #geral + Enter, reload, the message is still there**) and the no-engine path. It writes `proof.json` (exe sha256, stub calls, `turn_ledger` read after the app stopped), `electron.log` and screenshots even when it fails.
+- **Full D-079 conversation in the installed exe** — the same spec has a third test (separate boot, no limiter) that runs `src/conversation-d079.ts` (a/b/c/d of `persona-spec/contracts/conversation.md`, shared with the web `mandatory-conversation-d079.spec.ts`). Proof: `artifacts/first-delivery/installed-d079/`.
+- **Roteiro for a new NSIS** (`scripts/installed-roteiro.ts`, one command under the `build` lock): identity of the Setup → silent uninstall/install into `C:\p8i` → exe sha256 + limiter-literal scan → the whole installed spec (chat + CAP=1 refusal + D-079 a/b/c/d + no-AI) → one verdict line (hash, Setup sha256, exe sha256, limiter in exe, the three proof stages, same-exe check) in `artifacts/first-delivery/installed-roteiro.json`:
+
+  ```powershell
+  node scripts/persona/with-lock.mjs "Probe installed fake <hash>" -- node --import tsx/esm packages/persona/persona-e2e/scripts/installed-roteiro.ts --commit <hash> [--setup C:\p8c\Persona-Setup.exe] [--dir C:\p8i]
+  ```
+
+  Spends no model turn. The REAL run still needs Keel's explicit OK.
 - `mandatory-first-delivery-real-dryrun.spec.ts` — rehearses the real-run harness against the web app with the fake (milestone timeline + ledger read): run it before spending a real attempt.
 - `mandatory-first-delivery-real-installed.spec.ts` — **spends the user's quota**, so it refuses unless: `PERSONA_REAL_E2E=1`, `PERSONA_REAL_E2E_OK=D-069` (+ `.maestri/tmp/atlas-ok-real-run.txt`), the exe + `PERSONA_NSIS_COMMIT`, the fake-CLI proof green on the **same exe sha256**, no fake in the environment, and the attempt budget (max 3, stop at the first green, from the 2nd on `PERSONA_REAL_E2E_DIAGNOSED=<offline diagnosis>`). Run under `node scripts/persona/with-lock.mjs "Probe real" --lock real --wait-max 3600000 -- pnpm exec vitest run …`. Evidence in `artifacts/first-delivery/real-installed/`: Muse's milestone timeline (ms since the window attached), one screenshot per milestone, `evidence/persona.db` for Forge's read-only verifier. `src/ledger-evidence.ts` reads `turn_ledger` from a COPY of the run's database.
 

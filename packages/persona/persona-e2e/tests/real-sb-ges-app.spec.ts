@@ -10,7 +10,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it as vitestIt } from 'vitest'
 import { scanAccessibility } from '../src/axe-check.ts'
-import { captureDir, mainText, openGaugeSession, panelHealth, shootBothThemes, type GaugeSession } from '../src/gauge-app.ts'
+import { captureDir, hireSuggestedTeam, mainText, openGaugeSession, panelHealth, shootBothThemes, type GaugeSession } from '../src/gauge-app.ts'
 import {
   FORBIDDEN_UI_WORDS,
   bodyText,
@@ -68,7 +68,7 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
   }
 
   /** The visible row of a permission, found by its (unique) action text. */
-  const grantRow = (action: string) => surface().getByText(action).first().locator('xpath=ancestor::*[.//button[normalize-space()="Revogar" or normalize-space()="Tirar permissão"]][1]')
+  const grantRow = (action: string) => surface().getByText(action).first().locator('xpath=ancestor::*[.//button[normalize-space()="Revogar" or normalize-space()="Tirar permissão" or normalize-space()="Tirar agora" or normalize-space()="Revogar agora"]][1]')
 
   /** #geral on its default assunto "Geral" (a sibling suite may have left another assunto active on the shared host). */
   async function openGeral(): Promise<void> {
@@ -101,6 +101,7 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
 
   beforeAll(async () => {
     s = await openGaugeSession({ viewport: { width: 1440, height: 1000 } })
+    await hireSuggestedTeam(s.page) // a fresh own host has the BLANK team: hire the suggested one like a user does
     tenant = await readTenant(s.page)
     scope = { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
     await seedBrain()
@@ -342,7 +343,7 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
       await surface().getByRole('button', { name: 'Revisar proposta' }).first().click({ timeout: 60_000 })
       await expect.poll(async () => (await hostRpcOk<{ id: string }[]>(s.page, 'listBrainPermissions', scope)).some(g => g.id === `grant-${proposalId}`), { timeout: 20_000 }).toBe(true)
       const grant = (await hostRpcOk<{ id: string; personaId: string; action: string; target: string; validity: string }[]>(s.page, 'listBrainPermissions', scope)).find(g => g.id === `grant-${proposalId}`)!
-      expect(grant).toMatchObject({ personaId: 'atendimento', action: 'vault.update', target: `vault:${proposalId}`, validity: '7d' })
+      expect(grant).toMatchObject({ personaId: 'atendimento', action: 'vault.update', target: `vault:${recordId}`, validity: '7d' }) // contracts/second-brain.md: the target is the stable resource (vault:<recordId>), not the single-use proposal id
     })
 
     bug('Prism', '[SB-3h] o botão que APROVA a proposta do Cofre diz "Revisar proposta" e aprova sem mostrar o que muda (a pergunta é só "Atualizar registro no Cofre?" + id do registro); o cartão mostra o texto atual e o novo antes de decidir', async () => {
@@ -485,7 +486,7 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
         && hint.x < box.x + box.width && hint.x + hint.width > box.x && hint.y < box.y + box.height && hint.y + hint.height > box.y)
       await dismissCoachmark()
       const text = await bodyText(s.page)
-      expect(text).toMatch(/PLANO DO/u)
+      expect(text).toMatch(/PLANO D[OA] /u) // "Plano do {name}" / "Plano da {name}" (gender follows the Gestor name)
       expect(text).toContain(out.plan.summary)
       for (const action of ['Aprovar', 'Ajustar', 'Agora não']) expect(await s.page.getByRole('button', { name: action }).count(), action).toBeGreaterThan(0)
       expect((await hostRpcOk<unknown[]>(s.page, 'listPersonas', scope)).length, 'antes de aprovar ninguém foi contratado').toBe(personasBefore)
@@ -519,7 +520,13 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
       await s.page.reload({ waitUntil: 'load' })
       await s.page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 120_000 })
       await openGeral()
-      await s.page.getByRole('button', { name: 'Aprovar' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+      try {
+        await s.page.getByRole('button', { name: 'Aprovar' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+      } catch (error) {
+        const buttons = await s.page.getByRole('button').evaluateAll(els => els.map(el => (el.textContent ?? '').trim()).filter(Boolean).slice(0, 40))
+        console.log(`[gauge-diag] GES-1b sem Aprovar. planos: ${JSON.stringify((await plansOf().catch(() => [])).map(plan => ({ id: plan.id, status: plan.status })))} botões: ${JSON.stringify(buttons)}`)
+        throw error
+      }
       await dismissCoachmark()
       const approve = s.page.getByRole('button', { name: 'Aprovar' }).first()
       await approve.scrollIntoViewIfNeeded()

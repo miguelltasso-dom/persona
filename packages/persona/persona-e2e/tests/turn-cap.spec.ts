@@ -29,6 +29,19 @@ describe('scanForTurnCap', () => {
     expect(unpacked.file).toContain('host.js')
   })
 
+  it('finds it in the packaged runners package FIRST, reading only that package (the full walk of a real install takes minutes)', () => {
+    const owner = 'resources/app.asar.unpacked/dsh/node_modules/@deepseek-ai/dsh-persona-runners/lib/index.js'
+    const scan = scanForTurnCap(installation({
+      [owner]: 'const REAL_TURN_CAP_ENV = "PERSONA_REAL_TURN_CAP"',
+      'resources/app.asar': 'x'.repeat(1000),
+      'resources/app.asar.unpacked/other/huge.js': 'y'.repeat(1000),
+    }))
+    expect(scan.found).toBe(true)
+    expect(scan.file).toContain('dsh-persona-runners')
+    expect(scan.ownerPackageChecked).toBe(true)
+    expect(scan.scannedFiles).toBe(1)
+  })
+
   it('does not find it when the build has no limiter, and says how much it looked at', () => {
     const scan = scanForTurnCap(installation({ 'resources/app.asar': 'PERSONA_REAL_CLI only', 'resources/app.asar.unpacked/x.js': '// nothing' }))
     expect(scan.found).toBe(false)

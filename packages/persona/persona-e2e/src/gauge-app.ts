@@ -144,6 +144,38 @@ export async function assistantToPreview(page: Page, company: string): Promise<v
   await page.getByText('Prévia do organograma e do Teste dos 2 dias offline.').waitFor({ state: 'visible', timeout: 30_000 })
 }
 
+/** Number on the "Sua equipe" rail group (0 when unreadable). */
+export async function railTeamCount(page: Page): Promise<number> {
+  const text = await page.locator('#persona-rail-team-title').innerText().catch(() => '')
+  return Number(/(\d+)/u.exec(text)?.[1] ?? '0')
+}
+
+/** "Pular assistente" opens the blank persona editor (a full page, not a modal): leave through the shell home. */
+export async function leaveAssistant(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Visão geral', exact: true }).first().click()
+  await page.getByRole('heading', { name: 'Monte uma equipe que faça sentido' }).waitFor({ state: 'hidden', timeout: 15_000 })
+}
+
+/**
+ * A fresh own host finishes onboarding with the BLANK template (no personas): suites that need a team (replies, Coordenação as Gestor,
+ * Atendimento…) hire the suggested one through the assistant, exactly as a user does. No-op when the rail already has a team.
+ * @param page - Live page after onboarding.
+ * @param company - Company card of the assistant (its team has Coordenação, Atendimento, Criação, Mídia).
+ */
+export async function hireSuggestedTeam(page: Page, company = 'Agência'): Promise<void> {
+  const before = await railTeamCount(page)
+  if (before >= 3) return
+  await openStructureAssistant(page)
+  await assistantToPreview(page, company)
+  await page.getByRole('button', { name: 'Contratar equipe sugerida' }).click()
+  const deadline = Date.now() + 60_000
+  while (await railTeamCount(page) < Math.min(before + 4, 5)) {
+    if (Date.now() > deadline) throw new Error(`a equipe sugerida não chegou ao rail (rail: ${String(await railTeamCount(page))})`)
+    await page.waitForTimeout(400)
+  }
+  await leaveAssistant(page)
+}
+
 /** Axe violations that block (WCAG A/AA failures): impact critical or serious. Moderate best-practice rules are tracked separately. */
 export function blockingAxe(axe: AxeScanResult): string[] {
   return axe.violations

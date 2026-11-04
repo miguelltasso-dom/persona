@@ -1,5 +1,28 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 19:05 — roteiro do fake instalado pronto (D-079 completo a/b/c/d incluso); aguardo NSIS e a vez no `build`
+
+Nada real gasto. `check-pkg persona-e2e` OK.
+- **D-079 compartilhado**: `src/conversation-d079.ts` (cenários a/b/c/d + regras do stub + linhas exatas "Resposta enviada para …" / "Passei para …: lê assim que terminar o passo atual."). O spec web `mandatory-conversation-d079.spec.ts` agora usa o módulo (mesma lógica, sem duplicar).
+- **Fake instalado (pedido do Keel para o hash FINAL)**: `mandatory-first-delivery-installed.spec.ts` ganhou o 3º teste "D-079 full conversation in the installed exe" — boot separado SEM o limitador (b e c precisam de turnos extras do stub), onboarding → 1ª entrega aceita → a/b/c/d; proof em `artifacts/first-delivery/installed-d079/` (mensagens, retorno de cada uma, turnos do stub, `turn_ledger`, sha256 do exe). O teste CAP=1 continua cobrindo só o (a), sem 2º turno de modelo.
+- **Roteiro de um comando para o Setup novo** (`scripts/installed-roteiro.ts`, sob `--lock build`): identidade do Setup (sha256/bytes/mtime) → desinstala a instalação anterior e instala silencioso em `C:\p8i` (cronometrado) → sha256 do `Persona.exe` + varredura do literal do limitador → spec instalado inteiro (chat + recusa CAP=1 + D-079 a/b/c/d + sem IA) → UMA linha de veredito (hash, sha256 do Setup e do exe, limitador no exe, estágio dos 3 proofs, "mesmo exe") em `artifacts/first-delivery/installed-roteiro.json`. Não gasta turno de modelo e NÃO inicia a execução real (depende do OK explícito do Keel).
+- **Estado**: o `C:\p8c\Persona-Setup.exe` atual ainda é o anterior (mtime 14:08Z, sha256 34dafa1e…); o watcher continua esperando o NSIS novo (H2/FINAL). A rodada web do D-079 segue na fila `build` atrás do "Keel ship H2 INSTALLER-GRADE #2".
+
+---
+
+## 2026-11-04 18:30 — D-079 (conversa com Tarefa aberta) escrito; varredura do limitador no exe corrigida; fake com regras/escrita; aguardo NSIS do H2
+
+Nada real gasto. `check-pkg persona-e2e` OK; unidade `fake-cli` 19/19, `turn-cap` 5/5, `real-run-budget` 6/6.
+- **D-079 (Bolt/Atlas), E2E escrito** — `mandatory-conversation-d079.spec.ts` (web, fake, um host): setup (1ª entrega aceita = Tarefa aberta no #geral); (a) "obrigado" e "quanto custou isso?" → reação | mensagem nova de outro autor | texto novo em `role=status`/`aria-live` (a pergunta exige RESPOSTA); (b) a persona pergunta "Qual o preço novo do pão francês?" (JSON `waiting`+`question`) e a resposta da pessoa continua a Tarefa (2º turno + relatório final); (c) mesmo assunto durante a execução vira continuação visível; (d) nenhuma mensagem sem retorno. O (a) também entrou nos fakes da 1ª entrega web e instalado (no instalado, com `CAP=1`: sem 2º turno de modelo). **Falhas em (a)/(c) hoje = FALHA ESPERADA (CONV-1 do Bolt pendente), não regressão**; a 1ª rodada está na fila `build` (atrás do gate do Keel) só para calibrar seletores. O (a/b/c) completo só conta no hash FINAL.
+- **Fake CLI**: `FAKE_CLI_RULES` (resposta pelo CONTEÚDO do pedido, 1ª regra que casa), `FAKE_CLI_REPLIES` (pelo número do turno, contado do log compartilhado), `writeFile`/`conflictDir` (escreve no rascunho e, ao mesmo tempo, na pasta do projeto: conflito real para a Muse).
+- **Varredura do limitador no exe**: a varredura da instalação inteira leva **145 s** num build real (17 621 arquivos / 245 MB; com limite de 60 s daria "não achei" mesmo com o literal presente). Agora lê PRIMEIRO os pacotes `dsh-persona-runners`/`dsh-persona-host` desempacotados (onde mora o limitador, resposta em < 1 s), depois o asar, e só então uma caminhada limitada. No b3a4e5b933: `found:false` com `ownerPackageChecked:true` (correto: é anterior ao limitador).
+- **Guardião**: recusa nova tentativa depois de uma que cobrou > 1 turno (o verificador rejeitaria o histórico para sempre; achado do Gauge).
+- **Instalado**: o pack do H 71b87a1d18 morreu (aggregate check do host); o NSIS base é o H2 (snapshot 6b7cb8ce70, gate em modo instalador). Rivet avisa quando o Setup existir (`scripts/persona/pack-status.mjs`); Keel manda o hash. Sequência: NSIS → instalar → fake instalado (chat + CAP=1 + sem IA; sha256 + commit no proof) → OK do Keel → execução real única sob `--lock real` (livre: o Tally terminou 13/20 chamadas).
+- **Dado útil (Tally)**: a base de uma requisição real nesta máquina é ~38–44 mil tokens de entrada; a rodada de 1 turno deve somar **90–300 mil tokens de entrada** (é o normal desta conta, não defeito); 10–18 s por chamada → cabe nos 120 s.
+- **`reap-orphans.mjs`**: não cai mais com caracteres de controle na linha de comando de outros processos.
+
+---
+
 ## 2026-11-04 17:00 — harness real: veredito pelo verificador do Forge, orçamento PURO e validado, loggedCli independente
 
 Nada real gasto. `check-pkg persona-e2e` OK; unidade verde (`real-run-budget` 6/6, `turn-cap`, `ledger-evidence` 4/4, gate do spec real). Ensaio web com o verificador na fila da trava `build`.

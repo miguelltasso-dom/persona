@@ -12,6 +12,7 @@ import { createVaultFixture, readBringFixture } from '../src/bring-context-fixtu
 import {
   captureDir,
   mainText,
+  hireSuggestedTeam,
   openGaugeSession,
   panelHealth,
   shootBothThemes,
@@ -319,6 +320,7 @@ describe.skipIf(!run)('W2-1 app — assuntos coloridos no #geral', () => {
 
   beforeAll(async () => {
     s = await openGaugeSession({ viewport: { width: 1440, height: 900 } })
+    await hireSuggestedTeam(s.page) // a fresh own host has the BLANK team: hire the suggested one like a user does
     await seedSubjects(s)
   }, 420_000)
 
@@ -408,10 +410,46 @@ describe.skipIf(!run)('W2-1 app — assuntos coloridos no #geral', () => {
     const interface_ = bundle.subjects.find(row => row.name === 'Interface')!
     const question = `@Coordenação resuma ${TAG}r`
     await hostRpc(s.page, 'postMessage', { id: `gauge-q-${TAG}`, ...STREAM, body: question, actorId: 'owner', subjectId: `s-q-${TAG}`, occurredAt: new Date().toISOString(), topicId: interface_.id })
-    await s.page.waitForTimeout(8_000)
-    const events = await hostRpc<{ events: { actorId: string; topicId?: string; body: string }[] }>(s.page, 'listMessages', { ...STREAM, actorId: 'owner', afterSeq: 0, limit: 200, topicId: interface_.id })
-    const replies = events.events.filter(row => row.actorId !== 'owner' && row.actorId !== 'system')
-    expect(replies.length, 'sem resposta da equipe no assunto Interface').toBeGreaterThan(0)
+    type Page = { events: { id: string; actorId: string; topicId?: string; body: string }[] }
+    const repliesIn = async (): Promise<Page['events']> => {
+      const page = await hostRpc<Page>(s.page, 'listMessages', { ...STREAM, actorId: 'owner', afterSeq: 0, limit: 200, topicId: interface_.id })
+      return page.events.filter(row => row.actorId !== 'owner' && row.actorId !== 'system')
+    }
+    try {
+      await expect.poll(async () => (await repliesIn()).length, { timeout: 40_000, message: 'sem resposta da equipe no assunto Interface' }).toBeGreaterThan(0)
+    } catch (error) {
+      // Diagnosis: where did the reply go? (all topics of #geral, newest 10)
+      const all = await hostRpc<Page>(s.page, 'listMessages', { ...STREAM, actorId: 'owner', afterSeq: 0, limit: 200 }).catch(() => ({ events: [] } as Page))
+      console.log(`[gauge-diag] W2-1b assunto=${interface_.id} eventos: ${JSON.stringify(all.events.slice(-10).map(row => ({ id: row.id.slice(0, 28), actor: row.actorId, topic: row.topicId ?? '', body: row.body.slice(0, 50) })))}`)
+      throw error
+    }
+  }, 120_000)
+
+  bug('Lumen+Forge', '[W2-1d app] a Tarefa pedida no assunto Interface aparece no quadro com o NOME do assunto de origem no cartão (nunca só a cor)', async () => {
+    await openGeral(s)
+    const bundle = await hostRpc<SubjectsBundle>(s.page, 'listConversationSubjects', STREAM)
+    const interface_ = bundle.subjects.find(row => row.name === 'Interface')!
+    const ask = `preciso de um README sobre ${TAG}d`
+    await hostRpc(s.page, 'postMessage', { id: `gauge-d-${TAG}`, ...STREAM, body: ask, actorId: 'owner', subjectId: `s-d-${TAG}`, occurredAt: new Date().toISOString(), topicId: interface_.id })
+    await s.page.waitForTimeout(6_000)
+    await navigateGalleryPanel(s.page, REAL_GALLERY_PANELS.find(panel => panel.slug === 'kanban')!)
+    const back = s.page.getByRole('button', { name: 'Voltar aos quadros' })
+    if (await back.count() > 0) await back.first().click()
+    await s.page.getByText('Pessoal', { exact: true }).first().click()
+    await s.page.getByRole('button', { name: 'Editar fluxo' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+    const card = s.page.getByText(new RegExp(`README sobre ${TAG}d`, 'u')).first()
+    await card.waitFor({ state: 'visible', timeout: 30_000 })
+    // Walk up from the card title to the card root (the smallest ancestor that also shows the origin assunto).
+    const cardText = await card.evaluate((node) => {
+      let current: HTMLElement | null = node as HTMLElement
+      for (let depth = 0; depth < 5 && current !== null; depth += 1) {
+        if ((current.textContent ?? '').includes('Interface')) return current.textContent ?? ''
+        current = current.parentElement
+      }
+      return (node as HTMLElement).textContent ?? ''
+    })
+    expect(cardText, 'o cartão não diz de qual assunto veio').toMatch(/Interface/u)
+    await shootBothThemes(s.page, SUITE, 'w2-quadro-cartao-assunto-origem')
   }, 120_000)
 
   vitestIt('[W2-1b app] não lido por assunto: cada chip com mensagens novas mostra "N não lidas neste assunto" (texto, não só cor) com N igual ao do host, e os sem novidade ficam só com o nome', async () => {
@@ -589,7 +627,8 @@ describe.skipIf(!run)('W2-3 app — várias contas por provedor, política de tr
       { name: /Dividir o uso/u, host: 'round_robin' },
       { name: /Usar a próxima/u, host: 'next_on_limit' },
     ] as const
-    expect(await s.page.getByRole('radio').count(), 'as 4 políticas').toBeGreaterThanOrEqual(4)
+    const radioNames = await s.page.getByRole('radio').evaluateAll(els => els.map(el => (el.getAttribute('aria-label') ?? el.closest('label')?.textContent ?? el.parentElement?.textContent ?? '').trim().slice(0, 60)))
+    expect(radioNames.length, `as 4 políticas (radios vistos: ${JSON.stringify(radioNames)})`).toBeGreaterThanOrEqual(4)
     for (const policy of policies) {
       await s.page.getByRole('radio', { name: policy.name }).check()
       await expect.poll(async () => (await hostRpc<AccountsBundle>(s.page, 'listConnectionAccounts')).swapPolicy, { timeout: 15_000 }).toBe(policy.host)
@@ -630,6 +669,7 @@ describe.skipIf(!run)('W2-2 app — Ensinar a persona: consentimento antes de gr
 
   beforeAll(async () => {
     s = await openGaugeSession({ viewport: { width: 1440, height: 900 } })
+    await hireSuggestedTeam(s.page) // a fresh own host has the BLANK team: hire the suggested one like a user does
   }, 420_000)
 
   afterAll(async () => {

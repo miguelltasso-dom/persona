@@ -66,6 +66,26 @@ describe('W2-1 — assuntos: históricos separados na mesma DM', () => {
     expect(all.filter(row => row.actorId === 'bento').every(row => row.topicId !== ''), 'resposta sem assunto').toBe(true)
   })
 
+  it('[W2-1d] a Tarefa pedida num assunto que NÃO é o primeiro leva ESSE assunto (lista e quadro), e o nome e a cor do assunto de origem são resolvíveis', async () => {
+    const h = world()
+    const stream = { ...PP, streamKind: 'channel' as const, ownerId: 'geral' }
+    const geral = h.listConversationSubjects(stream).subjects[0]!
+    const ui = h.createConversationSubject({ ...stream, name: 'Interface', colorIndex: 3 }).activeSubjectId
+    h.postMessage({ id: 'm-readme', ...stream, body: 'preciso de um README no projeto', actorId: 'ana', subjectId: 's-readme', occurredAt: CLOCK, topicId: ui })
+    await h.orchestration.flush('pp')
+    const task = h.listTasks(PP)[0]
+    expect(task, 'o pedido gerou uma Tarefa').toBeDefined()
+    expect(task!.topicId, 'a Tarefa nasce no assunto de onde foi pedida, não no primeiro').toBe(ui)
+    expect(task!.conversationSubjectId).toBe(ui)
+    const card = h.getProjectBoard(PP).cards.find(row => row.ticketId === task!.id)
+    expect(card?.topicId, 'o cartão do quadro aponta o assunto de origem').toBe(ui)
+    const origin = h.listConversationSubjects(stream).subjects.find(row => row.id === card?.topicId)
+    expect(origin, 'o assunto de origem do cartão existe e é legível').toBeDefined()
+    expect(origin!.name).toBe('Interface')
+    expect(origin!.colorIndex).toBe(3)
+    expect(card?.topicId, 'não herdou o primeiro assunto por engano').not.toBe(geral.id)
+  })
+
   it('[W2-1b] uma mensagem do usuário na DM gera UMA resposta, não duas idênticas ("coord-<id>-reply" + "coord-<hash>") — reproduz no host com runner scriptado; confirmar no app com a CLI fake', async () => {
     const h = world()
     const scope = dmScope('dm-nina')

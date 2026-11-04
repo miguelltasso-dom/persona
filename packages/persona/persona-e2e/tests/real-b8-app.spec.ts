@@ -4,7 +4,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it as vitestIt } from 'vitest'
 import type { Page } from 'playwright'
-import { mainText, openGaugeSession, panelHealth, shootBothThemes, type GaugeSession } from '../src/gauge-app.ts'
+import { hireSuggestedTeam, mainText, openGaugeSession, panelHealth, shootBothThemes, type GaugeSession } from '../src/gauge-app.ts'
 import { navigateProfileViaRailCard } from '../src/real-gallery/navigate-panel.ts'
 
 const run = process.env.PERSONA_E2E === '1'
@@ -32,6 +32,7 @@ describe.skipIf(!run)('B8 app — #geral → resposta → Tarefa no quadro → c
 
   beforeAll(async () => {
     s = await openGaugeSession({ viewport: { width: 1440, height: 900 } })
+    await hireSuggestedTeam(s.page) // a fresh own host has the BLANK team: hire the suggested one like a user does
   }, 420_000)
 
   afterAll(async () => {
@@ -39,16 +40,28 @@ describe.skipIf(!run)('B8 app — #geral → resposta → Tarefa no quadro → c
   }, 60_000)
 
   bug('Anvil+Prism', '[P0][B8-1] mensagem no #geral: aparece na hora, o compositor limpa e uma persona responde em ≤ 40 s (sem fatais de console)', async () => {
-    const health = await panelHealth(s, 'geral')
-    expect(health.fatals).toEqual([])
-    const composer = s.page.getByPlaceholder(/Mensagem em/u).first()
-    await composer.fill('preciso de um README no projeto Gauge')
-    await s.page.keyboard.press('Enter')
-    await s.page.getByText('preciso de um README no projeto Gauge').first().waitFor({ state: 'visible', timeout: 15_000 })
-    expect(await composer.inputValue(), 'compositor limpou depois de enviar').toBe('')
-    await expect.poll(async () => (await repliesAfter(s.page, 'preciso de um README no projeto Gauge')).length, { timeout: 40_000, message: 'nenhuma resposta da persona' }).toBeGreaterThanOrEqual(1)
-    await shootBothThemes(s.page, SUITE, 'b8-geral-resposta')
-    expect(s.console.fatalCount()).toBe(0)
+    let step = 'abrir #geral'
+    try {
+      const health = await panelHealth(s, 'geral')
+      expect(health.fatals).toEqual([])
+      const composer = s.page.getByPlaceholder(/Mensagem em/u).first()
+      step = 'enviar'
+      await composer.fill('preciso de um README no projeto Gauge')
+      await s.page.keyboard.press('Enter')
+      await s.page.getByText('preciso de um README no projeto Gauge').first().waitFor({ state: 'visible', timeout: 15_000 })
+      step = 'compositor limpa'
+      expect(await composer.inputValue(), 'compositor limpou depois de enviar').toBe('')
+      step = 'resposta da persona'
+      await expect.poll(async () => (await repliesAfter(s.page, 'preciso de um README no projeto Gauge')).length, { timeout: 40_000, message: 'nenhuma resposta da persona' }).toBeGreaterThanOrEqual(1)
+      step = 'capturas/fatais'
+      await shootBothThemes(s.page, SUITE, 'b8-geral-resposta')
+      expect(s.console.fatalCount()).toBe(0)
+    } catch (error) {
+      // Diagnosis for the owner (the it.fails wrapper hides the message): which step failed and what the channel shows.
+      console.log(`[gauge-diag] B8-1 falhou no passo "${step}": ${error instanceof Error ? error.message.slice(0, 200) : String(error)}`)
+      console.log(`[gauge-diag] B8-1 mensagens: ${JSON.stringify(await s.page.locator('li[data-message-id]').evaluateAll(els => els.slice(-8).map(el => ({ author: el.getAttribute('data-author'), text: (el.textContent ?? '').slice(0, 80) }))).catch(() => []))} fatais=${String(s.console.fatalCount())}`)
+      throw error
+    }
   }, 120_000)
 
   bug('Anvil+Prism', '[P0][B8-2] (depende do envio no #geral) a Tarefa criada pela mensagem aparece no quadro do projeto', async () => {
@@ -57,7 +70,12 @@ describe.skipIf(!run)('B8 app — #geral → resposta → Tarefa no quadro → c
     if (await back.count() > 0) await back.first().click()
     await s.page.getByText('Pessoal', { exact: true }).first().click()
     await s.page.getByRole('button', { name: 'Editar fluxo' }).first().waitFor({ state: 'visible', timeout: 30_000 })
-    await expect.poll(async () => await mainText(s.page), { timeout: 30_000, message: 'cartão da Tarefa não apareceu no quadro' }).toMatch(/README/u)
+    try {
+      await expect.poll(async () => await mainText(s.page), { timeout: 30_000, message: 'cartão da Tarefa não apareceu no quadro' }).toMatch(/README/u)
+    } catch (error) {
+      console.log(`[gauge-diag] B8-2 quadro sem README: ${(await mainText(s.page)).replace(/\s+/gu, ' ').slice(0, 400)}`)
+      throw error
+    }
     await shootBothThemes(s.page, SUITE, 'b8-quadro-com-tarefa')
   }, 120_000)
 

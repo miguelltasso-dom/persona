@@ -33,8 +33,16 @@ describe('mandatory wave2 — assuntos coloridos (WAVE2 §1)', () => {
 
   /** W2-1c: {@link ./mandatory-wave2-contract.spec.ts} (subject-context.spec.ts). */
 
-  it.todo(
-    '[W2-1d · Lumen+Forge] ticket/card on project board shows origin assunto color + name when created from that thread',
+  it(
+    '[W2-1d · Lumen+Forge] ticket/card on project board shows origin assunto color + name when created from that thread (host: the Tarefa and its card carry the origin assunto)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-wave2-host.spec.ts', ['-t', 'W2-1d']) },
+    300_000,
+  )
+
+  it.skipIf(process.env.PERSONA_E2E !== '1')(
+    '[W2-1d · Lumen+Forge] ticket/card on project board shows origin assunto name (app: the card on Quadros says which assunto it came from)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/real-byc-w2-app.spec.ts', ['-t', 'W2-1d'], { inheritPersonaE2e: true }) },
+    900_000,
   )
 
   it.skipIf(process.env.PERSONA_E2E !== '1')(
@@ -53,8 +61,16 @@ describe('mandatory wave2 — várias contas por provedor (WAVE2 §3)', () => {
 
   /** W2-3b/c fixed+ask+next: {@link ./mandatory-wave2-contract.spec.ts} resolve-runner WAVE2 test. */
 
-  it.todo(
-    '[W2-3d · Rivet] policy "dividir": alternates or balances by remaining official quota across linked accounts (fake quota fixtures)',
+  it(
+    '[W2-3d · Rivet] policy "dividir": alternates or balances by remaining official quota across linked accounts (fake quota fixtures; core account-policy split_balance)',
+    () => { runVitestSubprocess('packages/persona/persona-core/tests/account-policy.spec.ts', ['-t', 'split_balance']) },
+    300_000,
+  )
+
+  it.skipIf(process.env.PERSONA_E2E !== '1')(
+    '[W2-3d · Rivet+Lumen] policy "dividir" is selectable in Conexões, reaches the host and survives a reload (app)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/real-byc-w2-app.spec.ts', ['-t', 'W2-3b/c/d'], { inheritPersonaE2e: true }) },
+    900_000,
   )
 
   it.skipIf(process.env.PERSONA_E2E !== '1')(

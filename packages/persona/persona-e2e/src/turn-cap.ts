@@ -17,6 +17,8 @@ export interface TurnCapScan {
   readonly scannedFiles: number
   readonly scannedBytes: number
   readonly timedOut: boolean
+  /** The package that holds the limiter (persona-runners/host, unpacked) was present and read in full. */
+  readonly ownerPackageChecked?: boolean
 }
 
 function* walk(dir: string, depth = 0): Generator<string> {
@@ -51,27 +53,61 @@ function fileContains(file: string, needle: Buffer): boolean {
 }
 
 /**
- * Look for `PERSONA_REAL_TURN_CAP` inside the installed app (`<install dir>/resources`): the asar and the unpacked runtime.
- * @param exe - Path to the installed `Persona.exe`.
- * @param budgetMs - Scan deadline.
+ * Where the limiter lives (Rivet: `persona-runners/src/resolve/real-turn-cap.ts`, constant `REAL_TURN_CAP_ENV`): the packaged runners and host
+ * packages. Scanning them first answers in well under a second; walking the whole install (~32 000 files, 1 GB) took > 4 minutes on
+ * 04/11, so the full walk is only a bounded fallback.
  */
-export function scanForTurnCap(exe: string, budgetMs = 90_000): TurnCapScan {
+const PRIORITY_DIRS = [
+  join('app.asar.unpacked', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-persona-runners'),
+  join('app.asar.unpacked', 'dsh', 'node_modules', '@deepseek-ai', 'dsh-persona-host'),
+] as const
+
+/**
+ * Look for `PERSONA_REAL_TURN_CAP` inside the installed app (`<install dir>/resources`).
+ * Order: the packaged runners/host packages (JS only), then `app.asar`, then a bounded walk of everything else.
+ * `found: false` with `ownerPackageChecked: true` is a DEFINITIVE answer (the package that holds the limiter was read and does not have it);
+ * otherwise a miss only means "not found in the time given" and the caller must still refuse to spend.
+ * @param exe - Path to the installed `Persona.exe`.
+ * @param budgetMs - Deadline for the fallback walk.
+ */
+export function scanForTurnCap(exe: string, budgetMs = 60_000): TurnCapScan {
   const root = join(dirname(exe), 'resources')
   const needle = Buffer.from(TURN_CAP_ENV)
   const startedAt = Date.now()
   let scannedFiles = 0
   let scannedBytes = 0
-  if (!existsSync(root)) return { found: false, scannedFiles, scannedBytes, timedOut: false }
-  // The asar first (small, holds the desktop main), then everything else.
-  const asar = join(root, 'app.asar')
-  const candidates = [...new Set([...(existsSync(asar) ? [asar] : []), ...walk(root)])]
-  for (const file of candidates) {
-    if (Date.now() - startedAt > budgetMs) return { found: false, scannedFiles, scannedBytes, timedOut: true }
+  const done = (found: boolean, extra: Partial<TurnCapScan> = {}): TurnCapScan => ({ found, scannedFiles, scannedBytes, timedOut: false, ...extra })
+  if (!existsSync(root)) return done(false)
+  const seen = new Set<string>()
+  const check = (file: string): boolean => {
+    if (seen.has(file)) return false
+    seen.add(file)
     scannedFiles += 1
     scannedBytes += statSync(file).size
-    if (fileContains(file, needle)) return { found: true, file, scannedFiles, scannedBytes, timedOut: false }
+    return fileContains(file, needle)
   }
-  return { found: false, scannedFiles, scannedBytes, timedOut: false }
+
+  // 1) the owner packages (small, JS only)
+  let ownerPackageChecked = false
+  for (const relative of PRIORITY_DIRS) {
+    const dir = join(root, relative)
+    if (!existsSync(dir)) continue
+    ownerPackageChecked = true
+    for (const file of walk(dir)) {
+      if (!/\.(?:js|cjs|mjs)$/iu.test(file)) continue
+      if (statSync(file).size > 64 * 1024 * 1024) continue
+      if (check(file)) return done(true, { file, ownerPackageChecked: true })
+    }
+  }
+  // 2) the asar (holds the desktop main)
+  const asar = join(root, 'app.asar')
+  if (existsSync(asar) && check(asar)) return done(true, { file: asar, ownerPackageChecked })
+  // 3) bounded fallback over everything else
+  for (const file of walk(root)) {
+    if (Date.now() - startedAt > budgetMs) return done(false, { timedOut: true, ownerPackageChecked })
+    if (check(file)) return done(true, { file, ownerPackageChecked })
+  }
+  return done(false, { ownerPackageChecked })
 }
 
 /**

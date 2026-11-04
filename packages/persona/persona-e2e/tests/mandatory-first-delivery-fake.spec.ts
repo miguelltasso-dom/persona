@@ -15,6 +15,8 @@ import {
   FIRST_DELIVERY_PAID_TURNS_CEILING,
   FIRST_DELIVERY_PAID_TURNS_TARGET,
   createFirstDeliveryRecorder,
+  acknowledged,
+  converseInGeral,
   runHappyFirstDelivery,
   sendGeralMessageAndReload,
   runNoEngineFirstDelivery,
@@ -113,6 +115,15 @@ describe.skipIf(!runPersonaE2e)('first delivery — UI with fake CLI (V1-P0)', (
       expect(step3, 'step 3 note recorded').not.toBe('')
       expect(step3, 'Claude is on PATH and answered the delivery, yet its card says it was not detected').not.toMatch(/Claude \| Não detectada/u)
     })
+
+    it('D-079: with the first delivery awaiting review, "obrigado" and "quanto custou isso?" in #geral each get a reaction or a reply', async () => {
+      const thanks = await converseInGeral(session.page, rec, 'obrigado')
+      expect(thanks.sent, '"obrigado" was sent').toBe(true)
+      expect(acknowledged(thanks), '"obrigado": no reaction, no reply and no state line (the message became a continuation and nothing answered)').toBe(true)
+      const cost = await converseInGeral(session.page, rec, 'quanto custou isso?')
+      expect(cost.sent, '"quanto custou isso?" was sent').toBe(true)
+      expect(cost.reply, '"quanto custou isso?" needs a visible answer from the team').not.toBeNull()
+    }, 180_000)
 
     it('typing in #geral + Enter sends the message and it persists after a reload (chat regression)', async () => {
       await sendGeralMessageAndReload(session.page, rec, 'Mensagem do Probe: o composer envia e persiste.')

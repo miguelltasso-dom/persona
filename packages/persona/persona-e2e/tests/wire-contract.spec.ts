@@ -9,10 +9,19 @@
  */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { beforeAll, describe, expect, it, it as vitestIt } from 'vitest'
-import { gestorLimitsToSetRequest } from '../../client-ui-persona/src/client/persona-editor/gestor-editor-map.ts'
+import { pathToFileURL } from 'node:url'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { ARTIFACTS_DIR, REPO_ROOT } from '../src/paths.ts'
 import { compareRemoteInterfaces, loadHostSchemas, scanClientCallSites, type Finding } from '../src/wire-contract.ts'
+
+// The client source is NOT part of the host TypeScript program (TS6307/TS6142 in the installer pack's host aggregate, 04/11):
+// the Gestor limits builder is loaded at RUNTIME instead of imported.
+type GestorLimitsBuilder = (personaId: string, workspaceId: string, limits: Record<string, unknown>, ...rest: unknown[]) => Record<string, unknown> & { readonly maxPersonas: number }
+let gestorLimitsToSetRequest: GestorLimitsBuilder
+beforeAll(async () => {
+  const href = pathToFileURL(join(REPO_ROOT, 'packages', 'persona', 'client-ui-persona', 'src', 'client', 'persona-editor', 'gestor-editor-map.ts')).href
+  ;({ gestorLimitsToSetRequest } = (await import(href)) as { gestorLimitsToSetRequest: GestorLimitsBuilder })
+})
 
 const generated = join(REPO_ROOT, 'packages', 'persona', 'persona-host', 'lib', 'typert.host.js')
 
@@ -49,15 +58,8 @@ describe.skipIf(!existsSync(generated))('WIRE-5 — contrato cliente ↔ host', 
     expect(schemas.get('setGestorLimits')!.safeParse({ workspaceId: 'w', personaId: 'x', approval: 'always_ask', maxPersonas: Number.POSITIVE_INFINITY, budgetTokens: 1, allowedTools: [], allowedEngines: [], sectorIds: [], projectIds: [], canGrantGestor: false }).success, 'Infinity').toBe(false)
   })
 
-  /** Drift already reported to the owners (WIRE-5 audit). A NEW drift outside this list fails the gate immediately. */
-  const KNOWN = new Set(['listTeam']) // reviewSummary/acceptReview/discardReview/list/undo were fixed by the owners: a regression there fails now
-  const fresh = (rows: readonly Finding[]): readonly Finding[] => rows.filter(row => !KNOWN.has(row.method) && !/teto de runtime/u.test(row.problem))
-
-  it('[WIRE-5] nenhum desvio NOVO entre cliente e host: tudo que não está na lista de conhecidos precisa casar com o schema', () => {
-    expect(fmt([...fresh(interfaces.findings), ...fresh(sites.findings)])).toBe('')
-  })
-
-  vitestIt.fails('[BUG→Prism] [WIRE-5] zero desvios: PersonaCreatorRemote.listTeam declara actorId/memberId/channelId que o host recusa e seed-default-team envia limit: 300 (> teto 200 do runtime)', () => {
+  // No known-drift allowlist any more: every owner fixed their findings, so ANY new drift fails here (and in the gate once it blocks).
+  it('[WIRE-5] zero desvios entre cliente e host: nenhuma chave desconhecida, nenhum limit acima do teto de runtime, nada fora do schema', () => {
     expect(fmt([...interfaces.findings, ...sites.findings])).toBe('')
   })
 
@@ -76,7 +78,7 @@ describe.skipIf(!existsSync(generated))('WIRE-5 — contrato cliente ↔ host', 
     expect(schemas.get('setGestorLimits')!.safeParse(request).success).toBe(true)
   })
 
-  vitestIt.fails('[BUG→Prism] [WIRE-5] o builder de limites do Gestor não deixa passar número não finito (NaN/Infinity: o host recusa com invalid-request e a tela só "não salva")', () => {
+  it('[WIRE-5] o builder de limites do Gestor não deixa passar número não finito (NaN/Infinity/negativo/fracionário são saneados antes de chegar ao host)', () => {
     for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -1, 2.5]) {
       const request = gestorLimitsToSetRequest('atlas', 'ws', { approval: 'ask', maxPersonas: bad, budget: 'normal', areas: [], canGrantGestor: false }, [], [])
       expect(schemas.get('setGestorLimits')!.safeParse(request).success, `maxPersonas=${String(bad)} chegou ao host`).toBe(true)

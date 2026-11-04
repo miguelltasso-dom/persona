@@ -16,10 +16,10 @@ function seed(h: PersonaHost): { scope: { workspaceId: string; projectId: string
   return { scope: { workspaceId: 'ws', projectId: 'pp' } }
 }
 
-it('issues, lists, redeems and revokes invites', () => {
+it('issues, lists, redeems and revokes invites', async () => {
   const h = host()
   const { scope } = seed(h)
-  const issued = h.issueInvite({ ...scope, inviteId: 'inv-1', token: 'tok-1', role: 'member' })
+  const issued = await h.issueInvite({ ...scope, inviteId: 'inv-1', token: 'tok-1', role: 'member' })
   expect(issued.status).toBe('open')
   expect(h.listInvites(scope).map(item => item.id)).toEqual(['inv-1'])
   const redeemed = h.redeemInvite({
@@ -27,7 +27,7 @@ it('issues, lists, redeems and revokes invites', () => {
   })
   expect(redeemed.status).toBe('used')
   expect(h.listTeam(scope).members.some(item => item.id === 'bia')).toBe(true)
-  const second = h.issueInvite({ ...scope, inviteId: 'inv-2', token: 'tok-2', role: 'guest' })
+  const second = await h.issueInvite({ ...scope, inviteId: 'inv-2', token: 'tok-2', role: 'guest' })
   expect(h.revokeInvite({ ...scope, inviteId: second.id }).status).toBe('revoked')
 })
 

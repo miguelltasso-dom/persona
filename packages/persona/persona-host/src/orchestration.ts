@@ -3,6 +3,7 @@
  * Coordination is a function, never a hardcoded persona name (D-043).
  */
 
+import { z } from 'zod'
 import {
   Engine,
   MemoryPreRouteLog,
@@ -35,6 +36,8 @@ import {
   type Runner,
   type Ticket,
   type Trigger,
+  type DomainEvent,
+  type FirstDeliveryRouteDirective,
 } from '@deepseek-ai/dsh-persona-engine'
 import {
   authorizeContext,
@@ -72,7 +75,7 @@ import {
 } from '@deepseek-ai/dsh-persona-store'
 import { compileSubjectVault } from './wave2.ts'
 import { foldSubjectSummary, shouldFoldSubject, SUBJECT_RECENT } from './subject-summary.ts'
-import type { AutonomyMode, UsedContextRecord } from './types.ts'
+import type { AutonomyMode, EngineStatusView, UsedContextRecord } from './types.ts'
 import { ExecutionBudget } from './budget.ts'
 import { silenceUntilOf } from './proactivity.ts'
 import { FIRST_DELIVERY_EVENT_ID } from './onboarding.ts'
@@ -116,11 +119,13 @@ export interface HostPreRoutePorts {
   budgetLeft(): boolean
   silenceUntil(): number
   canCommand(command: 'pausar' | 'retomar' | 'tarefa', senderId: string): boolean
+  firstDelivery?(trigger: Trigger): FirstDeliveryRouteDirective | undefined
 }
 
 const ROUTE_WINDOW_KIND = 'preroute_window'
 const ROUTE_WINDOW_ID = 'log'
 const ROUTE_WINDOW_KEEP = 80
+const FirstDeliveryRouteSchema = z.object({ executorId: z.string().min(1), title: z.string().min(1) })
 
 function defaultPreRoutePorts(): HostPreRoutePorts {
   return {
@@ -129,6 +134,13 @@ function defaultPreRoutePorts(): HostPreRoutePorts {
     silenceUntil: () => 0,
     canCommand: () => true,
   }
+}
+
+interface RunnerUsageContext {
+  ticketId: string | undefined
+  kind: TurnLedgerEntry['kind']
+  engine: string
+  model: string
 }
 
 /** One project's live engine bound to SQLite. */
@@ -151,6 +163,7 @@ export class ProjectRuntime {
    * @param _runnerFactory - Unused; per-persona resolve happens in {@link Orchestration.resolveFor}.
    * @param ports - Roster / budget / ACL for the pre-router.
    * @param onActivity - Persist `assignment.reported` (host `recordTurnActivity`).
+   * @param onDomainEvent - Host presentation of durable engine availability events.
    */
   constructor(
     repo: SqliteRepositories,
@@ -158,6 +171,7 @@ export class ProjectRuntime {
     _runnerFactory?: HostRunnerFactory,
     ports: HostPreRoutePorts = defaultPreRoutePorts(),
     onActivity?: (row: TurnActivityEvent) => void,
+    onDomainEvent?: (event: DomainEvent) => void,
   ) {
     this.repo = repo
     this.outbox = new SqliteOutbox(repo.store, repo.projectId, now)
@@ -187,6 +201,7 @@ export class ProjectRuntime {
       revalidate: () => true,
       admitsInferred: () => true,
     }
+    const activity = withTurnActivityEmit((row) => { onActivity?.(row) })
     this.engine = new Engine({
       repo,
       policy: () => policy,
@@ -209,7 +224,7 @@ export class ProjectRuntime {
       outbox: this.outbox,
       now,
       preRoute: trigger => this.route(trigger, ports),
-      emit: withTurnActivityEmit((row) => { onActivity?.(row) }),
+      emit: (event) => { activity(event); onDomainEvent?.(event) },
     })
     this.restoreRouteWindow()
   }
@@ -224,6 +239,7 @@ export class ProjectRuntime {
     const threadKey = thread === undefined ? trigger.id : `${thread.source}:${thread.id}`
     const parsed = Date.parse(trigger.at)
     const at = Number.isFinite(parsed) ? parsed : 0
+    const firstDelivery = ports.firstDelivery?.(trigger)
     const result = preRoute({
       text: trigger.text,
       senderId: trigger.actor.id,
@@ -234,6 +250,7 @@ export class ProjectRuntime {
       silenceUntil: ports.silenceUntil(),
       canCommand: command => ports.canCommand(command, trigger.actor.id),
       window: this.routeLog.window,
+      ...(firstDelivery === undefined ? {} : { firstDelivery }),
     })
     this.routeLog.record({
       at,
@@ -315,9 +332,7 @@ export class Orchestration {
   readonly cancelled: Set<string> = new Set<string>()
   readonly lastErrors: string[] = []
   private readonly meteredRunners = new WeakSet<Runner>()
-  private readonly usageContexts = new WeakMap<Runner, {
-    ticketId: string | undefined; kind: TurnLedgerEntry['kind']; engine: string; model: string
-  }>()
+  private readonly usageContexts = new WeakMap<Runner, RunnerUsageContext>()
 
   /**
    * @param product - Product repos.
@@ -360,6 +375,10 @@ export class Orchestration {
   recordActivity: ((projectId: string, row: TurnActivityEvent) => void) | undefined = undefined
   /** Notify the host after task execution and its channel reply settle; failed means execution threw. */
   onTaskSettled: ((event: StoredEvent, failed: boolean) => void) | undefined = undefined
+  /** Cached-only admission decision; scripted/test composition can return ready. */
+  engineReadinessOf: (() => Pick<EngineStatusView, 'state' | 'reason'>) | undefined = undefined
+  /** Arm host reconnection polling after intake retains a message. */
+  onEngineDeferred: (() => void) | undefined = undefined
   vault: VaultRepos | undefined
   opt: OptRepos | undefined
   accounts: AccountRepos | undefined
@@ -459,10 +478,13 @@ export class Orchestration {
         budgetLeft: () => this.routeBudgetLeft(projectId),
         silenceUntil: () => this.routeSilenceUntil(projectId),
         canCommand: (command, senderId) => this.routeCanCommand(projectId, command, senderId),
+        firstDelivery: trigger => this.firstDeliveryRoute(projectId, trigger.id),
       },
       (row) => { this.recordActivity?.(projectId, row) },
+      (event) => { this.presentEngineAvailability(projectId, event) },
     )
     this.runtimes.set(projectId, created)
+    if (created.engine.pendingEngineTriggers().length > 0) this.onEngineDeferred?.()
     for (const ticket of created.repo.tickets.open()) {
       const latest = latestAssignment(ticket)
       if (latest?.state !== 'running') continue
@@ -496,24 +518,42 @@ export class Orchestration {
    * @param event - Committed message event.
    * @param streamKind - channel or dm.
    * @param ownerId - Channel or DM id.
+   * @param responderId - Explicit responder, empty for the stored mention or Coordination.
+   * @param resumed - Trigger already released by engineReady; omitted performs initial receive.
+   * @param firstDelivery - Host-authorized onboarding target; never supplied by the message Remote.
    */
-  ingest(event: StoredEvent, streamKind: 'channel' | 'dm', ownerId: string, responderId: string = ''): void {
+  ingest(event: StoredEvent, streamKind: 'channel' | 'dm', ownerId: string, responderId: string = '', resumed?: Trigger, firstDelivery?: FirstDeliveryRouteDirective): void {
     if (this.product.getPersona(event.actorId) !== undefined) return
     const coordination = this.coordinationOf(event.projectId)
     const mentioned = this.mentionedPersona(event.projectId, event.body)
     const dmPeer = streamKind === 'dm' ? this.dmPersona(ownerId, event.actorId) : undefined
-    const chosen = (responderId === '' ? undefined : this.product.getPersona(responderId))
-      ?? mentioned
-      ?? dmPeer
+    const firstDeliveryTarget = firstDelivery ?? this.firstDeliveryRoute(event.projectId, event.id)
+    const chosen = firstDeliveryTarget === undefined
+      ? ((responderId === '' ? undefined : this.product.getPersona(responderId)) ?? mentioned ?? dmPeer)
+      : this.product.listPersonas(event.projectId).find(persona => persona.id === firstDeliveryTarget.executorId)
     const speaker = chosen ?? coordination
-    if (speaker === undefined) return
+    const readiness = this.engineReadinessOf?.()
+    if (speaker === undefined && (readiness === undefined || readiness.state === 'ready')) return
     this.stageOrigin = 0
     this.stages.length = 0
     this.mark('ingest')
+    if (firstDelivery !== undefined) this.screens?.put(event.projectId, 'first_delivery_route', event.id, firstDelivery)
     const rt = this.runtime(event.projectId)
-    const trigger = this.triggerOf(event, streamKind, ownerId, mentioned !== undefined || streamKind === 'dm')
-    const result = rt.engine.receive(trigger)
+    const original = this.triggerOf(event, streamKind, ownerId, mentioned !== undefined || streamKind === 'dm')
+    const trigger = resumed ?? { ...original, meta: { ...original.meta, responderId,
+      ...(firstDelivery === undefined ? {} : { firstDelivery }),
+    } }
+    const unavailable = readiness !== undefined && readiness.state !== 'ready' && pauseCommandOf(event.body) === undefined
+    const result = resumed === undefined ? rt.engine.receive(trigger, { deferRouting: unavailable }) : 'stored'
     if (result === 'duplicate' || result === 'filtered') return
+    if (rt.engine.pendingEngineTriggers().some(item => item.id === trigger.id)) {
+      if (unavailable) {
+        rt.engine.engineUnavailable(trigger.id, readiness.reason ?? 'none_connected')
+      }
+      this.onEngineDeferred?.()
+      return
+    }
+    if (speaker === undefined) return
     this.pass(event.projectId)
     const routed = rt.lastRoute
     const pauseCommand = pauseCommandOf(event.body)
@@ -549,7 +589,7 @@ export class Orchestration {
       this.advanceAssignments(rt, event.projectId)
       return
     }
-    const work = wantsWork(event.body)
+    const work = firstDeliveryTarget !== undefined || wantsWork(event.body)
     this.mark(work ? 'triage:ticket' : 'triage:talk')
     this.decidePending(rt, event.body, work, chosen)
     this.advanceAssignments(rt, event.projectId)
@@ -582,6 +622,54 @@ export class Orchestration {
     }
     this.streamAck(event, coordination)
     this.work = this.work.then(() => this.settleTask(rt, event, coordination, chosen))
+  }
+
+  /**
+   * Release retained messages in the engine's per-stream order without receiving them twice.
+   * @param projectId - Local project.
+   * @param confirmedTriggerId - Explicitly confirmed expired message; omission never confirms one.
+   * @returns Number of messages handed back to host routing.
+   */
+  resumeEngineTriggers(projectId: string, confirmedTriggerId?: string): number {
+    const rt = this.runtime(projectId)
+    let resumed = 0
+    for (const pending of rt.engine.pendingEngineTriggers()) {
+      const event = this.events.get(pending.id)
+      if (event === undefined) continue
+      const trigger = rt.engine.engineReady(pending.id, { confirmed: pending.id === confirmedTriggerId })
+      if (trigger === undefined) continue
+      const kind = event.streamId.startsWith('dm:') ? 'dm' : 'channel'
+      const responder = typeof trigger.meta.responderId === 'string' ? trigger.meta.responderId : ''
+      this.ingest(event, kind, event.streamId.slice(kind.length + 1), responder, trigger)
+      resumed += 1
+    }
+    return resumed
+  }
+
+  /** @param projectId - Local project. @param triggerId - Stored onboarding request. @returns Host-owned routing directive, never inferred from caller text or IDs. */
+  firstDeliveryRoute(projectId: string, triggerId: string): FirstDeliveryRouteDirective | undefined {
+    const stored = this.screens?.get<unknown>(projectId, 'first_delivery_route', triggerId)
+    return stored === undefined ? undefined : FirstDeliveryRouteSchema.parse(stored)
+  }
+
+  private presentEngineAvailability(projectId: string, event: DomainEvent): void {
+    if (event.type !== 'no_engine_ready' && event.type !== 'engine_confirmation_required') return
+    const original = this.events.get(event.data.triggerId)
+    if (original === undefined) return
+    const id = `engine-status:${event.type}:${event.data.triggerId}`
+    if (this.events.has(id)) return
+    this.events.append({
+      id, workspaceId: original.workspaceId, projectId,
+      streamKind: original.streamId.startsWith('dm:') ? 'dm' : 'channel',
+      ownerId: original.streamId.slice(original.streamId.indexOf(':') + 1),
+      type: event.type,
+      body: `[[run-error:${JSON.stringify({
+        code: 'engine_unavailable', reason: event.data.reason, triggerId: event.data.triggerId,
+      })}]]`,
+      actorId: this.coordinationOf(projectId)?.id ?? 'system', subjectId: original.subjectId,
+      occurredAt: event.at,
+      ...(original.topicId === undefined ? {} : { topicId: original.topicId }),
+    })
   }
 
   private async settleTask(
@@ -972,13 +1060,10 @@ export class Orchestration {
     const home = seat?.home !== undefined && seat.home !== '' ? seat.home : runnerHomeOf(projectId)
     const usage = this.usage
     const accountId = seat?.accountId
-    const usageContext: {
-      ticketId: string | undefined; kind: TurnLedgerEntry['kind']; engine: string; model: string
-    } = {
+    const usageContext: RunnerUsageContext = {
       ticketId: undefined, kind: purpose === 'talk' ? 'reply' : 'triage',
       engine: spec.kind === 'cli' ? spec.cli : 'dsh', model: spec.model,
     }
-    let measuredRunner: Runner | undefined
     let turnSequence = 0
     const talkCwd = purpose === 'talk'
       ? (process.env.PERSONA_HOME !== undefined && process.env.PERSONA_HOME !== ''
@@ -1002,7 +1087,7 @@ export class Orchestration {
         usage: {
           record: (entry) => {
             const id = `${projectId}:${persona.id}:${entry.at}:${entry.provider}:${String(++turnSequence)}`
-            if (measuredRunner !== undefined) this.meteredRunners.add(measuredRunner)
+            this.meteredRunners.add(runner)
             if (this.recordLedger !== undefined) {
               this.recordLedger(projectId, {
                 id,
@@ -1039,7 +1124,6 @@ export class Orchestration {
       }),
     }
     const runner = await this.runnerFactory(request)
-    measuredRunner = runner
     this.usageContexts.set(runner, usageContext)
     this.warmRunners.set(key, runner)
     this.mark(`resolve:${purpose}:ready`)
@@ -1076,7 +1160,10 @@ export class Orchestration {
     try {
       await rt.runnerReady
       const coordinationPersona = coordination ?? this.coordinationOf(event.projectId)
-      const executor = preferred ?? this.executorOf(event.projectId) ?? coordinationPersona
+      const firstDelivery = this.firstDeliveryRoute(event.projectId, event.id)
+      const executor = firstDelivery === undefined
+        ? (preferred ?? this.executorOf(event.projectId) ?? coordinationPersona)
+        : this.product.listPersonas(event.projectId).find(persona => persona.id === firstDelivery.executorId)
       if (executor === undefined) return
       if (this.overTokenBudget(event.projectId, executor)) {
         for (const ticket of rt.repo.tickets.list()) {
@@ -1113,7 +1200,7 @@ export class Orchestration {
         this.postAs(event, coordinationPersona, `coord-${event.id}-reply`, 'Resposta cancelada.')
         return
       }
-      if (coordinationPersona !== undefined) {
+      if (coordinationPersona !== undefined && firstDelivery === undefined) {
         this.setRunnerUsageContext(runner, 'triage')
         const driver = createCoordinationDriver({
           runner,
@@ -1137,10 +1224,21 @@ export class Orchestration {
         const recovery = rt.recoveryNotes.includes(RECOVERY_NOTE)
         this.postAs(event, executor, `exec-${ticket.id}-progress`, `Em andamento: ${ticket.title}`)
         await runner.ensureSession(sessionId, ticket.execution?.directory ?? '.', ticket.title, 'worker')
+        const assignment = recovery ? `${RECOVERY_NOTE}\n${ticket.title}` : (ticket.execution?.assignment ?? ticket.title)
+        const prompt = firstDelivery === undefined ? assignment : composeHostTalk({
+          fields: {
+            identity: { name: executor.name, title: executor.title },
+            personality: executor.personality, instructions: executor.instructions,
+            functionLabel: executor.title, vault: '',
+            capabilities: 'Primeira entrega em texto. Sem ferramentas, shell ou arquivos. Execute a atribuição diretamente.',
+          },
+          surface: 'channel', userText: assignment,
+          ...foldHostTalkUsed(this.usedContext.get(event.id) ?? []),
+        }).text
         await runner.deliver(
           sessionId,
           recovery ? `recovery:${latest.id}` : `launch:${latest.id}`,
-          recovery ? `${RECOVERY_NOTE}\n${ticket.title}` : (ticket.execution?.assignment ?? ticket.title),
+          prompt,
           recovery ? 'steer' : 'queue',
         )
         await runner.whenIdle(sessionId)
@@ -1523,19 +1621,19 @@ export class Orchestration {
     const id = `${projectId}:${persona.id}:${sessionId}:${at}`
     if (this.recordLedger !== undefined) {
       this.recordLedger(projectId, {
-      id,
-      personaId: persona.id,
+        id,
+        personaId: persona.id,
         engine,
         kind: context?.kind ?? 'execution',
-      inputTokens: spent.inputTokens,
-      outputTokens: spent.outputTokens,
+        inputTokens: spent.inputTokens,
+        outputTokens: spent.outputTokens,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
         layers: EMPTY_LAYERS,
-      at,
+        at,
         origin: 'measured',
         ...(context?.ticketId === undefined ? {} : { ticketId: context.ticketId }),
-    })
+      })
       return
     }
     this.usage?.record({

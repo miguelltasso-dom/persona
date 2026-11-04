@@ -32,6 +32,10 @@ import {
 import { dedupeLimitAccounts, foldUsage, poolProviderLimits } from '@deepseek-ai/dsh-persona-usage'
 import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
+import { cachedEngineReadiness } from './engine-readiness.ts'
+import { RemoteTeamHost, type RemoteTeamVault } from './remote-team.ts'
+import type { AcceptRemoteInviteRequest, ConnectRemoteTeamRequest, RemoteTeamAvailability, RemoteTeamState } from './types.ts'
+import type { EngineStatusView, EngineTriggerActionRequest } from './types.ts'
 import { persistProbeQuota } from './official-quota-persist.ts'
 import { installRemoteGuard, RemoteGuard } from './remote-guard.ts'
 import { MutantRunBook } from './mutant-run.ts'
@@ -42,7 +46,7 @@ import { GithubSourceHost, detectGh } from './github.ts'
 import { ExternalSourcesHost } from './external-sources.ts'
 import { CofreSecretVault } from './cofre-secrets.ts'
 import { detectProjectGit, validateProjectRoot } from './project-root.ts'
-import { ensureProductionRealCli, hostRunnerFromContext, loggedCliFromCards, type DetectedCli } from './runner.ts'
+import { allowsScriptedReplies, ensureProductionRealCli, hostRunnerFromContext, loggedCliFromCards, type DetectedCli } from './runner.ts'
 import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { BoardsHost } from './boards.ts'
@@ -480,6 +484,12 @@ export const PERSONA_PROTOCOL = 1
 /** Optional on-disk path; empty means env or the Vitest memory fallback. */
 export interface Config {
   readonly databasePath: string
+  /** Poll connected projects; zero disables automatic polling. Default 2500 ms. */
+  readonly remoteTeamPollMs?: number
+  /** Local edge request timeout. Default 20000 ms. */
+  readonly remoteTeamTimeoutMs?: number
+  /** Recheck retained messages; zero disables the retry timer. Default 15000 ms. */
+  readonly engineRetryPollMs?: number
 }
 
 /**
@@ -532,6 +542,10 @@ export default class PersonaHost extends TypertRemoteService {
   readonly workingSend: WorkingSendHost
   readonly opt: OptRepos
   readonly ledger: TurnLedgerRepos
+  readonly remoteTeam: RemoteTeamHost
+  private readonly engineRetryPollMs: number
+  private engineRetryTimer: ReturnType<typeof setInterval> | undefined
+  private engineReadinessDisposed = false
   readonly webhookGuard: WebhookReplayGuard = new WebhookReplayGuard()
   readonly remoteGuard: RemoteGuard
   /** Short TTL for `listConversationSubjects` (boot storms hit the same stream). */
@@ -546,6 +560,8 @@ export default class PersonaHost extends TypertRemoteService {
    */
   constructor(ctx: Context, config: Config = { databasePath: '' }) {
     super(ctx, 'personaHost', { namespace: 'persona' })
+    this.engineRetryPollMs = config.engineRetryPollMs ?? 15000
+    if (!Number.isInteger(this.engineRetryPollMs) || this.engineRetryPollMs < 0) throw new Error('invalid-engine-retry-poll-ms')
     ensureProductionRealCli()
     this.store = openPersonaStore({ path: resolvePersonaDatabasePath(config.databasePath) })
     this.product = new ProductRepos(this.store)
@@ -613,7 +629,12 @@ export default class PersonaHost extends TypertRemoteService {
     this.external = new ExternalSourcesHost(this.orchestration, new CofreSecretVault(this.vault, this.product))
     this.connections = new ConnectionProbe({
       persistQuota: (snaps) => { this.persistOfficialQuota(snaps) },
+      onReady: () => { this.handleReadyEngines() },
     })
+    this.orchestration.engineReadinessOf = () => allowsScriptedReplies()
+      ? { state: 'ready', reason: null }
+      : cachedEngineReadiness(this.connections.list())
+    this.orchestration.onEngineDeferred = () => { this.armEngineRetry() }
     this.orchestration.loggedCliOf = () => this.loggedCli()
     this.remoteGuard = new RemoteGuard({
       peerOf: () => this.sessionMemberId ?? 'local',
@@ -653,6 +674,18 @@ export default class PersonaHost extends TypertRemoteService {
     }
     this.orchestration.accounts = this.accounts
     this.orchestration.accountSeatOf = (projectId, persona) => this.seatForPersona(projectId, persona)
+    this.remoteTeam = new RemoteTeamHost({
+      store: this.store, screens: screenRepos, events: this.events,
+      pollMs: config.remoteTeamPollMs ?? 2500, timeoutMs: config.remoteTeamTimeoutMs ?? 20000,
+      topicOf: (projectId, channelId) => this.activeSubjectId(projectId, 'channel', channelId),
+      vault: () => {
+        const vault = (ctx.get('personaVault') ?? ctx.get('credentials')) as RemoteTeamVault | undefined
+        if (vault === undefined || typeof vault.sealInviteToken !== 'function' || typeof vault.dropInviteToken !== 'function') {
+          return undefined
+        }
+        return vault
+      },
+    })
     if (this.store.recoveryMessage !== undefined) this.lastErrors.push(this.store.recoveryMessage)
     if (process.env.VITEST !== 'true') {
       this.connections.warm()
@@ -663,12 +696,17 @@ export default class PersonaHost extends TypertRemoteService {
     for (const workspace of this.product.listWorkspaces()) {
       for (const project of this.product.listProjects(workspace.id)) {
         this.scheduler.arm(project.id)
+        this.remoteTeam.resume({ workspaceId: workspace.id, projectId: project.id })
+        if (!allowsScriptedReplies()) this.orchestration.runtime(project.id)
       }
     }
     ctx.effect(() => async () => {
+      this.engineReadinessDisposed = true
+      if (this.engineRetryTimer !== undefined) clearInterval(this.engineRetryTimer)
       this.scheduler.dispose()
       try {
         await this.orchestration.work
+        await this.remoteTeam.dispose()
       } finally {
         try {
           await this.orchestration.disposeRunners()
@@ -1409,6 +1447,7 @@ export default class PersonaHost extends TypertRemoteService {
       needsYou: [...letters, ...cards.filter(card => card.stage === 'blocked' || card.stage === 'review')],
       inProgress: cards.filter(card => card.stage === 'doing' || card.stage === 'todo'),
       ...(firstDelivery.status === 'idle' ? {} : { firstDelivery }),
+      ...(allowsScriptedReplies() ? {} : { engineStatus: this.engineStatus(request.projectId) }),
     }
   }
 
@@ -1764,8 +1803,15 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - Invite fields.
    */
   @Remote
-  issueInvite(request: IssueInviteRequest): InviteView {
+  async issueInvite(request: IssueInviteRequest): Promise<InviteView> {
     this.requireProject(request)
+    if (!allowsScriptedReplies()) this.remoteTeam.requireVault()
+    const remote = this.remoteTeam.state(request)
+    if (remote !== undefined) {
+      const actor = this.actorOf(request.workspaceId)
+      if (actor?.workspaceRole !== 'owner' || actor.id !== remote.actorId) throw new Error('forbidden')
+      return this.remoteTeam.issue(request)
+    }
     return this.screens.issue(request)
   }
 
@@ -1776,7 +1822,135 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listInvites(request: ProjectScopeRequest): InviteView[] {
     this.requireWorkspace(request)
+    if (this.remoteTeam.state(request) !== undefined) return this.remoteTeam.invites(request)
     return this.screens.listInvites(request.workspaceId)
+  }
+
+  /** @param request - Local edge and explicit channel selection. @returns Durable connection metadata without credentials. */
+  @Remote
+  async connectRemoteTeam(request: ConnectRemoteTeamRequest): Promise<RemoteTeamState> {
+    this.requireWrite(request)
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined || actor.workspaceRole !== 'owner') throw new Error('forbidden')
+    for (const id of request.channelIds) {
+      const channel = this.product.getChannel(id)
+      if (channel === undefined || channel.projectId !== request.projectId) throw new Error('channel-not-found')
+    }
+    return this.remoteTeam.connect(request, actor)
+  }
+
+  /** @param request - Single-use token; the caller cannot choose a remote role. @returns Granted channel state. */
+  @Remote
+  async acceptInvite(request: AcceptRemoteInviteRequest): Promise<RemoteTeamState> {
+    this.requireWrite(request)
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) throw new Error('forbidden')
+    return this.remoteTeam.accept(request, actor)
+  }
+
+  /** @param request - Invite whose redeemed member is revoked. @returns True after the edge acknowledges revocation. */
+  @Remote
+  async revokeMember(request: InviteIdRequest): Promise<boolean> {
+    this.requireWrite(request)
+    const actor = this.actorOf(request.workspaceId)
+    if (actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    await this.remoteTeam.revoke(request, request.inviteId)
+    return true
+  }
+
+  /** @param request - Connected local project. @returns State after serialized push/pull, null before connection. */
+  @Remote
+  async syncRemoteTeam(request: ProjectScopeRequest): Promise<RemoteTeamState | null> {
+    this.requireProject(request)
+    return await this.remoteTeam.sync(request) ?? null
+  }
+
+  /** @param request - Local project. @returns Persisted connection/cursor/revocation metadata, null before connection. */
+  @Remote
+  getRemoteTeamState(request: ProjectScopeRequest): RemoteTeamState | null {
+    this.requireProject(request)
+    return this.remoteTeam.state(request) ?? null
+  }
+
+  /** @param request - Local project. @returns Cofre capability for connecting and inviting. */
+  @Remote
+  getRemoteTeamAvailability(request: ProjectScopeRequest): RemoteTeamAvailability {
+    this.requireProject(request)
+    return { vault: this.remoteTeam.vaultAvailability() }
+  }
+
+  /** @param request - Project scope. @returns Cached readiness and retained message count, without waiting for a probe. */
+  @Remote
+  getEngineStatus(request: ProjectScopeRequest): EngineStatusView {
+    this.requireProject(request)
+    return this.engineStatus(request.projectId)
+  }
+
+  /** @param request - Project scope. @returns Readiness after one forced check; model execution remains asynchronous. */
+  @Remote
+  async retryEngine(request: ProjectScopeRequest): Promise<EngineStatusView> {
+    this.requireWrite(request)
+    await this.connections.ready()
+    this.handleReadyEngines()
+    return this.engineStatus(request.projectId)
+  }
+
+  /** @param request - A person's confirmation of one expired retained message. @returns Current readiness and pending count. */
+  @Remote
+  async confirmEngineTrigger(request: EngineTriggerActionRequest): Promise<EngineStatusView> {
+    this.requireEngineTriggerActor(request)
+    await this.connections.ready()
+    if (this.engineStatus(request.projectId).state === 'ready') {
+      this.orchestration.resumeEngineTriggers(request.projectId, request.triggerId)
+    }
+    return this.engineStatus(request.projectId)
+  }
+
+  /** @param request - Retained message owned by the caller or workspace owner. @returns True on its first dismissal. */
+  @Remote
+  dismissEngineTrigger(request: EngineTriggerActionRequest): boolean {
+    this.requireEngineTriggerActor(request)
+    const dismissed = this.orchestration.runtime(request.projectId).engine.dismissEngineTrigger(request.triggerId)
+    this.handleReadyEngines()
+    return dismissed
+  }
+
+  private engineStatus(projectId: string): EngineStatusView {
+    const status = this.orchestration.engineReadinessOf?.() ?? { state: 'checking' as const, reason: null }
+    return { ...status, pending: this.orchestration.runtime(projectId).engine.pendingEngineTriggers().length }
+  }
+
+  private requireEngineTriggerActor(request: EngineTriggerActionRequest): void {
+    this.requireWrite(request)
+    const actor = this.actorOf(request.workspaceId)
+    const trigger = this.orchestration.runtime(request.projectId).repo.triggers.get(request.triggerId)
+    if (trigger === undefined) throw new Error('not-found')
+    if (actor?.kind !== 'user' || (actor.workspaceRole !== 'owner' && actor.id !== trigger.actor.id)) throw new Error('forbidden')
+  }
+
+  private handleReadyEngines(): void {
+    if (this.engineReadinessDisposed || allowsScriptedReplies()) return
+    if (cachedEngineReadiness(this.connections.list()).state !== 'ready') return
+    for (const workspace of this.product.listWorkspaces()) {
+      for (const project of this.product.listProjects(workspace.id)) this.orchestration.resumeEngineTriggers(project.id)
+    }
+  }
+
+  private armEngineRetry(): void {
+    if (this.engineReadinessDisposed || this.engineRetryTimer !== undefined || this.engineRetryPollMs === 0) return
+    this.engineRetryTimer = setInterval(() => {
+      const pending = [...this.orchestration.runtimes.values()].some(rt => rt.engine.pendingEngineTriggers().length > 0)
+      if (!pending) {
+        if (this.engineRetryTimer !== undefined) clearInterval(this.engineRetryTimer)
+        this.engineRetryTimer = undefined
+        return
+      }
+      void this.connections.ready().catch((error: unknown) => {
+        // The retained triggers stay durable until a later check succeeds.
+        void error
+      })
+    }, this.engineRetryPollMs)
+    this.engineRetryTimer.unref()
   }
 
   /**
@@ -2452,6 +2626,10 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   postMessage(request: PostMessageRequest): MessageView {
+    return this.appendMessage(request)
+  }
+
+  private appendMessage(request: PostMessageRequest, firstDelivery?: { executorId: string; title: string }): MessageView {
     this.requireProject(request)
     this.forgetSubjectListCache()
     const actor = this.actorOf(request.workspaceId)
@@ -2492,7 +2670,7 @@ export default class PersonaHost extends TypertRemoteService {
       request.streamKind,
       request.ownerId,
     )
-    this.orchestration.ingest(stored, request.streamKind, request.ownerId, request.responderId ?? '')
+    this.orchestration.ingest(stored, request.streamKind, request.ownerId, request.responderId ?? '', undefined, firstDelivery)
     const ticketed = this.orchestration.runtime(request.projectId).repo.tickets.list()
       .some(ticket => ticket.origin.triggerId === request.id)
     const answered = this.events.has(`coord-${request.id}-reply`)
@@ -3090,7 +3268,13 @@ export default class PersonaHost extends TypertRemoteService {
     const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
     if (request.command === 'stop') engine.stopTicket(request.ticketId, request.reason)
-    else if (request.command === 'retry') engine.retryTicket(request.ticketId)
+    else if (request.command === 'retry') {
+      engine.retryTicket(request.ticketId)
+      const delivery = this.readFirstDelivery(request.projectId)
+      if (ticket.origin.triggerId === FIRST_DELIVERY_EVENT_ID && delivery.status === 'failed') {
+        this.persistFirstDelivery(request.projectId, { ...delivery, status: 'working' })
+      }
+    }
     else if (request.command === 'reevaluate') engine.reevaluate(ticket.origin.triggerId)
     else if (request.command === 'complete') this.orchestration.completeReview(request.projectId, request.ticketId)
     else engine.dismiss(ticket.decisionId)
@@ -3570,7 +3754,10 @@ export default class PersonaHost extends TypertRemoteService {
         ?? this.product.listMembers(request.workspaceId)[0]
       if (owner === undefined) return
       const brief = request.cofreSeed !== '' ? request.cofreSeed : request.displayName
-      this.postMessage({
+      const executor = this.product.listPersonas(projectId).find(persona => !persona.systemRoles.includes('coordination'))
+        ?? this.product.listPersonas(projectId).find(persona => persona.systemRoles.includes('coordination'))
+      if (executor === undefined) return
+      this.appendMessage({
         id: FIRST_DELIVERY_EVENT_ID,
         workspaceId: request.workspaceId,
         projectId,
@@ -3580,7 +3767,7 @@ export default class PersonaHost extends TypertRemoteService {
         actorId: owner.id,
         subjectId: 'first-delivery',
         occurredAt: this.orchestration.now(),
-      })
+      }, { executorId: executor.id, title: 'Primeira entrega' })
     }
     this.markFirstDeliveryWorking(projectId)
   }

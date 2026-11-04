@@ -24,7 +24,6 @@ function recordedTaskRunner(report: NormalizedReport): PersonaRunnersSlice {
   return {
     createFakeRunner,
     resolveRunner: async () => createScriptedRunner({ turns: [
-      { events: [{ type: 'ended', at, report: { state: 'ready', summary: 'Regras recebidas.' } }] },
       { events: [{ type: 'ended', at, report: { state: 'ready', summary: 'Pedido encaminhado.' } }] },
       { events: [{ type: 'ended', at, report }] },
     ] }),
@@ -70,7 +69,6 @@ it('a failed worker Report stays blocked instead of becoming a successful delive
 it('records each call once with its actual provider, kind, ticket and cache counters before flush finishes', async () => {
   const h = host()
   seed(h)
-  h.orchestration.loggedCliOf = () => 'claude'
   h.orchestration.runnerFactory = async (request) => {
     const runner = createFakeRunner()
     return {
@@ -90,8 +88,8 @@ it('records each call once with its actual provider, kind, ticket and cache coun
   await h.orchestration.flush('pp')
   const task = h.listTasks({ workspaceId: 'ws', projectId: 'pp' })[0]!
   const rows = h.ledger.list({ projectId: 'pp' })
-  expect(rows).toHaveLength(3)
-  expect(rows.filter(row => row.kind === 'triage')).toHaveLength(2)
+  expect(rows).toHaveLength(2)
+  expect(rows.filter(row => row.kind === 'triage')).toHaveLength(1)
   expect(rows.filter(row => row.kind === 'execution')).toMatchObject([{ ticketId: task.id }])
   expect(rows.every(row => row.engine === 'claude' && row.inputTokens === 40 && row.outputTokens === 10)).toBe(true)
   expect(rows.every(row => row.cacheReadTokens === 30 && row.cacheWriteTokens === 2)).toBe(true)
@@ -139,6 +137,7 @@ it('persists a blocked Report summary and question together and publishes a visi
 })
 
 function seed(h: PersonaHost): void {
+  h.orchestration.engineReadinessOf = () => ({ state: 'ready', reason: null })
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
   h.createMember({
     id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner',

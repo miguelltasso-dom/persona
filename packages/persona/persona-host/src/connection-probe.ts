@@ -35,12 +35,14 @@ export class ConnectionProbe {
     detect?: ConnectionDetector
     now?: () => number
     persistQuota?: ((snaps: readonly ConnectionSnapshot[]) => void) | undefined
+    onReady?: ((cards: readonly ConnectionView[]) => void) | undefined
   } = {}) {
     this.timeoutMs = options.timeoutMs ?? CONNECTION_PROBE_TIMEOUT_MS
     this.cacheMs = options.cacheMs ?? CONNECTION_CACHE_MS
     this.detect = options.detect ?? defaultDetect
     this.now = options.now ?? Date.now
     this.persistQuota = options.persistQuota
+    this.onReady = options.onReady
   }
 
   readonly timeoutMs: number
@@ -48,6 +50,7 @@ export class ConnectionProbe {
   readonly detect: ConnectionDetector
   readonly now: () => number
   readonly persistQuota: ((snaps: readonly ConnectionSnapshot[]) => void) | undefined
+  readonly onReady: ((cards: readonly ConnectionView[]) => void) | undefined
   private cache: { at: number; cards: ConnectionView[] } | undefined
   private inflight: Promise<void> | undefined
   private lastSnaps: readonly ConnectionSnapshot[] = []
@@ -104,8 +107,10 @@ export class ConnectionProbe {
       this.lastSnaps = snaps
       this.cache = { at: this.now(), cards: snaps.map(toCard) }
       this.persistQuota?.(snaps)
-    } catch {
+      this.onReady?.(this.cache.cards)
+    } catch (error) {
       // Timeout/throw is not a definitive logout — keep checking / last ready cache.
+      void error
     }
   }
 }
@@ -126,7 +131,7 @@ function toCard(snap: ConnectionSnapshot): ConnectionView {
     available: row.available,
     loggedIn: row.loggedIn,
     loginHint: row.loginHint,
-    phase: 'ready',
+    phase: snap.authUnknown === true ? 'checking' : 'ready',
   }
   if (row.error === undefined) return card
   const { code, message } = row.error

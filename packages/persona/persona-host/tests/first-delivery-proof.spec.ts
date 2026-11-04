@@ -1,6 +1,6 @@
 import { createFakeRunner } from '@deepseek-ai/dsh-persona-runners'
 import { expect, it, vi } from 'vitest'
-import { DeliveryCallBudget, firstDeliveryProof, type FirstDeliveryProofInput } from '../scripts/first-delivery-proof.ts'
+import { DeliveryCallBudget, firstDeliveryProof, type FirstDeliveryProofInput } from './first-delivery-proof.ts'
 import type { MessageView } from '../src/types.ts'
 
 it('counts inject and queue deliveries, excludes idempotent duplicates, and refuses a fourth call', async () => {

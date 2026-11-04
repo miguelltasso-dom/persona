@@ -1,6 +1,6 @@
 /**
  * V1-P0-1 real CLI: onboarding brief → `startFirstDelivery` → runner reply on #geral.
- * ≤3 runner turns (budget 1 ticket). Writes `persona-e2e/artifacts/first-delivery-real-cli.json`.
+ * One paid execution turn; three attempts remain the emergency cap. Writes `persona-e2e/artifacts/first-delivery-real-cli.json`.
  * Requires logged-in Claude CLI (`PERSONA_REAL_CLI=1`).
  */
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
@@ -11,7 +11,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { verifyFirstDeliveryRun, type FirstDeliveryRunEvidence } from '@deepseek-ai/dsh-persona-engine'
 import PersonaRunners from '@deepseek-ai/dsh-persona-runners'
 import PersonaHost from '../src/index.ts'
-import { DeliveryCallBudget, firstDeliveryProof } from './first-delivery-proof.ts'
+import { DeliveryCallBudget, firstDeliveryProof } from '../tests/first-delivery-proof.ts'
 import type { CompleteOnboardingRequest, ConnectionView } from '../src/types.ts'
 
 if (process.env.PERSONA_REAL_E2E !== '1' && process.env.PERSONA_REAL_CLI !== '1') {

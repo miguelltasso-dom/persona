@@ -1,4 +1,4 @@
-/** Evidence and call budget for the opt-in first-delivery smoke; never starts a provider itself. */
+/** Shared smoke evidence and call budget; never starts a provider itself. */
 import type { Runner } from '@deepseek-ai/dsh-persona-engine'
 import type { HostRunnerFactory, HostRunnerRequest } from '../src/runner.ts'
 import type { FirstDeliveryView, MessageView, TaskView } from '../src/types.ts'
@@ -33,7 +33,7 @@ export class DeliveryCallBudget {
     this.seen.set(runner, seen)
     const sessions = this.sessions.get(runner) ?? new Set<string>()
     this.sessions.set(runner, sessions)
-    const deliver = runner.deliver
+    const deliver = runner.deliver.bind(runner)
     runner.deliver = async (sessionId, requestId, text, mode) => {
       const key = JSON.stringify([sessionId, requestId])
       if (!seen.has(key)) {
@@ -42,7 +42,7 @@ export class DeliveryCallBudget {
         sessions.add(sessionId)
         this.calls.push({ sessionId, requestId, mode })
       }
-      await deliver.call(runner, sessionId, requestId, text, mode)
+      await deliver(sessionId, requestId, text, mode)
     }
     return runner
   }

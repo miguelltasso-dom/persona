@@ -74,6 +74,36 @@ it('onboarding delivery seals itself without a second Remote call and survives r
   }).events.filter(item => item.id === FIRST_DELIVERY_MILESTONE_EVENT_ID)).toHaveLength(1)
 })
 
+it('the introductory task uses one execution delivery with persona context and no coordination inject or triage', async () => {
+  const h = host()
+  const calls: Array<{ personaId: string; mode: string; text: string }> = []
+  h.orchestration.runnerFactory = async (request) => {
+    const runner = createFakeRunner()
+    return {
+      ...runner,
+      deliver: async (sessionId, requestId, text, mode) => {
+        calls.push({ personaId: request?.personId ?? '', mode, text })
+        await runner.deliver(sessionId, requestId, text, mode)
+        request?.usage?.record({ provider: 'claude', model: 'haiku', kind: 'execution', window: 'turn',
+          inputTokens: 40, outputTokens: 10, at: '2026-11-04T12:00:00.000Z', origin: 'measured' })
+      },
+    }
+  }
+  await h.completeOnboarding({ ...ONBOARDING, cofreSeed: 'A empresa cita @Guia, mas a entrega continua com Bento.' })
+  await h.orchestration.flush('pp')
+  expect(calls).toHaveLength(1)
+  expect(calls[0]?.mode).toBe('queue')
+  expect(calls[0]?.text).toContain('Bento')
+  expect(calls[0]?.text).toContain('Prove.')
+  expect(calls[0]?.text).toContain('Não use ferramentas')
+  const delivery = h.getFirstDelivery(scope)
+  expect(delivery.status).toBe('ready')
+  const ledger = h.ledger.list({ projectId: 'pp' })
+  expect(ledger).toMatchObject([{ kind: 'execution', ticketId: delivery.ticketId }])
+  expect(ledger.filter(row => row.kind === 'triage')).toEqual([])
+  expect(h.orchestration.runtime('pp').routeLog.trail.some(row => row.rule === 'first_delivery' && !row.modelCalled)).toBe(true)
+})
+
 it('keeps the full inline first-delivery assignment even when the brief exceeds the ticket display title', async () => {
   const h = host()
   const brief = `${'Empresa de projetos digitais. '.repeat(12)}REGRA_FINAL_INTEGRA`
@@ -101,6 +131,18 @@ it('a runner failure seals failed automatically and never posts a success milest
   expect(events.some(item => item.id === FIRST_DELIVERY_MILESTONE_EVENT_ID)).toBe(false)
   expect(events.find(item => item.runError !== undefined)?.runError)
     .toMatchObject({ code: 'quota_exhausted', provider: 'Claude', persona: 'Guia' })
+})
+
+it('retrying the failed introductory task immediately clears the previous failed milestone state', async () => {
+  const h = host()
+  h.orchestration.runnerFactory = async () => { throw new RunnerResolveError('quota_exhausted', 'claude') }
+  await h.completeOnboarding(ONBOARDING)
+  await h.orchestration.flush('pp')
+  const failed = h.getFirstDelivery(scope)
+  expect(failed.status).toBe('failed')
+  h.runTicketCommand({ ...scope, ticketId: failed.ticketId, command: 'retry', reason: '' })
+  expect(h.getFirstDelivery(scope)).toEqual({ ...failed, status: 'working' })
+  expect(h.events.has(FIRST_DELIVERY_MILESTONE_EVENT_ID)).toBe(false)
 })
 
 it('an interrupted first delivery resumes and seals the milestone on the reopened host', async () => {

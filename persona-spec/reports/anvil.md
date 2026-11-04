@@ -4,6 +4,133 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 04/11 11:37 — E12: sincronização entre dois apps comprovada; FR-3 e política do Cofre em validação
+
+### Entrega E12
+
+`persona-host/src/remote-team.ts` monta a ponte no host. Os Remotes conectam, emitem/aceitam convite, revogam e sincronizam canais autorizados. O pull usa somente EventRepos, sem Intake/engine/Vigia; IDs de evento tornam o replay idempotente. Cursor, fila de referências e revogação são persistidos. DM e canais não autorizados não entram na ponte. Tokens só vão ao Cofre; metadados SQLite não contêm o token. O edge guarda SHA-256 e recebe o token no corpo do POST. O servidor valida escopo e impede promoção de membro a dono.
+
+Arquivos: `persona-host/src/{index,types,remote-team}.ts`, `persona-host/scripts/remote-team-real.mjs`, `persona-sync/src/{index,transport}.ts`, `persona-sync/tests/http.spec.ts`, `apps/persona-edge/src/workspace-hub.ts`, `apps/persona-edge/tests/{remote-teams,host-bridge}.spec.ts`, READMEs e `contracts/remote-team.md`. Não editei UI, runners ou Cofre. A montagem do Cofre no perfil foi corrigida pelo Keel: plugin stock desabilitado e novo id persona-credentials; a composição anterior era recusada pelo Loader por mudança de nome.
+
+### Prova real dos apps, sem modelo real
+
+```text
+node scripts/persona/with-lock.mjs "Anvil sync profiles cursor and revocation" --lock build -- node --import tsx/esm packages/persona/persona-host/scripts/remote-team-real.mjs
+sync-real:01-invite
+sync-real:02-accepted
+sync-real:03-channel-converged
+sync-real:04-dm-isolated
+sync-real:05-offline-resumed
+sync-real:06-revoked
+sync-real:PASS channel + DM isolation + cursor resume + revocation; modelCalls=0
+exit 0
+```
+
+Dois perfis completos com homes temporários separados, portas 3080/3081 e edge 8791, sem dev seed; runner explicitamente scriptado. Canal compartilhado inicialmente vazio; mensagem única publicada no A apareceu no B e na UI. DM privada exibida no A não apareceu no B nem no edge. B foi encerrado, A publicou outra mensagem, B reiniciou no mesmo home e retomou pelo cursor. Revogação persistiu e bloqueou envio e recebimento do B. Sequências do edge: `[1,2,3]`; B conservou cursor 2 e `ACCESS_REVOKED`. Artefatos: `.maestri/tmp/shots/remote/sync-real/proof.json` (`passed:true`) e 12 capturas (`01` a `06`, Alice/Bob). Conferi visualmente o canal convergido no B e a DM no A. Contextos, navegador, apps e edge encerrados; portas sem listeners ao terminar.
+
+O harness usa `PERSONA_VAULT_TEST_CIPHER=1` somente nos filhos de teste, conforme política do Rivet. Não atesta DPAPI, autenticação distribuída, deploy Cloudflare ou aceite com provedor real. A UI de conectar/aceitar continua com Prism/Lumen; o harness usa RPC autenticado dos apps para essas ações.
+
+### Verificação offline já executada
+
+```text
+node scripts/persona/check-pkg.mjs persona-host persona-sync
+persona-host: OK in 19.2s
+persona-sync: OK in 7.1s
+
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 61.3s
+
+pnpm exec tsc -p apps/persona-edge/tsconfig.json --noEmit
+exit 0
+
+vitest run: engine-wait.host + engine-readiness + host-bridge + remote-teams + http
+Test Files  1 failed | 4 passed (5)
+Tests  1 failed | 12 passed (13)
+Duration  12.67s
+```
+
+O último lote passou todos os testes E12 e a política sem Cofre. A falha foi a expectativa FR-3 de duas Tarefas para duas mensagens do mesmo assunto: o engine corretamente as agrega. O teste agora exige cada Trigger liberado uma vez e nenhuma Tarefa duplicada; nova execução aguarda o build.lock do Keel. Os comandos anteriores de tipos/Typert não substituem a validação final após FR-3.
+
+### Em curso e dependências
+
+FR-3: host usa receive deferRouting, aviso imediato estruturado no stream, cache de conexões, rechecagem de 15 segundos, retomada sem receive duplicado, retry/dismiss/confirmação pessoal, estado no overview e Remote. `contracts/engine-readiness.md` documenta os campos para Prism. Testes e geração final ainda em curso.
+
+Cofre: consumo de availability do Rivet, falha tipada vault-unavailable antes do edge, Remote getRemoteTeamAvailability e pausa de conexões restauradas. Sem fallback em claro. Em validação final.
+
+Rivet confirmou pelo Status a correção de `usage-meter.ts`: sink e evento usage agora antecedem ended; dependência do medidor encerrada. Prism: consumir a tarefa do onboarding já criada, sem novo activationPrompt. Probe/Forge/Atlas: aceite P0 real segue exclusivamente com eles e orçamento autorizado; zero chamadas reais de Anvil. PRO-2 e as partes host de W2-10/SB-6 já entregues nos relatos anteriores; E13 é UI de Prism/Lumen, E11 é Atlas.
+
+Atualização 11:48: lote FR-3/P0/connections/screens verde — `Test Files 5 passed (5)`, `Tests 30 passed | 1 skipped (31)`, `Duration 8.34s`. O skip é a chamada real opt-in. Acrescentei depois a verificação do timer, confirmação pelo Remote e pausa de sync quando o Cofre fica indisponível; nova validação completa está enfileirada sob build.lock. `node --check` dos dois scripts de perfil: exit 0. Contrato SW-6 preparado em `contracts/simple-workspace.md`, explicitamente proposto e dependente dos portos SW-1/SW-2 do Forge; nenhum Remote de restauração é anunciado como pronto.
+
+---
+
+## 04/11 10:18 — P0 host e script canônico; dois apps executados; nenhuma chamada real nova
+
+### Entregue no host
+
+- A execução iniciada por `completeOnboarding` sela `first_delivery` sem depender de outra chamada Remote. Sucesso completa o cartão e grava um marco; erro não publica marco de sucesso. Reinício preserva o estado e retoma a tarefa interrompida.
+- O host aguarda a primeira consulta de conexões antes de associar a CLI logada. A Assignment recebe `trigger.text` completo, com o brief e as instruções answer-only do Forge, em vez do título truncado.
+- O texto e o Report são separados por turno. `failed`/`blocked` não viram `ready`; há mensagem estruturada visível no canal. O resumo diagnóstico fica em `assignment.report.summary`, e a pergunta fica em `ticket.attention.question`, ambos no JSON persistido do Ticket. Nenhum argumento de ferramenta é gravado por estas alterações.
+- A entrega textual usa `source: runner`. Pedido omitido em produção falha com `engine_unavailable`; fake exige modo de teste/scriptado.
+- O sink grava provider, cache, tipo e ticketId por chamada: Coordenação = triage; executora = execution. IDs distintos preservam chamadas no mesmo instante; o fallback de uso não duplica um sink medido, e `flush` aguarda o fallback. Encerramento aguarda trabalho e runners antes de fechar SQLite.
+
+### Script canônico autorizado pelo Keel
+
+`packages/persona/persona-host/scripts/first-delivery-real-cli.ts` é a entrada única. `DeliveryCallBudget` conta tentativas únicas de `deliver`, incluindo inject, e recusa a quarta antes de encaminhá-la. Repetição idempotente não conta novamente; uma tentativa com erro consome o limite. O contador preserva a identidade do runner, necessária à captura do texto. `execs` e `calls` ficam separados de `stages` e do ledger medido. O script aguarda `connections.ready()`, usa `verifyFirstDeliveryRun`, inclui a evidência no JSON, exige resposta do Ticket no #geral, cartão done, marco único ready e prazo. O timeout envolve onboarding e execução. Sem opt-in, sai antes de montar o host.
+
+O JSON da tentativa real anterior foi preservado como evidência histórica de falha. Não gerei um novo sucesso real. Os testes do contador e do JSON serializado comprovam que uma resposta curta válida não falha por limite de caracteres, e que marcas de telemetria não são tratadas como chamadas de modelo.
+
+### Provas executadas
+
+```text
+pnpm exec vitest run packages/persona/persona-host/tests/first-delivery-proof.spec.ts packages/persona/persona-host/tests/first-delivery.host.spec.ts packages/persona/persona-host/tests/real-path.spec.ts packages/persona/persona-host/tests/conductor.spec.ts packages/persona/persona-host/tests/journeys/j07-budget.spec.ts packages/persona/persona-host/tests/onboarding.spec.ts packages/persona/persona-host/tests/connections.spec.ts --testTimeout=60000 --hookTimeout=60000
+ Test Files  7 passed (7)
+      Tests  45 passed | 1 skipped (46)
+   Duration  35.53s
+
+node scripts/persona/check-pkg.mjs persona-host
+persona-host: OK in 56.1s
+
+pnpm exec oxlint --fix packages/persona/persona-host/src/orchestration.ts
+exit 0, sem saída
+
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 132.1s
+
+pnpm exec vitest run packages/persona/persona-host/tests/usage.spec.ts packages/persona/persona-host/tests/token-opt.spec.ts packages/persona/persona-host/tests/orchestration.spec.ts --testTimeout=60000 --hookTimeout=60000
+ Test Files  3 passed (3)
+      Tests  16 passed (16)
+   Duration  13.08s
+
+node --import tsx/esm --input-type=module -e "delete process.env.PERSONA_REAL_E2E; delete process.env.PERSONA_REAL_CLI; await import('./packages/persona/persona-host/scripts/first-delivery-real-cli.ts')"
+exit 1 esperado: First-delivery real smoke requires explicit PERSONA_REAL_E2E=1 or PERSONA_REAL_CLI=1
+```
+
+As regressões novas falharam antes das correções: marco preso em working (sucesso e falha), fonte host em entrega real, Report failed promovido a review e consulta fria sem associar a conexão logada. O lote acima ficou verde depois das correções; o único skip é a execução real opt-in.
+
+### Apps executados sob build.lock
+
+```text
+node scripts/persona/with-lock.mjs "Anvil paired app runtime" --lock build -- node --import tsx/esm .maestri/tmp/capture-app-real.mjs
+OK edge={"ok":true,"service":"persona-edge"} A=http://127.0.0.1:3080 B=http://127.0.0.1:3081 home=C:\Users\migue\AppData\Local\Temp\persona-pair-l7rlRZ
+exit 0
+```
+
+Dois perfis Persona reais, homes temporários separados, edge somente local em 8791, runner scriptado e seed de desenvolvimento. Capturas verificadas em `.maestri/tmp/shots/remote/app-real/{desk-a,desk-b,side-by-side}.png`; o SQLite do app A contém `first_delivery.status=ready`, a entrega scriptada e um único marco. Os processos foram encerrados; as portas não ficaram escutando. Estas capturas comprovam os dois apps, não o aceite com provedor real nem convergência remota.
+
+### Arquivos
+
+`persona-host/src/{index,orchestration,runner}.ts`, `persona-host/scripts/{first-delivery-real-cli,first-delivery-proof}.ts`, `persona-host/tests/{first-delivery.host,first-delivery-proof,real-path,onboarding}.spec.ts`, `persona-host/README.md`. Script e imagens de apoio em `.maestri/tmp/`. Sem alterações no upstream, commits, instalação de dependências ou credenciais.
+
+### Dependências e fila
+
+- **Rivet:** `resolve/usage-meter.ts` ainda entrega ended antes de `usage()`/`sink.record`. `oar/session.ts` para no ended; portanto a gravação é pulada. Solicitei mover a medição antes do ended e testar consumo que para nesse evento. O host já associa a medição ao Ticket e não deve fabricar registros para encobrir essa ausência.
+- **Forge/Rivet:** diagnóstico e política answer-only sob seus donos; a ferramenta histórica da tentativa 09:12 não é recuperável do DB. Nenhum nome foi inferido como fato histórico.
+- **Probe/Forge/Atlas:** o aceite real continua pendente de saldo e da rodada única coordenada. Keel ordenou que Anvil não faça chamadas reais; cumprido.
+- **Prism:** o onboarding deve consumir a tarefa já criada pelo host e evitar um segundo activationPrompt. Reportei a duplicação no Status.
+- PRO-2 e os demais itens store/host atribuídos a Anvil estão done no PLAN. A pendência de V1-P0-2 é a prova real coordenada; E11 continua dependendo de autorização externa.
+
+---
+
 ## 04/11 08:25 — V1-P0-2 first_delivery persistido + Remote + marco no feed
 
 Não usei `note write`. Keel: só `note edit`.

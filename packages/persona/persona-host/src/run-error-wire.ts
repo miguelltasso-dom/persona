@@ -27,19 +27,21 @@ export function runErrorFromBody(body: string): RunErrorPayload | undefined {
   try {
     const raw: unknown = JSON.parse(json)
     if (raw === null || typeof raw !== 'object') return undefined
-    const code = Reflect.get(raw, 'code')
+    const code: unknown = Reflect.get(raw, 'code')
     if (typeof code !== 'string' || !isRunErrorCode(code)) return undefined
     const pick = (key: string): string | undefined => {
-      const value = Reflect.get(raw, key)
+      const value: unknown = Reflect.get(raw, key)
       return typeof value === 'string' ? value : undefined
     }
-    const otherAccount = Reflect.get(raw, 'otherAccount')
+    const otherAccount: unknown = Reflect.get(raw, 'otherAccount')
     const provider = pick('provider')
     const model = pick('model')
     const account = pick('account')
     const persona = pick('persona')
     const resetAt = pick('resetAt')
     const command = pick('command')
+    const reason = pick('reason')
+    const triggerId = pick('triggerId')
     return {
       code,
       ...(provider === undefined ? {} : { provider }),
@@ -49,6 +51,9 @@ export function runErrorFromBody(body: string): RunErrorPayload | undefined {
       ...(resetAt === undefined ? {} : { resetAt }),
       ...(command === undefined ? {} : { command }),
       ...(otherAccount === true ? { otherAccount: true } : {}),
+      ...(reason === 'none_connected' || reason === 'login_required' || reason === 'quota_exhausted' || reason === 'expired'
+        ? { reason } : {}),
+      ...(triggerId === undefined ? {} : { triggerId }),
     }
   } catch {
     return undefined

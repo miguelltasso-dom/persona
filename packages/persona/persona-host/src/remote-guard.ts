@@ -22,7 +22,7 @@ export const REMOTE_RATE_MAX = 2_000
 /** Writes stay tighter than reads. */
 export const REMOTE_RATE_WRITE_MAX = 240
 const TEST_RATE_MAX = 10_000
-const WRITE = /^(create|update|put|delete|post|move|accept|reject|enqueue|drop|flush|edit|propose|resolve|comment|record|set|claim|fire|confirm|issue|redeem|schedule|pause|complete|apply|import|wipe|open|plan|start|close|approve|revoke|cancel|ack|tick|backup|restore|checkpoint|draft|invite)/u
+const WRITE = /^(create|update|put|delete|post|move|accept|reject|enqueue|drop|flush|edit|propose|resolve|comment|record|set|claim|fire|confirm|issue|redeem|schedule|pause|complete|apply|import|wipe|open|plan|start|close|approve|revoke|cancel|ack|tick|backup|restore|checkpoint|draft|invite|connect|sync|retry|dismiss|undo)/u
 
 const IdField = z.string().max(200)
 
@@ -34,6 +34,7 @@ export const RemoteRequestSchema = z.looseObject({
   personaId: IdField.optional(),
   accountId: IdField.optional(),
   ticketId: IdField.optional(),
+  triggerId: IdField.optional(),
   sprintId: IdField.optional(),
   subjectId: IdField.optional(),
   ownerId: IdField.optional(),
@@ -67,6 +68,7 @@ export type RemoteFaultCode =
   | 'rate-limited'
   | 'forbidden'
   | 'not-found'
+  | 'vault-unavailable'
 
 export interface RemoteGuardOptions {
   readonly payloadLimit?: number

@@ -98,6 +98,22 @@ export interface OverviewView {
   readonly needsYou: readonly TaskView[]
   readonly inProgress: readonly TaskView[]
   readonly firstDelivery?: FirstDeliveryView
+  readonly engineStatus?: EngineStatusView
+}
+
+/** Definitive cached reason an addressed request cannot reach a connected engine. */
+export type EngineUnavailableReason = 'none_connected' | 'login_required' | 'quota_exhausted'
+
+/** Readiness uses cached observations; checking never claims a logout. */
+export interface EngineStatusView {
+  readonly state: 'ready' | 'checking' | 'unavailable'
+  readonly reason: EngineUnavailableReason | null
+  readonly pending: number
+}
+
+/** A person's action on one durable, retained message. */
+export interface EngineTriggerActionRequest extends ProjectScopeRequest {
+  readonly triggerId: string
 }
 
 /** Create a workspace and its Pessoal project. */
@@ -242,6 +258,8 @@ export interface RunErrorPayload {
   readonly resetAt?: string
   readonly command?: string
   readonly otherAccount?: boolean
+  readonly reason?: EngineUnavailableReason | 'expired'
+  readonly triggerId?: string
 }
 
 /** Message page plus exclusive cursor. */
@@ -1004,6 +1022,36 @@ export interface InviteIdRequest {
   readonly workspaceId: string
   readonly projectId: string
   readonly inviteId: string
+}
+
+/** Persisted remote-team routing and cursor metadata, without credentials. */
+export interface RemoteTeamState {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly edgeUrl: string
+  readonly actorId: string
+  readonly role: 'owner' | 'member' | 'guest'
+  readonly channelIds: readonly string[]
+  readonly status: 'connected' | 'offline' | 'revoked' | 'vault_unavailable'
+  readonly cursors: Record<string, number>
+  readonly errorCode: string
+}
+
+/** Cofre capability for remote-team controls, without probing or exposing credentials. */
+export interface RemoteTeamAvailability {
+  readonly vault: 'available' | 'unavailable' | 'test'
+}
+
+/** Explicit local edge and channels; the host derives the actor from the session. */
+export interface ConnectRemoteTeamRequest extends ProjectScopeRequest {
+  readonly edgeUrl: string
+  readonly channelIds: readonly string[]
+}
+
+/** Single-use token is transient and cannot choose a remote role. */
+export interface AcceptRemoteInviteRequest extends ProjectScopeRequest {
+  readonly edgeUrl: string
+  readonly token: string
 }
 
 /** One file handed to an import adapter. */

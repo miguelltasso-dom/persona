@@ -19,8 +19,6 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const main = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const DEFAULT_WT = resolve(main, '..', 'persona-push')
-const SHORT_WT = 'C:\\p8w'
 const CACHE = 'C:\\p8c'
 const argv = process.argv.slice(2)
 const wantDir = argv.includes('--dir')
@@ -132,6 +130,15 @@ function applyOverlay(wt) {
   const scripts = join(desktop, 'scripts')
   const host = join(wt, 'apps', 'desktop-host')
   const hostConfig = join(host, 'config')
+  // Keel-authorized packaging overlay; the source manifest remains unchanged.
+  const hostManifestPath = join(host, 'package.json')
+  const hostManifest = JSON.parse(readFileSync(hostManifestPath, 'utf8'))
+  hostManifest.files = [...new Set([...hostManifest.files, 'config/'])]
+  writeFileSync(hostManifestPath, `${JSON.stringify(hostManifest, null, 2)}\n`)
+  for (const file of ['core-package-set.ts', 'preload-app.ts', 'ipc.ts', 'boot-ui.ts']) {
+    copyFileSync(join(main, 'apps/desktop/src', file), join(desktop, 'src', file))
+  }
+  cpSync(join(main, 'apps/desktop/renderer/persona-boot'), join(desktop, 'renderer/persona-boot'), { recursive: true })
   copyFileSync(join(main, 'apps/desktop/scripts/installer-select.nsh'), join(scripts, 'installer-select.nsh'))
   copyFileSync(join(main, 'apps/desktop/scripts/installer-stock.nsh'), join(scripts, 'installer-stock.nsh'))
   copyFileSync(join(main, 'apps/desktop/scripts/prepare-windows-installer.ps1'), join(scripts, 'prepare-windows-installer.ps1'))
@@ -208,6 +215,8 @@ function applyOverlay(wt) {
     'smoke-runtime.ts', 'package-target.ts',
     'persona-about-settings.client.spec.tsx',
     'desktop-host/index.ts', 'desktop-host/electron.cordis.patch.yml',
+    'desktop-host/package.json files=config/', 'core-package-set.ts',
+    'preload-app.ts', 'ipc.ts', 'boot-ui.ts', 'renderer/persona-boot/',
     'vendor/loader src+lib', 'apps/web/dist',
   ]
 }
@@ -264,7 +273,7 @@ if (!target) {
 }
 log(`target ${target.slice(0, 10)} ${run(main, 'git', ['log', '-1', '--format=%s', target]).stdout.trim()}`)
 
-const wt = existsSync(DEFAULT_WT) ? DEFAULT_WT : SHORT_WT
+const wt = `C:\\p8w${target.slice(0, 10)}`
 if (!existsSync(wt)) {
   const created = run(main, 'git', ['worktree', 'add', '--detach', wt, target])
   if (created.status !== 0) {
@@ -273,19 +282,10 @@ if (!existsSync(wt)) {
   }
 }
 const current = run(wt, 'git', ['rev-parse', 'HEAD']).stdout.trim()
-if (!resume || current !== target) {
-  live('checkout', { target: target.slice(0, 10) })
-  const checkout = run(wt, 'git', ['checkout', '--detach', '--force', target])
-  if (checkout.status !== 0) {
-    log(`checkout failed: ${(checkout.stderr || checkout.stdout).slice(-400)}`)
-    process.exit(2)
-  }
-  const cleaned = run(wt, 'git', ['clean', '-fd', '--exclude=.desktop-build', '--exclude=node_modules'])
-  log(`clean worktree ${(cleaned.stdout || cleaned.stderr || 'ok').trim().slice(0, 200)}`)
-} else {
-  log('resume: keep worktree at published commit (overlay reapplied)')
+if (current !== target) {
+  throw new Error(`pack worktree ${wt} belongs to ${current}; expected ${target}`)
 }
-const short = ensureJunction(SHORT_WT, wt)
+const short = { ok: true, path: wt, detail: 'isolated worktree at explicit commit' }
 log(`worktree ${wt} junction ${short.path} (${short.detail})`)
 
 if (!existsSync(join(wt, 'node_modules'))) {

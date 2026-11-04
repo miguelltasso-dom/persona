@@ -38,8 +38,8 @@ const PERSONA_TEMPLATES: readonly { readonly name: string; readonly role: string
   { name: 'Coruja', role: 'Jurídico' },
   { name: 'Guaxinim', role: 'Financeiro' },
   { name: 'Lontra', role: 'Comercial' },
-  { name: 'Ourico', role: 'People' },
-  { name: 'Lobo-guara', role: 'Infra' },
+  { name: 'Ouriço', role: 'People' },
+  { name: 'Lobo-guará', role: 'Infra' },
 ]
 
 export const ORG_SCALE_SECTOR_NAMES = [
@@ -63,6 +63,14 @@ export const ORG_SCALE_HUMAN_LEADS: readonly { readonly title: string; readonly 
   { title: 'Luísa', subtitle: 'People · RH' },
 ]
 
+export function orgScaleDisplayName(index: number): string {
+  const template = PERSONA_TEMPLATES[index % PERSONA_TEMPLATES.length]!
+  const wave = Math.floor(index / PERSONA_TEMPLATES.length)
+  if (wave === 0) return template.name
+  const lead = ORG_SCALE_HUMAN_LEADS[wave % ORG_SCALE_HUMAN_LEADS.length]!
+  return `${template.name} (${lead.title})`
+}
+
 export function orgScalePersonaAt(index: number): {
   readonly name: string
   readonly role: string
@@ -70,5 +78,5 @@ export function orgScalePersonaAt(index: number): {
 } {
   const template = PERSONA_TEMPLATES[index % PERSONA_TEMPLATES.length]!
   const characterId = ORG_SCALE_CHARACTER_IDS[index % ORG_SCALE_CHARACTER_IDS.length]!
-  return { ...template, characterId }
+  return { name: orgScaleDisplayName(index), role: template.role, characterId }
 }

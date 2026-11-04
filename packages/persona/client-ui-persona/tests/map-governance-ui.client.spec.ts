@@ -8,6 +8,8 @@ describe('normalizeCharacterId', () => {
   it('strips -default suffix like RailPersona', () => {
     expect(normalizeCharacterId('raposa-default')).toBe('raposa')
     expect(normalizeCharacterId('sol')).toBe('sol')
+    expect(normalizeCharacterId('lobo-guara')).toBe('lobo-guara')
+    expect(normalizeCharacterId('lontra')).toBe('lontra')
   })
 })
 

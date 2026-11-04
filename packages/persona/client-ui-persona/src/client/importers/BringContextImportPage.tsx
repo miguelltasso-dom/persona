@@ -21,6 +21,7 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as bycDict } from '../locale/onboarding/locales.ts'
 import { pt as importersDict } from '../locale/importers/locales.ts'
 import {
+  Button,
   Card,
   CopyPrompt,
   FolderDrop,
@@ -312,9 +313,9 @@ export function BringContextImportPage({
           <Card padding="m" className={styles.advancedCard}>
             <h3 className={styles.privacy}>{tScreen('advancedExport.title')}</h3>
             <p className={styles.privacy}>{tScreen('advancedExport.lead')}</p>
-            <button type="button" className={styles.organizePrimary} onClick={() => { setMode('advanced') }}>
+            <Button variant="secondary" size="m" onClick={() => { setMode('advanced') }}>
               {tScreen('advancedExport.open')}
-            </button>
+            </Button>
           </Card>
         </div>
       </div>

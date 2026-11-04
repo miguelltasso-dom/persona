@@ -3,7 +3,7 @@ import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import { unwrapRemote } from '../data/remote-call.ts'
 import type { GovernanceFixKind, OrgChartGroupBy, OrgChartView, TeamHealthView, TwoDayTestView } from './governance-contract.ts'
 import { readOrgChartScaleSeed } from './org-scale-dev.ts'
-import { mockLargeOrgChart, mockOrgChart, mockTeamHealth } from './mock-governance.ts'
+import { mockLargeOrgChart, mockOrgChart, mockTeamHealth, mockTwoDayTest } from './mock-governance.ts'
 
 function mockOrgChartForWorkspace(workspaceId: string, groupBy: OrgChartGroupBy): OrgChartView {
   const scale = readOrgChartScaleSeed()
@@ -45,15 +45,14 @@ export async function fetchTeamHealth(client: PersonaRemoteClient, workspaceId: 
 
 export async function fetchTwoDayTest(client: PersonaRemoteClient, workspaceId: string): Promise<TwoDayTestView> {
   if (!('runTwoDayTest' in client) || typeof client.runTwoDayTest !== 'function') {
-    return { workspaceId, slotLabels: [], rows: [] }
+    return mockTwoDayTest(workspaceId)
   }
   try {
-    const view = await unwrapRemote(
+    return await unwrapRemote(
       await client.runTwoDayTest({ workspaceId }) as RemoteResult<TwoDayTestView>,
     )
-    return view
   } catch {
-    return { workspaceId, slotLabels: [], rows: [] }
+    return mockTwoDayTest(workspaceId)
   }
 }
 

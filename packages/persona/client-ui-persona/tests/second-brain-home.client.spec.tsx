@@ -56,11 +56,26 @@ describe('SecondBrainHome (SB-5)', () => {
       </PreviewFrame>,
     )
     expect(screen.getByRole('heading', { name: pt['title'] })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: pt['sections.changedToday'] })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: pt['sections.permissions'] })).toBeTruthy()
+    expect(screen.getByText(pt['sections.changedToday'])).toBeTruthy()
+    expect(screen.getByText(pt['sections.permissions'])).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: pt['permissions.revoke'] }))
     fireEvent.click(screen.getByRole('button', { name: pt['permissions.confirmRevoke'] }))
     expect(onRevoke).toHaveBeenCalledWith('g1')
+  })
+
+  it('shows sparse hero when the vault is nearly empty', () => {
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <SecondBrainHome
+          dict={pt}
+          home={{ startHereId: 'start', changedToday: [], activeGrants: [], contradictions: [] }}
+          pages={[brainPage({ id: 'start', title: 'Índice da empresa' })]}
+          onBringContext={vi.fn()}
+        />
+      </PreviewFrame>,
+    )
+    expect(screen.getByText(pt['empty.title'])).toBeTruthy()
+    expect(screen.getByRole('button', { name: pt['empty.action.byc'] })).toBeTruthy()
   })
 
   it('filters pages from the search field', () => {

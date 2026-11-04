@@ -235,7 +235,10 @@ export function BringYourContextBlock({
       ) : (
         <div id="persona-byc-panel">
           <div className={styles.expandedHead}>
-            <h2 id="persona-byc-title" className={styles.heading}>{t('byc.title')}</h2>
+            <div className={styles.expandedHeadTitles}>
+              <h2 id="persona-byc-title" className={styles.heading}>{t('byc.title')}</h2>
+              <ChipBadge label={t('byc.timeBadge')} />
+            </div>
             <button type="button" className={styles.collapseBtn} aria-expanded onClick={() => { setExpanded(false); setView('capture') }}>
               <UiIcon name="chevronDown" size={18} strokeWidth={2.2} className={styles.chevronUp} />
               <span className="persona-sr-only">{t('byc.collapse')}</span>

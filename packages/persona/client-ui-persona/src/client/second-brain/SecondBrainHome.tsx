@@ -4,9 +4,11 @@ import { useMemo, useState, type ReactNode } from 'react'
 import type { BrainHomeView, BrainKindView, BrainPageView } from '@deepseek-ai/dsh-persona-host/types'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import {
   BrandIcon,
   Button,
+  Card,
   ChangeFeed,
   ContradictionCard,
   Input,
@@ -87,12 +89,18 @@ export function SecondBrainHome({
     () => (home === null ? [] : home.changedToday.map(page => pageToChangeItem(
       dict,
       page,
+      personaNames,
       onOpenPage === undefined ? undefined : () => { onOpenPage(page.id) },
     ))),
-    [dict, home, onOpenPage],
+    [dict, home, onOpenPage, personaNames],
   )
   const activeGrants = home?.activeGrants ?? []
   const contradictions = home?.contradictions ?? []
+  const startHerePage = home === null ? undefined : pages.find(page => page.id === home.startHereId)
+  const sparseHome = changed.length === 0
+    && contradictions.length === 0
+    && activeGrants.length === 0
+    && pages.length <= 3
   const typeCounts = useMemo(() => countPagesByKind(pages), [pages])
   const popular = useMemo(() => topBrainPages(pages), [pages])
   const grantTotal = activeGrants.length
@@ -172,7 +180,7 @@ export function SecondBrainHome({
           <ul className={styles.compactList}>
             {searchHits.map(page => (
               <li key={page.id}>
-                <button type="button" className={styles.pageLink} onClick={() => { onOpenPage?.(page.id) }}>
+                <button type="button" className={styles.brainPageLink} onClick={() => { onOpenPage?.(page.id) }}>
                   {page.title}
                 </button>
               </li>
@@ -180,14 +188,38 @@ export function SecondBrainHome({
           </ul>
         </section>
       )}
+      {sparseHome && (
+        <Card padding="l" className={styles.sparseHero}>
+          <img
+            className={styles.sparseArt}
+            src={ILLUSTRATIONS.bibliotecario}
+            alt=""
+            width={200}
+            height={200}
+            decoding="async"
+          />
+          <p className={styles.sparseTitle}>{t('empty.title')}</p>
+          <p className={styles.sparseHint}>{t('empty.hint')}</p>
+          {onBringContext !== undefined && (
+            <Button variant="primary" size="m" onClick={() => { onBringContext() }}>
+              {t('empty.action.byc')}
+            </Button>
+          )}
+        </Card>
+      )}
+      {startHerePage !== undefined && onOpenPage !== undefined && (
+        <Card padding="m" eyebrow={t('home.startHereLabel')}>
+          <button type="button" className={styles.brainPageLink} onClick={() => { onOpenPage(startHerePage.id) }}>
+            {startHerePage.title}
+          </button>
+        </Card>
+      )}
       <div className={styles.homeLayout}>
         <div className={styles.homeMain}>
-          <section aria-labelledby="persona-brain-changed">
-            <h2 id="persona-brain-changed" className={styles.sectionTitle}>{t('sections.changedToday')}</h2>
+          <Card padding="m" eyebrow={t('sections.changedToday')}>
             <ChangeFeed items={changed.slice(0, 8)} label={t('sections.changedToday')} empty={t('sections.changedEmpty')} />
-          </section>
-          <section aria-labelledby="persona-brain-needs">
-            <h2 id="persona-brain-needs" className={styles.sectionTitle}>{t('sections.needsYou')}</h2>
+          </Card>
+          <Card padding="m" eyebrow={t('sections.needsYou')}>
             {contradictions.length === 0 ? (
               <p className={styles.muted}>{t('sections.needsYouOk')}</p>
             ) : (
@@ -216,11 +248,10 @@ export function SecondBrainHome({
                 })}
               </div>
             )}
-          </section>
+          </Card>
         </div>
         <aside className={styles.homeAside}>
-          <section aria-labelledby="persona-brain-permissions">
-            <h2 id="persona-brain-permissions" className={styles.sectionTitle}>{t('sections.permissions')}</h2>
+          <Card padding="m" eyebrow={t('sections.permissions')}>
             {activeGrants.length === 0 ? (
               <p className={styles.muted}>{t('sections.permissionsEmpty')}</p>
             ) : (
@@ -246,27 +277,25 @@ export function SecondBrainHome({
                   ))}
                 </ul>
                 {onOpenPermissions !== undefined && grantTotal > 0 && (
-                  <button type="button" className={styles.linkButton} onClick={() => { onOpenPermissions() }}>
+                  <button type="button" className={styles.brainPageLink} onClick={() => { onOpenPermissions() }}>
                     {t('sections.permissionsAll', { count: grantTotal })}
                   </button>
                 )}
               </>
             )}
-          </section>
-          <section aria-labelledby="persona-brain-popular">
-            <h2 id="persona-brain-popular" className={styles.sectionTitle}>{t('sections.mostUsed')}</h2>
+          </Card>
+          <Card padding="m" eyebrow={t('sections.mostUsed')}>
             <ul className={styles.compactList}>
               {popular.map(page => (
                 <li key={page.id}>
-                  <button type="button" className={styles.pageLink} onClick={() => { onOpenPage?.(page.id) }}>
+                  <button type="button" className={styles.brainPageLink} onClick={() => { onOpenPage?.(page.id) }}>
                     {page.title}
                   </button>
                 </li>
               ))}
             </ul>
-          </section>
-          <section aria-labelledby="persona-brain-types">
-            <h2 id="persona-brain-types" className={styles.sectionTitle}>{t('sections.byType')}</h2>
+          </Card>
+          <Card padding="m" eyebrow={t('sections.byType')}>
             <ul className={styles.typeNav}>
               {BRAIN_KINDS.map(kind => (
                 <li key={kind}>
@@ -280,7 +309,7 @@ export function SecondBrainHome({
                 </li>
               ))}
             </ul>
-          </section>
+          </Card>
         </aside>
       </div>
     </Screen>

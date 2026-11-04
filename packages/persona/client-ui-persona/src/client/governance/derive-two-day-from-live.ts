@@ -1,7 +1,6 @@
 import type { PersonaLiveSnapshot } from '../remote/persona-live-store.ts'
 import type { TwoDayOutcomeView, TwoDayRowView, TwoDayTestView } from './governance-contract.ts'
 import { defaultTwoDaySlotLabels } from './governance-ui-helpers.ts'
-import { twoDayRowIdentity } from './two-day-dedupe.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 
@@ -39,6 +38,12 @@ function personaRowLabel(role: string, name: string): string {
   return `${role} (${name})`
 }
 
+function personaIdsEquivalent(hostId: string, personaId: string): boolean {
+  if (hostId === personaId) return true
+  if (hostId === `p-${personaId}` || personaId === `p-${hostId}`) return true
+  return hostId.endsWith(`-${personaId}`) || personaId.endsWith(`-${hostId}`)
+}
+
 /** Build two-day rows from live queue/state (no fictional demo names). */
 export function deriveTwoDayFromLive(
   dict: LocaleDict,
@@ -48,13 +53,8 @@ export function deriveTwoDayFromLive(
   if (!live.ready) return null
   const t = (key: string) => bindLocale(dict, key)
   const rows: TwoDayRowView[] = []
-  const seenPersonaIds = new Set<string>()
-  const seenIdentities = new Set<string>()
-
   for (const nowRow of live.nowRows) {
     const { member, queueCount, currentTask } = nowRow
-    seenPersonaIds.add(member.id)
-    seenIdentities.add(twoDayRowIdentity({ id: '', label: personaRowLabel(member.role, member.name), slots: ['runs', 'runs', 'runs', 'runs'] }))
     if (member.state === 'resting' && queueCount === 0) continue
     const fix = rowFixForState(dict, member.state, member.id)
     const timelineRow: TwoDayRowView = {
@@ -72,14 +72,7 @@ export function deriveTwoDayFromLive(
 
   if (live.team !== null) {
     for (const persona of live.team.personas) {
-      if (seenPersonaIds.has(persona.id)) continue
-      const identity = twoDayRowIdentity({
-        id: '',
-        label: personaRowLabel(persona.title, persona.name),
-        slots: ['runs', 'runs', 'runs', 'runs'],
-      })
-      if (seenIdentities.has(identity)) continue
-      seenIdentities.add(identity)
+      if (live.nowRows.some(row => personaIdsEquivalent(row.member.id, persona.id))) continue
       if (persona.systemRoles.includes('watchdog')) {
         rows.push({
           id: `live-persona-${persona.id}`,

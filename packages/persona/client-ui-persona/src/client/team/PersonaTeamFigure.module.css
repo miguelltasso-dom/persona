@@ -133,3 +133,42 @@
     transform: none;
   }
 }
+
+/* State change (UX-GUIDE §3): the old pose fades out in place, the new one fades in with a 6 px hop. */
+.poseLeaving {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  height: calc(var(--figure-h) * var(--species, 0.9) * var(--pose-k, 1));
+  max-height: var(--figure-h);
+  max-width: 210px;
+  width: auto;
+  object-fit: contain;
+  object-position: bottom center;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: personaPoseOut var(--motion-base) var(--ease-exit) forwards;
+}
+
+.poseEntering {
+  animation: personaPoseIn var(--motion-base) var(--ease-spring) both;
+}
+
+@keyframes personaPoseOut {
+  to { opacity: 0; }
+}
+
+@keyframes personaPoseIn {
+  0% { opacity: 0; transform: translateY(0); }
+  45% { opacity: 1; transform: translateY(-6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poseEntering { animation: personaPoseFade 110ms linear both; }
+  .poseLeaving { animation: personaPoseOut 110ms linear forwards; }
+}
+
+@keyframes personaPoseFade {
+  from { opacity: 0; }
+}

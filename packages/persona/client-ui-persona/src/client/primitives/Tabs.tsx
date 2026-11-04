@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useActiveIndicator } from './use-active-indicator.ts'
 import styles from './Tabs.module.css'
 
@@ -25,6 +25,12 @@ export interface TabsProps<T extends string> {
 export function Tabs<T extends string>({ items, value, onChange, label, idPrefix }: TabsProps<T>): ReactNode {
   const listRef = useRef<HTMLDivElement>(null)
   const indicator = useActiveIndicator(listRef, '[aria-selected="true"]', 'x', [value, items])
+  // aria-controls only when the screen really renders the tabpanel (axe aria-valid-attr-value: the id must exist).
+  const panelId = `${idPrefix}-panel-${value}`
+  const [panelExists, setPanelExists] = useState(false)
+  useLayoutEffect(() => {
+    setPanelExists(typeof document !== 'undefined' && document.getElementById(panelId) !== null)
+  })
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return
@@ -62,7 +68,7 @@ export function Tabs<T extends string>({ items, value, onChange, label, idPrefix
             id={`${idPrefix}-tab-${item.id}`}
             data-tab-id={item.id}
             aria-selected={selected}
-            aria-controls={selected ? `${idPrefix}-panel-${item.id}` : undefined}
+            aria-controls={selected && panelExists ? panelId : undefined}
             tabIndex={selected ? 0 : -1}
             className={styles.tab}
             disabled={item.disabled === true}

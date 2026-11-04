@@ -159,17 +159,19 @@ export function ChangeFeed({ items, label, empty }: { readonly items: readonly C
       {items.map(item => (
         <li key={item.id} className={styles.feedItem}>
           <Avatar name={item.who} src={item.whoAvatar} size={32} shape={item.whoAvatar === undefined ? 'person' : 'portrait'} decorative />
-          <div className={styles.feedText}>
-            <p>
-              <b>{item.who}</b> {item.verb}{' '}
-              {item.onOpen !== undefined
-                ? <button type="button" className={styles.pageLink} onClick={item.onOpen}>{item.pageTitle}</button>
-                : <span className={styles.pageName}>{item.pageTitle}</span>}
-              <Chip size="s" tone="neutral" className={styles.typeChip}>{item.pageType}</Chip>
-            </p>
-            {item.source !== undefined && <p className={styles.feedSource}>{item.source}</p>}
+          <div className={styles.feedBody}>
+            <div className={styles.feedText}>
+              <p>
+                <b>{item.who}</b> {item.verb}{' '}
+                {item.onOpen !== undefined
+                  ? <button type="button" className={styles.pageLink} onClick={item.onOpen}>{item.pageTitle}</button>
+                  : <span className={styles.pageName}>{item.pageTitle}</span>}
+                <Chip size="s" tone="neutral" className={styles.typeChip}>{item.pageType}</Chip>
+              </p>
+              {item.source !== undefined && <p className={styles.feedSource}>{item.source}</p>}
+            </div>
+            <time className={styles.feedTime} dateTime={item.time}>{item.time}</time>
           </div>
-          <time className={styles.feedTime}>{item.time}</time>
         </li>
       ))}
     </ol>

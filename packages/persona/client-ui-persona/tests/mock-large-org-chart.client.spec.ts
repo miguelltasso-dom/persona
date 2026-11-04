@@ -13,5 +13,7 @@ describe('mockLargeOrgChart', () => {
     const names = large.groups.flatMap(g => g.members.map(m => m.name))
     expect(names.some(n => n.includes('Persona 1'))).toBe(false)
     expect(names).toContain('Luna')
+    expect(names.filter(n => n === 'Atlas').length).toBeLessThanOrEqual(1)
+    expect(names.some(n => n.startsWith('Atlas ('))).toBe(true)
   })
 })

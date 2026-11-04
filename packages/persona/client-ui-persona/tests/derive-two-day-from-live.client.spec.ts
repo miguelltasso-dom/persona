@@ -61,6 +61,33 @@ describe('deriveTwoDayFromLive', () => {
     expect(view?.rows.length).toBeGreaterThanOrEqual(2)
     expect(view?.rows.filter(row => row.label === 'Vigia (Luna)')).toHaveLength(1)
   })
+
+  it('adds one row per team persona when host two-day is empty', () => {
+    const personaRow = (id: string, name: string, title: string, systemRoles: readonly string[] = []) => ({
+      id,
+      workspaceId: 'w',
+      projectId: 'p',
+      name,
+      title,
+      description: '',
+      avatarKind: 'gallery' as const,
+      avatarRef: '',
+      systemRoles,
+      canRecruit: false,
+    })
+    const personas = [
+      personaRow('p-atlas', 'Atlas', 'Coordenação'),
+      personaRow('p-bento', 'Bento', 'Engenharia'),
+      personaRow('p-nina', 'Nina', 'Pesquisa'),
+      personaRow('p-luna', 'Luna', 'Vigia', ['watchdog']),
+      personaRow('p-sol', 'Sol', 'Relacionamento'),
+      personaRow('p-raposa', 'Raposa', 'Conteúdo'),
+    ]
+    const view = deriveTwoDayFromLive(governanceDict, 'ws', liveStub({
+      team: { members: [], personas: personas as never },
+    }))
+    expect(view?.rows.filter(row => row.id.startsWith('live-persona-'))).toHaveLength(6)
+  })
 })
 
 describe('preferDerivedTwoDay', () => {

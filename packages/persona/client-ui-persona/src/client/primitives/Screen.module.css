@@ -81,3 +81,9 @@
     padding: var(--persona-space-6);
   }
 }
+
+/* Keyboard focus on the scroll container itself: a quiet inset ring (it is the whole panel). */
+.screen:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--persona-focus-halo);
+}

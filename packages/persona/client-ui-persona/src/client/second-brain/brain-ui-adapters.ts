@@ -3,6 +3,8 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import type { ChangeItem } from '../primitives/Brain.tsx'
 import type { BrandIconName } from '../primitives/icons.tsx'
+import { AVATAR_96 } from '../assets/generated-imports.ts'
+import { normalizeCharacterId } from '../governance/governance-ui-helpers.ts'
 
 export const BRAIN_KINDS: readonly BrainKindView[] = [
   'company', 'person', 'client', 'project', 'process', 'rule',
@@ -33,6 +35,48 @@ export function brainKindBrandIcon(kind: BrainKindView): BrandIconName {
   return KIND_BRAND[kind]
 }
 
+function avatarForCharacterKey(key: string | undefined): string | undefined {
+  if (key === undefined) return undefined
+  return AVATAR_96[key as keyof typeof AVATAR_96]
+}
+
+function parseEditorHint(hint: string): { readonly kind: 'person' | 'persona'; readonly id: string } | null {
+  const match = /^(person|persona):(.+)$/u.exec(hint.trim())
+  if (match === null) return null
+  return { kind: match[1] as 'person' | 'persona', id: match[2]!.trim() }
+}
+
+/** Human label + portrait for ChangeFeed rows (host stores `person:system` / `persona:id`). */
+export function feedEditorDisplay(
+  dict: LocaleDict,
+  page: BrainPageView,
+  personaNames: Readonly<Record<string, string>> = {},
+): { readonly who: string; readonly whoAvatar?: string | undefined } {
+  const hint = page.editorHint.trim()
+  if (hint === 'person:system') {
+    return {
+      who: bindLocale(dict, 'feed.whoLibrarian'),
+      whoAvatar: AVATAR_96.atlas,
+    }
+  }
+  const parsed = parseEditorHint(hint)
+  if (parsed?.kind === 'persona') {
+    const name = personaNames[parsed.id] ?? parsed.id
+    const characterKey = normalizeCharacterId(parsed.id) ?? normalizeCharacterId(name)
+    return { who: name, whoAvatar: avatarForCharacterKey(characterKey) }
+  }
+  if (hint !== '') {
+    return { who: hint, whoAvatar: undefined }
+  }
+  return { who: bindLocale(dict, 'feed.editorPersona'), whoAvatar: undefined }
+}
+
+/** Host source ids → copy for UI (ChangeFeed, page meta). */
+export function brainSourceLabel(dict: LocaleDict, source: string): string {
+  if (source === 'derived-index') return bindLocale(dict, 'feed.sourceDerivedIndex')
+  return source
+}
+
 export function contradictionSides(
   dict: LocaleDict,
   page: BrainPageView,
@@ -42,11 +86,13 @@ export function contradictionSides(
     return {
       current: {
         text: parts[0]?.trim() ?? pageExcerpt(page.body),
-        source: page.sources[0] ?? bindLocale(dict, 'contradiction.currentSource'),
+        source: page.sources[0] !== undefined ? brainSourceLabel(dict, page.sources[0]) : bindLocale(dict, 'contradiction.currentSource'),
       },
       incoming: {
         text: parts[1]?.trim() ?? bindLocale(dict, 'contradiction.incomingMissing'),
-        source: page.sources[1] ?? (page.editorHint.trim() !== '' ? page.editorHint : bindLocale(dict, 'contradiction.incomingSource')),
+        source: page.sources[1] !== undefined
+          ? brainSourceLabel(dict, page.sources[1])
+          : (page.editorHint.trim() !== '' ? page.editorHint : bindLocale(dict, 'contradiction.incomingSource')),
       },
     }
   }
@@ -75,16 +121,19 @@ export function pageConfirmation(
 export function pageToChangeItem(
   dict: LocaleDict,
   page: BrainPageView,
+  personaNames: Readonly<Record<string, string>> = {},
   onOpen?: () => void,
 ): ChangeItem {
+  const editor = feedEditorDisplay(dict, page, personaNames)
   return {
     id: page.id,
-    who: page.editorHint.trim() !== '' ? page.editorHint : bindLocale(dict, 'feed.editorPersona'),
+    who: editor.who,
+    ...(editor.whoAvatar === undefined ? {} : { whoAvatar: editor.whoAvatar }),
     verb: bindLocale(dict, 'feed.verbUpdated'),
     pageTitle: page.title,
     pageType: brainKindLabel(dict, page.kind),
     time: bindLocale(dict, 'feed.timeToday'),
-    ...(page.sources[0] !== undefined ? { source: page.sources[0] } : {}),
+    ...(page.sources[0] !== undefined ? { source: brainSourceLabel(dict, page.sources[0]) } : {}),
     ...(onOpen === undefined ? {} : { onOpen }),
   }
 }

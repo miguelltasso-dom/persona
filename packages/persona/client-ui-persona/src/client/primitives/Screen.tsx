@@ -11,7 +11,9 @@ export interface ScreenProps extends HTMLAttributes<HTMLDivElement> {
 export function Screen({ width = 'default', className, children, ...rest }: ScreenProps): ReactNode {
   const merged = [styles.screen, className ?? ''].filter(Boolean).join(' ')
   return (
-    <div className={merged} data-persona-root="" {...rest}>
+    // tabIndex 0: the screen scrolls, so it must be reachable by keyboard even when it holds nothing focusable
+    // (axe scrollable-region-focusable on Uso e limites). The focus ring is inset so it never clips.
+    <div className={merged} data-persona-root="" tabIndex={0} {...rest}>
       <div className={styles.inner} data-width={width}>{children}</div>
     </div>
   )

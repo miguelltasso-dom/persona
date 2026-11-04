@@ -65,6 +65,26 @@
   gap: var(--persona-space-s);
 }
 
+/* Lilac underlined links — match ChangeFeed `.pageLink` in Brain.module.css (AA on cream). */
+.brainPageLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--persona-brand);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.brainPageLink:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
 .pageLink,
 .linkButton,
 .backLink,
@@ -78,6 +98,33 @@
   cursor: pointer;
   font: inherit;
   color: var(--persona-accent);
+}
+
+.sparseHero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--persona-space-m);
+}
+
+.sparseArt {
+  width: 200px;
+  height: auto;
+  object-fit: contain;
+}
+
+.sparseTitle {
+  margin: 0;
+  font: var(--persona-type-title-s);
+  color: var(--persona-ink);
+}
+
+.sparseHint {
+  margin: 0;
+  max-width: 36rem;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--persona-type-body-s);
 }
 
 .typeNav {

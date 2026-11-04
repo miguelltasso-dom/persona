@@ -4,6 +4,7 @@ import type {
   OnboardingPersonaSpec,
   ProposeGestorAssembleView,
 } from '@deepseek-ai/dsh-persona-host/types'
+import { DEFAULT_CONVERSATION_SUBJECT_ID } from '../chat/conversation-subjects.ts'
 import { gestorPlanMarker } from '../chat/gestor-plan-message.ts'
 import type { PersonaTenantScope } from './persona-remote-types.ts'
 import { readClientDevSeedEnabled } from './persona-dev-seed.ts'
@@ -127,6 +128,7 @@ export type DevHarnessSeedRemote = PersonaCreatorRemote & {
     actorId: string
     subjectId: string
     occurredAt: string
+    topicId?: string
   }): unknown
   listApprovals?(request: PersonaTenantScope): readonly { id: string; status: string }[]
   proposeHire?(request: {
@@ -253,6 +255,7 @@ async function seedDevHarnessGestorPlanMessage(
       actorId: atlasId,
       subjectId: DEV_HARNESS_GESTOR_MSG_ID,
       occurredAt: at,
+      topicId: DEFAULT_CONVERSATION_SUBJECT_ID,
     }))
   } catch {
     /* duplicate */
@@ -291,13 +294,6 @@ export async function seedDevHarnessScenario(
 
   const scope = { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
   const onboarding = unwrap(await Promise.resolve(remote.getOnboarding(scope)))
-  const scenarioDone = await hasChannelMessage(remote, tenant, DEV_HARNESS_SCENARIO_MARKER)
-  if (scenarioDone) {
-    const teamPeek = await Promise.resolve(remote.listTeam(tenant))
-    const teamReady = unwrap(teamPeek).personas.length > 0
-    if (teamReady) return true
-  }
-
   let team = unwrap(await Promise.resolve(remote.listTeam(tenant)))
   if (team.personas.length === 0 && remote.completeOnboarding !== undefined) {
     const personalProjectId = onboarding.personalProjectId.length > 0
@@ -384,6 +380,7 @@ export async function seedDevHarnessScenario(
         actorId: post.actorId,
         subjectId: post.id,
         occurredAt: post.at,
+        topicId: DEFAULT_CONVERSATION_SUBJECT_ID,
       }))
     } catch {
       /* duplicate */

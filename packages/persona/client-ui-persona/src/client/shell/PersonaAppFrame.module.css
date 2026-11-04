@@ -40,6 +40,25 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
+  /* UX-GUIDE §3 "Troca de canal/aba: crossfade 140 ms + deslocamento 4 px" (the frame re-keys .main per panel). */
+  animation: personaPanelIn var(--motion-fast) var(--ease-enter) both;
+}
+
+@keyframes personaPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main {
+    animation: personaPanelFade 100ms linear both;
+  }
+
+  @keyframes personaPanelFade {
+    from { opacity: 0; }
+  }
 }
 
 .main > * {

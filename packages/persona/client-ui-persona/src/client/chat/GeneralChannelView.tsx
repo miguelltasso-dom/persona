@@ -219,7 +219,13 @@ export function GeneralChannelView({
               ))}
             </ul>
           )}
-          <div ref={streamRef} className={styles.stream} role="log" aria-label={t('header.channelGeneral')} aria-live="polite">
+          <div
+            ref={streamRef}
+            className={styles.stream}
+            {...(subjectBar?.panelId === undefined ? { role: 'log' as const } : { id: subjectBar.panelId, role: 'tabpanel' as const })}
+            aria-label={t('header.channelGeneral')}
+            aria-live="polite"
+          >
             <MessageQuoteToolbar
               t={t}
               containerRef={streamRef}

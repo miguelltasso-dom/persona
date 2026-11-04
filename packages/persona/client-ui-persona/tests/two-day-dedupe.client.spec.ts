@@ -10,6 +10,14 @@ describe('twoDayRowIdentity', () => {
 })
 
 describe('dedupeTwoDayRows', () => {
+  it('keeps two persona rows with the same label when both are all-runs (scale roster)', () => {
+    const rows = dedupeTwoDayRows([
+      { id: 'p-scale-atlas-0', label: 'Coordenação (Atlas)', slots: ['runs', 'runs', 'runs', 'runs'] },
+      { id: 'p-scale-atlas-17', label: 'Coordenação (Atlas)', slots: ['runs', 'runs', 'runs', 'runs'] },
+    ])
+    expect(rows).toHaveLength(2)
+  })
+
   it('collapses duplicate Vigia (Luna) keeping the row with waits', () => {
     const rows = dedupeTwoDayRows([
       { id: 'host', label: 'Vigia (Luna)', slots: ['runs', 'runs', 'runs', 'runs'] },

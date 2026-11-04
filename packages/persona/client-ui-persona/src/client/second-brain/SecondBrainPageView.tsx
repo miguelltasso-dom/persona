@@ -3,7 +3,7 @@ import type { BrainPageView, BrainVersionView } from '@deepseek-ai/dsh-persona-h
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { BrandIcon, Button, PageMeta, Screen, ScreenHeader } from '../primitives/index.ts'
-import { brainKindBrandIcon, brainKindLabel, pageConfirmation } from './brain-ui-adapters.ts'
+import { brainKindBrandIcon, brainKindLabel, brainSourceLabel, pageConfirmation } from './brain-ui-adapters.ts'
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
 import styles from './SecondBrain.module.css'
 
@@ -81,7 +81,7 @@ export function SecondBrainPageView({
             <section aria-label={t('page.sources')}>
               <h3 className={styles.sectionTitle}>{t('page.sources')}</h3>
               <ul className={styles.sourceList}>
-                {page.sources.map(source => <li key={source}>{source}</li>)}
+                {page.sources.map(source => <li key={source}>{brainSourceLabel(dict, source)}</li>)}
               </ul>
             </section>
           )}

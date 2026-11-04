@@ -9,9 +9,8 @@ import type { PersonaLiveSnapshot } from '../remote/persona-live-store.ts'
 /** Gallery avatar ref → portrait key (RailPersona / AVATAR_96). */
 export function normalizeCharacterId(ref: string | undefined): string | undefined {
   if (ref === undefined || ref.trim().length === 0) return undefined
-  const trimmed = ref.trim().replace(/-default$/u, '')
-  const head = trimmed.split(/[-_.]/u)[0] ?? trimmed
-  return head.length > 0 ? head.toLowerCase() : trimmed.toLowerCase()
+  const trimmed = ref.trim().replace(/-default$/u, '').toLowerCase()
+  return trimmed.length > 0 ? trimmed : undefined
 }
 
 const SECTOR_BY_TITLE: Readonly<Record<string, string>> = {

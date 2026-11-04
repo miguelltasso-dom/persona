@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { LumenRemoteInjected } from '../data/lumen-inject.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
@@ -8,7 +8,8 @@ import type { GovernanceFixKind, TwoDayRowView, TwoDayTestView } from '../govern
 import { deriveTwoDayFromLive } from '../governance/derive-two-day-from-live.ts'
 import { preferDerivedTwoDay } from '../governance/two-day-prefer-derived.ts'
 import { applyGovernanceFix, fetchTeamHealth, fetchTwoDayTest } from '../governance/governance-remote.ts'
-import { MOCK_GESTOR_AUDIT_ACTIVITY, MOCK_GESTOR_AUDIT_PERSONA } from '../governance/gestor-audit-mock.ts'
+import { MOCK_GESTOR_AUDIT_ACTIVITY } from '../governance/gestor-audit-mock.ts'
+import { gestorActivityPersonaFromLive } from '../governance/gestor-audit-persona.ts'
 import { pt as governanceDict } from '../locale/governance/locales.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 
@@ -74,6 +75,8 @@ export function ConnectedTeamHealthPanel({ persona, useTenant, useLive, openTeam
     void applyFix(row.id, row.fixKind, row.fixTargetId)
   }
 
+  const gestorPersona = useMemo(() => gestorActivityPersonaFromLive(live), [live])
+
   return (
     <TeamHealthView
       dict={governanceDict}
@@ -84,7 +87,7 @@ export function ConnectedTeamHealthPanel({ persona, useTenant, useLive, openTeam
       onRunTwoDayTest={() => { setTwoDayToken(token => token + 1); retryTwoDay() }}
       onApplyFix={(findingId, fixKind, targetId) => { void applyFix(findingId, fixKind, targetId) }}
       onTwoDayFix={onTwoDayFix}
-      gestorAudit={{ persona: MOCK_GESTOR_AUDIT_PERSONA, items: MOCK_GESTOR_AUDIT_ACTIVITY }}
+      gestorAudit={{ persona: gestorPersona, items: MOCK_GESTOR_AUDIT_ACTIVITY }}
       twoDayPending={twoDayState.status === 'loading'}
       {...(openTeamSetup === undefined ? {} : { onBuildTeam: openTeamSetup })}
     />

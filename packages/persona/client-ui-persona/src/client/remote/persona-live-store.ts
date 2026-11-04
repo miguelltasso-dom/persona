@@ -53,6 +53,14 @@ import { mapConversationSubjectsBundle, type MappedConversationSubjects } from '
 import { mapUsedContextRecord } from './map-used-context.ts'
 import { DEFAULT_CONVERSATION_SUBJECT_ID, DEFAULT_CONVERSATION_SUBJECTS } from '../chat/conversation-subjects.ts'
 
+/** Host list/follow: "Geral" includes messages without `topic_id`. */
+function hostStreamTopicId(activeTopicId: string | undefined): string | undefined {
+  if (activeTopicId === undefined || activeTopicId === '' || activeTopicId === DEFAULT_CONVERSATION_SUBJECT_ID) {
+    return undefined
+  }
+  return activeTopicId
+}
+
 export interface PersonaLiveSnapshot {
   readonly ready: boolean
   readonly tenant: PersonaTenantScope | null
@@ -386,7 +394,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     setAbort(ac)
     void (async () => {
       try {
-        const topicId = activeTopicByStream.get(streamTopicKey(streamKind, ownerId))
+        const wireTopicId = hostStreamTopicId(activeTopicByStream.get(streamTopicKey(streamKind, ownerId)))
         const stream = remote.followMessages!({
           workspaceId: scope.workspaceId,
           projectId: scope.projectId,
@@ -395,7 +403,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           actorId: scope.memberId,
           afterSeq: 0,
           limit: 200,
-          ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+          ...(wireTopicId === undefined ? {} : { topicId: wireTopicId }),
         }, ac.signal)
         for await (const frame of stream) {
           if (ac.signal.aborted) break
@@ -442,7 +450,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     try {
       const scope = tenant
       const prior = store.getSnapshot()
-      const channelTopicId = activeTopicByStream.get(streamTopicKey('channel', scope.channelId))
+      const channelWireTopicId = hostStreamTopicId(activeTopicByStream.get(streamTopicKey('channel', scope.channelId)))
       const [now, away, overview, team, projects, tasks, page, dmRows] = await Promise.all([
         Promise.resolve(remote.getOverviewNow(scope)),
         Promise.resolve(remote.getWhileAway(scope)),
@@ -457,7 +465,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           actorId: scope.memberId,
           afterSeq: 0,
           limit: 200,
-          ...(channelTopicId === undefined || channelTopicId === '' ? {} : { topicId: channelTopicId }),
+          ...(channelWireTopicId === undefined ? {} : { topicId: channelWireTopicId }),
         })),
         remote.listDms !== undefined
           ? Promise.resolve(remote.listDms(scope))
@@ -690,7 +698,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     if (subjectScope !== null) {
       await fetchConversationSubjects(subjectScope)
     }
-    const topicId = activeTopicByStream.get(streamTopicKey('dm', dmId))
+    const dmWireTopicId = hostStreamTopicId(activeTopicByStream.get(streamTopicKey('dm', dmId)))
     const page = await Promise.resolve(remote.listMessages({
       ...scope,
       streamKind: 'dm',
@@ -698,7 +706,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       actorId: scope.memberId,
       afterSeq: 0,
       limit: 200,
-      ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+      ...(dmWireTopicId === undefined ? {} : { topicId: dmWireTopicId }),
     }))
     const snap = store.getSnapshot()
     const taskTitleById = new Map(snap.kanbanCards.map(card => [card.id, card.title]))
@@ -980,7 +988,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     const scopeTenant = tenant
     const snap = store.getSnapshot()
     if (snap.team === null) return
-    const topicId = activeTopicByStream.get(streamTopicKey(scope.streamKind, scope.ownerId))
+    const wireTopicId = hostStreamTopicId(activeTopicByStream.get(streamTopicKey(scope.streamKind, scope.ownerId)))
     const page = await Promise.resolve(remote.listMessages({
       workspaceId: scopeTenant.workspaceId,
       projectId: scopeTenant.projectId,
@@ -989,7 +997,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       actorId: scopeTenant.memberId,
       afterSeq: 0,
       limit: 200,
-      ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+      ...(wireTopicId === undefined ? {} : { topicId: wireTopicId }),
     }))
     const taskTitleById = new Map(snap.kanbanCards.map(card => [card.id, card.title]))
     const mapped = sortMessageStreamEvents(page.events).map(event =>
@@ -1171,13 +1179,14 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     const trimmed = query.trim()
     if (tenant === null || trimmed.length < 2 || remote.search === undefined) return []
     try {
+      const searchTopic = hostStreamTopicId(topicId)
       const hits = await Promise.resolve(remote.search({
         workspaceId: tenant.workspaceId,
         projectId: tenant.projectId,
         actorId: tenant.memberId,
         query: trimmed,
         limit: 20,
-        ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+        ...(searchTopic === undefined ? {} : { topicId: searchTopic }),
       }))
       return hits.map(row => ({
         id: row.id,

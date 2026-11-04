@@ -21,15 +21,25 @@ function preferTwoDayRow(a: TwoDayRowView, b: TwoDayRowView): TwoDayRowView {
   return a
 }
 
-/** Collapse duplicate persona rows (host × live-derived). */
+/** Same persona on host vs live-derived (e.g. `luna` vs `p-luna`), not two roster slots with recycled names. */
+export function shouldMergeTwoDayRows(a: TwoDayRowView, b: TwoDayRowView): boolean {
+  if (a.id === b.id) return true
+  if (twoDayRowIdentity(a) !== twoDayRowIdentity(b)) return false
+  return rowIsAllRuns(a) !== rowIsAllRuns(b)
+}
+
+/** Collapse host stub × live-derived duplicates only — keep one row per persona id/label slot. */
 export function dedupeTwoDayRows(rows: readonly TwoDayRowView[]): TwoDayRowView[] {
-  const byKey = new Map<string, TwoDayRowView>()
+  const out: TwoDayRowView[] = []
   for (const row of rows) {
-    const key = twoDayRowIdentity(row)
-    const prev = byKey.get(key)
-    byKey.set(key, prev === undefined ? row : preferTwoDayRow(prev, row))
+    const mergeIndex = out.findIndex(prev => shouldMergeTwoDayRows(prev, row))
+    if (mergeIndex >= 0) {
+      out[mergeIndex] = preferTwoDayRow(out[mergeIndex]!, row)
+    } else {
+      out.push(row)
+    }
   }
-  return [...byKey.values()]
+  return out
 }
 
 export function dedupeTwoDayView(view: TwoDayTestView): TwoDayTestView {

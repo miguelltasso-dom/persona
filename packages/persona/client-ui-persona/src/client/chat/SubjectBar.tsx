@@ -23,6 +23,8 @@ export interface SubjectBarProps extends PropsLocale<'persona.chat'> {
   readonly onReopen?: ((subjectId: string) => void) | undefined
   /** Opens the inline name field for this subject (e.g. right after creating it). */
   readonly editingSubjectId?: string | undefined
+  /** id of the element the tabs control (the message stream). Omitted → no aria-controls (axe: target must exist). */
+  readonly panelId?: string | undefined
   readonly onCompleteSubject?: ((subjectId: string) => void) | undefined
   readonly onSnoozeSubject?: ((subjectId: string, kind: '3h' | 'tomorrow' | 'monday') => void) | undefined
 }
@@ -61,6 +63,7 @@ export function SubjectBar({
   archived = [],
   onReopen,
   editingSubjectId,
+  panelId,
   onCompleteSubject,
   onSnoozeSubject,
 }: SubjectBarProps): ReactNode {
@@ -190,7 +193,7 @@ export function SubjectBar({
               role="tab"
               id={`persona-subject-${subject.id}`}
               aria-selected={selected}
-              aria-controls="persona-subject-panel"
+              aria-controls={panelId}
               aria-keyshortcuts={selected && menuItems.length > 0 ? 'Shift+F10' : undefined}
               tabIndex={selected ? 0 : -1}
               className={styles.tab}

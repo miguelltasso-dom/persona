@@ -60,6 +60,7 @@ export function ConnectedGeneralChannelView({
         archived: subjects.archived,
         onReopen: subjects.reopenSubject,
         editingSubjectId: subjects.editingSubjectId,
+        panelId: 'persona-channel-subject-panel',
       }}
       composerSubjectPlaceholder={t('composer.placeholderInSubject', {
         subject: subjectDisplayName(t, subjects.activeSubject),

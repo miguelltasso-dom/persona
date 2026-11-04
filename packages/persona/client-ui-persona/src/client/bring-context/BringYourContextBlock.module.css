@@ -50,6 +50,14 @@
   padding: var(--persona-space-4) var(--persona-space-4) 0;
 }
 
+.expandedHeadTitles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-width: 0;
+}
+
 .heading {
   margin: 0;
   font: 700 1.05rem/1.3 var(--persona-font-display);

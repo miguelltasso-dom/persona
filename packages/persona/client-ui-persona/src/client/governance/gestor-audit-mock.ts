@@ -1,4 +1,5 @@
 import type { ActivityItem } from '../primitives/Pooled.tsx'
+import { AVATAR_96 } from '../assets/generated-imports.ts'
 
 /** Preview until Anvil exposes gestor audit on `getTeamHealth` (GES-5). */
 export const MOCK_GESTOR_AUDIT_ACTIVITY: readonly ActivityItem[] = [
@@ -22,4 +23,4 @@ export const MOCK_GESTOR_AUDIT_ACTIVITY: readonly ActivityItem[] = [
   },
 ]
 
-export const MOCK_GESTOR_AUDIT_PERSONA = { name: 'Atlas', avatarSrc: undefined } as const
+export const MOCK_GESTOR_AUDIT_PERSONA = { name: 'Atlas', avatarSrc: AVATAR_96.atlas } as const

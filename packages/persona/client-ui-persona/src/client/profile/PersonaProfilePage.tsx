@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId, type PersonaPoseState } from '../assets/asset-url.ts'
 import { Avatar, BrandIcon, Button, Card, Chip, EmptyState, NOW_POSE, Screen, ScreenHeader, Tabs, UiIcon } from '../primitives/index.ts'
 import { MemoryPanel } from '../memory/MemoryPanel.tsx'
@@ -244,7 +244,7 @@ export function PersonaProfilePage({
               <Card padding="m" title={bindLocale(governanceDict, 'health.gestorAudit')}>
                 <p className={styles.quiet}>{bindLocale(governanceDict, 'health.gestorAuditLead')}</p>
                 <ActivityGroup
-                  persona={{ name: persona.name }}
+                  persona={{ name: persona.name, avatarSrc: AVATAR_96[avatarRef as keyof typeof AVATAR_96] }}
                   items={gestorAuditItems}
                   labels={activityGroupLabelsFromDict(governanceDict)}
                 />

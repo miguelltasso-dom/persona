@@ -31,25 +31,25 @@ describe('mandatory governance — GOVERNANCE.md §4 (5 core)', () => {
     }, 420_000)
   })
 
-  it.todo(
-    '[GOV-1 · Anvil+Lumen+Prism] organogram matches store on edit responsável/setor (beyond gallery smoke)',
-  )
+  it('[GOV-1 · Anvil+Lumen+Prism] organogram matches store on edit responsável/setor (beyond gallery smoke)', () => {
+    runVitestSubprocess('packages/persona/persona-core/tests/governance.spec.ts', ['-t', 'organogram by person and by sector'])
+  }, 120_000)
 
-  it.todo(
-    '[GOV-2 · Forge+Lumen] Saúde flags all four problem types with 1-click fix verified',
-  )
+  it('[GOV-2 · Forge+Lumen] Saúde flags all four problem types with 1-click fix verified', () => {
+    runVitestSubprocess('packages/persona/persona-core/tests/governance.spec.ts', ['-t', 'health flags'])
+  }, 120_000)
 
-  it.todo(
-    '[GOV-3 · Forge+Anvil] Teste dos 2 dias fake clock: substituto vs stop list exact',
-  )
+  it('[GOV-3 · Forge+Anvil] Teste dos 2 dias fake clock: substituto vs stop list exact', () => {
+    runVitestSubprocess('packages/persona/persona-core/tests/governance.spec.ts', ['-t', '2-day test'])
+  }, 120_000)
 
-  it.todo(
-    '[GOV-4 · Anvil+Forge] human marked "fora": approvals route to substituto; without substituto items wait with clear notice (no silent stall)',
-  )
+  it('[GOV-4 · Anvil+Forge] human marked "fora": approvals route to substituto; without substituto items wait with clear notice (no silent stall)', () => {
+    runVitestSubprocess('packages/persona/persona-core/tests/governance.spec.ts', ['-t', 'routes approval to the substituto'])
+  }, 120_000)
 
-  it.todo(
-    '[GOV-5 · Forge+Prism+Muse] structure assistant: coherent organogram for 3 company-type snapshots; respects "uma persona por função contínua, não por tarefa"',
-  )
+  it('[GOV-5 · Forge+Prism+Muse] structure assistant: coherent organogram for 3 company-type snapshots; respects "uma persona por função contínua, não por tarefa"', () => {
+    runVitestSubprocess('packages/persona/persona-core/tests/governance.spec.ts', ['-t', 'recommender'])
+  }, 120_000)
 })
 
 /** GOV+ gallery: {@link ./real-gallery-governance.spec.ts} + {@link ./mandatory-governance-contract.spec.ts} when PERSONA_E2E=1. */

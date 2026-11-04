@@ -17,7 +17,7 @@ describe('First delivery — client step 5 (Prism)', () => {
   }, 120_000)
 
   it('deriveFirstDeliveryMilestone from kanban done', () => {
-    runVitestSubprocess('packages/persona/client-ui-persona/tests/derive-first-delivery.client.spec.tsx')
+    runVitestSubprocess('packages/persona/client-ui-persona/tests/derive-first-delivery.client.spec.ts')
   }, 120_000)
 })
 

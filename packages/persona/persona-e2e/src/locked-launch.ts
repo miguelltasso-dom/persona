@@ -32,7 +32,7 @@ export function launchDirect(options: Omit<LockedLaunchOptions, 'label' | 'relea
     env: options.env ?? process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
-    shell: process.platform === 'win32',
+    shell: options.command.endsWith('.cmd') || options.command.endsWith('.bat'),
   }
   const child = spawn(options.command, options.args, spawnOptions)
   child.stdout?.setEncoding('utf8')
@@ -72,7 +72,7 @@ export function launchUnderLock(options: LockedLaunchOptions): LockedLaunchHandl
     env: options.env ?? process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
-    shell: process.platform === 'win32',
+    shell: false,
   }
 
   const child = spawn(process.execPath, lockArgs, spawnOptions)

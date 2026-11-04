@@ -19,25 +19,25 @@ describe('mandatory project boards — PB-9 / PROJECT-BOARDS.md §3 (5 core)', (
     }, 420_000)
   })
 
-  it.todo(
-    '[PB-9.1 · Anvil+Lumen · PB-5] create project "Contratação" and "Site": each board shows only its workflow columns; tasks never cross projects (host J12 verde — UI E2E beyond hub smoke)',
-  )
+  it('[PB-9.1 · Anvil+Lumen · PB-5] create project "Contratação" and "Site": each board shows only its workflow columns; tasks never cross projects', () => {
+    runVitestSubprocess('packages/persona/persona-host/tests/journeys/j12-two-boards.spec.ts')
+  }, 120_000)
 
-  it.todo(
-    '[PB-9.2 · Forge+Anvil · PB-2] review complete → first column category `done`; Attention → first `needs_you` (Vigia + pull unchanged)',
-  )
+  it('[PB-9.2 · Forge+Anvil · PB-2] review complete → first column category done; Attention → first needs_you (Vigia + pull unchanged)', () => {
+    runVitestSubprocess('packages/persona/persona-host/tests/journeys/j13-stage-columns.spec.ts')
+  }, 120_000)
 
-  it.todo(
-    '[PB-9.3 · Forge+Lumen · PB-6] edit workflow (add/rename/reorder/remove with destination) without losing tasks; Vigia and pull still active',
-  )
+  it('[PB-9.3 · Forge+Lumen · PB-6] edit workflow (add/rename/reorder/remove with destination) without losing tasks; Vigia and pull still active', () => {
+    runVitestSubprocess('packages/persona/persona-host/tests/journeys/j14-edit-flow.spec.ts')
+  }, 120_000)
 
-  it.todo(
-    '[PB-9.4 · Anvil+Forge+Lumen · PB-7] sprint create/plan/end with rollover + milestone message in project channel',
-  )
+  it('[PB-9.4 · Anvil+Forge+Lumen · PB-7] sprint create/plan/end with rollover + milestone message in project channel', () => {
+    runVitestSubprocess('packages/persona/persona-host/tests/journeys/j15-sprint.spec.ts')
+  }, 120_000)
 
-  it.todo(
-    '[PB-9.5 · Forge+Prism · PB-3] Coordination proposes workflow from description; user accepts or edits before use',
-  )
+  it('[PB-9.5 · Forge+Prism · PB-3] Coordination proposes workflow from description; user accepts or edits before use', () => {
+    runVitestSubprocess('packages/persona/persona-host/tests/journeys/j16-propose-flow.spec.ts')
+  }, 120_000)
 })
 
 /** PB-9+ gallery hub: {@link ./real-gallery-project-boards.spec.ts}; full §3 UI still PB-9.1–9.5 below. */

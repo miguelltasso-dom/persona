@@ -1,5 +1,33 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 09:35 — B9 Tier 1 6/6 PASS; first-delivery contract 5/5; diagnóstico P0 real CLI; D8 unpacked falha confirmada
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **B9 Tier 1 real app** | `mandatory-b9-real-app.spec.ts` **6/6 PASS** (~87 s); console errors **0** (404 createWorkspace sanado); #geral composer, kanban global, draft send, reduced-motion, dirD visual diff todos verdes |
+| **Harness Windows fix** | `locked-launch.ts`: `shell: false` para `process.execPath` (elimina erro `'C:\Program' não é reconhecido` em caminhos com espaço) |
+| **First-delivery contract** | `mandatory-first-delivery-contract.spec.ts` **5/5 PASS**; corrigido path do teste (`derive-first-delivery.client.spec.ts`, não `.tsx`) |
+| **PRO-6 contracts** | `mandatory-proactivity-contract.spec.ts` **4/4 PASS** (PRO-1 engine 9/9, aceite 6/6, PRO-3 runner 10/10, PRO-6 away 2/2) |
+| **GOV & PB §3 contracts** | `mandatory-governance-contract.spec.ts` e `mandatory-project-boards-contract.spec.ts` **7/7 PASS** (J1–J10, J12–J18, J19) |
+| **Boot Publish & V1-Close** | `mandatory-boot-publish-contract`, `mandatory-v1-close-contract`, `mandatory-installed-boot-contract` **12/12 PASS** |
+| **check-pkg** | `scripts/persona/check-pkg.mjs persona-e2e` **OK em 6.9s** |
+
+### FALHOU (evidência e causa raiz devolvidas)
+| Item | Evidência |
+|------|-----------|
+| **V1-P0 Real CLI (`first-delivery-real-cli.ts`)** | `broke: ["no-runner-delivery-on-geral", "exec-budget-exceeded"]`. Três causas: 1) `listConnections` chamado síncrono antes de `connections.ready()`; 2) `stages.length > 3` acusa estouro falso porque `mark()` grava 6 marcas internas de telemetria; 3) `flush()` termina sem mensagem do runner no `#geral`. Devolvido a **[Anvil/Forge/Rivet]** |
+| **D8 Unpacked Exe (`installed-onboarding-cdp.mjs`)** | Timeout 180s esperando `[data-persona-shell]`, `rootEmpty: true`, screenshot `installed-onboarding-fail.png`. Confirma achado da Muse (falha de boot por ENOENT do patch yml no asar). Devolvido a **[Rivet]** |
+
+### Arquivos tocados (Probe)
+`packages/persona/persona-e2e/src/locked-launch.ts`
+`packages/persona/persona-e2e/tests/mandatory-first-delivery-contract.spec.ts`
+
+### Fila (não vazia)
+D8 NSIS novo (Rivet); re-run V1-P0 real CLI após correção Anvil/Forge; PRO-6 layer 2 UI; benchmarks F3.
+
+---
+
 ## 2026-11-04 08:02 — Keel D-062/B9: lock livre; harness deadlock fix; B9 5/6
 
 ### PASSOU

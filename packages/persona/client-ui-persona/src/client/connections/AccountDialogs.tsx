@@ -56,7 +56,11 @@ export function AddAccountDialog({
   const [touched, setTouched] = useState(false)
   const [failed, setFailed] = useState(false)
   const [copied, setCopied] = useState(false)
+  // "Ready" only counts after the person said they signed in to THIS seat: until the host checks each seat's own folder,
+  // a new seat can look ready just because the provider's default login exists.
+  const [confirmed, setConfirmed] = useState(false)
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nameInput = useRef<HTMLInputElement>(null)
   useEffect(() => () => { if (copiedTimer.current !== null) clearTimeout(copiedTimer.current) }, [])
 
   const taken = accounts.map(row => row.accountLabel)
@@ -65,14 +69,16 @@ export function AddAccountDialog({
   const suggestions = suggestAccountLabels(taken)
 
   const seat = savedLabel === null ? undefined : accounts.find(row => row.accountLabel === savedLabel)
-  const ready = seat !== undefined && seat.status === 'ready' && seat.errorCode === undefined
-  const step = savedLabel === null ? 1 : ready ? 3 : 2
   const command = seat?.loginCommand
+  const ready = confirmed && command !== undefined && seat !== undefined && seat.status === 'ready' && seat.errorCode === undefined
+  const step = savedLabel === null ? 1 : ready ? 3 : 2
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
     setTouched(true)
-    if (!check.ok || busy) return
+    // A refused name puts the cursor back in the field, where the message is.
+    if (!check.ok) { nameInput.current?.focus(); return }
+    if (busy) return
     setBusy(true)
     setFailed(false)
     void onSubmitName(check.label).then((ok) => {
@@ -99,6 +105,7 @@ export function AddAccountDialog({
     body = (
       <form id="persona-add-account-form" className={styles.form} onSubmit={submit} noValidate>
         <Input
+          ref={nameInput}
           label={t('account.add.nameLabel')}
           hint={t('account.add.nameHint')}
           value={label}
@@ -168,7 +175,7 @@ export function AddAccountDialog({
       <>
         <Button variant="ghost" onClick={onClose}>{t('account.add.later')}</Button>
         {command !== undefined && onRecheck !== undefined && (
-          <Button variant="primary" loading={checking} disabled={checking} onClick={onRecheck}>
+          <Button variant="primary" loading={checking} disabled={checking} onClick={() => { setConfirmed(true); onRecheck() }}>
             {checking ? t('action.checking') : t('action.alreadyLoggedIn')}
           </Button>
         )}
@@ -216,13 +223,15 @@ export function RenameAccountDialog({ t, providerName, currentLabel, otherLabels
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const [touched, setTouched] = useState(false)
+  const nameInput = useRef<HTMLInputElement>(null)
   const check = checkAccountLabel(label, otherLabels, currentLabel)
   const error = touched ? labelErrorText(t, providerName, check) : undefined
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
     setTouched(true)
-    if (!check.ok || busy) return
+    if (!check.ok) { nameInput.current?.focus(); return }
+    if (busy) return
     if (check.label === currentLabel) { onClose(); return }
     setBusy(true)
     setFailed(false)
@@ -250,6 +259,7 @@ export function RenameAccountDialog({ t, providerName, currentLabel, otherLabels
     >
       <form id="persona-rename-account-form" className={styles.form} onSubmit={submit} noValidate>
         <Input
+          ref={nameInput}
           label={t('account.add.nameLabel')}
           value={label}
           maxLength={ACCOUNT_LABEL_MAX + 8}

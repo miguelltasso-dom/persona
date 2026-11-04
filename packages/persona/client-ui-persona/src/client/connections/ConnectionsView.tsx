@@ -299,7 +299,7 @@ export function ConnectionsView({
     body = (
       <PersonaSurfaceEmpty
         dict={dict}
-        illustrationKey="empty-connections"
+        illustrationKey="empty-sem-ia"
         titleKey="empty.title"
         hintKey="empty.hint"
         primaryKey="empty.action"
@@ -376,7 +376,6 @@ export function ConnectionsView({
           )}
           <p
             className={policyNote?.tone === 'error' ? styles.policyError : styles.policyOk}
-            role="status"
             aria-live="polite"
           >
             {policyNote?.text ?? ''}

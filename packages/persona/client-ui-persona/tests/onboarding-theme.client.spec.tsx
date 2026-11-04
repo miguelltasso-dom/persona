@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { render } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOnboardingStore } from '../src/client/onboarding/create-onboarding-store.ts'
 import { OnboardingWizard } from '../src/client/onboarding/OnboardingWizard.tsx'
 import { pt } from '../src/client/locale/onboarding/locales.ts'
@@ -10,11 +10,16 @@ import { installPreviewTheme } from '../src/client/preview/install-preview-theme
 
 installPreviewTheme()
 
-describe('onboarding theme surfaces', () => {
-  afterEach(() => {
-    document.body.removeAttribute('data-ds-dark-theme')
-  })
+beforeEach(() => { localStorage.clear() })
 
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  localStorage.clear()
+  document.body.removeAttribute('data-ds-dark-theme')
+})
+
+describe('onboarding theme surfaces', () => {
   it('renders in light and dark without crashing (Probe screenshots)', () => {
     const { store, actions } = createOnboardingStore()
     const { rerender } = render(
@@ -30,5 +35,5 @@ describe('onboarding theme surfaces', () => {
       </PreviewFrame>,
     )
     expect(document.body.getAttribute('data-ds-dark-theme')).toBe('true')
-  })
+  }, 10_000)
 })

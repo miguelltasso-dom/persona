@@ -5,7 +5,7 @@ import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slot
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Button, Modal, Notice, UiIcon } from '../primitives/index.ts'
+import { Button, Modal, Notice, Switch, UiIcon } from '../primitives/index.ts'
 import { teachIllustrationSrc } from './teach-art-key.ts'
 import type { PersonaLiveSnapshot } from '../remote/persona-live-store.ts'
 import type { ShellState } from '../shell/create-shell-store.ts'
@@ -15,8 +15,8 @@ const CONSENT_VERSION = 'teach-v1'
 
 const CONSENT_LINES = [
   { icon: 'image' as const, labelKey: 'teach.consentRecordedLabel', bodyKey: 'teach.consentScreen' },
-  { icon: 'copy' as const, labelKey: 'teach.consentStoredLabel', bodyKey: 'teach.consentLocal' },
-  { icon: 'help' as const, labelKey: 'teach.consentWhoLabel', bodyKey: 'teach.consentPrivate' },
+  { icon: 'lock' as const, labelKey: 'teach.consentStoredLabel', bodyKey: 'teach.consentLocal' },
+  { icon: 'eye' as const, labelKey: 'teach.consentWhoLabel', bodyKey: 'teach.consentPrivate' },
 ] as const
 
 export interface TeachPersonaOverlayInjected {
@@ -86,7 +86,7 @@ export function TeachPersonaOverlay({
           <img src={artSrc} alt="" width={160} height={160} />
         </p>
       )}
-      <p>{t('teach.consentIntro')}</p>
+      <p>{t('teach.consentIntro', { name: personaName })}</p>
       <ul className={styles.consentList}>
         {CONSENT_LINES.map(row => (
           <li key={row.labelKey} className={styles.consentItem}>
@@ -105,16 +105,11 @@ export function TeachPersonaOverlay({
       <p className={styles.retention}>{t('teach.retention')}</p>
       <div className={styles.micRow}>
         <span id={`${micSwitchId}-label`} className={styles.micLabel}>{t('teach.microphone')}</span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={microphone}
-          aria-labelledby={`${micSwitchId}-label`}
-          className={styles.micSwitch}
-          onClick={() => { setMicrophone(prev => !prev) }}
-        >
-          <span className={styles.micKnob} />
-        </button>
+        <Switch
+          checked={microphone}
+          labelledBy={`${micSwitchId}-label`}
+          onChange={setMicrophone}
+        />
       </div>
     </Modal>
   )

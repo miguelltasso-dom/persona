@@ -25,7 +25,7 @@
   "proactive.action.accept": "Aceitar",
   "proactive.action.reject": "Recusar",
   "proactive.action.edit": "Editar",
-  "proactive.editHint": "Edição abre o rascunho da proposta antes de enviar ao engine (preview).",
+  "proactive.editHint": "Editar abre o rascunho da proposta para você ajustar antes de a equipe começar.",
   "type.hire": "Contratação",
   "type.vault": "Cofre",
   "type.skill": "Skill",

@@ -1,5 +1,6 @@
 import type {
   ApproveGestorPlanRequest,
+  CommentGestorPlanRequest,
   GestorPlanView,
   ListGestorPlansRequest,
 } from '@deepseek-ai/dsh-persona-host/types'
@@ -17,6 +18,7 @@ export interface GestorWire {
   readonly listGestorPlans?: (request: ListGestorPlansRequest) => unknown
   readonly approveGestorPlan?: (request: ApproveGestorPlanRequest) => unknown
   readonly rejectGestorPlan?: (request: RejectGestorPlanRequest) => unknown
+  readonly commentGestorPlan?: (request: CommentGestorPlanRequest) => unknown
 }
 
 export interface RejectGestorPlanRequest {
@@ -46,4 +48,13 @@ export async function rejectGestorPlanRemote(
 ): Promise<GestorPlanView> {
   if (client.rejectGestorPlan === undefined) throw new Error('gestor-not-supported')
   return settleGestorWire<GestorPlanView>(await client.rejectGestorPlan(request))
+}
+
+/** GES-3: second Gestor comments; original plan stays proposed. */
+export async function commentGestorPlanRemote(
+  client: GestorWire,
+  request: CommentGestorPlanRequest,
+): Promise<GestorPlanView> {
+  if (client.commentGestorPlan === undefined) throw new Error('gestor-not-supported')
+  return settleGestorWire<GestorPlanView>(await client.commentGestorPlan(request))
 }

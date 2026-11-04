@@ -1,0 +1,61 @@
+/* Switch (Muse): one on/off control for the whole app. */
+
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 30px;
+  padding: 0;
+  border: var(--persona-border-width) solid var(--persona-outline-control);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-paper-sunken);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
+}
+
+/* 44 px hit area without growing the visual (WCAG 2.5.8). */
+.switch::before {
+  content: '';
+  position: absolute;
+  inset: -7px -4px;
+}
+
+.switch[aria-checked='true'] {
+  border-color: var(--persona-outline);
+  background: var(--persona-accent);
+}
+
+.knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline-control);
+  border-radius: 50%;
+  background: var(--persona-card-raised);
+  transition: transform var(--motion-base) var(--ease-spring);
+}
+
+.switch[aria-checked='true'] .knob {
+  border-color: var(--persona-outline);
+  transform: translateX(22px);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 3px;
+}
+
+.switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .knob {
+    transition: none;
+  }
+}

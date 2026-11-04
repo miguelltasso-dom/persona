@@ -4,8 +4,8 @@
  */
 
 const RUNNER_LABELS: Readonly<Record<string, string>> = {
-  'dsh': 'Harness DeepSeek',
-  'deepseek': 'Harness DeepSeek',
+  'dsh': 'DeepSeek',
+  'deepseek': 'DeepSeek',
   'claude': 'Claude',
   'oar:claude': 'Claude',
   'claude-code': 'Claude',
@@ -46,7 +46,7 @@ function titleCase(id: string): string {
     .replace(/^GPT (\d)/u, 'GPT-$1')
 }
 
-/** "Harness DeepSeek", "Claude", … — unknown runners are title-cased, never shown raw. */
+/** "DeepSeek", "Claude", … — unknown runners are title-cased, never shown raw. */
 export function runnerLabel(runner: string): string {
   const key = runner.trim().toLowerCase()
   return RUNNER_LABELS[key] ?? (looksHuman(runner) ? runner.trim() : titleCase(key.replace(/^oar:/u, '')))
@@ -63,7 +63,7 @@ export function modelLabel(model: string): string {
   return titleCase(key)
 }
 
-/** "Claude · Haiku", "Harness DeepSeek · modelo padrão". */
+/** "Claude · Haiku", "DeepSeek · modelo padrão". */
 export function engineLabel(runner: string, model?: string  ): string {
   const runnerText = runnerLabel(runner)
   return model === undefined || model.trim().length === 0 ? runnerText : `${runnerText} · ${modelLabel(model)}`

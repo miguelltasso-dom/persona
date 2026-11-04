@@ -113,9 +113,10 @@
   line-height: 1.2;
 }
 
+/* opacity, not visibility: the label must stay in the accessibility tree so a busy button keeps its name. */
 .loading .label,
 .loading .icon {
-  visibility: hidden;
+  opacity: 0;
 }
 
 .dots {

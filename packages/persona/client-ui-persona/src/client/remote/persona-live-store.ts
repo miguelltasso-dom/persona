@@ -49,9 +49,20 @@ import {
   type GestorWire,
 } from '../data/gestor-remote.ts'
 import { mergeArrivingFlags } from './gestor-arriving.ts'
+import { conversationScopeFromStreamKey, conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { mapConversationSubjectsBundle, type MappedConversationSubjects } from '../chat/map-conversation-subjects.ts'
+import { PersonaRemoteError } from './persona-remote-unwrap.ts'
 import { mapUsedContextRecord } from './map-used-context.ts'
+import { mapTurnActivityFolds, type TurnActivityGroupWire } from './map-turn-activity-folds.ts'
 import { DEFAULT_CONVERSATION_SUBJECT_ID, DEFAULT_CONVERSATION_SUBJECTS } from '../chat/conversation-subjects.ts'
+import {
+  DEFAULT_CHANNEL_COMPOSER_HINTS,
+  loadChannelComposerHints,
+  type ChannelComposerHints,
+} from './derive-channel-composer-hints.ts'
+import { personaScreensRemote } from '../data/persona-screens-remote.ts'
+import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
+import { unwrapRemote } from '../data/remote-call.ts'
 
 /** Host list/follow: "Geral" includes messages without `topic_id`. */
 function hostStreamTopicId(activeTopicId: string | undefined): string | undefined {
@@ -82,6 +93,10 @@ export interface PersonaLiveSnapshot {
   readonly turnContext: TurnContextUi | null
   readonly error: string | null
   readonly gestorPlansById: Readonly<Record<string, GestorPlanView>>
+  /** Client UX after "Ajustar" until host RPC `commentGestorPlan` (Anvil). */
+  readonly gestorPlanAdjustingIds: Readonly<Record<string, true>>
+  /** PRO-4 / T3 §12 — coordination autonomy + official quota gate for #geral composer. */
+  readonly channelComposerHints: ChannelComposerHints
   readonly arrivingHostPersonaIds: readonly string[]
 }
 
@@ -105,6 +120,8 @@ const EMPTY: PersonaLiveSnapshot = {
   turnContext: null,
   error: null,
   gestorPlansById: {},
+  gestorPlanAdjustingIds: {},
+  channelComposerHints: DEFAULT_CHANNEL_COMPOSER_HINTS,
   arrivingHostPersonaIds: [],
 }
 
@@ -114,6 +131,8 @@ export interface PersonaLiveStore {
   bootstrap(onFirstUse: (firstUse: boolean) => void): Promise<void>
   runDevHarnessSeedIfEnabled(): Promise<void>
   refresh(): Promise<void>
+  /** Test/teardown: abort follow streams and drop onboarding sink. */
+  dispose(): void
   postChannelMessage(body: string, attachmentIds?: readonly string[]): Promise<void>
   uploadChannelAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   uploadDmAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
@@ -139,7 +158,11 @@ export interface PersonaLiveStore {
   searchMessages(query: string, topicId?: string): Promise<readonly { readonly id: string; readonly meta: string; readonly text: string }[]>
   setPersonaAutonomyLevel(personaId: string, level: AutonomyLevel): Promise<void>
   conversationScope(streamKind: 'channel' | 'dm', ownerId: string): ConversationSubjectScope | null
-  fetchConversationSubjects(scope: ConversationSubjectScope): Promise<MappedConversationSubjects>
+  conversationScopeFromKey(streamKey: string): ConversationSubjectScope | null
+  fetchConversationSubjects(
+    scope: ConversationSubjectScope,
+    options?: { readonly force?: boolean },
+  ): Promise<MappedConversationSubjects>
   selectConversationSubject(scope: ConversationSubjectScope, subjectId: string): Promise<MappedConversationSubjects>
   createConversationSubject(scope: ConversationSubjectScope, name: string): Promise<{ readonly bundle: MappedConversationSubjects; readonly createdSubjectId: string }>
   renameConversationSubject(scope: ConversationSubjectScope, subjectId: string, name: string): Promise<MappedConversationSubjects>
@@ -155,6 +178,7 @@ export interface PersonaLiveStore {
   submitTeachDraft(sessionId: string, steps: readonly TeachStepView[], activate: boolean): Promise<TeachDraftView>
   approveGestorPlan(planId: string): Promise<void>
   rejectGestorPlan(planId: string): Promise<void>
+  feedbackGestorPlan(planId: string, body: string): Promise<void>
 }
 
 type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
@@ -281,6 +305,14 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     triggerIds: readonly string[]
     records: readonly import('@deepseek-ai/dsh-persona-host/types').UsedContextRecord[]
   }
+  listTurnActivity?(request: {
+    workspaceId: string
+    projectId: string
+    subjectId: string
+    personaId?: string
+  }):
+    | readonly import('@deepseek-ai/dsh-persona-host/types').ActivityGroupView[]
+    | Promise<readonly import('@deepseek-ai/dsh-persona-host/types').ActivityGroupView[]>
   getAutonomy?(request: {
     workspaceId: string
     projectId: string
@@ -342,8 +374,10 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   let hostOnboardingSink: ((firstUse: boolean) => void) | null = null
   let messageStreamAbort: AbortController | null = null
   let dmStreamAbort: AbortController | null = null
-  const streamTopicKey = (streamKind: 'channel' | 'dm', ownerId: string): string => `${streamKind}:${ownerId}`
+  const streamTopicKey = conversationStreamKey
   const activeTopicByStream = new Map<string, string>()
+  const subjectsCache = new Map<string, MappedConversationSubjects>()
+  const subjectsInflight = new Map<string, Promise<MappedConversationSubjects>>()
   let arrivingUntil: Record<string, number> = {}
 
   const activeArrivingIds = (nowMs: number = Date.now()): Set<string> => {
@@ -483,6 +517,22 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       }
       const gestorPlansById: Record<string, GestorPlanView> = {}
       for (const plan of gestorPlans) gestorPlansById[plan.id] = plan
+      const gestorPlanAdjustingIds = { ...prior.gestorPlanAdjustingIds }
+      for (const planId of Object.keys(gestorPlanAdjustingIds)) {
+        const plan = gestorPlansById[planId]
+        if (plan === undefined || plan.status !== 'proposed') delete gestorPlanAdjustingIds[planId]
+      }
+      const screens = personaScreensRemote(remote as unknown as PersonaRemoteClient)
+      const channelComposerHints = await loadChannelComposerHints(
+        {
+          ...(remote.getAutonomy === undefined
+            ? {}
+            : { getAutonomy: request => Promise.resolve(remote.getAutonomy!(request)) }),
+          getOfficialQuota: async request => unwrapRemote(await screens.getOfficialQuota(request)),
+        },
+        scope,
+        team,
+      )
       const arrivingIds = activeArrivingIds()
       const arrivingHostPersonaIds = [...arrivingIds]
       const stripMembers = mapTeamToStrip(team, now.personas, arrivingIds)
@@ -507,7 +557,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       let dmMessages = prior.dmMessages
       const selectedDmId = prior.selectedDmId
       if (selectedDmId !== null) {
-        const dmTopicId = activeTopicByStream.get(streamTopicKey('dm', selectedDmId))
+        const dmWireTopicId = hostStreamTopicId(activeTopicByStream.get(streamTopicKey('dm', selectedDmId)))
         const dmPage = await Promise.resolve(remote.listMessages({
           ...scope,
           streamKind: 'dm',
@@ -515,7 +565,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           actorId: scope.memberId,
           afterSeq: 0,
           limit: 200,
-          ...(dmTopicId === undefined || dmTopicId === '' ? {} : { topicId: dmTopicId }),
+          ...(dmWireTopicId === undefined ? {} : { topicId: dmWireTopicId }),
         }))
         dmMessages = sortMessageStreamEvents(dmPage.events).map(event => mapMessage(event, team, scope.memberId, taskTitleById))
       }
@@ -561,6 +611,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         turnContext: prior.turnContext,
         error: null,
         gestorPlansById,
+        gestorPlanAdjustingIds,
+        channelComposerHints,
         arrivingHostPersonaIds,
       })
       await publishHostOnboardingState()
@@ -602,8 +654,6 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       await publishHostOnboardingState()
       startMessageStream()
       if (tenant !== null) {
-        const chScope = conversationScope('channel', tenant.channelId)
-        if (chScope !== null) void fetchConversationSubjects(chScope)
         try {
           void Promise.resolve(remote.markVisit(tenant)).catch(() => undefined)
         } catch {
@@ -726,13 +776,31 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   const loadTurnContext = async (ticketId: string): Promise<void> => {
     if (tenant === null || remote.getTurnContext === undefined) return
     try {
-      const row = await Promise.resolve(remote.getTurnContext({
+      const scope = {
         workspaceId: tenant.workspaceId,
         projectId: tenant.projectId,
+      }
+      const rowPromise = Promise.resolve(remote.getTurnContext({
+        ...scope,
         ticketId,
         command: 'stop',
         reason: '',
       }))
+      const foldsPromise = remote.listTurnActivity === undefined
+        ? Promise.resolve([] as readonly TurnActivityGroupWire[])
+        : Promise.resolve(remote.listTurnActivity({ ...scope, subjectId: ticketId })).then(raw => raw.map(fold => ({
+          personaId: fold.personaId,
+          moreCount: fold.moreCount,
+          items: fold.items.map(item => ({
+            id: item.id,
+            kind: item.kind,
+            title: item.title,
+            status: item.status,
+          })),
+        })))
+      const [row, wireFolds] = await Promise.all([rowPromise, foldsPromise])
+      const team = store.getSnapshot().team
+      const activityFolds = mapTurnActivityFolds(wireFolds, team)
       store.set({
         ...store.getSnapshot(),
         turnContext: {
@@ -740,6 +808,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           title: row.title,
           triggerIds: [...row.triggerIds],
           records: row.records.map(mapUsedContextRecord),
+          ...(activityFolds.length === 0 ? {} : { activityFolds }),
         },
       })
     } catch {
@@ -983,6 +1052,21 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     }
   }
 
+  const conversationScopeFromKey = (streamKey: string): ConversationSubjectScope | null => {
+    if (tenant === null) return null
+    return conversationScopeFromStreamKey(streamKey, tenant.workspaceId, tenant.projectId)
+  }
+
+  const putSubjectsCache = (scope: ConversationSubjectScope, mapped: MappedConversationSubjects): MappedConversationSubjects => {
+    subjectsCache.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped)
+    return mapped
+  }
+
+  /** Host list/follow topic filter — only after explicit subject selection or stream reload RPCs. */
+  const applyHostTopicFilter = (scope: ConversationSubjectScope, subjectId: string): void => {
+    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), subjectId)
+  }
+
   const reloadStreamMessages = async (scope: ConversationSubjectScope): Promise<void> => {
     if (tenant === null) return
     const scopeTenant = tenant
@@ -1014,17 +1098,47 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     startDmStream(scope.ownerId)
   }
 
-  const fetchConversationSubjects = async (scope: ConversationSubjectScope): Promise<MappedConversationSubjects> => {
-    if (remote.listConversationSubjects === undefined) {
-      return {
+  const fetchConversationSubjects = async (
+    scope: ConversationSubjectScope,
+    options?: { readonly force?: boolean },
+  ): Promise<MappedConversationSubjects> => {
+    const key = streamTopicKey(scope.streamKind, scope.ownerId)
+    const force = options?.force === true
+    if (!force) {
+      const cached = subjectsCache.get(key)
+      if (cached !== undefined) return cached
+      const inflight = subjectsInflight.get(key)
+      if (inflight !== undefined) return inflight
+    } else {
+      subjectsCache.delete(key)
+      subjectsInflight.delete(key)
+    }
+
+    const listConversationSubjects = remote.listConversationSubjects
+    if (listConversationSubjects === undefined) {
+      const fallback = {
         subjects: [...DEFAULT_CONVERSATION_SUBJECTS],
         activeSubjectId: DEFAULT_CONVERSATION_SUBJECT_ID,
       }
+      return putSubjectsCache(scope, fallback)
     }
-    const bundle = await Promise.resolve(remote.listConversationSubjects(scope))
-    const mapped = mapConversationSubjectsBundle(bundle)
-    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
-    return mapped
+
+    const run = (async (): Promise<MappedConversationSubjects> => {
+      try {
+        const bundle = await Promise.resolve(listConversationSubjects(scope))
+        return putSubjectsCache(scope, mapConversationSubjectsBundle(bundle))
+      } catch (error) {
+        subjectsInflight.delete(key)
+        if (error instanceof PersonaRemoteError) throw error
+        throw error
+      }
+    })()
+    subjectsInflight.set(key, run)
+    try {
+      return await run
+    } finally {
+      subjectsInflight.delete(key)
+    }
   }
 
   const selectConversationSubject = async (
@@ -1032,13 +1146,13 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     subjectId: string,
   ): Promise<MappedConversationSubjects> => {
     if (remote.setActiveConversationSubject === undefined) {
-      activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), subjectId)
+      applyHostTopicFilter(scope, subjectId)
       await reloadStreamMessages(scope)
       return fetchConversationSubjects(scope)
     }
     const bundle = await Promise.resolve(remote.setActiveConversationSubject({ ...scope, subjectId }))
-    const mapped = mapConversationSubjectsBundle(bundle)
-    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    const mapped = putSubjectsCache(scope, mapConversationSubjectsBundle(bundle))
+    applyHostTopicFilter(scope, subjectId)
     await reloadStreamMessages(scope)
     return mapped
   }
@@ -1052,8 +1166,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       return { bundle, createdSubjectId: bundle.activeSubjectId }
     }
     const bundle = await Promise.resolve(remote.createConversationSubject({ ...scope, name }))
-    const mapped = mapConversationSubjectsBundle(bundle)
-    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    const mapped = putSubjectsCache(scope, mapConversationSubjectsBundle(bundle))
+    applyHostTopicFilter(scope, mapped.activeSubjectId)
     await reloadStreamMessages(scope)
     return { bundle: mapped, createdSubjectId: mapped.activeSubjectId }
   }
@@ -1065,7 +1179,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   ): Promise<MappedConversationSubjects> => {
     if (remote.renameConversationSubject === undefined) return fetchConversationSubjects(scope)
     const bundle = await Promise.resolve(remote.renameConversationSubject({ ...scope, subjectId, name }))
-    return mapConversationSubjectsBundle(bundle)
+    return putSubjectsCache(scope, mapConversationSubjectsBundle(bundle))
   }
 
   const archiveConversationSubject = async (
@@ -1074,8 +1188,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   ): Promise<MappedConversationSubjects> => {
     if (remote.archiveConversationSubject === undefined) return fetchConversationSubjects(scope)
     const bundle = await Promise.resolve(remote.archiveConversationSubject({ ...scope, subjectId }))
-    const mapped = mapConversationSubjectsBundle(bundle)
-    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    const mapped = putSubjectsCache(scope, mapConversationSubjectsBundle(bundle))
+    applyHostTopicFilter(scope, mapped.activeSubjectId)
     await reloadStreamMessages(scope)
     return mapped
   }
@@ -1087,8 +1201,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   ): Promise<MappedConversationSubjects> => {
     if (remote.createConversationSubject === undefined) return fetchConversationSubjects(scope)
     const bundle = await Promise.resolve(remote.createConversationSubject({ ...scope, name, colorIndex }))
-    const mapped = mapConversationSubjectsBundle(bundle)
-    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    const mapped = putSubjectsCache(scope, mapConversationSubjectsBundle(bundle))
+    applyHostTopicFilter(scope, mapped.activeSubjectId)
     await reloadStreamMessages(scope)
     return mapped
   }
@@ -1221,6 +1335,26 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     await refresh()
   }
 
+  const feedbackGestorPlan = async (planId: string, body: string): Promise<void> => {
+    if (tenant === null) return
+    const trimmed = body.trim()
+    if (trimmed.length === 0) return
+    const prior = store.getSnapshot()
+    store.set({
+      ...prior,
+      gestorPlanAdjustingIds: { ...prior.gestorPlanAdjustingIds, [planId]: true },
+    })
+    try {
+      await postChannelMessage(trimmed)
+      await refresh()
+    } catch (error) {
+      const next = store.getSnapshot()
+      const { [planId]: _removed, ...rest } = next.gestorPlanAdjustingIds
+      store.set({ ...next, gestorPlanAdjustingIds: rest })
+      throw error
+    }
+  }
+
   const setPersonaAutonomyLevel = async (personaId: string, level: AutonomyLevel): Promise<void> => {
     if (tenant === null || remote.getAutonomy === undefined || remote.setAutonomy === undefined) return
     const scope = {
@@ -1232,6 +1366,13 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     await Promise.resolve(remote.setAutonomy(patchAutonomyMode(current, level)))
   }
 
+  const dispose = (): void => {
+    stopMessageStream()
+    stopDmStream()
+    hostOnboardingSink = null
+    subjectsInflight.clear()
+  }
+
   return {
     observable: {
       getSnapshot: () => store.getSnapshot(),
@@ -1240,6 +1381,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     bootstrap,
     runDevHarnessSeedIfEnabled,
     refresh,
+    dispose,
     postChannelMessage,
     uploadChannelAttachment,
     uploadDmAttachment,
@@ -1254,6 +1396,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     searchMessages,
     setPersonaAutonomyLevel,
     conversationScope,
+    conversationScopeFromKey,
     fetchConversationSubjects,
     selectConversationSubject,
     createConversationSubject,
@@ -1270,5 +1413,6 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     submitTeachDraft,
     approveGestorPlan,
     rejectGestorPlan,
+    feedbackGestorPlan,
   }
 }

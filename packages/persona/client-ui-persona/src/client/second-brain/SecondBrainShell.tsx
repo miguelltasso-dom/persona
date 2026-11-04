@@ -129,6 +129,7 @@ export function SecondBrainShell({
       <SecondBrainKindListView
         kind={route.brainKind}
         pages={pages}
+        personaNames={personaNames}
         contradictionIds={contradictionIds}
         onBack={() => { setRoute({ kind: 'home' }) }}
         onOpenPage={(pageId) => { void openPage(pageId) }}

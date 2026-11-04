@@ -82,6 +82,7 @@
   "kindList.tab.contradiction": "With contradiction",
   "kindList.view.list": "List",
   "kindList.view.graph": "Graph",
+  "kindList.empty": "No pages match this filter yet.",
   "graph.label": "Page graph",
   "graph.showList": "View as list",
   "meta.confirmedRecent": "Confirmed {days} days ago",

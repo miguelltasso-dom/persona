@@ -82,6 +82,7 @@
   "kindList.tab.contradiction": "Com contradição",
   "kindList.view.list": "Lista",
   "kindList.view.graph": "Grafo",
+  "kindList.empty": "Nenhuma página neste filtro ainda.",
   "graph.label": "Grafo de páginas",
   "graph.showList": "Ver como lista",
   "meta.confirmedRecent": "Confirmada há {days} dias",

@@ -7,7 +7,7 @@
   "files.heading": "Changed files",
   "files.summary": "+{added} / −{deleted} lines",
   "patch.heading": "Diff",
-  "patch.truncated": "Patch truncated — showing the first {limit} bytes.",
+  "patch.truncated": "This change is too big to show in full. Here is the beginning.",
   "patch.redacted": "Secrets were redacted in this excerpt.",
   "tests.heading": "Tests cited in the report",
   "action.accept": "Accept",

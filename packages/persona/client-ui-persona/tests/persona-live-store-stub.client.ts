@@ -6,6 +6,7 @@ export const personaLiveStoreWave2Stub: Pick<
   PersonaLiveStore,
   | 'searchMessages'
   | 'conversationScope'
+  | 'conversationScopeFromKey'
   | 'fetchConversationSubjects'
   | 'selectConversationSubject'
   | 'createConversationSubject'
@@ -22,9 +23,11 @@ export const personaLiveStoreWave2Stub: Pick<
   | 'submitTeachDraft'
   | 'approveGestorPlan'
   | 'rejectGestorPlan'
+  | 'feedbackGestorPlan'
 > = {
   searchMessages: async () => [],
   conversationScope: () => null,
+  conversationScopeFromKey: () => null,
   fetchConversationSubjects: async () => ({
     subjects: [...DEFAULT_CONVERSATION_SUBJECTS],
     activeSubjectId: DEFAULT_CONVERSATION_SUBJECT_ID,
@@ -62,4 +65,5 @@ export const personaLiveStoreWave2Stub: Pick<
   submitTeachDraft: async () => ({ steps: [], skillTitle: '' }),
   approveGestorPlan: async () => {},
   rejectGestorPlan: async () => {},
+  feedbackGestorPlan: async () => {},
 }

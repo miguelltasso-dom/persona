@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-04T02:56:59.030Z",
+    "generatedAt": "2026-11-04T07:55:45.161Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 496,
-    "totalBytes": 8550206,
+    "files": 530,
+    "totalBytes": 9208618,
     "withinBudget": true
   },
   "files": [
@@ -473,6 +473,26 @@
       "bytes": 253
     },
     {
+      "rel": "icons/columns/a-fazer.svg",
+      "bytes": 226
+    },
+    {
+      "rel": "icons/columns/bloqueado.svg",
+      "bytes": 229
+    },
+    {
+      "rel": "icons/columns/concluido.svg",
+      "bytes": 232
+    },
+    {
+      "rel": "icons/columns/em-andamento.svg",
+      "bytes": 230
+    },
+    {
+      "rel": "icons/columns/em-revisao.svg",
+      "bytes": 229
+    },
+    {
       "rel": "brand/banner-team-light.webp",
       "bytes": 19388
     },
@@ -575,6 +595,14 @@
     {
       "rel": "illustrations/bibliotecario.webp",
       "bytes": 29758
+    },
+    {
+      "rel": "illustrations/about-team.webp",
+      "bytes": 103948
+    },
+    {
+      "rel": "illustrations/release-notes-badge.webp",
+      "bytes": 14356
     },
     {
       "rel": "illustrations/equipe-saudavel.webp",
@@ -979,6 +1007,54 @@
     {
       "rel": "stickers/sol-rindo.webp",
       "bytes": 4988
+    },
+    {
+      "rel": "stickers/tamandua-comemorando.webp",
+      "bytes": 7480
+    },
+    {
+      "rel": "stickers/tamandua-coracao.webp",
+      "bytes": 6374
+    },
+    {
+      "rel": "stickers/tamandua-feito.webp",
+      "bytes": 5978
+    },
+    {
+      "rel": "stickers/tamandua-joinha.webp",
+      "bytes": 6522
+    },
+    {
+      "rel": "stickers/tamandua-pensando.webp",
+      "bytes": 5976
+    },
+    {
+      "rel": "stickers/tamandua-rindo.webp",
+      "bytes": 6154
+    },
+    {
+      "rel": "stickers/tucano-comemorando.webp",
+      "bytes": 6578
+    },
+    {
+      "rel": "stickers/tucano-coracao.webp",
+      "bytes": 6448
+    },
+    {
+      "rel": "stickers/tucano-feito.webp",
+      "bytes": 5808
+    },
+    {
+      "rel": "stickers/tucano-joinha.webp",
+      "bytes": 5580
+    },
+    {
+      "rel": "stickers/tucano-pensando.webp",
+      "bytes": 6240
+    },
+    {
+      "rel": "stickers/tucano-rindo.webp",
+      "bytes": 5794
     },
     {
       "rel": "avatars/atlas-blink-256.webp",
@@ -1425,6 +1501,18 @@
       "bytes": 28772
     },
     {
+      "rel": "poses/atlas-pensando-1.webp",
+      "bytes": 29990
+    },
+    {
+      "rel": "poses/atlas-pensando-2.webp",
+      "bytes": 29936
+    },
+    {
+      "rel": "poses/atlas-pensando-3.webp",
+      "bytes": 29784
+    },
+    {
       "rel": "poses/atlas-revisando.webp",
       "bytes": 33098
     },
@@ -1467,6 +1555,18 @@
     {
       "rel": "poses/bento-offline.webp",
       "bytes": 27664
+    },
+    {
+      "rel": "poses/bento-pensando-1.webp",
+      "bytes": 28890
+    },
+    {
+      "rel": "poses/bento-pensando-2.webp",
+      "bytes": 28900
+    },
+    {
+      "rel": "poses/bento-pensando-3.webp",
+      "bytes": 28844
     },
     {
       "rel": "poses/bento-revisando.webp",
@@ -1737,6 +1837,18 @@
       "bytes": 28110
     },
     {
+      "rel": "poses/luna-pensando-1.webp",
+      "bytes": 29858
+    },
+    {
+      "rel": "poses/luna-pensando-2.webp",
+      "bytes": 29676
+    },
+    {
+      "rel": "poses/luna-pensando-3.webp",
+      "bytes": 29206
+    },
+    {
       "rel": "poses/luna-revisando.webp",
       "bytes": 30668
     },
@@ -1779,6 +1891,18 @@
     {
       "rel": "poses/nina-offline.webp",
       "bytes": 34474
+    },
+    {
+      "rel": "poses/nina-pensando-1.webp",
+      "bytes": 36018
+    },
+    {
+      "rel": "poses/nina-pensando-2.webp",
+      "bytes": 35964
+    },
+    {
+      "rel": "poses/nina-pensando-3.webp",
+      "bytes": 35652
     },
     {
       "rel": "poses/nina-revisando.webp",
@@ -1919,6 +2043,18 @@
     {
       "rel": "poses/sol-offline.webp",
       "bytes": 25846
+    },
+    {
+      "rel": "poses/sol-pensando-1.webp",
+      "bytes": 30500
+    },
+    {
+      "rel": "poses/sol-pensando-2.webp",
+      "bytes": 30488
+    },
+    {
+      "rel": "poses/sol-pensando-3.webp",
+      "bytes": 30324
     },
     {
       "rel": "poses/sol-revisando.webp",

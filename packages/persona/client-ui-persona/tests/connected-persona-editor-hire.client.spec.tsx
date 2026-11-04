@@ -10,7 +10,7 @@ import { installPreviewTheme } from '../src/client/preview/install-preview-theme
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { ConnectedPersonaEditor } from '../src/client/remote/ConnectedPersonaEditor.tsx'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from '../src/client/remote/persona-live-store.ts'
-import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub } from './persona-live-fixtures.client.ts'
+import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub, personaLiveStoreLifecycleStub } from './persona-live-fixtures.client.ts'
 import { personaLiveStoreWave2Stub } from './persona-live-store-stub.client.ts'
 import { HIRE_PERSONA_PROFILE_ID, createShellStore } from '../src/client/shell/create-shell-store.ts'
 installPreviewTheme()
@@ -47,6 +47,7 @@ function liveHarness(): PersonaLiveStore {
     observable: store,
     ...personaLiveStoreWave2Stub,
     ...personaLiveStoreGestorStub,
+    ...personaLiveStoreLifecycleStub,
     bootstrap: async () => {},
     runDevHarnessSeedIfEnabled: async () => {},
     refresh: async () => {},

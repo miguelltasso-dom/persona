@@ -9,7 +9,7 @@ import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { ConnectedGlobalKanban, type ConnectedGlobalKanbanProps } from '../src/client/remote/ConnectedGlobalKanban.tsx'
 import { pt as kanbanPt } from '../src/client/locale/kanban/locales.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from '../src/client/remote/persona-live-store.ts'
-import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub } from './persona-live-fixtures.client.ts'
+import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub, personaLiveStoreLifecycleStub } from './persona-live-fixtures.client.ts'
 import { personaLiveStoreWave2Stub } from './persona-live-store-stub.client.ts'
 import { createShellStore } from '../src/client/shell/create-shell-store.ts'
 installPreviewTheme()
@@ -42,6 +42,7 @@ function liveStoreHarness(initial: PersonaLiveSnapshot): PersonaLiveStore {
     observable: store,
     ...personaLiveStoreWave2Stub,
     ...personaLiveStoreGestorStub,
+    ...personaLiveStoreLifecycleStub,
     bootstrap: async () => {},
     runDevHarnessSeedIfEnabled: async () => {},
     refresh: async () => {},
@@ -76,6 +77,7 @@ describe('ConnectedGlobalKanban (InjectFace)', () => {
           refreshKanban={async () => {}}
           navigateProjectTab={() => {}}
           clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
+          clearKanbanFocusTicket={() => { shellActions.clearKanbanFocusTicket() }}
           setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}
           useLive={useLive as ConnectedGlobalKanbanProps['useLive']}
           useTenant={useTenant as ConnectedGlobalKanbanProps['useTenant']}

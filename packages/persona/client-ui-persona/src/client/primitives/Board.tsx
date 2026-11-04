@@ -6,19 +6,10 @@
 import type { ReactNode } from 'react'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { Chip, type ChipTone } from './Chip.tsx'
-import { UiIcon, type UiIconName } from './icons.tsx'
+import { ColumnCategoryIcon, UiIcon } from './icons.tsx'
 import styles from './Board.module.css'
 
 export type StageCategory = 'todo' | 'doing' | 'review' | 'needs_you' | 'done' | 'blocked'
-
-const CATEGORY_ICON: Readonly<Record<StageCategory, UiIconName>> = {
-  todo: 'more',
-  doing: 'sparkle',
-  review: 'help',
-  needs_you: 'clock',
-  done: 'check',
-  blocked: 'alert',
-}
 
 const EMPTY_ART: Readonly<Record<StageCategory, string>> = {
   todo: 'empty-col-todo',
@@ -100,7 +91,7 @@ export function BoardColumn({
     <section className={styles.column} data-category={categoryAttr(category)} data-drop-target={dropTarget ? '' : undefined} aria-label={`${name} — ${categoryLabel}`}>
       <header className={styles.columnHeader}>
         <div className={styles.columnTitleRow}>
-          <span className={styles.columnIcon} aria-hidden="true"><UiIcon name={CATEGORY_ICON[category]} size={14} strokeWidth={2.4} /></span>
+          <span className={styles.columnIcon} aria-hidden="true"><ColumnCategoryIcon category={category} size={14} /></span>
           <h3 className={styles.columnName}>{name}</h3>
           <Chip size="s" tone={wipTone}>{wipLimit === undefined ? count : `${count}/${wipLimit}`}</Chip>
           {actions}

@@ -3,10 +3,10 @@
   "subtitle": "{creator} propôs um colega para o time.",
   "editBeforeHire": "Revise antes de contratar",
   "field.role": "Cargo",
-  "field.harness": "Harness",
+  "field.harness": "Motor",
   "field.tools": "Ferramentas",
   "action.approve": "Contratar",
   "action.edit": "Editar proposta",
   "action.dismiss": "Agora não",
-  "policy.note": "Política do workspace: aprovação manual (padrão)."
+  "policy.note": "Nesta equipe, você aprova cada contratação (padrão)."
 }

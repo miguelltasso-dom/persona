@@ -16,6 +16,7 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   readonly userName?: string | undefined
   /** Navigate to another main panel (shell). */
   readonly onNavigate?: ((panel: 'channels' | 'kanban' | 'approvals') => void) | undefined
+  readonly onOpenAwayTask?: ((taskId: string) => void) | undefined
   /** Live first task (C8); falls back to locale copy when absent. */
   readonly suggestedTask?: { readonly id: string; readonly title: string } | undefined
   /** The team's first finished task ever (Prism wires from the board); shown once as a milestone (peak-end). */
@@ -43,7 +44,7 @@ const PLACEHOLDER_NAMES: ReadonlySet<string> = new Set(['você', 'voce', 'owner'
 
 /** Visão geral — "o que precisa de você" first, then what the team is doing now (RCD: never a blank dashboard). */
 export function OverviewView({
-  t, attentionItems, nowRows, awayEvents, userName, onNavigate, suggestedTask, firstDelivery,
+  t, attentionItems, nowRows, awayEvents, userName, onNavigate, onOpenAwayTask, suggestedTask, firstDelivery,
 }: OverviewViewProps): ReactNode {
   const [dismissedTaskId, setDismissedTaskId] = useState<string | null>(null)
   const showMilestone = firstDelivery !== undefined && dismissedTaskId !== firstDelivery.taskId && !firstDeliverySeen(firstDelivery.taskId)
@@ -138,7 +139,7 @@ export function OverviewView({
             )}
           </Card>
 
-          <AwayWhileOutPanel t={t} events={awayEvents} />
+          <AwayWhileOutPanel t={t} events={awayEvents} onOpenTask={onOpenAwayTask} />
 
           {showFirstTask && (
             <Card

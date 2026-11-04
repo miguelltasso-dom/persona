@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPersonaLiveStore } from '../src/client/remote/persona-live-store.ts'
 import { overlayOpenFromHost } from '../src/client/remote/onboarding-host.ts'
 
@@ -34,7 +34,11 @@ function wireHost(firstUseRef: { current: boolean }): Record<string, unknown> {
 }
 
 beforeEach(() => { localStorage.clear() })
-afterEach(() => { localStorage.clear() })
+
+afterEach(() => {
+  localStorage.clear()
+  vi.useRealTimers()
+})
 
 describe('onboarding overlay vs host firstUse', () => {
   it('closes overlay when host flips firstUse after refresh (no reload)', async () => {
@@ -48,5 +52,6 @@ describe('onboarding overlay vs host firstUse', () => {
     firstUseRef.current = false
     await live.refresh()
     expect(open.at(-1)).toBe(false)
-  })
+    live.dispose()
+  }, 10_000)
 })

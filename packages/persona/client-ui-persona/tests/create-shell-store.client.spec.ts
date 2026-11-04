@@ -38,6 +38,15 @@ describe('createShellStore navigation (C5b)', () => {
     expect(store.getSnapshot().boardsFocusProjectId).toBeNull()
   })
 
+  it('openKanbanTicket switches to kanban and sets focus ticket (PRO-4)', () => {
+    const { store, actions } = createShellStore()
+    actions.openKanbanTicket('ticket-42')
+    expect(store.getSnapshot().activePanel).toBe('kanban')
+    expect(store.getSnapshot().kanbanFocusTicketId).toBe('ticket-42')
+    actions.clearKanbanFocusTicket()
+    expect(store.getSnapshot().kanbanFocusTicketId).toBeNull()
+  })
+
   it('setProjectWorkspaceProjectId scopes sibling tabs (PB-5)', () => {
     const { store, actions } = createShellStore()
     actions.setProjectWorkspaceProjectId('proj-site')

@@ -10,12 +10,14 @@ export interface ErrorStateProps {
   /** Retry label; omit to hide the button. */
   readonly retryLabel?: string | undefined
   readonly onRetry?: (() => void) | undefined
-  /** Technical detail shown small and selectable (never the only text). */
+  /** Technical detail, folded behind a disclosure and selectable (never the only text; MICROCOPY.md). */
   readonly detail?: string | undefined
+  /** Disclosure label for `detail`. */
+  readonly detailLabel?: string | undefined
 }
 
 /** Honest error state: Brush "empty-error" art + human title + one retry action (never a blank panel). */
-export function ErrorState({ title, body, retryLabel, onRetry, detail }: ErrorStateProps): ReactNode {
+export function ErrorState({ title, body, retryLabel, onRetry, detail, detailLabel = 'Detalhes para o suporte' }: ErrorStateProps): ReactNode {
   return (
     <div role="alert">
       <EmptyState
@@ -24,7 +26,12 @@ export function ErrorState({ title, body, retryLabel, onRetry, detail }: ErrorSt
         body={(
           <>
             {body}
-            {detail !== undefined && <code style={{ display: 'block', marginTop: 8, fontSize: 12, opacity: 0.7, userSelect: 'text' }}>{detail}</code>}
+            {detail !== undefined && detail.length > 0 && (
+              <details style={{ marginTop: 8, fontSize: 12, color: 'var(--persona-ink-soft)' }}>
+                <summary style={{ cursor: 'pointer' }}>{detailLabel}</summary>
+                <code style={{ display: 'block', marginTop: 6, userSelect: 'text', overflowWrap: 'anywhere' }}>{detail}</code>
+              </details>
+            )}
           </>
         )}
         action={retryLabel !== undefined && onRetry !== undefined ? (

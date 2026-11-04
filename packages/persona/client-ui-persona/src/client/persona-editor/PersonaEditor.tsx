@@ -10,7 +10,7 @@ import { personaAvatarUploadHostReady } from '../chat/composer-host-capabilities
 import { usePersonaMotion } from '../theme/usePersonaMotion.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Avatar, BrandIcon, Button, Card, Chip, GestorSettings, Input, Sparkle, Tabs, Textarea, UiIcon, type ChipTone } from '../primitives/index.ts'
+import { Avatar, BrandIcon, Button, Card, Chip, GestorSettings, Input, Sparkle, Switch, Tabs, Textarea, UiIcon, type ChipTone } from '../primitives/index.ts'
 import {
   MOCK_PERSONA_DRAFT,
   type AttentionBudgetTier,
@@ -40,7 +40,7 @@ export interface RunnerOptionUi {
 
 /** Fallback catalogue until Prism wires live connections + laziness hints. */
 const DEFAULT_RUNNERS: readonly RunnerOptionUi[] = [
-  { id: 'dsh', label: 'Harness DeepSeek', speed: 'fast', connected: true, recommended: true },
+  { id: 'dsh', label: 'DeepSeek', speed: 'fast', connected: true, recommended: true },
   { id: 'oar:claude', label: 'Claude', speed: 'medium', connected: true },
   { id: 'oar:codex', label: 'Codex', speed: 'medium', connected: true },
   { id: 'oar:cursor', label: 'Cursor', speed: 'medium', connected: false },
@@ -386,16 +386,11 @@ export function PersonaEditor({
                     <span className={styles.toolName}>{t(`field.${role}`)}</span>
                     <span className={styles.toolDesc}>{t(`role.${role}.desc`)}</span>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={draft[role]}
-                    aria-label={t(`field.${role}`)}
-                    className={styles.switch}
-                    onClick={() => { patch({ [role]: !draft[role] }) }}
-                  >
-                    <span className={styles.switchKnob} />
-                  </button>
+                  <Switch
+                    checked={draft[role]}
+                    label={t(`field.${role}`)}
+                    onChange={(next) => { patch({ [role]: next }) }}
+                  />
                 </li>
               ))}
             </ul>

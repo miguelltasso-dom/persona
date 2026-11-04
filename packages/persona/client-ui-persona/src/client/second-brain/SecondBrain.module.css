@@ -249,6 +249,12 @@
   gap: var(--persona-space-2);
 }
 
+.pageRowEditor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
 .graphShell {
   display: flex;
   flex-direction: column;

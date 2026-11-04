@@ -25,7 +25,7 @@
   "proactive.action.accept": "Accept",
   "proactive.action.reject": "Reject",
   "proactive.action.edit": "Edit",
-  "proactive.editHint": "Edit opens the proposal draft before sending to the engine (preview).",
+  "proactive.editHint": "Editing opens the proposal draft so you can adjust it before the team starts.",
   "type.hire": "Hire",
   "type.vault": "Vault",
   "type.skill": "Skill",

@@ -330,3 +330,29 @@
     transform: none;
   }
 }
+
+.subjectError {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: 0 var(--persona-space-5) var(--persona-space-2);
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-wash-strong);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.subjectError p {
+  margin: 0;
+  flex: 1;
+}
+
+.subjectRetry {
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-s);
+  padding: var(--persona-space-1) var(--persona-space-3);
+  background: var(--persona-card);
+  font: 700 12px/16px var(--persona-font-text);
+  cursor: pointer;
+}

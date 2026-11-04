@@ -2,6 +2,10 @@
 
 export interface PersonaDesktopBridge {
   pickDirectory(request?: { readonly title?: string }): Promise<string | null>
+  /** `shell.openExternal` with native confirm (Configurações › Sobre credits). */
+  openExternal?(url: string): Promise<void>
+  /** Opens bundled THIRD_PARTY_NOTICES in the default editor. */
+  openThirdPartyNotices?(): Promise<void>
 }
 
 export function personaDesktopBridge(): PersonaDesktopBridge | undefined {

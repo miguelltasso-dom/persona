@@ -2,10 +2,12 @@ import type { ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { DirectMessagesView, type DmRowUi } from '../chat/DirectMessagesView.tsx'
 import { subjectDisplayName } from '../chat/SubjectBar.tsx'
+import { conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { useHostConversationSubjects } from '../chat/use-host-conversation-subjects.ts'
 import type { ChipTone } from '../primitives/index.ts'
 import { WORK_STATUS_KEY, type PersonaWorkUiState } from '../team/persona-work-state.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from './persona-live-store.ts'
+import type { ActivityGroupProps } from '../primitives/Pooled.tsx'
 
 const STATE_TONE: Readonly<Record<PersonaWorkUiState, ChipTone>> = { working: 'success', waiting: 'accent', stuck: 'danger', resting: 'neutral' }
 
@@ -18,6 +20,7 @@ export interface ConnectedDmInjected {
   loadTurnContext(ticketId: string): void
   toggleMessageReaction(streamKind: 'channel' | 'dm', eventId: string, stickerId: string): void
   startNewConversation(): void
+  readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
 }
 
 export type ConnectedDirectMessagesViewProps =
@@ -36,11 +39,12 @@ export function ConnectedDirectMessagesView({
   loadTurnContext,
   toggleMessageReaction,
   startNewConversation,
+  turnActivityLabels,
 }: ConnectedDirectMessagesViewProps): ReactNode {
   const live = useLive(state => state)
   const dmId = live.selectedDmId
-  const scope = dmId === null ? null : liveStore.conversationScope('dm', dmId)
-  const subjectState = useHostConversationSubjects(liveStore, scope, live.dmMessages)
+  const subjectStreamKey = dmId === null ? null : conversationStreamKey('dm', dmId)
+  const subjectState = useHostConversationSubjects(liveStore, subjectStreamKey, live.dmMessages)
   const peerName = live.dms.find(row => row.id === dmId)?.peerName ?? ''
   const rows: DmRowUi[] = live.dms.map((row) => {
     const member = live.stripMembers.find(m => m.name === row.peerName)
@@ -75,6 +79,7 @@ export function ConnectedDirectMessagesView({
         archived: subjectState.archived,
         onReopen: subjectState.reopenSubject,
         editingSubjectId: subjectState.editingSubjectId,
+        panelId: 'persona-dm-subject-panel',
       }}
       composerSubjectPlaceholder={dmId === null ? undefined : chatT('composer.placeholderInSubjectFor', {
         subject: subjectDisplayName(chatT, subjectState.activeSubject),
@@ -83,11 +88,14 @@ export function ConnectedDirectMessagesView({
       composerSubjectColorIndex={dmId === null ? undefined : subjectState.activeSubject.colorIndex}
       subjectMoveTargets={dmId === null ? undefined : [...subjectState.subjects]}
       onMoveMessageSubject={dmId === null ? undefined : subjectState.moveMessageToSubject}
+      subjectsLoadError={subjectState.subjectsError}
+      onRetrySubjects={subjectState.retrySubjects}
       onSelect={(id) => { selectDm(id) }}
       onSend={(body, attachmentIds) => { postDmMessage(body, attachmentIds) }}
       uploadAttachment={file => uploadDmAttachment(file)}
       onNewConversation={() => { startNewConversation() }}
       turnContext={live.turnContext}
+      turnActivityLabels={turnActivityLabels}
       onLoadTurnContext={loadTurnContext}
       {...(live.tenant === null ? {} : { memberId: live.tenant.memberId })}
       onToggleReaction={(messageId, stickerId) => {

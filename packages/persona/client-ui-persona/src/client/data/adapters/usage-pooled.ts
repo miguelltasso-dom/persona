@@ -45,13 +45,21 @@ function formatRefillAt(iso: string | undefined): string | undefined {
 function refillSortKey(views: readonly OfficialQuotaView[], accountId: string): number {
   const view = views.find(row => (row.accountId ?? 'default') === accountId)
   if (view === undefined) return Number.POSITIVE_INFINITY
+  if (view.nextRefillAt !== undefined) {
+    const labeled = Date.parse(view.nextRefillAt)
+    if (!Number.isNaN(labeled)) return labeled
+  }
   let min = Number.POSITIVE_INFINITY
   for (const window of view.windows) {
     if (window.resetsAt === undefined) continue
     const t = new Date(window.resetsAt).getTime()
     if (!Number.isNaN(t)) min = Math.min(min, t)
   }
-  return min
+  if (min !== Number.POSITIVE_INFINITY) return min
+  const last = view.refillHistory?.[view.refillHistory.length - 1]
+  if (last === undefined) return Number.POSITIVE_INFINITY
+  const historic = Date.parse(last.resetsAt)
+  return Number.isNaN(historic) ? Number.POSITIVE_INFINITY : historic
 }
 
 function pickWindow(windows: readonly UsageWindowView[], kind: 'fiveHour' | 'week'): UsageWindowView | undefined {

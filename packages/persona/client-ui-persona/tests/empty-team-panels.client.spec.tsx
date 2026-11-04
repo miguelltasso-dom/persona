@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
 import { createLiveTenantObservable } from '../src/client/data/live-tenant-bridge.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from '../src/client/remote/persona-live-store.ts'
-import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub } from './persona-live-fixtures.client.ts'
+import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub, personaLiveStoreLifecycleStub } from './persona-live-fixtures.client.ts'
 import { personaLiveStoreWave2Stub } from './persona-live-store-stub.client.ts'
 import { ConnectedTeamHealthPanel } from '../src/client/remote/ConnectedTeamHealthPanel.tsx'
 import { ConnectedOrgChartPanel } from '../src/client/remote/ConnectedOrgChartPanel.tsx'
@@ -49,6 +49,7 @@ function harness(initial: PersonaLiveSnapshot) {
     observable: snapStore,
     ...personaLiveStoreWave2Stub,
     ...personaLiveStoreGestorStub,
+    ...personaLiveStoreLifecycleStub,
     bootstrap: async () => {},
     runDevHarnessSeedIfEnabled: async () => {},
     refresh: async () => {},

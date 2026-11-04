@@ -27,7 +27,7 @@ const NINA: PersonaCardInfo = {
 describe('PersonaInfoCard', () => {
   it('never shows a raw engine id, even when a mapper forgets to humanize it', () => {
     render(<PersonaInfoCard info={{ ...NINA, engineLabel: 'dsh · default' }} />)
-    expect(screen.getByText('Harness DeepSeek · modelo padrão')).toBeTruthy()
+    expect(screen.getByText('DeepSeek · modelo padrão')).toBeTruthy()
     expect(screen.queryByText(/dsh · default/u)).toBeNull()
   })
   it('shows identity, the human "agora" line, governance and the official quota', () => {
@@ -36,7 +36,7 @@ describe('PersonaInfoCard', () => {
     expect(screen.getByText('@nina · Pesquisa · Produto')).toBeTruthy()
     expect(screen.getByText('Coordena o time')).toBeTruthy()
     expect(screen.getByText('Esperando o plano do Claude renovar')).toBeTruthy()
-    expect(screen.getByText('Todos do workspace')).toBeTruthy()
+    expect(screen.getByText('Toda a equipe')).toBeTruthy()
     expect(screen.getByText('Ana')).toBeTruthy()
     expect(screen.getByText('Ninguém definido')).toBeTruthy()
     expect(screen.getByRole('meter', { name: '5h' }).getAttribute('aria-valuenow')).toBe('100')

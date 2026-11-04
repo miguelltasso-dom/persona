@@ -21,7 +21,7 @@ export const pt = {
   'empty.action': 'Registrar memória',
   'empty.illustration': 'Ilustração: memórias vazias',
   'loading': 'Carregando memórias…',
-  'error.title': 'Não foi possível carregar memórias',
+  'error.title': 'Não consegui carregar as memórias agora',
   'error.retry': 'Tentar de novo',
 } as const
 
@@ -43,7 +43,7 @@ export const en = {
   'empty.action': 'Record memory',
   'empty.illustration': 'Illustration: empty memories',
   'loading': 'Loading memories…',
-  'error.title': 'Could not load memories',
+  'error.title': 'I couldn\'t load the memories right now',
   'error.retry': 'Try again',
 } as const
 
@@ -64,7 +64,7 @@ export const zh = {
   'empty.action': 'Record memory',
   'empty.illustration': 'Illustration: empty memories',
   'loading': 'Loading memories…',
-  'error.title': 'Could not load memories',
+  'error.title': 'I couldn\'t load the memories right now',
   'error.retry': 'Try again',
 } as const
 export const ja = {
@@ -84,7 +84,7 @@ export const ja = {
   'empty.action': 'Record memory',
   'empty.illustration': 'Illustration: empty memories',
   'loading': 'Loading memories…',
-  'error.title': 'Could not load memories',
+  'error.title': 'I couldn\'t load the memories right now',
   'error.retry': 'Try again',
 } as const
 export const es = {
@@ -104,7 +104,7 @@ export const es = {
   'empty.action': 'Record memory',
   'empty.illustration': 'Illustration: empty memories',
   'loading': 'Loading memories…',
-  'error.title': 'Could not load memories',
+  'error.title': 'I couldn\'t load the memories right now',
   'error.retry': 'Try again',
 } as const
 export const fr = {
@@ -124,7 +124,7 @@ export const fr = {
   'empty.action': 'Record memory',
   'empty.illustration': 'Illustration: empty memories',
   'loading': 'Loading memories…',
-  'error.title': 'Could not load memories',
+  'error.title': 'I couldn\'t load the memories right now',
   'error.retry': 'Try again',
 } as const
 export const de = {
@@ -144,7 +144,7 @@ export const de = {
   'empty.action': 'Record memory',
   'empty.illustration': 'Illustration: empty memories',
   'loading': 'Loading memories…',
-  'error.title': 'Could not load memories',
+  'error.title': 'I couldn\'t load the memories right now',
   'error.retry': 'Try again',
 } as const
 export const ru = {
@@ -164,7 +164,7 @@ export const ru = {
   'empty.action': 'Record memory',
   'empty.illustration': 'Illustration: empty memories',
   'loading': 'Loading memories…',
-  'error.title': 'Could not load memories',
+  'error.title': 'I couldn\'t load the memories right now',
   'error.retry': 'Try again',
 } as const
 

@@ -15,6 +15,6 @@
   "empty.action": "Explorar catálogo",
   "empty.illustration": "Ilustração: skills vazias",
   "loading": "Carregando skills…",
-  "error.title": "Não foi possível carregar skills",
+  "error.title": "Não consegui carregar as skills agora",
   "error.retry": "Tentar de novo"
 }

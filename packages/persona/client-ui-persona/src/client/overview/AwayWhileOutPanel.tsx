@@ -9,10 +9,11 @@ const SESSION_KEY = 'persona.proactivity.awaySummary.dismissed'
 
 export interface AwayWhileOutPanelProps extends PropsLocale<'persona.shell'> {
   readonly events: readonly AwaySummaryEvent[]
+  readonly onOpenTask?: ((taskId: string) => void) | undefined
 }
 
 /** Peak-end summary when the app opens (PROACTIVITY §7): a timeline of deliveries, dismissible per session. */
-export function AwayWhileOutPanel({ t, events }: AwayWhileOutPanelProps): ReactNode {
+export function AwayWhileOutPanel({ t, events, onOpenTask }: AwayWhileOutPanelProps): ReactNode {
   const [visible, setVisible] = useState(() => {
     if (events.length === 0) return false
     try {
@@ -56,7 +57,19 @@ export function AwayWhileOutPanel({ t, events }: AwayWhileOutPanelProps): ReactN
               <li key={event.id} className={styles.item} style={{ animationDelay: `${index * 80}ms` }}>
                 <span className={styles.dot} aria-hidden="true" />
                 <p className={styles.body}>{event.body ?? (event.bodyKey !== undefined ? t(event.bodyKey) : '')}</p>
-                <Button size="s" variant="secondary" iconEnd={<UiIcon name="arrowRight" size={16} strokeWidth={2.2} />}>
+                <Button
+                  size="s"
+                  variant="secondary"
+                  iconEnd={<UiIcon name="arrowRight" size={16} strokeWidth={2.2} />}
+                  {...(event.taskId === undefined || onOpenTask === undefined
+                    ? {}
+                    : {
+                      onClick: () => { onOpenTask(event.taskId as string) },
+                      'aria-label': t('overview.awayOpenTask', {
+                        task: event.taskLabel ?? event.taskId,
+                      }),
+                    })}
+                >
                   {event.taskLabel ?? (event.taskLabelKey !== undefined ? t(event.taskLabelKey) : t('overview.awayDismiss'))}
                 </Button>
               </li>

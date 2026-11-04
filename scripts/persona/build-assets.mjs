@@ -97,7 +97,8 @@ function copyTree(relDir, filter) {
   const absDir = join(SRC, relDir)
   for (const entry of readdirSync(absDir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      if (entry.name === 'concepts') continue
+      // concepts = Brush drafts; launch = README/repo marketing art (never shipped in the app bundle).
+      if (entry.name === 'concepts' || entry.name === 'launch') continue
       copyTree(join(relDir, entry.name), filter)
       continue
     }
@@ -134,6 +135,7 @@ async function main() {
   // Muse (W2-8): Brush engine seals (own shapes, no vendor logos), full-color SVG.
   if (existsSync(join(SRC, 'icons/engines'))) copyTree('icons/engines', name => name.endsWith('.svg'))
   if (existsSync(join(SRC, 'icons/sectors'))) copyTree('icons/sectors', name => name.endsWith('.svg'))
+  if (existsSync(join(SRC, 'icons/columns'))) copyTree('icons/columns', name => name.endsWith('.svg'))
 
   for (const rel of [
     'brand/banner-team-light.webp',
@@ -180,6 +182,9 @@ async function main() {
     )),
     // Muse (BRIEFING 19): Segundo cérebro home / empty state.
     { from: 'illustrations/bibliotecario.png', to: 'illustrations/bibliotecario.webp', width: 480, quality: 86 },
+    // Muse (kit de lançamento): "Sobre o Persona" team photo (Brush, brand/launch).
+    { from: 'brand/launch/about-team.png', to: 'illustrations/about-team.webp', width: 960, quality: 86 },
+    { from: 'brand/launch/release-notes-badge.png', to: 'illustrations/release-notes-badge.webp', width: 256, quality: 86 },
     ...['equipe-saudavel', 'ponto-unico-falha', 'voce-de-ferias'].map(name => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 600, quality: 86 }
     )),
@@ -342,6 +347,15 @@ async function main() {
     imports.push(`import sectoricon_${varName} from './${rel}'`)
     sectorEntries.push(`  '${id}': sectoricon_${varName},`)
   }
+  const columnFiles = manifest.filter(f => f.rel.startsWith('icons/columns/') && f.rel.endsWith('.svg'))
+  /** @type {string[]} */
+  const columnEntries = []
+  for (const { rel } of columnFiles) {
+    const id = basename(rel, '.svg')
+    const varName = id.replace(/-/gu, '_')
+    imports.push(`import columnicon_${varName} from './${rel}'`)
+    columnEntries.push(`  '${id}': columnicon_${varName},`)
+  }
   const accentFiles = manifest.filter(f => f.rel.startsWith('accents/') && f.rel.endsWith('.svg'))
   /** @type {string[]} */
   const accentEntries = []
@@ -410,6 +424,11 @@ async function main() {
     '/** Brush sector icons, currentColor SVG (Muse, GOVERNANCE-SPEC). */',
     'export const SECTOR_ICONS: Readonly<Record<string, string>> = {',
     ...sectorEntries,
+    '}',
+    '',
+    '/** Brush stage-column icons, currentColor SVG (Muse, BOARDS-SPEC §0). */',
+    'export const COLUMN_ICONS: Readonly<Record<string, string>> = {',
+    ...columnEntries,
     '}',
     '',
     '/** Brush hand-drawn accents, currentColor SVG (Muse, DESIGN-SYSTEM §5). */',

@@ -46,6 +46,8 @@ const LIVE: PersonaLiveSnapshot = {
   turnContext: null,
   error: null,
   gestorPlansById: {},
+  gestorPlanAdjustingIds: {},
+  channelComposerHints: { responderAutonomy: 'propose', quotaBlocked: false },
   arrivingHostPersonaIds: [],
 }
 
@@ -72,6 +74,8 @@ describe('ConnectedGeneralChannelView (C5b)', () => {
       setPersonaAutonomyLevel: async () => {},
       approveGestorPlan: async () => {},
       rejectGestorPlan: async () => {},
+      feedbackGestorPlan: async () => {},
+      dispose: () => {},
     }
     const loadTurnContext = vi.fn()
     render(

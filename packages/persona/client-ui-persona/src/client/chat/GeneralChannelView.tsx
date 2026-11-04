@@ -16,6 +16,8 @@ import {
   stickerUrl,
   Toast,
   ToastRegion,
+  ActivityGroup,
+  type ActivityGroupProps,
   type ReactionId,
 } from '../primitives/index.ts'
 import type { ConversationSubjectUi } from './conversation-subjects.ts'
@@ -31,12 +33,14 @@ import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
 import { ReactionAdder, reactionIdFromEmoji } from './ReactionAdder.tsx'
 import { TurnContextDrawer } from './TurnContextDrawer.tsx'
 import type { GestorPlanView } from '@deepseek-ai/dsh-persona-host/types'
+import { GestorPlanAdjustModal } from './GestorPlanAdjustModal.tsx'
 import { GestorPlanMessageCard } from './GestorPlanMessageCard.tsx'
+import { resolveGestorPlanForMessage } from './resolve-gestor-plan-display.ts'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
 import { resolveHostPersonaId } from '../remote/map-host-ui.ts'
 import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge.ts'
 import type { TeamView } from '../remote/persona-remote-types.ts'
-import type { TurnContextUi } from '../remote/turn-context-ui.ts'
+import type { TurnContextActivityFoldUi, TurnContextUi } from '../remote/turn-context-ui.ts'
 import { PersonaCardPopoverHost, usePersonaCardController } from '../profile/PersonaCardPopoverHost.tsx'
 import styles from './GeneralChannelView.module.css'
 
@@ -46,6 +50,7 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly messages: readonly ChannelMessageUi[]
   readonly passThroughFollowers?: readonly { readonly name: string }[]
   readonly turnContext?: TurnContextUi | null
+  readonly turnActivityLabels?: import('../primitives/Pooled.tsx').ActivityGroupProps['labels'] | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
   readonly onSendMessage?: ((body: string, attachmentIds?: readonly string[]) => void) | undefined
   readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
@@ -58,6 +63,8 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly onToggleReaction?: ((messageId: string, stickerId: ReactionId) => void) | undefined
   /** WAVE2 assuntos (Prism data; Muse styles SubjectBar). */
   readonly subjectBar?: Omit<SubjectBarProps, 't'> | undefined
+  readonly subjectsLoadError?: import('../remote/persona-remote-unwrap.ts').PersonaRemoteError | null | undefined
+  readonly onRetrySubjects?: (() => void) | undefined
   readonly composerSubjectPlaceholder?: string | undefined
   readonly composerSubjectColorIndex?: import('./conversation-subjects.ts').SubjectColorIndex | undefined
   readonly subjectMoveTargets?: readonly ConversationSubjectUi[] | undefined
@@ -66,12 +73,15 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly gestorPlansById?: Readonly<Record<string, GestorPlanView>>
   readonly onApproveGestorPlan?: ((planId: string) => void) | undefined
   readonly onRejectGestorPlan?: ((planId: string) => void) | undefined
+  readonly onFeedbackGestorPlan?: ((planId: string, comment: string) => void) | undefined
+  readonly gestorPlanAdjustingIds?: Readonly<Record<string, true>> | undefined
   readonly conversationKey?: string | undefined
   readonly onSlashCommand?: ((command: ComposerSlashCommand, arg: string) => void) | undefined
   readonly quotaBlocked?: boolean | undefined
   readonly quotaResumeLabel?: string | undefined
   readonly onResumeQuota?: (() => void) | undefined
   readonly onSwapAccount?: (() => void) | undefined
+  readonly responderAutonomy?: import('../persona-editor/persona-draft.ts').AutonomyLevel | undefined
 }
 
 function isReactionId(id: string): id is ReactionId {
@@ -101,6 +111,7 @@ export function GeneralChannelView({
   messages,
   passThroughFollowers = [],
   turnContext,
+  turnActivityLabels,
   onLoadTurnContext,
   onSendMessage,
   onBuildTeam,
@@ -111,6 +122,8 @@ export function GeneralChannelView({
   memberId,
   onToggleReaction,
   subjectBar,
+  subjectsLoadError = null,
+  onRetrySubjects,
   composerSubjectPlaceholder,
   composerSubjectColorIndex,
   subjectMoveTargets,
@@ -119,15 +132,19 @@ export function GeneralChannelView({
   gestorPlansById = {},
   onApproveGestorPlan,
   onRejectGestorPlan,
+  onFeedbackGestorPlan,
+  gestorPlanAdjustingIds = {},
   conversationKey = 'channel:geral',
   onSlashCommand,
   quotaBlocked,
   quotaResumeLabel,
   onResumeQuota,
   onSwapAccount,
+  responderAutonomy,
 }: GeneralChannelViewProps): ReactNode {
   const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string } | null>(null)
   const [pendingQuote, setPendingQuote] = useState<MessageQuote | null>(null)
+  const [adjustTarget, setAdjustTarget] = useState<{ readonly planId: string; readonly gestorName: string } | null>(null)
   const streamRef = useRef<HTMLDivElement>(null)
   const card = usePersonaCardController()
   const cardData = card.personaId === null || personaCard === undefined
@@ -164,6 +181,7 @@ export function GeneralChannelView({
     ...(quotaResumeLabel === undefined ? {} : { quotaResumeLabel }),
     ...(onResumeQuota === undefined ? {} : { onResumeQuota }),
     ...(onSwapAccount === undefined ? {} : { onSwapAccount }),
+    ...(responderAutonomy === undefined ? {} : { responderAutonomy }),
   }
   const userName = messages.find(message => message.authorId === 'user')?.authorName ?? t('message.you')
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -200,6 +218,16 @@ export function GeneralChannelView({
 
       {subjectBar !== undefined && (
         <div className={styles.subjectRow}>
+          {subjectsLoadError !== null && subjectsLoadError !== undefined && (
+            <div className={styles.subjectError} role="status">
+              <p>{subjectsLoadError.message}</p>
+              {onRetrySubjects !== undefined && (
+                <button type="button" className={styles.subjectRetry} onClick={() => { onRetrySubjects() }}>
+                  {t('subjects.retry')}
+                </button>
+              )}
+            </div>
+          )}
           <SubjectBar t={t} {...subjectBar} />
         </div>
       )}
@@ -222,6 +250,8 @@ export function GeneralChannelView({
           <div
             ref={streamRef}
             className={styles.stream}
+            data-persona-channel-stream=""
+            {...(messages.length === 0 ? { 'data-empty': '' } : {})}
             {...(subjectBar?.panelId === undefined ? { role: 'log' as const } : { id: subjectBar.panelId, role: 'tabpanel' as const })}
             aria-label={t('header.channelGeneral')}
             aria-live="polite"
@@ -244,9 +274,19 @@ export function GeneralChannelView({
                 team={team}
                 messages={messages}
                 gestorPlansById={gestorPlansById}
+                gestorPlanAdjustingIds={gestorPlanAdjustingIds}
                 onLoadTurnContext={onLoadTurnContext}
                 {...(onApproveGestorPlan === undefined ? {} : { onApproveGestorPlan })}
                 {...(onRejectGestorPlan === undefined ? {} : { onRejectGestorPlan })}
+                {...(onFeedbackGestorPlan === undefined ? {} : {
+                  onRequestGestorPlanAdjust: (planId: string) => {
+                    const plan = gestorPlansById[planId]
+                    const gestorName = plan === undefined
+                      ? planId
+                      : (team?.personas.find(row => row.id === plan.gestorId)?.name ?? plan.gestorId)
+                    setAdjustTarget({ planId, gestorName })
+                  },
+                })}
                 {...(personaCardTrigger === undefined ? {} : { personaCardTrigger })}
                 {...(memberId === undefined ? {} : { memberId })}
                 {...(onToggleReaction === undefined ? {} : { onToggleReaction })}
@@ -260,13 +300,16 @@ export function GeneralChannelView({
                     setMoveToast({ messageId, subjectLabel })
                   },
                 })}
+                {...(turnContext?.ticketId === undefined ? {} : { turnActivityTicketId: turnContext.ticketId })}
+                {...(turnContext?.activityFolds === undefined ? {} : { turnActivityFolds: turnContext.activityFolds })}
+                {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
               />
             )}
           </div>
         </div>
       </div>
 
-      <TurnContextDrawer t={t} context={turnContext} />
+      <TurnContextDrawer t={t} context={turnContext} activityLabels={turnActivityLabels} />
 
       <div className={styles.composerDock}>
         <div className={styles.column}>
@@ -295,6 +338,16 @@ export function GeneralChannelView({
           />
         </ToastRegion>
       )}
+      <GestorPlanAdjustModal
+        t={t}
+        open={adjustTarget !== null}
+        gestorName={adjustTarget?.gestorName ?? ''}
+        onClose={() => { setAdjustTarget(null) }}
+        onSubmit={(comment) => {
+          if (adjustTarget === null || onFeedbackGestorPlan === undefined) return
+          onFeedbackGestorPlan(adjustTarget.planId, comment)
+        }}
+      />
       {personaCard !== undefined && openPersonaProfile !== undefined && (
         <PersonaCardPopoverHost
           card={card}
@@ -308,13 +361,15 @@ export function GeneralChannelView({
 }
 
 /** Grouped message stream with day pill (shared by #geral and DMs). */
-export function MessageList({ t, team = null, messages, gestorPlansById = {}, onApproveGestorPlan, onRejectGestorPlan, onLoadTurnContext, personaCardTrigger, memberId, onToggleReaction, userStickerAnimal, subjectMoveTargets, onMoveMessageSubject }: {
+export function MessageList({ t, team = null, messages, gestorPlansById = {}, gestorPlanAdjustingIds = {}, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, onLoadTurnContext, personaCardTrigger, memberId, onToggleReaction, userStickerAnimal, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels }: {
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly team?: TeamView | null
   readonly messages: readonly ChannelMessageUi[]
   readonly gestorPlansById?: Readonly<Record<string, GestorPlanView>>
+  readonly gestorPlanAdjustingIds?: Readonly<Record<string, true>>
   readonly onApproveGestorPlan?: ((planId: string) => void) | undefined
   readonly onRejectGestorPlan?: ((planId: string) => void) | undefined
+  readonly onRequestGestorPlanAdjust?: ((planId: string) => void) | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
   readonly personaCardTrigger?: ((ref: string) => Record<string, unknown>) | undefined
   readonly memberId?: string | undefined
@@ -326,6 +381,10 @@ export function MessageList({ t, team = null, messages, gestorPlansById = {}, on
   readonly userStickerAnimal?: string | undefined
   readonly subjectMoveTargets?: readonly ConversationSubjectUi[] | undefined
   readonly onMoveMessageSubject?: ((messageId: string, subjectId: string) => void) | undefined
+  /** T3 §9 — inline activity on the message row that cites this ticket (when turn context is loaded). */
+  readonly turnActivityTicketId?: string | undefined
+  readonly turnActivityFolds?: readonly TurnContextActivityFoldUi[] | undefined
+  readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
 }): ReactNode {
   return (
     <>
@@ -338,17 +397,22 @@ export function MessageList({ t, team = null, messages, gestorPlansById = {}, on
             team={team}
             message={message}
             gestorPlansById={gestorPlansById}
+            gestorPlanAdjustingIds={gestorPlanAdjustingIds}
             index={index}
             continued={index > 0 && messages[index - 1]?.authorId === message.authorId}
             onLoadTurnContext={onLoadTurnContext}
             {...(onApproveGestorPlan === undefined ? {} : { onApproveGestorPlan })}
             {...(onRejectGestorPlan === undefined ? {} : { onRejectGestorPlan })}
+            {...(onRequestGestorPlanAdjust === undefined ? {} : { onRequestGestorPlanAdjust })}
             {...(personaCardTrigger === undefined ? {} : { personaCardTrigger })}
             {...(memberId === undefined ? {} : { memberId })}
             {...(onToggleReaction === undefined ? {} : { onToggleReaction })}
             {...(userStickerAnimal === undefined ? {} : { userStickerAnimal })}
             {...(subjectMoveTargets === undefined ? {} : { subjectMoveTargets })}
             {...(onMoveMessageSubject === undefined ? {} : { onMoveMessageSubject })}
+            {...(turnActivityTicketId === undefined ? {} : { turnActivityTicketId })}
+            {...(turnActivityFolds === undefined ? {} : { turnActivityFolds })}
+            {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
           />
         ))}
       </ol>
@@ -361,10 +425,12 @@ function ChannelMessageRow(props: {
   readonly team: TeamView | null
   readonly message: ChannelMessageUi
   readonly gestorPlansById: Readonly<Record<string, GestorPlanView>>
+  readonly gestorPlanAdjustingIds: Readonly<Record<string, true>>
   readonly index: number
   readonly continued: boolean
   readonly onApproveGestorPlan?: ((planId: string) => void) | undefined
   readonly onRejectGestorPlan?: ((planId: string) => void) | undefined
+  readonly onRequestGestorPlanAdjust?: ((planId: string) => void) | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
   readonly personaCardTrigger?: ((ref: string) => Record<string, unknown>) | undefined
   readonly memberId?: string | undefined
@@ -372,9 +438,18 @@ function ChannelMessageRow(props: {
   readonly userStickerAnimal?: string | undefined
   readonly subjectMoveTargets?: readonly ConversationSubjectUi[] | undefined
   readonly onMoveMessageSubject?: ((messageId: string, subjectId: string) => void) | undefined
+  readonly turnActivityTicketId?: string | undefined
+  readonly turnActivityFolds?: readonly TurnContextActivityFoldUi[] | undefined
+  readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
 }): ReactNode {
-  const { t, message, team, gestorPlansById, continued, onLoadTurnContext, onApproveGestorPlan, onRejectGestorPlan, memberId, onToggleReaction, subjectMoveTargets, onMoveMessageSubject } = props
-  const gestorPlan = message.gestorPlanId === undefined ? undefined : gestorPlansById[message.gestorPlanId]
+  const { t, message, team, gestorPlansById, gestorPlanAdjustingIds, continued, onLoadTurnContext, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, memberId, onToggleReaction, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels } = props
+  const inlineActivity = message.ticketId !== undefined
+    && turnActivityTicketId === message.ticketId
+    && turnActivityFolds !== undefined
+    && turnActivityFolds.length > 0
+    && turnActivityLabels !== undefined
+  const gestorPlanRaw = message.gestorPlanId === undefined ? undefined : gestorPlansById[message.gestorPlanId]
+  const gestorPlan = resolveGestorPlanForMessage(gestorPlanRaw, gestorPlansById, gestorPlanAdjustingIds)
   const motion = usePersonaMotion({
     preset: 'base',
     fromOpacity: 0,
@@ -460,12 +535,15 @@ function ChannelMessageRow(props: {
               t={t}
               plan={gestorPlan}
               team={team}
-              {...(onApproveGestorPlan === undefined || gestorPlan.status !== 'proposed'
+              {...(onApproveGestorPlan === undefined || gestorPlanRaw === undefined || gestorPlanRaw.status !== 'proposed'
                 ? {}
-                : { onApprove: () => { onApproveGestorPlan(gestorPlan.id) } })}
+                : { onApprove: () => { onApproveGestorPlan(gestorPlanRaw.id) } })}
               {...(onRejectGestorPlan === undefined || gestorPlan.status !== 'proposed'
                 ? {}
-                : { onDecline: () => { onRejectGestorPlan(gestorPlan.id) } })}
+                : { onDecline: () => { onRejectGestorPlan(gestorPlanRaw!.id) } })}
+              {...(onRequestGestorPlanAdjust === undefined || gestorPlanRaw === undefined || gestorPlanRaw.status !== 'proposed'
+                ? {}
+                : { onAdjust: () => { onRequestGestorPlanAdjust(gestorPlanRaw.id) } })}
             />
           </div>
         )}
@@ -484,6 +562,18 @@ function ChannelMessageRow(props: {
               <span>{message.taskTitle}</span>
             )}
           </p>
+        )}
+        {inlineActivity && (
+          <div className={styles.messageActivity} aria-label={t('context.activityLabel')}>
+            {turnActivityFolds.map(fold => (
+              <ActivityGroup
+                key={fold.persona.name}
+                persona={fold.persona}
+                items={fold.items}
+                labels={turnActivityLabels}
+              />
+            ))}
+          </div>
         )}
         {hasReactions && (
           <ul className={styles.reactions} aria-label={t('reaction.listLabel')}>

@@ -2,8 +2,10 @@ import type { ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { GeneralChannelView } from '../chat/GeneralChannelView.tsx'
 import { subjectDisplayName } from '../chat/SubjectBar.tsx'
+import { conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { useHostConversationSubjects } from '../chat/use-host-conversation-subjects.ts'
 import type { TurnContextUi } from './turn-context-ui.ts'
+import type { ActivityGroupProps } from '../primitives/Pooled.tsx'
 import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from './persona-live-store.ts'
 
@@ -14,6 +16,9 @@ export interface ConnectedChannelInjected {
   uploadChannelAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   loadTurnContext(ticketId: string): void
   toggleMessageReaction(streamKind: 'channel' | 'dm', eventId: string, stickerId: string): void
+  /** T3 §12 — open Conexões to swap account at quota limit. */
+  onOpenConnections?: (() => void) | undefined
+  readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
 }
 
 export type ConnectedGeneralChannelViewProps =
@@ -38,11 +43,14 @@ export function ConnectedGeneralChannelView({
   onBuildTeam,
   personaCard,
   openPersonaProfile,
+  onOpenConnections,
+  turnActivityLabels,
 }: ConnectedGeneralChannelViewProps): ReactNode {
   const live = useLive(state => state)
+  const composerHints = live.channelComposerHints
   const ownerId = live.tenant?.channelId ?? null
-  const scope = ownerId === null ? null : liveStore.conversationScope('channel', ownerId)
-  const subjects = useHostConversationSubjects(liveStore, scope, live.messages)
+  const subjectStreamKey = ownerId === null ? null : conversationStreamKey('channel', ownerId)
+  const subjects = useHostConversationSubjects(liveStore, subjectStreamKey, live.messages)
   return (
     <GeneralChannelView
       t={t}
@@ -62,6 +70,8 @@ export function ConnectedGeneralChannelView({
         editingSubjectId: subjects.editingSubjectId,
         panelId: 'persona-channel-subject-panel',
       }}
+      subjectsLoadError={subjects.subjectsError}
+      onRetrySubjects={subjects.retrySubjects}
       composerSubjectPlaceholder={t('composer.placeholderInSubject', {
         subject: subjectDisplayName(t, subjects.activeSubject),
       })}
@@ -72,6 +82,7 @@ export function ConnectedGeneralChannelView({
       {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
       passThroughFollowers={live.passThroughFollowers}
       turnContext={live.turnContext}
+      turnActivityLabels={turnActivityLabels}
       onLoadTurnContext={loadTurnContext}
       onBuildTeam={onBuildTeam}
       onSendMessage={(body, attachmentIds) => { void postChannelMessage(body, attachmentIds) }}
@@ -81,8 +92,19 @@ export function ConnectedGeneralChannelView({
         toggleMessageReaction('channel', messageId, stickerId)
       }}
       gestorPlansById={live.gestorPlansById}
+      gestorPlanAdjustingIds={live.gestorPlanAdjustingIds}
       onApproveGestorPlan={(planId) => { void liveStore.approveGestorPlan(planId) }}
       onRejectGestorPlan={(planId) => { void liveStore.rejectGestorPlan(planId) }}
+      onFeedbackGestorPlan={(planId, comment) => {
+        void liveStore.feedbackGestorPlan(planId, t('gestorPlan.adjustFeedbackBody', { comment }))
+      }}
+      quotaBlocked={composerHints.quotaBlocked}
+      {...(composerHints.quotaResumeLabel === undefined
+        ? {}
+        : { quotaResumeLabel: composerHints.quotaResumeLabel })}
+      responderAutonomy={composerHints.responderAutonomy}
+      onResumeQuota={() => { void liveStore.refresh() }}
+      {...(onOpenConnections === undefined ? {} : { onSwapAccount: onOpenConnections })}
       conversationKey={ownerId === null ? 'channel:geral' : `channel:${ownerId}`}
     />
   )

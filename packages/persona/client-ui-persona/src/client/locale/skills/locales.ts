@@ -21,7 +21,7 @@ export const pt = {
   'empty.action': 'Explorar catálogo',
   'empty.illustration': 'Ilustração: skills vazias',
   'loading': 'Carregando skills…',
-  'error.title': 'Não foi possível carregar skills',
+  'error.title': 'Não consegui carregar as skills agora',
   'error.retry': 'Tentar de novo',
 } as const
 
@@ -43,7 +43,7 @@ export const en = {
   'empty.action': 'Browse catalog',
   'empty.illustration': 'Illustration: empty skills',
   'loading': 'Loading skills…',
-  'error.title': 'Could not load skills',
+  'error.title': 'I couldn\'t load the skills right now',
   'error.retry': 'Try again',
 } as const
 
@@ -64,7 +64,7 @@ export const zh = {
   'empty.action': 'Browse catalog',
   'empty.illustration': 'Illustration: empty skills',
   'loading': 'Loading skills…',
-  'error.title': 'Could not load skills',
+  'error.title': 'I couldn\'t load the skills right now',
   'error.retry': 'Try again',
 } as const
 export const ja = {
@@ -84,7 +84,7 @@ export const ja = {
   'empty.action': 'Browse catalog',
   'empty.illustration': 'Illustration: empty skills',
   'loading': 'Loading skills…',
-  'error.title': 'Could not load skills',
+  'error.title': 'I couldn\'t load the skills right now',
   'error.retry': 'Try again',
 } as const
 export const es = {
@@ -104,7 +104,7 @@ export const es = {
   'empty.action': 'Browse catalog',
   'empty.illustration': 'Illustration: empty skills',
   'loading': 'Loading skills…',
-  'error.title': 'Could not load skills',
+  'error.title': 'I couldn\'t load the skills right now',
   'error.retry': 'Try again',
 } as const
 export const fr = {
@@ -124,7 +124,7 @@ export const fr = {
   'empty.action': 'Browse catalog',
   'empty.illustration': 'Illustration: empty skills',
   'loading': 'Loading skills…',
-  'error.title': 'Could not load skills',
+  'error.title': 'I couldn\'t load the skills right now',
   'error.retry': 'Try again',
 } as const
 export const de = {
@@ -144,7 +144,7 @@ export const de = {
   'empty.action': 'Browse catalog',
   'empty.illustration': 'Illustration: empty skills',
   'loading': 'Loading skills…',
-  'error.title': 'Could not load skills',
+  'error.title': 'I couldn\'t load the skills right now',
   'error.retry': 'Try again',
 } as const
 export const ru = {
@@ -164,7 +164,7 @@ export const ru = {
   'empty.action': 'Browse catalog',
   'empty.illustration': 'Illustration: empty skills',
   'loading': 'Loading skills…',
-  'error.title': 'Could not load skills',
+  'error.title': 'I couldn\'t load the skills right now',
   'error.retry': 'Try again',
 } as const
 

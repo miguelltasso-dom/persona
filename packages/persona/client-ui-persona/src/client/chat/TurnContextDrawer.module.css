@@ -18,6 +18,12 @@
   animation: persona-drawer-in var(--motion-base) var(--ease-enter);
 }
 
+.activityStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
 .limits {
   display: flex;
   flex-direction: column;

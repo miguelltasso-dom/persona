@@ -246,4 +246,19 @@
   padding: var(--persona-space-1) var(--persona-space-2);
   border-radius: var(--persona-radius-s, 10px);
   background: var(--persona-paper-sunken);
+  min-width: min(100%, 160px);
+}
+
+.laneMiniHead {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+}
+
+.lanePreviewList {
+  margin: var(--persona-space-1) 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--persona-ink-muted);
 }

@@ -15,6 +15,6 @@
   "empty.action": "Registrar memória",
   "empty.illustration": "Ilustração: memórias vazias",
   "loading": "Carregando memórias…",
-  "error.title": "Não foi possível carregar memórias",
+  "error.title": "Não consegui carregar as memórias agora",
   "error.retry": "Tentar de novo"
 }

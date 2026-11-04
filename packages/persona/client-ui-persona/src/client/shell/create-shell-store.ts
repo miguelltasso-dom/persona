@@ -40,6 +40,8 @@ export interface ShellState {
   readonly profileEditorOpen: boolean
   /** PB-5: Quadros opens this project once (consumed by ConnectedGlobalKanban). */
   readonly boardsFocusProjectId: string | null
+  /** PRO-4: Visão geral → cartão no quadro global (consumed by ConnectedGlobalKanban). */
+  readonly kanbanFocusTicketId: string | null
   /** PB-5: Arquivos/Rotinas/Conversa scoped to this project after leaving the quadro tab. */
   readonly projectWorkspaceProjectId: string | null
   /** Talk ACL editor overlay for a persona (rail/profile). */
@@ -68,6 +70,9 @@ export interface ShellActions {
   /** Sidebar Projetos → quadro do projeto (PB-5). */
   openProjectBoard(projectId: string): void
   clearBoardsFocusProject(): void
+  /** PRO-4: open Quadros and scroll to the ticket card when present. */
+  openKanbanTicket(ticketId: string): void
+  clearKanbanFocusTicket(): void
   setProjectWorkspaceProjectId(projectId: string | null): void
   openTalkAclEditor(personaId: string): void
   closeTalkAclEditor(): void
@@ -89,6 +94,7 @@ const INITIAL: ShellState = {
   profilePersonaId: null,
   profileEditorOpen: false,
   boardsFocusProjectId: null,
+  kanbanFocusTicketId: null,
   projectWorkspaceProjectId: null,
   talkAclPersonaId: null,
   enginePersonaId: null,
@@ -144,6 +150,16 @@ export function createShellStore(): {
     },
     clearBoardsFocusProject: () => {
       store.set({ ...store.getSnapshot(), boardsFocusProjectId: null })
+    },
+    openKanbanTicket: (kanbanFocusTicketId) => {
+      store.set({
+        ...store.getSnapshot(),
+        activePanel: 'kanban',
+        kanbanFocusTicketId,
+      })
+    },
+    clearKanbanFocusTicket: () => {
+      store.set({ ...store.getSnapshot(), kanbanFocusTicketId: null })
     },
     setProjectWorkspaceProjectId: (projectWorkspaceProjectId) => {
       store.set({ ...store.getSnapshot(), projectWorkspaceProjectId })

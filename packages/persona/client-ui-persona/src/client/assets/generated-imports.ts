@@ -10,6 +10,9 @@ import pose_atlas_disponivel_tail from './poses/atlas-disponivel-tail.webp'
 import pose_atlas_disponivel from './poses/atlas-disponivel.webp'
 import pose_atlas_erro from './poses/atlas-erro.webp'
 import pose_atlas_offline from './poses/atlas-offline.webp'
+import pose_atlas_pensando_1 from './poses/atlas-pensando-1.webp'
+import pose_atlas_pensando_2 from './poses/atlas-pensando-2.webp'
+import pose_atlas_pensando_3 from './poses/atlas-pensando-3.webp'
 import pose_atlas_revisando from './poses/atlas-revisando.webp'
 import pose_atlas_trabalhando from './poses/atlas-trabalhando.webp'
 import pose_bento_acenando from './poses/bento-acenando.webp'
@@ -21,6 +24,9 @@ import pose_bento_disponivel_tail from './poses/bento-disponivel-tail.webp'
 import pose_bento_disponivel from './poses/bento-disponivel.webp'
 import pose_bento_erro from './poses/bento-erro.webp'
 import pose_bento_offline from './poses/bento-offline.webp'
+import pose_bento_pensando_1 from './poses/bento-pensando-1.webp'
+import pose_bento_pensando_2 from './poses/bento-pensando-2.webp'
+import pose_bento_pensando_3 from './poses/bento-pensando-3.webp'
 import pose_bento_revisando from './poses/bento-revisando.webp'
 import pose_bento_trabalhando from './poses/bento-trabalhando.webp'
 import pose_capivara_aguardando_aprovacao from './poses/capivara-aguardando-aprovacao.webp'
@@ -88,6 +94,9 @@ import pose_luna_disponivel_tail from './poses/luna-disponivel-tail.webp'
 import pose_luna_disponivel from './poses/luna-disponivel.webp'
 import pose_luna_erro from './poses/luna-erro.webp'
 import pose_luna_offline from './poses/luna-offline.webp'
+import pose_luna_pensando_1 from './poses/luna-pensando-1.webp'
+import pose_luna_pensando_2 from './poses/luna-pensando-2.webp'
+import pose_luna_pensando_3 from './poses/luna-pensando-3.webp'
 import pose_luna_revisando from './poses/luna-revisando.webp'
 import pose_luna_trabalhando from './poses/luna-trabalhando.webp'
 import pose_nina_acenando from './poses/nina-acenando.webp'
@@ -99,6 +108,9 @@ import pose_nina_disponivel_tail from './poses/nina-disponivel-tail.webp'
 import pose_nina_disponivel from './poses/nina-disponivel.webp'
 import pose_nina_erro from './poses/nina-erro.webp'
 import pose_nina_offline from './poses/nina-offline.webp'
+import pose_nina_pensando_1 from './poses/nina-pensando-1.webp'
+import pose_nina_pensando_2 from './poses/nina-pensando-2.webp'
+import pose_nina_pensando_3 from './poses/nina-pensando-3.webp'
 import pose_nina_revisando from './poses/nina-revisando.webp'
 import pose_nina_trabalhando from './poses/nina-trabalhando.webp'
 import pose_ourico_aguardando_aprovacao from './poses/ourico-aguardando-aprovacao.webp'
@@ -134,6 +146,9 @@ import pose_sol_disponivel_tail from './poses/sol-disponivel-tail.webp'
 import pose_sol_disponivel from './poses/sol-disponivel.webp'
 import pose_sol_erro from './poses/sol-erro.webp'
 import pose_sol_offline from './poses/sol-offline.webp'
+import pose_sol_pensando_1 from './poses/sol-pensando-1.webp'
+import pose_sol_pensando_2 from './poses/sol-pensando-2.webp'
+import pose_sol_pensando_3 from './poses/sol-pensando-3.webp'
 import pose_sol_revisando from './poses/sol-revisando.webp'
 import pose_sol_trabalhando from './poses/sol-trabalhando.webp'
 import pose_tamandua_aguardando_aprovacao from './poses/tamandua-aguardando-aprovacao.webp'
@@ -264,6 +279,11 @@ import sectoricon_pessoas from './icons/sectors/pessoas.svg'
 import sectoricon_produto from './icons/sectors/produto.svg'
 import sectoricon_suporte from './icons/sectors/suporte.svg'
 import sectoricon_vendas from './icons/sectors/vendas.svg'
+import columnicon_a_fazer from './icons/columns/a-fazer.svg'
+import columnicon_bloqueado from './icons/columns/bloqueado.svg'
+import columnicon_concluido from './icons/columns/concluido.svg'
+import columnicon_em_andamento from './icons/columns/em-andamento.svg'
+import columnicon_em_revisao from './icons/columns/em-revisao.svg'
 import accent_doodle_arrow from './accents/doodle-arrow.svg'
 import accent_doodle_circle from './accents/doodle-circle.svg'
 import accent_leaf_1 from './accents/leaf-1.svg'
@@ -295,6 +315,8 @@ import ill_ensinar_nina from './illustrations/ensinar-nina.webp'
 import ill_ensinar_sol from './illustrations/ensinar-sol.webp'
 import ill_ensinar_luna from './illustrations/ensinar-luna.webp'
 import ill_bibliotecario from './illustrations/bibliotecario.webp'
+import ill_about_team from './illustrations/about-team.webp'
+import ill_release_notes_badge from './illustrations/release-notes-badge.webp'
 import ill_equipe_saudavel from './illustrations/equipe-saudavel.webp'
 import ill_ponto_unico_falha from './illustrations/ponto-unico-falha.webp'
 import ill_voce_de_ferias from './illustrations/voce-de-ferias.webp'
@@ -396,6 +418,18 @@ import sticker_sol_feito from './stickers/sol-feito.webp'
 import sticker_sol_joinha from './stickers/sol-joinha.webp'
 import sticker_sol_pensando from './stickers/sol-pensando.webp'
 import sticker_sol_rindo from './stickers/sol-rindo.webp'
+import sticker_tamandua_comemorando from './stickers/tamandua-comemorando.webp'
+import sticker_tamandua_coracao from './stickers/tamandua-coracao.webp'
+import sticker_tamandua_feito from './stickers/tamandua-feito.webp'
+import sticker_tamandua_joinha from './stickers/tamandua-joinha.webp'
+import sticker_tamandua_pensando from './stickers/tamandua-pensando.webp'
+import sticker_tamandua_rindo from './stickers/tamandua-rindo.webp'
+import sticker_tucano_comemorando from './stickers/tucano-comemorando.webp'
+import sticker_tucano_coracao from './stickers/tucano-coracao.webp'
+import sticker_tucano_feito from './stickers/tucano-feito.webp'
+import sticker_tucano_joinha from './stickers/tucano-joinha.webp'
+import sticker_tucano_pensando from './stickers/tucano-pensando.webp'
+import sticker_tucano_rindo from './stickers/tucano-rindo.webp'
 import logoHorizontalLight from './brand/logo-horizontal-light.svg'
 import symbol from './brand/symbol.svg'
 
@@ -408,6 +442,9 @@ registerPoseUrl('atlas-disponivel-tail', pose_atlas_disponivel_tail)
 registerPoseUrl('atlas-disponivel', pose_atlas_disponivel)
 registerPoseUrl('atlas-erro', pose_atlas_erro)
 registerPoseUrl('atlas-offline', pose_atlas_offline)
+registerPoseUrl('atlas-pensando-1', pose_atlas_pensando_1)
+registerPoseUrl('atlas-pensando-2', pose_atlas_pensando_2)
+registerPoseUrl('atlas-pensando-3', pose_atlas_pensando_3)
 registerPoseUrl('atlas-revisando', pose_atlas_revisando)
 registerPoseUrl('atlas-trabalhando', pose_atlas_trabalhando)
 registerPoseUrl('bento-acenando', pose_bento_acenando)
@@ -419,6 +456,9 @@ registerPoseUrl('bento-disponivel-tail', pose_bento_disponivel_tail)
 registerPoseUrl('bento-disponivel', pose_bento_disponivel)
 registerPoseUrl('bento-erro', pose_bento_erro)
 registerPoseUrl('bento-offline', pose_bento_offline)
+registerPoseUrl('bento-pensando-1', pose_bento_pensando_1)
+registerPoseUrl('bento-pensando-2', pose_bento_pensando_2)
+registerPoseUrl('bento-pensando-3', pose_bento_pensando_3)
 registerPoseUrl('bento-revisando', pose_bento_revisando)
 registerPoseUrl('bento-trabalhando', pose_bento_trabalhando)
 registerPoseUrl('capivara-aguardando-aprovacao', pose_capivara_aguardando_aprovacao)
@@ -486,6 +526,9 @@ registerPoseUrl('luna-disponivel-tail', pose_luna_disponivel_tail)
 registerPoseUrl('luna-disponivel', pose_luna_disponivel)
 registerPoseUrl('luna-erro', pose_luna_erro)
 registerPoseUrl('luna-offline', pose_luna_offline)
+registerPoseUrl('luna-pensando-1', pose_luna_pensando_1)
+registerPoseUrl('luna-pensando-2', pose_luna_pensando_2)
+registerPoseUrl('luna-pensando-3', pose_luna_pensando_3)
 registerPoseUrl('luna-revisando', pose_luna_revisando)
 registerPoseUrl('luna-trabalhando', pose_luna_trabalhando)
 registerPoseUrl('nina-acenando', pose_nina_acenando)
@@ -497,6 +540,9 @@ registerPoseUrl('nina-disponivel-tail', pose_nina_disponivel_tail)
 registerPoseUrl('nina-disponivel', pose_nina_disponivel)
 registerPoseUrl('nina-erro', pose_nina_erro)
 registerPoseUrl('nina-offline', pose_nina_offline)
+registerPoseUrl('nina-pensando-1', pose_nina_pensando_1)
+registerPoseUrl('nina-pensando-2', pose_nina_pensando_2)
+registerPoseUrl('nina-pensando-3', pose_nina_pensando_3)
 registerPoseUrl('nina-revisando', pose_nina_revisando)
 registerPoseUrl('nina-trabalhando', pose_nina_trabalhando)
 registerPoseUrl('ourico-aguardando-aprovacao', pose_ourico_aguardando_aprovacao)
@@ -532,6 +578,9 @@ registerPoseUrl('sol-disponivel-tail', pose_sol_disponivel_tail)
 registerPoseUrl('sol-disponivel', pose_sol_disponivel)
 registerPoseUrl('sol-erro', pose_sol_erro)
 registerPoseUrl('sol-offline', pose_sol_offline)
+registerPoseUrl('sol-pensando-1', pose_sol_pensando_1)
+registerPoseUrl('sol-pensando-2', pose_sol_pensando_2)
+registerPoseUrl('sol-pensando-3', pose_sol_pensando_3)
 registerPoseUrl('sol-revisando', pose_sol_revisando)
 registerPoseUrl('sol-trabalhando', pose_sol_trabalhando)
 registerPoseUrl('tamandua-aguardando-aprovacao', pose_tamandua_aguardando_aprovacao)
@@ -689,6 +738,15 @@ export const SECTOR_ICONS: Readonly<Record<string, string>> = {
   'vendas': sectoricon_vendas,
 }
 
+/** Brush stage-column icons, currentColor SVG (Muse, BOARDS-SPEC §0). */
+export const COLUMN_ICONS: Readonly<Record<string, string>> = {
+  'a-fazer': columnicon_a_fazer,
+  'bloqueado': columnicon_bloqueado,
+  'concluido': columnicon_concluido,
+  'em-andamento': columnicon_em_andamento,
+  'em-revisao': columnicon_em_revisao,
+}
+
 /** Brush hand-drawn accents, currentColor SVG (Muse, DESIGN-SYSTEM §5). */
 export const ACCENTS: Readonly<Record<string, string>> = {
   'doodle-arrow': accent_doodle_arrow,
@@ -797,6 +855,18 @@ export const STICKERS: Readonly<Record<string, string>> = {
   'sol-joinha': sticker_sol_joinha,
   'sol-pensando': sticker_sol_pensando,
   'sol-rindo': sticker_sol_rindo,
+  'tamandua-comemorando': sticker_tamandua_comemorando,
+  'tamandua-coracao': sticker_tamandua_coracao,
+  'tamandua-feito': sticker_tamandua_feito,
+  'tamandua-joinha': sticker_tamandua_joinha,
+  'tamandua-pensando': sticker_tamandua_pensando,
+  'tamandua-rindo': sticker_tamandua_rindo,
+  'tucano-comemorando': sticker_tucano_comemorando,
+  'tucano-coracao': sticker_tucano_coracao,
+  'tucano-feito': sticker_tucano_feito,
+  'tucano-joinha': sticker_tucano_joinha,
+  'tucano-pensando': sticker_tucano_pensando,
+  'tucano-rindo': sticker_tucano_rindo,
 }
 
 /** Brush illustrations (Muse, DESIGN-SYSTEM §7). */
@@ -820,6 +890,8 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'ensinar-sol': ill_ensinar_sol,
   'ensinar-luna': ill_ensinar_luna,
   'bibliotecario': ill_bibliotecario,
+  'about-team': ill_about_team,
+  'release-notes-badge': ill_release_notes_badge,
   'equipe-saudavel': ill_equipe_saudavel,
   'ponto-unico-falha': ill_ponto_unico_falha,
   'voce-de-ferias': ill_voce_de_ferias,

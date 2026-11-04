@@ -23,6 +23,7 @@ export interface ConnectedKanbanInjected {
   readonly refreshKanban: () => Promise<void>
   readonly navigateProjectTab: (tab: ProjectWorkspaceTab) => void
   readonly clearBoardsFocusProject: () => void
+  readonly clearKanbanFocusTicket: () => void
   readonly setProjectWorkspaceProjectId: (projectId: string | null) => void
   readonly hooks: {
     readonly live: HostObservable<PersonaLiveSnapshot>
@@ -45,6 +46,7 @@ export function ConnectedGlobalKanban({
   refreshKanban,
   navigateProjectTab,
   clearBoardsFocusProject,
+  clearKanbanFocusTicket,
   setProjectWorkspaceProjectId,
   useShell,
   personaCard,
@@ -52,6 +54,7 @@ export function ConnectedGlobalKanban({
 }: ConnectedGlobalKanbanProps): ReactNode {
   const live = useLive(state => state)
   const boardsFocusProjectId = useShell(state => state.boardsFocusProjectId)
+  const kanbanFocusTicketId = useShell(state => state.kanbanFocusTicketId)
   const { gate } = useRemoteTenantGate(useTenant)
   const [mode, setMode] = useState<HubMode>('grid')
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
@@ -65,6 +68,21 @@ export function ConnectedGlobalKanban({
     setMode('project')
     clearBoardsFocusProject()
   }, [boardsFocusProjectId, clearBoardsFocusProject])
+
+  useEffect(() => {
+    if (kanbanFocusTicketId === null) return
+    setMode('global')
+    const ticketId = kanbanFocusTicketId
+    const frame = window.requestAnimationFrame(() => {
+      const card = document.querySelector(`[data-persona-kanban-card="${CSS.escape(ticketId)}"]`)
+      if (card instanceof HTMLElement) {
+        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        card.focus({ preventScroll: true })
+      }
+      clearKanbanFocusTicket()
+    })
+    return () => { window.cancelAnimationFrame(frame) }
+  }, [kanbanFocusTicketId, clearKanbanFocusTicket, live.kanbanCards.length])
 
   const tenantScope: ProjectScopeRequest | null = useMemo(() => {
     if (gate === 'loading' || gate === 'error') return null
@@ -103,6 +121,24 @@ export function ConnectedGlobalKanban({
     return { workspaceId: tenantScope.workspaceId, projectId: openProjectId }
   }, [tenantScope, openProjectId])
 
+  const projectHint = useMemo(() => {
+    if (openProjectId === null) return ''
+    const project = live.projects.find(row => row.id === openProjectId)
+    return project === undefined ? '' : `${project.name} ${project.kind}`.trim()
+  }, [live.projects, openProjectId])
+
+  const handleProjectWorkspaceTab = useCallback((tab: ProjectWorkspaceTab): void => {
+    if (tab === 'board' || tab === 'sprints') {
+      setProjectWorkspaceTab(tab)
+      setProjectWorkspaceProjectId(null)
+      return
+    }
+    if (openProjectId !== null) {
+      setProjectWorkspaceProjectId(openProjectId)
+    }
+    navigateProjectTab(tab)
+  }, [navigateProjectTab, openProjectId, setProjectWorkspaceProjectId])
+
   if (!live.ready || gate === 'loading') {
     return (
       <BoardsHome
@@ -119,28 +155,11 @@ export function ConnectedGlobalKanban({
       <GlobalCategoryLanes
         dict={kanbanDict}
         summaries={summaries}
+        previewCards={live.kanbanCards}
         onBack={() => { setMode('grid') }}
       />
     )
   }
-
-  const handleProjectWorkspaceTab = (tab: ProjectWorkspaceTab): void => {
-    if (tab === 'board' || tab === 'sprints') {
-      setProjectWorkspaceTab(tab)
-      setProjectWorkspaceProjectId(null)
-      return
-    }
-    if (openProjectId !== null) {
-      setProjectWorkspaceProjectId(openProjectId)
-    }
-    navigateProjectTab(tab)
-  }
-
-  const projectHint = useMemo(() => {
-    if (openProjectId === null) return ''
-    const project = live.projects.find(row => row.id === openProjectId)
-    return project === undefined ? '' : `${project.name} ${project.kind}`.trim()
-  }, [live.projects, openProjectId])
 
   if (mode === 'project' && projectScope !== null) {
     return (

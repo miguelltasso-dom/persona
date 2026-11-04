@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ConversationSubjectScope } from '@deepseek-ai/dsh-persona-host/types'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
+import { PersonaRemoteError } from '../remote/persona-remote-unwrap.ts'
 import {
   DEFAULT_CONVERSATION_SUBJECTS,
   DEFAULT_CONVERSATION_SUBJECT_ID,
@@ -12,7 +12,7 @@ import {
 /** WAVE2 assuntos via Forge Typert RPC (list/create/rename/archive/move/setActive). */
 export function useHostConversationSubjects(
   live: PersonaLiveStore,
-  scope: ConversationSubjectScope | null,
+  streamKey: string | null,
   messages: readonly ChannelMessageUi[],
 ): {
   readonly ready: boolean
@@ -22,6 +22,8 @@ export function useHostConversationSubjects(
   readonly activeSubject: ConversationSubjectUi
   readonly filteredMessages: readonly ChannelMessageUi[]
   readonly editingSubjectId: string | undefined
+  readonly subjectsError: PersonaRemoteError | null
+  readonly retrySubjects: () => void
   readonly selectSubject: (subjectId: string) => void
   readonly createSubject: () => void
   readonly renameSubject: (subjectId: string, name: string) => void
@@ -34,59 +36,87 @@ export function useHostConversationSubjects(
   const [activeSubjectId, setActiveSubjectId] = useState(DEFAULT_CONVERSATION_SUBJECT_ID)
   const [editingSubjectId, setEditingSubjectId] = useState<string | undefined>(undefined)
   const [ready, setReady] = useState(false)
+  const [subjectsError, setSubjectsError] = useState<PersonaRemoteError | null>(null)
 
-  const load = useCallback(async (): Promise<void> => {
-    if (scope === null) {
+  const scope = useMemo(
+    () => (streamKey === null ? null : live.conversationScopeFromKey(streamKey)),
+    [live, streamKey],
+  )
+
+  const applyBundle = useCallback((bundle: { readonly subjects: readonly ConversationSubjectUi[]; readonly activeSubjectId: string }) => {
+    setSubjects(bundle.subjects)
+    setActiveSubjectId(bundle.activeSubjectId)
+    setSubjectsError(null)
+    setReady(true)
+  }, [])
+
+  const onRemoteFailure = useCallback((error: unknown): void => {
+    setSubjectsError(error instanceof PersonaRemoteError ? error : null)
+  }, [])
+
+  useEffect(() => {
+    if (streamKey === null) {
+      setReady(false)
+      setSubjectsError(null)
+      return
+    }
+    const rowScope = live.conversationScopeFromKey(streamKey)
+    if (rowScope === null) {
       setReady(false)
       return
     }
-    const bundle = await live.fetchConversationSubjects(scope)
-    setSubjects(bundle.subjects)
-    setActiveSubjectId(bundle.activeSubjectId)
-    setReady(true)
-  }, [live, scope])
+    let cancelled = false
+    void live.fetchConversationSubjects(rowScope).then((bundle) => {
+      if (cancelled) return
+      setSubjects(bundle.subjects)
+      setActiveSubjectId(bundle.activeSubjectId)
+      setSubjectsError(null)
+      setReady(true)
+    }).catch((error: unknown) => {
+      if (cancelled) return
+      setReady(false)
+      setSubjectsError(error instanceof PersonaRemoteError ? error : null)
+    })
+    return () => { cancelled = true }
+  }, [live, streamKey])
 
-  useEffect(() => {
-    void load()
-  }, [load])
+  const retrySubjects = useCallback(() => {
+    if (scope === null) return
+    setReady(false)
+    void live.fetchConversationSubjects(scope, { force: true }).then(applyBundle).catch(onRemoteFailure)
+  }, [applyBundle, live, onRemoteFailure, scope])
 
   const selectSubject = useCallback((subjectId: string) => {
     if (scope === null) return
-    void live.selectConversationSubject(scope, subjectId).then((bundle) => {
-      setSubjects(bundle.subjects)
-      setActiveSubjectId(bundle.activeSubjectId)
-    })
-  }, [live, scope])
+    void live.selectConversationSubject(scope, subjectId).then(applyBundle).catch(onRemoteFailure)
+  }, [applyBundle, live, onRemoteFailure, scope])
 
   const createSubject = useCallback(() => {
     if (scope === null) return
     void live.createConversationSubject(scope, '').then(({ bundle, createdSubjectId }) => {
-      setSubjects(bundle.subjects)
-      setActiveSubjectId(bundle.activeSubjectId)
+      applyBundle(bundle)
       setEditingSubjectId(createdSubjectId)
-    })
-  }, [live, scope])
+    }).catch(onRemoteFailure)
+  }, [applyBundle, live, onRemoteFailure, scope])
 
   const renameSubject = useCallback((subjectId: string, name: string) => {
     if (scope === null) return
     const trimmed = name.trim()
     if (trimmed.length === 0) return
     void live.renameConversationSubject(scope, subjectId, trimmed).then((bundle) => {
-      setSubjects(bundle.subjects)
-      setActiveSubjectId(bundle.activeSubjectId)
+      applyBundle(bundle)
       setEditingSubjectId(current => (current === subjectId ? undefined : current))
-    })
-  }, [live, scope])
+    }).catch(onRemoteFailure)
+  }, [applyBundle, live, onRemoteFailure, scope])
 
   const archiveSubject = useCallback((subjectId: string) => {
     if (scope === null) return
     const row = subjects.find(item => item.id === subjectId)
     void live.archiveConversationSubject(scope, subjectId).then((bundle) => {
       if (row !== undefined) setArchived(prev => [...prev, { ...row, unreadCount: 0 }])
-      setSubjects(bundle.subjects)
-      setActiveSubjectId(bundle.activeSubjectId)
-    })
-  }, [live, scope, subjects])
+      applyBundle(bundle)
+    }).catch(onRemoteFailure)
+  }, [applyBundle, live, onRemoteFailure, scope, subjects])
 
   const reopenSubject = useCallback((subjectId: string) => {
     if (scope === null) return
@@ -94,25 +124,28 @@ export function useHostConversationSubjects(
     if (row === undefined) return
     void live.reopenConversationSubject(scope, row.name, row.colorIndex).then((bundle) => {
       setArchived(prev => prev.filter(item => item.id !== subjectId))
-      setSubjects(bundle.subjects)
-      setActiveSubjectId(bundle.activeSubjectId)
+      applyBundle(bundle)
       selectSubject(bundle.activeSubjectId)
-    })
-  }, [archived, live, scope, selectSubject])
+    }).catch(onRemoteFailure)
+  }, [applyBundle, archived, live, onRemoteFailure, scope, selectSubject])
 
   const moveMessageToSubject = useCallback((messageId: string, subjectId: string) => {
     if (scope === null) return
-    void live.moveMessageToSubject(scope, messageId, subjectId)
-  }, [live, scope])
+    void live.moveMessageToSubject(scope, messageId, subjectId).catch(onRemoteFailure)
+  }, [live, onRemoteFailure, scope])
 
   const activeSubject = subjects.find(row => row.id === activeSubjectId)
     ?? subjects[0]
     ?? DEFAULT_CONVERSATION_SUBJECTS[0]!
 
-  const filteredMessages = useMemo(
-    () => filterMessagesForSubject(messages, activeSubjectId),
-    [activeSubjectId, messages],
-  )
+  const filteredMessages = useMemo(() => {
+    const primary = filterMessagesForSubject(messages, activeSubjectId)
+    if (primary.length > 0 || messages.length === 0) return primary
+    if (activeSubjectId !== DEFAULT_CONVERSATION_SUBJECT_ID) {
+      return filterMessagesForSubject(messages, DEFAULT_CONVERSATION_SUBJECT_ID)
+    }
+    return primary
+  }, [activeSubjectId, messages])
 
   return {
     ready,
@@ -122,6 +155,8 @@ export function useHostConversationSubjects(
     activeSubject,
     filteredMessages,
     editingSubjectId,
+    subjectsError,
+    retrySubjects,
     selectSubject,
     createSubject,
     renameSubject,

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
 import { createLiveTenantObservable } from '../src/client/data/live-tenant-bridge.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from '../src/client/remote/persona-live-store.ts'
-import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub } from './persona-live-fixtures.client.ts'
+import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub, personaLiveStoreLifecycleStub } from './persona-live-fixtures.client.ts'
 import { personaLiveStoreWave2Stub } from './persona-live-store-stub.client.ts'
 import { ConnectedGlobalKanban, type ConnectedGlobalKanbanProps } from '../src/client/remote/ConnectedGlobalKanban.tsx'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
@@ -45,6 +45,7 @@ function liveStoreHarness(initial: PersonaLiveSnapshot): {
     observable: snapStore,
     ...personaLiveStoreWave2Stub,
     ...personaLiveStoreGestorStub,
+    ...personaLiveStoreLifecycleStub,
     bootstrap: async () => {},
     runDevHarnessSeedIfEnabled: async () => {},
     refresh: async () => {},
@@ -174,6 +175,7 @@ describe('ConnectedGlobalKanban with real observables', () => {
           refreshKanban={async () => {}}
           navigateProjectTab={() => {}}
           clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
+          clearKanbanFocusTicket={() => { shellActions.clearKanbanFocusTicket() }}
           setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}
           useLive={useLive as ConnectedGlobalKanbanProps['useLive']}
           useTenant={useTenant as ConnectedGlobalKanbanProps['useTenant']}
@@ -184,5 +186,56 @@ describe('ConnectedGlobalKanban with real observables', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: kanbanPt['title.boards'] })).toBeTruthy()
     expect(screen.getByText('Contratação — Designer')).toBeTruthy()
+  })
+
+  it('switches to global category lanes with live card previews (PB-5)', () => {
+    const { live } = liveStoreHarness({
+      ...LIVE_EMPTY,
+      ready: true,
+      tenant: {
+        workspaceId: 'ws',
+        projectId: 'pp',
+        memberId: 'm1',
+        channelId: 'ch',
+      },
+      kanbanCards: [{
+        id: 'card-1',
+        title: 'Briefing',
+        column: 'todo',
+        teamId: 'team',
+        teamName: 'Team',
+        projectId: 'proj-contratacao',
+        projectName: 'Contratação — Designer',
+        blocked: false,
+        reviewApproved: false,
+        waitingEvent: false,
+      }],
+    })
+    const tenantObs = createLiveTenantObservable(live)
+    const useLive = bindObservableForTest(live.observable)
+    const useTenant = bindObservableForTest(tenantObs)
+    const { store: shellStore, actions: shellActions } = createShellStore()
+    const useShell = bindObservableForTest(shellStore)
+
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <ConnectedGlobalKanban
+          persona={{} as never}
+          refreshKanban={async () => {}}
+          navigateProjectTab={() => {}}
+          clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
+          clearKanbanFocusTicket={() => { shellActions.clearKanbanFocusTicket() }}
+          setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}
+          useLive={useLive as ConnectedGlobalKanbanProps['useLive']}
+          useTenant={useTenant as ConnectedGlobalKanbanProps['useTenant']}
+          useShell={useShell as ConnectedGlobalKanbanProps['useShell']}
+        />
+      </PreviewFrame>,
+    )
+
+    const globalButtons = screen.getAllByRole('button', { name: kanbanPt['boards.globalView'] })
+    fireEvent.click(globalButtons[0]!)
+    expect(screen.getByRole('heading', { level: 1, name: kanbanPt['title.global'] })).toBeTruthy()
+    expect(document.querySelector('[data-persona-boards-global="true"]')).toBeTruthy()
   })
 })

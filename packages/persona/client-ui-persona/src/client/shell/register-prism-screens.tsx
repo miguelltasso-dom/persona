@@ -36,6 +36,9 @@ import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
 import { HIRE_PERSONA_PROFILE_ID, type MainPanelId, type ShellStoreHandle } from './create-shell-store.ts'
 import { createLiveRailTeamObservable } from '../remote/live-rail-bridge.ts'
 import { CHAT_NS } from '../locale/chat/locales.ts'
+import { GOVERNANCE_NS } from '../locale/governance/locales.ts'
+import { activityGroupLabelsFromDict } from '../governance/activity-group-labels.ts'
+import { localeBindAsDict } from '../preview/locale-bind.ts'
 import { SHELL_NS } from '../locale/shell/locales.ts'
 import { ConnectedDirectMessagesView } from '../remote/ConnectedDirectMessagesView.tsx'
 import { ProjectsPanel } from './ProjectsPanel.tsx'
@@ -83,9 +86,14 @@ export function registerPrismScreens(
     selectMainPanel: (panel: MainPanelId) => { shellHandle.actions.selectPanel(panel) },
   })
 
+  const turnActivityLabels = activityGroupLabelsFromDict(
+    localeBindAsDict((key, params) => ctx.locale.bind(GOVERNANCE_NS)(key as never, params as never)),
+  )
   const channelInject = () => ({
     shellT: ctx.locale.bind(SHELL_NS),
     ...liveInject(live),
+    turnActivityLabels,
+    onOpenConnections: () => { shellHandle.actions.selectPanel('connections') },
     onBuildTeam: () => {
       shellHandle.actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)
       shellHandle.actions.selectPanel('profile')
@@ -109,6 +117,7 @@ export function registerPrismScreens(
     inject: () => ({
       hooks: { live: live.observable },
       navigate: (panel: 'channels' | 'kanban' | 'approvals') => { selectPanel?.(panel) },
+      openAwayTask: (taskId: string) => { shellHandle.actions.openKanbanTicket(taskId) },
     }),
   }, ConnectedOverviewView)
 
@@ -205,6 +214,7 @@ export function registerPrismScreens(
         stickerId: string,
       ) => { void live.toggleMessageReaction(streamKind, eventId, stickerId) },
       startNewConversation: () => { void live.openFirstAvailableDm() },
+      turnActivityLabels,
     }),
   }, ConnectedDirectMessagesView)
 

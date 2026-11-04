@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { BrainPageView, BrainVersionView } from '@deepseek-ai/dsh-persona-host/types'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { BrandIcon, Button, PageMeta, Screen, ScreenHeader } from '../primitives/index.ts'
+import { BrandIcon, Button, Card, PageMeta, Screen, ScreenHeader } from '../primitives/index.ts'
 import { brainKindBrandIcon, brainKindLabel, brainSourceLabel, pageConfirmation } from './brain-ui-adapters.ts'
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
 import styles from './SecondBrain.module.css'
@@ -78,12 +78,11 @@ export function SecondBrainPageView({
             <pre className={styles.pageMarkdown}>{page.body}</pre>
           )}
           {page.sources.length > 0 && (
-            <section aria-label={t('page.sources')}>
-              <h3 className={styles.sectionTitle}>{t('page.sources')}</h3>
+            <Card padding="m" eyebrow={t('page.sources')}>
               <ul className={styles.sourceList}>
                 {page.sources.map(source => <li key={source}>{brainSourceLabel(dict, source)}</li>)}
               </ul>
-            </section>
+            </Card>
           )}
         </article>
         <PageMeta

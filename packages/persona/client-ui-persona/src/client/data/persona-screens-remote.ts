@@ -1,11 +1,13 @@
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
   GetOfficialQuotaRequest,
+  GetUsagePanelRequest,
   GetUsageRequest,
   MemoryView,
   OfficialQuotaView,
   ProjectScopeRequest,
   SkillView,
+  UsagePanelView,
   UsageView,
 } from '@deepseek-ai/dsh-persona-host/types'
 import type { PersonaRemoteClient } from './lumen-inject.ts'
@@ -16,9 +18,13 @@ export interface PersonaScreensRemote {
   getOfficialQuota(request: GetOfficialQuotaRequest): Promise<RemoteResult<OfficialQuotaView[]>>
   listMemory(request: ProjectScopeRequest): Promise<RemoteResult<MemoryView[]>>
   listSkills(request: ProjectScopeRequest): Promise<RemoteResult<SkillView[]>>
+  /** OPT-7 when host Typert surface includes it. */
+  getUsagePanel?: (request: GetUsagePanelRequest) => Promise<RemoteResult<UsagePanelView>>
 }
 
-type ScreensWire = PersonaScreensRemote
+type ScreensWire = PersonaScreensRemote & {
+  getUsagePanel?: (request: GetUsagePanelRequest) => Promise<RemoteResult<UsagePanelView>>
+}
 
 const screensRemoteCache = new WeakMap<PersonaRemoteClient, PersonaScreensRemote>()
 
@@ -51,6 +57,9 @@ export function personaScreensRemote(persona: PersonaRemoteClient): PersonaScree
     getOfficialQuota: request => wire.getOfficialQuota(request),
     listMemory: request => wire.listMemory(request),
     listSkills: request => wire.listSkills(request),
+    ...(typeof wire.getUsagePanel === 'function'
+      ? { getUsagePanel: request => wire.getUsagePanel!(request) }
+      : {}),
   }
   screensRemoteCache.set(persona, facade)
   return facade

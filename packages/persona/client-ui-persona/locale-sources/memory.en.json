@@ -15,6 +15,6 @@
   "empty.action": "Record memory",
   "empty.illustration": "Illustration: empty memories",
   "loading": "Loading memories…",
-  "error.title": "Could not load memories",
+  "error.title": "I couldn't load the memories right now",
   "error.retry": "Try again"
 }

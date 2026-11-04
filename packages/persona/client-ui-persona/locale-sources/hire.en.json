@@ -3,10 +3,10 @@
   "subtitle": "{creator} proposed a teammate.",
   "editBeforeHire": "Review before hiring",
   "field.role": "Role",
-  "field.harness": "Harness",
+  "field.harness": "Engine",
   "field.tools": "Tools",
   "action.approve": "Hire",
   "action.edit": "Edit proposal",
   "action.dismiss": "Not now",
-  "policy.note": "Workspace policy: manual approval (default)."
+  "policy.note": "On this team, you approve every hire (default)."
 }

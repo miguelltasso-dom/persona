@@ -6,6 +6,7 @@
  */
 
 import { useId, type ReactNode } from 'react'
+import { Switch } from './Switch.tsx'
 import { Avatar } from './Avatar.tsx'
 import { Button } from './Button.tsx'
 import { ApprovedStamp } from './Celebration.tsx'
@@ -67,16 +68,7 @@ export function GestorSettings({ personaName, enabled, onEnabledChange, value, o
           <h3 id={`${id}-title`} className={styles.title}>{labels.title}</h3>
           <p className={styles.explain}>{labels.explain(personaName)}</p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-labelledby={`${id}-title`}
-          className={styles.switch}
-          onClick={() => { onEnabledChange(!enabled) }}
-        >
-          <span className={styles.knob} />
-        </button>
+        <Switch checked={enabled} onChange={onEnabledChange} labelledBy={`${id}-title`} />
       </div>
       {enabled && (
         <div className={styles.limits}>

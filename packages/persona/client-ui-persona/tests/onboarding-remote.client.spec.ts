@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   overlayOpenFromHost,
   overlayOpenOptimisticInitial,
   shouldWriteCacheComplete,
 } from '../src/client/remote/onboarding-host.ts'
+
+afterEach(() => { vi.useRealTimers() })
 
 describe('onboarding-host', () => {
   it('host firstUse controls overlay', () => {

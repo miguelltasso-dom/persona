@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconButton, PooledQuotaBar, UiIcon } from '../primitives/index.ts'
+import { ActivityGroup, IconButton, PooledQuotaBar, UiIcon, type ActivityGroupProps } from '../primitives/index.ts'
 import type { TurnContextUi } from '../remote/turn-context-ui.ts'
 import styles from './TurnContextDrawer.module.css'
 
@@ -22,9 +22,10 @@ const KIND_ICON: Readonly<Record<string, 'sparkle' | 'attach' | 'at' | 'clock'>>
  * "Contexto usado" side drawer (UX-GUIDE §3: opens as a lateral drawer, items stagger 30 ms).
  * Shows which Cofre records, files and messages a persona used for a task; dismissible per ticket.
  */
-export function TurnContextDrawer({ t, context }: {
+export function TurnContextDrawer({ t, context, activityLabels }: {
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly context: TurnContextUi | null | undefined
+  readonly activityLabels?: ActivityGroupProps['labels'] | undefined
 }): ReactNode {
   const [dismissed, setDismissed] = useState<string | null>(null)
   if (context === null || context === undefined || dismissed === context.ticketId) return null
@@ -39,6 +40,21 @@ export function TurnContextDrawer({ t, context }: {
         <span className={styles.label}>{t('context.taskLabel')}</span>
         {context.title}
       </p>
+      {context.activityFolds !== undefined && context.activityFolds.length > 0 && activityLabels !== undefined && (
+        <>
+          <p className={styles.label}>{t('context.activityLabel')}</p>
+          <div className={styles.activityStack}>
+            {context.activityFolds.map(fold => (
+              <ActivityGroup
+                key={fold.persona.name}
+                persona={fold.persona}
+                items={fold.items}
+                labels={activityLabels}
+              />
+            ))}
+          </div>
+        </>
+      )}
       {context.records.length > 0 && (
         <>
           <p className={styles.label}>{t('context.recordsLabel')}</p>

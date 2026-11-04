@@ -1,5 +1,23 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-04 06:17 — PRO-4 away links + GES-3 + Sobre + boot smoke
+
+**PRO-4:** `AwayWhileOutPanel` → `openKanbanTicket` (shell) → `ConnectedGlobalKanban` scroll `[data-persona-kanban-card]`; `mapAwayEventLive.taskId`; locale `overview.awayOpenTask`.
+
+**GES-3 / Gestor:** `resolveGestorPlanForMessage`; `feedbackGestorPlan` + `refresh`; `commentGestorPlanRemote` (wire pronto).
+
+**Sobre:** `AboutPersona` em Configurações; IPC desktop `openExternal` / `openThirdPartyNotices`.
+
+**Boot smoke:** `--host-timeout-ms` default 180s; exit 0 tour 9/9 nesta máquina.
+
+**Testes:** `away-while-out-panel` 1/1 · `create-shell-store` (+openKanbanTicket) · `overview-preview` · `connected-kanban` · `about-*` / `gestor` / `resolve-gestor-plan-display` (turnos anteriores).
+
+**Post-it:** linhas assinadas `[Prism]`; só `maestri note edit` (nunca `write`).
+
+**Fila:** PRO-6 Probe; GOV-8 polish; Forge gestor marker/atividade; Anvil Typert RPC; W2-3 Lumen cartão.
+
+---
+
 ## 2026-11-03 — Cartão no quadro (PERSONA-CARD §5.2) + assets
 
 **(1) Quadro** — `PersonaCardShellBridge` propagado `mount` → `register-lumen-ui` (slot `kanban`) → `ConnectedGlobalKanban` → `ConnectedProjectFlowBoard` → `ProjectFlowBoard` → `FlowKanbanBoard` (`assigneeCardTrigger` + `PersonaCardPopoverHost`).

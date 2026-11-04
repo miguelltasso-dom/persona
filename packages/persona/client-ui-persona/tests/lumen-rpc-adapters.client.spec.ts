@@ -133,7 +133,7 @@ describe('lumen RPC adapters', () => {
       },
     ])
     expect(entries).toHaveLength(1)
-    expect(entries[0]?.name).toBe('Harness DeepSeek')
+    expect(entries[0]?.name).toBe('DeepSeek')
     expect(entries[0]?.status).toBe('ready')
   })
 

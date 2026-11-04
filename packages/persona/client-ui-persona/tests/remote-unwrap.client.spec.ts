@@ -67,6 +67,14 @@ function fakeHost(options: { failOn?: string } = {}): Json {
     postMessage: (request) => { messages.push({ ...request, occurredAt: request.occurredAt ?? '2026-11-03T14:00:00.000Z' }); return ok(request) },
     markVisit: () => ok(true),
     followMessages: () => ({ async* [Symbol.asyncIterator]() { /* idle stream */ } }),
+    listConversationSubjects: () => ok({
+      subjects: [{ id: 'subject-geral', name: 'Geral', colorIndex: 0, unreadCount: 0, workingPersonaIds: [] }],
+      activeSubjectId: 'subject-geral',
+    }),
+    setActiveConversationSubject: request => ok({
+      subjects: [{ id: 'subject-geral', name: 'Geral', colorIndex: 0, unreadCount: 0, workingPersonaIds: [] }],
+      activeSubjectId: request.subjectId,
+    }),
   }
   if (options.failOn !== undefined) {
     const name = options.failOn
@@ -102,6 +110,19 @@ describe('persona remote unwrap proxy', () => {
     expect((error as Error).message).toContain('O host da Persona não conseguiu concluir "listChannels"')
     expect((error as Error).message).toContain('host fora do ar')
   })
+
+  it('rate-limited carries retryAfterMs so the UI can wait instead of pageerror', async () => {
+    const host = fakeHost()
+    host.listConversationSubjects = () => Promise.resolve({
+      ok: false,
+      error: { code: 'rate-limited', message: 'rate-limited', details: { retryAfterMs: 400 } },
+    })
+    const proxy = unwrapPersonaRemote(host) as unknown as Record<string, (request: Json) => Promise<unknown>>
+    const error = await proxy.listConversationSubjects!({}).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(PersonaRemoteError)
+    expect((error as PersonaRemoteError).code).toBe('rate-limited')
+    expect((error as PersonaRemoteError).retryAfterMs).toBe(400)
+  })
 })
 
 describe('live store over a RemoteResult host', () => {
@@ -124,6 +145,29 @@ describe('live store over a RemoteResult host', () => {
     expect(gestorMsg?.gestorPlanId).toBe('dev-harness-v1-gestor-assemble')
     expect(gestorMsg?.body).toContain('Vou contratar 3 personas')
     expect(snapshot.gestorPlansById['dev-harness-v1-gestor-assemble']?.summary).toContain('Vou contratar 3 personas')
+  })
+
+  it('fetchConversationSubjects dedupes parallel calls for one stream', async () => {
+    const host = fakeHost()
+    let calls = 0
+    const base = host.listConversationSubjects as (request: Json) => Promise<Result>
+    host.listConversationSubjects = (request: Json) => {
+      calls += 1
+      return base(request)
+    }
+    const live = createPersonaLiveStore(host as never)
+    await live.bootstrap(() => undefined)
+    const tenant = live.observable.getSnapshot().tenant
+    expect(tenant).not.toBeNull()
+    const scope = live.conversationScope('channel', tenant!.channelId)
+    expect(scope).not.toBeNull()
+    calls = 0
+    await Promise.all([
+      live.fetchConversationSubjects(scope!),
+      live.fetchConversationSubjects(scope!),
+      live.fetchConversationSubjects(scope!),
+    ])
+    expect(calls).toBe(1)
   })
 
   it('host failure surfaces a readable error instead of "x.find is not a function"', async () => {

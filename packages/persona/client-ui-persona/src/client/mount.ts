@@ -20,6 +20,7 @@ import { installComposerHostCapabilities } from './chat/composer-host-capabiliti
 import { registerLumenUi } from './kanban/register-lumen-ui.tsx'
 import { createPersonaLiveStore } from './remote/persona-live-store.ts'
 import { registerPrismScreens } from './shell/register-prism-screens.tsx'
+import { registerPersonaAboutSettings } from './shell/register-persona-about-settings.ts'
 import { PersonaAppFrame } from './shell/PersonaAppFrame.tsx'
 import { PersonaSidebar } from './shell/PersonaSidebar.tsx'
 import { createShellStore, type ShellStoreHandle } from './shell/create-shell-store.ts'
@@ -148,9 +149,11 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
   }, PersonaSidebar)
 
   registerPrismScreens(ctx, live, shellHandle, (panel) => { actions.selectPanel(panel) }, personaCardShell)
+  registerPersonaAboutSettings(ctx)
   registerLumenUi(ctx, live, {
     selectPanel: actions.selectPanel,
     clearBoardsFocusProject: actions.clearBoardsFocusProject,
+    clearKanbanFocusTicket: actions.clearKanbanFocusTicket,
     setProjectWorkspaceProjectId: actions.setProjectWorkspaceProjectId,
     openTeamSetup: () => { actions.setOnboardingOpen(true) },
     openPersonaProfile: (personaId: string) => {

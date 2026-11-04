@@ -107,17 +107,20 @@ export function BringYourContextBlock({
   const canOrganize = pasted.length > 0 || folderState.kind === 'ready'
 
   useEffect(() => {
+    const hostPending = bindLocale(dict, 'byc.vaultHostPending')
     if (vaultFolderPath === null || vaultFolderPath === '') {
       setFolderState({ kind: 'idle' })
       setVaultPreview(null)
       return
     }
     if (onScanVaultFolder === undefined) {
-      setFolderState({ kind: 'error', message: t('byc.vaultHostPending') })
+      setFolderState({ kind: 'error', message: hostPending })
       return
     }
     setFolderState({ kind: 'reading', done: 0 })
+    let cancelled = false
     void onScanVaultFolder(vaultFolderPath).then((preview) => {
+      if (cancelled) return
       setVaultPreview(preview)
       setFolderState({
         kind: 'ready',
@@ -126,9 +129,11 @@ export function BringYourContextBlock({
         ignored: preview.ignored.map(row => row.path),
       })
     }).catch(() => {
-      setFolderState({ kind: 'error', message: t('byc.vaultHostPending') })
+      if (cancelled) return
+      setFolderState({ kind: 'error', message: hostPending })
     })
-  }, [vaultFolderPath, onScanVaultFolder, t])
+    return () => { cancelled = true }
+  }, [dict, vaultFolderPath, onScanVaultFolder])
 
   const copyLabels = useMemo(() => ({
     title: t('byc.copyBlockTitle'),

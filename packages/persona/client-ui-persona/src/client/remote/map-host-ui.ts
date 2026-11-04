@@ -207,6 +207,7 @@ export interface AwayEventLive {
   readonly id: string
   readonly body: string
   readonly taskLabel: string
+  readonly taskId: string
 }
 
 export function mapAwayEventLive(event: AwayEventView): AwayEventLive {
@@ -214,6 +215,7 @@ export function mapAwayEventLive(event: AwayEventView): AwayEventLive {
     id: event.id,
     body: event.body,
     taskLabel: event.taskTitle.length > 0 ? event.taskTitle : event.taskId,
+    taskId: event.taskId,
   }
 }
 

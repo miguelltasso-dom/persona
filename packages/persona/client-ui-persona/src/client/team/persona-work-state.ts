@@ -28,6 +28,7 @@ export interface AwaySummaryEvent {
   readonly taskLabelKey?: ShellKey
   readonly body?: string
   readonly taskLabel?: string
+  readonly taskId?: string
 }
 
 export const WORK_STATUS_KEY: Readonly<Record<PersonaWorkUiState, ShellKey>> = {

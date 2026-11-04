@@ -19,6 +19,7 @@ describe('UsageTokenPanel (OPT-7)', () => {
     )
     expect(screen.getByText(usagePt['section.tokens'])).toBeTruthy()
     expect(screen.getByText(usagePt['origin.estimated'])).toBeTruthy()
+    expect(screen.getByText(/42% reaproveitado de conversas anteriores/u)).toBeTruthy()
     expect(screen.getByText('Nina')).toBeTruthy()
   })
 })

@@ -12,14 +12,17 @@ import { unwrapRemote } from '../data/remote-call.ts'
 /** Typed failure of a persona Remote call (discriminate by `code`). */
 export class PersonaRemoteError extends Error {
   override readonly name = 'PersonaRemoteError'
+  readonly retryAfterMs?: number
 
   constructor(
     readonly method: string,
     readonly code: string,
     message: string,
     readonly hostMessage: string,
+    retryAfterMs?: number,
   ) {
     super(message)
+    if (retryAfterMs !== undefined) this.retryAfterMs = retryAfterMs
   }
 }
 
@@ -39,10 +42,15 @@ function failureMessage(method: string, code: string, hostMessage: string): stri
 async function settle(method: string, value: unknown): Promise<unknown> {
   if (!isRemoteResult(value)) return value
   if (value.ok) return unwrapRemote(value)
-  const error = (value.error ?? {}) as { readonly code?: unknown; readonly message?: unknown }
+  const error = (value.error ?? {}) as {
+    readonly code?: unknown
+    readonly message?: unknown
+    readonly details?: { readonly retryAfterMs?: unknown }
+  }
   const code = typeof error.code === 'string' ? error.code : 'unknown'
   const hostMessage = typeof error.message === 'string' ? error.message : ''
-  throw new PersonaRemoteError(method, code, failureMessage(method, code, hostMessage), hostMessage)
+  const retryAfterMs = typeof error.details?.retryAfterMs === 'number' ? error.details.retryAfterMs : undefined
+  throw new PersonaRemoteError(method, code, failureMessage(method, code, hostMessage), hostMessage, retryAfterMs)
 }
 
 function isThenable(value: unknown): value is PromiseLike<unknown> {

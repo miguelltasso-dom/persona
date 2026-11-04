@@ -4,7 +4,7 @@
  */
 
 import type { CSSProperties, ReactNode } from 'react'
-import { FLOW_ICONS, NAV_ICONS, SECTOR_ICONS } from '../assets/generated-imports.ts'
+import { COLUMN_ICONS, FLOW_ICONS, NAV_ICONS, SECTOR_ICONS } from '../assets/generated-imports.ts'
 import styles from './Icon.module.css'
 
 export type BrandIconName = keyof typeof NAV_ICONS
@@ -61,6 +61,8 @@ const UI_PATHS = {
   baton: <><path d="M5 19.5 15.5 9" /><circle cx="5.6" cy="18.9" r="1.6" /><path d="M18 3.5v3M16.5 5h3M20 9.5v2M19 10.5h2" /></>,
   minus: <path d="M5.5 12h13" />,
   copy: <><rect x="8.5" y="8.5" width="11" height="11" rx="2.5" /><path d="M15.5 8.5V6.8A2.3 2.3 0 0 0 13.2 4.5H6.8a2.3 2.3 0 0 0-2.3 2.3v6.4a2.3 2.3 0 0 0 2.3 2.3h1.7" /></>,
+  lock: <><rect x="5.5" y="11" width="13" height="9.5" rx="2.5" /><path d="M8 11V8.5a4 4 0 0 1 8 0V11" /></>,
+  eye: <><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="2.8" /></>,
   at: <><circle cx="12" cy="12" r="3.6" /><path d="M15.6 12v1.4a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.4 7" /></>,
   arrowRight: <path d="M5 12h13.5M13 6.5l5.5 5.5-5.5 5.5" />,
   alert: <><path d="M10.4 4.6 3.3 17.4A1.8 1.8 0 0 0 4.9 20h14.2a1.8 1.8 0 0 0 1.6-2.6L13.6 4.6a1.8 1.8 0 0 0-3.2 0Z" /><path d="M12 9.5v4M12 16.8v.2" /></>,
@@ -98,4 +100,35 @@ export function UiIcon({ name, size = 20, className, strokeWidth = 1.75 }: UiIco
       {UI_PATHS[name]}
     </svg>
   )
+}
+
+export type StageCategoryIcon = 'todo' | 'doing' | 'review' | 'needs_you' | 'done' | 'blocked'
+
+const STAGE_COLUMN_ICON: Readonly<Record<StageCategoryIcon, keyof typeof COLUMN_ICONS | null>> = {
+  todo: 'a-fazer',
+  doing: 'em-andamento',
+  review: 'em-revisao',
+  needs_you: null,
+  done: 'concluido',
+  blocked: 'bloqueado',
+}
+
+const STAGE_UI_FALLBACK: Readonly<Record<StageCategoryIcon, UiIconName>> = {
+  todo: 'plus',
+  doing: 'sparkle',
+  review: 'help',
+  needs_you: 'clock',
+  done: 'check',
+  blocked: 'alert',
+}
+
+/** Stage category icon (Brush `icons/columns` when present, else UiIcon). */
+export function ColumnCategoryIcon({ category, size = 14, className }: { readonly category: StageCategoryIcon; readonly size?: number; readonly className?: string | undefined }): ReactNode {
+  const columnId = STAGE_COLUMN_ICON[category]
+  const url = columnId === null ? undefined : COLUMN_ICONS[columnId]
+  if (url !== undefined) {
+    const style = { '--persona-icon-url': `url("${url}")`, '--persona-icon-size': `${size}px` } as CSSProperties
+    return <span className={className === undefined ? styles.brand : `${styles.brand} ${className}`} style={style} aria-hidden="true" />
+  }
+  return <UiIcon name={STAGE_UI_FALLBACK[category]} size={size} strokeWidth={2.4} className={className} />
 }

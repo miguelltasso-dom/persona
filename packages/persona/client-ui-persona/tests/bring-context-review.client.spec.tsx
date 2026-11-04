@@ -80,4 +80,21 @@ describe('ProposalReview (BYC-4)', () => {
     fireEvent.change(screen.getByLabelText(pt['byc.review.edit']), { target: { value: 'Usar Postgres' } })
     expect(onChoice).toHaveBeenCalledWith('dec-1', expect.objectContaining({ text: 'Usar Postgres' }))
   })
+
+  it('discard marks proposal as discarded in choice state', () => {
+    const onChoice = vi.fn()
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <ProposalReview
+          proposals={PROPOSALS}
+          choices={{ 'dec-1': defaultChoice(PROPOSALS[0]!) }}
+          onChoice={onChoice}
+          onSave={() => {}}
+          labels={labels}
+        />
+      </PreviewFrame>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: pt['byc.review.discard'] }))
+    expect(onChoice).toHaveBeenCalledWith('dec-1', expect.objectContaining({ decision: 'discard' }))
+  })
 })

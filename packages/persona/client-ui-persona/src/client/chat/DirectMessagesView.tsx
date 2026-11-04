@@ -44,6 +44,7 @@ export interface DirectMessagesViewProps {
   readonly onNewConversation?: (() => void) | undefined
   /** "Contexto usado" for a task cited in the DM (same drawer as #geral). */
   readonly turnContext?: TurnContextUi | null | undefined
+  readonly turnActivityLabels?: import('../primitives/Pooled.tsx').ActivityGroupProps['labels'] | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
   readonly memberId?: string | undefined
   readonly onToggleReaction?: ((messageId: string, stickerId: import('../primitives/index.ts').ReactionId) => void) | undefined
@@ -53,6 +54,8 @@ export interface DirectMessagesViewProps {
   readonly subjectMoveTargets?: import('./conversation-subjects.ts').ConversationSubjectUi[] | undefined
   readonly onMoveMessageSubject?: ((messageId: string, subjectId: string) => void) | undefined
   readonly onUndoMoveMessage?: ((messageId: string) => void) | undefined
+  readonly subjectsLoadError?: import('../remote/persona-remote-unwrap.ts').PersonaRemoteError | null | undefined
+  readonly onRetrySubjects?: (() => void) | undefined
 }
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
@@ -76,9 +79,11 @@ function portraitFor(row: DmRowUi): string | undefined {
 
 /** Mensagens diretas: conversation list + thread with persona header, shared stream and composer. */
 export function DirectMessagesView({
-  t, shellT, loading, dms, selectedId, messages, onSelect, onSend, uploadAttachment, onNewConversation, turnContext, onLoadTurnContext, memberId, onToggleReaction,
+  t, shellT, loading, dms, selectedId, messages, onSelect, onSend, uploadAttachment, onNewConversation, turnContext, turnActivityLabels, onLoadTurnContext, memberId, onToggleReaction,
   subjectBar, composerSubjectPlaceholder, composerSubjectColorIndex,
   subjectMoveTargets, onMoveMessageSubject, onUndoMoveMessage,
+  subjectsLoadError = null,
+  onRetrySubjects,
 }: DirectMessagesViewProps): ReactNode {
   const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string } | null>(null)
   const selected = dms.find(row => row.id === selectedId) ?? null
@@ -175,8 +180,26 @@ export function DirectMessagesView({
               </div>
               {selected.stateLabel !== undefined && <Chip tone={selected.stateTone ?? 'neutral'}>{selected.stateLabel}</Chip>}
             </header>
-            {subjectBar !== undefined && <SubjectBar t={t} {...subjectBar} />}
-            <div className={styles.thread} role="log" aria-live="polite">
+            {subjectBar !== undefined && (
+              <>
+                {subjectsLoadError !== null && subjectsLoadError !== undefined && (
+                  <div className={styles.subjectError} role="status">
+                    <p>{subjectsLoadError.message}</p>
+                    {onRetrySubjects !== undefined && (
+                      <button type="button" className={styles.subjectRetry} onClick={() => { onRetrySubjects() }}>
+                        {t('subjects.retry')}
+                      </button>
+                    )}
+                  </div>
+                )}
+                <SubjectBar t={t} {...subjectBar} />
+              </>
+            )}
+            <div
+              className={styles.thread}
+              {...(subjectBar?.panelId === undefined ? { role: 'log' as const } : { id: subjectBar.panelId, role: 'tabpanel' as const })}
+              aria-live="polite"
+            >
               {messages.length === 0 ? (
                 <div className={styles.firstAsk}>
                   <EmptyState compact illustration={portraitFor(selected)} title={t('dm.threadEmpty')} />
@@ -212,10 +235,13 @@ export function DirectMessagesView({
                       setMoveToast({ messageId, subjectLabel })
                     },
                   })}
+                  {...(turnContext?.ticketId === undefined ? {} : { turnActivityTicketId: turnContext.ticketId })}
+                  {...(turnContext?.activityFolds === undefined ? {} : { turnActivityFolds: turnContext.activityFolds })}
+                  {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
                 />
               )}
             </div>
-            <TurnContextDrawer t={t} context={turnContext} />
+            <TurnContextDrawer t={t} context={turnContext} activityLabels={turnActivityLabels} />
             <div className={styles.composer}>
               <ChannelComposer
                 t={t}

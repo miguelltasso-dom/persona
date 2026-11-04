@@ -7,7 +7,7 @@
   "files.heading": "Arquivos alterados",
   "files.summary": "+{added} / −{deleted} linhas",
   "patch.heading": "Alterações",
-  "patch.truncated": "Patch truncado — mostrando os primeiros {limit} bytes.",
+  "patch.truncated": "Mudança grande demais para mostrar inteira. Aqui vai o começo.",
   "patch.redacted": "Segredos foram ocultados neste trecho.",
   "tests.heading": "Testes citados no relato",
   "action.accept": "Aceitar",

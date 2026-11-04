@@ -69,20 +69,20 @@ try {
   }
   const rpc = async (method, request) => {
     const result = await raw(method, request)
-    if (!result?.ok) throw new Error(`rpc:${method}:${result?.error?.code ?? 'unknown'}`)
+    if (!result?.ok) throw new Error(`rpc:${method}:${result?.error?.code ?? 'unknown'}:${String(result?.error?.message ?? '').replace(/token=[^\s]+|Bearer\s+\S+/gu, '[redacted]')}`)
     return result.value
   }
   await rpc('createWorkspace', { id: scope.workspaceId, name: 'Prova sem IA', personalProjectId: scope.projectId })
   await rpc('createMember', { ...scope, id: 'ana', displayName: 'Ana', handle: 'ana', role: 'owner' })
   await rpc('createChannel', { ...scope, id: channelId, name: 'geral', topic: '' })
-  await rpc('createPersona', { ...scope, id: 'guia', name: 'Guia', title: 'Coordenação', description: 'Prova.',
-    personality: 'Calma.', instructions: 'Responda.', avatarKind: 'gallery', avatarRef: 'guia',
-    runnerKind: 'dsh', runnerCli: '', runnerModel: 'default', canRecruit: false, createdBy: 'ana', systemRoles: ['coordination'] })
   await rpc('retryEngine', scope)
-  const id = randomUUID()
+  const id = 'first-delivery'
   const start = Date.now()
-  await rpc('postMessage', { ...scope, id, streamKind: 'channel', ownerId: channelId, actorId: 'ana',
-    body: 'Preciso de uma lista de três ideias para o projeto.', subjectId: 'fr3-runtime', occurredAt: new Date().toISOString() })
+  await rpc('completeOnboarding', { workspaceId: scope.workspaceId, personalProjectId: scope.projectId, displayName: 'Ana',
+    team: [{ name: 'Guia', title: 'Coordenação', description: 'Prova.', personality: 'Calma.', instructions: 'Responda.',
+      avatarKind: 'gallery', avatarRef: 'guia', runnerKind: 'dsh', runnerCli: '', runnerModel: 'default',
+      canRecruit: false, systemRoles: ['coordination'] }], templateIds: [], runnerChoices: ['dsh'],
+    cofreSeed: 'Empresa sintética para a prova sem IA.' })
   const elapsedMs = Date.now() - start
   const messages = await rpc('listMessages', { ...scope, streamKind: 'channel', ownerId: channelId,
     actorId: 'ana', afterSeq: 0, limit: 100 })

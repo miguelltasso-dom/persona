@@ -174,10 +174,16 @@ export class BrainHost {
    * @param projectId - Tenant.
    */
   home(workspaceId: string, projectId: string): BrainHomeView {
-    const start = this.brain.ensureStartHere(workspaceId, projectId)
+    this.assertRead(workspaceId, projectId)
+    const actor = this.actorOf(workspaceId)
+    if (actor === undefined) return { startHereId: '', changedToday: [], activeGrants: [], contradictions: [], leftover: [] }
+    const pages = this.brain.list(projectId).filter(page => this.visible(workspaceId, page))
+    const start = this.brain.ensureStartHere(workspaceId, projectId, actor.id, pages)
     const day = `${this.brain.now().slice(0, 10)}T00:00:00.000Z`
     const changed = this.brain.listChangedSince(projectId, day).filter(page => this.visible(workspaceId, page))
-    const grants = this.brain.listGrants(projectId).filter(row => row.revokedAt === undefined)
+    const grants = this.brain.listGrants(projectId).filter(row => row.revokedAt === undefined
+      && (row.expiresAt === undefined || Date.parse(row.expiresAt) > Date.parse(this.brain.now()))
+      && (row.validity !== 'once' || row.useCount === 0))
     const contradictions = this.brain.list(projectId)
       .filter(page => page.properties.contradiction === 'true' && this.visible(workspaceId, page))
     return {
@@ -242,10 +248,11 @@ export class BrainHost {
     actorId: string,
   ): { files: number; created: number; skipped: number; direction: 'export' | 'import'; leftover: readonly string[] } {
     this.assertWrite(workspaceId, projectId)
-    const exported = this.brain.exportFolder(projectId, folderPath)
+    const visible = this.brain.list(projectId).filter(page => this.visible(workspaceId, page))
+    const exported = this.brain.exportFolder(projectId, folderPath, visible)
     const dest = listDestMarkdown(folderPath)
     const destRels = dest.map(file => file.path.replaceAll('\\', '/'))
-    const packRels = this.brain.list(projectId).map(page => `${page.kind}/${page.slug}.md`)
+    const packRels = visible.map(page => `${page.kind}/${page.slug}.md`)
     if (!twoWay) {
       this.lastForeignPreview = undefined
       this.lastLeftover = leftoverDestFiles(destRels, packRels)
@@ -287,6 +294,7 @@ export class BrainHost {
   }
 
   private visible(workspaceId: string, page: BrainPage): boolean {
+    if (page.sources.includes('derived-index') && page.visibility.kind !== 'members') return false
     const actor = this.actorOf(workspaceId)
     if (actor === undefined) return page.visibility.kind === 'workspace'
     return canReadVault(actor, asRecord(page))

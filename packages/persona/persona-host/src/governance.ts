@@ -2,6 +2,7 @@
  * Workspace snapshot and Muse/Lumen views for GOV-5 remotes.
  */
 
+import { randomUUID } from 'node:crypto'
 import {
   applyGovernanceFix,
   assessTeamHealth,
@@ -375,10 +376,11 @@ export class GovernanceHost {
    * @param detail - JSON-safe body.
    */
   audit(workspaceId: string, actorId: string, action: string, detail: Record<string, string>): void {
+    const at = this.now()
     this.gov.putAudit({
-      id: `${action}:${this.now()}:${actorId}`,
+      id: `${action}:${at}:${actorId}:${randomUUID()}`,
       workspaceId,
-      at: this.now(),
+      at,
       action,
       actorId,
       body: JSON.stringify(detail),

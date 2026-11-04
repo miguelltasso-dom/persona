@@ -61,7 +61,18 @@ it('J14 — editar fluxo com Tarefas vivas; sem destino recusa em pt-BR; Vigia/p
   expect(afterRemove.workflow.columns.some(column => column.id === 'software-sprint')).toBe(false)
   const kept = afterRemove.cards.find(card => card.ticketId === task!.id)
   expect(kept).toBeDefined()
-  expect(kept!.category === 'doing' || kept!.columnId === 'software-andamento').toBe(true)
+  expect(kept!.columnId).toBe('software-andamento')
+  expect(kept!.category).toBe('doing')
+
+  h.updateWorkflow({
+    ...SCOPE,
+    columns: afterRemove.workflow.columns.filter(column => column.id !== 'software-andamento'),
+    fields: afterRemove.workflow.fields,
+    destByRemoved: { 'software-andamento': 'software-backlog' },
+  })
+  const migrated = h.getProjectBoard(SCOPE).cards.find(card => card.ticketId === task!.id)
+  expect(migrated?.columnId).toBe('software-backlog')
+  expect(migrated?.category).toBe('doing')
 
   expect(() => { h.proactivity.tickWatchdog('code', 60_000) }).not.toThrow()
   expect(() => { h.orchestration.tick('code') }).not.toThrow()

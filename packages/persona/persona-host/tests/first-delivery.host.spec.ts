@@ -78,6 +78,8 @@ it('the introductory task uses one execution delivery with persona context and n
   const h = host()
   const calls: Array<{ personaId: string; mode: string; text: string }> = []
   h.orchestration.runnerFactory = async (request) => {
+    expect(request?.permissionMode).toBe('deny')
+    expect(request?.tools).toEqual({})
     const runner = createFakeRunner()
     return {
       ...runner,
@@ -89,13 +91,20 @@ it('the introductory task uses one execution delivery with persona context and n
       },
     }
   }
-  await h.completeOnboarding({ ...ONBOARDING, cofreSeed: 'A empresa cita @Guia, mas a entrega continua com Bento.' })
+  const onboarding = { ...ONBOARDING,
+    cofreSeed: `A empresa cita @Guia, mas a entrega continua com Bento. ${'Dados autorizados da empresa. '.repeat(100)} REGRA_FINAL_2026-11-04T12:00:00Z` }
+  h.onboarding.complete(onboarding)
+  const worker = h.product.listPersonas('pp').find(persona => persona.name === 'Bento')!
+  h.product.updatePersona({ ...worker, tools: { files: 'write', shell: 'write' } }, 'pp')
+  h.postFirstDeliveryAsk(onboarding, 'pp')
   await h.orchestration.flush('pp')
   expect(calls).toHaveLength(1)
   expect(calls[0]?.mode).toBe('queue')
   expect(calls[0]?.text).toContain('Bento')
   expect(calls[0]?.text).toContain('Prove.')
   expect(calls[0]?.text).toContain('Não use ferramentas')
+  expect(calls[0]?.text).toContain(h.events.get(FIRST_DELIVERY_EVENT_ID)!.body)
+  expect(calls[0]?.text).toContain('REGRA_FINAL_2026-11-04T12:00:00Z')
   const delivery = h.getFirstDelivery(scope)
   expect(delivery.status).toBe('ready')
   const ledger = h.ledger.list({ projectId: 'pp' })

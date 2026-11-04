@@ -18,6 +18,7 @@ import {
 import type { SQLOutputValue } from 'node:sqlite'
 import { integer, optionalText, run, text } from '../sql.ts'
 import type { PersonaStore } from '../store.ts'
+import { ScreenRepos } from '../screens/repos.ts'
 
 const TEMPLATES: readonly WorkflowTemplateId[] = [
   'contratacao', 'site', 'software', 'marketing', 'atendimento', 'simples', 'em_branco',
@@ -38,6 +39,7 @@ export interface BoardSnapshot {
  * so it does not collide with {@link PlacementStore.list}.
  */
 export class SqliteBoardRepos implements WorkflowStore, PlacementStore {
+  private readonly metadata: ScreenRepos
   readonly store: PersonaStore
   readonly now: () => string
 
@@ -48,6 +50,7 @@ export class SqliteBoardRepos implements WorkflowStore, PlacementStore {
   constructor(store: PersonaStore, now: () => string = () => new Date().toISOString()) {
     this.store = store
     this.now = now
+    this.metadata = new ScreenRepos(store, now)
   }
 
   /**
@@ -121,7 +124,7 @@ export class SqliteBoardRepos implements WorkflowStore, PlacementStore {
       `SELECT ticket_id AS ticketId, project_id AS projectId, column_id AS columnId,
               sprint_id AS sprintId, blocked, campos_json AS camposJson
          FROM ticket_seat WHERE project_id = ?`,
-    ).all(projectId).map(readSeat)
+    ).all(projectId).map(row => this.readPlacement(row))
   }
 
   /**
@@ -133,7 +136,18 @@ export class SqliteBoardRepos implements WorkflowStore, PlacementStore {
               sprint_id AS sprintId, blocked, campos_json AS camposJson
          FROM ticket_seat WHERE ticket_id = ?`,
     ).get(ticketId)
-    return row === undefined ? undefined : readSeat(row)
+    return row === undefined ? undefined : this.readPlacement(row)
+  }
+
+  private readPlacement(row: Record<string, SQLOutputValue>): TicketBoardSeat {
+    const seat = readSeat(row)
+    const raw = this.metadata.get<unknown>(seat.projectId, 'ticket_workflow_move', seat.ticketId)
+    if (raw !== undefined) {
+      if (typeof raw !== 'object' || raw === null || !('stageCategory' in raw)
+        || typeof raw.stageCategory !== 'string' || !isCategory(raw.stageCategory)) throw new Error('constraint')
+      seat.workflowMove = { stageCategory: raw.stageCategory }
+    }
+    return seat
   }
 
   /**
@@ -151,6 +165,8 @@ export class SqliteBoardRepos implements WorkflowStore, PlacementStore {
         seat.blocked === true ? 1 : 0,
         seat.campos === undefined ? null : JSON.stringify(seat.campos),
       ])
+      if (seat.workflowMove === undefined) this.metadata.delete(seat.projectId, 'ticket_workflow_move', seat.ticketId)
+      else this.metadata.put(seat.projectId, 'ticket_workflow_move', seat.ticketId, seat.workflowMove)
     })
   }
 

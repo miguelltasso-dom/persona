@@ -35,6 +35,7 @@ export const RemoteRequestSchema = z.looseObject({
   accountId: IdField.optional(),
   ticketId: IdField.optional(),
   triggerId: IdField.optional(),
+  restorePointId: IdField.optional(),
   sprintId: IdField.optional(),
   subjectId: IdField.optional(),
   ownerId: IdField.optional(),

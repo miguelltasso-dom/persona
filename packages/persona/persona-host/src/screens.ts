@@ -813,6 +813,7 @@ function hireCard(proposal: PersonaProposal, personaName: string): ApprovalView 
   return {
     id: proposal.id, kind: 'hire', title: proposal.spec.name,
     question: `Contratar ${proposal.spec.name}?`, status: proposal.status,
+    reason: proposal.spec.description,
     personaId: proposal.creatorPersonaId, personaName,
     ...(hireAvatarRef === undefined ? {} : { hireAvatarRef }),
   }

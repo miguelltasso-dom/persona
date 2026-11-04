@@ -1,4 +1,4 @@
-import { expect } from 'vitest'
+import { expect, vi } from 'vitest'
 import PersonaHost from '../src/index.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
@@ -174,4 +174,57 @@ it('assembles a team, flow and sprint 1 from a goal sentence', () => {
   })
   expect(pack.sprintName).toBe('Sprint 1')
   expect(pack.personaTitles.length).toBeGreaterThan(0)
+})
+
+it('approving an assembly applies its preview once and reuses functions already in the project', () => {
+  const h = host()
+  seed(h)
+  h.sessionMemberId = 'ana'
+  const scope = { workspaceId: 'ws', projectId: 'pp' }
+  const preview = h.proposeGestorAssemble({ ...scope, gestorId: 'atlas', id: 'assembly', goal: 'Monte um time para o Site' })
+  expect(preview.preview.reuse).toContainEqual({ personaId: 'atlas', function: 'Coordenação' })
+  const approve = () => h.approveGestorPlan({ workspaceId: 'ws', planId: preview.plan.id })
+  expect(approve().status).toBe('applied')
+  const ids = h.listPersonas(scope).map(row => row.id)
+  expect(ids).toHaveLength((preview.preview.hire?.length ?? 0) + 1)
+  expect(h.getProjectBoard(scope).workflow.template).toBe('site')
+  expect(h.listSprints(scope)).toHaveLength(1)
+  expect(approve().status).toBe('applied')
+  expect(h.listPersonas(scope).map(row => row.id)).toEqual(ids)
+  expect(h.listGestorAudit({ workspaceId: 'ws' }).filter(row => row.action === 'assemble')).toHaveLength(1)
+})
+
+it('an assembly exceeding the roster cap leaves the pending plan and project intact', () => {
+  const h = host()
+  seed(h)
+  h.sessionMemberId = 'ana'
+  h.setGestorLimits({ workspaceId: 'ws', personaId: 'atlas', approval: 'always_ask', maxPersonas: 2,
+    budgetTokens: 0, allowedTools: [], allowedEngines: [], sectorIds: [], projectIds: [], canGrantGestor: false })
+  const scope = { workspaceId: 'ws', projectId: 'pp' }
+  const plan = h.proposeGestorAssemble({ ...scope, gestorId: 'atlas', id: 'too-many', goal: 'Monte um time para o Site' })
+  expect(() => h.approveGestorPlan({ workspaceId: 'ws', planId: plan.plan.id })).toThrow()
+  expect(h.listPersonas(scope).map(row => row.id)).toEqual(['atlas'])
+  expect(h.listSprints(scope)).toEqual([])
+  expect(h.listGestorPlans({ workspaceId: 'ws' }).find(row => row.id === plan.plan.id)?.status).toBe('proposed')
+  expect(h.listGestorAudit({ workspaceId: 'ws' })).toEqual([])
+})
+
+it('a sprint write failure rolls back the assembly, workflow and audit together', () => {
+  const h = host()
+  seed(h)
+  h.sessionMemberId = 'ana'
+  const scope = { workspaceId: 'ws', projectId: 'pp' }
+  const before = h.getProjectBoard(scope).workflow
+  const plan = h.proposeGestorAssemble({ ...scope, gestorId: 'atlas', id: 'rollback', goal: 'Monte um time para o Site' })
+  const fail = vi.spyOn(h.boards, 'planSprint').mockImplementation(() => { throw new Error('write-failed') })
+  try {
+    expect(() => h.approveGestorPlan({ workspaceId: 'ws', planId: plan.plan.id })).toThrow('write-failed')
+  } finally {
+    fail.mockRestore()
+  }
+  expect(h.listPersonas(scope).map(row => row.id)).toEqual(['atlas'])
+  expect(h.getProjectBoard(scope).workflow).toEqual(before)
+  expect(h.listSprints(scope)).toEqual([])
+  expect(h.listGestorAudit({ workspaceId: 'ws' })).toEqual([])
+  expect(h.approveGestorPlan({ workspaceId: 'ws', planId: plan.plan.id }).status).toBe('applied')
 })

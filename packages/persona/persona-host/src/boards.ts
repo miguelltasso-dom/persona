@@ -5,7 +5,6 @@
 import {
   DomainError,
   WORKFLOW_TEMPLATES,
-  applyWorkflowEdit,
   boardCounts,
   openSprint,
   parseWorkflowProposal,
@@ -23,6 +22,8 @@ import {
 } from '@deepseek-ai/dsh-persona-core'
 import {
   bindSprintGoal,
+  applyBoardWorkflowEdit,
+  syncPlacementFromStage,
   closeSprint,
   MemoryGoalBoard,
   moveToColumn,
@@ -93,6 +94,15 @@ export class BoardsHost {
     const workflow = stored ?? workflowFromTemplate(projectId, 'simples')
     const tickets = this.tickets(projectId)
     const seats = this.board.list(projectId)
+    for (const ticket of tickets) {
+      const previous = seats.find(seat => seat.ticketId === ticket.id)
+      const category = projectBoardCard(workflow, ticket, previous).category
+      if (previous?.workflowMove?.stageCategory === category) continue
+      if (previous?.workflowMove === undefined
+        && workflow.columns.find(column => column.id === previous?.columnId)?.category === category) continue
+      const synced = syncPlacementFromStage(workflow, ticket, previous)
+      if (JSON.stringify(previous) !== JSON.stringify(synced)) this.board.save(synced)
+    }
     const cards = tickets.map(ticket => toCard(
       workflow, ticket, this.board.of(ticket.id), this.topicOf(projectId, ticket.id),
     ))
@@ -169,16 +179,20 @@ export class BoardsHost {
    */
   updateWorkflow(request: UpdateWorkflowRequest): WorkflowView {
     const current = this.board.get(request.projectId) ?? workflowFromTemplate(request.projectId, 'simples')
+    const currentSeats = this.board.list(request.projectId)
     try {
-      const edited = applyWorkflowEdit(
+      const edited = applyBoardWorkflowEdit(
         current,
         request.columns.map(toColumn),
         request.fields.map(toField),
-        this.board.list(request.projectId),
+        currentSeats,
+        this.tickets(request.projectId),
         request.destByRemoved ?? {},
       )
-      this.board.save(edited.workflow)
-      for (const seat of edited.seats) this.board.save(seat)
+      this.board.store.tx(() => {
+        this.board.save(edited.workflow)
+        for (const seat of edited.seats) this.board.save(seat)
+      })
       return toWorkflowView(edited.workflow)
     } catch (error: unknown) {
       throw mapBoardError(error)
@@ -376,11 +390,12 @@ export class BoardsHost {
   acceptWorkflowProposal(request: AcceptWorkflowProposalRequest): WorkflowView {
     const current = this.board.get(request.projectId) ?? workflowFromTemplate(request.projectId, 'simples')
     try {
-      const edited = applyWorkflowEdit(
+      const edited = applyBoardWorkflowEdit(
         current,
         request.columns.map(toColumn),
         request.fields.map(toField),
         this.board.list(request.projectId),
+        this.tickets(request.projectId),
         request.destByRemoved ?? {},
       )
       const inferred = inferTemplate(request.columns)
@@ -388,8 +403,10 @@ export class BoardsHost {
         ? request.template
         : inferred ?? edited.workflow.template
       const workflow = { ...edited.workflow, template: chosen }
-      this.board.save(workflow)
-      for (const seat of edited.seats) this.board.save(seat)
+      this.board.store.tx(() => {
+        this.board.save(workflow)
+        for (const seat of edited.seats) this.board.save(seat)
+      })
       return toWorkflowView(workflow)
     } catch (error: unknown) {
       throw mapBoardError(error)

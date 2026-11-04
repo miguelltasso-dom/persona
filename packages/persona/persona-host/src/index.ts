@@ -34,10 +34,12 @@ import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
 import { cachedEngineReadiness } from './engine-readiness.ts'
 import { RemoteTeamHost, type RemoteTeamVault } from './remote-team.ts'
-import type { AcceptRemoteInviteRequest, ConnectRemoteTeamRequest, RemoteTeamAvailability, RemoteTeamState } from './types.ts'
+import type { AcceptRemoteInviteRequest, ConnectRemoteTeamRequest, RemoteTeamAvailability, RemoteTeamState,
+  RestorePointListView, UndoApplyRequest, UndoApplyView, ProjectStorageUsageView } from './types.ts'
+import { projectStorageUsage } from './history-storage.ts'
 import type { EngineStatusView, EngineTriggerActionRequest } from './types.ts'
 import { persistProbeQuota } from './official-quota-persist.ts'
-import { installRemoteGuard, RemoteGuard } from './remote-guard.ts'
+import { installRemoteGuard, RemoteGuard, RemoteFault as HostRemoteFault } from './remote-guard.ts'
 import { MutantRunBook } from './mutant-run.ts'
 import { DeadLetterBook } from './dead-letter.ts'
 import { collectDiagnostics, stringifyDiagnostics } from './diagnostics.ts'
@@ -90,9 +92,11 @@ import {
   rollbackTaughtSkill as disableTaughtSkill,
   measureProactivityAcceptance,
   measureV1CloseView,
+  parseReviewRestorePointId,
 } from '@deepseek-ai/dsh-persona-engine'
 import {
   defaultSkillDirIo,
+  canReadVault,
   foldUsagePanel,
   parseBringPaste,
   usagePortKind,
@@ -490,6 +494,12 @@ export interface Config {
   readonly remoteTeamTimeoutMs?: number
   /** Recheck retained messages; zero disables the retry timer. Default 15000 ms. */
   readonly engineRetryPollMs?: number
+  /** Ordinary-folder draft size limit; defaults to the engine's configured default. */
+  readonly historyMaxCopyBytes?: number
+  /** Deadline for private-history git commands; defaults to the engine's default. */
+  readonly historyGitTimeoutMs?: number
+  /** Optional resolved executable; omitted uses the system PATH. */
+  readonly historyGit?: string
 }
 
 /**
@@ -635,6 +645,17 @@ export default class PersonaHost extends TypertRemoteService {
       ? { state: 'ready', reason: null }
       : cachedEngineReadiness(this.connections.list())
     this.orchestration.onEngineDeferred = () => { this.armEngineRetry() }
+    for (const value of [config.historyMaxCopyBytes, config.historyGitTimeoutMs]) {
+      if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) throw new Error('invalid-history-limit')
+    }
+    if (config.historyGit !== undefined && (typeof config.historyGit !== 'string' || config.historyGit.trim() === '')) {
+      throw new Error('invalid-history-git')
+    }
+    this.orchestration.reviewOptions = {
+      ...(config.historyMaxCopyBytes === undefined ? {} : { maxCopyBytes: config.historyMaxCopyBytes }),
+      ...(config.historyGitTimeoutMs === undefined ? {} : { gitTimeoutMs: config.historyGitTimeoutMs }),
+      ...(config.historyGit === undefined ? {} : { git: config.historyGit }),
+    }
     this.orchestration.loggedCliOf = () => this.loggedCli()
     this.remoteGuard = new RemoteGuard({
       peerOf: () => this.sessionMemberId ?? 'local',
@@ -649,6 +670,7 @@ export default class PersonaHost extends TypertRemoteService {
       this.product,
       new GestorRepos(this.store, () => this.orchestration.now()),
       () => this.orchestration.now(),
+      this.boards,
     )
     this.workingSend = new WorkingSendHost(screenRepos, () => this.orchestration.now())
     this.opt = new OptRepos(this.store, () => this.orchestration.now())
@@ -1117,7 +1139,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   approveGestorPlan(request: ApproveGestorPlanRequest): GestorPlanView {
-    this.requireWorkspace(request)
+    this.requireGovOwner(request.workspaceId)
     return this.gestor.approvePlan(request)
   }
 
@@ -1127,7 +1149,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   rejectGestorPlan(request: RejectGestorPlanRequest): GestorPlanView {
-    this.requireWorkspace(request)
+    this.requireGovOwner(request.workspaceId)
     return this.gestor.rejectPlan(request)
   }
 
@@ -1877,6 +1899,39 @@ export default class PersonaHost extends TypertRemoteService {
   getRemoteTeamAvailability(request: ProjectScopeRequest): RemoteTeamAvailability {
     this.requireProject(request)
     return { vault: this.remoteTeam.vaultAvailability() }
+  }
+
+  /** @param request - Authorized project. @returns Supported history metadata without private directory paths. */
+  @Remote
+  async listRestorePoints(request: ProjectScopeRequest): Promise<RestorePointListView> {
+    this.requireProject(request)
+    const delivery = this.orchestration.reviewDelivery(request.projectId)
+    if (delivery === undefined) return { status: 'unconfigured', points: [] }
+    if (delivery.listRestorePoints === undefined) return { status: 'unsupported', points: [] }
+    return { status: 'available', points: await delivery.listRestorePoints() }
+  }
+
+  /** @param request - Person-authorized point in the same project. @returns Restoration, expiry, or a safe refusal preserving later edits. */
+  @Remote
+  async undoApply(request: UndoApplyRequest): Promise<UndoApplyView> {
+    this.requireWrite(request)
+    if (this.actorOf(request.workspaceId)?.kind !== 'user') throw new Error('forbidden')
+    const pointId = parseReviewRestorePointId(request.restorePointId)
+    const delivery = this.orchestration.reviewDelivery(request.projectId)
+    if (delivery?.listRestorePoints === undefined || delivery.undoApply === undefined) {
+      return { kind: 'blocked', explanation: 'Este projeto não tem restauração disponível pela Persona.' }
+    }
+    if (!(await delivery.listRestorePoints()).some(point => point.id === pointId)) {
+      throw new HostRemoteFault('not-found', 'Ponto de restauração não encontrado neste projeto.')
+    }
+    return delivery.undoApply(pointId)
+  }
+
+  /** @param request - Authorized project. @returns Logical private-history/draft bytes for Usage, with explicit scan failure. */
+  @Remote
+  async getProjectStorageUsage(request: ProjectScopeRequest): Promise<ProjectStorageUsageView> {
+    this.requireProject(request)
+    return projectStorageUsage(request.projectId)
   }
 
   /** @param request - Project scope. @returns Cached readiness and retained message count, without waiting for a probe. */
@@ -3303,13 +3358,18 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listVaultRecords(request: ProjectScopeRequest): VaultRecordView[] {
     this.requireProject(request)
-    return this.vault.listRecords(request.projectId).map(record => ({
+    return this.visibleVaultRecords(request).map(record => ({
       id: record.id,
       projectId: request.projectId,
       kind: record.kind,
       body: record.body,
       status: record.status,
     }))
+  }
+
+  private visibleVaultRecords(request: ProjectScopeRequest): ReturnType<VaultRepos['listRecords']> {
+    const actor = this.actorOf(request.workspaceId)
+    return actor === undefined ? [] : this.vault.listRecords(request.projectId).filter(record => canReadVault(actor, record))
   }
 
   /**
@@ -3571,7 +3631,7 @@ export default class PersonaHost extends TypertRemoteService {
       text: request.text,
       provider: request.provider,
       at: new Date().toISOString(),
-      existing: vaultToBringExisting(this.vault.listRecords(request.projectId)),
+      existing: vaultToBringExisting(this.visibleVaultRecords(request)),
     })
   }
 
@@ -3584,7 +3644,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     return previewBringContextVaultFolder(
       request.rootPath,
-      vaultToBringExisting(this.vault.listRecords(request.projectId)),
+      vaultToBringExisting(this.visibleVaultRecords(request)),
     )
   }
 
@@ -3980,6 +4040,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   setActiveConversationSubject(request: ArchiveConversationSubjectRequest): ConversationSubjectsBundleView {
     this.requireWrite(request)
+    this.requireConversationSubject(request)
     const found = this.topics.get(request.subjectId)
     if (found === undefined || found.archived) throw new Error('not-found')
     this.screens.screens.put(request.projectId, 'conversation_active', `${request.streamKind}:${request.ownerId}`, {
@@ -3997,6 +4058,9 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireWrite(request)
     const existing = this.topics.list(request.projectId, request.streamKind, request.ownerId, true)
     const colorIndex = request.colorIndex ?? nextSubjectColor(existing)
+    if (existing.some(row => !row.archived && row.colorIndex === colorIndex)) {
+      throw new HostRemoteFault('invalid-payload', 'Esta cor já está em uso nesta conversa.')
+    }
     const id = `${request.streamKind}:${request.ownerId}:t${String(colorIndex)}`
     const archived = existing.find(row => row.id === id && row.archived)
     if (archived !== undefined) this.topics.archive(id, false)
@@ -4022,6 +4086,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   renameConversationSubject(request: RenameConversationSubjectRequest): ConversationSubjectsBundleView {
     this.requireWrite(request)
+    this.requireConversationSubject(request)
     this.topics.rename(request.subjectId, request.name)
     this.subjectListCache.clear()
     return this.listConversationSubjects(request)
@@ -4033,9 +4098,18 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   archiveConversationSubject(request: ArchiveConversationSubjectRequest): ConversationSubjectsBundleView {
     this.requireWrite(request)
+    this.requireConversationSubject(request)
     this.topics.archive(request.subjectId, true)
     this.subjectListCache.clear()
     return this.listConversationSubjects(request)
+  }
+
+  private requireConversationSubject(request: ArchiveConversationSubjectRequest): void {
+    const row = this.topics.get(request.subjectId)
+    if (row === undefined || row.workspaceId !== request.workspaceId || row.projectId !== request.projectId
+      || row.streamKind !== request.streamKind || row.ownerId !== request.ownerId) {
+      throw new HostRemoteFault('not-found', 'Assunto não encontrado nesta conversa.')
+    }
   }
 
   /**
@@ -4240,6 +4314,7 @@ export default class PersonaHost extends TypertRemoteService {
   getTeachDraft(request: TeachSessionIdRequest): TeachDraftView {
     this.requireProject(request)
     const row = this.teach.get(request.sessionId)
+    if (row !== undefined && (row.projectId !== request.projectId || row.workspaceId !== request.workspaceId)) throw new Error('forbidden')
     if (row === undefined || row.skillDraft === '') {
       return { steps: [], skillTitle: '' }
     }
@@ -4256,6 +4331,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireWrite(request)
     const row = this.teach.get(request.sessionId)
     if (row === undefined) throw new Error('not-found')
+    if (row.projectId !== request.projectId || row.workspaceId !== request.workspaceId) throw new Error('forbidden')
     this.teach.putDraft(request.sessionId, row.transcript, JSON.stringify({
       title: 'Skill ensinada',
       steps: request.steps,
@@ -4953,15 +5029,18 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async acceptReview(request: AcceptReviewRequest): Promise<ReviewAcceptView> {
-    this.requireProject(request)
-    const result = await this.orchestration.acceptReview(request.projectId, request.ticketId, request.mode)
+    this.requireWrite(request)
+    const result = await this.orchestration.acceptReview(request.projectId, request.ticketId, request.mode,
+      request.conflicts === undefined ? undefined : { conflicts: request.conflicts })
     if (result.kind === 'merged') {
       this.orchestration.completeReview(request.projectId, request.ticketId)
       rememberReviewFeedback(this.vault, request, 'review_accepted', request.ticketId)
-      return { kind: 'merged', mode: result.mode, explanation: '' }
+      return { kind: 'merged', mode: result.mode, explanation: '',
+        ...(result.restorePointId === undefined ? {} : { restorePointId: result.restorePointId }) }
     }
     rememberReviewFeedback(this.vault, request, 'review_changes', result.explanation)
-    return { kind: 'blocked', mode: request.mode, explanation: result.explanation }
+    return { kind: 'blocked', mode: request.mode, explanation: result.explanation,
+      ...(result.conflicts === undefined ? {} : { conflicts: result.conflicts }) }
   }
 
   /**

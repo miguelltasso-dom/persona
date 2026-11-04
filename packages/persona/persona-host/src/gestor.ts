@@ -4,6 +4,7 @@
 
 import {
   assembleTeamForGoal,
+  assertGestorAssemblyHires,
   claimGestorScope,
   commentGestorPlan,
   decideGestorAction,
@@ -13,13 +14,16 @@ import {
   gestorReorganize,
   gestorScopeKey,
   isGestor,
+  parsePersonaSpec,
   resolveGestorTie,
   type CliKind,
   type GestorLimits,
   type GestorPlan,
   type PersonaSpec,
 } from '@deepseek-ai/dsh-persona-core'
+import { z } from 'zod'
 import { GestorRepos, type ProductRepos } from '@deepseek-ai/dsh-persona-store'
+import type { BoardsHost } from './boards.ts'
 import type {
   ApproveGestorPlanRequest,
   RejectGestorPlanRequest,
@@ -110,6 +114,7 @@ export class GestorHost {
     readonly product: ProductRepos,
     readonly repos: GestorRepos,
     readonly now: () => string,
+    readonly boards: BoardsHost,
   ) {}
 
   /**
@@ -230,11 +235,13 @@ export class GestorHost {
       auditId: `aud-${plan.id}`,
       at,
     })
-    this.applyEnvelope({ ...plan }, persona, limits, true)
-    const applied = { ...plan, status: 'applied' as const }
-    this.repos.putPlan(applied)
-    if (decision.kind === 'apply' || decision.kind === 'notify') this.repos.putAudit(decision.audit)
-    return toPlanView(applied)
+    return this.repos.store.tx(() => {
+      this.applyEnvelope(plan, persona, limits, true)
+      const applied = { ...plan, status: 'applied' as const }
+      this.repos.putPlan(applied)
+      if (decision.kind === 'apply' || decision.kind === 'notify') this.repos.putAudit(decision.audit)
+      return toPlanView(applied)
+    })
   }
 
   /**
@@ -412,16 +419,22 @@ export class GestorHost {
     const limits = this.repos.mandateOrDefault(request.gestorId, request.workspaceId)
     const at = this.now()
     const sprintId = `sprint-${request.id}`
+    const project = this.product.getProject(request.projectId)
+    if (project?.workspaceId !== request.workspaceId || persona.workspaceId !== request.workspaceId) {
+      throw new Error('project-not-found')
+    }
     const preview = assembleTeamForGoal({
       goal: request.goal,
       projectId: request.projectId,
       sprintId,
       at,
+      existingFunctions: this.product.listPersonas(request.projectId)
+        .map(row => ({ personaId: row.id, function: row.title })),
     })
     const scopeKey = gestorScopeKey({ projectId: request.projectId })
-    const titles = preview.structure.personas.map(row => row.title).join(', ')
-    const summary = `Vou contratar ${preview.structure.personas.length} personas (${titles}) e montar o fluxo ${preview.workflow.template}.`
-    const plan: GestorPlan = {
+    const titles = preview.hire.map(row => row.title).join(', ')
+    const summary = `Vou contratar ${preview.hire.length} personas (${titles}) e montar o fluxo ${preview.workflow.template}.`
+    const plan = {
       id: request.id,
       workspaceId: request.workspaceId,
       gestorId: request.gestorId,
@@ -433,7 +446,24 @@ export class GestorHost {
         : `porque você pediu: ${request.goal.trim()}`,
       status: 'proposed',
       createdAt: at,
-    }
+      assembly: {
+        projectId: request.projectId,
+        hires: preview.hire.map(row => ({
+          id: `hire-${request.id}-${row.id}`,
+          spec: {
+            name: row.title, title: row.title,
+            avatar: { kind: 'gallery' as const, ref: row.id },
+            description: `${row.title} — ${request.goal.trim()}`,
+            personality: persona.personality,
+            instructions: `Cuide da função ${row.title} no projeto: ${request.goal.trim()}`,
+            runner: persona.runner, tools: {}, skills: [], limits: {}, systemRoles: [], canRecruit: false,
+          } satisfies PersonaSpec,
+        })),
+        reuse: preview.reuse.map(row => ({ ...row })),
+        template: preview.workflow.template,
+        sprint: { id: sprintId, name: preview.sprint.name, objective: request.goal, startsAt: at },
+      },
+    } satisfies GestorPlan & { assembly: z.input<typeof assemblySchema> }
     const decision = decideGestorAction({
       mandate: { personaId: request.gestorId, workspaceId: request.workspaceId, limits },
       plan,
@@ -442,11 +472,17 @@ export class GestorHost {
       at,
     })
     if (decision.kind === 'ask') {
+      const existing = this.repos.getPlan(plan.id)
+      if (existing !== undefined) throw new Error('conflict')
       this.repos.putPlan(plan)
     } else {
-      const applied = { ...plan, status: 'applied' as const }
-      this.repos.putPlan(applied)
-      if (decision.kind === 'notify') this.repos.putAudit(decision.audit)
+      this.repos.store.tx(() => {
+        if (this.repos.getPlan(plan.id) !== undefined) throw new Error('conflict')
+        this.applyAssembly(plan, persona, limits)
+        const applied = { ...plan, status: 'applied' as const }
+        this.repos.putPlan(applied)
+        if (decision.kind === 'apply' || decision.kind === 'notify') this.repos.putAudit(decision.audit)
+      })
     }
     return {
       plan: toPlanView(decision.kind === 'ask' ? plan : { ...plan, status: 'applied' }),
@@ -456,6 +492,8 @@ export class GestorHost {
         personaTitles: preview.structure.personas.map(row => row.title),
         workflowId: preview.workflow.template,
         sprintName: preview.sprint.name,
+        hire: preview.hire.map(row => ({ function: row.title })),
+        reuse: preview.reuse,
       },
     }
   }
@@ -532,6 +570,40 @@ export class GestorHost {
     if (plan.action === 'hire') this.applyHire(plan, persona, limits, accepted)
     if (plan.action === 'allocate') this.applyAllocate(plan, persona, limits)
     if (plan.action === 'reorganize') this.applyReorganize(plan, persona, limits)
+    if (plan.action === 'assemble') this.applyAssembly(plan, persona, limits)
+  }
+
+  private applyAssembly(plan: GestorPlan, persona: Parameters<typeof gestorHire>[0]['gestor'], limits: GestorLimits): void {
+    const { assembly } = z.object({ assembly: assemblySchema }).parse(plan)
+    const project = this.product.getProject(assembly.projectId)
+    if (project?.workspaceId !== plan.workspaceId || persona.workspaceId !== plan.workspaceId) throw new Error('forbidden')
+    const roster = this.product.listProjects(plan.workspaceId).flatMap(row => this.product.listPersonas(row.id))
+    const hires = assembly.hires.map(row => ({ ...row, spec: parsePersonaSpec(row.spec) }))
+    const specs = hires.map(row => row.spec)
+    assertGestorAssemblyHires({ gestor: persona, limits, specs,
+      rosterCount: roster.length,
+      spentTokens: roster.reduce((sum, row) => sum + (row.limits.tokensPerMonth ?? 0), 0),
+      scope: { projectId: project.id },
+    })
+    for (const reuse of assembly.reuse) {
+      const target = this.product.getPersona(reuse.personaId)
+      if (target?.workspaceId !== plan.workspaceId || target.projectId !== project.id || target.title !== reuse.function) {
+        throw new Error('assembly-changed')
+      }
+      gestorAllocate({ gestor: persona, limits, scope: { projectId: project.id },
+        personaId: target.id, projectIds: [project.id] })
+    }
+    for (const hire of hires) {
+      if (this.product.getPersona(hire.id) !== undefined) throw new Error('conflict')
+      this.product.createPersona({ ...hire.spec, id: hire.id, workspaceId: plan.workspaceId,
+        createdAt: this.now(), updatedAt: this.now(), createdBy: persona.id }, project.id)
+    }
+    for (const reuse of assembly.reuse) {
+      this.product.addParticipation({ personaId: reuse.personaId, projectId: project.id, kind: 'project', targetId: project.id })
+    }
+    this.boards.createWorkflowFromTemplate({ workspaceId: plan.workspaceId, projectId: project.id, template: assembly.template })
+    this.boards.createSprint({ workspaceId: plan.workspaceId, projectId: project.id, ...assembly.sprint })
+    this.boards.planSprint({ workspaceId: plan.workspaceId, projectId: project.id, sprintId: assembly.sprint.id, ticketIds: [] })
   }
 
   private applyAllocate(
@@ -631,6 +703,14 @@ export class GestorHost {
     }, projectId)
   }
 }
+
+const assemblySchema = z.object({
+  projectId: z.string().min(1),
+  hires: z.array(z.object({ id: z.string().min(1), spec: z.unknown() })),
+  reuse: z.array(z.object({ personaId: z.string().min(1), function: z.string().min(1) })),
+  template: z.enum(['contratacao', 'site', 'software', 'marketing', 'atendimento', 'simples', 'em_branco']),
+  sprint: z.object({ id: z.string().min(1), name: z.string().min(1), objective: z.string(), startsAt: z.string() }),
+})
 
 interface HireEnvelope extends GestorPlan {
   readonly spec?: GestorHireSpecView

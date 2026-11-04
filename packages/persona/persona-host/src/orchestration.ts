@@ -17,6 +17,7 @@ import {
   withTurnActivityEmit,
   milestoneSummary,
   followupOwners,
+  firstDeliveryExecutionPrompt,
   internalSourceScope,
   latestAssignment,
   preRoute,
@@ -38,6 +39,8 @@ import {
   type Trigger,
   type DomainEvent,
   type FirstDeliveryRouteDirective,
+  type ReviewDelivery,
+  type ReviewApplyOptions,
 } from '@deepseek-ai/dsh-persona-engine'
 import {
   authorizeContext,
@@ -81,7 +84,7 @@ import { silenceUntilOf } from './proactivity.ts'
 import { FIRST_DELIVERY_EVENT_ID } from './onboarding.ts'
 import type { DeadLetterBook } from './dead-letter.ts'
 import type { MutantRunBook } from './mutant-run.ts'
-import { reviewDeliveryOf } from './review.ts'
+import { reviewDeliveryOf, type HostReviewOptions } from './review.ts'
 import {
   allowsScriptedReplies,
   assertCliPermission,
@@ -366,6 +369,8 @@ export class Orchestration {
 
   now: () => string
   runnerFactory: HostRunnerFactory
+  /** Deployment settings passed to the file-delivery provider. */
+  reviewOptions: HostReviewOptions = {}
   readonly deadLetters: DeadLetterBook | undefined
   readonly usage: SqliteUsageStore | undefined
   readonly mutant: MutantRunBook | undefined
@@ -892,7 +897,9 @@ export class Orchestration {
    * @param assignmentId - Assignment just started.
    */
   async prepareReview(projectId: string, ticketId: string, assignmentId: string): Promise<ReviewWorktree | undefined> {
-    const delivery = reviewDeliveryOf(this.product, this.runtimes, projectId)
+    const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
+    if (ticket !== undefined && this.firstDeliveryRoute(projectId, ticket.origin.triggerId) !== undefined) return undefined
+    const delivery = this.reviewDelivery(projectId)
     if (delivery === undefined) return undefined
     const tree = await delivery.prepare({ id: assignmentId, ticketId })
     const rt = this.runtimes.get(projectId)
@@ -912,6 +919,11 @@ export class Orchestration {
     return tree
   }
 
+  /** @param projectId - Local project. @returns Automatically selected file-delivery provider, absent without a folder. */
+  reviewDelivery(projectId: string): ReviewDelivery | undefined {
+    return reviewDeliveryOf(this.product, this.runtimes, projectId, { ...this.reviewOptions, now: this.now })
+  }
+
   /**
    * @param projectId - Tenant.
    * @param ticketId - Ticket.
@@ -919,7 +931,7 @@ export class Orchestration {
   async reviewSummary(projectId: string, ticketId: string): Promise<ReviewSummary> {
     const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
-    const delivery = reviewDeliveryOf(this.product, this.runtimes, projectId)
+    const delivery = this.reviewDelivery(projectId)
     if (delivery === undefined) {
       return {
         ticketId,
@@ -940,13 +952,14 @@ export class Orchestration {
    * @param projectId - Tenant.
    * @param ticketId - Ticket.
    * @param mode - Project merge policy.
+   * @param options - Explicit choices for the exact reviewed file versions.
    */
-  async acceptReview(projectId: string, ticketId: string, mode: MergeMode): Promise<ReviewAcceptResult> {
+  async acceptReview(projectId: string, ticketId: string, mode: MergeMode, options?: ReviewApplyOptions): Promise<ReviewAcceptResult> {
     const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
-    const delivery = reviewDeliveryOf(this.product, this.runtimes, projectId)
+    const delivery = this.reviewDelivery(projectId)
     if (delivery === undefined) return { kind: 'blocked', explanation: 'Projeto sem pasta — Tarefa sem código.' }
-    return delivery.accept(ticket, mode)
+    return delivery.accept(ticket, mode, options)
   }
 
   /**
@@ -957,7 +970,7 @@ export class Orchestration {
   async requestChanges(projectId: string, ticketId: string, feedback: string): Promise<void> {
     const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
-    const delivery = reviewDeliveryOf(this.product, this.runtimes, projectId)
+    const delivery = this.reviewDelivery(projectId)
     if (delivery === undefined) {
       const rt = this.runtime(projectId)
       rt.engine.note(ticketId, feedback)
@@ -978,7 +991,7 @@ export class Orchestration {
    * @param ticketId - Ticket.
    */
   async discardReview(projectId: string, ticketId: string): Promise<void> {
-    const delivery = reviewDeliveryOf(this.product, this.runtimes, projectId)
+    const delivery = this.reviewDelivery(projectId)
     if (delivery === undefined) return
     await delivery.discard({ id: ticketId })
   }
@@ -988,7 +1001,7 @@ export class Orchestration {
    * @param projectId - Tenant.
    */
   async sweepReviews(projectId: string): Promise<string[]> {
-    const delivery = reviewDeliveryOf(this.product, this.runtimes, projectId)
+    const delivery = this.reviewDelivery(projectId)
     if (delivery === undefined) return []
     return delivery.sweepOrphans()
   }
@@ -1045,16 +1058,18 @@ export class Orchestration {
     mode: AutonomyMode,
     purpose: RunnerPurpose,
     onFirstToken?: (text: string) => void,
+    answerOnly: boolean = false,
   ): Promise<Runner> {
     this.mark(`resolve:${purpose}:start`)
-    const key = `${projectId}:${persona.id}:${purpose}`
+    const key = `${projectId}:${persona.id}:${purpose}${answerOnly ? ':answer-only' : ''}`
     const cached = this.warmRunners.get(key)
     if (cached !== undefined) {
       this.mark(`resolve:${purpose}:warm`)
       return cached
     }
     const spec = specFromConnection(persona.runner, this.loggedCliOf?.(projectId))
-    const permissionMode = permissionFor(spec, purpose, persona.tools, mode)
+    const tools = answerOnly ? {} : persona.tools
+    const permissionMode = answerOnly ? 'deny' : permissionFor(spec, purpose, tools, mode)
     assertCliPermission(spec, permissionMode)
     const seat = this.accountSeatOf?.(projectId, persona)
     const home = seat?.home !== undefined && seat.home !== '' ? seat.home : runnerHomeOf(projectId)
@@ -1079,14 +1094,15 @@ export class Orchestration {
       personaTitle: persona.title,
       purpose,
       projectId,
-      tools: persona.tools,
+      tools,
       ...(talkCwd === '' ? {} : { cwd: talkCwd }),
       ...(onFirstToken === undefined ? {} : { onFirstToken }),
       ...(home === '' ? {} : { home }),
       ...(usage === undefined && this.recordLedger === undefined ? {} : {
         usage: {
           record: (entry) => {
-            const id = `${projectId}:${persona.id}:${entry.at}:${entry.provider}:${String(++turnSequence)}`
+            // The slot is part of the id: the triage runner and the task runner of one persona both count from 1.
+            const id = `${projectId}:${persona.id}:${key}:${entry.at}:${entry.provider}:${String(++turnSequence)}`
             this.meteredRunners.add(runner)
             if (this.recordLedger !== undefined) {
               this.recordLedger(projectId, {
@@ -1185,7 +1201,7 @@ export class Orchestration {
       let runner: Runner
       try {
         const contextWork = this.compileUsed(event, executor)
-        runner = await this.resolveFor(executor, event.projectId, 'asked', 'task')
+        runner = await this.resolveFor(executor, event.projectId, 'asked', 'task', undefined, firstDelivery !== undefined)
         await contextWork
       } catch (error: unknown) {
         if (!isRunnerResolveError(error)) throw error
@@ -1201,9 +1217,13 @@ export class Orchestration {
         return
       }
       if (coordinationPersona !== undefined && firstDelivery === undefined) {
-        this.setRunnerUsageContext(runner, 'triage')
+        // OPT-5 (W1): triage is support work. It runs on the cheap talk slot, not on the executor's task runner;
+        // if that cannot resolve, it falls back to the executor's runner exactly as before.
+        // answerOnly gives it its own runner object (no tools, deny): it never shares the talk reply's callbacks or ledger kind.
+        const triageRunner = await this.resolveFor(coordinationPersona, event.projectId, 'asked', 'talk', undefined, true).catch(() => runner)
+        this.setRunnerUsageContext(triageRunner, 'triage')
         const driver = createCoordinationDriver({
-          runner,
+          runner: triageRunner,
           persona: {
             id: coordinationPersona.id,
             name: coordinationPersona.name,
@@ -1225,16 +1245,16 @@ export class Orchestration {
         this.postAs(event, executor, `exec-${ticket.id}-progress`, `Em andamento: ${ticket.title}`)
         await runner.ensureSession(sessionId, ticket.execution?.directory ?? '.', ticket.title, 'worker')
         const assignment = recovery ? `${RECOVERY_NOTE}\n${ticket.title}` : (ticket.execution?.assignment ?? ticket.title)
-        const prompt = firstDelivery === undefined ? assignment : composeHostTalk({
+        const prompt = firstDelivery === undefined ? assignment : firstDeliveryExecutionPrompt({
           fields: {
             identity: { name: executor.name, title: executor.title },
             personality: executor.personality, instructions: executor.instructions,
             functionLabel: executor.title, vault: '',
             capabilities: 'Primeira entrega em texto. Sem ferramentas, shell ou arquivos. Execute a atribuição diretamente.',
           },
-          surface: 'channel', userText: assignment,
+          assignment,
           ...foldHostTalkUsed(this.usedContext.get(event.id) ?? []),
-        }).text
+        })
         await runner.deliver(
           sessionId,
           recovery ? `recovery:${latest.id}` : `launch:${latest.id}`,
@@ -1309,13 +1329,6 @@ export class Orchestration {
       this.postAs(event, speaker, replyId, 'Resposta cancelada.')
       return
     }
-    if (this.scripted) {
-      try {
-        rt.engine.reply({ purpose: 'answer', triggerId: event.id, text: clipWords(SCRIPTED_HELLO) })
-      } catch {
-        // Scripted path still posts even if the outbox purpose refuses.
-      }
-    }
     let runner: Runner
     try {
       const contextWork = this.compileUsed(event, speaker)
@@ -1349,7 +1362,18 @@ export class Orchestration {
       return
     }
     const body = finishHostTalk(raw, event.body)
-    this.postAs(event, speaker, replyId, clipWords(body), live !== '' ? 'runner' : 'message')
+    this.store.tx(() => {
+      let queuedId: string | undefined
+      if (this.scripted) {
+        try { queuedId = rt.engine.reply({ purpose: 'answer', triggerId: event.id, text: clipWords(body) }).id }
+        catch (error) {
+          // The visible scripted reply remains available when the domain refuses this reply purpose.
+          void error
+        }
+      }
+      this.postAs(event, speaker, replyId, clipWords(body), live !== '' ? 'runner' : 'message')
+      if (queuedId !== undefined && this.events.has(replyId)) rt.outbox.settle(queuedId, 'sent')
+    })
     this.mark('reply')
     this.deliverOutbox(rt, event, speaker)
   }
@@ -1390,7 +1414,7 @@ export class Orchestration {
         }
       })
       .sort((left, right) => left.name.localeCompare(right.name) || left.title.localeCompare(right.title))
-    const folded = foldHostTalkUsed(used)
+    const folded = foldHostTalkUsed(used, event.body)
     return composeHostTalk({
       fields: {
         identity: { name: speaker.name, title: speaker.title },
@@ -1561,7 +1585,8 @@ export class Orchestration {
     for (const message of rt.outbox.pending()) {
       const send = (): void => {
         this.outboxDeliver?.(message.id, message.text)
-        this.postAs(event, speaker, `coord-${message.id}`, clipWords(message.text))
+        const origin = this.events.get(message.channel.address.message ?? '') ?? event
+        this.postAs(origin, speaker, `coord-${message.id}`, clipWords(message.text))
         rt.outbox.settle(message.id, 'sent')
       }
       if (this.deadLetters === undefined) {
@@ -1801,6 +1826,7 @@ export class Orchestration {
     type: string = 'message',
   ): void {
     if (this.events.has(id)) return
+    const topicId = event.topicId ?? this.events.get(event.id)?.topicId
     if (looksLikeOarLogin(body)) {
       this.failReply(event, speaker, new RunnerResolveError('not_logged_in', cliOfPersona(speaker)))
       return
@@ -1816,6 +1842,7 @@ export class Orchestration {
         body,
         actorId: speaker?.id ?? 'coordination',
         subjectId: this.capturedSubject(event) ?? event.subjectId,
+        ...(topicId === undefined || topicId === '' ? {} : { topicId }),
         occurredAt: this.now(),
       })
     } catch (error: unknown) {

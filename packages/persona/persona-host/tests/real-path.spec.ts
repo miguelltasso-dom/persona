@@ -23,10 +23,11 @@ function recordedTaskRunner(report: NormalizedReport): PersonaRunnersSlice {
   const at = '2026-11-04T12:00:00.000Z'
   return {
     createFakeRunner,
-    resolveRunner: async () => createScriptedRunner({ turns: [
-      { events: [{ type: 'ended', at, report: { state: 'ready', summary: 'Pedido encaminhado.' } }] },
-      { events: [{ type: 'ended', at, report }] },
-    ] }),
+    // W1 (Tally): triage runs on its own cheap talk runner and the worker on the task runner, so each
+    // runner gets its own script instead of one runner serving triage first and the worker second.
+    resolveRunner: async options => createScriptedRunner({ turns: options.purpose === 'talk'
+      ? [{ events: [{ type: 'ended', at, report: { state: 'ready', summary: 'Pedido encaminhado.' } }] }]
+      : [{ events: [{ type: 'ended', at, report }] }] }),
   }
 }
 

@@ -4,6 +4,45 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 04/11 13:47 — P0 um turno; SW-6 e correções do Gauge em andamento
+
+### P0 / FR-3
+
+O onboarding passa uma diretiva interna pela função privada appendMessage. O host persiste first_delivery_route e só esse registro autoriza PreRouteInput.firstDelivery; texto/ID enviados pelo Remote público não habilitam o atalho. O executor designado prevalece sobre menções no brief. A rota mantém Ticket/Assignment/estágios e dispensa createCoordinationDriver na primeira entrega: zero inject e zero triagem. O compositor é firstDeliveryExecutionPrompt do Forge, com identidade/instruções/contexto e Assignment integral na cauda; o compositor de conversa foi retirado após o Forge demonstrar o clip200. A sessão introdutória tem cache próprio, permissionMode deny e tools vazio mesmo se a persona tiver escrita. O teste exige o texto COMPLETO enviado ao runner, brief longo com ISO e ledger 1 execution/0 triage/0 inject. Retry de uma primeira entrega failed volta imediatamente a working.
+
+```text
+Host: 6 arquivos, 50 passed | 1 skipped (51), 12.57s; check-pkg OK19.8s; oxlint de src+tests inteiro exit0.
+Com compositor worker integral: 3 arquivos, 22 passed | 1 skipped (23), 19.35s.
+Com deny explícito, SW6 e PB: 4 arquivos, 24 passed | 1 skipped (25), 12.29s.
+Sync: check-pkg OK9.8s; oxlint exit0; 3 arquivos, 8 passed (8), 2.14s.
+```
+
+Todos os runners acima são injetados/scriptados; nenhuma chamada real de IA por Anvil. O script canônico continua com teto emergencial de 3 deliver, enquanto o verifier do Forge exige 1 turno pago. O helper puro foi movido de scripts/ para tests/first-delivery-proof.ts e os dois consumidores atualizados para corrigir TS6307 do agregado. O aceite real continua com Probe/Atlas e usa a trava real conforme protocolo atual.
+
+O perfil Web sem Electron revelou falha real no boot: BrowserAuth tentava modifyRecord no Cofre indisponível. Keel/Rivet implementaram a exceção efêmera em memória apenas para browser-session; Rivet informou boot 9/9 sem test cipher. Meu reteste passou nos RPCs de engineStatus/no_engine_ready e nos dois erros vault-unavailable; a captura parou no onboarding ainda não concluído do harness. Ajustei o harness para concluir onboarding e reenfileirei; não declaro essa prova completa antes de proof.json passed:true. Os dois scripts de app agora usam freePort e homes temporários (D-067). O replay E12 anterior segue comprovado pelas 12 capturas e JSON descritos abaixo.
+
+### SW-6 / PB
+
+review.ts consome createReviewDelivery: pasta comum usa histórico privado e projeto com Git mantém implementação existente. Primeira entrega não prepara rascunho. Remotes listRestorePoints, undoApply com UUID validado e ponto no mesmo projeto, getProjectStorageUsage com bytes lógicos/null em falha; acceptReview propaga restorePointId e conflitos/escolhas. Config historyMaxCopyBytes/historyGitTimeoutMs/historyGit. Contrato contracts/simple-workspace.md atualizado para restored|expired|blocked e capacidades available|unsupported|unconfigured.
+
+Prova REAL de filesystem e Git local em history.host.spec.ts: projeto SQLite existente, binário alterado no rascunho, Aplicar, listar ponto, fechar/reabrir o host, Desfazer byte a byte; pasta do usuário continua sem .git e Uso mede bytes. Git review regressão passou. Não há prova de MinGit empacotado ou aceite visual SW-8/9/10; depende Rivet/Lumen/Probe/Muse. Resolver Git do Rivet ainda precisa ser ligado ao host para a máquina sem Git.
+
+PB-9.3 agora usa applyBoardWorkflowEdit SEM alterar Ticket/categoria/Assignments, como determinou Keel. Fluxo e seats persistem numa transação. workflowMove fica em screen_doc/ticket_workflow_move, JSON aditivo por projeto/ticket; campos antigos ficam intactos e não há migração destrutiva. Ao mudar a categoria automática, syncPlacementFromStage limpa a marca; enquanto a categoria se mantém o destino fica fixado. J14 exige o destino exato e Ticket doing preservado. Gauge/Forge confirmaram PB9.3 passou e retiraram it.fails; o segundo consumidor acceptWorkflowProposal (PB9.5) também foi atualizado após acharem o import antigo. Nova execução da suíte obrigatória está em curso.
+
+### Gauge — correções implementadas, validação em curso
+
+- BYC privacidade: listVaultRecords e previews usam canReadVault do ator. Dedup do rodapé de origem ainda pendente; reimport changed-body recebeu nova identidade path+body no core do Forge, consumida automaticamente pelo host.
+- GOV auditoria: UUID adicional evita colisão por ator/ação/ms; aprovação real roteada ao substituto ainda pendente.
+- GES: aprovar/recusar plano exige dono; apply assemble hire/reuse + workflow/sprint atômicos/idempotentes ainda pendente (DTO/core/contrato do Forge prontos).
+- SB: índices derivados são por ator com visibilidade privada; índice compartilhado antigo não é exposto. Export usa apenas páginas legíveis. Grant/use recusam ação/destino vazio ou curinga; home exclui expirados e permissões once consumidas. Two-way e curateAfterWork/permissão lembrada no fluxo real ainda pendentes.
+- W2: postAs herda topicId; envio direto e settle da outbox usam a mesma transação, sem apagar o item. Outbox usa o evento de origem. rename/archive/setActive validam o assunto contra workspace/projeto/tipo/conversa; cor ativa repetida é recusada. get/submitTeachDraft conferem projeto e workspace. Contas (home hostil, rótulo duplicado, readiness por home, loginCommand isolado e overrides por persona) ainda pendentes.
+
+O Keel autorizou trocar os marcadores it.fails das suítes do Gauge quando o corpo passar, sem alterar assertivas; só farei isso com prova. Nenhuma funcionalidade foi marcada done no PLAN com bug conhecido ou aceite integrado pendente. W1–W5 de tokens saíram da fila de Anvil e estão com Tally; avisei que orchestration.ts está livre por ora após P0/W2, e alinharei qualquer novo retoque nesse arquivo.
+
+Arquivos próprios principais desta rodada: host src/{index,orchestration,review,history-storage,types,remote-guard,brain,boards,governance}, store src/{brain,board}/repos.ts, testes history/first-delivery/J14 e scripts. Typert40 passou112s antes das últimas novas assinaturas; geração e check-pkg/lint finais deverão ser repetidos. Sem commits/reset/clean/instalação/deploy. Resíduo SQLite-shm gerado do edge não foi revertido num checkout compartilhado.
+
+---
+
 ## 04/11 11:37 — E12: sincronização entre dois apps comprovada; FR-3 e política do Cofre em validação
 
 ### Entrega E12

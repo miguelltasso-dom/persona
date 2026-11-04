@@ -116,6 +116,42 @@ export interface EngineTriggerActionRequest extends ProjectScopeRequest {
   readonly triggerId: string
 }
 
+/** Private restore-point metadata safe to show in the project's history. */
+export interface RestorePointView {
+  readonly id: string
+  readonly ticketId: string
+  readonly createdAt: string
+  readonly expiresAt: string
+  readonly state: 'available' | 'undone' | 'expired'
+  readonly files: readonly string[]
+}
+
+/** Unsupported history and an empty measured history remain distinguishable. */
+export interface RestorePointListView {
+  readonly status: 'available' | 'unsupported' | 'unconfigured'
+  readonly points: readonly RestorePointView[]
+}
+
+/** A person's explicit undo action; paths are never accepted from the client. */
+export interface UndoApplyRequest extends ProjectScopeRequest {
+  readonly restorePointId: string
+}
+
+/** File restoration outcome; later user edits can block it without overwriting files. */
+export type UndoApplyView =
+  | { readonly kind: 'restored'; readonly restorePointId: string }
+  | { readonly kind: 'expired'; readonly restorePointId: string }
+  | { readonly kind: 'blocked'; readonly explanation: string }
+
+/** Logical bytes in private application files; null means the scan could not complete. */
+export interface ProjectStorageUsageView {
+  readonly status: 'measured' | 'unavailable'
+  readonly historyBytes: number | null
+  readonly draftBytes: number | null
+  readonly totalBytes: number | null
+  readonly retentionDays: number
+}
+
 /** Create a workspace and its Pessoal project. */
 export interface CreateWorkspaceRequest {
   readonly id: string
@@ -313,6 +349,25 @@ export interface AcceptReviewRequest {
   readonly projectId: string
   readonly ticketId: string
   readonly mode: 'ff' | 'squash'
+  readonly conflicts?: readonly ReviewConflictResolutionView[]
+}
+
+/** Exact file versions displayed for a person's ordinary-folder conflict choice. */
+export interface ReviewFileVersionView {
+  readonly hash: string
+  readonly mode: '100644' | '100755'
+}
+
+/** Missing versions represent deleted files; paths stay relative to the project. */
+export interface ReviewFileConflictView {
+  readonly path: string
+  readonly user: ReviewFileVersionView | null
+  readonly persona: ReviewFileVersionView | null
+}
+
+/** Choice applies only to the exact file versions shown by the previous review. */
+export interface ReviewConflictResolutionView extends ReviewFileConflictView {
+  readonly choice: 'keep_mine' | 'keep_persona' | 'keep_both'
 }
 
 /** Ask for another assignment round. */
@@ -328,6 +383,8 @@ export interface ReviewAcceptView {
   readonly kind: 'merged' | 'blocked'
   readonly mode: string
   readonly explanation: string
+  readonly restorePointId?: string
+  readonly conflicts?: readonly ReviewFileConflictView[]
 }
 
 /** Update a project's name, description, and file root. Empty `rootPath` clears it. */
@@ -1184,6 +1241,8 @@ export interface ApprovalView {
   readonly personaName: string
   /** Gallery/upload ref for hire cards (gallery ref only today). */
   readonly hireAvatarRef?: string
+  /** Description supplied by the hiring proposal. */
+  readonly reason?: string
 }
 
 /** Daily proactive proposals grouped by persona. */
@@ -2699,6 +2758,8 @@ export interface AssembleTeamView {
   readonly personaTitles: readonly string[]
   readonly workflowId: string
   readonly sprintName: string
+  readonly hire?: readonly { readonly function: string }[]
+  readonly reuse?: readonly { readonly function: string; readonly personaId: string }[]
 }
 
 /** `listGestorAudit`. */

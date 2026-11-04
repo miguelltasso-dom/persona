@@ -246,9 +246,14 @@ export class BrainRepos {
    * Generated "Comece aqui" index. Idempotent.
    * @param workspaceId - Workspace.
    * @param projectId - Tenant.
+   * @param readerId - Reader of a private derived index; empty selects the shared public index.
+   * @param visiblePages - Caller-authorized pages for this reader.
    */
-  ensureStartHere(workspaceId: string, projectId: string): BrainPage {
-    const others = this.list(projectId).filter(page => page.slug !== 'comece-aqui')
+  ensureStartHere(workspaceId: string, projectId: string, readerId: string = '', visiblePages?: readonly BrainPage[]): BrainPage {
+    const suffix = readerId === '' ? '' : `-${createHash('sha256').update(readerId).digest('hex')}`
+    const slug = `comece-aqui${suffix}`
+    const others = (visiblePages ?? this.list(projectId).filter(page => page.visibility.kind === 'workspace'))
+      .filter(page => page.projectId === projectId && !page.sources.includes('derived-index'))
     const lines = ['# Comece aqui', '', 'Índice derivado do Segundo cérebro.', '']
     for (const kind of BRAIN_KINDS) {
       const group = others.filter(page => page.kind === kind)
@@ -258,10 +263,11 @@ export class BrainRepos {
       lines.push('')
     }
     const body = lines.join('\n')
-    const current = this.bySlug(projectId, 'comece-aqui')
-    if (current !== undefined && current.body === body) return current
+    const current = this.bySlug(projectId, slug)
+    const visibility: BrainPage['visibility'] = readerId === '' ? { kind: 'workspace' } : { kind: 'members', memberIds: [readerId] }
+    if (current !== undefined && current.body === body && JSON.stringify(current.visibility) === JSON.stringify(visibility)) return current
     return this.putPage({
-      id: current?.id ?? `brain-start-${projectId}`,
+      id: current?.id ?? (readerId === '' ? `brain-start-${projectId}` : `brain-start-${createHash('sha256').update(`${projectId}:${readerId}`).digest('hex')}`),
       workspaceId,
       projectId,
       kind: 'company',
@@ -269,7 +275,8 @@ export class BrainRepos {
       body,
       editorKind: 'person',
       editorId: 'system',
-      slug: 'comece-aqui',
+      slug,
+      visibility,
       sources: ['derived-index'],
     })
   }
@@ -279,6 +286,9 @@ export class BrainRepos {
    * @param input - Scope.
    */
   grant(input: GrantBrainInput): BrainGrant {
+    if (input.action.trim() === '' || input.target.trim() === '' || input.action.includes('*') || input.target.includes('*')) {
+      throw new StoreError('invalid-input', 'O escopo da permissão precisa indicar uma ação e um destino exatos.')
+    }
     const now = this.now()
     const expiresAt = input.validity === '7d' ? plusDays(now, 7) : undefined
     const page = this.putPage({
@@ -352,6 +362,7 @@ export class BrainRepos {
    * @param target - Exact target.
    */
   recordUse(id: string, personaId: string, action: string, target: string): BrainGrant | undefined {
+    if (action.trim() === '' || target.trim() === '' || action.includes('*') || target.includes('*')) return undefined
     const current = this.getGrant(id)
     if (current === undefined) return undefined
     if (!grantAllows(current, personaId, action, target, this.now())) return undefined
@@ -369,10 +380,12 @@ export class BrainRepos {
    * One-way write of readable markdown into `folderPath`.
    * @param projectId - Tenant.
    * @param folderPath - Destination directory.
+   * @param visiblePages - Caller-authorized pages; omitted exports only workspace-visible pages.
    */
-  exportFolder(projectId: string, folderPath: string): { files: number } {
+  exportFolder(projectId: string, folderPath: string, visiblePages?: readonly BrainPage[]): { files: number } {
     mkdirSync(folderPath, { recursive: true })
-    const pages = this.list(projectId)
+    const pages = (visiblePages ?? this.list(projectId).filter(page => page.visibility.kind === 'workspace'))
+      .filter(page => page.projectId === projectId)
     for (const page of pages) {
       const dir = join(folderPath, page.kind)
       mkdirSync(dir, { recursive: true })

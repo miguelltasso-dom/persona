@@ -41,7 +41,12 @@ resolveRunner({
   toolLevel?: 'none' | 'read' | 'write',             // default write no DSH; CLI deriva de tools+modo
   tools?: Record<string, 'none' | 'read' | 'write'>, // mapa da persona (`files`/`shell`/`web`)
   autonomy?: 'on_request' | 'propose' | 'act',       // propose ⇒ withObserveGate
-  home?: string,                                     // isolamento opcional
+  home?: string,                                     // isolamento opcional (copia auth nativo se vazio)
+  accountHome?: string,                              // WAVE2: dir isolado por conta — NUNCA copia outro login
+  accountId?: string,
+  accounts?: ProviderAccount[],                      // pickProviderAccount na hora do limite
+  accountPolicy?: { kind: RunnerSwapPolicy, scope, accountIds },
+  accountQuotas?: AccountQuota[],
   vault?: { get(personId, provider): Promise<string | undefined> },
   personId?: string,
   projectId?: string,
@@ -127,6 +132,7 @@ Rivet exporta de `@deepseek-ai/dsh-persona-runners`:
 - Prompt de executora: `executorPrompt` / `OWNER_NORMS` (terminar, verificar, evidência, próximo passo; nunca devolver trabalho do mandato).
 - Suíte `runLazinessSuite` (scripted/fake por padrão): multi-etapa, erro intermediário, ambiguidade pequena → `RunnerLazinessHint` (`completionRate`, `initiativeRate`, `grade`) para a UI. Real só com `PERSONA_LAZINESS_REAL=1` + `PERSONA_REAL_CLI=1`.
 - S4: `createDraftDriver` + `DRAFT_PERSONA_PROMPT` (Runner fake/scripted; tools vazias; `systemRoles` []; sem coordenador). Anvil pode trocar o draft determinístico do host por este driver.
+- GOV-4 (Rivet, após SNAPSHOT CORTADO): `createDraftDriver.recommendStructure(text)` — prompt + parser sujo; o domínio `recommendStructure`/`parseStructureAsk` do Forge continua a fonte da verdade. Runner silencioso ⇒ `parseStructureAsk(text)` + `recommendStructure`. Nunca uma persona por tarefa. **[Rivet→Anvil]** o host pode trocar o `recommendStructure` determinístico por este driver quando houver Runner.
 - ai-memory: `createAiMemory` / `PERSONA_AI_MEMORY=1` (padrão off; fake de captura/handoff).
 - E4: `withObserveGate` — regra `observe`/`off` ou trabalho especulativo ⇒ registra `would` e **não** chama o runner interno. `auto` + não especulativo encaminha.
 - E7: `assertLocalPersonaMachine` — a tarefa só sobe na máquina da persona. Amigo sem grant não executa.
@@ -144,6 +150,30 @@ createWatchdogDriver({ runner, persona, cwd, projectId, claimDue, snapshot, now?
   .start()
   .tick(leaseUntil) → WatchdogWarning[]
 ```
+
+## Orçamento de gasto (persona + projeto)
+
+`withSpendBudget` / `evaluateSpend`: `tokensPerMonth`, `tokensPerResponse`, `executionsPerDay` por persona **e** por projeto. Estouro → `ended.blocked` + `Precisa de você: … Aumente o limite, troque o modelo ou pause. Não há troca automática para outra conexão paga.` 80% emite `report.progress` contextual (sem modal). `resolveRunner({ spend })`. Nunca troca de provider/CLI.
+
+## Modelos locais
+
+`detectLocalProviders` / `detectConnections`: Ollama (`:11434/v1`) e LM Studio (`:1234/v1`), etiqueta `local, sem custo`. `resolveRunner({ spec: { kind:'dsh', provider:'ollama'|'lmstudio' } })` sem chave no Cofre. Testes com `node:http`.
+
+## Gateway MCP endurecido
+
+`createMcpGateway({ hooks, acting?, outbound?, extras? })` emite um lease por turno: `url` + `token` secretos (`mcp://turn/<id>/<token>`). `list(token)` só mostra ferramentas no mandato (`none|read|write`). `call` recusa token de outro turno, ferramenta acima do grant, e injeção (`mcp://turn/` / `Authorization: Bearer` no conteúdo). Chamadas sensíveis (escrita fora do worktree, rede, credenciais, envio para fora, `persona_browser_act` / `persona_computer_{click,type}`) param em `approvalId` + `question: Precisa de você:…`; `approve(id)` executa **exatamente** os args aprovados.
+
+Browser/computer do Harness entram como `persona_browser_*` / `persona_computer_*` (`none|read|write`). Ações externas passam pelo gate. Ports injetados; sem Electron no teste.
+
+## Fontes Telegram / e-mail / Slack / Discord / calendário → Trigger
+
+`telegramUpdateToTrigger` / `emailMessageToTrigger` / `slackEventToTrigger` / `discordMessageToTrigger` / `calendarEventToTrigger` (ICS/CalDAV, `meta.dtstart` para rotinas). Assunto = thread; `channel` = origem. Tokens no Cofre (`telegram` | `imap` | `smtp` | `slack` | `discord` | `caldav`). Testes com fake HTTP — sem token real. **[Rivet→Forge]** `receiveExternal` / `allExternalSourceScope` / `originReply` (slack `ts`, discord `message`, calendar `uid`+`dtstart`). **[Rivet→Anvil]** `vault.get(personId, provider)` + poll → `receiveExternal` + reply no channel.
+
+## Orçamento de recursos
+
+`RESOURCE_TURN_CAP = 5` (turnos de modelo ao mesmo tempo). `RESOURCE_CHILD_CAP = 6` (CLIs + 1 host). `RESOURCE_CONNECTION_CAP = 8` (alinha ao `SESSION_POOL_CAP`). `wouldExceedTurnBudget` / `createProcessBudget` — Anvil recusa o 6º turno. Desktop: `applyChromiumResourceBudget` limita renderers a 4 (ERR_INSUFFICIENT_RESOURCES = sockets/renderers do Chromium, não o host Node).
+
+X-4 (Rivet, após SNAPSHOT CORTADO): `SOURCE_REQUEST_CAP` no poll das fontes (telegram/email/slack/discord/caldav). Tempestade de `getUpdates`/`fetch` ⇒ só N requisições no relógio; o resto devolve `[]` sem token no log. Teste de tempestade no fake HTTP. **[Rivet→Anvil]** o poll do host deve consultar `wouldExceedTurnBudget` / o cap de fonte antes de disparar.
 
 ## Fake
 

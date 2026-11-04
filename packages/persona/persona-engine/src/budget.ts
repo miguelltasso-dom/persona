@@ -74,3 +74,57 @@ export function proposalDigest(titles: readonly string[]): string {
   if (titles.length === 0) return ''
   return `Resumo (${titles.length}): ${titles.join('; ')}`
 }
+
+/** Leftover tokens/runs for one project in a shared PERSONA_HOME. */
+export interface ProjectSpend {
+  projectId: string
+  tokensLeft: number
+  runsLeft: number
+}
+
+/**
+ * @param book - Per-project leftovers.
+ * @param projectId - Project to read.
+ */
+export function leftoverOnProject(book: readonly ProjectSpend[], projectId: string): ProjectSpend | undefined {
+  return book.find(row => row.projectId === projectId)
+}
+
+/**
+ * Spending on project A must not draw from project B.
+ * @param book - Per-project leftovers.
+ * @param projectId - Project that would spend.
+ * @param tokens - Tokens requested.
+ * @param runs - Executions requested.
+ */
+export function maySpendOnProject(
+  book: readonly ProjectSpend[],
+  projectId: string,
+  tokens: number,
+  runs: number,
+): boolean {
+  const row = leftoverOnProject(book, projectId)
+  if (row === undefined) return false
+  return row.tokensLeft >= tokens && row.runsLeft >= runs
+}
+
+/**
+ * @param book - Per-project leftovers.
+ * @param projectId - Project that spent.
+ * @param tokens - Tokens just spent.
+ * @param runs - Executions just spent.
+ */
+export function spendOnProject(
+  book: readonly ProjectSpend[],
+  projectId: string,
+  tokens: number,
+  runs: number,
+): ProjectSpend[] {
+  return book.map(row => row.projectId === projectId
+    ? {
+      projectId: row.projectId,
+      tokensLeft: Math.max(0, row.tokensLeft - tokens),
+      runsLeft: Math.max(0, row.runsLeft - runs),
+    }
+    : row)
+}

@@ -248,7 +248,10 @@ export async function runCoordEval(
   let correct = 0
   const byClass = new Map<CoordClass, CoordEvalCell>()
   for (const scenario of use) {
-    const got = real ? await interpret(scenario) : decideFake(scenario)
+    const routed = preRoute(coordPreInput(scenario))
+    const got = routed.modelCalled
+      ? real && interpret !== undefined ? await interpret(scenario) : decideFake(scenario)
+      : preRouteToCoord(routed)
     const cell = byClass.get(scenario.class) ?? { class: scenario.class, n: 0, correct: 0 }
     cell.n += 1
     if (got === scenario.expected) {
@@ -269,11 +272,17 @@ export async function runCoordEval(
     routerCalls: ablation.batched.inferences,
     ablation,
     realCli: { ran: real, n: real ? use.length : 0 },
-    ...real ? {} : { preRoute: measurePreRoute(use) },
+    preRoute: measurePreRoute(use),
   }
 }
 
-function preInput(scenario: CoordScenario): PreRouteInput {
+/**
+ * Window + budget the F3 harness feeds the pre-router.
+ * Duplicate rows replay the same text so the window rule fires.
+ * @param scenario - Corpus row.
+ * @returns Pre-router input with the F3 window convention.
+ */
+export function coordPreInput(scenario: CoordScenario): PreRouteInput {
   const threadKey = 'chat:t1'
   const senderId = 'ana'
   const window = scenario.class === 'duplicate'
@@ -304,7 +313,7 @@ export function measurePreRoute(use: readonly CoordScenario[] = COORD_SCENARIOS)
   for (const scenario of use) {
     const fake = decideFake(scenario)
     if (fake === scenario.expected) beforeCorrect += 1
-    const hit = preRoute(preInput(scenario))
+    const hit = preRoute(coordPreInput(scenario))
     const got = hit.modelCalled ? fake : preRouteToCoord(hit)
     if (hit.modelCalled) afterModelCalls += 1
     else if (hit.rule !== undefined) skipped[hit.rule] = (skipped[hit.rule] ?? 0) + 1
@@ -413,4 +422,20 @@ export function formatRealCoordEval(fake: CoordEvalReport, rounds: readonly Real
     ? `\n## Antes / depois\n\nRodada 1 (prompts antigos): ${String(before.correct)}/${String(before.n)}. Rodada 2 (prompts ajustados): ${String(after.correct)}/${String(after.n)}.\n`
     : ''
   return [fakeBlock, '---', '', 'O 41/41 acima é o fake do CI — não prova qualidade.', '', ...blocks, delta].join('\n')
+}
+
+/**
+ * Overlay the pre-router on a recorded real-CLI table (d1/h1 skip the model).
+ * @param cells - Previous round cells.
+ * @returns Cells with pre-routed decisions when a rule fires.
+ */
+export function overlayPreRoute(cells: readonly RealCoordCell[]): RealCoordCell[] {
+  return cells.map((cell) => {
+    const scenario = COORD_SCENARIOS.find(row => row.id === cell.id)
+    if (scenario === undefined) return cell
+    const hit = preRoute(coordPreInput(scenario))
+    if (hit.modelCalled) return cell
+    const got = preRouteToCoord(hit)
+    return { ...cell, got, ok: got === cell.expected }
+  })
 }

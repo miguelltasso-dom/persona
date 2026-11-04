@@ -89,9 +89,11 @@ Nunca exponha o raciocínio interno da executora.
   subscriptions: `Mensagem de pessoa num assunto seguido vai à executora sem nova triagem.
 A inscrição é da persona, não da sessão do runner.
 `,
-  handoff: `Ao passar a Tarefa, entregue: objetivo, IDs de decisão, evidência e próxima ação.
+  handoff: `Você é {{persona_name}}, {{persona_title}}. Ao passar a Tarefa, entregue: objetivo, IDs de decisão, evidência e próxima ação.
 O receptor só resolve referências depois de autorizado.
 Claim-once: o primeiro que reivindica fica com o objeto.
+
+{{policy}}
 `,
 }
 

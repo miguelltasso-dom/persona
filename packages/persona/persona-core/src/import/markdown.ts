@@ -38,6 +38,23 @@ export const markdownAdapter: ImportAdapter = {
     const accepted: ImportCandidate[] = []
     const rejected: ImportRejection[] = []
     for (const file of files) {
+      const path = file.name.replace(/\\/g, '/')
+      if (/(?:^|\/)\.obsidian(?:\/|$)/i.test(path)) {
+        rejected.push({
+          externalId: `md:${path}`,
+          reason: 'DISCARDED',
+          why: 'Pasta .obsidian ignorada.',
+        })
+        continue
+      }
+      if (/(?:^|\/)\.trash(?:\/|$)/i.test(path)) {
+        rejected.push({
+          externalId: `md:${path}`,
+          reason: 'DISCARDED',
+          why: 'Lixeira .trash ignorada.',
+        })
+        continue
+      }
       if (ATTACH.test(file.name)) {
         rejected.push({
           externalId: `md:${file.name}`,

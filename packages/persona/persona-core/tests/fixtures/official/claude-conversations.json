@@ -1,0 +1,38 @@
+[
+  {
+    "uuid": "claude-oficial-1",
+    "name": "Decisão de lilás",
+    "created_at": "2026-01-15T12:00:00.000000Z",
+    "updated_at": "2026-01-15T12:10:00.000000Z",
+    "account": { "uuid": "acct-1" },
+    "chat_messages": [
+      {
+        "uuid": "cm-1",
+        "sender": "human",
+        "created_at": "2026-01-15T12:00:00.000000Z",
+        "text": "Vamos fixar o lilás — café & ação.",
+        "content": [{ "type": "text", "text": "Vamos fixar o lilás — café & ação." }],
+        "attachments": [],
+        "files": []
+      },
+      {
+        "uuid": "cm-2",
+        "sender": "assistant",
+        "created_at": "2026-01-15T12:01:00.000000Z",
+        "text": "",
+        "content": [{ "type": "text", "text": "Combinado. Registro no Cofre." }],
+        "attachments": [{ "file_name": "paleta.pdf" }],
+        "files": []
+      },
+      {
+        "uuid": "cm-3",
+        "sender": "human",
+        "created_at": "2026-01-15T12:02:00.000000Z",
+        "text": "Anexo extra: diagrama. 日本語 📎",
+        "content": [{ "type": "text", "text": "Anexo extra: diagrama. 日本語 📎" }],
+        "attachments": [],
+        "files": [{ "file_name": "diagrama.png" }]
+      }
+    ]
+  }
+]

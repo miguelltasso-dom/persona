@@ -25,6 +25,8 @@ export interface TalkPromptInput {
   attachments?: readonly string[]
   locale?: string
   contextLimit?: number
+  /** Sector label from governance; omitted when empty. */
+  sector?: string
   /** What this turn's runner may do. */
   capabilities: string
 }
@@ -67,6 +69,7 @@ export function talkPolicy(input: TalkPromptInput): string {
     `Função nesta conversa: ${input.functionLabel}`,
     `Personalidade: ${input.personality === '' ? '(não definida)' : input.personality}`,
     `Instruções da persona: ${input.instructions === '' ? '(não definidas)' : input.instructions}`,
+    ...(input.sector !== undefined && input.sector !== '' ? [`Setor: ${input.sector}`] : []),
     'Colegas (só estes existem; não invente nome):',
     team === '' ? '(você está só)' : team,
     `O que esta conversa pode: ${input.capabilities}`,

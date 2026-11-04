@@ -1,8 +1,11 @@
 import { expect, it } from 'vitest'
 import {
   DomainError,
+  MemoryWorkflowStore,
+  PROPOSE_WORKFLOW_PROMPT,
   applyWorkflowEdit,
   assertWorkflow,
+  decideWorkflowProposal,
   parseWorkflowProposal,
   proposeWorkflow,
   workflowFromTemplate,
@@ -63,6 +66,7 @@ it('WIP is a warning, not a lock', () => {
 })
 
 it('proposal never applies: card asks the person; dirty parser degrades honestly', () => {
+  expect(PROPOSE_WORKFLOW_PROMPT).toMatch(/Não aplique/)
   const proposal = proposeWorkflow('p', 'Vamos contratar um designer e marcar entrevistas')
   expect(proposal.template).toBe('contratacao')
   expect(proposal.card.question).toMatch(/Usar este fluxo/)
@@ -72,4 +76,9 @@ it('proposal never applies: card asks the person; dirty parser degrades honestly
   if (!('degraded' in parsed)) expect(parsed.template).toBe('site')
   const bad = parseWorkflowProposal('p', 'sem json nenhum')
   expect(bad).toMatchObject({ degraded: true })
+  const store = new MemoryWorkflowStore()
+  expect(decideWorkflowProposal(store, proposal, false)).toBeUndefined()
+  expect(store.get('p')).toBeUndefined()
+  expect(decideWorkflowProposal(store, proposal, true)?.template).toBe('contratacao')
+  expect(store.get('p')?.template).toBe('contratacao')
 })

@@ -28,6 +28,12 @@ export interface ContextRecord {
   pinned?: boolean
   relevance?: number
   factKey?: string
+  /** Conversation subject (WAVE2). Omitted = vault/global; compile keeps requireds. */
+  subjectId?: string
+  /** Cofre document title when this record is a file citation. */
+  title?: string
+  /** Page or section for Contexto usado (no schema bump — v14 stays). */
+  locator?: string
 }
 
 /** Transactional view: revision, mandatory ids, and the complete record set. */
@@ -55,6 +61,8 @@ export interface CompileContextInput {
   budgetTokens: number
   countTokens: CountTokens
   authorize: ContextAuthorize<ContextRecord>
+  /** Stable prefix; optional records already in it are dropped (OPT-4). */
+  prefix?: string
 }
 
 /** Selected record identity stored on the manifest. */

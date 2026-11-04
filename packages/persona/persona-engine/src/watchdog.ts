@@ -107,6 +107,8 @@ export interface VigiaSnapshot extends WatchdogSnapshot {
   now: number
   openGoal: boolean
   personas: readonly VigiaPersonaState[]
+  /** When false, rules stay silent — no model, no assign/recover. */
+  budgetLeft?: boolean
 }
 
 const DEFAULT_RULES: VigiaRules = { noProgressMs: 10 * 60_000, loopCount: 3 }
@@ -120,10 +122,14 @@ export function vigiaTick(snapshot: VigiaSnapshot, rules: VigiaRules = DEFAULT_R
   actions: VigiaAction[]
   audit: VigiaAudit[]
   signals: WatchdogSignal[]
+  needsModel: false
 } {
   const actions: VigiaAction[] = []
   const audit: VigiaAudit[] = []
   const extra: WatchdogSignal[] = []
+  if (snapshot.budgetLeft === false) {
+    return { actions, audit, signals: watchdogSignals(snapshot), needsModel: false }
+  }
 
   const push = (kind: WatchdogSignalKind, subjectId: string, action: VigiaActionKind, detail: string): void => {
     extra.push({ kind, subjectId, detail })
@@ -158,5 +164,5 @@ export function vigiaTick(snapshot: VigiaSnapshot, rules: VigiaRules = DEFAULT_R
   }
 
   const signals = [...watchdogSignals(snapshot), ...extra]
-  return { actions, audit, signals }
+  return { actions, audit, signals, needsModel: false }
 }

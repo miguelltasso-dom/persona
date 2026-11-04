@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { formatRouterBenchReport, runRouterExperiment } from '../src/index.ts'
+import { formatRouterBenchReport, formatRouterScaleReport, runRouterExperiment, runRouterScaleBench } from '../src/index.ts'
 
 it('measures batching and pass-through ablation on a deterministic clock', () => {
   const result = runRouterExperiment()
@@ -12,4 +12,13 @@ it('measures batching and pass-through ablation on a deterministic clock', () =>
   const report = formatRouterBenchReport(result)
   expect(report).toContain('pass-through')
   expect(report).not.toMatch(/\bAtlas\b/)
+})
+
+it('escala: vários projetos na mesma rajada; o barulhento não starve o quieto; batch < um-a-um', () => {
+  const scale = runRouterScaleBench()
+  expect(scale.fairnessMin).toBeGreaterThan(0)
+  expect(scale.evalsAfterOnePump).toBeGreaterThanOrEqual(scale.projects)
+  expect(scale.quietEvals).toBeGreaterThan(0)
+  expect(scale.batchInferences).toBeLessThan(scale.oneByOneInferences)
+  expect(formatRouterScaleReport(scale)).toContain('Projetos')
 })

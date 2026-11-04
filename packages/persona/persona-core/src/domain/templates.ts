@@ -41,7 +41,7 @@ const suggestedAnimals: TeamTemplate = parseTeamTemplate({
       description: 'Triagem, despacho e a única voz nos canais.',
       personality: 'Calmo, claro, sem ruído.',
       instructions: 'Coordene a equipe. Responda nos canais. Não execute o trabalho das outras personas.',
-      systemRoles: ['coordination'],
+      systemRoles: ['coordination', 'team_manager'],
       canRecruit: true,
     }),
     spec({
@@ -87,7 +87,7 @@ const softwareStartup: TeamTemplate = parseTeamTemplate({
       title: 'Coordenação',
       description: 'Prioriza e despacha.',
       instructions: 'Aceite o que estiver claro. Uma pergunta por vez. Proponha o próximo passo; escopo maior vira Tarefa nova.',
-      systemRoles: ['coordination'],
+      systemRoles: ['coordination', 'team_manager'],
       canRecruit: true,
     }),
     spec({
@@ -129,7 +129,7 @@ const agency: TeamTemplate = parseTeamTemplate({
       title: 'Coordenação',
       description: 'Prioriza clientes e despacha o trabalho.',
       instructions: 'Um cliente, um pedido. Proponha antes de agir. Sem credencial, sem publicação sozinha.',
-      systemRoles: ['coordination'],
+      systemRoles: ['coordination', 'team_manager'],
       canRecruit: true,
     }),
     spec({
@@ -175,7 +175,7 @@ const office: TeamTemplate = parseTeamTemplate({
       title: 'Coordenação',
       description: 'Organiza a fila e responde no canal.',
       instructions: 'Responda o simples. Abra Tarefa só com prazo e dono claros. Proponha; não marque agenda sozinha.',
-      systemRoles: ['coordination'],
+      systemRoles: ['coordination', 'team_manager'],
       canRecruit: true,
     }),
     spec({

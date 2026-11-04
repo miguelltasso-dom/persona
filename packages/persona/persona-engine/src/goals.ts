@@ -82,4 +82,9 @@ export class MemoryGoalBoard implements GoalBoard {
   save(goal: PersonaGoal): void {
     this.rows.set(goal.id, { ...goal })
   }
+
+  /** Drop every row (host test reset). */
+  clear(): void {
+    this.rows.clear()
+  }
 }

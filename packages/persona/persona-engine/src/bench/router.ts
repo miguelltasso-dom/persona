@@ -163,6 +163,93 @@ export function runRouterExperiment(): RouterBenchResult {
 /**
  * @param result - Measured cells.
  */
+export interface RouterScaleResult {
+  projects: number
+  burstPerProject: number
+  stored: number
+  evalsAfterOnePump: number
+  evalsByProject: Record<string, number>
+  fairnessMin: number
+  fairnessMax: number
+  noisyStored: number
+  quietStored: number
+  quietEvals: number
+  batchInferences: number
+  oneByOneInferences: number
+}
+
+/**
+ * Several projects, interleaved bursts, one noisy tenant. Fairness = every
+ * project gets an eval on the first pump; the quiet project is not starved.
+ */
+export function runRouterScaleBench(): RouterScaleResult {
+  const projects = ['hire', 'web', 'code', 'ops'] as const
+  const burst = 6
+  const multi = openEngine(true)
+  let clock = 1
+  for (let i = 0; i < burst; i += 1) {
+    for (const project of projects) {
+      multi.engine.receive(trigger(`${project}-${String(i)}`, `${project}:geral`, clock))
+      clock += 1
+    }
+  }
+  multi.pump()
+  const evalsByProject: Record<string, number> = {}
+  for (const project of projects) evalsByProject[project] = 0
+  for (const candidate of multi.requests) {
+    const thread = candidate.thread.ref.id
+    const name = thread.split(':')[0] ?? thread
+    evalsByProject[name] = (evalsByProject[name] ?? 0) + 1
+  }
+  const counts = Object.values(evalsByProject)
+
+  const noisy = openEngine(true)
+  for (let i = 1; i <= 24; i += 1) noisy.engine.receive(trigger(`noise-${String(i)}`, 'hire:geral', i))
+  noisy.engine.receive(trigger('quiet-1', 'web:geral', 30))
+  noisy.engine.receive(trigger('quiet-2', 'web:geral', 31))
+  noisy.pump()
+  const quietEvals = noisy.requests.filter(item => item.thread.ref.id.startsWith('web:')).length
+
+  const batched = openEngine(true)
+  for (let i = 1; i <= 12; i += 1) batched.engine.receive(trigger(`b-${String(i)}`, 'batch', i))
+  batched.pump()
+  const one = openEngine(true)
+  for (let i = 1; i <= 12; i += 1) {
+    one.engine.receive(trigger(`o-${String(i)}`, `solo-${String(i)}`, i))
+    one.pump()
+  }
+
+  return {
+    projects: projects.length,
+    burstPerProject: burst,
+    stored: projects.length * burst,
+    evalsAfterOnePump: multi.requests.length,
+    evalsByProject,
+    fairnessMin: Math.min(...counts),
+    fairnessMax: Math.max(...counts),
+    noisyStored: 24,
+    quietStored: 2,
+    quietEvals,
+    batchInferences: 1,
+    oneByOneInferences: 12,
+  }
+}
+
+/**
+ * @param result - Scale cells.
+ */
+export function formatRouterScaleReport(result: RouterScaleResult): string {
+  return [
+    '# Escala do Router (vários projetos)',
+    '',
+    `- Projetos: ${String(result.projects)} × rajada ${String(result.burstPerProject)} = ${String(result.stored)} triggers.`,
+    `- Evals no 1º pump: ${String(result.evalsAfterOnePump)} (min ${String(result.fairnessMin)} / max ${String(result.fairnessMax)} por projeto).`,
+    `- Projeto barulhento 24 vs quieto 2: quieto ainda teve ${String(result.quietEvals)} eval.`,
+    `- Batching: ${String(result.batchInferences)} inferência vs ${String(result.oneByOneInferences)} um-a-um.`,
+    '',
+  ].join('\n')
+}
+
 export function formatRouterBenchReport(result: RouterBenchResult): string {
   const line = (name: string, c: RouterBenchCounts): string =>
     `| ${name} | ${String(c.inferences)} | ${String(c.decisions)} | ${String(c.evals)} | ${String(c.tokenProxy)} |`

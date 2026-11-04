@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import {
+  MemoryGoalBoard,
   MemorySprintBoard,
+  bindSprintGoal,
   closeSprint,
   openSprint,
   planSprint,
@@ -49,6 +51,9 @@ it('sprint objective becomes a dsh-goal for coordination planning', () => {
   expect(goal.phase).toBe('active')
   expect(goal.projectId).toBe('p')
   expect(sprintDaysLeft(sprint, '2026-11-07T00:00:00.000Z')).toBe(3)
+  const board = new MemoryGoalBoard()
+  expect(bindSprintGoal(board, sprint).id).toBe('goal-sprint-s1')
+  expect(board.list('p')[0]?.objective).toBe('Publicar o site')
 })
 
 it('planning moves tickets between backlog and sprint', () => {

@@ -9,7 +9,7 @@ import {
   type SprintRollover,
 } from '@deepseek-ai/dsh-persona-core'
 import { ticketStage, type Ticket } from './core/index.ts'
-import { ticketGoal, type PersonaGoal } from './goals.ts'
+import { ticketGoal, type GoalBoard, type PersonaGoal } from './goals.ts'
 import { stageCategory } from './workflow.ts'
 
 /**
@@ -25,6 +25,17 @@ export function sprintGoal(sprint: Sprint, maxRounds: number = 256): PersonaGoal
     phase: sprint.status === 'encerrado' ? 'complete' : 'active',
     activation: sprint.status === 'encerrado' ? 'disarmed' : 'armed',
   }
+}
+
+/**
+ * Persist the sprint objective on the coordination GoalBoard (Anvil `startSprint`).
+ * @param board - Goal store.
+ * @param sprint - Sprint whose `goalId` is the row key.
+ */
+export function bindSprintGoal(board: GoalBoard, sprint: Sprint): PersonaGoal {
+  const goal = sprintGoal(sprint)
+  board.save(goal)
+  return goal
 }
 
 /**

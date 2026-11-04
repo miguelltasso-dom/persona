@@ -26,6 +26,14 @@ export type DomainErrorCode =
   | 'IMPORT_REFUSED'
   | 'SECRET_REFUSED'
   | 'INVALID_WORKFLOW'
+  | 'INVALID_GOVERNANCE'
+  | 'INVALID_SUBJECT'
+  | 'INVALID_ACCOUNT_POLICY'
+  | 'INVALID_TEACH'
+  | 'INVALID_COMPUTER_USE'
+  | 'INVALID_BRAIN'
+  | 'INVALID_GESTOR'
+  | 'INVALID_TOKEN_LEDGER'
 
 /** Domain validation or policy failure; message equals `code`. */
 export class DomainError extends Error {
@@ -43,8 +51,11 @@ export class DomainError extends Error {
 export const toolLevelSchema = z.enum(['none', 'read', 'write'])
 export type ToolLevel = z.infer<typeof toolLevelSchema>
 
+/** Machine id for "Gestor de equipe" (badge: Gestor). */
+export const TEAM_MANAGER_ROLE = 'team_manager' as const
+
 /** Assignable system functions. Coordination is unique per workspace. */
-export const systemRoleSchema = z.enum(['coordination', 'watchdog'])
+export const systemRoleSchema = z.enum(['coordination', 'watchdog', 'librarian', TEAM_MANAGER_ROLE])
 export type SystemRole = z.infer<typeof systemRoleSchema>
 
 export const cliKindSchema = z.enum(['claude', 'codex', 'cursor', 'opencode'])
@@ -96,7 +107,7 @@ export const personaSpecSchema = z.object({
   limits: limitsSchema,
   schedule: scheduleSchema.optional(),
   reportsTo: id.optional(),
-  systemRoles: z.array(systemRoleSchema).max(2),
+  systemRoles: z.array(systemRoleSchema).max(4),
   canRecruit: z.boolean(),
 })
 export type PersonaSpec = z.infer<typeof personaSpecSchema>

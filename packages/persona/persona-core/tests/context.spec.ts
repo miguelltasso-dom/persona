@@ -211,6 +211,14 @@ it('recall rejects ambiguous timezones', async () => {
   })).rejects.toMatchObject({ code: 'INVALID_TIMESTAMP' })
 })
 
+it('drops optional records already present in the stable prefix (OPT-4)', async () => {
+  const result = await compile([
+    record('rule', { kind: 'memory', body: 'Nunca inventar preço.' }),
+    record('note', { kind: 'memory', body: 'Ana pediu 20 pães.' }),
+  ], { prefix: 'Nunca inventar preço.\nAtlas coordena.' })
+  expect(result.manifest.records.map(row => row.id)).toEqual(['note'])
+})
+
 it('duplicate snapshot identifiers and invalid tokenizer fail visibly', async () => {
   await expect(compile([record('a'), record('a')])).rejects.toMatchObject({ code: 'INVALID_SNAPSHOT' })
   await expect(compile([], { countTokens: () => Number.NaN })).rejects.toMatchObject({

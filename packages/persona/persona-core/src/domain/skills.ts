@@ -6,7 +6,7 @@
 import { DomainError } from './schemas.ts'
 
 export type SkillScope = 'persona' | 'project' | 'team'
-export type SkillOrigin = 'library' | 'learned' | 'dm'
+export type SkillOrigin = 'library' | 'learned' | 'dm' | 'taught'
 
 export interface SkillRecord {
   id: string

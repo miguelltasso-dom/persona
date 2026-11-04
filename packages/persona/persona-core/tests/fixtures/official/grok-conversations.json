@@ -1,0 +1,15 @@
+{
+  "exporter": "grok",
+  "unused": true,
+  "conversations": [
+    {
+      "conversation_id": "grok-oficial-1",
+      "title": "Pauta lilás",
+      "messages": [
+        { "role": "user", "content": "Escreve a pauta em São Paulo. 日本語" },
+        { "role": "assistant", "content": ["Registro no Cofre sem receita."] },
+        { "role": "user", "text": "ok" }
+      ]
+    }
+  ]
+}

@@ -282,7 +282,7 @@ export function applyWorkflowEdit(
     }
     const dest = destByRemoved[seat.columnId]
     if (dest === undefined || !kept.has(dest)) {
-      throw new DomainError('INVALID_WORKFLOW', `missing_destination:${seat.columnId}`)
+      throw new DomainError('INVALID_WORKFLOW', 'Essa coluna ainda tem Tarefas. Escolha um destino antes de removê-la.')
     }
     nextSeats.push({ ...seat, columnId: dest })
   }
@@ -316,6 +316,11 @@ export function boardCounts(workflow: ProjectWorkflow, seats: readonly TicketBoa
   }
   return counts
 }
+
+/** Coordination prompt: choose a template, never apply it. */
+export const PROPOSE_WORKFLOW_PROMPT = `Leia a descrição do projeto e escolha UM modelo: contratacao, site, software, marketing, atendimento, simples, em_branco.
+Responda só JSON: {"template":"...","reason":"uma frase"}.
+Não aplique o fluxo — a pessoa confirma no cartão "Usar este fluxo?".`
 
 const HINTS: Readonly<Record<WorkflowTemplateId, readonly string[]>> = {
   contratacao: ['vaga', 'candidato', 'contratar', 'entrevista', 'recrut', 'rh', 'currículo', 'curriculo'],
@@ -369,6 +374,37 @@ export function proposeWorkflow(projectId: string, description: string): Workflo
       impact: reason,
     },
   }
+}
+
+/**
+ * pt-BR copy for a refused flow edit (host should surface this, not the code).
+ * @param error - Domain or wrapped Error.
+ */
+export function workflowRefusalText(error: unknown): string {
+  const detail = error instanceof DomainError ? error.detail : undefined
+  if (detail !== undefined && detail.length > 0) return detail
+  const text = error instanceof Error ? error.message : String(error)
+  if (text.includes('missing_destination') || text === 'INVALID_WORKFLOW') {
+    return 'Essa coluna ainda tem Tarefas. Escolha um destino antes de removê-la.'
+  }
+  return text
+}
+
+/**
+ * Persist only after the person accepts. Propose never writes.
+ * @param store - Workflow store.
+ * @param proposal - Card the person saw.
+ * @param accepted - True applies; false leaves the store unchanged.
+ */
+export function decideWorkflowProposal(
+  store: WorkflowStore,
+  proposal: WorkflowProposal,
+  accepted: boolean,
+): ProjectWorkflow | undefined {
+  if (!accepted) return undefined
+  assertWorkflow(proposal.workflow)
+  store.save(proposal.workflow)
+  return store.get(proposal.projectId) ?? proposal.workflow
 }
 
 /**

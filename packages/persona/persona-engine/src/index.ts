@@ -18,7 +18,13 @@ export type {
 } from './effects.ts'
 export { MemoryOutbox } from './outbox.ts'
 export type { OutboxPass } from './outbox.ts'
-export { kanbanColumn, projectKanban, reviewThread } from './kanban.ts'
+export {
+  kanbanColumn,
+  legacyColumnLabelToCategory,
+  legacyKanbanToCategory,
+  projectKanban,
+  reviewThread,
+} from './kanban.ts'
 export type { KanbanColumn, KanbanProjection } from './kanban.ts'
 export {
   WorkflowError,
@@ -61,6 +67,34 @@ export type {
   WorkflowTemplateId,
 } from '@deepseek-ai/dsh-persona-core'
 export {
+  COMPANY_MODELS,
+  applyGovernanceFix,
+  assessTeamHealth,
+  assignPersonaCharge,
+  confirmPersonaCharge,
+  defaultSectorPolicy,
+  escalationChain,
+  inheritPersonaCharge,
+  orgChart,
+  parseStructureAsk,
+  recommendStructure,
+  resolveApproval,
+  runTwoDayTest,
+} from '@deepseek-ai/dsh-persona-core'
+export type {
+  ApprovalAudit,
+  ApprovalRoute,
+  GovernanceAutonomy,
+  GovernanceFix,
+  GovernanceSnapshot,
+  HealthReport,
+  PersonaCharge,
+  Sector,
+  StructureRecommendation,
+  TwoDayResult,
+} from '@deepseek-ai/dsh-persona-core'
+export {
+  bindSprintGoal,
   closeSprint,
   openSprint,
   planSprint,
@@ -73,6 +107,20 @@ export {
 export type { CloseSprintResult, Sprint, SprintBoard, SprintRollover, SprintStatus } from './sprint.ts'
 export { internalSourceScope } from './sources.ts'
 export type { InternalSourceKind } from './sources.ts'
+export {
+  CALENDAR_SOURCE,
+  DISCORD_SOURCE,
+  EMAIL_SOURCE,
+  SLACK_SOURCE,
+  TELEGRAM_SOURCE,
+  allExternalSourceScope,
+  composeSourceScope,
+  externalSourceScope,
+  originReply,
+  receiveExternal,
+  receiveExternalBatch,
+} from './sources/external.ts'
+export type { ExternalChannelSource, OriginReply } from './sources/external.ts'
 export {
   GITHUB_SOURCE,
   commentTrigger,
@@ -93,8 +141,8 @@ export type {
   GithubWebhookName,
   PullRef,
 } from './sources/github/index.ts'
-export { formatRouterBenchReport, runRouterExperiment } from './bench/router.ts'
-export type { RouterBenchCounts, RouterBenchResult } from './bench/router.ts'
+export { formatRouterBenchReport, formatRouterScaleReport, runRouterExperiment, runRouterScaleBench } from './bench/router.ts'
+export type { RouterBenchCounts, RouterBenchResult, RouterScaleResult } from './bench/router.ts'
 export { formatEngineBenchReport, runEngineBench } from './bench/engine.ts'
 export type { EngineBenchPhase, EngineBenchResult, EngineBenchSizes } from './bench/engine.ts'
 export {
@@ -120,7 +168,9 @@ export {
   decideFromModelText,
   formatCoordEvalReport,
   formatRealCoordEval,
+  coordPreInput,
   measurePreRoute,
+  overlayPreRoute,
   runCoordEval,
 } from './bench/coord-eval.ts'
 export type {
@@ -256,6 +306,38 @@ export {
   wrapAsData,
 } from './prompts/talk.ts'
 export type { TalkColleague, TalkPromptInput } from './prompts/talk.ts'
+export {
+  ENGINE_COPY,
+  composePersonaPrompt,
+  composeVoicePolicy,
+  engineCopyOf,
+  resolveEngineLocale,
+  voiceFingerprint,
+  voiceSurfaceHint,
+} from './prompts/voice.ts'
+export type { ComposePersonaPromptInput, EngineCopy, EngineLocale, PersonaVoiceFields, VoiceSurface } from './prompts/voice.ts'
+export {
+  PREFIX_LAYER_ORDER,
+  assertPrefixStable,
+  composeStablePrefix,
+  composeTurnPrompt,
+  prefixCacheHitRate,
+  prefixLooksVolatile,
+  toolsForTurn,
+} from './prompts/stable-prefix.ts'
+export type { StablePrefix, StablePrefixInput } from './prompts/stable-prefix.ts'
+export {
+  CHANNEL_WORD_LIMIT,
+  INITIATIVE_DAILY_TOKEN_BUDGET,
+  batchInitiative,
+  capChannelReply,
+  countWords,
+  initiativeCadenceDays,
+  trimInitiativeToBudget,
+} from './lean-output.ts'
+export type { InitiativeBatch, InitiativeDraft } from './lean-output.ts'
+export { engineClassForTurn } from './engine-policy.ts'
+export type { EngineClass } from './engine-policy.ts'
 export { MemoryPromptStore, publishPrompt } from './prompts/store.ts'
 export type { PromptSnapshot, PromptStore } from './prompts/store.ts'
 export { watchdogSignals, watchdogWarnings, vigiaTick } from './watchdog.ts'
@@ -264,6 +346,10 @@ export type {
   VigiaAction, VigiaActionKind, VigiaAudit, VigiaPersonaState, VigiaRules, VigiaSnapshot,
 } from './watchdog.ts'
 export { applyProactivity, applyAutonomy, autonomyMode } from './proactivity.ts'
+export { computeActivationFunnel, computePersonaImpact, listPersonaImpact } from './insights.ts'
+export type { ActivationFunnel, FunnelStage, InsightEvent, InsightEventKind, PersonaImpact } from './insights.ts'
+export { routeApproval } from './governance.ts'
+export type { ApprovalDelivery } from './governance.ts'
 export { applyAttentionAnswer, citedCardTicketId } from './attention.ts'
 export { approvalCard, milestoneSummary } from './approvals.ts'
 export type { ApprovalCard } from './approvals.ts'
@@ -271,6 +357,158 @@ export {
   isOnShift, isOnShiftInZone, shouldRunDaily, shouldRunDailyInZone, shouldRunOnEvent, zonedParts,
 } from './initiative.ts'
 export type { InitiativeClock, InitiativeEvent, Shift, ZonedParts } from './initiative.ts'
+export { initiativeSetClean, proposalReasonOf, proposalTitleOf, scoreInitiative } from './initiative-quality.ts'
+export type {
+  ExistingWorkItem, InitiativeQualityInput, InitiativeQualityResult, InitiativeReject, InitiativeRejectWhy,
+  ProjectFact, ScoredProposal,
+} from './initiative-quality.ts'
+export { adjustBudgetFromFeedback, learnFromFeedback, memoryFromFeedback, skillCandidateFromFeedback } from './feedback-learn.ts'
+export {
+  TEACH_CONSENT_VERSION,
+  TEACH_RETENTION_DAYS,
+  acceptTaughtCandidate,
+  activateTaughtSkill,
+  assertTeachConsent,
+  draftTaughtSkill,
+  fakeVisionPort,
+  omitBlurredTeachFrames,
+  publishTaughtSkill,
+  redactTeachNarration,
+  sampleKeyFrames,
+  teachRetentionExpiresAt,
+} from './teach.ts'
+export { deliverWorkingSend, flushWorkingQueue } from './working-deliver.ts'
+export type {
+  TeachFrame, TeachStepDraft, TeachTranscriptSlice, TaughtSkillDraft, VisionDescribe, VisionPort,
+} from './teach.ts'
+export {
+  DEFAULT_COMPUTER_USE_LIMITS,
+  YOU_TOOK_OVER,
+  assertComputerUsePlan,
+  classifyComputerAction,
+  createMemorySharedControl,
+  fakeActPort,
+  fakeObservePort,
+  fakePermissionPort,
+  noteHumanInput,
+  projectReplayForUi,
+  resumeSharedControl,
+  runComputerUse,
+  runningControl,
+  treeNames,
+  verifyExpectation,
+  walkA11y,
+} from './computer-use.ts'
+export type {
+  A11yBounds,
+  A11yNode,
+  ActResult,
+  ComputerAction,
+  ComputerSensitiveKind,
+  ComputerUseLimits,
+  ComputerUsePlan,
+  ComputerUseReport,
+  ComputerUseStatus,
+  ComputerUseStep,
+  ControlOwner,
+  ControlReason,
+  DesktopActPort,
+  DesktopObservePort,
+  PermissionDecision,
+  ReplayEntry,
+  ReplayResult,
+  ReplaySaw,
+  ScreenObservation,
+  SharedControl,
+  SharedControlPort,
+  StepExpectation,
+  StepPermissionPort,
+} from './computer-use.ts'
+export { DEFAULT_GESTOR_LIMITS } from '@deepseek-ai/dsh-persona-core'
+export {
+  runAssembleTeam,
+  runGestorAllocate,
+  runGestorComment,
+  runGestorHire,
+  runGestorReorganize,
+  runGestorTie,
+  gestorInitiative,
+} from './gestor.ts'
+export {
+  activityFromReport,
+  activityKindOfTool,
+  activityStatusOfReport,
+  batchRouterBurst,
+  foldTurnActivity,
+} from './activity.ts'
+export type { GestorAssemble, GestorDecision, GestorInitiative } from './gestor.ts'
+export {
+  PAIR_REAL_LIMIT,
+  PAIR_REAL_TURN_MS,
+  PAIR_TASKS,
+  PAIR_TASK_IDS,
+  TOKEN_REGRESSION_RATIO,
+  TOKEN_SCENARIO_BASELINES,
+  TOKEN_SCENARIO_IDS,
+  assertPairAcceptable,
+  assertScenarioRegression,
+  collectPairUsage,
+  comparePair,
+  compareScenariosToBaseline,
+  formatTokenMeasureReport,
+  formatTokensBaselineMarkdown,
+  ledgerFromTurnLayers,
+  measureEngineLevers,
+  pairVerdict,
+  recordOverhead,
+  runPairArm,
+  runPairedSuite,
+  runPairedTask,
+  runTokenScenario,
+  scorePairQuality,
+} from './token-measure.ts'
+export type {
+  EngineLeverReport,
+  PairArm,
+  PairEngine,
+  PairPath,
+  PairResult,
+  PairRunInput,
+  PairRunner,
+  PairTask,
+  PairTaskId,
+  PairUsageEvent,
+  PairVerdict,
+  ScenarioBaselineRow,
+  TokenScenarioId,
+  TokenScenarioReport,
+} from './token-measure.ts'
+export {
+  acceptLibrarianProposal,
+  curateAfterWork,
+  gateRememberedPermission,
+  gateRememberedPermissionPages,
+  rememberApprovalPermission,
+  revokeRememberedPermission,
+  runBrainHygiene,
+  spendRememberedPermission,
+} from './second-brain.ts'
+export type {
+  LibrarianAction,
+  LibrarianFact,
+  LibrarianPolicy,
+  PermissionConsult,
+  PermissionGrant,
+} from './second-brain.ts'
+export { bindTicketToSubject, subjectThreadRef, threadKeyForSubject, ticketSubjectChip } from './subject-thread.ts'
+export type { TicketSubjectLink } from './subject-thread.ts'
+export type {
+  FeedbackEvent, FeedbackKind, FeedbackLearnResult, LearnedMemory, LearnedSkillCandidate,
+} from './feedback-learn.ts'
+export {
+  TALK_EVAL_SCENARIOS, TALK_REAL_LIMIT, decideTalkFake, runTalkEval, scoreTalkReply, talkDecisionFromModel, talkEvalPrompt,
+} from './bench/talk-eval.ts'
+export type { TalkEvalCell, TalkEvalClass, TalkEvalReport, TalkEvalScenario, TalkReplyScore } from './bench/talk-eval.ts'
 export { lazinessHint, scoreLaziness } from './laziness.ts'
 export type { LazinessRun, LazinessScenario, LazinessScore } from './laziness.ts'
 export {
@@ -289,9 +527,10 @@ export type { GoalActivation, GoalBoard, GoalPhase, PersonaGoal, QueueDecision }
 export { verifyReady, continuationAfterReady } from './continue.ts'
 export type { Continuation, FollowupProposal, ReadyCheck } from './continue.ts'
 export {
-  inSilence, mayPropose, nextProposalIntervalHours, spend, recordProposalOutcome, proposalDigest,
+  inSilence, leftoverOnProject, mayPropose, maySpendOnProject, nextProposalIntervalHours,
+  proposalDigest, recordProposalOutcome, spend, spendOnProject,
 } from './budget.ts'
-export type { AttentionBudget } from './budget.ts'
+export type { AttentionBudget, ProjectSpend } from './budget.ts'
 export {
   overview, needsYou, ticketList, ticketRow, ticketSummary, ticketDetail, basisFacts,
   threadList, threadDetail, encodeCursor, decodeCursor, decisionList, decisionRow, search,

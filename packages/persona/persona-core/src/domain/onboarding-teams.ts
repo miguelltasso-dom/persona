@@ -34,7 +34,7 @@ const coord = (name: string, title: string, description: string, instructions: s
   tools: { files: 'read', recall: 'read' },
   skills: ['triagem'],
   limits: { tokensPerMonth: 50_000, concurrency: 1 },
-  systemRoles: ['coordination'],
+  systemRoles: ['coordination', 'team_manager'],
   canRecruit: true,
 })
 

@@ -1,5 +1,13 @@
 import { expect, it } from 'vitest'
-import { kanbanColumn, projectKanban, reviewThread, ticketStage } from '../src/index.ts'
+import {
+  kanbanColumn,
+  legacyColumnLabelToCategory,
+  legacyKanbanToCategory,
+  projectKanban,
+  reviewThread,
+  stageCategory,
+  ticketStage,
+} from '../src/index.ts'
 import type { Ticket } from '../src/index.ts'
 
 const ticket = (overrides: Partial<Ticket> = {}): Ticket => ({
@@ -42,6 +50,25 @@ it('projects ticket stages onto kanban columns and waiting chip', () => {
   expect(kanbanColumn({ stage: 'person', action: 'delivery' })).toEqual({ column: 'blocked' })
   expect(kanbanColumn({ stage: 'idle' })).toEqual({ column: 'doing', chip: 'waiting' })
   expect(kanbanColumn({ stage: 'ended' })).toEqual({ column: 'done' })
+})
+
+it('maps the mixed-board column onto a Quadros category (PB-10)', () => {
+  expect(legacyKanbanToCategory('todo')).toBe('todo')
+  expect(legacyKanbanToCategory('doing')).toBe('doing')
+  expect(legacyKanbanToCategory('review')).toBe('review')
+  expect(legacyKanbanToCategory('blocked')).toBe('needs_you')
+  expect(legacyKanbanToCategory('done')).toBe('done')
+  expect(legacyColumnLabelToCategory('A fazer')).toBe('todo')
+  expect(legacyColumnLabelToCategory('Em andamento')).toBe('doing')
+  expect(legacyColumnLabelToCategory('Revisar')).toBe('review')
+  expect(legacyColumnLabelToCategory('Precisa de você')).toBe('needs_you')
+  expect(legacyColumnLabelToCategory('Bloqueado')).toBe('needs_you')
+  expect(legacyColumnLabelToCategory('Concluído')).toBe('done')
+  expect(legacyColumnLabelToCategory('outra')).toBeUndefined()
+  expect(legacyKanbanToCategory(kanbanColumn({ stage: 'person', action: 'blocked' }).column))
+    .toBe(stageCategory({ stage: 'person', action: 'blocked' }))
+  expect(legacyKanbanToCategory(kanbanColumn({ stage: 'person', action: 'review' }).column))
+    .toBe(stageCategory({ stage: 'person', action: 'review' }))
 })
 
 it('builds a review thread only for person/review (D-039)', () => {

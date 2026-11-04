@@ -1,6 +1,7 @@
 /**
  * Internal Source scopes: channel, dm, persona, routine (P12).
- * GitHub and other externals are later; Feishu is out of v1.
+ * GitHub / Telegram / e-mail: `externalSourceScope` + `receiveExternal` (X-3).
+ * Feishu is out of v1.
  */
 
 import type { ScopeResult, SourceScope } from './core/ports.ts'

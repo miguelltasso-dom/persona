@@ -1,6 +1,7 @@
 /** Per-project boards: workflow + sprint (D-053). */
 
 export {
+  PROPOSE_WORKFLOW_PROMPT,
   WORKFLOW_TEMPLATES,
   MemoryPlacementStore,
   MemoryWorkflowStore,
@@ -8,10 +9,12 @@ export {
   assertWorkflow,
   boardCounts,
   columnOccupancy,
+  decideWorkflowProposal,
   firstColumnOf,
   parseWorkflowProposal,
   proposeWorkflow,
   workflowFromTemplate,
+  workflowRefusalText,
   workflowTemplateById,
   wipWarning,
 } from './workflow.ts'

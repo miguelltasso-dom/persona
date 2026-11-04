@@ -46,9 +46,10 @@ it('imports a markdown folder as proposed memories', () => {
   expect(preview.accepted[0]?.kind).toBe('memory')
 })
 
-it('keeps the Grok adapter as an extension that does not sniff yet', () => {
+it('Grok só fareja arquivo com grok no nome e conversas', () => {
   const grok = IMPORT_ADAPTERS.find(item => item.id === 'grok')
   expect(grok?.sniff([{ name: 'grok.json', text: '{}' }])).toBe(false)
+  expect(grok?.sniff([{ name: 'notes.md', text: '{"conversations":[]}' }])).toBe(false)
 })
 
 it('ChatGPT export sem id não cria candidato', () => {

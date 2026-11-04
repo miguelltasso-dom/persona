@@ -1,0 +1,18 @@
+{
+  "kind": "gemini_takeout",
+  "exported_at": "2026-11-03T12:00:00Z",
+  "unused": true,
+  "conversations": [
+    {
+      "conversation_id": "gemini-oficial-1",
+      "title": "Brief em São Paulo",
+      "create_time": "2026-10-01T12:00:00Z",
+      "extra": { "model": "gemini-2.5" },
+      "model_messages": [
+        { "author": "user", "text": "Preciso do brief em São Paulo. 日本語" },
+        { "author": "model", "content": [{ "text": "Aqui está o brief do projeto." }] },
+        { "author": "user", "parts": ["anexo ignorado", { "file_uri": "file-service://skip" }] }
+      ]
+    }
+  ]
+}

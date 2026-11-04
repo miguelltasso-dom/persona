@@ -2,6 +2,7 @@
  * Ticket-stage → kanban column (SUPERAGENT-ADOPTION §2) and review-thread (D-039).
  */
 
+import type { StageCategory } from '@deepseek-ai/dsh-persona-core'
 import { ticketStage, type Ticket, type TicketStage, type ThreadRef } from './core/index.ts'
 
 /** Product columns. `waiting` is a chip on the card, not a column. */
@@ -23,6 +24,30 @@ export function kanbanColumn(stage: TicketStage): KanbanProjection {
   }
   if (stage.action === 'review') return { column: 'review' }
   return { column: 'blocked' }
+}
+
+/**
+ * Map the old mixed-board column (PB-10) onto a stage category.
+ * `blocked` stays a marker; the card sits in `needs_you`.
+ * @param column - Legacy GlobalKanban column.
+ */
+export function legacyKanbanToCategory(column: KanbanColumn): StageCategory {
+  if (column === 'blocked') return 'needs_you'
+  return column
+}
+
+/**
+ * Portuguese labels of the pre-Quadros board.
+ * @param label - Visible column name.
+ */
+export function legacyColumnLabelToCategory(label: string): StageCategory | undefined {
+  const key = label.trim().toLowerCase()
+  if (key === 'a fazer' || key === 'todo') return 'todo'
+  if (key === 'em andamento' || key === 'andando' || key === 'doing') return 'doing'
+  if (key === 'em revisão' || key === 'revisar' || key === 'review') return 'review'
+  if (key === 'bloqueado' || key === 'precisa de você' || key === 'blocked' || key === 'needs_you') return 'needs_you'
+  if (key === 'concluído' || key === 'pronto' || key === 'done') return 'done'
+  return undefined
 }
 
 /**

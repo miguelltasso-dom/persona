@@ -4,7 +4,10 @@
  */
 
 import { createHash } from 'node:crypto'
+import { recallChain } from './chain.ts'
+import { dropRecordsInPrefix } from './dedupe-prefix.ts'
 import { ContextError } from './error.ts'
+import { restrictSnapshotToSubject, type CompileActiveSubjectInput, type CompiledSubjectContext } from './subject-compile.ts'
 import type {
   CompiledContext, CompileContextInput, ContextAuthorize, ContextErrorCode, ContextKind,
   ContextManifest, ContextRecord, ContextScope, ContextSnapshot, RecallEventType,
@@ -22,6 +25,9 @@ export { inlineRef, recallChain, spillId, spillPointer } from './chain.ts'
 export type { ChainHop, ChainRecallInput, InlineRef, RecallNode } from './chain.ts'
 export { formatContextBenchReport, runContextBench } from './bench.ts'
 export type { BenchSample } from './bench.ts'
+export { restrictSnapshotToSubject } from './subject-compile.ts'
+export { dropRecordsInPrefix } from './dedupe-prefix.ts'
+export type { CompileActiveSubjectInput, CompiledSubjectContext } from './subject-compile.ts'
 
 const SCOPE_KEYS = ['workspaceId', 'projectId', 'agentId', 'actorId', 'audienceId', 'policyRevision'] as const
 
@@ -119,15 +125,29 @@ function policyReader(
 function render(records: readonly ContextRecord[]): string {
   // Deliberately stable ordering/serialization for provider prompt caching.
   // This is data. The caller wraps it under its trusted instruction hierarchy.
+  // title/locator only when set so existing cache keys stay put (v14, no v15).
   return JSON.stringify({
     format: 'persona-context-v1',
-    records: records.map(record => ({
-      id: record.id,
-      revision: record.revision,
-      kind: record.kind,
-      body: record.body,
-      sourceIds: [...record.sourceIds].sort(),
-    })),
+    records: records.map((record) => {
+      const row: {
+        id: string
+        revision: number
+        kind: ContextKind
+        body: string
+        sourceIds: string[]
+        title?: string
+        locator?: string
+      } = {
+        id: record.id,
+        revision: record.revision,
+        kind: record.kind,
+        body: record.body,
+        sourceIds: [...record.sourceIds].sort(),
+      }
+      if (record.title !== undefined && record.title !== '') row.title = record.title
+      if (record.locator !== undefined && record.locator !== '') row.locator = record.locator
+      return row
+    }),
   })
 }
 
@@ -182,7 +202,9 @@ export async function compileContext(input: CompileContextInput): Promise<Compil
     return count
   }
   if (tokens(selected) > budgetTokens) fail('REQUIRED_CONTEXT_OVERFLOW')
-  const candidates = [...index.values()].filter(record => !requiredIds.includes(record.id))
+  const prefix = typeof input.prefix === 'string' ? input.prefix : ''
+  const extras = [...index.values()].filter(record => !requiredIds.includes(record.id))
+  const candidates = prefix === '' ? extras : dropRecordsInPrefix(extras, prefix)
   candidates.sort((a, b) => Number(b.pinned === true) - Number(a.pinned === true) ||
     relevanceOf(b) - relevanceOf(a) || order(a, b))
   for (const record of candidates) {
@@ -263,4 +285,32 @@ export async function recall({
     if (rows.length === limit) break
   }
   return { events: rows, nextSequence: rows.at(-1)?.sequence ?? afterSequence }
+}
+
+/**
+ * Active subject + requireds, then Chain of Recall into cited subjects.
+ * @param input - Trusted compile input plus subject ids.
+ * @returns Compiled payload and hops into cited subjects only.
+ */
+export async function compileActiveSubject(input: CompileActiveSubjectInput): Promise<CompiledSubjectContext> {
+  const snapshot = restrictSnapshotToSubject(input.snapshot, input.activeSubjectId)
+  const compiled = await compileContext({
+    scope: input.scope,
+    snapshot,
+    budgetTokens: input.budgetTokens,
+    countTokens: input.countTokens,
+    authorize: input.authorize,
+  })
+  const cited = input.citedSubjectIds ?? []
+  const nodes = input.subjectNodes ?? []
+  if (cited.length === 0 || nodes.length === 0) return { compiled, chain: [] }
+  const byId = new Map(nodes.map(node => [node.id, node]))
+  const chain = await recallChain({
+    startId: input.activeSubjectId,
+    scope: input.scope,
+    maxHops: Math.min(1 + cited.length, 8),
+    load: id => byId.get(id),
+    authorize: node => Promise.resolve(node.id === input.activeSubjectId || cited.includes(node.id)),
+  })
+  return { compiled, chain: chain.filter(hop => hop.id !== input.activeSubjectId) }
 }

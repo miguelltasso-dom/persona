@@ -4,6 +4,1100 @@ Mais recente no topo.
 
 ---
 
+## 04/11 02:22 — janela encerrada: GES apply + OPT-5 + SB-6 leftover + W2-4 homes
+
+Vigia: não parar. Keel: JANELA ENCERRADA — voltei ao core/engine.
+
+### GES-2 apply atômico (domínio)
+`decideGestorAction` no caminho `apply` agora devolve `plan.status = applied` (simétrico ao `notify`). `applyGestorPlan` marca aplicado; `rejected` lança `INVALID_GESTOR`. Anvil ainda precisa persistir `decision.plan` no Remote.
+
+### OPT-5
+JSDoc de `trimInitiativeToBudget` estava solto acima de `initiativeCadenceDays` — corrigido. `engineClassForTurn` ganhou `@returns` + `engine-policy.spec.ts` (7 kinds: execution/reply = persona; resto cheap). Já exportado no `index`.
+
+### SB-6
+`leftoverDestFiles` + `planBrainVaultExport` no core (dest extras nunca apagados; `..` filtrado). Desktop Rivet ainda tem cópia local — trocar o import é atômico, Keel avisa.
+
+### W2-4
+`assertIsolatedHomes` recusa `EMPTY_HOME` / `SHARED_HOME`; `pickAccount` aplica antes de decidir. Isolamento de env/dir continua Rivet (`accountHomeDir`).
+
+### Testes
+```
+pnpm exec vitest run …/gestor.spec.ts …/brain.spec.ts …/engine-policy.spec.ts …/lean-output.spec.ts
+  Test Files  5 passed (5)  Tests  34 passed (34)
+
+pnpm exec vitest run …/account-policy.spec.ts
+  Test Files  1 passed (1)  Tests  6 passed (6)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 12.9s / 16.5s / 12.0s
+  persona-engine: OK in 30.1s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: persistir `GestorDecision.apply.plan`; Remote `commentGestorPlan` / `resolveGestorTie` / `listTurnActivity` / `foldUsagePanel`.
+- **Rivet**: pool/sessão cheap (OPT-5); desktop pode passar a importar `leftoverDestFiles` do core.
+- **Prism**: ActivityGroup no fio.
+- **Probe / Miguel**: S7 UI; `PERSONA_REAL_IMPORTS`.
+- OPT-8 −40% só depois da integração. PLAN ainda marca GES/OPT como todo (Keel).
+
+---
+
+## 04/11 02:32 — S7 host + F1 + T3 fila + OPT-5 política (janela: sem core/engine)
+
+Vigia: não parar. Sem `JANELA ENCERRADA`.
+
+### S7 / fechamento v1
+`mandatory-s7-host-contract.spec.ts` — J1–J10 num único gate (onboarding, review, hire sem escalar, troca de Coordenação, Cofre, ACL, orçamento, resume, import, export). **10/10**. UI reduced-motion/dirD = Probe. `journeys.md` ganhou J19.
+
+### F1
+`mandatory-import-contract`: oficiais (7 pass + 1 skip amostra real) + framework preview/dedupe/rollback/segredo (10). Amostra do Miguel continua `PERSONA_REAL_IMPORTS`.
+
+### T3 §4/§11/§12
+`mandatory-working-send-contract` alinha o `working-send.md` do Anvil: `resolveWorkingSend` + deliver/flush. 2/2. Persistência Remote = Anvil após a janela.
+
+### OPT-5 / W2-10
+`engineClassForTurn`: triage/librarian/watchdog/initiative/evaluation = `cheap`; execution/reply = `persona`. Contrato `engine-class.md`. `teach-persona.md`: accept fica `enabled: false`; activate só explícito.
+
+### Testes
+```
+pnpm exec vitest run …/engine-class-policy.spec.ts
+  Test Files  1 passed (1)  Tests  1 passed (1)
+
+pnpm exec vitest run …/mandatory-working-send-contract.spec.ts
+  Test Files  1 passed (1)  Tests  2 passed (2)
+
+pnpm exec vitest run …/mandatory-import-contract.spec.ts
+  Test Files  1 passed (1)  Tests  2 passed (2)
+
+pnpm exec vitest run …/mandatory-s7-host-contract.spec.ts
+  Test Files  1 passed (1)  Tests  1 passed (1)
+  (subprocess J1–J10: 10 passed)
+
+node scripts/persona/check-pkg.mjs persona-e2e
+  persona-e2e: OK in 7.3s
+```
+
+### Dependências
+- **[Forge→Anvil]** Remote fila (`enqueueWorkingMessage` / `listWorkingQueue`) + apply plano + `listTurnActivity` depois da janela.
+- **[Forge→Probe]** S7 UI (reduced-motion, dirD); F1 amostra real (`PERSONA_REAL_IMPORTS`).
+- **[Forge→Rivet]** pool/sessão quente da classe `cheap`.
+- Folha Forge desta onda fechada. Core/engine ainda congelado. Não é fila vazia (OPT-8, persistência, amostra real).
+
+---
+
+## 04/11 02:01 — PRO/BYC/OPT/W2 contratos + fixtures 60/150 (janela: sem core/engine)
+
+Vigia: não parar. Sem `JANELA ENCERRADA` — folha só.
+
+### PRO-1 / PRO-6 (v1)
+`mandatory-proactivity-contract`: v1 + `proactivity-accept` (fila vazia sem modelo) + runner `-t PRO-3` (sem espaço — o filtro antigo pendurava no Windows). 4/4.
+
+### BYC-2/3
+Walk (`logo.png` ignored) + apply (accept escreve, discard não, 2º apply idempotente) deixam de ser todo. Core já tinha dedupe/conflito. 5 pass / 1 todo galeria.
+
+### OPT §2 + TOK layer-1
+`mandatory-opt-levers-contract` novo: prefixo / pré-roteador / lean-output / Vigia. `mandatory-token-scenarios.spec.ts` aponta o contract (TOK-1..5). OPT-8 −40% continua todo pós-integração.
+
+### W2-5 / W2-10
+`account-policy.spec.ts` no wave2-contract. Ensinar: `acceptTaughtCandidate` já no teach-skill.
+
+### Organograma
+`fixtures/org-chart/roster-60.json` (person, 60+Gestor) e `roster-150.json` (sector, 150+Gestor). Spec 2/2. Prism/Lumen podem trocar o mock.
+
+### Testes
+```
+pnpm exec tsx packages/persona/persona-e2e/scripts/write-org-chart-fixtures.ts
+  wrote fixtures/org-chart
+
+pnpm exec vitest run …/org-chart-fixtures.spec.ts
+  Test Files  1 passed (1)  Tests  2 passed (2)
+
+pnpm exec vitest run …/mandatory-bring-your-context-contract.spec.ts
+  Test Files  1 passed (1)  Tests  5 passed | 1 todo (6)
+
+pnpm exec vitest run …/mandatory-proactivity-contract.spec.ts
+  Test Files  1 passed (1)  Tests  4 passed (4)
+
+pnpm exec vitest run …/account-policy.spec.ts
+  Test Files  1 passed (1)  Tests  6 passed (6)
+
+pnpm exec vitest run …/mandatory-opt-levers-contract.spec.ts
+  Test Files  1 passed (1)  Tests  4 passed (4)
+
+node scripts/persona/check-pkg.mjs persona-e2e
+  persona-e2e: OK in 14.5s
+```
+
+### Dependências
+- **[Forge→Prism]** `packages/persona/persona-e2e/fixtures/org-chart/roster-{60,150}.json` no lugar do mock Lumen; `listGestorPlans` TypeError (Muse 02:00) não é Forge.
+- **[Forge→Anvil]** apply atômico do plano + `listTurnActivity`.
+- Fila core/engine bloqueada até `JANELA ENCERRADA`. Folha Forge desta onda fechada. Não é fila vazia (OPT-8, persistência, UI).
+
+---
+
+## 04/11 01:50 — OPT-1 JSON + contratos e2e/docs (janela: sem core/engine)
+
+Vigia: não parar. Sem `JANELA ENCERRADA` — não toquei em persona-core / persona-engine.
+
+### OPT-1 / OPT-2 (Probe)
+`persona-spec/baselines/token-scenarios.json` saiu de placeholder: TOK-1..5 scripted (99 / 148 / 0 / 0 / 155), idle e initiative-30 = 0 chamadas, pareado **parity**. Regenerar: `pnpm exec tsx persona-spec/scripts/write-token-scenarios.ts`. Gate +10% = JSON + `token-measure.spec.ts`. OPT-8: metas vs linha de base em `tokens-baseline.md` (−40% só depois da integração; cache 0,63; idle=0 já).
+
+### Contratos e2e (folha)
+- `mandatory-token-scenarios-contract`: baseline numérico + ledger + measure (4/4).
+- `mandatory-team-manager-contract`: GES-2/3 core+engine; adversariais deixam de ser todo (2 pass / 3 todo Anvil).
+- `mandatory-activity-contract` novo — T3 §9 (2/2).
+- `mandatory-second-brain-contract` SB-6: export one-way + hash (`-t one-way`).
+
+### Docs
+`docs/persona/{gestor,uso}.md` + guia/equipe/canais/README. `ARCHITECTURE.md` Gestor + tokens/atividade. Contratos `gestor.md` + `token-ledger.md` aponta o JSON.
+
+### Testes
+```
+pnpm exec tsx persona-spec/scripts/write-token-scenarios.ts
+  wrote persona-spec/baselines/token-scenarios.json
+
+pnpm exec vitest run packages/persona/persona-e2e/tests/token-scenarios-baseline.spec.ts
+  Test Files  1 passed (1)  Tests  1 passed (1)
+
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-activity-contract.spec.ts
+  Test Files  1 passed (1)  Tests  2 passed (2)
+
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-team-manager-contract.spec.ts
+  Test Files  1 passed (1)  Tests  2 passed | 3 todo (5)
+
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-second-brain-contract.spec.ts -t one-way
+  Test Files  1 passed (1)  Tests  1 passed
+
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-token-scenarios-contract.spec.ts
+  Test Files  1 passed (1)  Tests  4 passed (4)
+
+node scripts/persona/check-pkg.mjs persona-e2e
+  persona-e2e: OK in 6.0s
+```
+
+### Dependências
+- **[Forge→Anvil]** persistência `listTurnActivity` / `commentGestorPlan` / `resolveGestorTie` / apply atômico do plano (todos Anvil). `getUsagePanel` Anvil já relatou.
+- **[Forge→Prism]** ActivityGroup no fio; seed de dev (Muse P1) para capturar Uso.
+- **[Forge→Keel]** PLAN ainda marca GES-1..3 / OPT-1..6 como todo — domínio/engine já no fio; não editei PLAN.
+- Fila Forge em core/engine: bloqueada até `JANELA ENCERRADA`. Folha/docs desta onda fechados. Não é fila vazia.
+
+---
+
+## 04/11 01:50 — T3 §9 atividade + GES-3 empate + OPT-6 lote + higiene só o que mudou
+
+Vigia: não parar. Encadeei o que ainda era core/engine.
+
+### T3 §9
+`TurnActivityEvent` / `groupTurnActivity`: mutações primeiro, ≤2 kinds no resumo + moreCount, falha fora do feito, waiting/running = inacabado. Engine: `activityFromReport`, `foldTurnActivity`. Contrato `activity.md` + RPC `listTurnActivity`.
+
+### GES-3
+`commentGestorPlan` (segundo comenta; o primeiro fica proposed) + `resolveGestorTie` (humano escolhe; os outros no escopo = rejected). Engine: `runGestorComment` / `runGestorTie`. RPC no `lumen-rpc.md`.
+
+### OPT-6 / §2.9
+`batchRouterBurst` — um lote por assunto na próxima Eval. `initiativeCadenceDays` (aceite <0,3 → 3 dias). `hygieneChangedOnly` — Bibliotecário só no que mudou.
+
+### Arquivos
+`persona-core`: `domain/{activity,gestor,brain-curate}.ts`, testes `activity`/`gestor`/`brain`
+`persona-engine`: `activity.ts`, `gestor.ts`, `lean-output.ts`, testes
+`persona-spec`: `contracts/{activity,lumen-rpc}.md`
+
+### Testes
+```
+pnpm exec vitest run activity + gestor + lean-output (core/engine)
+  Test Files  5 passed (5)
+  Tests  20 passed (20)
+
+pnpm exec vitest run brain + activity
+  Test Files  3 passed (3)
+  Tests  17 passed (17)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 7.1s
+  persona-engine: OK in 17.1s
+```
+
+### Dependências
+- **[Forge→Anvil]** `listTurnActivity`, `commentGestorPlan`, `resolveGestorTie`.
+- **[Forge→Prism]** ActivityGroup no fio lê o fold (literais iguais aos da Muse).
+- Fila Forge ainda implementável: fina (domínio v1 / PRO-1 / GES / T3 / OPT medição já no core). Próximo: só se aparecer buraco de contrato; senão fico em alavancas extras sem LLM.
+
+---
+
+## 04/11 01:40 — OPT-1 linha de base + alavancas §2 (destrava Anvil OPT-7)
+
+Atlas: medir primeiro. Relatório canônico `persona-spec/reports/tokens-baseline.md`. Painel Uso lê `foldUsagePanel`.
+
+### OPT-1
+- Ledger: `TurnLedgerEntry` + `turnFromLayers` / `foldUsagePanel` (tokens/tarefa, por persona, por tipo, cache, origem `measured`|`estimate`).
+- `usagePortKind`: `execution`→`exec`, `evaluation`→`eval` só no port Rivet. Anvil persiste o kind do core.
+- 5 cenários scriptados (402 tokens; idle e initiative-30 = 0 chamadas). Gate +10% sem qualidade ≥0,15 = falha.
+- Pareado CLI vs Persona (mesma CLI/modelo): Δ +5,7–6,3%, veredito **parity**. Runner real: `start`→fold→`cancel`, timeout cancela primeiro, `dispose` no `finally`, cap 1. Vendor opt-in `PERSONA_PAIR_REAL=1`.
+- Prefixo: persona entra na camada `system`; relógio/contador recusados.
+
+### Alavancas §2 (antes → depois)
+- Pré-roteador F3: **26 → 18** chamadas de modelo (vazio / injeção / fora de escopo / slash do composer). Acerto 41/41.
+- Vigia: `budgetLeft: false` e `needsModel: false` — sem LLM.
+- Ferramentas mínimas: 3 → 1 (`toolsForTurn`).
+- Canal: 140 → 100 palavras. Iniciativa: lote + teto 400 tokens/persona/dia.
+
+### Arquivos
+`persona-core`: `domain/token-ledger.ts`, `tests/token-ledger.spec.ts`
+`persona-engine`: `token-measure.ts`, `preroute/rules.ts`, `watchdog.ts`, `lean-output.ts`, `prompts/stable-prefix.ts`, `scripts/write-tokens-baseline.ts`, testes
+`persona-spec`: `contracts/token-ledger.md`, `reports/tokens-baseline.md`
+
+### Testes
+```
+pnpm exec vitest run token-ledger + token-measure + preroute + lean-output + watchdog + stable-prefix
+  Test Files  6 passed (6)
+  Tests  27 passed (27)
+
+pnpm exec vitest run proactivity-v1 + proactivity-accept
+  Test Files  2 passed (2)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 12.0s
+  persona-engine: OK in 21.5s
+
+pnpm exec tsx packages/persona/persona-engine/scripts/write-tokens-baseline.ts
+  wrote persona-spec/reports/tokens-baseline.md
+```
+
+### Dependências
+- **[Forge→Anvil]** persistir `TurnLedgerEntry` + RPC do `foldUsagePanel` (OPT-7). Kinds: `execution` / `evaluation`.
+- **[Forge→Keel]** Rivet `persona-usage` ainda declara `exec` / `eval` em paralelo — alinhar no port via `usagePortKind`, sem redefinir o core.
+- **[Forge→Lumen]** painel Uso depois do RPC.
+- Vendor CLI pareada: não rodei (orçamento congelado). Lifecycle dispose/timeout coberto no teste.
+
+---
+
+## 04/11 00:42 — W2-10 Ensinar candidato + T3 citar/Retomar/steer
+
+Fila Vigia. PRO-1 / S1–S3 done. Avanço no que ainda é core/engine.
+
+### W2-10
+`acceptTaughtCandidate` (sempre `enabled: false`), `activateTaughtSkill` (só no aceite; tools ≤ mandate), `publishTaughtSkill` (team/project só com `explicit`).
+
+### T3
+- §5 `composeCitedMessage` — citação e comentário em blocos separados.
+- §12 `pauseAtLimit` / `resumeAfterLimit` — fila permanece.
+- §4 `deliverWorkingSend` / `flushWorkingQueue` no runner (`queue` | `steer`).
+- `/limites /assunto /lado /ensinar /contratar /resumo` via `matchComposerSlash`.
+
+### Testes
+```
+pnpm exec vitest run working-send + teach-skill + working-deliver
+  Test Files  3 passed (3)
+  Tests  11 passed (11)
+```
+
+### Dependências
+- Anvil: persistir candidato taught, fila, pause de limite.
+- Rivet: captura desktop (W2-9) + deliver real.
+- Prism: composer citar / Retomar / slash.
+
+---
+
+## 04/11 00:33 — GES allocate + compose do turno + contratos Anvil/Rivet
+
+Fila Vigia: PRO-1/S1–S3 já done. Liguei OPT-3/4 no compose real e fechei alocar (GES-2).
+
+### Código
+- `gestorAllocate` / `runGestorAllocate` / `runGestorReorganize`: projeto/canal/setor/`reportsTo` dentro do mandato; conflito de escopo comenta.
+- `composeTurnPrompt` + `toolsForTurn`: prefixo estável; mensagem fora do prefixo.
+- `dropRecordsInPrefix`: contexto que já está no prefixo não entra de novo.
+
+### Contratos
+`gestor-mcp.md` aponta para as funções Forge. `lumen-rpc.md`: `proposeGestorAllocate`, `proposeGestorReorganize`, `exportBrainVault`.
+
+### Testes
+```
+pnpm exec vitest run gestor + token-ledger + engine gestor + stable-prefix
+  Test Files  4 passed (4)
+  Tests  22 passed (22)
+```
+
+### T3 §4 / §11 (Muse)
+`resolveWorkingSend` / fila editável / `openAsideAsk` (`onThread: false`). RPC no `lumen-rpc.md`. Persistência da fila = Anvil; composer = Prism.
+
+### Dependências
+- Anvil: RPC allocate/reorganize + fila do fio; `SystemRoleView` = `team_manager`.
+- Rivet: bind `gestor_*` MCP; pasta vault; cache por motor.
+- Lumen: cartão de plano allocate/reorganize; export UI.
+- Prism: botão fila/direcionar e aba `/lado`.
+
+---
+
+## 04/11 00:25 — OPT-1/2/3/4/6 + GES reorganizar + SB-6 export
+
+Fila Atlas/Vigia: não parar. PRO-1 já estava done. Fechei o aceito de OPT-1 e avancei GES-2 (reorganizar), SB-6 (export domínio) e OPT-3/4/6 (prefixo, camadas, saídas).
+
+### OPT
+- Linha de base: `persona-spec/reports/bench-tokens.md` (402 tokens nos 3 cenários com modelo; idle/iniciativa = 0). Pareado CLI vs Persona em paridade (+5,7–6,3%).
+- Gate +10% já em `token-measure.spec.ts`.
+- Prefixo estável: `composeStablePrefix` (system→persona→tools→required); relógio/contador recusados.
+- Camadas: `fitLayersToBudget`, `incrementalSubjectSummary`, `minifyToolDescription`.
+- Canal ≤100 palavras (`capChannelReply`) + `batchInitiative` por persona/dia.
+
+### GES-2
+`gestorReorganize`: mover trabalho, pausar ociosa só com aviso, autonomia nunca acima do teto.
+
+### SB-6
+`exportBrainVault` / `shouldImportVaultFile`: pasta Obsidian mão única; reimport pelo hash (BYC). Persistência da pasta = Rivet.
+
+### Testes
+```
+pnpm exec vitest run gestor/token-ledger/brain + token-measure/stable-prefix/lean-output
+  Test Files  7 passed (7)
+  Tests  40 passed (40)
+```
+
+### Dependências
+- Anvil: persistir plano de reorganizar + RPC; `SystemRoleView` = `team_manager`.
+- Rivet: escrever a pasta do vault; cache real por motor.
+- Lumen: painel Uso (OPT-7).
+- Probe: GES-6 / OPT-2 no E2E.
+
+---
+
+## 04/11 00:15 — Rename Gestor (`team_manager`) + medição de tokens
+
+Keel P1: fechar Maestro → Gestor de equipe no core/engine. Atlas: medição TOKEN-OPTIMIZATION §1 + §3 (referência = CLI direta, paridade ±10%).
+
+### Rename
+`SystemRole` literal único: **`team_manager`** (`TEAM_MANAGER_ROLE`). Templates, onboarding-wire, recommend, `isGestor`. Zero `maestro` em persona-core / persona-engine. Testes usam a chave `gestor` (holder), nunca `maestro`. Host/`SystemRoleView` = Anvil, mesmo literal.
+
+### Medição
+Ledger por turno (camadas system→tools→required→subject→recall→message, cache read/write, calls/tarefa). 5 cenários scriptados; idle e 30-persona iniciativa = 0 chamadas. Gate +10% sem ganho de qualidade.
+
+Benchmark pareado: mesma tarefa / mesma CLI+modelo (`cli_direct` vs `persona`). Veredito parity / better / justified (+qualidade ≥0,15) / worse. Real opt-in: cap 1, `start`+fold+`cancel`, timeout cancela primeiro, `dispose` no `finally`.
+
+### Arquivos
+`persona-core`: `schemas.ts` (`TEAM_MANAGER_ROLE`), templates/onboarding/recommend/gestor, `domain/token-ledger.ts`, `tests/{gestor,domain,onboarding-wire,token-ledger}.spec.ts`
+`persona-engine`: `gestor.ts`, `token-measure.ts`, `tests/{gestor,token-measure}.spec.ts`
+`persona-spec`: `contracts/token-ledger.md`, `reports/forge.md`
+
+### Testes
+```
+pnpm exec vitest run
+  packages/persona/persona-core/tests/gestor.spec.ts
+  packages/persona/persona-core/tests/domain.spec.ts
+  packages/persona/persona-core/tests/onboarding-wire.spec.ts
+  packages/persona/persona-core/tests/token-ledger.spec.ts
+  packages/persona/persona-engine/tests/gestor.spec.ts
+  packages/persona/persona-engine/tests/token-measure.spec.ts
+  Test Files  6 passed (6)
+  Tests  32 passed (32)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 21.0s
+  persona-engine: OK in 22.1s
+
+pnpm exec tsx scripts/generate-typert.ts
+  generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 133.7s
+```
+
+### Limitações
+- Host ainda pode ter `gestor`/`maestro` no `SystemRoleView` até o Anvil alinhar a `team_manager`.
+- Store `maestro_*` tables: Anvil. RPC hire persist: Anvil.
+- Par e cenários reais de CLI: opt-in, cap 1; CI fica no runner scriptado.
+- Painel Uso (Lumen) e persistência do livro (Anvil/Rivet) ainda não leem o ledger.
+
+---
+
+## 04/11 00:55 — Segundo cérebro (domínio + gate) + BYC parser
+
+BRIEFING 19 depois de fechar o parser BYC (BRIEFING 18). Store/RPC = Anvil; MCP tools = Rivet; UI = Lumen/Prism.
+
+### BYC (domínio, fila antes do SB)
+`parseBringPaste` / `previewBringVault` / `decideBringApply`: seções → brief/constraint/decision/memory + proveniência; `(incerto)`; CPF/cartão/token bloqueados; dedupe Cofre; conflito com decisão fixada → pergunta; `.obsidian`/`.trash`/binários ignorados; reimport path+hash. Nada grava sem aceite. Host RPC = Anvil.
+
+### Segundo cérebro
+Páginas tipadas (11 kinds + `BRAIN_PROPERTY_KEYS`), links/backlinks, versões (`nextBrainVersion`), visibilidade da audiência (DM → members). Índice derivado (`startHereLinks`, `indexBrainByKind`). Cópia do Cofre (`vaultRecordToBrainPage`) sem apagar o vault.
+
+**Bibliotecário** (`systemRoles: librarian`, max 3, não único; `resolveLibrarian` cai na Coordenação). `curateBrain` cria/atualiza/liga ou `contradiction` (não sobrescreve). Regra/decisão obrigatória → `propose` até `acceptLibrarianProposal`. Higiene sem LLM: dedupe Jaccard + lembrete 90 dias; `applyHygiene` marca `replaced`.
+
+**Permissões lembradas:** match exato persona+ação+alvo+limites. Ação maior / outro alvo / outra persona / expirada / revogada / escopo vazio → pergunta. Auditoria `não perguntei porque você permitiu em DD/MM`. Página `permission`. Gate no engine: `gateRememberedPermission`.
+
+**Tools:** `brain_search` (FTS+tipo+links+ACL), `brain_read` (Chain of Recall, ACL por hop), `brain_propose` (obrigatório precisa aceite). `compileBrainContext` mete regras `required` no turno. Export markdown `[[links]]`.
+
+### Arquivos
+`persona-core`: `domain/brain.ts`, `brain-curate.ts`, `brain-permission.ts`, `brain-tools.ts`, `brain-markdown.ts`, `schemas.ts` (`INVALID_BRAIN`, librarian, max 3), `tests/brain.spec.ts`, `tests/brain-permission.spec.ts`
+`persona-engine`: `second-brain.ts`, `tests/second-brain-curation.spec.ts`, `tests/second-brain-permission-gate.spec.ts`
+`persona-spec`: `contracts/second-brain.md`, `ARCHITECTURE.md`, `PLAN.md` (BYC-1..3, SB-1/2/3/5/6 domínio), `reports/forge.md`
+
+### Testes
+```
+pnpm exec vitest run
+  packages/persona/persona-core/tests/brain.spec.ts
+  packages/persona/persona-core/tests/brain-permission.spec.ts
+  packages/persona/persona-core/tests/bring-context.spec.ts
+  packages/persona/persona-engine/tests/second-brain-curation.spec.ts
+  packages/persona/persona-engine/tests/second-brain-permission-gate.spec.ts
+  Test Files  5 passed (5)
+  Tests  40 passed (40)
+
+pnpm exec vitest run domain.spec.ts import.spec.ts
+  Test Files  2 passed (2)  Tests  19 passed (19)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 9.5s
+  persona-engine: OK in 23.1s
+
+pnpm exec tsx scripts/generate-typert.ts
+  generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 56.9s
+```
+
+### Limitações / dependências
+- Persistência, FTS5, Remotes (`brainHome`, `listPages`, `revokePermission`) = Anvil (SB-4).
+- Bind MCP `brain_*` + prompts/orçamento do Bibliotecário = Rivet.
+- UI Empresa › Segundo cérebro + "Lembrar esta permissão" = Lumen/Prism.
+- Export pasta/sync Obsidian mão-dupla = SB-10 (Anvil+Rivet). BYC host RPC ainda Anvil.
+- E2E `mandatory-second-brain*.spec.ts` continua `it.todo` (Probe).
+
+---
+
+## 04/11 00:40 — Cofre citações no fio (v14, sem v15) + W3 engine
+
+Anvil confirmou: **v14 canônico**, Cofre docs já no host (`ingest/replace/delete/list/searchVaultDocuments` + `title`/`locator` no Contexto usado). Sem migração.
+
+### Domínio (este turno)
+`formatVaultCitation` / `toUsedDocumentCite`: `"Contrato.pdf · seção Contratos"` (restrito esconde body). `ContextRecord.title?` / `locator?`; `compileContext` só serializa quando preenchidos (cache v1 intacto). RPC/store = Anvil; não toquei host.
+
+### W3 computer use (engine, fila Atlas)
+`runComputerUse`: planejar → agir → verificar (captura + árvore UIA via port; fake em teste) → retry com limite → reportar. Expectativa explícita por passo. `createMemorySharedControl` → `você assumiu`, resume só explícito. `ReplayEntry` + `projectReplayForUi`. `StepPermissionPort` alinha ao MCP Rivet (`computer_act` / `credentials`) + limites tempo/passos/orçamento.
+
+### DF-003 (com Probe)
+Harness: `visible-copy.ts` — `textContent` de irmãos cola ("Bem-vindoao#geral"); `getByText` / `innerText` no dogfood. Teste unitário do falso positivo.
+
+### Arquivos
+`persona-core`: `domain/vault-cite.ts`, `context/{types,index}.ts`, `tests/vault-cite.spec.ts`
+`persona-engine`: `computer-use.ts`, `tests/computer-use.spec.ts`
+`persona-e2e`: `visible-copy.ts`, `tests/visible-copy.spec.ts`, `dogfood-padaria.ts` (comentário)
+`persona-spec`: `contracts/{computer-use,lumen-rpc}.md`, `ARCHITECTURE.md`, `PLAN.md` W3-1..6, `IDEAS.md`, `reports/forge.md`
+
+### Testes
+```
+pnpm exec vitest run
+  packages/persona/persona-core/tests/vault-cite.spec.ts
+  packages/persona/persona-core/tests/context.spec.ts
+  packages/persona/persona-engine/tests/computer-use.spec.ts
+  packages/persona/persona-e2e/tests/visible-copy.spec.ts
+  Test Files  4 passed (4)  (após correção sourceIds)
+  vault-cite+context: 17 passed; computer-use: 10; visible-copy: 2
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine persona-e2e
+  persona-core: OK in 11.1s
+  persona-engine: OK in 26.9s
+  persona-e2e: OK in 6.3s
+
+pnpm exec tsx scripts/generate-typert.ts
+  generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 54.6s
+```
+
+### Limitações / dependências
+- Sem v15. Host `compileUsed` / RPCs = Anvil (já no fio). Lumen/Prism ligam o drawer.
+- W3-5 UIA/Electron = Rivet; W3-6 overlay = Muse (`COMPUTER-USE-SPEC.md` já saiu).
+- `talkPrompt` do host ainda junta `kind: body` sem title — Anvil pode trocar por `formatVaultCitation`.
+- Fila Forge executável: W3 engine fechado; Cofre domínio fechado. Sem próxima no PLAN além de docs se o Keel pedir.
+
+---
+
+## 03/11 23:25 — WAVE2 persistência/RPC + W2-12 (host/store)
+
+Atlas rebalanceou: Anvil no Cofre; Forge assume RPC ONDA 2. Sem migração nova — v14 do Anvil (`conversation_topic`, `topic_read`, `provider_account`, `account_policy`, `teach_artifact`, `event.topic_id`, `usage_record.account_id`).
+
+### (1) Assuntos
+Remote: `listConversationSubjects` / `create` / `rename` / `archive` / `moveMessageToSubject` / `setActiveConversationSubject`. Default **Geral** só. `postMessage`/`listMessages`/`search` filtram `topicId`. `compileSubjectVault` no `ProjectRuntime` quando `event.topicId`. Tarefa↔assunto em `ticket_subject`. Não lidas via `topic_read`.
+
+### (2) Contas
+Remote: `listConnectionAccounts` / `add` / `remove` / `update` / `setRunnerSwapPolicy`. Casa isolada Rivet: `PERSONA_HOME/accounts/{personId}/{engine}/{accountId}`. `resolveFor` → `pickAccount` + `pickProviderAccount`. Uso por conta: `inUseCount`, `getUsage.accountId`, `getOfficialQuota.accountId`. Troca → `account_activity`. Política host↔store: `next_on_limit`/`round_robin`/`ask_before_swap` ↔ `next`/`split`/`ask`.
+
+### (3) Ensinar
+`start/pause/resume/stopTeachSession` + `getTeachDraft` / `submitTeachDraft`. Consentimento `teach-v1`, retenção 30 dias. Frames Rivet `{atMs, png}` / `{atMs, imageRef, changeScore}`. Skill sempre candidata (`enabled: false`).
+
+### W2-12
+`docs/persona/{assuntos,ensinar,conexoes,guia,privacidade,README}.md` + `ARCHITECTURE.md` Onda 2.
+
+### Arquivos
+`persona-host/src/{wave2,index,types,orchestration}.ts` · `persona-host/tests/wave2.spec.ts` · `persona-store/src/{usage/store,topic/repos}.ts` · `docs/persona/*` · `persona-spec/{ARCHITECTURE,PLAN,reports/forge}.md`
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-host/tests/wave2.spec.ts
+  Test Files  1 passed (1)
+       Tests  5 passed (5)
+  Duration  11.02s
+
+pnpm exec vitest run packages/persona/persona-store/tests/wave2.spec.ts
+  Test Files  1 passed (1)
+       Tests  4 passed (4)
+  Duration  10.31s
+
+node scripts/persona/check-pkg.mjs persona-host persona-store
+  persona-host: OK in 15.5s
+  persona-store: OK in 8.8s
+
+pnpm exec tsx scripts/generate-typert.ts
+  generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 46.0s
+```
+
+### Limitações / dependências
+- Sem v15. `workingPersonaIds` ainda `[]` (falta projeção live de run por assunto — Prism pode preencher).
+- Captura Electron / IPC / whisper = Rivet (W2-9 resto, W2-10 UI).
+- UI assuntos = Prism; UI contas = Lumen (já chama os remotes; Typert agora expõe).
+- F1 amostra real do Miguel ainda pendente. Fila Forge executável vazia depois disto.
+
+---
+
+## 03/11 23:00 — WAVE2 §1 / §3 / §2 (domínio + pipeline)
+
+Atlas / BRIEFING 17. Domínio em `persona-core` + pipeline de ensino em `persona-engine`. Sem UI, store, captura Electron.
+
+### §1 Assuntos
+- 7 cores + nome (pack alinhado à UI: Geral/UI/Funcionalidades/…). Thread `kind:id:subject:subjectId`.
+- `compileActiveSubject`: snapshot só do assunto ativo + obrigatórios (Cofre/decisões); Chain of Recall só quando o outro assunto é citado.
+- Renomear / arquivar / mover mensagem / não lidas / trabalhando / busca por assunto+data.
+- Tarefa↔assunto: `bindTicketToSubject` + chip cor+nome.
+
+### §3 Contas
+- `pickAccount`: `fixed` | `next_on_limit` | `split_balance` | `ask` (aliases host: `round_robin`, `ask_before_swap`).
+- Preferência de motores da persona; `isolatedHome` por conta.
+- Atividade sem id/segredo: "Nina passou para Claude · Trabalho até 18:30".
+- `ask` → Precisa de você. Troca de motor → `engineSwitchHandoff` (não reusa o ciclo persona↔persona).
+
+### §2 Ensinar
+- `draftTaughtSkill` + `VisionPort` + `fakeVisionPort` + `sampleKeyFrames`.
+- Skill `origin: 'taught'`, `enabled: false`, `scope: 'persona'`. Ferramentas ∩ allow-list. Local.
+
+### Arquivos
+`persona-core`: `domain/subjects.ts`, `domain/account-policy.ts`, `context/subject-compile.ts`; `SkillOrigin` + `'taught'`; `ContextRecord.subjectId?`; códigos `INVALID_SUBJECT` / `INVALID_ACCOUNT_POLICY` / `INVALID_TEACH`.
+`persona-engine`: `teach.ts`, `subject-thread.ts`.
+Contratos: `conversation-subjects.md`, `connections-accounts.md`, `teach-persona.md` (secção Domain). Spike: `persona-spec/spikes/teach-persona.md`.
+
+### Testes
+```
+pnpm exec vitest run
+  packages/persona/persona-core/tests/subjects.spec.ts
+  packages/persona/persona-core/tests/subject-context.spec.ts
+  packages/persona/persona-core/tests/account-policy.spec.ts
+  packages/persona/persona-engine/tests/teach-skill.spec.ts
+  Test Files  4 passed (4)  Tests  19 passed (19)
+
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+  persona-core: OK in 17.5s
+  persona-engine: OK in 37.3s
+```
+
+### Limitações
+- Persistência/RPC: Anvil (W2-2, W2-6). UI: Prism/Lumen. Captura desktop: Rivet (W2-9 resto).
+- `compileContext` em si não mudou — o recorte é `restrictSnapshotToSubject` antes.
+- W2-12 (docs/persona) ainda não.
+
+---
+
+## 03/11 22:25 — Dogfood Padaria Lua + THREAT-MODEL
+
+Sessão nova (Atlas). Continuei o passeio: a rodada anterior morreu no overlay e não gravou o relatório.
+
+### Passeio
+`PERSONA_E2E=1 PERSONA_HOST_NO_LOCK=1` · `dogfood-padaria.spec.ts` · 1/1 em 92.7 s. Host+Chrome encerrados. Execuções reais: **0 / 20**.
+
+Caminho real: onboarding Clara / Padaria Lua / Loja online → **Entrar no Persona remonta o passo 5** (scrim). Resto do cenário com `PERSONA_DEV_SEED` (contrato RPC certo).
+
+Percorrido no seed: Quadros, #geral, Visão geral, Aprovações, Saúde, Perfil.
+
+### Causa do remount (P0 Prism)
+`persona-live-store.completeOnboarding` manda `{ roster, projectId, memberId }`. Host `CompleteOnboardingRequest` exige `{ team, personalProjectId, templateIds, runnerChoices, cofreSeed }`. `seed-default-team.ts` já manda o contrato certo.
+
+### Atritos (donos)
+Ver `persona-spec/reports/dogfood-padaria.md` + shots em `.maestri/tmp/shots/dogfood-padaria/`.
+
+| id | sev | dono | o quê |
+| --- | --- | --- | --- |
+| DF-001 | P1 | Prism | dois Continuar no assistente |
+| DF-002 | P0 | Prism | overlay remonta (RPC) |
+| DF-003 | P0 | Muse | fonte sem glifo de espaço (app inteiro) |
+| DF-005/006 | P1 | Lumen | Novo projeto não pede nome |
+| DF-007 | P2 | Lumen | sem iniciar sprint |
+| DF-008 | P1 | Prism | DM vazia, sem abrir conversa |
+| DF-010 | P1 | Lumen | sem marcar-se fora |
+| DF-011 | P2 | Prism | Enquanto você estava fora (bloqueado por 010) |
+| DF-013 | P1 | Prism | pedido Padaria não entrou no #geral |
+
+Retirados: DF-009 (Teste dos 2 dias está em Saúde), DF-012 (cartão Contratar está em Aprovações — seed).
+
+### Harness
+`packages/persona/persona-e2e/src/dogfood-padaria.ts`: se overlay preso, fecha e reabre com seed; Enviar com `exact: true` (colidia com Enviar imagem); não trata overlay como Quadros.
+
+### Limpeza
+`taskkill /T` em 6 hosts `persona` órfãos (pai morto, 15:49–21:38). Não toquei nos with-lock vivos do Probe.
+
+### THREAT-MODEL
+`persona-spec/THREAT-MODEL.md` atualizado: first-use stuck, conversa/DM, ausência humana, sem vazamento de `onb-*` no seed.
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-e2e/tests/dogfood-padaria.spec.ts
+  PERSONA_E2E=1 PERSONA_HOST_NO_LOCK=1
+  Test Files  1 passed (1)  Duration 92.65s
+```
+
+### Limitações
+- Pedido Padaria no #geral não persistiu; DM não exercitada (empty).
+- Sem CLI real.
+- Fila Atlas desta sessão: dogfood + THREAT-MODEL. Sem próxima atribuída em core/engine.
+
+---
+
+## 03/11 21:45 — Talk-eval real 4/4 + fiação host + share + insights
+
+Fila Atlas encadeada. Dispose confirmado (`stream-json=0` após o eval).
+
+### 1. Talk-eval real (haiku ×4, ~103 s)
+`PERSONA_REAL_TALK=1` · `talk-real-cli.ts` · cancel/dispose/timeout. JSON em `persona-spec/reports/talk-eval-real.json`.
+
+| id | classe | real | fake | eco |
+| --- | --- | --- | --- | --- |
+| s1 | simple | ok | ok | não |
+| a1 | ambiguous | ok | ok | não |
+| m1 | multi | ok | ok | não |
+| h1 | handoff | ok | ok | não |
+
+Real 4/4 = fake 4/4. i1 (injeção) ficou de fora do teto de 4.
+
+### 2. Fiação no app
+- `orchestration.talkPrompt` → `composePersonaPrompt` (canal/DM).
+- `ProactivityHost.fire` → `scoreInitiative` (não grava vazia/duplicata).
+- `acceptReview` / `requestChanges` → `learnFromFeedback` + memória no Cofre (`feedback-wire.ts`).
+Combinado com Anvil (ask enviado). Sem remotes novos em `index` além das 2 chamadas.
+
+### 3. Compartilhar
+`.persona.json` / `.team.json`: versão + proveniência; avatar gallery (upload→silhouette); skills = nomes; sem credencial/memória privada. `importCliSkillCandidates` lê `~/.claude/skills` e `~/.codex/skills` → candidatas `enabled: false`. Contrato `persona-spec/contracts/share.md`.
+
+### 4. Insights locais
+Funil onboarding → 1ª resposta útil → 1ª tarefa → retorno 7 dias. Impacto por persona (concluídas, tempo até pronto, propostas aceitas, horas com rótulo `estimativa`). Sem telemetria. Contrato `persona-spec/contracts/insights.md` (Anvil Remote / Lumen UI).
+
+### Arquivos
+`prompts/voice` + host `talkPrompt`/`proactivity`/`feedback-wire` · `core/domain/{share,cli-skills}.ts` · `engine/insights.ts` · `scripts/talk-real-cli.ts` · `contracts/{share,insights}.md` · `reports/talk-eval-real.json`
+
+### Testes
+```
+pnpm exec tsx …/talk-real-cli.ts (PERSONA_REAL_TALK=1) → 4/4 real, 4/4 fake, 103s, stream-json=0
+pnpm exec vitest run …/share …/insights …/voice …/talk-eval …/talk-voice …/proactivity → 24 OK
+node scripts/persona/check-pkg.mjs persona-core persona-engine persona-host → OK 7.9s / 14.9s / 20.9s
+pnpm exec tsx scripts/generate-typert.ts → 40 / 40 / 102s
+```
+
+### Limitações
+- Remote de share/insights ainda é contrato (Anvil). Lumen não tem tela.
+- i1 (injeção) não rodou no real (teto 4).
+- Horas economizadas = `0.5 × tarefas` com rótulo obrigatório `estimativa`.
+
+---
+
+## 03/11 21:35 — Voz + iniciativa + feedback + talk-eval
+
+Fila Atlas (core/engine), encadeada. Sem host. Sem CLI real.
+
+### 1. Voz e personalidade
+`composePersonaPrompt` / `composeVoicePolicy` / `voiceFingerprint` a partir de nome, cargo, setor, personalidade, instruções, Cofre, normas de dono. Mesmo bloco em canal / DM / talk / handoff. `ENGINE_COPY` pt/en. Template `handoff` agora injeta identidade + `{{policy}}`.
+
+### 2. Qualidade da iniciativa
+`scoreInitiative`: fatos sintéticos → propostas com utilidade/novidade/unicidade; dedupe (`nearRatio` ≥ 0.85) contra tarefas e propostas; `mayPropose` / teto do dia. `initiativeSetClean` — zero vazias ou duplicadas na suíte.
+
+### 3. Aprendizado por feedback
+`learnFromFeedback`: aceite/recusa de proposta e revisão (aceitar / pedir ajustes) → memória com proveniência + candidata de skill (`origin: learned`, `enabled: false`) só no aceite. `recordProposalOutcome` / `nextProposalIntervalHours` ajustam a frequência.
+
+### 4. Avaliação de conversa
+`runTalkEval` + `TALK_EVAL_SCENARIOS` (simples, ambíguo, multi, handoff, injeção). Juiz: útil / sem eco / sem placeholder. Fake 5/5. Real: `PERSONA_REAL_TALK=1`, ≤4 haiku, `talk-real-cli.ts` com dispose/timeout/árvore. Não rodei.
+
+### Arquivos
+`persona-engine/src/prompts/{voice,talk,templates}.ts` · `initiative-quality.ts` · `feedback-learn.ts` · `bench/talk-eval.ts` · `scripts/talk-real-cli.ts` · `src/index.ts` · testes `voice` / `initiative-quality` / `feedback-learn` / `talk-eval`
+
+### Testes
+```
+pnpm exec vitest run …/voice …/initiative-quality …/feedback-learn …/talk-eval …/prompts → 19 OK
+node scripts/persona/check-pkg.mjs persona-engine → OK 14.6s
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts / 40 pkgs / 44.7s
+```
+
+### Limitações
+- Sem `PERSONA_REAL_TALK` (congelada; ≤4 só com Atlas).
+- Host já usa `composeTalkPrompt`; `composePersonaPrompt` é a composição completa (setor + normas + i18n). Anvil/Rivet ligam quando quiserem.
+- `ENGINE_COPY.en` cobre o chrome; corpos `PROMPT_TEMPLATES` continuam pt-BR (D-043 / snapshots).
+
+---
+
+## 03/11 21:30 — URGENTE: órfãos coord-real-cli mortos + lifecycle
+
+Atlas: memória crítica. Três `coord-real-cli.ts` (node 30920 / 18096 / 8080, 16:38 / 16:46 / 17:01) órfãos, cada um com ~20 `claude -p --input-format stream-json`.
+
+### Kill
+`taskkill /PID 30920 /T /F` · `18096` · `8080` — os três **DEAD**. Sem node `*coord-real-cli*` restante.
+
+Sobrou 5 `claude -p stream-json` haiku (17:17×4 parent 49744: 48008, 51020, 50216, 17536; 17:58×1 parent 46556: 46772). `taskkill /T /F` neles. **stream-json = 0**.
+
+`Get-Process claude` = **8**, todos interativos do Miguel (10:01 / 12:19 / 12:46 / 15:46). Não toquei.
+
+### Script
+`coord-real-cli.ts` agora: `cancel` + `dispose` por turno (`runSessionTurn` + `finally`); `disposeRunnerSessions` no fim da rodada; timeout 45 s/turno e 8 min global; SIGINT/SIGTERM/uncaughtException → shutdown + `taskkill /T /F` na árvore. `permissionMode: 'deny'` (D-052; `prompt` pendurava sessão). Sem `PERSONA_REAL_CLI=1` nesta correção.
+
+Não abri `orchestration.ts` nem `tests/preroute.spec.ts`. Anvil já ligou `Engine.preRoute` no host (relato 21:01). Regras continuam em `persona-engine/src/preroute`.
+
+### Arquivos
+`persona-engine/scripts/coord-real-cli.ts` · `persona-engine/src/bench/coord-real-lifecycle.ts` · `persona-engine/tests/coord-real-lifecycle.spec.ts`
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/coord-real-lifecycle.spec.ts → 10 OK
+node scripts/persona/check-pkg.mjs persona-engine → OK 17.1s
+```
+
+### Limitações
+- CLI real não rodada (congelada). Prova de dispose/timeout/árvore = fake runner + `taskkill` injetado.
+- Sessões interativas do Miguel (8) seguem vivas de propósito.
+
+Fila core/engine: vazamento fechado. Host preRoute = Anvil. Próximo só com Atlas se a fila core/engine continuar vazia.
+
+---
+
+## 03/11 20:50 — F3 10/10 (pré-roteador) + F4 41→26 + gate F1
+
+Vigia: não parei. Encadeei o próximo da fila (F3 8/10→10/10) e o recorte F4 do engine. **0 haiku** — Keel congelou CLI real; d1/h1 saem do modelo.
+
+### F3 qualidade 10/10
+Rodada 2 era 8/10 (`d1`/`h1` → silent). Regra nova `handoff` ("passa para a colega" / "entregue para a colega") + `d1` já coberto por duplicado na janela. `runCoordEval` e `coord-real-cli.ts` consultam o pré-roteador **antes** do modelo. `overlayPreRoute` sobre a tabela da r2 = 10/10.
+
+### F4 (engine)
+Pré-roteador: **41 → 26** chamadas no corpus (cortesia 5 · silêncio 4 · duplicado 3 · handoff 3). Mesmo acerto 41/41.
+
+### F1 contrato
+`official-import.spec.ts`: `PERSONA_REAL_IMPORTS` (pasta do Miguel) → preview + apply + 2º passe sem duplicar. Hoje skip (amostra real ainda não chegou).
+
+### Arquivos
+`persona-engine/src/preroute/rules.ts` · `persona-engine/src/bench/coord-eval.ts` · `persona-engine/src/index.ts` · `persona-engine/scripts/coord-real-cli.ts` · `persona-engine/tests/preroute.spec.ts` · `persona-core/tests/official-import.spec.ts` · `persona-spec/reports/bench-router-eval.md` · `persona-spec/PLAN.md`
+
+### Testes
+```
+pnpm exec vitest run …/preroute.spec.ts …/coord-eval.spec.ts → 11 OK
+pnpm exec vitest run …/official-import.spec.ts → 6 OK + 1 skip (F1 real)
+node scripts/persona/check-pkg.mjs persona-engine → OK 15.3s
+node scripts/persona/check-pkg.mjs persona-core → OK 8.0s
+```
+
+### Limitações / dependências
+- CLI real não rodada (congelada). 10/10 = r2 modelo + pré-roteador em d1/h1.
+- **[Forge→Anvil]** `ProjectRuntime` ainda não passa `Engine.preRoute` — regras não valem no host até ligar.
+- F4 app bench = Probe. F1 amostra real = Atlas/Miguel. PB-10 UI = Lumen.
+
+Fila executável **vazia** no território core/engine.
+
+---
+
+## 03/11 20:36 — X-3 host + GOV-5 queda/reopen (CORTADO)
+
+Snapshot cortado; completei a fila Forge GOV + X-3. Remotes GOV-5 v11 do Anvil **não reescritos**. Sem `pnpm install`, sem commit.
+
+### X-3 host
+- `persona-host/src/external-sources.ts` (novo): poll Rivet (`pollTelegram/Email/Slack/Discord/CalDav`) → `receiveExternalBatch`; reply via `originReply` + `replyTelegram/Email/Slack/Discord`. `SecretVault.get(personId, provider)` injetado (Map nos testes). Sem token a fonte é pulada; `{ ok: false }` no reply. Token nunca no view/log.
+- Remotes `pollExternal` / `replyExternal` em `index.ts` + tipos. Escopo do engine: `composeSourceScope(allExternalSourceScope(), github+internal)`.
+- `startSprint` → `bindSprintGoal(this.goals, next)`. `MemoryGoalBoard.clear()` no reset do host.
+
+### GOV-5 leftover
+- Store: crash em `putSector` faz rollback; reopen preserva setor + audit. Sem tocar `persona-card` / sync / edge / export-md / retention / scheduler.
+
+### Arquivos
+`persona-host/src/{external-sources.ts,index.ts,types.ts,boards.ts,orchestration.ts,README.md}` · `persona-host/tests/{external-sources.spec.ts,boards.spec.ts,host-harness.ts}` · `persona-engine/src/goals.ts` · `persona-store/tests/governance.spec.ts` · `persona-spec/{ARCHITECTURE.md,PLAN.md}` · typert `lib/` (40).
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-host/tests/external-sources.spec.ts packages/persona/persona-host/tests/boards.spec.ts packages/persona/persona-store/tests/governance.spec.ts
+→ 3 files / 10 tests OK (13.5s)
+node scripts/persona/check-pkg.mjs persona-host → OK 24.0s
+node scripts/persona/check-pkg.mjs persona-store → OK 15.6s
+node scripts/persona/check-pkg.mjs persona-engine → OK 19.0s
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (51.1s)
+```
+
+### Limitações
+- Calendário: mapper Rivet `human: false` (stored; gate recusa eval); sem reply (`ok: false`).
+- Cofre de produção (`persona-vault`) não ligado — porta `SecretVault` só; sem dep nova.
+- GOV-5 export/import/sync workspace (DM não) continua Anvil.
+- **[Forge→Anvil] GOV-5/X-3 soltos** — `index.ts` / `types.ts` / `migrations.ts` livres.
+
+Fila: F3 8/10→10/10 (máx. 4 haiku) → F4. Bloqueios: F1 amostra real; PB-10 UI (Lumen).
+
+---
+
+## 03/11 20:23 — Handoff Anvil GOV-5 + X-3 (freeze: sem código)
+
+Atlas passou GOV-5/X-3; Anvil confirmou arquivos. **Status sem SNAPSHOT CORTADO — nenhum arquivo de código gravado.**
+
+### Já no fio (não reescrever)
+Store v11 (`V11_GOVERNANCE`, `SqliteGovernanceRepos`) + host `GovernanceHost` + remotes `getOrgChart`/`getTeamHealth`/`runTwoDayTest`/`applyFix`/`applyGovernanceFix`/`setResponsible`/`setSubstitute`/`setSector`/`setAvailability`/`setPersonaGovernance`/`recommendStructure`/`applyStructure`/`listAudit`. Testes store+host de governança já existem. Cartão (v10) é Anvil — não toco.
+
+### Falta (só após CORTADO)
+- **X-3** arquivo NOVO `persona-host/src/external-sources.ts` (poll/reply Rivet → `receiveExternal`/`originReply`; sem token).
+- **X-3** `boards.ts` `startSprint` hoje só marca `ativo` — ligar `bindSprintGoal`.
+- **GOV-5** completar queda/reopen no spec do store se faltar; sem tocar `export-md.ts` / `persona-sync` / `retention` / `scheduler` / `persona-card`.
+
+### Anvil fica fora
+`index.ts` / `types.ts` / `migrations.ts` até Forge avisar GOV-5/X-3 soltos.
+
+Sem commit. Sem `pnpm install`.
+
+---
+
+## 03/11 19:55 — GOV-1..4 domínio + engine + Teste dos 2 dias + assistente
+
+Pedido Atlas/Miguel (BRIEFING 16, `GOVERNANCE.md`, D-054). Encadeei GOV-1–4 no mesmo turno. Setores são dados editáveis; nenhum nome de persona/setor no invariante.
+
+### GOV-1 domínio
+`Sector` + `SectorPolicy` (autonomia, tokens/dia, `requiredApprovals`). `PersonaCharge`: responsável obrigatório, substituto ≠ responsável, `confirmed`. Pessoa proposta herda o responsável do criador até confirmar. `AwayWindow` `[from, until)`. `RoutineCharge`: sem dono = alerta, não fatal. Cadeia + auditoria. `orgChart('person'|'sector')` — braço direito = função Coordenação.
+
+### GOV-2 engine
+`routeApproval`: fora ⇒ substituto; sem backup ⇒ `wait` com aviso (nunca silêncio). Aprovação exigida pelo setor ignora janela de silêncio do orçamento de atenção. Audit `onBehalfOf`.
+
+### GOV-3 Teste dos 2 dias
+`runTwoDayTest(snapshot, from)`: continua / espera / para. `applyGovernanceFix`: substituto; subir autonomia ≤ teto do setor; delegar à Coordenação.
+
+### GOV-4 assistente
+`recommendStructure` + `parseStructureAsk`. Snapshot coerente agência / SaaS / escritório. Uma persona por função contínua (3–5); “fazer X hoje” vira Tarefa. Rivet: prompt/draft driver ainda pendente.
+
+### Arquivos
+- `persona-core/src/governance/{model,escalate,org,health,recommend,index}.ts`
+- `persona-core/src/domain/schemas.ts` (`INVALID_GOVERNANCE`)
+- `persona-core/src/index.ts`, `tests/governance.spec.ts`
+- `persona-engine/src/governance.ts`, `src/index.ts`, `tests/governance-route.spec.ts`
+- `persona-spec/{ARCHITECTURE.md,PLAN.md,contracts/governance.md,reports/forge.md}`
+
+### Comandos
+
+```
+pnpm exec vitest run …/governance.spec.ts …/governance-route.spec.ts
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 11.2s
+persona-engine: OK in 23.3s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 33.8s
+```
+
+### Dependências
+- **[Forge→Anvil]** GOV-5: v9 + Remote em `contracts/governance.md`. Personas existentes: responsável = dono do workspace.
+- **[Forge→Rivet]** GOV-4: prompt/draft driver opcional sobre `recommendStructure`.
+- **[Forge→Lumen/Prism]** tipos prontos; UI após GOV-5.
+- **[Rivet→Forge]** typecheck `exactOptionalPropertyTypes` no GOV: **corrigido** (sem `fix: undefined` / campos opcionais vazios).
+- F1 amostra real; PB-10 UI; X-3 host; F4 após F3.
+
+### Fila Forge executável
+Vazia no core/engine. Próximo GOV é Anvil (store). Sem commit. Sem `pnpm install`.
+
+---
+
+## 03/11 20:45 — X-3 Slack/Discord/ICS + F1 Gemini/Grok + PB-10 contrato
+
+Fila Vigia: próximo após F1/skills/memória. Encadeei receive das 3 fontes Rivet + fixture oficial Gemini/Grok + contrato de migração do kanban misturado.
+
+### X-3 receive (slack / discord / calendar)
+`receiveExternal` aceita `telegram|email|slack|discord|calendar`. `allExternalSourceScope()` compõe as cinco. `originReply`: Slack `channel`+`ts`; Discord `channel`+`message`; calendário `uid`+`dtstart` (sem reply de conversa). Replay = `duplicate`; bot Slack/Discord stored + gate `ignore`. Engine **não** importa runners/vault.
+
+### F1 Gemini + Grok oficiais
+Gemini Takeout: `conversation_id` + `model_messages` / `content[]` / `parts` string; `file-service://` ignorado. Grok: fareja só arquivo com `grok` no nome + `conversations`/`chats`. Labels `esquema presumido`. **Validação com amostra real pendente.**
+
+### PB-10 contrato (Forge)
+`legacyKanbanToCategory` / `legacyColumnLabelToCategory`: `blocked` → `needs_you` (marcador). Alinha com `stageCategory`. Docs: `ARCHITECTURE.md`, `docs/persona/{guia,quadros,importar}.md`, `BOARDS-SPEC.md` §7, `contracts/runner.md`. UI `GlobalKanban` → Quadros = Lumen após PB-5.
+
+### Arquivos
+- `persona-engine/src/sources/external.ts`, `src/kanban.ts`, `src/index.ts`
+- `persona-engine/tests/{external-sources,kanban,security/external-injection}.spec.ts`
+- `persona-core/src/import/{gemini,grok,index}.ts`
+- `persona-core/tests/fixtures/official/{gemini,grok}-conversations.json`, `official-import.spec.ts`, `import.spec.ts`
+- `persona-spec/{ARCHITECTURE.md,PLAN.md,contracts/runner.md,design/BOARDS-SPEC.md,reports/forge.md}`
+- `docs/persona/{guia.md,quadros.md,importar.md}`
+
+### Comandos
+
+```
+pnpm exec vitest run …/external-sources …/kanban …/external-injection …/official-import …/import
+ Test Files  5 passed (5)
+      Tests  29 passed (29)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 6.4s
+persona-engine: OK in 14.8s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 43.5s
+```
+
+### Dependências / limitações
+- **[Forge→Anvil]** host: `composeSourceScope(..., allExternalSourceScope())` + poll Rivet → `receiveExternal`; reply via `originReply` + `vault.get` (`slack`/`discord`/`caldav`) + `replySlack`/`replyDiscord`. Calendário alimenta rotinas (`dtstart`), não reply. `startSprint` → `bindSprintGoal`. Export canal vazio / `mapBoardError` / GoalBoard ainda abertos.
+- **F1**: amostra real do Miguel.
+- **PB-10 UI**: Lumen após PB-5.
+- **F4**: depois do F3 (Probe).
+- Sem commit. Sem `pnpm install`.
+
+### Fila Forge executável
+Vazia no território core/engine. Bloqueios: F1 real, PB-10 UI, X-3 host, F4.
+
+---
+
+## 03/11 20:35 — F1 oficial + skills + memória + adversarial + escala + guia
+
+Fila Atlas (6 itens, encadeada). **Validação com amostra real pendente** (F1).
+
+### 1. F1 fixtures oficiais (sem esperar o Miguel)
+ChatGPT `conversations.json`: `mapping` via `parent`/`children`, `conversation_id`, ramos, `image_asset_pointer` ignorado, acentos/emoji/`<script>`, 80 nós + parte 20k. Claude.ai: `content[]` + `attachments`/`files` → `ATTACHMENT`. Obsidian: frontmatter + wikilinks + png. Labels continuam `esquema presumido — validar com amostra real`.
+
+### 2. Evolução de skills
+`evolveSkill`: proposta → `nextSkillVersion` (candidata) → `scoreSkillExamples` em tarefas held-out (não a receita) → ativa em `auto` se não pior e razão ≥ 0.6; `approval` espera aceite → `observeSkillAndMaybeRollback`. Port `fakeSkillEvalPort`; real = injetar port quando `PERSONA_REAL_SKILL_EVAL=1` (não ligado; CLI congelada).
+
+### 3. Qualidade de memória/contexto (sem LLM)
+
+```
+| casos | 8/8 | razão 1.00 |
+compile-required-in, compile-relevant-in, compile-other-project-out, compile-dm-out,
+recall-right-in, recall-secret-out, contradiction-flagged, aging-archives
+```
+
+### 4. Segurança adversarial
+Mensagem / Cofre / memória importada / Telegram / e-mail / GitHub: injeção tenta escalar ferramenta, vazar DM ou forjar ator/mandato → `ACCESS_ESCALATION` / gate `ignore` / `duplicate` / `can` guest false. Audit `trigger.received`.
+
+### 5. Escala do Router
+4 projetos × rajada 6 = 24 triggers; 1º pump: 4 evals, min 1 / max 1 (justo). Barulhento 24 vs quieto 2: quieto ainda 1 eval. Batching 1 inferência vs 12 um-a-um.
+
+### 6. Guia
+`docs/persona/guia.md` (primeiros passos, montar equipe, quadros/sprints, proatividade, privacidade). Índice aponta para ele.
+
+### Arquivos
+- `persona-core/src/import/{chatgpt,claude}.ts`, `tests/fixtures/official/**`, `tests/official-import.spec.ts`
+- `persona-core/src/domain/skill-evolve.ts`, `tests/skill-evolve.spec.ts`
+- `persona-core/src/context/quality.ts`, `tests/memory-quality.spec.ts`
+- `persona-core/tests/security/attacks.spec.ts`
+- `persona-engine/src/bench/router.ts`, `tests/bench-router.spec.ts`, `tests/security/external-injection.spec.ts`
+- `docs/persona/{guia.md,README.md}`, `persona-spec/{PLAN.md,reports/forge.md}`
+
+### Comandos
+
+```
+pnpm exec vitest run …/official-import …/import …/skill-evolve …/memory-quality …/security/attacks …/external-injection …/bench-router
+ Test Files  7 passed (7)
+      Tests  29 passed (29)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-core persona-engine
+persona-core: OK in 6.4s
+persona-engine: OK in 13.9s
+```
+
+### Limitações
+- F1: **validação com amostra real pendente**.
+- Skill eval real opt-in não exercitado (CLI congelada).
+- Sem commit. Sem `pnpm install`.
+
+---
+
+## 03/11 20:25 — X-3 receive Telegram/e-mail + bindSprintGoal + docs
+
+Fila Atlas: próximo após J12–J18. X-3 (Rivet→Forge `engine.receive`) + contrato do GoalBoard do sprint + docs que não dependem do PB-5.
+
+### X-3 receive (Forge)
+`receiveExternal` / `receiveExternalBatch` → `Engine.receive`. `externalSourceScope` + `composeSourceScope` para o host. `originReply` devolve chat/to/subject (sem token). Replay = `duplicate`; escopo errado = `filtered`; `source` que não é telegram/email explode `external-source`. Engine **não** importa runners/vault.
+
+### Sprint GoalBoard
+`bindSprintGoal(board, sprint)` persiste `sprintGoal` (Anvil pode chamar em `startSprint`).
+
+### Docs (PB-10 parcial)
+`ARCHITECTURE.md`: Source telegram/email + seção Quadros (D-053). `docs/persona/quadros.md`: objetivo do sprint, export/sync, destino ao remover coluna.
+
+### Dependências
+- **[Forge→Anvil]** host: `composeSourceScope(..., externalSourceScope('telegram'), externalSourceScope('email'))` + poll Rivet → `receiveExternal`; reply via `originReply` + `vault.get`/`replyTelegram`/`replyEmail`. `startSprint` → `bindSprintGoal`.
+- **F1**: framework+importadores prontos; amostras reais do Miguel.
+- **PB-10 UI**: `GlobalKanban` → Quadros é Lumen após PB-5.
+
+### Arquivos
+- `persona-engine/src/sources/external.ts`, `sources.ts`, `sprint.ts`, `index.ts`
+- `persona-engine/tests/{external-sources,sprint}.spec.ts`
+- `persona-spec/{ARCHITECTURE.md,PLAN.md,reports/forge.md}`
+- `docs/persona/quadros.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/external-sources.spec.ts packages/persona/persona-engine/tests/sprint.spec.ts
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-engine
+persona-engine: OK in 15.1s
+```
+
+### Limitações
+- Sem host polling (Anvil). Sem token real. CLI congelada. Sem commit.
+- Fila Forge executável vazia: F1 bloqueado em amostras; PB-10 resto = UI Lumen.
+
+---
+
+## 03/11 20:15 — Jornadas de quadros J12–J18 (gêmeo host do PB-9)
+
+### O que ficou pronto
+Sete jornadas novas em `persona-host/tests/journeys/j12–j18-*.spec.ts` (Anvil `boards.spec.ts` intocado). Helpers `seedProject` / `sayOn` em `journey-host.ts`. Suíte inteira **18/18**.
+
+| ID | Prova |
+|---|---|
+| J12 | Contratação (Triagem) ≠ Site (Descoberta); Tarefas isoladas; guest ACL |
+| J13 | 3 fluxos: Attention → `needs_you`; concluir → 1ª `done` do projeto |
+| J14 | add/renomear/reordenar/remover com destino; Tarefa viva + Vigia/puxada; sem destino recusa |
+| J15 | sprint planejado→ativo→encerrado; rolagem; marco no canal; `goalId` |
+| J16 | cartão «Usar este fluxo?»; recusar no-op; aceitar aplica; JSON sujo degrada |
+| J17 | v7→v8 (`createWorkspace` no v7, reopen); Tarefa sem assento na 1ª coluna da categoria |
+| J18 | `fluxo.md`+`sprints.md`; DM fora; `mayUpload` project sim / dm não; restore 2× sem duplicar |
+
+### PLAN (honesto)
+PB-1/PB-2 já done. PB-3 **done** (J16). PB-4 **done** (Anvil + J12–J18) com os caveats abaixo.
+
+### [Forge→Anvil]
+1. `exportMarkdown` chama `events.list('channel:'+id)` e estoura `StoreError: forbidden` se o canal existe sem stream (zero mensagens). Repro: `pnpm exec vitest run packages/persona/persona-host/tests/journeys/j18-board-export.spec.ts` com o `sayOn` de J18 comentado.
+2. `mapBoardError` descarta `DomainError.detail` e devolve `Error('INVALID_WORKFLOW')` — a recusa de remover coluna sem destino não chega em pt-BR no Remote. Repro: `pnpm exec vitest run packages/persona/persona-host/tests/journeys/j14-edit-flow.spec.ts` e inspecionar o `catch` cru (a jornada passa só porque usa `workflowRefusalText`).
+3. `startSprint` não cria GoalBoard; só persiste `sprint.goalId`.
+
+### Arquivos
+- `packages/persona/persona-host/tests/journeys/{journey-host,j12-two-boards,j13-stage-columns,j14-edit-flow,j15-sprint,j16-propose-flow,j17-migrate-v8,j18-board-export}.*`
+- `persona-spec/reports/journeys.md`, `persona-spec/PLAN.md` (PB-3/PB-4), `persona-spec/reports/forge.md`
+
+### Comandos
+
+```
+pnpm exec vitest run packages/persona/persona-host/tests/journeys
+ Test Files  18 passed (18)
+      Tests  18 passed (18)
+ Duration  9.26s
+```
+
+### Limitações
+- J18 posta uma linha no canal antes do export (contorna o `forbidden` do Anvil).
+- J14 prova pt-BR via core, não via Remote.
+- J15 prova `goalId`, não GoalBoard.
+- Import Markdown de `fluxo.md` não restaura workflow; sync é `board.snapshot`/`restore`.
+- Sem commit. CLI real continua congelada. Sem `pnpm install`.
+
+---
+
 ## 03/11 19:15 — C2 + PB-1/PB-2 + proposta PB-3 (BRIEFING 15)
 
 ### C2
@@ -53,6 +1147,11 @@ persona-core: OK in 6.9s
 ```
 node scripts/persona/check-pkg.mjs persona-engine
 persona-engine: OK in 16.8s
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 63.7s
 ```
 
 ### Limitações

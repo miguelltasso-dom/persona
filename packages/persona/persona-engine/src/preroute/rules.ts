@@ -3,7 +3,18 @@
  * turned off per project and always leaves a trail.
  */
 
-export type PreRouteRule = 'duplicate' | 'mention' | 'courtesy' | 'silence' | 'command'
+import { matchComposerSlash } from '@deepseek-ai/dsh-persona-core'
+
+export type PreRouteRule =
+  | 'duplicate'
+  | 'mention'
+  | 'courtesy'
+  | 'silence'
+  | 'command'
+  | 'handoff'
+  | 'empty'
+  | 'injection'
+  | 'scope'
 
 export interface PreRouteRules {
   duplicate: boolean
@@ -11,6 +22,10 @@ export interface PreRouteRules {
   courtesy: boolean
   silence: boolean
   command: boolean
+  handoff: boolean
+  empty: boolean
+  injection: boolean
+  scope: boolean
   /** How far back to look for a near-exact repeat. */
   duplicateWindowMs: number
   /** 0–1; 1 = only exact normalized match. */
@@ -23,6 +38,10 @@ export const DEFAULT_PRE_ROUTE: PreRouteRules = {
   courtesy: true,
   silence: true,
   command: true,
+  handoff: true,
+  empty: true,
+  injection: true,
+  scope: true,
   duplicateWindowMs: 30 * 60_000,
   near: 0.92,
 }
@@ -73,8 +92,12 @@ export interface PreRouteTrail {
   triggerId?: string
 }
 
-const COURTESY = /^(ok|obrigad[oa]|valeu|vlw|oi|ol[aá]|👍|🙏)[.!]*$/iu
+const COURTESY = /^(ok|obrigad[oa]|valeu|vlw|oi|ol[aá]|visto|combinado|beleza|show|fechado|pode deixar|👍|🙏)[.!]*$/iu
+const EMOJI_ONLY = /^(?:[\p{Extended_Pictographic}\p{Emoji_Presentation}\s])+$/u
 const COMMAND = /^\/(pausar|retomar|tarefa)(?:\s+([\s\S]+))?$/iu
+const HANDOFF = /passa (isso |a tarefa )?para|entregue para a colega/iu
+const INJECTION = /ignore (all )?polic|ignore todas as pol[ií]ticas|enlarge the mandate|voc[eê] [eé] o dono agora|backdoor/iu
+const OUT_OF_SCOPE = /hackeie|vazue credencial|senha do banco|publique .{0,80}sem avisar/iu
 
 /**
  * @param text - Raw message.
@@ -140,13 +163,26 @@ function model(): PreRouteResult {
 }
 
 /**
- * First matching rule wins. Order: silence → command → mention → courtesy → duplicate.
+ * First matching rule wins. Order: silence → command → mention → handoff → courtesy → duplicate.
  * @param input - Message and project rules.
  */
 export function preRoute(input: PreRouteInput): PreRouteResult {
   const rules = rulesOf(input)
   if (rules.silence && (input.budgetLeft === false || input.at < input.silenceUntil)) {
     return { action: 'silent', rule: 'silence', why: 'janela de silêncio ou orçamento esgotado', modelCalled: false }
+  }
+  if (rules.empty && input.text.trim() === '') {
+    return { action: 'ignore', rule: 'empty', why: 'mensagem vazia', modelCalled: false }
+  }
+  if (rules.injection && INJECTION.test(input.text)) {
+    return { action: 'ignore', rule: 'injection', why: 'injeção de prompt — sem modelo', modelCalled: false }
+  }
+  if (rules.scope && OUT_OF_SCOPE.test(input.text)) {
+    return { action: 'ignore', rule: 'scope', why: 'pedido fora de escopo — sem modelo', modelCalled: false }
+  }
+  const slash = matchComposerSlash(input.text)
+  if (rules.command && slash !== undefined) {
+    return { action: 'ignore', rule: 'command', why: `comando /${slash}`, modelCalled: false }
   }
   const cmd = COMMAND.exec(input.text.trim())
   if (rules.command && cmd !== null) {
@@ -174,7 +210,14 @@ export function preRoute(input: PreRouteInput): PreRouteResult {
       }
     }
   }
-  if (rules.courtesy && COURTESY.test(input.text.trim())) {
+  if (rules.handoff && HANDOFF.test(input.text)) {
+    return {
+      action: 'assign', rule: 'handoff', why: 'pedido de passar à colega', modelCalled: false,
+      title: input.text.trim(),
+    }
+  }
+  const trimmed = input.text.trim()
+  if (rules.courtesy && (COURTESY.test(trimmed) || (EMOJI_ONLY.test(trimmed) && !/\p{L}/u.test(trimmed)))) {
     return { action: 'react', rule: 'courtesy', why: 'cortesia ou ack — sem Tarefa', modelCalled: false }
   }
   if (rules.duplicate) {
@@ -215,6 +258,12 @@ export class MemoryPreRouteLog {
    */
   record(row: PreRouteTrail): void {
     this.trail.push(row)
+  }
+
+  /** Drop window and trail (host test reset). */
+  clear(): void {
+    this.window.length = 0
+    this.trail.length = 0
   }
 }
 

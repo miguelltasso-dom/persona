@@ -94,7 +94,7 @@ it('ships the five required templates, with Atlas coordinating and Luna watching
   ])
   const suggested = teamTemplateById('suggested-animals')
   expect(suggested?.personas.map(item => item.name)).toEqual(['Atlas', 'Bento', 'Nina', 'Sol', 'Luna'])
-  expect(suggested?.personas.find(item => item.name === 'Atlas')?.systemRoles).toEqual(['coordination'])
+  expect(suggested?.personas.find(item => item.name === 'Atlas')?.systemRoles).toEqual(['coordination', 'team_manager'])
   expect(suggested?.personas.find(item => item.name === 'Luna')?.systemRoles).toEqual(['watchdog'])
   expect(teamTemplateById('software-startup')?.personas.some(item => item.systemRoles.includes('coordination'))).toBe(true)
   expect(teamTemplateById('blank')?.personas).toEqual([])

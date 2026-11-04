@@ -18,7 +18,7 @@
   "column.inReview": "In review",
   "action.review": "Review",
   "action.open": "Open",
-  "action.requestStatus": "Request status",
+  "action.requestStatus": "Ask for an update",
   "action.moveTo": "Move to {column}",
   "a11y.cardMenu": "Task actions",
   "card.subjectLabel": "Subject {name}",

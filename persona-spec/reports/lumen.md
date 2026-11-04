@@ -1,5 +1,117 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-04 06:22 — PB-5 previews com hub fallback
+
+**PB-5:** `GlobalCategoryLanes` mostra coluna quando há títulos live em `previewCards` mesmo com contagem zero no resumo (hub mock); teste unitário.
+
+**Post-it:** Keel — só `note edit`; **não** fui eu no `note write` de hoje.
+
+**Comandos:** vitest global-category-lanes + live-tenant-bridge → **8 passed** · check-pkg já OK.
+
+## 2026-11-04 05:53 — PB-10 adapter + bug visão global (hooks)
+
+**PB-10:** testes `projectBoardToFlow` (colunas host, `columnId`, chip waiting, categoria review → `in_review`).
+
+**PB-5:** correção **Rules of Hooks** em `ConnectedGlobalKanban` (`projectHint` + `handleProjectWorkspaceTab` antes dos early returns); teste integração troca grid → global; stub `kanbanFocusTicketId` em `register-lumen-ui`.
+
+**BYC-4 / S6:** teste discard em `ProposalReview`; Cofre empty → descrever empresa + Importar.
+
+**Comandos:** vitest board-adapters + bring-context-review + knowledge-vault-visibility + live-tenant-bridge → **16 passed** · `check-pkg client-ui-persona` OK (54s).
+
+**Fila:** Probe PB-9/BYC-6/GOV-10; BYC Importar app (jsdom hang); W2-7 Rivet; PB-10 docs Forge; OPT-7 live RPC.
+
+## 2026-11-04 05:43 — Contratos + regressão W2/PB
+
+**PB-5/10:** teste `hostBoardSummariesToHub` (`listBoards` → hub); `boards-home` botão visão global.
+
+**W2-7:** teste Conexões exibe `wave2.termsNotice` (microcópia Atlas).
+
+**Comandos:** vitest board-adapters + connections-wave2 + boards-home → **6 passed** · `check-pkg client-ui-persona` OK (41s).
+
+**Fila:** PB-6/7 Probe PB-9; BYC Probe BYC-6; GOV Probe GOV-10; W2-7 login nativo multi-conta (Rivet/host).
+
+## 2026-11-04 05:32 — PB-5 visão global + OPT-7 wire
+
+**PB-5:** `GlobalCategoryLanes` — ícone Brush por categoria + até 3 títulos de cartão (`previewCards` de `live.kanbanCards`); helper `global-lane-previews.ts` + testes.
+
+**OPT-7:** `persona-screens-remote` expõe `getUsagePanel` quando o host tem; `loadUsagePanelRemote` usa facade + fallback legacy; teste `usage-panel-remote.client.spec.ts`.
+
+**Testes:** harness `dispose` nos connected/live stubs; `persona-about-settings` `close`.
+
+**Comandos:** vitest global-lane* + usage-panel-remote → **4 passed** · `check-pkg client-ui-persona` OK (38s).
+
+**Fila:** PB-6/7 Probe PB-9; BYC Probe BYC-6; GOV Probe; W2-7 contas UI.
+
+## 2026-11-04 05:24 — Muse microcópia (Atlas) + fila
+
+**Muse/Atlas:** passada em `locale-sources` (connections, usage, governance, kanban, review, hire, approvals, rules, memory, skills) — glossário `persona-spec/design/MICROCOPY.md`. Lumen: `git pull` já up-to-date; `gen-client-ui-persona-locales.mjs`; **não** reeditar JSON sem puxar antes.
+
+**Verificação:** vitest usage/governance/workflow/sprint/lumen-rpc → **23 passed**; assert `token.cacheHit` (reaproveitado…) em `usage-token-panel`; `check-pkg client-ui-persona` OK (31s).
+
+**Fila:** PB-6/7 aceite Probe; BYC app (Probe BYC-6); OPT-7 RPC Anvil `getUsagePanel` (UI + mock dev seed prontos).
+
+## 2026-11-04 05:00 — PB-5 ícones coluna + filtros Quadros
+
+**PB-5 (pós PB-8 Muse):** `ColumnCategoryIcon` + Brush `COLUMN_ICONS` nos cabeçalhos `BoardColumn`; pipeline `build-assets.mjs` passa a copiar `icons/columns/` (budget total ainda >10 MiB — não rodar rebuild completo local; ícones já em `assets/icons/columns/` + `generated-imports`). Teste filtro “Precisa de você” em `boards-home`.
+
+**BYC-4:** tentativa jsdom `BringContextImportPage` continua travando transform — aceite app **Probe BYC-6**; review coberto por `bring-context-review`.
+
+**Comandos:** vitest boards-home + board-primitives → **6 passed** · `check-pkg client-ui-persona` OK (24s). TS aux: `listConversationSubjects` narrow, `conversation-subjects-storm` tipos.
+
+**Fila:** PB-6/7, Probe PB-9/GOV, BYC app, OPT-7 Anvil RPC.
+
+## 2026-11-04 05:06 — Muse a11y Quadros + carry Kanban
+
+**A11y (axe):** `ProjectBoardCard` — `role="group"` + `aria-label` com `boards.workingNow` + nomes (+N); `+N` visual `aria-hidden`. **Muse:** pode recapturar `panel-quadros-light.png` / `-dark.png`.
+
+**Motion (UX-GUIDE §3):** wire `useKanbanCarry` em `KanbanBoard` + `FlowKanbanBoard` (`markLocalMove` drag/menu); `KanbanCard` `data-persona-kanban-carry`; `Kanban.module.css` — `top: calc(-1 * var(--persona-space-2))`, keyframe hop-off (avatar viaja com FLIP do cartão).
+
+**Testes:** `boards-home` (group a11y) · `use-kanban-carry` (`detectPersonaMoves`) → **4 passed**. Fix typecheck pré-existente em `general-channel-turn-context` + `map-turn-activity-folds`.
+
+**Comandos:** vitest acima · `check-pkg client-ui-persona` OK (39.7s).
+
+**Fila:** PB-5 polish Muse PB-8; Probe GOV/BYC; BYC import jsdom; OPT-7 Anvil.
+
+## 2026-11-04 04:56 — SB-5 página + BYC-4 nota
+
+**SB-5:** `SecondBrainPageView` — fontes em `Card` + eyebrow; teste página assert eyebrow.
+
+**BYC-4:** tentativa `bring-context-import.client.spec.tsx` — **vitest trava no import** de `BringContextImportPage` (pool não conclui transform); cobertura BYC permanece `bring-context-review` + `bring-context-ui` + aceite **Probe BYC-6**.
+
+**Comandos:** vitest second-brain-page → **1 passed** · `check-pkg client-ui-persona` OK.
+
+**Fila:** PB-5 (Muse PB-8); Probe GOV/BYC app; BYC import jsdom (investigar hang); OPT-7 Anvil.
+
+## 2026-11-04 04:38 — SB-5 lista por tipo + grafo
+
+**SB-5:** `SecondBrainKindListView` — Card + eyebrow; títulos `brainPageLink`; editor via `feedEditorDisplay` (Atlas, não `person:system`); empty `kindList.empty`; `personaNames` no shell. Teste `second-brain-kind-list.client.spec.tsx`.
+
+**PB-5:** hub `BoardsHome`/`ConnectedGlobalKanban` já no repo — polish visual ainda depende **Muse PB-8**.
+
+**Comandos:** gen-locales · vitest second-brain-kind-list → **2 passed** · `check-pkg client-ui-persona` OK.
+
+**Fila:** PB-5 polish Muse; Probe GOV/BYC app; BYC-4 app; OPT-7 Anvil RPC.
+
+## 2026-11-04 04:32 — GOV-7 + SB-5 permissões/página
+
+**GOV-7:** `governance-health.client.spec.tsx` — cliques de correção 1-clique (achado + Teste 2 dias).
+
+**SB-5:** `SecondBrainPermissionsView` — lista em `Card` + eyebrow por filtro + empty; testes `second-brain-permissions` + `second-brain-page` (fontes localizadas).
+
+**Comandos:** vitest governance-health + second-brain-permissions + second-brain-page → **4 passed** · `check-pkg client-ui-persona` OK.
+
+**Fila:** PB-5/6/7 (Muse PB-8); GOV-6/7 (app Probe); BYC-4 (app); SB-5 grafo/kind list polish; OPT-7 live RPC (Anvil `getUsagePanel`).
+
+## 2026-11-04 04:18 — Fila: BYC-4 + SB-5 (pós-revisão1)
+
+**BYC-4:** `bring-context-review.client.spec.tsx` — ProposalReview conflito, privado, editar; `bring-context-ui` — dedupe `duplicateOf` → chip conflito.
+
+**SB-5:** `brainSourceLabel` exportado; `SecondBrainPageView` localiza `derived-index` nas fontes.
+
+**Comandos:** vitest bring-context-review + bring-context-ui + brain-ui-adapters → **16 passed** · `check-pkg client-ui-persona` OK.
+
+**Fila aberta:** PB-5/6/7 (Muse PB-8 specs); GOV-6/7 aceite Probe; BYC-4 (app) restante; SB-5 página/grafos; OPT-7 RPC Anvil.
+
 ## 2026-11-04 03:52 — Muse revisão1: Importar + Segundo cérebro
 
 **Importar/BYC:** `BringContextImportPage` — “Abrir importador avançado” já em `Button variant="secondary"`.

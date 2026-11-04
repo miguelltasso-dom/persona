@@ -87,6 +87,7 @@ export function KanbanCard({
       padding="s"
       interactive
       data-persona-kanban-card={card.id}
+      {...(card.carry !== undefined ? { 'data-persona-kanban-carry': '' } : {})}
       className={`${styles.ticket}${dragging ? ` ${styles.ticketDragging}` : ''}`}
       draggable
       onDragStart={onDragStartCard}

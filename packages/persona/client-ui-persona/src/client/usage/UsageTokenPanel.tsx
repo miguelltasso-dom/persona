@@ -37,7 +37,7 @@ function SliceTable({ dict, title, rows }: { dict: LocaleDict; title: string; ro
   )
 }
 
-/** OPT-7 — tokens per successful task, by persona/kind, cache hit (labeled origin). */
+/** OPT-7 — consumo por tarefa concluída, por persona/tipo, reaproveitamento (origem medida/estimada). */
 export function UsageTokenPanel({ dict, panel }: { readonly dict: LocaleDict; readonly panel: UsageTokenPanelUi }): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   return (

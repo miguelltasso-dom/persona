@@ -1,6 +1,7 @@
 /** Shared Kanban grid: columns, drag-drop, surface states. */
 
 import { useCallback, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
+import { useKanbanCarry } from './use-kanban-carry.ts'
 import { useKanbanFlip } from './use-kanban-flip.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
@@ -58,10 +59,11 @@ export function KanbanBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropColumn, setDropColumn] = useState<KanbanColumnId | null>(null)
 
-  const grouped = useMemo(() => groupByColumn(cards), [cards])
+  const { cards: carryCards, markLocalMove, isCarried } = useKanbanCarry(cards)
+  const grouped = useMemo(() => groupByColumn(carryCards), [carryCards])
   const boardRef = useRef<HTMLDivElement>(null)
-  const cardsKey = useMemo(() => cards.map(c => `${c.id}:${c.column}`).join('|'), [cards])
-  useKanbanFlip(boardRef, cardsKey)
+  const cardsKey = useMemo(() => carryCards.map(c => `${c.id}:${c.column}`).join('|'), [carryCards])
+  useKanbanFlip(boardRef, cardsKey, isCarried)
 
   const onDragStart = useCallback((cardId: string) => {
     setDraggingId(cardId)
@@ -81,7 +83,10 @@ export function KanbanBoard({
   const onColumnDrop = (event: DragEvent, column: KanbanColumnId): void => {
     event.preventDefault()
     const cardId = event.dataTransfer.getData('text/persona-kanban-card')
-    if (cardId.length > 0) onMoveCard?.(cardId, column)
+    if (cardId.length > 0) {
+      markLocalMove(cardId)
+      onMoveCard?.(cardId, column)
+    }
     onDragEnd()
   }
 
@@ -155,7 +160,9 @@ export function KanbanBoard({
                   columnLabels={columnLabels}
                   onDragStart={(id) => { onDragStart(id) }}
                   onDragEnd={onDragEnd}
-                  {...(onMoveCard !== undefined ? { onMoveCard } : {})}
+                  {...(onMoveCard !== undefined
+                    ? { onMoveCard: (id: string, toColumn: KanbanColumnId) => { markLocalMove(id); onMoveCard(id, toColumn) } }
+                    : {})}
                   {...(onOpenReview !== undefined ? { onOpenReview } : {})}
                   {...(onRequestStatus !== undefined ? { onRequestStatus } : {})}
                 />

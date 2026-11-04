@@ -10,6 +10,7 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { BoardColumn, BoardColumns, Button } from '../primitives/index.ts'
 import { KanbanCard } from './KanbanCard.tsx'
+import { useKanbanCarry } from './use-kanban-carry.ts'
 import { useKanbanFlip } from './use-kanban-flip.ts'
 import type { FlowCardModel, FlowColumnModel } from './flow-types.ts'
 import type { KanbanColumnId, KanbanSurfaceState } from './types.ts'
@@ -74,20 +75,22 @@ export function FlowKanbanBoard({
   const [dropColumnId, setDropColumnId] = useState<string | null>(null)
   const [liveMessage, setLiveMessage] = useState('')
 
+  const { cards: carryCards, markLocalMove, isCarried } = useKanbanCarry(cards, card => card.columnId)
+
   const grouped = useMemo(() => {
     const map = new Map<string, FlowCardModel[]>()
     for (const column of columns) map.set(column.id, [])
-    for (const card of cards) {
+    for (const card of carryCards) {
       const list = map.get(card.columnId) ?? []
       list.push(card)
       map.set(card.columnId, list)
     }
     return map
-  }, [columns, cards])
+  }, [columns, carryCards])
 
   const boardRef = useRef<HTMLDivElement>(null)
-  const cardsKey = useMemo(() => cards.map(c => `${c.id}:${c.columnId}`).join('|'), [cards])
-  useKanbanFlip(boardRef, cardsKey)
+  const cardsKey = useMemo(() => carryCards.map(c => `${c.id}:${c.columnId}`).join('|'), [carryCards])
+  useKanbanFlip(boardRef, cardsKey, isCarried)
 
   const flowMoveTargets = useMemo(
     () => columns.map(column => ({ id: column.id, label: column.name })),
@@ -118,6 +121,7 @@ export function FlowKanbanBoard({
     event.preventDefault()
     const cardId = event.dataTransfer.getData('text/persona-kanban-card')
     if (cardId.length > 0) {
+      markLocalMove(cardId)
       onMoveCard?.(cardId, column.id)
       setLiveMessage(t('flow.movedTo', { column: column.name }))
     }
@@ -198,6 +202,7 @@ export function FlowKanbanBoard({
                       onDragStart={onDragStart}
                       onDragEnd={onDragEnd}
                       onMoveFlowColumn={(ticketId, columnId) => {
+                        markLocalMove(ticketId)
                         onMoveCard?.(ticketId, columnId)
                         const target = columns.find(row => row.id === columnId)
                         if (target !== undefined) setLiveMessage(t('flow.movedTo', { column: target.name }))

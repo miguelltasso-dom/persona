@@ -18,7 +18,7 @@
   "column.inReview": "Em revisão",
   "action.review": "Revisar",
   "action.open": "Abrir",
-  "action.requestStatus": "Pedir status",
+  "action.requestStatus": "Perguntar como está",
   "action.moveTo": "Mover para {column}",
   "a11y.cardMenu": "Ações da tarefa",
   "card.subjectLabel": "Assunto {name}",

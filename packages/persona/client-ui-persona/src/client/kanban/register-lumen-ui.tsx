@@ -107,6 +107,7 @@ export type LumenPersonaCardBridge = PersonaCardShellBridge
 export interface LumenShellBridge {
   selectPanel(id: MainPanelId): void
   clearBoardsFocusProject(): void
+  clearKanbanFocusTicket(): void
   openPersonaProfile(personaId: string): void
   setProjectWorkspaceProjectId(projectId: string | null): void
   openTeamSetup(): void
@@ -188,6 +189,7 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
       profilePersonaId: null,
       profileEditorOpen: false,
       boardsFocusProjectId: null,
+      kanbanFocusTicketId: null,
       projectWorkspaceProjectId: null,
       talkAclPersonaId: null,
       enginePersonaId: null,
@@ -220,6 +222,7 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
         if (panel !== null) shell?.selectPanel(panel)
       },
       clearBoardsFocusProject: () => { shell?.clearBoardsFocusProject() },
+      clearKanbanFocusTicket: () => { shell?.clearKanbanFocusTicket() },
       setProjectWorkspaceProjectId: (projectId: string | null) => { shell?.setProjectWorkspaceProjectId(projectId) },
       ...(shell?.personaCard === undefined
         ? {}
@@ -285,6 +288,7 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
             profilePersonaId: null,
             profileEditorOpen: false,
             boardsFocusProjectId: null,
+            kanbanFocusTicketId: null,
             projectWorkspaceProjectId: null,
             talkAclPersonaId: null,
             enginePersonaId: null,

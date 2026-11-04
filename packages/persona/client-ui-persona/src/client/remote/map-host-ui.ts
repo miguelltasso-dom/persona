@@ -1,3 +1,4 @@
+import { usableTaskTitle } from './task-title.ts'
 import type { PersonaCharacterId } from '../assets/asset-url.ts'
 import { poseUrl } from '../assets/asset-url.ts'
 import { resolveProjectDisplayName } from '../kanban/resolve-project-name.ts'
@@ -228,8 +229,12 @@ export function mapPersonaNowRow(row: PersonaNowView, team: TeamView): PersonaNo
         ...(hasPose ? {} : { silhouette: true as const }),
       }
     })()
+  // SW-7: o host só manda `draftFiles` quando há rascunho de verdade; o cliente nunca o inventa.
+  const draftFiles = row.state === 'working' && typeof row.draftFiles === 'number' && Number.isFinite(row.draftFiles) && row.draftFiles >= 1
+    ? Math.trunc(row.draftFiles)
+    : undefined
   const snap: PersonaNowSnapshot = {
-    member,
+    member: draftFiles === undefined ? member : { ...member, draftFiles },
     queueCount: row.queueCount,
   }
   if (row.currentTask.length > 0) {
@@ -265,7 +270,8 @@ export function mapTeamToStrip(
 export interface AwayEventLive {
   readonly id: string
   readonly body: string
-  readonly taskLabel: string
+  /** O título real da tarefa; ausente quando o host não manda um (nunca o id). */
+  readonly taskLabel?: string | undefined
   readonly taskId: string
 }
 
@@ -273,7 +279,7 @@ export function mapAwayEventLive(event: AwayEventView): AwayEventLive {
   return {
     id: event.id,
     body: event.body,
-    taskLabel: event.taskTitle.length > 0 ? event.taskTitle : event.taskId,
+    taskLabel: usableTaskTitle(event.taskTitle, [event.taskId]),
     taskId: event.taskId,
   }
 }
@@ -323,10 +329,14 @@ export function mapMessage(
   const timeLabel = Number.isNaN(time.getTime())
     ? event.occurredAt.slice(11, 16)
     : time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  // A ficha da tarefa só existe com o TÍTULO real da tarefa (do quadro). Em eventos que não são mensagem, `subjectId`
+  // pode ser o assunto da conversa ("subject-geral") e não uma tarefa: sem título conhecido, sem ficha — nunca o id.
   const citesTask = event.type !== 'message' && event.subjectId.length > 0
-  const ticketId = citesTask ? event.subjectId : undefined
-  const resolvedTitle = ticketId !== undefined ? taskTitleById.get(ticketId) : undefined
-  const taskTitle = resolvedTitle ?? (citesTask ? event.subjectId : undefined)
+  const candidateTicketId = citesTask ? event.subjectId : undefined
+  const taskTitle = candidateTicketId === undefined
+    ? undefined
+    : usableTaskTitle(taskTitleById.get(candidateTicketId), [candidateTicketId, event.subjectId, event.conversationSubjectId, event.topicId])
+  const ticketId = taskTitle === undefined ? undefined : candidateTicketId
   const reactions: MessageReactionUi[] = (event.reactions ?? []).map(row => ({
     stickerId: row.stickerId,
     count: row.actorIds.length,

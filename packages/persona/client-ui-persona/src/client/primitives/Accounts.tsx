@@ -117,6 +117,8 @@ export interface AccountPolicyPickerProps {
   readonly recommended?: AccountPolicy | undefined
   /** "Recomendado" */
   readonly recommendedLabel?: string | undefined
+  /** Which cards to offer, in this order (default: all four). The screen decides; D-078 offers ask · next_on_limit · fixed. */
+  readonly policies?: readonly AccountPolicy[] | undefined
   /** Radio group name (unique per scope). */
   readonly name: string
   readonly disabled?: boolean
@@ -130,7 +132,7 @@ const POLICY_ICON: Readonly<Record<AccountPolicy, ReactNode>> = {
 }
 
 /** The swap policy as 4 radio cards — an explicit choice, never silent (WAVE2 §3). */
-export function AccountPolicyPicker({ legend, value, onChange, copy, recommended = 'next_on_limit', recommendedLabel, name, disabled = false }: AccountPolicyPickerProps): ReactNode {
+export function AccountPolicyPicker({ legend, value, onChange, copy, recommended = 'next_on_limit', recommendedLabel, policies = ACCOUNT_POLICIES, name, disabled = false }: AccountPolicyPickerProps): ReactNode {
   return (
     <ChoiceCards
       legend={legend}
@@ -138,7 +140,7 @@ export function AccountPolicyPicker({ legend, value, onChange, copy, recommended
       value={value}
       onChange={onChange}
       disabled={disabled}
-      options={ACCOUNT_POLICIES.map(policy => ({
+      options={policies.map(policy => ({
         id: policy,
         title: copy[policy].title,
         body: copy[policy].body,

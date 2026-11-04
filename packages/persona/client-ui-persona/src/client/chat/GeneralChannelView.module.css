@@ -404,34 +404,46 @@
 
 .taskCard {
   margin: var(--persona-space-2) 0 0;
-  font-size: 14px;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--persona-space-2);
-  align-items: stretch;
+  align-items: baseline;
+  gap: var(--persona-space-1) var(--persona-space-3);
+  font-size: 14px;
+  line-height: 20px;
 }
 
-.taskCardButton {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--persona-space-1);
-  padding: var(--persona-space-2) var(--persona-space-3);
-  border: 1px solid var(--persona-outline-soft);
-  border-radius: var(--persona-radius-m);
-  background: var(--persona-card-raised);
-  color: inherit;
+.taskCardTitle {
+  font-weight: 700;
+  color: var(--persona-ink);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* As ações são links ghost ao lado do título, separadas por um ponto (decoração: o nome acessível fica "Ver no quadro"). */
+.taskCardLink {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 13px/20px var(--persona-font-text);
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
   cursor: pointer;
-  text-align: left;
 }
 
-.taskCardButton:hover {
-  border-color: var(--persona-accent);
+.taskCardLink:hover,
+.taskCardLink:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
 }
 
-.taskCardHint {
-  font-size: 12px;
-  color: var(--persona-ink-muted);
+.taskCardLink + .taskCardLink::before {
+  content: '·';
+  display: inline-block;
+  margin-right: var(--persona-space-3);
+  color: var(--persona-ink-faint);
+  text-decoration: none;
 }
 
 .messageActivity {

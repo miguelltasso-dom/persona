@@ -10,6 +10,11 @@ export type PersonaPoseState =
   | 'offline'
   | 'erro'
   | 'acenando'
+  // Muse (BR-P3 P1, 04/11): for now only the 5 core characters have these; use `hasPose` before relying on them.
+  | 'comemorando'
+  | 'digitando'
+  | 'lendo'
+  | 'confuso'
 
 export type PersonaCharacterId = 'atlas' | 'bento' | 'nina' | 'sol' | 'luna'
 
@@ -25,6 +30,15 @@ export function registerPoseUrl(key: string, url: string): void {
  * @param character - roster id.
  * @param state - pose filename segment.
  */
+/**
+ * Whether this character has its own art for `state` (no fallback). `poseUrl` silently falls back to `disponivel`,
+ * which is right for the team strip but wrong for meaning-bearing states ("está escrevendo…" must not show a
+ * waving pose): check `hasPose` and use the avatar + text when it is false.
+ */
+export function hasPose(character: PersonaCharacterId, state: PersonaPoseState): boolean {
+  return POSE_IMPORTS[`${character}-${state}`] !== undefined
+}
+
 export function poseUrl(character: PersonaCharacterId, state: PersonaPoseState): string | undefined {
   const key = `${character}-${state}`
   return POSE_IMPORTS[key] ?? POSE_IMPORTS[`${character}-disponivel`]

@@ -63,6 +63,25 @@ describe('SubjectBar (Muse, WAVE2-SPEC a)', () => {
     expect((screen.getByRole('button', { name: /Até 7 assuntos/u }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('W2-3: arquivar pelo ⋯ (só com mais de um assunto) e reabrir um arquivado pelo mesmo menu', () => {
+    const onArchive = vi.fn()
+    const onReopen = vi.fn()
+    const archived: readonly ConversationSubjectUi[] = [{ id: 'velho', name: 'Orçamento', colorIndex: 1, unreadCount: 0 }]
+    render(<SubjectBar t={t as never} subjects={SUBJECTS} activeSubjectId="ui" onSelect={() => undefined} onArchive={onArchive} archived={archived} onReopen={onReopen} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações para UI' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Arquivar assunto' }))
+    expect(onArchive).toHaveBeenCalledWith('ui')
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações para UI' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reabrir Orçamento' }))
+    expect(onReopen).toHaveBeenCalledWith('velho')
+  })
+
+  it('W2-3: com um assunto só não há "Arquivar" (nunca fica uma conversa sem assunto)', () => {
+    render(<SubjectBar t={t as never} subjects={[SUBJECTS[0]!]} activeSubjectId="geral" onSelect={() => undefined} onArchive={() => undefined} onRename={() => undefined} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações para Geral' }))
+    expect(screen.queryByRole('menuitem', { name: 'Arquivar assunto' })).toBeNull()
+  })
+
   it('Muse W2-3: abaixo de 720 px o campo de nome do assunto novo fica numa linha própria, embaixo das abas', () => {
     const css = readFileSync(resolve(__dirname, '../src/client/chat/SubjectBar.module.css'), 'utf8')
     const from = css.indexOf('@media (max-width: 720px)')

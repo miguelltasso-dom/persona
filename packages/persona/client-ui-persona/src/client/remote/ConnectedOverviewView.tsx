@@ -31,7 +31,7 @@ export function ConnectedOverviewView({
   const awayEvents = live.awayEvents.map(event => ({
     id: event.id,
     body: event.body,
-    taskLabel: event.taskLabel,
+    ...(event.taskLabel === undefined ? {} : { taskLabel: event.taskLabel }),
     taskId: event.taskId,
   }))
   return (

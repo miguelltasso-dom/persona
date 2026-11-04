@@ -384,7 +384,8 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
       expect(screen.getByRole('dialog')).toBeTruthy()
       expect(reviewSummary).toHaveBeenCalled()
     })
-    expect(screen.getByText('hero.tsx')).toBeTruthy()
+    // The file is in the list AND is the title of the preview (two-pane review): scope to the list.
+    expect(screen.getByRole('option', { name: /hero.tsx/u })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: reviewPt['action.accept'] }))
     await waitFor(() => {
       expect(acceptReview).toHaveBeenCalled()

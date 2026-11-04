@@ -63,3 +63,21 @@
 .presence[data-presence='busy'] { background: var(--persona-accent); }
 .presence[data-presence='away'] { background: var(--persona-lilac-400); }
 .presence[data-presence='offline'] { background: var(--persona-paper-sunken); }
+
+/* Muse: system actor (no face): icon on the calm wash, ink-soft glyph. */
+.avatar[data-icon] {
+  background: var(--persona-wash);
+  color: var(--persona-ink-soft);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 60%;
+  height: 60%;
+}
+
+.icon > svg {
+  width: 100%;
+  height: 100%;
+}

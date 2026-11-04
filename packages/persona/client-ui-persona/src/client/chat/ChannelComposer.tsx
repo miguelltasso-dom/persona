@@ -7,6 +7,7 @@ import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { ComposerLimitsPanel } from './ComposerLimitsPanel.tsx'
 import { ENGINE_LIMITS_UNAVAILABLE, type EngineLimitsUi } from '../remote/engine-limits.ts'
 import { ComposerSlashMenu } from './ComposerSlashMenu.tsx'
+import { LimitBanner } from './LimitBanner.tsx'
 import { ComposerToolButton } from './ComposerToolButton.tsx'
 import {
   COMPOSER_LARGE_PASTE_BYTES,
@@ -77,7 +78,15 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
    * Steer (UX-PHASE §6): com o responder trabalhando, "na fila" NÃO envia — entrega o texto a quem guarda a fila
    * (balão tracejado). Sem este callback, enviar na fila é enviar (comportamento anterior).
    */
-  readonly onQueueMessage?: ((text: string, responder: { readonly id: string; readonly name: string }) => void) | undefined
+  readonly onQueueMessage?: ((
+    text: string,
+    responder: { readonly id: string; readonly name: string },
+    options?: { readonly heldForQuota?: boolean; readonly attachments?: readonly { readonly id: string; readonly name: string }[] },
+  ) => void) | undefined
+  /** P0-19: "Ver uso e limites" da faixa "No limite até {hora}". */
+  readonly onSeeUsage?: (() => void) | undefined
+  /** P0-19: outro motor conectado → "Usar {motor} enquanto isso" na faixa do limite (sem handler, o botão não existe). */
+  readonly otherEngine?: { readonly name: string; readonly onUse: () => void } | undefined
   /** Texto de uma mensagem da fila que voltou para edição; some quando `undefined`. */
   readonly editingQueuedText?: string | undefined
   readonly onCancelEditQueued?: (() => void) | undefined
@@ -117,6 +126,8 @@ export function ChannelComposer({
   onOpenPersonaCard,
   suppressHint = false,
   onQueueMessage,
+  onSeeUsage,
+  otherEngine,
   editingQueuedText,
   onCancelEditQueued,
 }: ChannelComposerProps): ReactNode {
@@ -152,7 +163,8 @@ export function ChannelComposer({
   const hintShiftRef = useRef(0)
   const responder =members.find(member => member.id === responderId) ?? members[0]
   const attachmentsReady = personaMessageAttachmentsHostReady() && uploadAttachment !== undefined
-  const canSend = composerCanSend(draft, pending) && !quotaBlocked
+  // P0-19 (ACCOUNT-SWAP-SPEC §3): o composer NUNCA desabilita no limite; a mensagem entra na fila e sai quando a cota voltar.
+  const canSend = composerCanSend(draft, pending)
   const comingSoon = t('composer.comingSoon')
   const responderWorking = responder?.state === 'working'
   const slashToken = activeSlashToken(draft, fieldRef.current?.selectionStart ?? draft.length)
@@ -290,10 +302,19 @@ export function ChannelComposer({
     if (text.length === 0 && readyAttachmentIds(pending).length === 0) return
     const ids = readyAttachmentIds(pending)
     pushSentHistory(conversationKey, text)
-    const shouldQueue = (modeOverride ?? 'queue') === 'queue' && responderWorking && responder !== undefined
-      && onQueueMessage !== undefined && ids.length === 0
-    if (shouldQueue) onQueueMessage(text, { id: responder.id, name: responder.name })
-    else onSend?.(text, ids)
+    // Na fila: com a persona trabalhando OU com a cota esgotada (nesse caso a mensagem espera a cota voltar, com os anexos
+    // desta sessão). Com a persona trabalhando e anexos o envio segue normal (a fila do passo atual só guarda texto).
+    const mode = quotaBlocked ? 'queue' : (modeOverride ?? 'queue')
+    const shouldQueue = mode === 'queue' && (responderWorking || quotaBlocked) && responder !== undefined
+      && onQueueMessage !== undefined && (ids.length === 0 || quotaBlocked)
+    if (shouldQueue) {
+      const attachments = pending.flatMap(row => (row.status === 'ready' ? [{ id: row.id, name: row.name }] : []))
+      onQueueMessage(
+        text,
+        { id: responder.id, name: responder.name },
+        quotaBlocked ? { heldForQuota: true, ...(attachments.length > 0 ? { attachments } : {}) } : undefined,
+      )
+    } else onSend?.(text, ids)
     setDraft('')
     setPending([])
     setPastedTexts({})
@@ -365,7 +386,8 @@ export function ChannelComposer({
         else send('queue')
       }}
     >
-      {showLimits && <ComposerLimitsPanel t={t} limits={engineLimits ?? ENGINE_LIMITS_UNAVAILABLE} onClose={() => { setShowLimits(false) }} />}
+      {quotaBlocked && <LimitBanner t={t} until={quotaResumeLabel} onSeeUsage={onSeeUsage} otherEngine={otherEngine} />}
+      {showLimits &&<ComposerLimitsPanel t={t} limits={engineLimits ?? ENGINE_LIMITS_UNAVAILABLE} onClose={() => { setShowLimits(false) }} />}
       {pocketLabel !== null && draft.length === 0 && (
         <button type="button" className={styles.pocketChip} onClick={restorePocket} aria-keyshortcuts="Control+S">
           <Chip size="s" tone="plain" icon={<UiIcon name="attach" size={12} strokeWidth={2.2} />}>
@@ -474,8 +496,8 @@ export function ChannelComposer({
           className={styles.field}
           rows={1}
           value={draft}
-          placeholder={quotaBlocked
-            ? (quotaResumeLabel ?? t('composer.quotaBlocked'))
+          placeholder={quotaBlocked && quotaResumeLabel !== undefined && quotaResumeLabel.length > 0
+            ? t('limit.placeholder', { time: quotaResumeLabel })
             : (placeholder ?? t('composer.placeholderChannel'))}
           aria-describedby={hintId}
           onChange={(event) => {
@@ -549,148 +571,152 @@ export function ChannelComposer({
           }}
         />
       </div>
-      <div className={styles.toolbar}>
-        <div className={styles.tools}>
-          <ComposerToolButton
-            enabled={attachmentsReady}
-            label={t('composer.add')}
-            comingSoonLabel={comingSoon}
-            icon={<UiIcon name="plus" size={20} strokeWidth={2} />}
-            className={styles.plus}
-            onActivate={openFilePicker}
-          />
-          <ComposerToolButton
-            enabled={attachmentsReady}
-            label={t('composer.image')}
-            comingSoonLabel={comingSoon}
-            icon={<UiIcon name="image" size={20} />}
-            onActivate={openImagePicker}
-          />
-          <ComposerToolButton
-            enabled={attachmentsReady}
-            label={t('composer.attach')}
-            comingSoonLabel={comingSoon}
-            icon={<UiIcon name="attach" size={20} />}
-            onActivate={openFilePicker}
-          />
-          <ComposerToolButton
-            enabled={PERSONA_COMPOSER_EMOJI_READY}
-            label={t('composer.emoji')}
-            comingSoonLabel={comingSoon}
-            icon={<UiIcon name="smile" size={20} />}
-          />
-          <ComposerToolButton
-            enabled={PERSONA_COMPOSER_MENTION_READY}
-            label={t('composer.mention')}
-            comingSoonLabel={comingSoon}
-            icon={<UiIcon name="at" size={20} />}
-          />
-          {responder !== undefined && (
-            <>
-              <span className={styles.divider} aria-hidden="true" />
-              <div ref={responderBoxRef} className={styles.responderContainer}>
-                <label className={styles.responder}>
-                  <span className={styles.responderLabel}>{t('composer.respondsLabel')}</span>
-                  <Avatar name={responder.name} src={AVATAR_96[responder.id]} size={24} decorative />
-                  <span className={styles.responderName} aria-hidden="true">{responder.name}</span>
-                  <UiIcon name="chevronDown" size={14} strokeWidth={2.4} />
-                  <select
-                    className={styles.responderSelect}
-                    aria-label={t('composer.modelLabel')}
-                    value={responder.id}
-                    onChange={(event) => {
-                      dismissWhoRespondsHint()
-                      setResponderId(event.target.value)
-                    }}
+      <div className={styles.toolbarBox}>
+        <div className={styles.toolbar}>
+          <div className={styles.tools}>
+            <div className={styles.toolButtons} data-persona-composer-tools="">
+              <ComposerToolButton
+                enabled={attachmentsReady}
+                label={t('composer.add')}
+                comingSoonLabel={comingSoon}
+                icon={<UiIcon name="plus" size={20} strokeWidth={2} />}
+                className={styles.plus}
+                onActivate={openFilePicker}
+              />
+              <ComposerToolButton
+                enabled={attachmentsReady}
+                label={t('composer.image')}
+                comingSoonLabel={comingSoon}
+                icon={<UiIcon name="image" size={20} />}
+                onActivate={openImagePicker}
+              />
+              <ComposerToolButton
+                enabled={attachmentsReady}
+                label={t('composer.attach')}
+                comingSoonLabel={comingSoon}
+                icon={<UiIcon name="attach" size={20} />}
+                onActivate={openFilePicker}
+              />
+              <ComposerToolButton
+                enabled={PERSONA_COMPOSER_EMOJI_READY}
+                label={t('composer.emoji')}
+                comingSoonLabel={comingSoon}
+                icon={<UiIcon name="smile" size={20} />}
+              />
+              <ComposerToolButton
+                enabled={PERSONA_COMPOSER_MENTION_READY}
+                label={t('composer.mention')}
+                comingSoonLabel={comingSoon}
+                icon={<UiIcon name="at" size={20} />}
+              />
+            </div>
+            {responder !== undefined && (
+              <div className={styles.responderGroup} data-persona-composer-responder="">
+                <span className={styles.divider} aria-hidden="true" />
+                <div ref={responderBoxRef} className={styles.responderContainer}>
+                  <label className={styles.responder}>
+                    <span className={styles.responderLabel}>{t('composer.respondsLabel')}</span>
+                    <Avatar name={responder.name} src={AVATAR_96[responder.id]} size={24} decorative />
+                    <span className={styles.responderName} aria-hidden="true">{responder.name}</span>
+                    <UiIcon name="chevronDown" size={14} strokeWidth={2.4} />
+                    <select
+                      className={styles.responderSelect}
+                      aria-label={t('composer.modelLabel')}
+                      value={responder.id}
+                      onChange={(event) => {
+                        dismissWhoRespondsHint()
+                        setResponderId(event.target.value)
+                      }}
+                    >
+                      {members.map(member => (
+                        <option key={member.id} value={member.id}>{member.name + ' — ' + member.role}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {showWhoRespondsHint && (
+                    <div ref={whoRespondsBalloonRef} className={styles.whoRespondsBalloon} role="dialog" aria-label={t('composer.whoRespondsHintTitle')} style={{ '--who-responds-arrow-left': `${String(hintArrowLeft)}px`, '--who-responds-shift': `${String(hintShift)}px` } as CSSProperties}>
+                      <span className={styles.whoRespondsArrow} aria-hidden="true" />
+                      <p className={styles.whoRespondsTitle}>{t('composer.whoRespondsHintTitle')}</p>
+                      <p className={styles.whoRespondsBody}>{t('composer.whoRespondsHintBody')}</p>
+                      <Button size="s" variant="secondary" onClick={dismissWhoRespondsHint}>
+                        {t('composer.whoRespondsGotIt')}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {responderAutonomy !== 'propose' && (
+                  <Tooltip
+                    content={
+                      responderAutonomy === 'on-request'
+                        ? (responder.name + ' sempre pergunta antes de qualquer ação.')
+                        : (responder.name + ' decide o rotineiro dentro dos limites.')
+                    }
                   >
-                    {members.map(member => (
-                      <option key={member.id} value={member.id}>{member.name + ' — ' + member.role}</option>
-                    ))}
-                  </select>
-                </label>
-                {showWhoRespondsHint && (
-                  <div ref={whoRespondsBalloonRef} className={styles.whoRespondsBalloon} role="dialog" aria-label={t('composer.whoRespondsHintTitle')} style={{ '--who-responds-arrow-left': `${String(hintArrowLeft)}px`, '--who-responds-shift': `${String(hintShift)}px` } as CSSProperties}>
-                    <span className={styles.whoRespondsArrow} aria-hidden="true" />
-                    <p className={styles.whoRespondsTitle}>{t('composer.whoRespondsHintTitle')}</p>
-                    <p className={styles.whoRespondsBody}>{t('composer.whoRespondsHintBody')}</p>
-                    <Button size="s" variant="secondary" onClick={dismissWhoRespondsHint}>
-                      {t('composer.whoRespondsGotIt')}
-                    </Button>
-                  </div>
+                    <button
+                      type="button"
+                      className={styles.autonomyButton}
+                      onClick={() => { onOpenPersonaCard?.(responder.id) }}
+                      aria-label={t(`composer.autonomy.${responderAutonomy}` as const)}
+                    >
+                      <Chip
+                        size="s"
+                        tone={responderAutonomy === 'on-request' ? 'info' : 'accent'}
+                      >
+                        <span className={styles.autonomyChipContent}>
+                          <UiIcon name={responderAutonomy === 'on-request' ? 'lock' : 'sparkle'} size={13} strokeWidth={2.2} />
+                          {t(`composer.autonomy.${responderAutonomy}` as const)}
+                        </span>
+                      </Chip>
+                    </button>
+                  </Tooltip>
                 )}
               </div>
-              {responderAutonomy !== 'propose' && (
-                <Tooltip
-                  content={
-                    responderAutonomy === 'on-request'
-                      ? (responder.name + ' sempre pergunta antes de qualquer ação.')
-                      : (responder.name + ' decide o rotineiro dentro dos limites.')
-                  }
-                >
-                  <button
-                    type="button"
-                    className={styles.autonomyButton}
-                    onClick={() => { onOpenPersonaCard?.(responder.id) }}
-                    aria-label={t(`composer.autonomy.${responderAutonomy}` as const)}
-                  >
-                    <Chip
-                      size="s"
-                      tone={responderAutonomy === 'on-request' ? 'info' : 'accent'}
-                    >
-                      <span className={styles.autonomyChipContent}>
-                        <UiIcon name={responderAutonomy === 'on-request' ? 'lock' : 'sparkle'} size={13} strokeWidth={2.2} />
-                        {t(`composer.autonomy.${responderAutonomy}` as const)}
-                      </span>
-                    </Chip>
-                  </button>
-                </Tooltip>
-              )}
-            </>
-          )}
-        </div>
-        <p id={hintId} className={styles.hint}>
-          {responderWorking
-            ? (sendMode === 'queue' ? t('composer.hintQueue') : t('composer.hintSteer'))
-            : t('composer.hint')}
-        </p>
-        {quotaBlocked && draft.length === 0 && (onResumeQuota !== undefined || onSwapAccount !== undefined) && (
-          <div className={styles.quotaActions}>
-            {onResumeQuota !== undefined && (
-              <Button type="button" variant="secondary" size="s" onClick={onResumeQuota}>
-                {t('composer.resumeQuota')}
-              </Button>
-            )}
-            {onSwapAccount !== undefined && (
-              <button type="button" className={styles.swapAccountLink} onClick={onSwapAccount}>
-                {t('composer.swapAccount')}
-              </button>
             )}
           </div>
-        )}
-        {responderWorking && (
+          <p id={hintId} className={styles.hint}>
+            {responderWorking
+              ? (sendMode === 'queue' ? t('composer.hintQueue') : t('composer.hintSteer'))
+              : t('composer.hint')}
+          </p>
+          {quotaBlocked && draft.length === 0 && (onResumeQuota !== undefined || onSwapAccount !== undefined) && (
+            <div className={styles.quotaActions}>
+              {onResumeQuota !== undefined && (
+                <Button type="button" variant="secondary" size="s" onClick={onResumeQuota}>
+                  {t('composer.resumeQuota')}
+                </Button>
+              )}
+              {onSwapAccount !== undefined && (
+                <button type="button" className={styles.swapAccountLink} onClick={onSwapAccount}>
+                  {t('composer.swapAccount')}
+                </button>
+              )}
+            </div>
+          )}
+          {responderWorking && (
+            <button
+              type="button"
+              className={styles.attachRemove}
+              aria-label={sendMode === 'queue' ? t('composer.modeSteer') : t('composer.modeQueue')}
+              onClick={() => { setSendMode(mode => mode === 'queue' ? 'steer' : 'queue') }}
+            >
+              <UiIcon name={sendMode === 'queue' ? 'clock' : 'arrowRight'} size={18} strokeWidth={2.2} />
+            </button>
+          )}
+          {responderAutonomy !== 'propose' && (
+            <Chip size="s" tone="plain" className={styles.autonomyChip}>
+              {t(`composer.autonomy.${responderAutonomy}`)}
+            </Chip>
+          )}
           <button
-            type="button"
-            className={styles.attachRemove}
-            aria-label={sendMode === 'queue' ? t('composer.modeSteer') : t('composer.modeQueue')}
-            onClick={() => { setSendMode(mode => mode === 'queue' ? 'steer' : 'queue') }}
+            type="submit"
+            className={styles.send}
+            data-mode={(responderWorking && sendMode === 'queue') || quotaBlocked ? 'queue' : undefined}
+            disabled={!canSend}
+            aria-label={(responderWorking && sendMode === 'queue') || quotaBlocked ? t('composer.sendQueue') : t('composer.send')}
           >
-            <UiIcon name={sendMode === 'queue' ? 'clock' : 'arrowRight'} size={18} strokeWidth={2.2} />
+            <UiIcon name={(responderWorking && sendMode === 'queue') || quotaBlocked ? 'clock' : 'send'} size={20} strokeWidth={2} />
           </button>
-        )}
-        {responderAutonomy !== 'propose' && (
-          <Chip size="s" tone="plain" className={styles.autonomyChip}>
-            {t(`composer.autonomy.${responderAutonomy}`)}
-          </Chip>
-        )}
-        <button
-          type="submit"
-          className={styles.send}
-          data-mode={responderWorking && sendMode === 'queue' ? 'queue' : undefined}
-          disabled={!canSend}
-          aria-label={responderWorking && sendMode === 'queue' ? t('composer.sendQueue') : t('composer.send')}
-        >
-          <UiIcon name={responderWorking && sendMode === 'queue' ? 'clock' : 'send'} size={20} strokeWidth={2} />
-        </button>
+        </div>
       </div>
     </form>
   )

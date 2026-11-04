@@ -25,6 +25,8 @@ export interface ConnectedChannelInjected {
   toggleMessageReaction(streamKind: 'channel' | 'dm', eventId: string, stickerId: string): void
   /** T3 §12 — open Conexões to swap account at quota limit. */
   onOpenConnections?: (() => void) | undefined
+  /** P0-19: "Ver uso e limites" da faixa "No limite até {hora}". */
+  onOpenUsage?: (() => void) | undefined
   onOpenHelp?: (() => void) | undefined
   onOpenSearch?: (() => void) | undefined
   /** Sino do cabeçalho → Aprovações. */
@@ -59,6 +61,7 @@ export function ConnectedGeneralChannelView({
   personaCard,
   openPersonaProfile,
   onOpenConnections,
+  onOpenUsage,
   onOpenHelp,
   onOpenSearch,
   onOpenApprovals,
@@ -145,12 +148,14 @@ export function ConnectedGeneralChannelView({
         void liveStore.feedbackGestorPlan(planId, t('gestorPlan.adjustFeedbackBody', { comment }))
       }}
       quotaBlocked={composerHints.quotaBlocked}
+      quotaKnown={composerHints.quotaKnown === true}
       {...(composerHints.quotaResumeLabel === undefined
         ? {}
         : { quotaResumeLabel: composerHints.quotaResumeLabel })}
       responderAutonomy={composerHints.responderAutonomy}
       onResumeQuota={() => { void liveStore.refresh() }}
       {...(onOpenConnections === undefined ? {} : { onSwapAccount: onOpenConnections })}
+      {...(onOpenUsage === undefined ? {} : { onSeeUsage: onOpenUsage })}
       {...(onOpenHelp === undefined ? {} : { onOpenHelp })}
       {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
       {...(onOpenApprovals === undefined ? {} : { onOpenNotifications: onOpenApprovals, notificationsCount: openBlockingCount(live.decisions) })}

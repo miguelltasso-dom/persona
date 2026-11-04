@@ -220,9 +220,14 @@
   margin: 0 calc(-1 * var(--persona-space-1));
   padding: var(--persona-space-1) var(--persona-space-1) var(--persona-space-6);
   scrollbar-color: color-mix(in srgb, var(--persona-rail-ink) 30%, transparent) transparent;
-  /* Ends above the foliage with a fade so the list reads as "there is more". */
-  mask-image: linear-gradient(to bottom, black calc(100% - 44px), transparent);
-  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 44px), transparent);
+}
+
+/* The list ends above the foliage with a fade that says "there is more" — only while there IS more below (data-more, measured in
+   PersonaSidebar). A list that fits, or one already scrolled to its end, has no fade: no item is ever dimmed with nothing below
+   it (Muse, axe color-contrast on the last rail item). 24 px, not 44. */
+.navScroll[data-more='true'] {
+  mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
 }
 
 .group + .group {
@@ -671,9 +676,21 @@
 .sidebar[data-short] .settingsFoot {
   flex: 0 0 auto;
   min-height: 0;
-  padding: 5px var(--persona-space-2);
+  padding: 0;
+}
+
+/* Muse (P0-22): a engrenagem tem a MESMA altura da pílula (30 px = 5 + 18 + 5 + 2 de borda), só o ícone; o rótulo está no Tooltip do
+   slot. O slot do DSW traz uma caixa de 36 px com 8/10 px de margem (era um quadrado alto, mais que o dobro da pílula): aqui ela
+   some. O botão ocupa a pílula inteira (alvo de toque de 28 px, não só o ícone). */
+.sidebar[data-short] .settingsFoot > :global(div) {
+  width: auto;
+  margin: 0;
 }
 
 .sidebar[data-short] .settingsFoot :global(button) {
+  width: auto;
+  min-width: 0;
+  height: 28px;
   min-height: 0;
+  padding: 0 var(--persona-space-2);
 }

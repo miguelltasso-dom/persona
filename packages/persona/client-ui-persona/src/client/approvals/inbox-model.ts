@@ -25,7 +25,10 @@ export interface InboxRow {
   readonly source: 'item' | 'proposal'
   readonly group: InboxGroupId
   readonly kind: ApprovalKind
+  /** The detail's heading ("Contratar uma persona para {função}?"). */
   readonly title: string
+  /** The list's shorter line: a hire names who ("Contratar Bolota") so two hires are never the same row. */
+  readonly listTitle: string
   readonly proposerName: string
   readonly proposerPersonaId?: string | undefined
   /** Gallery id of the proposer's animal, when the summary knows it. */
@@ -34,6 +37,8 @@ export interface InboxRow {
   readonly at?: string | undefined
   readonly state: DecisionState | undefined
   readonly risk: 'low' | 'normal'
+  /** A capture-only sample (dev seed): says "Exemplo" and is never decided against the host. */
+  readonly example?: boolean
   readonly item?: ApprovalItem
   readonly proposal?: ProactiveProposal
 }
@@ -52,17 +57,20 @@ export function isOpen(state: DecisionState | undefined): boolean {
 }
 
 function itemRow(dict: LocaleDict, item: ApprovalItem): InboxRow {
+  const title = approvalTitle(dict, item)
   return {
     id: item.id,
     source: 'item',
     group: item.kind === 'vault' ? 'vault' : 'now',
     kind: item.kind,
-    title: approvalTitle(dict, item),
+    title,
+    listTitle: item.kind === 'hire' ? bindLocale(dict, 'inbox.row.hire', { name: item.title }) : title,
     proposerName: item.proposerName?.trim() ?? '',
     proposerPersonaId: item.proposerPersonaId,
     at: item.createdAt,
     state: item.decisionState,
     risk: item.risk ?? 'normal',
+    ...(item.example === true ? { example: true } : {}),
     item,
   }
 }
@@ -74,6 +82,7 @@ function proposalRow(summary: PersonaDailyProactiveSummary, proposal: ProactiveP
     group: proposal.approvalKind === 'vault' ? 'vault' : 'proposals',
     kind: proposal.approvalKind ?? 'attention',
     title: proposal.title,
+    listTitle: proposal.title,
     proposerName: summary.personaName,
     proposerPersonaId: summary.personaId,
     proposerCharacterId: summary.personaCharacterId,
@@ -113,6 +122,7 @@ export function flattenRows(groups: readonly InboxGroup[]): readonly InboxRow[] 
  */
 export function batchEligible(rows: readonly InboxRow[]): readonly InboxRow[] {
   return rows.filter(row => row.source === 'item'
+    && row.example !== true
     && row.risk === 'low'
     && (row.state === undefined || row.state === 'pending')
     && (row.item?.dependsOnTitle?.trim() ?? '') === '')

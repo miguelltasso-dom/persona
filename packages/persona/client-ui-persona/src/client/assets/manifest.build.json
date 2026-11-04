@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-04T19:18:15.099Z",
+    "generatedAt": "2026-11-04T21:27:50.730Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 577,
-    "totalBytes": 8735355,
+    "files": 633,
+    "totalBytes": 10258425,
     "withinBudget": true
   },
   "files": [
@@ -579,6 +579,30 @@
     {
       "rel": "illustrations/rascunho-trabalhando.webp",
       "bytes": 32940
+    },
+    {
+      "rel": "illustrations/empty-limite.webp",
+      "bytes": 33936
+    },
+    {
+      "rel": "illustrations/empty-equipe-remota.webp",
+      "bytes": 47900
+    },
+    {
+      "rel": "illustrations/acesso-encerrado.webp",
+      "bytes": 30146
+    },
+    {
+      "rel": "illustrations/sucesso-aplicado.webp",
+      "bytes": 37478
+    },
+    {
+      "rel": "illustrations/empty-aprovacoes.webp",
+      "bytes": 44538
+    },
+    {
+      "rel": "illustrations/spot-limite.webp",
+      "bytes": 7204
     },
     {
       "rel": "illustrations/spot-sem-ia.webp",
@@ -1493,8 +1517,20 @@
       "bytes": 29096
     },
     {
+      "rel": "poses/atlas-comemorando.webp",
+      "bytes": 32006
+    },
+    {
+      "rel": "poses/atlas-confuso.webp",
+      "bytes": 29964
+    },
+    {
       "rel": "poses/atlas-descansando.webp",
       "bytes": 57278
+    },
+    {
+      "rel": "poses/atlas-digitando.webp",
+      "bytes": 31584
     },
     {
       "rel": "poses/atlas-disponivel-blink.webp",
@@ -1511,6 +1547,10 @@
     {
       "rel": "poses/atlas-erro.webp",
       "bytes": 36284
+    },
+    {
+      "rel": "poses/atlas-lendo.webp",
+      "bytes": 30796
     },
     {
       "rel": "poses/atlas-offline.webp",
@@ -1549,8 +1589,20 @@
       "bytes": 29004
     },
     {
+      "rel": "poses/bento-comemorando.webp",
+      "bytes": 40058
+    },
+    {
+      "rel": "poses/bento-confuso.webp",
+      "bytes": 37568
+    },
+    {
       "rel": "poses/bento-descansando.webp",
       "bytes": 63342
+    },
+    {
+      "rel": "poses/bento-digitando.webp",
+      "bytes": 37874
     },
     {
       "rel": "poses/bento-disponivel-blink.webp",
@@ -1567,6 +1619,10 @@
     {
       "rel": "poses/bento-erro.webp",
       "bytes": 40314
+    },
+    {
+      "rel": "poses/bento-lendo.webp",
+      "bytes": 36562
     },
     {
       "rel": "poses/bento-offline.webp",
@@ -1649,6 +1705,10 @@
       "bytes": 31882
     },
     {
+      "rel": "poses/cervo-acenando.webp",
+      "bytes": 23676
+    },
+    {
       "rel": "poses/cervo-aguardando-aprovacao.webp",
       "bytes": 32674
     },
@@ -1659,6 +1719,14 @@
     {
       "rel": "poses/cervo-descansando.webp",
       "bytes": 66804
+    },
+    {
+      "rel": "poses/cervo-disponivel-blink.webp",
+      "bytes": 21972
+    },
+    {
+      "rel": "poses/cervo-disponivel-tail.webp",
+      "bytes": 22210
     },
     {
       "rel": "poses/cervo-disponivel.webp",
@@ -1673,12 +1741,28 @@
       "bytes": 27858
     },
     {
+      "rel": "poses/cervo-pensando-1.webp",
+      "bytes": 21966
+    },
+    {
+      "rel": "poses/cervo-pensando-2.webp",
+      "bytes": 21940
+    },
+    {
+      "rel": "poses/cervo-pensando-3.webp",
+      "bytes": 21684
+    },
+    {
       "rel": "poses/cervo-revisando.webp",
       "bytes": 33326
     },
     {
       "rel": "poses/cervo-trabalhando.webp",
       "bytes": 36962
+    },
+    {
+      "rel": "poses/coelho-acenando.webp",
+      "bytes": 20550
     },
     {
       "rel": "poses/coelho-aguardando-aprovacao.webp",
@@ -1693,6 +1777,14 @@
       "bytes": 50780
     },
     {
+      "rel": "poses/coelho-disponivel-blink.webp",
+      "bytes": 20990
+    },
+    {
+      "rel": "poses/coelho-disponivel-tail.webp",
+      "bytes": 21362
+    },
+    {
       "rel": "poses/coelho-disponivel.webp",
       "bytes": 31540
     },
@@ -1703,6 +1795,18 @@
     {
       "rel": "poses/coelho-offline.webp",
       "bytes": 21946
+    },
+    {
+      "rel": "poses/coelho-pensando-1.webp",
+      "bytes": 18900
+    },
+    {
+      "rel": "poses/coelho-pensando-2.webp",
+      "bytes": 18674
+    },
+    {
+      "rel": "poses/coelho-pensando-3.webp",
+      "bytes": 18498
     },
     {
       "rel": "poses/coelho-revisando.webp",
@@ -1825,6 +1929,10 @@
       "bytes": 31696
     },
     {
+      "rel": "poses/lobo-guara-acenando.webp",
+      "bytes": 20034
+    },
+    {
       "rel": "poses/lobo-guara-aguardando-aprovacao.webp",
       "bytes": 27900
     },
@@ -1835,6 +1943,14 @@
     {
       "rel": "poses/lobo-guara-descansando.webp",
       "bytes": 63938
+    },
+    {
+      "rel": "poses/lobo-guara-disponivel-blink.webp",
+      "bytes": 19830
+    },
+    {
+      "rel": "poses/lobo-guara-disponivel-tail.webp",
+      "bytes": 20330
     },
     {
       "rel": "poses/lobo-guara-disponivel.webp",
@@ -1849,12 +1965,28 @@
       "bytes": 24422
     },
     {
+      "rel": "poses/lobo-guara-pensando-1.webp",
+      "bytes": 17538
+    },
+    {
+      "rel": "poses/lobo-guara-pensando-2.webp",
+      "bytes": 17496
+    },
+    {
+      "rel": "poses/lobo-guara-pensando-3.webp",
+      "bytes": 17394
+    },
+    {
       "rel": "poses/lobo-guara-revisando.webp",
       "bytes": 27888
     },
     {
       "rel": "poses/lobo-guara-trabalhando.webp",
       "bytes": 31380
+    },
+    {
+      "rel": "poses/lontra-acenando.webp",
+      "bytes": 20386
     },
     {
       "rel": "poses/lontra-aguardando-aprovacao.webp",
@@ -1869,8 +2001,16 @@
       "bytes": 63270
     },
     {
+      "rel": "poses/lontra-disponivel-blink.webp",
+      "bytes": 19750
+    },
+    {
+      "rel": "poses/lontra-disponivel-tail.webp",
+      "bytes": 20248
+    },
+    {
       "rel": "poses/lontra-disponivel.webp",
-      "bytes": 30484
+      "bytes": 30462
     },
     {
       "rel": "poses/lontra-erro.webp",
@@ -1879,6 +2019,18 @@
     {
       "rel": "poses/lontra-offline.webp",
       "bytes": 21356
+    },
+    {
+      "rel": "poses/lontra-pensando-1.webp",
+      "bytes": 17992
+    },
+    {
+      "rel": "poses/lontra-pensando-2.webp",
+      "bytes": 17938
+    },
+    {
+      "rel": "poses/lontra-pensando-3.webp",
+      "bytes": 17794
     },
     {
       "rel": "poses/lontra-revisando.webp",
@@ -1901,8 +2053,20 @@
       "bytes": 28796
     },
     {
+      "rel": "poses/luna-comemorando.webp",
+      "bytes": 34560
+    },
+    {
+      "rel": "poses/luna-confuso.webp",
+      "bytes": 32818
+    },
+    {
       "rel": "poses/luna-descansando.webp",
       "bytes": 51010
+    },
+    {
+      "rel": "poses/luna-digitando.webp",
+      "bytes": 33410
     },
     {
       "rel": "poses/luna-disponivel-blink.webp",
@@ -1919,6 +2083,10 @@
     {
       "rel": "poses/luna-erro.webp",
       "bytes": 39696
+    },
+    {
+      "rel": "poses/luna-lendo.webp",
+      "bytes": 30508
     },
     {
       "rel": "poses/luna-offline.webp",
@@ -1961,8 +2129,20 @@
       "bytes": 35236
     },
     {
+      "rel": "poses/nina-comemorando.webp",
+      "bytes": 41934
+    },
+    {
+      "rel": "poses/nina-confuso.webp",
+      "bytes": 40706
+    },
+    {
       "rel": "poses/nina-descansando.webp",
       "bytes": 64108
+    },
+    {
+      "rel": "poses/nina-digitando.webp",
+      "bytes": 37880
     },
     {
       "rel": "poses/nina-disponivel-blink.webp",
@@ -1979,6 +2159,10 @@
     {
       "rel": "poses/nina-erro.webp",
       "bytes": 47030
+    },
+    {
+      "rel": "poses/nina-lendo.webp",
+      "bytes": 34182
     },
     {
       "rel": "poses/nina-offline.webp",
@@ -2005,6 +2189,10 @@
       "bytes": 37648
     },
     {
+      "rel": "poses/ourico-acenando.webp",
+      "bytes": 22858
+    },
+    {
       "rel": "poses/ourico-aguardando-aprovacao.webp",
       "bytes": 32552
     },
@@ -2017,6 +2205,14 @@
       "bytes": 55604
     },
     {
+      "rel": "poses/ourico-disponivel-blink.webp",
+      "bytes": 22106
+    },
+    {
+      "rel": "poses/ourico-disponivel-tail.webp",
+      "bytes": 22570
+    },
+    {
       "rel": "poses/ourico-disponivel.webp",
       "bytes": 33992
     },
@@ -2027,6 +2223,18 @@
     {
       "rel": "poses/ourico-offline.webp",
       "bytes": 30694
+    },
+    {
+      "rel": "poses/ourico-pensando-1.webp",
+      "bytes": 22176
+    },
+    {
+      "rel": "poses/ourico-pensando-2.webp",
+      "bytes": 22082
+    },
+    {
+      "rel": "poses/ourico-pensando-3.webp",
+      "bytes": 21872
     },
     {
       "rel": "poses/ourico-revisando.webp",
@@ -2161,8 +2369,20 @@
       "bytes": 30440
     },
     {
+      "rel": "poses/sol-comemorando.webp",
+      "bytes": 38770
+    },
+    {
+      "rel": "poses/sol-confuso.webp",
+      "bytes": 35588
+    },
+    {
       "rel": "poses/sol-descansando.webp",
       "bytes": 57444
+    },
+    {
+      "rel": "poses/sol-digitando.webp",
+      "bytes": 37070
     },
     {
       "rel": "poses/sol-disponivel-blink.webp",
@@ -2179,6 +2399,10 @@
     {
       "rel": "poses/sol-erro.webp",
       "bytes": 35722
+    },
+    {
+      "rel": "poses/sol-lendo.webp",
+      "bytes": 35236
     },
     {
       "rel": "poses/sol-offline.webp",

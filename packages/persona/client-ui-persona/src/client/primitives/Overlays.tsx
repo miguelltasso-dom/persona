@@ -1,6 +1,6 @@
 /** Modal, Toast and Tooltip (DESIGN-SYSTEM §5). */
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import { IconButton } from './Button.tsx'
 import { UiIcon, type UiIconName } from './icons.tsx'
 import styles from './Overlays.module.css'
@@ -27,6 +27,27 @@ export function Modal({ open, title, eyebrow, description, footer, closeLabel, o
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const scrimRef = useRef<HTMLDivElement>(null)
+
+  // Muse (achado do Quill): while open, everything outside the dialog is inert (not focusable, not in the
+  // accessibility tree), as a modal must be. Live regions stay out of it so toasts and announcements are still read.
+  useEffect(() => {
+    if (!open) return undefined
+    const marked: Element[] = []
+    let node: Element | null = scrimRef.current
+    while (node !== null && node !== document.body) {
+      const parent: HTMLElement | null = node.parentElement
+      if (parent === null) break
+      for (const sibling of Array.from(parent.children)) {
+        if (sibling === node || sibling.hasAttribute('inert')) continue
+        if (sibling.matches('[aria-live], [role="status"], [role="alert"], script, style')) continue
+        sibling.setAttribute('inert', '')
+        marked.push(sibling)
+      }
+      node = parent
+    }
+    return () => { for (const element of marked) element.removeAttribute('inert') }
+  }, [open])
   // Muse: the body scrolls on its own (fixed header/footer); when it does and holds no control, keyboard users need to
   // reach it (axe scrollable-region-focusable), so it becomes a focusable region only while it overflows.
   const [bodyScrolls, setBodyScrolls] = useState(false)
@@ -82,7 +103,7 @@ export function Modal({ open, title, eyebrow, description, footer, closeLabel, o
   }
 
   return (
-    <div className={styles.scrim} data-persona-root="" role="presentation" onKeyDown={onKeyDown}>
+    <div ref={scrimRef} className={styles.scrim} data-persona-root="" role="presentation" onKeyDown={onKeyDown}>
       <div
         ref={panelRef}
         className={size === 'l' ? `${styles.modal} ${styles.modalL}` : styles.modal}
@@ -170,14 +191,26 @@ export interface TooltipProps {
    * e.g. `['Ctrl', 'K']`. Every control that has a shortcut passes it, so shortcuts are learned where they are used.
    */
   readonly shortcut?: readonly string[] | undefined
+  /**
+   * Muse (A-5): quando outra coisa já diz o mesmo (ex.: o popover aberto do próprio controle), o tooltip não existe. Mesma ideia
+   * do `disabled` do Tooltip do DSW; a árvore não muda (o botão não é remontado, o foco fica).
+   */
+  readonly disabled?: boolean | undefined
 }
 
-/** Hover/focus tooltip (400 ms delay; Esc dismisses, WCAG 1.4.13). Never put actions inside. */
-export function Tooltip({ content, children, side = 'top', shortcut }: TooltipProps): ReactNode {
+/** Folga mínima entre o tooltip e a borda da janela. */
+const TOOLTIP_EDGE_MARGIN = 8
+
+/** Hover/focus tooltip (400 ms delay; Esc dismisses, WCAG 1.4.13). Never put actions inside. Nunca passa da borda da janela. */
+export function Tooltip({ content, children, side = 'top', shortcut, disabled = false }: TooltipProps): ReactNode {
   const id = useId()
   const [open, setOpen] = useState(false)
+  const [shift, setShift] = useState(0)
+  const bubbleRef = useRef<HTMLSpanElement>(null)
+  const shiftRef = useRef(0)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const show = (): void => {
+    if (disabled) return
     if (timer.current !== null) clearTimeout(timer.current)
     timer.current = setTimeout(() => { setOpen(true) }, 400)
   }
@@ -186,6 +219,34 @@ export function Tooltip({ content, children, side = 'top', shortcut }: TooltipPr
     setOpen(false)
   }
   useEffect(() => () => { if (timer.current !== null) clearTimeout(timer.current) }, [])
+  useEffect(() => {
+    if (disabled) {
+      if (timer.current !== null) clearTimeout(timer.current)
+      setOpen(false)
+    }
+  }, [disabled])
+  // Clamp horizontal (Muse, A-5): o tooltip centrado numa âncora encostada na borda da janela saía cortado. Mede depois de
+  // aberto e desloca só o necessário (não há seta, então nada mais se mexe).
+  useLayoutEffect(() => {
+    if (!open) {
+      shiftRef.current = 0
+      setShift(0)
+      return
+    }
+    const bubble = bubbleRef.current
+    if (bubble === null) return
+    const rect = bubble.getBoundingClientRect()
+    const naturalLeft = rect.left - shiftRef.current
+    const naturalRight = rect.right - shiftRef.current
+    const viewportWidth = document.documentElement.clientWidth
+    let next = 0
+    if (naturalRight > viewportWidth - TOOLTIP_EDGE_MARGIN) next = viewportWidth - TOOLTIP_EDGE_MARGIN - naturalRight
+    if (naturalLeft + next < TOOLTIP_EDGE_MARGIN) next = TOOLTIP_EDGE_MARGIN - naturalLeft
+    if (next !== shiftRef.current) {
+      shiftRef.current = next
+      setShift(next)
+    }
+  }, [open, content])
   return (
     <span
       className={styles.tooltipAnchor}
@@ -198,7 +259,14 @@ export function Tooltip({ content, children, side = 'top', shortcut }: TooltipPr
     >
       {children}
       {open && (
-        <span id={id} role="tooltip" className={styles.tooltip} data-side={side}>
+        <span
+          ref={bubbleRef}
+          id={id}
+          role="tooltip"
+          className={styles.tooltip}
+          data-side={side}
+          style={shift === 0 ? undefined : ({ '--tooltip-shift': `${String(shift)}px` } as CSSProperties)}
+        >
           {content}
           {shortcut !== undefined && shortcut.length > 0 && (
             <span className={styles.tooltipKeys}>

@@ -653,3 +653,34 @@
   height: calc(104px * var(--species, 0.9));
   max-width: 92px;
 }
+
+/* A-6: o pedido da 1ª entrega é um campo editável; as ideias do negócio (host) são atalhos para preenchê-lo. */
+.taskPreviewHint {
+  margin: var(--persona-space-2) 0 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+}
+
+.requestChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-3);
+}
+
+.requestChip {
+  min-height: 36px;
+  max-width: 100%;
+  padding: 6px 14px;
+  border: var(--persona-border-width) solid var(--persona-outline-control);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  font: 600 14px/20px var(--persona-font-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.requestChip:hover {
+  background: var(--persona-wash);
+}

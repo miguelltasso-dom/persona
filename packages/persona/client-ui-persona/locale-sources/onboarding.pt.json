@@ -143,5 +143,8 @@
   "step4.builderToggle": "Prefere descrever com suas palavras?",
   "step3.checking": "Verificando…",
   "step3.checkingNotice": "Estou conferindo as ferramentas de IA deste computador. Leva alguns segundos.",
-  "step5.introLine": "{role}. Pode contar comigo."
+  "step5.introLine": "{role}. Pode contar comigo.",
+  "step5.taskEditHint": "Você pode mudar o texto: a equipe recebe exatamente o que está aqui.",
+  "step5.suggestionsLabel": "Ideias para o seu negócio",
+  "step5.requestEmpty": "Escreva o que você quer pedir para continuar."
 }

@@ -76,6 +76,7 @@ import {
 import { deriveDecisions, type HostApprovalCard } from '../decisions/derive-decisions.ts'
 import { openBlockingTitles } from '../decisions/decision-selectors.ts'
 import { withRequesterAvatars } from '../decisions/requester-avatars.ts'
+import { withoutUnavailableUndo } from '../decisions/undo-availability.ts'
 
 export type { Decision, DecisionState } from '../decisions/decision-types.ts'
 
@@ -91,6 +92,13 @@ function settleOptionalRemote<T>(work: () => Promise<T>, fallback: T, ms = OPTIO
     pending,
     new Promise<T>((resolve) => { setTimeout(() => resolve(fallback), ms) }),
   ])
+}
+
+/** O pedido do passo 5 como o host aceita: sem espaços nas pontas, no máximo 500 caracteres; vazio = não manda. */
+export const FIRST_REQUEST_MAX = 500
+export function firstRequestForHost(text: string | undefined): string | undefined {
+  const trimmed = (text ?? '').trim()
+  return trimmed === '' ? undefined : trimmed.slice(0, FIRST_REQUEST_MAX)
 }
 
 /** Host list/follow: "Geral" includes messages without `topic_id`. */
@@ -206,7 +214,7 @@ export interface PersonaLiveStore {
   completeOnboarding(
     displayName: string,
     roster: readonly OnboardingRosterPerson[],
-    options?: { readonly cofreSeed?: string; readonly templateIds?: readonly string[] },
+    options?: { readonly cofreSeed?: string; readonly templateIds?: readonly string[]; readonly firstRequest?: string },
   ): Promise<void>
   searchMessages(query: string, topicId?: string): Promise<readonly { readonly id: string; readonly meta: string; readonly text: string }[]>
   setPersonaAutonomyLevel(personaId: string, level: AutonomyLevel): Promise<void>
@@ -252,7 +260,7 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
   getOverviewNow(request: PersonaTenantScope): { personas: readonly import('./persona-remote-types.ts').PersonaNowView[] }
   getWhileAway(request: PersonaTenantScope): { events: readonly import('./persona-remote-types.ts').AwayEventView[] }
   getOverview(request: PersonaTenantScope): HostOverviewView
-  listTeam(request: PersonaTenantScope): TeamView
+  listTeam(request: { readonly workspaceId: string; readonly projectId: string }): TeamView
   listProjects(request: PersonaTenantScope): readonly { id: string; name: string; kind: string }[]
   listTasks(request: PersonaTenantScope): readonly import('./persona-remote-types.ts').TaskView[]
   listApprovals?(request: PersonaTenantScope): readonly HostApprovalCard[]
@@ -596,7 +604,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         Promise.resolve(remote.getOverviewNow(scope)),
         Promise.resolve(remote.getWhileAway(scope)),
         Promise.resolve(remote.getOverview(scope)),
-        Promise.resolve(remote.listTeam(scope)),
+        Promise.resolve(remote.listTeam({ workspaceId: scope.workspaceId, projectId: scope.projectId })),
         Promise.resolve(remote.listProjects(scope)),
         Promise.resolve(remote.listTasks(scope)),
         Promise.resolve(remote.listMessages({
@@ -662,15 +670,18 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         if (settledAt >= refreshStartedAt) staleIds.add(id)
         else settledDecisions.delete(id)
       }
-      const decisions = withRequesterAvatars(
-        deriveDecisions({
-          needsYou: overview.needsYou,
-          approvals: rawApprovals,
-          dailySummaries: rawSummaries,
-          statesById: decisionStates,
-          settledIds: staleIds,
-        }),
-        team.personas,
+      const decisions = withoutUnavailableUndo(
+        withRequesterAvatars(
+          deriveDecisions({
+            needsYou: overview.needsYou,
+            approvals: rawApprovals,
+            dailySummaries: rawSummaries,
+            statesById: decisionStates,
+            settledIds: staleIds,
+          }),
+          team.personas,
+        ),
+        remote.undoApproval !== undefined,
       )
       // One list, one count: what blocks the team is derived from the same Decision[] every screen reads.
       const attentionTitles = openBlockingTitles(decisions)
@@ -1195,7 +1206,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   const completeOnboarding = async (
     displayName: string,
     roster: readonly OnboardingRosterPerson[],
-    options?: { readonly cofreSeed?: string; readonly templateIds?: readonly string[] },
+    options?: { readonly cofreSeed?: string; readonly templateIds?: readonly string[]; readonly firstRequest?: string },
   ): Promise<void> => {
     if (tenant === null) return
     writeOnboardingCacheComplete()
@@ -1215,6 +1226,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           const pid = (onboardingRaw as { personalProjectId: string }).personalProjectId
           if (pid.length > 0) personalProjectId = pid
         }
+        const firstRequest = firstRequestForHost(options?.firstRequest)
         const request: CompleteOnboardingRequest = {
           workspaceId: tenant.workspaceId,
           personalProjectId,
@@ -1223,6 +1235,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           templateIds: options?.templateIds === undefined ? [] : [...options.templateIds],
           runnerChoices: ['dsh'],
           cofreSeed: options?.cofreSeed ?? '',
+          // A-6: o texto do passo 5 é o pedido de verdade (o host usa o MESMO texto no #geral e na tarefa). Vazio = padrão do host.
+          ...(firstRequest === undefined ? {} : { firstRequest }),
         }
         await Promise.resolve(remote.completeOnboarding(request))
         await refresh()

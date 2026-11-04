@@ -33,11 +33,24 @@ export function mandateViewToGestorLimits(view: GestorMandateView): GestorLimits
       : 'ask'
   return {
     approval,
-    maxPersonas: view.maxPersonas,
+    maxPersonas: sanitizeMaxPersonas(view.maxPersonas),
     budget: TOKENS_TO_BUDGET(view.budgetTokens),
     areas,
     canGrantGestor: view.canGrantGestor,
   }
+}
+
+/** Os limites da tela (`GestorSettings`): de 1 a 30 pessoas, sempre inteiro. */
+export const MAX_PERSONAS_MIN = 1
+export const MAX_PERSONAS_MAX = 30
+
+/**
+ * O host recusa NaN/Infinity/negativo/fracionário em `setGestorLimits` (a tela só "não salvava"). Vira inteiro dentro
+ * dos limites da tela; o que não é número usa o padrão.
+ */
+export function sanitizeMaxPersonas(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_GESTOR_LIMITS_UI.maxPersonas
+  return Math.min(MAX_PERSONAS_MAX, Math.max(MAX_PERSONAS_MIN, Math.trunc(value)))
 }
 
 export function gestorLimitsToSetRequest(
@@ -60,7 +73,7 @@ export function gestorLimitsToSetRequest(
     personaId,
     workspaceId,
     approval,
-    maxPersonas: value.maxPersonas,
+    maxPersonas: sanitizeMaxPersonas(value.maxPersonas),
     budgetTokens: BUDGET_TO_TOKENS[value.budget] ?? BUDGET_TO_TOKENS['normal']!,
     allowedTools: [],
     allowedEngines: [],

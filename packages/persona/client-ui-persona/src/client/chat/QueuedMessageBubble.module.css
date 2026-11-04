@@ -59,3 +59,22 @@
   align-items: center;
   gap: var(--persona-space-2);
 }
+
+/* P0-19: anexos da mensagem na fila e o aviso quando eles não sobreviveram ao recarregar (nunca sumir calado). */
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin: var(--persona-space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lostAttachment {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: var(--persona-space-1) 0 0;
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-danger);
+}

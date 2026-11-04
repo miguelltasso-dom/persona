@@ -246,5 +246,7 @@
   "teach.review.whatIsSkill": "Uma skill é o que {name} sabe fazer, passo a passo.",
   "teach.needsDesktopShort": "Só funciona no app instalado.",
   "teach.sourcePickHint": "Escolha uma tela ou janela para continuar.",
-  "teach.share.confirmHint": "Marque que entendeu para continuar."
+  "teach.share.confirmHint": "Marque que entendeu para continuar.",
+  "card.now.draft": "{name} está mudando {count} arquivos num rascunho. Nada muda na sua pasta até você aplicar.",
+  "card.now.draft.one": "{name} está mudando 1 arquivo num rascunho. Nada muda na sua pasta até você aplicar."
 }

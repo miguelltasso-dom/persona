@@ -110,6 +110,7 @@ export function TeamChannelStrip({ t, members, onBuildTeam, loading = false, per
       <ul className={styles.cast}>
         {members.map((member, index) => {
           const status = t(WORK_STATUS_KEY[member.state])
+          const inDraft = member.state === 'working' && (member.draftFiles ?? 0) >= 1
           return (
             <li
               key={member.id}
@@ -136,10 +137,19 @@ export function TeamChannelStrip({ t, members, onBuildTeam, loading = false, per
                   {member.systemRoles?.includes('team_manager') === true && <UiIcon name="baton" size={13} strokeWidth={2.4} className={styles.gestorIcon} />}
                   {member.name}
                 </span>
-                <span className={styles.tagStatus}>
-                  <span className={styles.statusDot} data-state={member.state} aria-hidden="true" />
-                  {status}
-                </span>
+                {inDraft ? (
+                  // SW-7: "Trabalhando num rascunho" — o ponto brand + o texto (nunca só cor); o leitor de tela ouve a frase inteira.
+                  <span className={styles.tagStatus} data-draft="">
+                    <span className={styles.statusDot} data-state="draft" aria-hidden="true" />
+                    <span aria-hidden="true">{t('team.statusDraft')}</span>
+                    <span className="persona-sr-only">{t('team.statusDraftSr')}</span>
+                  </span>
+                ) : (
+                  <span className={styles.tagStatus}>
+                    <span className={styles.statusDot} data-state={member.state} aria-hidden="true" />
+                    {status}
+                  </span>
+                )}
                 <span className="persona-sr-only">{`, ${member.role}`}</span>
               </span>
             </li>

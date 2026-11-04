@@ -1,0 +1,65 @@
+/* "No limite até {hora}" (ACCOUNT-SWAP-SPEC §3): a mesma forma da faixa "Falta uma IA", com o spot-limite a 48 px. Só tokens que existem. */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  margin: 0 0 var(--persona-space-2);
+  padding: var(--persona-space-2) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-warning-tint);
+  color: var(--persona-ink);
+}
+
+.spot {
+  display: block;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font: 700 14px/20px var(--persona-font-text);
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--persona-space-2);
+}
+
+.link {
+  margin: 0;
+  padding: var(--persona-space-1) 0;
+  border: none;
+  background: none;
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link:focus-visible {
+  outline: none;
+  border-radius: var(--persona-radius-s);
+  box-shadow: 0 0 0 3px var(--persona-focus-halo);
+}
+
+@media (max-width: 640px) {
+  .banner {
+    flex-wrap: wrap;
+  }
+
+  .actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+}

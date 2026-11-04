@@ -10,7 +10,7 @@ import { useId, useState, type ReactNode } from 'react'
 import { Avatar } from './Avatar.tsx'
 import { Button } from './Button.tsx'
 import { Chip } from './Chip.tsx'
-import { UiIcon } from './icons.tsx'
+import { BrandIcon, UiIcon } from './icons.tsx'
 import styles from './Brain.module.css'
 
 /* ───────────── Permissions ───────────── */
@@ -142,6 +142,8 @@ export interface ChangeItem {
   /** "Atlas" | "Você" */
   readonly who: string
   readonly whoAvatar?: string | undefined
+  /** A system actor with no face (the librarian with no persona in the role): book icon instead of initials. */
+  readonly whoSystem?: boolean | undefined
   /** "atualizou", "criou", "ligou" */
   readonly verb: string
   readonly pageTitle: string
@@ -158,7 +160,7 @@ export function ChangeFeed({ items, label, empty }: { readonly items: readonly C
     <ol className={styles.feed} aria-label={label}>
       {items.map(item => (
         <li key={item.id} className={styles.feedItem}>
-          <Avatar name={item.who} src={item.whoAvatar} size={32} shape={item.whoAvatar === undefined ? 'person' : 'portrait'} decorative />
+          <Avatar name={item.who} src={item.whoAvatar} size={32} shape={item.whoAvatar === undefined ? 'person' : 'portrait'} decorative {...(item.whoSystem === true && item.whoAvatar === undefined ? { icon: <BrandIcon name="conhecimento-memoria" size={18} /> } : {})} />
           <div className={styles.feedBody}>
             <div className={styles.feedText}>
               <p>

@@ -150,6 +150,9 @@ export const pt = {
   'step3.checking': 'Verificando…',
   'step3.checkingNotice': 'Estou conferindo as ferramentas de IA deste computador. Leva alguns segundos.',
   'step5.introLine': '{role}. Pode contar comigo.',
+  'step5.taskEditHint': 'Você pode mudar o texto: a equipe recebe exatamente o que está aqui.',
+  'step5.suggestionsLabel': 'Ideias para o seu negócio',
+  'step5.requestEmpty': 'Escreva o que você quer pedir para continuar.',
 } as const
 
 /** English copy. */
@@ -299,6 +302,9 @@ export const en = {
   'step3.checking': 'Checking…',
   'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
   'step5.introLine': '{role}. You can count on me.',
+  'step5.taskEditHint': 'You can change the text: the team receives exactly what is here.',
+  'step5.suggestionsLabel': 'Ideas for your business',
+  'step5.requestEmpty': 'Write what you want to ask for to continue.',
 } as const
 
 export const zh = {
@@ -447,6 +453,9 @@ export const zh = {
   'step3.checking': 'Checking…',
   'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
   'step5.introLine': '{role}. You can count on me.',
+  'step5.taskEditHint': 'You can change the text: the team receives exactly what is here.',
+  'step5.suggestionsLabel': 'Ideas for your business',
+  'step5.requestEmpty': 'Write what you want to ask for to continue.',
 } as const
 export const ja = {
   'brand.name': 'Persona',
@@ -594,6 +603,9 @@ export const ja = {
   'step3.checking': 'Checking…',
   'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
   'step5.introLine': '{role}. You can count on me.',
+  'step5.taskEditHint': 'You can change the text: the team receives exactly what is here.',
+  'step5.suggestionsLabel': 'Ideas for your business',
+  'step5.requestEmpty': 'Write what you want to ask for to continue.',
 } as const
 export const es = {
   'brand.name': 'Persona',
@@ -741,6 +753,9 @@ export const es = {
   'step3.checking': 'Checking…',
   'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
   'step5.introLine': '{role}. You can count on me.',
+  'step5.taskEditHint': 'You can change the text: the team receives exactly what is here.',
+  'step5.suggestionsLabel': 'Ideas for your business',
+  'step5.requestEmpty': 'Write what you want to ask for to continue.',
 } as const
 export const fr = {
   'brand.name': 'Persona',
@@ -888,6 +903,9 @@ export const fr = {
   'step3.checking': 'Checking…',
   'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
   'step5.introLine': '{role}. You can count on me.',
+  'step5.taskEditHint': 'You can change the text: the team receives exactly what is here.',
+  'step5.suggestionsLabel': 'Ideas for your business',
+  'step5.requestEmpty': 'Write what you want to ask for to continue.',
 } as const
 export const de = {
   'brand.name': 'Persona',
@@ -1035,6 +1053,9 @@ export const de = {
   'step3.checking': 'Checking…',
   'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
   'step5.introLine': '{role}. You can count on me.',
+  'step5.taskEditHint': 'You can change the text: the team receives exactly what is here.',
+  'step5.suggestionsLabel': 'Ideas for your business',
+  'step5.requestEmpty': 'Write what you want to ask for to continue.',
 } as const
 export const ru = {
   'brand.name': 'Persona',
@@ -1182,6 +1203,9 @@ export const ru = {
   'step3.checking': 'Checking…',
   'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
   'step5.introLine': '{role}. You can count on me.',
+  'step5.taskEditHint': 'You can change the text: the team receives exactly what is here.',
+  'step5.suggestionsLabel': 'Ideas for your business',
+  'step5.requestEmpty': 'Write what you want to ask for to continue.',
 } as const
 
 export type OnboardingKey = keyof typeof pt

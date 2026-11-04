@@ -190,6 +190,10 @@ export const pt = {
   'about.open': 'Abrir Sobre e atualizações',
   'about.unavailable': 'Não deu para abrir daqui agora. Use o atalho abaixo.',
   'about.shortcut': 'Atalho:',
+  'team.statusDraft': 'Num rascunho',
+  'team.statusDraftSr': 'Trabalhando num rascunho',
+  'overview.awayViewTask': 'Ver tarefa',
+  'overview.awayOpenTaskPlain': 'Abrir a tarefa',
 } as const
 
 /** English copy. */
@@ -379,6 +383,10 @@ export const en = {
   'about.open': 'Open About and updates',
   'about.unavailable': 'It cannot be opened from here right now. Use the shortcut below.',
   'about.shortcut': 'Shortcut:',
+  'team.statusDraft': 'In a draft',
+  'team.statusDraftSr': 'Working in a draft',
+  'overview.awayViewTask': 'View task',
+  'overview.awayOpenTaskPlain': 'Open the task',
 } as const
 
 export const zh = {
@@ -567,6 +575,10 @@ export const zh = {
   'about.open': 'Open About and updates',
   'about.unavailable': 'It cannot be opened from here right now. Use the shortcut below.',
   'about.shortcut': 'Shortcut:',
+  'team.statusDraft': 'In a draft',
+  'team.statusDraftSr': 'Working in a draft',
+  'overview.awayViewTask': 'View task',
+  'overview.awayOpenTaskPlain': 'Open the task',
 } as const
 export const ja = {
   'sidebar.team': 'Team',
@@ -754,6 +766,10 @@ export const ja = {
   'about.open': 'Open About and updates',
   'about.unavailable': 'It cannot be opened from here right now. Use the shortcut below.',
   'about.shortcut': 'Shortcut:',
+  'team.statusDraft': 'In a draft',
+  'team.statusDraftSr': 'Working in a draft',
+  'overview.awayViewTask': 'View task',
+  'overview.awayOpenTaskPlain': 'Open the task',
 } as const
 export const es = {
   'sidebar.team': 'Team',
@@ -941,6 +957,10 @@ export const es = {
   'about.open': 'Open About and updates',
   'about.unavailable': 'It cannot be opened from here right now. Use the shortcut below.',
   'about.shortcut': 'Shortcut:',
+  'team.statusDraft': 'In a draft',
+  'team.statusDraftSr': 'Working in a draft',
+  'overview.awayViewTask': 'View task',
+  'overview.awayOpenTaskPlain': 'Open the task',
 } as const
 export const fr = {
   'sidebar.team': 'Team',
@@ -1128,6 +1148,10 @@ export const fr = {
   'about.open': 'Open About and updates',
   'about.unavailable': 'It cannot be opened from here right now. Use the shortcut below.',
   'about.shortcut': 'Shortcut:',
+  'team.statusDraft': 'In a draft',
+  'team.statusDraftSr': 'Working in a draft',
+  'overview.awayViewTask': 'View task',
+  'overview.awayOpenTaskPlain': 'Open the task',
 } as const
 export const de = {
   'sidebar.team': 'Team',
@@ -1315,6 +1339,10 @@ export const de = {
   'about.open': 'Open About and updates',
   'about.unavailable': 'It cannot be opened from here right now. Use the shortcut below.',
   'about.shortcut': 'Shortcut:',
+  'team.statusDraft': 'In a draft',
+  'team.statusDraftSr': 'Working in a draft',
+  'overview.awayViewTask': 'View task',
+  'overview.awayOpenTaskPlain': 'Open the task',
 } as const
 export const ru = {
   'sidebar.team': 'Team',
@@ -1502,6 +1530,10 @@ export const ru = {
   'about.open': 'Open About and updates',
   'about.unavailable': 'It cannot be opened from here right now. Use the shortcut below.',
   'about.shortcut': 'Shortcut:',
+  'team.statusDraft': 'In a draft',
+  'team.statusDraftSr': 'Working in a draft',
+  'overview.awayViewTask': 'View task',
+  'overview.awayOpenTaskPlain': 'Open the task',
 } as const
 
 export type ShellKey = keyof typeof pt

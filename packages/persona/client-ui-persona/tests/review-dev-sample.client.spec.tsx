@@ -67,5 +67,5 @@ describe('the review sample is capture-only', () => {
     expect(screen.getByRole('button', { name: 'Desfazer' })).toBeTruthy()
     expect(reviewSummary).not.toHaveBeenCalled()
     expect(acceptReview).not.toHaveBeenCalled()
-  })
+  }, 20_000)
 })

@@ -102,7 +102,7 @@ type PersonaCreatorRemote = {
     createdBy: string
     systemRoles?: readonly ('coordination' | 'watchdog')[]
   }): unknown
-  listTeam(request: PersonaTenantScope): { personas: readonly { id: string; name: string }[] }
+  listTeam(request: { readonly workspaceId: string; readonly projectId: string }): { personas: readonly { id: string; name: string }[] }
 }
 
 export type DevHarnessSeedRemote = PersonaCreatorRemote & {
@@ -193,7 +193,7 @@ async function hasChannelMessage(remote: DevHarnessSeedRemote, tenant: PersonaTe
     ownerId: tenant.channelId,
     actorId: tenant.memberId,
     afterSeq: 0,
-    limit: 300,
+    limit: 200,
   }))
   return page.events.some(event => event.id === id)
 }
@@ -290,7 +290,7 @@ async function seedDevHarnessGestorPlanMessage(
       ownerId: tenant.channelId,
       actorId: tenant.memberId,
       afterSeq: 0,
-      limit: 300,
+      limit: 200,
     }))
     : null
   const at = messageClock !== undefined
@@ -338,7 +338,7 @@ export async function seedDevHarnessScenario(
 
   const scope = { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
   const onboarding = unwrap(await Promise.resolve(remote.getOnboarding(scope)))
-  let team = unwrap(await Promise.resolve(remote.listTeam(tenant)))
+  let team = unwrap(await Promise.resolve(remote.listTeam({ workspaceId: tenant.workspaceId, projectId: tenant.projectId })))
   if (team.personas.length === 0 && remote.completeOnboarding !== undefined) {
     const personalProjectId = onboarding.personalProjectId.length > 0
       ? onboarding.personalProjectId
@@ -357,11 +357,11 @@ export async function seedDevHarnessScenario(
     } catch (completeError) {
       console.info('[persona] dev seed completeOnboarding', { skipped: completeError instanceof Error ? completeError.message : String(completeError) })
     }
-    team = unwrap(await Promise.resolve(remote.listTeam(tenant)))
+    team = unwrap(await Promise.resolve(remote.listTeam({ workspaceId: tenant.workspaceId, projectId: tenant.projectId })))
   }
   if (team.personas.length === 0) {
     await seedDevTeamIfEmpty(remote, tenant)
-    team = unwrap(await Promise.resolve(remote.listTeam(tenant)))
+    team = unwrap(await Promise.resolve(remote.listTeam({ workspaceId: tenant.workspaceId, projectId: tenant.projectId })))
   }
 
   const atlasId = personaIdByName(team, 'Atlas')
@@ -375,7 +375,7 @@ export async function seedDevHarnessScenario(
     ownerId: channelId,
     actorId: tenant.memberId,
     afterSeq: 0,
-    limit: 300,
+    limit: 200,
   }))
   const messageClock = createDevHarnessMessageClock(channelPage.events)
 
@@ -462,6 +462,7 @@ export async function seedDevHarnessScenario(
  * `localStorage['persona.devSeed.decisions'] = '1'`.
  */
 const DEV_DECISIONS_KEY = 'persona.devSeed.decisions'
+const DEV_DECISIONS_RUN_KEY = 'persona.devSeed.decisionsRun'
 const DEV_HARNESS_SKILLS: readonly { readonly id: string; readonly title: string }[] = [
   { id: 'dev-harness-v1-skill-1', title: 'Resumo semanal das vendas' },
   { id: 'dev-harness-v1-skill-2', title: 'Lembrete de contratos a vencer' },
@@ -480,14 +481,23 @@ async function seedDevHarnessDecisions(
   } catch {
     return
   }
+  // A capture that DECIDES these cards (the inbox's out-of-order and batch proofs) shares one host with the next capture:
+  // `persona.devSeed.decisionsRun` gives that capture its own set of ids, so it starts from fresh cards.
+  let run = ''
+  try {
+    run = localStorage.getItem(DEV_DECISIONS_RUN_KEY) ?? ''
+  } catch {
+    run = ''
+  }
   for (const skill of DEV_HARNESS_SKILLS) {
-    if (approvals.some(row => row.id === skill.id)) continue
+    const id = `${skill.id}${run}`
+    if (approvals.some(row => row.id === id)) continue
     try {
       await Promise.resolve(remote.proposeSkill({
         workspaceId: tenant.workspaceId,
         projectId: tenant.projectId,
-        id: skill.id,
-        skillId: skill.id,
+        id,
+        skillId: id,
         title: skill.title,
         creatorPersonaId: atlasId,
       }))
@@ -529,7 +539,7 @@ async function seedDevHarnessBrainGrant(
  */
 export async function seedDevTeamIfEmpty(remote: PersonaCreatorRemote, tenant: PersonaTenantScope): Promise<boolean> {
   if (!readClientDevSeedEnabled()) return false
-  const team = await Promise.resolve(remote.listTeam(tenant))
+  const team = await Promise.resolve(remote.listTeam({ workspaceId: tenant.workspaceId, projectId: tenant.projectId }))
   if (team.personas.length > 0) return false
 
   for (const persona of SUGGESTED_TEAM_GALLERY) {

@@ -65,12 +65,16 @@ export function AwayWhileOutPanel({ t, events, onOpenTask }: AwayWhileOutPanelPr
                     ? {}
                     : {
                       onClick: () => { onOpenTask(event.taskId as string) },
-                      'aria-label': t('overview.awayOpenTask', {
-                        task: event.taskLabel ?? event.taskId,
-                      }),
+                      // Sem título real da tarefa o texto é neutro: nunca o id da tarefa na tela.
+                      'aria-label': event.taskLabel === undefined
+                        ? t('overview.awayOpenTaskPlain')
+                        : t('overview.awayOpenTask', { task: event.taskLabel }),
                     })}
                 >
-                  {event.taskLabel ?? (event.taskLabelKey !== undefined ? t(event.taskLabelKey) : t('overview.awayDismiss'))}
+                  {event.taskLabel
+                    ?? (event.taskLabelKey !== undefined
+                      ? t(event.taskLabelKey)
+                      : (event.taskId !== undefined && onOpenTask !== undefined ? t('overview.awayViewTask') : t('overview.awayDismiss')))}
                 </Button>
               </li>
             ))}

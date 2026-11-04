@@ -31,6 +31,8 @@ export interface PersonaCardInfo {
   readonly nowKind: PersonaNowKind
   /** Human sentence from the host; falls back to a generic line per kind. */
   readonly nowText?: string | undefined
+  /** SW-7: arquivos já mudados no rascunho da tarefa atual (só com `nowKind === 'working'`); ausente = sem rascunho. */
+  readonly draftFiles?: number | undefined
   readonly presence: PersonaPresence
   /** Who can DM/@mention: everyone, or the chosen people/groups. Undefined = not loaded (row hidden). */
   readonly talk?: { readonly everyone: boolean; readonly names: readonly string[] } | undefined
@@ -78,6 +80,13 @@ const NOW_FALLBACK_KEY: Readonly<Record<PersonaNowKind, string>> = {
   resting: 'now.resting',
   stuck: 'now.error',
   offline: 'now.offline',
+}
+
+/** SW-7: "{Persona} está mudando 3 arquivos num rascunho. Nada muda na sua pasta até você aplicar." */
+function draftNowText(info: PersonaCardInfo, t: (key: string, params?: Record<string, string>) => string): string | undefined {
+  const files = info.draftFiles
+  if (info.nowKind !== 'working' || files === undefined || files < 1) return undefined
+  return t(files === 1 ? 'card.now.draft.one' : 'card.now.draft', { name: info.name, count: String(files) })
 }
 
 export function liveStateToNowKind(state: PersonaLiveState): PersonaNowKind {
@@ -143,7 +152,7 @@ export function personaCardFacts(
   ]
   const quota = info.quota
   return {
-    now: { kind: info.nowKind, text: info.nowText ?? t(NOW_FALLBACK_KEY[info.nowKind]) },
+    now: { kind: info.nowKind, text: draftNowText(info, t) ?? info.nowText ?? t(NOW_FALLBACK_KEY[info.nowKind]) },
     talk: info.talk === undefined
       ? undefined
       : {

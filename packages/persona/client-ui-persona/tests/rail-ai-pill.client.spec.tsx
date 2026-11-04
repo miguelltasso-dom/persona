@@ -151,6 +151,28 @@ describe('cota indisponível: o "—" explicado (Muse, A-5)', () => {
     vi.useRealTimers()
   })
 
+  it('com o popover aberto não há tooltip (ele já diz a mesma frase) e o foco fica na pílula; fechado, volta', () => {
+    vi.useFakeTimers()
+    setup({ host: 'online', ai: quiet })
+    fireEvent.focus(pill())
+    act(() => { vi.advanceTimersByTime(450) })
+    expect(screen.getByRole('tooltip')).toBeTruthy()
+    fireEvent.click(pill())
+    expect(screen.getByRole('dialog', { name: 'Estou fora' })).toBeTruthy()
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.pointerLeave(pill().parentElement as HTMLElement)
+    fireEvent.pointerEnter(pill().parentElement as HTMLElement)
+    act(() => { vi.advanceTimersByTime(450) })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Estou fora' })).toBeNull()
+    fireEvent.pointerLeave(pill().parentElement as HTMLElement)
+    fireEvent.pointerEnter(pill().parentElement as HTMLElement)
+    act(() => { vi.advanceTimersByTime(450) })
+    expect(screen.getByRole('tooltip').textContent).toBe('A cota oficial do Claude ainda não está disponível.')
+    vi.useRealTimers()
+  })
+
   it('a mesma frase na linha do estado do popover, com o link "Ver uso e limites"', () => {
     setup({ host: 'online', ai: quiet })
     fireEvent.click(pill())

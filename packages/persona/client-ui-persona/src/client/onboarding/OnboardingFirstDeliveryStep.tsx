@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
@@ -46,7 +46,12 @@ export interface OnboardingFirstDeliveryStepProps {
   readonly activityLabels?: ActivityGroupProps['labels'] | undefined
   readonly prompt?: string | undefined
   readonly onPromptChange?: ((text: string) => void) | undefined
-  readonly onRequest: () => void
+  /** Do campo "O pedido" recebe o texto que estava na tela (o pedido de verdade: o host usa o MESMO texto); nos atalhos de erro, sem texto. */
+  readonly onRequest: (text?: string) => void
+  /** "Contexto da empresa" do passo 2: a fonte das ideias de pedido. Sem texto, sem ideias. */
+  readonly businessText?: string | undefined
+  /** 0–3 pedidos derivados do negócio (host). Vazio/erro = sem chips; nunca inventa a empresa. */
+  readonly suggestFirstRequests?: ((cofreSeed: string) => Promise<readonly string[]>) | undefined
   /** Enquanto a 1ª leitura da IA não voltou, "Pedir agora" espera (evita pedir no instante antes de saber se há IA). */
   readonly requestDisabled?: boolean | undefined
   readonly onEnterApp: () => void
@@ -73,6 +78,8 @@ export function OnboardingFirstDeliveryStep({
   activityLabels,
   prompt,
   onPromptChange,
+  businessText,
+  suggestFirstRequests,
   onRequest,
   requestDisabled = false,
   onEnterApp,
@@ -83,6 +90,21 @@ export function OnboardingFirstDeliveryStep({
   onAskChange,
 }: OnboardingFirstDeliveryStepProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
+
+  // A-6: ideias de pedido do negócio do passo 2 (só no intro; os hooks ficam antes de qualquer retorno por fase).
+  const [suggestions, setSuggestions] = useState<readonly string[]>([])
+  useEffect(() => {
+    const seed = (businessText ?? '').trim()
+    if (phase !== 'intro' || suggestFirstRequests === undefined || seed === '') {
+      setSuggestions([])
+      return undefined
+    }
+    let cancelled = false
+    suggestFirstRequests(seed)
+      .then((list) => { if (!cancelled) setSuggestions(list.map(item => item.trim()).filter(item => item !== '').slice(0, 3)) })
+      .catch(() => { if (!cancelled) setSuggestions([]) })
+    return () => { cancelled = true }
+  }, [phase, suggestFirstRequests, businessText])
 
   if (phase === 'celebrate' && milestone !== undefined) {
     return (
@@ -262,6 +284,7 @@ export function OnboardingFirstDeliveryStep({
   }
 
   const defaultTaskText = vaultReady ? t('step5.taskPreview') : t('step5.taskPreviewEmpty')
+  const requestText = (prompt ?? defaultTaskText).trim()
   return (
     <section className={styles.step} data-first-delivery-phase="intro">
       <h1 id="persona-onboarding-title" className={styles.title}>{t('step5.title')}</h1>
@@ -274,11 +297,27 @@ export function OnboardingFirstDeliveryStep({
             type="text"
             className={styles.taskPreviewInput}
             value={prompt ?? defaultTaskText}
+            maxLength={500}
             onChange={e => onPromptChange(e.target.value)}
             aria-label={t('step5.taskPreviewLabel')}
+            aria-describedby="persona-step5-request-hint"
           />
         ) : (
           <p className={styles.taskPreviewBody}>{prompt ?? defaultTaskText}</p>
+        )}
+        {onPromptChange !== undefined && (
+          <p id="persona-step5-request-hint" className={styles.taskPreviewHint}>
+            {requestText === '' ? t('step5.requestEmpty') : t('step5.taskEditHint')}
+          </p>
+        )}
+        {suggestions.length > 0 && onPromptChange !== undefined && (
+          <div className={styles.requestChips} role="group" aria-label={t('step5.suggestionsLabel')}>
+            {suggestions.map(text => (
+              <button key={text} type="button" className={styles.requestChip} onClick={() => { onPromptChange(text) }}>
+                {text}
+              </button>
+            ))}
+          </div>
         )}
       </div>
       <div className={styles.firstDeliveryActions}>
@@ -286,8 +325,8 @@ export function OnboardingFirstDeliveryStep({
           variant="primary"
           size="l"
           icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />}
-          disabled={requestDisabled}
-          onClick={onRequest}
+          disabled={requestDisabled || requestText === ''}
+          onClick={() => { onRequest(requestText) }}
         >
           {t('step5.requestNow')}
         </Button>

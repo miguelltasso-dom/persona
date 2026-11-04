@@ -16,10 +16,15 @@ const shellT = ((key: string) => shellPt[key as keyof typeof shellPt] ?? key) as
 type State = 'working' | 'resting'
 const atlas = (state: State) => ({ id: 'atlas' as const, name: 'Atlas', role: 'Coordenação', state, systemRoles: ['coordination' as const] })
 
-beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }) })
+// A fila local agora é guardada por conversa em localStorage (sobrevive a recarregar): cada teste começa sem fila guardada.
+beforeEach(() => {
+  localStorage.clear()
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+})
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  localStorage.clear()
 })
 
 function setup(state: State = 'working') {

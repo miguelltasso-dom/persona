@@ -183,5 +183,9 @@
   "about.body": "Veja a versão que você está usando, os avisos de software de terceiros e instale a atualização quando houver uma.",
   "about.open": "Abrir Sobre e atualizações",
   "about.unavailable": "Não deu para abrir daqui agora. Use o atalho abaixo.",
-  "about.shortcut": "Atalho:"
+  "about.shortcut": "Atalho:",
+  "team.statusDraft": "Num rascunho",
+  "team.statusDraftSr": "Trabalhando num rascunho",
+  "overview.awayViewTask": "Ver tarefa",
+  "overview.awayOpenTaskPlain": "Abrir a tarefa"
 }

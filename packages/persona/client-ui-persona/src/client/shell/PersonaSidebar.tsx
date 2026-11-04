@@ -249,6 +249,27 @@ export function PersonaSidebar({
 
   const indicator = useActiveIndicator(navRef, '[data-nav-item][aria-current="page"]', 'y', [shell.activePanel, groupsOpen, collapsed, members.length])
 
+  // Muse (axe color-contrast, prova do Quill): o esmaecido do fim da lista só existe enquanto HÁ mais lista embaixo. Se a lista cabe
+  // inteira (não rola) ou já está no fim, nada fica apagado. Medido como o Modal faz (rola? ainda tem mais abaixo?).
+  const [navScrolls, setNavScrolls] = useState(false)
+  const [navMore, setNavMore] = useState(false)
+  useEffect(() => {
+    const list = navRef.current
+    if (list === null) return undefined
+    const check = (): void => {
+      const scrolls = list.scrollHeight > list.clientHeight + 1
+      setNavScrolls(scrolls)
+      setNavMore(scrolls && list.scrollTop + list.clientHeight < list.scrollHeight - 4)
+    }
+    list.addEventListener('scroll', check, { passive: true })
+    check()
+    if (typeof ResizeObserver === 'undefined') return () => { list.removeEventListener('scroll', check) }
+    const observer = new ResizeObserver(check)
+    observer.observe(list)
+    for (const child of Array.from(list.children)) observer.observe(child)
+    return () => { observer.disconnect(); list.removeEventListener('scroll', check) }
+  }, [groupsOpen, collapsed, members.length, shell.activePanel])
+
   // A-5: a pílula diz o estado REAL da IA (ou "Fora até…" / equipe fora do ar), um por vez.
   const pill = deriveRailPill({
     t,
@@ -326,7 +347,7 @@ export function PersonaSidebar({
         <kbd className={styles.kbd}>{t('sidebar.searchShortcut')}</kbd>
       </button>
 
-      <div className={styles.navScroll} ref={navRef}>
+      <div className={styles.navScroll} ref={navRef} data-scrolls={navScrolls ? 'true' : 'false'} data-more={navMore ? 'true' : 'false'}>
         <span
           className={styles.activeIndicator}
           style={{ transform: `translateY(${indicator.offset}px)`, height: `${indicator.size}px`, opacity: indicator.visible ? 1 : 0 }}
@@ -412,7 +433,8 @@ export function PersonaSidebar({
 
       <div className={styles.footer}>
         <div ref={awayAnchorRef} className={styles.statusAnchor}>
-          {aiHint === null ? pillButton : <Tooltip content={aiHint} side="top">{pillButton}</Tooltip>}
+          {/* Com o popover aberto o tooltip não existe: a linha da IA do popover já diz a mesma frase (Muse, A-5). */}
+          {aiHint === null ? pillButton : <Tooltip content={aiHint} side="top" disabled={awayPopoverOpen}>{pillButton}</Tooltip>}
           {awayPopoverOpen && (
             <div className={styles.awayPopover} role="dialog" aria-label={t('away.switchLabel')}>
               <UserAwayControl

@@ -112,6 +112,11 @@ body:not([data-ds-dark-theme='true']) {
   --persona-success-tint: #e3f1e8;
   --persona-warning-tint: #fbebd0;
   --persona-accent-tint: #fcefd6;
+  /* Muse: chip fills are always solid, so a chip on a tinted row never stacks translucency (axe, Lumen 04/11). */
+  --persona-success-chip: var(--persona-success-tint);
+  --persona-warning-chip: var(--persona-warning-tint);
+  --persona-danger-chip: var(--persona-danger-tint);
+  --persona-info-chip: var(--persona-info-tint);
   --persona-danger-tint: #f8e1e3;
   --persona-info-tint: #e3ecf7;
   --persona-scrim: rgb(52 36 63 / 0.42);
@@ -177,6 +182,11 @@ body[data-ds-dark-theme='true'] {
   --persona-success-tint: rgb(127 211 166 / 0.16);
   --persona-warning-tint: rgb(242 194 122 / 0.16);
   --persona-accent-tint: rgb(233 178 82 / 0.16);
+  /* = the 0.16 tint over the dark card, precomputed (text ≥ 5.4:1 even on a tinted row). */
+  --persona-success-chip: #383b47;
+  --persona-warning-chip: #4a3840;
+  --persona-danger-chip: #4a3247;
+  --persona-info-chip: #3c3852;
   --persona-danger-tint: rgb(241 154 165 / 0.16);
   --persona-info-tint: rgb(157 191 234 / 0.16);
   --persona-scrim: rgb(8 4 12 / 0.6);

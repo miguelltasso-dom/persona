@@ -45,7 +45,7 @@ export interface OnboardingShellOverlayInjected {
   readonly actions: OnboardingActions
   dismissOnboarding(): void
   lockOnboardingForFirstDelivery(): void
-  finishOnboardingWizard(): Promise<void>
+  finishOnboardingWizard(options?: { readonly firstRequest?: string }): Promise<void>
   /** Relê o snapshot live (quadro, #geral, marco) quando o host muda de estado. */
   refreshLive?: (() => Promise<void>) | undefined
   postChannelMessage?: ((body: string) => Promise<void>) | undefined
@@ -64,6 +64,8 @@ export type OnboardingShellOverlayProps = InjectFace<OnboardingShellOverlayInjec
 
 /** Superfície do Remote usada só pelo passo 5 (tolerante: hosts/fakes antigos podem não ter tudo). */
 interface FirstDeliveryRemoteWire extends EngineRemoteWire {
+  /** A-6: 0–3 pedidos derivados do "Contexto da empresa" do passo 2 (o workspace ainda não existe: vai o texto). */
+  suggestFirstRequests?(request: { cofreSeed: string }): unknown
   getFirstDelivery?(request: { workspaceId: string; projectId: string }): unknown
   runTicketCommand?(request: {
     workspaceId: string
@@ -126,6 +128,8 @@ export function OnboardingShellOverlay({
 
   // --- estado do passo 5 (tudo derivado do host; só o que a PESSOA fez fica aqui) -------------------------------
   const [requested, setRequested] = useState(false)
+  // A-6: o pedido da 1ª entrega é editável; `undefined` = a pessoa ainda não mexeu (vale o texto sugerido na tela).
+  const [prompt, setPrompt] = useState<string | undefined>(undefined)
   const [startFailed, setStartFailed] = useState(false)
   const [slowElapsed, setSlowElapsed] = useState(false)
   const [slowEpoch, setSlowEpoch] = useState(0)
@@ -152,6 +156,12 @@ export function OnboardingShellOverlay({
     [workspaceId, projectId],
   )
   const wire = persona as unknown as FirstDeliveryRemoteWire
+  const suggestFirstRequests = useCallback(async (cofreSeed: string): Promise<readonly string[]> => {
+    if (wire.suggestFirstRequests === undefined) return []
+    const view = await settle(wire.suggestFirstRequests({ cofreSeed }))
+    const list = (view as { suggestions?: unknown } | null)?.suggestions
+    return Array.isArray(list) ? list.filter((item): item is string => typeof item === 'string') : []
+  }, [wire])
 
   // Passo 3: lista de IAs (cartões reais do host). Enquanto o host ainda sonda, os cartões dizem "Verificando…" e a lista
   // é relida a cada 1,5 s até acabar (nunca "Não detectada" como resposta final antes da sondagem terminar).
@@ -271,7 +281,7 @@ export function OnboardingShellOverlay({
     void finishOnboardingWizard().catch(() => undefined).finally(() => { dismissOnboarding() })
   }
 
-  const requestFirstDelivery = (isRetry: boolean): void => {
+  const requestFirstDelivery = (isRetry: boolean, requestText?: string): void => {
     lockOnboardingForFirstDelivery()
     setRequested(true)
     setStartFailed(false)
@@ -285,7 +295,8 @@ export function OnboardingShellOverlay({
           // A pessoa pode ter acabado de conectar a IA: confere de verdade antes de reenfileirar.
           await retryEngineStatus(wire, scope)
         }
-        await finishOnboardingWizard()
+        // O texto que a pessoa viu/editou é o pedido de verdade; no retry a tarefa já existe e leva o texto original.
+        await finishOnboardingWizard(isRetry || requestText === undefined ? undefined : { firstRequest: requestText })
         const ticketId = delivery?.ticketId ?? ''
         if (isRetry && scope !== null && ticketId !== '' && wire.runTicketCommand !== undefined) {
           await settle(wire.runTicketCommand({ ...scope, ticketId, command: 'retry', reason: 'first-delivery-retry' }))
@@ -347,7 +358,10 @@ export function OnboardingShellOverlay({
                 providerLabel: bindLocale(dict, 'step5.genericProvider'),
               })
               : undefined,
-            onRequest: () => { requestFirstDelivery(false) },
+            prompt,
+            onPromptChange: setPrompt,
+            suggestFirstRequests,
+            onRequest: (text) => { requestFirstDelivery(false, text) },
             requestDisabled: scope !== null && !engineSettled,
             onEnterApp: enterApp,
             onCelebrateContinue: celebrateContinue,

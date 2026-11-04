@@ -50,7 +50,7 @@ describe('GeneralChannelView turn context (C5b data)', () => {
         onLoadTurnContext={onLoad}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(`Briefing.*${chatPt['context.show']}`, 'u') }))
+    fireEvent.click(screen.getByRole('button', { name: chatPt['context.show'] }))
     expect(onLoad).toHaveBeenCalledWith('t-brief')
     expect(screen.getByRole('region', { name: chatPt['context.drawerTitle'] })).toBeTruthy()
     expect(screen.getByText('vault:1')).toBeTruthy()
@@ -76,7 +76,7 @@ describe('GeneralChannelView turn context (C5b data)', () => {
         onOpenTaskOnBoard={onBoard}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${chatPt['context.openBoard']}`, 'u') }))
+    fireEvent.click(screen.getByRole('button', { name: chatPt['context.openBoard'] }))
     expect(onBoard).toHaveBeenCalledWith('t-brief')
   })
 

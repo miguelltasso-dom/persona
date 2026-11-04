@@ -112,6 +112,7 @@ export function registerPrismScreens(
     openTaskOnBoard: (ticketId: string) => { shellHandle.actions.openKanbanTicket(ticketId) },
     turnActivityLabels,
     onOpenConnections: () => { shellHandle.actions.selectPanel('connections') },
+    onOpenUsage: () => { shellHandle.actions.selectPanel('usage') },
     engineRemote: ctx.remote.persona,
     onBuildTeam: () => {
       shellHandle.actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)

@@ -7,6 +7,8 @@ export interface ChannelComposerHints {
   readonly responderAutonomy: AutonomyLevel
   readonly quotaBlocked: boolean
   readonly quotaResumeLabel?: string | undefined
+  /** O host já respondeu sobre a cota (esgotada ou não). Antes disso `quotaBlocked: false` é "não sei", não "livre". */
+  readonly quotaKnown?: boolean | undefined
 }
 
 export const DEFAULT_CHANNEL_COMPOSER_HINTS: ChannelComposerHints = {
@@ -85,6 +87,7 @@ export async function loadChannelComposerHints(
       hints = {
         ...hints,
         quotaBlocked: quota.blocked,
+        quotaKnown: true,
         ...(quota.resumeLabel === undefined ? {} : { quotaResumeLabel: quota.resumeLabel }),
       }
     } catch {

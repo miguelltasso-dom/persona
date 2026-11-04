@@ -152,6 +152,7 @@
 .statusDot[data-state='waiting'] { background: var(--persona-accent); }
 .statusDot[data-state='stuck'] { background: var(--persona-danger); }
 .statusDot[data-state='resting'] { background: var(--persona-lilac-300); }
+.statusDot[data-state='draft'] { background: var(--persona-brand); }
 
 .member[data-state='waiting'] .tag {
   background: var(--persona-accent);

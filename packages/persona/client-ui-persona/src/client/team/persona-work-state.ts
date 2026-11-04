@@ -14,6 +14,11 @@ export interface ChannelPersonaMember {
   readonly systemRoles?: readonly ('coordination' | 'watchdog' | 'team_manager')[]
   /** Just hired (Gestor plan approved): walks into the strip once, with a "chegou!" bubble (GESTOR-SPEC). */
   readonly arriving?: boolean
+  /**
+   * SW-7: quantos arquivos a persona já mudou no RASCUNHO da tarefa atual. Só vem do host com `state === 'working'` e
+   * pelo menos 1 arquivo mudado; ausente = só "Trabalhando" (resposta/pesquisa não têm rascunho).
+   */
+  readonly draftFiles?: number
 }
 
 export interface PersonaNowSnapshot {

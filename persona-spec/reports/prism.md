@@ -1,5 +1,29 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-04 19:10 — Escuro, WIRE-4, SW-7, A-6, S6, A-1 atrás de flag, P0-31 (tudo no tree; congelado D-082)
+
+**Tema escuro (P0 do Gauge):** `theme/install-color-scheme.ts` grava `data-ds-dark-theme="true"` no escuro e REMOVE o atributo no claro (a paleta e os módulos casam o VALOR, os componentes do host casam a PRESENÇA: `setAttribute(…,'false')` os deixaria escuros no claro). `install-color-scheme.client.spec` 5 casos; o Gauge confirmou no working tree (13 telas com captura escura diferente da clara). Entra no H2; o aceite é a varredura escura da Muse no instalado.
+
+**WIRE-4 (auditoria dos Remotes, subagente conferido por mim):** seed de dev `limit` 300→200; "Desfazer" de decisão só quando o host tem `undoApproval` (`decisions/undo-availability.ts`); `listTeam` só com `workspaceId`/`projectId`; `maxPersonas` inteiro 1..30 nos dois sentidos. `wire-4-client-fixes` 7. Reportado ao Keel e ao Gauge o que NÃO é meu: `reviewSummary`/`discardReview`/`acceptReview` (Lumen), `PersonaHistoryRemote` (já adaptado em `history-remote.ts`).
+
+**SW-7 (draft):** o Bolt entregou `PersonaNowView.draftFiles?`; a faixa da equipe mostra "Num rascunho" (ponto brand + texto; leitor: "Trabalhando num rascunho") e o cartão da persona "{Persona} está mudando N arquivos num rascunho. Nada muda na sua pasta até você aplicar." (singular/plural); só com `state working` e ≥ 1 arquivo; a ponte do cartão acompanha o live. `draft-working-state` 10.
+
+**A-6 (passo 5):** o Bolt entregou `firstRequest` e `suggestFirstRequests({ cofreSeed })`. "O pedido" é editável (≤ 500), a tela diz que a equipe recebe exatamente o texto, os chips vêm só do negócio do passo 2 (vazio/erro/sem negócio = sem chips), o texto da tela vai em `completeOnboarding.firstRequest`; vazio desabilita "Pedir agora" com a linha do porquê; sem estimativa de tempo (não há valor medido). `first-request` 15. Erro meu corrigido na hora: o `useCallback` do overlay ficou antes de `wire`.
+
+**S6:** o Assistente aberto por "Contratar persona" tem o `ScreenHeader` (ícone, eyebrow "Equipe", título, subtítulo). `structure-assistant` +2.
+
+**A-1 atrás de flag (D-077):** `nav-flag.ts` (`persona.flag.navPlaces`, desligada por padrão), `PlacesRailNav` (6 lugares com `data-nav-place/-panel/-contains`), `PlaceTabsBar` (`data-tab-panel`), aba "Sobre e atualizações" (`about`) + ponte `settings-launcher-bridge` (o Flint liga o `settings.launcher`). Flag desligada = o app de antes; ligada = rail novo + abas. `nav-places-flag` 8, `nav-places` 16, `about-settings` 6. O Flint (sob mim) fez o rodapé pela mesma flag e A-2/P0-17/P0-27/P0-30/IV-3/IV-4.
+
+**P0-31 (ficha da tarefa com slug):** `remote/task-title.ts` — o título da ficha é SÓ o da tarefa (nunca id/assunto/slug; sem título, sem ficha); ficha única com 2 links ghost; também na DM; "Enquanto você estava fora" sem id no botão ("Ver tarefa"). `task-card-title` 10; 3 specs vizinhos atualizados.
+
+**Outros:** HINT-clamp ajustado pela Muse (o balão recebe o toque; `suppressHint` com plano em `proposed`); `PersonaCard` com rolagem, remedição e o hover que não reabre depois do Esc; `workflow-editor` reencaminha o destino quando a coluna destino também é removida (PB-9.3); `subject-bar` arquivar/reabrir com teste; `HirePersonaCard` com o retrato do bicho e o motor em português.
+
+**Erro meu a registrar:** disse ao Keel (D-076) que as capturas "dark" do passo 5 saíram claras; para as MINHAS estava errado (o script forçava o atributo). Corrigido às 17:54.
+
+**Próximos, depois do congelamento e do ok do Miguel à v2 (CONVERSAS-SPEC §0, combinado com a Muse 19:10):** CV-2 (cabeçalhos do fio de canal/DM, DM sem "Quem responde", "Canal criado para…") e CV-4 (rosto: clique = abre a DM, Enter no rosto = DM; cartão pelo ⋯ "Sobre {nome}", hover longo ~700 ms (hoje 450) ou Shift+F10/tecla de menu; mantém Esc, remedição e o hover que não reabre; `data-persona-card-trigger`; aviso ao Probe antes do merge). As 2 abas de Conversas ficam como ponte descartável; o lugar `conversations` sai do `nav-places` junto com o CV-1 (Flint).
+
+**Gate:** `check-pkg client-ui-persona` OK (72 s, 18:40); suíte do pacote 1274/1275 (o 1 do Lumen, corrigido). A rodada de capturas no shell real (claro/escuro, 1440/960/200%) ficou 50 min na fila da trava build atrás do empacotamento do H2 e expirou; reenfileiro depois do aviso do hash do H2 #3 (D-082).
+
 ## 2026-11-04 19:35 — PB-7 (sprints), GOV-8/GES-4, S6, tema escuro (preparado), A-1 fase 1 (início), skeleton do reload
 
 **PB-7 (Sprints, `kanban/`, arquivos do Lumen: avisei por Status):** planejamento backlog ↔ sprint com linhas por checkbox nativo (antes eram Cards clicáveis sem foco), busca e chips por responsável, arrastar e soltar COM o equivalente por teclado/botão, medidor de capacidade por persona e frase de estado (`role=status`). Encerrar a sprint mostra "Quem fez o quê" (persona + contagem) e a lista recolhível do que ficou; "Atrasadas" só aparece quando o dado existe (nada de "0" inventado). Achei e corrigi "faltam 1 dias" (singular `sprint.daysLeft.one`) e o chip "faltam 0 dias" quando o host não manda prazo (agora some). Avatares 20→24 (mínimo do primitivo). Testes: `sprint-planning-pb7` 12, `close-sprint-pb7` 8 (+ vizinhos).

@@ -31,6 +31,7 @@ import { subjectDisplayName } from './SubjectBar.tsx'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { TeamChannelStrip } from '../team/TeamChannelStrip.tsx'
 import { QueuedMessageBubble, type QueuedMessageItem } from './QueuedMessageBubble.tsx'
+import { nextQueueSeq, readQueuedMessages, writeQueuedMessages } from './composer-queue-store.ts'
 import { ChannelComposer } from './ChannelComposer.tsx'
 import { MessageQuoteToolbar, type MessageQuote } from './MessageQuoteToolbar.tsx'
 import type { ComposerSlashActions } from './composer-slash-commands.ts'
@@ -108,9 +109,15 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   /** O `/limites` abriu: quem monta a tela lê as cotas agora. */
   readonly onOpenLimits?: (() => void) | undefined
   readonly quotaBlocked?: boolean | undefined
+  /** O host já disse como está a cota (esgotada ou livre). Sem isso, a fila "por cota" restaurada espera até 15 s. */
+  readonly quotaKnown?: boolean | undefined
   readonly quotaResumeLabel?: string | undefined
   readonly onResumeQuota?: (() => void) | undefined
   readonly onSwapAccount?: (() => void) | undefined
+  /** P0-19: "Ver uso e limites" da faixa "No limite até {hora}". */
+  readonly onSeeUsage?: (() => void) | undefined
+  /** P0-19: outro motor conectado → "Usar {motor} enquanto isso". Sem handler, o botão não existe. */
+  readonly otherEngine?: { readonly name: string; readonly onUse: () => void } | undefined
   readonly responderAutonomy?: import('../persona-editor/persona-draft.ts').AutonomyLevel | undefined
   /** UX-PHASE §6: messages waiting for the responder's current step; local queue when the host has none. */
   readonly queuedMessages?: readonly QueuedMessageItem[] | undefined
@@ -185,9 +192,12 @@ export function GeneralChannelView({
   engineLimits,
   onOpenLimits,
   quotaBlocked,
+  quotaKnown,
   quotaResumeLabel,
   onResumeQuota,
   onSwapAccount,
+  onSeeUsage,
+  otherEngine,
   responderAutonomy,
   queuedMessages,
   onSendQueuedNow,
@@ -195,11 +205,21 @@ export function GeneralChannelView({
   onRemoveQueued,
   engineBanner,
 }: GeneralChannelViewProps): ReactNode {
-  const [localQueued, setLocalQueued] = useState<readonly QueuedMessageItem[]>([])
+  // A fila local sobrevive a recarregar a janela (Muse): volta como os mesmos balões tracejados, "Ainda na fila". Quando o host
+  // guardar a fila (IV-5), `queuedMessages` a substitui.
+  const [localQueued, setLocalQueued] = useState<readonly QueuedMessageItem[]>(() => readQueuedMessages(conversationKey))
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
   const [removedQueued, setRemovedQueued] = useState<QueuedMessageItem | null>(null)
   const [queueAnnounce, setQueueAnnounce] = useState('')
-  const queueSeq = useRef(0)
+  /** P0-19: "A cota voltou · N mensagens saíram da fila". */
+  const [quotaBackCount, setQuotaBackCount] = useState<number | null>(null)
+  const queueSeq = useRef(nextQueueSeq(localQueued))
+  useEffect(() => { writeQueuedMessages(conversationKey, localQueued) }, [conversationKey, localQueued])
+  useEffect(() => {
+    if (quotaBackCount === null) return undefined
+    const timer = setTimeout(() => { setQuotaBackCount(null) }, 6_000)
+    return () => { clearTimeout(timer) }
+  }, [quotaBackCount])
   const effectiveQueued = queuedMessages ?? localQueued
   const editingQueuedItem = effectiveQueued.find(q => q.id === editingQueuedId)
 
@@ -212,17 +232,29 @@ export function GeneralChannelView({
     onSendMessage?.(body, attachmentIds)
   }
   /** "Na fila" com a persona trabalhando: guarda como balão tracejado até ela terminar o passo atual. */
-  const enqueueMessage = (text: string, responder: { readonly id: string; readonly name: string }): void => {
+  const enqueueMessage = (
+    text: string,
+    responder: { readonly id: string; readonly name: string },
+    options?: { readonly heldForQuota?: boolean; readonly attachments?: readonly { readonly id: string; readonly name: string }[] },
+  ): void => {
     queueSeq.current += 1
     const item: QueuedMessageItem = {
       id: `queued-${String(queueSeq.current)}`,
       text,
       targetPersonaName: responder.name,
       targetPersonaId: responder.id,
+      ...(options?.heldForQuota === true ? { heldForQuota: true } : {}),
+      ...(options?.attachments !== undefined && options.attachments.length > 0 ? { attachments: options.attachments } : {}),
     }
     setLocalQueued(prev => [...prev.filter(q => q.id !== editingQueuedId), item])
     setEditingQueuedId(null)
     setQueueAnnounce(t('composer.steer.queuedAnnounce'))
+  }
+  /** Envia um item da fila; o segundo argumento só existe quando há anexos (contrato antigo: `onSendMessage(texto)`). */
+  const dispatchQueued = (item: QueuedMessageItem): void => {
+    const ids = item.attachments?.map(file => file.id) ?? []
+    if (ids.length > 0) onSendMessage?.(item.text, ids)
+    else onSendMessage?.(item.text)
   }
   const handleSendQueuedNow = (id: string): void => {
     if (onSendQueuedNow !== undefined) { onSendQueuedNow(id); return }
@@ -230,7 +262,7 @@ export function GeneralChannelView({
     if (item === undefined) return
     setLocalQueued(prev => prev.filter(q => q.id !== id))
     if (editingQueuedId === id) setEditingQueuedId(null)
-    onSendMessage?.(item.text)
+    dispatchQueued(item)
     setQueueAnnounce(t('composer.steer.sentAnnounce'))
   }
   const handleEditQueued = (id: string): void => {
@@ -253,19 +285,33 @@ export function GeneralChannelView({
     const timer = setTimeout(() => { setRemovedQueued(null) }, 6_000)
     return () => { clearTimeout(timer) }
   }, [removedQueued])
-  // A fila sai sozinha quando a persona alvo termina o passo atual (ou some do elenco).
+  // Depois de recarregar, `quotaBlocked: false` ainda é "não sei". Um item guardado "por cota" espera o PRIMEIRO estado de cota
+  // do host (o que chegar primeiro: o estado ou 15 s) e só então decide: cota voltou → sai; ainda no limite → fica (Muse).
+  const [quotaWaitOver, setQuotaWaitOver] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => { setQuotaWaitOver(true) }, 15_000)
+    return () => { clearTimeout(timer) }
+  }, [])
+  const quotaSettled = quotaKnown === true || quotaWaitOver
+  // A fila sai sozinha quando a persona alvo termina o passo atual (ou some do elenco). O que entrou na fila por falta de
+  // cota (P0-19) só sai quando a cota voltar, e então aparece "A cota voltou · N mensagens saíram da fila". Item que perdeu o
+  // anexo no recarregamento NUNCA sai sozinho (sairia sem o anexo, calado): fica com o aviso até a pessoa decidir.
   useEffect(() => {
     if (queuedMessages !== undefined || localQueued.length === 0) return
     const ready = localQueued.filter((item) => {
       if (item.id === editingQueuedId) return false
+      if (item.lostAttachmentNames !== undefined && item.lostAttachmentNames.length > 0) return false
+      if (item.heldForQuota === true && (quotaBlocked === true || (item.restored === true && !quotaSettled))) return false
       const target = members.find(member => member.id === item.targetPersonaId)
       return target === undefined || target.state !== 'working'
     })
     if (ready.length === 0) return
     setLocalQueued(prev => prev.filter(item => !ready.some(r => r.id === item.id)))
-    for (const item of ready) onSendMessage?.(item.text)
+    for (const item of ready) dispatchQueued(item)
     setQueueAnnounce(t('composer.steer.sentAnnounce'))
-  }, [members, localQueued, editingQueuedId, queuedMessages, onSendMessage, t])
+    const heldSent = ready.filter(item => item.heldForQuota === true).length
+    if (heldSent > 0) setQuotaBackCount(heldSent)
+  }, [members, localQueued, editingQueuedId, queuedMessages, onSendMessage, t, quotaBlocked, quotaSettled])
   const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string; readonly revertSubjectId: string } | null>(null)
   const [pendingQuote, setPendingQuote] = useState<MessageQuote | null>(null)
   const [adjustTarget, setAdjustTarget] = useState<{ readonly planId: string; readonly gestorName: string } | null>(null)
@@ -307,6 +353,8 @@ export function GeneralChannelView({
     ...(quotaResumeLabel === undefined ? {} : { quotaResumeLabel }),
     ...(onResumeQuota === undefined ? {} : { onResumeQuota }),
     ...(onSwapAccount === undefined ? {} : { onSwapAccount }),
+    ...(onSeeUsage === undefined ? {} : { onSeeUsage }),
+    ...(otherEngine === undefined ? {} : { otherEngine }),
     ...(responderAutonomy === undefined ? {} : { responderAutonomy }),
   }
   const userName = messages.find(message => message.authorId === 'user')?.authorName ?? t('message.you')
@@ -482,6 +530,7 @@ export function GeneralChannelView({
                 key={item.id}
                 t={t}
                 item={item}
+                {...(quotaResumeLabel === undefined || quotaBlocked !== true ? {} : { quotaUntil: quotaResumeLabel })}
                 isOnlyItem={effectiveQueued.length === 1}
                 onSendNow={handleSendQueuedNow}
                 onEdit={handleEditQueued}
@@ -510,6 +559,11 @@ export function GeneralChannelView({
         </div>
       </div>
       <span className="persona-sr-only" role="status" aria-live="polite">{queueAnnounce}</span>
+      {quotaBackCount !== null && (
+        <ToastRegion label={t(quotaBackCount === 1 ? 'limit.backOne' : 'limit.back', { n: String(quotaBackCount) })}>
+          <Toast tone="success" title={t(quotaBackCount === 1 ? 'limit.backOne' : 'limit.back', { n: String(quotaBackCount) })} />
+        </ToastRegion>
+      )}
       {removedQueued !== null && (
         <ToastRegion label={t('composer.steer.removedToast')}>
           <Toast
@@ -831,27 +885,17 @@ function ChannelMessageRow(props: {
           </div>
         )}
         {message.taskTitle !== undefined && message.taskTitle.length > 0 && (
+          // Uma ficha só: o título da tarefa UMA vez e as duas ações como links ao lado ("Ver contexto usado · Ver no quadro").
           <div className={styles.taskCard} role="group" aria-label={message.taskTitle}>
-            {message.ticketId !== undefined && onLoadTurnContext !== undefined ? (
-              <button
-                type="button"
-                className={styles.taskCardButton}
-                onClick={() => { onLoadTurnContext(message.ticketId!) }}
-              >
-                {message.taskTitle}
-                <span className={styles.taskCardHint}>{t('context.show')}</span>
+            <span className={styles.taskCardTitle}>{message.taskTitle}</span>
+            {message.ticketId !== undefined && onLoadTurnContext !== undefined && (
+              <button type="button" className={styles.taskCardLink} onClick={() => { onLoadTurnContext(message.ticketId!) }}>
+                {t('context.show')}
               </button>
-            ) : (
-              <span className={styles.taskCardButton}>{message.taskTitle}</span>
             )}
             {message.ticketId !== undefined && onOpenTaskOnBoard !== undefined && (
-              <button
-                type="button"
-                className={styles.taskCardButton}
-                onClick={() => { onOpenTaskOnBoard(message.ticketId!) }}
-              >
-                {message.taskTitle}
-                <span className={styles.taskCardHint}>{t('context.openBoard')}</span>
+              <button type="button" className={styles.taskCardLink} onClick={() => { onOpenTaskOnBoard(message.ticketId!) }}>
+                {t('context.openBoard')}
               </button>
             )}
           </div>

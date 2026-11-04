@@ -116,6 +116,7 @@ export function InboxDetail({
         )}
         <div>
           <Chip tone="accent" size="s">{t(`type.${row.kind}`)}</Chip>
+          {row.example === true && <> <Chip tone="neutral" size="s">{t('inbox.example')}</Chip></>}
           <h2 id={`inbox-detail-title-${row.id}`} className={styles.detailTitle}>{row.title}</h2>
           {isHire && role.length > 0 && item !== undefined && <p className={styles.proposer}><strong>{item.title}</strong></p>}
         </div>
@@ -126,7 +127,6 @@ export function InboxDetail({
         {item !== undefined && !isHire && item.kind !== 'vault' && (
           <p className={styles.sectionBody}>{reactiveApprovalContext(dict, item)}</p>
         )}
-        {isHire && item !== undefined && <p className={styles.sectionNote}>{reactiveApprovalContext(dict, item)}</p>}
         {change !== undefined && (
           <section className={styles.section}>
             <h3 className={styles.sectionLabel}>{t('inbox.section.change')}</h3>
@@ -208,6 +208,7 @@ export function InboxDetail({
             </Tooltip>
           </div>
           {blocked && !leaving && !deciding && <p className={styles.sectionNote}>{t('depends.note', { title: blockedBy })}</p>}
+          {row.example === true && <p className={styles.sectionNote}>{t('inbox.exampleNote')}</p>}
         </>
       )}
       {isHire && item !== undefined && <HireDetailsModal dict={dict} item={item} open={detailsOpen} onClose={() => { onDetailsChange(false) }} />}

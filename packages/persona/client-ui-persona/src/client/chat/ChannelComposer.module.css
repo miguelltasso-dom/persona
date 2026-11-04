@@ -438,6 +438,66 @@
   }
 }
 
+/*
+ * Composer a 200% (Muse, opção A): a barra de baixo vira container para a quebra depender da LARGURA DA ÁREA DO COMPOSER, não da
+ * janela (o rail e as gavetas comem largura). z-index 40 = o do balão "Quem responde" e dos tooltips lá dentro, que continuam
+ * acima do resto como antes de a barra ser container (container-type cria um contexto de empilhamento).
+ */
+.toolbarBox {
+  position: relative;
+  z-index: 40;
+  container-type: inline-size;
+  container-name: composer-bar;
+}
+
+.toolButtons,
+.responderGroup {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toolButtons > * {
+  flex-shrink: 0;
+}
+
+/* Abaixo de ~480 px: ferramentas em cima; "Quem responde" + Enviar embaixo, à direita. Nada some; os alvos mantêm o tamanho. */
+@container composer-bar (max-width: 480px) {
+  .toolbar {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: var(--persona-space-2);
+  }
+
+  .tools {
+    display: contents;
+  }
+
+  .toolButtons {
+    order: 1;
+    flex: 1 0 100%;
+  }
+
+  .toolbar > :not(.tools),
+  .responderGroup {
+    order: 2;
+  }
+
+  .responderGroup {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: var(--persona-space-2);
+  }
+
+  /* o divisor separava duas coisas que agora estão em linhas diferentes */
+  .divider,
+  .hint {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .send,
   .send:hover:not(:disabled),

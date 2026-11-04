@@ -364,6 +364,8 @@ export function OnboardingWizard({
               introLines={state.roster.slice(0, 4).map(person => ({ speaker: person.name, text: t('step5.introLine', { role: person.role }) }))}
               activityLabels={firstDelivery.activityLabels ?? activityGroupLabelsFromDict(structureDict)}
               prompt={firstDelivery.prompt}
+              businessText={state.vaultText}
+              suggestFirstRequests={firstDelivery.suggestFirstRequests}
               onPromptChange={firstDelivery.onPromptChange}
               onRequest={firstDelivery.onRequest}
               requestDisabled={firstDelivery.requestDisabled}

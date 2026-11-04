@@ -22,6 +22,8 @@ export interface ApprovalItem {
   readonly hireDescription?: string
   /** Average tasks per month, ONLY when the host measured it; absent = no line (never a guess). */
   readonly hireMonthlyTasks?: number
+  /** A capture-only sample (dev seed): shown with the "Exemplo" chip, never sent to the host, never in the batch. */
+  readonly example?: boolean
   /** `low` = may go in the batch "Aprovar de risco baixo"; anything else (hire, spend, access) never does. */
   readonly risk?: 'low' | 'normal'
   /** ISO moment the host created the card (rendered with `formatWhen`); absent = no time shown. */

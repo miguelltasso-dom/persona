@@ -91,7 +91,7 @@ describe('ConnectedGeneralChannelView (C5b)', () => {
         toggleMessageReaction={() => {}}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: /Briefing/u }))
+    fireEvent.click(screen.getByRole('button', { name: chatPt['context.show'] }))
     expect(loadTurnContext).toHaveBeenCalledWith('t-brief')
   })
 })

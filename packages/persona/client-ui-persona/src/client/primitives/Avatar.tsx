@@ -15,6 +15,11 @@ export interface AvatarProps {
   readonly presence?: AvatarPresence | undefined
   /** Decorative avatar next to a visible name. */
   readonly decorative?: boolean
+  /**
+   * Muse: a system actor with no face ("O bibliotecário" with no persona in the role): an icon on a calm wash disc
+   * instead of initials, which read as a person who does not exist. Ignored when `src` is given.
+   */
+  readonly icon?: ReactNode
   readonly className?: string | undefined
 }
 
@@ -43,6 +48,7 @@ export function Avatar({
   presence,
   decorative = false,
   className,
+  icon,
 }: AvatarProps): ReactNode {
   const classes = [styles.avatar, styles[shape], className ?? ''].filter(Boolean).join(' ')
   const a11y = decorative ? { 'aria-hidden': true as const } : { role: 'img' as const, 'aria-label': name }
@@ -50,11 +56,14 @@ export function Avatar({
     <span
       className={classes}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
-      data-tone={src === undefined ? toneOf(name) : undefined}
+      data-tone={src === undefined && icon === undefined ? toneOf(name) : undefined}
+      data-icon={src === undefined && icon !== undefined ? '' : undefined}
       {...a11y}
     >
       {src !== undefined ? (
         <img className={styles.img} src={src} alt="" draggable={false} />
+      ) : icon !== undefined ? (
+        <span className={styles.icon} aria-hidden="true">{icon}</span>
       ) : (
         <span className={styles.initials}>{initialsOf(name)}</span>
       )}

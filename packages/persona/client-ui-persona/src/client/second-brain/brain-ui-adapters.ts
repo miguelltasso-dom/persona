@@ -58,12 +58,13 @@ export function feedEditorDisplay(
   personaNames: Readonly<Record<string, string>> = {},
   /** `person:<memberId>` → the person's name ("Você" for whoever is looking). */
   memberNames: Readonly<Record<string, string>> = {},
-): { readonly who: string; readonly whoAvatar?: string | undefined } {
+): { readonly who: string; readonly whoAvatar?: string | undefined; readonly whoSystem?: boolean } {
   const hint = page.editorHint.trim()
   if (hint === 'person:system') {
     // The index is kept by whoever holds the librarian role in THIS team (`memberNames.system`); no persona, no name.
     const librarian = memberNames.system
-    if (librarian === undefined) return { who: bindLocale(dict, 'feed.whoLibrarian'), whoAvatar: undefined }
+    // Muse: no persona in the role → the librarian is a system actor (book icon), never initials of a nobody.
+    if (librarian === undefined) return { who: bindLocale(dict, 'feed.whoLibrarian'), whoAvatar: undefined, whoSystem: true }
     return { who: librarian, whoAvatar: avatarForCharacterKey(normalizeCharacterId(librarian)) }
   }
   const parsed = parseEditorHint(hint)
@@ -196,6 +197,7 @@ export function pageToChangeItem(
     id: page.id,
     who: editor.who,
     ...(editor.whoAvatar === undefined ? {} : { whoAvatar: editor.whoAvatar }),
+    ...(editor.whoSystem === true ? { whoSystem: true } : {}),
     verb: bindLocale(dict, 'feed.verbUpdated'),
     pageTitle: brainPageTitle(dict, page),
     pageType: brainKindLabel(dict, page.kind),

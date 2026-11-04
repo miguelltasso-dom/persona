@@ -183,5 +183,9 @@
   "about.body": "See the version you are running, the third-party software notices, and install the update when there is one.",
   "about.open": "Open About and updates",
   "about.unavailable": "It cannot be opened from here right now. Use the shortcut below.",
-  "about.shortcut": "Shortcut:"
+  "about.shortcut": "Shortcut:",
+  "team.statusDraft": "In a draft",
+  "team.statusDraftSr": "Working in a draft",
+  "overview.awayViewTask": "View task",
+  "overview.awayOpenTaskPlain": "Open the task"
 }

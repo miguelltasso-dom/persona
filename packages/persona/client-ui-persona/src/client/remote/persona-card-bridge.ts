@@ -42,6 +42,27 @@ export function createPersonaCardBridge(
     revision.set({ n: revision.getSnapshot().n + 1 })
   }
 
+  /**
+   * SW-7: o rascunho vem do live (o host re-mede enquanto a tarefa roda), não do cartão carregado antes: um cartão
+   * aberto quando a persona estava parada passa a dizer "mudando N arquivos num rascunho" assim que o host avisa.
+   */
+  const withDraft = (personaId: string, base: PersonaCardInfo | undefined): PersonaCardInfo | undefined => {
+    if (base === undefined) return base
+    const characterId = characterIdForPersona(live, personaId)
+    if (characterId === undefined) return base
+    const files = live.observable.getSnapshot().stripMembers.find(member => member.id === characterId && member.state === 'working')?.draftFiles
+    if (files === undefined || files < 1) return base
+    return { ...base, nowKind: 'working', draftFiles: files }
+  }
+  // O cartão aberto acompanha o rascunho: só avisa quando a contagem muda (não a cada leitura do live).
+  let draftSignature = ''
+  live.observable.subscribe(() => {
+    const next = live.observable.getSnapshot().stripMembers.map(member => `${member.id}:${member.state === 'working' ? (member.draftFiles ?? 0) : 0}`).join('|')
+    if (next === draftSignature) return
+    draftSignature = next
+    bump()
+  })
+
   const loadCard = async (personaId: string): Promise<void> => {
     const tenant = live.observable.getSnapshot().tenant
     if (tenant === null) return
@@ -132,7 +153,7 @@ export function createPersonaCardBridge(
       getSnapshot: () => revision.getSnapshot(),
       subscribe: listener => revision.subscribe(listener),
     },
-    cardInfo: personaId => cards.get(personaId),
+    cardInfo: personaId => withDraft(personaId, cards.get(personaId)),
     prefetch,
     invalidate: reload,
     togglePause,

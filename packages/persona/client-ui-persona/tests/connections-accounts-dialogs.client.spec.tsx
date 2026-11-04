@@ -301,6 +301,36 @@ describe('swap rule: team and one persona', () => {
     expect(await screen.findByText(t('swapPolicy.saved'))).toBeTruthy()
   })
 
+  it('D-078: três escolhas — Perguntar antes de trocar (padrão, recomendada), Trocar sozinha e Ficar nesta conta; "dividir o uso" não é mais oferecida', () => {
+    render(<ConnectionsView accountsUi={ui([personal, work], { swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={async () => {}} />)
+    expect(screen.getAllByRole('radio').map(radio => radio.closest('label')?.textContent ?? '')).toEqual([
+      expect.stringContaining('Perguntar antes de trocar'),
+      expect.stringContaining('Trocar sozinha para a próxima conta'),
+      expect.stringContaining('Ficar nesta conta'),
+    ])
+    expect(screen.queryByText(/Dividir o uso/u)).toBeNull()
+    // quem não escolheu nada fica em "Perguntar antes de trocar" e só ela leva o selo
+    expect((policyCard(t('accountPolicy.ask.title')) as HTMLInputElement).checked).toBe(true)
+    const badges = screen.getAllByText(t('accountPolicy.recommended'))
+    expect(badges).toHaveLength(1)
+    expect(badges[0]!.closest('label')?.textContent).toContain('Perguntar antes de trocar')
+  })
+
+  it('D-078: antes de escolher "Trocar sozinha" a pessoa já lê que a troca é sempre vista no fio e dá para desfazer; escolher grava next_on_limit', async () => {
+    const onPolicy = vi.fn(async () => {})
+    render(<ConnectionsView accountsUi={ui([personal, work], { swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={onPolicy} />)
+    expect(screen.getByText('Sem perguntar, mas você sempre vê a troca no fio e pode desfazer.')).toBeTruthy()
+    expect(onPolicy).not.toHaveBeenCalled()
+    fireEvent.click(policyCard(t('accountPolicy.next_on_limit.title')))
+    await waitFor(() => { expect(onPolicy).toHaveBeenCalledWith('next_on_limit', 'workspace') })
+  })
+
+  it('D-078: regra antiga do host (round_robin) não marca nenhuma escolha e diz para escolher uma das três', () => {
+    render(<ConnectionsView accountsUi={ui([personal, work], { swapPolicy: 'round_robin' })} personas={personas} onSwapPolicyChange={async () => {}} />)
+    expect(screen.getByText(t('swapPolicy.legacyRule'))).toBeTruthy()
+    expect(screen.getAllByRole('radio').some(radio => (radio as HTMLInputElement).checked)).toBe(false)
+  })
+
   it('opening "Uma persona" saves NOTHING by itself', () => {
     const onPolicy = vi.fn(async () => {})
     render(<ConnectionsView accountsUi={ui([personal, work])} personas={personas} onSwapPolicyChange={onPolicy} />)

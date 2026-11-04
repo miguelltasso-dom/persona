@@ -237,13 +237,14 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       postChannelMessage: (body: string) => live.postChannelMessage(body),
       selectPanel: (panel: MainPanelId) => { actions.selectPanel(panel) },
       refreshLive: () => live.refresh(),
-      finishOnboardingWizard: async () => {
+      finishOnboardingWizard: async (options?: { readonly firstRequest?: string }) => {
         const snapshot = onboardingHandle.store.getSnapshot()
         clearOnboardingBycDraft()
         clearOnboardingStepDraft()
         await live.completeOnboarding(snapshot.displayName, rosterFromDrafts(snapshot.roster), {
           cofreSeed: snapshot.vaultText.trim(),
           templateIds: snapshot.templateId === 'emBranco' ? [] : [snapshot.templateId],
+          ...(options?.firstRequest === undefined ? {} : { firstRequest: options.firstRequest }),
         })
         writeOnboardingCacheComplete()
         await live.refresh()

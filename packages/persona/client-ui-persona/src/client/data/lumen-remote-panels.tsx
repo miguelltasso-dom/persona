@@ -18,7 +18,9 @@ import { ConnectionsView, type PolicyPersona } from '../connections/ConnectionsV
 import { FilesView } from '../files/FilesView.tsx'
 import type { FileEntry } from '../files/mock-data.ts'
 import { KnowledgeVault } from '../knowledge/KnowledgeVault.tsx'
-import { RoutinesView } from '../routines/RoutinesView.tsx'
+import { RoutinesView, type RoutineActions, type RoutineRow } from '../routines/RoutinesView.tsx'
+import type { EditorPersona, EditorProject } from '../routines/RoutineEditorModal.tsx'
+import { routineNameFromPrompt, type RoutineScheduleWire, type RoutineWire } from '../routines/routine-wire.ts'
 import { UsageLimits } from '../usage/UsageLimits.tsx'
 import { TriageRulesView } from '../rules/TriageRulesView.tsx'
 import { PersonaProfilePage } from '../profile/PersonaProfilePage.tsx'
@@ -351,11 +353,22 @@ export function RemoteRoutinesPanel({ persona, useTenant, useShell, sendToPerson
     const schedules = await unwrapRemote(await persona.listRoutineSchedule({ workspaceId, projectId }))
     // A persona's daily routine is named after its id (`initiative:<id>`): read the team once to show a person's name.
     let team: readonly NamedPersona[] = []
+    let faces: readonly EditorPersona[] = []
     try {
       const rows = await unwrapRemote(await persona.listPersonas({ workspaceId, projectId }))
       team = rows.map(row => ({ id: row.id, name: row.name }))
+      // The same read gives the faces for "Quem faz" (IV-9): nothing extra to load.
+      faces = rows.map(row => ({ id: row.id, name: row.name, avatarSrc: personaPortrait(row) }))
     } catch {
       /* names only: the neutral label is used when the team cannot be read */
+    }
+    let projects: readonly EditorProject[] = [{ id: projectId, name: projectId }]
+    const projectWire = persona as PersonaRemoteClient & { listProjects?(request: ProjectScopeRequest): Promise<RemoteResult<readonly { id: string; name: string }[]>> }
+    if (projectWire.listProjects !== undefined) {
+      try {
+        const rows = await unwrapRemote(await projectWire.listProjects({ workspaceId, projectId }))
+        if (rows.length > 0) projects = rows.map(row => ({ id: row.id, name: row.name }))
+      } catch { /* only the current project is offered */ }
     }
     // Windows the person saved here come from the host's own list; the rest are derived from the routines.
     const quietWire = persona as PersonaRemoteClient & { listQuietWindows?(request: ProjectScopeRequest): Promise<RemoteResult<readonly { id: string; label: string; start: string; end: string }[]>> }
@@ -366,10 +379,121 @@ export function RemoteRoutinesPanel({ persona, useTenant, useShell, sendToPerson
     return {
       schedules: schedules.map(schedule => ({ ...schedule, name: humanizeInternalIds(schedule.name, governanceDictPt, team) })),
       saved,
+      faces,
+      projects,
     }
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const schedules = state.status === 'ready' ? state.data.schedules : []
+  const routineWire = persona as PersonaRemoteClient & RoutineWire
+  const faces = state.status === 'ready' ? state.data.faces : []
+  const routineRows: readonly RoutineRow[] = schedules.map((schedule: RoutineScheduleWire) => {
+    const owner = faces.find(face => face.id === schedule.ownerPersonaId)
+    return {
+      id: schedule.id,
+      name: schedule.name,
+      // An older host sends no prompt/humanSchedule/system: every one is optional on the row.
+      prompt: schedule.prompt ?? '',
+      rrule: schedule.rrule,
+      ownerPersonaId: schedule.ownerPersonaId,
+      ownerName: owner?.name,
+      ownerAvatarSrc: owner?.avatarSrc,
+      projectId: schedule.projectId,
+      paused: schedule.paused,
+      humanSchedule: schedule.humanSchedule,
+      system: schedule.system === true,
+      timeZone: schedule.timeZone,
+      catchUp: schedule.catchUp,
+      silenceStart: schedule.silenceStart,
+      silenceEnd: schedule.silenceEnd,
+    }
+  })
+  // A new routine takes the person's zone, "skip" and no quiet window; a restored one brings back what it had (the host
+  // keeps zone, catch-up and quiet window on the schedule row, and createRoutine accepts them all).
+  const createRoutineFrom = useCallback(async (request: {
+    id: string
+    projectId: string
+    prompt: string
+    rrule: string
+    ownerPersonaId?: string | undefined
+    name?: string | undefined
+    timeZone?: string | undefined
+    catchUp?: 'skip' | 'run_once' | 'run_all' | undefined
+    silenceStart?: string | undefined
+    silenceEnd?: string | undefined
+  }) => {
+    if (workspaceId === undefined) return
+    await unwrapRemote(await routineWire.createRoutine({
+      workspaceId,
+      projectId: request.projectId,
+      id: request.id,
+      name: request.name ?? routineNameFromPrompt(request.prompt),
+      rrule: request.rrule,
+      timeZone: request.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+      catchUp: request.catchUp ?? 'skip',
+      silenceStart: request.silenceStart ?? '',
+      silenceEnd: request.silenceEnd ?? '',
+      prompt: request.prompt,
+      ...(request.ownerPersonaId === undefined ? {} : { ownerPersonaId: request.ownerPersonaId }),
+    }))
+  }, [routineWire, workspaceId])
+  const routineActions: RoutineActions | undefined = workspaceId === undefined || projectId === undefined || typeof routineWire.createRoutine !== 'function'
+    ? undefined
+    : {
+      personas: faces,
+      projects: state.status === 'ready' ? state.data.projects : [{ id: projectId, name: projectId }],
+      defaultProjectId: projectId,
+      canEdit: typeof routineWire.updateRoutine === 'function',
+      onSave: async (saved) => {
+        if (saved.id === undefined) {
+          await createRoutineFrom({ id: `routine-${crypto.randomUUID()}`, projectId: saved.projectId, prompt: saved.prompt, rrule: saved.rrule, ownerPersonaId: saved.ownerPersonaId })
+        } else if (routineWire.updateRoutine !== undefined) {
+          await unwrapRemote(await routineWire.updateRoutine({
+            workspaceId,
+            projectId: saved.projectId,
+            id: saved.id,
+            name: routineNameFromPrompt(saved.prompt),
+            prompt: saved.prompt,
+            rrule: saved.rrule,
+            ...(saved.ownerPersonaId === undefined ? {} : { ownerPersonaId: saved.ownerPersonaId }),
+          }))
+        }
+        retry()
+      },
+      onTogglePause: typeof routineWire.pauseRoutine === 'function'
+        ? async (row, paused) => {
+          await unwrapRemote(await routineWire.pauseRoutine({ workspaceId, projectId: row.projectId, id: row.id, paused }))
+          retry()
+        }
+        : undefined,
+      onDelete: typeof routineWire.deleteRoutine === 'function'
+        ? async (row) => {
+          await unwrapRemote(await routineWire.deleteRoutine!({ workspaceId, projectId: row.projectId, id: row.id }))
+          retry()
+        }
+        : undefined,
+      // "Desfazer" brings the routine back under the same id and with the same fields (the host accepts a deleted id).
+      onRestore: typeof routineWire.deleteRoutine === 'function'
+        ? async (row) => {
+          await createRoutineFrom({
+            id: row.id,
+            projectId: row.projectId,
+            name: row.name,
+            prompt: row.prompt.length > 0 ? row.prompt : row.name,
+            rrule: row.rrule,
+            ownerPersonaId: row.ownerPersonaId,
+            timeZone: row.timeZone,
+            catchUp: row.catchUp,
+            silenceStart: row.silenceStart,
+            silenceEnd: row.silenceEnd,
+          })
+          if (row.paused && typeof routineWire.pauseRoutine === 'function') {
+            await unwrapRemote(await routineWire.pauseRoutine({ workspaceId, projectId: row.projectId, id: row.id, paused: true }))
+          }
+          retry()
+        }
+        : undefined,
+    }
   const routineRuns = routineScheduleToRuns(schedules)
   const derivedQuiet = routineScheduleToQuiet(schedules)
   const savedQuiet = state.status === 'ready'
@@ -395,6 +519,8 @@ export function RemoteRoutinesPanel({ persona, useTenant, useShell, sendToPerson
       onRemoteRetry={() => { retryBootstrap(); retry() }}
       onAskSuggestions={() => { void onAskSuggestions() }}
       onAddQuietWindow={putQuiet === undefined ? undefined : onAddQuietWindow}
+      routineRows={routineRows}
+      actions={routineActions}
     />
   )
 }

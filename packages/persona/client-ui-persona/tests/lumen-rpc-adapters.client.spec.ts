@@ -211,6 +211,9 @@ describe('lumen RPC adapters', () => {
         catchUp: 'skip',
         silenceStart: '',
         silenceEnd: '',
+        prompt: '',
+        humanSchedule: '',
+        nextRunAt: '',
         runs: [{
           id: 'run1',
           routineId: 'r1',

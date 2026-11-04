@@ -30,7 +30,7 @@ import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import { destByRemovedForProposal } from '../kanban/accept-workflow-proposal.ts'
 import { ticketCountByColumnId } from '../kanban/workflow-editor-draft.ts'
-import { Toast, ToastRegion, usePawCelebration } from '../primitives/index.ts'
+import { Button, Toast, ToastRegion, usePawCelebration } from '../primitives/index.ts'
 import type { ConversationSubjectUi } from '../chat/conversation-subjects.ts'
 
 export interface ConnectedProjectFlowBoardProps {
@@ -71,6 +71,7 @@ export function ConnectedProjectFlowBoard({
   onNewTask,
 }: ConnectedProjectFlowBoardProps): ReactNode {
   const [reloadToken, setReloadToken] = useState(0)
+  const [moveBlocked, setMoveBlocked] = useState<{ readonly id: string; readonly title: string } | null>(null)
   const [reviewTarget, setReviewTarget] = useState<{ id: string; title: string } | null>(
     // Capture-only (dev seed + persona.devSeed.review): the sample opens on its own, once. Never without the flag.
     () => (reviewDevSampleEnabled() ? { id: REVIEW_DEV_TICKET_ID, title: REVIEW_DEV_TASK_TITLE } : null),
@@ -121,13 +122,40 @@ export function ConnectedProjectFlowBoard({
     onMutate()
   }
 
+  /**
+   * A card whose delivery is still waiting (it sits in a review column) must not be dragged into "Concluído": the host
+   * would drop the pending review (FLOW-1). The UI never even asks; and if the host refuses with `delivery_pending` the
+   * answer is the same: the card stays where it was and the person is told why, with the way to review it.
+   */
+  const deliveryWaiting = (ticketId: string, columnId: string): { readonly id: string; readonly title: string } | null => {
+    const card = flow?.cards.find(row => row.id === ticketId)
+    if (flow === null || card === undefined) return null
+    const from = flow.columns.find(column => column.id === card.columnId)
+    const to = flow.columns.find(column => column.id === columnId)
+    return from?.category === 'review' && to?.category === 'done' ? { id: card.id, title: card.title } : null
+  }
+
   const onMoveCard = async (ticketId: string, columnId: string): Promise<void> => {
-    await unwrapRemote(await persona.moveTicket({
+    const waiting = deliveryWaiting(ticketId, columnId)
+    if (waiting !== null) {
+      setMoveBlocked(waiting)
+      reload()
+      return
+    }
+    const result = await persona.moveTicket({
       workspaceId: scope.workspaceId,
       projectId: scope.projectId,
       ticketId,
       columnId,
-    }))
+    })
+    // The typed code list does not know `delivery_pending` yet (Forge/Anvil are adding it): compare as text.
+    if (!result.ok && (result.error?.code as string | undefined) === 'delivery_pending') {
+      const card = flow?.cards.find(row => row.id === ticketId)
+      setMoveBlocked({ id: ticketId, title: card?.title ?? '' })
+      reload()
+      return
+    }
+    await unwrapRemote(result)
     reload()
   }
 
@@ -354,6 +382,22 @@ export function ConnectedProjectFlowBoard({
             } }
             : {})}
         />
+      )}
+      {moveBlocked !== null && (
+        <ToastRegion label={t('a11y.toastRegion')}>
+          <Toast
+            tone="warning"
+            title={t('moveBlocked.title')}
+            body={t('moveBlocked.body')}
+            action={(
+              <Button size="s" variant="primary" onClick={() => { setReviewTarget({ id: moveBlocked.id, title: moveBlocked.title }); setMoveBlocked(null) }}>
+                {t('moveBlocked.review')}
+              </Button>
+            )}
+            dismissLabel={t('moveBlocked.dismiss')}
+            onDismiss={() => { setMoveBlocked(null) }}
+          />
+        </ToastRegion>
       )}
       {sprintCloseSummary !== null && (
         <ToastRegion label={t('a11y.toastRegion')}>

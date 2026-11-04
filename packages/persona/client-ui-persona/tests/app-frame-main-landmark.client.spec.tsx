@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { PersonaAppFrame } from '../src/client/shell/PersonaAppFrame.tsx'
 import { createShellStore } from '../src/client/shell/create-shell-store.ts'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
+import { globalStandardProps } from './global-standard-props.client.ts'
 import { bindLocale } from '../src/client/preview/locale-bind.ts'
 import { pt as shellPt } from '../src/client/locale/shell/locales.ts'
 
@@ -18,6 +19,7 @@ describe('PersonaAppFrame', () => {
     const { store } = createShellStore()
     render(
       <PersonaAppFrame
+        {...globalStandardProps}
         t={((key: string, params?: Record<string, string | number>) => bindLocale(shellPt, key, params)) as never}
         selectPanel={() => undefined}
         useShell={bindObservableForTest(store)}
@@ -40,6 +42,7 @@ describe('PersonaAppFrame', () => {
     actions.selectPanel('teamHealth')
     const { container } = render(
       <PersonaAppFrame
+        {...globalStandardProps}
         t={((key: string, params?: Record<string, string | number>) => bindLocale(shellPt, key, params)) as never}
         selectPanel={actions.selectPanel}
         useShell={bindObservableForTest(store)}

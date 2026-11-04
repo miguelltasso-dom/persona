@@ -233,7 +233,7 @@ export function connectionAccountsFallbackFromConnections(
   ))
   return {
     groups: groupAccounts(uiRows),
-    swapPolicy: 'next_on_limit',
+    swapPolicy: 'ask_before_swap',
     swapPolicyScope: 'workspace',
     legacySingleSeat: true,
   }

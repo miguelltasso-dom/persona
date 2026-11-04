@@ -32,10 +32,10 @@
 .plain { --chip-bg: var(--persona-card); }
 .brand { --chip-bg: var(--persona-brand); --chip-ink: var(--persona-on-brand); }
 .accent { --chip-bg: var(--persona-accent); --chip-ink: var(--persona-accent-ink); }
-.success { --chip-bg: var(--persona-success-tint); --chip-ink: var(--persona-success); }
-.warning { --chip-bg: var(--persona-warning-tint); --chip-ink: var(--persona-warning); }
-.danger { --chip-bg: var(--persona-danger-tint); --chip-ink: var(--persona-danger); }
-.info { --chip-bg: var(--persona-info-tint); --chip-ink: var(--persona-info); }
+.success { --chip-bg: var(--persona-success-chip); --chip-ink: var(--persona-success); }
+.warning { --chip-bg: var(--persona-warning-chip); --chip-ink: var(--persona-warning); }
+.danger { --chip-bg: var(--persona-danger-chip); --chip-ink: var(--persona-danger); }
+.info { --chip-bg: var(--persona-info-chip); --chip-ink: var(--persona-info); }
 
 .reaction {
   display: inline-flex;

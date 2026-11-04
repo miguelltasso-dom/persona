@@ -40,7 +40,7 @@ describe('DirectMessagesView turn context (C5b)', () => {
         onLoadTurnContext={onLoad}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: /Contrato v2/u }))
+    fireEvent.click(screen.getByRole('button', { name: chatPt['context.show'] }))
     expect(onLoad).toHaveBeenCalledWith('t-42')
     expect(screen.getByRole('region', { name: chatPt['context.drawerTitle'] })).toBeTruthy()
   })

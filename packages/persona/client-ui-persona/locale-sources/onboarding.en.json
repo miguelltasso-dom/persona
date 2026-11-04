@@ -143,5 +143,8 @@
   "step4.builderToggle": "Prefer to describe it in your own words?",
   "step3.checking": "Checking…",
   "step3.checkingNotice": "I’m checking the AI tools on this computer. It takes a few seconds.",
-  "step5.introLine": "{role}. You can count on me."
+  "step5.introLine": "{role}. You can count on me.",
+  "step5.taskEditHint": "You can change the text: the team receives exactly what is here.",
+  "step5.suggestionsLabel": "Ideas for your business",
+  "step5.requestEmpty": "Write what you want to ask for to continue."
 }

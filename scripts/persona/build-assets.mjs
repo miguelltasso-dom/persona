@@ -12,7 +12,8 @@ import sharp from 'sharp'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const SRC = join(ROOT, 'persona-assets')
 const OUT = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets')
-const MAX_GIT_BYTES = 10 * 1024 * 1024
+// Keel 04/11: 12 MiB for the BR-P3 P1 poses + the last extras (art loads by URL per screen; nothing inlined in client.js).
+const MAX_GIT_BYTES = 12 * 1024 * 1024
 const AVATAR_SIZES = [256, 96, 48]
 const POSE_MAX_HEIGHT = 480
 /**
@@ -197,6 +198,15 @@ async function main() {
     // Muse (BR-P1 P2 nº 3–5, SIMPLE-WORKSPACE-SPEC): conflict, empty history, draft being prepared (480 shown at 240).
     ...['conflito-mesmo-arquivo', 'empty-historico', 'rascunho-trabalhando'].map(name => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
+    )),
+    // Muse (BR-P3 P0, UX-BEYOND + the Miguel redesign): limit, remote team, access ended, applied, empty approvals (480 → 240).
+    ...['empty-limite', 'empty-equipe-remota', 'acesso-encerrado', 'sucesso-aplicado', 'empty-aprovacoes', 'sucesso-skill-aprendida', 'sucesso-convite-aceito', 'sucesso-equipe-chegou'].map(name => (
+      { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
+    )),
+    { from: 'illustrations/spot-limite.png', to: 'illustrations/spot-limite.webp', width: 192, quality: 88 },
+    // Muse (BR-P3 P1): the 6 Ajuda spots (192 → 96).
+    ...['conectar-ia', 'contratar', 'ensinar', 'quadros', 'avisos', 'privacidade'].map(name => (
+      { from: `illustrations/spot-ajuda-${name}.png`, to: `illustrations/spot-ajuda-${name}.webp`, width: 192, quality: 88 }
     )),
     // Muse (BR-P1 P2 nº 2): "Falta uma IA" spot for the composer banner (192 shown at 96).
     { from: 'illustrations/spot-sem-ia.png', to: 'illustrations/spot-sem-ia.webp', width: 192, quality: 88 },

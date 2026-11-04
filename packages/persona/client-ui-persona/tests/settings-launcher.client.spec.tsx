@@ -13,6 +13,7 @@ import { canOpenSettingsModal, openSettingsModal } from '../src/client/shell/set
 import { bindLocale } from '../src/client/preview/locale-bind.ts'
 import { pt as shellPt } from '../src/client/locale/shell/locales.ts'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
+import { globalStandardProps } from './global-standard-props.client.ts'
 
 beforeEach(() => { localStorage.clear() })
 afterEach(() => {
@@ -30,6 +31,7 @@ function launcher(options: { activePanel?: MainPanelId; openSettings?: () => voi
   const openSettings = options.openSettings ?? vi.fn()
   const view = render(
     <SettingsLauncher
+      {...globalStandardProps}
       t={t}
       useShell={bindObservableForTest(shell.store)}
       selectPanel={selectPanel}
@@ -90,7 +92,7 @@ describe('SettingsLauncher', () => {
     const first = vi.fn()
     const second = vi.fn()
     const shell = createShellStore()
-    const props = { t, useShell: bindObservableForTest(shell.store), selectPanel: () => {}, wide: true, settingsOpen: false, openOnboarding: () => {} }
+    const props = { ...globalStandardProps, t, useShell: bindObservableForTest(shell.store), selectPanel: () => {}, wide: true, settingsOpen: false, openOnboarding: () => {} }
     const { rerender } = render(<SettingsLauncher {...props} openSettings={first} />)
     rerender(<SettingsLauncher {...props} openSettings={second} />)
     openSettingsModal()

@@ -253,6 +253,8 @@ export const pt = {
   'teach.needsDesktopShort': 'Só funciona no app instalado.',
   'teach.sourcePickHint': 'Escolha uma tela ou janela para continuar.',
   'teach.share.confirmHint': 'Marque que entendeu para continuar.',
+  'card.now.draft': '{name} está mudando {count} arquivos num rascunho. Nada muda na sua pasta até você aplicar.',
+  'card.now.draft.one': '{name} está mudando 1 arquivo num rascunho. Nada muda na sua pasta até você aplicar.',
 } as const
 
 /** English copy. */
@@ -505,6 +507,8 @@ export const en = {
   'teach.needsDesktopShort': 'Only works in the installed app.',
   'teach.sourcePickHint': 'Choose a screen or window to continue.',
   'teach.share.confirmHint': 'Tick that you understand to continue.',
+  'card.now.draft': '{name} is changing {count} files in a draft. Nothing changes in your folder until you apply.',
+  'card.now.draft.one': '{name} is changing 1 file in a draft. Nothing changes in your folder until you apply.',
 } as const
 
 export const zh = {
@@ -756,6 +760,8 @@ export const zh = {
   'teach.needsDesktopShort': 'Only works in the installed app.',
   'teach.sourcePickHint': 'Choose a screen or window to continue.',
   'teach.share.confirmHint': 'Tick that you understand to continue.',
+  'card.now.draft': '{name} is changing {count} files in a draft. Nothing changes in your folder until you apply.',
+  'card.now.draft.one': '{name} is changing 1 file in a draft. Nothing changes in your folder until you apply.',
 } as const
 export const ja = {
   'header.eyebrow': 'More',
@@ -1006,6 +1012,8 @@ export const ja = {
   'teach.needsDesktopShort': 'Only works in the installed app.',
   'teach.sourcePickHint': 'Choose a screen or window to continue.',
   'teach.share.confirmHint': 'Tick that you understand to continue.',
+  'card.now.draft': '{name} is changing {count} files in a draft. Nothing changes in your folder until you apply.',
+  'card.now.draft.one': '{name} is changing 1 file in a draft. Nothing changes in your folder until you apply.',
 } as const
 export const es = {
   'header.eyebrow': 'More',
@@ -1256,6 +1264,8 @@ export const es = {
   'teach.needsDesktopShort': 'Only works in the installed app.',
   'teach.sourcePickHint': 'Choose a screen or window to continue.',
   'teach.share.confirmHint': 'Tick that you understand to continue.',
+  'card.now.draft': '{name} is changing {count} files in a draft. Nothing changes in your folder until you apply.',
+  'card.now.draft.one': '{name} is changing 1 file in a draft. Nothing changes in your folder until you apply.',
 } as const
 export const fr = {
   'header.eyebrow': 'More',
@@ -1506,6 +1516,8 @@ export const fr = {
   'teach.needsDesktopShort': 'Only works in the installed app.',
   'teach.sourcePickHint': 'Choose a screen or window to continue.',
   'teach.share.confirmHint': 'Tick that you understand to continue.',
+  'card.now.draft': '{name} is changing {count} files in a draft. Nothing changes in your folder until you apply.',
+  'card.now.draft.one': '{name} is changing 1 file in a draft. Nothing changes in your folder until you apply.',
 } as const
 export const de = {
   'header.eyebrow': 'More',
@@ -1756,6 +1768,8 @@ export const de = {
   'teach.needsDesktopShort': 'Only works in the installed app.',
   'teach.sourcePickHint': 'Choose a screen or window to continue.',
   'teach.share.confirmHint': 'Tick that you understand to continue.',
+  'card.now.draft': '{name} is changing {count} files in a draft. Nothing changes in your folder until you apply.',
+  'card.now.draft.one': '{name} is changing 1 file in a draft. Nothing changes in your folder until you apply.',
 } as const
 export const ru = {
   'header.eyebrow': 'More',
@@ -2006,6 +2020,8 @@ export const ru = {
   'teach.needsDesktopShort': 'Only works in the installed app.',
   'teach.sourcePickHint': 'Choose a screen or window to continue.',
   'teach.share.confirmHint': 'Tick that you understand to continue.',
+  'card.now.draft': '{name} is changing {count} files in a draft. Nothing changes in your folder until you apply.',
+  'card.now.draft.one': '{name} is changing 1 file in a draft. Nothing changes in your folder until you apply.',
 } as const
 
 export type ProfileKey = keyof typeof pt

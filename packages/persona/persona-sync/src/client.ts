@@ -64,7 +64,9 @@ export class SyncClient {
    * @param envelope - Candidate (seq already assigned or next expected).
    */
   async push(envelope: SyncEnvelope): Promise<PushResult> {
-    if (!mayUpload(envelope)) return { status: 'refused', seq: envelope.seq, code: 'PRIVATE_NOT_SHARED' }
+    if (!mayUpload(envelope) || isLocalOnlyStream(envelope.streamId)) {
+      return { status: 'refused', seq: envelope.seq, code: 'PRIVATE_NOT_SHARED' }
+    }
     this.outbox.push(envelope)
     return this.flushOne()
   }
@@ -128,4 +130,12 @@ export class SyncClient {
     }
     return result
   }
+}
+
+/**
+ * Teach recordings and provider home dirs never leave the device (WAVE2).
+ * @param streamId - Envelope stream.
+ */
+export function isLocalOnlyStream(streamId: string): boolean {
+  return streamId.startsWith('teach:') || streamId.startsWith('account:')
 }

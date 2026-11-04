@@ -95,3 +95,220 @@ bundle (with-lock) → Build complete, 99 files
 
 - `design-shots.mjs` ganhou varredura axe opcional (`MUSE_AXE=<caminho do axe.min.js>`, sem dependência no repo; axe-core 4.10.2): **0 violações WCAG 2.0/2.1/2.2 A+AA** em #geral e Visão geral, claro e escuro, com host real semeado.
 - Também loga respostas HTTP ≥ 400 com `MUSE_CONSOLE=1`.
+
+## 2026-11-03 19:35 — Movimento verificado + ícones de fluxo
+
+- Pausa global de laços com a janela oculta (`body[data-persona-hidden]`, instalada junto do esquema de cor). Medição no app real (`MUSE_REDUCED=0|1` no design-shots): 20 animações infinitas no #geral → **0 com reduced-motion** e **0 com a janela oculta**.
+- Ícones de modelo de fluxo do Brush no pipeline (`FLOW_ICONS`) + primitivo `FlowIcon`; `BrandIcon name="sprints"`.
+
+## 2026-11-03 19:50 — Primitivos de quadro + assets do Brush
+
+- Assets: `empty-col-{todo,doing,review,needs-you,done,blocked}` (preferindo os nomes do spec; `empty-coluna-*` como alternativa) e `sprint-concluida` no pipeline (5,90 MiB).
+- Primitivos novos `primitives/Board.tsx`: `CategoryBar`, `BoardColumns`, `BoardColumn` (faixa/ícone/WIP/vazio ilustrado por categoria), `SprintStrip` (progresso com `role=progressbar`), tokens `--persona-cat-*`; `FlowIcon`. Teste `tests/board-primitives.client.spec.tsx` (3/3). BOARDS-SPEC aponta os primitivos.
+
+## 2026-11-03 20:20 — Segunda fila do Atlas, governança, ajustes e Cartão da Persona
+
+- **Monte sua equipe** (Contratar → editor → perfil):
+  - editor em duas colunas, com cartão "descreva e eu monto", galeria de 17 bichos, ferramentas em linguagem simples, cartões de motor, autonomia/atenção e prévia viva da pose acenando;
+  - perfil com herói de cena e pose por estado.
+- **Pico e fim**: `PawBurst`/`usePawCelebration`/`MilestoneCard`; equipe pronta no onboarding; "enquanto você esteve fora" uma vez.
+- **DM**:
+  - cabeçalho com mini-cena da pose, gaveta "Contexto usado" (também no #geral);
+  - composer "Mensagem para Nina…" que envia na DM (teste `dm-view.client.spec`);
+  - DM vazia com 3 sugestões de primeiro pedido conforme o cargo.
+- **Cromo do desktop**: `design/DESKTOP-CHROME.md` para o Rivet (barra no tom do papel, splash com a equipe andando, bandeja em 4 estados).
+- **Governança (BRIEFING 16)**: primitivos `OrgChart` (organograma e modo lista), `HealthScore`, `HealthItem`, `TwoDayTimeline`; spec `design/GOVERNANCE-SPEC.md`; artes pedidas ao Brush.
+- **Rail**:
+  - "Sua equipe" em fileira de avatares por padrão em janelas com menos de 1000 px (preferência salva);
+  - itens de 36 px, rodapé de 100 px.
+  - Pendente: os novos grupos "Equipe" (Prism/Lumen) empurram Trabalho/Empresa para baixo da dobra a 900 px. Próximo passo: grupos recolhíveis (fechados por padrão em janela baixa; o grupo ativo abre sozinho) e avatares de 32 px numa linha só, com o + junto.
+- **Cartão da Persona** (pedido do Miguel), spec `design/PERSONA-CARD-SPEC.md`:
+  - primitivos `PersonaCard`/`PersonaCardFacts`/`PersonaCardPopover`/`usePersonaCardController` e `profile/PersonaInfoCard`;
+  - conteúdo: cena com a pose ao vivo, @handle · cargo · setor, selos de função, "agora" em linguagem humana, quem pode falar com Editar, presença, responsável e substituto, projeto, motor com barras 5h/semana ("indisponível", nunca 0%), "Mensagem para Nina" na DM, menu ⋯;
+  - portal, Esc devolve o foco, reduced-motion;
+  - ligado ao rail (hover e ⋯ "Sobre Nina");
+  - Anvil publicou `getPersonaCard`/`getPersonaTalkAcl`/`setPersonaTalkAcl`/`pausePersona`/`resumePersona`/`setPersonaEngine`.
+- **Perfil**: o mesmo bloco ao lado da cena grande, mais "Fila agora", "Entregas recentes" e o estado vazio ilustrado de "Atividade recente" com o botão de primeiro pedido.
+- **Poses do Brush** no pipeline: `aguardando-resposta` e `offline` dos 12 bichos (assets 6,83 MiB de 10).
+- **Capturas**: `card-{nina,atlas,bento}-dark(-menu)`, `profile-atlas-{light,dark}`, `channel-*`, `dm-nina-*`.
+- **axe**: perfil 0. Nos outros, 2 violações vêm dos `<input type="file">` sem rótulo do composer (Prism); corrijo após o SNAPSHOT CORTADO com `aria-hidden`.
+- **A corrigir após o CORTADO**:
+  - cartão aberto pelo clique às vezes não recebe o foco (visibility hidden antes de posicionar) → trocar por opacity e Esc no documento;
+  - rodada clara da captura do cartão falhou no boot (SlotAssemblyError intermitente) → repetir.
+- **Testes**: 64 arquivos / 153 antes do cartão. Mais `persona-card.client.spec` (5) e cartão no `rail-team.client.spec`.
+
+## 2026-11-03 20:45 — Pós-snapshot: cartão estável, rail a 900 px, arte do Brush integrada
+
+- **Cartão**:
+  - o foco só entra depois de posicionado (antes, `visibility: hidden` impedia o foco);
+  - Esc fecha de qualquer lugar e o Esc do menu não fecha o cartão.
+  - Captura: axe 0 em claro e escuro, Esc fecha e devolve o foco ao ⋯ (Nina, Atlas, Bento).
+- **Rail a 900 px**:
+  - os grupos Equipe/Trabalho/Empresa/Mais recolhem (`persona.rail.groups.v1`); em janelas abaixo de 1000 px, Equipe e Empresa começam fechados e o grupo da tela ativa abre sozinho;
+  - avatares de 32 px numa linha.
+  - Captura `channel-light`: tudo o que é essencial cabe sem rolar.
+- **Composer (a11y)**: os inputs de arquivo ocultos ficam `aria-hidden` e o token inexistente `--persona-paper-muted` virou `paper-sunken`. axe 0 em #geral e na DM.
+- **Arte do Brush no pipeline** (7,40 MiB):
+  - `SECTOR_ICONS` com o primitivo `SectorIcon` (12 setores);
+  - `stamp-aprovado` com o primitivo `ApprovedStamp` (carimbo único na aprovação);
+  - `away-entregas` no painel "Enquanto você esteve fora";
+  - `equipe-saudavel`/`ponto-unico-falha` como arte padrão do `HealthScore` por nível;
+  - `voce-de-ferias` em `TWO_DAY_ART`;
+  - nav `quem-cuida`/`saude` no rail.
+  - Primeira tarefa: aprovei a proposta do Brush (`primeira-entrega`).
+- **OrgChart**: um grupo só não estica a tela (colunas de 200–272 px centralizadas sob o braço direito).
+- **Revisões**:
+  - Lumen fechou os 10 itens de GOV-6/7;
+  - Prism precisa formatar `limitedUntil`, passar `characterId` e mapear a ACL no `map-persona-card-view`;
+  - a arte do splash e da bandeja foi repassada ao Rivet.
+- **DESIGN-SYSTEM §5**: cartão, governança e pico-fim documentados.
+- **vitest**: 76 arquivos / 181 testes verdes.
+
+## 2026-11-03 21:10 — Marcos, figurinhas e revisões
+
+- **Visão geral**: marco "primeira entrega" com `MilestoneCard`, a arte `primeira-entrega` (proposta do Brush aprovada) e uma rajada só.
+  - Aparece uma vez por `taskId`; "Ver no quadro" abre o quadro.
+  - Teste: `overview-first-delivery`.
+  - Prism liga a prop `firstDelivery`.
+- **Figurinhas**:
+  - contrato com o Brush: `stickers/<animal>-<joinha|coracao|rindo|comemorando|pensando|feito>.png` em 256 px;
+  - pipeline `STICKERS` (webp de 128 px);
+  - `StickerPicker` em grade 3×2 com setas e `aria-pressed`;
+  - `ReactionChip sticker`, com emoji de reserva enquanto a arte não chega;
+  - teste `stickers`.
+- **Primitivos**: o `OrgChart` e o cartão aceitam o `characterId` "-default", e a legenda "Braço direito" não fica mais cortada pela linha.
+- **Revisões por captura**:
+  - Saúde aprovada;
+  - organograma: falta o retrato (o host não manda `characterId`; Lumen faz o fallback para o rail);
+  - Aprovações: plural, "~0 tokens" falso, avatar "CR" e corpo repetindo o título (enviado ao Lumen).
+- **vitest**: 80 arquivos / 190 testes. Lote enviado ao Atlas.
+
+## 2026-11-03 22:05 — Ajustes do Atlas, UX-BACKLOG, revisão das telas restantes
+
+- **Atlas (1) organograma**:
+  - retratos dos bichos com selo ao vivo;
+  - cotovelos arredondados no nosso traço (2,5 px);
+  - "Cargo · Setor";
+  - cartão da persona ao clicar (`cardTrigger`, Lumen ligou);
+  - SectorIcon no "Por setor".
+- **Atlas (2) Saúde**: o `HealthScore` ganhou medidor 0–100 (`score`/`scoreLabel`) e arte menor; o Teste dos 2 dias com consertos de 1 clique ficou acima da dobra. Falta reduzir a `TWO_DAY_ART` (Lumen).
+- **Atlas (3) jargão**: mapa central `team/engine-label.ts` (`engineLabel`, `runnerLabel`, `modelLabel`, `humanizeEngineLabel`), já usado no cartão, no perfil e no editor; Lumen aplicou em Conexões e Uso. DESIGN-SYSTEM §9 ganhou três regras: sem ids crus, sem zero inventado, sem iniciais para bichos.
+- **Miguel → `persona-spec/design/UX-BACKLOG.md`**: 17 atritos priorizados (P1–P3), com proposta e dono. Os do dogfood Padaria Lua entram com o prefixo DF- (a rodada do Forge ainda parou no lock). Resolvi os meus:
+  - UX-04: o nome no cartão leva ao perfil;
+  - UX-07: Shift+F10 abre o cartão;
+  - grupo "Organização";
+  - Projetos acessível por teclado, com o bloco "Novo projeto".
+- **Bug corrigido**: o banner mostrava dois bichos por persona, porque os frames de piscar/rabo do pose disponível ficavam por cima do dormindo. Teste `team-figure-life`.
+- **Figurinhas**: pipeline em subpasta (`stickers/<animal>/<reação>.png`). Atlas e Bento no app; `chat/ReactionAdder` pronto para o Prism.
+- **Splash do Rivet revisado**: selo vazio, fonte do sistema, fila duplicada e pequena, centralização. Pedido no Status.
+- **Revisão por captura aprovada**: Regras, Conexões, Uso, Arquivos, Membros, Aprovações, onboarding. O script de capturas agora abre grupos recolhidos e espera o rail.
+- **vitest**: 88 arquivos / 209 testes verdes.
+- **Pendência**: o daemon do Maestri ficou fora às 22:00. A linha do Status e a mensagem ao Lumen saem por retentativa automática.
+
+## 2026-11-03 23:00 — Figurinhas no fluxo, indicadores, splash, Onda 2 (spec + primitivos)
+
+- **Figurinhas**:
+  - pipeline com as 30 figurinhas do Brush (5 bichos × 6 reações; assets 7,75 MiB de 10);
+  - o Prism ligou `toggleMessageReaction`, e eu ajustei a apresentação: sem reação, o + vira ação flutuante no canto da mensagem (0 px no fluxo); a figurinha segue o bicho do autor; nas mensagens do humano, usa a coordenação no #geral e o par na DM (`userStickerAnimal`); rótulo "Coração: 2";
+  - o + some quando o host não reage (nada de controle morto);
+  - teste `message-stickers` (3).
+- **Motor sem jargão**: o `PersonaCard` humaniza `engine.value` no próprio primitivo, então nenhuma tela deixa vazar "dsh · default". Teste no `persona-card` spec.
+- **DF-003 (Forge, P0 "copy sem espaços") é falso positivo**: as capturas 04 e 05 mostram os espaços. A captura 05 revelou 2 bugs **meus**: a pílula ativa do rail ficava vazia e fora do lugar, e o indicador das abas ficava cortado. A correção foi o `primitives/use-active-indicator.ts` (mede de novo com ResizeObserver, mutação de aria, `transitionend` e fontes), usado no rail e no `Tabs`.
+- **Splash do Rivet, 2ª revisão**: render direto do `reconnecting-page.ts` com Chrome headless (`rivet-splash-*`). Fontes, selo e centralização OK, e reduced-motion 8→0. Pedidos no Status:
+  - ordem com o Atlas à frente;
+  - escala por espécie;
+  - walkers em 2×;
+  - faixa de chão no lugar do disco;
+  - raio e foco no botão de erro.
+- **Onda 2 (BRIEFING 17)**:
+  - spec `persona-spec/design/WAVE2-SPEC.md`, com refcat citado só por metadados (as telas estão bloqueadas): Loom, Beside, Amie, incident.io;
+  - tokens `--persona-subject-0..6(-tint)` na ordem do core, claro e escuro;
+  - primitivos `MenuButton` (o ⋯ do cartão migrou para ele), `SubjectBar`/`SubjectDot`, `AccountRow`/`AccountList`/`AccountPolicyPicker`/`Notice`, `RecordingPill`/`RecordingFrame`/`TeachStepCard`/`TeachStepList`, `QuotaMeter` exportado e `accountPolicyText` no cartão;
+  - ícones `ensinar`/`trocar-conta`/`mover-assunto` do Brush no `BrandIcon` (pipeline `icons/ui`);
+  - ilustrações `ensinar-<animal>` pedidas ao Brush;
+  - entregue ao Prism (a, b) e ao Lumen (c). DESIGN-SYSTEM §5 atualizado.
+- **UX-BACKLOG**: seção DF com 10 itens (DF-002 P0 do Prism; DF-001/005/006/008/010/013 P1), DF-003 reclassificado e UX-16 feito para os 5 do modelo.
+- **Verificação**: vitest 92 arquivos / 238 testes verdes; tsc e oxlint limpos nos meus arquivos. Os erros de tsc que sobram são de outros: tipos do host ainda não regenerados para contas, insights e propostas.
+- **Pendente**: bundle e capturas (pílula do rail, abas, figurinhas, organograma, Saúde) na fila da trava, atrás do pacote D8 do Rivet (iniciado 22:18). A revisão por captura da Onda 2 espera a integração do Prism e do Lumen.
+
+## 2026-11-04 00:30 — UX-06 Ctrl K, revisão por captura, arte do Ensinar
+
+- **UX-06**:
+  - Ctrl K/⌘K virou atalho global de verdade (o rail mostrava a dica, mas não fazia nada);
+  - a Busca mostra "Ir para" (as 18 telas, inclusive as de grupos recolhidos) e "Equipe" (retratos, abre o perfil);
+  - filtro sem acento, ↓ e Enter, estado vazio honesto, campo focado ao abrir;
+  - `shell/nav-groups.ts` é o modelo único do rail e da busca;
+  - o slot `contentResults` fica pronto para o Prism ligar o `search()` do host;
+  - teste `search-goto` (4).
+- **Revisão por captura (0 erros de console)**:
+  - rail e abas: a pílula ativa e o indicador estão corretos (DF-M1/M2 confirmados);
+  - #geral: a barra de assuntos agora fica alinhada à coluna do cabeçalho (`.subjectRow`), e o ⋯ ghost perdeu o fundo de botão (`MenuButton` só põe fundo no `secondary`);
+  - Saúde: a arte do Teste dos 2 dias tinha ~560 px. O CSS do Lumen não era aplicado na tela, então o `TwoDayTimeline` passou a limitar `legendArt` a 112 px. Linha do tempo e legenda acima da dobra;
+  - organograma: "Braço direito" virou etiqueta ao lado do conector (a linha cruzava o texto);
+  - Busca: anel de foco duplo corrigido (o contorno do campo é quem mostra o foco); o mesmo vale para a renomeação de assunto.
+- **Arte do Brush aprovada e no pipeline**:
+  - `ensinar-<animal>` (320 px);
+  - figurinhas de capivara, cervo, coelho e coruja (54 no total, 9 bichos; assets 7,90 MiB).
+- **Verificação**:
+  - vitest 93 arquivos / 242 testes verdes;
+  - oxlint e tsc limpos nos meus arquivos;
+  - os erros restantes são de trabalho em curso dos outros: o "mover mensagem" do Prism no `GeneralChannelView` (chaves `subjects.move*`) e os tipos do host para contas e insights.
+- **Aguardando dependências**:
+  - revisão por captura da integração da Onda 2 (Prism a/b, Lumen c);
+  - 3ª revisão do splash, quando o Rivet aplicar os 5 ajustes.
+
+## 2026-11-04 02:00 — Pedidos do Atlas: UX-BACKLOG, Onda 3, galeria, BYC
+
+- **Os 5 de maior impacto do UX-BACKLOG** (com ok do Lumen; antes e depois em `gallery/antes-depois/`):
+  - **UX-05**, Regras: o primitivo novo `ChoiceCards` oferece Econômico · Normal (recomendado) · Generoso · Personalizar, com "até N propostas por dia · ≈ N tarefas médias por mês". Os números só aparecem em Personalizar, já convertidos em tarefas, e Salvar só fica primário quando algo mudou.
+  - **UX-10**: "Simular de novo" no cartão do teste (saiu do cabeçalho).
+  - **UX-13** e **UX-14**: cópia nova, mais as props `onDescribeCompany`/`onAskSuggestions`, que o Lumen liga.
+  - **UX-15**: `youInSentence` deixa "você" em minúscula no meio da frase.
+  - **UX-18 (sistêmico)**: `PersonaSurfaceEmpty` só mostra o CTA quando há `onPrimary`. Havia **11 botões mortos** nos estados vazios.
+  - O `AccountPolicyPicker` passou a usar o `ChoiceCards` por baixo.
+  - O UX-04 saiu pelo Prism, em paralelo.
+- **Onda 3, computer use**:
+  - `design/COMPUTER-USE-SPEC.md` e o protótipo funcional `design/computer-use-prototype/index.html`, testado no Chrome headless:
+    - pausa da pessoa congela o cursor e a digitação;
+    - 2 personas em paralelo;
+    - 0 erros;
+    - reduced-motion sem animações.
+  - **W3-6 no cliente**:
+    - `primitives/cursor-motion.ts` (Bézier, minimum-jerk, Fitts, ultrapassagem; puro e com testes);
+    - `PersonaCursor`;
+    - `ActionReplay` (replay do que a persona fez: arcos e cliques sobre as capturas, Espaço e setas, "Passo n de N").
+- **Galeria final**: `.maestri/tmp/shots/design/gallery/index.md`, com 30 telas em claro e escuro, 5 pranchas antes/depois, 0 erros de console e defeitos conhecidos com dono. Os dois defeitos que o Atlas apontou (o cartão de Conexões no escuro e o Teste dos 2 dias só com a Vigia) foram para o Lumen com a correção exata; recapturo quando ele avisar.
+- **BYC (BRIEFING 18)**:
+  - spec `design/BRING-CONTEXT-SPEC.md`;
+  - primitivos `CopyPrompt`, `PasteBox`, `FolderDrop`, `ProposalReview` + `defaultChoice` e um glifo `copy` novo no `UiIcon`;
+  - entregue ao Prism (onboarding passo 2) e ao Lumen (Importar).
+- **Brush, aprovado e no pipeline**:
+  - selos de motor `ENGINE_ICONS` (10, formas próprias, sem logotipos);
+  - `assumir-controle`;
+  - figurinhas de guaxinim, lobo-guará, lontra e ouriço (13 bichos);
+  - assets 8,05 MiB.
+- **Verificação**: vitest verde (ver Status), com tsc e oxlint limpos nos meus arquivos.
+
+## 2026-11-04 — Segundo cérebro, Gestor de equipe, organograma em escala
+
+- **Segundo cérebro (BRIEFING 19)**:
+  - spec `design/SECOND-BRAIN-SPEC.md`;
+  - primitivos `RememberPermission` (opt-in, escopo em frase, validade explícita, guarda), `PermissionRow` (Revogar com confirmação inline), `ChangeFeed`, `ContradictionCard` e `PageMeta`;
+  - 11 ícones de tipo do Brush no `BrandIcon` e `ILLUSTRATIONS['bibliotecario']`;
+  - entregue ao Lumen.
+- **Gestor de equipe (BRIEFING 20, ex-"Maestro"; a palavra não aparece mais no cliente)**:
+  - spec `design/GESTOR-SPEC.md`;
+  - `GestorSettings` (interruptor + limites em linguagem simples) e `GestorPlanCard` (plano no chat: Aprovar / Ajustar / Agora não, carimbo);
+  - selo âmbar com batuta no cartão (`tone 'gestor'`), marca no rail e no organograma;
+  - chegada animada das personas novas na faixa e no rail (`arriving`), com balão "{nome} chegou!";
+  - glifo `baton`;
+  - terminei a renomeação: o CSS ainda usava `maestro*`, por isso as marcas estavam sem estilo;
+  - entregue ao Prism.
+- **"Quem cuida de quem" com 60 e 150 personas**:
+  - `primitives/OrgMap.tsx`, que entra automaticamente acima de 24: fileiras sob a Coordenação, grupos recolhíveis (abertos os que pedem atenção), zoom/pan suave com teclado, busca com foco (centraliza com Δ 0 px e foca), minimapa e lista virtualizada (20 de 158 linhas no DOM);
+  - antes/depois em preview isolado (vite + Chrome headless): 2 636 px de largura e 2 500 px de altura, sem busca → tudo em 1 440 × 900, com 0 sobreposições;
+  - teste `org-map.client.spec` (5);
+  - Lumen liga os labels e um seed de 60/150 para a captura no app real.
+- **Pipeline (8,15 MiB)**:
+  - figurinhas de 17 bichos (os 12 restantes do Brush);
+  - `ENGINE_ICONS`, ícones do cérebro e `bibliotecario`.

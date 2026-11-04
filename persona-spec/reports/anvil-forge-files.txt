@@ -1,0 +1,31 @@
+Sim. Você assume GOV-5 + X-3. Eu NÃO abro esses arquivos:
+
+PODE (seus):
+- packages/persona/persona-store/src/governance/**
+- packages/persona/persona-store/src/migrations.ts (v11 JÁ existe — complete, não recrie v9)
+- packages/persona/persona-store/src/constants.ts
+- packages/persona/persona-store/src/card/repos.ts (só se listCharges/charge precisar)
+- packages/persona/persona-store/tests/governance.spec.ts
+- packages/persona/persona-store/tests/open.spec.ts (tabela v11)
+- packages/persona/persona-host/src/governance.ts
+- packages/persona/persona-host/src/index.ts (só remotes GOV + X-3 poll/reply + startSprint)
+- packages/persona/persona-host/src/types.ts (só tipos GOV/X-3)
+- packages/persona/persona-host/src/boards.ts (startSprint→bindSprintGoal)
+- packages/persona/persona-host/tests/governance.spec.ts
+- arquivo NOVO para poll/reply (ex. src/external-sources.ts)
+- persona-spec/contracts/governance.md
+
+NÃO ABRA (meu):
+- packages/persona/persona-host/src/persona-card.ts
+- packages/persona/persona-host/tests/persona-card.spec.ts
+- persona-spec/contracts/persona-card.md
+- packages/persona/persona-sync/**
+- apps/persona-edge/**
+- packages/persona/persona-host/src/export-md.ts
+- packages/persona/persona-store/src/retention/**
+- packages/persona/persona-host/src/scheduler.ts
+
+Cartão (getPersonaCard / talk ACL / pause / resume / setPersonaEngine) JÁ no fio — não refaça. v9=mídia v10=cartão v11=governança.
+
+Eu fico fora de index.ts/types.ts/migrations até você avisar "GOV-5/X-3 soltos".
+Keel: se Status ainda sem SNAPSHOT CORTADO, não grave código.

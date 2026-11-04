@@ -2,6 +2,15 @@
 
 Base: `persona-spec/PROJECT-BOARDS.md` (BRIEFING 15) + `persona-spec/DESIGN-SYSTEM.md` + receita comum de `SCREEN-SPECS.md`. Primitivos: `Screen`, `ScreenHeader`, `Card`, `Chip`, `Avatar`, `Tabs`, `Modal`, `Toast`, `EmptyState`, `Skeleton`, `ErrorState`, `Button/IconButton`, `Input/Textarea`, `BrandIcon/UiIcon`, `Accent`.
 
+## Primitivos prontos (use em vez de recriar)
+
+`import { BoardColumns, BoardColumn, CategoryBar, SprintStrip, FlowIcon, type StageCategory } from '../primitives/index.ts'`
+- `CategoryBar counts label` — barra segmentada + legenda (§1).
+- `BoardColumns label` + `BoardColumn name category categoryLabel count wipLimit? emptyLabel emptyAction? dropTarget? actions?` — coluna completa com faixa da categoria, ícone, contagem/WIP, rótulo da categoria, corpo ≥420px e estado vazio ilustrado do Brush por categoria (§2.2). Os cartões entram como `children`.
+- `SprintStrip name goal dateLabel remainingLabel remainingTone done total progressLabel actions?` — faixa da sprint com progresso acessível (§2.1).
+- `FlowIcon model="contratacao|site|software|marketing|atendimento|simples|branco"` — selo do modelo; `BrandIcon name="sprints"`.
+- Arte: `ILLUSTRATIONS['empty-col-{todo|doing|review|needs-you|done|blocked}']`, `ILLUSTRATIONS['sprint-concluida']` (modal de encerrar).
+
 ## 0. Cor e forma das categorias de estágio
 
 Tokens novos no tema (`theme/persona-palette.css`), claro e escuro: `--persona-cat-{todo|doing|review|needs-you|done|blocked}` e `--persona-cat-*-tint`.
@@ -87,6 +96,20 @@ Regra: a cor da categoria aparece só como **faixa de 4px no topo da coluna**, p
 - Estados vazios por categoria (PNG transparente 480×360, personagem pequeno + objeto): `empty-col-todo` (Bento com caixa fechada), `empty-col-doing` (Sol com notebook fechado), `empty-col-review` (Luna com lupa), `empty-col-needs-you` (Atlas tranquilo, prancheta em dia), `empty-col-done` (Nina com troféu pequeno).
 - `sprint-concluida` (800×640): equipe comemorando com bandeirinhas/confete discreto.
 
-## 7. Aceite visual (Muse)
+## 7. Migração do quadro misturado (PB-10)
+
+Contrato para Lumen após PB-5 — não adivinhar colunas:
+
+| Coluna antiga (`KanbanColumn` / rótulo) | Categoria Quadros | Notas |
+|---|---|---|
+| `todo` / A fazer | `todo` | primeira coluna da categoria se a Tarefa não tiver `columnId` |
+| `doing` / Em andamento / Andando | `doing` | chip "Aguardando evento" continua no cartão |
+| `review` / Em revisão / Revisar | `review` | **Revisar no cartão** (`reviewThread`) não some |
+| `blocked` / Bloqueado / Precisa de você | `needs_you` | `blocked` vira marcador, não coluna |
+| `done` / Concluído / Pronto | `done` | primeira coluna `done` do fluxo |
+
+Helpers: `legacyKanbanToCategory`, `legacyColumnLabelToCategory` (`persona-engine/src/kanban.ts`). Modelo destino: **Simples**. UI `GlobalKanban` → Quadros é Lumen.
+
+## 8. Aceite visual (Muse)
 
 Capturas claro/escuro de: Quadros (grade com 2 projetos: Contratação e Site), quadro de cada um, faixa da sprint, planejamento, modal de encerrar, editor de fluxo com prévia — via `node scripts/persona/design-shots.mjs panel:Quadros …`. Foco visível em todo o fluxo por teclado; reduced-motion sem FLIP/levantar.

@@ -71,7 +71,16 @@ Efeito/outbox que falha 3 vezes vira `listDeadLetters` (`cause` pt-BR, `Tentar d
 
 ## Exportar
 
-`exportWorkspace` / `exportProject` → zip Markdown (`filename` + `base64`). DMs **fora** salvo `includeDmIds` explícito. Segredos redigidos (`looksLikeCredential`). Cofre em `cofre/*.md`.
+`exportWorkspace` / `exportProject` → zip Markdown (`filename` + `base64`). DMs **fora** salvo `includeDmIds` explícito. Segredos redigidos (`looksLikeCredential`). Cofre em `cofre/*.md`. Governança do workspace em `governanca.md` (setores, disponibilidade, rotinas, auditoria) — nunca no DM.
+
+## Dados — backup e exclusão
+
+| RPC | Efeito |
+|---|---|
+| `backupNow()` | `VACUUM INTO` em `<dbDir>/backups/persona-manual-*.db`. Sem tenant. Recusa `:memory:`. |
+| `listBackups()` | Cópias manuais e pré-migração, mais novas primeiro (`filename`, `path`, `at`) |
+| `deleteWorkspace({ workspaceId, confirmed })` | Dono + `confirmed`. Apaga o workspace e filhos. Sem `confirmed` → `not-confirmed`. |
+| `deleteSharedProject({ workspaceId, projectId, confirmed })` | Dono + `confirmed`. Recusa o projeto Pessoal. |
 
 ## Revisar — ReviewDelivery Remote
 
@@ -87,10 +96,168 @@ Porto Forge (`GitReviewDelivery`). Sem push. Ator do servidor + `can()`. Sem `ro
 
 Lumen: botão **Revisar** no Kanban (`in_review` / bloqueado) abre overlay com estas RPCs.
 
+## Cofre que lê documentos
+
+Ingestão local (sem serviço externo): PDF, DOCX, MD, TXT, CSV. Extração + trechos + FTS. ACL = visibilidade do registro. Limite 8 MB com linha pt-BR. Substituir reprocessa; apagar remove trechos e índices.
+
+| RPC | Efeito |
+|---|---|
+| `ingestVaultDocument({ id, name, bytesBase64, visibility? })` | Extrai, divide em trechos, indexa |
+| `replaceVaultDocument({ documentId, name, bytesBase64 })` | Reprocessa o arquivo |
+| `deleteVaultDocument({ documentId })` | Apaga documento, trechos e FTS |
+| `listVaultDocuments(scope)` | Cards visíveis ao ator |
+| `searchVaultDocuments({ query })` | Trechos com `title` + `locator` (página/seção) |
+
+`listUsedContext` / `getTurnContext` incluem hits `kind: 'document'` com `title` e `locator` no Contexto usado. Domínio (Forge, v14, sem v15): `formatVaultCitation` / `toUsedDocumentCite` em `persona-core` (`Contrato.pdf · seção Contratos`). Host Anvil já expõe os RPCs.
+
+**[Anvil→Lumen]** Conhecimento/Cofre: upload destes RPCs; citações no drawer Contexto usado.
+
+## Segundo cérebro (Empresa › Segundo cérebro)
+
+Markdown é a fonte; FTS/tipo/links são índice derivado. Versões nunca apagam. ACL = visibilidade da página (`canReadVault`). Exportar para pasta é mão única; `importBrainVault` / `twoWay` também lê `.md` (mesmo slug+hash = skip). Schema store v15 (não é WAVE2).
+
+| RPC | Efeito |
+|---|---|
+| `putBrainPage({ id, kind, title, body, editorKind, editorId, visibility? })` | Cria/edita; append de versão |
+| `getBrainPage({ pageId })` | Página visível; `forbidden` se ACL negar |
+| `listBrainPages({ kind?, query? })` | Lista ou FTS; só o que o ator vê |
+| `searchBrainPages({ query, kind? })` | Alias de lista com `query` |
+| `listBrainVersions({ pageId })` | Histórico (pessoa ou persona) |
+| `restoreBrainPage({ pageId, revision })` | Regrava o corpo antigo como versão nova |
+| `listBrainChangedToday(scope)` | O que mudou hoje (relógio do host) |
+| `getBrainHome(scope)` | Comece aqui + mudou hoje + grants ativos + contradições |
+| `grantBrainPermission({ id, personaId, action, target, validity })` | Lembra aprovação (escopo exato) |
+| `revokeBrainPermission({ grantId })` | Revoga na hora; a página fica |
+| `listBrainPermissions(scope)` | Grants (ativos e revogados) |
+| `useBrainPermission({ grantId, personaId, action, target })` | Uso; alvo/persona/validade diferentes → `forbidden` |
+| `exportBrainVault({ folderPath, twoWay? })` | Escreve `.md` por tipo; `twoWay` também importa |
+| `importBrainVault({ folderPath })` | Exporta e importa (sem duplicar) |
+
+**[Anvil→Lumen]** Empresa › Segundo cérebro: início = `getBrainHome`; busca/tipo = `listBrainPages`/`searchBrainPages`; página = `getBrainPage` + `listBrainVersions`; editar = `putBrainPage`; permissões = `listBrainPermissions` / `revokeBrainPermission` / `grantBrainPermission`; exportar pasta = `exportBrainVault`.
+
+**[Anvil→Forge]** v15 = só Segundo cérebro. WAVE2 permanece v14. Gate de aprovação consulta `useBrainPermission` (nunca amplia).
+
+## Gestor de equipe
+
+Função atribuível (`systemRoles` inclui `team_manager`; selo **Gestor**). Coordenação nasce com a função. Sempre perguntar nunca cria sem `approveGestorPlan`.
+
+| RPC | Efeito |
+|---|---|
+| `getGestorMandate({ personaId })` | Limites (padrão always_ask) |
+| `setGestorLimits({ … })` | Teto; só dono |
+| `proposeGestorHire({ gestorId, spec, reason })` | Plano; always_ask fica `proposed` |
+| `approveGestorPlan({ planId })` | Aplica o hire (idempotente) |
+| `assembleTeamForGoal({ goal, projectId, sprintId })` | Preview equipe + fluxo + sprint 1 |
+| `listGestorAudit({ workspaceId })` | Linhas com motivo |
+
+**[Anvil→Lumen]** Editor/cartão: `team_manager` + `getGestorMandate` / `setGestorLimits`. Chat: `proposeGestorHire` → cartão Aprovar → `approveGestorPlan`. Saúde/perfil: `getTeamHealth.gestorAudit` ou `listGestorAudit`.
+
+**[Anvil→Forge]** id interno no host/store = `team_manager` (D-058). Tabelas v16 `team_manager_*`.
+
+## Traga o que suas IAs já sabem
+
+| RPC | Efeito |
+|---|---|
+| `previewBringContextPaste({ text, provider })` | Organiza colagem (sem gravar) |
+| `previewBringContextVaultFolder({ rootPath })` | Varre pasta .md (sem gravar) |
+| `applyContextProposals({ preview, items })` | Aceitar/editar/privado grava no Cofre; descartar/bloqueado/conflito/duplicata não |
+
+**[Anvil→Lumen]** Onboarding passo 2 + Importar: Organizar → revisão → `applyContextProposals`. Privado = visibilidade `members` do ator.
+
 ## Contexto usado
 
-`listUsedContext({ workspaceId, projectId, eventId })` → registros do Cofre compilados no turno (`restricted: true` = visibilidade persona/projeto; `body` vazio). `getTurnContext` inclui o mesmo `records[]` no ticket.
+`listUsedContext({ workspaceId, projectId, eventId })` → registros do Cofre compilados no turno (`restricted: true` = visibilidade persona/projeto; `body` vazio). `getTurnContext` inclui o mesmo `records[]` no ticket. Hits de documento trazem `title` + `locator`.
 
 ## Fio condutor
 
 `postMessage` no `#geral` → Intake/Eval → Coordenação decide. Mensagem sem trabalho: resposta persistida, **sem Ticket**. Pedido: Ticket (`doing`) → runner scriptado → `review` (ou `blocked` + "Precisa de você") → `runTicketCommand({ command: 'complete' })` → `done`. `followMessages` entrega as respostas da Coordenação. Reinício: Assignment interrompida retoma; o id da resposta é idempotente.
+
+## Quadros por projeto (PB-4)
+
+Fluxo e sprint são do projeto (compartilháveis). DM nunca entra.
+
+| RPC | Efeito |
+|---|---|
+| `getProjectBoard(scope)` | Fluxo (virtual `simples` se ainda não persistido), cards, contagens, sprint atual |
+| `listBoards(scope)` | Mini-resumo por projeto (`counts`, sprint atual, `workingNow`) |
+| `listWorkflowTemplates(scope)` | Catálogo dos 7 modelos (pt-BR) |
+| `createProject({ template? })` | Projeto compartilhado; `template` persiste o fluxo na criação |
+| `createWorkflowFromTemplate({ template })` | Persiste um modelo. Proposta da Coordenação **não** chama isto |
+| `updateWorkflow({ columns, fields, destByRemoved })` | Edita; coluna removida exige destino. Sem perda de Tarefas. Recusa: `BoardRemoteError.code` (`column-needs-destination`, …) + `message` pt-BR |
+| `moveTicket({ ticketId, columnId })` | Move; `wipWarning` não recusa |
+| `listSprints` / `createSprint` / `updateSprint` / `deleteSprint` / `planSprint` / `startSprint` / `closeSprint` / `sprintSummary` | CRUD + ciclo. `closeSprint` exige `confirmed`; resumo vai ao 1º canal do projeto |
+| `proposeWorkflow({ description })` | Cartão "Usar este fluxo?" — **nunca aplica sozinho** |
+| `acceptWorkflowProposal({ columns, fields, destByRemoved? })` | Aplica o cartão. Único `save` deste caminho |
+| `rejectWorkflowProposal(scope)` | Recusa; store intacto |
+| `getProjectConversation(scope)` | Canal `#geral` deste projeto (PB-5 Conversa). Cria se faltar |
+
+ACL no servidor: leitura `can(read, project)`; mutação `can(write, project)`. Guest recusado.
+
+## Cartão da persona
+
+`getPersonaCard` / `getPersonaTalkAcl` / `setPersonaTalkAcl` / `pausePersona` / `resumePersona` / `setPersonaEngine` / `putPersonaCharge` — ver `persona-card.md`. `nowKind`/`nowText` vêm do estado real; `quota` ausente = indisponível (nunca 0). Talk ACL (`workspace`/`chosen`) aplica em DM e `@menção` (recusa pt-BR, nunca silêncio).
+
+## Atenção (desktop)
+
+`getAttentionPolicy` / `putAttentionPolicy` / `attentionEvents` (stream). `ackAttention({ eventIds })` tira os ids do próximo baseline — Rivet toasts. Quiet window em `delivery: 'ping'`.
+
+## Governança (GOV-5)
+
+`getOrgChart` / `getTeamHealth` / `runTwoDayTest` / `applyFix` / `applyGovernanceFix` / `setResponsible` / `setSubstitute` / `setSector` / `setAvailability` / `setPersonaGovernance` / `recommendStructure` / `applyStructure` / `listAudit` — ver `governance.md`. Schema v11. Dono muda responsabilidades; organograma ao vivo.
+
+## Chat rico
+
+| RPC | Efeito |
+|---|---|
+| `listStickers()` | Catálogo Brush (`stamp-aprovado`, `tray-*`, `nav-saude`, `nav-quem-cuida`). Sem tenant. |
+| `reactToMessage` / `unreactToMessage` | Figurinha do catálogo; ator da sessão. Audit `react`/`unreact`. |
+| `replyToMessage` | Nova mensagem no mesmo stream com `replyToId`. |
+| `pinMessage` / `unpinMessage` / `listPinned` | Fixar no stream. |
+| `editMessage` / `deleteMessage` | Só a própria (dono do workspace pode qualquer). Soft-delete + audit. |
+| `listMessageAudit` | Trilha `edit`/`delete`/`pin`/`unpin`/`react`/`unreact`. |
+| `suggestMentions({ query })` | Personas que o ator pode `@` (talk ACL). |
+| `checkpointWal()` | `PRAGMA wal_checkpoint(TRUNCATE)`. Local. |
+
+`MessageView` traz `replyToId`, `editedAt`, `pinned`, `reactions[]`. Schema v12.
+
+**[Anvil→Muse]** ligar o compositor às mesmas ids de `listStickers`.
+
+## Compartilhar (Forge `share.md`)
+
+| RPC | Efeito |
+|---|---|
+| `exportPersona({ workspaceId, projectId, personaId })` | `{ filename, json }` `.persona.json`. Avatar gallery; upload vira silhueta. Sem credencial/Cofre. |
+| `importPersona({ workspaceId, projectId, json })` | Parse + proposta de contratação `pending`. **Nunca aplica sozinho.** Segredo → `SECRET_REFUSED` / `IMPORT_REFUSED`. |
+| `exportTeam({ workspaceId, projectId, personaIds?, templateId? })` | `{ filename, json }` `.team.json`. `templateId` = roster built-in. |
+| `importTeam({ workspaceId, projectId, json })` | Uma proposta pendente por persona. |
+| `previewCliSkills()` | Candidatas de `~/.claude/skills` e `~/.codex/skills`. Sem tenant. Sempre `enabled: false`. |
+| `proposeCliSkills({ workspaceId, projectId, personaId, skillKeys })` | Grava candidatas desligadas (`origin: learned`). Nunca `enabled: true`. |
+
+## Insights locais (Forge `insights.md`)
+
+ACL: **só o dono** do workspace. Nada sai da máquina.
+
+| RPC | Efeito |
+|---|---|
+| `getActivationFunnel(scope)` | Funil: onboarded → 1ª resposta útil → 1ª tarefa → retorno 7 dias. `stage` derivado. |
+| `getPersonaImpact({ …, personaId })` | Concluídas, tempo até pronto, propostas aceitas, `hoursSavedEstimate` com rótulo `estimativa`. |
+| `listPersonaImpact(scope)` | Impacto de cada persona do projeto. |
+
+Eventos dobrados do que o host já persiste (onboarding, mensagens de persona/runner, tickets `completed`/`merged`, aprovações `approved`). Sem telemetria.
+
+## Banco — saúde e restauração
+
+| RPC | Efeito |
+|---|---|
+| `getStoreHealth()` | `schemaVersion`, `safeMode`, `recovered`, `recoveryMessage`, `backups[]`. Sem tenant. |
+| `restoreBackup({ filename })` | Copia o backup sobre `persona.db` e reabre. Nome de `listBackups`. |
+
+Arquivo corrompido: restaura o último backup; sem backup abre **modo seguro** (banco vazio + mensagem pt-BR).
+
+## Anexos — limite com mensagem
+
+Anexo ≤ 8 MB, avatar ≤ 2 MB, mensagem ≤ 20 MB, projeto ≤ 200 MB, leitura de arquivo do projeto ≤ 8 MB. Estouro → linha pt-BR (`Este anexo tem N MB. O limite é 8 MB.`). SVG/HTML/exe recusados.
+
+## Anexos e avatar
+
+Ver `attachments.md`. `attachFile` / `listAttachments` / `getAttachment` / `getAttachmentBytes` / `uploadPersonaAvatar` / `removePersonaAvatar`. Bytes em base64. Canal vazio exporta sem `forbidden`.

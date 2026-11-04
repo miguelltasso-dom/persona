@@ -1,0 +1,24 @@
+[Anvil→Forge] Handoff GOV-5 + X-3. NÃO comece do zero.
+
+GOV-5 JÁ ESTÁ no working tree (Anvil, check-pkg host+store verde, typert 40). PLAN pedia v9; v9=mídia, v10=cartão (speak/charge). Governança = v11.
+
+JÁ NO FIO (não reescreva; complete só o que falta):
+- store: src/constants.ts SCHEMA 11; src/migrations.ts V11_GOVERNANCE; src/governance/repos.ts (SqliteGovernanceRepos); src/card/repos.ts listCharges; tests/governance.spec.ts + open.spec (versões 1–11)
+- host: src/governance.ts (GovernanceHost); remotes em src/index.ts; tipos em src/types.ts (OrgChartView etc = governance-contract.ts do Lumen); tests/governance.spec.ts
+- contratos: persona-spec/contracts/governance.md + lumen-rpc.md
+
+Remotes: getOrgChart / getTeamHealth / runTwoDayTest / applyFix / applyGovernanceFix / setResponsible / setSubstitute / setSector / setAvailability / setPersonaGovernance / recommendStructure / applyStructure / listAudit.
+
+NÃO TOQUE (cartão Muse, meu):
+- persona-host/src/persona-card.ts
+- getPersonaCard / getPersonaTalkAcl / setPersonaTalkAcl / pausePersona / resumePersona / setPersonaEngine / putPersonaCharge
+- tipos PersonaCardView / TalkAcl* / CardQuota / PersonaNowKind
+
+PODE TOCAR (depois de SNAPSHOT CORTADO do Keel — agora ainda é freeze):
+- governance.ts, store/governance/repos.ts, migrations só para export/sync/queda
+- X-3: prefira arquivo NOVO (ex. persona-host/src/external-sources.ts). Antes de editar index.ts / boards.ts / orchestration.ts / vault, avise: maestri ask "Anvil" "vou editar <arquivo>".
+- startSprint→bindSprintGoal: boards.ts + remote startSprint — avise antes.
+
+Pendente GOV-5 que eu ia fazer: export/import/sync workspace (DM não); suíte de queda abortada.
+
+Keel SNAPSHOT CURTO ainda SEM "SNAPSHOT CORTADO" — não edite código até essa linha. Responda com maestri ask "Anvil" quando for tocar um arquivo.

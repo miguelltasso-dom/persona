@@ -13683,6 +13683,9 @@ importers:
 
   packages/persona/client-ui-persona:
     dependencies:
+      '@deepseek-ai/dsh-persona-core':
+        specifier: workspace:*
+        version: link:../persona-core
       '@deepseek-ai/dsh-persona-host':
         specifier: workspace:*
         version: link:../persona-host
@@ -13720,9 +13723,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:*
         version: link:../../client/ui-slots
-      '@deepseek-ai/dsh-persona-core':
-        specifier: workspace:*
-        version: link:../persona-core
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:*
         version: link:../../typert/protocol

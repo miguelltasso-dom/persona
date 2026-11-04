@@ -1,8 +1,8 @@
 # Jornadas de produto (host) — Forge
 
-Camada de lógica ponta a ponta sem navegador. Arquivos novos em `packages/persona/persona-host/tests/journeys/`. Probe continua dono da UI (reduced-motion, diff vs `dirD-tela.png`).
+Camada de lógica ponta a ponta sem navegador. Arquivos novos em `packages/persona/persona-host/tests/journeys/`. Probe continua dono da UI (reduced-motion, diff vs `dirD-tela.png`). Testes do Anvil (`boards.spec.ts`) não foram editados.
 
-Rodado: `pnpm exec vitest run packages/persona/persona-host/tests/journeys` → **10/10 passed** (14.36s). J11 (C2 Attention+marco) verde à parte.
+Rodado: `pnpm exec vitest run packages/persona/persona-host/tests/journeys` → **18/18 passed**.
 
 | ID | História | Resultado | O que o usuário vê |
 |---|---|---|---|
@@ -17,11 +17,24 @@ Rodado: `pnpm exec vitest run packages/persona/persona-host/tests/journeys` → 
 | J9 | Importar Markdown: prévia / reimportar / rollback | passou | 1 aplicado; 2ª confirmação 0; rollback true |
 | J10 | Export sem DM e sem segredo | passou | Sem `/dms/`; sem `sk-ant`; `looksLikeCredential` false |
 | J11 | C2 Attention: Precisa de você → resposta → cartão abre Tarefa → marco no canal | passou | `answerAttention` limpa a pergunta; `citedCardTicketId`; `completeReview` posta Concluído |
+| J12 | Dois projetos Contratação e Site: colunas e Tarefas isoladas + ACL | passou | Triagem ≠ Descoberta; ids de Tarefa não cruzam; guest em hire não lê o quadro Site |
+| J13 | Concluir → 1ª `done` do fluxo do projeto; Attention → `needs_you` ×3 | passou | Contratação / Site / Software: cartão Attention em `needs_you`; Tarefa encerrada na 1ª coluna `done` |
+| J14 | Editar fluxo com Tarefas vivas + Vigia/puxada; remover sem destino recusa | passou | add/renomear/reordenar ok; Tarefa permanece; sem destino → pt-BR via `workflowRefusalText` (Remote cru = `INVALID_WORKFLOW`, ver Anvil) |
+| J15 | Sprint criar → planejar → iniciar → encerrar com rolagem e marco | passou | `goalId` = `goal-sprint-sp-1`; status planejado→ativo→encerrado; resumo entregue/atrasado no #geral do projeto |
+| J16 | Coordenação propõe fluxo: cartão, aprovar, recusar, JSON sujo | passou | «Usar este fluxo?»; recusar não grava; aceitar via `createWorkflowFromTemplate`; JSON sujo degrada |
+| J17 | Migração v7→v8: Tarefa antiga sem assento | passou | schema 8; Tarefa cai na 1ª coluna da categoria do estágio |
+| J18 | Export/sync: fluxo e sprint viajam; DM não; reimportar não duplica | passou | `fluxo.md` + `sprints.md`; sem `/dms/`; `mayUpload` project sim / dm não; restore 2× sem duplicar sprint |
 
 ## S7 (honesto)
 
-Host (Forge): J1–J10 verdes neste arquivo. UI (Probe): reduced-motion e diff vs `dirD-tela.png` continuam `it.todo` — o S7 do PLAN não é 6/6.
+Host (Forge): J1–J18 verdes neste arquivo. UI (Probe): reduced-motion e diff vs `dirD-tela.png` continuam `it.todo` — o S7 do PLAN não é 6/6.
 
-## Defeito corrigido nesta onda
+## Quadros (J12–J18) — limites honestos
+
+- J14: o Remote do Anvil (`mapBoardError`) devolve `Error('INVALID_WORKFLOW')` e descarta o `detail` pt-BR. A jornada prova a recusa e a mensagem via `workflowRefusalText` do core.
+- J15: `sprint.goalId` existe; `startSprint` **não** cria GoalBoard da Coordenação.
+- J18: `exportProject` estoura `StoreError: forbidden` se o canal existe sem stream (zero mensagens). A jornada posta uma linha no #geral antes de exportar.
+
+## Defeito corrigido nesta onda (J1–J11)
 
 `requestChanges` sem pasta do projeto tentava `retryTicket` com Tarefa em revisão (`ready`) e estourava `notRetryable`. Agora anota o pedido, marca `blocked` se preciso, e só então retenta.

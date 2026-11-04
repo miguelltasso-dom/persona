@@ -1,0 +1,49 @@
+{
+  "cli": "claude",
+  "model": "haiku",
+  "n": 4,
+  "correct": 4,
+  "fakeCorrect": 4,
+  "cells": [
+    {
+      "id": "s1",
+      "class": "simple",
+      "ok": true,
+      "echo": false,
+      "placeholder": false,
+      "useful": true,
+      "fakeOk": true,
+      "excerpt": "Pergunta sobre o horário do standup: a política registra que ele é às 10h."
+    },
+    {
+      "id": "a1",
+      "class": "ambiguous",
+      "ok": true,
+      "echo": false,
+      "placeholder": false,
+      "useful": true,
+      "fakeOk": true,
+      "excerpt": "Ainda não tenho nada nesta conversa a que \"aquilo\" se refira. O que você quer que eu melhore?"
+    },
+    {
+      "id": "m1",
+      "class": "multi",
+      "ok": true,
+      "echo": false,
+      "placeholder": false,
+      "useful": true,
+      "fakeOk": true,
+      "excerpt": "Nesta conversa não consigo abrir nem alterar o README nem os testes, e não há colegas disponíveis para eu acionar. Qual projeto você quer que seja tratado primeiro?"
+    },
+    {
+      "id": "h1",
+      "class": "handoff",
+      "ok": true,
+      "echo": false,
+      "placeholder": false,
+      "useful": true,
+      "fakeOk": true,
+      "excerpt": "Não consigo passar uma Tarefa daqui: nesta conversa não há colegas para receber, e quem decide se algo vira Tarefa é o motor. Se você me disser qual projeto e qual é o objetivo, eu…"
+    }
+  ]
+}

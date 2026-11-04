@@ -16,3 +16,16 @@ Se a CLI não aparece, veja [Solução de problemas](./solucao-de-problemas.md).
 Cole a chave no Cofre da conexão. Ela fica neste computador. Não entra em manifesto, prompt, exportação nem proposta de contratação.
 
 A Persona não cria conta nesses serviços por você.
+
+## Várias contas no mesmo provedor
+
+Você pode ligar mais de uma conta (Pessoal e Trabalho). Cada uma tem pasta de login própria — um login nunca copia o outro.
+
+A política é explícita, por persona ou pelo espaço:
+
+- **Uma conta fixa** — para no limite
+- **Próxima ao chegar no limite**
+- **Dividir o uso** — equilibra pela cota que resta
+- **Perguntar antes de trocar** — vira Precisa de você
+
+A troca aparece na atividade («Nina passou para Claude · Trabalho»). Cada provedor tem os próprios termos; a Persona só usa contas que você conectou e não compartilha credenciais.

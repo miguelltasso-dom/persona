@@ -74,6 +74,14 @@ async function axeReport(page, label) {
 
 async function nav(page, label) {
   try {
+    await page.getByRole('button', { name: 'Visão geral', exact: true }).first().waitFor({ timeout: 20_000 }).catch(() => undefined)
+    for (let attempt = 0; attempt < 3 && await page.getByRole('button', { name: label, exact: true }).count() === 0; attempt += 1) {
+      // Rail groups fold in short windows: open every folded group so the target exists.
+      for (const toggle of await page.locator('button[aria-controls^="persona-nav-"][aria-expanded="false"]').all()) {
+        await toggle.evaluate((node) => { node.click() }).catch(() => undefined)
+      }
+      await page.waitForTimeout(500)
+    }
     const target = page.getByRole('button', { name: label, exact: true }).first()
     await target.evaluate((node) => { node.scrollIntoView({ block: 'center' }) })
     await target.click({ timeout: 10_000 })
@@ -137,6 +145,25 @@ const onData = async (chunk) => {
               const path = `${outDir}/onboarding-${scheme}-${step}.png`
               await page.screenshot({ path }); shots.push(path)
             }
+            if (step === 4 && wanted.has('assistant')) {
+              // GOV-8 "Monte uma equipe que faça sentido": walk the 4 steps inside onboarding step 4.
+              try {
+                await page.getByRole('button', { name: /Assistente de estrutura/u }).first().click({ timeout: 5_000 })
+                await page.waitForTimeout(700)
+                for (let sub = 1; sub <= 4; sub += 1) {
+                  const path = `${outDir}/assistant-${scheme}-${sub}.png`
+                  await page.screenshot({ path }); shots.push(path)
+                  await axeReport(page, `assistant ${sub} ${scheme}`)
+                  const option = page.locator('[aria-pressed="false"]').first()
+                  if (sub === 1 && await option.count() > 0) await option.click().catch(() => undefined)
+                  const next = page.getByRole('button', { name: 'Continuar', exact: true }).first()
+                  if (sub < 4) { await next.click({ timeout: 5_000 }).catch(() => undefined); await page.waitForTimeout(700) }
+                }
+                await page.getByRole('button', { name: /Pular assistente|Voltar/u }).first().click({ timeout: 3_000 }).catch(() => undefined)
+              } catch (error) {
+                console.log(`[assistant ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 140) : String(error)}`)
+              }
+            }
           }
         }
         await context.close()
@@ -159,6 +186,13 @@ const onData = async (chunk) => {
           if (process.env.MUSE_REDUCED !== undefined) {
             const running = await page.evaluate(() => document.getAnimations().filter(an => an.playState === 'running' && Number(an.effect?.getComputedTiming().iterations) === Infinity).length)
             console.log(`[motion channel ${scheme}] reduced=${process.env.MUSE_REDUCED} infinite animations running: ${running}`)
+            const hiddenRunning = await page.evaluate(async () => {
+              Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })
+              document.dispatchEvent(new Event('visibilitychange'))
+              await new Promise(resolve => setTimeout(resolve, 300))
+              return document.getAnimations().filter(an => an.playState === 'running' && Number(an.effect?.getComputedTiming().iterations) === Infinity).length
+            })
+            console.log(`[motion channel ${scheme}] window hidden → infinite animations running: ${hiddenRunning}`)
           }
           await page.keyboard.press('Tab')
           await page.keyboard.press('Tab')
@@ -189,7 +223,7 @@ const onData = async (chunk) => {
         ['Kanban', 'Quadros'],
         ['Conexoes', 'Conexões'],
         ['Aprovacoes', 'Aprovações'],
-        ['Importadores', 'Importar equipe'],
+        ['Importadores', 'Importadores'],
         ['Uso', 'Uso e limites'],
         ['Regras', 'Regras'],
         ['Membros', 'Membros'],
@@ -198,8 +232,78 @@ const onData = async (chunk) => {
       const panelSlugByLabel = new Map([
         ['Conexões', 'conexoes'],
         ['Aprovações', 'aprovacoes'],
-        ['Importar equipe', 'importadores'],
+        ['Importadores', 'importadores'],
       ])
+      if (wanted.has('dm')) {
+        const { context, page } = await open(match[1], scheme, { onboarded: true })
+        try {
+          await page.getByRole('button', { name: /^Conversar com Nina/u }).first().click({ timeout: 10_000 })
+          await page.waitForTimeout(2500)
+          const path = `${outDir}/dm-nina-${scheme}.png`
+          await page.screenshot({ path }); shots.push(path)
+          await axeReport(page, `dm ${scheme}`)
+        } catch (error) {
+          console.log(`[dm ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
+        }
+        await context.close()
+      }
+      const expandTeam = async (page) => {
+        const toggle = page.getByRole('button', { name: /^Sua equipe/u }).first()
+        if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click()
+      }
+      const openCard = async (page, who) => {
+        await expandTeam(page)
+        await page.getByRole('button', { name: `Sobre ${who}`, exact: true }).first().click({ timeout: 10_000 })
+        await page.getByRole('dialog', { name: who }).waitFor({ timeout: 5_000 })
+        await page.waitForTimeout(700)
+      }
+      if (wanted.has('card')) {
+        const { context, page } = await open(match[1], scheme, { onboarded: true })
+        for (const who of ['Nina', 'Atlas', 'Bento']) {
+          try {
+            await openCard(page, who)
+            const path = `${outDir}/card-${who.toLowerCase()}-${scheme}.png`
+            await page.screenshot({ path }); shots.push(path)
+            await axeReport(page, `card ${who} ${scheme}`)
+            if (who === 'Nina') {
+              await page.getByRole('button', { name: `Mais ações para ${who}` }).click()
+              const menuPath = `${outDir}/card-${who.toLowerCase()}-${scheme}-menu.png`
+              await page.screenshot({ path: menuPath }); shots.push(menuPath)
+              await page.keyboard.press('Escape')
+            }
+            await page.keyboard.press('Escape')
+            const open = await page.getByRole('dialog').count()
+            console.log(`[card ${who} ${scheme}] Esc closed: ${open === 0}; focus: ${await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))}`)
+          } catch (error) {
+            console.log(`[card ${who} ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
+          }
+        }
+        await context.close()
+      }
+      for (const [flag, label, slug] of [['hire', 'Contratar persona', 'hire'], ['profile', 'Atlas', 'profile-atlas']]) {
+        if (!wanted.has(flag)) continue
+        const { context, page } = await open(match[1], scheme, { onboarded: true })
+        try {
+          if (flag === 'profile') {
+            await openCard(page, label)
+            await page.getByRole('button', { name: `Mais ações para ${label}` }).click()
+            await page.getByRole('menuitem', { name: 'Abrir perfil' }).click()
+          } else {
+            await nav(page, label)
+          }
+          await page.waitForTimeout(1500)
+          const path = `${outDir}/${slug}-${scheme}.png`
+          await page.screenshot({ path }); shots.push(path)
+          if (flag === 'hire') {
+            const full = `${outDir}/${slug}-${scheme}-full.png`
+            await page.locator('[data-persona-main]').screenshot({ path: full }).catch(() => undefined)
+          }
+          await axeReport(page, `${slug} ${scheme}`)
+        } catch (error) {
+          console.log(`[${flag} ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
+        }
+        await context.close()
+      }
       const panels = [...wanted]
         .filter(name => name.startsWith('panel:'))
         .map(name => panelLabelAliases.get(name.slice(6).replaceAll('_', ' ')) ?? name.slice(6).replaceAll('_', ' '))

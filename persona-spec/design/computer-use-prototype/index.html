@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Persona · cursor da persona (protótipo)</title>
+<!--
+  Protótipo funcional do overlay de computer use (Muse, COMPUTER-USE-SPEC.md).
+  Sem dependências. Abra direto no navegador. O Rivet porta `PersonaCursor` + `ControlFrame` para a
+  janela overlay transparente do Electron (always-on-top, click-through: setIgnoreMouseEvents(true, {forward:true})).
+-->
+<style>
+  :root {
+    --paper: #faf3e4; --card: #fffaf0; --wash: #f1e9fa; --ink: #34243f; --ink-soft: #6b5a7a;
+    --outline: #34243f; --outline-soft: rgb(52 36 63 / .18); --accent: #e8af54; --danger: #a53240;
+    --font-display: "Fredoka", "Nunito", "Segoe UI", system-ui, sans-serif;
+    --font-text: "Nunito", "Segoe UI", system-ui, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #1e1526; --card: #2a1e35; --wash: #2e2140; --ink: #f6eee0; --ink-soft: #cdbfdb;
+      --outline: #120c18; --outline-soft: rgb(246 238 224 / .16); color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink); font: 500 15px/1.5 var(--font-text); }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 24px; }
+  h1 { margin: 0 12px 0 0; font: 700 22px/1.2 var(--font-display); }
+  button { font: 700 14px/1 var(--font-text); padding: 9px 14px; border: 1.5px solid var(--outline); border-radius: 12px;
+    background: var(--card); color: var(--ink); box-shadow: 0 3px 0 var(--outline); cursor: pointer; }
+  button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--outline); }
+  button.primary { background: var(--accent); color: #34243f; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hint { color: var(--ink-soft); font-size: 13px; }
+
+  /* ── Fake desktop (what the persona controls) ── */
+  #desk { position: relative; margin: 8px 24px 24px; height: calc(100vh - 120px); min-height: 520px; border-radius: 16px;
+    background: linear-gradient(160deg, #cfe0f5, #e8dcf5); overflow: hidden; border: 1.5px solid var(--outline-soft); }
+  .win { position: absolute; color-scheme: light; background: #fff; color: #222; border-radius: 10px; box-shadow: 0 10px 30px rgb(0 0 0 / .18);
+    font: 14px/1.4 "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  .win .bar { height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 10px; background: #f3f3f3; border-bottom: 1px solid #e3e3e3; font-weight: 600; }
+  .win .body { padding: 14px; }
+  .win input { width: 100%; padding: 8px 10px; border: 1px solid #bbb; border-radius: 6px; font: inherit; }
+  .win .btn { display: inline-block; margin-top: 10px; padding: 7px 14px; border-radius: 6px; background: #2f6fde; color: #fff; font-weight: 600; }
+  .win table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .win td, .win th { padding: 6px 8px; border-bottom: 1px solid #eee; text-align: left; }
+  .win tr.picked td { background: #fff4d6; }
+
+  /* ── Overlay layer (in Electron: its own transparent, click-through window) ── */
+  #overlay { position: absolute; inset: 0; pointer-events: none; }
+  svg.trails { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .trail { fill: none; stroke-width: 3; stroke-linecap: round; opacity: .55; }
+
+  /* Controlled-area frame: discreet but impossible to miss; corner brackets in the persona color. */
+  .frame { position: absolute; border: 1.5px solid color-mix(in srgb, var(--c) 55%, transparent); border-radius: 12px;
+    transition: left .35s cubic-bezier(.2,.8,.2,1), top .35s cubic-bezier(.2,.8,.2,1), width .35s cubic-bezier(.2,.8,.2,1), height .35s cubic-bezier(.2,.8,.2,1), border-color .2s; }
+  .frame i { position: absolute; width: 18px; height: 18px; border: 0 solid var(--c); }
+  .frame i:nth-child(1) { top: -3px; left: -3px; border-width: 4px 0 0 4px; border-top-left-radius: 12px; }
+  .frame i:nth-child(2) { top: -3px; right: -3px; border-width: 4px 4px 0 0; border-top-right-radius: 12px; }
+  .frame i:nth-child(3) { bottom: -3px; left: -3px; border-width: 0 0 4px 4px; border-bottom-left-radius: 12px; }
+  .frame i:nth-child(4) { bottom: -3px; right: -3px; border-width: 0 4px 4px 0; border-bottom-right-radius: 12px; }
+  .frame .tag { position: absolute; top: -34px; left: 8px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px;
+    border: 1.5px solid var(--outline); border-radius: 999px; background: var(--card); color: var(--ink); box-shadow: 0 3px 0 var(--outline);
+    font: 700 12px/1 var(--font-text); white-space: nowrap; }
+  .frame .tag img { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--outline); background: var(--wash); object-fit: cover; }
+  .frame .tag kbd { padding: 2px 6px; border: 1px solid var(--outline-soft); border-radius: 6px; font: 700 11px/1 var(--font-text); color: var(--ink-soft); }
+  .frame[data-human] { border-style: dashed; border-color: var(--outline-soft); }
+  .frame[data-human] i { border-color: var(--ink-soft); }
+
+  /* Persona cursor: arrow (white fill, plum outline) + name pill with the animal's face under the tip. */
+  .cursor { position: absolute; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 2px 0 rgb(52 36 63 / .35)); transition: filter .2s, opacity .2s; }
+  .cursor svg.arrow { display: block; width: 22px; height: 26px; transform-origin: 3px 3px; transition: transform .12s cubic-bezier(.3,1.6,.5,1); }
+  .cursor[data-state="clicking"] svg.arrow { transform: scale(.82); }
+  .cursor .pill { position: absolute; left: 16px; top: 22px; display: inline-flex; align-items: center; gap: 6px; max-width: 280px;
+    padding: 3px 10px 3px 3px; border: 1.5px solid var(--outline); border-radius: 999px; background: var(--c); color: #34243f;
+    box-shadow: 0 3px 0 var(--outline); font: 800 12px/1 var(--font-text); white-space: nowrap; transform-origin: 0 0;
+    animation: pop .28s cubic-bezier(.3,1.5,.5,1); }
+  .cursor .pill img { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--outline); background: #fff; object-fit: cover; }
+  .cursor .what { font-weight: 600; opacity: .85; overflow: hidden; text-overflow: ellipsis; }
+  .cursor .what:empty { display: none; }
+  .cursor .what::before { content: "· "; }
+  .cursor .typing { font-family: ui-monospace, Consolas, monospace; font-weight: 600; }
+  .cursor .typing::after { content: "▍"; animation: blink 1s steps(1) infinite; }
+  .cursor .dots { display: inline-flex; gap: 3px; }
+  .cursor .dots b { width: 5px; height: 5px; border-radius: 50%; background: #34243f; animation: breathe 1.2s ease-in-out infinite; }
+  .cursor .dots b:nth-child(2) { animation-delay: .15s; } .cursor .dots b:nth-child(3) { animation-delay: .3s; }
+  .cursor[data-state="waiting"] svg.arrow { animation: bob 1.6s ease-in-out infinite; }
+  /* Human holds control: the arrow fades, the pill stays readable (card + dashed outline) and says who paused. */
+  .cursor[data-state="human"] svg.arrow { opacity: .45; filter: grayscale(1); }
+  .cursor[data-state="human"] .pill { background: var(--card); color: var(--ink); border-style: dashed; box-shadow: none; }
+  .cursor[data-state="human"] .pill img { filter: grayscale(.6); }
+  .ripple { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 3px solid var(--c);
+    animation: ripple .5s cubic-bezier(.2,.8,.2,1) forwards; }
+
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } }
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes breathe { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+  @keyframes ripple { from { transform: scale(.4); opacity: .9; } to { transform: scale(3.2); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .cursor .pill, .ripple, .cursor[data-state="waiting"] svg.arrow, .cursor .dots b { animation: none; }
+    .frame { transition: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cursor da persona</h1>
+  <button class="primary" id="run">Ver a Nina trabalhar</button>
+  <button id="two">Duas personas</button>
+  <button id="handback" hidden>Devolver para a Nina</button>
+  <span class="hint" id="hint">Mexa o mouse sobre a área ou aperte Esc a qualquer momento: você assume e a persona pausa.</span>
+</header>
+
+<div id="desk" aria-label="Área de trabalho simulada">
+  <div class="win" id="w-form" style="left:6%;top:9%;width:380px">
+    <div class="bar">Cadastro de pedido</div>
+    <div class="body">
+      <label>Cliente <input id="f-client" autocomplete="off"></label>
+      <label style="display:block;margin-top:8px">Quantidade <input id="f-qty" autocomplete="off"></label>
+      <span class="btn" id="f-save">Salvar pedido</span>
+    </div>
+  </div>
+  <div class="win" id="w-table" style="left:52%;top:30%;width:420px">
+    <div class="bar">Pedidos da semana</div>
+    <div class="body">
+      <table><thead><tr><th>Cliente</th><th>Qtd</th><th>Status</th></tr></thead>
+        <tbody><tr id="r1"><td>Padaria Lua</td><td>40</td><td>Novo</td></tr><tr id="r2"><td>Café Sol</td><td>12</td><td>Pago</td></tr><tr id="r3"><td>Mercado Bento</td><td>25</td><td>Novo</td></tr></tbody></table>
+    </div>
+  </div>
+  <div id="overlay" aria-live="polite"></div>
+</div>
+
+<script>
+'use strict'
+/* ───────────────────────── Motion core (pure; port as-is) ───────────────────────── */
+
+/** Cubic Bézier point. */
+function bezier(p0, p1, p2, p3, t) {
+  const u = 1 - t
+  return {
+    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+  }
+}
+
+/** Minimum-jerk easing (human reach profile): slow start, fast middle, gentle landing. */
+const minJerk = t => t * t * t * (10 - 15 * t + 6 * t * t)
+const easeOut = t => 1 - (1 - t) ** 3
+
+/**
+ * A natural arc from `from` to `to`: control points pushed to one side of the straight line, curvature grows with
+ * distance (capped), side alternates so consecutive moves don't look mechanical. Deterministic given `seed`.
+ */
+function arcPath(from, to, seed) {
+  const dx = to.x - from.x, dy = to.y - from.y
+  const dist = Math.hypot(dx, dy) || 1
+  const nx = -dy / dist, ny = dx / dist
+  const side = seed % 2 === 0 ? 1 : -1
+  const k = Math.min(120, Math.max(10, dist * 0.18)) * side
+  return {
+    p0: from,
+    p1: { x: from.x + dx * 0.28 + nx * k, y: from.y + dy * 0.28 + ny * k },
+    p2: { x: from.x + dx * 0.78 + nx * k * 0.55, y: from.y + dy * 0.78 + ny * k * 0.55 },
+    p3: to,
+    dist,
+  }
+}
+
+/** Fitts-like duration: quick for short hops, never sluggish for long ones (220–900 ms). */
+const moveDuration = dist => Math.min(900, 220 + 160 * Math.log2(1 + dist / 32))
+
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/* ───────────────────────── Overlay components ───────────────────────── */
+
+const ARROW = '<svg class="arrow" viewBox="0 0 22 26" aria-hidden="true"><path d="M3 3 L3 21 L8 16.5 L11.5 24 L15 22.5 L11.6 15.2 L18.5 15 Z" fill="#fff" stroke="#34243f" stroke-width="1.6" stroke-linejoin="round"/></svg>'
+
+class PersonaCursor {
+  /**
+   * @param {HTMLElement} layer overlay element (in Electron: the transparent overlay window's body)
+   * @param {{name: string, avatar: string, color: string, start?: {x:number,y:number}}} persona
+   */
+  constructor(layer, persona) {
+    this.layer = layer
+    this.persona = persona
+    this.pos = persona.start ?? { x: 40, y: 40 }
+    this.seed = 0
+    this.paused = false
+    this.resumeWaiters = []
+    this.el = document.createElement('div')
+    this.el.className = 'cursor'
+    this.el.style.setProperty('--c', persona.color)
+    this.el.innerHTML = `${ARROW}<span class="pill"><img alt="" src="${persona.avatar}"><span class="name"></span><span class="what"></span></span>`
+    this.el.querySelector('.name').textContent = persona.name
+    this.what = this.el.querySelector('.what')
+    layer.appendChild(this.el)
+    this.trails = layer.querySelector('svg.trails') ?? this.makeTrailLayer()
+    this.place(this.pos)
+    this.setState('idle')
+  }
+
+  makeTrailLayer() {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('class', 'trails')
+    this.layer.prepend(svg)
+    return svg
+  }
+
+  place(p) { this.el.style.transform = `translate(${p.x - 3}px, ${p.y - 3}px)` }
+
+  /** 'idle' | 'moving' | 'clicking' | 'typing' | 'waiting' | 'human' — drives the pill text and the arrow. */
+  setState(state, detail = '') {
+    this.state = state
+    this.el.dataset.state = state
+    const name = this.persona.name
+    const label = {
+      idle: '', moving: detail, clicking: detail || 'clicando', typing: '', waiting: '', human: 'você assumiu',
+    }[state]
+    this.what.className = 'what'
+    this.what.textContent = label
+    if (state === 'waiting') {
+      this.what.innerHTML = '<span class="dots" aria-hidden="true"><b></b><b></b><b></b></span>'
+      this.what.setAttribute('aria-label', `${name} está esperando`)
+    }
+    if (state === 'typing') this.what.classList.add('typing')
+  }
+
+  /** Blocks while the human holds control. */
+  async gate() {
+    if (!this.paused) return
+    await new Promise(resolve => this.resumeWaiters.push(resolve))
+  }
+
+  pause() { this.paused = true; this.setState('human') }
+  resume() { this.paused = false; this.setState('idle'); this.resumeWaiters.splice(0).forEach(r => r()) }
+
+  /** Glide along a Bézier arc with minimum-jerk easing; long moves overshoot a hair and settle (feels human). */
+  async moveTo(target, detail = '') {
+    await this.gate()
+    this.setState('moving', detail)
+    const from = { ...this.pos }
+    if (reducedMotion()) {
+      this.el.style.opacity = '0'
+      await sleep(90)
+      this.pos = target; this.place(target); this.el.style.opacity = ''
+      return
+    }
+    const overshoot = Math.hypot(target.x - from.x, target.y - from.y) > 360
+    const dir = norm({ x: target.x - from.x, y: target.y - from.y })
+    const aim = overshoot ? { x: target.x + dir.x * 8, y: target.y + dir.y * 8 } : target
+    const path = arcPath(from, aim, this.seed++)
+    this.drawTrail(path)
+    await this.animate(moveDuration(path.dist), t => bezier(path.p0, path.p1, path.p2, path.p3, minJerk(t)))
+    if (overshoot) await this.animate(110, t => lerp(aim, target, easeOut(t)))
+  }
+
+  /** Frame loop on elapsed *active* time: a human takeover freezes the cursor mid-arc and it resumes from there. */
+  animate(duration, at) {
+    return new Promise(resolve => {
+      let elapsed = 0
+      let last = performance.now()
+      const tick = now => {
+        if (this.paused) {
+          const state = this.state
+          this.setState('human')
+          this.resumeWaiters.push(() => { this.setState(state === 'human' ? 'moving' : state); last = performance.now(); requestAnimationFrame(tick) })
+          return
+        }
+        elapsed += now - last
+        last = now
+        const t = Math.min(1, elapsed / duration)
+        this.pos = at(t); this.place(this.pos)
+        if (t < 1) requestAnimationFrame(tick); else resolve()
+      }
+      requestAnimationFrame(tick)
+    })
+  }
+
+  /** Fading trail of the path just taken (persona color), so the human can follow where the persona went. */
+  drawTrail(path) {
+    if (reducedMotion()) return
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    const { p0, p1, p2, p3 } = path
+    el.setAttribute('d', `M${p0.x},${p0.y} C${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`)
+    el.setAttribute('class', 'trail')
+    el.setAttribute('stroke', this.persona.color)
+    this.trails.appendChild(el)
+    const total = el.getTotalLength()
+    el.style.strokeDasharray = `${total}`
+    el.style.strokeDashoffset = `${total}`
+    el.animate([{ strokeDashoffset: total }, { strokeDashoffset: 0 }], { duration: moveDuration(path.dist), easing: 'cubic-bezier(.3,0,.2,1)', fill: 'forwards' })
+    el.animate([{ opacity: 0.55 }, { opacity: 0 }], { delay: moveDuration(path.dist) + 250, duration: 700, fill: 'forwards' }).onfinish = () => el.remove()
+  }
+
+  async click(detail = '') {
+    await this.gate()
+    this.setState('clicking', detail)
+    if (!reducedMotion()) {
+      const ring = document.createElement('span')
+      ring.className = 'ripple'
+      ring.style.setProperty('--c', this.persona.color)
+      ring.style.left = `${this.pos.x}px`; ring.style.top = `${this.pos.y}px`
+      this.layer.appendChild(ring)
+      setTimeout(() => ring.remove(), 520)
+    }
+    await sleep(160)
+    this.setState('idle')
+  }
+
+  /** Types into `input` with a human rhythm; the pill mirrors the text being typed. */
+  async type(input, text) {
+    await this.gate()
+    this.setState('typing')
+    for (const ch of text) {
+      await this.gate()
+      if (this.state !== 'typing') this.setState('typing')
+      input.value += ch
+      this.what.textContent = text.slice(Math.max(0, input.value.length - 22), input.value.length)
+      await sleep(reducedMotion() ? 10 : 40 + Math.random() * 45)
+    }
+    await sleep(120)
+    this.setState('idle')
+  }
+
+  async wait(ms) { await this.gate(); this.setState('waiting'); await sleep(ms); this.setState('idle') }
+}
+
+/** The "this area is being driven by <persona>" frame. Follows the controlled window. */
+class ControlFrame {
+  constructor(layer, persona) {
+    this.el = document.createElement('div')
+    this.el.className = 'frame'
+    this.el.style.setProperty('--c', persona.color)
+    this.el.innerHTML = `<i></i><i></i><i></i><i></i><span class="tag"><img alt="" src="${persona.avatar}"><span class="label"></span><kbd>Esc</kbd></span>`
+    this.label = this.el.querySelector('.label')
+    this.persona = persona
+    this.setHuman(false)
+    layer.appendChild(this.el)
+  }
+  around(rect, pad = 8) {
+    Object.assign(this.el.style, { left: `${rect.x - pad}px`, top: `${rect.y - pad}px`, width: `${rect.w + pad * 2}px`, height: `${rect.h + pad * 2}px` })
+  }
+  setHuman(on) {
+    if (on) this.el.dataset.human = ''; else delete this.el.dataset.human
+    this.label.textContent = on ? `Você está no controle · ${this.persona.name} pausou` : `${this.persona.name} está usando esta janela`
+  }
+  remove() { this.el.remove() }
+}
+
+/* ───────────────────────── Demo script ───────────────────────── */
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+const norm = v => { const l = Math.hypot(v.x, v.y) || 1; return { x: v.x / l, y: v.y / l } }
+
+const desk = document.getElementById('desk')
+const overlay = document.getElementById('overlay')
+const hint = document.getElementById('hint')
+const handback = document.getElementById('handback')
+
+/** Element center / rect in overlay coordinates (in Electron: from UIA bounding rects). */
+function rectOf(el) {
+  const d = desk.getBoundingClientRect(), r = el.getBoundingClientRect()
+  return { x: r.left - d.left, y: r.top - d.top, w: r.width, h: r.height }
+}
+const centerOf = (el, dx = 0, dy = 0) => { const r = rectOf(el); return { x: r.x + r.w / 2 + dx, y: r.y + r.h / 2 + dy } }
+
+const AVATAR = name => `../../../persona-assets/avatars/${name}.png`
+const NINA = { name: 'Nina', avatar: AVATAR('nina'), color: '#f0be6a', start: { x: 520, y: 520 } }
+const BENTO = { name: 'Bento', avatar: AVATAR('bento'), color: '#b39ddf', start: { x: 900, y: 120 } }
+
+let active = []
+let running = false
+
+function reset() {
+  overlay.innerHTML = ''
+  active = []
+  for (const id of ['f-client', 'f-qty']) document.getElementById(id).value = ''
+  document.querySelectorAll('tr.picked').forEach(tr => tr.classList.remove('picked'))
+}
+
+async function ninaScript(cursor, frame) {
+  frame.around(rectOf(document.getElementById('w-form')))
+  await cursor.moveTo(centerOf(document.getElementById('f-client'), -60), 'abrindo o cadastro')
+  await cursor.click()
+  await cursor.type(document.getElementById('f-client'), 'Padaria Lua')
+  await cursor.moveTo(centerOf(document.getElementById('f-qty'), -80))
+  await cursor.click()
+  await cursor.type(document.getElementById('f-qty'), '40 pães de mel')
+  await cursor.moveTo(centerOf(document.getElementById('f-save')), 'salvando')
+  await cursor.click('salvar pedido')
+  await cursor.wait(900)
+  frame.around(rectOf(document.getElementById('w-table')))
+  await cursor.moveTo(centerOf(document.getElementById('r1'), -120), 'conferindo na lista')
+  await cursor.click()
+  document.getElementById('r1').classList.add('picked')
+  await cursor.wait(700)
+}
+
+async function bentoScript(cursor, frame) {
+  frame.around(rectOf(document.getElementById('w-table')))
+  await cursor.wait(600)
+  await cursor.moveTo(centerOf(document.getElementById('r3'), -100), 'revisando o estoque')
+  await cursor.click()
+  document.getElementById('r3').classList.add('picked')
+  await cursor.moveTo(centerOf(document.getElementById('r2'), 60))
+  await cursor.wait(1200)
+}
+
+async function run(withBento) {
+  if (running) return
+  running = true
+  reset()
+  const nina = new PersonaCursor(overlay, NINA)
+  const ninaFrame = new ControlFrame(overlay, NINA)
+  active.push({ cursor: nina, frame: ninaFrame })
+  const jobs = [ninaScript(nina, ninaFrame)]
+  if (withBento) {
+    const bento = new PersonaCursor(overlay, BENTO)
+    const bentoFrame = new ControlFrame(overlay, BENTO)
+    active.push({ cursor: bento, frame: bentoFrame })
+    jobs.push(bentoScript(bento, bentoFrame))
+  }
+  await Promise.all(jobs)
+  for (const { cursor, frame } of active) { cursor.setState('idle'); frame.remove() }
+  hint.textContent = 'Pronto. A Nina salvou o pedido e conferiu na lista.'
+  running = false
+}
+
+/* Human takeover: any real pointer movement or key on the desk pauses every persona immediately. */
+let humanHolding = false
+function takeover() {
+  if (!running || humanHolding) return
+  humanHolding = true
+  for (const { cursor, frame } of active) { cursor.pause(); frame.setHuman(true) }
+  handback.hidden = false
+  hint.textContent = 'Você assumiu. Nada acontece até você devolver.'
+}
+function giveBack() {
+  humanHolding = false
+  for (const { cursor, frame } of active) { cursor.resume(); frame.setHuman(false) }
+  handback.hidden = true
+  hint.textContent = 'Mexa o mouse sobre a área ou aperte Esc a qualquer momento: você assume e a persona pausa.'
+}
+desk.addEventListener('pointermove', event => { if (event.isTrusted) takeover() })
+window.addEventListener('keydown', event => { if (event.key === 'Escape') takeover() })
+handback.addEventListener('click', giveBack)
+document.getElementById('run').addEventListener('click', () => { void run(false) })
+document.getElementById('two').addEventListener('click', () => { void run(true) })
+
+/* Exposed for the Rivet spike / tests. */
+window.PersonaOverlay = { PersonaCursor, ControlFrame, bezier, arcPath, minJerk, moveDuration }
+</script>
+</body>
+</html>

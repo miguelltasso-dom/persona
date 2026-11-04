@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "source": "persona-spec/TOKEN-OPTIMIZATION.md",
+  "regressionThresholdPercent": 10,
+  "status": "placeholder",
+  "note": "Forge fills tokensPerCompletedTask and ledger fields from scripted runners; Probe owns gate diff.",
+  "scenarios": [
+    {
+      "id": "TOK-1",
+      "label": "Pedido simples no #geral",
+      "tokensPerCompletedTask": null,
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "modelCalls": null
+    },
+    {
+      "id": "TOK-2",
+      "label": "Tarefa multi-etapa com revisão",
+      "tokensPerCompletedTask": null,
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "modelCalls": null
+    },
+    {
+      "id": "TOK-3",
+      "label": "Dia ocioso com rotinas",
+      "tokensPerCompletedTask": null,
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "modelCalls": null
+    },
+    {
+      "id": "TOK-4",
+      "label": "30 personas com iniciativa",
+      "tokensPerCompletedTask": null,
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "modelCalls": null
+    },
+    {
+      "id": "TOK-5",
+      "label": "Dogfood Padaria Lua",
+      "tokensPerCompletedTask": null,
+      "inputTokens": null,
+      "outputTokens": null,
+      "cacheReadTokens": null,
+      "cacheWriteTokens": null,
+      "modelCalls": null
+    }
+  ]
+}

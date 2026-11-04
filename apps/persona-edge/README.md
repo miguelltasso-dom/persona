@@ -7,4 +7,6 @@ Contract: persona-spec/contracts/sync.md (Forge). Client: packages/persona/perso
 
 Local only for now: `pnpm --filter @deepseek-ai/dsh-persona-edge dev` (wrangler local simulators). **No Cloudflare account, secret or deploy** without the CTO's release. Never `wrangler login`.
 
+Deploy (quando o Atlas liberar): `persona-spec/CLOUDFLARE-DEPLOY.md`. Sem conta: `pnpm exec wrangler deploy --dry-run --outdir .wrangler/dry`.
+
 `WorkspaceHub` is the only sequencer (`seq === head+1` or `SEQ_GAP`). DMs/private need `shared: true`. GitHub webhooks are HMAC-verified, then become `WebhookEnvelope` on the workspace DO. Attachments go to R2. Tests: `pnpm exec vitest run apps/persona-edge`.

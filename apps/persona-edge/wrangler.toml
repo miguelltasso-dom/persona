@@ -1,7 +1,16 @@
-# Persona edge. Local development only until the CTO releases a Cloudflare account (D-034 / E11).
+# Persona edge. Local + dry-run only until Atlas releases a Cloudflare account (D-034 / E11).
+# Never `wrangler login` or `wrangler deploy` without that release.
 name = "persona-edge"
 main = "src/index.ts"
-compatibility_date = "2025-01-01"
+compatibility_date = "2025-10-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Filled at first real deploy. Leave commented for dry-run / local.
+# account_id = "REPLACE_AFTER_LOGIN"
+
+[observability]
+enabled = false
 
 [[durable_objects.bindings]]
 name = "WORKSPACE_HUB"
@@ -11,7 +20,6 @@ class_name = "WorkspaceHub"
 tag = "v1"
 new_sqlite_classes = ["WorkspaceHub"]
 
-# Bindings below are filled in at deploy time; local dev uses wrangler's local simulators.
 [[d1_databases]]
 binding = "DB"
 database_name = "persona-edge"
@@ -22,6 +30,18 @@ migrations_dir = "migrations"
 binding = "BLOBS"
 bucket_name = "persona-edge-blobs"
 
-# Local-only placeholder. Real secrets stay off this repo (E11 / Atlas).
+# Plain vars only. Real secrets: `wrangler secret put` — never commit values.
 [vars]
 GITHUB_WEBHOOK_SECRET = "dev-only-local-secret"
+ENVIRONMENT = "local"
+
+# Secrets the operator must set before a real deploy (see CLOUDFLARE-DEPLOY.md):
+#   GITHUB_WEBHOOK_SECRET
+#   PERSONA_SYNC_WRAP_KEY   (optional; payload encryption)
+#   PERSONA_INVITE_PEPPER   (optional; invite token hash)
+
+# [env.production]
+# name = "persona-edge"
+# workers_dev = false
+# account_id = "REPLACE_AFTER_LOGIN"
+# routes = [{ pattern = "edge.persona.example/*", zone_name = "example" }]

@@ -8,7 +8,8 @@ Formatos que a Persona lê (esquema presumido — valide com uma amostra real de
 - exportação do Notion (zip de `.md` e `.csv`)
 - exportação do ChatGPT (`conversations.json`)
 - exportação do Claude.ai
-- Gemini Takeout
+- Gemini Takeout (`conversations.json` com `model_messages`)
+- exportação do Grok (arquivo com `grok` no nome)
 
 A prévia mostra o que entra, o que é duplicado e o que será descartado — e por quê. Segredo aparente não entra. Conversa direta só sobe se você marcar como compartilhada. Reimportar o mesmo item não duplica. Dá para desfazer o lote.
 

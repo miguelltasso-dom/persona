@@ -15,6 +15,19 @@ function envelope(overrides: Partial<SyncEnvelope> = {}): SyncEnvelope {
   }
 }
 
+it('refuses teach recordings and provider account homes', async () => {
+  const cloud = new MemorySyncLog()
+  const client = new SyncClient({ log: new MemorySyncLog(), transport: new MemoryTransport(cloud) })
+  expect(await client.push(envelope({
+    classification: 'private', streamId: 'teach:nina', shared: true,
+  }))).toMatchObject({ status: 'refused', code: 'PRIVATE_NOT_SHARED' })
+  expect(await client.push(envelope({
+    classification: 'workspace', streamId: 'account:claude',
+  }))).toMatchObject({ status: 'refused', code: 'PRIVATE_NOT_SHARED' })
+  expect(client.outbox).toHaveLength(0)
+  expect(cloud.head('teach:nina')).toBe(0)
+})
+
 it('refuses to upload a DM and never puts it on the transport', async () => {
   const cloud = new MemorySyncLog()
   const client = new SyncClient({ log: new MemorySyncLog(), transport: new MemoryTransport(cloud) })

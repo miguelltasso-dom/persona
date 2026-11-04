@@ -19,6 +19,6 @@ Same scope as `listMessages` (`streamKind: 'channel'`, `ownerId` = channel id, `
 - `listDms(scope)` → sidebar; `selectDm(id)` loads `listMessages` + `followMessages` with `streamKind: 'dm'`, `ownerId` = dm id.
 - Pass-through (C5b): derived from `getOverviewNow` rows (`passThroughFollowers` — workers with `currentTask`, not Coordenação).
 
-## Task cards (pending)
+## Task cards (C5b)
 
-Message `type` / ticket citation cards in stream — Anvil wire + Prism card component (not v1 yet).
+Non-`message` stream events with non-empty `subjectId` cite a ticket. Prism `mapMessage` sets `ticketId` + `taskTitle` (resolved via `taskTitleById` from `listTasks` on refresh/stream merge). `#geral` renders a button per card; click → `loadTurnContext(ticketId)` → `getTurnContext` panel (`turn-context-remote.md`). Rich card chrome (Muse) may follow; data path is live.

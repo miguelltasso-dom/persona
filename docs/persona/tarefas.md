@@ -11,3 +11,5 @@ Estados que você vê:
 - **Pronto / Falhou** — terminou. Falhou pode tentar de novo.
 
 A lista saudável é vazia: sem Precisa de você, sem falha. Isso é o estado normal, não um erro.
+
+No [quadro do projeto](./quadros.md) a mesma Tarefa aparece na coluna da categoria do estado. Cada projeto tem o próprio fluxo.

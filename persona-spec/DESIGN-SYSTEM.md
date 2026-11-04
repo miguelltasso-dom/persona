@@ -179,6 +179,16 @@ Importar de `src/client/primitives/index.ts`. Estados obrigatórios em todos: re
 | `Screen` / `ScreenHeader` | Casca de toda tela principal: rolagem própria, largura máx. 1180 (`reading` 880), cabeçalho com selo do ícone do rail + eyebrow (grupo) + h1 Fredoka 28 + subtítulo + ações (no máx. 1 primária). |
 | `ErrorState` / `PanelBoundary` | Erro honesto: arte `empty-error` + título humano + "Tentar de novo" + detalhe técnico pequeno e selecionável. `PanelBoundary` é o error boundary por painel; o frame ainda tem um **guarda de painel vazio** (2 s sem conteúdo → `ErrorState`), porque o slot do DSH engole crashes. Nunca tela vazia. |
 | `Accent` | Acentos à mão do Brush (`persona-assets/accents`: squiggle-1..3, paw-prints, sparkle-1..2, leaf-1..2, doodle-arrow, doodle-circle, stars-cluster) pintados por máscara com `currentColor`. |
+| `PersonaCard` / `PersonaCardFacts` / `PersonaCardPopover` / `usePersonaCardController` | Cartão da persona (spec `design/PERSONA-CARD-SPEC.md`): cena 112 px com a pose ao vivo sobre o banner, identidade, selos de função, faixa "agora" tingida pela categoria, quem pode falar, fatos de governança, motor com barras 5h/semana (**nunca 0% inventado**), campo "Mensagem para…". Popover não modal em portal; hover 450 ms sem roubar foco, clique foca, Esc devolve o foco. No perfil, `PersonaCardFacts layout="wide"`. |
+| `OrgChart` / `HealthScore` / `HealthItem` / `TwoDayTimeline` / `SectorIcon` | Governança (spec `design/GOVERNANCE-SPEC.md`): organograma com conectores lilás e colunas de 200–272 px centralizadas, modo lista acessível; veredito em 1 frase; achado com **uma** ação; Teste dos 2 dias; ícones de setor do Brush por máscara. |
+| `PawBurst` / `MilestoneCard` / `ApprovedStamp` | Pico e fim: rajada de patinhas única (cooldown 2,5 s), cartão de marco (sprint/onboarding), carimbo "Aprovado" do Brush pressionado **uma vez** no momento da aprovação (mola 320 ms, −10°); reduced-motion = estático. |
+| `MenuButton` | O único ⋯ do app (cartão, assuntos, contas): `aria-haspopup=menu`, setas/Home/End, Esc fecha e devolve o foco **sem fechar o overlay pai**, Tab ou clique fora fecham, itens com `leading` (ex.: bolinha do assunto) e `tone="danger"`. `ref.open()` para Shift+F10. |
+| `useActiveIndicator` | Indicador deslizante (pílula do rail, abas) que **mede de novo** em ResizeObserver, mutação de `aria-current/selected/expanded`, `transitionend` e fontes carregadas. Medir uma vez só = pílula vazia fora do lugar (dogfood 05). |
+| `SubjectBar` / `SubjectDot` (chat) | Assuntos (WAVE2-SPEC a): pílula com bolinha (`--persona-subject-0..6`, contorno ameixa 1,5 px) + **nome sempre** (sem nome → nome da cor), ativa com `-tint` + contorno + `shadow-press`, bolha âmbar de não lidas, anel que respira quando há persona trabalhando; ⋯ e + fora do `tablist`; até 7. |
+| `AccountRow` / `AccountList` / `AccountPolicyPicker` / `Notice` | Contas por provedor (WAVE2-SPEC c): um estado e **uma** ação por conta, medidores oficiais ou "Sem estimativa ainda", rostos de quem usa; política como 4 cartões-rádio em linguagem simples (escolha explícita); `Notice` informação/aviso. |
+| `RecordingPill` / `RecordingFrame` / `TeachStepCard` / `TeachStepList` | Ensinar (WAVE2-SPEC b): pílula flutuante fora da área gravada (ponto `danger` pulsando, cronômetro tabular, Pausar/Parar), moldura com cantos em colchete; passo da revisão com selo numerado, miniatura 176×110, texto editável, ↑↓, Borrar parte, remover. Nunca gravar dentro de um modal. |
+| `ChoiceCards` | Escolha explícita em cartões-rádio (ícone, título, uma frase, selo "Recomendado"): `input type=radio` real por baixo; base do `AccountPolicyPicker` e das predefinições de Regras. Use no lugar de números crus. |
+| `QuotaMeter` | Medidor oficial 5h/semana (role=meter, tom por nível), compartilhado entre cartão e Conexões. |
 
 ### 5.1 Regra de dados para primitivos com estado externo
 
@@ -221,6 +231,7 @@ Segue `UX-GUIDE.md` §2–3 integralmente (tokens já em `theme/persona-palette.
 
 ## 9. Não fazer
 
+- ❌ Controle morto: botão sem ação não aparece — o CTA de estado vazio só existe com `onPrimary` (UX-18), e atalho anunciado (`Ctrl K`) tem de funcionar.
 - ❌ Borda cinza 1px + sombra blur cinza (o "SaaS genérico").
 - ❌ Fonte do sistema em títulos; títulos < 20px em cabeçalho de tela.
 - ❌ `<select>`/`<textarea>` nativos sem estilo, *resize handle* visível.
@@ -231,6 +242,9 @@ Segue `UX-GUIDE.md` §2–3 integralmente (tokens já em `theme/persona-palette.
 - ❌ Gradientes chamativos, glassmorphism, neon, sombras coloridas.
 - ❌ Tema escuro cinza/preto neutro.
 - ❌ Animação sem evento real; loops que não pausam fora da tela.
+- ❌ Ids crus na UI ("dsh · default", "oar:codex", "persona-atlas"): motor/modelo sempre por `team/engine-label.ts` ("Harness DeepSeek · modelo padrão", "Claude · Haiku").
+- ❌ Zero inventado: sem dado do host = "indisponível"/"sem estimativa ainda", nunca "0%" ou "~0 tokens".
+- ❌ Iniciais no lugar do bicho: persona sempre com retrato/pose (`characterId` sem "-default"); iniciais só para humanos.
 
 ## 10. Aceite visual (Muse revisa por captura)
 

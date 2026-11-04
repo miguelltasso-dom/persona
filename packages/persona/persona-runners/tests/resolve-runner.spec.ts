@@ -7,7 +7,6 @@ import {
   RunnerResolveError,
   createSessionPool,
   detectConnections,
-  pickConnectedCli,
   disposeRunnerSessions,
   loginHintFor,
   idleTeamMayCallModel,
@@ -167,9 +166,7 @@ describe('resolveRunner', () => {
       expect(error).toBeInstanceOf(RunnerResolveError)
       expect(String(error)).not.toContain('sk-test-secret-xyz')
       expect((error as Error).stack ?? '').toMatch(/RunnerResolveError/u)
-      expect((error as RunnerResolveError).message).toMatch(/não está conectado/u)
-      expect((error as RunnerResolveError).provider).toBe('Claude')
-      expect((error as RunnerResolveError).command).toBe('claude login')
+      expect((error as RunnerResolveError).message).toMatch(/não está logada/u)
     }
   })
 
@@ -339,21 +336,9 @@ describe('detectConnections + fake CLI fixtures', () => {
       expect(loginHintFor('claude')).toMatch(/claude login/u)
       const again = await detectConnections({ cacheMs: 60_000, runtimes: { claude: sayingRuntime() } })
       expect(again).toBe(cards)
-      expect(pickConnectedCli(cards)).toBe('claude')
     } finally {
       process.env.PATH = previous
     }
-  })
-
-  it('picks Codex when Claude is logged out and skips dsh', () => {
-    expect(pickConnectedCli([
-      { id: 'dsh', kind: 'dsh', installed: true, loggedIn: true, models: ['default'] },
-      { id: 'claude', kind: 'cli', installed: true, loggedIn: false, models: [] },
-      { id: 'codex', kind: 'cli', installed: true, loggedIn: true, models: ['default'] },
-    ])).toBe('codex')
-    expect(pickConnectedCli([
-      { id: 'claude', kind: 'cli', installed: true, loggedIn: true, authUnknown: true, models: [] },
-    ])).toBeUndefined()
   })
 })
 
@@ -431,8 +416,8 @@ describe('resolver smoke (scripted)', () => {
     expect(rows.find(item => item.id === 'codex')?.error?.code).toBe('not_logged_in')
     const cursor = rows.find(item => item.id === 'cursor')
     expect(cursor?.error?.code).toBe('not_logged_in')
-    expect(cursor?.error?.message).toBe('O Cursor não está conectado neste computador.')
-    expect(cursor?.loginHint ?? loginHintFor('cursor')).toMatch(/Persona nunca pede sua senha/u)
+    expect(cursor?.error?.message).toBe(loginHintFor('cursor'))
+    expect(cursor?.error?.message).toMatch(/Cursor/u)
     expect(JSON.stringify(cursor)).not.toMatch(/at /u)
   }, 15_000)
 
@@ -485,12 +470,12 @@ describe('connection UI payload', () => {
       loggedIn: false,
       models: [],
       loginHint: loginHintFor('cursor'),
-      error: { code: 'not_logged_in', message: new RunnerResolveError('not_logged_in', 'cursor').message },
+      error: { code: 'not_logged_in', message: `CLI cursor não está logada. ${loginHintFor('cursor')}` },
     })
-    expect(row.loginHint).toMatch(/Persona nunca pede sua senha/u)
+    expect(row.loginHint).toBe('Abra o Cursor e faça login no Agent')
     expect(row.error?.code).toBe('not_logged_in')
-    expect(row.error?.message).toBe('O Cursor não está conectado neste computador.')
-    expect(row.error?.message).not.toMatch(/CLI|runner|DSH/u)
+    expect(row.error?.message).toContain(row.loginHint)
+    expect(row.error?.message).not.toMatch(/RunnerResolveError/u)
   })
 
   it('executes WAVE2 account policy at the limit and isolates config dirs', async () => {

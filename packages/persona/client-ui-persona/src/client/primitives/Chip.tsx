@@ -22,6 +22,8 @@ export function Chip({ tone = 'neutral', icon, size = 'm', className, children, 
 
 export interface ReactionChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly emoji: string
+  /** Brush animal sticker URL (stickerUrl); replaces the emoji when present. */
+  readonly sticker?: string | undefined
   readonly count: number
   /** Current user already reacted. */
   readonly selected?: boolean
@@ -30,11 +32,13 @@ export interface ReactionChipProps extends ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 /** Reaction pill: emoji + tabular count; toggles aria-pressed. */
-export function ReactionChip({ emoji, count, selected = false, label, className, ...rest }: ReactionChipProps): ReactNode {
+export function ReactionChip({ emoji, sticker, count, selected = false, label, className, ...rest }: ReactionChipProps): ReactNode {
   const merged = className === undefined ? styles.reaction : `${styles.reaction} ${className}`
   return (
     <button type="button" className={merged} aria-pressed={selected} aria-label={label} {...rest}>
-      <span className={styles.emoji} aria-hidden="true">{emoji}</span>
+      {sticker !== undefined
+        ? <img className={styles.sticker} src={sticker} alt="" aria-hidden="true" draggable={false} />
+        : <span className={styles.emoji} aria-hidden="true">{emoji}</span>}
       <span className={styles.count} aria-hidden="true">{count}</span>
     </button>
   )

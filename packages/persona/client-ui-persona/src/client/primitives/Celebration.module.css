@@ -1,0 +1,273 @@
+/* ── PawBurst ───────────────────────────────────────────── */
+.burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.badge {
+  position: absolute;
+  left: -18px;
+  top: -18px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  box-shadow: 0 3px 0 0 var(--persona-outline);
+  animation: persona-badge-pop 1050ms var(--ease-spring) both;
+}
+
+.paw {
+  position: absolute;
+  left: -10px;
+  top: -10px;
+  width: 20px;
+  height: 20px;
+  color: var(--persona-accent);
+  opacity: 0;
+  animation: persona-paw-fly 900ms var(--ease-enter) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+.paw svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  stroke: var(--persona-outline);
+  stroke-width: 1.2;
+}
+
+.paw:nth-child(odd) {
+  color: var(--persona-lilac-400);
+}
+
+@keyframes persona-paw-fly {
+  0% { opacity: 0; transform: rotate(var(--angle)) translateX(0) rotate(90deg) scale(0.4); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateX(64px) rotate(90deg) scale(1); }
+}
+
+@keyframes persona-badge-pop {
+  0% { opacity: 0; transform: scale(0.4); }
+  25% { opacity: 1; transform: scale(1.12); }
+  45% { transform: scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+
+/* ── MilestoneCard ──────────────────────────────────────── */
+.milestone {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  overflow: hidden;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-xl);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: var(--persona-space-3);
+  border-right: var(--persona-border-width) solid var(--persona-outline);
+  background: linear-gradient(to bottom, var(--persona-scene-sky-2), var(--persona-scene-sky));
+}
+
+.stage img {
+  width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  padding: var(--persona-space-5) var(--persona-space-6);
+}
+
+.eyebrow {
+  margin: 0;
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-accent-text);
+}
+
+.title {
+  margin: 0;
+  font: 700 24px/30px var(--persona-font-display);
+  letter-spacing: -0.015em;
+  color: var(--persona-ink);
+}
+
+.body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--persona-ink-soft);
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-6);
+  margin: var(--persona-space-2) 0 0;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.stat dt {
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.stat dd {
+  margin: 0;
+  font: 700 32px/36px var(--persona-font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--persona-ink);
+}
+
+.stat[data-tone='success'] dd { color: var(--persona-success); }
+.stat[data-tone='warning'] dd { color: var(--persona-warning); }
+
+.contributors ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contributors li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 3px;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-paper);
+}
+
+.contributorsLabel {
+  margin: var(--persona-space-2) 0 var(--persona-space-2);
+  font: 800 11px/14px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-ink-faint);
+}
+
+.contributorName {
+  font: 600 14px/18px var(--persona-font-display);
+}
+
+.contributorCount {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--persona-success-tint);
+  color: var(--persona-success);
+  font: 800 12px/18px var(--persona-font-text);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-3);
+}
+
+@media (max-width: 900px) {
+  .milestone {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stage {
+    border-right: 0;
+    border-bottom: var(--persona-border-width) solid var(--persona-outline);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paw {
+    display: none;
+  }
+
+  .badge {
+    animation: persona-badge-still 1050ms linear both;
+  }
+}
+
+@keyframes persona-badge-still {
+  0%, 85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Approved stamp (Brush accents/stamp-aprovado.svg, currentColor via mask). */
+.stamp {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--persona-success);
+  transform: rotate(-10deg);
+  pointer-events: none;
+}
+
+.stampMark {
+  width: var(--stamp-size);
+  height: var(--stamp-size);
+  background: currentColor;
+  mask: var(--stamp-url) center / contain no-repeat;
+  opacity: 0.92;
+}
+
+.stampText {
+  font: 800 12px/1 var(--persona-font-text);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.stamp[data-animate] {
+  animation: persona-stamp-in 320ms var(--ease-spring) both;
+}
+
+@keyframes persona-stamp-in {
+  0% {
+    opacity: 0;
+    transform: rotate(-22deg) scale(1.6);
+  }
+
+  60% {
+    opacity: 1;
+    transform: rotate(-8deg) scale(0.92);
+  }
+
+  100% {
+    opacity: 1;
+    transform: rotate(-10deg) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stamp[data-animate] {
+    animation: none;
+  }
+}

@@ -1,9 +1,12 @@
 /** Five-step onboarding (DESIGN-SYSTEM §7): illustrated stage with the team arriving + one focused form per step. */
 
-import { useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { writeOnboardingBycDraft } from '../bring-context/onboarding-byc-draft.ts'
+import { StructureAssistant } from '../governance/StructureAssistant.tsx'
+import { structurePlanToRoster } from '../governance/structure-plan-to-roster.ts'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
-import { Avatar, Button, Chip, Input, Textarea, UiIcon } from '../primitives/index.ts'
+import { Avatar, Button, Chip, Input, PawBurst, Textarea, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { MOCK_HARNESSES, MOCK_INTRO_LINES, type TeamTemplateId } from './mock-data.ts'
@@ -13,15 +16,20 @@ import type { createOnboardingStore } from './create-onboarding-store.ts'
 import { BuilderThread } from './BuilderThread.tsx'
 import { OnboardingStepMotion } from './OnboardingStepMotion.tsx'
 import { TeamIntroQueue } from './TeamIntroQueue.tsx'
+import { BringYourContextBlock } from '../bring-context/BringYourContextBlock.tsx'
 import { VaultCofrePanel } from './VaultCofrePanel.tsx'
 import styles from './OnboardingWizard.module.css'
 
 export interface OnboardingWizardProps {
   readonly dict: LocaleDict
+  readonly structureDict: LocaleDict
   readonly store: ReturnType<typeof createOnboardingStore>['store']
   readonly actions: OnboardingActions
   /** Called when the user finishes step 5 (shell overlay dismiss). */
   readonly onComplete?: () => void
+  readonly onScanVaultFolder?: ((rootPath: string) => Promise<import('@deepseek-ai/dsh-persona-core').BringContextPreview>) | undefined
+  readonly onOrganizePreview?: import('../bring-context/BringYourContextBlock.tsx').BringYourContextBlockProps['onOrganizePreview']
+  readonly onApplyReview?: import('../bring-context/BringYourContextBlock.tsx').BringYourContextBlockProps['onApplyReview']
 }
 
 const TEMPLATE_KEYS: Readonly<Record<TeamTemplateId, string>> = {
@@ -70,6 +78,7 @@ function OnboardingStage({ t, step }: { readonly t: (key: string) => string; rea
         <span className={styles.bubbleName}>{t('guide.name')}</span>
         {t(`step${step}.guideSays`)}
       </div>
+      {step >= 5 && <PawBurst key="team-ready" />}
       <ul className={styles.cast}>
         {CAST.map((id, index) => {
           const src = poseUrl(id, 'acenando')
@@ -92,9 +101,28 @@ function OnboardingStage({ t, step }: { readonly t: (key: string) => string; rea
 }
 
 /** Onboarding flow for the shell overlay and isolated previews. */
-export function OnboardingWizard({ dict, store, actions, onComplete }: OnboardingWizardProps): ReactNode {
+export function OnboardingWizard({
+  dict,
+  structureDict,
+  store,
+  actions,
+  onComplete,
+  onScanVaultFolder,
+  onOrganizePreview,
+  onApplyReview,
+}: OnboardingWizardProps): ReactNode {
+  const [structureOpen, setStructureOpen] = useState(false)
   const state = useStoreSnapshot(store)
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
+
+  useEffect(() => {
+    writeOnboardingBycDraft({
+      bringPaste: state.bringPaste,
+      bringProvider: state.bringProvider,
+      vaultFolderPath: state.vaultFolderPath,
+      pasted: state.bringPasted,
+    })
+  }, [state.bringPaste, state.bringProvider, state.vaultFolderPath, state.bringPasted])
 
   const continueDisabled = state.step === 1 && state.displayName.trim().length === 0
   const vaultReady = state.vaultText.trim().length > 0
@@ -153,6 +181,23 @@ export function OnboardingWizard({ dict, store, actions, onComplete }: Onboardin
                 onChange={(event) => { actions.setVaultText(event.target.value) }}
                 placeholder={t('step2.placeholder')}
               />
+              <BringYourContextBlock
+                dict={dict}
+                paste={state.bringPaste}
+                provider={state.bringProvider}
+                pasted={state.bringPasted}
+                vaultFolderPath={state.vaultFolderPath}
+                cofreSavedCount={state.bringCofreSavedCount}
+                onPasteChange={actions.setBringPaste}
+                onProviderChange={actions.setBringProvider}
+                onPastedChange={actions.setBringPasted}
+                onVaultFolderPathChange={actions.setVaultFolderPath}
+                onCofreSavedCountChange={actions.setBringCofreSavedCount}
+                onVaultSeedAppend={actions.appendVaultText}
+                {...(onScanVaultFolder === undefined ? {} : { onScanVaultFolder })}
+                {...(onOrganizePreview === undefined ? {} : { onOrganizePreview })}
+                {...(onApplyReview === undefined ? {} : { onApplyReview })}
+              />
             </section>
           )}
           {state.step === 3 && (
@@ -174,10 +219,32 @@ export function OnboardingWizard({ dict, store, actions, onComplete }: Onboardin
               </ul>
             </section>
           )}
-          {state.step === 4 && (
+          {state.step === 4 && structureOpen && (
+            <section className={styles.step}>
+              <Button variant="ghost" onClick={() => { setStructureOpen(false) }}>{t('step4.structureBack')}</Button>
+              <StructureAssistant
+                dict={structureDict}
+                humanLabel={state.displayName}
+                compact
+                onApplyRoster={(plan) => {
+                  actions.setRoster(structurePlanToRoster(plan))
+                  setStructureOpen(false)
+                }}
+                onSkip={() => { setStructureOpen(false) }}
+              />
+            </section>
+          )}
+          {state.step === 4 && !structureOpen && (
             <section className={styles.step}>
               <h1 className={styles.title}>{t('step4.title')}</h1>
               <p className={styles.hint}>{t('step4.hint')}</p>
+              <Button
+                variant="secondary"
+                icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />}
+                onClick={() => { setStructureOpen(true) }}
+              >
+                {t('step4.structureOpen')}
+              </Button>
               <div className={styles.templateGrid} role="group" aria-label={t('step4.title')}>
                 {(Object.keys(TEMPLATE_KEYS) as TeamTemplateId[]).map(id => (
                   <button

@@ -1,0 +1,79 @@
+.shell {
+  gap: var(--persona-space-4);
+}
+
+.reviewShell {
+  gap: var(--persona-space-3);
+}
+
+.layout {
+  display: grid;
+  gap: var(--persona-space-4);
+}
+
+@media (min-width: 1100px) {
+  .layout {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.advancedCard {
+  border: var(--persona-border-width) dashed var(--persona-outline-soft);
+}
+
+.privacy {
+  margin: 0;
+  font: 400 0.8125rem/1.45 var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.organizeRow {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--persona-space-2);
+}
+
+.organizePrimary {
+  padding: 0.65rem 1.25rem;
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  font: 700 0.9375rem/1 var(--persona-font-text);
+  cursor: pointer;
+}
+
+.organizePrimary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 0.875rem/1 var(--persona-font-text);
+  cursor: pointer;
+}
+
+.backIcon {
+  transform: rotate(180deg);
+}
+
+.advancedWrap {
+  margin-top: var(--persona-space-4);
+}
+
+.inboxCelebrate {
+  pointer-events: none;
+}

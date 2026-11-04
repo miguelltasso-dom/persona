@@ -13,3 +13,15 @@ export function bindLocale(dict: LocaleDict, key: string, params?: Readonly<Reco
   if (params === undefined) return template
   return template.replace(/\{(\w+)\}/gu, (_, name: string) => String(params[name] ?? `{${name}}`))
 }
+
+/** Adapts `ctx.locale.bind(ns)` to a {@link LocaleDict} for legacy preview components. */
+export function localeBindAsDict(
+  bind: (key: string, params?: Readonly<Record<string, string | number>>) => string,
+): LocaleDict {
+  return new Proxy({} as LocaleDict, {
+    get(_target, prop: string | symbol) {
+      if (typeof prop !== 'string') return undefined
+      return bind(prop)
+    },
+  })
+}

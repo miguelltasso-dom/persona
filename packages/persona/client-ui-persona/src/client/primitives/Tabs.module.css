@@ -64,3 +64,8 @@
     transition: none;
   }
 }
+
+.tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

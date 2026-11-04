@@ -163,6 +163,7 @@
 
 /* ── Thread ─────────────────────────────────────────────── */
 .threadPane {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -220,5 +221,112 @@
   .threadHeader {
     padding-left: var(--persona-space-5);
     padding-right: var(--persona-space-5);
+  }
+}
+
+/* Live pose of the persona in the thread header (mini scene, sticker frame). */
+.threadStage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 72px;
+  height: 64px;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: linear-gradient(to bottom, var(--persona-scene-sky-2), var(--persona-scene-sky) 70%, var(--persona-scene-ground));
+  box-shadow: var(--persona-shadow-press);
+}
+
+.threadStage img {
+  height: 58px;
+  max-width: 92%;
+  object-fit: contain;
+  object-position: bottom;
+  animation: persona-dm-pose-in var(--motion-base) var(--ease-spring);
+}
+
+.threadStage img[data-state='resting'] {
+  height: 38px;
+}
+
+@keyframes persona-dm-pose-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .threadStage img {
+    animation: none;
+  }
+}
+
+/* Empty DM: illustrated + 3 first-request suggestions by job title (one click sends). */
+.firstAsk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--persona-space-2);
+  padding-bottom: var(--persona-space-6);
+}
+
+.firstAskTitle {
+  margin: 0;
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-brand);
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  width: min(460px, 100%);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  width: 100%;
+  margin-bottom: 3px;
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  box-shadow: var(--persona-shadow-press);
+  font: 600 15px/20px var(--persona-font-text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
+}
+
+.suggestion:hover {
+  background: var(--persona-wash);
+  transform: translateY(-1px);
+}
+
+.suggestion:active {
+  transform: translateY(2px);
+  box-shadow: var(--persona-shadow-press-active);
+}
+
+.suggestion svg {
+  flex-shrink: 0;
+  color: var(--persona-accent-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suggestion,
+  .suggestion:hover,
+  .suggestion:active {
+    transform: none;
   }
 }

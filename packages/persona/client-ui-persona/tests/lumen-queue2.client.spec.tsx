@@ -14,7 +14,9 @@ import { pt as profilePt } from '../src/client/locale/profile/locales.ts'
 import { MembersView } from '../src/client/members/MembersView.tsx'
 import { MemoryPanel } from '../src/client/memory/MemoryPanel.tsx'
 import { MOCK_MEMBERS } from '../src/client/members/mock-data.ts'
-import { MOCK_PERSONA_ATLAS, MOCK_PROFILE_ATLAS } from '../src/client/profile/mock-data.ts'
+import { MOCK_GESTOR_AUDIT_ACTIVITY } from '../src/client/governance/gestor-audit-mock.ts'
+import { pt as governancePt } from '../src/client/locale/governance/locales.ts'
+import { MOCK_PERSONA_ATLAS, MOCK_PROFILE_ATLAS, type PersonaProfileSnapshot } from '../src/client/profile/mock-data.ts'
 import {
   MOCK_PROACTIVITY_LIMITS,
   MOCK_QUIET_WINDOWS,
@@ -51,6 +53,24 @@ describe('lumen queue 2 previews', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Atlas' })).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: profilePt['tab.memory'] }))
     expect(screen.getByRole('heading', { level: 2, name: 'Memória da persona' })).toBeTruthy()
+  })
+
+  it('shows gestor audit on profile when team_manager and items provided (GES-5)', () => {
+    const snapshot: PersonaProfileSnapshot = {
+      ...MOCK_PROFILE_ATLAS,
+      persona: parsePersona({
+        ...MOCK_PROFILE_ATLAS.persona,
+        systemRoles: ['coordination', 'team_manager'],
+      }),
+    }
+    wrap(
+      <PersonaProfilePage
+        dict={profilePt}
+        snapshot={snapshot}
+        gestorAuditItems={MOCK_GESTOR_AUDIT_ACTIVITY}
+      />,
+    )
+    expect(screen.getByText(governancePt['health.gestorAudit'])).toBeTruthy()
   })
 
   it('renders approvals inbox with hire card', () => {

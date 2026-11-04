@@ -1,0 +1,34 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  animation: persona-reaction-pop var(--motion-base) var(--ease-spring);
+  transform-origin: left bottom;
+}
+
+.bottomEnd {
+  top: calc(100% + 8px);
+  right: 0;
+  bottom: auto;
+  left: auto;
+  transform-origin: right top;
+}
+
+@keyframes persona-reaction-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .popover {
+    animation: none;
+  }
+}

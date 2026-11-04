@@ -1,10 +1,9 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
-import { Avatar, Card, Chip, IconButton, UiIcon } from '../primitives/index.ts'
-import { FlowModelIcon } from './FlowModelIcon.tsx'
+import { Avatar, Card, CategoryBar, Chip, FlowIcon, IconButton, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { workStateOverlay } from '../team/persona-work-state.ts'
-import { CategoryBar } from './CategoryBar.tsx'
+import { hubCategoryBarProps } from './board-locale.ts'
 import { flowModelLabel } from './flow-models.ts'
 import styles from './Boards.module.css'
 import type { ProjectBoardSummary } from './types.ts'
@@ -42,7 +41,7 @@ export function ProjectBoardCard({ dict, summary, onOpen }: ProjectBoardCardProp
     >
       <div className={styles.projectCardTop}>
         <span className={styles.flowSeal} aria-hidden="true">
-          <FlowModelIcon modelId={summary.flowModel} size={22} />
+          <FlowIcon model={summary.flowModel} size={40} />
         </span>
         <h2 className={styles.projectName}>{summary.name}</h2>
         <div
@@ -81,7 +80,7 @@ export function ProjectBoardCard({ dict, summary, onOpen }: ProjectBoardCardProp
           <Chip tone="brand" size="s">{summary.sprintLabel}</Chip>
         )}
       </div>
-      <CategoryBar dict={dict} counts={summary.counts} />
+      <CategoryBar {...hubCategoryBarProps(dict, summary.counts)} />
       <div className={styles.projectFooter}>
         <div className={styles.workerStack} aria-label={t('boards.workingNow')}>
           {workers.map((worker, index) => (

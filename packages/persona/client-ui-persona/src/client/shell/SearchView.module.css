@@ -29,7 +29,8 @@
   font: 600 18px/24px var(--persona-font-text);
 }
 
-.input:focus-visible {
+/* The field frame shows focus (:focus-within halo); beat the global [data-persona-shell] :focus-visible ring. */
+.field .input:focus-visible {
   outline: none;
   box-shadow: none;
 }
@@ -45,4 +46,143 @@
   background: var(--persona-paper);
   font: 700 12px/1 var(--persona-font-text);
   color: var(--persona-ink-soft);
+}
+
+/* Ctrl K "Ir para" + Equipe (UX-06) */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+  margin-top: var(--persona-space-4);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--persona-space-2);
+  color: var(--persona-ink-soft);
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.screenGrid,
+.people,
+.hits {
+  display: grid;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.screenGrid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.people {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.screen,
+.person,
+.hit {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-height: 44px;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  font: 700 14px/20px var(--persona-font-text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-spring);
+}
+
+.screen :first-child {
+  color: var(--persona-brand);
+}
+
+.screen:hover,
+.person:hover:not(:disabled),
+.hit:hover,
+.screen:focus-visible,
+.person:focus-visible,
+.hit:focus-visible {
+  border-color: var(--persona-outline);
+  box-shadow: var(--persona-shadow-press);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.screen:focus-visible,
+.person:focus-visible,
+.hit:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.person:disabled {
+  cursor: default;
+}
+
+.personText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.personName {
+  font: 700 14px/18px var(--persona-font-text);
+}
+
+.personRole {
+  overflow: hidden;
+  color: var(--persona-ink-soft);
+  font: 600 12px/16px var(--persona-font-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hit {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.hitMeta {
+  color: var(--persona-ink-soft);
+  font: 700 12px/16px var(--persona-font-text);
+}
+
+.hitText {
+  font: 500 14px/20px var(--persona-font-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen,
+  .person,
+  .hit {
+    transition: none;
+  }
+
+  .screen:hover,
+  .person:hover:not(:disabled),
+  .hit:hover,
+  .screen:focus-visible,
+  .person:focus-visible,
+  .hit:focus-visible {
+    transform: none;
+  }
+}
+
+/* "Fazer" (T3-UX-HARVEST §2): actions read as amber-edged stickers so doing ≠ going. */
+.action {
+  border-color: color-mix(in srgb, var(--persona-accent) 70%, var(--persona-outline-soft));
+  background: color-mix(in srgb, var(--persona-accent) 10%, var(--persona-card));
 }

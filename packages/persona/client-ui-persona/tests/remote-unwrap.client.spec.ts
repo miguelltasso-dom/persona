@@ -15,6 +15,7 @@ function fakeHost(options: { failOn?: string } = {}): Json {
   const personas: Json[] = []
   const messages: Json[] = []
   const approvals: Json[] = []
+  const gestorPlans: Json[] = []
   let onboarded = false
   let workspace = false
   const host: Record<string, (request: Json) => Promise<Result> | AsyncIterable<unknown>> = {
@@ -41,6 +42,27 @@ function fakeHost(options: { failOn?: string } = {}): Json {
     listDms: () => ok([]),
     listApprovals: () => ok([...approvals]),
     proposeHire: (request) => { approvals.push({ ...request, status: 'pending' }); return ok(request) },
+    setPersonaSystemRoles: (request) => {
+      const row = personas.find(persona => persona.id === request.personaId)
+      if (row !== undefined) row.systemRoles = request.systemRoles
+      return ok(row ?? request)
+    },
+    proposeGestorAssemble: (request) => {
+      const plan = {
+        id: request.id,
+        workspaceId: request.workspaceId,
+        gestorId: request.gestorId,
+        action: 'assemble',
+        scopeKey: 'proj',
+        summary: 'Vou contratar 3 personas (Design, Engenharia, Conteúdo) e montar o fluxo site.',
+        reason: 'porque você pediu: Monte um time para o Site',
+        status: 'proposed',
+        createdAt: '2026-11-04T04:00:00.000Z',
+      }
+      gestorPlans.push(plan)
+      return ok({ plan, preview: { company: 'Acme', explanation: '', personaTitles: [], workflowId: 'site', sprintName: 'Sprint 1' } })
+    },
+    listGestorPlans: () => ok(gestorPlans.filter(plan => plan.status === 'proposed')),
     listMessages: () => ok({ events: [...messages] }),
     postMessage: (request) => { messages.push({ ...request, occurredAt: request.occurredAt ?? '2026-11-03T14:00:00.000Z' }); return ok(request) },
     markVisit: () => ok(true),
@@ -90,7 +112,7 @@ describe('live store over a RemoteResult host', () => {
     await live.bootstrap((value) => { firstUse = value })
     expect(live.observable.getSnapshot().error).toBeNull()
     expect(live.observable.getSnapshot().ready).toBe(true)
-    expect(firstUse).toBe(true)
+    expect(firstUse).toBe(false)
     await live.runDevHarnessSeedIfEnabled()
     await settle()
     const snapshot = live.observable.getSnapshot()
@@ -98,13 +120,21 @@ describe('live store over a RemoteResult host', () => {
     expect(snapshot.stripMembers.map(member => member.name)).toEqual(expect.arrayContaining(['Atlas', 'Bento', 'Nina', 'Sol', 'Luna']))
     expect(snapshot.messages.length).toBeGreaterThanOrEqual(4)
     expect(snapshot.attentionTitles).toContain('Aprovar envio do contrato')
+    const gestorMsg = snapshot.messages.find(row => row.id === 'dev-harness-v1-gestor-plan')
+    expect(gestorMsg?.gestorPlanId).toBe('dev-harness-v1-gestor-assemble')
+    expect(gestorMsg?.body).toContain('Vou contratar 3 personas')
+    expect(snapshot.gestorPlansById['dev-harness-v1-gestor-assemble']?.summary).toContain('Vou contratar 3 personas')
   })
 
   it('host failure surfaces a readable error instead of "x.find is not a function"', async () => {
     const live = createPersonaLiveStore(fakeHost({ failOn: 'listChannels' }) as never)
-    await live.bootstrap(() => undefined)
+    await expect(live.bootstrap(() => undefined)).rejects.toThrow(/unavailable|host fora do ar/)
     const error = live.observable.getSnapshot().error
     expect(error).not.toContain('is not a function')
-    expect(error === 'unavailable' || error?.includes('listChannels') === true).toBe(true)
+    expect(
+      error === 'unavailable'
+      || error === 'host fora do ar'
+      || error?.includes('listChannels') === true,
+    ).toBe(true)
   })
 })

@@ -1,3 +1,47 @@
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachments li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.attachRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: transparent;
+  color: var(--persona-ink-soft);
+  cursor: pointer;
+}
+
+.attachRemove:hover {
+  color: var(--persona-ink);
+  background: var(--persona-paper-sunken);
+}
+
+.fieldRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-2);
+}
+
+.subjectDotWrap {
+  flex-shrink: 0;
+  display: flex;
+  margin-top: 4px;
+}
+
 .composer {
   display: flex;
   flex-direction: column;
@@ -15,6 +59,11 @@
   box-shadow: var(--persona-shadow-sticker), 0 0 0 4px var(--persona-focus-halo);
 }
 
+.fieldRow .field {
+  flex: 1;
+  min-width: 0;
+}
+
 .field {
   box-sizing: border-box;
   width: 100%;
@@ -29,7 +78,9 @@
   font: 500 16px/24px var(--persona-font-text);
 }
 
-.field:focus-visible {
+/* The composer frame shows focus (:focus-within); beat the global [data-persona-shell] :focus-visible ring (Muse). */
+.field:focus-visible,
+.fieldRow .field:focus-visible {
   outline: none;
   box-shadow: none;
 }
@@ -161,6 +212,114 @@
   border-color: var(--persona-outline-soft);
   box-shadow: none;
   transform: translateY(2px);
+}
+
+.slashMenu {
+  margin: 0 0 var(--persona-space-2);
+  padding: var(--persona-space-1);
+  list-style: none;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.slashItem {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  width: 100%;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: transparent;
+  color: var(--persona-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.slashItem[aria-selected='true'],
+.slashItem:hover {
+  background: var(--persona-paper-sunken);
+}
+
+.slashHint {
+  margin-left: auto;
+  font-size: var(--persona-text-xs);
+  color: var(--persona-ink-muted);
+}
+
+.limitsPanel {
+  margin-bottom: var(--persona-space-3);
+  padding: var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-paper);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.limitsHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin-bottom: var(--persona-space-2);
+}
+
+.limitsTitle {
+  flex: 1;
+  margin: 0;
+  font-size: var(--persona-text-md);
+  font-weight: 600;
+}
+
+.limitsHint {
+  margin: var(--persona-space-2) 0 0;
+  font-size: var(--persona-text-xs);
+  color: var(--persona-ink-muted);
+}
+
+.quotaActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2) var(--persona-space-3);
+  margin-top: var(--persona-space-2);
+}
+
+.swapAccountLink {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--persona-text-sm);
+  font-weight: 600;
+  color: var(--persona-brand);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.swapAccountLink:hover {
+  color: var(--persona-brand-strong, var(--persona-brand));
+}
+
+.pocketChip {
+  margin-bottom: var(--persona-space-2);
+}
+
+.quoteChip {
+  margin-bottom: var(--persona-space-2);
+}
+
+.send[data-mode='queue'] {
+  background: var(--persona-paper);
+  color: var(--persona-accent);
+  border-color: var(--persona-accent);
+}
+
+.autonomyChip {
+  max-width: 9rem;
 }
 
 @media (max-width: 1180px) {

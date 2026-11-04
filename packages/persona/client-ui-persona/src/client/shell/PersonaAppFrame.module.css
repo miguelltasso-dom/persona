@@ -55,3 +55,23 @@
   place-items: center;
   background: var(--persona-paper);
 }
+
+/*
+ * Desktop window chrome (Electron titleBarOverlay, Windows): reserve the title-bar band so window controls never
+ * cover screen headers, and make that band draggable. In the browser env(titlebar-area-*) is unset → 0px.
+ */
+.dragStrip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 25;
+  height: env(titlebar-area-height, 0px);
+  -webkit-app-region: drag;
+  app-region: drag;
+  pointer-events: none;
+}
+
+.center {
+  padding-top: env(titlebar-area-height, 0px);
+}

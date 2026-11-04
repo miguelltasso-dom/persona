@@ -1,5 +1,233 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-03 — Cartão no quadro (PERSONA-CARD §5.2) + assets
+
+**(1) Quadro** — `PersonaCardShellBridge` propagado `mount` → `register-lumen-ui` (slot `kanban`) → `ConnectedGlobalKanban` → `ConnectedProjectFlowBoard` → `ProjectFlowBoard` → `FlowKanbanBoard` (`assigneeCardTrigger` + `PersonaCardPopoverHost`).
+
+**(2) Assets** — `pnpm run build:assets` regenerou `generated-imports.ts` + derivados (check-pkg exigia o arquivo).
+
+**Verificação** — `node scripts/persona/check-pkg.mjs client-ui-persona` OK (~32s); vitest apply-structure + create-shell-store + map-persona-card-from-host + canvas-list-keyboard → 6 tests OK.
+
+**Fila Prism** — Muse GOV-9 (visual); Probe GOV-10/PRO-6/PB-9 E2E; PB-5 abas/sidebar (co-Lumen); C5b DM/cartões tarefa no host real; passe visual Muse (C5a–d).
+
+---
+
+## 2026-11-03 — Motor `setPersonaEngine` + cartão no #geral (C5b/C5d)
+
+**(1) Engine** — `PersonaEngineOverlay` (`listConnections` → `setPersonaEngine`); shell `enginePersonaId`; rail «Trocar motor» abre modal (não editor).
+
+**(2) Cartão global** — `PersonaCardShellBridge` + `PersonaCardPopoverHost`; `#geral`: avatares das mensagens + figuras do banner «Sua equipe» abrem `getPersonaCard` (prefetch/hover); `mount`/`registerPrismScreens` injetam bridge.
+
+**(3) Fixes** — OrgChart `chartUi` null TS; testes `MessageView` com `message-view-fixture.ts` (replyToId/reactions).
+
+**Verificação** — vitest apply-structure + apply-message-stream + map-message + create-shell-store → 13 tests OK; gen-locales OK. **check-pkg:** 5 erros alheios (Lumen: approvals adapter, derive-two-day, ConnectedProjectFlowBoard).
+
+**Fila** — cartão no quadro/Kanban (Lumen+Prism); Muse GOV-9; Probe GOV-10/PRO-6 E2E; PB-5 sidebar abas.
+
+---
+
+## 2026-11-03 — GOV-8 `applyStructure` + UI `setPersonaTalkAcl`
+
+**(1) applyStructure** — `structure-rpc-ask.ts`, `fetch-apply-structure.ts`; `StructureAssistant` chama host ao «Aplicar roster» quando `structureRemote`; `hireAll` no Contratar chama `applyStructure` antes de `createPersona`.
+
+**(2) Talk ACL** — `PersonaTalkAclOverlay` (modal workspace vs escolhidos); shell `talkAclPersonaId`; rail/perfil «Editar» → overlay; `cardBridge.invalidate` após save.
+
+**(3) Contrato** — `governance-ui.md` atualizado. Pendente: picker dedicado `setPersonaEngine` (v1 abre editor); Muse GOV-9; Probe GOV-10/E2E.
+
+**Verificação** — vitest `apply-structure` + `create-shell-store` + `map-talk-acl` → 9 tests OK; `gen-client-ui-persona-locales.mjs` OK. **check-pkg `client-ui-persona`:** 2 erros pré-existentes na árvore (`approvals-ui-helpers.ts` ícone `convidar`; `adapters/proactive.ts` exactOptional) — fora do diff Prism.
+
+---
+
+## 2026-11-03 — GOV-8: `recommendStructure` host + fallback local
+
+**(1) Remote** — `resolveStructurePlan()` → Anvil `recommendStructure` quando RPC existe; `mapHostStructureRecommendation`, `sectorNamesForIds`; fallback `recommendStructure()` local.
+
+**(2) UI** — `StructureAssistant` async plan + `explanation` do host no passo 3; `ConnectedPersonaEditor` passa `structureRemote` com tenant. Onboarding pré-tenant continua só local.
+
+**(3) Contrato** — `persona-spec/contracts/governance-ui.md` atualizado. Pendente: `applyStructure` no “Aplicar roster”; preview org/2d do host (opcional).
+
+**Verificação** — `check-pkg client-ui-persona` OK (~29s); vitest map-host-structure + recommend-structure OK.
+
+---
+
+## 2026-11-03 — Cartão: pause/resume + motor + talk edit (rail)
+
+**(1) Runtime** — `persona-card-bridge.togglePause` → `pausePersona`/`resumePersona` + reload card + `live.refresh()`; `inferPersonaPaused` no mapper.
+
+**(2) Rail** — menu Pausar/Retomar, Trocar motor e Editar talk (v1: abre editor); perfil: `onEditTalk` → editor.
+
+**(3) Pendente** — UI dedicada `setPersonaTalkAcl` / picker de motor; host `recommendStructure` async no assistente GOV-8.
+
+**Verificação** — `check-pkg client-ui-persona` OK (~22s); vitest infer-persona-paused + rail-team OK.
+
+---
+
+## 2026-11-03 — Talk ACL no cartão + check-pkg governance
+
+**(1) Talk ACL** — `map-talk-acl.ts`; `persona-card-bridge` busca `getPersonaTalkAcl` junto com `getPersonaCard`; perfil (`lumen-remote-panels`) passa ACL para `personaCardViewToInfo` → linha «Quem pode falar» no popover rail e no herói do perfil.
+
+**(2) [Muse→Prism] cartão** — `format-card-quota.ts` (ISO → hora local); `characterId` via `normalizeCharacterId` (handle/avatarRef, sem `-default`).
+
+**(3) Fixes** — `governance-remote.ts`: `await unwrapRemote` em org/saúde/2 dias; teste `map-governance-ui` sem mutar readonly.
+
+**(3) Fila** — GOV-8 assistente ainda usa `recommendStructure` local (host `recommendStructure` RPC disponível — integração async opcional); Muse GOV-9; Probe GOV-10/E2E/F5; `setPersonaTalkAcl` UI (editar ACL) pendente.
+
+**Verificação** — `check-pkg client-ui-persona` OK (~32s); vitest map-talk-acl + map-governance-ui + map-persona-card + recommend-structure → 8 tests OK.
+
+---
+
+## 2026-11-03 — SNAPSHOT CORTADO: cartão da persona no rail (getPersonaCard)
+
+**(1) Bridge** — `persona-card-bridge.ts`: prefetch lazy + cache + `revision` observable; `persona-card-host-dto.ts` + `map-persona-card-from-host.ts` (sem import de valor do host).
+
+**(2) Shell** — `mount.ts` injeta `cardInfo`, `prefetchPersonaCard`, `cardDict` (profile locale); `PersonaSidebar` subscreve revisão; `RailTeam` chama prefetch no hover/⋯.
+
+**(3) Keel fila** — GOV-8 UI/RPC cliente ✔; cartão rail ✔; pendente Muse GOV-9 polish, `getPersonaTalkAcl` no cartão (opcional), Probe GOV-10/E2E.
+
+**Verificação** — `check-pkg client-ui-persona` OK (~26s); vitest `map-persona-card-from-host` + `rail-team` OK.
+
+---
+
+## 2026-11-03 — Vigia Atlas: governance RPC + C5b/G2 verdes + rail sendToPersona
+
+**(1) GOV remote** — `governance-remote.ts`: detecção `'getOrgChart'|'getTeamHealth'|'runTwoDayTest'|'applyGovernanceFix' in client` + `unwrapRemote`; tipo `GovernanceFixKind` em `governance-contract.ts`; `ConnectedOrgChartPanel` sem cast `Record<string, unknown>`. `apply-persona-governance.ts`: `setPersonaGovernance` via `in` + `substituteMemberId` sempre string (contrato Anvil).
+
+**(2) Rail Muse** — `mount.ts`: `sendToPersona(id,text)` → DM + `postDmMessage`; `editPersona` → `openPersonaEditor`.
+
+**(3) Fila PLAN** — C5b DM turn-context ✔; GOV-8 UI ✔ (RPC live quando typert expõe); G2 lista/teclado ✔ (teste). Pendente: Muse GOV-9 polish, Probe GOV-10/E2E/S5/C8/PRO-6, Anvil dados PRO-4 live, Lumen WorkflowEditorModal se regressão.
+
+**Verificação** — `check-pkg client-ui-persona` OK (~21s); vitest turn-context canal+DM (6) + `recommend-structure` + `canvas-list-keyboard` OK.
+
+---
+
+## 2026-11-03 — Snapshot Keel (aguardando SNAPSHOT CORTADO)
+
+**check-pkg `client-ui-persona`:** **NÃO VERDE** (3 erros, ~38s) — `WorkflowEditorModal.tsx:318` (`exactOptionalPropertyTypes` em `options`); `workflow-editor-modal.client.spec.tsx` chaves `editor.dragColumn` / `editor.fields` ausentes no kanban locale. **Dono UI fluxo:** Lumen. **[Prism→Lumen]** corrigir antes do publish.
+
+**Prism neste snapshot:** C5b DM (`loadTurnContext` + `turnContext` + `taskTitleById` em `selectDm`) e GOV-8 já na árvore; sem novos edits até post-it **SNAPSHOT CORTADO**.
+
+---
+
+## 2026-11-03 — GOV-8: assistente de estrutura + governança no editor
+
+**(1) Assistente** — `StructureAssistant` (4 passos), `recommendStructure`, prévia `OrgChart` + `TwoDayTimeline`; onboarding passo 4 (`step4.structureOpen`); Contratar via `ConnectedPersonaEditor` (fase assistente → editor; contratar um/todos).
+
+**(2) Editor** — campos `sectorId` / `responsibleMemberId` / `substituteMemberId` no draft; card “Quem cuida dela” com picklists; `applyPersonaGovernanceIfSupported` (stub até GOV-5).
+
+**(3) Contrato** — `persona-spec/contracts/governance-ui.md`.
+
+**Testes** — `recommend-structure.client.spec.ts`; hire/onboarding specs atualizados (`structureDict`, pular assistente).
+
+**Verificação** — `gen-client-ui-persona-locales.mjs`; `check-pkg client-ui-persona` OK (~20s); vitest recommend-structure + hire + onboarding-builder OK.
+
+**Dependências** — host `setPersonaGovernance` / `recommendStructure` (Anvil GOV-5); polish visual assistente (Muse GOV-9); aceite E2E (Probe GOV-10).
+
+---
+
+## 2026-11-03 — Keel P0: snapshot verde (composer anexos + check-pkg)
+
+**(a)** `gen-client-ui-persona-locales.mjs` — chaves composer `attachFailed` / `attachmentsLabel` / `attachUploading` / `attachRemove` no `chat/locales.ts`.
+
+**(b)** Live store: `uploadChannelAttachment` / `uploadDmAttachment` (API pública); DM + `#geral` wired (`ConnectedDirectMessagesView`, `DirectMessagesView`); doubles de teste atualizados; `onSend(body, attachmentIds)`.
+
+**(c)** `WorkflowEditorModal`: limpar WIP sem `{ wip: undefined }` (exactOptionalPropertyTypes).
+
+**Extra (bloqueava check-pkg):** `governance-remote` unwrap tipado; `map-governance-ui` groups array; registro GOV painéis + locale em `register-lumen-ui`.
+
+**Verificação** — `check-pkg client-ui-persona` OK (~22s); vitest 5 specs (8 tests) OK; `with-lock` + `pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle` OK.
+
+---
+
+## 2026-11-03 — Muse P0: bundle purity + anexos prep
+
+**(1) Bundle** — removido import `@deepseek-ai/dsh-persona-host/src/draft.ts`; fallback determinístico em `hire/fallback-persona-draft-wire.ts` (espelha Rivet `fallbackDraft`).
+
+**(2) Anexos (fase 2 prep)** — `postChannelMessage(body, attachmentIds?)` → `postMessage.attachmentIds`; probe `resolve-composer-host-ready.ts` (flags UI ainda `false` até chips/upload UI).
+
+**Testes** — `hire-wiring` (fallback wire); `resolve-composer-host-ready.client.spec.ts`.
+
+**Verificação** — `check-pkg client-ui-persona` → OK (~21s).
+
+**Dependências** — UI composer anexos/avatar (flip flags + chips); Typert `postMessage` regen se gate CI exigir.
+
+---
+
+## 2026-11-03 — Perfil: onMessage/onEdit + editor shell + createPersona runner
+
+**(1) Profile (dados, sem JSX Muse)** — `RemoteProfilePanel`: `onMessage` → `openPersonaDm`; `onEdit` → `openPersonaEditor`; `resolveProfileProjectNames` (nomes, não ids); `showPersonaEditor` = hire ou `profileEditorOpen`.
+
+**(2) Shell** — `profileEditorOpen`, `openPersonaEditor` / `closePersonaEditor`; `mount` fecha editor ao abrir perfil da rail; `onHireComplete` no editor.
+
+**(3) Hire RPC** — `draftToCreatePersonaRequest` distingue `dsh` vs `cli` (`oar:*` harness).
+
+**(4) Contrato** — `persona-spec/contracts/persona-editor-remote.md`.
+
+**Testes** — `create-shell-store` (openPersonaEditor); `hire-wiring` (runner + project names).
+
+**Verificação** — `check-pkg client-ui-persona` → OK (~31s).
+
+**Dependências** — copy vazio “Atividade recente” (Muse JSX); laziness live por runner (Anvil/Rivet); E2E S5/C8/PRO-6 (Probe).
+
+---
+
+## 2026-11-03 — Keel/Muse: vitrine "monte sua equipe" (dados/RPC)
+
+**(1) Hire (`ConnectedPersonaEditor`)** — `mode='new'` + rascunho vazio (`createEmptyHireDraft` + `pickUnusedGalleryAnimal` via `listPersonas`); sem `draftPersona` no load inicial.
+
+**(2) Builder** — `onDraftFromDescription` → Remote `draftPersona` (+ `createdBy`); fallback determinístico `draftPersonaFromDescription` (host) se RPC falhar; `wirePersonaDraftToUi` (systemRoles → Coordenação/Vigia, sem nomes fixos D-043).
+
+**(3) Runners** — `listConnections` → `connectionsToRunnerOptions` (hints estáticos Rivet até read-model; `phase: checking` ⇒ `connected` true, sem chip “desconectado”).
+
+**Arquivos** — `hire/{gallery-animals,empty-hire-draft,wire-persona-draft-to-ui,connections-to-runner-options}.ts`, `ConnectedPersonaEditor.tsx`.
+
+**Testes** — `hire-wiring.client.spec.ts`, `connected-persona-editor-hire.client.spec.tsx`; fix `attachmentIds` em stream specs; `live-tenant-bridge` + `useShell`.
+
+**Verificação** — `node scripts/persona/check-pkg.mjs client-ui-persona` → OK (~25s).
+
+**Dependências** — JSX/CSS vitrine congelada (Muse); laziness live por runner quando Anvil expuser; composer anexos fase 2 (Anvil).
+
+---
+
+## 2026-11-03 — PB-5 (parte Prism): Projetos → quadro + abas shell
+
+**(1) Shell** — `boardsFocusProjectId`, `openProjectBoard`, `clearBoardsFocusProject` em `create-shell-store.ts`; `ProjectsPanel` + `register-prism-screens` inject; `mount.ts` → `LumenShellBridge` para Lumen.
+
+**(2) Quadros** — `ConnectedGlobalKanban` consome focus one-shot → modo projeto; `navigateProjectTab` no `register-lumen-ui.tsx` (Conversa/Arquivos/Rotinas/Sprints stub); `ProjectWorkspaceTabs` + locales `project.tabs.*`; `ProjectFlowBoard` repassa `onWorkspaceTabChange`.
+
+**(3) Testes** — `create-shell-store.client.spec.ts` (openProjectBoard); `project-workspace-tabs.client.spec.tsx`; `live-tenant-bridge.client.spec.tsx` + `connected-kanban.client.spec.tsx` com `useShell`/`clearBoardsFocusProject`. Fixtures stream: `attachmentIds: []` em `apply-message-stream` / `map-message` (tipo host Anvil).
+
+**(4) Contrato** — `persona-spec/contracts/ui-shell.md` § PB-5.
+
+**Verificação** — `node scripts/persona/check-pkg.mjs client-ui-persona` → OK (~20s).
+
+**Dependências** — PB-5 restante (grade global, colunas por projeto, Sprints) → Lumen; E2E PB-9 → Probe; composer anexos fase 2 → Anvil.
+
+---
+
+## 2026-11-03 — Keel: botões mortos composer + upload avatar (fase 1)
+
+**(1) #geral/DM composer** — `ComposerToolButton` + flags em `composer-host-capabilities.ts`: anexo/imagem/+ desligados até `PERSONA_MESSAGE_ATTACHMENTS_HOST_READY`; emoji/@ desligados até flags próprias. `aria-disabled`, `disabled`, rótulo `"{ação} — Em breve"`. Teste `channel-composer-dead-controls.client.spec.tsx`.
+
+**(2) Editor persona** — chip “Enviar imagem” bloqueado até `PERSONA_AVATAR_UPLOAD_HOST_READY` (`field.avatarUploadSoon`). Teste `persona-editor-upload-gate.client.spec.tsx`.
+
+**(3) Fase 2 (Anvil)** — quando Status avisar: flip flags + UI de anexos (progresso, chips, erros pt-BR) e upload real; testes com remote falso (sucesso/erro/cancelar).
+
+**Verificação** — `gen-client-ui-persona-locales.mjs`; `check-pkg client-ui-persona`.
+
+---
+
+## 2026-11-03 — C5b stream/cartões + shell nav + contrato
+
+**(1) C5b** — Testes: `map-message.client.spec.ts` (título via `taskTitleById`), `connected-general-channel.client.spec.tsx` (`loadTurnContext`), `create-shell-store.client.spec.ts` (painel não redireciona sozinho; só dismiss onboarding → `#geral`). Contrato `channel-stream-remote.md` atualizado (cartões + turn context live).
+
+**(2) Typecheck compartilhado** — Ajustes mínimos em kanban/quadros (Lumen/Forge landing): `SprintBand` optional props, `NewProjectFlowModal` Card, `ConnectedGlobalKanban`/`ConnectedProjectFlowBoard`, `WorkflowEditorModal` `open={true}`.
+
+**Verificação** — `node scripts/persona/check-pkg.mjs client-ui-persona` → OK (~25s).
+
+**Dependências** — E2E C5b/C9/S5/PRO-6 (Probe); visual cartões/stream (Muse); `getProjectBoard`/PB-4 host (Anvil) para fluxo por projeto completo.
+
+---
+
 ## 2026-11-03 — PRO-4/C8 visão geral + D-043 copy + G2/PB typecheck
 
 **(1) C8 / PRO-4** — `OverviewView`: card “primeira tarefa” usa título live (`suggestedTask.title` do host) quando a equipe não tem tarefa ativa; `ConnectedOverviewView` já passava `live.suggestedTask`. Teste `overview-suggested-task.client.spec.tsx`.
@@ -12,7 +240,9 @@
 
 **(5) C5b** — teste pass-through visível em `general-channel-turn-context.client.spec.tsx`.
 
-**Verificação** — `node scripts/persona/build-assets.mjs`; `node scripts/persona/check-pkg.mjs client-ui-persona` → OK (~35–75s).
+**(6) DMs (Muse→Prism)** — `onNewConversation` ligado (`openFirstAvailableDm` + `resolveHostPersonaId` para `createDm`); teste `resolve-host-persona.client.spec.ts`.
+
+**Verificação** — `node scripts/persona/build-assets.mjs`; `node scripts/persona/check-pkg.mjs client-ui-persona` → OK (~24–75s).
 
 **Dependências** — PRO-6/S5/C8 E2E e gate completo Lumen → Probe; polish visual PRO-4/C5 → Muse; `usage` adapters vs host types (Lumen/Anvil) fora do check-pkg Prism.
 

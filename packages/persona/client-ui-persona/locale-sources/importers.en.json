@@ -22,5 +22,12 @@
   "loading": "Preparing importer…",
   "error.title": "Couldn't start the import right now",
   "error.retry": "Try again",
-  "progressLabel": "Import progress"
+  "progressLabel": "Import progress",
+  "bycScreen.title": "Bring what your AIs already know",
+  "bycScreen.subtitle": "Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.",
+  "bycScreen.organizing": "Organizing…",
+  "bycScreen.savedToast": "{count} items in the Vault",
+  "advancedExport.title": "Official export (advanced)",
+  "advancedExport.lead": "Zip or export from another tool, with step-by-step mapping.",
+  "advancedExport.open": "Open advanced importer"
 }

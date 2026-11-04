@@ -14,8 +14,9 @@ export interface PersonaTeamFigureProps {
 export function PersonaTeamFigure({ member, breatheDelay }: PersonaTeamFigureProps): ReactNode {
   const pose = uiStateToPose(member.state)
   const src = poseUrl(member.id, pose)
-  const blink = poseLifeUrl(member.id, 'disponivel-blink')
-  const tail = poseLifeUrl(member.id, 'disponivel-tail')
+  // Blink/tail frames belong to the standing pose only; layering them over another pose shows two animals.
+  const blink = pose === 'disponivel' ? poseLifeUrl(member.id, 'disponivel-blink') : undefined
+  const tail = pose === 'disponivel' ? poseLifeUrl(member.id, 'disponivel-tail') : undefined
   const overlayKey = workStateOverlay(member.state)
   const overlaySrc = OVERLAY_ICONS[overlayKey as keyof typeof OVERLAY_ICONS]
 

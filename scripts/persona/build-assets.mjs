@@ -124,9 +124,16 @@ async function main() {
   })
 
   copyTree('icons/nav', () => true)
+  // Muse: Brush UI action icons (WAVE2: ensinar, trocar-conta, mover-assunto) share the BrandIcon mask set.
+  if (existsSync(join(SRC, 'icons/ui'))) copyTree('icons/ui', name => name.endsWith('.svg'))
+  // Muse (BRIEFING 19): Segundo cérebro page-type icons, same mask set.
+  if (existsSync(join(SRC, 'icons/brain'))) copyTree('icons/brain', name => name.endsWith('.svg'))
   copyTree('icons/overlays', () => true)
   if (existsSync(join(SRC, 'accents'))) copyTree('accents', name => name.endsWith('.svg'))
   if (existsSync(join(SRC, 'icons/flows'))) copyTree('icons/flows', name => name.endsWith('.svg'))
+  // Muse (W2-8): Brush engine seals (own shapes, no vendor logos), full-color SVG.
+  if (existsSync(join(SRC, 'icons/engines'))) copyTree('icons/engines', name => name.endsWith('.svg'))
+  if (existsSync(join(SRC, 'icons/sectors'))) copyTree('icons/sectors', name => name.endsWith('.svg'))
 
   for (const rel of [
     'brand/banner-team-light.webp',
@@ -155,10 +162,27 @@ async function main() {
     { from: 'illustrations/rail-foliage-dark@2x.png', to: 'illustrations/rail-foliage-dark.webp', width: 544, quality: 90 },
     { from: 'textures/paper-light.png', to: 'textures/paper-light.webp', width: 512, quality: 88 },
     { from: 'textures/paper-dark.png', to: 'textures/paper-dark.webp', width: 512, quality: 88 },
-    ...['todo', 'doing', 'review', 'needs-you', 'done'].map(name => (
-      { from: `illustrations/empty-col-${name}.png`, to: `illustrations/empty-col-${name}.webp`, width: 360, quality: 86 }
+    // Per-column empties by stage category (BOARDS-SPEC §2.2): prefer empty-col-<id>.png, fall back to empty-coluna-<pt>.png.
+    ...[['todo', 'a-fazer'], ['doing', 'em-andamento'], ['review', 'em-revisao'], ['needs-you', ''], ['done', 'concluido'], ['blocked', 'bloqueado']].map(([id, pt]) => (
+      {
+        from: existsSync(join(SRC, `illustrations/empty-col-${id}.png`)) ? `illustrations/empty-col-${id}.png` : `illustrations/empty-coluna-${pt}.png`,
+        to: `illustrations/empty-col-${id}.webp`,
+        width: 360,
+        quality: 86,
+      }
     )),
     { from: 'illustrations/sprint-concluida.png', to: 'illustrations/sprint-concluida.webp', width: 640, quality: 86 },
+    { from: 'illustrations/away-entregas.png', to: 'illustrations/away-entregas.webp', width: 640, quality: 86 },
+    { from: 'illustrations/primeira-entrega.png', to: 'illustrations/primeira-entrega.webp', width: 640, quality: 86 },
+    // Muse (WAVE2 Ensinar): consent/"Estudando" art, 320 px shown at 160 → 2×.
+    ...['atlas', 'bento', 'nina', 'sol', 'luna'].map(animal => (
+      { from: `illustrations/ensinar-${animal}.png`, to: `illustrations/ensinar-${animal}.webp`, width: 320, quality: 86 }
+    )),
+    // Muse (BRIEFING 19): Segundo cérebro home / empty state.
+    { from: 'illustrations/bibliotecario.png', to: 'illustrations/bibliotecario.webp', width: 480, quality: 86 },
+    ...['equipe-saudavel', 'ponto-unico-falha', 'voce-de-ferias'].map(name => (
+      { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 600, quality: 86 }
+    )),
     ...['inbox', 'kanban', 'search', 'vault', 'routines', 'connections', 'error', 'dm'].map(name => (
       { from: `illustrations/empty-${name}.png`, to: `illustrations/empty-${name}.webp`, width: 480, quality: 86 }
     )),
@@ -170,6 +194,34 @@ async function main() {
     ensureDir(dirname(toAbs))
     await sharp(fromAbs).resize({ width: spec.width, withoutEnlargement: true }).webp({ quality: spec.quality, alphaQuality: 100 }).toFile(toAbs)
     track(spec.to, toAbs)
+  }
+
+  // Muse: reaction stickers (Brush: stickers/<animal>/<reaction>.png 256², legacy flat <animal>-<reaction>.png)
+  // → stickers/<animal>-<reaction>.webp at 128 px (2× of the 64 px picker).
+  const REACTIONS = new Set(['joinha', 'coracao', 'rindo', 'comemorando', 'pensando', 'feito'])
+  const STICKER_FLAT = /^([a-z-]+)-(joinha|coracao|rindo|comemorando|pensando|feito)\.png$/u
+  /** @type {{ from: string, id: string }[]} */
+  const stickerSources = []
+  const stickerRoot = join(SRC, 'stickers')
+  if (existsSync(stickerRoot)) {
+    for (const entry of readdirSync(stickerRoot, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        for (const file of readdirSync(join(stickerRoot, entry.name))) {
+          const reaction = basename(file, '.png')
+          if (file.endsWith('.png') && REACTIONS.has(reaction)) stickerSources.push({ from: join(stickerRoot, entry.name, file), id: `${entry.name}-${reaction}` })
+        }
+      } else {
+        const match = STICKER_FLAT.exec(entry.name)
+        if (match !== null) stickerSources.push({ from: join(stickerRoot, entry.name), id: `${match[1]}-${match[2]}` })
+      }
+    }
+  }
+  for (const { from, id } of stickerSources) {
+    const rel = `stickers/${id}.webp`
+    const toAbs = join(OUT, rel)
+    ensureDir(dirname(toAbs))
+    await sharp(from).resize({ width: 128, withoutEnlargement: true }).webp({ quality: 86, alphaQuality: 100 }).toFile(toAbs)
+    track(rel, toAbs)
   }
 
   for (const file of readdirSync(join(SRC, 'avatars')).filter(f => f.endsWith('.png'))) {
@@ -203,7 +255,7 @@ async function main() {
 
   const poseFiles = manifest.filter(f => f.rel.startsWith('poses/') && f.rel.endsWith('.webp'))
   const avatar96 = manifest.filter(f => f.rel.match(/^avatars\/[^/]+-96\.webp$/u))
-  const navIcons = manifest.filter(f => f.rel.startsWith('icons/nav/') && f.rel.endsWith('.svg'))
+  const navIcons = manifest.filter(f => (f.rel.startsWith('icons/nav/') || f.rel.startsWith('icons/ui/') || f.rel.startsWith('icons/brain/')) && f.rel.endsWith('.svg'))
   const overlayIcons = manifest.filter(f => f.rel.startsWith('icons/overlays/') && f.rel.endsWith('.svg'))
   const bannerLight = manifest.find(f => f.rel === 'brand/banner-team-light.webp')
   const bannerDark = manifest.find(f => f.rel === 'brand/banner-team-dark.webp')
@@ -264,6 +316,14 @@ async function main() {
   if (railFoliageDark !== undefined) {
     imports.push("import railFoliageDark from './brand/rail-foliage-dark.webp'")
   }
+  const engineFiles = manifest.filter(f => f.rel.startsWith('icons/engines/') && f.rel.endsWith('.svg'))
+  /** @type {string[]} */
+  const engineEntries = []
+  for (const { rel } of engineFiles) {
+    const id = basename(rel, '.svg')
+    imports.push(`import engineicon_${id.replace(/-/gu, '_')} from './${rel}'`)
+    engineEntries.push(`  '${id}': engineicon_${id.replace(/-/gu, '_')},`)
+  }
   const flowFiles = manifest.filter(f => f.rel.startsWith('icons/flows/') && f.rel.endsWith('.svg'))
   /** @type {string[]} */
   const flowEntries = []
@@ -272,6 +332,15 @@ async function main() {
     const varName = id.replace(/-/gu, '_')
     imports.push(`import flowicon_${varName} from './${rel}'`)
     flowEntries.push(`  '${id}': flowicon_${varName},`)
+  }
+  const sectorFiles = manifest.filter(f => f.rel.startsWith('icons/sectors/') && f.rel.endsWith('.svg'))
+  /** @type {string[]} */
+  const sectorEntries = []
+  for (const { rel } of sectorFiles) {
+    const id = basename(rel, '.svg')
+    const varName = id.replace(/-/gu, '_')
+    imports.push(`import sectoricon_${varName} from './${rel}'`)
+    sectorEntries.push(`  '${id}': sectoricon_${varName},`)
   }
   const accentFiles = manifest.filter(f => f.rel.startsWith('accents/') && f.rel.endsWith('.svg'))
   /** @type {string[]} */
@@ -290,6 +359,15 @@ async function main() {
     const varName = id.replace(/-/gu, '_')
     imports.push(`import ill_${varName} from './${rel}'`)
     illustrationEntries.push(`  '${id}': ill_${varName},`)
+  }
+  const stickerFiles = manifest.filter(f => f.rel.startsWith('stickers/') && f.rel.endsWith('.webp'))
+  /** @type {string[]} */
+  const stickerEntries = []
+  for (const { rel } of stickerFiles) {
+    const id = basename(rel, '.webp')
+    const varName = id.replace(/-/gu, '_')
+    imports.push(`import sticker_${varName} from './${rel}'`)
+    stickerEntries.push(`  '${id}': sticker_${varName},`)
   }
   imports.push("import logoHorizontalLight from './brand/logo-horizontal-light.svg'")
   imports.push("import symbol from './brand/symbol.svg'")
@@ -320,13 +398,28 @@ async function main() {
     ...(railFoliageLight !== undefined ? ['export { railFoliageLight }', ''] : ['export const railFoliageLight: string | undefined = undefined', '']),
     ...(railFoliageDark !== undefined ? ['export { railFoliageDark }', ''] : ['export const railFoliageDark: string | undefined = undefined', '']),
     '/** Brush workflow-model icons, currentColor SVG (Muse, BOARDS-SPEC §6). */',
+    '/** Brush engine seals keyed by runner id (claude, codex, cursor, opencode, gemini, grok, deepseek, openrouter, ollama, dsh). */',
+    'export const ENGINE_ICONS: Readonly<Record<string, string>> = {',
+    ...engineEntries,
+    '}',
+    '',
     'export const FLOW_ICONS: Readonly<Record<string, string>> = {',
     ...flowEntries,
+    '}',
+    '',
+    '/** Brush sector icons, currentColor SVG (Muse, GOVERNANCE-SPEC). */',
+    'export const SECTOR_ICONS: Readonly<Record<string, string>> = {',
+    ...sectorEntries,
     '}',
     '',
     '/** Brush hand-drawn accents, currentColor SVG (Muse, DESIGN-SYSTEM §5). */',
     'export const ACCENTS: Readonly<Record<string, string>> = {',
     ...accentEntries,
+    '}',
+    '',
+    '/** Brush reaction stickers keyed `<animal>-<reaction>` (Muse; reactions: joinha, coracao, rindo, comemorando, pensando, feito). */',
+    'export const STICKERS: Readonly<Record<string, string>> = {',
+    ...stickerEntries,
     '}',
     '',
     '/** Brush illustrations (Muse, DESIGN-SYSTEM §7). */',

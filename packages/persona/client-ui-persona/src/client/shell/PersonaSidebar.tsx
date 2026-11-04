@@ -1,23 +1,54 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS, symbol } from '../assets/generated-imports.ts'
-import type { ShellKey } from '../locale/shell/locales.ts'
-import { BrandIcon, UiIcon, type BrandIconName } from '../primitives/index.ts'
+import { BrandIcon, UiIcon, useActiveIndicator } from '../primitives/index.ts'
 import type { MainPanelId, ShellState } from './create-shell-store.ts'
 import { showPersonaDevHostBadge } from './persona-dev.ts'
+import type { LocaleDict } from '../preview/locale-bind.ts'
+import type { PersonaCardInfo } from '../profile/PersonaInfoCard.tsx'
 import { RailTeam, type RailPersona } from './RailTeam.tsx'
+import { NAV_GROUPS as GROUPS, SEARCH_FOCUS_EVENT } from './nav-groups.ts'
+import { installAreaNavigation } from './area-navigation.ts'
 import styles from './PersonaSidebar.module.css'
 
 export interface PersonaSidebarInjected {
   /** `team`: live "Sua equipe" rows (Prism wires from the live store). */
-  hooks: { shell: HostObservable<ShellState>; team: HostObservable<readonly RailPersona[]> }
+  hooks: {
+    shell: HostObservable<ShellState>
+    team: HostObservable<readonly RailPersona[]>
+    /** Bumps when a host persona card finishes loading (rail popover). */
+    personaCardRevision: HostObservable<{ readonly n: number }>
+  }
   selectPanel(id: MainPanelId): void
   readonly openPersonaDm?: ((personaId: string) => void) | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
   readonly hirePersona?: (() => void) | undefined
+  /** Persona card "Mensagem para <nome>": open the DM and send the text (Prism). */
+  readonly sendToPersona?: ((personaId: string, text: string) => void) | undefined
+  readonly editPersona?: ((personaId: string) => void) | undefined
+  readonly cardInfo?: ((personaId: string) => PersonaCardInfo | undefined) | undefined
+  readonly prefetchPersonaCard?: ((personaId: string) => void) | undefined
+  readonly cardDict?: LocaleDict | undefined
+  readonly togglePersonaPause?: ((personaId: string) => void) | undefined
+  readonly switchPersonaEngine?: ((personaId: string) => void) | undefined
+  readonly editPersonaTalk?: ((personaId: string) => void) | undefined
 }
 
 const COLLAPSED_KEY = 'persona.rail.collapsed.v1'
+const GROUPS_KEY = 'persona.rail.groups.v1'
+
+/** Titled groups fold; short windows start with Equipe/Empresa folded so the essentials fit at 900 px (Atlas). */
+function readGroupsOpen(): Readonly<Record<string, boolean>> {
+  const tall = typeof window === 'undefined' || window.innerHeight >= 1000
+  const defaults: Record<string, boolean> = { team: tall, work: true, company: tall, more: false }
+  try {
+    const raw = localStorage.getItem(GROUPS_KEY)
+    if (raw !== null) return { ...defaults, ...(JSON.parse(raw) as Record<string, boolean>) }
+  } catch {
+    /* storage unavailable or corrupt */
+  }
+  return defaults
+}
 
 function readCollapsed(): boolean {
   try {
@@ -32,70 +63,30 @@ export type PersonaSidebarProps =
   & PropsRenderSlots<'sidebar.settings'>
   & InjectFace<PersonaSidebarInjected>
 
-interface NavItem {
-  readonly panel: MainPanelId
-  readonly labelKey: ShellKey
-  readonly icon: BrandIconName
-}
-
-interface NavGroup {
-  readonly id: string
-  readonly labelKey?: ShellKey
-  readonly items: readonly NavItem[]
-  readonly collapsible?: boolean
-}
-
-/** DESIGN-SYSTEM §6: grouped rail; daily surfaces first, rarely used ones under "Mais". */
-const GROUPS: readonly NavGroup[] = [
-  {
-    id: 'main',
-    items: [
-      { panel: 'overview', labelKey: 'sidebar.overview', icon: 'visao-geral' },
-      { panel: 'channels', labelKey: 'sidebar.channels', icon: 'canais' },
-      { panel: 'directMessages', labelKey: 'sidebar.directMessages', icon: 'mensagens-diretas' },
-      { panel: 'team', labelKey: 'sidebar.team', icon: 'equipe' },
-    ],
-  },
-  {
-    id: 'work',
-    labelKey: 'sidebar.group.work',
-    items: [
-      { panel: 'projects', labelKey: 'sidebar.projects', icon: 'projetos' },
-      { panel: 'kanban', labelKey: 'sidebar.kanban', icon: 'kanban' },
-      { panel: 'routines', labelKey: 'sidebar.routines', icon: 'rotinas' },
-      { panel: 'approvals', labelKey: 'sidebar.approvals', icon: 'decisoes' },
-    ],
-  },
-  {
-    id: 'company',
-    labelKey: 'sidebar.group.company',
-    items: [
-      { panel: 'knowledge', labelKey: 'sidebar.knowledge', icon: 'conhecimento-memoria' },
-      { panel: 'files', labelKey: 'sidebar.files', icon: 'arquivos' },
-      { panel: 'rules', labelKey: 'sidebar.rules', icon: 'quadro' },
-      { panel: 'connections', labelKey: 'sidebar.connections', icon: 'skills' },
-      { panel: 'usage', labelKey: 'sidebar.usage', icon: 'uso-e-limites' },
-    ],
-  },
-  {
-    id: 'more',
-    labelKey: 'sidebar.group.more',
-    collapsible: true,
-    items: [
-      { panel: 'members', labelKey: 'sidebar.members', icon: 'convidar' },
-      { panel: 'profile', labelKey: 'sidebar.profile', icon: 'equipe' },
-      { panel: 'importers', labelKey: 'sidebar.importers', icon: 'arquivos' },
-      { panel: 'canvas', labelKey: 'sidebar.canvas', icon: 'canvas' },
-    ],
-  },
-]
 
 /** Persona navigation rail: lilac paper, sticker active pill, Brush foliage at the foot. */
 export function PersonaSidebar({
-  t, useShell, useTeam, selectPanel, renderSlot, openPersonaDm, openPersonaProfile, hirePersona,
+  t,
+  useShell,
+  useTeam,
+  usePersonaCardRevision,
+  selectPanel,
+  renderSlot,
+  openPersonaDm,
+  openPersonaProfile,
+  hirePersona,
+  sendToPersona,
+  editPersona,
+  cardInfo,
+  prefetchPersonaCard,
+  cardDict,
+  togglePersonaPause,
+  switchPersonaEngine,
+  editPersonaTalk,
 }: PersonaSidebarProps): ReactNode {
   const shell = useShell(state => state)
   const members = useTeam(rows => rows)
+  void usePersonaCardRevision(state => state.n)
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const toggleCollapsed = useCallback((): void => {
     setCollapsed((value) => {
@@ -108,23 +99,37 @@ export function PersonaSidebar({
     })
   }, [])
   const navRef = useRef<HTMLDivElement>(null)
-  const moreActive = GROUPS.find(group => group.id === 'more')?.items.some(item => item.panel === shell.activePanel) ?? false
-  const [moreOpen, setMoreOpen] = useState(false)
-  const [indicator, setIndicator] = useState({ top: 0, height: 0, opacity: 0 })
-  const showMore = moreOpen || moreActive
+  const activeGroup = GROUPS.find(group => group.items.some(item => item.panel === shell.activePanel))?.id
+  const [groupsOpen, setGroupsOpen] = useState(readGroupsOpen)
+  const toggleGroup = (id: string): void => {
+    setGroupsOpen((previous) => {
+      const next = { ...previous, [id]: previous[id] === false }
+      try {
+        localStorage.setItem(GROUPS_KEY, JSON.stringify(next))
+      } catch {
+        /* storage unavailable */
+      }
+      return next
+    })
+  }
 
-  useLayoutEffect(() => {
-    const root = navRef.current
-    if (root === null) return
-    const active = root.querySelector('[data-nav-item][aria-current="page"]')
-    if (!(active instanceof HTMLElement)) {
-      setIndicator(prev => ({ ...prev, opacity: 0 }))
-      return
+  // F6 / Shift+F6 (and Ctrl+F6) between areas — T3-UX-HARVEST §1.
+  useEffect(() => installAreaNavigation(), [])
+
+  // Ctrl K / ⌘K: the rail promises it (kbd hint), so it is a real global shortcut (UX-06). Opens Busca and focuses
+  // its field (SearchView listens for SEARCH_FOCUS_EVENT, also when Busca is already open).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key.toLowerCase() !== 'k' || !(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+      event.preventDefault()
+      selectPanel('search')
+      requestAnimationFrame(() => { window.dispatchEvent(new Event(SEARCH_FOCUS_EVENT)) })
     }
-    const rootBox = root.getBoundingClientRect()
-    const box = active.getBoundingClientRect()
-    setIndicator({ top: box.top - rootBox.top + root.scrollTop, height: box.height, opacity: 1 })
-  }, [shell.activePanel, showMore, collapsed, members.length])
+    window.addEventListener('keydown', onKeyDown)
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, [selectPanel])
+
+  const indicator = useActiveIndicator(navRef, '[data-nav-item][aria-current="page"]', 'y', [shell.activePanel, groupsOpen, collapsed, members.length])
 
   const hostLabel = shell.hostStatus === 'online'
     ? t('overview.hostConnected')
@@ -134,7 +139,7 @@ export function PersonaSidebar({
   const devBadge = showPersonaDevHostBadge() && shell.hostProtocol !== null ? ` · p${shell.hostProtocol}` : ''
 
   return (
-    <nav className={styles.sidebar} aria-label={t('brand.name')} data-persona-grain="" data-collapsed={collapsed ? '' : undefined}>
+    <nav className={styles.sidebar} aria-label={t('brand.name')} data-persona-grain="" data-persona-area="rail" data-collapsed={collapsed ? '' : undefined}>
       <div className={styles.foliage} aria-hidden="true">
         {ILLUSTRATIONS['rail-foliage-light'] !== undefined && (
           <img className={styles.foliageLight} src={ILLUSTRATIONS['rail-foliage-light']} alt="" />
@@ -165,7 +170,7 @@ export function PersonaSidebar({
         type="button"
         className={styles.search}
         aria-label={t('sidebar.search')}
-        aria-keyshortcuts="Control+K"
+        aria-keyshortcuts="Control+K Meta+K"
         aria-current={shell.activePanel === 'search' ? 'page' : undefined}
         onClick={() => { selectPanel('search') }}
       >
@@ -177,21 +182,34 @@ export function PersonaSidebar({
       <div className={styles.navScroll} ref={navRef}>
         <span
           className={styles.activeIndicator}
-          style={{ transform: `translateY(${indicator.top}px)`, height: `${indicator.height}px`, opacity: indicator.opacity }}
+          style={{ transform: `translateY(${indicator.offset}px)`, height: `${indicator.size}px`, opacity: indicator.visible ? 1 : 0 }}
           aria-hidden="true"
         />
         {GROUPS.map((group) => {
-          const expanded = group.collapsible !== true || showMore
+          const expanded = group.labelKey === undefined
+            || group.id === activeGroup
+            || (collapsed && group.id !== 'more')
+            || groupsOpen[group.id] !== false
           const listId = `persona-nav-${group.id}`
           return (
             <div key={group.id} className={styles.group}>
-              {group.labelKey !== undefined && (group.collapsible === true ? (
+              {group.labelKey !== undefined && (!collapsed || group.id === 'more' ? (
                 <button
                   type="button"
                   className={`${styles.groupLabel} ${styles.groupToggle}`}
                   aria-expanded={expanded}
                   aria-controls={listId}
-                  onClick={() => { setMoreOpen(open => !open) }}
+                  onClick={() => { toggleGroup(group.id) }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowRight' && !expanded) {
+                      event.preventDefault()
+                      toggleGroup(group.id)
+                    }
+                    if (event.key === 'ArrowLeft' && expanded) {
+                      event.preventDefault()
+                      toggleGroup(group.id)
+                    }
+                  }}
                 >
                   {t(group.labelKey)}
                   <UiIcon name="chevronDown" size={14} strokeWidth={2.4} className={styles.chevron ?? ''} />
@@ -227,6 +245,14 @@ export function PersonaSidebar({
                   onOpenDm={openPersonaDm}
                   onOpenProfile={openPersonaProfile}
                   onHire={hirePersona}
+                  onSendToPersona={sendToPersona}
+                  onEditPersona={editPersona}
+                  {...(cardInfo === undefined ? {} : { cardInfo })}
+                  {...(cardDict === undefined ? {} : { cardDict })}
+                  {...(prefetchPersonaCard === undefined ? {} : { onCardPrefetch: prefetchPersonaCard })}
+                  {...(togglePersonaPause === undefined ? {} : { onTogglePersonaPause: togglePersonaPause })}
+                  {...(switchPersonaEngine === undefined ? {} : { onSwitchPersonaEngine: switchPersonaEngine })}
+                  {...(editPersonaTalk === undefined ? {} : { onEditPersonaTalk: editPersonaTalk })}
                 />
               )}
             </div>

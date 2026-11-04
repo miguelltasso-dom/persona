@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { OverviewView } from '../src/client/overview/OverviewView.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { pt as shellPt } from '../src/client/locale/shell/locales.ts'
@@ -10,6 +10,7 @@ installPreviewTheme()
 const t = (key: string) => shellPt[key as keyof typeof shellPt] ?? key
 
 describe('OverviewView suggested task (C8 / PRO-4)', () => {
+  afterEach(() => { cleanup() })
   it('shows live task title when host suggests one and team has no active task', () => {
     render(
       <OverviewView

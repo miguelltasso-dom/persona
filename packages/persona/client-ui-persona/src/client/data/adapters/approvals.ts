@@ -1,5 +1,7 @@
 import type { ApprovalView } from '@deepseek-ai/dsh-persona-host/types'
 import type { ApprovalItem } from '../../approvals/mock-data.ts'
+import { attachApprovalBrainFields } from '../../approvals/approval-brain-scope.ts'
+import { normalizeCharacterId } from '../../governance/governance-ui-helpers.ts'
 
 const PRIMARY: Record<ApprovalView['kind'], string> = {
   hire: 'action.primary.hire',
@@ -12,11 +14,19 @@ const PRIMARY: Record<ApprovalView['kind'], string> = {
 export function approvalsToInbox(items: readonly ApprovalView[]): ApprovalItem[] {
   return items
     .filter(item => item.status === 'pending')
-    .map(item => ({
-      id: item.id,
-      kind: item.kind,
-      title: item.title,
-      question: item.question,
-      primaryKey: PRIMARY[item.kind],
-    }))
+    .map((item) => {
+      const base: ApprovalItem = {
+        id: item.id,
+        kind: item.kind,
+        title: item.title,
+        question: item.question,
+        primaryKey: PRIMARY[item.kind],
+        proposerName: item.personaName,
+        proposerPersonaId: item.personaId,
+      }
+      if (item.kind !== 'hire') return attachApprovalBrainFields(base, item)
+      const hirePortraitKey = normalizeCharacterId(item.hireAvatarRef ?? item.title)
+      const hireItem = hirePortraitKey === undefined ? base : { ...base, hirePortraitKey }
+      return attachApprovalBrainFields(hireItem, item)
+    })
 }

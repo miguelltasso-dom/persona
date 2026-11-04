@@ -29,6 +29,13 @@ export const pt = {
   'error.title': 'Não deu para importar agora',
   'error.retry': 'Tentar de novo',
   'progressLabel': 'Progresso da importação',
+  'bycScreen.title': 'Traga o que suas IAs já sabem',
+  'bycScreen.subtitle': 'Cole respostas das IAs que você já usa ou escolha a pasta do Obsidian — revisamos antes de gravar no Cofre.',
+  'bycScreen.organizing': 'Organizando…',
+  'bycScreen.savedToast': '{count} itens no Cofre',
+  'advancedExport.title': 'Exportação oficial (avançado)',
+  'advancedExport.lead': 'Zip ou export de outra ferramenta, com mapeamento passo a passo.',
+  'advancedExport.open': 'Abrir importador avançado',
 } as const
 
 /** English copy. */
@@ -57,6 +64,13 @@ export const en = {
   'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
+  'bycScreen.title': 'Bring what your AIs already know',
+  'bycScreen.subtitle': 'Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.',
+  'bycScreen.organizing': 'Organizing…',
+  'bycScreen.savedToast': '{count} items in the Vault',
+  'advancedExport.title': 'Official export (advanced)',
+  'advancedExport.lead': 'Zip or export from another tool, with step-by-step mapping.',
+  'advancedExport.open': 'Open advanced importer',
 } as const
 
 export const zh = {
@@ -84,6 +98,13 @@ export const zh = {
   'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
+  'bycScreen.title': 'Bring what your AIs already know',
+  'bycScreen.subtitle': 'Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.',
+  'bycScreen.organizing': 'Organizing…',
+  'bycScreen.savedToast': '{count} items in the Vault',
+  'advancedExport.title': 'Official export (advanced)',
+  'advancedExport.lead': 'Zip or export from another tool, with step-by-step mapping.',
+  'advancedExport.open': 'Open advanced importer',
 } as const
 export const ja = {
   'header.eyebrow': 'Company',
@@ -110,6 +131,13 @@ export const ja = {
   'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
+  'bycScreen.title': 'Bring what your AIs already know',
+  'bycScreen.subtitle': 'Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.',
+  'bycScreen.organizing': 'Organizing…',
+  'bycScreen.savedToast': '{count} items in the Vault',
+  'advancedExport.title': 'Official export (advanced)',
+  'advancedExport.lead': 'Zip or export from another tool, with step-by-step mapping.',
+  'advancedExport.open': 'Open advanced importer',
 } as const
 export const es = {
   'header.eyebrow': 'Company',
@@ -136,6 +164,13 @@ export const es = {
   'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
+  'bycScreen.title': 'Bring what your AIs already know',
+  'bycScreen.subtitle': 'Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.',
+  'bycScreen.organizing': 'Organizing…',
+  'bycScreen.savedToast': '{count} items in the Vault',
+  'advancedExport.title': 'Official export (advanced)',
+  'advancedExport.lead': 'Zip or export from another tool, with step-by-step mapping.',
+  'advancedExport.open': 'Open advanced importer',
 } as const
 export const fr = {
   'header.eyebrow': 'Company',
@@ -162,6 +197,13 @@ export const fr = {
   'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
+  'bycScreen.title': 'Bring what your AIs already know',
+  'bycScreen.subtitle': 'Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.',
+  'bycScreen.organizing': 'Organizing…',
+  'bycScreen.savedToast': '{count} items in the Vault',
+  'advancedExport.title': 'Official export (advanced)',
+  'advancedExport.lead': 'Zip or export from another tool, with step-by-step mapping.',
+  'advancedExport.open': 'Open advanced importer',
 } as const
 export const de = {
   'header.eyebrow': 'Company',
@@ -188,6 +230,13 @@ export const de = {
   'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
+  'bycScreen.title': 'Bring what your AIs already know',
+  'bycScreen.subtitle': 'Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.',
+  'bycScreen.organizing': 'Organizing…',
+  'bycScreen.savedToast': '{count} items in the Vault',
+  'advancedExport.title': 'Official export (advanced)',
+  'advancedExport.lead': 'Zip or export from another tool, with step-by-step mapping.',
+  'advancedExport.open': 'Open advanced importer',
 } as const
 export const ru = {
   'header.eyebrow': 'Company',
@@ -214,6 +263,13 @@ export const ru = {
   'error.title': 'Couldn\'t start the import right now',
   'error.retry': 'Try again',
   'progressLabel': 'Import progress',
+  'bycScreen.title': 'Bring what your AIs already know',
+  'bycScreen.subtitle': 'Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.',
+  'bycScreen.organizing': 'Organizing…',
+  'bycScreen.savedToast': '{count} items in the Vault',
+  'advancedExport.title': 'Official export (advanced)',
+  'advancedExport.lead': 'Zip or export from another tool, with step-by-step mapping.',
+  'advancedExport.open': 'Open advanced importer',
 } as const
 
 export type ImportersKey = keyof typeof pt

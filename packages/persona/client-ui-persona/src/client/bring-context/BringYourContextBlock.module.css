@@ -1,0 +1,126 @@
+.block {
+  margin-top: var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-paper);
+}
+
+.collapsed {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  width: 100%;
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: 600 0.9375rem/1.35 var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.collapsedText {
+  flex: 1;
+}
+
+.timeBadge {
+  flex-shrink: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  font: 700 0.6875rem/1 var(--persona-font-text);
+  letter-spacing: 0.02em;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--persona-ink-soft);
+}
+
+.chevronUp {
+  transform: rotate(180deg);
+}
+
+.expandedHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--persona-space-2);
+  padding: var(--persona-space-4) var(--persona-space-4) 0;
+}
+
+.heading {
+  margin: 0;
+  font: 700 1.05rem/1.3 var(--persona-font-display);
+}
+
+.collapseBtn {
+  display: inline-flex;
+  padding: 0.35rem;
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: transparent;
+  cursor: pointer;
+  color: var(--persona-ink-soft);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  padding: var(--persona-space-3) var(--persona-space-4);
+}
+
+.privacy {
+  margin: 0;
+  padding: 0 var(--persona-space-4) var(--persona-space-3);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--persona-ink-faint);
+}
+
+.organizeRow {
+  padding: 0 var(--persona-space-4) var(--persona-space-4);
+}
+
+.organizePrimary {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-brand);
+  color: var(--persona-brand-ink);
+  font: 700 0.9375rem/1 var(--persona-font-text);
+  cursor: pointer;
+}
+
+.organizePrimary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: 600 0.875rem/1 var(--persona-font-text);
+  color: var(--persona-brand);
+  cursor: pointer;
+}
+
+.backIcon {
+  transform: scaleX(-1);
+}
+
+.savedView {
+  font: 600 0.8125rem/1 var(--persona-font-text);
+  color: var(--persona-brand);
+}
+
+.inboxCelebrate {
+  pointer-events: none;
+}

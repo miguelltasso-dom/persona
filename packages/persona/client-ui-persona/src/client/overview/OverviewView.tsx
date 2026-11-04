@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { usePersonaMotion } from '../motion/index.ts'
-import { Accent, Button, Card, EmptyState, UiIcon } from '../primitives/index.ts'
+import { Accent, Button, Card, EmptyState, MilestoneCard, UiIcon } from '../primitives/index.ts'
 import type { AwaySummaryEvent, PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import { AwayWhileOutPanel } from './AwayWhileOutPanel.tsx'
 import { OverviewNowStrip } from './OverviewNowStrip.tsx'
@@ -18,14 +18,44 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   readonly onNavigate?: ((panel: 'channels' | 'kanban' | 'approvals') => void) | undefined
   /** Live first task (C8); falls back to locale copy when absent. */
   readonly suggestedTask?: { readonly id: string; readonly title: string } | undefined
+  /** The team's first finished task ever (Prism wires from the board); shown once as a milestone (peak-end). */
+  readonly firstDelivery?: FirstDelivery | undefined
+}
+
+export interface FirstDelivery {
+  readonly taskId: string
+  readonly title: string
+  readonly personaName: string
+  readonly characterId?: string | undefined
+}
+
+const FIRST_DELIVERY_KEY = 'persona.milestone.firstDelivery.v1'
+
+function firstDeliverySeen(taskId: string): boolean {
+  try {
+    return localStorage.getItem(FIRST_DELIVERY_KEY) === taskId
+  } catch {
+    return false
+  }
 }
 
 const PLACEHOLDER_NAMES: ReadonlySet<string> = new Set(['você', 'voce', 'owner', 'you'])
 
 /** Visão geral — "o que precisa de você" first, then what the team is doing now (RCD: never a blank dashboard). */
 export function OverviewView({
-  t, attentionItems, nowRows, awayEvents, userName, onNavigate, suggestedTask,
+  t, attentionItems, nowRows, awayEvents, userName, onNavigate, suggestedTask, firstDelivery,
 }: OverviewViewProps): ReactNode {
+  const [dismissedTaskId, setDismissedTaskId] = useState<string | null>(null)
+  const showMilestone = firstDelivery !== undefined && dismissedTaskId !== firstDelivery.taskId && !firstDeliverySeen(firstDelivery.taskId)
+  const dismissMilestone = (): void => {
+    if (firstDelivery === undefined) return
+    try {
+      localStorage.setItem(FIRST_DELIVERY_KEY, firstDelivery.taskId)
+    } catch {
+      /* storage unavailable */
+    }
+    setDismissedTaskId(firstDelivery.taskId)
+  }
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 8 })
   const teamHasActiveTask = nowRows.some(row => row.currentTask !== undefined && row.currentTask.length > 0)
   const showFirstTask = attentionItems.length === 0 && !teamHasActiveTask
@@ -53,6 +83,26 @@ export function OverviewView({
           {t('overview.newTask')}
         </Button>
       </header>
+
+      {showMilestone && (
+        <section className={styles.milestone} aria-label={t('overview.firstDelivery.eyebrow')}>
+          <MilestoneCard
+            celebrate
+            illustration={ILLUSTRATIONS['primeira-entrega']}
+            eyebrow={t('overview.firstDelivery.eyebrow')}
+            title={t('overview.firstDelivery.title')}
+            body={t('overview.firstDelivery.body', { name: firstDelivery.personaName, title: firstDelivery.title })}
+            contributors={[{ name: firstDelivery.personaName, characterId: firstDelivery.characterId, count: 1 }]}
+            contributorsLabel={t('overview.firstDelivery.who')}
+            actions={(
+              <>
+                <Button variant="primary" onClick={() => { dismissMilestone(); onNavigate?.('kanban') }}>{t('overview.firstDelivery.open')}</Button>
+                <Button variant="ghost" onClick={dismissMilestone}>{t('overview.firstDelivery.dismiss')}</Button>
+              </>
+            )}
+          />
+        </section>
+      )}
 
       <div className={styles.grid}>
         <div className={styles.mainCol}>

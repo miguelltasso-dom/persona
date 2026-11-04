@@ -30,7 +30,7 @@
 
 .neutral { --chip-bg: var(--persona-wash-strong); }
 .plain { --chip-bg: var(--persona-card); }
-.brand { --chip-bg: var(--persona-brand); --chip-ink: var(--persona-rail-ink); }
+.brand { --chip-bg: var(--persona-brand); --chip-ink: var(--persona-on-brand); }
 .accent { --chip-bg: var(--persona-accent); --chip-ink: var(--persona-accent-ink); }
 .success { --chip-bg: var(--persona-success-tint); --chip-ink: var(--persona-success); }
 .warning { --chip-bg: var(--persona-warning-tint); --chip-ink: var(--persona-warning); }
@@ -76,6 +76,13 @@
 .emoji {
   font-size: 16px;
   line-height: 1;
+}
+
+.sticker {
+  width: 22px;
+  height: 22px;
+  margin: -2px 0;
+  object-fit: contain;
 }
 
 .count {

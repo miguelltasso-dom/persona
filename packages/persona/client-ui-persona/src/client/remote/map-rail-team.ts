@@ -70,8 +70,10 @@ export function mapRailTeamFromLive(
   hostOnline: boolean,
 ): readonly RailPersona[] {
   if (!snap.ready || snap.team === null) return []
+  const arriving = snap.arrivingHostPersonaIds ?? []
   return sortPersonasForUi(snap.team.personas).map((persona) => {
     const now = nowForPersona(snap, persona)
+    const gestor = persona.systemRoles.includes('team_manager')
     return {
       id: persona.id,
       characterId: characterIdForPersona(persona),
@@ -79,6 +81,8 @@ export function mapRailTeamFromLive(
       role: persona.title,
       state: railState(hostOnline, now.state, now.currentTask, snap.kanbanCards),
       unread: unreadForPersona(snap, persona.id),
+      ...(gestor ? { gestor: true as const } : {}),
+      ...(arriving.includes(persona.id) ? { arriving: true as const } : {}),
     }
   })
 }

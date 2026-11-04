@@ -14,14 +14,16 @@ export interface ProactiveProposal {
   readonly approvalKind?: 'hire' | 'vault' | 'skill'
   readonly title: string
   readonly oneQuestion: string
-  readonly impactPreview: string
-  readonly cost: ProactiveCostEstimate
+  /** Plain-language effect (not the proposer name alone). */
+  readonly impactDetail: string
+  readonly cost?: ProactiveCostEstimate
 }
 
 export interface PersonaDailyProactiveSummary {
   readonly personaId: string
   readonly personaName: string
   readonly summaryDate: string
+  readonly personaCharacterId?: string
   readonly proposals: readonly ProactiveProposal[]
 }
 
@@ -31,6 +33,7 @@ export const MOCK_PERSONA_DAILY_SUMMARIES: readonly PersonaDailyProactiveSummary
   {
     personaId: 'persona-nina',
     personaName: 'Nina',
+    personaCharacterId: 'nina',
     summaryDate: MOCK_PROACTIVE_SUMMARY_DATE,
     proposals: [
       {
@@ -38,7 +41,7 @@ export const MOCK_PERSONA_DAILY_SUMMARIES: readonly PersonaDailyProactiveSummary
         kind: 'initiative',
         title: 'Automatizar smoke do checkout',
         oneQuestion: 'Posso abrir um ticket e rodar o smoke no branch main?',
-        impactPreview: 'Reduz risco de regressão no fluxo de pagamento; ~15 min de runner.',
+        impactDetail: 'Reduz risco de regressão no fluxo de pagamento; ~15 min de runner.',
         cost: { tokens: 12_000, runs: 1 },
       },
       {
@@ -46,7 +49,7 @@ export const MOCK_PERSONA_DAILY_SUMMARIES: readonly PersonaDailyProactiveSummary
         kind: 'risk',
         title: 'Dependência desatualizada no CRM',
         oneQuestion: 'Atualizo o pacote de datas e abro PR de teste?',
-        impactPreview: 'Corrige CVE moderado; build pode precisar de ajuste em timezone.',
+        impactDetail: 'Corrige CVE moderado; build pode precisar de ajuste em timezone.',
         cost: { tokens: 28_000, runs: 2 },
       },
     ],
@@ -54,6 +57,7 @@ export const MOCK_PERSONA_DAILY_SUMMARIES: readonly PersonaDailyProactiveSummary
   {
     personaId: 'persona-atlas',
     personaName: 'Atlas',
+    personaCharacterId: 'atlas',
     summaryDate: MOCK_PROACTIVE_SUMMARY_DATE,
     proposals: [
       {
@@ -61,7 +65,7 @@ export const MOCK_PERSONA_DAILY_SUMMARIES: readonly PersonaDailyProactiveSummary
         kind: 'followUp',
         title: 'Desbloquear copy da landing',
         oneQuestion: 'Reatribuo a tarefa de hero para Sol com prazo de hoje?',
-        impactPreview: 'Desbloqueia coluna “Em revisão” no Site da agência.',
+        impactDetail: 'Desbloqueia coluna “Em revisão” no Site da agência.',
         cost: { tokens: 4_000, runs: 0 },
       },
     ],

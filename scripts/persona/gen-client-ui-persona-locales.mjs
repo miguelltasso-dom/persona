@@ -34,6 +34,8 @@ const BUNDLES = [
   { file: 'members', const: 'MEMBERS_NS', ns: 'persona.members', keyType: 'MembersKey' },
   { file: 'importers', const: 'IMPORTERS_NS', ns: 'persona.importers', keyType: 'ImportersKey' },
   { file: 'canvas', const: 'CANVAS_NS', ns: 'persona.canvas', keyType: 'CanvasKey' },
+  { file: 'governance', const: 'GOVERNANCE_NS', ns: 'persona.governance', keyType: 'GovernanceKey' },
+  { file: 'second-brain', const: 'SECOND_BRAIN_NS', ns: 'persona.secondBrain', keyType: 'SecondBrainKey' },
 ]
 
 function readJson(name) {

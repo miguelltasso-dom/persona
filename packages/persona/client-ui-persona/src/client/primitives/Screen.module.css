@@ -10,6 +10,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-6);
+  box-sizing: border-box;
+  /* Always fill the available width up to max-width, even when a screen makes .screen a flex column
+     (otherwise margin:auto shrinks the content to its intrinsic width — the OrgMap got squeezed). */
+  width: 100%;
   margin: 0 auto;
   max-width: 1180px;
 }

@@ -8,7 +8,8 @@ const TENANT_LOADING: PersonaTenantSnapshot = { status: 'loading', scope: null }
 const TENANT_ERROR: PersonaTenantSnapshot = { status: 'error', scope: null }
 
 function tenantFromLiveSnap(snap: PersonaLiveSnapshot): PersonaTenantSnapshot {
-  if (snap.error !== null) return TENANT_ERROR
+  // Refresh failures must not block Lumen panels when workspace scope is already known (empty team is valid).
+  if (snap.error !== null && (!snap.ready || snap.tenant === null)) return TENANT_ERROR
   if (!snap.ready || snap.tenant === null) return TENANT_LOADING
   return {
     status: 'ready',

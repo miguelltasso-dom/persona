@@ -1,0 +1,258 @@
+/* COMPUTER-USE-SPEC §2–3: persona cursor + replay. */
+.cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+  will-change: transform;
+  filter: drop-shadow(0 2px 0 color-mix(in srgb, var(--persona-outline) 35%, transparent));
+}
+
+.arrow {
+  display: block;
+  transform-origin: 3px 3px;
+  transition: transform 120ms var(--ease-spring);
+}
+
+.arrow path {
+  fill: #fff;
+  stroke: var(--persona-plum, #34243f);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.cursor[data-state='clicking'] .arrow {
+  transform: scale(0.82);
+}
+
+.pill {
+  position: absolute;
+  top: 22px;
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 280px;
+  padding: 3px 10px 3px 3px;
+  border: var(--persona-border-width) solid var(--persona-plum, #34243f);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-cursor-color);
+  color: #34243f;
+  box-shadow: 0 3px 0 var(--persona-plum, #34243f);
+  font: 800 12px/1 var(--persona-font-text);
+  white-space: nowrap;
+}
+
+.pill img {
+  width: 22px;
+  height: 22px;
+  border: var(--persona-border-width) solid var(--persona-plum, #34243f);
+  border-radius: 50%;
+  background: #fff;
+  object-fit: cover;
+}
+
+.what {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.what::before {
+  content: '· ';
+}
+
+.typing {
+  font-family: var(--persona-font-mono);
+}
+
+.typing::after {
+  content: '▍';
+  animation: persona-cursor-blink 1s steps(1) infinite;
+}
+
+.dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.dots b {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34243f;
+  animation: persona-cursor-breathe 1.2s ease-in-out infinite;
+}
+
+.dots b:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dots b:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.cursor[data-state='human'] .arrow {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.cursor[data-state='human'] .pill {
+  border-style: dashed;
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  box-shadow: none;
+}
+
+/* Replay */
+.replay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  outline: none;
+}
+
+.replay:focus-visible .stage {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 3px;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-paper-sunken);
+  box-shadow: var(--persona-shadow-press);
+}
+
+.shot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.trails {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.trails path {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.ripple {
+  position: absolute;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border: 3px solid var(--persona-cursor-color);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: persona-cursor-ripple 500ms var(--ease-standard) forwards;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.left {
+  transform: rotate(90deg);
+}
+
+.right {
+  transform: rotate(-90deg);
+}
+
+.caption {
+  flex: 1 1 200px;
+  min-width: 0;
+  margin: 0 0 0 var(--persona-space-2);
+  color: var(--persona-ink);
+  font: 600 14px/20px var(--persona-font-text);
+}
+
+.stepOf {
+  margin-right: var(--persona-space-2);
+  color: var(--persona-ink-soft);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepDots {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stepDots li {
+  width: 8px;
+  height: 8px;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: 50%;
+  background: var(--persona-card);
+}
+
+.stepDots li[data-done] {
+  background: var(--persona-lilac-400);
+}
+
+.stepDots li[data-current] {
+  border-color: var(--persona-outline);
+  background: var(--persona-accent);
+}
+
+@keyframes persona-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes persona-cursor-breathe {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes persona-cursor-ripple {
+  from {
+    opacity: 0.9;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrow {
+    transition: none;
+  }
+
+  .typing::after,
+  .dots b,
+  .ripple {
+    animation: none;
+  }
+}

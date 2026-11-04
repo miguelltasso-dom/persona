@@ -1,6 +1,16 @@
-import type { CompleteOnboardingRequest, OnboardingPersonaSpec } from '@deepseek-ai/dsh-persona-host/types'
+import type {
+  CompleteOnboardingRequest,
+  GestorPlanView,
+  OnboardingPersonaSpec,
+  ProposeGestorAssembleView,
+} from '@deepseek-ai/dsh-persona-host/types'
+import { gestorPlanMarker } from '../chat/gestor-plan-message.ts'
 import type { PersonaTenantScope } from './persona-remote-types.ts'
 import { readClientDevSeedEnabled } from './persona-dev-seed.ts'
+
+/** Dev harness: pending Gestor assemble plan + #geral card (Muse gallery). */
+export const DEV_HARNESS_GESTOR_PLAN_ID = 'dev-harness-v1-gestor-assemble'
+export const DEV_HARNESS_GESTOR_MSG_ID = 'dev-harness-v1-gestor-plan'
 
 /** Stable marker: scenario channel + tasks seeded (idempotent). */
 export const DEV_HARNESS_SCENARIO_MARKER = 'dev-harness-v1-miguel'
@@ -22,6 +32,27 @@ export interface OnboardingRosterPerson {
   readonly role: string
   readonly galleryRef?: string
   readonly systemRoles?: readonly ('coordination' | 'watchdog')[]
+}
+
+/** Wizard roster → host `CompleteOnboardingRequest.team` (DF-002). */
+export function rosterToHostTeam(roster: readonly OnboardingRosterPerson[]): readonly OnboardingPersonaSpec[] {
+  return roster.map((person) => {
+    const systemRoles = person.systemRoles ?? []
+    return {
+      name: person.name,
+      title: person.role,
+      description: person.role,
+      personality: 'Proativo e claro.',
+      instructions: 'Trabalhe até concluir; reporte com evidência.',
+      avatarKind: 'gallery',
+      avatarRef: galleryRefForRosterPerson(person),
+      runnerKind: 'dsh',
+      runnerCli: '',
+      runnerModel: 'default',
+      canRecruit: systemRoles.includes('coordination'),
+      systemRoles: [...systemRoles],
+    }
+  })
 }
 
 /** Host onboarding team payload from gallery cards. */
@@ -107,6 +138,20 @@ export type DevHarnessSeedRemote = PersonaCreatorRemote & {
     title: string
     description: string
   }): unknown
+  setPersonaSystemRoles?(request: {
+    workspaceId: string
+    projectId: string
+    personaId: string
+    systemRoles: readonly string[]
+  }): unknown
+  proposeGestorAssemble?(request: {
+    workspaceId: string
+    projectId: string
+    gestorId: string
+    id: string
+    goal: string
+  }): unknown
+  listGestorPlans?(request: { workspaceId: string }): readonly GestorPlanView[]
 }
 
 function unwrap<T>(result: T | { ok: boolean; value?: T }): T {
@@ -138,6 +183,82 @@ function personaIdByName(
   return team.personas.find(row => row.name === name)?.id
 }
 
+async function ensureAtlasGestorRole(
+  remote: DevHarnessSeedRemote,
+  tenant: PersonaTenantScope,
+  atlasId: string,
+): Promise<void> {
+  if (remote.setPersonaSystemRoles === undefined) return
+  try {
+    await Promise.resolve(remote.setPersonaSystemRoles({
+      workspaceId: tenant.workspaceId,
+      projectId: tenant.projectId,
+      personaId: atlasId,
+      systemRoles: ['coordination', 'team_manager'],
+    }))
+  } catch {
+    /* already gestor */
+  }
+}
+
+async function seedDevHarnessGestorPlanMessage(
+  remote: DevHarnessSeedRemote,
+  tenant: PersonaTenantScope,
+  atlasId: string,
+): Promise<void> {
+  if (remote.proposeGestorAssemble === undefined) return
+  if (await hasChannelMessage(remote, tenant, DEV_HARNESS_GESTOR_MSG_ID)) return
+
+  await ensureAtlasGestorRole(remote, tenant, atlasId)
+
+  let plan: GestorPlanView | undefined
+  try {
+    const pack = unwrap<ProposeGestorAssembleView>(
+      await remote.proposeGestorAssemble({
+        workspaceId: tenant.workspaceId,
+        projectId: tenant.projectId,
+        gestorId: atlasId,
+        id: DEV_HARNESS_GESTOR_PLAN_ID,
+        goal: 'Monte um time para o Site',
+      }) as ProposeGestorAssembleView | { ok: boolean; value?: ProposeGestorAssembleView },
+    )
+    plan = pack.plan
+  } catch {
+    if (remote.listGestorPlans !== undefined) {
+      const open = unwrap<readonly GestorPlanView[]>(await remote.listGestorPlans({ workspaceId: tenant.workspaceId }))
+      plan = open.find(row => row.id === DEV_HARNESS_GESTOR_PLAN_ID)
+    }
+  }
+  if (plan === undefined || plan.status !== 'proposed') return
+
+  const channelPage = await Promise.resolve(remote.listMessages({
+    workspaceId: tenant.workspaceId,
+    projectId: tenant.projectId,
+    streamKind: 'channel',
+    ownerId: tenant.channelId,
+    actorId: tenant.memberId,
+    afterSeq: 0,
+    limit: 300,
+  }))
+  const at = devHarnessMessageTimes(channelPage.events, 1)[0]!
+  const body = `${plan.summary.trim()}${gestorPlanMarker(plan.id)}`
+  try {
+    await Promise.resolve(remote.postMessage({
+      id: DEV_HARNESS_GESTOR_MSG_ID,
+      workspaceId: tenant.workspaceId,
+      projectId: tenant.projectId,
+      streamKind: 'channel',
+      ownerId: tenant.channelId,
+      body,
+      actorId: atlasId,
+      subjectId: DEV_HARNESS_GESTOR_MSG_ID,
+      occurredAt: at,
+    }))
+  } catch {
+    /* duplicate */
+  }
+}
+
 /** Dev harness posts: occurredAt strictly after existing stream tail (seq order matches clock). */
 export function devHarnessMessageTimes(
   existing: readonly { occurredAt?: string }[],
@@ -167,11 +288,18 @@ export async function seedDevHarnessScenario(
   tenant: PersonaTenantScope,
 ): Promise<boolean> {
   if (!readClientDevSeedEnabled()) return false
-  if (await hasChannelMessage(remote, tenant, DEV_HARNESS_SCENARIO_MARKER)) return false
 
   const scope = { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
-  const onboarding = await Promise.resolve(remote.getOnboarding(scope))
-  if (!onboarding.completed && remote.completeOnboarding !== undefined) {
+  const onboarding = unwrap(await Promise.resolve(remote.getOnboarding(scope)))
+  const scenarioDone = await hasChannelMessage(remote, tenant, DEV_HARNESS_SCENARIO_MARKER)
+  if (scenarioDone) {
+    const teamPeek = await Promise.resolve(remote.listTeam(tenant))
+    const teamReady = unwrap(teamPeek).personas.length > 0
+    if (teamReady) return true
+  }
+
+  let team = unwrap(await Promise.resolve(remote.listTeam(tenant)))
+  if (team.personas.length === 0 && remote.completeOnboarding !== undefined) {
     const personalProjectId = onboarding.personalProjectId.length > 0
       ? onboarding.personalProjectId
       : tenant.projectId
@@ -186,15 +314,14 @@ export async function seedDevHarnessScenario(
     }
     try {
       await Promise.resolve(remote.completeOnboarding(request))
-    } catch {
-      /* already completed or race */
+    } catch (completeError) {
+      console.info('[persona] dev seed completeOnboarding', { skipped: completeError instanceof Error ? completeError.message : String(completeError) })
     }
+    team = unwrap(await Promise.resolve(remote.listTeam(tenant)))
   }
-
-  let team = await Promise.resolve(remote.listTeam(tenant))
   if (team.personas.length === 0) {
     await seedDevTeamIfEmpty(remote, tenant)
-    team = await Promise.resolve(remote.listTeam(tenant))
+    team = unwrap(await Promise.resolve(remote.listTeam(tenant)))
   }
 
   const atlasId = personaIdByName(team, 'Atlas')
@@ -281,6 +408,10 @@ export async function seedDevHarnessScenario(
     } catch {
       /* duplicate */
     }
+  }
+
+  if (atlasId !== undefined) {
+    await seedDevHarnessGestorPlanMessage(remote, tenant, atlasId)
   }
 
   return true

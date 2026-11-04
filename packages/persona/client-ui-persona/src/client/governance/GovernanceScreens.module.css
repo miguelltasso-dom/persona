@@ -1,0 +1,88 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+  max-width: none;
+  width: 100%;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-4);
+  align-items: flex-end;
+}
+
+.previewNote {
+  margin: 0;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border-radius: var(--persona-radius-m, var(--persona-space-2));
+  background: var(--persona-paper-sunken);
+  font-size: 0.875rem;
+  color: var(--persona-ink-soft);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--persona-space-3);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.twoDayCard {
+  margin-top: 0;
+}
+
+.twoDayArt {
+  display: block;
+  height: 120px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+  object-position: right bottom;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1200px) {
+  .twoDayArt {
+    display: none;
+  }
+}
+
+.twoDayLead {
+  margin: 0 0 var(--persona-space-3);
+  font-size: 0.9375rem;
+  color: var(--persona-ink-soft);
+}
+
+/* UX-10: title + "Simular de novo" on the test card. */
+.twoDayHead {
+  width: 100%;
+  align-self: stretch;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+  margin-bottom: var(--persona-space-1);
+}
+
+.twoDayHead .sectionTitle {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.twoDayHead > :last-child {
+  flex: 0 0 auto;
+}

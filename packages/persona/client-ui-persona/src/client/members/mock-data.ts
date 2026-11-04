@@ -7,6 +7,8 @@ export interface WorkspaceMember {
   readonly email: string
   readonly role: MemberRole
   readonly status: MemberStatus
+  /** Signed-in workspace member — hide destructive actions on self. */
+  readonly isSelf?: boolean
 }
 
 export const MOCK_MEMBERS: readonly WorkspaceMember[] = [

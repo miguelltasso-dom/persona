@@ -8,7 +8,7 @@
   height: 100vh;
   height: 100dvh;
   max-height: 100dvh;
-  padding: var(--persona-space-5) var(--persona-space-3) var(--persona-space-4);
+  padding: calc(var(--persona-space-5) + env(titlebar-area-height, 0px)) var(--persona-space-3) var(--persona-space-4);
   overflow: hidden;
   background: var(--persona-rail);
   color: var(--persona-rail-ink);
@@ -224,7 +224,7 @@
 }
 
 .group + .group {
-  margin-top: var(--persona-space-4);
+  margin-top: var(--persona-space-3);
 }
 
 .groupLabel {
@@ -294,7 +294,7 @@
   align-items: center;
   gap: var(--persona-space-3);
   width: 100%;
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 var(--persona-space-3);
   border: 0;
   border-radius: var(--persona-radius-m);
@@ -345,7 +345,7 @@
   align-items: center;
   gap: var(--persona-space-2);
   /* Reserve the foliage band: decoration lives behind the footer, never behind navigable items. */
-  min-height: 118px;
+  min-height: 100px;
   padding-top: var(--persona-space-2);
 }
 

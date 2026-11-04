@@ -1,6 +1,6 @@
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import { unwrapRemote } from '../data/remote-call.ts'
-import { PersonaRemoteError } from './persona-remote-unwrap.ts'
+import { isRemoteResult, PersonaRemoteError } from './persona-remote-unwrap.ts'
 import type { PersonaTenantScope } from './persona-remote-types.ts'
 
 const TENANT_STORAGE_KEY = 'persona.tenant.v1'
@@ -56,6 +56,12 @@ export interface TenantBootstrapRemote {
 }
 
 /** Host/store duplicate id (`StoreError` code `conflict`). */
+/** Wire RemoteResult or an already-unwrapped value (never double-unwrap). */
+async function unwrapWire<T>(result: unknown): Promise<T> {
+  if (isRemoteResult(result)) return unwrapRemote(result as RemoteResult<T>)
+  return result as T
+}
+
 function isConflictError(error: unknown): boolean {
   if (error instanceof PersonaRemoteError) {
     return error.code === 'conflict' || error.hostMessage === 'conflict' || /conflict/i.test(error.message)
@@ -78,7 +84,7 @@ export async function bootstrapPersonaTenant(remote: TenantBootstrapRemote): Pro
   // The host answers listProjects with [] (not an error) when the workspace does not exist yet.
   let hasWorkspace = false
   try {
-    const projects = await unwrapRemote(await Promise.resolve(remote.listProjects({ workspaceId, projectId })))
+    const projects = await unwrapWire<unknown[]>(await Promise.resolve(remote.listProjects({ workspaceId, projectId })))
     hasWorkspace = Array.isArray(projects) && projects.length > 0
   } catch {
     hasWorkspace = false
@@ -86,13 +92,13 @@ export async function bootstrapPersonaTenant(remote: TenantBootstrapRemote): Pro
 
   if (!hasWorkspace) {
     try {
-      await unwrapRemote(await Promise.resolve(remote.createWorkspace({ id: workspaceId, name: 'Persona', personalProjectId: projectId })))
+      await unwrapWire(await Promise.resolve(remote.createWorkspace({ id: workspaceId, name: 'Persona', personalProjectId: projectId })))
     } catch (error) {
       if (!isConflictError(error)) throw error
       /* workspace already exists (race or listProjects still []) */
     }
     try {
-      await unwrapRemote(await Promise.resolve(remote.createMember({
+      await unwrapWire(await Promise.resolve(remote.createMember({
         id: memberId,
         workspaceId,
         projectId,
@@ -105,11 +111,13 @@ export async function bootstrapPersonaTenant(remote: TenantBootstrapRemote): Pro
     }
   }
 
-  const channels = await unwrapRemote(await Promise.resolve(remote.listChannels({ workspaceId, projectId })))
+  const channels = await unwrapWire<readonly { id: string; name: string }[]>(
+    await Promise.resolve(remote.listChannels({ workspaceId, projectId })),
+  )
   let channelId = stored?.channelId ?? channels.find(ch => ch.name === 'geral')?.id
   if (channelId === undefined) {
     try {
-      const created = await unwrapRemote(await Promise.resolve(remote.createChannel({
+      const created = await unwrapWire<{ id: string }>(await Promise.resolve(remote.createChannel({
         id: 'geral',
         workspaceId,
         projectId,
@@ -119,7 +127,9 @@ export async function bootstrapPersonaTenant(remote: TenantBootstrapRemote): Pro
       channelId = created.id
     } catch (error) {
       if (!isConflictError(error)) throw error
-      const again = await unwrapRemote(await Promise.resolve(remote.listChannels({ workspaceId, projectId })))
+      const again = await unwrapWire<readonly { id: string; name: string }[]>(
+        await Promise.resolve(remote.listChannels({ workspaceId, projectId })),
+      )
       channelId = again.find(ch => ch.name === 'geral')?.id
       if (channelId === undefined) throw error
     }
@@ -132,6 +142,6 @@ export async function bootstrapPersonaTenant(remote: TenantBootstrapRemote): Pro
 
 /** Whether host reports first-use onboarding (personas empty). */
 export async function hostReportsFirstUse(remote: TenantBootstrapRemote, tenant: PersonaTenantScope): Promise<boolean> {
-  const state = await unwrapRemote(await Promise.resolve(remote.getOnboarding(tenant)))
+  const state = await unwrapWire<{ firstUse: boolean }>(await Promise.resolve(remote.getOnboarding(tenant)))
   return state.firstUse
 }

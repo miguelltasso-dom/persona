@@ -44,19 +44,17 @@ export function ProjectsView({ t, loading, error, projects, onOpen, onCreate }: 
       ) : (
         <ul className={styles.grid}>
           {projects.map(project => (
-            <Card
-              key={project.id}
-              as="li"
-              interactive={onOpen !== undefined}
-              onClick={onOpen !== undefined ? () => { onOpen(project.id) } : undefined}
-              className={styles.card}
-            >
+            <Card key={project.id} as="li" interactive={onOpen !== undefined} className={styles.card}>
               <span className={styles.icon} aria-hidden="true"><BrandIcon name="projetos" size={22} /></span>
-              <h2 className={styles.name}>{project.name}</h2>
+              <h2 className={styles.name}>
+                {onOpen !== undefined
+                  ? <button type="button" className={styles.cardLink} onClick={() => { onOpen(project.id) }}>{project.name}</button>
+                  : project.name}
+              </h2>
               <div className={styles.meta}>
                 <Chip size="s" tone="neutral">{project.kind === 'personal' ? t('projects.kind.personal') : project.kind}</Chip>
                 {onOpen !== undefined && (
-                  <span className={styles.open}>
+                  <span className={styles.open} aria-hidden="true">
                     {t('projects.open')}
                     <UiIcon name="arrowRight" size={16} strokeWidth={2.2} />
                   </span>
@@ -64,6 +62,14 @@ export function ProjectsView({ t, loading, error, projects, onOpen, onCreate }: 
               </div>
             </Card>
           ))}
+          {onCreate !== undefined && (
+            <li className={styles.newTile}>
+              <button type="button" className={styles.newButton} onClick={onCreate}>
+                <span className={styles.newIcon} aria-hidden="true"><UiIcon name="plus" size={22} strokeWidth={2.4} /></span>
+                {t('projects.new')}
+              </button>
+            </li>
+          )}
         </ul>
       )}
     </Screen>

@@ -107,7 +107,7 @@ export function BoardsHome({
       {visible.length === 0 && (
         <p className={styles.filterEmpty}>{t('boards.filterEmpty')}</p>
       )}
-      <div className={styles.grid}>
+      <div className={styles.grid} role="region" aria-label={t('a11y.boardsGrid')}>
         {visible.map(summary => (
           <ProjectBoardCard key={summary.id} dict={dict} summary={summary} onOpen={onOpenProject} />
         ))}

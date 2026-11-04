@@ -10,9 +10,13 @@ import styles from './OnboardingShellOverlay.module.css'
 export interface OnboardingShellOverlayInjected {
   hooks: { shell: HostObservable<ShellState> }
   readonly dict: LocaleDict
+  readonly structureDict: LocaleDict
   readonly store: ReturnType<typeof createOnboardingStore>['store']
   readonly actions: OnboardingActions
   dismissOnboarding(): void
+  readonly onScanVaultFolder?: ((rootPath: string) => Promise<import('@deepseek-ai/dsh-persona-core').BringContextPreview>) | undefined
+  readonly onOrganizePreview?: import('../bring-context/BringYourContextBlock.tsx').BringYourContextBlockProps['onOrganizePreview']
+  readonly onApplyReview?: import('../bring-context/BringYourContextBlock.tsx').BringYourContextBlockProps['onApplyReview']
 }
 
 export type OnboardingShellOverlayProps = InjectFace<OnboardingShellOverlayInjected>
@@ -20,10 +24,14 @@ export type OnboardingShellOverlayProps = InjectFace<OnboardingShellOverlayInjec
 /** Full-screen onboarding overlay on `shell.overlay` (first-run). */
 export function OnboardingShellOverlay({
   dict,
+  structureDict,
   store,
   actions,
   useShell,
   dismissOnboarding,
+  onScanVaultFolder,
+  onOrganizePreview,
+  onApplyReview,
 }: OnboardingShellOverlayProps): ReactNode {
   const open = useShell(state => state.onboardingOpen)
   if (!open) return null
@@ -38,9 +46,13 @@ export function OnboardingShellOverlay({
       >
         <OnboardingWizard
           dict={dict}
+          structureDict={structureDict}
           store={store}
           actions={actions}
           onComplete={dismissOnboarding}
+          {...(onScanVaultFolder === undefined ? {} : { onScanVaultFolder })}
+          {...(onOrganizePreview === undefined ? {} : { onOrganizePreview })}
+          {...(onApplyReview === undefined ? {} : { onApplyReview })}
         />
       </div>
     </div>

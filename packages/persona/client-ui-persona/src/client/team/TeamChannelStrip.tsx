@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
-import { BrandIcon, Button, Chip, TeamScene, UiIcon } from '../primitives/index.ts'
+import { BrandIcon, Button, Chip, TeamScene, UiIcon, usePawCelebration } from '../primitives/index.ts'
 import type { ChannelPersonaMember } from './persona-work-state.ts'
 import { WORK_STATUS_KEY } from './persona-work-state.ts'
 import { PersonaTeamFigure } from './PersonaTeamFigure.tsx'
@@ -11,6 +11,10 @@ export interface TeamChannelStripProps extends PropsLocale<'persona.shell'> {
   readonly members: readonly ChannelPersonaMember[]
   /** Empty channel CTA ("Montar equipe"); hidden when not provided. */
   readonly onBuildTeam?: (() => void) | undefined
+  readonly personaCardTrigger?: ((characterId: string) => {
+    readonly onClick: (event: MouseEvent<HTMLElement>) => void
+    readonly onPointerEnter: (event: MouseEvent<HTMLElement>) => void
+  }) | undefined
 }
 
 /** Pause ambient loops when the tab is hidden or the banner scrolls away (UX-GUIDE §2.3). */
@@ -40,10 +44,22 @@ function useAmbientPause(): [RefObject<HTMLElement>, boolean] {
 }
 
 /** "Sua equipe neste canal" — Brush banner scene, full-body poses on one ground line, sticker name tags. */
-export function TeamChannelStrip({ t, members, onBuildTeam }: TeamChannelStripProps): ReactNode {
+export function TeamChannelStrip({ t, members, onBuildTeam, personaCardTrigger }: TeamChannelStripProps): ReactNode {
   const [ref, paused] = useAmbientPause()
+  const paw = usePawCelebration()
+  const celebratedArrival = useRef(false)
   const bannerLight = ILLUSTRATIONS['team-banner-light']
   const bannerDark = ILLUSTRATIONS['team-banner-dark']
+
+  useEffect(() => {
+    if (!members.some(member => member.arriving === true)) {
+      celebratedArrival.current = false
+      return
+    }
+    if (celebratedArrival.current) return
+    celebratedArrival.current = true
+    paw.celebrate()
+  }, [members, paw.celebrate])
 
   return (
     <section
@@ -52,6 +68,7 @@ export function TeamChannelStrip({ t, members, onBuildTeam }: TeamChannelStripPr
       aria-labelledby="persona-team-strip-title"
       data-ambient-paused={paused ? '' : undefined}
     >
+      {paw.node}
       <div className={styles.scene} aria-hidden="true">
         {bannerLight !== undefined ? (
           <>
@@ -87,10 +104,31 @@ export function TeamChannelStrip({ t, members, onBuildTeam }: TeamChannelStripPr
         {members.map((member, index) => {
           const status = t(WORK_STATUS_KEY[member.state])
           return (
-            <li key={member.id} className={styles.member} data-state={member.state}>
-              <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
+            <li
+              key={member.id}
+              className={styles.member}
+              data-state={member.state}
+              data-arriving={member.arriving === true ? '' : undefined}
+              style={{ '--arrive-delay': `${index * 180}ms` } as CSSProperties}
+            >
+              {member.arriving === true && <span className={styles.arrived} role="status">{t('team.arrived', { name: member.name })}</span>}
+              {personaCardTrigger === undefined ? (
+                <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
+              ) : (
+                <button
+                  type="button"
+                  className={styles.figureButton}
+                  aria-label={member.name}
+                  {...personaCardTrigger(member.id)}
+                >
+                  <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
+                </button>
+              )}
               <span className={styles.tag}>
-                <span className={styles.tagName}>{member.name}</span>
+                <span className={styles.tagName}>
+                  {member.systemRoles?.includes('team_manager') === true && <UiIcon name="baton" size={13} strokeWidth={2.4} className={styles.gestorIcon} />}
+                  {member.name}
+                </span>
                 <span className={styles.tagStatus}>
                   <span className={styles.statusDot} data-state={member.state} aria-hidden="true" />
                   {status}

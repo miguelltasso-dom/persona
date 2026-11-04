@@ -1,55 +1,109 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
 import { BoardsHome } from '../boards/BoardsHome.tsx'
-import { deriveBoardSummaries } from '../boards/derive-board-summaries.ts'
+import { GlobalCategoryLanes } from '../boards/GlobalCategoryLanes.tsx'
+import { hostBoardSummariesToHub } from '../data/adapters/board.ts'
+import { deriveBoardSummaries, inferFlowModel } from '../boards/derive-board-summaries.ts'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import type { PersonaTenantSnapshot } from '../data/persona-tenant.ts'
+import { unwrapRemote } from '../data/remote-call.ts'
+import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
+import { useRemoteTenantGate } from '../data/use-remote-tenant-gate.ts'
 import { pt as kanbanDict } from '../locale/kanban/locales.ts'
-import { Button, UiIcon } from '../primitives/index.ts'
-import { bindLocale } from '../preview/locale-bind.ts'
-import { KanbanWithReview } from '../review/KanbanWithReview.tsx'
+import { NewProjectFlowModal } from '../kanban/NewProjectFlowModal.tsx'
+import type { ShellState } from '../shell/create-shell-store.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
-import styles from '../boards/Boards.module.css'
+import { ConnectedProjectFlowBoard } from './ConnectedProjectFlowBoard.tsx'
+import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
+import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 
 export interface ConnectedKanbanInjected {
   readonly persona: PersonaRemoteClient
   readonly refreshKanban: () => Promise<void>
+  readonly navigateProjectTab: (tab: ProjectWorkspaceTab) => void
+  readonly clearBoardsFocusProject: () => void
+  readonly setProjectWorkspaceProjectId: (projectId: string | null) => void
   readonly hooks: {
     readonly live: HostObservable<PersonaLiveSnapshot>
     readonly tenant: HostObservable<PersonaTenantSnapshot>
+    readonly shell: HostObservable<ShellState>
   }
+  readonly personaCard?: PersonaCardShellBridge | undefined
+  readonly openPersonaProfile?: ((personaId: string) => void) | undefined
 }
 
 export type ConnectedGlobalKanbanProps = InjectFace<ConnectedKanbanInjected>
 
-/** Quadros hub + per-project board (legacy slot key `kanban`). */
+type HubMode = 'grid' | 'global' | 'project'
+
+/** Quadros hub + per-project flow board (legacy slot key `kanban`). */
 export function ConnectedGlobalKanban({
   persona,
   useLive,
   useTenant,
   refreshKanban,
+  navigateProjectTab,
+  clearBoardsFocusProject,
+  setProjectWorkspaceProjectId,
+  useShell,
+  personaCard,
+  openPersonaProfile,
 }: ConnectedGlobalKanbanProps): ReactNode {
   const live = useLive(state => state)
-  const tenant = useTenant(state => state)
+  const boardsFocusProjectId = useShell(state => state.boardsFocusProjectId)
+  const { gate } = useRemoteTenantGate(useTenant)
+  const [mode, setMode] = useState<HubMode>('grid')
   const [openProjectId, setOpenProjectId] = useState<string | null>(null)
-  const t = (key: string) => bindLocale(kanbanDict, key)
+  const [projectWorkspaceTab, setProjectWorkspaceTab] = useState<ProjectWorkspaceTab>('board')
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
 
-  const scope: ProjectScopeRequest | null = useMemo(() => {
-    if (tenant.status !== 'ready' || tenant.scope === null) return null
-    return { workspaceId: tenant.scope.workspaceId, projectId: tenant.scope.projectId }
-  }, [tenant.status, tenant.scope?.workspaceId, tenant.scope?.projectId])
+  useEffect(() => {
+    if (boardsFocusProjectId === null) return
+    setOpenProjectId(boardsFocusProjectId)
+    setProjectWorkspaceTab('board')
+    setMode('project')
+    clearBoardsFocusProject()
+  }, [boardsFocusProjectId, clearBoardsFocusProject])
 
-  const summaries = useMemo(
-    () => deriveBoardSummaries({
+  const tenantScope: ProjectScopeRequest | null = useMemo(() => {
+    if (gate === 'loading' || gate === 'error') return null
+    return gate
+  }, [gate])
+
+  const listBoardsLoad = useCallback(async () => {
+    if (tenantScope === null) throw new Error('no-scope')
+    return unwrapRemote(await persona.listBoards(tenantScope))
+  }, [persona, tenantScope?.workspaceId, tenantScope?.projectId])
+
+  const boardsListKey = tenantScope === null ? '' : `${tenantScope.workspaceId}:boards`
+  const { state: boardsState } = usePersonaRemoteLoad(tenantScope !== null, boardsListKey, listBoardsLoad)
+
+  const summaries = useMemo(() => {
+    if (boardsState.status === 'ready' && boardsState.data.length >= 1) {
+      const models: Record<string, import('../boards/types.ts').FlowModelId> = {}
+      for (const project of live.projects) {
+        models[project.id] = inferFlowModel(project.id, project.kind)
+      }
+      return hostBoardSummariesToHub(
+        boardsState.data,
+        models,
+        projectId => inferFlowModel(projectId, undefined),
+      )
+    }
+    return deriveBoardSummaries({
       projects: live.projects,
       kanbanCards: live.kanbanCards,
       nowRows: live.nowRows,
-    }),
-    [live.projects, live.kanbanCards, live.nowRows],
-  )
+    })
+  }, [boardsState, live.projects, live.kanbanCards, live.nowRows])
 
-  if (!live.ready) {
+  const projectScope: ProjectScopeRequest | null = useMemo(() => {
+    if (tenantScope === null || openProjectId === null) return null
+    return { workspaceId: tenantScope.workspaceId, projectId: openProjectId }
+  }, [tenantScope, openProjectId])
+
+  if (!live.ready || gate === 'loading') {
     return (
       <BoardsHome
         dict={kanbanDict}
@@ -60,38 +114,84 @@ export function ConnectedGlobalKanban({
     )
   }
 
-  if (openProjectId !== null) {
-    const projectCards = live.kanbanCards.filter(card => card.projectId === openProjectId)
-    const summary = summaries.find(row => row.id === openProjectId)
+  if (mode === 'global') {
     return (
-      <div className={styles.projectBoardWrap} data-persona-kanban="global">
-        <div className={styles.backRow}>
-          <Button
-            variant="ghost"
-            icon={<UiIcon name="chevronRight" size={18} className={styles.backChevron} />}
-            onClick={() => { setOpenProjectId(null) }}
-          >
-            {t('boards.backToGrid')}
-          </Button>
-          {summary !== undefined && <span className={styles.backProjectName}>{summary.name}</span>}
-        </div>
-        <KanbanWithReview
-          persona={persona}
-          scope={scope}
-          initialCards={projectCards}
-          initialState={projectCards.length === 0 ? 'empty' : 'ready'}
-          onMutate={() => { void refreshKanban() }}
-        />
-      </div>
+      <GlobalCategoryLanes
+        dict={kanbanDict}
+        summaries={summaries}
+        onBack={() => { setMode('grid') }}
+      />
+    )
+  }
+
+  const handleProjectWorkspaceTab = (tab: ProjectWorkspaceTab): void => {
+    if (tab === 'board' || tab === 'sprints') {
+      setProjectWorkspaceTab(tab)
+      setProjectWorkspaceProjectId(null)
+      return
+    }
+    if (openProjectId !== null) {
+      setProjectWorkspaceProjectId(openProjectId)
+    }
+    navigateProjectTab(tab)
+  }
+
+  const projectHint = useMemo(() => {
+    if (openProjectId === null) return ''
+    const project = live.projects.find(row => row.id === openProjectId)
+    return project === undefined ? '' : `${project.name} ${project.kind}`.trim()
+  }, [live.projects, openProjectId])
+
+  if (mode === 'project' && projectScope !== null) {
+    return (
+      <ConnectedProjectFlowBoard
+        persona={persona}
+        scope={projectScope}
+        projectHint={projectHint}
+        workspaceTab={projectWorkspaceTab}
+        onBack={() => {
+          setOpenProjectId(null)
+          setProjectWorkspaceTab('board')
+          setProjectWorkspaceProjectId(null)
+          setMode('grid')
+        }}
+        onMutate={() => { void refreshKanban() }}
+        onWorkspaceTabChange={handleProjectWorkspaceTab}
+        {...(personaCard === undefined ? {} : { personaCard })}
+        {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
+      />
     )
   }
 
   return (
-    <BoardsHome
-      dict={kanbanDict}
-      summaries={summaries}
-      surfaceState="ready"
-      onOpenProject={setOpenProjectId}
-    />
+    <>
+      <BoardsHome
+        dict={kanbanDict}
+        summaries={summaries}
+        surfaceState="ready"
+        onOpenProject={(projectId) => {
+          setOpenProjectId(projectId)
+          setProjectWorkspaceTab('board')
+          setMode('project')
+        }}
+        onNewProject={() => { setNewProjectOpen(true) }}
+        onGlobalView={() => { setMode('global') }}
+      />
+      {newProjectOpen && tenantScope !== null && (
+        <NewProjectFlowModal
+          dict={kanbanDict}
+          onClose={() => { setNewProjectOpen(false) }}
+          onSelectTemplate={async (template) => {
+            await unwrapRemote(await persona.createWorkflowFromTemplate({
+              workspaceId: tenantScope.workspaceId,
+              projectId: tenantScope.projectId,
+              template,
+            }))
+            setNewProjectOpen(false)
+            void refreshKanban()
+          }}
+        />
+      )}
+    </>
   )
 }

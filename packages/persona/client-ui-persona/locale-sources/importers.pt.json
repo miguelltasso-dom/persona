@@ -22,5 +22,12 @@
   "loading": "Preparando importador…",
   "error.title": "Não deu para importar agora",
   "error.retry": "Tentar de novo",
-  "progressLabel": "Progresso da importação"
+  "progressLabel": "Progresso da importação",
+  "bycScreen.title": "Traga o que suas IAs já sabem",
+  "bycScreen.subtitle": "Cole respostas das IAs que você já usa ou escolha a pasta do Obsidian — revisamos antes de gravar no Cofre.",
+  "bycScreen.organizing": "Organizando…",
+  "bycScreen.savedToast": "{count} itens no Cofre",
+  "advancedExport.title": "Exportação oficial (avançado)",
+  "advancedExport.lead": "Zip ou export de outra ferramenta, com mapeamento passo a passo.",
+  "advancedExport.open": "Abrir importador avançado"
 }

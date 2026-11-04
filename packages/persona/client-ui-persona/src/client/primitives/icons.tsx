@@ -4,7 +4,7 @@
  */
 
 import type { CSSProperties, ReactNode } from 'react'
-import { NAV_ICONS } from '../assets/generated-imports.ts'
+import { FLOW_ICONS, NAV_ICONS, SECTOR_ICONS } from '../assets/generated-imports.ts'
 import styles from './Icon.module.css'
 
 export type BrandIconName = keyof typeof NAV_ICONS
@@ -26,6 +26,26 @@ export function BrandIcon({ name, size = 20, className }: BrandIconProps): React
   return <span className={merged} style={style} aria-hidden="true" />
 }
 
+export type SectorId = 'vendas' | 'suporte' | 'produto' | 'engenharia' | 'marketing' | 'financeiro' | 'operacoes' | 'pessoas' | 'admin' | 'conteudo' | 'dados' | 'juridico'
+
+/** Sector icon (Brush `icons/sectors`, GOVERNANCE-SPEC) tinted with currentColor; unknown ids render nothing. */
+export function SectorIcon({ sector, size = 20, className }: { readonly sector: string; readonly size?: number; readonly className?: string | undefined }): ReactNode {
+  const url = SECTOR_ICONS[sector]
+  if (url === undefined) return null
+  const style = { '--persona-icon-url': `url("${url}")`, '--persona-icon-size': `${size}px` } as CSSProperties
+  return <span className={className === undefined ? styles.brand : `${styles.brand} ${className}`} style={style} aria-hidden="true" />
+}
+
+export type FlowModelId = 'contratacao' | 'site' | 'software' | 'marketing' | 'atendimento' | 'simples' | 'branco'
+
+/** Workflow-model icon (Brush `icons/flows`, BOARDS-SPEC §6) tinted with currentColor. */
+export function FlowIcon({ model, size = 20, className }: { readonly model: FlowModelId; readonly size?: number; readonly className?: string | undefined }): ReactNode {
+  const url = FLOW_ICONS[`flow-${model}`]
+  if (url === undefined) return null
+  const style = { '--persona-icon-url': `url("${url}")`, '--persona-icon-size': `${size}px` } as CSSProperties
+  return <span className={className === undefined ? styles.brand : `${styles.brand} ${className}`} style={style} aria-hidden="true" />
+}
+
 const UI_PATHS = {
   send: <><path d="M4.5 11.6 19.2 4.8c.5-.2 1 .3.8.8L13.4 20.3c-.2.5-.9.5-1.1 0l-2.1-5.6a1 1 0 0 0-.6-.6l-5.1-1.5c-.5-.2-.5-.8 0-1Z" /><path d="m10 14.2 4.6-4.6" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
@@ -38,6 +58,9 @@ const UI_PATHS = {
   chevronRight: <path d="m9.5 6.5 5.5 5.5-5.5 5.5" />,
   close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  baton: <><path d="M5 19.5 15.5 9" /><circle cx="5.6" cy="18.9" r="1.6" /><path d="M18 3.5v3M16.5 5h3M20 9.5v2M19 10.5h2" /></>,
+  minus: <path d="M5.5 12h13" />,
+  copy: <><rect x="8.5" y="8.5" width="11" height="11" rx="2.5" /><path d="M15.5 8.5V6.8A2.3 2.3 0 0 0 13.2 4.5H6.8a2.3 2.3 0 0 0-2.3 2.3v6.4a2.3 2.3 0 0 0 2.3 2.3h1.7" /></>,
   at: <><circle cx="12" cy="12" r="3.6" /><path d="M15.6 12v1.4a2.6 2.6 0 0 0 5.2 0V12a8.8 8.8 0 1 0-3.4 7" /></>,
   arrowRight: <path d="M5 12h13.5M13 6.5l5.5 5.5-5.5 5.5" />,
   alert: <><path d="M10.4 4.6 3.3 17.4A1.8 1.8 0 0 0 4.9 20h14.2a1.8 1.8 0 0 0 1.6-2.6L13.6 4.6a1.8 1.8 0 0 0-3.2 0Z" /><path d="M12 9.5v4M12 16.8v.2" /></>,

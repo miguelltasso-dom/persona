@@ -1,28 +1,111 @@
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
-import { Avatar, IconButton, UiIcon } from '../primitives/index.ts'
+import { Avatar, Button, Chip, UiIcon } from '../primitives/index.ts'
+import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
+import { ComposerLimitsPanel } from './ComposerLimitsPanel.tsx'
+import { ComposerSlashMenu } from './ComposerSlashMenu.tsx'
+import { ComposerToolButton } from './ComposerToolButton.tsx'
+import {
+  COMPOSER_LARGE_PASTE_BYTES,
+  clearComposerPocket,
+  formatPocketTime,
+  pushSentHistory,
+  readComposerPocket,
+  readSentHistory,
+  saveComposerPocket,
+} from './composer-memory.ts'
+import {
+  activeSlashToken,
+  filterSlashCommands,
+  type ComposerSlashCommand,
+} from './composer-slash-commands.ts'
+import type { MessageQuote } from './MessageQuoteToolbar.tsx'
+import {
+  PERSONA_COMPOSER_EMOJI_READY,
+  PERSONA_COMPOSER_MENTION_READY,
+  personaMessageAttachmentsHostReady,
+} from './composer-host-capabilities.ts'
+import {
+  composerCanSend,
+  readyAttachmentIds,
+  type ComposerPendingAttachment,
+} from './composer-pending-attachment.ts'
 import { defaultChannelResponderId } from './default-channel-responder.ts'
+import type { SubjectColorIndex } from './conversation-subjects.ts'
+import { SubjectDot } from './SubjectBar.tsx'
 import styles from './ChannelComposer.module.css'
 
 export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
   /** Channel roster; coordination persona is the default responder when present. */
   readonly members?: readonly ChannelPersonaMember[]
-  readonly onSend?: ((body: string) => void) | undefined
+  readonly onSend?: ((body: string, attachmentIds?: readonly string[]) => void) | undefined
+  /** Host `attachFile` (Anvil); omit when attachments gate is off. */
+  readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
+  /** Overrides the #geral placeholder (DMs: "Mensagem para Nina…"). */
+  readonly placeholder?: string | undefined
+  /** WAVE2: bolinha do assunto ativo antes do campo. */
+  readonly activeSubjectColorIndex?: SubjectColorIndex | undefined
+  /** Session key for sent-history / draft pocket (T3-UX-HARVEST §3). */
+  readonly conversationKey?: string | undefined
+  readonly pendingQuote?: MessageQuote | null
+  readonly onClearQuote?: (() => void) | undefined
+  readonly responderAutonomy?: AutonomyLevel | undefined
+  readonly onSlashCommand?: ((command: ComposerSlashCommand, arg: string) => void) | undefined
+  readonly quotaBlocked?: boolean | undefined
+  readonly quotaResumeLabel?: string | undefined
+  readonly onResumeQuota?: (() => void) | undefined
+  /** T3-UX-HARVEST §12 — Onda 2 account swap when engine is at limit. */
+  readonly onSwapAccount?: (() => void) | undefined
 }
 
 const MAX_ROWS_PX = 8 * 24
 
 /** Composer card (dirD): auto-growing field, tool row, "Responde" persona chip, amber send. */
-export function ChannelComposer({ t, members = [], onSend }: ChannelComposerProps): ReactNode {
+export function ChannelComposer({
+  t,
+  members = [],
+  onSend,
+  uploadAttachment,
+  placeholder,
+  activeSubjectColorIndex,
+  conversationKey = 'default',
+  pendingQuote = null,
+  onClearQuote,
+  responderAutonomy = 'propose',
+  onSlashCommand,
+  quotaBlocked = false,
+  quotaResumeLabel,
+  onResumeQuota,
+  onSwapAccount,
+}: ChannelComposerProps): ReactNode {
   const [draft, setDraft] = useState('')
+  const [pending, setPending] = useState<readonly ComposerPendingAttachment[]>([])
   const [responderId, setResponderId] = useState<string>(() => defaultChannelResponderId(members))
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null)
+  const [pocketLabel, setPocketLabel] = useState<string | null>(() => {
+    const pocket = readComposerPocket(conversationKey)
+    return pocket === null ? null : formatPocketTime(pocket.savedAt)
+  })
+  const [showLimits, setShowLimits] = useState(false)
+  const [slashIndex, setSlashIndex] = useState(0)
+  const [sendMode, setSendMode] = useState<'queue' | 'steer'>('queue')
   const fieldRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const fieldId = useId()
   const hintId = useId()
   const responder = members.find(member => member.id === responderId) ?? members[0]
-  const canSend = draft.trim().length > 0
+  const attachmentsReady = personaMessageAttachmentsHostReady() && uploadAttachment !== undefined
+  const canSend = composerCanSend(draft, pending) && !quotaBlocked
+  const comingSoon = t('composer.comingSoon')
+  const responderWorking = responder?.state === 'working'
+  const slashToken = activeSlashToken(draft, fieldRef.current?.selectionStart ?? draft.length)
+  const slashItems = slashToken === null ? [] : filterSlashCommands(slashToken.query)
+  const showSlashMenu = slashItems.length > 0 && slashToken !== null
+
+  useEffect(() => { setSlashIndex(0) }, [draft, slashToken?.query])
 
   useLayoutEffect(() => {
     const node = fieldRef.current
@@ -37,43 +120,289 @@ export function ChannelComposer({ t, members = [], onSend }: ChannelComposerProp
     setResponderId(defaultChannelResponderId(members))
   }, [members, responderId])
 
-  const send = (): void => {
-    const text = draft.trim()
-    if (text.length === 0) return
-    onSend?.(text)
+  const queueFile = (file: File): void => {
+    if (uploadAttachment === undefined) return
+    const key = `att-${Date.now()}-${file.name}`
+    setPending(current => [...current, { key, name: file.name, status: 'uploading' }])
+    void uploadAttachment(file).then(
+      (row) => {
+        setPending(current => current.map(item => item.key === key
+          ? { key, name: row.name, status: 'ready', id: row.id }
+          : item))
+      },
+      () => {
+        setPending(current => current.map(item => item.key === key
+          ? { key, name: file.name, status: 'error', message: t('composer.attachFailed') }
+          : item))
+      },
+    )
+  }
+
+  const onFilesPicked = (event: ChangeEvent<HTMLInputElement>): void => {
+    const list = event.target.files
+    if (list === null) return
+    for (const file of list) queueFile(file)
+    event.target.value = ''
+  }
+
+  const removePending = (key: string): void => {
+    setPending(current => current.filter(item => item.key !== key))
+  }
+
+  const buildOutbound = (): string => {
+    const base = draft.trim()
+    if (pendingQuote === null || pendingQuote.excerpt.length === 0) return base
+    const quote = `> ${pendingQuote.excerpt.replace(/\n/gu, '\n> ')}\n\n`
+    return `${quote}${base}`.trim()
+  }
+
+  const send = (modeOverride?: 'queue' | 'steer'): void => {
+    if (!canSend && modeOverride === undefined) return
+    const text = buildOutbound()
+    if (text.length === 0 && readyAttachmentIds(pending).length === 0) return
+    const ids = readyAttachmentIds(pending)
+    pushSentHistory(conversationKey, text)
+    onSend?.(text, ids)
     setDraft('')
+    setPending([])
+    setHistoryIndex(null)
+    setShowLimits(false)
+    onClearQuote?.()
     fieldRef.current?.focus()
   }
 
+  const applySlash = (command: ComposerSlashCommand): void => {
+    if (command.id === 'limites') {
+      setShowLimits(true)
+      setDraft('')
+      return
+    }
+    const arg = draft.slice((slashToken?.start ?? 0) + command.prefix.length).trim()
+    onSlashCommand?.(command, arg)
+    setDraft('')
+  }
+
+  const savePocket = (): void => {
+    const savedAt = new Date().toISOString()
+    saveComposerPocket(conversationKey, {
+      text: draft,
+      savedAt,
+      attachmentNames: pending.map(row => row.name),
+    })
+    setPocketLabel(formatPocketTime(savedAt))
+  }
+
+  const restorePocket = (): void => {
+    const pocket = readComposerPocket(conversationKey)
+    if (pocket === null) return
+    setDraft(pocket.text)
+    clearComposerPocket(conversationKey)
+    setPocketLabel(null)
+    fieldRef.current?.focus()
+  }
+
+  const openFilePicker = (): void => { fileInputRef.current?.click() }
+  const openImagePicker = (): void => { imageInputRef.current?.click() }
+
   return (
     <form
+      data-persona-area="composer"
       className={styles.composer}
       aria-label={t('composer.placeholder')}
-      onSubmit={(event) => { event.preventDefault(); send() }}
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (responderWorking && sendMode === 'steer') send('steer')
+        else send('queue')
+      }}
     >
-      <label htmlFor={fieldId} className="persona-sr-only">{t('composer.placeholderChannel')}</label>
-      <textarea
-        ref={fieldRef}
-        id={fieldId}
-        className={styles.field}
-        rows={1}
-        value={draft}
-        placeholder={t('composer.placeholderChannel')}
-        aria-describedby={hintId}
-        onChange={(event) => { setDraft(event.target.value) }}
-        onKeyDown={(event) => {
-          if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
-          event.preventDefault()
-          send()
-        }}
+      {showLimits && <ComposerLimitsPanel t={t} onClose={() => { setShowLimits(false) }} />}
+      {pocketLabel !== null && draft.length === 0 && pending.length === 0 && (
+        <button type="button" className={styles.pocketChip} onClick={restorePocket}>
+          <Chip size="s" tone="plain" icon={<UiIcon name="attach" size={12} strokeWidth={2.2} />}>
+            {t('composer.pocketChip', { time: pocketLabel })}
+          </Chip>
+        </button>
+      )}
+      {pendingQuote !== null && (
+        <div className={styles.quoteChip}>
+          <Chip size="s" tone="plain" icon={<UiIcon name="copy" size={12} strokeWidth={2.2} />}>
+            {t('composer.quoteChip', { excerpt: pendingQuote.excerpt.slice(0, 48) })}
+          </Chip>
+          {onClearQuote !== undefined && (
+            <button type="button" className={styles.attachRemove} aria-label={t('composer.quoteClear')} onClick={onClearQuote}>
+              <UiIcon name="close" size={14} strokeWidth={2.4} />
+            </button>
+          )}
+        </div>
+      )}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="persona-sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={onFilesPicked}
       />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="persona-sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={onFilesPicked}
+      />
+      {pending.length > 0 && (
+        <ul className={styles.attachments} aria-label={t('composer.attachmentsLabel')}>
+          {pending.map(row => (
+            <li key={row.key}>
+              <Chip
+                size="s"
+                tone={row.status === 'error' ? 'danger' : row.status === 'uploading' ? 'neutral' : 'plain'}
+                icon={<UiIcon name="attach" size={12} strokeWidth={2.2} />}
+              >
+                {row.status === 'uploading' ? t('composer.attachUploading', { name: row.name }) : row.name}
+              </Chip>
+              <button
+                type="button"
+                className={styles.attachRemove}
+                aria-label={t('composer.attachRemove', { name: row.name })}
+                onClick={() => { removePending(row.key) }}
+              >
+                <UiIcon name="close" size={14} strokeWidth={2.4} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <label htmlFor={fieldId} className="persona-sr-only">{placeholder ?? t('composer.placeholderChannel')}</label>
+      {showSlashMenu && (
+        <ComposerSlashMenu
+          t={t}
+          items={slashItems}
+          activeIndex={slashIndex}
+          onPick={(command) => { applySlash(command) }}
+        />
+      )}
+      <div className={styles.fieldRow}>
+        {activeSubjectColorIndex !== undefined && (
+          <span className={styles.subjectDotWrap} aria-hidden="true">
+            <SubjectDot colorIndex={activeSubjectColorIndex} />
+          </span>
+        )}
+        <textarea
+          ref={fieldRef}
+          id={fieldId}
+          className={styles.field}
+          rows={1}
+          value={draft}
+          placeholder={quotaBlocked
+            ? (quotaResumeLabel ?? t('composer.quotaBlocked'))
+            : (placeholder ?? t('composer.placeholderChannel'))}
+          aria-describedby={hintId}
+          onChange={(event) => {
+            setDraft(event.target.value)
+            if (historyIndex !== null) setHistoryIndex(null)
+          }}
+          onPaste={(event) => {
+            const text = event.clipboardData.getData('text/plain')
+            if (text.length < COMPOSER_LARGE_PASTE_BYTES || uploadAttachment === undefined) return
+            event.preventDefault()
+            queueFile(new File([text], t('composer.pasteFileName'), { type: 'text/plain' }))
+          }}
+          onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+              event.preventDefault()
+              savePocket()
+              return
+            }
+            if (showSlashMenu) {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault()
+                setSlashIndex(index => (index + 1) % slashItems.length)
+                return
+              }
+              if (event.key === 'ArrowUp') {
+                event.preventDefault()
+                setSlashIndex(index => (index - 1 + slashItems.length) % slashItems.length)
+                return
+              }
+              if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault()
+                const pick = slashItems[slashIndex]
+                if (pick !== undefined) applySlash(pick)
+                return
+              }
+            }
+            if (event.key === 'ArrowUp' && draft.length === 0 && !event.altKey && !event.ctrlKey && !event.metaKey) {
+              const history = readSentHistory(conversationKey)
+              if (history.length === 0) return
+              event.preventDefault()
+              const nextIndex = historyIndex === null ? 0 : Math.min(history.length - 1, historyIndex + 1)
+              setHistoryIndex(nextIndex)
+              setDraft(history[nextIndex] ?? '')
+              return
+            }
+            if (event.key === 'ArrowDown' && historyIndex !== null && !event.altKey && !event.ctrlKey && !event.metaKey) {
+              event.preventDefault()
+              const history = readSentHistory(conversationKey)
+              const nextIndex = historyIndex - 1
+              if (nextIndex < 0) {
+                setHistoryIndex(null)
+                setDraft('')
+              } else {
+                setHistoryIndex(nextIndex)
+                setDraft(history[nextIndex] ?? '')
+              }
+              return
+            }
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+            const steerNow = event.ctrlKey && responderWorking
+            if (!steerNow && event.shiftKey) return
+            if (steerNow || !event.shiftKey) {
+              event.preventDefault()
+              if (responderWorking && (steerNow || sendMode === 'steer')) send('steer')
+              else send('queue')
+            }
+          }}
+        />
+      </div>
       <div className={styles.toolbar}>
         <div className={styles.tools}>
-          <IconButton size="s" label={t('composer.add')} icon={<UiIcon name="plus" size={20} strokeWidth={2} />} variant="secondary" className={styles.plus} />
-          <IconButton size="s" label={t('composer.image')} icon={<UiIcon name="image" size={20} />} />
-          <IconButton size="s" label={t('composer.attach')} icon={<UiIcon name="attach" size={20} />} />
-          <IconButton size="s" label={t('composer.emoji')} icon={<UiIcon name="smile" size={20} />} />
-          <IconButton size="s" label={t('composer.mention')} icon={<UiIcon name="at" size={20} />} />
+          <ComposerToolButton
+            enabled={attachmentsReady}
+            label={t('composer.add')}
+            comingSoonLabel={comingSoon}
+            icon={<UiIcon name="plus" size={20} strokeWidth={2} />}
+            className={styles.plus}
+            onActivate={openFilePicker}
+          />
+          <ComposerToolButton
+            enabled={attachmentsReady}
+            label={t('composer.image')}
+            comingSoonLabel={comingSoon}
+            icon={<UiIcon name="image" size={20} />}
+            onActivate={openImagePicker}
+          />
+          <ComposerToolButton
+            enabled={attachmentsReady}
+            label={t('composer.attach')}
+            comingSoonLabel={comingSoon}
+            icon={<UiIcon name="attach" size={20} />}
+            onActivate={openFilePicker}
+          />
+          <ComposerToolButton
+            enabled={PERSONA_COMPOSER_EMOJI_READY}
+            label={t('composer.emoji')}
+            comingSoonLabel={comingSoon}
+            icon={<UiIcon name="smile" size={20} />}
+          />
+          <ComposerToolButton
+            enabled={PERSONA_COMPOSER_MENTION_READY}
+            label={t('composer.mention')}
+            comingSoonLabel={comingSoon}
+            icon={<UiIcon name="at" size={20} />}
+          />
           {responder !== undefined && (
             <>
               <span className={styles.divider} aria-hidden="true" />
@@ -96,9 +425,48 @@ export function ChannelComposer({ t, members = [], onSend }: ChannelComposerProp
             </>
           )}
         </div>
-        <p id={hintId} className={styles.hint}>{t('composer.hint')}</p>
-        <button type="submit" className={styles.send} disabled={!canSend} aria-label={t('composer.send')}>
-          <UiIcon name="send" size={20} strokeWidth={2} />
+        <p id={hintId} className={styles.hint}>
+          {responderWorking
+            ? (sendMode === 'queue' ? t('composer.hintQueue') : t('composer.hintSteer'))
+            : t('composer.hint')}
+        </p>
+        {quotaBlocked && draft.length === 0 && (onResumeQuota !== undefined || onSwapAccount !== undefined) && (
+          <div className={styles.quotaActions}>
+            {onResumeQuota !== undefined && (
+              <Button type="button" variant="secondary" size="s" onClick={onResumeQuota}>
+                {t('composer.resumeQuota')}
+              </Button>
+            )}
+            {onSwapAccount !== undefined && (
+              <button type="button" className={styles.swapAccountLink} onClick={onSwapAccount}>
+                {t('composer.swapAccount')}
+              </button>
+            )}
+          </div>
+        )}
+        {responderWorking && (
+          <button
+            type="button"
+            className={styles.attachRemove}
+            aria-label={sendMode === 'queue' ? t('composer.modeSteer') : t('composer.modeQueue')}
+            onClick={() => { setSendMode(mode => mode === 'queue' ? 'steer' : 'queue') }}
+          >
+            <UiIcon name={sendMode === 'queue' ? 'clock' : 'arrowRight'} size={18} strokeWidth={2.2} />
+          </button>
+        )}
+        {responderAutonomy !== 'propose' && (
+          <Chip size="s" tone="plain" className={styles.autonomyChip}>
+            {t(`composer.autonomy.${responderAutonomy}`)}
+          </Chip>
+        )}
+        <button
+          type="submit"
+          className={styles.send}
+          data-mode={responderWorking && sendMode === 'queue' ? 'queue' : undefined}
+          disabled={!canSend}
+          aria-label={responderWorking && sendMode === 'queue' ? t('composer.sendQueue') : t('composer.send')}
+        >
+          <UiIcon name={responderWorking && sendMode === 'queue' ? 'clock' : 'send'} size={20} strokeWidth={2} />
         </button>
       </div>
     </form>

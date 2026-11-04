@@ -1,0 +1,119 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-6);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--persona-space-6);
+  color: var(--persona-ink);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
+.title {
+  margin: 0;
+  font: var(--persona-font-title-m);
+}
+
+.hint {
+  margin: 0;
+  font: var(--persona-font-body);
+  color: var(--persona-ink-muted);
+}
+
+.steps {
+  display: flex;
+  gap: var(--persona-space-2);
+  flex-wrap: wrap;
+}
+
+.stepChip {
+  font: var(--persona-font-caption);
+  padding: var(--persona-space-1) var(--persona-space-3);
+  border-radius: var(--persona-radius-pill);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  background: var(--persona-surface);
+}
+
+.stepChip[data-active] {
+  border-color: var(--persona-brand);
+  background: var(--persona-wash-strong);
+}
+
+.modelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--persona-space-3);
+}
+
+.modelButton {
+  padding: var(--persona-space-4);
+  border-radius: var(--persona-radius-m);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  background: var(--persona-surface);
+  cursor: pointer;
+  font: var(--persona-font-body-strong);
+  text-align: left;
+}
+
+.modelButton[aria-pressed='true'] {
+  border-color: var(--persona-brand);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.sectorList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sectorToggle {
+  cursor: pointer;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.rationale {
+  margin: 0;
+  padding-left: var(--persona-space-5);
+  font: var(--persona-font-body);
+}
+
+.rationale li {
+  margin-bottom: var(--persona-space-2);
+}
+
+.previewBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.tip {
+  margin: 0;
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-wash);
+  font: var(--persona-font-caption);
+  color: var(--persona-ink-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-3);
+  justify-content: flex-end;
+}
+
+.compact {
+  padding: 0;
+  max-width: none;
+}

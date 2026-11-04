@@ -1,9 +1,18 @@
 /** Main panels that load {@link PersonaRemoteClient} data (production path). */
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import type { ProjectFileListing } from '@deepseek-ai/dsh-persona-host/types'
-import type { ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
-import { ApprovalsInbox } from '../approvals/ApprovalsInbox.tsx'
+import type {
+  ActivationFunnelView,
+  AddConnectionAccountRequest,
+  PersonaImpactView,
+  PersonaView,
+  ProjectFileListing,
+  ProjectScopeRequest,
+  RunnerSwapPolicy,
+} from '@deepseek-ai/dsh-persona-host/types'
+import { ApprovalsInbox, type ApprovalRememberChoice } from '../approvals/ApprovalsInbox.tsx'
+import type { ApprovalItem } from '../approvals/mock-data.ts'
+import { SecondBrainShell } from '../second-brain/SecondBrainShell.tsx'
 import { ConnectionsView } from '../connections/ConnectionsView.tsx'
 import { FilesView } from '../files/FilesView.tsx'
 import type { FileEntry } from '../files/mock-data.ts'
@@ -15,14 +24,32 @@ import { PersonaProfilePage } from '../profile/PersonaProfilePage.tsx'
 import type { PersonaProfileSnapshot } from '../profile/mock-data.ts'
 import type { PersonaAvatar } from '@deepseek-ai/dsh-persona-core'
 import { MembersView } from '../members/MembersView.tsx'
-import { ImportWizard } from '../importers/ImportWizard.tsx'
+import { BringContextImportPage } from '../importers/BringContextImportPage.tsx'
 import { CanvasView } from '../canvas/CanvasView.tsx'
 import { approvalsToInbox } from './adapters/approvals.ts'
-import { connectionsToEntries } from './adapters/connections.ts'
+import {
+  addConnectionAccountRemote,
+  loadConnectionsAccountsUi,
+  loadOfficialQuotasByAccount,
+  persistRunnerSwapPolicy,
+  removeConnectionAccountRemote,
+  updateConnectionAccountRemote,
+} from './connections-remote.ts'
+import { swapPolicyCardSummaryLine, type RunnerSwapPolicyScope } from './adapters/connection-accounts.ts'
+import { coordinationPersonaId } from './coordination-persona.ts'
+import { bindLocale } from '../preview/locale-bind.ts'
+import { pt as profileDict } from '../locale/profile/locales.ts'
+import { pt as connectionsDict } from '../locale/connections/locales.ts'
 import { tasksToKanbanCards } from './adapters/kanban.ts'
 import { memoryViewsToRows } from './adapters/memory.ts'
 import { skillViewsToRecords } from './adapters/skills.ts'
+import { personaImpactToUi } from './adapters/insights.ts'
 import { currentUsagePeriod, usageBookToMeters } from './adapters/usage.ts'
+import { officialQuotasToProviderPools, usageMetersWithoutQuotaDuplicates } from './adapters/usage-pooled.ts'
+import { usagePanelToUi } from './adapters/usage-panel.ts'
+import { loadUsagePanelRemote } from './usage-panel-remote.ts'
+import { MOCK_USAGE_TOKEN_PANEL } from '../usage/mock-usage-token-panel.ts'
+import { readClientDevSeedEnabled } from '../remote/persona-dev-seed.ts'
 import { personaScreensRemote } from './persona-screens-remote.ts'
 import { canvasGraphToUi } from './adapters/canvas.ts'
 import { ReviewDeliveryPanel } from '../review/ReviewDeliveryPanel.tsx'
@@ -33,32 +60,43 @@ import { dailySummariesToUi } from './adapters/proactive.ts'
 import { routineScheduleToQuiet, routineScheduleToRuns } from './adapters/routines.ts'
 import { triageLogFromHost } from './adapters/triage.ts'
 import { vaultRecordsToKnowledge } from './adapters/vault.ts'
+import { vaultDocumentsToKnowledge } from './adapters/vault-documents.ts'
+import {
+  deleteVaultDocumentRemote,
+  ingestVaultDocumentRemote,
+  replaceVaultDocumentRemote,
+} from './vault-documents-remote.ts'
+import {
+  brainValidityToRpc,
+  grantBrainPermissionRemote,
+  listBrainPagesRemote,
+  listBrainPermissionsRemote,
+  loadBrainHomeRemote,
+  revokeBrainPermissionRemote,
+} from './brain-remote.ts'
 import { pickProjectRootPath } from '../files/pick-project-root.ts'
 import type { FilesSurfaceState } from '../files/FilesView.tsx'
 import type { ProactivityLimits, QuietWindow, TriageRule } from '../rules/mock-data.ts'
 import type { ProjectLimitsView, QuietWindowView, TriageRuleView } from '@deepseek-ai/dsh-persona-host/types'
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ShellState } from '../shell/create-shell-store.ts'
-import { HIRE_PERSONA_PROFILE_ID } from '../shell/create-shell-store.ts'
+import { HIRE_PERSONA_PROFILE_ID, type MainPanelId } from '../shell/create-shell-store.ts'
+import { MOCK_GESTOR_AUDIT_ACTIVITY } from '../governance/gestor-audit-mock.ts'
+import { resolveProfileProjectNames } from '../profile/resolve-profile-project-names.ts'
+import { personaCardViewToInfo } from '../profile/map-persona-card-view.ts'
+import type { PersonaCardView, TalkAclView } from '@deepseek-ai/dsh-persona-host/types'
 import { ConnectedPersonaEditor } from '../remote/ConnectedPersonaEditor.tsx'
 import { pt as editorDict } from '../locale/persona-editor/locales.ts'
+import { pt as governanceDict } from '../locale/governance/locales.ts'
+import { pt as usageDict } from '../locale/usage/locales.ts'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
 import type { LumenRemotePanelProps, PersonaRemoteClient } from './lumen-inject.ts'
 import type { PersonaTenantSnapshot } from './persona-tenant.ts'
 import { unwrapRemote } from './remote-call.ts'
 import { usePersonaRemoteLoad } from './use-persona-remote-load.ts'
-import { type RemoteTenantGate, useRemoteTenantGate } from './use-remote-tenant-gate.ts'
+import { type RemoteTenantGate } from './use-remote-tenant-gate.ts'
+import { useRemoteProjectScope } from './use-remote-project-scope.ts'
 import type { RemoteLoadState } from './remote-call.ts'
-
-function useTenantScope(useTenant: LumenRemotePanelProps['useTenant']): {
-  readonly scope: ProjectScopeRequest | null
-  readonly gate: RemoteTenantGate
-  readonly retryBootstrap: () => void
-} {
-  const { gate, retryBootstrap } = useRemoteTenantGate(useTenant)
-  const scope = gate === 'loading' || gate === 'error' ? null : gate
-  return { scope, gate, retryBootstrap }
-}
 
 function remotePanelSurface<T>(
   gate: RemoteTenantGate,
@@ -68,6 +106,32 @@ function remotePanelSurface<T>(
   if (gate === 'error') return 'error'
   if (gate === 'loading') return 'loading'
   return surfaceFromLoad(loadState, emptyWhen)
+}
+
+const COORD_ROUTINE_PROMPT = 'Sugira 3 rotinas para a nossa equipe com horário e dono.'
+const FILES_EMPTY_PROMPT = 'Preciso de uma entrega de arquivo para este projeto — o que você sugere?'
+const RULES_EMPTY_PROMPT = 'Ajude-me a definir a primeira regra de triagem para este projeto.'
+
+type IssueInviteWire = PersonaRemoteClient & {
+  issueInvite(request: {
+    workspaceId: string
+    projectId: string
+    inviteId: string
+    token: string
+    role: 'member' | 'guest'
+  }): unknown
+}
+
+async function sendCoordinationPrompt(
+  persona: PersonaRemoteClient,
+  scope: ProjectScopeRequest,
+  sendToPersona: ((personaId: string, text: string) => void) | undefined,
+  prompt: string,
+): Promise<void> {
+  if (sendToPersona === undefined) return
+  const personas = await unwrapRemote(await persona.listPersonas(scope))
+  const coordId = coordinationPersonaId(personas)
+  if (coordId !== undefined) sendToPersona(coordId, prompt)
 }
 
 function remoteScopeKey(scope: ProjectScopeRequest | null): string {
@@ -115,8 +179,8 @@ function surfaceFromLoad<T>(state: { status: string; data?: T }, emptyWhen?: (da
   return state.status === 'ready' ? 'ready' : 'loading'
 }
 
-export function RemoteKanbanPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteKanbanPanel({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const loadKey = remoteScopeKey(scope)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
@@ -144,27 +208,70 @@ export function RemoteKanbanPanel({ persona, useTenant }: LumenRemotePanelProps)
   )
 }
 
-export function RemoteKnowledgePanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteKnowledgePanel({ persona, useTenant, useShell, selectMainPanel }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
+  const actorId = useTenant(tenant => tenant.scope?.actorId ?? 'owner')
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
     if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
-    return unwrapRemote(await persona.listVaultRecords({ workspaceId, projectId }))
+    const scopeReq = { workspaceId, projectId }
+    const [records, documents] = await Promise.all([
+      unwrapRemote(await persona.listVaultRecords(scopeReq)),
+      persona.listVaultDocuments === undefined
+        ? Promise.resolve([] as import('@deepseek-ai/dsh-persona-host/types').VaultDocumentView[])
+        : unwrapRemote(await persona.listVaultDocuments(scopeReq)),
+    ])
+    return { records, documents }
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const records = state.status === 'ready' ? vaultRecordsToKnowledge(state.data) : []
+  const records = state.status === 'ready' ? vaultRecordsToKnowledge(state.data.records) : []
+  const documents = state.status === 'ready' ? vaultDocumentsToKnowledge(state.data.documents) : []
+  const vaultScope = scope === null ? null : { workspaceId: scope.workspaceId, projectId: scope.projectId }
+  const onUploadDocument = useCallback(async (file: File) => {
+    if (vaultScope === null) return
+    await ingestVaultDocumentRemote(persona, vaultScope, file)
+    retry()
+  }, [persona, vaultScope, retry])
+  const onReplaceDocument = useCallback(async (documentId: string, file: File) => {
+    if (vaultScope === null) return
+    await replaceVaultDocumentRemote(persona, vaultScope, documentId, file)
+    retry()
+  }, [persona, vaultScope, retry])
+  const onDeleteDocument = useCallback(async (documentId: string) => {
+    if (vaultScope === null) return
+    await deleteVaultDocumentRemote(persona, vaultScope, documentId)
+    retry()
+  }, [persona, vaultScope, retry])
+  const onDescribeCompany = useCallback(async () => {
+    if (vaultScope === null || typeof persona.createVaultRecord !== 'function') return
+    await unwrapRemote(await persona.createVaultRecord({
+      workspaceId: vaultScope.workspaceId,
+      projectId: vaultScope.projectId,
+      id: 'company-brief',
+      kind: 'brief',
+      body: '',
+      authorId: actorId,
+    }))
+    retry()
+  }, [actorId, persona, vaultScope, retry])
   return (
     <KnowledgeVault
       records={records}
-      initialState={remotePanelSurface(gate, state, data => data.length === 0)}
+      documents={documents}
+      initialState={remotePanelSurface(gate, state, data => data.records.length === 0 && data.documents.length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
+      onDescribeCompany={() => { void onDescribeCompany() }}
+      onOpenImport={selectMainPanel === undefined ? undefined : () => { selectMainPanel('importers') }}
+      onUploadDocument={persona.ingestVaultDocument === undefined ? undefined : onUploadDocument}
+      onReplaceDocument={persona.replaceVaultDocument === undefined ? undefined : onReplaceDocument}
+      onDeleteDocument={persona.deleteVaultDocument === undefined ? undefined : onDeleteDocument}
     />
   )
 }
 
-export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteFilesPanel({ persona, useTenant, useShell, sendToPersona }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap, workspaceOverrideProjectId } = useRemoteProjectScope(useTenant, useShell)
   const actorId = useTenant(s => s.scope?.actorId ?? '')
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:${reloadToken}`
@@ -206,18 +313,24 @@ export function RemoteFilesPanel({ persona, useTenant }: LumenRemotePanelProps):
       setReloadToken(token => token + 1)
     })()
   }, [persona, scope])
+  const onEmptyPrimary = useCallback(async () => {
+    if (scope === null) return
+    await sendCoordinationPrompt(persona, scope, sendToPersona, FILES_EMPTY_PROMPT)
+  }, [persona, scope, sendToPersona])
   return (
     <FilesView
       files={files}
       initialState={initialState}
+      scopeProjectId={workspaceOverrideProjectId}
       onChooseProjectRoot={onChooseProjectRoot}
       onRemoteRetry={() => { retryBootstrap(); retry(); setReloadToken(token => token + 1) }}
+      onEmptyPrimary={() => { void onEmptyPrimary() }}
     />
   )
 }
 
-export function RemoteRoutinesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteRoutinesPanel({ persona, useTenant, useShell, sendToPersona }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap, workspaceOverrideProjectId } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
@@ -228,18 +341,54 @@ export function RemoteRoutinesPanel({ persona, useTenant }: LumenRemotePanelProp
   const schedules = state.status === 'ready' ? state.data : []
   const routineRuns = routineScheduleToRuns(schedules)
   const quietWindows = routineScheduleToQuiet(schedules)
+  const onAskSuggestions = useCallback(async () => {
+    if (scope === null) return
+    await sendCoordinationPrompt(persona, scope, sendToPersona, COORD_ROUTINE_PROMPT)
+  }, [persona, scope, sendToPersona])
   return (
     <RoutinesView
       routineRuns={routineRuns}
       quietWindows={quietWindows}
+      scopeProjectId={workspaceOverrideProjectId}
       initialState={remotePanelSurface(gate, state, data => data.length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
+      onAskSuggestions={() => { void onAskSuggestions() }}
     />
   )
 }
 
-export function RemoteUsagePanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+type InsightsRemoteWire = PersonaRemoteClient & {
+  getActivationFunnel?(request: ProjectScopeRequest): Promise<unknown>
+  listPersonaImpact?(request: ProjectScopeRequest): Promise<unknown>
+  listPersonas?(request: ProjectScopeRequest): Promise<unknown>
+}
+
+async function loadLocalInsights(
+  persona: PersonaRemoteClient,
+  scopeReq: ProjectScopeRequest,
+): Promise<{ readonly funnel: ActivationFunnelView; readonly impacts: readonly PersonaImpactView[]; readonly nameById: Readonly<Record<string, string>> } | null> {
+  const wire = persona as InsightsRemoteWire
+  if (typeof wire.getActivationFunnel !== 'function' || typeof wire.listPersonaImpact !== 'function') return null
+  try {
+    const [funnel, impacts] = await Promise.all([
+      unwrapRemote(await wire.getActivationFunnel(scopeReq)),
+      unwrapRemote(await wire.listPersonaImpact(scopeReq)),
+    ])
+    let nameById: Record<string, string> = {}
+    if (typeof wire.listPersonas === 'function') {
+      const personas = await unwrapRemote(await wire.listPersonas(scopeReq))
+      if (Array.isArray(personas)) {
+        nameById = Object.fromEntries((personas as PersonaView[]).map(row => [row.id, row.name]))
+      }
+    }
+    return { funnel, impacts, nameById }
+  } catch {
+    return null
+  }
+}
+
+export function RemoteUsagePanel({ persona, useTenant, useShell, selectMainPanel }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
@@ -247,47 +396,112 @@ export function RemoteUsagePanel({ persona, useTenant }: LumenRemotePanelProps):
     const screens = personaScreensRemote(persona)
     const scopeReq = { workspaceId, projectId }
     const period = currentUsagePeriod()
-    const [usage, quotas] = await Promise.all([
+    const [usage, quotas, insights, tokenPanelRaw] = await Promise.all([
       unwrapRemote(await screens.getUsage({ ...scopeReq, period })),
-      unwrapRemote(await screens.getOfficialQuota(scopeReq)),
+      loadOfficialQuotasByAccount(persona, scopeReq),
+      loadLocalInsights(persona, scopeReq),
+      loadUsagePanelRemote(persona, { ...scopeReq, period }),
     ])
-    return { usage, quotas }
+    return { usage, quotas, insights, tokenPanelRaw }
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const meters = state.status === 'ready'
+  const rawMeters = state.status === 'ready'
     ? usageBookToMeters(state.data.usage, state.data.quotas)
     : []
+  const providerPools = state.status === 'ready'
+    ? officialQuotasToProviderPools(state.data.quotas)
+    : []
+  const meters = providerPools.length > 0
+    ? usageMetersWithoutQuotaDuplicates(rawMeters)
+    : rawMeters
+  const insightsPayload = state.status === 'ready' ? state.data.insights : null
+  const insightsImpacts = insightsPayload === null
+    ? []
+    : personaImpactToUi(usageDict, insightsPayload.impacts, insightsPayload.nameById)
+  const tokenPanel = state.status === 'ready'
+    ? (state.data.tokenPanelRaw !== null
+      ? usagePanelToUi(state.data.tokenPanelRaw)
+      : (readClientDevSeedEnabled() ? MOCK_USAGE_TOKEN_PANEL : null))
+    : null
   return (
     <UsageLimits
       meters={meters}
+      providerPools={providerPools}
+      tokenPanel={tokenPanel}
       showLimitNotice={false}
-      initialState={remotePanelSurface(gate, state, () => meters.length === 0)}
+      insightsFunnel={insightsPayload?.funnel ?? null}
+      insightsImpacts={insightsImpacts}
+      initialState={remotePanelSurface(gate, state, () => meters.length === 0 && insightsPayload === null)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
+      onEmptyPrimary={selectMainPanel === undefined ? undefined : () => { selectMainPanel('connections') }}
     />
   )
 }
 
-export function RemoteConnectionsPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteConnectionsPanel({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
     if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
-    return unwrapRemote(await persona.listConnections({ workspaceId, projectId }))
+    return loadConnectionsAccountsUi(persona, { workspaceId, projectId })
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const entries = state.status === 'ready' ? connectionsToEntries(state.data) : []
+  const accountsUi = state.status === 'ready' ? state.data : undefined
+  const onSwapPolicyChange = useCallback(async (policy: RunnerSwapPolicy, policyScope: RunnerSwapPolicyScope) => {
+    if (scope === null) return
+    await persistRunnerSwapPolicy(persona, {
+      workspaceId: scope.workspaceId,
+      projectId: scope.projectId,
+      policy,
+      scope: policyScope,
+    })
+    retry()
+  }, [persona, scope, retry])
+  const scopeReq = scope === null ? null : { workspaceId: scope.workspaceId, projectId: scope.projectId }
+  const onAddAccount = useCallback((provider: AddConnectionAccountRequest['provider']) => {
+    if (scopeReq === null) return
+    const label = window.prompt(bindLocale(connectionsDict, 'account.newLabel'))
+    if (label === null || label.trim() === '') return
+    void (async () => {
+      await addConnectionAccountRemote(persona, { ...scopeReq, provider, label: label.trim() })
+      retry()
+    })()
+  }, [persona, scopeReq, retry])
+  const onRenameAccount = useCallback((accountId: string, currentLabel: string) => {
+    if (scopeReq === null) return
+    const label = window.prompt(bindLocale(connectionsDict, 'account.newLabel'), currentLabel)
+    if (label === null || label.trim() === '') return
+    void (async () => {
+      await updateConnectionAccountRemote(persona, { ...scopeReq, accountId, label: label.trim() })
+      retry()
+    })()
+  }, [persona, scopeReq, retry])
+  const onRemoveAccount = useCallback((accountId: string) => {
+    if (scopeReq === null) return
+    if (!window.confirm(bindLocale(connectionsDict, 'account.removeConfirm'))) return
+    void (async () => {
+      await removeConnectionAccountRemote(persona, { ...scopeReq, accountId })
+      retry()
+    })()
+  }, [persona, scopeReq, retry])
   return (
     <ConnectionsView
-      entries={entries}
-      initialState={remotePanelSurface(gate, state, data => data.length === 0)}
+      accountsUi={accountsUi}
+      swapPolicyReadOnly={accountsUi?.legacySingleSeat === true}
+      onSwapPolicyChange={onSwapPolicyChange}
+      initialState={remotePanelSurface(gate, state, data => data.groups.every(g => g.accounts.length === 0))}
       onRetry={() => { retryBootstrap(); retry() }}
+      onEmptyPrimary={() => { retryBootstrap(); retry() }}
+      onAddAccount={onAddAccount}
+      onRenameAccount={onRenameAccount}
+      onRemoveAccount={onRemoveAccount}
     />
   )
 }
 
-export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteApprovalsPanel({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:approvals:${reloadToken}`
   const workspaceId = scope?.workspaceId
@@ -307,15 +521,31 @@ export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelPro
   const proactiveSummaries = payload === null ? [] : dailySummariesToUi(payload.summaries)
   const inboxEmpty = items.length === 0 && !proactiveSummaries.some(summary => summary.proposals.length > 0)
   const reload = (): void => { setReloadToken(token => token + 1) }
-  const decide = async (id: string, kind: 'hire' | 'vault' | 'skill' | 'attention', accept: boolean): Promise<void> => {
+  const decide = async (
+    id: string,
+    kind: 'hire' | 'vault' | 'skill' | 'attention',
+    accept: boolean,
+    remember?: ApprovalRememberChoice,
+    brain?: ApprovalItem['brain'],
+  ): Promise<void> => {
     if (scope === null) return
+    const scopeReq = { workspaceId: scope.workspaceId, projectId: scope.projectId }
     await unwrapRemote(await persona.decideApproval({
-      workspaceId: scope.workspaceId,
-      projectId: scope.projectId,
+      ...scopeReq,
       id,
       kind,
       accept,
     }))
+    if (accept && remember !== undefined && brain !== undefined) {
+      await grantBrainPermissionRemote(persona, {
+        ...scopeReq,
+        id: brain.grantId,
+        personaId: brain.personaId,
+        action: brain.action,
+        target: brain.target,
+        validity: brainValidityToRpc(remember.validity),
+      })
+    }
     reload()
   }
   return (
@@ -324,7 +554,7 @@ export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelPro
       proactiveSummaries={proactiveSummaries}
       initialState={remotePanelSurface(gate, state, () => inboxEmpty)}
       onRemoteRetry={() => { retryBootstrap(); retry(); reload() }}
-      onDecideItem={(item, accept) => { void decide(item.id, item.kind, accept) }}
+      onDecideItem={(item, accept, remember) => { void decide(item.id, item.kind, accept, remember, item.brain) }}
       onDecideProactive={(proposal, accept) => {
         if (proposal.approvalKind === undefined) return
         void decide(proposal.id, proposal.approvalKind, accept)
@@ -333,8 +563,63 @@ export function RemoteApprovalsPanel({ persona, useTenant }: LumenRemotePanelPro
   )
 }
 
-export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteSecondBrainPanel({ persona, useTenant, useShell, selectMainPanel }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
+  const actorId = useTenant(tenant => tenant.scope?.actorId ?? 'owner')
+  const [reloadToken, setReloadToken] = useState(0)
+  const loadKey = `${remoteScopeKey(scope)}:second-brain:${reloadToken}`
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
+  const load = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    const scopeReq = { workspaceId, projectId }
+    const [home, personas, pages, grants] = await Promise.all([
+      loadBrainHomeRemote(persona, scopeReq),
+      unwrapRemote(await persona.listPersonas(scopeReq)),
+      listBrainPagesRemote(persona, scopeReq),
+      listBrainPermissionsRemote(persona, scopeReq),
+    ])
+    const personaNames = Object.fromEntries(personas.map(row => [row.id, row.name]))
+    return { home, personaNames, pages, grants }
+  }, [persona, workspaceId, projectId])
+  const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
+  const payload = state.status === 'ready' ? state.data : null
+  const reload = (): void => { setReloadToken(token => token + 1) }
+  const onRevokeGrant = useCallback((grantId: string) => {
+    if (scope === null) return
+    void (async () => {
+      await revokeBrainPermissionRemote(persona, {
+        workspaceId: scope.workspaceId,
+        projectId: scope.projectId,
+      }, grantId)
+      reload()
+    })()
+  }, [persona, scope])
+  const surfaceEmpty = payload !== null
+    && payload.pages.length <= 1
+    && payload.home.changedToday.length === 0
+    && payload.home.activeGrants.length === 0
+    && payload.home.contradictions.length === 0
+  return (
+    <SecondBrainShell
+      persona={persona}
+      scope={scope}
+      actorId={actorId}
+      home={payload?.home ?? null}
+      pages={payload?.pages ?? []}
+      grants={payload?.grants ?? []}
+      personaNames={payload?.personaNames ?? {}}
+      surfaceState={remotePanelSurface(gate, state, () => surfaceEmpty)}
+      onRemoteRetry={() => { retryBootstrap(); retry(); reload() }}
+      onRevokeGrant={onRevokeGrant}
+      onReload={reload}
+      selectMainPanel={selectMainPanel}
+    />
+  )
+}
+
+export function RemoteRulesPanel({ persona, useTenant, useShell, sendToPersona }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:rules:${reloadToken}`
   const workspaceId = scope?.workspaceId
@@ -360,11 +645,16 @@ export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps):
       limits: limitsFromHost(payload.limits),
       triageLog: triageLogFromHost(payload.triageLog),
     }
+  const onEmptyPrimary = useCallback(async () => {
+    if (scope === null) return
+    await sendCoordinationPrompt(persona, scope, sendToPersona, RULES_EMPTY_PROMPT)
+  }, [persona, scope, sendToPersona])
   return (
     <TriageRulesView
       {...rulesProps}
-      initialState={remotePanelSurface(gate, state)}
+      initialState={remotePanelSurface(gate, state, data => data.rules.length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry(); setReloadToken(token => token + 1) }}
+      onEmptyPrimary={() => { void onEmptyPrimary() }}
       onSaveLimits={(limits) => {
         if (scope === null) return
         void (async () => {
@@ -385,6 +675,11 @@ export function RemoteRulesPanel({ persona, useTenant }: LumenRemotePanelProps):
 export type RemoteProfilePanelInject = {
   readonly persona: PersonaRemoteClient
   readonly live: PersonaLiveStore
+  readonly openPersonaDm: (personaId: string) => void
+  readonly openPersonaEditor: (personaId: string) => void
+  readonly openTalkAclEditor: (personaId: string) => void
+  readonly closePersonaEditor: () => void
+  readonly selectMainPanel?: ((panel: MainPanelId) => void) | undefined
   readonly hooks: {
     readonly tenant: HostObservable<PersonaTenantSnapshot>
     readonly shell: HostObservable<ShellState>
@@ -393,9 +688,22 @@ export type RemoteProfilePanelInject = {
 
 export type RemoteProfilePanelProps = InjectFace<RemoteProfilePanelInject>
 
-export function RemoteProfilePanel({ persona, useTenant, useShell, live }: RemoteProfilePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteProfilePanel({
+  persona,
+  useTenant,
+  useShell,
+  live,
+  openPersonaDm,
+  openPersonaEditor,
+  openTalkAclEditor,
+  closePersonaEditor,
+  selectMainPanel,
+}: RemoteProfilePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const profilePersonaId = useShell((state: ShellState) => state.profilePersonaId)
+  const profileEditorOpen = useShell((state: ShellState) => state.profileEditorOpen)
+  const hireMode = profilePersonaId === HIRE_PERSONA_PROFILE_ID
+  const showPersonaEditor = hireMode || profileEditorOpen
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
@@ -416,6 +724,23 @@ export function RemoteProfilePanel({ persona, useTenant, useShell, live }: Remot
       : personas.find(row => row.id === profilePersonaId) ?? personas[0]
     const row = picked === undefined ? undefined : now.personas.find(r => r.personaId === picked.id)
     if (picked === undefined) return null
+    let hostCard: PersonaCardView | null = null
+    let talkAcl: TalkAclView | null = null
+    const personaScope = { workspaceId, projectId, personaId: picked.id }
+    if ('getPersonaCard' in persona && typeof persona.getPersonaCard === 'function') {
+      try {
+        hostCard = await unwrapRemote(await persona.getPersonaCard(personaScope))
+      } catch {
+        hostCard = null
+      }
+    }
+    if ('getPersonaTalkAcl' in persona && typeof persona.getPersonaTalkAcl === 'function') {
+      try {
+        talkAcl = await unwrapRemote(await persona.getPersonaTalkAcl(personaScope))
+      } catch {
+        talkAcl = null
+      }
+    }
     let autonomy: { mode: 'asked' | 'propose' | 'act'; proposalBudget: number } | null = null
     if (persona.getAutonomy !== undefined) {
       try {
@@ -428,6 +753,15 @@ export function RemoteProfilePanel({ persona, useTenant, useShell, live }: Remot
         autonomy = null
       }
     }
+    let swapPolicy: RunnerSwapPolicy | undefined
+    if (typeof persona.listConnectionAccounts === 'function') {
+      try {
+        const bundle = await unwrapRemote(await persona.listConnectionAccounts(scopeReq))
+        swapPolicy = bundle.swapPolicy
+      } catch {
+        swapPolicy = undefined
+      }
+    }
     return {
       hireMode: false as const,
       primary: picked,
@@ -435,6 +769,9 @@ export function RemoteProfilePanel({ persona, useTenant, useShell, live }: Remot
       autonomy,
       memoryRows: memoryViewsToRows(memoryViews, workspaceId, projectId),
       skillRecords: skillViewsToRecords(skillViews),
+      hostCard,
+      talkAcl,
+      swapPolicy,
     }
   }, [persona, workspaceId, projectId, profilePersonaId])
   const loadKey = scope === null ? '' : `${remoteScopeKey(scope)}:${profilePersonaId ?? 'default'}`
@@ -474,7 +811,7 @@ export function RemoteProfilePanel({ persona, useTenant, useShell, live }: Remot
           : row?.state === 'waiting' ? 'waiting'
             : row?.state === 'stuck' ? 'error'
               : 'idle',
-      projectNames: [scope?.projectId ?? ''],
+      projectNames: resolveProfileProjectNames(live.observable.getSnapshot(), scope?.projectId),
       recentActivity: [],
     }
     if (autonomy !== null && autonomy !== undefined) {
@@ -502,7 +839,22 @@ export function RemoteProfilePanel({ persona, useTenant, useShell, live }: Remot
         },
       },
     }
-  }, [state, scope?.projectId])
+  }, [state, scope?.projectId, live])
+  if (showPersonaEditor) {
+    return (
+      <ConnectedPersonaEditor
+        dict={editorDict}
+        governanceDict={governanceDict}
+        persona={persona}
+        useTenant={useTenant}
+        useShell={useShell}
+        live={live}
+        onHireComplete={() => {
+          closePersonaEditor()
+        }}
+      />
+    )
+  }
   if (profileSurface === 'loading') return <PersonaProfilePage initialState="loading" />
   if (profileSurface === 'error') {
     return (
@@ -512,36 +864,59 @@ export function RemoteProfilePanel({ persona, useTenant, useShell, live }: Remot
       />
     )
   }
-  if (state.status === 'ready' && state.data?.hireMode === true) {
+  if (state.status === 'error' || snapshot === null) {
     return (
-      <ConnectedPersonaEditor
-        dict={editorDict}
-        persona={persona}
-        useTenant={useTenant}
-        useShell={useShell}
-        live={live}
+      <PersonaProfilePage
+        initialState="empty"
+        onEmptyPrimary={selectMainPanel === undefined ? undefined : () => { selectMainPanel('orgChart') }}
       />
     )
   }
-  if (state.status === 'error' || snapshot === null) return <PersonaProfilePage initialState="empty" />
   const memoryRows = state.status === 'ready' && state.data !== null && state.data.hireMode === false
     ? state.data.memoryRows
     : []
   const skillRecords = state.status === 'ready' && state.data !== null && state.data.hireMode === false
     ? state.data.skillRecords
     : []
+  const primaryId = state.status === 'ready' && state.data !== null && state.data.hireMode === false
+    ? state.data.primary.id
+    : null
+  const hostCard = state.status === 'ready' && state.data !== null && state.data.hireMode === false
+    ? state.data.hostCard
+    : null
+  const talkAcl = state.status === 'ready' && state.data !== null && state.data.hireMode === false
+    ? state.data.talkAcl
+    : null
+  const swapPolicy = state.status === 'ready' && state.data !== null && state.data.hireMode === false
+    ? state.data.swapPolicy
+    : undefined
+  const cardBase = hostCard !== null ? personaCardViewToInfo(hostCard, talkAcl ?? undefined) : undefined
+  const policyLine = swapPolicy !== undefined
+    ? swapPolicyCardSummaryLine(key => bindLocale(profileDict, key), swapPolicy)
+    : undefined
+  const card = cardBase !== undefined && policyLine !== undefined
+    ? { ...cardBase, accountPolicyText: policyLine }
+    : cardBase
   return (
     <PersonaProfilePage
       snapshot={snapshot}
       initialState="ready"
       memoryRows={memoryRows}
       skillRecords={skillRecords}
+      {...(card !== undefined ? { card } : {})}
+      onMessage={primaryId === null ? undefined : () => { openPersonaDm(primaryId) }}
+      onEdit={primaryId === null ? undefined : () => { openPersonaEditor(primaryId) }}
+      onEditTalk={primaryId === null ? undefined : () => { openTalkAclEditor(primaryId) }}
+      {...(snapshot.persona.systemRoles.includes('team_manager')
+        ? { gestorAuditItems: MOCK_GESTOR_AUDIT_ACTIVITY }
+        : {})}
     />
   )
 }
 
-export function RemoteMembersPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteMembersPanel({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
+  const viewerMemberId = useTenant(t => t.scope?.actorId)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
@@ -549,23 +924,44 @@ export function RemoteMembersPanel({ persona, useTenant }: LumenRemotePanelProps
     return unwrapRemote(await persona.listTeam({ workspaceId, projectId }))
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const members = state.status === 'ready' ? teamToMembers(state.data) : []
+  const members = state.status === 'ready' ? teamToMembers(state.data, viewerMemberId) : []
+  const issueInvite = useCallback(async () => {
+    if (scope === null || typeof (persona as IssueInviteWire).issueInvite !== 'function') return
+    await unwrapRemote(await (persona as IssueInviteWire).issueInvite({
+      workspaceId: scope.workspaceId,
+      projectId: scope.projectId,
+      inviteId: crypto.randomUUID(),
+      token: crypto.randomUUID(),
+      role: 'member',
+    }))
+    retry()
+  }, [persona, scope, retry])
   return (
     <MembersView
       members={members}
       initialState={remotePanelSurface(gate, state, data => data.members.length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
+      onInvite={() => { void issueInvite() }}
+      onEmptyPrimary={() => { void issueInvite() }}
     />
   )
 }
 
-/** Import wizard stays client-driven until files are chosen. */
-export function RemoteImportPanel(_props: LumenRemotePanelProps): ReactNode {
-  return <ImportWizard />
+/** BYC import (BRIEFING 18) + zip wizard as advanced option. */
+export function RemoteImportPanel({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+  const { scope } = useRemoteProjectScope(useTenant, useShell)
+  const actorId = useTenant(tenant => tenant.scope?.actorId ?? 'owner')
+  return (
+    <BringContextImportPage
+      persona={persona}
+      scope={scope}
+      actorId={actorId}
+    />
+  )
 }
 
-export function RemoteCanvasPanel({ persona, useTenant }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap } = useTenantScope(useTenant)
+export function RemoteCanvasPanel({ persona, useTenant, useShell, selectMainPanel }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
@@ -580,6 +976,7 @@ export function RemoteCanvasPanel({ persona, useTenant }: LumenRemotePanelProps)
       edges={graph.edges}
       initialState={remotePanelSurface(gate, state, data => data.nodes.length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
+      onEmptyPrimary={selectMainPanel === undefined ? undefined : () => { selectMainPanel('projects') }}
     />
   )
 }
@@ -589,7 +986,7 @@ export function RemoteReviewDeliveryPanel(props: LumenRemotePanelProps & {
   readonly ticketId?: string
   readonly taskTitle?: string
 }): ReactNode {
-  const { scope } = useTenantScope(props.useTenant)
+  const { scope } = useRemoteProjectScope(props.useTenant, props.useShell)
   const ticketId = props.ticketId ?? ''
   if (scope === null || ticketId === '') {
     return <ReviewDeliveryPanel initialState="empty" summary={null} />

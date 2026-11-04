@@ -1,0 +1,53 @@
+/* Sticker picker (Brush reaction stickers). Sticker-card buttons that hop a little on hover. */
+.picker {
+  display: grid;
+  grid-template-columns: repeat(3, 64px);
+  gap: var(--persona-space-2);
+  padding: var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-lift);
+}
+
+.sticker {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  padding: 4px;
+  border: var(--persona-border-width) solid transparent;
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-spring), background-color var(--motion-fast) var(--ease-standard);
+}
+
+.sticker img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.sticker:hover {
+  background: var(--persona-wash);
+  transform: translateY(-2px) rotate(-3deg);
+}
+
+.sticker[aria-pressed='true'] {
+  border-color: var(--persona-brand);
+  background: var(--persona-wash);
+}
+
+.fallback {
+  font-size: 30px;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticker,
+  .sticker:hover {
+    transform: none;
+    transition: none;
+  }
+}

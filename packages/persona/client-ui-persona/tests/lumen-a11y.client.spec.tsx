@@ -7,6 +7,10 @@ import { MOCK_CANVAS_EDGES, MOCK_CANVAS_NODES } from '../src/client/canvas/mock-
 import { ImportWizard } from '../src/client/importers/ImportWizard.tsx'
 import { pt as canvasPt } from '../src/client/locale/canvas/locales.ts'
 import { GlobalKanban } from '../src/client/kanban/GlobalKanban.tsx'
+import { SprintPlanningView } from '../src/client/kanban/SprintPlanningView.tsx'
+import { OrgChartView } from '../src/client/governance/OrgChartView.tsx'
+import { mockOrgChart } from '../src/client/governance/mock-governance.ts'
+import { pt as governancePt } from '../src/client/locale/governance/locales.ts'
 import { MOCK_GLOBAL_KANBAN_CARDS } from '../src/client/kanban/mock-data.ts'
 import { pt as importersPt } from '../src/client/locale/importers/locales.ts'
 import { pt } from '../src/client/locale/kanban/locales.ts'
@@ -22,6 +26,10 @@ import { pt as connectionsPt } from '../src/client/locale/connections/locales.ts
 import { pt as knowledgePt } from '../src/client/locale/knowledge/locales.ts'
 import { pt as membersPt } from '../src/client/locale/members/locales.ts'
 import { MembersView } from '../src/client/members/MembersView.tsx'
+import { BoardsHome } from '../src/client/boards/BoardsHome.tsx'
+import { UsageLimits } from '../src/client/usage/UsageLimits.tsx'
+import { WorkflowEditorModal } from '../src/client/kanban/WorkflowEditorModal.tsx'
+import { pt as usagePt } from '../src/client/locale/usage/locales.ts'
 import { MOCK_MEMBERS } from '../src/client/members/mock-data.ts'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
@@ -134,5 +142,93 @@ describe('lumen a11y (dom)', () => {
   it('members invite uses medium primary control', () => {
     renderPreview(<MembersView dict={membersPt} members={MOCK_MEMBERS} />)
     expect(screen.getByRole('button', { name: membersPt['action.invite'] })).toBeTruthy()
+  })
+
+  it('governance org chart list mode is keyboard reachable', () => {
+    renderPreview(
+      <OrgChartView
+        dict={governancePt}
+        data={mockOrgChart('ws', 'person')}
+        surfaceState="ready"
+        groupBy="person"
+        onGroupByChange={() => {}}
+      />,
+    )
+    fireEvent.click(screen.getByRole('tab', { name: governancePt['org.layoutList'] }))
+    expect(screen.getByRole('region', { name: governancePt['a11y.orgRegion'] })).toBeTruthy()
+  })
+
+  it('boards grid exposes labelled region', () => {
+    renderPreview(
+      <BoardsHome
+        dict={pt}
+        summaries={[{
+          id: 'p1',
+          name: 'Site',
+          flowModel: 'site',
+          counts: { todo: 1, doing: 0, review: 0, needs_you: 0, done: 0, blocked: 0 },
+          needsYouCount: 0,
+          activeWorkers: [],
+        }]}
+        onOpenProject={() => {}}
+      />,
+    )
+    expect(screen.getByRole('region', { name: pt['a11y.boardsGrid'] })).toBeTruthy()
+  })
+
+  it('workflow editor preview exposes labelled board region', () => {
+    renderPreview(
+      <WorkflowEditorModal
+        dict={pt}
+        flowModel="site"
+        columns={[{ id: 'a', name: 'Backlog', category: 'todo' }, { id: 'b', name: 'Done', category: 'done' }]}
+        ticketCountByColumn={{}}
+        fields={[]}
+        onClose={() => {}}
+        onSave={() => {}}
+      />,
+    )
+    expect(screen.getByRole('region', { name: pt['a11y.editorPreview'] })).toBeTruthy()
+  })
+
+  it('usage insights funnel is labelled for assistive tech', () => {
+    renderPreview(
+      <UsageLimits
+        dict={usagePt}
+        meters={[]}
+        insightsFunnel={{
+          onboarded: true,
+          firstUsefulReply: true,
+          firstTaskDone: false,
+          returnedIn7Days: false,
+          stage: 'first_task',
+        }}
+        insightsImpacts={[]}
+      />,
+    )
+    expect(screen.getByRole('list', { name: usagePt['a11y.insightsFunnel'] })).toBeTruthy()
+  })
+
+  it('sprint planning exposes labelled backlog and sprint regions', () => {
+    renderPreview(
+      <SprintPlanningView
+        dict={pt}
+        projectName="Software"
+        backlog={[]}
+        sprintCards={[]}
+        draft={{ name: '', objective: '', startsAt: '', endsAt: '' }}
+        selectedBacklogId={null}
+        selectedSprintId={null}
+        onDraftChange={() => {}}
+        onSelectBacklog={() => {}}
+        onSelectSprint={() => {}}
+        onAddToSprint={() => {}}
+        onRemoveFromSprint={() => {}}
+        onCancel={() => {}}
+        onStart={() => {}}
+      />,
+    )
+    expect(screen.getByRole('region', { name: pt['a11y.planningRegion'] })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: pt['planSprint.backlog'] })).toBeTruthy()
   })
 })

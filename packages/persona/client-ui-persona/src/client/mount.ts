@@ -8,10 +8,15 @@ import personaRemote from '@deepseek-ai/dsh-persona-host/remote'
 import './shell/persona-slots.ts'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import { ONBOARDING_NS } from './locale/onboarding/locales.ts'
-import { pt as onboardingPt } from './locale/onboarding/locales.ts'
+import { GOVERNANCE_NS } from './locale/governance/locales.ts'
+import { localeBindAsDict } from './preview/locale-bind.ts'
+import type { BringYourContextBlockProps } from './bring-context/BringYourContextBlock.tsx'
+import type { BringContextPreview } from '@deepseek-ai/dsh-persona-core'
+import type { ProposalChoice } from './primitives/BringContext.tsx'
 import { SHELL_NS } from './locale/shell/locales.ts'
 import { createOnboardingStore } from './onboarding/create-onboarding-store.ts'
 import { OnboardingShellOverlay } from './onboarding/OnboardingShellOverlay.tsx'
+import { installComposerHostCapabilities } from './chat/composer-host-capabilities.ts'
 import { registerLumenUi } from './kanban/register-lumen-ui.tsx'
 import { createPersonaLiveStore } from './remote/persona-live-store.ts'
 import { registerPrismScreens } from './shell/register-prism-screens.tsx'
@@ -21,8 +26,17 @@ import { createShellStore, type ShellStoreHandle } from './shell/create-shell-st
 import { overlayOpenFromHost } from './remote/onboarding-host.ts'
 import { rosterFromDrafts } from './onboarding/roster-from-draft.ts'
 import { writeOnboardingCacheComplete } from './shell/onboarding-persistence.ts'
+import { applyBringContextRemote, mergeBringOrganizePreview, previewBringVaultFolderRemote } from './data/bring-context-remote.ts'
+import { clearOnboardingBycDraft } from './bring-context/onboarding-byc-draft.ts'
 import { installPersonaColorScheme } from './theme/install-color-scheme.ts'
 import { createLiveRailTeamObservable } from './remote/live-rail-bridge.ts'
+import { createPersonaCardBridge } from './remote/persona-card-bridge.ts'
+import { PROFILE_NS } from './locale/profile/locales.ts'
+import { PersonaEngineOverlay } from './profile/PersonaEngineOverlay.tsx'
+import { PersonaTalkAclOverlay } from './profile/PersonaTalkAclOverlay.tsx'
+import { TeachPersonaOverlay } from './profile/TeachPersonaOverlay.tsx'
+import { TeachPersonaSession } from './profile/TeachPersonaSession.tsx'
+import type { PersonaCardShellBridge } from './remote/persona-card-shell-bridge.ts'
 import { HIRE_PERSONA_PROFILE_ID } from './shell/create-shell-store.ts'
 
 export const inject = [
@@ -33,6 +47,7 @@ export const inject = [
 
 function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
   installPersonaColorScheme()
+  installComposerHostCapabilities(ctx.remote.persona as Parameters<typeof installComposerHostCapabilities>[0])
   const { store, actions } = shellHandle
   const live = createPersonaLiveStore(ctx.remote.persona as unknown as Parameters<typeof createPersonaLiveStore>[0])
 
@@ -44,7 +59,9 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
 
   void live.bootstrap((firstUse) => {
     actions.setOnboardingOpen(overlayOpenFromHost(firstUse))
-  }).then(() => live.runDevHarnessSeedIfEnabled())
+  }).then(() => live.runDevHarnessSeedIfEnabled()).catch((error: unknown) => {
+    console.error('[persona] bootstrap ou dev seed falhou', error)
+  })
 
   const onboardingHandle = createOnboardingStore()
   const shellObservable = {
@@ -52,21 +69,61 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     subscribe: (listener: () => void) => store.subscribe(listener),
   }
   const railTeamObservable = createLiveRailTeamObservable(live, shellHandle)
+  const personaCardBridge = createPersonaCardBridge(ctx.remote.persona, live)
+  const cardDict = localeBindAsDict((key, params) => ctx.locale.bind(PROFILE_NS)(key as never, params as never))
+  const personaCardShell: PersonaCardShellBridge = {
+    cardInfo: personaCardBridge.cardInfo,
+    prefetch: personaCardBridge.prefetch,
+    cardDict,
+    revision: personaCardBridge.revision,
+    sendToPersona: (personaId: string, text: string) => {
+      actions.selectPanel('directMessages')
+      void live.openPersonaDm(personaId).then(() => {
+        void live.postDmMessage(text)
+      })
+    },
+    togglePause: (personaId: string) => { void personaCardBridge.togglePause(personaId) },
+    switchEngine: (personaId: string) => { actions.openEngineEditor(personaId) },
+    editTalk: (personaId: string) => { actions.openTalkAclEditor(personaId) },
+    editPersona: (personaId: string) => { actions.openPersonaEditor(personaId) },
+    teachPersona: (personaId: string) => { actions.openTeachPersona(personaId) },
+  }
   const sidebarInject = () => ({
-    hooks: { shell: shellObservable, team: railTeamObservable },
+    hooks: {
+      shell: shellObservable,
+      team: railTeamObservable,
+      personaCardRevision: personaCardBridge.revision,
+    },
+    cardInfo: personaCardBridge.cardInfo,
+    prefetchPersonaCard: personaCardBridge.prefetch,
+    cardDict,
     selectPanel: (id: Parameters<typeof actions.selectPanel>[0]) => { actions.selectPanel(id) },
     openPersonaDm: (personaId: string) => {
       actions.selectPanel('directMessages')
       void live.openPersonaDm(personaId)
     },
     openPersonaProfile: (personaId: string) => {
+      actions.closePersonaEditor()
       actions.setProfilePersonaId(personaId)
       actions.selectPanel('profile')
     },
     hirePersona: () => {
+      actions.closePersonaEditor()
       actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)
       actions.selectPanel('profile')
     },
+    sendToPersona: (personaId: string, text: string) => {
+      actions.selectPanel('directMessages')
+      void live.openPersonaDm(personaId).then(() => {
+        void live.postDmMessage(text)
+      })
+    },
+    editPersona: (personaId: string) => {
+      actions.openPersonaEditor(personaId)
+    },
+    togglePersonaPause: (personaId: string) => { void personaCardBridge.togglePause(personaId) },
+    switchPersonaEngine: (personaId: string) => { actions.openEngineEditor(personaId) },
+    editPersonaTalk: (personaId: string) => { actions.openTalkAclEditor(personaId) },
   })
   const frameInject = () => ({ hooks: { shell: shellObservable } })
 
@@ -90,8 +147,20 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     inject: sidebarInject,
   }, PersonaSidebar)
 
-  registerPrismScreens(ctx, live, shellHandle, (panel) => { actions.selectPanel(panel) })
-  registerLumenUi(ctx, live)
+  registerPrismScreens(ctx, live, shellHandle, (panel) => { actions.selectPanel(panel) }, personaCardShell)
+  registerLumenUi(ctx, live, {
+    selectPanel: actions.selectPanel,
+    clearBoardsFocusProject: actions.clearBoardsFocusProject,
+    setProjectWorkspaceProjectId: actions.setProjectWorkspaceProjectId,
+    openTeamSetup: () => { actions.setOnboardingOpen(true) },
+    openPersonaProfile: (personaId: string) => {
+      actions.closePersonaEditor()
+      actions.setProfilePersonaId(personaId)
+      actions.selectPanel('profile')
+    },
+    shell: shellObservable,
+    personaCard: personaCardShell,
+  })
 
   ctx.slots.register({
     name: 'shell.overlay',
@@ -99,19 +168,119 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     locale: ONBOARDING_NS,
     inject: () => ({
       hooks: { shell: shellObservable },
-      dict: onboardingPt,
+      dict: localeBindAsDict((key, params) => ctx.locale.bind(ONBOARDING_NS)(key as never, params as never)),
+      structureDict: localeBindAsDict((key, params) => ctx.locale.bind(GOVERNANCE_NS)(key as never, params as never)),
       store: onboardingHandle.store,
       actions: onboardingHandle.actions,
+      onScanVaultFolder: async (rootPath: string) => {
+        const tenant = live.observable.getSnapshot().tenant
+        if (tenant === null) throw new Error('no-tenant')
+        return previewBringVaultFolderRemote(ctx.remote.persona, {
+          workspaceId: tenant.workspaceId,
+          projectId: tenant.projectId,
+          rootPath,
+        })
+      },
+      onOrganizePreview: async (input: {
+        readonly pasted: BringYourContextBlockProps['pasted']
+        readonly vaultPreview: BringContextPreview | null
+      }) => {
+        const tenant = live.observable.getSnapshot().tenant
+        if (tenant === null) throw new Error('no-tenant')
+        return mergeBringOrganizePreview(ctx.remote.persona, {
+          workspaceId: tenant.workspaceId,
+          projectId: tenant.projectId,
+        }, input.pasted, input.vaultPreview)
+      },
+      onApplyReview: async (preview: BringContextPreview, choices: Readonly<Record<string, ProposalChoice>>) => {
+        const tenant = live.observable.getSnapshot().tenant
+        if (tenant === null) throw new Error('no-tenant')
+        return applyBringContextRemote(ctx.remote.persona, {
+          workspaceId: tenant.workspaceId,
+          projectId: tenant.projectId,
+        }, preview, choices, tenant.memberId)
+      },
       dismissOnboarding: () => {
         const snapshot = onboardingHandle.store.getSnapshot()
+        clearOnboardingBycDraft()
         actions.dismissOnboarding()
-        void live.completeOnboarding(snapshot.displayName, rosterFromDrafts(snapshot.roster)).then(() => {
+        void live.completeOnboarding(snapshot.displayName, rosterFromDrafts(snapshot.roster), {
+          cofreSeed: snapshot.vaultText.trim(),
+          templateIds: snapshot.templateId === 'emBranco' ? [] : [snapshot.templateId],
+        }).then(() => {
           writeOnboardingCacheComplete()
           void live.refresh()
         })
       },
     }),
   }, OnboardingShellOverlay)
+
+  ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'persona.talkAcl',
+    locale: PROFILE_NS,
+    inject: () => ({
+      hooks: {
+        shell: shellObservable,
+      },
+      dict: cardDict,
+      persona: ctx.remote.persona,
+      live,
+      cardBridge: personaCardBridge,
+      closeTalkAclEditor: () => { actions.closeTalkAclEditor() },
+    }),
+  }, PersonaTalkAclOverlay)
+
+  ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'persona.engine',
+    locale: PROFILE_NS,
+    inject: () => ({
+      hooks: { shell: shellObservable },
+      dict: cardDict,
+      persona: ctx.remote.persona,
+      cardBridge: personaCardBridge,
+      scope: () => {
+        const tenant = live.observable.getSnapshot().tenant
+        return tenant === null ? null : {
+          workspaceId: tenant.workspaceId,
+          projectId: tenant.projectId,
+        }
+      },
+      closeEngineEditor: () => { actions.closeEngineEditor() },
+    }),
+  }, PersonaEngineOverlay)
+
+  ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'persona.teach',
+    locale: PROFILE_NS,
+    inject: () => ({
+      hooks: { shell: shellObservable, live: live.observable },
+      dict: cardDict,
+      persona: ctx.remote.persona,
+      closeTeachPersona: () => { actions.closeTeachPersona() },
+      beginTeachCapture: (personaId: string, consentVersion: string, microphone: boolean) => {
+        void live.startTeachPersona(personaId, consentVersion, microphone).then((start) => {
+          if (start.sessionId.length === 0) return
+          actions.openTeachCapture({ personaId, sessionId: start.sessionId, microphone })
+          actions.closeTeachPersona()
+        })
+      },
+    }),
+  }, TeachPersonaOverlay)
+
+  ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'persona.teachCapture',
+    locale: PROFILE_NS,
+    inject: () => ({
+      hooks: { shell: shellObservable },
+      dict: cardDict,
+      live,
+      closeTeachCapture: () => { actions.closeTeachCapture() },
+    }),
+  }, TeachPersonaSession)
 }
 
 /**

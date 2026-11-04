@@ -1,0 +1,44 @@
+.error {
+  color: var(--persona-danger-fg, #b42318);
+  font-size: 0.875rem;
+  margin: 0 0 var(--space-3, 12px);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+}
+
+.option {
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: 1px solid var(--persona-border-subtle, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius-m, 12px);
+  background: var(--persona-surface-raised, #fff);
+  padding: var(--space-3, 12px);
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2, 8px);
+}
+
+.option[aria-selected='true'] {
+  border-color: var(--persona-brand, #7c3aed);
+  box-shadow: 0 0 0 1px var(--persona-brand, #7c3aed);
+}
+
+.optionLabel {
+  font-weight: 600;
+}
+
+.badge {
+  font-size: 0.75rem;
+  color: var(--persona-brand, #7c3aed);
+}

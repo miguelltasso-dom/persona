@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mapRailTeamFromLive } from '../src/client/remote/map-rail-team.ts'
 import type { PersonaLiveSnapshot } from '../src/client/remote/persona-live-store.ts'
+import { PERSONA_LIVE_GESTOR_FIELDS } from './persona-live-fixtures.client.ts'
 
 const base: PersonaLiveSnapshot = {
   ready: true,
@@ -39,6 +40,7 @@ const base: PersonaLiveSnapshot = {
   suggestedTask: null,
   turnContext: null,
   error: null,
+  ...PERSONA_LIVE_GESTOR_FIELDS,
 }
 
 describe('mapRailTeamFromLive', () => {

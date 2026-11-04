@@ -209,3 +209,41 @@
   font-size: 1.0625rem;
   color: var(--persona-ink);
 }
+
+.lanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
+.laneHead {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.laneColumns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.laneMiniCol {
+  padding: var(--persona-space-1) var(--persona-space-2);
+  border-radius: var(--persona-radius-s, 10px);
+  background: var(--persona-paper-sunken);
+}

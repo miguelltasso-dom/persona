@@ -38,6 +38,7 @@ describe('GeneralChannelView turn context (C5b data)', () => {
           ticketId: 't-brief',
           title: 'Briefing',
           triggerIds: ['vault:1'],
+          records: [],
         }}
         onLoadTurnContext={onLoad}
       />,

@@ -5,10 +5,13 @@ import { describe, expect, it } from 'vitest'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
 import { createLiveTenantObservable } from '../src/client/data/live-tenant-bridge.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from '../src/client/remote/persona-live-store.ts'
+import { PERSONA_LIVE_GESTOR_FIELDS, personaLiveStoreGestorStub } from './persona-live-fixtures.client.ts'
+import { personaLiveStoreWave2Stub } from './persona-live-store-stub.client.ts'
 import { ConnectedGlobalKanban, type ConnectedGlobalKanbanProps } from '../src/client/remote/ConnectedGlobalKanban.tsx'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { pt as kanbanPt } from '../src/client/locale/kanban/locales.ts'
+import { createShellStore } from '../src/client/shell/create-shell-store.ts'
 installPreviewTheme()
 
 const LIVE_EMPTY: PersonaLiveSnapshot = {
@@ -30,6 +33,7 @@ const LIVE_EMPTY: PersonaLiveSnapshot = {
   suggestedTask: null,
   turnContext: null,
   error: null,
+  ...PERSONA_LIVE_GESTOR_FIELDS,
 }
 
 function liveStoreHarness(initial: PersonaLiveSnapshot): {
@@ -39,15 +43,20 @@ function liveStoreHarness(initial: PersonaLiveSnapshot): {
   const snapStore = createSnapshotStore(initial)
   const live: PersonaLiveStore = {
     observable: snapStore,
+    ...personaLiveStoreWave2Stub,
+    ...personaLiveStoreGestorStub,
     bootstrap: async () => {},
     runDevHarnessSeedIfEnabled: async () => {},
     refresh: async () => {},
     postChannelMessage: async () => {},
+    uploadChannelAttachment: async () => ({ id: 'att-1', name: 'file.txt' }),
+    uploadDmAttachment: async () => ({ id: 'att-2', name: 'file.txt' }),
     selectDm: async () => {},
     openPersonaDm: async () => {},
     openFirstAvailableDm: async () => {},
     loadTurnContext: async () => {},
     postDmMessage: async () => {},
+    toggleMessageReaction: async () => {},
     commitOnboardingRoster: async () => {},
     completeOnboarding: async () => {},
     setPersonaAutonomyLevel: async () => {},
@@ -63,6 +72,35 @@ describe('createLiveTenantObservable', () => {
     const b = tenant.getSnapshot()
     expect(a).toBe(b)
     expect(a.status).toBe('loading')
+  })
+
+  it('keeps tenant ready when refresh set error but workspace scope is present (empty team)', () => {
+    const { live, snapStore } = liveStoreHarness({
+      ...LIVE_EMPTY,
+      ready: true,
+      tenant: {
+        workspaceId: 'ws',
+        projectId: 'pp',
+        memberId: 'm1',
+        channelId: 'ch',
+      },
+      team: { personas: [], members: [] },
+      error: 'refresh-boom',
+    })
+    const tenant = createLiveTenantObservable(live)
+    expect(tenant.getSnapshot().status).toBe('ready')
+    expect(tenant.getSnapshot().scope?.workspaceId).toBe('ws')
+    snapStore.set({ ...snapStore.getSnapshot(), error: 'again' })
+    expect(tenant.getSnapshot().status).toBe('ready')
+  })
+
+  it('returns error tenant when bootstrap failed (no scope)', () => {
+    const { live } = liveStoreHarness({
+      ...LIVE_EMPTY,
+      error: 'bootstrap-failed',
+    })
+    const tenant = createLiveTenantObservable(live)
+    expect(tenant.getSnapshot().status).toBe('error')
   })
 
   it('returns the same tenant snapshot when live store replaces snap with equal tenant fields', () => {
@@ -126,14 +164,20 @@ describe('ConnectedGlobalKanban with real observables', () => {
     const tenantObs = createLiveTenantObservable(live)
     const useLive = bindObservableForTest(live.observable)
     const useTenant = bindObservableForTest(tenantObs)
+    const { store: shellStore, actions: shellActions } = createShellStore()
+    const useShell = bindObservableForTest(shellStore)
 
     render(
       <PreviewFrame brandLabel="Persona">
         <ConnectedGlobalKanban
           persona={{} as never}
           refreshKanban={async () => {}}
+          navigateProjectTab={() => {}}
+          clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
+          setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}
           useLive={useLive as ConnectedGlobalKanbanProps['useLive']}
           useTenant={useTenant as ConnectedGlobalKanbanProps['useTenant']}
+          useShell={useShell as ConnectedGlobalKanbanProps['useShell']}
         />
       </PreviewFrame>,
     )

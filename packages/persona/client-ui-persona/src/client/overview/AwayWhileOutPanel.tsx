@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { Button, Card, Sparkle, UiIcon } from '../primitives/index.ts'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { Button, Card, PawBurst, Sparkle, UiIcon } from '../primitives/index.ts'
 import type { AwaySummaryEvent } from '../team/persona-work-state.ts'
 import styles from './AwayWhileOutPanel.module.css'
 
@@ -46,18 +47,26 @@ export function AwayWhileOutPanel({ t, events }: AwayWhileOutPanelProps): ReactN
       )}
       actions={<Button variant="ghost" size="s" onClick={dismiss}>{t('overview.awayDismiss')}</Button>}
     >
-      <p className={styles.lead}>{t('overview.awayLead')}</p>
-      <ol className={styles.timeline}>
-        {events.map((event, index) => (
-          <li key={event.id} className={styles.item} style={{ animationDelay: `${index * 80}ms` }}>
-            <span className={styles.dot} aria-hidden="true" />
-            <p className={styles.body}>{event.body ?? (event.bodyKey !== undefined ? t(event.bodyKey) : '')}</p>
-            <Button size="s" variant="secondary" iconEnd={<UiIcon name="arrowRight" size={16} strokeWidth={2.2} />}>
-              {event.taskLabel ?? (event.taskLabelKey !== undefined ? t(event.taskLabelKey) : t('overview.awayDismiss'))}
-            </Button>
-          </li>
-        ))}
-      </ol>
+      <span className={styles.burstAnchor} aria-hidden="true"><PawBurst /></span>
+      <div className={styles.layout}>
+        <div className={styles.content}>
+          <p className={styles.lead}>{t('overview.awayLead')}</p>
+          <ol className={styles.timeline}>
+            {events.map((event, index) => (
+              <li key={event.id} className={styles.item} style={{ animationDelay: `${index * 80}ms` }}>
+                <span className={styles.dot} aria-hidden="true" />
+                <p className={styles.body}>{event.body ?? (event.bodyKey !== undefined ? t(event.bodyKey) : '')}</p>
+                <Button size="s" variant="secondary" iconEnd={<UiIcon name="arrowRight" size={16} strokeWidth={2.2} />}>
+                  {event.taskLabel ?? (event.taskLabelKey !== undefined ? t(event.taskLabelKey) : t('overview.awayDismiss'))}
+                </Button>
+              </li>
+            ))}
+          </ol>
+        </div>
+        {ILLUSTRATIONS['away-entregas'] !== undefined && (
+          <img className={styles.art} src={ILLUSTRATIONS['away-entregas']} alt="" aria-hidden="true" />
+        )}
+      </div>
     </Card>
   )
 }

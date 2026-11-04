@@ -1,0 +1,260 @@
+/* WAVE2-SPEC (b): recording pill + frame + step review. */
+
+/* ── Recording pill (overlay window, ~300–420 × 48) ── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  height: 48px;
+  padding: 0 6px 0 10px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
+  color: var(--persona-ink);
+  font: 700 13px/1 var(--persona-font-text);
+  white-space: nowrap;
+}
+
+.watching {
+  color: var(--persona-ink-soft);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: var(--persona-space-2);
+  border-left: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.recDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--persona-danger);
+  box-shadow: 0 0 0 var(--persona-border-width) var(--persona-outline);
+  animation: persona-rec-pulse 1.4s ease-in-out infinite;
+}
+
+.pill[data-state='paused'] .recDot {
+  background: var(--persona-accent);
+  animation: none;
+}
+
+.pill[data-state='countdown'] .recDot {
+  background: var(--persona-ink-faint);
+  animation: none;
+}
+
+@keyframes persona-rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.timer {
+  min-width: 4ch;
+  font: 800 14px/1 var(--persona-font-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.countdown {
+  min-width: 2ch;
+  font: 700 18px/1 var(--persona-font-display);
+  text-align: center;
+}
+
+.pausedText {
+  color: var(--persona-accent-text);
+}
+
+.warning {
+  padding: 3px 8px;
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-warning-tint);
+  color: var(--persona-warning);
+  font-size: 12px;
+}
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--persona-space-1);
+}
+
+/* ── Frame around the recorded area: discreet, but impossible to miss ── */
+.frame {
+  position: absolute;
+  inset: 0;
+  border: 2px solid color-mix(in srgb, var(--persona-danger) 60%, transparent);
+  pointer-events: none;
+}
+
+.frame[data-paused] {
+  border-color: color-mix(in srgb, var(--persona-accent) 70%, transparent);
+}
+
+.corner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 0 solid var(--persona-danger);
+}
+
+.frame[data-paused] .corner {
+  border-color: var(--persona-accent);
+}
+
+.corner[data-corner='tl'] {
+  top: -2px;
+  left: -2px;
+  border-width: 4px 0 0 4px;
+}
+
+.corner[data-corner='tr'] {
+  top: -2px;
+  right: -2px;
+  border-width: 4px 4px 0 0;
+}
+
+.corner[data-corner='bl'] {
+  bottom: -2px;
+  left: -2px;
+  border-width: 0 0 4px 4px;
+}
+
+.corner[data-corner='br'] {
+  right: -2px;
+  bottom: -2px;
+  border-width: 0 4px 4px 0;
+}
+
+/* ── Step review ── */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--persona-space-4);
+  padding: var(--persona-space-4) var(--persona-space-4) var(--persona-space-4) var(--persona-space-5);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-press);
+}
+
+.badge {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 50%;
+  background: var(--persona-accent);
+  color: var(--persona-outline);
+  font: 700 15px/1 var(--persona-font-display);
+  transform: rotate(-6deg);
+}
+
+.thumbWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.thumb {
+  display: block;
+  width: 176px;
+  height: 110px;
+  padding: 0;
+  overflow: hidden;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper-sunken);
+  cursor: zoom-in;
+}
+
+.thumb:disabled {
+  cursor: default;
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.thumbEmpty {
+  display: grid;
+  place-items: center;
+  width: 176px;
+  height: 110px;
+  padding: var(--persona-space-2);
+  border: var(--persona-border-width) dashed var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  color: var(--persona-ink-faint);
+  font: 600 12px/16px var(--persona-font-text);
+  text-align: center;
+}
+
+.blur {
+  align-self: stretch;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  min-width: 0;
+}
+
+.stepActions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.up {
+  transform: rotate(180deg);
+}
+
+@media (max-width: 720px) {
+  .step {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .thumbWrap {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recDot {
+    animation: none;
+  }
+}

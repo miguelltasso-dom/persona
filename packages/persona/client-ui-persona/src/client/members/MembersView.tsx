@@ -14,6 +14,8 @@ export interface MembersViewProps {
   readonly members?: readonly WorkspaceMember[]
   readonly initialState?: MembersSurfaceState
   readonly onRemoteRetry?: () => void
+  readonly onEmptyPrimary?: (() => void) | undefined
+  readonly onInvite?: (() => void) | undefined
 }
 
 export function MembersView({
@@ -21,6 +23,8 @@ export function MembersView({
   members = [],
   initialState = 'ready',
   onRemoteRetry,
+  onEmptyPrimary,
+  onInvite,
 }: MembersViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
 
@@ -30,7 +34,11 @@ export function MembersView({
       eyebrow={t('header.eyebrow')}
       title={t('title')}
       subtitle={t('subtitle')}
-      actions={<Button variant="primary" size="m">{t('action.invite')}</Button>}
+      actions={(
+        <Button variant="primary" size="m" onClick={() => { onInvite?.() }}>
+          {t('action.invite')}
+        </Button>
+      )}
     />
   )
 
@@ -65,6 +73,7 @@ export function MembersView({
           titleKey="empty.title"
           hintKey="empty.hint"
           primaryKey="empty.action"
+          {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
         />
       </Screen>
     )
@@ -88,7 +97,9 @@ export function MembersView({
                 <Chip tone="brand" size="s">{t(`role.${member.role}`)}</Chip>
                 <Chip tone="neutral" size="s">{t(`status.${member.status}`)}</Chip>
               </div>
-              <Button variant="secondary" size="s">{t('action.revoke')}</Button>
+              {member.isSelf !== true && (
+                <Button variant="secondary" size="s">{t('action.revoke')}</Button>
+              )}
             </Card>
           </li>
         ))}

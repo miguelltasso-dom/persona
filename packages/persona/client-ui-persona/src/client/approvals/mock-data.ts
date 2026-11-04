@@ -9,6 +9,18 @@ export interface ApprovalItem {
   readonly question: string
   readonly primaryKey: string
   readonly hireProposal?: PersonaProposal
+  readonly proposerName?: string
+  readonly proposerPersonaId?: string
+  readonly hirePortraitKey?: string
+  readonly contextBody?: string
+  /** When set, accept can call `grantBrainPermission` (Segundo cérebro). */
+  readonly brain?: {
+    readonly grantId: string
+    readonly personaId: string
+    readonly personaName: string
+    readonly action: string
+    readonly target: string
+  }
 }
 
 export const MOCK_APPROVALS: readonly ApprovalItem[] = [

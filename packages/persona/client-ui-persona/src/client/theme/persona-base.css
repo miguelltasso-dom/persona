@@ -98,3 +98,25 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* UX-GUIDE §2.3: nothing animates while the window is hidden (set by installPersonaColorScheme). */
+body[data-persona-hidden] [data-persona-shell] *,
+body[data-persona-hidden] [data-persona-shell] *::before,
+body[data-persona-hidden] [data-persona-shell] *::after {
+  animation-play-state: paused !important;
+}
+
+/* F6 between areas (T3-UX-HARVEST §1): the area you land in glows briefly. */
+[data-persona-area] {
+  transition: box-shadow 180ms var(--ease-standard, ease);
+}
+
+[data-persona-area][data-persona-area-flash] {
+  box-shadow: inset 0 0 0 3px var(--persona-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-persona-area] {
+    transition: none;
+  }
+}

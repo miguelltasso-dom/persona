@@ -21,5 +21,6 @@ export function personaViewToDraft(
     autonomyLevel,
     coordination: view.systemRoles.includes('coordination'),
     watchdog: view.systemRoles.includes('watchdog'),
+    teamManager: view.systemRoles.includes('team_manager'),
   }
 }

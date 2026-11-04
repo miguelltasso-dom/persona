@@ -100,6 +100,7 @@ body:not([data-ds-dark-theme='true']) {
   --persona-accent-hover: var(--persona-amber-300);
   --persona-accent-text: var(--persona-amber-800);
   --persona-brand: var(--persona-lilac-700);
+  --persona-on-brand: #ffffff;
   --persona-success: #28704e;
   --persona-warning: #875200;
   --persona-danger: #a53240;
@@ -154,6 +155,7 @@ body[data-ds-dark-theme='true'] {
   --persona-accent-hover: var(--persona-amber-300);
   --persona-accent-text: var(--persona-amber-400);
   --persona-brand: var(--persona-lilac-300);
+  --persona-on-brand: var(--persona-plum-900);
   --persona-success: #7fd3a6;
   --persona-warning: #f2c27a;
   --persona-danger: #f19aa5;
@@ -196,6 +198,43 @@ body {
   --persona-cat-needs-you-tint: var(--persona-warning-tint);
   --persona-cat-done-tint: var(--persona-success-tint);
   --persona-cat-blocked-tint: var(--persona-danger-tint);
+
+}
+
+/* ── Assuntos (WAVE2 §1, WAVE2-SPEC (a)): core order lilac, amber, mint, rose, sky, peach, ink.
+   Dots always carry the 1.5px plum outline (non-text contrast) and a name (color is never the only cue). ── */
+body {
+  --persona-subject-0: #9179bc;
+  --persona-subject-1: #e8af54;
+  --persona-subject-2: #5dbb93;
+  --persona-subject-3: #e07a8b;
+  --persona-subject-4: #5c9bd6;
+  --persona-subject-5: #f0956a;
+  --persona-subject-6: #6b5a7a;
+  --persona-subject-0-tint: #eee6fa;
+  --persona-subject-1-tint: #fbebcb;
+  --persona-subject-2-tint: #ddf2e8;
+  --persona-subject-3-tint: #f9e0e4;
+  --persona-subject-4-tint: #ddebf8;
+  --persona-subject-5-tint: #fbe3d6;
+  --persona-subject-6-tint: #e9e3ee;
+}
+
+body[data-ds-dark-theme='true'] {
+  --persona-subject-0: #b39ddf;
+  --persona-subject-1: #f0be6a;
+  --persona-subject-2: #77cfa9;
+  --persona-subject-3: #ee93a2;
+  --persona-subject-4: #7fb4e6;
+  --persona-subject-5: #f5aa85;
+  --persona-subject-6: #a898b8;
+  --persona-subject-0-tint: #3a2c50;
+  --persona-subject-1-tint: #45361f;
+  --persona-subject-2-tint: #1f3a30;
+  --persona-subject-3-tint: #482a33;
+  --persona-subject-4-tint: #22334a;
+  --persona-subject-5-tint: #4a3127;
+  --persona-subject-6-tint: #352c40;
 }
 
 /* ── Compatibility aliases (existing Prism/Lumen code + DSW primitives) ── */

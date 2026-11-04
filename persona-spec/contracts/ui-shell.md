@@ -59,6 +59,18 @@ ctx.slots.register({
 
 Sidebar labels for Lumen panels: `persona.shell` keys `sidebar.kanban`, `sidebar.knowledge`, `sidebar.routines`, `sidebar.files`, `sidebar.usage`, `sidebar.connections` (see `PersonaSidebar` NAV + `locale-sources/shell.*.json`).
 
+## PB-5 — Projetos → quadro + abas do workspace (Prism shell ↔ Lumen kanban)
+
+| Mechanism | Owner | Behavior |
+| --- | --- | --- |
+| `ShellState.boardsFocusProjectId` + `openProjectBoard(projectId)` | Prism (`create-shell-store.ts`) | Sidebar **Projetos** calls `openProjectBoard` → `activePanel: 'kanban'` and one-shot focus id. |
+| `clearBoardsFocusProject()` | Prism inject → Lumen kanban slot | `ConnectedGlobalKanban` consumes focus on mount/effect, opens project mode, then clears id (no sticky re-open). |
+| `navigateProjectTab(tab)` | Lumen registration, Prism bridge | Non-`board` tabs call `selectPanel`: conversation → `channels`, files → `files`, routines → `routines`, sprints → `kanban` (stub until sprint surface is scoped). |
+| `getProjectConversation(scope)` | Anvil Remote | `{ channelId, name }` of this project's `#geral`. `createProject` creates it (`geral:<projectId>`). Prism opens that channel on the Conversa tab. |
+| `ProjectWorkspaceTabs` | Prism component | Rendered on project flow board when `onWorkspaceTabChange` is wired; locale keys `project.tabs.*` in `persona.kanban`. |
+
+Prism passes `LumenShellBridge` from `mount.ts` (`selectPanel`, `clearBoardsFocusProject`, `shell` observable).
+
 ## State chips / cards (primitives)
 
 Use **`PersonaPanel`**, **`PersonaButton`**, **`PersonaMuted`**. Status text + icon (never color alone — UX-GUIDE §2.5). Optional future exports: `PersonaStatusChip`, `PersonaEmptyState` (Prism); until then mirror `overview/AttentionSection.tsx`.

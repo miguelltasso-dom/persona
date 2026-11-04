@@ -86,6 +86,14 @@
   min-width: 0;
 }
 
+.figureButton {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
 /* Contact shadow on the ground under each character. */
 .member::before {
   content: '';
@@ -224,5 +232,87 @@
 @media (prefers-reduced-motion: reduce) {
   .member:hover .tag {
     transform: none;
+  }
+}
+
+/* GESTOR-SPEC: a newly hired persona walks into the strip (from the right, a small hop), then a "chegou!" bubble. */
+.member[data-arriving] {
+  animation: persona-arrive 760ms var(--ease-spring) var(--arrive-delay, 0ms) both;
+}
+
+@keyframes persona-arrive {
+  0% {
+    opacity: 0;
+    transform: translateX(120px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-6px) translateY(-8px);
+  }
+  80% {
+    transform: translateX(2px) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.arrived {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  z-index: 2;
+  padding: 3px 10px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-accent);
+  color: var(--persona-outline);
+  box-shadow: var(--persona-shadow-press);
+  font: 800 12px/16px var(--persona-font-text);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  animation: persona-arrived-bubble 3.2s var(--ease-standard) calc(var(--arrive-delay, 0ms) + 600ms) both;
+}
+
+@keyframes persona-arrived-bubble {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px) scale(0.8);
+  }
+  12%,
+  85% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+}
+
+.gestorIcon {
+  margin-right: 4px;
+  vertical-align: -1px;
+  color: var(--persona-accent-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member[data-arriving] {
+    animation: none;
+  }
+
+  .arrived {
+    animation: persona-arrived-fade 3.2s linear both;
+  }
+
+  @keyframes persona-arrived-fade {
+    0%,
+    85% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
   }
 }

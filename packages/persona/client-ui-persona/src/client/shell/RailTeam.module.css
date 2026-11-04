@@ -342,3 +342,111 @@
 .titleToggle[aria-expanded='false'] .chevron {
   transform: rotate(-90deg);
 }
+
+/* ── Avatars density (short windows): one row of faces with seals; names in aria-label/title ── */
+.group[data-density='avatars']:not([data-collapsed]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.group[data-density='avatars']:not([data-collapsed]) .titleToggle {
+  flex-basis: 100%;
+}
+
+/* One row: up to 5 faces + the hire button at 900 px (Atlas: essentials without scrolling). */
+.group[data-density='avatars']:not([data-collapsed]) .list {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 2px 0 4px 4px;
+}
+
+.group[data-density='avatars']:not([data-collapsed]) .row {
+  display: block;
+}
+
+.group[data-density='avatars']:not([data-collapsed]) .person {
+  justify-content: center;
+  min-height: 36px;
+  width: 36px;
+  padding: 2px;
+}
+
+.group[data-density='avatars']:not([data-collapsed]) .avatar {
+  width: 32px;
+  height: 32px;
+}
+
+.group[data-density='avatars']:not([data-collapsed]) .seal {
+  width: 17px;
+  height: 17px;
+}
+
+.group[data-density='avatars']:not([data-collapsed]) .row[data-state='waiting'] .person {
+  background: color-mix(in srgb, var(--persona-accent) 22%, transparent);
+}
+
+.group[data-density='avatars']:not([data-collapsed]) .unread {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.group[data-density='avatars']:not([data-collapsed]) .hire {
+  width: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 0;
+  margin: 0 0 2px;
+}
+
+.group[data-density='avatars'] .titleToggle .chevron {
+  transform: rotate(-90deg);
+}
+
+/* GESTOR-SPEC: the baton mark (top-left of the avatar), amber with plum outline. */
+.gestorMark {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-accent);
+  color: var(--persona-outline);
+}
+
+.avatar[data-arriving] {
+  animation: persona-rail-arrive 620ms var(--ease-spring) both;
+}
+
+@keyframes persona-rail-arrive {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .avatar[data-arriving] {
+    animation: none;
+  }
+}

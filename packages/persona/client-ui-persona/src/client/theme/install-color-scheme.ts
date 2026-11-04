@@ -15,4 +15,16 @@ export function installPersonaColorScheme(): void {
     apply()
   }
   media.addEventListener('change', apply)
+  installAmbientPause()
+}
+
+/** UX-GUIDE §2.3: pause every ambient loop (breathing, blink, seals, shimmer) while the window is hidden. */
+function installAmbientPause(): void {
+  const sync = (): void => {
+    const body = document.body as HTMLElement | null
+    if (body === null) return
+    body.toggleAttribute('data-persona-hidden', document.hidden)
+  }
+  document.addEventListener('visibilitychange', sync)
+  sync()
 }

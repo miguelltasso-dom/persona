@@ -1,13 +1,6 @@
 import type { ConnectionView } from '@deepseek-ai/dsh-persona-host/types'
 import type { ConnectionEntry, ConnectionResolveErrorCode, ConnectionStatus } from '../../connections/mock-data.ts'
-
-const KIND_LABELS: Record<string, string> = {
-  claude: 'Claude Code',
-  codex: 'Codex',
-  cursor: 'Cursor agent',
-  opencode: 'OpenCode',
-  dsh: 'DSH',
-}
+import { runnerLabel } from '../../team/engine-label.ts'
 
 const LOGIN_COMMANDS: Record<string, string> = {
   claude: 'claude login',
@@ -36,16 +29,42 @@ function copyCommandFor(row: ConnectionView): string | undefined {
   return LOGIN_COMMANDS[row.kind]
 }
 
+function rowRank(row: ConnectionView): number {
+  if (row.phase === 'checking') return 0
+  if (statusFor(row) === 'ready') return 3
+  if (statusFor(row) === 'expired') return 2
+  return 1
+}
+
+/** One card per CLI kind (host may repeat ids while probing). */
+function dedupeConnectionRows(rows: readonly ConnectionView[]): ConnectionView[] {
+  const byId = new Map<string, ConnectionView>()
+  for (const row of rows) {
+    const prev = byId.get(row.id)
+    if (prev === undefined || rowRank(row) > rowRank(prev)) {
+      byId.set(row.id, row)
+    }
+  }
+  const byKind = new Map<string, ConnectionView>()
+  for (const row of byId.values()) {
+    const prev = byKind.get(row.kind)
+    if (prev === undefined || rowRank(row) > rowRank(prev)) {
+      byKind.set(row.kind, row)
+    }
+  }
+  return [...byKind.values()]
+}
+
 /** Host connection probe → Connections UI rows. */
 export function connectionsToEntries(rows: readonly ConnectionView[]): ConnectionEntry[] {
-  return rows.map((row) => {
+  return dedupeConnectionRows(rows).map((row) => {
     const status = statusFor(row)
     const errorCode = narrowErrorCode(row.error?.code)
     const detail = row.error?.message ?? (status === 'ready' ? '' : row.loginHint)
     const copyCommand = copyCommandFor(row)
     return {
       id: row.id,
-      name: KIND_LABELS[row.kind] ?? row.kind,
+      name: runnerLabel(row.kind),
       kind: row.kind,
       status,
       detail,

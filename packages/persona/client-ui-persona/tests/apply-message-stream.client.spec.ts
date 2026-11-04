@@ -7,16 +7,15 @@ const team: TeamView = {
   members: [{ id: 'ana', workspaceId: 'ws', displayName: 'Ana', handle: 'ana', role: 'owner' }],
 }
 
-const msg = (id: string, body: string, seq: number, occurredAt: string) => ({
+import { hostMessage } from './message-view-fixture.client.ts'
+
+const msg = (id: string, body: string, seq: number, occurredAt: string) => hostMessage({
   id,
-  streamId: 'channel:geral',
   seq,
-  type: 'message',
   actorId: 'ana',
   body,
   subjectId: 't1',
   occurredAt,
-  source: 'host' as const,
 })
 
 describe('applyMessageStreamFrame', () => {

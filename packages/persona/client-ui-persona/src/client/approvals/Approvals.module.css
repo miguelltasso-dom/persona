@@ -26,10 +26,62 @@
   gap: var(--persona-space-3);
 }
 
+.inboxCelebrate {
+  position: relative;
+  height: 0;
+}
+
+.approvalCardWrap {
+  position: relative;
+}
+
+.approvalStamp {
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  z-index: 2;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.rememberStampNote {
+  margin: 0;
+  max-width: 11rem;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--persona-ink-soft);
+  text-align: right;
+}
+
+.listItemExiting {
+  animation: persona-approval-exit var(--motion-base, 220ms) var(--ease-standard, ease) forwards;
+}
+
+@keyframes persona-approval-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
 .approvalCard {
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-3);
+}
+
+.hireInviteSeal {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 30%;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  background: var(--persona-accent-tint);
 }
 
 .approvalHead {

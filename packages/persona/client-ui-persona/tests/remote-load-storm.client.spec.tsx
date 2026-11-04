@@ -3,12 +3,13 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { cleanup, render, waitFor } from '@testing-library/react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { RemoteKnowledgePanel } from '../src/client/data/lumen-remote-panels.tsx'
+import { RemoteApprovalsPanel, RemoteKnowledgePanel, RemoteUsagePanel } from '../src/client/data/lumen-remote-panels.tsx'
 import { REMOTE_PANEL_TIMEOUT_MS } from '../src/client/data/remote-panel-timeout.ts'
 import { usePersonaRemoteLoad } from '../src/client/data/use-persona-remote-load.ts'
 import type { PersonaTenantSnapshot } from '../src/client/data/persona-tenant.ts'
 import type { PersonaRemoteClient } from '../src/client/data/lumen-inject.ts'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
+import { createShellStore } from '../src/client/shell/create-shell-store.ts'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 
@@ -28,6 +29,11 @@ function tenantHarness(): ReturnType<typeof bindObservableForTest<PersonaTenantS
     getSnapshot: () => store.getSnapshot(),
     subscribe: listener => store.subscribe(listener),
   })
+}
+
+function shellHarness(): ReturnType<typeof bindObservableForTest<ReturnType<ReturnType<typeof createShellStore>['store']['getSnapshot']>>> {
+  const { store } = createShellStore()
+  return bindObservableForTest(store)
 }
 
 describe('usePersonaRemoteLoad request storm guard', () => {
@@ -80,6 +86,7 @@ describe('RemoteKnowledgePanel no request storm', () => {
         await new Promise((resolve) => { setTimeout(resolve, 30) })
         return { ok: true as const, value: [] }
       },
+      listVaultDocuments: async () => ({ ok: true as const, value: [] }),
     } as unknown as PersonaRemoteClient
 
     function Wrapper(): ReactNode {
@@ -90,7 +97,7 @@ describe('RemoteKnowledgePanel no request storm', () => {
       }, [])
       return (
         <PreviewFrame brandLabel="Persona">
-          <RemoteKnowledgePanel persona={persona} useTenant={tenantHarness()} />
+          <RemoteKnowledgePanel persona={persona} useTenant={tenantHarness()} useShell={shellHarness()} />
           <span data-testid="tick">{tick}</span>
         </PreviewFrame>
       )
@@ -100,5 +107,94 @@ describe('RemoteKnowledgePanel no request storm', () => {
     await waitFor(() => { expect(vaultCalls).toBeGreaterThan(0) }, { timeout: 3000 })
     await new Promise((resolve) => { setTimeout(resolve, 250) })
     expect(vaultCalls).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('RemoteUsagePanel no request storm', () => {
+  it('calls getUsage at most once per mount despite re-renders', async () => {
+    let usageCalls = 0
+    let funnelCalls = 0
+    let impactCalls = 0
+    const persona = {
+      getUsage: async () => {
+        usageCalls += 1
+        await new Promise((resolve) => { setTimeout(resolve, 30) })
+        return { ok: true as const, value: { entries: [] } }
+      },
+      getOfficialQuota: async () => ({ ok: true as const, value: [{ provider: 'x', origin: 'estimated', windows: [] }] }),
+      listMemory: async () => ({ ok: true as const, value: [] }),
+      listSkills: async () => ({ ok: true as const, value: [] }),
+      getActivationFunnel: async () => {
+        funnelCalls += 1
+        return {
+          ok: true as const,
+          value: {
+            onboarded: false,
+            firstUsefulReply: false,
+            firstTaskDone: false,
+            returnedIn7Days: false,
+            stage: 'empty' as const,
+          },
+        }
+      },
+      listPersonaImpact: async () => {
+        impactCalls += 1
+        return { ok: true as const, value: [] }
+      },
+    } as unknown as PersonaRemoteClient
+
+    function Wrapper(): ReactNode {
+      const [tick, setTick] = useState(0)
+      useEffect(() => {
+        const id = window.setInterval(() => { setTick(n => n + 1) }, 20)
+        return () => { window.clearInterval(id) }
+      }, [])
+      return (
+        <PreviewFrame brandLabel="Persona">
+          <RemoteUsagePanel persona={persona} useTenant={tenantHarness()} useShell={shellHarness()} />
+          <span data-testid="tick">{tick}</span>
+        </PreviewFrame>
+      )
+    }
+
+    render(<Wrapper />)
+    await waitFor(() => { expect(usageCalls).toBeGreaterThan(0) }, { timeout: 3000 })
+    await new Promise((resolve) => { setTimeout(resolve, 250) })
+    expect(usageCalls).toBeLessThanOrEqual(1)
+    expect(funnelCalls).toBeLessThanOrEqual(1)
+    expect(impactCalls).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('RemoteApprovalsPanel no request storm', () => {
+  it('calls listApprovals at most once per mount despite re-renders', async () => {
+    let approvalCalls = 0
+    const persona = {
+      listApprovals: async () => {
+        approvalCalls += 1
+        await new Promise((resolve) => { setTimeout(resolve, 30) })
+        return { ok: true as const, value: [] }
+      },
+      listDailySummaries: async () => ({ ok: true as const, value: [] }),
+    } as unknown as PersonaRemoteClient
+
+    function Wrapper(): ReactNode {
+      const [tick, setTick] = useState(0)
+      useEffect(() => {
+        const id = window.setInterval(() => { setTick(n => n + 1) }, 20)
+        return () => { window.clearInterval(id) }
+      }, [])
+      return (
+        <PreviewFrame brandLabel="Persona">
+          <RemoteApprovalsPanel persona={persona} useTenant={tenantHarness()} useShell={shellHarness()} />
+          <span data-testid="tick">{tick}</span>
+        </PreviewFrame>
+      )
+    }
+
+    render(<Wrapper />)
+    await waitFor(() => { expect(approvalCalls).toBeGreaterThan(0) }, { timeout: 3000 })
+    await new Promise((resolve) => { setTimeout(resolve, 250) })
+    expect(approvalCalls).toBeLessThanOrEqual(1)
   })
 })

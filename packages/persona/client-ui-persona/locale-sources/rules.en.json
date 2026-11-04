@@ -3,7 +3,7 @@
   "title": "Triage rules",
   "subtitle": "Proactivity limits, quiet hours, and natural-language triage",
   "limits.title": "Budget and proposals",
-  "limits.subtitle": "Prevents noise and runaway cost (PROACTIVITY §6)",
+  "limits.subtitle": "Prevents noise and runaway cost",
   "limits.maxProposals": "Max proposals per persona / day",
   "limits.tokensPersona": "Tokens / month per persona",
   "limits.tokensProject": "Tokens / month per project",
@@ -26,5 +26,16 @@
   "empty.illustration": "Illustration: empty rules",
   "loading": "Loading rules…",
   "error.title": "Couldn't reach the team right now",
-  "error.retry": "Try again"
+  "error.retry": "Try again",
+  "preset.legend": "How much the team can spend and propose",
+  "preset.economico": "Economy",
+  "preset.normal": "Normal",
+  "preset.generoso": "Generous",
+  "preset.custom": "Customize",
+  "preset.customBody": "Pick the numbers yourself.",
+  "preset.estimate": "Up to {proposals} proposal(s) a day · ≈ {tasks} medium tasks a month per persona",
+  "preset.recommended": "Recommended",
+  "preset.tasksHint": "≈ {tasks} medium tasks a month",
+  "preset.saved": "Rules in use",
+  "limits.maxProposalsHint": "How many new ideas each persona may bring per day"
 }

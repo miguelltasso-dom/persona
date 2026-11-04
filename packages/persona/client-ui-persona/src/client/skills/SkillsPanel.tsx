@@ -13,9 +13,10 @@ export interface SkillsPanelProps {
   readonly dict?: LocaleDict
   readonly skills?: readonly SkillRecord[]
   readonly initialState?: SkillsSurfaceState
+  readonly onEmptyPrimary?: (() => void) | undefined
 }
 
-export function SkillsPanel({ dict = defaultDict, skills = MOCK_SKILLS, initialState = 'ready' }: SkillsPanelProps): ReactNode {
+export function SkillsPanel({ dict = defaultDict, skills = MOCK_SKILLS, initialState = 'ready', onEmptyPrimary }: SkillsPanelProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
   if (initialState === 'empty') {
@@ -26,6 +27,7 @@ export function SkillsPanel({ dict = defaultDict, skills = MOCK_SKILLS, initialS
         titleKey="empty.title"
         hintKey="empty.hint"
         primaryKey="empty.action"
+        {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
       />
     )
   }

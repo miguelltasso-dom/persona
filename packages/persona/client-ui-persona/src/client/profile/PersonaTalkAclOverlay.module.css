@@ -1,0 +1,44 @@
+.error {
+  color: var(--persona-danger-fg, #b42318);
+  font-size: 0.875rem;
+  margin: 0 0 var(--space-3, 12px);
+}
+
+.modeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  margin-bottom: var(--space-4, 16px);
+}
+
+.modeButton {
+  appearance: none;
+  border: 1px solid var(--persona-border-subtle, rgba(0, 0, 0, 0.12));
+  border-radius: var(--radius-m, 12px);
+  background: var(--persona-surface-raised, #fff);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  cursor: pointer;
+  font: inherit;
+}
+
+.modeButton[aria-checked='true'] {
+  border-color: var(--persona-brand, #7c3aed);
+  box-shadow: 0 0 0 1px var(--persona-brand, #7c3aed);
+}
+
+.memberList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.memberToggle {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}

@@ -21,6 +21,7 @@ export interface CanvasViewProps {
   readonly edges?: readonly CanvasEdge[]
   readonly initialState?: CanvasSurfaceState
   readonly onRemoteRetry?: () => void
+  readonly onEmptyPrimary?: (() => void) | undefined
 }
 
 export function CanvasView({
@@ -29,6 +30,7 @@ export function CanvasView({
   edges = [],
   initialState = 'ready',
   onRemoteRetry,
+  onEmptyPrimary,
 }: CanvasViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [mode, setMode] = useState<ViewMode>('canvas')
@@ -84,6 +86,7 @@ export function CanvasView({
           titleKey="empty.title"
           hintKey="empty.hint"
           primaryKey="empty.action"
+          {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
         />
       </Screen>
     )

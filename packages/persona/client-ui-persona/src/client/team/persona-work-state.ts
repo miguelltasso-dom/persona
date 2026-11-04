@@ -11,7 +11,9 @@ export interface ChannelPersonaMember {
   readonly role: string
   readonly state: PersonaWorkUiState
   readonly silhouette?: boolean
-  readonly systemRoles?: readonly ('coordination' | 'watchdog')[]
+  readonly systemRoles?: readonly ('coordination' | 'watchdog' | 'team_manager')[]
+  /** Just hired (Gestor plan approved): walks into the strip once, with a "chegou!" bubble (GESTOR-SPEC). */
+  readonly arriving?: boolean
 }
 
 export interface PersonaNowSnapshot {

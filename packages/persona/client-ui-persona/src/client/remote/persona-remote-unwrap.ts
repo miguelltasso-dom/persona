@@ -28,7 +28,7 @@ export function isRemoteResult(value: unknown): value is RemoteResult<unknown> {
   if (typeof value !== 'object' || value === null) return false
   const ok = (value as { ok?: unknown }).ok
   if (typeof ok !== 'boolean') return false
-  return ok ? 'value' in value : 'error' in value
+  return ok ? 'value' in value : true
 }
 
 function failureMessage(method: string, code: string, hostMessage: string): string {

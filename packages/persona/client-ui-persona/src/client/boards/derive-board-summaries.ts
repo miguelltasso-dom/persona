@@ -16,7 +16,7 @@ function emptyCounts(): StageCategoryCounts {
   return { todo: 0, doing: 0, review: 0, needs_you: 0, done: 0, blocked: 0 }
 }
 
-function inferFlowModel(projectId: string, kind: string | undefined): FlowModelId {
+export function inferFlowModel(projectId: string, kind: string | undefined): FlowModelId {
   if (kind === 'personal' || projectId.includes('pessoal')) return 'simples'
   if (projectId.includes('contrat')) return 'contratacao'
   if (projectId.includes('site')) return 'site'

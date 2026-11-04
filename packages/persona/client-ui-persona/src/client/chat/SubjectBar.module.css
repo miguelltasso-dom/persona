@@ -1,0 +1,184 @@
+/* Assuntos (WAVE2-SPEC (a)): one 44px row under the conversation header; scrolls sideways, never wraps. */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-height: 44px;
+  padding: 6px 0;
+  border-bottom: var(--persona-border-width) dashed var(--persona-outline-soft);
+}
+
+.tabs {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--persona-space-1);
+  min-width: 0;
+  padding: 4px 2px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs[data-overflow] {
+  mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 20px), transparent 100%);
+}
+
+.tab {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border: var(--persona-border-width) solid transparent;
+  border-radius: var(--persona-radius-pill);
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 700 13px/1 var(--persona-font-text);
+  white-space: nowrap;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-spring);
+}
+
+.tab:hover {
+  background: var(--persona-wash);
+  color: var(--persona-ink);
+}
+
+.tab[data-unread] {
+  color: var(--persona-ink);
+}
+
+.tab[aria-selected='true'] {
+  border-color: var(--persona-outline);
+  background: var(--subject-tint, var(--persona-card));
+  color: var(--persona-ink);
+  box-shadow: var(--persona-shadow-press);
+  transform: translateY(-1px);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.label {
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Dot: subject fill + the brand's 1.5px plum outline (3:1 non-text contrast for every color). */
+.dot {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 var(--persona-border-width) var(--persona-outline);
+}
+
+/* Persona working here: a soft ring in the subject color breathes around the dot. */
+.working::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  animation: persona-subject-breathe 1.6s var(--ease-standard) infinite;
+}
+
+@keyframes persona-subject-breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
+}
+
+.unread {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-accent);
+  color: var(--persona-outline);
+  font: 800 11px/15px var(--persona-font-text);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.rename {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--persona-space-2);
+  height: 34px;
+  padding: 0 4px 0 12px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-press);
+}
+
+.renameField {
+  width: 16ch;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink);
+  font: 700 13px/1 var(--persona-font-text);
+}
+
+.rename:focus-within {
+  box-shadow: var(--persona-shadow-press), 0 0 0 4px var(--persona-focus-halo);
+}
+
+/* The pill frame shows focus; beat the global [data-persona-shell] :focus-visible ring. */
+.rename .renameField:focus-visible,
+.rename .renameField:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.renameField::placeholder {
+  color: var(--persona-ink-faint);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab {
+    transition: none;
+  }
+
+  .working::after {
+    animation: none;
+    opacity: 0.7;
+  }
+}

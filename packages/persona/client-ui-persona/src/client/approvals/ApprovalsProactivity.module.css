@@ -50,8 +50,28 @@
 }
 
 .proposal {
+  position: relative;
   border-top: 1px solid var(--persona-outline-soft);
   padding-top: var(--persona-space-3);
+}
+
+.proposalStamp {
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.proposalExiting {
+  animation: persona-approval-exit var(--motion-base, 220ms) var(--ease-standard, ease) forwards;
+}
+
+@keyframes persona-approval-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }
 
 .proposalTitle {
@@ -83,6 +103,12 @@
   font-size: 0.8125rem;
   color: var(--persona-ink-soft);
   line-height: 1.45;
+}
+
+.costUnknown {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--persona-ink-soft);
 }
 
 .actions {

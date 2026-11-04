@@ -9,6 +9,7 @@ export type MainPanelId =
   | 'projects'
   | 'kanban'
   | 'knowledge'
+  | 'secondBrain'
   | 'routines'
   | 'files'
   | 'usage'
@@ -21,6 +22,8 @@ export type MainPanelId =
   | 'members'
   | 'importers'
   | 'canvas'
+  | 'orgChart'
+  | 'teamHealth'
 
 /** Profile panel targets this persona; {@link HIRE_PERSONA_PROFILE_ID} opens the new-persona editor. */
 export const HIRE_PERSONA_PROFILE_ID = '__persona_new__'
@@ -33,6 +36,24 @@ export interface ShellState {
   readonly onboardingOpen: boolean
   /** When set, profile loads this host persona id (see {@link HIRE_PERSONA_PROFILE_ID}). */
   readonly profilePersonaId: string | null
+  /** Profile panel shows {@link ConnectedPersonaEditor} instead of the summary hero. */
+  readonly profileEditorOpen: boolean
+  /** PB-5: Quadros opens this project once (consumed by ConnectedGlobalKanban). */
+  readonly boardsFocusProjectId: string | null
+  /** PB-5: Arquivos/Rotinas/Conversa scoped to this project after leaving the quadro tab. */
+  readonly projectWorkspaceProjectId: string | null
+  /** Talk ACL editor overlay for a persona (rail/profile). */
+  readonly talkAclPersonaId: string | null
+  /** Engine picker overlay for a persona (rail/profile). */
+  readonly enginePersonaId: string | null
+  /** Teach-persona overlay (WAVE2). */
+  readonly teachPersonaId: string | null
+  /** Active teach capture session after consent (Forge RPC). */
+  readonly teachCapture: {
+    readonly personaId: string
+    readonly sessionId: string
+    readonly microphone: boolean
+  } | null
 }
 
 export interface ShellActions {
@@ -41,6 +62,21 @@ export interface ShellActions {
   setOnboardingOpen(open: boolean): void
   dismissOnboarding(): void
   setProfilePersonaId(personaId: string | null): void
+  /** Open persona editor on the profile panel (existing persona). */
+  openPersonaEditor(personaId: string): void
+  closePersonaEditor(): void
+  /** Sidebar Projetos → quadro do projeto (PB-5). */
+  openProjectBoard(projectId: string): void
+  clearBoardsFocusProject(): void
+  setProjectWorkspaceProjectId(projectId: string | null): void
+  openTalkAclEditor(personaId: string): void
+  closeTalkAclEditor(): void
+  openEngineEditor(personaId: string): void
+  closeEngineEditor(): void
+  openTeachPersona(personaId: string): void
+  closeTeachPersona(): void
+  openTeachCapture(capture: NonNullable<ShellState['teachCapture']>): void
+  closeTeachCapture(): void
 }
 
 const onboardingOpen = overlayOpenOptimisticInitial(readOnboardingCacheComplete())
@@ -51,6 +87,13 @@ const INITIAL: ShellState = {
   hostProtocol: null,
   onboardingOpen,
   profilePersonaId: null,
+  profileEditorOpen: false,
+  boardsFocusProjectId: null,
+  projectWorkspaceProjectId: null,
+  talkAclPersonaId: null,
+  enginePersonaId: null,
+  teachPersonaId: null,
+  teachCapture: null,
 }
 
 /** Shell navigation and host connectivity snapshot. */
@@ -80,6 +123,54 @@ export function createShellStore(): {
     },
     setProfilePersonaId: (profilePersonaId) => {
       store.set({ ...store.getSnapshot(), profilePersonaId })
+    },
+    openPersonaEditor: (personaId) => {
+      store.set({
+        ...store.getSnapshot(),
+        activePanel: 'profile',
+        profilePersonaId: personaId,
+        profileEditorOpen: true,
+      })
+    },
+    closePersonaEditor: () => {
+      store.set({ ...store.getSnapshot(), profileEditorOpen: false })
+    },
+    openProjectBoard: (projectId) => {
+      store.set({
+        ...store.getSnapshot(),
+        activePanel: 'kanban',
+        boardsFocusProjectId: projectId,
+      })
+    },
+    clearBoardsFocusProject: () => {
+      store.set({ ...store.getSnapshot(), boardsFocusProjectId: null })
+    },
+    setProjectWorkspaceProjectId: (projectWorkspaceProjectId) => {
+      store.set({ ...store.getSnapshot(), projectWorkspaceProjectId })
+    },
+    openTalkAclEditor: (talkAclPersonaId) => {
+      store.set({ ...store.getSnapshot(), talkAclPersonaId })
+    },
+    closeTalkAclEditor: () => {
+      store.set({ ...store.getSnapshot(), talkAclPersonaId: null })
+    },
+    openEngineEditor: (enginePersonaId) => {
+      store.set({ ...store.getSnapshot(), enginePersonaId })
+    },
+    closeEngineEditor: () => {
+      store.set({ ...store.getSnapshot(), enginePersonaId: null })
+    },
+    openTeachPersona: (teachPersonaId) => {
+      store.set({ ...store.getSnapshot(), teachPersonaId })
+    },
+    closeTeachPersona: () => {
+      store.set({ ...store.getSnapshot(), teachPersonaId: null })
+    },
+    openTeachCapture: (teachCapture) => {
+      store.set({ ...store.getSnapshot(), teachCapture, teachPersonaId: null })
+    },
+    closeTeachCapture: () => {
+      store.set({ ...store.getSnapshot(), teachCapture: null })
     },
   }
   return { store, actions }

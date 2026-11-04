@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import type { HostObservable, InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ShellState } from './create-shell-store.ts'
+import { installComposerFocusRestore } from '../chat/composer-focus.ts'
 import { ErrorState, PanelBoundary } from '../primitives/index.ts'
 import styles from './PersonaAppFrame.module.css'
 
@@ -51,11 +52,13 @@ function useBlankPanelGuard(panel: string): { ref: RefObject<HTMLDivElement>; bl
 export function PersonaAppFrame({ renderSlot, useShell }: PersonaAppFrameProps): ReactNode {
   const shell = useShell(state => state)
   const guard = useBlankPanelGuard(shell.activePanel)
+  useEffect(() => installComposerFocusRestore(), [])
   return (
     <div className={styles.frame} data-persona-shell="">
+      <div className={styles.dragStrip} aria-hidden="true" />
       {renderSlot('sidebar', {})}
       <div className={styles.center} data-persona-grain="">
-        <div className={styles.main} ref={guard.ref} key={`${shell.activePanel}:${guard.attempt}`} data-persona-main={shell.activePanel}>
+        <div className={styles.main} ref={guard.ref} key={`${shell.activePanel}:${guard.attempt}`} data-persona-main={shell.activePanel} data-persona-area="main">
           <PanelBoundary panel={shell.activePanel}>
             {renderSlot('main', {}, { entryKey: shell.activePanel })}
           </PanelBoundary>

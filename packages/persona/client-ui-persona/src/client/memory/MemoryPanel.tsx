@@ -20,9 +20,10 @@ export interface MemoryPanelProps {
   readonly dict?: LocaleDict
   readonly rows?: readonly MemoryRow[]
   readonly initialState?: MemorySurfaceState
+  readonly onEmptyPrimary?: (() => void) | undefined
 }
 
-export function MemoryPanel({ dict = defaultDict, rows = MOCK_MEMORY_ROWS, initialState = 'ready' }: MemoryPanelProps): ReactNode {
+export function MemoryPanel({ dict = defaultDict, rows = MOCK_MEMORY_ROWS, initialState = 'ready', onEmptyPrimary }: MemoryPanelProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
 
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
@@ -37,6 +38,7 @@ export function MemoryPanel({ dict = defaultDict, rows = MOCK_MEMORY_ROWS, initi
         titleKey="empty.title"
         hintKey="empty.hint"
         primaryKey="empty.action"
+        {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
       />
     )
   }

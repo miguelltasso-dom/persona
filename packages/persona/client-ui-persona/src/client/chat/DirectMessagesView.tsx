@@ -1,10 +1,17 @@
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
-import { Avatar, BrandIcon, Button, Chip, EmptyState, Skeleton, UiIcon, type ChipTone } from '../primitives/index.ts'
+import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
+import { uiStateToPose, type PersonaWorkUiState } from '../team/persona-work-state.ts'
+import { Avatar, BrandIcon, Button, Chip, EmptyState, Skeleton, Toast, ToastRegion, UiIcon, type ChipTone } from '../primitives/index.ts'
+import { subjectDisplayName } from './SubjectBar.tsx'
+import { useState } from 'react'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
 import { ChannelComposer } from './ChannelComposer.tsx'
+import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
 import { MessageList } from './GeneralChannelView.tsx'
+import { TurnContextDrawer } from './TurnContextDrawer.tsx'
+import type { TurnContextUi } from '../remote/turn-context-ui.ts'
 import styles from './DirectMessagesView.module.css'
 
 /** One DM row as the presentation needs it (Prism maps host data). */
@@ -17,6 +24,8 @@ export interface DmRowUi {
   readonly role?: string | undefined
   readonly stateLabel?: string | undefined
   readonly stateTone?: ChipTone | undefined
+  /** Live work state → pose in the thread header (UX-GUIDE §3). */
+  readonly state?: PersonaWorkUiState | undefined
   readonly unread?: number | undefined
   readonly lastLine?: string | undefined
   readonly timeLabel?: string | undefined
@@ -30,11 +39,36 @@ export interface DirectMessagesViewProps {
   readonly selectedId: string | null
   readonly messages: readonly ChannelMessageUi[]
   readonly onSelect: (dmId: string) => void
-  readonly onSend: (body: string) => void
+  readonly onSend: (body: string, attachmentIds?: readonly string[]) => void
+  readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
   readonly onNewConversation?: (() => void) | undefined
+  /** "Contexto usado" for a task cited in the DM (same drawer as #geral). */
+  readonly turnContext?: TurnContextUi | null | undefined
+  readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
+  readonly memberId?: string | undefined
+  readonly onToggleReaction?: ((messageId: string, stickerId: import('../primitives/index.ts').ReactionId) => void) | undefined
+  readonly subjectBar?: Omit<SubjectBarProps, 't'> | undefined
+  readonly composerSubjectPlaceholder?: string | undefined
+  readonly composerSubjectColorIndex?: import('./conversation-subjects.ts').SubjectColorIndex | undefined
+  readonly subjectMoveTargets?: import('./conversation-subjects.ts').ConversationSubjectUi[] | undefined
+  readonly onMoveMessageSubject?: ((messageId: string, subjectId: string) => void) | undefined
+  readonly onUndoMoveMessage?: ((messageId: string) => void) | undefined
 }
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
+
+type SuggestionKind = 'coordination' | 'engineering' | 'research' | 'support' | 'content' | 'default'
+
+/** RCD "value first": first-request ideas that match the persona's job title. */
+function suggestionKind(role: string | undefined): SuggestionKind {
+  const text = (role ?? '').toLowerCase()
+  if (/coord|vigia|gest|lider|líder/u.test(text)) return 'coordination'
+  if (/engenh|dev|códig|codig|tecn|software|implement/u.test(text)) return 'engineering'
+  if (/pesquis|anális|analis|dados|research/u.test(text)) return 'research'
+  if (/atend|suporte|relacion|client|venda/u.test(text)) return 'support'
+  if (/conte|market|copy|social|redaç|design/u.test(text)) return 'content'
+  return 'default'
+}
 
 function portraitFor(row: DmRowUi): string | undefined {
   return PORTRAITS[row.characterId ?? row.peerName.trim().toLowerCase()]
@@ -42,8 +76,11 @@ function portraitFor(row: DmRowUi): string | undefined {
 
 /** Mensagens diretas: conversation list + thread with persona header, shared stream and composer. */
 export function DirectMessagesView({
-  t, shellT, loading, dms, selectedId, messages, onSelect, onSend, onNewConversation,
+  t, shellT, loading, dms, selectedId, messages, onSelect, onSend, uploadAttachment, onNewConversation, turnContext, onLoadTurnContext, memberId, onToggleReaction,
+  subjectBar, composerSubjectPlaceholder, composerSubjectColorIndex,
+  subjectMoveTargets, onMoveMessageSubject, onUndoMoveMessage,
 }: DirectMessagesViewProps): ReactNode {
+  const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string } | null>(null)
   const selected = dms.find(row => row.id === selectedId) ?? null
 
   if (!loading && dms.length === 0) {
@@ -119,23 +156,98 @@ export function DirectMessagesView({
         ) : (
           <>
             <header className={styles.threadHeader}>
-              <Avatar name={selected.peerName} src={portraitFor(selected)} shape="portrait" size={48} decorative />
+              {selected.characterId !== undefined && selected.state !== undefined
+                && poseUrl(selected.characterId as PersonaCharacterId, uiStateToPose(selected.state)) !== undefined ? (
+                  <span className={styles.threadStage} aria-hidden="true">
+                    <img
+                      key={selected.state}
+                      src={poseUrl(selected.characterId as PersonaCharacterId, uiStateToPose(selected.state))}
+                      alt=""
+                      data-state={selected.state}
+                    />
+                  </span>
+                ) : (
+                  <Avatar name={selected.peerName} src={portraitFor(selected)} shape="portrait" size={48} decorative />
+                )}
               <div className={styles.threadTitles}>
                 <h2 className={styles.threadTitle}>{selected.peerName}</h2>
                 {selected.role !== undefined && <p className={styles.threadRole}>{selected.role}</p>}
               </div>
               {selected.stateLabel !== undefined && <Chip tone={selected.stateTone ?? 'neutral'}>{selected.stateLabel}</Chip>}
             </header>
+            {subjectBar !== undefined && <SubjectBar t={t} {...subjectBar} />}
             <div className={styles.thread} role="log" aria-live="polite">
               {messages.length === 0 ? (
-                <EmptyState compact illustration={portraitFor(selected)} title={t('dm.threadEmpty')} />
+                <div className={styles.firstAsk}>
+                  <EmptyState compact illustration={portraitFor(selected)} title={t('dm.threadEmpty')} />
+                  <p className={styles.firstAskTitle} id="persona-dm-suggest">{t('dm.suggestTitle')}</p>
+                  <ul className={styles.suggestions} aria-labelledby="persona-dm-suggest">
+                    {([1, 2, 3] as const).map((n) => {
+                      const text = t(`dm.suggest.${suggestionKind(selected.role)}.${n}`)
+                      return (
+                        <li key={n}>
+                          <button type="button" className={styles.suggestion} onClick={() => { onSend(text) }}>
+                            <UiIcon name="sparkle" size={14} strokeWidth={2.2} />
+                            {text}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
               ) : (
-                <MessageList t={t} messages={messages} />
+                <MessageList
+                  t={t}
+                  messages={messages}
+                  onLoadTurnContext={onLoadTurnContext}
+                  {...(memberId === undefined ? {} : { memberId })}
+                  {...(onToggleReaction === undefined ? {} : { onToggleReaction })}
+                  {...(selected.characterId === undefined ? {} : { userStickerAnimal: selected.characterId })}
+                  {...(subjectMoveTargets === undefined ? {} : { subjectMoveTargets })}
+                  {...(onMoveMessageSubject === undefined ? {} : {
+                    onMoveMessageSubject: (messageId, subjectId) => {
+                      onMoveMessageSubject(messageId, subjectId)
+                      const target = subjectMoveTargets?.find(row => row.id === subjectId)
+                      const subjectLabel = target === undefined ? subjectId : subjectDisplayName(t, target)
+                      setMoveToast({ messageId, subjectLabel })
+                    },
+                  })}
+                />
               )}
             </div>
+            <TurnContextDrawer t={t} context={turnContext} />
             <div className={styles.composer}>
-              <ChannelComposer t={t} members={[]} onSend={onSend} />
+              <ChannelComposer
+                t={t}
+                members={[]}
+                onSend={onSend}
+                {...(uploadAttachment === undefined ? {} : { uploadAttachment })}
+                placeholder={composerSubjectPlaceholder ?? t('dm.composerPlaceholder', { name: selected.peerName })}
+                {...(composerSubjectColorIndex === undefined ? {} : { activeSubjectColorIndex: composerSubjectColorIndex })}
+              />
             </div>
+            {moveToast !== null && (
+              <ToastRegion label={t('subjects.move')}>
+                <Toast
+                  tone="neutral"
+                  title={t('subjects.moved', { subject: moveToast.subjectLabel })}
+                  {...(onUndoMoveMessage === undefined ? {} : {
+                    action: (
+                      <Button
+                        variant="ghost"
+                        size="s"
+                        onClick={() => {
+                          onUndoMoveMessage(moveToast.messageId)
+                          setMoveToast(null)
+                        }}
+                      >
+                        {t('subjects.undoMove')}
+                      </Button>
+                    ),
+                  })}
+                />
+              </ToastRegion>
+            )}
           </>
         )}
       </section>

@@ -7,10 +7,12 @@ import { bootstrapPersonaTenant, hostReportsFirstUse, type TenantBootstrapRemote
 import { shouldWriteCacheComplete } from './onboarding-host.ts'
 import {
   galleryRefForRosterPerson,
+  rosterToHostTeam,
   seedDevHarnessScenario,
   type DevHarnessSeedRemote,
   type OnboardingRosterPerson,
 } from './seed-default-team.ts'
+import type { CompleteOnboardingRequest } from '@deepseek-ai/dsh-persona-host/types'
 import { writeOnboardingCacheComplete } from '../shell/onboarding-persistence.ts'
 import { applyMessageStreamFrame, type MessageStreamFrame } from './apply-message-stream.ts'
 import { enrichKanbanCardsFromHost } from './map-host-ui.ts'
@@ -23,7 +25,33 @@ import type { PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
 import { patchAutonomyMode } from '../persona-editor/autonomy-map.ts'
+import type { AttachmentView } from '@deepseek-ai/dsh-persona-host/types'
+import { readFileAsBase64 } from '../chat/read-file-as-base64.ts'
 import { unwrapPersonaRemote } from './persona-remote-unwrap.ts'
+import type {
+  ConversationSubjectScope,
+  ConversationSubjectsBundleView,
+  GestorPlanView,
+  SearchRequest,
+  StartTeachSessionRequest,
+  StopTeachSessionRequest,
+  SubmitTeachDraftRequest,
+  TeachDraftView,
+  TeachSessionIdRequest,
+  TeachSessionStartView,
+  TeachSessionView,
+  TeachStepView,
+} from '@deepseek-ai/dsh-persona-host/types'
+import {
+  approveGestorPlanRemote,
+  listGestorPlansRemote,
+  rejectGestorPlanRemote,
+  type GestorWire,
+} from '../data/gestor-remote.ts'
+import { mergeArrivingFlags } from './gestor-arriving.ts'
+import { mapConversationSubjectsBundle, type MappedConversationSubjects } from '../chat/map-conversation-subjects.ts'
+import { mapUsedContextRecord } from './map-used-context.ts'
+import { DEFAULT_CONVERSATION_SUBJECT_ID, DEFAULT_CONVERSATION_SUBJECTS } from '../chat/conversation-subjects.ts'
 
 export interface PersonaLiveSnapshot {
   readonly ready: boolean
@@ -45,6 +73,8 @@ export interface PersonaLiveSnapshot {
   readonly suggestedTask: { readonly id: string; readonly title: string } | null
   readonly turnContext: TurnContextUi | null
   readonly error: string | null
+  readonly gestorPlansById: Readonly<Record<string, GestorPlanView>>
+  readonly arrivingHostPersonaIds: readonly string[]
 }
 
 const EMPTY: PersonaLiveSnapshot = {
@@ -66,6 +96,8 @@ const EMPTY: PersonaLiveSnapshot = {
   suggestedTask: null,
   turnContext: null,
   error: null,
+  gestorPlansById: {},
+  arrivingHostPersonaIds: [],
 }
 
 /** Host-backed snapshot for shell panels (production path). */
@@ -74,12 +106,19 @@ export interface PersonaLiveStore {
   bootstrap(onFirstUse: (firstUse: boolean) => void): Promise<void>
   runDevHarnessSeedIfEnabled(): Promise<void>
   refresh(): Promise<void>
-  postChannelMessage(body: string): Promise<void>
+  postChannelMessage(body: string, attachmentIds?: readonly string[]): Promise<void>
+  uploadChannelAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
+  uploadDmAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   selectDm(dmId: string | null): Promise<void>
   openPersonaDm(personaId: string): Promise<void>
   openFirstAvailableDm(): Promise<void>
   loadTurnContext(ticketId: string): Promise<void>
-  postDmMessage(body: string): Promise<void>
+  postDmMessage(body: string, attachmentIds?: readonly string[]): Promise<void>
+  toggleMessageReaction(
+    streamKind: 'channel' | 'dm',
+    eventId: string,
+    stickerId: string,
+  ): Promise<void>
   commitOnboardingRoster(
     displayName: string,
     roster: readonly OnboardingRosterPerson[],
@@ -87,8 +126,27 @@ export interface PersonaLiveStore {
   completeOnboarding(
     displayName: string,
     roster: readonly OnboardingRosterPerson[],
+    options?: { readonly cofreSeed?: string; readonly templateIds?: readonly string[] },
   ): Promise<void>
+  searchMessages(query: string, topicId?: string): Promise<readonly { readonly id: string; readonly meta: string; readonly text: string }[]>
   setPersonaAutonomyLevel(personaId: string, level: AutonomyLevel): Promise<void>
+  conversationScope(streamKind: 'channel' | 'dm', ownerId: string): ConversationSubjectScope | null
+  fetchConversationSubjects(scope: ConversationSubjectScope): Promise<MappedConversationSubjects>
+  selectConversationSubject(scope: ConversationSubjectScope, subjectId: string): Promise<MappedConversationSubjects>
+  createConversationSubject(scope: ConversationSubjectScope, name: string): Promise<{ readonly bundle: MappedConversationSubjects; readonly createdSubjectId: string }>
+  renameConversationSubject(scope: ConversationSubjectScope, subjectId: string, name: string): Promise<MappedConversationSubjects>
+  archiveConversationSubject(scope: ConversationSubjectScope, subjectId: string): Promise<MappedConversationSubjects>
+  reopenConversationSubject(scope: ConversationSubjectScope, name: string, colorIndex: number): Promise<MappedConversationSubjects>
+  moveMessageToSubject(scope: ConversationSubjectScope, eventId: string, subjectId: string): Promise<void>
+  startTeachPersona(personaId: string, consentVersion: string, microphone: boolean): Promise<TeachSessionStartView>
+  pauseTeachSession(sessionId: string): Promise<TeachSessionView>
+  resumeTeachSession(sessionId: string): Promise<TeachSessionView>
+  stopTeachSession(sessionId: string, microphone: boolean, transcript?: string): Promise<TeachSessionView>
+  getTeachSession(sessionId: string): Promise<TeachSessionView>
+  getTeachDraft(sessionId: string): Promise<TeachDraftView>
+  submitTeachDraft(sessionId: string, steps: readonly TeachStepView[], activate: boolean): Promise<TeachDraftView>
+  approveGestorPlan(planId: string): Promise<void>
+  rejectGestorPlan(planId: string): Promise<void>
 }
 
 type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
@@ -116,6 +174,7 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     actorId: string
     afterSeq: number
     limit: number
+    topicId?: string
   }): { events: readonly import('./persona-remote-types.ts').MessageView[] }
   followMessages?(
     request: {
@@ -126,6 +185,7 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
       actorId: string
       afterSeq: number
       limit: number
+      topicId?: string
     },
     signal: AbortSignal,
   ): AsyncIterable<MessageStreamFrame>
@@ -138,7 +198,42 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     actorId: string
     subjectId: string
     body: string
+    attachmentIds?: readonly string[]
+    topicId?: string
   }): unknown
+  listConversationSubjects?(scope: ConversationSubjectScope): ConversationSubjectsBundleView
+  setActiveConversationSubject?(scope: ConversationSubjectScope & { subjectId: string }): ConversationSubjectsBundleView
+  createConversationSubject?(scope: ConversationSubjectScope & { name: string; colorIndex?: number }): ConversationSubjectsBundleView
+  renameConversationSubject?(scope: ConversationSubjectScope & { subjectId: string; name: string }): ConversationSubjectsBundleView
+  archiveConversationSubject?(scope: ConversationSubjectScope & { subjectId: string }): ConversationSubjectsBundleView
+  moveMessageToSubject?(scope: ConversationSubjectScope & { eventId: string; subjectId: string }): boolean
+  startTeachSession?(request: StartTeachSessionRequest): TeachSessionStartView
+  pauseTeachSession?(request: TeachSessionIdRequest): TeachSessionView
+  resumeTeachSession?(request: TeachSessionIdRequest): TeachSessionView
+  stopTeachSession?(request: StopTeachSessionRequest): TeachSessionView | Promise<TeachSessionView>
+  getTeachSession?(request: TeachSessionIdRequest): TeachSessionView
+  getTeachDraft?(request: TeachSessionIdRequest): TeachDraftView
+  submitTeachDraft?(request: SubmitTeachDraftRequest): TeachDraftView
+  attachFile?(request: {
+    workspaceId: string
+    projectId: string
+    streamKind: 'channel' | 'dm'
+    ownerId: string
+    name: string
+    bytesBase64: string
+  }): AttachmentView
+  reactToMessage?(request: {
+    workspaceId: string
+    projectId: string
+    eventId: string
+    stickerId: string
+  }): import('./persona-remote-types.ts').MessageView
+  unreactToMessage?(request: {
+    workspaceId: string
+    projectId: string
+    eventId: string
+    stickerId: string
+  }): import('./persona-remote-types.ts').MessageView
   createPersona(request: {
     workspaceId: string
     projectId: string
@@ -172,7 +267,12 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     ticketId: string
     command: 'stop'
     reason: string
-  }): { ticketId: string; title: string; triggerIds: readonly string[] }
+  }): {
+    ticketId: string
+    title: string
+    triggerIds: readonly string[]
+    records: readonly import('@deepseek-ai/dsh-persona-host/types').UsedContextRecord[]
+  }
   getAutonomy?(request: {
     workspaceId: string
     projectId: string
@@ -209,13 +309,14 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     silenceStart: string
     silenceEnd: string
   }
-  completeOnboarding?(request: {
-    workspaceId: string
-    projectId: string
-    memberId: string
-    displayName: string
-    roster: readonly OnboardingRosterPerson[]
-  }): unknown
+  completeOnboarding?(request: CompleteOnboardingRequest): unknown
+  search?(request: SearchRequest): { readonly id: string; readonly body: string; readonly streamId: string; readonly actorId: string; readonly occurredAt: string }[]
+}
+
+function formatSearchTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
 function slugId(name: string, index: number): string {
@@ -233,6 +334,23 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   let hostOnboardingSink: ((firstUse: boolean) => void) | null = null
   let messageStreamAbort: AbortController | null = null
   let dmStreamAbort: AbortController | null = null
+  const streamTopicKey = (streamKind: 'channel' | 'dm', ownerId: string): string => `${streamKind}:${ownerId}`
+  const activeTopicByStream = new Map<string, string>()
+  let arrivingUntil: Record<string, number> = {}
+
+  const activeArrivingIds = (nowMs: number = Date.now()): Set<string> => {
+    const ids = new Set<string>()
+    for (const [id, until] of Object.entries(arrivingUntil)) {
+      if (until > nowMs) ids.add(id)
+      else delete arrivingUntil[id]
+    }
+    return ids
+  }
+
+  const markPersonasArriving = (personaIds: readonly string[]): void => {
+    const merged = mergeArrivingFlags(personaIds, arrivingUntil)
+    arrivingUntil = { ...merged.untilById }
+  }
 
   /** Re-read `getOnboarding.firstUse` after refresh/seed (localStorage is first-paint only). */
   const publishHostOnboardingState = async (): Promise<void> => {
@@ -268,6 +386,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     setAbort(ac)
     void (async () => {
       try {
+        const topicId = activeTopicByStream.get(streamTopicKey(streamKind, ownerId))
         const stream = remote.followMessages!({
           workspaceId: scope.workspaceId,
           projectId: scope.projectId,
@@ -276,6 +395,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           actorId: scope.memberId,
           afterSeq: 0,
           limit: 200,
+          ...(topicId === undefined || topicId === '' ? {} : { topicId }),
         }, ac.signal)
         for await (const frame of stream) {
           if (ac.signal.aborted) break
@@ -322,6 +442,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     try {
       const scope = tenant
       const prior = store.getSnapshot()
+      const channelTopicId = activeTopicByStream.get(streamTopicKey('channel', scope.channelId))
       const [now, away, overview, team, projects, tasks, page, dmRows] = await Promise.all([
         Promise.resolve(remote.getOverviewNow(scope)),
         Promise.resolve(remote.getWhileAway(scope)),
@@ -336,13 +457,27 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           actorId: scope.memberId,
           afterSeq: 0,
           limit: 200,
+          ...(channelTopicId === undefined || channelTopicId === '' ? {} : { topicId: channelTopicId }),
         })),
         remote.listDms !== undefined
           ? Promise.resolve(remote.listDms(scope))
           : Promise.resolve([] as readonly DmView[]),
       ])
       const nowRows = now.personas.map(row => mapPersonaNowRow(row, team))
-      const stripMembers = mapTeamToStrip(team, now.personas)
+      let gestorPlans: readonly GestorPlanView[] = []
+      try {
+        gestorPlans = await listGestorPlansRemote(remote as unknown as GestorWire, scope.workspaceId)
+      } catch (gestorError) {
+        const detail = gestorError instanceof Error ? gestorError.message : String(gestorError)
+        if (detail !== 'unknown' && !/not supported|unavailable|gestor-not-supported/i.test(detail)) {
+          console.error('[persona] listGestorPlans falhou (refresh continua)', gestorError)
+        }
+      }
+      const gestorPlansById: Record<string, GestorPlanView> = {}
+      for (const plan of gestorPlans) gestorPlansById[plan.id] = plan
+      const arrivingIds = activeArrivingIds()
+      const arrivingHostPersonaIds = [...arrivingIds]
+      const stripMembers = mapTeamToStrip(team, now.personas, arrivingIds)
       const awayEvents = away.events.map(mapAwayEventLive)
       const pendingApprovals = remote.listApprovals !== undefined
         ? (await Promise.resolve(remote.listApprovals(scope)))
@@ -364,6 +499,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       let dmMessages = prior.dmMessages
       const selectedDmId = prior.selectedDmId
       if (selectedDmId !== null) {
+        const dmTopicId = activeTopicByStream.get(streamTopicKey('dm', selectedDmId))
         const dmPage = await Promise.resolve(remote.listMessages({
           ...scope,
           streamKind: 'dm',
@@ -371,6 +507,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           actorId: scope.memberId,
           afterSeq: 0,
           limit: 200,
+          ...(dmTopicId === undefined || dmTopicId === '' ? {} : { topicId: dmTopicId }),
         }))
         dmMessages = sortMessageStreamEvents(dmPage.events).map(event => mapMessage(event, team, scope.memberId, taskTitleById))
       }
@@ -415,13 +552,27 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         suggestedTask,
         turnContext: prior.turnContext,
         error: null,
+        gestorPlansById,
+        arrivingHostPersonaIds,
       })
       await publishHostOnboardingState()
     } catch (error) {
-      store.set({
-        ...store.getSnapshot(),
-        error: error instanceof Error ? error.message : String(error),
-      })
+      console.error('[persona] refresh falhou', error)
+      const prior = store.getSnapshot()
+      if (tenant !== null) {
+        store.set({
+          ...prior,
+          ready: true,
+          tenant,
+          team: prior.team ?? { personas: [], members: [] },
+          error: null,
+        })
+      } else {
+        store.set({
+          ...prior,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
     }
   }
 
@@ -429,10 +580,22 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     hostOnboardingSink = onFirstUse
     try {
       tenant = await bootstrapPersonaTenant(bootstrapWire)
-      await publishHostOnboardingState()
       await refresh()
+      if (tenant !== null && readClientDevSeedEnabled()) {
+        let seeded = false
+        try {
+          seeded = await seedDevHarnessScenario(remote as unknown as DevHarnessSeedRemote, tenant)
+        } catch (seedError) {
+          console.error('[persona] dev seed falhou no bootstrap', seedError)
+        }
+        console.info('[persona] dev seed', { tenant, seeded, devSeedFlag: true })
+        if (seeded) await refresh()
+      }
+      await publishHostOnboardingState()
       startMessageStream()
       if (tenant !== null) {
+        const chScope = conversationScope('channel', tenant.channelId)
+        if (chScope !== null) void fetchConversationSubjects(chScope)
         try {
           void Promise.resolve(remote.markVisit(tenant)).catch(() => undefined)
         } catch {
@@ -441,17 +604,48 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       }
     } catch (error) {
       console.error('[persona] bootstrap do live store falhou', error)
+      tenant = null
       store.set({
         ...EMPTY,
         error: error instanceof Error ? error.message : String(error),
       })
+      throw error
     }
   }
 
-  const postChannelMessage = async (body: string): Promise<void> => {
+  const attachStreamFile = async (
+    streamKind: 'channel' | 'dm',
+    ownerId: string,
+    file: File,
+  ): Promise<{ id: string; name: string }> => {
+    if (tenant === null || remote.attachFile === undefined) throw new Error('attachments-unavailable')
+    const bytesBase64 = await readFileAsBase64(file)
+    const view = await Promise.resolve(remote.attachFile({
+      workspaceId: tenant.workspaceId,
+      projectId: tenant.projectId,
+      streamKind,
+      ownerId,
+      name: file.name,
+      bytesBase64,
+    }))
+    return { id: view.id, name: view.name }
+  }
+
+  const uploadChannelAttachment = async (file: File): Promise<{ id: string; name: string }> => {
+    if (tenant === null) throw new Error('no-tenant')
+    return attachStreamFile('channel', tenant.channelId, file)
+  }
+
+  const uploadDmAttachment = async (file: File): Promise<{ id: string; name: string }> => {
+    const dmId = store.getSnapshot().selectedDmId
+    if (dmId === null) throw new Error('no-dm')
+    return attachStreamFile('dm', dmId, file)
+  }
+
+  const postChannelMessage = async (body: string, attachmentIds: readonly string[] = []): Promise<void> => {
     if (tenant === null) return
     const trimmed = body.trim()
-    if (trimmed.length === 0) return
+    if (trimmed.length === 0 && attachmentIds.length === 0) return
     const snap = store.getSnapshot()
     const optimisticId = `local-${Date.now()}`
     const timeLabel = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -466,6 +660,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         reactions: [],
       }],
     })
+    const topicId = activeTopicByStream.get(streamTopicKey('channel', tenant.channelId))
     await Promise.resolve(remote.postMessage({
       id: `msg-${Date.now()}`,
       workspaceId: tenant.workspaceId,
@@ -475,6 +670,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       actorId: tenant.memberId,
       subjectId: tenant.memberId,
       body: trimmed,
+      attachmentIds: [...attachmentIds],
+      ...(topicId === undefined || topicId === '' ? {} : { topicId }),
     }))
     await refresh()
   }
@@ -489,6 +686,11 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     const scope = tenant
     const team = store.getSnapshot().team
     if (team === null) return
+    const subjectScope = conversationScope('dm', dmId)
+    if (subjectScope !== null) {
+      await fetchConversationSubjects(subjectScope)
+    }
+    const topicId = activeTopicByStream.get(streamTopicKey('dm', dmId))
     const page = await Promise.resolve(remote.listMessages({
       ...scope,
       streamKind: 'dm',
@@ -496,8 +698,11 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       actorId: scope.memberId,
       afterSeq: 0,
       limit: 200,
+      ...(topicId === undefined || topicId === '' ? {} : { topicId }),
     }))
-    const dmMessages = page.events.map(event => mapMessage(event, team, scope.memberId))
+    const snap = store.getSnapshot()
+    const taskTitleById = new Map(snap.kanbanCards.map(card => [card.id, card.title]))
+    const dmMessages = page.events.map(event => mapMessage(event, team, scope.memberId, taskTitleById))
     const peerId = store.getSnapshot().dms.find(row => row.id === dmId)?.peerId
     const nextUnread = { ...store.getSnapshot().dmUnreadByPersonaId }
     if (peerId !== undefined) nextUnread[peerId] = 0
@@ -526,6 +731,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           ticketId: row.ticketId,
           title: row.title,
           triggerIds: [...row.triggerIds],
+          records: row.records.map(mapUsedContextRecord),
         },
       })
     } catch {
@@ -563,12 +769,62 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     await openPersonaDm(peer.id)
   }
 
-  const postDmMessage = async (body: string): Promise<void> => {
+  const patchMessageReactions = (
+    streamKind: 'channel' | 'dm',
+    eventId: string,
+    team: TeamView,
+    memberId: string,
+    taskTitleById: ReadonlyMap<string, string>,
+    view: import('./persona-remote-types.ts').MessageView,
+  ): void => {
+    const snap = store.getSnapshot()
+    const mapped = mapMessage(view, team, memberId, taskTitleById)
+    if (streamKind === 'channel') {
+      store.set({
+        ...snap,
+        messages: snap.messages.map(row => row.id === eventId ? mapped : row),
+      })
+      return
+    }
+    store.set({
+      ...snap,
+      dmMessages: snap.dmMessages.map(row => row.id === eventId ? mapped : row),
+    })
+  }
+
+  const toggleMessageReaction = async (
+    streamKind: 'channel' | 'dm',
+    eventId: string,
+    stickerId: string,
+  ): Promise<void> => {
+    if (tenant === null) return
+    if (remote.reactToMessage === undefined || remote.unreactToMessage === undefined) return
+    const snap = store.getSnapshot()
+    const team = snap.team
+    if (team === null) return
+    const rows = streamKind === 'channel' ? snap.messages : snap.dmMessages
+    const row = rows.find(item => item.id === eventId)
+    const existing = row?.reactions.find(item => item.stickerId === stickerId)
+    const userReacted = existing?.actorIds.includes(tenant.memberId) === true
+    const scope = {
+      workspaceId: tenant.workspaceId,
+      projectId: tenant.projectId,
+      eventId,
+      stickerId,
+    }
+    const taskTitleById = new Map(snap.kanbanCards.map(card => [card.id, card.title]))
+    const view = await Promise.resolve(
+      userReacted ? remote.unreactToMessage(scope) : remote.reactToMessage(scope),
+    )
+    patchMessageReactions(streamKind, eventId, team, tenant.memberId, taskTitleById, view)
+  }
+
+  const postDmMessage = async (body: string, attachmentIds: readonly string[] = []): Promise<void> => {
     if (tenant === null) return
     const dmId = store.getSnapshot().selectedDmId
     if (dmId === null) return
     const trimmed = body.trim()
-    if (trimmed.length === 0) return
+    if (trimmed.length === 0 && attachmentIds.length === 0) return
     const snap = store.getSnapshot()
     const timeLabel = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     store.set({
@@ -582,6 +838,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         reactions: [],
       }],
     })
+    const topicId = activeTopicByStream.get(streamTopicKey('dm', dmId))
     await Promise.resolve(remote.postMessage({
       id: `msg-dm-${Date.now()}`,
       workspaceId: tenant.workspaceId,
@@ -591,6 +848,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       actorId: tenant.memberId,
       subjectId: tenant.memberId,
       body: trimmed,
+      attachmentIds: [...attachmentIds],
+      ...(topicId === undefined || topicId === '' ? {} : { topicId }),
     }))
     await refresh()
   }
@@ -648,33 +907,309 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
 
   /** Probe/gates only: `PERSONA_DEV_SEED=1` initScript; never invoked from {@link bootstrap}. */
   const runDevHarnessSeedIfEnabled = async (): Promise<void> => {
-    if (tenant === null || !readClientDevSeedEnabled()) return
-    const seeded = await seedDevHarnessScenario(remote as unknown as DevHarnessSeedRemote, tenant)
+    const devSeedFlag = readClientDevSeedEnabled()
+    if (tenant === null || !devSeedFlag) {
+      console.info('[persona] dev seed', { tenant: tenant === null ? null : { ...tenant }, seeded: false, devSeedFlag })
+      return
+    }
+    let seeded = false
+    try {
+      seeded = await seedDevHarnessScenario(remote as unknown as DevHarnessSeedRemote, tenant)
+    } catch (seedError) {
+      console.error('[persona] dev seed falhou', seedError)
+    }
+    console.info('[persona] dev seed', { tenant, seeded, devSeedFlag })
     if (seeded) await refresh()
   }
 
   const completeOnboarding = async (
     displayName: string,
     roster: readonly OnboardingRosterPerson[],
+    options?: { readonly cofreSeed?: string; readonly templateIds?: readonly string[] },
   ): Promise<void> => {
     if (tenant === null) return
     writeOnboardingCacheComplete()
     if (remote.completeOnboarding !== undefined) {
       try {
-        await Promise.resolve(remote.completeOnboarding({
+        const onboardingRaw = await Promise.resolve(remote.getOnboarding({
           workspaceId: tenant.workspaceId,
           projectId: tenant.projectId,
-          memberId: tenant.memberId,
-          displayName: displayName.trim(),
-          roster,
         }))
+        let personalProjectId = tenant.projectId
+        if (typeof onboardingRaw === 'object' && onboardingRaw !== null && 'ok' in onboardingRaw) {
+          const wrapped = onboardingRaw as { ok: boolean; value?: { personalProjectId?: string } }
+          if (wrapped.ok && wrapped.value?.personalProjectId !== undefined && wrapped.value.personalProjectId.length > 0) {
+            personalProjectId = wrapped.value.personalProjectId
+          }
+        } else if (typeof onboardingRaw === 'object' && onboardingRaw !== null && 'personalProjectId' in onboardingRaw) {
+          const pid = (onboardingRaw as { personalProjectId: string }).personalProjectId
+          if (pid.length > 0) personalProjectId = pid
+        }
+        const request: CompleteOnboardingRequest = {
+          workspaceId: tenant.workspaceId,
+          personalProjectId,
+          displayName: displayName.trim(),
+          team: rosterToHostTeam(roster),
+          templateIds: options?.templateIds === undefined ? [] : [...options.templateIds],
+          runnerChoices: ['dsh'],
+          cofreSeed: options?.cofreSeed ?? '',
+        }
+        await Promise.resolve(remote.completeOnboarding(request))
         await refresh()
+        await publishHostOnboardingState()
         return
       } catch {
         /* fall through to legacy roster RPCs */
       }
     }
     await commitOnboardingRoster(displayName, roster)
+  }
+
+  const conversationScope = (streamKind: 'channel' | 'dm', ownerId: string): ConversationSubjectScope | null => {
+    if (tenant === null) return null
+    return {
+      workspaceId: tenant.workspaceId,
+      projectId: tenant.projectId,
+      streamKind,
+      ownerId,
+    }
+  }
+
+  const reloadStreamMessages = async (scope: ConversationSubjectScope): Promise<void> => {
+    if (tenant === null) return
+    const scopeTenant = tenant
+    const snap = store.getSnapshot()
+    if (snap.team === null) return
+    const topicId = activeTopicByStream.get(streamTopicKey(scope.streamKind, scope.ownerId))
+    const page = await Promise.resolve(remote.listMessages({
+      workspaceId: scopeTenant.workspaceId,
+      projectId: scopeTenant.projectId,
+      streamKind: scope.streamKind,
+      ownerId: scope.ownerId,
+      actorId: scopeTenant.memberId,
+      afterSeq: 0,
+      limit: 200,
+      ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+    }))
+    const taskTitleById = new Map(snap.kanbanCards.map(card => [card.id, card.title]))
+    const mapped = sortMessageStreamEvents(page.events).map(event =>
+      mapMessage(event, snap.team!, scopeTenant.memberId, taskTitleById),
+    )
+    if (scope.streamKind === 'channel') {
+      store.set({ ...snap, messages: mapped })
+      stopMessageStream()
+      startMessageStream()
+      return
+    }
+    store.set({ ...snap, dmMessages: mapped })
+    stopDmStream()
+    startDmStream(scope.ownerId)
+  }
+
+  const fetchConversationSubjects = async (scope: ConversationSubjectScope): Promise<MappedConversationSubjects> => {
+    if (remote.listConversationSubjects === undefined) {
+      return {
+        subjects: [...DEFAULT_CONVERSATION_SUBJECTS],
+        activeSubjectId: DEFAULT_CONVERSATION_SUBJECT_ID,
+      }
+    }
+    const bundle = await Promise.resolve(remote.listConversationSubjects(scope))
+    const mapped = mapConversationSubjectsBundle(bundle)
+    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    return mapped
+  }
+
+  const selectConversationSubject = async (
+    scope: ConversationSubjectScope,
+    subjectId: string,
+  ): Promise<MappedConversationSubjects> => {
+    if (remote.setActiveConversationSubject === undefined) {
+      activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), subjectId)
+      await reloadStreamMessages(scope)
+      return fetchConversationSubjects(scope)
+    }
+    const bundle = await Promise.resolve(remote.setActiveConversationSubject({ ...scope, subjectId }))
+    const mapped = mapConversationSubjectsBundle(bundle)
+    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    await reloadStreamMessages(scope)
+    return mapped
+  }
+
+  const createConversationSubject = async (
+    scope: ConversationSubjectScope,
+    name: string,
+  ): Promise<{ readonly bundle: MappedConversationSubjects; readonly createdSubjectId: string }> => {
+    if (remote.createConversationSubject === undefined) {
+      const bundle = await fetchConversationSubjects(scope)
+      return { bundle, createdSubjectId: bundle.activeSubjectId }
+    }
+    const bundle = await Promise.resolve(remote.createConversationSubject({ ...scope, name }))
+    const mapped = mapConversationSubjectsBundle(bundle)
+    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    await reloadStreamMessages(scope)
+    return { bundle: mapped, createdSubjectId: mapped.activeSubjectId }
+  }
+
+  const renameConversationSubject = async (
+    scope: ConversationSubjectScope,
+    subjectId: string,
+    name: string,
+  ): Promise<MappedConversationSubjects> => {
+    if (remote.renameConversationSubject === undefined) return fetchConversationSubjects(scope)
+    const bundle = await Promise.resolve(remote.renameConversationSubject({ ...scope, subjectId, name }))
+    return mapConversationSubjectsBundle(bundle)
+  }
+
+  const archiveConversationSubject = async (
+    scope: ConversationSubjectScope,
+    subjectId: string,
+  ): Promise<MappedConversationSubjects> => {
+    if (remote.archiveConversationSubject === undefined) return fetchConversationSubjects(scope)
+    const bundle = await Promise.resolve(remote.archiveConversationSubject({ ...scope, subjectId }))
+    const mapped = mapConversationSubjectsBundle(bundle)
+    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    await reloadStreamMessages(scope)
+    return mapped
+  }
+
+  const reopenConversationSubject = async (
+    scope: ConversationSubjectScope,
+    name: string,
+    colorIndex: number,
+  ): Promise<MappedConversationSubjects> => {
+    if (remote.createConversationSubject === undefined) return fetchConversationSubjects(scope)
+    const bundle = await Promise.resolve(remote.createConversationSubject({ ...scope, name, colorIndex }))
+    const mapped = mapConversationSubjectsBundle(bundle)
+    activeTopicByStream.set(streamTopicKey(scope.streamKind, scope.ownerId), mapped.activeSubjectId)
+    await reloadStreamMessages(scope)
+    return mapped
+  }
+
+  const moveMessageToSubject = async (
+    scope: ConversationSubjectScope,
+    eventId: string,
+    subjectId: string,
+  ): Promise<void> => {
+    if (remote.moveMessageToSubject !== undefined) {
+      await Promise.resolve(remote.moveMessageToSubject({ ...scope, eventId, subjectId }))
+    }
+    await refresh()
+  }
+
+  const teachScope = (): { workspaceId: string; projectId: string } | null => {
+    if (tenant === null) return null
+    return { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
+  }
+
+  const startTeachPersona = async (
+    personaId: string,
+    consentVersion: string,
+    microphone: boolean,
+  ): Promise<TeachSessionStartView> => {
+    void microphone
+    const scope = teachScope()
+    if (scope === null || remote.startTeachSession === undefined) {
+      return { sessionId: '', retentionDays: 30, storageHintPt: '' }
+    }
+    return Promise.resolve(remote.startTeachSession({ ...scope, personaId, consentVersion }))
+  }
+
+  const pauseTeachSession = async (sessionId: string): Promise<TeachSessionView> => {
+    const scope = teachScope()
+    if (scope === null || remote.pauseTeachSession === undefined) return { status: 'unsupported', elapsedMs: 0 }
+    return Promise.resolve(remote.pauseTeachSession({ ...scope, sessionId }))
+  }
+
+  const resumeTeachSession = async (sessionId: string): Promise<TeachSessionView> => {
+    const scope = teachScope()
+    if (scope === null || remote.resumeTeachSession === undefined) return { status: 'unsupported', elapsedMs: 0 }
+    return Promise.resolve(remote.resumeTeachSession({ ...scope, sessionId }))
+  }
+
+  const stopTeachSession = async (
+    sessionId: string,
+    microphone: boolean,
+    transcript?: string,
+  ): Promise<TeachSessionView> => {
+    const scope = teachScope()
+    if (scope === null || remote.stopTeachSession === undefined) return { status: 'unsupported', elapsedMs: 0 }
+    return Promise.resolve(remote.stopTeachSession({
+      ...scope,
+      sessionId,
+      includeMicrophone: microphone,
+      ...(transcript === undefined ? {} : { transcript }),
+      frames: [],
+    }))
+  }
+
+  const getTeachSession = async (sessionId: string): Promise<TeachSessionView> => {
+    const scope = teachScope()
+    if (scope === null || remote.getTeachSession === undefined) return { status: 'unsupported', elapsedMs: 0 }
+    return Promise.resolve(remote.getTeachSession({ ...scope, sessionId }))
+  }
+
+  const getTeachDraft = async (sessionId: string): Promise<TeachDraftView> => {
+    const scope = teachScope()
+    if (scope === null || remote.getTeachDraft === undefined) return { steps: [], skillTitle: '' }
+    return Promise.resolve(remote.getTeachDraft({ ...scope, sessionId }))
+  }
+
+  const submitTeachDraft = async (
+    sessionId: string,
+    steps: readonly TeachStepView[],
+    activate: boolean,
+  ): Promise<TeachDraftView> => {
+    const scope = teachScope()
+    if (scope === null || remote.submitTeachDraft === undefined) return { steps: [], skillTitle: '' }
+    return Promise.resolve(remote.submitTeachDraft({ ...scope, sessionId, steps, activate }))
+  }
+
+  const searchMessages = async (
+    query: string,
+    topicId?: string,
+  ): Promise<readonly { readonly id: string; readonly meta: string; readonly text: string }[]> => {
+    const trimmed = query.trim()
+    if (tenant === null || trimmed.length < 2 || remote.search === undefined) return []
+    try {
+      const hits = await Promise.resolve(remote.search({
+        workspaceId: tenant.workspaceId,
+        projectId: tenant.projectId,
+        actorId: tenant.memberId,
+        query: trimmed,
+        limit: 20,
+        ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+      }))
+      return hits.map(row => ({
+        id: row.id,
+        meta: row.streamId.startsWith('dm:')
+          ? `${row.actorId} · DM · ${formatSearchTime(row.occurredAt)}`
+          : `${row.actorId} · #geral · ${formatSearchTime(row.occurredAt)}`,
+        text: row.body,
+      }))
+    } catch {
+      return []
+    }
+  }
+
+  const approveGestorPlan = async (planId: string): Promise<void> => {
+    if (tenant === null) return
+    const before = new Set((store.getSnapshot().team?.personas ?? []).map(row => row.id))
+    await approveGestorPlanRemote(remote as unknown as GestorWire, { workspaceId: tenant.workspaceId, planId })
+    await refresh()
+    const newcomers = (store.getSnapshot().team?.personas ?? [])
+      .filter(row => !before.has(row.id))
+      .map(row => row.id)
+    if (newcomers.length > 0) {
+      markPersonasArriving(newcomers)
+      await refresh()
+      window.setTimeout(() => { void refresh() }, 4_100)
+    }
+  }
+
+  const rejectGestorPlan = async (planId: string): Promise<void> => {
+    if (tenant === null) return
+    await rejectGestorPlanRemote(remote as unknown as GestorWire, { workspaceId: tenant.workspaceId, planId })
+    await refresh()
   }
 
   const setPersonaAutonomyLevel = async (personaId: string, level: AutonomyLevel): Promise<void> => {
@@ -697,13 +1232,34 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     runDevHarnessSeedIfEnabled,
     refresh,
     postChannelMessage,
+    uploadChannelAttachment,
+    uploadDmAttachment,
     selectDm,
     openPersonaDm,
     openFirstAvailableDm,
     loadTurnContext,
     postDmMessage,
+    toggleMessageReaction,
     commitOnboardingRoster,
     completeOnboarding,
+    searchMessages,
     setPersonaAutonomyLevel,
+    conversationScope,
+    fetchConversationSubjects,
+    selectConversationSubject,
+    createConversationSubject,
+    renameConversationSubject,
+    archiveConversationSubject,
+    reopenConversationSubject,
+    moveMessageToSubject,
+    startTeachPersona,
+    pauseTeachSession,
+    resumeTeachSession,
+    stopTeachSession,
+    getTeachSession,
+    getTeachDraft,
+    submitTeachDraft,
+    approveGestorPlan,
+    rejectGestorPlan,
   }
 }

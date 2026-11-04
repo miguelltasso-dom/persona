@@ -16,6 +16,8 @@ export interface KanbanReviewSheetProps {
   readonly taskTitle: string
   readonly onClose: () => void
   readonly onMutate: () => void
+  /** Peak-end: stamp + paw burst before the board reloads. */
+  readonly onAccepted?: (ticketId: string) => void
 }
 
 export function KanbanReviewSheet({
@@ -25,6 +27,7 @@ export function KanbanReviewSheet({
   taskTitle,
   onClose,
   onMutate,
+  onAccepted,
 }: KanbanReviewSheetProps): ReactNode {
   const loadKey = `${scope.workspaceId}:${scope.projectId}:review:${ticketId}`
   const review = personaReviewRemote(persona)
@@ -57,6 +60,7 @@ export function KanbanReviewSheet({
         onMutate()
         return
       }
+      onAccepted?.(ticketId)
       onMutate()
       onClose()
     } finally {

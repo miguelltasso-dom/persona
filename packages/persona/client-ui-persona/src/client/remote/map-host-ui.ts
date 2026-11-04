@@ -2,7 +2,9 @@ import type { PersonaCharacterId } from '../assets/asset-url.ts'
 import { poseUrl } from '../assets/asset-url.ts'
 import { resolveProjectDisplayName } from '../kanban/resolve-project-name.ts'
 import type { KanbanCardModel, KanbanColumnId, KanbanPersonaRef } from '../kanban/types.ts'
+import { parseGestorPlanId } from '../chat/gestor-plan-message.ts'
 import type { ChannelPersonaMember, PersonaNowSnapshot, PersonaWorkUiState } from '../team/persona-work-state.ts'
+import { cardSystemRoles } from '../profile/card-system-roles.ts'
 import { uiStateToPose } from '../team/persona-work-state.ts'
 import type { AwayEventView, MessageView, PersonaNowView, PersonaView, TaskView, TeamView } from './persona-remote-types.ts'
 import { sortPersonasForUi } from '../team/sort-personas.ts'
@@ -127,6 +129,7 @@ export function resolveHostPersonaId(team: TeamView | null, ref: string): string
 function stripMember(
   persona: PersonaView,
   state: PersonaWorkUiState,
+  arriving?: boolean,
 ): ChannelPersonaMember {
   const id = resolveCharacterId(persona, persona.id)
   const pose = uiStateToPose(state)
@@ -136,7 +139,8 @@ function stripMember(
     name: persona.name,
     role: persona.title,
     state,
-    systemRoles: [...persona.systemRoles],
+    systemRoles: [...cardSystemRoles(persona.systemRoles)],
+    ...(arriving === true ? { arriving: true as const } : {}),
     ...(hasPose ? {} : { silhouette: true as const }),
   }
 }
@@ -175,15 +179,26 @@ export function mapPersonaNowRow(row: PersonaNowView, team: TeamView): PersonaNo
   return snap
 }
 
-export function mapTeamToStrip(team: TeamView, now: readonly PersonaNowView[]): readonly ChannelPersonaMember[] {
+export function mapTeamToStrip(
+  team: TeamView,
+  now: readonly PersonaNowView[],
+  arrivingPersonaIds: ReadonlySet<string> = new Set(),
+): readonly ChannelPersonaMember[] {
   const nowByPersona = new Map(now.map(row => [row.personaId, row]))
   if (team.personas.length === 0) {
-    return now.map(row => mapPersonaNowRow(row, team).member)
+    return now.map((row) => {
+      const member = mapPersonaNowRow(row, team).member
+      return arrivingPersonaIds.has(row.personaId) ? { ...member, arriving: true as const } : member
+    })
   }
   return sortPersonasForUi(team.personas).map((persona: PersonaView) => {
     const row = nowByPersona.get(persona.id)
-    if (row !== undefined) return mapPersonaNowRow(row, team).member
-    return stripMember(persona, 'resting')
+    const arriving = arrivingPersonaIds.has(persona.id)
+    if (row !== undefined) {
+      const member = mapPersonaNowRow(row, team).member
+      return arriving ? { ...member, arriving: true as const } : member
+    }
+    return stripMember(persona, 'resting', arriving)
   })
 }
 
@@ -202,13 +217,23 @@ export function mapAwayEventLive(event: AwayEventView): AwayEventLive {
   }
 }
 
+export interface MessageReactionUi {
+  readonly stickerId: string
+  readonly count: number
+  readonly actorIds: readonly string[]
+}
+
 export interface ChannelMessageUi {
   readonly id: string
   readonly authorId: string
   readonly authorName: string
   readonly body: string
   readonly timeLabel: string
-  readonly reactions: readonly string[]
+  readonly reactions: readonly MessageReactionUi[]
+  /** Parsed from `[[gestor-plan:…]]` marker in the host message body. */
+  readonly gestorPlanId?: string
+  /** WAVE2 assunto tag when host sets `conversationSubjectId` on the message. */
+  readonly conversationSubjectId?: string
   /** Ticket/task citation when the host marks the stream event (C5b). */
   readonly taskTitle?: string
   /** Host ticket id when the stream event references work (Contexto usado). */
@@ -235,18 +260,27 @@ export function mapMessage(
   const ticketId = citesTask ? event.subjectId : undefined
   const resolvedTitle = ticketId !== undefined ? taskTitleById.get(ticketId) : undefined
   const taskTitle = resolvedTitle ?? (citesTask ? event.subjectId : undefined)
+  const reactions: MessageReactionUi[] = (event.reactions ?? []).map(row => ({
+    stickerId: row.stickerId,
+    count: row.actorIds.length,
+    actorIds: [...row.actorIds],
+  }))
+  const parsedPlan = parseGestorPlanId(event.body)
   const row: ChannelMessageUi = {
     id: event.id,
     authorId,
     authorName,
-    body: event.body,
+    body: parsedPlan?.visibleBody ?? event.body,
     timeLabel,
-    reactions: [],
+    reactions,
+    ...(parsedPlan === null ? {} : { gestorPlanId: parsedPlan.planId }),
   }
+  const subjectTag = (event.conversationSubjectId ?? event.topicId ?? '').trim()
+  const tagged = subjectTag.length > 0 ? { ...row, conversationSubjectId: subjectTag } : row
   if (taskTitle !== undefined && taskTitle.length > 0) {
     return ticketId !== undefined
-      ? { ...row, taskTitle, ticketId }
-      : { ...row, taskTitle }
+      ? { ...tagged, taskTitle, ticketId }
+      : { ...tagged, taskTitle }
   }
-  return row
+  return tagged
 }

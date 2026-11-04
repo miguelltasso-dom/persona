@@ -576,3 +576,13 @@ bundle (with-lock) → Build complete, 99 files
   - **Para quem usa:** a página congela (até o screenshot por CDP estoura 30 s) e **nenhuma mensagem aparece**. É o caso exato da tela de erro da BOOT-SPEC, que ainda não foi portada.
   - Causa exata enviada ao Rivet; Probe avisado. O script agora guarda o erro inteiro (900 caracteres).
   - **11:35, causa raiz do ENOENT:** `apps/desktop-host/package.json` tem `"files": ["lib/index.js", "lib/cli.js"]` e deixa `config/electron.cordis.patch.yml` fora do pacote montado (conferido em `targets/win-x64/dsh/...`). A correção é uma linha (`"config/"` em `files`) e foi entregue ao Rivet.
+- **11:50, Fase A item 1 especificado** (`persona-spec/design/FIRST-DELIVERY-SPEC.md`, só spec, aguardando a prioridade do Atlas):
+  - **Correção honesta do UX-PHASE:** o passo 5 "Primeira entrega" **já existe** (Prism). Eu tinha descrito como ausente. O buraco real é outro: só há `intro | working | celebrate`, e não existe saída sem motor, com falha ou com demora.
+  - **A spec acrescenta:**
+    - `needsEngine` (decidido antes do clique), `slow` aos 45 s ("Entrar e acompanhar") e `failed` com o `RunErrorCard`;
+    - "Aceitar e entrar";
+    - o cartão "Primeira entrega a caminho";
+    - os eventos locais `first_delivery_*` (ativação = aceita);
+    - o texto pt e en;
+    - o aceite em E2E nos 3 caminhos, todos com ação.
+  - O UX-PHASE item 1 foi reescrito com esse estado real.

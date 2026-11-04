@@ -28,12 +28,16 @@ A Persona não manda dados para fora. Toda métrica abaixo é medida de três je
 
 ## As 10
 
-### 1. A primeira entrega acontece no onboarding
-- **Problema:** a pessoa termina o onboarding no #geral com uma "tarefa sugerida" e precisa pensar no que pedir. Nos dogfoods, a 1ª entrega real nunca aconteceu (0/20).
-- **Solução:** no passo 5, a Coordenação já roda uma tarefa pequena e real com o motor conectado, usando o que a pessoa escreveu no passo 2: "A Nina vai resumir o seu Cofre em 5 pontos e propor a primeira tarefa da semana". A entrega chega com o `MilestoneCard` ("Primeira entrega", que já existe) e o botão Aceitar. Sem motor conectado, o passo 3 vira obrigatório e guiado (item 3), em vez de "Continuar sem conectar".
-- **Impacto:** **ativação**, o maior de todos. RCD: *Deliver the promised result before teaching mechanics*, *Celebrate the activation moment*, *Give the trial an active goal*.
-- **Esforço:** M. Forge (tarefa de boas-vindas no engine), Prism (passo 5), Muse (marco e copy).
-- **Métrica:** % de primeiros usos com **1ª entrega aceita em ≤ 10 min**; mediana do tempo até a 1ª entrega. Meta: ≥ 70% e ≤ 5 min.
+### 1. A primeira entrega acontece no onboarding, e nunca termina no vazio
+- **Problema:** o passo 5 já pede a 1ª entrega (Prism: "Pedir agora" → "Equipe trabalhando" → celebração), mas só tem as fases `intro | working | celebrate`. Sem motor pronto, com falha da execução ou com demora, a pessoa fica em "trabalhando" para sempre, sem mensagem. Nos dogfoods, a 1ª entrega real nunca aconteceu (0/20).
+- **Solução** (spec completa em `design/FIRST-DELIVERY-SPEC.md`):
+  - três fases novas: `needsEngine`, decidida antes do clique ("Falta uma IA para a equipe trabalhar" · Conectar uma IA); `slow`, aos 45 s ("Entrar e acompanhar"); `failed`, com o `RunErrorCard` do código;
+  - "Aceitar e entrar" na celebração;
+  - o cartão "Primeira entrega a caminho" na Visão geral;
+  - os eventos locais `first_delivery_*`.
+- **Impacto:** **ativação**, o maior de todos. RCD: *Deliver the promised result before teaching mechanics*, *Celebrate the activation moment*, *Never ship a blank dashboard*.
+- **Esforço:** P/M. Prism (fases e texto), Forge (tarefa de boas-vindas com orçamento fixo), Anvil (eventos).
+- **Métrica:** % de primeiros usos com **1ª entrega aceita em ≤ 10 min** (`first_delivery_accepted`); mediana do tempo até ela. Meta: ≥ 70% e ≤ 5 min. Nenhum caminho do E2E termina sem ação.
 
 ### 2. Um onboarding que nunca prende
 - **Problema:**

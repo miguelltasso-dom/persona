@@ -4,6 +4,160 @@ Mais recente no topo.
 
 ---
 
+## 04/11 06:30 — Causa do client DSH no instalado: host `profile:"desktop"`
+
+Atlas: não reempacotar; o HTML com `apple-mobile-web-app-title DSH` + `assets/index-*.js` é o template web do Harness. NSIS do dfe132 sairia em branco de novo.
+
+### Causa (origem)
+
+O `apps/web/index.html` **sempre** traz o meta DSH — Persona monta **dentro** de `#root` via `ui-persona`. O empacotado não chega lá porque o Host sobe o perfil **desktop**, não **persona**:
+
+| | Publicado (dfe132 / win-unpacked) | Correção |
+|---|---|---|
+| (a) `runProfile` | `profile: "desktop"` em `dsh-desktop-host/lib/index.js:443` | `DSH_PROFILE \|\| 'persona'` |
+| (a) paths | `$DSH_HOME/profiles/desktop` | `$DSH_HOME/profiles/persona` |
+| (a) env | `DSH_HOME` só | `DSH_PROFILE=persona` em `applyPersonaDesktopIdentity` |
+| (b) bundle web | `apps/web` (título DSH) + roster web se persona-app falhar | `PROFILE_TEMPLATES.persona` + fail-loud se `dsh-persona-app` não estiver nas layers |
+| (c) `cordis.patch` | existe no dsh preparado; **não** em `win-unpacked/resources/dsh/...` (fica no asar) | assert + `createPluginProfile` **reescreve** bundles se o manifesto velho for só base+web-app (`initProfile` não mexia em package.json existente) |
+
+`startWebHost({ profile: 'persona' })` / `dsh --profile persona` já monta o shell. O Electron ignorava isso e pedia `desktop`.
+
+NSIS do turno anterior foi **parado** (Atlas). Keel segura `build.lock` (gate). Sem captura nova do win-unpacked neste turno — o exe ainda tem o host velho. Onboarding de `--profile persona` já está em `.maestri/tmp/shots/real/onboarding-passo-1-light-1920x1080.png`.
+
+### Correção (origem, sem NSIS)
+
+- `apps/desktop/src/persona-profile.ts`, `paths.ts`, `product.ts`, `project-manager.ts` (`createPluginProfile` upgrade)
+- `apps/desktop-host/src/persona-profile.ts` + `index.ts` (`assertPersonaAppLayer`)
+- testes: profile-mcp, project-manager, persona-decouple, smoke-runtime path, host persona-profile
+
+```
+pnpm exec vitest run apps/desktop/tests/persona-decouple.spec.ts apps/desktop/tests/project-manager.spec.ts apps/desktop/tests/profile-mcp.spec.ts apps/desktop-host/tests/persona-profile.spec.ts --testTimeout=30000
+```
+4 files / **51 passed**.
+
+NSIS só depois que o Keel publicar este host e o win-unpacked mostrar `data-persona-shell=1`.
+
+---
+
+## 04/11 06:02 — W3-5 overlay Muse no boot · D8 dfe132 ainda empacotando
+
+Vigia: continue. D8 não terminou — não parei; encadeei W3-5.
+
+### D8 dfe13272c6 (ainda no ar)
+
+`package-clean.log` **não congelou**. Stream real: 10/10 gates (~487s) → `prepare-runtime` → vendor tarballs → `prepare-package-set` → agora `tsx scripts/prepare-dsh.ts` (a etapa que em 03:40 parecia morta). `package-clean.live.json` atualiza. Sem .exe novo ainda. Setup antigo 22:49 permanece até o pack sair. Lock: `Rivet D8 dfe13272c6`. Keel avisado para pular o ciclo de 25 min.
+
+### W3-5 / W3-6 — overlay Muse no main
+
+O bind só abria overlay se `createWindow` viesse de fora; o `main` não passava. HTML default era o placeholder.
+
+- `installComputerUseOverlays(..., personaCursorOverlayHtml())` — renderer Muse (Bézier, cap 2, Devolver hidden até `cu:state`)
+- `main`: `screen.getAllDisplays` + `BrowserWindow` click-through (`overlayBrowserWindowOptions`) + `setAlwaysOnTop(..., screen-saver)`
+- `interpretOverlayConsole` → `resumeHeld` / `overlayMouseIgnore` no hover do Devolver
+- `will-quit` fecha overlays
+- `uiohook` global ainda falta (pnpm do Keel)
+
+### Testes
+
+```
+pnpm exec vitest run apps/desktop/tests/computer-use-overlay.spec.ts apps/desktop/tests/computer-use-bind.spec.ts apps/desktop/tests/computer-use-cursor-renderer.spec.ts --testTimeout=30000
+```
+3 files / 13 tests passed (5.94s).
+
+`node scripts/persona/with-lock.test.mjs` e `apps/desktop/scripts/packaging-step.timeout.test.mjs` (turno anterior) ok.
+
+### Dep
+
+- Anvil: `putQuota` das rows de `officialQuotaPuts` (bridge leaf pronta)
+- Probe: CDP + shots do Setup quando o .exe nascer
+- Muse: overlay no boot carrega o renderer; falta `cu:state`/`cu:move` no laço (Forge W3-1)
+
+---
+
+## 04/11 05:47 — D8 travado: não era lock; prepare-dsh sem stream
+
+Atlas: `C:/p8c/package-clean.log` parado em 03:40 na linha `tsx scripts/prepare-dsh.ts`, `ok:false`/`packageExit:null`, Setup de 22:49 antigo.
+
+### Diagnóstico (não era `.maestri/locks`)
+
+`prepare-dsh` **não espera** o gate do Keel, o E2E do Probe, nem prompt. Sem stdin. Sem `.maestri/locks`. O que ele faz:
+
+1. `runtime:reset` — apaga `.desktop-build/targets/.../dsh`
+2. `runtime:stage-packages` — copia o package-set
+3. `runtime:lockfile` + `runtime:install` — `pnpm install` no store isolado (`stdio: inherit`, registry via `resolveNpmRegistry`, store local)
+4. materializa `node_modules` e smokes
+
+O log congelou porque o `package-clean` antigo usava `spawnSync`: o pai só ecoava o comando e **bufferizava** stdout/stderr até o filho acabar (prepare-dsh sozinho passa de 35 min). `package-clean.json` ficava `packageExit:null`. Nenhum .exe novo.
+
+### Correção
+
+- `streamRun` em `scripts/persona/package-clean.mjs`: stdout/stderr ao vivo em `C:\p8c\package-clean.log` + `package-clean.live.json`; timeout 90 min; stall 20 min sem linha mata o filho; heartbeat 60s
+- `with-lock.mjs`: `--wait-max` (default 12 min), pulso `fila:` a cada 15s + `.maestri/locks/build.queue.json` (não espera infinita; exit 75)
+- `packagingStep` + `prepare-dsh`: timeout por etapa (reset 2 min, stage 15, lockfile 20, install 45, materialize 20)
+
+### Prova
+
+`node scripts/persona/with-lock.test.mjs` → `with-lock wait-max: ok` (~9s, exit 0).
+`node apps/desktop/scripts/packaging-step.timeout.test.mjs` (a seguir).
+
+### Pack em curso
+
+Lock **livre** às 05:23; **não** precisei da janela de 20 min para começar. Já pedi ao Keel para pular o ciclo de 25 min enquanto o pack segura `build.lock` (historicamente ~70 min; 20 min não cobrem prepare-dsh).
+
+`with-lock --wait-max 1200000 "Rivet D8 dfe13272c6" -- package-clean --commit dfe13272c6 --no-install`
+
+Streaming real (não mais a linha única):
+`desktop package: win-x64 publishes 0.2.2-alpha.3` → `tsx scripts/build.ts --profile local` → `run-gates: start native addon` PASS 2.73s.
+
+Setup/capturas: aviso o Atlas quando o .exe novo nascer.
+
+---
+
+## 04/11 05:20 — D8 Setup 1d4e5e95b8 · #root vazio · próximo dfe13272c6
+
+Keel: hash VERDE `1d4e5e95b8` → depois `dfe13272c6`. Atlas: terminar 1d4e5e, validar, só então reempacotar.
+
+### Pack 1d4e5e95b8
+`package-clean --commit 1d4e5e95b8 --resume --no-install --skip-smoke` no worktree `persona-push` / `C:\p8w`.
+Timeout do script subiu 40→90 min (o 1º corte morria com Setup velho de 3/11).
+
+| | |
+|---|---|
+| commit | `1d4e5e95b8824c1da6c8d07ad6eb4ad4daaedb77` |
+| Setup | `C:\p8c\Persona-Setup.exe` |
+| fonte | `C:\Users\migue\dev\persona-push\apps\desktop\.desktop-build\targets\win-x64\unsigned-artifacts\persona-0.2.2-alpha.3-win-x64-unsigned.exe` |
+| bytes | **343134036** (mtime 04/11 04:54) |
+| pack | 4215771 ms (~70 min), `packageExit` 0 |
+| NSIS | per-user, `packElevateHelper: false` |
+| window-frame.dll | 150528 B, 04/11 04:26 |
+| clientJs no prepare-dsh | true |
+
+### Install / CDP / uninstall
+Install `/S /D=C:\p8i` → `C:\p8i\Persona.exe` (246302720). Uninstall `/S` → exe sumiu (~21 s).
+
+CDP (`installer-onboarding-shots` + `installed-cdp-diag`):
+- `pageUrl` `dsh-app://app/` · `title` **Persona**
+- `#root` **vazio** · `[data-persona-shell]` = 0 · `bodyText` ""
+- console limpa (sem erro)
+- HTML ainda carrega `assets/index-B2q7cWGa.js` (shell DSH; `apple-mobile-web-app-title: DSH`)
+- Onboarding 5 passos **não** rodou (sem overlay)
+
+Capturas: `.maestri/tmp/shots/installer/blank-root.png` (branco) · `splash-os.png` (desktop Maestri — `osScreenshot` pega a tela primária, não a janela).
+
+### Próximo
+Reempacotar `dfe13272c6` (Keel: profile/tooling + testes adiados). **[Rivet→Probe]** gate boot/onboarding no exe `C:\p8i` já desinstalado — Setup em `C:\p8c\Persona-Setup.exe`. **[Rivet→Keel/Prism]** #root vazio no asar; smoke 9 painéis foi source, não o NSIS.
+
+### Comandos
+```
+node scripts/persona/with-lock.mjs "Rivet D8 1d4e5e95b8 resume" -- node scripts/persona/package-clean.mjs --commit 1d4e5e95b8 --resume --no-install
+ ok: true  packageExit: 0  setupBytes: 343134036  elapsedMs: 4215771
+
+node --import tsx/esm scripts/persona/installed-cdp-diag.mjs C:\p8i\Persona.exe
+ pageUrl dsh-app://app/  title Persona  shell 0  #root empty
+```
+
+---
+
 ## 04/11 02:55 — persistOfficialQuotaPuts · W3-5 MCP ports · W2-10 blurRects
 
 Keel 02:15/02:55: JANELA ENCERRADA. Voltei a editar usage/runners + desktop.

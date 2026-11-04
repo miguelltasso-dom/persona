@@ -27,6 +27,8 @@ export const DESKTOP_IPC = {
   browserOpenRequested: 'dsh-desktop:browser-open-requested',
   directoryPick: 'dsh-desktop:directory-pick',
   revealInFolder: 'dsh-desktop:reveal-in-folder',
+  shellOpenExternal: 'dsh-desktop:shell-open-external',
+  openThirdPartyNotices: 'dsh-desktop:open-third-party-notices',
   teachListSources: 'dsh-desktop:teach-list-sources',
   teachStart: 'dsh-desktop:teach-start',
   teachPause: 'dsh-desktop:teach-pause',

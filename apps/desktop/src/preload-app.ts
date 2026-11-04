@@ -116,6 +116,10 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
       ipcRenderer.invoke(DESKTOP_IPC.directoryPick, { purpose: 'export' }) as Promise<string | null>,
     revealInFolder: (path: string) =>
       ipcRenderer.invoke(DESKTOP_IPC.revealInFolder, path) as Promise<boolean>,
+    openExternal: (url: string) =>
+      ipcRenderer.invoke(DESKTOP_IPC.shellOpenExternal, url) as Promise<boolean>,
+    openThirdPartyNotices: () =>
+      ipcRenderer.invoke(DESKTOP_IPC.openThirdPartyNotices) as Promise<boolean>,
     teach: {
       listSources: () => ipcRenderer.invoke(DESKTOP_IPC.teachListSources) as Promise<unknown>,
       start: (sourceId: string, microphone: boolean, consent: unknown) =>

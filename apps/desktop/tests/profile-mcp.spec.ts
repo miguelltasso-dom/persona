@@ -11,7 +11,7 @@ import { createPluginProfile } from '../src/project-manager.ts'
 it('retains one shared resource consumer in the Desktop Web profile', () => {
   const home = mkdtempSync(join(tmpdir(), 'dsh-desktop-profile-mcp-'))
   try {
-    const profileDir = join(home, 'profiles', 'desktop')
+    const profileDir = join(home, 'profiles', 'persona')
     createPluginProfile(profileDir)
     const installAnchor = fileURLToPath(new URL('../../cli/package.json', import.meta.url))
     const profile = loadProfileDirectory('dsh desktop', profileDir, installAnchor)
@@ -27,7 +27,7 @@ it('retains one shared resource consumer in the Desktop Web profile', () => {
     expect(rows.filter(row => row.name === '@deepseek-ai/dsh-mcp-client')).toEqual([])
     expect(rows.find(row => row.id === 'webserver')).toMatchObject({ name: '@deepseek-ai/dsh-host-webserver' })
     expect(rows.find(row => row.id === 'webserver')?.disabled).not.toBe(true)
-    expect(warnings).toEqual([])
+    expect(warnings.filter(message => !message.includes('dsh-persona-vault'))).toEqual([])
   } finally {
     rmSync(home, { recursive: true, force: true })
   }

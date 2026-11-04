@@ -2,6 +2,7 @@
 
 import { join } from 'node:path'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import { PERSONA_DSH_PROFILE } from './persona-profile.ts'
 
 /** Stable desktop installation paths under the shared Harness home. */
 export interface DesktopPaths {
@@ -16,7 +17,7 @@ export interface DesktopPaths {
  */
 export function resolveDesktopPaths(dshHome: string = resolveDshHome()): DesktopPaths {
   return {
-    profile: join(dshHome, 'profiles', 'desktop'),
-    lock: join(dshHome, 'profiles', 'desktop', 'lock'),
+    profile: join(dshHome, 'profiles', PERSONA_DSH_PROFILE),
+    lock: join(dshHome, 'profiles', PERSONA_DSH_PROFILE, 'lock'),
   }
 }

@@ -3,6 +3,7 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { app } from 'electron'
+import { PERSONA_DSH_PROFILE } from './persona-profile.ts'
 
 /** Window, About panel, and protocol display name. */
 export const PERSONA_PRODUCT_NAME = 'Persona'
@@ -15,6 +16,8 @@ export const PERSONA_APP_ID = 'com.persona.app'
 
 /** Default product data directory name under the OS home (passed to the host as DSH_HOME). */
 export const PERSONA_HOME_DIR_NAME = '.persona'
+
+export { PERSONA_DSH_PROFILE }
 
 /** First-run surface after DeepSeek Welcome is removed. */
 export type PersonaStartupSurface = 'workspace' | 'deepseek-welcome'
@@ -63,6 +66,7 @@ export function applyPersonaDesktopIdentity(): void {
   const home = resolvePersonaProcessHome()
   process.env.PERSONA_HOME ??= home
   process.env.DSH_HOME ??= home
+  process.env.DSH_PROFILE ??= PERSONA_DSH_PROFILE
   process.env.DSH_CLIENT_TITLE ??= PERSONA_PRODUCT_NAME
   process.env.DSH_TELEMETRY_DISABLED ??= '1'
   process.env.DSH_TELEMETRY_MODE ??= 'DISABLED'

@@ -144,6 +144,25 @@ describe('desktop external plugin profile', () => {
     expect(existsSync(manager.paths.lock)).toBe(false)
   })
 
+  it('upgrades a leftover web-only profile so persona-app is in the bundle list', async () => {
+    const { manager } = setup()
+    mkdirSync(manager.paths.profile, { recursive: true })
+    writeFileSync(join(manager.paths.profile, 'package.json'), `${JSON.stringify({
+      name: 'dsh-profile-desktop',
+      private: true,
+      dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } },
+    }, undefined, 2)}\n`)
+    await manager.applyRelease()
+    const manifest = JSON.parse(readFileSync(join(manager.paths.profile, 'package.json'), 'utf8')) as {
+      dsh: { profile: { bundles: string[] } }
+    }
+    expect(manifest.dsh.profile.bundles).toEqual([
+      '@deepseek-ai/dsh-base',
+      '@deepseek-ai/dsh-web-app',
+      '@deepseek-ai/dsh-persona-app',
+    ])
+  })
+
   it('initializes the same pnpm settings as a Web profile without a Desktop build allowlist', async () => {
     const { manager } = setup()
     await manager.applyRelease()

@@ -24,12 +24,13 @@ import type { DesktopRelease } from './release.ts'
 import { readDesktopRuntime } from './runtime-tree.ts'
 import { initProfile, removeLinkProjections, sanitizeProfile } from '@deepseek-ai/dsh-app-boot'
 import { PROFILE_TEMPLATES, type ProfileTemplate } from '@deepseek-ai/dsh-official-bundles'
+import { PERSONA_PROFILE_BUNDLES } from './persona-profile.ts'
 
 const PROJECT_NAME = '@deepseek-ai/dsh-desktop-runtime'
 const DSH_PACKAGE = '@deepseek-ai/dsh'
 const CORE_BUILD_PACKAGE = '@deepseek-ai/dsh-subprocess-local'
 const PERSONA_PROFILE: ProfileTemplate = {
-  bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@deepseek-ai/dsh-persona-app'],
+  bundles: [...PERSONA_PROFILE_BUNDLES],
 }
 const WEB_PROFILE = PROFILE_TEMPLATES.persona ?? PERSONA_PROFILE
 const WORKSPACE_SETTINGS = 'nodeLinker: hoisted\nautoInstallPeers: false\n'
@@ -172,7 +173,23 @@ export function createDevelopmentProjectMetadata(projectDir: string, release: De
   writeFileSync(join(projectDir, 'pnpm-workspace.yaml'), workspaceFile(), { mode: 0o600 })
 }
 
-/** Create the first external plugin profile without running a package manager. */
+/**
+ * Write or upgrade a profile so it always carries the Persona bundle list.
+ * A leftover `profiles/desktop` created with the web-only template stays DSH
+ * until this rewrite; `initProfile` alone will not touch an existing manifest.
+ * @param projectDir - `$DSH_HOME/profiles/persona`.
+ */
 export function createPluginProfile(projectDir: string): void {
   initProfile(projectDir, WEB_PROFILE.bundles)
+  const path = join(projectDir, 'package.json')
+  const manifest = JSON.parse(readFileSync(path, 'utf8')) as {
+    dsh?: { profile?: { bundles?: string[] } }
+  }
+  const current = manifest.dsh?.profile?.bundles ?? []
+  const wanted = WEB_PROFILE.bundles
+  if (wanted.every(bundle => current.includes(bundle))) return
+  writeJson(path, {
+    ...manifest,
+    dsh: { ...manifest.dsh, profile: { ...manifest.dsh?.profile, bundles: [...wanted] } },
+  })
 }

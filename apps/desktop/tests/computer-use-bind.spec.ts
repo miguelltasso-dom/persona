@@ -55,6 +55,26 @@ describe('W3-5 computer-use bind', () => {
     expect(closed).toEqual([1])
   })
 
+  it('loads the Muse cursor renderer into each overlay window', () => {
+    const frame = { url: 'dsh-app://app/' }
+    const window = {
+      webContents: { mainFrame: frame },
+      isDestroyed: () => false,
+    }
+    const loaded: string[] = []
+    const bind = installComputerUseBind(() => window as unknown as BrowserWindow, {
+      displays: () => [{ id: 1, bounds: { x: 0, y: 0, width: 800, height: 600 }, scaleFactor: 1 }],
+      createWindow: () => ({
+        setIgnoreMouseEvents: () => undefined,
+        close: () => undefined,
+        loadURL: (url) => { loaded.push(url) },
+      }),
+    })
+    expect(loaded).toHaveLength(1)
+    expect(decodeURIComponent(loaded[0] ?? '')).toContain('__personaOverlay')
+    bind.close()
+  })
+
   it('invokes a named UIA target unless the human holds or the field is a password', async () => {
     const frame = { url: 'dsh-app://app/' }
     const window = {

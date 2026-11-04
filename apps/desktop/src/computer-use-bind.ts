@@ -13,6 +13,7 @@ import {
 } from './computer-use-control.ts'
 import { attachComputerUseHook, type PhysicalHookEvent } from './computer-use-hook.ts'
 import { installComputerUseOverlays, overlayWindowSpec, type OverlayDisplay, type OverlayWindowHandle } from './computer-use-overlay.ts'
+import { personaCursorOverlayHtml } from './computer-use-cursor-renderer.ts'
 import {
   WINDOWS_UIA_INVOKE_SCRIPT,
   WINDOWS_UIA_SETVALUE_SCRIPT,
@@ -47,7 +48,7 @@ export interface ComputerUseBindHost {
 }
 
 /**
- * COM host for main. Overlay windows stay omitted until Muse/createWindow is passed.
+ * COM host for main. Pass `createWindow` + `displays` to open Muse cursor overlays.
  * @param spawn - Injected PowerShell (tests never use a real CLI).
  * @param displays - Optional monitors.
  * @param createWindow - Optional overlay factory.
@@ -102,7 +103,7 @@ export function installComputerUseBind(
   const displays = host.displays?.() ?? []
   const overlays = host.createWindow === undefined
     ? undefined
-    : installComputerUseOverlays(displays, host.createWindow)
+    : installComputerUseOverlays(displays, host.createWindow, personaCursorOverlayHtml())
 
   const uia = host.uia ?? createFakeUiaPort([])
   const disposeHook = host.subscribeHook === undefined

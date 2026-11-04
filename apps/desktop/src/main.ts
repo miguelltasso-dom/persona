@@ -31,6 +31,7 @@ import {
   nativeImage,
   nativeTheme,
   protocol,
+  screen,
   session,
   shell,
   type IpcMainInvokeEvent,
@@ -43,8 +44,11 @@ import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError 
 import { DesktopPlatformView, PLATFORM_IPC, platformBounds } from './platform-view.ts'
 import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
+import { installPersonaAboutShellIpc } from './persona-about-shell.ts'
 import { installTeachCapture } from './teach-ipc.ts'
 import { createComputerUseComHost, installComputerUseBind } from './computer-use-bind.ts'
+import { interpretOverlayConsole } from './computer-use-cursor-renderer.ts'
+import { overlayBrowserWindowOptions, overlayMouseIgnore } from './computer-use-overlay.ts'
 import { desktopComputerUseActions } from './computer-use-ports.ts'
 import { spawnSync } from 'node:child_process'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
@@ -938,6 +942,22 @@ async function main(): Promise<void> {
   installDesktopDirectoryPicker(() => mainWindow, {
     personaHome: () => resolvePersonaProcessHome(),
   })
+  installPersonaAboutShellIpc(() => mainWindow, {
+    resourcesPath: process.resourcesPath,
+    importMetaUrl: import.meta.url,
+    openExternalConfirm: async (window, url) => {
+      const messages = currentDesktopLocale().messages
+      const choice = await dialog.showMessageBox(window, {
+        type: 'question',
+        message: messages.openExternalConfirm,
+        detail: url,
+        buttons: [messages.cancel, messages.openInBrowser],
+        defaultId: 0,
+        cancelId: 0,
+      })
+      return choice.response === 1
+    },
+  })
   installTeachCapture(() => mainWindow, {
     personaHome: () => resolvePersonaProcessHome(),
     listSources: async () => {
@@ -949,13 +969,37 @@ async function main(): Promise<void> {
       }))
     },
   })
-  const computerUseBind = installComputerUseBind(() => mainWindow, {
+  let computerUseBind!: ReturnType<typeof installComputerUseBind>
+  computerUseBind = installComputerUseBind(() => mainWindow, {
     ...createComputerUseComHost({
       spawn: (command, args, env) => {
         const result = spawnSync(command, [...args], {
           encoding: 'utf8', windowsHide: true, timeout: 8_000, env,
         })
         return { stdout: result.stdout ?? '', status: result.status }
+      },
+      displays: () => screen.getAllDisplays().map(display => ({
+        id: display.id,
+        bounds: display.bounds,
+        scaleFactor: display.scaleFactor,
+      })),
+      createWindow: (spec) => {
+        const overlay = new BrowserWindow({
+          ...overlayBrowserWindowOptions(spec),
+          webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+        })
+        overlay.setAlwaysOnTop(true, spec.alwaysOnTopLevel)
+        overlay.setIgnoreMouseEvents(spec.ignoreMouseEvents.ignore, { forward: spec.ignoreMouseEvents.forward })
+        overlay.webContents.on('console-message', (_event, _level, message) => {
+          const action = interpretOverlayConsole(message)
+          if (action === undefined) return
+          if (action.kind === 'devolver') computerUseBind.resumeHeld()
+          else {
+            const ignore = overlayMouseIgnore(action.hovered)
+            overlay.setIgnoreMouseEvents(ignore.ignore, { forward: ignore.forward })
+          }
+        })
+        return overlay
       },
     }),
     subscribeHook: (listener) => {
@@ -982,7 +1026,10 @@ async function main(): Promise<void> {
   hardenSession(session.defaultSession)
   const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),
     process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window))
-  app.on('will-quit', () => { shortcuts.dispose() })
+  app.on('will-quit', () => {
+    shortcuts.dispose()
+    computerUseBind.close()
+  })
 
   ipcMain.handle(DESKTOP_IPC.boot, async (event) => {
     assertDesktopSender(event, ['app'])

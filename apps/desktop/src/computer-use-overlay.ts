@@ -48,6 +48,38 @@ export function physicalToDip(physical: DipRect, scaleFactor: number): DipRect {
 }
 
 /**
+ * BrowserWindow constructor fields for one overlay. Main still calls `setAlwaysOnTop`.
+ * @param spec - {@link overlayWindowSpec} result.
+ */
+export function overlayBrowserWindowOptions(spec: OverlayWindowSpec): {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+  readonly frame: false
+  readonly transparent: true
+  readonly skipTaskbar: true
+  readonly focusable: false
+  readonly alwaysOnTop: true
+  readonly show: true
+  readonly webPreferences: { readonly sandbox: true; readonly contextIsolation: true; readonly nodeIntegration: false }
+} {
+  return {
+    x: spec.x,
+    y: spec.y,
+    width: spec.width,
+    height: spec.height,
+    frame: spec.frame,
+    transparent: spec.transparent,
+    skipTaskbar: spec.skipTaskbar,
+    focusable: spec.focusable,
+    alwaysOnTop: true,
+    show: true,
+    webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+  }
+}
+
+/**
  * BrowserWindow options for one overlay (click-through until Devolver hover).
  * @param display - Target monitor.
  */
@@ -86,8 +118,7 @@ export interface OverlayPersona {
 }
 
 /**
- * Placeholder overlay HTML until Muse ships the cursor renderer.
- * Click-through except `.devolver`. Caps at {@link OVERLAY_CURSOR_CAP}.
+ * Legacy static overlay HTML. Bind loads the Muse cursor renderer instead.
  * @param input - Visible personas; extras wait.
  */
 export function computerUseOverlayHtml(input: {

@@ -2654,7 +2654,7 @@ describe('desktop main startup', () => {
     harness.prepared.resolve()
     await harness.hostStarted.promise
     const host = harness.hosts[0]!
-    const diagnostic = "Error: profile has no cordis.yml\n    at loadProfileDirectory (app-boot/lib/index.js:12:3) {\n  code: 'ENOENT',\n  path: '/profiles/desktop/cordis.yml'\n}"
+    const diagnostic = "Error: profile has no cordis.yml\n    at loadProfileDirectory (app-boot/lib/index.js:12:3) {\n  code: 'ENOENT',\n  path: '/profiles/persona/cordis.yml'\n}"
     // DesktopHostProcess.fail() rejects start() and calls onFailure with the same error object.
     const failure = new DesktopHostFatalError('profile has no cordis.yml', diagnostic)
     host.onFailure!(failure)

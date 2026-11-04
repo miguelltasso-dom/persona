@@ -1,63 +1,29 @@
-/**
- * Third-party lines for Persona About / legal (D-017).
- * wrangler/miniflare/workerd stay in apps/persona-edge only.
- */
+/** Resolve bundled THIRD_PARTY_NOTICES.txt for desktop About / Configurações › Sobre. */
 
-export interface ThirdPartyNotice {
-  readonly name: string
-  readonly license: string
-  readonly note: string
-}
-
-/** Notices that ship with the desktop app. */
-export const PERSONA_DESKTOP_NOTICES: readonly ThirdPartyNotice[] = [
-  {
-    name: 'DeepSeek Harness',
-    license: 'MIT',
-    note: 'Persona is based on DeepSeek Harness. Internal dsh-* ids stay.',
-  },
-  {
-    name: '@botiverse/oar',
-    license: 'Apache-2.0',
-    note: 'CLI runtime adapter (Claude, Codex, OpenCode, Cursor) via persona-runners.',
-  },
-  {
-    name: 'dsh-superagent-prototype (engine core)',
-    license: 'MIT',
-    note: 'Verbatim Super-agent core in persona-engine. See packages/persona/persona-engine/NOTICE.',
-  },
-  {
-    name: 'T3 Code (T3 Tools Inc.)',
-    license: 'MIT',
-    note: 'Adapted account-limit pool, identity, reset credits, native history. See packages/persona/persona-usage/NOTICE.',
-  },
-]
-
-/** Names that must not appear as desktop runtime dependencies. */
-export const EDGE_ONLY_NOTICES = ['wrangler', 'miniflare', 'workerd'] as const
+import { access } from 'node:fs/promises'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /**
- * Format the About credits block (no tokens).
- * @param notices - Desktop notice list.
+ * Path to THIRD_PARTY_NOTICES.txt when present (packaged resources or dev tree).
+ * @param resourcesPath - `process.resourcesPath` from Electron.
+ * @param importMetaUrl - Main module `import.meta.url` for dev fallback.
  */
-export function formatDesktopLegalNotices(notices: readonly ThirdPartyNotice[] = PERSONA_DESKTOP_NOTICES): string {
-  return notices.map(item => `${item.name} (${item.license})`).join(' · ')
-}
-
-/**
- * Read the generated notices file for About. Missing file falls back to the static list.
- * @param text - File contents (caller reads disk).
- */
-export function aboutLegalText(text?: string): string {
-  if (text !== undefined && text.trim() !== '') return text.trim()
-  return formatDesktopLegalNotices()
-}
-
-/**
- * @param name - Dependency identity.
- * @returns true when the name is an edge-only Cloudflare tool.
- */
-export function isEdgeOnlyNotice(name: string): boolean {
-  const lower = name.toLowerCase()
-  return EDGE_ONLY_NOTICES.some(item => lower.includes(item))
+export async function resolveThirdPartyNoticesPath(
+  resourcesPath: string,
+  importMetaUrl: string,
+): Promise<string | undefined> {
+  const candidates = [
+    join(resourcesPath, 'THIRD_PARTY_NOTICES.txt'),
+    fileURLToPath(new URL('../resources/THIRD_PARTY_NOTICES.txt', importMetaUrl)),
+  ]
+  for (const path of candidates) {
+    try {
+      await access(path)
+      return path
+    } catch (error) {
+      void error
+    }
+  }
+  return undefined
 }

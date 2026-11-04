@@ -3,6 +3,7 @@ import {
   OVERLAY_CURSOR_CAP,
   computerUseOverlayHtml,
   installComputerUseOverlays,
+  overlayBrowserWindowOptions,
   overlayDocumentUrl,
   overlayMouseIgnore,
   overlayWindowSpec,
@@ -25,6 +26,10 @@ describe('W3-5 overlay and UIA', () => {
     expect(spec.alwaysOnTopLevel).toBe('screen-saver')
     expect(spec.focusable).toBe(false)
     expect(spec.ignoreMouseEvents).toEqual({ ignore: true, forward: true })
+    const opts = overlayBrowserWindowOptions(spec)
+    expect(opts.transparent).toBe(true)
+    expect(opts.focusable).toBe(false)
+    expect(opts.webPreferences).toEqual({ sandbox: true, contextIsolation: true, nodeIntegration: false })
     expect(OVERLAY_CURSOR_CAP).toBe(2)
     const created: OverlayWindowSpec[] = []
     const closed: number[] = []

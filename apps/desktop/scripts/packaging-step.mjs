@@ -7,16 +7,32 @@ import { recordPackagingEvent, packagingOutputRedactor } from './packaging-run.m
  * @param {string | undefined} directory Existing run directory; undefined retains unrecorded callers.
  * @param {string} stage Public phase label, never credentials.
  * @param {() => Promise<unknown>} action Work that settles all owned activity before returning.
- * @param {readonly string[]} secrets Credential values removed from errors.
+ * @param {readonly string[] | undefined} secrets Credential values removed from errors.
+ * @param {number | undefined} timeoutMs Kill the phase with a visible error after this many ms.
  * @returns {Promise<unknown>} Action result; logging failures also reject the phase.
  */
-export async function packagingStep(directory, stage, action, secrets = Object.entries(process.env).filter(([name]) => /KEY|SECRET|TOKEN|PASSWORD|APPLE_ID/iu.test(name)).map(([, value]) => value ?? '')) {
-  if (directory === undefined) return action()
+export async function packagingStep(directory, stage, action, secrets, timeoutMs) {
+  secrets ??= Object.entries(process.env).filter(([name]) => /KEY|SECRET|TOKEN|PASSWORD|APPLE_ID/iu.test(name)).map(([, value]) => value ?? '')
+  const run = async () => {
+    if (timeoutMs === undefined) return action()
+    let timer
+    try {
+      return await Promise.race([
+        action(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`desktop package: stage ${stage} timed out after ${timeoutMs}ms`)), timeoutMs)
+        }),
+      ])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  if (directory === undefined) return run()
   const stageId = randomUUID()
   const started = performance.now()
   recordPackagingEvent(directory, { type: 'stage-start', stage, stageId })
   try {
-    const result = await action()
+    const result = await run()
     recordPackagingEvent(directory, { type: 'stage-end', stage, stageId, elapsedMs: performance.now() - started, success: true })
     return result
   } catch (error) {

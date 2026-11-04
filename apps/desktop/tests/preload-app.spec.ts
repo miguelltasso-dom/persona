@@ -117,6 +117,8 @@ it('exposes a directory picker only to the local application document', async ()
     pickVaultFolder(): Promise<string | null>
     pickExportFolder(): Promise<string | null>
     revealInFolder(path: string): Promise<boolean>
+    openExternal(url: string): Promise<boolean>
+    openThirdPartyNotices(): Promise<boolean>
     teach: { blur(rect: { x: number; y: number; width: number; height: number }): Promise<boolean> }
   }
   electron.ipcRenderer.invoke.mockResolvedValueOnce('/workspace')
@@ -134,6 +136,12 @@ it('exposes a directory picker only to the local application document', async ()
   electron.ipcRenderer.invoke.mockResolvedValueOnce(true)
   await expect(persona.revealInFolder('/picked')).resolves.toBe(true)
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.revealInFolder, '/picked')
+  electron.ipcRenderer.invoke.mockResolvedValueOnce(true)
+  await expect(persona.openExternal('https://github.com/botiverse/oar')).resolves.toBe(true)
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.shellOpenExternal, 'https://github.com/botiverse/oar')
+  electron.ipcRenderer.invoke.mockResolvedValueOnce(true)
+  await expect(persona.openThirdPartyNotices()).resolves.toBe(true)
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.openThirdPartyNotices)
   electron.ipcRenderer.invoke.mockResolvedValueOnce(true)
   await expect(persona.teach.blur({ x: 1, y: 2, width: 3, height: 4 })).resolves.toBe(true)
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.teachBlur, { x: 1, y: 2, width: 3, height: 4 })

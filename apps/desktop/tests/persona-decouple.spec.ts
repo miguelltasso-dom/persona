@@ -13,9 +13,11 @@ import {
 } from '../src/deepseek-hosts.ts'
 import {
   PERSONA_APP_ID,
+  PERSONA_DSH_PROFILE,
   PERSONA_HOME_DIR_NAME,
   PERSONA_PRODUCT_NAME,
   PERSONA_PROTOCOL,
+  applyPersonaDesktopIdentity,
   personaUpdatesEnabled,
   resolvePersonaProcessHome,
   resolvePersonaStartupSurface,
@@ -23,6 +25,7 @@ import {
 } from '../src/product.ts'
 import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles'
 import { resolvePersonaHome } from '@deepseek-ai/dsh-home-paths'
+import { resolveDesktopPaths } from '../src/paths.ts'
 
 const repo = fileURLToPath(new URL('../../..', import.meta.url))
 
@@ -74,6 +77,19 @@ describe('Persona DeepSeek decoupling', () => {
     expect(resolvePersonaHome(undefined, {})).toBe(join(homedir(), '.persona'))
   })
 
+  it('publishes DSH_PROFILE=persona before the host starts', () => {
+    expect(PERSONA_DSH_PROFILE).toBe('persona')
+    const previous = process.env.DSH_PROFILE
+    delete process.env.DSH_PROFILE
+    try {
+      applyPersonaDesktopIdentity()
+      expect(process.env.DSH_PROFILE).toBe('persona')
+    } finally {
+      if (previous === undefined) delete process.env.DSH_PROFILE
+      else process.env.DSH_PROFILE = previous
+    }
+  })
+
   it('prefers PERSONA_HOME over the implicit default and publishes it as DSH_HOME input', () => {
     expect(resolvePersonaProcessHome({ PERSONA_HOME: 'C:/tmp/persona-home' })).toMatch(/persona-home$/u)
     expect(resolvePersonaProcessHome({ DSH_HOME: 'C:/tmp/dsh-home', PERSONA_HOME: 'C:/tmp/persona-home' }))
@@ -91,6 +107,8 @@ describe('Persona DeepSeek decoupling', () => {
       '@deepseek-ai/dsh-web-app',
       '@deepseek-ai/dsh-persona-app',
     ])
+    expect(PERSONA_DSH_PROFILE).toBe('persona')
+    expect(resolveDesktopPaths('/tmp/home').profile.replaceAll('\\', '/')).toBe('/tmp/home/profiles/persona')
   })
 
   it('disables the three DeepSeek telemetry channels in the Persona patch', () => {

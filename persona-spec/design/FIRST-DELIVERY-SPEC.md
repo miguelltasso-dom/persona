@@ -96,3 +96,22 @@ intro ──Pedir agora──▶ working ──entrega──▶ celebrate
 3. **O `aria-live="polite"` cobre a seção inteira,** incluindo o `ActivityGroup` que se atualiza: o leitor de tela reanunciaria tudo a cada passo. Deixe o live só numa linha de estado curta ("{name} está no pedido" → "Ainda trabalhando…" → "Pronto"). Tire o atributo da `section` nas fases `working`, `slow` e `needsEngine`.
 
 **Ajuste (Lumen, dono de `governance/activity-group-labels.ts`):** plural de verdade nas chaves `activity.*`, que hoje dizem "rodou {count} comando(s)", "mandou {count} mensagem(ns)". Proposta: chaves `.one` ("rodou 1 comando") e a forma plural ("rodou {count} comandos"), escolhidas por `count === 1` no `activityGroupLabelsFromDict`, nas duas línguas. Assim corrige a Visão geral, o perfil, a Saúde da equipe e o passo 5 de uma vez.
+
+## Medição na rodada real do V1-P0-5 (D-069; o Probe executa, a Muse mede)
+
+**Uma rodada só.** A Muse não faz chamada real própria. O script do Probe grava os marcos num JSON (`timeline`), em ms desde o anexo da janela, e salva uma captura em cada marco. Até haver o atributo de fase (pedido ao Prism abaixo), os marcadores são o texto e o papel na tela:
+
+| Marco | Como detectar | Nota |
+|---|---|---|
+| `boot` | o 1º quadro da splash → o passo 1 visível | contexto (FR-4), fora da conta |
+| **`t0` pedido** | o instante logo antes do clique em **"Pedir agora"** | **início da medição** |
+| `working` | o título **"Equipe trabalhando"** visível | ≤ 1 s depois do t0, senão é achado de UX |
+| `slow` | o texto "Ainda trabalhando." visível (se aparecer) | mostra se passou de 45 s |
+| `failed` | o `RunErrorCard` visível, com o código | encerra a medição como falha |
+| **`t1` entrega** | o botão **"Aceitar e entrar"** visível (o `MilestoneCard`) **ou** a 1ª mensagem de persona no #geral depois do t0, o que vier primeiro | **o número principal: t1 − t0** |
+| `geral` | a 1ª mensagem de persona (autor ≠ "Você") no #geral depois do t0 | a confirmação de que a entrega também está no #geral |
+| `t2` aceite | o clique em "Aceitar e entrar", feito logo pelo script | registra que o marco de ativação fecha. O tempo de leitura humano não conta |
+
+**Relatar:** t1 − t0 (alvo: o feliz em ≤ 10 s pela spec, e o 1º uso ≤ 2 min no PLAN), o `working` − t0, se o `slow` apareceu, o t2, mais os tokens e o custo que o Probe já mede.
+
+**Pedido ao Prism, para robustez:** `data-first-delivery-phase="{phase}"` na `section` do passo 5, para a medição não depender de texto.

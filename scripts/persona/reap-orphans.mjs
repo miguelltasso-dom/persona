@@ -60,10 +60,18 @@ function listWindows() {
     console.error(ps.stderr || ps.stdout)
     return []
   }
-  const raw = ps.stdout.trim()
+  // Another agent's command line can carry raw control characters that PowerShell's ConvertTo-Json leaves unescaped (04/11: a long
+  // `tell` message made JSON.parse throw and the reaper crash at the end of a locked job). Blank them, and never throw.
+  const raw = ps.stdout.replace(/[\u0000-\u001f]/gu, ' ').trim()
   if (!raw) return []
   /** @type {Array<{ ProcessId: number, ParentProcessId: number, WorkingSetSize: number, CreationDate: string, CommandLine: string }>} */
-  const rows = raw.startsWith('[') ? JSON.parse(raw) : [JSON.parse(raw)]
+  let rows
+  try {
+    rows = raw.startsWith('[') ? JSON.parse(raw) : [JSON.parse(raw)]
+  } catch (error) {
+    console.error(`reap-orphans: could not read the process list (${error instanceof Error ? error.message : String(error)}); skipping this round`)
+    return []
+  }
   const now = Date.now()
   return rows.map(r => {
     const created = new Date(r.CreationDate).getTime()

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Serialize heavy shared-checkout work (builds, desktop launches, packaging) across agents.
 //
-// Usage: node scripts/persona/with-lock.mjs <label> [--lock <name>] [--slots N] [--exclusive] [--release-on <regex>] [--wait-max ms] -- <command> [args...]
+// Usage: node scripts/persona/with-lock.mjs <label> [--lock <name>] [--slots N] [--exclusive] [--priority] [--release-on <regex>] [--wait-max ms] -- <command> [args...]
 //   e.g. node scripts/persona/with-lock.mjs "Anvil app real" -- node scripts/persona/real-app-shots.mjs
 //   App launches: add --release-on so the slot is freed as soon as the app prints its ready line
 //   and keeps running without blocking builds, e.g.
@@ -23,7 +23,7 @@
 // Queue pulse every 15s → stderr + `.maestri/locks/<name>.queue.json`. The child gets `PERSONA_LOCK=<name>`.
 // While you wait, do NOT sit idle: work the next item of your queue (D-065).
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync, statSync, utimesSync } from 'node:fs'
 import { freemem } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -49,6 +49,9 @@ if (waitMaxIndex >= 0) head.splice(waitMaxIndex, 2)
 const exclusiveIndex = head.indexOf('--exclusive')
 const exclusive = exclusiveIndex >= 0
 if (exclusive) head.splice(exclusiveIndex, 1)
+const priorityIndex = head.indexOf('--priority')
+const priority = priorityIndex >= 0
+if (priority) head.splice(priorityIndex, 1)
 const slotsIndex = head.indexOf('--slots')
 const explicitSlots = slotsIndex >= 0 ? Number(head[slotsIndex + 1]) : undefined
 if (slotsIndex >= 0) head.splice(slotsIndex, 2)
@@ -101,20 +104,34 @@ function release() {
 // registers a ticket `<arrival-ms>-<pid>.json` and only the OLDEST ALIVE ticket may try to take a slot. Tickets of dead
 // pids are swept; a ticket is dropped when the slots are taken, on timeout and on exit.
 const waitersDir = join(locksRoot, `${lockName}.q`)
-const ticketFile = join(waitersDir, `${String(Date.now()).padStart(15, '0')}-${String(process.pid).padStart(8, '0')}.json`)
+// --priority (critical path, e.g. the installer publication) jumps the FIFO: the ticket sorts first; running jobs are never interrupted
+const ticketFile = join(waitersDir, `${String(priority ? 0 : Date.now()).padStart(15, '0')}-${String(process.pid).padStart(8, '0')}.json`)
 function dropTicket() { try { rmSync(ticketFile, { force: true }) } catch { /* already gone */ } }
 function isHead() {
   let names
   try { names = readdirSync(waitersDir).filter((name) => name.endsWith('.json')).sort() } catch { return true }
   for (const name of names) {
     const pid = Number(name.slice(16, 24))
-    if (!Number.isInteger(pid) || (pid !== process.pid && !alive(pid))) { try { rmSync(join(waitersDir, name), { force: true }) } catch { /* raced */ } continue }
+    // 04/11: a dead waiter's PID was reused by an unrelated process and its ticket blocked the whole queue for 14 minutes: tickets of
+    // this version carry a heartbeat (mtime refreshed every 5 s); one that stopped beating is stale whatever the PID says.
+    let stale = false
+    if (pid !== process.pid) {
+      try {
+        const mine = JSON.parse(readFileSync(join(waitersDir, name), 'utf8'))
+        if (mine.hb === true && Date.now() - statSync(join(waitersDir, name)).mtimeMs > TICKET_STALE_MS) stale = true
+      } catch { /* unreadable ticket: fall back to the pid check */ }
+    }
+    if (!Number.isInteger(pid) || (pid !== process.pid && (stale || !alive(pid)))) { try { rmSync(join(waitersDir, name), { force: true }) } catch { /* raced */ } continue }
     return pid === process.pid
   }
   return true
 }
 mkdirSync(waitersDir, { recursive: true })
-writeFileSync(ticketFile, JSON.stringify({ pid: process.pid, label, since: new Date().toISOString() }))
+writeFileSync(ticketFile, JSON.stringify({ pid: process.pid, label, since: new Date().toISOString(), hb: true }))
+const TICKET_STALE_MS = 60_000
+function beat() { try { const now = new Date(); utimesSync(ticketFile, now, now) } catch { /* ticket already dropped */ } }
+const heartbeat = setInterval(beat, 5_000)
+heartbeat.unref()
 process.on('exit', () => { dropTicket(); release() })
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(signal, () => { dropTicket(); release(); process.exit(130) })
 

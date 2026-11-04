@@ -2,8 +2,8 @@
  * Side-by-side PNGs of the Persona chrome (desk A | desk B) for
  * `.maestri/tmp/shots/remote/app/`. Uses the live palette tokens.
  *
- * Optional: PERSONA_APP_A=http://127.0.0.1:3080 PERSONA_APP_B=http://127.0.0.1:3081
- * screenshots two running `dsh web` instances instead of the fixture.
+ * PERSONA_APP_A / PERSONA_APP_B capture already running `dsh web` instances.
+ * The fallback is a visual fixture, never synchronization evidence.
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -64,7 +64,7 @@ html,body{margin:0;height:100%;background:var(--persona-paper);color:var(--perso
 </style></head>
 <body>
 <div class="app">
-  <aside class="rail"><div class="mark">P</div><div class="port">:${desk.port}</div></aside>
+  <aside class="rail"><div class="mark">P</div><div class="port">Referência ${desk.id}</div></aside>
   <nav class="nav">
     <div class="home">${desk.home}</div>
     <div class="chan on"># geral</div>
@@ -88,8 +88,8 @@ html,body{margin:0;height:100%;background:var(--persona-paper);color:var(--perso
 }
 
 const desks = [
-  { id: 'A', port: 3080, who: 'Ana — dona', home: 'PERSONA_HOME=A' },
-  { id: 'B', port: 3081, who: 'Beto — convidado', home: 'PERSONA_HOME=B' },
+  { id: 'A', who: 'Ana — dona', home: 'Exemplo visual A' },
+  { id: 'B', who: 'Beto — convidado', home: 'Exemplo visual B' },
 ]
 
 if (CHROME === undefined) throw new Error('chrome/edge not found')
@@ -127,20 +127,18 @@ writeFileSync(pairFile, `<!doctype html><html><body style="margin:0;background:#
 </body></html>`)
 screenshot(pathToFileURL(pairFile).href, join(outDir, 'side-by-side.png'), 1600, 780)
 
-writeFileSync(join(outDir, 'README.md'), `# App real — equipes à distância
+writeFileSync(join(outDir, 'README.md'), `# Capturas — equipes à distância
 
 PNGs do chrome Persona (tokens de \`persona-palette.css\`).
 
-- \`desk-a.png\` — 127.0.0.1:3080 · PERSONA_HOME=A
-- \`desk-b.png\` — 127.0.0.1:3081 · PERSONA_HOME=B
+- \`desk-a.png\` — ${process.env.PERSONA_APP_A ? 'captura de app existente' : 'fixture visual, sem sincronização'}
+- \`desk-b.png\` — ${process.env.PERSONA_APP_B ? 'captura de app existente' : 'fixture visual, sem sincronização'}
 - \`side-by-side.png\` — as duas janelas
 
-Para apontar em dois \`dsh web\` vivos:
+Este script não prova sincronização, isolamento de DM nem revogação. Para essa prova, o harness canônico abre dois perfis temporários em portas livres e verifica mensagens novas via edge local:
 
 \`\`\`
-DSH_HOME=.maestri/tmp/homes/a PERSONA_HOME=.maestri/tmp/homes/a/persona pnpm dsh web --host 127.0.0.1 --port 3080 --no-open
-DSH_HOME=.maestri/tmp/homes/b PERSONA_HOME=.maestri/tmp/homes/b/persona pnpm dsh web --host 127.0.0.1 --port 3081 --no-open
-PERSONA_APP_A=http://127.0.0.1:3080 PERSONA_APP_B=http://127.0.0.1:3081 node apps/persona-edge/scripts/capture-remote-app.mjs
+node scripts/persona/with-lock.mjs "Anvil sincronização real local" --lock build -- node packages/persona/persona-host/scripts/remote-team-real.mjs
 \`\`\`
 `)
 

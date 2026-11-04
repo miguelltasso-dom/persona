@@ -29,6 +29,10 @@ Sem Electron, o Cofre de produção fica indisponível. `connectRemoteTeam`, `ac
 
 ## Escopo e persistência
 
+`listRemoteMembers({workspaceId,projectId})` devolve `[{actorId,displayName,role,status,joinedAt,inviteId}]`, somente membros do projeto remoto autorizado. `status` é active/revoked e `joinedAt` é ISO; dono inicial tem inviteId vazio. O nome vem do membro autenticado do host que conectou/resgatou, não do rótulo do convite. A UI revoga pelo inviteId da linha escolhida, apresentando o nome. Sem conexão não há membros remotos; offline/Cofre indisponível/revogado conservam a última lista local, com o estado da conexão visível. Revogar atualiza a linha local imediatamente após o aceite do edge. A lista nunca inclui token ou grants de outros projetos.
+
+`RemoteTeamState` acrescenta syncedAt (última troca bem-sucedida, ISO), remoteHeads (últimos heads observados por stream autorizado) e behindBy (eventos locais pendentes de upload mais eventos ainda ausentes no log local segundo esses heads). Antes da primeira medição, behindBy pode faltar; zero não é inventado. Offline, os heads são a última amostra e syncedAt permite apresentar a idade; não representam uma consulta atual ao servidor. Eventos enviados pelo próprio host já no log não contam outra vez como pendência de download. O edge valida o ator/projeto em GET members e a autorização do canal em GET sync/head; ator revogado não recebe essas respostas.
+
 Só eventos futuros dos canais selecionados entram na fila; DM, canais fora da seleção, execuções e contas não entram. A primeira composição requer o projeto e os canais correspondentes nos dois hosts. O stream do edge é `project:<projectId>:channel:<channelId>`. A interface deve apresentar o nome do canal, mantendo esses IDs como dados internos.
 
 Mensagens recebidas entram por `EventRepos.append`, com o tópico local do canal, sem chamar Intake, engine ou Vigia. O ID original do evento impede duplicação. Mensagens importadas não voltam à fila de upload. A origem aplica o sequenciamento do edge, sem reutilizar a seq local do chat.

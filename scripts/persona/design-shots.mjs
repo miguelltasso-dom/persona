@@ -55,6 +55,17 @@ async function open(url, scheme, { onboarded, emptyHome = false, collapsed = fal
     await context.addInitScript((entries) => { for (const [k, v] of entries) localStorage.setItem(k, v) }, pairs)
   }
   const page = await context.newPage()
+  // Keel (D-067 follow-up): never save a capture before the shell exists, and a < 10 KB PNG is a blank page = FAIL.
+  const rawShot = page.screenshot.bind(page)
+  page.screenshot = async (options = {}) => {
+    await page.waitForSelector('[data-persona-shell]', { timeout: 15_000 })
+    const buffer = await rawShot(options)
+    if (buffer.length < 10_240) {
+      if (options.path) rmSync(options.path, { force: true })
+      throw new Error(`blank capture (${buffer.length} B) at ${new Date().toISOString()}: ${options.path ?? ''}`)
+    }
+    return buffer
+  }
   page.on('console', (m) => {
     if (process.env.MUSE_DUMP === '1') console.log(`[dump ${scheme}] ${m.type()}: ${m.text().slice(0, 400)}`)
     if (m.type() === 'error') errors.push(`[${scheme}] ${m.text().slice(0, 300)}`)
@@ -84,7 +95,23 @@ async function axeReport(page, label) {
   for (const v of result) console.log(`[axe ${label}] ${v.impact} ${v.id} ×${v.nodes} :: ${v.sample.join(' | ').slice(0, 220)}`)
 }
 
+// NAV-SPEC (A-1): click by panel id first (data-nav-panel / data-tab-panel, same as Probe's navigate-panel.ts), so the
+// new rail labels do not break captures; the visible label is only the fallback.
+const PANEL_BY_LABEL = new Map(Object.entries({ 'Visão geral': 'overview', Canais: 'channels', 'Mensagens diretas': 'directMessages', Equipe: 'team',
+  'Quem cuida de quem': 'orgChart', Saúde: 'teamHealth', Projetos: 'projects', Quadros: 'kanban', Kanban: 'kanban', Rotinas: 'routines',
+  Conhecimento: 'knowledge', 'Segundo cérebro': 'secondBrain', Arquivos: 'files', 'Uso e limites': 'usage', Conexões: 'connections',
+  Aprovações: 'approvals', Regras: 'rules', Membros: 'members', Importadores: 'importers', Canvas: 'canvas' }))
 async function nav(page, label) {
+  const panel = PANEL_BY_LABEL.get(label)
+  if (panel !== undefined) {
+    const byId = page.locator(`[data-nav-panel="${panel}"], [data-tab-panel="${panel}"]`).first()
+    if (await byId.count() > 0) {
+      await byId.evaluate((node) => { node.scrollIntoView({ block: 'center' }) })
+      await byId.click({ timeout: 10_000 })
+      await page.waitForTimeout(1600)
+      return
+    }
+  }
   try {
     await page.getByRole('button', { name: 'Visão geral', exact: true }).first().waitFor({ timeout: 20_000 }).catch(() => undefined)
     for (let attempt = 0; attempt < 3 && await page.getByRole('button', { name: label, exact: true }).count() === 0; attempt += 1) {

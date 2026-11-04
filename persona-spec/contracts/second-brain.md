@@ -8,6 +8,12 @@ A página markdown é a fonte da verdade. O índice (tipo, backlinks, "Comece aq
 
 ## Página
 
+No host, o ID identifica a página. Títulos iguais com IDs diferentes recebem slugs distintos e não substituem o corpo ou a audiência da primeira página. Reimportação conhecida resolve o ID pelo slug do arquivo autorizado, sem transformar um put com ID novo em atualização. Edição sem campo visibility conserva a visibilidade existente. BrainPageView.audience acrescenta workspace/project/private/persona; restricted continua significando que o leitor não pode ler, portanto uma página privada do próprio leitor tem audience:private e restricted:false. O índice por leitor exclui títulos e corpos de páginas restritas a outra pessoa ou só à persona, inclusive para o dono.
+
+ApprovalView.permissionAction/permissionTarget são os valores autoritativos para lembrar uma aprovação: vault.update + vault:<recordId>, ou skill.activate + skill:<skillId>. O alvo é o recurso estável, não o ID transitório da proposta. A UI usa esses campos no grantBrainPermission; não deriva autorização de texto ou do título. Hire e perguntas sem ação/alvo estruturados continuam exigindo pergunta. Concessões antigas que usam o ID da proposta não são ampliadas para cobrir outro recurso.
+
+proposeVault/proposeSkill consultam gateRememberedPermission antes da pergunta, somente para a mesma persona/ação/alvo, validade e limite de usos. O concedente precisa continuar autorizado no projeto e ser o dono ou o responsável roteado. Limites desconhecidos, inválidos, concessão revogada/expirada ou já consumida não cobrem a ação. Consumo e aplicação compartilham a transação; uma falha não gasta a permissão nem marca a proposta aprovada. ApprovalView.permissionGrantId/permissionAudit e o documento remembered_approval registram a dispensa, incluindo “não perguntei porque você permitiu em DD/MM”. A trilha reaparece em listApprovals.
+
 Tipos fixos: `company` `person` `client` `project` `process` `rule` `decision` `permission` `tool` `glossary` `learning`.
 
 Visibilidade vem da audiência da origem: DM → `{ kind: 'members', memberIds }` (nunca vira página do canal). Projeto → `{ kind: 'project' }`. Canal/workspace → `{ kind: 'workspace' }`.
@@ -43,6 +49,8 @@ Higiene sem LLM: `hygieneBrain` (dedupe Jaccard ≥ 0.8 somente dentro do mesmo 
 ## Export / sync (SB-6)
 
 `planBrainVaultSync` (default `one_way`) + `applyBrainVaultSync`. Two-way dest com frontmatter do pack → `page`; nota Obsidian sem pack → `foreign` (BYC). Leftover nunca apagado. Persistência da pasta = Anvil/Rivet.
+
+No two-way, o host captura os arquivos da pasta antes de qualquer exportação e planeja todas as notas, incluindo caminhos de páginas já conhecidas. Exportar primeiro apaga a edição externa antes de importá-la; filtrar somente caminhos extras também perde mudanças em notas existentes. O planner puro preserva corpo, ID e audiência do markdown importado. O consumidor valida ACL do ator e do ID existente, mantém a audiência original sem promoção pelo frontmatter, persiste a alteração e só então prepara a exportação atualizada. Hashes já importados tornam o replay no-op; notas alheias nunca são apagadas. O teste puro não substitui a prova de leitura/importação/exportação no host.
 
 ## Fora deste contrato
 

@@ -2,11 +2,11 @@
 // Boots `--profile persona` on a temp home with a free port (D-067), opens the web UI in Chrome (dev seed) and walks a scenario.
 // Run under the build lock (bundle first when the client changed):
 //   node scripts/persona/with-lock.mjs "Quill shots" --lock build -- node scripts/persona/quill-shots.mjs <scenario> [viewport...]
-// Scenarios: connections | teach. Viewports: 960x640 | zoom200 | 1440x900 (default: 960x640 and zoom200).
+// Scenarios: connections | teach | canvas. Viewports: 960x640 | zoom200 | 1440x900 (default: 1440x900, 960x640 and zoom200 = the D-076 acceptance sizes).
 // Env: QUILL_AXE=<path to axe.min.js> (WCAG A/AA scan of each state), QUILL_REDUCED=1 (reduced motion), QUILL_SCHEMES=light|dark.
 // Output: .maestri/tmp/shots/quill/<scenario>-<state>-<scheme>-<viewport>.png and a JSON summary on the last line.
 import { spawn, execFileSync } from 'node:child_process'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { freePort } from './free-port.mjs'
 
@@ -20,7 +20,7 @@ const ALL_VIEWPORTS = {
   '1440x900': { tag: '1440x900', width: 1440, height: 900, dpr: 1 },
 }
 const requested = process.argv.slice(3).filter(tag => ALL_VIEWPORTS[tag] !== undefined)
-const viewports = (requested.length > 0 ? requested : ['960x640', 'zoom200']).map(tag => ALL_VIEWPORTS[tag])
+const viewports = (requested.length > 0 ? requested : ['1440x900', '960x640', 'zoom200']).map(tag => ALL_VIEWPORTS[tag])
 const schemes = process.env.QUILL_SCHEMES === undefined ? ['light', 'dark'] : [process.env.QUILL_SCHEMES]
 
 const home = `${root}/.maestri/tmp/quill-shot-home-${process.pid}`
@@ -28,8 +28,8 @@ const outDir = `${root}/.maestri/tmp/shots/quill`
 rmSync(home, { recursive: true, force: true })
 mkdirSync(home, { recursive: true }); mkdirSync(outDir, { recursive: true })
 
-// The web host has no Electron safeStorage: the Cofre only opens with the test cipher (temp home, never real secrets).
-const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_DISABLED: '1', PERSONA_VAULT_TEST_CIPHER: '1' }
+// The web host boots without PERSONA_VAULT_TEST_CIPHER now (Keel, D-067 addendum): temp home and free port only.
+const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
 const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open', '--port', String(await freePort())], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
 let out = ''
 let browser
@@ -68,11 +68,13 @@ async function open(url, scheme, viewport) {
   await page.goto(url, { waitUntil: 'load' })
   await page.waitForTimeout(9000)
   // A cold host can race the plugin boot order (SlotAssemblyError on the first load): reload until the app answers.
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  let shellUp = false
+  for (let attempt = 0; attempt < 3 && !shellUp; attempt += 1) {
     await page.reload({ waitUntil: 'load' })
-    await page.waitForTimeout(6000)
-    if (await page.getByRole('button', { name: 'Visão geral', exact: true }).first().isVisible().catch(() => false)) break
+    shellUp = await page.waitForSelector('[data-persona-shell]', { timeout: 15_000 }).then(() => true, () => false)
   }
+  if (!shellUp) throw new Error(`app shell never appeared (${scheme} ${viewport.tag}) — blank page, not a capture`)
+  await page.waitForTimeout(2500)
   return { context, page }
 }
 
@@ -116,7 +118,13 @@ const overflowProbe = page => page.evaluate(() => {
 function shooter(page, scheme, viewport) {
   return async (state) => {
     const file = `${outDir}/${scenario}-${state}-${scheme}-${viewport.tag}.png`
+    await page.waitForSelector('[data-persona-shell]', { timeout: 15_000 })
     await page.screenshot({ path: file })
+    // A near-empty PNG is a blank page: that is a FAILURE, not a result (Keel, D-067 addendum).
+    if (statSync(file).size < 10_000) {
+      rmSync(file, { force: true })
+      throw new Error(`blank capture (<10 KB) at ${scenario}/${state} ${scheme} ${viewport.tag}`)
+    }
     const axe = await axeViolations(page)
     const overflow = await overflowProbe(page)
     for (const v of axe ?? []) console.log(`[axe ${state} ${scheme} ${viewport.tag}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 200)}`)
@@ -191,7 +199,8 @@ SCENARIOS.teach = async function teach(page, shot) {
   await page.getByRole('button', { name: 'Escolher o que gravar' }).click()
   await page.getByRole('radio', { name: 'Tela de exemplo' }).waitFor({ timeout: 10_000 })
   await shot('2-source')
-  await page.getByRole('radio', { name: 'Tela de exemplo' }).check({ force: true })
+  // The radio is visually hidden (the whole option is the control): click what a person clicks.
+  await page.locator('label', { hasText: 'Tela de exemplo' }).click()
   await page.getByRole('button', { name: 'Começar a gravar' }).click()
   await page.getByRole('region', { name: 'Gravação em andamento' }).waitFor({ timeout: 10_000 })
   await shot('3-countdown')
@@ -199,7 +208,7 @@ SCENARIOS.teach = async function teach(page, shot) {
   await shot('4-recording')
   await page.getByRole('button', { name: 'Parar e revisar' }).click()
   await page.getByRole('dialog', { name: 'Quer contar o que você fez?' }).waitFor({ timeout: 10_000 })
-  await page.getByLabel('O que você fez').fill('Abro o pedido, confiro o valor e aviso o cliente.')
+  await page.getByRole('textbox', { name: 'O que você fez' }).fill('Abro o pedido, confiro o valor e aviso o cliente.')
   await shot('5-narrate')
   await page.getByRole('button', { name: 'Montar o passo a passo' }).click()
   await page.getByRole('heading', { name: /^Revise o que .* aprendeu$/u }).waitFor({ timeout: 30_000 })
@@ -219,6 +228,33 @@ SCENARIOS.teach = async function teach(page, shot) {
   await page.waitForTimeout(400)
   await shot('10-share')
   await page.getByRole('button', { name: 'Concluir' }).click()
+}
+
+/** G2: map and list of the canvas; keyboard selection in the list (empty state is a valid, honest capture too). */
+SCENARIOS.canvas = async function canvas(page, shot) {
+  await nav(page, 'Canvas')
+  await shot('1-map-or-empty')
+  const listTab = page.getByRole('tab', { name: 'Lista' })
+  if (await listTab.count() === 0) return
+  await listTab.focus()
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(500)
+  const stayedOnTab = await page.evaluate(() => document.activeElement?.getAttribute('role') === 'tab')
+  summary.push({ state: 'focus-stays-on-tab', ok: stayedOnTab })
+  await shot('2-list')
+  const rows = page.getByRole('row')
+  if (await rows.count() > 1) {
+    await rows.nth(1).focus()
+    await page.keyboard.press('ArrowDown')
+    // Space selects (Enter OPENS the object on its own screen, which would leave the canvas).
+    await page.keyboard.press(' ')
+    await page.waitForTimeout(400)
+    await shot('3-list-selected')
+    // The Projects page also has a "Canvas" section tab: this is the map/list switch of the canvas itself.
+    await page.locator('#canvas-mode-tab-canvas').click()
+    await page.waitForTimeout(400)
+    await shot('4-map-selection-kept')
+  }
 }
 
 const run = SCENARIOS[scenario]
@@ -252,7 +288,7 @@ for (const scheme of schemes) {
     await context.close()
   }
 }
-writeFileSync(`${outDir}/${scenario}-summary.json`, JSON.stringify({ errors, summary }, null, 2))
+writeFileSync(`${outDir}/${scenario}-summary.json`, JSON.stringify({ at: new Date().toISOString(), scenario, errors, summary }, null, 2))
 clearTimeout(timer)
 console.log(`console errors: ${errors.length}`)
 for (const line of errors.slice(0, 12)) console.log(line)

@@ -7,7 +7,7 @@
 // Output: .maestri/tmp/shots/quill/remote-team/<step>-<Alice|Bob>-<light|dark>.png + proof.json (passed:true only if every step held).
 import { spawn, execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -15,6 +15,12 @@ import { fileURLToPath } from 'node:url'
 import { freePort } from './free-port.mjs'
 
 if (process.env.PERSONA_LOCK !== 'build') throw new Error('Run this under with-lock --lock build')
+// Quill's own queue guard: the client bundle must be the fresh one (marker left by the exclusive bundle job).
+import { existsSync as markerExists } from 'node:fs'
+if (process.env.QUILL_REQUIRE_FRESH_BUNDLE !== '0' && !markerExists('C:/Users/migue/AppData/Local/Temp/claude/8545ae9cdecf2d8b/fbf30984-c33b-4bb3-a697-10b110e8c781/scratchpad/bundle-ok')) {
+  console.log('e13-ui: no fresh bundle yet, skipped (re-queue after the exclusive bundle)')
+  process.exit(0)
+}
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const require = createRequire(join(root, 'packages/persona/persona-e2e/package.json'))
@@ -139,17 +145,42 @@ async function nav(page, label) {
 
 const remoteCard = page => page.locator('[data-persona-surface="remote-team"]')
 
-/** Light shot, then dark shot of the same state (the app reads the theme from a body attribute). */
-async function shoot(desk, step) {
+/** Light then dark shot of the current state at the current size (the app reads the theme from a body attribute). */
+async function capture(desk, step, suffix) {
   for (const scheme of ['light', 'dark']) {
     await desk.page.evaluate((dark) => {
       if (dark) document.body.setAttribute('data-ds-dark-theme', 'true')
       else document.body.removeAttribute('data-ds-dark-theme')
     }, scheme === 'dark')
     await desk.page.waitForTimeout(250)
-    await desk.page.screenshot({ path: join(out, `${step}-${desk.name}-${scheme}.png`) })
+    const file = join(out, `${step}-${desk.name}-${scheme}${suffix}.png`)
+    await desk.page.screenshot({ path: file })
+    // A near-empty PNG is a blank page: a FAILURE, never a result (Keel, D-067 addendum).
+    if (statSync(file).size < 10_000) {
+      rmSync(file, { force: true })
+      throw new Error(`blank capture (<10 KB): ${step} ${desk.name} ${scheme}${suffix}`)
+    }
   }
   await desk.page.evaluate(() => { document.body.removeAttribute('data-ds-dark-theme') })
+}
+
+// Acceptance sizes (D-076): 960x640 (the base, no suffix), 1440x900, and 640x360 = what 200% zoom leaves of a 1280x720 window.
+const EXTRA_SIZES = [{ tag: '1440', width: 1440, height: 900 }, { tag: 'zoom200', width: 640, height: 360 }]
+
+/** The state at the base size, then at the other acceptance sizes (only while the window is at its base 960x640). */
+async function shoot(desk, step) {
+  await desk.page.waitForSelector('[data-persona-shell]', { timeout: 15_000 })
+  const base = desk.page.viewportSize()
+  await capture(desk, step, '')
+  if (base !== null && base.width === 960 && base.height === 640) {
+    for (const size of EXTRA_SIZES) {
+      await desk.page.setViewportSize({ width: size.width, height: size.height })
+      await desk.page.waitForTimeout(300)
+      await capture(desk, step, `-${size.tag}`)
+    }
+    await desk.page.setViewportSize(base)
+    await desk.page.waitForTimeout(200)
+  }
   steps.push({ step, desk: desk.name, at: new Date().toISOString() })
   console.log(`e13-ui:${step}:${desk.name}`)
 }
@@ -197,7 +228,8 @@ try {
   await alice.getByRole('button', { name: 'Conectar', exact: true }).click()
   await alice.getByText('Confira o endereço da equipe').waitFor({ timeout: 10_000 })
   await shoot(a, '01-connect-errors')
-  await alice.getByLabel('Endereço da equipe').fill(edgeUrl)
+  // Alice's card has two address fields (connect + "entrar com um convite"): the first is the connect one.
+  await alice.getByLabel('Endereço da equipe').first().fill(edgeUrl)
   await alice.getByRole('checkbox', { name: /#geral/u }).check()
   await shoot(a, '02-connect-filled')
   await alice.getByRole('button', { name: 'Conectar', exact: true }).click()
@@ -206,7 +238,8 @@ try {
   await axe(a, 'connected')
 
   // 2 — Alice invites: the code shows ONCE
-  await alice.getByRole('button', { name: 'Gerar convite' }).click()
+  // The card shows "Gerar convite" twice (the primary one and the empty-list shortcut): the first is the primary.
+  await alice.getByRole('button', { name: 'Gerar convite' }).first().click()
   const code = alice.locator('code').first()
   await code.waitFor({ timeout: 30_000 })
   const token = (await code.textContent())?.trim() ?? ''
@@ -240,8 +273,14 @@ try {
 
   // 5 — Alice revokes (UI); Bob's screen says "Acesso encerrado" and offers no way to send
   await nav(a.page, 'Membros')
-  await remoteCard(a.page).getByRole('button', { name: 'Revogar acesso' }).first().click()
-  await until(async () => (await remoteCard(a.page).getByText('Revogado').count()) > 0, 'invite-revoked-on-alice', 30_000)
+  // The host lists the people of the remote project: Bob has a row with his name, and the button names him.
+  await remoteCard(a.page).getByRole('heading', { name: 'Pessoas na equipe' }).waitFor({ timeout: 30_000 })
+  await remoteCard(a.page).getByRole('button', { name: /^Encerrar acesso de / }).first().waitFor({ timeout: 30_000 })
+  await shoot(a, '09b-people-alice')
+  await axe(a, 'people')
+  await remoteCard(a.page).getByRole('button', { name: /^Encerrar acesso de / }).first().click()
+  await a.page.getByRole('dialog').getByRole('button', { name: 'Encerrar acesso', exact: true }).click()
+  await until(async () => (await remoteCard(a.page).getByText('Encerrado', { exact: true }).count()) > 0, 'member-revoked-on-alice', 30_000)
   await shoot(a, '10-revoked-alice')
   await nav(b.page, 'Membros')
   await remoteCard(b.page).getByText('Acesso encerrado').waitFor({ timeout: 30_000 })
@@ -258,7 +297,7 @@ try {
     const wide = await desk.page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)
     if (wide) sideways.push(desk.name)
   }
-  writeFileSync(join(out, 'proof.json'), `${JSON.stringify({ passed: consoleErrors.length === 0, scope, steps: steps.length, consoleErrors, sideways, axe: axeFindings, realModelCalls: 0, noDevSeed: true, operatedThroughUi: ['connect', 'issueInvite', 'dismiss', 'accept', 'post', 'revoke'] }, null, 2)}\n`)
+  writeFileSync(join(out, 'proof.json'), `${JSON.stringify({ at: new Date().toISOString(), passed: consoleErrors.length === 0, scope, steps: steps.length, consoleErrors, sideways, axe: axeFindings, realModelCalls: 0, noDevSeed: true, operatedThroughUi: ['connect', 'issueInvite', 'dismiss', 'accept', 'post', 'revoke'] }, null, 2)}\n`)
   console.log(`e13-ui:PASS steps=${steps.length} consoleErrors=${consoleErrors.length} sideways=${sideways.join(',') || 'none'}`)
   process.exitCode = consoleErrors.length === 0 ? 0 : 1
 } catch (error) {

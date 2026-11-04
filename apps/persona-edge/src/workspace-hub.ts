@@ -80,6 +80,12 @@ export class WorkspaceHub implements DurableObject {
         const afterSeq = Number(url.searchParams.get('afterSeq') ?? '0')
         return Response.json({ envelopes: this.log.after(streamId, afterSeq) })
       }
+      if (rest[0] === 'sync' && rest[1] === 'head' && request.method === 'GET') {
+        const streamId = url.searchParams.get('streamId') ?? ''
+        const denied = this.denyStream(request, streamId)
+        if (denied !== undefined) return denied
+        return Response.json({ head: this.log.head(streamId) })
+      }
       if (rest[0] === 'members' && request.method === 'POST' && rest.length === 1) {
         const actor: Actor = await request.json()
         if (actor.workspaceId !== workspaceId) return Response.json({ code: 'WORKSPACE_MISMATCH' }, { status: 403 })
@@ -91,7 +97,15 @@ export class WorkspaceHub implements DurableObject {
         return this.revokeMember(rest[1] ?? '')
       }
       if (rest[0] === 'members' && request.method === 'GET' && rest.length === 1) {
-        return Response.json({ members: this.listMembers() })
+        const denied = this.denyActor(request)
+        if (denied !== undefined) return denied
+        const caller = this.getMember(request.headers.get('x-persona-actor') ?? '')
+        const projectId = url.searchParams.get('projectId') ?? ''
+        if (caller === undefined || (caller.actor.workspaceRole !== 'owner' && !caller.actor.projectIds.includes(projectId))) {
+          return Response.json({ code: 'PROJECT_NOT_GRANTED' }, { status: 403 })
+        }
+        return Response.json({ members: this.listMembers().filter(member => projectId === ''
+          || member.actor.workspaceRole === 'owner' || member.actor.projectIds.includes(projectId)) })
       }
       if (rest[0] === 'invites' && request.method === 'POST' && rest.length === 1) {
         const denied = this.denyOwner(request)
@@ -251,9 +265,17 @@ export class WorkspaceHub implements DurableObject {
   async redeem(workspaceId: string, token: string, actor: Actor): Promise<Response> {
     const invite = await this.getInviteByToken(workspaceId, token)
     if (invite === undefined) return Response.json({ error: 'INVITE_INVALID' }, { status: 404 })
-    const next = redeemInvite(invite, Date.now(), actor)
+    if (actor.workspaceId !== workspaceId) return Response.json({ code: 'WORKSPACE_MISMATCH' }, { status: 403 })
+    const current = this.getMember(actor.id)
+    if (current !== undefined && current.revokedAt === undefined) {
+      return Response.json({ code: 'ALREADY_A_MEMBER' }, { status: 409 })
+    }
+    const redeemer: Actor = { kind: 'user', id: actor.id, workspaceId, workspaceRole: 'guest', projectIds: [] }
+    const next = redeemInvite(invite, Date.now(), redeemer)
     this.putInvite(next.invite)
-    this.putMember({ actor: next.actor, joinedAt: Date.now(), inviteId: invite.id })
+    const displayName = memberName(actor)
+    this.putMember({ actor: next.actor, joinedAt: Date.now(), inviteId: invite.id,
+      ...(displayName === undefined ? {} : { displayName }) })
     return Response.json({ invite: next.invite, actor: next.actor })
   }
 
@@ -278,12 +300,16 @@ export class WorkspaceHub implements DurableObject {
   join(actor: Actor): Response {
     const existing = this.getMember(actor.id)
     if (existing !== undefined && existing.revokedAt === undefined) {
-      return Response.json({ member: existing })
+      const displayName = memberName(actor)
+      const member = displayName === undefined ? existing : { ...existing, displayName }
+      this.putMember(member)
+      return Response.json({ member })
     }
     if (this.hasActiveMembers() || existing?.revokedAt !== undefined || actor.workspaceRole !== 'owner' || actor.kind !== 'user') {
       return Response.json({ status: 'refused', code: 'INVITE_REQUIRED' }, { status: 403 })
     }
-    const member: WorkspaceMember = { actor, joinedAt: Date.now() }
+    const displayName = memberName(actor)
+    const member: WorkspaceMember = { actor, joinedAt: Date.now(), ...(displayName === undefined ? {} : { displayName }) }
     this.putMember(member)
     return Response.json({ member })
   }
@@ -497,9 +523,17 @@ export class WorkspaceHub implements DurableObject {
 /** Redeemed or bootstrapped desktop replica. */
 export interface WorkspaceMember {
   readonly actor: Actor
+  readonly displayName?: string
   readonly joinedAt: number
   readonly inviteId?: string
   readonly revokedAt?: number
+}
+
+function memberName(input: object): string | undefined {
+  const value: unknown = Reflect.get(input, 'displayName')
+  if (typeof value !== 'string') return undefined
+  const name = value.replace(/\s+/gu, ' ').trim()
+  return name === '' ? undefined : name.slice(0, 160)
 }
 
 /** POST /invites body. */

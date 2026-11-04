@@ -137,3 +137,72 @@ Revisado com `.maestri/tmp/muse/review-life.py tucano`; quadro em `br-p1/tucano-
   - a crista e as orelhas intactas, sem resto de halo (`br-p1/pensando-sem-balao.png`);
   - a mesma caixa nos 3 quadros, com escala e chão iguais à `disponivel`.
   - Regenerado no app.
+
+### Lote P1 · raposa · aprovada (04/11)
+- **Conferido** (`review-life.py raposa`, `br-p1/raposa-life-board.png`, `raposa-tail-check.png`):
+  - **`blink`:** 0,59%, só os olhos.
+  - **`tail`:** 3,9%, só o rabo, que sobe e curva; lê bem a 188 px. O limiar de alerta do script passou de 3% para 6%, porque rabo grande é legítimo.
+  - **`acenando`:** a pata mais alta.
+  - **`pensando-1/2/3`:** sem balão, com a mesma caixa, o topo e os pés iguais à `disponivel` e só os olhos mudando.
+  - Todos ≤ 1,3 MB e RGBA. Regenerado no app.
+
+### Lote P1 · panda · aprovado (04/11)
+- **Os 6 frames:**
+  - `blink`: 0,53%, só os olhos;
+  - `tail`: a orelha, 0,93%;
+  - `acenando`;
+  - `pensando-1/2/3`: sem balão, com a mesma caixa (topo 23, contra 29 na `disponivel`, dentro de ±50).
+- Os tracinhos do aceno são lilás e aparecem no escuro.
+- Regenerado no app.
+- **1º lote (tamanduá, tucano, raposa, panda) fechado.**
+
+### Lote P1 · guaxinim · aprovado (04/11)
+- `blink`: 1,14%, os dois olhos.
+- `tail`: a orelha, 1,54%.
+- `acenando`.
+- `pensando-1/2/3`: sem balão, mesma caixa e chão (topo 31 e pés 1502, contra 33 e 1500 na `disponivel`).
+- Regenerado no app.
+
+### Lote P1 · coruja · aprovada (04/11)
+- **`blink`:** 1,85%.
+- **`tail`:** o penacho baixa, 1,59%; a caixa unida da família evita o pulo.
+- **`acenando`.**
+- **`pensando`:** sem balão, mesma escala.
+- Regenerado no app.
+
+### Lote P1 · capivara · aprovada (04/11)
+- **`blink`:** 0,56%.
+- **`tail`:** a orelha, 1,09%.
+- **`acenando`:** de frente, combina com o gesto.
+- **`pensando-1/2/3`:** sem balão, mesma escala (topo 39 e pés 1492, contra 43 e 1488).
+- Regenerado no app.
+
+### Lote P1 · cervo (04/11)
+- **Aprovados:**
+  - `blink`: 0,42%;
+  - `acenando`;
+  - `pensando-1/2/3`: sem balão, mesma caixa.
+- **`tail` (a orelha) volta:** a 188 px quase não se mexe e a galhada rouba o olhar. Girar ~10° para fora, como no tamanduá v2.
+- **Cervo `tail` v2: aprovado.** A orelha inclina bem para fora e muda de ângulo a 188 px; 2,11%, só a orelha, mesma caixa. **O cervo está completo.** Entra no app no próximo `build-assets`, na janela do Keel.
+
+### Lote P1 · coelho · aprovado (04/11)
+- **`blink`:** 0,51%.
+- **`tail`:** a orelha, 2,79%; lê bem a 188 px.
+- **`acenando`.**
+- **`pensando-1/2/3`:** sem balão, mesma escala. A caixa mais estreita vem da pata no queixo: é pose diferente, não salto.
+- Entra no app no próximo `build-assets`, na janela do Keel.
+
+### Lote P1 · lobo-guará (04/11)
+- **Aprovados:**
+  - `blink`: 0,37%;
+  - `acenando`;
+  - `pensando-1/2/3`: sem balão; a caixa mais estreita vem da pata.
+- **`tail` (a orelha):** o movimento lê bem (2,97%), mas sobrou um fragmento escuro do contorno antigo junto da base da orelha (`br-p1/lobo-ear-seam.png`). Volta só para limpar esse resto.
+- **Lobo-guará `tail` v3: aprovado.** O fragmento entre as orelhas saiu, a orelha inclinada segue lendo (3,01%, mesma caixa). **O lobo-guará está completo**; entra no próximo `build-assets`, na janela do Keel.
+
+### Lote P1 · lontra · aprovada (04/11)
+- **`blink`:** 0,61%.
+- **`tail`:** a orelha pequena desloca 37 px a 1536 (~4,5 px na faixa de 188), o que lê; 1,07%. A caixa unida da família evita o pulo.
+- **`acenando`.**
+- **`pensando-1/2/3`:** sem balão, mesma escala.
+- Entra no próximo `build-assets`.

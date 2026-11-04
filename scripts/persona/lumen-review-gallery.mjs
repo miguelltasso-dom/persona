@@ -1,4 +1,4 @@
-// Lumen: captures of "Revisar mudanças" and "Projeto › Histórico" from the sample-data gallery (SW-8).
+// Lumen: captures of "Revisar mudanças", "Projeto › Histórico", Quadros (PB-5), Segundo cérebro (SB-5) and the Importadores review (BYC-4) from the sample-data gallery.
 // Builds scripts/persona/lumen-review-gallery/ with the repo's Vite, serves it on a free port, and shoots every state in
 // light/dark at 1280x720, 960x640 and zoom 200 % (640x360 @2x), with an overflow probe and (LUMEN_AXE=<axe.min.js>) axe.
 //   node scripts/persona/with-lock.mjs "<you> review gallery" --lock check -- node scripts/persona/lumen-review-gallery.mjs [state...]
@@ -17,7 +17,7 @@ const { build } = await import(createRequire(`${root}/package.json`).resolve('vi
 
 const STATES = process.argv.slice(2).length > 0
   ? process.argv.slice(2)
-  : ['review', 'review-text', 'review-conflict', 'review-locked', 'review-onedrive', 'review-failed', 'history', 'history-empty']
+  : ['review', 'review-text', 'review-conflict', 'review-locked', 'review-onedrive', 'review-failed', 'review-loading', 'history', 'history-empty', 'boards', 'boards-empty-only', 'second-brain', 'byc-review']
 const VIEWPORTS = [
   { tag: '1280x720', width: 1280, height: 720, dpr: 1 },
   { tag: '960x640', width: 960, height: 640, dpr: 1 },
@@ -133,11 +133,16 @@ try {
             for (const toggle of await page.locator('button[aria-expanded="false"]').all()) await toggle.click().catch(() => undefined)
             await page.waitForTimeout(300)
           }
+          if (state === 'byc-review') {
+            // Open the editor of the first row so the review shows its editing state too.
+            await page.getByRole('button', { name: 'Editar', exact: true }).first().click().catch(() => undefined)
+            await page.waitForTimeout(200)
+          }
           // Clicks leave the pointer over a row (its hover tint reads as "selected"): park it away.
           await page.mouse.move(0, 0)
           const file = `${state}-${scheme}-${viewport.tag}.png`
           // The action bar is sticky in the real scroller; in a full-page shot it would sit mid-page over the list.
-          await page.addStyleTag({ content: '[class*="_footer_"] { position: static !important; }' })
+          await page.addStyleTag({ content: '[class*="_footer_"], [class*="_saveBar_"] { position: static !important; }' })
           await page.screenshot({ path: `${outDir}/${file}`, fullPage: true })
           const probe = await page.evaluate(probeOverflow)
           let axe = 'skipped'

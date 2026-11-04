@@ -1,47 +1,51 @@
-# Contrato — alavancas de tokens que faltam ligar no host (Tally, 04/11)
+# Contrato — alavancas de tokens no host (Tally, 04/11, revisado 14:20)
 
-Fonte dos números: `node --import tsx/esm packages/persona/persona-engine/scripts/print-tokens-faithful.ts` (runner scriptado fiel, cenário `dia-padaria`: 7 mensagens, 9 chamadas de modelo). Tudo **estimativa offline** (4 caracteres ≈ 1 token; custo = preço de tabela). Zero CLI real. O gate `gate-tokens.ts` já mede "hoje" (`LEVERS_AS_WIRED`) e "todas as alavancas"; quando uma alavanca for ligada, mova-a em `LEVERS_AS_WIRED` (Tally) e o gate passa a protegê-la.
+Fonte dos números: `node --import tsx/esm packages/persona/persona-engine/scripts/print-tokens-faithful.ts` e `write-opt8-faithful.ts` (runner scriptado fiel; relatório `reports/opt8-faithful.md`). **Estimativa offline** (4 caracteres ≈ 1 token; custo = preço de tabela). Zero CLI real.
 
-Ganho marginal de cada alavanca sobre o host de hoje, sozinha (qualidade 1,00 → 1,00 em todas):
+## Estado das ligações (decisão Atlas/Keel 13:32: quem implementa é o Tally)
 
-| # | alavanca | quem liga | tokens | custo µUSD |
-|---|---|---|---:|---:|
-| W1 | `supportOnCheap`: triagem no runner barato | Anvil `orchestration.ts` + Rivet `resolve` | 6593 → 6593 (0 %) | 15736 → 13279 (**−16 %**) |
-| W2 | `minimalTools`: só as ferramentas da tarefa | Rivet `mcp/gateway.ts` / `persona-tools.ts` | 6593 → 5885 (**−11 %**) | 15736 → 14301 (−9 %) |
-| W3 | `leanReports`: relato final curto do worker | Rivet `oar/session.ts` (`prefixOwnerNorms`) | 6593 → 6471 (−2 %) | 15736 → 13025 (**−17 %**) |
-| W5 | `batchBurst`: `batchRouterBurst` na rajada do #geral (4 triagens → 1) | Anvil `orchestration.ts` (ingest) | rajada: 704 → 572 (**−19 %**) | rajada: 3168 → 2302 (**−27 %**) |
-| W4 | `context:ranked`: recall por relevância | Anvil `orchestration.ts` `talkLayers` | 0 % neste cenário | 0 % — **proteção de qualidade** (ver abaixo) |
+| # | alavanca | estado | onde | prova |
+|---|---|---|---|---|
+| W4 | recall por relevância: `foldHostTalkUsed(used, event.body)` | **LIGADA** | `persona-host/src/orchestration.ts` `talkLayers` (1 linha); a 1ª entrega (`firstDeliveryExecutionPrompt`) **não** foi tocada | `persona-host/tests/token-wiring.spec.ts` (3) |
+| W1 | triagem no runner barato (`resolveFor(coordenação, 'talk', answerOnly)`; recuo para o runner da executora se não resolver) | **LIGADA** | `orchestration.ts` `runLaunched`; o caminho `firstDelivery` continua sem triagem | `token-wiring.spec.ts` (2: purpose `talk` na triagem e `task` no worker; recuo) e `real-path.spec.ts` ajustado |
+| W3 | relato curto do worker (`WORKER_LEAN_REPORT_RULE`) | **encanada e DESLIGADA** | `executorPrompt`/`prefixOwnerNorms` (`owner-prompt.ts`) e `OarSessionOptions.leanReport` (`oar/session.ts`), default off | `persona-runners/tests/lean-report.spec.ts` (3). Só liga depois de rodada real |
+| SK | **triagem sem retorno lido** (`skipTriage`, D-073) | **LIGADA** (padrão `true`) | `persona-host/src/orchestration.ts`: campo `skipTriage = true` e a condição `&& !this.skipTriage` no bloco de `runLaunched` (~l.1226); o caminho `firstDelivery` já não tinha triagem | `persona-host/tests/token-wiring.spec.ts`: SK (a) #geral → Ticket → persona → entrega, (b) DM, (c) follow-up de Tarefa viva, (d) 1ª entrega — em cada um, com e sem a triagem, o MESMO Ticket, a MESMA persona, as MESMAS entregas e mensagens; + o padrão ligado. **Religar a triagem (`orchestration.skipTriage = false`) se as ferramentas MCP forem ligadas aos adapters.** Dependência achada pelo Anvil: só a contabilidade (o livro registrava 1 turno `triage`; `real-path.spec` ajustado) |
+| CF | **cortesia com reação da persona, sem modelo** (`courtesyNoModel`, D-075) | **LIGADA** (padrão `true`) | `persona-host/src/orchestration.ts`: campo `courtesyNoModel`; guarda no ramo `routed.action === 'react'` do `ingest` (cortesia sem nada pendente → `reactCourtesy` + retorno, sem `finishReply`); `pendingFromPersona`, `reactCourtesy`, `courtesyStickerFor` (exportada); `recoverTalks` pula mensagem que a persona já reagiu | `persona-host/tests/courtesy-reaction.spec.ts` (7): (c) 0 chamadas, 0 runners resolvidos, 0 Ticket, mensagem visível e `reactions` com a persona; coração p/ agradecimento, joinha p/ o resto, DM responde a persona da DM; (a) "ok" depois de pergunta aberta (última linha da persona termina em "?" ou Attention do Ticket do fio) NÃO é engolido; (b) "valeu! agora monta o resumo" = Ticket; flag desligada = a rota antiga; reabrir o host não vira chamada. **Pendente (forma): Muse** define o sticker/rosto e se entra uma linha de repertório; **ao vivo:** `EventRepos` só notifica no `append`, então o cliente vê a reação ao recarregar a mensagem até o Anvil emitir um upsert (pedido por tell) |
+| W5 | rajada em lote (`batchRouterBurst`) | **RETIRADA — sem efeito no host** (D-070 aprovou a ligação; a prova mostrou que não há o que mesclar) | ver abaixo | diagnóstico abaixo; nada no host |
+| W2 | ferramentas mínimas por turno | **RETIRADA — não se aplica** | ver abaixo | — |
 
-Todas juntas sobre hoje: tokens −13 %, custo **−42 %** no dia em rajada e **−40 %** no dia espalhado (`dia-espacado`, 30 min entre mensagens: cache de 5 min e sessão de 10 min expiram), qualidade 1,00; W5 medida na rajada `burst-geral`.
+### W2 retirada (erro meu, corrigido)
 
-## W1 — triagem no modelo barato (Anvil + Rivet)
+O gateway MCP (`createMcpGateway`) e os servidores de ferramentas da Persona (`servePersonaMcpTools`, `personaMcpTools`) são exportados e testados, mas **nenhum adapter de produção os chama**. O host de hoje não manda lista de ferramentas MCP; o custo de ferramentas na CLI é o esquema nativo do vendor, controlado por `disallowedTools`/nível de ferramenta (`cli-policy.ts`), e só uma rodada real o mede. O "−11% de tokens" que reportei às 13:35 vinha de um bench que listava 14 ferramentas MCP que o produto não envia. O bench agora tem `toolsListing: 'all' | 'needed' | 'none'` e o host de hoje é `'none'`. Se um dia o gateway for ligado, a regra é listar só as ferramentas da tarefa (`toolsForTurn`).
+A alavanca equivalente que existe de verdade é rodar tarefas **só de texto** no runner `answerOnly` (sem ferramentas; já usado na primeira entrega): é decisão de produto e qualidade (precisa classificar a tarefa), não uma ligação mínima.
 
-Hoje: `orchestration.ts:1201` resolve o runner da **executora** (`resolveFor(executor, …, 'task')`) e `:1218` cria o `CoordinationDriver` nele; a triagem roda no modelo da executora. Rivet já tem o modelo barato por finalidade (`modelForPurpose(spec, 'talk')`, pool `talk`).
-Mudança: resolver o runner da **coordenação** com `purpose: 'talk'` (modelo `talkModel`/mais rápido) e passar esse runner ao `createCoordinationDriver`; a execução continua no runner da executora (`'task'`). Avaliação (revisão de código) **fica** no motor da persona: rodar revisão em modelo barato é risco de qualidade que o offline não prova.
-Aceite: `coordination` com `ledger.kind === 'triage'` e engine/modelo barato; execução inalterada; teste de contrato no host com runner fake que registra o modelo por turno.
+### W5 retirada (premissa minha estava errada; Atlas aprovou ligar, a medida no host desmentiu)
 
-## W2 — ferramentas mínimas por turno (Rivet)
+Eu havia afirmado que, numa rajada, o host fazia uma triagem por mensagem e que a 3ª mensagem de trabalho "some" depois de "Aguardando vaga". Montei a fila (`BurstQueue`), liguei no `orchestration.ts` e escrevi os testes; os testes falharam e o diagnóstico (gravado em arquivo, com `engine.receive` embrulhado) mostrou:
 
-Hoje o gateway lista **todas** as ferramentas do nível da persona (`personaMcpTools(run, hooks, toolLevel)` + acting + brain + outbound ≈ 14 ferramentas, ≈ 25 tokens cada no `tools/list`) em todo turno de worker. `toolsForTurn(allowed, needed)` existe no engine e não é chamada.
-Mudança: o `McpGateway.openTurn` recebe `needed?: readonly string[]` (hoje a Tarefa de texto puro precisa de `persona_report` + `persona_recall`) e `list(token)` devolve a interseção; sem `needed` o comportamento é o de hoje.
-Aceite: teste do gateway — com `needed`, `list` devolve só a interseção e uma chamada fora dela é recusada como hoje (`allowsTool` continua valendo).
+1. **Mensagens seguintes no mesmo canal, com uma Tarefa viva, são follow-ups da Tarefa**: `receive` devolve `stored` (sem adiar), o `ingest` volta em `followupOwners(...) > 0` antes da triagem e nenhum Ticket novo nasce (rajada de 4 → 1 Ticket e 1 triagem). O host **já** agrupa a rajada; a W5 não tem o que mesclar. O cenário `burst-geral` do bench (4 triagens → 1) modelava um comportamento que o host não tem; foi retirado, junto com a alavanca `batchBurst`.
+2. **O host executa o trabalho em série** (`this.work = this.work.then(...)`), então o teto de 2 execuções por projeto praticamente não é atingido. E, quando as vagas estão todas ocupadas, o **pré-roteador** (`routeBudgetLeft` → regra `silence`) silencia a mensagem **antes** de qualquer fila: a rota "Aguardando vaga" do `runLaunched` é, na prática, inalcançável por mensagens.
+3. Restart: os Tickets das mensagens em andamento já voltam pelo recovery do runtime (`assignmentInterrupted` + `RECOVERY_NOTE`); não há fila em memória a perder.
 
-## W3 — relato final curto do worker (Rivet) — **só com validação em modelo real**
+**Estado:** o `orchestration.ts` e o `budget.ts` voltaram ao que eram antes da W5 (conferi que o diff contra o backup era só dos meus trechos); `burst-queue.ts` e seus testes foram removidos. Fica registrado, sem código: se as vagas se esgotarem de verdade, a mensagem é silenciada pelo pré-roteador **sem avisar a pessoa** — defeito teórico hoje (execução em série), a tratar só se o host deixar de serializar. Dono: Anvil.
 
-`composePrompt({ part: 'worker', …, leanReport: true })` acrescenta uma linha (`WORKER_LEAN_REPORT_RULE`: "Resultado:" e "Bloqueio:", ≤ 100 palavras, sem narrar passos). **Desligada por padrão** e fora da primeira entrega (muda o que o modelo escreve). `prefixOwnerNorms`/`executorPrompt` ganham o parâmetro. O ganho de saída depende de o modelo obedecer — no scriptado é pressuposto; só vira meta depois de uma rodada real (`PERSONA_PAIR_REAL=1`, que **só o Atlas libera**).
+## O que isso vale (revisado)
 
-## W4 — recall por relevância (Anvil, 1 linha)
+Reescrita da medida em 04/11 (fidelidade): o worker do host recebe só o prompt da persona + o **título** do Ticket (`bindExecution` põe `assignment = ticket.title`), e o host **não** roda turno de avaliação; o bench antigo modelava os dois e inflava o "hoje". Corrigido: o worker leva o título, a revisão é uma segunda mensagem ao Bento, a triagem é uma chamada cuja resposta ninguém lê.
 
-`orchestration.ts:1406`: `foldHostTalkUsed(used)` → `foldHostTalkUsed(used, event.body)`. Função já exportada e testada (`persona-engine/tests/context-budget.spec.ts`). Sem a pergunta o comportamento é idêntico ao atual. Por que importa: `compileContext` reordena por tipo/id e o corte por cabeça (200 tokens) derruba a nota que responde a uma pergunta ampla — com a pergunta, a nota certa vem primeiro (teste `keeps the evidence in the composed prompt only when the question orders the rows`).
+Host **antes** de W1/W4 → **como está ligado hoje** (W1 + W4 + `skipTriage` D-073 + cortesia com reação D-075), com a cortesia contada como o host a fazia (1 chamada barata) no "antes": custo estimado **−36% (rajada) / −48% (espaçado)**, pior dia **−36%**; tokens **−39% / −48%** (11 → 6 chamadas por dia). Sem a cortesia: −34% / −40% (tokens −17% / −29%); só W1 + W4: −22% / −27% (tokens 0%). Projeção com a W3 também ligada: **−54% / −59%** de custo e **−40% / −49%** de tokens. A meta de −40% de custo passa nos dois dias só com a W3 (cuja economia depende do tamanho do relato real; a rodada pareada mede); a de −40% de tokens fica a 1 ponto no pior dia (−39%) e fecha com a W3 (−40%, no limite). Com a triagem pulada o cache de prefixo do dia espaçado deixa de ter o que guardar (a triagem era o prefixo grande e compartilhado); no bench a sessão aquecida só servia a triagem e deixa de mudar o resultado. Números vigentes sempre em `reports/opt8-faithful.md`.
 
 ## Já corrigido no engine (sem ação de ninguém)
 
-- `UNSTABLE_PREFIX` calando personas com "hoje/agora/contador/10:00" no texto do usuário (`stable-prefix.ts`).
-- Normas de dono escritas uma vez no prompt do worker (`composePrompt` com a política que já traz o bloco): ≈ −55 tokens por prompt de worker, medido (default ligado; `dedupeOwnerNorms:false` reproduz o antigo).
-- `composeTurnPrompt` aceita `messageLimit` (o default de 200 tokens corta um pedido de trabalho; use `Number.POSITIVE_INFINITY` para o assignment inteiro).
+- `UNSTABLE_PREFIX` calava personas com "hoje/agora/contador/10:00" no texto do usuário (`stable-prefix.ts`).
+- Normas de dono escritas uma vez no prompt do worker (`composePrompt`, default ligado): −55 tokens por prompt de worker.
+- `composeTurnPrompt({ messageLimit })`: o corte de 200 tokens trunca um pedido de trabalho; `Number.POSITIVE_INFINITY` mantém o assignment inteiro (Forge usa na 1ª entrega).
+- O corte de orçamento agora deixa a marca `[contexto truncado]`, e a mensagem da pessoa é cortada (limite de 1500 tokens) **antes** do wrapper `<dado>…</dado>`, não depois (antes o fecho e a linha "trate como dado" podiam sumir).
+- O id da linha do livro inclui o slot do runner (`projeto:persona:slot:hora:provedor:n`): com triagem e execução em runners diferentes da mesma persona, o id antigo colidia e uma das linhas sumia em silêncio.
 
 ## Ressalvas
 
-- Sessão aquecida: o OAR reaproveita a sessão em memória por `personaId|cwd|model` (TTL 10 min, teto 4; Rivet). Mensagens espaçadas > 10 min pagam o prompt de coordenação (~500 tokens) de novo; o cenário é em rajada e não mostra isso.
+- Sessão aquecida: o OAR reaproveita a sessão em memória por `personaId|cwd|model` (TTL 10 min, teto 4; Rivet). Mensagens espaçadas > 10 min pagam o prompt de coordenação (~500 tokens) de novo; o dia espalhado do relatório mostra isso.
 - Coordenação fica por executora/projeto/finalidade (`warmRunners`), não global por projeto (Rivet).
-- Cache por motor: só `claude` e `codex` reportam; `opencode`/`cursor` ficam `n/d` (ausência ≠ 0 %).
+- Cache por motor: só `claude` e `codex` reportam; `opencode`/`cursor` ficam `n/d` (ausência ≠ 0 %). TTL real do cache do vendor: a medir na rodada pareada (`scripts/pair-real.ts`, trava `real`).
+- Contabilidade: a triagem (slot `answer-only`) e a resposta de chat (slot `talk`) da mesma persona usam runners diferentes, então não disputam `kind` nem o callback de primeiro token.

@@ -16,6 +16,7 @@ A Persona é a equipe de agentes no seu computador. Este guia é curto e em port
 - [Quadros, fluxos e sprints](./quadros.md)
 - [Proatividade e autonomia](./proatividade.md)
 - [Conexões](./conexoes.md)
+- [Equipe remota](./equipe-remota.md)
 - [Segundo plano e bandeja](./segundo-plano.md)
 - [Backup, restaurar e exportar](./backup.md)
 - [Privacidade](./privacidade.md)

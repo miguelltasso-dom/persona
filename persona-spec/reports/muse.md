@@ -695,3 +695,175 @@ bundle (with-lock) → Build complete, 99 files
 - **Gerei os rostos do aviso:** `apps/desktop/resources/notify-avatars/*.png` (128², 18 bichos, 412 KB, no `build-assets`, fora da árvore do client). Falta o Rivet incluir a pasta no pacote.
 - **DECISIONS-SPEC Regra 4 corrigida** (achado do Lumen): uma decisão pendente nunca some por falta de dado; sem o porquê, o cartão aparece sem a linha.
 - **BR-P1:** pensando sem balão do tucano e do tamanduá aprovado e regenerado. A árvore está em 7,63 MiB.
+
+**19:20, varredura de aceite (pedido do Atlas, `.maestri/tmp/muse-next.txt`):**
+- **ACEITOS:** GOV-6 e GOV-7.
+- **Voltam ao Lumen:** PB-5 (mini-resumo), SB-5 (id cru na tela) e BYC-4 (falta a captura dos estados).
+- **Achado P0:** o boot às vezes sobe vazio (`SlotAssemblyError`). O Keel deu ao Prism, e o Gauge faz o teste de 20 recargas.
+- **Primitivos:**
+  - `Modal` com cabeçalho e rodapé fixos e só o corpo rolando (Quill, zoom 200%);
+  - o `Notice` info com o glifo novo `info` no lugar da interrogação.
+- **Quill:**
+  - aprovei tirar o microfone;
+  - "skill" fica, e entrou no glossário;
+  - troquei "Habilidade" → "Skill" em `decision.kind.skill`.
+- **Raposa aprovada.**
+- **Minhas capturas** (GES-4, GOV-8, W2-3, S6 e as telas do Quill, 1440 e 960 com axe) estão na fila da `build`. O script ganhou `MUSE_VIEWPORT`, `MUSE_OUT` e a tela `gestor`.
+- Doc: `design/ACCEPTANCE-SWEEP-0411.md`.
+
+**19:35, telas do Quill contra a SCREEN-SPECS** (item 2 do Atlas):
+- **Conexões e Ensinar** já tinham spec (WAVE2 b/c, TEACH).
+- **Escrevi `design/QUILL-SCREENS-SPEC.md`** para E13 e G2:
+  - E13: estados com ícone e ação, a dica sem IP, Membro/Convidado com o que pode e não pode, e o termo único "Encerrar acesso";
+  - G2: Lista como tabela com relações em palavras, Lista como padrão abaixo de 720 px, e o vazio com a Luna.
+- **Pedido ao Quill:** o detalhe do axe=1 das capturas de Conexões.
+
+**19:50, axe do rail:** o `color-contrast` presente em todas as capturas vinha do campo de busca do rail. O contraste real é de 8,9 e 11,6:1, mas o fundo `color-mix(… transparent)` engana o axe.
+- **Tokens sólidos no tema** (claro e escuro): `--persona-rail-field`, `-field-hover` e `-kbd`, todos ≥ 8,7:1.
+- **Pedido ao Lumen:** as 3 linhas no `PersonaSidebar.module.css`.
+- **Respondi as 3 dúvidas do Quill:**
+  - "Última troca às {hora}" com a sessão;
+  - o convite degradando honesto;
+  - a coluna "Quem" some se vier toda vazia.
+- **A varredura** segue na fila da `build`, agora atrás do gate do Keel.
+
+**20:00, rodada real do V1-P0-5 (D-069):** o Keel e o Atlas definiram que eu meço na rodada única do Probe, sem chamada real minha.
+- **Marcos combinados** (FIRST-DELIVERY-SPEC §Medição): t0 = "Pedir agora", working, slow, failed, t1 = "Aceitar e entrar" ou a 1ª mensagem de persona no #geral, t2 = o aceite.
+- **Número principal:** t1 − t0.
+- **Pedido ao Prism:** `data-first-delivery-phase`.
+- **Dependências:**
+  - o Probe roda no NSIS do candidato, depois do fake verde;
+  - o Prism coloca o atributo de fase.
+
+**20:40, varredura com uma galeria sem host** (a trava `build` estava presa no gate do Keel):
+- **`scripts/persona/muse-accept-gallery.mjs`** (cópia do método do Lumen): 66 capturas com texto real, claro/escuro × 1280, 960 e zoom 200%, com axe 0 e sem overflow.
+- **GES-4:** o interruptor e os limites estão **aceitos**. O cartão do plano no chat volta ao Prism: um passo só repetindo o resumo, e sem o `reason` que o host manda.
+- **GOV-8 volta ao Prism:**
+  - falta "um a um";
+  - o h1 está pequeno;
+  - texto autorreferente;
+  - a seleção só pela borda;
+  - rótulos repetidos.
+- **O axe da galeria achou 3 bugs meus, já corrigidos:**
+  - `--persona-surface` e `-surface-alt` não existiam no escuro;
+  - o plano recusado usava `opacity`;
+  - o `.modelButton` estava sem `color`.
+  - Um teste novo de cobertura impede token semântico sem valor no escuro (6/6).
+- **`GestorPlanCard`:** não desenha lista vazia nem `reason`/`cost` vazios.
+- **BR-P1:** panda aprovado. O 1º lote fechou (tamanduá, tucano, raposa, panda); a árvore está em 7,94 MiB.
+- **Regra nova do Keel aplicada:** espera do shell + captura < 10 KB = falha no `design-shots.mjs`.
+- **Medição da rodada real:** o Probe implementou os meus marcos em `runRealFirstDelivery`; falta o NSIS.
+
+**21:10, varredura no app real** (`sweep-1440`, console 0; a de 960 está rodando):
+- **GES-4:** interruptor, limites e selo confirmados no app. Falta o cartão do plano no chat.
+- **S6 não ainda:**
+  - o preview do editor mostra o Atlas como gato;
+  - jargão "Router" e "Propor (padrão)";
+  - o cartão da persona passa da tela e não fechou no Esc;
+  - o selo Gestor diferente no cartão e no perfil.
+- **W2-3** confirmado também na DM.
+- **G2:** notas de texto e forma ao Quill.
+- **SB-5:** `target-size` ao Lumen.
+- **O rail está axe 0 em todas as telas:** o Lumen aplicou os tokens sólidos.
+
+**21:40, UX-BEYOND ("Acima do T3", prioridade máxima do Miguel e do Atlas):**
+- **`design/UX-BEYOND-T3.md`** com **26 P0**, cada um com dono e aceite, em 4 grupos:
+  - A. o 1º contato;
+  - B. quebrado/mente;
+  - C. pior que o T3;
+  - D. acabamento.
+- **No mesmo doc:** a régua 2 (Claude, Cursor, Linear, Slack, Raycast, Notion, Arc, Duolingo), a proatividade e os detalhes mínimos (16 P1).
+- **"UX-BEYOND P0 pronto"** mandado ao Atlas às 21:12, com 24 itens; depois subiu para 26 (boot instalado e Conexões).
+- **P0 distribuídos por `tell.mjs`** ao Prism, Lumen, Quill e Rivet.
+- **`design/BR-P3-SPEC.md` ao Brush:**
+  - P0: limite, equipe remota, acesso encerrado e aplicado, mais o P2 do BR-P1 que subiu;
+  - P1: as poses comemorando/digitando/lendo/confuso, os sucessos, os spots de Ajuda e os ícones.
+- **A paridade T3 item a item** está em verificação no código, com prova; entra no doc em seguida.
+- **Varredura 960:** só o `scrollable-region-focusable` do `Modal` (corrigido no primitivo).
+- **Também:**
+  - o `Modal` com corpo focável quando rola, o esmaecido "tem mais" e o respiro de 6 px para o halo;
+  - guaxinim aprovado (7,98 MiB);
+  - o `Avatar` mínimo segue em 24.
+
+**22:10, UX-BEYOND, continuação:**
+- **A paridade T3 item a item** está no doc: MELHOR 4, IGUAL 3, PIOR 9, todos com item. Conferi 3 à mão. Viraram P0 os **controles mortos** (`/` comandos, o chip de autonomia), os **números inventados** (`/limites`) e o envio que falha calado.
+- **Decidi a passada do Atlas:**
+  - A-1 é a navegação em 6 lugares, em `design/NAV-SPEC.md` (fase 1 P0, sem mudar as rotas);
+  - A-2 a A-6 e A-10 são P0;
+  - P1-1 e P1-3 sobem para P0.
+- **Atribuições D-072** no doc (Flint sob o Prism, Ember sob o Lumen) + a seção de propostas.
+- **Sistema:**
+  - **18 tokens CSS inventados** que falhavam em silêncio, corrigidos em 7 arquivos, com `--persona-accent-tint` novo;
+  - teste novo `css-tokens-defined`;
+  - o `Tooltip` com `shortcut` (chips de tecla) e Esc fecha, com teste.
+- **Respostas:** Prism (o P0-13 dele; avisei o Flint), Quill (P0-26/15/24), Ember (A-4: a descrição não é "por que") e Keel (as minhas capturas escuras eram escuro real).
+- **BR-P1:** coruja aprovada; `ajuda.svg` e `novidades.svg` aprovados e no app (8,11 MiB).
+
+**22:30:**
+- **Junção da paridade com o Atlas:** o IV-1..10 dele vira o id único. Decidi a forma das UIs do IV-3 (markdown seguro), do IV-5 (streaming + Parar), do IV-8 (vazio honesto sem mock), do IV-9 (Nova rotina sem cron) e do Ctrl K como sobreposição (P1).
+- **O Probe tirou a dependência de rótulo dos gates** (`data-nav-panel`/`data-tab-panel`). O meu `design-shots` também clica por id agora.
+- **Brush:** a arte P2 do SW-7 (conflito, histórico, rascunho) aprovada e no app (8,22 MiB); o Lumen foi avisado.
+
+**22:50:**
+- **Amostra BR-P3 `empty-limite` aprovada**, com o pedido da sombra de chão no lote todo; o lote P0 liberado ao Brush.
+- **A-5 decidido com o Flint:** o popover mantém o "Estou fora", e a pílula segue uma ordem de prioridade.
+- **A-1 fase 1:** aceitei a ponte do Prism (Projetos com 5 abas, "Canvas" até a fase 2).
+- **Specs novas:** `design/NEXT-STEP-SHORTCUTS-SPEC.md`:
+  - "Próximo passo", para o Ember;
+  - a dica de atalho na hora certa e a tela Atalhos, para o Flint.
+- **Primitivo `formatWhen`/`formatUntil`** (P1-13), testado; os builders adotam ao tocar nas telas.
+- **Andamento dos P0** marcado no UX-BEYOND §Andamento.
+
+**22:55, BYC-4d (decisão de consentimento):** as regras importadas chegam **não aceitas**, com "Aceitar todas as regras (n)" no grupo; as que ficarem sem escolha não entram como obrigatórias. Decisões e fatos continuam pré-aceitos.
+
+**23:55:**
+- **ACEITE PB-5.**
+- **BYC-4 e SB-5**, com 3 ajustes pequenos ao Lumen:
+  - "vault:" → "do Cofre";
+  - o rosto da Nina nas permissões;
+  - "Revogar" → "Tirar permissão";
+  - o bibliotecário sem iniciais.
+- **Pendências minhas para quando o Keel abrir a janela:**
+  - o `Avatar` com a prop `icon`;
+  - o `Chip` com fundo sólido em todos os tons (o danger empilhado no escuro dava 4,25:1).
+- **HINT-clamp:** devolvi o `pointer-events:none`. Um balão visível não pode deixar o clique passar para um controle escondido.
+- **Assets do H:** os 66 SVG eram só CRLF; todos os novos revisados.
+
+**00:10, P0 direto do Miguel (Atlas):** o redesenho em `design/REVIEW-APPROVALS-REDESIGN.md`.
+- **Revisar mudanças** (Lumen): 2 painéis, a prévia grande por tipo, o conflito focado e a celebração com Desfazer.
+- **Aprovações** (Ember): caixa de entrada lista + detalhe, o teclado J/K/A/D, o lote só de risco baixo e o vazio que celebra.
+- **D-074:** prova só dentro do shell real (avisei todos os builders).
+- **BR-P3:** + `empty-aprovacoes`.
+- **SB-4:** exportar/importar a pasta passa pela revisão do BYC.
+- **BYC-4 e SB-5:** os ajustes feitos pelo Lumen; o aceite na captura real. O bibliotecário eu ligo na janela.
+
+**00:25:**
+- **BR-P3 P0:**
+  - `spot-limite`, `empty-equipe-remota` e `acesso-encerrado` aprovados;
+  - a variante da `empty-limite` com sombra aceita;
+  - a `sucesso-aplicado` volta para refazer (igual à `empty-historico`).
+- **A minha fila para quando o Keel abrir a janela** (o pacote fica parado até lá):
+  1. o `Avatar` com `icon` (o bibliotecário);
+  2. o `Chip` com fundo sólido em todos os tons;
+  3. o `Modal` com o fundo `inert` + a altura sem sobra a 200%;
+  4. o `build-assets` com as ilustrações novas do BR-P3.
+
+**00:40:**
+- **BR-P3 P0 fechado:** `sucesso-aplicado` v2 e `empty-aprovacoes` aprovados. Entram no app no próximo `build-assets`, na janela do Keel.
+- **Cervo:** aprovado, menos a orelha (volta para mais amplitude).
+- **D-076 aplicado:**
+  - aceite só com a prova completa;
+  - PLAN com ACEITE Muse em GOV-6, GOV-7, W2-3 e PB-5;
+  - os meus abertos são 2: a revisão das capturas e o pacote de primitivos bloqueado pela janela.
+
+**01:05, D-077:** o meu aceite trava a entrega, e a varredura é no instalado do H2.
+- **Preparei `.maestri/tmp/muse/accept-installed.mts`:** 19 painéis por `data-nav-panel`; claro/escuro × 1440, 960 e 200% via CDP; axe, sobra lateral, tela vazia e console. Passou no tsc, fora do pacote.
+- **Dos 13 retidos, nenhum tem prova completa** (sem ACEITE nem RECUSADO neste corte).
+- **Lobo-guará:** aprovado, menos um resto de contorno junto da orelha.
+- **Memória salva:** o PLAN é só do Keel.
+
+**01:20:**
+- **Lobo-guará completo** (tail v3).
+- **Revisar em 2 painéis:** a amostra com flag do Lumen (só com `persona.devSeed.review`, o chip "Exemplo" e um teste sem a flag) para julgar o desenho no shell real.
+- **O fake do Probe** agora escreve arquivo/conflito real (`writeFile`/`conflictDir`), ligado no `accept-installed.mts` como modo opcional para o H2, depois do SW-4.
+- **Bolt:** as regras do A-4 no host (nome/bicho livres, `reason`/`monthlyTasks` só reais).

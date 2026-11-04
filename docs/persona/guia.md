@@ -52,4 +52,4 @@ Não sai deste computador sem você mandar: conversas diretas, chaves, Cofre, Ta
 
 Pode sair só se você ligou a conexão: o texto da Tarefa para a IA que você conectou, e um webhook que **você** encaminhou.
 
-Arquivar não apaga. Excluir não deixa resto em busca. Convite revogado corta no meio do trabalho. [Privacidade](./privacidade.md) · [Cofre](./cofre.md) · [Backup](./backup.md).
+Arquivar não apaga. Excluir não deixa resto em busca. Acesso encerrado corta no meio do trabalho. [Privacidade](./privacidade.md) · [Cofre](./cofre.md) · [Backup](./backup.md).

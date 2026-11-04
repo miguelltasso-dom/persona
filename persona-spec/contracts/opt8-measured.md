@@ -1,0 +1,13 @@
+# OPT-8: fachada estimada — D-068
+
+Forge mantém `persona-engine/src/opt8-measured.ts` e seu teste. Tally integra `token-measure.ts`, `v1-close.ts` e os relatórios gerados. O host consome os campos aditivos sem mudar os campos antigos do Remote. O helper puro `buildOpt8Measured(input)` não executa benchmark, runner ou leitura de ledger.
+
+Input: `rows` de `cutRows()` (`today`=LEVERS_BEFORE_WIRING, `now`=LEVERS_AS_WIRED, `all`=LEVERS_OPTIMIZED), `idleZero`, `cacheEngines` de `measureOpt8Faithful`, `allLeversWired:boolean` explícito e `quality?` com resultados booleanos `beforeWiring`, `asWired`, `projectionAll`. Números não comprovam ligação de flags; o caller compara as alavancas reais com as exigidas. Qualidade ausente aparece unavailable, nunca passed inventado.
+
+Output: `origin:'estimate'`, `baseline:'levers-before-wiring'`, `historical:{id:'historical-134-fixture',countsForGoal:false}`, buckets `beforeWiring`, `asWired` e `projectionAll` com `tokens`, `cost` (micro-USD) e `quality`. Esses números são totais sobre a mesma coleção de cenários, não médias artificiais por tarefa. `scenarios` conserva as linhas individuais para a leitura comparável. `projectionAll.label:'projection'` impede confundir a projeção com o código ligado. Cache estimado fica em `cacheEstimate`; `providerCache` mantém prefixHit0, status blocked e origin unavailable até existir prova do fornecedor. Paridade CLI permanece blocked, requires-paired-real-run.
+
+`cut40` usa somente as linhas atuais de `dia-padaria` e `dia-espacado`, comparadas com seus próprios baselines. `costCut` é a menor redução dos dois dias; `tokensDelta` é a maior variação proporcional de tokens. Com alavanca ausente, status blocked mesmo se a projeção ou os números atuais parecerem bons. Sem os dois baselines positivos, status blocked/comparison-unavailable e métricas null. Com todas as alavancas ligadas, passa apenas se o pior dia economiza pelo menos40% de custo e nenhum dia aumenta tokens; qualidade explicitamente perdida reprova. Economia abaixo da meta ou aumento de tokens reprova. A fixture134 e a projeção nunca entram nessa decisão.
+
+O host não pode rotular essa estimativa como medição real, economia de fatura ou cache do fornecedor. Ledger e evidência da rodada real são dados separados. A execução real única P0 é do Probe sob D-069 e tem precedência sobre o pareamento futuro do Tally; Forge não executa chamadas próprias.
+
+D-070: `origin?`, `baseline?` e `evidence?` são opcionais nos DTOs do host para aceitar resultados anteriores; o host atual os preenche em toda medição. No produtor do engine continuam obrigatórios. O consumidor distingue campo ausente de evidência estimada e não substitui ausência por dado medido.

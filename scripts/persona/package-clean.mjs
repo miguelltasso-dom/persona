@@ -4,28 +4,38 @@
  * (origin/persona-dev), same method as scripts/persona/publish.mjs (D-049).
  *
  * Never packages the shared dirty checkout (GOVERNANCE in flight).
+ * D-071: no source file is copied from the shared checkout into the worktree. Whatever the installer needs is IN the commit;
+ * the few build adaptations that remain live in scripts/persona/package-clean-overlay.mjs (read its header).
  *
  *   node scripts/persona/package-clean.mjs [--commit <rev>] ...
  *     (D-062: it takes the `pack` lock by itself; do NOT wrap it in the `build` lock — that one is for builds/E2E/gate)
  *
- * Options: --commit <rev>  --dir  --no-install  --no-overlay
+ * Options: --commit <rev>  --dir  --resume --proof <proof.json>  --no-install  --no-overlay
  * Exit: 0 Setup/exe ready, 1 typecheck/package red, 2 setup failure.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { appendFileSync, copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { applyOverlay } from './package-clean-overlay.mjs'
 
 const main = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const CACHE = 'C:\\p8c'
 const argv = process.argv.slice(2)
 const wantDir = argv.includes('--dir')
+const wantResume = argv.includes('--resume')
+const proofFlag = argv.indexOf('--proof')
 const noInstall = argv.includes('--no-install')
 const noOverlay = argv.includes('--no-overlay')
 const commitFlag = argv.indexOf('--commit')
 const requested = commitFlag >= 0 ? argv[commitFlag + 1] : 'origin/persona-dev'
+
+if (wantResume && (wantDir || proofFlag < 0 || !argv[proofFlag + 1])) {
+  console.error('[package-clean] --resume requires --proof <proof.json> and cannot be combined with --dir')
+  process.exit(2)
+}
 
 const PACK_LOG = join(CACHE, 'package-clean.log')
 const LIVE = join(CACHE, 'package-clean.live.json')
@@ -118,102 +128,6 @@ function streamRun(cwd, cmd, args, timeoutMs, env = {}, stallMs = 20 * 60_000) {
   })
 }
 
-function applyOverlay(wt) {
-  const desktop = join(wt, 'apps', 'desktop')
-  const scripts = join(desktop, 'scripts')
-  const host = join(wt, 'apps', 'desktop-host')
-  const hostConfig = join(host, 'config')
-  // Keel-authorized packaging overlay; the source manifest remains unchanged.
-  const hostManifestPath = join(host, 'package.json')
-  const hostManifest = JSON.parse(readFileSync(hostManifestPath, 'utf8'))
-  hostManifest.files = [...new Set([...hostManifest.files, 'config/'])]
-  writeFileSync(hostManifestPath, `${JSON.stringify(hostManifest, null, 2)}\n`)
-  for (const file of ['core-package-set.ts', 'runtime-tree.ts', 'preload-app.ts', 'ipc.ts', 'boot-ui.ts']) {
-    copyFileSync(join(main, 'apps/desktop/src', file), join(desktop, 'src', file))
-  }
-  cpSync(join(main, 'apps/desktop/renderer/persona-boot'), join(desktop, 'renderer/persona-boot'), { recursive: true })
-  copyFileSync(join(main, 'apps/desktop/scripts/installer-select.nsh'), join(scripts, 'installer-select.nsh'))
-  copyFileSync(join(main, 'apps/desktop/scripts/installer-stock.nsh'), join(scripts, 'installer-stock.nsh'))
-  copyFileSync(join(main, 'apps/desktop/scripts/prepare-windows-installer.ps1'), join(scripts, 'prepare-windows-installer.ps1'))
-  copyFileSync(join(main, 'apps/desktop/scripts/runtime-patch-policy.ts'), join(scripts, 'runtime-patch-policy.ts'))
-  copyFileSync(join(main, 'apps/desktop/src/persona-vault-ipc.ts'), join(desktop, 'src/persona-vault-ipc.ts'))
-  copyFileSync(join(main, 'apps/desktop/src/secure-shell.ts'), join(desktop, 'src/secure-shell.ts'))
-  // Published hash still has hashed script-src + executeJavaScript(title). Without
-  // this overlay the installer #root stays empty (Probe 05:48). Dirty dest:desktop
-  // already proved onboarding with these files and no unsafe-eval.
-  copyFileSync(join(main, 'apps/desktop/src/rewrite-boot-injections.ts'), join(desktop, 'src/rewrite-boot-injections.ts'))
-  copyFileSync(join(main, 'apps/desktop/src/web-document.ts'), join(desktop, 'src/web-document.ts'))
-  copyFileSync(join(main, 'apps/desktop/src/main.ts'), join(desktop, 'src/main.ts'))
-  copyFileSync(join(main, 'apps/desktop/src/locale.ts'), join(desktop, 'src/locale.ts'))
-  copyFileSync(join(main, 'apps/desktop/src/legal-notices.ts'), join(desktop, 'src/legal-notices.ts'))
-  copyFileSync(join(main, 'apps/desktop/src/persona-about-shell.ts'), join(desktop, 'src/persona-about-shell.ts'))
-  copyFileSync(join(main, 'apps/desktop/scripts/packaging-step.d.mts'), join(scripts, 'packaging-step.d.mts'))
-  copyFileSync(join(main, 'apps/desktop/scripts/smoke-runtime.ts'), join(scripts, 'smoke-runtime.ts'))
-  copyFileSync(join(main, 'apps/desktop/scripts/package-target.ts'), join(scripts, 'package-target.ts'))
-  // Pack-only: published spec fails tsconfig.client (GlobalStandardProps).
-  // Cast the component, not `as never` props (TS2698). Copy is Muse's "Sobre a Persona".
-  copyFileSync(
-    join(main, 'scripts/persona/pack-overlay/persona-about-settings.client.spec.tsx'),
-    join(wt, 'packages/persona/client-ui-persona/tests/persona-about-settings.client.spec.tsx'),
-  )
-  mkdirSync(hostConfig, { recursive: true })
-  copyFileSync(join(main, 'apps/desktop-host/src/index.ts'), join(host, 'src/index.ts'))
-  copyFileSync(
-    join(main, 'apps/desktop-host/config/electron.cordis.patch.yml'),
-    join(hostConfig, 'electron.cordis.patch.yml'),
-  )
-  // V28: loader evaluate is lazy. Published hash still inlines `new Function` at
-  // module init (index-B2q7cWGa.js). Overlay src+lib and the rebuilt web dist.
-  const loaderSrc = join(wt, 'vendor/loader/src/config')
-  const loaderLib = join(wt, 'vendor/loader/lib/types/config')
-  mkdirSync(loaderSrc, { recursive: true })
-  mkdirSync(loaderLib, { recursive: true })
-  copyFileSync(join(main, 'vendor/loader/src/config/utils.ts'), join(loaderSrc, 'utils.ts'))
-  copyFileSync(join(main, 'vendor/loader/lib/types/config/utils.js'), join(loaderLib, 'utils.js'))
-  copyFileSync(join(main, 'vendor/loader/lib/index.js'), join(wt, 'vendor/loader/lib/index.js'))
-  const webDist = join(main, 'apps/web/dist')
-  if (existsSync(webDist)) {
-    cpSync(webDist, join(wt, 'apps/web/dist'), { recursive: true })
-  }
-
-  const ebc = join(scripts, 'electron-builder-config.mjs')
-  let cfg = readFileSync(ebc, 'utf8')
-  if (!cfg.includes('existsSync')) {
-    cfg = cfg.replace("import { readFileSync } from 'node:fs'", "import { existsSync, readFileSync } from 'node:fs'")
-  }
-  cfg = cfg.replace(
-    "include: fileURLToPath(new URL('./installer.nsh', import.meta.url)),",
-    "include: fileURLToPath(new URL('./installer-select.nsh', import.meta.url)),",
-  )
-  cfg = cfg.replace(
-    `      if (windowsSigner !== undefined) {
-        await windowsSigner({ path: join(buildPaths.root, 'installer-ui', 'window-frame.dll'), hash: 'sha256', isNest: false })
-      }`,
-    `      const frameDll = join(buildPaths.root, 'installer-ui', 'window-frame.dll')
-      if (windowsSigner !== undefined && existsSync(frameDll)) {
-        await windowsSigner({ path: frameDll, hash: 'sha256', isNest: false })
-      }`,
-  )
-  if (!cfg.includes('packElevateHelper')) {
-    cfg = cfg.replace('allowElevation: false,', 'allowElevation: false,\n      packElevateHelper: false,')
-  }
-  writeFileSync(ebc, cfg)
-
-  return [
-    'installer-select.nsh', 'installer-stock.nsh', 'prepare-windows-installer.ps1',
-    'runtime-patch-policy.ts',
-    'electron-builder-config.mjs', 'persona-vault-ipc.ts', 'secure-shell.ts',
-    'rewrite-boot-injections.ts', 'web-document.ts', 'main.ts', 'locale.ts',
-    'legal-notices.ts', 'persona-about-shell.ts', 'packaging-step.d.mts',
-    'smoke-runtime.ts', 'package-target.ts',
-    'persona-about-settings.client.spec.tsx',
-    'desktop-host/index.ts', 'desktop-host/electron.cordis.patch.yml',
-    'desktop-host/package.json files=config/', 'core-package-set.ts', 'runtime-tree.ts',
-    'preload-app.ts', 'ipc.ts', 'boot-ui.ts', 'renderer/persona-boot/',
-    'vendor/loader src+lib', 'apps/web/dist',
-  ]
-}
-
 function findArtifact(root, pattern) {
   const listed = run(root, 'cmd.exe', ['/c', 'dir', '/b', '/s', root])
   return (listed.stdout ?? '').split(/\r?\n/u).map(line => line.trim()).find(line => pattern.test(line))
@@ -265,6 +179,9 @@ if (!target) {
   process.exit(2)
 }
 log(`target ${target.slice(0, 10)} ${run(main, 'git', ['log', '-1', '--format=%s', target]).stdout.trim()}`)
+// D-071: the installer comes from a PUBLISHED commit. Local-only commits still pack (the isolated worktree makes that safe), but say so.
+const published = run(main, 'git', ['branch', '-r', '--contains', target]).stdout.trim().length > 0
+log(published ? 'commit is on a remote branch (published)' : 'WARNING: commit is not on any remote branch (D-071 expects a published, green commit)')
 
 const wt = `C:\\p8w${target.slice(0, 10)}`
 if (!existsSync(wt)) {
@@ -282,6 +199,7 @@ const short = { ok: true, path: wt, detail: 'isolated worktree at explicit commi
 log(`worktree ${wt} junction ${short.path} (${short.detail})`)
 
 if (!existsSync(join(wt, 'node_modules'))) {
+  if (wantResume) throw new Error('Cannot resume without the prepared worktree dependencies')
   live('install', {})
   log('installing dependencies in the clean worktree (frozen lockfile)')
   const install = run(wt, 'pnpm', ['install', '--frozen-lockfile', '--prefer-offline'], { timeout: 20 * 60_000 })
@@ -292,12 +210,27 @@ if (!existsSync(join(wt, 'node_modules'))) {
 }
 
 live('overlay', {})
-const overlay = noOverlay ? [] : applyOverlay(wt)
-log(`overlay ${overlay.join(', ') || 'none'}`)
+const previous = wantResume ? JSON.parse(readFileSync(join(CACHE, 'package-clean.json'), 'utf8')) : undefined
+const proof = wantResume ? JSON.parse(readFileSync(resolve(argv[proofFlag + 1]), 'utf8')) : undefined
+if (wantResume && (previous?.ok !== true || previous.commit !== target || typeof previous.exe !== 'string'
+  || !existsSync(previous.exe) || proof?.commit !== target || !Array.isArray(proof.results)
+  || !proof.results.some(row => row.dark === false && row.consoleErrors?.length === 0 && row.vault?.ok === true)
+  || resolve(proof.archive) !== resolve(dirname(previous.exe), 'resources', 'app.asar'))) {
+  throw new Error('Cannot resume: unpacked executable and successful light/vault proof must match the requested commit')
+}
+const overlayResult = wantResume
+  ? { applied: previous.overlay ?? [], inSource: previous.overlayInSource ?? [] }
+  : noOverlay ? { applied: [], inSource: [] } : applyOverlay(wt)
+const overlay = overlayResult.applied
+log(`overlay applied: ${overlay.join(', ') || 'none (D-071: nothing copied from the shared checkout)'}`)
+log(`overlay already in commit: ${overlayResult.inSource.join(', ') || 'none'}`)
 
 const pnpmEntry = join(wt, 'node_modules/pnpm/bin/pnpm.cjs')
 const desktop = join(wt, 'apps', 'desktop')
-const packArgs = ['exec', 'tsx', 'scripts/package-target.ts', 'win-x64', '--unsigned', '--skip-smoke']
+const packArgs = wantResume
+  ? ['exec', 'electron-builder', '--config', 'electron-builder.config.mjs', '--win', 'nsis', '--x64', '--publish', 'never',
+    '--prepackaged', dirname(previous.exe)]
+  : ['exec', 'tsx', 'scripts/package-target.ts', 'win-x64', '--unsigned', '--skip-smoke']
 if (wantDir) packArgs.push('--dir')
 log(`pack ${packArgs.join(' ')} (stream → ${PACK_LOG})`)
 live('pack', { args: packArgs.join(' ') })
@@ -306,6 +239,8 @@ const packed = await streamRun(desktop, process.execPath, [pnpmEntry, ...packArg
   DSH_DESKTOP_UNSIGNED: '1',
   CSC_IDENTITY_AUTO_DISCOVERY: 'false',
   DSH_DESKTOP_PACKAGE_CACHE_DIR: CACHE,
+  ...(wantResume ? { DSH_DESKTOP_APP_ID: 'com.persona.desktop', DSH_DESKTOP_TARGET_PLATFORM: 'win32',
+    DSH_DESKTOP_TARGET_ARCH: 'x64', ELECTRON_BUILDER_7Z_FILTER: 'BCJ' } : {}),
 })
 const packLog = PACK_LOG
 log(`pack exit ${packed.status}`)
@@ -339,6 +274,8 @@ const report = {
   shortWorktree: short,
   cache: CACHE,
   overlay,
+  overlayInSource: overlayResult.inSource,
+  published,
   unsigned: true,
   adminInstall: false,
   windowFrameOptional: true,

@@ -69,6 +69,26 @@ if (bundle.status !== 0) {
   failing.add('client-ui-persona')
 } else log('client bundle ok')
 
+// D-071: the installer is packaged from a published commit, so the desktop host program must compile in every published tree
+// (the gate used to check only packages/persona/*; the a1dccb5f8f installer failed in the host compiler for that reason).
+const desktopTsc = run('pnpm', ['exec', 'tsc', '-p', 'apps/desktop/tsconfig.host.json', '--noEmit'], { timeout: 8 * 60_000 })
+if (desktopTsc.status !== 0) {
+  log(`apps/desktop typecheck FAILED:${NL}${`${desktopTsc.stdout}${desktopTsc.stderr}`.split(NL).filter((line) => /error TS/.test(line)).slice(0, 8).join(NL)}`)
+  failing.add('apps-desktop')
+} else log('apps/desktop host typecheck ok')
+
+// WIRE-5 (Gauge): client<->host payload contract against the generated Typert schemas (~6 s, no browser). The spec fails on any NEW
+// deviation outside its known-bug list. INFORMATIVE by default (WIRE_CONTRACT_WARN line); PERSONA_WIRE_CONTRACT=block fails the gate.
+if (!skipTypert && existsSync(join(root, 'packages', 'persona', 'persona-e2e', 'tests', 'wire-contract.spec.ts'))) {
+  const wire = run('pnpm', ['exec', 'vitest', 'run', 'packages/persona/persona-e2e/tests/wire-contract.spec.ts', '--testTimeout', '60000'], { timeout: 4 * 60_000 })
+  if (wire.status === 0) log('wire contract: ok (no new deviation)')
+  else {
+    const tail = `${wire.stdout}${wire.stderr}`.split(NL).filter((line) => /WIRE-5|desvio|deviation|FAIL|AssertionError/i.test(line)).slice(0, 4).join(' | ')
+    log(`WIRE_CONTRACT_WARN ${tail || `exit ${wire.status}`}`)
+    if (process.env.PERSONA_WIRE_CONTRACT === 'block') failing.add('persona-e2e')
+  }
+}
+
 const evalScan = run('node', ['scripts/persona/assert-client-no-eval.mjs'])
 if (evalScan.status !== 0) {
   log(`client eval scan FAILED:${NL}${(evalScan.stdout + evalScan.stderr).trim()}`)
@@ -79,6 +99,19 @@ if (!skipSmoke && failing.size === 0) {
   const smoke = run(process.execPath, ['--import', 'tsx/esm', 'scripts/persona/persona-boot-smoke.mjs', '--root', root])
   log(`boot smoke: ${`${smoke.stdout}${smoke.stderr}`.trim().split(NL).slice(-3).join(' | ')}`)
   if (smoke.status !== 0) smokeFailed = true
+  // Boot repeat (Gauge, 04/11): quick mode = 960x640 light+dark, 5 reloads each, own temp host (~2 min). INFORMATIVE by default
+  // (BOOT_REPEAT_WARN line); PERSONA_BOOT_REPEAT=block makes a failure fail the gate. Runs inside the gate's exclusive window.
+  if (!smokeFailed && existsSync(join(root, 'packages', 'persona', 'persona-e2e', 'tests', 'real-boot-repeat.spec.ts'))) {
+    const repeat = run('pnpm', ['exec', 'vitest', 'run', 'packages/persona/persona-e2e/tests/real-boot-repeat.spec.ts', '--testTimeout', '300000', '--hookTimeout', '400000'], {
+      env: { ...process.env, GAUGE_BOOT_CONFIGS: 'quick', PERSONA_E2E: '1' }, timeout: 10 * 60_000,
+    })
+    if (repeat.status === 0) log('boot repeat (quick): ok')
+    else {
+      const tail = `${repeat.stdout}${repeat.stderr}`.split(NL).filter((line) => /SlotAssemblyError|before any|FAIL|failed|Error/i.test(line)).slice(0, 4).join(' | ')
+      log(`BOOT_REPEAT_WARN ${tail || `exit ${repeat.status}`}`)
+      if (process.env.PERSONA_BOOT_REPEAT === 'block') smokeFailed = true
+    }
+  }
 }
 
 if (failing.size === 0 && !smokeFailed) {

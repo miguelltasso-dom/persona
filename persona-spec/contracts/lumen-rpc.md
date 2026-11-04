@@ -70,7 +70,7 @@ Todo `@Remote` passa por `installRemoteGuard`. JSON ≤ 256 KB; `attach*`/`putFi
 
 Schema store **v19**. Catálogo de versões: `ARCHITECTURE.md` (v1→v19).
 
-Medidas (Probe, sem remount): `measureProactivityV1()` → `{ passed, total, failed }`; `measureGestorV1()` → `{ passed, total: 3, failed }`; `measureGestorToolsAcceptance()` → `{ passed, total: 4, failed }`; `measureGestorMultiAcceptance()` → `{ passed, total: 3, failed }`; `measureFirstDeliveryAcceptance()` → `{ passed, total: 4, failed }` (V1-P0-1); `measureOpt3()` / `measureOpt4()` / `measureOpt5()` / `measureOpt6()` → `{ passed, total: 3, failed }`; `measureOpt8({ workspaceId })` → `measureOpt8View(entries)`; `@Remote measureV1Close({ workspaceId })` = `measureV1CloseView(liveEntries)` (PRO+GES-6+GES-2+GES-3+V1-P0-1+OPT; livro live pontua `cut-40`). `assertV1Close` continua engine.
+Medidas (Probe, sem remount; **todas exigem `{ workspaceId }` e só o dono/dev mede — persona recusada, 04/11**): `measureProactivityV1({ workspaceId })` → `{ passed, total, failed }`; `measureGestorV1({ workspaceId })` → `{ passed, total: 3, failed }`; `measureGestorToolsAcceptance({ workspaceId })` → `{ passed, total: 4, failed }`; `measureGestorMultiAcceptance()` → `{ passed, total: 3, failed }`; `measureFirstDeliveryAcceptance({ workspaceId })` → `{ passed, total: 4, failed }` (V1-P0-1); `measureOpt3` / `measureOpt4` / `measureOpt5` / `measureOpt6` (`({ workspaceId })`) → `{ passed, total: 3, failed }`; `measureOpt8({ workspaceId })` → `measureOpt8View(entries)`; `@Remote measureV1Close({ workspaceId })` = `measureV1CloseView(liveEntries)` (PRO+GES-6+GES-2+GES-3+V1-P0-1+OPT; livro live pontua `cut-40`). `assertV1Close` continua engine.
 
 ## Conexões — `listConnections(scope)` (síncrono)
 
@@ -229,7 +229,7 @@ Função atribuível (`systemRoles` inclui `team_manager`; selo **Gestor**). Coo
 
 ## Contexto usado
 
-`listUsedContext({ workspaceId, projectId, eventId })` → registros do Cofre compilados no turno (`restricted: true` = visibilidade persona/projeto; `body` vazio). `getTurnContext` inclui o mesmo `records[]` no ticket. Hits de documento trazem `title` + `locator`.
+`listUsedContext({ workspaceId, projectId, eventId })` → registros do Cofre compilados no turno (`restricted: true` = texto omitido por acesso ou detecção de conteúdo sensível; `body` vazio). `getTurnContext` inclui o mesmo `records[]` no ticket. Hits de documento trazem `title` + `locator`; ambos também são omitidos quando a citação contém conteúdo sensível. O mesmo conjunto filtrado alimenta o prompt. ID e marca required são preservados, e o registro original do Cofre não é alterado.
 
 ## Fio condutor
 

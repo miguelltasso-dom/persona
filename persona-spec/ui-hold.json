@@ -1,0 +1,245 @@
+[
+  {
+    "item": "P0-13",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/primitives/PersonaCard.tsx",
+      "packages/persona/client-ui-persona/src/client/primitives/PersonaCard.module.css",
+      "packages/persona/client-ui-persona/tests/persona-card-keyboard-fit.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "P0-22",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/shell/PersonaSidebar.tsx",
+      "packages/persona/client-ui-persona/src/client/shell/PersonaSidebar.module.css",
+      "packages/persona/client-ui-persona/src/client/shell/use-short-viewport.ts",
+      "packages/persona/client-ui-persona/src/client/shell/SettingsLauncher.tsx",
+      "packages/persona/client-ui-persona/src/client/shell/SettingsLauncher.module.css",
+      "packages/persona/client-ui-persona/src/client/shell/persona-slots.ts",
+      "packages/persona/client-ui-persona/tests/rail-short-viewport.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/settings-launcher.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "HINT-clamp",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/chat/ChannelComposer.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/ChannelComposer.module.css",
+      "packages/persona/client-ui-persona/tests/who-responds-hint-fit.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "P0-17",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/chat/composer-memory.ts",
+      "packages/persona/client-ui-persona/src/client/chat/composer-pending-attachment.ts",
+      "packages/persona/client-ui-persona/src/client/chat/ChannelComposer.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/ChannelComposer.module.css",
+      "packages/persona/client-ui-persona/locale-sources/chat.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/chat.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/chat/locales.ts",
+      "packages/persona/client-ui-persona/tests/composer-memory.client.spec.ts",
+      "packages/persona/client-ui-persona/tests/composer-memory-keyboard.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "P0-27",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/chat/composer-slash-commands.ts",
+      "packages/persona/client-ui-persona/src/client/chat/ChannelComposer.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/GeneralChannelView.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/DirectMessagesView.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/use-host-conversation-subjects.ts",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedGeneralChannelView.tsx",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedDirectMessagesView.tsx",
+      "packages/persona/client-ui-persona/src/client/shell/register-prism-screens.tsx",
+      "packages/persona/client-ui-persona/tests/composer-slash-actions.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/subject-open-by-name.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "IV-4",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/remote/engine-limits.ts",
+      "packages/persona/client-ui-persona/src/client/remote/use-engine-limits.ts",
+      "packages/persona/client-ui-persona/src/client/chat/EngineLimitsBars.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/EngineLimitsBars.module.css",
+      "packages/persona/client-ui-persona/src/client/chat/ComposerLimitsPanel.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/TurnContextDrawer.tsx",
+      "packages/persona/client-ui-persona/tests/engine-limits.client.spec.tsx",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedGeneralChannelView.tsx",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedDirectMessagesView.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/GeneralChannelView.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/DirectMessagesView.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/ChannelComposer.tsx",
+      "packages/persona/client-ui-persona/locale-sources/chat.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/chat.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/chat/locales.ts"
+    ]
+  },
+  {
+    "item": "A-5",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/shell/PersonaSidebar.tsx",
+      "packages/persona/client-ui-persona/src/client/shell/PersonaSidebar.module.css",
+      "packages/persona/client-ui-persona/src/client/shell/rail-ai-status.ts",
+      "packages/persona/client-ui-persona/src/client/shell/rail-pill.ts",
+      "packages/persona/client-ui-persona/src/client/shell/UserAwayControl.tsx",
+      "packages/persona/client-ui-persona/src/client/shell/UserAwayControl.module.css",
+      "packages/persona/client-ui-persona/src/client/mount.ts",
+      "packages/persona/client-ui-persona/locale-sources/shell.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/shell.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/shell/locales.ts",
+      "packages/persona/client-ui-persona/tests/rail-ai-status.client.spec.ts",
+      "packages/persona/client-ui-persona/tests/rail-ai-pill.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "A-2",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/chat/DirectMessagesView.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/DirectMessagesView.module.css",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedDirectMessagesView.tsx",
+      "packages/persona/client-ui-persona/src/client/remote/dm-team-rows.ts",
+      "packages/persona/client-ui-persona/locale-sources/chat.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/chat.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/chat/locales.ts",
+      "packages/persona/client-ui-persona/tests/dm-team-list.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "IV-3",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/chat/markdown/parse-markdown.ts",
+      "packages/persona/client-ui-persona/src/client/chat/markdown/MarkdownBody.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/markdown/MarkdownBody.module.css",
+      "packages/persona/client-ui-persona/src/client/chat/GeneralChannelView.tsx",
+      "packages/persona/client-ui-persona/tests/markdown-parse.client.spec.ts",
+      "packages/persona/client-ui-persona/tests/markdown-body.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/channel-markdown.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "P1-10",
+    "owner": "Ember",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/kanban/UndoToast.tsx",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedProjectFlowBoard.tsx",
+      "packages/persona/client-ui-persona/locale-sources/kanban.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/kanban.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/kanban/locales.ts",
+      "packages/persona/client-ui-persona/tests/kanban-undo-toast.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/connected-project-flow-board.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "A-4",
+    "owner": "Ember",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/approvals/ReactiveApprovalsList.tsx",
+      "packages/persona/client-ui-persona/src/client/approvals/ApprovalsInbox.tsx",
+      "packages/persona/client-ui-persona/src/client/approvals/approvals-ui-helpers.ts",
+      "packages/persona/client-ui-persona/src/client/approvals/mock-data.ts",
+      "packages/persona/client-ui-persona/src/client/approvals/Approvals.module.css",
+      "packages/persona/client-ui-persona/src/client/approvals/HireProfileModal.tsx",
+      "packages/persona/client-ui-persona/src/client/data/adapters/approvals.ts",
+      "packages/persona/client-ui-persona/locale-sources/approvals.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/approvals.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/approvals/locales.ts",
+      "packages/persona/client-ui-persona/tests/approvals-hire-card.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "IV-8",
+    "owner": "Ember",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/skills/SkillsPanel.tsx",
+      "packages/persona/client-ui-persona/src/client/profile/PersonaProfilePage.tsx",
+      "packages/persona/client-ui-persona/src/client/governance/governance-remote.ts",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedOrgChartPanel.tsx",
+      "packages/persona/client-ui-persona/locale-sources/skills.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/skills.en.json",
+      "packages/persona/client-ui-persona/locale-sources/governance.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/governance.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/skills/locales.ts",
+      "packages/persona/client-ui-persona/src/client/locale/governance/locales.ts",
+      "packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/iv8-no-mock.client.spec.tsx",
+      "scripts/persona/ember-gallery/entry.tsx",
+      "packages/persona/client-ui-persona/src/client/governance/OrgChartView.tsx",
+      "packages/persona/client-ui-persona/src/client/governance/TeamHealthView.tsx",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedTeamHealthPanel.tsx",
+      "packages/persona/client-ui-persona/tests/decisions-unified.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "A-4b",
+    "owner": "Ember",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/approvals/ApprovalsInbox.tsx",
+      "packages/persona/client-ui-persona/src/client/approvals/ReactiveApprovalsList.tsx",
+      "packages/persona/client-ui-persona/src/client/approvals/approvals-ui-helpers.ts",
+      "packages/persona/client-ui-persona/src/client/approvals/mock-data.ts",
+      "packages/persona/client-ui-persona/src/client/approvals/Approvals.module.css",
+      "packages/persona/client-ui-persona/src/client/data/adapters/approvals.ts",
+      "packages/persona/client-ui-persona/locale-sources/approvals.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/approvals.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/approvals/locales.ts",
+      "packages/persona/client-ui-persona/tests/approvals-hire-card.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/decisions-unified.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "P0-30",
+    "owner": "Flint",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/remote/persona-live-store.ts",
+      "packages/persona/client-ui-persona/src/client/remote/map-host-ui.ts",
+      "packages/persona/client-ui-persona/src/client/chat/GeneralChannelView.tsx",
+      "packages/persona/client-ui-persona/src/client/chat/GeneralChannelView.module.css",
+      "packages/persona/client-ui-persona/src/client/chat/DirectMessagesView.tsx",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedGeneralChannelView.tsx",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedDirectMessagesView.tsx",
+      "packages/persona/client-ui-persona/locale-sources/chat.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/chat.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/chat/locales.ts",
+      "packages/persona/client-ui-persona/tests/send-failed.client.spec.tsx"
+    ]
+  },
+  {
+    "item": "INBOX",
+    "owner": "Ember",
+    "files": [
+      "packages/persona/client-ui-persona/src/client/approvals/ApprovalsInbox.tsx",
+      "packages/persona/client-ui-persona/src/client/approvals/InboxList.tsx",
+      "packages/persona/client-ui-persona/src/client/approvals/InboxDetail.tsx",
+      "packages/persona/client-ui-persona/src/client/approvals/inbox-model.ts",
+      "packages/persona/client-ui-persona/src/client/approvals/Inbox.module.css",
+      "packages/persona/client-ui-persona/src/client/approvals/approvals-ui-helpers.ts",
+      "packages/persona/client-ui-persona/src/client/approvals/mock-data.ts",
+      "packages/persona/client-ui-persona/src/client/decisions/decisions-to-inbox.ts",
+      "packages/persona/client-ui-persona/src/client/remote/ConnectedApprovalsPanel.tsx",
+      "packages/persona/client-ui-persona/src/client/shell/register-prism-screens.tsx",
+      "packages/persona/client-ui-persona/locale-sources/approvals.pt.json",
+      "packages/persona/client-ui-persona/locale-sources/approvals.en.json",
+      "packages/persona/client-ui-persona/src/client/locale/approvals/locales.ts",
+      "packages/persona/client-ui-persona/tests/approvals-hire-card.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/approvals-inbox.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/decisions-cycle.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/decisions-unified.client.spec.tsx",
+      "packages/persona/client-ui-persona/tests/lumen-queue2.client.spec.tsx",
+      "scripts/persona/ember-shell-shots.mjs",
+      "scripts/persona/ember-gallery.mjs",
+      "scripts/persona/ember-gallery/entry.tsx"
+    ]
+  }
+]

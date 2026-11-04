@@ -1,5 +1,7 @@
 # persona-edge
 
+Local-team member metadata is read through authenticated, project-filtered `GET /w/:id/members`; `GET /w/:id/sync/head` applies the same channel ACL as replay. Names and join/revocation state are persisted in member JSON. Revoked actors cannot read members or stream heads. These local endpoints do not deploy or authenticate a cloud account.
+
 Cloudflare side of Persona remote teams (D-034): a Worker (invites/auth, public webhook receiver), one Durable Object per workspace
 (single orderer of per-stream sequence numbers, WebSocket with hibernation), D1 (event log, shared projections) and R2 (artifacts).
 Local-first: the desktop SQLite stays the source of truth; DMs and private streams never leave the device unless explicitly shared.

@@ -4,7 +4,7 @@
  * the real `build.lock` / `pack.lock` that other agents may be holding.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -135,6 +135,22 @@ const starved = spawnSync(process.execPath, [script, '--lock', lockD, '--wait-ma
 })
 cleanSlots()
 if (starved.status !== 75 || !`${starved.stderr}`.includes('memória livre')) fail('the memory guard must hold the job back when RAM is below the floor', `${starved.stderr} status=${starved.status}`)
+
+
+// (9) 04/11 incident: a dead waiter's PID was reused by an unrelated live process and its ticket blocked the whole queue.
+// A ticket that stopped beating (mtime older than 60 s) must be swept even though its PID is alive (here: this very process).
+const lockF = `test-f-${suffix}`
+const queueF = join(root, '.maestri', 'locks', `${lockF}.q`)
+mkdirSync(queueF, { recursive: true })
+const staleTicket = join(queueF, `${String(Date.now() - 600_000).padStart(15, '0')}-${String(process.pid).padStart(8, '0')}.json`)
+writeFileSync(staleTicket, JSON.stringify({ pid: process.pid, label: 'ghost', since: new Date(Date.now() - 600_000).toISOString(), hb: true }))
+const longAgo = new Date(Date.now() - 600_000)
+utimesSync(staleTicket, longAgo, longAgo)
+const unblocked = spawnSync(process.execPath, [script, '--lock', lockF, '--wait-max', '15000', 'after-ghost', '--', 'node', helper, lockF], { cwd: root, encoding: 'utf8', windowsHide: true })
+rmSync(queueF, { recursive: true, force: true })
+rmSync(join(root, '.maestri', 'locks', `${lockF}.queue.json`), { force: true })
+rmSync(dirOf(lockF), { recursive: true, force: true })
+if (unblocked.status !== 0) fail('a stale-heartbeat ticket with a live (reused) PID must not block the queue', `${unblocked.stderr} status=${unblocked.status}`)
 
 rmSync(slotJob, { force: true })
 cleanup()

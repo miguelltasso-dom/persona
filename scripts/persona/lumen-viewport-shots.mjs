@@ -28,10 +28,19 @@ const VIEWPORTS = [
   { tag: '960x640', width: 960, height: 640, dpr: 1 },
   { tag: 'zoom200', width: 640, height: 360, dpr: 2 },
 ]
+const startedAt = new Date().toISOString()
+/** A blank page is ~3 KB: below 10 KB the capture failed (empty window), so it is never saved as a result. */
+const MIN_SHOT_BYTES = 10_000
+async function shoot(page, path) {
+  await page.locator('[data-persona-shell]').first().waitFor({ state: 'visible', timeout: 15_000 })
+  const buffer = await page.screenshot()
+  if (buffer.length < MIN_SHOT_BYTES) throw new Error(`blank capture (${String(buffer.length)} bytes < ${String(MIN_SHOT_BYTES)}): ${path}`)
+  writeFileSync(path, buffer)
+}
 const slugOf = label => label.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
-// The web host has no Electron safeStorage: the Cofre only opens with the test cipher (temp home, never real secrets).
-const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_DISABLED: '1', PERSONA_VAULT_TEST_CIPHER: '1' }
+// Temp home + free port (D-067). The web host boots without PERSONA_VAULT_TEST_CIPHER now (Keel, D-067 addendum).
+const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
 const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open', '--port', String(await freePort())], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
 let out = ''
 let browser
@@ -72,6 +81,7 @@ async function open(url, scheme, viewport) {
   await page.waitForTimeout(9000)
   await page.reload({ waitUntil: 'load' })
   await page.waitForTimeout(6000)
+  await page.locator('[data-persona-shell]').first().waitFor({ state: 'visible', timeout: 15_000 })
   return { context, page }
 }
 
@@ -117,7 +127,7 @@ async function decisionShots(page, scheme, viewport) {
   const portraits = async () => page.locator('[data-persona-root] ul[role="list"] > li[data-decision-id]').evaluateAll(nodes => nodes.map(node => { const img = node.querySelector('img'); return img === null ? 'no-img' : `${img.naturalWidth}x${img.naturalHeight}:${(img.getAttribute('src') ?? '').slice(0, 40)}` }))
   await nav(page, 'Visão geral')
   const before = { chip: await chip(), rail: await railBadge(), rows: await rows(), titles: await titles(), portraits: await portraits() }
-  await page.screenshot({ path: `${outDir}/decisions-overview-${tag}.png` })
+  await shoot(page, `${outDir}/decisions-overview-${tag}.png`)
   const axe1 = await axeViolations(page)
   const approve = page.locator('[data-persona-root] ul[role="list"] > li[data-decision-id] button', { hasText: /^Aprovar$/ }).first()
   let afterClick = null
@@ -125,7 +135,7 @@ async function decisionShots(page, scheme, viewport) {
     await approve.click()
     await page.waitForTimeout(260)
     afterClick = { chip: await chip(), rail: await railBadge(), stamp: await page.locator('[data-decision-state="accepted"]').count(), infinite: await infiniteAnimations(page) }
-    await page.screenshot({ path: `${outDir}/decisions-overview-stamp-${tag}.png` })
+    await shoot(page, `${outDir}/decisions-overview-stamp-${tag}.png`)
     await page.waitForTimeout(1300)
   }
   const gone = { rows: await rows(), chip: await chip(), rail: await railBadge(), titles: await titles() }
@@ -133,7 +143,7 @@ async function decisionShots(page, scheme, viewport) {
   const late = { rows: await rows(), chip: await chip(), rail: await railBadge(), titles: await titles() }
   await nav(page, 'Aprovações')
   const cards = await page.locator('[data-persona-approvals="reactive"] [data-decision-id]').count()
-  await page.screenshot({ path: `${outDir}/decisions-approvals-${tag}.png` })
+  await shoot(page, `${outDir}/decisions-approvals-${tag}.png`)
   const axe2 = await axeViolations(page)
   const line = { tag, before, afterClick, gone, late, approvalsReactiveCards: cards, axeOverview: axe1?.length ?? 'skipped', axeApprovals: axe2?.length ?? 'skipped' }
   console.log(`[decisions ${tag}] ${JSON.stringify(line)}`)
@@ -202,7 +212,17 @@ const onData = async (chunk) => {
     for (const viewport of VIEWPORTS) {
       for (const scheme of ['light', 'dark']) {
         if (process.env.LUMEN_ONLY !== undefined && process.env.LUMEN_ONLY !== `${scheme}-${viewport.tag}`) continue
-        const { context, page } = await open(match[1], scheme, viewport)
+        let opened
+        try {
+          opened = await open(match[1], scheme, viewport)
+        } catch (error) {
+          // The shell never showed (empty window): say so for this pass with the browser's own errors, and go on.
+          const why = errors.filter(row => row.startsWith(`[${scheme} ${viewport.tag}]`)).slice(-3).join(' | ')
+          report.push({ panel: '(boot)', scheme, viewport: viewport.tag, error: String(error).slice(0, 200), console: why.slice(0, 600), at: new Date().toISOString() })
+          console.log(`[${viewport.tag} ${scheme}] BOOT FAILED at ${new Date().toISOString()}: ${String(error).slice(0, 120)} :: ${why.slice(0, 300)}`)
+          continue
+        }
+        const { context, page } = opened
         for (const label of panels) {
           try {
             if (label === 'Quadros › projeto') {
@@ -215,7 +235,7 @@ const onData = async (chunk) => {
               await nav(page, label)
             }
             const file = `${slugOf(label)}-${scheme}-${viewport.tag}.png`
-            await page.screenshot({ path: `${outDir}/${file}` })
+            await shoot(page, `${outDir}/${file}`)
             const probe = await page.evaluate(probeOverflow)
             report.push({ panel: label, scheme, viewport: viewport.tag, file, ...probe })
             console.log(`[${viewport.tag} ${scheme}] ${label}: offscreen=${probe.offscreen} docΔ=${probe.docScrollOverflow} scrollers=${probe.scrollers}${probe.offscreen > 0 ? ` :: ${probe.sample.join(' | ')}` : ''}`)
@@ -230,7 +250,7 @@ const onData = async (chunk) => {
         await context.close()
       }
     }
-    writeFileSync(`${outDir}/report.json`, JSON.stringify({ phase, errors, report, decisionReport }, null, 2))
+    writeFileSync(`${outDir}/report.json`, JSON.stringify({ phase, startedAt, finishedAt: new Date().toISOString(), errors, report, decisionReport }, null, 2))
     const bad = report.filter(row => row.error !== undefined || row.offscreen > 0 || row.docScrollOverflow > 0)
     console.log(`console errors: ${errors.length}${errors.length > 0 ? `\n${errors.slice(0, 6).join('\n')}` : ''}`)
     await finish(0, `lumen viewport shots (${phase}): ${report.length} captures, ${bad.length} with overflow/errors → ${outDir}`)

@@ -1,5 +1,6 @@
 export {
   REVIEW_BRANCH_PREFIX,
+  REVIEW_CONFLICT_QUESTION,
   REVIEW_PATCH_LIMIT_BYTES,
 } from './types.ts'
 export type {

@@ -14,6 +14,7 @@ import { addWorktree, worktreePath } from '../executor/worktree.ts'
 import { redactSecrets, testsClaimedOf } from './redact.ts'
 import {
   REVIEW_BRANCH_PREFIX,
+  REVIEW_CONFLICT_QUESTION,
   REVIEW_PATCH_LIMIT_BYTES,
   type MergeMode,
   type ReviewAcceptResult,
@@ -163,7 +164,7 @@ export class GitReviewDelivery implements ReviewDelivery {
         await this.options.engine?.report(ticketId, {
           state: 'blocked',
           summary: explanation,
-          question: `Não deu para integrar a Tarefa. ${explanation}`,
+          question: `${REVIEW_CONFLICT_QUESTION} ${explanation}`,
         })
       }
       return { kind: 'blocked', explanation }

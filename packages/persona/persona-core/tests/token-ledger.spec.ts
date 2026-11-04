@@ -131,6 +131,15 @@ it('folds the Uso panel by persona, kind, task, cache, and origin', () => {
   expect(ticketIdsFromLedger([])).toEqual([])
 })
 
+it('durationMs is optional; a present value must be a whole number of milliseconds, 0 or more', () => {
+  expect(appendTurn([], entry({})).length).toBe(1)
+  expect(appendTurn([], entry({ durationMs: 0 }))[0]?.durationMs).toBe(0)
+  expect(appendTurn([], entry({ durationMs: 41_250 }))[0]?.durationMs).toBe(41_250)
+  for (const bad of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    expect(() => appendTurn([], entry({ durationMs: bad })), String(bad)).toThrow('INVALID_TOKEN_LEDGER')
+  }
+})
+
 it('refuses a negative counter and layers larger than input', () => {
   expect(() => appendTurn([], entry({ inputTokens: -1 }))).toThrow(DomainError)
   expect(() => appendTurn([], entry({

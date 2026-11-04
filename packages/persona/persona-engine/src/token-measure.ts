@@ -19,7 +19,7 @@ import {
   type UsagePanelFold,
 } from '@deepseek-ai/dsh-persona-core'
 import { COORD_SCENARIOS, coordPreInput, measurePreRoute } from './bench/coord-eval.ts'
-import { opt8MeasuredInputs } from './bench/opt8-faithful.ts'
+import { baseAwareCuts, opt8MeasuredInputs } from './bench/opt8-faithful.ts'
 import { buildOpt8Measured, type Opt8MeasuredEvidence } from './opt8-measured.ts'
 import { INITIATIVE_DAILY_TOKEN_BUDGET, batchInitiative, capChannelReply, trimInitiativeToBudget } from './lean-output.ts'
 import { preRoute } from './preroute/rules.ts'
@@ -649,7 +649,7 @@ export interface Opt8Acceptance {
   readonly failed: readonly string[]
   readonly blocked: readonly string[]
   /** D-068, top level for the legacy Remote: where the numbers come from and what they are compared with. */
-  readonly origin: 'estimate'
+  readonly origin: 'estimate' | 'calibrated'
   readonly baseline: 'levers-before-wiring'
   /** D-068 evidence, additive: estimate-only, one faithful pipeline, baseline `levers-before-wiring`. */
   readonly evidence: Opt8MeasuredEvidence
@@ -680,9 +680,12 @@ export function measureOpt8Acceptance(input?: LegacyOpt8Input): Opt8Acceptance {
   const failed: string[] = []
   const blocked: string[] = []
   if (!evidence.idleZero) failed.push('idle-zero')
-  if (evidence.cacheEstimate.some(row => row.prefixHit !== null && row.prefixHit < 0.60)) failed.push('cache-60')
+  // D-080: the provider's own report (a real run) decides cache-60 when there is one; else the scripted estimate only fails it.
+  if (evidence.providerCache.status === 'measured') {
+    if (evidence.providerCache.prefixHit < 0.60) failed.push('cache-60')
+  } else if (evidence.cacheEstimate.some(row => row.prefixHit !== null && row.prefixHit < 0.60)) failed.push('cache-60')
   else blocked.push('cache-60')
-  // The helper pins parity to blocked / requires-paired-real-run until a paired real run exists.
+  // The paired real run (04/11) could not settle the parity: the helper keeps it blocked with the reason.
   blocked.push('pair-parity')
   if (evidence.cut40.status === 'failed') failed.push('cut-40')
   else if (evidence.cut40.status === 'blocked') blocked.push('cut-40')
@@ -698,7 +701,7 @@ export interface Opt8MeasureView {
   readonly liveEntries: number
   readonly liveOrigin: LedgerOrigin
   /** D-068 top level: origin of the numbers and the comparison baseline. */
-  readonly origin: 'estimate'
+  readonly origin: 'estimate' | 'calibrated'
   readonly baseline: 'levers-before-wiring'
   /** D-068 evidence (additive). */
   readonly evidence: Opt8MeasuredEvidence
@@ -732,6 +735,7 @@ export function formatOpt8AcceptanceMarkdown(input?: LegacyOpt8Input): string {
   void input
   const scored = measureOpt8Acceptance()
   const ev = scored.evidence
+  const sideBySide = baseAwareCuts()
   const cache = ev.cacheEstimate.map(row => `${row.engine} ${row.prefixHit === null ? 'n/d' : row.prefixHit.toFixed(2)}`).join(' · ')
   const asWiredCostCut = ev.beforeWiring.cost === 0 ? null : -(1 - ev.asWired.cost / ev.beforeWiring.cost)
   const projectionCostCut = ev.beforeWiring.cost === 0 ? null : -(1 - ev.projectionAll.cost / ev.beforeWiring.cost)
@@ -741,18 +745,29 @@ export function formatOpt8AcceptanceMarkdown(input?: LegacyOpt8Input): string {
     '',
     `Score **${String(scored.passed)}/${String(scored.total)}**. Falhou: ${scored.failed.length === 0 ? '—' : scored.failed.join(', ')}. Bloqueado: ${scored.blocked.length === 0 ? '—' : scored.blocked.join(', ')}.`,
     '',
-    `Origem: **${ev.origin}** (offline, 4 caracteres ≈ 1 token, preço de tabela). Baseline: **${ev.baseline}** (o host antes de W1 e W4, no MESMO pipeline; W2 e W5 foram retiradas e a W3 fica desligada até a rodada real). A fixture histórica de 134 tokens/tarefa (\`${ev.historical.id}\`) **não conta** para a meta.`,
+    `Origem: **${ev.origin}** (4 caracteres ≈ 1 token, preço de tabela${ev.calibration === undefined ? '' : `; calibrada com a base medida de ${String(ev.calibration.baseTokens)} tokens por requisição — ${ev.calibration.caveat}`}). Baseline: **${ev.baseline}** (o host antes de W1 e W4, no MESMO pipeline; W2 e W5 foram retiradas e a W3 fica adiada por decisão, D-080). A fixture histórica de 134 tokens/tarefa (\`${ev.historical.id}\`) **não conta** para a meta.`,
     '',
     '| meta | resultado |',
     '|---|---|',
     `| idle-zero (ociosa sem objetivo) | ${scored.failed.includes('idle-zero') ? 'falhou' : 'passou'} |`,
-    `| cache ≥ 60% no prefixo | ${scored.failed.includes('cache-60') ? 'falhou na estimativa' : 'blocked'}: cache real do provedor \`${ev.providerCache.status}\` / \`${ev.providerCache.origin}\`; estimativa scriptada ${cache} (só evidência, não passa a meta) |`,
-    `| paridade ±10% com a CLI | blocked: \`${ev.parity.reason}\` (a fórmula antiga saiu do aceite) |`,
+    `| cache ≥ 60% no prefixo | ${scored.failed.includes('cache-60') ? 'falhou' : ev.providerCache.status === 'measured' ? 'passou' : 'blocked'}: cache real do provedor \`${ev.providerCache.status}\` / \`${ev.providerCache.origin}\`${ev.providerCache.status === 'measured' ? ` (${ev.providerCache.engine}, ${ev.providerCache.prefixHit.toFixed(2)} nas chamadas quentes, reportado pelo fornecedor)` : ''}; estimativa scriptada ${cache} |`,
+    `| paridade ±10% com a CLI | blocked: \`${ev.parity.reason}\` (a rodada real de 04/11 não decide: n = 1 e o agente da CLI fez de ≈ 2 a ≈ 8 requisições internas entre chamadas parecidas) |`,
     `| −40% custo estimado por tarefa, pior dos dois dias, as wired vs baseline, tokens sem subir | ${ev.cut40.status} (\`${ev.cut40.reason}\`): custo ${pctOf(ev.cut40.costCut === null ? null : -ev.cut40.costCut)}, tokens ${pctOf(ev.cut40.tokensDelta)} |`,
     '',
     `Totais das mesmas cenas: antes das ligações ${String(ev.beforeWiring.tokens)} tokens / ${String(ev.beforeWiring.cost)} µUSD · agora ${String(ev.asWired.tokens)} / ${String(ev.asWired.cost)} (custo ${pctOf(asWiredCostCut)}) · **projeção** com todas as alavancas ${String(ev.projectionAll.tokens)} / ${String(ev.projectionAll.cost)} (tokens ${pctOf(projectionTokens)}, custo ${pctOf(projectionCostCut)}). A projeção nunca passa a meta.`,
     '',
-    'Gate: `measureOpt8Acceptance` (D-068). Detalhe por cenário e dia espalhado: `opt8-faithful.md`. Rodada pareada real: `scripts/pair-real.ts` (trava `real`).',
+    '### A régua, lado a lado (D-080)',
+    '',
+    'O gate lê a coluna da direita. A da esquerda é o que o bench dizia até a rodada real; ela fica aqui para ninguém achar que a régua foi trocada: o que mudou foi um dado novo (a base do vendor por chamada), que antes estava fora por falta de medida.',
+    '',
+    '| dia | corte de custo só com os prompts | corte de custo com a base medida |',
+    '|---|---:|---:|',
+    `| rajada | ${pctOf(-sideBySide.burst.promptOnlyCutNow)} | ${pctOf(-sideBySide.burst.costCutNow)} |`,
+    `| espaçado | ${pctOf(-sideBySide.spread.promptOnlyCutNow)} | ${pctOf(-sideBySide.spread.costCutNow)} |`,
+    '',
+    'Os dois braços (antes e depois) levam a **mesma** base; a ressalva da calibração está na linha de origem acima.',
+    '',
+    'Gate: `measureOpt8Acceptance` (D-068, D-080). Detalhe por cenário e dia espalhado: `opt8-faithful.md`. Rodada pareada real: `pair-real.md` (feita em 04/11).',
     '',
     '```',
     'pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts',

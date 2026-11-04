@@ -1,5 +1,9 @@
 /**
  * Map composer queue/steer onto the runner (T3-UX-HARVEST §4).
+ *
+ * The pure mapping only, pinned by `working-deliver.spec.ts` and the e2e contract test. The host's IV-5 (Direcionar agora,
+ * fila persistida, Parar — `contracts/working-control.md`) talks to the {@link Runner} port directly and does not call
+ * these two helpers, so nothing in the host depends on them.
  */
 
 import {

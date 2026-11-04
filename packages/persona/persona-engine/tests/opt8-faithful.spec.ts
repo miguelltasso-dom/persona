@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   CUT_SCENARIOS,
+  DEFERRED_LEVERS,
   allLeversWired,
+  cutRowsWithBase,
+  CALIBRATION_CAVEAT,
+  MEASURED_PROVIDER_CACHE,
   cutRows,
+  baseAwareCuts,
   executionOnCheapBound,
   formatOpt8FaithfulMarkdown,
   keepWarmEconomics,
   leverCandidates,
+  MEASURED_VENDOR_BASE,
   measureOpt8Faithful,
   opt8MeasuredInputs,
   pairedFaithful,
@@ -115,10 +121,13 @@ describe('the spread day (cache and session TTL)', () => {
 })
 
 describe('inputs for the D-068 facade', () => {
-  it('says plainly that W3 and skipTriage are not wired yet, and that quality held in every bucket', () => {
+  it('says plainly that W3 is deferred BY DECISION (not wired, not blocking), and that quality held in every bucket', () => {
     const input = opt8MeasuredInputs()
-    expect(input.allLeversWired).toBe(false)
-    expect(allLeversWired()).toBe(false)
+    // the only lever off is the one deferred on purpose (D-080); anything else off would still block
+    expect(DEFERRED_LEVERS.map(row => row.lever)).toEqual(['leanReports'])
+    expect(LEVERS_AS_WIRED.leanReports).toBe(false)
+    expect(input.allLeversWired).toBe(true)
+    expect(allLeversWired()).toBe(true)
     expect(input.quality).toEqual({ beforeWiring: true, asWired: true, projectionAll: true })
     expect(input.rows.map(row => row.scenario)).toEqual([...CUT_SCENARIOS])
     expect(input.idleZero).toBe(true)
@@ -164,7 +173,7 @@ describe('what is left against the −40% (Atlas queue 2, D-073)', () => {
     const rows = leverCandidates()
     expect(rows.filter(row => row.status === 'wired').map(row => row.id)).toEqual(['w1-w4', 'skip-triage', 'courtesy-free'])
     expect(rows.find(row => row.id === 'cache-1h')?.status).toBe('only-api-key')
-    expect(rows.find(row => row.id === 'w3')?.status).toBe('off-until-real-run')
+    expect(rows.find(row => row.id === 'w3')?.status).toBe('deferred')
     expect(rows.find(row => row.id === 'courtesy-free')?.owner).toContain('Anvil')
     expect(rows.find(row => row.id === 'skip-triage')?.owner).toContain('Anvil')
   })
@@ -195,5 +204,78 @@ describe('what is left against the −40% (Atlas queue 2, D-073)', () => {
       // 100% of worker turns on the cheap tier cannot save more than their share of the cost × (1 − 1/3).
       expect(bound.saving).toBeCloseTo(bound.executionShare * (1 - 1 / 3), 6)
     }
+  })
+})
+
+describe('with the vendor base measured on a real run', () => {
+  it('uses what was measured: ~41 000 tokens per CLI request, about half of it from the cache', () => {
+    expect(MEASURED_VENDOR_BASE.tokens).toBeGreaterThan(37_000)
+    expect(MEASURED_VENDOR_BASE.tokens).toBeLessThan(45_000)
+    expect(MEASURED_VENDOR_BASE.cacheShare).toBeGreaterThan(0.4)
+    expect(MEASURED_VENDOR_BASE.cacheShare).toBeLessThan(0.5)
+  })
+
+  it('the cut becomes the cut in calls: the base is ~100× the Persona prompt, so fewer CLI calls is what saves money', () => {
+    const measured = baseAwareCuts()
+    for (const day of [measured.burst, measured.spread]) {
+      expect(day.calls.now).toBeLessThan(day.calls.before)
+      // within a few points of the cut in calls (tier prices and the small prompts move it slightly)
+      const callCut = 1 - day.calls.now / day.calls.before
+      expect(Math.abs(day.costCutNow - callCut)).toBeLessThan(0.06)
+      expect(day.cost.now).toBeLessThan(day.cost.before)
+      // W3 shortens the answer only: with a base this big it adds almost nothing
+      expect(day.costCutWithW3 - day.costCutNow).toBeLessThan(0.02)
+    }
+    expect(measured.worstCostCutNow).toBe(Math.min(measured.burst.costCutNow, measured.spread.costCutNow))
+  })
+
+  it('a base of zero gives back the prompt-only cut the bench reported before', () => {
+    const none = baseAwareCuts({ tokens: 0, cacheShare: 0.45 })
+    expect(none.burst.costCutNow).toBeCloseTo(none.burst.promptOnlyCutNow, 6)
+    expect(none.spread.costCutNow).toBeCloseTo(none.spread.promptOnlyCutNow, 6)
+  })
+
+  it('the report says so, with the origin unchanged', () => {
+    const md = formatOpt8FaithfulMarkdown()
+    expect(md).toContain('base do vendor MEDIDA')
+    expect(md).toContain('origem continua `estimate`')
+  })
+})
+
+describe('the D-068 gate reads the view WITH the measured base (D-080)', () => {
+  it('gives the gate rows that carry the base on every call, the same base before and after', () => {
+    const prompts = cutRows()
+    const withBase = cutRowsWithBase()
+    expect(withBase.map(row => row.scenario)).toEqual(prompts.map(row => row.scenario))
+    const burst = withBase.find(row => row.scenario === 'dia-padaria')
+    const burstPrompts = prompts.find(row => row.scenario === 'dia-padaria')
+    // 11 calls before, 6 now: the base (~41 000 tokens each) is most of the tokens and most of the cost
+    expect((burst?.todayTokens ?? 0) - (burstPrompts?.todayTokens ?? 0)).toBe(11 * 40_977)
+    expect((burst?.nowTokens ?? 0) - (burstPrompts?.nowTokens ?? 0)).toBe(6 * 40_977)
+    expect(burst?.nowCost ?? 0).toBeLessThan(burst?.todayCost ?? 0)
+  })
+
+  it('passes cut-40 on the worse day with tokens not rising, and writes the calibration caveat', () => {
+    const input = opt8MeasuredInputs()
+    expect(input.calibration.caveat).toBe(CALIBRATION_CAVEAT)
+    expect(CALIBRATION_CAVEAT).toContain('1 máquina, Haiku, 1 rodada real')
+    expect(CALIBRATION_CAVEAT).toContain('MESMA base')
+    const days = input.rows.filter(row => row.scenario === 'dia-padaria' || row.scenario === 'dia-espacado')
+    for (const day of days) {
+      expect(1 - day.nowCost / day.todayCost).toBeGreaterThanOrEqual(0.4)
+      expect(day.nowTokens).toBeLessThanOrEqual(day.todayTokens)
+    }
+  })
+
+  it('keeps the prompt-only view next to it in the report, so nobody thinks the ruler changed', () => {
+    const md = formatOpt8FaithfulMarkdown()
+    expect(md).toContain('corte só com os prompts')
+    expect(md).toContain('base do vendor MEDIDA')
+  })
+
+  it('the provider cache is what the provider reported on the real run', () => {
+    expect(MEASURED_PROVIDER_CACHE.engine).toBe('claude')
+    expect(MEASURED_PROVIDER_CACHE.prefixHit).toBeGreaterThanOrEqual(0.6)
+    expect(MEASURED_PROVIDER_CACHE.prefixHit).toBeLessThanOrEqual(1)
   })
 })

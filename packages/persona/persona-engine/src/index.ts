@@ -30,6 +30,7 @@ export {
   WorkflowError,
   applyCategoryToTicket,
   applyBoardWorkflowEdit,
+  hasPendingDelivery,
   moveToColumn,
   projectBoardCard,
   resolveColumn,
@@ -37,7 +38,7 @@ export {
   stageCategory,
   syncPlacementFromStage,
 } from './workflow.ts'
-export type { TicketPlacement, WorkflowFail } from './workflow.ts'
+export type { MoveOptions, TicketPlacement, WorkflowFail } from './workflow.ts'
 export {
   WORKFLOW_TEMPLATES,
   MemoryPlacementStore,
@@ -196,6 +197,7 @@ export {
   historyFileOps,
   parseReviewRestorePointId,
   REVIEW_BRANCH_PREFIX,
+  REVIEW_CONFLICT_QUESTION,
   REVIEW_PATCH_LIMIT_BYTES,
   confineWorktreeWrite,
   parseNumstat,
@@ -397,6 +399,33 @@ export type {
   ExistingWorkItem, InitiativeQualityInput, InitiativeQualityResult, InitiativeReject, InitiativeRejectWhy,
   ProjectFact, ScoredProposal,
 } from './initiative-quality.ts'
+export {
+  MAX_OPEN_PROPOSALS,
+  NEUTRAL_RATE,
+  PROPOSAL_EXPIRES_MS,
+  PROPOSAL_SNOOZE_MS,
+  PROPOSAL_TITLE_MAX,
+  clipProposalTitle,
+  draftTaskProposals,
+  freshStats,
+  mayOfferProposal,
+  planProposalCard,
+  proposalExpired,
+  proposalKey,
+  proposalMinGapMs,
+  proposalPlainText,
+  proposalQuestion,
+  proposalReason,
+  proposalRequest,
+  proposalsAllowedPerDay,
+  recordProposalDecision,
+  revertProposalDecline,
+  snoozeActive,
+} from './task-proposal.ts'
+export type {
+  DraftInput, OfferInput, OfferRefusal, ProposalCardPlan, ProposalLocale, ProposalStats, ProposalWorkItem,
+  TaskFact, TaskFactKind, TaskProposalDraft,
+} from './task-proposal.ts'
 export { adjustBudgetFromFeedback, learnFromFeedback, memoryFromFeedback, skillCandidateFromFeedback } from './feedback-learn.ts'
 export {
   TEACH_CONSENT_VERSION,
@@ -601,8 +630,8 @@ export type { ExtractedReportFact, FactReportInput, FactTicketContext, ReportFac
 export type { FirstDeliveryExecutionInput } from './first-delivery.ts'
 export type { FirstDeliveryInput, FirstDeliveryTask } from './first-delivery.ts'
 export { wantsWork, workSkipReason } from './wants-work.ts'
-export { estimateAsk } from './ux/estimate-ask.ts'
-export type { AskCall, AskCalibration, AskKind, AskLevel, AskRole, EstimateAskInput, EstimateAskResult, Range as AskRange } from './ux/estimate-ask.ts'
+export { estimateAsk, MIN_HISTORY_SAMPLES } from './ux/estimate-ask.ts'
+export type { AskCall, AskCalibration, AskKind, AskLevel, AskRole, AskSource, CallTokens as AskCallTokens, EstimateAskInput, EstimateAskResult, Range as AskRange, Samples as AskSamples } from './ux/estimate-ask.ts'
 export type { WorkSkipReason } from './wants-work.ts'
 export { assertV1Close, formatV1CloseMarkdown, measureV1Close, measureV1CloseView } from './v1-close.ts'
 export type { V1CloseMeasure, V1CloseMeasureView } from './v1-close.ts'

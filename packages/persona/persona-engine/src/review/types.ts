@@ -82,4 +82,9 @@ export interface ReviewDelivery {
 }
 
 export const REVIEW_PATCH_LIMIT_BYTES = 32_768
+/**
+ * Start of the question a failed Aplicar (merge conflict) raises on the Ticket. The draft stays alive in its worktree, so
+ * {@link hasPendingDelivery} reads this prefix on a blocked report as “the result is still waiting for the person” (FLOW-1b).
+ */
+export const REVIEW_CONFLICT_QUESTION = 'Não deu para integrar a Tarefa.'
 export const REVIEW_BRANCH_PREFIX = 'persona/'

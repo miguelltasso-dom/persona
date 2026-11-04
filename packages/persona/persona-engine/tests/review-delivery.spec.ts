@@ -10,11 +10,13 @@ import {
   MemoryRepositories,
   PathEscapeError,
   confineWorktreeWrite,
+  hasPendingDelivery,
   latestAssignment,
   parseNumstat,
   reviewLooksLikeCredential,
   redactSecrets,
   testsClaimedOf,
+  ticketStage,
 } from '../src/index.ts'
 import type { Assessor, Candidate, EngineOptions, Executor, Policy, Ticket, Trigger } from '../src/index.ts'
 
@@ -183,6 +185,57 @@ it('discard remove worktree+branch; sweepOrphans faxina na retomada', async () =
   const swept = await delivery.sweepOrphans()
   expect(swept).toContain('orphan')
 }, 45_000)
+
+// FLOW-1 (decisão Keel 04/11 18:05): Descartar = apagar o rascunho E encerrar o Ticket (o host chama delivery.discard e depois
+// engine.stopTicket(id, 'discarded')); sem isso hasPendingDelivery seguiria verdadeiro e o cartão ficaria preso no Revisar.
+it('Descartar encerra só aquele Ticket: estágio terminal, sem entrega pendente, o outro rascunho intacto, repetir não muda nada', async () => {
+  const { root, trees } = await tempRepo()
+  const h = harness()
+  const first = accepted(h)
+  h.engine.receive({ ...trigger('2'), threads: [{ source: 'chat', id: 't2' }], channel: { source: 'chat', thread: 't2', address: { message: '2' } } })
+  h.engine.evaluateDue()
+  const decision = h.engine.decide(h.requests[1]!.triggers[0]!.id, { kind: 'accept', title: 'Outra', scope: 'small', reason: 'requested' })
+  const launched = h.launches.shift()
+  if (launched) h.engine.assignmentStarted(launched.ticketId, launched.assignmentId)
+  const second = h.repo.tickets.get(decision.ticketId!)!
+  expect(second.id).not.toBe(first.id)
+  const delivery = new GitReviewDelivery({
+    projectRoot: root, worktreesRoot: trees, engine: h.engine,
+    ticketOf: id => h.repo.tickets.get(id),
+    openTicketIds: () => h.repo.tickets.open().map(row => row.id),
+  })
+  for (const ticket of [first, second]) {
+    const wt = await delivery.prepare({ id: latestAssignment(ticket)!.id, ticketId: ticket.id })
+    await edit(wt.path, `${ticket.id}.txt`, 'rascunho\n')
+    // like the host: the review is a thread the ticket owns, so a ready report waits for Aplicar instead of ending it
+    h.engine.bindThread(ticket.id, { source: 'review', id: ticket.id }, true)
+    h.engine.report(ticket.id, { state: 'ready', summary: 'pronto' })
+  }
+  expect(hasPendingDelivery(h.repo.tickets.get(first.id)!)).toBe(true)
+  expect(hasPendingDelivery(h.repo.tickets.get(second.id)!)).toBe(true)
+  const keptBefore = structuredClone(h.repo.tickets.get(second.id)!)
+
+  await delivery.discard({ id: first.id })
+  h.engine.stopTicket(first.id, 'discarded')
+  const discarded = h.repo.tickets.get(first.id)!
+  expect(discarded.ended).toMatchObject({ by: 'human', outcome: 'stopped', reason: 'discarded' })
+  expect(discarded.attention).toBeUndefined()
+  expect(discarded.delivery).toBeUndefined()
+  expect(hasPendingDelivery(discarded)).toBe(false)
+  expect(ticketStage(discarded)).toEqual({ stage: 'ended' })
+  expect(h.repo.tickets.get(second.id)).toEqual(keptBefore) // the other card and its draft are untouched
+  const listed = (await exec('git', ['-C', root, 'worktree', 'list'])).stdout
+  expect(listed).not.toContain(first.id)
+  expect(listed).toContain(second.id)
+
+  // idempotent: asking again changes nothing and the sweep keeps the open ticket's draft
+  const endedAt = discarded.ended?.at
+  h.engine.stopTicket(first.id, 'discarded')
+  expect(h.repo.tickets.get(first.id)).toEqual(discarded)
+  expect(h.repo.tickets.get(first.id)?.ended?.at).toBe(endedAt)
+  expect(await delivery.sweepOrphans()).toEqual([])
+  expect((await exec('git', ['-C', root, 'worktree', 'list'])).stdout).toContain(second.id)
+}, 60_000)
 
 it('redact e testsClaimedOf cobrem vazio e credencial', () => {
   expect(testsClaimedOf(undefined)).toEqual([])

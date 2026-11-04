@@ -25,7 +25,7 @@ export interface V1CloseMeasure {
   readonly firstDelivery: FirstDeliveryAcceptance
   readonly opt8: Opt8Acceptance
   /** D-068, top level (mirrors `opt8.origin` / `opt8.baseline`). */
-  readonly origin: 'estimate'
+  readonly origin: 'estimate' | 'calibrated'
   readonly baseline: 'levers-before-wiring'
 }
 
@@ -74,7 +74,7 @@ export interface V1CloseMeasureView {
   readonly firstDelivery: { readonly passed: number; readonly total: 4; readonly failed: readonly string[] }
   readonly opt8: Opt8MeasureView
   /** D-068, top level (mirrors `opt8.origin` / `opt8.baseline`). */
-  readonly origin: 'estimate'
+  readonly origin: 'estimate' | 'calibrated'
   readonly baseline: 'levers-before-wiring'
 }
 
@@ -170,7 +170,7 @@ export function formatV1CloseMarkdown(input?: {
     `| V1-P0-1 | ${String(scored.firstDelivery.passed)}/${String(scored.firstDelivery.total)} | ${scored.firstDelivery.failed.join(', ') || '—'} | — |`,
     `| OPT-8 | ${String(scored.opt8.passed)}/${String(scored.opt8.total)} | ${scored.opt8.failed.join(', ') || '—'} | ${scored.opt8.blocked.join(', ') || '—'} |`,
     '',
-    'OPT-8 (D-068): `pair-parity` fica `blocked` até a rodada pareada real e `cut-40` fica `blocked` enquanto o conjunto completo de alavancas não estiver ligado (hoje falta a W3, relato curto do worker, desligada até a rodada real); só fica verde com ≥ 40% de custo estimado no pipeline fiel. Não falha o gate, mas também não conta como passou.',
+    'OPT-8 (D-068, D-080): `pair-parity` fica `blocked` (a rodada pareada real de 04/11 foi inconclusiva); `cache-60` vem do que o fornecedor reportou; `cut-40` lê a visão com a base do vendor medida (origem `calibrated`, com a ressalva escrita) e a W3 está adiada por decisão. Não falha o gate, mas o que está `blocked` também não conta como passou.',
     '',
     '```',
     'pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts',

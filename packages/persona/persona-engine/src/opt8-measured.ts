@@ -17,6 +17,12 @@ export interface Opt8MeasuredInput {
   readonly cacheEngines: readonly { readonly engine: string; readonly prefixHit: number | undefined }[]
   readonly allLeversWired: boolean
   readonly quality?: { readonly beforeWiring: boolean; readonly asWired: boolean; readonly projectionAll: boolean }
+  /** D-080: the rows already carry the vendor base measured on a real run. Origin becomes `calibrated`, with the caveat in writing. */
+  readonly calibration?: { readonly caveat: string; readonly baseTokens: number }
+  /** D-080: cache the provider REPORTED on a real run (cache read ÷ total input of the warm calls). Vendor-reported = `measured`. */
+  readonly providerCacheMeasured?: { readonly engine: string; readonly prefixHit: number }
+  /** D-080: a paired real run happened but could not settle the parity (n = 1, the CLI's inner requests varied). */
+  readonly parityInconclusive?: boolean
 }
 /** Quality remains unavailable unless the pipeline supplies an actual fidelity result. */
 export type Opt8QualityStatus = 'passed' | 'failed' | 'unavailable'
@@ -28,7 +34,9 @@ export interface Opt8MeasuredBucket {
 }
 /** Additive evidence for the existing OPT-8 / v1-close Remote score. */
 export interface Opt8MeasuredEvidence {
-  readonly origin: 'estimate'
+  readonly origin: 'estimate' | 'calibrated'
+  /** Present when `origin` is `calibrated`: what the calibration is and what it is NOT. */
+  readonly calibration?: { readonly caveat: string; readonly baseTokens: number }
   readonly baseline: 'levers-before-wiring'
   readonly historical: { readonly id: 'historical-134-fixture'; readonly countsForGoal: false }
   readonly beforeWiring: Opt8MeasuredBucket
@@ -37,8 +45,10 @@ export interface Opt8MeasuredEvidence {
   readonly scenarios: readonly Opt8MeasuredRow[]
   readonly idleZero: boolean
   readonly cacheEstimate: readonly { readonly engine: string; readonly prefixHit: number | null }[]
-  readonly providerCache: { readonly prefixHit: 0; readonly status: 'blocked'; readonly origin: 'unavailable' }
-  readonly parity: { readonly status: 'blocked'; readonly reason: 'requires-paired-real-run' }
+  readonly providerCache:
+    | { readonly prefixHit: 0; readonly status: 'blocked'; readonly origin: 'unavailable' }
+    | { readonly prefixHit: number; readonly engine: string; readonly status: 'measured'; readonly origin: 'measured' }
+  readonly parity: { readonly status: 'blocked'; readonly reason: 'requires-paired-real-run' | 'paired-run-inconclusive' }
   readonly cut40: {
     readonly status: 'blocked' | 'passed' | 'failed'
     readonly costCut: number | null
@@ -83,14 +93,18 @@ export function buildOpt8Measured(input: Opt8MeasuredInput): Opt8MeasuredEvidenc
     else { status = 'passed'; reason = 'goal-met' }
   }
   return {
-    origin: 'estimate', baseline: 'levers-before-wiring', historical: { id: 'historical-134-fixture', countsForGoal: false },
+    origin: input.calibration === undefined ? 'estimate' : 'calibrated',
+    ...(input.calibration === undefined ? {} : { calibration: input.calibration }),
+    baseline: 'levers-before-wiring', historical: { id: 'historical-134-fixture', countsForGoal: false },
     beforeWiring: bucket('todayTokens', 'todayCost', input.quality?.beforeWiring),
     asWired: bucket('nowTokens', 'nowCost', input.quality?.asWired),
     projectionAll: { ...bucket('allTokens', 'allCost', input.quality?.projectionAll), label: 'projection' },
     scenarios: input.rows.map(row => ({ ...row })), idleZero: input.idleZero,
     cacheEstimate: input.cacheEngines.map(row => ({ engine: row.engine, prefixHit: row.prefixHit ?? null })),
-    providerCache: { prefixHit: 0, status: 'blocked', origin: 'unavailable' },
-    parity: { status: 'blocked', reason: 'requires-paired-real-run' },
+    providerCache: input.providerCacheMeasured === undefined
+      ? { prefixHit: 0, status: 'blocked', origin: 'unavailable' }
+      : { prefixHit: input.providerCacheMeasured.prefixHit, engine: input.providerCacheMeasured.engine, status: 'measured', origin: 'measured' },
+    parity: { status: 'blocked', reason: input.parityInconclusive === true ? 'paired-run-inconclusive' : 'requires-paired-real-run' },
     cut40: { status, costCut, tokensDelta, reason },
   }
 }

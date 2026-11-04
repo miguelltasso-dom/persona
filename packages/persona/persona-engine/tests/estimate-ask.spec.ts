@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { estimateAsk, type EstimateAskInput } from '../src/ux/estimate-ask.ts'
+import { TIER_PRICE } from '../src/bench/token-faithful.ts'
+import { estimateAsk, type AskCalibration, type EstimateAskInput } from '../src/ux/estimate-ask.ts'
 
 const CLAUDE = { cli: 'claude', connected: true }
 const NINA = { id: 'nina', name: 'Nina', title: 'Pesquisa', personality: 'Curiosa.', instructions: 'Pesquise e resuma com fontes.' }
@@ -122,5 +123,145 @@ describe('estimateAsk: tokens and cost are ranges without the vendor base; time 
   it('never claims "measured": that word belongs to what a vendor reported', () => {
     const origins = [ask('oi'), ask('Monte o cardápio'), ask('', {}), ask('Monte o cardápio', { calibracao: { vendorBaseTokens: 100 } })].map(row => row.origin)
     for (const origin of origins) expect(['estimate', 'calibrated', 'unknown']).toContain(origin)
+  })
+})
+
+describe('estimateAsk: the person\'s own measured history (OPT-9, D-080 c)', () => {
+  const WORK = 'Monte o cardápio da semana com preços'
+  const history = (over: Partial<AskCalibration> = {}): AskCalibration => ({
+    source: 'history',
+    tokensPerCall: {
+      conversa: { input: { min: 38_000, max: 42_000 }, output: { min: 40, max: 120 } },
+      execucao: { input: { min: 30_000, max: 50_000 }, output: { min: 300, max: 900 } },
+    },
+    secondsPerCall: { conversa: { min: 6, max: 12 }, execucao: { min: 60, max: 100 } },
+    mediana: { conversa: 9, execucao: 75 },
+    samples: { conversa: { tokens: 22, tempo: 18 }, execucao: { tokens: 12, tempo: 9 } },
+    ...over,
+  })
+  /** The same calibration without some keys (an absent field is not an explicit `undefined`). */
+  const without = (cal: AskCalibration, ...keys: (keyof AskCalibration)[]): AskCalibration => {
+    const copy: Record<string, unknown> = { ...cal }
+    for (const key of keys) delete copy[key]
+    return copy as AskCalibration
+  }
+
+  it('uses the measured tokens of the kind INSTEAD of "our estimate + a base", and says where they came from', () => {
+    const result = ask(WORK, { calibracao: history() })
+    expect(result.tokens).toEqual({ min: 30_300, max: 50_900 })
+    expect(result.baseDoVendorIncluida).toBe(true)
+    expect(result.origin).toBe('calibrated')
+    expect(result.fonte).toBe('historico')
+    expect(result.amostras).toBe(9)
+    expect(result.motivo).toContain('pelas suas últimas 9 tarefas')
+    expect(result.motivo).toContain('levou de 1 a 2 min')
+    const short = ask(WORK, { calibracao: history({ secondsPerCall: { execucao: { min: 60, max: 80 } } }) })
+    expect(short.motivo).toContain('levou de 60 a 80 s')
+  })
+
+  it('cites the rows behind the TOKENS when the time is not known, with that count and not the time\'s', () => {
+    const result = ask(WORK, { calibracao: without(history({ samples: { execucao: { tokens: 14, tempo: 0 } } }), 'secondsPerCall', 'mediana') })
+    expect(result.tempo).toBeNull()
+    expect(result.rotulo).toBe('1 chamada da sua IA')
+    expect(result.amostras).toBe(14)
+    expect(result.motivo).toContain('pelas suas últimas 14 tarefas')
+    expect(result.motivo).toContain('tokens')
+  })
+
+  it('centers the time label on the median, with the range as its bounds', () => {
+    const wide = history({ secondsPerCall: { execucao: { min: 100, max: 200 } }, mediana: { execucao: 110 } })
+    expect(ask(WORK, { calibracao: wide }).tempo).toEqual({ segundos: { min: 100, max: 200 }, mediana: 110 })
+    expect(ask(WORK, { calibracao: wide }).rotulo).toBe('~2 min · 1 chamada da sua IA')
+    const noMedian = without(wide, 'mediana')
+    expect(ask(WORK, { calibracao: noMedian }).rotulo).toBe('~3 min · 1 chamada da sua IA')
+  })
+
+  it('prices a measured call between the cache-read floor and the cache-write ceiling, never a single figure', () => {
+    const price = TIER_PRICE.persona
+    const { custo } = ask(WORK, { calibracao: history() })
+    expect(custo!.microUsd.min).toBe(Math.round(30_000 * price.input * 0.1 + 300 * price.output))
+    expect(custo!.microUsd.max).toBe(Math.round(50_000 * price.input * 1.25 + 900 * price.output))
+  })
+
+  it('ignores a statement with fewer than 5 measured rows or with no count at all: it falls back to the estimate', () => {
+    const few = ask(WORK, { calibracao: history({ samples: { execucao: { tokens: 4, tempo: 4 } } }) })
+    const plain = ask(WORK)
+    expect(few.tokens).toEqual(plain.tokens)
+    expect(few.tempo).toBeNull()
+    expect(few.origin).toBe('estimate')
+    expect(few.fonte).toBeUndefined()
+    expect(few.amostras).toBeUndefined()
+    const uncounted = ask(WORK, { calibracao: without(history(), 'samples') })
+    expect(uncounted.tokens).toEqual(plain.tokens)
+    expect(uncounted.origin).toBe('estimate')
+  })
+
+  it('takes tokens and time independently: enough tokens but a time on too few rows leaves the time unknown', () => {
+    const result = ask(WORK, { calibracao: history({ samples: { execucao: { tokens: 20, tempo: 3 } } }) })
+    expect(result.tokens).toEqual({ min: 30_300, max: 50_900 })
+    expect(result.tempo).toBeNull()
+    expect(result.origin).toBe('calibrated')
+  })
+
+  it('does not treat numbers as history unless the source says so', () => {
+    // tokens and counts with no source: not read at all
+    const tokensOnly = ask(WORK, { calibracao: without(history(), 'source', 'secondsPerCall', 'mediana') })
+    expect(tokensOnly.origin).toBe('estimate')
+    expect(tokensOnly.tokens).toEqual(ask(WORK).tokens)
+    expect(tokensOnly.fonte).toBeUndefined()
+    // a time with no source is the legacy development path: used, but never presented as the person's history
+    const legacyTime = ask(WORK, { calibracao: without(history(), 'source') })
+    expect(legacyTime.tokens).toEqual(ask(WORK).tokens)
+    expect(legacyTime.fonte).toBe('referencia-dev')
+    expect(legacyTime.amostras).toBeUndefined()
+    expect(legacyTime.motivo).not.toContain('pelas suas últimas')
+  })
+
+  it('never mixes the development reference into the person\'s history', () => {
+    const polluted = ask(WORK, { calibracao: history({ vendorBaseTokens: 40_977, tokenizerRatio: 1.707 }) })
+    const clean = ask(WORK, { calibracao: history() })
+    expect(polluted.tokens).toEqual(clean.tokens)
+    expect(polluted.custo).toEqual(clean.custo)
+    expect(polluted.fonte).toBe('historico')
+  })
+
+  it('labels the one-machine development reference as such and never as the person\'s history', () => {
+    const dev = ask(WORK, { calibracao: { source: 'dev-reference', vendorBaseTokens: 40_977, tokenizerRatio: 1.707 } })
+    expect(dev.origin).toBe('calibrated')
+    expect(dev.fonte).toBe('referencia-dev')
+    expect(dev.amostras).toBeUndefined()
+    expect(dev.motivo).toContain('referência de desenvolvimento')
+    expect(dev.motivo).not.toContain('pelas suas últimas')
+  })
+
+  it('when only one call of an ask has history, the ask does not claim the vendor base for all of it', () => {
+    const result = ask(WORK, { host: { skipTriage: false }, calibracao: history() })
+    expect(result.detalhe.map(row => row.papel)).toEqual(['triagem', 'execucao'])
+    expect(result.baseDoVendorIncluida).toBe(false)
+    expect(result.tempo).toBeNull()
+    expect(result.origin).toBe('calibrated')
+    expect(result.tokens!.min).toBeGreaterThan(30_300)
+  })
+
+  it('a conversation uses the conversation rows, not the work rows', () => {
+    const result = ask('Qual o horário do standup?', { calibracao: history() })
+    expect(result.tipo).toBe('conversa')
+    expect(result.tokens).toEqual({ min: 38_040, max: 42_120 })
+    expect(result.amostras).toBe(18)
+    expect(result.motivo).toContain('pelas suas últimas 18 conversas')
+    expect(result.rotulo).toBe('menos de 1 min · 1 chamada da sua IA')
+  })
+
+  it('says nothing about history when nobody asked for a call', () => {
+    const result = ask('valeu!', { calibracao: history() })
+    expect(result.tipo).toBe('sem-chamada')
+    expect(result.fonte).toBeUndefined()
+    expect(result.amostras).toBeUndefined()
+  })
+
+  it('never says "measured", with or without history', () => {
+    for (const row of [ask(WORK, { calibracao: history() }), ask('Qual o horário do standup?', { calibracao: history() })]) {
+      expect(['estimate', 'calibrated']).toContain(row.origin)
+    }
   })
 })

@@ -15,6 +15,7 @@ import {
 } from '@deepseek-ai/dsh-persona-core'
 import { ticketStage, type Ticket, type TicketStage } from './core/index.ts'
 import { kanbanColumn } from './kanban.ts'
+import { REVIEW_CONFLICT_QUESTION } from './review/types.ts'
 import { WorkflowError } from './workflow-error.ts'
 
 export type { TicketBoardSeat as TicketPlacement }
@@ -123,12 +124,42 @@ export function syncPlacementFromStage(
 }
 
 /**
+ * Whether an open card still holds a result waiting for the person's Aplicar/Descartar (FLOW-1): its latest assignment
+ * reported `ready`, or a failed Aplicar left it blocked on the conflict question (FLOW-1b). This is the Revisar surface —
+ * the private draft lives until the Ticket ends, so ending the Ticket any other way orphans it. It is NOT
+ * `ticket.delivery`, which only records a failed hand-over of an Input to a worker.
+ * @param ticket - Engine ticket.
+ */
+export function hasPendingDelivery(ticket: Pick<Ticket, 'ended' | 'assignments' | 'attention'>): boolean {
+  if (ticket.ended !== undefined) return false
+  const report = ticket.assignments.at(-1)?.report
+  if (report?.state === 'ready') return true
+  // FLOW-1b: a failed Aplicar (conflict) blocks the ticket with a question, but the draft is still alive in its worktree.
+  return report?.state === 'blocked' && ticket.attention?.question.startsWith(REVIEW_CONFLICT_QUESTION) === true
+}
+
+/** Knobs of a manual move the host knows better than the Ticket does. */
+export interface MoveOptions {
+  /**
+   * The host's answer to “is there a result waiting for review?”. Absent ⇒ {@link hasPendingDelivery} decides. A host
+   * passes `false` only when it knows no draft exists (a task without a folder has nothing to apply or discard).
+   */
+  readonly deliveryPending?: boolean
+}
+
+/**
  * Mutate ticket fields so {@link ticketStage} matches a category (manual column move).
+ * Moving to `done` never erases a result waiting for review: it throws `WorkflowError('delivery_pending')` and leaves
+ * the ticket untouched (the way out is Aplicar or Descartar in Revisar). Every other category keeps `delivery` as is.
  * @param ticket - Current ticket.
  * @param category - Column category the person chose.
  * @param now - ISO now.
+ * @param options - Host knowledge about the pending delivery.
  */
-export function applyCategoryToTicket(ticket: Ticket, category: StageCategory, now: string): Ticket {
+export function applyCategoryToTicket(ticket: Ticket, category: StageCategory, now: string, options: MoveOptions = {}): Ticket {
+  if (category === 'done' && (options.deliveryPending ?? hasPendingDelivery(ticket))) {
+    throw new WorkflowError('delivery_pending', undefined, ticket.id)
+  }
   const next: Ticket = {
     ...ticket,
     assignments: ticket.assignments.map(row => ({ ...row })),
@@ -191,12 +222,14 @@ export function applyCategoryToTicket(ticket: Ticket, category: StageCategory, n
 
 /**
  * Move a ticket onto a column. Adjusts the ticket stage to the column category.
- * WIP is a warning (D-053) — the move still happens.
+ * WIP is a warning (D-053) — the move still happens. A card with a result waiting for review cannot enter a `done`
+ * column (FLOW-1): `WorkflowError('delivery_pending')`, nothing is written or erased.
  * @param workflow - Project flow.
  * @param ticket - Ticket being moved.
  * @param columnId - Destination.
  * @param placements - Current seats (this ticket's old seat is ignored for WIP).
  * @param now - ISO now.
+ * @param options - Host knowledge about the pending delivery.
  */
 export function moveToColumn(
   workflow: ProjectWorkflow,
@@ -204,11 +237,15 @@ export function moveToColumn(
   columnId: string,
   placements: readonly TicketBoardSeat[],
   now: string,
+  options: MoveOptions = {},
 ): { ticket: Ticket; placement: TicketBoardSeat; wipWarning: boolean } {
   const column = workflow.columns.find(row => row.id === columnId)
   if (column === undefined) throw new WorkflowError('unknown_column', columnId)
+  if (column.category === 'done' && (options.deliveryPending ?? hasPendingDelivery(ticket))) {
+    throw new WorkflowError('delivery_pending', columnId, ticket.id)
+  }
   const previous = placements.find(row => row.ticketId === ticket.id)
-  const nextTicket = applyCategoryToTicket(ticket, column.category, now)
+  const nextTicket = applyCategoryToTicket(ticket, column.category, now, options)
   nextTicket.columnId = columnId
   const placement: TicketBoardSeat = {
     projectId: workflow.projectId,

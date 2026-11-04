@@ -1,16 +1,20 @@
 import { expect, it } from 'vitest'
 import {
   afterAssignmentSettled,
+  applyCategoryToTicket,
   applyWorkflowEdit,
   applyBoardWorkflowEdit,
   boardCounts,
+  hasPendingDelivery,
   moveToColumn,
   projectBoardCard,
   proposeWorkflow,
+  REVIEW_CONFLICT_QUESTION,
   stageCategory,
   syncPlacementFromStage,
   ticketStage,
   workflowFromTemplate,
+  WorkflowError,
   type Ticket,
 } from '../src/index.ts'
 
@@ -204,4 +208,114 @@ it('pull and Attention still classify tickets on a custom flow', () => {
   ])
   expect(counts.needs_you).toBe(1)
   expect(counts.doing).toBe(1)
+})
+
+// FLOW-1: dragging a card whose result waits for review onto Concluído used to erase delivery/attention and orphan the draft.
+function reviewReady(id: string, extra: Partial<Ticket> = {}): Ticket {
+  return ticket(id, {
+    assignments: [{
+      id: `asg-${id}`, state: 'ended', createdAt: NOW, endedAt: NOW,
+      report: { state: 'ready', summary: 'Cardápio novo pronto', at: NOW },
+    }],
+    ...extra,
+  })
+}
+
+function refusal(run: () => unknown): WorkflowError {
+  try {
+    run()
+  } catch (error: unknown) {
+    expect(error).toBeInstanceOf(WorkflowError)
+    return error as WorkflowError
+  }
+  throw new Error('expected a delivery_pending refusal')
+}
+
+it('FLOW-1: a card with a result waiting for review cannot enter Concluído, and nothing is erased', () => {
+  const flow = workflowFromTemplate('p', 'software')
+  const waiting = reviewReady('t1')
+  const before = structuredClone(waiting)
+  const failure = refusal(() => moveToColumn(flow, waiting, 'software-pronto', [], NOW))
+  expect(failure.code).toBe('delivery_pending')
+  expect(failure.columnId).toBe('software-pronto')
+  expect(failure.ticketId).toBe('t1')
+  expect(waiting).toEqual(before) // input untouched: still open, report ready, same assignments
+  expect(stageCategory(ticketStage(waiting))).toBe('review')
+})
+
+it('FLOW-1: the guard also covers a failed hand-over and an open question on a ready card', () => {
+  const flow = workflowFromTemplate('p', 'software')
+  const conflicted = reviewReady('t2', {
+    delivery: { error: 'conflict', at: NOW },
+    attention: { id: 'att-t2', question: 'Qual versão fica?' },
+  })
+  const before = structuredClone(conflicted)
+  expect(refusal(() => moveToColumn(flow, conflicted, 'software-pronto', [], NOW)).code).toBe('delivery_pending')
+  expect(refusal(() => applyCategoryToTicket(conflicted, 'done', NOW)).code).toBe('delivery_pending')
+  expect(conflicted).toEqual(before)
+  expect(conflicted.delivery?.error).toBe('conflict')
+  expect(conflicted.attention?.question).toBe('Qual versão fica?')
+})
+
+it('FLOW-1: without a result waiting, Concluído works as before', () => {
+  const flow = workflowFromTemplate('p', 'software')
+  const running = ticket('t3', {
+    assignments: [{ id: 'asg-t3', state: 'running', createdAt: NOW, startedAt: NOW, report: { state: 'progress', summary: '', at: NOW } }],
+    attention: { id: 'att-t3', question: 'Pode seguir?' },
+    delivery: { error: 'offline', at: NOW },
+  })
+  const done = moveToColumn(flow, running, 'software-pronto', [], NOW)
+  expect(done.ticket.ended).toEqual({ at: NOW, by: 'human', outcome: 'completed' })
+  expect(done.ticket.attention).toBeUndefined()
+  expect(done.ticket.delivery).toBeUndefined()
+  expect(done.placement.columnId).toBe('software-pronto')
+  const fresh = moveToColumn(flow, ticket('t4'), 'software-pronto', [], NOW)
+  expect(fresh.ticket.ended?.outcome).toBe('completed')
+  // an ended card dragged back onto Concluído is not a loss
+  const ended = ticket('t5', { ended: { at: NOW, by: 'executor', outcome: 'completed' } })
+  expect(moveToColumn(flow, ended, 'software-pronto', [], NOW).ticket.ended?.outcome).toBe('completed')
+})
+
+it('FLOW-1: moving a waiting card to any other column never touches its delivery or ends it', () => {
+  const flow = workflowFromTemplate('p', 'atendimento')
+  for (const column of flow.columns.filter(item => item.category !== 'done')) {
+    const waiting = reviewReady('t6', { delivery: { error: 'conflict', at: NOW } })
+    const moved = moveToColumn(flow, waiting, column.id, [], NOW)
+    expect(moved.ticket.ended, column.id).toBeUndefined()
+    expect(moved.ticket.delivery, column.id).toEqual({ error: 'conflict', at: NOW })
+    expect(waiting.delivery?.error).toBe('conflict')
+  }
+})
+
+it('FLOW-1b: a draft whose Aplicar hit a conflict is still pending; a worker that is merely blocked is not', () => {
+  const flow = workflowFromTemplate('p', 'software')
+  const blockedBy = (question: string): Ticket => ticket('t12', {
+    assignments: [{ id: 'asg-t12', state: 'running', createdAt: NOW, report: { state: 'blocked', summary: 'x', at: NOW } }],
+    attention: { id: 'att-t12', question },
+  })
+  const conflicted = blockedBy(`${REVIEW_CONFLICT_QUESTION} CONFLICT (content): Merge conflict in README`)
+  const before = structuredClone(conflicted)
+  expect(hasPendingDelivery(conflicted)).toBe(true)
+  expect(refusal(() => moveToColumn(flow, conflicted, 'software-pronto', [], NOW)).code).toBe('delivery_pending')
+  expect(conflicted).toEqual(before)
+  // a worker asking a question has no result waiting: the card can still be closed
+  expect(hasPendingDelivery(blockedBy('Qual pasta uso?'))).toBe(false)
+  expect(moveToColumn(flow, blockedBy('Qual pasta uso?'), 'software-pronto', [], NOW).ticket.ended?.outcome).toBe('completed')
+  // the conflict question on a newer assignment that is working again no longer counts
+  const retried = blockedBy(`${REVIEW_CONFLICT_QUESTION} x`)
+  retried.assignments = [...retried.assignments, { id: 'asg-t12-2', state: 'running', createdAt: NOW, startedAt: NOW }]
+  expect(hasPendingDelivery(retried)).toBe(false)
+})
+
+it('FLOW-1: the host may say no draft exists (task without a folder); hasPendingDelivery is the default', () => {
+  const flow = workflowFromTemplate('p', 'software')
+  const waiting = reviewReady('t7')
+  expect(hasPendingDelivery(waiting)).toBe(true)
+  expect(moveToColumn(flow, waiting, 'software-pronto', [], NOW, { deliveryPending: false }).ticket.ended?.outcome).toBe('completed')
+  expect(refusal(() => moveToColumn(flow, ticket('t8'), 'software-pronto', [], NOW, { deliveryPending: true })).code).toBe('delivery_pending')
+  expect(hasPendingDelivery(ticket('t9'))).toBe(false)
+  expect(hasPendingDelivery(reviewReady('t10', { ended: { at: NOW, by: 'human', outcome: 'completed' } }))).toBe(false)
+  const followUp = reviewReady('t11')
+  followUp.assignments = [...followUp.assignments, { id: 'asg-t11-2', state: 'running', createdAt: NOW, startedAt: NOW }]
+  expect(hasPendingDelivery(followUp)).toBe(false) // a newer assignment is working: nothing waits on the person
 })

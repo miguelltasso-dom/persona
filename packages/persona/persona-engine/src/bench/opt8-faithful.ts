@@ -108,7 +108,7 @@ export function ttlSensitivity(): TtlRow[] {
 }
 
 /** Why a lever is or is not counted. */
-export type LeverStatus = 'wired' | 'off-until-real-run' | 'needs-product-decision' | 'only-api-key' | 'rejected' | 'projection'
+export type LeverStatus = 'wired' | 'deferred' | 'off-until-real-run' | 'needs-product-decision' | 'only-api-key' | 'rejected' | 'projection'
 
 export interface LeverCandidate {
   readonly id: string
@@ -156,7 +156,7 @@ export function leverCandidates(): LeverCandidate[] {
     { id: 'skip-triage', label: '(d) sem a chamada de triagem (D-073, ligada)', status: 'wired', owner: 'Anvil (orchestration.ts runLaunched), ligada pelo Tally', risk: 'se um dia as ferramentas MCP forem ligadas aos adapters, religar a triagem (flag skipTriage)', ...dayCuts({ ...LEVERS_AS_WIRED, courtesyNoModel: false }) },
     { id: 'courtesy-free', label: '(e) cortesia ("valeu!", "ok") com reação da persona, sem modelo (D-075, ligada)', status: 'wired', owner: 'Anvil (orchestration.ts ingest), ligada pelo Tally', risk: 'a persona reage com um sticker em vez de escrever; nunca engole um "ok" que responde pergunta pendente; cortesia + pedido = trabalho (flag courtesyNoModel)', ...dayCuts(LEVERS_AS_WIRED) },
     { id: 'cache-1h', label: '(b) cache de 1 h (ENABLE_PROMPT_CACHING_1H)', status: 'only-api-key', owner: 'Rivet (ambiente do spawn da CLI)', risk: 'sem ganho nos prompts da Persona (escrita 2× > desconto de leitura); o ganho está na base do vendor, que os dois braços levam; só com chave de API (Bedrock/Vertex/Foundry): a assinatura (OAuth) fica fora', ...dayCuts(LEVERS_AS_WIRED, oneHour) },
-    { id: 'w3', label: '(a) W3: relato curto do executor (todas as alavancas)', status: 'off-until-real-run', owner: 'Rivet (runners) + Anvil (flag no host)', risk: 'relato curto demais perde o critério de pronto — a rodada pareada mede', ...dayCuts(LEVERS_OPTIMIZED) },
+    { id: 'w3', label: '(a) W3: relato curto do executor (todas as alavancas)', status: 'deferred', owner: 'Rivet (runners) + Anvil (flag no host)', risk: 'ADIADA POR DECISÃO (D-080): a rodada real foi inconclusiva (n = 1) e, com a base medida, a W3 muda o custo em ≈ 0,3 ponto; fica registrada para medir de novo se um dia valer', ...dayCuts(LEVERS_OPTIMIZED) },
   ]
 }
 
@@ -188,6 +188,96 @@ export function executionOnCheapBound(day: 'dia-padaria' | 'dia-espacado'): { re
   const execution = report.turns.filter(turn => turn.entry.kind === 'execution').reduce((sum, turn) => sum + turn.costMicroUsd, 0)
   const ratio = TIER_PRICE.cheap.input / TIER_PRICE.persona.input
   return { saving: execution * (1 - ratio) / report.costMicroUsd, executionShare: execution / report.costMicroUsd }
+}
+
+/**
+ * MEASURED on a real run (04/11, `pair-real-base.ts`, Claude haiku, one machine): what ONE bare CLI request carries before any
+ * Persona prompt (system prompt + tool schemas + the person's memory/skills/MCP) — 37 729 and 44 224 tokens on two calls, mean 40 977 —
+ * and the share of it the provider cache served (≈ 45%; the rest is re-written, at ×1.25, on every call). Estimate recalibrated
+ * with one measurement, not a bill: origin stays `estimate`.
+ */
+export const MEASURED_VENDOR_BASE = { tokens: 40_977, cacheShare: 0.45 } as const
+
+/**
+ * What the provider REPORTED about its cache on the real run (04/11, Claude subscription): cache read ÷ total input on the warm calls and
+ * on the probe after a 6 min gap (0.977–1.000; the lowest is the Persona execution, warm). Vendor-reported, so `measured`.
+ */
+export const MEASURED_PROVIDER_CACHE = { engine: 'claude', prefixHit: 0.97 } as const
+
+/** Said wherever the calibrated numbers are shown: what they are and what they are not (Atlas D-080). */
+export const CALIBRATION_CAVEAT = '1 máquina, Haiku, 1 rodada real; o contador é o total da sessão da CLI (a base é a de UMA requisição, não conta as requisições internas do agente); preço de lista; os dois braços (antes e depois) levam a MESMA base'
+
+export interface BaseAwareDay {
+  readonly calls: { readonly before: number; readonly now: number; readonly withW3: number }
+  /** Cost in micro-USD with every CLI call also paying the measured base. */
+  readonly cost: { readonly before: number; readonly now: number; readonly withW3: number }
+  readonly costCutNow: number
+  readonly costCutWithW3: number
+  /** The same cut without the base (what the bench reported until now). */
+  readonly promptOnlyCutNow: number
+}
+
+/**
+ * The two days again, but every call (each is a CLI session) also pays the measured vendor base at its tier's price and the measured
+ * cache mix. The base is ~100× the Persona prompt, so the cut is mostly the cut in CALLS: the lever that matters is how many CLI
+ * calls a task takes.
+ * @param base - Tokens per call and the cached share (default: the measured ones).
+ * @returns Burst and spread day, and the worse of the two.
+ */
+export function baseAwareCuts(base: { readonly tokens: number; readonly cacheShare: number } = MEASURED_VENDOR_BASE): {
+  readonly burst: BaseAwareDay
+  readonly spread: BaseAwareDay
+  readonly worstCostCutNow: number
+} {
+  // cache read costs 10% of an input token, a cache write 125%
+  const mix = base.cacheShare * CACHE_READ_FACTOR + (1 - base.cacheShare) * 1.25
+  const day = (scenario: 'dia-padaria' | 'dia-espacado'): BaseAwareDay => {
+    const priced = (levers: LeverSet): { calls: number; cost: number; own: number } => {
+      const report = runFaithfulScenario(scenario, levers)
+      const baseCost = report.turns.reduce((sum, turn) => sum + base.tokens * TIER_PRICE[turn.tier].input * mix, 0)
+      return { calls: report.calls, cost: Math.round(report.costMicroUsd + baseCost), own: report.costMicroUsd }
+    }
+    const before = priced(LEVERS_BEFORE_WIRING)
+    const now = priced(LEVERS_AS_WIRED)
+    const withW3 = priced(LEVERS_OPTIMIZED)
+    return {
+      calls: { before: before.calls, now: now.calls, withW3: withW3.calls },
+      cost: { before: before.cost, now: now.cost, withW3: withW3.cost },
+      costCutNow: cut(before.cost, now.cost),
+      costCutWithW3: cut(before.cost, withW3.cost),
+      promptOnlyCutNow: cut(before.own, now.own),
+    }
+  }
+  const burst = day('dia-padaria')
+  const spread = day('dia-espacado')
+  return { burst, spread, worstCostCutNow: Math.min(burst.costCutNow, spread.costCutNow) }
+}
+
+/**
+ * The cut rows again with the measured vendor base on EVERY call, at the tier's price and the measured cache mix, on all four sets
+ * (naive, before, as wired, all levers) with the SAME base. Same shape as {@link cutRows}; this is the view the D-068 gate reads (D-080).
+ * @param base - Tokens per call and the cached share (default: the measured ones).
+ */
+export function cutRowsWithBase(base: { readonly tokens: number; readonly cacheShare: number } = MEASURED_VENDOR_BASE): CutRow[] {
+  const mix = base.cacheShare * CACHE_READ_FACTOR + (1 - base.cacheShare) * 1.25
+  const priced = (scenario: FaithfulScenarioId, levers: LeverSet): { tokens: number; cost: number } => {
+    const report = runFaithfulScenario(scenario, levers)
+    const baseCost = report.turns.reduce((sum, turn) => sum + base.tokens * TIER_PRICE[turn.tier].input * mix, 0)
+    return { tokens: report.totalTokens + report.calls * base.tokens, cost: Math.round(report.costMicroUsd + baseCost) }
+  }
+  return CUT_SCENARIOS.map((scenario) => {
+    const naive = priced(scenario, LEVERS_LEGACY)
+    const today = priced(scenario, LEVERS_BEFORE_WIRING)
+    const now = priced(scenario, LEVERS_AS_WIRED)
+    const all = priced(scenario, LEVERS_OPTIMIZED)
+    return {
+      scenario,
+      naiveTokens: naive.tokens, todayTokens: today.tokens, nowTokens: now.tokens, allTokens: all.tokens,
+      naiveCost: naive.cost, todayCost: today.cost, nowCost: now.cost, allCost: all.cost,
+      tokenCutVsToday: cut(today.tokens, all.tokens), costCutVsToday: cut(today.cost, all.cost),
+      tokenCutVsNaive: cut(naive.tokens, all.tokens), costCutVsNaive: cut(naive.cost, all.cost),
+    }
+  })
 }
 
 export interface PairedFaithfulRow {
@@ -328,8 +418,8 @@ export function formatOpt8FaithfulMarkdown(): string {
   const result = measureOpt8Faithful()
   const rows = result.cuts.map(row =>
     `| ${row.scenario} | ${String(row.naiveTokens)} → ${String(row.todayTokens)} → ${String(row.nowTokens)} → ${String(row.allTokens)} | ${pct(-row.tokenCutVsToday)} / ${pct(-row.tokenCutVsNaive)} | ${String(row.naiveCost)} → ${String(row.todayCost)} → ${String(row.nowCost)} → ${String(row.allCost)} | ${pct(-row.costCutVsToday)} / ${pct(-row.costCutVsNaive)} |`)
-  const bases = [0, 12_000]
-  const big = pairedFaithful(12_000)
+  const bases = [0, MEASURED_VENDOR_BASE.tokens]
+  const big = pairedFaithful(MEASURED_VENDOR_BASE.tokens)
   const one = big.find(row => row.task === 'simple-ask')
   const many = big.filter(row => row.personaCalls > 1)
   const manyCost = many.map(row => pct(row.costDelta)).join(' / ')
@@ -357,7 +447,7 @@ export function formatOpt8FaithfulMarkdown(): string {
     '',
     '## O dia espaçado (cache de 5 min e sessão de 10 min expiram entre as mensagens)',
     '',
-    'Mesmo dia de 7 mensagens, host de agora: em rajada (1 min entre linhas) × espalhado (30 min). O TTL do cache do provedor é parâmetro (5 min é o padrão do cache efêmero; 60 min é o cache estendido) — **a medir** no vendor.',
+    'Mesmo dia de 7 mensagens, host de agora: em rajada (1 min entre linhas) × espalhado (30 min). O TTL do cache do provedor é parâmetro (5 min é o padrão do cache efêmero; 60 min é o cache estendido). **Medido (rodada real de 04/11, assinatura):** uma sonda 6 min depois ainda leu o cache, então o TTL real ali é > 5 min.',
     '',
     '| cenário | TTL do cache | tokens | custo µUSD | prefixo em cache |',
     '|---|---:|---:|---:|---:|',
@@ -366,9 +456,10 @@ export function formatOpt8FaithfulMarkdown(): string {
     'Leitura: num time que escreve ao longo do dia, o cache de 5 min não pega (o prefixo é regravado a cada mensagem) e a sessão aquecida de 10 min também expira — o prompt de coordenação (~500 tokens) volta em toda triagem. A meta de ≥ 60% de cache no prefixo só vale em uso contínuo ou com cache estendido. Nesse regime o que pesa é o **tamanho do prefixo** (persona, coordenação, ferramentas) e o **número de chamadas**.',
     '',
     ...formatLeverSection(),
+    ...formatBaseAwareSection(),
     '## Pareado CLI direta × Persona (mesma CLI/modelo)',
     '',
-    'A base do vendor (system prompt + esquema de ferramentas que **cada chamada de CLI** leva) não é mensurável offline: está como parâmetro (0 = só o que a Persona acrescenta; 12 000 = ordem de grandeza suposta, **a medir**). A CLI direta recebe a evidência colada na mensagem (o que a Persona já lembra). Regime de **dia corrente** (a tarefa não é a primeira do dia: prefixo e sessões quentes nos dois braços). Tokens = entrada (com cache) + saída; "novos" = entrada fora do cache + saída; custo = ponderado por cache, mesmo modelo nos dois braços.',
+    'A base do vendor (system prompt + esquema de ferramentas que **cada chamada de CLI** leva) foi **medida** na rodada real de 04/11 (uma requisição: ' + String(MEASURED_VENDOR_BASE.tokens) + ' tokens) e segue como parâmetro (0 = só o que a Persona acrescenta). A CLI direta recebe a evidência colada na mensagem (o que a Persona já lembra). Regime de **dia corrente** (a tarefa não é a primeira do dia: prefixo e sessões quentes nos dois braços). Tokens = entrada (com cache) + saída; "novos" = entrada fora do cache + saída; custo = ponderado por cache, mesmo modelo nos dois braços.',
     '',
     '| tarefa | base | chamadas CLI / Persona | tokens CLI / Persona | tokens novos CLI / Persona | custo µUSD CLI / Persona |',
     '|---|---:|---|---|---|---|',
@@ -376,11 +467,11 @@ export function formatOpt8FaithfulMarkdown(): string {
     '',
     'Leitura (o que este quadro prova e o que não prova):',
     '',
-    `- Tarefa de **uma** chamada (simple-ask, base 12 000): tokens ${pct(one?.tokenDelta ?? 0)}, tokens novos ${pct(one?.freshDelta ?? 0)}, custo ${pct(one?.costDelta ?? 0)} — ${Math.abs(one?.costDelta ?? 1) <= 0.1 && Math.abs(one?.tokenDelta ?? 1) <= 0.1 ? 'dentro' : 'FORA'} da paridade ±10%.`,
-    `- Tarefa de **várias** chamadas (${many.map(row => row.task).join(', ')}): cada chamada da Persona relê a base do vendor (10% do preço, mas conta no total de tokens). Com base 12 000 o custo fica ${manyCost} sobre a CLI direta **tratada como uma chamada**. Isso é um piso para a CLI direta: um agente de CLI faz vários passos internos por tarefa e cada passo também relê a base, então a lacuna real é menor; **só uma rodada pareada com CLI real decide** (PERSONA_PAIR_REAL=1, liberação do Atlas).`,
+    `- Tarefa de **uma** chamada (simple-ask, base ${String(MEASURED_VENDOR_BASE.tokens)}): tokens ${pct(one?.tokenDelta ?? 0)}, tokens novos ${pct(one?.freshDelta ?? 0)}, custo ${pct(one?.costDelta ?? 0)} — ${Math.abs(one?.costDelta ?? 1) <= 0.1 && Math.abs(one?.tokenDelta ?? 1) <= 0.1 ? 'dentro' : 'FORA'} da paridade ±10%.`,
+    `- Tarefa de **várias** chamadas (${many.map(row => row.task).join(', ')}): cada chamada da Persona relê a base do vendor (10% do preço, mas conta no total de tokens). Com a base medida o custo fica ${manyCost} sobre a CLI direta **tratada como uma chamada**. Isso é um piso para a CLI direta: um agente de CLI faz vários passos internos por tarefa e cada passo também relê a base, então a lacuna real é menor; **só uma rodada pareada com CLI real decide** (PERSONA_PAIR_REAL=1, liberação do Atlas).`,
     '- O que a Persona controla é o **número de chamadas por tarefa** e o que cada uma carrega: pré-roteador (courtesy sem modelo), primeira entrega em um turno, triagem barata (e o host já trata mensagens seguidas no mesmo canal como follow-ups da Tarefa viva, sem nova triagem). O "+5,7–6,3%" do relato anterior vinha de uma fórmula (`armTokens`), não de prompts reais; este quadro o substitui.',
     '',
-    '`cut-40` real (livro vivo `measured`) continua dependendo de uma rodada com CLI real, que só o Atlas libera (`PERSONA_PAIR_REAL=1`).',
+    'A rodada real aconteceu em 04/11 (`pair-real.md`): a base e o cache foram medidos e entram acima. O `cut-40` oficial do D-068 segue lendo só os prompts até o Atlas decidir se a base entra no pipeline.',
     '',
     '```',
     'node --import tsx/esm packages/persona/persona-engine/scripts/write-opt8-faithful.ts',
@@ -389,12 +480,31 @@ export function formatOpt8FaithfulMarkdown(): string {
   ].join('\n')
 }
 
+function formatBaseAwareSection(): string[] {
+  const measured = baseAwareCuts()
+  return [
+    '## Com a base do vendor MEDIDA (rodada real de 04/11): o corte de custo é, sobretudo, o corte de chamadas',
+    '',
+    'A rodada pareada real mediu o que **uma** requisição da CLI carrega antes de qualquer prompt da Persona: **' + String(MEASURED_VENDOR_BASE.tokens) + ' tokens** (37 729 e 44 224 em duas chamadas), só ≈ ' + String(Math.round(MEASURED_VENDOR_BASE.cacheShare * 100)) + '% vindo do cache (o resto é regravado a ×1,25 em toda chamada). Isso é ~100× o prompt da Persona, então cada **chamada** custa quase o mesmo, qualquer que seja o prompt. Estimativa recalibrada com UMA medida (uma máquina, uma requisição): origem continua `estimate`.',
+    '',
+    '| dia | chamadas antes → agora (→ com W3) | custo µUSD com a base: antes → agora | corte agora | corte só com os prompts (o que o bench dizia) |',
+    '|---|---|---|---:|---:|',
+    ...(['burst', 'spread'] as const).map((key) => {
+      const row = measured[key]
+      return '| ' + (key === 'burst' ? 'rajada' : 'espaçado') + ' | ' + String(row.calls.before) + ' → ' + String(row.calls.now) + ' (→ ' + String(row.calls.withW3) + ') | ' + String(row.cost.before) + ' → ' + String(row.cost.now) + ' | ' + pct(-row.costCutNow) + ' | ' + pct(-row.promptOnlyCutNow) + ' |'
+    }),
+    '',
+    '**Pior dia: ' + pct(-measured.worstCostCutNow) + ' de custo com o host como está (sem a W3).** A meta de −40% passa nessa leitura, e a W3 quase não acrescenta (' + pct(-measured.burst.costCutWithW3) + ' / ' + pct(-measured.spread.costCutWithW3) + '): economiza tokens de **saída**, e a saída é pequena perto da base. Limites: a base é de requisição única e não conta as requisições internas que o agente faz quando explora (a chamada direta somou ≈ 7); o preço é de lista do Haiku; as duas portas do bench (cut-40 oficial do D-068) continuam lendo só os prompts até o Atlas decidir se a base entra no pipeline.',
+    '',
+  ]
+}
+
 function formatLeverSection(): string[] {
   const rows = leverCandidates().map(row =>
     '| ' + row.label + ' | ' + row.status + ' | ' + row.owner + ' | ' + pct(-row.burstCostCut) + ' / ' + pct(-row.spreadCostCut) + ' | ' + pct(-row.burstTokenCut) + ' / ' + pct(-row.spreadTokenCut) + ' | ' + String(row.calls) + ' | ' + row.risk + ' |')
   const burst = executionOnCheapBound('dia-padaria')
   const spread = executionOnCheapBound('dia-espacado')
-  const warm = keepWarmEconomics({ prefixTokens: 12_000, gapMin: 30, ttlMin: 5 })
+  const warm = keepWarmEconomics({ prefixTokens: MEASURED_VENDOR_BASE.tokens, gapMin: 30, ttlMin: 5 })
   const bare = keepWarmEconomics({ prefixTokens: 1000, gapMin: 30, ttlMin: 5 })
   // The spread day has 7 messages: what the Persona prompts cost per message.
   const perMessage = runFaithfulScenario('dia-espacado', LEVERS_AS_WIRED).costMicroUsd / 7
@@ -407,8 +517,8 @@ function formatLeverSection(): string[] {
     '|---|---|---|---|---|---:|---|',
     ...rows,
     '',
-    '- **(b) cache que sobrevive ao dia espaçado.** A Claude Code só expõe TTL de 1 h por `ENABLE_PROMPT_CACHING_1H` com chave de API (Bedrock/Vertex/Foundry); sessões de assinatura (OAuth) ficam de fora, e há relato de que a variável não vale no Windows. Com a escrita a 2× o desconto de leitura não paga nos prompts da Persona (linha acima). O que o 1 h compra é a **base do vendor**: com 12 000 tokens de base, reescrevê-la após cada intervalo custa ' + String(warm.rewriteMicroUsd) + ' µUSD por mensagem (≈ ' + String(Math.round(warm.rewriteMicroUsd / perMessage)) + '× o custo dos prompts da Persona numa mensagem), contra leitura a 10%. Isso pesa nos dois braços e **a rodada pareada mede a base**; não entra na conta do −40% (que exclui a base).',
-    '- **Manter aquecido (keep-alive) está recusado.** Um ping a cada 5 min custa menos que reescrever (base 12 000, intervalo de 30 min: ' + String(warm.keepWarmMicroUsd) + ' contra ' + String(warm.rewriteMicroUsd) + ' µUSD; com prefixo de 1 000 tokens: ' + String(bare.keepWarmMicroUsd) + ' contra ' + String(bare.rewriteMicroUsd) + '), mas cada ping é uma chamada de modelo: gasta a cota da assinatura e quebra "zero chamadas com a equipe ociosa". Só se aceitaria dentro de uma tarefa em andamento, e aí a sessão aquecida (10 min) já cobre.',
+    '- **(b) cache que sobrevive ao dia espaçado.** A Claude Code só expõe TTL de 1 h por `ENABLE_PROMPT_CACHING_1H` com chave de API (Bedrock/Vertex/Foundry); sessões de assinatura (OAuth) ficam de fora, e há relato de que a variável não vale no Windows. Com a escrita a 2× o desconto de leitura não paga nos prompts da Persona (linha acima). O que o 1 h compra é a **base do vendor**: com ' + String(MEASURED_VENDOR_BASE.tokens) + ' tokens de base, reescrevê-la após cada intervalo custa ' + String(warm.rewriteMicroUsd) + ' µUSD por mensagem (≈ ' + String(Math.round(warm.rewriteMicroUsd / perMessage)) + '× o custo dos prompts da Persona numa mensagem), contra leitura a 10%. Isso pesa nos dois braços; a base foi medida (seção acima) e, com ela, o corte de custo é o corte de chamadas.',
+    '- **Manter aquecido (keep-alive) está recusado.** Um ping a cada 5 min custa menos que reescrever (base ' + String(MEASURED_VENDOR_BASE.tokens) + ', intervalo de 30 min: ' + String(warm.keepWarmMicroUsd) + ' contra ' + String(warm.rewriteMicroUsd) + ' µUSD; com prefixo de 1 000 tokens: ' + String(bare.keepWarmMicroUsd) + ' contra ' + String(bare.rewriteMicroUsd) + '), mas cada ping é uma chamada de modelo: gasta a cota da assinatura e quebra "zero chamadas com a equipe ociosa". Só se aceitaria dentro de uma tarefa em andamento, e aí a sessão aquecida (10 min) já cobre.',
     '- **(c) modelo menor por tarefa.** Teto, não alavanca: se **todos** os turnos do executor fossem para o nível barato, o custo cairia ' + pct(-burst.saving) + ' (rajada) / ' + pct(-spread.saving) + ' (espaçado) a partir do host de agora; o executor é ' + String(Math.round(burst.executionShare * 100)) + '% / ' + String(Math.round(spread.executionShare * 100)) + '% do custo. A pergunta curta, o resumo curto e a triagem já vão para o nível barato (W1 e talk). O resto depende de quantas tarefas do executor são simples; a qualidade só se prova num modelo real (o roteiro do bench repete o que o prompt traz, então marcaria 1,00 de qualquer jeito).',
     '- **(d) menos releituras da base.** A alavanca real foi a triagem sem retorno lido (`skipTriage`, ligada em D-073): 9 → 6 chamadas por dia, e cada chamada relê a base do vendor. Não existe turno de avaliação no host (o relatório antigo o modelava; foi retirado), e a revisão é uma segunda mensagem ao Bento, não um estágio que dê para fundir.',
     '- **(e) cortesia sem chamada de modelo (D-075, ligada).** O pré-roteador classifica "valeu!" e "ok" como cortesia (`react`, sem modelo), mas o host ainda rodava `finishReply` e pagava **uma chamada de conversa no nível barato** por cortesia (sonda no host em 04/11: oi, obrigado, valeu! e ok = 1 entrega cada); o bench antigo contava essa linha como grátis. Agora a persona **reage** com um sticker (coração para agradecimento, joinha para o resto) sem modelo e sem Ticket, salvo quando há algo pendente dela para a pessoa no fio (Attention do Ticket ou a última linha dela termina em "?") ou quando a cortesia vem junto de um pedido. Flag `courtesyNoModel` (Anvil, `orchestration.ts`).',
@@ -416,9 +526,15 @@ function formatLeverSection(): string[] {
   ]
 }
 
-/** True only when every lever the host runs equals the full set (W1–W5 all on). Numbers alone cannot say this. */
+/** Levers the host does NOT run on purpose. They do not block the gate; each carries the decision that put it here. */
+export const DEFERRED_LEVERS: readonly { readonly lever: keyof LeverSet; readonly reason: string }[] = [
+  { lever: 'leanReports', reason: 'W3 (relato curto do worker), adiada por decisão (D-080): rodada real inconclusiva com n = 1 e ≈ 0,3 ponto de impacto com a base medida' },
+]
+
+/** True when every lever the host runs equals the full set, except the ones deferred BY DECISION (D-080). Numbers alone cannot say this. */
 export function allLeversWired(): boolean {
-  return (Object.keys(LEVERS_OPTIMIZED) as (keyof LeverSet)[]).every(key => LEVERS_AS_WIRED[key] === LEVERS_OPTIMIZED[key])
+  const deferred = new Set<keyof LeverSet>(DEFERRED_LEVERS.map(row => row.lever))
+  return (Object.keys(LEVERS_OPTIMIZED) as (keyof LeverSet)[]).every(key => deferred.has(key) || LEVERS_AS_WIRED[key] === LEVERS_OPTIMIZED[key])
 }
 
 function qualityHeld(levers: LeverSet): boolean {
@@ -429,6 +545,9 @@ function qualityHeld(levers: LeverSet): boolean {
 export interface Opt8MeasuredInputs {
   readonly rows: readonly CutRow[]
   readonly allLeversWired: boolean
+  readonly calibration: { readonly caveat: string; readonly baseTokens: number }
+  readonly providerCacheMeasured: { readonly engine: string; readonly prefixHit: number }
+  readonly parityInconclusive: true
   readonly quality: {
     readonly beforeWiring: boolean
     readonly asWired: boolean
@@ -445,8 +564,12 @@ export interface Opt8MeasuredInputs {
 export function opt8MeasuredInputs(): Opt8MeasuredInputs {
   const measured = measureOpt8Faithful()
   return {
-    rows: measured.cuts,
+    // D-080: the gate reads the view WITH the measured base (the prompt-only view stays in the report, side by side)
+    rows: cutRowsWithBase(),
     allLeversWired: allLeversWired(),
+    calibration: { caveat: CALIBRATION_CAVEAT, baseTokens: MEASURED_VENDOR_BASE.tokens },
+    providerCacheMeasured: MEASURED_PROVIDER_CACHE,
+    parityInconclusive: true,
     quality: {
       beforeWiring: qualityHeld(LEVERS_BEFORE_WIRING),
       asWired: qualityHeld(LEVERS_AS_WIRED),

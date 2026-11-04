@@ -53,6 +53,8 @@ export interface TurnLedgerEntry {
   readonly ticketId?: string
   readonly accountId?: string
   readonly origin?: LedgerOrigin
+  /** Wall-clock length of the call in whole milliseconds (OPT-9: the per-person median calibrates `estimateAsk`). Omitted when unknown. */
+  readonly durationMs?: number
 }
 
 /** Empty layer row. */
@@ -122,6 +124,9 @@ export function assertTurnEntry(entry: TurnLedgerEntry): void {
   const layers = sumLayers(entry.layers)
   if (layers < 0 || layers > entry.inputTokens) {
     throw new DomainError('INVALID_TOKEN_LEDGER', 'LAYERS')
+  }
+  if (entry.durationMs !== undefined && (!Number.isInteger(entry.durationMs) || entry.durationMs < 0)) {
+    throw new DomainError('INVALID_TOKEN_LEDGER', 'DURATION')
   }
 }
 

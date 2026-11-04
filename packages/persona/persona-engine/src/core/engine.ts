@@ -203,6 +203,12 @@ export class Engine {
    */
   retryTicket(ticketId: string): Ticket { return this.repo.atomic(() => this.tickets.retry(ticketId)) }
   /**
+   * A person's answer or message reaches a ticket whose worker is idle: its running Assignment is replaced by a new one that
+   * receives the waiting Inputs (and `note` first), so the worker picks the conversation up again.
+   * @throws UserError when the ticket is unknown, has ended, or has no running Assignment.
+   */
+  resumeTicket(ticketId: string, note: string): Ticket { return this.repo.atomic(() => this.tickets.resume(ticketId, note)) }
+  /**
    * Person answers the open Attention question. The text becomes a ticket input
    * and the question is cleared so the worker can continue (C2).
    * @param ticketId - Ticket waiting on a person.
@@ -317,7 +323,7 @@ export type EngineForSources = Pick<Engine, 'receive' | 'engineUnavailable' | 'e
 /** What the main Session asks of the Engine. */
 export type EngineForMainSession = Pick<Engine, 'candidate' | 'candidateDelivered' | 'decide' | 'attach' | 'reply' | 'requestStatus' | 'note'>
 /** What people ask of the Engine, through the panel or the main Session. */
-export type EngineForPeople = Pick<Engine, 'stopTicket' | 'retryTicket' | 'answerAttention' | 'reevaluate' | 'unsubscribe' | 'dismiss'>
+export type EngineForPeople = Pick<Engine, 'stopTicket' | 'retryTicket' | 'resumeTicket' | 'answerAttention' | 'reevaluate' | 'unsubscribe' | 'dismiss'>
 /** What Settings tells the Engine. */
 export type EngineForSettings = Pick<Engine, 'policyChanged'>
 /** What the Executor tells the Engine, and what its workers ask of it. */

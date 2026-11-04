@@ -181,6 +181,18 @@ export class Tickets extends EnginePart {
     return ticket
   }
   /**
+   * A person's answer or message reaches a ticket whose worker is idle (its turn ended and it waits): the running Assignment
+   * is replaced by a new one that receives the waiting Inputs, with `note` first.
+   * @throws UserError when the ticket is unknown, has ended, or has no running Assignment.
+   */
+  resume(ticketId: string, note: string): Ticket {
+    const ticket = this.require(ticketId)
+    const running = runningAssignment(ticket)
+    if (!liveTicket(ticket) || !running) throw new UserError('notResumable')
+    this.restart(ticket, running, 'resumed', note)
+    return this.require(ticketId)
+  }
+  /**
    * Drops a ticket's Subscription to a Thread its worker found unrelated, and hands back, with `reason`, the person's messages there that the ticket decides.
    * @throws UserError when the ticket is unknown, or `thread` is an origin thread, a bound `follows` thread, or not subscribed.
    */

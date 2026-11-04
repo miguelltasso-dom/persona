@@ -4,16 +4,19 @@
  * DRY (default, no CLI, no quota):
  *   node --import tsx/esm packages/persona/persona-engine/scripts/pair-real.ts
  * REAL (Atlas 13:32: one pair, Claude haiku both sides, 5 min per call, cap 20 calls; only after the
- * W wirings are in and Probe's V1-P0-5 real run is done; serialized by the `real` lock):
- *   PERSONA_PAIR_REAL=1 PERSONA_REAL_E2E=1 node scripts/persona/with-lock.mjs "Tally real" --lock real \
+ * W wirings are in and Probe's V1-P0-5 real run is done; serialized by the `real` lock; Rivet's turn limiter ON as a
+ * second guard, so the CLI is never started past the cap):
+ *   PERSONA_PAIR_REAL=1 PERSONA_REAL_E2E=1 PERSONA_REAL_TURN_CAP=20 PERSONA_REAL_TURN_LEDGER=<abs path> \
+ *     node scripts/persona/with-lock.mjs "Tally real" --lock real \
  *     --wait-max 3600000 -- node --import tsx/esm packages/persona/persona-engine/scripts/pair-real.ts
  *
  * Real mode refuses to start unless both env flags are set AND it runs inside the `real` lock.
  * Every call: start → fold → cancel; whole-run timeout; runner and warm pool disposed; process tree killed on error.
  */
 
-import { writeFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   COORD_REAL_TURN_MS,
@@ -25,6 +28,7 @@ import {
 import {
   PAIR_REAL_CALL_CAP,
   PAIR_REAL_SIDE_MS,
+  assertRealRunGuards,
   buildPairRealPlan,
   formatPairRealMarkdown,
   runPairReal,
@@ -64,8 +68,7 @@ interface RealParts {
 }
 
 async function realRunner(): Promise<RealParts> {
-  if (process.env.PERSONA_REAL_E2E !== '1') throw new Error('real mode needs PERSONA_REAL_E2E=1')
-  if (process.env.PERSONA_LOCK !== 'real') throw new Error('real mode must run inside: with-lock.mjs "<nome> real" --lock real -- <cmd>')
+  assertRealRunGuards(process.env)
   const runners = await import('@deepseek-ai/dsh-persona-runners')
   const inner = await runners.resolveRunner({
     spec: { kind: 'cli', cli: 'claude', model: 'haiku' },
@@ -73,6 +76,8 @@ async function realRunner(): Promise<RealParts> {
     autonomy: 'act',
   })
   let seq = 0
+  // An EMPTY directory: the CLI reads the CLAUDE.md of its cwd, and this repo's would be counted as the vendor base.
+  const cwd = mkdtempSync(join(tmpdir(), 'persona-pair-real-'))
   const handles = new Map<string, Awaited<ReturnType<typeof inner.start>>>()
   const adapted: PairRealRunner = {
     async start(input) {
@@ -80,8 +85,10 @@ async function realRunner(): Promise<RealParts> {
       const handle = await inner.start({
         ticketId: `pair-${String(seq)}`,
         assignmentId: `pair-${input.step}-${String(seq)}`,
-        personaId: 'tally-pair',
-        cwd: process.cwd(),
+        // One persona id per call: the runner pool keys warm sessions by persona|cwd|model, and a reused session would carry the
+        // previous turns into the next call's input. The provider cache is by prefix, so it still crosses fresh sessions.
+        personaId: `tally-pair-${String(seq)}`,
+        cwd,
         prompt: input.prompt,
         model: 'haiku',
         permissionMode: 'deny',
@@ -92,7 +99,22 @@ async function realRunner(): Promise<RealParts> {
     stream(handle: CoordRealHandle) {
       const live = handles.get(handle.runId)
       if (live === undefined) throw new Error('unknown handle')
-      return inner.stream(live)
+      return (async function* (): AsyncGenerator<PairRealEvent> {
+        let sawUsage = false
+        for await (const event of inner.stream(live)) {
+          if (event.type === 'usage') sawUsage = true
+          yield event as PairRealEvent
+        }
+        // Some adapters report the counters through `usage()` after the stream, not as an event: ask once.
+        if (!sawUsage) {
+          try {
+            const spent = await inner.usage(live)
+            yield { type: 'usage', usage: spent }
+          } catch (error) {
+            void error // no counters: the row stays n/d, never 0
+          }
+        }
+      })()
     },
     async cancel(handle: CoordRealHandle) {
       const live = handles.get(handle.runId)
@@ -107,6 +129,11 @@ async function realRunner(): Promise<RealParts> {
     shutdown: async () => {
       try {
         await adapted.dispose?.()
+      } catch (error) {
+        void error
+      }
+      try {
+        rmSync(cwd, { recursive: true, force: true })
       } catch (error) {
         void error
       }

@@ -4,6 +4,143 @@ Mais recente no topo.
 
 ---
 
+## 04/11 09:39 — Keel P0: primeira tarefa answer-only, prova OAR offline
+
+**13 testes passaram em quatro arquivos, zero chamadas reais.** Conforme Keel, novas execuções reais permanecem pausadas. Probe confirmou uma tentativa gasta às 09:12; a única nova rodada será pelo script canônico do host, após os três consertos offline e saldo autorizado pelo Atlas.
+
+### Diagnóstico solicitado
+
+Inspeção readonly de `C:/Users/migue/AppData/Local/Temp/persona-first-delivery-ouZ2HW/db/persona.db`: procurei `tool:` e `Pedido de permissão` em **todas as colunas TEXT de todas as tabelas não-FTS**; resultado `{"matchingCells":0}`. A pasta só contém DB/WAL/SHM. O banco preservou apenas o último Report com a pergunta genérica, sem a ação original. **Não há evidência para nomear exatamente a ferramenta histórica.** `Read` no teste abaixo é uma leitura de Cofre sintética, não uma identificação retrospectiva. Keel informado; Rivet/Anvil preservam o nome para futuras recusas.
+
+Outro problema comprovável: `first-delivery.ts` cortava o brief na primeira linha e em 80 caracteres; `firstDeliveryTask` não era consumido pelo host, e `bindExecution` mandava apenas `ticket.title`. O prompt de worker também mencionava relatos por ferramentas e inspeção de diretório/histórico. A tarefa textual podia depender de busca de dados ausentes; o tipo de ferramenta pedido na tentativa antiga permanece desconhecido.
+
+### Arquivos e comportamento
+
+- `persona-engine/src/first-delivery.ts`: `executionMode: 'answer-only'`, `permissionMode: 'deny'`; brief completo multiline no assignment/ask, somente título truncado. Requer resumo e proposta **em texto**, sem ferramentas, arquivos, comandos, rede, inspeção de diretório/histórico, contratação ou execução da proposta. Dados ausentes são declarados, não buscados ou inventados.
+- `persona-engine/src/prompts/templates.ts`: o worker devolve resultado/evidência em texto quando o mandato é textual; inspeção só para operações externas autorizadas.
+- `persona-engine/tests/{wants-work,prompts}.spec.ts`: cobertura de brief multiline, permissão, dados ausentes e snapshots exatos dos prompts.
+- `persona-engine/README.md`: documenta answer-only e obrigação do host de entregar o assignment inteiro.
+- **Exceção de ownership autorizada pelo Keel:** SOMENTE `persona-runners/tests/first-delivery-answer-only.spec.ts`. Sem mudança em `src` ou `package.json` do Rivet. O teste usa OAR `scriptedRuntime` + adaptador Claude real, emitindo `app_request/can_use_tool` quando o contexto inline está ausente. Antes: `blocked`, sem delta. Depois: `ready` e texto completo; mesmo `deny` e `toolLevel=none`. Cancelamento/dispose em `finally`; nenhum binário/provedor/login real.
+
+### Comando e saída
+
+```text
+pnpm exec vitest run packages/persona/persona-runners/tests/first-delivery-answer-only.spec.ts packages/persona/persona-engine/tests/wants-work.spec.ts packages/persona/persona-engine/tests/prompts.spec.ts packages/persona/persona-engine/tests/first-delivery.spec.ts --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1 --update
+Snapshots  1 written
+Test Files  4 passed (4)
+Tests  13 passed (13)
+```
+
+A primeira execução do teste OAR falhou porque Rivet acrescentou flags de bloqueio enquanto eu escrevia a asserção exata da lista antiga; ajustei a asserção para preservar as novas restrições e exigir `dontAsk`/`deny`/`none`. Não removi flags nem ampliei grants.
+
+### Fila e dependências
+
+- Anvil: ligar `firstDeliveryTask.assignment` completo (ou trigger inteiro) ao Ticket, preservar deny, aguardar `connections.ready()` e garantir mensagem no #geral também para Report `blocked/failed`. Não iniciar chamada real para validar isso.
+- Rivet: flags answer-only e nome da ferramenta na recusa; novo teste acima pertence à minha entrega autorizada.
+- Probe: script de E2E chama somente o script canônico do host e verifica `verifyFirstDeliveryRun`; uma rodada real após liberação do Atlas. Capturas/tempo completo da primeira entrega real continuam pendentes.
+- Sem commit/reset/clean. Check-pkg final e demais verificações abaixo.
+
+### Verificação final da entrega offline
+
+```text
+node scripts/persona/check-pkg.mjs persona-engine persona-runners
+persona-engine: OK in 29.3s
+persona-runners: FAILED (1 errors) in 27.4s
+  .../first-delivery-answer-only.spec.ts(24,18): error TS2352
+```
+
+Corrigi a fixture para um `Event` OAR completo, com envelope e `requestId/type`, sem cast nem propriedade inventada `toolName`. O nome da ação nativa pertence ao corpo do RequestRecord, não ao Event; Rivet avisado no Status. Verificação após corrigir:
+
+```text
+pnpm exec vitest run packages/persona/persona-runners/tests/first-delivery-answer-only.spec.ts --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1
+Test Files  1 passed (1)
+Tests  2 passed (2)
+
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 26.1s
+
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 179.9s
+
+node scripts/persona/reap-orphans.mjs
+reap-orphans: no vitest trees older than 15 min (free 16,92 GB)
+
+git diff --check -- packages/persona/persona-engine packages/persona/persona-runners/tests/first-delivery-answer-only.spec.ts persona-spec/reports/forge.md
+exit 0 (aviso de normalização CRLF do index.ts)
+```
+
+O gate do ciclo 5 do Keel capturou o TS2352 anterior à correção; enviei a comprovação nova no Status. A pendência de `runner` não definido no host é de Anvil, sem edição minha. Anvil identificou também o ledger vazio: `withUsageMeter` gravava uso após `yield ended`, e a fachada OAR encerrava o iterator no `ended`; Rivet corrige a ordem, host vincula `ticketId`/cache e evita medição duplicada. Isso é informação da investigação do Anvil, não uma execução real feita por Forge.
+
+Lint final (`pnpm exec oxlint` nos seis arquivos de implementação/teste novos ou alterados de first-delivery, prompts e teste OAR): exit 0, sem diagnósticos. Nenhum processo de app ou CLI foi iniciado por Forge; todos os processos de verificação terminaram. Fila de implementação executável do Forge encerrada; P0 continua dependente de host/runner e rodada única do Probe, com chamadas reais pausadas pelo Keel. Atlas será consultado para a próxima tarefa offline, sem declarar aceite real.
+
+---
+
+## 04/11 09:20 — P0 retomado: comprovação por ledger e entrega
+
+Contexto recuperado (BRIEFING 1–21, PLAN V1-P0/PRO/fechamento, report e post-its). Nenhuma chamada real iniciada por Forge nesta sessão; limite autorizado pelo Atlas = **3 execuções compartilhadas**. Probe coordena a rodada no app; Anvil corrige finalização automática e vínculo do ledger antes dessa rodada. A fila P0 permanece aberta até haver execução real e captura.
+
+### Causa das 0 execuções dos dogfoods — três linhas
+
+1. O desktop não ativava `PERSONA_REAL_CLI`, e o host escolhia o runner falso.
+2. “Monte a equipe” não passava `wantsWork`, portanto não criava Ticket/Assignment.
+3. O dogfood colocava uma CLI falsa no PATH; esse cenário não comprovava execução real.
+
+### Mudança
+
+`persona-engine/src/first-delivery-run.ts`, `src/index.ts`, `tests/first-delivery-run.spec.ts` e README: `verifyFirstDeliveryRun(evidence)` exige uso `measured` da CLI escolhida por `preferConnectedCli`, com `ticketId`, entrega da mesma tarefa no #geral, quadro `done`, marco único `ready` e tempo abaixo do limite. Conta todas as chamadas medidas da rodada, incluindo Coordenação e retries, e retorna tokens e falhas ordenadas. O checklist scriptado 4/4 continua separado da prova real. Princípio RCD aplicado: medir ativação e tempo até o primeiro valor, sem confundir conclusão do onboarding com entrega.
+
+### Verificação executada
+
+```text
+pnpm exec tsx packages/persona/persona-engine/scripts/assert-opt2.ts
+OPT-2 ok
+
+pnpm exec vitest run packages/persona/persona-engine/tests/first-delivery-run.spec.ts packages/persona/persona-engine/tests/first-delivery.spec.ts packages/persona/persona-engine/tests/engine-policy.spec.ts --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1
+Test Files  3 passed (3)
+Tests  22 passed (22)
+
+node scripts/persona/check-pkg.mjs persona-engine
+persona-engine: OK in 12.3s
+```
+
+### Dependências e limites
+
+- Anvil avisado no Status: `resolveFor`/`noteUsage` não vinculavam `ticketId`, podiam atribuir `dsh` à CLI escolhida e duplicar custo. Alteração do host pertence a ele.
+- Probe avisado: o teste real existente aceita `failed|working|ready` e chama script de host; o script fixa `execs=1`. Esses resultados não provam o aceite no app. Consumir o verificador com dados da rodada e capturas.
+- Fonte atual confirma padrão real em `apps/desktop/src/{product,main}.ts`, `apps/desktop/scripts/dev.ts` e construtor do host via `ensureProductionRealCli`; exceções explícitas são `VITEST`/`PERSONA_SCRIPTED`. Rivet consultado para confirmar o artefato instalado. Isso ainda não comprova o binário instalado.
+- Typert: `generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 32.0s`. Oxlint dos dois arquivos novos passou após corrigir parênteses no teste. Sem commit, reset ou clean.
+
+### Encadeamento F1 / PRO e P0 medido
+
+```text
+pnpm exec vitest run packages/persona/persona-core/tests/import.spec.ts packages/persona/persona-core/tests/official-import.spec.ts packages/persona/persona-engine/tests/v1-close.spec.ts packages/persona/persona-engine/tests/proactivity-measure.spec.ts --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1
+Test Files  3 passed (3)
+Tests  22 passed | 1 skipped (23)
+```
+
+O nome `proactivity-measure.spec.ts` não existe; a execução acima cobriu três arquivos. Corrigido executando os dois arquivos reais de proatividade:
+
+```text
+pnpm exec vitest run packages/persona/persona-engine/tests/proactivity-v1.spec.ts packages/persona/persona-engine/tests/proactivity-accept.spec.ts --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1
+Test Files  2 passed (2)
+Tests  15 passed (15)
+
+pnpm exec vitest run packages/persona/persona-engine/tests/first-delivery-run.spec.ts --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1
+Test Files  1 passed (1)
+Tests  19 passed (19)
+
+node scripts/persona/check-pkg.mjs persona-engine
+persona-engine: OK in 13.9s
+```
+
+O último ajuste do verificador inclui todas as linhas no teto e rejeita `unmeasured-usage`: chamadas estimadas não desaparecem da contagem. A amostra real de importação continua skip; fixtures sintéticas oficiais passaram. Nenhuma CLI real adicional.
+
+Inspeção **somente leitura** do SQLite apontado pelo artefato `first-delivery-real-cli.json` de 09:12:30: `turn_ledger=[]`; Ticket `aab81bcd6d85085f85d76ef9a94c0976` em `person`, Assignment `running`, Report `waiting` com pergunta “Precisa de você: esta ação está fora da política da persona.”. O evento `coord-<ticket>-done` repete esse erro; não contém entrega. Portanto a falha anterior não era somente o filtro `source=runner` ou a contagem de stages: houve recusa por política. A ferramenta ou solicitação OAR específica ainda não está identificada, pois o host havia substituído o resumo pela pergunta. Rivet recebeu esse achado; grants não foram ampliados.
+
+O verificador executado sobre essas observações retornou `passed=false`, falhas `connected-cli, measured-execution, call-budget, channel-delivery, board-done, milestone`, `calls=0`, tokens `0/0` no ledger. O tempo antigo de 11.645 ms começa depois de `completeOnboarding`, portanto não comprova o prazo completo de dois minutos. Rivet confirmou no Status o padrão real em `product.ts`/`dev.ts`/`main.ts`; o pacote instalado ainda depende do aceite Probe. Outro caminho enviado a Anvil: `resolveHostRunner(undefined)` ainda devolve fake em produção, contrariando a exigência do Atlas de fake apenas em teste explícito. A fila P0 continua aberta.
+
+---
+
 ## 04/11 09:05 — V1-P0-3: preferConnectedCli + haiku
 
 Rivet: dest:desktop seta `PERSONA_REAL_CLI=1`; `pickConnectedCli` Claude>Codex>OpenCode>Cursor. Concordo com a causa das 0 execs.

@@ -571,6 +571,8 @@ export type { ProactivityAcceptance, ProactivityAcceptanceInput } from './proact
 export { measureProactivityAcceptance, measureProactivityV1 } from './proactivity-measure.ts'
 export { measureFirstDeliveryAcceptance } from './first-delivery-accept.ts'
 export type { FirstDeliveryAcceptance } from './first-delivery-accept.ts'
+export { verifyFirstDeliveryRun } from './first-delivery-run.ts'
+export type { FirstDeliveryRunEvidence, FirstDeliveryRunFailure, FirstDeliveryRunResult } from './first-delivery-run.ts'
 export { firstDeliveryAsk, firstDeliveryTask } from './first-delivery.ts'
 export type { FirstDeliveryInput, FirstDeliveryTask } from './first-delivery.ts'
 export { wantsWork, workSkipReason } from './wants-work.ts'

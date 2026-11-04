@@ -8,7 +8,7 @@ export const onboarding = {
   step4TemplateBlank: 'Em branco',
   step5Title: 'Boas-vindas ao #geral',
   continue: 'Continuar',
-  finish: 'Entrar no Persona',
+  finish: 'Entrar na Persona',
 } as const
 
 export const shell = {

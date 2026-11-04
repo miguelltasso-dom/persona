@@ -5,14 +5,25 @@
  * Prefer fixtures under persona-e2e/fixtures/bring-your-context/ + disposable PERSONA_HOME — no real AI spend.
  */
 import { describe, it } from 'vitest'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
+
+const runApp = process.env.PERSONA_E2E === '1'
 
 describe('mandatory BYC — surfaces (BRING-YOUR-CONTEXT §Onde aparece)', () => {
+  describe.skipIf(!runApp)('BYC layer 2 partial (Importadores)', () => {
+    it('[BYC-1b partial · Lumen] Importadores BYC block gallery smoke', () => {
+      runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-byc-import.spec.ts', [], {
+        inheritPersonaE2e: true,
+      })
+    }, 420_000)
+  })
+
   it.todo(
-    '[BYC-1a · Prism] onboarding passo 2 (Sobre a empresa): bloco "Traga o que suas IAs já sabem" abaixo da descrição — Copiar prompt, colar resposta, Organizar',
+    '[BYC-1a · Prism] onboarding passo 2 (Sobre a empresa): bloco BYC abaixo da descrição (onboarding E2E still todo)',
   )
 
   it.todo(
-    '[BYC-1b · Lumen] Conhecimento › Importar e Importadores: mesmo bloco (prompt + pasta vault) sempre disponível',
+    '[BYC-1b · Lumen] Importar + Importadores full §Onde aparece beyond gallery smoke',
   )
 
   it.todo(

@@ -5,11 +5,22 @@
  * Prefer fake runners + disposable PERSONA_HOME — no real AI spend.
  */
 import { describe, it } from 'vitest'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
+
+const runApp = process.env.PERSONA_E2E === '1'
 
 /** PLAN PB-9: 5/5 §3 verdes + galeria/axe/loading quando PB-5..PB-7 existirem. */
 describe('mandatory project boards — PB-9 / PROJECT-BOARDS.md §3 (5 core)', () => {
+  describe.skipIf(!runApp)('PB layer 2 partial (Quadros hub)', () => {
+    it('[PB-9+ partial · Lumen] Quadros hub smoke (isolated columns full §3 still below)', () => {
+      runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-project-boards.spec.ts', [], {
+        inheritPersonaE2e: true,
+      })
+    }, 420_000)
+  })
+
   it.todo(
-    '[PB-9.1 · Anvil+Lumen · PB-5] create project "Contratação" and "Site": each board shows only its workflow columns; tasks never cross projects (host: Forge J12 verde — journeys.md; UI E2E pending Lumen PB-5)',
+    '[PB-9.1 · Anvil+Lumen · PB-5] create project "Contratação" and "Site": each board shows only its workflow columns; tasks never cross projects (host J12 verde — UI E2E beyond hub smoke)',
   )
 
   it.todo(

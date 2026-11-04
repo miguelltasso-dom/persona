@@ -4,6 +4,15 @@
  * Start as `it.todo`; promote as Forge, Anvil, Prism, Lumen, Muse.
  */
 import { describe, it } from 'vitest'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
+
+const runApp = process.env.PERSONA_E2E === '1'
+
+describe.skipIf(!runApp)('GES layer 2 partial (contracts replay)', () => {
+  it('[GES-6 partial · Forge] layer-1 Gestor contracts (UI plan card still todo)', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-team-manager-contract.spec.ts')
+  }, 180_000)
+})
 
 describe('mandatory Gestor de equipe — montar equipe (§ Aceite 1)', () => {
   it.todo(

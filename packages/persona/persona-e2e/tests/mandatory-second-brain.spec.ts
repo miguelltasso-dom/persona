@@ -7,6 +7,17 @@
  * Prefer fake clock + disposable PERSONA_HOME — no real AI spend.
  */
 import { describe, it } from 'vitest'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
+
+const runApp = process.env.PERSONA_E2E === '1'
+
+describe.skipIf(!runApp)('SB layer 2 partial (Segundo cérebro gallery)', () => {
+  it('[SB-5 partial · Lumen] Empresa › Segundo cérebro panel smoke', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-second-brain.spec.ts', [], {
+      inheritPersonaE2e: true,
+    })
+  }, 420_000)
+})
 
 describe('mandatory second brain — curadoria (§6 bullet 1)', () => {
   it.todo(

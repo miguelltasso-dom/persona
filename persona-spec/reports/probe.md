@@ -1,5 +1,104 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 07:10 — Contracts 21/21 + gate Prism TS + promo PRO/S7/GES
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **Contracts batch** | **21 pass** (~113 s) — boot-publish, PRO-6, GES, S7 host, scope, v1-close |
+| **B9 + aceite layer-1** | B9 4 pass; BYC/SB/W2/GOV/PB contracts **21 pass** (~71 s) |
+| **Promoção aceite** | `mandatory-proactivity` (UI smoke), `mandatory-onboarding-from-zero` (bootstrap+playwright contract), `mandatory-team-manager` (GES contract replay) |
+
+### FALHOU / bloqueio
+| Item | Evidência |
+|------|-----------|
+| **`persona-gate.mjs`** | **client-ui-persona** TS2739/TS2769 `register-lumen-ui.tsx` + TS2339 `register-prism-screens.tsx` `LocaleRuntime.active` → **[Prism/Lumen]**; bundle + eval scan OK |
+| **D8** | Setup ainda 343148924 @ 05:56 (pre-V28) → **[Rivet]** |
+
+### Fila (não vazia)
+PRO-6 fake-clock (8 todo); S7 clean HOME + dirD strict; B9 Tier 1 app (3 todo); GOV/PB §3 full; axe 23×; D8 NSIS pos-V28.
+
+---
+
+## 2026-11-04 07:05 — V1 close E2E contract 3/3 + aceite partial + D8 ainda Rivet
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **`mandatory-v1-close-contract`** | **3/3** (~112 s) — `v1-close.spec`, `assert-opt2.ts`, host `measureV1Close` wire |
+| **Promoção `it.todo`→real** | `mandatory-governance` (3), `mandatory-project-boards` (hub), `mandatory-wave2` (SubjectBar), `mandatory-bring-your-context` (Importadores), `mandatory-second-brain` (gallery) — com `PERSONA_E2E=1` |
+| **Post-it Status** | `maestri note edit` timeout 2× (07:05) — linha acima só em `probe.md` até Maestri responder |
+
+### FALHOU / bloqueio
+| Item | Evidência |
+|------|-----------|
+| **D8 PRIORIDADE (1)** | Setup `C:\p8c\Persona-Setup.exe` 343148924 B @ 05:56 **anterior** ao Forge V28 (06:17); exe instalado @ 04:53 ainda **`unsafe-eval` CSP** → `#root` vazio, `hasPersonaShell=false` (`installed-cdp-diag.json`) → **[Rivet]** NSIS pós-V28 + pack web |
+| **Gate instalado completo** | Aguarda exe novo; Probe re-roda onboarding 5 passos + shots + desinstala quando Rivet avisar |
+
+### Fila (não vazia)
+PRO-6 layer-2 (8 todo); S7 UI (3 todo + dirD); B9 (3 todo); GOV/PB §3 cenários completos (partial gallery ✔); BYC/SB/GES app todos; axe 23×; D8 exe Rivet.
+
+---
+
+## 2026-11-04 06:47 — Muse microcópia finish onboarding
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **Espelho** | `real-app-locale.pt.ts` + `playwright-onboarding.mjs` → **`Entrar na Persona`** (Muse; `MICROCOPY.md`) |
+| **Contract** | `playwright-onboarding-contract` finish CTA + proíbe `Entrar no Persona` |
+| **boot-publish contract** | **9/9** |
+| **Harness** | `dogfood-padaria.ts` notas de diagnóstico alinhadas (seletor já usava `onboarding.finish`) |
+
+---
+
+## 2026-11-04 06:38 — **PERSONA_GATE ok** + galeria **23/23** + OPT/TOK
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **`persona-gate.mjs`** | **`PERSONA_GATE ok`** (~245 s) — check-pkg 11/11, bundle, boot smoke **9/9** |
+| **`real-gallery-blank-panel`** | **23/23** health (~103 s) — incl. `segundo-cerebro` |
+| **GOV/PB gallery + org-chart scale** | **6/6** |
+| **token/opt/working-send contracts** | **11/11** |
+
+### Fila (não vazia)
+PRO-6 layer-2 (8 todo); S7 UI (3 todo + dirD); B9 (3 todo); PB-9/GOV-10 aceite nomeado+capturas claro/escuro; D8 exe Rivet CSP; axe matrix 23×; GES Prism gallery todo.
+
+---
+
+## 2026-11-04 06:30 — PB-9/GES contracts + ws-storm + S7 motion
+
+### PASSOU
+| Item | Resultado |
+|------|-----------|
+| **PB-9 + GES contracts** (+ gallery) | **12 pass**, 1 todo (Prism Gestor editor gallery) |
+| **`real-gallery-panel-gate`** ws-storm | **6/6** |
+| **S7 UI bar** | reduced-motion **PASS** (`mandatory-scope.spec.ts`) |
+
+### FALHOU / bloqueio
+| Item | Evidência |
+|------|-----------|
+| **`persona-gate.mjs`** | **persona-host** TS6133/TS6196 `measureV1Close`/`V1CloseMeasureView` unused → **[Anvil/Forge]** (bundle ok) |
+
+### Fila (não vazia)
+PRO-6 layer-2 (8 todo); S7 UI (3 todo + dirD); B9 (3 todo); PB-9/GOV-10 aceite nomeado+capturas; D8 exe Rivet; axe/blank-panel 23×; gate após host fix.
+
+---
+
+## 2026-11-04 06:23 — gallery contracts batch (BYC/SB/W2/PRO/GOV)
+
+### PASSOU (`PERSONA_CONTRACT_INCLUDE_GALLERY=1`, host único)
+| Suíte | Resultado |
+|-------|-----------|
+| BYC + SB | **13/13** (~92 s) — Importadores + Segundo cérebro |
+| W2 + PRO-6 + GOV | **16/16** (~109 s) — SubjectBar, overview smoke, org-chart + two-day |
+
+### Fila (não vazia)
+PRO-6 layer-2 (8 todo app/fake clock); S7 UI (4); B9 (3 todo); PB-9/GOV-10 aceite nomeado+capturas claro/escuro; D8 exe Rivet; axe 23×; blank-panel full matrix opcional.
+
+---
+
 ## 2026-11-04 06:12 — **PERSONA_GATE ok** + bootstrap 10/10
 
 ### PASSOU

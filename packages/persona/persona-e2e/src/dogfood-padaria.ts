@@ -161,10 +161,10 @@ export async function runPadariaDogfood(): Promise<DogfoodReport> {
       await page.waitForTimeout(2_500)
       if (await overlay.count() > 0 || await page.getByRole('heading', { name: onboarding.step5Title }).count() > 0) {
         note(
-          'Overlay remonta ou não fecha após Entrar no Persona',
+          'Overlay remonta ou não fecha após Entrar na Persona',
           'P0',
           'Prism',
-          'Passo 5 → Entrar no Persona (completeOnboarding + refresh firstUse)',
+          'Passo 5 → Entrar na Persona (completeOnboarding + refresh firstUse)',
           await shot('04-overlay-remount'),
           'overlay some e não volta',
           'scrim/dialog ainda visível — host firstUse provavelmente ainda true',
@@ -182,7 +182,7 @@ export async function runPadariaDogfood(): Promise<DogfoodReport> {
             'Equipe do assistente não foi contratada',
             'P0',
             'Prism',
-            'Assistente Loja online → Usar esta equipe → Entrar no Persona → #geral',
+            'Assistente Loja online → Usar esta equipe → Entrar na Persona → #geral',
             await shot('04-equipe-vazia'),
             'personas da recomendação no rail / #geral',
             'CTA Monte sua equipe / Vaga aberta — roster do assistente não virou hire',
@@ -201,7 +201,7 @@ export async function runPadariaDogfood(): Promise<DogfoodReport> {
         'Caminho real preso no overlay — live.completeOnboarding manda roster/projectId; host CompleteOnboardingRequest exige team/personalProjectId/templateIds/cofreSeed (seed-default-team.ts já manda o contrato certo)',
         'P0',
         'Prism',
-        'Entrar no Persona → getOnboarding.firstUse continua true → remount',
+        'Entrar na Persona → getOnboarding.firstUse continua true → remount',
         await shot('04-overlay-stuck'),
         'firstUse false e rail clicável',
         'scrim do passo 5 ainda no ar; Quadros/DM não são o overlay',
@@ -260,7 +260,7 @@ async function walkPostOnboarding(
     await shot('06-geral-pedido')
     stepsOk.push('#geral pedido')
   } else {
-    note('Composer #geral ausente após onboarding', 'P0', 'Prism', 'Entrar no Persona → Canais → #geral', await shot('06-geral-sem-composer'), 'placeholder do canal', 'composer não montou')
+    note('Composer #geral ausente após onboarding', 'P0', 'Prism', 'Entrar na Persona → Canais → #geral', await shot('06-geral-sem-composer'), 'placeholder do canal', 'composer não montou')
   }
 
   const dms = REAL_GALLERY_PANELS.find(p => p.slug === 'dms')!
@@ -354,7 +354,7 @@ async function tryNav(
         `Scrim do onboarding bloqueia o rail (${spec.slug})`,
         'P0',
         'Prism',
-        `Clicar ${spec.navLabel} após Entrar no Persona`,
+        `Clicar ${spec.navLabel} após Entrar na Persona`,
         await shot(`nav-${spec.slug}-scrim`),
         'rail clicável',
         String(navError),

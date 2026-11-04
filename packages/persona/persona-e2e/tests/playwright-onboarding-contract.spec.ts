@@ -21,4 +21,11 @@ describe('playwright-onboarding.mjs (publish boot)', () => {
     expect(source).toContain(onboarding.step5Title)
     expect(source).not.toContain('Harnesses detectados')
   })
+
+  it('mirrors finish CTA (MICROCOPY: a Persona, feminino)', () => {
+    const source = readFileSync(join(REPO_ROOT, 'scripts/persona/playwright-onboarding.mjs'), 'utf8')
+    expect(source).toContain(onboarding.finish)
+    expect(onboarding.finish).toBe('Entrar na Persona')
+    expect(source).not.toContain('Entrar no Persona')
+  })
 })

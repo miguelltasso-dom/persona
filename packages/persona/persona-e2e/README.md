@@ -80,6 +80,15 @@ pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-working-send-c
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-import-contract.spec.ts
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-s7-host-contract.spec.ts
 pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-scope-contract.spec.ts
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-v1-close-contract.spec.ts
+```
+
+**Fechamento v1** (`persona-spec/reports/v1-close.md`; Forge `measureV1CloseView` / `assertV1Close`):
+
+```sh
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-v1-close-contract.spec.ts
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-v1-close.spec.ts
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/dogfood-agencia.spec.ts
 ```
 
 **Org-chart scale** (60/150 personas — GOVERNANCE-SPEC § muitas personas):

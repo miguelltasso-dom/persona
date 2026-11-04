@@ -6,8 +6,19 @@
  * Prefer fake runners + disposable PERSONA_HOME — no real AI spend.
  */
 import { describe, it } from 'vitest'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
+
+const runApp = process.env.PERSONA_E2E === '1'
 
 describe('mandatory wave2 — assuntos coloridos (WAVE2 §1)', () => {
+  describe.skipIf(!runApp)('W2 layer 2 partial (#geral SubjectBar)', () => {
+    it('[W2-1 partial · Prism] SubjectBar smoke on #geral (3 assuntos still todo)', () => {
+      runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-wave2-subjects.spec.ts', [], {
+        inheritPersonaE2e: true,
+      })
+    }, 420_000)
+  })
+
   it.todo(
     '[W2-1a · Forge+Anvil+Prism] same DM: create 3 assuntos (nome + cor); each keeps separate message history after switch',
   )

@@ -6,18 +6,41 @@
  * Prefer fake clock + disposable PERSONA_HOME — no real AI spend.
  */
 import { describe, it } from 'vitest'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
+
+const runApp = process.env.PERSONA_E2E === '1'
 
 describe('mandatory governance — GOVERNANCE.md §4 (5 core)', () => {
+  describe.skipIf(!runApp)('GOV layer 2 partial (gallery smoke)', () => {
+    it('[GOV-1 partial · Lumen] organogram: Por pessoa | Por setor mounts (store match still Anvil)', () => {
+      runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-governance.spec.ts', [], {
+        inheritPersonaE2e: true,
+      })
+    }, 420_000)
+
+    it('[GOV-2 partial · Lumen] Saúde da equipe panel mounts with actionable copy', () => {
+      runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-governance.spec.ts', [], {
+        inheritPersonaE2e: true,
+      })
+    }, 420_000)
+
+    it('[GOV-3 partial · Lumen] Teste dos 2 dias timeline ≥2 rows (fake clock full path still Forge)', () => {
+      runVitestSubprocess('packages/persona/persona-e2e/tests/real-gallery-two-day-health.spec.ts', [], {
+        inheritPersonaE2e: true,
+      })
+    }, 420_000)
+  })
+
   it.todo(
-    '[GOV-1 · Anvil+Lumen+Prism] organogram "Quem cuida de quem": Por pessoa | Por setor matches store; change responsável or setor updates live in UI',
+    '[GOV-1 · Anvil+Lumen+Prism] organogram matches store on edit responsável/setor (beyond gallery smoke)',
   )
 
   it.todo(
-    '[GOV-2 · Forge+Lumen] Saúde da equipe flags: persona sem responsável, setor sem cobertura, rotina sem dono, ponto único de falha (actionable, pt-BR)',
+    '[GOV-2 · Forge+Lumen] Saúde flags all four problem types with 1-click fix verified',
   )
 
   it.todo(
-    '[GOV-3 · Forge+Anvil+Probe] Teste dos 2 dias (fake clock): with substituto/autonomia configured routines keep running; without, panel lists exactly what stops',
+    '[GOV-3 · Forge+Anvil] Teste dos 2 dias fake clock: substituto vs stop list exact',
   )
 
   it.todo(

@@ -3,6 +3,17 @@
  * Layer 1 (engine/runner, fake clock): {@link ./mandatory-proactivity-contract.spec.ts}.
  */
 import { describe, it } from 'vitest'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
+
+const runApp = process.env.PERSONA_E2E === '1'
+
+describe.skipIf(!runApp)('PRO-6 layer 2 partial (overview + #geral)', () => {
+  it('[PRO-6 partial · Prism+Lumen] Visão geral + composer smoke (fake-clock aceite still todo)', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-proactivity-ui.spec.ts', [], {
+      inheritPersonaE2e: true,
+    })
+  }, 420_000)
+})
 
 describe('mandatory proactivity — native v1 app (PRO-6 layer 2)', () => {
   it.todo(

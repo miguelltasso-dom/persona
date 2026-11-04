@@ -31,6 +31,7 @@ export function installedDesktopLaunch(input: {
     env: {
       PERSONA_HOME: input.home,
       DSH_HOME: input.home,
+      DSH_PROFILE: 'persona',
       DSH_DESKTOP_USER_DATA_DIR: input.userData,
       DSH_TELEMETRY_DISABLED: '1',
       DSH_DESKTOP_OPEN_DEVTOOLS: '0',

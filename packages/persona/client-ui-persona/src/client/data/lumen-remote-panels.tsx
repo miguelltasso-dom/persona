@@ -41,6 +41,8 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as profileDict } from '../locale/profile/locales.ts'
 import { pt as connectionsDict } from '../locale/connections/locales.ts'
 import { tasksToKanbanCards } from './adapters/kanban.ts'
+import { readKanbanScaleSeed } from '../kanban/kanban-scale-dev.ts'
+import { mockLargeKanbanCards } from '../kanban/mock-large-kanban-cards.ts'
 import { memoryViewsToRows } from './adapters/memory.ts'
 import { skillViewsToRecords } from './adapters/skills.ts'
 import { personaImpactToUi } from './adapters/insights.ts'
@@ -190,7 +192,12 @@ export function RemoteKanbanPanel({ persona, useTenant, useShell }: LumenRemoteP
   }, [persona, workspaceId, projectId])
   const [reloadToken, setReloadToken] = useState(0)
   const { state, retry } = usePersonaRemoteLoad(scope !== null, `${loadKey}:${reloadToken}`, load)
-  const cards = state.status === 'ready' ? tasksToKanbanCards(state.data, scope?.projectId ?? '') : []
+  const kanbanScaleSeed = readKanbanScaleSeed()
+  const cards = kanbanScaleSeed !== null
+    ? [...mockLargeKanbanCards(kanbanScaleSeed)]
+    : state.status === 'ready'
+      ? tasksToKanbanCards(state.data, scope?.projectId ?? '')
+      : []
   const onRemoteRetry = (): void => {
     retryBootstrap()
     retry()
@@ -431,7 +438,10 @@ export function RemoteUsagePanel({ persona, useTenant, useShell, selectMainPanel
       showLimitNotice={false}
       insightsFunnel={insightsPayload?.funnel ?? null}
       insightsImpacts={insightsImpacts}
-      initialState={remotePanelSurface(gate, state, () => meters.length === 0 && insightsPayload === null)}
+      initialState={remotePanelSurface(gate, state, data =>
+        data.tokenPanelRaw === null
+        && data.insights === null
+        && usageBookToMeters(data.usage, data.quotas).length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
       onEmptyPrimary={selectMainPanel === undefined ? undefined : () => { selectMainPanel('connections') }}
     />
@@ -677,6 +687,7 @@ export type RemoteProfilePanelInject = {
   readonly live: PersonaLiveStore
   readonly openPersonaDm: (personaId: string) => void
   readonly openPersonaEditor: (personaId: string) => void
+  readonly openTeachPersona: (personaId: string) => void
   readonly openTalkAclEditor: (personaId: string) => void
   readonly closePersonaEditor: () => void
   readonly selectMainPanel?: ((panel: MainPanelId) => void) | undefined
@@ -695,6 +706,7 @@ export function RemoteProfilePanel({
   live,
   openPersonaDm,
   openPersonaEditor,
+  openTeachPersona,
   openTalkAclEditor,
   closePersonaEditor,
   selectMainPanel,
@@ -906,6 +918,7 @@ export function RemoteProfilePanel({
       {...(card !== undefined ? { card } : {})}
       onMessage={primaryId === null ? undefined : () => { openPersonaDm(primaryId) }}
       onEdit={primaryId === null ? undefined : () => { openPersonaEditor(primaryId) }}
+      onTeach={primaryId === null ? undefined : () => { openTeachPersona(primaryId) }}
       onEditTalk={primaryId === null ? undefined : () => { openTalkAclEditor(primaryId) }}
       {...(snapshot.persona.systemRoles.includes('team_manager')
         ? { gestorAuditItems: MOCK_GESTOR_AUDIT_ACTIVITY }

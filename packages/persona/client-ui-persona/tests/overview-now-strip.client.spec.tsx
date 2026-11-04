@@ -1,0 +1,35 @@
+// @vitest-environment jsdom
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { OverviewNowStrip } from '../src/client/overview/OverviewNowStrip.tsx'
+import { pt as shellPt } from '../src/client/locale/shell/locales.ts'
+import { WORK_STATUS_KEY, type PersonaNowSnapshot } from '../src/client/team/persona-work-state.ts'
+import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
+
+installPreviewTheme()
+
+const t = (key: string, params?: Readonly<Record<string, string>>): string => {
+  let text: string = shellPt[key as keyof typeof shellPt] ?? key
+  for (const [name, value] of Object.entries(params ?? {})) {
+    text = text.replace(`{${name}}`, value)
+  }
+  return text
+}
+
+describe('OverviewNowStrip (PRO-4 honest states)', () => {
+  it('shows distinct state chips and idle vs active task copy', () => {
+    const rows: readonly PersonaNowSnapshot[] = [
+      { member: { id: 'sol', name: 'Sol', role: 'Engenharia', state: 'working' }, queueCount: 2, currentTask: 'API v2' },
+      { member: { id: 'luna', name: 'Luna', role: 'Pesquisa', state: 'resting' }, queueCount: 0 },
+      { member: { id: 'nina', name: 'Nina', role: 'Design', state: 'stuck' }, queueCount: 1, currentTask: 'Landing' },
+    ]
+    render(<OverviewNowStrip t={t as never} rows={rows} />)
+    expect(screen.getByText('API v2')).toBeTruthy()
+    expect(screen.getByText(t('overview.nowNoTask'))).toBeTruthy()
+    expect(screen.getByText(t(WORK_STATUS_KEY.working))).toBeTruthy()
+    expect(screen.getByText(t(WORK_STATUS_KEY.resting))).toBeTruthy()
+    expect(screen.getByText(t(WORK_STATUS_KEY.stuck))).toBeTruthy()
+    expect(screen.getByText(t('overview.nowQueue', { count: '2' }))).toBeTruthy()
+    expect(screen.getByText(t('overview.queueEmpty'))).toBeTruthy()
+  })
+})

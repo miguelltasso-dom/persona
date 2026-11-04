@@ -6,17 +6,18 @@ import { StructureAssistant } from '../governance/StructureAssistant.tsx'
 import { structurePlanToRoster } from '../governance/structure-plan-to-roster.ts'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
-import { Avatar, Button, Chip, Input, PawBurst, Textarea, UiIcon } from '../primitives/index.ts'
+import { Avatar, Button, Chip, Input, Notice, PawBurst, Textarea, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { MOCK_HARNESSES, MOCK_INTRO_LINES, type TeamTemplateId } from './mock-data.ts'
+import { MOCK_HARNESSES, type HarnessRow, type TeamTemplateId } from './mock-data.ts'
+import { OnboardingFirstDeliveryStep, type OnboardingFirstDeliveryStepProps } from './OnboardingFirstDeliveryStep.tsx'
 import type { OnboardingActions } from './create-onboarding-store.ts'
 import type { OnboardingState } from './create-onboarding-store.ts'
 import type { createOnboardingStore } from './create-onboarding-store.ts'
 import { BuilderThread } from './BuilderThread.tsx'
 import { OnboardingStepMotion } from './OnboardingStepMotion.tsx'
-import { TeamIntroQueue } from './TeamIntroQueue.tsx'
 import { BringYourContextBlock } from '../bring-context/BringYourContextBlock.tsx'
+import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import { VaultCofrePanel } from './VaultCofrePanel.tsx'
 import styles from './OnboardingWizard.module.css'
 
@@ -30,6 +31,13 @@ export interface OnboardingWizardProps {
   readonly onScanVaultFolder?: ((rootPath: string) => Promise<import('@deepseek-ai/dsh-persona-core').BringContextPreview>) | undefined
   readonly onOrganizePreview?: import('../bring-context/BringYourContextBlock.tsx').BringYourContextBlockProps['onOrganizePreview']
   readonly onApplyReview?: import('../bring-context/BringYourContextBlock.tsx').BringYourContextBlockProps['onApplyReview']
+  readonly structureRemote?: {
+    readonly client: PersonaRemoteClient
+    readonly workspaceId: string
+  } | undefined
+  readonly harnesses?: readonly HarnessRow[] | undefined
+  /** Live first-delivery flow (shell overlay). Preview/tests omit this and keep the legacy finish button. */
+  readonly firstDelivery?: Omit<OnboardingFirstDeliveryStepProps, 'dict' | 'greetingName' | 'vaultReady'> | undefined
 }
 
 const TEMPLATE_KEYS: Readonly<Record<TeamTemplateId, string>> = {
@@ -110,6 +118,9 @@ export function OnboardingWizard({
   onScanVaultFolder,
   onOrganizePreview,
   onApplyReview,
+  structureRemote,
+  harnesses = MOCK_HARNESSES,
+  firstDelivery,
 }: OnboardingWizardProps): ReactNode {
   const [structureOpen, setStructureOpen] = useState(false)
   const state = useStoreSnapshot(store)
@@ -126,6 +137,9 @@ export function OnboardingWizard({
 
   const continueDisabled = state.step === 1 && state.displayName.trim().length === 0
   const vaultReady = state.vaultText.trim().length > 0
+  const anyHarnessReady = harnesses.some(row => row.ready)
+  const hideFooterContinue = state.step === 4 && structureOpen
+  const firstDeliveryActive = firstDelivery !== undefined && state.step === 5
 
   return (
     <div className={styles.wizard} data-persona-root="">
@@ -205,7 +219,10 @@ export function OnboardingWizard({
               <h1 className={styles.title}>{t('step3.title')}</h1>
               <p className={styles.hint}>{t('step3.hint')}</p>
               <ul className={styles.harnessList}>
-                {MOCK_HARNESSES.map(row => (
+                {!anyHarnessReady && (
+                  <Notice tone="warning">{t('step3.connectRequired')}</Notice>
+                )}
+                {harnesses.map(row => (
                   <li key={row.id} className={styles.harnessRow} data-ready={row.ready ? '' : undefined}>
                     <span className={styles.harnessIcon} aria-hidden="true">
                       <UiIcon name={row.ready ? 'check' : 'more'} size={18} strokeWidth={2.4} />
@@ -226,6 +243,7 @@ export function OnboardingWizard({
                 dict={structureDict}
                 humanLabel={state.displayName}
                 compact
+                {...(structureRemote === undefined ? {} : { structureRemote })}
                 onApplyRoster={(plan) => {
                   actions.setRoster(structurePlanToRoster(plan))
                   setStructureOpen(false)
@@ -298,11 +316,24 @@ export function OnboardingWizard({
               </div>
             </section>
           )}
-          {state.step === 5 && (
+          {state.step === 5 && firstDelivery !== undefined && (
+            <OnboardingFirstDeliveryStep
+              dict={dict}
+              shellT={firstDelivery.shellT}
+              greetingName={state.displayName || t('brand.name')}
+              vaultReady={vaultReady}
+              phase={firstDelivery.phase}
+              milestone={firstDelivery.milestone}
+              workingPersonaName={firstDelivery.workingPersonaName}
+              onRequest={firstDelivery.onRequest}
+              onEnterApp={firstDelivery.onEnterApp}
+              onCelebrateContinue={firstDelivery.onCelebrateContinue}
+            />
+          )}
+          {state.step === 5 && firstDelivery === undefined && (
             <section className={styles.step}>
               <h1 className={styles.title}>{t('step5.title')}</h1>
               <p className={styles.hint}>{t('step5.hint')}</p>
-              <TeamIntroQueue lines={MOCK_INTRO_LINES} greetingName={state.displayName || t('brand.name')} />
             </section>
           )}
         </OnboardingStepMotion>
@@ -314,12 +345,12 @@ export function OnboardingWizard({
             </Button>
           ) : <span />}
           <div className={styles.actionsRight}>
-            {state.step === 3 && (
+            {state.step === 3 && anyHarnessReady && (
               <Button variant="secondary" onClick={() => { actions.next() }}>
                 {t('action.skipHarness')}
               </Button>
             )}
-            {state.step < 5 && (
+            {state.step < 5 && !hideFooterContinue && (
               <Button
                 variant="primary"
                 size="l"
@@ -330,7 +361,7 @@ export function OnboardingWizard({
                 {t('action.continue')}
               </Button>
             )}
-            {state.step === 5 && (
+            {state.step === 5 && !firstDeliveryActive && (
               <Button
                 variant="primary"
                 size="l"

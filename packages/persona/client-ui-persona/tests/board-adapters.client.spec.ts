@@ -106,4 +106,19 @@ describe('projectBoardToFlow (PB-10 host → flow board)', () => {
     }))
     expect(flow.template).toBe('em_branco')
   })
+
+  it('maps BoardCardView.topicId to conversation subject chip (W2-3)', () => {
+    const flow = projectBoardToFlow(sampleProjectBoard({
+      cards: [{
+        ticketId: 't-sub',
+        title: 'Chip test',
+        category: 'todo',
+        blocked: false,
+        topicId: 'sub-ui',
+      }],
+    }), {
+      conversationSubjects: [{ id: 'sub-ui', name: 'UI', colorIndex: 2, unreadCount: 0 }],
+    })
+    expect(flow.cards[0]?.conversationSubject).toEqual({ name: 'UI', colorIndex: 2 })
+  })
 })

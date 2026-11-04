@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { ActivityGroup, IconButton, PooledQuotaBar, UiIcon, type ActivityGroupProps } from '../primitives/index.ts'
+import { ActivityGroup, FixedRowVirtualScroller, IconButton, PooledQuotaBar, UiIcon, type ActivityGroupProps } from '../primitives/index.ts'
 import type { TurnContextUi } from '../remote/turn-context-ui.ts'
 import styles from './TurnContextDrawer.module.css'
 
@@ -9,6 +9,9 @@ function originOf(id: string): { kind: string; ref: string } {
   const [kind = '', ...rest] = id.split(':')
   return { kind, ref: rest.join(':') || id }
 }
+
+const CONTEXT_RECORD_ROW_PX = 44
+const CONTEXT_RECORD_VIRTUAL_MIN = 32
 
 const KIND_ICON: Readonly<Record<string, 'sparkle' | 'attach' | 'at' | 'clock'>> = {
   vault: 'sparkle',
@@ -58,28 +61,59 @@ export function TurnContextDrawer({ t, context, activityLabels }: {
       {context.records.length > 0 && (
         <>
           <p className={styles.label}>{t('context.recordsLabel')}</p>
-          <ul className={styles.list}>
-            {context.records.map((record, index) => {
-              const icon = KIND_ICON[record.kind] ?? 'sparkle'
-              const title = record.title ?? record.id
-              const label = record.kind === 'document'
-                ? (record.locator !== undefined && record.locator !== ''
-                  ? t('context.documentCite', { title, locator: record.locator })
-                  : title)
-                : (record.title ?? record.body).slice(0, 160)
-              return (
-                <li key={record.id} className={styles.item} style={{ '--stagger': `${index * 30}ms` } as CSSProperties}>
-                  <span className={styles.itemIcon} aria-hidden="true"><UiIcon name={icon} size={14} strokeWidth={2.2} /></span>
-                  <span className={styles.itemText}>
-                    {label}
-                    {record.restricted && (
-                      <span className={styles.restricted}> · {t('context.restricted')}</span>
-                    )}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+          {context.records.length >= CONTEXT_RECORD_VIRTUAL_MIN ? (
+            <FixedRowVirtualScroller
+              {...(styles.recordsVirtual === undefined ? {} : { className: styles.recordsVirtual })}
+              rowCount={context.records.length}
+              rowHeight={CONTEXT_RECORD_ROW_PX}
+              getRowKey={index => context.records[index]?.id ?? `record-${index}`}
+              renderRow={(index) => {
+                const record = context.records[index]
+                if (record === undefined) return null
+                const icon = KIND_ICON[record.kind] ?? 'sparkle'
+                const title = record.title ?? record.id
+                const label = record.kind === 'document'
+                  ? (record.locator !== undefined && record.locator !== ''
+                    ? t('context.documentCite', { title, locator: record.locator })
+                    : title)
+                  : (record.title ?? record.body).slice(0, 160)
+                return (
+                  <div className={styles.item} style={{ '--stagger': `${index * 30}ms` } as CSSProperties}>
+                    <span className={styles.itemIcon} aria-hidden="true"><UiIcon name={icon} size={14} strokeWidth={2.2} /></span>
+                    <span className={styles.itemText}>
+                      {label}
+                      {record.restricted && (
+                        <span className={styles.restricted}> · {t('context.restricted')}</span>
+                      )}
+                    </span>
+                  </div>
+                )
+              }}
+            />
+          ) : (
+            <ul className={styles.list}>
+              {context.records.map((record, index) => {
+                const icon = KIND_ICON[record.kind] ?? 'sparkle'
+                const title = record.title ?? record.id
+                const label = record.kind === 'document'
+                  ? (record.locator !== undefined && record.locator !== ''
+                    ? t('context.documentCite', { title, locator: record.locator })
+                    : title)
+                  : (record.title ?? record.body).slice(0, 160)
+                return (
+                  <li key={record.id} className={styles.item} style={{ '--stagger': `${index * 30}ms` } as CSSProperties}>
+                    <span className={styles.itemIcon} aria-hidden="true"><UiIcon name={icon} size={14} strokeWidth={2.2} /></span>
+                    <span className={styles.itemText}>
+                      {label}
+                      {record.restricted && (
+                        <span className={styles.restricted}> · {t('context.restricted')}</span>
+                      )}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </>
       )}
       <div className={styles.limits}>

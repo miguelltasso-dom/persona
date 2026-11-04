@@ -15,6 +15,8 @@ export const DEV_HARNESS_GESTOR_MSG_ID = 'dev-harness-v1-gestor-plan'
 
 /** Stable marker: scenario channel + tasks seeded (idempotent). */
 export const DEV_HARNESS_SCENARIO_MARKER = 'dev-harness-v1-miguel'
+/** Dev harness only: Segundo cérebro grant for dogfood AG-004 (never onboarding real). */
+export const DEV_HARNESS_BRAIN_GRANT_ID = 'dev-harness-v1-brain-grant'
 
 /** Example gallery cards for onboarding step 4 (user picks/edits/removes; not auto-created). */
 export const SUGGESTED_TEAM_GALLERY = [
@@ -154,6 +156,16 @@ export type DevHarnessSeedRemote = PersonaCreatorRemote & {
     goal: string
   }): unknown
   listGestorPlans?(request: { workspaceId: string }): readonly GestorPlanView[]
+  listBrainPermissions?(request: PersonaTenantScope): readonly { id: string }[]
+  grantBrainPermission?(request: {
+    workspaceId: string
+    projectId: string
+    id: string
+    personaId: string
+    action: string
+    target: string
+    validity: 'once' | '7d' | 'until-revoke'
+  }): unknown
 }
 
 function unwrap<T>(result: T | { ok: boolean; value?: T }): T {
@@ -429,9 +441,37 @@ export async function seedDevHarnessScenario(
 
   if (atlasId !== undefined) {
     await seedDevHarnessGestorPlanMessage(remote, tenant, atlasId, messageClock)
+    await seedDevHarnessBrainGrant(remote, tenant, atlasId)
   }
 
   return true
+}
+
+/** Dogfood AG-004: remembered grant for Permissões UI — dev harness only. */
+async function seedDevHarnessBrainGrant(
+  remote: DevHarnessSeedRemote,
+  tenant: PersonaTenantScope,
+  personaId: string,
+): Promise<void> {
+  if (!readClientDevSeedEnabled()) return
+  if (remote.grantBrainPermission === undefined) return
+  const scope = { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
+  const existing = remote.listBrainPermissions !== undefined
+    ? unwrap(await Promise.resolve(remote.listBrainPermissions(tenant)))
+    : []
+  if (existing.some(row => row.id === DEV_HARNESS_BRAIN_GRANT_ID)) return
+  try {
+    await Promise.resolve(remote.grantBrainPermission({
+      ...scope,
+      id: DEV_HARNESS_BRAIN_GRANT_ID,
+      personaId,
+      action: 'reply-whatsapp',
+      target: 'clientes-aprovados',
+      validity: 'until-revoke',
+    }))
+  } catch {
+    /* duplicate or host unavailable */
+  }
 }
 
 /**

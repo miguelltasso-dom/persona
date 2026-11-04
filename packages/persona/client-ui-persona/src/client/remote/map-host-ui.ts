@@ -5,7 +5,7 @@ import type { KanbanCardModel, KanbanColumnId, KanbanPersonaRef } from '../kanba
 import type { ConversationSubjectUi } from '../chat/conversation-subjects.ts'
 import { parseGestorPlanId } from '../chat/gestor-plan-message.ts'
 import { parseRunErrorMarker } from '../chat/run-error-message.ts'
-import type { RunErrorPayload } from '../primitives/run-errors.ts'
+import { legacyRunErrorFromText, type RunErrorPayload } from '../primitives/run-errors.ts'
 import type { ChannelPersonaMember, PersonaNowSnapshot, PersonaWorkUiState } from '../team/persona-work-state.ts'
 import { cardSystemRoles } from '../profile/card-system-roles.ts'
 import { uiStateToPose } from '../team/persona-work-state.ts'
@@ -74,16 +74,25 @@ export function mapTaskToKanbanCard(
   }
 }
 
+/** W2-3 — resolve assunto chip from host `topicId` / `conversationSubjectId` + stream subjects. */
+export function conversationSubjectChipForId(
+  subjectId: string | undefined,
+  subjects: readonly ConversationSubjectUi[],
+): KanbanCardModel['conversationSubject'] {
+  if (subjectId === undefined || subjectId.length === 0) return undefined
+  const subject = subjects.find(row => row.id === subjectId)
+  if (subject === undefined) return undefined
+  return { name: subject.name, colorIndex: subject.colorIndex }
+}
+
 function attachConversationSubject(
   card: KanbanCardModel,
   task: TaskView,
   subjects: readonly ConversationSubjectUi[],
 ): KanbanCardModel {
-  const subjectId = task.conversationSubjectId ?? task.topicId
-  if (subjectId === undefined || subjectId.length === 0) return card
-  const subject = subjects.find(row => row.id === subjectId)
-  if (subject === undefined) return card
-  return { ...card, conversationSubject: { name: subject.name, colorIndex: subject.colorIndex } }
+  const chip = conversationSubjectChipForId(task.conversationSubjectId ?? task.topicId, subjects)
+  if (chip === undefined) return card
+  return { ...card, conversationSubject: chip }
 }
 
 /** Host tasks → cards with project labels and persona assignment from `now` rows. */
@@ -324,7 +333,9 @@ export function mapMessage(
   const bodyAfterPlan = parsedPlan?.visibleBody ?? event.body
   const parsedRunError = parseRunErrorMarker(bodyAfterPlan)
   const visibleBody = parsedRunError?.visibleBody ?? bodyAfterPlan
-  const runError = event.runError ?? parsedRunError?.payload
+  const runErrorFromWire = event.runError ?? parsedRunError?.payload
+  const runError = runErrorFromWire
+    ?? (persona !== undefined ? legacyRunErrorFromText(visibleBody, authorName) ?? undefined : undefined)
   const row: ChannelMessageUi = {
     id: event.id,
     authorId,

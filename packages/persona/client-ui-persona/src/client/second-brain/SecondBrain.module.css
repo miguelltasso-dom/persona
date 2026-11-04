@@ -65,6 +65,14 @@
   gap: var(--persona-space-s);
 }
 
+.pageListVirtual {
+  max-height: min(62vh, 640px);
+}
+
+.permissionListVirtual {
+  max-height: min(62vh, 560px);
+}
+
 /* Lilac underlined links — match ChangeFeed `.pageLink` in Brain.module.css (AA on cream). */
 .brainPageLink {
   padding: 0;

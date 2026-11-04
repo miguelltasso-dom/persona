@@ -94,6 +94,27 @@ describe('RailTeam persona card', () => {
   })
 })
 
+describe('RailTeam first-run name (AG-002)', () => {
+  it('exposes Conversar com and Sobre for a coordination name that is not Atlas', () => {
+    render(
+      <RailTeam
+        t={shellTranslate}
+        collapsed={false}
+        members={[{
+          id: 'onb-1',
+          characterId: 'atlas',
+          name: 'Probe E2E',
+          role: 'Coordenação',
+          state: 'resting',
+          unread: 0,
+        }]}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /Conversar com Probe E2E/u })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Sobre Probe E2E$/u })).toBeTruthy()
+  })
+})
+
 describe('RailTeam keyboard card (UX-07)', () => {
   it('Shift+F10 on an avatar opens the persona card even in the avatars row', () => {
     localStorage.setItem('persona.rail.team.density.v1', 'avatars')

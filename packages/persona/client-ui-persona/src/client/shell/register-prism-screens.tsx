@@ -254,6 +254,7 @@ export function registerPrismScreens(
       startNewConversation: () => { void live.openFirstAvailableDm() },
       turnActivityLabels,
       runErrorHandlers: runErrorHandlersFor(live, shellHandle),
+      openTeachPersona: (personaId: string) => { shellHandle.actions.openTeachPersona(personaId) },
     }),
   }, ConnectedDirectMessagesView)
 
@@ -271,6 +272,7 @@ export function registerPrismScreens(
         void live.openPersonaDm(personaId)
       },
       openPersonaEditor: (personaId: string) => { shellHandle.actions.openPersonaEditor(personaId) },
+      openTeachPersona: (personaId: string) => { shellHandle.actions.openTeachPersona(personaId) },
       openTalkAclEditor: (personaId: string) => { shellHandle.actions.openTalkAclEditor(personaId) },
       closePersonaEditor: () => { shellHandle.actions.closePersonaEditor() },
       selectMainPanel: (panel: MainPanelId) => { shellHandle.actions.selectPanel(panel) },
@@ -294,6 +296,7 @@ export function registerPrismScreens(
     locale: HELP_NS,
     inject: () => ({
       hooks: { shell: shellObservable },
+      language: ctx.locale.getSnapshot().active,
       askTeam: () => { shellHandle.actions.selectPanel('channels') },
       openExternal: openPersonaExternalUrl,
     }),

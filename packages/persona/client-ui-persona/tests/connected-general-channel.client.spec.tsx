@@ -49,6 +49,7 @@ const LIVE: PersonaLiveSnapshot = {
   gestorPlanAdjustingIds: {},
   channelComposerHints: { responderAutonomy: 'propose', quotaBlocked: false },
   arrivingHostPersonaIds: [],
+  channelSubjects: [],
 }
 
 describe('ConnectedGeneralChannelView (C5b)', () => {

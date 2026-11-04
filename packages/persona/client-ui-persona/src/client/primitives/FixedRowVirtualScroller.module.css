@@ -1,0 +1,18 @@
+.root {
+  position: relative;
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.inner {
+  position: relative;
+  width: 100%;
+}
+
+.row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+}

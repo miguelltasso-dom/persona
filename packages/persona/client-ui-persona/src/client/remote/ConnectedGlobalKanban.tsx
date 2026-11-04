@@ -15,6 +15,8 @@ import { NewProjectFlowModal } from '../kanban/NewProjectFlowModal.tsx'
 import type { ShellState } from '../shell/create-shell-store.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 import { ConnectedProjectFlowBoard } from './ConnectedProjectFlowBoard.tsx'
+import { readKanbanScaleSeed } from '../kanban/kanban-scale-dev.ts'
+import { mockLargeKanbanCards } from '../kanban/mock-large-kanban-cards.ts'
 import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 
@@ -97,6 +99,11 @@ export function ConnectedGlobalKanban({
   const boardsListKey = tenantScope === null ? '' : `${tenantScope.workspaceId}:boards`
   const { state: boardsState } = usePersonaRemoteLoad(tenantScope !== null, boardsListKey, listBoardsLoad)
 
+  const kanbanScaleSeed = readKanbanScaleSeed()
+  const displayKanbanCards = useMemo(() => (
+    kanbanScaleSeed !== null ? mockLargeKanbanCards(kanbanScaleSeed) : live.kanbanCards
+  ), [kanbanScaleSeed, live.kanbanCards])
+
   const summaries = useMemo(() => {
     if (boardsState.status === 'ready' && boardsState.data.length >= 1) {
       const models: Record<string, import('../boards/types.ts').FlowModelId> = {}
@@ -111,10 +118,10 @@ export function ConnectedGlobalKanban({
     }
     return deriveBoardSummaries({
       projects: live.projects,
-      kanbanCards: live.kanbanCards,
+      kanbanCards: displayKanbanCards,
       nowRows: live.nowRows,
     })
-  }, [boardsState, live.projects, live.kanbanCards, live.nowRows])
+  }, [boardsState, live.projects, displayKanbanCards, live.nowRows])
 
   const projectScope: ProjectScopeRequest | null = useMemo(() => {
     if (tenantScope === null || openProjectId === null) return null
@@ -155,7 +162,7 @@ export function ConnectedGlobalKanban({
       <GlobalCategoryLanes
         dict={kanbanDict}
         summaries={summaries}
-        previewCards={live.kanbanCards}
+        previewCards={displayKanbanCards}
         onBack={() => { setMode('grid') }}
       />
     )
@@ -167,6 +174,7 @@ export function ConnectedGlobalKanban({
         persona={persona}
         scope={projectScope}
         projectHint={projectHint}
+        channelSubjects={live.channelSubjects}
         workspaceTab={projectWorkspaceTab}
         onBack={() => {
           setOpenProjectId(null)

@@ -4,6 +4,7 @@ import type { BringPastedChunk } from '../bring-context/BringYourContextBlock.ts
 import { readOnboardingBycDraft } from '../bring-context/onboarding-byc-draft.ts'
 import type { MockPersonaDraft, TeamTemplateId } from './mock-data.ts'
 import { MOCK_TEMPLATE_ROSTER } from './mock-data.ts'
+import { readOnboardingStepDraft, writeOnboardingStepDraft } from '../shell/onboarding-persistence.ts'
 
 export interface BuilderMessage {
   readonly id: string
@@ -59,7 +60,7 @@ function initialBycDraft(): Pick<OnboardingState, 'bringPaste' | 'bringProvider'
 }
 
 const INITIAL: OnboardingState = {
-  step: 1,
+  step: readOnboardingStepDraft() ?? 1,
   displayName: '',
   vaultText: '',
   ...initialBycDraft(),
@@ -115,11 +116,19 @@ export function createOnboardingStore(): { store: ReturnType<typeof createSnapsh
     },
     next: () => {
       const snapshot = store.getSnapshot()
-      if (snapshot.step < 5) store.set({ ...snapshot, step: (snapshot.step + 1) as OnboardingState['step'] })
+      if (snapshot.step < 5) {
+        const step = (snapshot.step + 1) as OnboardingState['step']
+        writeOnboardingStepDraft(step)
+        store.set({ ...snapshot, step })
+      }
     },
     back: () => {
       const snapshot = store.getSnapshot()
-      if (snapshot.step > 1) store.set({ ...snapshot, step: (snapshot.step - 1) as OnboardingState['step'] })
+      if (snapshot.step > 1) {
+        const step = (snapshot.step - 1) as OnboardingState['step']
+        writeOnboardingStepDraft(step)
+        store.set({ ...snapshot, step })
+      }
     },
   }
   return { store, actions }

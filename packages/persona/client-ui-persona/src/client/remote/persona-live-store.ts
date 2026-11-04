@@ -54,7 +54,11 @@ import { mapConversationSubjectsBundle, type MappedConversationSubjects } from '
 import { PersonaRemoteError } from './persona-remote-unwrap.ts'
 import { mapUsedContextRecord } from './map-used-context.ts'
 import { mapTurnActivityFolds, type TurnActivityGroupWire } from './map-turn-activity-folds.ts'
-import { DEFAULT_CONVERSATION_SUBJECT_ID, DEFAULT_CONVERSATION_SUBJECTS } from '../chat/conversation-subjects.ts'
+import {
+  DEFAULT_CONVERSATION_SUBJECT_ID,
+  DEFAULT_CONVERSATION_SUBJECTS,
+  type ConversationSubjectUi,
+} from '../chat/conversation-subjects.ts'
 import {
   DEFAULT_CHANNEL_COMPOSER_HINTS,
   loadChannelComposerHints,
@@ -63,6 +67,17 @@ import {
 import { personaScreensRemote } from '../data/persona-screens-remote.ts'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import { unwrapRemote } from '../data/remote-call.ts'
+
+const OPTIONAL_BOOT_REMOTE_MS = 1_500
+
+/** Gestor/assuntos must not hang dest:desktop first paint (Atlas splash). */
+function settleOptionalRemote<T>(work: () => Promise<T>, fallback: T, ms = OPTIONAL_BOOT_REMOTE_MS): Promise<T> {
+  const pending = work().catch(() => fallback)
+  return Promise.race([
+    pending,
+    new Promise<T>((resolve) => { setTimeout(() => resolve(fallback), ms) }),
+  ])
+}
 
 /** Host list/follow: "Geral" includes messages without `topic_id`. */
 function hostStreamTopicId(activeTopicId: string | undefined): string | undefined {
@@ -98,6 +113,8 @@ export interface PersonaLiveSnapshot {
   /** PRO-4 / T3 §12 — coordination autonomy + official quota gate for #geral composer. */
   readonly channelComposerHints: ChannelComposerHints
   readonly arrivingHostPersonaIds: readonly string[]
+  /** #geral assuntos — bolinha W2-3 nos cartões do quadro por projeto. */
+  readonly channelSubjects: readonly ConversationSubjectUi[]
 }
 
 const EMPTY: PersonaLiveSnapshot = {
@@ -123,6 +140,7 @@ const EMPTY: PersonaLiveSnapshot = {
   gestorPlanAdjustingIds: {},
   channelComposerHints: DEFAULT_CHANNEL_COMPOSER_HINTS,
   arrivingHostPersonaIds: [],
+  channelSubjects: DEFAULT_CONVERSATION_SUBJECTS,
 }
 
 /** Host-backed snapshot for shell panels (production path). */
@@ -508,7 +526,10 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       const nowRows = now.personas.map(row => mapPersonaNowRow(row, team))
       let gestorPlans: readonly GestorPlanView[] = []
       try {
-        gestorPlans = await listGestorPlansRemote(remote as unknown as GestorWire, scope.workspaceId)
+        gestorPlans = await settleOptionalRemote(
+          () => listGestorPlansRemote(remote as unknown as GestorWire, scope.workspaceId),
+          [],
+        )
       } catch (gestorError) {
         const detail = gestorError instanceof Error ? gestorError.message : String(gestorError)
         if (detail !== 'unknown' && !/not supported|unavailable|gestor-not-supported/i.test(detail)) {
@@ -569,16 +590,19 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         }))
         dmMessages = mapSortedMessageStream(dmPage.events, team, scope.memberId, taskTitleById)
       }
-      let channelSubjects: import('../chat/conversation-subjects.ts').ConversationSubjectUi[] = []
+      let channelSubjects: ConversationSubjectUi[] = [...DEFAULT_CONVERSATION_SUBJECTS]
       if (remote.listConversationSubjects !== undefined) {
         try {
-          const bundle = await Promise.resolve(remote.listConversationSubjects({
-            workspaceId: scope.workspaceId,
-            projectId: scope.projectId,
-            streamKind: 'channel',
-            ownerId: scope.channelId,
-          }))
-          channelSubjects = [...mapConversationSubjectsBundle(bundle).subjects]
+          const bundle = await settleOptionalRemote(
+            () => Promise.resolve(remote.listConversationSubjects!({
+              workspaceId: scope.workspaceId,
+              projectId: scope.projectId,
+              streamKind: 'channel',
+              ownerId: scope.channelId,
+            })),
+            null,
+          )
+          if (bundle !== null) channelSubjects = [...mapConversationSubjectsBundle(bundle).subjects]
         } catch {
           /* assuntos opcionais para bolinha no quadro */
         }
@@ -628,6 +652,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         gestorPlanAdjustingIds,
         channelComposerHints,
         arrivingHostPersonaIds,
+        channelSubjects,
       })
       await publishHostOnboardingState()
     } catch (error) {
@@ -654,6 +679,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     hostOnboardingSink = onFirstUse
     try {
       tenant = await bootstrapPersonaTenant(bootstrapWire)
+      // dest:desktop splash/onboarding must not wait on Gestor/assuntos (Atlas 04/11).
+      await publishHostOnboardingState()
       await refresh()
       if (tenant !== null && readClientDevSeedEnabled()) {
         let seeded = false

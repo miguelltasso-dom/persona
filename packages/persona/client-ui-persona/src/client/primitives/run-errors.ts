@@ -77,10 +77,15 @@ export function describeRunError(p: RunErrorPayload, now?: Date): RunErrorDescri
   }
 }
 
+export interface RunErrorStrings {
+  readonly title: string
+  readonly body: string
+  readonly primary: string
+  readonly secondary?: string | undefined
+}
+
 /** Resolve a description to final strings with the chat namespace `t`. */
-export function runErrorText(d: RunErrorDescription, t: (key: string, params?: Readonly<Record<string, string>>) => string): {
-  readonly title: string; readonly body: string; readonly primary: string; readonly secondary?: string | undefined
-} {
+export function runErrorText(d: RunErrorDescription, t: (key: string, params?: Readonly<Record<string, string>>) => string): RunErrorStrings {
   const when = d.params.whenKey !== undefined ? t(d.params.whenKey, { time: d.params.time ?? '', provider: d.params.provider ?? '' }) : ''
   const params = { ...d.params, when }
   return {
@@ -89,4 +94,38 @@ export function runErrorText(d: RunErrorDescription, t: (key: string, params?: R
     primary: t(`runError.action.${d.primary}`, params),
     ...(d.secondary !== undefined ? { secondary: t(`runError.action.${d.secondary}`, params) } : {}),
   }
+}
+
+/* ── Legacy bridge: raw runner/host texts → payload (until every sender ships `code`) ─────────────────────────── */
+
+const PROVIDER_NAME: Readonly<Record<string, string>> = {
+  claude: 'Claude', 'claude-code': 'Claude', codex: 'Codex', cursor: 'Cursor', opencode: 'OpenCode',
+  gemini: 'Gemini', grok: 'Grok', ollama: 'Ollama', lmstudio: 'LM Studio', deepseek: 'DeepSeek',
+}
+const LOGIN_COMMAND: Readonly<Record<string, string>> = { claude: 'claude login', codex: 'codex login', opencode: 'opencode auth login' }
+const providerName = (id: string): string => PROVIDER_NAME[id.toLowerCase()] ?? id
+
+/**
+ * Recognize the exact legacy error texts (persona-runners MESSAGES, host CLI_CHANNEL, budget line) and return a
+ * payload for {@link describeRunError}. Whole-message, anchored matches only: call it ONLY for messages authored
+ * by a persona, so a person typing "rate limit" never gets a card. Returns null for anything else.
+ */
+export function legacyRunErrorFromText(body: string, persona?: string): RunErrorPayload | null {
+  const text = body.trim().replace(/\s+/gu, ' ')
+  const withPersona = (p: RunErrorPayload): RunErrorPayload => (persona !== undefined ? { ...p, persona } : p)
+  let m: RegExpExecArray | null
+  if (/^O executor DSH não está montado neste host\.?$/u.test(text)) return withPersona({ code: 'engine_unavailable' })
+  if ((m = /^CLI (\S+) não encontrada neste computador\.?$/u.exec(text)) !== null) return withPersona({ code: 'cli_not_found', provider: providerName(m[1]!) })
+  if ((m = /^CLI (\S+) não está logada\.(?: .*)?$/u.exec(text)) !== null) {
+    const id = m[1]!.toLowerCase()
+    return withPersona({ code: 'not_logged_in', provider: providerName(id), ...(LOGIN_COMMAND[id] !== undefined ? { command: LOGIN_COMMAND[id] } : {}) })
+  }
+  if ((m = /^Modelo (.+?) indisponível neste runner\.?$/u.exec(text)) !== null) return withPersona({ code: 'model_unavailable', model: m[1]! })
+  if ((m = /^Cota de (.+?) esgotada\.(?: .*)?$/u.exec(text)) !== null) return withPersona({ code: 'quota_exhausted', provider: providerName(m[1]!) })
+  if (/^orçamento de tokens do mês esgotado\.?$/iu.test(text)) return withPersona({ code: 'budget_exhausted' })
+  if ((m = /^(?:A|O) (Claude Code|Codex|Cursor Agent|OpenCode) não está conectad[ao] — .+$/u.exec(text)) !== null) {
+    const id = { 'Claude Code': 'claude', Codex: 'codex', 'Cursor Agent': 'cursor', OpenCode: 'opencode' }[m[1]!]!
+    return withPersona({ code: 'not_logged_in', provider: providerName(id), ...(LOGIN_COMMAND[id] !== undefined ? { command: LOGIN_COMMAND[id] } : {}) })
+  }
+  return null
 }

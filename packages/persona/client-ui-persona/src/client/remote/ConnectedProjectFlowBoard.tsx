@@ -28,6 +28,7 @@ import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import { destByRemovedForProposal } from '../kanban/accept-workflow-proposal.ts'
 import { ticketCountByColumnId } from '../kanban/workflow-editor-draft.ts'
 import { Toast, ToastRegion, usePawCelebration } from '../primitives/index.ts'
+import type { ConversationSubjectUi } from '../chat/conversation-subjects.ts'
 
 export interface ConnectedProjectFlowBoardProps {
   readonly persona: PersonaRemoteClient
@@ -39,6 +40,7 @@ export interface ConnectedProjectFlowBoardProps {
   readonly onWorkspaceTabChange?: (tab: ProjectWorkspaceTab) => void
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
+  readonly channelSubjects?: readonly ConversationSubjectUi[]
 }
 
 function canProposeWorkflow(client: PersonaRemoteClient): boolean {
@@ -60,6 +62,7 @@ export function ConnectedProjectFlowBoard({
   projectHint = '',
   personaCard,
   openPersonaProfile,
+  channelSubjects = [],
 }: ConnectedProjectFlowBoardProps): ReactNode {
   const [reloadToken, setReloadToken] = useState(0)
   const [reviewTarget, setReviewTarget] = useState<{ id: string; title: string } | null>(null)
@@ -94,7 +97,9 @@ export function ConnectedProjectFlowBoard({
         : 'ready'
 
   const board: ProjectBoardView | null = state.status === 'ready' ? state.data : null
-  const flow = board !== null ? projectBoardToFlow(board) : null
+  const flow = board !== null
+    ? projectBoardToFlow(board, { conversationSubjects: channelSubjects })
+    : null
   const sprint = board?.currentSprint
 
   const planningEnabled = workspaceTab === 'sprints' && board !== null

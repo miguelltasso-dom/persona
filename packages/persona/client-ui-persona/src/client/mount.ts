@@ -23,10 +23,11 @@ import { registerPrismScreens } from './shell/register-prism-screens.tsx'
 import { registerPersonaAboutSettings } from './shell/register-persona-about-settings.ts'
 import { PersonaAppFrame } from './shell/PersonaAppFrame.tsx'
 import { PersonaSidebar } from './shell/PersonaSidebar.tsx'
-import { createShellStore, type ShellStoreHandle } from './shell/create-shell-store.ts'
+import { createShellStore, type MainPanelId, type ShellStoreHandle } from './shell/create-shell-store.ts'
 import { overlayOpenFromHost } from './remote/onboarding-host.ts'
+import { signalPersonaFirstPaint } from './boot/signal-first-paint.ts'
 import { rosterFromDrafts } from './onboarding/roster-from-draft.ts'
-import { writeOnboardingCacheComplete } from './shell/onboarding-persistence.ts'
+import { clearOnboardingStepDraft, writeOnboardingCacheComplete } from './shell/onboarding-persistence.ts'
 import { applyBringContextRemote, mergeBringOrganizePreview, previewBringVaultFolderRemote } from './data/bring-context-remote.ts'
 import { clearOnboardingBycDraft } from './bring-context/onboarding-byc-draft.ts'
 import { installPersonaColorScheme } from './theme/install-color-scheme.ts'
@@ -60,6 +61,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
 
   void live.bootstrap((firstUse) => {
     actions.setOnboardingOpen(overlayOpenFromHost(firstUse))
+    signalPersonaFirstPaint()
   }).then(() => live.runDevHarnessSeedIfEnabled()).catch((error: unknown) => {
     console.error('[persona] bootstrap ou dev seed falhou', error)
   })
@@ -170,11 +172,26 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     id: 'persona.onboarding',
     locale: ONBOARDING_NS,
     inject: () => ({
-      hooks: { shell: shellObservable },
+      hooks: { shell: shellObservable, live: live.observable },
       dict: localeBindAsDict((key, params) => ctx.locale.bind(ONBOARDING_NS)(key as never, params as never)),
       structureDict: localeBindAsDict((key, params) => ctx.locale.bind(GOVERNANCE_NS)(key as never, params as never)),
+      shellDict: localeBindAsDict((key, params) => ctx.locale.bind(SHELL_NS)(key as never, params as never)),
       store: onboardingHandle.store,
       actions: onboardingHandle.actions,
+      persona: ctx.remote.persona,
+      postChannelMessage: (body: string) => live.postChannelMessage(body),
+      selectPanel: (panel: MainPanelId) => { actions.selectPanel(panel) },
+      finishOnboardingWizard: async () => {
+        const snapshot = onboardingHandle.store.getSnapshot()
+        clearOnboardingBycDraft()
+        clearOnboardingStepDraft()
+        await live.completeOnboarding(snapshot.displayName, rosterFromDrafts(snapshot.roster), {
+          cofreSeed: snapshot.vaultText.trim(),
+          templateIds: snapshot.templateId === 'emBranco' ? [] : [snapshot.templateId],
+        })
+        writeOnboardingCacheComplete()
+        await live.refresh()
+      },
       onScanVaultFolder: async (rootPath: string) => {
         const tenant = live.observable.getSnapshot().tenant
         if (tenant === null) throw new Error('no-tenant')
@@ -203,18 +220,21 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
           projectId: tenant.projectId,
         }, preview, choices, tenant.memberId)
       },
+      lockOnboardingForFirstDelivery: () => { actions.lockOnboardingForFirstDelivery() },
       dismissOnboarding: () => {
-        const snapshot = onboardingHandle.store.getSnapshot()
-        clearOnboardingBycDraft()
+        actions.unlockOnboardingForFirstDelivery()
         actions.dismissOnboarding()
-        void live.completeOnboarding(snapshot.displayName, rosterFromDrafts(snapshot.roster), {
-          cofreSeed: snapshot.vaultText.trim(),
-          templateIds: snapshot.templateId === 'emBranco' ? [] : [snapshot.templateId],
-        }).then(() => {
-          writeOnboardingCacheComplete()
-          void live.refresh()
-        })
       },
+      ...((): { structureRemote?: { client: typeof ctx.remote.persona; workspaceId: string } } => {
+        const tenant = live.observable.getSnapshot().tenant
+        if (tenant === null) return {}
+        return {
+          structureRemote: {
+            client: ctx.remote.persona,
+            workspaceId: tenant.workspaceId,
+          },
+        }
+      })(),
     }),
   }, OnboardingShellOverlay)
 

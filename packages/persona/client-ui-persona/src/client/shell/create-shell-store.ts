@@ -37,6 +37,8 @@ export interface ShellState {
   readonly hostProtocol: number | null
   /** First-run overlay (RCD: value before settings). */
   readonly onboardingOpen: boolean
+  /** V1-P0-4: keep overlay through first-delivery working/celebrate after host marks `firstUse: false`. */
+  readonly onboardingDeliveryLock: boolean
   /** When set, profile loads this host persona id (see {@link HIRE_PERSONA_PROFILE_ID}). */
   readonly profilePersonaId: string | null
   /** Profile panel shows {@link ConnectedPersonaEditor} instead of the summary hero. */
@@ -68,6 +70,8 @@ export interface ShellActions {
   selectPanel(id: MainPanelId): void
   setHostPing(online: boolean, protocol: number | null): void
   setOnboardingOpen(open: boolean): void
+  lockOnboardingForFirstDelivery(): void
+  unlockOnboardingForFirstDelivery(): void
   dismissOnboarding(): void
   setProfilePersonaId(personaId: string | null): void
   /** Open persona editor on the profile panel (existing persona). */
@@ -99,6 +103,7 @@ const INITIAL: ShellState = {
   hostStatus: 'unknown',
   hostProtocol: null,
   onboardingOpen,
+  onboardingDeliveryLock: false,
   profilePersonaId: null,
   profileEditorOpen: false,
   boardsFocusProjectId: null,
@@ -135,12 +140,21 @@ export function createShellStore(): {
       })
     },
     setOnboardingOpen: (onboardingOpen) => {
-      store.set({ ...store.getSnapshot(), onboardingOpen })
+      const snap = store.getSnapshot()
+      if (!onboardingOpen && snap.onboardingDeliveryLock) return
+      store.set({ ...snap, onboardingOpen })
+    },
+    lockOnboardingForFirstDelivery: () => {
+      store.set({ ...store.getSnapshot(), onboardingDeliveryLock: true, onboardingOpen: true })
+    },
+    unlockOnboardingForFirstDelivery: () => {
+      store.set({ ...store.getSnapshot(), onboardingDeliveryLock: false })
     },
     dismissOnboarding: () => {
       store.set({
         ...store.getSnapshot(),
         onboardingOpen: false,
+        onboardingDeliveryLock: false,
         activePanel: 'channels',
       })
     },

@@ -55,6 +55,11 @@ describe('HelpView', () => {
     expect(onAskTeam).toHaveBeenCalled()
   })
 
+  it('shows pt-only note when interface is not Portuguese', () => {
+    render(<HelpView t={t} initialDocId="guia" showPtOnlyNote />)
+    expect(screen.getByText('Os guias estão em português.')).toBeTruthy()
+  })
+
   it('Novidades tab shows the release notes', () => {
     render(<HelpView t={t} initialTab="novidades" />)
     expect(screen.getByRole('heading', { level: 2, name: RELEASE_NOTES!.title })).toBeTruthy()

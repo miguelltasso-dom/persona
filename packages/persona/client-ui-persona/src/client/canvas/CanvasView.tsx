@@ -1,5 +1,5 @@
 /** G2 — spatial view + accessible list mode (SVG/CSS transform only). */
-import { useCallback, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Button, Card, Screen, ScreenHeader, Tabs } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
@@ -37,6 +37,12 @@ export function CanvasView({
   const [scale, setScale] = useState(1)
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
   const [listFocusIndex, setListFocusIndex] = useState(0)
+  const listRowRefs = useRef<(HTMLTableRowElement | null)[]>([])
+
+  useLayoutEffect(() => {
+    if (mode !== 'list') return
+    listRowRefs.current[listFocusIndex]?.focus()
+  }, [mode, listFocusIndex])
 
   const onNodeKeyDown = useCallback((event: KeyboardEvent, nodeId: string): void => {
     if (event.key !== 'Enter' && event.key !== ' ') return
@@ -129,8 +135,10 @@ export function CanvasView({
               {nodes.map((node, index) => (
                 <tr
                   key={node.id}
+                  ref={(el) => { listRowRefs.current[index] = el }}
                   tabIndex={index === listFocusIndex ? 0 : -1}
                   className={styles.listRow}
+                  onFocus={() => { setListFocusIndex(index) }}
                   onKeyDown={(event) => {
                     if (event.key === 'ArrowDown') {
                       event.preventDefault()
@@ -138,6 +146,12 @@ export function CanvasView({
                     } else if (event.key === 'ArrowUp') {
                       event.preventDefault()
                       setListFocusIndex(i => Math.max(0, i - 1))
+                    } else if (event.key === 'Home') {
+                      event.preventDefault()
+                      setListFocusIndex(0)
+                    } else if (event.key === 'End') {
+                      event.preventDefault()
+                      setListFocusIndex(Math.max(0, nodes.length - 1))
                     }
                   }}
                 >

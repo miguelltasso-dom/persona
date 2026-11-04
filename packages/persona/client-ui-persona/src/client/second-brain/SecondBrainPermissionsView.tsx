@@ -4,7 +4,10 @@ import { useMemo, useState, type ReactNode } from 'react'
 import type { BrainGrantView } from '@deepseek-ai/dsh-persona-host/types'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Card, PermissionRow, Screen, ScreenHeader, Tabs, type PermissionScope } from '../primitives/index.ts'
+import { Card, FixedRowVirtualScroller, PermissionRow, Screen, ScreenHeader, Tabs, type PermissionScope } from '../primitives/index.ts'
+
+const GRANT_ROW_PX = 76
+const GRANT_VIRTUAL_MIN = 40
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
 import styles from './SecondBrain.module.css'
 
@@ -89,6 +92,36 @@ export function SecondBrainPermissionsView({
       <Card padding="m" eyebrow={t(`permissions.filter.${filter}`)}>
         {rows.length === 0 ? (
           <p className={styles.muted}>{t('sections.permissionsEmpty')}</p>
+        ) : rows.length >= GRANT_VIRTUAL_MIN ? (
+          <FixedRowVirtualScroller
+            className={styles.permissionListVirtual}
+            rowCount={rows.length}
+            rowHeight={GRANT_ROW_PX}
+            getRowKey={index => rows[index]?.id ?? `grant-${index}`}
+            renderRow={(index) => {
+              const grant = rows[index]
+              if (grant === undefined) return null
+              return (
+                <PermissionRow
+                  scope={grantScope(grant, personaNames)}
+                  grantedBy={t('permissions.grantedByYou')}
+                  validityText={grantValidityLabel(dict, grant)}
+                  expired={grantExpired(grant)}
+                  revoked={grant.revokedAt !== undefined}
+                  usage={grant.useCount > 0 ? t('permissions.usage', { count: grant.useCount }) : undefined}
+                  labels={{
+                    revoke: t('permissions.revoke'),
+                    confirmRevoke: t('permissions.confirmRevoke'),
+                    cancel: t('permissions.cancel'),
+                    revoked: t('permissions.revoked'),
+                  }}
+                  {...(onRevokeGrant === undefined || grant.revokedAt !== undefined
+                    ? {}
+                    : { onRevoke: () => { onRevokeGrant(grant.id) } })}
+                />
+              )
+            }}
+          />
         ) : (
           <ul className={styles.permissionList}>
             {rows.map(grant => (

@@ -44,4 +44,27 @@ describe('DirectMessagesView turn context (C5b)', () => {
     expect(onLoad).toHaveBeenCalledWith('t-42')
     expect(screen.getByRole('region', { name: chatPt['context.drawerTitle'] })).toBeTruthy()
   })
+
+  it('lists pass-through followers in the thread (C5b)', () => {
+    render(
+      <DirectMessagesView
+        t={(key, params) => {
+          const raw = chatPt[key as keyof typeof chatPt] ?? key
+          if (params?.name !== undefined && typeof raw === 'string') {
+            return raw.replace('{name}', String(params.name))
+          }
+          return raw
+        }}
+        shellT={key => shellPt[key as keyof typeof shellPt] ?? key}
+        loading={false}
+        dms={[{ id: 'dm-1', peerId: 'p1', peerName: 'Bento' }]}
+        selectedId="dm-1"
+        messages={[]}
+        onSelect={() => {}}
+        onSend={() => {}}
+        passThroughFollowers={[{ name: 'Nina' }]}
+      />,
+    )
+    expect(screen.getByText('Nina está acompanhando este assunto')).toBeTruthy()
+  })
 })

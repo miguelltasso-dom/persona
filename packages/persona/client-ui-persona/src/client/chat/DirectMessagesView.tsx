@@ -3,7 +3,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
 import { uiStateToPose, type PersonaWorkUiState } from '../team/persona-work-state.ts'
-import { Avatar, BrandIcon, Button, Chip, EmptyState, Skeleton, Toast, ToastRegion, UiIcon, type ChipTone } from '../primitives/index.ts'
+import { Avatar, BrandIcon, Button, Chip, EmptyState, MenuButton, Skeleton, Toast, ToastRegion, UiIcon, type ChipTone } from '../primitives/index.ts'
 import { subjectDisplayName } from './SubjectBar.tsx'
 import { useState } from 'react'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
@@ -59,7 +59,10 @@ export interface DirectMessagesViewProps {
   readonly onUndoMoveMessage?: ((messageId: string, revertSubjectId: string) => void) | undefined
   readonly subjectsLoadError?: import('../remote/persona-remote-unwrap.ts').PersonaRemoteError | null | undefined
   readonly onRetrySubjects?: (() => void) | undefined
+  readonly passThroughFollowers?: readonly { readonly name: string }[] | undefined
   readonly runErrorHandlers?: RunErrorHandlerContext | undefined
+  /** W2-10 — consent overlay for the persona in this thread. */
+  readonly onTeach?: (() => void) | undefined
 }
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
@@ -88,7 +91,9 @@ export function DirectMessagesView({
   subjectMoveTargets, onMoveMessageSubject, onUndoMoveMessage,
   subjectsLoadError = null,
   onRetrySubjects,
+  passThroughFollowers = [],
   runErrorHandlers,
+  onTeach,
 }: DirectMessagesViewProps): ReactNode {
   const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string; readonly revertSubjectId: string } | null>(null)
   const selected = dms.find(row => row.id === selectedId) ?? null
@@ -184,12 +189,20 @@ export function DirectMessagesView({
                 {selected.role !== undefined && <p className={styles.threadRole}>{selected.role}</p>}
               </div>
               {selected.stateLabel !== undefined && <Chip tone={selected.stateTone ?? 'neutral'}>{selected.stateLabel}</Chip>}
+              {onTeach !== undefined && (
+                <MenuButton
+                  variant="ghost"
+                  align="end"
+                  label={t('dm.threadMenu', { name: selected.peerName })}
+                  items={[{ id: 'teach', label: t('dm.threadMenuTeach', { name: selected.peerName }), onSelect: onTeach }]}
+                />
+              )}
             </header>
             {subjectBar !== undefined && (
               <>
                 {subjectsLoadError !== null && subjectsLoadError !== undefined && (
                   <div className={styles.subjectError} role="status">
-                    <p>{subjectsLoadError.message}</p>
+                    <p>{t('subjects.loadError')}</p>
                     {onRetrySubjects !== undefined && (
                       <button type="button" className={styles.subjectRetry} onClick={() => { onRetrySubjects() }}>
                         {t('subjects.retry')}
@@ -205,6 +218,13 @@ export function DirectMessagesView({
               {...(subjectBar?.panelId === undefined ? { role: 'log' as const } : { id: subjectBar.panelId, role: 'tabpanel' as const })}
               aria-live="polite"
             >
+              {passThroughFollowers.length > 0 && (
+                <ul className={styles.passThroughList} aria-live="polite">
+                  {passThroughFollowers.map(row => (
+                    <li key={row.name} className={styles.passThrough}>{t('stream.passThrough', { name: row.name })}</li>
+                  ))}
+                </ul>
+              )}
               {messages.length === 0 ? (
                 <div className={styles.firstAsk}>
                   <EmptyState compact illustration={portraitFor(selected)} title={t('dm.threadEmpty')} />

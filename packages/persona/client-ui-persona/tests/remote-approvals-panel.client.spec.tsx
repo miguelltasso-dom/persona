@@ -109,4 +109,40 @@ describe('RemoteApprovalsPanel (PRO-5)', () => {
     })
     expect(listApprovals.mock.calls.length).toBeGreaterThanOrEqual(2)
   })
+
+  it('shows grouped proactive proposal from listDailySummaries (PRO-5)', async () => {
+    const persona = {
+      listApprovals: vi.fn(async () => ({ ok: true as const, value: [] })),
+      listDailySummaries: vi.fn(async () => ({
+        ok: true as const,
+        value: [{
+          personaId: 'atlas',
+          personaName: 'Atlas',
+          date: '2026-11-04',
+          proposals: [{
+            id: 'prop-1',
+            kind: 'skill',
+            title: 'Automatizar deploy',
+            question: 'Posso registrar uma skill de deploy?',
+            status: 'pending',
+          }],
+        }],
+      })),
+    } as unknown as PersonaRemoteClient
+
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <RemoteApprovalsPanel
+          persona={persona}
+          useTenant={tenantHarness()}
+          useShell={shellHarness()}
+        />
+      </PreviewFrame>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Automatizar deploy')).toBeTruthy()
+    })
+    expect(screen.getByText('Atlas')).toBeTruthy()
+  })
 })

@@ -41,6 +41,18 @@ afterEach(() => {
 })
 
 describe('onboarding overlay vs host firstUse', () => {
+  it('opens overlay before listGestorPlans / listConversationSubjects settle (dest:desktop splash)', async () => {
+    const firstUseRef = { current: true }
+    const host = wireHost(firstUseRef)
+    host.listGestorPlans = () => new Promise(() => { /* hang */ })
+    host.listConversationSubjects = () => new Promise(() => { /* hang */ })
+    const open: boolean[] = []
+    const live = createPersonaLiveStore(host as never)
+    void live.bootstrap((firstUse) => { open.push(overlayOpenFromHost(firstUse)) })
+    await vi.waitFor(() => { expect(open.at(-1)).toBe(true) }, { timeout: 2_000 })
+    live.dispose()
+  })
+
   it('closes overlay when host flips firstUse after refresh (no reload)', async () => {
     const firstUseRef = { current: true }
     const host = wireHost(firstUseRef)

@@ -2,7 +2,7 @@ import type { BrainKindView, BrainPageView } from '@deepseek-ai/dsh-persona-host
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Avatar, BrandIcon, Card, Chip, Screen, ScreenHeader, Tabs } from '../primitives/index.ts'
+import { Avatar, BrandIcon, Card, Chip, FixedRowVirtualScroller, Screen, ScreenHeader, Tabs } from '../primitives/index.ts'
 import { brainKindBrandIcon, brainKindLabel, feedEditorDisplay, pageExcerpt } from './brain-ui-adapters.ts'
 import { SecondBrainGraphView } from './SecondBrainGraphView.tsx'
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
@@ -12,6 +12,42 @@ type KindFilterTab = 'all' | 'private' | 'contradiction'
 type KindViewMode = 'list' | 'graph'
 
 const VIEW_MODE_KEY = 'persona.secondBrain.kindViewMode'
+const BRAIN_PAGE_ROW_PX = 88
+const BRAIN_LIST_VIRTUAL_MIN = 40
+
+function BrainPageListRow({
+  dict,
+  page,
+  personaNames,
+  onOpenPage,
+}: {
+  readonly dict: LocaleDict
+  readonly page: BrainPageView
+  readonly personaNames: Readonly<Record<string, string>>
+  readonly onOpenPage: (pageId: string) => void
+}): ReactNode {
+  const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
+  const editor = feedEditorDisplay(dict, page, personaNames)
+  return (
+    <button type="button" className={styles.pageRowButton} onClick={() => { onOpenPage(page.id) }}>
+      <span className={styles.brainPageLink}>{page.title}</span>
+      <span className={styles.muted}>{pageExcerpt(page.body)}</span>
+      <span className={styles.pageRowMeta}>
+        {page.restricted && <Chip tone="neutral" size="s">{t('page.visibilityPrivate')}</Chip>}
+        <span className={styles.pageRowEditor}>
+          <Avatar
+            name={editor.who}
+            src={editor.whoAvatar}
+            size={24}
+            shape={editor.whoAvatar === undefined ? 'person' : 'portrait'}
+            decorative
+          />
+          <span className={styles.muted}>{editor.who}</span>
+        </span>
+      </span>
+    </button>
+  )
+}
 
 export interface SecondBrainKindListViewProps {
   readonly dict?: LocaleDict
@@ -105,32 +141,39 @@ export function SecondBrainKindListView({
         </Card>
       ) : (
         <Card padding="m" eyebrow={brainKindLabel(dict, kind)}>
-          <ul className={styles.pageList}>
-            {filtered.map((page) => {
-              const editor = feedEditorDisplay(dict, page, personaNames)
-              return (
+          {filtered.length >= BRAIN_LIST_VIRTUAL_MIN ? (
+            <FixedRowVirtualScroller
+              {...(styles.pageListVirtual === undefined ? {} : { className: styles.pageListVirtual })}
+              rowCount={filtered.length}
+              rowHeight={BRAIN_PAGE_ROW_PX}
+              getRowKey={index => filtered[index]?.id ?? `brain-row-${index}`}
+              renderRow={(index) => {
+                const page = filtered[index]
+                if (page === undefined) return null
+                return (
+                  <BrainPageListRow
+                    dict={dict}
+                    page={page}
+                    personaNames={personaNames}
+                    onOpenPage={onOpenPage}
+                  />
+                )
+              }}
+            />
+          ) : (
+            <ul className={styles.pageList}>
+              {filtered.map(page => (
                 <li key={page.id}>
-                  <button type="button" className={styles.pageRowButton} onClick={() => { onOpenPage(page.id) }}>
-                    <span className={styles.brainPageLink}>{page.title}</span>
-                    <span className={styles.muted}>{pageExcerpt(page.body)}</span>
-                    <span className={styles.pageRowMeta}>
-                      {page.restricted && <Chip tone="neutral" size="s">{t('page.visibilityPrivate')}</Chip>}
-                      <span className={styles.pageRowEditor}>
-                        <Avatar
-                          name={editor.who}
-                          src={editor.whoAvatar}
-                          size={24}
-                          shape={editor.whoAvatar === undefined ? 'person' : 'portrait'}
-                          decorative
-                        />
-                        <span className={styles.muted}>{editor.who}</span>
-                      </span>
-                    </span>
-                  </button>
+                  <BrainPageListRow
+                    dict={dict}
+                    page={page}
+                    personaNames={personaNames}
+                    onOpenPage={onOpenPage}
+                  />
                 </li>
-              )
-            })}
-          </ul>
+              ))}
+            </ul>
+          )}
         </Card>
       )}
     </Screen>

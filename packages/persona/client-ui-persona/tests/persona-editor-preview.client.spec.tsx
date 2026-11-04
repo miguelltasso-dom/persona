@@ -23,4 +23,21 @@ describe('persona editor preview', () => {
     expect(screen.getByText(pt['field.autonomyHint'])).toBeTruthy()
     expect(screen.getByText('Luna')).toBeTruthy()
   })
+
+  it('shows GOV-8 sector and responsible fields when governance picks are wired', () => {
+    render(
+      <PreviewFrame brandLabel={onboardingPt['brand.name']}>
+        <PersonaEditor
+          dict={pt}
+          governance={{
+            sectors: [{ id: 'operacoes', label: 'Operações' }],
+            members: [{ id: 'ana', label: 'Ana' }],
+          }}
+        />
+      </PreviewFrame>,
+    )
+    expect(screen.getByLabelText(pt['field.sector'])).toBeTruthy()
+    expect(screen.getByLabelText(pt['field.responsible'])).toBeTruthy()
+    expect(screen.getByLabelText(pt['field.substitute'])).toBeTruthy()
+  })
 })

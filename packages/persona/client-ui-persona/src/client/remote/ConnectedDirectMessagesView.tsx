@@ -6,6 +6,7 @@ import { conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { useHostConversationSubjects } from '../chat/use-host-conversation-subjects.ts'
 import type { ChipTone } from '../primitives/index.ts'
 import { WORK_STATUS_KEY, type PersonaWorkUiState } from '../team/persona-work-state.ts'
+import { resolveHostPersonaId } from './map-host-ui.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from './persona-live-store.ts'
 import type { ActivityGroupProps } from '../primitives/Pooled.tsx'
 import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
@@ -24,6 +25,7 @@ export interface ConnectedDmInjected {
   startNewConversation(): void
   readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
   runErrorHandlers?: RunErrorHandlerContext | undefined
+  openTeachPersona(personaId: string): void
 }
 
 export type ConnectedDirectMessagesViewProps =
@@ -45,6 +47,7 @@ export function ConnectedDirectMessagesView({
   startNewConversation,
   turnActivityLabels,
   runErrorHandlers,
+  openTeachPersona,
 }: ConnectedDirectMessagesViewProps): ReactNode {
   const live = useLive(state => state)
   const dmId = live.selectedDmId
@@ -66,6 +69,10 @@ export function ConnectedDirectMessagesView({
         state: member.state,
       }
   })
+  const selectedRow = rows.find(row => row.id === dmId)
+  const onTeach = selectedRow?.characterId === undefined
+    ? undefined
+    : () => { openTeachPersona(resolveHostPersonaId(live.team, selectedRow.peerId)) }
   return (
     <DirectMessagesView
       t={chatT}
@@ -98,6 +105,7 @@ export function ConnectedDirectMessagesView({
       }}
       subjectsLoadError={subjectState.subjectsError}
       onRetrySubjects={subjectState.retrySubjects}
+      passThroughFollowers={live.passThroughFollowers}
       onSelect={(id) => { selectDm(id) }}
       onSend={(body, attachmentIds) => { postDmMessage(body, attachmentIds) }}
       uploadAttachment={file => uploadDmAttachment(file)}
@@ -111,6 +119,7 @@ export function ConnectedDirectMessagesView({
         toggleMessageReaction('dm', messageId, stickerId)
       }}
       {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
+      {...(onTeach === undefined ? {} : { onTeach })}
     />
   )
 }

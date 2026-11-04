@@ -1,5 +1,77 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-04 08:05 — G2 Canvas lista: foco roving + Home/End
+
+**CanvasView:** `useLayoutEffect` sincroniza foco com `listFocusIndex`; `onFocus` na linha; teclas Home/End.
+
+**Testes:** `canvas-list-keyboard.client.spec.tsx` 2/2; `check-pkg client-ui-persona` OK.
+
+---
+
+## 2026-11-04 08:00 — W2-10 Ensinar no cabeçalho da DM
+
+**UI:** `MenuButton` ⋯ no `threadHeader` quando o peer é persona (`onTeach`); locales `dm.threadMenu` / `dm.threadMenuTeach`; `ConnectedDirectMessagesView` → `openTeachPersona(resolveHostPersonaId(...))`; inject em `register-prism-screens`.
+
+**Testes:** `dm-view.client.spec.tsx` +1 (menu Ensinar); `check-pkg client-ui-persona` OK.
+
+**W2-10 UI Prism:** perfil hero ✔ · DM ⋯ ✔ · cartão ⋯ já via `PersonaCardPopoverHost`.
+
+---
+
+## 2026-11-04 07:55 — AG-003 Ensinar no hero do perfil (Keel P1 dogfood)
+
+**W2-10:** botão **Ensinar** (`action.teach`, ícone `BrandIcon ensinar`) no hero de `PersonaProfilePage` ao lado de Conversar/Editar; `RemoteProfilePanel` → `openTeachPersona` (overlay consentimento existente).
+
+**Teste:** `dogfood-ag-003.client.spec.tsx` verde (`.fails` → `it`).
+
+**Gate:** `check-pkg client-ui-persona` OK (+ fixture `channelSubjects`, exactOptional virtual scroller, about-settings test Muse).
+
+---
+
+## 2026-11-04 07:50 — PRO-4 + GOV-8 onboarding RPC + editor gov fields
+
+**PRO-4 (v1):** `overview-now-strip.client.spec.tsx` — chips working/resting/stuck + fila vazia vs tarefa ativa (`OverviewNowStrip`).
+
+**GOV-8:** onboarding passo 4 `StructureAssistant` recebe `structureRemote` (`ctx.remote.persona` + `tenant.workspaceId`) como Contratar; teste editor com setor/responsável/substituto.
+
+**Arquivos:** `mount.ts`, `OnboardingShellOverlay.tsx`, `OnboardingWizard.tsx`, `overview-now-strip.client.spec.tsx`, `persona-editor-preview.client.spec.tsx`.
+
+**Extra:** `seed-default-team` — `listBrainPermissions(tenant)` (PersonaTenantScope); mocks AG-004 alinhados.
+
+**Testes:** overview-now-strip 1 · persona-editor-preview 2 · structure-assistant 4 · seed-default-team · check-pkg OK.
+
+**Dep:** PRO-6/S5/C8 E2E (Probe); GOV-8 aceite app 3 modelos; Anvil dados `nowRows`/away live; Muse visual C5a–d.
+
+---
+
+## 2026-11-04 07:45 — Vigia: Ajuda locale + assuntos + C5b DM + GOV-8
+
+**Ajuda:** `language: ctx.locale.getSnapshot().active` no inject → banner `lang.ptOnly` fora de pt.
+
+**W2-3 / rate-limit:** erro de assuntos usa `subjects.loadError` + retry (não mensagem RPC crua) em #geral e DM.
+
+**C5b:** pass-through followers na DM (`ConnectedDirectMessagesView` + estilos).
+
+**GOV-8:** teste passo 4 inclui região **Teste dos 2 dias**; map-message wire > legacy.
+
+**Testes:** map-message 11 · structure-assistant 4 · help-view +1 · direct-messages-turn-context +1 · locales regen.
+
+**Fila Prism:** S5/S7/GOV-8 aceite app (Probe); C5b pass-through host real; Muse visual; Rivet runError wire.
+
+---
+
+## 2026-11-04 07:35 — Legacy run-error bridge no mapMessage (Muse)
+
+**Pronto:** sem marker `[[run-error:]]` nem `event.runError`, mensagem de **persona** → `legacyRunErrorFromText(body, authorName)` → mesmo `runError` / `ConversationRunErrorCard`. Humano e chat casual não casam.
+
+**Arquivos:** `map-host-ui.ts`, `map-message.client.spec.ts` (+2).
+
+**Testes:** `map-message.client.spec.ts` + `run-errors.client.spec.tsx` → 16 passed.
+
+**Até Rivet:** histórico e runner ainda em texto cru; quando mandarem `code`, wire/marker ganha e legacy não roda.
+
+---
+
 ## 2026-11-04 07:25 — GOV-8 aceite 3 modelos + W2-3 undo mover + GES-4 entrada gestor
 
 **GOV-8:** teste parametrizado `agency` / `saas` / `creator` (3–5 personas, Coordenação) + fluxo UI até passo 4 (`structure-assistant.client.spec.tsx` 4/4).

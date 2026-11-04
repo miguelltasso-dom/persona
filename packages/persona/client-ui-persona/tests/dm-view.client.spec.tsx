@@ -29,6 +29,26 @@ describe('DM with a persona', () => {
     expect(onSend.mock.calls[0]?.[0]).toBe('Oi, Nina')
   })
 
+  it('thread header ⋯ menu opens Ensinar for a persona peer', () => {
+    const onTeach = vi.fn()
+    render(
+      <DirectMessagesView
+        t={t}
+        shellT={shellTranslate}
+        loading={false}
+        dms={[NINA]}
+        selectedId="dm-nina"
+        messages={[]}
+        onSelect={() => undefined}
+        onSend={() => undefined}
+        onTeach={onTeach}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: bindLocale(chatPt, 'dm.threadMenu', { name: 'Nina' }) }))
+    fireEvent.click(screen.getByRole('menuitem', { name: bindLocale(chatPt, 'dm.threadMenuTeach', { name: 'Nina' }) }))
+    expect(onTeach).toHaveBeenCalledTimes(1)
+  })
+
   it('empty thread offers first-request suggestions that match the job title (one click sends)', () => {
     const onSend = vi.fn()
     renderDm(onSend)

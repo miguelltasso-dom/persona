@@ -27,6 +27,7 @@ describe('StructureAssistant (GOV-8)', () => {
     expect(screen.getByText(governancePt['tip.rcd'])).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: governancePt['action.continue'] })[0]!)
     expect(screen.getByText(governancePt['step4.hireHint'])).toBeTruthy()
+    expect(screen.getByRole('region', { name: governancePt['twoDay.label'] })).toBeTruthy()
     expect(screen.getByRole('button', { name: governancePt['action.hireAll'] })).toBeTruthy()
   })
 

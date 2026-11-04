@@ -17,9 +17,11 @@ import {
   Toast,
   ToastRegion,
   ActivityGroup,
+  FixedRowVirtualScroller,
   type ActivityGroupProps,
   type ReactionId,
 } from '../primitives/index.ts'
+import { CHAT_MESSAGE_ROW_PX, CHAT_MESSAGE_VIRTUAL_MIN } from './message-stream-virtual.ts'
 import type { ConversationSubjectUi } from './conversation-subjects.ts'
 import { DEFAULT_CONVERSATION_SUBJECT_ID } from './conversation-subjects.ts'
 import { MoveMessageSubject } from './MoveMessageSubject.tsx'
@@ -240,7 +242,7 @@ export function GeneralChannelView({
         <div className={styles.subjectRow}>
           {subjectsLoadError !== null && subjectsLoadError !== undefined && (
             <div className={styles.subjectError} role="status">
-              <p>{subjectsLoadError.message}</p>
+              <p>{t('subjects.loadError')}</p>
               {onRetrySubjects !== undefined && (
                 <button type="button" className={styles.subjectRetry} onClick={() => { onRetrySubjects() }}>
                   {t('subjects.retry')}
@@ -413,38 +415,56 @@ export function MessageList({ t, team = null, messages, gestorPlansById = {}, ge
   readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
   readonly runErrorHandlers?: RunErrorHandlerContext | undefined
 }): ReactNode {
+  const virtualized = messages.length >= CHAT_MESSAGE_VIRTUAL_MIN
+  const rowProps = (index: number) => ({
+    t,
+    team,
+    message: messages[index]!,
+    gestorPlansById,
+    gestorPlanAdjustingIds,
+    index,
+    continued: index > 0 && messages[index - 1]?.authorId === messages[index]?.authorId,
+    streamVirtual: virtualized,
+    onLoadTurnContext,
+    ...(onOpenTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard }),
+    ...(onApproveGestorPlan === undefined ? {} : { onApproveGestorPlan }),
+    ...(onRejectGestorPlan === undefined ? {} : { onRejectGestorPlan }),
+    ...(onRequestGestorPlanAdjust === undefined ? {} : { onRequestGestorPlanAdjust }),
+    ...(personaCardTrigger === undefined ? {} : { personaCardTrigger }),
+    ...(memberId === undefined ? {} : { memberId }),
+    ...(onToggleReaction === undefined ? {} : { onToggleReaction }),
+    ...(userStickerAnimal === undefined ? {} : { userStickerAnimal }),
+    ...(subjectMoveTargets === undefined ? {} : { subjectMoveTargets }),
+    ...(onMoveMessageSubject === undefined ? {} : { onMoveMessageSubject }),
+    ...(turnActivityTicketId === undefined ? {} : { turnActivityTicketId }),
+    ...(turnActivityFolds === undefined ? {} : { turnActivityFolds }),
+    ...(turnActivityLabels === undefined ? {} : { turnActivityLabels }),
+    ...(runErrorHandlers === undefined ? {} : { runErrorHandlers }),
+  })
+
   return (
     <>
       <DayDivider>{t('stream.today')}</DayDivider>
-      <ol className={styles.messages}>
-        {messages.map((message, index) => (
-          <ChannelMessageRow
-            key={message.id}
-            t={t}
-            team={team}
-            message={message}
-            gestorPlansById={gestorPlansById}
-            gestorPlanAdjustingIds={gestorPlanAdjustingIds}
-            index={index}
-            continued={index > 0 && messages[index - 1]?.authorId === message.authorId}
-            onLoadTurnContext={onLoadTurnContext}
-            {...(onOpenTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard })}
-            {...(onApproveGestorPlan === undefined ? {} : { onApproveGestorPlan })}
-            {...(onRejectGestorPlan === undefined ? {} : { onRejectGestorPlan })}
-            {...(onRequestGestorPlanAdjust === undefined ? {} : { onRequestGestorPlanAdjust })}
-            {...(personaCardTrigger === undefined ? {} : { personaCardTrigger })}
-            {...(memberId === undefined ? {} : { memberId })}
-            {...(onToggleReaction === undefined ? {} : { onToggleReaction })}
-            {...(userStickerAnimal === undefined ? {} : { userStickerAnimal })}
-            {...(subjectMoveTargets === undefined ? {} : { subjectMoveTargets })}
-            {...(onMoveMessageSubject === undefined ? {} : { onMoveMessageSubject })}
-            {...(turnActivityTicketId === undefined ? {} : { turnActivityTicketId })}
-            {...(turnActivityFolds === undefined ? {} : { turnActivityFolds })}
-            {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
-            {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
-          />
-        ))}
-      </ol>
+      {virtualized ? (
+        <FixedRowVirtualScroller
+          className={styles.messagesVirtual}
+          rowCount={messages.length}
+          rowHeight={CHAT_MESSAGE_ROW_PX}
+          ariaLabel={t('stream.today')}
+          getRowKey={index => messages[index]?.id ?? `msg-row-${index}`}
+          renderRow={index => (
+            <div className={styles.messageVirtualSlot}>
+              <ChannelMessageRow {...rowProps(index)} rowTag="div" />
+            </div>
+          )}
+        />
+      ) : (
+        <ol className={styles.messages}>
+          {messages.map((_message, index) => (
+            <ChannelMessageRow key={messages[index]!.id} {...rowProps(index)} />
+          ))}
+        </ol>
+      )}
     </>
   )
 }
@@ -457,6 +477,8 @@ function ChannelMessageRow(props: {
   readonly gestorPlanAdjustingIds: Readonly<Record<string, true>>
   readonly index: number
   readonly continued: boolean
+  readonly streamVirtual?: boolean
+  readonly rowTag?: 'li' | 'div'
   readonly onApproveGestorPlan?: ((planId: string) => void) | undefined
   readonly onRejectGestorPlan?: ((planId: string) => void) | undefined
   readonly onRequestGestorPlanAdjust?: ((planId: string) => void) | undefined
@@ -484,9 +506,9 @@ function ChannelMessageRow(props: {
   const gestorPlan = resolveGestorPlanForMessage(gestorPlanRaw, gestorPlansById, gestorPlanAdjustingIds)
   const motion = usePersonaMotion({
     preset: 'base',
-    fromOpacity: 0,
-    fromTranslateY: 8,
-    delayMs: Math.min(props.index, 8) * 60,
+    fromOpacity: props.streamVirtual === true ? 1 : 0,
+    fromTranslateY: props.streamVirtual === true ? 0 : 8,
+    delayMs: props.streamVirtual === true ? 0 : Math.min(props.index, 8) * 60,
   })
   const gestorMotion = usePersonaMotion({
     preset: 'character',
@@ -523,13 +545,17 @@ function ChannelMessageRow(props: {
     />
   )
 
+  const RowTag = props.rowTag === 'div' ? 'div' : 'li'
+  const rowRole = props.rowTag === 'div' ? { role: 'listitem' as const } : {}
+
   return (
-    <li
+    <RowTag
       className={continued ? `${styles.message} ${styles.continued}` : styles.message}
       data-author={isUser ? 'user' : 'persona'}
       data-message-id={message.id}
       ref={motion.ref}
       style={motion.style}
+      {...rowRole}
     >
       <div className={styles.gutter}>
         {continued ? (
@@ -673,6 +699,6 @@ function ChannelMessageRow(props: {
           </div>
         )}
       </div>
-    </li>
+    </RowTag>
   )
 }

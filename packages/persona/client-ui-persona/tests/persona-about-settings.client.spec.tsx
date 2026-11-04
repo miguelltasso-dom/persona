@@ -19,7 +19,7 @@ describe('PersonaAboutSettingsSection', () => {
         close={() => {}}
       />,
     )
-    expect(screen.getByRole('heading', { name: 'Sobre o Persona' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Sobre a Persona' })).toBeTruthy()
     expect(screen.getByText('Versão 1.2.3')).toBeTruthy()
   })
 })

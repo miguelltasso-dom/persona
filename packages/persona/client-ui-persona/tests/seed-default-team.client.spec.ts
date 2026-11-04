@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createDevHarnessMessageClock,
+  DEV_HARNESS_BRAIN_GRANT_ID,
   devHarnessMessageTimes,
   galleryRefForRosterPerson,
   suggestedGalleryToHostTeam,
@@ -38,6 +39,12 @@ describe('suggested team gallery', () => {
 describe('persona-dev-seed', () => {
   it('is off without harness flag', () => {
     expect(readClientDevSeedEnabled()).toBe(false)
+  })
+})
+
+describe('dev harness brain grant (AG-004)', () => {
+  it('uses stable grant id (dev seed path only; host onboarding AG-004 in persona-host)', () => {
+    expect(DEV_HARNESS_BRAIN_GRANT_ID).toBe('dev-harness-v1-brain-grant')
   })
 })
 

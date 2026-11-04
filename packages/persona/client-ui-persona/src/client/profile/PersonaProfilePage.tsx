@@ -56,6 +56,8 @@ export interface PersonaProfilePageProps {
   /** Hero actions (Prism/Lumen wire: open DM, open editor). */
   readonly onMessage?: (() => void) | undefined
   readonly onEdit?: (() => void) | undefined
+  /** W2-10 — opens consent overlay (`openTeachPersona`). */
+  readonly onTeach?: (() => void) | undefined
   /** Card data from the host (PersonaCardInfo); fields left out fall back to the snapshot. */
   readonly card?: Partial<Omit<PersonaCardInfo, 'personaId' | 'name'>> | undefined
   /** What she is doing next (queue), newest first. */
@@ -94,6 +96,7 @@ export function PersonaProfilePage({
   skillRecords,
   onMessage,
   onEdit,
+  onTeach,
   card,
   queue,
   deliveries,
@@ -185,10 +188,11 @@ export function PersonaProfilePage({
             <Chip tone={liveChipTone(liveState)}>{t(stateLabelKey(liveState))}</Chip>
             {persona.systemRoles.map(role => <Chip key={role} tone="brand" icon={<BrandIcon name="equipe" size={14} />}>{t(`card.badge.${role}`)}</Chip>)}
           </div>
-          {(onMessage !== undefined || onEdit !== undefined) && (
+          {(onMessage !== undefined || onEdit !== undefined || onTeach !== undefined) && (
             <div className={styles.heroActions}>
               {onMessage !== undefined && <Button variant="primary" icon={<BrandIcon name="mensagens-diretas" size={18} />} onClick={onMessage}>{t('action.message')}</Button>}
               {onEdit !== undefined && <Button variant="secondary" icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />} onClick={onEdit}>{t('action.edit')}</Button>}
+              {onTeach !== undefined && <Button variant="secondary" icon={<BrandIcon name="ensinar" size={18} />} onClick={onTeach}>{t('action.teach')}</Button>}
             </div>
           )}
           <div className={styles.heroFacts}>

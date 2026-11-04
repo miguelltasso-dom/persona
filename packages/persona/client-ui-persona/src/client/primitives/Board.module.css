@@ -64,7 +64,7 @@
 
 .column {
   position: relative;
-  flex: 0 0 296px;
+  flex: 0 0 min(296px, 78vw);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -292,4 +292,16 @@
 
 .column[data-category='todo'] .columnIcon {
   color: var(--persona-plum-900);
+}
+
+@media (max-width: 960px) {
+  .columns {
+    gap: var(--persona-space-3);
+    padding-bottom: var(--persona-space-2);
+  }
+
+  .column {
+    flex-basis: min(260px, 88vw);
+    min-height: 360px;
+  }
 }

@@ -1,0 +1,63 @@
+// @vitest-environment jsdom
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { RemoteKanbanPanel } from '../src/client/data/lumen-remote-panels.tsx'
+import type { PersonaRemoteClient } from '../src/client/data/lumen-inject.ts'
+import type { PersonaTenantSnapshot } from '../src/client/data/persona-tenant.ts'
+import { bindObservableForTest } from './bind-observable-for-test.client.ts'
+import { createShellStore } from '../src/client/shell/create-shell-store.ts'
+import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
+import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
+
+installPreviewTheme()
+
+afterEach(() => { cleanup() })
+
+function tenantHarness(): ReturnType<typeof bindObservableForTest<PersonaTenantSnapshot>> {
+  const store = createSnapshotStore<PersonaTenantSnapshot>({
+    status: 'ready',
+    scope: { workspaceId: 'ws', projectId: 'proj', actorId: 'owner' },
+  })
+  return bindObservableForTest({
+    getSnapshot: () => store.getSnapshot(),
+    subscribe: listener => store.subscribe(listener),
+  })
+}
+
+function shellHarness(): ReturnType<typeof bindObservableForTest<ReturnType<ReturnType<typeof createShellStore>['store']['getSnapshot']>>> {
+  const { store } = createShellStore()
+  return bindObservableForTest(store)
+}
+
+describe('RemoteKanbanPanel (legacy global kanban wire)', () => {
+  it('renders task from listTasks', async () => {
+    const persona = {
+      listTasks: vi.fn(async () => ({
+        ok: true as const,
+        value: [{
+          id: 'task-1',
+          projectId: 'proj',
+          title: 'Integrar API',
+          stage: 'doing',
+          stageAction: '',
+        }],
+      })),
+    } as unknown as PersonaRemoteClient
+
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <RemoteKanbanPanel
+          persona={persona}
+          useTenant={tenantHarness()}
+          useShell={shellHarness()}
+        />
+      </PreviewFrame>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Integrar API')).toBeTruthy()
+    })
+    expect(persona.listTasks).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj' })
+  })
+})

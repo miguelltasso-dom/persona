@@ -82,6 +82,34 @@
   }
 }
 
+/* Small laptop / 200% zoom on 1920×1080 (~960 CSS px): keep panels usable without page-level horizontal scroll. */
+@media (max-width: 960px) {
+  .screen {
+    padding: var(--persona-space-4) var(--persona-space-4) var(--persona-space-8);
+  }
+
+  .inner {
+    gap: var(--persona-space-4);
+    max-width: 100%;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .title {
+    font-size: 22px;
+    line-height: 28px;
+  }
+}
+
 /* Keyboard focus on the scroll container itself: a quiet inset ring (it is the whole panel). */
 .screen:focus-visible {
   outline: none;

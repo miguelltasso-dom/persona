@@ -26,6 +26,10 @@
   gap: var(--persona-space-3);
 }
 
+.approvalsVirtual {
+  max-height: min(70vh, 720px);
+}
+
 .inboxCelebrate {
   position: relative;
   height: 0;

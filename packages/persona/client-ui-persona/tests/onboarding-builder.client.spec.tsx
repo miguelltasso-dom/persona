@@ -40,7 +40,7 @@ describe('onboarding wizard', () => {
     fireEvent.click(screen.getAllByRole('button', { name: pt['action.continue'] })[0]!)
     expect(screen.getByRole('button', { name: pt['step4.templates.startup'], pressed: false })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: pt['action.continue'] }))
-    expect(screen.getByRole('heading', { level: 1, name: pt['step5.title'] })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: pt['step5.title'] })).toBeTruthy() // legacy preview without firstDelivery prop
   }, 15_000)
 })
 

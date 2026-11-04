@@ -123,4 +123,56 @@ describe('mapMessage task cards (C5b)', () => {
     expect(row.runError?.code).toBe('engine_unavailable')
     expect(row.body).toBe('')
   })
+
+  it('prefers wire runError over legacy text in body', () => {
+    const event = hostMessage({
+      id: 'e-wire-legacy',
+      seq: 14,
+      type: 'message',
+      actorId: 'gallery-bento',
+      body: 'CLI codex não está logada. Abra o terminal e rode codex login',
+      subjectId: 'gallery-bento',
+      occurredAt: '2026-11-04T11:10:00.000Z',
+      runError: { code: 'quota_exhausted', provider: 'Codex', resetAt: '2026-11-04T18:00:00.000Z' },
+    })
+    const row = mapMessage(event, team, 'ana', new Map())
+    expect(row.runError?.code).toBe('quota_exhausted')
+  })
+
+  it('legacyRunErrorFromText on persona messages without marker (Rivet/histórico)', () => {
+    const event = hostMessage({
+      id: 'e-legacy',
+      seq: 11,
+      type: 'message',
+      actorId: 'gallery-bento',
+      body: 'CLI codex não está logada. Abra o terminal e rode codex login',
+      subjectId: 'gallery-bento',
+      occurredAt: '2026-11-04T11:00:00.000Z',
+    })
+    const row = mapMessage(event, team, 'ana', new Map())
+    expect(row.runError).toEqual({ code: 'not_logged_in', provider: 'Codex', command: 'codex login', persona: 'Bento' })
+  })
+
+  it('does not legacy-map human or casual chat that mentions errors', () => {
+    const personaChat = hostMessage({
+      id: 'e-chat',
+      seq: 12,
+      type: 'message',
+      actorId: 'gallery-bento',
+      body: 'Bati no rate limit ontem',
+      subjectId: 'gallery-bento',
+      occurredAt: '2026-11-04T11:01:00.000Z',
+    })
+    expect(mapMessage(personaChat, team, 'ana', new Map()).runError).toBeUndefined()
+    const userMsg = hostMessage({
+      id: 'e-user',
+      seq: 13,
+      type: 'message',
+      actorId: 'ana',
+      body: 'CLI codex não está logada. Abra o terminal e rode codex login',
+      subjectId: 'ana',
+      occurredAt: '2026-11-04T11:02:00.000Z',
+    })
+    expect(mapMessage(userMsg, team, 'ana', new Map()).runError).toBeUndefined()
+  })
 })

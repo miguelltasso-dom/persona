@@ -24,6 +24,10 @@
   gap: var(--persona-space-2);
 }
 
+.recordsVirtual {
+  max-height: 240px;
+}
+
 .limits {
   display: flex;
   flex-direction: column;

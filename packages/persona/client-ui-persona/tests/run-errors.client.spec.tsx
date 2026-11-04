@@ -51,3 +51,23 @@ describe('RunErrorCard', () => {
     expect(screen.getAllByRole('button')).toHaveLength(3)
   })
 })
+
+describe('legacyRunErrorFromText (bridge until every sender ships `code`)', () => {
+  it('maps every current runner/host raw text to a code', async () => {
+    const { legacyRunErrorFromText } = await import('../src/client/primitives/run-errors.ts')
+    expect(legacyRunErrorFromText('CLI codex não está logada. Abra o terminal e rode codex login')).toEqual({ code: 'not_logged_in', provider: 'Codex', command: 'codex login' })
+    expect(legacyRunErrorFromText('CLI claude não encontrada neste computador.')).toEqual({ code: 'cli_not_found', provider: 'Claude' })
+    expect(legacyRunErrorFromText('Modelo opus indisponível neste runner.')).toEqual({ code: 'model_unavailable', model: 'opus' })
+    expect(legacyRunErrorFromText('Cota de claude esgotada. Espere a janela resetar.')).toEqual({ code: 'quota_exhausted', provider: 'Claude' })
+    expect(legacyRunErrorFromText('O executor DSH não está montado neste host.', 'Bento')).toEqual({ code: 'engine_unavailable', persona: 'Bento' })
+    expect(legacyRunErrorFromText('orçamento de tokens do mês esgotado', 'Luna')).toEqual({ code: 'budget_exhausted', persona: 'Luna' })
+    expect(legacyRunErrorFromText('O Codex não está conectado — abra o terminal e rode `codex login`')).toEqual({ code: 'not_logged_in', provider: 'Codex', command: 'codex login' })
+  })
+
+  it('never matches ordinary conversation (anchored, whole message)', async () => {
+    const { legacyRunErrorFromText } = await import('../src/client/primitives/run-errors.ts')
+    for (const text of ['Acho que a CLI codex não está logada, pode ver?', 'Bati no rate limit ontem', 'O Codex não está conectado ao repositório certo', 'Pronto! Revisei a proposta.']) {
+      expect(legacyRunErrorFromText(text), text).toBeNull()
+    }
+  })
+})

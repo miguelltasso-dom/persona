@@ -480,6 +480,45 @@
   to { opacity: 1; transform: none; }
 }
 
+.taskPreview {
+  margin-top: var(--persona-space-5);
+  padding: var(--persona-space-4) var(--persona-space-5);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-surface-alt);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.taskPreviewLabel {
+  margin: 0 0 var(--persona-space-2);
+  font: 600 13px/18px var(--persona-font-ui);
+  color: var(--persona-ink-muted);
+}
+
+.taskPreviewBody {
+  margin: 0;
+  font: 400 15px/22px var(--persona-font-ui);
+  color: var(--persona-ink);
+}
+
+.firstDeliveryActions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-6);
+}
+
+.workingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-4);
+}
+
+.workingName {
+  font: 600 16px/22px var(--persona-font-display);
+}
+
 @media (max-width: 900px) {
   .templateGrid,
   .harnessList {

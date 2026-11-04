@@ -5,8 +5,14 @@ import type {
   WorkflowColumnView,
 } from '@deepseek-ai/dsh-persona-host/types'
 import type { FlowModelId, ProjectBoardSummary, StageCategoryCounts } from '../../boards/types.ts'
+import type { ConversationSubjectUi } from '../../chat/conversation-subjects.ts'
+import { conversationSubjectChipForId } from '../../remote/map-host-ui.ts'
 import type { FlowCardModel, FlowColumnModel, ProjectFlowSnapshot } from '../../kanban/flow-types.ts'
 import type { KanbanColumnId } from '../../kanban/types.ts'
+
+export interface ProjectBoardToFlowOptions {
+  readonly conversationSubjects?: readonly ConversationSubjectUi[]
+}
 
 const CATEGORY_TO_COLUMN: Record<string, KanbanColumnId> = {
   todo: 'todo',
@@ -49,11 +55,13 @@ function toFlowCard(
   projectId: string,
   projectName: string,
   columns: readonly FlowColumnModel[],
+  conversationSubjects: readonly ConversationSubjectUi[],
 ): FlowCardModel {
   const columnId = resolveColumnId(card, columns)
   const category = columns.find(column => column.id === columnId)?.category ?? card.category
   const column = CATEGORY_TO_COLUMN[category] ?? 'todo'
   const waitingEvent = card.chip === 'waiting'
+  const conversationSubject = conversationSubjectChipForId(card.topicId, conversationSubjects)
   return {
     id: card.ticketId,
     title: card.title,
@@ -66,18 +74,29 @@ function toFlowCard(
     blocked: card.blocked,
     waitingEvent,
     reviewApproved: category === 'done',
+    ...(conversationSubject === undefined ? {} : { conversationSubject }),
   }
 }
 
 /** Host {@link ProjectBoardView} → Lumen flow board snapshot. */
-export function projectBoardToFlow(board: ProjectBoardView): ProjectFlowSnapshot {
+export function projectBoardToFlow(
+  board: ProjectBoardView,
+  options: ProjectBoardToFlowOptions = {},
+): ProjectFlowSnapshot {
+  const conversationSubjects = options.conversationSubjects ?? []
   const columns = board.workflow.columns.map(toFlowColumn)
   return {
     projectId: board.projectId,
     projectName: board.projectName,
     template: board.workflow.template,
     columns,
-    cards: board.cards.map(card => toFlowCard(card, board.projectId, board.projectName, columns)),
+    cards: board.cards.map(card => toFlowCard(
+      card,
+      board.projectId,
+      board.projectName,
+      columns,
+      conversationSubjects,
+    )),
   }
 }
 

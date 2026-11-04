@@ -215,6 +215,20 @@
   flex-direction: column;
 }
 
+.messagesVirtual {
+  margin: var(--persona-space-3) 0 0;
+  max-height: min(62vh, 640px);
+  flex: 1;
+  min-height: 200px;
+}
+
+.messageVirtualSlot {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: hidden;
+  padding-right: var(--persona-space-1);
+}
+
 .message {
   position: relative;
   display: grid;
@@ -447,5 +461,25 @@
 
   .subtitle {
     display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .header,
+  .subjectRow,
+  .scroll,
+  .composerDock {
+    padding-left: var(--persona-space-4);
+    padding-right: var(--persona-space-4);
+    max-width: 100%;
+  }
+
+  .column {
+    max-width: 100%;
+  }
+
+  .message {
+    grid-template-columns: 44px minmax(0, 1fr);
+    padding: var(--persona-space-2);
   }
 }

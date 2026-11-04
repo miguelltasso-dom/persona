@@ -7,6 +7,7 @@ import type { PersonaRemoteClient } from '../src/client/data/lumen-inject.ts'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { pt as kanbanPt } from '../src/client/locale/kanban/locales.ts'
+import { pt as reviewPt } from '../src/client/locale/review/locales.ts'
 installPreviewTheme()
 
 afterEach(() => { cleanup() })
@@ -318,6 +319,110 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
     })
     await waitFor(() => {
       expect(screen.getByText('Resumo do sprint no canal.')).toBeTruthy()
+    })
+  })
+
+  it('opens KanbanReviewSheet from review column card menu (Revisar)', async () => {
+    const board: ProjectBoardView = {
+      ...MOCK_BOARD,
+      workflow: {
+        ...MOCK_BOARD.workflow,
+        columns: [
+          { id: 'col-todo', name: 'Backlog', category: 'todo' },
+          { id: 'col-review', name: 'Revisar', category: 'review' },
+          { id: 'col-done', name: 'Live', category: 'done' },
+        ],
+      },
+      cards: [{
+        ticketId: 't-rev',
+        title: 'Patch do hero',
+        category: 'review',
+        blocked: false,
+      }],
+    }
+    const reviewSummary = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        ticketId: 't-rev',
+        files: [{ path: 'hero.tsx', added: 2, deleted: 0 }],
+        added: 2,
+        deleted: 0,
+        patch: 'diff',
+        patchTruncated: false,
+        secretsRedacted: false,
+        testsClaimed: [],
+        hasWorktree: true,
+      },
+    }))
+    const acceptReview = vi.fn(async () => ({ ok: true as const, value: { kind: 'accepted' as const, mode: 'ff' as const } }))
+    const persona = {
+      getProjectBoard: vi.fn(async () => ({ ok: true as const, value: board })),
+      reviewSummary,
+      acceptReview,
+      moveTicket: vi.fn(),
+    } as unknown as PersonaRemoteClient
+
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <ConnectedProjectFlowBoard
+          persona={persona}
+          scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
+          onBack={() => {}}
+          onMutate={() => {}}
+        />
+      </PreviewFrame>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Patch do hero')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: kanbanPt['a11y.cardMenu'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: kanbanPt['action.open'] }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeTruthy()
+      expect(reviewSummary).toHaveBeenCalled()
+    })
+    expect(screen.getByText('hero.tsx')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: reviewPt['action.accept'] }))
+    await waitFor(() => {
+      expect(acceptReview).toHaveBeenCalled()
+    })
+  })
+
+  it('persists workflow edits via updateWorkflow (PB-6)', async () => {
+    const updateWorkflow = vi.fn(async () => ({ ok: true as const, value: MOCK_BOARD.workflow }))
+    const persona = {
+      getProjectBoard: vi.fn(async () => ({ ok: true as const, value: MOCK_BOARD })),
+      updateWorkflow,
+      moveTicket: vi.fn(),
+    } as unknown as PersonaRemoteClient
+
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <ConnectedProjectFlowBoard
+          persona={persona}
+          scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
+          onBack={() => {}}
+          onMutate={() => {}}
+        />
+      </PreviewFrame>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Hero da home')).toBeTruthy()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: kanbanPt['action.editFlow'] }))
+    fireEvent.click(screen.getByRole('button', { name: kanbanPt['editor.save'] }))
+
+    await waitFor(() => {
+      expect(updateWorkflow).toHaveBeenCalledWith(expect.objectContaining({
+        workspaceId: 'ws',
+        projectId: 'proj-site',
+        columns: MOCK_BOARD.workflow.columns,
+      }))
     })
   })
 })

@@ -182,7 +182,7 @@ async function main() {
     )),
     // Muse (BRIEFING 19): Segundo cérebro home / empty state.
     { from: 'illustrations/bibliotecario.png', to: 'illustrations/bibliotecario.webp', width: 480, quality: 86 },
-    // Muse (kit de lançamento): "Sobre o Persona" team photo (Brush, brand/launch).
+    // Muse (kit de lançamento): "Sobre a Persona" team photo (Brush, brand/launch).
     { from: 'brand/launch/about-team.png', to: 'illustrations/about-team.webp', width: 960, quality: 86 },
     { from: 'brand/launch/release-notes-badge.png', to: 'illustrations/release-notes-badge.webp', width: 256, quality: 86 },
     ...['equipe-saudavel', 'ponto-unico-falha', 'voce-de-ferias'].map(name => (

@@ -10,6 +10,7 @@ import {
   formatTokensBaselineMarkdown,
   measureEngineLevers,
   measureOpt8Acceptance,
+  measureOpt8View,
   pairVerdict,
   runPairedSuite,
   runPairedTask,
@@ -127,6 +128,41 @@ it('runs the five reference scenarios and gates a 10% regression', () => {
   expect(derived.blocked).toEqual([])
   expect(derived.failed).toEqual([])
   expect(derived.passed).toBe(4)
+  const emptyView = measureOpt8View()
+  expect(emptyView.blocked).toEqual(['cut-40'])
+  expect(emptyView.liveEntries).toBe(0)
+  expect(emptyView.liveOrigin).toBe('estimate')
+  const liveView = measureOpt8View([{
+    id: 'e4',
+    personaId: 'atlas',
+    engine: 'claude',
+    kind: 'execution',
+    inputTokens: 40,
+    outputTokens: 10,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    layers: emptyLayers,
+    at: '2026-11-04T05:00:00.000Z',
+    ticketId: 't1',
+  }])
+  expect(liveView.blocked).toEqual([])
+  expect(liveView.passed).toBe(4)
+  expect(liveView.liveEntries).toBe(1)
+  expect(liveView.liveOrigin).toBe('estimate')
+  expect(measureOpt8View([{
+    id: 'e5',
+    personaId: 'atlas',
+    engine: 'claude',
+    kind: 'execution',
+    inputTokens: 40,
+    outputTokens: 10,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    layers: emptyLayers,
+    at: '2026-11-04T05:00:00.000Z',
+    ticketId: 't1',
+    origin: 'measured',
+  }]).liveOrigin).toBe('measured')
   expect(formatOpt8AcceptanceMarkdown()).toContain('blocked')
 })
 

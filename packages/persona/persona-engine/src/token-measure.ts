@@ -10,6 +10,7 @@ import {
   foldUsagePanel,
   measureLayers,
   ticketIdsFromLedger,
+  type LedgerOrigin,
   totalTokens,
   turnFromLayers,
   type TurnKind,
@@ -688,6 +689,31 @@ export function measureOpt8Acceptance(input?: {
     total: 4,
     failed,
     blocked: ['cut-40'],
+  }
+}
+
+/** Host `@Remote measureOpt8` wire. One call; Anvil does not remount flags. */
+export interface Opt8MeasureView {
+  readonly passed: number
+  readonly total: 4
+  readonly failed: readonly string[]
+  readonly blocked: readonly string[]
+  readonly liveEntries: number
+  readonly liveOrigin: LedgerOrigin
+}
+
+/**
+ * OPT-8 score plus live book size/origin. Host `measureOpt8` returns this.
+ * Empty book keeps `cut-40` blocked; a live book scores −40%.
+ * @param entries - Host ledger rows (`TurnLedgerView` ≡ `TurnLedgerEntry`).
+ * @returns Wire fields. `liveEntries` is `entries.length`.
+ */
+export function measureOpt8View(entries: readonly TurnLedgerEntry[] = []): Opt8MeasureView {
+  const scored = measureOpt8Acceptance({ liveEntries: entries })
+  return {
+    ...scored,
+    liveEntries: entries.length,
+    liveOrigin: foldUsagePanel(entries, ticketIdsFromLedger(entries)).origin,
   }
 }
 

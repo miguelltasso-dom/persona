@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import type { GestorMandate, GestorPlan, Persona, PersonaSpec } from '@deepseek-ai/dsh-persona-core'
 import { DEFAULT_GESTOR_LIMITS } from '../../persona-core/src/index.ts'
-import { emitGestorPropose, measureGestorAcceptance, measureGestorV1, proposeGestorChannelBody, runAssembleTeam, runGestorAllocate, runGestorAssemble, runGestorComment, runGestorHire, runGestorReorganize, runGestorTie } from '../src/index.ts'
+import { emitGestorPropose, measureGestorAcceptance, measureGestorToolsAcceptance, measureGestorV1, proposeGestorChannelBody, runAssembleTeam, runGestorAllocate, runGestorAssemble, runGestorComment, runGestorHire, runGestorReorganize, runGestorTie } from '../src/index.ts'
 
 const now = '2026-11-04T03:00:00.000Z'
 
@@ -228,4 +228,5 @@ it('scores the three MAESTRO aceite bullets', () => {
   const scored = measureGestorAcceptance()
   expect(scored).toEqual({ passed: 3, total: 3, failed: [] })
   expect(measureGestorV1()).toEqual(scored)
+  expect(measureGestorToolsAcceptance()).toEqual({ passed: 4, total: 4, failed: [] })
 })

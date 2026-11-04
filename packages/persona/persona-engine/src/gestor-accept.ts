@@ -16,6 +16,7 @@ import {
   type Persona,
   type PersonaSpec,
 } from '@deepseek-ai/dsh-persona-core'
+import { runGestorAllocate, runGestorAssemble, runGestorHire, runGestorReorganize } from './gestor.ts'
 
 export interface GestorAcceptance {
   readonly passed: number
@@ -150,4 +151,67 @@ export function measureGestorAcceptance(): GestorAcceptance {
 /** Same score as {@link measureGestorAcceptance}; name for `@Remote measureGestorV1`. */
 export function measureGestorV1(): GestorAcceptance {
   return measureGestorAcceptance()
+}
+
+/** GES-2 domain score: hire / allocate / reorganize / assemble after accept. */
+export interface GestorToolsAcceptance {
+  readonly passed: number
+  readonly total: 4
+  readonly failed: readonly string[]
+}
+
+/**
+ * Four GES-2 tools: plan → accept → apply. Access ≤ Gestor stays on `limits`.
+ * @returns Passed count and failed action ids. Empty `failed` is the domain gate.
+ */
+export function measureGestorToolsAcceptance(): GestorToolsAcceptance {
+  const failed: string[] = []
+  const hire = runGestorHire({
+    mandate: mandate(),
+    gestor: gestor(),
+    plan: plan(),
+    spec: spec(),
+    rosterCount: 2,
+    spentTokens: 0,
+    accepted: true,
+    auditId: 'h',
+    hireId: 'hire-1',
+    at: AT,
+  })
+  if (hire.decision.kind !== 'apply' || hire.proposal === undefined) failed.push('hire')
+  const allocated = runGestorAllocate({
+    mandate: mandate(),
+    gestor: gestor(),
+    plan: plan({ id: 'plan-a', action: 'allocate' }),
+    personaId: 'nina',
+    projectIds: ['site'],
+    accepted: true,
+    auditId: 'a',
+    at: AT,
+  })
+  if (allocated.decision.kind !== 'apply' || allocated.allocation === undefined) failed.push('allocate')
+  const changed = runGestorReorganize({
+    mandate: mandate(),
+    gestor: gestor(),
+    plan: plan({ id: 'plan-r', action: 'reorganize' }),
+    kind: 'pause_idle',
+    targetPersonaId: 'nina',
+    notice: 'sem fila há 3 dias',
+    accepted: true,
+    auditId: 'r',
+    at: AT,
+  })
+  if (changed.decision.kind !== 'apply' || changed.change === undefined) failed.push('reorganize')
+  const assembled = runGestorAssemble({
+    mandate: mandate(),
+    plan: plan({ id: 'plan-s', action: 'assemble' }),
+    goal: 'Monte um time para o Site',
+    projectId: 'site',
+    sprintId: 'sp1',
+    accepted: true,
+    auditId: 's',
+    at: AT,
+  })
+  if (assembled.decision.kind !== 'apply' || assembled.assemble === undefined) failed.push('assemble')
+  return { passed: 4 - failed.length, total: 4, failed }
 }

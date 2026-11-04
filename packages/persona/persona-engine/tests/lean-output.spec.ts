@@ -12,6 +12,7 @@ import {
   foldHostTalkUsed,
   initiativeCadenceDays,
   measureLeanVsNaive,
+  measureOpt6Acceptance,
   trimInitiativeToBudget,
 } from '../src/index.ts'
 
@@ -46,6 +47,7 @@ it('caps a channel reply at 100 words and batches initiative per persona per day
     result: 'Sábado tem pão e café.',
     block: 'Falta o preço do bolo.',
   })).toBe('Publicar o cardápio. Sábado tem pão e café. Falta o preço do bolo.')
+  expect(measureOpt6Acceptance()).toEqual({ passed: 3, total: 3, failed: [] })
 })
 
 it('host talk uses the stable prefix and finishes lean without hedge', () => {

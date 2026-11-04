@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { engineClassForTurn, sessionReuseForTurn } from '../src/index.ts'
+import { engineClassForTurn, measureOpt5Acceptance, sessionReuseForTurn } from '../src/index.ts'
 import type { TurnKind } from '@deepseek-ai/dsh-persona-core'
 
 const KINDS: readonly TurnKind[] = [
@@ -37,4 +37,5 @@ it('reuses a warmed session only when the persona and prefix stay (OPT-5)', () =
     samePersona: true,
     prefixUnchanged: false,
   })).toBe('new')
+  expect(measureOpt5Acceptance()).toEqual({ passed: 3, total: 3, failed: [] })
 })

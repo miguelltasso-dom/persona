@@ -2,8 +2,17 @@
  * Lean channel output and daily initiative batching (TOKEN-OPTIMIZATION §2.6–§2.8 / OPT-6).
  */
 
+import { batchRouterBurst } from './activity.ts'
+
 /** Chat cap: decision / result / block only. */
 export const CHANNEL_WORD_LIMIT = 100
+
+/** OPT-6 domain score: channel-100, no-echo, batch-cadence. */
+export interface Opt6Acceptance {
+  readonly passed: number
+  readonly total: 3
+  readonly failed: readonly string[]
+}
 
 export interface InitiativeDraft {
   readonly id: string
@@ -128,4 +137,31 @@ export function trimInitiativeToBudget(
     kept.push(draft)
   }
   return kept
+}
+
+/**
+ * OPT-6 policy score (lean channel + initiative batch + Router burst).
+ * @returns Passed count and failed ids. Empty `failed` is the domain gate.
+ */
+export function measureOpt6Acceptance(): Opt6Acceptance {
+  const failed: string[] = []
+  const long = Array.from({ length: 140 }, (_, i) => `w${String(i)}`).join(' ')
+  if (countWords(capChannelReply(long)) !== CHANNEL_WORD_LIMIT) failed.push('channel-100')
+  const lean = leanChannelReply('Cardápio de sábado? Sábado tem pão.', 'Cardápio de sábado?')
+  const narrated = leanChannelReply('Vou agora abrir o arquivo.\nPronto: cardápio publicado.')
+  if (lean !== 'Sábado tem pão.' || narrated !== 'Pronto: cardápio publicado.') failed.push('no-echo')
+  const batches = batchInitiative([
+    { id: 'a1', personaId: 'nina', title: 'cardápio', day: '2026-11-04' },
+    { id: 'a2', personaId: 'nina', title: 'encomenda', day: '2026-11-04' },
+    { id: 'b1', personaId: 'bento', title: 'teste', day: '2026-11-04' },
+  ])
+  const burst = batchRouterBurst([
+    { id: 'a', threadId: 't1' },
+    { id: 'b', threadId: 't1' },
+    { id: 'c', threadId: 't2' },
+  ])
+  if (batches.length !== 2 || initiativeCadenceDays(0.2) !== 3 || burst.length !== 2) {
+    failed.push('batch-cadence')
+  }
+  return { passed: 3 - failed.length, total: 3, failed }
 }

@@ -1,9 +1,13 @@
 import { expect, it } from 'vitest'
 import {
   PREFIX_LAYER_ORDER,
+  VARIABLE_LAYER_BUDGET,
   assertPrefixStable,
+  clipTextToTokens,
   composeStablePrefix,
   composeTurnPrompt,
+  measureOpt3Acceptance,
+  measureOpt4Acceptance,
   prefixCacheHitRate,
   prefixLooksVolatile,
   toolsForTurn,
@@ -66,6 +70,10 @@ it('keeps system → persona → tools → required and rejects a volatile prefi
   })
   expect(dup.variable).not.toContain('Nunca inventar preço.')
   expect(dup.variable).toContain('Cardápio')
+  expect(measureOpt3Acceptance()).toEqual({ passed: 3, total: 3, failed: [] })
+  expect(measureOpt4Acceptance()).toEqual({ passed: 3, total: 3, failed: [] })
+  const clipped = clipTextToTokens('assunto '.repeat(400), VARIABLE_LAYER_BUDGET.subject)
+  expect(clipped.length).toBeLessThan('assunto '.repeat(400).length)
 })
 
 it('talk stable prefix keeps the user line out of the cache; reply is lean (OPT-3/6)', () => {

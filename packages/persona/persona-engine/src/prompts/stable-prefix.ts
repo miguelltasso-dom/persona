@@ -12,6 +12,27 @@ const VOLATILE = /\b(?:\d{1,2}:\d{2}(?::\d{2})?|hoje|agora|turno\s*#?\d+|contado
 
 export const PREFIX_LAYER_ORDER = ['system', 'persona', 'tools', 'required'] as const
 
+/** Variable-layer token ceilings (OPT-4). Prefix layers stay cache-stable. */
+export const VARIABLE_LAYER_BUDGET = {
+  subject: 400,
+  recall: 200,
+  message: 200,
+} as const
+
+/** OPT-3 domain score: prefix-order, no-volatile, cache-60. */
+export interface Opt3Acceptance {
+  readonly passed: number
+  readonly total: 3
+  readonly failed: readonly string[]
+}
+
+/** OPT-4 domain score: tools-min, dedupe-prefix, layer-budget. */
+export interface Opt4Acceptance {
+  readonly passed: number
+  readonly total: 3
+  readonly failed: readonly string[]
+}
+
 export interface StablePrefixInput {
   readonly system: string
   readonly persona: string
@@ -72,6 +93,65 @@ export function composeStablePrefix(input: StablePrefixInput): StablePrefix {
     layers,
     prefixTokens: estimateTokens(prefix),
   }
+}
+
+/**
+ * Keep a slice at or under `maxTokens` (4 characters ≈ 1 token).
+ * @param text - Subject / recall / message candidate.
+ * @param maxTokens - Ceiling from {@link VARIABLE_LAYER_BUDGET}.
+ * @returns Text that `estimateTokens` reports ≤ `maxTokens`.
+ */
+export function clipTextToTokens(text: string, maxTokens: number): string {
+  if (maxTokens <= 0) return ''
+  if (estimateTokens(text) <= maxTokens) return text
+  const maxChars = maxTokens * 4
+  const cut = text.length <= maxChars ? text : text.slice(0, maxChars)
+  const lastSpace = cut.lastIndexOf(' ')
+  const clipped = (lastSpace > maxChars * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()
+  return estimateTokens(clipped) <= maxTokens ? clipped : clipped.slice(0, maxChars).trimEnd()
+}
+
+/**
+ * OPT-3 policy score (stable prefix + cache). Rivet owns provider hit rate.
+ * @returns Passed count and failed ids. Empty `failed` is the domain gate.
+ */
+export function measureOpt3Acceptance(): Opt3Acceptance {
+  const failed: string[] = []
+  if (PREFIX_LAYER_ORDER.join(',') !== 'system,persona,tools,required') failed.push('prefix-order')
+  try {
+    assertPrefixStable('Você coordena a equipe.')
+  } catch (error) {
+    // Clean prefix must stay cacheable; UNSTABLE_PREFIX fails the gate.
+    void error
+    failed.push('no-volatile')
+  }
+  if (!failed.includes('no-volatile') && !prefixLooksVolatile('hoje 14:32 turno #9')) {
+    failed.push('no-volatile')
+  }
+  if (prefixCacheHitRate(60, 40) < 0.60) failed.push('cache-60')
+  return { passed: 3 - failed.length, total: 3, failed }
+}
+
+/**
+ * OPT-4 policy score (min tools, prefix dedupe, variable-layer budget).
+ * @returns Passed count and failed ids. Empty `failed` is the domain gate.
+ */
+export function measureOpt4Acceptance(): Opt4Acceptance {
+  const failed: string[] = []
+  if (toolsForTurn(['files', 'recall'], ['files', 'shell', 'browser']).join(',') !== 'files') {
+    failed.push('tools-min')
+  }
+  const trimmed = trimVariableAlreadyInPrefix(
+    'Nunca inventar preço.\nAtlas coordena.',
+    'Nunca inventar preço.\n\nAna pediu 20 pães.',
+  )
+  if (trimmed !== 'Ana pediu 20 pães.') failed.push('dedupe-prefix')
+  const long = 'assunto '.repeat(400)
+  const clipped = clipTextToTokens(long, VARIABLE_LAYER_BUDGET.subject)
+  if (estimateTokens(clipped) > VARIABLE_LAYER_BUDGET.subject || clipped === long) {
+    failed.push('layer-budget')
+  }
+  return { passed: 3 - failed.length, total: 3, failed }
 }
 
 /**
@@ -141,9 +221,9 @@ export function composeTurnPrompt(input: {
     persona,
     tools,
     required: input.required,
-    ...(input.subject === undefined ? {} : { subject: input.subject }),
-    ...(input.recall === undefined ? {} : { recall: input.recall }),
-    ...(input.message === undefined ? {} : { message: input.message }),
+    ...(input.subject === undefined ? {} : { subject: clipTextToTokens(input.subject, VARIABLE_LAYER_BUDGET.subject) }),
+    ...(input.recall === undefined ? {} : { recall: clipTextToTokens(input.recall, VARIABLE_LAYER_BUDGET.recall) }),
+    ...(input.message === undefined ? {} : { message: clipTextToTokens(input.message, VARIABLE_LAYER_BUDGET.message) }),
   })
   const variable = trimVariableAlreadyInPrefix(built.prefix, built.variable)
   const text = variable === '' ? built.prefix : `${built.prefix}\n\n${variable}`

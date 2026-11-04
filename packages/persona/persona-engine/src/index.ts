@@ -320,15 +320,19 @@ export {
 export type { ComposePersonaPromptInput, EngineCopy, EngineLocale, PersonaVoiceFields, VoiceSurface } from './prompts/voice.ts'
 export {
   PREFIX_LAYER_ORDER,
+  VARIABLE_LAYER_BUDGET,
   assertPrefixStable,
+  clipTextToTokens,
   composeStablePrefix,
   composeTurnPrompt,
+  measureOpt3Acceptance,
+  measureOpt4Acceptance,
   prefixCacheHitRate,
   prefixLooksVolatile,
   toolsForTurn,
   trimVariableAlreadyInPrefix,
 } from './prompts/stable-prefix.ts'
-export type { StablePrefix, StablePrefixInput } from './prompts/stable-prefix.ts'
+export type { Opt3Acceptance, Opt4Acceptance, StablePrefix, StablePrefixInput } from './prompts/stable-prefix.ts'
 export {
   CHANNEL_WORD_LIMIT,
   INITIATIVE_DAILY_TOKEN_BUDGET,
@@ -338,11 +342,12 @@ export {
   formatLeanStructuredReport,
   countWords,
   initiativeCadenceDays,
+  measureOpt6Acceptance,
   trimInitiativeToBudget,
 } from './lean-output.ts'
-export type { InitiativeBatch, InitiativeDraft, LeanStructuredReport } from './lean-output.ts'
-export { engineClassForTurn, sessionReuseForTurn } from './engine-policy.ts'
-export type { EngineClass, SessionReuse } from './engine-policy.ts'
+export type { InitiativeBatch, InitiativeDraft, LeanStructuredReport, Opt6Acceptance } from './lean-output.ts'
+export { engineClassForTurn, measureOpt5Acceptance, sessionReuseForTurn } from './engine-policy.ts'
+export type { EngineClass, Opt5Acceptance, SessionReuse } from './engine-policy.ts'
 export { MemoryPromptStore, publishPrompt } from './prompts/store.ts'
 export type { PromptSnapshot, PromptStore } from './prompts/store.ts'
 export { watchdogSignals, watchdogWarnings, vigiaTick } from './watchdog.ts'
@@ -446,8 +451,8 @@ export {
   emitGestorPropose,
   gestorInitiative,
 } from './gestor.ts'
-export { measureGestorAcceptance, measureGestorV1 } from './gestor-accept.ts'
-export type { GestorAcceptance } from './gestor-accept.ts'
+export { measureGestorAcceptance, measureGestorToolsAcceptance, measureGestorV1 } from './gestor-accept.ts'
+export type { GestorAcceptance, GestorToolsAcceptance } from './gestor-accept.ts'
 export {
   activityFromDomainEvent,
   activityFromReport,
@@ -480,6 +485,7 @@ export {
   ledgerFromTurnLayers,
   measureEngineLevers,
   measureOpt8Acceptance,
+  measureOpt8View,
   pairVerdict,
   recordOverhead,
   runPairArm,
@@ -491,6 +497,7 @@ export {
 export type {
   EngineLeverReport,
   Opt8Acceptance,
+  Opt8MeasureView,
   PairArm,
   PairEngine,
   PairPath,
@@ -550,8 +557,8 @@ export { verifyReady, continuationAfterReady, looksLikeHesitantOffer, refuseHesi
 export { scoreProactivityAcceptance } from './proactivity-accept.ts'
 export type { ProactivityAcceptance, ProactivityAcceptanceInput } from './proactivity-accept.ts'
 export { measureProactivityAcceptance, measureProactivityV1 } from './proactivity-measure.ts'
-export { formatV1CloseMarkdown, measureV1Close } from './v1-close.ts'
-export type { V1CloseMeasure } from './v1-close.ts'
+export { assertV1Close, formatV1CloseMarkdown, measureV1Close, measureV1CloseView } from './v1-close.ts'
+export type { V1CloseMeasure, V1CloseMeasureView } from './v1-close.ts'
 export type { ProactivityMeasure } from './proactivity-measure.ts'
 export type { Continuation, FollowupProposal, ReadyCheck } from './continue.ts'
 export {

@@ -4,6 +4,161 @@ Mais recente no topo.
 
 ---
 
+## 04/11 06:49 — Anvil wire + GES-2 tools gate
+
+Anvil: `measureV1Close` host = `return measureV1CloseView(liveEntries)`; token-opt 6/6. Confirmado em `persona-host/src/index.ts`.
+
+### GES-2
+`measureGestorToolsAcceptance` — hire / allocate / reorganize / assemble após accept (4/4). Acesso ≤ Gestor continua no bullet `limits` (GES-6).
+
+`v1-close.md` agora diz que o Remote chama `measureV1CloseView(entries)`. Livro scriptado ainda bloqueia `cut-40` (sem ledger live no script). Livro live no host pontua −40% (Anvil token-opt: `cut-40` failed no livro seed, esperado).
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/gestor.spec.ts packages/persona/persona-engine/tests/v1-close.spec.ts
+  Test Files  2 passed (2)
+      Tests  9 passed (9)
+
+pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts
+  wrote opt8-acceptance.md / v1-close.md
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 19.9s
+```
+
+### Dependências (fila implementável Forge vazia)
+- **Rivet**: NSIS com `index-ZjNmkjRJ.js`. Sem `'unsafe-eval'`.
+- **Probe**: exe + dogfood UI Agência Ponto; E2E `measureV1Close`.
+- Keel: marcar GES-2 + OPT-2/3/4/5/6 (código verde).
+
+---
+
+## 04/11 06:39 — measureV1CloseView + OPT-3/4/5/6 gates
+
+Vigia: não parar. Host `measureV1Close` ainda chama `measureV1Close()` e ignora `liveEntries`.
+
+### v1 close wire
+`measureV1CloseView(entries)` — PRO+GES+OPT + `opt8.liveEntries`. Livro vazio mantém `cut-40` blocked; livro live pontua −40%. Anvil: `return measureV1CloseView(liveEntries)`.
+
+### OPT-3/4/5/6
+- `measureOpt3Acceptance` — prefix-order, no-volatile, cache-60 (3/3)
+- `measureOpt4Acceptance` — tools-min, dedupe-prefix, layer-budget (3/3)
+- `clipTextToTokens` + `VARIABLE_LAYER_BUDGET` (subject 400 / recall 200 / message 200) em `composeTurnPrompt`
+- `measureOpt5Acceptance` — cheap-support, persona-heavy, session-reuse (3/3)
+- `measureOpt6Acceptance` — channel-100, no-echo, batch-cadence + `batchRouterBurst` (3/3)
+
+Contrato: `persona-spec/contracts/lumen-rpc.md`.
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/v1-close.spec.ts packages/persona/persona-engine/tests/engine-policy.spec.ts packages/persona/persona-engine/tests/stable-prefix.spec.ts packages/persona/persona-engine/tests/lean-output.spec.ts
+  Test Files  4 passed (4)
+      Tests  11 passed (11)
+
+pnpm exec tsx packages/persona/persona-engine/scripts/assert-opt2.ts
+  OPT-2 ok
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 12.1s
+```
+
+### Dependências (fila NÃO vazia)
+- **Anvil**: `measureV1Close` host → `return measureV1CloseView(liveEntries)`.
+- **Rivet**: NSIS com `index-ZjNmkjRJ.js`. Sem `'unsafe-eval'`.
+- **Probe**: exe + dogfood UI Agência Ponto.
+- Keel: marcar OPT-2/3/4/5/6 + GES-2 (código já verde); commitar dist + V28.
+
+---
+
+## 04/11 06:24 — web rebuild V28 + OPT-2 gate + scan CSP
+
+Vigia: não parar. Dist antigo ainda tinha `const o7=new Function` no init.
+
+### D8
+Rebuild `apps/web`: `index-ZjNmkjRJ.js` (index.html aponta). Scan: `assert-client-no-eval` **ok** (`let $0;function ek(){return new Function…}`). Vendor hash igual. `persona-gate` agora roda o scan (falha se o eager voltar).
+
+**[Forge→Rivet]** empacote **este** dist (`index-ZjNmkjRJ.js`). Sem `'unsafe-eval'`. Probe retesta o exe.
+
+### OPT-2
+`packages/persona/persona-engine/scripts/assert-opt2.ts` — regressão 10% + `assertV1Close`. `OPT-2 ok`.
+
+### Testes
+```
+node scripts/persona/assert-client-no-eval.mjs
+  assert-client-no-eval ok index-ZjNmkjRJ.js, vendor-BUMdD3V7.js
+
+pnpm exec tsx packages/persona/persona-engine/scripts/assert-opt2.ts
+  OPT-2 ok
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 14.8s
+```
+
+### Dependências (fila NÃO vazia)
+- **Rivet**: NSIS com `index-ZjNmkjRJ.js`.
+- **Probe**: exe + dogfood UI Agência Ponto.
+- Keel: commitar dist + V28.
+
+---
+
+## 04/11 06:16 — D8 CSP (`evaluate` lazy) + dogfood Agência Ponto
+
+Atlas: F1 = fixtures (exportação real opcional). Fila: destravar instalador + dogfood #2.
+
+### (1) CSP / `#root` vazio
+Bundle instalado `apps/web/dist/assets/index-B2q7cWGa.js` chama `new Function` no **init** (`vendor/loader` `evaluate` / `!!js`). Client: `boot-client.ts` → `cordis-plugin-loader`. **V28**: `evaluate` preguiçoso (src + `lib/index.js` + `lib/types/config/utils.js`). Host `!!js` igual. **Não** pôr `'unsafe-eval'` no `secure-shell.ts`.
+
+**[Forge→Rivet]** rebuild `apps/web` + NSIS; Probe retesta o exe. O asar atual ainda tem o hash antigo.
+
+### (2) Dogfood Agência Ponto
+Engine 1/1, 0 execs reais. Relatório: `persona-spec/reports/dogfood-agencia.md`. App real bloqueado no D8. F1 adapters nas fixtures.
+
+### Testes
+```
+pnpm exec vitest run scripts/loader-csp-eval.spec.ts …/dogfood-agencia.spec.ts
+  Test Files  2 passed (2)  Tests  3 passed (3)
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK
+```
+
+### Dependências
+- **Rivet**: rebuild web + pack (V28).
+- **Probe**: exe novo + UI dogfood.
+- Keel: V28 no vendor.
+
+---
+
+## 04/11 06:06 — `measureOpt8View` + `assertV1Close`
+
+Vigia: não parar. Anvil já ligou `withTurnActivityEmit` + `recordTurnActivity`. Host `measureOpt8` ainda chama `measureOpt8Acceptance()` sem o livro e só devolve `liveEntries: entries.length`.
+
+### OPT-8 wire
+`measureOpt8View(entries)` — score + `liveEntries` + `liveOrigin`. `TurnLedgerView` ≡ `TurnLedgerEntry`. Anvil: `return measureOpt8View(entries)`. Livro vazio mantém `cut-40` blocked; livro live pontua −40%. Origin `measured` só se cada linha tiver `origin: 'measured'`.
+
+### Fechamento v1
+`assertV1Close()` lança `V1_CLOSE …` se PRO/GES/OPT tiverem `failed`. `write-opt8-acceptance.ts` agora afirma o gate antes de escrever os reports. `blocked` não falha.
+
+### Testes
+```
+pnpm exec vitest run …/token-measure.spec.ts …/v1-close.spec.ts
+  Test Files  2 passed (2)  Tests  8 passed (8)
+
+pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts
+  wrote opt8-acceptance.md / v1-close.md
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 15.7s
+```
+
+### Dependências (fila implementável Forge vazia)
+- **Anvil**: `measureOpt8` = `measureOpt8View(entries)` (não remonta flags).
+- **Probe**: `assertV1Close` / `measureV1Close` no E2E v1.
+- **Miguel**: amostras F1 reais (`PERSONA_REAL_IMPORTS`).
+- GES-2/3, OPT-1..8, SB-6, F1 no PLAN — código no core/engine; marcar done é do Keel.
+
+---
+
 ## 04/11 06:28 — T3 `withTurnActivityEmit` (host sem emit)
 
 Vigia: não parar. Keel: só `note edit` no Status (não fui eu no `note write`). Atlas T3: `ProjectRuntime` cria o Engine sem `emit`.

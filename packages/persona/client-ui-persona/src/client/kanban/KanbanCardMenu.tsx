@@ -1,7 +1,7 @@
 /** Card overflow menu: move, open, request status (keyboard: ↑↓ Enter Esc). */
 
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { IconButton, UiIcon } from '../primitives/index.ts'
+import { BrandIcon, IconButton, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { KANBAN_COLUMN_ORDER, type KanbanColumnId } from './types.ts'
@@ -23,12 +23,14 @@ export interface KanbanCardMenuProps {
   readonly onMoveFlowColumn?: (columnId: string) => void
   readonly onOpen?: () => void
   readonly onRequestStatus?: () => void
+  readonly onTeach?: () => void
 }
 
 type MenuEntry =
   | { readonly kind: 'move'; readonly column: KanbanColumnId }
   | { readonly kind: 'moveFlow'; readonly columnId: string; readonly label: string }
   | { readonly kind: 'open' }
+  | { readonly kind: 'teach' }
   | { readonly kind: 'status' }
 
 export function KanbanCardMenu({
@@ -42,6 +44,7 @@ export function KanbanCardMenu({
   onMoveFlowColumn,
   onOpen,
   onRequestStatus,
+  onTeach,
 }: KanbanCardMenuProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const menuId = useId()
@@ -63,6 +66,7 @@ export function KanbanCardMenu({
     }
   }
   if (canOpenReview && onOpen !== undefined) entries.push({ kind: 'open' })
+  if (onTeach !== undefined) entries.push({ kind: 'teach' })
   if (onRequestStatus !== undefined) entries.push({ kind: 'status' })
 
   const close = useCallback(() => {
@@ -87,6 +91,7 @@ export function KanbanCardMenu({
     if (entry.kind === 'move') onMove(entry.column)
     else if (entry.kind === 'moveFlow') onMoveFlowColumn?.(entry.columnId)
     else if (entry.kind === 'open') onOpen?.()
+    else if (entry.kind === 'teach') onTeach?.()
     else onRequestStatus?.()
     close()
   }
@@ -128,6 +133,7 @@ export function KanbanCardMenu({
     if (entry.kind === 'move') return t('action.moveTo', { column: columnLabels[entry.column] })
     if (entry.kind === 'moveFlow') return t('action.moveTo', { column: entry.label })
     if (entry.kind === 'open') return t('action.open')
+    if (entry.kind === 'teach') return t('action.teach')
     return t('action.requestStatus')
   }
 
@@ -167,6 +173,9 @@ export function KanbanCardMenu({
             >
               {(entry.kind === 'move' || entry.kind === 'moveFlow') && (
                 <UiIcon name="arrowRight" size={16} strokeWidth={2} className={styles.cardMenuIcon} />
+              )}
+              {entry.kind === 'teach' && (
+                <BrandIcon name="ensinar" size={16} className={styles.cardMenuIcon} />
               )}
               {labelFor(entry)}
             </button>

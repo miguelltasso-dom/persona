@@ -19,6 +19,7 @@
   "action.review": "Review",
   "action.open": "Open",
   "action.requestStatus": "Ask for an update",
+  "action.teach": "Teach",
   "action.moveTo": "Move to {column}",
   "a11y.cardMenu": "Task actions",
   "card.subjectLabel": "Subject {name}",

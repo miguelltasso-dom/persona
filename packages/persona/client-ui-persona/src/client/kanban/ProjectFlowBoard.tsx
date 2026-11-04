@@ -48,6 +48,7 @@ export interface ProjectFlowBoardProps {
   readonly celebrationNode?: ReactNode
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
+  readonly onTeach?: ((ticketId: string, personaId: string) => void) | undefined
 }
 
 export function ProjectFlowBoard({
@@ -75,6 +76,7 @@ export function ProjectFlowBoard({
   celebrationNode,
   personaCard,
   openPersonaProfile,
+  onTeach,
 }: ProjectFlowBoardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -172,6 +174,7 @@ export function ProjectFlowBoard({
         {...(celebrationNode !== undefined ? { celebrationNode } : {})}
         {...(personaCard === undefined ? {} : { personaCard })}
         {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
+        {...(onTeach !== undefined ? { onTeach } : {})}
       />
       {editorOpen && onSaveWorkflow !== undefined && (
         <WorkflowEditorModal

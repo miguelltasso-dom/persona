@@ -40,6 +40,7 @@ export interface FlowKanbanBoardProps {
   readonly celebrationNode?: ReactNode
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
+  readonly onTeach?: ((ticketId: string, personaId: string) => void) | undefined
 }
 
 interface FlowColumnCardsProps {
@@ -54,6 +55,7 @@ interface FlowColumnCardsProps {
   readonly onMoveCard?: (ticketId: string, columnId: string) => void
   readonly markLocalMove: (cardId: string) => void
   readonly onOpenReview?: (ticketId: string) => void
+  readonly onTeach?: ((ticketId: string, personaId: string) => void) | undefined
   readonly freshApprovalStampIds?: ReadonlySet<string>
   readonly assigneeCardTrigger?: KanbanCardProps['assigneeCardTrigger']
   readonly setLiveMessage: (message: string) => void
@@ -83,6 +85,7 @@ function renderFlowKanbanCard(props: FlowColumnCardsProps, card: FlowCardModel):
         if (target !== undefined) setLiveMessage(t('flow.movedTo', { column: target.name }))
       }}
       {...(onOpenReview !== undefined ? { onOpenReview } : {})}
+      {...(props.onTeach !== undefined ? { onTeach: props.onTeach } : {})}
       approvalStampFresh={freshApprovalStampIds?.has(card.id) ?? false}
       {...(assigneeCardTrigger === undefined ? {} : { assigneeCardTrigger })}
     />
@@ -129,8 +132,12 @@ export function FlowKanbanBoard({
   celebrationNode,
   personaCard,
   openPersonaProfile,
+  onTeach,
 }: FlowKanbanBoardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
+  const onTeachHandler = onTeach ?? (personaCard !== undefined
+    ? (_ticketId: string, personaId: string) => { personaCard.teachPersona(personaId) }
+    : undefined)
   const cardController = usePersonaCardController()
   const cardData = cardController.personaId === null || personaCard === undefined
     ? undefined
@@ -281,6 +288,7 @@ export function FlowKanbanBoard({
                     {...(onMoveCard === undefined ? {} : { onMoveCard })}
                     markLocalMove={markLocalMove}
                     {...(onOpenReview === undefined ? {} : { onOpenReview })}
+                    {...(onTeachHandler === undefined ? {} : { onTeach: onTeachHandler })}
                     {...(freshApprovalStampIds === undefined ? {} : { freshApprovalStampIds })}
                     {...(assigneeCardTrigger === undefined ? {} : { assigneeCardTrigger })}
                     setLiveMessage={setLiveMessage}

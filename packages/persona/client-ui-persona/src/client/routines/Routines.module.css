@@ -29,6 +29,14 @@
   gap: var(--persona-space-2);
 }
 
+@media (max-width: 960px) {
+  .weekGrid {
+    overflow-x: auto;
+    padding-bottom: var(--persona-space-2);
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .dayCol {
   background: var(--persona-wash);
   border: 1px solid var(--persona-outline-soft);

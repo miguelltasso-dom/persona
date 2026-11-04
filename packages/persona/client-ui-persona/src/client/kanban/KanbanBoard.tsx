@@ -27,6 +27,7 @@ export interface KanbanBoardProps {
   readonly onMoveCard?: (cardId: string, toColumn: KanbanColumnId) => void
   readonly onOpenReview?: (cardId: string) => void
   readonly onRequestStatus?: (cardId: string) => void
+  readonly onTeach?: ((cardId: string, personaId: string) => void) | undefined
   readonly onRetry?: () => void
   readonly onEmptyPrimary?: () => void
 }
@@ -53,6 +54,7 @@ export function KanbanBoard({
   onMoveCard,
   onOpenReview,
   onRequestStatus,
+  onTeach,
   onRetry,
   onEmptyPrimary,
 }: KanbanBoardProps): ReactNode {
@@ -175,6 +177,7 @@ export function KanbanBoard({
                             : {})}
                           {...(onOpenReview !== undefined ? { onOpenReview } : {})}
                           {...(onRequestStatus !== undefined ? { onRequestStatus } : {})}
+                          {...(onTeach !== undefined ? { onTeach } : {})}
                         />
                       </div>
                     )
@@ -195,6 +198,7 @@ export function KanbanBoard({
                     : {})}
                   {...(onOpenReview !== undefined ? { onOpenReview } : {})}
                   {...(onRequestStatus !== undefined ? { onRequestStatus } : {})}
+                  {...(onTeach !== undefined ? { onTeach } : {})}
                 />
               ))}
             </div>

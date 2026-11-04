@@ -19,6 +19,7 @@
   "action.review": "Revisar",
   "action.open": "Abrir",
   "action.requestStatus": "Perguntar como está",
+  "action.teach": "Ensinar",
   "action.moveTo": "Mover para {column}",
   "a11y.cardMenu": "Ações da tarefa",
   "card.subjectLabel": "Assunto {name}",

@@ -1,5 +1,17 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-04 09:30 — PRO-5 agrupamento + W2-10 ensinar no cartão + DESEMPENHO drag 1k
+
+**PRO-5 (proativas agrupadas se inbox > N):** `ProactiveDailySummaries` cap de propostas em 3 por persona (`PROACTIVE_PROPOSALS_PREVIEW_LIMIT = 3`); botão de alternância acessível com `aria-expanded` e contador dinâmico (“Ver mais {count} propostas” / “Mostrar menos”); classes `.expandRow` no CSS; locales `proactive.showMore`/`showLess` gerados pt/en; teste de regressão em `lumen-proactivity.client.spec.tsx` (4/4 passed).
+
+**W2-10 (Ensinar no cartão):** `KanbanCardMenu` agora expõe ação “Ensinar” com ícone de marca (`BrandIcon name="ensinar"`); acionado via `onTeach` em `KanbanCard`, `FlowKanbanBoard` e `KanbanBoard` (ligado a `personaCard.teachPersona`); locales `action.teach` em pt/en; suíte unitária nova em `kanban-card-teach.client.spec.tsx` (3/3 passed).
+
+**DESEMPENHO (arraste 1k cards):** teste de integração em `kanban-board-virtual.client.spec.tsx` provando `dragStart` e `drop` entre colunas (`onMoveCard`) sobre o quadro virtualizado com 1.000 cartões (2/2 passed).
+
+**Comandos:** `vitest` `lumen-proactivity` + `kanban-card-teach` + `kanban-board-virtual` → **9 passed** · `check-pkg client-ui-persona` OK (24.3s) · `pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle` OK.
+
+**Fila:** Probe medir 16 ms/<300 ms abertura no app real; chat 10k (Prism); capturas Muse 960×640+200%.
+
 ## 2026-11-04 08:05 — DESEMPENHO fase 2 (kanban 1k, aprovações, contexto)
 
 **Seed gallery:** `persona.kanbanScaleSeed` = `200`|`1000` + `mockLargeKanbanCards`; `applyDevSeedLargeTeam(150, 1000)` opcional; `ConnectedGlobalKanban` + `RemoteKanbanPanel` usam seed acima do host.

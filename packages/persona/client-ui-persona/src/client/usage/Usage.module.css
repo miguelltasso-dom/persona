@@ -274,3 +274,15 @@
   color: var(--persona-ink-soft);
   font: 500 14px/20px var(--persona-font-text);
 }
+
+@media (max-width: 960px) {
+  .meterValue {
+    font-size: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barFill {
+    transition: none;
+  }
+}

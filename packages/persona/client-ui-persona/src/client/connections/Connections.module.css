@@ -103,3 +103,9 @@
   color: var(--persona-brand);
   box-shadow: var(--persona-shadow-press);
 }
+
+@media (max-width: 960px) {
+  .providerHead {
+    gap: 0.5rem;
+  }
+}

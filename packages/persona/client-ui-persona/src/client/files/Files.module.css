@@ -22,9 +22,16 @@
 }
 
 .tableCard {
-  overflow: hidden;
+  overflow-x: auto;
   width: 100%;
   align-self: stretch;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 960px) {
+  .table {
+    min-width: 480px;
+  }
 }
 
 .table {

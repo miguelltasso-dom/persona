@@ -24,6 +24,7 @@ export interface KanbanCardProps {
   readonly onMoveFlowColumn?: (cardId: string, columnId: string) => void
   readonly onOpenReview?: (cardId: string) => void
   readonly onRequestStatus?: (cardId: string) => void
+  readonly onTeach?: ((cardId: string, personaId: string) => void) | undefined
   /** True only on the beat after the human accepts Revisar (peak-end stamp animation). */
   readonly approvalStampFresh?: boolean
   readonly assigneeCardTrigger?: ((personaId: string) => {
@@ -62,6 +63,7 @@ export function KanbanCard({
   onMoveFlowColumn,
   onOpenReview,
   onRequestStatus,
+  onTeach,
   approvalStampFresh = false,
   assigneeCardTrigger,
 }: KanbanCardProps): ReactNode {
@@ -190,6 +192,9 @@ export function KanbanCard({
               ? { onOpen: () => { onOpenReview(card.id) } }
               : {})}
             {...(onRequestStatus !== undefined ? { onRequestStatus: () => { onRequestStatus(card.id) } } : {})}
+            {...(onTeach !== undefined && card.assignee !== undefined
+              ? { onTeach: () => { onTeach(card.id, card.assignee!.id) } }
+              : {})}
           />
         )}
       </div>

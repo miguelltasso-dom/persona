@@ -11,11 +11,11 @@ export const BOOT_GATE_MAIN_PANELS: readonly GalleryPanelSpec[] = [
   { slug: 'visao-geral', navLabel: 'Visão geral', owner: 'Prism', kind: 'nav' },
   { slug: 'geral', navLabel: 'Canais', owner: 'Prism', kind: 'nav' },
   { slug: 'kanban', navLabel: 'Quadros', owner: 'Lumen', readySelector: '[data-persona-surface="boards"]', kind: 'nav' },
-  { slug: 'conhecimento', navLabel: 'Conhecimento', owner: 'Lumen', kind: 'nav' },
-  { slug: 'rotinas', navLabel: 'Rotinas', owner: 'Lumen', kind: 'nav' },
-  { slug: 'arquivos', navLabel: 'Arquivos', owner: 'Lumen', kind: 'nav' },
-  { slug: 'uso', navLabel: 'Uso e limites', owner: 'Lumen', kind: 'nav' },
-  { slug: 'conexoes', navLabel: 'Conexões', owner: 'Lumen', kind: 'nav' },
+  { slug: 'conhecimento', navLabel: 'Conhecimento', owner: 'Lumen', readySelector: '[data-persona-surface="knowledge"]', kind: 'nav' },
+  { slug: 'rotinas', navLabel: 'Rotinas', owner: 'Lumen', readySelector: '[data-persona-surface="routines"]', kind: 'nav' },
+  { slug: 'arquivos', navLabel: 'Arquivos', owner: 'Lumen', readySelector: '[data-persona-surface="files"]', kind: 'nav' },
+  { slug: 'uso', navLabel: 'Uso e limites', owner: 'Lumen', readySelector: '[data-persona-surface="usage"]', kind: 'nav' },
+  { slug: 'conexoes', navLabel: 'Conexões', owner: 'Lumen', readySelector: '[data-persona-surface="connections"]', kind: 'nav' },
   {
     slug: 'aprovacoes',
     navLabel: 'Aprovações',
@@ -24,6 +24,9 @@ export const BOOT_GATE_MAIN_PANELS: readonly GalleryPanelSpec[] = [
     kind: 'nav',
   },
 ]
+
+/** Per-panel nav + settle budget for dev-seed bootstrap (fail loud, no 600s vitest hang). */
+export const BOOT_GATE_PANEL_NAV_TIMEOUT_MS = 150_000
 
 export const BOOT_GATE_PANEL_SETTLE_MS = 8_000
 export const BOOT_GATE_TEAM_WAIT_MS = 45_000
@@ -189,6 +192,35 @@ export interface CleanHomeTourResult {
 /**
  * Post-onboarding tour on a clean install home (Atlas publish gate).
  */
+async function runWithPanelBudget<T>(spec: GalleryPanelSpec, fn: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      fn(),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`[${spec.slug}] panel check timed out after ${String(BOOT_GATE_PANEL_NAV_TIMEOUT_MS)}ms`))
+        }, BOOT_GATE_PANEL_NAV_TIMEOUT_MS)
+      }),
+    ])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+/** One dev-seed / bootstrap panel: navigate, ErrorState, leave loading. */
+export async function runBootstrapPanelCheck(page: Page, spec: GalleryPanelSpec): Promise<void> {
+  await runWithPanelBudget(spec, async () => {
+    await navigateBootGatePanel(page, spec)
+    await page.waitForTimeout(400)
+    const errorState = await readMainColumnErrorState(page)
+    if (errorState.present) {
+      throw new Error(`[${spec.slug}] ErrorState: ${errorState.detail}`)
+    }
+    await assertPanelLeftLoadingState(page, spec)
+  })
+}
+
 export async function runCleanHomeTourChecks(page: Page): Promise<CleanHomeTourResult> {
   const panelFailures: string[] = []
   await dismissBlockingOverlays(page)
@@ -258,8 +290,7 @@ export async function runBootstrapGateChecks(
   const stuckLoadingPanels: string[] = []
   for (const spec of panels) {
     try {
-      await navigateBootGatePanel(page, spec)
-      await assertPanelLeftLoadingState(page, spec)
+      await runBootstrapPanelCheck(page, spec)
     } catch (error) {
       stuckLoadingPanels.push(error instanceof Error ? error.message : String(error))
     }

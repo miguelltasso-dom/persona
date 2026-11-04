@@ -1,5 +1,27 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 03:08 — JANELA ENCERRADA (Keel 4884366950): bootstrap 10/10 + S7 motion
+
+### Keel
+- **JANELA ENCERRADA** — builders podem editar core/client de novo; snapshot candidato no worktree do Keel.
+
+### PASSOU
+- **`mandatory-boot-bootstrap`:** **10/10** (~2,2 min) após harness Probe:
+  - `BOOT_GATE_MAIN_PANELS` com `readySelector` Lumen (`knowledge`, `routines`, `files`, `usage`, `connections`, …).
+  - `runBootstrapPanelCheck` + timeout 150 s/painel + ErrorState.
+  - Teste 2 fatiado por slug (fail loud).
+- **S7 / scope:** `mandatory-scope` **reduced-motion** verde (~98 s).
+- **PRO-6 UI:** `mandatory-proactivity-ui` 2/2 (turno anterior, revalidado).
+- **Publish:** `persona-gate` re-run pendente neste bloco (comando abaixo).
+
+### Infra E2E
+- Host boot timeout intermitente se vários vitest browser competem → usar **`PERSONA_HOST_NO_LOCK=1`** e um host por vez.
+
+### Fila Probe (ainda aberta)
+- PRO-6 layer-2 `it.todo` (7), PB-9/GOV-10/W2-11 gallery, B9 tier-1, scope 4 todos + dirD, BYC/SB surface todos, Padaria, org-chart browser, `real-gallery-blank-panel`.
+
+---
+
 ## 2026-11-04 02:34 — Publish gate VERDE + boot smoke 9/9
 
 ### PASSOU
@@ -9,7 +31,7 @@
 - **`playwright-onboarding-contract.spec.ts`** + item em `mandatory-boot-publish-contract`.
 
 ### FALHOU / parcial
-- **Dev seed bootstrap** (`mandatory-boot-bootstrap`): re-run neste turno (ver abaixo).
+- **`mandatory-boot-bootstrap`:** **1/2** — Prism (`BOOT_GATE_PRISM_PANELS`) OK; **`BOOT_GATE_MAIN_PANELS` timeout 600 s** (painel Lumen preso em loading ou nav lenta) → **[Lumen/Prism]** dev seed; clean-home 9/9 não cobre o mesmo roster.
 
 ### PRO-6 UI smoke (dev seed)
 - **`mandatory-proactivity-ui`:** **2/2 PASS** após assert via `geralComposerLocator` (~70 s).

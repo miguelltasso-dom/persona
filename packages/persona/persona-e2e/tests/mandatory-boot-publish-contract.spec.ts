@@ -22,6 +22,10 @@ describe('Publish boot — clean HOME tour (Atlas / Keel)', () => {
     ])
   })
 
+  it('MAIN_PANELS Lumen slugs declare ready selectors', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/boot-gate-main-panels.spec.ts')
+  }, 60_000)
+
   it('maps every tour slug to a real-gallery nav panel with the same label', () => {
     const bySlug = new Map(REAL_GALLERY_PANELS.map(p => [p.slug, p]))
     for (const spec of BOOT_GATE_CLEAN_HOME_TOUR) {

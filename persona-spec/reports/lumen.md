@@ -1,5 +1,31 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-04 03:52 — Muse revisão1: Importar + Segundo cérebro
+
+**Importar/BYC:** `BringContextImportPage` — “Abrir importador avançado” já em `Button variant="secondary"`.
+
+**Segundo cérebro:** `SecondBrainHome` — seções em `Card` com eyebrow (O que mudou hoje / Precisa de você / Permissões / Mais usadas / Por tipo); estado sparse (`ready` + ≤3 páginas) com `ILLUSTRATIONS.bibliotecario` 200px + copy §1 + BYC primário; “Comece aqui” em `brainPageLink` (lilás sublinhado, AA). `brain-ui-adapters`: `person:system` → bibliotecário Atlas + avatar; `derived-index` → índice automático. Locales `home.startHereLabel`, `feed.*`.
+
+**Recaptura:** Muse pode refazer `panel-importadores-*` e `panel-segundo-ce-rebro-*`.
+
+**Comandos:** `gen-client-ui-persona-locales.mjs` · vitest brain-ui-adapters + second-brain-home → **10 passed** · `check-pkg client-ui-persona` OK.
+
+## 2026-11-04 02:40 — Muse pós-CSS: 2 dias, Gestor, seed 150
+
+**Contexto [Muse]:** `Governance.module.css` duplicado → **`GovernanceScreens.module.css`** (twoDayArt 120px etc.); guard `css-module-names.client.spec.ts`.
+
+**Pronto:** (1) **Teste 2 dias** — dedupe só stub host×derivado (`shouldMergeTwoDayRows`: mesma identidade + um all-runs); roster scale mantém 1 linha/persona; `deriveTwoDayFromLive` sem `seenIdentities`, skip só id equivalente (`p-luna`/`luna`). (2) **Gestor** — `MOCK_GESTOR_AUDIT_PERSONA.avatarSrc` = `AVATAR_96.atlas`. (3) **Seed 150** — `Ouriço`/`Lobo-guará`; `orgScaleDisplayName` desambigua ondas (`Atlas (Amara)`…); `normalizeCharacterId` preserva `lobo-guara`/`lontra`.
+
+**Comandos:** vitest two-day-dedupe + derive-two-day + mock-large-org + map-governance-ui + governance-health → **14 passed** · `check-pkg client-ui-persona` OK.
+
+## 2026-11-04 02:32 — GOV-6 / BYC-4 / SB-5 testes (fila pós-janela)
+
+**Pronto:** **GOV-6** — `governance-org-chart.client.spec.tsx`: modo lista (botão Nina a11y) + OrgMap 60 personas (combobox busca). **BYC-4** — `choicesToApplyItems` private/discard. **SB-5** — `second-brain-home.client.spec.tsx`: seções home, revogar grant, busca de páginas.
+
+**Comandos:** `vitest` governance-org-chart + bring-context-ui + second-brain-home → **10 passed** · `check-pkg client-ui-persona` OK.
+
+**Fila (ainda aberta):** PB-5/6/7 · GOV-10/W2-11 Probe · BYC-4 UI Importar E2E · SB-5 polish/grafos · OPT-7 RPC Anvil.
+
 ## 2026-11-04 02:42 — Keel: JANELA ENCERRADA (snapshot 4884366950)
 
 **Protocolo:** Corte em worktree do Keel; **Lumen pode editar de novo** `client-ui-persona` e coordenar com Anvil/Forge em host/store conforme PLAN. Manter **`node scripts/persona/check-pkg.mjs client-ui-persona` + bundle** verdes ao fechar cada edição.

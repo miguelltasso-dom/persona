@@ -75,6 +75,7 @@ import { foldSubjectSummary, shouldFoldSubject, SUBJECT_RECENT } from './subject
 import type { AutonomyMode, UsedContextRecord } from './types.ts'
 import { ExecutionBudget } from './budget.ts'
 import { silenceUntilOf } from './proactivity.ts'
+import { FIRST_DELIVERY_EVENT_ID } from './onboarding.ts'
 import type { DeadLetterBook } from './dead-letter.ts'
 import type { MutantRunBook } from './mutant-run.ts'
 import { reviewDeliveryOf } from './review.ts'
@@ -84,6 +85,7 @@ import {
   autonomyLevelOf,
   createHostRunner,
   lastRunnerQuestion,
+  lastRunnerReport,
   lastRunnerText,
   permissionFor,
   runnerHomeOf,
@@ -312,6 +314,10 @@ export class Orchestration {
   readonly budget: ExecutionBudget
   readonly cancelled: Set<string> = new Set<string>()
   readonly lastErrors: string[] = []
+  private readonly meteredRunners = new WeakSet<Runner>()
+  private readonly usageContexts = new WeakMap<Runner, {
+    ticketId: string | undefined; kind: TurnLedgerEntry['kind']; engine: string; model: string
+  }>()
 
   /**
    * @param product - Product repos.
@@ -352,6 +358,8 @@ export class Orchestration {
   recordLedger: ((projectId: string, entry: TurnLedgerEntry) => void) | undefined = undefined
   /** Persist T3 §9 rows from `Engine.report` (`assignment.reported`). */
   recordActivity: ((projectId: string, row: TurnActivityEvent) => void) | undefined = undefined
+  /** Notify the host after task execution and its channel reply settle; failed means execution threw. */
+  onTaskSettled: ((event: StoredEvent, failed: boolean) => void) | undefined = undefined
   vault: VaultRepos | undefined
   opt: OptRepos | undefined
   accounts: AccountRepos | undefined
@@ -573,10 +581,24 @@ export class Orchestration {
       return
     }
     this.streamAck(event, coordination)
-    this.work = this.work.then(() => this.runLaunched(rt, event, coordination, chosen)).catch((error: unknown) => {
+    this.work = this.work.then(() => this.settleTask(rt, event, coordination, chosen))
+  }
+
+  private async settleTask(
+    rt: ProjectRuntime,
+    event: StoredEvent,
+    coordination: StoredPersona | undefined,
+    preferred?: StoredPersona,
+  ): Promise<void> {
+    let failed = false
+    try {
+      await this.runLaunched(rt, event, coordination, preferred)
+    } catch (error: unknown) {
       if (error instanceof Error && /not open/i.test(error.message)) return
-      this.failReply(event, speaker, error)
-    })
+      failed = true
+      this.failReply(event, preferred ?? coordination, error)
+    }
+    this.onTaskSettled?.(event, failed)
   }
 
   /**
@@ -718,7 +740,7 @@ export class Orchestration {
       occurredAt: this.now(),
       deleted: false,
     }
-    await this.runLaunched(rt, event, this.coordinationOf(projectId))
+    await this.settleTask(rt, event, this.coordinationOf(projectId))
   }
 
   /**
@@ -914,7 +936,12 @@ export class Orchestration {
       if (ticket.execution !== undefined || ticket.ended !== undefined) continue
       const next: Ticket = {
         ...ticket,
-        execution: { name, directory: '.', assignment: ticket.title },
+        execution: {
+          name, directory: '.',
+          assignment: ticket.origin.triggerId === FIRST_DELIVERY_EVENT_ID
+            ? (rt.repo.triggers.get(ticket.origin.triggerId)?.text ?? ticket.title)
+            : ticket.title,
+        },
       }
       rt.repo.tickets.save(next)
     }
@@ -945,6 +972,14 @@ export class Orchestration {
     const home = seat?.home !== undefined && seat.home !== '' ? seat.home : runnerHomeOf(projectId)
     const usage = this.usage
     const accountId = seat?.accountId
+    const usageContext: {
+      ticketId: string | undefined; kind: TurnLedgerEntry['kind']; engine: string; model: string
+    } = {
+      ticketId: undefined, kind: purpose === 'talk' ? 'reply' : 'triage',
+      engine: spec.kind === 'cli' ? spec.cli : 'dsh', model: spec.model,
+    }
+    let measuredRunner: Runner | undefined
+    let turnSequence = 0
     const talkCwd = purpose === 'talk'
       ? (process.env.PERSONA_HOME !== undefined && process.env.PERSONA_HOME !== ''
         ? process.env.PERSONA_HOME
@@ -966,20 +1001,22 @@ export class Orchestration {
       ...(usage === undefined && this.recordLedger === undefined ? {} : {
         usage: {
           record: (entry) => {
-            const id = `${projectId}:${persona.id}:${entry.at}:${entry.provider}`
+            const id = `${projectId}:${persona.id}:${entry.at}:${entry.provider}:${String(++turnSequence)}`
+            if (measuredRunner !== undefined) this.meteredRunners.add(measuredRunner)
             if (this.recordLedger !== undefined) {
               this.recordLedger(projectId, {
                 id,
                 personaId: persona.id,
                 engine: entry.provider,
-                kind: purpose === 'talk' ? 'reply' : 'execution',
+                kind: usageContext.kind,
                 inputTokens: entry.inputTokens,
                 outputTokens: entry.outputTokens,
-                cacheReadTokens: 0,
-                cacheWriteTokens: 0,
+                cacheReadTokens: entry.cacheReadTokens ?? 0,
+                cacheWriteTokens: entry.cacheWriteTokens ?? 0,
                 layers: EMPTY_LAYERS,
                 at: entry.at,
                 origin: 'measured',
+                ...(usageContext.ticketId === undefined ? {} : { ticketId: usageContext.ticketId }),
                 ...(accountId === undefined ? {} : { accountId }),
               })
               return
@@ -1002,6 +1039,8 @@ export class Orchestration {
       }),
     }
     const runner = await this.runnerFactory(request)
+    measuredRunner = runner
+    this.usageContexts.set(runner, usageContext)
     this.warmRunners.set(key, runner)
     this.mark(`resolve:${purpose}:ready`)
     return runner
@@ -1075,6 +1114,7 @@ export class Orchestration {
         return
       }
       if (coordinationPersona !== undefined) {
+        this.setRunnerUsageContext(runner, 'triage')
         const driver = createCoordinationDriver({
           runner,
           persona: {
@@ -1093,6 +1133,7 @@ export class Orchestration {
         const doneId = `coord-${ticket.id}-done`
         if (this.events.has(doneId)) continue
         const sessionId = workerSessionId(ticket.id)
+        this.setRunnerUsageContext(runner, 'execution', ticket.id)
         const recovery = rt.recoveryNotes.includes(RECOVERY_NOTE)
         this.postAs(event, executor, `exec-${ticket.id}-progress`, `Em andamento: ${ticket.title}`)
         await runner.ensureSession(sessionId, ticket.execution?.directory ?? '.', ticket.title, 'worker')
@@ -1103,28 +1144,44 @@ export class Orchestration {
           recovery ? 'steer' : 'queue',
         )
         await runner.whenIdle(sessionId)
-        this.noteUsage(event.projectId, executor, sessionId, runner)
-        const asked = this.takeQuestion(runner)
-        const ask = asked !== undefined || wantsAttention(ticket.title) || wantsAttention(event.body)
-        const question = asked ?? ticket.title
-        if (ask) {
-          rt.engine.report(ticket.id, {
-            state: 'waiting', summary: question, question,
-          })
-        } else {
-          const live = rt.repo.tickets.get(ticket.id)
-          if (live !== undefined && (live.follows === undefined || live.follows.length === 0)) {
-            rt.engine.bindThread(ticket.id, { source: 'review', id: ticket.id }, true)
-          }
-          rt.engine.report(ticket.id, { state: 'ready', summary: 'scripted' })
-        }
-        const speaker = executor
+        await this.noteUsage(event.projectId, executor, sessionId, runner)
+        const report = lastRunnerReport(runner)
         const live = this.takeLive(runner)
-        const login = loginFailureFromText(live, cliOfPersona(speaker))
+        const login = loginFailureFromText(live, cliOfPersona(executor))
         if (login !== undefined) {
           this.reportResolveFailure(rt, event, coordinationPersona, ticket.id, login)
           continue
         }
+        if (report?.state === 'failed' || report?.state === 'blocked' || report?.state === 'dropped') {
+          rt.engine.report(ticket.id, report)
+          this.postAs(event, executor, doneId, runErrorLine({
+            code: 'engine_unavailable', provider: providerOf(cliOfPersona(executor)), persona: executor.name,
+          }), 'error')
+          continue
+        }
+        const asked = this.takeQuestion(runner)
+        const ask = asked !== undefined || wantsAttention(ticket.title) || wantsAttention(event.body)
+        const question = asked ?? ticket.title
+        if (!ask && live === '' && !this.scripted) {
+          rt.engine.report(ticket.id, { state: 'failed', summary: 'O motor terminou sem entregar uma resposta.' })
+          this.postAs(event, executor, doneId, runErrorLine({
+            code: 'engine_unavailable', provider: providerOf(cliOfPersona(executor)), persona: executor.name,
+          }), 'error')
+          continue
+        }
+        if (ask) {
+          rt.engine.report(ticket.id, {
+            ...report,
+            state: 'waiting', summary: report?.summary ?? question, question,
+          })
+        } else {
+          const currentTicket = rt.repo.tickets.get(ticket.id)
+          if (currentTicket !== undefined && (currentTicket.follows === undefined || currentTicket.follows.length === 0)) {
+            rt.engine.bindThread(ticket.id, { source: 'review', id: ticket.id }, true)
+          }
+          rt.engine.report(ticket.id, { state: 'ready', summary: report?.summary ?? (live || 'scripted') })
+        }
+        const speaker = executor
         this.postAs(
           event,
           speaker,
@@ -1132,6 +1189,7 @@ export class Orchestration {
           ask
             ? `Precisa de você: ${question}`
             : clipWords(this.scriptedReady(live, ticket.title)),
+          live === '' || ask ? 'message' : 'runner',
         )
       }
     } catch (error) {
@@ -1176,7 +1234,7 @@ export class Orchestration {
       await runner.deliver(`talk-${event.id}`, `talk:${event.id}`, talk, 'queue')
       await runner.whenIdle(`talk-${event.id}`)
       this.mark('idle')
-      this.noteUsage(event.projectId, speaker, `talk-${event.id}`, runner)
+      await this.noteUsage(event.projectId, speaker, `talk-${event.id}`, runner)
     } catch (error: unknown) {
       this.failReply(event, speaker, error)
       return
@@ -1441,51 +1499,64 @@ export class Orchestration {
     this.postAs(event, speaker, `coord-${event.id}-action`, 'Tente de novo ou escolha outra persona.')
   }
 
-  private noteUsage(
+  private async noteUsage(
     projectId: string,
     persona: StoredPersona,
     sessionId: string,
     runner: Runner,
-  ): void {
+  ): Promise<void> {
+    if (this.meteredRunners.has(runner)) return
     if (this.usage === undefined && this.recordLedger === undefined) return
     const read: unknown = Reflect.get(runner, 'usage')
     if (typeof read !== 'function') return
     const at = this.now()
-    const spent = read.call(runner, sessionId) as Promise<{ inputTokens: number; outputTokens: number }>
-    void Promise.resolve(spent).then((spent) => {
-      const engine = persona.runner.kind === 'cli' ? persona.runner.cli : 'dsh'
-      const id = `${projectId}:${persona.id}:${sessionId}:${at}`
-      if (this.recordLedger !== undefined) {
-        this.recordLedger(projectId, {
-          id,
-          personaId: persona.id,
-          engine,
-          kind: 'execution',
-          inputTokens: spent.inputTokens,
-          outputTokens: spent.outputTokens,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-          layers: EMPTY_LAYERS,
-          at,
-          origin: 'measured',
-        })
-        return
-      }
-      this.usage?.record({
-        id,
-        projectId,
-        personaId: persona.id,
-        provider: engine,
-        model: persona.runner.model,
-        window: 'turn',
-        inputTokens: spent.inputTokens,
-        outputTokens: spent.outputTokens,
+    let spent: { inputTokens: number; outputTokens: number }
+    try {
+      spent = await (read.call(runner, sessionId) as Promise<{ inputTokens: number; outputTokens: number }>)
+    } catch (error) {
+      // No provider usage is available; leave the book empty so acceptance rejects missing evidence.
+      void error
+      return
+    }
+    const context = this.usageContexts.get(runner)
+    const engine = context?.engine ?? (persona.runner.kind === 'cli' ? persona.runner.cli : 'dsh')
+    const id = `${projectId}:${persona.id}:${sessionId}:${at}`
+    if (this.recordLedger !== undefined) {
+      this.recordLedger(projectId, {
+      id,
+      personaId: persona.id,
+        engine,
+        kind: context?.kind ?? 'execution',
+      inputTokens: spent.inputTokens,
+      outputTokens: spent.outputTokens,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        layers: EMPTY_LAYERS,
+      at,
         origin: 'measured',
-        at,
-      })
-    }).catch(() => {
-      // Fake/real runners may omit usage(); the book stays empty (unavailable, not 0%).
+        ...(context?.ticketId === undefined ? {} : { ticketId: context.ticketId }),
     })
+      return
+    }
+    this.usage?.record({
+      id,
+      projectId,
+      personaId: persona.id,
+      provider: engine,
+      model: context?.model ?? persona.runner.model,
+      window: 'turn',
+      inputTokens: spent.inputTokens,
+      outputTokens: spent.outputTokens,
+      origin: 'measured',
+      at,
+    })
+  }
+
+  private setRunnerUsageContext(runner: Runner, kind: TurnLedgerEntry['kind'], ticketId?: string): void {
+    const scope = this.usageContexts.get(runner)
+    if (scope === undefined) return
+    scope.kind = kind
+    scope.ticketId = ticketId
   }
 
   private capturedSubject(event: StoredEvent): string | undefined {

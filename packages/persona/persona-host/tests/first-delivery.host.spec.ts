@@ -1,13 +1,16 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, expect, it as vitestIt } from 'vitest'
+import { createFakeRunner, RunnerResolveError } from '@deepseek-ai/dsh-persona-runners'
+import { afterEach, expect, it as vitestIt, vi } from 'vitest'
 import { FIRST_DELIVERY_EVENT_ID, FIRST_DELIVERY_MILESTONE_EVENT_ID } from '../src/onboarding.ts'
 import type { CompleteOnboardingRequest } from '../src/types.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
 const dirs: string[] = []
 afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllEnvs()
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -34,6 +37,89 @@ const ONBOARDING: CompleteOnboardingRequest = {
 }
 
 const scope = { workspaceId: 'ws', projectId: 'pp' }
+
+it('waits for a cold connection probe before binding the first delivery to the logged-in CLI', async () => {
+  const h = host()
+  vi.stubEnv('PERSONA_REAL_CLI', '1')
+  vi.spyOn(h.connections, 'detect').mockResolvedValue([{
+    id: 'claude', kind: 'cli', installed: true, loggedIn: true, models: ['haiku'],
+  }])
+  vi.spyOn(h.orchestration, 'prewarmProject').mockResolvedValue(undefined)
+  const resolved: string[] = []
+  h.orchestration.runnerFactory = async (request) => {
+    resolved.push(request?.spec.kind === 'cli' ? request.spec.cli : 'dsh')
+    return createFakeRunner()
+  }
+  await h.completeOnboarding(ONBOARDING)
+  await h.orchestration.flush('pp')
+  expect(h.product.listPersonas('pp').every(row => row.runner.kind === 'cli' && row.runner.cli === 'claude')).toBe(true)
+  expect(resolved).toEqual(['claude'])
+})
+
+it('onboarding delivery seals itself without a second Remote call and survives reopening', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-fd-auto-'))
+  dirs.push(dir)
+  process.env.PERSONA_HOME = dir
+  const path = join(dir, 'persona.db')
+  const h = host(path)
+  await h.completeOnboarding(ONBOARDING)
+  await h.orchestration.flush('pp')
+
+  const ready = h.getFirstDelivery(scope)
+  expect(ready.status).toBe('ready')
+  expect(h.listTasks(scope).find(card => card.id === ready.ticketId)?.stage).toBe('done')
+  expect(host(path).getFirstDelivery(scope)).toEqual(ready)
+  expect(h.listMessages({
+    ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'owner', afterSeq: 0, limit: 40,
+  }).events.filter(item => item.id === FIRST_DELIVERY_MILESTONE_EVENT_ID)).toHaveLength(1)
+})
+
+it('keeps the full inline first-delivery assignment even when the brief exceeds the ticket display title', async () => {
+  const h = host()
+  const brief = `${'Empresa de projetos digitais. '.repeat(12)}REGRA_FINAL_INTEGRA`
+  await h.completeOnboarding({ ...ONBOARDING, cofreSeed: brief })
+  await h.orchestration.flush('pp')
+  const ticket = h.orchestration.runtime('pp').repo.tickets.list()[0]!
+  expect(ticket.execution?.assignment).toContain('REGRA_FINAL_INTEGRA')
+  expect(ticket.execution?.assignment).toContain('Não use ferramentas')
+  expect(ticket.execution?.assignment).not.toBe(ticket.title)
+})
+
+it('a runner failure seals failed automatically and never posts a success milestone', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-fd-failure-'))
+  dirs.push(dir)
+  process.env.PERSONA_HOME = dir
+  const h = host(join(dir, 'persona.db'))
+  h.orchestration.runnerFactory = async () => { throw new RunnerResolveError('quota_exhausted', 'claude') }
+  await h.completeOnboarding(ONBOARDING)
+  await h.orchestration.flush('pp')
+
+  expect(h.getFirstDelivery(scope).status).toBe('failed')
+  const events = h.listMessages({
+    ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'owner', afterSeq: 0, limit: 40,
+  }).events
+  expect(events.some(item => item.id === FIRST_DELIVERY_MILESTONE_EVENT_ID)).toBe(false)
+  expect(events.find(item => item.runError !== undefined)?.runError)
+    .toMatchObject({ code: 'quota_exhausted', provider: 'Claude', persona: 'Guia' })
+})
+
+it('an interrupted first delivery resumes and seals the milestone on the reopened host', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'persona-fd-recover-'))
+  dirs.push(dir)
+  process.env.PERSONA_HOME = dir
+  const path = join(dir, 'persona.db')
+  const first = host(path)
+  await first.completeOnboarding(ONBOARDING)
+  first.store.close()
+  const reopened = host(path)
+  await reopened.orchestration.flush('pp')
+  expect(reopened.getFirstDelivery(scope).status).toBe('ready')
+  expect(reopened.listTasks(scope)).toHaveLength(1)
+  const events = reopened.listMessages({
+    ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'owner', afterSeq: 0, limit: 40,
+  }).events
+  expect(events.filter(item => item.id === FIRST_DELIVERY_MILESTONE_EVENT_ID)).toHaveLength(1)
+})
 
 it('getFirstDelivery is idle before the ask (never Carregando)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'persona-fd-idle-'))
@@ -106,7 +192,14 @@ vitestIt.skipIf(process.env.PERSONA_REAL_E2E !== '1')(
     await h.completeOnboarding({ ...ONBOARDING, runnerChoices: ['claude'] })
     const start = await h.startFirstDelivery(scope)
     expect(start.started).toBe(true)
-    expect(h.getFirstDelivery(scope).status).toMatch(/ready|failed|working/u)
-    expect(JSON.stringify(h.getFirstDelivery(scope))).not.toMatch(/Carregando/u)
+    const ready = h.getFirstDelivery(scope)
+    expect(ready.status).toBe('ready')
+    expect(h.listTasks(scope).find(card => card.id === ready.ticketId)?.stage).toBe('done')
+    const events = h.listMessages({
+      ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'owner', afterSeq: 0, limit: 40,
+    }).events
+    expect(events.some(item => item.source === 'runner' && item.body.trim().length > 0)).toBe(true)
+    expect(events.filter(item => item.id === FIRST_DELIVERY_MILESTONE_EVENT_ID)).toHaveLength(1)
   },
+  150_000,
 )

@@ -603,6 +603,10 @@ export default class PersonaHost extends TypertRemoteService {
       this.orchestration,
     )
     this.orchestration.screens = screenRepos
+    this.orchestration.onTaskSettled = (event, failed) => {
+      if (event.id !== FIRST_DELIVERY_EVENT_ID) return
+      this.sealFirstDelivery({ workspaceId: event.workspaceId, projectId: event.projectId }, failed ? 'failed' : undefined)
+    }
     this.onboarding = new OnboardingHost(this.product, this.events, screenRepos, this.screens)
     this.scheduler = new HostScheduler(this.store, screenRepos)
     this.github = new GithubSourceHost(detectGh(), this.orchestration, this.proactivity)
@@ -661,10 +665,17 @@ export default class PersonaHost extends TypertRemoteService {
         this.scheduler.arm(project.id)
       }
     }
-    ctx.effect(() => () => {
+    ctx.effect(() => async () => {
       this.scheduler.dispose()
-      void this.orchestration.disposeRunners()
-      this.store.close()
+      try {
+        await this.orchestration.work
+      } finally {
+        try {
+          await this.orchestration.disposeRunners()
+        } finally {
+          this.store.close()
+        }
+      }
     })
     installRemoteGuard(this, this.remoteGuard)
   }
@@ -3453,6 +3464,7 @@ export default class PersonaHost extends TypertRemoteService {
     const drafts = await this.onboarding.resolveTeam(request)
     const state = this.onboarding.complete(request, drafts)
     if (state.personalProjectId !== '') {
+      if (this.connections.list().some(card => card.phase === 'checking')) await this.connections.ready()
       this.bindPersonasToLoggedCli(state.personalProjectId)
       this.scheduler.arm(state.personalProjectId)
       void this.orchestration.prewarmProject(state.personalProjectId)

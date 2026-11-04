@@ -14,7 +14,9 @@ import {
   createOarSessionRunner,
   effectiveToolLevel,
   resolveRunner,
+  RunnerResolveError,
   type PersonaRunnerSpec,
+  type NormalizedReport,
   type RunEvent,
   type ToolLevel,
   type TurnRunner,
@@ -211,16 +213,17 @@ export interface PersonaRunnersSlice {
 
 /**
  * Fake in tests / `PERSONA_SCRIPTED`. Production and `PERSONA_REAL_CLI=1` resolve live.
- * @param request - Persona spec; omitted → fake.
+ * @param request - Persona spec; omission is allowed only in scripted/test mode.
  * @param runners - Plugin inject (`ctx.personaRunners`). Falls back to the import.
  */
 export async function resolveHostRunner(
   request?: HostRunnerRequest,
   runners?: PersonaRunnersSlice,
 ): Promise<Runner> {
-  if (request === undefined || allowsScriptedReplies()) {
+  if (allowsScriptedReplies()) {
     return runners?.createFakeRunner() ?? createFakeRunner()
   }
+  if (request === undefined) throw new RunnerResolveError('engine_unavailable', 'dsh')
   assertCliPermission(request.spec, request.permissionMode)
   const resolve = runners?.resolveRunner ?? resolveRunner
   const capture: TextCapture = {
@@ -258,6 +261,7 @@ export async function resolveHostRunner(
 /** Last streamed model text for a live runner (empty on fake/scripted). */
 export interface TextCapture {
   last: string
+  report?: NormalizedReport
   firstAt?: number
   onFirst?: (text: string) => void
   question?: string
@@ -282,12 +286,27 @@ export function lastRunnerQuestion(runner: Runner): string | undefined {
 }
 
 /**
+ * Last worker report, absent on session-only fake runners.
+ * @param runner - Session runner returned by resolveHostRunner.
+ * @returns The report from the most recent turn, or undefined before a report arrives.
+ */
+export function lastRunnerReport(runner: Runner): NormalizedReport | undefined {
+  return captures.get(runner)?.report
+}
+
+/**
  * Tee OAR deltas so the host can persist the real reply.
  * @param turn - Rivet turn runner.
  * @param capture - Accumulator.
  */
 export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
   const take = (event: RunEvent): void => {
+    if (event.type === 'started') {
+      capture.last = ''
+      delete capture.firstAt
+      delete capture.question
+      delete capture.report
+    }
     if (event.type === 'delta') {
       const first = capture.last === ''
       capture.last += event.text
@@ -304,6 +323,7 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
       }
     }
     if (event.type === 'ended' || event.type === 'report') {
+      capture.report = event.report
       const question = event.report.question
       if (typeof question === 'string' && question !== '') capture.question = question
       if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '') {

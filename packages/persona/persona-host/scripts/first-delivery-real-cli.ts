@@ -8,14 +8,20 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
+import { verifyFirstDeliveryRun, type FirstDeliveryRunEvidence } from '@deepseek-ai/dsh-persona-engine'
 import PersonaRunners from '@deepseek-ai/dsh-persona-runners'
 import PersonaHost from '../src/index.ts'
+import { DeliveryCallBudget, firstDeliveryProof } from './first-delivery-proof.ts'
+import type { CompleteOnboardingRequest, ConnectionView } from '../src/types.ts'
+
+if (process.env.PERSONA_REAL_E2E !== '1' && process.env.PERSONA_REAL_CLI !== '1') {
+  throw new Error('First-delivery real smoke requires explicit PERSONA_REAL_E2E=1 or PERSONA_REAL_CLI=1')
+}
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
 const artifactDir = join(repoRoot, 'packages', 'persona', 'persona-e2e', 'artifacts')
 const artifactPath = join(artifactDir, 'first-delivery-real-cli.json')
 const UX_PHASE_A_MS = 120_000
-const FLUSH_MS = UX_PHASE_A_MS
 
 const home = mkdtempSync(join(tmpdir(), 'persona-first-delivery-'))
 mkdirSync(join(home, 'db'), { recursive: true })
@@ -24,27 +30,18 @@ process.env.PERSONA_REAL_CLI = '1'
 delete process.env.CLAUDE_CONFIG_DIR
 delete process.env.CODEX_HOME
 
-const report: Record<string, unknown> = {
-  home,
-  artifactPath,
-  usedPersonaRunners: false,
-  execs: 0,
-  broke: [] as string[],
-  ms: 0,
-  uxPhaseAMs: UX_PHASE_A_MS,
-  ticketId: '',
-  runnerReply: '',
-  runnerSource: '',
-}
-
 const ctx = new Context()
 await ctx.plugin(PersonaRunners)
 const h = new PersonaHost(ctx, { databasePath: join(home, 'db', 'persona.db') })
-report.usedPersonaRunners = h.usedPersonaRunners
-if (!h.usedPersonaRunners) (report.broke as string[]).push('ctx.personaRunners not injected')
+const budget = new DeliveryCallBudget(h.orchestration.runnerFactory, 3)
+h.orchestration.runnerFactory = request => budget.resolve(request)
+const failures: string[] = []
+if (!h.usedPersonaRunners) failures.push('ctx.personaRunners not injected')
+const scope = { workspaceId: 'ws', projectId: 'pp' }
+const t0 = Date.now()
 
 const cofre = 'Agência Ponto — estúdio de sites e campanhas para PMEs.'
-const onb = await h.completeOnboarding({
+const request: CompleteOnboardingRequest = {
   workspaceId: 'ws',
   personalProjectId: 'pp',
   displayName: 'Miguel',
@@ -69,26 +66,34 @@ const onb = await h.completeOnboarding({
   templateIds: [],
   runnerChoices: ['claude'],
   cofreSeed: cofre,
-})
-const scope = { workspaceId: 'ws', projectId: onb.personalProjectId || 'pp' }
-report.listConnectionsFirst = h.listConnections(scope).find(item => item.kind === 'claude')
-
-const t0 = Date.now()
-const start = await h.startFirstDelivery(scope)
-report.ticketId = start.ticketId
-report.execs = 1
+}
+let connections: readonly ConnectionView[] = []
+const execute = async (): Promise<void> => {
+  await h.connections.ready()
+  await h.completeOnboarding(request)
+  connections = h.listConnections(scope)
+  await h.startFirstDelivery(scope)
+}
+let timeout: ReturnType<typeof setTimeout> | undefined
 try {
   await Promise.race([
-    h.orchestration.flush(scope.projectId),
+    execute(),
     new Promise<never>((_, reject) => {
-      setTimeout(() => { reject(new Error('first-delivery-flush-timeout')) }, FLUSH_MS)
+      timeout = setTimeout(() => { reject(new Error('first-delivery-flush-timeout')) }, UX_PHASE_A_MS)
     }),
   ])
 } catch (error) {
-  (report.broke as string[]).push(error instanceof Error ? error.message : 'flush')
+  failures.push(error instanceof Error ? error.message : 'first-delivery-execution-failed')
+  try {
+    await budget.cancelAll()
+  } catch (cancelError) {
+    failures.push(cancelError instanceof Error ? cancelError.message : 'first-delivery-cancel-failed')
+  }
+} finally {
+  if (timeout !== undefined) clearTimeout(timeout)
 }
 
-report.ms = Date.now() - t0
+const elapsedMs = Date.now() - t0
 const page = h.listMessages({
   ...scope,
   streamKind: 'channel',
@@ -97,30 +102,50 @@ const page = h.listMessages({
   afterSeq: 0,
   limit: 80,
 })
-const welcome = /Boas-vindas! Estou aqui para coordenar/u
-const reply = page.events.find(item =>
-  item.source === 'runner'
-  && item.id !== 'first-delivery'
-  && !welcome.test(item.body)
-  && item.body.trim().length > 40,
-)
-report.runnerReply = reply?.body?.slice(0, 500) ?? ''
-report.runnerSource = reply?.source ?? ''
-report.runnerId = reply?.id ?? ''
-report.stages = h.orchestration.stages
-
-if (reply === undefined) (report.broke as string[]).push('no-runner-delivery-on-geral')
-const elapsedMs = typeof report.ms === 'number' ? report.ms : 0
-if (elapsedMs > UX_PHASE_A_MS) (report.broke as string[]).push(`ux-phase-a-exceeded-${elapsedMs}ms`)
-if ((report.stages as Array<{ name: string }>).length > 3) {
-  (report.broke as string[]).push('exec-budget-exceeded')
+const milestone = h.getFirstDelivery(scope)
+const proof = firstDeliveryProof({
+  elapsedMs, deadlineMs: UX_PHASE_A_MS, milestone,
+  tasks: h.listTasks(scope), events: page.events,
+})
+const storedTicket = h.orchestration.runtime(scope.projectId).repo.tickets.get(milestone.ticketId)
+const card = h.listTasks(scope).find(task => task.id === milestone.ticketId)
+const delivered = page.events.find(event => event.id === proof.runnerId)
+const evidence: FirstDeliveryRunEvidence = {
+  askId: milestone.eventId,
+  ticket: storedTicket === undefined || card === undefined
+    ? undefined
+    : { id: card.id, triggerId: storedTicket.origin.triggerId, stage: card.stage },
+  loggedCli: connections.filter(connection => connection.loggedIn).map(connection => connection.kind),
+  entries: h.ledger.list({ projectId: scope.projectId }),
+  delivery: delivered === undefined ? undefined : {
+    ticketId: milestone.ticketId, streamKind: 'channel', ownerId: 'geral',
+    source: delivered.source, body: delivered.body,
+  },
+  milestone,
+  milestoneEventIds: page.events.filter(event => event.id === milestone.feedEventId).map(event => event.id),
+  elapsedMs, maxElapsedMs: UX_PHASE_A_MS, maxCalls: budget.limit,
+}
+const verification = verifyFirstDeliveryRun(evidence)
+const report = {
+  ...proof,
+  home,
+  artifactPath,
+  usedPersonaRunners: h.usedPersonaRunners,
+  execs: budget.calls.length,
+  calls: budget.calls,
+  callLimit: budget.limit,
+  ms: elapsedMs,
+  uxPhaseAMs: UX_PHASE_A_MS,
+  ticketId: milestone.ticketId,
+  milestone,
+  evidence,
+  verification,
+  stages: h.orchestration.stages,
+  broke: [...failures, ...proof.broke, ...verification.failed.map(failure => `evidence:${failure}`)],
 }
 
 mkdirSync(artifactDir, { recursive: true })
 writeFileSync(artifactPath, `${JSON.stringify(report, null, 2)}\n`)
 console.log(JSON.stringify(report, null, 2))
-await Promise.race([
-  ctx.fiber.dispose(),
-  new Promise<void>((resolve) => { setTimeout(resolve, 3_000) }),
-])
-process.exit(report.broke instanceof Array && report.broke.length > 0 ? 1 : 0)
+await ctx.fiber.dispose()
+process.exit(report.broke.length > 0 ? 1 : 0)

@@ -57,7 +57,7 @@ it('completeOnboarding is idempotent and writes welcome without a hardcoded name
     workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     actorId: 'owner', afterSeq: 0, limit: 20,
   })
-  expect(page.events.some(item => /Resuma o Cofre/u.test(item.body))).toBe(true)
+  expect(page.events.find(item => item.id === 'first-delivery')?.body).toContain('Tom de voz calmo.')
   expect(page.events.some(item => /Boas-vindas! Estou aqui para coordenar a equipe/u.test(item.body))).toBe(true)
   expect(JSON.stringify(page.events)).not.toMatch(/Boas-vindas ao Persona/u)
   expect(JSON.stringify(page.events)).not.toMatch(/Atlas/)

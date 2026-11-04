@@ -227,7 +227,7 @@ async function assertReady(runtime: Runtime, spec: PersonaRunnerSpec, cwd: strin
       )).models?.map(item => item.id).filter((id): id is string => typeof id === 'string') ?? []
     if (modelHit === undefined) rememberModels(spec.cli, cwd, ids)
     if (ids.length > 0 && spec.model !== 'default' && !ids.includes(spec.model)) {
-      throw new RunnerResolveError('model_unavailable', spec.model)
+      throw new RunnerResolveError('model_unavailable', provider, { model: spec.model })
     }
   }
   if (probe.accountUsage !== undefined && authHit === undefined) {

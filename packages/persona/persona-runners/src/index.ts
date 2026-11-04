@@ -290,7 +290,11 @@ export {
   RunnerResolveError,
   isRunnerResolveError,
   loginHintFor,
+  loginCommandFor,
+  providerLabel,
+  resolveCaughtError,
   type RunnerResolveErrorCode,
+  type RunErrorFields,
 } from './resolve/errors.ts'
 export {
   defaultRunnerPool,
@@ -334,6 +338,7 @@ export {
 } from './resolve/probe-cache.ts'
 export {
   detectConnections,
+  pickConnectedCli,
   resetConnectionCache,
   toUiConnection,
   type ConnectionKind,

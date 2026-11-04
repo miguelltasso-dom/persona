@@ -6,7 +6,7 @@
 import type { Runtime } from '@botiverse/oar'
 import type { CliKind } from '../contract.ts'
 import { detectLocalProviders, LOCAL_LABEL } from '../dsh/local.ts'
-import { loginHintFor } from './errors.ts'
+import { loginHintFor, RunnerResolveError } from './errors.ts'
 import { rememberAuth, rememberModels, resetProbeCache } from './probe-cache.ts'
 import { readOarAccountUsage, type OfficialQuota } from '@deepseek-ai/dsh-persona-usage'
 import {
@@ -51,6 +51,8 @@ export interface DetectConnectionsOptions {
 }
 
 const CACHE_MS = 60_000
+/** First logged-in CLI the host may bind without a login wall. Claude then Codex. */
+const CONNECTED_ORDER: readonly CliKind[] = ['claude', 'codex', 'opencode', 'cursor']
 const CLI_BINS: Record<CliKind, string> = {
   claude: 'claude',
   codex: 'codex',
@@ -107,7 +109,7 @@ async function probeCli(
   if (binary.version !== undefined) card.version = binary.version
   if (runtime === undefined) {
     if (!binary.ok) {
-      card.error = { code: 'cli_not_found', message: `CLI ${id} não encontrada neste computador.` }
+      card.error = { code: 'cli_not_found', message: new RunnerResolveError('cli_not_found', id).message }
       card.loginHint = loginHintFor(id)
       return redact(card)
     }
@@ -122,7 +124,7 @@ async function probeCli(
     card.installed = snap.kind === 'available' || binary.ok
     if (typeof snap.version === 'string' && snap.version.length > 0) card.version = snap.version
     if (snap.kind !== 'available' && !binary.ok) {
-      card.error = { code: 'cli_not_found', message: `CLI ${id} não encontrada neste computador.` }
+      card.error = { code: 'cli_not_found', message: new RunnerResolveError('cli_not_found', id).message }
       card.loginHint = loginHintFor(id)
       return redact(card)
     }
@@ -132,7 +134,7 @@ async function probeCli(
         rememberAuth(id, auth.kind)
         card.loggedIn = auth.kind === 'logged_in'
         if (auth.kind === 'logged_out' || auth.kind === 'unauthenticated') {
-          card.error = { code: 'not_logged_in', message: `CLI ${id} não está logada. ${loginHintFor(id)}` }
+          card.error = { code: 'not_logged_in', message: new RunnerResolveError('not_logged_in', id).message }
         }
       } catch {
         card.authUnknown = true
@@ -163,12 +165,12 @@ async function probeCli(
       card.officialQuota = quota
       card.usageOrigin = quota.origin === 'official' ? 'official' : 'unavailable'
       if (quotaExhausted(usage) || quota.windows.some(window => (window.usedPercent ?? 0) >= 100)) {
-        card.error = { code: 'quota_exhausted', message: `Cota de ${id} esgotada. Espere a janela resetar.` }
+        card.error = { code: 'quota_exhausted', message: new RunnerResolveError('quota_exhausted', id).message }
       }
     }
   } catch {
     if (!card.installed) {
-      card.error = { code: 'cli_not_found', message: `CLI ${id} não encontrada neste computador.` }
+      card.error = { code: 'cli_not_found', message: new RunnerResolveError('cli_not_found', id).message }
     } else {
       card.authUnknown = true
     }
@@ -227,6 +229,19 @@ export async function detectConnections(options: DetectConnectionsOptions = {}):
   }
   cache = { at: now(), value: cards }
   return cards
+}
+
+/**
+ * Prefer a logged-in Claude or Codex. No UI, no prompt, no dsh/local.
+ * @param cards - {@link detectConnections} snapshots.
+ * @returns CLI id, or `undefined` when nobody is logged in.
+ */
+export function pickConnectedCli(cards: readonly ConnectionSnapshot[]): CliKind | undefined {
+  for (const id of CONNECTED_ORDER) {
+    const card = cards.find(row => row.id === id)
+    if (card?.loggedIn === true && card.authUnknown !== true) return id
+  }
+  return undefined
 }
 
 /** Drop the 60 s cache (tests). */

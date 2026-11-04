@@ -346,6 +346,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
     } : {}),
     // hiddenInset places traffic lights inside the sidebar; sidebar vibrancy
     // needs a transparent window background to show through the page.
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : chromeFallbackFill(),
     ...(process.platform === 'darwin' ? {
       titleBarStyle: 'hiddenInset' as const,
       trafficLightPosition: { x: 16, y: 18 },
@@ -353,7 +354,6 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
       // 'active' keeps the vibrancy material stable when the window blurs;
       // 'followWindow' washes the sidebar out behind an unfocused window.
       visualEffectState: 'active' as const,
-      backgroundColor: '#00000000',
     } : {}),
     webPreferences: { ...secureWebPreferences(preload), devTools: true },
   })
@@ -636,7 +636,13 @@ async function main(): Promise<void> {
   const backend = new DesktopBackendController((onFailure) => {
     const hostInspectPort = developmentHostInspectPort(development)
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
-      hostInspectPort, { ...hostEnvironment, DSH_CLIENT_VERSION: desktopClientVersion() }, onFailure,
+      hostInspectPort, {
+        ...hostEnvironment,
+        DSH_CLIENT_VERSION: desktopClientVersion(),
+        ...(process.env.VITEST === 'true' || process.env.PERSONA_SCRIPTED === '1'
+          ? {}
+          : { PERSONA_REAL_CLI: '1' }),
+      }, onFailure,
       primaryRuntime,
       resources, (next) => { platformView.setSession(next) }, (record) => {
         operationJournal ??= new OperationJournal(join(app.getPath('userData'), 'plugin-operations'), {

@@ -88,6 +88,25 @@ describe('Persona DeepSeek decoupling', () => {
     expect(PERSONA_CSP).not.toMatch(/script-src[^;]*'unsafe-inline'/u)
   })
 
+  it('sets PERSONA_REAL_CLI=1 for dest:desktop / production host, not Vitest', () => {
+    const previousReal = process.env.PERSONA_REAL_CLI
+    const previousVitest = process.env.VITEST
+    try {
+      delete process.env.PERSONA_REAL_CLI
+      process.env.VITEST = 'true'
+      applyPersonaDesktopIdentity()
+      expect(process.env.PERSONA_REAL_CLI).toBeUndefined()
+      process.env.VITEST = '0'
+      applyPersonaDesktopIdentity()
+      expect(process.env.PERSONA_REAL_CLI).toBe('1')
+    } finally {
+      if (previousReal === undefined) delete process.env.PERSONA_REAL_CLI
+      else process.env.PERSONA_REAL_CLI = previousReal
+      if (previousVitest === undefined) delete process.env.VITEST
+      else process.env.VITEST = previousVitest
+    }
+  })
+
   it('publishes DSH_PROFILE=persona before the host starts', () => {
     expect(PERSONA_DSH_PROFILE).toBe('persona')
     const previous = process.env.DSH_PROFILE

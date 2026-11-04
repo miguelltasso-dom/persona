@@ -107,7 +107,10 @@ export async function runResolverSmoke(options: ResolverSmokeOptions = {}): Prom
       rows.push({
         id: cli,
         execs: 0,
-        error: { code: 'not_logged_in', message: card.loginHint ?? `CLI ${cli} não está logada.` },
+        error: card.error ?? {
+          code: 'not_logged_in',
+          message: new RunnerResolveError('not_logged_in', cli).message,
+        },
       })
       continue
     }

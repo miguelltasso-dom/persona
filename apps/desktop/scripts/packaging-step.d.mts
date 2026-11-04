@@ -5,9 +5,10 @@
  * @param stage Public phase label, never credentials.
  * @param action Work that settles all owned activity before returning.
  * @param secrets Credential values removed from errors.
+ * @param timeoutMs Kill the phase with a visible error after this many ms.
  * @returns Action result; logging failures also reject the phase.
  */
-export function packagingStep<T>(directory: string | undefined, stage: string, action: () => Promise<T>, secrets?: readonly string[]): Promise<T>
+export function packagingStep<T>(directory: string | undefined, stage: string, action: () => Promise<T>, secrets?: readonly string[], timeoutMs?: number): Promise<T>
 
 /**
  * Format nested errors with credential values removed for journal and terminal output.

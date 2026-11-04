@@ -68,6 +68,10 @@ async function launchElectron(): Promise<void> {
   const environment: NodeJS.ProcessEnv = {
     ...process.env,
     DSH_HOME: home,
+    PERSONA_HOME: process.env.PERSONA_HOME ?? home,
+    ...(process.env.VITEST === 'true' || process.env.PERSONA_SCRIPTED === '1'
+      ? {}
+      : { PERSONA_REAL_CLI: '1' }),
     DSH_DESKTOP_PRIMARY_RUNTIME_DIR: process.env.DSH_DESKTOP_PRIMARY_RUNTIME_DIR ?? developmentRuntimeDirectory(),
     DSH_DESKTOP_HOST_INSPECT_PORT: String(hostPort),
     DSH_DESKTOP_OPEN_DEVTOOLS: process.env.DSH_DESKTOP_OPEN_DEVTOOLS ?? '1',

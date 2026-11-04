@@ -70,6 +70,10 @@ export function applyPersonaDesktopIdentity(): void {
   process.env.DSH_CLIENT_TITLE ??= PERSONA_PRODUCT_NAME
   process.env.DSH_TELEMETRY_DISABLED ??= '1'
   process.env.DSH_TELEMETRY_MODE ??= 'DISABLED'
+  // dest:desktop / packaged host: live CLI. Tests stay fake (VITEST / PERSONA_SCRIPTED).
+  if (process.env.VITEST !== 'true' && process.env.PERSONA_SCRIPTED !== '1') {
+    process.env.PERSONA_REAL_CLI = '1'
+  }
   try {
     app.setName(PERSONA_PRODUCT_NAME)
   } catch {

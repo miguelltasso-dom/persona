@@ -93,3 +93,23 @@ O cartão "Contratar {nome}?" mostra o **porquê** em uma linha, vinda do host: 
 2. **Teste de UI:** aprovar na Visão geral tira o cartão de Aprovações, e vice-versa. O foco vai para o próximo cartão. A região live anuncia.
 3. **`failed`:** o host rejeita, o cartão volta com "Tentar de novo" e nada some sem confirmação.
 4. **Capturas** antes e depois (UX-01), claro e escuro, com axe 0. Reduced-motion sem patinhas e com 0 animações infinitas.
+
+## Responder a uma pergunta da persona (IV-10, Muse 04/11; o contrato é `contracts/attention-answer.md`, do Forge)
+**Decisão: a resposta é escrita no COMPOSER, nunca num campo novo dentro do cartão.**
+- **Por quê:** o composer já tem anexo, colagem grande, memória e citação. Um 2º campo de texto em cada cartão duplicaria tudo isso e dividiria a conversa em dois lugares.
+
+**Como funciona:**
+- **No cartão** (Visão geral, Aprovações) e na linha da pergunta no fio:
+  - quando a pergunta pede texto, o primário é **Responder**, e Aprovar/Dispensar viram secundários (se existirem);
+  - quando é só sim/não, continua como hoje.
+- **Responder:**
+  - leva ao fio da persona (se já não estiver nele);
+  - foca o composer;
+  - mostra acima dele o chip **"Respondendo a {persona}: {pergunta resumida}" · ✕**, no estilo do chip de citação.
+  - O anexo vem do botão de anexo do próprio composer.
+- **Enviar:**
+  - a resposta entra no fio como mensagem da pessoa, ligada à pergunta (a citação curta da pergunta no topo do balão);
+  - a pergunta vira a linha "**Respondida** · {primeiras palavras da resposta}";
+  - o cartão sai de "Precisa de você" com o ciclo de sempre (DECISIONS-SPEC Regra 2).
+- **O ✕ do chip** cancela o modo de resposta sem apagar o texto.
+- **Falha:** o mesmo estado de falha do envio otimista (P0-30): "Não enviado · Tentar de novo".

@@ -21,6 +21,8 @@ Tarefa sem `columnId` cai na primeira coluna da categoria do estágio (`projectB
 | `updateWorkflow` | substitui colunas/campos; coluna removida exige `destByRemoved` |
 | `moveTicket` | ajusta o estágio à categoria; `wipWarning: true` não recusa |
 
+FLOW-1: quando o engine recusa uma mudança por entrega pendente, `moveTicket` preserva o erro tipado `delivery_pending` no gateway, com mensagem para revisar/aplicar/descartar a entrega. Não converte a recusa em sucesso nem em invalid-workflow. A recusa não grava Ticket ou posição; revisão, atenção e rascunho permanecem disponíveis. O cliente mantém o cartão na coluna de origem e apresenta a mensagem; não confirma um movimento recusado.
+
 Recusa de fluxo: `BoardRemoteError` — `code` estável + `message` pt-BR. Códigos: `column-needs-destination` (removeu coluna com Tarefas sem destino), `duplicate-column`, `needs-you-unique`, `empty-workflow`, `todo-done-required`, `unknown-column`, `no-category-column`, `invalid-workflow`. Nunca `INVALID_WORKFLOW` no fio.
 
 Na remoção de colunas, o host usa `applyBoardWorkflowEdit(current, columns, fields, seats, tickets, destByRemoved)` do engine e persiste `{workflow,seats}` na mesma transação. O helper inclui cartões cuja coluna era apenas projetada, exige destino para colunas ocupadas e não altera Tickets, Assignments nem a categoria de execução. Somente seats migrados recebem `workflowMove?: {stageCategory: StageCategory}` com a categoria atual do Ticket. Reaplicar a edição é idempotente. `applyWorkflowEdit` puro do core continua disponível, mas sozinho não mantém a projeção de destino quando as categorias diferem.

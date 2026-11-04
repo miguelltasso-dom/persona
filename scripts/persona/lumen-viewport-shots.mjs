@@ -25,6 +25,7 @@ const ALL_PANELS = [
 ]
 const panels = process.argv.slice(3).length > 0 ? process.argv.slice(3) : ALL_PANELS
 const VIEWPORTS = [
+  ...(process.env.LUMEN_1440 === '1' ? [{ tag: '1440x900', width: 1440, height: 900, dpr: 1 }] : []),
   { tag: '960x640', width: 960, height: 640, dpr: 1 },
   { tag: 'zoom200', width: 640, height: 360, dpr: 2 },
 ]
@@ -53,7 +54,7 @@ const finish = async (code, note) => {
   try { rmSync(home, { recursive: true, force: true }) } catch { /* temp home still in use: reap-orphans cleans later */ }
   process.exit(code)
 }
-const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), 600_000)
+const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), 1_800_000)
 
 async function open(url, scheme, viewport) {
   const context = await browser.newContext({
@@ -63,16 +64,18 @@ async function open(url, scheme, viewport) {
     colorScheme: scheme,
     locale: 'pt-BR',
   })
-  await context.addInitScript(([dark]) => {
+  await context.addInitScript(([dark, withReview]) => {
     localStorage.setItem('persona.rail.collapsed.v1', '0')
     localStorage.setItem('persona.onboarding.complete.v1', '1')
     localStorage.setItem('persona.devSeed.v1', '1')
     // Opt-in dev seed: three skill proposals, so the decision cycle has several cards to act on.
     localStorage.setItem('persona.devSeed.decisions', '1')
+    // Capture-only sample of "Revisar mudanças" (the fake CLI writes no files): the sheet says "Exemplo".
+    if (withReview) localStorage.setItem('persona.devSeed.review', '1')
     const apply = () => { if (dark) document.body?.setAttribute('data-ds-dark-theme', 'true') }
     if (document.body) apply()
     else document.addEventListener('DOMContentLoaded', apply, { once: true })
-  }, [scheme === 'dark'])
+  }, [scheme === 'dark', process.env.LUMEN_SCENARIOS?.split(',').includes('review') === true])
   const page = await context.newPage()
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 240)}`) })
   page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 240)}`))
@@ -152,6 +155,94 @@ async function decisionShots(page, scheme, viewport) {
 }
 const decisionReport = []
 
+const REVIEW_PASTE = [
+  '## Sobre a empresa',
+  'A Padaria Aurora vende paes e bolos em Itu desde 2014.',
+  '',
+  '## Regras e restricoes',
+  '- Nunca enviar proposta comercial sem revisao do juridico.',
+  '- Respostas de orcamento saem em ate 1 dia util.',
+  '',
+  '## Clientes',
+  '- Maria (dona) aprova orcamentos acima de R$ 500.',
+].join('\n')
+
+async function axeLine(page, name, tag) {
+  const list = await axeViolations(page)
+  for (const v of list ?? []) console.log(`[axe ${name} ${tag}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 200)}`)
+  return list?.length ?? 'skipped'
+}
+
+/** "Revisar mudanças" in the complete shell: the list + preview, the clash moment, the success moment. */
+async function reviewShots(page, scheme, viewport) {
+  const tag = `${scheme}-${viewport.tag}`
+  await nav(page, 'Quadros')
+  // the first project card (its title, not the ⋯ menu): the board opens and the sample review opens on its own
+  await page.locator('[data-persona-boards] article').first().click({ position: { x: 90, y: 28 }, timeout: 10_000 })
+  await page.locator('[data-testid="review-panel"]').waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(700)
+  await shoot(page, `${outDir}/revisar-lista-${tag}.png`)
+  const axe1 = await axeLine(page, 'revisar-lista', tag)
+  await page.locator('[data-testid="review-apply"]').click()
+  await page.locator('[data-testid="review-conflict"]').waitFor({ timeout: 10_000 })
+  await page.waitForTimeout(500)
+  await shoot(page, `${outDir}/revisar-conflito-${tag}.png`)
+  const axe2 = await axeLine(page, 'revisar-conflito', tag)
+  await page.getByText('Manter os dois', { exact: false }).first().click()
+  await page.locator('[data-testid="review-apply"]').click()
+  await page.locator('[data-testid="review-applied"]').waitFor({ timeout: 10_000 })
+  await page.waitForTimeout(900)
+  await shoot(page, `${outDir}/revisar-sucesso-${tag}.png`)
+  const axe3 = await axeLine(page, 'revisar-sucesso', tag)
+  console.log(`[revisar ${tag}] lista axe=${axe1} conflito axe=${axe2} sucesso axe=${axe3}`)
+}
+
+/** Importadores: the entry, the review with the rules waiting, the rules accepted, and the confirmation after saving. */
+async function bycShots(page, scheme, viewport) {
+  const tag = `${scheme}-${viewport.tag}`
+  await nav(page, 'Importadores')
+  await page.waitForTimeout(600)
+  await shoot(page, `${outDir}/byc-entrada-${tag}.png`)
+  await page.getByRole('textbox').first().fill(REVIEW_PASTE)
+  await page.getByRole('button', { name: 'Adicionar resposta' }).click()
+  await page.getByRole('button', { name: 'Organizar', exact: true }).click()
+  await page.locator('[data-persona-byc-review]').waitFor({ timeout: 25_000 })
+  await page.waitForTimeout(600)
+  await shoot(page, `${outDir}/byc-revisao-${tag}.png`)
+  const axe1 = await axeLine(page, 'byc-revisao', tag)
+  const acceptAll = page.getByRole('button', { name: /Aceitar todas as regras/u })
+  if (await acceptAll.count() > 0) {
+    await acceptAll.click()
+    await page.waitForTimeout(300)
+    await shoot(page, `${outDir}/byc-revisao-regras-aceitas-${tag}.png`)
+  }
+  await page.getByRole('button', { name: /^Gravar \d+ no Cofre$/u }).click()
+  await page.locator('[data-persona-byc-saved]').waitFor({ timeout: 25_000 })
+  await page.waitForTimeout(500)
+  await shoot(page, `${outDir}/byc-gravado-${tag}.png`)
+  const axe2 = await axeLine(page, 'byc-gravado', tag)
+  console.log(`[byc ${tag}] revisao axe=${axe1} gravado axe=${axe2}`)
+}
+
+/** Segundo cérebro: the home, Permissões, and the new-page dialog. */
+async function brainShots(page, scheme, viewport) {
+  const tag = `${scheme}-${viewport.tag}`
+  await nav(page, 'Segundo cérebro')
+  await page.waitForTimeout(700)
+  await shoot(page, `${outDir}/segundo-cerebro-real-${tag}.png`)
+  const axe1 = await axeLine(page, 'segundo-cerebro', tag)
+  await page.getByRole('button', { name: 'Permissões', exact: true }).click()
+  await page.waitForTimeout(600)
+  await shoot(page, `${outDir}/segundo-cerebro-permissoes-${tag}.png`)
+  const axe2 = await axeLine(page, 'permissoes', tag)
+  await page.getByRole('button', { name: 'Voltar', exact: false }).first().click().catch(() => undefined)
+  await page.getByRole('button', { name: 'Nova página', exact: true }).first().click({ timeout: 8_000 }).catch(() => undefined)
+  await page.waitForTimeout(500)
+  await shoot(page, `${outDir}/segundo-cerebro-nova-pagina-${tag}.png`)
+  const axe3 = await axeLine(page, 'nova-pagina', tag)
+  console.log(`[brain ${tag}] home axe=${axe1} permissoes axe=${axe2} nova-pagina axe=${axe3}`)
+}
+
 /**
  * Content the person cannot reach: an element that pokes out of the viewport, or out of an ancestor that CLIPS it
  * (overflow hidden/clip) — an overflow-x auto/scroll ancestor is fine (reachable by scrolling) and only counted.
@@ -223,7 +314,7 @@ const onData = async (chunk) => {
           continue
         }
         const { context, page } = opened
-        for (const label of panels) {
+        for (const label of (process.env.LUMEN_SKIP_PANELS === '1' ? [] : panels)) {
           try {
             if (label === 'Quadros › projeto') {
               // The board columns live inside a project: open the first project card from Quadros.
@@ -242,6 +333,14 @@ const onData = async (chunk) => {
           } catch (error) {
             report.push({ panel: label, scheme, viewport: viewport.tag, error: String(error).slice(0, 200) })
             console.log(`[${viewport.tag} ${scheme}] ${label}: FAILED ${String(error).slice(0, 140)}`)
+          }
+        }
+        const scenarios = new Set((process.env.LUMEN_SCENARIOS ?? '').split(',').filter(Boolean))
+        for (const [name, run] of [['brain', brainShots], ['byc', bycShots], ['review', reviewShots]]) {
+          if (!scenarios.has(name)) continue
+          try { await run(page, scheme, viewport) } catch (error) {
+            report.push({ panel: `(${name})`, scheme, viewport: viewport.tag, error: String(error).slice(0, 200), at: new Date().toISOString() })
+            console.log(`[${name} ${scheme}-${viewport.tag}] FAILED ${String(error).slice(0, 200)}`)
           }
         }
         if (process.env.LUMEN_DECISIONS === '1') {

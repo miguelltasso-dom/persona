@@ -1,0 +1,134 @@
+{
+  "note": "fake local Anthropic endpoint; no real model call; blank HOME",
+  "reports": [
+    {
+      "variant": "default",
+      "call": "conversa (deny, sem ferramentas)",
+      "purpose": "talk",
+      "requests": [
+        {
+          "at": 8722,
+          "method": "HEAD",
+          "path": "/api/hello",
+          "model": "",
+          "stream": false,
+          "systemChars": 0,
+          "messages": 0,
+          "tools": 0,
+          "maxTokens": null,
+          "lastUser": "",
+          "bodyBytes": 0,
+          "sinceStartMs": -3882,
+          "afterEndMs": -5404
+        },
+        {
+          "at": 9308,
+          "method": "HEAD",
+          "path": "/api/hello",
+          "model": "",
+          "stream": false,
+          "systemChars": 0,
+          "messages": 0,
+          "tools": 0,
+          "maxTokens": null,
+          "lastUser": "",
+          "bodyBytes": 0,
+          "sinceStartMs": -3296,
+          "afterEndMs": -4818
+        },
+        {
+          "at": 11405,
+          "method": "HEAD",
+          "path": "/api/hello",
+          "model": "",
+          "stream": false,
+          "systemChars": 0,
+          "messages": 0,
+          "tools": 0,
+          "maxTokens": null,
+          "lastUser": "",
+          "bodyBytes": 0,
+          "sinceStartMs": -1199,
+          "afterEndMs": -2721
+        },
+        {
+          "at": 12984,
+          "method": "HEAD",
+          "path": "/api/hello",
+          "model": "",
+          "stream": false,
+          "systemChars": 0,
+          "messages": 0,
+          "tools": 0,
+          "maxTokens": null,
+          "lastUser": "",
+          "bodyBytes": 0,
+          "sinceStartMs": 380,
+          "afterEndMs": -1142
+        },
+        {
+          "at": 14041,
+          "method": "POST",
+          "path": "/v1/messages",
+          "model": "claude-haiku-5-5",
+          "stream": true,
+          "systemChars": 8863,
+          "messages": 2,
+          "tools": 0,
+          "maxTokens": 128000,
+          "lastUser": "Responda somente em texto usando o contexto já fornecido. Não use ferramentas, não leia arquivos nem peça perm",
+          "bodyBytes": 10899,
+          "sinceStartMs": 1437,
+          "afterEndMs": -85
+        }
+      ],
+      "modelRequests": 1,
+      "otherRequests": 4,
+      "reportedInput": 2725,
+      "reportedOutput": 2,
+      "ended": true
+    },
+    {
+      "variant": "default",
+      "call": "tarefa (allow-once, com ferramentas)",
+      "purpose": "task",
+      "requests": [
+        {
+          "at": 21023,
+          "method": "HEAD",
+          "path": "/api/hello",
+          "model": "",
+          "stream": false,
+          "systemChars": 0,
+          "messages": 0,
+          "tools": 0,
+          "maxTokens": null,
+          "lastUser": "",
+          "bodyBytes": 0,
+          "sinceStartMs": 387,
+          "afterEndMs": -1138
+        },
+        {
+          "at": 22087,
+          "method": "POST",
+          "path": "/v1/messages",
+          "model": "claude-haiku-5-5",
+          "stream": true,
+          "systemChars": 9028,
+          "messages": 2,
+          "tools": 15,
+          "maxTokens": 128000,
+          "lastUser": "<system-reminder> Attribution for git commits and pull requests you create from here on (this replaces Claude ",
+          "bodyBytes": 71777,
+          "sinceStartMs": 1451,
+          "afterEndMs": -74
+        }
+      ],
+      "modelRequests": 1,
+      "otherRequests": 1,
+      "reportedInput": 17945,
+      "reportedOutput": 2,
+      "ended": true
+    }
+  ]
+}

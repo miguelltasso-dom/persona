@@ -1,0 +1,51 @@
+{
+  "mode": "real",
+  "calls": [
+    {
+      "label": "A-trivial",
+      "estimatedPromptTokens": 5,
+      "numTurns": 1,
+      "inputTokens": 2,
+      "cacheCreationTokens": 20902,
+      "cacheReadTokens": 16825,
+      "outputTokens": 4,
+      "durationMs": 2656,
+      "totalCostUsd": 0.00435085,
+      "isError": false
+    },
+    {
+      "label": "B-long",
+      "estimatedPromptTokens": 292,
+      "numTurns": 1,
+      "inputTokens": 2,
+      "cacheCreationTokens": 21392,
+      "cacheReadTokens": 16825,
+      "outputTokens": 4,
+      "durationMs": 1785,
+      "totalCostUsd": 0.004448850000000001,
+      "isError": false
+    },
+    {
+      "label": "C-trivial-again",
+      "estimatedPromptTokens": 5,
+      "numTurns": 1,
+      "inputTokens": 2,
+      "cacheCreationTokens": 24325,
+      "cacheReadTokens": 19897,
+      "outputTokens": 4,
+      "durationMs": 1826,
+      "totalCostUsd": 0.00506617,
+      "isError": false
+    }
+  ],
+  "derived": {
+    "vendorBaseTokens": 37724,
+    "tokenizerRatio": 1.707,
+    "baseServedFromCache": true,
+    "singleRequest": true,
+    "vendorBaseRange": [
+      37724,
+      44219
+    ]
+  }
+}

@@ -138,3 +138,13 @@ O mestre nunca vem em PNG de paleta (modo `P`).
 **Projeção:**
 - P1 (11 animais × 118 KB ≈ 1,24 MiB) + P2 (~0,2 MiB) → **~9,0 MiB**, cabe.
 - **P3** (4 animais novos com o kit completo, ~0,45 MiB cada ≈ 1,8 MiB) → ~10,8 MiB, não cabe. Pelo Keel, os animais novos entram **sob demanda** (lazy, fora do bundle inicial). O teto de 12 MiB é aprovado só com o número real do lote medido.
+
+### Novo teto: 12 MiB (Keel, 04/11 17:18)
+- **Medido antes de subir:** a árvore estava em **9,00 MiB**, depois do BR-P3 P0 + cervo, coelho, lobo-guará e lontra. Faltam o ouriço e o P1 do BR-P3 (as poses comemorando, digitando, lendo e confuso dos 5 principais, os sucessos, os spots da Ajuda e os ícones).
+- **Teto:** **12 MiB** (`MAX_GIT_BYTES` no `build-assets.mjs`, no mesmo commit).
+- **Carregamento:** toda arte é importada como URL (`generated-imports.ts`) e servida como arquivo separado em `lib/assets/`.
+  - `lib/client.js` tem **0 data-URI de imagem**, medido em 04/11 16:47: 4.786.140 bytes, 775 referências `.webp` por URL;
+  - o navegador só baixa a imagem quando a tela ou o estado a desenham;
+  - o que cada arte nova acrescenta ao bundle são ~100 bytes de string.
+  - O tamanho do bundle depois do H2 o Keel confere no build exclusivo.
+- **Qualidade:** a q76 só nas poses comuns, se o lote P1 precisar; as de vida e as de herói ficam como estão.

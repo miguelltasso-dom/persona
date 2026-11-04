@@ -12,6 +12,7 @@ import { AVATAR_96 } from '../../../packages/persona/client-ui-persona/src/clien
 import { pt as editorPt } from '../../../packages/persona/client-ui-persona/src/client/locale/persona-editor/locales.ts'
 import { pt as chatPt } from '../../../packages/persona/client-ui-persona/src/client/locale/chat/locales.ts'
 import { pt as governancePt } from '../../../packages/persona/client-ui-persona/src/client/locale/governance/locales.ts'
+import { ConversasPrototype } from './conversas.tsx'
 import { SubjectBar } from '../../../packages/persona/client-ui-persona/src/client/chat/SubjectBar.tsx'
 import type { ConversationSubjectUi } from '../../../packages/persona/client-ui-persona/src/client/chat/conversation-subjects.ts'
 
@@ -98,6 +99,9 @@ function Subjects({ editing, archived }: { readonly editing?: string; readonly a
 }
 
 const STATES: Readonly<Record<string, () => ReactNode>> = {
+  'conversas-5': () => <ConversasPrototype many={false} dm />,
+  'conversas-30': () => <ConversasPrototype many />,
+  'conversas-30-picker': () => <ConversasPrototype many picker />,
   subjects: () => <Subjects />,
   'subjects-new': () => <Subjects editing="s-novo" />,
   'subjects-archived': () => <Subjects archived />,
@@ -116,9 +120,12 @@ const state = window.location.hash.replace('#', '') || 'gestor-on'
 const render = STATES[state] ?? STATES['gestor-on']!
 if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.body.setAttribute('data-ds-dark-theme', 'true')
 
+const fullBleed = state.startsWith('conversas-')
 createRoot(document.getElementById('root')!).render(
-  <div data-persona-root="" style={{ display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr)', minHeight: '100vh', background: 'var(--persona-paper)', color: 'var(--persona-ink)' }}>
-    <aside style={{ background: 'var(--persona-rail)' }} aria-hidden="true" />
-    <main data-gallery-state={state} style={{ padding: 24, minWidth: 0 }}>{render()}</main>
-  </div>,
+  fullBleed ? <main data-gallery-state={state} data-persona-root="" style={{ color: 'var(--persona-ink)' }}>{render()}</main> : (
+    <div data-persona-root="" style={{ display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr)', minHeight: '100vh', background: 'var(--persona-paper)', color: 'var(--persona-ink)' }}>
+      <aside style={{ background: 'var(--persona-rail)' }} aria-hidden="true" />
+      <main data-gallery-state={state} style={{ padding: 24, minWidth: 0 }}>{render()}</main>
+    </div>
+  ),
 )

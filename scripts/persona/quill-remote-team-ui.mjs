@@ -185,15 +185,21 @@ async function shoot(desk, step) {
   console.log(`e13-ui:${step}:${desk.name}`)
 }
 
+/** Axe on what this screen owns (the Equipe remota card and its dialogs: must be 0) and, apart, on the rest of the page (shell, rail, Membros). */
 async function axe(desk, label) {
   if (process.env.QUILL_AXE === undefined) return
   await desk.page.addScriptTag({ path: process.env.QUILL_AXE })
-  const found = await desk.page.evaluate(async () => {
-    const result = await globalThis.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } })
-    return result.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes.slice(0, 2).map(n => n.target.join(' ')) }))
-  })
-  axeFindings.push({ label, desk: desk.name, violations: found })
-  for (const v of found) console.log(`[axe ${label} ${desk.name}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 160)}`)
+  const found = await desk.page.evaluate(async (scopes) => {
+    const options = { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } }
+    const pack = (result) => result.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes.slice(0, 2).map(n => n.target.join(' ')) }))
+    const present = scopes.filter(sel => document.querySelector(sel) !== null).map(sel => [sel])
+    const mine = present.length === 0 ? [] : pack(await globalThis.axe.run({ include: present }, options))
+    const outside = pack(await globalThis.axe.run(present.length === 0 ? document : { exclude: present }, options))
+    return { mine, outside }
+  }, ['[data-persona-surface="remote-team"]', '[role="dialog"]'])
+  axeFindings.push({ label, desk: desk.name, violations: found.mine, outside: found.outside })
+  for (const v of found.mine) console.log(`[axe ${label} ${desk.name}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 160)}`)
+  for (const v of found.outside) console.log(`[axe-outside ${label} ${desk.name}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 160)}`)
 }
 
 async function cleanup() {
@@ -297,9 +303,9 @@ try {
     const wide = await desk.page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)
     if (wide) sideways.push(desk.name)
   }
-  writeFileSync(join(out, 'proof.json'), `${JSON.stringify({ at: new Date().toISOString(), passed: consoleErrors.length === 0, scope, steps: steps.length, consoleErrors, sideways, axe: axeFindings, realModelCalls: 0, noDevSeed: true, operatedThroughUi: ['connect', 'issueInvite', 'dismiss', 'accept', 'post', 'revoke'] }, null, 2)}\n`)
+  writeFileSync(join(out, 'proof.json'), `${JSON.stringify({ at: new Date().toISOString(), passed: consoleErrors.length === 0 && axeFindings.every(row => row.violations.length === 0), scope, steps: steps.length, consoleErrors, sideways, axe: axeFindings, realModelCalls: 0, noDevSeed: true, operatedThroughUi: ['connect', 'issueInvite', 'dismiss', 'accept', 'post', 'revoke'] }, null, 2)}\n`)
   console.log(`e13-ui:PASS steps=${steps.length} consoleErrors=${consoleErrors.length} sideways=${sideways.join(',') || 'none'}`)
-  process.exitCode = consoleErrors.length === 0 ? 0 : 1
+  process.exitCode = consoleErrors.length === 0 && axeFindings.every(row => row.violations.length === 0) ? 0 : 1
 } catch (error) {
   for (const context of contexts) {
     for (const page of context.pages()) await page.screenshot({ path: join(out, `failure-${new URL(page.url()).port || 'page'}.png`) }).catch(() => undefined)

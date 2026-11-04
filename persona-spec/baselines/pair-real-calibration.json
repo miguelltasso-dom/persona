@@ -1,0 +1,19 @@
+{
+  "origin": "calibrated",
+  "source": "persona-spec/reports/pair-real.json + pair-real-base.json",
+  "at": "2026-11-04",
+  "calibration": {
+    "vendorBaseTokens": 40977,
+    "tokenizerRatio": 1.707,
+    "secondsPerCall": {
+      "execucao": {
+        "min": 10.3,
+        "max": 13.8
+      },
+      "triagem": {
+        "min": 10.2,
+        "max": 11.3
+      }
+    }
+  }
+}

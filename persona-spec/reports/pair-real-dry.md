@@ -10,7 +10,7 @@ Chamadas: 9 (teto 20).
 | persona | triage | cold | 538 | 100 | 10 | 0 | 0 | — | 0 |
 | persona | execution | cold | 311 | 100 | 10 | 0 | 0 | não | 0 |
 | persona_lean | execution | cold | 339 | 100 | 10 | 0 | 0 | não | 0 |
-| cli_direct | direct | warm | 23 | 100 | 10 | 0 | 0 | não | 0 |
+| cli_direct | direct | warm | 23 | 100 | 10 | 0 | 0 | não | 1 |
 | persona | triage | warm | 38 | 100 | 10 | 0 | 0 | — | 0 |
 | persona | execution | warm | 311 | 100 | 10 | 0 | 0 | não | 0 |
 | persona_lean | execution | warm | 339 | 100 | 10 | 0 | 0 | não | 0 |

@@ -19,11 +19,13 @@ const { build } = await import(createRequire(`${root}/package.json`).resolve('vi
 const STATES = process.argv.slice(2).length > 0
   ? process.argv.slice(2)
   : ['gestor-off', 'gestor-on', 'plan-pending', 'plan-approved', 'plan-declined', 'plan-adjusting', 'plan-as-chat', 'assistant-1', 'assistant-2', 'assistant-3', 'assistant-4', 'subjects', 'subjects-new', 'subjects-archived']
-const VIEWPORTS = [
+const VIEWPORTS = (process.env.MUSE_VIEWPORTS === 'proto' ? [
+  { tag: '1440x900', width: 1440, height: 900, dpr: 1 },
+] : [
   { tag: '1280x720', width: 1280, height: 720, dpr: 1 },
   { tag: '960x640', width: 960, height: 640, dpr: 1 },
   { tag: 'zoom200', width: 640, height: 360, dpr: 2 },
-]
+])
 const outDir = `${root}/.maestri/tmp/shots/design/accept-gallery`
 const dist = resolve(`${root}/.maestri/tmp/muse-accept-gallery-${process.pid}`)
 mkdirSync(outDir, { recursive: true })
@@ -125,7 +127,7 @@ try {
             await page.goto(`http://127.0.0.1:${port}/index.html#${drawn}`, { waitUntil: 'load' })
             await page.reload({ waitUntil: 'load' })
             await page.locator(`[data-gallery-state="${drawn}"]`).waitFor({ timeout: 15_000 })
-            for (let step = 1; step < Number(state.split('-')[1] ?? 1); step += 1) {
+            for (let step = 1; state.startsWith('assistant-') && step < Number(state.split('-')[1] ?? 1); step += 1) {
               await page.getByRole('button', { name: 'Continuar', exact: true }).first().click({ timeout: 5_000 })
               await page.waitForTimeout(400)
             }
@@ -143,7 +145,7 @@ try {
           await page.mouse.move(0, 0)
           const file = `${state}-${scheme}-${viewport.tag}.png`
           // The action bar is sticky in the real scroller; in a full-page shot it would sit mid-page over the list.
-          await page.screenshot({ path: `${outDir}/${file}`, fullPage: true })
+          await page.screenshot({ path: `${outDir}/${file}`, fullPage: !state.startsWith("conversas-") })
           const probe = await page.evaluate(probeOverflow)
           let axe = 'skipped'
           const axeFile = process.env.MUSE_AXE

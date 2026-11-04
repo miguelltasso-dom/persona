@@ -141,6 +141,9 @@ try {
           }
           if (mainText.length < 20) throw new Error(`empty screen: main has ${String(mainText.length)} characters`)
           let keyboard
+          // The routine editor is a dialog over the screen: shoot the viewport (the scrim is fixed to it), like the hire details.
+          const dialogState = state.startsWith('routine-editor')
+          if (dialogState) await page.getByRole('dialog').waitFor({ timeout: 5000 })
           if (state === 'approvals-hire-details') {
             keyboard = await keyboardDetails(page)
             await page.getByRole('button', { name: 'Ver detalhes' }).first().click()
@@ -151,7 +154,7 @@ try {
           const file = `${state}-${scheme}-${viewport.tag}.png`
           // D-074: internal captures are cropped to the screen (main), never the empty rail strip. A dialog's scrim is fixed
           // to the viewport, so with one open the whole viewport is shot instead.
-          if (keyboard === undefined) await page.locator('main').first().screenshot({ path: `${outDir}/${file}` })
+          if (keyboard === undefined && !dialogState) await page.locator('main').first().screenshot({ path: `${outDir}/${file}` })
           else await page.screenshot({ path: `${outDir}/${file}` })
           const probe = await page.evaluate(probeOverflow)
           let axe = 'skipped'

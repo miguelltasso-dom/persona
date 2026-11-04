@@ -81,3 +81,46 @@ Legível a 240 e a 96, com o contorno visível nos dois temas. As poses passam p
 - **`empty-aprovacoes`: aprovado.** Os cinco no tapete e o carimbo ✓ junto do Atlas; acolhedor, sem troféu.
 - **A `empty-limite` final** está com a sombra.
 - **O lote P0 do BR-P3 está fechado.** Falta só o registro no `build-assets` (Muse, na janela do Keel).
+
+## Revisões P1
+
+### Amostra · `atlas-comemorando` e `atlas-digitando` (04/11)
+- **O chão:** os pés 25 px acima da base não importam. O `build-assets` recorta cada pose pela caixa opaca e alinha os pés na linha do chão, e a escala bate com a `disponivel` (topo 51 contra 52).
+- **`comemorando`: aprovado.** As duas patas para cima e o sorriso grande leem a 188 px e a 96 nos dois temas.
+- **`digitando`: ajustar.** A 188 px ele lê como "segurando um teclado", não "escrevendo". O uso principal é o indicador "{persona} está escrevendo…" no fio, a 40–48 px.
+  - Ajuste: o olhar **para baixo**, nas teclas; a cabeça levemente inclinada; 2 ou 3 traços curtos de "toque" nas pontas das patas, como os tracinhos do aceno: encostados na silhueta, com o halo creme.
+  - Mantém o teclado, o enquadramento e o chão.
+- **Depois do `digitando` v2:** o lote dos 5 principais × comemorando / digitando / lendo / confuso, no mesmo método.
+- **`atlas-digitando` v2: aprovado.**
+  - **A 188 px:** o olhar nas teclas, a cabeça inclinada e os toques com halo leem "escrevendo".
+  - **A 40–48 px:** o detalhe do olhar some, mas o teclado lilás segue legível, e é ele que diz "digitando". Por isso, **regra de uso:** o indicador "{persona} está escrevendo…" usa a pose inteira a **≥ 48 px de altura**, nunca recortada no rosto, ao lado do texto com as reticências animadas (só sem reduced-motion).
+  - **O topo +22 px** (a cabeça inclinada) muda ~1,5% da escala na faixa, o que é imperceptível; o chão é igual.
+- **O lote P1 liberado:** os 5 principais (atlas, bento, nina, sol, luna) × comemorando, digitando, lendo e confuso. São 18 imagens, porque o atlas já tem 2.
+- **`atlas-confuso`: aprovado.** A cabeça inclinada, a pata na cabeça e o "?" com halo leem a 188 px; é simpático, sem drama.
+- **`atlas-lendo`: ajustar.** O livro está certo, mas o olhar vai para o lado e a língua de fora diz "feliz", não "lendo". Olhar **para baixo, na página**; a boca fechada, com um sorriso leve; o resto igual. Vale como regra do `lendo` para os 5: concentrado e calmo.
+- **`atlas-lendo` v2: aprovado.** O olhar desce para a página, a boca está fechada com sorriso leve, e lê "concentrado" a 188 px nos dois temas. **O kit P1 do Atlas está completo** (comemorando, digitando, lendo e confuso). Vira a referência para os outros 4.
+- **Bento P1: aprovado inteiro.**
+  - `comemorando`: as patas para cima;
+  - `digitando`: o teclado lilás e os toques; lê a 48 px;
+  - `lendo`: os olhos na página, a boca fechada;
+  - `confuso`: a pata na cabeça e o "?".
+  - Topo e chão dentro de ±1% da `disponivel`; o pelo preto mantém o contorno no escuro.
+  - Entra no `build-assets` junto com o lote dos 5, para uma regeneração só.
+- **Nina P1: aprovada inteira.** No canvas comum (sem recorte), a cabeça e o corpo ficam na mesma escala da `disponivel` depois do ajuste (topo 170–174 e chão 1365–1366, contra 174 e 1365). `digitando` com teclado e toques; `lendo` concentrado; `confuso` com o "?". Lê nos dois temas.
+- **Sol P1: aprovado inteiro.** A escala e o chão batem com a `disponivel` (topo 193–204 e chão 1337–1340, contra 202 e 1338); os 4 leem nos dois temas.
+- **Luna P1: aprovada inteira.** A escala e o chão batem com a `disponivel` (topo 170–176 e chão 1367–1370, contra 177 e 1365).
+- **O P1 dos 5 principais está FECHADO.** As 20 poses (comemorando, digitando, lendo, confuso) estão no app; a árvore em 9,78 MiB de 12.
+- **Código:** `PersonaPoseState` ganhou os 4 estados, e há o `hasPose(id, state)` novo, porque o `poseUrl` cai na `disponivel` sozinho. Os 12 extras ainda não têm essas poses: use o avatar + o texto.
+
+### Amostra P1 · `sucesso-skill-aprendida` (04/11)
+- **A ideia e o traço:** aprovados (o Atlas feliz, os brilhos, a sombra de chão).
+- **Ajustar:** o diploma está pequeno e, enrolado, lê como um **laço**, sobretudo a 96 px. Precisa ficar **maior** (~1/3 da largura do corpo), **meio aberto**, com um selo âmbar ✓ visível (o mesmo selo da `sucesso-aplicado`, que vira a marca de "deu certo" da casa).
+- **Depois:** `sucesso-convite-aceito` e `sucesso-equipe-chegou`, com o mesmo selo e a mesma sombra.
+- **`sucesso-skill-aprendida` v2: aprovado.** O diploma meio aberto, com o selo ✓ âmbar, lê como "aprendeu, deu certo" a 240 e a 96 nos dois temas. O selo vira a marca de sucesso da casa. Siga com `sucesso-convite-aceito` e `sucesso-equipe-chegou`.
+- **`sucesso-convite-aceito` e `sucesso-equipe-chegou`: aprovados.** O aperto de pata com o selo ✓ e os 3 bichos novos acenando na porta com o selo; leem a 240 e a 96 nos dois temas, com a mesma família visual dos outros sucessos. **Os 3 sucessos do P1 estão fechados.** Entram no `build-assets` na próxima janela do Keel (o H2 está sendo empacotado agora; não regenero no meio).
+- **`spot-ajuda-conectar-ia`: aprovado.** Lê a 96 e a 48 nos dois temas. A faísca âmbar acesa o distingue do `spot-sem-ia` (a faísca apagada), o par certo para "conectar" × "falta". Siga com os outros 5 spots da Ajuda.
+- **Os 6 spots da Ajuda: aprovados.** O plugue, o crachá com patinha, a tela com cursor, os post-its, o sininho e o cadeado com patinha leem a 96 e a 48 nos dois temas, no mesmo traço e com o brilho âmbar como assinatura. Estão registrados no `build-assets` e entram na próxima janela.
+- **Ícones `desfazer` e `fila`: aprovados.** Mesmo traço, peso e grade dos ícones de navegação e de UI; leem a 24 e a 18 nos 3 fundos. "Desfazer" é a seta curva de volta, sem ambiguidade com "voltar"; "fila" são as linhas com o relógio. Siga com avisos, direcionar, citar, lado e atalho.
+- **Ícones `avisos`, `direcionar`, `lado` e `atalho`: aprovados.** Mesmo traço e mesma grade. `direcionar` é o espelho do `desfazer`, o par certo.
+- **`citar`: ajustar.** As aspas de traço reto leem como o número "55", em todos os tamanhos. Use aspas **curvas** (duas vírgulas grandes de topo arredondado, como "“"), com o topo cheio ou um círculo pequeno no alto de cada uma. Mesmo traço.
+- **`citar` v2: a forma aprovada** (aspas curvas com ponto cheio; lê como aspas, não "55"). **Um ajuste de escala:** ela ocupa ~50% da grade e fica menor e mais leve que os vizinhos a 18 px. Aumente até ~16 × 14 dentro dos 24 (o mesmo peso visual de `lado`/`atalho`), com o mesmo traço. Com isso, o BR-P3 P1 fecha.

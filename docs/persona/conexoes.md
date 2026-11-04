@@ -31,9 +31,10 @@ Pelo menu ⋯ de cada conta dá para **Renomear** e **Remover conta**.
 
 A política é explícita, para toda a equipe ou para **uma persona** (a regra da persona vale antes da regra da equipe). Escolher a aba não muda nada: a regra só é salva quando você escolhe um dos cartões.
 
-- **Uma conta fixa** — para no limite
-- **Próxima ao chegar no limite**
-- **Dividir o uso** — equilibra pela cota que resta
-- **Perguntar antes de trocar** — vira Precisa de você
+São três escolhas, e **Perguntar antes de trocar** é a padrão (vem marcada como recomendada):
 
-A troca aparece na atividade («Nina passou para Claude · Trabalho»). Cada provedor tem os próprios termos; a Persona só usa contas que você conectou e não compartilha credenciais.
+- **Perguntar antes de trocar** — no limite a tarefa para e a Persona pergunta se você quer usar outra conta. Só continua se você aceitar.
+- **Trocar sozinha para a próxima conta** — sem perguntar, mas você sempre vê a troca no fio («Nina passou para Claude · Trabalho») e pode **Desfazer**. É uma escolha sua, nunca um padrão.
+- **Ficar nesta conta** — no limite, a tarefa espera a cota voltar.
+
+Se uma regra antiga (dividir o uso entre contas) ainda estiver salva, a tela avisa que ela saiu das opções e pede para escolher uma das três. Cada provedor tem os próprios termos; a Persona só usa contas que você conectou e não compartilha credenciais.

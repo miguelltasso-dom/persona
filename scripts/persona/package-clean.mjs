@@ -12,6 +12,11 @@
  *
  * Options: --commit <rev>  --dir  --resume --proof <proof.json>  --no-install  --no-overlay
  * Exit: 0 Setup/exe ready, 1 typecheck/package red, 2 setup failure.
+ *
+ * Final state is ALWAYS recorded (scripts/persona/pack-state.mjs): C:\p8c\package-clean.live.json carries `pid`, `state`
+ * (running|ok|failed|killed) and `ended { at, ok, reason }`; any end Node can see (exit, SIGINT/SIGTERM/SIGBREAK, uncaught
+ * exception, unhandled rejection) also writes C:\p8c\package-clean.json with the commit and the reason. A hard kill
+ * (taskkill /F) cannot be caught: `node scripts/persona/pack-status.mjs` reports "died (pid X gone at stage Y)".
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -20,9 +25,11 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { applyOverlay } from './package-clean-overlay.mjs'
+import { createPackState, installDeathHandlers } from './pack-state.mjs'
 
 const main = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const CACHE = 'C:\\p8c'
+// PERSONA_PACK_CACHE exists so tests can run the real script without touching the shared records in C:\p8c.
+const CACHE = process.env.PERSONA_PACK_CACHE ?? 'C:\\p8c'
 const argv = process.argv.slice(2)
 const wantDir = argv.includes('--dir')
 const wantResume = argv.includes('--resume')
@@ -59,17 +66,24 @@ const run = (cwd, cmd, args, options = {}) => spawnSync(cmd, args, {
   shell: process.platform === 'win32' && cmd === 'pnpm',
   ...options,
 })
+/** Created once the run really starts (not for --help or the lock wrapper), so it never clobbers another run's records. */
+let packState
+/** The pnpm/electron-builder process tree currently streaming; killed with the run on SIGINT/SIGTERM/SIGBREAK. */
+let activeChild
 const log = (message) => {
   const line = `[package-clean ${new Date().toISOString()}] ${message}`
   console.log(line)
   mkdirSync(CACHE, { recursive: true })
   appendFileSync(PACK_LOG, `${line}\n`)
+  packState?.noteLog(message.split('\n')[0].slice(0, 200))
 }
 
 function live(stage, extra = {}) {
-  writeFileSync(LIVE, `${JSON.stringify({
-    stage, at: new Date().toISOString(), ...extra,
-  }, null, 2)}\n`)
+  packState?.update(stage, extra)
+}
+
+function killActiveChild() {
+  if (activeChild?.pid !== undefined) spawnSync('taskkill', ['/PID', String(activeChild.pid), '/T', '/F'], { windowsHide: true })
 }
 
 /**
@@ -86,6 +100,7 @@ function streamRun(cwd, cmd, args, timeoutMs, env = {}, stallMs = 20 * 60_000) {
       cwd, windowsHide: true, env: { ...process.env, ...env },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
+    activeChild = child
     let stdout = ''
     let stderr = ''
     const startedAt = Date.now()
@@ -121,6 +136,7 @@ function streamRun(cwd, cmd, args, timeoutMs, env = {}, stallMs = 20 * 60_000) {
     const finish = (result) => {
       clearTimeout(killer)
       clearInterval(pulse)
+      if (activeChild === child) activeChild = undefined
       resolvePromise(result)
     }
     child.on('close', (status) => finish({ status, stdout, stderr }))
@@ -172,12 +188,17 @@ if (argv.includes('--help')) {
 mkdirSync(CACHE, { recursive: true })
 writeFileSync(PACK_LOG, '')
 const started = Date.now()
+packState = createPackState({ liveFile: LIVE, reportFile: join(CACHE, 'package-clean.json'), requested, resume: wantResume, logPath: PACK_LOG })
+installDeathHandlers(packState, { kill: killActiveChild })
 live('resolve', { requested })
-const target = run(main, 'git', ['rev-parse', requested]).stdout.trim()
+// `git rev-parse <unknown>` echoes its argument and fails, so check the status: --verify --quiet <rev>^{commit} prints only a real commit.
+const resolvedRev = run(main, 'git', ['rev-parse', '--verify', '--quiet', `${requested}^{commit}`])
+const target = resolvedRev.status === 0 ? resolvedRev.stdout.trim() : ''
 if (!target) {
   log(`cannot resolve ${requested}`)
   process.exit(2)
 }
+packState.setCommit(target)
 log(`target ${target.slice(0, 10)} ${run(main, 'git', ['log', '-1', '--format=%s', target]).stdout.trim()}`)
 // D-071: the installer comes from a PUBLISHED commit. Local-only commits still pack (the isolated worktree makes that safe), but say so.
 const published = run(main, 'git', ['branch', '-r', '--contains', target]).stdout.trim().length > 0
@@ -293,6 +314,12 @@ const report = {
   tail: `${packed.stderr ?? ''}\n${packed.stdout ?? ''}`.slice(-2_500),
 }
 writeFileSync(join(CACHE, 'package-clean.json'), `${JSON.stringify(report, null, 2)}\n`)
-live(report.ok ? 'done' : 'failed', { setup: report.setup, setupBytes: report.setupBytes })
+packState.markReportWritten()
+packState.finalize({
+  state: report.ok ? 'ok' : 'failed',
+  stage: report.ok ? 'done' : 'failed',
+  reason: report.ok ? 'ok' : `pack exit ${String(packed.status)}${report.exe === null && wantDir ? ' (no win-unpacked exe)' : ''}`,
+  extra: { setup: report.setup, setupBytes: report.setupBytes },
+})
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
 process.exit(report.ok ? 0 : packed.status === 0 ? 2 : 1)

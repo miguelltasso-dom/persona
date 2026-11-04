@@ -78,15 +78,35 @@ if (desktopTsc.status !== 0) {
 } else log('apps/desktop host typecheck ok')
 
 // WIRE-5 (Gauge): client<->host payload contract against the generated Typert schemas (~6 s, no browser). The spec fails on any NEW
-// deviation outside its known-bug list. INFORMATIVE by default (WIRE_CONTRACT_WARN line); PERSONA_WIRE_CONTRACT=block fails the gate.
+// deviation outside its known-bug list. BLOCKING since 04/11 (zero known deviations); PERSONA_WIRE_CONTRACT=warn only logs WIRE_CONTRACT_WARN.
 if (!skipTypert && existsSync(join(root, 'packages', 'persona', 'persona-e2e', 'tests', 'wire-contract.spec.ts'))) {
   const wire = run('pnpm', ['exec', 'vitest', 'run', 'packages/persona/persona-e2e/tests/wire-contract.spec.ts', '--testTimeout', '60000'], { timeout: 4 * 60_000 })
   if (wire.status === 0) log('wire contract: ok (no new deviation)')
   else {
     const tail = `${wire.stdout}${wire.stderr}`.split(NL).filter((line) => /WIRE-5|desvio|deviation|FAIL|AssertionError/i.test(line)).slice(0, 4).join(' | ')
     log(`WIRE_CONTRACT_WARN ${tail || `exit ${wire.status}`}`)
-    if (process.env.PERSONA_WIRE_CONTRACT === 'block') failing.add('persona-e2e')
+    if (process.env.PERSONA_WIRE_CONTRACT !== 'warn') failing.add('persona-e2e') // BLOCKING since 04/11 (Gauge: zero known deviations); PERSONA_WIRE_CONTRACT=warn makes it informative again
   }
+}
+
+// INSTALLER-GRADE (Atlas 04/11, after the H pack died in the host aggregate): the pack runs scripts/build.ts gates — Host/Client compilers
+// plus BOTH aggregate checks (tsc -p tsconfig.host.json / tsconfig.client.json). `pnpm run typecheck` is that same scope. Cuts meant for an
+// installer set PERSONA_GATE_INSTALLER=1 (or --installer) so the gate finds what the pack would find ~15 min later.
+const installerMode = process.argv.includes('--installer') || process.env.PERSONA_GATE_INSTALLER === '1'
+if (installerMode && failing.size === 0) {
+  log('installer-grade: running the FULL typecheck (host + client aggregate checks, same scope the pack runs)')
+  const full = run('pnpm', ['run', 'typecheck'], { timeout: 35 * 60_000 })
+  const fullText = `${full.stdout}${full.stderr}`
+  if (full.status !== 0) {
+    const files = new Set()
+    for (const line of fullText.split(NL)) {
+      const match = /^\s*((?:packages|apps|scripts)\/[^\s(]+)\(\d+,\d+\): error TS/u.exec(line)
+      if (match !== null) files.add(match[1])
+    }
+    if (files.size > 0) console.log(`PERSONA_FILES=${[...files].join(',')}`)
+    log(`full typecheck FAILED (${files.size} file(s)):${NL}${fullText.split(NL).filter((line) => /error TS/.test(line)).slice(0, 8).join(NL)}`)
+    failing.add('full-typecheck')
+  } else log('full typecheck ok (host + client aggregate checks)')
 }
 
 const evalScan = run('node', ['scripts/persona/assert-client-no-eval.mjs'])

@@ -129,6 +129,21 @@ if (exCodes.some((code) => code !== 0)) fail('exclusive jobs should all succeed'
 if (!(exAt('start-e') >= exAt('end-x') - 50)) fail('an --exclusive job must wait for every running job', JSON.stringify(exEvents))
 if (!(exAt('start-y') >= exAt('end-e') - 50)) fail('a job queued behind an --exclusive one must wait for it (FIFO)', JSON.stringify(exEvents))
 
+// (7b) 04/11 deadlock: an --exclusive waiter that already took a slot must give it back when a --priority --exclusive ticket sorts ahead of it
+const dlJobs = [slotRun('h', 3500)]
+await sleepMs(600)
+dlJobs.push(slotRun('e1', 400, ['--exclusive']))
+await sleepMs(2800) // e1 is the head and sits on the free slot while 'h' still runs
+dlJobs.push(slotRun('p', 300, ['--exclusive', '--priority']))
+const dlCodes = await Promise.all(dlJobs)
+const dlEvents = readEvents()
+const dlAt = (what) => dlEvents.find((event) => event.what === what)?.at ?? Number.NaN
+rmSync(stamps, { force: true })
+cleanSlots()
+if (dlCodes.some((code) => code !== 0)) fail('two --exclusive jobs must not deadlock on partial slots', `${dlCodes.join(',')} ${JSON.stringify(dlEvents)}`)
+if (!(dlAt('start-p') >= dlAt('end-h') - 50)) fail('the priority exclusive job must wait for the running job', JSON.stringify(dlEvents))
+if (!(dlAt('start-e1') >= dlAt('end-p') - 50)) fail('the older exclusive waiter runs after the priority one', JSON.stringify(dlEvents))
+
 // (8) D-067 memory guard: with an impossible free-memory floor the waiter never starts and times out with 75
 const starved = spawnSync(process.execPath, [script, '--lock', lockD, '--wait-max', '1500', 'starved', '--', process.execPath, '-e', 'process.exit(0)'], {
   cwd: root, encoding: 'utf8', windowsHide: true, env: { ...process.env, PERSONA_LOCK_MIN_FREE_GB: '99999' },

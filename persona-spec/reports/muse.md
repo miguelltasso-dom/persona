@@ -867,3 +867,58 @@ bundle (with-lock) → Build complete, 99 files
 - **Revisar em 2 painéis:** a amostra com flag do Lumen (só com `persona.devSeed.review`, o chip "Exemplo" e um teste sem a flag) para julgar o desenho no shell real.
 - **O fake do Probe** agora escreve arquivo/conflito real (`writeFile`/`conflictDir`), ligado no `accept-installed.mts` como modo opcional para o H2, depois do SW-4.
 - **Bolt:** as regras do A-4 no host (nome/bicho livres, `reason`/`monthlyTasks` só reais).
+
+**01:45, a janela do client (H2):**
+- **Avatar** com `icon`; o bibliotecário ligado (`brain-ui-adapters`, `Brain.tsx`).
+- **Chip** com fundo sólido: os tokens `--persona-*-chip`. O danger empilhado no escuro ia a 3,41:1 e agora fica ≥ 5,4.
+- **Modal:** o fundo `inert`, menos os live regions; a altura a partir de uma variável de gutter, mais 4 px.
+- **`build-assets`:** o BR-P3 P0 (6 ilustrações) + cervo, coelho, lobo-guará e lontra. A árvore foi a **9,00 MiB**; pedi ao Keel o teto de 12 antes das poses P1 do BR-P3.
+- **Testes:** `primitives-window-0411` (3) + 393/394 nos arquivos tocados. A falha é do Lumen, no Revisar em 2 painéis dele. check-pkg OK.
+- **Ember:** a caixa de entrada de Aprovações atrás de flag; as 4 escolhas confirmadas.
+
+**02:05:**
+- **O teto de assets agora é 12 MiB** (Keel): `MAX_GIT_BYTES`, mais o registro em PLAN-assets-brush. `client.js` tem 0 data-URI e a arte vai por URL; o Keel confere o bundle no H2.
+- **BR-P1 P1 fechado:** o ouriço aprovado e os 12 extras com o kit de vida completo no app (9,11 MiB).
+- **IV-9 (Ember):** o layout da lista "Suas rotinas" decidido, com um primário só (cabeçalho ou vazio); a semana real no lugar da data fixa; o `Input` primitivo.
+
+**02:40:**
+- **BR-P3 P1:** o kit do Atlas completo (comemorando; digitando v2; lendo v2; confuso), que vira a referência para os 4.
+- **D-078:** a forma na ACCOUNT-SWAP-SPEC; o texto do Quill em Conexões reescrito.
+- **P0-19 (Flint):** 3 textos aprovados; a espera depois de recarregar passa a seguir o estado real da cota, e o anexo não some calado.
+- **IV-9 (Ember):** 4 decisões confirmadas; a rotina da equipe sem o Apagar.
+
+**03:00:**
+- **Aceites no shell real:** A-2, IV-3 e P0-13 (provas do Flint).
+- **Voltam ao Flint:** P0-22, A-5 e o rodapé "Conectado". O composer a 200% vai pela opção A.
+- **Caixa de entrada de Aprovações (Ember):** a forma aprovada; o aceite espera 4 casos no shell real.
+- **Ember IV-9:** ajustes conferidos.
+
+**03:30:**
+- **BR-P3 P1 dos 5 principais fechado:** 20 poses no app (9,78 MiB de 12).
+- **Código:** `PersonaPoseState` com os 4 estados + `hasPose`, para o "está escrevendo…" não mostrar uma pose errada.
+- **Aceites:** A-2, IV-3 e P0-13 no shell real.
+- **P0-31 aberto** (o slug na ficha da tarefa) com o Prism.
+- **Specs:**
+  - TASK-PROPOSAL-SPEC (P1-9: cartão, resumo até 3, o tom das perguntas);
+  - ACCOUNT-SWAP-SPEC (D-078);
+  - o texto da política de conta do Quill.
+- **O Tooltip com clamp e `disabled`** do Flint aceito no primitivo.
+- **O check-pkg** só cai no teste novo do Prism (`task-card-title`).
+
+**04:00, Conversas** (pedido do Miguel, via Atlas):
+- **O protótipo** (o componente de galeria com primitivos, tokens e retratos reais), em 3 estados × claro/escuro, com axe 0.
+- **`design/CONVERSAS-SPEC.md`**, com 4 decisões minhas:
+  - nada de "Quem responde" na DM;
+  - a escolha vale só para a próxima mensagem;
+  - um canal automático nunca é apagado sozinho;
+  - o rosto abre a DM.
+- **Também:** os sucessos do BR-P3 P1 e o 1º spot da Ajuda aprovados; IV-10 (responder no composer) decidido; o fade do rail com o Flint.
+
+**04:20:**
+- **Conversas v2 com UMA barra lilás** (o retorno do Miguel): as 3 telas em `conversas-prototipo/v2-barra-unica/`; CONVERSAS-SPEC §0.
+- **ISO-3 (D-081):** `design/CONNECTOR-GRANT-SPEC.md` (dar e tirar o acesso de uma persona a um conector seu) ao Keel/Quill.
+- **BR-P3 P1:** os 6 spots da Ajuda e os ícones desfazer/fila aprovados.
+- **Congelamento D-082:** paro de salvar em `packages/`, `apps/` e `scripts/`. O que eu tinha nessas pastas foi salvo antes do aviso, e está consistente:
+  - o registro no `build-assets` dos 3 sucessos + os 6 spots, sem regenerar;
+  - o protótipo na galeria.
+- **Pendente para depois do H2 #3:** o `build-assets` (os sucessos e os spots da Ajuda) e a varredura de aceite no instalado.

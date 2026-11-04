@@ -63,8 +63,6 @@ async function open(url, scheme, viewport) {
     else document.addEventListener('DOMContentLoaded', apply, { once: true })
   }, [scheme === 'dark'])
   const page = await context.newPage()
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 240)}`) })
-  page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 240)}`))
   await page.goto(url, { waitUntil: 'load' })
   await page.waitForTimeout(9000)
   // A cold host can race the plugin boot order (SlotAssemblyError on the first load): reload until the app answers.
@@ -74,6 +72,11 @@ async function open(url, scheme, viewport) {
     shellUp = await page.waitForSelector('[data-persona-shell]', { timeout: 15_000 }).then(() => true, () => false)
   }
   if (!shellUp) throw new Error(`app shell never appeared (${scheme} ${viewport.tag}) — blank page, not a capture`)
+  // The first loads above only warm the host up. Errors are recorded from one more, WARM boot on: those are the app's.
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 240)}`) })
+  page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 240)}`))
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
   await page.waitForTimeout(2500)
   return { context, page }
 }
@@ -94,14 +97,25 @@ async function nav(page, label) {
   await page.waitForTimeout(400)
 }
 
-/** QUILL_AXE=<axe.min.js>: A/AA violations of the current page (null = skipped). */
+/** What each scenario owns. Axe runs on these ("mine": must be 0) and, separately, on the rest of the page ("outside": shell, rail, other screens). */
+const AXE_SCOPE = {
+  connections: ['[data-persona-surface="connections"]', '[role="dialog"]'],
+  teach: ['[data-persona-teach]', '[data-persona-teach-layer]', '[role="dialog"]'],
+  canvas: ['[data-persona-surface="canvas"]'],
+}
+
+/** QUILL_AXE=<axe.min.js>: A/AA violations of the current page, split in mine / outside (null = skipped). */
 async function axeViolations(page) {
   if (process.env.QUILL_AXE === undefined) return null
   await page.addScriptTag({ path: process.env.QUILL_AXE })
-  return page.evaluate(async () => {
-    const r = await globalThis.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } })
-    return r.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes.slice(0, 2).map(n => n.target.join(' ')) }))
-  })
+  return page.evaluate(async (scopes) => {
+    const options = { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } }
+    const pack = (r) => r.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes.slice(0, 2).map(n => n.target.join(' ')), detail: v.nodes[0]?.any?.[0]?.data ?? null }))
+    const present = scopes.filter(sel => document.querySelector(sel) !== null).map(sel => [sel])
+    const mine = present.length === 0 ? [] : pack(await globalThis.axe.run({ include: present }, options))
+    const outside = pack(await globalThis.axe.run(present.length === 0 ? document : { exclude: present }, options))
+    return { mine, outside }
+  }, AXE_SCOPE[scenario] ?? [])
 }
 
 /** What a person would notice: content wider than the window, or clipped by the dialog. */
@@ -127,8 +141,20 @@ function shooter(page, scheme, viewport) {
     }
     const axe = await axeViolations(page)
     const overflow = await overflowProbe(page)
-    for (const v of axe ?? []) console.log(`[axe ${state} ${scheme} ${viewport.tag}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 200)}`)
-    summary.push({ state, scheme, viewport: viewport.tag, axe: axe === null ? 'skipped' : axe.length, ...overflow })
+    for (const v of axe?.mine ?? []) console.log(`[axe ${state} ${scheme} ${viewport.tag}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 200)}`)
+    for (const v of axe?.outside ?? []) console.log(`[axe-outside ${state} ${scheme} ${viewport.tag}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 200)} :: ${JSON.stringify(v.detail ?? {}).slice(0, 260)}`)
+    if (axe !== null && axe.outside.length > 0 && scenario === 'teach' && (state === '3-countdown' || state === '4-recording')) {
+      // Muse's hypothesis: axe computes the page's background through the red frame. Hide the recording chrome and ask again.
+      const without = await page.evaluate(async () => {
+        const chrome = document.querySelector('[data-persona-teach="recording"]')
+        if (chrome instanceof HTMLElement) chrome.style.visibility = 'hidden'
+        const r = await globalThis.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } })
+        if (chrome instanceof HTMLElement) chrome.style.visibility = ''
+        return r.violations.map(v => `${v.id} x${v.nodes.length} :: ${v.nodes[0]?.target.join(' ')}`)
+      })
+      console.log(`[axe-without-recording-chrome ${state} ${scheme} ${viewport.tag}] ${without.length === 0 ? 'ZERO' : without.join(' | ').slice(0, 300)}`)
+    }
+    summary.push({ state, scheme, viewport: viewport.tag, axe: axe === null ? 'skipped' : axe.mine.length, axeOutside: axe === null ? 'skipped' : axe.outside.length, ...overflow })
   }
 }
 
@@ -292,5 +318,5 @@ writeFileSync(`${outDir}/${scenario}-summary.json`, JSON.stringify({ at: new Dat
 clearTimeout(timer)
 console.log(`console errors: ${errors.length}`)
 for (const line of errors.slice(0, 12)) console.log(line)
-console.log(JSON.stringify({ scenario, shots: summary.length, sideways: summary.filter(row => row.pageScrollsSideways || row.dialogScrollsSideways).length, dialogsCut: summary.filter(row => row.dialogFits === false).length, failed }))
-await finish(failed || errors.length > 0 ? 1 : 0, failed ? 'FAILED' : 'DONE')
+console.log(JSON.stringify({ scenario, shots: summary.length, axeMine: summary.filter(row => typeof row.axe === 'number' && row.axe > 0).length, axeOutside: summary.filter(row => typeof row.axeOutside === 'number' && row.axeOutside > 0).length, sideways: summary.filter(row => row.pageScrollsSideways || row.dialogScrollsSideways).length, dialogsCut: summary.filter(row => row.dialogFits === false).length, failed }))
+await finish(failed || errors.length > 0 || summary.some(row => typeof row.axe === 'number' && row.axe > 0) ? 1 : 0, failed ? 'FAILED' : 'DONE')

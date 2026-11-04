@@ -23,7 +23,7 @@ Estimativa offline (`origin: estimate`); zero CLI real. Fonte: `persona-engine/s
 
 ## O dia espaçado (cache de 5 min e sessão de 10 min expiram entre as mensagens)
 
-Mesmo dia de 7 mensagens, host de agora: em rajada (1 min entre linhas) × espalhado (30 min). O TTL do cache do provedor é parâmetro (5 min é o padrão do cache efêmero; 60 min é o cache estendido) — **a medir** no vendor.
+Mesmo dia de 7 mensagens, host de agora: em rajada (1 min entre linhas) × espalhado (30 min). O TTL do cache do provedor é parâmetro (5 min é o padrão do cache efêmero; 60 min é o cache estendido). **Medido (rodada real de 04/11, assinatura):** uma sonda 6 min depois ainda leu o cache, então o TTL real ali é > 5 min.
 
 | cenário | TTL do cache | tokens | custo µUSD | prefixo em cache |
 |---|---:|---:|---:|---:|
@@ -44,34 +44,45 @@ Corte de custo estimado contra o host antes das ligações (D-068), na rajada / 
 | (d) sem a chamada de triagem (D-073, ligada) | wired | Anvil (orchestration.ts runLaunched), ligada pelo Tally | -34% / -40% | -17% / -29% | 8 | se um dia as ferramentas MCP forem ligadas aos adapters, religar a triagem (flag skipTriage) |
 | (e) cortesia ("valeu!", "ok") com reação da persona, sem modelo (D-075, ligada) | wired | Anvil (orchestration.ts ingest), ligada pelo Tally | -36% / -48% | -39% / -48% | 6 | a persona reage com um sticker em vez de escrever; nunca engole um "ok" que responde pergunta pendente; cortesia + pedido = trabalho (flag courtesyNoModel) |
 | (b) cache de 1 h (ENABLE_PROMPT_CACHING_1H) | only-api-key | Rivet (ambiente do spawn da CLI) | -18% / -29% | -39% / -48% | 6 | sem ganho nos prompts da Persona (escrita 2× > desconto de leitura); o ganho está na base do vendor, que os dois braços levam; só com chave de API (Bedrock/Vertex/Foundry): a assinatura (OAuth) fica fora |
-| (a) W3: relato curto do executor (todas as alavancas) | off-until-real-run | Rivet (runners) + Anvil (flag no host) | -54% / -59% | -40% / -49% | 6 | relato curto demais perde o critério de pronto — a rodada pareada mede |
+| (a) W3: relato curto do executor (todas as alavancas) | deferred | Rivet (runners) + Anvil (flag no host) | -54% / -59% | -40% / -49% | 6 | ADIADA POR DECISÃO (D-080): a rodada real foi inconclusiva (n = 1) e, com a base medida, a W3 muda o custo em ≈ 0,3 ponto; fica registrada para medir de novo se um dia valer |
 
-- **(b) cache que sobrevive ao dia espaçado.** A Claude Code só expõe TTL de 1 h por `ENABLE_PROMPT_CACHING_1H` com chave de API (Bedrock/Vertex/Foundry); sessões de assinatura (OAuth) ficam de fora, e há relato de que a variável não vale no Windows. Com a escrita a 2× o desconto de leitura não paga nos prompts da Persona (linha acima). O que o 1 h compra é a **base do vendor**: com 12 000 tokens de base, reescrevê-la após cada intervalo custa 41400 µUSD por mensagem (≈ 29× o custo dos prompts da Persona numa mensagem), contra leitura a 10%. Isso pesa nos dois braços e **a rodada pareada mede a base**; não entra na conta do −40% (que exclui a base).
-- **Manter aquecido (keep-alive) está recusado.** Um ping a cada 5 min custa menos que reescrever (base 12 000, intervalo de 30 min: 18075 contra 41400 µUSD; com prefixo de 1 000 tokens: 1575 contra 3450), mas cada ping é uma chamada de modelo: gasta a cota da assinatura e quebra "zero chamadas com a equipe ociosa". Só se aceitaria dentro de uma tarefa em andamento, e aí a sessão aquecida (10 min) já cobre.
+- **(b) cache que sobrevive ao dia espaçado.** A Claude Code só expõe TTL de 1 h por `ENABLE_PROMPT_CACHING_1H` com chave de API (Bedrock/Vertex/Foundry); sessões de assinatura (OAuth) ficam de fora, e há relato de que a variável não vale no Windows. Com a escrita a 2× o desconto de leitura não paga nos prompts da Persona (linha acima). O que o 1 h compra é a **base do vendor**: com 40977 tokens de base, reescrevê-la após cada intervalo custa 141371 µUSD por mensagem (≈ 97× o custo dos prompts da Persona numa mensagem), contra leitura a 10%. Isso pesa nos dois braços; a base foi medida (seção acima) e, com ela, o corte de custo é o corte de chamadas.
+- **Manter aquecido (keep-alive) está recusado.** Um ping a cada 5 min custa menos que reescrever (base 40977, intervalo de 30 min: 61541 contra 141371 µUSD; com prefixo de 1 000 tokens: 1575 contra 3450), mas cada ping é uma chamada de modelo: gasta a cota da assinatura e quebra "zero chamadas com a equipe ociosa". Só se aceitaria dentro de uma tarefa em andamento, e aí a sessão aquecida (10 min) já cobre.
 - **(c) modelo menor por tarefa.** Teto, não alavanca: se **todos** os turnos do executor fossem para o nível barato, o custo cairia -52% (rajada) / -47% (espaçado) a partir do host de agora; o executor é 79% / 71% do custo. A pergunta curta, o resumo curto e a triagem já vão para o nível barato (W1 e talk). O resto depende de quantas tarefas do executor são simples; a qualidade só se prova num modelo real (o roteiro do bench repete o que o prompt traz, então marcaria 1,00 de qualquer jeito).
 - **(d) menos releituras da base.** A alavanca real foi a triagem sem retorno lido (`skipTriage`, ligada em D-073): 9 → 6 chamadas por dia, e cada chamada relê a base do vendor. Não existe turno de avaliação no host (o relatório antigo o modelava; foi retirado), e a revisão é uma segunda mensagem ao Bento, não um estágio que dê para fundir.
 - **(e) cortesia sem chamada de modelo (D-075, ligada).** O pré-roteador classifica "valeu!" e "ok" como cortesia (`react`, sem modelo), mas o host ainda rodava `finishReply` e pagava **uma chamada de conversa no nível barato** por cortesia (sonda no host em 04/11: oi, obrigado, valeu! e ok = 1 entrega cada); o bench antigo contava essa linha como grátis. Agora a persona **reage** com um sticker (coração para agradecimento, joinha para o resto) sem modelo e sem Ticket, salvo quando há algo pendente dela para a pessoa no fio (Attention do Ticket ou a última linha dela termina em "?") ou quando a cortesia vem junto de um pedido. Flag `courtesyNoModel` (Anvil, `orchestration.ts`).
 
+## Com a base do vendor MEDIDA (rodada real de 04/11): o corte de custo é, sobretudo, o corte de chamadas
+
+A rodada pareada real mediu o que **uma** requisição da CLI carrega antes de qualquer prompt da Persona: **40977 tokens** (37 729 e 44 224 em duas chamadas), só ≈ 45% vindo do cache (o resto é regravado a ×1,25 em toda chamada). Isso é ~100× o prompt da Persona, então cada **chamada** custa quase o mesmo, qualquer que seja o prompt. Estimativa recalibrada com UMA medida (uma máquina, uma requisição): origem continua `estimate`.
+
+| dia | chamadas antes → agora (→ com W3) | custo µUSD com a base: antes → agora | corte agora | corte só com os prompts (o que o bench dizia) |
+|---|---|---|---:|---:|
+| rajada | 11 → 6 (→ 6) | 702544 → 367994 | -48% | -36% |
+| espaçado | 11 → 6 (→ 6) | 710022 → 370354 | -48% | -48% |
+
+**Pior dia: -48% de custo com o host como está (sem a W3).** A meta de −40% passa nessa leitura, e a W3 quase não acrescenta (-48% / -48%): economiza tokens de **saída**, e a saída é pequena perto da base. Limites: a base é de requisição única e não conta as requisições internas que o agente faz quando explora (a chamada direta somou ≈ 7); o preço é de lista do Haiku; as duas portas do bench (cut-40 oficial do D-068) continuam lendo só os prompts até o Atlas decidir se a base entra no pipeline.
+
 ## Pareado CLI direta × Persona (mesma CLI/modelo)
 
-A base do vendor (system prompt + esquema de ferramentas que **cada chamada de CLI** leva) não é mensurável offline: está como parâmetro (0 = só o que a Persona acrescenta; 12 000 = ordem de grandeza suposta, **a medir**). A CLI direta recebe a evidência colada na mensagem (o que a Persona já lembra). Regime de **dia corrente** (a tarefa não é a primeira do dia: prefixo e sessões quentes nos dois braços). Tokens = entrada (com cache) + saída; "novos" = entrada fora do cache + saída; custo = ponderado por cache, mesmo modelo nos dois braços.
+A base do vendor (system prompt + esquema de ferramentas que **cada chamada de CLI** leva) foi **medida** na rodada real de 04/11 (uma requisição: 40977 tokens) e segue como parâmetro (0 = só o que a Persona acrescenta). A CLI direta recebe a evidência colada na mensagem (o que a Persona já lembra). Regime de **dia corrente** (a tarefa não é a primeira do dia: prefixo e sessões quentes nos dois braços). Tokens = entrada (com cache) + saída; "novos" = entrada fora do cache + saída; custo = ponderado por cache, mesmo modelo nos dois braços.
 
 | tarefa | base | chamadas CLI / Persona | tokens CLI / Persona | tokens novos CLI / Persona | custo µUSD CLI / Persona |
 |---|---:|---|---|---|---|
 | simple-ask | 0 | 1 / 1 | 32 / 501 (+1466%) | 32 / 9 (-72%) | 192 / 271 (+41%) |
 | multi-review | 0 | 1 / 2 | 93 / 785 (+744%) | 93 / 164 (+76%) | 1047 / 2624 (+151%) |
 | research-summary | 0 | 1 / 1 | 62 / 396 (+539%) | 62 / 84 (+35%) | 594 / 1342 (+126%) |
-| simple-ask | 12000 | 1 / 1 | 12032 / 12501 (+4%) | 32 / 9 (-72%) | 3792 / 3871 (+2%) |
-| multi-review | 12000 | 1 / 2 | 12093 / 24785 (+105%) | 93 / 164 (+76%) | 4647 / 9824 (+111%) |
-| research-summary | 12000 | 1 / 1 | 12062 / 12396 (+3%) | 62 / 84 (+35%) | 4194 / 4942 (+18%) |
+| simple-ask | 40977 | 1 / 1 | 41009 / 41478 (+1%) | 32 / 9 (-72%) | 12485 / 12564 (+1%) |
+| multi-review | 40977 | 1 / 2 | 41070 / 82739 (+101%) | 93 / 164 (+76%) | 13340 / 27210 (+104%) |
+| research-summary | 40977 | 1 / 1 | 41039 / 41373 (+1%) | 62 / 84 (+35%) | 12887 / 13635 (+6%) |
 
 Leitura (o que este quadro prova e o que não prova):
 
-- Tarefa de **uma** chamada (simple-ask, base 12 000): tokens +4%, tokens novos -72%, custo +2% — dentro da paridade ±10%.
-- Tarefa de **várias** chamadas (multi-review): cada chamada da Persona relê a base do vendor (10% do preço, mas conta no total de tokens). Com base 12 000 o custo fica +111% sobre a CLI direta **tratada como uma chamada**. Isso é um piso para a CLI direta: um agente de CLI faz vários passos internos por tarefa e cada passo também relê a base, então a lacuna real é menor; **só uma rodada pareada com CLI real decide** (PERSONA_PAIR_REAL=1, liberação do Atlas).
+- Tarefa de **uma** chamada (simple-ask, base 40977): tokens +1%, tokens novos -72%, custo +1% — dentro da paridade ±10%.
+- Tarefa de **várias** chamadas (multi-review): cada chamada da Persona relê a base do vendor (10% do preço, mas conta no total de tokens). Com a base medida o custo fica +104% sobre a CLI direta **tratada como uma chamada**. Isso é um piso para a CLI direta: um agente de CLI faz vários passos internos por tarefa e cada passo também relê a base, então a lacuna real é menor; **só uma rodada pareada com CLI real decide** (PERSONA_PAIR_REAL=1, liberação do Atlas).
 - O que a Persona controla é o **número de chamadas por tarefa** e o que cada uma carrega: pré-roteador (courtesy sem modelo), primeira entrega em um turno, triagem barata (e o host já trata mensagens seguidas no mesmo canal como follow-ups da Tarefa viva, sem nova triagem). O "+5,7–6,3%" do relato anterior vinha de uma fórmula (`armTokens`), não de prompts reais; este quadro o substitui.
 
-`cut-40` real (livro vivo `measured`) continua dependendo de uma rodada com CLI real, que só o Atlas libera (`PERSONA_PAIR_REAL=1`).
+A rodada real aconteceu em 04/11 (`pair-real.md`): a base e o cache foram medidos e entram acima. O `cut-40` oficial do D-068 segue lendo só os prompts até o Atlas decidir se a base entra no pipeline.
 
 ```
 node --import tsx/esm packages/persona/persona-engine/scripts/write-opt8-faithful.ts

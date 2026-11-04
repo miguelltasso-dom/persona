@@ -172,6 +172,14 @@ function tryAcquire() {
 mkdirSync(locksRoot, { recursive: true })
 for (;;) {
   if (!isHead()) {
+    // 04/11 deadlock: an --exclusive waiter took slot 1 while it was the head; a --priority exclusive ticket then sorted ahead of it,
+    // took slot 0, and each waited for the other's slot forever. Anyone who is NOT the head must not sit on partial slots: give
+    // them back so the head can complete its set (this waiter takes them again when it is the head).
+    if (held.length > 0) {
+      console.error(`[with-lock:${lockName}] "${label}" devolve ${held.length} vaga(s) parcial(is): outro ticket passou à frente (evita deadlock entre --exclusive)`)
+      for (const dir of held) rmSync(dir, { recursive: true, force: true })
+      held.length = 0
+    }
     const owner = slotDirs.map(readOwnerOf).find(Boolean)
     if (Date.now() > deadline) {
       console.error(`[with-lock:${lockName}] timed out after ${Math.round(waitMaxMs / 1000)}s in the queue behind older waiters`)

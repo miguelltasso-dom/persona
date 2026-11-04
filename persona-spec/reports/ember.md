@@ -1,5 +1,42 @@
 # Ember — relatos (mais recente no topo)
 
+## 2026-11-04 18:05 — IV-9 (Rotinas: criar e editar) no código, contra o host do Forge; capturas no shell real na fila
+
+**Arquivos novos:** `routines/routine-schedule.ts` (escolha de gente ↔ rrule ↔ frase ↔ semana real, puro), `routines/RoutineEditorModal.tsx` + `RoutineEditor.module.css`, `routines/routine-wire.ts`, `tests/routine-editor.client.spec.tsx` (29 testes). **Editados:** `routines/RoutinesView.tsx`, `routines/Routines.module.css`, `data/lumen-remote-panels.tsx` (só o `RemoteRoutinesPanel`), `locale-sources/routines.{pt,en}.json` (+ gerado), `tests/lumen-rpc-adapters.client.spec.ts` (3 campos novos do `RoutineScheduleView`, que o host passou a exigir).
+
+**O que a pessoa vê (UX-BEYOND §IV-9 + os ajustes da Muse):** "Nova rotina" no cabeçalho quando há rotinas e no vazio quando não há (um primário só); o Card "Suas rotinas" com rosto, nome, "Toda segunda às 9:00 · Nina", "Pausada" e "Editar" (a linha inteira também abre; o teclado usa o botão Editar); o modal com "O que fazer", "Quando" (Todo dia · Dias úteis · Toda semana · Escolher… → dias em botões `aria-pressed` + hora), "Quem faz" (rostos; "Deixar a coordenação escolher" por padrão), "Em que projeto" (só com mais de um), o resumo em palavras e "Salvar rotina" (desligado com o motivo à vista até haver pedido); editar traz Pausar/Retomar e Apagar com confirmação, e o Toast "Rotina apagada · Desfazer" (6 s) recria a rotina com o MESMO id. Nunca aparece rrule nem cron.
+
+**Decisões minhas (a Muse confirma):** "Toda semana" = toda segunda (o exemplo da spec); "Escolher…" começa do que o preset significava; a frase do resumo não usa artigo ("Nina vai:", neutro em gênero) e sem dona diz "a coordenação escolhe quem faz:"; horário que o editor não escreve (hora em hora, mensal…) mostra a frase do host (`humanSchedule`) quando não é a regra crua, senão "Horário personalizado", e é mantido como está ao salvar; rotina da própria equipe (`system`) só pausa (o host recusa apagar).
+
+**Achados na mesma tela, corrigidos:** a semana era FIXA ("03/11 – 09/11", hardcoded) → agora a semana real via Intl ("2 a 8 de nov" / "Nov 2–8"); o calendário usava `role="grid"`/`gridcell` sem linhas (axe critical ×2 e `scrollable-region-focusable` a 200%) → lista de dias focusável; a janela de silêncio usava `<input>` crus → primitivo `Input` (regra 6 da SCREEN-SPECS).
+
+**Provas (saída verbatim):** `check-pkg client-ui-persona: OK in 119.0s`; `vitest`: `Test Files 3 passed (3) · Tests 43 passed (43)` (routine-editor 29, remote-routines-panel, lumen-rpc-adapters); antes, com lumen-surfaces, locale-plural-guard e approvals-inbox: `5 passed · 56 passed`. Galeria interna recortada no `main`, axe 4.13: `routines`, `routines-empty`, `routine-editor`, `routine-editor-custom` × claro/escuro × 1440/960/200% = axe 0, sem estouro, console 0. Capturas de ACEITE no shell real: receitas `routines`, `routines-new`, `routines-empty` em `scripts/persona/ember-shell-shots.mjs`, job na fila da `build`.
+
+## 2026-11-04 17:25 — Aprovações como caixa de entrada (V2, atrás de flag) + IV-8b; capturas no shell real na fila
+
+**D-077:** sem hold por arquivo; o redesenho é grande, então vai **atrás de flag** (`localStorage persona.approvalsInbox.v2 = "1"`, desligada). Flag desligada = a tela atual (A-4 + A-4b), com todos os testes do ciclo de decisão intactos.
+
+**Caixa de entrada (`approvals/ApprovalsInboxV2.tsx`, `InboxList`, `InboxDetail`, `inbox-model.ts`, `Inbox.module.css`, `inbox-flag.ts`):**
+- lista de 360 px em 3 grupos (Precisa de você agora · Propostas · Cofre) com `listbox`/`group`/`option` (roving tabindex), o retrato de quem pede, o título, o chip do tipo e o `formatWhen`; a selecionada em `wash` + borda âmbar; hire na lista = "Contratar {nome}" (duas contratações nunca são a mesma linha);
+- detalhe: pose `disponivel` 200 px do bicho proposto, título "Contratar uma persona para {função}?", descrição, "Por quê" só real, "Impacto e custo" só medido, "Quem propôs" (rosto + quando); Cofre com "{campo}: ~~antes~~ → depois"; proposta de persona com pergunta + impacto + custo estimado; Aprovar · Ver detalhes (contratação) · Dispensar;
+- teclado: J/K/↑↓/Home/End navegam e a foco acompanha, A aprova, D dispensa, Enter abre "Ver detalhes" (ou o detalhe em tela estreita), Esc volta; ignorado em campo de texto e dentro de diálogo; `Tooltip shortcut` + `aria-keyshortcuts` nos botões;
+- lote: "Aprovar {n} de risco baixo" só com cartões reais, abertos, `risk: low` e sem dependência (nunca contratação, tarefa ou proposta de persona), confirmação que lista os títulos, 1 Toast "{n} aprovados" com "Desfazer" **só se o host desfaz** (`onUndoDecision`);
+- o vazio que celebra: `ILLUSTRATIONS['empty-aprovacoes']` (já no build) + "Nada esperando você" + "Ver o que a equipe está fazendo" (só com `openOverview`);
+- < 760 px: 1 painel por vez (lista; o detalhe abre por cima com "Voltar à lista" e Esc);
+- decisão: o ciclo é o mesmo (decide → deciding → carimbo → some); o carimbo fica no detalhe do cartão decidido; depois a seleção passa ao próximo aberto e o foco acompanha; `approvals?focus=<id>` seleciona e destaca esse cartão.
+
+**IV-8b:** `fetchTeamHealth`/`fetchTwoDayTest` não caem mais em exemplo; Teste dos 2 dias sem host usa o roster REAL, e sem roster mostra o erro com "Tentar de novo" (`twoDayFailed`); `TeamHealthView` também checava `loading || data === null` antes de `error` (spinner eterno) — corrigido.
+
+**Dados do host (Bolt, 17:06):** `roleTitle`, `description` e `reason` real já chegam; `monthlyTasks` o host nunca manda (a linha fica escondida).
+
+**Provas (saída verbatim):**
+- `check-pkg client-ui-persona`: `client-ui-persona: OK in 53.7s`.
+- `vitest`: `Test Files 5 passed (5) · Tests 67 passed (67)` (approvals-inbox 21, approvals-hire-card, decisions-cycle, decisions-unified, lumen-queue2); antes: 9 arquivos / 84 testes com rail-approvals-badge, approvals-virtual, remote-approvals-panel, iv8-no-mock.
+- Galeria interna recortada no `main` (D-074), com axe 4.13: `ember gallery: 18 captures, 0 with overflow/axe/errors`; console 0 (`inbox`, `inbox-vault`, `inbox-empty` × claro/escuro × 1440/960/200%).
+- **Capturas de ACEITE no shell real:** `scripts/persona/ember-shell-shots.mjs` (novo; sobe o app, rail completo, axe, estouro lateral) com as receitas `approvals-v2`, `approvals`, `empty-org`, `skills-empty`, `empty-health`; 2 jobs na fila da `build` desde 16:55 (a trava estava com o gate do Keel e depois com E2E do Gauge). Saída em `.maestri/tmp/shots/ember/shell/`, log em `.maestri/tmp/ember-shell-shots-{iv8,inbox}.log`.
+
+**Aberto:** P1-10 (Desfazer ao mover cartão) NÃO iniciado (D-076) e com um achado de engenharia: `applyCategoryToTicket` apaga `delivery`/`attention` ao entrar em Concluído, mover de volta não restaura; precisa de decisão do host.
+
 ## 2026-11-04 16:40 — A-4b e IV-8 prontos (galeria interna recortada no main); aguardam o ACEITE da Muse
 
 **A-4b (Aprovações sem ordem forçada + Cofre):**

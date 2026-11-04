@@ -15,7 +15,7 @@ Rivet (desktop, preload, main) + Lumen (cliente). Base: `NOTIFICATIONS-SPEC.md` 
 | `attention({ kind: 'resolved', eventIds })` | cliente | cancela avisos pendentes desses ids (decidido/ack em qualquer cliente) |
 | `needsYouCount(n)` | cliente | **NOVO.** SET do "Precisa de você · n" da bandeja. Inteiro ≥ 0. Nunca incrementa |
 | `runningAssignments(n)` | cliente | bandeja "trabalhando" + `powerSaveBlocker` |
-| `onOpenTask(fn(ticketId, view?))` | desktop → cliente | clique no aviso/bandeja. `view`: `'thread'` (padrão) · `'approvals'` · `'review'` |
+| `onOpenTask(fn(ticketId, view?))` | desktop → cliente | clique no aviso/bandeja. `view`: `'thread'` (padrão) · `'approvals'` · `'review'` · `'overview'` (aviso agrupado → Visão geral; o `ticketId` é ignorado). O desktop sempre entrega `view` |
 | `onCatchUp(fn(limit))`, `onPauseTeam(fn)` | desktop → cliente | já existem |
 
 `AlwaysOnAttentionPayload`: `id` (estável, é o dedupe), `kind` (`needs-you`·`review`·`question`·`failed`·`done`), `title`, `ticketId` (`[a-z0-9-]{1,64}`), `at` (ISO), opcionais `personaName`, `avatarId`, `question`, `code`, `threadId`, `streamId`. Campo desconhecido ou fora do formato: o desktop descarta o evento inteiro (validação no fio).
@@ -35,7 +35,10 @@ Deep link do clique: `persona://task/<ticketId>` (+ `?v=approvals|review|thread`
 - `onOpenTask(ticketId, view)`: navegar para o lugar exato (SPEC §3): `approvals` → Aprovações com `focus=<id>`; `review` → Revisar; `thread` → o fio da tarefa. Registrar no mount e devolver o `off`.
 - Web / shell antigo (sem `personaAlwaysOn`): tudo vira no-op, como em `tray-needs-you-bridge.ts`.
 
-## Rivet (depois do descongelamento do H)
+## Rivet — FEITO em 04/11 17:45 (preload + main + deep link + avisos; entra no H2)
+Canal `needsYouCount`; preload `needsYouCount(n)` e `onOpenTask(ticketId, view)`; o main faz SET da bandeja (sem o antigo `+= 1`; o estado `pausada` deixa de ser desfeito por `attention`/`runningAssignments`); deep link `?v=thread|approvals|review|overview` em lista fechada (qualquer outra query, hash ou valor é recusado); href por tipo (needs-you→approvals, review→review, agrupado→overview, question/failed/done→thread). Provas: `apps/desktop/tests/{deep-link,notifications,always-on-ipc,preload-app}.spec.ts` e `tsc -p apps/desktop/tsconfig.host.json` sem erros. **FALTA:** o cliente (Lumen) e a captura/clique reais no Windows.
+
+### Plano original (referência)
 1. `always-on-ipc.ts`: canal `needsYouCount` + validador; `kind:'resolved'` já existe.
 2. `preload-app.ts`: expor `needsYouCount`; `onOpenTask` passa `view`.
 3. `main.ts`: tratar `needsYouCount` (SET); remover o `trayNeedsYou += 1`; `openTask` com `view`.

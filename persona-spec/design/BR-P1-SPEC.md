@@ -206,3 +206,11 @@ Revisado com `.maestri/tmp/muse/review-life.py tucano`; quadro em `br-p1/tucano-
 - **`acenando`.**
 - **`pensando-1/2/3`:** sem balão, mesma escala.
 - Entra no próximo `build-assets`.
+
+### Lote P1 · ouriço · aprovado (04/11); os 12 extras FECHADOS
+- **Ouriço:**
+  - `blink`: 0,60%;
+  - `tail`: a orelha direita, 1,23%, lê;
+  - `acenando`;
+  - `pensando-1/2/3`: sem balão, mesma escala.
+- **Os 12 extras com o kit de vida completo (6 frames cada):** capivara, cervo, coelho, coruja, guaxinim, lobo-guará, lontra, ouriço, panda, raposa, tamanduá e tucano. Tudo no app.

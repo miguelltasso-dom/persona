@@ -51,3 +51,6 @@ O `typecheck` do repo roda primeiro `tsx scripts/generate-typert.ts`, que analis
 
 `check-pkg` NÃO cobre `apps/`. O typecheck de push compila `apps/desktop/src` (via `apps/desktop/tsconfig.host.json`) **e** `apps/desktop/tests/**` + `apps/desktop/scripts/**` (via o `tsconfig.host.json` da RAIZ). Quem mexe em `apps/desktop` roda os dois antes de relatar:
 `pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit` (rápido) e `pnpm exec tsc -p tsconfig.host.json --noEmit 2>&1 | grep "apps/desktop/"` (mais lento, ~1–2 min; saída vazia = ok). Mocks `vi.fn()` precisam de parâmetros tipados quando o teste lê `mock.calls[n][i]` (senão TS2493).
+
+## Congelamento de corte de instalador (D-082, 04/11) — obrigatório
+Quando o Keel ou o Atlas anunciar "CONGELAMENTO": **não salve nada em `packages/**`, `apps/**` nem `scripts/**`** até o aviso de FIM DO CONGELAMENTO com o hash. Livres: `persona-spec/**`, leitura, testes/capturas que não escrevem fonte. Deixe o tree consistente (nada a meio caminho: arquivo novo sem seu importador, importador sem seu arquivo novo) e diga "estável" ao Keel. Depois do hash publicado você volta a editar; o pack do instalador sai do commit publicado, então isso não o afeta.

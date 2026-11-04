@@ -70,7 +70,7 @@
       "cacheReadTokens": 0,
       "cacheWriteTokens": 0,
       "text": "resposta de ensaio (sem CLI)",
-      "durationMs": 0,
+      "durationMs": 1,
       "ready": false
     },
     {

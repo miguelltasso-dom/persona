@@ -1,5 +1,42 @@
 # Gauge — relatórios (QA nº 2; mais recente no topo)
 
+## 2026-11-04 19:12 — congelamento D-082: estado estável e plano para depois do hash
+
+**Estável:** nada em jogo em `packages/**`; tudo salvo; `check-pkg persona-e2e` OK às 19:00 depois das últimas edições (diagnóstico embutido em B8-1/B8-2, W2-1b, W2-3 e GES-1b; ajustes de seed/seletor do SB/GES). O job único `Gauge final4` (b8, byc-w2, sb-ges, gov-pb, pb, scope-1, F5; ~40 min, 1 vaga) está enfileirado na `build`, só grava capturas gitignored.
+
+**Plano depois do hash do H2 #3 (nada disso toca em fonte até o Keel liberar):**
+1. Rodar o `final4` (dev bundle) e devolver ao dono, com os passos e a captura, tudo o que for produto: B8-1/B8-2 (hoje `it.fails` passando por falhar), W2-1b, W2-3 (Conexões 3 radios em vez de 4), GES-1b/3c. Virar `it` os `it.fails` que o final4 mostrar como consertados.
+2. B8 Tier-2 contra o **instalado**: trocar `startDesktop` (Electron de dev, dá timeout de DevTools) por `startInstalledDesktop({ exe })` do Probe quando `PERSONA_INSTALLED_EXE` estiver definido; contratar a equipe sugerida (`hireSuggestedTeam`) e fixar o CLI fake com `withFakeCliOnPath`, porque a equipe em branco não responde. Cobre onboarding → #geral → Quadros + ponte nativa do seletor de pasta, com captura do renderer e do SO.
+3. Reconfirmar WIRE-5 e C9 contra o bundle do H2 e, se o escuro entrar, regenerar todas as capturas claro/escuro dele.
+4. `reap-orphans`, parar o host persistente (`host.stop`) e, com a fila vazia de verdade, `maestri ask "Atlas" "fila vazia: …"`.
+
+## 2026-11-04 18:20 — rodada final2/final3: flips dos donos, tema escuro válido, WIRE-5 zerado, host limpo
+
+**Resumo:** os donos consertaram 15 bugs que eu mantinha como `it.fails` (11 no app, 2 do tema escuro, 2 do WIRE; viraram teste normal), o tema escuro do Prism está aplicado no bundle do working tree, o WIRE-5 não tem mais nenhum desvio, e descobri por que várias suítes de app falhavam: o host próprio nasce com equipe "Em branco", e elas dependiam de uma equipe contratada por suítes anteriores no host persistente. O que resta é separado abaixo entre "meu" (seed/seletor) e "produto".
+
+| Item | Estado | Evidência |
+|---|---|---|
+| WIRE-5 | **zerado** — 6/6, sem lista de desvios tolerados; Keel pode ligar `PERSONA_WIRE_CONTRACT=block` | `wire-contract.spec.ts`; Prism entregou WIRE-4 (listTeam sem campos extras, seed ≤ 200, maxPersonas saneado) |
+| C9 / tema escuro | **verde 17/17** (13 telas claro/escuro, tokens da direção D, diff vs dirD, escuro de verdade) | `real-c9-gallery.spec.ts`; os 2 testes do tema viraram normais; captura `c9-kanban-dark.png` conferida; **o escuro está no working tree, NÃO no H publicado (71b87a1d18) — entra no H2** |
+| D-069 verificador + orçamento | 117/117, 0 fail esperado | `mandatory-first-delivery-real-verifier.spec.ts`, `…-real-budget.spec.ts`, `real-run-budget.spec.ts` (Probe corrigiu 3 achados meus, ver abaixo) |
+| F5 | Configurações consertada (virou teste normal): 27/27 telas sem crítico/sério | `real-surface-a11y.spec.ts`, `artifacts/gauge/axe/matrix.md` |
+| BYC-6 | BYC-4a (regras diferentes com o mesmo começo) e BYC-4d (regras chegam NÃO aceitas) consertados → teste normal | `real-byc-w2-app.spec.ts` |
+| SB-7 | 7 achados do SB-5/SB-2c consertados → teste normal (Citada em, restaurar versão, lista de versões, criar página, feed sem "Atlas" fixo, título duplicado, índice sem página restrita) | `real-sb-ges-app.spec.ts`; **SB-1a (fatos explícitos da curadoria) segue aberto, dono Anvil** |
+| B8 | P0 do envio no #geral consertado (o teste de envio de W2 virou normal). **B8-1/B8-2 (resposta da persona no #geral e Tarefa no quadro) ainda estão como `it.fails` e "passam" por falhar: preciso confirmar ao vivo o motivo (agora com equipe contratada) antes de afirmar que o P0 fechou** | `real-b8-app.spec.ts`; **Tier 2 desktop (`startDesktop` timeout de DevTools) segue aberto, dono Probe/Rivet** |
+| W2-11 | W2-1d agora tem teste de host (Tarefa criada num assunto que não é o primeiro leva ESSE assunto, lista e quadro, com nome e cor resolvíveis) e teste de app; os 2 `it.todo` de `mandatory-wave2.spec.ts` viraram teste | `mandatory-wave2-host.spec.ts`, `mandatory-wave2.spec.ts` (28 pass + 5 skipped sem `PERSONA_E2E`) |
+
+**Achados do D-069 (todos corrigidos pelo Probe):** (1) guardião×verificador divergiam quando o ledger de uma tentativa anterior era ilegível (guardião contava 1, verificador via histórico corrompido ⇒ a 2ª tentativa nunca fecharia verde); (2) o guardião aceitava `paidTurns` negativo editado à mão; (3) `connected-cli` era circular (agora pergunta ao próprio CLI antes da rodada). Achado novo meu e corrigido no mesmo dia: o guardião liberava uma tentativa depois de outra que gastou 2 turnos, mas o verificador exige ≤ 1 por tentativa, então o turno pago seria desperdiçado de antemão.
+
+**Causa raiz dos vermelhos das suítes de app (host limpo):** o onboarding do host próprio escolhe o modelo "Em branco" (nenhuma persona). Testes que precisam de Coordenação/Atendimento/respostas dependiam da equipe que o host persistente ganhou de outras suítes. Novo helper `hireSuggestedTeam` (src/gauge-app.ts) contrata a equipe sugerida como um usuário faz; aplicado em B8, W2-1, W2-2 e SB/GES. Isso também desmascara `it.fails` que "passavam" pelo motivo errado (o setup falhava).
+
+**Ajustes de teste meus (não são bug de produto):** alvo da permissão lembrada é `vault:<recordId>` (contrato second-brain.md), `grantRow` achava o botão antigo "Tirar permissão" e perdia a linha ao virar "Tirar agora/Cancelar", título do plano é "Plano do/da {nome}" conforme o gênero do Gestor.
+
+**Em aberto no app real (a confirmar com o host ao vivo; fila `build` ocupada pelo H2 do instalador):**
+- W2-1b app: sem resposta da equipe no assunto "Interface" com a equipe contratada (investigar: tempo do runner scriptado × 8 s do teste, ou reply sem assunto).
+- W2-3b/c/d + W2-3e app: o Conexões mostra 3 radios de política em vez de 4 depois do redesenho com escopo (workspace/persona) do Quill; a 3e depende da política "Dividir o uso" ficar ativa.
+- GES-1b (Aprovar não aparece depois do reload) e GES-3c ×2 (atividade do Gestor/motivo): confirmar se são cascata do plano ou produto.
+- `recapture` claro/escuro (gov-pb, pb, scope-1, F5) na fila para regenerar as capturas com o escuro válido; o `final3` já regenerou as de B8/BYC/W2/SB/GES.
+
 ## 2026-11-04 16:55 — D-069 verificador da execução real: prova independente da cadeia (caminho crítico)
 
 O verificador puro já existe (Forge: `persona-engine/src/first-delivery-real-run.ts`, 57/57; contrato `contracts/first-delivery-real-proof.md`) e o Probe já o liga (`src/real-run-verifier.ts` + `scripts/verify-real-run.ts`). Não reescrevi nada. Entreguei a prova do ponto de vista de quem não confia no verde: `persona-e2e/tests/mandatory-first-delivery-real-verifier.spec.ts` — **56/56 em 9 s, zero IA, sem navegador** (cabe no gate); `check-pkg persona-e2e` OK (40,8 s).

@@ -9,9 +9,9 @@ Gate **verde**. Probe / `@Remote measureV1Close` chamam `measureV1CloseView(entr
 | GES-2 | 4/4 | — | — |
 | GES-3 | 3/3 | — | — |
 | V1-P0-1 | 4/4 | — | — |
-| OPT-8 | 1/4 | — | cache-60, pair-parity, cut-40 |
+| OPT-8 | 3/4 | — | pair-parity |
 
-OPT-8 (D-068): `pair-parity` fica `blocked` até a rodada pareada real e `cut-40` fica `blocked` enquanto o conjunto completo de alavancas não estiver ligado (hoje falta a W3, relato curto do worker, desligada até a rodada real); só fica verde com ≥ 40% de custo estimado no pipeline fiel. Não falha o gate, mas também não conta como passou.
+OPT-8 (D-068, D-080): `pair-parity` fica `blocked` (a rodada pareada real de 04/11 foi inconclusiva); `cache-60` vem do que o fornecedor reportou; `cut-40` lê a visão com a base do vendor medida (origem `calibrated`, com a ressalva escrita) e a W3 está adiada por decisão. Não falha o gate, mas o que está `blocked` também não conta como passou.
 
 ```
 pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts

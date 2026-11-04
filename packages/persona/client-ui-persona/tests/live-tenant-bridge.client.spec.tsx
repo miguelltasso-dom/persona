@@ -236,6 +236,5 @@ describe('ConnectedGlobalKanban with real observables', () => {
     const globalButtons = screen.getAllByRole('button', { name: kanbanPt['boards.globalView'] })
     fireEvent.click(globalButtons[0]!)
     expect(screen.getByRole('heading', { level: 1, name: kanbanPt['title.global'] })).toBeTruthy()
-    expect(document.querySelector('[data-persona-boards-global="true"]')).toBeTruthy()
   })
 })

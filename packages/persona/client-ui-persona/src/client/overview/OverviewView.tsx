@@ -97,7 +97,16 @@ export function OverviewView({
             contributorsLabel={t('overview.firstDelivery.who')}
             actions={(
               <>
-                <Button variant="primary" onClick={() => { dismissMilestone(); onNavigate?.('kanban') }}>{t('overview.firstDelivery.open')}</Button>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    dismissMilestone()
+                    if (onOpenAwayTask !== undefined) onOpenAwayTask(firstDelivery.taskId)
+                    else onNavigate?.('kanban')
+                  }}
+                >
+                  {t('overview.firstDelivery.open')}
+                </Button>
                 <Button variant="ghost" onClick={dismissMilestone}>{t('overview.firstDelivery.dismiss')}</Button>
               </>
             )}
@@ -154,9 +163,14 @@ export function OverviewView({
                 <Button
                   variant="secondary"
                   icon={<UiIcon name="arrowRight" size={18} strokeWidth={2.2} />}
-                  onClick={() => { onNavigate?.('channels') }}
+                  onClick={() => {
+                    if (suggestedTask !== undefined && onOpenAwayTask !== undefined) onOpenAwayTask(suggestedTask.id)
+                    else onNavigate?.('channels')
+                  }}
                 >
-                  {t('overview.suggestedTaskAction')}
+                  {suggestedTask !== undefined && onOpenAwayTask !== undefined
+                    ? t('overview.suggestedTaskOpenBoard')
+                    : t('overview.suggestedTaskAction')}
                 </Button>
               </div>
             </Card>

@@ -2,7 +2,10 @@ import type { PersonaCharacterId } from '../assets/asset-url.ts'
 import { poseUrl } from '../assets/asset-url.ts'
 import { resolveProjectDisplayName } from '../kanban/resolve-project-name.ts'
 import type { KanbanCardModel, KanbanColumnId, KanbanPersonaRef } from '../kanban/types.ts'
+import type { ConversationSubjectUi } from '../chat/conversation-subjects.ts'
 import { parseGestorPlanId } from '../chat/gestor-plan-message.ts'
+import { parseRunErrorMarker } from '../chat/run-error-message.ts'
+import type { RunErrorPayload } from '../primitives/run-errors.ts'
 import type { ChannelPersonaMember, PersonaNowSnapshot, PersonaWorkUiState } from '../team/persona-work-state.ts'
 import { cardSystemRoles } from '../profile/card-system-roles.ts'
 import { uiStateToPose } from '../team/persona-work-state.ts'
@@ -71,21 +74,36 @@ export function mapTaskToKanbanCard(
   }
 }
 
+function attachConversationSubject(
+  card: KanbanCardModel,
+  task: TaskView,
+  subjects: readonly ConversationSubjectUi[],
+): KanbanCardModel {
+  const subjectId = task.conversationSubjectId ?? task.topicId
+  if (subjectId === undefined || subjectId.length === 0) return card
+  const subject = subjects.find(row => row.id === subjectId)
+  if (subject === undefined) return card
+  return { ...card, conversationSubject: { name: subject.name, colorIndex: subject.colorIndex } }
+}
+
 /** Host tasks → cards with project labels and persona assignment from `now` rows. */
 export function enrichKanbanCardsFromHost(
   tasks: readonly TaskView[],
   projects: readonly { readonly id: string; readonly name: string }[],
   nowRows: readonly PersonaNowSnapshot[],
+  channelSubjects: readonly ConversationSubjectUi[] = [],
 ): KanbanCardModel[] {
   return tasks.map((task): KanbanCardModel => {
-    const card = mapTaskToKanbanCard(task, projects)
+    let card = mapTaskToKanbanCard(task, projects)
     const assignee = findAssigneeForTask(task, nowRows)
-    if (assignee === undefined) return card
-    const row = nowRows.find(r => r.member.name === assignee.name)
-    const assigneeState = row?.member.state ?? card.assigneeState
-    return assigneeState === undefined
-      ? { ...card, assignee }
-      : { ...card, assignee, assigneeState }
+    if (assignee !== undefined) {
+      const row = nowRows.find(r => r.member.name === assignee.name)
+      const assigneeState = row?.member.state ?? card.assigneeState
+      card = assigneeState === undefined
+        ? { ...card, assignee }
+        : { ...card, assignee, assigneeState }
+    }
+    return attachConversationSubject(card, task, channelSubjects)
   })
 }
 
@@ -150,6 +168,38 @@ export function sortMessageStreamEvents(events: readonly MessageView[]): Message
   return [...events].sort((a, b) => {
     if (a.seq !== b.seq) return a.seq - b.seq
     return a.occurredAt.localeCompare(b.occurredAt)
+  })
+}
+
+/**
+ * Map stream events in seq order with monotonic display times when `occurredAt` regresses
+ * (dev harness batches, idempotent seed).
+ */
+export function mapSortedMessageStream(
+  events: readonly MessageView[],
+  team: TeamView | null,
+  memberId: string,
+  taskTitleById: ReadonlyMap<string, string> = new Map(),
+): ChannelMessageUi[] {
+  const resolvedTeam: TeamView = team ?? { personas: [], members: [] }
+  const sorted = sortMessageStreamEvents(events)
+  let lastDisplayMs = Number.NEGATIVE_INFINITY
+  return sorted.map((event) => {
+    const parsed = Date.parse(event.occurredAt)
+    if (Number.isNaN(parsed)) {
+      return mapMessage(event, resolvedTeam, memberId, taskTitleById)
+    }
+    const displayMs = parsed >= lastDisplayMs ? parsed : lastDisplayMs + 60_000
+    lastDisplayMs = displayMs
+    if (displayMs === parsed) {
+      return mapMessage(event, resolvedTeam, memberId, taskTitleById)
+    }
+    return mapMessage(
+      { ...event, occurredAt: new Date(displayMs).toISOString() },
+      resolvedTeam,
+      memberId,
+      taskTitleById,
+    )
   })
 }
 
@@ -240,6 +290,9 @@ export interface ChannelMessageUi {
   readonly taskTitle?: string
   /** Host ticket id when the stream event references work (Contexto usado). */
   readonly ticketId?: string
+  /** Host persona id (for engine picker / run-error actions). */
+  readonly authorPersonaId?: string
+  readonly runError?: RunErrorPayload
 }
 
 export function mapMessage(
@@ -268,14 +321,20 @@ export function mapMessage(
     actorIds: [...row.actorIds],
   }))
   const parsedPlan = parseGestorPlanId(event.body)
+  const bodyAfterPlan = parsedPlan?.visibleBody ?? event.body
+  const parsedRunError = parseRunErrorMarker(bodyAfterPlan)
+  const visibleBody = parsedRunError?.visibleBody ?? bodyAfterPlan
+  const runError = event.runError ?? parsedRunError?.payload
   const row: ChannelMessageUi = {
     id: event.id,
     authorId,
     authorName,
-    body: parsedPlan?.visibleBody ?? event.body,
+    body: visibleBody,
     timeLabel,
     reactions,
+    ...(persona !== undefined ? { authorPersonaId: persona.id } : { authorPersonaId: event.actorId }),
     ...(parsedPlan === null ? {} : { gestorPlanId: parsedPlan.planId }),
+    ...(runError === undefined ? {} : { runError }),
   }
   const subjectTag = (event.conversationSubjectId ?? event.topicId ?? '').trim()
   const tagged = subjectTag.length > 0 ? { ...row, conversationSubjectId: subjectTag } : row

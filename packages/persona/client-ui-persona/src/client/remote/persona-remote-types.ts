@@ -1,5 +1,6 @@
 /** Subset of Persona host Remote used by the shell (wire types from host). */
 import type { MessageView as HostMessageView, ReactionView } from '@deepseek-ai/dsh-persona-host/types'
+import type { RunErrorPayload } from '../primitives/run-errors.ts'
 
 export type {
   AwayEventView,
@@ -25,6 +26,8 @@ export type MessageView = Omit<HostMessageView, 'reactions' | 'conversationSubje
   readonly reactions?: readonly ReactionView[]
   readonly conversationSubjectId?: string
   readonly topicId?: string
+  /** Typed execution failure (RUN-ERRORS-SPEC); host sends code, not user-facing text. */
+  readonly runError?: RunErrorPayload
 }
 
 export interface PersonaTenantScope {

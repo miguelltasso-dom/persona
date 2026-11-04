@@ -43,6 +43,10 @@ import { SHELL_NS } from '../locale/shell/locales.ts'
 import { ConnectedDirectMessagesView } from '../remote/ConnectedDirectMessagesView.tsx'
 import { ProjectsPanel } from './ProjectsPanel.tsx'
 import { ConnectedSearchView } from '../remote/ConnectedSearchView.tsx'
+import { HELP_NS, HelpPanel, registerHelpLocale } from '../help/register-help.tsx'
+import { openPersonaExternalUrl } from './persona-about-host.ts'
+import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
+import { SEARCH_FOCUS_EVENT } from './nav-groups.ts'
 
 function liveInject(live: PersonaLiveStore): {
   liveStore: PersonaLiveStore
@@ -64,6 +68,17 @@ function liveInject(live: PersonaLiveStore): {
   }
 }
 
+function runErrorHandlersFor(live: PersonaLiveStore, shellHandle: ShellStoreHandle): RunErrorHandlerContext {
+  return {
+    openHelpConnections: () => { shellHandle.actions.openHelp({ docId: 'conexoes', tab: 'guias' }) },
+    openEngineForPersona: (personaId) => { shellHandle.actions.openEngineEditor(personaId) },
+    selectPanel: (panel) => { shellHandle.actions.selectPanel(panel) },
+    swapAccount: () => { shellHandle.actions.selectPanel('connections') },
+    retryRun: () => { void live.refresh() },
+    resumeWhenQuotaBack: () => { void live.refresh() },
+  }
+}
+
 /** Register Prism-owned `main` keys (production shell). */
 export function registerPrismScreens(
   ctx: Context,
@@ -72,6 +87,7 @@ export function registerPrismScreens(
   selectPanel?: (panel: 'channels' | 'kanban' | 'approvals') => void,
   personaCard?: PersonaCardShellBridge,
 ): void {
+  registerHelpLocale(ctx)
   const tenantObservable = createLiveTenantObservable(live)
   const shellObservable: HostObservable<ShellState> = {
     getSnapshot: () => shellHandle.store.getSnapshot(),
@@ -92,12 +108,19 @@ export function registerPrismScreens(
   const channelInject = () => ({
     shellT: ctx.locale.bind(SHELL_NS),
     ...liveInject(live),
+    openTaskOnBoard: (ticketId: string) => { shellHandle.actions.openKanbanTicket(ticketId) },
     turnActivityLabels,
     onOpenConnections: () => { shellHandle.actions.selectPanel('connections') },
     onBuildTeam: () => {
       shellHandle.actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)
       shellHandle.actions.selectPanel('profile')
     },
+    onOpenHelp: () => { shellHandle.actions.openHelp({ docId: 'canais', tab: 'guias' }) },
+    onOpenSearch: () => {
+      shellHandle.actions.selectPanel('search')
+      window.dispatchEvent(new Event(SEARCH_FOCUS_EVENT))
+    },
+    runErrorHandlers: runErrorHandlersFor(live, shellHandle),
     ...(personaCard === undefined
       ? {}
       : {
@@ -165,6 +188,20 @@ export function registerPrismScreens(
           icon: 'saude' as const,
           run: () => { shellHandle.actions.selectPanel('teamHealth') },
         },
+        {
+          id: 'help',
+          label: searchT('search.action.help'),
+          keywords: ['ajuda', 'help', 'guia', 'guias', 'documentacao'],
+          icon: 'glossario' as const,
+          run: () => { shellHandle.actions.openHelp({ tab: 'guias' }) },
+        },
+        {
+          id: 'release-notes',
+          label: searchT('search.action.releaseNotes'),
+          keywords: ['novidades', 'versao', 'version', 'release', 'changelog'],
+          icon: 'glossario' as const,
+          run: () => { shellHandle.actions.openHelp({ tab: 'novidades' }) },
+        },
       ],
       personaActions: (persona: { readonly id: string; readonly name: string }) => [
         {
@@ -208,6 +245,7 @@ export function registerPrismScreens(
       postDmMessage: (body: string, attachmentIds?: readonly string[]) => { void live.postDmMessage(body, attachmentIds) },
       uploadDmAttachment: (file: File) => live.uploadDmAttachment(file),
       loadTurnContext: (ticketId: string) => { void live.loadTurnContext(ticketId) },
+      openTaskOnBoard: (ticketId: string) => { shellHandle.actions.openKanbanTicket(ticketId) },
       toggleMessageReaction: (
         streamKind: 'channel' | 'dm',
         eventId: string,
@@ -215,6 +253,7 @@ export function registerPrismScreens(
       ) => { void live.toggleMessageReaction(streamKind, eventId, stickerId) },
       startNewConversation: () => { void live.openFirstAvailableDm() },
       turnActivityLabels,
+      runErrorHandlers: runErrorHandlersFor(live, shellHandle),
     }),
   }, ConnectedDirectMessagesView)
 
@@ -248,4 +287,15 @@ export function registerPrismScreens(
   ctx.slots.register({ name: 'main', key: 'importers', locale: IMPORTERS_NS, inject: remoteInject }, RemoteImportPanel)
   ctx.slots.register({ name: 'main', key: 'canvas', locale: CANVAS_NS, inject: remoteInject }, RemoteCanvasPanel)
   ctx.slots.register({ name: 'main', key: 'secondBrain', locale: SECOND_BRAIN_NS, inject: remoteInject }, RemoteSecondBrainPanel)
+
+  ctx.slots.register({
+    name: 'main',
+    key: 'help',
+    locale: HELP_NS,
+    inject: () => ({
+      hooks: { shell: shellObservable },
+      askTeam: () => { shellHandle.actions.selectPanel('channels') },
+      openExternal: openPersonaExternalUrl,
+    }),
+  }, HelpPanel)
 }

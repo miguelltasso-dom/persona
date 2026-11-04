@@ -58,5 +58,27 @@ export function deriveBoardSummaries(input: {
   })
 
   if (fromLive.length >= 2) return fromLive
-  return MOCK_PROJECT_BOARD_SUMMARIES
+  return mergeLiveCardsIntoMockSummaries(MOCK_PROJECT_BOARD_SUMMARIES, input.kanbanCards)
+}
+
+/** When the hub falls back to Muse mocks, overlay counts from live kanban cards (PB-5). */
+function mergeLiveCardsIntoMockSummaries(
+  summaries: readonly ProjectBoardSummary[],
+  kanbanCards: readonly KanbanCardModel[],
+): readonly ProjectBoardSummary[] {
+  if (kanbanCards.length === 0) return summaries
+  return summaries.map((summary) => {
+    const cards = kanbanCards.filter(card => card.projectId === summary.id)
+    if (cards.length === 0) return summary
+    let counts = emptyCounts()
+    for (const card of cards) {
+      const key = COLUMN_TO_CATEGORY[card.column]
+      counts = { ...counts, [key]: counts[key] + 1 }
+    }
+    return {
+      ...summary,
+      counts,
+      needsYouCount: counts.needs_you,
+    }
+  })
 }

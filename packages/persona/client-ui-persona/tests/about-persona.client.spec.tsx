@@ -8,7 +8,7 @@ afterEach(cleanup)
 describe('AboutPersona (kit de lançamento)', () => {
   it('credits the three upstreams with their licenses', () => {
     render(<AboutPersona version="0.1.0" labels={ABOUT_LABELS_PT} />)
-    expect(screen.getByRole('heading', { name: 'Sobre o Persona' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Sobre a Persona' })).toBeTruthy()
     expect(screen.getByText('Versão 0.1.0')).toBeTruthy()
     for (const credit of PERSONA_CREDITS) expect(screen.getByText(credit.name)).toBeTruthy()
     expect(screen.getAllByText('Licença MIT')).toHaveLength(2)

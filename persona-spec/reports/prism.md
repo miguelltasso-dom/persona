@@ -1,5 +1,120 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-04 07:25 — GOV-8 aceite 3 modelos + W2-3 undo mover + GES-4 entrada gestor
+
+**GOV-8:** teste parametrizado `agency` / `saas` / `creator` (3–5 personas, Coordenação) + fluxo UI até passo 4 (`structure-assistant.client.spec.tsx` 4/4).
+
+**W2-3:** **Desfazer** mover assunto no #geral e DM — toast guarda `revertSubjectId`; `Connected*` chama `moveMessageToSubject` de volta (host RPC).
+
+**GES-4:** cartão gestor no fio com `usePersonaMotion` preset `character` (entrada).
+
+**Extra:** ícone **busca** do header #geral → `selectPanel('search')` + `SEARCH_FOCUS_EVENT`.
+
+**Testes:** `structure-assistant.client.spec.tsx` → 4 passed.
+
+**Fila:** S5/S7 Probe E2E; GOV-8 aceite app 3 tipos (Probe); PRO-6; Rivet `runError` wire.
+
+---
+
+## 2026-11-04 07:15 — Run errors no fio (Muse RUN-ERRORS-SPEC)
+
+**Pronto:** `mapMessage` lê `runError` no evento ou marker `[[run-error:{json}]]`; `ConversationRunErrorCard` + `run-error-handlers` ligam ações (Ajuda › Conexões, motor, Regras, Uso, Conexões/troca conta, `live.refresh` retry). Canal + DM via `runErrorHandlers` em `register-prism-screens`.
+
+**Arquivos:** `run-error-message.ts`, `run-error-handlers.ts`, `ConversationRunErrorCard.tsx`, `map-host-ui.ts`, `persona-remote-types.ts`, `GeneralChannelView.tsx`, `DirectMessagesView.tsx`, `Connected*`, `register-prism-screens.tsx`, `map-message.client.spec.ts`, `run-error-handlers.client.spec.ts`.
+
+**Testes:** map-message (+2) · run-errors (5) · run-error-handlers (1).
+
+**Dependência Rivet/Anvil:** host ainda posta texto cru; wire `runError` no `MessageView` ou marker no body até migrarem.
+
+**Ajuda (A):** já ligada no turno 07:05 (painel, Mais, Ctrl K, ? → `canais`). Capturas Muse: `.maestri/tmp/shots/design/help/` e `run-errors/`.
+
+---
+
+## 2026-11-04 07:05 — Ajuda shell (Muse): painel + nav + Ctrl K + ? #geral
+
+**Pronto (4 toques Atlas/Muse):**
+
+1. `MainPanelId` **`help`** + `openHelp({ docId?, tab? })` / `helpDocId`·`helpTab` no shell (`create-shell-store.ts`).
+2. Rail **Mais → Ajuda** (`nav-groups.ts`, ícone `glossario`, locale `sidebar.help`).
+3. `register-prism-screens`: slot `main/help` → `HelpPanel` + `registerHelpLocale`; Ctrl K **Abrir a ajuda** / **Ver novidades** (keywords ajuda, help, guia, novidades, versão).
+4. `GeneralChannelView` **?** → `onOpenHelp` → `openHelp({ docId: 'canais', tab: 'guias' })`.
+
+**Arquivos:** `create-shell-store.ts`, `nav-groups.ts`, `register-prism-screens.tsx`, `register-help.tsx`, `GeneralChannelView.tsx`, `ConnectedGeneralChannelView.tsx`, `register-lumen-ui.tsx` (stub shell), `locale-sources/shell.{pt,en}.json`, `tests/create-shell-store.client.spec.ts`.
+
+**Testes:** `vitest run -t openHelp` → 1 passed.
+
+**Dependência Muse:** tela `HelpView` + `generated-help.ts` já no repo; Prism só liga shell. `language` para banner pt-only: pendente wire `ctx.locale` quando expuser idioma ativo.
+
+**Fila:** S5/S7 Probe E2E; GOV-8 aceite 3 modelos; GES-4; Forge marker.
+
+---
+
+## 2026-11-04 06:52 — W2-3 bolinha no cartão (host + live)
+
+**Anvil (seam mínima):** `listTasks` expõe `conversationSubjectId` via screen `ticket_subject` (`screens.screens.get`); `wave2` assert no ticket aberto.
+
+**Prism:** `enrichKanbanCardsFromHost` resolve nome/cor com assuntos do `#geral` no `refresh`; fallback `topicId`; vitest `enrich-kanban-subject`.
+
+**Testes:** wave2 7/7 · enrich-kanban-subject 1/1 · check-pkg client-ui OK (~38s).
+
+**Fila:** S5/S7 E2E Probe; GOV-8 aceite 3 modelos; GES-4 animação cartão gestor; Forge marker/atividade.
+
+---
+
+## 2026-11-04 06:48 — C5b/PRO-4 links + horários UI + GOV-8 smoke
+
+**C5b/PRO-4:** cartão de tarefa no #geral/DM — **Ver contexto** + **Ver no quadro** (`openKanbanTicket`); Visão geral primeira tarefa sugerida → quadro quando wired.
+
+**Horários #geral:** `mapSortedMessageStream` — relógio monotônico na ordem do seq (corrige label regressivo com seed antigo); seed `createDevHarnessMessageClock` (turno anterior).
+
+**GOV-8:** vitest `structure-assistant` — 4 passos até hireAll.
+
+**Testes:** map-message (+monotonic) · structure-assistant · apply-message-stream · general-channel · overview-suggested (turnos recentes).
+
+**check-pkg:** client-ui-persona OK (~24s).
+
+**Dep:** W2-3 bolinha no cartão (Anvil `topicId` em TaskView); PRO-6/S5 E2E Probe; GES-4 animação entrada; Forge gestor marker.
+
+**Fila Prism:** S5 teclado/reduced-motion Probe; GOV-8 E2E 3 modelos; pass-through/cartões C5b restantes.
+
+---
+
+## 2026-11-04 06:42 — Muse recaptura #geral: horários seed + boas-vindas neutras
+
+**(1) Horários** — `createDevHarnessMessageClock`: lote dev seed + gestor compartilham relógio (`next()`); `devHarnessMessageTimes` aceita `pendingOccurredAt` para retomadas idempotentes. Evita `occurredAt` fora de ordem vs seq quando gestor ancorava só no tail persistido.
+
+**(2) Microcópia** — host `onboarding.ts`: `Boas-vindas! Estou aqui para coordenar a equipe.` (+ system welcome neutro). Dep Anvil: workspaces já onboarded mantêm texto antigo até re-seed.
+
+**Testes:** `seed-default-team` (+clock batch) · `onboarding.spec` · turnos anteriores C5b/PRO-4.
+
+---
+
+## 2026-11-04 06:38 — PRO-4 primeira entrega live + foco no quadro
+
+**PRO-4:** `deriveFirstDeliveryMilestone` a partir de `kanbanCards` em `ConnectedOverviewView`; botão **Ver no quadro** chama `openKanbanTicket(taskId)` (mesmo caminho do painel “Enquanto você estava fora”).
+
+**Testes:** `derive-first-delivery` 2/2 · `overview-first-delivery` 3/3.
+
+**check-pkg:** `client-ui-persona` OK (~33s).
+
+**Dep:** Anvil/Lumen — `conversationSubject` no cartão (W2-3 host); Probe PRO-6 boot smoke pós-retry; Forge marker gestor.
+
+**Fila Prism:** C5b cartões de tarefa no stream; GOV-8 E2E/polish Muse; GES-4 UI interruptor.
+
+---
+
+## 2026-11-04 06:32 — Boot gate: listConversationSubjects rate-limit retry
+
+**Prism:** `fetchConversationSubjects` espera `retryAfterMs` (100–2000ms) e tenta **1×** de novo em `rate-limited` (`listConversationSubjects`) — tour/onboarding não estoura pageerror; dedupe inflight mantido.
+
+**Testes:** `remote-unwrap` (+retry) · `conversation-subjects-storm` 2/2.
+
+**Dep Anvil:** TTL/guard no host (já parcial); Probe revalidar boot smoke.
+
+**Fila:** PRO-6 Probe; GOV-8; Forge marker/atividade; W2-3 Lumen cartão.
+
+---
+
 ## 2026-11-04 06:17 — PRO-4 away links + GES-3 + Sobre + boot smoke
 
 **PRO-4:** `AwayWhileOutPanel` → `openKanbanTicket` (shell) → `ConnectedGlobalKanban` scroll `[data-persona-kanban-card]`; `mapAwayEventLive.taskId`; locale `overview.awayOpenTask`.

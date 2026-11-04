@@ -21,6 +21,7 @@
   "sidebar.importers": "Importadores",
   "sidebar.secondBrain": "Segundo cérebro",
   "sidebar.canvas": "Canvas",
+  "sidebar.help": "Ajuda",
   "dm.emptyHint": "Nenhuma mensagem direta ainda. Abra uma conversa com uma persona da equipe.",
   "overview.attentionTitle": "Precisa de você",
   "overview.attentionEmpty": "Nada precisa da sua atenção agora.",
@@ -31,6 +32,7 @@
   "overview.suggestedTaskTitle": "Primeira tarefa sugerida",
   "overview.suggestedTaskBody": "Revisar cláusulas de rescisão no contrato",
   "overview.suggestedTaskAction": "Abrir no #geral",
+  "overview.suggestedTaskOpenBoard": "Ver no quadro",
   "overview.hostConnected": "Conectado",
   "overview.hostOnline": "Equipe conectada",
   "overview.hostOffline": "Equipe fora do ar. Abra o app Persona neste computador.",
@@ -122,5 +124,7 @@
   "search.action.hire": "Contratar persona",
   "search.action.twoDay": "Simular os 2 dias",
   "search.action.talk": "Conversar com {name}",
-  "search.action.teach": "Ensinar a {name}"
+  "search.action.teach": "Ensinar a {name}",
+  "search.action.help": "Abrir a ajuda",
+  "search.action.releaseNotes": "Ver novidades"
 }

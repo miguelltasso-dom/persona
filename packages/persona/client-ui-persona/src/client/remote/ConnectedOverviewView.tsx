@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import { deriveFirstDeliveryMilestone } from '../overview/derive-first-delivery.ts'
 import { OverviewView } from '../overview/OverviewView.tsx'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 
@@ -13,6 +14,7 @@ export type ConnectedOverviewViewProps = PropsLocale<'persona.shell'> & InjectFa
 
 export function ConnectedOverviewView({ t, useLive, navigate, openAwayTask }: ConnectedOverviewViewProps): ReactNode {
   const live = useLive(state => state)
+  const firstDelivery = deriveFirstDeliveryMilestone(live.kanbanCards)
   const awayEvents = live.awayEvents.map(event => ({
     id: event.id,
     body: event.body,
@@ -27,6 +29,7 @@ export function ConnectedOverviewView({ t, useLive, navigate, openAwayTask }: Co
       awayEvents={awayEvents}
       userName={live.team?.members.find(member => member.id === live.tenant?.memberId)?.displayName}
       suggestedTask={live.suggestedTask ?? undefined}
+      {...(firstDelivery === undefined ? {} : { firstDelivery })}
       onNavigate={navigate}
       onOpenAwayTask={openAwayTask}
     />

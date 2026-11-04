@@ -50,10 +50,34 @@ describe('GeneralChannelView turn context (C5b data)', () => {
         onLoadTurnContext={onLoad}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: /Briefing/u }))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`Briefing.*${chatPt['context.show']}`, 'u') }))
     expect(onLoad).toHaveBeenCalledWith('t-brief')
     expect(screen.getByRole('region', { name: chatPt['context.drawerTitle'] })).toBeTruthy()
     expect(screen.getByText('vault:1')).toBeTruthy()
+  })
+
+  it('opens the task on the board when the board action is wired (PRO-4 / C5b)', () => {
+    const onBoard = vi.fn()
+    render(
+      <GeneralChannelView
+        t={key => chatPt[key as keyof typeof chatPt] ?? key}
+        shellT={key => shellPt[key as keyof typeof shellPt] ?? key}
+        members={[MEMBER]}
+        messages={[{
+          id: 'm1',
+          authorId: 'bento',
+          authorName: 'Bento',
+          body: 'Entrega pronta.',
+          timeLabel: '10:00',
+          reactions: [],
+          taskTitle: 'Briefing',
+          ticketId: 't-brief',
+        }]}
+        onOpenTaskOnBoard={onBoard}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${chatPt['context.openBoard']}`, 'u') }))
+    expect(onBoard).toHaveBeenCalledWith('t-brief')
   })
 
   it('shows ActivityGroup folds inline on the task message row (T3 §9)', () => {

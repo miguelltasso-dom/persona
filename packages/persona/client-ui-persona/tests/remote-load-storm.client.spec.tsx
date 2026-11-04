@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { cleanup, render, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RemoteApprovalsPanel, RemoteKnowledgePanel, RemoteUsagePanel } from '../src/client/data/lumen-remote-panels.tsx'
@@ -12,6 +12,7 @@ import { bindObservableForTest } from './bind-observable-for-test.client.ts'
 import { createShellStore } from '../src/client/shell/create-shell-store.ts'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
+import { pt as knowledgePt } from '../src/client/locale/knowledge/locales.ts'
 
 installPreviewTheme()
 
@@ -107,6 +108,31 @@ describe('RemoteKnowledgePanel no request storm', () => {
     await waitFor(() => { expect(vaultCalls).toBeGreaterThan(0) }, { timeout: 3000 })
     await new Promise((resolve) => { setTimeout(resolve, 250) })
     expect(vaultCalls).toBeLessThanOrEqual(1)
+  })
+
+  it('opens Importadores when Import is clicked (BYC-1 Lumen)', async () => {
+    const selectMainPanel = vi.fn()
+    const persona = {
+      listVaultRecords: async () => ({ ok: true as const, value: [] }),
+      listVaultDocuments: async () => ({ ok: true as const, value: [] }),
+    } as unknown as PersonaRemoteClient
+
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <RemoteKnowledgePanel
+          persona={persona}
+          useTenant={tenantHarness()}
+          useShell={shellHarness()}
+          selectMainPanel={selectMainPanel}
+        />
+      </PreviewFrame>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: knowledgePt['action.import'] })).toBeTruthy()
+    })
+    fireEvent.click(screen.getByRole('button', { name: knowledgePt['action.import'] }))
+    expect(selectMainPanel).toHaveBeenCalledWith('importers')
   })
 })
 

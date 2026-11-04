@@ -21,6 +21,7 @@
   "sidebar.importers": "Importers",
   "sidebar.secondBrain": "Second brain",
   "sidebar.canvas": "Canvas",
+  "sidebar.help": "Help",
   "dm.emptyHint": "No direct messages yet. Start a conversation with someone on your team.",
   "overview.attentionTitle": "Needs you",
   "overview.attentionEmpty": "Nothing needs your attention right now.",
@@ -31,6 +32,7 @@
   "overview.suggestedTaskTitle": "Suggested first task",
   "overview.suggestedTaskBody": "Review termination clauses in the contract",
   "overview.suggestedTaskAction": "Open in #general",
+  "overview.suggestedTaskOpenBoard": "See on the board",
   "overview.hostConnected": "Connected",
   "overview.hostOnline": "Team connected",
   "overview.hostOffline": "Team is away. Open the Persona app on this computer.",
@@ -122,5 +124,7 @@
   "search.action.hire": "Hire a persona",
   "search.action.twoDay": "Run the 2-day test",
   "search.action.talk": "Talk to {name}",
-  "search.action.teach": "Teach {name}"
+  "search.action.teach": "Teach {name}",
+  "search.action.help": "Open help",
+  "search.action.releaseNotes": "View release notes"
 }

@@ -39,6 +39,7 @@ const HOME: BrainHomeView = {
     useCount: 2,
   }],
   contradictions: [],
+  leftover: [],
 }
 
 describe('SecondBrainHome (SB-5)', () => {
@@ -68,7 +69,7 @@ describe('SecondBrainHome (SB-5)', () => {
       <PreviewFrame brandLabel="Persona">
         <SecondBrainHome
           dict={pt}
-          home={{ startHereId: 'start', changedToday: [], activeGrants: [], contradictions: [] }}
+          home={{ startHereId: 'start', changedToday: [], activeGrants: [], contradictions: [], leftover: [] }}
           pages={[brainPage({ id: 'start', title: 'Índice da empresa' })]}
           onBringContext={vi.fn()}
         />

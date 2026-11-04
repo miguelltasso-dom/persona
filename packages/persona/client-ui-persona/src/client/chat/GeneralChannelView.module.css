@@ -345,6 +345,10 @@
   }
 }
 
+.runError {
+  margin-top: var(--persona-space-2);
+}
+
 .gestorPlan {
   margin: var(--persona-space-3) 0 0;
   max-width: 560px;
@@ -358,6 +362,10 @@
 .taskCard {
   margin: var(--persona-space-2) 0 0;
   font-size: var(--persona-text-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  align-items: stretch;
 }
 
 .taskCardButton {

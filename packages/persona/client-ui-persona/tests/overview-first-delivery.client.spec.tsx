@@ -26,7 +26,23 @@ describe('OverviewView first delivery milestone (peak-end)', () => {
     expect(screen.queryByRole('heading', { name: 'Sua equipe entregou o primeiro trabalho!' })).toBeNull()
   })
 
-  it('"Ver no quadro" opens the board', () => {
+  it('"Ver no quadro" opens the task on the board when wired', () => {
+    const onOpenAwayTask = vi.fn()
+    render(
+      <OverviewView
+        t={t}
+        attentionItems={[]}
+        nowRows={[]}
+        awayEvents={[]}
+        firstDelivery={FIRST}
+        onOpenAwayTask={onOpenAwayTask}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ver no quadro' }))
+    expect(onOpenAwayTask).toHaveBeenCalledWith('task-1')
+  })
+
+  it('"Ver no quadro" falls back to kanban navigation', () => {
     const onNavigate = vi.fn()
     renderOverview(onNavigate)
     fireEvent.click(screen.getByRole('button', { name: 'Ver no quadro' }))

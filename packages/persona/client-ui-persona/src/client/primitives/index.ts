@@ -56,3 +56,6 @@ export { ORG_MAP_LABELS_PT, OrgMap, columnsFor, type OrgMapLabels, type OrgMapPr
 export { ActivityGroup, PooledQuotaBar, summarizeActivity, type ActivityGroupProps, type ActivityItem, type ActivityKind, type ActivityStatus, type PooledAccount, type PooledQuotaBarProps } from './Pooled.tsx'
 export { Switch, type SwitchProps } from './Switch.tsx'
 export { ABOUT_LABELS_EN, ABOUT_LABELS_PT, AboutPersona, PERSONA_CREDITS, type AboutLabels, type AboutPersonaProps, type CreditEntry } from './About.tsx'
+export { HelpArticle, markSegments, type HelpArticleProps } from './HelpArticle.tsx'
+export { RunErrorCard, type RunErrorCardProps } from './RunErrorCard.tsx'
+export { describeResetTime, describeRunError, runErrorText, type RunErrorAction, type RunErrorCode, type RunErrorDescription, type RunErrorPayload } from './run-errors.ts'

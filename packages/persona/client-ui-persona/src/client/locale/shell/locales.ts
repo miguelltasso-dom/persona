@@ -27,6 +27,7 @@ export const pt = {
   'sidebar.importers': 'Importadores',
   'sidebar.secondBrain': 'Segundo cérebro',
   'sidebar.canvas': 'Canvas',
+  'sidebar.help': 'Ajuda',
   'dm.emptyHint': 'Nenhuma mensagem direta ainda. Abra uma conversa com uma persona da equipe.',
   'overview.attentionTitle': 'Precisa de você',
   'overview.attentionEmpty': 'Nada precisa da sua atenção agora.',
@@ -37,6 +38,7 @@ export const pt = {
   'overview.suggestedTaskTitle': 'Primeira tarefa sugerida',
   'overview.suggestedTaskBody': 'Revisar cláusulas de rescisão no contrato',
   'overview.suggestedTaskAction': 'Abrir no #geral',
+  'overview.suggestedTaskOpenBoard': 'Ver no quadro',
   'overview.hostConnected': 'Conectado',
   'overview.hostOnline': 'Equipe conectada',
   'overview.hostOffline': 'Equipe fora do ar. Abra o app Persona neste computador.',
@@ -129,6 +131,8 @@ export const pt = {
   'search.action.twoDay': 'Simular os 2 dias',
   'search.action.talk': 'Conversar com {name}',
   'search.action.teach': 'Ensinar a {name}',
+  'search.action.help': 'Abrir a ajuda',
+  'search.action.releaseNotes': 'Ver novidades',
 } as const
 
 /** English copy. */
@@ -155,6 +159,7 @@ export const en = {
   'sidebar.importers': 'Importers',
   'sidebar.secondBrain': 'Second brain',
   'sidebar.canvas': 'Canvas',
+  'sidebar.help': 'Help',
   'dm.emptyHint': 'No direct messages yet. Start a conversation with someone on your team.',
   'overview.attentionTitle': 'Needs you',
   'overview.attentionEmpty': 'Nothing needs your attention right now.',
@@ -165,6 +170,7 @@ export const en = {
   'overview.suggestedTaskTitle': 'Suggested first task',
   'overview.suggestedTaskBody': 'Review termination clauses in the contract',
   'overview.suggestedTaskAction': 'Open in #general',
+  'overview.suggestedTaskOpenBoard': 'See on the board',
   'overview.hostConnected': 'Connected',
   'overview.hostOnline': 'Team connected',
   'overview.hostOffline': 'Team is away. Open the Persona app on this computer.',
@@ -257,6 +263,8 @@ export const en = {
   'search.action.twoDay': 'Run the 2-day test',
   'search.action.talk': 'Talk to {name}',
   'search.action.teach': 'Teach {name}',
+  'search.action.help': 'Open help',
+  'search.action.releaseNotes': 'View release notes',
 } as const
 
 export const zh = {
@@ -282,6 +290,7 @@ export const zh = {
   'sidebar.importers': 'Importers',
   'sidebar.secondBrain': 'Second brain',
   'sidebar.canvas': 'Canvas',
+  'sidebar.help': 'Help',
   'dm.emptyHint': 'No direct messages yet. Start a conversation with someone on your team.',
   'overview.attentionTitle': 'Needs you',
   'overview.attentionEmpty': 'Nothing needs your attention right now.',
@@ -292,6 +301,7 @@ export const zh = {
   'overview.suggestedTaskTitle': 'Suggested first task',
   'overview.suggestedTaskBody': 'Review termination clauses in the contract',
   'overview.suggestedTaskAction': 'Open in #general',
+  'overview.suggestedTaskOpenBoard': 'See on the board',
   'overview.hostConnected': 'Connected',
   'overview.hostOnline': 'Team connected',
   'overview.hostOffline': 'Team is away. Open the Persona app on this computer.',
@@ -384,6 +394,8 @@ export const zh = {
   'search.action.twoDay': 'Run the 2-day test',
   'search.action.talk': 'Talk to {name}',
   'search.action.teach': 'Teach {name}',
+  'search.action.help': 'Open help',
+  'search.action.releaseNotes': 'View release notes',
 } as const
 export const ja = {
   'sidebar.team': 'Team',
@@ -408,6 +420,7 @@ export const ja = {
   'sidebar.importers': 'Importers',
   'sidebar.secondBrain': 'Second brain',
   'sidebar.canvas': 'Canvas',
+  'sidebar.help': 'Help',
   'dm.emptyHint': 'No direct messages yet. Start a conversation with someone on your team.',
   'overview.attentionTitle': 'Needs you',
   'overview.attentionEmpty': 'Nothing needs your attention right now.',
@@ -418,6 +431,7 @@ export const ja = {
   'overview.suggestedTaskTitle': 'Suggested first task',
   'overview.suggestedTaskBody': 'Review termination clauses in the contract',
   'overview.suggestedTaskAction': 'Open in #general',
+  'overview.suggestedTaskOpenBoard': 'See on the board',
   'overview.hostConnected': 'Connected',
   'overview.hostOnline': 'Team connected',
   'overview.hostOffline': 'Team is away. Open the Persona app on this computer.',
@@ -510,6 +524,8 @@ export const ja = {
   'search.action.twoDay': 'Run the 2-day test',
   'search.action.talk': 'Talk to {name}',
   'search.action.teach': 'Teach {name}',
+  'search.action.help': 'Open help',
+  'search.action.releaseNotes': 'View release notes',
 } as const
 export const es = {
   'sidebar.team': 'Team',
@@ -534,6 +550,7 @@ export const es = {
   'sidebar.importers': 'Importers',
   'sidebar.secondBrain': 'Second brain',
   'sidebar.canvas': 'Canvas',
+  'sidebar.help': 'Help',
   'dm.emptyHint': 'No direct messages yet. Start a conversation with someone on your team.',
   'overview.attentionTitle': 'Needs you',
   'overview.attentionEmpty': 'Nothing needs your attention right now.',
@@ -544,6 +561,7 @@ export const es = {
   'overview.suggestedTaskTitle': 'Suggested first task',
   'overview.suggestedTaskBody': 'Review termination clauses in the contract',
   'overview.suggestedTaskAction': 'Open in #general',
+  'overview.suggestedTaskOpenBoard': 'See on the board',
   'overview.hostConnected': 'Connected',
   'overview.hostOnline': 'Team connected',
   'overview.hostOffline': 'Team is away. Open the Persona app on this computer.',
@@ -636,6 +654,8 @@ export const es = {
   'search.action.twoDay': 'Run the 2-day test',
   'search.action.talk': 'Talk to {name}',
   'search.action.teach': 'Teach {name}',
+  'search.action.help': 'Open help',
+  'search.action.releaseNotes': 'View release notes',
 } as const
 export const fr = {
   'sidebar.team': 'Team',
@@ -660,6 +680,7 @@ export const fr = {
   'sidebar.importers': 'Importers',
   'sidebar.secondBrain': 'Second brain',
   'sidebar.canvas': 'Canvas',
+  'sidebar.help': 'Help',
   'dm.emptyHint': 'No direct messages yet. Start a conversation with someone on your team.',
   'overview.attentionTitle': 'Needs you',
   'overview.attentionEmpty': 'Nothing needs your attention right now.',
@@ -670,6 +691,7 @@ export const fr = {
   'overview.suggestedTaskTitle': 'Suggested first task',
   'overview.suggestedTaskBody': 'Review termination clauses in the contract',
   'overview.suggestedTaskAction': 'Open in #general',
+  'overview.suggestedTaskOpenBoard': 'See on the board',
   'overview.hostConnected': 'Connected',
   'overview.hostOnline': 'Team connected',
   'overview.hostOffline': 'Team is away. Open the Persona app on this computer.',
@@ -762,6 +784,8 @@ export const fr = {
   'search.action.twoDay': 'Run the 2-day test',
   'search.action.talk': 'Talk to {name}',
   'search.action.teach': 'Teach {name}',
+  'search.action.help': 'Open help',
+  'search.action.releaseNotes': 'View release notes',
 } as const
 export const de = {
   'sidebar.team': 'Team',
@@ -786,6 +810,7 @@ export const de = {
   'sidebar.importers': 'Importers',
   'sidebar.secondBrain': 'Second brain',
   'sidebar.canvas': 'Canvas',
+  'sidebar.help': 'Help',
   'dm.emptyHint': 'No direct messages yet. Start a conversation with someone on your team.',
   'overview.attentionTitle': 'Needs you',
   'overview.attentionEmpty': 'Nothing needs your attention right now.',
@@ -796,6 +821,7 @@ export const de = {
   'overview.suggestedTaskTitle': 'Suggested first task',
   'overview.suggestedTaskBody': 'Review termination clauses in the contract',
   'overview.suggestedTaskAction': 'Open in #general',
+  'overview.suggestedTaskOpenBoard': 'See on the board',
   'overview.hostConnected': 'Connected',
   'overview.hostOnline': 'Team connected',
   'overview.hostOffline': 'Team is away. Open the Persona app on this computer.',
@@ -888,6 +914,8 @@ export const de = {
   'search.action.twoDay': 'Run the 2-day test',
   'search.action.talk': 'Talk to {name}',
   'search.action.teach': 'Teach {name}',
+  'search.action.help': 'Open help',
+  'search.action.releaseNotes': 'View release notes',
 } as const
 export const ru = {
   'sidebar.team': 'Team',
@@ -912,6 +940,7 @@ export const ru = {
   'sidebar.importers': 'Importers',
   'sidebar.secondBrain': 'Second brain',
   'sidebar.canvas': 'Canvas',
+  'sidebar.help': 'Help',
   'dm.emptyHint': 'No direct messages yet. Start a conversation with someone on your team.',
   'overview.attentionTitle': 'Needs you',
   'overview.attentionEmpty': 'Nothing needs your attention right now.',
@@ -922,6 +951,7 @@ export const ru = {
   'overview.suggestedTaskTitle': 'Suggested first task',
   'overview.suggestedTaskBody': 'Review termination clauses in the contract',
   'overview.suggestedTaskAction': 'Open in #general',
+  'overview.suggestedTaskOpenBoard': 'See on the board',
   'overview.hostConnected': 'Connected',
   'overview.hostOnline': 'Team connected',
   'overview.hostOffline': 'Team is away. Open the Persona app on this computer.',
@@ -1014,6 +1044,8 @@ export const ru = {
   'search.action.twoDay': 'Run the 2-day test',
   'search.action.talk': 'Talk to {name}',
   'search.action.teach': 'Teach {name}',
+  'search.action.help': 'Open help',
+  'search.action.releaseNotes': 'View release notes',
 } as const
 
 export type ShellKey = keyof typeof pt

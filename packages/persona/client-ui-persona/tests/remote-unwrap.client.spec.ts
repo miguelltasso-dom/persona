@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Keel P0: ctx.remote.persona resolves RemoteResult; the live store must unwrap once (persona-remote-unwrap.ts).
 // A fake host that ONLY speaks RemoteResult drives bootstrap → refresh → dev seed, plus the failure path.
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPersonaLiveStore } from '../src/client/remote/persona-live-store.ts'
 import { isRemoteResult, PersonaRemoteError, unwrapPersonaRemote } from '../src/client/remote/persona-remote-unwrap.ts'
 
@@ -145,6 +145,35 @@ describe('live store over a RemoteResult host', () => {
     expect(gestorMsg?.gestorPlanId).toBe('dev-harness-v1-gestor-assemble')
     expect(gestorMsg?.body).toContain('Vou contratar 3 personas')
     expect(snapshot.gestorPlansById['dev-harness-v1-gestor-assemble']?.summary).toContain('Vou contratar 3 personas')
+  })
+
+  it('fetchConversationSubjects retries once after rate-limited (boot tour)', async () => {
+    vi.useFakeTimers()
+    let calls = 0
+    const host = fakeHost()
+    const ok = host.listConversationSubjects as (request: Json) => Promise<Result>
+    host.listConversationSubjects = (request: Json) => {
+      calls += 1
+      if (calls === 1) {
+        return Promise.resolve({
+          ok: false,
+          error: { code: 'rate-limited', message: 'rate-limited', details: { retryAfterMs: 200 } },
+        })
+      }
+      return ok(request)
+    }
+    const live = createPersonaLiveStore(host as never)
+    await live.bootstrap(() => undefined)
+    const tenant = live.observable.getSnapshot().tenant
+    expect(tenant).not.toBeNull()
+    const scope = live.conversationScope('channel', tenant!.channelId)
+    expect(scope).not.toBeNull()
+    calls = 0
+    const pending = live.fetchConversationSubjects(scope!)
+    await vi.advanceTimersByTimeAsync(250)
+    await pending
+    expect(calls).toBe(2)
+    vi.useRealTimers()
   })
 
   it('fetchConversationSubjects dedupes parallel calls for one stream', async () => {

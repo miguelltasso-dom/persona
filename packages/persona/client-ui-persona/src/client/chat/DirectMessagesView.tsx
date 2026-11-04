@@ -9,9 +9,11 @@ import { useState } from 'react'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
 import { ChannelComposer } from './ChannelComposer.tsx'
 import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
+import { DEFAULT_CONVERSATION_SUBJECT_ID } from './conversation-subjects.ts'
 import { MessageList } from './GeneralChannelView.tsx'
 import { TurnContextDrawer } from './TurnContextDrawer.tsx'
 import type { TurnContextUi } from '../remote/turn-context-ui.ts'
+import type { RunErrorHandlerContext } from './run-error-handlers.ts'
 import styles from './DirectMessagesView.module.css'
 
 /** One DM row as the presentation needs it (Prism maps host data). */
@@ -46,6 +48,7 @@ export interface DirectMessagesViewProps {
   readonly turnContext?: TurnContextUi | null | undefined
   readonly turnActivityLabels?: import('../primitives/Pooled.tsx').ActivityGroupProps['labels'] | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
+  readonly onOpenTaskOnBoard?: ((ticketId: string) => void) | undefined
   readonly memberId?: string | undefined
   readonly onToggleReaction?: ((messageId: string, stickerId: import('../primitives/index.ts').ReactionId) => void) | undefined
   readonly subjectBar?: Omit<SubjectBarProps, 't'> | undefined
@@ -53,9 +56,10 @@ export interface DirectMessagesViewProps {
   readonly composerSubjectColorIndex?: import('./conversation-subjects.ts').SubjectColorIndex | undefined
   readonly subjectMoveTargets?: import('./conversation-subjects.ts').ConversationSubjectUi[] | undefined
   readonly onMoveMessageSubject?: ((messageId: string, subjectId: string) => void) | undefined
-  readonly onUndoMoveMessage?: ((messageId: string) => void) | undefined
+  readonly onUndoMoveMessage?: ((messageId: string, revertSubjectId: string) => void) | undefined
   readonly subjectsLoadError?: import('../remote/persona-remote-unwrap.ts').PersonaRemoteError | null | undefined
   readonly onRetrySubjects?: (() => void) | undefined
+  readonly runErrorHandlers?: RunErrorHandlerContext | undefined
 }
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
@@ -79,13 +83,14 @@ function portraitFor(row: DmRowUi): string | undefined {
 
 /** Mensagens diretas: conversation list + thread with persona header, shared stream and composer. */
 export function DirectMessagesView({
-  t, shellT, loading, dms, selectedId, messages, onSelect, onSend, uploadAttachment, onNewConversation, turnContext, turnActivityLabels, onLoadTurnContext, memberId, onToggleReaction,
+  t, shellT, loading, dms, selectedId, messages, onSelect, onSend, uploadAttachment, onNewConversation, turnContext, turnActivityLabels, onLoadTurnContext, onOpenTaskOnBoard, memberId, onToggleReaction,
   subjectBar, composerSubjectPlaceholder, composerSubjectColorIndex,
   subjectMoveTargets, onMoveMessageSubject, onUndoMoveMessage,
   subjectsLoadError = null,
   onRetrySubjects,
+  runErrorHandlers,
 }: DirectMessagesViewProps): ReactNode {
-  const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string } | null>(null)
+  const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string; readonly revertSubjectId: string } | null>(null)
   const selected = dms.find(row => row.id === selectedId) ?? null
 
   if (!loading && dms.length === 0) {
@@ -223,18 +228,22 @@ export function DirectMessagesView({
                   t={t}
                   messages={messages}
                   onLoadTurnContext={onLoadTurnContext}
+                  {...(onOpenTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard })}
                   {...(memberId === undefined ? {} : { memberId })}
                   {...(onToggleReaction === undefined ? {} : { onToggleReaction })}
                   {...(selected.characterId === undefined ? {} : { userStickerAnimal: selected.characterId })}
                   {...(subjectMoveTargets === undefined ? {} : { subjectMoveTargets })}
                   {...(onMoveMessageSubject === undefined ? {} : {
                     onMoveMessageSubject: (messageId, subjectId) => {
+                      const moved = messages.find(row => row.id === messageId)
+                      const revertSubjectId = moved?.conversationSubjectId ?? DEFAULT_CONVERSATION_SUBJECT_ID
                       onMoveMessageSubject(messageId, subjectId)
                       const target = subjectMoveTargets?.find(row => row.id === subjectId)
                       const subjectLabel = target === undefined ? subjectId : subjectDisplayName(t, target)
-                      setMoveToast({ messageId, subjectLabel })
+                      setMoveToast({ messageId, subjectLabel, revertSubjectId })
                     },
                   })}
+                  {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
                   {...(turnContext?.ticketId === undefined ? {} : { turnActivityTicketId: turnContext.ticketId })}
                   {...(turnContext?.activityFolds === undefined ? {} : { turnActivityFolds: turnContext.activityFolds })}
                   {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
@@ -263,7 +272,7 @@ export function DirectMessagesView({
                         variant="ghost"
                         size="s"
                         onClick={() => {
-                          onUndoMoveMessage(moveToast.messageId)
+                          onUndoMoveMessage(moveToast.messageId, moveToast.revertSubjectId)
                           setMoveToast(null)
                         }}
                       >

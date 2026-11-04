@@ -8,6 +8,7 @@ import type { ChipTone } from '../primitives/index.ts'
 import { WORK_STATUS_KEY, type PersonaWorkUiState } from '../team/persona-work-state.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from './persona-live-store.ts'
 import type { ActivityGroupProps } from '../primitives/Pooled.tsx'
+import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
 
 const STATE_TONE: Readonly<Record<PersonaWorkUiState, ChipTone>> = { working: 'success', waiting: 'accent', stuck: 'danger', resting: 'neutral' }
 
@@ -18,9 +19,11 @@ export interface ConnectedDmInjected {
   postDmMessage(body: string, attachmentIds?: readonly string[]): void
   uploadDmAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   loadTurnContext(ticketId: string): void
+  openTaskOnBoard?(ticketId: string): void
   toggleMessageReaction(streamKind: 'channel' | 'dm', eventId: string, stickerId: string): void
   startNewConversation(): void
   readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
+  runErrorHandlers?: RunErrorHandlerContext | undefined
 }
 
 export type ConnectedDirectMessagesViewProps =
@@ -37,9 +40,11 @@ export function ConnectedDirectMessagesView({
   postDmMessage,
   uploadDmAttachment,
   loadTurnContext,
+  openTaskOnBoard,
   toggleMessageReaction,
   startNewConversation,
   turnActivityLabels,
+  runErrorHandlers,
 }: ConnectedDirectMessagesViewProps): ReactNode {
   const live = useLive(state => state)
   const dmId = live.selectedDmId
@@ -88,6 +93,9 @@ export function ConnectedDirectMessagesView({
       composerSubjectColorIndex={dmId === null ? undefined : subjectState.activeSubject.colorIndex}
       subjectMoveTargets={dmId === null ? undefined : [...subjectState.subjects]}
       onMoveMessageSubject={dmId === null ? undefined : subjectState.moveMessageToSubject}
+      onUndoMoveMessage={dmId === null ? undefined : (messageId, revertSubjectId) => {
+        subjectState.moveMessageToSubject(messageId, revertSubjectId)
+      }}
       subjectsLoadError={subjectState.subjectsError}
       onRetrySubjects={subjectState.retrySubjects}
       onSelect={(id) => { selectDm(id) }}
@@ -97,10 +105,12 @@ export function ConnectedDirectMessagesView({
       turnContext={live.turnContext}
       turnActivityLabels={turnActivityLabels}
       onLoadTurnContext={loadTurnContext}
+      {...(openTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard: openTaskOnBoard })}
       {...(live.tenant === null ? {} : { memberId: live.tenant.memberId })}
       onToggleReaction={(messageId, stickerId) => {
         toggleMessageReaction('dm', messageId, stickerId)
       }}
+      {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
     />
   )
 }

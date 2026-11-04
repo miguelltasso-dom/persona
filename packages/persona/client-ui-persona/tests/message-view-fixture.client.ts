@@ -5,8 +5,9 @@ export function hostMessage(partial: Pick<MessageView, 'id' | 'body' | 'actorId'
   readonly streamId?: string
   readonly type?: string
   readonly reactions?: MessageView['reactions']
+  readonly runError?: MessageView['runError']
 }): MessageView {
-  const { reactions, ...rest } = partial
+  const { reactions, runError, ...rest } = partial
   return {
     streamId: 'channel:geral',
     type: 'message',
@@ -18,5 +19,6 @@ export function hostMessage(partial: Pick<MessageView, 'id' | 'body' | 'actorId'
     topicId: '',
     ...rest,
     ...(reactions === undefined ? {} : { reactions }),
+    ...(runError === undefined ? {} : { runError }),
   }
 }

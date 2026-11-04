@@ -42,6 +42,8 @@ import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge
 import type { TeamView } from '../remote/persona-remote-types.ts'
 import type { TurnContextActivityFoldUi, TurnContextUi } from '../remote/turn-context-ui.ts'
 import { PersonaCardPopoverHost, usePersonaCardController } from '../profile/PersonaCardPopoverHost.tsx'
+import { ConversationRunErrorCard } from './ConversationRunErrorCard.tsx'
+import type { RunErrorHandlerContext } from './run-error-handlers.ts'
 import styles from './GeneralChannelView.module.css'
 
 export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
@@ -52,10 +54,16 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly turnContext?: TurnContextUi | null
   readonly turnActivityLabels?: import('../primitives/Pooled.tsx').ActivityGroupProps['labels'] | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
+  /** PRO-4 / C5b — focus the real task card on Quadros. */
+  readonly onOpenTaskOnBoard?: ((ticketId: string) => void) | undefined
   readonly onSendMessage?: ((body: string, attachmentIds?: readonly string[]) => void) | undefined
   readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
   /** Empty-team CTA in the banner (Prism wires: open onboarding/team builder). */
   readonly onBuildTeam?: (() => void) | undefined
+  /** Header ? → Ajuda (guide canais). */
+  readonly onOpenHelp?: (() => void) | undefined
+  readonly onOpenSearch?: (() => void) | undefined
+  readonly runErrorHandlers?: RunErrorHandlerContext | undefined
   readonly team?: TeamView | null
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
@@ -69,7 +77,7 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly composerSubjectColorIndex?: import('./conversation-subjects.ts').SubjectColorIndex | undefined
   readonly subjectMoveTargets?: readonly ConversationSubjectUi[] | undefined
   readonly onMoveMessageSubject?: ((messageId: string, subjectId: string) => void) | undefined
-  readonly onUndoMoveMessage?: ((messageId: string) => void) | undefined
+  readonly onUndoMoveMessage?: ((messageId: string, revertSubjectId: string) => void) | undefined
   readonly gestorPlansById?: Readonly<Record<string, GestorPlanView>>
   readonly onApproveGestorPlan?: ((planId: string) => void) | undefined
   readonly onRejectGestorPlan?: ((planId: string) => void) | undefined
@@ -113,8 +121,12 @@ export function GeneralChannelView({
   turnContext,
   turnActivityLabels,
   onLoadTurnContext,
+  onOpenTaskOnBoard,
   onSendMessage,
   onBuildTeam,
+  onOpenHelp,
+  onOpenSearch,
+  runErrorHandlers,
   uploadAttachment,
   team = null,
   personaCard,
@@ -142,7 +154,7 @@ export function GeneralChannelView({
   onSwapAccount,
   responderAutonomy,
 }: GeneralChannelViewProps): ReactNode {
-  const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string } | null>(null)
+  const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string; readonly revertSubjectId: string } | null>(null)
   const [pendingQuote, setPendingQuote] = useState<MessageQuote | null>(null)
   const [adjustTarget, setAdjustTarget] = useState<{ readonly planId: string; readonly gestorName: string } | null>(null)
   const streamRef = useRef<HTMLDivElement>(null)
@@ -206,9 +218,17 @@ export function GeneralChannelView({
           <p className={styles.subtitle}>{t('header.subtitle')}</p>
         </div>
         <div className={styles.headerTools}>
-          <IconButton label={t('header.search')} icon={<BrandIcon name="busca" size={20} />} />
+          <IconButton
+            label={t('header.search')}
+            icon={<BrandIcon name="busca" size={20} />}
+            {...(onOpenSearch === undefined ? {} : { onClick: onOpenSearch })}
+          />
           <IconButton label={t('header.notifications')} icon={<UiIcon name="bell" size={21} />} badge />
-          <IconButton label={t('header.help')} icon={<UiIcon name="help" size={21} />} />
+          <IconButton
+            label={t('header.help')}
+            icon={<UiIcon name="help" size={21} />}
+            {...(onOpenHelp === undefined ? {} : { onClick: onOpenHelp })}
+          />
           <button type="button" className={styles.userButton} aria-label={t('header.userMenu')}>
             <Avatar name={userName} size={40} presence="online" decorative />
             <UiIcon name="chevronDown" size={16} strokeWidth={2.2} />
@@ -276,6 +296,7 @@ export function GeneralChannelView({
                 gestorPlansById={gestorPlansById}
                 gestorPlanAdjustingIds={gestorPlanAdjustingIds}
                 onLoadTurnContext={onLoadTurnContext}
+                {...(onOpenTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard })}
                 {...(onApproveGestorPlan === undefined ? {} : { onApproveGestorPlan })}
                 {...(onRejectGestorPlan === undefined ? {} : { onRejectGestorPlan })}
                 {...(onFeedbackGestorPlan === undefined ? {} : {
@@ -294,15 +315,18 @@ export function GeneralChannelView({
                 {...(subjectMoveTargets === undefined ? {} : { subjectMoveTargets })}
                 {...(onMoveMessageSubject === undefined ? {} : {
                   onMoveMessageSubject: (messageId, subjectId) => {
+                    const moved = messages.find(row => row.id === messageId)
+                    const revertSubjectId = moved?.conversationSubjectId ?? DEFAULT_CONVERSATION_SUBJECT_ID
                     onMoveMessageSubject(messageId, subjectId)
                     const target = subjectMoveTargets?.find(row => row.id === subjectId)
                     const subjectLabel = target === undefined ? subjectId : subjectDisplayName(t, target)
-                    setMoveToast({ messageId, subjectLabel })
+                    setMoveToast({ messageId, subjectLabel, revertSubjectId })
                   },
                 })}
                 {...(turnContext?.ticketId === undefined ? {} : { turnActivityTicketId: turnContext.ticketId })}
                 {...(turnContext?.activityFolds === undefined ? {} : { turnActivityFolds: turnContext.activityFolds })}
                 {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
+                {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
               />
             )}
           </div>
@@ -327,7 +351,7 @@ export function GeneralChannelView({
                   variant="ghost"
                   size="s"
                   onClick={() => {
-                    onUndoMoveMessage(moveToast.messageId)
+                    onUndoMoveMessage(moveToast.messageId, moveToast.revertSubjectId)
                     setMoveToast(null)
                   }}
                 >
@@ -361,7 +385,7 @@ export function GeneralChannelView({
 }
 
 /** Grouped message stream with day pill (shared by #geral and DMs). */
-export function MessageList({ t, team = null, messages, gestorPlansById = {}, gestorPlanAdjustingIds = {}, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, onLoadTurnContext, personaCardTrigger, memberId, onToggleReaction, userStickerAnimal, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels }: {
+export function MessageList({ t, team = null, messages, gestorPlansById = {}, gestorPlanAdjustingIds = {}, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, onLoadTurnContext, onOpenTaskOnBoard, personaCardTrigger, memberId, onToggleReaction, userStickerAnimal, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers }: {
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly team?: TeamView | null
   readonly messages: readonly ChannelMessageUi[]
@@ -371,6 +395,8 @@ export function MessageList({ t, team = null, messages, gestorPlansById = {}, ge
   readonly onRejectGestorPlan?: ((planId: string) => void) | undefined
   readonly onRequestGestorPlanAdjust?: ((planId: string) => void) | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
+  /** PRO-4 / C5b — focus the real task card on Quadros. */
+  readonly onOpenTaskOnBoard?: ((ticketId: string) => void) | undefined
   readonly personaCardTrigger?: ((ref: string) => Record<string, unknown>) | undefined
   readonly memberId?: string | undefined
   readonly onToggleReaction?: ((messageId: string, stickerId: ReactionId) => void) | undefined
@@ -385,6 +411,7 @@ export function MessageList({ t, team = null, messages, gestorPlansById = {}, ge
   readonly turnActivityTicketId?: string | undefined
   readonly turnActivityFolds?: readonly TurnContextActivityFoldUi[] | undefined
   readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
+  readonly runErrorHandlers?: RunErrorHandlerContext | undefined
 }): ReactNode {
   return (
     <>
@@ -401,6 +428,7 @@ export function MessageList({ t, team = null, messages, gestorPlansById = {}, ge
             index={index}
             continued={index > 0 && messages[index - 1]?.authorId === message.authorId}
             onLoadTurnContext={onLoadTurnContext}
+            {...(onOpenTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard })}
             {...(onApproveGestorPlan === undefined ? {} : { onApproveGestorPlan })}
             {...(onRejectGestorPlan === undefined ? {} : { onRejectGestorPlan })}
             {...(onRequestGestorPlanAdjust === undefined ? {} : { onRequestGestorPlanAdjust })}
@@ -413,6 +441,7 @@ export function MessageList({ t, team = null, messages, gestorPlansById = {}, ge
             {...(turnActivityTicketId === undefined ? {} : { turnActivityTicketId })}
             {...(turnActivityFolds === undefined ? {} : { turnActivityFolds })}
             {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
+            {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
           />
         ))}
       </ol>
@@ -432,6 +461,8 @@ function ChannelMessageRow(props: {
   readonly onRejectGestorPlan?: ((planId: string) => void) | undefined
   readonly onRequestGestorPlanAdjust?: ((planId: string) => void) | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
+  /** PRO-4 / C5b — focus the real task card on Quadros. */
+  readonly onOpenTaskOnBoard?: ((ticketId: string) => void) | undefined
   readonly personaCardTrigger?: ((ref: string) => Record<string, unknown>) | undefined
   readonly memberId?: string | undefined
   readonly onToggleReaction?: ((messageId: string, stickerId: ReactionId) => void) | undefined
@@ -441,8 +472,9 @@ function ChannelMessageRow(props: {
   readonly turnActivityTicketId?: string | undefined
   readonly turnActivityFolds?: readonly TurnContextActivityFoldUi[] | undefined
   readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
+  readonly runErrorHandlers?: RunErrorHandlerContext | undefined
 }): ReactNode {
-  const { t, message, team, gestorPlansById, gestorPlanAdjustingIds, continued, onLoadTurnContext, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, memberId, onToggleReaction, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels } = props
+  const { t, message, team, gestorPlansById, gestorPlanAdjustingIds, continued, onLoadTurnContext, onOpenTaskOnBoard, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, memberId, onToggleReaction, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers } = props
   const inlineActivity = message.ticketId !== undefined
     && turnActivityTicketId === message.ticketId
     && turnActivityFolds !== undefined
@@ -455,6 +487,12 @@ function ChannelMessageRow(props: {
     fromOpacity: 0,
     fromTranslateY: 8,
     delayMs: Math.min(props.index, 8) * 60,
+  })
+  const gestorMotion = usePersonaMotion({
+    preset: 'character',
+    fromOpacity: 0,
+    fromTranslateY: 12,
+    delayMs: 80,
   })
   const isUser = message.authorId === 'user'
   const labels = reactionLabels(t)
@@ -528,9 +566,21 @@ function ChannelMessageRow(props: {
             <time className={styles.time} dateTime={message.timeLabel}>{message.timeLabel}</time>
           </div>
         )}
-        {message.body.length > 0 && <p className={styles.text}>{message.body}</p>}
+        {message.runError !== undefined && runErrorHandlers !== undefined ? (
+          <div className={styles.runError}>
+            <ConversationRunErrorCard
+              t={t}
+              personaName={message.authorName}
+              payload={message.runError}
+              {...(message.authorPersonaId === undefined ? {} : { hostPersonaId: message.authorPersonaId })}
+              handlers={runErrorHandlers}
+            />
+          </div>
+        ) : message.body.length > 0 ? (
+          <p className={styles.text}>{message.body}</p>
+        ) : null}
         {gestorPlan !== undefined && (
-          <div className={styles.gestorPlan}>
+          <div className={styles.gestorPlan} ref={gestorMotion.ref} style={gestorMotion.style}>
             <GestorPlanMessageCard
               t={t}
               plan={gestorPlan}
@@ -548,7 +598,7 @@ function ChannelMessageRow(props: {
           </div>
         )}
         {message.taskTitle !== undefined && message.taskTitle.length > 0 && (
-          <p className={styles.taskCard}>
+          <div className={styles.taskCard} role="group" aria-label={message.taskTitle}>
             {message.ticketId !== undefined && onLoadTurnContext !== undefined ? (
               <button
                 type="button"
@@ -559,9 +609,19 @@ function ChannelMessageRow(props: {
                 <span className={styles.taskCardHint}>{t('context.show')}</span>
               </button>
             ) : (
-              <span>{message.taskTitle}</span>
+              <span className={styles.taskCardButton}>{message.taskTitle}</span>
             )}
-          </p>
+            {message.ticketId !== undefined && onOpenTaskOnBoard !== undefined && (
+              <button
+                type="button"
+                className={styles.taskCardButton}
+                onClick={() => { onOpenTaskOnBoard(message.ticketId!) }}
+              >
+                {message.taskTitle}
+                <span className={styles.taskCardHint}>{t('context.openBoard')}</span>
+              </button>
+            )}
+          </div>
         )}
         {inlineActivity && (
           <div className={styles.messageActivity} aria-label={t('context.activityLabel')}>

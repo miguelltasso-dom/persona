@@ -67,6 +67,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { panel: 'members', labelKey: 'sidebar.members', icon: 'convidar' },
       { panel: 'importers', labelKey: 'sidebar.importers', icon: 'arquivos' },
       { panel: 'canvas', labelKey: 'sidebar.canvas', icon: 'canvas' },
+      { panel: 'help', labelKey: 'sidebar.help', icon: 'glossario' },
     ],
   },
 ]

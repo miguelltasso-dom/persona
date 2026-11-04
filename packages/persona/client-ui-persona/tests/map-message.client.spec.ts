@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapMessage } from '../src/client/remote/map-host-ui.ts'
+import { mapMessage, mapSortedMessageStream } from '../src/client/remote/map-host-ui.ts'
 import type { MessageView, TeamView } from '../src/client/remote/persona-remote-types.ts'
 import { hostMessage } from './message-view-fixture.client.ts'
 
@@ -27,6 +27,25 @@ const taskEvent = (subjectId: string): MessageView => hostMessage({
   body: 'Atualizei o ticket.',
   subjectId,
   occurredAt: '2026-11-03T15:00:00.000Z',
+})
+
+describe('mapSortedMessageStream', () => {
+  it('never shows clock going backwards along seq order', () => {
+    const events: MessageView[] = [
+      hostMessage({ id: 'a', seq: 1, type: 'message', actorId: 'gallery-bento', body: '1', subjectId: 'a', occurredAt: '2026-11-03T09:05:00.000Z' }),
+      hostMessage({ id: 'b', seq: 2, type: 'message', actorId: 'ana', body: '2', subjectId: 'b', occurredAt: '2026-11-03T09:06:00.000Z' }),
+      hostMessage({ id: 'c', seq: 3, type: 'message', actorId: 'gallery-bento', body: '3', subjectId: 'c', occurredAt: '2026-11-03T09:05:00.000Z' }),
+    ]
+    const rows = mapSortedMessageStream(events, team, 'ana')
+    const minutes = rows.map((row) => {
+      const parts = row.timeLabel.split(':')
+      const hour = Number.parseInt(parts[0] ?? '0', 10)
+      const minute = Number.parseInt(parts[1] ?? '0', 10)
+      return hour * 60 + minute
+    })
+    expect(minutes[1]).toBeGreaterThan(minutes[0]!)
+    expect(minutes[2]).toBeGreaterThan(minutes[1]!)
+  })
 })
 
 describe('mapMessage task cards (C5b)', () => {
@@ -71,5 +90,37 @@ describe('mapMessage task cards (C5b)', () => {
     })
     const row = mapMessage(event, team, 'ana', new Map())
     expect(row.reactions).toEqual([{ stickerId: 'joinha', count: 2, actorIds: ['ana', 'bob'] }])
+  })
+
+  it('maps runError from wire field and strips inline marker', () => {
+    const wire = hostMessage({
+      id: 'e-run',
+      seq: 9,
+      type: 'message',
+      actorId: 'gallery-bento',
+      body: 'legado\n\n[[run-error:{"code":"not_logged_in","provider":"Claude","command":"claude login"}]]',
+      subjectId: 'gallery-bento',
+      occurredAt: '2026-11-04T10:00:00.000Z',
+      runError: { code: 'quota_exhausted', provider: 'Claude', resetAt: '2026-11-04T18:00:00.000Z' },
+    })
+    const row = mapMessage(wire, team, 'ana', new Map())
+    expect(row.runError?.code).toBe('quota_exhausted')
+    expect(row.body).toBe('legado')
+    expect(row.authorPersonaId).toBe('gallery-bento')
+  })
+
+  it('parses run-error marker when wire field is absent', () => {
+    const event = hostMessage({
+      id: 'e-mark',
+      seq: 10,
+      type: 'message',
+      actorId: 'gallery-bento',
+      body: '[[run-error:{"code":"engine_unavailable","provider":"Cursor","persona":"Bento"}]]',
+      subjectId: 'gallery-bento',
+      occurredAt: '2026-11-04T10:05:00.000Z',
+    })
+    const row = mapMessage(event, team, 'ana', new Map())
+    expect(row.runError?.code).toBe('engine_unavailable')
+    expect(row.body).toBe('')
   })
 })

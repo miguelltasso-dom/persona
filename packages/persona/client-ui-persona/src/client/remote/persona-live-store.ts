@@ -1,7 +1,7 @@
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AwayEventLive, ChannelMessageUi } from './map-host-ui.ts'
-import { mapAwayEventLive, mapMessage, mapPersonaNowRow, mapTeamToStrip, resolveHostPersonaId, sortMessageStreamEvents } from './map-host-ui.ts'
+import { mapAwayEventLive, mapMessage, mapPersonaNowRow, mapSortedMessageStream, mapTeamToStrip, resolveHostPersonaId } from './map-host-ui.ts'
 import { readClientDevSeedEnabled } from './persona-dev-seed.ts'
 import { bootstrapPersonaTenant, hostReportsFirstUse, type TenantBootstrapRemote } from './bootstrap-tenant.ts'
 import { shouldWriteCacheComplete } from './onboarding-host.ts'
@@ -552,7 +552,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       const suggestedTask = suggestedPick !== null
         ? { id: suggestedPick.id, title: suggestedPick.title }
         : null
-      const messages = sortMessageStreamEvents(page.events).map(event => mapMessage(event, team, scope.memberId, taskTitleById))
+      const messages = mapSortedMessageStream(page.events, team, scope.memberId, taskTitleById)
       const dms = mapDmList(dmRows, team, scope.memberId)
       let dmMessages = prior.dmMessages
       const selectedDmId = prior.selectedDmId
@@ -567,7 +567,21 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           limit: 200,
           ...(dmWireTopicId === undefined ? {} : { topicId: dmWireTopicId }),
         }))
-        dmMessages = sortMessageStreamEvents(dmPage.events).map(event => mapMessage(event, team, scope.memberId, taskTitleById))
+        dmMessages = mapSortedMessageStream(dmPage.events, team, scope.memberId, taskTitleById)
+      }
+      let channelSubjects: import('../chat/conversation-subjects.ts').ConversationSubjectUi[] = []
+      if (remote.listConversationSubjects !== undefined) {
+        try {
+          const bundle = await Promise.resolve(remote.listConversationSubjects({
+            workspaceId: scope.workspaceId,
+            projectId: scope.projectId,
+            streamKind: 'channel',
+            ownerId: scope.channelId,
+          }))
+          channelSubjects = [...mapConversationSubjectsBundle(bundle).subjects]
+        } catch {
+          /* assuntos opcionais para bolinha no quadro */
+        }
       }
       const dmUnreadByPersonaId: Record<string, number> = {}
       for (const dm of dmRows) {
@@ -605,7 +619,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         selectedDmId,
         dmMessages,
         projects,
-        kanbanCards: enrichKanbanCardsFromHost(tasks, projects, nowRows),
+        kanbanCards: enrichKanbanCardsFromHost(tasks, projects, nowRows, channelSubjects),
         dmUnreadByPersonaId,
         suggestedTask,
         turnContext: prior.turnContext,
@@ -760,7 +774,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     }))
     const snap = store.getSnapshot()
     const taskTitleById = new Map(snap.kanbanCards.map(card => [card.id, card.title]))
-    const dmMessages = page.events.map(event => mapMessage(event, team, scope.memberId, taskTitleById))
+    const dmMessages = mapSortedMessageStream(page.events, team, scope.memberId, taskTitleById)
     const peerId = store.getSnapshot().dms.find(row => row.id === dmId)?.peerId
     const nextUnread = { ...store.getSnapshot().dmUnreadByPersonaId }
     if (peerId !== undefined) nextUnread[peerId] = 0
@@ -1084,9 +1098,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       ...(wireTopicId === undefined ? {} : { topicId: wireTopicId }),
     }))
     const taskTitleById = new Map(snap.kanbanCards.map(card => [card.id, card.title]))
-    const mapped = sortMessageStreamEvents(page.events).map(event =>
-      mapMessage(event, snap.team!, scopeTenant.memberId, taskTitleById),
-    )
+    const mapped = mapSortedMessageStream(page.events, snap.team!, scopeTenant.memberId, taskTitleById)
     if (scope.streamKind === 'channel') {
       store.set({ ...snap, messages: mapped })
       stopMessageStream()
@@ -1124,12 +1136,22 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     }
 
     const run = (async (): Promise<MappedConversationSubjects> => {
-      try {
+      const loadOnce = async (): Promise<MappedConversationSubjects> => {
         const bundle = await Promise.resolve(listConversationSubjects(scope))
         return putSubjectsCache(scope, mapConversationSubjectsBundle(bundle))
+      }
+      try {
+        return await loadOnce()
       } catch (error) {
-        subjectsInflight.delete(key)
-        if (error instanceof PersonaRemoteError) throw error
+        if (
+          error instanceof PersonaRemoteError
+          && error.code === 'rate-limited'
+          && error.method === 'listConversationSubjects'
+        ) {
+          const waitMs = Math.min(Math.max(error.retryAfterMs ?? 400, 100), 2_000)
+          await new Promise<void>((resolve) => { setTimeout(resolve, waitMs) })
+          return loadOnce()
+        }
         throw error
       }
     })()

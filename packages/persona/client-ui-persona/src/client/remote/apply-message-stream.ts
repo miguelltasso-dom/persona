@@ -1,5 +1,5 @@
 import type { ChannelMessageUi } from './map-host-ui.ts'
-import { mapMessage, sortMessageStreamEvents } from './map-host-ui.ts'
+import { mapMessage, mapSortedMessageStream } from './map-host-ui.ts'
 import type { MessageView, TeamView } from './persona-remote-types.ts'
 
 export interface MessageStreamFrame {
@@ -23,8 +23,7 @@ export function applyMessageStreamFrame(
   taskTitleById: ReadonlyMap<string, string> = new Map(),
 ): readonly ChannelMessageUi[] {
   if (frame.kind === 'baseline') {
-    const sorted = sortMessageStreamEvents(frame.events)
-    return sorted.map(event => mapMessage(event, team, memberId, taskTitleById))
+    return mapSortedMessageStream(frame.events, team, memberId, taskTitleById)
   }
   const byId = new Map(current.map(row => [row.id, row]))
   for (const event of frame.events) {

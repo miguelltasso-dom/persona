@@ -24,6 +24,9 @@ export type MainPanelId =
   | 'canvas'
   | 'orgChart'
   | 'teamHealth'
+  | 'help'
+
+export type HelpShellTab = 'guias' | 'novidades'
 
 /** Profile panel targets this persona; {@link HIRE_PERSONA_PROFILE_ID} opens the new-persona editor. */
 export const HIRE_PERSONA_PROFILE_ID = '__persona_new__'
@@ -56,6 +59,9 @@ export interface ShellState {
     readonly sessionId: string
     readonly microphone: boolean
   } | null
+  /** Ajuda: deep-link guide (e.g. #geral ? → canais); cleared when leaving the panel. */
+  readonly helpDocId: string | null
+  readonly helpTab: HelpShellTab | null
 }
 
 export interface ShellActions {
@@ -82,6 +88,8 @@ export interface ShellActions {
   closeTeachPersona(): void
   openTeachCapture(capture: NonNullable<ShellState['teachCapture']>): void
   closeTeachCapture(): void
+  /** Open Ajuda; optional guide id and tab (Novidades). */
+  openHelp(options?: { readonly docId?: string; readonly tab?: HelpShellTab }): void
 }
 
 const onboardingOpen = overlayOpenOptimisticInitial(readOnboardingCacheComplete())
@@ -100,6 +108,8 @@ const INITIAL: ShellState = {
   enginePersonaId: null,
   teachPersonaId: null,
   teachCapture: null,
+  helpDocId: null,
+  helpTab: null,
 }
 
 /** Shell navigation and host connectivity snapshot. */
@@ -109,7 +119,14 @@ export function createShellStore(): {
 } {
   const store = createSnapshotStore(INITIAL)
   const actions: ShellActions = {
-    selectPanel: (activePanel) => { store.set({ ...store.getSnapshot(), activePanel }) },
+    selectPanel: (activePanel) => {
+      const prev = store.getSnapshot()
+      store.set({
+        ...prev,
+        activePanel,
+        ...(activePanel !== 'help' ? { helpDocId: null, helpTab: null } : {}),
+      })
+    },
     setHostPing: (online, protocol) => {
       store.set({
         ...store.getSnapshot(),
@@ -187,6 +204,14 @@ export function createShellStore(): {
     },
     closeTeachCapture: () => {
       store.set({ ...store.getSnapshot(), teachCapture: null })
+    },
+    openHelp: (options) => {
+      store.set({
+        ...store.getSnapshot(),
+        activePanel: 'help',
+        helpDocId: options?.docId ?? null,
+        helpTab: options?.tab ?? null,
+      })
     },
   }
   return { store, actions }

@@ -47,6 +47,18 @@ describe('createShellStore navigation (C5b)', () => {
     expect(store.getSnapshot().kanbanFocusTicketId).toBeNull()
   })
 
+  it('openHelp switches to help with doc and tab (Ajuda shell)', () => {
+    const { store, actions } = createShellStore()
+    actions.openHelp({ docId: 'canais', tab: 'guias' })
+    expect(store.getSnapshot().activePanel).toBe('help')
+    expect(store.getSnapshot().helpDocId).toBe('canais')
+    expect(store.getSnapshot().helpTab).toBe('guias')
+    actions.selectPanel('channels')
+    expect(store.getSnapshot().helpDocId).toBeNull()
+    actions.openHelp({ tab: 'novidades' })
+    expect(store.getSnapshot().helpTab).toBe('novidades')
+  })
+
   it('setProjectWorkspaceProjectId scopes sibling tabs (PB-5)', () => {
     const { store, actions } = createShellStore()
     actions.setProjectWorkspaceProjectId('proj-site')

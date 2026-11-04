@@ -1,5 +1,5 @@
 /**
- * AboutPersona (Muse, kit de lançamento): the "Sobre o Persona" screen — team photo by Brush, what the app is,
+ * AboutPersona (Muse, kit de lançamento): the "Sobre a Persona" screen — team photo by Brush, what the app is,
  * version, and honest credits for the work it stands on. Licenses are data (never translated); copy is labels.
  */
 
@@ -85,9 +85,9 @@ export function AboutPersona({ version, labels, credits = PERSONA_CREDITS, onOpe
 
 /** pt-BR copy (MICROCOPY.md tone). Screens may pass their own dictionary instead. */
 export const ABOUT_LABELS_PT: AboutLabels = {
-  title: 'Sobre o Persona',
+  title: 'Sobre a Persona',
   tagline: 'Sua equipe de IA, com nome, rosto e limites.',
-  body: 'O Persona roda no seu computador. Suas conversas, o Cofre e as chaves ficam aqui, a menos que você decida outra coisa.',
+  body: 'A Persona roda no seu computador. Suas conversas, o Cofre e as chaves ficam aqui, a menos que você decida outra coisa.',
   version: v => `Versão ${v}`,
   creditsTitle: 'Feito sobre o trabalho de',
   creditWhat: {
@@ -98,7 +98,7 @@ export const ABOUT_LABELS_PT: AboutLabels = {
   license: spdx => `Licença ${spdx}`,
   thirdParty: 'Ver avisos de terceiros',
   madeBy: 'Arte da equipe por Brush.',
-  artAlt: 'A equipe do Persona posando junta: Atlas, Bento, Nina, Sol e Luna.',
+  artAlt: 'A equipe da Persona posando junta: Atlas, Bento, Nina, Sol e Luna.',
 }
 
 export const ABOUT_LABELS_EN: AboutLabels = {

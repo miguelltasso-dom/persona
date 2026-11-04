@@ -1,0 +1,60 @@
+/* RunErrorCard (Muse). Tone = left stripe + badge; never color alone (the title says what happened). */
+
+.card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: var(--persona-space-3);
+  max-width: 560px;
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-left-width: 5px;
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-press);
+  color: var(--persona-ink);
+  align-self: start;
+  align-content: start;
+}
+
+.card[data-tone='warning'] { border-left-color: var(--persona-accent); }
+.card[data-tone='danger'] { border-left-color: var(--persona-danger); }
+
+.who { position: relative; align-self: start; }
+
+.badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--persona-outline);
+  border-radius: 50%;
+  background: var(--persona-accent);
+  color: var(--persona-on-accent, #34243f);
+}
+
+.card[data-tone='danger'] .badge { background: var(--persona-danger); color: #fff; }
+
+.text { display: grid; gap: 4px; min-width: 0; align-content: start; }
+
+.name { margin: 0; color: var(--persona-ink-soft); font: 800 13px/18px var(--persona-font-text); }
+.title { margin: 0; font: 700 16px/22px var(--persona-font-display); }
+.body { margin: 0; color: var(--persona-ink-soft); font: 500 15px/22px var(--persona-font-text); }
+
+.command {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-1);
+  padding: 4px 4px 4px var(--persona-space-3);
+  border: 1px solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper-sunken);
+}
+
+.command code { flex: 1 1 auto; font: 700 14px/20px ui-monospace, Consolas, monospace; user-select: all; }
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--persona-space-2); margin-top: var(--persona-space-2); }

@@ -99,4 +99,11 @@ describe('projectBoardToFlow (PB-10 host → flow board)', () => {
     const flow = projectBoardToFlow(board)
     expect(flow.cards[0]?.column).toBe('in_review')
   })
+
+  it('keeps em_branco template id for blank project flows (PB-10)', () => {
+    const flow = projectBoardToFlow(sampleProjectBoard({
+      workflow: { ...sampleProjectBoard().workflow, template: 'em_branco' },
+    }))
+    expect(flow.template).toBe('em_branco')
+  })
 })

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OverviewView } from '../src/client/overview/OverviewView.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { pt as shellPt } from '../src/client/locale/shell/locales.ts'
@@ -34,5 +34,21 @@ describe('OverviewView suggested task (C8 / PRO-4)', () => {
       />,
     )
     expect(screen.queryByText(shellPt['overview.suggestedTaskTitle'])).toBeNull()
+  })
+
+  it('opens suggested task on the board when wired (PRO-4)', () => {
+    const onOpen = vi.fn()
+    render(
+      <OverviewView
+        t={t}
+        attentionItems={[]}
+        nowRows={[{ member: { id: 'atlas', name: 'Coord', role: 'Coordenação', state: 'resting' }, queueCount: 0 }]}
+        awayEvents={[]}
+        suggestedTask={{ id: 't1', title: 'Revisar contrato de rescisão' }}
+        onOpenAwayTask={onOpen}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: shellPt['overview.suggestedTaskOpenBoard'] }))
+    expect(onOpen).toHaveBeenCalledWith('t1')
   })
 })

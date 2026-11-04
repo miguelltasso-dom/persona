@@ -203,10 +203,39 @@ async function ensureAtlasGestorRole(
   }
 }
 
+export interface DevHarnessMessageClock {
+  next(): string
+}
+
+/** Monotonic occurredAt for dev seed posts (same batch shares one clock). */
+export function createDevHarnessMessageClock(
+  existing: readonly { occurredAt?: string }[],
+  nowMs: number = Date.now(),
+  pendingOccurredAt: readonly string[] = [],
+): DevHarnessMessageClock {
+  let anchor = nowMs
+  for (const event of existing) {
+    if (event.occurredAt === undefined || event.occurredAt.length === 0) continue
+    const parsed = Date.parse(event.occurredAt)
+    if (!Number.isNaN(parsed)) anchor = Math.max(anchor, parsed)
+  }
+  for (const at of pendingOccurredAt) {
+    const parsed = Date.parse(at)
+    if (!Number.isNaN(parsed)) anchor = Math.max(anchor, parsed)
+  }
+  return {
+    next(): string {
+      anchor += 60_000
+      return new Date(anchor).toISOString()
+    },
+  }
+}
+
 async function seedDevHarnessGestorPlanMessage(
   remote: DevHarnessSeedRemote,
   tenant: PersonaTenantScope,
   atlasId: string,
+  messageClock?: DevHarnessMessageClock,
 ): Promise<void> {
   if (remote.proposeGestorAssemble === undefined) return
   if (await hasChannelMessage(remote, tenant, DEV_HARNESS_GESTOR_MSG_ID)) return
@@ -233,16 +262,20 @@ async function seedDevHarnessGestorPlanMessage(
   }
   if (plan === undefined || plan.status !== 'proposed') return
 
-  const channelPage = await Promise.resolve(remote.listMessages({
-    workspaceId: tenant.workspaceId,
-    projectId: tenant.projectId,
-    streamKind: 'channel',
-    ownerId: tenant.channelId,
-    actorId: tenant.memberId,
-    afterSeq: 0,
-    limit: 300,
-  }))
-  const at = devHarnessMessageTimes(channelPage.events, 1)[0]!
+  const channelPage = messageClock === undefined
+    ? await Promise.resolve(remote.listMessages({
+      workspaceId: tenant.workspaceId,
+      projectId: tenant.projectId,
+      streamKind: 'channel',
+      ownerId: tenant.channelId,
+      actorId: tenant.memberId,
+      afterSeq: 0,
+      limit: 300,
+    }))
+    : null
+  const at = messageClock !== undefined
+    ? messageClock.next()
+    : devHarnessMessageTimes(channelPage!.events, 1)[0]!
   const body = `${plan.summary.trim()}${gestorPlanMarker(plan.id)}`
   try {
     await Promise.resolve(remote.postMessage({
@@ -267,19 +300,10 @@ export function devHarnessMessageTimes(
   existing: readonly { occurredAt?: string }[],
   count: number,
   nowMs: number = Date.now(),
+  pendingOccurredAt: readonly string[] = [],
 ): string[] {
-  let anchor = nowMs
-  for (const event of existing) {
-    if (event.occurredAt === undefined || event.occurredAt.length === 0) continue
-    const parsed = Date.parse(event.occurredAt)
-    if (!Number.isNaN(parsed)) anchor = Math.max(anchor, parsed)
-  }
-  const times: string[] = []
-  for (let index = 0; index < count; index += 1) {
-    anchor += 60_000
-    times.push(new Date(anchor).toISOString())
-  }
-  return times
+  const clock = createDevHarnessMessageClock(existing, nowMs, pendingOccurredAt)
+  return Array.from({ length: count }, () => clock.next())
 }
 
 /**
@@ -333,39 +357,35 @@ export async function seedDevHarnessScenario(
     afterSeq: 0,
     limit: 300,
   }))
-  const postTimes = devHarnessMessageTimes(channelPage.events, 4)
+  const messageClock = createDevHarnessMessageClock(channelPage.events)
 
-  const posts: readonly {
+  const postDrafts: readonly {
     readonly id: string
     readonly actorId: string
     readonly body: string
-    readonly at: string
   }[] = [
     {
       id: DEV_HARNESS_SCENARIO_MARKER,
       actorId: tenant.memberId,
       body: 'Bom dia, equipe! Preciso fechar a proposta de contratação até amanhã.',
-      at: postTimes[0]!,
     },
     {
       id: 'dev-harness-v1-atlas',
       actorId: atlasId ?? tenant.memberId,
       body: 'Coloquei no quadro e pedi à Nina uma revisão das cláusulas.',
-      at: postTimes[1]!,
     },
     {
       id: 'dev-harness-v1-nina',
       actorId: ninaId ?? tenant.memberId,
       body: 'Encontrei dois pontos que precisam da sua aprovação antes de enviar.',
-      at: postTimes[2]!,
     },
     {
       id: 'dev-harness-v1-bento',
       actorId: bentoId ?? tenant.memberId,
       body: 'Já deixei o rascunho do contrato no Cofre.',
-      at: postTimes[3]!,
     },
   ]
+  const posts = postDrafts.map(post => ({ ...post, at: messageClock.next() }))
 
   for (const post of posts) {
     if (await hasChannelMessage(remote, tenant, post.id)) continue
@@ -408,7 +428,7 @@ export async function seedDevHarnessScenario(
   }
 
   if (atlasId !== undefined) {
-    await seedDevHarnessGestorPlanMessage(remote, tenant, atlasId)
+    await seedDevHarnessGestorPlanMessage(remote, tenant, atlasId, messageClock)
   }
 
   return true

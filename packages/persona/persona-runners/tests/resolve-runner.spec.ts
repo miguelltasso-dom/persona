@@ -311,7 +311,9 @@ describe('detectConnections + fake CLI fixtures', () => {
     const previous = process.env.PATH ?? ''
     process.env.PATH = `${FAKE_CLI}${delimiter}${previous}`
     try {
-      const probed = probeCliBinary('claude')
+      const pending = probeCliBinary('claude')
+      expect(pending).toBeInstanceOf(Promise)
+      const probed = await pending
       expect(probed.ok).toBe(true)
       expect(probed.version).toMatch(/fake-persona-e2e/u)
       const cards = await detectConnections({

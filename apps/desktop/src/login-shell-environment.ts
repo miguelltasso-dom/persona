@@ -2,6 +2,7 @@
 
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import { homedir, userInfo } from 'node:os'
+import { delimiter } from 'node:path'
 import type { Readable } from 'node:stream'
 import { resolveDurationMs } from './duration-env.ts'
 
@@ -100,6 +101,19 @@ export function mergeLoginShellEnvironment(base: NodeJS.ProcessEnv, shell: Reado
     merged[key] = value
   }
   return merged
+}
+
+/**
+ * Apply the explicit E2E executable directory after the login-shell environment has resolved.
+ * @param environment - Resolved host environment; returned unchanged without an override.
+ * @param extraPath - Harness-only prefix, absent in normal launches.
+ * @returns Host environment with one canonical PATH key and the test prefix first.
+ */
+export function withPersonaE2ePath(environment: NodeJS.ProcessEnv, extraPath: string | undefined): NodeJS.ProcessEnv {
+  if (extraPath === undefined || extraPath === '') return environment
+  const inherited = environment.PATH ?? environment.Path ?? ''
+  const next = Object.fromEntries(Object.entries(environment).filter(([name]) => name.toUpperCase() !== 'PATH'))
+  return { ...next, PATH: `${extraPath}${delimiter}${inherited}` }
 }
 
 function readShell(

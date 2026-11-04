@@ -24,6 +24,8 @@
   var overlay = document.getElementById('persona-boot-overlay')
   var root = overlay.shadowRoot
   var bridge = window.personaBoot
+  var application = document.getElementById('root')
+  if (application) { application.hidden = true; application.inert = true; application.setAttribute('aria-hidden', 'true') }
   var lang = !q.get('lang').startsWith('pt') ? 'en' : 'pt'
   var t = COPY[lang]
   if (q.get('theme') === 'dark' || q.get('theme') === 'light') document.documentElement.dataset.theme = q.get('theme')
@@ -80,9 +82,10 @@
   })
   function painted() {
     var app = document.getElementById('root')
-    if (failed || !app || !app.textContent.trim()) return
+    if (failed || !app || !document.querySelector('[data-persona-root], [data-persona-shell]') || !app.textContent.trim()) return
     requestAnimationFrame(function () {
       if (failed) return
+      app.hidden = false; app.inert = false; app.removeAttribute('aria-hidden')
       clear(); observer.disconnect(); unsubscribe()
       window.dispatchEvent(new Event('persona:first-paint'))
       overlay.classList.add('leaving')
@@ -90,7 +93,7 @@
     })
   }
   var observer = new MutationObserver(painted)
-  observer.observe(document.body, { childList: true, subtree: true, characterData: true })
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true })
   window.addEventListener('pagehide', function () { clear(); observer.disconnect(); unsubscribe() }, { once: true })
   showSplash(); painted()
 })()

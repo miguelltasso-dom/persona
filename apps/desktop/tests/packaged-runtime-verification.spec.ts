@@ -9,6 +9,9 @@ vi.mock('../scripts/windows-asar-unpack.mjs', async importOriginal => ({
   ...await importOriginal<typeof import('../scripts/windows-asar-unpack.mjs')>(),
   verifyWindowsAsarUnpack: async () => undefined,
 }))
+vi.mock('../scripts/persona-package-inventory.ts', () => ({
+  inspectPersonaPackage: async () => ({ missing: [] }),
+}))
 
 const ENVIRONMENT = {
   DSH_DESKTOP_APP_ID: 'com.example.installer',

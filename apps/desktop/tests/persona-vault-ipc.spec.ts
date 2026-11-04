@@ -40,8 +40,16 @@ describe('persona vault IPC', () => {
     available.mockReturnValue(false)
     const { handlePersonaVaultRequest } = await import('../src/persona-vault-ipc.ts')
     const result = handlePersonaVaultRequest({ type: 'persona-vault', requestId: 4, op: 'seal', payload: 'sk-secret' })
-    expect(result.error).toBe('safeStorage unavailable')
+    expect(result.error).toBe('vault_unavailable')
     expect(result.payload).toBeUndefined()
     expect(encrypt).not.toHaveBeenCalled()
+  })
+
+  it('keeps native exception text out of the host response', async () => {
+    encrypt.mockImplementationOnce(() => { throw new Error('native failed for sk-secret') })
+    const { handlePersonaVaultRequest } = await import('../src/persona-vault-ipc.ts')
+    const result = handlePersonaVaultRequest({ type: 'persona-vault', requestId: 5, op: 'seal', payload: 'sk-secret' })
+    expect(result).toEqual({ type: 'persona-vault', requestId: 5, error: 'vault_unavailable' })
+    expect(JSON.stringify(result)).not.toContain('sk-secret')
   })
 })

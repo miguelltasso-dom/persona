@@ -2,6 +2,81 @@
 
 Mais recente no topo.
 
+## 04/11 12:48 — P0: autenticação Web efêmera e coordenação em um turno
+
+Keel identificou o bloqueio real do perfil Web: BrowserAuth usa credentials.modifyRecord no escopo client-connection para seu segredo local de sessão. Implementei sua exceção explícita em persona-vault/src/plugin.ts: somente availability=unavailable + credentialKeyScope(key)=client-connection usam um Map em memória; read/describe/list/modify/delete atendem esse escopo, com cópias dos valores e fila serializada. O mapa é limpo ao dispose e nunca participa de snapshot, cipher, disco ou log. Todos os demais escopos, inclusive tokens do edge, continuam VaultUnavailableError. Com DPAPI ou cipher explícito disponível, client-connection segue o caminho normal cifrado e persistido.
+
+Prova: cofre inteiro **4 arquivos/20 testes PASS, 5,94 s**, incluindo releitura efêmera sem persona-vault.json, perda após nova instância, exclusão/listagem, provider/edge recusados e registro de navegador cifrado quando há cipher. `check-pkg persona-vault` **OK 5,4 s**. Lint do recorte novo enfileirado na trava check. Bundle filtrado do cofre + boot smoke dos nove painéis estão enfileirados na build; o harness usa PERSONA_SCRIPTED=1, PERSONA_REAL_CLI=0 e PERSONA_VAULT_TEST_CIPHER vazio, home temporário/porta livre. Anvil será avisado após o smoke passar; ainda não afirmei 9/9.
+
+P0 de um turno: removi o deliver :prompt/inject de coordination/driver.start. Start apenas garante a sessão; driver.deliver reúne coordinationPrompt e texto no mesmo input. Não precisei estender ensureSession nem editar o porto do Forge/host do Anvil. Regressão OAR scriptada com snapshot: **2 arquivos/5 testes PASS, 8,33 s**, zero chamadas na inicialização, uma na entrega, duplicata sem chamada e uma entrada de ledger. Esse caso é coordenação normal (triage); a primeira entrega deve pular essa triagem pelo trabalho do Forge e ter somente execution pelo host do Anvil. `check-pkg persona-runners` **OK 25,2 s**. Nenhum modelo real executado.
+
+D-067 aplicado aos meus harnesses: porta livre pelo helper compartilhado, home temporário, sem --slots nas rodadas novas. Pack wrapper passa --exclusive. Removi o attach por porta fixa 9229: CPU do host agora é coletada no verificador de desenvolvimento com --profile-host e porta de inspector alocada explicitamente; o verificador de pacote mede walltime e mantém o perfil do renderer. A prova Electron DPAPI/dark/restart usa a fixture corrigida (apply assíncrono), enfileirada na FIFO. A versão disponível 8401c679a0 ainda não contém o cofre/FR-1b/afterPack exigidos para Miguel.
+
+## 04/11 — NSIS b3 pronto para validação; cofre real e FR-1b em fechamento
+
+NSIS final do win-unpacked validado terminou com exit 0. Cópia compartilhada: `C:\p8c\Persona-Setup.exe`, 338.342.203 bytes, SHA256 `34DAFA1E274B51EA219D3F2AD116502B5D9504BA2448FFAF3EB27E812064E473`. Origem: `C:\p8wb3a4e5b933\apps\desktop\.desktop-build\targets\win-x64\unsigned-artifacts\persona-0.2.2-alpha.3-win-x64-unsigned.exe`. Muse/Probe/Atlas avisados. Este b3 é somente validação: o próximo hash publicado para Miguel precisa incluir o cofre realmente montado, FR-2 e o novo afterPack do Forge. Não altero mais o win-unpacked compartilhado. Capturas e limitação do dark estão no relato abaixo.
+
+FR-1b no source: `boot-ui.ts` oculta o root com hidden/inert/aria-hidden enquanto a splash está aberta; `boot.js` libera-o apenas após o marcador Persona real. O loader inglês deixa de entrar na árvore de acessibilidade. `boot-fonts.css` registra Fredoka/Nunito no documento, pois @font-face dentro do Shadow DOM não era ativado pelo Chromium. Licenças OFL acompanham os assets. Prova real dessas duas alterações preparada em `apps/desktop/scripts/verify-persona-development.mjs`, com captura, árvore AX e fontes efetivamente carregadas; aguardando a trava de runtime.
+
+FR-4: perfil real do host em `.maestri/tmp/shots/rivet-fr4/host.cpuprofile` identificou 3.927 ms síncronos em spawnSync → probeCliBinary → detectConnections; loader nativo foi o segundo custo (~1.825 ms). Troquei a sonda de versão por execFile assíncrono com o mesmo limite de 8 s, mantendo todas as chamadas e consumidores tipados. Ainda não atribuo redução medida: falta a rodada posterior no executável novo.
+
+O provider anterior do cofre usava cipher base64 em memória e ignorava config.path. Agora `persona-vault/src/{plugin,backend,process-transport,storage,errors}.ts` usa DPAPI pela conexão privada main↔host no Electron; Web sem IPC lê vazio e recusa escrita com VaultUnavailableError (`vault_unavailable`, mensagem pt-BR); somente harness Node com PERSONA_VAULT_TEST_CIPHER=1 permite cipher explícito de teste e avisa em warn. Desktop ignora essa flag. Arquivo versionado guarda apenas ciphertext e metadados, escrita tmp+fsync+rename, corrupção vai para .bad sem conteúdo em log. Escritas são serializadas e falhas restauram o estado confirmado. `status()`, `availability` e `assertAvailable()` publicados ao Anvil pela Status. O erro nativo de safeStorage não vaza mais Error.message.
+
+`withPersonaE2ePath` prefixa PERSONA_E2E_EXTRA_PATH depois do login shell; ausente preserva a env. Probe ficou com export/restore da variável no helper. No Windows o login-shell não faz merge: isso foi informado, sem atribuir a ele toda a falha de detecção. `usage-meter.ts` grava o ledger e emite usage antes de ended, pois consumidores encerravam a iteração no evento terminal; regressão reproduz esse consumidor.
+
+Validação recente: cofre 13/13; check-pkg vault e runners verdes; desktop src tsc exit 0; boot/runner recorte 20 testes verdes; recorte vault/login-shell/native IPC 30 passaram e 5 skips de plataforma; usage+regressões 32 passaram. `pnpm run build:artifacts`: 8 gates PASS, 0 fail em 173,03 s. `build:check` com heap 8 GB está enfileirado após esse build; o agregado anterior com 4 GB falhou por OOM. Forge entregou main-startup + três specs antigos 191/191; revisei o diff: mocks Electron completos, esperas por bootState/crash report e pt/en coerentes com a decisão do Keel, sem edição de produtor.
+
+Atualização 12:13: `build:check` com 8 GB concluiu sem OOM: host exit 2 em 207,77 s e client exit 2 em 129,93 s; sem diagnóstico do desktop source. Erros externos de testes/client/artefatos em andamento foram encaminhados aos donos pela Status. Meus cinco erros de overload process.emit no teste novo foram corrigidos usando o emissor EventEmitter base. Depois: `tsc -b persona-vault` exit 0, bundle filtrado do cofre exit 0, check-pkg vault 4,6 s/runners 13,8 s verdes, e vitest cofre+inventário **5 arquivos/30 testes PASS em 19,82 s** (17 do cofre, 13 do inventário). Timeout de teste 10 s, um worker, sem watch. Inventário agora exige `boot-fonts.css`. A sequência restante (lint, Electron real, boot smoke 9 painéis e reap) está em `.maestri/tmp/rivet-p0-checks.mjs`, sob uma única trava build; log redigido em `.maestri/tmp/rivet-p0-checks.log`.
+
+Atualização 12:29: lint do provider/transporte/teste/helper passou em 85,12 s. A preparação do runtime primário também passou as versões e os round trips de documentos Office. A primeira abertura excedeu o deadline global de 5 min, que incluía essa preparação; a árvore própria foi encerrada. Na segunda, com runtime já validado, o onboarding montou; a splash passou carregamento real das duas FontFace e a árvore AX não expôs HARNESS/Loading plugins. Capturas `shots/rivet-native-vault/light-{splash,onboarding}.png`. A fixture do cofre usava por engano `ctx.on('ready')`, evento inexistente neste Cordis: não executou sua prova. Corrigida para `apply` assíncrono; não atribuí essa falha ao produto. Prova DPAPI/restart/dark ainda pendente. Log redigido `light-live.log`; há aviso antigo não fatal de mandatory-status sem handler no boot. Reap limpo após ambas as rodadas.
+
+Keel pediu prioridade FIFO para Anvil e 5 min sem rodadas novas: cancelei meu waiter antigo 38280, sem filho ativo, às 12:27. Sobre a suspeita de allowlist da Muse: conferi `node-environment.ts`, host-process e main, inclusive no b3: o ambiente é preservado; Windows retorna a base sem login shell. Nenhuma alteração adicional em env. Muse corrigiu a hipótese e Probe ficou com o diagnóstico FAKE_CLI_LOG; aguardo esse resultado antes de tocar no caminho. `origin/persona-dev` avançou para 8401c679a0, que ainda contém memoryCipher e não traz FR-1b/afterPack; não serve ao pack final do Miguel.
+
+Pendências P0: prova DPAPI real e restart no Electron, boot smoke Web com plugin ativo, medição FR-4 posterior, próximo hash publicado e pack final (dir → CDP → NSIS). Provas não submetem chamadas a modelos. Depois entram SW-4 (MinGit, resolução PATH→embutido, cwd do rascunho) e SW-5 (erros Windows acionáveis); não interrompem o P0.
+
+### NOTICES — sobreposições do pack b3
+
+Somente no worktree de pack: `apps/desktop-host/package.json` recebe `files += config/`; host recebe `src/index.ts` e `config/electron.cordis.patch.yml`. Desktop recebe `src/{core-package-set,runtime-tree,preload-app,ipc,boot-ui,persona-vault-ipc,secure-shell,rewrite-boot-injections,web-document,main,locale,legal-notices,persona-about-shell}.ts`, `renderer/persona-boot/` e `scripts/{installer-select.nsh,installer-stock.nsh,prepare-windows-installer.ps1,runtime-patch-policy.ts,packaging-step.d.mts,smoke-runtime.ts,package-target.ts}`. O script aplica substituições no electron-builder-config do worktree para instalador sem elevação e DLL de moldura opcional. Também sobrepõe o teste Persona Sobre a partir de `scripts/persona/pack-overlay/`, `vendor/loader/src/config/utils.ts` e seus artefatos lib, além de `apps/web/dist`. O JSON do pack registra a lista. Nunca commitei essas sobreposições; não editei o manifesto principal. Forge posteriormente editou o manifesto principal com autorização própria do Keel.
+
+Splash/erro e poses derivam do protótipo da Muse em `persona-spec/design/boot-prototype`; assets Persona da equipe/Brush. Fontes Fredoka e Nunito levam as respectivas licenças OFL nos assets do boot. MIT do Harness e demais créditos continuam no arquivo de avisos distribuído.
+
+## 04/11 — D8/FR-1 executável validado, NSIS em compressão; runners e IPC verdes
+
+`b3a4e5b933` foi construído em `C:\p8wb3a4e5b933` com o manifesto do host sobreposto para incluir `config/`. Build do worktree: `10 passed, 0 failed, 0 skipped in 415.49s`; `package-clean --dir` terminou com `pack exit 0`. Caminho do executável: `apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/win-unpacked/Persona.exe` nesse worktree. ASAR contém o YAML, HTML/CSS/JS da splash, poses e fontes; o manifesto declara o hash solicitado. Forge confirmou o inventário final (32.585 caminhos do runtime, integridade verificada). Meu source agora também exige arquivos essenciais do host em `verifyDesktopRuntime`, mesmo se um inventário incompleto for recalculado.
+
+O primeiro CDP com falha forçada revelou FR-1: a splash sumia no texto do loader. Corrigido o critério de primeiro quadro para aguardar `[data-persona-root]` ou `[data-persona-shell]`, inclusive atributos atribuídos após a montagem. Regressão jsdom passou. Atualizei só os recursos estáticos do pacote com `@electron/asar`; para preservar recursos nativos, todos os arquivos do ASAR ficam agora fisicamente em `app.asar.unpacked`. Conferi os bytes dos 27.482 arquivos originais (exceto o diretório de boot autorizado) e a preservação dos 1.598 arquivos já descompactados. Cabeçalho e integridade do JS foram regenerados pela biblioteca. Backups temporários: `rivet-boot-repack-01nxA2` e `rivet-boot-header-p4t69U` em `%TEMP%`. O próximo pack usa os recursos do source normalmente. Licenças OFL das fontes incluídas no diretório do boot.
+
+Prova CDP final (`scripts/verify-persona-package.mjs`, sob `build.lock`, sem enviar pedido a IA): onboarding em **15.872 ms**; erro forçado → foco em Tentar de novo → encerramento/substituição do host → onboarding em **25.870 ms** incluindo a falha; **zero pageerrors**. Capturas conferidas: `.maestri/tmp/shots/rivet-d8/light-first-frame.png`, `light-onboarding.png`, `dark-boot-error.png`, `dark-onboarding.png`; `proof.json` contém a medição. **Limitação:** a rodada chamada dark ainda acompanhou o tema claro do SO; isso não comprova o primeiro quadro nativo em escuro. Não executei modelos reais. Perfil do renderer: 13.423 ms idle, materialize 149 ms, demais tarefas pequenas; FR-4 aponta espera do host e segue para perfil próprio.
+
+NSIS iniciado do **mesmo win-unpacked já validado**, sob `pack.lock`, via Electron Builder `--prepackaged … --win nsis --x64 --publish never`, ambiente unsigned com `com.persona.desktop`; ainda em compressão. Não anunciei Setup novo pronto.
+
+Runners: resolvido o teste adiado `ResolverSmokeRow.loginHint`; Claude deny passa `dontAsk`, `--permission-prompts none`, `--tools ''` (confirmado no help local). Todos os quatro provedores recebem instrução de resposta em texto/contexto inline, sem ampliar grants. Pedido inesperado de permissão consulta o RequestRecord pelo requestId e registra só o nome da ferramenta no summary e question, sem argumentos. `RunnerResolveError.toPayload()` usa provedor humano, command e resetAt oficial; falhas de rede no resolve/prompt viram `provider_unreachable`. Forge mantém o próprio `first-delivery-answer-only.spec.ts`, preservado.
+
+IPC do Keel: os 10 canais apontados já chamavam um guard `owned` com verificação de janela/webContents/mainFrame/origem. Renomeei para `assertOwner`, reconhecido pelo auditor; nenhuma validação foi removida. As duas demais falhas eram expectativas obsoletas: título DeepSeek Harness → Persona; recursos macOS 2 → 3 por THIRD_PARTY_NOTICES. Forge assumiu a investigação da suíte desktop pendurada; não dupliquei a suíte ampla.
+
+```text
+vitest resolve-runner/run-errors/cli-policy/tool-level/first-delivery-answer-only --testTimeout=20000 --hookTimeout=30000
+Test Files 5 passed (5); Tests 32 passed (32); Duration 10.13s
+vitest answer-only-policy --testTimeout=20000 --hookTimeout=30000
+Test Files 1 passed (1); Tests 4 passed (4); Duration 5.81s
+vitest runtime-tree --testTimeout=20000 --hookTimeout=30000
+Test Files 1 passed (1); Tests 32 passed (32); Duration 5.36s
+vitest boot-ui.client --testTimeout=20000 --hookTimeout=30000
+Test Files 1 passed (1); Tests 1 passed (1); Duration 3.24s
+vitest ipc-audit/teach-ipc/computer-use-bind --maxWorkers=1 --testTimeout=20000 --hookTimeout=30000
+Test Files 3 passed (3); Tests 9 passed (9); Duration 2.84s
+vitest background-notice/macos-signature --maxWorkers=1 --testTimeout=20000 --hookTimeout=30000
+Test Files 2 passed (2); Tests 22 passed (22); Duration 5.97s
+node scripts/persona/check-pkg.mjs persona-runners
+persona-runners: OK in 13.8s
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 86.6s
+pnpm exec tsc -p tsconfig.host.json --noEmit
+FALHOU: heap OOM ~4 GB; sem diagnóstico apps/desktop. Retry com 8 GB pendente.
+node scripts/persona/reap-orphans.mjs
+reap-orphans: no vitest trees older than 15 min
+```
+
 ## 04/11 — retomada: D8 b3a4e5b933 e bloqueio P0 (em execução)
 
 Keel autorizou os ajustes em `scripts/persona/package-clean.mjs`: worktree novo `C:\p8wb3a4e5b933`, cache `C:\p8c`, trava `pack`, sem `git checkout --force` nem `git clean`. Manifesto `apps/desktop-host/package.json` do checkout principal **inalterado**; apenas no worktree o overlay acrescenta `config/` a `files`. `core-package-set.ts` exige `config/electron.cordis.patch.yml` antes de materializar o runtime. Overlay também copia `boot-ui.ts`, `ipc.ts`, `preload-app.ts`, `renderer/persona-boot/`, além da lista registrada no JSON final. Assets/HTML/CSS/JS do boot derivam do protótipo local da Muse em `design/boot-prototype` (NOTICES: autoria Muse; assets Persona/Brush). Porte usa Shadow DOM para não alterar o estilo do app e recursos locais sem script inline/eval. Retry encerra o host anterior antes de iniciar outro. Ainda falta validação CDP e NSIS.

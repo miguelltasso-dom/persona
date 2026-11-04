@@ -3,10 +3,12 @@ import { attachBootUi } from '../src/boot-ui.ts'
 
 describe('packaged startup UI', () => {
   it('places static recovery UI before the root without inline scripts', async () => {
-    const html = await attachBootUi('<html><body><div id="root"></div></body></html>',
+    const html = await attachBootUi('<html><head></head><body><div id="root"></div></body></html>',
       new URL('../renderer', import.meta.url).pathname.replace(/^\/([A-Z]:)/u, '$1'), true, 'pt-BR')
     expect(html.indexOf('persona-boot-overlay')).toBeLessThan(html.indexOf('id="root"'))
     expect(html).toContain('shadowrootmode="open"')
+    expect(html).toContain('boot-fonts.css')
+    expect(html).toContain('<div id="root" hidden inert aria-hidden="true">')
     expect(html).toContain('boot.js?first=1&amp;lang=pt-BR')
     expect(html).toContain('Tentar de novo')
     expect(html).toContain('Detalhes para o suporte')

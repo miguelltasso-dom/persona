@@ -82,7 +82,7 @@ export function installComputerUseBind(
   host: ComputerUseBindHost = {},
 ) {
   const control = createComputerUseController()
-  const owned = (event: { readonly sender: unknown; readonly senderFrame: unknown }): void => {
+  const assertOwner = (event: { readonly sender: unknown; readonly senderFrame: unknown }): void => {
     const window = getWindow()
     if (window === undefined || window.isDestroyed() || event.sender !== window.webContents
       || event.senderFrame !== window.webContents.mainFrame) {
@@ -92,11 +92,11 @@ export function installComputerUseBind(
   }
 
   ipcMain.handle(COMPUTER_USE_IPC.resume, (event, personaId: unknown) => {
-    owned(event)
+    assertOwner(event)
     return typeof personaId === 'string' && control.resume(personaId)
   })
   ipcMain.handle(COMPUTER_USE_IPC.state, (event) => {
-    owned(event)
+    assertOwner(event)
     return control.personas()
   })
 

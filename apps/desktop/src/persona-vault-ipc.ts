@@ -40,7 +40,7 @@ export function handlePersonaVaultRequest(request: PersonaVaultHostRequest): Per
   try {
     const safeStorage = vaultStorage()
     if (safeStorage === undefined || !safeStorage.isEncryptionAvailable()) {
-      return { type: PERSONA_VAULT_IPC, requestId: request.requestId, error: 'safeStorage unavailable' }
+      return { type: PERSONA_VAULT_IPC, requestId: request.requestId, error: 'vault_unavailable' }
     }
     if (request.op === 'seal') {
       return {
@@ -54,11 +54,11 @@ export function handlePersonaVaultRequest(request: PersonaVaultHostRequest): Per
       requestId: request.requestId,
       payload: safeStorage.decryptString(Buffer.from(request.payload, 'base64')),
     }
-  } catch (error) {
+  } catch (_error) {
     return {
       type: PERSONA_VAULT_IPC,
       requestId: request.requestId,
-      error: error instanceof Error ? error.message : 'vault failed',
+      error: 'vault_unavailable',
     }
   }
 }

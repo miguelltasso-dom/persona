@@ -5,7 +5,7 @@ import { lstatSync, readdirSync, readFile, readFileSync, writeFileSync } from 'n
 import { isAbsolute, join, relative, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { valid } from 'semver'
-import { DESKTOP_HOST_PACKAGE } from './core-package-set.ts'
+import { DESKTOP_HOST_PACKAGE, DESKTOP_HOST_RUNTIME_FILES } from './core-package-set.ts'
 import { parseDesktopRelease, type DesktopRelease } from './release.ts'
 
 /** Descriptor at the root of the immutable Desktop resource tree. */
@@ -229,6 +229,10 @@ export async function verifyDesktopRuntime(
     }
   }
   const actual = await inventoryRuntimeConcurrently(root)
+  for (const file of DESKTOP_HOST_RUNTIME_FILES) {
+    const required = `node_modules/${DESKTOP_HOST_PACKAGE}/${file}`
+    if (!actual.some(entry => entry.path === required)) throw new Error(`desktop runtime: integrity verification failed: missing private Host file ${file}`)
+  }
   // Windows has no portable Unix executable permission bits.
   const comparable = (items: readonly DesktopRuntimeFile[]): unknown => process.platform === 'win32'
     ? items.map(({ executable: _executable, ...item }) => item) : items

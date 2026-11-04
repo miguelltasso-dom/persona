@@ -1,18 +1,20 @@
 /** Offline first-delivery permission regression; no CLI, login, or model calls. */
 import type { Event, Runtime } from '@botiverse/oar'
 import { scriptedRuntime } from '@botiverse/oar/testing'
-import { firstDeliveryTask } from '@deepseek-ai/dsh-persona-engine'
+import { firstDeliveryExecutionPrompt, firstDeliveryTask } from '@deepseek-ai/dsh-persona-engine'
 import { expect, it } from 'vitest'
 import { cliPolicyOf, createClaudeRunner, type RunEvent } from '../src/index.ts'
 
 const BRIEF = 'Agência Ponto — estúdio de sites.\nCliente: Padaria Lua.\nObjetivo: divulgar o cardápio.'
 const RESULT = '1. Agência Ponto.\n2. Estúdio de sites.\n3. Cliente: Padaria Lua.\n4. Objetivo: divulgar o cardápio.\n5. Prazo não informado.\nTarefa proposta: preparar texto do cardápio; dona: Coordenação; pronto quando revisado.'
 
-async function replay(prompt: string): Promise<{ events: RunEvent[]; toolAttempts: string[] }> {
+async function replay(prompt: string): Promise<{ events: RunEvent[]; toolAttempts: string[]; inputs: string[] }> {
   const listeners = new Set<(event: Event) => void>()
   const toolAttempts: string[] = []
+  const inputs: string[] = []
   const inner = scriptedRuntime({
     turn: (turn) => {
+      inputs.push(turn.input)
       if (turn.input.includes(JSON.stringify(BRIEF)) && turn.input.includes('Não use ferramentas')) {
         turn.say(RESULT)
         return
@@ -58,7 +60,7 @@ async function replay(prompt: string): Promise<{ events: RunEvent[]; toolAttempt
       events.push(event)
       if (event.type === 'ended') break
     }
-    return { events, toolAttempts }
+    return { events, toolAttempts, inputs }
   } finally {
     await runner.cancel(handle)
     await runner.dispose?.()
@@ -80,4 +82,16 @@ it('complete answer-only assignment delivers under the same deny policy without 
   expect(after.toolAttempts).toEqual([])
   expect(after.events.at(-1)).toMatchObject({ type: 'ended', report: { state: 'ready' } })
   expect(after.events.filter(event => event.type === 'delta').map(event => event.text).join('')).toBe(RESULT)
+})
+
+it('delivers persona context and first-delivery assignment in one OAR turn without prompt injection', async () => {
+  const task = firstDeliveryTask({ companyBrief: BRIEF, executorName: 'Guia' })
+  const prompt = firstDeliveryExecutionPrompt({ personaContext: 'Você é Guia. Trabalhe com clareza e objetividade.', task })
+  const run = await replay(prompt)
+  expect(run.inputs).toHaveLength(1)
+  expect(run.inputs[0]).toContain('Você é Guia. Trabalhe com clareza e objetividade.')
+  expect(run.inputs[0]).toContain(task.assignment)
+  expect(run.toolAttempts).toEqual([])
+  expect(run.events.at(-1)).toMatchObject({ type: 'ended', report: { state: 'ready' } })
+  expect(run.events.filter(event => event.type === 'delta').map(event => event.text).join('')).toBe(RESULT)
 })

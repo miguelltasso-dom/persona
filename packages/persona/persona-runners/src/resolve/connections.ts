@@ -98,7 +98,7 @@ async function probeCli(
   timeoutMs: number,
   env: NodeJS.ProcessEnv,
 ): Promise<ConnectionSnapshot> {
-  const binary = runtime === undefined ? probeCliBinary(CLI_BINS[id], env) : { ok: true, version: undefined as string | undefined }
+  const binary = runtime === undefined ? await probeCliBinary(CLI_BINS[id], env) : { ok: true, version: undefined as string | undefined }
   const card: ConnectionSnapshot = {
     id,
     kind: 'cli',

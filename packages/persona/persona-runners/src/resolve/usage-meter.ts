@@ -120,7 +120,6 @@ export function withUsageMeter(
   const kind = options.kind ?? 'execution'
   const play = async function *(handle: RunHandle): AsyncIterable<RunEvent> {
     for await (const event of inner.stream(handle)) {
-      yield event
       if (event.type === 'ended') {
         const usage = await inner.usage(handle)
         sink.record({
@@ -137,6 +136,7 @@ export function withUsageMeter(
         })
         yield { type: 'usage', at: event.at, usage }
       }
+      yield event
     }
   }
   return {

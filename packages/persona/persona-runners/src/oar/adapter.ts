@@ -12,9 +12,8 @@ import {
   type RunnerUsage,
   type StartTurnInput,
 } from '../contract.ts'
-import { RunnerResolveError } from '../resolve/errors.ts'
+import { RunnerResolveError, resolveCaughtError } from '../resolve/errors.ts'
 import { PRECISA_DE_VOCE, isPermissionAsk, type CliSessionPolicy } from '../resolve/cli-policy.ts'
-import { resolveCaughtError } from '../resolve/errors.ts'
 import { classifyLoginOutput, mayBecomeLogin } from './login-output.ts'
 import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/recovery.ts'
 
@@ -155,7 +154,7 @@ function mapEvent(event: Event, now: () => Date, requestedAction?: string): RunE
     }
     return { type: 'ended', at, report: { state: 'ready', summary: 'turn ended' } }
   }
-  if (isPermissionAsk(event as { kind: string; type?: string })) {
+  if (isPermissionAsk(event)) {
     const record = event as Event & { type?: string }
     const asked = requestedAction ?? (typeof record.type === 'string' && record.type.length > 0 ? record.type : kind)
     return {

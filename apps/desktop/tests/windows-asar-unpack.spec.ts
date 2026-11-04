@@ -24,6 +24,9 @@ vi.mock('../scripts/windows-runtime-signature.mjs', async importOriginal => ({
   ...await importOriginal<typeof import('../scripts/windows-runtime-signature.mjs')>(),
   signWindowsCode: async () => {},
 }))
+vi.mock('../scripts/persona-package-inventory.ts', () => ({
+  inspectPersonaPackage: async () => ({ missing: [] }),
+}))
 // Vite's root-relative IDs also resolve mocked build outputs on a clean checkout.
 vi.mock('/apps/desktop/lib/types/runtime-tree.js', () => ({ verifyDesktopRuntime: async () => {} }))
 vi.mock('/apps/desktop/lib/types/mandatory-update-policy.js', async () => import('../src/mandatory-update-policy.ts'))

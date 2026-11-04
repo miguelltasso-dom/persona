@@ -26,8 +26,8 @@ const CONSENT = {
 
 beforeEach(() => { vi.resetAllMocks() })
 
-function fixture() {
-  const frame = { url: 'dsh-app://app/' }
+function fixture(url: string = 'dsh-app://app/') {
+  const frame = { url }
   const window = {
     webContents: { mainFrame: frame },
     isDestroyed: vi.fn(() => false),
@@ -44,6 +44,23 @@ function fixture() {
 }
 
 describe('teach capture IPC', () => {
+  it('rejects foreign windows and frames before capture actions', async () => {
+    const owner = fixture()
+    const foreign = fixture()
+    const channels = [DESKTOP_IPC.teachListSources, DESKTOP_IPC.teachStart, DESKTOP_IPC.teachPause,
+      DESKTOP_IPC.teachResume, DESKTOP_IPC.teachIngest, DESKTOP_IPC.teachBlur, DESKTOP_IPC.teachState, DESKTOP_IPC.teachStop]
+    for (const channel of channels) {
+      const handler = owner.handler(channel)!
+      await expect(Promise.resolve().then(() => handler(foreign.event))).rejects.toThrow(/unowned renderer/u)
+      await expect(Promise.resolve().then(() => handler({ ...owner.event, senderFrame: foreign.event.senderFrame }))).rejects.toThrow(/unowned renderer/u)
+    }
+  })
+
+  it('rejects a non-application origin even in the owning frame', async () => {
+    const owner = fixture('https://foreign.example/')
+    await expect(owner.handler(DESKTOP_IPC.teachListSources)!(owner.event)).rejects.toThrow(/rejected/u)
+  })
+
   it('lists sources, records a keyframe, and stops with host frames', async () => {
     const f = fixture()
     const sources = await f.handler(DESKTOP_IPC.teachListSources)!(f.event)

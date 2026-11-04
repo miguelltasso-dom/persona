@@ -2,7 +2,7 @@
  * Shared OAR / binary probes for resolveRunner and detectConnections.
  */
 
-import { spawnSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import type { AvailableInstallation, Runtime } from '@botiverse/oar'
 
 export const PROBE_TIMEOUT_MS = 8_000
@@ -40,17 +40,17 @@ export async function withTimeout<T>(ms: number, work: Promise<T>): Promise<T> {
  * @param bin - `claude` / `codex` / `opencode` / `cursor-agent`.
  * @param env - Process env (tests prepend the fake-cli dir to PATH).
  */
-export function probeCliBinary(bin: string, env: NodeJS.ProcessEnv = process.env): { ok: boolean; version?: string } {
-  const result = spawnSync(bin, ['--version'], {
-    encoding: 'utf8',
-    timeout: PROBE_TIMEOUT_MS,
-    env,
-    windowsHide: true,
-    shell: process.platform === 'win32',
+export function probeCliBinary(bin: string, env: NodeJS.ProcessEnv = process.env): Promise<{ ok: boolean; version?: string }> {
+  return new Promise((resolve) => {
+    execFile(bin, ['--version'], {
+      encoding: 'utf8', timeout: PROBE_TIMEOUT_MS, env,
+      windowsHide: true, shell: process.platform === 'win32',
+    }, (error, stdout, stderr) => {
+      if (error !== null) { resolve({ ok: false }); return }
+      const line = `${stdout}\n${stderr}`.trim().split(/\r?\n/u, 1)[0] ?? ''
+      resolve(line === '' ? { ok: false } : { ok: true, version: line })
+    })
   })
-  if (result.status !== 0) return { ok: false }
-  const line = `${result.stdout}\n${result.stderr}`.trim().split(/\r?\n/u, 1)[0] ?? ''
-  return line === '' ? { ok: false } : { ok: true, version: line }
 }
 
 /**

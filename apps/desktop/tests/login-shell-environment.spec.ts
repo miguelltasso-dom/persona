@@ -1,10 +1,11 @@
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import {
   loginShellCandidates, mergeLoginShellEnvironment, parseLoginShellOutput, readDesktopLoginShellEnvironment,
   resolveDesktopLoginShellConfig,
+  withPersonaE2ePath,
 } from '../src/login-shell-environment.ts'
 
 const account = vi.hoisted(() => ({ userInfo: vi.fn() }))
@@ -12,6 +13,16 @@ vi.mock('node:os', async importOriginal => ({ ...await importOriginal<typeof imp
 
 const DELIMITER = '_DSH_SHELL_ENV_DELIMITER_'
 const config = { timeoutMs: 5_000 }
+it('only prefixes E2E binaries when explicitly requested, after shell resolution', () => {
+  const base = { PATH: 'inherited', PERSONA_E2E_EXTRA_PATH: 'fake-bin' }
+  const merged = mergeLoginShellEnvironment(base, { PATH: 'login-shell' })
+  expect(withPersonaE2ePath(merged, undefined)).toBe(merged)
+  expect(withPersonaE2ePath(merged, '')).toBe(merged)
+  expect(withPersonaE2ePath(merged, base.PERSONA_E2E_EXTRA_PATH).PATH).toBe(`fake-bin${delimiter}login-shell`)
+  expect(merged.PATH).toBe('login-shell')
+  expect(withPersonaE2ePath({ Path: 'windows-shell', PATH: 'canonical-shell' }, 'fake-bin'))
+    .toEqual({ PATH: `fake-bin${delimiter}canonical-shell` })
+})
 let directory: string
 
 beforeEach(() => { directory = mkdtempSync(join(tmpdir(), 'dsh-login-shell-')) })

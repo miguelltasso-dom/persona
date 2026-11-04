@@ -396,6 +396,16 @@ Private Platform deployment headers are injected by the embedded browser session
 
 The account provider’s `embeddedPageDist` configuration adds a `dist` query parameter to embedded Usage and Top-up URLs. Its default is empty; private frontend branch selectors belong in the local profile patch. It does not change API URLs or credential delivery.
 
+## Persona startup recovery
+
+The application document displays packaged startup artwork independently of the client plugin bundle. It keeps the theme background visible, changes the status after three seconds, and offers retry after a host failure or a deadline of 20 seconds (60 seconds before the local database exists). Retry stops the previous host before starting a replacement. Diagnostics are copied through the main process; technical details stay collapsed.
+
+`scripts/verify-persona-package.mjs <Persona.exe> [output-directory]` checks the host configuration and startup assets inside the final ASAR, opens the unpacked or installed binary with disposable data directories, and captures onboarding in light mode plus forced startup failure and recovery in dark mode. Add `--vault` to check actual DPAPI storage and recovery of a synthetic credential after restarting the packaged app with the same disposable home. It never submits a model prompt. `PERSONA_TEST_BOOT_FAILURE=1` forces the initial host start to fail; retry clears that test condition.
+
+After `build:artifacts`, run `node --import tsx/esm apps/desktop/scripts/verify-persona-development.mjs` under the shared build lock to verify the current development runtime. It checks that the upstream loader is absent from the accessibility tree, both local font faces load, and the native dark theme reaches the startup error screen. A disposable profile writes only a synthetic vault value through the real main-process DPAPI channel and verifies encrypted persistence after restart; the test cipher flag is deliberately set to confirm Electron ignores it. The script submits no model requests, terminates its process trees, and writes captures and redacted results to `.maestri/tmp/shots/rivet-native-vault`.
+
+Use `--reuse-runtime` only after preparing and smoke-testing the same primary runtime payload; this skips repeating the Office dependency preparation while checking a JavaScript-only change. `--profile-host` records the owned development Host on an independently allocated inspector port and verifies its PID before collecting CPU samples. Both verifiers allocate their CDP ports and use temporary data homes; packaged verification leaves the Host inspector disabled.
+
 <a id="dev-note"></a>
 
 ## Dev Note

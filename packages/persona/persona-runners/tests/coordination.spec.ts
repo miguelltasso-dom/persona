@@ -36,7 +36,7 @@ describe('Coordination driver', () => {
     }
   })
 
-  it('opens a coordinator session without bash and injects the full prompt', async () => {
+  it('opens a coordinator session without a model turn and includes its instructions in the delivery', async () => {
     const runner = createFakeRunner()
     const persona = { id: 'p-coord', name: 'Marina', instructions: 'Be brief.' }
     const driver = createCoordinationDriver({ runner, persona, cwd: 'C:/tmp/project' })
@@ -49,8 +49,12 @@ describe('Coordination driver', () => {
     expect(runner.status(COORDINATION_SESSION_ID)).toBe('idle')
     expect(runner.session(COORDINATION_SESSION_ID)?.role).toBe('coordinator')
     expect(runner.session(COORDINATION_SESSION_ID)?.tools.includes('bash')).toBe(false)
-    expect(runner.delivered[0]?.mode).toBe('inject')
+    expect(runner.delivered).toHaveLength(0)
+    await driver.deliver('message-1', 'Resuma o pedido recebido.')
+    expect(runner.delivered).toHaveLength(1)
+    expect(runner.delivered[0]?.mode).toBe('queue')
     expect(runner.delivered[0]?.text).toContain('Be brief.')
+    expect(runner.delivered[0]?.text).toContain('Resuma o pedido recebido.')
   })
 
   it('Trigger → accept → Ticket → Assignment; only coordination replies, ≤100 words', async () => {
@@ -102,7 +106,7 @@ describe('Coordination driver', () => {
     const ticket = repo.tickets.list()[0]!
     expect(ticket.assignments.length).toBeGreaterThan(0)
     await driver.deliver('reply-1', acknowledgement, 'queue')
-    expect(runner.delivered.some(item => item.sessionId === COORDINATION_SESSION_ID && item.text === acknowledgement)).toBe(true)
+    expect(runner.delivered.some(item => item.sessionId === COORDINATION_SESSION_ID && item.text.endsWith(acknowledgement))).toBe(true)
     expect(outbox.every(message => message.kind === 'acknowledgement' || message.kind === 'reply' || message.kind === 'notice')).toBe(true)
     expect(outbox.some(message => message.text.includes(acknowledgement) || message.kind === 'acknowledgement')).toBe(true)
   })

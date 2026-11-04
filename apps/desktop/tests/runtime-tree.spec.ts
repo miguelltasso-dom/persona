@@ -82,6 +82,13 @@ it('checks the bundled version only during build verification', async () => {
   expect(readDesktopRuntime(dsh).release.version).toBe('1.0.0')
   await expect(verifyDesktopRuntime(dsh, '2.0.0')).rejects.toThrow(/bundled 1\.0\.0 is not the expected 2\.0\.0/u)
 })
+it('rejects a runtime without host configuration even when its inventory matches', async () => {
+  const dsh = join(fixture(), 'dsh')
+  const before = readDesktopRuntime(dsh)
+  rmSync(join(dsh, 'node_modules', DESKTOP_HOST_PACKAGE, 'config/electron.cordis.patch.yml'))
+  writeDesktopRuntime(dsh, before.release, before.sharedPackages.map(entry => entry.name))
+  await expect(verifyDesktopRuntime(dsh, before.release.version)).rejects.toThrow(/electron\.cordis\.patch/u)
+})
 it.each([
   { schemaVersion: 2 },
   { platform: 'other' },

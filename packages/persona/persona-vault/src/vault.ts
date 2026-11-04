@@ -1,6 +1,6 @@
 /** Per-person DSH API-key vault. Ciphertext only; plaintext never persisted. */
 
-import { createMemoryCipher, type SealedSecret, type VaultCipher } from './cipher.ts'
+import type { SealedSecret, VaultCipher } from './cipher.ts'
 
 export const VAULT_SCOPE = 'persona-vault'
 
@@ -33,11 +33,13 @@ export interface PersonaVault {
 /**
  * Create a vault that stores only sealed blobs.
  * @param cipher - DPAPI via IPC in production; memory cipher in tests.
- * @param store - optional durable map (defaults to in-memory).
+ * @param store - Optional sealed-value map.
+ * @param onChanged - Atomic persistence callback. A throw restores the previous entry.
  */
 export function createPersonaVault(
-  cipher: VaultCipher = createMemoryCipher(),
+  cipher: VaultCipher,
   store: Map<string, VaultConnection> = new Map(),
+  onChanged: () => void = () => {},
 ): PersonaVault {
   const key = (personId: string, provider: string, accountId?: string): string => (
     accountId === undefined || accountId === 'default'
@@ -55,7 +57,17 @@ export function createPersonaVault(
     const row: VaultConnection = { personId, provider, sealed: await cipher.seal(secret) }
     if (accountId !== undefined && accountId !== 'default') row.accountId = accountId
     if (label !== undefined && label.length > 0) row.label = label
-    store.set(key(personId, provider, accountId), row)
+    replace(key(personId, provider, accountId), row)
+  }
+  const replace = (id: string, row: VaultConnection | undefined): void => {
+    const previous = store.get(id)
+    if (row === undefined) store.delete(id)
+    else store.set(id, row)
+    try { onChanged() } catch (error) {
+      if (previous === undefined) store.delete(id)
+      else store.set(id, previous)
+      throw error
+    }
   }
   const read = async (personId: string, provider: string, accountId?: string): Promise<string | undefined> => {
     const row = store.get(key(personId, provider, accountId))
@@ -67,14 +79,14 @@ export function createPersonaVault(
     set: async (personId, provider, secret) => write(personId, provider, secret),
     get: async (personId, provider) => read(personId, provider),
     unset: async (personId, provider) => {
-      store.delete(key(personId, provider))
+      replace(key(personId, provider), undefined)
     },
     setAccount: async (personId, provider, accountId, secret, label) => (
       write(personId, provider, secret, accountId, label)
     ),
     getAccount: async (personId, provider, accountId) => read(personId, provider, accountId),
     unsetAccount: async (personId, provider, accountId) => {
-      store.delete(key(personId, provider, accountId))
+      replace(key(personId, provider, accountId), undefined)
     },
     list: () => ({ connections: [...store.values()] }),
   }

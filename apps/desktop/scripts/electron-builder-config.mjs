@@ -223,6 +223,13 @@ export function createElectronBuilderConfig(
         preparedRuntimeVersion ?? productVersion, { platform: resolvedPlatform, arch: resolvedArch })
       // Unsigned Windows builds skip electron-builder's afterSign hook.
       if (packagesWindows && unsigned) await verifyWindowsAsarUnpack(buildPaths.dsh, resourcesDir, windowsCode)
+      if (packagesWindows) {
+        const { inspectPersonaPackage } = await import('./persona-package-inventory.ts')
+        const inventory = await inspectPersonaPackage(join(resourcesDir, 'app.asar'), buildPaths.dsh)
+        if (inventory.missing.length > 0) {
+          throw new Error(`Persona package: ${inventory.missing.length} missing runtime files: ${inventory.missing.slice(0, 10).join(', ')}. Rebuild the packaged runtime before retrying.`)
+        }
+      }
     },
     afterSign: async context => {
       if (windowsSigner !== undefined) {

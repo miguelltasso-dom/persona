@@ -20,6 +20,7 @@ import { en, zh } from '../src/locale.ts'
 import { DesktopUpdatePreparationError } from '../src/update-error.ts'
 import { writeCrashReport } from '../src/crash-report.ts'
 import { runOperationReportJob } from '../src/operation-report-job.ts'
+import { JSDOM } from 'jsdom'
 
 type InvokeEvent = { sender?: unknown; senderFrame: { url: string } }
 type InvokeHandler = (event: InvokeEvent, ...args: unknown[]) => unknown
@@ -32,6 +33,10 @@ vi.mock('../src/web-document.ts', () => ({
   removeLegacyHostCookies: harness.removeLegacyHostCookies,
 }))
 vi.mock('../src/operation-report-job.ts', () => ({ runOperationReportJob: vi.fn(async () => ({ appended: false, timedOut: false, cancelled: false })) }))
+vi.mock('../src/persona-log.ts', async importOriginal => ({
+  ...await importOriginal<typeof import('../src/persona-log.ts')>(),
+  createPersonaLogger: () => ({ rotate: async () => {}, write: async () => {} }),
+}))
 // Report persistence has its own unit tests; here it resolves within microtasks so the fatal
 // dialog never outlives the test that triggered it.
 vi.mock('../src/crash-report.ts', async importOriginal => ({
@@ -334,10 +339,15 @@ vi.mock('electron', () => ({
   session: { defaultSession: {
     on: vi.fn(), cookies: harness.hostCookies,
     setPermissionCheckHandler: vi.fn(), setPermissionRequestHandler: vi.fn(),
-    webRequest: { onBeforeSendHeaders: harness.socketHeaders, onBeforeRequest: vi.fn() },
+    webRequest: { onBeforeSendHeaders: harness.socketHeaders, onBeforeRequest: vi.fn(), onHeadersReceived: vi.fn() },
   } },
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: harness.protocolHandle },
   powerMonitor: harness.powerMonitor,
+  screen: { getAllDisplays: () => [] },
+  globalShortcut: { register: vi.fn(() => true), unregister: vi.fn() },
+  desktopCapturer: { getSources: vi.fn(async () => []) },
+  clipboard: { writeText: vi.fn() },
+  powerSaveBlocker: { start: vi.fn(() => 1), stop: vi.fn(() => true) },
   Tray: harness.FakeTray,
   nativeImage: { createFromPath: (path: string) => ({ path }) },
 }))
@@ -349,6 +359,7 @@ vi.mock('../src/background-notice.ts', () => ({ DesktopBackgroundNotice: class {
 vi.mock('node:fs/promises', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:fs/promises')>()
   return { ...original, readFile: vi.fn((path: Parameters<typeof original.readFile>[0], encoding?: 'utf8') => {
+    if (typeof path === 'string' && path.endsWith('THIRD_PARTY_NOTICES.txt')) return Promise.resolve('Test third-party notices')
     if (path === join('desktop-test-app', 'package.json')) {
       return Promise.resolve(JSON.stringify({ dshDesktopAppId: 'com.deepseek.dsh', dshMandatoryUpdatePolicy: harness.embeddedPolicy }))
     }
@@ -460,6 +471,31 @@ function applicationMenuItems(): MenuItemConstructorOptions[] {
   return harness.menu.mock.lastCall![0]
 }
 
+function bootFailureView(language: string, detail: { code: string; message: string }) {
+  const dom = new JSDOM(readFileSync(new URL('../renderer/persona-boot/boot.html', import.meta.url), 'utf8'), {
+    url: 'https://persona.local/', runScripts: 'outside-only',
+  })
+  try {
+    const { document } = dom.window
+    const overlay = document.getElementById('persona-boot-overlay')!
+    const shadow = overlay.attachShadow({ mode: 'open' })
+    shadow.append(overlay.querySelector('template')!.content)
+    let publish: ((event: typeof detail) => void) | undefined
+    Object.defineProperty(dom.window, 'personaBoot', { value: {
+      retry: async () => {}, diagnostic: async () => '',
+      subscribe: (listener: typeof publish) => { publish = listener; return () => {} },
+    } })
+    Object.defineProperty(document, 'currentScript', { value: { src: `https://persona.local/boot.js?lang=${language}&first=1` } })
+    dom.window.eval(readFileSync(new URL('../renderer/persona-boot/boot.js', import.meta.url), 'utf8'))
+    publish!(detail)
+    return { language: document.documentElement.lang,
+      title: shadow.getElementById('boot-error-title')!.textContent,
+      body: shadow.getElementById('boot-error-body')!.textContent,
+      diagnostic: shadow.getElementById('boot-diag')!.textContent,
+      visible: !shadow.querySelector<HTMLElement>('.error')!.hidden }
+  } finally { dom.window.close() }
+}
+
 beforeEach(() => {
   vi.resetModules()
   vi.clearAllMocks()
@@ -470,6 +506,8 @@ beforeEach(() => {
   vi.useFakeTimers()
   harness.reset()
   const userData = mkdtempSync(join(tmpdir(), 'dsh-main-user-data-'))
+  vi.stubEnv('PERSONA_HOME', join(userData, 'persona'))
+  vi.stubEnv('DSH_HOME', join(userData, 'persona'))
   onTestFinished(() => { rmSync(userData, { recursive: true, force: true }) })
   harness.app.getPath.mockImplementation(name => name === 'userData' ? userData : join(userData, `desktop-test-${name}`))
   vi.mocked(writeCrashReport).mockResolvedValue(join(harness.app.getPath('logs'), 'crash-test.log'))
@@ -817,6 +855,7 @@ describe('desktop main startup', () => {
     expect(visible.map(item => item.role === 'quit' ? 'quit' : item.label ?? item.type)).toEqual([
       messages.aboutMenu, 'separator', messages.checkUpdatesMenu,
       ...platform === 'linux' ? [] : [messages.cliCommandMenu],
+      'separator', messages.startWithWindows, messages.backupNow, messages.restoreBackup, messages.openLogsFolder, messages.copyDiagnostic,
       'separator', ...packaged ? [] : [messages.reloadPageMenu, messages.restartAppHostMenu],
       messages.toggleDevToolsMenu, 'separator',
       ...platform === 'darwin' ? [messages.hideApplication, messages.hideOtherApplications, messages.showAllApplications, 'separator'] : [],
@@ -863,7 +902,8 @@ describe('desktop main startup', () => {
     await readyForUpdate()
     const submenu = applicationMenuItems()
     const options = harness.app.setAboutPanelOptions.mock.calls[0]![0]
-    const expected = JSON.parse(readFileSync(new URL('./expected/about-panel.json', import.meta.url), 'utf8')) as Record<string, unknown>
+    const expected = JSON.parse(readFileSync(new URL('./expected/about-panel.json', import.meta.url), 'utf8')
+      .replaceAll('DeepSeek Harness', 'Persona')) as Record<string, unknown>
     const [about, separator] = submenu
     expect({ menu: [{ label: about!.label, role: about!.role }, separator], options: { ...options, iconPath: '<app icon>' } })
       .toEqual(expected[`${platform}:${locale}`])
@@ -876,8 +916,10 @@ describe('desktop main startup', () => {
     await vi.advanceTimersByTimeAsync(0)
     const zh = locale === 'zh-CN'
     expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: 'info', title: zh ? '关于 DeepSeek Harness' : 'About DeepSeek Harness', message: 'DeepSeek Harness',
-      detail: zh ? '版本 V1.0.0' : 'Version V1.0.0', buttons: [zh ? '确定' : 'OK'], cancelId: 0,
+      type: 'info', title: zh ? '关于 Persona' : 'About Persona', message: 'Persona',
+      detail: `${zh ? '版本 V1.0.0' : 'Version V1.0.0'}\n${zh ? '基于 DeepSeek Harness (MIT) · OAR (Apache-2.0)'
+        : 'Based on DeepSeek Harness (MIT) · OAR (Apache-2.0) · Super-agent engine (MIT)'}\nTest third-party notices`,
+      buttons: [zh ? '确定' : 'OK'], cancelId: 0,
     }))
     // A dialog that cannot open is logged, not surfaced as an unhandled rejection.
     harness.dialog.showMessageBox.mockRejectedValueOnce(new Error('overlay unavailable'))
@@ -1288,11 +1330,15 @@ describe('desktop main startup', () => {
     expect(harness.menu.setApplicationMenu).toHaveBeenCalledTimes(3)
   })
 
-  it('retains cached Chinese for a Host startup crash after the loading page reports English', async () => {
+  // Persona startup supports Portuguese and English; upstream Chinese falls back to English.
+  it.each([
+    ['pt', 'pt-BR', 'Não conseguimos abrir a Persona', 'Isso costuma se resolver tentando de novo. Se continuar, reinicie o computador.'],
+    ['zh-CN', 'en', 'We couldn’t open Persona', 'Trying again usually fixes it. If it keeps happening, restart your computer.'],
+  ] as const)('retains supported cached startup language and falls back for unsupported %s after a Host crash', async (cached, displayed, title, body) => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const directory = join(harness.app.getPath('userData'), 'desktop')
     mkdirSync(directory, { recursive: true })
-    writeFileSync(join(directory, 'locale-cache'), 'zh-CN\n')
+    writeFileSync(join(directory, 'locale-cache'), `${cached}\n`)
     await import('../src/main.ts')
     await harness.preparing.promise
     const window = harness.windows[0]!
@@ -1306,9 +1352,14 @@ describe('desktop main startup', () => {
     host.ready.reject(failure)
     await host.stopping.promise
     host.exited.resolve()
-    await harness.dialogShown.promise
-    expect(vi.mocked(writeCrashReport).mock.calls[0]![1].app.locale).toBe('zh-CN')
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).message).toBe(zh.fatalSummary)
+    const detail = { code: 'boot_failed', message: 'test plugin failed' }
+    await vi.waitFor(() => { expect(window.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState, detail) })
+    const reported = vi.mocked(writeCrashReport).mock.calls[0]![1].app.locale
+    expect(reported).toBe(cached)
+    expect(bootFailureView(reported, detail)).toEqual({ language: displayed, title, body,
+      diagnostic: 'boot_failed · test plugin failed', visible: true })
+    expect(window.isDestroyed()).toBe(false)
+    expect(window.urls).toEqual(['dsh-app://app/'])
   })
 
   it('maps Windows caption menus to localized native commands and rejects foreign popup requests', async () => {
@@ -1327,7 +1378,9 @@ describe('desktop main startup', () => {
     expect(() => handler(event, 'application', NaN, 34)).toThrow('invalid popup request')
     const application = handler(event, 'application', 48, 34)
     expect(harness.menu.buildFromTemplate.mock.lastCall![0].map(item => item.label ?? item.type)).toEqual([
-      '关于 DeepSeek Harness', 'separator', '检查更新…', '管理 dsh 命令…', 'separator', zh.toggleDevToolsMenu, 'separator', '退出',
+      '关于 Persona', 'separator', '检查更新…', '管理 dsh 命令…', 'separator',
+      zh.startWithWindows, zh.backupNow, zh.restoreBackup, zh.openLogsFolder, zh.copyDiagnostic,
+      'separator', zh.toggleDevToolsMenu, 'separator', '退出',
     ])
     expect(harness.popup.mock.lastCall![0]).toMatchObject({ window, x: 48, y: 34 })
     expect(harness.popup.mock.lastCall![0].callback).toBeTypeOf('function')
@@ -1364,8 +1417,10 @@ describe('desktop main startup', () => {
       : ['Application', 'editMenu'])
     const application = template[0]!.submenu as MenuItemConstructorOptions[]
     expect(application.filter(item => item.visible !== false).map(describeItem)).toEqual(platform === 'darwin'
-      ? ['about', 'separator', en.checkUpdatesMenu, en.cliCommandMenu, 'separator', 'toggleDevTools', 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
-      : ['about', 'separator', en.checkUpdatesMenu, 'separator', 'toggleDevTools', 'separator', 'quit'])
+      ? ['about', 'separator', en.checkUpdatesMenu, en.cliCommandMenu, 'separator', en.startWithWindows, en.backupNow, en.restoreBackup, en.openLogsFolder, en.copyDiagnostic,
+        'separator', 'toggleDevTools', 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
+      : ['about', 'separator', en.checkUpdatesMenu, 'separator', en.startWithWindows, en.backupNow, en.restoreBackup, en.openLogsFolder, en.copyDiagnostic,
+        'separator', 'toggleDevTools', 'separator', 'quit'])
     expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
   })
 
@@ -1379,8 +1434,13 @@ describe('desktop main startup', () => {
       await import('../src/main.ts')
       await harness.preparing.promise
       const commands = applicationMenuItems().filter(item => item.visible !== false)
-      await expect(JSON.stringify(commands, null, 2) + '\n')
-        .toMatchFileSnapshot(`./expected/application-menu-${locale}.json`)
+      const expected = JSON.parse(readFileSync(new URL(`./expected/application-menu-${locale}.json`, import.meta.url), 'utf8')
+        .replaceAll('DeepSeek Harness', 'Persona')) as MenuItemConstructorOptions[]
+      expected.splice(5, 0,
+        { label: 'Start with Windows', type: 'checkbox', checked: false },
+        { label: 'Back up now' }, { label: 'Restore from a backup' },
+        { label: 'Open logs folder' }, { label: 'Copy diagnostic' }, { type: 'separator' })
+      expect(JSON.parse(JSON.stringify(commands))).toEqual(expected)
       expect(harness.app.name).toBe('@deepseek-ai/dsh-desktop')
     } finally { harness.app.name = originalName }
   })
@@ -1469,8 +1529,9 @@ describe('desktop main startup', () => {
     const handler = harness.handlers.get(DESKTOP_IPC.directoryPick) as (event: IpcMainInvokeEvent) => Promise<string | null>
     expect(handler).toBeTypeOf('function')
     const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame } as unknown as IpcMainInvokeEvent
-    harness.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/workspace'] })
-    await expect(handler(event)).resolves.toBe('/workspace')
+    const directory = join(harness.app.getPath('userData'), 'workspace')
+    harness.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: [directory] })
+    await expect(handler(event)).resolves.toBe(directory)
     expect(harness.dialog.showOpenDialog).toHaveBeenCalledExactlyOnceWith(window, { properties: ['openDirectory', 'createDirectory'] })
     window.webContents.mainFrame.url = 'https://other.example/'
     await expect(handler(event)).rejects.toThrow('unowned renderer')
@@ -1526,12 +1587,15 @@ describe('desktop main startup', () => {
     const openWindow = window.webContents.setWindowOpenHandler.mock.calls[0]![0] as
       (details: { url: string }) => { action: string }
     const source = 'https://example.com/source?q=reference'
+    harness.dialog.showMessageBox.mockResolvedValue({ response: 1 })
     expect(openWindow({ url: source })).toEqual({ action: 'deny' })
+    await vi.advanceTimersByTimeAsync(0)
     expect(harness.openExternal).toHaveBeenCalledWith(source)
     harness.openExternal.mockClear()
     const external = { preventDefault: vi.fn() }
     window.webContents.emit('will-navigate', external, 'https://example.com/document')
     expect(external.preventDefault).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(0)
     expect(harness.openExternal).toHaveBeenCalledWith('https://example.com/document')
     harness.openExternal.mockClear()
     const internal = { preventDefault: vi.fn() }
@@ -2513,10 +2577,14 @@ describe('desktop main startup', () => {
     harness.dialog.showMessageBox.mockImplementation(() => { harness.dialogShown.resolve(); return new Promise(() => {}) })
     replacement.ready.reject(new Error('replacement startup failed'))
     replacement.exited.resolve()
-    await harness.dialogShown.promise
-    expect(harness.dialog.showMessageBox.mock.calls.some(call =>
-      (call.at(-1) as MessageBoxOptions).detail?.includes('replacement startup failed'))).toBe(true)
-    await expect(harness.prepareUpdate()).rejects.toThrow('replacement startup failed')
+    const window = harness.windows[0]!
+    await vi.waitFor(() => { expect(window.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState,
+      { code: 'boot_failed', message: 'replacement startup failed' }) })
+    expect(window.isDestroyed()).toBe(false)
+    expect(window.urls).toEqual(['dsh-app://app/'])
+    expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'host', phase: 'startup',
+      error: new Error('replacement startup failed') }))
+    await expect(harness.prepareUpdate()).rejects.toThrow('Task status is unavailable. Try updating again when the workspace is ready.')
     expect(harness.hosts).toHaveLength(2)
   })
 
@@ -2568,10 +2636,14 @@ describe('desktop main startup', () => {
     expect(() => { handler(event, {}) }).toThrow('must be text')
     expect(harness.dialog.showMessageBox).not.toHaveBeenCalled()
     handler(event, 'client mount failed')
-    await harness.dialogShown.promise
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('client mount failed')
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain(join(harness.app.getPath('logs'), 'crash-test.log'))
-    expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'web-boot', phase: 'startup' }))
+    const detail = { code: 'boot_failed', message: 'client mount failed' }
+    expect(window.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState, detail)
+    expect(bootFailureView('en', detail)).toEqual({ language: 'en', title: 'We couldn’t open Persona',
+      body: 'Trying again usually fixes it. If it keeps happening, restart your computer.',
+      diagnostic: 'boot_failed · client mount failed', visible: true })
+    expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'host', phase: 'startup',
+      error: new Error('client mount failed') }))
+    expect(window.isDestroyed()).toBe(false)
     expect(window.urls).toEqual(['dsh-app://app/'])
   })
 
@@ -2588,14 +2660,20 @@ describe('desktop main startup', () => {
     expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'renderer' }))
   })
 
-  it('offers all recovery choices when resources fail before the Host starts', async () => {
+  it('shows recovery in the existing window when resources fail before the Host starts', async () => {
     await import('../src/main.ts')
     await harness.preparing.promise
     harness.prepared.reject(new Error('runtime resources missing'))
-    await harness.dialogShown.promise
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('runtime resources missing')
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).buttons).toEqual(['Exit', 'Restart', 'Disable third-party plugins, back up profile patch, and restart', 'Get diagnostic report'])
-    expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
+    const window = harness.windows[0]!
+    const detail = { code: 'boot_failed', message: 'runtime resources missing' }
+    await vi.waitFor(() => { expect(window.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState, detail) })
+    expect(bootFailureView('en', detail)).toEqual({ language: 'en', title: 'We couldn’t open Persona',
+      body: 'Trying again usually fixes it. If it keeps happening, restart your computer.',
+      diagnostic: 'boot_failed · runtime resources missing', visible: true })
+    expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'host', phase: 'startup',
+      error: new Error('runtime resources missing') }))
+    expect(window.isDestroyed()).toBe(false)
+    expect(window.urls).toEqual(['dsh-app://app/'])
   })
 
   it.each(['preload', 'renderer'])('retains the document after a fatal %s failure and reports only the first error', async (kind) => {
@@ -2624,13 +2702,14 @@ describe('desktop main startup', () => {
   })
 
   it('reports a rejected document load without navigating to a recovery page', async () => {
-    const shown = Promise.withResolvers<undefined>()
-    harness.dialog.showMessageBox.mockImplementation(() => { shown.resolve(undefined); return new Promise(() => {}) })
     vi.spyOn(harness.FakeWindow.prototype, 'loadURL').mockRejectedValueOnce(new Error('document missing'))
     await import('../src/main.ts')
-    await shown.promise
-    expect(harness.dialog.showMessageBox).toHaveBeenCalledOnce()
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('document missing')
+    await vi.waitFor(() => { expect(harness.windows[0]?.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState,
+      { code: 'boot_failed', message: 'document missing' }) })
+    expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'host', phase: 'startup',
+      error: new Error('document missing') }))
+    expect(harness.windows[0]!.isDestroyed()).toBe(false)
+    expect(harness.windows[0]!.urls).toEqual([])
     expect(harness.hosts).toHaveLength(0)
   })
 
@@ -2661,7 +2740,8 @@ describe('desktop main startup', () => {
     host.ready.reject(failure)
     await host.stopping.promise
     host.exited.resolve()
-    await harness.dialogShown.promise
+    await vi.waitFor(() => { expect(harness.windows[0]?.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState,
+      { code: 'boot_failed', message: 'profile has no cordis.yml' }) })
     const [directory, report] = vi.mocked(writeCrashReport).mock.calls[0]!
     expect(directory).toBe(harness.app.getPath('logs'))
     expect(report.source).toBe('host')
@@ -2672,7 +2752,7 @@ describe('desktop main startup', () => {
       reportPath: join(harness.app.getPath('logs'), 'crash-test.log'), directory: join(harness.app.getPath('userData'), 'plugin-operations'),
       limits: { bytes: 65536, recordBytes: 4096, records: 100, outputBytes: 65536 }, journal: null,
     }, { timeoutMs: 500, cancellationGraceMs: 100 }, expect.any(AbortSignal))
-    expect((harness.dialog.showMessageBox.mock.calls[0]![0] as MessageBoxOptions).detail).toContain('profile has no cordis.yml')
+    expect(harness.windows[0]!.isDestroyed()).toBe(false)
   })
 
   it('attaches the primary window\'s error-level console output to a running-phase Host crash report', async () => {
@@ -2703,6 +2783,8 @@ describe('desktop main startup', () => {
     expect(report.app).toMatchObject({ name: 'Desktop test', version: '1.0.0', platform: process.platform, locale: 'en' })
     expect(report.time).toBeInstanceOf(Date)
     host.exited.resolve()
+    expect(window.isDestroyed()).toBe(false)
+    harness.app.quit()
     await harness.quitCompleted.promise
   })
 
@@ -2784,7 +2866,7 @@ describe('desktop main startup', () => {
     const host = harness.hosts[0]!
     host.ready.resolve()
     await Promise.resolve(invoke(DESKTOP_IPC.boot))
-    host.onFailure!(new Error('backend exited'))
+    harness.windows[0]!.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
     await host.stopping.promise
     expect(harness.app.relaunch).not.toHaveBeenCalled()
     expect(harness.disableAllPlugins).not.toHaveBeenCalled()
@@ -2893,7 +2975,7 @@ describe('desktop main startup', () => {
     expect(harness.hosts).toHaveLength(0)
   })
 
-  it('keeps startup errors in the existing window without a retry handler', async () => {
+  it('keeps startup errors in the existing window until explicit retry', async () => {
     await import('../src/main.ts')
     await harness.preparing.promise
     harness.prepared.resolve()
@@ -2901,10 +2983,12 @@ describe('desktop main startup', () => {
     const first = harness.hosts[0]!
     first.exited.resolve()
     first.ready.reject(new Error('plugin composition failed'))
-    await harness.dialogShown.promise
+    await vi.waitFor(() => { expect(harness.windows[0]?.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState,
+      { code: 'boot_failed', message: 'plugin composition failed' }) })
     expect(harness.windows[0]!.urls).toEqual(['dsh-app://app/'])
-    expect(harness.dialog.showMessageBox).toHaveBeenCalledOnce()
+    expect(harness.windows[0]!.isDestroyed()).toBe(false)
     expect(harness.handlers.has('dsh-desktop:backend-retry')).toBe(false)
+    expect(harness.handlers.get(DESKTOP_IPC.bootRetry)).toBeTypeOf('function')
     expect(harness.hosts).toHaveLength(1)
   })
 
@@ -2921,12 +3005,15 @@ describe('desktop main startup', () => {
     await vi.waitFor(() => { expect(host.fetch).toHaveBeenCalledOnce() })
     host.exited.resolve()
     host.onFailure!(new Error('backend exited during startup preferences'))
-    await harness.dialogShown.promise
+    const detail = { code: 'boot_failed', message: 'backend exited during startup preferences' }
+    await vi.waitFor(() => { expect(harness.windows[0]?.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState, detail) })
     preferences.resolve(Response.json({ hasApiKey: true, localePreference: null }))
     await startup
     expect(harness.windows[0]!.urls).not.toContain('http://127.0.0.1:3080/?token=test')
-    const failureDialog = harness.dialog.showMessageBox.mock.calls[0]![0] as { detail: string }
-    expect(failureDialog.detail).toContain('backend exited during startup preferences')
+    expect(bootFailureView('en', detail)).toEqual({ language: 'en', title: 'We couldn’t open Persona',
+      body: 'Trying again usually fixes it. If it keeps happening, restart your computer.',
+      diagnostic: 'boot_failed · backend exited during startup preferences', visible: true })
+    expect(harness.windows[0]!.isDestroyed()).toBe(false)
     expect(harness.windows[0]!.show).not.toHaveBeenCalled()
   })
 

@@ -5,6 +5,7 @@ export { default as PersonaVaultProvider } from './plugin.ts'
 export type { Config as PersonaVaultConfig } from './plugin.ts'
 
 export const PACKAGE_VAULT = 'persona-vault'
+export { VaultUnavailableError, VaultStorageError } from './errors.ts'
 
 export {
   createIpcVaultCipher,

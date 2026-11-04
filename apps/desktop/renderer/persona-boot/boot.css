@@ -1,6 +1,4 @@
 /* Muse · 1ª janela (design/BOOT-SPEC.md). Tokens = client-ui-persona/theme/persona-palette.css (dirD). */
-@font-face { font-family: 'Persona Fredoka'; src: url(assets/fredoka-latin.woff2) format('woff2'); font-weight: 300 700; }
-@font-face { font-family: 'Persona Nunito'; src: url(assets/nunito-latin.woff2) format('woff2'); font-weight: 200 1000; }
 
 :host {
   --paper: #faf3e4; --card: #fffbf3; --ink: #34243f; --ink-soft: #5e4e6b; --outline: #34243f; --outline-soft: rgb(52 36 63 / .16);

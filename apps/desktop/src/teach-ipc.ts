@@ -51,7 +51,7 @@ export function installTeachCapture(
     ...(host.now === undefined ? {} : { now: host.now }),
   })
 
-  const owned = (event: { readonly sender: unknown; readonly senderFrame: unknown }): void => {
+  const assertOwner = (event: { readonly sender: unknown; readonly senderFrame: unknown }): void => {
     const window = getWindow()
     if (window === undefined || window.isDestroyed() || event.sender !== window.webContents
       || event.senderFrame !== window.webContents.mainFrame) {
@@ -61,39 +61,39 @@ export function installTeachCapture(
   }
 
   ipcMain.handle(DESKTOP_IPC.teachListSources, async (event) => {
-    owned(event)
+    assertOwner(event)
     return session.listSources()
   })
   ipcMain.handle(DESKTOP_IPC.teachStart, (event, sourceId: unknown, mic: unknown, consent: unknown) => {
-    owned(event)
+    assertOwner(event)
     if (typeof sourceId !== 'string' || sourceId.trim() === '') throw new Error('teach: sourceId required')
     if (!teachConsentOk(consent)) throw new Error('teach: consent required')
     session.start(sourceId, mic === true)
   })
   ipcMain.handle(DESKTOP_IPC.teachPause, (event) => {
-    owned(event)
+    assertOwner(event)
     session.pause()
   })
   ipcMain.handle(DESKTOP_IPC.teachResume, (event) => {
-    owned(event)
+    assertOwner(event)
     session.resume()
   })
   ipcMain.handle(DESKTOP_IPC.teachIngest, (event, raw: unknown) => {
-    owned(event)
+    assertOwner(event)
     return session.ingestFrame(pngOf(raw))
   })
   ipcMain.handle(DESKTOP_IPC.teachBlur, (event, raw: unknown) => {
-    owned(event)
+    assertOwner(event)
     if (!teachBlurRectOk(raw)) throw new Error('teach: blur rect required')
     return session.addBlur(raw)
   })
   ipcMain.handle(DESKTOP_IPC.teachState, (event) => {
-    owned(event)
+    assertOwner(event)
     const clock = teachClockView(session.state())
     return { ...clock, overlayHtml: teachOverlayHtml(clock) }
   })
   ipcMain.handle(DESKTOP_IPC.teachStop, (event, typed: unknown): TeachStopResult => {
-    owned(event)
+    assertOwner(event)
     const dir = join(personaHome(), 'teach')
     applyTeachRetention(dir, TEACH_RETENTION_MS)
     const stopped = session.stop(dir)

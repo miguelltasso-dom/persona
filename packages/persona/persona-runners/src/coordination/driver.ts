@@ -37,8 +37,8 @@ export interface CoordinationDriver {
 }
 
 /**
- * Bind a long coordination session on a Runner. Steer / followup / inject are
- * idempotent on `requestId` because the Runner port already is (D-041).
+ * Bind a coordination session without an initialization turn. Persona instructions
+ * accompany the delivered input; the Runner deduplicates its requestId (D-041).
  * @param options - runner, persona identity, worktree, optional P6 prompt.
  */
 export function createCoordinationDriver(options: CoordinationDriverOptions): CoordinationDriver {
@@ -51,10 +51,9 @@ export function createCoordinationDriver(options: CoordinationDriverOptions): Co
     tools,
     start: async () => {
       await options.runner.ensureSession(COORDINATION_SESSION_ID, options.cwd, options.persona.name, 'coordinator')
-      await options.runner.deliver(COORDINATION_SESSION_ID, `${options.persona.id}:prompt`, prompt, 'inject')
     },
     deliver: async (requestId: string, text: string, mode: DeliverMode = 'queue') => {
-      await options.runner.deliver(COORDINATION_SESSION_ID, requestId, text, mode)
+      await options.runner.deliver(COORDINATION_SESSION_ID, requestId, `${prompt}\n\n${text}`, mode)
     },
     cancel: async (keepInbox: boolean = false) => {
       await options.runner.cancel(COORDINATION_SESSION_ID, { keepInbox })

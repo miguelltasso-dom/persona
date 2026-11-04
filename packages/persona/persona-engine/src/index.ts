@@ -346,8 +346,15 @@ export {
   trimInitiativeToBudget,
 } from './lean-output.ts'
 export type { InitiativeBatch, InitiativeDraft, LeanStructuredReport, Opt6Acceptance } from './lean-output.ts'
-export { engineClassForTurn, measureOpt5Acceptance, sessionReuseForTurn } from './engine-policy.ts'
-export type { EngineClass, Opt5Acceptance, SessionReuse } from './engine-policy.ts'
+export {
+  CONNECTED_CLI_ORDER,
+  cheapModelForFirstDelivery,
+  engineClassForTurn,
+  measureOpt5Acceptance,
+  preferConnectedCli,
+  sessionReuseForTurn,
+} from './engine-policy.ts'
+export type { ConnectedCli, EngineClass, Opt5Acceptance, SessionReuse } from './engine-policy.ts'
 export { MemoryPromptStore, publishPrompt } from './prompts/store.ts'
 export type { PromptSnapshot, PromptStore } from './prompts/store.ts'
 export { watchdogSignals, watchdogWarnings, vigiaTick } from './watchdog.ts'
@@ -451,8 +458,13 @@ export {
   emitGestorPropose,
   gestorInitiative,
 } from './gestor.ts'
-export { measureGestorAcceptance, measureGestorToolsAcceptance, measureGestorV1 } from './gestor-accept.ts'
-export type { GestorAcceptance, GestorToolsAcceptance } from './gestor-accept.ts'
+export {
+  measureGestorAcceptance,
+  measureGestorMultiAcceptance,
+  measureGestorToolsAcceptance,
+  measureGestorV1,
+} from './gestor-accept.ts'
+export type { GestorAcceptance, GestorMultiAcceptance, GestorToolsAcceptance } from './gestor-accept.ts'
 export {
   activityFromDomainEvent,
   activityFromReport,
@@ -557,6 +569,12 @@ export { verifyReady, continuationAfterReady, looksLikeHesitantOffer, refuseHesi
 export { scoreProactivityAcceptance } from './proactivity-accept.ts'
 export type { ProactivityAcceptance, ProactivityAcceptanceInput } from './proactivity-accept.ts'
 export { measureProactivityAcceptance, measureProactivityV1 } from './proactivity-measure.ts'
+export { measureFirstDeliveryAcceptance } from './first-delivery-accept.ts'
+export type { FirstDeliveryAcceptance } from './first-delivery-accept.ts'
+export { firstDeliveryAsk, firstDeliveryTask } from './first-delivery.ts'
+export type { FirstDeliveryInput, FirstDeliveryTask } from './first-delivery.ts'
+export { wantsWork, workSkipReason } from './wants-work.ts'
+export type { WorkSkipReason } from './wants-work.ts'
 export { assertV1Close, formatV1CloseMarkdown, measureV1Close, measureV1CloseView } from './v1-close.ts'
 export type { V1CloseMeasure, V1CloseMeasureView } from './v1-close.ts'
 export type { ProactivityMeasure } from './proactivity-measure.ts'

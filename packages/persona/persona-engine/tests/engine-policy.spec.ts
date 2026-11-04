@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest'
-import { engineClassForTurn, measureOpt5Acceptance, sessionReuseForTurn } from '../src/index.ts'
+import {
+  cheapModelForFirstDelivery,
+  engineClassForTurn,
+  measureOpt5Acceptance,
+  preferConnectedCli,
+  sessionReuseForTurn,
+} from '../src/index.ts'
 import type { TurnKind } from '@deepseek-ai/dsh-persona-core'
 
 const KINDS: readonly TurnKind[] = [
@@ -38,4 +44,13 @@ it('reuses a warmed session only when the persona and prefix stay (OPT-5)', () =
     prefixUnchanged: false,
   })).toBe('new')
   expect(measureOpt5Acceptance()).toEqual({ passed: 3, total: 3, failed: [] })
+})
+
+it('V1-P0-3: prefers Claude over Codex/OpenCode/Cursor and pins haiku', () => {
+  expect(preferConnectedCli(['cursor', 'codex', 'claude'])).toBe('claude')
+  expect(preferConnectedCli(['opencode', 'codex'])).toBe('codex')
+  expect(preferConnectedCli(['cursor'])).toBe('cursor')
+  expect(preferConnectedCli(['dsh', 'local'])).toBeUndefined()
+  expect(cheapModelForFirstDelivery('claude')).toBe('haiku')
+  expect(cheapModelForFirstDelivery('codex')).toBe('default')
 })

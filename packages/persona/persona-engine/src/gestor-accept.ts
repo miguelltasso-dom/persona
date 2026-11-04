@@ -16,7 +16,14 @@ import {
   type Persona,
   type PersonaSpec,
 } from '@deepseek-ai/dsh-persona-core'
-import { runGestorAllocate, runGestorAssemble, runGestorHire, runGestorReorganize } from './gestor.ts'
+import {
+  runGestorAllocate,
+  runGestorAssemble,
+  runGestorComment,
+  runGestorHire,
+  runGestorReorganize,
+  runGestorTie,
+} from './gestor.ts'
 
 export interface GestorAcceptance {
   readonly passed: number
@@ -214,4 +221,48 @@ export function measureGestorToolsAcceptance(): GestorToolsAcceptance {
   })
   if (assembled.decision.kind !== 'apply' || assembled.assemble === undefined) failed.push('assemble')
   return { passed: 4 - failed.length, total: 4, failed }
+}
+
+/** GES-3 domain score: comment, human tie, same-scope conflict. */
+export interface GestorMultiAcceptance {
+  readonly passed: number
+  readonly total: 3
+  readonly failed: readonly string[]
+}
+
+/**
+ * Second Gestor comments; human tie picks; same scope refuses a silent apply.
+ * @returns Passed count and failed ids. Empty `failed` is the domain gate.
+ */
+export function measureGestorMultiAcceptance(): GestorMultiAcceptance {
+  const failed: string[] = []
+  const open = plan()
+  const note = runGestorComment({
+    open: [open],
+    scopeKey: open.scopeKey,
+    commenterId: 'iris',
+    workspaceId: 'ws',
+    commentId: 'plan-iris',
+    comment: 'prefiro a Nina',
+    at: AT,
+  })
+  if (note.kind !== 'comment') failed.push('comment')
+  const commented = note.kind === 'comment' ? note.plan : open
+  const tie = runGestorTie([open, commented], 'plan-iris')
+  if (tie.winner.id !== 'plan-iris' || tie.rejected[0]?.id !== 'plan-1') failed.push('tie')
+  const clash = runGestorHire({
+    mandate: mandate('auto_within_limits'),
+    gestor: { ...gestor(), id: 'iris', name: 'Iris' },
+    plan: plan({ id: 'plan-2', gestorId: 'iris' }),
+    spec: spec(),
+    rosterCount: 2,
+    spentTokens: 0,
+    accepted: false,
+    auditId: 'c',
+    hireId: 'h-clash',
+    at: AT,
+    openPlans: [open],
+  })
+  if (clash.decision.kind !== 'conflict') failed.push('conflict')
+  return { passed: 3 - failed.length, total: 3, failed }
 }

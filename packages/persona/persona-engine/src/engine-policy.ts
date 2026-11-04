@@ -62,3 +62,29 @@ export function measureOpt5Acceptance(): Opt5Acceptance {
   if (reuse !== 'reuse' || fresh !== 'new') failed.push('session-reuse')
   return { passed: 3 - failed.length, total: 3, failed }
 }
+
+/** V1-P0-3 / Rivet `pickConnectedCli`: Claude, then Codex, OpenCode, Cursor. */
+export const CONNECTED_CLI_ORDER = ['claude', 'codex', 'opencode', 'cursor'] as const
+
+export type ConnectedCli = (typeof CONNECTED_CLI_ORDER)[number]
+
+/**
+ * First logged-in CLI in the cheap-to-capable order. Ignores dsh/local.
+ * @param logged - Provider ids that are already logged in.
+ * @returns Claude, then Codex, OpenCode, Cursor — or undefined.
+ */
+export function preferConnectedCli(logged: readonly string[]): ConnectedCli | undefined {
+  for (const id of CONNECTED_CLI_ORDER) {
+    if (logged.includes(id)) return id
+  }
+  return undefined
+}
+
+/**
+ * Cheap model for the first real delivery (Atlas ≤10 execs).
+ * @param cli - Connected provider.
+ * @returns `haiku` on Claude; `default` on the others.
+ */
+export function cheapModelForFirstDelivery(cli: ConnectedCli): string {
+  return cli === 'claude' ? 'haiku' : 'default'
+}

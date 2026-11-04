@@ -1,22 +1,33 @@
 /**
- * v1 close gate (PRO-6 + GES-6 + OPT-8). Probe / host call this;
- * they do not reassemble the three scores.
+ * v1 close gate (PRO-6 + GES-6 + GES-2 + GES-3 + OPT-8). Probe / host call this;
+ * they do not reassemble the scores.
  */
 
 import type { TurnLedgerEntry } from '@deepseek-ai/dsh-persona-core'
-import { measureGestorAcceptance, type GestorAcceptance } from './gestor-accept.ts'
+import {
+  measureGestorAcceptance,
+  measureGestorMultiAcceptance,
+  measureGestorToolsAcceptance,
+  type GestorAcceptance,
+  type GestorMultiAcceptance,
+  type GestorToolsAcceptance,
+} from './gestor-accept.ts'
 import { measureProactivityAcceptance, type ProactivityMeasure } from './proactivity-measure.ts'
+import { measureFirstDeliveryAcceptance, type FirstDeliveryAcceptance } from './first-delivery-accept.ts'
 import { measureOpt8Acceptance, measureOpt8View, type Opt8Acceptance, type Opt8MeasureView } from './token-measure.ts'
 
 export interface V1CloseMeasure {
   readonly passed: boolean
   readonly proactivity: ProactivityMeasure
   readonly gestor: GestorAcceptance
+  readonly gestorTools: GestorToolsAcceptance
+  readonly gestorMulti: GestorMultiAcceptance
+  readonly firstDelivery: FirstDeliveryAcceptance
   readonly opt8: Opt8Acceptance
 }
 
 /**
- * One fake-clock pass over the three v1 acceptance functions.
+ * One fake-clock pass over PRO-6, GES-6, GES-2, GES-3 and OPT-8.
  * `opt8.blocked` (cut-40 without a live book) does not fail the gate.
  * @param input - Optional live ledger for OPT-8 −40%.
  * @returns Combined score. `passed` is true when no function reports `failed`.
@@ -28,11 +39,22 @@ export function measureV1Close(input?: {
 }): V1CloseMeasure {
   const proactivity = measureProactivityAcceptance()
   const gestor = measureGestorAcceptance()
+  const gestorTools = measureGestorToolsAcceptance()
+  const gestorMulti = measureGestorMultiAcceptance()
+  const firstDelivery = measureFirstDeliveryAcceptance()
   const opt8 = measureOpt8Acceptance(input)
   return {
-    passed: proactivity.failed.length === 0 && gestor.failed.length === 0 && opt8.failed.length === 0,
+    passed: proactivity.failed.length === 0
+      && gestor.failed.length === 0
+      && gestorTools.failed.length === 0
+      && gestorMulti.failed.length === 0
+      && firstDelivery.failed.length === 0
+      && opt8.failed.length === 0,
     proactivity,
     gestor,
+    gestorTools,
+    gestorMulti,
+    firstDelivery,
     opt8,
   }
 }
@@ -42,6 +64,9 @@ export interface V1CloseMeasureView {
   readonly passed: boolean
   readonly proactivity: { readonly passed: number; readonly total: 6; readonly failed: readonly string[] }
   readonly gestor: { readonly passed: number; readonly total: 3; readonly failed: readonly string[] }
+  readonly gestorTools: { readonly passed: number; readonly total: 4; readonly failed: readonly string[] }
+  readonly gestorMulti: { readonly passed: number; readonly total: 3; readonly failed: readonly string[] }
+  readonly firstDelivery: { readonly passed: number; readonly total: 4; readonly failed: readonly string[] }
   readonly opt8: Opt8MeasureView
 }
 
@@ -65,6 +90,21 @@ export function measureV1CloseView(entries: readonly TurnLedgerEntry[] = []): V1
       total: scored.gestor.total,
       failed: scored.gestor.failed,
     },
+    gestorTools: {
+      passed: scored.gestorTools.passed,
+      total: scored.gestorTools.total,
+      failed: scored.gestorTools.failed,
+    },
+    gestorMulti: {
+      passed: scored.gestorMulti.passed,
+      total: scored.gestorMulti.total,
+      failed: scored.gestorMulti.failed,
+    },
+    firstDelivery: {
+      passed: scored.firstDelivery.passed,
+      total: scored.firstDelivery.total,
+      failed: scored.firstDelivery.failed,
+    },
     opt8: measureOpt8View(entries),
   }
 }
@@ -85,6 +125,9 @@ export function assertV1Close(input?: {
   const failed = [
     ...scored.proactivity.failed.map(id => `PRO:${id}`),
     ...scored.gestor.failed.map(id => `GES:${id}`),
+    ...scored.gestorTools.failed.map(id => `GES2:${id}`),
+    ...scored.gestorMulti.failed.map(id => `GES3:${id}`),
+    ...scored.firstDelivery.failed.map(id => `P0:${id}`),
     ...scored.opt8.failed.map(id => `OPT:${id}`),
   ]
   throw new Error(`V1_CLOSE ${failed.join(',')}`)
@@ -106,12 +149,15 @@ export function formatV1CloseMarkdown(input?: {
     '',
     scored.passed
       ? 'Gate **verde**. Probe / `@Remote measureV1Close` chamam `measureV1CloseView(entries)`; não remontam flags.'
-      : `Gate **vermelho**. Falhou: PRO ${scored.proactivity.failed.join(', ') || '—'} · GES ${scored.gestor.failed.join(', ') || '—'} · OPT ${scored.opt8.failed.join(', ') || '—'}.`,
+      : `Gate **vermelho**. Falhou: PRO ${scored.proactivity.failed.join(', ') || '—'} · GES ${scored.gestor.failed.join(', ') || '—'} · GES-2 ${scored.gestorTools.failed.join(', ') || '—'} · GES-3 ${scored.gestorMulti.failed.join(', ') || '—'} · P0 ${scored.firstDelivery.failed.join(', ') || '—'} · OPT ${scored.opt8.failed.join(', ') || '—'}.`,
     '',
     '| frente | score | failed | blocked |',
     '|---|---|---|---|',
     `| PRO-6 | ${String(scored.proactivity.passed)}/${String(scored.proactivity.total)} | ${scored.proactivity.failed.join(', ') || '—'} | — |`,
     `| GES-6 | ${String(scored.gestor.passed)}/${String(scored.gestor.total)} | ${scored.gestor.failed.join(', ') || '—'} | — |`,
+    `| GES-2 | ${String(scored.gestorTools.passed)}/${String(scored.gestorTools.total)} | ${scored.gestorTools.failed.join(', ') || '—'} | — |`,
+    `| GES-3 | ${String(scored.gestorMulti.passed)}/${String(scored.gestorMulti.total)} | ${scored.gestorMulti.failed.join(', ') || '—'} | — |`,
+    `| V1-P0-1 | ${String(scored.firstDelivery.passed)}/${String(scored.firstDelivery.total)} | ${scored.firstDelivery.failed.join(', ') || '—'} | — |`,
     `| OPT-8 | ${String(scored.opt8.passed)}/${String(scored.opt8.total)} | ${scored.opt8.failed.join(', ') || '—'} | ${scored.opt8.blocked.join(', ') || '—'} |`,
     '',
     'OPT-8 `cut-40` fica `blocked` até o livro live (`measureV1CloseView(entries)` / `measureOpt8View`). Não falha o gate.',

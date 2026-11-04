@@ -4,6 +4,283 @@ Mais recente no topo.
 
 ---
 
+## 04/11 09:05 — V1-P0-3: preferConnectedCli + haiku
+
+Rivet: dest:desktop seta `PERSONA_REAL_CLI=1`; `pickConnectedCli` Claude>Codex>OpenCode>Cursor. Concordo com a causa das 0 execs.
+
+Engine: `preferConnectedCli` + `cheapModelForFirstDelivery` (`haiku` no Claude). Host: `loggedCli` → `loggedCliFromCards`; `specFromConnection` em persona `dsh` + model vazio/default pinea haiku. Sem exec real (lock Probe B9). Ask Anvil: sem rota.
+
+### Arquivos
+- `packages/persona/persona-engine/src/engine-policy.ts`
+- `packages/persona/persona-engine/src/index.ts`
+- `packages/persona/persona-engine/tests/engine-policy.spec.ts`
+- `packages/persona/persona-host/src/runner.ts`
+- `packages/persona/persona-host/src/index.ts`
+- `packages/persona/persona-host/tests/real-path.spec.ts`
+- `persona-spec/contracts/lumen-rpc.md`
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/engine-policy.spec.ts
+  packages/persona/persona-host/tests/real-path.spec.ts
+  Test Files  2 passed (2)  Tests  9 passed (9)
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 19.8s
+```
+
+### Dependências
+- **Probe/Rivet:** 1 exec barata quando lock livre (`PERSONA_REAL_E2E` / dest:desktop).
+- **Anvil:** `getFirstDelivery` já no host; conferir `loggedCliFromCards`.
+- Keel: V1-P0-1/3 status no PLAN.
+
+---
+
+## 04/11 09:00 — V1-P0-1: accept chega em working/running
+
+Vigia: não parar. Anvil já postou `firstDeliveryAsk` no `completeOnboarding` + `ensureProductionRealCli`. Fechei o aceite machine do P0-1.
+
+`measureFirstDeliveryAcceptance` 4/4: Agência `wantsWork`; ask do Cofre; pré-roteador `model()` (não silent); `Engine.decide(accept)` → Assignment `running` + `ticketStage.working`. Entrou no `measureV1Close` / `v1-close.md`. Host: “Monte a equipe…” cria Tarefa em `doing` (antes do flush).
+
+CLI real continua Rivet (lock D8). 0/10 execs gastas.
+
+### Arquivos
+- `packages/persona/persona-engine/src/first-delivery-accept.ts`
+- `packages/persona/persona-engine/src/v1-close.ts`
+- `packages/persona/persona-engine/src/index.ts`
+- `packages/persona/persona-engine/tests/first-delivery.spec.ts`
+- `packages/persona/persona-engine/tests/v1-close.spec.ts`
+- `packages/persona/persona-host/tests/conductor.spec.ts`
+- `packages/persona/persona-e2e/tests/mandatory-v1-close-contract.spec.ts`
+- `persona-spec/contracts/lumen-rpc.md`
+- `persona-spec/reports/v1-close.md`
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/first-delivery.spec.ts
+  packages/persona/persona-engine/tests/v1-close.spec.ts
+  packages/persona/persona-host/tests/conductor.spec.ts
+  Test Files  3 passed (3)  Tests  15 passed (15)
+
+pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts
+  wrote v1-close.md (V1-P0-1 4/4)
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 16.2s
+```
+
+### Dependências
+- **Rivet V1-P0-3:** `PERSONA_REAL_CLI=1` no dest:desktop; 1 exec barata quando lock livre.
+- **Anvil V1-P0-2:** `startFirstDelivery` já no host; View `firstDelivery` extra no `measureV1CloseView` (subset antigo continua válido).
+- **Probe:** layer-2 + `PERSONA_REAL_E2E`.
+- Keel: marcar V1-P0-1 doing/done no PLAN.
+
+---
+
+## 04/11 08:55 — P0 primeira entrega: por que Agência = 0 execs
+
+Atlas / Muse UX-PHASE A. Lock Rivet D8 — **sem dest:desktop / host real** (não reproduzi no app; reproduzi no conductor).
+
+### Causa (3 linhas)
+1. O dogfood pulou “conectar” e pôs **fake CLI no PATH**; o desktop **nunca** seta `PERSONA_REAL_CLI=1`, então `resolveHostRunner` devolve fake — 0/20 é o gate, não o Vigia nem orçamento.
+2. O pedido “Monte a equipe da Agência Ponto…” **não passava** `wantsWork` (regex só `preciso|implement|cria|fazer|tarefa|…`) → ingest = conversa, `decide ignore/answered`, **zero Tarefa/Assignment**.
+3. Pré-roteador **não** silenciou (cai em `model()`); login “Precisa de você” só viria depois do resolve real.
+
+### Conserto engine
+- `wantsWork` / `workSkipReason` (monte/resuma/proponha/entregue/…)
+- `firstDeliveryAsk` / `firstDeliveryTask` (Ticket barato pós-onboarding)
+- Host `orchestration.wantsWork` reexporta o engine (P0; Anvil confirma completeOnboarding)
+
+### Arquivos
+- `packages/persona/persona-engine/src/wants-work.ts`
+- `packages/persona/persona-engine/src/first-delivery.ts`
+- `packages/persona/persona-engine/src/index.ts`
+- `packages/persona/persona-engine/tests/wants-work.spec.ts`
+- `packages/persona/persona-engine/tests/dogfood-agencia.spec.ts`
+- `packages/persona/persona-host/src/orchestration.ts`
+- `packages/persona/persona-host/tests/conductor.spec.ts`
+- `persona-spec/contracts/lumen-rpc.md`
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/wants-work.spec.ts
+  packages/persona/persona-engine/tests/dogfood-agencia.spec.ts
+  packages/persona/persona-host/tests/conductor.spec.ts
+  Test Files  3 passed (3)  Tests  14 passed (14)
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 23.6s
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: FAILED (1) index.ts(3480) Actor|Member.displayName — Anvil, pré-existente (não é wantsWork)
+```
+
+### Dependências
+- **Anvil:** `completeOnboarding` posta `firstDeliveryAsk`; produção sem `VITEST` não pode ficar no fake.
+- **Rivet:** `PERSONA_REAL_CLI=1` no host desktop (não VITEST). Lock D8 — sem CDP aqui.
+- App real + ledger live: espera lock. Orçamento ≤10 execs / modelo barato ainda não gasto.
+
+---
+
+## 04/11 08:50 — dest:desktop splash: firstUse antes do refresh
+
+Atlas: par com Rivet; sem segundo host (lock D8). CDP dest:desktop **não** rodado.
+
+Duas camadas:
+
+1. **Electron** (`apps/desktop/src/main.ts`): splash `data:` só navega com host `phase=ready`. Sem prazo 20s/60s → `bootErrorUrl` no ready-hang (BOOT-SPEC). Rivet aplica.
+2. **Client**: `bootstrap` fazia `await refresh()` (8 remotes + `listGestorPlans` + `listConversationSubjects`) **antes** de `publishHostOnboardingState`. Hang = overlay nunca abre (parece splash).
+
+Correção domínio (Forge):
+
+- `publishHostOnboardingState` logo após `bootstrapPersonaTenant`
+- `settleOptionalRemote` 1.5 s em Gestor/assuntos
+- `persona:first-paint` no `mount` (BOOT-SPEC; Rivet ainda não escuta)
+
+### Arquivos
+- `packages/persona/client-ui-persona/src/client/remote/persona-live-store.ts`
+- `packages/persona/client-ui-persona/src/client/boot/signal-first-paint.ts`
+- `packages/persona/client-ui-persona/src/client/mount.ts`
+- `packages/persona/client-ui-persona/tests/onboarding-overlay-sync.client.spec.ts`
+- `packages/persona/client-ui-persona/tests/signal-first-paint.client.spec.ts`
+- `persona-spec/contracts/lumen-rpc.md`
+
+### Testes
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/onboarding-overlay-sync.client.spec.ts
+  packages/persona/client-ui-persona/tests/signal-first-paint.client.spec.ts
+  packages/persona/client-ui-persona/tests/remote-unwrap.client.spec.ts
+  Test Files  3 passed (3)  Tests  10 passed (10)
+```
+
+check-pkg client-ui-persona: em curso (relato seguinte se falhar).
+
+### Dependências
+- **Rivet:** prazo splash 20s/60s → erro; escutar `persona:first-paint` (`data-persona-first-paint=1`); CDP dest:desktop quando lock livre. Sem `unsafe-eval`.
+- **Anvil:** se host nunca chega `ready`, overlay deste fix não aparece (janela fica no `data:`).
+- Keel: GES-2/3 + OPT-2..6 ainda `todo` no PLAN (código verde).
+- Sem dest:desktop neste turno (lock Rivet).
+
+Próximo: OPT-2 `assert-opt2` (já no engine) + F1 fixtures (Atlas dispensou amostra real).
+
+---
+
+## 04/11 08:00 — v1-close inclui GES-2 + GES-3
+
+Vigia: não parar. PLAN GES-2/OPT-2..6 ainda `todo` (código já verde — Keel marca). Fila implementável: dobrar GES-2/3 no gate v1.
+
+`measureV1Close` / `measureV1CloseView` / `assertV1Close` agora somam GES-2 4/4 e GES-3 3/3. Wire Anvil: campos extra (subset continua válido). `v1-close.md` com as duas linhas.
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/v1-close.spec.ts
+  packages/persona/persona-engine/tests/gestor.spec.ts
+  Test Files  2 passed (2)  Tests  9 passed (9)
+
+pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts
+  wrote opt8-acceptance.md / v1-close.md
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 12.9s
+```
+
+### Dependências
+- Keel: marcar GES-2/3 + OPT-2..6 (domínio verde).
+- Prism: AG-003 Ensinar no hero já 1/1 (07:55).
+- Probe: layer-2 `mandatory-v1-close.spec.ts` espera lock.
+- F1 amostra real: Atlas dispensou (fixtures oficiais bastam).
+
+Fila implementável Forge (core/engine) vazia após isto — ask Atlas.
+
+---
+
+## 04/11 07:45 — AG-001..004 (Atlas dogfood)
+
+Classificação + cruzamento Anvil/Keel (Lumen/Prism off canvas). Sem host novo (lock).
+
+| ID | Classe | Ação |
+|---|---|---|
+| **AG-001** | cruzado (hub sem abrir quadro + `sprintsEnabled` só software) | Lumen já alargou site/simples/marketing. Dogfood agora clica `Abrir quadro`. Teste `dogfood-ag-001.client.spec.tsx` (site + Pessoal/simples). |
+| **AG-002** | cruzado e2e (rail hardcoded Atlas; first-run = Probe E2E) | `navigateProfileViaRailCard` cai no primeiro `Conversar com`. Teste `rail-persona-name.spec.ts` + rail Probe E2E. |
+| **AG-003** | client puro Prism | `dogfood-ag-003.client.spec.tsx` `it.fails`: hero tem Conversar/Editar, falta Ensinar. Sem src. Entregar ao Prism. |
+| **AG-004** | host | Anvil: `onboarding.spec.ts` first-run vazio → grant → list → revoke. Seed só no harness (`DEV_HARNESS_BRAIN_GRANT_ID`), não no onboarding real. |
+
+### Testes
+```
+pnpm exec vitest run packages/persona/client-ui-persona/tests/dogfood-ag-001.client.spec.tsx
+  packages/persona/client-ui-persona/tests/dogfood-ag-003.client.spec.tsx
+  packages/persona/client-ui-persona/tests/rail-team.client.spec.tsx
+  packages/persona/client-ui-persona/tests/seed-default-team.client.spec.ts
+  packages/persona/persona-e2e/tests/rail-persona-name.spec.ts
+  packages/persona/persona-host/tests/onboarding.spec.ts
+  Test Files  6 passed (6)  Tests  24 passed | 1 expected fail (25)
+```
+
+### Limitações
+- AG-003 continua aberto (Prism: `onTeach` no hero de `PersonaProfilePage`).
+- Dogfood app-real não re-rodado (lock / um host).
+- First-run sem `devSeed` segue sem grant (vazio honesto).
+
+---
+
+## 04/11 07:10 — GES-3 gate + OPT-8 livro live fixture
+
+Vigia: não parar. Lock D8 com Rivet — sem host novo.
+
+### GES-3
+`measureGestorMultiAcceptance` — comment / tie / conflict (3/3). UI continua Prism.
+
+### OPT-8
+`write-opt8-acceptance.ts` agora anexa fixture live −40% (4/4, blocked vazio). Scripted sem livro segue 3/4 + `cut-40` blocked.
+
+### Testes
+```
+pnpm exec vitest run packages/persona/persona-engine/tests/gestor.spec.ts
+  Test Files  1 passed (1)  Tests  6 passed (6)
+
+pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts
+  wrote opt8-acceptance.md / v1-close.md
+
+node scripts/persona/check-pkg.mjs persona-engine
+  persona-engine: OK in 16.3s
+```
+
+### Dependências (fila implementável Forge vazia)
+- **Rivet/Probe**: pack `BsxPADcs` + exe `#root`; layer-2 `mandatory-v1-close.spec.ts` espera lock.
+- Keel: marcar GES-2/3 + OPT-2..6 (código verde).
+- Lumen/Prism/Anvil: AG-001..004.
+
+---
+
+## 04/11 07:30 — Rivet pack `BsxPADcs` + dogfood Agência no host real
+
+Rivet: **pack ok hash=BsxPADcs**. Dist local de trabalho ainda é `index-ZjNmkjRJ.js` (V28). Probe retesta o exe.
+
+### Dogfood #2 app real (dev, sem instalador)
+`PERSONA_E2E=1` `dogfood-agencia.spec.ts` **1/1** em 286s. Capturas em `.maestri/tmp/shots/dogfood-agencia/`. Relatório `dogfood-agencia.md`. CLI real **0/20**. Dispose no finally.
+
+Passos ok: boot, Gestor cartão, #geral assemble, Segundo cérebro (vazio), BYC Importar, assuntos DM, Quem cuida.
+
+Bugs: AG-001 sprint ausente (Lumen P2); AG-002 perfil rail Atlas timeout (Lumen/Prism P1); AG-003 Ensinar ausente (Prism P1); AG-004 sem grant para revogar (Anvil P2, fake CLI).
+
+### E2E v1 (Probe)
+`mandatory-v1-close-contract.spec.ts` 2 files / 4 tests ok. Layer-2 `mandatory-v1-close.spec.ts` (host + Uso + subprocess View) — aguarda lock (Rivet pack / Probe gate).
+
+### Testes
+```
+$env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/dogfood-agencia.spec.ts
+  Test Files  1 passed (1)  Tests  1 passed (1)  Duration 286.67s
+
+pnpm exec vitest run packages/persona/persona-e2e/tests/mandatory-v1-close-contract.spec.ts packages/persona/persona-engine/tests/dogfood-agencia.spec.ts
+  Test Files  2 passed (2)  Tests  4 passed (4)
+```
+
+### Dependências
+- **Probe**: exe `BsxPADcs` (`#root` + dogfood UI) + layer-2 `mandatory-v1-close.spec.ts`.
+- Lumen/Prism/Anvil: AG-001..004.
+
+---
+
 ## 04/11 06:49 — Anvil wire + GES-2 tools gate
 
 Anvil: `measureV1Close` host = `return measureV1CloseView(liveEntries)`; token-opt 6/6. Confirmado em `persona-host/src/index.ts`.

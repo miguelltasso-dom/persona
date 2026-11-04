@@ -17,7 +17,9 @@ import {
   orgChart,
   rememberApprovalPermission,
   revokeRememberedPermission,
+  firstDeliveryAsk,
   runGestorAssemble,
+  wantsWork,
   workflowFromTemplate,
   draftTaughtSkill,
   type GovernanceSnapshot,
@@ -147,6 +149,9 @@ it('walks Agência Ponto: gestor, quadro+sprint, ensinar, cérebro, BYC, assunto
   }
   const chart = orgChart(snap, 'person')
   expect(chart.groups.some(group => group.personas.some(card => card.personaId === 'nina'))).toBe(true)
+
+  expect(wantsWork('Monte a equipe da Agência Ponto para o site e a campanha do cliente.')).toBe(true)
+  expect(firstDeliveryAsk({ companyBrief: 'Agência Ponto — estúdio de sites.' })).toMatch(/Resuma o Cofre/)
 
   expect(IMPORT_ADAPTERS.map(row => row.id)).toEqual(
     expect.arrayContaining(['chatgpt', 'claude', 'gemini', 'notion', 'markdown', 'grok']),

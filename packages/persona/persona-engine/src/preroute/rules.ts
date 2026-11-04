@@ -6,6 +6,7 @@
 import { matchComposerSlash } from '@deepseek-ai/dsh-persona-core'
 
 export type PreRouteRule =
+  | 'first_delivery'
   | 'duplicate'
   | 'mention'
   | 'courtesy'
@@ -69,7 +70,12 @@ export interface PreRouteInput {
   canCommand: (command: 'pausar' | 'retomar' | 'tarefa') => boolean
   window: readonly RouteWindowEntry[]
   rules?: Partial<PreRouteRules>
+  /** Trusted onboarding directive bound by the host; user text cannot select this route. */
+  firstDelivery?: FirstDeliveryRouteDirective
 }
+
+/** Host-authorized first delivery target; roster and task ACL remain mandatory. */
+export interface FirstDeliveryRouteDirective { executorId: string; title: string }
 
 export type PreRouteAction = 'ignore' | 'react' | 'silent' | 'assign' | 'command' | 'model'
 
@@ -168,8 +174,16 @@ function model(): PreRouteResult {
  */
 export function preRoute(input: PreRouteInput): PreRouteResult {
   const rules = rulesOf(input)
-  if (rules.silence && (input.budgetLeft === false || input.at < input.silenceUntil)) {
+  if (rules.silence && (!input.budgetLeft || input.at < input.silenceUntil)) {
     return { action: 'silent', rule: 'silence', why: 'janela de silêncio ou orçamento esgotado', modelCalled: false }
+  }
+  if (input.firstDelivery !== undefined) {
+    const { executorId, title } = input.firstDelivery
+    if (!input.canCommand('tarefa')) return { action: 'ignore', rule: 'first_delivery', why: 'primeira entrega recusada pela ACL', modelCalled: false }
+    if (!input.personas.some(persona => persona.id === executorId)) return { action: 'ignore', rule: 'first_delivery',
+      why: 'primeira entrega sem executora disponível', modelCalled: false }
+    return { action: 'assign', rule: 'first_delivery', why: 'primeira entrega já autorizada no onboarding', modelCalled: false,
+      personaId: executorId, title }
   }
   if (rules.empty && input.text.trim() === '') {
     return { action: 'ignore', rule: 'empty', why: 'mensagem vazia', modelCalled: false }

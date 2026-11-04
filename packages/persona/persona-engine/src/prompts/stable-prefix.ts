@@ -10,6 +10,13 @@ import { composeVoicePolicy, type PersonaVoiceFields } from './voice.ts'
 /** Clock, counters, and "now" must not sit in the cached prefix. */
 const VOLATILE = /\b(?:\d{1,2}:\d{2}(?::\d{2})?|hoje|agora|turno\s*#?\d+|contador|\d{4}-\d{2}-\d{2}T\d{2}:)/iu
 
+/**
+ * Clocks and counters the MACHINE would inject (ISO date-time, "turno #N", epoch ms).
+ * User-authored words such as "hoje", "agora", "contador" or "10:00" are legitimate prefix
+ * text (a persona's instructions, a Cofre rule) and must never silence a persona.
+ */
+const GENERATED_CLOCK = /(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}|turno\s*#\d+|\b\d{13}\b)/iu
+
 export const PREFIX_LAYER_ORDER = ['system', 'persona', 'tools', 'required'] as const
 
 /** Variable-layer token ceilings (OPT-4). Prefix layers stay cache-stable. */
@@ -59,10 +66,19 @@ export function prefixLooksVolatile(text: string): boolean {
 }
 
 /**
+ * Strict heuristic for ENGINE-OWNED text (prompt templates, tool lines). Not for text a person wrote.
  * @param text - Prefix candidate.
  */
 export function assertPrefixStable(text: string): void {
   if (prefixLooksVolatile(text)) throw new Error('UNSTABLE_PREFIX')
+}
+
+/**
+ * @param text - Prefix candidate.
+ * @returns True when the text carries a clock or counter a host would have injected.
+ */
+export function prefixHasGeneratedClock(text: string): boolean {
+  return GENERATED_CLOCK.test(text)
 }
 
 /**
@@ -74,7 +90,8 @@ export function composeStablePrefix(input: StablePrefixInput): StablePrefix {
     .map(part => part.trim())
     .filter(part => part !== '')
     .join('\n\n')
-  assertPrefixStable(prefix)
+  // The prefix carries persona and Cofre text a person wrote: only a machine-made clock breaks it.
+  if (prefixHasGeneratedClock(prefix)) throw new Error('UNSTABLE_PREFIX')
   const variable = [input.subject ?? '', input.recall ?? '', input.message ?? '']
     .map(part => part.trim())
     .filter(part => part !== '')

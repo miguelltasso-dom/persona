@@ -38,8 +38,21 @@ export interface Trigger {
   meta: Record<string, unknown>
 }
 
+/** Safe connection failure categories; provider details and credentials stay outside the engine. */
+export type EngineUnavailableReason = 'none_connected' | 'login_required' | 'quota_exhausted'
+
+/** Durable wait for a host connection, including an explicit dismissal or release. */
+export interface EngineTriggerWait {
+  state: 'pending' | 'confirmation_required' | 'released' | 'dismissed'
+  reason: EngineUnavailableReason
+  since: string
+  notified?: true
+}
+
 /** Where a trigger went after intake; it grants nothing, but decides who decides a person's follow-up (see `followupOwners`). */
 export interface TriggerDisposition {
+  /** Deferred routing survives restart; released messages retain their notification deduplication record. */
+  engineWait?: EngineTriggerWait
   /** Rejected by the source scope filter before entering the domain, for the Source's reason. */
   filtered?: Reason
   evalId?: string

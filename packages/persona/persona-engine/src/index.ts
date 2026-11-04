@@ -155,7 +155,7 @@ export {
   routeHash,
 } from './preroute/rules.ts'
 export type {
-  PreRouteAction, PreRouteInput, PreRouteResult, PreRouteRule, PreRouteRules, PreRouteTrail, RouteWindowEntry,
+  FirstDeliveryRouteDirective, PreRouteAction, PreRouteInput, PreRouteResult, PreRouteRule, PreRouteRules, PreRouteTrail, RouteWindowEntry,
 } from './preroute/rules.ts'
 export {
   COORD_PROMPT_BEFORE,
@@ -187,6 +187,13 @@ export type {
 } from './bench/coord-eval.ts'
 export {
   GitReviewDelivery,
+  createReviewDelivery,
+  HISTORY_COPY_LIMIT_BYTES,
+  HISTORY_RESTORE_RETENTION_MS,
+  HistoryReviewDelivery,
+  HistoryReviewError,
+  historyFileOps,
+  parseReviewRestorePointId,
   REVIEW_BRANCH_PREFIX,
   REVIEW_PATCH_LIMIT_BYTES,
   confineWorktreeWrite,
@@ -197,11 +204,21 @@ export {
 } from './review/index.ts'
 export type {
   GitReviewOptions,
+  HistoryFileOps,
+  HistoryReviewFailure,
+  HistoryReviewOptions,
   MergeMode,
   ReviewAcceptResult,
+  ReviewApplyOptions,
+  ReviewConflictResolution,
   ReviewDelivery,
   ReviewFileChange,
+  ReviewFileConflict,
+  ReviewFileVersion,
+  ReviewRestorePoint,
+  ReviewRestorePointId,
   ReviewSummary,
+  ReviewUndoResult,
   ReviewWorktree,
 } from './review/index.ts'
 export {
@@ -571,10 +588,10 @@ export type { ProactivityAcceptance, ProactivityAcceptanceInput } from './proact
 export { measureProactivityAcceptance, measureProactivityV1 } from './proactivity-measure.ts'
 export { measureFirstDeliveryAcceptance } from './first-delivery-accept.ts'
 export type { FirstDeliveryAcceptance } from './first-delivery-accept.ts'
-export { verifyFirstDeliveryRun } from './first-delivery-run.ts'
+export { FIRST_DELIVERY_MAX_PAID_TURNS, verifyFirstDeliveryRun } from './first-delivery-run.ts'
 export type { FirstDeliveryRunEvidence, FirstDeliveryRunFailure, FirstDeliveryRunResult } from './first-delivery-run.ts'
-export { firstDeliveryAsk, firstDeliveryTask } from './first-delivery.ts'
-export type { FirstDeliveryInput, FirstDeliveryTask } from './first-delivery.ts'
+export { firstDeliveryAsk, firstDeliveryExecutionPrompt, firstDeliveryTask } from './first-delivery.ts'
+export type { FirstDeliveryExecutionInput, FirstDeliveryInput, FirstDeliveryTask } from './first-delivery.ts'
 export { wantsWork, workSkipReason } from './wants-work.ts'
 export type { WorkSkipReason } from './wants-work.ts'
 export { assertV1Close, formatV1CloseMarkdown, measureV1Close, measureV1CloseView } from './v1-close.ts'

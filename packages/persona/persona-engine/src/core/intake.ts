@@ -7,6 +7,9 @@ import type { Tickets } from './tickets.ts'
 
 export type ReceiveResult = 'stored' | 'duplicate' | 'filtered'
 
+/** Host admission options; deferred intake persists the message without ticket or executor effects. */
+export interface ReceiveOptions { deferRouting?: boolean }
+
 /**
  * Ingests incoming triggers from Sources, deduplicating and filtering them against SourceScope before recording thread correlations.
  * Fans listened triggers out to subscribed tickets via Tickets and queues for Eval, on its primary thread, every trigger no
@@ -16,7 +19,7 @@ export type ReceiveResult = 'stored' | 'duplicate' | 'filtered'
 export class Intake extends EnginePart {
   constructor(options: EngineOptions, private readonly tickets: Tickets) { super(options) }
 
-  receive(received: Trigger): ReceiveResult {
+  receive(received: Trigger, options: ReceiveOptions = {}): ReceiveResult {
     // Normalize source timestamps (such as GitHub whole seconds) to canonical ISO form.
     const trigger = { ...received, at: isoTime(received.at) }
     if (!trigger.threads.length) throw new Error('A trigger must belong to at least one thread')
@@ -28,6 +31,21 @@ export class Intake extends EnginePart {
       return 'filtered'
     }
     this.repo.triggers.save(trigger)
+    const primary = this.thread(trigger.threads[0]!)
+    const predecessor = primary.pending.map(id => this.repo.triggers.disposition(id)?.engineWait)
+      .find(wait => wait?.state === 'pending' || wait?.state === 'confirmation_required')
+    if (options.deferRouting || predecessor) {
+      this.repo.triggers.saveDisposition(trigger.id, { fanout: [], at,
+        engineWait: { state: 'pending', reason: predecessor?.reason ?? 'none_connected', since: at } })
+      this.queueForEval(trigger)
+    } else this.route(trigger)
+    this.emit('trigger.received', { triggerId: trigger.id, threads: trigger.threads.map(threadKey) })
+    return 'stored'
+  }
+
+  /** Apply the ordinary subscription fan-out once deferred intake has been released. */
+  route(trigger: Trigger): void {
+    const at = this.now()
     const keys = trigger.threads.map(threadKey)
     // Track reached tickets and whether they were reached only via context threads (a ticket's own thread makes `context` false).
     const reached = new Map<string, { ticket: Ticket; context: boolean }>()
@@ -51,13 +69,16 @@ export class Intake extends EnginePart {
         ...trigger.human ? { human: true } : {}, ...followed ? { context: true } : {} })
     }
     const fanout = [...reached.keys()], context = fanout.filter(id => reached.get(id)!.context)
-    const disposition = { fanout, ...context.length ? { context } : {}, at }
+    const disposition = { ...this.repo.triggers.disposition(trigger.id), fanout, ...context.length ? { context } : {}, at }
     this.repo.triggers.saveDisposition(trigger.id, disposition)
     // A person's message that no ticket decides, such as one that reached only tickets a person stopped or that follow the
     // Thread for context, and every bot's, goes to Eval.
     if (!this.owners(trigger).length) this.queueForEval(trigger)
+    else {
+      const primary = this.thread(trigger.threads[0]!)
+      primary.pending = primary.pending.filter(id => id !== trigger.id)
+      this.repo.threads.save(primary)
+    }
     for (const ticketId of fanout) this.tickets.wake(ticketId)
-    this.emit('trigger.received', { triggerId: trigger.id, threads: trigger.threads.map(threadKey) })
-    return 'stored'
   }
 }

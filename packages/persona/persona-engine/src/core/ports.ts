@@ -1,5 +1,5 @@
 /** Ports the core depends on. Sources, policies, assessors, executors, and channels are project-specific. */
-import type { Assignment, ChannelRef, Decision, DecisionKind, Mandate, MandateBasis, Strength, Thread, Ticket, TicketEndBy, TicketOutcome, Trigger }
+import type { Assignment, ChannelRef, Decision, DecisionKind, EngineUnavailableReason, Mandate, MandateBasis, Strength, Thread, Ticket, TicketEndBy, TicketOutcome, Trigger }
   from './model.ts'
 import type { Reason } from './reasons.ts'
 
@@ -84,6 +84,22 @@ export interface Outbox {
 
 /** What the Engine reports after a change, by event type. */
 export interface DomainEvents {
+  /**
+   * A stored message waits for a host connection; emitted once per trigger after commit.
+   * @mode event
+   * @param triggerId - Stored message identifier.
+   * @param streamId - Primary source thread key.
+   * @param reason - Safe connection failure category.
+   */
+  no_engine_ready: { triggerId: string; streamId: string; reason: EngineUnavailableReason }
+  /**
+   * A deferred message needs a person's confirmation before routing because it expired.
+   * @mode event
+   * @param triggerId - Stored message identifier.
+   * @param streamId - Primary source thread key.
+   * @param reason - Typed expiration reason.
+   */
+  engine_confirmation_required: { triggerId: string; streamId: string; reason: 'expired' }
   'trigger.received': { triggerId: string; threads: string[] }
   'eval.started': { evalId: string; threadKey: string; triggerIds: string[]; strength: Strength }
   'decision.recorded': { decisionId: string; kind: DecisionKind; threadKey: string }

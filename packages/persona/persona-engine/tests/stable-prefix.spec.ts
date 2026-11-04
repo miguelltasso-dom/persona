@@ -10,12 +10,15 @@ import {
   measureOpt4Acceptance,
   prefixCacheHitRate,
   prefixLooksVolatile,
+  PROMPT_TEMPLATES,
+  composeHostTalk,
   toolsForTurn,
   trimVariableAlreadyInPrefix,
   composeTalkStable,
   composePersonaStable,
   finalizeTalkReply,
 } from '../src/index.ts'
+import { prefixHasGeneratedClock } from '../src/prompts/stable-prefix.ts'
 
 it('keeps system → persona → tools → required and rejects a volatile prefix', () => {
   expect(PREFIX_LAYER_ORDER).toEqual(['system', 'persona', 'tools', 'required'])
@@ -112,4 +115,56 @@ it('persona stable keeps the user line out of the cache and vault in required (O
   expect(built.prefix).toContain('Nunca inventar preço.')
   expect(built.prefix).not.toContain('Cardápio')
   expect(built.variable).toContain('Cardápio')
+})
+
+it('user-authored words never silence a persona; a machine clock still does (OPT-3)', () => {
+  const talk = (patch: { instructions?: string; personality?: string; required?: string }): string => composeHostTalk({
+    fields: {
+      identity: { name: 'Atlas', title: 'Contador' },
+      personality: patch.personality ?? 'Calmo.',
+      instructions: patch.instructions ?? 'Despache.',
+      functionLabel: 'coordenação',
+      vault: '',
+      capabilities: 'resposta de conversa',
+    },
+    surface: 'talk',
+    userText: 'oi',
+    ...(patch.required === undefined ? {} : { required: patch.required }),
+  }).prefix
+  for (const patch of [
+    { instructions: 'Avise a equipe hoje se faltar farinha.' },
+    { instructions: 'Responda agora quando o cliente perguntar.' },
+    { personality: 'Fala como um contador paciente.' },
+    { required: 'regra: standup às 10:00 no #geral.' },
+  ]) {
+    expect(talk(patch).length).toBeGreaterThan(100)
+  }
+  expect(() => talk({ required: 'prazo: 2026-11-04T09:00 para a entrega.' })).toThrow('UNSTABLE_PREFIX')
+  expect(() => talk({ required: 'turno #7 da equipe' })).toThrow('UNSTABLE_PREFIX')
+  expect(prefixHasGeneratedClock('agora 10:00 hoje')).toBe(false)
+  expect(prefixHasGeneratedClock('gerado em 1730710000000')).toBe(true)
+})
+
+it('every engine prompt template is clock-free (strict guard, engine-owned text)', () => {
+  for (const [part, text] of Object.entries(PROMPT_TEMPLATES)) {
+    expect(prefixLooksVolatile(text), part).toBe(false)
+  }
+})
+
+it('the stable prefix does not move when only the message, recall or subject change (OPT-3)', () => {
+  const fields = {
+    identity: { name: 'Atlas', title: 'Coordenação' },
+    personality: 'Calmo.',
+    instructions: 'Despache.',
+    functionLabel: 'coordenação',
+    vault: '',
+    colleagues: [{ name: 'Nina', title: 'Padeira' }],
+    capabilities: 'resposta de conversa',
+  }
+  const required = 'regra: nunca inventar preço.'
+  const one = composeHostTalk({ fields, surface: 'talk', userText: 'Qual o horário?', required, recall: 'nota: abre às 7h' })
+  const two = composeHostTalk({ fields, surface: 'talk', userText: 'Cardápio de sábado?', required, subject: 'Ana pediu 40 pães', recall: 'nota: forno a 180 graus' })
+  expect(two.prefix).toBe(one.prefix)
+  expect(two.text.startsWith(one.prefix)).toBe(true)
+  expect(one.variable).not.toBe(two.variable)
 })

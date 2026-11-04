@@ -2,6 +2,9 @@
 import type { TurnLedgerEntry } from '@deepseek-ai/dsh-persona-core'
 import { CONNECTED_CLI_ORDER, preferConnectedCli } from './engine-policy.ts'
 
+/** Acceptance target: one paid worker execution, with no prompt-injection or coordination turn. */
+export const FIRST_DELIVERY_MAX_PAID_TURNS: number = 1
+
 /** Persisted observations collected from one clean-home acceptance run. */
 export interface FirstDeliveryRunEvidence {
   readonly askId: string
@@ -25,6 +28,7 @@ export interface FirstDeliveryRunEvidence {
   /** Elapsed time from the beginning of onboarding until the milestone is visible. */
   readonly elapsedMs: number
   readonly maxElapsedMs: number
+  /** Shared safety ceiling; first-delivery acceptance additionally requires one execution and no other model turn. */
   readonly maxCalls: number
 }
 
@@ -70,7 +74,9 @@ export function verifyFirstDeliveryRun(evidence: FirstDeliveryRunEvidence): Firs
   if (connected === undefined) failed.push('connected-cli')
   if (ticket === undefined || executions.length === 0) failed.push('measured-execution')
   if (measured.length !== evidence.entries.length) failed.push('unmeasured-usage')
-  if (evidence.entries.length === 0 || evidence.entries.length > evidence.maxCalls) failed.push('call-budget')
+  if (!Number.isSafeInteger(evidence.maxCalls) || evidence.maxCalls < 1
+    || evidence.entries.length !== FIRST_DELIVERY_MAX_PAID_TURNS || evidence.entries.length > evidence.maxCalls
+    || evidence.entries[0]?.kind !== 'execution') failed.push('call-budget')
   const delivery = evidence.delivery
   if (ticket === undefined || delivery === undefined || delivery.ticketId !== ticket.id
     || delivery.streamKind !== 'channel' || delivery.ownerId !== 'geral'

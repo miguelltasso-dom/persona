@@ -1,7 +1,19 @@
 import { expect, it } from 'vitest'
-import { firstDeliveryAsk, firstDeliveryTask } from '../src/first-delivery.ts'
+import { firstDeliveryAsk, firstDeliveryExecutionPrompt, firstDeliveryTask } from '../src/first-delivery.ts'
 import { preRoute } from '../src/preroute/rules.ts'
 import { wantsWork, workSkipReason } from '../src/wants-work.ts'
+
+it('keeps persona context and the authorized first-delivery task in one logged worker input', () => {
+  const prompt = firstDeliveryExecutionPrompt({ personaContext: 'Você é Bia. Seja objetiva.',
+    task: { assignment: 'Resuma os dados da empresa nesta mensagem; apenas resposta, sem ferramentas.' } })
+  expect(prompt).toMatchInlineSnapshot(`
+    "Contexto da persona para esta execução; respeite o modo apenas resposta e as permissões da tarefa:
+    Você é Bia. Seja objetiva.
+
+    Pedido autorizado para este único turno:
+    Resuma os dados da empresa nesta mensagem; apenas resposta, sem ferramentas."
+  `)
+})
 
 it('Agência P0: Monte a equipe is work; oi is talk', () => {
   expect(wantsWork('Monte a equipe da Agência Ponto para o site e a campanha do cliente.')).toBe(true)

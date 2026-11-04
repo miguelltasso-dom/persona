@@ -106,6 +106,8 @@ export class Tickets extends EnginePart {
   attachable(ticketId: string, triggerId: string): Trigger {
     const trigger = this.repo.triggers.get(triggerId)
     if (!trigger) throw new UserError('unknownTrigger')
+    const wait = this.repo.triggers.disposition(triggerId)?.engineWait
+    if (wait !== undefined && wait.state !== 'released') throw new UserError('engineUnavailable')
     // A follow-up that reached a ticket goes elsewhere only once the workers that decide it hand it back.
     this.leftToWorkers(trigger)
     const current = this.require(ticketId)

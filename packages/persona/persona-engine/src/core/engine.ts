@@ -2,12 +2,13 @@
 import { applyAttentionAnswer } from '../attention.ts'
 import { UserError } from './errors.ts'
 import { isoTime, liveTicket } from './model.ts'
-import type { Decision, PolicyEffect, ThreadRef, Ticket, Trigger } from './model.ts'
+import type { Decision, EngineUnavailableReason, PolicyEffect, ThreadRef, Ticket, Trigger } from './model.ts'
 import type { Candidate, Repositories } from './ports.ts'
 import type { EngineOptions } from './part.ts'
 import { Assignments, type WorkerReport } from './assignments.ts'
 import { Evals, type Outcome } from './evals.ts'
-import { Intake, type ReceiveResult } from './intake.ts'
+import { Intake, type ReceiveOptions, type ReceiveResult } from './intake.ts'
+import { Availability, type EngineReadyOptions } from './availability.ts'
 import { Replies, type Reply, type ReplyRequest } from './replies.ts'
 import { Tickets } from './tickets.ts'
 
@@ -15,6 +16,8 @@ export type { EngineOptions } from './part.ts'
 export type { WorkerReport } from './assignments.ts'
 export type { Outcome } from './evals.ts'
 export type { ReceiveResult } from './intake.ts'
+export type { ReceiveOptions } from './intake.ts'
+export type { EngineReadyOptions } from './availability.ts'
 export type { Reply, ReplyRequest } from './replies.ts'
 
 /**
@@ -29,6 +32,7 @@ export class Engine {
   private readonly assignments: Assignments
   private readonly evals: Evals
   private readonly intake: Intake
+  private readonly availability: Availability
   constructor(private readonly options: EngineOptions) {
     this.repo = options.repo
     this.replies = new Replies(options)
@@ -36,6 +40,7 @@ export class Engine {
     this.assignments = new Assignments(options, this.tickets, this.replies)
     this.evals = new Evals(options, this.tickets)
     this.intake = new Intake(options, this.tickets)
+    this.availability = new Availability(options, this.intake)
   }
 
   // Sources
@@ -45,8 +50,40 @@ export class Engine {
    * ended one only a person's message, which resumes it at once unless processing is paused, and to none a person stopped),
    * and queue it for Eval on its primary Thread unless a ticket's worker decides it (see `followupOwners`).
    * Triggers that arrive while an Eval of that Thread runs wait together for the next one.
+   * @param trigger - Immutable source message to store once.
+   * @param options - Defer routing when the host knows no connection is ready; a retained predecessor also defers intake.
+   * @returns Storage, duplicate, or source-filter result.
    */
-  receive(trigger: Trigger): ReceiveResult { return this.repo.atomic(() => this.intake.receive(trigger)) }
+  receive(trigger: Trigger, options: ReceiveOptions = {}): ReceiveResult { return this.repo.atomic(() => this.intake.receive(trigger, options)) }
+  /**
+   * Retain a persisted message and emit one safe notification after commit. Hosts use deferred intake before this command.
+   * @param triggerId - Stored message identifier.
+   * @param reason - Connection failure from the host cache.
+   * @returns Whether the first notification was recorded.
+   */
+  engineUnavailable(triggerId: string, reason: EngineUnavailableReason = 'none_connected'): boolean {
+    return this.repo.atomic(() => this.availability.unavailable(triggerId, reason))
+  }
+  /**
+   * Release a retained stream head once; the host re-enters its routing flow with the returned trigger.
+   * @param triggerId - Stored message identifier.
+   * @param options - Explicit person confirmation when the message has expired.
+   * @returns Original trigger, or undefined when already handled, out of order, or awaiting confirmation.
+   */
+  engineReady(triggerId: string, options: EngineReadyOptions = {}): Trigger | undefined {
+    return this.repo.atomic(() => this.availability.ready(triggerId, options))
+  }
+  /**
+   * List retained messages for the host's cache-to-ready replay, preserving arrival order within each stream.
+   * @returns Pending messages, including those requiring confirmation.
+   */
+  pendingEngineTriggers(): Trigger[] { return this.availability.pending() }
+  /**
+   * Permanently dismiss a retained message at a person's request.
+   * @param triggerId - Stored message identifier.
+   * @returns Whether a pending message was dismissed.
+   */
+  dismissEngineTrigger(triggerId: string): boolean { return this.repo.atomic(() => this.availability.dismiss(triggerId)) }
   /**
    * A Source's request to make an open ticket follow one of its Threads, such as a pull request's, `own` when the ticket
    * opened it: the ticket subscribes to it, and a ready report ends it only once `followsDone` holds (see `Tickets.followsDone`).
@@ -94,7 +131,7 @@ export class Engine {
    * request the main Session routes. A proactive candidate is accepted only in `auto` mode with enabled rules its assessment
    * matched, and a Trigger that already started a ticket returns that ticket's Decision. An invalid stop is recorded as
    * `ignore`; one judged under an older Policy as `unavailable`.
-   * @throws UserError when the Trigger is unknown or not admissible, `outcome.evalId` names an Eval that has finished, a
+   * @throws UserError when the Trigger is unknown, retained for engine readiness, or not admissible, `outcome.evalId` names an Eval that has finished, a
    * ticket's worker still decides the Trigger and the outcome is not a stop, or an inferred candidate is accepted outside `auto`
    * mode or without enabled matching rules.
    */
@@ -276,7 +313,7 @@ export class Engine {
 }
 
 /** What Sources ask and tell the Engine. */
-export type EngineForSources = Pick<Engine, 'receive' | 'bindThread' | 'threadClosed'>
+export type EngineForSources = Pick<Engine, 'receive' | 'engineUnavailable' | 'engineReady' | 'pendingEngineTriggers' | 'dismissEngineTrigger' | 'bindThread' | 'threadClosed'>
 /** What the main Session asks of the Engine. */
 export type EngineForMainSession = Pick<Engine, 'candidate' | 'candidateDelivered' | 'decide' | 'attach' | 'reply' | 'requestStatus' | 'note'>
 /** What people ask of the Engine, through the panel or the main Session. */

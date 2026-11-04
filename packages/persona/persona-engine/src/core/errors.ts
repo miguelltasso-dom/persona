@@ -6,6 +6,7 @@ export const USER_ERRORS = {
   unknownTicket: ['missing', 'Unknown ticket'],
   unknownProblem: ['missing', 'Unavailable Eval not found'],
   unknownTrigger: ['missing', 'Unknown trigger'],
+  engineUnavailable: ['refused', 'Trigger is waiting for an engine connection or a person\'s confirmation'],
   unknownAssignment: ['missing', 'Unknown assignment'],
   unknownBlock: ['missing', 'Unknown settings block: {block}'],
   unknownPromptRevision: ['missing', 'Unknown prompt revision {revision}'],

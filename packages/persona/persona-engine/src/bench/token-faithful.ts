@@ -1,0 +1,971 @@
+/**
+ * Faithful scripted token runner (OPT-2). Every number comes from prompts built
+ * by the SAME composers the host uses (talk, coordination, worker, vigia,
+ * initiative) over realistic fixtures — never from hard-coded constants.
+ *
+ * Model of the provider (documented, offline, no CLI):
+ * - input tokens = estimateTokens(full prompt of the turn);
+ * - prefix cache = longest common prefix with the previous prompt of the same
+ *   cache key (persona + purpose), so an unstable prefix really loses hits;
+ * - quality = the scripted "model" only states a fact when the evidence is in
+ *   its prompt, so a context budget that drops the evidence lowers quality.
+ * Real vendor runs stay opt-in (`PERSONA_PAIR_REAL=1`); this is the cheap gate.
+ */
+
+import {
+  estimateTokens,
+  incrementalSubjectSummary,
+  measureLayers,
+  minifyToolDescription,
+  turnFromLayers,
+  type TurnKind,
+  type TurnLayerSizes,
+  type TurnLedgerEntry,
+} from '@deepseek-ai/dsh-persona-core'
+import { batchInitiative, INITIATIVE_DAILY_TOKEN_BUDGET, leanChannelReply, trimInitiativeToBudget, type InitiativeDraft } from '../lean-output.ts'
+import { preRoute, type PreRouteInput } from '../preroute/rules.ts'
+import { ROUTER_FORBIDDEN_TOOLS } from '../ports/runner.ts'
+import { clipTextToTokens, composeStablePrefix, toolsForTurn, trimVariableAlreadyInPrefix, VARIABLE_LAYER_BUDGET } from '../prompts/stable-prefix.ts'
+import { capTalkContext, wrapAsData, type TalkColleague } from '../prompts/talk.ts'
+import { composePrompt } from '../prompts/templates.ts'
+import { composeVoicePolicy, composePersonaPrompt, voiceSurfaceHint, type PersonaVoiceFields } from '../prompts/voice.ts'
+import { vigiaTick } from '../watchdog.ts'
+import {
+  FIXTURE_ATLAS,
+  FIXTURE_BENTO,
+  FIXTURE_HEDGE,
+  FIXTURE_MANDATE_TOOLS,
+  FIXTURE_NARRATION,
+  FIXTURE_NINA,
+  FIXTURE_RECALL_ROWS,
+  FIXTURE_REQUIRED_VAULT,
+  FIXTURE_SUBJECT_HISTORY,
+  FIXTURE_TEAM,
+  FIXTURE_TOOL_DESCRIPTIONS,
+  type FixturePersona,
+} from './token-fixtures.ts'
+
+/** How the variable layers (subject / recall) are fitted to a budget. */
+export type ContextPolicy = 'raw' | 'headClip' | 'ranked'
+
+/** One switch per token lever (TOKEN-OPTIMIZATION §2). */
+export interface LeverSet {
+  /** §2.1 deterministic pre-router: courtesy, empty, slash, injection never reach a model. */
+  readonly preroute: boolean
+  /** §2.1 Vigia / routines by rules: an idle day spends no model. */
+  readonly vigiaRules: boolean
+  /** §2.2 OPT-3: fixed order, required Cofre in the cached prefix, nothing volatile before the tail. */
+  readonly stablePrefix: boolean
+  /** §2.3 OPT-4: incremental subject summary + last N instead of the raw history. */
+  readonly summarizeSubject: boolean
+  /** §2.3 OPT-4: budget per variable layer (head clip = Forge today; ranked = relevance first). */
+  readonly context: ContextPolicy
+  /** §2.4 OPT-4: only the tools the task asks for, one-line descriptions. */
+  readonly minimalTools: boolean
+  /** §2.3 OPT-4: owner norms written once in the worker prompt. */
+  readonly dedupeNorms: boolean
+  /** §2.6 OPT-6: lean structured reports and brevity rules (no echo, no narration, no hedge). */
+  readonly leanOutput: boolean
+  /** §2.5 OPT-5: triage / evaluation / vigia / initiative on the cheap engine. */
+  readonly modelRouting: boolean
+  /** §2.5 OPT-5: coordination session is warm — the system prompt is delivered once. */
+  readonly warmSession: boolean
+  /** §2.7 OPT-6: initiative in daily batches, only when something changed, inside a token budget. */
+  readonly initiativeBudget: boolean
+}
+
+/** Everything off: what a naive harness would send. */
+export const LEVERS_LEGACY: LeverSet = {
+  preroute: false,
+  vigiaRules: false,
+  stablePrefix: false,
+  summarizeSubject: false,
+  context: 'raw',
+  minimalTools: false,
+  dedupeNorms: false,
+  leanOutput: false,
+  modelRouting: false,
+  warmSession: false,
+  initiativeBudget: false,
+}
+
+/** One ladder step: a lever (or a lever policy) switched on. */
+export interface LadderStep {
+  readonly id: string
+  readonly patch: Partial<LeverSet>
+}
+
+/** Order the ladder turns levers on; each step is one lever's before → after. */
+export const LEVER_LADDER: readonly LadderStep[] = [
+  { id: 'preroute', patch: { preroute: true } },
+  { id: 'vigiaRules', patch: { vigiaRules: true } },
+  { id: 'stablePrefix', patch: { stablePrefix: true } },
+  { id: 'summarizeSubject', patch: { summarizeSubject: true } },
+  { id: 'context:headClip', patch: { context: 'headClip' } },
+  { id: 'context:ranked', patch: { context: 'ranked' } },
+  { id: 'minimalTools', patch: { minimalTools: true } },
+  { id: 'dedupeNorms', patch: { dedupeNorms: true } },
+  { id: 'leanOutput', patch: { leanOutput: true } },
+  { id: 'modelRouting', patch: { modelRouting: true } },
+  { id: 'warmSession', patch: { warmSession: true } },
+  { id: 'initiativeBudget', patch: { initiativeBudget: true } },
+]
+
+/** Optimized configuration (what the repo ships). */
+export const LEVERS_OPTIMIZED: LeverSet = {
+  preroute: true,
+  vigiaRules: true,
+  stablePrefix: true,
+  summarizeSubject: true,
+  context: 'ranked',
+  minimalTools: true,
+  dedupeNorms: true,
+  leanOutput: true,
+  modelRouting: true,
+  warmSession: true,
+  initiativeBudget: true,
+}
+
+/**
+ * Lever set after switching on the first `count` ladder steps.
+ * @param count - 0 = legacy, `LEVER_LADDER.length` = optimized.
+ * @returns Cumulative configuration.
+ */
+export function leversAtStep(count: number): LeverSet {
+  let next: LeverSet = LEVERS_LEGACY
+  for (const step of LEVER_LADDER.slice(0, count)) next = { ...next, ...step.patch }
+  return next
+}
+
+export const FAITHFUL_SCENARIO_IDS = [
+  'geral-simple',
+  'multi-review',
+  'idle-routines',
+  'initiative-30',
+  'initiative-30-busy',
+  'padaria-lua',
+  'dia-padaria',
+] as const
+
+export type FaithfulScenarioId = (typeof FAITHFUL_SCENARIO_IDS)[number]
+
+/** Cheap support engine vs the persona's own engine; list price USD per million tokens. */
+export type ModelTier = 'cheap' | 'persona'
+
+/** Public list-price shape (Haiku-class vs Sonnet-class). Estimate, not a bill. */
+export const TIER_PRICE: Record<ModelTier, { readonly input: number; readonly output: number }> = {
+  cheap: { input: 1, output: 5 },
+  persona: { input: 3, output: 15 },
+}
+const CACHE_READ_FACTOR = 0.1
+const CACHE_WRITE_FACTOR = 1.25
+
+const AT = '2026-11-04T09:00:00.000Z'
+
+/** One scripted model call with its cost view. */
+export interface FaithfulTurn {
+  readonly entry: TurnLedgerEntry
+  readonly tier: ModelTier
+  /** Tokens the provider had to read fresh (input − cache read) + output. */
+  readonly freshTokens: number
+  /** Estimated cost in micro-USD. */
+  readonly costMicroUsd: number
+  /** True when an earlier call under the same cache key already warmed the prefix. */
+  readonly warm: boolean
+  /** Prefix tokens (system + tools + required) the provider served from cache on this call. */
+  readonly prefixRead: number
+  /** Channel text that reached a person, when this turn posts one. */
+  readonly posted?: string
+}
+
+export interface FaithfulQuality {
+  readonly needles: readonly string[]
+  readonly missing: readonly string[]
+  /** Fraction of needles present in the final channel text (TOKEN-OPTIMIZATION §3 ready criterion). */
+  readonly score: number
+}
+
+/** Engines the bench can attribute turns to; cache fields are reported only where the adapter reads them. */
+export type FaithfulEngine = 'claude' | 'codex' | 'opencode' | 'cursor'
+
+/** Vendors whose totals carry cache read/write (Rivet `cacheFromVendor`). Absence is not 0%. */
+export const ENGINE_REPORTS_CACHE: Record<FaithfulEngine, boolean> = {
+  claude: true,
+  codex: true,
+  opencode: false,
+  cursor: false,
+}
+
+export interface FaithfulOptions {
+  readonly engine?: FaithfulEngine
+}
+
+export interface FaithfulReport {
+  readonly id: FaithfulScenarioId
+  readonly engine: FaithfulEngine
+  /** False when the engine does not report cache: `cacheHitRate` is then not a measurement. */
+  readonly cacheReported: boolean
+  readonly levers: LeverSet
+  readonly turns: readonly FaithfulTurn[]
+  readonly entries: readonly TurnLedgerEntry[]
+  /** Ledger convention: input + output (cached prefix counts as input). */
+  readonly totalTokens: number
+  readonly freshTokens: number
+  readonly costMicroUsd: number
+  readonly calls: number
+  /** read / (read + write) over every call. */
+  readonly cacheHitRate: number
+  /** Share of the prefix served from cache once warm (the OPT-8 ≥ 60% target). 0 when nothing was warm. */
+  readonly prefixHitRate: number
+  readonly quality: FaithfulQuality
+  /** Final text a person reads. */
+  readonly finalText: string
+}
+
+/** Longest common prefix in characters. */
+function commonPrefixLength(a: string, b: string): number {
+  const max = Math.min(a.length, b.length)
+  let i = 0
+  while (i < max && a.charCodeAt(i) === b.charCodeAt(i)) i += 1
+  return i
+}
+
+/** Provider prefix cache: previous prompt per cache key. */
+class PrefixCacheModel {
+  private readonly last = new Map<string, string>()
+
+  /**
+   * @param key - Persona + purpose.
+   * @param prompt - Full prompt text of this call.
+   * @returns Tokens read from cache (common prefix) and written (the rest).
+   */
+  touch(key: string, prompt: string): { readonly read: number; readonly write: number; readonly warm: boolean } {
+    const input = estimateTokens(prompt)
+    const previous = this.last.get(key)
+    this.last.set(key, prompt)
+    if (previous === undefined) return { read: 0, write: input, warm: false }
+    const read = Math.min(input, Math.floor(commonPrefixLength(previous, prompt) / 4))
+    return { read, write: input - read, warm: true }
+  }
+}
+
+interface Run {
+  readonly engine: FaithfulEngine
+  readonly levers: LeverSet
+  readonly cache: PrefixCacheModel
+  readonly turns: FaithfulTurn[]
+  readonly warm: Set<string>
+  seq: number
+}
+
+interface TurnInput {
+  readonly kind: TurnKind
+  readonly persona: FixturePersona
+  readonly cacheKey: string
+  readonly prompt: string
+  readonly layers: TurnLayerSizes
+  readonly output: string
+  readonly tier: ModelTier
+  readonly ticketId?: string
+  readonly posted?: string
+}
+
+function newRun(levers: LeverSet, engine: FaithfulEngine): Run {
+  return { engine, levers, cache: new PrefixCacheModel(), turns: [], warm: new Set(), seq: 0 }
+}
+
+function record(run: Run, input: TurnInput): FaithfulTurn {
+  run.seq += 1
+  const usage = run.cache.touch(input.cacheKey, input.prompt)
+  const inputTokens = estimateTokens(input.prompt)
+  const outputTokens = estimateTokens(input.output)
+  const entry = turnFromLayers({
+    id: `${input.kind}-${String(run.seq)}`,
+    personaId: input.persona.id,
+    engine: run.engine,
+    kind: input.kind,
+    layers: input.layers,
+    inputTokens: Math.max(inputTokens, sumOf(input.layers)),
+    outputTokens,
+    cacheReadTokens: ENGINE_REPORTS_CACHE[run.engine] ? usage.read : 0,
+    cacheWriteTokens: ENGINE_REPORTS_CACHE[run.engine] ? usage.write : 0,
+    at: AT,
+    origin: 'estimate',
+    ...(input.ticketId === undefined ? {} : { ticketId: input.ticketId }),
+  })
+  const price = TIER_PRICE[input.tier]
+  // The provider caches either way; the ledger only shows what the adapter reports.
+  const fresh = Math.max(0, entry.inputTokens - usage.read)
+  const cost = (fresh * price.input
+    + usage.read * price.input * CACHE_READ_FACTOR
+    + (usage.write > 0 ? usage.write * price.input * (CACHE_WRITE_FACTOR - 1) : 0)
+    + outputTokens * price.output)
+  const turn: FaithfulTurn = {
+    entry,
+    tier: input.tier,
+    freshTokens: fresh + outputTokens,
+    costMicroUsd: Math.round(cost),
+    warm: usage.warm,
+    prefixRead: Math.min(usage.read, input.layers.system + input.layers.tools + input.layers.required),
+    ...(input.posted === undefined ? {} : { posted: input.posted }),
+  }
+  run.turns.push(turn)
+  return turn
+}
+
+function sumOf(layers: TurnLayerSizes): number {
+  return layers.system + layers.tools + layers.required + layers.subject + layers.recall + layers.message
+}
+
+function tierFor(levers: LeverSet, kind: TurnKind): ModelTier {
+  if (!levers.modelRouting) return 'persona'
+  return kind === 'execution' || kind === 'reply' ? 'persona' : 'cheap'
+}
+
+/** Words of the recall row that overlap the message (relevance for ranking). */
+function overlapScore(row: string, message: string): number {
+  const stop = new Set(['de', 'da', 'do', 'e', 'a', 'o', 'que', 'em', 'um', 'uma', 'para', 'com', 'os', 'as', 'no', 'na', 'por', 'se', 'nota', 'qual'])
+  const words = (text: string): string[] =>
+    text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/u)
+      .filter(word => word.length > 2 && !stop.has(word))
+  const wanted = new Set(words(message))
+  let score = 0
+  for (const word of new Set(words(row))) if (wanted.has(word)) score += 1
+  return score
+}
+
+/** Rows a compile step returns for a query: the top ones by overlap, then emitted in stable id order (core `compileContext` re-sorts by kind/id). */
+export function retrieveRecall(rows: readonly string[], message: string, limit: number = 8): string[] {
+  return rows
+    .map((row, index) => ({ row, index, score: overlapScore(row, message) }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, limit)
+    .sort((a, b) => a.index - b.index)
+    .map(item => item.row)
+}
+
+/**
+ * Fit recall rows to the variable-layer budget.
+ * @param rows - Rows in retrieval order.
+ * @param message - The user line of this turn.
+ * @param policy - raw / head clip / relevance ranking.
+ * @returns Recall text for the tail of the prompt.
+ */
+export function fitRecall(rows: readonly string[], message: string, policy: ContextPolicy): string {
+  if (policy === 'raw') return capTalkContext(rows.join('\n'))
+  if (policy === 'headClip') return clipTextToTokens(rows.join('\n'), VARIABLE_LAYER_BUDGET.recall)
+  const ranked = rows
+    .map((row, index) => ({ row, index, score: overlapScore(row, message) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+  const kept: string[] = []
+  let used = 0
+  for (const item of ranked) {
+    if (item.score === 0 && kept.length > 0) break
+    const cost = estimateTokens(item.row) + 1
+    if (used + cost > VARIABLE_LAYER_BUDGET.recall) continue
+    kept.push(item.row)
+    used += cost
+  }
+  return kept.join('\n')
+}
+
+/**
+ * Subject layer: raw history, or a bounded summary plus the last messages.
+ * @param history - Topic messages, oldest first.
+ * @param summarize - OPT-4 incremental summary on/off.
+ * @param policy - Whether the layer is clipped to its budget.
+ */
+export function fitSubject(history: readonly string[], summarize: boolean, policy: ContextPolicy): string {
+  if (!summarize) return history.join('\n')
+  const recent = history.slice(-4)
+  const older = history.slice(0, -4)
+  let digest = ''
+  for (const line of older) {
+    digest = incrementalSubjectSummary(digest, keepLine(line), VARIABLE_LAYER_BUDGET.subject / 2)
+  }
+  const text = [digest, ...recent].filter(part => part !== '').join('\n')
+  return policy === 'raw' ? text : clipTextToTokens(text, VARIABLE_LAYER_BUDGET.subject)
+}
+
+/** Decisions and rules survive the digest; chatter is squeezed (same spirit as the host fold). */
+function keepLine(line: string): string {
+  const KEEP = /\b(sempre|nunca|obrigat|regra|decis[aã]o|n[aã]o pode)\b/iu
+  const squeezed = line.replace(/\s+/g, ' ').trim()
+  if (KEEP.test(squeezed)) return squeezed
+  return squeezed.length > 90 ? `${squeezed.slice(0, 87)}…` : squeezed
+}
+
+interface TalkContext {
+  readonly speaker: FixturePersona
+  readonly userText: string
+  readonly subject: readonly string[]
+  readonly recall: readonly string[]
+}
+
+function colleaguesOf(speaker: FixturePersona): TalkColleague[] {
+  return FIXTURE_TEAM
+    .filter(row => row.id !== speaker.id)
+    .map(row => ({
+      name: row.name,
+      title: row.title,
+      ...(row.id === 'atlas' ? { role: 'coordenação' } : {}),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+const TALK_CAPABILITIES = 'resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta'
+
+/**
+ * Talk prompt. `stablePrefix` off = the snapshot path (`composePersonaPrompt`,
+ * everything inside the policy); on = the host path (prefix + variable tail).
+ */
+function talkPrompt(levers: LeverSet, ctx: TalkContext): { readonly text: string; readonly layers: TurnLayerSizes } {
+  const subject = fitSubject(ctx.subject, levers.summarizeSubject, levers.context)
+  const recall = fitRecall(retrieveRecall(ctx.recall, ctx.userText), ctx.userText, levers.context)
+  const fields: PersonaVoiceFields = {
+    identity: { name: ctx.speaker.name, title: ctx.speaker.title },
+    personality: ctx.speaker.personality,
+    instructions: ctx.speaker.instructions,
+    functionLabel: ctx.speaker.id === 'atlas' ? 'coordenação' : ctx.speaker.title,
+    vault: '',
+    colleagues: colleaguesOf(ctx.speaker),
+    capabilities: TALK_CAPABILITIES,
+  }
+  if (!levers.stablePrefix) {
+    const vault = [FIXTURE_REQUIRED_VAULT, subject, recall].filter(part => part !== '').join('\n')
+    const text = composePersonaPrompt({ fields: { ...fields, vault }, surface: 'talk', userText: ctx.userText })
+    const system = estimateTokens(text) - estimateTokens(vault) - estimateTokens(wrapAsData('mensagem', ctx.userText))
+    return {
+      text,
+      layers: {
+        system: Math.max(0, system),
+        tools: 0,
+        required: estimateTokens(FIXTURE_REQUIRED_VAULT),
+        subject: estimateTokens(subject),
+        recall: estimateTokens(recall),
+        message: estimateTokens(wrapAsData('mensagem', ctx.userText)),
+      },
+    }
+  }
+  // Host path (composeHostTalk): persona + required + hint in the prefix; subject/recall/message in the tail.
+  const system = composePrompt({ part: 'talk', identity: fields.identity, policy: '' }).trim()
+  const persona = composeVoicePolicy({ ...fields, vault: '' })
+  const required = [FIXTURE_REQUIRED_VAULT, voiceSurfaceHint('talk')].filter(part => part !== '').join('\n\n')
+  const message = wrapAsData('mensagem', ctx.userText)
+  const built = composeStablePrefix({ system, persona, tools: '', required, subject, recall, message })
+  const variable = trimVariableAlreadyInPrefix(built.prefix, built.variable)
+  return { text: variable === '' ? built.prefix : `${built.prefix}\n\n${variable}`, layers: built.layers }
+}
+
+/** Needle-bearing sentences the scripted model can state when the evidence is in its prompt. */
+interface Fact {
+  readonly evidence: string
+  readonly sentence: string
+}
+
+function stateFacts(prompt: string, facts: readonly Fact[]): string {
+  const known = facts.filter(fact => prompt.includes(fact.evidence)).map(fact => fact.sentence)
+  return known.length > 0 ? known.join(' ') : 'Não encontrei essa informação no contexto.'
+}
+
+/**
+ * Scripted model output. Without brevity rules in the prompt it echoes the
+ * question, narrates a step and offers hedged follow-up (what lean output removes).
+ */
+function scriptedReply(prompt: string, userText: string, facts: readonly Fact[]): string {
+  const content = stateFacts(prompt, facts)
+  const brief = prompt.includes('Curto: 1 a 3 frases')
+  if (brief) return content
+  return `${userText}\n${FIXTURE_NARRATION}\nAnalisei o contexto disponível e o histórico do assunto antes de responder, para não repetir o que já foi combinado.\n${content}\n${FIXTURE_HEDGE}`
+}
+
+function postable(levers: LeverSet, raw: string, userText: string): string {
+  return levers.leanOutput ? leanChannelReply(raw, userText) : raw.split(/\s+/).slice(0, 400).join(' ')
+}
+
+function routeInput(text: string, at: number): PreRouteInput {
+  return {
+    text,
+    senderId: 'ana',
+    threadKey: '#geral',
+    at,
+    personas: FIXTURE_TEAM.map(row => ({ id: row.id, name: row.name })),
+    budgetLeft: true,
+    silenceUntil: 0,
+    canCommand: () => true,
+    window: [],
+  }
+}
+
+/** True when a person message reaches a model under this lever set. */
+function needsModel(levers: LeverSet, text: string, at: number): boolean {
+  if (!levers.preroute) return true
+  return preRoute(routeInput(text, at)).modelCalled
+}
+
+function talkTurn(run: Run, ctx: TalkContext, facts: readonly Fact[], ticketId?: string): FaithfulTurn {
+  const built = talkPrompt(run.levers, ctx)
+  const raw = scriptedReply(built.text, ctx.userText, facts)
+  const posted = postable(run.levers, raw, ctx.userText)
+  return record(run, {
+    kind: 'reply',
+    persona: ctx.speaker,
+    cacheKey: `${ctx.speaker.id}:talk`,
+    prompt: built.text,
+    layers: built.layers,
+    output: raw,
+    tier: tierFor(run.levers, 'reply'),
+    posted,
+    ...(ticketId === undefined ? {} : { ticketId }),
+  })
+}
+
+/** Coordination prompt: the same four template parts the host session carries. */
+export function coordinationPromptText(persona: FixturePersona): string {
+  const policy = [
+    `Forbidden tools: ${ROUTER_FORBIDDEN_TOOLS.join(', ')}. Never request a shell.`,
+    'Events that arrive while you are inferring wait for the next turn (non-blocking; D-041).',
+    '',
+  ].join('\n')
+  return (['coordinator', 'dispatch', 'replies', 'subscriptions'] as const)
+    .map(part => composePrompt({ part, identity: { name: persona.name, title: 'Coordenação' }, policy }))
+    .join('\n')
+}
+
+const OWNER_NORMS = [
+  'Normas de dono:',
+  '- Termine o que o mandato pede. Não devolva trabalho que cabe a você.',
+  '- Verifique o critério de aceite com evidência (teste, arquivo, comando).',
+  '- Reporte com evidência (IDs, caminhos, resultado).',
+  '- Proponha o próximo passo que descobriu — proposta estruturada, não "posso fazer se você quiser".',
+  '- Proibido encerrar com "posso fazer X se você quiser" quando X está no mandato: faça e reporte.',
+].join('\n')
+
+/** Worker system prompt; `dedupe` drops the template's own owner-norms paragraph. */
+export function workerPromptText(persona: FixturePersona, dedupe: boolean): string {
+  const text = composePrompt({
+    part: 'worker',
+    identity: { name: persona.name, title: persona.title },
+    policy: `${OWNER_NORMS}\n\nPersona instructions:\n${persona.instructions}`,
+  })
+  if (!dedupe) return text
+  return text.split('\n').filter(line => !line.startsWith('Normas de dono: termine')).join('\n')
+}
+
+function toolsText(levers: LeverSet, needed: readonly string[]): string {
+  const names = levers.minimalTools ? toolsForTurn(FIXTURE_MANDATE_TOOLS, needed) : [...FIXTURE_MANDATE_TOOLS]
+  return names
+    .map((name) => {
+      const description = FIXTURE_TOOL_DESCRIPTIONS[name] ?? name
+      return levers.minimalTools ? `${name}: ${minifyToolDescription(description)}` : `- ${name}: ${description}`
+    })
+    .join('\n')
+}
+
+interface TriageInput {
+  readonly userText: string
+  readonly subject: readonly string[]
+  readonly ticketTitle: string
+}
+
+function triageTurn(run: Run, input: TriageInput): FaithfulTurn {
+  const coordination = coordinationPromptText(FIXTURE_ATLAS)
+  const key = 'atlas:coordination'
+  const warm = run.levers.warmSession && run.warm.has(key)
+  run.warm.add(key)
+  const subject = fitSubject(input.subject, run.levers.summarizeSubject, run.levers.context)
+  const card = [
+    'Candidato: pedido de Ana no #geral',
+    wrapAsData('mensagem', input.userText),
+    subject === '' ? '' : `Assunto:\n${subject}`,
+  ].filter(part => part !== '').join('\n')
+  // Cold coordination: the long prompt rides in every delivery. Warm: delivered once.
+  const prompt = warm ? card : `${coordination}\n\n${card}`
+  const decision = `persona_route {"to":"${FIXTURE_NINA.id}","title":"${input.ticketTitle}"}`
+  const output = run.levers.leanOutput ? decision : `${FIXTURE_NARRATION}\nPedido entendido; vou despachar para ${FIXTURE_NINA.name}.\n${decision}`
+  return record(run, {
+    kind: 'triage',
+    persona: FIXTURE_ATLAS,
+    cacheKey: 'atlas:coordination',
+    prompt,
+    layers: {
+      system: warm ? 0 : estimateTokens(coordination),
+      tools: 0,
+      required: 0,
+      subject: estimateTokens(subject),
+      recall: 0,
+      message: estimateTokens(card) - estimateTokens(subject),
+    },
+    output,
+    tier: tierFor(run.levers, 'triage'),
+    ticketId: 'ticket-1',
+  })
+}
+
+interface ExecutionInput {
+  readonly persona: FixturePersona
+  readonly title: string
+  readonly acceptance: string
+  readonly subject: readonly string[]
+  readonly recall: readonly string[]
+  readonly neededTools: readonly string[]
+  readonly facts: readonly Fact[]
+  readonly resultLine: string
+}
+
+function executionTurn(run: Run, input: ExecutionInput): FaithfulTurn {
+  const subject = fitSubject(input.subject, run.levers.summarizeSubject, run.levers.context)
+  const recall = fitRecall(retrieveRecall(input.recall, input.title), input.title, run.levers.context)
+  const system = workerPromptText(input.persona, run.levers.dedupeNorms)
+  const tools = toolsText(run.levers, input.neededTools)
+  const assignment = [
+    `Tarefa: ${input.title}`,
+    `Critério de pronto: ${input.acceptance}`,
+    subject === '' ? '' : `Assunto:\n${subject}`,
+    recall === '' ? '' : `Contexto:\n${recall}`,
+  ].filter(part => part !== '').join('\n')
+  const required = FIXTURE_REQUIRED_VAULT
+  const prefix = run.levers.stablePrefix
+    ? [system, tools, required].join('\n\n')
+    : [system, required, tools].join('\n\n')
+  const prompt = `${prefix}\n\n${assignment}`
+  const known = stateFacts(prompt, input.facts)
+  const raw = run.levers.leanOutput
+    ? `Resultado: ${input.resultLine} ${known}\nBloqueio: nenhum.`
+    : `${FIXTURE_NARRATION}\nPasso 1. Li a tarefa e o contexto do assunto.\nPasso 2. Conferi o critério de pronto: ${input.acceptance}\nPasso 3. Executei o trabalho e anotei o que decidi e o que falta.\nResultado: ${input.resultLine} ${known}\n${FIXTURE_HEDGE}`
+  return record(run, {
+    kind: 'execution',
+    persona: input.persona,
+    cacheKey: `${input.persona.id}:worker`,
+    prompt,
+    layers: {
+      system: estimateTokens(system),
+      tools: estimateTokens(tools),
+      required: estimateTokens(required),
+      subject: estimateTokens(subject),
+      recall: estimateTokens(recall),
+      message: estimateTokens(assignment) - estimateTokens(subject) - estimateTokens(recall),
+    },
+    output: raw,
+    tier: tierFor(run.levers, 'execution'),
+    ticketId: 'ticket-1',
+    posted: leanChannelReply(raw),
+  })
+}
+
+function evaluationTurn(run: Run, executionReport: string, criterion: string, needle: string): FaithfulTurn {
+  const system = workerPromptText(FIXTURE_BENTO, run.levers.dedupeNorms)
+  const report = run.levers.leanOutput ? leanChannelReply(executionReport) : executionReport
+  const prompt = `${system}\n\n${FIXTURE_REQUIRED_VAULT}\n\nRevisar contra o critério: ${criterion}\nRelato da executora:\n${report}`
+  const verdict = report.toLowerCase().includes(needle.toLowerCase())
+    ? `aprovado: ${needle} confere com o critério.`
+    : 'devolvido: critério não evidenciado.'
+  const raw = run.levers.leanOutput ? verdict : `${FIXTURE_NARRATION}\nLi o relato inteiro e conferi cada ponto do critério.\n${verdict}\n${FIXTURE_HEDGE}`
+  return record(run, {
+    kind: 'evaluation',
+    persona: FIXTURE_BENTO,
+    cacheKey: 'bento:worker',
+    prompt,
+    layers: {
+      system: estimateTokens(system),
+      tools: 0,
+      required: estimateTokens(FIXTURE_REQUIRED_VAULT),
+      subject: 0,
+      recall: 0,
+      message: estimateTokens(prompt) - estimateTokens(system) - estimateTokens(FIXTURE_REQUIRED_VAULT),
+    },
+    output: raw,
+    tier: tierFor(run.levers, 'evaluation'),
+    ticketId: 'ticket-1',
+    posted: raw,
+  })
+}
+
+function qualityOf(finalText: string, needles: readonly string[]): FaithfulQuality {
+  const lower = finalText.toLowerCase()
+  const missing = needles.filter(needle => !lower.includes(needle.toLowerCase()))
+  return { needles, missing, score: needles.length === 0 ? 1 : (needles.length - missing.length) / needles.length }
+}
+
+/** Prefix cache read ÷ prefix tokens, over the calls that were already warm. */
+function prefixHitRateOf(turns: readonly FaithfulTurn[]): number {
+  let read = 0
+  let prefix = 0
+  for (const turn of turns) {
+    if (!turn.warm) continue
+    read += turn.prefixRead
+    prefix += turn.entry.layers.system + turn.entry.layers.tools + turn.entry.layers.required
+  }
+  return prefix === 0 ? 0 : read / prefix
+}
+
+function finish(id: FaithfulScenarioId, run: Run, finalText: string, needles: readonly string[]): FaithfulReport {
+  const entries = run.turns.map(turn => turn.entry)
+  let read = 0
+  let write = 0
+  let tokens = 0
+  for (const entry of entries) {
+    read += entry.cacheReadTokens
+    write += entry.cacheWriteTokens
+    tokens += entry.inputTokens + entry.outputTokens
+  }
+  return {
+    id,
+    engine: run.engine,
+    cacheReported: ENGINE_REPORTS_CACHE[run.engine],
+    levers: run.levers,
+    turns: run.turns,
+    entries,
+    totalTokens: tokens,
+    freshTokens: run.turns.reduce((sum, turn) => sum + turn.freshTokens, 0),
+    costMicroUsd: run.turns.reduce((sum, turn) => sum + turn.costMicroUsd, 0),
+    calls: run.turns.length,
+    cacheHitRate: read + write === 0 ? 0 : read / (read + write),
+    prefixHitRate: prefixHitRateOf(run.turns),
+    quality: qualityOf(finalText, needles),
+    finalText,
+  }
+}
+
+const STANDUP_FACT: Fact = {
+  evidence: 'standup às 10h no canal #geral',
+  sentence: 'O standup é às 10h, no #geral.',
+}
+
+const TURNS_PER_VIGIA_DAY = 96
+const ROUTINES_PER_DAY = 3
+
+/**
+ * One scripted scenario at a lever set.
+ * @param id - Scenario row.
+ * @param levers - Lever switches (defaults to optimized).
+ * @returns Ledger, cost view and quality.
+ */
+export function runFaithfulScenario(
+  id: FaithfulScenarioId,
+  levers: LeverSet = LEVERS_OPTIMIZED,
+  options: FaithfulOptions = {},
+): FaithfulReport {
+  const run = newRun(levers, options.engine ?? 'claude')
+  if (id === 'geral-simple') return geralSimple(run)
+  if (id === 'multi-review') return multiReview(run)
+  if (id === 'padaria-lua') return padariaLua(run)
+  if (id === 'dia-padaria') return diaPadaria(run)
+  if (id === 'idle-routines') return idleRoutines(run)
+  return initiative30(run, id === 'initiative-30-busy' ? 5 : 0)
+}
+
+/** Standup question in #geral: one talk turn, or none when a rule answers it. */
+function askStandup(run: Run, at: number): string {
+  const text = 'Qual o horário do standup?'
+  if (!needsModel(run.levers, text, at)) return ''
+  return talkTurn(run, { speaker: FIXTURE_ATLAS, userText: text, subject: [], recall: FIXTURE_RECALL_ROWS }, [STANDUP_FACT]).posted ?? ''
+}
+
+/** Courtesy line ("ok", "valeu"): the pre-router answers it; legacy asks a model. */
+function courtesy(run: Run, text: string, at: number, history: readonly string[]): void {
+  if (!needsModel(run.levers, text, at)) return
+  talkTurn(run, { speaker: FIXTURE_ATLAS, userText: text, subject: history, recall: FIXTURE_RECALL_ROWS }, [])
+}
+
+/** Task with review: triage → execution → evaluation. Returns what the channel shows. */
+function filterWithReview(run: Run, at: number): string {
+  const ask = 'Implemente o filtro de pedidos e peça revisão.'
+  if (!needsModel(run.levers, ask, at)) return ''
+  triageTurn(run, { userText: ask, subject: [], ticketTitle: 'filtro de pedidos' })
+  const exec = executionTurn(run, {
+    persona: FIXTURE_NINA,
+    title: 'Implementar o filtro de pedidos',
+    acceptance: 'filtro por data e status funcionando, com teste e revisão do Bento',
+    subject: [],
+    recall: FIXTURE_RECALL_ROWS,
+    neededTools: ['files', 'recall'],
+    facts: [{ evidence: 'filtro por data e status', sentence: 'Filtro por data e status pronto, com teste.' }],
+    resultLine: 'patch aplicado e testes passando.',
+  })
+  const review = evaluationTurn(run, exec.posted ?? '', 'filtro por data e status', 'filtro')
+  return `${exec.posted ?? ''} Revisão do Bento: ${review.posted ?? ''}`.trim()
+}
+
+/** Padaria Lua order: triage → execution (subject + Cofre) → reply to Ana. */
+function weekendOrder(run: Run, at: number): string {
+  const ask = 'Cardápio de sábado e encomenda da Ana.'
+  if (!needsModel(run.levers, ask, at)) return ''
+  triageTurn(run, { userText: ask, subject: FIXTURE_SUBJECT_HISTORY, ticketTitle: 'cardápio de sábado e encomenda da Ana' })
+  const exec = executionTurn(run, {
+    persona: FIXTURE_NINA,
+    title: 'Montar o cardápio de sábado e confirmar a encomenda da Ana',
+    acceptance: 'cardápio fechado e encomenda da Ana confirmada com quantidade e horário',
+    subject: FIXTURE_SUBJECT_HISTORY,
+    recall: FIXTURE_RECALL_ROWS,
+    neededTools: ['files', 'recall'],
+    facts: [
+      { evidence: '40 pães', sentence: 'Encomenda da Ana: 40 pães de fermentação natural e 1 bolo de fubá.' },
+      { evidence: 'retirada às 9h', sentence: 'Retirada às 9h.' },
+    ],
+    resultLine: 'cardápio fechado.',
+  })
+  const reply = talkTurn(run, {
+    speaker: FIXTURE_ATLAS,
+    userText: `Avise a Ana: ${exec.posted ?? ''}`,
+    subject: FIXTURE_SUBJECT_HISTORY,
+    recall: FIXTURE_RECALL_ROWS,
+  }, [
+    { evidence: '40 pães', sentence: 'Ana, sua encomenda de sábado está confirmada: 40 pães e 1 bolo de fubá, retirada às 9h.' },
+  ], 'ticket-1')
+  return reply.posted ?? ''
+}
+
+/** Follow-up on the subject: the answer lives in the raw history, not in the Cofre. */
+function swapQuestion(run: Run, at: number): string {
+  const text = 'A Ana pode trocar o bolo de fubá por cenoura?'
+  if (!needsModel(run.levers, text, at)) return ''
+  return talkTurn(run, {
+    speaker: FIXTURE_ATLAS, userText: text, subject: FIXTURE_SUBJECT_HISTORY, recall: FIXTURE_RECALL_ROWS,
+  }, [{ evidence: 'trocar o bolo de fubá por um de cenoura', sentence: 'Pode sim: bolo de cenoura tem a mesma massa base; a Nina avisa na sexta.' }]).posted ?? ''
+}
+
+/** Broad question: many Cofre notes match, and the one that answers sits late in id order. */
+function broadFriday(run: Run, at: number): string {
+  const text = 'Como está a sexta? Vitrine, embalagem, fornecedor de farinha, freezer, pedido e encomenda da Ana.'
+  if (!needsModel(run.levers, text, at)) return ''
+  return talkTurn(run, {
+    speaker: FIXTURE_ATLAS, userText: text, subject: FIXTURE_SUBJECT_HISTORY, recall: FIXTURE_RECALL_ROWS,
+  }, [{ evidence: 'embalagem kraft acaba em duas semanas', sentence: 'A embalagem kraft acaba em duas semanas; a Nina faz o pedido ao fornecedor.' }]).posted ?? ''
+}
+
+function geralSimple(run: Run): FaithfulReport {
+  const finalText = askStandup(run, 1)
+  courtesy(run, 'ok', 2, ['Qual o horário do standup?', finalText])
+  return finish('geral-simple', run, finalText, ['10h'])
+}
+
+function multiReview(run: Run): FaithfulReport {
+  return finish('multi-review', run, filterWithReview(run, 1), ['filtro', 'revis'])
+}
+
+function padariaLua(run: Run): FaithfulReport {
+  return finish('padaria-lua', run, weekendOrder(run, 1), ['Ana', '40 pães', '9h'])
+}
+
+/** A morning in the #geral: six lines, four reach a model, one is a two-step task. Cache and warm sessions show here. */
+function diaPadaria(run: Run): FaithfulReport {
+  const outputs: string[] = []
+  outputs.push(askStandup(run, 1))
+  courtesy(run, 'ok', 2, [])
+  outputs.push(weekendOrder(run, 3))
+  courtesy(run, 'valeu!', 4, FIXTURE_SUBJECT_HISTORY)
+  outputs.push(swapQuestion(run, 5))
+  outputs.push(filterWithReview(run, 6))
+  outputs.push(broadFriday(run, 7))
+  return finish('dia-padaria', run, outputs.join(' | '), ['10h', '40 pães', '9h', 'cenoura', 'filtro', 'revis', 'kraft'])
+}
+
+/** Cheap support prompt for a Vigia / routine tick when a model would be asked. */
+function supportPrompt(kind: 'watchdog' | 'initiative', persona: FixturePersona, state: string): { readonly text: string; readonly layers: TurnLayerSizes } {
+  const system = composePrompt({
+    part: kind === 'watchdog' ? 'watchdog' : 'talk',
+    identity: { name: persona.name, title: kind === 'watchdog' ? 'Vigia' : persona.title },
+    policy: composeVoicePolicy({
+      identity: { name: persona.name, title: persona.title },
+      personality: persona.personality,
+      instructions: persona.instructions,
+      functionLabel: kind === 'watchdog' ? 'vigia' : persona.title,
+      vault: '',
+    }),
+  })
+  const text = `${system}\n\n${state}`
+  return { text, layers: measureLayers({ system, message: state }) }
+}
+
+function idleRoutines(run: Run): FaithfulReport {
+  const state = 'Estado: equipe ociosa, nenhuma Tarefa aberta, nenhuma meta aberta, fila vazia. Nada falhou.'
+  for (let tick = 0; tick < TURNS_PER_VIGIA_DAY; tick += 1) {
+    if (run.levers.vigiaRules) {
+      // Rules decide (assign / plan / recover); `needsModel` is always false, so no call is made.
+      vigiaTick({
+        now: tick * 15 * 60_000,
+        openGoal: false,
+        stalledTicketIds: [],
+        failingEffectKeys: [],
+        unavailableEvalIds: [],
+        budgetLeft: true,
+        personas: FIXTURE_TEAM.map(row => ({ personaId: row.id, idle: true, queueLength: 0, lastProgressAt: 0, sameReportCount: 0 })),
+      })
+      continue
+    }
+    const built = supportPrompt('watchdog', FIXTURE_ATLAS, state)
+    record(run, {
+      kind: 'watchdog', persona: FIXTURE_ATLAS, cacheKey: 'atlas:watchdog', prompt: built.text, layers: built.layers,
+      output: run.levers.leanOutput ? 'nada a fazer.' : `${FIXTURE_NARRATION}\nConferi os sinais; a equipe está ociosa e sem pendências. Nada a ajustar agora.`,
+      tier: tierFor(run.levers, 'watchdog'),
+    })
+  }
+  for (let routine = 0; routine < ROUTINES_PER_DAY; routine += 1) {
+    if (run.levers.vigiaRules) continue
+    const built = supportPrompt('watchdog', FIXTURE_ATLAS, `Rotina ${String(routine + 1)} do dia: lembrete fixo, sem objetivo aberto.`)
+    record(run, {
+      kind: 'watchdog', persona: FIXTURE_ATLAS, cacheKey: 'atlas:routine', prompt: built.text, layers: built.layers,
+      output: 'lembrete enviado.', tier: tierFor(run.levers, 'watchdog'),
+    })
+  }
+  return finish('idle-routines', run, 'equipe ociosa sem gasto', [])
+}
+
+function initiative30(run: Run, busy: number): FaithfulReport {
+  const personas: FixturePersona[] = Array.from({ length: 30 }, (_, index) => ({
+    id: `p${String(index)}`,
+    name: `Persona${String(index)}`,
+    title: index % 3 === 0 ? 'Atendimento' : index % 3 === 1 ? 'Produção' : 'Compras',
+    personality: FIXTURE_NINA.personality,
+    instructions: FIXTURE_NINA.instructions,
+  }))
+  const changed = new Set(personas.slice(0, busy).map(row => row.id))
+  const drafts: InitiativeDraft[] = []
+  for (const persona of personas) {
+    if (run.levers.initiativeBudget && !changed.has(persona.id)) continue
+    drafts.push({ id: `${persona.id}-1`, personaId: persona.id, title: 'verificar pendências', day: '2026-11-04' })
+    if (changed.has(persona.id) && !run.levers.initiativeBudget) {
+      drafts.push({ id: `${persona.id}-2`, personaId: persona.id, title: 'adiantar o próximo passo', day: '2026-11-04' })
+    }
+  }
+  const batches = run.levers.initiativeBudget ? batchInitiative(trimInitiativeToBudget(drafts, 120, INITIATIVE_DAILY_TOKEN_BUDGET)) : drafts.map(draft => ({ personaId: draft.personaId, day: draft.day, ids: [draft.id] }))
+  for (const batch of batches) {
+    const persona = personas.find(row => row.id === batch.personaId) ?? FIXTURE_NINA
+    const state = `Iniciativa do dia ${batch.day}: ${String(batch.ids.length)} item(ns) (${batch.ids.join(', ')}).${changed.has(persona.id) ? ' Houve mudança nos cartões da sua área.' : ' Nada mudou desde a última passada.'}`
+    const built = supportPrompt('initiative', persona, run.levers.initiativeBudget ? state : `${state}\nRecall:\n${FIXTURE_RECALL_ROWS.join('\n')}`)
+    record(run, {
+      kind: 'initiative', persona, cacheKey: `${persona.id}:initiative`, prompt: built.text, layers: built.layers,
+      output: run.levers.leanOutput ? 'proposta: revisar o cartão com mudança.' : `${FIXTURE_NARRATION}\nAnalisei a área inteira antes de propor algo: sugiro revisar o cartão que mudou e atualizar o status.\n${FIXTURE_HEDGE}`,
+      tier: tierFor(run.levers, 'initiative'),
+    })
+  }
+  return finish(busy === 0 ? 'initiative-30' : 'initiative-30-busy', run, busy === 0 ? 'sem iniciativa necessária' : 'propostas em lote', [])
+}
+
+/** One lever's before → after on one scenario. */
+export interface LeverStep {
+  readonly lever: string
+  readonly before: FaithfulReport
+  readonly after: FaithfulReport
+}
+
+/**
+ * Ladder from legacy to optimized, one lever per step.
+ * @param id - Scenario.
+ * @returns Steps in {@link LEVER_LADDER} order.
+ */
+export function leverLadder(id: FaithfulScenarioId): LeverStep[] {
+  const steps: LeverStep[] = []
+  let before = runFaithfulScenario(id, leversAtStep(0))
+  LEVER_LADDER.forEach((step, index) => {
+    const after = runFaithfulScenario(id, leversAtStep(index + 1))
+    steps.push({ lever: step.id, before, after })
+    before = after
+  })
+  return steps
+}
+
+/** Cumulative levers where the context policy stops at head clip (what Forge shipped). */
+export const LEVERS_FORGE_SHIPPED: LeverSet = { ...LEVERS_OPTIMIZED, context: 'headClip' }

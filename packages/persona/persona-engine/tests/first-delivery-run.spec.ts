@@ -48,6 +48,17 @@ it('counts coordination calls toward the shared limit and includes their tokens'
   expect(result.outputTokens).toBe(320)
 })
 
+it.each(['triage', 'reply', 'execution'] as const)('rejects an extra %s turn even below the shared three-call ceiling', (kind) => {
+  const extra = { ...ENTRY, id: 'extra-paid-turn', kind }
+  const result = verifyFirstDeliveryRun({ ...EVIDENCE, entries: [ENTRY, extra], maxCalls: 3 })
+  expect(result.failed).toEqual(['call-budget'])
+  expect(result.calls).toBe(2)
+})
+
+it('accepts the one-execution target with a one-call limit', () => {
+  expect(verifyFirstDeliveryRun({ ...EVIDENCE, maxCalls: 1 }).passed).toBe(true)
+})
+
 it('does not hide unmeasured calls when a measured execution is present', () => {
   const result = verifyFirstDeliveryRun({
     ...EVIDENCE,

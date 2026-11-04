@@ -18,6 +18,12 @@ export interface FirstDeliveryTask {
   readonly permissionMode: 'deny'
 }
 
+/** Session context and the already-authorized assignment, delivered together rather than as separate turns. */
+export interface FirstDeliveryExecutionInput {
+  readonly personaContext: string
+  readonly task: Pick<FirstDeliveryTask, 'assignment'>
+}
+
 const FALLBACK_BRIEF = 'Nenhum dado da empresa foi informado.'
 
 /**
@@ -62,6 +68,21 @@ export function firstDeliveryAsk(input: FirstDeliveryInput): string {
   const ask = firstDeliveryTask(input).assignment
   if (!wantsWork(ask)) throw new Error('first-delivery ask must wantsWork')
   return ask
+}
+
+/**
+ * Build one logged worker input containing persona context and the complete authorized task.
+ * @param input - Persona context and answer-only assignment already bound by the host.
+ * @returns A single execution prompt; the host sends it once without a prior inject or triage delivery.
+ */
+export function firstDeliveryExecutionPrompt(input: FirstDeliveryExecutionInput): string {
+  return [
+    'Contexto da persona para esta execução; respeite o modo apenas resposta e as permissões da tarefa:',
+    input.personaContext,
+    '',
+    'Pedido autorizado para este único turno:',
+    input.task.assignment,
+  ].join('\n')
 }
 
 function clipBrief(raw: string): string {

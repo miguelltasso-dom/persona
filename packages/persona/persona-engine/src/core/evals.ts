@@ -71,10 +71,15 @@ export class Evals extends EnginePart {
   start(threadKeyValue: string, policy: Policy): void {
     const thread = this.repo.threads.get(threadKeyValue)!
     const at = this.now()
+    const eligible = (id: string): boolean => {
+      const wait = this.repo.triggers.disposition(id)?.engineWait
+      return wait === undefined || wait.state === 'released'
+    }
+    if (!thread.pending.some(eligible)) return
     // A person's follow-up a ticket still decides is that ticket's: one an older version queued leaves the queue without a Decision.
     const delivered = (id: string) => {
       const trigger = this.repo.triggers.get(id)
-      return !!trigger && this.owners(trigger).length > 0
+      return eligible(id) && !!trigger && this.owners(trigger).length > 0
     }
     if (thread.pending.some(delivered)) {
       const followups = thread.pending.filter(delivered)
@@ -85,10 +90,11 @@ export class Evals extends EnginePart {
     }
     // Triggers that already originated a ticket cannot lend authority to a new evaluation or spawn a duplicate ticket.
     const accepted = this.accepted(thread.key)
-    const started = thread.pending.filter(id => accepted.has(id))
+    const started = thread.pending.filter(id => eligible(id) && accepted.has(id))
     const startedTicket = (id: string): Reason => ({ code: 'startedTicket', triggerId: id, values: { ticket: accepted.get(id)!.ticketId! } })
     if (started.length) this.ignore(thread, started, started.map(startedTicket), policy, at)
-    const triggers = thread.pending.flatMap((id) => { const trigger = this.repo.triggers.get(id); return trigger ? [trigger] : [] })
+    const ready = thread.pending.filter(eligible)
+    const triggers = ready.flatMap((id) => { const trigger = this.repo.triggers.get(id); return trigger ? [trigger] : [] })
     const tickets = this.ticketsOnThread(thread)
     const reasons: Reason[] = []
     let strongest: { trigger: Trigger; strength: Strength; basis: MandateBasis } | undefined
@@ -100,16 +106,16 @@ export class Evals extends EnginePart {
       if (weaker || later) strongest = { trigger, strength: gate.strength, basis: gate.basis }
     }
     if (!strongest) {
-      if (thread.pending.length) this.ignore(thread, [...thread.pending], reasons.length ? reasons : [{ code: 'noAdmissible' }], policy, at)
+      if (ready.length) this.ignore(thread, ready, reasons.length ? reasons : [{ code: 'noAdmissible' }], policy, at)
       this.repo.threads.save(thread)
       return
     }
-    const evalId = key('eval', thread.key, policy.version, at, ...thread.pending)
+    const evalId = key('eval', thread.key, policy.version, at, ...ready)
     const deadline = new Date(Date.parse(at) + policy.evalTimeoutMs).toISOString()
     const { strength, trigger: { actor }, basis } = strongest
-    thread.evaluating = { id: evalId, threadKey: thread.key, triggerIds: thread.pending, primary: strongest.trigger.id, strength, actor, basis,
+    thread.evaluating = { id: evalId, threadKey: thread.key, triggerIds: ready, primary: strongest.trigger.id, strength, actor, basis,
       policyVersion: policy.version, startedAt: at, deadline }
-    thread.pending = []
+    thread.pending = thread.pending.filter(id => !ready.includes(id))
     this.repo.threads.save(thread)
     for (const trigger of triggers) {
       this.repo.triggers.saveDisposition(trigger.id, { ...(this.repo.triggers.disposition(trigger.id) ?? { fanout: [], at }), evalId })
@@ -146,6 +152,8 @@ export class Evals extends EnginePart {
   decide(triggerId: string, outcome: Outcome): Decision {
     const trigger = this.repo.triggers.get(triggerId)
     if (!trigger) throw new UserError('unknownTrigger')
+    const wait = this.repo.triggers.disposition(triggerId)?.engineWait
+    if (wait !== undefined && wait.state !== 'released') throw new UserError('engineUnavailable')
     const held = this.holding(triggerId)
     if (outcome.evalId && held?.evaluating?.id !== outcome.evalId) throw new UserError('evalFinished', { eval: outcome.evalId })
     // Prevent a replayed trigger that already created a ticket from spawning a second one.

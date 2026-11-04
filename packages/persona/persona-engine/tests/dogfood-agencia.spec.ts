@@ -151,7 +151,10 @@ it('walks Agência Ponto: gestor, quadro+sprint, ensinar, cérebro, BYC, assunto
   expect(chart.groups.some(group => group.personas.some(card => card.personaId === 'nina'))).toBe(true)
 
   expect(wantsWork('Monte a equipe da Agência Ponto para o site e a campanha do cliente.')).toBe(true)
-  expect(firstDeliveryAsk({ companyBrief: 'Agência Ponto — estúdio de sites.' })).toMatch(/Resuma o Cofre/)
+  const firstAsk = firstDeliveryAsk({ companyBrief: 'Agência Ponto — estúdio de sites.' })
+  expect(firstAsk).toContain('resuma somente os dados da empresa fornecidos abaixo')
+  expect(firstAsk).toContain('"Agência Ponto — estúdio de sites."')
+  expect(firstAsk).toContain('Não use ferramentas, inclusive ferramentas da Persona.')
 
   expect(IMPORT_ADAPTERS.map(row => row.id)).toEqual(
     expect.arrayContaining(['chatgpt', 'claude', 'gemini', 'notion', 'markdown', 'grok']),

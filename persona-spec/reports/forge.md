@@ -2,6 +2,146 @@
 
 Mais recente no topo.
 
+## 04/11 12:44 — P0 retomado: primeira entrega com um turno pago
+
+Keel priorizou o P0 depois de Probe medir três turnos com runner real/OAR e CLI fake (25,7 s sem latência de modelo). Ponto exato lido em `persona-host/src/orchestration.ts`: `runLaunched` chama o driver da Coordenação antes do worker; `driver.start` envia `${persona.id}:prompt` em `inject`, depois `ingest:${event.id}` envia outra entrada, e só então o worker recebe o launch. Contar ledger/deliver revela **2 triage + 1 execution**; os estágios de telemetria não são turnos.
+
+Engine: `preroute/rules.ts` agora aceita `PreRouteInput.firstDelivery: {executorId,title}` confiável do host. A regra `first_delivery` retorna assign para a executora do roster sem chamar o assessor. Mantém orçamento/silêncio/ACL de tarefa; texto do usuário sozinho não ativa a regra. Teste com Engine real em memória prova um Ticket, uma Assignment, zero pedidos ao assessor e replay sem duplicação; o lifecycle normal termina completed após o relatório.
+
+`firstDeliveryExecutionPrompt({personaContext,task:{assignment}})` coloca o contexto da persona e o pedido autorizado inteiro na mesma entrada registrada do worker. O host deve pular o driver da Coordenação neste fluxo e enviar esse corpo uma vez; não há etapa inject anterior. Não alterei os produtores de runners do Rivet nem os módulos de prompts/engine-policy sob o Tally. Anvil e Rivet foram avisados por ask; exports e ponto exato de consumo estão no Status.
+
+`verifyFirstDeliveryRun` agora exige uma única entrada execution e nenhuma entrada extra; `FIRST_DELIVERY_MAX_PAID_TURNS = 1` é exportado para o harness. `maxCalls:3` continua possível como trava externa compartilhada, mas não autoriza aceitar dois ou três turnos. Casos novos reprovam triage/reply/execution adicionais mesmo abaixo desse teto; uma única execution com maxCalls1 passa.
+
+Prova executada sob a trava check: `node scripts/persona/with-lock.mjs "Forge P0 one-turn engine proofs" --lock check -- node .maestri/tmp/forge-desktop-bounded.mjs packages/persona/persona-engine/tests/preroute.spec.ts packages/persona/persona-engine/tests/first-delivery-run.spec.ts packages/persona/persona-engine/tests/wants-work.spec.ts` — **41/41, exit 0, 9,91 s**, snapshot do único input com contexto+assignment. Log `.maestri/tmp/forge-p0-one-turn-green.log`. Typecheck/lint em curso. A prova integrada do ledger OAR/CLI fake, #geral, quadro e marco único é com Anvil/Probe; **zero chamadas reais minhas**.
+
+SW salvo: último lote executado **39/39** (histórico/conflitos + regressão Git), antes dos últimos ajustes locais de proteção de caminho. Brand importado apenas após o Keel confirmar install/link; UUID validado, client importa só o tipo. O SW ainda precisa da validação final/obrigatória e das capturas/aceite dos donos de UI; retomo após este P0. Novos achados do Gauge enfileirados: BYC editar dado sensível removido; reimportação de nota alterada; ligação de routeApproval com ausência/substituição no host. Não comecei esses itens antes do P0/SW.
+
+## 04/11 12:04 — SW-2: restauração e aplicação com recuperação, 18/18
+
+`HistoryReviewDelivery.accept` grava automaticamente um ponto anterior à aplicação e retorna `restorePointId`. `listRestorePoints()` expõe somente ID, tarefa, criação, expiração, estado available/undone/expired e nomes relativos; `undoApply(id)` restaura uma vez, devolve expired após 30 dias exatos e bloqueia se houver edições posteriores em arquivos afetados. As operações são opcionais no porto `ReviewDelivery`; a implementação Git existente mantém seu comportamento. `HISTORY_RESTORE_RETENTION_MS` é 30 dias; `now` permite prova com relógio falso.
+
+`review/history-transaction.ts` prepara cópias antes de escrever, registra início por arquivo e usa renomeação para cada substituição. Arquivos da pasta e registros privados da revisão compartilham o diário; uma falha restaura os efeitos já instalados e as pastas novas. A próxima operação recupera um diário interrompido antes de continuar; mudanças externas desconhecidas impedem recuperação destrutiva. Operações do mesmo histórico são serializadas entre instâncias e usam trava de processo no disco. Hashes/índices Git continuam privados e os blobs são lidos como Buffer, sem conversão de docx/binários.
+
+Prova: mesmo comando do SW-1 — **18/18, exit 0, 29,21 s**, sem modelos. Casos novos: texto/binário/arquivo removido/arquivo novo → aplicar → desfazer byte a byte; desfazer repetido não sobrescreve edição posterior; falha injetada na instalação do último arquivo restaura arquivos, nova pasta e registros; retry posterior funciona; limite exato de 30 dias; edição após aplicação bloqueia undo; diário persistido é recuperado antes de summary. Typecheck/lint deste incremento em curso; SW-3 segue imediatamente.
+
+## 04/11 11:53 — SW-1: HistoryReviewDelivery, primeiro lote offline verde
+
+Keel aprovou `createReviewDelivery(options)` síncrono, com detecção por filesystem ao subir os pais (`.git` diretório ou arquivo de worktree), sem chamar git na seleção. Nova implementação em `persona-engine/src/review/{history,history-files,history-git}.ts`, exports em `review/index.ts` e `src/index.ts`, README e `tests/history-review.spec.ts`. Pasta pertencente a repositório mantém `GitReviewDelivery`; pasta comum ganha histórico privado em `<personaHome>/history/<projectId>`, com `projectId`/ticket sanitizados e rascunho independente em `worktreesRoot`. Construção, summary vazio e sweep vazio não criam arquivos, inclusive quando git inexiste.
+
+Snapshots guardam bytes exatos usando objetos Git sem filtros/hooks e índice por operação. Não criam `.git` na pasta do usuário. Config privada: autocrlf=false, safecrlf=false, longpaths=true, fsmonitor=false, gc.auto=0; info/exclude e cópia excluem temporários Office/Windows e metadados `.git` aninhados. `HistoryReviewError` diferencia git indisponível, timeout, falha de histórico, arquivo indisponível, caminho inseguro e excesso de cópia; mensagens acionáveis em português. Limite padrão **256 MiB**, configurável por `maxCopyBytes`; processo Git tem `gitTimeoutMs` padrão **30 s**. `HistoryFileOps.copyFile` injetável deve hidratar quando necessário e produzir cópia independente; hardlink gravável compartilhado é proibido. Rivet injeta PATH→git embutido e operações Windows; Anvil troca os construtores do host pela factory.
+
+Prova: `node .maestri/tmp/forge-desktop-bounded.mjs packages/persona/persona-engine/tests/history-review.spec.ts` — **13/13, exit 0, 10,19 s**, Git real local, **zero modelos**. Prepare → diff → apply de documento e binário; CRLF preservado; usuário continua sem `.git`; construção/leitura sem efeito; seleção de repo por diretório/arquivo ancestral com executável inexistente; configuração segura/exclusões; cópia injetada e reinício; git inexistente; limite; cinco IDs inseguros; sweep preserva rascunho aberto e arquivos originais. `check-pkg persona-engine` **OK 12,2 s**. Oxlint encontrou apenas dois arrow-parens nos parâmetros dos testes; corrigidos, revalidação em curso.
+
+SW-2 começa agora: a primeira implementação de aplicar ainda precisa da transação com recuperação e ponto de restauração antes de ligar a ação final no host/UI. SW-3 acrescentará as escolhas tipadas de conflito. O lote SW-1 não é aceite final dessas duas tarefas.
+
+## 04/11 11:34 — Desktop: startup e três specs antigos verdes (191/191)
+
+Causa raiz: o mock Electron não expunha `screen` nem `webRequest.onHeadersReceived`, o startup lançava antes de `manager.applyRelease`, e `readyForUpdate` esperava até o timeout.
+Depois de corrigir o harness, as expectativas upstream de menus e falhas de boot ainda esperavam o produto anterior; o Keel autorizou a manutenção exata no mesmo spec.
+Persona suporta boot pt/en: cache pt é mantido na falha e zh usa fallback en; a decisão do Keel substitui meu alerta inicial de tradução, sem alteração de produção.
+
+**Único arquivo desktop alterado nesta tarefa:** `apps/desktop/tests/main-startup.spec.ts`, autorizado pelo Keel e pelo Rivet (Status). Mocks dos novos recursos nativos/CSP; Persona home isolada na fixture; logger substituído no teste para não concorrer com remoção do diretório; notices determinísticos. Listas completas de menu em ordem, About com créditos e notices exatos, fixture de diretório absoluta no Windows e confirmação assíncrona de abertura externa. Não modifiquei arquivos expected, produtores do Rivet, asserções de segurança nem skips.
+
+Falhas de boot agora verificam o payload `bootState` e o relatório de crash específicos, preservam a janela/documento, recusam instalação enquanto o host está indisponível e expõem retry explícito sem executar de novo automaticamente. A fixture executa `renderer/persona-boot/boot.js` real em JSDOM isolado e fecha cada window: verifica título, corpo, diagnóstico e visibilidade exatos para pt e para o fallback en. Os testes de recuperação nativa continuam cobrindo respostas 0/1/2, encerramento do host, cancelamento e limite de 500 ms do Worker; o evento da fixture é uma falha fatal do renderer, que ainda pertence a esse mecanismo.
+
+Comando executado: `node .maestri/tmp/forge-desktop-bounded.mjs apps/desktop/tests/main-startup.spec.ts apps/desktop/tests/background-notice.spec.ts apps/desktop/tests/ipc-audit.spec.ts apps/desktop/tests/macos-signature.spec.ts` — **4 arquivos, 191/191, exit 0, 24,14 s**; `main-startup` sozinho contém 168 testes. Vitest run, timeout 30 s de teste/hook, teardown 10 s, maxWorkers 1; watchdog externo de inatividade e término da própria árvore. Log `.maestri/tmp/forge-desktop-four-green.log`. Diagnóstico temporário removido. `reap-orphans.mjs`: nenhum vitest com mais de 15 min. Não repeti a suíte desktop ampla após a restrição do Keel; esses quatro arquivos são a prova concluída. Zero chamadas reais.
+
+FR-3: check-pkg de `persona-engine` **OK (15,2 s)**. A rodada completa core/engine executou 125 arquivos: 124 passaram; um dogfood ainda exigia a frase antiga `Resuma o Cofre`. Corrigi a expectativa em `persona-engine/tests/dogfood-agencia.spec.ts` para exigir contexto embutido e resposta sem ferramentas. Revalidação focada dos arquivos alterados (`engine-availability`, `core-engine`, `dogfood-agencia`) **127/127**, exit 0; inclui 13 casos FR-3 e 113 regressões do core. O caso adicional impede que uma notificação tardia apague a confirmação obrigatória de um Trigger expirado. Integração de conexões/reenvio e projeção continua com Anvil, que recebeu os exports no Status e por ask; nenhuma chamada de runner real.
+
+Validação final: `node .maestri/tmp/forge-desktop-types.mjs` — **0 diagnósticos desktop** em src/scripts/tests, com `rawExit:2` por **208 diagnósticos externos**; não é aprovação do agregado. `node scripts/persona/check-pkg.mjs persona-engine` — **OK 15,5 s** após os mocks tipados. Oxlint pelo comando do repo (`node --import tsx/esm scripts/run-oxlint.ts` nos 12 arquivos TS alterados) — **exit 0**; a tentativa anterior com ESLint não executou lint porque o repo não possui config ESLint. `git diff --check` do recorte sem erros. Revalidação do spec FR-3 após manter os mocks com tipo próprio para a regra unbound-method — **13/13**, exit 0.
+
+Anvil integrou o host e publicou `contracts/engine-readiness.md`. Executei também `engine-wait.host.spec.ts`, com todos os runners injetados: **5/6** passaram (evento imediato antes de Tarefa/runner, cache→ready sem receive duplicado, restart/expiração/confirmação, dismiss e cofre indisponível). A falha restante é da fixture de ACL: depois de mudar `sessionMemberId` para bob, consulta `getEngineStatus` ainda como bob, que não tem acesso ao projeto (`index.ts:1885 → requireProject:5188`). Registrei no Status 11:37 para o Anvil restaurar a identidade da autora antes da leitura; não editei o teste de outro dono. Sem falha nova de engine observada.
+
+Próxima fila recebida do Keel: SW-1..3 (D-064); leitura de `SIMPLE-WORKSPACE.md` concluída, iniciando SW-1. A prova P0 real permanece exclusivamente com Probe/Atlas; este turno gastou **zero** chamadas reais.
+
+## 04/11 11:13 — FR-3: retenção de mensagens sem motor e liberação ordenada
+
+Zero chamadas reais. Keel aprovou o evento `no_engine_ready` e, após a reprodução da borda de fanout em `Intake.receive`, autorizou `ReceiveOptions.deferRouting`. Sem essa opção nem backlog, os 113 testes originais do core continuam verdes. A opção persiste Trigger e posição na fila sem fanout, wake, deliver ou start; impede inclusive a retomada de Tarefa encerrada antes de consultar o cache de conexões.
+
+Arquivos: `persona-engine/src/core/{availability,engine,errors,evals,index,intake,model,ports,tickets}.ts`, `tests/engine-availability.spec.ts` e README. Exports pelo core/index e pacote raiz: `EngineUnavailableReason`, `EngineReadyOptions`, `ReceiveOptions`, `ENGINE_TRIGGER_CONFIRM_AFTER_MS`; comandos `engineUnavailable`, `engineReady`, `pendingEngineTriggers`, `dismissEngineTrigger`. `TriggerDisposition.engineWait` é JSON opcional aditivo, sem alteração do SessionEventMap nem da versão SQLite. O marcador persiste motivo seguro, estado, início da espera e deduplicação; nunca texto, caminhos ou credenciais nos eventos.
+
+O host (Anvil) faz o reenvio via cache→ready: consulta `pendingEngineTriggers()`, chama `engineReady(id)` e retoma sua própria rota apenas com os Triggers devolvidos, sem novo receive. O engine aplica fanout uma vez, recusa liberações fora de ordem e retém novas mensagens atrás do backlog do mesmo stream. Descartes permanecem descartados; após 24 h a mensagem emite `engine_confirmation_required` uma vez e espera confirmação pessoal explícita (`engineReady(id, { confirmed: true })`). Anvil foi avisado no Status e por ask; projeção overview/Remote, botões e cache→ready são responsabilidade do host/Prism.
+
+Prova executada: `node .maestri/tmp/forge-desktop-bounded.mjs packages/persona/persona-engine/tests/engine-availability.spec.ts packages/persona/persona-engine/tests/core-engine.spec.ts` — **125/125**, 2 arquivos, exit 0, deadline externo e árvore própria encerrada. Os 12 novos casos cobrem evento síncrono seguro, ausência de efeitos sem engine, fluxo normal, dedupe após reconstrução, um Ticket após retry, ordem por stream incluindo chegada nova, streams independentes, dismissal, limite exato de expiração/confirmar, instante anterior ao limite, bloqueio de ultrapassagem, follow-up de Tarefa encerrada e rollback. Typecheck e integração host ainda em curso.
+
+Suíte desktop: as três falhas anteriores foram corrigidas pelo Rivet e revalidadas juntas: `background-notice.spec.ts`, `ipc-audit.spec.ts`, `macos-signature.spec.ts` — **23/23**, sem novas edições minhas. Nova rodada ampla com reporter por módulo atingiu o deadline global de 240 s em `main-startup.spec.ts`; isso ainda não identifica hang. Árvore própria PID 5560 foi encerrada pelo wrapper. Estou isolando esse arquivo com deadline externo e mantendo investigação sem chamadas reais.
+
+---
+
+## 04/11 10:57 — Atlas/Keel: inventário do instalador e bloqueio no afterPack
+
+Zero chamadas reais. Rivet consultado antes de editar o desktop; a resposta inicial veio com erro de transporte, e o Keel autorizou os arquivos novos e o manifesto do host. Rivet depois confirmou os arquivos livres no Status. Keel autorizou também o hook no `electron-builder-config.mjs` e os mocks nos dois specs com fixtures parciais. Não alterei nem copiei arquivos para o worktree `C:/p8wb3a4e5b933` durante o pack.
+
+### Inventário e comparação com as regras de cópia
+
+| Arquivos lidos em runtime | Consumidor | Origem e regra de empacotamento |
+|---|---|---|
+| `desktop-host/{lib/index.js,lib/cli.js,config/electron.cordis.patch.yml}` | `desktop-host/src/index.ts`, launch do perfil | `files` do pacote host; **config/ faltava na fonte**, corrigido. Overlay do pack atual já incluía e deduplica. |
+| `dsh-base/cordis.patch.yml`, `dsh-web-app/cordis.patch.yml` e `presets/*.patch.yml`, `dsh-persona-app/cordis.patch.yml` | `loadProfileDirectory` / `dsh.bundle.patch` | Manifests dos bundles e árvore preparada `dsh/node_modules`; ambos os FileSets do electron-builder copiam `**/*`. |
+| Entradas `main`, `bin`, `exports` de runtime e respectivos chunks | resolução Node/host/client | Declaradas pelos manifests; verificador as exige independentemente do inventário selado. Exclui declarações de tipos e passthrough de `src`. |
+| Locales, templates, assets e `client-ui-persona/lib/client.js`/`lib/assets` | cliente, frontend servido e plugins | Todos os arquivos do `desktop-runtime.json`, incluindo recursos de pacotes opcionais presentes. Exportações com wildcard respeitam subdiretórios. |
+| `renderer/persona-boot/{boot.html,boot.js,boot.css,assets/*}` + preloads/worker/main | primeira janela, IPC e recuperação | `files: renderer/**/*` e entradas `lib/*` explícitas; patch de FileSet extra desnecessário. |
+| `resources/runtime/{versions.json,bin,primary-runtime,office-skills,...}` e pnpm | launcher Node/pnpm; `desktop-host/src/office.ts` usa `assetRoot` externo | `extraResources` copia runtime inteiro; com a árvore preparada correspondente o verificador exige cada arquivo externo, além dos arquivos mínimos fixos. |
+| Ícone, notices e bitmaps da bandeja | Electron | `extraResources` explícitos. |
+| `.node`, DLLs, executáveis e binários auxiliares | Node/CLI/nativos | `asarUnpack` e política PE existentes; o inventário exige o arquivo físico quando a entrada ASAR declara `unpacked`. Com fonte preparada, reutiliza `verifyRuntimeArchive` para a comparação de bytes completa. |
+
+Dados da empresa, projetos, credenciais e arquivos importados são criados/lidos nos diretórios do usuário, não são recursos imutáveis do instalador. Não li credenciais nem arquivos pessoais.
+
+### Patch aplicado e arquivos
+
+- `apps/desktop-host/package.json`: adiciona `config/` em `files`.
+- Novo `apps/desktop/scripts/persona-package-inventory.ts`: lê `app.asar` ou `win-unpacked` sem extração/execução/rede; combina inventário selado, manifests e arquivos mínimos de boot. A árvore preparada opcional acrescenta todos os recursos externos e verificação integral de bytes. Ausências retornam caminhos com `app.asar:`/`resources:`.
+- Novo `apps/desktop/tests/persona-package-inventory.spec.ts`: ASAR real pequeno, casos positivos/negativos, fonte inclui config, patch ausente mesmo fora do selo, locales/exports/patches, nativo unpacked ausente e hook real com até dez caminhos na mensagem.
+- `apps/desktop/scripts/electron-builder-config.mjs`: no `afterPack` Windows chama `inspectPersonaPackage(app.asar, buildPaths.dsh)`; reprova ausências com total, até dez caminhos e ação de reconstrução. Sem opt-out/bypass. O pack em curso usa sua cópia antiga; hook vale no próximo pack.
+- `apps/desktop/tests/{packaged-runtime-verification,windows-asar-unpack}.spec.ts`: somente mock do inspector nos cenários de fixture parcial. Verificações PE e asserções anteriores preservadas. O teste novo não mocka o inspector.
+
+### Provas já obtidas
+
+```text
+pnpm exec vitest run apps/desktop/tests/persona-package-inventory.spec.ts apps/desktop/tests/packaged-runtime-verification.spec.ts apps/desktop/tests/windows-asar-unpack.spec.ts --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1
+Test Files  3 passed (3)
+Tests  37 passed | 3 skipped (40)
+
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+exit 0
+```
+
+Inventário inicial do ASAR real antigo em `C:/p8w/.../win-unpacked`: **26.445 caminhos, nove ausências** — patch Electron do host e os oito arquivos `persona-boot` (HTML/JS/CSS, symbol, duas poses, duas fontes). Artefato: `.maestri/tmp/forge-package-inventory-old.json`. A primeira versão do verificador precisou normalizar separadores nativos da API ASAR no Windows; a segunda distinguiu wildcard de exports Node, que também cobre subdiretórios. Os testes cobrem esses dois caminhos.
+
+### Resultado final e limites
+
+Confronto final de ASARs reais, somente leitura:
+
+```text
+node --import tsx/esm apps/desktop/scripts/persona-package-inventory.ts C:/p8w/apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/win-unpacked
+exit 1 — files=26445, missing=9, integrityVerified=false
+
+node --import tsx/esm apps/desktop/scripts/persona-package-inventory.ts C:/p8wb3a4e5b933/apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/win-unpacked
+exit 0 — files=26446, missing=0, integrityVerified=false
+
+node scripts/persona/with-lock.mjs "Forge final inventory and types" --lock build --wait-max 720000 -- node .maestri/tmp/forge-final-checks.mjs
+{"files":32585,"missing":0,"integrityVerified":true}
+```
+
+O último verificador recebeu também `C:/p8wb3a4e5b933/apps/desktop/.desktop-build/targets/win-x64/dsh` como preparação independente. Confere **bytes de todos os arquivos dsh** por `verifyRuntimeArchive` e presença de todos os recursos externos de runtime. Não confundir esse resultado com uma comparação de bytes dos recursos externos. Os três JSONs estão em `.maestri/tmp/forge-package-inventory-{old,new,new-integrity}.json`. O primeiro passo de fila com espera de 60 s expirou aguardando o gate do Keel; a repetição sob a trava passou. O script temporário de encadeamento retornou erro depois do resultado de integridade porque seu primeiro programa TypeScript incluía arquivos de client na face Host; corrigido abaixo, sem repetir a comparação de bytes já verde.
+
+Na comparação ampliada apareceu só um marcador `.gitkeep` vazio em `pnpm/undici`, que não é payload de runtime. O verificador desconsidera exclusivamente `.gitkeep` de zero bytes na árvore externa; outros dotfiles/arquivos permanecem obrigatórios. A fixture do hook inclui esse marcador apenas na preparação e passa. Não há bypass configurável nem opt-out do hook.
+
+```text
+pnpm exec vitest run apps/desktop/tests/persona-package-inventory.spec.ts --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1
+Test Files  1 passed (1)
+Tests  13 passed (13)
+
+node scripts/persona/with-lock.mjs "Forge desktop host types" --lock build --wait-max 720000 -- node .maestri/tmp/forge-desktop-types.mjs
+{"desktop":"OK","diagnostics":[],"rawExit":2,"foreignDiagnostics":208,"signal":null}
+```
+
+O programa específico usa as opções de `tsconfig.host.json`, inclui desktop src/scripts/tests e exclui `src/client` e `*.client.spec`, conforme a face Host. Usa heap de 8 GB. **Zero diagnósticos em `apps/desktop`; o tsc bruto retorna 2 por 208 diagnósticos de fontes externas** — o filtro por dono segue a regra de `check-pkg`/grep do projeto. Log completo `.maestri/tmp/forge-desktop-scoped-typecheck.log`; configuração e wrapper temporários ao lado. A checagem normal de `apps/desktop/tsconfig.host.json` já passou com exit 0. A tentativa do agregado inteiro esgotou o heap padrão de 4 GB; log `.maestri/tmp/forge-desktop-typecheck.log`. Não declaro o agregado verde.
+
+Suíte inteira requerida pelo Keel: `pnpm exec vitest run apps/desktop/tests --testTimeout=30000 --hookTimeout=30000 --teardownTimeout=10000 --maxWorkers=1`. Encontrou falhas em `background-notice.spec.ts`, `ipc-audit.spec.ts` e `macos-signature.spec.ts`, depois ficou sem avanço no log desde 10:39. Às 10:48 encerrei somente a árvore própria de Vitest (PIDs 28068 e 40476, confirmados por `taskkill /T /F`). **Não há contagem final nem suíte ampla verde.** Keel aceitou registrar essa pendência e a atribuiu ao Rivet; o teste de IPC deve ser tratado antes do próximo pack. Não alterei esses arquivos.
+
+Lint dos arquivos novos/hook passou; `git diff --check` passou. `node scripts/persona/reap-orphans.mjs` retornou `reap-orphans: no vitest trees older than 15 min (free 18,27 GB)`. Nenhum app/modelo/CLI real iniciado, sem commit/push/reset/clean. A entrega do inventário está pronta para o Keel avaliar com a pendência ampla explícita; a primeira entrega real do P0 continua com Probe/Anvil/Rivet, conforme o saldo do Atlas.
+
 ---
 
 ## 04/11 09:39 — Keel P0: primeira tarefa answer-only, prova OAR offline

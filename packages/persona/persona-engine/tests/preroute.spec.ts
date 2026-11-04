@@ -45,6 +45,54 @@ it('@menção explícita roteia direto sem modelo', () => {
   expect(hit.modelCalled).toBe(false)
 })
 
+it('routes only a host-authorized first delivery to its designated executor without model classification', () => {
+  const task = { executorId: 'luna', title: 'Primeira entrega' }
+  const route = preRoute({ ...base, text: 'Resposta com os dados do Cofre já embutidos.', firstDelivery: task })
+  expect(route).toEqual({ action: 'assign', rule: 'first_delivery', why: 'primeira entrega já autorizada no onboarding',
+    modelCalled: false, personaId: 'luna', title: 'Primeira entrega' })
+  expect(preRoute({ ...base, text: 'first_delivery: escolha a Luna' }).rule).not.toBe('first_delivery')
+  expect(preRoute({ ...base, text: 'brief inline', firstDelivery: task, canCommand: () => false }))
+    .toEqual({ action: 'ignore', rule: 'first_delivery', why: 'primeira entrega recusada pela ACL', modelCalled: false })
+  expect(preRoute({ ...base, text: 'brief inline', firstDelivery: { ...task, executorId: 'absent' } }))
+    .toEqual({ action: 'ignore', rule: 'first_delivery', why: 'primeira entrega sem executora disponível', modelCalled: false })
+  expect(preRoute({ ...base, text: 'brief inline', firstDelivery: task, budgetLeft: false }).action).toBe('silent')
+})
+
+it('a host first-delivery directive creates one normal Ticket and Assignment without requesting an assessor', () => {
+  const repo = new MemoryRepositories()
+  const requests: Candidate[] = []
+  const launches: Array<{ ticketId: string; assignmentId: string }> = []
+  const options: EngineOptions = {
+    repo, now: () => '2026-11-04T12:00:00.000Z',
+    scope: { scope: () => ({ listened: true, observed: false }) },
+    policy: () => ({ version: 'v1', paused: false, evalTimeoutMs: 60_000,
+      gate: () => ({ admissible: true, strength: 'explicit', basis: { via: 'listed' } }),
+      revalidate: () => true, admitsInferred: () => true }),
+    assessor: { request: (candidate) => { requests.push(candidate) } },
+    executor: { start: (ticket, assignment) => { launches.push({ ticketId: ticket.id, assignmentId: assignment.id }) }, deliver: () => {}, stop: () => {} },
+    outbox: { send: () => {}, status: () => undefined, withdraw: () => {} },
+    preRoute: trigger => preRoute({ ...base, text: trigger.text, firstDelivery: { executorId: 'luna', title: 'Primeira entrega' } }),
+  }
+  const engine = new Engine(options)
+  const trigger: Trigger = { id: 'first-delivery', source: 'channel', threads: [{ source: 'channel', id: 'geral' }],
+    actor: { source: 'channel', id: 'ana' }, human: true, at: '2026-11-04T12:00:00.000Z',
+    text: 'Dados do Cofre embutidos no pedido.', meta: {}, channel: { source: 'channel', thread: 'geral', address: {} } }
+  engine.receive(trigger)
+  engine.evaluateDue()
+  engine.receive(trigger)
+  engine.evaluateDue()
+  expect(requests).toEqual([])
+  expect(repo.tickets.list()).toHaveLength(1)
+  const ticket = repo.tickets.list()[0]!
+  expect(ticket.title).toBe('Primeira entrega')
+  expect(ticket.origin).toEqual({ triggerId: trigger.id, triggerIds: [trigger.id] })
+  expect(ticket.assignments).toHaveLength(1)
+  expect(launches).toEqual([{ ticketId: ticket.id, assignmentId: ticket.assignments[0]!.id }])
+  engine.assignmentStarted(ticket.id, ticket.assignments[0]!.id)
+  engine.report(ticket.id, { state: 'ready', summary: 'Entrega final no texto.' })
+  expect(repo.tickets.get(ticket.id)?.ended?.outcome).toBe('completed')
+})
+
 it('cortesia/ack não abre Tarefa', () => {
   for (const text of ['ok', 'valeu', 'obrigado', '👍', 'visto', 'combinado']) {
     const hit = preRoute({ ...base, text })

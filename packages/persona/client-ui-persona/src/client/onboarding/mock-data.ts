@@ -6,6 +6,8 @@ export interface HarnessRow {
   readonly id: string
   readonly label: string
   readonly ready: boolean
+  /** O host ainda está sondando este provedor: não é "não detectada", é "não sei ainda". */
+  readonly checking?: boolean
 }
 
 export const MOCK_HARNESSES: readonly HarnessRow[] = [

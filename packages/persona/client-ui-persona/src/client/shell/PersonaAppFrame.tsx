@@ -24,8 +24,8 @@ function isBlank(node: HTMLElement): boolean {
  * "Never a blank panel" (Keel/UX-GUIDE): if the main panel is still empty shortly after it mounts, show an honest
  * error state with "Tentar de novo" instead of bare paper. Clears itself as soon as content appears.
  */
-function useBlankPanelGuard(panel: string): { ref: RefObject<HTMLDivElement>; blank: boolean; retry: () => void; attempt: number } {
-  const ref = useRef<HTMLDivElement>(null)
+function useBlankPanelGuard(panel: string): { ref: RefObject<HTMLElement>; blank: boolean; retry: () => void; attempt: number } {
+  const ref = useRef<HTMLElement>(null)
   const [blank, setBlank] = useState(false)
   const [attempt, setAttempt] = useState(0)
   useEffect(() => {
@@ -58,11 +58,12 @@ export function PersonaAppFrame({ renderSlot, useShell }: PersonaAppFrameProps):
       <div className={styles.dragStrip} aria-hidden="true" />
       {renderSlot('sidebar', {})}
       <div className={styles.center} data-persona-grain="">
-        <div className={styles.main} ref={guard.ref} key={`${shell.activePanel}:${guard.attempt}`} data-persona-main={shell.activePanel} data-persona-area="main">
+        {/* <main>: o landmark que faltava em TODA tela (axe landmark-one-main / region, Gauge F5). */}
+        <main className={styles.main} ref={guard.ref} key={`${shell.activePanel}:${guard.attempt}`} data-persona-main={shell.activePanel} data-persona-area="main">
           <PanelBoundary panel={shell.activePanel}>
             {renderSlot('main', {}, { entryKey: shell.activePanel })}
           </PanelBoundary>
-        </div>
+        </main>
         {guard.blank && (
           <div className={styles.blankFallback}>
             <ErrorState

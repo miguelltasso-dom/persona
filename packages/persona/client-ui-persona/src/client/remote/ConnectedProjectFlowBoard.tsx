@@ -23,6 +23,8 @@ import { SprintPlanningView } from '../kanban/SprintPlanningView.tsx'
 import { sprintDatesFromDraft, useSprintPlanningState } from '../kanban/use-sprint-planning-state.ts'
 import type { KanbanSurfaceState } from '../kanban/types.ts'
 import { KanbanReviewSheet } from '../review/KanbanReviewSheet.tsx'
+import { AppliedToast } from '../review/simple/AppliedToast.tsx'
+import { personaHistoryRemote } from '../data/history-remote.ts'
 import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import { destByRemovedForProposal } from '../kanban/accept-workflow-proposal.ts'
@@ -66,6 +68,7 @@ export function ConnectedProjectFlowBoard({
 }: ConnectedProjectFlowBoardProps): ReactNode {
   const [reloadToken, setReloadToken] = useState(0)
   const [reviewTarget, setReviewTarget] = useState<{ id: string; title: string } | null>(null)
+  const [applied, setApplied] = useState<{ readonly restorePointId?: string | undefined } | null>(null)
   const [startPending, setStartPending] = useState(false)
   const [workflowProposal, setWorkflowProposal] = useState<WorkflowProposalView | null>(null)
   const [proposalPending, setProposalPending] = useState(false)
@@ -324,6 +327,18 @@ export function ConnectedProjectFlowBoard({
             setFreshApprovalIds(prev => new Set(prev).add(id))
             paw.celebrate()
           }}
+          onApplied={(info) => { setApplied(info.restorePointId === undefined ? {} : { restorePointId: info.restorePointId }) }}
+        />
+      )}
+      {applied !== null && (
+        <AppliedToast
+          onDismiss={() => { setApplied(null) }}
+          {...(applied.restorePointId !== undefined && personaHistoryRemote(persona).available
+            ? { onUndo: () => {
+              const id = applied.restorePointId
+              if (id !== undefined) void personaHistoryRemote(persona).undo(scope, id).then(reload).catch(() => { /* the history screen shows it if it did not work */ })
+            } }
+            : {})}
         />
       )}
       {sprintCloseSummary !== null && (

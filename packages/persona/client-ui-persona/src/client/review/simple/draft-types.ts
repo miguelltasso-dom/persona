@@ -26,6 +26,8 @@ export interface DraftFileUi extends FileChange {
   readonly canOpenDraft?: boolean | undefined
   /** The same file changed in the folder while the persona worked (DECISIONS: conflict per file). */
   readonly conflict?: boolean | undefined
+  /** What the file says in the person's folder right now (conflict only): enables "Ver as duas versões". */
+  readonly folderText?: string | undefined
 }
 
 export type ConflictChoice = 'mine' | 'theirs' | 'both'

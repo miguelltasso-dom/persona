@@ -25,6 +25,8 @@ export interface PersonaSidebarInjected {
   selectPanel(id: MainPanelId): void
   readonly openPersonaDm?: ((personaId: string) => void) | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
+  /** "Estou fora" mudou (liga/desliga/prazo/expirou): o host precisa saber (organograma, aprovações). */
+  readonly onAwayChange?: ((next: UserAwayState) => void) | undefined
   readonly hirePersona?: (() => void) | undefined
   /** Persona card "Mensagem para <nome>": open the DM and send the text (Prism). */
   readonly sendToPersona?: ((personaId: string, text: string) => void) | undefined
@@ -78,6 +80,7 @@ export function PersonaSidebar({
   renderSlot,
   openPersonaDm,
   openPersonaProfile,
+  onAwayChange,
   hirePersona,
   sendToPersona,
   editPersona,
@@ -142,9 +145,34 @@ export function PersonaSidebar({
     return { isAway: false, untilChoice: 'today18' }
   })
   const [awayPopoverOpen, setAwayPopoverOpen] = useState(false)
+  const onAwayChangeRef = useRef(onAwayChange)
+  onAwayChangeRef.current = onAwayChange
+  const awayAnchorRef = useRef<HTMLDivElement>(null)
+  const awayChipRef = useRef<HTMLButtonElement>(null)
+  // Popover "Estou fora": Esc e clique fora fecham (o foco volta ao chip), como qualquer popover.
+  useEffect(() => {
+    if (!awayPopoverOpen) return undefined
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      setAwayPopoverOpen(false)
+      awayChipRef.current?.focus()
+    }
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.target instanceof Node && awayAnchorRef.current?.contains(event.target) === true) return
+      setAwayPopoverOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown, true)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+    }
+  }, [awayPopoverOpen])
 
   const handleAwayChange = useCallback((next: UserAwayState): void => {
     setAwayState(next)
+    onAwayChangeRef.current?.(next)
     try {
       localStorage.setItem('persona.user.away', JSON.stringify(next))
       if (!next.isAway) {
@@ -276,7 +304,7 @@ export function PersonaSidebar({
                             </span>
                             {/* aria-hidden: still read as the description (aria-describedby), never folded into the button name */}
                             <span id="persona-nav-approvals-pending" className={styles.srOnly} aria-hidden="true">
-                              {t('sidebar.approvalsPending', { count: String(approvalsPending) })}
+                              {t(approvalsPending === 1 ? 'sidebar.approvalsPending.one' : 'sidebar.approvalsPending', { count: String(approvalsPending) })}
                             </span>
                           </>
                         )}
@@ -309,8 +337,9 @@ export function PersonaSidebar({
       </div>
 
       <div className={styles.footer}>
-        <div className={styles.statusAnchor}>
+        <div ref={awayAnchorRef} className={styles.statusAnchor}>
           <button
+            ref={awayChipRef}
             type="button"
             className={`${styles.hostStatus} ${styles.hostStatusButton}`}
             data-status={awayState.isAway ? 'away' : shell.hostStatus}
@@ -324,7 +353,7 @@ export function PersonaSidebar({
             {devBadge}
           </button>
           {awayPopoverOpen && (
-            <div className={styles.awayPopover}>
+            <div className={styles.awayPopover} role="dialog" aria-label={t('away.switchLabel')}>
               <UserAwayControl
                 t={t}
                 awayState={awayState}

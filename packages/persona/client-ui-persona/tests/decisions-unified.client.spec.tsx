@@ -73,7 +73,7 @@ describe('DECISIONS-SPEC: Unified Decisions Architecture (UX-PHASE Item 4)', () 
     expect(proactiveOnly?.blocking).toBe(false)
   })
 
-  it('UX-02: hire proposal without repeating need rationale is omitted; with rationale is included', () => {
+  it('a hire without a rationale is still listed (a pending decision never vanishes for lack of data); with one it carries it', () => {
     const hireWithoutReason: ApprovalView = {
       id: 'hire-no-reason',
       kind: 'hire',
@@ -98,7 +98,8 @@ describe('DECISIONS-SPEC: Unified Decisions Architecture (UX-PHASE Item 4)', () 
       approvals: [hireWithoutReason, hireWithReason],
     })
 
-    expect(decisions.some(d => d.id === 'hire-no-reason')).toBe(false)
+    expect(decisions.some(d => d.id === 'hire-no-reason')).toBe(true)
+    expect(decisions.find(d => d.id === 'hire-no-reason')?.reason).toBeUndefined()
     const validHire = decisions.find(d => d.id === 'hire-valid')
     expect(validHire).toBeDefined()
     expect(validHire?.reason).toBe('Toda semana chegam contratos para revisar.')

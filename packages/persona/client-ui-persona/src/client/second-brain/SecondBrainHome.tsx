@@ -24,6 +24,7 @@ import {
   brainKindLabel,
   contradictionSides,
   countPagesByKind,
+  grantIsActive,
   pageToChangeItem,
   topBrainPages,
 } from './brain-ui-adapters.ts'
@@ -45,6 +46,8 @@ export interface SecondBrainHomeProps {
   readonly onOpenPage?: (pageId: string) => void
   readonly onBringContext?: () => void
   readonly onWritePage?: () => void
+  /** Injectable clock (tests, captures); defaults to now. */
+  readonly nowMs?: number
 }
 
 function grantScope(
@@ -82,6 +85,7 @@ export function SecondBrainHome({
   onOpenPage,
   onBringContext,
   onWritePage,
+  nowMs: nowMsProp,
 }: SecondBrainHomeProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [query, setQuery] = useState('')
@@ -94,7 +98,9 @@ export function SecondBrainHome({
     ))),
     [dict, home, onOpenPage, personaNames],
   )
-  const activeGrants = home?.activeGrants ?? []
+  // The host lists every grant that was not revoked; one that already ran out (e.g. a 7-day permission) is not active.
+  const nowMs = nowMsProp ?? Date.now()
+  const activeGrants = (home?.activeGrants ?? []).filter(grant => grantIsActive(grant, nowMs))
   const contradictions = home?.contradictions ?? []
   const startHerePage = home === null ? undefined : pages.find(page => page.id === home.startHereId)
   const sparseHome = changed.length === 0

@@ -134,5 +134,8 @@
   "step4.guideSays": "Pick a team template or describe who you need. You can edit everything later.",
   "step5.guideSays": "Let's request the first real delivery — under two minutes.",
   "step3.statusLabel": "{name} status",
-  "step4.builderToggle": "Prefer to describe it in your own words?"
+  "step4.builderToggle": "Prefer to describe it in your own words?",
+  "step3.checking": "Checking…",
+  "step3.checkingNotice": "I’m checking the AI tools on this computer. It takes a few seconds.",
+  "step5.introLine": "{role}. You can count on me."
 }

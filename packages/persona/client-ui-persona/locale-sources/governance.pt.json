@@ -57,10 +57,10 @@
   "health.findings": "O que pede atenção",
   "health.gestorAudit": "Atividade do Gestor de equipe",
   "health.gestorAuditLead": "O que mudou de verdade — falhas não contam como feito.",
-  "activity.command": "rodou {count} comando(s)",
-  "activity.file": "mudou {count} arquivo(s)",
+  "activity.command": "rodou {count} comandos",
+  "activity.file": "mudou {count} arquivos",
   "activity.hire": "contratou {count}",
-  "activity.message": "mandou {count} mensagem(ns)",
+  "activity.message": "mandou {count} mensagens",
   "activity.read": "leu {count}",
   "activity.check": "conferiu {count}",
   "activity.more": "e mais {count}",
@@ -149,5 +149,9 @@
   "twoDay.row.approvals": "Aprovações (você)",
   "twoDay.fix.substitute": "Definir substituto",
   "editor.memberSelf": "Você (responsável padrão)",
-  "twoDay.rerun": "Simular de novo"
+  "twoDay.rerun": "Simular de novo",
+  "org.subtitlePersonasOne": "1 persona",
+  "activity.command.one": "rodou 1 comando",
+  "activity.file.one": "mudou 1 arquivo",
+  "activity.message.one": "mandou 1 mensagem"
 }

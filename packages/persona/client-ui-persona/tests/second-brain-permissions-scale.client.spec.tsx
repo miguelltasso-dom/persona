@@ -34,10 +34,12 @@ describe('SecondBrainPermissionsView scale (DESEMPENHO)', () => {
           grants={grants}
           personaNames={{ atlas: 'Atlas', luna: 'Luna' }}
           onBack={() => {}}
+          onRevokeGrant={() => {}}
         />
       </PreviewFrame>,
     )
     const ms = performance.now() - start
+    // "Revogar" exists on a row only when the screen can revoke: count those, not the tabs and the back link.
     const revokeButtons = container.querySelectorAll('button').length
     expect(revokeButtons).toBeLessThan(grants.length)
     expect(revokeButtons).toBeGreaterThan(10)

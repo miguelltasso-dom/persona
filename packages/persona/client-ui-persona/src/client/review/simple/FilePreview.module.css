@@ -51,8 +51,9 @@
   width: 100%;
 }
 
+/* The toggle only exists when the review is narrow: wide shows both side by side and needs no control. */
 .imageControls {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
   gap: var(--persona-space-2);
 }
@@ -61,10 +62,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--persona-space-3);
-}
-
-.imagePair[data-single] {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .figure {
@@ -87,11 +84,20 @@
   font: 800 11px/14px var(--persona-font-text);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--persona-ink-muted);
+  color: var(--persona-ink-soft);
 }
 
 @container (max-width: 480px) {
+  .imageControls {
+    display: flex;
+  }
+
   .imagePair {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .image[data-view='before'] .figure[data-side='after'],
+  .image[data-view='after'] .figure[data-side='before'] {
+    display: none;
   }
 }

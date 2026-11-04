@@ -1,5 +1,27 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-04 17:10 — Passo 3 "Verificando…", bug de movimento reduzido, revisão por captura da Muse
+
+**Achados reais (o script de capturas em movimento reduzido os revelou):**
+- **`usePersonaMotion` deixava conteúdo em `opacity 0` para sempre com `prefers-reduced-motion`** (e `fromOpacity: 0` é o padrão de toda entrada: passo do onboarding, StaggerEntrance…). A captura do passo 3 saiu em branco. Agora movimento reduzido entra com um fade curto de 120 ms, sem deslocamento; sem Web Animations o conteúdo aparece no estado final. `usePersonaMotion` 6/6 + `onboarding-step-motion-reduced` 2/2.
+- **Passo 3 mentia durante a detecção** (Probe: "Não detectada" como resposta final por 10–27 s, e antes da 1ª leitura o mock marcava Claude e Codex como "Pronta"). Agora: sem resposta do host, os 4 cartões dizem **"Verificando…"** (aviso informativo, sem "Conecte pelo menos uma IA"); a lista é relida a cada 1,5 s até a sondagem acabar; falha de leitura não vira "sem IA". O host levou 5,6–26 s na medição, e o cartão mudou quando terminou. `onboarding-step3-checking` 7/7.
+
+**Revisão por captura (Muse, `CAPTURE-REVIEW-0411.md`):** (1) plural "1 pendente" na Visão geral e no rail; (2) "Descansando" sem "zzz"; (4) o marco credita a persona que entregou (retrato + nome) via `first_delivery` do host, "Equipe" só sem ninguém; (5) passo 5 cabe em 1440×900: o painel usava grid+center (cortava a banda quando mais alto que a janela) → `margin:auto` + banda compacta no passo 5; (6) apresentação da equipe vem do roster contratado (nome + função), sem texto de exemplo; (7) a seta da dica "Quem responde" aponta o centro do seletor (medido); (8) gap no Configurações; (9) aviso "a caminho" com relógio (`Notice` ganhou `icon` opcional). **(10, P2) fica aberto:** a coluna vazia sob "Precisa de você" é layout do bloco de decisões do Lumen (OverviewView); proponho "Enquanto você estava fora" / "Últimas entregas" quando houver ≤ 2 pendências, junto com ele. (3) é do Lumen (`avatarSrc` do Decision).
+**Passo 5 "trabalhando" (Muse):** pose "trabalhando" (160 px, à esquerda; empilha < 560 px; sem id, avatar da Coordenação), rótulos do ActivityGroup pelo dicionário (`activityGroupLabelsFromDict`), `aria-live` só na linha de estado e no aviso de demora (não mais na section). Contraste: o cartão do pedido no escuro usava `--persona-surface-alt` (sem valor no escuro) → `--persona-wash`; a busca do rail e a dica `kbd` ganharam fundo mais escuro (axe do Quill).
+**Testes:** `capture-review-0411` 8/8, overlay 20/20 etc.; check-pkg client-ui-persona OK 52 s. **Capturas:** a tela "Falta uma IA" não dá para simular só com PATH (a detecção acha o Claude em locais conhecidos: `probe.ready()` = Claude logado); o cenário sem IA é o `engine: { kind: 'none' }` do Probe, com capturas em `persona-e2e/artifacts/first-delivery/no-engine/`; as minhas cobrem passo 3/5 e celebrate → Visão geral → #geral (claro/escuro, axe).
+
+## 2026-11-04 16:00 — S7 teclado do onboarding (Probe) + arte "Falta uma IA" (Muse)
+
+**S7 (Probe: foco caía no body e o Tab percorria ~130 paradas do app por trás do modal):**
+- `onboarding/use-focus-trap.ts`: prende o Tab no painel do diálogo (última→primeira, Shift+Tab primeira→última; foco no body ou em título `tabindex=-1` sem parada depois volta para dentro) e devolve qualquer foco que caia fora do `role=dialog` (ex.: o composer do #geral por trás). Ao fechar, devolve o foco a quem o tinha.
+- `OnboardingWizard`: a cada troca de passo, do assistente do passo 4 e de fase do passo 5 o foco vai para o título (`h1`, `tabindex=-1`; `failed`/`celebrate` usam `data-persona-step-focus`). Era o botão apertado sumir e o foco virar `<body>`.
+- Bônus de a11y: o `aria-labelledby="persona-onboarding-title"` apontava para um id que não existia (o diálogo estava sem nome). Os `h1` agora têm esse id e o diálogo tem `aria-label`.
+- Testes (`onboarding-overlay-first-delivery`, 22/22): título focado após Pedir agora e após celebrar, nunca o body; Tab/Shift+Tab dão a volta; body + Tab volta para dentro; foco externo é devolvido; diálogo nomeado. A prova no app é o `mandatory-onboarding-keyboard` do Probe depois do rebuild do client.
+
+**Arte "Falta uma IA" (Muse, `ILLUSTRATIONS['empty-sem-ia']`):** fase `needsEngine` = `EmptyState` compacto com a arte a 240 px e o título como `h1` do diálogo; o cartão de falha sem IA (não logado, CLI ausente, motor indisponível) leva a mesma arte; cota não. `EmptyState` ganhou props opcionais `titleAs`, `titleId`, `artSize` (defaults inalterados). O spot de 96 px da faixa do composer (FR-3) espera o `spot-sem-ia`.
+
+**Gate:** tsc do pacote OK (excluindo `tests/draft-review-panel.client.spec.tsx`, do Quill, com erro de sintaxe em andamento que faz o check-pkg parar em erros de sintaxe e esconder os de tipo para todos).
+
 ## 2026-11-04 14:30 — Fechamento: "Pedir agora" espera a IA, cabeçalho sem controle morto, trava `check`
 
 - **"Pedir agora" só habilita depois da 1ª leitura da IA** (`useEngineStatus.settled`): antes havia uma janela de dezenas de ms em que o passo 5 mostrava o botão antes de saber se havia IA. Teste novo no `onboarding-overlay-first-delivery` (12/12).

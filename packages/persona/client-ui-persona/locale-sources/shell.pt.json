@@ -41,7 +41,7 @@
   "team.channelStripTitle": "Sua equipe neste canal",
   "team.memberCount": "{count} membros",
   "team.statusWorking": "Trabalhando",
-  "team.statusResting": "Descansando · zzz",
+  "team.statusResting": "Descansando",
   "team.statusStuck": "Precisa de ajuda",
   "team.statusWaiting": "Aguardando você",
   "overview.nowTitle": "Agora",
@@ -154,8 +154,10 @@
   "decision.noticesLabel": "Avisos das decisões",
   "decision.kind.hire": "Contratação",
   "decision.kind.vault": "Cofre",
-  "decision.kind.skill": "Habilidade",
+  "decision.kind.skill": "Skill",
   "decision.kind.proactive": "Sugestão",
   "decision.kind.blocker": "Aguardando você",
-  "sidebar.approvalsPending": "{count} pendentes"
+  "sidebar.approvalsPending": "{count} pendentes",
+  "overview.attentionCount.one": "1 pendente",
+  "sidebar.approvalsPending.one": "1 pendente"
 }

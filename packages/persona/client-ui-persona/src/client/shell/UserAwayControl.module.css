@@ -3,8 +3,9 @@
   flex-direction: column;
   gap: var(--persona-space-3);
   padding: var(--persona-space-4);
-  min-width: 280px;
-  max-width: 340px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   background: var(--persona-card);
   color: var(--persona-ink);
   border: var(--persona-border-width) solid var(--persona-outline-control);
@@ -82,4 +83,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-2);
+}
+
+/* As 3 opções de prazo empilham em coluna (o popover é estreito). */
+.container [data-count] {
+  grid-template-columns: minmax(0, 1fr);
 }

@@ -88,6 +88,7 @@ function ReactiveApprovalRow({
   }, [isFocused])
   return (
     <div
+      role="listitem"
       data-decision-id={item.id}
       data-decision-state={state}
       className={leaving ? (state === 'declined' ? styles.listItemExitingDeclined : styles.listItemExiting) : undefined}

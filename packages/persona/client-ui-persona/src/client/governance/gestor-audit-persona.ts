@@ -1,7 +1,8 @@
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 import type { PersonaLiveSnapshot } from '../remote/persona-live-store.ts'
-import { MOCK_GESTOR_AUDIT_PERSONA } from './gestor-audit-mock.ts'
 import { normalizeCharacterId } from './governance-ui-helpers.ts'
+
+const GESTOR_FALLBACK_NAME = 'Gestor de equipe'
 
 export interface GestorActivityPersona {
   readonly name: string
@@ -13,7 +14,10 @@ function avatarSrcForCharacter(characterKey: string | undefined): string | undef
   return AVATAR_96[characterKey as keyof typeof AVATAR_96]
 }
 
-/** Gestor row for ActivityGroup — live team_manager when present, else mock Atlas. */
+/**
+ * Gestor row for ActivityGroup: the real team_manager of this team. Never a made-up persona — when the team is not
+ * loaded the row is just "Gestor de equipe" (and the screen only draws it when the host sent audit items at all).
+ */
 export function gestorActivityPersonaFromLive(live: PersonaLiveSnapshot | null): GestorActivityPersona {
   if (live?.ready === true && live.team !== null) {
     const gestor = live.team.personas.find(row => row.systemRoles.includes('team_manager'))
@@ -27,5 +31,5 @@ export function gestorActivityPersonaFromLive(live: PersonaLiveSnapshot | null):
       }
     }
   }
-  return { name: MOCK_GESTOR_AUDIT_PERSONA.name, avatarSrc: MOCK_GESTOR_AUDIT_PERSONA.avatarSrc }
+  return { name: GESTOR_FALLBACK_NAME }
 }

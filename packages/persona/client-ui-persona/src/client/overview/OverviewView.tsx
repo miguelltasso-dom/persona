@@ -180,7 +180,7 @@ export function OverviewView({
 
       {firstDeliveryPending && !showMilestone && (
         <section className={styles.milestone} aria-label={t('overview.firstDeliveryOnTheWay')}>
-          <Notice tone="info">{t('overview.firstDeliveryOnTheWay')}</Notice>
+          <Notice tone="info" icon="clock">{t('overview.firstDeliveryOnTheWay')}</Notice>
         </section>
       )}
 
@@ -190,7 +190,7 @@ export function OverviewView({
             as="section"
             titleAs="h2"
             aria-labelledby="persona-attention-title"
-            eyebrow={pendingCount > 0 ? t('overview.attentionCount', { count: String(pendingCount) }) : undefined}
+            eyebrow={pendingCount > 0 ? t(pendingCount === 1 ? 'overview.attentionCount.one' : 'overview.attentionCount', { count: String(pendingCount) }) : undefined}
             title={<span id="persona-attention-title" ref={attentionTitleRef} tabIndex={-1}>{t('overview.attentionTitle')}</span>}
             className={styles.attentionCard}
           >
@@ -199,7 +199,8 @@ export function OverviewView({
                 <>
                   <ul className={styles.attentionList} role="list" ref={attentionListRef}>
                     {shownDecisions.map((decision) => {
-                      const portrait = personaPortraitSrc(decision.requester.personaId, decision.requester.name)
+                      // The store resolved the real persona's portrait; the name-based lookup is only a fallback.
+                      const portrait = decision.requester.avatarSrc ?? personaPortraitSrc(undefined, decision.requester.name)
                       const titleId = `persona-decision-${decision.id}`
                       const leaving = decision.state === 'accepted' || decision.state === 'declined'
                       return (

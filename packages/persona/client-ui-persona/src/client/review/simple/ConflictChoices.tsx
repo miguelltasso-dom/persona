@@ -6,6 +6,8 @@
 
 import type { ReactNode } from 'react'
 import { ChoiceCards } from '../../primitives/index.ts'
+import { BeforeAfterText } from './BeforeAfterText.tsx'
+import { diffLines, opsToText } from './text-diff.ts'
 import type { ConflictChoice, DraftFileUi } from './draft-types.ts'
 import styles from './ConflictChoices.module.css'
 
@@ -37,6 +39,16 @@ export function ConflictChoices({ files, personaName, choices, onChoose, t }: Co
             <li key={file.id} className={styles.item}>
               <h4 id={titleId} className={styles.title}>{t('conflict.title', { name: personaName, file: file.name })}</h4>
               <p className={styles.body}>{t('conflict.body', { name: personaName })}</p>
+              {file.folderText !== undefined && file.ops !== undefined && (
+                <details className={styles.compare}>
+                  <summary>{t('conflict.compare')}</summary>
+                  <BeforeAfterText
+                    t={t}
+                    ops={diffLines(file.folderText, opsToText(file.ops, 'after'))}
+                    labels={{ before: t('conflict.yours'), after: t('conflict.draftSide', { name: personaName }) }}
+                  />
+                </details>
+              )}
               <ChoiceCards<ConflictChoice>
                 legend={t('conflict.legend')}
                 hideLegend

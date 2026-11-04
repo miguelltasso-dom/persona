@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 // SW-8 acceptance: Revisar mudanças in plain words — files with Novo/Mudou/Apagado, before/after by type,
 // apply states, conflict choices, three actions — and a jargon scan over everything the person can read.
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DraftReviewPanel } from '../src/client/review/simple/DraftReviewPanel.tsx'
 import { conflictCopyName } from '../src/client/review/simple/ConflictChoices.tsx'
+import { AppliedToast, APPLIED_TOAST_MS } from '../src/client/review/simple/AppliedToast.tsx'
 import type { DraftFileUi } from '../src/client/review/simple/draft-types.ts'
 import { diffLines } from '../src/client/review/simple/text-diff.ts'
 import { en as reviewEn, pt as reviewPt } from '../src/client/locale/review/locales.ts'
@@ -83,6 +84,15 @@ describe('Revisar mudanças, em palavras', () => {
     expect(screen.getByRole('tablist', { name: 'Versão do texto' })).toBeTruthy()
   })
 
+  it('a deleted file opens on "Antes" (nothing "Depois" to show), a new one on "Depois"', () => {
+    renderPanel({ files: [gone] }) // a single file opens by itself
+    expect(screen.getByRole('tab', { name: 'Antes', selected: true })).toBeTruthy()
+    expect(screen.getByText('adeus').tagName).toBe('DEL')
+    cleanup()
+    renderPanel({ files: [{ ...doc, id: 'novo.md', name: 'novo.md', kind: 'new', ops: diffLines('', 'oi\n') }] })
+    expect(screen.getByRole('tab', { name: 'Depois', selected: true })).toBeTruthy()
+  })
+
   it('spreadsheet: "2 células mudaram" and one line per cell, "Preços › C4: R$ 12 → R$ 14"', () => {
     renderPanel()
     open('precos.xlsx')
@@ -90,17 +100,22 @@ describe('Revisar mudanças, em palavras', () => {
     expect(screen.getByText('Preços › C4: R$ 12 → R$ 14')).toBeTruthy()
   })
 
-  it('image: side by side with an "Antes · Depois" control that alternates (no drag-only slider)', () => {
+  it('image: both versions side by side (the Antes/Depois control only matters when narrow) and the active one is marked', () => {
     renderPanel()
     open('logo.png')
     expect(screen.getByAltText('logo.png · Antes')).toBeTruthy()
     expect(screen.getByAltText('logo.png · Depois')).toBeTruthy()
     const group = screen.getByRole('group', { name: 'Ver a imagem' })
+    // starts on "Depois": the narrow layout shows one image, and the active button says which
+    expect(within(group).getByRole('button', { name: 'Depois' }).getAttribute('aria-pressed')).toBe('true')
+    expect(within(group).getByRole('button', { name: 'Antes' }).getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(within(group).getByRole('button', { name: 'Antes' }))
-    expect(screen.queryByAltText('logo.png · Depois')).toBeNull()
-    expect(screen.getByAltText('logo.png · Antes')).toBeTruthy()
-    fireEvent.click(within(group).getByRole('button', { name: 'Antes' })) // pressing again returns to both
-    expect(screen.getByAltText('logo.png · Depois')).toBeTruthy()
+    expect(within(group).getByRole('button', { name: 'Antes' }).getAttribute('aria-pressed')).toBe('true')
+    expect(within(group).getByRole('button', { name: 'Depois' }).getAttribute('aria-pressed')).toBe('false')
+    expect(group.closest('[data-view]')?.getAttribute('data-view')).toBe('before')
+    // pressing the active one keeps it active (it is a choice of two, not an on/off)
+    fireEvent.click(within(group).getByRole('button', { name: 'Antes' }))
+    expect(within(group).getByRole('button', { name: 'Antes' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('PDF and other types: "Não dá para mostrar a prévia" + open the draft file read-only', () => {
@@ -166,8 +181,50 @@ describe('Aplicar na pasta: estados', () => {
   })
 })
 
+describe('"Aplicado na pasta" · Desfazer', () => {
+  it('shows Desfazer only when the host gave a way back; no false Undo', () => {
+    const onUndo = vi.fn()
+    const onDismiss = vi.fn()
+    const { unmount } = render(<AppliedToast onUndo={onUndo} onDismiss={onDismiss} />)
+    expect(screen.getByText('Aplicado na pasta')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }))
+    expect(onUndo).toHaveBeenCalledTimes(1)
+    expect(onDismiss).toHaveBeenCalled()
+    unmount()
+    render(<AppliedToast onDismiss={() => {}} />)
+    expect(screen.getByText('Aplicado na pasta')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Desfazer' })).toBeNull()
+  })
+
+  it('leaves by itself after 6 s', () => {
+    vi.useFakeTimers()
+    const onDismiss = vi.fn()
+    render(<AppliedToast onUndo={() => {}} onDismiss={onDismiss} />)
+    act(() => { vi.advanceTimersByTime(APPLIED_TOAST_MS - 100) })
+    expect(onDismiss).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+})
+
 describe('Conflito por arquivo', () => {
   const clash: DraftFileUi = { ...doc, id: 'cardapio.docx', name: 'cardapio.docx', folder: undefined, conflict: true }
+
+  it('the file row says "Escolha o que fica" (warning) instead of "Mudou"; "Ver as duas versões" only when the folder text is known', () => {
+    const { unmount } = renderPanel({ files: [clash, pdf] })
+    const row = screen.getByRole('button', { name: /cardapio.docx/u }).closest('li') as HTMLElement
+    expect(within(row).getByText('Escolha o que fica')).toBeTruthy()
+    expect(within(row).queryByText('Mudou')).toBeNull()
+    expect(screen.queryByText('Ver as duas versões lado a lado')).toBeNull()
+    unmount()
+    renderPanel({ files: [{ ...clash, folderText: '# Preços\nPão: R$ 13\nBolo: R$ 30\n' }, pdf] })
+    const compare = screen.getByText('Ver as duas versões lado a lado').closest('details') as HTMLElement
+    expect(within(compare).getAllByText('Na sua pasta').length).toBeGreaterThan(0) // column header (and its narrow tab)
+    expect(within(compare).getAllByText('No rascunho de Bia').length).toBeGreaterThan(0)
+    expect(within(compare).getByText('Pão: R$ 13').tagName).toBe('DEL') // what is in the folder now
+    expect(within(compare).getByText('Pão: R$ 14').tagName).toBe('INS') // what the draft has
+  })
 
   it('Aplicar waits for an answer on every clashing file; the three choices are plain, "Manter os dois" is recommended', () => {
     const onApply = vi.fn()

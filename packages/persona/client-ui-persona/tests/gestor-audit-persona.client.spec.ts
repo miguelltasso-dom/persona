@@ -49,9 +49,9 @@ describe('gestorActivityPersonaFromLive', () => {
     expect(persona.avatarSrc).toBe(AVATAR_96.atlas)
   })
 
-  it('falls back to mock Atlas when live team is missing', () => {
+  it('never invents a persona when the live team is missing: just "Gestor de equipe", no portrait', () => {
     const persona = gestorActivityPersonaFromLive(null)
-    expect(persona.name).toBe('Atlas')
-    expect(persona.avatarSrc).toBe(AVATAR_96.atlas)
+    expect(persona.name).toBe('Gestor de equipe')
+    expect(persona.avatarSrc).toBeUndefined()
   })
 })

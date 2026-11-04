@@ -1,6 +1,6 @@
 /** Main panels that load {@link PersonaRemoteClient} data (production path). */
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
 import type {
   ActivationFunnelView,
   AddConnectionAccountRequest,
@@ -84,10 +84,10 @@ import type { ProjectLimitsView, QuietWindowView, TriageRuleView } from '@deepse
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ShellState } from '../shell/create-shell-store.ts'
 import { HIRE_PERSONA_PROFILE_ID, type MainPanelId } from '../shell/create-shell-store.ts'
-import { MOCK_GESTOR_AUDIT_ACTIVITY } from '../governance/gestor-audit-mock.ts'
 import { resolveProfileProjectNames } from '../profile/resolve-profile-project-names.ts'
 import { personaCardViewToInfo } from '../profile/map-persona-card-view.ts'
-import type { PersonaCardView, TalkAclView } from '@deepseek-ai/dsh-persona-host/types'
+import type { PersonaCardView, SkillView, TalkAclView } from '@deepseek-ai/dsh-persona-host/types'
+import type { SkillRecord } from '../skills/mock-data.ts'
 import { ConnectedPersonaEditor } from '../remote/ConnectedPersonaEditor.tsx'
 import { pt as editorDict } from '../locale/persona-editor/locales.ts'
 import { pt as governanceDict } from '../locale/governance/locales.ts'
@@ -926,6 +926,20 @@ export function RemoteProfilePanel({
   const swapPolicy = state.status === 'ready' && state.data !== null && state.data.hireMode === false
     ? state.data.swapPolicy
     : undefined
+  // Skills tab: the actions that really exist. Taught skills (id `taught-…`) can be turned on, taken back to candidate and
+  // shared; plain ones can only go back a version. Each handler hands back the skill as the host now has it.
+  const skillAction = (skill: SkillRecord, call: (request: { workspaceId: string; projectId: string; skillId: string }) => Promise<SkillView>): Promise<SkillRecord | undefined> => {
+    if (workspaceId === undefined || projectId === undefined) return Promise.reject(new Error('no-scope'))
+    return call({ workspaceId, projectId, skillId: skill.id }).then(view => skillViewsToRecords([view])[0])
+  }
+  const skillActions: NonNullable<ComponentProps<typeof PersonaProfilePage>['skillActions']> = {
+    onActivate: skill => skillAction(skill, async request => unwrapRemote(await persona.activateTaughtSkill(request))),
+    onRollback: skill => (skill.origin === 'taught'
+      ? skillAction(skill, async request => unwrapRemote(await persona.rollbackTaughtSkill(request)))
+      : skillAction(skill, async request => unwrapRemote(await persona.rollbackSkill({ workspaceId: request.workspaceId, projectId: request.projectId, id: request.skillId })))),
+    onShare: skill => skillAction(skill, async request => unwrapRemote(await persona.publishTaughtSkill({ ...request, scope: 'team', explicit: true }))),
+    ...(selectMainPanel === undefined ? {} : { onReview: () => { selectMainPanel('approvals') } }),
+  }
   const cardBase = hostCard !== null ? personaCardViewToInfo(hostCard, talkAcl ?? undefined) : undefined
   const policyLine = swapPolicy !== undefined
     ? swapPolicyCardSummaryLine(key => bindLocale(profileDict, key), swapPolicy)
@@ -939,14 +953,12 @@ export function RemoteProfilePanel({
       initialState="ready"
       memoryRows={memoryRows}
       skillRecords={skillRecords}
+      skillActions={skillActions}
       {...(card !== undefined ? { card } : {})}
       onMessage={primaryId === null ? undefined : () => { openPersonaDm(primaryId) }}
       onEdit={primaryId === null ? undefined : () => { openPersonaEditor(primaryId) }}
       onTeach={primaryId === null ? undefined : () => { openTeachPersona(primaryId) }}
       onEditTalk={primaryId === null ? undefined : () => { openTalkAclEditor(primaryId) }}
-      {...(snapshot.persona.systemRoles.includes('team_manager')
-        ? { gestorAuditItems: MOCK_GESTOR_AUDIT_ACTIVITY }
-        : {})}
     />
   )
 }

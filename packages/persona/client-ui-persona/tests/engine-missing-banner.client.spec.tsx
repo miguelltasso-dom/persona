@@ -5,6 +5,7 @@ import { ENGINE_RESUMED_NOTICE_MS, EngineMissingBanner } from '../src/client/cha
 import { ConnectedEngineBanner } from '../src/client/remote/ConnectedEngineBanner.tsx'
 import type { EngineStatusUi } from '../src/client/remote/engine-status.ts'
 import { pt as chatPt } from '../src/client/locale/chat/locales.ts'
+import { ILLUSTRATIONS } from '../src/client/assets/generated-imports.ts'
 import { bindLocale } from '../src/client/preview/locale-bind.ts'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 
@@ -35,6 +36,15 @@ describe('EngineMissingBanner (FR-3)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Conferir de novo' }))
     expect(onConnect).toHaveBeenCalledTimes(1)
     expect(onRecheck).toHaveBeenCalledTimes(1)
+  })
+
+  it('leva o spot do tamanduá (Muse, spot-sem-ia) a 96 px, decorativo, no lugar do ícone de alerta', () => {
+    const { container } = render(<EngineMissingBanner t={t} status={NO_AI} />)
+    const spot = container.querySelector('img') as HTMLImageElement
+    expect(spot.getAttribute('src')).toBe(ILLUSTRATIONS['spot-sem-ia'])
+    expect(spot.getAttribute('alt')).toBe('')
+    expect(spot.getAttribute('width')).toBe('96')
+    expect(container.querySelector('svg')).toBeNull()
   })
 
   it('o motivo muda o texto (login pendente / cota) e mostra as mensagens guardadas', () => {

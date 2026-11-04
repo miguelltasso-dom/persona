@@ -104,3 +104,10 @@ function collapseUnchanged(rows: readonly DiffRow[], context: number): readonly 
   })
   return out
 }
+
+/** The text of one side of a diff: "after" keeps unchanged + added lines, "before" keeps unchanged + removed ones. */
+export function opsToText(ops: readonly DiffOp[], side: 'before' | 'after'): string {
+  const keep = side === 'after' ? 'add' : 'del'
+  const lines = ops.flatMap(op => (op.t === 'same' || op.t === keep ? [op.text] : []))
+  return lines.length === 0 ? '' : `${lines.join('\n')}\n`
+}

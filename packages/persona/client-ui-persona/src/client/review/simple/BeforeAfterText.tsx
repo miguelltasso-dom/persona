@@ -16,14 +16,19 @@ const CONTEXT_LINES = 3
 
 export interface BeforeAfterTextProps {
   readonly ops: readonly DiffOp[]
+  /** Column names; default "Antes" / "Depois" (a conflict compares "Na sua pasta" with the draft). */
+  readonly labels?: { readonly before: string; readonly after: string } | undefined
   readonly t: (key: string, params?: Readonly<Record<string, string | number>>) => string
 }
 
 type Side = 'before' | 'after'
 
-export function BeforeAfterText({ ops, t }: BeforeAfterTextProps): ReactNode {
+export function BeforeAfterText({ ops, t, labels }: BeforeAfterTextProps): ReactNode {
+  const beforeLabel = labels?.before ?? t('patch.before')
+  const afterLabel = labels?.after ?? t('patch.after')
   const id = useId()
-  const [side, setSide] = useState<Side>('after')
+  // A deleted file has nothing "Depois": open on "Antes" instead of an empty column.
+  const [side, setSide] = useState<Side>(() => (ops.some(op => op.t === 'add' || op.t === 'same') ? 'after' : 'before'))
   const allRows = buildRows(ops, CONTEXT_LINES)
   const rows = allRows.slice(0, BEFORE_AFTER_MAX_ROWS)
   const cut = allRows.length > rows.length
@@ -39,8 +44,8 @@ export function BeforeAfterText({ ops, t }: BeforeAfterTextProps): ReactNode {
           value={side}
           onChange={setSide}
           items={[
-            { id: 'before' as const, label: t('patch.before') },
-            { id: 'after' as const, label: t('patch.after') },
+            { id: 'before' as const, label: beforeLabel },
+            { id: 'after' as const, label: afterLabel },
           ]}
         />
       </div>
@@ -48,8 +53,8 @@ export function BeforeAfterText({ ops, t }: BeforeAfterTextProps): ReactNode {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th scope="col" className={styles.head} data-col="before">{t('patch.before')}</th>
-              <th scope="col" className={styles.head} data-col="after">{t('patch.after')}</th>
+              <th scope="col" className={styles.head} data-col="before">{beforeLabel}</th>
+              <th scope="col" className={styles.head} data-col="after">{afterLabel}</th>
             </tr>
           </thead>
           <tbody>

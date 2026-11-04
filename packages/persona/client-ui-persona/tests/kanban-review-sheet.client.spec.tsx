@@ -136,4 +136,19 @@ describe('KanbanReviewSheet (Revisar wire)', () => {
       expect(acceptReview).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj', ticketId: 't-rev', mode: 'ff', choices: { 'cardapio.docx': 'both' } })
     })
   })
+
+  it('after a successful apply it hands over the way back (restorePointId) so the board can offer Desfazer', async () => {
+    const reviewSummary = vi.fn(async () => ({ ok: true as const, value: SUMMARY }))
+    const acceptReview = vi.fn(async () => ({ ok: true as const, value: { kind: 'accepted' as const, mode: 'ff' as const, restorePointId: 'rp-9' } }))
+    const persona = { reviewSummary, acceptReview } as unknown as PersonaRemoteClient
+    const onApplied = vi.fn()
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <KanbanReviewSheet persona={persona} scope={SCOPE} ticketId="t-rev" taskTitle="Entrega" onClose={() => {}} onMutate={() => {}} onApplied={onApplied} />
+      </PreviewFrame>,
+    )
+    await waitFor(() => { expect(screen.getByText('hero.tsx')).toBeTruthy() })
+    fireEvent.click(screen.getByRole('button', { name: reviewPt['action.accept'] }))
+    await waitFor(() => { expect(onApplied).toHaveBeenCalledWith({ ticketId: 't-rev', restorePointId: 'rp-9' }) })
+  })
 })

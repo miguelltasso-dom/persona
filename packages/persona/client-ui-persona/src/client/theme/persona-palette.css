@@ -140,6 +140,9 @@ body[data-ds-dark-theme='true'] {
   --persona-wash-strong: #3a2a4f;
   --persona-ink: #f6eee0;
   --persona-ink-soft: #cdbfdb;
+  /* Muse (achado do Lumen, axe color-contrast): sem isto, o escuro herdava #60516b do :root (<2:1 no card).
+     ≥ 5,8:1 em todas as superfícies de texto escuras (card 7,1 · wash-strong 5,9 · paper 8,0). */
+  --persona-ink-muted: #b9a8ca;
   --persona-ink-faint: #a795b8;
   --persona-outline: var(--persona-plum-950);
   --persona-outline-control: #8f7bb0;

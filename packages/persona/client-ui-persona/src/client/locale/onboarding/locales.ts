@@ -141,6 +141,9 @@ export const pt = {
   'step5.guideSays': 'Vamos pedir a primeira entrega de verdade — leva menos de dois minutos.',
   'step3.statusLabel': 'Status de {name}',
   'step4.builderToggle': 'Prefere descrever com suas palavras?',
+  'step3.checking': 'Verificando…',
+  'step3.checkingNotice': 'Estou conferindo as ferramentas de IA deste computador. Leva alguns segundos.',
+  'step5.introLine': '{role}. Pode contar comigo.',
 } as const
 
 /** English copy. */
@@ -281,6 +284,9 @@ export const en = {
   'step5.guideSays': 'Let\'s request the first real delivery — under two minutes.',
   'step3.statusLabel': '{name} status',
   'step4.builderToggle': 'Prefer to describe it in your own words?',
+  'step3.checking': 'Checking…',
+  'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
+  'step5.introLine': '{role}. You can count on me.',
 } as const
 
 export const zh = {
@@ -420,6 +426,9 @@ export const zh = {
   'step5.guideSays': 'Let\'s request the first real delivery — under two minutes.',
   'step3.statusLabel': '{name} status',
   'step4.builderToggle': 'Prefer to describe it in your own words?',
+  'step3.checking': 'Checking…',
+  'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
+  'step5.introLine': '{role}. You can count on me.',
 } as const
 export const ja = {
   'brand.name': 'Persona',
@@ -558,6 +567,9 @@ export const ja = {
   'step5.guideSays': 'Let\'s request the first real delivery — under two minutes.',
   'step3.statusLabel': '{name} status',
   'step4.builderToggle': 'Prefer to describe it in your own words?',
+  'step3.checking': 'Checking…',
+  'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
+  'step5.introLine': '{role}. You can count on me.',
 } as const
 export const es = {
   'brand.name': 'Persona',
@@ -696,6 +708,9 @@ export const es = {
   'step5.guideSays': 'Let\'s request the first real delivery — under two minutes.',
   'step3.statusLabel': '{name} status',
   'step4.builderToggle': 'Prefer to describe it in your own words?',
+  'step3.checking': 'Checking…',
+  'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
+  'step5.introLine': '{role}. You can count on me.',
 } as const
 export const fr = {
   'brand.name': 'Persona',
@@ -834,6 +849,9 @@ export const fr = {
   'step5.guideSays': 'Let\'s request the first real delivery — under two minutes.',
   'step3.statusLabel': '{name} status',
   'step4.builderToggle': 'Prefer to describe it in your own words?',
+  'step3.checking': 'Checking…',
+  'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
+  'step5.introLine': '{role}. You can count on me.',
 } as const
 export const de = {
   'brand.name': 'Persona',
@@ -972,6 +990,9 @@ export const de = {
   'step5.guideSays': 'Let\'s request the first real delivery — under two minutes.',
   'step3.statusLabel': '{name} status',
   'step4.builderToggle': 'Prefer to describe it in your own words?',
+  'step3.checking': 'Checking…',
+  'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
+  'step5.introLine': '{role}. You can count on me.',
 } as const
 export const ru = {
   'brand.name': 'Persona',
@@ -1110,6 +1131,9 @@ export const ru = {
   'step5.guideSays': 'Let\'s request the first real delivery — under two minutes.',
   'step3.statusLabel': '{name} status',
   'step4.builderToggle': 'Prefer to describe it in your own words?',
+  'step3.checking': 'Checking…',
+  'step3.checkingNotice': 'I’m checking the AI tools on this computer. It takes a few seconds.',
+  'step5.introLine': '{role}. You can count on me.',
 } as const
 
 export type OnboardingKey = keyof typeof pt

@@ -175,6 +175,7 @@ export function ConnectedGlobalKanban({
         persona={persona}
         scope={projectScope}
         kanbanDict={kanbanDict}
+        tasks={live.kanbanCards}
         onBack={() => {
           setOpenProjectId(null)
           setProjectWorkspaceTab('board')

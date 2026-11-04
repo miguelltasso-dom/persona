@@ -77,9 +77,6 @@
   "history.subtitle": "What the Persona applied to your folder. You can undo it for 30 days.",
   "history.entry.one": "{who} applied 1 change · {when}",
   "history.entry.many": "{who} applied {count} changes · {when}",
-  "history.today": "today {time}",
-  "history.yesterday": "yesterday {time}",
-  "history.on": "{date} {time}",
   "history.moreFiles": "and {count} more",
   "history.undone": "Undone",
   "history.footer": "We keep the earlier versions for 30 days.",
@@ -97,5 +94,10 @@
   "history.undoing": "Undoing…",
   "history.error": "I couldn’t open the history right now.",
   "history.retry": "Try again",
-  "history.unavailable": "History is available once the project folder has the Persona turned on."
+  "history.unavailable": "History is available once the project folder has the Persona turned on.",
+  "conflict.chip": "Choose what stays",
+  "conflict.compare": "See both versions side by side",
+  "conflict.yours": "In your folder",
+  "conflict.draftSide": "In {name}’s draft",
+  "undo.expired": "That is past the 30 days: it can’t be undone anymore."
 }

@@ -77,9 +77,6 @@
   "history.subtitle": "O que a Persona aplicou na sua pasta. Dá para desfazer por 30 dias.",
   "history.entry.one": "{who} aplicou 1 mudança · {when}",
   "history.entry.many": "{who} aplicou {count} mudanças · {when}",
-  "history.today": "hoje {time}",
-  "history.yesterday": "ontem {time}",
-  "history.on": "{date} {time}",
   "history.moreFiles": "e mais {count}",
   "history.undone": "Desfeito",
   "history.footer": "Guardamos as versões de antes por 30 dias.",
@@ -97,5 +94,10 @@
   "history.undoing": "Desfazendo…",
   "history.error": "Não consegui abrir o histórico agora.",
   "history.retry": "Tentar de novo",
-  "history.unavailable": "O histórico fica disponível quando a pasta do projeto tem a Persona ativa."
+  "history.unavailable": "O histórico fica disponível quando a pasta do projeto tem a Persona ativa.",
+  "conflict.chip": "Escolha o que fica",
+  "conflict.compare": "Ver as duas versões lado a lado",
+  "conflict.yours": "Na sua pasta",
+  "conflict.draftSide": "No rascunho de {name}",
+  "undo.expired": "Passou do prazo de 30 dias: não dá mais para desfazer essa."
 }

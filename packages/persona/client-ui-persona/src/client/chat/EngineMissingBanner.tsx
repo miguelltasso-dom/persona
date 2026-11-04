@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { Button, UiIcon } from '../primitives/index.ts'
 import type { EngineStatusUi } from '../remote/engine-status.ts'
 import styles from './EngineMissingBanner.module.css'
@@ -48,7 +49,7 @@ export function EngineMissingBanner({ t, status, onConnect, onRecheck }: EngineM
     const body = t(REASON_KEY[status.reason ?? 'none_connected'])
     return (
       <section className={styles.banner} data-tone="warning" role="status" aria-label={t('engineBanner.title')}>
-        <span className={styles.icon} aria-hidden="true"><UiIcon name="alert" size={18} strokeWidth={2.2} /></span>
+        <img className={styles.spot} src={ILLUSTRATIONS['spot-sem-ia']} alt="" width={96} height={96} />
         <div className={styles.text}>
           <p className={styles.title}>{t('engineBanner.title')}</p>
           <p className={styles.body}>{body}</p>

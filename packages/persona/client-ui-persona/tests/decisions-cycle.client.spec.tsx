@@ -161,6 +161,36 @@ describe('single Decision[] in the live store', () => {
     live.dispose()
   })
 
+  it('a slow refresh that started BEFORE the decision cannot bring the decided card back as pending', async () => {
+    const cards = baseCards()
+    const built = hostWith(cards)
+    let armed = false
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolveGate) => { release = resolveGate })
+    const realList = built.host.listApprovals as () => Promise<Result>
+    built.host.listApprovals = async () => {
+      const mine = armed
+      armed = false
+      const snapshot = await realList() // the host's answer AT THIS MOMENT (the card is still pending)
+      if (mine) await gate // ...delivered late
+      return snapshot
+    }
+    const live = createPersonaLiveStore(built.host as never)
+    await live.bootstrap(() => {})
+    armed = true
+    const stale = live.refresh()
+    await live.decide!('vault-stripe', true) // the host confirms while that refresh is still waiting
+    await waitFor(() => { expect(open(live).some(decision => decision.id === 'vault-stripe')).toBe(false) }, { timeout: 2_000 })
+    release() // the old list finally arrives: vault-stripe is still 'pending' in it
+    await stale
+    expect(open(live).some(decision => decision.id === 'vault-stripe')).toBe(false)
+    expect(openBlockingCount(open(live))).toBe(2)
+    // and the next refresh (which started after the confirmation) agrees with the host
+    await live.refresh()
+    expect(open(live).some(decision => decision.id === 'vault-stripe')).toBe(false)
+    live.dispose()
+  })
+
   it('failed: the host rejects → the card comes back open with the same count; retry then succeeds; no second decide while deciding', async () => {
     let failing = true
     const { live, decideApproval } = await booted(baseCards(), { decideFails: () => failing })
@@ -199,6 +229,33 @@ describe('single Decision[] in the live store', () => {
   })
 })
 
+describe('the portrait of whoever asks (Muse capture review #3)', () => {
+  it('the store resolves requester.avatarSrc from the real team — by persona id, and by name when the card only knows the name', async () => {
+    const { live } = await booted(baseCards())
+    const byId = open(live).find(decision => decision.id === 'vault-stripe')
+    expect(typeof byId?.requester.avatarSrc).toBe('string')
+    // ticket-9 is an attention card: personaId is empty, only the name "Atlas" is known
+    const byName = open(live).find(decision => decision.id === 'ticket-9')
+    expect(typeof byName?.requester.avatarSrc).toBe('string')
+    live.dispose()
+  })
+
+  it('Visão geral draws that portrait, not the initial', async () => {
+    const { live } = await booted(baseCards())
+    mountBoth(live)
+    const overview = within(screen.getByTestId('overview'))
+    await waitFor(() => { expect(overview.getByText('Chave do Stripe')).toBeTruthy() })
+    const row = overview.getByText('Chave do Stripe').closest('li') as HTMLElement
+    expect(row.querySelector('img')?.getAttribute('src')).toBeTruthy()
+    live.dispose()
+  })
+
+  it('an unknown requester keeps the initial (no wrong face)', () => {
+    const decisions = deriveDecisions({ approvals: [{ id: 'x', kind: 'vault', title: 'Chave', question: 'Guardar?', status: 'pending', personaId: 'ghost', personaName: 'Fantasma' }] })
+    expect(decisions[0]?.requester.avatarSrc).toBeUndefined()
+  })
+})
+
 describe('UX-02: a hire says why, in the host own words', () => {
   const hire = (extra: Record<string, unknown>) => ({
     id: 'hire-x', kind: 'hire' as const, title: 'Lia', question: 'Contratar Lia?', status: 'pending' as const,
@@ -213,8 +270,10 @@ describe('UX-02: a hire says why, in the host own words', () => {
     expect(onlyQuestion.items[0]?.hireWhy).toBeUndefined()
   })
 
-  it('a hire with no reason and no question is not shown at all', () => {
-    expect(deriveDecisions({ approvals: [hire({ question: '' })] })).toHaveLength(0)
+  it('a hire with no reason at all is STILL listed, only without the line (Muse: hiding it would strand whoever waits)', () => {
+    const decisions = deriveDecisions({ approvals: [hire({ question: '' })] })
+    expect(decisions).toHaveLength(1)
+    expect(decisionsToInbox(decisions).items[0]?.hireWhy).toBeUndefined()
   })
 
   it('the card renders the line', async () => {

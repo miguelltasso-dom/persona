@@ -134,5 +134,8 @@
   "step4.guideSays": "Escolha um modelo de equipe ou descreva quem você precisa. Dá para editar tudo depois.",
   "step5.guideSays": "Vamos pedir a primeira entrega de verdade — leva menos de dois minutos.",
   "step3.statusLabel": "Status de {name}",
-  "step4.builderToggle": "Prefere descrever com suas palavras?"
+  "step4.builderToggle": "Prefere descrever com suas palavras?",
+  "step3.checking": "Verificando…",
+  "step3.checkingNotice": "Estou conferindo as ferramentas de IA deste computador. Leva alguns segundos.",
+  "step5.introLine": "{role}. Pode contar comigo."
 }

@@ -7,10 +7,11 @@ export function activityGroupLabelsFromDict(dict: LocaleDict): ActivityGroupProp
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   return {
     phrase: {
-      command: n => t('activity.command', { count: n }),
-      file: n => t('activity.file', { count: n }),
+      // Real plurals: "rodou 1 comando" / "rodou 3 comandos" (no "comando(s)").
+      command: n => (n === 1 ? t('activity.command.one') : t('activity.command', { count: n })),
+      file: n => (n === 1 ? t('activity.file.one') : t('activity.file', { count: n })),
       hire: n => t('activity.hire', { count: n }),
-      message: n => t('activity.message', { count: n }),
+      message: n => (n === 1 ? t('activity.message.one') : t('activity.message', { count: n })),
       read: n => t('activity.read', { count: n }),
       check: n => t('activity.check', { count: n }),
     },

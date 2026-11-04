@@ -21,6 +21,8 @@ export interface KanbanReviewSheetProps {
   readonly onMutate: () => void
   /** Peak-end: stamp + paw burst before the board reloads. */
   readonly onAccepted?: (ticketId: string) => void
+  /** After a successful apply: the way back (`restorePointId`) when the host gave one — the board shows the toast. */
+  readonly onApplied?: ((info: { readonly ticketId: string; readonly restorePointId?: string | undefined }) => void) | undefined
 }
 
 export function KanbanReviewSheet({
@@ -32,6 +34,7 @@ export function KanbanReviewSheet({
   onClose,
   onMutate,
   onAccepted,
+  onApplied,
 }: KanbanReviewSheetProps): ReactNode {
   const loadKey = `${scope.workspaceId}:${scope.projectId}:review:${ticketId}`
   const review = personaReviewRemote(persona)
@@ -67,6 +70,8 @@ export function KanbanReviewSheet({
         return
       }
       onAccepted?.(ticketId)
+      const restorePointId = (result as { readonly restorePointId?: unknown }).restorePointId
+      onApplied?.({ ticketId, ...(typeof restorePointId === 'string' ? { restorePointId } : {}) })
       onMutate()
       onClose()
     } catch (error) {

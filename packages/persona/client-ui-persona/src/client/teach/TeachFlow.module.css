@@ -1,0 +1,280 @@
+/* Whole-window layer for everything after the recording: studying, review, done (the recorded screen is gone). */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  animation: persona-fade-in var(--motion-base) var(--ease-enter);
+}
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: var(--persona-space-6);
+  align-items: start;
+}
+
+.reviewList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  min-width: 0;
+}
+
+.addRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+}
+
+.side {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.sideHead {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+}
+
+.sideLabel {
+  margin: 0;
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-brand);
+}
+
+.sideTitle {
+  margin: 0;
+  font-family: var(--persona-font-display);
+  font-size: 19px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.sideActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
+.hint {
+  margin: 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.failure {
+  margin: 0;
+  font: 700 14px/20px var(--persona-font-text);
+  color: var(--persona-danger);
+}
+
+.zoomImage {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+}
+
+.doneWrap {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  width: min(720px, 100%);
+  height: 100%;
+  margin: 0 auto;
+  padding: var(--persona-space-10) var(--persona-space-6);
+  overflow-y: auto;
+}
+
+.doneActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-3);
+}
+
+.sharePanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  padding: var(--persona-space-5);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.shareTitle {
+  margin: 0;
+  font-family: var(--persona-font-display);
+  font-size: 19px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  min-height: 44px;
+  font: 600 14px/20px var(--persona-font-text);
+  cursor: pointer;
+}
+
+.confirm input {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  accent-color: var(--persona-accent);
+}
+
+/* Source step of the consent modal (screens and windows to pick from). */
+.sourceList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.sourceLegend {
+  padding: 0;
+  margin-bottom: var(--persona-space-2);
+  font: 800 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.sourceOption {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: 52px;
+  padding: var(--persona-space-2) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-control);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
+  font: 700 14px/20px var(--persona-font-text);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.sourceOption:hover {
+  transform: translateY(-1px);
+}
+
+.sourceOption[data-checked] {
+  border-color: var(--persona-outline);
+  background: var(--persona-wash);
+  box-shadow: var(--persona-shadow-press);
+}
+
+.sourceOption:focus-within {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--persona-focus-halo);
+}
+
+.sourceIcon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-wash-strong);
+  color: var(--persona-brand);
+}
+
+.sourceNote {
+  margin: 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.narrate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.switchRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--persona-space-4);
+}
+
+.switchText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  min-width: 0;
+}
+
+.switchLabel {
+  font: 800 14px/20px var(--persona-font-text);
+}
+
+/* The layer covers the whole window. Two columns (steps + the save card) need ~1100px for the step cards to breathe. */
+@media (max-width: 1099px) {
+  .reviewGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .side {
+    position: static;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layer {
+    animation: none;
+  }
+
+  .sourceOption {
+    transition: none;
+  }
+
+  .sourceOption:hover {
+    transform: none;
+  }
+}
+
+/* Recording chrome: pill + frame float over everything, outside the person's way (WAVE2-SPEC b.4). */
+.recordingRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.pillDock {
+  position: absolute;
+  left: 50%;
+  bottom: var(--persona-space-6);
+  max-width: calc(100vw - var(--persona-space-6));
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+/* The layer is focused by code when it opens; a ring around the whole window would be noise. */
+.layer:focus {
+  outline: none;
+}

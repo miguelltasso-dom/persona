@@ -2,8 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 30;
-  display: grid;
-  place-items: center;
+  display: flex;
   overflow-y: auto;
   padding: var(--persona-space-6);
   background: var(--persona-scrim);
@@ -11,8 +10,10 @@
   animation: persona-onboarding-fade var(--motion-base) var(--ease-enter);
 }
 
+/* margin:auto centra quando cabe e, quando o painel é mais alto que a janela, alinha ao topo e rola (grid+center cortava a banda). */
 .panel {
   box-sizing: border-box;
+  margin: auto;
   width: min(980px, 100%);
   overflow: hidden;
   background: var(--persona-card);

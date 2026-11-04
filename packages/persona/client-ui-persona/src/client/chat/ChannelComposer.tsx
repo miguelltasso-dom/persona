@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 import { Avatar, Button, Chip, Tooltip, UiIcon } from '../primitives/index.ts'
@@ -110,6 +110,8 @@ export function ChannelComposer({
   })
   const [showLimits, setShowLimits] = useState(false)
   const [showWhoRespondsHint, setShowWhoRespondsHint] = useState(false)
+  const responderBoxRef = useRef<HTMLDivElement>(null)
+  const [hintArrowLeft, setHintArrowLeft] = useState(20)
   const dismissWhoRespondsHint = useCallback(() => {
     setShowWhoRespondsHint(false)
     try { localStorage.setItem(WHO_RESPONDS_HINT_KEY, '1') } catch { /* sem storage: some só nesta sessão */ }
@@ -138,6 +140,13 @@ export function ChannelComposer({
     node.style.height = 'auto'
     node.style.height = `${Math.min(node.scrollHeight, MAX_ROWS_PX)}px`
   }, [draft])
+
+  // A seta da dica aponta para o CENTRO do seletor "Quem responde" (e não para o campo de mensagem).
+  useLayoutEffect(() => {
+    if (!showWhoRespondsHint) return
+    const width = responderBoxRef.current?.offsetWidth ?? 0
+    if (width > 0) setHintArrowLeft(Math.max(12, Math.round(width / 2 - 8)))
+  }, [showWhoRespondsHint])
 
   // Dica de 1ª vez: só faz sentido com mais de uma persona para escolher; não rouba o foco; Esc fecha.
   const canPickResponder = members.length > 1
@@ -473,7 +482,7 @@ export function ChannelComposer({
           {responder !== undefined && (
             <>
               <span className={styles.divider} aria-hidden="true" />
-              <div className={styles.responderContainer}>
+              <div ref={responderBoxRef} className={styles.responderContainer}>
                 <label className={styles.responder}>
                   <span className={styles.responderLabel}>{t('composer.respondsLabel')}</span>
                   <Avatar name={responder.name} src={AVATAR_96[responder.id]} size={24} decorative />
@@ -494,7 +503,7 @@ export function ChannelComposer({
                   </select>
                 </label>
                 {showWhoRespondsHint && (
-                  <div className={styles.whoRespondsBalloon} role="dialog" aria-label={t('composer.whoRespondsHintTitle')}>
+                  <div className={styles.whoRespondsBalloon} role="dialog" aria-label={t('composer.whoRespondsHintTitle')} style={{ '--who-responds-arrow-left': `${String(hintArrowLeft)}px` } as CSSProperties}>
                     <span className={styles.whoRespondsArrow} aria-hidden="true" />
                     <p className={styles.whoRespondsTitle}>{t('composer.whoRespondsHintTitle')}</p>
                     <p className={styles.whoRespondsBody}>{t('composer.whoRespondsHintBody')}</p>

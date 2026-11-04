@@ -27,6 +27,8 @@ export interface HistoryEntryUi {
   /** ISO time of the apply. */
   readonly at: string
   readonly files: readonly HistoryFileUi[]
+  /** The Tarefa that produced it (the host sends only its id; the board knows the name). */
+  readonly taskTitle?: string | undefined
   /** Already undone: shown as "Desfeito", no second Desfazer. */
   readonly undone?: boolean | undefined
 }
@@ -39,6 +41,8 @@ export interface ProjectHistoryViewProps {
   readonly state?: HistorySurfaceState
   /** The host cannot undo yet: the list is read-only. */
   readonly canUndo?: boolean
+  /** This project keeps no private history (it already uses git, or the host has none): say so, never "Nada aplicado". */
+  readonly unavailable?: boolean
   /** Entry being undone right now ("Desfazendo…"). */
   readonly undoingId?: string | null
   readonly onUndo?: (entryId: string) => void
@@ -57,6 +61,7 @@ export function ProjectHistoryView({
   entries,
   state = 'ready',
   canUndo = true,
+  unavailable = false,
   undoingId = null,
   onUndo,
   onRetry,
@@ -75,12 +80,8 @@ export function ProjectHistoryView({
   const clock = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' })
   const dayLabel = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' })
   const timeOf = (at: string): string => clock.format(new Date(at))
-  const whenOf = (at: string): string => {
-    const diff = Math.round((today - startOfDay(new Date(at))) / DAY_MS)
-    if (diff <= 0) return t('history.today', { time: timeOf(at) })
-    if (diff === 1) return t('history.yesterday', { time: timeOf(at) })
-    return t('history.on', { date: dayLabel.format(new Date(at)), time: timeOf(at) })
-  }
+  // The group title already says the day: inside it the line only says the time.
+  const whenOf = (at: string): string => timeOf(at)
   const dayHeading = (at: string): string => {
     const diff = Math.round((today - startOfDay(new Date(at))) / DAY_MS)
     if (diff <= 0) return t('history.day.today')
@@ -92,11 +93,18 @@ export function ProjectHistoryView({
     .filter(entry => now.getTime() - new Date(entry.at).getTime() <= HISTORY_KEEP_DAYS * DAY_MS)
     .toSorted((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
 
+  if (unavailable) {
+    return (
+      <div className={styles.root} data-persona-surface="project-history">
+        <PersonaSurfaceEmpty dict={dict} illustrationKey="empty-inbox" titleKey="history.title" hintKey="history.unavailable" />
+      </div>
+    )
+  }
+
   if (keep.length === 0) {
     return (
       <div className={styles.root} data-persona-surface="project-history">
         <PersonaSurfaceEmpty dict={dict} illustrationKey="empty-inbox" titleKey="history.empty.title" hintKey="history.empty.hint" />
-        <p className={styles.footer}>{t('history.footer')}</p>
       </div>
     )
   }
@@ -132,6 +140,7 @@ export function ProjectHistoryView({
                 <li key={entry.id} className={styles.item}>
                   <div className={styles.text}>
                     <p id={lineId} className={styles.line}>{line}</p>
+                    {entry.taskTitle !== undefined && <p className={styles.task}>{entry.taskTitle}</p>}
                     <p className={styles.files}>
                       {shown.map(file => file.name).join(', ')}
                       {extra > 0 ? ` ${t('history.moreFiles', { count: extra })}` : ''}

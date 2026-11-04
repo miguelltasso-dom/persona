@@ -363,7 +363,7 @@
 .whoRespondsArrow {
   position: absolute;
   bottom: -8px;
-  left: 20px;
+  left: var(--who-responds-arrow-left, 20px);
   width: 0;
   height: 0;
   border-left: 8px solid transparent;

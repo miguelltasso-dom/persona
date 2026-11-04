@@ -6,7 +6,7 @@ import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId, type PersonaPoseState } from '../assets/asset-url.ts'
 import { Avatar, BrandIcon, Button, Card, Chip, EmptyState, NOW_POSE, Screen, ScreenHeader, Tabs, UiIcon } from '../primitives/index.ts'
 import { MemoryPanel } from '../memory/MemoryPanel.tsx'
-import { SkillsPanel } from '../skills/SkillsPanel.tsx'
+import { SkillsPanel, type SkillsPanelProps } from '../skills/SkillsPanel.tsx'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './ProfileScreen.module.css'
 import { ProactivityMetricsPanel } from './ProactivityMetricsPanel.tsx'
@@ -53,6 +53,8 @@ export interface PersonaProfilePageProps {
   readonly onRemoteRetry?: () => void
   readonly memoryRows?: readonly MemoryRow[]
   readonly skillRecords?: readonly SkillRecord[]
+  /** Row actions of the Skills tab (activate / back to candidate / share / review). A missing one means no button. */
+  readonly skillActions?: Pick<SkillsPanelProps, 'onActivate' | 'onRollback' | 'onShare' | 'onReview'>
   /** Hero actions (Prism/Lumen wire: open DM, open editor). */
   readonly onMessage?: (() => void) | undefined
   readonly onEdit?: (() => void) | undefined
@@ -94,6 +96,7 @@ export function PersonaProfilePage({
   onRemoteRetry,
   memoryRows,
   skillRecords,
+  skillActions,
   onMessage,
   onEdit,
   onTeach,
@@ -294,6 +297,7 @@ export function PersonaProfilePage({
         {tab === 'skills' && (
           <SkillsPanel
             {...(skillRecords !== undefined ? { skills: skillRecords } : {})}
+            {...skillActions}
             initialState={skillRecords !== undefined && skillRecords.length === 0 ? 'empty' : 'ready'}
             {...(onEdit === undefined ? {} : { onEmptyPrimary: onEdit })}
           />

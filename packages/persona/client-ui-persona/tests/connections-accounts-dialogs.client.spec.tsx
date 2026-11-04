@@ -155,6 +155,46 @@ describe('add account: step by step', () => {
     expect(within(dialog).getByRole('button', { name: t('account.add.later') })).toBeTruthy()
   })
 
+  it('a seat the host already calls ready is NOT "pronta" until the person confirms it and it has its own command', async () => {
+    const onAdd = vi.fn(async () => {})
+    const command = String.raw`$env:CLAUDE_CONFIG_DIR='C:\acc\equipe'; claude login`
+    const lookReady = seat({ id: 'claude:equipe', accountLabel: 'Equipe', status: 'ready', loginCommand: command })
+    const { rerender } = render(<ConnectionsView accountsUi={ui([personal])} onAddAccount={onAdd} onRecheck={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: addLabel }))
+    fireEvent.change(screen.getByLabelText(t('account.add.nameLabel')), { target: { value: 'Equipe' } })
+    fireEvent.click(screen.getByRole('button', { name: t('account.add.continue') }))
+    await waitFor(() => { expect(onAdd).toHaveBeenCalled() })
+    rerender(<ConnectionsView accountsUi={ui([personal, lookReady])} onAddAccount={onAdd} onRecheck={() => {}} />)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(t('account.add.eyebrow', { step: 2, total: 3 }))).toBeTruthy()
+    expect(within(dialog).queryByText(t('account.add.doneTitle', { provider: 'Claude', label: 'Equipe' }))).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: t('action.alreadyLoggedIn') }))
+    expect(within(dialog).getByText(t('account.add.eyebrow', { step: 3, total: 3 }))).toBeTruthy()
+  })
+
+  it('without its own command a ready-looking seat still ends on the "not available yet" step', async () => {
+    const onAdd = vi.fn(async () => {})
+    const lookReady = seat({ id: 'claude:equipe', accountLabel: 'Equipe', status: 'ready' })
+    const { rerender } = render(<ConnectionsView accountsUi={ui([personal])} onAddAccount={onAdd} onRecheck={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: addLabel }))
+    fireEvent.change(screen.getByLabelText(t('account.add.nameLabel')), { target: { value: 'Equipe' } })
+    fireEvent.click(screen.getByRole('button', { name: t('account.add.continue') }))
+    await waitFor(() => { expect(onAdd).toHaveBeenCalled() })
+    rerender(<ConnectionsView accountsUi={ui([personal, lookReady])} onAddAccount={onAdd} onRecheck={() => {}} />)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(t('account.add.noCommand', { label: 'Equipe' }))).toBeTruthy()
+  })
+
+  it('a refused name puts the cursor back in the field where the message is', () => {
+    render(<ConnectionsView accountsUi={ui([personal, work])} onAddAccount={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: addLabel }))
+    const dialog = screen.getByRole('dialog')
+    const input = within(dialog).getByLabelText(t('account.add.nameLabel'))
+    within(dialog).getByRole('button', { name: t('account.add.continue') }).focus()
+    fireEvent.click(within(dialog).getByRole('button', { name: t('account.add.continue') }))
+    expect(document.activeElement).toBe(input)
+  })
+
   it('a refused save stays on step 1 with a human message', async () => {
     const onAdd = vi.fn(async () => { throw new Error('forbidden') })
     render(<ConnectionsView accountsUi={ui([personal])} onAddAccount={onAdd} />)

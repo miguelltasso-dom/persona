@@ -7,11 +7,12 @@ import type { ShellState } from '../shell/create-shell-store.ts'
 import type { createOnboardingStore } from './create-onboarding-store.ts'
 import type { OnboardingActions } from './create-onboarding-store.ts'
 import { OnboardingWizard } from './OnboardingWizard.tsx'
+import { useFocusTrap } from './use-focus-trap.ts'
 import type { FirstDeliveryPhase } from './OnboardingFirstDeliveryStep.tsx'
 import { MOCK_HARNESSES, type HarnessRow } from './mock-data.ts'
-import { harnessRowsFromConnections } from './harness-from-connections.ts'
+import { checkingHarnessRows, harnessRowsFromConnections } from './harness-from-connections.ts'
 import { nextFirstDeliveryPhase, runErrorForFailed } from './first-delivery-phase.ts'
-import { deriveFirstDeliveryMilestone } from '../overview/derive-first-delivery.ts'
+import { deriveFirstDeliveryMilestone, firstDeliveryFromHost, pickFirstDelivery } from '../overview/derive-first-delivery.ts'
 import type { PersonaLiveSnapshot } from '../remote/persona-live-store.ts'
 import type { FirstDeliveryView } from '../remote/persona-remote-types.ts'
 import { isRemoteResult } from '../remote/persona-remote-unwrap.ts'
@@ -23,6 +24,8 @@ import styles from './OnboardingShellOverlay.module.css'
 
 /** Passou disso esperando, o passo 5 admite que está lento e oferece entrar (FIRST-DELIVERY-SPEC). */
 export const FIRST_DELIVERY_SLOW_MS = 45_000
+/** Enquanto o host ainda sonda as IAs do computador (passo 3), relê a lista nesse intervalo. */
+const HARNESS_RECHECK_MS = 1_500
 /** Leitura do marco no host enquanto a pessoa espera (barata: linha persistida). */
 const DELIVERY_POLL_MS = 2_000
 /** Depois de "Tentar de novo" o `failed` antigo ainda aparece no host por um instante. */
@@ -116,7 +119,10 @@ export function OnboardingShellOverlay({
     () => store.getSnapshot().step,
   )
   const live = useLive(state => state)
-  const [harnesses, setHarnesses] = useState<readonly HarnessRow[]>(MOCK_HARNESSES)
+  // Antes da 1ª resposta do host ninguém é "pronto": todos estão sendo verificados (o mock só vale sem host, ex.: preview).
+  const [harnesses, setHarnesses] = useState<readonly HarnessRow[]>(checkingHarnessRows)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open)
 
   // --- estado do passo 5 (tudo derivado do host; só o que a PESSOA fez fica aqui) -------------------------------
   const [requested, setRequested] = useState(false)
@@ -147,15 +153,18 @@ export function OnboardingShellOverlay({
   )
   const wire = persona as unknown as FirstDeliveryRemoteWire
 
-  // Passo 3: lista de IAs (cartões reais do host; o mock só vale quando não há host, ex.: preview).
+  // Passo 3: lista de IAs (cartões reais do host). Enquanto o host ainda sonda, os cartões dizem "Verificando…" e a lista
+  // é relida a cada 1,5 s até acabar (nunca "Não detectada" como resposta final antes da sondagem terminar).
   useEffect(() => {
-    if (!open || step !== 3) return
+    if (!open || step !== 3) return undefined
     if (tenant === null || persona.listConnections === undefined) {
       setHarnesses(MOCK_HARNESSES)
-      return
+      return undefined
     }
     let cancelled = false
-    void (async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const read = async (): Promise<void> => {
+      let rows: readonly HarnessRow[] | null = null
       try {
         const connections: readonly ConnectionView[] = await unwrapRemote(
           await persona.listConnections({
@@ -163,12 +172,25 @@ export function OnboardingShellOverlay({
             projectId: tenant.projectId,
           }) as Parameters<typeof unwrapRemote>[0],
         ) as readonly ConnectionView[]
-        if (!cancelled) setHarnesses(harnessRowsFromConnections(connections))
+        rows = harnessRowsFromConnections(connections)
       } catch {
-        if (!cancelled) setHarnesses(MOCK_HARNESSES)
+        rows = null
       }
-    })()
-    return () => { cancelled = true }
+      if (cancelled) return
+      if (rows === null) {
+        // Falha de leitura não vira "sem IA": segue verificando e tenta de novo.
+        setHarnesses(current => (current.every(row => row.checking === true) ? current : checkingHarnessRows()))
+        timer = setTimeout(() => { void read() }, HARNESS_RECHECK_MS)
+        return
+      }
+      setHarnesses(rows)
+      if (rows.some(row => row.checking === true)) timer = setTimeout(() => { void read() }, HARNESS_RECHECK_MS)
+    }
+    void read()
+    return () => {
+      cancelled = true
+      if (timer !== undefined) clearTimeout(timer)
+    }
   }, [open, step, tenant, persona])
 
   // Passo 5: "tem IA?" vem do host (getEngineStatus), com polling e releitura forçada ao voltar o foco.
@@ -293,23 +315,18 @@ export function OnboardingShellOverlay({
   if (!open) return null
 
   const milestone = deliveryPhase === 'celebrate'
-    ? (kanbanMilestone ?? (delivery !== null && delivery.status === 'ready'
-      ? {
-        taskId: delivery.ticketId,
-        title: delivery.title,
-        personaName: delivery.personaName,
-        characterId: delivery.personaId,
-      }
-      : undefined))
+    ? pickFirstDelivery(kanbanMilestone, firstDeliveryFromHost(delivery, live.stripMembers))
     : undefined
 
   return (
     <div className={styles.scrim} role="presentation">
       <div
+        ref={panelRef}
         className={styles.panel}
         role="dialog"
         aria-modal="true"
         aria-labelledby="persona-onboarding-title"
+        aria-label={bindLocale(dict, 'brand.name')}
       >
         <OnboardingWizard
           dict={dict}

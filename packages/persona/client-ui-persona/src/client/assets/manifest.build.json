@@ -1,44 +1,24 @@
 {
   "summary": {
-    "generatedAt": "2026-11-04T07:55:45.161Z",
+    "generatedAt": "2026-11-04T16:57:42.113Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 530,
-    "totalBytes": 9208618,
+    "files": 540,
+    "totalBytes": 7998918,
     "withinBudget": true
   },
   "files": [
     {
-      "rel": "brand/app-icon.png",
-      "bytes": 44311
-    },
-    {
       "rel": "brand/app-icon.svg",
       "bytes": 688
-    },
-    {
-      "rel": "brand/installer-header.png",
-      "bytes": 12938
-    },
-    {
-      "rel": "brand/logo-horizontal-dark.png",
-      "bytes": 47487
     },
     {
       "rel": "brand/logo-horizontal-dark.svg",
       "bytes": 1085
     },
     {
-      "rel": "brand/logo-horizontal-light.png",
-      "bytes": 47756
-    },
-    {
       "rel": "brand/logo-horizontal-light.svg",
       "bytes": 1085
-    },
-    {
-      "rel": "brand/logo-stacked.png",
-      "bytes": 35899
     },
     {
       "rel": "brand/logo-stacked.svg",
@@ -49,16 +29,8 @@
       "bytes": 378
     },
     {
-      "rel": "brand/share-team.png",
-      "bytes": 1001988
-    },
-    {
       "rel": "brand/symbol-small.svg",
       "bytes": 375
-    },
-    {
-      "rel": "brand/symbol.png",
-      "bytes": 35231
     },
     {
       "rel": "brand/symbol.svg",
@@ -73,20 +45,12 @@
       "bytes": 436
     },
     {
-      "rel": "brand/tray/tray-idle-32.png",
-      "bytes": 570
-    },
-    {
       "rel": "brand/tray/tray-needs-you-16.svg",
       "bytes": 519
     },
     {
       "rel": "brand/tray/tray-needs-you-24.svg",
       "bytes": 519
-    },
-    {
-      "rel": "brand/tray/tray-needs-you-32.png",
-      "bytes": 803
     },
     {
       "rel": "brand/tray/tray-paused-16.svg",
@@ -97,20 +61,12 @@
       "bytes": 572
     },
     {
-      "rel": "brand/tray/tray-paused-32.png",
-      "bytes": 635
-    },
-    {
       "rel": "brand/tray/tray-working-16.svg",
       "bytes": 559
     },
     {
       "rel": "brand/tray/tray-working-24.svg",
       "bytes": 559
-    },
-    {
-      "rel": "brand/tray/tray-working-32.png",
-      "bytes": 654
     },
     {
       "rel": "brand/tray-16.svg",
@@ -597,6 +553,10 @@
       "bytes": 29758
     },
     {
+      "rel": "illustrations/spot-sem-ia.webp",
+      "bytes": 5990
+    },
+    {
       "rel": "illustrations/about-team.webp",
       "bytes": 103948
     },
@@ -647,6 +607,10 @@
     {
       "rel": "illustrations/empty-dm.webp",
       "bytes": 18196
+    },
+    {
+      "rel": "illustrations/empty-sem-ia.webp",
+      "bytes": 39772
     },
     {
       "rel": "stickers/atlas-comemorando.webp",
@@ -1297,6 +1261,30 @@
       "bytes": 1658
     },
     {
+      "rel": "avatars/mico-leao-dourado-blink-256.webp",
+      "bytes": 12894
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-blink-96.webp",
+      "bytes": 4026
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-blink-48.webp",
+      "bytes": 1788
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-256.webp",
+      "bytes": 13064
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-96.webp",
+      "bytes": 4072
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-48.webp",
+      "bytes": 1808
+    },
+    {
       "rel": "avatars/nina-blink-256.webp",
       "bytes": 15906
     },
@@ -1466,7 +1454,7 @@
     },
     {
       "rel": "poses/atlas-acenando.webp",
-      "bytes": 31534
+      "bytes": 20962
     },
     {
       "rel": "poses/atlas-aguardando-aprovacao.webp",
@@ -1482,11 +1470,11 @@
     },
     {
       "rel": "poses/atlas-disponivel-blink.webp",
-      "bytes": 29426
+      "bytes": 19164
     },
     {
       "rel": "poses/atlas-disponivel-tail.webp",
-      "bytes": 30588
+      "bytes": 19854
     },
     {
       "rel": "poses/atlas-disponivel.webp",
@@ -1502,15 +1490,15 @@
     },
     {
       "rel": "poses/atlas-pensando-1.webp",
-      "bytes": 29990
+      "bytes": 19676
     },
     {
       "rel": "poses/atlas-pensando-2.webp",
-      "bytes": 29936
+      "bytes": 19694
     },
     {
       "rel": "poses/atlas-pensando-3.webp",
-      "bytes": 29784
+      "bytes": 19594
     },
     {
       "rel": "poses/atlas-revisando.webp",
@@ -1522,7 +1510,7 @@
     },
     {
       "rel": "poses/bento-acenando.webp",
-      "bytes": 35376
+      "bytes": 23306
     },
     {
       "rel": "poses/bento-aguardando-aprovacao.webp",
@@ -1538,11 +1526,11 @@
     },
     {
       "rel": "poses/bento-disponivel-blink.webp",
-      "bytes": 36312
+      "bytes": 24578
     },
     {
       "rel": "poses/bento-disponivel-tail.webp",
-      "bytes": 36844
+      "bytes": 24620
     },
     {
       "rel": "poses/bento-disponivel.webp",
@@ -1558,15 +1546,15 @@
     },
     {
       "rel": "poses/bento-pensando-1.webp",
-      "bytes": 28890
+      "bytes": 18968
     },
     {
       "rel": "poses/bento-pensando-2.webp",
-      "bytes": 28900
+      "bytes": 19118
     },
     {
       "rel": "poses/bento-pensando-3.webp",
-      "bytes": 28844
+      "bytes": 18972
     },
     {
       "rel": "poses/bento-revisando.webp",
@@ -1802,7 +1790,7 @@
     },
     {
       "rel": "poses/luna-acenando.webp",
-      "bytes": 31666
+      "bytes": 21278
     },
     {
       "rel": "poses/luna-aguardando-aprovacao.webp",
@@ -1818,11 +1806,11 @@
     },
     {
       "rel": "poses/luna-disponivel-blink.webp",
-      "bytes": 29706
+      "bytes": 19782
     },
     {
       "rel": "poses/luna-disponivel-tail.webp",
-      "bytes": 33758
+      "bytes": 22384
     },
     {
       "rel": "poses/luna-disponivel.webp",
@@ -1838,15 +1826,15 @@
     },
     {
       "rel": "poses/luna-pensando-1.webp",
-      "bytes": 29858
+      "bytes": 19826
     },
     {
       "rel": "poses/luna-pensando-2.webp",
-      "bytes": 29676
+      "bytes": 19692
     },
     {
       "rel": "poses/luna-pensando-3.webp",
-      "bytes": 29206
+      "bytes": 19458
     },
     {
       "rel": "poses/luna-revisando.webp",
@@ -1857,8 +1845,12 @@
       "bytes": 38442
     },
     {
+      "rel": "poses/mico-leao-dourado-disponivel.webp",
+      "bytes": 47010
+    },
+    {
       "rel": "poses/nina-acenando.webp",
-      "bytes": 40994
+      "bytes": 26360
     },
     {
       "rel": "poses/nina-aguardando-aprovacao.webp",
@@ -1874,11 +1866,11 @@
     },
     {
       "rel": "poses/nina-disponivel-blink.webp",
-      "bytes": 38668
+      "bytes": 25200
     },
     {
       "rel": "poses/nina-disponivel-tail.webp",
-      "bytes": 41956
+      "bytes": 27262
     },
     {
       "rel": "poses/nina-disponivel.webp",
@@ -1894,15 +1886,15 @@
     },
     {
       "rel": "poses/nina-pensando-1.webp",
-      "bytes": 36018
+      "bytes": 23340
     },
     {
       "rel": "poses/nina-pensando-2.webp",
-      "bytes": 35964
+      "bytes": 23290
     },
     {
       "rel": "poses/nina-pensando-3.webp",
-      "bytes": 35652
+      "bytes": 23212
     },
     {
       "rel": "poses/nina-revisando.webp",
@@ -2010,7 +2002,7 @@
     },
     {
       "rel": "poses/sol-acenando.webp",
-      "bytes": 34688
+      "bytes": 22756
     },
     {
       "rel": "poses/sol-aguardando-aprovacao.webp",
@@ -2026,11 +2018,11 @@
     },
     {
       "rel": "poses/sol-disponivel-blink.webp",
-      "bytes": 33466
+      "bytes": 21622
     },
     {
       "rel": "poses/sol-disponivel-tail.webp",
-      "bytes": 35696
+      "bytes": 23296
     },
     {
       "rel": "poses/sol-disponivel.webp",
@@ -2046,15 +2038,15 @@
     },
     {
       "rel": "poses/sol-pensando-1.webp",
-      "bytes": 30500
+      "bytes": 19612
     },
     {
       "rel": "poses/sol-pensando-2.webp",
-      "bytes": 30488
+      "bytes": 19568
     },
     {
       "rel": "poses/sol-pensando-3.webp",
-      "bytes": 30324
+      "bytes": 19458
     },
     {
       "rel": "poses/sol-revisando.webp",
@@ -2063,6 +2055,10 @@
     {
       "rel": "poses/sol-trabalhando.webp",
       "bytes": 42942
+    },
+    {
+      "rel": "poses/tamandua-acenando.webp",
+      "bytes": 18966
     },
     {
       "rel": "poses/tamandua-aguardando-aprovacao.webp",
@@ -2077,6 +2073,14 @@
       "bytes": 55888
     },
     {
+      "rel": "poses/tamandua-disponivel-blink.webp",
+      "bytes": 18678
+    },
+    {
+      "rel": "poses/tamandua-disponivel-tail.webp",
+      "bytes": 18776
+    },
+    {
       "rel": "poses/tamandua-disponivel.webp",
       "bytes": 28204
     },
@@ -2089,12 +2093,28 @@
       "bytes": 24722
     },
     {
+      "rel": "poses/tamandua-pensando-1.webp",
+      "bytes": 18218
+    },
+    {
+      "rel": "poses/tamandua-pensando-2.webp",
+      "bytes": 18190
+    },
+    {
+      "rel": "poses/tamandua-pensando-3.webp",
+      "bytes": 18076
+    },
+    {
       "rel": "poses/tamandua-revisando.webp",
       "bytes": 25608
     },
     {
       "rel": "poses/tamandua-trabalhando.webp",
       "bytes": 28142
+    },
+    {
+      "rel": "poses/tucano-acenando.webp",
+      "bytes": 21426
     },
     {
       "rel": "poses/tucano-aguardando-aprovacao.webp",
@@ -2109,8 +2129,16 @@
       "bytes": 44258
     },
     {
+      "rel": "poses/tucano-disponivel-blink.webp",
+      "bytes": 21162
+    },
+    {
+      "rel": "poses/tucano-disponivel-tail.webp",
+      "bytes": 21714
+    },
+    {
       "rel": "poses/tucano-disponivel.webp",
-      "bytes": 31786
+      "bytes": 31672
     },
     {
       "rel": "poses/tucano-erro.webp",
@@ -2119,6 +2147,18 @@
     {
       "rel": "poses/tucano-offline.webp",
       "bytes": 20688
+    },
+    {
+      "rel": "poses/tucano-pensando-1.webp",
+      "bytes": 17368
+    },
+    {
+      "rel": "poses/tucano-pensando-2.webp",
+      "bytes": 17340
+    },
+    {
+      "rel": "poses/tucano-pensando-3.webp",
+      "bytes": 17154
     },
     {
       "rel": "poses/tucano-revisando.webp",

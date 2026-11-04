@@ -8,7 +8,7 @@ import type { ReactNode } from 'react'
 import { Avatar } from './Avatar.tsx'
 import { Button } from './Button.tsx'
 import { ChoiceCards } from './ChoiceCards.tsx'
-import { BrandIcon, UiIcon } from './icons.tsx'
+import { BrandIcon, UiIcon, type UiIconName } from './icons.tsx'
 import { MenuButton, type MenuItem } from './MenuButton.tsx'
 import { QuotaMeter } from './PersonaCard.tsx'
 import styles from './Accounts.module.css'
@@ -151,16 +151,18 @@ export function AccountPolicyPicker({ legend, value, onChange, copy, recommended
 
 export interface NoticeProps {
   readonly tone?: 'info' | 'warning'
+  /** Ícone próprio (ex.: `clock` para "a caminho"). Padrão: `info` (i) no tom info, `alert` no warning; a interrogação `help` é só para ajuda. */
+  readonly icon?: UiIconName
   readonly title?: string | undefined
   readonly children: ReactNode
 }
 
 /** Honest note / caution box (info-tint or warning-tint), always with an icon and text. */
-export function Notice({ tone = 'info', title, children }: NoticeProps): ReactNode {
+export function Notice({ tone = 'info', icon, title, children }: NoticeProps): ReactNode {
   return (
     <div className={styles.notice} data-tone={tone} role="note">
       <span className={styles.noticeIcon} aria-hidden="true">
-        <UiIcon name={tone === 'warning' ? 'alert' : 'help'} size={18} strokeWidth={2.2} />
+        <UiIcon name={icon ?? (tone === 'warning' ? 'alert' : 'info')} size={18} strokeWidth={2.2} />
       </span>
       <div>
         {title !== undefined && <p className={styles.noticeTitle}>{title}</p>}

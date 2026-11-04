@@ -33,7 +33,7 @@
   font: 800 11px/14px var(--persona-font-text);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--persona-ink-muted);
+  color: var(--persona-ink-soft);
   border-bottom: var(--persona-border-width) solid var(--persona-outline-soft);
 }
 
@@ -69,7 +69,7 @@
 .gap {
   padding: 2px var(--persona-space-3);
   text-align: center;
-  color: var(--persona-ink-muted);
+  color: var(--persona-ink-soft);
 }
 
 .note {

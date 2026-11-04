@@ -10,6 +10,7 @@ import type { FirstDeliveryView } from '../src/client/remote/persona-remote-type
 import { pt } from '../src/client/locale/onboarding/locales.ts'
 import { pt as shellPt } from '../src/client/locale/shell/locales.ts'
 import { pt as chatPt } from '../src/client/locale/chat/locales.ts'
+import { ILLUSTRATIONS } from '../src/client/assets/generated-imports.ts'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
 
@@ -333,5 +334,131 @@ describe('onboarding passo 5 ligado ao estado real do host (FR-2)', () => {
     )
     await pass()
     expect(screen.getByRole('button', { name: pt['step5.requestNow'] })).toBeTruthy()
+  })
+})
+
+describe('foco do onboarding (Probe S7: WCAG 2.1.2 / 2.4.3)', () => {
+  const dialog = (): HTMLElement => screen.getByRole('dialog')
+  const tab = (shiftKey = false): void => { fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Tab', shiftKey }) }
+
+  it('o diálogo tem nome acessível (o aria-labelledby apontava para um id que não existia)', async () => {
+    setup()
+    await pass()
+    expect(dialog().getAttribute('aria-label')).toBe(pt['brand.name'])
+    const labelled = dialog().getAttribute('aria-labelledby') ?? ''
+    expect(document.getElementById(labelled)?.textContent).toBe(pt['step5.title'])
+  })
+
+  it('ao trocar de fase o foco vai para o título novo, nunca para o body', async () => {
+    const { host } = setup()
+    await pass()
+    fireEvent.click(screen.getByRole('button', { name: pt['step5.requestNow'] }))
+    await pass()
+    const title = screen.getByRole('heading', { name: pt['step5.workingTitle'] })
+    expect(document.activeElement).toBe(title)
+    expect(dialog().contains(document.activeElement)).toBe(true)
+
+    host.delivery = view('ready')
+    await pass(2_100)
+    expect(document.activeElement).not.toBe(document.body)
+    expect(dialog().contains(document.activeElement)).toBe(true)
+  })
+
+  it('sem IA (needsEngine): o foco cai no título, e o Tab não vaza para fora do diálogo', async () => {
+    setup({ engine: NO_AI })
+    await pass()
+    expect(dialog().contains(document.activeElement)).toBe(true)
+    // foco no último botão do diálogo + Tab → volta ao primeiro; Shift+Tab no primeiro → último
+    const buttons = Array.from(dialog().querySelectorAll<HTMLElement>('button:not([disabled]), input, textarea, select, [tabindex]:not([tabindex="-1"])'))
+    const first = buttons[0]!
+    const last = buttons[buttons.length - 1]!
+    last.focus()
+    tab()
+    expect(document.activeElement).toBe(first)
+    first.focus()
+    tab(true)
+    expect(document.activeElement).toBe(last)
+  })
+
+  it('com o foco perdido no body, Tab volta para dentro do diálogo (não percorre o app por trás)', async () => {
+    setup()
+    await pass()
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    expect(document.activeElement).toBe(document.body)
+    tab()
+    expect(dialog().contains(document.activeElement)).toBe(true)
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    tab(true)
+    expect(dialog().contains(document.activeElement)).toBe(true)
+  })
+
+  it('foco que cai fora do diálogo (ex.: o composer do #geral por trás) volta para dentro', async () => {
+    setup()
+    await pass()
+    const behind = document.createElement('button')
+    behind.textContent = 'composer do #geral'
+    document.body.appendChild(behind)
+    try {
+      behind.focus()
+      expect(dialog().contains(document.activeElement)).toBe(true)
+    } finally {
+      behind.remove()
+    }
+  })
+
+  it('Tab a partir do título (tabindex -1) segue para a 1ª ação, e Shift+Tab do título dá a volta dentro do painel', async () => {
+    setup()
+    await pass()
+    const title = screen.getByRole('heading', { name: pt['step5.title'] })
+    title.focus()
+    tab(true)
+    // antes do título só há o stepper/voltar: se nada vem antes dele no painel, vai para a última parada do painel
+    expect(dialog().contains(document.activeElement)).toBe(true)
+  })
+})
+
+describe('arte "Falta uma IA" no passo 5 (Muse, FIRST-DELIVERY-SPEC)', () => {
+  it('needsEngine usa EmptyState compacto com a arte empty-sem-ia a 240 px e o título como h1', async () => {
+    setup({ engine: NO_AI })
+    await pass()
+    const heading = screen.getByRole('heading', { level: 1, name: pt['step5.needsEngineTitle'] })
+    expect(heading.id).toBe('persona-onboarding-title')
+    const art = heading.closest('section')!.querySelector('img') as HTMLImageElement
+    expect(art.getAttribute('src')).toBe(ILLUSTRATIONS['empty-sem-ia'])
+    expect(art.style.maxHeight).toBe('240px')
+    expect(art.getAttribute('alt')).toBe('')
+  })
+
+  it('falha do tipo "não há IA" (não logado) mostra a mesma arte; falha de cota não', async () => {
+    const { host, liveStore } = setup()
+    await pass()
+    fireEvent.click(screen.getByRole('button', { name: pt['step5.requestNow'] }))
+    await pass()
+    act(() => {
+      liveStore.set({
+        ...liveStore.getSnapshot(),
+        messages: [{ id: 'e1', authorId: 'p-nina', authorName: 'Nina', body: '', timeLabel: '10:00', reactions: [], runError: { code: 'not_logged_in', provider: 'Claude' } } as never],
+      })
+    })
+    host.delivery = view('failed')
+    await pass(2_100)
+    expect(screen.getByRole('dialog').querySelector('[data-persona-step-focus] img')?.getAttribute('src')).toBe(ILLUSTRATIONS['empty-sem-ia'])
+  })
+
+  it('falha de cota não leva a arte "Falta uma IA" (a pessoa tem IA, só acabou o limite)', async () => {
+    const { host, liveStore } = setup()
+    await pass()
+    fireEvent.click(screen.getByRole('button', { name: pt['step5.requestNow'] }))
+    await pass()
+    act(() => {
+      liveStore.set({
+        ...liveStore.getSnapshot(),
+        messages: [{ id: 'e2', authorId: 'p-nina', authorName: 'Nina', body: '', timeLabel: '10:00', reactions: [], runError: { code: 'quota_exhausted', provider: 'Claude' } } as never],
+      })
+    })
+    host.delivery = view('failed')
+    await pass(2_100)
+    expect(screen.getByRole('dialog').querySelector('[data-persona-step-focus]')).not.toBeNull()
+    expect(screen.getByRole('dialog').querySelector('[data-persona-step-focus] img')).toBeNull()
   })
 })

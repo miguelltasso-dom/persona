@@ -12,10 +12,14 @@
 
 .modal {
   box-sizing: border-box;
+  /* Muse (achado do Quill, 640×360 = zoom 200%): header and footer stay put, only the body scrolls, so the
+     title and the close button never scroll away. */
+  display: flex;
+  flex-direction: column;
   width: min(560px, 100%);
   max-height: calc(100dvh - 48px);
-  overflow: auto;
-  padding: var(--persona-space-8);
+  overflow: hidden;
+  padding: var(--persona-space-8) 0;
   background: var(--persona-card);
   color: var(--persona-ink);
   border: var(--persona-border-width) solid var(--persona-outline);
@@ -30,9 +34,11 @@
 
 .modalHeader {
   display: flex;
+  flex: 0 0 auto;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--persona-space-4);
+  padding: 0 var(--persona-space-8);
 }
 
 .modalEyebrow {
@@ -57,14 +63,46 @@
 }
 
 .modalBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
   margin-top: var(--persona-space-6);
+  /* Side padding lives here (not on .modal) so focus rings and sticker shadows inside are not clipped. */
+  padding: 2px var(--persona-space-8) 4px;
 }
 
 .modalFooter {
   display: flex;
+  flex: 0 0 auto;
   justify-content: flex-end;
   gap: var(--persona-space-3);
-  margin-top: var(--persona-space-8);
+  margin-top: var(--persona-space-6);
+  padding: var(--persona-space-4) var(--persona-space-8) 0;
+  border-top: 1px solid var(--persona-outline-soft);
+}
+
+/* Short windows (zoom 200%, small laptops): less gutter, so the body keeps room to scroll. */
+@media (max-height: 520px) {
+  .scrim {
+    padding: var(--persona-space-2);
+  }
+
+  .modal {
+    max-height: calc(100dvh - 16px);
+    padding: var(--persona-space-5) 0;
+  }
+
+  .modalHeader,
+  .modalBody,
+  .modalFooter {
+    padding-inline: var(--persona-space-5);
+  }
+
+  .modalTitle {
+    font-size: 21px;
+    line-height: 26px;
+  }
 }
 
 .toastRegion {

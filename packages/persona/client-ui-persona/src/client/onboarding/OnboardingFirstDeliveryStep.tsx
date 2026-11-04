@@ -1,24 +1,29 @@
 import type { ReactNode } from 'react'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import {
   ActivityGroup,
   Button,
   Chip,
+  EmptyState,
   MilestoneCard,
   Notice,
   RunErrorCard,
   UiIcon,
   describeRunError,
   runErrorText,
+  type ActivityGroupProps,
   type ActivityItem,
   type RunErrorPayload,
 } from '../primitives/index.ts'
 import type { FirstDelivery } from '../overview/OverviewView.tsx'
-import { TeamIntroQueue } from './TeamIntroQueue.tsx'
-import { MOCK_INTRO_LINES } from './mock-data.ts'
+import { TeamIntroQueue, type IntroLine } from './TeamIntroQueue.tsx'
 import styles from './OnboardingWizard.module.css'
+
+/** Falhas do tipo "não há IA utilizável": levam a arte do tamanduá do "Falta uma IA" (Muse). */
+const NO_AI_CODES: readonly RunErrorPayload['code'][] = ['not_logged_in', 'cli_not_found', 'engine_unavailable']
 
 export type FirstDeliveryPhase = 'intro' | 'needsEngine' | 'working' | 'slow' | 'failed' | 'celebrate'
 
@@ -35,6 +40,10 @@ export interface OnboardingFirstDeliveryStepProps {
   readonly workingCharacterId?: string | undefined
   readonly runError?: RunErrorPayload | undefined
   readonly activities?: readonly ActivityItem[] | undefined
+  /** Apresentação da equipe CONTRATADA (nome + função de cada persona). Sem equipe, sem lista: nada de texto de exemplo. */
+  readonly introLines?: readonly IntroLine[] | undefined
+  /** Rótulos do ActivityGroup vindos do dicionário (`activityGroupLabelsFromDict`); sem eles a atividade não aparece. */
+  readonly activityLabels?: ActivityGroupProps['labels'] | undefined
   readonly prompt?: string | undefined
   readonly onPromptChange?: ((text: string) => void) | undefined
   readonly onRequest: () => void
@@ -60,6 +69,8 @@ export function OnboardingFirstDeliveryStep({
   workingCharacterId,
   runError,
   activities,
+  introLines,
+  activityLabels,
   prompt,
   onPromptChange,
   onRequest,
@@ -75,7 +86,7 @@ export function OnboardingFirstDeliveryStep({
 
   if (phase === 'celebrate' && milestone !== undefined) {
     return (
-      <section className={styles.step} aria-live="polite">
+      <section className={styles.step} aria-live="polite" tabIndex={-1} data-persona-step-focus="">
         <MilestoneCard
           celebrate
           illustration={ILLUSTRATIONS['primeira-entrega']}
@@ -133,7 +144,12 @@ export function OnboardingFirstDeliveryStep({
       }
     }
     return (
-      <section className={styles.step} aria-live="polite">
+      <section className={styles.step} aria-live="polite" tabIndex={-1} data-persona-step-focus="">
+        {NO_AI_CODES.includes(errorPayload.code) && (
+          <div className={styles.noAiArt} aria-hidden="true">
+            <img src={ILLUSTRATIONS['empty-sem-ia']} alt="" />
+          </div>
+        )}
         <RunErrorCard
           tone={desc.tone}
           persona={{ name: personaName, ...(failedAvatar === undefined ? {} : { avatarSrc: failedAvatar }) }}
@@ -160,20 +176,27 @@ export function OnboardingFirstDeliveryStep({
 
   if (phase === 'needsEngine') {
     return (
-      <section className={styles.step} aria-live="polite">
-        <h1 className={styles.title}>{t('step5.needsEngineTitle')}</h1>
-        <p className={styles.hint}>{t('step5.needsEngineBody')}</p>
-        <div className={styles.firstDeliveryActions}>
-          <Button
-            variant="primary"
-            size="l"
-            icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />}
-            onClick={onConnectEngine}
-          >
-            {t('step5.connectEngine')}
-          </Button>
-          <Button variant="ghost" onClick={onEnterApp}>{t('step5.enterApp')}</Button>
-        </div>
+      <section className={styles.step}>
+        <EmptyState
+          compact
+          illustration={ILLUSTRATIONS['empty-sem-ia']}
+          artSize={240}
+          titleAs="h1"
+          titleId="persona-onboarding-title"
+          title={t('step5.needsEngineTitle')}
+          body={t('step5.needsEngineBody')}
+          action={(
+            <Button
+              variant="primary"
+              size="l"
+              icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />}
+              onClick={onConnectEngine}
+            >
+              {t('step5.connectEngine')}
+            </Button>
+          )}
+          secondaryAction={<Button variant="ghost" onClick={onEnterApp}>{t('step5.enterApp')}</Button>}
+        />
       </section>
     )
   }
@@ -181,64 +204,58 @@ export function OnboardingFirstDeliveryStep({
   if (phase === 'working' || phase === 'slow') {
     const workingLabel = workingPersonaName ?? t('step5.workingFallbackName')
     const isSlow = phase === 'slow'
+    // Pose "trabalhando" de quem pegou o pedido (FIRST-DELIVERY-SPEC); sem id, o avatar da Coordenação.
+    const known = workingCharacterId !== undefined && workingCharacterId.toLowerCase() in AVATAR_96
+    const poseSrc = known
+      ? (poseUrl(workingCharacterId.toLowerCase() as PersonaCharacterId, 'trabalhando') ?? (AVATAR_96 as Readonly<Record<string, string>>)[workingCharacterId.toLowerCase()])
+      : (AVATAR_96 as Readonly<Record<string, string>>).atlas
+    // Sem aria-live na section inteira (o leitor reanunciaria tudo a cada passo): só a linha de estado curta e o aviso de demora.
     return (
-      <section className={styles.step} aria-live="polite">
-        <h1 className={styles.title}>{t('step5.workingTitle')}</h1>
-        <p className={styles.hint}>{t('step5.workingBody', { name: workingLabel })}</p>
-        {isSlow ? (
-          <Notice tone="info">{t('step5.slowBody')}</Notice>
-        ) : (
-          <Notice tone="info">{t('step5.workingNotice')}</Notice>
-        )}
-        <div className={styles.workingRow}>
-          <Chip tone="success" size="s">{t('step5.workingChip')}</Chip>
-          <span className={styles.workingName}>{workingLabel}</span>
-        </div>
-        {activities !== undefined && activities.length > 0 && (
-          <ActivityGroup
-            persona={{ name: workingLabel }}
-            items={activities}
-            labels={{
-              phrase: {
-                command: n => `${n} comando(s)`,
-                file: n => `${n} arquivo(s)`,
-                hire: n => `${n} contratação(ões)`,
-                message: n => `${n} mensagem(ns)`,
-                read: n => `${n} leitura(s)`,
-                check: n => `${n} verificação(ões)`,
-              },
-              more: n => `e mais ${n}`,
-              failed: n => `${n} falharam`,
-              running: 'em andamento',
-              status: {
-                done: 'concluído',
-                failed: 'falhou',
-                running: 'em andamento',
-                waiting: 'aguardando',
-              },
-              open: 'Abrir',
-              expand: 'Expandir',
-              collapse: 'Recolher',
-            }}
-          />
-        )}
-        <div className={styles.firstDeliveryActions}>
-          {isSlow ? (
-            <>
-              <Button variant="primary" size="l" onClick={onEnterApp}>
-                {t('step5.enterAndFollow')}
-              </Button>
-              {onKeepWaiting !== undefined && (
-                <Button variant="ghost" onClick={onKeepWaiting}>
-                  {t('step5.keepWaiting')}
+      <section className={styles.step}>
+        <div className={styles.workingLayout}>
+          {poseSrc !== undefined && (
+            <img className={styles.workingPose} src={poseSrc} alt="" width={160} height={160} />
+          )}
+          <div className={styles.workingText}>
+            <h1 id="persona-onboarding-title" className={styles.title}>{t('step5.workingTitle')}</h1>
+            <p className={styles.hint}>{t('step5.workingBody', { name: workingLabel })}</p>
+            {isSlow ? (
+              <div role="status">
+                <Notice tone="info">{t('step5.slowBody')}</Notice>
+              </div>
+            ) : (
+              <Notice tone="info">{t('step5.workingNotice')}</Notice>
+            )}
+            <div className={styles.workingRow} role="status">
+              <Chip tone="success" size="s">{t('step5.workingChip')}</Chip>
+              <span className={styles.workingName}>{workingLabel}</span>
+            </div>
+            {activities !== undefined && activities.length > 0 && activityLabels !== undefined && (
+              <ActivityGroup
+                persona={{ name: workingLabel }}
+                items={activities}
+                labels={activityLabels}
+              />
+            )}
+            <div className={styles.firstDeliveryActions}>
+              {isSlow ? (
+                <>
+                  <Button variant="primary" size="l" onClick={onEnterApp}>
+                    {t('step5.enterAndFollow')}
+                  </Button>
+                  {onKeepWaiting !== undefined && (
+                    <Button variant="ghost" onClick={onKeepWaiting}>
+                      {t('step5.keepWaiting')}
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <Button variant="ghost" onClick={onEnterApp}>
+                  {t('step5.enterAndFollow')}
                 </Button>
               )}
-            </>
-          ) : (
-            <Button variant="ghost" onClick={onEnterApp}>
-              {t('step5.enterAndFollow')}
-            </Button>
-          )}
+            </div>
+          </div>
         </div>
       </section>
     )
@@ -247,9 +264,9 @@ export function OnboardingFirstDeliveryStep({
   const defaultTaskText = vaultReady ? t('step5.taskPreview') : t('step5.taskPreviewEmpty')
   return (
     <section className={styles.step}>
-      <h1 className={styles.title}>{t('step5.title')}</h1>
+      <h1 id="persona-onboarding-title" className={styles.title}>{t('step5.title')}</h1>
       <p className={styles.hint}>{t('step5.hint')}</p>
-      <TeamIntroQueue lines={MOCK_INTRO_LINES} label={t('step5.introLabel')} />
+      {introLines !== undefined && introLines.length > 0 && <TeamIntroQueue lines={introLines} label={t('step5.introLabel')} />}
       <div className={styles.taskPreview}>
         <p className={styles.taskPreviewLabel}>{t('step5.taskPreviewLabel')}</p>
         {onPromptChange !== undefined ? (

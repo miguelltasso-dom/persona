@@ -50,25 +50,18 @@ describe('deriveBoardSummaries', () => {
     expect(p1?.needsYouCount).toBe(1)
   })
 
-  it('overlays live card counts onto Muse mock hub when fewer than two projects (PB-5)', () => {
+  it('a fresh home shows only the real project, with the delivered card counted (never sample projects)', () => {
     const summaries = deriveBoardSummaries({
-      projects: [],
-      kanbanCards: [{
-        id: 'c1',
-        title: 'Briefing',
-        projectId: 'proj-contratacao',
-        projectName: 'Contratação — Designer',
-        teamId: 't',
-        teamName: 'T',
-        column: 'todo',
-        waitingEvent: false,
-        blocked: false,
-        reviewApproved: false,
-      }],
+      projects: [{ id: 'proj-pessoal', name: 'Pessoal', kind: 'personal' }],
+      kanbanCards: [{ id: 'c1', title: 'Resumo da semana', projectId: 'proj-pessoal', projectName: 'Pessoal', teamId: 't', teamName: 'T', waitingEvent: false, blocked: false, reviewApproved: false, column: 'done' }],
       nowRows: [],
     })
-    const row = summaries.find(s => s.id === 'proj-contratacao')
-    expect(row?.counts.todo).toBe(1)
-    expect(row?.counts.doing).toBe(0)
+    expect(summaries.map(summary => summary.id)).toEqual(['proj-pessoal'])
+    expect(summaries[0]?.counts.done).toBe(1)
+    expect(JSON.stringify(summaries)).not.toMatch(/proj-contratacao|proj-site|Designer|Site da agência/u)
+  })
+
+  it('no projects yet: an empty list, so the screen says it is empty instead of inventing tiles', () => {
+    expect(deriveBoardSummaries({ projects: [], kanbanCards: [{ id: 'c1', title: 'Resumo da semana', projectId: 'proj-pessoal', projectName: 'Pessoal', teamId: 't', teamName: 'T', waitingEvent: false, blocked: false, reviewApproved: false, column: 'todo' }], nowRows: [] })).toEqual([])
   })
 })

@@ -46,3 +46,10 @@
   gap: var(--persona-space-2);
   margin-top: var(--persona-space-3);
 }
+
+.failure {
+  margin: var(--persona-space-3) 0 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-danger);
+}

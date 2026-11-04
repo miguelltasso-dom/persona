@@ -6,7 +6,7 @@ import { OrgChart as OrgChartPrimitive } from '../primitives/Governance.tsx'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import type { OrgChartGroupBy, OrgChartView as OrgChartDto } from './governance-contract.ts'
 import { railCharacterIdsFromLive } from './enrich-org-chart-rail.ts'
-import { gestorPersonaIdsFromLive, orgChartHumansSubtitle, orgMapLabelsFromDict, sectorIdFromTitle } from './governance-ui-helpers.ts'
+import { gestorPersonaIdsFromLive, orgChartHumansSubtitle, orgChartPersonasSubtitle, orgMapLabelsFromDict, sectorIdFromTitle } from './governance-ui-helpers.ts'
 import { orgPersonaToCardInfo } from './org-persona-card-info.ts'
 import type { PersonaLiveSnapshot } from '../remote/persona-live-store.ts'
 import { orgChartToUi } from './map-governance-ui.ts'
@@ -117,7 +117,7 @@ export function OrgChartView({
       title={t('org.title')}
       subtitle={data === null
         ? t('org.subtitleLoading')
-        : `${t('org.subtitlePersonas', { count: data.personaCount })} · ${orgChartHumansSubtitle(dict, data.humanCount)}`}
+        : `${orgChartPersonasSubtitle(dict, data.personaCount)} · ${orgChartHumansSubtitle(dict, data.humanCount)}`}
     />
   )
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RemoteUsagePanel } from '../src/client/data/lumen-remote-panels.tsx'
 import type { PersonaRemoteClient } from '../src/client/data/lumen-inject.ts'
@@ -79,11 +79,10 @@ describe('RemoteUsagePanel (OPT-7 / D5b)', () => {
       </PreviewFrame>,
     )
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: usagePt['title'] })).toBeTruthy()
-    })
+    // The title is also in the loading header: wait for the section the data draws, not for the heading.
+    expect(await screen.findByText(usagePt['section.tokens'])).toBeTruthy()
+    expect(screen.getByRole('heading', { name: usagePt['title'] })).toBeTruthy()
     expect(getUsagePanel).toHaveBeenCalled()
-    expect(screen.getByText(usagePt['section.tokens'])).toBeTruthy()
     expect(screen.getByText(/42 tokens por tarefa concluída/u)).toBeTruthy()
   })
 })

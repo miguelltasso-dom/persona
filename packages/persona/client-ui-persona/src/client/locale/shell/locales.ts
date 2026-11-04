@@ -47,7 +47,7 @@ export const pt = {
   'team.channelStripTitle': 'Sua equipe neste canal',
   'team.memberCount': '{count} membros',
   'team.statusWorking': 'Trabalhando',
-  'team.statusResting': 'Descansando · zzz',
+  'team.statusResting': 'Descansando',
   'team.statusStuck': 'Precisa de ajuda',
   'team.statusWaiting': 'Aguardando você',
   'overview.nowTitle': 'Agora',
@@ -160,10 +160,12 @@ export const pt = {
   'decision.noticesLabel': 'Avisos das decisões',
   'decision.kind.hire': 'Contratação',
   'decision.kind.vault': 'Cofre',
-  'decision.kind.skill': 'Habilidade',
+  'decision.kind.skill': 'Skill',
   'decision.kind.proactive': 'Sugestão',
   'decision.kind.blocker': 'Aguardando você',
   'sidebar.approvalsPending': '{count} pendentes',
+  'overview.attentionCount.one': '1 pendente',
+  'sidebar.approvalsPending.one': '1 pendente',
 } as const
 
 /** English copy. */
@@ -210,7 +212,7 @@ export const en = {
   'team.channelStripTitle': 'Your team in this channel',
   'team.memberCount': '{count} members',
   'team.statusWorking': 'Working',
-  'team.statusResting': 'Resting · zzz',
+  'team.statusResting': 'Resting',
   'team.statusStuck': 'Needs help',
   'team.statusWaiting': 'Waiting on you',
   'overview.nowTitle': 'Now',
@@ -327,6 +329,8 @@ export const en = {
   'decision.kind.proactive': 'Suggestion',
   'decision.kind.blocker': 'Waiting on you',
   'sidebar.approvalsPending': '{count} pending',
+  'overview.attentionCount.one': '1 pending',
+  'sidebar.approvalsPending.one': '1 pending',
 } as const
 
 export const zh = {
@@ -372,7 +376,7 @@ export const zh = {
   'team.channelStripTitle': 'Your team in this channel',
   'team.memberCount': '{count} members',
   'team.statusWorking': 'Working',
-  'team.statusResting': 'Resting · zzz',
+  'team.statusResting': 'Resting',
   'team.statusStuck': 'Needs help',
   'team.statusWaiting': 'Waiting on you',
   'overview.nowTitle': 'Now',
@@ -489,6 +493,8 @@ export const zh = {
   'decision.kind.proactive': 'Suggestion',
   'decision.kind.blocker': 'Waiting on you',
   'sidebar.approvalsPending': '{count} pending',
+  'overview.attentionCount.one': '1 pending',
+  'sidebar.approvalsPending.one': '1 pending',
 } as const
 export const ja = {
   'sidebar.team': 'Team',
@@ -533,7 +539,7 @@ export const ja = {
   'team.channelStripTitle': 'Your team in this channel',
   'team.memberCount': '{count} members',
   'team.statusWorking': 'Working',
-  'team.statusResting': 'Resting · zzz',
+  'team.statusResting': 'Resting',
   'team.statusStuck': 'Needs help',
   'team.statusWaiting': 'Waiting on you',
   'overview.nowTitle': 'Now',
@@ -650,6 +656,8 @@ export const ja = {
   'decision.kind.proactive': 'Suggestion',
   'decision.kind.blocker': 'Waiting on you',
   'sidebar.approvalsPending': '{count} pending',
+  'overview.attentionCount.one': '1 pending',
+  'sidebar.approvalsPending.one': '1 pending',
 } as const
 export const es = {
   'sidebar.team': 'Team',
@@ -694,7 +702,7 @@ export const es = {
   'team.channelStripTitle': 'Your team in this channel',
   'team.memberCount': '{count} members',
   'team.statusWorking': 'Working',
-  'team.statusResting': 'Resting · zzz',
+  'team.statusResting': 'Resting',
   'team.statusStuck': 'Needs help',
   'team.statusWaiting': 'Waiting on you',
   'overview.nowTitle': 'Now',
@@ -811,6 +819,8 @@ export const es = {
   'decision.kind.proactive': 'Suggestion',
   'decision.kind.blocker': 'Waiting on you',
   'sidebar.approvalsPending': '{count} pending',
+  'overview.attentionCount.one': '1 pending',
+  'sidebar.approvalsPending.one': '1 pending',
 } as const
 export const fr = {
   'sidebar.team': 'Team',
@@ -855,7 +865,7 @@ export const fr = {
   'team.channelStripTitle': 'Your team in this channel',
   'team.memberCount': '{count} members',
   'team.statusWorking': 'Working',
-  'team.statusResting': 'Resting · zzz',
+  'team.statusResting': 'Resting',
   'team.statusStuck': 'Needs help',
   'team.statusWaiting': 'Waiting on you',
   'overview.nowTitle': 'Now',
@@ -972,6 +982,8 @@ export const fr = {
   'decision.kind.proactive': 'Suggestion',
   'decision.kind.blocker': 'Waiting on you',
   'sidebar.approvalsPending': '{count} pending',
+  'overview.attentionCount.one': '1 pending',
+  'sidebar.approvalsPending.one': '1 pending',
 } as const
 export const de = {
   'sidebar.team': 'Team',
@@ -1016,7 +1028,7 @@ export const de = {
   'team.channelStripTitle': 'Your team in this channel',
   'team.memberCount': '{count} members',
   'team.statusWorking': 'Working',
-  'team.statusResting': 'Resting · zzz',
+  'team.statusResting': 'Resting',
   'team.statusStuck': 'Needs help',
   'team.statusWaiting': 'Waiting on you',
   'overview.nowTitle': 'Now',
@@ -1133,6 +1145,8 @@ export const de = {
   'decision.kind.proactive': 'Suggestion',
   'decision.kind.blocker': 'Waiting on you',
   'sidebar.approvalsPending': '{count} pending',
+  'overview.attentionCount.one': '1 pending',
+  'sidebar.approvalsPending.one': '1 pending',
 } as const
 export const ru = {
   'sidebar.team': 'Team',
@@ -1177,7 +1191,7 @@ export const ru = {
   'team.channelStripTitle': 'Your team in this channel',
   'team.memberCount': '{count} members',
   'team.statusWorking': 'Working',
-  'team.statusResting': 'Resting · zzz',
+  'team.statusResting': 'Resting',
   'team.statusStuck': 'Needs help',
   'team.statusWaiting': 'Waiting on you',
   'overview.nowTitle': 'Now',
@@ -1294,6 +1308,8 @@ export const ru = {
   'decision.kind.proactive': 'Suggestion',
   'decision.kind.blocker': 'Waiting on you',
   'sidebar.approvalsPending': '{count} pending',
+  'overview.attentionCount.one': '1 pending',
+  'sidebar.approvalsPending.one': '1 pending',
 } as const
 
 export type ShellKey = keyof typeof pt

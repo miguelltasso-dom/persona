@@ -57,10 +57,10 @@
   "health.findings": "Needs attention",
   "health.gestorAudit": "Team manager activity",
   "health.gestorAuditLead": "Honest summary — failures never count as done.",
-  "activity.command": "ran {count} command(s)",
-  "activity.file": "changed {count} file(s)",
+  "activity.command": "ran {count} commands",
+  "activity.file": "changed {count} files",
   "activity.hire": "hired {count}",
-  "activity.message": "sent {count} message(s)",
+  "activity.message": "sent {count} messages",
   "activity.read": "read {count}",
   "activity.check": "checked {count}",
   "activity.more": "and {count} more",
@@ -149,5 +149,9 @@
   "twoDay.row.approvals": "Approvals (you)",
   "twoDay.fix.substitute": "Set backup",
   "editor.memberSelf": "You (default caretaker)",
-  "twoDay.rerun": "Run again"
+  "twoDay.rerun": "Run again",
+  "org.subtitlePersonasOne": "1 persona",
+  "activity.command.one": "ran 1 command",
+  "activity.file.one": "changed 1 file",
+  "activity.message.one": "sent 1 message"
 }

@@ -1,7 +1,6 @@
 import type { KanbanCardModel, KanbanColumnId } from '../kanban/types.ts'
 import { resolveProjectDisplayName } from '../kanban/resolve-project-name.ts'
 import type { PersonaNowSnapshot } from '../team/persona-work-state.ts'
-import { MOCK_PROJECT_BOARD_SUMMARIES } from './mock-data.ts'
 import type { FlowModelId, ProjectBoardSummary, StageCategoryCounts } from './types.ts'
 
 const COLUMN_TO_CATEGORY: Record<KanbanColumnId, keyof StageCategoryCounts> = {
@@ -23,7 +22,11 @@ export function inferFlowModel(projectId: string, kind: string | undefined): Flo
   return 'software'
 }
 
-/** Live host data → hub tiles; falls back to Muse preview mocks when empty. */
+/**
+ * Live host data → hub tiles. Exactly the projects the team really has — one ("Pessoal") on a fresh home, none while
+ * loading. It never falls back to sample projects: invented "Contratação — Designer" tiles with counts would be
+ * shown as the person's own work (those samples live in boards/mock-data.ts for tests and previews only).
+ */
 export function deriveBoardSummaries(input: {
   readonly projects: readonly { readonly id: string; readonly name: string; readonly kind?: string }[]
   readonly kanbanCards: readonly KanbanCardModel[]
@@ -57,28 +60,5 @@ export function deriveBoardSummaries(input: {
     }
   })
 
-  if (fromLive.length >= 2) return fromLive
-  return mergeLiveCardsIntoMockSummaries(MOCK_PROJECT_BOARD_SUMMARIES, input.kanbanCards)
-}
-
-/** When the hub falls back to Muse mocks, overlay counts from live kanban cards (PB-5). */
-function mergeLiveCardsIntoMockSummaries(
-  summaries: readonly ProjectBoardSummary[],
-  kanbanCards: readonly KanbanCardModel[],
-): readonly ProjectBoardSummary[] {
-  if (kanbanCards.length === 0) return summaries
-  return summaries.map((summary) => {
-    const cards = kanbanCards.filter(card => card.projectId === summary.id)
-    if (cards.length === 0) return summary
-    let counts = emptyCounts()
-    for (const card of cards) {
-      const key = COLUMN_TO_CATEGORY[card.column]
-      counts = { ...counts, [key]: counts[key] + 1 }
-    }
-    return {
-      ...summary,
-      counts,
-      needsYouCount: counts.needs_you,
-    }
-  })
+  return fromLive
 }

@@ -22,5 +22,11 @@
   "error.retry": "Try again",
   "a11y.graphRegion": "Project relationship map",
   "a11y.graphHint": "Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.",
-  "a11y.nodeType": "{type}: {label}"
+  "a11y.nodeType": "{type}: {label}",
+  "column.links": "Relations",
+  "link.to": "links to {label}",
+  "link.from": "comes from {label}",
+  "link.none": "No relations",
+  "a11y.listRegion": "List of project objects",
+  "a11y.listHint": "Use the arrow keys to move through the list, Home and End for the ends, and Enter to select. The selection also applies on the map."
 }

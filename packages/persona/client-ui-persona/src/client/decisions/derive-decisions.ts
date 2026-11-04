@@ -10,7 +10,7 @@ export interface HostDecisionExtras {
   /** Host can undo it — the only case where "Desfazer" is shown. Default: false. */
   readonly reversible?: boolean | undefined
   readonly createdAt?: string | undefined
-  /** One-line "why" (hire needs it; UX-02). Falls back to `question`. */
+  /** One-line "why" for a hire (shown as "Por quê" when present; its absence never hides the card). */
   readonly reason?: string | undefined
 }
 
@@ -22,6 +22,11 @@ export interface DeriveDecisionsParams {
   readonly dailySummaries?: readonly DailySummaryView[] | undefined
   /** Local lifecycle overrides (deciding / accepted / declined / failed) keyed by decision id. */
   readonly statesById?: ReadonlyMap<string, DecisionState> | Readonly<Record<string, DecisionState>> | undefined
+  /**
+   * Ids the host already confirmed this session, whose list may still be the old one (a refresh that started before the
+   * confirmation). They are skipped so a stale list can never bring a decided card back as pending.
+   */
+  readonly settledIds?: ReadonlySet<string> | undefined
 }
 
 /** Hosts older than this UI omit fields: read any of them as text, never throw. */
@@ -59,7 +64,9 @@ function reasonOf(card: HostApprovalCard): string {
  * 2. Attention/reactive wins over a proactive proposal with the same id (blocking version kept, proposal omitted).
  * 3. Inbox cards and tasks that need the person are `blocking: true`; daily proposals are `blocking: false`
  *    unless the host says otherwise.
- * 4. UX-02: a hire without a repeating-need reason is never shown.
+ * 4. A pending decision never disappears for lack of data (DECISIONS-SPEC Regra 4, corrected by Muse): a hire without a
+ *    "why" is listed without the "Por quê" line. Whether a proposal deserves to exist is the proposer's rule (Forge
+ *    `recommend`) and the host's, never a reason to hide what someone is waiting on.
  * 5. Only pending host cards are decisions; a card already decided stays only while its local exit state is running.
  */
 export function deriveDecisions({
@@ -67,6 +74,7 @@ export function deriveDecisions({
   approvals = [],
   dailySummaries = [],
   statesById,
+  settledIds,
 }: DeriveDecisionsParams): readonly Decision[] {
   const override = (id: string): DecisionState | undefined => {
     if (statesById === undefined) return undefined
@@ -87,8 +95,8 @@ export function deriveDecisions({
     if (seenIds.has(card.id)) continue
     const local = override(card.id)
     if (card.status !== 'pending' && local === undefined) continue
+    if (local === undefined && settledIds?.has(card.id) === true) continue
     const reason = reasonOf(card)
-    if (card.kind === 'hire' && reason.length === 0 && local === undefined) continue
     push({
       id: card.id,
       kind: kindOf(card.kind, false),
@@ -112,6 +120,7 @@ export function deriveDecisions({
   // 2. Tasks that need the person (the same ticket id as an attention card collapses into it).
   for (const task of needsYou) {
     if (seenIds.has(task.id)) continue
+    if (override(task.id) === undefined && settledIds?.has(task.id) === true) continue
     push({
       id: task.id,
       kind: 'blocker',
@@ -132,8 +141,8 @@ export function deriveDecisions({
       const card = proposal as HostApprovalCard
       const local = override(proposal.id)
       if (proposal.status !== 'pending' && local === undefined) continue
+      if (local === undefined && settledIds?.has(proposal.id) === true) continue
       const reason = reasonOf(card)
-      if (proposal.kind === 'hire' && reason.length === 0 && local === undefined) continue
       push({
         id: proposal.id,
         kind: kindOf(proposal.kind, true),

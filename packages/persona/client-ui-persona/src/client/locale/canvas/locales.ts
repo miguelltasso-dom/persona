@@ -29,6 +29,12 @@ export const pt = {
   'a11y.graphRegion': 'Mapa de relações do projeto',
   'a11y.graphHint': 'Use Tab para focar cada nó; Enter ou Espaço para selecionar. Prefira a aba Lista para navegação linear.',
   'a11y.nodeType': '{type}: {label}',
+  'column.links': 'Relações',
+  'link.to': 'liga a {label}',
+  'link.from': 'vem de {label}',
+  'link.none': 'Sem relações',
+  'a11y.listRegion': 'Lista de objetos do projeto',
+  'a11y.listHint': 'Use as setas para percorrer a lista, Início e Fim para os extremos, e Enter para selecionar. A seleção vale também no mapa.',
 } as const
 
 /** English copy. */
@@ -57,6 +63,12 @@ export const en = {
   'a11y.graphRegion': 'Project relationship map',
   'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
   'a11y.nodeType': '{type}: {label}',
+  'column.links': 'Relations',
+  'link.to': 'links to {label}',
+  'link.from': 'comes from {label}',
+  'link.none': 'No relations',
+  'a11y.listRegion': 'List of project objects',
+  'a11y.listHint': 'Use the arrow keys to move through the list, Home and End for the ends, and Enter to select. The selection also applies on the map.',
 } as const
 
 export const zh = {
@@ -84,6 +96,12 @@ export const zh = {
   'a11y.graphRegion': 'Project relationship map',
   'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
   'a11y.nodeType': '{type}: {label}',
+  'column.links': 'Relations',
+  'link.to': 'links to {label}',
+  'link.from': 'comes from {label}',
+  'link.none': 'No relations',
+  'a11y.listRegion': 'List of project objects',
+  'a11y.listHint': 'Use the arrow keys to move through the list, Home and End for the ends, and Enter to select. The selection also applies on the map.',
 } as const
 export const ja = {
   'header.eyebrow': 'Work',
@@ -110,6 +128,12 @@ export const ja = {
   'a11y.graphRegion': 'Project relationship map',
   'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
   'a11y.nodeType': '{type}: {label}',
+  'column.links': 'Relations',
+  'link.to': 'links to {label}',
+  'link.from': 'comes from {label}',
+  'link.none': 'No relations',
+  'a11y.listRegion': 'List of project objects',
+  'a11y.listHint': 'Use the arrow keys to move through the list, Home and End for the ends, and Enter to select. The selection also applies on the map.',
 } as const
 export const es = {
   'header.eyebrow': 'Work',
@@ -136,6 +160,12 @@ export const es = {
   'a11y.graphRegion': 'Project relationship map',
   'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
   'a11y.nodeType': '{type}: {label}',
+  'column.links': 'Relations',
+  'link.to': 'links to {label}',
+  'link.from': 'comes from {label}',
+  'link.none': 'No relations',
+  'a11y.listRegion': 'List of project objects',
+  'a11y.listHint': 'Use the arrow keys to move through the list, Home and End for the ends, and Enter to select. The selection also applies on the map.',
 } as const
 export const fr = {
   'header.eyebrow': 'Work',
@@ -162,6 +192,12 @@ export const fr = {
   'a11y.graphRegion': 'Project relationship map',
   'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
   'a11y.nodeType': '{type}: {label}',
+  'column.links': 'Relations',
+  'link.to': 'links to {label}',
+  'link.from': 'comes from {label}',
+  'link.none': 'No relations',
+  'a11y.listRegion': 'List of project objects',
+  'a11y.listHint': 'Use the arrow keys to move through the list, Home and End for the ends, and Enter to select. The selection also applies on the map.',
 } as const
 export const de = {
   'header.eyebrow': 'Work',
@@ -188,6 +224,12 @@ export const de = {
   'a11y.graphRegion': 'Project relationship map',
   'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
   'a11y.nodeType': '{type}: {label}',
+  'column.links': 'Relations',
+  'link.to': 'links to {label}',
+  'link.from': 'comes from {label}',
+  'link.none': 'No relations',
+  'a11y.listRegion': 'List of project objects',
+  'a11y.listHint': 'Use the arrow keys to move through the list, Home and End for the ends, and Enter to select. The selection also applies on the map.',
 } as const
 export const ru = {
   'header.eyebrow': 'Work',
@@ -214,6 +256,12 @@ export const ru = {
   'a11y.graphRegion': 'Project relationship map',
   'a11y.graphHint': 'Tab to focus each node; Enter or Space to select. Use the List tab for linear navigation.',
   'a11y.nodeType': '{type}: {label}',
+  'column.links': 'Relations',
+  'link.to': 'links to {label}',
+  'link.from': 'comes from {label}',
+  'link.none': 'No relations',
+  'a11y.listRegion': 'List of project objects',
+  'a11y.listHint': 'Use the arrow keys to move through the list, Home and End for the ends, and Enter to select. The selection also applies on the map.',
 } as const
 
 export type CanvasKey = keyof typeof pt

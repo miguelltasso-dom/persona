@@ -15,16 +15,22 @@ export interface EmptyStateProps {
   readonly action?: ReactNode
   readonly secondaryAction?: ReactNode
   readonly compact?: boolean
+  /** Heading level of the title (default h3; a full-dialog empty state uses h1). */
+  readonly titleAs?: 'h1' | 'h2' | 'h3'
+  /** `id` of the title (a dialog's `aria-labelledby` target). */
+  readonly titleId?: string
+  /** Max size in px of the illustration (default per variant; Muse: 240 for "Falta uma IA"). */
+  readonly artSize?: number
 }
 
 /** Illustrated empty state: art + title + one line + one primary action. */
-export function EmptyState({ illustration, art, title, body, action, secondaryAction, compact = false }: EmptyStateProps): ReactNode {
+export function EmptyState({ illustration, art, title, body, action, secondaryAction, compact = false, titleAs: Title = 'h3', titleId, artSize }: EmptyStateProps): ReactNode {
   return (
     <div className={compact ? `${styles.empty} ${styles.compact}` : styles.empty}>
       <div className={styles.art} aria-hidden="true">
-        {art ?? (illustration !== undefined ? <img src={illustration} alt="" /> : <PawTrail />)}
+        {art ?? (illustration !== undefined ? <img src={illustration} alt="" {...(artSize === undefined ? {} : { style: { maxHeight: artSize, maxWidth: artSize } })} /> : <PawTrail />)}
       </div>
-      <h3 className={styles.emptyTitle}>{title}</h3>
+      <Title id={titleId} className={styles.emptyTitle}>{title}</Title>
       {body !== undefined && <p className={styles.emptyBody}>{body}</p>}
       {(action !== undefined || secondaryAction !== undefined) && (
         <div className={styles.emptyActions}>

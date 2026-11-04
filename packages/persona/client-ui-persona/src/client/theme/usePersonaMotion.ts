@@ -119,32 +119,39 @@ export function usePersonaMotion(options: PersonaMotionOptions = {}): PersonaMot
   useEffect(() => {
     if (element === null || !(element instanceof HTMLElement)) return
     animationRef.current?.cancel()
-    if (paused || reducedMotion) {
+    if (paused) {
+      // Fora da tela / aba oculta: espera escondido no estado de entrada; a animação roda quando voltar a aparecer.
       element.style.opacity = String(fromOpacity)
-      element.style.transform = fromTranslateY === 0 ? '' : `translateY(${fromTranslateY}px)`
+      element.style.transform = reducedMotion || fromTranslateY === 0 ? '' : `translateY(${fromTranslateY}px)`
       return
     }
-    if (typeof element.animate !== 'function') return
-    const keyframes: Keyframe[] = [
-      { opacity: fromOpacity, transform: fromTranslateY === 0 ? 'none' : `translateY(${fromTranslateY}px)` },
-      { opacity: 1, transform: 'none' },
-    ]
+    if (typeof element.animate !== 'function') {
+      // Sem WAAPI: mostra o estado final (nunca deixa o conteúdo preso em opacity 0).
+      element.style.opacity = ''
+      element.style.transform = ''
+      return
+    }
+    // Movimento reduzido NÃO é "sem aparecer": entra só com um fade curto, sem deslocamento (antes ficava em opacity 0 para sempre).
+    const keyframes: Keyframe[] = reducedMotion
+      ? [{ opacity: fromOpacity }, { opacity: 1 }]
+      : [
+        { opacity: fromOpacity, transform: fromTranslateY === 0 ? 'none' : `translateY(${fromTranslateY}px)` },
+        { opacity: 1, transform: 'none' },
+      ]
     const animation = element.animate(keyframes, {
       duration: durationMs,
       easing,
-      delay: delayMs,
+      delay: reducedMotion ? 0 : delayMs,
       fill: 'both',
-      iterations: loop ? Infinity : 1,
+      iterations: loop && !reducedMotion ? Infinity : 1,
     })
     animationRef.current = animation
     return () => { animation.cancel() }
   }, [delayMs, durationMs, easing, element, fromOpacity, fromTranslateY, loop, paused, reducedMotion])
 
   const style = useMemo((): CSSProperties => ({
-    opacity: paused || reducedMotion ? fromOpacity : undefined,
-    transform: paused || reducedMotion
-      ? (fromTranslateY === 0 ? undefined : `translateY(${fromTranslateY}px)`)
-      : undefined,
+    opacity: paused ? fromOpacity : undefined,
+    transform: paused && !reducedMotion && fromTranslateY !== 0 ? `translateY(${fromTranslateY}px)` : undefined,
     transition: reducedMotion
       ? `opacity ${readDurationMs(REDUCED_FADE_TOKEN, true)}ms ${easing}`
       : undefined,

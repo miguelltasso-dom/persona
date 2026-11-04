@@ -32,6 +32,19 @@
   color: var(--persona-success);
 }
 
+/* Spot da Muse (spot-sem-ia, 192 → 96): a faixa fica com a altura do desenho, centrada na vertical. */
+.banner:has(.spot) {
+  align-items: center;
+}
+
+.spot {
+  display: block;
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
 .text {
   flex: 1 1 auto;
   min-width: 0;
@@ -67,6 +80,11 @@
 @media (max-width: 640px) {
   .banner {
     flex-wrap: wrap;
+  }
+
+  .spot {
+    width: 64px;
+    height: 64px;
   }
 
   .actions {

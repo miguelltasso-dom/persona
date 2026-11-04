@@ -26,7 +26,11 @@ describe('MessageList scale (DESEMPENHO)', () => {
     const ms = performance.now() - start
     const mounted = container.querySelectorAll('[data-message-id]').length
     expect(mounted).toBeLessThan(messages.length)
-    expect(mounted).toBeGreaterThan(CHAT_MESSAGE_VIRTUAL_MIN)
+    // Janela virtual: viewport (420 px de fallback no jsdom) / 104 px por linha + overscan = poucas linhas, bem abaixo
+    // do limiar a partir do qual a lista passa a virtualizar. (A asserção antiga exigia MAIS que o limiar montado,
+    // o contrário de virtualizar: nunca passou com este scroller.)
+    expect(mounted).toBeGreaterThan(0)
+    expect(mounted).toBeLessThan(CHAT_MESSAGE_VIRTUAL_MIN)
     expect(ms).toBeLessThan(12_000)
   })
 })

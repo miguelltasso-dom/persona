@@ -13,32 +13,35 @@ export interface FilePreviewProps {
   readonly onOpenDraftFile?: ((fileId: string) => void) | undefined
 }
 
-type ImageView = 'both' | 'before' | 'after'
+type ImageView = 'before' | 'after'
 
 function ImageBeforeAfter({ file, t }: Pick<FilePreviewProps, 'file' | 't'>): ReactNode {
-  const [view, setView] = useState<ImageView>('both')
-  const showBefore = view !== 'after' && file.beforeImageSrc !== undefined
-  const showAfter = view !== 'before' && file.afterImageSrc !== undefined
-  const toggle = (next: Exclude<ImageView, 'both'>): void => { setView(current => (current === next ? 'both' : next)) }
+  // Wide: both versions side by side and no buttons. Narrow (CSS container query): one at a time, switched here.
+  const [view, setView] = useState<ImageView>('after')
   return (
-    <div className={styles.image}>
+    <div className={styles.image} data-view={view}>
       <div className={styles.imageControls} role="group" aria-label={t('image.group')}>
-        <Button size="s" variant={view === 'before' ? 'primary' : 'secondary'} aria-pressed={view === 'before'} onClick={() => { toggle('before') }}>
-          {t('image.before')}
-        </Button>
-        <Button size="s" variant={view === 'after' ? 'primary' : 'secondary'} aria-pressed={view === 'after'} onClick={() => { toggle('after') }}>
-          {t('image.after')}
-        </Button>
+        {(['before', 'after'] as const).map(side => (
+          <Button
+            key={side}
+            size="s"
+            variant={view === side ? 'primary' : 'secondary'}
+            aria-pressed={view === side}
+            onClick={() => { setView(side) }}
+          >
+            {t(`image.${side}`)}
+          </Button>
+        ))}
       </div>
-      <div className={styles.imagePair} data-single={showBefore !== showAfter ? '' : undefined}>
-        {showBefore && (
-          <figure className={styles.figure}>
+      <div className={styles.imagePair}>
+        {file.beforeImageSrc !== undefined && (
+          <figure className={styles.figure} data-side="before">
             <img className={styles.img} src={file.beforeImageSrc} alt={`${file.name} · ${t('image.before')}`} />
             <figcaption className={styles.caption}>{t('image.before')}</figcaption>
           </figure>
         )}
-        {showAfter && (
-          <figure className={styles.figure}>
+        {file.afterImageSrc !== undefined && (
+          <figure className={styles.figure} data-side="after">
             <img className={styles.img} src={file.afterImageSrc} alt={`${file.name} · ${t('image.after')}`} />
             <figcaption className={styles.caption}>{t('image.after')}</figcaption>
           </figure>

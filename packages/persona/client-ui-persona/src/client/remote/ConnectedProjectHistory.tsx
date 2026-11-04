@@ -7,7 +7,7 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as reviewDict } from '../locale/review/locales.ts'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
-import { personaHistoryRemote, restorePointsToEntries } from '../data/history-remote.ts'
+import { personaHistoryRemote, restorePointsToEntries, type HistoryTaskInfo } from '../data/history-remote.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { ProjectWorkspaceTabs, type ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import { ProjectHistoryView } from '../review/simple/ProjectHistoryView.tsx'
@@ -17,6 +17,8 @@ export interface ConnectedProjectHistoryProps {
   readonly scope: ProjectScopeRequest
   /** Kanban dictionary: the tabs and the back link speak its words. */
   readonly kanbanDict: LocaleDict
+  /** Board cards: the host names a restore point only by its Tarefa id. */
+  readonly tasks?: readonly { readonly id: string; readonly title: string; readonly assignee?: { readonly name?: string | undefined } | undefined }[]
   readonly onBack: () => void
   readonly onWorkspaceTabChange: (tab: ProjectWorkspaceTab) => void
 }
@@ -25,24 +27,36 @@ export function ConnectedProjectHistory({
   persona,
   scope,
   kanbanDict,
+  tasks = [],
   onBack,
   onWorkspaceTabChange,
 }: ConnectedProjectHistoryProps): ReactNode {
   const history = useMemo(() => personaHistoryRemote(persona), [persona])
   const [undoingId, setUndoingId] = useState<string | null>(null)
-  const [undoError, setUndoError] = useState(false)
+  const [undoMessage, setUndoMessage] = useState<string | null>(null)
   const load = useCallback(async () => history.list(scope), [history, scope])
   const { state, retry } = usePersonaRemoteLoad(true, `${scope.workspaceId}:${scope.projectId}:history`, load)
   const fallbackWho = bindLocale(reviewDict, 'persona.fallback')
+  const taskInfo = useMemo(
+    () => new Map<string, HistoryTaskInfo>(tasks.map(task => [task.id, { title: task.title, personaName: task.assignee?.name }])),
+    [tasks],
+  )
 
   const undo = (id: string): void => {
     setUndoingId(id)
-    setUndoError(false)
+    setUndoMessage(null)
     void history.undo(scope, id)
-      .then(() => { retry() })
-      .catch(() => { setUndoError(true) })
+      .then((result) => {
+        if (result.kind === 'restored') retry()
+        else if (result.kind === 'expired') setUndoMessage(bindLocale(reviewDict, 'undo.expired'))
+        // blocked: the host already wrote a safe sentence (a file you changed since would be overwritten)
+        else setUndoMessage(result.explanation)
+      })
+      .catch(() => { setUndoMessage(bindLocale(reviewDict, 'undo.failed')) })
       .finally(() => { setUndoingId(null) })
   }
+
+  const listed = state.status === 'ready' ? state.data : null
 
   return (
     <Screen width="full" data-persona-kanban="project-history">
@@ -52,13 +66,14 @@ export function ConnectedProjectHistory({
       <ProjectWorkspaceTabs dict={kanbanDict} value="history" onChange={onWorkspaceTabChange} />
       <ProjectHistoryView
         state={state.status === 'ready' ? 'ready' : state.status === 'error' ? 'error' : 'loading'}
-        entries={state.status === 'ready' ? restorePointsToEntries(state.data, fallbackWho) : []}
-        canUndo={history.available}
+        entries={listed === null ? [] : restorePointsToEntries(listed.points, fallbackWho, taskInfo)}
+        canUndo={history.available && listed?.status === 'available'}
+        unavailable={listed !== null && listed.status !== 'available'}
         undoingId={undoingId}
         onUndo={undo}
         onRetry={retry}
       />
-      {undoError && <p role="alert">{bindLocale(reviewDict, 'undo.failed')}</p>}
+      {undoMessage !== null && <p role="alert">{undoMessage}</p>}
     </Screen>
   )
 }

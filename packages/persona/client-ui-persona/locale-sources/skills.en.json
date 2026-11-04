@@ -1,6 +1,6 @@
 {
   "title": "Skills",
-  "subtitle": "Catalog, versions, ratings, and explicit team promotion",
+  "subtitle": "What the persona knows how to do: catalog, versions, evaluation and promotion to the team",
   "status.active": "Active",
   "status.candidate": "Candidate",
   "action.activate": "Activate",
@@ -16,5 +16,21 @@
   "empty.illustration": "Illustration: empty skills",
   "loading": "Loading skills…",
   "error.title": "I couldn't load the skills right now",
-  "error.retry": "Try again"
+  "error.retry": "Try again",
+  "action.activating": "Turning on…",
+  "action.backToCandidate": "Back to candidate",
+  "action.rollingBack": "Going back…",
+  "status.shared": "Shared",
+  "error.activate": "I could not turn on {name}. If it uses a tool the persona does not have yet, ask for approval first.",
+  "error.rollback": "I could not take {name} back right now. Try again.",
+  "error.share": "I could not share {name} right now. Try again.",
+  "live.activated": "{name} is on.",
+  "live.backToCandidate": "{name} is a candidate again.",
+  "live.rolledBack": "{name} went back to the previous version.",
+  "live.shared": "{name} was shared with the team.",
+  "share.title": "Share {name} with the team?",
+  "share.body": "Other personas will be able to use this skill. You can make it a candidate again later, but whoever already used it is not undone.",
+  "share.confirm": "Share",
+  "share.cancel": "Not now",
+  "share.close": "Close"
 }

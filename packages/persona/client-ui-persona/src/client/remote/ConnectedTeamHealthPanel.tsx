@@ -8,7 +8,6 @@ import type { GovernanceFixKind, TwoDayRowView, TwoDayTestView } from '../govern
 import { deriveTwoDayFromLive } from '../governance/derive-two-day-from-live.ts'
 import { preferDerivedTwoDay } from '../governance/two-day-prefer-derived.ts'
 import { applyGovernanceFix, fetchTeamHealth, fetchTwoDayTest } from '../governance/governance-remote.ts'
-import { MOCK_GESTOR_AUDIT_ACTIVITY } from '../governance/gestor-audit-mock.ts'
 import { gestorActivityPersonaFromLive } from '../governance/gestor-audit-persona.ts'
 import type { ActivityItem, ActivityKind } from '../primitives/Pooled.tsx'
 import { pt as governanceDict } from '../locale/governance/locales.ts'
@@ -97,7 +96,8 @@ export function ConnectedTeamHealthPanel({ persona, useTenant, useLive, openTeam
         }
       })
     }
-    return MOCK_GESTOR_AUDIT_ACTIVITY
+    // No audit from the host = nothing happened that we can vouch for: the screen hides the section (never a sample).
+    return []
   }, [healthState])
 
   return (

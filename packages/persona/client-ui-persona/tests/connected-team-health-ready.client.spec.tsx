@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
 import { createLiveTenantObservable } from '../src/client/data/live-tenant-bridge.ts'
@@ -136,5 +137,49 @@ describe('ConnectedTeamHealthPanel ready (GOV-7)', () => {
     await waitFor(() => {
       expect(applyFix).toHaveBeenCalled()
     })
+  })
+
+  it('no Gestor audit from the host → the section is simply not there (never the sample activity)', async () => {
+    const health = { ...mockTeamHealth('ws-gov'), gestorAudit: [] }
+    const persona = {
+      getTeamHealth: async () => ({ ok: true as const, value: health }),
+      runTwoDayTest: async () => ({ ok: true as const, value: mockTwoDayTest('ws-gov') }),
+    } as never
+    const { useLive, useTenant, useShell } = harness({ ...LIVE_WITH_TEAM, team: null })
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <ConnectedTeamHealthPanel persona={persona} useTenant={useTenant} useLive={useLive} useShell={useShell} />
+      </PreviewFrame>,
+    )
+    await waitFor(() => { expect(screen.getByText(health.findings[0]!.title)).toBeTruthy() })
+    expect(screen.queryByText(governancePt['health.gestorAudit'])).toBeNull()
+    // none of the invented rows ("Pipoca", "alocar Nina… falhou") may appear
+    expect(document.body.textContent).not.toMatch(/Pipoca|alocar Nina/iu)
+  })
+
+  it('real Gestor audit from the host is shown under the real Gestor of the team', async () => {
+    const health = { ...mockTeamHealth('ws-gov'), gestorAudit: [{ id: 'a1', action: 'hire', summary: 'Contratou a Lia como redatora' }] }
+    const persona = {
+      getTeamHealth: async () => ({ ok: true as const, value: health }),
+      runTwoDayTest: async () => ({ ok: true as const, value: mockTwoDayTest('ws-gov') }),
+    } as never
+    const { useLive, useTenant, useShell } = harness(LIVE_WITH_TEAM)
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <ConnectedTeamHealthPanel persona={persona} useTenant={useTenant} useLive={useLive} useShell={useShell} />
+      </PreviewFrame>,
+    )
+    await waitFor(() => { expect(screen.getByText(governancePt['health.gestorAudit'])).toBeTruthy() })
+    // the group summarises what the Gestor did ("contratou 1"); the row itself opens on demand
+    expect(document.body.textContent).toMatch(/contrat/iu)
+    expect(document.body.textContent).not.toMatch(/Pipoca|alocar Nina/iu)
+    expect(screen.getAllByText(/Atlas/u).length).toBeGreaterThan(0) // the team's own Gestor, by name
+  })
+
+  it('guard: no connected panel imports the Gestor audit SAMPLE (it would pass invented activity off as real)', () => {
+    const root = 'C:/Users/migue/dev/persona/packages/persona/client-ui-persona/src/client/'
+    for (const file of ['remote/ConnectedTeamHealthPanel.tsx', 'data/lumen-remote-panels.tsx', 'governance/gestor-audit-persona.ts']) {
+      expect({ file, imports: /gestor-audit-mock/u.test(readFileSync(root + file, 'utf8')) }).toEqual({ file, imports: false })
+    }
   })
 })

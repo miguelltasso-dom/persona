@@ -15,6 +15,14 @@ const OUT = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets')
 const MAX_GIT_BYTES = 10 * 1024 * 1024
 const AVATAR_SIZES = [256, 96, 48]
 const POSE_MAX_HEIGHT = 480
+/**
+ * Muse (BR-P1, Keel D-067 opção b): life frames (blink/tail overlays, aceno, pensando) are only shown in the team strip at
+ * 188 CSS px, so 376 px is an exact 2×. Overlays keep the base crop and are sized by CSS, so they stay pixel-aligned.
+ */
+const LIFE_POSE_MAX_HEIGHT = 376
+/** Same art at q76 is indistinguishable at 3× zoom from q82 (br-p1/q-compare-blink.png) and ~18% lighter. */
+const LIFE_POSE_QUALITY = 76
+const LIFE_POSE = /-(?:disponivel-blink|disponivel-tail|acenando|pensando-\d)$/u
 
 /** @type {Array<{ rel: string, bytes: number }>} */
 const manifest = []
@@ -88,8 +96,10 @@ async function poseDerivative(fromAbs, baseName, box) {
   const width = Math.min(box.full.width - left, box.width + pad * 2)
   const height = Math.min(box.full.height - top, box.height + pad)
   let pipeline = sharp(fromAbs).extract({ left, top, width, height })
-  if (height > POSE_MAX_HEIGHT) pipeline = pipeline.resize({ height: POSE_MAX_HEIGHT })
-  await pipeline.webp({ quality: 82, alphaQuality: 100 }).toFile(toAbs)
+  const life = LIFE_POSE.test(baseName)
+  const maxHeight = life ? LIFE_POSE_MAX_HEIGHT : POSE_MAX_HEIGHT
+  if (height > maxHeight) pipeline = pipeline.resize({ height: maxHeight })
+  await pipeline.webp({ quality: life ? LIFE_POSE_QUALITY : 82, alphaQuality: 100 }).toFile(toAbs)
   track(toRel, toAbs)
 }
 
@@ -121,7 +131,9 @@ async function main() {
   copyTree('brand', (name, rel) => {
     const ext = extname(name).toLowerCase()
     if (rel.includes('concepts/')) return false
-    return ext === '.svg' || ext === '.png'
+    // Muse (BR-P1 budget): the app imports only brand SVGs (+ webp derivatives built below). Brand PNGs (share card,
+    // app icon, logo rasters) serve the site/README/installer straight from persona-assets/ and cost ~1.1 MiB here.
+    return ext === '.svg'
   })
 
   copyTree('icons/nav', () => true)
@@ -182,13 +194,15 @@ async function main() {
     )),
     // Muse (BRIEFING 19): Segundo cérebro home / empty state.
     { from: 'illustrations/bibliotecario.png', to: 'illustrations/bibliotecario.webp', width: 480, quality: 86 },
+    // Muse (BR-P1 P2 nº 2): "Falta uma IA" spot for the composer banner (192 shown at 96).
+    { from: 'illustrations/spot-sem-ia.png', to: 'illustrations/spot-sem-ia.webp', width: 192, quality: 88 },
     // Muse (kit de lançamento): "Sobre a Persona" team photo (Brush, brand/launch).
     { from: 'brand/launch/about-team.png', to: 'illustrations/about-team.webp', width: 960, quality: 86 },
     { from: 'brand/launch/release-notes-badge.png', to: 'illustrations/release-notes-badge.webp', width: 256, quality: 86 },
     ...['equipe-saudavel', 'ponto-unico-falha', 'voce-de-ferias'].map(name => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 600, quality: 86 }
     )),
-    ...['inbox', 'kanban', 'search', 'vault', 'routines', 'connections', 'error', 'dm'].map(name => (
+    ...['inbox', 'kanban', 'search', 'vault', 'routines', 'connections', 'error', 'dm', 'sem-ia'].map(name => (
       { from: `illustrations/empty-${name}.png`, to: `illustrations/empty-${name}.webp`, width: 480, quality: 86 }
     )),
   ]
@@ -232,6 +246,16 @@ async function main() {
   for (const file of readdirSync(join(SRC, 'avatars')).filter(f => f.endsWith('.png'))) {
     const stem = basename(file, '.png')
     await avatarDerivatives(stem, join(SRC, 'avatars', file))
+  }
+
+  // Muse (NOTIFICATIONS-SPEC §3): Windows toasts can't read webp via nativeImage, so the desktop gets 128² PNG faces.
+  // Outside the client tree (not in its 10 MiB budget); Rivet ships apps/desktop/resources/notify-avatars/.
+  const NOTIFY_OUT = join(ROOT, 'apps/desktop/resources/notify-avatars')
+  rmSync(NOTIFY_OUT, { recursive: true, force: true })
+  ensureDir(NOTIFY_OUT)
+  for (const file of readdirSync(join(SRC, 'avatars')).filter(f => f.endsWith('.png') && !f.includes('-blink'))) {
+    await sharp(join(SRC, 'avatars', file)).resize(128, 128, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png({ compressionLevel: 9, palette: false }).toFile(join(NOTIFY_OUT, file))
   }
 
   const poseSources = readdirSync(join(SRC, 'poses')).filter(f => f.endsWith('.png') && !f.startsWith('poses-preview-'))

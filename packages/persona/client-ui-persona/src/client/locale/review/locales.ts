@@ -83,9 +83,6 @@ export const pt = {
   'history.subtitle': 'O que a Persona aplicou na sua pasta. Dá para desfazer por 30 dias.',
   'history.entry.one': '{who} aplicou 1 mudança · {when}',
   'history.entry.many': '{who} aplicou {count} mudanças · {when}',
-  'history.today': 'hoje {time}',
-  'history.yesterday': 'ontem {time}',
-  'history.on': '{date} {time}',
   'history.moreFiles': 'e mais {count}',
   'history.undone': 'Desfeito',
   'history.footer': 'Guardamos as versões de antes por 30 dias.',
@@ -104,6 +101,11 @@ export const pt = {
   'history.error': 'Não consegui abrir o histórico agora.',
   'history.retry': 'Tentar de novo',
   'history.unavailable': 'O histórico fica disponível quando a pasta do projeto tem a Persona ativa.',
+  'conflict.chip': 'Escolha o que fica',
+  'conflict.compare': 'Ver as duas versões lado a lado',
+  'conflict.yours': 'Na sua pasta',
+  'conflict.draftSide': 'No rascunho de {name}',
+  'undo.expired': 'Passou do prazo de 30 dias: não dá mais para desfazer essa.',
 } as const
 
 /** English copy. */
@@ -186,9 +188,6 @@ export const en = {
   'history.subtitle': 'What the Persona applied to your folder. You can undo it for 30 days.',
   'history.entry.one': '{who} applied 1 change · {when}',
   'history.entry.many': '{who} applied {count} changes · {when}',
-  'history.today': 'today {time}',
-  'history.yesterday': 'yesterday {time}',
-  'history.on': '{date} {time}',
   'history.moreFiles': 'and {count} more',
   'history.undone': 'Undone',
   'history.footer': 'We keep the earlier versions for 30 days.',
@@ -207,6 +206,11 @@ export const en = {
   'history.error': 'I couldn’t open the history right now.',
   'history.retry': 'Try again',
   'history.unavailable': 'History is available once the project folder has the Persona turned on.',
+  'conflict.chip': 'Choose what stays',
+  'conflict.compare': 'See both versions side by side',
+  'conflict.yours': 'In your folder',
+  'conflict.draftSide': 'In {name}’s draft',
+  'undo.expired': 'That is past the 30 days: it can’t be undone anymore.',
 } as const
 
 export const zh = {
@@ -288,9 +292,6 @@ export const zh = {
   'history.subtitle': 'What the Persona applied to your folder. You can undo it for 30 days.',
   'history.entry.one': '{who} applied 1 change · {when}',
   'history.entry.many': '{who} applied {count} changes · {when}',
-  'history.today': 'today {time}',
-  'history.yesterday': 'yesterday {time}',
-  'history.on': '{date} {time}',
   'history.moreFiles': 'and {count} more',
   'history.undone': 'Undone',
   'history.footer': 'We keep the earlier versions for 30 days.',
@@ -309,6 +310,11 @@ export const zh = {
   'history.error': 'I couldn’t open the history right now.',
   'history.retry': 'Try again',
   'history.unavailable': 'History is available once the project folder has the Persona turned on.',
+  'conflict.chip': 'Choose what stays',
+  'conflict.compare': 'See both versions side by side',
+  'conflict.yours': 'In your folder',
+  'conflict.draftSide': 'In {name}’s draft',
+  'undo.expired': 'That is past the 30 days: it can’t be undone anymore.',
 } as const
 export const ja = {
   'title': 'Review changes',
@@ -389,9 +395,6 @@ export const ja = {
   'history.subtitle': 'What the Persona applied to your folder. You can undo it for 30 days.',
   'history.entry.one': '{who} applied 1 change · {when}',
   'history.entry.many': '{who} applied {count} changes · {when}',
-  'history.today': 'today {time}',
-  'history.yesterday': 'yesterday {time}',
-  'history.on': '{date} {time}',
   'history.moreFiles': 'and {count} more',
   'history.undone': 'Undone',
   'history.footer': 'We keep the earlier versions for 30 days.',
@@ -410,6 +413,11 @@ export const ja = {
   'history.error': 'I couldn’t open the history right now.',
   'history.retry': 'Try again',
   'history.unavailable': 'History is available once the project folder has the Persona turned on.',
+  'conflict.chip': 'Choose what stays',
+  'conflict.compare': 'See both versions side by side',
+  'conflict.yours': 'In your folder',
+  'conflict.draftSide': 'In {name}’s draft',
+  'undo.expired': 'That is past the 30 days: it can’t be undone anymore.',
 } as const
 export const es = {
   'title': 'Review changes',
@@ -490,9 +498,6 @@ export const es = {
   'history.subtitle': 'What the Persona applied to your folder. You can undo it for 30 days.',
   'history.entry.one': '{who} applied 1 change · {when}',
   'history.entry.many': '{who} applied {count} changes · {when}',
-  'history.today': 'today {time}',
-  'history.yesterday': 'yesterday {time}',
-  'history.on': '{date} {time}',
   'history.moreFiles': 'and {count} more',
   'history.undone': 'Undone',
   'history.footer': 'We keep the earlier versions for 30 days.',
@@ -511,6 +516,11 @@ export const es = {
   'history.error': 'I couldn’t open the history right now.',
   'history.retry': 'Try again',
   'history.unavailable': 'History is available once the project folder has the Persona turned on.',
+  'conflict.chip': 'Choose what stays',
+  'conflict.compare': 'See both versions side by side',
+  'conflict.yours': 'In your folder',
+  'conflict.draftSide': 'In {name}’s draft',
+  'undo.expired': 'That is past the 30 days: it can’t be undone anymore.',
 } as const
 export const fr = {
   'title': 'Review changes',
@@ -591,9 +601,6 @@ export const fr = {
   'history.subtitle': 'What the Persona applied to your folder. You can undo it for 30 days.',
   'history.entry.one': '{who} applied 1 change · {when}',
   'history.entry.many': '{who} applied {count} changes · {when}',
-  'history.today': 'today {time}',
-  'history.yesterday': 'yesterday {time}',
-  'history.on': '{date} {time}',
   'history.moreFiles': 'and {count} more',
   'history.undone': 'Undone',
   'history.footer': 'We keep the earlier versions for 30 days.',
@@ -612,6 +619,11 @@ export const fr = {
   'history.error': 'I couldn’t open the history right now.',
   'history.retry': 'Try again',
   'history.unavailable': 'History is available once the project folder has the Persona turned on.',
+  'conflict.chip': 'Choose what stays',
+  'conflict.compare': 'See both versions side by side',
+  'conflict.yours': 'In your folder',
+  'conflict.draftSide': 'In {name}’s draft',
+  'undo.expired': 'That is past the 30 days: it can’t be undone anymore.',
 } as const
 export const de = {
   'title': 'Review changes',
@@ -692,9 +704,6 @@ export const de = {
   'history.subtitle': 'What the Persona applied to your folder. You can undo it for 30 days.',
   'history.entry.one': '{who} applied 1 change · {when}',
   'history.entry.many': '{who} applied {count} changes · {when}',
-  'history.today': 'today {time}',
-  'history.yesterday': 'yesterday {time}',
-  'history.on': '{date} {time}',
   'history.moreFiles': 'and {count} more',
   'history.undone': 'Undone',
   'history.footer': 'We keep the earlier versions for 30 days.',
@@ -713,6 +722,11 @@ export const de = {
   'history.error': 'I couldn’t open the history right now.',
   'history.retry': 'Try again',
   'history.unavailable': 'History is available once the project folder has the Persona turned on.',
+  'conflict.chip': 'Choose what stays',
+  'conflict.compare': 'See both versions side by side',
+  'conflict.yours': 'In your folder',
+  'conflict.draftSide': 'In {name}’s draft',
+  'undo.expired': 'That is past the 30 days: it can’t be undone anymore.',
 } as const
 export const ru = {
   'title': 'Review changes',
@@ -793,9 +807,6 @@ export const ru = {
   'history.subtitle': 'What the Persona applied to your folder. You can undo it for 30 days.',
   'history.entry.one': '{who} applied 1 change · {when}',
   'history.entry.many': '{who} applied {count} changes · {when}',
-  'history.today': 'today {time}',
-  'history.yesterday': 'yesterday {time}',
-  'history.on': '{date} {time}',
   'history.moreFiles': 'and {count} more',
   'history.undone': 'Undone',
   'history.footer': 'We keep the earlier versions for 30 days.',
@@ -814,6 +825,11 @@ export const ru = {
   'history.error': 'I couldn’t open the history right now.',
   'history.retry': 'Try again',
   'history.unavailable': 'History is available once the project folder has the Persona turned on.',
+  'conflict.chip': 'Choose what stays',
+  'conflict.compare': 'See both versions side by side',
+  'conflict.yours': 'In your folder',
+  'conflict.draftSide': 'In {name}’s draft',
+  'undo.expired': 'That is past the 30 days: it can’t be undone anymore.',
 } as const
 
 export type ReviewKey = keyof typeof pt

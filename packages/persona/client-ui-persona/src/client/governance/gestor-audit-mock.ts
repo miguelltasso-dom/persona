@@ -1,7 +1,10 @@
 import type { ActivityItem } from '../primitives/Pooled.tsx'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 
-/** Preview until Anvil exposes gestor audit on `getTeamHealth` (GES-5). */
+/**
+ * SAMPLE for tests and component previews ONLY. A connected panel must never import this: it would show invented
+ * activity ("Pipoca contratada", "alocar Nina falhou") as if the team had done it. (Guarded by connected-team-health-ready.)
+ */
 export const MOCK_GESTOR_AUDIT_ACTIVITY: readonly ActivityItem[] = [
   {
     id: 'g1',

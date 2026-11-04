@@ -96,7 +96,21 @@
   border-bottom: 1px solid var(--persona-wash);
 }
 
+.listRow {
+  cursor: pointer;
+}
+
+.listRow:hover {
+  background: var(--persona-wash);
+}
+
+.listRow[data-selected] {
+  background: var(--persona-wash);
+  box-shadow: inset 4px 0 0 var(--persona-brand);
+}
+
 .listRow:focus-visible {
-  outline: 2px solid var(--persona-accent);
+  outline: 2px solid var(--persona-ink);
   outline-offset: -2px;
+  box-shadow: inset 0 0 0 4px var(--persona-focus-halo);
 }

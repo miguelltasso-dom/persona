@@ -51,6 +51,11 @@ export function healthFixActionLabel(dict: LocaleDict, fixKind: GovernanceFixKin
   return label === key ? t('health.fix') : label
 }
 
+export function orgChartPersonasSubtitle(dict: LocaleDict, personas: number): string {
+  const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
+  return personas === 1 ? t('org.subtitlePersonasOne') : t('org.subtitlePersonas', { count: personas })
+}
+
 export function orgChartHumansSubtitle(dict: LocaleDict, humans: number): string {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   return humans === 1 ? t('org.subtitleHumansOne') : t('org.subtitleHumansMany', { count: humans })

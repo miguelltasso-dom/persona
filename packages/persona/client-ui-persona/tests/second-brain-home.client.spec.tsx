@@ -96,4 +96,24 @@ describe('SecondBrainHome (SB-5)', () => {
     const results = screen.getByRole('region', { name: pt['search.results'].replace('{count}', '1') })
     expect(within(results).getByRole('button', { name: 'Processo de vendas' })).toBeTruthy()
   })
+
+  it('SB-7: a permission that already ran out is not listed as active, and not counted', () => {
+    const now = Date.parse('2026-11-04T12:00:00.000Z')
+    const home: BrainHomeView = {
+      ...HOME,
+      activeGrants: [
+        { id: 'g-live', pageId: 'p1', personaId: 'atlas', action: 'editar', target: 'Missão', validity: '7d', expiresAt: '2026-11-09T12:00:00.000Z', useCount: 0 },
+        { id: 'g-gone', pageId: 'p1', personaId: 'atlas', action: 'editar', target: 'Cardápio antigo', validity: '7d', expiresAt: '2026-11-01T12:00:00.000Z', useCount: 0 },
+        { id: 'g-forever', pageId: 'p1', personaId: 'atlas', action: 'ler', target: 'Preços', validity: 'until-revoke', useCount: 3 },
+      ],
+    }
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <SecondBrainHome dict={pt} home={home} pages={[brainPage({ id: 'p1', title: 'Missão da empresa' })]} personaNames={{ atlas: 'Atlas' }} nowMs={now} />
+      </PreviewFrame>,
+    )
+    expect(screen.queryByText(/Cardápio antigo/u)).toBeNull()
+    expect(screen.getAllByText(/Preços/u).length).toBeGreaterThan(0) // forever grant stays
+    expect(screen.getAllByText(/Missão/u).length).toBeGreaterThan(0) // 7-day grant still inside its week
+  })
 })

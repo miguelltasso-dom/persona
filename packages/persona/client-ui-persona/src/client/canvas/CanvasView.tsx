@@ -46,9 +46,13 @@ export function CanvasView({
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
   const [listFocusIndex, setListFocusIndex] = useState(0)
   const listRowRefs = useRef<(HTMLTableRowElement | null)[]>([])
+  // Focus moves to a row only after an arrow/Home/End press inside the list. Switching to the list tab must leave
+  // focus on the tab (a keyboard user can still arrow back to "Canvas").
+  const moveFocusToRow = useRef(false)
 
   useLayoutEffect(() => {
-    if (mode !== 'list') return
+    if (mode !== 'list' || !moveFocusToRow.current) return
+    moveFocusToRow.current = false
     listRowRefs.current[listFocusIndex]?.focus()
   }, [mode, listFocusIndex])
 
@@ -59,6 +63,19 @@ export function CanvasView({
   }, [])
 
   const nodeMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes])
+  // The map shows relations as lines; the list says them in words so nothing depends on seeing the picture.
+  const relationsOf = useMemo(() => {
+    const out = new Map<string, string[]>()
+    const push = (id: string, text: string): void => { out.set(id, [...(out.get(id) ?? []), text]) }
+    for (const edge of edges) {
+      const from = nodeMap.get(edge.from)
+      const to = nodeMap.get(edge.to)
+      if (from === undefined || to === undefined) continue
+      push(from.id, t('link.to', { label: to.label }))
+      push(to.id, t('link.from', { label: from.label }))
+    }
+    return out
+  }, [edges, nodeMap, dict])
 
   const header = (
     <ScreenHeader
@@ -132,11 +149,13 @@ export function CanvasView({
       )}
       {mode === 'list' ? (
         <Card padding="none">
-          <table className={styles.listTable}>
+          <p id="canvas-list-hint" className={styles.graphHint}>{t('a11y.listHint')}</p>
+          <table className={styles.listTable} aria-label={t('a11y.listRegion')} aria-describedby="canvas-list-hint">
             <thead>
               <tr>
                 <th scope="col">{t('column.type')}</th>
                 <th scope="col">{t('column.label')}</th>
+                <th scope="col">{t('column.links')}</th>
               </tr>
             </thead>
             <tbody>
@@ -146,29 +165,49 @@ export function CanvasView({
                   ref={(el) => { listRowRefs.current[index] = el }}
                   tabIndex={index === listFocusIndex ? 0 : -1}
                   className={styles.listRow}
+                  data-selected={focusedNodeId === node.id ? '' : undefined}
+                  aria-current={focusedNodeId === node.id ? 'true' : undefined}
                   onFocus={() => { setListFocusIndex(index) }}
+                  onClick={() => { setFocusedNodeId(node.id); setListFocusIndex(index) }}
                   onKeyDown={(event) => {
                     if (event.key === 'ArrowDown') {
                       event.preventDefault()
+                      moveFocusToRow.current = true
                       setListFocusIndex(i => Math.min(nodes.length - 1, i + 1))
                     } else if (event.key === 'ArrowUp') {
                       event.preventDefault()
+                      moveFocusToRow.current = true
                       setListFocusIndex(i => Math.max(0, i - 1))
                     } else if (event.key === 'Home') {
                       event.preventDefault()
+                      moveFocusToRow.current = true
                       setListFocusIndex(0)
                     } else if (event.key === 'End') {
                       event.preventDefault()
+                      moveFocusToRow.current = true
                       setListFocusIndex(Math.max(0, nodes.length - 1))
+                    } else if (event.key === 'Enter' || event.key === ' ') {
+                      // Same selection as the map: the item stays selected when the person switches views.
+                      event.preventDefault()
+                      setFocusedNodeId(node.id)
                     }
                   }}
                 >
                   <td>{t(`legend.${node.kind}`)}</td>
                   <td>{node.label}</td>
+                  <td>{(relationsOf.get(node.id) ?? []).join(' · ') || t('link.none')}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {focusedNodeId !== null && nodeMap.has(focusedNodeId) && (
+            <p className={styles.selectionStatus} role="status" aria-live="polite">
+              {t('a11y.nodeType', {
+                type: t(`legend.${nodeMap.get(focusedNodeId)?.kind ?? 'task'}`),
+                label: nodeMap.get(focusedNodeId)?.label ?? '',
+              })}
+            </p>
+          )}
         </Card>
       ) : (
         <Card padding="none" className={styles.viewportCard}>

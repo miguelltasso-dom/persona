@@ -16,6 +16,11 @@ export interface MembersViewProps {
   readonly onRemoteRetry?: () => void
   readonly onEmptyPrimary?: (() => void) | undefined
   readonly onInvite?: (() => void) | undefined
+  /**
+   * Per-member "Revogar acesso". Only shown when a handler exists: the host revokes by accepted invite (see Equipe remota),
+   * so a button with nothing behind it would be a dead control.
+   */
+  readonly onRevokeMember?: ((memberId: string) => void) | undefined
   /** Seção extra abaixo da lista (E13: Equipe remota). Aparece também quando só o dono está na equipe. */
   readonly extra?: ReactNode
 }
@@ -27,6 +32,7 @@ export function MembersView({
   onRemoteRetry,
   onEmptyPrimary,
   onInvite,
+  onRevokeMember,
   extra,
 }: MembersViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
@@ -101,8 +107,8 @@ export function MembersView({
                 <Chip tone="brand" size="s">{t(`role.${member.role}`)}</Chip>
                 <Chip tone="neutral" size="s">{t(`status.${member.status}`)}</Chip>
               </div>
-              {member.isSelf !== true && (
-                <Button variant="secondary" size="s">{t('action.revoke')}</Button>
+              {member.isSelf !== true && onRevokeMember !== undefined && (
+                <Button variant="secondary" size="s" onClick={() => { onRevokeMember(member.id) }}>{t('action.revoke')}</Button>
               )}
             </Card>
           </li>

@@ -31,6 +31,8 @@ export const DECISION_UNDO_MS = 6000
 export interface DecisionRequester {
   readonly personaId: string
   readonly name: string
+  /** Portrait of the persona, resolved from the real team (absent for the system / an unknown persona). */
+  readonly avatarSrc?: string | undefined
 }
 
 export interface Decision {

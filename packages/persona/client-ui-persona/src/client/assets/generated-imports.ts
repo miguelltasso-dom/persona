@@ -99,6 +99,7 @@ import pose_luna_pensando_2 from './poses/luna-pensando-2.webp'
 import pose_luna_pensando_3 from './poses/luna-pensando-3.webp'
 import pose_luna_revisando from './poses/luna-revisando.webp'
 import pose_luna_trabalhando from './poses/luna-trabalhando.webp'
+import pose_mico_leao_dourado_disponivel from './poses/mico-leao-dourado-disponivel.webp'
 import pose_nina_acenando from './poses/nina-acenando.webp'
 import pose_nina_aguardando_aprovacao from './poses/nina-aguardando-aprovacao.webp'
 import pose_nina_aguardando_resposta from './poses/nina-aguardando-resposta.webp'
@@ -151,20 +152,32 @@ import pose_sol_pensando_2 from './poses/sol-pensando-2.webp'
 import pose_sol_pensando_3 from './poses/sol-pensando-3.webp'
 import pose_sol_revisando from './poses/sol-revisando.webp'
 import pose_sol_trabalhando from './poses/sol-trabalhando.webp'
+import pose_tamandua_acenando from './poses/tamandua-acenando.webp'
 import pose_tamandua_aguardando_aprovacao from './poses/tamandua-aguardando-aprovacao.webp'
 import pose_tamandua_aguardando_resposta from './poses/tamandua-aguardando-resposta.webp'
 import pose_tamandua_descansando from './poses/tamandua-descansando.webp'
+import pose_tamandua_disponivel_blink from './poses/tamandua-disponivel-blink.webp'
+import pose_tamandua_disponivel_tail from './poses/tamandua-disponivel-tail.webp'
 import pose_tamandua_disponivel from './poses/tamandua-disponivel.webp'
 import pose_tamandua_erro from './poses/tamandua-erro.webp'
 import pose_tamandua_offline from './poses/tamandua-offline.webp'
+import pose_tamandua_pensando_1 from './poses/tamandua-pensando-1.webp'
+import pose_tamandua_pensando_2 from './poses/tamandua-pensando-2.webp'
+import pose_tamandua_pensando_3 from './poses/tamandua-pensando-3.webp'
 import pose_tamandua_revisando from './poses/tamandua-revisando.webp'
 import pose_tamandua_trabalhando from './poses/tamandua-trabalhando.webp'
+import pose_tucano_acenando from './poses/tucano-acenando.webp'
 import pose_tucano_aguardando_aprovacao from './poses/tucano-aguardando-aprovacao.webp'
 import pose_tucano_aguardando_resposta from './poses/tucano-aguardando-resposta.webp'
 import pose_tucano_descansando from './poses/tucano-descansando.webp'
+import pose_tucano_disponivel_blink from './poses/tucano-disponivel-blink.webp'
+import pose_tucano_disponivel_tail from './poses/tucano-disponivel-tail.webp'
 import pose_tucano_disponivel from './poses/tucano-disponivel.webp'
 import pose_tucano_erro from './poses/tucano-erro.webp'
 import pose_tucano_offline from './poses/tucano-offline.webp'
+import pose_tucano_pensando_1 from './poses/tucano-pensando-1.webp'
+import pose_tucano_pensando_2 from './poses/tucano-pensando-2.webp'
+import pose_tucano_pensando_3 from './poses/tucano-pensando-3.webp'
 import pose_tucano_revisando from './poses/tucano-revisando.webp'
 import pose_tucano_trabalhando from './poses/tucano-trabalhando.webp'
 import nav_arquivos from './icons/nav/arquivos.svg'
@@ -223,6 +236,8 @@ import av96_lontra_blink from './avatars/lontra-blink-96.webp'
 import av96_lontra from './avatars/lontra-96.webp'
 import av96_luna_blink from './avatars/luna-blink-96.webp'
 import av96_luna from './avatars/luna-96.webp'
+import av96_mico_leao_dourado_blink from './avatars/mico-leao-dourado-blink-96.webp'
+import av96_mico_leao_dourado from './avatars/mico-leao-dourado-96.webp'
 import av96_nina_blink from './avatars/nina-blink-96.webp'
 import av96_nina from './avatars/nina-96.webp'
 import av96_ourico_blink from './avatars/ourico-blink-96.webp'
@@ -315,6 +330,7 @@ import ill_ensinar_nina from './illustrations/ensinar-nina.webp'
 import ill_ensinar_sol from './illustrations/ensinar-sol.webp'
 import ill_ensinar_luna from './illustrations/ensinar-luna.webp'
 import ill_bibliotecario from './illustrations/bibliotecario.webp'
+import ill_spot_sem_ia from './illustrations/spot-sem-ia.webp'
 import ill_about_team from './illustrations/about-team.webp'
 import ill_release_notes_badge from './illustrations/release-notes-badge.webp'
 import ill_equipe_saudavel from './illustrations/equipe-saudavel.webp'
@@ -328,6 +344,7 @@ import ill_empty_routines from './illustrations/empty-routines.webp'
 import ill_empty_connections from './illustrations/empty-connections.webp'
 import ill_empty_error from './illustrations/empty-error.webp'
 import ill_empty_dm from './illustrations/empty-dm.webp'
+import ill_empty_sem_ia from './illustrations/empty-sem-ia.webp'
 import sticker_atlas_comemorando from './stickers/atlas-comemorando.webp'
 import sticker_atlas_coracao from './stickers/atlas-coracao.webp'
 import sticker_atlas_feito from './stickers/atlas-feito.webp'
@@ -531,6 +548,7 @@ registerPoseUrl('luna-pensando-2', pose_luna_pensando_2)
 registerPoseUrl('luna-pensando-3', pose_luna_pensando_3)
 registerPoseUrl('luna-revisando', pose_luna_revisando)
 registerPoseUrl('luna-trabalhando', pose_luna_trabalhando)
+registerPoseUrl('mico-leao-dourado-disponivel', pose_mico_leao_dourado_disponivel)
 registerPoseUrl('nina-acenando', pose_nina_acenando)
 registerPoseUrl('nina-aguardando-aprovacao', pose_nina_aguardando_aprovacao)
 registerPoseUrl('nina-aguardando-resposta', pose_nina_aguardando_resposta)
@@ -583,20 +601,32 @@ registerPoseUrl('sol-pensando-2', pose_sol_pensando_2)
 registerPoseUrl('sol-pensando-3', pose_sol_pensando_3)
 registerPoseUrl('sol-revisando', pose_sol_revisando)
 registerPoseUrl('sol-trabalhando', pose_sol_trabalhando)
+registerPoseUrl('tamandua-acenando', pose_tamandua_acenando)
 registerPoseUrl('tamandua-aguardando-aprovacao', pose_tamandua_aguardando_aprovacao)
 registerPoseUrl('tamandua-aguardando-resposta', pose_tamandua_aguardando_resposta)
 registerPoseUrl('tamandua-descansando', pose_tamandua_descansando)
+registerPoseUrl('tamandua-disponivel-blink', pose_tamandua_disponivel_blink)
+registerPoseUrl('tamandua-disponivel-tail', pose_tamandua_disponivel_tail)
 registerPoseUrl('tamandua-disponivel', pose_tamandua_disponivel)
 registerPoseUrl('tamandua-erro', pose_tamandua_erro)
 registerPoseUrl('tamandua-offline', pose_tamandua_offline)
+registerPoseUrl('tamandua-pensando-1', pose_tamandua_pensando_1)
+registerPoseUrl('tamandua-pensando-2', pose_tamandua_pensando_2)
+registerPoseUrl('tamandua-pensando-3', pose_tamandua_pensando_3)
 registerPoseUrl('tamandua-revisando', pose_tamandua_revisando)
 registerPoseUrl('tamandua-trabalhando', pose_tamandua_trabalhando)
+registerPoseUrl('tucano-acenando', pose_tucano_acenando)
 registerPoseUrl('tucano-aguardando-aprovacao', pose_tucano_aguardando_aprovacao)
 registerPoseUrl('tucano-aguardando-resposta', pose_tucano_aguardando_resposta)
 registerPoseUrl('tucano-descansando', pose_tucano_descansando)
+registerPoseUrl('tucano-disponivel-blink', pose_tucano_disponivel_blink)
+registerPoseUrl('tucano-disponivel-tail', pose_tucano_disponivel_tail)
 registerPoseUrl('tucano-disponivel', pose_tucano_disponivel)
 registerPoseUrl('tucano-erro', pose_tucano_erro)
 registerPoseUrl('tucano-offline', pose_tucano_offline)
+registerPoseUrl('tucano-pensando-1', pose_tucano_pensando_1)
+registerPoseUrl('tucano-pensando-2', pose_tucano_pensando_2)
+registerPoseUrl('tucano-pensando-3', pose_tucano_pensando_3)
 registerPoseUrl('tucano-revisando', pose_tucano_revisando)
 registerPoseUrl('tucano-trabalhando', pose_tucano_trabalhando)
 
@@ -660,6 +690,8 @@ export const AVATAR_96 = {
   'lontra': av96_lontra,
   'luna-blink': av96_luna_blink,
   'luna': av96_luna,
+  'mico-leao-dourado-blink': av96_mico_leao_dourado_blink,
+  'mico-leao-dourado': av96_mico_leao_dourado,
   'nina-blink': av96_nina_blink,
   'nina': av96_nina,
   'ourico-blink': av96_ourico_blink,
@@ -890,6 +922,7 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'ensinar-sol': ill_ensinar_sol,
   'ensinar-luna': ill_ensinar_luna,
   'bibliotecario': ill_bibliotecario,
+  'spot-sem-ia': ill_spot_sem_ia,
   'about-team': ill_about_team,
   'release-notes-badge': ill_release_notes_badge,
   'equipe-saudavel': ill_equipe_saudavel,
@@ -903,6 +936,7 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'empty-connections': ill_empty_connections,
   'empty-error': ill_empty_error,
   'empty-dm': ill_empty_dm,
+  'empty-sem-ia': ill_empty_sem_ia,
 }
 
 export { logoHorizontalLight, symbol }

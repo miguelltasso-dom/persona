@@ -149,6 +149,7 @@ describe('ConnectedGlobalKanban with real observables', () => {
         memberId: 'm1',
         channelId: 'ch',
       },
+      projects: [{ id: 'proj', name: 'Contratação — Designer', kind: 'team' }],
       kanbanCards: [{
         id: 'card-1',
         title: 'Briefing',
@@ -156,7 +157,7 @@ describe('ConnectedGlobalKanban with real observables', () => {
         teamId: 'team',
         teamName: 'Team',
         projectId: 'proj',
-        projectName: 'Proj',
+        projectName: 'Contratação — Designer',
         blocked: false,
         reviewApproved: false,
         waitingEvent: false,
@@ -198,6 +199,7 @@ describe('ConnectedGlobalKanban with real observables', () => {
         memberId: 'm1',
         channelId: 'ch',
       },
+      projects: [{ id: 'proj-contratacao', name: 'Contratação — Designer', kind: 'team' }],
       kanbanCards: [{
         id: 'card-1',
         title: 'Briefing',

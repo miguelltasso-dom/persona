@@ -76,6 +76,23 @@
   color: var(--persona-ink);
 }
 
+/* Muse: the chosen card carries a check mark, so the choice never rests on wash/shadow alone (conflito do rascunho, SW-7 §6). */
+.card[data-checked]::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23120c18' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E")
+    center / 14px no-repeat;
+  pointer-events: none;
+}
+
 .card[data-checked] .icon {
   background: var(--persona-accent);
   color: var(--persona-outline);
@@ -86,6 +103,8 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  /* Room for the check mark, reserved always so choosing never reflows the text. */
+  padding-right: 24px;
 }
 
 .title {

@@ -75,6 +75,7 @@ import {
 } from '../decisions/decision-types.ts'
 import { deriveDecisions, type HostApprovalCard } from '../decisions/derive-decisions.ts'
 import { openBlockingTitles } from '../decisions/decision-selectors.ts'
+import { withRequesterAvatars } from '../decisions/requester-avatars.ts'
 
 export type { Decision, DecisionState } from '../decisions/decision-types.ts'
 
@@ -206,7 +207,12 @@ export interface PersonaLiveStore {
   startTeachPersona(personaId: string, consentVersion: string, microphone: boolean): Promise<TeachSessionStartView>
   pauseTeachSession(sessionId: string): Promise<TeachSessionView>
   resumeTeachSession(sessionId: string): Promise<TeachSessionView>
-  stopTeachSession(sessionId: string, microphone: boolean, transcript?: string): Promise<TeachSessionView>
+  stopTeachSession(
+    sessionId: string,
+    microphone: boolean,
+    transcript?: string,
+    frames?: StopTeachSessionRequest['frames'],
+  ): Promise<TeachSessionView>
   getTeachSession(sessionId: string): Promise<TeachSessionView>
   getTeachDraft(sessionId: string): Promise<TeachDraftView>
   submitTeachDraft(sessionId: string, steps: readonly TeachStepView[], activate: boolean): Promise<TeachDraftView>
@@ -436,6 +442,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   const subjectsInflight = new Map<string, Promise<MappedConversationSubjects>>()
   let arrivingUntil: Record<string, number> = {}
   const decisionStates = new Map<string, DecisionState>()
+  /** Decisions the host confirmed (id → ms): a refresh that STARTED before that moment may carry the old list. */
+  const settledDecisions = new Map<string, number>()
   const decisionTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   const activeArrivingIds = (nowMs: number = Date.now()): Set<string> => {
@@ -539,6 +547,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
 
   const refresh = async (): Promise<void> => {
     if (tenant === null) return
+    const refreshStartedAt = Date.now()
     try {
       const scope = tenant
       const prior = store.getSnapshot()
@@ -606,12 +615,23 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           ? settleOptionalRemote(() => Promise.resolve(remote.listDailySummaries!(scope)), [])
           : Promise.resolve([]),
       ])
-      const decisions = deriveDecisions({
-        needsYou: overview.needsYou,
-        approvals: rawApprovals,
-        dailySummaries: rawSummaries,
-        statesById: decisionStates,
-      })
+      // A confirmation newer than this refresh means its list may be the old one: keep those cards out. Older ones are
+      // already in the host's answer, so their marker can go.
+      const staleIds = new Set<string>()
+      for (const [id, settledAt] of settledDecisions) {
+        if (settledAt >= refreshStartedAt) staleIds.add(id)
+        else settledDecisions.delete(id)
+      }
+      const decisions = withRequesterAvatars(
+        deriveDecisions({
+          needsYou: overview.needsYou,
+          approvals: rawApprovals,
+          dailySummaries: rawSummaries,
+          statesById: decisionStates,
+          settledIds: staleIds,
+        }),
+        team.personas,
+      )
       // One list, one count: what blocks the team is derived from the same Decision[] every screen reads.
       const attentionTitles = openBlockingTitles(decisions)
       const taskTitleById = new Map(tasks.map(task => [task.id, task.title]))
@@ -1349,6 +1369,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     sessionId: string,
     microphone: boolean,
     transcript?: string,
+    frames?: StopTeachSessionRequest['frames'],
   ): Promise<TeachSessionView> => {
     const scope = teachScope()
     if (scope === null || remote.stopTeachSession === undefined) return { status: 'unsupported', elapsedMs: 0 }
@@ -1357,7 +1378,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       sessionId,
       includeMicrophone: microphone,
       ...(transcript === undefined ? {} : { transcript }),
-      frames: [],
+      // W2-10: the key frames the desktop kept (imageRef + change score); empty when nothing was recorded.
+      frames: frames ?? [],
     }))
   }
 
@@ -1503,6 +1525,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       return 'failed'
     }
     const nextState: DecisionState = accept ? 'accepted' : 'declined'
+    settledDecisions.set(decisionId, Date.now())
     setDecisionState(decisionId, nextState)
     const existingTimer = decisionTimers.get(decisionId)
     if (existingTimer !== undefined) clearTimeout(existingTimer)
@@ -1521,6 +1544,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       projectId: tenant.projectId,
       id: decisionId,
     }))
+    settledDecisions.delete(decisionId)
     await refresh()
   }
 
@@ -1532,6 +1556,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     for (const timer of decisionTimers.values()) clearTimeout(timer)
     decisionTimers.clear()
     decisionStates.clear()
+    settledDecisions.clear()
   }
 
   return {

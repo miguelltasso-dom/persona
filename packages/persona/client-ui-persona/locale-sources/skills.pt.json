@@ -1,6 +1,6 @@
 {
   "title": "Skills",
-  "subtitle": "Catálogo, versões, avaliação e promoção para a equipe",
+  "subtitle": "O que a persona sabe fazer: catálogo, versões, avaliação e promoção para a equipe",
   "status.active": "Ativa",
   "status.candidate": "Candidata",
   "action.activate": "Ativar",
@@ -16,5 +16,21 @@
   "empty.illustration": "Ilustração: skills vazias",
   "loading": "Carregando skills…",
   "error.title": "Não consegui carregar as skills agora",
-  "error.retry": "Tentar de novo"
+  "error.retry": "Tentar de novo",
+  "action.activating": "Ativando…",
+  "action.backToCandidate": "Voltar a candidata",
+  "action.rollingBack": "Voltando…",
+  "status.shared": "Compartilhada",
+  "error.activate": "Não consegui ativar {name}. Se ela usa uma ferramenta que a persona ainda não tem, peça a aprovação antes.",
+  "error.rollback": "Não consegui voltar {name} agora. Tente de novo.",
+  "error.share": "Não consegui compartilhar {name} agora. Tente de novo.",
+  "live.activated": "{name} está ativa.",
+  "live.backToCandidate": "{name} voltou a ser candidata.",
+  "live.rolledBack": "{name} voltou à versão anterior.",
+  "live.shared": "{name} foi compartilhada com a equipe.",
+  "share.title": "Compartilhar {name} com a equipe?",
+  "share.body": "Outras personas passam a poder usar esta skill. Você pode voltar a candidata depois, mas quem já a usou não é desfeito.",
+  "share.confirm": "Compartilhar",
+  "share.cancel": "Agora não",
+  "share.close": "Fechar"
 }

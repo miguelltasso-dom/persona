@@ -131,6 +131,7 @@ export function DraftReviewPanel({
                 key={file.id}
                 change={file}
                 labels={rowLabels}
+                badge={file.conflict === true ? { label: t('conflict.chip'), tone: 'warning' } : undefined}
                 expanded={open.has(file.id)}
                 onToggle={() => { toggle(file.id) }}
               >

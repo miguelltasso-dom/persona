@@ -41,7 +41,7 @@
   "team.channelStripTitle": "Your team in this channel",
   "team.memberCount": "{count} members",
   "team.statusWorking": "Working",
-  "team.statusResting": "Resting · zzz",
+  "team.statusResting": "Resting",
   "team.statusStuck": "Needs help",
   "team.statusWaiting": "Waiting on you",
   "overview.nowTitle": "Now",
@@ -157,5 +157,7 @@
   "decision.kind.skill": "Skill",
   "decision.kind.proactive": "Suggestion",
   "decision.kind.blocker": "Waiting on you",
-  "sidebar.approvalsPending": "{count} pending"
+  "sidebar.approvalsPending": "{count} pending",
+  "overview.attentionCount.one": "1 pending",
+  "sidebar.approvalsPending.one": "1 pending"
 }

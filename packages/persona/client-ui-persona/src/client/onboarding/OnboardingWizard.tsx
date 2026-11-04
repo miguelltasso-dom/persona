@@ -1,9 +1,10 @@
 /** Five-step onboarding (DESIGN-SYSTEM §7): illustrated stage with the team arriving + one focused form per step. */
 
-import { useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { writeOnboardingBycDraft } from '../bring-context/onboarding-byc-draft.ts'
 import { StructureAssistant } from '../governance/StructureAssistant.tsx'
 import { structurePlanToRoster } from '../governance/structure-plan-to-roster.ts'
+import { activityGroupLabelsFromDict } from '../governance/activity-group-labels.ts'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
 import { Avatar, Button, Chip, Input, Notice, PawBurst, Textarea, UiIcon } from '../primitives/index.ts'
@@ -16,6 +17,7 @@ import type { OnboardingState } from './create-onboarding-store.ts'
 import type { createOnboardingStore } from './create-onboarding-store.ts'
 import { BuilderThread } from './BuilderThread.tsx'
 import { OnboardingStepMotion } from './OnboardingStepMotion.tsx'
+import { focusStepStart } from './use-focus-trap.ts'
 import { BringYourContextBlock } from '../bring-context/BringYourContextBlock.tsx'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import { VaultCofrePanel } from './VaultCofrePanel.tsx'
@@ -79,7 +81,7 @@ function OnboardingStage({ t, step }: { readonly t: (key: string) => string; rea
   const bannerDark = ILLUSTRATIONS['team-banner-dark']
   const visible = step >= 5 ? CAST : CAST.slice(0, Math.min(CAST.length, step + 1))
   return (
-    <div className={styles.stage} aria-hidden="true">
+    <div className={styles.stage} data-compact={step >= 5 ? '' : undefined} aria-hidden="true">
       {banner !== undefined && <img className={styles.stageLight} src={banner} alt="" />}
       {bannerDark !== undefined && <img className={styles.stageDark} src={bannerDark} alt="" />}
       <div className={styles.bubble}>
@@ -125,6 +127,17 @@ export function OnboardingWizard({
   const [structureOpen, setStructureOpen] = useState(false)
   const [builderOpen, setBuilderOpen] = useState(false)
   const state = useStoreSnapshot(store)
+  // Foco (Probe S7): a cada troca de passo, do assistente ou de fase do passo 5, o foco vai para o título novo.
+  // Sem isso o botão que a pessoa acabou de apertar some e o foco cai no <body> (e o Tab sai do diálogo).
+  const wizardRef = useRef<HTMLDivElement>(null)
+  const focusKey = `${String(state.step)}|${structureOpen ? 'assistant' : ''}|${firstDelivery?.phase ?? ''}`
+  const lastFocusKey = useRef(focusKey)
+  useEffect(() => {
+    if (lastFocusKey.current === focusKey) return
+    lastFocusKey.current = focusKey
+    const root = wizardRef.current
+    if (root !== null) focusStepStart(root)
+  }, [focusKey])
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
 
   useEffect(() => {
@@ -139,11 +152,12 @@ export function OnboardingWizard({
   const continueDisabled = state.step === 1 && state.displayName.trim().length === 0
   const vaultReady = state.vaultText.trim().length > 0
   const anyHarnessReady = harnesses.some(row => row.ready)
+  const anyHarnessChecking = harnesses.some(row => row.checking === true)
   const hideFooterContinue = state.step === 4 && structureOpen
   const firstDeliveryActive = firstDelivery !== undefined && state.step === 5
 
   return (
-    <div className={styles.wizard} data-persona-root="">
+    <div ref={wizardRef} className={styles.wizard} data-persona-root="">
       <OnboardingStage t={t} step={state.step} />
 
       <div className={styles.content}>
@@ -166,7 +180,7 @@ export function OnboardingWizard({
         <OnboardingStepMotion step={state.step}>
           {state.step === 1 && (
             <section className={styles.step}>
-              <h1 className={styles.title}>{t('step1.title')}</h1>
+              <h1 id="persona-onboarding-title" className={styles.title}>{t('step1.title')}</h1>
               <p className={styles.hint}>{t('step1.hint')}</p>
               <Input
                 label={t('step1.label')}
@@ -182,7 +196,7 @@ export function OnboardingWizard({
           )}
           {state.step === 2 && (
             <section className={styles.step}>
-              <h1 className={styles.title}>{t('step2.title')}</h1>
+              <h1 id="persona-onboarding-title" className={styles.title}>{t('step2.title')}</h1>
               <p className={styles.hint}>{t('step2.hint')}</p>
               <VaultCofrePanel
                 badgeLabel={t('step2.vaultBadge')}
@@ -217,23 +231,26 @@ export function OnboardingWizard({
           )}
           {state.step === 3 && (
             <section className={styles.step}>
-              <h1 className={styles.title}>{t('step3.title')}</h1>
+              <h1 id="persona-onboarding-title" className={styles.title}>{t('step3.title')}</h1>
               <p className={styles.hint}>{t('step3.hint')}</p>
-              {!anyHarnessReady && (
-                <Notice tone="warning">{t('step3.connectRequired')}</Notice>
-              )}
+              {!anyHarnessReady && (anyHarnessChecking
+                ? <Notice tone="info">{t('step3.checkingNotice')}</Notice>
+                : <Notice tone="warning">{t('step3.connectRequired')}</Notice>)}
               <ul className={styles.harnessList}>
-                {harnesses.map(row => (
-                  <li key={row.id} className={styles.harnessRow} data-ready={row.ready ? '' : undefined}>
-                    <span className={styles.harnessIcon} aria-hidden="true">
-                      <UiIcon name={row.ready ? 'check' : 'more'} size={18} strokeWidth={2.4} />
-                    </span>
-                    <span className={styles.harnessName}>{row.label}</span>
-                    <Chip size="s" tone={row.ready ? 'success' : 'neutral'} aria-label={`${t('step3.statusLabel', { name: row.label })}: ${t(row.ready ? 'step3.ready' : 'step3.missing')}`}>
-                      {t(row.ready ? 'step3.ready' : 'step3.missing')}
-                    </Chip>
-                  </li>
-                ))}
+                {harnesses.map((row) => {
+                  const statusKey = row.ready ? 'step3.ready' : row.checking === true ? 'step3.checking' : 'step3.missing'
+                  return (
+                    <li key={row.id} className={styles.harnessRow} data-ready={row.ready ? '' : undefined} data-checking={row.checking === true ? '' : undefined}>
+                      <span className={styles.harnessIcon} aria-hidden="true">
+                        <UiIcon name={row.ready ? 'check' : 'more'} size={18} strokeWidth={2.4} />
+                      </span>
+                      <span className={styles.harnessName}>{row.label}</span>
+                      <Chip size="s" tone={row.ready ? 'success' : 'neutral'} aria-label={`${t('step3.statusLabel', { name: row.label })}: ${t(statusKey)}`}>
+                        {t(statusKey)}
+                      </Chip>
+                    </li>
+                  )
+                })}
               </ul>
             </section>
           )}
@@ -255,7 +272,7 @@ export function OnboardingWizard({
           )}
           {state.step === 4 && !structureOpen && (
             <section className={styles.step}>
-              <h1 className={styles.title}>{t('step4.title')}</h1>
+              <h1 id="persona-onboarding-title" className={styles.title}>{t('step4.title')}</h1>
               <p className={styles.hint}>{t('step4.hint')}</p>
               <div className={styles.templateGrid} role="group" aria-label={t('step4.title')}>
                 {(Object.keys(TEMPLATE_KEYS) as TeamTemplateId[]).map(id => (
@@ -344,6 +361,8 @@ export function OnboardingWizard({
               workingCharacterId={firstDelivery.workingCharacterId}
               runError={firstDelivery.runError}
               activities={firstDelivery.activities}
+              introLines={state.roster.slice(0, 4).map(person => ({ speaker: person.name, text: t('step5.introLine', { role: person.role }) }))}
+              activityLabels={firstDelivery.activityLabels ?? activityGroupLabelsFromDict(structureDict)}
               prompt={firstDelivery.prompt}
               onPromptChange={firstDelivery.onPromptChange}
               onRequest={firstDelivery.onRequest}
@@ -358,7 +377,7 @@ export function OnboardingWizard({
           )}
           {state.step === 5 && firstDelivery === undefined && (
             <section className={styles.step}>
-              <h1 className={styles.title}>{t('step5.title')}</h1>
+              <h1 id="persona-onboarding-title" className={styles.title}>{t('step5.title')}</h1>
               <p className={styles.hint}>{t('step5.hint')}</p>
             </section>
           )}

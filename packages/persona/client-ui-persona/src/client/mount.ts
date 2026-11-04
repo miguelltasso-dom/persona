@@ -14,6 +14,8 @@ import type { BringYourContextBlockProps } from './bring-context/BringYourContex
 import type { BringContextPreview } from '@deepseek-ai/dsh-persona-core'
 import type { ProposalChoice } from './primitives/BringContext.tsx'
 import { SHELL_NS } from './locale/shell/locales.ts'
+import { readStoredAway, syncAvailability } from './shell/availability-sync.ts'
+import type { UserAwayState } from './shell/UserAwayControl.tsx'
 import { CHAT_NS } from './locale/chat/locales.ts'
 import { createOnboardingStore } from './onboarding/create-onboarding-store.ts'
 import { OnboardingShellOverlay } from './onboarding/OnboardingShellOverlay.tsx'
@@ -96,6 +98,23 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     editPersona: (personaId: string) => { actions.openPersonaEditor(personaId) },
     teachPersona: (personaId: string) => { actions.openTeachPersona(personaId) },
   }
+  const availabilityTenant = (): { workspaceId: string; memberId: string } | null => {
+    const tenant = live.observable.getSnapshot().tenant
+    return tenant === null ? null : { workspaceId: tenant.workspaceId, memberId: tenant.memberId }
+  }
+  // Depois de reabrir o app o rail lembra "Estou fora" (navegador); o host precisa saber de novo, uma vez, assim que o tenant existe.
+  let availabilityReconciled = false
+  live.observable.subscribe(() => {
+    if (availabilityReconciled) return
+    const tenant = availabilityTenant()
+    if (tenant === null) return
+    availabilityReconciled = true
+    const stored = readStoredAway()
+    if (stored?.isAway === true && (stored.untilAt === undefined || stored.untilAt > Date.now())) {
+      void syncAvailability(ctx.remote.persona as never, tenant, stored)
+    }
+  })
+
   const sidebarInject = () => ({
     hooks: {
       shell: shellObservable,
@@ -133,6 +152,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     togglePersonaPause: (personaId: string) => { void personaCardBridge.togglePause(personaId) },
     switchPersonaEngine: (personaId: string) => { actions.openEngineEditor(personaId) },
     editPersonaTalk: (personaId: string) => { actions.openTalkAclEditor(personaId) },
+    onAwayChange: (state: UserAwayState) => { void syncAvailability(ctx.remote.persona as never, availabilityTenant(), state) },
   })
   const frameInject = () => ({ hooks: { shell: shellObservable } })
 
@@ -290,14 +310,18 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     inject: () => ({
       hooks: { shell: shellObservable, live: live.observable },
       dict: cardDict,
-      persona: ctx.remote.persona,
       closeTeachPersona: () => { actions.closeTeachPersona() },
-      beginTeachCapture: (personaId: string, consentVersion: string, microphone: boolean) => {
-        void live.startTeachPersona(personaId, consentVersion, microphone).then((start) => {
-          if (start.sessionId.length === 0) return
+      // Resolves true once the host opened the recording session (the recording screen takes it from there).
+      beginTeachCapture: async (personaId: string, consentVersion: string, microphone: boolean): Promise<boolean> => {
+        try {
+          const start = await live.startTeachPersona(personaId, consentVersion, microphone)
+          if (start.sessionId.length === 0) return false
           actions.openTeachCapture({ personaId, sessionId: start.sessionId, microphone })
           actions.closeTeachPersona()
-        })
+          return true
+        } catch {
+          return false
+        }
       },
     }),
   }, TeachPersonaOverlay)
@@ -310,7 +334,9 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       hooks: { shell: shellObservable },
       dict: cardDict,
       live,
+      persona: ctx.remote.persona,
       closeTeachCapture: () => { actions.closeTeachCapture() },
+      openTeachPersona: (personaId: string) => { actions.openTeachPersona(personaId) },
     }),
   }, TeachPersonaSession)
 }

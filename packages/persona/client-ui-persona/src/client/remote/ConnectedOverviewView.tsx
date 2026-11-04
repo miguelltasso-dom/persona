@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { deriveFirstDeliveryMilestone } from '../overview/derive-first-delivery.ts'
+import { deriveFirstDeliveryMilestone, firstDeliveryFromHost, pickFirstDelivery } from '../overview/derive-first-delivery.ts'
 import { OverviewView } from '../overview/OverviewView.tsx'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 
@@ -23,7 +23,10 @@ export function ConnectedOverviewView({
   undoDecision,
 }: ConnectedOverviewViewProps): ReactNode {
   const live = useLive(state => state)
-  const firstDelivery = deriveFirstDeliveryMilestone(live.kanbanCards)
+  const firstDelivery = pickFirstDelivery(
+    deriveFirstDeliveryMilestone(live.kanbanCards),
+    firstDeliveryFromHost(live.firstDelivery, live.stripMembers),
+  )
   const firstDeliveryPending = live.firstDelivery?.status === 'working'
   const awayEvents = live.awayEvents.map(event => ({
     id: event.id,

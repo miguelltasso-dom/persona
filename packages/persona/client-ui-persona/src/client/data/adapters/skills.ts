@@ -9,5 +9,7 @@ export function skillViewsToRecords(views: readonly SkillView[]): SkillRecord[] 
     version: view.version,
     status: view.status,
     sharedWithTeam: view.sharedWithTeam,
+    // The domain builds taught skills with the id `taught-<session>` (taughtDraftOf).
+    ...(view.id.startsWith('taught-') ? { origin: 'taught' as const } : {}),
   }))
 }

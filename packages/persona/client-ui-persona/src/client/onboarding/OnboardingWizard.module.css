@@ -498,7 +498,7 @@
   margin-top: var(--persona-space-5);
   padding: var(--persona-space-4) var(--persona-space-5);
   border-radius: var(--persona-radius-m);
-  background: var(--persona-surface-alt);
+  background: var(--persona-wash);
   border: var(--persona-border-width) solid var(--persona-outline-soft);
 }
 
@@ -580,4 +580,76 @@
   .templateButton:active {
     transform: none;
   }
+}
+
+/* "Falta uma IA" também no cartão de falha do passo 5 (arte da Muse, 240 px). */
+.noAiArt {
+  display: grid;
+  place-items: center;
+}
+
+.noAiArt img {
+  display: block;
+  max-width: 240px;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+/* Passo 5 "trabalhando": a pose de quem pegou o pedido à esquerda do texto; empilha em janela estreita. */
+.workingLayout {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-5);
+}
+
+.workingPose {
+  display: block;
+  flex: 0 0 auto;
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+
+.workingText {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+@media (max-width: 560px) {
+  .workingLayout {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .workingPose {
+    width: 120px;
+    height: 120px;
+  }
+}
+
+/* Passo 5: banda compacta (só os bichos e o balão), para o modal caber em 1440×900 sem cortar nada. */
+.stage[data-compact] {
+  height: 140px;
+}
+
+.stage[data-compact] .bubble {
+  top: var(--persona-space-4);
+  max-width: 300px;
+}
+
+.stage[data-compact] .cast {
+  bottom: 8px;
+}
+
+.stage[data-compact] .castMember {
+  width: 76px;
+  height: 104px;
+}
+
+.stage[data-compact] .castMember img {
+  height: calc(104px * var(--species, 0.9));
+  max-width: 92px;
 }

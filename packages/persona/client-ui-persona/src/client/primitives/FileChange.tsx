@@ -5,7 +5,7 @@
  */
 
 import type { ReactNode } from 'react'
-import { Chip } from './Chip.tsx'
+import { Chip, type ChipTone } from './Chip.tsx'
 import { UiIcon, type UiIconName } from './icons.tsx'
 import styles from './FileChange.module.css'
 
@@ -64,11 +64,13 @@ export interface FileChangeRowProps {
   readonly labels: FileChangeLabels
   readonly expanded?: boolean
   readonly onToggle?: (() => void) | undefined
+  /** Replaces the Novo/Mudou/Apagado chip (e.g. "Escolha o que fica" on a file in conflict). */
+  readonly badge?: { readonly label: string; readonly tone: ChipTone } | undefined
   /** Before/after content, shown when expanded. */
   readonly children?: ReactNode
 }
 
-export function FileChangeRow({ change, labels, expanded = false, onToggle, children }: FileChangeRowProps): ReactNode {
+export function FileChangeRow({ change, labels, expanded = false, onToggle, badge, children }: FileChangeRowProps): ReactNode {
   const panelId = `file-change-${change.id}`
   const head = (
     <>
@@ -78,7 +80,7 @@ export function FileChangeRow({ change, labels, expanded = false, onToggle, chil
         {change.folder !== undefined && <span className={styles.folder}>{change.folder}</span>}
         {change.kind === 'deleted' && <span className={styles.note}>{labels.deletedNote}</span>}
       </span>
-      <Chip size="s" tone={KIND_TONE[change.kind]}>{labels.kind[change.kind]}</Chip>
+      <Chip size="s" tone={badge?.tone ?? KIND_TONE[change.kind]}>{badge?.label ?? labels.kind[change.kind]}</Chip>
       {onToggle !== undefined && <span className={styles.chevron} data-open={expanded ? '' : undefined} aria-hidden="true"><UiIcon name="chevronDown" size={18} strokeWidth={2} /></span>}
     </>
   )

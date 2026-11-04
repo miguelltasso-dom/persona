@@ -1,5 +1,21 @@
 # Atlas — relatos (mais recente no topo)
 
+## 2026-11-04 03:00 — [Muse] revisão captura (BYC · Ensinar · #geral · axe)
+
+**BYC passo 2:** selo `2 min` no cabeçalho expandido (`expandedHeadTitles` + `ChipBadge`).
+
+**Ensinar (WAVE2-SPEC b§2):** título `teach.titleNamed`; três linhas com ícone + rótulo em negrito; aviso em `Notice tone="warning"`; retenção `ink-soft`; microfone `role="switch"`; arte centrada. Locales `profile.*`.
+
+**#geral seed:** posts/gestor com `topicId: subject-geral`; removido early-return que pulava gestor; `hostStreamTopicId` no live store (lista/follow em Geral **sem** filtro host → mensagens legadas sem `topic_id` voltam).
+
+**axe SubjectBar:** `panelId="persona-channel-subject-panel"` + stream `role="tabpanel"`.
+
+**Gates:** `check-pkg client-ui-persona` OK · `bundle` OK · vitest `seed-default-team` + `conversation-subjects` 9/9 (connected-general worker timeout intermitente no Windows).
+
+**Muse:** OK recapturar `design-shots` channel/onboarding após rebuild.
+
+---
+
 ## 2026-11-04 02:02 — [Muse] listGestorPlans TypeError (refresh 57×)
 
 **Causa:** `listGestorPlansRemote` aplicava `unwrapRemote` em lista **já desembrulhada** pelo `unwrapPersonaRemote` → `!result.ok` em array → `result.error.code` undefined.

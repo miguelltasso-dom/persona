@@ -156,6 +156,18 @@ const onData = async (chunk) => {
               const path = `${outDir}/onboarding-${scheme}-${step}.png`
               await page.screenshot({ path }); shots.push(path)
             }
+            if (step === 2 && wanted.has('byc')) {
+              // BRIEFING 18: open "Traga o que suas IAs já sabem" in onboarding step 2.
+              try {
+                await page.getByRole('button', { name: /Traga o que|Já usa ChatGPT|IAs já sabem/u }).first().click({ timeout: 5_000 })
+                await page.waitForTimeout(600)
+                const path = `${outDir}/onboarding-${scheme}-2-byc.png`
+                await page.screenshot({ path, fullPage: true }); shots.push(path)
+                await axeReport(page, `onboarding byc ${scheme}`)
+              } catch (error) {
+                console.log(`[byc ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 140) : String(error)}`)
+              }
+            }
             if (step === 4 && wanted.has('assistant')) {
               // GOV-8 "Monte uma equipe que faça sentido": walk the 4 steps inside onboarding step 4.
               try {
@@ -204,6 +216,22 @@ const onData = async (chunk) => {
           await axeReport(page, `org${n} ${scheme}`)
         } catch (error) {
           console.log(`[org${n} ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
+        }
+        await context.close()
+      }
+      // Ensinar a persona (WAVE2 b): opened from Busca → "Ensinar a Nina".
+      if (wanted.has('teach')) {
+        const { context, page } = await open(match[1], scheme, { onboarded: true })
+        try {
+          await nav(page, 'Busca')
+          await page.getByRole('searchbox').fill('nina')
+          await page.getByRole('button', { name: /Ensinar a Nina/u }).first().click({ timeout: 8_000 })
+          await page.waitForTimeout(800)
+          const path = `${outDir}/teach-${scheme}.png`
+          await page.screenshot({ path }); shots.push(path)
+          await axeReport(page, `teach ${scheme}`)
+        } catch (error) {
+          console.log(`[teach ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
         }
         await context.close()
       }
@@ -421,6 +449,7 @@ const onData = async (chunk) => {
           await page.screenshot({ path }); shots.push(path)
           const mainText = await page.evaluate(() => (document.querySelector('[data-persona-main]')?.textContent ?? '').trim().length)
           console.log(`[panel ${label} ${scheme}] main text chars: ${mainText}`)
+          await axeReport(page, `panel ${label} ${scheme}`)
         }
         await context.close()
       }

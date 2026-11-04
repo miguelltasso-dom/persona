@@ -18,7 +18,7 @@ UI (selo **Gestor**, nunca "Maestro"): **Prism** + **Lumen**.
 | Reorganizar | `gestorReorganize` | pausa ociosa sem aviso; autonomia acima do teto |
 | Montar equipe | `assembleTeamForGoal` | frase sem objetivo |
 
-`decideGestorAction`: `always_ask` → `ask`; aceite → `apply` **com `plan.status = applied`**. `auto_and_notify` → `notify` + plano aplicado. `applyGestorPlan` marca o plano aplicado; recusado (`rejected`) lança `INVALID_GESTOR`. `gestorDecisionRows(decision)` = o que o host grava num write (plan+audit no apply/notify; só plan no ask). Plano nunca aplica sozinho. `runGestorAllocate` / `runGestorReorganize` passam pelo mesmo gate.
+`decideGestorAction`: `always_ask` → `ask`; aceite → `apply` **com `plan.status = applied`**. `auto_and_notify` → `notify` + plano aplicado. `applyGestorPlan` marca o plano aplicado; recusado (`rejected`) lança `INVALID_GESTOR`. `gestorDecisionRows(decision)` = o que o host grava num write (plan+audit no apply/notify; só plan no ask). Plano nunca aplica sozinho. `runGestorAllocate` / `runGestorReorganize` / `runGestorAssemble` passam pelo mesmo gate. `runAssembleTeam` é o núcleo sem gate (só testes / preview).
 
 ## Vários Gestores (GES-3)
 

@@ -12,6 +12,8 @@ Kinds canônicos são os do core. O port Rivet usa `exec` / `eval` — mapear s�
 
 Folds: `totalTokens`, `callsForTicket`, `cacheHitRate`, `tokensPerSuccessfulTask`, **`foldUsagePanel`** (tokens/tarefa, por persona, por tipo, cache, origem). Estimador fiel sem tokenizer de vendor: 4 caracteres ≈ 1 token.
 
+OPT-4: `compileContext({ prefix })` / `compileActiveSubject` descarta records opcionais cujo body já está no prefixo (`dropRecordsInPrefix`). Obrigatórios não saem. `composeTurnPrompt` também corta blocos do tail que já estão no prefixo (`trimVariableAlreadyInPrefix`).
+
 Relatório da linha de base: `persona-spec/reports/tokens-baseline.md` (`formatTokensBaselineMarkdown` / `scripts/write-tokens-baseline.ts`). JSON congelado para o gate Probe: `persona-spec/baselines/token-scenarios.json` (`status: scripted`; regenerar com `pnpm exec tsx persona-spec/scripts/write-token-scenarios.ts`).
 
 ## Cenários de referência (gate)

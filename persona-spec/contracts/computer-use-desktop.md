@@ -12,6 +12,6 @@ Muse: cursor HTML. Forge: shared-control domain.
 - Devolver: `overlayMouseIgnore(hovered)` e `isComputerUseResumeAccelerator` (`CommandOrControl+Shift+Space`). Nunca retoma sozinho.
 - Snapshot JSON: `parseUiaSnapshot`. Windows: `createWindowsUiaPort` + `WINDOWS_UIA_SNAPSHOT_SCRIPT` (sem Value de senha).
 - Overlay HTML placeholder: `computerUseOverlayHtml` / `overlayDocumentUrl` — `pointer-events:none` exceto `.devolver`; rAF; IPC `cu:*`; cap 2; senha = `digitando ••••`. Muse substitui o renderer.
-- Human hold: `onInput('human')` → every persona `human`; `gateComputerActing` recusa click/type; screenshot fica.
+- MCP: `actingPortsFromComputerUse` + desktop `desktopComputerUseActions(bind)`. Human hold: `onInput('human')` → every persona `human`; `gateComputerActing` recusa click/type; screenshot fica.
 - Resume só `resume(personaId)`.
 - Cursor cap: 2 por monitor (`OVERLAY_CURSOR_CAP`).

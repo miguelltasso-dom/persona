@@ -361,3 +361,26 @@ bundle (with-lock) → Build complete, 99 files
     - `listGestorPlans` lança `TypeError` a cada refresh: 57 erros, que derrubam a captura no escuro;
     - o #geral semeado ficou sem mensagens nem cartão do plano.
 - **Meus, para depois da janela**: `ChoiceCards` com 4 opções em 2 × 2 e "Simular de novo" ao lado do título.
+- **02:50, rodada final das integrações**:
+  - **Bug sistêmico**: um CSS module homônimo descartado em silêncio pelo bundle. Renomeei para `GovernanceScreens.module.css` e criei o teste-guarda `css-module-names`;
+  - `Screen .inner { width: 100% }`: o `.shell` flex espremia o OrgMap;
+  - `ChoiceCards` com 4 opções em 2 × 2;
+  - "Simular de novo" ao lado do título;
+  - capturas no claro e no escuro com 0 erros: Conexões, Uso, Saúde e Quem cuida 150;
+  - check-pkg OK nos meus arquivos (o único erro atual é um teste do BYC, do Prism);
+  - lote em `.maestri/tmp/shots/design/integ/`.
+
+## 2026-11-04 03:10 — Fila nova do Atlas: revisão do que integra, a11y das 30, movimento
+
+- **(1) Revisão por captura** (`shots/design/revisao1/`):
+  - BYC no onboarding: ✓ (falta o selo "2 min", Prism);
+  - Importar/BYC: ✓ (2 primários, Lumen);
+  - **Ensinar** abaixo da spec: título genérico, garantias sem rótulos, aviso sem `Notice`, sem retenção, checkbox nativo (Prism);
+  - **Segundo cérebro** abaixo do padrão: ids crus "person:system" e "derived-index", "hoje" solto, sem cartões, link âmbar com contraste baixo, sem a arte do bibliotecário (Lumen);
+  - #geral semeado sem mensagens nem cartão do Gestor (Prism).
+  - O axe pegou uma violação **crítica minha**: `aria-controls` das abas de assunto apontava para um id inexistente. Corrigido com a prop `panelId`.
+- **(2) Passada de acessibilidade das 30 telas, em curso**: o `design-shots` agora roda o axe também em cada painel, com os alvos novos `teach` e `byc` (onboarding passo 2). Uso o axe-core 4.10.2 do scratchpad.
+- **(3) Movimento** (UX-GUIDE §3): o que faltava era meu, e agora existe:
+  - crossfade de pose em 220 ms + pulo de 6 px na troca real de estado da faixa (sem animação na montagem; fade de 110 ms com reduced-motion; teste `pose-crossfade`);
+  - crossfade de 140 ms + 4 px na troca de painel.
+  - Já estavam: chegada (760 ms, mola), celebrações (cooldown de 2,5 s), hover com inclinação, FLIP do quadro e modal com scale e blur.

@@ -59,13 +59,27 @@ export class WorkspaceHub implements DurableObject {
     }
     try {
       if (rest[0] === 'sync' && rest[1] === 'append' && request.method === 'POST') {
+        const denied = this.denyActor(request)
+        if (denied !== undefined) return denied
         const envelope: SyncEnvelope = await request.json()
         return this.append(envelope)
       }
       if (rest[0] === 'sync' && rest[1] === 'after' && request.method === 'GET') {
+        const denied = this.denyActor(request)
+        if (denied !== undefined) return denied
         const streamId = url.searchParams.get('streamId') ?? ''
         const afterSeq = Number(url.searchParams.get('afterSeq') ?? '0')
         return Response.json({ envelopes: this.log.after(streamId, afterSeq) })
+      }
+      if (rest[0] === 'members' && request.method === 'POST' && rest.length === 1) {
+        const actor: Actor = await request.json()
+        return this.join(actor)
+      }
+      if (rest[0] === 'members' && rest[2] === 'revoke' && request.method === 'POST') {
+        return this.revokeMember(rest[1] ?? '')
+      }
+      if (rest[0] === 'members' && request.method === 'GET' && rest.length === 1) {
+        return Response.json({ members: this.listMembers() })
       }
       if (rest[0] === 'invites' && request.method === 'POST' && rest.length === 1) {
         const input: InviteInput = await request.json()
@@ -203,6 +217,7 @@ export class WorkspaceHub implements DurableObject {
     if (invite === undefined) return Response.json({ error: 'INVITE_INVALID' }, { status: 404 })
     const next = redeemInvite(invite, Date.now(), actor)
     this.putInvite(next.invite)
+    this.putMember({ actor: next.actor, joinedAt: Date.now(), inviteId: invite.id })
     return Response.json({ invite: next.invite, actor: next.actor })
   }
 
@@ -216,7 +231,34 @@ export class WorkspaceHub implements DurableObject {
     }
     const invite = JSON.parse(body) as Invite
     this.putInvite(revokeInvite(invite, Date.now()))
+    this.revokeMembersByInvite(id)
     return Response.json({ invite: this.getInvite(id) })
+  }
+
+  /**
+   * Owner bootstrap (the inviter never redeems their own token).
+   * @param actor - Desktop identity.
+   */
+  join(actor: Actor): Response {
+    const existing = this.getMember(actor.id)
+    if (existing !== undefined && existing.revokedAt === undefined) {
+      return Response.json({ member: existing })
+    }
+    const member: WorkspaceMember = { actor, joinedAt: Date.now() }
+    this.putMember(member)
+    return Response.json({ member })
+  }
+
+  /**
+   * @param actorId - Member to cut.
+   */
+  revokeMember(actorId: string): Response {
+    const member = this.getMember(actorId)
+    if (member === undefined) return Response.json({ error: 'NOT_A_MEMBER' }, { status: 404 })
+    if (member.revokedAt !== undefined) return Response.json({ member })
+    const next: WorkspaceMember = { ...member, revokedAt: Date.now() }
+    this.putMember(next)
+    return Response.json({ member: next })
   }
 
   /**
@@ -306,6 +348,87 @@ export class WorkspaceHub implements DurableObject {
     ))
     return body === undefined ? undefined : JSON.parse(body) as Invite
   }
+
+  /**
+   * @param request - Caller identity is `x-persona-actor`. Missing header keeps
+   *   the open bootstrap path used by older tests.
+   */
+  denyActor(request: Request): Response | undefined {
+    const actorId = request.headers.get('x-persona-actor')
+    if (actorId === null || actorId.length === 0) return undefined
+    const member = this.getMember(actorId)
+    if (member !== undefined && member.revokedAt !== undefined) {
+      return Response.json({ status: 'refused', code: 'ACCESS_REVOKED', seq: 0 }, { status: 403 })
+    }
+    if (member === undefined && this.hasActiveMembers()) {
+      return Response.json({ status: 'refused', code: 'NOT_A_MEMBER', seq: 0 }, { status: 403 })
+    }
+    return undefined
+  }
+
+  /**
+   * @param member - Redeemed or bootstrapped desktop.
+   */
+  putMember(member: WorkspaceMember): void {
+    this.sql.exec(
+      `INSERT INTO member (actor_id, workspace_id, invite_id, revoked_at, body)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(actor_id) DO UPDATE SET
+          invite_id = excluded.invite_id,
+          revoked_at = excluded.revoked_at,
+          body = excluded.body`,
+      [
+        member.actor.id,
+        member.actor.workspaceId,
+        member.inviteId ?? null,
+        member.revokedAt ?? null,
+        JSON.stringify(member),
+      ],
+    )
+  }
+
+  /**
+   * @param actorId - Desktop id.
+   */
+  getMember(actorId: string): WorkspaceMember | undefined {
+    const body = firstBody(this.sql.all('SELECT body FROM member WHERE actor_id = ?', [actorId]))
+    return body === undefined ? undefined : JSON.parse(body) as WorkspaceMember
+  }
+
+  /**
+   * @param inviteId - Invite whose redeemer must lose sync.
+   */
+  revokeMembersByInvite(inviteId: string): void {
+    const now = Date.now()
+    for (const row of this.sql.all('SELECT body FROM member WHERE invite_id = ?', [inviteId])) {
+      const body = firstBody([row])
+      if (body === undefined) continue
+      const member = JSON.parse(body) as WorkspaceMember
+      if (member.revokedAt === undefined) this.putMember({ ...member, revokedAt: now })
+    }
+  }
+
+  /** @returns Every stored member, including revoked. */
+  listMembers(): WorkspaceMember[] {
+    return this.sql.all('SELECT body FROM member ORDER BY actor_id ASC').map((row) => {
+      const body = firstBody([row])
+      if (body === undefined) throw new Error('member')
+      return JSON.parse(body) as WorkspaceMember
+    })
+  }
+
+  /** @returns Whether anyone still has sync rights. */
+  hasActiveMembers(): boolean {
+    return this.sql.all('SELECT actor_id FROM member WHERE revoked_at IS NULL LIMIT 1').length > 0
+  }
+}
+
+/** Redeemed or bootstrapped desktop replica. */
+export interface WorkspaceMember {
+  readonly actor: Actor
+  readonly joinedAt: number
+  readonly inviteId?: string
+  readonly revokedAt?: number
 }
 
 /** POST /invites body. */

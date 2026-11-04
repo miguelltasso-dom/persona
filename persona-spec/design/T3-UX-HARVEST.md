@@ -186,9 +186,10 @@ A ordem é a do impacto no dia a dia: teclado, composer, limites, detalhes do as
 
 ## Distribuição
 
-- **Muse:**
-  - `PooledQuotaBar` e `ActivityGroup` (feitos);
-  - F6 entre áreas no shell e a paleta "Fazer" no Ctrl K (próximos).
+- **Muse (feito):**
+  - `PooledQuotaBar` e `ActivityGroup`;
+  - F6 entre áreas (`shell/area-navigation.ts`);
+  - a seção "Fazer" do Ctrl K: Contratar persona, Simular os 2 dias, Conversar com / Ensinar a {persona}.
 - **Prism:** 1 (itens do rail e composer), 3, 4, 5, 6, 8, 10, 11, 12 e 13.
 - **Lumen:** 7 (Uso › Limites com o `PooledQuotaBar`) e 12 (trocar de conta).
 - **Rivet:** 14.

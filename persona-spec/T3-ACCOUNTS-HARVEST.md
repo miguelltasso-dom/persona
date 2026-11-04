@@ -50,8 +50,11 @@ D8 pack+CDP continua bloqueado no hash verde do Keel (`origin/persona-dev` ainda
 ## Contrato (Rivet → Lumen / Forge)
 
 `poolProviderLimits(dedupeLimitAccounts(reports), now)` → um pool por motor.
+`harvestLimitReports(accounts, officialQuota, now)` → payload de `putProviderLimitReports` (Anvil). Ausência = janela vazia, nunca 0%.
 `shouldAutoCheckQuota(lastAt, now)` → `false` se `< 5 min`.
 `readNativeHistoryTotals(turns)` → `origin: measured | unavailable`; `turnsSkipped` visível.
 `canUseReset(credits)` → habilita "Usar reset".
+`redeemReset(credits, port)` → só chama o port do provedor quando há `nextCreditId`.
+**[Rivet→Anvil]** host já tem `putProviderLimitReports`; Ligar o harvest no Remote.
 **[Rivet→Forge]** `accountId` estável + email/fingerprint no Remote de contas.
 **[Rivet→Lumen]** meters do pool (não uma lista solta por ambiente).

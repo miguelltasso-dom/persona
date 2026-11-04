@@ -32,7 +32,12 @@ afterAll(async () => {
 
 function fetchImpl(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   if (worker === undefined) throw new Error('wrangler')
-  return worker.fetch(String(input), init)
+  const url = typeof input === 'string'
+    ? input
+    : input instanceof URL
+      ? input.href
+      : input.url
+  return worker.fetch(url, init)
 }
 
 function envelope(overrides: Partial<SyncEnvelope> = {}): SyncEnvelope {

@@ -76,16 +76,28 @@ export class HttpTransport implements SyncTransport {
   readonly baseUrl: string
   readonly workspaceId: string
   readonly fetchImpl: typeof fetch
+  readonly actorId?: string
 
   /**
    * @param baseUrl - Worker origin, no trailing slash.
    * @param workspaceId - Workspace.
    * @param fetchImpl - Injected fetch (tests).
+   * @param actorId - Desktop member; sent as `x-persona-actor` so revoke can cut sync.
    */
-  constructor(baseUrl: string, workspaceId: string, fetchImpl: typeof fetch = fetch) {
+  constructor(baseUrl: string, workspaceId: string, fetchImpl: typeof fetch = fetch, actorId?: string) {
     this.baseUrl = baseUrl
     this.workspaceId = workspaceId
     this.fetchImpl = fetchImpl
+    if (actorId !== undefined) this.actorId = actorId
+  }
+
+  /**
+   * @param extra - Request headers to merge.
+   */
+  headers(extra: Record<string, string> = {}): Record<string, string> {
+    return this.actorId === undefined
+      ? extra
+      : { ...extra, 'x-persona-actor': this.actorId }
   }
 
   /**
@@ -95,7 +107,7 @@ export class HttpTransport implements SyncTransport {
     try {
       const response = await this.fetchImpl(`${this.baseUrl}/w/${this.workspaceId}/sync/append`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: this.headers({ 'content-type': 'application/json' }),
         body: JSON.stringify(envelope),
       })
       const body: unknown = await response.json()
@@ -115,6 +127,7 @@ export class HttpTransport implements SyncTransport {
     try {
       const response = await this.fetchImpl(
         `${this.baseUrl}/w/${this.workspaceId}/sync/after?streamId=${encodeURIComponent(streamId)}&afterSeq=${afterSeq}`,
+        { headers: this.headers() },
       )
       const body: unknown = await response.json()
       if (typeof body !== 'object' || body === null || !('envelopes' in body)) return []

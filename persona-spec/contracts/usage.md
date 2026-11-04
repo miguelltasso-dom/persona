@@ -51,3 +51,9 @@ getOfficialQuota({ workspaceId, projectId, provider? }): OfficialQuota[]
 Ator do servidor + `can(read, project)`. `UsageView` reexporta folds de `persona-usage` + `originLabel` pt-BR. Livro vazio ⇒ `origin: unavailable` / "indisponível". Período pode cruzar o mês. Medidor do resolveRunner grava `measured` no mesmo livro. `tokensPerMonth` da persona lê o mês UTC.
 
 Não redefinir tipos — importar de `@deepseek-ai/dsh-persona-usage`.
+
+## Ledger por turno (OPT-7)
+
+`TurnLedgerEntry` do core (`packages/persona/persona-core/src/domain/token-ledger.ts`). Kinds canônicos: `triage | reply | execution | initiative | librarian | watchdog | evaluation`. Anvil persiste esses literais em `turn_ledger` (schema v18). O port Rivet (`UsageStore` / `usage_record.window`) recebe `usagePortKind(kind)` (`exec` / `eval`) **só nessa fronteira**.
+
+`getUsagePanel` = `foldUsagePanel(entries, successfulTicketIds)`. Livro vazio → `origin: estimate`. Ausência de cache ≠ 0%.

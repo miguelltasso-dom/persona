@@ -148,6 +148,14 @@ Páginas markdown tipadas em Empresa › Segundo cérebro (Forge: `persona-core/
 
 `runComputerUse` em `persona-engine/src/computer-use.ts`: plano com expectativa explícita por passo → `DesktopObservePort` (captura + árvore UIA) → `DesktopActPort` → verificar → retry com limite → relatório + `ReplayEntry`. Humano no mouse/teclado → `você assumiu` (pausa imediata; resume explícito). Passos `click`/`type`/`key`/`scroll` passam por `StepPermissionPort` (Rivet `McpGateway`, kind `computer_act`). Limites: passos, tentativas, tempo, orçamento. Contrato: `persona-spec/contracts/computer-use.md`. Overlay/cursor = Muse; UIA/Electron = Rivet.
 
+## Gestor de equipe (D-058)
+
+Função atribuível `team_manager` (`TEAM_MANAGER_ROLE`). Contratar, alocar, reorganizar e montar equipe nunca acima do mandato; `always_ask` não escreve sem aceite. Segundo Gestor no mesmo escopo comenta (`commentGestorPlan`); empate humano (`resolveGestorTie`). Store/Remote: Anvil (`SystemRoleView = team_manager`). UI: selo **Gestor**. Contrato: `persona-spec/contracts/gestor.md`.
+
+## Tokens e atividade (D-059)
+
+Livro `TurnLedgerEntry` + `foldUsagePanel` (tokens/tarefa, por persona, por tipo, cache, origem). Kinds canônicos `execution` / `evaluation`; o port Rivet mapeia `exec` / `eval` só com `usagePortKind`. Relatório `persona-spec/reports/tokens-baseline.md`; JSON `persona-spec/baselines/token-scenarios.json`. Atividade no fio: `groupTurnActivity` (falha ≠ feito; waiting ≠ terminou). Contratos: `token-ledger.md`, `activity.md`.
+
 ## Como adicionar uma Source nova (≤10 linhas)
 
 1. Escolha o `source` string (`channel` / `dm` / `github` / `telegram` / `email` / `slack` / `discord` / `calendar`).

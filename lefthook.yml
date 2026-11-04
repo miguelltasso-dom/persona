@@ -45,5 +45,7 @@ pre-merge-commit:
 
 pre-push:
   jobs:
+    # Persona fork (D-060): persona-dev pushes (PERSONA_PUSH_GATE=persona) are gated by scripts/persona/persona-gate.mjs; any other push keeps the
+    # upstream full typecheck. The full typecheck on persona-dev runs nightly/informatively (scripts/persona/nightly-typecheck.mjs).
     - name: typecheck
-      run: pnpm run typecheck
+      run: node scripts/persona/pre-push.mjs

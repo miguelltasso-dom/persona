@@ -2,7 +2,7 @@
 
 Camada de lógica ponta a ponta sem navegador. Arquivos novos em `packages/persona/persona-host/tests/journeys/`. Probe continua dono da UI (reduced-motion, diff vs `dirD-tela.png`). Testes do Anvil (`boards.spec.ts`) não foram editados.
 
-Rodado: `pnpm exec vitest run packages/persona/persona-host/tests/journeys` → **18/18 passed**.
+Rodado: `pnpm exec vitest run packages/persona/persona-host/tests/journeys` → **19 arquivos** (J1–J19). Layer-1 S7: `mandatory-s7-host-contract.spec.ts` (J1–J10).
 
 | ID | História | Resultado | O que o usuário vê |
 |---|---|---|---|
@@ -24,10 +24,11 @@ Rodado: `pnpm exec vitest run packages/persona/persona-host/tests/journeys` → 
 | J16 | Coordenação propõe fluxo: cartão, aprovar, recusar, JSON sujo | passou | «Usar este fluxo?»; recusar não grava; aceitar via `createWorkflowFromTemplate`; JSON sujo degrada |
 | J17 | Migração v7→v8: Tarefa antiga sem assento | passou | schema 8; Tarefa cai na 1ª coluna da categoria do estágio |
 | J18 | Export/sync: fluxo e sprint viajam; DM não; reimportar não duplica | passou | `fluxo.md` + `sprints.md`; sem `/dms/`; `mayUpload` project sim / dm não; restore 2× sem duplicar sprint |
+| J19 | Governança no export/sync do workspace; DM não; reimportar não duplica | passou | setor + auditoria viajam; DM fora |
 
 ## S7 (honesto)
 
-Host (Forge): J1–J18 verdes neste arquivo. UI (Probe): reduced-motion e diff vs `dirD-tela.png` continuam `it.todo` — o S7 do PLAN não é 6/6.
+Host (Forge): J1–J19 verdes neste arquivo; layer-1 S7 = `mandatory-s7-host-contract.spec.ts` (J1–J10). UI (Probe): reduced-motion e diff vs `dirD-tela.png` continuam `it.todo` — o S7 do PLAN não é 6/6.
 
 ## Quadros (J12–J18) — limites honestos
 

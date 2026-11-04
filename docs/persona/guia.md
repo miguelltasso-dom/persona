@@ -22,7 +22,7 @@ Você monta a equipe. Coordenação e Vigia são **funções**, não nomes fixos
 - **Execução** — faz o trabalho autorizado. Relata para a Coordenação.
 - **Vigia** — acorda quem parou, sem inventar trabalho.
 
-Uma persona pode contratar outra, mas **nunca com mais acesso** do que quem contratou. Perfil, galeria e «Contratar?»: [Equipe e personas](./equipe-e-personas.md).
+Uma persona pode contratar outra, mas **nunca com mais acesso** do que quem contratou. Quem tem a função **Gestor de equipe** monta e aloca gente; o plano só aplica se você aceitar. Perfil, galeria e «Contratar?»: [Equipe e personas](./equipe-e-personas.md) · [Gestor de equipe](./gestor.md).
 
 ## Quadros e sprints
 
@@ -44,7 +44,7 @@ Fora do turno a persona não começa o dia sozinha. Sem saldo de atenção ela f
 
 ## Uso, limites e insights locais
 
-Em **Uso e limites** você vê consumo por conexão (sempre com a origem: medido, estimado ou oficial). Só o dono do workspace também vê o **funil de ativação** e o **impacto por persona** — calculados só com eventos já guardados no app; nada disso vai para nuvem nem analytics de terceiro. Horas poupadas aparecem como **estimativa**.
+Em **Uso e limites** você vê consumo por conexão (sempre com a origem: medido, estimado ou oficial). Tokens por tarefa e cache vêm do livro de turnos; equipe ociosa sem objetivo não chama modelo. Só o dono do workspace também vê o **funil de ativação** e o **impacto por persona** — calculados só com eventos já guardados no app; nada disso vai para nuvem nem analytics de terceiro. Horas poupadas aparecem como **estimativa**. Detalhe: [Uso e limites](./uso.md).
 
 ## Privacidade
 

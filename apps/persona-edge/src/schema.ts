@@ -9,6 +9,9 @@ export const EDGE_STATEMENTS: readonly string[] = [
   'CREATE TABLE IF NOT EXISTS invite (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, token TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER, revoked_at INTEGER, body TEXT NOT NULL)',
   'CREATE UNIQUE INDEX IF NOT EXISTS invite_token ON invite (workspace_id, token)',
   'CREATE TABLE IF NOT EXISTS webhook_delivery (source TEXT NOT NULL, delivery_id TEXT NOT NULL, workspace_id TEXT NOT NULL, owner_device_id TEXT NOT NULL, received_at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (source, delivery_id))',
+  'CREATE TABLE IF NOT EXISTS member (actor_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, invite_id TEXT, revoked_at INTEGER, body TEXT NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS member_workspace ON member (workspace_id, revoked_at)',
+  'CREATE INDEX IF NOT EXISTS member_invite ON member (invite_id)',
 ]
 
 /**

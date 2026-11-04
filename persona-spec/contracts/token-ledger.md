@@ -6,9 +6,13 @@ Painel: **Lumen**.
 
 ## Ledger por turno
 
-`TurnLedgerEntry`: persona, motor/conta, `TurnKind` (triage | reply | execution | initiative | librarian | watchdog | evaluation), tokens in/out, cache read/write, camadas `system → tools → required → subject → recall → message`, `ticketId` opcional.
+`TurnLedgerEntry`: persona, motor/conta, `TurnKind` (triage | reply | **execution** | initiative | librarian | watchdog | **evaluation**), tokens in/out, cache read/write, camadas `system → tools → required → subject → recall → message`, `ticketId` opcional, `origin?` (`measured` | `estimate`).
 
-Folds: `totalTokens`, `callsForTicket`, `cacheHitRate`, `tokensPerSuccessfulTask`. Estimador fiel sem tokenizer de vendor: 4 caracteres ≈ 1 token.
+Kinds canônicos são os do core. O port Rivet usa `exec` / `eval` — mapear só com `usagePortKind`; **Anvil persiste `TurnKind`**.
+
+Folds: `totalTokens`, `callsForTicket`, `cacheHitRate`, `tokensPerSuccessfulTask`, **`foldUsagePanel`** (tokens/tarefa, por persona, por tipo, cache, origem). Estimador fiel sem tokenizer de vendor: 4 caracteres ≈ 1 token.
+
+Relatório da linha de base: `persona-spec/reports/tokens-baseline.md` (`formatTokensBaselineMarkdown` / `scripts/write-tokens-baseline.ts`). JSON congelado para o gate Probe: `persona-spec/baselines/token-scenarios.json` (`status: scripted`; regenerar com `pnpm exec tsx persona-spec/scripts/write-token-scenarios.ts`).
 
 ## Cenários de referência (gate)
 

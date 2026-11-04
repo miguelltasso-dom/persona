@@ -32,3 +32,13 @@ CREATE TABLE IF NOT EXISTS webhook_delivery (
   body TEXT NOT NULL,
   PRIMARY KEY (source, delivery_id)
 );
+
+CREATE TABLE IF NOT EXISTS member (
+  actor_id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  invite_id TEXT,
+  revoked_at INTEGER,
+  body TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS member_workspace ON member (workspace_id, revoked_at);
+CREATE INDEX IF NOT EXISTS member_invite ON member (invite_id);

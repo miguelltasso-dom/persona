@@ -133,9 +133,12 @@ export class SyncClient {
 }
 
 /**
- * Teach recordings and provider home dirs never leave the device (WAVE2).
+ * Teach recordings, provider homes, and local task runs never leave the device.
  * @param streamId - Envelope stream.
  */
 export function isLocalOnlyStream(streamId: string): boolean {
-  return streamId.startsWith('teach:') || streamId.startsWith('account:')
+  return streamId.startsWith('teach:')
+    || streamId.startsWith('account:')
+    || streamId.startsWith('task-run:')
+    || streamId.startsWith('run:')
 }

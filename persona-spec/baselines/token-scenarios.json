@@ -1,59 +1,110 @@
 {
   "version": 1,
-  "source": "persona-spec/TOKEN-OPTIMIZATION.md",
+  "source": "persona-spec/reports/tokens-baseline.md",
+  "engineIds": {
+    "TOK-1": "geral-simple",
+    "TOK-2": "multi-review",
+    "TOK-3": "idle-routines",
+    "TOK-4": "initiative-30",
+    "TOK-5": "padaria-lua"
+  },
   "regressionThresholdPercent": 10,
-  "status": "placeholder",
-  "note": "Forge fills tokensPerCompletedTask and ledger fields from scripted runners; Probe owns gate diff.",
+  "status": "scripted",
+  "origin": "estimate",
+  "measuredAt": "2026-11-04T03:30:00.000Z",
+  "note": "Forge scripted runners (persona-engine runTokenScenario). Probe owns the +10% gate. Idle and 30-persona initiative stay at 0 model calls.",
+  "tokensPerSuccessfulTask": 134,
+  "cacheHitRate": 0.63,
   "scenarios": [
     {
       "id": "TOK-1",
+      "engineId": "geral-simple",
       "label": "Pedido simples no #geral",
-      "tokensPerCompletedTask": null,
-      "inputTokens": null,
-      "outputTokens": null,
-      "cacheReadTokens": null,
-      "cacheWriteTokens": null,
-      "modelCalls": null
+      "tokensPerCompletedTask": 99,
+      "inputTokens": 92,
+      "outputTokens": 7,
+      "cacheReadTokens": 40,
+      "cacheWriteTokens": 40,
+      "modelCalls": 2,
+      "cacheHitRate": 0.5
     },
     {
       "id": "TOK-2",
+      "engineId": "multi-review",
       "label": "Tarefa multi-etapa com revisão",
-      "tokensPerCompletedTask": null,
-      "inputTokens": null,
-      "outputTokens": null,
-      "cacheReadTokens": null,
-      "cacheWriteTokens": null,
-      "modelCalls": null
+      "tokensPerCompletedTask": 148,
+      "inputTokens": 140,
+      "outputTokens": 8,
+      "cacheReadTokens": 80,
+      "cacheWriteTokens": 40,
+      "modelCalls": 3,
+      "cacheHitRate": 0.6666666666666666
     },
     {
       "id": "TOK-3",
+      "engineId": "idle-routines",
       "label": "Dia ocioso com rotinas",
-      "tokensPerCompletedTask": null,
-      "inputTokens": null,
-      "outputTokens": null,
-      "cacheReadTokens": null,
-      "cacheWriteTokens": null,
-      "modelCalls": null
+      "tokensPerCompletedTask": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "modelCalls": 0,
+      "cacheHitRate": 0
     },
     {
       "id": "TOK-4",
+      "engineId": "initiative-30",
       "label": "30 personas com iniciativa",
-      "tokensPerCompletedTask": null,
-      "inputTokens": null,
-      "outputTokens": null,
-      "cacheReadTokens": null,
-      "cacheWriteTokens": null,
-      "modelCalls": null
+      "tokensPerCompletedTask": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "modelCalls": 0,
+      "cacheHitRate": 0
     },
     {
       "id": "TOK-5",
+      "engineId": "padaria-lua",
       "label": "Dogfood Padaria Lua",
-      "tokensPerCompletedTask": null,
-      "inputTokens": null,
-      "outputTokens": null,
-      "cacheReadTokens": null,
-      "cacheWriteTokens": null,
-      "modelCalls": null
+      "tokensPerCompletedTask": 155,
+      "inputTokens": 146,
+      "outputTokens": 9,
+      "cacheReadTokens": 80,
+      "cacheWriteTokens": 40,
+      "modelCalls": 3,
+      "cacheHitRate": 0.6666666666666666
+    }
+  ],
+  "paired": [
+    {
+      "id": "simple-ask",
+      "cliTokens": 48,
+      "personaTokens": 51,
+      "tokenDeltaRatio": 0.0625,
+      "verdict": "parity"
+    },
+    {
+      "id": "multi-review",
+      "cliTokens": 51,
+      "personaTokens": 54,
+      "tokenDeltaRatio": 0.058823529411764705,
+      "verdict": "parity"
+    },
+    {
+      "id": "research-summary",
+      "cliTokens": 52,
+      "personaTokens": 55,
+      "tokenDeltaRatio": 0.057692307692307696,
+      "verdict": "parity"
+    },
+    {
+      "id": "code-fix",
+      "cliTokens": 53,
+      "personaTokens": 56,
+      "tokenDeltaRatio": 0.05660377358490566,
+      "verdict": "parity"
     }
   ]
 }

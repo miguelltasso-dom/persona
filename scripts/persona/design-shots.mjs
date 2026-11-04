@@ -28,11 +28,14 @@ const finish = async (code, note) => {
 }
 const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), 180_000)
 
-async function open(url, scheme, { onboarded, collapsed = false, viewport = { width: 1440, height: 900 } }) {
+async function open(url, scheme, { onboarded, emptyHome = false, collapsed = false, viewport = { width: 1440, height: 900 }, extraLs }) {
   const context = await browser.newContext({ reducedMotion: process.env.MUSE_REDUCED === '1' ? 'reduce' : 'no-preference', viewport, deviceScaleFactor: 1, colorScheme: scheme, locale: 'pt-BR' })
-  await context.addInitScript(([dark, done, railCollapsed]) => {
+  await context.addInitScript(([dark, done, railCollapsed, emptyOnly]) => {
     localStorage.setItem('persona.rail.collapsed.v1', railCollapsed ? '1' : '0')
-    if (done) {
+    if (emptyOnly) {
+      localStorage.setItem('persona.onboarding.complete.v1', '1')
+      localStorage.removeItem('persona.devSeed.v1')
+    } else if (done) {
       localStorage.setItem('persona.onboarding.complete.v1', '1')
       localStorage.setItem('persona.devSeed.v1', '1')
     } else {
@@ -42,9 +45,15 @@ async function open(url, scheme, { onboarded, collapsed = false, viewport = { wi
     const apply = () => { if (dark) document.body?.setAttribute('data-ds-dark-theme', 'true') }
     if (document.body) apply()
     else document.addEventListener('DOMContentLoaded', apply, { once: true })
-  }, [scheme === 'dark', onboarded, collapsed])
+  }, [scheme === 'dark', onboarded, emptyHome, collapsed])
+  // MUSE_LS="key=value;key2=value2": extra localStorage for dev overrides (e.g. persona.orgChartScaleSeed=150).
+  if (process.env.MUSE_LS !== undefined || extraLs !== undefined) {
+    const pairs = [...(process.env.MUSE_LS ?? '').split(';'), ...(extraLs ?? [])].filter(Boolean).map(kv => kv.split('='))
+    await context.addInitScript((entries) => { for (const [k, v] of entries) localStorage.setItem(k, v) }, pairs)
+  }
   const page = await context.newPage()
   page.on('console', (m) => {
+    if (process.env.MUSE_DUMP === '1') console.log(`[dump ${scheme}] ${m.type()}: ${m.text().slice(0, 400)}`)
     if (m.type() === 'error') errors.push(`[${scheme}] ${m.text().slice(0, 300)}`)
     else if (process.env.MUSE_CONSOLE === '1' && /seed|persona|onboard/iu.test(m.text())) console.log(`[console ${scheme}] ${m.type()}: ${m.text().slice(0, 300)}`)
   })
@@ -107,6 +116,8 @@ async function waitPanelSettled(page, label) {
     ['Importar equipe', 'importers'],
     ['Regras', 'rules'],
     ['Canvas', 'canvas'],
+    ['Saúde', 'team-health'],
+    ['Quem cuida de quem', 'org-chart'],
   ])
   if (label === 'Kanban' || label === 'Quadros') {
     await page.locator('[data-persona-boards]').waitFor({ timeout: 20_000 })
@@ -170,6 +181,90 @@ const onData = async (chunk) => {
       }
     }
     for (const scheme of ['light', 'dark']) {
+      // Muse integration round: big org chart (Lumen seed 60/150) with search focus.
+      for (const n of ['60', '150']) {
+        if (!wanted.has(`org${n}`)) continue
+        const { context, page } = await open(match[1], scheme, { onboarded: true, extraLs: [`persona.orgChartScaleSeed=${n}`] })
+        try {
+          await nav(page, 'Quem cuida de quem')
+          await page.waitForTimeout(1500)
+          const path = `${outDir}/org${n}-${scheme}.png`
+          await page.screenshot({ path }); shots.push(path)
+          const box = page.getByRole('combobox', { name: 'Encontrar persona' })
+          if (await box.count() > 0) {
+            await box.fill('a')
+            await page.keyboard.press('Enter')
+            await page.waitForTimeout(1900)
+            const found = `${outDir}/org${n}-found-${scheme}.png`
+            await page.screenshot({ path: found }); shots.push(found)
+            console.log(`[org${n} ${scheme}] focused: ${await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))}`)
+          } else {
+            console.log(`[org${n} ${scheme}] no OrgMap search (seed not applied?)`)
+          }
+          await axeReport(page, `org${n} ${scheme}`)
+        } catch (error) {
+          console.log(`[org${n} ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
+        }
+        await context.close()
+      }
+      // Muse integration round: composer "/" menu, "/limites" panel, details drawer, F6.
+      if (wanted.has('composer')) {
+        const { context, page } = await open(match[1], scheme, { onboarded: true })
+        try {
+          await nav(page, 'Canais')
+          const box = page.locator('[data-persona-area="composer"] textarea').first()
+          await box.click()
+          await box.type('/')
+          await page.waitForTimeout(400)
+          const slash = `${outDir}/composer-slash-${scheme}.png`
+          await page.screenshot({ path: slash }); shots.push(slash)
+          await box.type('limites')
+          await page.keyboard.press('Enter')
+          await page.waitForTimeout(700)
+          const limits = `${outDir}/composer-limits-${scheme}.png`
+          await page.screenshot({ path: limits }); shots.push(limits)
+          await page.keyboard.press('F6')
+          await page.waitForTimeout(200)
+          const f6 = `${outDir}/composer-f6-${scheme}.png`
+          await page.screenshot({ path: f6 }); shots.push(f6)
+          console.log(`[composer ${scheme}] after F6 focus in area: ${await page.evaluate(() => document.activeElement?.closest('[data-persona-area]')?.getAttribute('data-persona-area'))}`)
+          await axeReport(page, `composer ${scheme}`)
+        } catch (error) {
+          console.log(`[composer ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
+        }
+        await context.close()
+      }
+      if (wanted.has('empty-panels')) {
+        const { context, page } = await open(match[1], scheme, { onboarded: false, emptyHome: true })
+        try {
+          await page.waitForTimeout(9000)
+          for (const label of ['Conexões', 'Uso e limites', 'Saúde', 'Quem cuida de quem']) {
+            await nav(page, label)
+            await waitPanelSettled(page, label)
+            const slug = label.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, '-')
+            const path = `${outDir}/empty-${slug}-${scheme}.png`
+            await page.screenshot({ path }); shots.push(path)
+          }
+        } catch (error) {
+          console.log(`[empty-panels ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
+        }
+        await context.close()
+      }
+      if (wanted.has('seed-panels')) {
+        const { context, page } = await open(match[1], scheme, { onboarded: true })
+        try {
+          for (const label of ['Conexões', 'Uso e limites', 'Saúde', 'Quem cuida de quem']) {
+            await nav(page, label)
+            await waitPanelSettled(page, label)
+            const slug = label.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, '-')
+            const path = `${outDir}/seed-${slug}-${scheme}.png`
+            await page.screenshot({ path }); shots.push(path)
+          }
+        } catch (error) {
+          console.log(`[seed-panels ${scheme}] failed: ${error instanceof Error ? error.message.slice(0, 160) : String(error)}`)
+        }
+        await context.close()
+      }
       if (wanted.has('channel') || wanted.has('overview')) {
         const { context, page } = await open(match[1], scheme, { onboarded: true })
         if (wanted.has('overview')) {

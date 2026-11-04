@@ -69,6 +69,8 @@ Efeito/outbox que falha 3 vezes vira `listDeadLetters` (`cause` pt-BR, `Tentar d
 
 `getUsage({ workspaceId, period: { from, to }, projectId?, personaId? })` → folds + tokens + runs + `origin` / `originLabel` (oficial da CLI · medido por nós · estimado · indisponível). Sem eventos ≠ 0%. `getOfficialQuota({ workspaceId, projectId, provider? })` → janelas oficiais ou `unavailable`. Limite do mês e spend vêm do mesmo livro SQLite.
 
+OPT-7: `recordTurnLedger({ workspaceId, projectId, entry })` persiste `TurnLedgerEntry` do core (`execution` / `evaluation`, nunca `exec`/`eval`). `getUsagePanel({ workspaceId, projectId?, personaId?, period?, successfulTicketIds? })` → `foldUsagePanel` (tokens/tarefa, por persona, por tipo, cache, origem). Livro vazio = `estimate`, não 0%. O port Rivet recebe `window = usagePortKind(kind)` (`exec`/`eval`) só nessa fronteira.
+
 ## Exportar
 
 `exportWorkspace` / `exportProject` → zip Markdown (`filename` + `base64`). DMs **fora** salvo `includeDmIds` explícito. Segredos redigidos (`looksLikeCredential`). Cofre em `cofre/*.md`. Governança do workspace em `governanca.md` (setores, disponibilidade, rotinas, auditoria) — nunca no DM.
@@ -137,6 +139,24 @@ Markdown é a fonte; FTS/tipo/links são índice derivado. Versões nunca apagam
 
 **[Anvil→Forge]** v15 = só Segundo cérebro. WAVE2 permanece v14. Gate de aprovação consulta `useBrainPermission` (nunca amplia).
 
+## Fila × direcionar e `/lado` (T3 §4 / §11)
+
+Forge: `resolveWorkingSend` / `enqueueWorkingMessage` / `openAsideAsk`. Anvil persiste a fila do fio.
+
+| RPC | Efeito |
+|---|---|
+| `enqueueWorkingMessage({ personaId, subjectId, text })` | Balão tracejado; não entra no turno |
+| `steerWorkingTurn({ personaId, text })` | Corrige o turno atual |
+| `editQueuedMessage` / `dropQueuedMessage` | Editar ou Tirar |
+| `flushWorkingQueue({ personaId })` | Manda agora, em ordem |
+| `openAsideAsk({ personaId, subjectId, question })` | `/lado` — `onThread: false` |
+| `composeCitedMessage({ quote, comment })` | Chip citar (T3 §5) |
+| `listTurnActivity({ subjectId, personaId? })` | T3 §9: folds `groupTurnActivity` (falha ≠ feito; waiting ≠ terminou) |
+| `pauseAtLimit` / `resumeAfterLimit` | Faixa "No limite"; fila permanece (T3 §12) |
+| `acceptTaughtCandidate` / `activateTaughtSkill` | Ensinar: candidato; só ativa no aceite (W2-10) |
+
+**[Anvil→Prism]** composer: botão fila/direcionar; Ctrl+Enter inverte. `/lado` abre aba lateral.
+
 ## Gestor de equipe
 
 Função atribuível (`systemRoles` inclui `team_manager`; selo **Gestor**). Coordenação nasce com a função. Sempre perguntar nunca cria sem `approveGestorPlan`.
@@ -146,13 +166,32 @@ Função atribuível (`systemRoles` inclui `team_manager`; selo **Gestor**). Coo
 | `getGestorMandate({ personaId })` | Limites (padrão always_ask) |
 | `setGestorLimits({ … })` | Teto; só dono |
 | `proposeGestorHire({ gestorId, spec, reason })` | Plano; always_ask fica `proposed` |
-| `approveGestorPlan({ planId })` | Aplica o hire (idempotente) |
+| `proposeGestorAllocate({ gestorId, personaId, projectIds, reason })` | Plano de alocação |
+| `proposeGestorReorganize({ gestorId, kind, targetPersonaId, notice, reason })` | Mover / pausar / autonomia |
+| `approveGestorPlan({ planId })` | Aplica o plano (idempotente) |
 | `assembleTeamForGoal({ goal, projectId, sprintId })` | Preview equipe + fluxo + sprint 1 |
+| `exportBrainVault({ workspaceId })` | Pack Obsidian mão única (SB-6) |
 | `listGestorAudit({ workspaceId })` | Linhas com motivo |
+| `commentGestorPlan({ workspaceId, planId, commenterId, comment })` | GES-3: segundo Gestor comenta (`commentOnId`); original fica `proposed` — **Remote pendente (janela)** |
+| `resolveGestorTie({ workspaceId, chosenId })` | Humano desempatar; os outros no escopo viram `rejected` — **Remote pendente (janela)** |
+| `listTurnActivity({ workspaceId, subjectId, personaId? })` | T3 §9 fold — **Remote pendente (janela)** |
+| `enqueueWorkingMessage` / `listWorkingQueue` / `flushWorkingQueue` | T3 §4 fila — **Remote pendente (janela)**; ver `working-send.md` |
 
 **[Anvil→Lumen]** Editor/cartão: `team_manager` + `getGestorMandate` / `setGestorLimits`. Chat: `proposeGestorHire` → cartão Aprovar → `approveGestorPlan`. Saúde/perfil: `getTeamHealth.gestorAudit` ou `listGestorAudit`.
 
 **[Anvil→Forge]** id interno no host/store = `team_manager` (D-058). Tabelas v16 `team_manager_*`.
+
+## Token-opt (host/store)
+
+| RPC | Efeito |
+|---|---|
+| `getSubjectSummary({ topicId })` | Resumo incremental do assunto |
+| `tickLibrarianBatch(scope)` | Bibliotecário só no que mudou (cursor) |
+| `tickInitiativeBatch({ leaseUntil, stallAfterMs })` | Iniciativa só se houve evento novo |
+| `putProviderLimitReports({ reports })` | Harvest Rivet → pool (mesma conta 1×) |
+| `getProviderLimitPool({ provider? })` | Pool persistido |
+
+**[Anvil→Lumen]** Uso: `getProviderLimitPool`. **[Anvil→Rivet]** `putProviderLimitReports` após harvest T3.
 
 ## Traga o que suas IAs já sabem
 

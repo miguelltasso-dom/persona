@@ -24,8 +24,15 @@ it('refuses teach recordings and provider account homes', async () => {
   expect(await client.push(envelope({
     classification: 'workspace', streamId: 'account:claude',
   }))).toMatchObject({ status: 'refused', code: 'PRIVATE_NOT_SHARED' })
+  expect(await client.push(envelope({
+    classification: 'private', streamId: 'task-run:fox-1', shared: true,
+  }))).toMatchObject({ status: 'refused', code: 'PRIVATE_NOT_SHARED' })
+  expect(await client.push(envelope({
+    classification: 'workspace', streamId: 'run:fox-1:ticket-9',
+  }))).toMatchObject({ status: 'refused', code: 'PRIVATE_NOT_SHARED' })
   expect(client.outbox).toHaveLength(0)
   expect(cloud.head('teach:nina')).toBe(0)
+  expect(cloud.head('task-run:fox-1')).toBe(0)
 })
 
 it('refuses to upload a DM and never puts it on the transport', async () => {

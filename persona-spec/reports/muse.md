@@ -312,3 +312,52 @@ bundle (with-lock) → Build complete, 99 files
 - **Pipeline (8,15 MiB)**:
   - figurinhas de 17 bichos (os 12 restantes do Brush);
   - `ENGINE_ICONS`, ícones do cérebro e `bibliotecario`.
+
+## 2026-11-04 04:15 — Colheita t3code + F6
+
+- **Colheita** (`design/T3-UX-HARVEST.md`): 14 padrões de interação do t3code (MIT, só leitura das docs), redesenhados no nosso estilo e distribuídos aos donos.
+- **Primitivos novos (meus)**:
+  - `PooledQuotaBar`: um número por janela, um segmento por conta na mesma ordem, hachura do que a próxima recarga devolve, lacuna em vez de 0%;
+  - `ActivityGroup`: resumo honesto com as mudanças primeiro e no máximo 2 categorias + "e mais N", falhas fora da contagem de feitos, lista expansível com estado.
+- **F6 / Shift+F6 / Ctrl+F6 entre áreas** (`shell/area-navigation.ts`): rail → painel → composer, com a área mais interna vencendo e o último foco lembrado em cada área; a área de chegada brilha com um contorno âmbar por 650 ms. Teste `area-navigation`.
+- **Suíte**: os meus arquivos estão verdes. Há 5 falhas de outros, todas de `map-rail-team.ts:85` (`arriving` indefinido, Prism avisado). O teste de escala do `OrgMap` feito pelo Probe passa.
+- **Ctrl K que faz (colheita §2)**:
+  - seção "Fazer" na Busca: ações globais (Contratar persona, Simular os 2 dias) e as ações da persona encontrada (Conversar com / Ensinar a);
+  - cartões com borda âmbar para distinguir "fazer" de "ir";
+  - ligado no `ConnectedSearchView` do Prism (repasse das props) e no registro;
+  - teste em `search-goto` (5/5).
+
+## 2026-11-04 01:45 — Integrações do Atlas (lote parcial; o seed de dev bloqueia o resto)
+
+- **Combinado arquivo a arquivo**:
+  - **Lumen:** SIM para Conexões, Uso, `TeamHealthView`/`twoDayToUi` e a montagem do organograma; evitar os pools e o `org-scale-dev`, que já eram dele;
+  - **Prism:** ele já tinha o menu `/`, `/limites`, a memória do composer e o `GestorPlanMessageCard`. A mim coube o polimento (SIM: só CSS e ícones).
+- **Feito**:
+  - **Uso e limites**: limites somados primeiro, depois consumo, impacto só de quem entregou (uma linha honesta em vez de 5 linhas de zeros), funil no fim, e o botão morto do aviso de limite saiu (prop `onLimitAction`);
+  - **composer**: cada comando do `/` com seu ícone do Brush e fim do anel de foco duplo (a mesma briga de especificidade com o `:focus-visible` global);
+  - **`design-shots.mjs`**: alvos `org60`, `org150` e `composer` (menu `/`, `/limites`, F6), `MUSE_LS` (localStorage extra) e `MUSE_DUMP` (console inteiro da página);
+  - **preview isolado das peças do chat**: `GestorPlanCard` pendente e aprovado, `ActivityGroup`, `PooledQuotaBar` por conta e `GestorSettings`, em claro e escuro;
+  - **janela do Keel**: o meu `tests/gestor.client.spec.tsx` ficou verde. Os 14 erros restantes do check-pkg são fixtures do Prism e do Lumen, listadas no Status.
+- **Achados**:
+  - P0 do bundle (imports de valor de persona-core no BYC): o Prism corrigiu;
+  - P1, aberto com o Prism: o seed de dev não sobe com home limpo. A equipe fica vazia e os painéis vão para o ErrorState; a página emite zero mensagens de console. Isso bloqueia as capturas "depois" de Conexões, Uso, Saúde e OrgMap no app real.
+- **Lote**: `.maestri/tmp/shots/design/integ/index.md`.
+
+## 2026-11-04 02:00 — Integrações: seed de volta, rodada "depois" no app real
+
+- **Diagnóstico** (só leitura e build, respeitando a janela): o bundle que eu capturava era anterior às correções do Prism. Com o rebuild, `[persona] dev seed {seeded: true}` e a equipe volta.
+- **App real, no claro** (`integ/depois/` + pranchas em `integ/antes-depois/`):
+  - **OrgMap com 151 personas** (busca → foco, zoom, minimapa);
+  - **Teste dos 2 dias completo** (uma linha por persona, espera em âmbar, correção de 1 clique);
+  - **Uso com os limites primeiro**;
+  - **Conexões** com nota, política e escopo.
+- **Defeitos repassados com a correção exata**:
+  - **Lumen:**
+    - nomes genéricos no seed 60/150;
+    - "Vigia (Luna)" duplicada;
+    - pool sem janela, conta "default" crua e bolinha em vez de `ENGINE_ICONS`;
+    - legenda duplicada em Conexões.
+  - **Prism:**
+    - `listGestorPlans` lança `TypeError` a cada refresh: 57 erros, que derrubam a captura no escuro;
+    - o #geral semeado ficou sem mensagens nem cartão do plano.
+- **Meus, para depois da janela**: `ChoiceCards` com 4 opções em 2 × 2 e "Simular de novo" ao lado do título.

@@ -27,7 +27,7 @@
 .empty {
   margin: var(--persona-space-6) 0;
   text-align: center;
-  font: 500 14px/20px var(--persona-font-body);
+  font: 500 14px/20px var(--persona-font-text);
   color: var(--persona-ink-soft);
   grid-column: 1 / -1;
 }
@@ -47,7 +47,7 @@
 .card:hover,
 .cardFocused {
   border-color: var(--persona-brand);
-  box-shadow: 0 0 0 2px var(--persona-focus-ring);
+  box-shadow: 0 0 0 3px var(--persona-focus-halo);
 }
 
 .cardContent {
@@ -66,7 +66,7 @@
 }
 
 .name {
-  font: 600 17px/24px var(--persona-font-title, Fredoka, system-ui);
+  font: 600 17px/24px var(--persona-font-display);
   color: var(--persona-ink);
   white-space: nowrap;
   overflow: hidden;
@@ -74,7 +74,7 @@
 }
 
 .role {
-  font: 700 13px/18px var(--persona-font-body, Nunito, system-ui);
+  font: 700 13px/18px var(--persona-font-text);
   color: var(--persona-ink-soft);
   white-space: nowrap;
   overflow: hidden;

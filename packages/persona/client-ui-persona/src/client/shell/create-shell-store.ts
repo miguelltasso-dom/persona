@@ -25,6 +25,7 @@ export type MainPanelId =
   | 'orgChart'
   | 'teamHealth'
   | 'help'
+  | 'about'
 
 export type HelpShellTab = 'guias' | 'novidades'
 

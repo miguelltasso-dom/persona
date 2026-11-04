@@ -32,13 +32,37 @@ export interface CategoryCount {
   readonly label: string
 }
 
-/** Segmented progress of a project's tasks by stage category + legend of the non-zero ones. */
-export function CategoryBar({ counts, label }: { readonly counts: readonly CategoryCount[]; readonly label: string }): ReactNode {
+export interface CategoryBarProgress {
+  /** Tasks finished. */
+  readonly done: number
+  readonly total: number
+  /** The same words the screen shows next to the bar ("3 de 8 prontas"). */
+  readonly text: string
+}
+
+/**
+ * Segmented progress of a project's tasks by stage category + legend of the non-zero ones. With `progress` the track is
+ * a progressbar whose `aria-valuetext` is the visible sentence plus the category counts; without it, a described image.
+ */
+export function CategoryBar({ counts, label, progress }: { readonly counts: readonly CategoryCount[]; readonly label: string; readonly progress?: CategoryBarProgress | undefined }): ReactNode {
   const total = counts.reduce((sum, row) => sum + row.count, 0)
   const visible = counts.filter(row => row.count > 0)
+  const described = `${label}: ${visible.map(row => `${row.count} ${row.label}`).join(', ')}`
   return (
     <div className={styles.categoryBar}>
-      <div className={styles.track} role="img" aria-label={`${label}: ${visible.map(row => `${row.count} ${row.label}`).join(', ')}`}>
+      <div
+        className={styles.track}
+        {...(progress === undefined
+          ? { role: 'img', 'aria-label': described }
+          : {
+            role: 'progressbar',
+            'aria-label': label,
+            'aria-valuemin': 0,
+            'aria-valuemax': progress.total,
+            'aria-valuenow': progress.done,
+            'aria-valuetext': visible.length === 0 ? progress.text : `${progress.text}. ${visible.map(row => `${row.count} ${row.label}`).join(', ')}`,
+          })}
+      >
         {total === 0 ? null : visible.map(row => (
           <span
             key={row.category}
@@ -145,9 +169,11 @@ export function SprintStrip({
       </div>
       <div className={styles.sprintMeta}>
         <span className={styles.sprintDates}>{dateLabel}</span>
-        <Chip size="s" tone={remainingTone === 'neutral' ? 'brand' : remainingTone} icon={<UiIcon name="clock" size={12} strokeWidth={2.4} />}>
-          {remainingLabel}
-        </Chip>
+        {remainingLabel !== '' && (
+          <Chip size="s" tone={remainingTone === 'neutral' ? 'brand' : remainingTone} icon={<UiIcon name="clock" size={12} strokeWidth={2.4} />}>
+            {remainingLabel}
+          </Chip>
+        )}
       </div>
       <div className={styles.sprintProgress}>
         <div

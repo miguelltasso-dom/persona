@@ -68,7 +68,8 @@
 }
 
 .chipList,
-.inviteList {
+.inviteList,
+.memberList {
   display: flex;
   flex-wrap: wrap;
   gap: var(--persona-space-2);
@@ -81,6 +82,24 @@
   display: flex;
   align-items: center;
   gap: var(--persona-space-2);
+}
+
+.memberList {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.member {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.memberName {
+  font: 700 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
 }
 
 .channels {
@@ -117,15 +136,13 @@
   color: var(--persona-danger);
 }
 
+/* The new invite is a Card tone="accent": the card brings border, shadow and the accent strip. */
 .issued {
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-3);
   width: 100%;
-  padding: var(--persona-space-4);
-  border: var(--persona-border-width) solid var(--persona-outline-control);
-  border-radius: var(--persona-radius-m);
-  background: var(--persona-card);
+  box-sizing: border-box;
 }
 
 .issuedFacts {
@@ -146,12 +163,18 @@
   color: var(--persona-ink);
 }
 
-.token {
-  display: inline-block;
-  padding: 2px 8px;
+/* Address and code in a mono block that WRAPS (never a sideways scroll). */
+.token,
+.mono {
+  display: block;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
   border-radius: var(--persona-radius-s);
-  background: var(--persona-wash);
-  font: 600 13px/18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--persona-paper-sunken);
+  font: 600 13px/20px var(--persona-font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-all;
   user-select: all;
 }
 

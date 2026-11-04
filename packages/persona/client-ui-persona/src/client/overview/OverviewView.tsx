@@ -33,6 +33,8 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   /** Undo a reversible decision (the toast only exists when the host marked it reversible). */
   readonly onUndoDecision?: ((decisionId: string) => void) | undefined
   readonly nowRows: readonly PersonaNowSnapshot[]
+  /** Os dados do host ainda não chegaram (recarregar): o "Agora" mostra skeleton em vez de "Monte sua equipe". */
+  readonly loading?: boolean | undefined
   readonly awayEvents: readonly AwaySummaryEvent[]
   /** User display name for the greeting (falls back to a plain "Olá!"). */
   readonly userName?: string | undefined
@@ -74,6 +76,7 @@ export function OverviewView({
   onDecide,
   onUndoDecision,
   nowRows,
+  loading = false,
   awayEvents,
   userName,
   onNavigate,
@@ -326,7 +329,7 @@ export function OverviewView({
         </div>
 
         <aside className={styles.sideCol}>
-          <OverviewNowStrip t={t} rows={nowRows} />
+          <OverviewNowStrip t={t} rows={nowRows} loading={loading} />
         </aside>
       </div>
     </div>

@@ -16,8 +16,8 @@
 }
 
 .sheet {
-  width: min(52rem, 100%);
-  max-height: min(90vh, 48rem);
+  width: min(76rem, 100%);
+  max-height: min(92vh, 56rem);
   overflow: auto;
   background: var(--persona-active-surface);
   border: 1px solid var(--persona-lilac-200);

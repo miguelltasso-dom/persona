@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { parsePersona } from '@deepseek-ai/dsh-persona-core'
@@ -29,6 +29,7 @@ import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { TriageRulesView } from '../src/client/rules/TriageRulesView.tsx'
 import { SkillsPanel } from '../src/client/skills/SkillsPanel.tsx'
+import { MOCK_SKILLS } from '../src/client/skills/mock-data.ts'
 
 installPreviewTheme()
 
@@ -99,13 +100,17 @@ describe('lumen queue 2 previews', () => {
     expect(screen.getByRole('heading', { level: 3, name: 'Contratar Sol?' })).toBeTruthy()
   })
 
-  it('renders memory panel actions', () => {
+  it('renders memory panel actions only when there is something behind them', () => {
     wrap(<MemoryPanel />)
+    expect(screen.queryAllByRole('button', { name: /Esquecer|Editar|Aprovar/i })).toHaveLength(0)
+    cleanup()
+    wrap(<MemoryPanel actions={{ onApprove: async () => {}, onEdit: async () => {}, onForget: async () => {} }} />)
     expect(screen.getAllByRole('button', { name: /Esquecer/i }).length).toBeGreaterThan(0)
   })
 
   it('renders skills panel', () => {
-    wrap(<SkillsPanel />)
+    // The panel has no sample skills of its own (IV-8): the preview hands them in.
+    wrap(<SkillsPanel skills={MOCK_SKILLS} />)
     expect(screen.getByText('Revisão de PR')).toBeTruthy()
   })
 

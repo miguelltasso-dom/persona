@@ -26,6 +26,9 @@ import { registerPrismScreens } from './shell/register-prism-screens.tsx'
 import { registerPersonaAboutSettings } from './shell/register-persona-about-settings.ts'
 import { PersonaAppFrame } from './shell/PersonaAppFrame.tsx'
 import { PersonaSidebar } from './shell/PersonaSidebar.tsx'
+import { createRailAiObservable, type RailAiRemote } from './shell/rail-ai-status.ts'
+import { SettingsLauncher } from './shell/SettingsLauncher.tsx'
+import { isPlacesNavEnabled } from './shell/nav-flag.ts'
 import { createShellStore, type MainPanelId, type ShellStoreHandle } from './shell/create-shell-store.ts'
 import { overlayOpenFromHost } from './remote/onboarding-host.ts'
 import { signalPersonaFirstPaint } from './boot/signal-first-paint.ts'
@@ -115,6 +118,15 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     }
   })
 
+  // A-5: estado real da IA para a pílula do rodapé; só consulta o host enquanto o rail está montado.
+  const railAiObservable = createRailAiObservable({
+    remote: ctx.remote.persona as unknown as RailAiRemote,
+    scope: () => {
+      const tenant = live.observable.getSnapshot().tenant
+      return tenant === null ? null : { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
+    },
+    subscribeScope: listener => live.observable.subscribe(listener),
+  })
   const sidebarInject = () => ({
     hooks: {
       shell: shellObservable,
@@ -122,6 +134,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       personaCardRevision: personaCardBridge.revision,
       approvals: createApprovalsBadgeObservable(live),
     },
+    railAi: railAiObservable,
     cardInfo: personaCardBridge.cardInfo,
     prefetchPersonaCard: personaCardBridge.prefetch,
     cardDict,
@@ -154,7 +167,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     editPersonaTalk: (personaId: string) => { actions.openTalkAclEditor(personaId) },
     onAwayChange: (state: UserAwayState) => { void syncAvailability(ctx.remote.persona as never, availabilityTenant(), state) },
   })
-  const frameInject = () => ({ hooks: { shell: shellObservable } })
+  const frameInject = () => ({ hooks: { shell: shellObservable }, selectPanel: (panel: MainPanelId) => { actions.selectPanel(panel) } })
 
   ctx.slots.register({
     name: 'root',
@@ -175,6 +188,20 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     },
     inject: sidebarInject,
   }, PersonaSidebar)
+
+  // "Configurações" do rodapé (D-077, atrás da flag A-1): com a navegação em 6 lugares LIGADA o nosso botão ocupa o gatilho
+  // do DSW (uma engrenagem só, abre o lugar) e o slot do DSW segue montado em volta, então os indicadores de conexão e de
+  // atualização continuam ao lado. DESLIGADA (padrão) o launcher nem é registrado: o gatilho é o do DSW, como antes.
+  if (isPlacesNavEnabled()) {
+    ctx.slots.inject('settings.launcher', () => ctx.slots.register({
+      name: 'settings.launcher',
+      locale: SHELL_NS,
+      inject: () => ({
+        hooks: { shell: shellObservable },
+        selectPanel: (panel: MainPanelId) => { actions.selectPanel(panel) },
+      }),
+    }, SettingsLauncher))
+  }
 
   registerPrismScreens(ctx, live, shellHandle, (panel) => { actions.selectPanel(panel) }, personaCardShell)
   registerPersonaAboutSettings(ctx)

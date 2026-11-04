@@ -29,12 +29,18 @@ import pose_bento_pensando_2 from './poses/bento-pensando-2.webp'
 import pose_bento_pensando_3 from './poses/bento-pensando-3.webp'
 import pose_bento_revisando from './poses/bento-revisando.webp'
 import pose_bento_trabalhando from './poses/bento-trabalhando.webp'
+import pose_capivara_acenando from './poses/capivara-acenando.webp'
 import pose_capivara_aguardando_aprovacao from './poses/capivara-aguardando-aprovacao.webp'
 import pose_capivara_aguardando_resposta from './poses/capivara-aguardando-resposta.webp'
 import pose_capivara_descansando from './poses/capivara-descansando.webp'
+import pose_capivara_disponivel_blink from './poses/capivara-disponivel-blink.webp'
+import pose_capivara_disponivel_tail from './poses/capivara-disponivel-tail.webp'
 import pose_capivara_disponivel from './poses/capivara-disponivel.webp'
 import pose_capivara_erro from './poses/capivara-erro.webp'
 import pose_capivara_offline from './poses/capivara-offline.webp'
+import pose_capivara_pensando_1 from './poses/capivara-pensando-1.webp'
+import pose_capivara_pensando_2 from './poses/capivara-pensando-2.webp'
+import pose_capivara_pensando_3 from './poses/capivara-pensando-3.webp'
 import pose_capivara_revisando from './poses/capivara-revisando.webp'
 import pose_capivara_trabalhando from './poses/capivara-trabalhando.webp'
 import pose_cervo_aguardando_aprovacao from './poses/cervo-aguardando-aprovacao.webp'
@@ -53,20 +59,32 @@ import pose_coelho_erro from './poses/coelho-erro.webp'
 import pose_coelho_offline from './poses/coelho-offline.webp'
 import pose_coelho_revisando from './poses/coelho-revisando.webp'
 import pose_coelho_trabalhando from './poses/coelho-trabalhando.webp'
+import pose_coruja_acenando from './poses/coruja-acenando.webp'
 import pose_coruja_aguardando_aprovacao from './poses/coruja-aguardando-aprovacao.webp'
 import pose_coruja_aguardando_resposta from './poses/coruja-aguardando-resposta.webp'
 import pose_coruja_descansando from './poses/coruja-descansando.webp'
+import pose_coruja_disponivel_blink from './poses/coruja-disponivel-blink.webp'
+import pose_coruja_disponivel_tail from './poses/coruja-disponivel-tail.webp'
 import pose_coruja_disponivel from './poses/coruja-disponivel.webp'
 import pose_coruja_erro from './poses/coruja-erro.webp'
 import pose_coruja_offline from './poses/coruja-offline.webp'
+import pose_coruja_pensando_1 from './poses/coruja-pensando-1.webp'
+import pose_coruja_pensando_2 from './poses/coruja-pensando-2.webp'
+import pose_coruja_pensando_3 from './poses/coruja-pensando-3.webp'
 import pose_coruja_revisando from './poses/coruja-revisando.webp'
 import pose_coruja_trabalhando from './poses/coruja-trabalhando.webp'
+import pose_guaxinim_acenando from './poses/guaxinim-acenando.webp'
 import pose_guaxinim_aguardando_aprovacao from './poses/guaxinim-aguardando-aprovacao.webp'
 import pose_guaxinim_aguardando_resposta from './poses/guaxinim-aguardando-resposta.webp'
 import pose_guaxinim_descansando from './poses/guaxinim-descansando.webp'
+import pose_guaxinim_disponivel_blink from './poses/guaxinim-disponivel-blink.webp'
+import pose_guaxinim_disponivel_tail from './poses/guaxinim-disponivel-tail.webp'
 import pose_guaxinim_disponivel from './poses/guaxinim-disponivel.webp'
 import pose_guaxinim_erro from './poses/guaxinim-erro.webp'
 import pose_guaxinim_offline from './poses/guaxinim-offline.webp'
+import pose_guaxinim_pensando_1 from './poses/guaxinim-pensando-1.webp'
+import pose_guaxinim_pensando_2 from './poses/guaxinim-pensando-2.webp'
+import pose_guaxinim_pensando_3 from './poses/guaxinim-pensando-3.webp'
 import pose_guaxinim_revisando from './poses/guaxinim-revisando.webp'
 import pose_guaxinim_trabalhando from './poses/guaxinim-trabalhando.webp'
 import pose_lobo_guara_aguardando_aprovacao from './poses/lobo-guara-aguardando-aprovacao.webp'
@@ -122,20 +140,32 @@ import pose_ourico_erro from './poses/ourico-erro.webp'
 import pose_ourico_offline from './poses/ourico-offline.webp'
 import pose_ourico_revisando from './poses/ourico-revisando.webp'
 import pose_ourico_trabalhando from './poses/ourico-trabalhando.webp'
+import pose_panda_acenando from './poses/panda-acenando.webp'
 import pose_panda_aguardando_aprovacao from './poses/panda-aguardando-aprovacao.webp'
 import pose_panda_aguardando_resposta from './poses/panda-aguardando-resposta.webp'
 import pose_panda_descansando from './poses/panda-descansando.webp'
+import pose_panda_disponivel_blink from './poses/panda-disponivel-blink.webp'
+import pose_panda_disponivel_tail from './poses/panda-disponivel-tail.webp'
 import pose_panda_disponivel from './poses/panda-disponivel.webp'
 import pose_panda_erro from './poses/panda-erro.webp'
 import pose_panda_offline from './poses/panda-offline.webp'
+import pose_panda_pensando_1 from './poses/panda-pensando-1.webp'
+import pose_panda_pensando_2 from './poses/panda-pensando-2.webp'
+import pose_panda_pensando_3 from './poses/panda-pensando-3.webp'
 import pose_panda_revisando from './poses/panda-revisando.webp'
 import pose_panda_trabalhando from './poses/panda-trabalhando.webp'
+import pose_raposa_acenando from './poses/raposa-acenando.webp'
 import pose_raposa_aguardando_aprovacao from './poses/raposa-aguardando-aprovacao.webp'
 import pose_raposa_aguardando_resposta from './poses/raposa-aguardando-resposta.webp'
 import pose_raposa_descansando from './poses/raposa-descansando.webp'
+import pose_raposa_disponivel_blink from './poses/raposa-disponivel-blink.webp'
+import pose_raposa_disponivel_tail from './poses/raposa-disponivel-tail.webp'
 import pose_raposa_disponivel from './poses/raposa-disponivel.webp'
 import pose_raposa_erro from './poses/raposa-erro.webp'
 import pose_raposa_offline from './poses/raposa-offline.webp'
+import pose_raposa_pensando_1 from './poses/raposa-pensando-1.webp'
+import pose_raposa_pensando_2 from './poses/raposa-pensando-2.webp'
+import pose_raposa_pensando_3 from './poses/raposa-pensando-3.webp'
 import pose_raposa_revisando from './poses/raposa-revisando.webp'
 import pose_raposa_trabalhando from './poses/raposa-trabalhando.webp'
 import pose_sol_acenando from './poses/sol-acenando.webp'
@@ -180,6 +210,7 @@ import pose_tucano_pensando_2 from './poses/tucano-pensando-2.webp'
 import pose_tucano_pensando_3 from './poses/tucano-pensando-3.webp'
 import pose_tucano_revisando from './poses/tucano-revisando.webp'
 import pose_tucano_trabalhando from './poses/tucano-trabalhando.webp'
+import nav_ajuda from './icons/nav/ajuda.svg'
 import nav_arquivos from './icons/nav/arquivos.svg'
 import nav_busca from './icons/nav/busca.svg'
 import nav_canais from './icons/nav/canais.svg'
@@ -192,6 +223,7 @@ import nav_decisoes from './icons/nav/decisoes.svg'
 import nav_equipe from './icons/nav/equipe.svg'
 import nav_kanban from './icons/nav/kanban.svg'
 import nav_mensagens_diretas from './icons/nav/mensagens-diretas.svg'
+import nav_novidades from './icons/nav/novidades.svg'
 import nav_projetos from './icons/nav/projetos.svg'
 import nav_quadro from './icons/nav/quadro.svg'
 import nav_quem_cuida from './icons/nav/quem-cuida.svg'
@@ -330,6 +362,9 @@ import ill_ensinar_nina from './illustrations/ensinar-nina.webp'
 import ill_ensinar_sol from './illustrations/ensinar-sol.webp'
 import ill_ensinar_luna from './illustrations/ensinar-luna.webp'
 import ill_bibliotecario from './illustrations/bibliotecario.webp'
+import ill_conflito_mesmo_arquivo from './illustrations/conflito-mesmo-arquivo.webp'
+import ill_empty_historico from './illustrations/empty-historico.webp'
+import ill_rascunho_trabalhando from './illustrations/rascunho-trabalhando.webp'
 import ill_spot_sem_ia from './illustrations/spot-sem-ia.webp'
 import ill_about_team from './illustrations/about-team.webp'
 import ill_release_notes_badge from './illustrations/release-notes-badge.webp'
@@ -478,12 +513,18 @@ registerPoseUrl('bento-pensando-2', pose_bento_pensando_2)
 registerPoseUrl('bento-pensando-3', pose_bento_pensando_3)
 registerPoseUrl('bento-revisando', pose_bento_revisando)
 registerPoseUrl('bento-trabalhando', pose_bento_trabalhando)
+registerPoseUrl('capivara-acenando', pose_capivara_acenando)
 registerPoseUrl('capivara-aguardando-aprovacao', pose_capivara_aguardando_aprovacao)
 registerPoseUrl('capivara-aguardando-resposta', pose_capivara_aguardando_resposta)
 registerPoseUrl('capivara-descansando', pose_capivara_descansando)
+registerPoseUrl('capivara-disponivel-blink', pose_capivara_disponivel_blink)
+registerPoseUrl('capivara-disponivel-tail', pose_capivara_disponivel_tail)
 registerPoseUrl('capivara-disponivel', pose_capivara_disponivel)
 registerPoseUrl('capivara-erro', pose_capivara_erro)
 registerPoseUrl('capivara-offline', pose_capivara_offline)
+registerPoseUrl('capivara-pensando-1', pose_capivara_pensando_1)
+registerPoseUrl('capivara-pensando-2', pose_capivara_pensando_2)
+registerPoseUrl('capivara-pensando-3', pose_capivara_pensando_3)
 registerPoseUrl('capivara-revisando', pose_capivara_revisando)
 registerPoseUrl('capivara-trabalhando', pose_capivara_trabalhando)
 registerPoseUrl('cervo-aguardando-aprovacao', pose_cervo_aguardando_aprovacao)
@@ -502,20 +543,32 @@ registerPoseUrl('coelho-erro', pose_coelho_erro)
 registerPoseUrl('coelho-offline', pose_coelho_offline)
 registerPoseUrl('coelho-revisando', pose_coelho_revisando)
 registerPoseUrl('coelho-trabalhando', pose_coelho_trabalhando)
+registerPoseUrl('coruja-acenando', pose_coruja_acenando)
 registerPoseUrl('coruja-aguardando-aprovacao', pose_coruja_aguardando_aprovacao)
 registerPoseUrl('coruja-aguardando-resposta', pose_coruja_aguardando_resposta)
 registerPoseUrl('coruja-descansando', pose_coruja_descansando)
+registerPoseUrl('coruja-disponivel-blink', pose_coruja_disponivel_blink)
+registerPoseUrl('coruja-disponivel-tail', pose_coruja_disponivel_tail)
 registerPoseUrl('coruja-disponivel', pose_coruja_disponivel)
 registerPoseUrl('coruja-erro', pose_coruja_erro)
 registerPoseUrl('coruja-offline', pose_coruja_offline)
+registerPoseUrl('coruja-pensando-1', pose_coruja_pensando_1)
+registerPoseUrl('coruja-pensando-2', pose_coruja_pensando_2)
+registerPoseUrl('coruja-pensando-3', pose_coruja_pensando_3)
 registerPoseUrl('coruja-revisando', pose_coruja_revisando)
 registerPoseUrl('coruja-trabalhando', pose_coruja_trabalhando)
+registerPoseUrl('guaxinim-acenando', pose_guaxinim_acenando)
 registerPoseUrl('guaxinim-aguardando-aprovacao', pose_guaxinim_aguardando_aprovacao)
 registerPoseUrl('guaxinim-aguardando-resposta', pose_guaxinim_aguardando_resposta)
 registerPoseUrl('guaxinim-descansando', pose_guaxinim_descansando)
+registerPoseUrl('guaxinim-disponivel-blink', pose_guaxinim_disponivel_blink)
+registerPoseUrl('guaxinim-disponivel-tail', pose_guaxinim_disponivel_tail)
 registerPoseUrl('guaxinim-disponivel', pose_guaxinim_disponivel)
 registerPoseUrl('guaxinim-erro', pose_guaxinim_erro)
 registerPoseUrl('guaxinim-offline', pose_guaxinim_offline)
+registerPoseUrl('guaxinim-pensando-1', pose_guaxinim_pensando_1)
+registerPoseUrl('guaxinim-pensando-2', pose_guaxinim_pensando_2)
+registerPoseUrl('guaxinim-pensando-3', pose_guaxinim_pensando_3)
 registerPoseUrl('guaxinim-revisando', pose_guaxinim_revisando)
 registerPoseUrl('guaxinim-trabalhando', pose_guaxinim_trabalhando)
 registerPoseUrl('lobo-guara-aguardando-aprovacao', pose_lobo_guara_aguardando_aprovacao)
@@ -571,20 +624,32 @@ registerPoseUrl('ourico-erro', pose_ourico_erro)
 registerPoseUrl('ourico-offline', pose_ourico_offline)
 registerPoseUrl('ourico-revisando', pose_ourico_revisando)
 registerPoseUrl('ourico-trabalhando', pose_ourico_trabalhando)
+registerPoseUrl('panda-acenando', pose_panda_acenando)
 registerPoseUrl('panda-aguardando-aprovacao', pose_panda_aguardando_aprovacao)
 registerPoseUrl('panda-aguardando-resposta', pose_panda_aguardando_resposta)
 registerPoseUrl('panda-descansando', pose_panda_descansando)
+registerPoseUrl('panda-disponivel-blink', pose_panda_disponivel_blink)
+registerPoseUrl('panda-disponivel-tail', pose_panda_disponivel_tail)
 registerPoseUrl('panda-disponivel', pose_panda_disponivel)
 registerPoseUrl('panda-erro', pose_panda_erro)
 registerPoseUrl('panda-offline', pose_panda_offline)
+registerPoseUrl('panda-pensando-1', pose_panda_pensando_1)
+registerPoseUrl('panda-pensando-2', pose_panda_pensando_2)
+registerPoseUrl('panda-pensando-3', pose_panda_pensando_3)
 registerPoseUrl('panda-revisando', pose_panda_revisando)
 registerPoseUrl('panda-trabalhando', pose_panda_trabalhando)
+registerPoseUrl('raposa-acenando', pose_raposa_acenando)
 registerPoseUrl('raposa-aguardando-aprovacao', pose_raposa_aguardando_aprovacao)
 registerPoseUrl('raposa-aguardando-resposta', pose_raposa_aguardando_resposta)
 registerPoseUrl('raposa-descansando', pose_raposa_descansando)
+registerPoseUrl('raposa-disponivel-blink', pose_raposa_disponivel_blink)
+registerPoseUrl('raposa-disponivel-tail', pose_raposa_disponivel_tail)
 registerPoseUrl('raposa-disponivel', pose_raposa_disponivel)
 registerPoseUrl('raposa-erro', pose_raposa_erro)
 registerPoseUrl('raposa-offline', pose_raposa_offline)
+registerPoseUrl('raposa-pensando-1', pose_raposa_pensando_1)
+registerPoseUrl('raposa-pensando-2', pose_raposa_pensando_2)
+registerPoseUrl('raposa-pensando-3', pose_raposa_pensando_3)
 registerPoseUrl('raposa-revisando', pose_raposa_revisando)
 registerPoseUrl('raposa-trabalhando', pose_raposa_trabalhando)
 registerPoseUrl('sol-acenando', pose_sol_acenando)
@@ -631,6 +696,7 @@ registerPoseUrl('tucano-revisando', pose_tucano_revisando)
 registerPoseUrl('tucano-trabalhando', pose_tucano_trabalhando)
 
 export const NAV_ICONS = {
+  'ajuda': nav_ajuda,
   'arquivos': nav_arquivos,
   'busca': nav_busca,
   'canais': nav_canais,
@@ -643,6 +709,7 @@ export const NAV_ICONS = {
   'equipe': nav_equipe,
   'kanban': nav_kanban,
   'mensagens-diretas': nav_mensagens_diretas,
+  'novidades': nav_novidades,
   'projetos': nav_projetos,
   'quadro': nav_quadro,
   'quem-cuida': nav_quem_cuida,
@@ -922,6 +989,9 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'ensinar-sol': ill_ensinar_sol,
   'ensinar-luna': ill_ensinar_luna,
   'bibliotecario': ill_bibliotecario,
+  'conflito-mesmo-arquivo': ill_conflito_mesmo_arquivo,
+  'empty-historico': ill_empty_historico,
+  'rascunho-trabalhando': ill_rascunho_trabalhando,
   'spot-sem-ia': ill_spot_sem_ia,
   'about-team': ill_about_team,
   'release-notes-badge': ill_release_notes_badge,

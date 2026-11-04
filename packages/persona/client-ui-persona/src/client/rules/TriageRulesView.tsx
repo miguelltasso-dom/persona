@@ -145,7 +145,8 @@ export function TriageRulesView({
             ...(['economico', 'normal', 'generoso'] as const).map(id => ({
               id,
               title: t(`preset.${id}`),
-              body: t('preset.estimate', {
+              // Real plural: "1 proposta" / "3 propostas" (never "proposta(s)").
+              body: t(BUDGET_PRESETS[id].maxProposalsPerDay === 1 ? 'preset.estimate.one' : 'preset.estimate', {
                 proposals: BUDGET_PRESETS[id].maxProposalsPerDay,
                 tasks: tasksPerMonth(BUDGET_PRESETS[id].tokensPerPersonaMonth),
               }),

@@ -23,6 +23,7 @@ import { SprintPlanningView } from '../kanban/SprintPlanningView.tsx'
 import { sprintDatesFromDraft, useSprintPlanningState } from '../kanban/use-sprint-planning-state.ts'
 import type { KanbanSurfaceState } from '../kanban/types.ts'
 import { KanbanReviewSheet } from '../review/KanbanReviewSheet.tsx'
+import { REVIEW_DEV_TASK_TITLE, REVIEW_DEV_TICKET_ID, reviewDevSampleEnabled } from '../review/review-dev-sample.ts'
 import { AppliedToast } from '../review/simple/AppliedToast.tsx'
 import { personaHistoryRemote } from '../data/history-remote.ts'
 import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
@@ -43,6 +44,8 @@ export interface ConnectedProjectFlowBoardProps {
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
   readonly channelSubjects?: readonly ConversationSubjectUi[]
+  /** Where a new task starts (the conversation with the team). */
+  readonly onNewTask?: (() => void) | undefined
 }
 
 function canProposeWorkflow(client: PersonaRemoteClient): boolean {
@@ -65,9 +68,13 @@ export function ConnectedProjectFlowBoard({
   personaCard,
   openPersonaProfile,
   channelSubjects = [],
+  onNewTask,
 }: ConnectedProjectFlowBoardProps): ReactNode {
   const [reloadToken, setReloadToken] = useState(0)
-  const [reviewTarget, setReviewTarget] = useState<{ id: string; title: string } | null>(null)
+  const [reviewTarget, setReviewTarget] = useState<{ id: string; title: string } | null>(
+    // Capture-only (dev seed + persona.devSeed.review): the sample opens on its own, once. Never without the flag.
+    () => (reviewDevSampleEnabled() ? { id: REVIEW_DEV_TICKET_ID, title: REVIEW_DEV_TASK_TITLE } : null),
+  )
   const [applied, setApplied] = useState<{ readonly restorePointId?: string | undefined } | null>(null)
   const [startPending, setStartPending] = useState(false)
   const [workflowProposal, setWorkflowProposal] = useState<WorkflowProposalView | null>(null)
@@ -222,6 +229,8 @@ export function ConnectedProjectFlowBoard({
         onSelectSprint={planning.setSelectedSprintId}
         onAddToSprint={planning.addSelectedToSprint}
         onRemoveFromSprint={planning.removeSelectedFromSprint}
+        onMoveToSprint={planning.moveToSprint}
+        onMoveToBacklog={planning.moveToBacklog}
         onCancel={goToBoardTab}
         onStart={() => { void onStartSprint() }}
         startPending={startPending}
@@ -244,6 +253,7 @@ export function ConnectedProjectFlowBoard({
         workspaceTab={workspaceTab}
         onBack={onBack}
         onRetry={reload}
+        onNewTask={onNewTask}
         {...(onWorkspaceTabChange !== undefined ? { onWorkspaceTabChange } : {})}
         {...(personaCard === undefined ? {} : { personaCard })}
         {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
@@ -266,6 +276,7 @@ export function ConnectedProjectFlowBoard({
           if (card !== undefined) setReviewTarget({ id: ticketId, title: card.title })
         }}
         onRetry={reload}
+        onNewTask={onNewTask}
         onPlanSprint={() => { onWorkspaceTabChange?.('sprints') }}
         workflowFields={board?.workflow.fields ?? []}
         onSaveWorkflow={async (columns, destByRemoved, fields) => {
@@ -328,6 +339,9 @@ export function ConnectedProjectFlowBoard({
             paw.celebrate()
           }}
           onApplied={(info) => { setApplied(info.restorePointId === undefined ? {} : { restorePointId: info.restorePointId }) }}
+          {...(personaHistoryRemote(persona).available
+            ? { onUndoApplied: (restorePointId: string) => { void personaHistoryRemote(persona).undo(scope, restorePointId).then(reload).catch(() => { /* the history screen shows it if it did not work */ }) } }
+            : {})}
         />
       )}
       {applied !== null && (

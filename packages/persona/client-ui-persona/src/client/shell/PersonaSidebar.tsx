@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS, symbol } from '../assets/generated-imports.ts'
-import { BrandIcon, UiIcon, useActiveIndicator } from '../primitives/index.ts'
+import { BrandIcon, Button, Tooltip, UiIcon, useActiveIndicator } from '../primitives/index.ts'
 import type { MainPanelId, ShellState } from './create-shell-store.ts'
 import { showPersonaDevHostBadge } from './persona-dev.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
@@ -9,7 +9,12 @@ import type { PersonaCardInfo } from '../profile/PersonaInfoCard.tsx'
 import { RailTeam, type RailPersona } from './RailTeam.tsx'
 import { NAV_GROUPS as GROUPS, SEARCH_FOCUS_EVENT } from './nav-groups.ts'
 import { installAreaNavigation } from './area-navigation.ts'
+import { isPlacesNavEnabled } from './nav-flag.ts'
+import { PlacesRailNav } from './PlacesRailNav.tsx'
 import { UserAwayControl, formatAwayUntilWhen, isAwayExpired, type UserAwayState } from './UserAwayControl.tsx'
+import { useShortViewport } from './use-short-viewport.ts'
+import type { RailAiStatus } from './rail-ai-status.ts'
+import { deriveRailPill, railAiHint, railAiRowText } from './rail-pill.ts'
 import styles from './PersonaSidebar.module.css'
 
 export interface PersonaSidebarInjected {
@@ -37,7 +42,12 @@ export interface PersonaSidebarInjected {
   readonly togglePersonaPause?: ((personaId: string) => void) | undefined
   readonly switchPersonaEngine?: ((personaId: string) => void) | undefined
   readonly editPersonaTalk?: ((personaId: string) => void) | undefined
+  /** Estado real da IA para a pílula do rodapé (A-5). Sem ele (preview/testes) a pílula diz "Conectado" como antes. */
+  readonly railAi?: HostObservable<RailAiStatus> | undefined
 }
+
+const NO_SUBSCRIBE = (): (() => void) => () => {}
+const NO_AI = (): undefined => undefined
 
 const COLLAPSED_KEY = 'persona.rail.collapsed.v1'
 const GROUPS_KEY = 'persona.rail.groups.v1'
@@ -90,12 +100,19 @@ export function PersonaSidebar({
   togglePersonaPause,
   switchPersonaEngine,
   editPersonaTalk,
+  railAi,
 }: PersonaSidebarProps): ReactNode {
   const shell = useShell(state => state)
+  const aiStore = useMemo(() => (railAi === undefined
+    ? { subscribe: NO_SUBSCRIBE, getSnapshot: NO_AI }
+    : { subscribe: (listener: () => void) => railAi.subscribe(listener), getSnapshot: () => railAi.getSnapshot() as RailAiStatus | undefined }), [railAi])
+  const aiStatus = useSyncExternalStore(aiStore.subscribe, aiStore.getSnapshot, NO_AI)
   const members = useTeam(rows => rows)
   void usePersonaCardRevision(state => state.n)
   const approvalsPending = useApprovals(state => state.pending)
   const [collapsed, setCollapsed] = useState(readCollapsed)
+  // P0-22: janela baixa (< 600 px, zoom 200%): sem folhagem e com o rodapé numa linha só.
+  const short = useShortViewport()
   const toggleCollapsed = useCallback((): void => {
     setCollapsed((value) => {
       try {
@@ -107,6 +124,28 @@ export function PersonaSidebar({
     })
   }, [])
   const navRef = useRef<HTMLDivElement>(null)
+  const placesNav = isPlacesNavEnabled()
+  // A faixa SUA EQUIPE é a mesma no rail antigo e no novo (D-077: o novo só liga depois do aceite da Muse).
+  const railTeam = (members.length > 0 || hirePersona !== undefined)
+    ? (
+      <RailTeam
+        t={t}
+        members={members}
+        collapsed={collapsed}
+        onOpenDm={openPersonaDm}
+        onOpenProfile={openPersonaProfile}
+        onHire={hirePersona}
+        onSendToPersona={sendToPersona}
+        onEditPersona={editPersona}
+        {...(cardInfo === undefined ? {} : { cardInfo })}
+        {...(cardDict === undefined ? {} : { cardDict })}
+        {...(prefetchPersonaCard === undefined ? {} : { onCardPrefetch: prefetchPersonaCard })}
+        {...(togglePersonaPause === undefined ? {} : { onTogglePersonaPause: togglePersonaPause })}
+        {...(switchPersonaEngine === undefined ? {} : { onSwitchPersonaEngine: switchPersonaEngine })}
+        {...(editPersonaTalk === undefined ? {} : { onEditPersonaTalk: editPersonaTalk })}
+      />
+    )
+    : null
   const activeGroup = GROUPS.find(group => group.items.some(item => item.panel === shell.activePanel))?.id
   const [groupsOpen, setGroupsOpen] = useState(readGroupsOpen)
   const toggleGroup = (id: string): void => {
@@ -132,6 +171,22 @@ export function PersonaSidebar({
       event.preventDefault()
       selectPanel('search')
       requestAnimationFrame(() => { window.dispatchEvent(new Event(SEARCH_FOCUS_EVENT)) })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, [selectPanel])
+
+  // "?" abre Ajuda e atalhos (o tooltip do botão promete essa tecla). Fora de campos de texto e de janelas modais.
+  // Só com a flag A-1 ligada: desligada, o app é o de antes e ninguém promete essa tecla.
+  useEffect(() => {
+    if (!isPlacesNavEnabled()) return undefined
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== '?' || event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return
+      const target = event.target
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/u.test(target.tagName))) return
+      if (document.querySelector('[aria-modal="true"]') !== null) return
+      event.preventDefault()
+      selectPanel('help')
     }
     window.addEventListener('keydown', onKeyDown)
     return () => { window.removeEventListener('keydown', onKeyDown) }
@@ -194,15 +249,44 @@ export function PersonaSidebar({
 
   const indicator = useActiveIndicator(navRef, '[data-nav-item][aria-current="page"]', 'y', [shell.activePanel, groupsOpen, collapsed, members.length])
 
-  const hostLabel = shell.hostStatus === 'online'
-    ? t('overview.hostConnected')
-    : shell.hostStatus === 'offline'
-      ? t('overview.hostOffline')
-      : t('overview.hostPending')
+  // A-5: a pílula diz o estado REAL da IA (ou "Fora até…" / equipe fora do ar), um por vez.
+  const pill = deriveRailPill({
+    t,
+    hostStatus: shell.hostStatus,
+    awayText: awayState.isAway ? t('away.railAwayUntil', { when: formatAwayUntilWhen(t, awayState) }) : null,
+    ai: aiStatus,
+  })
+  const aiRowText = shell.hostStatus === 'offline' ? null : railAiRowText(t, aiStatus)
+  // O "—" não fica enigmático: a frase da Muse no tooltip da pílula e na linha do popover (some quando o dado chega).
+  const aiHint = shell.hostStatus === 'online' && !awayState.isAway ? railAiHint(t, aiStatus) : null
+  const aiLink = aiStatus?.kind === 'unavailable'
+    ? { label: t('rail.ai.connect'), panel: 'connections' as const }
+    : aiStatus?.kind === 'ready'
+      ? { label: t('rail.ai.openUsage'), panel: 'usage' as const }
+      : null
   const devBadge = showPersonaDevHostBadge() && shell.hostProtocol !== null ? ` · p${shell.hostProtocol}` : ''
+  const pillButton = (
+    <button
+      ref={awayChipRef}
+      type="button"
+      className={`${styles.hostStatus} ${styles.hostStatusButton}`}
+      data-status={pill.tone}
+      onClick={() => { setAwayPopoverOpen(prev => !prev) }}
+      aria-expanded={awayPopoverOpen}
+      aria-haspopup="dialog"
+      aria-label={pill.text}
+      {...(aiHint === null ? { title: pill.text } : {})}
+    >
+      <span className={styles.statusDot} aria-hidden="true" />
+      <span className={styles.hostStatusText}>
+        {pill.text}
+        {devBadge}
+      </span>
+    </button>
+  )
 
   return (
-    <nav className={styles.sidebar} aria-label={t('brand.name')} data-persona-grain="" data-persona-area="rail" data-collapsed={collapsed ? '' : undefined}>
+    <nav className={styles.sidebar} aria-label={t('brand.name')} data-persona-grain="" data-persona-area="rail" data-collapsed={collapsed ? '' : undefined} data-short={short ? '' : undefined}>
       <div className={styles.foliage} aria-hidden="true">
         {ILLUSTRATIONS['rail-foliage-light'] !== undefined && (
           <img className={styles.foliageLight} src={ILLUSTRATIONS['rail-foliage-light']} alt="" />
@@ -248,7 +332,12 @@ export function PersonaSidebar({
           style={{ transform: `translateY(${indicator.offset}px)`, height: `${indicator.size}px`, opacity: indicator.visible ? 1 : 0 }}
           aria-hidden="true"
         />
-        {GROUPS.map((group) => {
+        {placesNav ? (
+          <div className={styles.group}>
+            <PlacesRailNav t={t} collapsed={collapsed} activePanel={shell.activePanel} approvalsPending={approvalsPending} selectPanel={selectPanel} />
+            {railTeam}
+          </div>
+        ) : GROUPS.map((group) => {
           const expanded = group.labelKey === undefined
             || group.id === activeGroup
             || (collapsed && group.id !== 'more')
@@ -287,6 +376,8 @@ export function PersonaSidebar({
                       <button
                         type="button"
                         data-nav-item=""
+                        // Rota estável para gates e capturas: o rótulo muda (NAV-SPEC A-1), o MainPanelId não.
+                        data-nav-panel={item.panel}
                         className={styles.navItem}
                         aria-current={shell.activePanel === item.panel ? 'page' : undefined}
                         aria-label={collapsed ? t(item.labelKey) : undefined}
@@ -313,24 +404,7 @@ export function PersonaSidebar({
                   ))}
                 </ul>
               )}
-              {group.id === 'main' && (members.length > 0 || hirePersona !== undefined) && (
-                <RailTeam
-                  t={t}
-                  members={members}
-                  collapsed={collapsed}
-                  onOpenDm={openPersonaDm}
-                  onOpenProfile={openPersonaProfile}
-                  onHire={hirePersona}
-                  onSendToPersona={sendToPersona}
-                  onEditPersona={editPersona}
-                  {...(cardInfo === undefined ? {} : { cardInfo })}
-                  {...(cardDict === undefined ? {} : { cardDict })}
-                  {...(prefetchPersonaCard === undefined ? {} : { onCardPrefetch: prefetchPersonaCard })}
-                  {...(togglePersonaPause === undefined ? {} : { onTogglePersonaPause: togglePersonaPause })}
-                  {...(switchPersonaEngine === undefined ? {} : { onSwitchPersonaEngine: switchPersonaEngine })}
-                  {...(editPersonaTalk === undefined ? {} : { onEditPersonaTalk: editPersonaTalk })}
-                />
-              )}
+              {group.id === 'main' && railTeam}
             </div>
           )
         })}
@@ -338,20 +412,7 @@ export function PersonaSidebar({
 
       <div className={styles.footer}>
         <div ref={awayAnchorRef} className={styles.statusAnchor}>
-          <button
-            ref={awayChipRef}
-            type="button"
-            className={`${styles.hostStatus} ${styles.hostStatusButton}`}
-            data-status={awayState.isAway ? 'away' : shell.hostStatus}
-            onClick={() => { setAwayPopoverOpen(prev => !prev) }}
-            aria-expanded={awayPopoverOpen}
-            aria-haspopup="dialog"
-            aria-label={awayState.isAway ? t('away.railAwayUntil', { when: formatAwayUntilWhen(t, awayState) }) : hostLabel}
-          >
-            <span className={styles.statusDot} aria-hidden="true" />
-            {awayState.isAway ? t('away.railAwayUntil', { when: formatAwayUntilWhen(t, awayState) }) : hostLabel}
-            {devBadge}
-          </button>
+          {aiHint === null ? pillButton : <Tooltip content={aiHint} side="top">{pillButton}</Tooltip>}
           {awayPopoverOpen && (
             <div className={styles.awayPopover} role="dialog" aria-label={t('away.switchLabel')}>
               <UserAwayControl
@@ -362,13 +423,61 @@ export function PersonaSidebar({
                   setAwayPopoverOpen(false)
                   selectPanel('orgChart')
                 }}
+                {...(aiRowText === null ? {} : {
+                  header: (
+                    <div className={styles.aiRow} data-persona-rail-ai="">
+                      <div className={styles.aiRowCopy}>
+                        <p className={styles.aiRowText}>{aiRowText}</p>
+                        {aiHint !== null && <p className={styles.aiRowHint}>{aiHint}</p>}
+                      </div>
+                      {aiLink !== null && (
+                        <Button
+                          size="s"
+                          variant="ghost"
+                          onClick={() => {
+                            setAwayPopoverOpen(false)
+                            selectPanel(aiLink.panel)
+                          }}
+                        >
+                          {aiLink.label}
+                        </Button>
+                      )}
+                    </div>
+                  ),
+                })}
               />
             </div>
           )}
         </div>
-        <div className={styles.settingsFoot}>
-          {renderSlot('sidebar.settings', { wide: true })}
-        </div>
+        {placesNav ? (
+          // Flag A-1 LIGADA (D-077): "Configurações" é o lugar (o nosso SettingsLauncher no `settings.launcher`) e "Ajuda e
+          // atalhos" é o ícone do rodapé. O slot do DSW segue montado: os indicadores de conexão e de atualização ficam ao lado.
+          <div className={styles.footActions}>
+            <div className={styles.settingsSlot}>
+              {renderSlot('sidebar.settings', { wide: true })}
+            </div>
+            <Tooltip content={t('sidebar.helpShortcuts')} shortcut={['?']} side="top">
+              <button
+                type="button"
+                className={styles.helpButton}
+                data-nav-item=""
+                data-nav-panel="help"
+                aria-current={shell.activePanel === 'help' ? 'page' : undefined}
+                aria-label={t('sidebar.helpShortcuts')}
+                aria-keyshortcuts="?"
+                onClick={() => { selectPanel('help') }}
+              >
+                <BrandIcon name="ajuda" size={18} />
+              </button>
+            </Tooltip>
+          </div>
+        ) : (
+          // Flag DESLIGADA (padrão): o app é o de antes. "Configurações" é o gatilho do DSW (o fallback do `settings.launcher`,
+          // que abre o modal com o Sobre) e a Ajuda continua o item do rail (grupo "Mais").
+          <div className={styles.settingsFoot}>
+            {renderSlot('sidebar.settings', { wide: !short })}
+          </div>
+        )}
       </div>
     </nav>
   )

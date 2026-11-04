@@ -1,25 +1,23 @@
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
-import type { ReviewAcceptView, ReviewSummaryView } from '@deepseek-ai/dsh-persona-host/types'
+import type {
+  AcceptReviewRequest,
+  RequestChangesRequest,
+  ReviewAcceptView,
+  ReviewSummaryView,
+  TicketCommandRequest,
+} from '@deepseek-ai/dsh-persona-host/types'
 import type { PersonaRemoteClient } from './lumen-inject.ts'
 
-/** Review delivery RPCs (Anvil); Typert client may lag until regen. */
+/**
+ * Review delivery RPCs (Anvil). Every request type is the host's own: `reviewSummary` and `discardReview` take a
+ * TicketCommandRequest (command + reason), `acceptReview` takes the folder-conflict choices as `conflicts[]` with the exact
+ * file versions the previous answer showed. The Typert client may lag until regen, hence the narrow wire below.
+ */
 export interface PersonaReviewRemote {
-  reviewSummary(request: { workspaceId: string; projectId: string; ticketId: string }): Promise<RemoteResult<ReviewSummaryView>>
-  acceptReview(request: {
-    workspaceId: string
-    projectId: string
-    ticketId: string
-    mode: 'ff' | 'merge'
-    /** Per clashing file: what stays (SW-3/SW-6; see contracts/simple-workspace-ui.md §3). */
-    choices?: Readonly<Record<string, 'mine' | 'theirs' | 'both'>>
-  }): Promise<RemoteResult<ReviewAcceptView>>
-  requestChanges(request: {
-    workspaceId: string
-    projectId: string
-    ticketId: string
-    feedback: string
-  }): Promise<RemoteResult<boolean>>
-  discardReview(request: { workspaceId: string; projectId: string; ticketId: string }): Promise<RemoteResult<boolean>>
+  reviewSummary(request: TicketCommandRequest): Promise<RemoteResult<ReviewSummaryView>>
+  acceptReview(request: AcceptReviewRequest): Promise<RemoteResult<ReviewAcceptView>>
+  requestChanges(request: RequestChangesRequest): Promise<RemoteResult<boolean>>
+  discardReview(request: TicketCommandRequest): Promise<RemoteResult<boolean>>
 }
 
 type ReviewWire = PersonaReviewRemote

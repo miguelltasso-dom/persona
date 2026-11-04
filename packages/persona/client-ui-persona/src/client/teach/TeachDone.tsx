@@ -124,8 +124,15 @@ export function TeachDone({ t, personaName, skillTitle, art, onActivate, onRever
             <input type="checkbox" checked={confirmed} onChange={(event) => { setConfirmed(event.target.checked) }} />
             <span>{t('teach.share.confirm')}</span>
           </label>
+          {!confirmed && <p id="persona-teach-share-hint" className={styles.hint}>{t('teach.share.confirmHint')}</p>}
           <div className={styles.doneActions}>
-            <Button variant="primary" loading={busy === 'share'} disabled={!confirmed || busy !== null} onClick={share}>
+            <Button
+              variant="primary"
+              loading={busy === 'share'}
+              disabled={!confirmed || busy !== null}
+              {...(confirmed ? {} : { 'aria-describedby': 'persona-teach-share-hint' })}
+              onClick={share}
+            >
               {busy === 'share' ? t('teach.share.sharing') : t('teach.share.action')}
             </Button>
             <Button variant="ghost" disabled={busy !== null} onClick={() => { setShareOpen(false); setConfirmed(false) }}>{t('teach.share.cancel')}</Button>

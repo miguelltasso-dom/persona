@@ -43,6 +43,52 @@ const HOME: BrainHomeView = {
 }
 
 describe('SecondBrainHome (SB-5)', () => {
+  it('"Comece aqui" shows the start of the page (two lines) and an Abrir button, not the title again', () => {
+    const onOpenPage = vi.fn()
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <SecondBrainHome
+          dict={pt}
+          home={{ startHereId: 'start', changedToday: [], activeGrants: [], contradictions: [], leftover: [] }}
+          pages={[brainPage({ id: 'start', title: 'Comece aqui', body: '# Comece aqui\n\nAtualizado sozinho a partir das páginas.\n\n- [[Cardápio]]' })]}
+          onOpenPage={onOpenPage}
+        />
+      </PreviewFrame>,
+    )
+    expect(screen.getByText(/Atualizado sozinho a partir das páginas./u)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Comece aqui' }))
+    expect(onOpenPage).toHaveBeenCalledWith('start')
+  })
+
+  it('the feed and permissions never show an id: names and plain words (Muse SB-5)', () => {
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <SecondBrainHome
+          dict={pt}
+          home={{
+            startHereId: 'start',
+            changedToday: [brainPage({ id: 'g', kind: 'permission', title: 'reply-whatsapp · clientes-aprovados', editorHint: 'person:owner', sources: ['grant:owner'] })],
+            activeGrants: [{ id: 'g1', pageId: 'g', personaId: 'atlas', action: 'reply-whatsapp', target: 'clientes-aprovados', validity: 'until-revoke', useCount: 0 }],
+            contradictions: [],
+            leftover: [],
+          }}
+          // The same page is also in "Mais usadas" and in the search: no slug anywhere on the screen.
+          pages={[brainPage({ id: 'g', kind: 'permission', title: 'reply-whatsapp · clientes-aprovados', editorHint: 'person:owner', sources: ['grant:owner'] })]}
+          personaNames={{ atlas: 'Atlas' }}
+          memberNames={{ owner: 'Você' }}
+          onRevokeGrant={() => {}}
+        />
+      </PreviewFrame>,
+    )
+    const text = document.body.textContent ?? ''
+    expect(text).not.toMatch(/person:|grant:|reply-whatsapp|clientes-aprovados/u)
+    expect(text).toContain('Você')
+    expect(text).toContain('Responder no WhatsApp')
+    // The persona on the permission wears her animal (Nina), not an initial.
+    const permission = screen.getByRole('button', { name: pt['permissions.revoke'] }).closest('li') as HTMLElement
+    expect(permission.querySelector('img')).not.toBeNull()
+  })
+
   it('renders home sections and revokes a grant', () => {
     const onRevoke = vi.fn()
     render(

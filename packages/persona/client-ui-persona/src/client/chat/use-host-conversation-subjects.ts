@@ -6,6 +6,7 @@ import {
   DEFAULT_CONVERSATION_SUBJECTS,
   DEFAULT_CONVERSATION_SUBJECT_ID,
   filterMessagesForSubject,
+  nextSubjectName,
   type ConversationSubjectUi,
 } from './conversation-subjects.ts'
 
@@ -14,6 +15,7 @@ export function useHostConversationSubjects(
   live: PersonaLiveStore,
   streamKey: string | null,
   messages: readonly ChannelMessageUi[],
+  options: { readonly defaultName?: ((n: number) => string) | undefined } = {},
 ): {
   readonly ready: boolean
   readonly subjects: readonly ConversationSubjectUi[]
@@ -26,6 +28,8 @@ export function useHostConversationSubjects(
   readonly retrySubjects: () => void
   readonly selectSubject: (subjectId: string) => void
   readonly createSubject: () => void
+  /** `/assunto nome` (P0-27): abre o assunto com esse nome (sem diferenciar acento/caixa) ou cria e abre um novo. */
+  readonly openSubjectByName: (name: string) => void
   readonly renameSubject: (subjectId: string, name: string) => void
   readonly archiveSubject: (subjectId: string) => void
   readonly reopenSubject: (subjectId: string) => void
@@ -93,11 +97,28 @@ export function useHostConversationSubjects(
 
   const createSubject = useCallback(() => {
     if (scope === null) return
-    void live.createConversationSubject(scope, '').then(({ bundle, createdSubjectId }) => {
+    // O host recusa nome vazio (invalid-input): o assunto já nasce "Assunto N" e a barra abre o campo para renomear.
+    const name = nextSubjectName(subjects, archived, options.defaultName)
+    void live.createConversationSubject(scope, name).then(({ bundle, createdSubjectId }) => {
       applyBundle(bundle)
       setEditingSubjectId(createdSubjectId)
     }).catch(onRemoteFailure)
-  }, [applyBundle, live, onRemoteFailure, scope])
+  }, [applyBundle, archived, live, onRemoteFailure, options.defaultName, scope, subjects])
+
+  const openSubjectByName = useCallback((rawName: string) => {
+    const name = rawName.trim()
+    if (scope === null || name.length === 0) return
+    const plain = (text: string): string => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+    const existing = subjects.find(row => plain(row.name) === plain(name))
+    if (existing !== undefined) {
+      selectSubject(existing.id)
+      return
+    }
+    void live.createConversationSubject(scope, name).then(({ bundle, createdSubjectId }) => {
+      applyBundle(bundle)
+      selectSubject(createdSubjectId)
+    }).catch(onRemoteFailure)
+  }, [applyBundle, live, onRemoteFailure, scope, selectSubject, subjects])
 
   const renameSubject = useCallback((subjectId: string, name: string) => {
     if (scope === null) return
@@ -159,6 +180,7 @@ export function useHostConversationSubjects(
     retrySubjects,
     selectSubject,
     createSubject,
+    openSubjectByName,
     renameSubject,
     archiveSubject,
     reopenSubject,

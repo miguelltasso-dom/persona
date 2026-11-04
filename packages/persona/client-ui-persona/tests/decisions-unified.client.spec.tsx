@@ -293,13 +293,11 @@ describe('DECISIONS-SPEC: Unified Decisions Architecture (UX-PHASE Item 4)', () 
         dict={approvalsPt}
         items={items}
         focusId="item-focus"
-        headScope={undefined}
+        scopeFor={() => undefined}
         exitStampId={null}
-        rememberGrant={false}
-        rememberValidity="once"
+        rememberFor={() => ({ grant: false, validity: 'once' })}
         rememberStampNote={null}
-        onRememberGrantChange={() => {}}
-        onRememberValidityChange={() => {}}
+        onRememberChange={() => {}}
         onCelebrateAccept={() => {}}
       />,
     )

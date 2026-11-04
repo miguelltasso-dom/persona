@@ -303,6 +303,8 @@ export interface ChannelMessageUi {
   readonly authorPersonaId?: string
   readonly runError?: RunErrorPayload
   readonly steeredPersonaName?: string
+  /** P0-30: a pessoa escreveu e o host não recebeu: o balão mostra "Não enviado · Tentar de novo". */
+  readonly sendFailed?: boolean
 }
 
 export function mapMessage(

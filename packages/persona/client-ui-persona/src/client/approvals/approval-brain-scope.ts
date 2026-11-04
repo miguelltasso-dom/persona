@@ -1,17 +1,5 @@
 import type { ApprovalView } from '@deepseek-ai/dsh-persona-host/types'
-import type { ApprovalItem, ApprovalKind } from './mock-data.ts'
-
-/** Machine action/target for {@link grantBrainPermission} until the host exposes them on {@link ApprovalView}. */
-function machineAction(kind: ApprovalKind): string {
-  if (kind === 'vault') return 'vault.update'
-  if (kind === 'skill') return 'skill.activate'
-  return 'attention.approve'
-}
-
-/** Stable target id for the gate (exact match with future engine asks). */
-function machineTarget(kind: ApprovalKind, id: string): string {
-  return `${kind}:${id}`
-}
+import type { ApprovalItem } from './mock-data.ts'
 
 /** Fields needed to call `grantBrainPermission` after accept. */
 export interface ApprovalBrainFields {
@@ -22,15 +10,22 @@ export interface ApprovalBrainFields {
   readonly personaName: string
 }
 
-/** Pending reactive approvals that can be remembered (not hire; needs persona id). */
+/**
+ * Pending reactive approvals that can be remembered (not hire; needs persona id). The action and the target are the
+ * HOST's own (`permissionAction` / `permissionTarget`, a stable resource such as `vault:<recordId>`): a target the UI
+ * invents from the proposal id would never match the next ask, so without them nothing is offered to remember.
+ */
 export function approvalBrainFieldsFromView(view: ApprovalView): ApprovalBrainFields | undefined {
   if (view.kind === 'hire') return undefined
   if (view.personaId.trim() === '') return undefined
+  const action = view.permissionAction?.trim() ?? ''
+  const target = view.permissionTarget?.trim() ?? ''
+  if (action === '' || target === '') return undefined
   return {
     grantId: `grant-${view.id}`,
     personaId: view.personaId,
-    action: machineAction(view.kind),
-    target: machineTarget(view.kind, view.id),
+    action,
+    target,
     personaName: view.personaName.trim() || view.personaId,
   }
 }

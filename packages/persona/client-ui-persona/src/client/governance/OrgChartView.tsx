@@ -138,20 +138,21 @@ export function OrgChartView({
     )
   }
 
-  if (surfaceState === 'loading' || data === null) {
-    return (
-      <Screen width="full" className={styles.shell} data-persona-surface="org-chart">
-        {header}
-        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={3} />
-      </Screen>
-    )
-  }
-
+  // Error first: a failed load has no data, and "data === null" must not turn it into a spinner that never ends.
   if (surfaceState === 'error') {
     return (
       <Screen width="full" className={styles.shell} data-persona-surface="org-chart">
         {header}
         <PersonaSurfaceError dict={dict} titleKey="error.title" retryKey="error.retry" onRetry={() => { onRetry?.() }} />
+      </Screen>
+    )
+  }
+
+  if (surfaceState === 'loading' || data === null) {
+    return (
+      <Screen width="full" className={styles.shell} data-persona-surface="org-chart">
+        {header}
+        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={3} />
       </Screen>
     )
   }

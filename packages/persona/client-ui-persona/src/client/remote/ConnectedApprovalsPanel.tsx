@@ -6,6 +6,8 @@
 import { useEffect, useMemo, type ReactNode } from 'react'
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import { ApprovalsInbox, type ApprovalRememberChoice } from '../approvals/ApprovalsInbox.tsx'
+import { ApprovalsInboxV2 } from '../approvals/ApprovalsInboxV2.tsx'
+import { approvalsInboxV2Enabled } from '../approvals/inbox-flag.ts'
 import type { ApprovalItem } from '../approvals/mock-data.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as approvalsPt } from '../locale/approvals/locales.ts'
@@ -33,6 +35,8 @@ export interface ConnectedApprovalsInjected {
   refreshLive(): void
   /** Forget the Revisar target once the screen is left, so the next Revisar highlights again. */
   clearApprovalFocus(): void
+  /** Goes to Visão geral (the empty inbox's "Ver o que a equipe está fazendo"). Absent = no such button. */
+  openOverview?(): void
 }
 
 export type ConnectedApprovalsPanelProps = InjectFace<ConnectedApprovalsInjected>
@@ -46,6 +50,7 @@ export function ConnectedApprovalsPanel({
   undoDecision,
   refreshLive,
   clearApprovalFocus,
+  openOverview,
 }: ConnectedApprovalsPanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const focusedApprovalId = useShell(state => state.focusedApprovalId ?? null)
@@ -87,18 +92,28 @@ export function ConnectedApprovalsPanel({
     })()
   }
 
+  const inboxProps = {
+    dict: approvalsPt,
+    items: inbox.items,
+    proactiveSummaries: inbox.proactiveSummaries,
+    focusId: focusedApprovalId ?? undefined,
+    initialState: surface,
+    onRemoteRetry: () => { retryBootstrap(); refreshLive() },
+    onDecideItem: decideItem,
+    onDecideProactive: (proposal: { readonly id: string }, accept: boolean) => { void decideDecision(proposal.id, accept) },
+  }
+
   return (
     <>
-      <ApprovalsInbox
-        dict={approvalsPt}
-        items={inbox.items}
-        proactiveSummaries={inbox.proactiveSummaries}
-        focusId={focusedApprovalId ?? undefined}
-        initialState={surface}
-        onRemoteRetry={() => { retryBootstrap(); refreshLive() }}
-        onDecideItem={decideItem}
-        onDecideProactive={(proposal, accept) => { void decideDecision(proposal.id, accept) }}
-      />
+      {approvalsInboxV2Enabled()
+        ? (
+          <ApprovalsInboxV2
+            {...inboxProps}
+            onUndoDecision={undoDecision === undefined ? undefined : (id) => { void undoDecision(id) }}
+            onOpenOverview={openOverview}
+          />
+        )
+        : <ApprovalsInbox {...inboxProps} />}
       <DecisionFeedback decisions={decisions} t={t} onUndo={undoDecision === undefined ? undefined : (id) => { void undoDecision(id) }} />
     </>
   )

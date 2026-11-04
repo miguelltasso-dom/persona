@@ -227,6 +227,8 @@ export interface PageVersion {
   readonly what: string
   readonly time: string
   readonly onView?: (() => void) | undefined
+  /** Puts this version back as the page's text. Only drawn when given (and `labels.restore` exists). */
+  readonly onRestore?: (() => void) | undefined
 }
 
 export interface PageMetaProps {
@@ -235,7 +237,7 @@ export interface PageMetaProps {
   readonly history: readonly PageVersion[]
   /** "Confirmada há 12 dias" or "Não confirmada há 90 dias — confirmar?" */
   readonly confirmation?: { readonly text: string; readonly stale: boolean; readonly onConfirm?: (() => void) | undefined } | undefined
-  readonly labels: { readonly properties: string; readonly backlinks: string; readonly noBacklinks: string; readonly history: string; readonly confirm: string; readonly view: string }
+  readonly labels: { readonly properties: string; readonly backlinks: string; readonly noBacklinks: string; readonly history: string; readonly confirm: string; readonly view: string; readonly restore?: string | undefined }
 }
 
 export function PageMeta({ properties, backlinks, history, confirmation, labels }: PageMetaProps): ReactNode {
@@ -285,6 +287,7 @@ export function PageMeta({ properties, backlinks, history, confirmation, labels 
               <span className={styles.historyText}><b>{version.who}</b> {version.what}</span>
               <time className={styles.feedTime}>{version.time}</time>
               {version.onView !== undefined && <button type="button" className={styles.pageLink} onClick={version.onView}>{labels.view}</button>}
+              {version.onRestore !== undefined && labels.restore !== undefined && <button type="button" className={styles.pageLink} onClick={version.onRestore}>{labels.restore}</button>}
             </li>
           ))}
         </ol>

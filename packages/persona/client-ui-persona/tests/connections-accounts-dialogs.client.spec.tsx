@@ -125,10 +125,23 @@ describe('add account: step by step', () => {
 
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(t('account.add.eyebrow', { step: 2, total: 3 }))).toBeTruthy()
+    // plain steps first; the long command is folded under "Ver o comando" (nobody has to read Remove-Item)
+    expect(within(dialog).getByText(t('account.add.loginStep1', { shell: 'PowerShell' }))).toBeTruthy()
+    expect(within(dialog).getByText(t('account.add.loginStep2'))).toBeTruthy()
+    expect(within(dialog).getByText(t('account.add.loginStep3'))).toBeTruthy()
+    const summary = within(dialog).getByText(t('account.add.showCommand'))
+    expect(summary.closest('details')?.hasAttribute('open')).toBe(false)
     expect(within(dialog).getByText(command)).toBeTruthy()
     expect(within(dialog).getByText(t('account.add.isolatedNote'))).toBeTruthy()
-    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: t('account.add.copy') })) })
+    // copying is the first thing to do (primary) and then "Já fiz login" takes over as the primary
+    const login = within(dialog).getByRole('button', { name: t('action.alreadyLoggedIn') })
+    const copyButton = within(dialog).getByRole('button', { name: t('account.add.copy') })
+    expect(copyButton.className).toMatch(/primary/u)
+    expect(login.className).not.toMatch(/primary/u)
+    await act(async () => { fireEvent.click(copyButton) })
     expect(copied).toEqual([command])
+    expect(within(dialog).getByRole('button', { name: t('account.add.copied') }).className).not.toMatch(/primary/u)
+    expect(within(dialog).getByRole('button', { name: t('action.alreadyLoggedIn') }).className).toMatch(/primary/u)
 
     fireEvent.click(within(dialog).getByRole('button', { name: t('action.alreadyLoggedIn') }))
     expect(onRecheck).toHaveBeenCalledTimes(1)
@@ -334,6 +347,18 @@ describe('swap rule: team and one persona', () => {
     render(<ConnectionsView accountsUi={ui([personal, work])} personas={[]} onSwapPolicyChange={async () => {}} />)
     fireEvent.click(screen.getByRole('tab', { name: t('swapPolicy.scope.persona') }))
     expect(screen.getByText(t('swapPolicy.noPersonas'))).toBeTruthy()
+  })
+})
+
+describe('provider card seal', () => {
+  it('shows the engine icon in its own colours, as an image (a mask flattened it into one lilac disc)', () => {
+    const { container } = render(<ConnectionsView accountsUi={ui([personal])} />)
+    const seal = container.querySelector('img[width="44"]')
+    expect(seal).not.toBeNull()
+    // the asset resolves to the engine's own SVG (inlined as a data: URL under vitest, a file URL in the bundle)
+    expect((seal?.getAttribute('src') ?? '').length).toBeGreaterThan(20)
+    expect(seal?.className ?? '').not.toMatch(/brand/u) // not the masked, one-colour icon class
+    expect(seal?.getAttribute('alt')).toBe('')
   })
 })
 

@@ -10,7 +10,7 @@ import { enrichOrgChartWithRail } from '../governance/enrich-org-chart-rail.ts'
 import { fetchOrgChart } from '../governance/governance-remote.ts'
 import { readOrgChartScaleSeed } from '../governance/org-scale-dev.ts'
 import { emptyOrgChart } from '../governance/empty-org-chart.ts'
-import { mockLargeOrgChart, mockOrgChart } from '../governance/mock-governance.ts'
+import { mockLargeOrgChart } from '../governance/mock-governance.ts'
 import { pt as governanceDict } from '../locale/governance/locales.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 import type { ShellState } from '../shell/create-shell-store.ts'
@@ -64,10 +64,8 @@ async function resolveOrgChart(
   if (derived !== null) {
     return { data: derived, preview: true }
   }
-  if (liveTeamIsEmpty(live)) {
-    return { data: emptyOrgChart(workspaceId, groupBy), preview: false }
-  }
-  return { data: mockOrgChart(workspaceId, groupBy), preview: true }
+  // Neither the host's organogram nor a live roster to draw one from: say so (error + retry), never show a sample team.
+  throw new Error('org-chart-unavailable')
 }
 
 /** "Quem cuida de quem" — GOV-6. */

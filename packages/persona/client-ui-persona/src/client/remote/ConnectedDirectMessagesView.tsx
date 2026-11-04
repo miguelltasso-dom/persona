@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { DirectMessagesView, type DmRowUi } from '../chat/DirectMessagesView.tsx'
 import type { SelectablePersonaOption } from '../chat/NewDmPersonaModal.tsx'
 import { subjectDisplayName } from '../chat/SubjectBar.tsx'
 import { conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { useHostConversationSubjects } from '../chat/use-host-conversation-subjects.ts'
+import type { ComposerSlashActions } from '../chat/composer-slash-commands.ts'
 import type { ChipTone } from '../primitives/index.ts'
 import { WORK_STATUS_KEY, type PersonaWorkUiState } from '../team/persona-work-state.ts'
 import { resolveHostPersonaId } from './map-host-ui.ts'
@@ -13,6 +14,8 @@ import type { ActivityGroupProps } from '../primitives/Pooled.tsx'
 import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
 import type { EngineRemoteWire } from './engine-status.ts'
 import { ConnectedEngineBanner } from './ConnectedEngineBanner.tsx'
+import { appendNotStartedRows } from './dm-team-rows.ts'
+import { useEngineLimits } from './use-engine-limits.ts'
 
 const STATE_TONE: Readonly<Record<PersonaWorkUiState, ChipTone>> = { working: 'success', waiting: 'accent', stuck: 'danger', resting: 'neutral' }
 
@@ -33,6 +36,8 @@ export interface ConnectedDmInjected {
   readonly engineRemote?: EngineRemoteWire | undefined
   /** Abre Conexões (ação "Conectar uma IA" da faixa). */
   readonly onOpenConnections?: (() => void) | undefined
+  /** `/contratar`: abre o fluxo de contratar persona (o mesmo do #geral). Sem ele o comando sai do menu. */
+  readonly onBuildTeam?: (() => void) | undefined
 }
 
 export type ConnectedDirectMessagesViewProps =
@@ -57,11 +62,14 @@ export function ConnectedDirectMessagesView({
   openTeachPersona,
   engineRemote,
   onOpenConnections,
+  onBuildTeam,
 }: ConnectedDirectMessagesViewProps): ReactNode {
   const live = useLive(state => state)
   const dmId = live.selectedDmId
   const subjectStreamKey = dmId === null ? null : conversationStreamKey('dm', dmId)
-  const subjectState = useHostConversationSubjects(liveStore, subjectStreamKey, live.dmMessages)
+  const subjectState = useHostConversationSubjects(liveStore, subjectStreamKey, live.dmMessages, {
+    defaultName: n => chatT('subjects.defaultName', { n }),
+  })
   const peerName = live.dms.find(row => row.id === dmId)?.peerName ?? ''
   const rows: DmRowUi[] = live.dms.map((row) => {
     const member = live.stripMembers.find(m => m.name === row.peerName)
@@ -97,10 +105,28 @@ export function ConnectedDirectMessagesView({
   const onTeach = selectedRow?.characterId === undefined
     ? undefined
     : () => { openTeachPersona(resolveHostPersonaId(live.team, selectedRow.peerId)) }
+  // IV-4: limites REAIS do motor para o /limites e a gaveta; lidos quando o painel abre ou o contexto chega.
+  const { limits: engineLimits, load: loadEngineLimits } = useEngineLimits(
+    engineRemote,
+    live.tenant === null ? null : { workspaceId: live.tenant.workspaceId, projectId: live.tenant.projectId },
+  )
+  const turnTicketId = live.turnContext?.ticketId
+  useEffect(() => {
+    if (turnTicketId !== undefined) loadEngineLimits()
+  }, [turnTicketId, loadEngineLimits])
+  // P0-27: o menu "/" só lista o que faz alguma coisa aqui. /lado e /resumo saem até terem ação.
+  const slashActions: ComposerSlashActions = {
+    ...(dmId === null ? {} : { assunto: (name: string) => { subjectState.openSubjectByName(name) } }),
+    ...(onTeach === undefined ? {} : { ensinar: () => { onTeach() } }),
+    ...(onBuildTeam === undefined ? {} : { contratar: () => { onBuildTeam() } }),
+  }
   return (
     <DirectMessagesView
       t={chatT}
       shellT={shellT}
+      slashActions={slashActions}
+      engineLimits={engineLimits}
+      onOpenLimits={loadEngineLimits}
       {...(engineRemote === undefined ? {} : {
         engineBanner: (
           <ConnectedEngineBanner
@@ -113,9 +139,11 @@ export function ConnectedDirectMessagesView({
         ),
       })}
       loading={!live.ready}
-      dms={rows}
+      dms={appendNotStartedRows(rows, availablePersonas)}
       selectedId={live.selectedDmId}
-      messages={subjectState.filteredMessages}
+      // P0-30: as mensagens que o host não recebeu desta conversa ficam no fim do fio, marcadas "Não enviado".
+      messages={[...subjectState.filteredMessages, ...(live.failedSends ?? []).filter(row => row.streamKind === 'dm' && row.ownerId === dmId).map(row => row.message)]}
+      onRetrySend={(messageId) => { void liveStore.retryFailedSend?.(messageId) }}
       subjectBar={dmId === null ? undefined : {
         subjects: subjectState.subjects,
         activeSubjectId: subjectState.activeSubjectId,

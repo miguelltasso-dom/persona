@@ -31,7 +31,7 @@ describe('Quadros hub (BOARDS-SPEC §1)', () => {
     expect(screen.getByText(pt['flowModel.contratacao'])).toBeTruthy()
   })
 
-  it('names active workers on the project card group (axe AA)', () => {
+  it('names active workers on the project card in words, not only in a hidden group (axe AA)', () => {
     render(
       <PreviewFrame brandLabel="Persona">
         <BoardsHome
@@ -41,11 +41,8 @@ describe('Quadros hub (BOARDS-SPEC §1)', () => {
         />
       </PreviewFrame>,
     )
-    expect(
-      screen.getByRole('group', {
-        name: `${pt['boards.workingNow']}: Atlas, Nina, Bento`,
-      }),
-    ).toBeTruthy()
+    // PB-5: visible words ("Atlas, Nina, Bento trabalham agora"); the portraits are decoration.
+    expect(screen.getByText('Atlas, Nina, Bento trabalham agora')).toBeTruthy()
   })
 
   it('offers global category view when handler is provided', () => {

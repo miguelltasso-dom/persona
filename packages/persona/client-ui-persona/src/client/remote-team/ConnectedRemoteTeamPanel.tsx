@@ -4,7 +4,9 @@ import { isRemoteResult } from '../remote/persona-remote-unwrap.ts'
 import { RemoteTeamPanel, type IssuedInviteView, type RemoteTeamBusy } from './RemoteTeamPanel.tsx'
 import {
   inviteRows,
+  memberRows,
   remoteTeamErrorKind,
+  type MemberRow,
   type RemoteTeamErrorKind,
   type SharableChannel,
 } from './remote-team-model.ts'
@@ -24,6 +26,8 @@ export interface RemoteTeamWire {
   acceptInvite?(request: Scope & { edgeUrl: string; token: string }): unknown
   issueInvite?(request: Scope & { inviteId: string; token: string; role: 'member' | 'guest' }): unknown
   listInvites?(request: Scope): unknown
+  /** Pessoas do projeto remoto autorizado (nome, papel, quando entrou, convite). Host antigo: a lista de convites continua sozinha. */
+  listRemoteMembers?(request: Scope): unknown
   revokeMember?(request: Scope & { inviteId: string }): unknown
   syncRemoteTeam?(request: Scope): unknown
   listChannels?(request: Scope): unknown
@@ -35,6 +39,8 @@ export interface ConnectedRemoteTeamPanelProps {
   readonly scope: Scope | null
   /** Intervalo do acompanhamento do estado (o host já sincroniza sozinho; isto só atualiza a tela). */
   readonly pollMs?: number
+  /** "Abrir Ajuda" quando o Cofre não está disponível (o guia de solução de problemas). */
+  readonly onOpenHelp?: (() => void) | undefined
 }
 
 /** Desembrulha o RemoteResult preservando o `code` tipado do host (a tela decide o texto; o código não é a mensagem). */
@@ -67,15 +73,20 @@ function toChannels(value: unknown): readonly SharableChannel[] {
  * Equipe remota ligada ao host. O código do convite só vive em `issued` (estado de tela): nunca vai a localStorage,
  * log ou cache, e some ao tocar "Já enviei" ou ao sair da tela.
  */
-export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000 }: ConnectedRemoteTeamPanelProps): ReactNode {
+export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000, onOpenHelp }: ConnectedRemoteTeamPanelProps): ReactNode {
   const [loaded, setLoaded] = useState(false)
   const [vault, setVault] = useState<RemoteTeamAvailability['vault'] | undefined>(undefined)
   const [state, setState] = useState<RemoteTeamState | null>(null)
   const [channels, setChannels] = useState<readonly SharableChannel[]>([])
   const [invites, setInvites] = useState<readonly InviteView[]>([])
+  const [members, setMembers] = useState<readonly MemberRow[] | undefined>(undefined)
   const [issued, setIssued] = useState<IssuedInviteView | null>(null)
   const [busy, setBusy] = useState<RemoteTeamBusy>(null)
   const [error, setError] = useState<RemoteTeamErrorKind | null>(null)
+  // The host sends no clock: "Última troca" is the last time THIS session saw an exchange (a sync that worked, a connect/accept,
+  // or new data arriving — the cursors moved).
+  const [lastExchangeAt, setLastExchangeAt] = useState<number | null>(null)
+  const cursorsSeen = useRef<string | null>(null)
   const alive = useRef(true)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
@@ -99,7 +110,18 @@ export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000 }: C
       const next = isState(current) ? current : null
       setVault((availability as RemoteTeamAvailability | undefined)?.vault)
       setState(next)
+      if (next !== null) {
+        const seen = JSON.stringify(next.cursors)
+        if (cursorsSeen.current !== null && cursorsSeen.current !== seen && next.status === 'connected') setLastExchangeAt(Date.now())
+        cursorsSeen.current = seen
+      }
       setChannels(toChannels(list))
+      if (next === null) setMembers(undefined)
+      else if (remote.listRemoteMembers !== undefined) {
+        // Busy or offline host: the last list stays (the contract keeps it, with the connection state visible).
+        const people = memberRows(await settle(remote.listRemoteMembers(request)).catch(() => undefined))
+        if (alive.current && people !== undefined) setMembers(people)
+      }
       if (next !== null && next.role === 'owner' && remote.listInvites !== undefined) {
         const rows = await settle(remote.listInvites(request)).catch(() => [])
         if (alive.current && Array.isArray(rows)) setInvites(rows as readonly InviteView[])
@@ -143,17 +165,22 @@ export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000 }: C
       state={state}
       channels={channels}
       invites={inviteRows(invites)}
+      members={members}
       issued={issued}
       busy={busy}
       error={error}
+      lastExchangeAt={lastExchangeAt}
+      onOpenHelp={onOpenHelp}
       onConnect={(edgeUrl, channelIds) => {
         void run('connect', async () => {
           await settle(remote.connectRemoteTeam?.({ ...request, edgeUrl, channelIds }))
+          if (alive.current) setLastExchangeAt(Date.now())
         })
       }}
       onAccept={(edgeUrl, token) => {
         void run('accept', async () => {
           await settle(remote.acceptInvite?.({ ...request, edgeUrl, token }))
+          if (alive.current) setLastExchangeAt(Date.now())
         })
       }}
       onIssueInvite={(role) => {
@@ -174,7 +201,10 @@ export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000 }: C
       onSync={() => {
         void run('sync', async () => {
           const next = await settle(remote.syncRemoteTeam?.(request))
-          if (isState(next) && alive.current) setState(next)
+          if (isState(next) && alive.current) {
+            setState(next)
+            if (next.status === 'connected') setLastExchangeAt(Date.now())
+          }
         })
       }}
     />

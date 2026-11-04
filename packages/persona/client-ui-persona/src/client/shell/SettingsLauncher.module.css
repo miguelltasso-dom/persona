@@ -1,0 +1,63 @@
+/*
+ * "Configurações" do rodapé do rail: a pílula creme que já existia (antes desenhada em volta do slot do DSW), agora no
+ * próprio botão. Só valores que já existiam em PersonaSidebar.module.css.
+ */
+.button {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-height: 44px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  cursor: pointer;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-cream-50);
+  color: var(--persona-plum-900);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
+  font: 700 13px/18px var(--persona-font-text);
+  transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, transform var(--motion-fast) ease;
+}
+
+.button:hover {
+  border-color: var(--persona-outline-control);
+}
+
+/* A tela aberta é uma das abas deste lugar: o botão fica afundado, como o adesivo no clique. */
+.button:active,
+.button[aria-current='page'] {
+  box-shadow: none;
+  transform: translateY(2px);
+}
+
+:global(body[data-ds-dark-theme='true']) .button {
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  border-color: var(--persona-outline-control);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
+}
+
+:global(body[data-ds-dark-theme='true']) .button:active,
+:global(body[data-ds-dark-theme='true']) .button[aria-current='page'] {
+  box-shadow: none;
+}
+
+/* Janela baixa (< 600 px, zoom 200%): só o ícone, o nome vai para o tooltip, e a mesma altura da pílula de estado ao lado
+   (Muse: nunca maior que ela). Mesmo limite do `useShortViewport`. */
+@media (max-height: 599px) {
+  .button {
+    min-height: 0;
+    justify-content: center;
+    padding: 5px 10px;
+  }
+
+  .label {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

@@ -42,4 +42,4 @@ export type ApplyPhase =
   | { readonly kind: 'downloading'; readonly file: string; readonly percent?: number | undefined }
   | { readonly kind: 'failed'; readonly detail?: string | undefined }
   /** Applied; `undoable` when the earlier versions were kept. */
-  | { readonly kind: 'done'; readonly undoable: boolean }
+  | { readonly kind: 'done'; readonly undoable: boolean; /** Files updated (the header of the moment); defaults to the list length. */ readonly count?: number | undefined }

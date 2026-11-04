@@ -98,7 +98,7 @@
   border: 0;
   border-radius: var(--persona-radius-m);
   background: var(--persona-brand);
-  color: var(--persona-brand-ink);
+  color: var(--persona-brand);
   font: 700 0.9375rem/1 var(--persona-font-text);
   cursor: pointer;
 }

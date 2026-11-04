@@ -51,14 +51,16 @@ function renderPanel(props: Partial<React.ComponentProps<typeof DraftReviewPanel
 }
 
 const open = (name: string): void => {
-  fireEvent.click(screen.getByRole('button', { name: new RegExp(name, 'u') }))
+  fireEvent.click(screen.getByRole('option', { name: new RegExp(name, 'u') }))
 }
 
 describe('Revisar mudanças, em palavras', () => {
   it('header, the question and the summary use words — never line counts', () => {
     renderPanel()
-    expect(screen.getByRole('heading', { level: 1, name: 'Revisar mudanças' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'Bia preparou mudanças' })).toBeTruthy()
+    expect(screen.getByText('Revisar mudanças')).toBeTruthy()
     expect(screen.getByText('Bia fez isto num rascunho. Sua pasta ainda não mudou.')).toBeTruthy()
+    expect(screen.getByText('Nada muda na sua pasta até você aplicar.')).toBeTruthy()
     expect(screen.getByRole('heading', { level: 2, name: 'Aplico estas mudanças na sua pasta?' })).toBeTruthy()
     expect(screen.getByText('5 arquivos: 1 novo, 3 mudaram, 1 apagado')).toBeTruthy()
     expect(document.body.textContent).not.toMatch(/[+−]\d+|linhas/u)
@@ -66,11 +68,12 @@ describe('Revisar mudanças, em palavras', () => {
 
   it('each file shows its Novo/Mudou/Apagado chip; a deleted file also says it leaves the folder (never colour alone)', () => {
     renderPanel()
-    expect(screen.getByText('Cardápio/2026')).toBeTruthy()
-    expect(screen.getAllByText('Mudou').length).toBe(3)
-    expect(screen.getByText('Novo')).toBeTruthy()
-    expect(screen.getByText('Apagado')).toBeTruthy()
-    expect(screen.getByText('Este arquivo sai da pasta')).toBeTruthy()
+    const list = within(screen.getByRole('listbox', { name: 'Arquivos' }))
+    expect(list.getByText('Cardápio/2026')).toBeTruthy()
+    expect(list.getAllByText('Mudou').length).toBe(3)
+    expect(list.getByText('Novo')).toBeTruthy()
+    expect(list.getByText('Apagado')).toBeTruthy()
+    expect(list.getByText('Este arquivo sai da pasta')).toBeTruthy()
   })
 
   it('text: Antes and Depois; what left is struck (<del>), what came in is underlined (<ins>)', () => {
@@ -151,6 +154,58 @@ describe('Revisar mudanças, em palavras', () => {
   })
 })
 
+describe('Revisar em duas colunas (REVIEW-APPROVALS-REDESIGN §1)', () => {
+  it('the header says who prepared what, in whose words — the persona, her task', () => {
+    renderPanel({ taskTitle: 'Atualizar o cardápio' })
+    expect(screen.getByRole('heading', { level: 1, name: 'Bia preparou mudanças em Atualizar o cardápio' })).toBeTruthy()
+  })
+
+  it('the files are a listbox: the first one is selected, the arrows move the selection and the preview follows', () => {
+    renderPanel()
+    const list = screen.getByRole('listbox', { name: 'Arquivos' })
+    const options = within(list).getAllByRole('option')
+    expect(options.map(option => option.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false'])
+    expect(screen.getByRole('heading', { level: 3, name: 'cardapio.md' })).toBeTruthy()
+    fireEvent.keyDown(options[0]!, { key: 'ArrowDown' })
+    expect(screen.getByRole('heading', { level: 3, name: 'precos.xlsx' })).toBeTruthy()
+    expect(within(list).getAllByRole('option')[1]!.getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(within(list).getAllByRole('option')[1]!, { key: 'End' })
+    expect(screen.getByRole('heading', { level: 3, name: 'velho.txt' })).toBeTruthy()
+    fireEvent.keyDown(within(list).getAllByRole('option')[4]!, { key: 'Home' })
+    expect(screen.getByRole('heading', { level: 3, name: 'cardapio.md' })).toBeTruthy()
+    // only the selected row is in the tab order (roving tabindex)
+    expect(within(list).getAllByRole('option').filter(option => option.getAttribute('tabindex') === '0')).toHaveLength(1)
+  })
+
+  it('a clash is a focused moment: the file that needs a choice is the one in front, with the three choices', () => {
+    const clash: DraftFileUi = { ...doc, id: 'cardapio.docx', name: 'cardapio.docx', folder: undefined, conflict: true }
+    renderPanel({ files: [pdf, clash] })
+    expect(screen.getByRole('heading', { level: 3, name: 'cardapio.docx' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 4, name: 'Você e Bia mudaram cardapio.docx' })).toBeTruthy()
+    expect(screen.getByLabelText(/Manter os dois/u)).toBeTruthy()
+  })
+
+  it('after applying, the whole panel becomes the moment: what happened, how many files, Desfazer only if it exists, and the way out', () => {
+    const onUndoApplied = vi.fn()
+    const onLeave = vi.fn()
+    renderPanel({ phase: { kind: 'done', undoable: true }, onUndoApplied, onLeave })
+    expect(screen.getByRole('heading', { name: 'Aplicado na pasta' })).toBeTruthy()
+    expect(screen.getByText('5 arquivos atualizados · dá para desfazer por 30 dias')).toBeTruthy()
+    // the review itself is gone: nothing left to apply twice
+    expect(screen.queryByRole('button', { name: 'Aplicar na pasta' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }))
+    expect(onUndoApplied).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar ao quadro' }))
+    expect(onLeave).toHaveBeenCalledTimes(1)
+    cleanup()
+    // no way back from the host → no false Desfazer, and no 30-day promise
+    renderPanel({ phase: { kind: 'done', undoable: false, count: 1 }, onLeave })
+    expect(screen.getByText('1 arquivo atualizado')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Desfazer' })).toBeNull()
+    expect(document.body.textContent).not.toMatch(/30 dias/u)
+  })
+})
+
 describe('Aplicar na pasta: estados', () => {
   it('applying: the button says "Aplicando…" and nothing else can be started', () => {
     renderPanel({ phase: { kind: 'applying' } })
@@ -213,7 +268,7 @@ describe('Conflito por arquivo', () => {
 
   it('the file row says "Escolha o que fica" (warning) instead of "Mudou"; "Ver as duas versões" only when the folder text is known', () => {
     const { unmount } = renderPanel({ files: [clash, pdf] })
-    const row = screen.getByRole('button', { name: /cardapio.docx/u }).closest('li') as HTMLElement
+    const row = screen.getByRole('option', { name: /cardapio.docx/u })
     expect(within(row).getByText('Escolha o que fica')).toBeTruthy()
     expect(within(row).queryByText('Mudou')).toBeNull()
     expect(screen.queryByText('Ver as duas versões lado a lado')).toBeNull()
@@ -269,8 +324,8 @@ describe('varredura de jargão (SIMPLE-WORKSPACE-SPEC §1 e Aceite 1)', () => {
     for (const props of states) {
       const view = renderPanel(props)
       for (const name of ['cardapio.md', 'precos.xlsx', 'logo.png', 'contrato.pdf', 'velho.txt']) {
-        const toggle = screen.queryByRole('button', { name: new RegExp(name, 'u') })
-        if (toggle !== null && toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle)
+        const option = screen.queryByRole('option', { name: new RegExp(name, 'u') })
+        if (option !== null) fireEvent.click(option)
       }
       const folded = [...document.querySelectorAll('details')].map(node => node.textContent ?? '')
       let readable = document.body.textContent ?? ''

@@ -8,8 +8,12 @@ import {
   inviteShareText,
   remoteTeamCapabilities,
   remoteTeamErrorKind,
-  toggleChannel,
-} from '../src/client/remote-team/remote-team-model.ts'
+  toggleChannel, splitInviteText,
+  behindLine,
+  canRevokeMember,
+  invitesWithoutMembers,
+  memberRows,
+  parseSyncedAt } from '../src/client/remote-team/remote-team-model.ts'
 
 const state = (patch: Partial<RemoteTeamState> = {}): RemoteTeamState => ({
   workspaceId: 'ws',
@@ -85,5 +89,82 @@ describe('remote-team model (E13)', () => {
     expect(toggleChannel([], 'geral')).toEqual(['geral'])
     expect(toggleChannel(['geral'], 'design')).toEqual(['geral', 'design'])
     expect(toggleChannel(['geral', 'design'], 'geral')).toEqual(['design'])
+  })
+})
+
+describe('convite colado (QUILL-SCREENS-SPEC)', () => {
+  it('o texto inteiro do convite vira endereço + código', () => {
+    expect(splitInviteText('Endereço: http://equipe.exemplo.test:8791\nCódigo do convite: tok-xyz-987')).toEqual({ address: 'http://equipe.exemplo.test:8791', token: 'tok-xyz-987' })
+    expect(splitInviteText('http://equipe.exemplo.test:8791 tok-abc')).toEqual({ address: 'http://equipe.exemplo.test:8791', token: 'tok-abc' })
+  })
+
+  it('sem os dois valores não separa nada (digitação normal não é interceptada)', () => {
+    expect(splitInviteText('http://equipe.exemplo.test:8791')).toEqual({ address: 'http://equipe.exemplo.test:8791' })
+    expect(splitInviteText('tok-abc-123')).toEqual({})
+    expect(splitInviteText('')).toEqual({})
+    expect(splitInviteText('http://a.test uma frase com várias palavras')).toEqual({ address: 'http://a.test' })
+  })
+
+})
+
+describe('Equipe remota — campos opcionais do host (syncedAt, behindBy, listRemoteMembers)', () => {
+  const view = (patch: Record<string, unknown> = {}) => ({
+    actorId: 'a1', displayName: 'Alice', role: 'owner', status: 'active', joinedAt: '2026-11-04T10:00:00.000Z', inviteId: '', ...patch,
+  })
+
+  it('memberRows: só aceita linhas do formato do contrato, dono primeiro, quem saiu por último; sem lista = host antigo', () => {
+    expect(memberRows(undefined)).toBeUndefined()
+    expect(memberRows({ not: 'a list' })).toBeUndefined()
+    const rows = memberRows([
+      view({ actorId: 'c3', displayName: 'Carla', role: 'guest', status: 'revoked', inviteId: 'i3', joinedAt: '2026-11-04T09:00:00.000Z' }),
+      view({ actorId: 'b2', displayName: 'Bob', role: 'member', inviteId: 'i2', joinedAt: '2026-11-04T11:00:00.000Z' }),
+      { actorId: 'x', displayName: 'Sem papel' },
+      null,
+      view(),
+    ])
+    expect(rows?.map(row => row.name)).toEqual(['Alice', 'Bob', 'Carla'])
+    expect(memberRows([view({ displayName: '   ' })])?.[0]?.name).toBe('a1')
+  })
+
+  it('canRevokeMember: só quem está ativo, entrou por convite e não é a própria pessoa', () => {
+    const [owner, bob, carla] = memberRows([
+      view(),
+      view({ actorId: 'b2', displayName: 'Bob', role: 'member', inviteId: 'i2' }),
+      view({ actorId: 'c3', displayName: 'Carla', role: 'guest', status: 'revoked', inviteId: 'i3' }),
+    ])!
+    expect(canRevokeMember(owner!, 'a1')).toBe(false)
+    expect(canRevokeMember(bob!, 'a1')).toBe(true)
+    expect(canRevokeMember(bob!, 'b2')).toBe(false)
+    expect(canRevokeMember(carla!, 'a1')).toBe(false)
+  })
+
+  it('invitesWithoutMembers: convite aceito que já é uma pessoa da lista não aparece duas vezes; sem lista nada muda', () => {
+    const invites = inviteRows([
+      { id: 'i2', workspaceId: 'ws', token: '', status: 'used', expiresAt: 3 },
+      { id: 'i-open', workspaceId: 'ws', token: '', status: 'open', expiresAt: 2 },
+      { id: 'i-orphan', workspaceId: 'ws', token: '', status: 'used', expiresAt: 1 },
+    ])
+    const members = memberRows([view({ actorId: 'b2', displayName: 'Bob', role: 'member', inviteId: 'i2' })])
+    expect(invitesWithoutMembers(invites, members).map(row => row.id)).toEqual(['i-open', 'i-orphan'])
+    expect(invitesWithoutMembers(invites, undefined)).toBe(invites)
+  })
+
+  it('parseSyncedAt: ISO do host em ms; ausente ou ilegível = desconhecido (nunca inventa hora)', () => {
+    expect(parseSyncedAt('2026-11-04T10:00:00.000Z')).toBe(Date.parse('2026-11-04T10:00:00.000Z'))
+    expect(parseSyncedAt(undefined)).toBeNull()
+    expect(parseSyncedAt('ontem')).toBeNull()
+  })
+
+  it('behindLine: antes da primeira medição não diz nada; "em dia" só conectada; offline só fala de pendência', () => {
+    expect(behindLine('connected', undefined)).toBeNull()
+    expect(behindLine('connected', 0)).toEqual({ key: 'zero', count: 0 })
+    expect(behindLine('connected', 1)).toEqual({ key: 'one', count: 1 })
+    expect(behindLine('connected', 7)).toEqual({ key: 'many', count: 7 })
+    expect(behindLine('offline', 0)).toBeNull()
+    expect(behindLine('offline', 4)).toEqual({ key: 'many', count: 4 })
+    expect(behindLine('revoked', 3)).toBeNull()
+    expect(behindLine('none', 3)).toBeNull()
+    expect(behindLine('connected', -1)).toBeNull()
+    expect(behindLine('connected', Number.NaN)).toBeNull()
   })
 })

@@ -212,3 +212,10 @@
   font: 600 14px/20px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
+
+/* Selo Gestor igual ao do cartão da persona (âmbar + bastão): o mesmo papel, a mesma cara em qualquer tela. */
+.gestorChip {
+  border-color: var(--persona-outline);
+  background: var(--persona-accent);
+  color: var(--persona-outline);
+}

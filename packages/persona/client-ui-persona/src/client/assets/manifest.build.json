@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-04T16:57:42.113Z",
+    "generatedAt": "2026-11-04T19:18:15.099Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 540,
-    "totalBytes": 7998918,
+    "files": 577,
+    "totalBytes": 8735355,
     "withinBudget": true
   },
   "files": [
@@ -77,6 +77,14 @@
       "bytes": 375
     },
     {
+      "rel": "icons/nav/ajuda.png",
+      "bytes": 1722
+    },
+    {
+      "rel": "icons/nav/ajuda.svg",
+      "bytes": 429
+    },
+    {
       "rel": "icons/nav/arquivos.svg",
       "bytes": 281
     },
@@ -123,6 +131,14 @@
     {
       "rel": "icons/nav/mensagens-diretas.svg",
       "bytes": 319
+    },
+    {
+      "rel": "icons/nav/novidades.png",
+      "bytes": 1377
+    },
+    {
+      "rel": "icons/nav/novidades.svg",
+      "bytes": 375
     },
     {
       "rel": "icons/nav/projetos.svg",
@@ -551,6 +567,18 @@
     {
       "rel": "illustrations/bibliotecario.webp",
       "bytes": 29758
+    },
+    {
+      "rel": "illustrations/conflito-mesmo-arquivo.webp",
+      "bytes": 47480
+    },
+    {
+      "rel": "illustrations/empty-historico.webp",
+      "bytes": 33068
+    },
+    {
+      "rel": "illustrations/rascunho-trabalhando.webp",
+      "bytes": 32940
     },
     {
       "rel": "illustrations/spot-sem-ia.webp",
@@ -1565,6 +1593,10 @@
       "bytes": 33376
     },
     {
+      "rel": "poses/capivara-acenando.webp",
+      "bytes": 19498
+    },
+    {
       "rel": "poses/capivara-aguardando-aprovacao.webp",
       "bytes": 30604
     },
@@ -1577,6 +1609,14 @@
       "bytes": 57402
     },
     {
+      "rel": "poses/capivara-disponivel-blink.webp",
+      "bytes": 19038
+    },
+    {
+      "rel": "poses/capivara-disponivel-tail.webp",
+      "bytes": 19232
+    },
+    {
       "rel": "poses/capivara-disponivel.webp",
       "bytes": 29800
     },
@@ -1587,6 +1627,18 @@
     {
       "rel": "poses/capivara-offline.webp",
       "bytes": 24408
+    },
+    {
+      "rel": "poses/capivara-pensando-1.webp",
+      "bytes": 18246
+    },
+    {
+      "rel": "poses/capivara-pensando-2.webp",
+      "bytes": 18106
+    },
+    {
+      "rel": "poses/capivara-pensando-3.webp",
+      "bytes": 18082
     },
     {
       "rel": "poses/capivara-revisando.webp",
@@ -1661,6 +1713,10 @@
       "bytes": 28948
     },
     {
+      "rel": "poses/coruja-acenando.webp",
+      "bytes": 25578
+    },
+    {
       "rel": "poses/coruja-aguardando-aprovacao.webp",
       "bytes": 33200
     },
@@ -1671,6 +1727,14 @@
     {
       "rel": "poses/coruja-descansando.webp",
       "bytes": 46974
+    },
+    {
+      "rel": "poses/coruja-disponivel-blink.webp",
+      "bytes": 22058
+    },
+    {
+      "rel": "poses/coruja-disponivel-tail.webp",
+      "bytes": 22848
     },
     {
       "rel": "poses/coruja-disponivel.webp",
@@ -1685,12 +1749,28 @@
       "bytes": 23602
     },
     {
+      "rel": "poses/coruja-pensando-1.webp",
+      "bytes": 22214
+    },
+    {
+      "rel": "poses/coruja-pensando-2.webp",
+      "bytes": 21974
+    },
+    {
+      "rel": "poses/coruja-pensando-3.webp",
+      "bytes": 21566
+    },
+    {
       "rel": "poses/coruja-revisando.webp",
       "bytes": 31400
     },
     {
       "rel": "poses/coruja-trabalhando.webp",
       "bytes": 34130
+    },
+    {
+      "rel": "poses/guaxinim-acenando.webp",
+      "bytes": 23502
     },
     {
       "rel": "poses/guaxinim-aguardando-aprovacao.webp",
@@ -1705,6 +1785,14 @@
       "bytes": 48598
     },
     {
+      "rel": "poses/guaxinim-disponivel-blink.webp",
+      "bytes": 22292
+    },
+    {
+      "rel": "poses/guaxinim-disponivel-tail.webp",
+      "bytes": 22552
+    },
+    {
       "rel": "poses/guaxinim-disponivel.webp",
       "bytes": 33968
     },
@@ -1715,6 +1803,18 @@
     {
       "rel": "poses/guaxinim-offline.webp",
       "bytes": 21108
+    },
+    {
+      "rel": "poses/guaxinim-pensando-1.webp",
+      "bytes": 21024
+    },
+    {
+      "rel": "poses/guaxinim-pensando-2.webp",
+      "bytes": 20966
+    },
+    {
+      "rel": "poses/guaxinim-pensando-3.webp",
+      "bytes": 20522
     },
     {
       "rel": "poses/guaxinim-revisando.webp",
@@ -1937,6 +2037,10 @@
       "bytes": 35786
     },
     {
+      "rel": "poses/panda-acenando.webp",
+      "bytes": 18876
+    },
+    {
       "rel": "poses/panda-aguardando-aprovacao.webp",
       "bytes": 25720
     },
@@ -1947,6 +2051,14 @@
     {
       "rel": "poses/panda-descansando.webp",
       "bytes": 43804
+    },
+    {
+      "rel": "poses/panda-disponivel-blink.webp",
+      "bytes": 17788
+    },
+    {
+      "rel": "poses/panda-disponivel-tail.webp",
+      "bytes": 18038
     },
     {
       "rel": "poses/panda-disponivel.webp",
@@ -1961,12 +2073,28 @@
       "bytes": 20244
     },
     {
+      "rel": "poses/panda-pensando-1.webp",
+      "bytes": 16484
+    },
+    {
+      "rel": "poses/panda-pensando-2.webp",
+      "bytes": 16346
+    },
+    {
+      "rel": "poses/panda-pensando-3.webp",
+      "bytes": 16184
+    },
+    {
       "rel": "poses/panda-revisando.webp",
       "bytes": 23246
     },
     {
       "rel": "poses/panda-trabalhando.webp",
       "bytes": 25420
+    },
+    {
+      "rel": "poses/raposa-acenando.webp",
+      "bytes": 24440
     },
     {
       "rel": "poses/raposa-aguardando-aprovacao.webp",
@@ -1981,8 +2109,16 @@
       "bytes": 52514
     },
     {
+      "rel": "poses/raposa-disponivel-blink.webp",
+      "bytes": 22332
+    },
+    {
+      "rel": "poses/raposa-disponivel-tail.webp",
+      "bytes": 23210
+    },
+    {
       "rel": "poses/raposa-disponivel.webp",
-      "bytes": 34556
+      "bytes": 35006
     },
     {
       "rel": "poses/raposa-erro.webp",
@@ -1991,6 +2127,18 @@
     {
       "rel": "poses/raposa-offline.webp",
       "bytes": 23034
+    },
+    {
+      "rel": "poses/raposa-pensando-1.webp",
+      "bytes": 22040
+    },
+    {
+      "rel": "poses/raposa-pensando-2.webp",
+      "bytes": 21900
+    },
+    {
+      "rel": "poses/raposa-pensando-3.webp",
+      "bytes": 21660
     },
     {
       "rel": "poses/raposa-revisando.webp",

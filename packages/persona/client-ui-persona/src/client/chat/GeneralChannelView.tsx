@@ -13,6 +13,7 @@ import {
   REACTION_EMOJI,
   REACTION_IDS,
   ReactionChip,
+  Skeleton,
   UiIcon,
   stickerUrl,
   Toast,
@@ -32,7 +33,9 @@ import { TeamChannelStrip } from '../team/TeamChannelStrip.tsx'
 import { QueuedMessageBubble, type QueuedMessageItem } from './QueuedMessageBubble.tsx'
 import { ChannelComposer } from './ChannelComposer.tsx'
 import { MessageQuoteToolbar, type MessageQuote } from './MessageQuoteToolbar.tsx'
-import type { ComposerSlashCommand } from './composer-slash-commands.ts'
+import type { ComposerSlashActions } from './composer-slash-commands.ts'
+import type { EngineLimitsUi } from '../remote/engine-limits.ts'
+import { MarkdownBody } from './markdown/MarkdownBody.tsx'
 import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
 import { ReactionAdder, reactionIdFromEmoji } from './ReactionAdder.tsx'
 import { TurnContextDrawer } from './TurnContextDrawer.tsx'
@@ -54,7 +57,9 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly shellT: PropsLocale<'persona.shell'>['t']
   readonly members: readonly ChannelPersonaMember[]
   readonly messages: readonly ChannelMessageUi[]
-  readonly passThroughFollowers?: readonly { readonly name: string }[]
+  /** Os dados do host ainda não chegaram (recarregar): skeleton em vez de "equipe vazia" / "canal quietinho". */
+  readonly loading?: boolean | undefined
+  readonly passThroughFollowers?: readonly { readonly name: string; readonly id?: string | undefined }[]
   readonly turnContext?: TurnContextUi | null
   readonly turnActivityLabels?: import('../primitives/Pooled.tsx').ActivityGroupProps['labels'] | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
@@ -74,6 +79,8 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   /** Menu da conta (ainda não existe): sem handler o avatar é só a presença, não um botão. */
   readonly onOpenAccount?: (() => void) | undefined
   readonly runErrorHandlers?: RunErrorHandlerContext | undefined
+  /** P0-30: "Tentar de novo" numa mensagem que não foi enviada. */
+  readonly onRetrySend?: ((messageId: string) => void) | undefined
   readonly team?: TeamView | null
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
@@ -94,7 +101,12 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly onFeedbackGestorPlan?: ((planId: string, comment: string) => void) | undefined
   readonly gestorPlanAdjustingIds?: Readonly<Record<string, true>> | undefined
   readonly conversationKey?: string | undefined
-  readonly onSlashCommand?: ((command: ComposerSlashCommand, arg: string) => void) | undefined
+  /** O que cada comando "/" faz (P0-27); sem handler o comando não aparece no menu. */
+  readonly slashActions?: ComposerSlashActions | undefined
+  /** IV-4: limites reais do motor (`/limites` e gaveta "Contexto usado"); sem fonte, "indisponível". */
+  readonly engineLimits?: EngineLimitsUi | undefined
+  /** O `/limites` abriu: quem monta a tela lê as cotas agora. */
+  readonly onOpenLimits?: (() => void) | undefined
   readonly quotaBlocked?: boolean | undefined
   readonly quotaResumeLabel?: string | undefined
   readonly onResumeQuota?: (() => void) | undefined
@@ -134,6 +146,7 @@ export function GeneralChannelView({
   shellT,
   members,
   messages,
+  loading = false,
   passThroughFollowers = [],
   turnContext,
   turnActivityLabels,
@@ -147,6 +160,7 @@ export function GeneralChannelView({
   notificationsCount = 0,
   onOpenAccount,
   runErrorHandlers,
+  onRetrySend,
   uploadAttachment,
   team = null,
   personaCard,
@@ -167,7 +181,9 @@ export function GeneralChannelView({
   onFeedbackGestorPlan,
   gestorPlanAdjustingIds = {},
   conversationKey = 'channel:geral',
-  onSlashCommand,
+  slashActions,
+  engineLimits,
+  onOpenLimits,
   quotaBlocked,
   quotaResumeLabel,
   onResumeQuota,
@@ -284,7 +300,9 @@ export function GeneralChannelView({
     conversationKey,
     pendingQuote,
     onClearQuote: () => { setPendingQuote(null) },
-    ...(onSlashCommand === undefined ? {} : { onSlashCommand }),
+    ...(slashActions === undefined ? {} : { slashActions }),
+    ...(engineLimits === undefined ? {} : { engineLimits }),
+    ...(onOpenLimits === undefined ? {} : { onOpenLimits }),
     ...(quotaBlocked === undefined ? {} : { quotaBlocked }),
     ...(quotaResumeLabel === undefined ? {} : { quotaResumeLabel }),
     ...(onResumeQuota === undefined ? {} : { onResumeQuota }),
@@ -366,13 +384,20 @@ export function GeneralChannelView({
           <TeamChannelStrip
             t={shellT}
             members={members}
+            loading={loading}
             onBuildTeam={onBuildTeam}
             {...(personaCardTrigger === undefined ? {} : { personaCardTrigger })}
           />
           {passThroughFollowers.length > 0 && (
             <ul className={styles.passThroughList} aria-live="polite">
               {passThroughFollowers.map(row => (
-                <li key={row.name} className={styles.passThrough}>{t('stream.passThrough', { name: row.name })}</li>
+                <li key={row.name} className={styles.passThrough}>
+                  {personaCardTrigger !== undefined && row.id !== undefined ? (
+                    <button type="button" className={styles.passThroughButton} {...personaCardTrigger(row.id)}>
+                      {t('stream.passThrough', { name: row.name })}
+                    </button>
+                  ) : t('stream.passThrough', { name: row.name })}
+                </li>
               ))}
             </ul>
           )}
@@ -390,7 +415,20 @@ export function GeneralChannelView({
               containerRef={streamRef}
               onQuote={(quote) => { setPendingQuote({ ...quote, comment: '' }) }}
             />
-            {messages.length === 0 ? (
+            {messages.length === 0 && loading ? (
+              <div className={styles.streamSkeleton} aria-busy="true" data-loading="">
+                <span className="persona-sr-only" role="status">{t('stream.loading')}</span>
+                {[78, 52, 66].map(width => (
+                  <div key={width} className={styles.skeletonRow} aria-hidden="true">
+                    <Skeleton width={32} height={32} shape="circle" />
+                    <div className={styles.skeletonLines}>
+                      <Skeleton width={96} height={12} />
+                      <Skeleton width={`${String(width)}%`} height={14} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : messages.length === 0 ? (
               <EmptyState
                 compact
                 illustration={ILLUSTRATIONS['empty-dm']}
@@ -436,6 +474,7 @@ export function GeneralChannelView({
                 {...(turnContext?.activityFolds === undefined ? {} : { turnActivityFolds: turnContext.activityFolds })}
                 {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
                 {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
+                {...(onRetrySend === undefined ? {} : { onRetrySend })}
               />
             )}
             {effectiveQueued.map(item => (
@@ -453,7 +492,7 @@ export function GeneralChannelView({
         </div>
       </div>
 
-      <TurnContextDrawer t={t} context={turnContext} activityLabels={turnActivityLabels} />
+      <TurnContextDrawer t={t} context={turnContext} activityLabels={turnActivityLabels} limits={engineLimits} />
 
       <div className={styles.composerDock}>
         <div className={styles.column}>
@@ -461,6 +500,7 @@ export function GeneralChannelView({
           <ChannelComposer
             t={t}
             members={members}
+            suppressHint={Object.values(gestorPlansById).some(plan => plan.status === 'proposed')}
             {...composerProps}
             {...(editingQueuedItem === undefined ? {} : {
               editingQueuedText: editingQueuedItem.text,
@@ -524,10 +564,12 @@ export function GeneralChannelView({
 }
 
 /** Grouped message stream with day pill (shared by #geral and DMs). */
-export function MessageList({ t, team = null, messages, gestorPlansById = {}, gestorPlanAdjustingIds = {}, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, onLoadTurnContext, onOpenTaskOnBoard, personaCardTrigger, memberId, onToggleReaction, userStickerAnimal, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers }: {
+export function MessageList({ t, team = null, messages, gestorPlansById = {}, gestorPlanAdjustingIds = {}, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, onLoadTurnContext, onOpenTaskOnBoard, personaCardTrigger, memberId, onToggleReaction, userStickerAnimal, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers, onRetrySend }: {
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly team?: TeamView | null
   readonly messages: readonly ChannelMessageUi[]
+  /** P0-30: "Tentar de novo" numa mensagem que não foi enviada. */
+  readonly onRetrySend?: ((messageId: string) => void) | undefined
   readonly gestorPlansById?: Readonly<Record<string, GestorPlanView>>
   readonly gestorPlanAdjustingIds?: Readonly<Record<string, true>>
   readonly onApproveGestorPlan?: ((planId: string) => void) | undefined
@@ -577,6 +619,7 @@ export function MessageList({ t, team = null, messages, gestorPlansById = {}, ge
     ...(turnActivityFolds === undefined ? {} : { turnActivityFolds }),
     ...(turnActivityLabels === undefined ? {} : { turnActivityLabels }),
     ...(runErrorHandlers === undefined ? {} : { runErrorHandlers }),
+    ...(onRetrySend === undefined ? {} : { onRetrySend }),
   })
 
   return (
@@ -632,8 +675,10 @@ function ChannelMessageRow(props: {
   readonly turnActivityFolds?: readonly TurnContextActivityFoldUi[] | undefined
   readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
   readonly runErrorHandlers?: RunErrorHandlerContext | undefined
+  /** P0-30: "Tentar de novo" numa mensagem que não foi enviada. */
+  readonly onRetrySend?: ((messageId: string) => void) | undefined
 }): ReactNode {
-  const { t, message, team, gestorPlansById, gestorPlanAdjustingIds, continued, onLoadTurnContext, onOpenTaskOnBoard, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, memberId, onToggleReaction, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers } = props
+  const { t, message, team, gestorPlansById, gestorPlanAdjustingIds, continued, onLoadTurnContext, onOpenTaskOnBoard, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, memberId, onToggleReaction, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers, onRetrySend } = props
   const inlineActivity = message.ticketId !== undefined
     && turnActivityTicketId === message.ticketId
     && turnActivityFolds !== undefined
@@ -749,8 +794,24 @@ function ChannelMessageRow(props: {
             />
           </div>
         ) : message.body.length > 0 ? (
-          <p className={styles.text}>{message.body}</p>
+          // IV-3: as respostas das personas são markdown (listas, tabelas, código, links), nunca HTML cru; o que a pessoa
+          // escreve continua texto simples.
+          isUser
+            ? <p className={styles.text}>{message.body}</p>
+            : <div className={styles.text}><MarkdownBody source={message.body} t={t} /></div>
         ) : null}
+        {message.sendFailed === true && (
+          // P0-30: o host não recebeu. O texto fica no fio com a falha dita em voz alta e a ação de tentar de novo.
+          <div className={styles.sendFailed} role="status" data-persona-send-failed="">
+            <UiIcon name="alert" size={14} strokeWidth={2.2} />
+            <span>{t('message.notSent')}</span>
+            {onRetrySend !== undefined && (
+              <Button size="s" variant="ghost" onClick={() => { onRetrySend(message.id) }}>
+                {t('runError.action.retry')}
+              </Button>
+            )}
+          </div>
+        )}
         {gestorPlan !== undefined && (
           <div className={styles.gestorPlan} ref={gestorMotion.ref} style={gestorMotion.style}>
             <GestorPlanMessageCard

@@ -250,6 +250,9 @@ export const pt = {
   'teach.discardConfirm.confirm': 'Descartar',
   'teach.region': 'Ensinar a persona',
   'teach.review.whatIsSkill': 'Uma skill é o que {name} sabe fazer, passo a passo.',
+  'teach.needsDesktopShort': 'Só funciona no app instalado.',
+  'teach.sourcePickHint': 'Escolha uma tela ou janela para continuar.',
+  'teach.share.confirmHint': 'Marque que entendeu para continuar.',
 } as const
 
 /** English copy. */
@@ -499,6 +502,9 @@ export const en = {
   'teach.discardConfirm.confirm': 'Discard',
   'teach.region': 'Teach the persona',
   'teach.review.whatIsSkill': 'A skill is what {name} knows how to do, step by step.',
+  'teach.needsDesktopShort': 'Only works in the installed app.',
+  'teach.sourcePickHint': 'Choose a screen or window to continue.',
+  'teach.share.confirmHint': 'Tick that you understand to continue.',
 } as const
 
 export const zh = {
@@ -747,6 +753,9 @@ export const zh = {
   'teach.discardConfirm.confirm': 'Discard',
   'teach.region': 'Teach the persona',
   'teach.review.whatIsSkill': 'A skill is what {name} knows how to do, step by step.',
+  'teach.needsDesktopShort': 'Only works in the installed app.',
+  'teach.sourcePickHint': 'Choose a screen or window to continue.',
+  'teach.share.confirmHint': 'Tick that you understand to continue.',
 } as const
 export const ja = {
   'header.eyebrow': 'More',
@@ -994,6 +1003,9 @@ export const ja = {
   'teach.discardConfirm.confirm': 'Discard',
   'teach.region': 'Teach the persona',
   'teach.review.whatIsSkill': 'A skill is what {name} knows how to do, step by step.',
+  'teach.needsDesktopShort': 'Only works in the installed app.',
+  'teach.sourcePickHint': 'Choose a screen or window to continue.',
+  'teach.share.confirmHint': 'Tick that you understand to continue.',
 } as const
 export const es = {
   'header.eyebrow': 'More',
@@ -1241,6 +1253,9 @@ export const es = {
   'teach.discardConfirm.confirm': 'Discard',
   'teach.region': 'Teach the persona',
   'teach.review.whatIsSkill': 'A skill is what {name} knows how to do, step by step.',
+  'teach.needsDesktopShort': 'Only works in the installed app.',
+  'teach.sourcePickHint': 'Choose a screen or window to continue.',
+  'teach.share.confirmHint': 'Tick that you understand to continue.',
 } as const
 export const fr = {
   'header.eyebrow': 'More',
@@ -1488,6 +1503,9 @@ export const fr = {
   'teach.discardConfirm.confirm': 'Discard',
   'teach.region': 'Teach the persona',
   'teach.review.whatIsSkill': 'A skill is what {name} knows how to do, step by step.',
+  'teach.needsDesktopShort': 'Only works in the installed app.',
+  'teach.sourcePickHint': 'Choose a screen or window to continue.',
+  'teach.share.confirmHint': 'Tick that you understand to continue.',
 } as const
 export const de = {
   'header.eyebrow': 'More',
@@ -1735,6 +1753,9 @@ export const de = {
   'teach.discardConfirm.confirm': 'Discard',
   'teach.region': 'Teach the persona',
   'teach.review.whatIsSkill': 'A skill is what {name} knows how to do, step by step.',
+  'teach.needsDesktopShort': 'Only works in the installed app.',
+  'teach.sourcePickHint': 'Choose a screen or window to continue.',
+  'teach.share.confirmHint': 'Tick that you understand to continue.',
 } as const
 export const ru = {
   'header.eyebrow': 'More',
@@ -1982,6 +2003,9 @@ export const ru = {
   'teach.discardConfirm.confirm': 'Discard',
   'teach.region': 'Teach the persona',
   'teach.review.whatIsSkill': 'A skill is what {name} knows how to do, step by step.',
+  'teach.needsDesktopShort': 'Only works in the installed app.',
+  'teach.sourcePickHint': 'Choose a screen or window to continue.',
+  'teach.share.confirmHint': 'Tick that you understand to continue.',
 } as const
 
 export type ProfileKey = keyof typeof pt

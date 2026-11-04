@@ -43,3 +43,21 @@ export function filterMessagesForSubject(
 ): readonly ChannelMessageUi[] {
   return messages.filter(row => (row.conversationSubjectId ?? DEFAULT_CONVERSATION_SUBJECT_ID) === activeSubjectId)
 }
+
+/** Nome padrão em português quando quem chama não passa o rótulo do idioma. */
+const DEFAULT_SUBJECT_LABEL = (n: number): string => `Assunto ${String(n)}`
+
+/**
+ * Nome para o "+ Novo assunto": "Assunto N" com o menor N livre (conta os arquivados também, para não repetir nome).
+ * O host recusa nome vazio (`invalid-input`), então o assunto já nasce com nome e a barra abre o campo para renomear.
+ */
+export function nextSubjectName(
+  subjects: readonly ConversationSubjectUi[],
+  archived: readonly ConversationSubjectUi[] = [],
+  label: (n: number) => string = DEFAULT_SUBJECT_LABEL,
+): string {
+  const taken = new Set([...subjects, ...archived].map(row => row.name.trim().toLowerCase()))
+  let n = subjects.length + archived.length + 1
+  while (taken.has(label(n).trim().toLowerCase())) n += 1
+  return label(n)
+}

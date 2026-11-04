@@ -9,9 +9,25 @@ installPreviewTheme()
 
 describe('hire persona card preview', () => {
   it('shows contratar proposal with primary hire action', () => {
-    render(<HirePersonaCard dict={pt} />)
+    render(<HirePersonaCard dict={pt} onApprove={() => undefined} />)
     expect(screen.getByRole('heading', { level: 1, name: 'Contratar Sol?' })).toBeTruthy()
     expect(screen.getByRole('button', { name: pt['action.approve'] })).toBeTruthy()
     expect(screen.getByText(pt['policy.note'])).toBeTruthy()
+  })
+
+  it('o motor aparece em português, nunca como id cru ("oar:codex")', () => {
+    render(<HirePersonaCard dict={pt} />)
+    expect(screen.queryByText(/oar:|:codex/u)).toBeNull()
+    expect(screen.getAllByText('Codex').length).toBeGreaterThan(0)
+  })
+
+  it('o retrato é do bicho (avatarRef), não do nome da proposta', () => {
+    const { container, rerender } = render(
+      <HirePersonaCard dict={pt} proposal={{ name: 'Pipoca', avatarRef: 'capivara', creator: 'Atlas', role: 'Design', harness: 'claude', toolsSummary: 'Arquivos: leitura' }} />,
+    )
+    const byAnimal = container.querySelector('img')?.getAttribute('src')
+    rerender(<HirePersonaCard dict={pt} proposal={{ name: 'Capivara', creator: 'Atlas', role: 'Design', harness: 'claude', toolsSummary: 'Arquivos: leitura' }} />)
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(byAnimal)
+    expect(byAnimal).toBeTruthy()
   })
 })

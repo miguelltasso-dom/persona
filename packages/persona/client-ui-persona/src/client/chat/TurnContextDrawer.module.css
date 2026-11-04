@@ -36,7 +36,7 @@
 
 .compactHint {
   margin: 0;
-  font-size: var(--persona-text-xs);
+  font-size: 12px;
   color: var(--persona-ink-muted);
 }
 

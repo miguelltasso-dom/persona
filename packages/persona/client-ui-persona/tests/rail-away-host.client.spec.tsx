@@ -105,6 +105,16 @@ describe('rail: "Estou fora"', () => {
     expect((onAwayChange.mock.calls[1]![0] as UserAwayState).isAway).toBe(false)
   })
 
+  it('cada item do rail traz data-nav-panel com o MainPanelId (gates e capturas não dependem do rótulo)', () => {
+    rail()
+    const ids = [...document.querySelectorAll('[data-nav-item]')].map(node => node.getAttribute('data-nav-panel'))
+    expect(ids.length).toBeGreaterThan(5)
+    expect(ids.every(id => typeof id === 'string' && id.length > 0)).toBe(true)
+    expect(ids).toContain('overview')
+    expect(ids).toContain('approvals')
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
   it('Esc fecha o popover e devolve o foco ao chip', () => {
     rail()
     fireEvent.click(chip())

@@ -113,6 +113,45 @@ describe('ConnectedTeamHealthPanel ready (GOV-7)', () => {
     expect(screen.getByRole('heading', { name: governancePt['health.title'] })).toBeTruthy()
   })
 
+  it('never shows an engine id: the routine named after a persona reads "Iniciativa de {nome}" (Gauge GOV-10 #2)', async () => {
+    const health = {
+      ...mockTeamHealth('ws-gov'),
+      findings: [{
+        id: 'routine-owner:initiative:m-dia',
+        level: 'warn' as const,
+        title: 'A rotina “initiative:m-dia” não tem dono.',
+        detail: 'Sem dono, initiative:m-dia para.',
+        fixKind: 'set_routine_owner' as const,
+        fixTargetId: 'initiative:m-dia',
+      }],
+    }
+    const twoDay = {
+      ...mockTwoDayTest('ws-gov'),
+      rows: [{ id: 'initiative:m-dia', label: 'initiative:m-dia', slots: ['stops', 'stops', 'stops', 'stops'] as const, reason: 'A rotina “initiative:m-dia” não tem dono. Sem dono, ela para.' }],
+    }
+    const persona = {
+      getTeamHealth: async () => ({ ok: true as const, value: health }),
+      runTwoDayTest: async () => ({ ok: true as const, value: twoDay }),
+    } as never
+    const live = {
+      ...LIVE_WITH_TEAM,
+      team: {
+        ...LIVE_WITH_TEAM.team!,
+        personas: [...LIVE_WITH_TEAM.team!.personas, { ...LIVE_WITH_TEAM.team!.personas[0]!, id: 'm-dia', name: 'Mídia', title: 'Divulgação', systemRoles: [] }],
+      },
+    }
+    const { useLive, useTenant, useShell } = harness(live)
+    const { container } = render(
+      <PreviewFrame brandLabel="Persona">
+        <ConnectedTeamHealthPanel persona={persona} useTenant={useTenant} useLive={useLive} useShell={useShell} />
+      </PreviewFrame>,
+    )
+    await waitFor(() => {
+      expect(screen.getAllByText(/Iniciativa de Mídia/u).length).toBeGreaterThan(0)
+    })
+    expect(container.textContent ?? '').not.toMatch(/initiative:/u)
+  })
+
   it('calls applyGovernanceFix when one-click fix is pressed (GOV-7 wire)', async () => {
     const health = mockTeamHealth('ws-gov')
     const applyFix = vi.fn(async () => ({ ok: true as const, value: health }))

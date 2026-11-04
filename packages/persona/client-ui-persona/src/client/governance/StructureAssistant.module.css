@@ -16,12 +16,13 @@
 
 .title {
   margin: 0;
-  font: var(--persona-font-title-m);
+  font: 700 26px/32px var(--persona-font-display);
+  letter-spacing: -0.02em;
 }
 
 .hint {
   margin: 0;
-  font: var(--persona-font-body);
+  font: 400 15px/22px var(--persona-font-text);
   color: var(--persona-ink-muted);
 }
 
@@ -32,7 +33,7 @@
 }
 
 .stepChip {
-  font: var(--persona-font-caption);
+  font: 600 13px/18px var(--persona-font-text);
   padding: var(--persona-space-1) var(--persona-space-3);
   border-radius: var(--persona-radius-pill);
   border: var(--persona-border-width) solid var(--persona-outline);
@@ -44,26 +45,6 @@
   background: var(--persona-wash-strong);
 }
 
-.modelGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--persona-space-3);
-}
-
-.modelButton {
-  padding: var(--persona-space-4);
-  border-radius: var(--persona-radius-m);
-  border: var(--persona-border-width) solid var(--persona-outline);
-  background: var(--persona-surface);
-  cursor: pointer;
-  font: var(--persona-font-body-strong);
-  text-align: left;
-}
-
-.modelButton[aria-pressed='true'] {
-  border-color: var(--persona-brand);
-  box-shadow: var(--persona-shadow-sticker);
-}
 
 .sectorList {
   display: flex;
@@ -84,7 +65,7 @@
 .rationale {
   margin: 0;
   padding-left: var(--persona-space-5);
-  font: var(--persona-font-body);
+  font: 400 15px/22px var(--persona-font-text);
 }
 
 .rationale li {
@@ -102,7 +83,7 @@
   padding: var(--persona-space-3) var(--persona-space-4);
   border-radius: var(--persona-radius-m);
   background: var(--persona-wash);
-  font: var(--persona-font-caption);
+  font: 600 13px/18px var(--persona-font-text);
   color: var(--persona-ink-muted);
 }
 
@@ -116,4 +97,40 @@
 .compact {
   padding: 0;
   max-width: none;
+}
+
+.hireList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hireRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border-radius: var(--persona-radius-m);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  background: var(--persona-surface);
+}
+
+.hireWho {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hireName {
+  font: 700 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.hireRole {
+  font: 400 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
 }

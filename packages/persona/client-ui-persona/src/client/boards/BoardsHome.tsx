@@ -16,6 +16,8 @@ export interface BoardsHomeProps {
   readonly onOpenProject: (projectId: string) => void
   readonly onNewProject?: () => void
   readonly onGlobalView?: () => void
+  /** "Criar a primeira tarefa" on a board with nothing in it. */
+  readonly onCreateFirstTask?: (projectId: string) => void
 }
 
 function filterSummaries(
@@ -35,6 +37,7 @@ export function BoardsHome({
   onOpenProject,
   onNewProject,
   onGlobalView,
+  onCreateFirstTask,
 }: BoardsHomeProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [tab, setTab] = useState<BoardsFilterTab>('all')
@@ -109,7 +112,7 @@ export function BoardsHome({
       )}
       <div className={styles.grid} role="region" aria-label={t('a11y.boardsGrid')}>
         {visible.map(summary => (
-          <ProjectBoardCard key={summary.id} dict={dict} summary={summary} onOpen={onOpenProject} />
+          <ProjectBoardCard key={summary.id} dict={dict} summary={summary} onOpen={onOpenProject} onCreateFirstTask={onCreateFirstTask} />
         ))}
       </div>
     </Screen>

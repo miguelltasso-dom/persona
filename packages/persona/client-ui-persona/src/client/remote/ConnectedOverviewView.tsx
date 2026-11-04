@@ -42,6 +42,7 @@ export function ConnectedOverviewView({
       onDecide={decideDecision}
       onUndoDecision={undoDecision}
       nowRows={live.nowRows}
+      loading={!live.ready}
       awayEvents={awayEvents}
       userName={live.team?.members.find(member => member.id === live.tenant?.memberId)?.displayName}
       suggestedTask={live.suggestedTask ?? undefined}

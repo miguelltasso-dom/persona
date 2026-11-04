@@ -8,5 +8,20 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'shell.overlay': { kind: 'list'; scope: 'root' }
     /** Declared on Persona sidebar for ui-settings-general (configForms). */
     'sidebar.settings': { kind: 'single'; scope: 'root'; owner: { wide: boolean } }
+    /**
+     * "Configurações" do rodapé (SettingsLauncher). Mesmo formato de `SettingsLauncherOwnerProps` do ui-settings, que
+     * declara a mesma entrada: as duas precisam ser idênticas para o TypeScript juntar as declarações.
+     */
+    'settings.launcher': {
+      kind: 'single'
+      scope: 'root'
+      owner: {
+        wide: boolean
+        settingsOpen: boolean
+        settingsShortcut?: { readonly keys: readonly string[]; readonly aria?: string | undefined }
+        openSettings: () => void
+        openOnboarding: (id: string) => void
+      }
+    }
   }
 }

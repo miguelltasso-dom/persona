@@ -1,11 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Button, Card, Chip, Modal } from '../primitives/index.ts'
+import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
+import { BrandIcon, Button, Card, Chip, EmptyState, Modal } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './SkillsPanel.module.css'
-import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
-import { MOCK_SKILLS, type SkillRecord } from './mock-data.ts'
+import { PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
+import type { SkillRecord } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/skills/locales.ts'
+
+/** No skills: the real screen never invents any (IV-8). Sample skills live in `mock-data.ts` for tests and the gallery only. */
+const NO_SKILLS: readonly SkillRecord[] = []
 
 export type SkillsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
@@ -18,7 +22,12 @@ export interface SkillsPanelProps {
   readonly dict?: LocaleDict
   readonly skills?: readonly SkillRecord[]
   readonly initialState?: SkillsSurfaceState
-  readonly onEmptyPrimary?: (() => void) | undefined
+  /** Whose skills these are: names the empty state ("{persona} ainda não tem skills") and picks her `pensando` pose. */
+  readonly personaName?: string | undefined
+  /** Gallery id of the persona's animal (e.g. `nina`), for the pose in the empty state. */
+  readonly personaCharacter?: string | undefined
+  /** "Ensinar a {persona}": the way to get a first skill. No handler, no button (no dead controls). */
+  readonly onTeach?: (() => void) | undefined
   /**
    * Row actions. A button exists only when its handler does (no dead controls). Handlers may reject: the row then says
    * so in words and keeps the skill as it was.
@@ -33,9 +42,11 @@ export interface SkillsPanelProps {
 
 export function SkillsPanel({
   dict = defaultDict,
-  skills = MOCK_SKILLS,
+  skills = NO_SKILLS,
   initialState = 'ready',
-  onEmptyPrimary,
+  personaName,
+  personaCharacter,
+  onTeach,
   onActivate,
   onRollback,
   onShare,
@@ -63,15 +74,23 @@ export function SkillsPanel({
   }
 
   if (initialState === 'loading') return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
-  if (initialState === 'empty') {
+  if (initialState === 'empty' || skills.length === 0) {
+    const name = personaName?.trim() ?? ''
+    const pose = personaCharacter === undefined ? undefined : poseUrl(personaCharacter as PersonaCharacterId, 'disponivel')
     return (
-      <PersonaSurfaceEmpty
-        dict={dict}
-        illustrationKey="empty-inbox"
-        titleKey="empty.title"
-        hintKey="empty.hint"
-        primaryKey="empty.action"
-        {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
+      <EmptyState
+        {...(pose === undefined ? {} : { illustration: pose })}
+        title={name.length > 0 ? t('empty.titleFor', { persona: name }) : t('empty.title')}
+        body={name.length > 0 ? t('empty.bodyFor', { persona: name }) : t('empty.hint')}
+        {...(onTeach === undefined || name.length === 0
+          ? {}
+          : {
+            action: (
+              <Button variant="primary" icon={<BrandIcon name="ensinar" size={18} />} onClick={onTeach}>
+                {t('empty.teach', { persona: name })}
+              </Button>
+            ),
+          })}
       />
     )
   }

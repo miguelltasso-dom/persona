@@ -9,6 +9,7 @@ import { Card, FixedRowVirtualScroller, PermissionRow, Screen, ScreenHeader, Tab
 const GRANT_ROW_PX = 76
 const GRANT_VIRTUAL_MIN = 40
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
+import { grantActionLabel, grantTargetLabel, personaPortrait } from './brain-ui-adapters.ts'
 import styles from './SecondBrain.module.css'
 
 type GrantFilter = 'active' | 'expired' | 'revoked'
@@ -17,18 +18,23 @@ export interface SecondBrainPermissionsViewProps {
   readonly dict?: LocaleDict
   readonly grants: readonly BrainGrantView[]
   readonly personaNames: Readonly<Record<string, string>>
+  readonly personaAvatars?: Readonly<Record<string, string>>
   readonly onBack: () => void
   readonly onRevokeGrant?: (grantId: string) => void
 }
 
 function grantScope(
+  dict: LocaleDict,
   grant: BrainGrantView,
   personaNames: Readonly<Record<string, string>>,
+  personaAvatars: Readonly<Record<string, string>>,
 ): PermissionScope {
+  const name = personaNames[grant.personaId] ?? grant.personaId
   return {
-    persona: personaNames[grant.personaId] ?? grant.personaId,
-    action: grant.action,
-    target: grant.target,
+    persona: name,
+    personaAvatar: personaAvatars[grant.personaId] ?? personaPortrait({ name }),
+    action: grantActionLabel(dict, grant.action),
+    target: grantTargetLabel(dict, grant.target),
   }
 }
 
@@ -52,6 +58,7 @@ export function SecondBrainPermissionsView({
   dict = defaultDict,
   grants,
   personaNames,
+  personaAvatars = {},
   onBack,
   onRevokeGrant,
 }: SecondBrainPermissionsViewProps): ReactNode {
@@ -103,7 +110,7 @@ export function SecondBrainPermissionsView({
               if (grant === undefined) return null
               return (
                 <PermissionRow
-                  scope={grantScope(grant, personaNames)}
+                  scope={grantScope(dict, grant, personaNames, personaAvatars)}
                   grantedBy={t('permissions.grantedByYou')}
                   validityText={grantValidityLabel(dict, grant)}
                   expired={grantExpired(grant)}
@@ -127,7 +134,7 @@ export function SecondBrainPermissionsView({
             {rows.map(grant => (
               <PermissionRow
                 key={grant.id}
-                scope={grantScope(grant, personaNames)}
+                scope={grantScope(dict, grant, personaNames, personaAvatars)}
                 grantedBy={t('permissions.grantedByYou')}
                 validityText={grantValidityLabel(dict, grant)}
                 expired={grantExpired(grant)}

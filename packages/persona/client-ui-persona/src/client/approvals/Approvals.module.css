@@ -144,6 +144,63 @@
   line-height: 1.45;
 }
 
+/* A-4: who is proposed — name + role chip, then what they do (intro line, unlabelled). */
+.hireWho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: var(--persona-space-1) 0 0;
+  color: var(--persona-ink);
+  font-size: 0.9375rem;
+}
+
+.hireWhoName {
+  font-weight: 800;
+}
+
+.hireIntro {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--persona-ink);
+}
+
+.hireCost {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-ink-soft);
+}
+
+/* Why the primary action is off: the host named a real dependency ("Depende de: …"). */
+.dependsNote {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-soft);
+}
+
+/* A Cofre update, in one line: "Preço do pão: R$ 12 → R$ 14". */
+.vaultChange {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--persona-ink);
+}
+
+.hireDetails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.hireDetailsHead {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+}
+
 /* UX-02: the one-line reason a hire is proposed (a repeating need), never a hidden tooltip. */
 .hireWhy {
   margin: 0;

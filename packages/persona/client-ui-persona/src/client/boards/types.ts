@@ -25,6 +25,8 @@ export interface StageCategoryCounts {
 export interface ActiveWorker {
   readonly name: string
   readonly state: PersonaWorkUiState
+  /** The persona's portrait when the data source knows it; the card falls back to the name lookup. */
+  readonly avatarSrc?: string | undefined
 }
 
 export interface ProjectBoardSummary {

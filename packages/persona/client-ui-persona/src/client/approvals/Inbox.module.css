@@ -1,0 +1,331 @@
+/* Aprovações as an inbox (REVIEW-APPROVALS-REDESIGN §2): list on the left, detail on the right. Tokens only. */
+
+.inbox {
+  container-type: inline-size;
+  container-name: approvals-inbox;
+  min-width: 0;
+}
+
+.inboxCelebrate {
+  position: relative;
+  height: 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--persona-space-4);
+  min-width: 0;
+}
+
+/* Wide enough for both panes: the list keeps 360 px, the detail takes the rest. Narrower: one pane at a time. */
+@container approvals-inbox (min-width: 760px) {
+  .layout {
+    grid-template-columns: 360px minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.listPane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.detailPane {
+  min-width: 0;
+}
+
+.paneHidden {
+  display: none;
+}
+
+/* ---- list ---- */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  margin: 0;
+  padding: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+}
+
+.groupTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--persona-space-2);
+  margin: 0 0 var(--persona-space-1);
+  padding: 0 var(--persona-space-3);
+  font: 800 12px/1.2 var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.groupCount {
+  color: var(--persona-ink-muted);
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'face title chip'
+    'face meta  chip';
+  align-items: center;
+  column-gap: var(--persona-space-3);
+  row-gap: 2px;
+  min-height: 56px;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid transparent;
+  border-left: 3px solid transparent;
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  color: var(--persona-ink);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.row:hover {
+  background: color-mix(in srgb, var(--persona-wash) 55%, transparent);
+}
+
+.row[aria-selected='true'] {
+  background: var(--persona-wash);
+  border-color: var(--persona-outline-soft);
+  border-left-color: var(--persona-accent);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.rowFace {
+  grid-area: face;
+}
+
+.rowTitle {
+  grid-area: title;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 800 15px/1.25 var(--persona-font-text);
+}
+
+.rowMeta {
+  grid-area: meta;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 600 13px/1.25 var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.rowChip {
+  grid-area: chip;
+  align-self: start;
+}
+
+/* A decided card keeps its place for the stamp, then fades (same timing as the old cards). */
+.rowLeaving {
+  animation: inbox-row-exit var(--motion-base, 220ms) var(--ease-standard, ease) 530ms forwards;
+}
+
+.rowLeavingDeclined {
+  animation: inbox-row-exit var(--motion-base, 220ms) var(--ease-standard, ease) 180ms forwards;
+}
+
+@keyframes inbox-row-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rowLeaving,
+  .rowLeavingDeclined {
+    animation-name: inbox-row-fade;
+    animation-duration: 120ms;
+    animation-timing-function: linear;
+  }
+}
+
+@keyframes inbox-row-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---- detail ---- */
+.detail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  padding: var(--persona-space-5);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-paper);
+  box-shadow: var(--persona-shadow-sticker);
+  min-width: 0;
+}
+
+.detailBack {
+  align-self: flex-start;
+}
+
+.detailStage {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  padding: var(--persona-space-3);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-wash);
+}
+
+.detailPose {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: 200px;
+  object-fit: contain;
+}
+
+.detailHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+}
+
+.detailTitle {
+  margin: 0;
+  font: 600 1.375rem/1.25 var(--persona-font-display);
+  color: var(--persona-ink);
+}
+
+.detailSections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+}
+
+.sectionLabel {
+  margin: 0;
+  font: 800 12px/1.2 var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.sectionBody {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--persona-ink);
+}
+
+.sectionNote {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--persona-ink-soft);
+}
+
+/* "Revisar" from Visão geral lands here: a 1.2 s halo on the right detail, in the focus-ring token. */
+@keyframes inbox-focus-pulse {
+  0% {
+    outline: 2px solid var(--persona-accent);
+    box-shadow: 0 0 0 4px var(--persona-focus-halo);
+  }
+  100% {
+    outline: 2px solid transparent;
+    box-shadow: none;
+  }
+}
+
+.focusHighlight {
+  animation: inbox-focus-pulse 1.2s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focusHighlight {
+    animation: none;
+    outline: 2px solid var(--persona-accent);
+  }
+}
+
+.changeBefore {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  color: var(--persona-ink-soft);
+}
+
+.changeAfter {
+  font-weight: 800;
+}
+
+.proposer {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  font-size: 0.9375rem;
+  color: var(--persona-ink);
+}
+
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.stampSlot {
+  position: absolute;
+  top: -8px;
+  right: 16px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ---- header action and batch ---- */
+.batchList {
+  margin: 0;
+  padding-left: var(--persona-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+}
+
+.batchHint {
+  margin: 0 0 var(--persona-space-2);
+  color: var(--persona-ink-soft);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

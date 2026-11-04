@@ -280,6 +280,10 @@ export function BringYourContextBlock({
                   unblock: t('byc.review.unblock'),
                   conflict: what => t('byc.review.conflict', { what }),
                   acceptClean: t('byc.review.acceptClean'),
+                  acceptAllRules: count => t('byc.review.acceptAllRules', { count: String(count) }),
+                  pendingRules: count => t(count === 1 ? 'byc.review.pendingRules.one' : 'byc.review.pendingRules', { count: String(count) }),
+                  pendingRuleNote: t('byc.review.pendingRuleNote'),
+                  constraintNotice: count => t(count === 1 ? 'byc.review.constraintNotice.one' : 'byc.review.constraintNotice', { count: String(count) }),
                   save: n => t('byc.review.save', { count: n }),
                   summary: (accepted, flagged, discarded) => t('byc.review.summary', {
                     accepted: String(accepted),

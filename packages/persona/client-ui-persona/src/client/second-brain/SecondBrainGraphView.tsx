@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { BrandIcon, Button } from '../primitives/index.ts'
-import { brainKindBrandIcon } from './brain-ui-adapters.ts'
+import { brainKindBrandIcon, brainPageTitle } from './brain-ui-adapters.ts'
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
 import styles from './SecondBrain.module.css'
 
@@ -35,7 +35,7 @@ export function SecondBrainGraphView({
               <span className={styles.graphSeal} aria-hidden="true">
                 <BrandIcon name={brainKindBrandIcon(page.kind)} size={18} />
               </span>
-              <span className={styles.graphLabel}>{page.title}</span>
+              <span className={styles.graphLabel}>{brainPageTitle(dict, page)}</span>
             </button>
           </li>
         ))}

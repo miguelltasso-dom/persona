@@ -24,8 +24,13 @@ import {
   brainKindLabel,
   contradictionSides,
   countPagesByKind,
+  grantActionLabel,
   grantIsActive,
+  grantTargetLabel,
+  brainPageTitle,
+  pageLead,
   pageToChangeItem,
+  personaPortrait,
   topBrainPages,
 } from './brain-ui-adapters.ts'
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
@@ -38,6 +43,10 @@ export interface SecondBrainHomeProps {
   readonly home?: BrainHomeView | null
   readonly pages?: readonly BrainPageView[]
   readonly personaNames?: Readonly<Record<string, string>>
+  /** `person:<memberId>` → name ("Você" for the viewer). */
+  readonly memberNames?: Readonly<Record<string, string>>
+  /** Persona id -> animal portrait (the one she was hired with). */
+  readonly personaAvatars?: Readonly<Record<string, string>>
   readonly initialState?: SecondBrainSurfaceState
   readonly onRemoteRetry?: () => void
   readonly onRevokeGrant?: (grantId: string) => void
@@ -51,13 +60,17 @@ export interface SecondBrainHomeProps {
 }
 
 function grantScope(
+  dict: LocaleDict,
   grant: BrainHomeView['activeGrants'][number],
   personaNames: Readonly<Record<string, string>>,
+  personaAvatars: Readonly<Record<string, string>>,
 ): PermissionScope {
+  const name = personaNames[grant.personaId] ?? grant.personaId
   return {
-    persona: personaNames[grant.personaId] ?? grant.personaId,
-    action: grant.action,
-    target: grant.target,
+    persona: name,
+    personaAvatar: personaAvatars[grant.personaId] ?? personaPortrait({ name }),
+    action: grantActionLabel(dict, grant.action),
+    target: grantTargetLabel(dict, grant.target),
   }
 }
 
@@ -77,6 +90,8 @@ export function SecondBrainHome({
   home = null,
   pages = [],
   personaNames = {},
+  memberNames = {},
+  personaAvatars = {},
   initialState = 'ready',
   onRemoteRetry,
   onRevokeGrant,
@@ -95,8 +110,9 @@ export function SecondBrainHome({
       page,
       personaNames,
       onOpenPage === undefined ? undefined : () => { onOpenPage(page.id) },
+      memberNames,
     ))),
-    [dict, home, onOpenPage, personaNames],
+    [dict, home, memberNames, onOpenPage, personaNames],
   )
   // The host lists every grant that was not revoked; one that already ran out (e.g. a 7-day permission) is not active.
   const nowMs = nowMsProp ?? Date.now()
@@ -113,7 +129,8 @@ export function SecondBrainHome({
   const searchHits = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (q === '') return []
-    return pages.filter(page => page.title.toLowerCase().includes(q) || page.body.toLowerCase().includes(q)).slice(0, 8)
+    // Find by what the person reads ("Responder no WhatsApp…") as well as by the stored title and the text.
+    return pages.filter(page => brainPageTitle(dict, page).toLowerCase().includes(q) || page.title.toLowerCase().includes(q) || page.body.toLowerCase().includes(q)).slice(0, 8)
   }, [pages, query])
 
   const header = (
@@ -122,13 +139,22 @@ export function SecondBrainHome({
       eyebrow={t('header.eyebrow')}
       title={t('title')}
       subtitle={t('subtitle')}
-      {...(onOpenPermissions === undefined
+      {...(onOpenPermissions === undefined && onWritePage === undefined
         ? {}
         : {
           actions: (
-            <Button variant="secondary" size="m" onClick={() => { onOpenPermissions() }}>
-              {t('nav.permissions')}
-            </Button>
+            <>
+              {onWritePage !== undefined && (
+                <Button variant="primary" size="m" onClick={() => { onWritePage() }}>
+                  {t('page.new')}
+                </Button>
+              )}
+              {onOpenPermissions !== undefined && (
+                <Button variant="secondary" size="m" onClick={() => { onOpenPermissions() }}>
+                  {t('nav.permissions')}
+                </Button>
+              )}
+            </>
           ),
         })}
     />
@@ -187,7 +213,7 @@ export function SecondBrainHome({
             {searchHits.map(page => (
               <li key={page.id}>
                 <button type="button" className={styles.brainPageLink} onClick={() => { onOpenPage?.(page.id) }}>
-                  {page.title}
+                  {brainPageTitle(dict, page)}
                 </button>
               </li>
             ))}
@@ -215,9 +241,13 @@ export function SecondBrainHome({
       )}
       {startHerePage !== undefined && onOpenPage !== undefined && (
         <Card padding="m" eyebrow={t('home.startHereLabel')}>
-          <button type="button" className={styles.brainPageLink} onClick={() => { onOpenPage(startHerePage.id) }}>
-            {startHerePage.title}
-          </button>
+          <div className={styles.startHere}>
+            {/* The start of the page itself (its title is already the card's eyebrow). */}
+            <p className={styles.startHereLead}>{pageLead(startHerePage.body) || startHerePage.title}</p>
+            <Button variant="secondary" size="s" aria-label={`${t('home.startHereOpen')} ${startHerePage.title}`} onClick={() => { onOpenPage(startHerePage.id) }}>
+              {t('home.startHereOpen')}
+            </Button>
+          </div>
         </Card>
       )}
       <div className={styles.homeLayout}>
@@ -235,7 +265,7 @@ export function SecondBrainHome({
                   return (
                     <ContradictionCard
                       key={page.id}
-                      pageTitle={page.title}
+                      pageTitle={brainPageTitle(dict, page)}
                       current={sides.current}
                       incoming={sides.incoming}
                       onKeepCurrent={() => { onOpenPage?.(page.id) }}
@@ -266,7 +296,7 @@ export function SecondBrainHome({
                   {activeGrants.slice(0, 3).map(grant => (
                     <PermissionRow
                       key={grant.id}
-                      scope={grantScope(grant, personaNames)}
+                      scope={grantScope(dict, grant, personaNames, personaAvatars)}
                       grantedBy={t('permissions.grantedByYou')}
                       validityText={grantValidityLabel(dict, grant)}
                       usage={grant.useCount > 0 ? t('permissions.usage', { count: grant.useCount }) : undefined}
@@ -295,7 +325,7 @@ export function SecondBrainHome({
               {popular.map(page => (
                 <li key={page.id}>
                   <button type="button" className={styles.brainPageLink} onClick={() => { onOpenPage?.(page.id) }}>
-                    {page.title}
+                    {brainPageTitle(dict, page)}
                   </button>
                 </li>
               ))}

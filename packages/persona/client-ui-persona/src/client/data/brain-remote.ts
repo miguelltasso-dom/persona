@@ -17,6 +17,7 @@ type BrainRemote = {
   listBrainPages?(req: ListBrainPagesRequest): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainPageView[]>>
   getBrainPage?(req: ProjectScopeRequest & { pageId: string }): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainPageView>>
   listBrainVersions?(req: ProjectScopeRequest & { pageId: string }): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainVersionView[]>>
+  restoreBrainPage?(req: ProjectScopeRequest & { pageId: string; revision: number }): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainPageView>>
   putBrainPage?(req: PutBrainPageRequest): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainPageView>>
   listBrainPermissions?(req: ProjectScopeRequest): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainGrantView[]>>
   grantBrainPermission?(
@@ -114,4 +115,21 @@ export async function putBrainPageRemote(
   const remote = brainClient(persona)
   if (remote.putBrainPage === undefined) throw new Error('putBrainPage-unavailable')
   return unwrapRemote(await remote.putBrainPage(request))
+}
+
+/** Put an older version of a page back as its text (the host keeps the history, so nothing is lost). */
+export async function restoreBrainPageRemote(
+  persona: PersonaRemoteClient,
+  scope: ProjectScopeRequest,
+  pageId: string,
+  revision: number,
+): Promise<BrainPageView> {
+  const remote = brainClient(persona)
+  if (remote.restoreBrainPage === undefined) throw new Error('restoreBrainPage-unavailable')
+  return unwrapRemote(await remote.restoreBrainPage({ ...scope, pageId, revision }))
+}
+
+/** Whether the host can restore versions at all (the button is only drawn then). */
+export function canRestoreBrainPage(persona: PersonaRemoteClient): boolean {
+  return typeof brainClient(persona).restoreBrainPage === 'function'
 }

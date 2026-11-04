@@ -92,6 +92,16 @@ describe('desktop bridge parsing', () => {
   it('keeps only well-formed sources and frames', () => {
     expect(parseTeachSources([{ id: 's1', name: 'Tela 1', kind: 'screen' }, { id: 'w1', name: 'Planilha', kind: 'window' }, { id: '', name: 'x' }, 7, null]))
       .toEqual([{ id: 's1', name: 'Tela 1', kind: 'screen' }, { id: 'w1', name: 'Planilha', kind: 'window' }])
+    // a preview is kept only when it is an inline image (a path or URL would be unreadable or a request out)
+    expect(parseTeachSources([
+      { id: 's1', name: 'Tela 1', kind: 'screen', thumbnail: 'data:image/png;base64,AAAA' },
+      { id: 's2', name: 'Tela 2', kind: 'screen', thumbnail: 'file:///C:/x.png' },
+      { id: 's3', name: 'Tela 3', kind: 'screen', thumbnail: 'https://example.test/x.png' },
+    ])).toEqual([
+      { id: 's1', name: 'Tela 1', kind: 'screen', thumbnail: 'data:image/png;base64,AAAA' },
+      { id: 's2', name: 'Tela 2', kind: 'screen' },
+      { id: 's3', name: 'Tela 3', kind: 'screen' },
+    ])
     expect(parseTeachSources('nope')).toEqual([])
     expect(parseTeachStop({ frames: [{ atMs: 10, imageRef: 'file:///a.png', changeScore: 0.5 }, { atMs: 'x' }], transcript: 'oi' }))
       .toEqual({ frames: [{ atMs: 10, imageRef: 'file:///a.png', changeScore: 0.5 }], transcript: 'oi' })

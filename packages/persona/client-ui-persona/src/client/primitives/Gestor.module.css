@@ -233,8 +233,12 @@
 }
 
 .plan[data-state='declined'] {
+  /* Muse: "set aside" reads as quiet (no sticker shadow, dashed soft edge, wash) without opacity, which pulled every
+     line under 4.5:1 (axe, accept gallery). The declined text line already says what happened. */
   box-shadow: none;
-  opacity: 0.75;
+  border-style: dashed;
+  border-color: var(--persona-outline-soft);
+  background: var(--persona-wash);
 }
 
 .planHead {

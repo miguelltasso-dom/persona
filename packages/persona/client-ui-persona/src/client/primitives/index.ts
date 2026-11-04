@@ -62,3 +62,4 @@ export { HelpArticle, markSegments, type HelpArticleProps } from './HelpArticle.
 export { RunErrorCard, type RunErrorCardProps } from './RunErrorCard.tsx'
 export { describeResetTime, describeRunError, legacyRunErrorFromText, runErrorText, type RunErrorAction, type RunErrorCode, type RunErrorDescription, type RunErrorPayload } from './run-errors.ts'
 export { FileChangeRow, fileTypeOf, summarizeFileChanges, type FileChange, type FileChangeKind, type FileChangeLabels, type FileChangeRowProps, type FileChangeSummaryLabels, type FileType } from './FileChange.tsx'
+export { formatUntil, formatWhen, type WhenLocale } from './when.ts'

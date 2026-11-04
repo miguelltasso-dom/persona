@@ -9,6 +9,7 @@ import { deriveTwoDayFromLive } from '../governance/derive-two-day-from-live.ts'
 import { preferDerivedTwoDay } from '../governance/two-day-prefer-derived.ts'
 import { applyGovernanceFix, fetchTeamHealth, fetchTwoDayTest } from '../governance/governance-remote.ts'
 import { gestorActivityPersonaFromLive } from '../governance/gestor-audit-persona.ts'
+import { humanizeInternalIds } from '../governance/humanize-ids.ts'
 import type { ActivityItem, ActivityKind } from '../primitives/Pooled.tsx'
 import { pt as governanceDict } from '../locale/governance/locales.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
@@ -37,8 +38,15 @@ export function ConnectedTeamHealthPanel({ persona, useTenant, useLive, openTeam
 
   const loadTwoDay = useCallback(async (): Promise<TwoDayTestView> => {
     if (workspaceId === null) throw new Error('no-workspace')
-    const fromHost = await fetchTwoDayTest(persona, workspaceId)
     const derived = deriveTwoDayFromLive(governanceDict, workspaceId, live)
+    let fromHost: TwoDayTestView
+    try {
+      fromHost = await fetchTwoDayTest(persona, workspaceId)
+    } catch (error: unknown) {
+      // The host did not answer: the same test drawn from the real roster is honest; a sample is not (IV-8b).
+      if (derived !== null && derived.rows.length > 0) return derived
+      throw error
+    }
     const merged = preferDerivedTwoDay(fromHost, derived)
     if (merged.rows.length > 0) return merged
     return {
@@ -53,6 +61,37 @@ export function ConnectedTeamHealthPanel({ persona, useTenant, useLive, openTeam
 
   const { state: healthState, retry: retryHealth } = usePersonaRemoteLoad(workspaceId !== null, healthKey, loadHealth)
   const { state: twoDayState, retry: retryTwoDay } = usePersonaRemoteLoad(workspaceId !== null, twoDayKey, loadTwoDay)
+
+  // The engine names a persona's routine after its id: the person reads "Iniciativa de Mídia", never `initiative:m-dia`.
+  // Display text only — ids sent back to the host (finding/target ids) stay exactly as received.
+  const team = live.team?.personas
+  const health = useMemo(() => {
+    if (healthState.status !== 'ready') return null
+    const clean = (text: string): string => humanizeInternalIds(text, governanceDict, team)
+    const data = healthState.data
+    return {
+      ...data,
+      title: clean(data.title),
+      ...(data.body === undefined ? {} : { body: clean(data.body) }),
+      findings: data.findings.map(finding => ({
+        ...finding,
+        title: clean(finding.title),
+        ...(finding.detail === undefined ? {} : { detail: clean(finding.detail) }),
+      })),
+    }
+  }, [healthState, team])
+  const twoDay = useMemo(() => {
+    if (twoDayState.status !== 'ready') return null
+    const clean = (text: string): string => humanizeInternalIds(text, governanceDict, team)
+    return {
+      ...twoDayState.data,
+      rows: twoDayState.data.rows.map(row => ({
+        ...row,
+        label: clean(row.label),
+        ...(row.reason === undefined ? {} : { reason: clean(row.reason) }),
+      })),
+    }
+  }, [twoDayState, team])
 
   const surfaceState = teamEmpty
     ? 'empty'
@@ -103,8 +142,8 @@ export function ConnectedTeamHealthPanel({ persona, useTenant, useLive, openTeam
   return (
     <TeamHealthView
       dict={governanceDict}
-      health={healthState.status === 'ready' ? healthState.data : null}
-      twoDay={twoDayState.status === 'ready' ? twoDayState.data : null}
+      health={health}
+      twoDay={twoDay}
       surfaceState={surfaceState}
       onRetry={retryHealth}
       onRunTwoDayTest={() => { setTwoDayToken(token => token + 1); retryTwoDay() }}
@@ -112,6 +151,7 @@ export function ConnectedTeamHealthPanel({ persona, useTenant, useLive, openTeam
       onTwoDayFix={onTwoDayFix}
       gestorAudit={{ persona: gestorPersona, items: gestorItems }}
       twoDayPending={twoDayState.status === 'loading'}
+      twoDayFailed={twoDayState.status === 'error'}
       {...(openTeamSetup === undefined ? {} : { onBuildTeam: openTeamSetup })}
     />
   )

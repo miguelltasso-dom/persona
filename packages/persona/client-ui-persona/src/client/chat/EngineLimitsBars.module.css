@@ -1,0 +1,22 @@
+/* Barras de limite do `/limites` e da gaveta (IV-4). Só tokens que existem no tema. */
+.bars,
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  min-width: 0;
+}
+
+.unavailable {
+  display: flex;
+  align-items: baseline;
+  gap: var(--persona-space-2);
+  margin: 0;
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.dash {
+  font-variant-numeric: tabular-nums;
+  color: var(--persona-ink);
+}

@@ -2,12 +2,14 @@ import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
-import { Avatar, Card, Chip, EmptyState, type AvatarPresence, type ChipTone } from '../primitives/index.ts'
+import { Avatar, Card, Chip, EmptyState, Skeleton, type AvatarPresence, type ChipTone } from '../primitives/index.ts'
 import { WORK_STATUS_KEY, type PersonaNowSnapshot, type PersonaWorkUiState } from '../team/persona-work-state.ts'
 import styles from './OverviewNowStrip.module.css'
 
 export interface OverviewNowStripProps extends PropsLocale<'persona.shell'> {
   readonly rows: readonly PersonaNowSnapshot[]
+  /** Dados do host ainda a caminho: skeleton, não o vazio "Monte sua equipe". */
+  readonly loading?: boolean | undefined
 }
 
 const STATE_TONE: Readonly<Record<PersonaWorkUiState, ChipTone>> = {
@@ -25,7 +27,8 @@ const STATE_PRESENCE: Readonly<Record<PersonaWorkUiState, AvatarPresence>> = {
 }
 
 /** "Agora" — one row per persona: portrait, honest state chip, current task, queue. */
-export function OverviewNowStrip({ t, rows }: OverviewNowStripProps): ReactNode {
+export function OverviewNowStrip({ t, rows, loading = false }: OverviewNowStripProps): ReactNode {
+  const showLoading = loading && rows.length === 0
   return (
     <Card
       as="section"
@@ -35,7 +38,17 @@ export function OverviewNowStrip({ t, rows }: OverviewNowStripProps): ReactNode 
       eyebrow={t('overview.nowSubtitle')}
       padding="m"
     >
-      {rows.length === 0 && (
+      {showLoading && (
+        <ul className={styles.list} aria-busy="true" data-loading="">
+          {[0, 1, 2].map(index => (
+            <li key={index} className={styles.row} aria-hidden="true">
+              <Skeleton width={48} height={48} shape="circle" />
+              <Skeleton width="60%" height={16} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {!showLoading && rows.length === 0 && (
         <EmptyState compact illustration={ILLUSTRATIONS['empty-routines']} title={t('team.emptyTitle')} body={t('team.emptyBody')} />
       )}
       <ul className={styles.list}>

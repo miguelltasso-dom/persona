@@ -14,7 +14,7 @@
   "action.confirmImport": "Iniciar importação",
   "action.rollback": "Desfazer importação",
   "progress.running": "Importando em segundo plano…",
-  "progress.done": "Importação concluída",
+  "progress.done": "Importação concluída: {count} itens",
   "empty.title": "Nenhuma importação",
   "empty.hint": "Traga conversas ou contexto de outra ferramenta; você classifica o que entra no Cofre.",
   "empty.action": "Importar exportação",
@@ -26,8 +26,17 @@
   "bycScreen.title": "Traga o que suas IAs já sabem",
   "bycScreen.subtitle": "Cole respostas das IAs que você já usa ou escolha a pasta do Obsidian — revisamos antes de gravar no Cofre.",
   "bycScreen.organizing": "Organizando…",
-  "bycScreen.savedToast": "{count} itens no Cofre",
+  "bycScreen.savedToast": "{count} itens no Cofre ✓",
+  "bycScreen.savedToast.one": "1 item no Cofre ✓",
+  "bycScreen.savedOpen": "Ver no Cofre",
   "advancedExport.title": "Exportação oficial (avançado)",
   "advancedExport.lead": "Zip ou export de outra ferramenta, com mapeamento passo a passo.",
-  "advancedExport.open": "Abrir importador avançado"
+  "advancedExport.open": "Abrir importador avançado",
+  "importer.unavailable": "A importação avançada precisa do app da Persona aberto neste computador.",
+  "preview.summary": "Para importar: {accepted} · Recusados: {rejected}",
+  "preview.empty": "Não encontrei nada para importar neste arquivo.",
+  "progress.rolledBack": "Importação desfeita.",
+  "error.preview": "Não consegui ler este arquivo. Use uma exportação em texto ou JSON.",
+  "error.confirm": "A importação não foi concluída. Tente de novo.",
+  "error.rollback": "Não consegui desfazer a importação. Tente de novo."
 }

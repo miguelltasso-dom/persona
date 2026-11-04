@@ -208,7 +208,7 @@ describe('ConnectedPersonaEditor hire mode', () => {
 
     // Step 1: select SaaS model
     expect(await screen.findByRole('heading', { level: 1, name: governancePt.title })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: governancePt['model.saas'] }))
+    fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${governancePt['model.saas']}`, 'u') }))
     fireEvent.click(screen.getByRole('button', { name: governancePt['action.continue'] }))
 
     // Step 2: sectors
@@ -264,8 +264,8 @@ describe('ConnectedPersonaEditor hire mode', () => {
     fireEvent.click(screen.getAllByRole('button', { name: governancePt['action.continue'] })[0]!)
     fireEvent.click(screen.getAllByRole('button', { name: governancePt['action.continue'] })[0]!)
 
-    // Step 4: click hireOne
-    const hireOneBtn = await screen.findByRole('button', { name: governancePt['action.hireOne'] })
+    // Step 4: "Contratar" na linha de uma persona (uma a uma)
+    const hireOneBtn = await screen.findByRole('button', { name: 'Contratar Coordenação' })
     fireEvent.click(hireOneBtn)
 
     // Should transition to editor with pre-filled persona draft

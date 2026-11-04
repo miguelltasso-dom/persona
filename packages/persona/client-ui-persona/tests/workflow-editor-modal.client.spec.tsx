@@ -81,4 +81,55 @@ describe('WorkflowEditorModal (BOARDS-SPEC §5)', () => {
     expect(screen.getByRole('heading', { name: pt['editor.fields'] })).toBeTruthy()
     expect(screen.getByDisplayValue('Cargo')).toBeTruthy()
   })
+
+  const flow = [
+    { id: 'a', name: 'Backlog', category: 'todo' as const },
+    { id: 'b', name: 'Em andamento', category: 'doing' as const },
+    { id: 'c', name: 'Revisão', category: 'review' as const },
+    { id: 'd', name: 'Pronto', category: 'done' as const },
+  ]
+  const modal = (onSave: (...args: never[]) => unknown) => render(
+    <PreviewFrame brandLabel="Persona">
+      <WorkflowEditorModal
+        dict={pt}
+        flowModel="software"
+        columns={flow}
+        ticketCountByColumn={{ b: 3, c: 2 }}
+        fields={[]}
+        onClose={() => {}}
+        onSave={onSave as never}
+      />
+    </PreviewFrame>,
+  )
+  const removeColumn = (name: string): void => {
+    const row = screen.getByDisplayValue(name).closest('[draggable], li, div') as HTMLElement
+    const scope = row.closest('li') ?? row.parentElement ?? row
+    fireEvent.click(Array.from(scope.querySelectorAll('button')).find(b => b.getAttribute('aria-label') === pt['editor.removeColumn'])!)
+  }
+
+  it('PB-9.3: remover coluna com tarefas pede o destino e manda destByRemoved ao salvar', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    modal(onSave)
+    removeColumn('Em andamento')
+    const group = screen.getByRole('group', { name: pt['editor.remove.pick'] })
+    fireEvent.click(Array.from(group.querySelectorAll('button')).find(b => b.textContent === 'Backlog')!)
+    fireEvent.click(screen.getByRole('button', { name: pt['editor.save'] }))
+    await vi.waitFor(() => { expect(onSave).toHaveBeenCalled() })
+    expect(onSave.mock.calls[0]?.[1]).toEqual({ b: 'a' })
+  })
+
+  it('PB-9.3: se o destino escolhido também é removido, as tarefas ganham o novo destino (nunca ficam sem coluna)', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    modal(onSave)
+    // 1) remove "Em andamento" mandando as 3 tarefas para "Revisão"
+    removeColumn('Em andamento')
+    fireEvent.click(Array.from(screen.getByRole('group', { name: pt['editor.remove.pick'] }).querySelectorAll('button')).find(b => b.textContent === 'Revisão')!)
+    // 2) remove "Revisão": ela agora carrega 2 + 3 tarefas e pede destino outra vez
+    removeColumn('Revisão')
+    expect(screen.getByRole('dialog', { name: /5/u })).toBeTruthy()
+    fireEvent.click(Array.from(screen.getByRole('group', { name: pt['editor.remove.pick'] }).querySelectorAll('button')).find(b => b.textContent === 'Backlog')!)
+    fireEvent.click(screen.getByRole('button', { name: pt['editor.save'] }))
+    await vi.waitFor(() => { expect(onSave).toHaveBeenCalled() })
+    expect(onSave.mock.calls[0]?.[1]).toEqual({ b: 'a', c: 'a' })
+  })
 })

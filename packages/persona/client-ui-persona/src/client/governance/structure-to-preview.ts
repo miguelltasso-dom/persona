@@ -3,6 +3,12 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import type { RecommendedPersona, StructurePlan } from './structure-types.ts'
 
+/** "Braço direito — prioriza e delega" → "Braço direito": o Teste dos 2 dias mostra só o nome e a função. */
+function shortRole(jobTitle: string): string {
+  const head = jobTitle.split(' — ')[0]?.trim()
+  return head === undefined || head === '' ? jobTitle : head
+}
+
 const CAST = ['sol', 'luna', 'capivara', 'raposa', 'tucano'] as const
 
 function personaPreview(row: RecommendedPersona, index: number, t: (key: string) => string): OrgPersona {
@@ -51,7 +57,7 @@ export function structurePlanToTwoDayRows(plan: StructurePlan, dict: LocaleDict)
       : (['waits', 'waits', 'waits', 'waits'] as const)
     return {
       id: row.id,
-      label: bindLocale(dict, 'twoDay.rowLabel', { name: row.name, role: row.jobTitle }),
+      label: bindLocale(dict, 'twoDay.rowLabel', { name: row.name, role: shortRole(row.jobTitle) }),
       slots,
       reason: autonomous ? undefined : t('twoDay.reason.approval'),
       fixLabel: autonomous ? undefined : t('twoDay.fix.substitute'),

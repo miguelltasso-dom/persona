@@ -32,6 +32,8 @@ export interface DmRowUi {
   readonly unread?: number | undefined
   readonly lastLine?: string | undefined
   readonly timeLabel?: string | undefined
+  /** A-2: persona da equipe que ainda não tem conversa; a linha diz "Começar conversa" e o clique abre a DM. */
+  readonly notStarted?: boolean | undefined
 }
 
 export interface DirectMessagesViewProps {
@@ -62,6 +64,8 @@ export interface DirectMessagesViewProps {
   readonly onRetrySubjects?: (() => void) | undefined
   readonly passThroughFollowers?: readonly { readonly name: string }[] | undefined
   readonly runErrorHandlers?: RunErrorHandlerContext | undefined
+  /** P0-30: "Tentar de novo" numa mensagem que não foi enviada. */
+  readonly onRetrySend?: ((messageId: string) => void) | undefined
   /** W2-10 — consent overlay for the persona in this thread. */
   readonly onTeach?: (() => void) | undefined
   readonly availablePersonas?: readonly SelectablePersonaOption[] | undefined
@@ -69,6 +73,12 @@ export interface DirectMessagesViewProps {
   readonly onHirePersona?: (() => void) | undefined
   /** FR-3: faixa "Falta uma IA" acima do composer. */
   readonly engineBanner?: import('react').ReactNode | undefined
+  /** O que cada comando "/" faz nesta conversa (P0-27); sem handler o comando não aparece no menu. */
+  readonly slashActions?: import('./composer-slash-commands.ts').ComposerSlashActions | undefined
+  /** IV-4: limites reais do motor (`/limites` e gaveta); sem fonte, "indisponível" (nunca número de exemplo). */
+  readonly engineLimits?: import('../remote/engine-limits.ts').EngineLimitsUi | undefined
+  /** O `/limites` abriu: quem monta a tela lê as cotas agora. */
+  readonly onOpenLimits?: (() => void) | undefined
 }
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
@@ -99,11 +109,15 @@ export function DirectMessagesView({
   onRetrySubjects,
   passThroughFollowers = [],
   runErrorHandlers,
+  onRetrySend,
   onTeach,
   availablePersonas,
   onSelectPersonaForNewDm,
   onHirePersona,
   engineBanner,
+  slashActions,
+  engineLimits,
+  onOpenLimits,
 }: DirectMessagesViewProps): ReactNode {
   const [isNewDmModalOpen, setIsNewDmModalOpen] = useState(false)
   const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string; readonly revertSubjectId: string } | null>(null)
@@ -188,12 +202,16 @@ export function DirectMessagesView({
                   type="button"
                   className={styles.dmItem}
                   aria-current={row.id === selectedId ? 'true' : undefined}
-                  onClick={() => { onSelect(row.id) }}
+                  data-not-started={row.notStarted === true ? '' : undefined}
+                  onClick={() => {
+                    if (row.notStarted === true) onSelectPersonaForNewDm?.(row.peerId)
+                    else onSelect(row.id)
+                  }}
                 >
                   <Avatar name={row.peerName} src={portraitFor(row)} shape="person" size={40} decorative />
                   <span className={styles.dmText}>
                     <span className={styles.dmName}>{row.peerName}</span>
-                    <span className={styles.dmLine}>{row.lastLine ?? row.role ?? ''}</span>
+                    <span className={styles.dmLine}>{row.notStarted === true ? t('dm.startConversation') : (row.lastLine ?? row.role ?? '')}</span>
                   </span>
                   <span className={styles.dmMeta}>
                     {row.timeLabel !== undefined && <time className={styles.dmTime}>{row.timeLabel}</time>}
@@ -307,18 +325,25 @@ export function DirectMessagesView({
                     },
                   })}
                   {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
+                  {...(onRetrySend === undefined ? {} : { onRetrySend })}
                   {...(turnContext?.ticketId === undefined ? {} : { turnActivityTicketId: turnContext.ticketId })}
                   {...(turnContext?.activityFolds === undefined ? {} : { turnActivityFolds: turnContext.activityFolds })}
                   {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}
                 />
               )}
             </div>
-            <TurnContextDrawer t={t} context={turnContext} activityLabels={turnActivityLabels} />
+            <TurnContextDrawer t={t} context={turnContext} activityLabels={turnActivityLabels} limits={engineLimits} />
             <div className={styles.composer}>
               {engineBanner}
               <ChannelComposer
+                key={selected.id}
                 t={t}
                 members={[]}
+                // O histórico (↑) e o rascunho guardado (Ctrl+S) são de CADA conversa, não de todas as DMs juntas.
+                conversationKey={`dm:${selected.id}`}
+                {...(slashActions === undefined ? {} : { slashActions })}
+                {...(engineLimits === undefined ? {} : { engineLimits })}
+                {...(onOpenLimits === undefined ? {} : { onOpenLimits })}
                 onSend={onSend}
                 {...(uploadAttachment === undefined ? {} : { uploadAttachment })}
                 placeholder={composerSubjectPlaceholder ?? t('dm.composerPlaceholder', { name: selected.peerName })}

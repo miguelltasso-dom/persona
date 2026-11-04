@@ -24,6 +24,8 @@ export interface TeamHealthViewProps {
   readonly onApplyFix?: (findingId: string, fixKind: GovernanceFixKind, targetId?: string) => void
   readonly onTwoDayFix?: (row: TwoDayRowView) => void
   readonly twoDayPending?: boolean
+  /** The test could not be read from the host (nor drawn from the live roster): say so, with "Tentar de novo". */
+  readonly twoDayFailed?: boolean
   /** GES-5 — gestor audit trail (mock until host ships). */
   readonly gestorAudit?: {
     readonly persona: { readonly name: string; readonly avatarSrc?: string | undefined }
@@ -50,6 +52,7 @@ export function TeamHealthView({
   onApplyFix,
   onTwoDayFix,
   twoDayPending = false,
+  twoDayFailed = false,
   gestorAudit,
   onBuildTeam,
 }: TeamHealthViewProps): ReactNode {
@@ -82,20 +85,21 @@ export function TeamHealthView({
     )
   }
 
-  if (surfaceState === 'loading' || health === null) {
-    return (
-      <Screen width="full" className={styles.shell} data-persona-surface="team-health">
-        {header}
-        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
-      </Screen>
-    )
-  }
-
+  // Error first: a failed load has no data, and "health === null" must not turn it into a spinner that never ends (IV-8b).
   if (surfaceState === 'error') {
     return (
       <Screen width="full" className={styles.shell} data-persona-surface="team-health">
         {header}
         <PersonaSurfaceError dict={dict} titleKey="error.title" retryKey="error.retry" onRetry={() => { onRetry?.() }} />
+      </Screen>
+    )
+  }
+
+  if (surfaceState === 'loading' || health === null) {
+    return (
+      <Screen width="full" className={styles.shell} data-persona-surface="team-health">
+        {header}
+        <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={2} />
       </Screen>
     )
   }
@@ -126,6 +130,14 @@ export function TeamHealthView({
           <p className={styles.twoDayLead}>{t('twoDay.lead')}</p>
           {twoDayPending && (
             <p className={styles.twoDayLead} role="status">{t('loading')}</p>
+          )}
+          {!twoDayPending && twoDayFailed && (
+            <PersonaSurfaceError
+              dict={dict}
+              titleKey="error.title"
+              retryKey="error.retry"
+              onRetry={() => { onRunTwoDayTest?.() }}
+            />
           )}
           {!twoDayPending && twoDay !== null && timeline !== null && timeline.rows.length === 0 && (
             <EmptyState

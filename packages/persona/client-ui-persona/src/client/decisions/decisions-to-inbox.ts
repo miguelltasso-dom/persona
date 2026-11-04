@@ -34,6 +34,8 @@ export function decisionsToInbox(decisions: readonly Decision[]): DecisionInbox 
     .map((decision): ApprovalItem => ({
       ...approvalViewToItem(viewOf(decision)),
       decisionState: decision.state,
+      risk: decision.risk,
+      ...(decision.createdAt.length > 0 ? { createdAt: decision.createdAt } : {}),
       ...(decision.kind === 'hire' && decision.why !== undefined ? { hireWhy: decision.why } : {}),
     }))
 

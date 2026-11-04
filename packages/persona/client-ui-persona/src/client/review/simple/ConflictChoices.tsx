@@ -5,6 +5,7 @@
  */
 
 import type { ReactNode } from 'react'
+import { ILLUSTRATIONS } from '../../assets/generated-imports.ts'
 import { ChoiceCards } from '../../primitives/index.ts'
 import { BeforeAfterText } from './BeforeAfterText.tsx'
 import { diffLines, opsToText } from './text-diff.ts'
@@ -30,7 +31,8 @@ export function ConflictChoices({ files, personaName, choices, onChoose, t }: Co
   const conflicts = files.filter(file => file.conflict === true)
   if (conflicts.length === 0) return null
   return (
-    <section className={styles.root} aria-labelledby="persona-conflicts-title" data-persona-review="conflicts">
+    <section className={styles.root} aria-labelledby="persona-conflicts-title" data-persona-review="conflicts" data-testid="review-conflict">
+      <img className={styles.art} src={ILLUSTRATIONS['conflito-mesmo-arquivo']} alt="" width={160} height={160} decoding="async" />
       <h3 id="persona-conflicts-title" className={styles.heading}>{t('blocked.chip')}</h3>
       <ul className={styles.list}>
         {conflicts.map((file) => {

@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
-import { Avatar, Button, Chip, Tooltip, UiIcon } from '../primitives/index.ts'
+import { Avatar, Button, Chip, Modal, Tooltip, UiIcon } from '../primitives/index.ts'
 import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { ComposerLimitsPanel } from './ComposerLimitsPanel.tsx'
+import { ENGINE_LIMITS_UNAVAILABLE, type EngineLimitsUi } from '../remote/engine-limits.ts'
 import { ComposerSlashMenu } from './ComposerSlashMenu.tsx'
 import { ComposerToolButton } from './ComposerToolButton.tsx'
 import {
   COMPOSER_LARGE_PASTE_BYTES,
   clearComposerPocket,
   formatPocketTime,
+  pastedThousands,
   pushSentHistory,
   readComposerPocket,
   readSentHistory,
@@ -18,7 +20,9 @@ import {
 } from './composer-memory.ts'
 import {
   activeSlashToken,
+  availableSlashIds,
   filterSlashCommands,
+  type ComposerSlashActions,
   type ComposerSlashCommand,
 } from './composer-slash-commands.ts'
 import type { MessageQuote } from './MessageQuoteToolbar.tsx'
@@ -52,13 +56,23 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
   readonly pendingQuote?: MessageQuote | null
   readonly onClearQuote?: (() => void) | undefined
   readonly responderAutonomy?: AutonomyLevel | undefined
-  readonly onSlashCommand?: ((command: ComposerSlashCommand, arg: string) => void) | undefined
+  /** O que cada comando "/" faz (P0-27). Sem handler o comando não aparece no menu; `/limites` é sempre do composer. */
+  readonly slashActions?: ComposerSlashActions | undefined
+  /** IV-4: limites REAIS do motor para o `/limites`; sem fonte, "—" e "Cota oficial indisponível" (nunca número de exemplo). */
+  readonly engineLimits?: EngineLimitsUi | undefined
+  /** Chamado quando o `/limites` abre: quem monta a tela lê as cotas agora. */
+  readonly onOpenLimits?: (() => void) | undefined
   readonly quotaBlocked?: boolean | undefined
   readonly quotaResumeLabel?: string | undefined
   readonly onResumeQuota?: (() => void) | undefined
   /** T3-UX-HARVEST §12 — Onda 2 account swap when engine is at limit. */
   readonly onSwapAccount?: (() => void) | undefined
   readonly onOpenPersonaCard?: ((personaId: string) => void) | undefined
+  /**
+   * O cartão do plano do Gestor tem prioridade sobre a dica "Quem responde" (Muse): enquanto houver um plano esperando
+   * a decisão, a dica não aparece (nem cobre Aprovar/Ajustar). Não conta como "visto": volta quando o plano for decidido.
+   */
+  readonly suppressHint?: boolean | undefined
   /**
    * Steer (UX-PHASE §6): com o responder trabalhando, "na fila" NÃO envia — entrega o texto a quem guarda a fila
    * (balão tracejado). Sem este callback, enviar na fila é enviar (comportamento anterior).
@@ -70,6 +84,9 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
 }
 
 const MAX_ROWS_PX = 8 * 24
+
+/** Respiro mínimo entre o balão da dica de 1ª vez e a borda da janela. */
+const HINT_EDGE_MARGIN = 12
 
 /** Dica de 1ª vez do seletor "Quem responde" (UX-PHASE §5): uma vez por instalação. */
 export const WHO_RESPONDS_HINT_KEY = 'persona.hint.whoResponds'
@@ -90,12 +107,15 @@ export function ChannelComposer({
   pendingQuote = null,
   onClearQuote,
   responderAutonomy = 'propose',
-  onSlashCommand,
+  slashActions,
+  engineLimits,
+  onOpenLimits,
   quotaBlocked = false,
   quotaResumeLabel,
   onResumeQuota,
   onSwapAccount,
   onOpenPersonaCard,
+  suppressHint = false,
   onQueueMessage,
   editingQueuedText,
   onCancelEditQueued,
@@ -108,10 +128,15 @@ export function ChannelComposer({
     const pocket = readComposerPocket(conversationKey)
     return pocket === null ? null : formatPocketTime(pocket.savedAt)
   })
+  // P0-17: colagem grande vira o cartão "Texto colado · N mil caracteres · Abrir"; o texto fica só na memória desta tela.
+  const [pastedTexts, setPastedTexts] = useState<Readonly<Record<string, string>>>({})
+  const [openPastedKey, setOpenPastedKey] = useState<string | null>(null)
   const [showLimits, setShowLimits] = useState(false)
   const [showWhoRespondsHint, setShowWhoRespondsHint] = useState(false)
   const responderBoxRef = useRef<HTMLDivElement>(null)
   const [hintArrowLeft, setHintArrowLeft] = useState(20)
+  // O balão nunca passa da borda da janela (zoom 200%, janela estreita): desloca para a esquerda e a seta continua no seletor.
+  const [hintShift, setHintShift] = useState(0)
   const dismissWhoRespondsHint = useCallback(() => {
     setShowWhoRespondsHint(false)
     try { localStorage.setItem(WHO_RESPONDS_HINT_KEY, '1') } catch { /* sem storage: some só nesta sessão */ }
@@ -123,13 +148,15 @@ export function ChannelComposer({
   const imageInputRef = useRef<HTMLInputElement>(null)
   const fieldId = useId()
   const hintId = useId()
-  const responder = members.find(member => member.id === responderId) ?? members[0]
+  const whoRespondsBalloonRef = useRef<HTMLDivElement>(null)
+  const hintShiftRef = useRef(0)
+  const responder =members.find(member => member.id === responderId) ?? members[0]
   const attachmentsReady = personaMessageAttachmentsHostReady() && uploadAttachment !== undefined
   const canSend = composerCanSend(draft, pending) && !quotaBlocked
   const comingSoon = t('composer.comingSoon')
   const responderWorking = responder?.state === 'working'
   const slashToken = activeSlashToken(draft, fieldRef.current?.selectionStart ?? draft.length)
-  const slashItems = slashToken === null ? [] : filterSlashCommands(slashToken.query)
+  const slashItems = slashToken === null ? [] : filterSlashCommands(slashToken.query, availableSlashIds(slashActions))
   const showSlashMenu = slashItems.length > 0 && slashToken !== null
 
   useEffect(() => { setSlashIndex(0) }, [draft, slashToken?.query])
@@ -141,25 +168,58 @@ export function ChannelComposer({
     node.style.height = `${Math.min(node.scrollHeight, MAX_ROWS_PX)}px`
   }, [draft])
 
-  // A seta da dica aponta para o CENTRO do seletor "Quem responde" (e não para o campo de mensagem).
+  // A seta da dica aponta para o CENTRO do seletor "Quem responde" (e não para o campo de mensagem), e o balão fica
+  // dentro da janela: se passaria da borda direita, desloca para a esquerda e a seta acompanha o seletor.
   useLayoutEffect(() => {
-    if (!showWhoRespondsHint) return
-    const width = responderBoxRef.current?.offsetWidth ?? 0
-    if (width > 0) setHintArrowLeft(Math.max(12, Math.round(width / 2 - 8)))
+    if (!showWhoRespondsHint) return undefined
+    const place = (): void => {
+      const box = responderBoxRef.current
+      const balloon = whoRespondsBalloonRef.current
+      const boxWidth = box?.offsetWidth ?? 0
+      if (boxWidth === 0) return
+      let shift = 0
+      if (balloon !== null) {
+        const rect = balloon.getBoundingClientRect()
+        const naturalLeft = rect.left - hintShiftRef.current
+        const overflowRight = naturalLeft + rect.width - (window.innerWidth - HINT_EDGE_MARGIN)
+        shift = overflowRight > 0 ? -overflowRight : 0
+        if (naturalLeft + shift < HINT_EDGE_MARGIN) shift = HINT_EDGE_MARGIN - naturalLeft
+        const maxArrow = Math.max(12, rect.width - 28)
+        setHintArrowLeft(Math.min(maxArrow, Math.max(12, Math.round(boxWidth / 2 - 8 - shift))))
+      } else {
+        setHintArrowLeft(Math.max(12, Math.round(boxWidth / 2 - 8)))
+      }
+      hintShiftRef.current = shift
+      setHintShift(shift)
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => { window.removeEventListener('resize', place) }
   }, [showWhoRespondsHint])
 
   // Dica de 1ª vez: só faz sentido com mais de uma persona para escolher; não rouba o foco; Esc fecha.
   const canPickResponder = members.length > 1
   useEffect(() => {
-    if (canPickResponder && !whoRespondsHintSeen()) setShowWhoRespondsHint(true)
-  }, [canPickResponder])
+    if (suppressHint) setShowWhoRespondsHint(false)
+    else if (canPickResponder && !whoRespondsHintSeen()) setShowWhoRespondsHint(true)
+  }, [canPickResponder, suppressHint])
   useEffect(() => {
     if (!showWhoRespondsHint) return undefined
     const onKeyDown = (event: globalThis.KeyboardEvent): void => {
       if (event.key === 'Escape') dismissWhoRespondsHint()
     }
+    // Clicar em qualquer outra coisa (ex.: "Ajustar" no cartão do plano, que o balão cobre) também conta como visto.
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node | null
+      if (target !== null && whoRespondsBalloonRef.current?.contains(target) === true) return
+      dismissWhoRespondsHint()
+    }
     document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown) }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+    }
   }, [showWhoRespondsHint, dismissWhoRespondsHint])
 
   // "Editar" no balão da fila: o texto volta para o campo; ao cancelar, o campo esvazia (só se ainda for aquele texto).
@@ -181,9 +241,10 @@ export function ChannelComposer({
     setResponderId(defaultChannelResponderId(members))
   }, [members, responderId])
 
-  const queueFile = (file: File): void => {
+  const queueFile = (file: File, pastedText?: string): void => {
     if (uploadAttachment === undefined) return
     const key = `att-${Date.now()}-${file.name}`
+    if (pastedText !== undefined) setPastedTexts(current => ({ ...current, [key]: pastedText }))
     setPending(current => [...current, { key, name: file.name, status: 'uploading' }])
     void uploadAttachment(file).then(
       (row) => {
@@ -208,6 +269,12 @@ export function ChannelComposer({
 
   const removePending = (key: string): void => {
     setPending(current => current.filter(item => item.key !== key))
+    setPastedTexts((current) => {
+      if (!(key in current)) return current
+      const { [key]: _removed, ...rest } = current
+      return rest
+    })
+    setOpenPastedKey(current => (current === key ? null : current))
   }
 
   const buildOutbound = (): string => {
@@ -229,6 +296,8 @@ export function ChannelComposer({
     else onSend?.(text, ids)
     setDraft('')
     setPending([])
+    setPastedTexts({})
+    setOpenPastedKey(null)
     setHistoryIndex(null)
     setShowLimits(false)
     onClearQuote?.()
@@ -237,23 +306,40 @@ export function ChannelComposer({
 
   const applySlash = (command: ComposerSlashCommand): void => {
     if (command.id === 'limites') {
+      onOpenLimits?.()
       setShowLimits(true)
       setDraft('')
       return
     }
-    const arg = draft.slice((slashToken?.start ?? 0) + command.prefix.length).trim()
-    onSlashCommand?.(command, arg)
+    const action = slashActions?.[command.id]
+    if (action === undefined) return
+    const start = slashToken?.start ?? 0
+    const arg = draft.slice(start + command.prefix.length).trim()
+    if (command.needsArg === true && arg.length === 0) {
+      // "/assunto" sem nome: deixa o comando no campo e espera o nome (Enter de novo executa).
+      setDraft(`${draft.slice(0, start)}${command.prefix} `)
+      return
+    }
+    action(arg)
     setDraft('')
   }
 
+  /**
+   * Ctrl+S (T3 "prompt stash"): guarda o que foi digitado e esvazia o campo, e o chip "Rascunho guardado" aparece. Só o texto
+   * digitado vai para o bolso (nunca o conteúdo de anexos). Se não deu para guardar, o campo fica como está: nada some.
+   */
   const savePocket = (): void => {
+    if (draft.trim().length === 0) return
     const savedAt = new Date().toISOString()
-    saveComposerPocket(conversationKey, {
+    const stored = saveComposerPocket(conversationKey, {
       text: draft,
       savedAt,
       attachmentNames: pending.map(row => row.name),
     })
+    if (!stored) return
     setPocketLabel(formatPocketTime(savedAt))
+    setDraft('')
+    setHistoryIndex(null)
   }
 
   const restorePocket = (): void => {
@@ -279,11 +365,11 @@ export function ChannelComposer({
         else send('queue')
       }}
     >
-      {showLimits && <ComposerLimitsPanel t={t} onClose={() => { setShowLimits(false) }} />}
-      {pocketLabel !== null && draft.length === 0 && pending.length === 0 && (
-        <button type="button" className={styles.pocketChip} onClick={restorePocket}>
+      {showLimits && <ComposerLimitsPanel t={t} limits={engineLimits ?? ENGINE_LIMITS_UNAVAILABLE} onClose={() => { setShowLimits(false) }} />}
+      {pocketLabel !== null && draft.length === 0 && (
+        <button type="button" className={styles.pocketChip} onClick={restorePocket} aria-keyshortcuts="Control+S">
           <Chip size="s" tone="plain" icon={<UiIcon name="attach" size={12} strokeWidth={2.2} />}>
-            {t('composer.pocketChip', { time: pocketLabel })}
+            <span role="status">{t('composer.pocketChip', { time: pocketLabel })}</span>
           </Chip>
         </button>
       )}
@@ -332,13 +418,24 @@ export function ChannelComposer({
         <ul className={styles.attachments} aria-label={t('composer.attachmentsLabel')}>
           {pending.map(row => (
             <li key={row.key}>
-              <Chip
-                size="s"
-                tone={row.status === 'error' ? 'danger' : row.status === 'uploading' ? 'neutral' : 'plain'}
-                icon={<UiIcon name="attach" size={12} strokeWidth={2.2} />}
-              >
-                {row.status === 'uploading' ? t('composer.attachUploading', { name: row.name }) : row.name}
-              </Chip>
+              {row.status === 'ready' && pastedTexts[row.key] !== undefined ? (
+                <>
+                  <Chip size="s" tone="plain" icon={<UiIcon name="fileText" size={12} strokeWidth={2.2} />}>
+                    {t('composer.pastedCard', { thousands: String(pastedThousands(pastedTexts[row.key]?.length ?? 0)) })}
+                  </Chip>
+                  <Button size="s" variant="ghost" onClick={() => { setOpenPastedKey(row.key) }}>
+                    {t('composer.pastedOpen')}
+                  </Button>
+                </>
+              ) : (
+                <Chip
+                  size="s"
+                  tone={row.status === 'error' ? 'danger' : row.status === 'uploading' ? 'neutral' : 'plain'}
+                  icon={<UiIcon name="attach" size={12} strokeWidth={2.2} />}
+                >
+                  {row.status === 'uploading' ? t('composer.attachUploading', { name: row.name }) : row.name}
+                </Chip>
+              )}
               <button
                 type="button"
                 className={styles.attachRemove}
@@ -350,6 +447,11 @@ export function ChannelComposer({
             </li>
           ))}
         </ul>
+      )}
+      {openPastedKey !== null && pastedTexts[openPastedKey] !== undefined && (
+        <Modal open title={t('composer.pastedTitle')} closeLabel={t('composer.pastedClose')} onClose={() => { setOpenPastedKey(null) }} size="l">
+          <pre className={styles.pastedPreview}>{pastedTexts[openPastedKey]}</pre>
+        </Modal>
       )}
       <label htmlFor={fieldId} className="persona-sr-only">{placeholder ?? t('composer.placeholderChannel')}</label>
       {showSlashMenu && (
@@ -384,12 +486,14 @@ export function ChannelComposer({
             const text = event.clipboardData.getData('text/plain')
             if (text.length < COMPOSER_LARGE_PASTE_BYTES || uploadAttachment === undefined) return
             event.preventDefault()
-            queueFile(new File([text], t('composer.pasteFileName'), { type: 'text/plain' }))
+            queueFile(new File([text], t('composer.pasteFileName'), { type: 'text/plain' }), text)
           }}
           onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
               event.preventDefault()
-              savePocket()
+              // Com o campo vazio o mesmo atalho devolve o rascunho guardado; com texto, guarda e esvazia.
+              if (draft.trim().length === 0) restorePocket()
+              else savePocket()
               return
             }
             if (showSlashMenu) {
@@ -410,7 +514,9 @@ export function ChannelComposer({
                 return
               }
             }
-            if (event.key === 'ArrowUp' && draft.length === 0 && !event.altKey && !event.ctrlKey && !event.metaKey) {
+            // ↑ traz o último pedido com o campo vazio e, enquanto o texto for um pedido recuperado sem edição (historyIndex
+            // é zerado ao digitar), continua indo mais para trás (T3 composer.md §Recall).
+            if (event.key === 'ArrowUp' && (draft.length === 0 || historyIndex !== null) && !event.altKey && !event.ctrlKey && !event.metaKey) {
               const history = readSentHistory(conversationKey)
               if (history.length === 0) return
               event.preventDefault()
@@ -503,7 +609,7 @@ export function ChannelComposer({
                   </select>
                 </label>
                 {showWhoRespondsHint && (
-                  <div className={styles.whoRespondsBalloon} role="dialog" aria-label={t('composer.whoRespondsHintTitle')} style={{ '--who-responds-arrow-left': `${String(hintArrowLeft)}px` } as CSSProperties}>
+                  <div ref={whoRespondsBalloonRef} className={styles.whoRespondsBalloon} role="dialog" aria-label={t('composer.whoRespondsHintTitle')} style={{ '--who-responds-arrow-left': `${String(hintArrowLeft)}px`, '--who-responds-shift': `${String(hintShift)}px` } as CSSProperties}>
                     <span className={styles.whoRespondsArrow} aria-hidden="true" />
                     <p className={styles.whoRespondsTitle}>{t('composer.whoRespondsHintTitle')}</p>
                     <p className={styles.whoRespondsBody}>{t('composer.whoRespondsHintBody')}</p>

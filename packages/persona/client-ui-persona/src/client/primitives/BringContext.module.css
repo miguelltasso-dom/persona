@@ -303,7 +303,8 @@
 }
 
 .item[data-decision='discard'] .itemText {
-  color: var(--persona-ink-faint);
+  /* ink-soft, not faint: a struck-through line must still pass AA on the sunken paper. */
+  color: var(--persona-ink-soft);
   text-decoration: line-through;
 }
 
@@ -424,4 +425,47 @@
   .drop {
     transition: none;
   }
+}
+
+.constraintNotice {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: right;
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--persona-ink);
+}
+
+.groupHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-2) var(--persona-space-3);
+}
+
+.pendingNote {
+  margin: var(--persona-space-1) 0 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--persona-ink-soft);
+}
+
+.item[data-decision='pending'] {
+  border-style: dashed;
+}
+
+/* A chip with a whole sentence (a pinned-decision question) wraps; it never pokes out of the row at 200 % zoom. */
+.itemFlags > * {
+  max-width: 100%;
+  height: auto;
+  min-height: 24px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/* Dark: the danger chip is translucent too; stacked on a fully tinted row it falls under 4.5:1. A lighter row keeps AA. */
+:global(body[data-ds-dark-theme='true']) .item[data-decision='blocked'] {
+  background: color-mix(in srgb, var(--persona-danger) 6%, var(--persona-card));
 }

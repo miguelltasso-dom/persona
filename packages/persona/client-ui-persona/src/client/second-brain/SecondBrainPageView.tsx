@@ -3,7 +3,7 @@ import type { BrainPageView, BrainVersionView } from '@deepseek-ai/dsh-persona-h
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { BrandIcon, Button, Card, PageMeta, Screen, ScreenHeader } from '../primitives/index.ts'
-import { brainKindBrandIcon, brainKindLabel, brainSourceLabel, pageConfirmation } from './brain-ui-adapters.ts'
+import { brainKindBrandIcon, brainKindLabel, brainPageTitle, brainSourceDisplay, pageConfirmation } from './brain-ui-adapters.ts'
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
 import styles from './SecondBrain.module.css'
 
@@ -15,6 +15,11 @@ export interface SecondBrainPageViewProps {
   readonly onBack: () => void
   readonly onOpenPage?: ((pageId: string) => void) | undefined
   readonly onSaveBody?: ((body: string) => void) | undefined
+  /** Names for the history (persona id / member id → name); an id is never shown. */
+  readonly personaNames?: Readonly<Record<string, string>>
+  readonly memberNames?: Readonly<Record<string, string>>
+  /** Puts an older version back. Without it the history has no "Restaurar". */
+  readonly onRestoreVersion?: ((revision: number) => void) | undefined
 }
 
 export function SecondBrainPageView({
@@ -25,8 +30,16 @@ export function SecondBrainPageView({
   onBack,
   onOpenPage,
   onSaveBody,
+  personaNames = {},
+  memberNames = {},
+  onRestoreVersion,
 }: SecondBrainPageViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
+  // Sources a person can read: an internal id (`grant:owner`) is not a source.
+  const sources = page.sources.flatMap((source) => {
+    const text = brainSourceDisplay(dict, source)
+    return text === undefined ? [] : [text]
+  })
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(page.body)
   useEffect(() => { setDraft(page.body); setEditing(false) }, [page.id, page.body])
@@ -43,7 +56,7 @@ export function SecondBrainPageView({
             {brainKindLabel(dict, page.kind)}
           </span>
         )}
-        title={page.title}
+        title={brainPageTitle(dict, page)}
         subtitle={page.restricted ? t('page.visibilityPrivate') : t('page.visibilityTeam')}
         actions={(
           <button type="button" className={styles.backLink} onClick={onBack}>
@@ -77,10 +90,10 @@ export function SecondBrainPageView({
           ) : (
             <pre className={styles.pageMarkdown}>{page.body}</pre>
           )}
-          {page.sources.length > 0 && (
+          {sources.length > 0 && (
             <Card padding="m" eyebrow={t('page.sources')}>
               <ul className={styles.sourceList}>
-                {page.sources.map(source => <li key={source}>{brainSourceLabel(dict, source)}</li>)}
+                {sources.map(source => <li key={source}>{source}</li>)}
               </ul>
             </Card>
           )}
@@ -92,15 +105,19 @@ export function SecondBrainPageView({
           ]}
           backlinks={backlinkPages.map(row => ({
             id: row.id,
-            title: row.title,
+            title: brainPageTitle(dict, row),
             type: brainKindLabel(dict, row.kind),
             ...(onOpenPage === undefined ? {} : { onOpen: () => { onOpenPage(row.id) } }),
           }))}
           history={versions.map(row => ({
             id: String(row.revision),
-            who: row.editorId,
+            who: row.editorKind === 'persona'
+              ? (personaNames[row.editorId] ?? t('feed.editorPersona'))
+              : (memberNames[row.editorId] ?? t('feed.whoMember')),
             what: row.editorKind === 'persona' ? t('feed.verbUpdated') : t('page.edit'),
             time: row.createdAt.slice(0, 10),
+            // The newest version is the page as it is now: nothing to restore.
+            ...(onRestoreVersion === undefined || row.revision === page.revision ? {} : { onRestore: () => { onRestoreVersion(row.revision) } }),
           }))}
           confirmation={{
             text: confirmation.text,
@@ -114,6 +131,7 @@ export function SecondBrainPageView({
             history: t('meta.history'),
             confirm: t('meta.confirm'),
             view: t('meta.view'),
+            ...(onRestoreVersion === undefined ? {} : { restore: t('meta.restore') }),
           }}
         />
       </div>

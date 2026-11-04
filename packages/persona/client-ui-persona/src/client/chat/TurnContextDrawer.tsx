@@ -1,7 +1,9 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { ActivityGroup, FixedRowVirtualScroller, IconButton, PooledQuotaBar, UiIcon, type ActivityGroupProps } from '../primitives/index.ts'
+import { ActivityGroup, FixedRowVirtualScroller, IconButton, UiIcon, type ActivityGroupProps } from '../primitives/index.ts'
 import type { TurnContextUi } from '../remote/turn-context-ui.ts'
+import { ENGINE_LIMITS_UNAVAILABLE, type EngineLimitsUi } from '../remote/engine-limits.ts'
+import { EngineLimitsBars } from './EngineLimitsBars.tsx'
 import styles from './TurnContextDrawer.module.css'
 
 /** Readable origin of a context item ("vault:1" → Cofre · 1). */
@@ -25,10 +27,12 @@ const KIND_ICON: Readonly<Record<string, 'sparkle' | 'attach' | 'at' | 'clock'>>
  * "Contexto usado" side drawer (UX-GUIDE §3: opens as a lateral drawer, items stagger 30 ms).
  * Shows which Cofre records, files and messages a persona used for a task; dismissible per ticket.
  */
-export function TurnContextDrawer({ t, context, activityLabels }: {
+export function TurnContextDrawer({ t, context, activityLabels, limits = ENGINE_LIMITS_UNAVAILABLE }: {
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly context: TurnContextUi | null | undefined
   readonly activityLabels?: ActivityGroupProps['labels'] | undefined
+  /** Limites reais do motor (IV-4); sem fonte, "indisponível" (nunca número de exemplo). */
+  readonly limits?: EngineLimitsUi | undefined
 }): ReactNode {
   const [dismissed, setDismissed] = useState<string | null>(null)
   if (context === null || context === undefined || dismissed === context.ticketId) return null
@@ -118,20 +122,8 @@ export function TurnContextDrawer({ t, context, activityLabels }: {
       )}
       <div className={styles.limits}>
         <p className={styles.label}>{t('context.limitsLabel')}</p>
-        <PooledQuotaBar
-          compact
-          window={t('context.limitsWindow')}
-          color="var(--persona-lilac-500)"
-          labels={{
-            left: pct => t('context.limitsLeft', { pct: String(pct) }),
-            nextRefill: (pct, at, account) => t('context.limitsRefill', { pct: String(pct), time: at, account }),
-            noWindow: t('context.limitsNoWindow'),
-            segment: account => account.label,
-          }}
-          accounts={[
-            { id: 'w', label: t('context.limitsWork'), leftPct: 42, refillPct: 12, refillAt: '18:30' },
-          ]}
-        />
+        {/* IV-4 = P0-28: as cotas oficiais do motor (as mesmas do /limites e de Uso); sem dado, "—" e "Cota oficial indisponível". */}
+        <EngineLimitsBars t={t} limits={limits} />
         <p className={styles.compactHint}>{t('context.compactMark')}</p>
       </div>
       {context.triggerIds.length > 0 && (

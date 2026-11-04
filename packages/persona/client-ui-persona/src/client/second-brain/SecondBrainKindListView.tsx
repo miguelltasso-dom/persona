@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { Avatar, BrandIcon, Card, Chip, FixedRowVirtualScroller, Screen, ScreenHeader, Tabs } from '../primitives/index.ts'
-import { brainKindBrandIcon, brainKindLabel, feedEditorDisplay, pageExcerpt } from './brain-ui-adapters.ts'
+import { brainKindBrandIcon, brainKindLabel, brainPageTitle, feedEditorDisplay, pageExcerpt } from './brain-ui-adapters.ts'
 import { SecondBrainGraphView } from './SecondBrainGraphView.tsx'
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
 import styles from './SecondBrain.module.css'
@@ -19,18 +19,20 @@ function BrainPageListRow({
   dict,
   page,
   personaNames,
+  memberNames,
   onOpenPage,
 }: {
   readonly dict: LocaleDict
   readonly page: BrainPageView
   readonly personaNames: Readonly<Record<string, string>>
+  readonly memberNames: Readonly<Record<string, string>>
   readonly onOpenPage: (pageId: string) => void
 }): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
-  const editor = feedEditorDisplay(dict, page, personaNames)
+  const editor = feedEditorDisplay(dict, page, personaNames, memberNames)
   return (
     <button type="button" className={styles.pageRowButton} onClick={() => { onOpenPage(page.id) }}>
-      <span className={styles.brainPageLink}>{page.title}</span>
+      <span className={styles.brainPageLink}>{brainPageTitle(dict, page)}</span>
       <span className={styles.muted}>{pageExcerpt(page.body)}</span>
       <span className={styles.pageRowMeta}>
         {page.restricted && <Chip tone="neutral" size="s">{t('page.visibilityPrivate')}</Chip>}
@@ -55,6 +57,7 @@ export interface SecondBrainKindListViewProps {
   readonly pages: readonly BrainPageView[]
   readonly contradictionIds?: ReadonlySet<string> | undefined
   readonly personaNames?: Readonly<Record<string, string>>
+  readonly memberNames?: Readonly<Record<string, string>>
   readonly onBack: () => void
   readonly onOpenPage: (pageId: string) => void
 }
@@ -65,6 +68,7 @@ export function SecondBrainKindListView({
   pages,
   contradictionIds,
   personaNames = {},
+  memberNames = {},
   onBack,
   onOpenPage,
 }: SecondBrainKindListViewProps): ReactNode {
@@ -155,6 +159,7 @@ export function SecondBrainKindListView({
                     dict={dict}
                     page={page}
                     personaNames={personaNames}
+                    memberNames={memberNames}
                     onOpenPage={onOpenPage}
                   />
                 )
@@ -168,6 +173,7 @@ export function SecondBrainKindListView({
                     dict={dict}
                     page={page}
                     personaNames={personaNames}
+                    memberNames={memberNames}
                     onOpenPage={onOpenPage}
                   />
                 </li>

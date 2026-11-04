@@ -44,6 +44,15 @@ const labels = {
 }
 
 describe('ProposalReview (BYC-4)', () => {
+  it('a rule arrives undecided (defaultChoice pending); facts and decisions stay pre-accepted', () => {
+    const base = { provenance: 'colado do ChatGPT', text: 'Texto' }
+    expect(defaultChoice({ ...base, id: 'r', kind: 'constraint' }).decision).toBe('pending')
+    expect(defaultChoice({ ...base, id: 'm', kind: 'memory' }).decision).toBe('accept')
+    expect(defaultChoice({ ...base, id: 'd', kind: 'decision' }).decision).toBe('accept')
+    // A sensitive rule is still discarded+blocked, as before.
+    expect(defaultChoice({ ...base, id: 's', kind: 'constraint', sensitive: 'parece um CPF' }).decision).toBe('discard')
+  })
+
   it('shows conflict chip and private toggle on accept', () => {
     const onChoice = vi.fn()
     render(

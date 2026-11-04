@@ -205,8 +205,9 @@ export function GestorPlanCard({ gestor, summary, reason, steps, cost, state, on
         </span>
       </header>
       <p className={styles.summary}>{summary}</p>
-      {reason !== undefined && <p className={styles.reason}>{reason}</p>}
-      <ol className={styles.steps}>
+      {reason !== undefined && reason.trim() !== '' && <p className={styles.reason}>{reason}</p>}
+      {/* Muse: no steps from the host → no list (never a single step that repeats the summary). */}
+      {steps.length > 0 && <ol className={styles.steps}>
         {steps.map(step => (
           <li key={step.id} className={styles.step} data-kind={step.kind}>
             <span className={styles.stepVisual} aria-hidden="true">
@@ -223,8 +224,8 @@ export function GestorPlanCard({ gestor, summary, reason, steps, cost, state, on
             </span>
           </li>
         ))}
-      </ol>
-      {cost !== undefined && <p className={styles.cost}>{cost}</p>}
+      </ol>}
+      {cost !== undefined && cost.trim() !== '' && <p className={styles.cost}>{cost}</p>}
       {state === 'pending' && (
         <div className={styles.planActions}>
           {onApprove !== undefined && <Button variant="primary" onClick={onApprove}>{labels.approve}</Button>}

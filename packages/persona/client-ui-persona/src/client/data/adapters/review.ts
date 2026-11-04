@@ -1,4 +1,4 @@
-import type { ReviewAcceptView, ReviewSummaryView } from '@deepseek-ai/dsh-persona-host/types'
+import type { ReviewAcceptView, ReviewConflictResolutionView, ReviewFileConflictView, ReviewSummaryView } from '@deepseek-ai/dsh-persona-host/types'
 import type { ReviewBlockedUi, ReviewFileChangeUi, ReviewSummaryUi } from '../../review/mock-data.ts'
 
 /** Engine default when the host omits byte limit on the wire. */
@@ -44,4 +44,32 @@ export function reviewBlockedFromAccept(result: ReviewAcceptView): ReviewBlocked
   if (result.kind !== 'blocked') return null
   const explanation = result.explanation.trim()
   return { explanation: explanation === '' ? 'A pasta mudou enquanto o rascunho era feito.' : explanation }
+}
+
+/** The files the folder and the draft both changed, with the exact versions the host showed (empty when none). */
+export function reviewConflictsFromAccept(result: ReviewAcceptView): readonly ReviewFileConflictView[] {
+  return result.kind === 'blocked' ? (result.conflicts ?? []) : []
+}
+
+const CHOICE_TO_HOST: Readonly<Record<'mine' | 'theirs' | 'both', ReviewConflictResolutionView['choice']>> = {
+  mine: 'keep_mine',
+  theirs: 'keep_persona',
+  both: 'keep_both',
+}
+
+/**
+ * The person's answers → the host's `conflicts[]`: each clash goes back with the SAME versions it was shown with, plus the
+ * choice. A clash with no answer yet is not sent (the caller keeps asking) — never a guessed choice.
+ */
+export function resolveReviewConflicts(
+  conflicts: readonly ReviewFileConflictView[],
+  choices: Readonly<Record<string, 'mine' | 'theirs' | 'both'>>,
+): readonly ReviewConflictResolutionView[] | null {
+  const resolved: ReviewConflictResolutionView[] = []
+  for (const conflict of conflicts) {
+    const choice = choices[conflict.path]
+    if (choice === undefined) return null
+    resolved.push({ ...conflict, choice: CHOICE_TO_HOST[choice] })
+  }
+  return resolved
 }

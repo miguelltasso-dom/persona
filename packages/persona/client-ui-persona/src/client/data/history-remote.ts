@@ -22,14 +22,18 @@ interface HistoryWire {
   undoApply(request: UndoApplyRequest): Promise<RemoteResult<UndoApplyView>>
 }
 
-export interface PersonaHistoryRemote {
+/**
+ * The screen's own handle on the history (NOT a wire type: the host methods are listRestorePoints / undoApply, reached through
+ * HistoryWire above). Named "Client" so the wire-contract comparator does not mistake its list/undo for host Remotes.
+ */
+export interface ProjectHistoryClient {
   /** The host knows the history Remotes (SW-6 shipped in this host). */
   readonly available: boolean
   list(scope: ProjectScopeRequest): Promise<RestorePointListView>
   undo(scope: ProjectScopeRequest, restorePointId: string): Promise<UndoApplyView>
 }
 
-export function personaHistoryRemote(persona: PersonaRemoteClient): PersonaHistoryRemote {
+export function personaHistoryRemote(persona: PersonaRemoteClient): ProjectHistoryClient {
   const wire = persona as PersonaRemoteClient & Partial<HistoryWire>
   if (typeof wire.listRestorePoints !== 'function' || typeof wire.undoApply !== 'function') {
     return {

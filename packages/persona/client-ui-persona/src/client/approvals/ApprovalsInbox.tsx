@@ -1,4 +1,7 @@
-/** Central human decisions (one question per card — Neutrality is omission). */
+/**
+ * Central human decisions, the current screen (one question per card). The two-pane inbox of
+ * REVIEW-APPROVALS-REDESIGN §2 is `ApprovalsInboxV2`, behind a flag until the Muse accepts it (D-077).
+ */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Screen,
@@ -13,7 +16,7 @@ import styles from './Approvals.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import { ProactiveDailySummaries } from './ProactiveDailySummaries.tsx'
 import { personaPortraitSrc } from './approvals-ui-helpers.ts'
-import { ReactiveApprovalsList } from './ReactiveApprovalsList.tsx'
+import { ReactiveApprovalsList, type RememberChoice } from './ReactiveApprovalsList.tsx'
 import type { ApprovalItem } from './mock-data.ts'
 import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
 import { pt as defaultDict } from '../locale/approvals/locales.ts'
@@ -27,8 +30,10 @@ export interface ApprovalRememberChoice {
 }
 
 const ACCEPT_EXIT_MS = 750
+const DEFAULT_REMEMBER: RememberChoice = { grant: false, validity: 'once' }
 
-function approvalPermissionScope(dict: LocaleDict, item: ApprovalItem): PermissionScope | undefined {
+/** What "Lembrar esta permissão" would grant for a card; none when the card has nothing to remember. */
+export function approvalPermissionScope(dict: LocaleDict, item: ApprovalItem): PermissionScope | undefined {
   if (item.brain === undefined) return undefined
   const avatar = personaPortraitSrc(item.proposerPersonaId, item.brain.personaName)
   return {
@@ -68,12 +73,13 @@ export function ApprovalsInbox({
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const paw = usePawCelebration()
   const [exitStampId, setExitStampId] = useState<string | null>(null)
-  const [rememberGrant, setRememberGrant] = useState(false)
-  const [rememberValidity, setRememberValidity] = useState<PermissionValidity>('once')
+  // Each card keeps its own "Lembrar esta permissão": they are decided in any order (A-4b), none waits for another.
+  const [remembered, setRemembered] = useState<Readonly<Record<string, RememberChoice>>>({})
+  const rememberFor = (id: string): RememberChoice => remembered[id] ?? DEFAULT_REMEMBER
+  const updateRemember = (id: string, patch: Partial<RememberChoice>): void => {
+    setRemembered(current => ({ ...current, [id]: { ...(current[id] ?? DEFAULT_REMEMBER), ...patch } }))
+  }
   const [rememberStampNote, setRememberStampNote] = useState<string | null>(null)
-  // DECISIONS-SPEC: cards driven by the shared store keep their place while they leave; the head is the first one still open.
-  const headItem = items.find(item => item.decisionState === undefined || item.decisionState === 'pending' || item.decisionState === 'failed')
-  const headScope = headItem === undefined ? undefined : approvalPermissionScope(dict, headItem)
   const summaryIso = proactiveSummaries.find(summary => summary.proposals.length > 0)?.summaryDate ?? ''
   const summaryDateLabel = summaryIso === '' ? '' : formatSummaryDate(dict, summaryIso)
   const hasReactive = items.length > 0
@@ -201,13 +207,11 @@ export function ApprovalsInbox({
               dict={dict}
               focusId={focusId}
               items={items}
-              headScope={headScope}
+              scopeFor={item => approvalPermissionScope(dict, item)}
               exitStampId={exitStampId}
-              rememberGrant={rememberGrant}
-              rememberValidity={rememberValidity}
+              rememberFor={rememberFor}
               rememberStampNote={rememberStampNote}
-              onRememberGrantChange={setRememberGrant}
-              onRememberValidityChange={setRememberValidity}
+              onRememberChange={updateRemember}
               {...(onDecideItem === undefined ? {} : {
                 onDecideItem: (item, accept, remember) => {
                   if (accept && remember !== undefined) setRememberStampNote(t('stamp.remembered'))

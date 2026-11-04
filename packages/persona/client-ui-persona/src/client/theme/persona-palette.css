@@ -91,6 +91,10 @@ body:not([data-ds-dark-theme='true']) {
   --persona-outline-soft: rgb(52 36 63 / 0.16);
   --persona-rail: var(--persona-lilac-700);
   --persona-rail-ink: #ffffff;
+  /* Muse: solid rail field colours (= the old color-mix over the rail), so axe and forced-colors read real contrast. */
+  --persona-rail-field: #544171;
+  --persona-rail-field-hover: #564274;
+  --persona-rail-kbd: #423156;
   --persona-rail-ink-soft: var(--persona-lilac-200);
   --persona-rail-hill-1: var(--persona-lilac-600);
   --persona-rail-hill-2: var(--persona-lilac-500);
@@ -107,6 +111,7 @@ body:not([data-ds-dark-theme='true']) {
   --persona-info: #315f98;
   --persona-success-tint: #e3f1e8;
   --persona-warning-tint: #fbebd0;
+  --persona-accent-tint: #fcefd6;
   --persona-danger-tint: #f8e1e3;
   --persona-info-tint: #e3ecf7;
   --persona-scrim: rgb(52 36 63 / 0.42);
@@ -143,12 +148,18 @@ body[data-ds-dark-theme='true'] {
   /* Muse (achado do Lumen, axe color-contrast): sem isto, o escuro herdava #60516b do :root (<2:1 no card).
      ≥ 5,8:1 em todas as superfícies de texto escuras (card 7,1 · wash-strong 5,9 · paper 8,0). */
   --persona-ink-muted: #b9a8ca;
+  /* Muse: surface tokens lived only in :root, so in dark they stayed cream under light ink (assistant step chips). */
+  --persona-surface: var(--persona-card);
+  --persona-surface-alt: var(--persona-wash);
   --persona-ink-faint: #a795b8;
   --persona-outline: var(--persona-plum-950);
   --persona-outline-control: #8f7bb0;
   --persona-outline-soft: rgb(200 184 232 / 0.16);
   --persona-rail: #2a1e3a;
   --persona-rail-ink: #f6eee0;
+  --persona-rail-field: #2e203c;
+  --persona-rail-field-hover: #33243f;
+  --persona-rail-kbd: #3a2a4f;
   --persona-rail-ink-soft: var(--persona-lilac-300);
   --persona-rail-hill-1: #3a2a4f;
   --persona-rail-hill-2: #45335d;
@@ -165,6 +176,7 @@ body[data-ds-dark-theme='true'] {
   --persona-info: #9dbfea;
   --persona-success-tint: rgb(127 211 166 / 0.16);
   --persona-warning-tint: rgb(242 194 122 / 0.16);
+  --persona-accent-tint: rgb(233 178 82 / 0.16);
   --persona-danger-tint: rgb(241 154 165 / 0.16);
   --persona-info-tint: rgb(157 191 234 / 0.16);
   --persona-scrim: rgb(8 4 12 / 0.6);

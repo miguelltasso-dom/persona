@@ -81,6 +81,9 @@ export type { Decision, DecisionState } from '../decisions/decision-types.ts'
 
 const OPTIONAL_BOOT_REMOTE_MS = 1_500
 
+/** Quanto esperar depois de uma mensagem do stream antes de reler planos e decisões. */
+const SIDE_REFRESH_DEBOUNCE_MS = 700
+
 /** Gestor/assuntos must not hang dest:desktop first paint (Atlas splash). */
 function settleOptionalRemote<T>(work: () => Promise<T>, fallback: T, ms = OPTIONAL_BOOT_REMOTE_MS): Promise<T> {
   const pending = work().catch(() => fallback)
@@ -107,7 +110,8 @@ export interface PersonaLiveSnapshot {
   readonly awayEvents: readonly AwayEventLive[]
   readonly attentionTitles: readonly string[]
   readonly messages: readonly ChannelMessageUi[]
-  readonly passThroughFollowers: readonly { readonly name: string }[]
+  /** `id` = o mesmo id que a faixa da equipe usa para abrir o cartão da persona (A-3). */
+  readonly passThroughFollowers: readonly { readonly name: string; readonly id?: string | undefined }[]
   readonly dms: readonly DmListItemUi[]
   readonly selectedDmId: string | null
   readonly dmMessages: readonly ChannelMessageUi[]
@@ -130,6 +134,18 @@ export interface PersonaLiveSnapshot {
   readonly firstDelivery?: FirstDeliveryView | null | undefined
   /** Single source human decisions across Overview and Approvals (DECISIONS-SPEC). */
   readonly decisions?: readonly Decision[] | undefined
+  /**
+   * P0-30: mensagens que o host recusou ou que não chegaram. Ficam no fio como "Não enviado · Tentar de novo", nunca
+   * como se tivessem sido enviadas. `ownerId` = id do canal ou da DM onde a pessoa escreveu.
+   */
+  readonly failedSends?: readonly FailedSendUi[] | undefined
+}
+
+/** Uma mensagem que não foi enviada (P0-30). */
+export interface FailedSendUi {
+  readonly streamKind: 'channel' | 'dm'
+  readonly ownerId: string
+  readonly message: ChannelMessageUi
 }
 
 const EMPTY: PersonaLiveSnapshot = {
@@ -169,6 +185,8 @@ export interface PersonaLiveStore {
   /** Test/teardown: abort follow streams and drop onboarding sink. */
   dispose(): void
   postChannelMessage(body: string, attachmentIds?: readonly string[]): Promise<void>
+  /** P0-30: tenta de novo uma mensagem marcada "Não enviado" (some do fio se der certo; volta se falhar de novo). */
+  retryFailedSend?(messageId: string): Promise<void>
   uploadChannelAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   uploadDmAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   selectDm(dmId: string | null): Promise<void>
@@ -482,6 +500,27 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     dmStreamAbort = null
   }
 
+  /**
+   * A mensagem chega pelo stream, mas planos do Gestor e propostas de aprovação só vêm no `refresh`.
+   * Sem isto o cartão do plano e a decisão nova só apareciam depois de F5 (Gauge, SB-7/GES-6).
+   * Junta várias mensagens seguidas numa leitura só.
+   */
+  let sideRefreshTimer: ReturnType<typeof setTimeout> | undefined
+  let sideRefreshRunning = false
+  let sideRefreshAgain = false
+  const scheduleSideRefresh = (): void => {
+    if (sideRefreshRunning) { sideRefreshAgain = true; return }
+    if (sideRefreshTimer !== undefined) return
+    sideRefreshTimer = setTimeout(() => {
+      sideRefreshTimer = undefined
+      sideRefreshRunning = true
+      void refresh().finally(() => {
+        sideRefreshRunning = false
+        if (sideRefreshAgain) { sideRefreshAgain = false; scheduleSideRefresh() }
+      })
+    }, SIDE_REFRESH_DEBOUNCE_MS)
+  }
+
   const followStream = (
     streamKind: 'channel' | 'dm',
     ownerId: string,
@@ -510,6 +549,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           const snap = store.getSnapshot()
           if (snap.team === null) continue
           store.set(apply(snap, frame))
+          if (frame.kind !== 'baseline' && frame.events.length > 0) scheduleSideRefresh()
         }
       } catch {
         /* stream closed */
@@ -813,34 +853,57 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     if (tenant === null) return
     const trimmed = body.trim()
     if (trimmed.length === 0 && attachmentIds.length === 0) return
+    const scope = tenant
     const snap = store.getSnapshot()
     const optimisticId = `local-${Date.now()}`
     const timeLabel = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    const optimistic: ChannelMessageUi = {
+      id: optimisticId,
+      authorId: 'user',
+      authorName: 'Você',
+      body: trimmed,
+      timeLabel,
+      reactions: [],
+    }
+    store.set({ ...snap, messages: [...snap.messages, optimistic] })
+    const topicId = activeTopicByStream.get(streamTopicKey('channel', scope.channelId))
+    try {
+      await Promise.resolve(remote.postMessage({
+        id: `msg-${Date.now()}`,
+        workspaceId: scope.workspaceId,
+        projectId: scope.projectId,
+        streamKind: 'channel',
+        ownerId: scope.channelId,
+        actorId: scope.memberId,
+        subjectId: scope.memberId,
+        body: trimmed,
+        attachmentIds: [...attachmentIds],
+        ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+      }))
+    } catch {
+      // P0-30: o host não recebeu. A mensagem não fica no fio como se tivesse sido enviada: vira "Não enviado · Tentar de novo".
+      markSendFailed('channel', scope.channelId, optimistic, attachmentIds)
+      return
+    }
+    await refresh()
+  }
+
+  /** P0-30: guarda o que não foi enviado (com os anexos, para tentar de novo) e tira a mensagem otimista do fio normal. */
+  const failedSendAttachments = new Map<string, readonly string[]>()
+  const markSendFailed = (
+    streamKind: 'channel' | 'dm',
+    ownerId: string,
+    optimistic: ChannelMessageUi,
+    attachmentIds: readonly string[],
+  ): void => {
+    failedSendAttachments.set(optimistic.id, attachmentIds)
+    const snap = store.getSnapshot()
     store.set({
       ...snap,
-      messages: [...snap.messages, {
-        id: optimisticId,
-        authorId: 'user',
-        authorName: 'Você',
-        body: trimmed,
-        timeLabel,
-        reactions: [],
-      }],
+      ...(streamKind === 'channel' ? { messages: snap.messages.filter(row => row.id !== optimistic.id) } : {}),
+      ...(streamKind === 'dm' ? { dmMessages: snap.dmMessages.filter(row => row.id !== optimistic.id) } : {}),
+      failedSends: [...(snap.failedSends ?? []), { streamKind, ownerId, message: { ...optimistic, sendFailed: true } }],
     })
-    const topicId = activeTopicByStream.get(streamTopicKey('channel', tenant.channelId))
-    await Promise.resolve(remote.postMessage({
-      id: `msg-${Date.now()}`,
-      workspaceId: tenant.workspaceId,
-      projectId: tenant.projectId,
-      streamKind: 'channel',
-      ownerId: tenant.channelId,
-      actorId: tenant.memberId,
-      subjectId: tenant.memberId,
-      body: trimmed,
-      attachmentIds: [...attachmentIds],
-      ...(topicId === undefined || topicId === '' ? {} : { topicId }),
-    }))
-    await refresh()
   }
 
   const selectDm = async (dmId: string | null): Promise<void> => {
@@ -1011,33 +1074,54 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     if (dmId === null) return
     const trimmed = body.trim()
     if (trimmed.length === 0 && attachmentIds.length === 0) return
+    const scope = tenant
     const snap = store.getSnapshot()
     const timeLabel = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    store.set({
-      ...snap,
-      dmMessages: [...snap.dmMessages, {
-        id: `local-dm-${Date.now()}`,
-        authorId: 'user',
-        authorName: 'Você',
-        body: trimmed,
-        timeLabel,
-        reactions: [],
-      }],
-    })
-    const topicId = activeTopicByStream.get(streamTopicKey('dm', dmId))
-    await Promise.resolve(remote.postMessage({
-      id: `msg-dm-${Date.now()}`,
-      workspaceId: tenant.workspaceId,
-      projectId: tenant.projectId,
-      streamKind: 'dm',
-      ownerId: dmId,
-      actorId: tenant.memberId,
-      subjectId: tenant.memberId,
+    const optimistic: ChannelMessageUi = {
+      id: `local-dm-${Date.now()}`,
+      authorId: 'user',
+      authorName: 'Você',
       body: trimmed,
-      attachmentIds: [...attachmentIds],
-      ...(topicId === undefined || topicId === '' ? {} : { topicId }),
-    }))
+      timeLabel,
+      reactions: [],
+    }
+    store.set({ ...snap, dmMessages: [...snap.dmMessages, optimistic] })
+    const topicId = activeTopicByStream.get(streamTopicKey('dm', dmId))
+    try {
+      await Promise.resolve(remote.postMessage({
+        id: `msg-dm-${Date.now()}`,
+        workspaceId: scope.workspaceId,
+        projectId: scope.projectId,
+        streamKind: 'dm',
+        ownerId: dmId,
+        actorId: scope.memberId,
+        subjectId: scope.memberId,
+        body: trimmed,
+        attachmentIds: [...attachmentIds],
+        ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+      }))
+    } catch {
+      // P0-30: o host não recebeu: "Não enviado · Tentar de novo", nunca como se tivesse sido enviada.
+      markSendFailed('dm', dmId, optimistic, attachmentIds)
+      return
+    }
     await refresh()
+  }
+
+  const retryFailedSend = async (messageId: string): Promise<void> => {
+    const snap = store.getSnapshot()
+    const failed = snap.failedSends?.find(row => row.message.id === messageId)
+    if (failed === undefined) return
+    const attachmentIds = failedSendAttachments.get(messageId) ?? []
+    failedSendAttachments.delete(messageId)
+    store.set({ ...snap, failedSends: (snap.failedSends ?? []).filter(row => row.message.id !== messageId) })
+    if (failed.streamKind === 'channel') {
+      await postChannelMessage(failed.message.body, attachmentIds)
+      return
+    }
+    // A DM só recebe a retentativa na conversa onde a pessoa escreveu (nunca em outra DM).
+    if (store.getSnapshot().selectedDmId !== failed.ownerId) await selectDm(failed.ownerId)
+    await postDmMessage(failed.message.body, attachmentIds)
   }
 
   const commitOnboardingRoster = async (
@@ -1551,6 +1635,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   const dispose = (): void => {
     stopMessageStream()
     stopDmStream()
+    if (sideRefreshTimer !== undefined) clearTimeout(sideRefreshTimer)
+    sideRefreshTimer = undefined
     hostOnboardingSink = null
     subjectsInflight.clear()
     for (const timer of decisionTimers.values()) clearTimeout(timer)
@@ -1569,6 +1655,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     refresh,
     dispose,
     postChannelMessage,
+    retryFailedSend,
     uploadChannelAttachment,
     uploadDmAttachment,
     selectDm,

@@ -1,5 +1,39 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-04 19:35 — PB-7 (sprints), GOV-8/GES-4, S6, tema escuro (preparado), A-1 fase 1 (início), skeleton do reload
+
+**PB-7 (Sprints, `kanban/`, arquivos do Lumen: avisei por Status):** planejamento backlog ↔ sprint com linhas por checkbox nativo (antes eram Cards clicáveis sem foco), busca e chips por responsável, arrastar e soltar COM o equivalente por teclado/botão, medidor de capacidade por persona e frase de estado (`role=status`). Encerrar a sprint mostra "Quem fez o quê" (persona + contagem) e a lista recolhível do que ficou; "Atrasadas" só aparece quando o dado existe (nada de "0" inventado). Achei e corrigi "faltam 1 dias" (singular `sprint.daysLeft.one`) e o chip "faltam 0 dias" quando o host não manda prazo (agora some). Avatares 20→24 (mínimo do primitivo). Testes: `sprint-planning-pb7` 12, `close-sprint-pb7` 8 (+ vizinhos).
+
+**GES-4 / GOV-8 / S6 (Muse):** cartão do plano do Gestor sem passo repetido, com o porquê do host; título concorda com o nome ("Plano da Coordenação"/"do Atlas"); texto de aprovado só diz que a pessoa aprovou (o host ainda não cria as personas: Anvil/Forge). Assistente de estrutura: h1 Fredoka 26 (os tokens `--persona-font-body/-caption/-title-m` NÃO existiam: o `font:` era inválido e o texto herdava o tamanho; troquei nos 3 CSS meus), modelos em `ChoiceCards` com ✓, "Contratar" em cada persona (um a um), dica nova, Teste dos 2 dias só "nome — função". Editor: o preview usava o rascunho de exemplo da Luna (`personaViewToDraft` espalhava `MOCK_PERSONA_DRAFT`: bicho, personalidade, instruções e skills vazavam para toda persona real); agora o bicho vem do host. Preview sem jargão ("Coordenação", "Sugere e espera", "Arquivos do projeto e internet · só leitura"). Selo Gestor igual no perfil (âmbar + bastão).
+
+**P0-13 cartão da persona:** `max-height 100dvh-24px` + rolagem interna; remede com `ResizeObserver`; causa provável do "Esc não fecha": o cartão some debaixo do ponteiro parado e o navegador dispara `pointerenter` no avatar de baixo — o hover reabria. Agora o hover só volta quando o mouse se mexe. `persona-card-keyboard-fit` 6.
+
+**Ao vivo (Gauge SB-7/GES-6):** o stream de mensagens agora dispara (debounce 700 ms) a releitura de planos e decisões: o cartão do plano e a proposta nova de aprovação aparecem sem F5. O balão "Quem responde" deixa de interceptar o clique (só o botão recebe) e some ao clicar fora. `live-stream-side-refresh` 4.
+
+**Skeleton do reload (Gauge #4):** faixa da equipe, "Agora" e #geral mostram skeleton enquanto `live.ready` é falso (nunca "Monte sua equipe/Vaga aberta/canal quietinho" antes da hora). `reload-loading-skeleton` 7.
+
+**Tema escuro (P0 do Gauge):** conserto + spec PRONTOS no scratchpad, NÃO aplicados (ordem do Keel: depois do H). Contrato: `'true'` no escuro e REMOVER o atributo no claro (o host casa a presença; `setAttribute(…,'false')` deixaria os componentes do host escuros no claro).
+
+**A-1 fase 1 (NAV-SPEC):** `shell/nav-places.ts` (6 lugares + Configurações no rodapé; abas = os `MainPanelId` de hoje; apelidos do Ctrl K; última aba por lugar), `PlaceTabsBar.tsx` (abas com `data-tab-panel`), integração no `PersonaAppFrame`; `data-nav-panel` em cada item do rail (Probe). Falta: trocar o loop de NAV_GROUPS no corpo do rail pelos 6 lugares (espera o aviso do Flint: P0-22 estável), Conversas com as DMs da equipe inteira (A-2), A-3, A-6. `nav-places` 16.
+
+**Auditoria dos Remotes (subagente, conferida por mim):** `postMessage` sem `occurredAt` (lib do Typert defasado: Anvil regenera), `reviewSummary`/`discardReview` sem `command`/`reason`, `acceptReview` `choices` descartado (Lumen), `undoApproval` não existe (esconder "Desfazer" — meu), seed `limit:300`. Meus, DEPOIS do H: `PersonaHistoryRemote` → `listRestorePoints`/`undoApply`, `PersonaCreatorRemote.listTeam` (campos que o schema recusa), `maxPersonas` sem sanear.
+
+**Gate:** check-pkg client-ui-persona OK (46 s).
+
+## 2026-11-04 18:30 — Gauge GOV-10, boot (SEGURADO), controles mortos, fase do passo 5 por atributo
+
+**Gauge (F5/GOV-10) — meus 3 itens:**
+- **"Estou fora" chega ao host** (era só estado do cliente): o rail manda `setAvailability` (janela do agora até o prazo real; `available` ao desligar/expirar), e reconcilia uma vez quando o tenant existe depois de reabrir o app. `shell/availability-sync.ts`; `onAwayChange` injetado em `mount.ts`. O selo "Fora" no organograma é do Lumen (lê a disponibilidade do host).
+- **Popover "Estou fora"**: fecha com Esc (foco volta ao chip) e com clique fora; cabe nos 264 px do rail (antes alargava e deslocava a barra 34 px, o rail usa `overflow: clip`); as 3 opções de prazo empilham. `rail-away-host` 8/8.
+- **`<main>` no shell** (axe landmark-one-main / region em toda tela): `PersonaAppFrame` agora tem um único `<main>` com o painel; rail (`nav`) e overlay ficam fora. `app-frame-main-landmark` 1/1.
+(Itens 1 e 2 do Gauge — personas contratadas sem responsável/setor, rotina `initiative:*` sem dono e id interno na tela — são do Anvil/Lumen/Forge.)
+
+**Boot vazio (`SlotAssemblyError renderSlot('root')`):** diagnóstico: o `root` da Persona só é registrado dentro de `registerUi`, depois de `await ctx.remote.$mount(...)` e dentro do escopo `inject(['remote.persona', ...])`. Conserto pronto e testado em unitário (registrar o `root` de forma síncrona antes de qualquer await e fora do escopo do remote; 3 testes de ordem), mas o Keel mandou **segurar** (hipótese: bundle em paralelo trocando chunks; o Gauge prova numa janela exclusiva). Retirei da árvore; o patch e o teste estão guardados fora do repo (`scratchpad/mount.ts.with-root-early`, `mount-root-order.client.spec.ts.held`) e reaplico em 1 comando se o Keel confirmar.
+
+**Controles mortos (varredura do Quill):** `HirePersonaCard` é só prévia (não montado): botões só com handler. `ImportWizard` ESTÁ montado (Importar › avançado) e tinha 3 botões sem ação: agora a importação é real pelo host (`previewImport`/`confirmImport`/`rollbackImport`: arquivo → prévia com aceitos/recusados → confirmar → desfazer), e sem host o assistente só explica. `dead-controls-wizard` 6/6. Os "Nova tarefa" do Quadros (kanban) são do Lumen e estão montados: pendentes.
+**Fase do passo 5 por atributo (Muse/Probe, D-069):** cada section leva `data-first-delivery-phase` (intro/needsEngine/working/slow/failed/celebrate). `first-delivery-phase-attr` 6/6.
+**Gate:** check-pkg do pacote falha só em arquivos de outros (`second-brain/SecondBrainHome.tsx` do Lumen e `canvas-list-g2` do Quill, em edição); os meus passam.
+
 ## 2026-11-04 17:10 — Passo 3 "Verificando…", bug de movimento reduzido, revisão por captura da Muse
 
 **Achados reais (o script de capturas em movimento reduzido os revelou):**

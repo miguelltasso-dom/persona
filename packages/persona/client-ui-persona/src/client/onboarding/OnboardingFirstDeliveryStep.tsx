@@ -86,7 +86,7 @@ export function OnboardingFirstDeliveryStep({
 
   if (phase === 'celebrate' && milestone !== undefined) {
     return (
-      <section className={styles.step} aria-live="polite" tabIndex={-1} data-persona-step-focus="">
+      <section className={styles.step} aria-live="polite" tabIndex={-1} data-persona-step-focus="" data-first-delivery-phase="celebrate">
         <MilestoneCard
           celebrate
           illustration={ILLUSTRATIONS['primeira-entrega']}
@@ -144,7 +144,7 @@ export function OnboardingFirstDeliveryStep({
       }
     }
     return (
-      <section className={styles.step} aria-live="polite" tabIndex={-1} data-persona-step-focus="">
+      <section className={styles.step} aria-live="polite" tabIndex={-1} data-persona-step-focus="" data-first-delivery-phase="failed">
         {NO_AI_CODES.includes(errorPayload.code) && (
           <div className={styles.noAiArt} aria-hidden="true">
             <img src={ILLUSTRATIONS['empty-sem-ia']} alt="" />
@@ -176,7 +176,7 @@ export function OnboardingFirstDeliveryStep({
 
   if (phase === 'needsEngine') {
     return (
-      <section className={styles.step}>
+      <section className={styles.step} data-first-delivery-phase="needsEngine">
         <EmptyState
           compact
           illustration={ILLUSTRATIONS['empty-sem-ia']}
@@ -211,7 +211,7 @@ export function OnboardingFirstDeliveryStep({
       : (AVATAR_96 as Readonly<Record<string, string>>).atlas
     // Sem aria-live na section inteira (o leitor reanunciaria tudo a cada passo): só a linha de estado curta e o aviso de demora.
     return (
-      <section className={styles.step}>
+      <section className={styles.step} data-first-delivery-phase={phase}>
         <div className={styles.workingLayout}>
           {poseSrc !== undefined && (
             <img className={styles.workingPose} src={poseSrc} alt="" width={160} height={160} />
@@ -263,7 +263,7 @@ export function OnboardingFirstDeliveryStep({
 
   const defaultTaskText = vaultReady ? t('step5.taskPreview') : t('step5.taskPreviewEmpty')
   return (
-    <section className={styles.step}>
+    <section className={styles.step} data-first-delivery-phase="intro">
       <h1 id="persona-onboarding-title" className={styles.title}>{t('step5.title')}</h1>
       <p className={styles.hint}>{t('step5.hint')}</p>
       {introLines !== undefined && introLines.length > 0 && <TeamIntroQueue lines={introLines} label={t('step5.introLabel')} />}

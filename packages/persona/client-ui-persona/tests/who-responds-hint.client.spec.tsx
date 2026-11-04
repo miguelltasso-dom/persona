@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChannelComposer, WHO_RESPONDS_HINT_KEY } from '../src/client/chat/ChannelComposer.tsx'
@@ -69,5 +71,56 @@ describe('"Quem responde": dica de 1ª vez (UX-PHASE §5)', () => {
     })
     render(<ChannelComposer t={t} members={TEAM} />)
     expect(screen.queryByRole('dialog', { name: HINT })).toBeNull()
+  })
+})
+
+describe('o balão não esconde o que está atrás dele (Gauge SB-7/GES-6, aceite da Muse)', () => {
+  it('o balão RECEBE o toque: nada de pointer-events:none (tocar no corpo dele não aciona o controle escondido embaixo)', () => {
+    const css = readFileSync(resolve(__dirname, '../src/client/chat/ChannelComposer.module.css'), 'utf8')
+    const rule = css.slice(css.indexOf('.whoRespondsBalloon {'), css.indexOf('@keyframes balloonFade'))
+    expect(rule).not.toMatch(/pointer-events:\s*none/u)
+    expect(css).not.toMatch(/\.whoRespondsBalloon button\s*\{[^}]*pointer-events/u)
+  })
+
+  it('clicar em outra coisa da tela (ex.: "Ajustar" do cartão do plano) fecha o balão, a ação acontece e ele não volta', () => {
+    const onAdjust = vi.fn()
+    const { unmount } = render(
+      <>
+        <button type="button" onClick={onAdjust}>Ajustar</button>
+        <ChannelComposer t={t} members={TEAM} />
+      </>,
+    )
+    const adjust = screen.getByRole('button', { name: 'Ajustar' })
+    fireEvent.pointerDown(adjust)
+    fireEvent.click(adjust)
+    expect(onAdjust).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog', { name: HINT })).toBeNull()
+    expect(localStorage.getItem(WHO_RESPONDS_HINT_KEY)).toBe('1')
+    unmount()
+    render(<ChannelComposer t={t} members={TEAM} />)
+    expect(screen.queryByRole('dialog', { name: HINT })).toBeNull()
+  })
+
+  it('tocar dentro do próprio balão (fora do botão) não o fecha', () => {
+    render(<ChannelComposer t={t} members={TEAM} />)
+    fireEvent.pointerDown(screen.getByText('Escolha uma persona aqui para falar direto com ela.'))
+    expect(screen.getByRole('dialog', { name: HINT })).toBeTruthy()
+  })
+
+  it('o cartão do plano tem prioridade: com um plano esperando decisão a dica não aparece e não conta como vista', () => {
+    const { rerender } = render(<ChannelComposer t={t} members={TEAM} suppressHint />)
+    expect(screen.queryByRole('dialog', { name: HINT })).toBeNull()
+    expect(localStorage.getItem(WHO_RESPONDS_HINT_KEY)).toBeNull()
+    // plano decidido: a dica volta a poder aparecer
+    rerender(<ChannelComposer t={t} members={TEAM} suppressHint={false} />)
+    expect(screen.getByRole('dialog', { name: HINT })).toBeTruthy()
+  })
+
+  it('um plano que chega com a dica já aberta a fecha sozinha (sem marcar como vista)', () => {
+    const { rerender } = render(<ChannelComposer t={t} members={TEAM} />)
+    expect(screen.getByRole('dialog', { name: HINT })).toBeTruthy()
+    rerender(<ChannelComposer t={t} members={TEAM} suppressHint />)
+    expect(screen.queryByRole('dialog', { name: HINT })).toBeNull()
+    expect(localStorage.getItem(WHO_RESPONDS_HINT_KEY)).toBeNull()
   })
 })

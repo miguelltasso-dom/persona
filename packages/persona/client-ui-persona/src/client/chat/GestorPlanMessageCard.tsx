@@ -12,12 +12,17 @@ function planState(status: string): 'pending' | 'approved' | 'declined' | 'adjus
   return 'pending'
 }
 
-function stepsFromPlan(plan: GestorPlanView): readonly GestorPlanStep[] {
-  if (plan.action === 'assemble') {
-    return [{ id: `${plan.id}-assemble`, kind: 'board', title: plan.summary }]
-  }
-  return [{ id: `${plan.id}-hire`, kind: 'hire', title: plan.summary }]
+/** "Plano da Coordenação", "Plano do Atlas": o artigo concorda com o nome (terminado em -a / -ção / -dade → "da"). */
+export function isFeminineName(name: string): boolean {
+  return /(a|ã|á|ção|ções|dade|gem)$/iu.test(name.trim())
 }
+
+/**
+ * O host só manda resumo e porquê (GestorPlanView não traz passos). Um passo derivado do
+ * resumo só o repetiria (Muse, aceite GES-4): sem passos do host, sem lista. Quando o host
+ * mandar os passos (GES-2), mapear `hire` com o retrato aqui.
+ */
+const NO_HOST_STEPS: readonly GestorPlanStep[] = []
 
 export function GestorPlanMessageCard({
   t,
@@ -45,13 +50,13 @@ export function GestorPlanMessageCard({
       gestor={{ name: gestorName, ...(avatarSrc === undefined ? {} : { avatarSrc }) }}
       summary={plan.summary}
       reason={plan.reason}
-      steps={stepsFromPlan(plan)}
+      steps={NO_HOST_STEPS}
       state={state}
       {...(onApprove === undefined ? {} : { onApprove })}
       {...(onAdjust === undefined ? {} : { onAdjust })}
       {...(onDecline === undefined ? {} : { onDecline })}
       labels={{
-        title: name => t('gestorPlan.title', { name: name.toUpperCase() }),
+        title: name => t(isFeminineName(name) ? 'gestorPlan.title.fem' : 'gestorPlan.title', { name: name.toUpperCase() }),
         kinds: {
           hire: t('gestorPlan.kind.hire'),
           board: t('gestorPlan.kind.board'),

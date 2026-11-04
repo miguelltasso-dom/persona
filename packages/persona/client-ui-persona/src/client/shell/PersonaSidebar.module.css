@@ -67,7 +67,8 @@
 .sidebar[data-collapsed] .searchText,
 .sidebar[data-collapsed] .kbd,
 .sidebar[data-collapsed] .navLabel,
-.sidebar[data-collapsed] .settingsFoot {
+.sidebar[data-collapsed] .settingsFoot,
+.sidebar[data-collapsed] .settingsSlot {
   display: none;
 }
 
@@ -183,7 +184,7 @@
   padding: 0 var(--persona-space-2) 0 var(--persona-space-3);
   border: var(--persona-border-width) solid color-mix(in srgb, var(--persona-rail-ink) 22%, transparent);
   border-radius: var(--persona-radius-m);
-  background: color-mix(in srgb, var(--persona-plum-900) 38%, transparent);
+  background: var(--persona-rail-field);
   color: var(--persona-rail-ink);
   font: 600 14px/1 var(--persona-font-text);
   cursor: pointer;
@@ -192,7 +193,7 @@
 
 .search:hover,
 .search[aria-current='page'] {
-  background: color-mix(in srgb, var(--persona-plum-900) 34%, transparent);
+  background: var(--persona-rail-field-hover);
   border-color: color-mix(in srgb, var(--persona-rail-ink) 40%, transparent);
   color: var(--persona-rail-ink);
 }
@@ -205,7 +206,7 @@
 .kbd {
   padding: 3px 6px;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--persona-plum-900) 55%, transparent);
+  background: var(--persona-rail-kbd);
   font: 700 11px/1 var(--persona-font-text);
   color: var(--persona-rail-ink);
 }
@@ -316,6 +317,9 @@
 }
 
 .navItem[aria-current='page'] {
+  /* The cream also lives on the button itself (not only on the sliding .activeIndicator behind it), so the label's
+     contrast is computed against cream — by the browser's eye and by axe's. */
+  background: var(--persona-cream-50);
   color: var(--persona-plum-900);
   font-weight: 800;
 }
@@ -418,37 +422,50 @@
   background: var(--persona-danger);
 }
 
-.settingsFoot:empty {
-  display: none;
-}
-
-/* "Configurações" (DSW settings slot) as a solid pill: AA contrast over the foliage, ≥44px target. */
-.settingsFoot {
+/* Rodapé: "Configurações" (o nosso botão dentro do slot do DSW, com os indicadores de conexão e de atualização ao lado) e Ajuda. */
+.footActions {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  padding: 0 14px;
+  gap: var(--persona-space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.settingsSlot {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Ajuda e atalhos: só o ícone, na mesma pílula creme do "Configurações" (alvo de 44 px, contraste AA sobre a folhagem). */
+.helpButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   box-sizing: border-box;
+  cursor: pointer;
   border: var(--persona-border-width) solid var(--persona-outline);
   border-radius: var(--persona-radius-pill);
   background: var(--persona-cream-50);
   color: var(--persona-plum-900);
   box-shadow: 0 2px 0 0 var(--persona-outline);
-  font: 700 13px/18px var(--persona-font-text);
+  transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, transform var(--motion-fast) ease;
 }
 
-.settingsFoot :global(*) {
-  color: inherit;
-  font: inherit;
+.helpButton:hover {
+  border-color: var(--persona-outline-control);
 }
 
-.settingsFoot :global(button),
-.settingsFoot :global(a) {
-  gap: var(--persona-space-2);
-  min-height: 40px;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
+.helpButton:active,
+.helpButton[aria-current='page'] {
+  box-shadow: none;
+  transform: translateY(2px);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -458,12 +475,23 @@
   }
 }
 
-/* Dark: the DSW settings slot paints light text; keep the pill dark so it stays legible (AA). */
-:global(body[data-ds-dark-theme='true']) .settingsFoot {
+/* Dark: a pílula escura para continuar legível (AA). */
+:global(body[data-ds-dark-theme='true']) .helpButton {
   background: var(--persona-card);
   color: var(--persona-ink);
   border-color: var(--persona-outline-control);
   box-shadow: 0 2px 0 0 var(--persona-outline);
+}
+
+:global(body[data-ds-dark-theme='true']) .helpButton:active,
+:global(body[data-ds-dark-theme='true']) .helpButton[aria-current='page'] {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .helpButton {
+    transition: none;
+  }
 }
 
 .statusAnchor {
@@ -501,4 +529,151 @@
   max-height: min(70dvh, 420px);
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/*
+ * P0-22 (UX-BEYOND, NAV-SPEC regra 6): janela baixa (< 600 px de altura, ex.: zoom de 200%). A folhagem sai e a pílula de
+ * estado divide uma linha com Configurações (que vira só o ícone, o `wide: false` do próprio slot), para o menu não sumir.
+ * Só valores que já existem neste arquivo.
+ */
+.hostStatusText {
+  min-width: 0;
+}
+
+.sidebar[data-short] .foliage {
+  display: none;
+}
+
+.sidebar[data-short] .footer {
+  min-height: 0;
+  flex-wrap: nowrap;
+  padding-top: 0;
+}
+
+.sidebar[data-short] .statusAnchor {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.sidebar[data-short] .hostStatus {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sidebar[data-short] .hostStatusText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* a linha de ações (Configurações só com o ícone + Ajuda) fica ao lado da pílula, sem esticar */
+.sidebar[data-short] .footActions {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.sidebar[data-short] .settingsSlot {
+  flex: 0 0 auto;
+}
+
+/* Ajuda e Configurações com a mesma altura da pílula de estado (a 200% nenhum botão do rodapé é maior que ela). */
+.sidebar[data-short] .helpButton {
+  width: auto;
+  height: auto;
+  padding: 5px 10px;
+}
+
+/* A-5 (NAV-SPEC regra 6): a pílula diz o estado real da IA. Pouca folga (< 20%), parado no limite ou sem IA: ponto em `warning`. */
+.hostStatus[data-status='warning'] .statusDot {
+  background: var(--persona-warning);
+}
+
+/* A linha do estado da IA no topo do popover "Estou fora": o texto e, ao lado (ou embaixo, se faltar espaço), o botão. */
+.aiRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-2);
+}
+
+.aiRowText {
+  margin: 0;
+  min-width: 0;
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+/* A frase que explica o "—" (A-5): sob o estado da IA, na linha do popover. */
+.aiRowCopy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  min-width: 0;
+  flex: 1 1 100%;
+}
+
+.aiRowHint {
+  margin: 0;
+  font: 500 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+/* O Tooltip da pílula embrulha o botão: o embrulho encolhe junto (o texto da pílula ainda trunca em janela baixa). */
+.statusAnchor > span {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Flag A-1 DESLIGADA (padrão, D-077): o rodapé é o de antes — "Configurações" é o gatilho do DSW dentro de uma pílula sólida
+   (contraste AA sobre a folhagem, alvo ≥ 44 px). Ligada, o botão é o nosso SettingsLauncher e esta pílula não é usada. */
+.settingsFoot:empty {
+  display: none;
+}
+
+.settingsFoot {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-cream-50);
+  color: var(--persona-plum-900);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
+  font: 700 13px/18px var(--persona-font-text);
+}
+
+.settingsFoot :global(*) {
+  color: inherit;
+  font: inherit;
+}
+
+.settingsFoot :global(button),
+.settingsFoot :global(a) {
+  gap: var(--persona-space-2);
+  min-height: 40px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+:global(body[data-ds-dark-theme='true']) .settingsFoot {
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  border-color: var(--persona-outline-control);
+  box-shadow: 0 2px 0 0 var(--persona-outline);
+}
+
+/* a 200% (altura < 600 px) a pílula antiga também divide a linha com a pílula de estado e fica da altura dela */
+.sidebar[data-short] .settingsFoot {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 5px var(--persona-space-2);
+}
+
+.sidebar[data-short] .settingsFoot :global(button) {
+  min-height: 0;
 }

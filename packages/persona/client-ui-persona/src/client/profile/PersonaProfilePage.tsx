@@ -5,7 +5,7 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId, type PersonaPoseState } from '../assets/asset-url.ts'
 import { Avatar, BrandIcon, Button, Card, Chip, EmptyState, NOW_POSE, Screen, ScreenHeader, Tabs, UiIcon } from '../primitives/index.ts'
-import { MemoryPanel } from '../memory/MemoryPanel.tsx'
+import { MemoryPanel, type MemoryActions } from '../memory/MemoryPanel.tsx'
 import { SkillsPanel, type SkillsPanelProps } from '../skills/SkillsPanel.tsx'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './ProfileScreen.module.css'
@@ -52,6 +52,8 @@ export interface PersonaProfilePageProps {
   readonly initialState?: ProfileSurfaceState
   readonly onRemoteRetry?: () => void
   readonly memoryRows?: readonly MemoryRow[]
+  /** What the Memory tab can really do (approve / edit / forget). A missing one means no button. */
+  readonly memoryActions?: MemoryActions | undefined
   readonly skillRecords?: readonly SkillRecord[]
   /** Row actions of the Skills tab (activate / back to candidate / share / review). A missing one means no button. */
   readonly skillActions?: Pick<SkillsPanelProps, 'onActivate' | 'onRollback' | 'onShare' | 'onReview'>
@@ -95,6 +97,7 @@ export function PersonaProfilePage({
   initialState = 'ready',
   onRemoteRetry,
   memoryRows,
+  memoryActions,
   skillRecords,
   skillActions,
   onMessage,
@@ -189,7 +192,9 @@ export function PersonaProfilePage({
           <p className={styles.heroSubtitle}>{subtitle}</p>
           <div className={styles.heroChips}>
             <Chip tone={liveChipTone(liveState)}>{t(stateLabelKey(liveState))}</Chip>
-            {persona.systemRoles.map(role => <Chip key={role} tone="brand" icon={<BrandIcon name="equipe" size={14} />}>{t(`card.badge.${role}`)}</Chip>)}
+            {persona.systemRoles.map(role => role === 'team_manager'
+              ? <Chip key={role} className={styles.gestorChip} icon={<UiIcon name="baton" size={14} strokeWidth={2.2} />}>{t(`card.badge.${role}`)}</Chip>
+              : <Chip key={role} tone="brand" icon={<BrandIcon name="equipe" size={14} />}>{t(`card.badge.${role}`)}</Chip>)}
           </div>
           {(onMessage !== undefined || onEdit !== undefined || onTeach !== undefined) && (
             <div className={styles.heroActions}>
@@ -291,6 +296,7 @@ export function PersonaProfilePage({
           <MemoryPanel
             {...(memoryRows !== undefined ? { rows: memoryRows } : {})}
             initialState={memoryRows !== undefined && memoryRows.length === 0 ? 'empty' : 'ready'}
+            actions={memoryActions}
             {...(onEdit === undefined ? {} : { onEmptyPrimary: onEdit })}
           />
         )}
@@ -298,8 +304,9 @@ export function PersonaProfilePage({
           <SkillsPanel
             {...(skillRecords !== undefined ? { skills: skillRecords } : {})}
             {...skillActions}
-            initialState={skillRecords !== undefined && skillRecords.length === 0 ? 'empty' : 'ready'}
-            {...(onEdit === undefined ? {} : { onEmptyPrimary: onEdit })}
+            personaName={persona.name}
+            personaCharacter={avatarRef}
+            {...(onTeach === undefined ? {} : { onTeach })}
           />
         )}
       </div>

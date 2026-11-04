@@ -37,7 +37,7 @@ import {
   type PastedSource,
   type ProposalChoice,
 } from '../primitives/index.ts'
-import { ImportWizard } from './ImportWizard.tsx'
+import { ImportWizard, type ImportWizardImporter } from './ImportWizard.tsx'
 import styles from './BringContextImportPage.module.css'
 
 export interface BringContextImportPageProps {
@@ -45,6 +45,8 @@ export interface BringContextImportPageProps {
   readonly persona: PersonaRemoteClient
   readonly actorId: string
   readonly locale?: 'pt' | 'en' | undefined
+  /** "Ver no Cofre" after saving. Without it the confirmation has no shortcut. */
+  readonly onOpenVault?: (() => void) | undefined
 }
 
 function providerToAi(source: BringProvider): AiSource {
@@ -61,11 +63,13 @@ export function BringContextImportPage({
   persona,
   actorId,
   locale = 'pt',
+  onOpenVault,
 }: BringContextImportPageProps): ReactNode {
   const screenDict: LocaleDict = importersDict
   const dict: LocaleDict = bycDict
-  const tScreen = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(screenDict, key, params)
-  const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
+  // Stable identities: the folder-reading effect below depends on `t`; a new function per render would restart it forever.
+  const tScreen = useCallback((key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(screenDict, key, params), [screenDict])
+  const t = useCallback((key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params), [dict])
   const paw = usePawCelebration()
 
   const [mode, setMode] = useState<'byc' | 'advanced'>('byc')
@@ -83,6 +87,31 @@ export function BringContextImportPage({
   const [savedCount, setSavedCount] = useState<number | null>(null)
 
   const prompt = useMemo(() => bringPromptForLocale(dict, locale), [dict, locale])
+  // Importação avançada: o host tem previewImport / confirmImport / rollbackImport; sem host (ou sem escopo) o assistente não oferece ação.
+  const importer = useMemo((): ImportWizardImporter | undefined => {
+    type ImportWire = {
+      previewImport?(request: unknown): unknown
+      confirmImport?(request: unknown): unknown
+      rollbackImport?(request: unknown): unknown
+    }
+    const wire = persona as unknown as ImportWire
+    if (scope === null || wire.previewImport === undefined || wire.confirmImport === undefined || wire.rollbackImport === undefined) return undefined
+    const base = { workspaceId: scope.workspaceId, projectId: scope.projectId }
+    const settle = async <T,>(value: unknown): Promise<T> => {
+      const resolved = await Promise.resolve(value)
+      if (typeof resolved === 'object' && resolved !== null && typeof (resolved as { ok?: unknown }).ok === 'boolean') {
+        const result = resolved as { ok: boolean; value?: T; error?: { message?: string } }
+        if (!result.ok) throw new Error(result.error?.message ?? 'import-failed')
+        return result.value as T
+      }
+      return resolved as T
+    }
+    return {
+      preview: files => settle(wire.previewImport!({ ...base, files })),
+      confirm: (batchId, files) => settle(wire.confirmImport!({ ...base, batchId, files })),
+      rollback: batchId => settle(wire.rollbackImport!({ ...base, batchId })),
+    }
+  }, [persona, scope])
   const aiSource = providerToAi(provider)
   const pastedChips: PastedSource[] = pasted.map(row => ({
     id: row.id,
@@ -92,18 +121,19 @@ export function BringContextImportPage({
   const canOrganize = scope !== null && (pasted.length > 0 || folderState.kind === 'ready')
   const hasDesktopPicker = personaDesktopBridge() !== undefined
 
+  // Primitive deps (a new `scope` object with the same ids must not re-read the folder) and a guard for late answers.
+  const workspaceId = scope?.workspaceId
+  const projectId = scope?.projectId
   useEffect(() => {
-    if (vaultFolderPath === null || vaultFolderPath === '' || scope === null) {
+    if (vaultFolderPath === null || vaultFolderPath === '' || workspaceId === undefined || projectId === undefined) {
       setFolderState({ kind: 'idle' })
       setVaultPreview(null)
       return
     }
+    let current = true
     setFolderState({ kind: 'reading', done: 0 })
-    void previewBringVaultFolderRemote(persona, {
-      workspaceId: scope.workspaceId,
-      projectId: scope.projectId,
-      rootPath: vaultFolderPath,
-    }).then((preview) => {
+    void previewBringVaultFolderRemote(persona, { workspaceId, projectId, rootPath: vaultFolderPath }).then((preview) => {
+      if (!current) return
       setVaultPreview(preview)
       setFolderState({
         kind: 'ready',
@@ -112,9 +142,10 @@ export function BringContextImportPage({
         ignored: preview.ignored.map(row => row.path),
       })
     }).catch(() => {
-      setFolderState({ kind: 'error', message: t('byc.vaultHostPending') })
+      if (current) setFolderState({ kind: 'error', message: t('byc.vaultHostPending') })
     })
-  }, [vaultFolderPath, persona, scope, t])
+    return () => { current = false }
+  }, [vaultFolderPath, persona, workspaceId, projectId, t])
 
   const copyLabels = useMemo(() => ({
     title: t('byc.copyBlockTitle'),
@@ -175,6 +206,7 @@ export function BringContextImportPage({
   const chooseFolder = useCallback((): void => {
     void pickVaultFolderPath(t('byc.pickFolderTitle')).then((path) => {
       setVaultFolderPath(path)
+      if (path !== null) setSavedCount(null)
     })
   }, [t])
 
@@ -201,7 +233,7 @@ export function BringContextImportPage({
       <Screen className={styles.shell} data-persona-surface="importers">
         {header}
         <div className={styles.advancedWrap}>
-          <ImportWizard dict={screenDict} />
+          <ImportWizard dict={screenDict} importer={importer} />
         </div>
       </Screen>
     )
@@ -216,9 +248,6 @@ export function BringContextImportPage({
           <UiIcon name="arrowRight" size={16} strokeWidth={2.2} className={styles.backIcon} />
           {t('byc.back')}
         </button>
-        {savedCount !== null && (
-          <p role="status">{tScreen('bycScreen.savedToast', { count: savedCount })}</p>
-        )}
         <ProposalReview
           proposals={contextProposalsFromPreview(reviewPreview)}
           choices={choices}
@@ -243,6 +272,10 @@ export function BringContextImportPage({
             conflict: what => t('byc.review.conflict', { what }),
             acceptClean: t('byc.review.acceptClean'),
             save: n => t('byc.review.save', { count: n }),
+            acceptAllRules: count => t('byc.review.acceptAllRules', { count: String(count) }),
+            pendingRules: count => t(count === 1 ? 'byc.review.pendingRules.one' : 'byc.review.pendingRules', { count: String(count) }),
+            pendingRuleNote: t('byc.review.pendingRuleNote'),
+            constraintNotice: count => t(count === 1 ? 'byc.review.constraintNotice.one' : 'byc.review.constraintNotice', { count: String(count) }),
             summary: (accepted, flagged, discarded) => t('byc.review.summary', {
               accepted: String(accepted),
               flagged: String(flagged),
@@ -258,6 +291,18 @@ export function BringContextImportPage({
     <Screen className={styles.shell} data-persona-surface="importers" data-persona-byc="">
       <div className={styles.inboxCelebrate}>{paw.node}</div>
       {header}
+      {savedCount !== null && (
+        // Saving lands back here: say what happened, and where to see it.
+        <div className={styles.savedNote} role="status" data-persona-byc-saved="">
+          <UiIcon name="check" size={18} strokeWidth={2.4} />
+          <span className={styles.savedText}>{tScreen(savedCount === 1 ? 'bycScreen.savedToast.one' : 'bycScreen.savedToast', { count: savedCount })}</span>
+          {onOpenVault !== undefined && (
+            <button type="button" className={styles.savedLink} onClick={() => { onOpenVault() }}>
+              {tScreen('bycScreen.savedOpen')}
+            </button>
+          )}
+        </div>
+      )}
       <div className={styles.layout}>
         <div className={styles.column}>
           <CopyPrompt
@@ -275,6 +320,7 @@ export function BringContextImportPage({
               const id = `paste-${crypto.randomUUID()}`
               setPasted(prev => [...prev, { id, source: provider, text: trimmed }])
               setPaste('')
+              setSavedCount(null)
             }}
             pasted={pastedChips}
             onRemove={(id) => { setPasted(prev => prev.filter(row => row.id !== id)) }}

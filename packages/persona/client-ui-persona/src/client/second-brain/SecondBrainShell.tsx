@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { BrainGrantView, BrainHomeView, BrainKindView, BrainPageView, ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
-import { getBrainPageRemote, listBrainVersionsRemote, putBrainPageRemote } from '../data/brain-remote.ts'
+import { canRestoreBrainPage, getBrainPageRemote, listBrainVersionsRemote, putBrainPageRemote, restoreBrainPageRemote } from '../data/brain-remote.ts'
 import type { MainPanelId } from '../shell/create-shell-store.ts'
+import { NewPageDialog } from './NewPageDialog.tsx'
 import { SecondBrainHome, type SecondBrainSurfaceState } from './SecondBrainHome.tsx'
 import { SecondBrainKindListView } from './SecondBrainKindListView.tsx'
 import { SecondBrainPageView } from './SecondBrainPageView.tsx'
 import { SecondBrainPermissionsView } from './SecondBrainPermissionsView.tsx'
-import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as brainDict } from '../locale/second-brain/locales.ts'
 
 type BrainRoute =
@@ -24,6 +24,10 @@ export interface SecondBrainShellProps {
   readonly pages: readonly BrainPageView[]
   readonly grants: readonly BrainGrantView[]
   readonly personaNames: Readonly<Record<string, string>>
+  /** `person:<memberId>` → name; the viewer reads "Você". */
+  readonly memberNames?: Readonly<Record<string, string>>
+  /** Persona id → animal portrait (the one she was hired with). */
+  readonly personaAvatars?: Readonly<Record<string, string>>
   readonly surfaceState: SecondBrainSurfaceState
   readonly onRemoteRetry?: () => void
   readonly onRevokeGrant?: (grantId: string) => void
@@ -39,6 +43,8 @@ export function SecondBrainShell({
   pages,
   grants,
   personaNames,
+  memberNames = {},
+  personaAvatars = {},
   surfaceState,
   onRemoteRetry,
   onRevokeGrant,
@@ -48,6 +54,7 @@ export function SecondBrainShell({
   const [route, setRoute] = useState<BrainRoute>({ kind: 'home' })
   const [pageDetail, setPageDetail] = useState<BrainPageView | null>(null)
   const [pageVersions, setPageVersions] = useState<Awaited<ReturnType<typeof listBrainVersionsRemote>>>([])
+  const [newPageOpen, setNewPageOpen] = useState(false)
 
   const openPage = useCallback(async (pageId: string) => {
     if (scope === null) return
@@ -74,21 +81,26 @@ export function SecondBrainShell({
     }
   }, [pages, persona, scope])
 
-  const writePage = useCallback(async () => {
+  /** Creates the page the person described (any type), then opens it to be written. */
+  const createPage = useCallback(async (title: string, kind: BrainKindView) => {
     if (scope === null) return
-    const title = window.prompt(bindLocale(brainDict, 'page.writePrompt'))
-    if (title === null || title.trim() === '') return
+    const id = `page-${crypto.randomUUID()}`
     await putBrainPageRemote(persona, {
       workspaceId: scope.workspaceId,
       projectId: scope.projectId,
-      id: `page-${crypto.randomUUID()}`,
-      kind: 'company',
-      title: title.trim(),
+      id,
+      kind,
+      title,
       body: '',
       editorKind: 'person',
       editorId: actorId,
     })
+    setNewPageOpen(false)
     onReload?.()
+    const page = await getBrainPageRemote(persona, scope, id)
+    setPageDetail(page)
+    setPageVersions(await listBrainVersionsRemote(persona, scope, id).catch(() => []))
+    setRoute({ kind: 'page', pageId: id })
   }, [actorId, onReload, persona, scope])
 
   const contradictionIds = useMemo(
@@ -111,13 +123,24 @@ export function SecondBrainShell({
     onReload?.()
     const refreshed = await getBrainPageRemote(persona, scope, pageDetail.id)
     setPageDetail(refreshed)
+    // The history must show the new version right away (not only after reopening the page).
+    setPageVersions(await listBrainVersionsRemote(persona, scope, pageDetail.id).catch(() => []))
   }, [actorId, onReload, pageDetail, persona, scope])
+
+  const restoreVersion = useCallback(async (revision: number) => {
+    if (scope === null || pageDetail === null) return
+    const restored = await restoreBrainPageRemote(persona, scope, pageDetail.id, revision)
+    onReload?.()
+    setPageDetail(restored)
+    setPageVersions(await listBrainVersionsRemote(persona, scope, pageDetail.id).catch(() => []))
+  }, [onReload, pageDetail, persona, scope])
 
   if (route.kind === 'permissions') {
     return (
       <SecondBrainPermissionsView
         grants={grants}
         personaNames={personaNames}
+        personaAvatars={personaAvatars}
         onBack={() => { setRoute({ kind: 'home' }) }}
         {...(onRevokeGrant === undefined ? {} : { onRevokeGrant })}
       />
@@ -130,6 +153,7 @@ export function SecondBrainShell({
         kind={route.brainKind}
         pages={pages}
         personaNames={personaNames}
+        memberNames={memberNames}
         contradictionIds={contradictionIds}
         onBack={() => { setRoute({ kind: 'home' }) }}
         onOpenPage={(pageId) => { void openPage(pageId) }}
@@ -137,7 +161,8 @@ export function SecondBrainShell({
     )
   }
   if (route.kind === 'page' && pageDetail !== null) {
-    const backlinks = pages.filter(row => pageDetail.links.includes(row.slug) || pageDetail.links.includes(row.id))
+    // "Citada em": the pages that link TO this one (their outgoing links name its slug or id) — never this page's own links.
+    const backlinks = pages.filter(row => row.id !== pageDetail.id && (row.links.includes(pageDetail.slug) || row.links.includes(pageDetail.id)))
     return (
       <SecondBrainPageView
         page={pageDetail}
@@ -146,25 +171,35 @@ export function SecondBrainShell({
         onBack={() => { setRoute({ kind: 'home' }) }}
         onOpenPage={(pageId) => { void openPage(pageId) }}
         onSaveBody={(body) => { void savePageBody(body) }}
+        personaNames={personaNames}
+        memberNames={memberNames}
+        {...(canRestoreBrainPage(persona) ? { onRestoreVersion: (revision: number) => { void restoreVersion(revision) } } : {})}
       />
     )
   }
 
   return (
-    <SecondBrainHome
-      home={home}
-      pages={pages}
-      personaNames={personaNames}
-      initialState={surfaceState}
-      {...(onRemoteRetry === undefined ? {} : { onRemoteRetry })}
-      {...(onRevokeGrant === undefined ? {} : { onRevokeGrant })}
-      onOpenPermissions={() => { setRoute({ kind: 'permissions' }) }}
-      onOpenKind={(brainKind) => { setRoute({ kind: 'type', brainKind }) }}
-      onOpenPage={(pageId) => { void openPage(pageId) }}
-      {...(selectMainPanel === undefined
-        ? {}
-        : { onBringContext: () => { selectMainPanel('importers') } })}
-      onWritePage={() => { void writePage() }}
-    />
+    <>
+      <SecondBrainHome
+        home={home}
+        pages={pages}
+        personaNames={personaNames}
+        memberNames={memberNames}
+        personaAvatars={personaAvatars}
+        initialState={surfaceState}
+        {...(onRemoteRetry === undefined ? {} : { onRemoteRetry })}
+        {...(onRevokeGrant === undefined ? {} : { onRevokeGrant })}
+        onOpenPermissions={() => { setRoute({ kind: 'permissions' }) }}
+        onOpenKind={(brainKind) => { setRoute({ kind: 'type', brainKind }) }}
+        onOpenPage={(pageId) => { void openPage(pageId) }}
+        {...(selectMainPanel === undefined
+          ? {}
+          : { onBringContext: () => { selectMainPanel('importers') } })}
+        {...(scope === null ? {} : { onWritePage: () => { setNewPageOpen(true) } })}
+      />
+      {newPageOpen && (
+        <NewPageDialog dict={brainDict} onClose={() => { setNewPageOpen(false) }} onCreate={createPage} />
+      )}
+    </>
   )
 }

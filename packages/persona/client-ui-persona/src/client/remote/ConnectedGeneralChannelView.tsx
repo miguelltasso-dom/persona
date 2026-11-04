@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { GeneralChannelView } from '../chat/GeneralChannelView.tsx'
 import { subjectDisplayName } from '../chat/SubjectBar.tsx'
 import { conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { useHostConversationSubjects } from '../chat/use-host-conversation-subjects.ts'
+import type { ComposerSlashActions } from '../chat/composer-slash-commands.ts'
 import type { TurnContextUi } from './turn-context-ui.ts'
 import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
 import type { ActivityGroupProps } from '../primitives/Pooled.tsx'
@@ -11,6 +12,7 @@ import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from './persona-live-store.ts'
 import type { EngineRemoteWire } from './engine-status.ts'
 import { ConnectedEngineBanner } from './ConnectedEngineBanner.tsx'
+import { useEngineLimits } from './use-engine-limits.ts'
 import { openBlockingCount } from '../decisions/decision-selectors.ts'
 
 export interface ConnectedChannelInjected {
@@ -68,14 +70,36 @@ export function ConnectedGeneralChannelView({
   const composerHints = live.channelComposerHints
   const ownerId = live.tenant?.channelId ?? null
   const subjectStreamKey = ownerId === null ? null : conversationStreamKey('channel', ownerId)
-  const subjects = useHostConversationSubjects(liveStore, subjectStreamKey, live.messages)
+  const subjects = useHostConversationSubjects(liveStore, subjectStreamKey, live.messages, {
+    defaultName: n => t('subjects.defaultName', { n }),
+  })
+  // IV-4: limites REAIS do motor para o /limites e a gaveta; lidos quando o painel abre ou o contexto chega.
+  const { limits: engineLimits, load: loadEngineLimits } = useEngineLimits(
+    engineRemote,
+    live.tenant === null ? null : { workspaceId: live.tenant.workspaceId, projectId: live.tenant.projectId },
+  )
+  const turnTicketId = live.turnContext?.ticketId
+  useEffect(() => {
+    if (turnTicketId !== undefined) loadEngineLimits()
+  }, [turnTicketId, loadEngineLimits])
+  // P0-27: o menu "/" só lista o que faz alguma coisa aqui. /ensinar, /lado e /resumo saem até terem ação neste canal.
+  const slashActions: ComposerSlashActions = {
+    assunto: (name) => { subjects.openSubjectByName(name) },
+    ...(onBuildTeam === undefined ? {} : { contratar: () => { onBuildTeam() } }),
+  }
   return (
     <GeneralChannelView
       t={t}
       shellT={shellT}
+      slashActions={slashActions}
+      engineLimits={engineLimits}
+      onOpenLimits={loadEngineLimits}
+      onRetrySend={(messageId) => { void liveStore.retryFailedSend?.(messageId) }}
       members={live.stripMembers}
+      loading={!live.ready}
       team={live.team}
-      messages={subjects.filteredMessages}
+      // P0-30: as mensagens que o host não recebeu ficam no fim do fio, marcadas "Não enviado".
+      messages={[...subjects.filteredMessages, ...(live.failedSends ?? []).filter(row => row.streamKind === 'channel').map(row => row.message)]}
       subjectBar={{
         subjects: subjects.subjects,
         activeSubjectId: subjects.activeSubjectId,

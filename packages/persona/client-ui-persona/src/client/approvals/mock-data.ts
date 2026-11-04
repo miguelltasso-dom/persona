@@ -16,6 +16,22 @@ export interface ApprovalItem {
   readonly contextBody?: string
   /** One-line "why" from the host for a hire (UX-02). */
   readonly hireWhy?: string
+  /** Role the proposed persona fills (spec.title); the card title reads "Contratar uma persona para {role}?" (A-4). */
+  readonly hireRoleTitle?: string
+  /** What the proposed persona does (spec.description): the card's intro line, never labelled as a motive. */
+  readonly hireDescription?: string
+  /** Average tasks per month, ONLY when the host measured it; absent = no line (never a guess). */
+  readonly hireMonthlyTasks?: number
+  /** `low` = may go in the batch "Aprovar de risco baixo"; anything else (hire, spend, access) never does. */
+  readonly risk?: 'low' | 'normal'
+  /** ISO moment the host created the card (rendered with `formatWhen`); absent = no time shown. */
+  readonly createdAt?: string
+  /** Cofre update (A-4b): which record changes, and before → after in the host's own words. All optional. */
+  readonly vaultField?: string
+  readonly vaultBefore?: string
+  readonly vaultAfter?: string
+  /** Title of the card this one waits on, ONLY when the host names a real dependency: the primary stays off and says so. */
+  readonly dependsOnTitle?: string
   /** Lifecycle of the shared Decision (DECISIONS-SPEC). Present = the card is driven by the live store, not by local state. */
   readonly decisionState?: DecisionState
   /** When set, accept can call `grantBrainPermission` (Segundo cérebro). */

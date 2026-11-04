@@ -246,7 +246,7 @@
 
 .slashHint {
   margin-left: auto;
-  font-size: var(--persona-text-xs);
+  font-size: 12px;
   color: var(--persona-ink-muted);
 }
 
@@ -269,13 +269,13 @@
 .limitsTitle {
   flex: 1;
   margin: 0;
-  font-size: var(--persona-text-md);
+  font-size: 16px;
   font-weight: 600;
 }
 
 .limitsHint {
   margin: var(--persona-space-2) 0 0;
-  font-size: var(--persona-text-xs);
+  font-size: 12px;
   color: var(--persona-ink-muted);
 }
 
@@ -293,7 +293,7 @@
   border: none;
   background: none;
   font: inherit;
-  font-size: var(--persona-text-sm);
+  font-size: 14px;
   font-weight: 600;
   color: var(--persona-brand);
   text-decoration: underline;
@@ -331,7 +331,7 @@
 .whoRespondsBalloon {
   position: absolute;
   bottom: calc(100% + 12px);
-  left: 0;
+  left: var(--who-responds-shift, 0px);
   z-index: 40;
   min-width: 260px;
   max-width: 320px;
@@ -444,4 +444,13 @@
   .send:active:not(:disabled) {
     transform: none;
   }
+}
+
+/* P0-17: o texto da colagem grande aberto no Modal: quebra por linha e por palavra, nunca rola de lado. */
+.pastedPreview {
+  margin: 0;
+  font: 500 13px/20px var(--persona-font-mono);
+  color: var(--persona-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

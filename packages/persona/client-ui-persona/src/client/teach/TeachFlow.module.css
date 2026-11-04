@@ -99,6 +99,12 @@
   overflow-y: auto;
 }
 
+/* In a small window (or at 200% zoom) the card must keep its size and the page scrolls; if it shrank to fit, its title and
+   buttons would be clipped away and unreachable. */
+.doneWrap > * {
+  flex-shrink: 0;
+}
+
 .doneActions {
   display: flex;
   flex-wrap: wrap;
@@ -200,6 +206,26 @@
   border-radius: var(--persona-radius-s);
   background: var(--persona-wash-strong);
   color: var(--persona-brand);
+}
+
+/* 16:10 preview of the screen/window when the desktop sends one. */
+.sourceThumb {
+  flex-shrink: 0;
+  width: 96px;
+  height: 60px;
+  object-fit: cover;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-paper-sunken);
+}
+
+/* Beside a disabled primary button: why it is disabled, in one short line. */
+.footHint {
+  flex: 1 1 100%;
+  margin: 0;
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  text-align: right;
 }
 
 .sourceNote {

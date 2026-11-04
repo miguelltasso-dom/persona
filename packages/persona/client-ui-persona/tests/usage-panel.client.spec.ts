@@ -17,6 +17,19 @@ describe('usagePanelToUi (OPT-7)', () => {
     expect(ui.byPersona[0]?.cacheHitPct).toBe(50)
   })
 
+  it('shows the persona by name, not by the id the ledger keys on (Gauge: "onb-1 · 1112 tokens")', () => {
+    const view: UsagePanelView = {
+      origin: 'measured',
+      tokensPerSuccessfulTask: 10,
+      cacheHitRate: 0,
+      byPersona: [{ key: 'onb-1', tokens: 1112, calls: 2, cacheHitRate: 0 }, { key: 'sem-cadastro', tokens: 5, calls: 1, cacheHitRate: 0 }],
+      byKind: [],
+    }
+    const ui = usagePanelToUi(view, { 'onb-1': 'Nina' })
+    expect(ui.byPersona.map(row => row.key)).toEqual(['Nina', 'sem-cadastro'])
+    expect(usagePanelToUi(view).byPersona[0]?.key).toBe('onb-1')
+  })
+
   it('empty estimate origin', () => {
     const ui = usagePanelToUi({
       origin: 'estimate',

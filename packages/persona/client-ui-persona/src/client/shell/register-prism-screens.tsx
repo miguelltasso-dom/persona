@@ -31,6 +31,7 @@ import { RULES_NS } from '../locale/rules/locales.ts'
 import { ConnectedGeneralChannelView } from '../remote/ConnectedGeneralChannelView.tsx'
 import { ConnectedApprovalsPanel } from '../remote/ConnectedApprovalsPanel.tsx'
 import { ConnectedOverviewView } from '../remote/ConnectedOverviewView.tsx'
+import { AboutSettingsPanel } from './AboutSettingsPanel.tsx'
 import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge.ts'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
 import { HIRE_PERSONA_PROFILE_ID, type MainPanelId, type ShellStoreHandle } from './create-shell-store.ts'
@@ -267,6 +268,11 @@ export function registerPrismScreens(
       openTeachPersona: (personaId: string) => { shellHandle.actions.openTeachPersona(personaId) },
       engineRemote: ctx.remote.persona,
       onOpenConnections: () => { shellHandle.actions.selectPanel('connections') },
+      // `/contratar` na DM abre o mesmo fluxo do #geral.
+      onBuildTeam: () => {
+        shellHandle.actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)
+        shellHandle.actions.selectPanel('profile')
+      },
     }),
   }, ConnectedDirectMessagesView)
 
@@ -282,6 +288,8 @@ export function registerPrismScreens(
       ...(live.undoDecision === undefined ? {} : { undoDecision: (decisionId: string) => live.undoDecision!(decisionId) }),
       refreshLive: () => { void live.refresh() },
       clearApprovalFocus: () => { shellHandle.actions.clearFocusedApproval() },
+      // The empty inbox's way out: "Ver o que a equipe está fazendo".
+      openOverview: () => { shellHandle.actions.selectPanel('overview') },
     }),
   }, ConnectedApprovalsPanel)
   ctx.slots.register({ name: 'main', key: 'rules', locale: RULES_NS, inject: remoteInject }, RemoteRulesPanel)
@@ -311,6 +319,7 @@ export function registerPrismScreens(
     }),
   }, RemoteProfilePanel)
   ctx.slots.register({ name: 'main', key: 'members', locale: MEMBERS_NS, inject: remoteInject }, RemoteMembersPanel)
+  ctx.slots.register({ name: 'main', key: 'about', locale: SHELL_NS }, AboutSettingsPanel)
   ctx.slots.register({ name: 'main', key: 'importers', locale: IMPORTERS_NS, inject: remoteInject }, RemoteImportPanel)
   ctx.slots.register({ name: 'main', key: 'canvas', locale: CANVAS_NS, inject: remoteInject }, RemoteCanvasPanel)
   ctx.slots.register({ name: 'main', key: 'secondBrain', locale: SECOND_BRAIN_NS, inject: remoteInject }, RemoteSecondBrainPanel)

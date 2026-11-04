@@ -57,18 +57,26 @@ export function contextProposalsFromPreview(preview: BringContextPreview): Conte
   return preview.proposals.map(row => contextProposalFromRow(row))
 }
 
+/** Where a proposal came from, in words: the host's `vault: <file>` is the person's own notes folder → "de <file>". */
+export function provenanceLabel(raw: string, fromFile: (file: string) => string = file => `de ${file}`): string {
+  const match = /^vault:\s*(.+)$/u.exec(raw.trim())
+  return match === null ? raw : fromFile(match[1]!.trim())
+}
+
 function contextProposalFromRow(row: BringContextProposal): ContextProposal {
-  const conflict = row.conflictQuestion.trim() !== ''
+  const asksQuestion = row.conflictQuestion.trim() !== ''
+  const conflict = asksQuestion
     ? row.conflictQuestion
     : (row.duplicateOf.trim() !== '' ? row.duplicateOf : undefined)
   return {
     id: row.id,
     kind: row.kind,
     text: row.body,
-    provenance: row.provenance,
+    provenance: provenanceLabel(row.provenance),
     uncertain: row.uncertain,
     sensitive: row.sensitive && row.sensitiveWhy.trim() !== '' ? row.sensitiveWhy : undefined,
     conflict,
+    ...(conflict === undefined ? {} : { conflictKind: asksQuestion ? 'question' as const : 'duplicate' as const }),
   }
 }
 
@@ -97,7 +105,8 @@ export function choicesToApplyItems(
   for (const row of preview.proposals) {
     const ui = contextProposalFromRow(row)
     const choice = choices[row.id] ?? defaultChoice(ui)
-    if (choice.decision === 'discard') {
+    // `pending` (a rule nobody chose) is written as nothing: said out loud to the host, not left to its default.
+    if (choice.decision === 'discard' || choice.decision === 'pending') {
       items.push({ id: row.id, action: 'discard' })
       continue
     }

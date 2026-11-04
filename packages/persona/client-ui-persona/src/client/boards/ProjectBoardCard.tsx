@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
-import { Avatar, Card, CategoryBar, Chip, FlowIcon, IconButton, UiIcon } from '../primitives/index.ts'
+import { personaPortraitSrc } from '../approvals/approvals-ui-helpers.ts'
+import { Avatar, Button, Card, CategoryBar, Chip, FlowIcon, IconButton, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { workStateOverlay } from '../team/persona-work-state.ts'
@@ -12,19 +13,27 @@ export interface ProjectBoardCardProps {
   readonly dict: LocaleDict
   readonly summary: ProjectBoardSummary
   readonly onOpen: (projectId: string) => void
+  /** "Criar a primeira tarefa" on an empty board. Without it the button opens the board. */
+  readonly onCreateFirstTask?: ((projectId: string) => void) | undefined
 }
 
 /** Single project tile on the Quadros grid. */
-export function ProjectBoardCard({ dict, summary, onOpen }: ProjectBoardCardProps): ReactNode {
+export function ProjectBoardCard({ dict, summary, onOpen, onCreateFirstTask }: ProjectBoardCardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const menuId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const workers = summary.activeWorkers.slice(0, 4)
   const extraWorkers = summary.activeWorkers.length - workers.length
+  const names = workers.map(worker => worker.name).join(', ')
   const workingNowLabel = workers.length === 0
     ? undefined
-    : `${t('boards.workingNow')}: ${workers.map(worker => worker.name).join(', ')}${extraWorkers > 0 ? ` +${extraWorkers}` : ''}`
+    : t(summary.activeWorkers.length === 1 ? 'boards.workingNow.one' : 'boards.workingNow.many', {
+      names: `${names}${extraWorkers > 0 ? ` +${extraWorkers}` : ''}`,
+    })
+  // Visible words for the bar ("3 de 8 prontas"): colour and length are never the only cue.
+  const total = Object.values(summary.counts).reduce((sum, count) => sum + count, 0)
+  const progressText = t(total === 1 ? 'boards.progress.one' : 'boards.progress', { done: summary.counts.done, total })
 
   return (
     <Card
@@ -83,19 +92,43 @@ export function ProjectBoardCard({ dict, summary, onOpen }: ProjectBoardCardProp
           <Chip tone="brand" size="s">{summary.sprintLabel}</Chip>
         )}
       </div>
-      <CategoryBar {...hubCategoryBarProps(dict, summary.counts)} />
+      {total === 0 ? (
+        <div
+          className={styles.emptyBoard}
+          onClick={(event) => { event.stopPropagation() }}
+          onKeyDown={(event) => { event.stopPropagation() }}
+        >
+          <p className={styles.emptyBoardText}>{t('boards.emptyBoard')}</p>
+          <Button
+            variant="secondary"
+            size="s"
+            icon={<UiIcon name="plus" size={16} strokeWidth={2.2} />}
+            onClick={() => { (onCreateFirstTask ?? onOpen)(summary.id) }}
+          >
+            {t('boards.createFirstTask')}
+          </Button>
+        </div>
+      ) : (
+        <div className={styles.progressBlock}>
+          <p className={styles.progressText}>{progressText}</p>
+          <CategoryBar {...hubCategoryBarProps(dict, summary.counts)} progress={{ done: summary.counts.done, total, text: progressText }} />
+        </div>
+      )}
       <div className={styles.projectFooter}>
         {workingNowLabel !== undefined && (
-          <div className={styles.workerStack} role="group" aria-label={workingNowLabel}>
-            {workers.map((worker, index) => (
-              <span key={worker.name} className={styles.workerAvatar} style={{ zIndex: workers.length - index }}>
-                <Avatar name={worker.name} size={24} shape="portrait" decorative />
-                <span className={styles.workerBadge} data-overlay={workStateOverlay(worker.state)} aria-hidden="true" />
-              </span>
-            ))}
-            {extraWorkers > 0 && (
-              <span className={styles.workerMore} aria-hidden="true">+{extraWorkers}</span>
-            )}
+          <div className={styles.workingNow}>
+            <span className={styles.workerStack} aria-hidden="true">
+              {workers.map((worker, index) => {
+                const portrait = worker.avatarSrc ?? personaPortraitSrc(undefined, worker.name)
+                return (
+                  <span key={worker.name} className={styles.workerAvatar} style={{ zIndex: workers.length - index }}>
+                    <Avatar name={worker.name} size={24} shape="portrait" decorative {...(portrait === undefined ? {} : { src: portrait })} />
+                    <span className={styles.workerBadge} data-overlay={workStateOverlay(worker.state)} />
+                  </span>
+                )
+              })}
+            </span>
+            <span className={styles.workingNowText}>{workingNowLabel}</span>
           </div>
         )}
         {summary.needsYouCount > 0 && (

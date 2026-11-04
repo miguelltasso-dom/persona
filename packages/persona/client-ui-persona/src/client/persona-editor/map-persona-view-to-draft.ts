@@ -12,8 +12,17 @@ export function personaViewToDraft(
     : view.avatarKind === 'silhouette'
       ? 'silhouette'
       : 'gallery'
+  // O host não manda personalidade, instruções nem habilidades: o rascunho de exemplo (Luna) nunca vale para uma
+  // persona real. O bicho vem do host; sem ele, nada (o editor mostra a silhueta, não o gato da Luna).
+  const { avatarRef: _exampleAvatar, personality: _p, instructions: _i, skills: _s, ...base } = MOCK_PERSONA_DRAFT
+  void _exampleAvatar; void _p; void _i; void _s
+  const galleryRef = avatarSource === 'gallery' && view.avatarRef.trim() !== '' ? view.avatarRef.trim().toLowerCase() : undefined
   return {
-    ...MOCK_PERSONA_DRAFT,
+    ...base,
+    personality: '',
+    instructions: '',
+    skills: '',
+    ...(galleryRef === undefined ? {} : { avatarRef: galleryRef }),
     name: view.name,
     avatarSource,
     jobTitle: view.title,

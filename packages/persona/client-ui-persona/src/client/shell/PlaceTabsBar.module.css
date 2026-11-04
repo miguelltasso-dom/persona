@@ -1,0 +1,17 @@
+/* Abas do lugar: ficam acima da tela, no mesmo respiro lateral das telas. Rolam na horizontal se a janela for estreita. */
+.bar {
+  flex: 0 0 auto;
+  padding: var(--persona-space-4) var(--persona-space-6) 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.bar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .bar {
+    padding-inline: var(--persona-space-4);
+  }
+}

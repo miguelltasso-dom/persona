@@ -243,5 +243,8 @@
   "teach.discardConfirm.keep": "Back to review",
   "teach.discardConfirm.confirm": "Discard",
   "teach.region": "Teach the persona",
-  "teach.review.whatIsSkill": "A skill is what {name} knows how to do, step by step."
+  "teach.review.whatIsSkill": "A skill is what {name} knows how to do, step by step.",
+  "teach.needsDesktopShort": "Only works in the installed app.",
+  "teach.sourcePickHint": "Choose a screen or window to continue.",
+  "teach.share.confirmHint": "Tick that you understand to continue."
 }

@@ -46,3 +46,36 @@
   gap: var(--persona-space-2);
   margin-top: var(--persona-space-3);
 }
+
+.editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  padding: var(--persona-space-3);
+  border: var(--persona-border-width, 1.5px) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m, 14px);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  font: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.editor:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.confirm {
+  margin: var(--persona-space-2) 0 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.failed {
+  margin: var(--persona-space-2) 0 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-danger-ink, var(--persona-ink));
+}

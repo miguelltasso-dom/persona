@@ -3,14 +3,16 @@ import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import { unwrapRemote } from '../data/remote-call.ts'
 import type { GovernanceFixKind, OrgChartGroupBy, OrgChartView, TeamHealthView, TwoDayTestView } from './governance-contract.ts'
 import { readOrgChartScaleSeed } from './org-scale-dev.ts'
-import { mockLargeOrgChart, mockOrgChart, mockTeamHealth, mockTwoDayTest } from './mock-governance.ts'
+import { mockLargeOrgChart } from './mock-governance.ts'
 
-function mockOrgChartForWorkspace(workspaceId: string, groupBy: OrgChartGroupBy): OrgChartView {
-  const scale = readOrgChartScaleSeed()
-  if (scale !== null) return mockLargeOrgChart(workspaceId, groupBy, scale)
-  return mockOrgChart(workspaceId, groupBy)
-}
-
+/**
+ * The host's organogram. A host that cannot answer is an error the screen shows ("Tentar de novo"), never a sample
+ * organogram dressed up as the team's own (IV-8). Only the dev scale seed (gallery) draws a made-up chart.
+ * @param client - Remote client.
+ * @param workspaceId - Workspace to read.
+ * @param groupBy - By person or by sector.
+ * @returns The organogram. Rejects when the host has no `getOrgChart` or it fails.
+ */
 export async function fetchOrgChart(
   client: PersonaRemoteClient,
   workspaceId: string,
@@ -19,41 +21,43 @@ export async function fetchOrgChart(
   const scaleSeed = readOrgChartScaleSeed()
   if (scaleSeed !== null) return mockLargeOrgChart(workspaceId, groupBy, scaleSeed)
   if (!('getOrgChart' in client) || typeof client.getOrgChart !== 'function') {
-    return mockOrgChartForWorkspace(workspaceId, groupBy)
+    throw new Error('org-chart-unavailable')
   }
-  try {
-    return await unwrapRemote(
-      await client.getOrgChart({ workspaceId, groupBy }) as RemoteResult<OrgChartView>,
-    )
-  } catch {
-    return mockOrgChartForWorkspace(workspaceId, groupBy)
-  }
+  return await unwrapRemote(
+    await client.getOrgChart({ workspaceId, groupBy }) as RemoteResult<OrgChartView>,
+  )
 }
 
+/**
+ * The host's team health. Like the organogram (IV-8), a host that cannot answer is an error the screen shows with
+ * "Tentar de novo", never a sample team's health score (IV-8b).
+ * @param client - Remote client.
+ * @param workspaceId - Workspace to read.
+ * @returns The health read. Rejects when the host has no `getTeamHealth` or it fails.
+ */
 export async function fetchTeamHealth(client: PersonaRemoteClient, workspaceId: string): Promise<TeamHealthView> {
   if (!('getTeamHealth' in client) || typeof client.getTeamHealth !== 'function') {
-    return mockTeamHealth(workspaceId)
+    throw new Error('team-health-unavailable')
   }
-  try {
-    return await unwrapRemote(
-      await client.getTeamHealth({ workspaceId }) as RemoteResult<TeamHealthView>,
-    )
-  } catch {
-    return mockTeamHealth(workspaceId)
-  }
+  return await unwrapRemote(
+    await client.getTeamHealth({ workspaceId }) as RemoteResult<TeamHealthView>,
+  )
 }
 
+/**
+ * The host's "Teste dos 2 dias". Rejects when the host has no `runTwoDayTest` or it fails (IV-8b): the caller may draw
+ * the same test from the live roster, but never from a sample.
+ * @param client - Remote client.
+ * @param workspaceId - Workspace to read.
+ * @returns The simulated test result from the host.
+ */
 export async function fetchTwoDayTest(client: PersonaRemoteClient, workspaceId: string): Promise<TwoDayTestView> {
   if (!('runTwoDayTest' in client) || typeof client.runTwoDayTest !== 'function') {
-    return mockTwoDayTest(workspaceId)
+    throw new Error('two-day-unavailable')
   }
-  try {
-    return await unwrapRemote(
-      await client.runTwoDayTest({ workspaceId }) as RemoteResult<TwoDayTestView>,
-    )
-  } catch {
-    return mockTwoDayTest(workspaceId)
-  }
+  return await unwrapRemote(
+    await client.runTwoDayTest({ workspaceId }) as RemoteResult<TwoDayTestView>,
+  )
 }
 
 export async function applyGovernanceFix(

@@ -9,6 +9,8 @@ export interface TeachSource {
   readonly id: string
   readonly name: string
   readonly kind: 'screen' | 'window'
+  /** Preview of the screen/window as a `data:image/` URL, when the desktop sends one (WAVE2-SPEC b.3: 16:10 thumbnails). */
+  readonly thumbnail?: string
 }
 
 /** A key frame as the host draft builder wants it. */
@@ -56,9 +58,11 @@ export function parseTeachSources(raw: unknown): readonly TeachSource[] {
   const out: TeachSource[] = []
   for (const row of list) {
     if (!isRecord(row)) continue
-    const { id, name, kind } = row
+    const { id, name, kind, thumbnail } = row
     if (typeof id !== 'string' || id === '' || typeof name !== 'string') continue
-    out.push({ id, name, kind: kind === 'window' ? 'window' : 'screen' })
+    // Only an inline image is shown: a file path or a remote URL would be unreadable (or a request out of the computer).
+    const preview = typeof thumbnail === 'string' && /^data:image\/(?:png|jpeg|webp);base64,/u.test(thumbnail) ? thumbnail : undefined
+    out.push({ id, name, kind: kind === 'window' ? 'window' : 'screen', ...(preview === undefined ? {} : { thumbnail: preview }) })
   }
   return out
 }

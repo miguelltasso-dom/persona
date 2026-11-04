@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { InviteView, RemoteTeamState } from '@deepseek-ai/dsh-persona-host/types'
 import { ConnectedRemoteTeamPanel } from '../src/client/remote-team/ConnectedRemoteTeamPanel.tsx'
@@ -88,7 +88,8 @@ describe('ConnectedRemoteTeamPanel (E13: convidar → aceitar → ver o canal)',
     mount(remote)
     await screen.findByText('Não conectada')
     fireEvent.change(screen.getAllByLabelText('Endereço da equipe')[0]!, { target: { value: 'http://127.0.0.1:8791' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: '#geral' }))
+    // #geral já vem marcado
+    expect((screen.getByRole('checkbox', { name: '#geral' }) as HTMLInputElement).checked).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Conectar' }))
     await screen.findByText('Conectada')
     expect(remote.connectRemoteTeam).toHaveBeenCalledWith({ ...SCOPE, edgeUrl: 'http://127.0.0.1:8791', channelIds: ['geral'] })
@@ -100,7 +101,7 @@ describe('ConnectedRemoteTeamPanel (E13: convidar → aceitar → ver o canal)',
     const { remote } = fakeHost({ state: connected() })
     mount(remote)
     await screen.findByText('Conectada')
-    fireEvent.click(screen.getByRole('button', { name: 'Gerar convite' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Gerar convite' })[0]!)
     await screen.findByText('tok-do-edge-777')
     expect(remote.issueInvite).toHaveBeenCalledWith(expect.objectContaining({ ...SCOPE, role: 'member', token: '' }))
     // o código nunca vai para o armazenamento do navegador
@@ -127,14 +128,51 @@ describe('ConnectedRemoteTeamPanel (E13: convidar → aceitar → ver o canal)',
     expect(screen.queryByRole('button', { name: 'Gerar convite' })).toBeNull()
   })
 
-  it('revogar acesso chama o host com o convite aceito e relê o estado', async () => {
+  it('encerrar acesso pede confirmação, chama o host com o convite aceito e relê o estado', async () => {
     const { remote } = fakeHost({
       state: connected(),
       invites: [{ id: 'i-used', workspaceId: 'ws', token: '', status: 'used', expiresAt: 5 }],
     })
     mount(remote)
-    fireEvent.click(await screen.findByRole('button', { name: 'Revogar acesso' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Encerrar acesso' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Encerrar acesso' }))
     await waitFor(() => { expect(remote.revokeMember).toHaveBeenCalledWith({ ...SCOPE, inviteId: 'i-used' }) })
+  })
+
+  it('host com listRemoteMembers: mostra as pessoas com o nome do host, "Tudo em dia." do behindBy, e encerra pelo convite da pessoa', async () => {
+    const { remote } = fakeHost({
+      state: connected({ behindBy: 0, syncedAt: new Date(Date.now() - 2 * 60_000).toISOString() }),
+      invites: [{ id: 'i-bob', workspaceId: 'ws', token: '', status: 'used', expiresAt: 5 }],
+    })
+    const members = [
+      { actorId: 'a1', displayName: 'Alice', role: 'owner', status: 'active', joinedAt: '2026-11-01T10:00:00.000Z', inviteId: '' },
+      { actorId: 'b2', displayName: 'Bob', role: 'member', status: 'active', joinedAt: '2026-11-03T10:00:00.000Z', inviteId: 'i-bob' },
+    ]
+    const listRemoteMembers = vi.fn(() => Promise.resolve(ok(members)))
+    mount({ ...remote, listRemoteMembers })
+    await screen.findByText('Bob')
+    expect(listRemoteMembers).toHaveBeenCalledWith(SCOPE)
+    expect(screen.getByText('Tudo em dia.')).toBeTruthy()
+    expect(screen.getByText('Última troca há 2 min.')).toBeTruthy()
+    // o convite aceito é a própria pessoa: não duplica na lista de convites
+    expect(screen.queryByText('Aceito')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Encerrar acesso de Bob' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Encerrar o acesso de Bob?' })).getByRole('button', { name: 'Encerrar acesso' }))
+    await waitFor(() => { expect(remote.revokeMember).toHaveBeenCalledWith({ ...SCOPE, inviteId: 'i-bob' }) })
+  })
+
+  it('host sem listRemoteMembers (ou que falha): a lista de convites segue como era, sem erro na tela', async () => {
+    const { remote } = fakeHost({
+      state: connected(),
+      invites: [{ id: 'i-used', workspaceId: 'ws', token: '', status: 'used', expiresAt: 5 }],
+    })
+    mount(remote)
+    expect(await screen.findByText('Aceito')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Pessoas na equipe' })).toBeNull()
+    cleanup()
+    mount({ ...remote, listRemoteMembers: vi.fn(() => Promise.resolve(fail('forbidden', 'forbidden'))) })
+    expect(await screen.findByText('Aceito')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('o host recusa por Cofre indisponível: mensagem em português, sem o código, e a tela continua usável', async () => {
@@ -143,7 +181,6 @@ describe('ConnectedRemoteTeamPanel (E13: convidar → aceitar → ver o canal)',
     mount(remote)
     await screen.findByText('Não conectada')
     fireEvent.change(screen.getAllByLabelText('Endereço da equipe')[0]!, { target: { value: 'http://127.0.0.1:8791' } })
-    fireEvent.click(screen.getByRole('checkbox', { name: '#geral' }))
     fireEvent.click(screen.getByRole('button', { name: 'Conectar' }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('A equipe remota só funciona no app instalado.')
@@ -168,7 +205,8 @@ describe('ConnectedRemoteTeamPanel (E13: convidar → aceitar → ver o canal)',
     mount(remote)
     fireEvent.click(await screen.findByRole('button', { name: 'Sincronizar agora' }))
     await screen.findByText('Sem conexão')
-    expect(screen.getByText('O que você escrever fica guardado e sobe quando a conexão voltar.')).toBeTruthy()
+    expect(screen.getByText('As mensagens novas ficam guardadas e sobem quando a conexão voltar.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
   })
 
   it('acompanha o estado do host (revogado do outro lado aparece sozinho, sem recarregar)', async () => {

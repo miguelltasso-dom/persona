@@ -23,7 +23,7 @@
 }
 
 .switchLabel {
-  font: 700 14px/20px var(--persona-font-title, Fredoka, system-ui);
+  font: 700 14px/20px var(--persona-font-display);
   color: var(--persona-ink);
 }
 
@@ -65,7 +65,7 @@
   display: flex;
   align-items: center;
   gap: var(--persona-space-2);
-  font: 500 13px/18px var(--persona-font-body, Nunito, system-ui);
+  font: 500 13px/18px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 
@@ -88,4 +88,10 @@
 /* As 3 opções de prazo empilham em coluna (o popover é estreito). */
 .container [data-count] {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/* A-5: a linha do topo (estado da IA) fica separada do interruptor pela mesma divisória das opções de "Estou fora". */
+.header {
+  padding-bottom: var(--persona-space-3);
+  border-bottom: var(--persona-border-width) solid var(--persona-outline-soft);
 }

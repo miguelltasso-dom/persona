@@ -172,6 +172,28 @@
   white-space: nowrap;
 }
 
+/* Janela estreita ou zoom 200% (Muse, W2-3): o campo de nome do assunto novo ocupa a própria linha, embaixo das abas,
+   em vez de cobrir a barra e cortar o chip vizinho pela metade. */
+@media (max-width: 720px) {
+  .bar {
+    flex-wrap: wrap;
+    row-gap: var(--persona-space-1);
+  }
+
+  .rename {
+    order: 3;
+    flex: 1 1 100%;
+    width: 100%;
+    margin-bottom: 4px;
+  }
+
+  .renameField {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tab {
     transition: none;

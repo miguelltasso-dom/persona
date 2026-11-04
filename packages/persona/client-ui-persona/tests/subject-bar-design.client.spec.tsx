@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { SubjectBar } from '../src/client/chat/SubjectBar.tsx'
 import type { ConversationSubjectUi } from '../src/client/chat/conversation-subjects.ts'
 import { pt as chatPt } from '../src/client/locale/chat/locales.ts'
@@ -59,5 +61,14 @@ describe('SubjectBar (Muse, WAVE2-SPEC a)', () => {
     const seven = Array.from({ length: 7 }, (_, i) => ({ id: `s${i}`, name: `S${i}`, colorIndex: i as ConversationSubjectUi['colorIndex'], unreadCount: 0 }))
     render(<SubjectBar t={t as never} subjects={seven} activeSubjectId="s0" onSelect={() => undefined} onCreate={() => undefined} />)
     expect((screen.getByRole('button', { name: /Até 7 assuntos/u }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('Muse W2-3: abaixo de 720 px o campo de nome do assunto novo fica numa linha própria, embaixo das abas', () => {
+    const css = readFileSync(resolve(__dirname, '../src/client/chat/SubjectBar.module.css'), 'utf8')
+    const from = css.indexOf('@media (max-width: 720px)')
+    expect(from).toBeGreaterThan(-1)
+    const block = css.slice(from, css.indexOf('@media (prefers-reduced-motion', from))
+    expect(block).toMatch(/\.bar\s*\{[^}]*flex-wrap:\s*wrap/u)
+    expect(block).toMatch(/\.rename\s*\{[^}]*flex:\s*1 1 100%/u)
   })
 })

@@ -4,50 +4,70 @@
   gap: var(--persona-space-5);
 }
 
+/* Mode tabs on the left; zoom controls on the right (only in the map). Wraps instead of scrolling sideways. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
 .viewportCard {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
 }
 
-@media (max-width: 960px) {
-  .listTable {
-    min-width: 480px;
-  }
-}
-
+/* The map scrolls inside its own frame (zoomed in), never the page. */
 .viewport {
   position: relative;
   width: 100%;
   min-height: 18rem;
-  border: 1px solid var(--persona-outline-soft);
-  border-radius: var(--persona-radius-l, 0.75rem);
+  max-height: 60vh;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-l);
   background: var(--persona-wash);
-  overflow: hidden;
+  overflow: auto;
 }
 
+/* Zoom changes the drawn size (no transform, no animation), so the frame's scroll extent follows it. */
 .scene {
-  transform-origin: 0 0;
-  transition: transform var(--motion-base) var(--ease-standard);
+  display: block;
 }
 
 .edge {
-  stroke: var(--persona-outline);
+  stroke: var(--persona-outline-soft);
   stroke-width: 2;
   fill: none;
+  transition: stroke var(--motion-fast) var(--ease-standard);
+}
+
+/* The lines of the object in focus or under the pointer get stronger. */
+.edgeActive {
+  stroke: var(--persona-brand);
+  stroke-width: 3;
 }
 
 .graphHint {
-  margin: 0 0 var(--persona-space-2);
-  font-size: 0.8125rem;
+  margin: 0;
+  padding: var(--persona-space-3) var(--persona-space-4) var(--persona-space-2);
+  font: 600 13px/18px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 
 .selectionStatus {
-  margin: var(--persona-space-2) 0 0;
-  font-size: 0.8125rem;
-  color: var(--persona-ink-muted);
+  margin: 0;
+  padding: var(--persona-space-2) var(--persona-space-4) var(--persona-space-3);
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
 }
 
+/* ── Nodes: sticker cards (solid shadow, plum outline, a band in the colour of the kind) ── */
 .node {
   cursor: pointer;
 }
@@ -56,32 +76,83 @@
   outline: none;
 }
 
-.node:focus-visible .nodeCircle {
-  stroke: var(--persona-accent);
+.nodeShadow {
+  fill: var(--persona-outline);
+  opacity: 0.16;
+}
+
+.nodeCard {
+  fill: var(--persona-card);
+  stroke: var(--persona-outline);
+  stroke-width: 1.5;
+}
+
+/* The badge carries the kind: a tint of the kind's colour + its icon (and the kind written under the name). */
+.nodeBadge {
+  fill: var(--persona-wash-strong);
+  stroke: var(--persona-outline);
+  stroke-width: 1.5;
+}
+
+.node[data-kind='task'] .nodeBadge {
+  fill: var(--persona-cat-doing-tint);
+}
+
+.node[data-kind='topic'] .nodeBadge {
+  fill: var(--persona-cat-review-tint);
+}
+
+.node[data-kind='decision'] .nodeBadge {
+  fill: var(--persona-cat-needs-you-tint);
+}
+
+.nodeIcon {
+  fill: none;
+  stroke: var(--persona-ink);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  overflow: visible;
+}
+
+.nodeInitial {
+  font-family: var(--persona-font-display);
+  font-size: 16px;
+  font-weight: 700;
+  fill: var(--persona-ink);
+}
+
+.node:hover .nodeCard {
+  fill: var(--persona-wash);
+}
+
+.nodeSelected .nodeCard {
+  fill: var(--persona-wash);
+  stroke-width: 2.5;
+}
+
+.node:focus-visible .nodeCard {
+  stroke: var(--persona-ink);
   stroke-width: 3;
 }
 
-.nodeSelected .nodeCircle {
-  fill: color-mix(in srgb, var(--persona-accent) 18%, var(--persona-outline));
-}
-
-.nodeCircle {
-  fill: var(--persona-outline);
-  stroke: var(--persona-brand);
-  stroke-width: 2;
-}
-
 .nodeLabel {
-  font-size: 0.75rem;
+  font-family: var(--persona-font-text);
+  font-size: 15px;
+  font-weight: 700;
   fill: var(--persona-ink);
-  font-weight: 600;
 }
 
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--persona-space-2);
-  margin-bottom: var(--persona-space-3);
+.nodeKind {
+  font-family: var(--persona-font-text);
+  font-size: 12px;
+  font-weight: 700;
+  fill: var(--persona-ink-soft);
+}
+
+/* ── List: Tipo · Nome · Ligado a · Quem ── */
+.listScroll {
+  overflow-x: auto;
 }
 
 .listTable {
@@ -89,11 +160,33 @@
   border-collapse: collapse;
 }
 
-.listTable th,
-.listTable td {
+.listTable th {
   text-align: left;
-  padding: var(--persona-space-2);
-  border-bottom: 1px solid var(--persona-wash);
+  padding: var(--persona-space-2) var(--persona-space-4);
+  border-bottom: var(--persona-border-width) solid var(--persona-outline-soft);
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.listTable td {
+  height: 48px;
+  padding: var(--persona-space-1) var(--persona-space-4);
+  border-bottom: 1px solid var(--persona-outline-soft);
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.nameCell {
+  font: 700 15px/22px var(--persona-font-text);
+}
+
+.who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  font-weight: 700;
 }
 
 .listRow {
@@ -113,4 +206,16 @@
   outline: 2px solid var(--persona-ink);
   outline-offset: -2px;
   box-shadow: inset 0 0 0 4px var(--persona-focus-halo);
+}
+
+@media (max-width: 960px) {
+  .listTable {
+    min-width: 520px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edge {
+    transition: none;
+  }
 }

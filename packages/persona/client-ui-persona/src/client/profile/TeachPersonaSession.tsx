@@ -236,7 +236,7 @@ export function TeachPersonaSession({
 
   if (phase === 'startFailed') {
     return (
-      <TeachLayer label={layerLabel} onEscape={discardRecording}>
+      <TeachLayer key="startFailed" label={layerLabel} onEscape={discardRecording}>
         <TeachFailed
           t={t}
           art={art}
@@ -288,7 +288,7 @@ export function TeachPersonaSession({
 
   if (phase === 'studying') {
     return (
-      <TeachLayer label={layerLabel}>
+      <TeachLayer key="studying" label={layerLabel}>
         <TeachStudying t={t} personaName={name} art={art} />
       </TeachLayer>
     )
@@ -296,7 +296,7 @@ export function TeachPersonaSession({
 
   if (phase === 'failed') {
     return (
-      <TeachLayer label={layerLabel} onEscape={discardRecording}>
+      <TeachLayer key="failed" label={layerLabel} onEscape={discardRecording}>
         <TeachFailed t={t} art={art} onRetry={() => { void finalize() }} onClose={discardRecording} />
       </TeachLayer>
     )
@@ -304,7 +304,7 @@ export function TeachPersonaSession({
 
   if (phase === 'empty' && !writeOwn) {
     return (
-      <TeachLayer label={layerLabel} onEscape={discardRecording}>
+      <TeachLayer key="empty" label={layerLabel} onEscape={discardRecording}>
         <TeachEmpty
           t={t}
           art={art}
@@ -319,7 +319,7 @@ export function TeachPersonaSession({
     const skillRequest = (): { readonly workspaceId: string; readonly projectId: string; readonly skillId: string } =>
       ({ ...scope(), skillId: saved.skillId })
     return (
-      <TeachLayer label={layerLabel} onEscape={close}>
+      <TeachLayer key="done" label={layerLabel} onEscape={close}>
         <TeachDone
           t={t}
           personaName={name}
@@ -338,7 +338,7 @@ export function TeachPersonaSession({
 
   // review (or "write the steps yourself" after an empty draft)
   return (
-    <TeachLayer label={layerLabel} onEscape={() => { setConfirmDiscard(true) }}>
+    <TeachLayer key="review" label={layerLabel} onEscape={() => { setConfirmDiscard(true) }}>
       <TeachReview
         t={t}
         personaName={name}

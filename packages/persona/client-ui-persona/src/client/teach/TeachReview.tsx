@@ -61,29 +61,41 @@ export function TeachLayer({ label, onEscape, children }: { readonly label: stri
       ;(inside()[0] ?? node).focus()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
+      const active = document.activeElement
+      // A dialog opened on top of the layer (zoom, discard confirmation) owns Esc and Tab while it has focus.
+      if (active instanceof Element && active !== document.body && active.closest('[role="dialog"]') !== node) return
       if (event.key === 'Escape') {
-        // Esc inside a dialog opened on top (zoom, discard confirmation) belongs to that dialog.
-        const active = document.activeElement
-        if (active instanceof Element && active.closest('[role="dialog"]') !== node) return
         if (escape.current !== undefined) { event.preventDefault(); escape.current() }
         return
       }
-      if (event.key !== 'Tab' || !node.contains(document.activeElement)) return
-      // A modal on top of the layer (zoom, discard) traps by itself.
-      const active = document.activeElement
-      if (active instanceof Element && active.closest('[role="dialog"]') !== node) return
+      if (event.key !== 'Tab') return
       const items = inside()
       const first = items[0]
       const last = items[items.length - 1]
       if (first === undefined || last === undefined) return
+      // Focus fell to the page (the control it was on went away): the next Tab comes back into the layer.
+      if (active === null || active === document.body) { event.preventDefault(); (event.shiftKey ? last : first).focus(); return }
       if (event.shiftKey && active === first) { event.preventDefault(); last.focus() }
       else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus() }
     }
     document.addEventListener('focusin', onFocusIn)
     document.addEventListener('keydown', onKeyDown)
+    // The page underneath is out of reach while the layer is up (not focusable, not read): everything that is not the layer or
+    // one of its ancestors gets `inert`. Only what this effect marked is restored, so other layers' marks are never undone.
+    const marked: Element[] = []
+    for (let branch: Element = node; branch !== document.body; branch = branch.parentElement ?? document.body) {
+      const parent = branch.parentElement
+      if (parent === null) break
+      for (const sibling of Array.from(parent.children)) {
+        if (sibling === branch || sibling.hasAttribute('inert') || sibling.tagName === 'SCRIPT') continue
+        sibling.setAttribute('inert', '')
+        marked.push(sibling)
+      }
+    }
     return () => {
       document.removeEventListener('focusin', onFocusIn)
       document.removeEventListener('keydown', onKeyDown)
+      for (const element of marked) element.removeAttribute('inert')
     }
   }, [])
   return (

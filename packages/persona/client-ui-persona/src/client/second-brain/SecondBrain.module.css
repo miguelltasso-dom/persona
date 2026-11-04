@@ -1,24 +1,24 @@
 .shell {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-l);
+  gap: var(--persona-space-6);
 }
 
 .sections {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-xl);
+  gap: var(--persona-space-8);
 }
 
 .sectionTitle {
-  margin: 0 0 var(--persona-space-s);
-  font: var(--persona-type-title-s);
+  margin: 0 0 var(--persona-space-2);
+  font: 700 17px/24px var(--persona-font-display);
 }
 
 .muted {
   margin: 0;
   color: var(--dsw-alias-label-secondary);
-  font: var(--persona-type-body-s);
+  font: 500 13px/19px var(--persona-font-text);
 }
 
 .permissionList {
@@ -27,12 +27,12 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-m);
+  gap: var(--persona-space-4);
 }
 
 .homeLayout {
   display: grid;
-  gap: var(--persona-space-xl);
+  gap: var(--persona-space-8);
 }
 
 @media (min-width: 1100px) {
@@ -46,7 +46,7 @@
 .homeAside {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-xl);
+  gap: var(--persona-space-8);
 }
 
 .compactList,
@@ -62,7 +62,7 @@
 .pageList {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-s);
+  gap: var(--persona-space-2);
 }
 
 .pageListVirtual {
@@ -75,7 +75,11 @@
 
 /* Lilac underlined links — match ChangeFeed `.pageLink` in Brain.module.css (AA on cream). */
 .brainPageLink {
-  padding: 0;
+  /* WCAG 2.2 target size: at least 24 px tall even when the link is one line of text. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 0;
   border: 0;
   background: none;
   color: var(--persona-brand);
@@ -86,6 +90,30 @@
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
   cursor: pointer;
+}
+
+/* "Comece aqui": the start of the page (two lines at most) and the way in. */
+.startHere {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+}
+
+.startHereLead {
+  display: -webkit-box;
+  flex: 1 1 18rem;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-line;
+  color: var(--persona-ink);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .brainPageLink:focus-visible {
@@ -113,7 +141,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: var(--persona-space-m);
+  gap: var(--persona-space-4);
 }
 
 .sparseArt {
@@ -124,7 +152,7 @@
 
 .sparseTitle {
   margin: 0;
-  font: var(--persona-type-title-s);
+  font: 700 17px/24px var(--persona-font-display);
   color: var(--persona-ink);
 }
 
@@ -132,7 +160,7 @@
   margin: 0;
   max-width: 36rem;
   color: var(--dsw-alias-label-secondary);
-  font: var(--persona-type-body-s);
+  font: 500 13px/19px var(--persona-font-text);
 }
 
 .typeNav {
@@ -152,12 +180,12 @@
 .typeCount {
   margin-left: auto;
   color: var(--persona-ink-soft);
-  font: var(--persona-type-body-s);
+  font: 500 13px/19px var(--persona-font-text);
 }
 
 .pageLayout {
   display: grid;
-  gap: var(--persona-space-l);
+  gap: var(--persona-space-6);
 }
 
 @media (min-width: 900px) {
@@ -169,17 +197,17 @@
 .pageBody {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-m);
+  gap: var(--persona-space-4);
 }
 
 .pageMarkdown,
 .pageEditor {
   margin: 0;
-  padding: var(--persona-space-m);
+  padding: var(--persona-space-4);
   border-radius: var(--persona-radius-m);
   background: var(--persona-paper);
   border: var(--persona-border-width) solid var(--persona-outline-soft);
-  font: var(--persona-type-body-m);
+  font: 500 15px/22px var(--persona-font-text);
   white-space: pre-wrap;
 }
 
@@ -213,7 +241,7 @@
 .emptyActions {
   display: flex;
   justify-content: center;
-  margin-top: calc(-1 * var(--persona-space-l));
+  margin-top: calc(-1 * var(--persona-space-6));
 }
 
 .searchField {
@@ -223,7 +251,7 @@
 .contradictionStack {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-m);
+  gap: var(--persona-space-4);
 }
 
 .typeRowLabel {
@@ -242,7 +270,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--persona-space-m);
+  gap: var(--persona-space-4);
 }
 
 .pageToolbar {
@@ -266,7 +294,7 @@
 .graphShell {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-m);
+  gap: var(--persona-space-4);
 }
 
 .graphToolbar {
@@ -277,7 +305,7 @@
 .graphNodes {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--persona-space-m);
+  gap: var(--persona-space-4);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -315,4 +343,41 @@
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.newPageForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.newPageField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.newPageSelect {
+  min-height: 40px;
+  padding: 0 var(--persona-space-3);
+  border: var(--persona-border-width, 1.5px) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m, 14px);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  font: inherit;
+}
+
+.newPageSelect:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.newPageFailed {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-danger-ink, var(--persona-ink));
 }

@@ -232,7 +232,8 @@ export function FolderDrop({ state, onChoose, onDropPath, onClear, labels }: Fol
 /* ───────────── Review before saving ───────────── */
 
 export type ProposalKind = 'brief' | 'constraint' | 'decision' | 'memory'
-export type ProposalDecision = 'accept' | 'discard'
+/** `pending`: the person has not chosen yet (rules arrive this way: nothing binds the team without an explicit accept). */
+export type ProposalDecision = 'accept' | 'discard' | 'pending'
 
 export interface ContextProposal {
   readonly id: string
@@ -245,6 +246,8 @@ export interface ContextProposal {
   readonly sensitive?: string | undefined
   /** Duplicate of / conflicts with something already in the Cofre. */
   readonly conflict?: string | undefined
+  /** `duplicate`: the chip reads "Já existe: {conflict}". `question`: `conflict` already is the sentence to answer (a pinned decision). */
+  readonly conflictKind?: 'duplicate' | 'question' | undefined
 }
 
 export interface ProposalChoice {
@@ -252,6 +255,14 @@ export interface ProposalChoice {
   readonly private: boolean
   readonly text: string
   readonly unblocked?: boolean
+}
+
+/** Rules and decisions the person is about to make binding (accepted `constraint` rows): the count the notice states. */
+export function acceptedConstraintCount(
+  proposals: readonly ContextProposal[],
+  choiceOf: (proposal: ContextProposal) => ProposalChoice,
+): number {
+  return proposals.filter(p => p.kind === 'constraint' && choiceOf(p).decision === 'accept' && (p.sensitive === undefined || choiceOf(p).unblocked === true)).length
 }
 
 export interface ProposalReviewProps {
@@ -276,6 +287,14 @@ export interface ProposalReviewProps {
     readonly save: (n: number) => string
     /** "{accepted} aceitos · {flagged} pedem atenção · {discarded} descartados" */
     readonly summary: (accepted: number, flagged: number, discarded: number) => string
+    /** "2 regras serão obrigatórias para a equipe ao gravar" — what the accepted rules make binding. */
+    readonly constraintNotice?: ((count: number) => string) | undefined
+    /** Group header button: "Aceitar todas as regras (3)". */
+    readonly acceptAllRules?: ((count: number) => string) | undefined
+    /** Save bar while rules wait: "Faltam 3 regras para você escolher". */
+    readonly pendingRules?: ((count: number) => string) | undefined
+    /** Under a rule nobody chose yet: "Regras sem escolha não entram". */
+    readonly pendingRuleNote?: string | undefined
   }
 }
 
@@ -285,6 +304,8 @@ const KIND_ORDER: readonly ProposalKind[] = ['brief', 'constraint', 'decision', 
 /** Default: clean items accepted; uncertain/conflicting items wait for a look; sensitive ones discarded+blocked. */
 export function defaultChoice(proposal: ContextProposal): ProposalChoice {
   const flagged = proposal.sensitive !== undefined
+  // A rule makes something mandatory for the whole team: it waits for an explicit accept (saving is not one).
+  if (!flagged && proposal.kind === 'constraint') return { decision: 'pending', private: false, text: proposal.text }
   return { decision: flagged ? 'discard' : 'accept', private: false, text: proposal.text }
 }
 
@@ -292,8 +313,11 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
   const [editing, setEditing] = useState<string | null>(null)
   const choiceOf = (proposal: ContextProposal): ProposalChoice => choices[proposal.id] ?? defaultChoice(proposal)
   const accepted = proposals.filter(p => choiceOf(p).decision === 'accept' && (p.sensitive === undefined || choiceOf(p).unblocked === true)).length
-  const flagged = proposals.filter(p => p.uncertain === true || p.sensitive !== undefined || p.conflict !== undefined).length
-  const discarded = proposals.length - accepted
+  const pendingIds = new Set(proposals.filter(p => choiceOf(p).decision === 'pending').map(p => p.id))
+  // A rule waiting for its choice asks for attention too.
+  const flagged = proposals.filter(p => p.uncertain === true || p.sensitive !== undefined || p.conflict !== undefined || pendingIds.has(p.id)).length
+  const discarded = proposals.length - accepted - pendingIds.size
+  const pendingRules = proposals.filter(p => p.kind === 'constraint' && pendingIds.has(p.id))
 
   return (
     <div className={styles.review}>
@@ -303,7 +327,7 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
           variant="ghost"
           onClick={() => {
             for (const p of proposals) {
-              if (p.uncertain !== true && p.sensitive === undefined && p.conflict === undefined) onChoice(p.id, { ...choiceOf(p), decision: 'accept' })
+              if (p.kind !== 'constraint' && p.uncertain !== true && p.sensitive === undefined && p.conflict === undefined) onChoice(p.id, { ...choiceOf(p), decision: 'accept' })
             }
           }}
         >
@@ -315,7 +339,18 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
         if (group.length === 0) return null
         return (
           <section key={kind} className={styles.group} aria-label={labels.kinds[kind]}>
-            <h4 className={styles.groupTitle}>{labels.kinds[kind]} <span className={styles.count}>{group.length}</span></h4>
+            <div className={styles.groupHead}>
+              <h4 className={styles.groupTitle}>{labels.kinds[kind]} <span className={styles.count}>{group.length}</span></h4>
+              {kind === 'constraint' && pendingRules.length > 0 && labels.acceptAllRules !== undefined && (
+                <Button
+                  variant="secondary"
+                  size="s"
+                  onClick={() => { for (const rule of pendingRules) onChoice(rule.id, { ...choiceOf(rule), decision: 'accept' }) }}
+                >
+                  {labels.acceptAllRules(pendingRules.length)}
+                </Button>
+              )}
+            </div>
             <ul className={styles.items}>
               {group.map((p) => {
                 const choice = choiceOf(p)
@@ -328,7 +363,7 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
                         <Chip tone={KIND_TONE[p.kind]} size="s">{labels.kinds[p.kind]}</Chip>
                         {p.uncertain === true && <Chip tone="warning" size="s" icon={<UiIcon name="help" size={14} />}>{labels.uncertain}</Chip>}
                         {p.sensitive !== undefined && <Chip tone="danger" size="s" icon={<UiIcon name="alert" size={14} />}>{labels.sensitiveBlocked(p.sensitive)}</Chip>}
-                        {p.conflict !== undefined && <Chip tone="info" size="s">{labels.conflict(p.conflict)}</Chip>}
+                        {p.conflict !== undefined && <Chip tone="info" size="s">{p.conflictKind === 'question' ? p.conflict : labels.conflict(p.conflict)}</Chip>}
                       </div>
                       {editing === p.id ? (
                         <Textarea
@@ -342,6 +377,9 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
                         <p className={styles.itemText} data-blurred={blocked ? '' : undefined}>{choice.text}</p>
                       )}
                       <p className={styles.provenance}>{p.provenance}</p>
+                      {choice.decision === 'pending' && labels.pendingRuleNote !== undefined && (
+                        <p className={styles.pendingNote}>{labels.pendingRuleNote}</p>
+                      )}
                     </div>
                     <div className={styles.itemActions}>
                       {blocked ? (
@@ -376,6 +414,12 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
         )
       })}
       <div className={styles.saveBar}>
+        {labels.pendingRules !== undefined && pendingRules.length > 0 && (
+          <p className={styles.constraintNotice} role="status">{labels.pendingRules(pendingRules.length)}</p>
+        )}
+        {labels.constraintNotice !== undefined && acceptedConstraintCount(proposals, choiceOf) > 0 && (
+          <p className={styles.constraintNotice} role="status">{labels.constraintNotice(acceptedConstraintCount(proposals, choiceOf))}</p>
+        )}
         <Button variant="primary" disabled={accepted === 0 || saving} loading={saving} onClick={onSave}>{labels.save(accepted)}</Button>
       </div>
     </div>

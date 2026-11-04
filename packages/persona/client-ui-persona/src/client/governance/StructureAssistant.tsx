@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Button, Chip, OrgChart, Textarea, TwoDayTimeline, UiIcon } from '../primitives/index.ts'
+import { Button, ChoiceCards, Chip, OrgChart, ScreenHeader, Textarea, TwoDayTimeline, UiIcon } from '../primitives/index.ts'
 import { DEFAULT_SECTORS } from './default-sectors.ts'
 import { applyStructurePlan } from './fetch-apply-structure.ts'
 import { resolveStructurePlan } from './fetch-recommend-structure.ts'
@@ -85,36 +85,43 @@ export function StructureAssistant({
     )
   }
 
+  const stepChips = (
+    <div className={styles.steps} aria-label={t('steps.label')}>
+      {([1, 2, 3, 4] as const).map(n => (
+        <span key={n} className={styles.stepChip} data-active={step === n ? '' : undefined}>
+          {t(`steps.${n}`)}
+        </span>
+      ))}
+    </div>
+  )
+
   const wrapClass = compact ? `${styles.wrap} ${styles.compact}` : styles.wrap
 
   return (
     <div className={wrapClass} data-step={step}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{t('title')}</h1>
-        <p className={styles.hint}>{t(`step${step}.hint`)}</p>
-        <div className={styles.steps} aria-label={t('steps.label')}>
-          {([1, 2, 3, 4] as const).map(n => (
-            <span key={n} className={styles.stepChip} data-active={step === n ? '' : undefined}>
-              {t(`steps.${n}`)}
-            </span>
-          ))}
+      {compact ? (
+        <header className={styles.header}>
+          <h1 className={styles.title}>{t('title')}</h1>
+          <p className={styles.hint}>{t(`step${step}.hint`)}</p>
+          {stepChips}
+        </header>
+      ) : (
+        // Aberto como tela ("Contratar persona"): o mesmo cabeçalho das outras telas (ícone, eyebrow, título, subtítulo).
+        <div className={styles.header}>
+          <ScreenHeader icon="equipe" eyebrow={t('eyebrow')} title={t('title')} subtitle={t(`step${step}.hint`)} />
+          {stepChips}
         </div>
-      </header>
+      )}
 
       {step === 1 && (
-        <div className={styles.modelGrid} role="group" aria-label={t('step1.modelsLabel')}>
-          {COMPANY_MODEL_IDS.map(id => (
-            <button
-              key={id}
-              type="button"
-              className={styles.modelButton}
-              aria-pressed={companyModel === id}
-              onClick={() => { setCompanyModel(id) }}
-            >
-              {t(`model.${id}`)}
-            </button>
-          ))}
-        </div>
+        <ChoiceCards<CompanyModelId>
+          legend={t('step1.modelsLabel')}
+          hideLegend
+          name="structure-company-model"
+          value={companyModel}
+          onChange={setCompanyModel}
+          options={COMPANY_MODEL_IDS.map(id => ({ id, title: t(`model.${id}`), body: t(`model.${id}.body`) }))}
+        />
       )}
 
       {step === 2 && (
@@ -179,6 +186,26 @@ export function StructureAssistant({
             label={t('twoDay.label')}
           />
           <p className={styles.tip}>{t('step4.hireHint')}</p>
+          {onHireOne !== undefined && (
+            <ul className={styles.hireList} aria-label={t('step4.hireListLabel')}>
+              {plan.personas.map(row => (
+                <li key={row.id} className={styles.hireRow}>
+                  <span className={styles.hireWho}>
+                    <span className={styles.hireName}>{row.name}</span>
+                    <span className={styles.hireRole}>{row.jobTitle}</span>
+                  </span>
+                  <Button
+                    variant="secondary"
+                    size="s"
+                    aria-label={t('action.hireRowLabel', { name: row.name })}
+                    onClick={() => { onHireOne(row, plan) }}
+                  >
+                    {t('action.hireRow')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -225,11 +252,6 @@ export function StructureAssistant({
                 }}
               >
                 {t('action.applyRoster')}
-              </Button>
-            )}
-            {onHireOne !== undefined && plan.personas[0] !== undefined && (
-              <Button variant="secondary" onClick={() => { onHireOne(plan.personas[0]!, plan) }}>
-                {t('action.hireOne')}
               </Button>
             )}
             {onHireAll !== undefined && (

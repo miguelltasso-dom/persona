@@ -46,6 +46,8 @@ export interface UserAwayControlProps extends PropsLocale<'persona.shell'> {
   readonly substitute?: { readonly id: string; readonly name: string; readonly avatarUrl?: string } | null | undefined
   readonly onChange: (next: UserAwayState) => void
   readonly onDefineSubstitute?: (() => void) | undefined
+  /** Linha no topo do cartão, acima do interruptor (o rail põe aqui o estado da IA, A-5). */
+  readonly header?: ReactNode
 }
 
 export function formatAwayUntilWhen(t: PropsLocale<'persona.shell'>['t'], state: UserAwayState): string {
@@ -61,6 +63,7 @@ export function UserAwayControl({
   substitute,
   onChange,
   onDefineSubstitute,
+  header,
 }: UserAwayControlProps): ReactNode {
   const switchId = useId()
   const emit = (next: UserAwayState): void => {
@@ -75,6 +78,7 @@ export function UserAwayControl({
 
   return (
     <div className={styles.container} data-persona-user-away="">
+      {header !== undefined && <div className={styles.header}>{header}</div>}
       <label className={styles.switchRow} htmlFor={switchId}>
         <span className={styles.switchLabel}>{t('away.switchLabel')}</span>
         <Switch

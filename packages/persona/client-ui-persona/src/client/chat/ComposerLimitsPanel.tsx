@@ -1,15 +1,22 @@
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconButton, PooledQuotaBar, UiIcon } from '../primitives/index.ts'
+import { IconButton, UiIcon } from '../primitives/index.ts'
+import type { EngineLimitsUi } from '../remote/engine-limits.ts'
+import { EngineLimitsBars } from './EngineLimitsBars.tsx'
 import styles from './ChannelComposer.module.css'
 
-/** Temporary limits readout above the composer after `/limites` (T3-UX-HARVEST §8). */
+/**
+ * Temporary limits readout above the composer after `/limites` (T3-UX-HARVEST §8).
+ * IV-4 = P0-28: só as cotas oficiais que o host publicou; sem dado, "—" e "Cota oficial indisponível". Nunca um número de exemplo.
+ */
 export function ComposerLimitsPanel({
   t,
   onClose,
+  limits,
 }: {
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly onClose: () => void
+  readonly limits: EngineLimitsUi
 }): ReactNode {
   return (
     <section className={styles.limitsPanel} aria-label={t('composer.limitsPanelTitle')}>
@@ -18,21 +25,7 @@ export function ComposerLimitsPanel({
         <h3 className={styles.limitsTitle}>{t('composer.limitsPanelTitle')}</h3>
         <IconButton size="s" label={t('composer.limitsClose')} icon={<UiIcon name="close" size={16} />} onClick={onClose} />
       </header>
-      <PooledQuotaBar
-        compact
-        window={t('composer.limitsWindow')}
-        color="var(--persona-lilac-500)"
-        labels={{
-          left: pct => t('composer.limitsRemaining', { pct: String(pct) }),
-          nextRefill: (pct, at, account) => t('composer.limitsRecharge', { pct: String(pct), time: at, account }),
-          noWindow: t('composer.limitsNoWindow'),
-          segment: account => account.label,
-        }}
-        accounts={[
-          { id: 'work', label: t('composer.limitsAccountWork'), leftPct: 38, refillPct: 18, refillAt: '18:30' },
-          { id: 'personal', label: t('composer.limitsAccountPersonal'), leftPct: 66 },
-        ]}
-      />
+      <EngineLimitsBars t={t} limits={limits} />
       <p className={styles.limitsHint}>{t('composer.limitsDismissHint')}</p>
     </section>
   )

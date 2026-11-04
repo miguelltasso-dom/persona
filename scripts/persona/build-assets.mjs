@@ -194,6 +194,10 @@ async function main() {
     )),
     // Muse (BRIEFING 19): Segundo cérebro home / empty state.
     { from: 'illustrations/bibliotecario.png', to: 'illustrations/bibliotecario.webp', width: 480, quality: 86 },
+    // Muse (BR-P1 P2 nº 3–5, SIMPLE-WORKSPACE-SPEC): conflict, empty history, draft being prepared (480 shown at 240).
+    ...['conflito-mesmo-arquivo', 'empty-historico', 'rascunho-trabalhando'].map(name => (
+      { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
+    )),
     // Muse (BR-P1 P2 nº 2): "Falta uma IA" spot for the composer banner (192 shown at 96).
     { from: 'illustrations/spot-sem-ia.png', to: 'illustrations/spot-sem-ia.webp', width: 192, quality: 88 },
     // Muse (kit de lançamento): "Sobre a Persona" team photo (Brush, brand/launch).

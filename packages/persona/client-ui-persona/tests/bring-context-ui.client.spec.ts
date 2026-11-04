@@ -141,4 +141,12 @@ describe('bring-context UI helpers', () => {
     const md = vaultMarkdownFromReview(preview, choices)
     expect(md).toContain('Miguel')
   })
+
+  it('provenance has no jargon: "vault: regras.md" reads "de regras.md"; a paste keeps its own words', async () => {
+    const { provenanceLabel } = await import('../src/client/bring-context/bring-context-ui.ts')
+    expect(provenanceLabel('vault: regras.md')).toBe('de regras.md')
+    expect(provenanceLabel('vault: notas/clientes.md')).toBe('de notas/clientes.md')
+    expect(provenanceLabel('colado do ChatGPT em 04/11')).toBe('colado do ChatGPT em 04/11')
+    expect(provenanceLabel('vault: a.md', file => `from ${file}`)).toBe('from a.md')
+  })
 })

@@ -9,6 +9,8 @@ export interface TabItem<T extends string> {
   readonly count?: number
   /** Not selectable yet (e.g. host capability missing); stays visible with aria-disabled. */
   readonly disabled?: boolean
+  /** Gates e capturas acham a aba pelo id do painel (rótulo muda; o `MainPanelId` não): vira `data-tab-panel`. */
+  readonly dataPanel?: string
 }
 
 export interface TabsProps<T extends string> {
@@ -67,6 +69,7 @@ export function Tabs<T extends string>({ items, value, onChange, label, idPrefix
             role="tab"
             id={`${idPrefix}-tab-${item.id}`}
             data-tab-id={item.id}
+            data-tab-panel={item.dataPanel}
             aria-selected={selected}
             aria-controls={selected && panelExists ? panelId : undefined}
             tabIndex={selected ? 0 : -1}

@@ -104,7 +104,7 @@ export function ProjectHistoryView({
   if (keep.length === 0) {
     return (
       <div className={styles.root} data-persona-surface="project-history">
-        <PersonaSurfaceEmpty dict={dict} illustrationKey="empty-inbox" titleKey="history.empty.title" hintKey="history.empty.hint" />
+        <PersonaSurfaceEmpty dict={dict} illustrationKey="empty-historico" artSize={240} titleKey="history.empty.title" hintKey="history.empty.hint" />
       </div>
     )
   }

@@ -3,8 +3,11 @@
  * before/after — the host's patch is read into plain files (`draftFilesFromReviewSummary`) and never shown as such.
  */
 import { useMemo, type ReactNode } from 'react'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
-import { PersonaSurfaceEmpty, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
+import { bindLocale } from '../preview/locale-bind.ts'
+import { EmptyState } from '../primitives/index.ts'
+import { PersonaSurfaceEmpty } from '../kanban/PersonaSurface.tsx'
 import type { ReviewBlockedUi, ReviewSummaryUi } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/review/locales.ts'
 import { DraftReviewPanel } from './simple/DraftReviewPanel.tsx'
@@ -26,6 +29,10 @@ export interface ReviewDeliveryPanelProps {
   readonly onRequestChanges?: (feedback: string) => void
   readonly onDiscard?: () => void
   readonly onRetry?: () => void
+  readonly personaAvatarSrc?: string | undefined
+  readonly example?: boolean | undefined
+  readonly onUndoApplied?: (() => void) | undefined
+  readonly onLeave?: (() => void) | undefined
   readonly onOpenDraftFile?: (fileId: string) => void
 }
 
@@ -43,11 +50,20 @@ export function ReviewDeliveryPanel({
   onDiscard,
   onRetry,
   onOpenDraftFile,
+  personaAvatarSrc,
+  example,
+  onUndoApplied,
+  onLeave,
 }: ReviewDeliveryPanelProps): ReactNode {
   const files = useMemo(() => (summary === null ? [] : draftFilesFromReviewSummary(summary)), [summary])
 
   if (initialState === 'loading') {
-    return <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={1} />
+    // "Preparando as mudanças…": the persona at the squared paper (Muse SW-7 art), announced as busy.
+    return (
+      <div role="status" aria-busy="true" aria-live="polite">
+        <EmptyState illustration={ILLUSTRATIONS['rascunho-trabalhando']} artSize={240} title={bindLocale(dict, 'loading')} />
+      </div>
+    )
   }
   if (initialState === 'empty' || summary === null) {
     return (
@@ -76,6 +92,10 @@ export function ReviewDeliveryPanel({
       {...(onDiscard === undefined ? {} : { onDiscard })}
       {...(onRetry === undefined ? {} : { onRetry })}
       {...(onOpenDraftFile === undefined ? {} : { onOpenDraftFile })}
+      {...(personaAvatarSrc === undefined ? {} : { personaAvatarSrc })}
+      {...(example === true ? { example } : {})}
+      {...(onUndoApplied === undefined ? {} : { onUndoApplied })}
+      {...(onLeave === undefined ? {} : { onLeave })}
     />
   )
 }

@@ -204,6 +204,16 @@ describe('TeachDone', () => {
     expect(screen.getByRole('button', { name: t('teach.done.activate', { name: 'Nina' }) })).toBeTruthy()
   })
 
+  it('"Compartilhar" says why it is off until the confirmation is ticked', () => {
+    renderDone()
+    fireEvent.click(screen.getByRole('button', { name: t('teach.done.share') }))
+    const share = screen.getByRole('button', { name: t('teach.share.action') })
+    const hint = screen.getByText(t('teach.share.confirmHint'))
+    expect(share.getAttribute('aria-describedby')).toBe(hint.id)
+    fireEvent.click(screen.getByRole('checkbox', { name: t('teach.share.confirm') }))
+    expect(screen.queryByText(t('teach.share.confirmHint'))).toBeNull()
+  })
+
   it('sharing needs the written confirmation; project is the default scope; team is a different choice', async () => {
     const props = renderDone()
     fireEvent.click(screen.getByRole('button', { name: t('teach.done.share') }))
@@ -452,6 +462,8 @@ describe('TeachPersonaSession (the whole flow, recorder is a fake)', () => {
     await tick(0)
     fireEvent.click(screen.getByRole('button', { name: t('teach.review.save') }))
     await tick(0)
+    // each phase is a new layer that takes focus: it never falls to the page behind
+    expect(document.activeElement?.closest('[role="dialog"]')?.getAttribute('data-persona-teach-layer')).toBe('')
     fireEvent.keyDown(screen.getByRole('button', { name: t('teach.done.close') }), { key: 'Escape' })
     await tick(1)
     expect(document.activeElement).toBe(opener)
@@ -492,6 +504,12 @@ describe('TeachPersonaOverlay (consent, then what to record)', () => {
   it('in a plain browser the consent explains that recording needs the installed app and offers no dead end', () => {
     mountOverlay()
     expect(screen.getByText(t('teach.needsDesktop'))).toBeTruthy()
+    // the reason is the FIRST thing in the body (not below the fold) and is repeated beside the disabled button
+    const note = screen.getByText(t('teach.needsDesktop')).closest('[role="note"]')!
+    const intro = screen.getByText(t('teach.consentIntro', { name: 'Nina' }))
+    expect(note.compareDocumentPosition(intro) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy() // the reason comes before the intro
+    const short = screen.getByText(t('teach.needsDesktopShort'))
+    expect(screen.getByRole('button', { name: t('teach.chooseSource') }).getAttribute('aria-describedby')).toBe(short.id)
     expect(screen.getByRole('button', { name: t('teach.chooseSource') })).toHaveProperty('disabled', true)
     expect(screen.queryByRole('switch')).toBeNull() // no microphone switch: nothing here records sound
   })
@@ -510,6 +528,19 @@ describe('TeachPersonaOverlay (consent, then what to record)', () => {
     fireEvent.click(begin)
     await waitFor(() => { expect(beginTeachCapture).toHaveBeenCalledWith('p-nina', 'teach-v1', false) })
     expect(takeTeachHandoff()?.sourceId).toBe('synthetic:screen')
+  })
+
+  it('"Começar a gravar" is off until something is chosen, and the line beside it says why', async () => {
+    localStorage.setItem('persona.teach.synthetic', '1')
+    mountOverlay()
+    fireEvent.click(screen.getByRole('button', { name: t('teach.chooseSource') }))
+    await screen.findByRole('radio', { name: 'Tela de exemplo' })
+    const begin = screen.getByRole('button', { name: t('teach.begin') })
+    expect(begin).toHaveProperty('disabled', true)
+    const hint = screen.getByText(t('teach.sourcePickHint'))
+    expect(begin.getAttribute('aria-describedby')).toBe(hint.id)
+    fireEvent.click(screen.getByRole('radio', { name: 'Tela de exemplo' }))
+    expect(screen.queryByText(t('teach.sourcePickHint'))).toBeNull()
   })
 
   it('windows are a separate tab; Voltar returns to the consent', async () => {

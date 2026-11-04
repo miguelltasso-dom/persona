@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
-import { BrandIcon, Button, Chip, TeamScene, UiIcon, usePawCelebration } from '../primitives/index.ts'
+import { BrandIcon, Button, Chip, Skeleton, TeamScene, UiIcon, usePawCelebration } from '../primitives/index.ts'
 import type { ChannelPersonaMember } from './persona-work-state.ts'
 import { WORK_STATUS_KEY } from './persona-work-state.ts'
 import { PersonaTeamFigure } from './PersonaTeamFigure.tsx'
@@ -11,6 +11,8 @@ export interface TeamChannelStripProps extends PropsLocale<'persona.shell'> {
   readonly members: readonly ChannelPersonaMember[]
   /** Empty channel CTA ("Montar equipe"); hidden when not provided. */
   readonly onBuildTeam?: (() => void) | undefined
+  /** Os dados do host ainda não chegaram: skeleton no lugar do "Monte sua equipe" (nunca afirma equipe vazia). */
+  readonly loading?: boolean | undefined
   readonly personaCardTrigger?: ((characterId: string) => {
     readonly onClick: (event: MouseEvent<HTMLElement>) => void
     readonly onPointerEnter: (event: MouseEvent<HTMLElement>) => void
@@ -44,7 +46,8 @@ function useAmbientPause(): [RefObject<HTMLElement>, boolean] {
 }
 
 /** "Sua equipe neste canal" — Brush banner scene, full-body poses on one ground line, sticker name tags. */
-export function TeamChannelStrip({ t, members, onBuildTeam, personaCardTrigger }: TeamChannelStripProps): ReactNode {
+export function TeamChannelStrip({ t, members, onBuildTeam, loading = false, personaCardTrigger }: TeamChannelStripProps): ReactNode {
+  const showLoading = loading && members.length === 0
   const [ref, paused] = useAmbientPause()
   const paw = usePawCelebration()
   const celebratedArrival = useRef(false)
@@ -67,6 +70,8 @@ export function TeamChannelStrip({ t, members, onBuildTeam, personaCardTrigger }
       className={styles.strip}
       aria-labelledby="persona-team-strip-title"
       data-ambient-paused={paused ? '' : undefined}
+      aria-busy={showLoading ? 'true' : undefined}
+      data-loading={showLoading ? '' : undefined}
     >
       {paw.node}
       <div className={styles.scene} aria-hidden="true">
@@ -82,9 +87,11 @@ export function TeamChannelStrip({ t, members, onBuildTeam, personaCardTrigger }
 
       <div className={styles.intro}>
         <h2 id="persona-team-strip-title" className={styles.title}>
-          {members.length > 0 ? t('team.channelStripTitle') : t('team.emptyTitle')}
+          {showLoading ? t('team.channelStripTitle') : members.length > 0 ? t('team.channelStripTitle') : t('team.emptyTitle')}
         </h2>
-        {members.length > 0 ? (
+        {showLoading ? (
+          <Skeleton width={96} height={26} shape="block" />
+        ) : members.length > 0 ? (
           <Chip tone="plain" icon={<BrandIcon name="equipe" size={16} />}>
             {t('team.memberCount', { count: String(members.length) })}
           </Chip>
@@ -138,7 +145,13 @@ export function TeamChannelStrip({ t, members, onBuildTeam, personaCardTrigger }
             </li>
           )
         })}
-        {members.length === 0 && [0.84, 1, 0.9].map((scale, index) => (
+        {showLoading && [0.84, 1, 0.9].map(scale => (
+          <li key={scale} className={styles.member} aria-hidden="true">
+            <Skeleton width={Math.round(72 * scale)} height={Math.round(72 * scale)} shape="circle" />
+            <Skeleton width={64} height={14} />
+          </li>
+        ))}
+        {!showLoading && members.length === 0 && [0.84, 1, 0.9].map((scale, index) => (
           <li key={scale} className={styles.member}>
             <span className={styles.seat} style={{ '--seat-scale': scale, animationDelay: `${index * 0.6}s` } as CSSProperties} aria-hidden="true">
               <UiIcon name="plus" size={26} strokeWidth={2.4} />

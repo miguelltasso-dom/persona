@@ -76,9 +76,9 @@ export const pt = {
   'account.add.saving': 'Guardando…',
   'account.add.error': 'Não consegui guardar a conta agora. Tente de novo.',
   'account.add.loginTitle': 'Entre na conta {label}',
-  'account.add.loginStep1': 'Abra um terminal neste computador.',
-  'account.add.loginStep2': 'Cole este comando e entre com a conta que vai ser a {label}:',
-  'account.add.loginStep3': 'Volte aqui e confirme.',
+  'account.add.loginStep1': 'Abra o {shell} neste computador.',
+  'account.add.loginStep2': 'Cole o comando e aperte Enter.',
+  'account.add.loginStep3': 'Faça o login na janela que abrir.',
   'account.add.isolatedNote': 'O login fica numa pasta só desta conta. Sua conta principal não muda.',
   'account.add.noCommand': 'A conta {label} já está guardada, mas esta versão ainda não gera o comando de login separado. Não use o login padrão: ele entraria na sua conta principal.',
   'account.add.later': 'Terminar depois',
@@ -110,6 +110,7 @@ export const pt = {
   'swapPolicy.noPersonas': 'Quando você contratar uma persona, dá para escolher uma regra só para ela.',
   'swapPolicy.saved': 'Regra salva.',
   'swapPolicy.saveError': 'Não consegui salvar a regra agora. Tente de novo.',
+  'account.add.showCommand': 'Ver o comando',
 } as const
 
 /** English copy. */
@@ -185,9 +186,9 @@ export const en = {
   'account.add.saving': 'Saving…',
   'account.add.error': 'I could not save the account right now. Try again.',
   'account.add.loginTitle': 'Sign in to the {label} account',
-  'account.add.loginStep1': 'Open a terminal on this computer.',
-  'account.add.loginStep2': 'Paste this command and sign in with the account that will be {label}:',
-  'account.add.loginStep3': 'Come back here and confirm.',
+  'account.add.loginStep1': 'Open {shell} on this computer.',
+  'account.add.loginStep2': 'Paste the command and press Enter.',
+  'account.add.loginStep3': 'Sign in in the window that opens.',
   'account.add.isolatedNote': 'The sign-in stays in a folder just for this account. Your main account does not change.',
   'account.add.noCommand': 'The {label} account is saved, but this version cannot generate the separate sign-in command yet. Do not use the default sign-in: it would sign in to your main account.',
   'account.add.later': 'Finish later',
@@ -219,6 +220,7 @@ export const en = {
   'swapPolicy.noPersonas': 'Once you hire a persona you can pick a rule just for them.',
   'swapPolicy.saved': 'Rule saved.',
   'swapPolicy.saveError': 'I could not save the rule right now. Try again.',
+  'account.add.showCommand': 'See the command',
 } as const
 
 export const zh = {
@@ -293,9 +295,9 @@ export const zh = {
   'account.add.saving': 'Saving…',
   'account.add.error': 'I could not save the account right now. Try again.',
   'account.add.loginTitle': 'Sign in to the {label} account',
-  'account.add.loginStep1': 'Open a terminal on this computer.',
-  'account.add.loginStep2': 'Paste this command and sign in with the account that will be {label}:',
-  'account.add.loginStep3': 'Come back here and confirm.',
+  'account.add.loginStep1': 'Open {shell} on this computer.',
+  'account.add.loginStep2': 'Paste the command and press Enter.',
+  'account.add.loginStep3': 'Sign in in the window that opens.',
   'account.add.isolatedNote': 'The sign-in stays in a folder just for this account. Your main account does not change.',
   'account.add.noCommand': 'The {label} account is saved, but this version cannot generate the separate sign-in command yet. Do not use the default sign-in: it would sign in to your main account.',
   'account.add.later': 'Finish later',
@@ -327,6 +329,7 @@ export const zh = {
   'swapPolicy.noPersonas': 'Once you hire a persona you can pick a rule just for them.',
   'swapPolicy.saved': 'Rule saved.',
   'swapPolicy.saveError': 'I could not save the rule right now. Try again.',
+  'account.add.showCommand': 'See the command',
 } as const
 export const ja = {
   'header.eyebrow': 'Company',
@@ -400,9 +403,9 @@ export const ja = {
   'account.add.saving': 'Saving…',
   'account.add.error': 'I could not save the account right now. Try again.',
   'account.add.loginTitle': 'Sign in to the {label} account',
-  'account.add.loginStep1': 'Open a terminal on this computer.',
-  'account.add.loginStep2': 'Paste this command and sign in with the account that will be {label}:',
-  'account.add.loginStep3': 'Come back here and confirm.',
+  'account.add.loginStep1': 'Open {shell} on this computer.',
+  'account.add.loginStep2': 'Paste the command and press Enter.',
+  'account.add.loginStep3': 'Sign in in the window that opens.',
   'account.add.isolatedNote': 'The sign-in stays in a folder just for this account. Your main account does not change.',
   'account.add.noCommand': 'The {label} account is saved, but this version cannot generate the separate sign-in command yet. Do not use the default sign-in: it would sign in to your main account.',
   'account.add.later': 'Finish later',
@@ -434,6 +437,7 @@ export const ja = {
   'swapPolicy.noPersonas': 'Once you hire a persona you can pick a rule just for them.',
   'swapPolicy.saved': 'Rule saved.',
   'swapPolicy.saveError': 'I could not save the rule right now. Try again.',
+  'account.add.showCommand': 'See the command',
 } as const
 export const es = {
   'header.eyebrow': 'Company',
@@ -507,9 +511,9 @@ export const es = {
   'account.add.saving': 'Saving…',
   'account.add.error': 'I could not save the account right now. Try again.',
   'account.add.loginTitle': 'Sign in to the {label} account',
-  'account.add.loginStep1': 'Open a terminal on this computer.',
-  'account.add.loginStep2': 'Paste this command and sign in with the account that will be {label}:',
-  'account.add.loginStep3': 'Come back here and confirm.',
+  'account.add.loginStep1': 'Open {shell} on this computer.',
+  'account.add.loginStep2': 'Paste the command and press Enter.',
+  'account.add.loginStep3': 'Sign in in the window that opens.',
   'account.add.isolatedNote': 'The sign-in stays in a folder just for this account. Your main account does not change.',
   'account.add.noCommand': 'The {label} account is saved, but this version cannot generate the separate sign-in command yet. Do not use the default sign-in: it would sign in to your main account.',
   'account.add.later': 'Finish later',
@@ -541,6 +545,7 @@ export const es = {
   'swapPolicy.noPersonas': 'Once you hire a persona you can pick a rule just for them.',
   'swapPolicy.saved': 'Rule saved.',
   'swapPolicy.saveError': 'I could not save the rule right now. Try again.',
+  'account.add.showCommand': 'See the command',
 } as const
 export const fr = {
   'header.eyebrow': 'Company',
@@ -614,9 +619,9 @@ export const fr = {
   'account.add.saving': 'Saving…',
   'account.add.error': 'I could not save the account right now. Try again.',
   'account.add.loginTitle': 'Sign in to the {label} account',
-  'account.add.loginStep1': 'Open a terminal on this computer.',
-  'account.add.loginStep2': 'Paste this command and sign in with the account that will be {label}:',
-  'account.add.loginStep3': 'Come back here and confirm.',
+  'account.add.loginStep1': 'Open {shell} on this computer.',
+  'account.add.loginStep2': 'Paste the command and press Enter.',
+  'account.add.loginStep3': 'Sign in in the window that opens.',
   'account.add.isolatedNote': 'The sign-in stays in a folder just for this account. Your main account does not change.',
   'account.add.noCommand': 'The {label} account is saved, but this version cannot generate the separate sign-in command yet. Do not use the default sign-in: it would sign in to your main account.',
   'account.add.later': 'Finish later',
@@ -648,6 +653,7 @@ export const fr = {
   'swapPolicy.noPersonas': 'Once you hire a persona you can pick a rule just for them.',
   'swapPolicy.saved': 'Rule saved.',
   'swapPolicy.saveError': 'I could not save the rule right now. Try again.',
+  'account.add.showCommand': 'See the command',
 } as const
 export const de = {
   'header.eyebrow': 'Company',
@@ -721,9 +727,9 @@ export const de = {
   'account.add.saving': 'Saving…',
   'account.add.error': 'I could not save the account right now. Try again.',
   'account.add.loginTitle': 'Sign in to the {label} account',
-  'account.add.loginStep1': 'Open a terminal on this computer.',
-  'account.add.loginStep2': 'Paste this command and sign in with the account that will be {label}:',
-  'account.add.loginStep3': 'Come back here and confirm.',
+  'account.add.loginStep1': 'Open {shell} on this computer.',
+  'account.add.loginStep2': 'Paste the command and press Enter.',
+  'account.add.loginStep3': 'Sign in in the window that opens.',
   'account.add.isolatedNote': 'The sign-in stays in a folder just for this account. Your main account does not change.',
   'account.add.noCommand': 'The {label} account is saved, but this version cannot generate the separate sign-in command yet. Do not use the default sign-in: it would sign in to your main account.',
   'account.add.later': 'Finish later',
@@ -755,6 +761,7 @@ export const de = {
   'swapPolicy.noPersonas': 'Once you hire a persona you can pick a rule just for them.',
   'swapPolicy.saved': 'Rule saved.',
   'swapPolicy.saveError': 'I could not save the rule right now. Try again.',
+  'account.add.showCommand': 'See the command',
 } as const
 export const ru = {
   'header.eyebrow': 'Company',
@@ -828,9 +835,9 @@ export const ru = {
   'account.add.saving': 'Saving…',
   'account.add.error': 'I could not save the account right now. Try again.',
   'account.add.loginTitle': 'Sign in to the {label} account',
-  'account.add.loginStep1': 'Open a terminal on this computer.',
-  'account.add.loginStep2': 'Paste this command and sign in with the account that will be {label}:',
-  'account.add.loginStep3': 'Come back here and confirm.',
+  'account.add.loginStep1': 'Open {shell} on this computer.',
+  'account.add.loginStep2': 'Paste the command and press Enter.',
+  'account.add.loginStep3': 'Sign in in the window that opens.',
   'account.add.isolatedNote': 'The sign-in stays in a folder just for this account. Your main account does not change.',
   'account.add.noCommand': 'The {label} account is saved, but this version cannot generate the separate sign-in command yet. Do not use the default sign-in: it would sign in to your main account.',
   'account.add.later': 'Finish later',
@@ -862,6 +869,7 @@ export const ru = {
   'swapPolicy.noPersonas': 'Once you hire a persona you can pick a rule just for them.',
   'swapPolicy.saved': 'Rule saved.',
   'swapPolicy.saveError': 'I could not save the rule right now. Try again.',
+  'account.add.showCommand': 'See the command',
 } as const
 
 export type ConnectionsKey = keyof typeof pt

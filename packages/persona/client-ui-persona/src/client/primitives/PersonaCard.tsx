@@ -492,9 +492,13 @@ export function PersonaCardPopover({ open, anchor, onClose, label, focusOnOpen =
     place()
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
+    // O conteúdo chega depois de abrir (cota, memória, "agora"): sem remedir, o cartão crescia para além do rodapé.
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(place)
+    if (panelRef.current !== null) observer?.observe(panelRef.current)
     return () => {
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
+      observer?.disconnect()
     }
   }, [open, anchor])
 
@@ -596,6 +600,23 @@ export function usePersonaCardController(): PersonaCardController {
     setState(null)
   }, [])
 
+  /**
+   * Fechar com Esc (ou clique fora) deixa o ponteiro parado sobre outro avatar: o navegador dispara
+   * pointerenter sozinho quando o cartão some debaixo dele e o hover reabria o cartão — o Esc "não fechava".
+   * Depois de dispensar, o hover só volta quando o mouse de fato se mexe.
+   */
+  const hoverSuppressed = useRef(false)
+  const dismiss = useCallback((): void => {
+    close()
+    hoverSuppressed.current = true
+    const release = (event: PointerEvent): void => {
+      if (event.movementX === 0 && event.movementY === 0) return
+      hoverSuppressed.current = false
+      document.removeEventListener('pointermove', release, true)
+    }
+    document.addEventListener('pointermove', release, true)
+  }, [close])
+
   const scheduleClose = (): void => {
     window.clearTimeout(openTimer.current)
     closeTimer.current = window.setTimeout(() => {
@@ -612,6 +633,7 @@ export function usePersonaCardController(): PersonaCardController {
       setState(current => (current?.personaId === personaId && current.focus ? null : { personaId, anchor, focus: true }))
     },
     onPointerEnter: (event) => {
+      if (hoverSuppressed.current) return
       const anchor = event.currentTarget
       window.clearTimeout(closeTimer.current)
       window.clearTimeout(openTimer.current)
@@ -630,7 +652,7 @@ export function usePersonaCardController(): PersonaCardController {
       open: state !== null,
       anchor: state?.anchor ?? null,
       focusOnOpen: state?.focus ?? false,
-      onClose: close,
+      onClose: dismiss,
       onPointerEnter: () => { window.clearTimeout(closeTimer.current) },
       onPointerLeave: scheduleClose,
     },

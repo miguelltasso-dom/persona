@@ -504,23 +504,23 @@
 
 .taskPreviewLabel {
   margin: 0 0 var(--persona-space-2);
-  font: 600 13px/18px var(--persona-font-ui);
+  font: 600 13px/18px var(--persona-font-text);
   color: var(--persona-ink-muted);
 }
 
 .taskPreviewBody {
   margin: 0;
-  font: 400 15px/22px var(--persona-font-ui);
+  font: 400 15px/22px var(--persona-font-text);
   color: var(--persona-ink);
 }
 
 .taskPreviewInput {
   width: 100%;
   box-sizing: border-box;
-  font: 400 15px/22px var(--persona-font-ui);
+  font: 400 15px/22px var(--persona-font-text);
   color: var(--persona-ink);
-  background: var(--persona-bg-subtle, var(--persona-slate-50));
-  border: 1px solid var(--persona-border, var(--persona-slate-200));
+  background: var(--persona-paper-sunken);
+  border: 1px solid var(--persona-outline-soft);
   border-radius: var(--persona-radius-m, 8px);
   padding: var(--persona-space-2) var(--persona-space-3);
   outline: none;

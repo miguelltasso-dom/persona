@@ -39,7 +39,23 @@ export function activeSlashToken(text: string, caret: number): { readonly query:
   return { query: match[1] ?? '', start: lineStart }
 }
 
-export function filterSlashCommands(query: string): readonly ComposerSlashCommand[] {
+/**
+ * O que cada comando FAZ quando escolhido (P0-27: controle morto não existe). `/limites` é do próprio composer; os demais
+ * dependem de quem monta a tela e recebem o que foi digitado depois do comando.
+ */
+export type ComposerSlashActions = Partial<Record<Exclude<ComposerSlashId, 'limites'>, (arg: string) => void>>
+
+/** Os comandos que têm ação agora: `/limites` sempre; o resto só quando a tela entregou o handler. */
+export function availableSlashIds(actions: ComposerSlashActions | undefined): ReadonlySet<ComposerSlashId> {
+  const ids = new Set<ComposerSlashId>(['limites'])
+  for (const command of COMPOSER_SLASH_COMMANDS) {
+    if (command.id !== 'limites' && actions?.[command.id] !== undefined) ids.add(command.id)
+  }
+  return ids
+}
+
+/** Só aparece no menu o que tem ação: sem handler o comando "sai do menu" até ser ligado. */
+export function filterSlashCommands(query: string, available: ReadonlySet<ComposerSlashId> = availableSlashIds(undefined)): readonly ComposerSlashCommand[] {
   const q = query.toLowerCase()
-  return COMPOSER_SLASH_COMMANDS.filter(row => row.prefix.slice(1).startsWith(q))
+  return COMPOSER_SLASH_COMMANDS.filter(row => available.has(row.id) && row.prefix.slice(1).startsWith(q))
 }

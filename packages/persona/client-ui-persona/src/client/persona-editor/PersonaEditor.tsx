@@ -21,6 +21,7 @@ import {
 } from './persona-draft.ts'
 import { KanbanFilterField } from '../kanban/KanbanFilterField.tsx'
 import type { GovernancePickOption } from '../governance/governance-picklists.ts'
+import { summarizeToolAccess } from './tool-summary.ts'
 import styles from './PersonaEditor.module.css'
 
 export interface PersonaEditorGovernanceUi {
@@ -460,14 +461,14 @@ export function PersonaEditor({
               </div>
             </div>
             <div className={styles.previewChips}>
-              {draft.coordination && <Chip size="s" tone="brand">{t('field.coordination')}</Chip>}
+              {draft.coordination && <Chip size="s" tone="brand">{t('preview.coordination')}</Chip>}
               {draft.watchdog && <Chip size="s" tone="brand">{t('field.watchdog')}</Chip>}
               {draft.teamManager && <Chip size="s" tone="plain">{t('gestor.badge')}</Chip>}
-              <Chip size="s" tone="plain">{t(AUTONOMY.find(option => option.level === draft.autonomyLevel)?.label ?? 'field.autonomy.propose')}</Chip>
+              <Chip size="s" tone="plain">{t(`preview.autonomy.${draft.autonomyLevel}`)}</Chip>
             </div>
             <p className={styles.previewLabel}>{t('preview.tools')}</p>
             <p className={styles.previewTools}>
-              {enabledTools.length === 0 ? t('preview.noTools') : enabledTools.map(tool => `${t(`tool.${tool}`)} · ${t(LEVEL_LABEL[draft[tool]])}`).join('  ·  ')}
+              {enabledTools.length === 0 ? t('preview.noTools') : summarizeToolAccess(draft, t)}
             </p>
           </div>
         </aside>

@@ -51,3 +51,15 @@ describe('dark palette text tokens', () => {
     }
   })
 })
+
+describe('dark palette coverage', () => {
+  // Raw scales (plum-900, lilac-700…) are the same in both themes on purpose; semantic colour tokens are not.
+  const SCALE = /^persona-(plum|lilac|cream|amber|honey|mint|rose|sky|leaf|gray)-|^persona-accent-ink$/u
+  const darkNames = new Set([...block("body[data-ds-dark-theme='true']").matchAll(/--(persona-[\w-]+):/gu)].map(m => m[1]!))
+
+  it('every semantic colour token in :root is redefined for dark', () => {
+    const rootColours = [...root.matchAll(/--(persona-[\w-]+):\s*(#|var\(--persona-|color-mix)/gu)].map(m => m[1]!)
+    const missing = rootColours.filter(name => !SCALE.test(name) && !darkNames.has(name))
+    expect(missing).toEqual([])
+  })
+})

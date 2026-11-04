@@ -131,18 +131,36 @@ export function TeachPersonaOverlay({
       onClose={() => { closeTeachPersona() }}
       footer={step === 'consent' ? (
         <>
+          {noRecorder && <p id="persona-teach-needs-desktop" className={flow.footHint}>{t('teach.needsDesktopShort')}</p>}
           <Button variant="ghost" onClick={() => { closeTeachPersona() }}>{t('teach.cancel')}</Button>
-          <Button variant="primary" disabled={noRecorder} onClick={() => { setStep('source') }}>{t('teach.chooseSource')}</Button>
+          <Button
+            variant="primary"
+            disabled={noRecorder}
+            {...(noRecorder ? { 'aria-describedby': 'persona-teach-needs-desktop' } : {})}
+            onClick={() => { setStep('source') }}
+          >
+            {t('teach.chooseSource')}
+          </Button>
         </>
       ) : (
         <>
+          {selectedId === null && <p id="persona-teach-pick-source" className={flow.footHint}>{t('teach.sourcePickHint')}</p>}
           <Button variant="ghost" disabled={busy} onClick={() => { setStep('consent'); setBeginFailed(false) }}>{t('teach.back')}</Button>
-          <Button variant="primary" loading={busy} disabled={selectedId === null} onClick={begin}>{t('teach.begin')}</Button>
+          <Button
+            variant="primary"
+            loading={busy}
+            disabled={selectedId === null}
+            {...(selectedId === null ? { 'aria-describedby': 'persona-teach-pick-source' } : {})}
+            onClick={begin}
+          >
+            {t('teach.begin')}
+          </Button>
         </>
       )}
     >
       {step === 'consent' ? (
         <>
+          {noRecorder && <Notice tone="info">{t('teach.needsDesktop')}</Notice>}
           {artSrc !== '' && (
             <p className={styles.art} aria-hidden="true">
               <img src={artSrc} alt="" width={160} height={160} />
@@ -165,7 +183,6 @@ export function TeachPersonaOverlay({
           </ul>
           <Notice tone="warning">{t('teach.recordingHint')}</Notice>
           <p className={styles.retention}>{t('teach.retention')}</p>
-          {noRecorder && <Notice tone="info">{t('teach.needsDesktop')}</Notice>}
         </>
       ) : (
         <div className={flow.narrate}>
@@ -207,9 +224,13 @@ export function TeachPersonaOverlay({
                     checked={selectedId === row.id}
                     onChange={() => { setSelectedId(row.id) }}
                   />
-                  <span className={flow.sourceIcon} aria-hidden="true">
-                    <UiIcon name={row.kind === 'window' ? 'file' : 'image'} size={20} strokeWidth={2} />
-                  </span>
+                  {row.thumbnail === undefined ? (
+                    <span className={flow.sourceIcon} aria-hidden="true">
+                      <UiIcon name={row.kind === 'window' ? 'file' : 'image'} size={20} strokeWidth={2} />
+                    </span>
+                  ) : (
+                    <img className={flow.sourceThumb} src={row.thumbnail} alt="" draggable={false} />
+                  )}
                   <span>{row.name}</span>
                 </label>
               ))}

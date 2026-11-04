@@ -26,14 +26,17 @@ function pct(rate: number): number | undefined {
   return Math.round(rate * 100)
 }
 
-/** OPT-7 — host `UsagePanelView` → Uso UI (never show 0% cache when unknown). */
-export function usagePanelToUi(view: UsagePanelView): UsageTokenPanelUi {
+/**
+ * OPT-7 — host `UsagePanelView` → Uso UI (never show 0% cache when unknown). The ledger keys by persona id: with the
+ * team's names the screen reads "Nina · 1.112 tokens", never "onb-1".
+ */
+export function usagePanelToUi(view: UsagePanelView, personaNames: Readonly<Record<string, string>> = {}): UsageTokenPanelUi {
   return {
     origin: mapLedgerOrigin(view.origin),
     tokensPerSuccessfulTask: view.tokensPerSuccessfulTask,
     cacheHitPct: pct(view.cacheHitRate),
     byPersona: view.byPersona.map(row => ({
-      key: row.key,
+      key: personaNames[row.key] ?? row.key,
       tokens: row.tokens,
       calls: row.calls,
       cacheHitPct: pct(row.cacheHitRate),

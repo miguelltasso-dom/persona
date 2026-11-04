@@ -14,7 +14,7 @@
   "action.confirmImport": "Start import",
   "action.rollback": "Rollback import",
   "progress.running": "Importing in background…",
-  "progress.done": "Import complete",
+  "progress.done": "Import finished: {count} items",
   "empty.title": "No imports",
   "empty.hint": "Bring conversations or context from another tool; you classify vault entries.",
   "empty.action": "Import export",
@@ -26,8 +26,17 @@
   "bycScreen.title": "Bring what your AIs already know",
   "bycScreen.subtitle": "Paste replies from AIs you already use or pick your Obsidian folder — we review before saving to the Vault.",
   "bycScreen.organizing": "Organizing…",
-  "bycScreen.savedToast": "{count} items in the Vault",
+  "bycScreen.savedToast": "{count} items in the Vault ✓",
+  "bycScreen.savedToast.one": "1 item in the Vault ✓",
+  "bycScreen.savedOpen": "See in the Vault",
   "advancedExport.title": "Official export (advanced)",
   "advancedExport.lead": "Zip or export from another tool, with step-by-step mapping.",
-  "advancedExport.open": "Open advanced importer"
+  "advancedExport.open": "Open advanced importer",
+  "importer.unavailable": "Advanced import needs the Persona app open on this computer.",
+  "preview.summary": "To import: {accepted} · Rejected: {rejected}",
+  "preview.empty": "I found nothing to import in this file.",
+  "progress.rolledBack": "Import undone.",
+  "error.preview": "I couldn’t read this file. Use a text or JSON export.",
+  "error.confirm": "The import didn’t finish. Try again.",
+  "error.rollback": "I couldn’t undo the import. Try again."
 }

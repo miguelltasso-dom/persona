@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { brainKindBrandIcon, brainSourceLabel, countPagesByKind, feedEditorDisplay, grantIsActive, pageExcerpt, pageToChangeItem, topBrainPages } from '../src/client/second-brain/brain-ui-adapters.ts'
+import { brainKindBrandIcon, brainPageTitle, brainSourceDisplay, brainSourceLabel, countPagesByKind, feedEditorDisplay, grantActionLabel, grantIsActive, grantTargetLabel, pageExcerpt, pageLead, pageToChangeItem, topBrainPages } from '../src/client/second-brain/brain-ui-adapters.ts'
 import { pt } from '../src/client/locale/second-brain/locales.ts'
 import type { BrainGrantView, BrainPageView } from '@deepseek-ai/dsh-persona-host/types'
 
@@ -57,15 +57,17 @@ describe('brain-ui-adapters', () => {
     expect(pageExcerpt('hello\nworld', 8)).toBe('hello')
   })
 
-  it('feedEditorDisplay maps person:system to Atlas librarian copy', () => {
-    const display = feedEditorDisplay(pt, page({
-      id: 'x',
-      kind: 'company',
-      title: 'T',
-      editorHint: 'person:system',
-    }))
-    expect(display.who).toBe(pt['feed.whoLibrarian'])
-    expect(display.whoAvatar).toBeTruthy()
+  it('feedEditorDisplay: person:system is the persona holding the librarian role, never a fixed Atlas', () => {
+    const system = page({ id: 'x', kind: 'company', title: 'T', editorHint: 'person:system' })
+    // No librarian in this team: a neutral label and no borrowed portrait.
+    const none = feedEditorDisplay(pt, system)
+    expect(none.who).toBe('O bibliotecário')
+    expect(none.whoAvatar).toBeUndefined()
+    // With one, her name (and her portrait when she has one).
+    const named = feedEditorDisplay(pt, system, {}, { system: 'Atlas' })
+    expect(named.who).toBe('Atlas')
+    expect(named.whoAvatar).toBeTruthy()
+    expect(feedEditorDisplay(pt, system, {}, { system: 'Coordenação' }).who).toBe('Coordenação')
   })
 
   it('brainSourceLabel localizes derived-index', () => {
@@ -82,6 +84,41 @@ describe('brain-ui-adapters', () => {
       sources: ['derived-index'],
     }))
     expect(item.source).toBe(pt['feed.sourceDerivedIndex'])
-    expect(item.who).toBe(pt['feed.whoLibrarian'])
+    expect(item.who).toBe('O bibliotecário')
+  })
+})
+
+describe('readable Second Brain text (SB-5, Muse sweep)', () => {
+  const grantPage = page({ id: 'g', kind: 'permission', title: 'reply-whatsapp · clientes-aprovados', editorHint: 'person:owner', sources: ['grant:owner'] })
+
+  it('a member id is never shown: "Você" for the viewer, "Alguém da equipe" for the rest', () => {
+    expect(feedEditorDisplay(pt, grantPage, {}, { owner: 'Você' }).who).toBe('Você')
+    expect(feedEditorDisplay(pt, grantPage, {}, {}).who).toBe('Alguém da equipe')
+    expect(feedEditorDisplay(pt, page({ id: 'x', kind: 'rule', title: 'T', editorHint: 'grant:abc' })).who).not.toMatch(/grant:/u)
+  })
+
+  it('a permission page reads as a sentence, not as two slugs', () => {
+    expect(brainPageTitle(pt, grantPage)).toBe('Responder no WhatsApp: clientes aprovados')
+    expect(grantActionLabel(pt, 'send-invoice')).toBe('Send invoice')
+    expect(grantTargetLabel(pt, 'clientes-aprovados')).toBe('clientes aprovados')
+    // Only permission pages are re-titled; a page called "a-b" by a person stays as written.
+    expect(brainPageTitle(pt, page({ id: 'r', kind: 'rule', title: 'reply-whatsapp · x' }))).toBe('reply-whatsapp · x')
+  })
+
+  it('the feed row drops a source that is only an id, and says "atualizado sozinho" for the automatic index', () => {
+    expect(brainSourceDisplay(pt, 'grant:owner')).toBeUndefined()
+    expect(brainSourceDisplay(pt, 'person:owner')).toBeUndefined()
+    expect(brainSourceDisplay(pt, 'derived-index')).toBe('atualizado sozinho')
+    expect(brainSourceDisplay(pt, 'vault:notas.md')).toBe('vault:notas.md')
+    const item = pageToChangeItem(pt, grantPage, {}, undefined, { owner: 'Você' })
+    expect(item.who).toBe('Você')
+    expect(item.pageTitle).toBe('Responder no WhatsApp: clientes aprovados')
+    expect(item.source).toBeUndefined()
+  })
+
+  it('pageLead is the start of the page without its own title, bullets or [[links]]', () => {
+    expect(pageLead('# Comece aqui\n\nAtualizado sozinho a partir das páginas.\n\n- [[Cardápio]] (empresa)\n- [[Preços|Tabela]]')).toBe('Atualizado sozinho a partir das páginas.\nCardápio (empresa)')
+    expect(pageLead('# So um título')).toBe('')
+    expect(pageLead('a'.repeat(300), 1, 20)).toHaveLength(20)
   })
 })

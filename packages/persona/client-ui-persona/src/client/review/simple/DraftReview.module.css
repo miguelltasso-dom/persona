@@ -1,18 +1,42 @@
-/* Revisar mudanças. Tokens only; the review decides its own narrow layout by its width (container queries). */
+/*
+ * Revisar mudanças — two panes (REVIEW-APPROVALS-REDESIGN §1): the persona's summary on top, the files on the left, a big
+ * preview of the selected file on the right, a fixed action bar. Tokens only; the layout follows the review's own width
+ * (container queries), so 960 px and 200 % zoom collapse to one column.
+ */
 
 .shell {
   container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-5);
-  max-width: 52rem;
+  gap: var(--persona-space-4);
   min-width: 0;
+}
+
+/* ── Header: the persona, in words ─────────────────────────────────────────── */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-4);
+  min-width: 0;
+}
+
+.heroText {
+  min-width: 0;
+}
+
+[data-persona-root] .eyebrow {
+  margin: 0 0 var(--persona-space-1);
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
 }
 
 .title {
   margin: 0;
   font: 600 24px/30px var(--persona-font-display);
   color: var(--persona-ink);
+  overflow-wrap: anywhere;
 }
 
 .subtitle {
@@ -22,16 +46,64 @@
   color: var(--persona-ink-soft);
 }
 
-.card {
+.personaSummary {
+  margin: var(--persona-space-1) 0 0;
+  font: 700 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+/* ── Two panes ─────────────────────────────────────────────────────────────── */
+.workspace {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--persona-space-4);
+  align-items: start;
+  min-width: 0;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  min-width: 0;
+  padding: var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.pane {
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-4);
+  min-width: 0;
+  min-height: 16rem;
   padding: var(--persona-space-5);
   border: var(--persona-border-width) solid var(--persona-outline);
   border-radius: var(--persona-radius-l);
   background: var(--persona-card);
   box-shadow: var(--persona-shadow-sticker);
-  min-width: 0;
+}
+
+.paneHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2) var(--persona-space-3);
+}
+
+[data-persona-root] .paneTitle {
+  margin: 0;
+  font: 600 20px/26px var(--persona-font-display);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.paneFolder {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--persona-ink-soft);
 }
 
 .question {
@@ -50,6 +122,17 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--persona-ink);
+}
+
+.blockedCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-5);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
 }
 
 .body {
@@ -86,24 +169,16 @@
 }
 
 .summary {
-  margin: 0 0 var(--persona-space-3);
-  font: 700 15px/22px var(--persona-font-text);
+  margin: 0;
+  font: 700 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
 }
 
 .metaNote {
-  margin: 0 0 var(--persona-space-3);
+  margin: 0;
   font-size: 13px;
   line-height: 18px;
   color: var(--persona-ink-soft);
-}
-
-.fileList {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 .tests {
@@ -117,6 +192,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-2);
+  padding: var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
 }
 
 .textarea {
@@ -136,28 +215,53 @@
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-3);
-  padding-top: var(--persona-space-4);
-  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+  padding: var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
 }
 
-/* The three actions stay in reach while a long list scrolls. */
-.footer {
+/* ── The fixed bar: the three actions stay in reach while a long preview scrolls ── */
+.bar {
   position: sticky;
   bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-2) var(--persona-space-4);
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.barText {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-2);
-  margin: 0 calc(var(--persona-space-5) * -1) calc(var(--persona-space-5) * -1);
-  padding: var(--persona-space-3) var(--persona-space-5) var(--persona-space-4);
-  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
-  border-radius: 0 0 var(--persona-radius-l) var(--persona-radius-l);
-  background: var(--persona-card);
+  gap: 2px;
+  min-width: 0;
+}
+
+.barQuestion {
+  margin: 0;
+  font: 600 16px/22px var(--persona-font-display);
+  color: var(--persona-ink);
+}
+
+.assurance {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--persona-ink-soft);
 }
 
 .pending {
   margin: 0;
   font: 700 13px/18px var(--persona-font-text);
-  color: var(--persona-ink-soft);
+  color: var(--persona-ink);
 }
 
 .actions {
@@ -166,14 +270,47 @@
   gap: var(--persona-space-2);
 }
 
-@container (max-width: 480px) {
-  .card {
-    padding: var(--persona-space-4);
-  }
+/* ── After applying: the moment ────────────────────────────────────────────── */
+.done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--persona-space-4);
+  padding: var(--persona-space-6, 2rem) var(--persona-space-4);
+  text-align: center;
+}
 
-  .footer {
-    margin: 0 calc(var(--persona-space-4) * -1) calc(var(--persona-space-4) * -1);
-    padding-inline: var(--persona-space-4);
+.doneArt {
+  display: block;
+  width: min(240px, 60%);
+  height: auto;
+}
+
+[data-persona-root] .doneTitle {
+  margin: 0;
+  font: 600 28px/34px var(--persona-font-display);
+  color: var(--persona-ink);
+}
+
+.doneBody {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--persona-ink-soft);
+}
+
+/* Narrow review (a 960 px window, 200 % zoom): one column, the list above the preview. */
+@container (max-width: 760px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 480px) {
+  .pane,
+  .side {
+    padding: var(--persona-space-4);
   }
 
   .actions > * {

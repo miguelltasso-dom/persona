@@ -1,6 +1,6 @@
 /** Reactive approval cards — windowed when the inbox is large (DESEMPENHO). */
 
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   ApprovedStamp,
   Avatar,
@@ -16,7 +16,18 @@ import {
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './Approvals.module.css'
-import { approvalHireVisual, reactiveApprovalContext } from './approvals-ui-helpers.ts'
+import {
+  approvalHireVisual,
+  hireHeading,
+  hireMonthlyTasksLine,
+  hireWhyLine,
+  personaPortraitSrc,
+  reactiveApprovalContext,
+  vaultChangeLine,
+  vaultHeading,
+} from './approvals-ui-helpers.ts'
+import { HireDetailsModal } from './HireDetailsModal.tsx'
+import type { RememberChoice } from './inbox-model.ts'
 import type { ApprovalItem } from './mock-data.ts'
 import { DecisionStateNote } from '../decisions/DecisionStateNote.tsx'
 
@@ -24,24 +35,24 @@ const APPROVAL_ROW_PX = 360
 const APPROVAL_VIRTUAL_MIN = 12
 
 function cardTitle(dict: LocaleDict, item: ApprovalItem): string {
-  if (item.kind === 'hire') return bindLocale(dict, 'hire.title', { name: item.title })
+  if (item.kind === 'hire') return hireHeading(dict, item)
+  if (item.kind === 'vault') return vaultHeading(dict, item)
   const key = `${item.kind}.title` as 'vault.title' | 'skill.title' | 'attention.title'
   return bindLocale(dict, key)
 }
 
+export type { RememberChoice }
+
 export interface ReactiveApprovalsListProps {
   readonly dict: LocaleDict
   readonly items: readonly ApprovalItem[]
-  readonly headScope: PermissionScope | undefined
+  /** What "Lembrar esta permissão" would grant for this card; none = the card has nothing to remember. */
+  readonly scopeFor: (item: ApprovalItem) => PermissionScope | undefined
   readonly exitStampId: string | null
-  /** First card the person can act on (the one question at a time). Defaults to the first item. */
-  readonly headId?: string | undefined
   readonly focusId?: string | undefined
-  readonly rememberGrant: boolean
-  readonly rememberValidity: PermissionValidity
+  readonly rememberFor: (id: string) => RememberChoice
   readonly rememberStampNote: string | null
-  readonly onRememberGrantChange: (value: boolean) => void
-  readonly onRememberValidityChange: (value: PermissionValidity) => void
+  readonly onRememberChange: (id: string, patch: Partial<RememberChoice>) => void
   readonly onDecideItem?: (item: ApprovalItem, accept: boolean, remember?: { readonly validity: PermissionValidity }) => void
   readonly onCelebrateAccept: (id: string, proceed: () => void) => void
 }
@@ -49,19 +60,15 @@ export interface ReactiveApprovalsListProps {
 function ReactiveApprovalRow({
   dict,
   item,
-  index,
-  headScope,
+  scopeFor,
   exitStampId,
-  headId,
   focusId,
-  rememberGrant,
-  rememberValidity,
+  rememberFor,
   rememberStampNote,
-  onRememberGrantChange,
-  onRememberValidityChange,
+  onRememberChange,
   onDecideItem,
   onCelebrateAccept,
-}: ReactiveApprovalsListProps & { readonly item: ApprovalItem; readonly index: number }): ReactNode {
+}: ReactiveApprovalsListProps & { readonly item: ApprovalItem }): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const isFocused = focusId !== undefined && item.id === focusId
   // DECISIONS-SPEC: a card with a decisionState is driven by the shared store; without one the legacy local cycle runs.
@@ -70,13 +77,27 @@ function ReactiveApprovalRow({
   const stamped = controlled ? state === 'accepted' : exitStampId === item.id
   const leaving = controlled ? (state === 'accepted' || state === 'declined') : exitStampId === item.id
   const deciding = controlled && state === 'deciding'
-  const isHead = headId === undefined ? index === 0 : item.id === headId
+  // Every card decides on its own, in any order. Only a real dependency named by the host holds one back (and says so).
+  const blockedBy = item.dependsOnTitle?.trim() ?? ''
+  const blocked = blockedBy.length > 0
+  const choice = rememberFor(item.id)
+  const scope = scopeFor(item)
   const acceptItem = (): void => {
-    if (onDecideItem === undefined || !isHead) return
-    const remember = rememberGrant && item.brain !== undefined ? { validity: rememberValidity } : undefined
+    if (onDecideItem === undefined || blocked) return
+    const remember = choice.grant && item.brain !== undefined ? { validity: choice.validity } : undefined
     if (controlled) onDecideItem(item, true, remember)
     else onCelebrateAccept(item.id, () => { onDecideItem(item, true, remember) })
   }
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const isHire = item.kind === 'hire'
+  const hireRole = item.hireRoleTitle?.trim() ?? ''
+  const proposer = item.proposerName?.trim() ?? ''
+  const proposerPortrait = isHire || proposer.length === 0
+    ? undefined
+    : (personaPortraitSrc(item.proposerPersonaId, proposer) ?? personaPortraitSrc(undefined, proposer))
+  const changeLine = item.kind === 'vault' ? vaultChangeLine(dict, item) : undefined
+  const whyLine = isHire ? hireWhyLine(dict, item) : undefined
+  const costLine = isHire ? hireMonthlyTasksLine(dict, item) : undefined
   const cardRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (isFocused && cardRef.current) {
@@ -117,31 +138,40 @@ function ReactiveApprovalRow({
                   </span>
                 )
               }
+              // A hire shows the proposed animal; every other card shows who proposes it (never initials of its title).
+              const avatarSrc = hireVisual?.kind === 'portrait' ? hireVisual.src : isHire ? undefined : proposerPortrait
               return (
                 <Avatar
-                  name={item.title}
-                  size={40}
+                  name={isHire ? item.title : (proposer.length > 0 ? proposer : item.title)}
+                  size={isHire ? 48 : 40}
                   shape="portrait"
-                  {...(hireVisual?.kind === 'portrait' ? { src: hireVisual.src } : {})}
+                  {...(avatarSrc === undefined ? {} : { src: avatarSrc })}
                 />
               )
             })()}
             <div>
               <Chip tone="accent" size="s">{t(`type.${item.kind}`)}</Chip>
               <h3 className={styles.question}>{cardTitle(dict, item)}</h3>
+              {isHire && hireRole.length > 0 && (
+                // The role is already in the heading, so no chip repeats it here (the details dialog keeps it).
+                <p className={styles.hireWho}>
+                  <span className={styles.hireWhoName}>{item.title}</span>
+                </p>
+              )}
             </div>
           </div>
+          {isHire && item.hireDescription !== undefined && <p className={styles.hireIntro}>{item.hireDescription}</p>}
           <p className={styles.context}>{reactiveApprovalContext(dict, item)}</p>
-          {item.kind === 'hire' && item.hireWhy !== undefined && (
-            <p className={styles.hireWhy}>{t('hire.why', { reason: item.hireWhy })}</p>
-          )}
-          {isHead && headScope !== undefined && (
+          {changeLine !== undefined && <p className={styles.vaultChange}>{changeLine}</p>}
+          {whyLine !== undefined && <p className={styles.hireWhy}>{whyLine}</p>}
+          {costLine !== undefined && <p className={styles.hireCost}>{costLine}</p>}
+          {scope !== undefined && !leaving && state !== 'declined' && (
             <RememberPermission
-              scope={headScope}
-              remember={rememberGrant}
-              onRememberChange={onRememberGrantChange}
-              validity={rememberValidity}
-              onValidityChange={onRememberValidityChange}
+              scope={scope}
+              remember={choice.grant}
+              onRememberChange={(grant) => { onRememberChange(item.id, { grant }) }}
+              validity={choice.validity}
+              onValidityChange={(validity) => { onRememberChange(item.id, { validity }) }}
               labels={{
                 remember: t('remember.toggle'),
                 scopeLead: persona => t('remember.scopeLead', { persona }),
@@ -170,10 +200,15 @@ function ReactiveApprovalRow({
                   size="s"
                   loading={deciding}
                   onClick={acceptItem}
-                  disabled={!isHead || onDecideItem === undefined || leaving || (!controlled && exitStampId !== null)}
+                  disabled={blocked || onDecideItem === undefined || leaving || (!controlled && exitStampId !== null)}
                 >
                   {t(item.primaryKey)}
                 </Button>
+                {isHire && (
+                  <Button variant="secondary" size="s" onClick={() => { setDetailsOpen(true) }}>
+                    {t('hire.details')}
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   size="s"
@@ -183,18 +218,22 @@ function ReactiveApprovalRow({
                   {t('action.dismiss')}
                 </Button>
               </div>
+              {/* Off only for a real dependency the host named: the card says on what, instead of leaving the button faded. */}
+              {blocked && !leaving && !deciding && (
+                <p className={styles.dependsNote}>{t('depends.note', { title: blockedBy })}</p>
+              )}
             </>
           )}
         </Card>
       </div>
+      {isHire && <HireDetailsModal dict={dict} item={item} open={detailsOpen} onClose={() => { setDetailsOpen(false) }} />}
     </div>
   )
 }
 
 export function ReactiveApprovalsList(props: ReactiveApprovalsListProps): ReactNode {
   const { items } = props
-  const headId = props.headId ?? items.find(item => item.decisionState === undefined || item.decisionState === 'pending' || item.decisionState === 'failed')?.id
-  const rowProps = (index: number) => ({ ...props, headId, item: items[index]!, index })
+  const rowProps = (index: number) => ({ ...props, item: items[index]! })
 
   if (items.length >= APPROVAL_VIRTUAL_MIN) {
     return (

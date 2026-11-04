@@ -46,26 +46,37 @@ function parseEditorHint(hint: string): { readonly kind: 'person' | 'persona'; r
   return { kind: match[1] as 'person' | 'persona', id: match[2]!.trim() }
 }
 
+/** The animal portrait of a persona: by its `avatarRef` (the one it was hired with), else by its name. */
+export function personaPortrait(persona: { readonly name: string; readonly avatarRef?: string | undefined }): string | undefined {
+  return avatarForCharacterKey(normalizeCharacterId(persona.avatarRef) ?? normalizeCharacterId(persona.name))
+}
+
 /** Human label + portrait for ChangeFeed rows (host stores `person:system` / `persona:id`). */
 export function feedEditorDisplay(
   dict: LocaleDict,
   page: BrainPageView,
   personaNames: Readonly<Record<string, string>> = {},
+  /** `person:<memberId>` → the person's name ("Você" for whoever is looking). */
+  memberNames: Readonly<Record<string, string>> = {},
 ): { readonly who: string; readonly whoAvatar?: string | undefined } {
   const hint = page.editorHint.trim()
   if (hint === 'person:system') {
-    return {
-      who: bindLocale(dict, 'feed.whoLibrarian'),
-      whoAvatar: AVATAR_96.atlas,
-    }
+    // The index is kept by whoever holds the librarian role in THIS team (`memberNames.system`); no persona, no name.
+    const librarian = memberNames.system
+    if (librarian === undefined) return { who: bindLocale(dict, 'feed.whoLibrarian'), whoAvatar: undefined }
+    return { who: librarian, whoAvatar: avatarForCharacterKey(normalizeCharacterId(librarian)) }
   }
   const parsed = parseEditorHint(hint)
+  if (parsed?.kind === 'person') {
+    // A member id is never shown: a name when known, else "someone on the team".
+    return { who: memberNames[parsed.id] ?? bindLocale(dict, 'feed.whoMember'), whoAvatar: undefined }
+  }
   if (parsed?.kind === 'persona') {
     const name = personaNames[parsed.id] ?? parsed.id
     const characterKey = normalizeCharacterId(parsed.id) ?? normalizeCharacterId(name)
     return { who: name, whoAvatar: avatarForCharacterKey(characterKey) }
   }
-  if (hint !== '') {
+  if (hint !== '' && !INTERNAL_ID.test(hint)) {
     return { who: hint, whoAvatar: undefined }
   }
   return { who: bindLocale(dict, 'feed.editorPersona'), whoAvatar: undefined }
@@ -77,6 +88,61 @@ export function brainSourceLabel(dict: LocaleDict, source: string): string {
   return source
 }
 
+/** `kind:id` of something inside the product (a grant, a member, a page): never worth showing as a source. */
+const INTERNAL_ID = /^(?:grant|person|persona|member|page|ticket|approval|routine|hire):\S+$/u
+
+/** A source line a person can read; `undefined` when the source is only an internal id (the line is dropped). */
+export function brainSourceDisplay(dict: LocaleDict, source: string): string | undefined {
+  if (INTERNAL_ID.test(source.trim())) return undefined
+  return brainSourceLabel(dict, source)
+}
+
+const SLUG = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u
+
+function slugWords(slug: string): string {
+  return slug.replace(/[-_]+/gu, ' ')
+}
+
+/** A permission's action as a sentence part: a known label, else the slug as plain words ("Reply whatsapp" beats `reply-whatsapp`). */
+export function grantActionLabel(dict: LocaleDict, action: string): string {
+  const key = `grant.action.${action}`
+  const known = bindLocale(dict, key)
+  if (known !== key) return known
+  if (!SLUG.test(action)) return action
+  const words = slugWords(action)
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`
+}
+
+export function grantTargetLabel(dict: LocaleDict, target: string): string {
+  const key = `grant.target.${target}`
+  const known = bindLocale(dict, key)
+  if (known !== key) return known
+  return SLUG.test(target) ? slugWords(target) : target
+}
+
+/** The page's title for people: a permission page is titled `action · target` by the host. */
+export function brainPageTitle(dict: LocaleDict, page: BrainPageView): string {
+  if (page.kind !== 'permission') return page.title
+  const [action, target] = page.title.split(' · ').map(part => part.trim())
+  if (action === undefined || !SLUG.test(action)) return page.title
+  const head = grantActionLabel(dict, action)
+  return target === undefined || target === '' ? head : `${head}: ${grantTargetLabel(dict, target)}`
+}
+
+/** The first lines of a page, without its own title, list marks or [[links]]: the start of what it says. */
+export function pageLead(body: string, lines = 2, max = 140): string {
+  const rows: string[] = []
+  for (const raw of body.split('\n')) {
+    const row = raw.trim()
+    if (row === '' || row.startsWith('#') || row.startsWith('```') || row === '---') continue
+    const clean = row.replace(/^[-*+]\s+/u, '').replace(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/gu, '$1').trim()
+    if (clean === '') continue
+    rows.push(clean.length <= max ? clean : `${clean.slice(0, max - 1)}…`)
+    if (rows.length >= lines) break
+  }
+  return rows.join('\n')
+}
+
 export function contradictionSides(
   dict: LocaleDict,
   page: BrainPageView,
@@ -86,21 +152,20 @@ export function contradictionSides(
     return {
       current: {
         text: parts[0]?.trim() ?? pageExcerpt(page.body),
-        source: page.sources[0] !== undefined ? brainSourceLabel(dict, page.sources[0]) : bindLocale(dict, 'contradiction.currentSource'),
+        source: (page.sources[0] !== undefined ? brainSourceDisplay(dict, page.sources[0]) : undefined) ?? bindLocale(dict, 'contradiction.currentSource'),
       },
       incoming: {
         text: parts[1]?.trim() ?? bindLocale(dict, 'contradiction.incomingMissing'),
-        source: page.sources[1] !== undefined
-          ? brainSourceLabel(dict, page.sources[1])
-          : (page.editorHint.trim() !== '' ? page.editorHint : bindLocale(dict, 'contradiction.incomingSource')),
+        source: (page.sources[1] !== undefined ? brainSourceDisplay(dict, page.sources[1]) : undefined)
+          ?? (page.editorHint.trim() !== '' ? feedEditorDisplay(dict, page).who : bindLocale(dict, 'contradiction.incomingSource')),
       },
     }
   }
   return {
     current: { text: pageExcerpt(page.body, 240), source: bindLocale(dict, 'contradiction.currentSource') },
     incoming: {
-      text: page.sources[0] ?? bindLocale(dict, 'contradiction.incomingMissing'),
-      source: page.editorHint.trim() !== '' ? page.editorHint : bindLocale(dict, 'contradiction.incomingSource'),
+      text: (page.sources[0] !== undefined ? brainSourceDisplay(dict, page.sources[0]) : undefined) ?? bindLocale(dict, 'contradiction.incomingMissing'),
+      source: page.editorHint.trim() !== '' ? feedEditorDisplay(dict, page).who : bindLocale(dict, 'contradiction.incomingSource'),
     },
   }
 }
@@ -123,17 +188,19 @@ export function pageToChangeItem(
   page: BrainPageView,
   personaNames: Readonly<Record<string, string>> = {},
   onOpen?: () => void,
+  memberNames: Readonly<Record<string, string>> = {},
 ): ChangeItem {
-  const editor = feedEditorDisplay(dict, page, personaNames)
+  const editor = feedEditorDisplay(dict, page, personaNames, memberNames)
+  const source = page.sources[0] === undefined ? undefined : brainSourceDisplay(dict, page.sources[0])
   return {
     id: page.id,
     who: editor.who,
     ...(editor.whoAvatar === undefined ? {} : { whoAvatar: editor.whoAvatar }),
     verb: bindLocale(dict, 'feed.verbUpdated'),
-    pageTitle: page.title,
+    pageTitle: brainPageTitle(dict, page),
     pageType: brainKindLabel(dict, page.kind),
     time: bindLocale(dict, 'feed.timeToday'),
-    ...(page.sources[0] !== undefined ? { source: brainSourceLabel(dict, page.sources[0]) } : {}),
+    ...(source === undefined ? {} : { source }),
     ...(onOpen === undefined ? {} : { onOpen }),
   }
 }

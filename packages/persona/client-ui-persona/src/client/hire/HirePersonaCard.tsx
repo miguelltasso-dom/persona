@@ -7,10 +7,13 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
 import { Avatar, Button, Chip } from '../primitives/index.ts'
+import { humanizeEngineLabel } from '../team/engine-label.ts'
 import styles from './HirePersonaCard.module.css'
 
 export interface HireProposalPreview {
   readonly name: string
+  /** O bicho da proposta (galeria). Sem ele, cai no nome — mas o retrato é do bicho, não do nome. */
+  readonly avatarRef?: string | undefined
   readonly creator: string
   readonly role: string
   readonly harness: string
@@ -28,15 +31,20 @@ export const MOCK_HIRE_PROPOSAL: HireProposalPreview = {
 export interface HirePersonaCardProps {
   readonly dict: LocaleDict
   readonly proposal?: HireProposalPreview
+  /** Sem handler, o botão não aparece (DESIGN-SYSTEM §9: botão sem ação não existe). */
+  readonly onApprove?: (() => void) | undefined
+  readonly onEdit?: (() => void) | undefined
+  readonly onDismiss?: (() => void) | undefined
 }
 
 /** Agent-created persona proposal with edit-before-hire actions. */
-export function HirePersonaCard({ dict, proposal = MOCK_HIRE_PROPOSAL }: HirePersonaCardProps): ReactNode {
+export function HirePersonaCard({ dict, proposal = MOCK_HIRE_PROPOSAL, onApprove, onEdit, onDismiss }: HirePersonaCardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const motion = usePersonaMotion({ preset: 'fast', fromOpacity: 0, fromTranslateY: 6 })
 
-  const portrait = (AVATAR_96 as Readonly<Record<string, string>>)[proposal.name.trim().toLowerCase()]
-  const pose = poseUrl(proposal.name.trim().toLowerCase() as PersonaCharacterId, 'acenando')
+  const animal = (proposal.avatarRef ?? proposal.name).trim().toLowerCase()
+  const portrait = (AVATAR_96 as Readonly<Record<string, string>>)[animal]
+  const pose = poseUrl(animal as PersonaCharacterId, 'acenando')
 
   return (
     <article className={styles.card} ref={motion.ref} style={motion.style} aria-labelledby="hire-title">
@@ -54,7 +62,7 @@ export function HirePersonaCard({ dict, proposal = MOCK_HIRE_PROPOSAL }: HirePer
           </div>
           <div className={styles.metaRow}>
             <dt className={styles.metaLabel}>{t('field.harness')}</dt>
-            <dd><Chip tone="plain">{proposal.harness}</Chip></dd>
+            <dd><Chip tone="plain">{humanizeEngineLabel(proposal.harness)}</Chip></dd>
           </div>
           <div className={styles.metaRow}>
             <dt className={styles.metaLabel}>{t('field.tools')}</dt>
@@ -64,11 +72,13 @@ export function HirePersonaCard({ dict, proposal = MOCK_HIRE_PROPOSAL }: HirePer
           </div>
         </dl>
         <p className={styles.policy}>{t('policy.note')}</p>
-        <div className={styles.actions}>
-          <Button variant="primary">{t('action.approve')}</Button>
-          <Button variant="secondary">{t('action.edit')}</Button>
-          <Button variant="ghost">{t('action.dismiss')}</Button>
-        </div>
+        {(onApprove !== undefined || onEdit !== undefined || onDismiss !== undefined) && (
+          <div className={styles.actions}>
+            {onApprove !== undefined && <Button variant="primary" onClick={onApprove}>{t('action.approve')}</Button>}
+            {onEdit !== undefined && <Button variant="secondary" onClick={onEdit}>{t('action.edit')}</Button>}
+            {onDismiss !== undefined && <Button variant="ghost" onClick={onDismiss}>{t('action.dismiss')}</Button>}
+          </div>
+        )}
       </div>
     </article>
   )

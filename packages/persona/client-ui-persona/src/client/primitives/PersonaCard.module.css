@@ -4,8 +4,10 @@
   position: fixed;
   z-index: 60;
   width: 344px;
-  max-height: calc(100vh - 24px);
-  overflow: auto;
+  /* Nunca passa do rodapé: o cartão rola por dentro (S6 a 1440×900 e em zoom 200%). */
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-radius: var(--persona-radius-xl);
   outline: none;
   animation: persona-card-in var(--motion-base) var(--ease-spring);

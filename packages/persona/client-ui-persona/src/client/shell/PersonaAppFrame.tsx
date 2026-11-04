@@ -1,16 +1,21 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import type { HostObservable, InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ShellState } from './create-shell-store.ts'
+import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { MainPanelId, ShellState } from './create-shell-store.ts'
+import { PlaceTabsBar } from './PlaceTabsBar.tsx'
+import { isPlacesNavEnabled } from './nav-flag.ts'
 import { installComposerFocusRestore } from '../chat/composer-focus.ts'
 import { ErrorState, PanelBoundary } from '../primitives/index.ts'
 import styles from './PersonaAppFrame.module.css'
 
 export interface PersonaAppFrameInjected {
   hooks: { shell: HostObservable<ShellState> }
+  /** A-1: as abas do lugar trocam de tela sem mudar a rota (o mesmo `MainPanelId`). */
+  selectPanel: (panel: MainPanelId) => void
 }
 
 export type PersonaAppFrameProps =
   & PropsRuntime<'root'>
+  & PropsLocale<'persona.shell'>
   & PropsRenderSlots<'sidebar' | 'main' | 'shell.overlay'>
   & InjectFace<PersonaAppFrameInjected>
 
@@ -49,7 +54,7 @@ function useBlankPanelGuard(panel: string): { ref: RefObject<HTMLElement>; blank
 }
 
 /** Persona root shell: rail + main + overlay list. */
-export function PersonaAppFrame({ renderSlot, useShell }: PersonaAppFrameProps): ReactNode {
+export function PersonaAppFrame({ renderSlot, useShell, selectPanel, t }: PersonaAppFrameProps): ReactNode {
   const shell = useShell(state => state)
   const guard = useBlankPanelGuard(shell.activePanel)
   useEffect(() => installComposerFocusRestore(), [])
@@ -58,6 +63,8 @@ export function PersonaAppFrame({ renderSlot, useShell }: PersonaAppFrameProps):
       <div className={styles.dragStrip} aria-hidden="true" />
       {renderSlot('sidebar', {})}
       <div className={styles.center} data-persona-grain="">
+        {/* D-077: a barra de abas do lugar só existe com a navegação em 6 lugares ligada (flag, desligada por padrão). */}
+        {isPlacesNavEnabled() && <PlaceTabsBar t={t} activePanel={shell.activePanel} onSelect={selectPanel} />}
         {/* <main>: o landmark que faltava em TODA tela (axe landmark-one-main / region, Gauge F5). */}
         <main className={styles.main} ref={guard.ref} key={`${shell.activePanel}:${guard.attempt}`} data-persona-main={shell.activePanel} data-persona-area="main">
           <PanelBoundary panel={shell.activePanel}>

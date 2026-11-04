@@ -59,3 +59,12 @@
   color: var(--persona-ink);
   margin-bottom: var(--persona-space-2);
 }
+
+/* Muse's art for the clash (Bento and Nina with the same sheet): decorative, never carries the message. */
+.art {
+  display: block;
+  width: 160px;
+  max-width: 40%;
+  height: auto;
+  margin: 0 auto var(--persona-space-3);
+}

@@ -26,6 +26,30 @@ export interface ModalProps {
 export function Modal({ open, title, eyebrow, description, footer, closeLabel, onClose, size = 'm', children }: ModalProps): ReactNode {
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  // Muse: the body scrolls on its own (fixed header/footer); when it does and holds no control, keyboard users need to
+  // reach it (axe scrollable-region-focusable), so it becomes a focusable region only while it overflows.
+  const [bodyScrolls, setBodyScrolls] = useState(false)
+  // …and while there is more below, a soft fade at the bottom says "keep scrolling" (e.g. a consent checkbox below the fold).
+  const [bodyMore, setBodyMore] = useState(false)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const body = bodyRef.current
+    if (body === null) return undefined
+    const check = (): void => {
+      const scrolls = body.scrollHeight > body.clientHeight + 1
+      setBodyScrolls(scrolls)
+      setBodyMore(scrolls && body.scrollTop + body.clientHeight < body.scrollHeight - 4)
+    }
+    body.addEventListener('scroll', check, { passive: true })
+    check()
+    if (typeof ResizeObserver === 'undefined') return () => { body.removeEventListener('scroll', check) }
+    const observer = new ResizeObserver(check)
+    observer.observe(body)
+    for (const child of Array.from(body.children)) observer.observe(child)
+    return () => { observer.disconnect(); body.removeEventListener('scroll', check) }
+  }, [open, children])
 
   useEffect(() => {
     if (!open) return undefined
@@ -76,7 +100,16 @@ export function Modal({ open, title, eyebrow, description, footer, closeLabel, o
             <IconButton label={closeLabel} icon={<UiIcon name="close" />} onClick={onClose} />
           )}
         </header>
-        {children !== undefined && <div className={styles.modalBody}>{children}</div>}
+        {children !== undefined && (
+          <div
+            ref={bodyRef}
+            className={styles.modalBody}
+            data-more={bodyMore ? '' : undefined}
+            {...(bodyScrolls ? { tabIndex: 0, role: 'region', 'aria-labelledby': titleId } : {})}
+          >
+            {children}
+          </div>
+        )}
         {footer !== undefined && <footer className={styles.modalFooter}>{footer}</footer>}
       </div>
     </div>
@@ -132,10 +165,15 @@ export interface TooltipProps {
   readonly content: ReactNode
   readonly children: ReactNode
   readonly side?: 'top' | 'bottom'
+  /**
+   * Muse (UX-BEYOND P0, Linear/Raycast): the keyboard shortcut for this action, shown as key chips after the text,
+   * e.g. `['Ctrl', 'K']`. Every control that has a shortcut passes it, so shortcuts are learned where they are used.
+   */
+  readonly shortcut?: readonly string[] | undefined
 }
 
-/** Hover/focus tooltip (400 ms delay). Never put actions inside. */
-export function Tooltip({ content, children, side = 'top' }: TooltipProps): ReactNode {
+/** Hover/focus tooltip (400 ms delay; Esc dismisses, WCAG 1.4.13). Never put actions inside. */
+export function Tooltip({ content, children, side = 'top', shortcut }: TooltipProps): ReactNode {
   const id = useId()
   const [open, setOpen] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -155,12 +193,18 @@ export function Tooltip({ content, children, side = 'top' }: TooltipProps): Reac
       onPointerLeave={hide}
       onFocus={show}
       onBlur={hide}
+      onKeyDown={(event) => { if (event.key === 'Escape' && open) hide() }}
       aria-describedby={open ? id : undefined}
     >
       {children}
       {open && (
         <span id={id} role="tooltip" className={styles.tooltip} data-side={side}>
           {content}
+          {shortcut !== undefined && shortcut.length > 0 && (
+            <span className={styles.tooltipKeys}>
+              {shortcut.map(key => <kbd key={key} className={styles.tooltipKey}>{key}</kbd>)}
+            </span>
+          )}
         </span>
       )}
     </span>

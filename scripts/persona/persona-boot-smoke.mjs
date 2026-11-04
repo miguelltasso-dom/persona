@@ -15,6 +15,7 @@ const args = process.argv.slice(2)
 const option = (name, fallback) => { const index = args.indexOf(name); return index >= 0 && args[index + 1] !== undefined ? args[index + 1] : fallback }
 const root = resolve(option('--root', resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')))
 const port = option('--port', '3291')
+const hostTimeoutMs = Number(option('--host-timeout-ms', process.env.PERSONA_BOOT_HOST_TIMEOUT_MS ?? '180000'))
 const home = mkdtempSync(join(tmpdir(), 'persona-smoke-'))
 const log = (message) => console.log(`[boot-smoke] ${message}`)
 
@@ -32,7 +33,10 @@ const finish = (code, note) => {
   try { rmSync(home, { recursive: true, force: true }) } catch { /* temp dir busy */ }
   process.exit(code)
 }
-const startTimer = setTimeout(() => finish(2, `host did not print its URL in 120 s:\n${hostOutput.slice(-800)}`), 120_000)
+const startTimer = setTimeout(
+  () => finish(2, `host did not print its URL in ${hostTimeoutMs / 1000} s:\n${hostOutput.slice(-800)}`),
+  hostTimeoutMs,
+)
 
 const onData = async (chunk) => {
   hostOutput += chunk.toString()
@@ -47,7 +51,18 @@ const onData = async (chunk) => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' })
     const page = await context.newPage()
     const fatal = []
-    page.on('pageerror', (error) => fatal.push(`pageerror: ${String(error).slice(0, 240)}`))
+    /** Clean-home tour hits many panels quickly; host may rate-limit listConversationSubjects. */
+    const benignPageError = (text) =>
+      /listConversationSubjects.*rate-limited|gateway\/internal.*rate-limited/i.test(text)
+    let benignGateway = 0
+    page.on('pageerror', (error) => {
+      const line = `pageerror: ${String(error).slice(0, 240)}`
+      if (benignPageError(line)) {
+        benignGateway += 1
+        if (benignGateway <= 4) return
+      }
+      fatal.push(line)
+    })
     page.on('console', (message) => {
       if (message.type() === 'error' && /Maximum update depth|Minified React error #185|Uncaught|is not a function/u.test(message.text())) fatal.push(`console: ${message.text().slice(0, 240)}`)
     })

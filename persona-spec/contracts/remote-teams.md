@@ -4,13 +4,27 @@ Dono do edge: **Anvil** (`apps/persona-edge`, `persona-sync`). Protocolo de enve
 
 Dois desks (homes isolados) + um Worker local. Deploy real = E11 (Atlas).
 
-## Membros
+## Rotas do Worker (hoje)
 
-- `POST /w/:id/members` — dono entra sem gastar convite.
-- `POST /w/:id/invites` · `POST /w/:id/invites/:token/redeem` — um uso; grava `member`.
-- `POST /w/:id/invites/:id/revoke` — marca o convite e o membro redimido.
-- `POST /w/:id/members/:actorId/revoke` — corta o desk sem passar pelo token.
-- Header `x-persona-actor` em `sync/append` e `sync/after`. Sem header = caminho antigo (testes). Com header de membro revogado = `403 ACCESS_REVOKED`. Estranho com membros ativos = `403 NOT_A_MEMBER`.
+| Rota | Efeito |
+|---|---|
+| `GET /health` | `{ ok, service: 'persona-edge' }` |
+| `GET /w/:id` · `GET /w/:id/health` | hub do Durable Object |
+| `POST /w/:id/sync/append` | sequenciador (`SEQ_GAP` se `seq ≠ head+1`) |
+| `GET /w/:id/sync/after?streamId&afterSeq` | replay |
+| `Upgrade /w/:id/sync` | WebSocket (`resume` / `append`) |
+| `POST /w/:id/members` | dono entra sem gastar convite |
+| `GET /w/:id/members` | lista |
+| `POST /w/:id/members/:actorId/revoke` | corta o desk |
+| `POST /w/:id/invites` | emite |
+| `GET /w/:id/invites/:token` | lê; 404 `INVITE_INVALID` |
+| `POST /w/:id/invites/:token/redeem` | um uso; grava `member` |
+| `POST /w/:id/invites/:id/revoke` | marca o convite e o membro redimido |
+| `POST /w/:id/webhooks/github` | HMAC no Worker; DO persiste `WebhookEnvelope` |
+| `GET /w/:id/webhooks/github` | deliveries |
+| `GET/PUT /w/:id/blobs/:key` | R2; `mayUpload` ou `403 SYNC_REFUSED` |
+
+Header `x-persona-actor` em `sync/append` e `sync/after`. Sem header = caminho antigo (testes). Com header de membro revogado = `403 ACCESS_REVOKED`. Estranho com membros ativos = `403 NOT_A_MEMBER`. Cliente desktop: `persona-sync` `SyncClient` + `HttpTransport` / `WorkspaceCipher`.
 
 ## O que nunca sobe
 

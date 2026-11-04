@@ -14,7 +14,7 @@ Colored **assuntos** per channel or DM stream. Maps to engine **Thread** ids whe
 
 | Method | Purpose |
 |--------|---------|
-| `listConversationSubjects(scope)` | Returns `{ subjects: SubjectView[], activeSubjectId: string }`. Default: single **Geral** subject; others created via UI (+), max 7 (WAVE2-SPEC). |
+| `listConversationSubjects(scope)` | Returns `{ subjects: SubjectView[], activeSubjectId: string }`. Default: single **Geral** subject; others created via UI (+), max 7 (WAVE2-SPEC). Cheap SQLite list; host caches 750 ms per stream (boot storms). Gateway: JSON 256 KB; reads 2000/10s; writes 240/10s; typed `rate-limited` + `retryAfterMs`. |
 | `setActiveConversationSubject(scope & { subjectId })` | Active assunto for new messages and persona replies. |
 | `createConversationSubject(scope & { name, colorIndex? })` | Optional name; `colorIndex` 0–6. |
 | `renameConversationSubject(scope & { subjectId, name })` | |
@@ -44,7 +44,7 @@ Same as stream read/write. Moving messages requires write on the stream.
 
 ## Domain (Forge / persona-core)
 
-`defaultSubjects`, `renameSubject`, `archiveSubject`, `activateSubject`, `moveMessageToSubject`, `bindTicketToSubject`, `ticketSubjectChip`, `restrictSnapshotToSubject`, `compileActiveSubject`. Thread key = `kind:conversationId:subject:subjectId`. `compileContext` sees only the active subject + required vault/decisions; other subjects enter only as Chain of Recall hops when cited.
+`defaultSubjects`, `renameSubject`, `archiveSubject`, `activateSubject`, `moveMessageToSubject`, `bindTicketToSubject`, `ticketSubjectChip`, `ticketCardTopic` (`topicId` + chip para `TaskView`), `restrictSnapshotToSubject`, `compileActiveSubject`. Thread key = `kind:conversationId:subject:subjectId`. `compileContext` sees only the active subject + required vault/decisions; other subjects enter only as Chain of Recall hops when cited.
 
 ## Client until host ships
 

@@ -5,9 +5,9 @@ const onboardingPt = {
   step1Placeholder: 'Ex.: Miguel',
   step2VaultBadge: 'Cofre da empresa',
   step2Placeholder: 'Descreva em linguagem natural ou cole um texto…',
-  step3Title: 'Harnesses detectados',
+  step3Title: 'Ferramentas de IA neste computador',
   step4TemplateBlank: 'Em branco',
-  step5Title: 'Bem-vindo ao #geral',
+  step5Title: 'Boas-vindas ao #geral',
   continue: 'Continuar',
   finish: 'Entrar no Persona',
 }

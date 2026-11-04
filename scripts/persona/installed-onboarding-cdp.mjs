@@ -41,6 +41,7 @@ const desktop = await startInstalledDesktop({
   keepRunRoot: process.env.PERSONA_E2E_KEEP_HOME === '1',
 })
 
+const failShot = join(ARTIFACTS_DIR, 'installed-onboarding-fail.png')
 try {
   const tripwire = watchConsole(desktop.page)
   await desktop.page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
@@ -73,6 +74,21 @@ try {
     note: 'DSH_DESKTOP_WELCOME=0 (installed-cdp); Persona steps 1–5 exercised via completeOnboardingOverlay',
   }, null, 2))
   process.stdout.write('\n')
+} catch (error) {
+  await desktop.page.screenshot({ path: failShot, animations: 'disabled' }).catch(() => {})
+  const shell = await desktop.page.locator('[data-persona-shell]').count().catch(() => -1)
+  const rootHtml = await desktop.page.locator('#root').innerHTML().catch(() => '')
+  process.stderr.write(JSON.stringify({
+    ok: false,
+    exe: desktop.exe,
+    home: desktop.home,
+    error: error instanceof Error ? error.message : String(error),
+    shell,
+    rootEmpty: rootHtml.trim().length === 0,
+    screenshot: failShot,
+  }, null, 2))
+  process.stderr.write('\n')
+  process.exit(1)
 } finally {
   await desktop.stop()
 }

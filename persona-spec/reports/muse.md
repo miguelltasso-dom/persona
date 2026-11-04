@@ -384,3 +384,105 @@ bundle (with-lock) → Build complete, 99 files
   - crossfade de pose em 220 ms + pulo de 6 px na troca real de estado da faixa (sem animação na montagem; fade de 110 ms com reduced-motion; teste `pose-crossfade`);
   - crossfade de 140 ms + 4 px na troca de painel.
   - Já estavam: chegada (760 ms, mola), celebrações (cooldown de 2,5 s), hover com inclinação, FLIP do quadro e modal com scale e blur.
+
+## 2026-11-04 05:20 — a11y verificada, carregar do quadro, renderizador do cursor
+
+- **(2) Acessibilidade, verificada no app real:**
+  - `Tabs` só emite `aria-controls` quando o painel existe;
+  - o `Screen` virou região rolável focável, com anel interno.
+  - Resultado: axe 0 em Conexões, Uso, Canvas, Ensinar e #geral, no claro e no escuro.
+  - Quadros tinha `.workerStack` com `aria-label` sem `role`. O Lumen aplicou `role=group` com os nomes; recaptura na fila.
+  - Reduced-motion (estático): todo módulo com animação infinita tem guarda própria, e a única `.animate()` em JS (`usePersonaMotion`) respeita a preferência.
+  - Testes ligados a Tabs e Screen: 13 arquivos e 47 testes verdes. A suíte inteira passou do timeout de 580 s por concorrência; rodei por recorte.
+  - check-pkg OK.
+- **(1) Revisão por captura:**
+  - **Ensinar passou** (axe 0). Retoques finos foram ao Prism: ícone `lock` em "Onde fica", "Quem vê" sem `?` e "a Nina pode aprender".
+  - **#geral** ainda saiu "O canal está quietinho". O código do seed posta as mensagens e o plano, então recapturo com o console ligado antes de concluir.
+  - BYC e Quadros: recaptura na fila do lock, que está com o Rivet empacotando o instalador desde 06:45Z.
+- **(3) Movimento: o "carregar" do quadro não existia.** Corrigido:
+  - **Problema encontrado:** `card.carry` nunca era produzido. O CSS tinha `top: -var()`, que é inválido, e o avatar caía para fora do cartão.
+  - Hook novo `kanban/use-kanban-carry.ts`: detecta a mudança de coluna que não foi movimento local do humano e liga o carry por 900 ms. Ele é declarado antes do FLIP, então o mesmo commit já sabe que é persona.
+  - `use-kanban-flip`: 360 ms com leve arco quando é persona, 220 ms quando é o humano, e fade de 100 ms em reduced-motion (antes era um salto seco).
+  - Teste `kanban-carry` 2/2. O Lumen ligou o hook nos dois quadros e corrigiu o CSS.
+- **W3-6, renderizador do overlay de computer use:** `apps/desktop/src/computer-use-cursor-renderer.ts`, arquivo novo, para o Rivet trocar o placeholder.
+  - Documento sem rede.
+  - Matemática portada de `cursor-motion.ts`.
+  - No máximo 2 cursores, com "X espera a tela".
+  - Senha só com bolinhas.
+  - "Você assumiu" congela o cursor no meio do arco, e o Devolver avisa por `console-message`.
+  - Reduced-motion sem rastro.
+  - 7 testes. Capturas moving, typing, human e done em `shots/design/computer-use/`.
+- **PLAN:** PB-8, GOV-9 e W2-8 → done (as specs já existiam). W3-6 → doing, faltando só a troca do Rivet. O PB-5 do Lumen fica desbloqueado.
+- **Fila:** recapturar BYC, #geral e Quadros quando o lock liberar; revisar o primeiro uso no app instalado, depois do instalador do Rivet.
+
+## 2026-11-04 06:10 — Fila do Atlas: microcópia, design system vivo, kit de lançamento
+
+- **(1) Microcópia** (lente-microcopia) nos 22 dicionários, pt e en. Gerados, testes de copy 49/49 e check-pkg OK.
+  - **Glossário novo:** `persona-spec/design/MICROCOPY.md` (tom, "diga / nunca diga", padrões de erro e vazio).
+  - **Onboarding:** "Harnesses detectados" → "Ferramentas de IA neste computador"; "CLIs já autenticadas", "contexto obrigatório em todo turno", "template", "vault" e "Bem-vindo" saíram.
+  - **Shell:** "Persona host online" → "Equipe conectada"; tirei o texto de desenvolvimento que aparecia em "Enquanto você estava fora" ("patch de locale do shell").
+  - **Estados:** "Travado", "Erro" e "Offline" → "Precisa de ajuda" e "Fora do ar". "Harness" → "Motor", e "Harness DeepSeek" → "DeepSeek" (engine-label).
+  - **Uso, Revisar e Chat:** "cache hit", "Onboarding em andamento", "Patch truncado… bytes" e "Seu feedback" saíram. A reação "Obrigado" virou "Valeu".
+  - **Fora do meu pacote:** atualizei o espelho E2E do Probe (`real-app-locale.pt.ts`). Pedi ao Forge para trocar a linha do `persona-core/account-policy.ts:177`, que ainda diz "Harness DeepSeek".
+  - **`ErrorState`:** o detalhe técnico ficou dobrado em "Detalhes para o suporte".
+- **(2) Design system vivo:** `persona-spec/design/system/index.html`. Abre direto do disco, com 497 KB.
+  - Renderiza os primitivos **reais**, com os tokens lidos da paleta, nos dois temas.
+  - Mostra tipografia, forma, movimento (tocável, com a tabela das coreografias), os ícones, 18 componentes com estados e "use quando / não use quando", e o glossário de texto.
+  - Fonte em `design/system-src/`. Imagens apontam para o repositório, SVG vai inline e o script é clássico (`file://` não roda módulo).
+  - Resultado: axe 0 no claro e no escuro, 0 erros de console e sem rolagem lateral a 390 px (`shots/design/system/`).
+  - **O axe da página achou um bug meu no app:** `Button loading` perdia o nome acessível (`visibility: hidden`). Corrigido com `opacity: 0`.
+- **(3) Kit de lançamento** (arte do Brush, revisada e aprovada):
+  - hero do README em pt e en, claro e escuro, composto com o logo e a frase, e colocado no `README.persona.md` com `<picture>`;
+  - capa do repositório;
+  - descrição curta pt e en, tópicos e modelo de notas de versão em `design/LAUNCH-KIT.md`;
+  - primitivo `AboutPersona`, com créditos conferidos na fonte: DeepSeek Harness MIT © 2026 DeepSeek, OAR Apache-2.0, t3code MIT © 2026 T3 Tools Inc. axe 0. O Prism liga em Configurações › Sobre.
+  - **Achado:** o `build-assets` copiava `brand/` inteiro, e a pasta `launch` levou o pacote a 20,9 MiB, acima do teto de 10. Agora ela é pulada, como `concepts`, e o pacote voltou a 8,78 MiB.
+- **Primitivo `Switch`:** o switch desligado sumia no escuro (contorno quase preto). Agora é um só para o app, com `outline-control`, alvo de 44 px e reduced-motion. O Gestor já usa; Ensinar e o editor ficaram com o Prism.
+- **(4) Recapturas** (o lock liberou):
+  - Quadros axe 0 nos dois temas (o Lumen aplicou a correção); BYC ✓; Ensinar ✓ (falta o artigo "a {name}").
+  - **#geral continua vazio com `dev seed {seeded: true}`.** Não é tempo de captura; prova enviada ao Prism.
+  - `SlotAssemblyError` no boot claro apareceu pela 2ª vez.
+- **check-pkg agora:** 5 erros, todos `dispose` faltando em fixtures de teste de outros (mudança em andamento no `persona-live-store`). Nenhum nos meus arquivos.
+- **Fila:** revisão do primeiro uso no app instalado, quando o Rivet anunciar o instalador; recapturar #geral e Ensinar quando o Prism aplicar.
+
+## 2026-11-04 06:50 — Landing page do Persona (`apps/persona-site/`)
+
+- **O que é:** site estático de uma página, com HTML, CSS e um JS de cerca de 6 KB, sem framework, build ou rastreador. Tem pt e en (`?lang=`, botão, ou língua do navegador) e claro e escuro (`?theme=`, botão, ou o tema do sistema). Sem JS, fica completo em pt.
+- **Seções:**
+  - hero com a equipe do Brush e o rótulo de função sobre cada bicho;
+  - prova: a Visão geral real, numa moldura de janela, logo abaixo da dobra;
+  - as 5 personas, com pose de trabalho e uma frase cada;
+  - como funciona, em 3 passos com capturas reais (monte, peça, aprove);
+  - 6 recursos com captura (cartão, Teste dos 2 dias, Quem cuida de quem a 150, Ensinar, Uso e limites, Conexões);
+  - privacidade honesta: diz o que fica no PC e também que as IAs conectadas recebem o que a persona envia;
+  - preço "Grátis e open source" e download, com o selo tracejado **"a confirmar"**.
+- **Princípios RCD aplicados:**
+  - o hero diz o que faz, para quem e o resultado, e mostra prova real;
+  - uma ação primária, repetida no fim; "Ver como funciona" é só link;
+  - gatilho de clique: "Sem conta e sem cartão. Suas conversas ficam no seu PC.";
+  - prova antes da promessa;
+  - desempenho é conversão.
+- **Referências do refcat** (só estrutura): Hotjar · Headers (11/07/2024) e Airtable · Headers (27/11/2024).
+- **Medido nas 8 variantes** (desktop 1440 e celular 390, claro e escuro, pt e en):
+  - axe 0 (WCAG 2.2 AA);
+  - 0 rolagem lateral e 0 imagens sem carregar;
+  - LCP local ≤ 1 s;
+  - cerca de 860 KB com todas as imagens;
+  - `lang` correto;
+  - as 84 chaves pt têm en.
+- **Correções no caminho:**
+  - O hero largo cortava a equipe e os rótulos flutuavam no céu. Agora a arte fica numa caixa com a proporção exata da imagem, ancorada à direita, e o hero empilha abaixo de 1180 px.
+  - Troquei as capturas antigas: o cartão da Nina ainda dizia "Todos do workspace". Recapturei com o bundle atual (microcópia nova). O `prepare-assets` prefere a captura nova e avisa quando cai na da galeria.
+- **A confirmar** (lista no `apps/persona-site/README.md`):
+  - preço e licença;
+  - URL do instalador;
+  - requisitos;
+  - repositório público;
+  - capturas da interface em en;
+  - domínio e `og:image`.
+- **06:05, fechamento:**
+  - Recapturei com o bundle atual: Visão geral, cartão (já com "Toda a equipe"), composer e onboarding passo 4 (microcópia nova). A prova do topo virou a Visão geral real.
+  - **#geral resolvido pelo Prism:** o filtro de assunto já mostra as mensagens do seed na captura nova.
+  - As 8 variantes da landing seguem com axe 0, 0 rolagem lateral, 0 imagens sem carregar e cerca de 850 KB.
+  - Capturas em `.maestri/tmp/shots/design/site/{desktop,mobile}-{light,dark}-{pt,en}-{fold,full}.png`.
+  - **Item 4:** o Probe registrou que o instalador D8 `1d4e5e95b8` abriu com `#root` vazio (CSP `unsafe-eval`). O Rivet reempacota (`dfe13272c6`), e a revisão do primeiro uso instalado entra assim que o pacote novo passar.

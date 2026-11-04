@@ -25,7 +25,7 @@ Screen recording + narration → **candidate skill** draft; never auto-activates
 
 W2-10: `acceptTaughtCandidate` grava a candidata **sempre** `enabled: false`. `activateTaughtSkill` só no aceite explícito e recusa ferramentas acima do mandato. `publishTaughtSkill` para team/project exige `explicit`. DM/privado não publica sozinho. `editTaughtSteps` revisa o rascunho sem ativar e sem crescer ferramentas. `rollbackTaughtSkill` desliga e sobe a versão.
 
-Consentimento: `TEACH_CONSENT_VERSION = teach-v1` (`assertTeachConsent`). Retenção: `TEACH_RETENTION_DAYS = 30` + `teachRetentionExpiresAt`. Narração: `redactTeachNarration` (senha/token). Quadros: `omitBlurredTeachFrames`. Host Anvil ainda tem as constantes locais — pode importar do engine.
+Consentimento: `TEACH_CONSENT_VERSION = teach-v1` (`assertTeachConsent`). Retenção: `TEACH_RETENTION_DAYS = 30` + `teachRetentionExpiresAt` + `teachShouldPurge` + `listTeachArtifactsToPurge`. Narração: `redactTeachNarration` (senha/token). Quadros: `omitBlurredTeachFrames`. Host Anvil ainda tem as constantes locais — pode importar do engine.
 
 ## Privacy
 

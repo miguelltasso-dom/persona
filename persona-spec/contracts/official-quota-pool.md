@@ -10,10 +10,9 @@ Rivet harvest. Anvil persist. Lumen render.
 5. After a finished read: `quotaUiState` is `ready` | `limit` | `unavailable` | `timeout`. Never `checking`.
 6. Timeout (8 s) → `detail: accountUsage timeout`. "indisponível" only when the vendor published no window.
 
-## Anvil (JANELA ENCERRADA — 02:15)
-`persistOfficialQuotaPuts(row => usage.putQuota(projectId, row), snaps)` — exported from `persona-usage` and re-exported by `persona-runners` (same import as `detectConnections`).
-Call it in `ConnectionProbe.probe` after `detect`. Persist `accountId` + `accountLabel` (store row today omits them — add those columns or the panel stays `default`).
-Then `getOfficialQuota` stops returning empty stubs.
+## Anvil (04/11 — cota oficial por conta)
+`ConnectionProbe.probe` calls `persistQuota(snaps)` after `detect`. The host binds that to `persistProbeQuota` → `persistOfficialQuotaPuts` → `usage.putQuota` (schema v19, PK `project_id+provider+account_id`).
+`getOfficialQuota` returns one view per account (`accountId` / `accountLabel` / `nextRefillAt` / `refillHistory`, never `default`). Lumen `officialQuotasToProviderPools` sorts by `nextRefillAt`.
 
 ## Lumen
 `accountStateFromWindows`: if `origin === 'unavailable'` and `detail` includes `timeout` → timeout copy; empty official windows → unavailable, not Conferindo…. Match `week` (Rivet now emits it).

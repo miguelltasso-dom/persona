@@ -1,18 +1,32 @@
-# Tokens por cenário — linha de base (Rivet OPT-1, 04/11)
+# Tokens por cenário — linha de base (OPT-1, Forge + Rivet, 04/11)
 
-Contagem **fiel do runner scriptado**. Rodada real CLI congelada (orçamento). Forge completa as linhas reais quando liberar.
+Aceite do PLAN OPT-1. Contagem **fiel do runner scriptado** (`persona-engine` `runTokenScenario` / `formatTokensBaselineMarkdown`). Detalhe e painel: `tokens-baseline.md`. JSON do gate: `persona-spec/baselines/token-scenarios.json`.
 
-Cache hit só aparece quando o vendor publicou `cacheReadTokens`. Ausência ≠ 0%.
+Referência do aceite = CLI direta (paridade ±10%), não um harness antigo. Overhead (triagem / Bibliotecário / Vigia / iniciativa) entra no livro à parte. Rodada vendor opt-in `PERSONA_PAIR_REAL=1`, cap 1, `start`→fold→`cancel`, `dispose` no `finally`. CLI real continua congelada.
 
-| Cenário | kind | motor | input | output | cache read | calls | origem |
-|---|---|---|---:|---:|---:|---:|---|
-| Pedido simples #geral | triage | claude/haiku | 100 | 20 | 80 | 1 | scripted |
-| Tarefa multi-etapa + revisão | execution | claude/sonnet | 400 | 80 | — | 2 | scripted |
-| Dia ocioso sem objetivo | — | — | 0 | 0 | — | **0** | `idleTeamMayCallModel(false)` |
-| 30 personas iniciativa (lote) | initiative | claude/haiku | 30×80 | 30×12 | — | 30 | scripted (teto) |
-| Padaria Lua (dogfood) | execution | — | — | — | — | — | pendente CLI real |
+## Cenários de referência (scripted)
 
-`foldTurnLedger` + `cacheHitRate` em `persona-usage`. Triagem/Bibliotecário/Vigia/iniciativa → `modelForWork` = modelo barato. Sessões aquecidas: `sessionPoolKey` já inclui purpose+account.
+| cenário | tokens | chamadas | cache hit | origem |
+|---|---:|---:|---:|---|
+| geral-simple | 99 | 2 | 0.50 | scripted |
+| multi-review | 148 | 3 | 0.67 | scripted |
+| idle-routines | 0 | 0 | 0.00 | scripted — equipe ociosa sem objetivo |
+| initiative-30 | 0 | 0 | 0.00 | scripted — lote sem modelo |
+| padaria-lua | 155 | 3 | 0.67 | scripted |
 
-**[Rivet→Forge]** preencher rodada real mínima (dispose/timeout) nas mesmas linhas.
-**[Rivet→Lumen]** painel Uso lê `TurnLedgerFold`.
+Painel Uso (`foldUsagePanel`): origem **estimate**, tokens/tarefa 134.0, cache hit **0.63** (≥ 60% no prefixo scripted).
+
+## Benchmark pareado (mesma CLI/modelo, fake)
+
+| tarefa | CLI in+out | Persona in+out | Δ | veredito |
+|---|---:|---:|---:|---|
+| simple-ask | 48 | 51 | 0.063 | parity |
+| multi-review | 51 | 54 | 0.059 | parity |
+| research-summary | 52 | 55 | 0.058 | parity |
+| code-fix | 53 | 56 | 0.057 | parity |
+
+## Vendor / Rivet
+
+Cache hit de vendor só quando `cacheReadTokens` existe. Ausência ≠ 0%. `usagePortKind` mapeia execution→exec, evaluation→eval. Sessão aquecida = Rivet (`sessionPoolKey`).
+
+OPT-8 −40% tokens/tarefa vs esta linha: **ainda não** (só depois da integração). Idle e iniciativa-30 já são 0 chamadas.

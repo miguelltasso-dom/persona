@@ -303,6 +303,11 @@ const onData = async (chunk) => {
         }
         if (wanted.has('channel')) {
           await nav(page, 'Canais')
+          await page.locator('[data-persona-channel-stream]').waitFor({ timeout: 20_000 }).catch(() => undefined)
+          await page.locator('[data-persona-channel-stream]:not([data-empty])').waitFor({ timeout: 25_000 }).catch(() => {
+            console.log(`[channel ${scheme}] stream still empty after wait (dev seed / refresh?)`)
+          })
+          await page.waitForTimeout(500)
           const path = `${outDir}/channel-${scheme}.png`
           await page.screenshot({ path }); shots.push(path)
           await axeReport(page, `channel ${scheme}`)

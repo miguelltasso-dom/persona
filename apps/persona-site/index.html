@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Persona · sua equipe de IA, com nome, rosto e limites</title>
+<meta name="description" content="Monte uma equipe de personas de IA que trabalha no seu computador. Você pede no canal, elas dividem as tarefas, e você aprova o que importa.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Persona · sua equipe de IA">
+<meta property="og:description" content="Personas com nome, rosto e limites, trabalhando no seu computador.">
+<meta property="og:image" content="assets/img/hero-light.webp">
+<link rel="icon" href="assets/img/symbol.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/fredoka-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<script>
+  // Theme before first paint (no flash). Storage may be blocked: the page still works.
+  try { var t = localStorage.getItem('persona-site-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t } catch (e) {}
+</script>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="skip">Pular para o conteúdo</a>
+
+<header class="top">
+  <div class="wrap topInner">
+    <a class="brand" href="#" aria-label="Persona, início">
+      <img src="assets/img/symbol.svg" alt="" width="34" height="34">
+      <span>Persona</span>
+    </a>
+    <nav class="nav" aria-label="Seções" data-i18n-aria="navLabel">
+      <a href="#como-funciona" data-i18n="nav.how">Como funciona</a>
+      <a href="#recursos" data-i18n="nav.features">Recursos</a>
+      <a href="#privacidade" data-i18n="nav.privacy">Privacidade</a>
+      <a href="#preco" data-i18n="nav.price">Preço</a>
+    </nav>
+    <div class="tools">
+      <button type="button" class="tool" id="lang" aria-label="Mudar para inglês" data-i18n-aria="lang.aria"><span data-i18n="lang.label">EN</span></button>
+      <button type="button" class="tool" id="theme" aria-label="Alternar tema claro e escuro" data-i18n-aria="theme.aria">
+        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M5.2 18.8l1.4-1.4M17.4 6.6l1.4-1.4"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn btn-s" href="#baixar" data-i18n="cta.short">Baixar</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <!-- HERO: what it does + who/result + one action + click trigger (RCD "hero comprehension", Hotjar Headers 2024-07-11) -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="heroArt" aria-hidden="true">
+      <img class="when-light" src="assets/img/hero-light.webp" alt="" width="1800" height="675" fetchpriority="high">
+      <img class="when-dark" src="assets/img/hero-dark.webp" alt="" width="1800" height="675">
+      <ul class="roleTags">
+        <li style="--x: 72.5%; --y: 28%">Atlas <span data-i18n="role.atlas">Coordenação</span></li>
+        <li style="--x: 75.5%; --y: 80%" data-below>Bento <span data-i18n="role.bento">Engenharia</span></li>
+        <li style="--x: 80.5%; --y: 80%" data-below>Nina <span data-i18n="role.nina">Pesquisa</span></li>
+        <li style="--x: 87%; --y: 31%">Sol <span data-i18n="role.sol">Relacionamento</span></li>
+        <li style="--x: 93.5%; --y: 45%">Luna <span data-i18n="role.luna">Vigia</span></li>
+      </ul>
+    </div>
+    <div class="wrap heroText">
+      <p class="eyebrow" data-i18n="hero.eyebrow">App para Windows · grátis e open source</p>
+      <h1 id="hero-title" data-i18n-html="hero.title">Sua equipe de IA,<br>com nome, rosto e limites.</h1>
+      <p class="sub" data-i18n="hero.sub">Monte uma equipe de personas que trabalha no seu computador. Você pede no canal, elas dividem as tarefas, e você só aprova o que importa.</p>
+      <div class="ctaRow">
+        <a class="btn btn-l" href="#baixar" data-i18n-html="cta.main"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>Baixar para Windows</a>
+        <a class="link" href="#como-funciona" data-i18n="cta.how">Ver como funciona</a>
+      </div>
+      <p class="trigger" data-i18n="cta.trigger">Sem conta e sem cartão. Suas conversas ficam no seu PC.</p>
+    </div>
+  </section>
+
+  <!-- PROOF before promise: the real app -->
+  <section class="proof" aria-labelledby="proof-title">
+    <div class="wrap">
+      <h2 id="proof-title" class="kicker" data-i18n="proof.title">Isto é o app de verdade, não uma maquete</h2>
+      <figure class="window">
+        <div class="windowBar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <img class="when-light" src="assets/shots/overview-light.webp" width="1440" height="900" loading="lazy" alt="Visão geral do Persona: o que precisa de você primeiro e, ao lado, o que cada persona está fazendo agora." data-i18n-alt="proof.alt">
+        <img class="when-dark" src="assets/shots/overview-dark.webp" width="1440" height="900" loading="lazy" alt="Visão geral do Persona: o que precisa de você primeiro e, ao lado, o que cada persona está fazendo agora." data-i18n-alt="proof.alt">
+        <figcaption data-i18n="proof.caption">Ao abrir o app, primeiro o que precisa de você; ao lado, o que cada persona está fazendo agora.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- PERSONAS -->
+  <section class="section" id="equipe" aria-labelledby="team-title">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="team.eyebrow">A equipe</p>
+      <h2 id="team-title" data-i18n="team.title">Cada persona tem um jeito e um trabalho</h2>
+      <p class="lead" data-i18n="team.lead">Você começa com estas cinco. Troque o nome, o bicho, a função e os limites de qualquer uma, ou contrate outras.</p>
+      <ul class="personas">
+        <li class="persona"><img src="assets/img/atlas.webp" alt="" width="180" height="180" loading="lazy"><h3>Atlas <span data-i18n="role.atlas">Coordenação</span></h3><p data-i18n="who.atlas">Lê o pedido, divide em tarefas e chama quem sabe fazer. Também contrata novas personas, sempre com o seu ok.</p></li>
+        <li class="persona"><img src="assets/img/bento.webp" alt="" width="180" height="180" loading="lazy"><h3>Bento <span data-i18n="role.bento">Engenharia</span></h3><p data-i18n="who.bento">Escreve código, roda os testes e só entrega quando passa.</p></li>
+        <li class="persona"><img src="assets/img/nina.webp" alt="" width="180" height="180" loading="lazy"><h3>Nina <span data-i18n="role.nina">Pesquisa</span></h3><p data-i18n="who.nina">Pesquisa, compara e resume em poucos pontos, dizendo de onde tirou cada um.</p></li>
+        <li class="persona"><img src="assets/img/sol.webp" alt="" width="180" height="180" loading="lazy"><h3>Sol <span data-i18n="role.sol">Relacionamento</span></h3><p data-i18n="who.sol">Responde clientes no tom da sua marca e avisa quando algo precisa de você.</p></li>
+        <li class="persona"><img src="assets/img/luna.webp" alt="" width="180" height="180" loading="lazy"><h3>Luna <span data-i18n="role.luna">Vigia</span></h3><p data-i18n="who.luna">Fica de olho: se alguém para no meio, ela cutuca e pede notícias.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section alt" id="como-funciona" aria-labelledby="how-title">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="how.eyebrow">Como funciona</p>
+      <h2 id="how-title" data-i18n="how.title">Você não precisa gerenciar cada IA</h2>
+      <p class="lead" data-i18n="how.lead">Em vez de copiar e colar entre várias abas, você conversa com uma equipe que se organiza sozinha.</p>
+      <ol class="steps">
+        <li class="step">
+          <span class="num" aria-hidden="true">1</span>
+          <div class="stepText"><h3 data-i18n="how.1.t">Monte a equipe</h3><p data-i18n="how.1.b">Escolha uma equipe pronta ou descreva quem você precisa. Você ajusta nome, função e limites antes de contratar.</p></div>
+          <figure class="shot"><img class="when-light" src="assets/shots/build-light.webp" width="1440" height="900" loading="lazy" alt="Tela 'Monte sua equipe' do Persona, com equipes prontas e os cinco animais da equipe sugerida." data-i18n-alt="how.1.alt"><img class="when-dark" src="assets/shots/build-dark.webp" width="1440" height="900" loading="lazy" alt="Tela 'Monte sua equipe' do Persona, com equipes prontas e os cinco animais da equipe sugerida." data-i18n-alt="how.1.alt"></figure>
+        </li>
+        <li class="step">
+          <span class="num" aria-hidden="true">2</span>
+          <div class="stepText"><h3 data-i18n="how.2.t">Peça no canal</h3><p data-i18n="how.2.b">Escreva no #geral como falaria com um colega. A Coordenação divide o trabalho e mostra quem pegou o quê.</p></div>
+          <figure class="shot"><img class="when-light" src="assets/shots/ask-light.webp" width="1440" height="900" loading="lazy" alt="O canal #geral com a faixa da equipe e o menu de comandos aberto na caixa de mensagem." data-i18n-alt="how.2.alt"><img class="when-dark" src="assets/shots/ask-dark.webp" width="1440" height="900" loading="lazy" alt="O canal #geral com a faixa da equipe e o menu de comandos aberto na caixa de mensagem." data-i18n-alt="how.2.alt"></figure>
+        </li>
+        <li class="step">
+          <span class="num" aria-hidden="true">3</span>
+          <div class="stepText"><h3 data-i18n="how.3.t">Aprove o que importa</h3><p data-i18n="how.3.b">Contratações, gastos e entregas sensíveis esperam por você. O resto anda sozinho, dentro dos limites que você definiu.</p></div>
+          <figure class="shot"><img class="when-light" src="assets/shots/approve-light.webp" width="1000" height="765" loading="lazy" alt="Tela de Aprovações com uma proposta do Atlas e os botões Aceitar, Revisar e Editar." data-i18n-alt="how.3.alt"><img class="when-dark" src="assets/shots/approve-dark.webp" width="1000" height="765" loading="lazy" alt="Tela de Aprovações com uma proposta do Atlas e os botões Aceitar, Revisar e Editar." data-i18n-alt="how.3.alt"></figure>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- FEATURES (skimmable: title + one sentence + real capture) -->
+  <section class="section" id="recursos" aria-labelledby="feat-title">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="feat.eyebrow">Recursos</p>
+      <h2 id="feat-title" data-i18n="feat.title">Feito para você confiar no que a equipe faz</h2>
+      <ul class="features">
+        <li class="feature"><figure class="shot"><img class="when-light" src="assets/shots/card-light.webp" width="1000" height="750" loading="lazy" alt="Cartão da Nina com o que ela faz agora, quem pode falar com ela e o responsável." data-i18n-alt="f.card.alt"><img class="when-dark" src="assets/shots/card-dark.webp" width="1000" height="750" loading="lazy" alt="Cartão da Nina com o que ela faz agora, quem pode falar com ela e o responsável." data-i18n-alt="f.card.alt"></figure><h3 data-i18n="f.card.t">Cada persona tem um cartão</h3><p data-i18n="f.card.b">Quem é, o que está fazendo agora, quem pode falar com ela e quanto ainda sobra de cota.</p></li>
+        <li class="feature"><figure class="shot"><img class="when-light" src="assets/shots/health-light.webp" width="1000" height="765" loading="lazy" alt="Saúde da equipe com nota 76 e o Teste dos 2 dias." data-i18n-alt="f.health.alt"><img class="when-dark" src="assets/shots/health-dark.webp" width="1000" height="765" loading="lazy" alt="Saúde da equipe com nota 76 e o Teste dos 2 dias." data-i18n-alt="f.health.alt"></figure><h3 data-i18n="f.health.t">Teste dos 2 dias</h3><p data-i18n="f.health.b">Simule que você sumiu por 48 horas e veja o que travaria, antes de acontecer.</p></li>
+        <li class="feature"><figure class="shot"><img class="when-light" src="assets/shots/org-light.webp" width="1000" height="765" loading="lazy" alt="Organograma Quem cuida de quem com 151 personas agrupadas por responsável e a busca em destaque." data-i18n-alt="f.org.alt"><img class="when-dark" src="assets/shots/org-dark.webp" width="1000" height="765" loading="lazy" alt="Organograma Quem cuida de quem com 151 personas agrupadas por responsável e a busca em destaque." data-i18n-alt="f.org.alt"></figure><h3 data-i18n="f.org.t">Quem cuida de quem</h3><p data-i18n="f.org.b">Responsáveis e substitutos num organograma que continua legível com 150 personas.</p></li>
+        <li class="feature"><figure class="shot"><img class="when-light" src="assets/shots/teach-light.webp" width="680" height="780" loading="lazy" alt="Janela Ensinar a Nina mostrando na tela, explicando o que é gravado, onde fica e quem vê." data-i18n-alt="f.teach.alt"><img class="when-dark" src="assets/shots/teach-dark.webp" width="680" height="780" loading="lazy" alt="Janela Ensinar a Nina mostrando na tela, explicando o que é gravado, onde fica e quem vê." data-i18n-alt="f.teach.alt"></figure><h3 data-i18n="f.teach.t">Ensine mostrando a tela</h3><p data-i18n="f.teach.b">Grave o que você faz. A persona monta o passo a passo e só aprende depois que você revisa.</p></li>
+        <li class="feature"><figure class="shot"><img class="when-light" src="assets/shots/usage-light.webp" width="1000" height="765" loading="lazy" alt="Uso e limites com o que sobra de cota por conta." data-i18n-alt="f.usage.alt"><img class="when-dark" src="assets/shots/usage-dark.webp" width="1000" height="765" loading="lazy" alt="Uso e limites com o que sobra de cota por conta." data-i18n-alt="f.usage.alt"></figure><h3 data-i18n="f.usage.t">Uso e limites sem surpresa</h3><p data-i18n="f.usage.b">Veja quanto sobra em cada conta e quando volta. Some contas do mesmo provedor quando quiser.</p></li>
+        <li class="feature"><figure class="shot"><img class="when-light" src="assets/shots/connections-light.webp" width="1000" height="765" loading="lazy" alt="Conexões com as ferramentas de IA encontradas no computador e a política de troca de contas." data-i18n-alt="f.conn.alt"><img class="when-dark" src="assets/shots/connections-dark.webp" width="1000" height="765" loading="lazy" alt="Conexões com as ferramentas de IA encontradas no computador e a política de troca de contas." data-i18n-alt="f.conn.alt"></figure><h3 data-i18n="f.conn.t">Use as IAs que você já tem</h3><p data-i18n="f.conn.b">Claude, Codex, DeepSeek e outras. O Persona usa o login que você já fez, sem pedir senha.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- PRIVACY (honest: what stays, and what the AIs you connect receive) -->
+  <section class="section alt" id="privacidade" aria-labelledby="priv-title">
+    <div class="wrap privacy">
+      <img class="privArt" src="assets/img/team.webp" alt="" width="720" height="405" loading="lazy">
+      <div>
+        <p class="eyebrow" data-i18n="priv.eyebrow">Privacidade</p>
+        <h2 id="priv-title" data-i18n="priv.title">Roda no seu PC, não no nosso servidor</h2>
+        <ul class="checks">
+          <li data-i18n="priv.1">O app é o anfitrião da equipe. Não há servidor do Persona no meio.</li>
+          <li data-i18n="priv.2">Mensagens diretas, chaves e o Cofre (o que a equipe sabe da sua empresa) ficam no seu computador.</li>
+          <li data-i18n="priv.3">Senhas e dados bancários são bloqueados antes de entrar no Cofre.</li>
+          <li data-i18n="priv.4">As IAs que você conecta recebem só o que a persona envia para elas, pelas suas próprias contas.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICE (placeholder to confirm) -->
+  <section class="section" id="preco" aria-labelledby="price-title">
+    <div class="wrap price">
+      <div class="priceCard">
+        <p class="eyebrow"><span data-i18n="price.eyebrow">Preço</span> <span class="tbd" data-i18n="tbd">a confirmar</span></p>
+        <h2 id="price-title" data-i18n="price.title">Grátis e open source</h2>
+        <p class="lead" data-i18n="price.lead">O Persona não cobra nada. Você usa as contas de IA que já tem, e o custo delas é com cada provedor.</p>
+        <ul class="checks">
+          <li data-i18n="price.1">Equipe sem limite de personas</li>
+          <li data-i18n="price.2">Todas as telas: quadros, rotinas, Cofre e aprovações</li>
+          <li data-i18n="price.3">Código aberto para você conferir</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOWNLOAD: the same single action, repeated -->
+  <section class="download" id="baixar" aria-labelledby="dl-title">
+    <div class="wrap dlInner">
+      <img src="assets/img/app-icon.png" alt="" width="96" height="96" loading="lazy">
+      <h2 id="dl-title" data-i18n="dl.title">Monte sua equipe hoje</h2>
+      <p class="lead" data-i18n="dl.lead">Baixe, abra e a Coordenação te guia em 5 passos rápidos.</p>
+      <a class="btn btn-l" href="#baixar" data-tbd="installer-url" data-i18n-html="cta.main"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg>Baixar para Windows</a>
+      <p class="trigger"><span data-i18n="dl.meta">Windows 10 ou 11, 64 bits</span> <span class="tbd" data-i18n="tbd">a confirmar</span></p>
+      <p><a class="link" href="https://github.com/miguelltasso-dom/persona" data-i18n="dl.code">Ver o código no GitHub</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap footInner">
+    <p><strong>Persona</strong> · <span data-i18n="foot.made">Arte da equipe por Brush.</span></p>
+    <p data-i18n-html="foot.credits">Feito sobre o <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (MIT), <a href="https://github.com/botiverse/oar">OAR</a> (Apache-2.0) e ideias do <a href="https://github.com/pingdotgg/t3code">t3code</a> (MIT).</p>
+    <p data-i18n="foot.static">Página estática, sem rastreadores.</p>
+  </div>
+</footer>
+<script src="main.js" defer></script>
+</body>
+</html>

@@ -177,7 +177,7 @@ Importar de `src/client/primitives/index.ts`. Estados obrigatórios em todos: re
 | Acentos `Squiggle`, `PawTrail`, `Sparkle` | SVG à mão em `currentColor` (âmbar/lilás): sublinhado ondulado sob 1 título por tela, trilha de patinhas em estados vazios/celebração, faísca em "novo". **Máximo 2 acentos por tela.** |
 
 | `Screen` / `ScreenHeader` | Casca de toda tela principal: rolagem própria, largura máx. 1180 (`reading` 880), cabeçalho com selo do ícone do rail + eyebrow (grupo) + h1 Fredoka 28 + subtítulo + ações (no máx. 1 primária). |
-| `ErrorState` / `PanelBoundary` | Erro honesto: arte `empty-error` + título humano + "Tentar de novo" + detalhe técnico pequeno e selecionável. `PanelBoundary` é o error boundary por painel; o frame ainda tem um **guarda de painel vazio** (2 s sem conteúdo → `ErrorState`), porque o slot do DSH engole crashes. Nunca tela vazia. |
+| `ErrorState` / `PanelBoundary` | Erro honesto: arte `empty-error` + título humano + "Tentar de novo" + detalhe técnico dobrado em "Detalhes para o suporte" (selecionável). `PanelBoundary` é o error boundary por painel; o frame ainda tem um **guarda de painel vazio** (2 s sem conteúdo → `ErrorState`), porque o slot do DSH engole crashes. Nunca tela vazia. |
 | `Accent` | Acentos à mão do Brush (`persona-assets/accents`: squiggle-1..3, paw-prints, sparkle-1..2, leaf-1..2, doodle-arrow, doodle-circle, stars-cluster) pintados por máscara com `currentColor`. |
 | `PersonaCard` / `PersonaCardFacts` / `PersonaCardPopover` / `usePersonaCardController` | Cartão da persona (spec `design/PERSONA-CARD-SPEC.md`): cena 112 px com a pose ao vivo sobre o banner, identidade, selos de função, faixa "agora" tingida pela categoria, quem pode falar, fatos de governança, motor com barras 5h/semana (**nunca 0% inventado**), campo "Mensagem para…". Popover não modal em portal; hover 450 ms sem roubar foco, clique foca, Esc devolve o foco. No perfil, `PersonaCardFacts layout="wide"`. |
 | `OrgChart` / `HealthScore` / `HealthItem` / `TwoDayTimeline` / `SectorIcon` | Governança (spec `design/GOVERNANCE-SPEC.md`): organograma com conectores lilás e colunas de 200–272 px centralizadas, modo lista acessível; veredito em 1 frase; achado com **uma** ação; Teste dos 2 dias; ícones de setor do Brush por máscara. |
@@ -189,6 +189,12 @@ Importar de `src/client/primitives/index.ts`. Estados obrigatórios em todos: re
 | `RecordingPill` / `RecordingFrame` / `TeachStepCard` / `TeachStepList` | Ensinar (WAVE2-SPEC b): pílula flutuante fora da área gravada (ponto `danger` pulsando, cronômetro tabular, Pausar/Parar), moldura com cantos em colchete; passo da revisão com selo numerado, miniatura 176×110, texto editável, ↑↓, Borrar parte, remover. Nunca gravar dentro de um modal. |
 | `ChoiceCards` | Escolha explícita em cartões-rádio (ícone, título, uma frase, selo "Recomendado"): `input type=radio` real por baixo; base do `AccountPolicyPicker` e das predefinições de Regras. Use no lugar de números crus. |
 | `QuotaMeter` | Medidor oficial 5h/semana (role=meter, tom por nível), compartilhado entre cartão e Conexões. |
+| `Switch` | O único liga/desliga do app (Gestor, Ensinar › microfone, editor): `role=switch` real, trilha com contorno `outline-control` (≥ 3:1 nos dois temas; o `outline` puro some no escuro), alvo de 44 px sem crescer o desenho, ligado = âmbar. Não use para escolher entre opções com nome (use `ChoiceCards`). |
+| `AboutPersona` | Tela "Sobre o Persona": foto da equipe do Brush, frase, versão, créditos verificados (`PERSONA_CREDITS`: DeepSeek Harness MIT, OAR Apache-2.0, t3code MIT), links abertos pelo host, nunca navegando a janela (`design/LAUNCH-KIT.md`). |
+
+**Página viva:** `persona-spec/design/system/index.html` renderiza os primitivos REAIS em claro e escuro, com os tokens lidos da paleta, os ícones, o movimento e a regra "use quando / não use quando". Ela abre direto do disco. Fonte em `design/system-src/`; para regenerar, rode `pnpm exec vite build --config persona-spec/design/system-src/vite.config.mjs`. O texto segue `design/MICROCOPY.md`.
+
+**Botão carregando:** o rótulo fica com `opacity: 0`, nunca `visibility: hidden`, para o botão ocupado manter o nome acessível (achado do axe na página viva).
 
 ### 5.1 Regra de dados para primitivos com estado externo
 

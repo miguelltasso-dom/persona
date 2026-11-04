@@ -13,7 +13,7 @@ Bytes no fio são **base64**. Tipo detectado por assinatura (magic bytes), nunca
 | `listAttachments` | por `messageId`, ou pelo stream se `messageId` vazio |
 | `getAttachment` / `getAttachmentBytes` | metadados / bytes. ACL no servidor |
 
-Limites: 8 MB/arquivo, 8 arquivos/mensagem, 20 MB/mensagem, 200 MB/projeto. Texto com cara de credencial: `credentialWarning: true` (não bloqueia).
+Limites de produto: 8 MB/arquivo, 8 arquivos/mensagem, 20 MB/mensagem, 200 MB/projeto. Gateway: JSON 256 KB; `attachFile` / `putFile` / `upload*` até 12 MB (base64 de um arquivo de 8 MB). Texto com cara de credencial: `credentialWarning: true` (não bloqueia).
 
 ACL: canal = membro do workspace; DM = só participantes. Outra pessoa no DM → `forbidden` / lista vazia.
 

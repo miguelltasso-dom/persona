@@ -8,7 +8,8 @@
 //   node scripts/persona/with-lock.mjs "Probe web host" --release-on "dsh web:|DevTools listening" -- pnpm start:web
 //
 // The lock is the directory `.maestri/locks/build.lock` (mkdir is atomic). It records the owner
-// label and pid; a lock whose pid is gone is stolen. Waits up to 45 minutes.
+// label and pid; a lock whose pid is gone is stolen. Default wait is 12 minutes (`--wait-max ms`).
+// Queue pulse every 15s → stderr + `.maestri/locks/build.queue.json`.
 import { spawn } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -30,8 +31,12 @@ if (releaseIndex >= 0) {
   releasePattern = new RegExp(head[releaseIndex + 1] ?? '', 'i')
   head.splice(releaseIndex, 2)
 }
+const waitMaxIndex = head.indexOf('--wait-max')
+const waitMaxMs = waitMaxIndex >= 0 ? Number(head[waitMaxIndex + 1]) : 12 * 60_000
+if (waitMaxIndex >= 0) head.splice(waitMaxIndex, 2)
 const label = head.join(' ')
 const command = process.argv.slice(sep + 1)
+const queueFile = join(root, '.maestri', 'locks', 'build.queue.json')
 
 function alive(pid) {
   try { process.kill(pid, 0); return true } catch (error) { return error.code === 'EPERM' }
@@ -42,14 +47,20 @@ function readOwner() {
 }
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
-const deadline = Date.now() + 45 * 60_000
-let announced = false
+const deadline = Date.now() + (Number.isFinite(waitMaxMs) && waitMaxMs > 0 ? waitMaxMs : 12 * 60_000)
+let lastPulse = 0
+
+function writeQueue(state) {
+  mkdirSync(dirname(queueFile), { recursive: true })
+  writeFileSync(queueFile, `${JSON.stringify(state, null, 2)}\n`)
+}
 
 mkdirSync(dirname(lockDir), { recursive: true })
 for (;;) {
   try {
     mkdirSync(lockDir)
     writeFileSync(ownerFile, JSON.stringify({ label, pid: process.pid, since: new Date().toISOString(), command: command.join(' ') }))
+    writeQueue({ holding: label, pid: process.pid, since: new Date().toISOString(), command: command.join(' ') })
     break
   } catch (error) {
     if (error.code !== 'EEXIST') throw error
@@ -65,13 +76,21 @@ for (;;) {
       if (!readOwner()) rmSync(lockDir, { recursive: true, force: true })
       continue
     }
+    const remain = Math.max(0, deadline - Date.now())
+    writeQueue({
+      waiting: label,
+      pid: process.pid,
+      since: new Date().toISOString(),
+      remainMs: remain,
+      holder: owner ?? null,
+    })
     if (Date.now() > deadline) {
-      console.error(`[with-lock] timed out waiting for "${owner?.label ?? 'unknown'}"`)
+      console.error(`[with-lock] timed out after ${Math.round(waitMaxMs / 1000)}s waiting for "${owner?.label ?? 'unknown'}" (pid ${owner?.pid})`)
       process.exit(75)
     }
-    if (!announced) {
-      console.error(`[with-lock] waiting for "${owner?.label}" (since ${owner?.since}): ${owner?.command}`)
-      announced = true
+    if (Date.now() - lastPulse > 15_000) {
+      lastPulse = Date.now()
+      console.error(`[with-lock] fila: "${label}" espera "${owner?.label}" desde ${owner?.since} (${Math.round(remain / 1000)}s restantes): ${owner?.command}`)
     }
     await sleep(3000)
   }

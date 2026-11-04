@@ -1,7 +1,7 @@
 # Contrato — fila × direcionar (T3 §4 / §11 / §12)
 
 Dono do domínio: **Forge** (`resolveWorkingSend`, `enqueueWorkingMessage`, `editQueuedMessage`, `dropQueuedMessage`, `openAsideAsk`, `pauseAtLimit`, `resumeAfterLimit`).
-Persistência + RPC: **Anvil** (host/store — **pendente até `JANELA ENCERRADA`**).
+Persistência + RPC: **Anvil** (`WorkingSendHost` em `screen_doc`).
 Composer: **Prism**.
 
 ## Persistência (Anvil)

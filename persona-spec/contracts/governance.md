@@ -8,7 +8,7 @@ Domínio: `persona-core/src/governance`. Engine: `persona-engine/src/governance.
 
 Escalonamento: persona → Coordenação (função, D-043) → responsável → substituto. `resolveApproval` / `routeApproval`: pessoa fora ⇒ substituto; sem backup ⇒ `{ kind: 'wait', notice }` — nunca silêncio.
 
-Saúde: `assessTeamHealth`. Teste dos 2 dias: `runTwoDayTest(snapshot, from)` + `applyGovernanceFix` (`set_substitute` | `raise_autonomy` ≤ teto do setor | `delegate_to_coordination`).
+Saúde: `assessTeamHealth`. Teste dos 2 dias: `runTwoDayTest(snapshot, from)` + `foldTwoDayLines` (rotina / aprovação / persona) + `applyGovernanceFix` (`set_substitute` | `raise_autonomy` ≤ teto do setor | `delegate_to_coordination`). Eventos levam `personaId` quando a rotina tem executor.
 
 Assistente: `recommendStructure` / `parseStructureAsk`. Uma persona por função contínua; tarefa pontual ≠ persona.
 

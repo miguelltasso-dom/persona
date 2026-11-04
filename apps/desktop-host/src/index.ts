@@ -18,6 +18,7 @@ import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
 import { installOfficeEngineResolution } from './office-engine.ts'
 import { installOperationDiagnostics } from './operation-diagnostics.ts'
+import { assertPersonaAppLayer, resolveDesktopHostProfileName } from './persona-profile.ts'
 
 async function main(): Promise<void> {
   const runId = randomUUID() as PluginOperationRunId
@@ -26,11 +27,13 @@ async function main(): Promise<void> {
   const projectDir = process.argv[3] as string
   installOfficeEngineResolution(runtimeDir)
   const installAnchor = join(runtimeDir, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')
+  const profileName = resolveDesktopHostProfileName()
   const profile = loadProfileDirectory('dsh', projectDir, installAnchor)
   reportSkippedBundles('dsh', profile)
+  assertPersonaAppLayer(profile, profileName)
   const application = runProfile({
     environment: loadLayeredEnv('dsh'),
-    profile: 'desktop',
+    profile: profileName,
     resolvedProfile: { profile, installAnchor },
     patchFiles: [],
     args: ['--no-open', '--host', '127.0.0.1', '--port', '0'],

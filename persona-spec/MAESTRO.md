@@ -21,6 +21,7 @@ Pedido do Miguel: um agente principal, como o Atlas no Maestri, com permissão d
 - Atividade/auditoria do Gestor no perfil dele e na Saúde da equipe.
 
 ## Aceite (Probe)
+Gate de domínio: `measureGestorAcceptance` (Forge) — 3/3 ou `failed[]`. E2E + capturas = Probe.
 - Usuário pede "monte um time para o Site" → plano → aprovar → personas criadas com acesso ≤ Gestor, alocadas no projeto, quadro com fluxo Site e sprint 1.
 - Gestor sem permissão de conceder Gestor não consegue; limite de personas/orçamento respeitado; modo "sempre perguntar" nunca cria sem aprovação.
 - Dois Gestores com escopos diferentes não interferem; auditoria registra cada ação com motivo.

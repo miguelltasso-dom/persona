@@ -1,6 +1,6 @@
 # Contrato — atividade agrupada (T3 §9)
 
-Dono do fold: **Forge** (`persona-core` `groupTurnActivity`, `persona-engine` `activityFromReport` / `foldTurnActivity`).
+Dono do fold: **Forge** (`persona-core` `groupTurnActivity`, `persona-engine` `activityFromReport` / `recordTurnActivity` / `foldTurnActivity`).
 Persistência + RPC: **Anvil** (`listTurnActivity`).
 UI: **Muse** `ActivityGroup` + **Prism** no fio.
 
@@ -18,6 +18,14 @@ Rajada do Router (OPT-6): `batchRouterBurst` — um lote por assunto para a pró
 
 ## RPC
 
-`listTurnActivity({ subjectId, personaId? })` → `ActivityGroupFold[]`. Sem eventos ≠ 0% de sucesso.
+`listTurnActivity({ subjectId, personaId? })` → `ActivityGroupFold[]` ou `foldTurnActivityBook` (`folds` + `successRate`). Sem eventos ≠ 0% de sucesso: `activitySuccessRate([])` / só `waiting|running` = `null`.
 
-Wire (Anvil, após a janela): `ListTurnActivityRequest { workspaceId, subjectId, personaId? }` → `ActivityGroupFold[]`. Persistência: eventos do turno no store do projeto; fold é `groupTurnActivity` no host, sem kinds novos.
+Loop: `Engine.report` emite `assignment.reported` (`personaId` = mandate actor, `threadId` = canal ou origin). Host:
+
+```
+emit: withTurnActivityEmit(row => this.recordTurnActivity({ workspaceId, projectId, ...row }))
+```
+
+`ProjectRuntime` hoje cria o Engine **sem** `emit` — Anvil acrescenta essa linha. Sem ela o fold fica vazio.
+
+Wire (Anvil): `listTurnActivity({ workspaceId, projectId, subjectId, personaId? })` → `ActivityGroupView[]`. `recordTurnActivity` grava o evento. Fold = `foldTurnActivity` (Forge). Sem eventos = `[]`, não 0%.

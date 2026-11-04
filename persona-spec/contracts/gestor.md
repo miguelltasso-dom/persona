@@ -9,6 +9,8 @@ UI (selo **Gestor**, nunca "Maestro"): **Prism** + **Lumen**.
 
 `SystemRole` literal: `team_manager` (`TEAM_MANAGER_ROLE`). Template: Coordenação também é Gestor. Quantas personas o usuário quiser.
 
+`withDefaultGestor(roles)` — se `coordination` está na lista e `team_manager` não, acrescenta Gestor. `assignSystemRole(..., 'coordination')` usa isso; o coordenador anterior perde só Coordenação (Gestor fica). Onboarding (`personaSpecToOnboardingWire` / parse) e `personaPropose` também. Host `createPersona` / `setPersonaSystemRoles` importam a mesma função do core (não copiar).
+
 ## Ações
 
 | Ação | Função | Recusa |
@@ -18,24 +20,28 @@ UI (selo **Gestor**, nunca "Maestro"): **Prism** + **Lumen**.
 | Reorganizar | `gestorReorganize` | pausa ociosa sem aviso; autonomia acima do teto |
 | Montar equipe | `assembleTeamForGoal` | frase sem objetivo |
 
-`decideGestorAction`: `always_ask` → `ask`; aceite → `apply` **com `plan.status = applied`**. `auto_and_notify` → `notify` + plano aplicado. `applyGestorPlan` marca o plano aplicado; recusado (`rejected`) lança `INVALID_GESTOR`. `gestorDecisionRows(decision)` = o que o host grava num write (plan+audit no apply/notify; só plan no ask). Plano nunca aplica sozinho. `runGestorAllocate` / `runGestorReorganize` / `runGestorAssemble` passam pelo mesmo gate. `runAssembleTeam` é o núcleo sem gate (só testes / preview).
+`decideGestorAction`: `always_ask` → `ask`; aceite → `apply` **com `plan.status = applied`**. `auto_and_notify` → `notify` + plano aplicado. `applyGestorPlan` marca o plano aplicado; recusado (`rejected`) lança `INVALID_GESTOR`. `rejectGestorPlan` recusa; plano já `applied` lança. `gestorDecisionRows(decision)` = o que o host grava num write (plan+audit no apply/notify; só plan no ask). Plano nunca aplica sozinho. `runGestorAllocate` / `runGestorReorganize` / `runGestorAssemble` passam pelo mesmo gate. `runAssembleTeam` é o núcleo sem gate (só testes / preview). Ao propor, o host posta `emitGestorPropose({ plan, threadId, at })` — corpo com `[[gestor-plan:id]]` + linha `recordTurnActivity` (waiting). `tool` = `plan.action` (`hire`/`assemble` → kind hire; `allocate`/`reorganize` → command). `proposeGestorChannelBody` / `attachGestorPlanMarker` são o núcleo. Aceite GES-6 domínio: `measureGestorAcceptance` (3/3). Alias `measureGestorV1` = a mesma função (engine). O host **não** expõe `@Remote measureGestorV1` — Probe chama o engine. Fechamento v1: `measureV1Close` junta GES-6 + PRO-6 + OPT-8. Host: `withDefaultGestor` em `createPersona` / `setPersonaSystemRoles` / onboarding; `getPersonaCard.gestorAuditReason`; `emitGestorPropose` no `#geral` (`assemble`→hire, `allocate`/`reorganize`→command).
 
 ## Vários Gestores (GES-3)
 
-Escopo por setor/projeto (`gestorInScope` / `gestorScopeKey`). Mesmo escopo: o primeiro propõe; o segundo `commentGestorPlan` (`status: commented`, `commentOnId`). Empate: humano `resolveGestorTie` — escolhido vence; os outros no escopo = `rejected`.
+Escopo por setor/projeto (`gestorInScope` / `gestorScopeKey`). Mesmo escopo: o primeiro propõe; o segundo `commentGestorPlan` (`status: commented`, `commentOnId`). Empate: humano `resolveGestorTie` — escolhido vence; os outros no escopo = `rejected`. `gestorConflictDecision` / `runGestor*` devolvem `commentPlan`; `gestorDecisionRows` persiste essa linha.
 
 ## RPC (Anvil)
 
 `proposeGestorHire` / `proposeGestorAllocate` / `proposeGestorReorganize` / `proposeGestorAssemble` / `commentGestorPlan` / `resolveGestorTie` / `rejectGestorPlan` / `listGestorPlans` / `getGestorMandate`. Auditoria: `formatGestorAudit` no perfil e em Saúde.
 
-Wire ainda sem Remote (Anvil, após a janela):
+Wire (Anvil, 04/11):
 
 - `commentGestorPlan({ workspaceId, planId, commenterId, comment })` → plano `commented` com `commentOnId` (o original fica `proposed`).
 - `resolveGestorTie({ workspaceId, chosenId })` → escolhido `proposed`; os outros do `scopeKey` = `rejected`.
-- `GestorPlanView.commentOnId?` no fio (hoje `toPlanView` omite).
-- `proposeGestorAllocate` / `proposeGestorReorganize` ainda não são `@Remote`.
+- `GestorPlanView.commentOnId?` no fio.
+- `proposeGestorAllocate` / `proposeGestorReorganize` são `@Remote`; always_ask fica `proposed` até `approveGestorPlan`.
 
-Store já aceita o `GestorPlan` completo em `body_json` (`commentOnId` inclusive).
+Store grava o `GestorPlan` completo em `body_json` (`commentOnId` inclusive).
+
+## Auditoria (GES-5)
+
+`formatGestorAudit` / `formatGestorAuditFromPlan` — frase no perfil e em Saúde, sem ids. Persistência = Anvil (`getTeamHealth.gestorAudit` + `PersonaCardView.gestorAuditReason` quando a persona tem `team_manager`).
 
 ## UI
 

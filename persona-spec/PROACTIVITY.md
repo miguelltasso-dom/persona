@@ -44,6 +44,7 @@ Visão geral com: o que cada persona está fazendo agora, fila, tempo ocioso, en
 Normas de dono no prompt base das executoras (terminar, verificar, reportar com evidência, propor próximo passo, não devolver trabalho que está no mandato). Suíte de avaliação "preguiça": cenários em que modelos tendem a parar cedo (tarefa multi-etapa, erro intermediário, ambiguidade pequena) medindo conclusão e iniciativa por runner/modelo — resultado aparece como dica ao escolher modelo da persona.
 
 ## Aceite (Probe)
+Gate de domínio: `measureProactivityAcceptance` (Forge, relógio falso) — corre os 6 bullets e devolve `scoreProactivityAcceptance` (6/6 ou `failed[]`). Alias `measureProactivityV1` = a mesma função (`@Remote measureProactivityV1`). Fechamento v1: `measureV1Close` junta PRO-6 + GES-6 + OPT-8. E2E + capturas = Probe.
 - Com backlog e objetivo abertos, nenhuma persona fica ociosa > 1 ciclo do Vigia (relógio falso).
 - Concluir uma tarefa puxa a próxima sem intervenção humana; dependência concluída acorda a dependente.
 - Fila vazia + objetivo aberto ⇒ Coordenação planeja e distribui; sem objetivo ⇒ equipe descansa sem chamadas de IA.

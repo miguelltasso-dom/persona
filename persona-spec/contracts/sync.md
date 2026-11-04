@@ -23,4 +23,4 @@ workspaceId, streamId, seq, idempotencyKey, classification, at, payload, shared?
 
 ## Port `SyncLog`
 
-`append` · `after(streamId, afterSeq)` · `byIdempotency` · `head`. `MemorySyncLog` é a suíte de contrato; Anvil pluga D1/SQLite.
+`append` · `after(streamId, afterSeq)` · `byIdempotency` · `head`. `MemorySyncLog` é a suíte de contrato; Anvil pluga D1 (`apps/persona-edge` `SqlSyncLog`) e SQLite desktop (`SqliteSyncLog`). Rotas HTTP/WS: `contracts/remote-teams.md`. `isLocalOnlyStream` recusa `teach:` / `account:` / `task-run:` / `run:` mesmo com `shared`.

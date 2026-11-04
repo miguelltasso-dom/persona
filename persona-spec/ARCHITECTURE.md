@@ -105,7 +105,7 @@ Boot: `node scripts/persona/check-pkg.mjs persona-core persona-engine` · `pnpm 
 | `UsageStore` | `persona-usage/src/store-types.ts` | Anvil `SqliteUsageStore`; Rivet mede |
 | `SyncLog` | `persona-core/src/sync/types.ts` | Anvil SQLite/D1; testes: `MemorySyncLog` |
 | `preRoute` | `EngineOptions` | host liga regras + ACL + janela |
-| Governança | `persona-core/src/governance` + `persona-engine/src/governance.ts` | host: Anvil v9 (`contracts/governance.md`) |
+| Governança | `persona-core/src/governance` + `persona-engine/src/governance.ts` | host: Anvil v11 (`contracts/governance.md`) |
 
 ## Governança da equipe (D-054)
 
@@ -126,7 +126,7 @@ Boot: `node scripts/persona/check-pkg.mjs persona-core persona-engine` · `pnpm 
 
 ## Quadros por projeto (D-053)
 
-Cada projeto tem `Workflow` (colunas + categoria `todo|doing|review|needs_you|done`) e sprints opcionais. Tipos e invariantes em `persona-core/src/board`. Engine projeta estágio↔coluna (`projectBoardCard`, `moveToColumn`) e sprint↔`dsh-goal` (`sprintGoal` / `bindSprintGoal`). Host (Anvil) persiste v8 e expõe Remote; UI (Lumen/Prism) ainda troca o Kanban misturado por Quadros (PB-5..PB-7).
+Cada projeto tem `Workflow` (colunas + categoria `todo|doing|review|needs_you|done`) e sprints opcionais. Tipos e invariantes em `persona-core/src/board`. Engine projeta estágio↔coluna (`projectBoardCard`, `moveToColumn`) e sprint↔`dsh-goal` (`sprintGoal` / `bindSprintGoal`). Host (Anvil) persiste o quadro desde v8 e expõe Remote; schema atual é v19. UI (Lumen/Prism) ainda troca o Kanban misturado por Quadros (PB-5..PB-7).
 
 **PB-10 — coluna antiga → categoria:** `legacyKanbanToCategory` / `legacyColumnLabelToCategory` em `persona-engine/src/kanban.ts`. `todo|doing|review|done` permanecem; `blocked` vira categoria `needs_you` + marcador. Rótulos pt-BR: A fazer, Em andamento, Em revisão / Revisar, Bloqueado / Precisa de você, Concluído / Pronto. Cartões sem coluna caem na primeira coluna da categoria do estágio (`firstColumnOf`). Revisar continua no cartão (D-039 `reviewThread`). A UI (`GlobalKanban` → Quadros) é Lumen após PB-5.
 
@@ -168,3 +168,72 @@ Livro `TurnLedgerEntry` + `foldUsagePanel` (tokens/tarefa, por persona, por tipo
 8. Molde: `persona-engine/src/sources/{internal,external}.ts` e `sources/github/`.
 9. Webhook público só encaminha (`persona-core/src/sync/webhook.ts`); o desktop decide o Trigger.
 10. Exporte o mapper em `persona-engine/src/index.ts` (ou `persona-runners` se o mapper for de CLI/API).
+
+## Store — schema `v1 → v19` (Anvil)
+
+`PERSONA_SCHEMA_VERSION = 19`. `application_id` `PNSQ`. Migração adjacente imutável (`user_version` + 1); `VACUUM INTO` em disco antes de cada passo; arquivo mais novo que o conhecido = recusa. Tenant = `project_id` (D-038); governança é workspace.
+
+| v | O que entra |
+|---|---|
+| 1 | workspace, member, project (Pessoal único), persona, participation, channel, dm, event + FTS, vault + FTS, routines |
+| 2 | engine (trigger/thread/ticket/decision/effects/outbox) |
+| 3 | sync log |
+| 4 | proactivity (autonomy, initiative, watchdog) |
+| 5 | screen_doc |
+| 6 | retention |
+| 7 | usage_record + usage_quota |
+| 8 | workflow / columns / sprints / ticket seats |
+| 9 | media (attachments / avatars) |
+| 10 | persona card (speak / charge) |
+| 11 | governance (sector, away, routine owner, audit) |
+| 12 | chat rico (reply/pin/react/edit) |
+| 13 | vault_chunk + FTS de documentos |
+| 14 | WAVE2: conversation_topic, provider_account, account_policy, teach_artifact |
+| 15 | Segundo cérebro (`brain_*`) |
+| 16 | Gestor (`team_manager_*`) |
+| 17 | token-opt (resumo de assunto, cursores, pool de limite) |
+| 18 | turn_ledger (`TurnKind` canônico) |
+| 19 | `usage_quota` PK `project_id+provider+account_id` (uma linha por login) |
+
+RPCs de ciclo: `backupNow` / `listBackups` / `restoreBackup` / `getStoreHealth` / `checkpointWal` / `wipeProject` (recusa Pessoal) / `deleteWorkspace` (dono + `confirmed`).
+
+## Host — Remote, limites, ACL (Anvil)
+
+Namespace `persona`. Todo `@Remote` passa por `installRemoteGuard` (`RemoteGuard`).
+
+| Limite | Valor |
+|---|---|
+| JSON de request | 256 KB (`REMOTE_PAYLOAD_LIMIT`) |
+| `attach*` / `putFile` / `upload*` | 12 MB (`REMOTE_ATTACH_PAYLOAD_LIMIT`; produto ainda 8 MB/arquivo) |
+| Leitura (`list*`/`get*`/`ping`/streams) | 2000 / 10 s por peer+método |
+| Escrita (create/update/put/delete/…) | 240 / 10 s |
+| `listConversationSubjects` | cache 750 ms por stream (boot de 9 painéis) |
+
+Falha tipada `RemoteFault`: `isDSHRemoteError`, `code` (`invalid-payload` / `payload-too-large` / `rate-limited` / …), `details.retryAfterMs` no rate. Envelope zod `z.looseObject` — ids conhecidos = string ≤ 200.
+
+ACL: `can()` no servidor (`requireProject` / `requireWorkspace` / `requireWrite` / `requireGovOwner` / `actorOf` / `sessionCan`). Guest lê vazio, não um id. Exceções sem membro (`ACL_EXCEPTIONS`): `ping`, `getOnboarding`, `completeOnboarding`, `createWorkspace`, `exportDiagnostics`, `pickDirectory`, `backupNow`, `listBackups`, `listStickers`, `checkpointWal`, `previewCliSkills`, `getStoreHealth`, `restoreBackup`.
+
+Talk: `foldHostTalkUsed` + `composeHostTalk` + `capTalkContext` + `finishHostTalk`. Gestor: `withDefaultGestor` em `createPersona` / `setPersonaSystemRoles` / onboarding; `getPersonaCard.gestorAuditReason`; `emitGestorPropose` no `#geral`. Medidas: `measureProactivityV1`, `measureOpt8` (scripted + `liveEntries`; `cut-40` blocked sem livro live). `measureGestorV1` vive no engine — o host **não** expõe esse Remote. Uso: `recordTurnLedger` / `getUsagePanel` / `getOfficialQuota` (v19 por conta). Cérebro: `exportBrainVault` / `importBrainVault` = `planBrainVaultSync` + `applyBrainVaultSync`. Catálogo completo: `contracts/lumen-rpc.md`.
+
+HTTP local do host: `POST /api/persona/webhooks/github?projectId=` (HMAC, corpo ≤ 256 KiB); `GET /api/persona/media` (anexo/avatar, `nosniff`).
+
+## Edge + sync (Anvil)
+
+Worker `apps/persona-edge` + cliente `persona-sync`. Sequenciador = Durable Object `WorkspaceHub` (`seq === head+1` ou `SEQ_GAP`).
+
+| Rota | Efeito |
+|---|---|
+| `GET /health` | `{ ok, service: 'persona-edge' }` |
+| `GET /w/:id` · `/w/:id/health` | hub vivo |
+| `POST /w/:id/sync/append` | envelope; header `x-persona-actor` |
+| `GET /w/:id/sync/after?streamId&afterSeq` | replay |
+| `Upgrade /w/:id/sync` | WebSocket hibernação (`resume` / `append`) |
+| `POST /w/:id/members` · `GET /w/:id/members` | dono entra; lista |
+| `POST /w/:id/members/:actorId/revoke` | corta o desk (`403 ACCESS_REVOKED`) |
+| `POST /w/:id/invites` · `GET /w/:id/invites/:token` | emite / lê |
+| `POST /w/:id/invites/:token/redeem` | um uso |
+| `POST /w/:id/invites/:id/revoke` | marca convite + membro |
+| `POST /w/:id/webhooks/github` | HMAC no Worker; DO guarda `WebhookEnvelope` |
+| `GET/PUT /w/:id/blobs/:key` | R2; `mayUpload` (DM/privado sem `shared` = `403 SYNC_REFUSED`) |
+
+`isLocalOnlyStream` recusa `teach:` / `account:` / `task-run:` / `run:` mesmo com `shared`. Cliente: `SyncClient` + `HttpTransport` / `WorkspaceCipher`; outbox no desk; offline = `status: offline`. Deploy Cloudflare = E11 (Atlas). Contrato: `contracts/sync.md`, `contracts/remote-teams.md`.

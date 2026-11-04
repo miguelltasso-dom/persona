@@ -38,6 +38,10 @@ Higiene sem LLM: `hygieneBrain` (dedupe Jaccard ≥ 0.8, lembrete 90 dias). `app
 
 `compileBrainContext`: regras/decisões `required` entram em `requiredIds` (mapeiam `constraint`/`decision`). Citações: `title` + `locator` (tipo).
 
+## Export / sync (SB-6)
+
+`planBrainVaultSync` (default `one_way`) + `applyBrainVaultSync`. Two-way dest com frontmatter do pack → `page`; nota Obsidian sem pack → `foreign` (BYC). Leftover nunca apagado. Persistência da pasta = Anvil/Rivet.
+
 ## Fora deste contrato
 
-Store/RPC (`brainHome`, FTS5, retenção) = Anvil. Bind MCP = Rivet. Tela Empresa › Segundo cérebro = Lumen. Overlay de permissão no cartão = Prism.
+Store/RPC (`getBrainHome`, `putBrainPage`, `listBrainPages`, `exportBrainVault`/`importBrainVault` = `planBrainVaultSync`+`applyBrainVaultSync`, FTS5, retenção) = Anvil. Bind MCP = Rivet. Tela Empresa › Segundo cérebro = Lumen. Overlay de permissão no cartão = Prism.

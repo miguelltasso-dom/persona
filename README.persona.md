@@ -1,5 +1,10 @@
 # Persona
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="persona-assets/brand/launch/readme-hero-pt-dark.png">
+  <img alt="Persona: sua equipe de IA, com nome, rosto e limites. Atlas, Bento, Nina, Sol e Luna sentados juntos numa colina." src="persona-assets/brand/launch/readme-hero-pt-light.png" width="100%">
+</picture>
+
 Equipe de agentes-animais no seu computador. Cada persona tem nome, função e limites. A Coordenação decide o que vira Tarefa. As executoras fazem o trabalho autorizado. A Vigia acorda quem parou.
 
 Isto não é um produto de nuvem: o anfitrião é o app desktop. Conversas diretas, chaves e o Cofre ficam na máquina até você mandar o contrário.

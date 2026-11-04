@@ -10,8 +10,8 @@
  * Options: --commit <rev>  --dir  --no-install  --no-overlay
  * Exit: 0 Setup/exe ready, 1 typecheck/package red, 2 setup failure.
  */
-import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -29,12 +29,82 @@ const resume = argv.includes('--resume')
 const commitFlag = argv.indexOf('--commit')
 const requested = commitFlag >= 0 ? argv[commitFlag + 1] : 'origin/persona-dev'
 
+const PACK_LOG = join(CACHE, 'package-clean.log')
+const LIVE = join(CACHE, 'package-clean.live.json')
+
 const run = (cwd, cmd, args, options = {}) => spawnSync(cmd, args, {
   cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 28,
   shell: process.platform === 'win32' && cmd === 'pnpm',
   ...options,
 })
-const log = (message) => console.log(`[package-clean ${new Date().toISOString()}] ${message}`)
+const log = (message) => {
+  const line = `[package-clean ${new Date().toISOString()}] ${message}`
+  console.log(line)
+  mkdirSync(CACHE, { recursive: true })
+  appendFileSync(PACK_LOG, `${line}\n`)
+}
+
+function live(stage, extra = {}) {
+  writeFileSync(LIVE, `${JSON.stringify({
+    stage, at: new Date().toISOString(), ...extra,
+  }, null, 2)}\n`)
+}
+
+/**
+ * Run a long child with streamed stdout/stderr into the live log.
+ * @param cwd - Working directory.
+ * @param cmd - Executable.
+ * @param args - argv.
+ * @param timeoutMs - Kill after this many ms.
+ * @param env - Extra env.
+ */
+function streamRun(cwd, cmd, args, timeoutMs, env = {}, stallMs = 20 * 60_000) {
+  return new Promise((resolvePromise) => {
+    const child = spawn(cmd, args, {
+      cwd, windowsHide: true, env: { ...process.env, ...env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    const startedAt = Date.now()
+    let lastChunkAt = Date.now()
+    const onChunk = (chunk, sink) => {
+      lastChunkAt = Date.now()
+      const text = chunk.toString('utf8')
+      sink.write(text)
+      appendFileSync(PACK_LOG, text)
+      if (sink === process.stdout) stdout += text
+      else stderr += text
+      if (stdout.length > 1 << 20) stdout = stdout.slice(-500_000)
+      if (stderr.length > 1 << 20) stderr = stderr.slice(-500_000)
+      live('pack', { elapsedMs: Date.now() - startedAt, last: text.trim().slice(-160) })
+    }
+    child.stdout.on('data', chunk => onChunk(chunk, process.stdout))
+    child.stderr.on('data', chunk => onChunk(chunk, process.stderr))
+    const pulse = setInterval(() => {
+      const silentMs = Date.now() - lastChunkAt
+      log(`heartbeat pack ${Math.round((Date.now() - startedAt) / 1000)}s elapsed, ${Math.round(silentMs / 1000)}s since last line`)
+      live('pack', { elapsedMs: Date.now() - startedAt, silentMs, last: '(heartbeat)' })
+      if (silentMs > stallMs) {
+        log(`stage stall ${stallMs}ms without output — killing ${cmd} ${args.join(' ')}`)
+        child.kill('SIGTERM')
+        setTimeout(() => child.kill('SIGKILL'), 8_000)
+      }
+    }, 60_000)
+    const killer = setTimeout(() => {
+      log(`stage timeout ${timeoutMs}ms — killing ${cmd} ${args.join(' ')}`)
+      child.kill('SIGTERM')
+      setTimeout(() => child.kill('SIGKILL'), 8_000)
+    }, timeoutMs)
+    const finish = (result) => {
+      clearTimeout(killer)
+      clearInterval(pulse)
+      resolvePromise(result)
+    }
+    child.on('close', (status) => finish({ status, stdout, stderr }))
+    child.on('error', (error) => finish({ status: 1, stdout, stderr: `${stderr}\n${error.message}` }))
+  })
+}
 
 function ensureJunction(short, target) {
   if (existsSync(short)) return { ok: true, path: short, detail: 'existing' }
@@ -124,7 +194,9 @@ if (argv.includes('--help')) {
 }
 
 mkdirSync(CACHE, { recursive: true })
+writeFileSync(PACK_LOG, '')
 const started = Date.now()
+live('resolve', { requested })
 const target = run(main, 'git', ['rev-parse', requested]).stdout.trim()
 if (!target) {
   log(`cannot resolve ${requested}`)
@@ -142,6 +214,7 @@ if (!existsSync(wt)) {
 }
 const current = run(wt, 'git', ['rev-parse', 'HEAD']).stdout.trim()
 if (!resume || current !== target) {
+  live('checkout', { target: target.slice(0, 10) })
   const checkout = run(wt, 'git', ['checkout', '--detach', '--force', target])
   if (checkout.status !== 0) {
     log(`checkout failed: ${(checkout.stderr || checkout.stdout).slice(-400)}`)
@@ -156,14 +229,16 @@ const short = ensureJunction(SHORT_WT, wt)
 log(`worktree ${wt} junction ${short.path} (${short.detail})`)
 
 if (!existsSync(join(wt, 'node_modules'))) {
+  live('install', {})
   log('installing dependencies in the clean worktree (frozen lockfile)')
-  const install = run(wt, 'pnpm', ['install', '--frozen-lockfile', '--prefer-offline'])
+  const install = run(wt, 'pnpm', ['install', '--frozen-lockfile', '--prefer-offline'], { timeout: 20 * 60_000 })
   if (install.status !== 0) {
     log(`install failed:\n${`${install.stdout}${install.stderr}`.slice(-600)}`)
     process.exit(2)
   }
 }
 
+live('overlay', {})
 const overlay = noOverlay ? [] : applyOverlay(wt)
 log(`overlay ${overlay.join(', ') || 'none'}`)
 
@@ -171,19 +246,16 @@ const pnpmEntry = join(wt, 'node_modules/pnpm/bin/pnpm.cjs')
 const desktop = join(wt, 'apps', 'desktop')
 const packArgs = ['exec', 'tsx', 'scripts/package-target.ts', 'win-x64', '--unsigned', '--skip-smoke']
 if (wantDir) packArgs.push('--dir')
-log(`pack ${packArgs.join(' ')}`)
-const packed = run(desktop, process.execPath, [pnpmEntry, ...packArgs], {
-  env: {
-    ...process.env,
-    npm_execpath: pnpmEntry,
-    DSH_DESKTOP_UNSIGNED: '1',
-    CSC_IDENTITY_AUTO_DISCOVERY: 'false',
-    DSH_DESKTOP_PACKAGE_CACHE_DIR: CACHE,
-  },
-  timeout: 40 * 60_000,
+log(`pack ${packArgs.join(' ')} (stream → ${PACK_LOG})`)
+live('pack', { args: packArgs.join(' ') })
+const packed = await streamRun(desktop, process.execPath, [pnpmEntry, ...packArgs], 90 * 60_000, {
+  npm_execpath: pnpmEntry,
+  DSH_DESKTOP_UNSIGNED: '1',
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+  DSH_DESKTOP_PACKAGE_CACHE_DIR: CACHE,
 })
-const packLog = join(CACHE, 'package-clean.log')
-writeFileSync(packLog, `${packed.stdout ?? ''}\n${packed.stderr ?? ''}`)
+const packLog = PACK_LOG
+log(`pack exit ${packed.status}`)
 const artifactRoot = join(desktop, '.desktop-build')
 const setup = findArtifact(artifactRoot, /persona-.*-win-x64-unsigned\.exe$/iu)
   ?? findArtifact(artifactRoot, /Persona-Setup\.exe$/iu)
@@ -231,5 +303,6 @@ const report = {
   tail: `${packed.stderr ?? ''}\n${packed.stdout ?? ''}`.slice(-2_500),
 }
 writeFileSync(join(CACHE, 'package-clean.json'), `${JSON.stringify(report, null, 2)}\n`)
+live(report.ok ? 'done' : 'failed', { setup: report.setup, setupBytes: report.setupBytes })
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
 process.exit(report.ok ? 0 : packed.status === 0 ? 2 : 1)

@@ -12,7 +12,15 @@ Kinds canônicos são os do core. O port Rivet usa `exec` / `eval` — mapear s�
 
 Folds: `totalTokens`, `callsForTicket`, `cacheHitRate`, `tokensPerSuccessfulTask`, **`foldUsagePanel`** (tokens/tarefa, por persona, por tipo, cache, origem). Estimador fiel sem tokenizer de vendor: 4 caracteres ≈ 1 token.
 
-OPT-4: `compileContext({ prefix })` / `compileActiveSubject` descarta records opcionais cujo body já está no prefixo (`dropRecordsInPrefix`). Obrigatórios não saem. `composeTurnPrompt` também corta blocos do tail que já estão no prefixo (`trimVariableAlreadyInPrefix`).
+OPT-3 talk: `composeHostTalk` / `foldHostTalkUsed` — colegas no prefixo; Cofre obrigatório / resumo do assunto / recall no tail com a mensagem. `composeTalkStable` / `composePersonaStable` são o mesmo caminho. `composeTalkPrompt` / `composePersonaPrompt` permanecem o snapshot. Host troca `talkLayers` por `foldHostTalkUsed` + `composeHostTalk` + `finishHostTalk`.
+
+OPT-5: `engineClassForTurn` (cheap vs persona) + `sessionReuseForTurn` — reusa a sessão só com a mesma persona e o mesmo prefixo (não reenviar o prefixo).
+
+OPT-4: `compileContext({ prefix })` / `compileActiveSubject` descarta records opcionais cujo body já está no prefixo (`dropRecordsInPrefix`). Obrigatórios não saem. `compileActiveSubject` passa `prefix` e pode devolver `digest` via `incrementalSubjectSummary` (`subjectDigest`). `composeTurnPrompt` também corta blocos do tail que já estão no prefixo (`trimVariableAlreadyInPrefix`).
+
+OPT-6: `leanChannelReply` tira eco da linha do humano e narração de passo; depois `capChannelReply` (100 palavras). `formatLeanStructuredReport` = decisão / resultado / bloqueio, já capado.
+
+Aceite OPT-1: `persona-spec/reports/bench-tokens.md` (números scripted iguais a `tokens-baseline.md`).
 
 Relatório da linha de base: `persona-spec/reports/tokens-baseline.md` (`formatTokensBaselineMarkdown` / `scripts/write-tokens-baseline.ts`). JSON congelado para o gate Probe: `persona-spec/baselines/token-scenarios.json` (`status: scripted`; regenerar com `pnpm exec tsx persona-spec/scripts/write-token-scenarios.ts`).
 
@@ -23,6 +31,10 @@ Relatório da linha de base: `persona-spec/reports/tokens-baseline.md` (`formatT
 `idle-routines` e `initiative-30` = **zero** chamadas de modelo (equipe ociosa sem objetivo).
 
 `assertScenarioRegression(baseline, measured, qualityGain?)` falha se tokens subirem > 10% sem ganho de qualidade ≥ 0,15.
+
+OPT-8: `measureOpt8Acceptance` — idle zero, cache ≥ 60%, paridade CLI. Sem livro live, `cut-40` fica em `blocked` (3/4). Com `liveEntries`, o corte −40% vs `baselineTokensPerTask` (default = tokens/tarefa scripted) entra no score; `successfulTicketIds` é opcional (`ticketIdsFromLedger` se omitido). Host `@Remote measureOpt8` deve passar o livro persistido, não só contar linhas. Relatório: `persona-spec/reports/opt8-acceptance.md`.
+
+Fechamento v1: `measureV1Close` = PRO-6 + GES-6 + OPT-8. `opt8.blocked` não falha o gate. Relatório: `persona-spec/reports/v1-close.md`. Probe importa; host pode expor `@Remote measureV1Close`.
 
 ## Benchmark pareado
 

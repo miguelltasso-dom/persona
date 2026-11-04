@@ -53,9 +53,17 @@ Sem `project.rootPath` os métodos **não lançam**. Devolvem `status: 'need-roo
 | `pickDirectory` | Rivet IPC; host devolve `{ path: null }` |
 | `updateProject.rootPath` | equivalente; vazio limpa |
 
-## Conexões — `listConnections(scope)` (async)
+## Gateway Remote (04/11)
 
-Probe em segundo plano no boot do host (timeout **≥ 8 s** por CLI, cache 60 s). Primeira pintura: `phase: 'checking'`, **sem** `error: not_logged_in` (400 ms era falso negativo — auth do Claude ~5 s). UI mostra "verificando…" até `phase: 'ready'`. Só então `loggedIn: false` + `error?` (`cli_not_found` | `not_logged_in` | `quota_exhausted`) e `loginHint`. `resolveRunner` usa `ctx.get('personaRunners')`; `home` vazio = login nativo (`~/.claude`), isolamento só opt-in.
+Todo `@Remote` passa por `installRemoteGuard`. JSON ≤ 256 KB; `attach*`/`putFile`/`upload*` ≤ 12 MB. Leitura 2000/10s, escrita 240/10s (por peer+método). `rate-limited` é `RemoteFault` com `isDSHRemoteError` + `retryAfterMs`. Envelope `z.looseObject` (ids ≤ 200). ACL `can()`; exceções em `ACL_EXCEPTIONS` (`ping`, onboarding, backup, diagnostics, stickers, skills locais, store health). Guest = vazio, não id.
+
+Schema store **v19**. Catálogo de versões: `ARCHITECTURE.md` (v1→v19).
+
+Medidas (Probe, sem remount): `measureProactivityV1()` → `{ passed, total, failed }`; `measureOpt8({ workspaceId })` → `measureOpt8Acceptance({ liveEntries })` + `liveOrigin`. `cut-40` fica `blocked` só quando o livro live está vazio. `measureGestorV1` e `measureV1Close` são engine (Probe importa); host pode expor `@Remote measureV1Close` = `measureV1Close({ liveEntries })`.
+
+## Conexões — `listConnections(scope)` (síncrono)
+
+Devolve o cache na hora. Probe em segundo plano no boot do host (timeout **≥ 8 s** por CLI, cache 60 s). Primeira pintura: `phase: 'checking'`, **sem** `error: not_logged_in` (400 ms era falso negativo — auth do Claude ~5 s). UI mostra "verificando…" até `phase: 'ready'`. Só então `loggedIn: false` + `error?` (`cli_not_found` | `not_logged_in` | `quota_exhausted`) e `loginHint`. `resolveRunner` usa `ctx.get('personaRunners')`; `home` vazio = login nativo (`~/.claude`), isolamento só opt-in. `addConnectionAccount` / `listConnectionAccounts` / `removeConnectionAccount` / `setRunnerSwapPolicy` também são síncronos.
 
 ## Webhook GitHub local
 
@@ -132,8 +140,8 @@ Markdown é a fonte; FTS/tipo/links são índice derivado. Versões nunca apagam
 | `revokeBrainPermission({ grantId })` | Revoga na hora; a página fica |
 | `listBrainPermissions(scope)` | Grants (ativos e revogados) |
 | `useBrainPermission({ grantId, personaId, action, target })` | Uso; alvo/persona/validade diferentes → `forbidden` |
-| `exportBrainVault({ folderPath, twoWay? })` | Escreve `.md` por tipo; `twoWay` também importa |
-| `importBrainVault({ folderPath })` | Exporta e importa (sem duplicar) |
+| `exportBrainVault({ folderPath, twoWay? })` | `applyBrainVaultSync(planBrainVaultSync({ mode: twoWay ? 'two_way' : 'one_way' }))` — write/skip; two-way `page` upsert + `foreign` → BYC |
+| `importBrainVault({ folderPath })` | Mesmo apply; slug+hash = skip; leftover nunca apagado |
 
 **[Anvil→Lumen]** Empresa › Segundo cérebro: início = `getBrainHome`; busca/tipo = `listBrainPages`/`searchBrainPages`; página = `getBrainPage` + `listBrainVersions`; editar = `putBrainPage`; permissões = `listBrainPermissions` / `revokeBrainPermission` / `grantBrainPermission`; exportar pasta = `exportBrainVault`.
 
@@ -172,10 +180,12 @@ Função atribuível (`systemRoles` inclui `team_manager`; selo **Gestor**). Coo
 | `assembleTeamForGoal({ goal, projectId, sprintId })` | Preview equipe + fluxo + sprint 1 |
 | `exportBrainVault({ workspaceId })` | Pack Obsidian mão única (SB-6) |
 | `listGestorAudit({ workspaceId })` | Linhas com motivo |
-| `commentGestorPlan({ workspaceId, planId, commenterId, comment })` | GES-3: segundo Gestor comenta (`commentOnId`); original fica `proposed` — **Remote pendente (janela)** |
-| `resolveGestorTie({ workspaceId, chosenId })` | Humano desempatar; os outros no escopo viram `rejected` — **Remote pendente (janela)** |
-| `listTurnActivity({ workspaceId, subjectId, personaId? })` | T3 §9 fold — **Remote pendente (janela)** |
-| `enqueueWorkingMessage` / `listWorkingQueue` / `flushWorkingQueue` | T3 §4 fila — **Remote pendente (janela)**; ver `working-send.md` |
+| `commentGestorPlan({ workspaceId, planId, commenterId, comment })` | GES-3: segundo Gestor comenta (`commentOnId`); original fica `proposed` |
+| `resolveGestorTie({ workspaceId, chosenId })` | Humano desempatar; os outros no escopo viram `rejected` |
+| `proposeGestorAllocate` / `proposeGestorReorganize` | Plano; always_ask espera `approveGestorPlan` |
+| `listTurnActivity({ workspaceId, projectId, subjectId, personaId? })` | T3 §9 fold; vazio ≠ 0% |
+| `recordTurnActivity` | Grava evento do turno |
+| `enqueueWorkingMessage` / `listWorkingQueue` / `editQueuedMessage` / `dropQueuedMessage` / `flushWorkingQueue` / `openAsideAsk` | T3 §4/§11; ver `working-send.md` |
 
 **[Anvil→Lumen]** Editor/cartão: `team_manager` + `getGestorMandate` / `setGestorLimits`. Chat: `proposeGestorHire` → cartão Aprovar → `approveGestorPlan`. Saúde/perfil: `getTeamHealth.gestorAudit` ou `listGestorAudit`.
 
@@ -197,7 +207,7 @@ Função atribuível (`systemRoles` inclui `team_manager`; selo **Gestor**). Coo
 
 | RPC | Efeito |
 |---|---|
-| `previewBringContextPaste({ text, provider })` | Organiza colagem (sem gravar) |
+| `previewBringContextPaste({ text, provider })` | Organiza colagem (sem gravar). Host passa `existing` via `vaultToBringExisting` — nunca `[]` se o Cofre tem linhas |
 | `previewBringContextVaultFolder({ rootPath })` | Varre pasta .md (sem gravar) |
 | `applyContextProposals({ preview, items })` | Aceitar/editar/privado grava no Cofre; descartar/bloqueado/conflito/duplicata não |
 
@@ -295,7 +305,7 @@ Arquivo corrompido: restaura o último backup; sem backup abre **modo seguro** (
 
 ## Anexos — limite com mensagem
 
-Anexo ≤ 8 MB, avatar ≤ 2 MB, mensagem ≤ 20 MB, projeto ≤ 200 MB, leitura de arquivo do projeto ≤ 8 MB. Estouro → linha pt-BR (`Este anexo tem N MB. O limite é 8 MB.`). SVG/HTML/exe recusados.
+Anexo ≤ 8 MB, avatar ≤ 2 MB, mensagem ≤ 20 MB, projeto ≤ 200 MB, leitura de arquivo do projeto ≤ 8 MB. Gateway Remote: JSON 256 KB; `attach*`/`upload*` 12 MB. Estouro de produto → linha pt-BR (`Este anexo tem N MB. O limite é 8 MB.`). SVG/HTML/exe recusados.
 
 ## Anexos e avatar
 

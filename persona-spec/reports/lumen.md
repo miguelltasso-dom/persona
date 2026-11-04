@@ -1,5 +1,87 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-04 07:22 — PB-3/6 proposta + PB-7 closeSprint + PRO decideApproval
+
+**PB-3/6:** `ConnectedProjectFlowBoard` — botão “Sugestão da Coordenação” → `proposeWorkflow`; aceitar (`acceptWorkflowProposal`) e dispensar (`rejectWorkflowProposal`).
+
+**PB-7:** modal encerrar sprint → `closeSprint` + toast com resumo.
+
+**PRO-5:** `RemoteApprovalsPanel` — “Dispensar” chama `decideApproval` e recarrega inbox.
+
+**Comandos:** vitest `connected-project-flow-board` (7) + `remote-approvals-panel` (2) → **9 passed** · `check-pkg client-ui-persona` OK.
+
+**Fila:** Probe PRO-6/PB-9/BYC-6/GOV-10 E2E; Rivet W2-7/BYC-5; Forge PB-10 docs; `KanbanReviewSheet` wire jsdom (opcional).
+
+## 2026-11-04 07:12 — PB-5 listBoards + PB-6 moveTicket + remote panels
+
+**PB-5/10:** `connected-global-kanban-boards` — hub chama `listBoards` e exibe `currentSprintName` no tile.
+
+**PB-6:** `boards-remote.client.spec.ts` (propose/accept fallback/reject no-op); `ConnectedProjectFlowBoard` menu “Mover para Live” → `moveTicket`.
+
+**PRO-5:** `remote-approvals-panel` + `remote-rules-panel` ready (RPC bundles); `remote-members-panel` (`listTeam`).
+
+**Harness:** `message-view-fixture` aceita `runError` (teste Muse/Prism map-message).
+
+**Comandos:** vitest boards-remote + connected-global-kanban-boards + connected-project-flow-board + remote-approvals + remote-rules + remote-members → **12 passed** · `check-pkg client-ui-persona` OK (26s).
+
+**Fila:** Probe PB-9/BYC-6/GOV-10; Rivet W2-7/BYC-5; Forge PB-10 docs; PB-6 proposta de fluxo na UI conectada (opcional).
+
+## 2026-11-04 06:48 — C7a/b + BYC import wire + GOV-7 fix RPC
+
+**C7a/b:** testes `RemoteFilesPanel` (`listFiles`) e `RemoteRoutinesPanel` (`listRoutineSchedule`).
+
+**W2-7:** `connections-remote.client.spec.ts` — `loadConnectionsAccountsUi`.
+
+**BYC-1:** `remote-import-panel` com mock de `BringContextImportPage` (evita hang jsdom; aceite app **Probe BYC-6**).
+
+**GOV-7:** `ConnectedTeamHealthPanel` chama `applyGovernanceFix` no clique de correção.
+
+**SB-5:** fixture `BrainHomeView.leftover` nos testes home (tipo host).
+
+**Comandos:** vitest 6 specs acima → **6 passed** · `check-pkg client-ui-persona` OK (31s).
+
+**Fila:** Probe PB-9/BYC-6/GOV-10; Rivet login/BYC-5; PB-10 docs Forge; OPT-7 live.
+
+## 2026-11-04 06:40 — GOV-6 connected + SB-5 grafo + PB-7 plan
+
+**GOV-6:** `connected-org-chart-ready` — `getOrgChart` + roster (Milo) na UI conectada.
+
+**PB-7:** `ConnectedProjectFlowBoard` aba `sprints` → `SprintPlanningView`; `inferFlowModel` testado.
+
+**SB-5:** `second-brain-graph.client.spec.tsx` — grafo opcional abre página.
+
+**Comandos:** vitest derive-board-summaries + connected-org-chart + second-brain-graph + connected-project-flow-board → **8 passed** · `check-pkg client-ui-persona` OK.
+
+**Fila:** Probe PB-9/BYC-6/GOV-10; BYC Import jsdom; Rivet; PB-10 docs Forge.
+
+## 2026-11-04 06:35 — PB-7 sprint + GOV-7 + W2-7 remote
+
+**PB-7:** `ConnectedProjectFlowBoard` teste faixa sprint (`currentSprint` host).
+
+**PB-10:** adapter `em_branco` preservado em `projectBoardToFlow`.
+
+**GOV-7:** `connected-team-health-ready` — `getTeamHealth` + achados na UI conectada.
+
+**W2-7:** `remote-connections-panel` — `listConnectionAccounts` → assentos na tela.
+
+**Comandos:** vitest board-adapters + connected-project-flow-board + remote-connections + connected-team-health-ready → **10 passed** · `check-pkg client-ui-persona` OK (27s).
+
+**Fila:** Probe PB-9/BYC-6/GOV-10; BYC Import jsdom; Rivet login nativo; PB-10 docs Forge.
+
+## 2026-11-04 06:30 — Hub live + W2-7 + PB-6 wire
+
+**PB-5:** `deriveBoardSummaries` sobrepõe contagens dos cartões live quando o hub usa mocks Muse (<2 projetos).
+
+**PB-6/10:** teste `ConnectedProjectFlowBoard` com `getProjectBoard` mock → colunas + cartão.
+
+**W2-7:** teste Conexões com `accountsUi` multi-assento + botão adicionar (login nativo = Rivet).
+
+**BYC-1:** `RemoteKnowledgePanel` → `selectMainPanel('importers')` no clique Importar (`remote-load-storm`).
+
+**Comandos:** vitest acima + remote-load-storm BYC → **12 passed** · `check-pkg client-ui-persona` OK (28s).
+
+**Fila:** Probe PB-9/BYC-6/GOV-10; BYC Import jsdom; W2-7 E2E login Rivet; PB-10 docs Forge.
+
 ## 2026-11-04 06:22 — PB-5 previews com hub fallback
 
 **PB-5:** `GlobalCategoryLanes` mostra coluna quando há títulos live em `previewCards` mesmo com contagem zero no resumo (hub mock); teste unitário.

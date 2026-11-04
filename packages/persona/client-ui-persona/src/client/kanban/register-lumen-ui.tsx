@@ -195,6 +195,8 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
       enginePersonaId: null,
       teachPersonaId: null,
       teachCapture: null,
+      helpDocId: null,
+      helpTab: null,
     }),
     subscribe: () => () => {},
   }
@@ -294,6 +296,8 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
             enginePersonaId: null,
             teachPersonaId: null,
             teachCapture: null,
+            helpDocId: null,
+            helpTab: null,
           } satisfies ShellState),
           subscribe: () => () => {},
         },

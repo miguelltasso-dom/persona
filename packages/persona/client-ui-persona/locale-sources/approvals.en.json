@@ -10,6 +10,8 @@
   "proactive.countChip": "{count} proposals",
   "proactive.countChipOne": "1 proposal",
   "proactive.countChipMany": "{count} proposals",
+  "proactive.showMore": "Show {count} more proposals",
+  "proactive.showLess": "Show less",
   "proactive.kind.initiative": "Initiative",
   "proactive.kind.followUp": "Follow-up",
   "proactive.kind.risk": "Risk",

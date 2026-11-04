@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { usePersonaMotion } from '../motion/index.ts'
-import { Accent, Button, Card, EmptyState, MilestoneCard, UiIcon } from '../primitives/index.ts'
+import { Accent, Button, Card, EmptyState, MilestoneCard, Notice, UiIcon } from '../primitives/index.ts'
 import type { AwaySummaryEvent, PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import { AwayWhileOutPanel } from './AwayWhileOutPanel.tsx'
 import { OverviewNowStrip } from './OverviewNowStrip.tsx'
@@ -21,6 +21,8 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   readonly suggestedTask?: { readonly id: string; readonly title: string } | undefined
   /** The team's first finished task ever (Prism wires from the board); shown once as a milestone (peak-end). */
   readonly firstDelivery?: FirstDelivery | undefined
+  /** Guided first delivery requested during onboarding is currently in progress (FIRST-DELIVERY-SPEC). */
+  readonly firstDeliveryPending?: boolean | undefined
 }
 
 export interface FirstDelivery {
@@ -44,7 +46,7 @@ const PLACEHOLDER_NAMES: ReadonlySet<string> = new Set(['você', 'voce', 'owner'
 
 /** Visão geral — "o que precisa de você" first, then what the team is doing now (RCD: never a blank dashboard). */
 export function OverviewView({
-  t, attentionItems, nowRows, awayEvents, userName, onNavigate, onOpenAwayTask, suggestedTask, firstDelivery,
+  t, attentionItems, nowRows, awayEvents, userName, onNavigate, onOpenAwayTask, suggestedTask, firstDelivery, firstDeliveryPending,
 }: OverviewViewProps): ReactNode {
   const [dismissedTaskId, setDismissedTaskId] = useState<string | null>(null)
   const showMilestone = firstDelivery !== undefined && dismissedTaskId !== firstDelivery.taskId && !firstDeliverySeen(firstDelivery.taskId)
@@ -111,6 +113,12 @@ export function OverviewView({
               </>
             )}
           />
+        </section>
+      )}
+
+      {firstDeliveryPending && !showMilestone && (
+        <section className={styles.milestone} aria-label={t('overview.firstDeliveryOnTheWay')}>
+          <Notice tone="info">{t('overview.firstDeliveryOnTheWay')}</Notice>
         </section>
       )}
 

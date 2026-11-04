@@ -24,6 +24,7 @@ import {
   MOCK_TRIAGE_RULES,
 } from '../src/client/rules/mock-data.ts'
 import { PersonaProfilePage } from '../src/client/profile/PersonaProfilePage.tsx'
+import { PersonaInfoCard } from '../src/client/profile/PersonaInfoCard.tsx'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { TriageRulesView } from '../src/client/rules/TriageRulesView.tsx'
@@ -71,6 +72,26 @@ describe('lumen queue 2 previews', () => {
       />,
     )
     expect(screen.getByText(governancePt['health.gestorAudit'])).toBeTruthy()
+  })
+
+  it('renders gestor audit fact on PersonaInfoCard when gestorAuditReason present (GES-5)', () => {
+    wrap(
+      <PersonaInfoCard
+        dict={profilePt}
+        info={{
+          personaId: 'atlas',
+          name: 'Atlas',
+          handle: '@atlas',
+          role: 'Coordenação',
+          systemRoles: ['coordination', 'team_manager'],
+          nowKind: 'working',
+          presence: 'online',
+          gestorAuditReason: 'Criou 3 tarefas no projeto Site',
+        }}
+      />,
+    )
+    expect(screen.getByText(profilePt['card.gestorAudit'])).toBeTruthy()
+    expect(screen.getByText('Criou 3 tarefas no projeto Site')).toBeTruthy()
   })
 
   it('renders approvals inbox with hire card', () => {

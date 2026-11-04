@@ -61,7 +61,8 @@ function toFlowCard(
   const category = columns.find(column => column.id === columnId)?.category ?? card.category
   const column = CATEGORY_TO_COLUMN[category] ?? 'todo'
   const waitingEvent = card.chip === 'waiting'
-  const conversationSubject = conversationSubjectChipForId(card.topicId, conversationSubjects)
+  const subjectId = (card as { readonly conversationSubjectId?: string; readonly topicId?: string }).conversationSubjectId ?? card.topicId
+  const conversationSubject = conversationSubjectChipForId(subjectId, conversationSubjects)
   return {
     id: card.ticketId,
     title: card.title,

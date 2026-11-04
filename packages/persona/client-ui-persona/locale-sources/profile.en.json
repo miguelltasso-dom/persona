@@ -69,6 +69,7 @@
   "card.owner": "Responsible",
   "card.substitute": "Backup",
   "card.project": "Current project",
+  "card.gestorAudit": "Latest manager action",
   "card.nobody": "Nobody set",
   "card.noProject": "No project right now",
   "card.menu.profile": "Open profile",

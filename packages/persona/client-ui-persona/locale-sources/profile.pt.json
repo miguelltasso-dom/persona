@@ -69,6 +69,7 @@
   "card.owner": "Responsável",
   "card.substitute": "Substituto",
   "card.project": "Projeto atual",
+  "card.gestorAudit": "Ação recente de gestor",
   "card.nobody": "Ninguém definido",
   "card.noProject": "Nenhum projeto agora",
   "card.menu.profile": "Abrir perfil",

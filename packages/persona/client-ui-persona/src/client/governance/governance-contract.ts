@@ -51,6 +51,15 @@ export interface HealthFindingView {
   readonly fixTargetId?: string
 }
 
+export interface GestorAuditView {
+  readonly id: string
+  readonly gestorId: string
+  readonly action: string
+  readonly summary: string
+  readonly reason: string
+  readonly at: string
+}
+
 export interface TeamHealthView {
   readonly workspaceId: string
   readonly level: HealthLevelView
@@ -59,6 +68,7 @@ export interface TeamHealthView {
   /** 0–100 team grade when the host provides one; omit to hide the meter. */
   readonly score?: number
   readonly findings: readonly HealthFindingView[]
+  readonly gestorAudit?: readonly GestorAuditView[]
 }
 
 export type TwoDayOutcomeView = 'runs' | 'waits' | 'stops'

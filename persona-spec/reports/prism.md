@@ -1,5 +1,26 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-04 09:40 — V1-P0-4 / FIRST-DELIVERY-SPEC: Primeira entrega sem caminho no vazio
+
+**FIRST-DELIVERY-SPEC:** UI completa do passo 5 do onboarding com os 6 estados (`intro` | `needsEngine` | `working` | `slow` | `failed` | `celebrate`):
+- `needsEngine`: se nenhum harness estiver pronto, alerta honesto antes de pedir, botão "Conectar uma IA" (redireciona para passo 3) e "Entrar sem pedir agora".
+- `slow`: transição aos 45 s de espera com aviso honesto, opção de entrar e continuar esperando em `#geral`.
+- `failed`: `RunErrorCard` integrado com erro localizado, ação de tentar novamente e saída segura.
+- `celebrate`: `MilestoneCard` de celebração discreta (Muse) com ações "Aceitar e entrar" e "Pedir ajuste".
+- **Store & Overlay:** `setStep` exposto em `OnboardingActions` com persistência de rascunho; `OnboardingShellOverlay` gerencia timer de 45 s, checagem de harnesses prontos, detecção de falha ou celebração.
+- **Visão Geral:** Banner peak-end "Primeira entrega a caminho" no topo da Visão Geral (`firstDeliveryPending`) enquanto a entrega estiver ativa antes do marco.
+- **Locales:** gerados pt e en para chaves do step5 e overview.
+
+**Arquivos:** `OnboardingFirstDeliveryStep.tsx`, `OnboardingWizard.tsx`, `OnboardingShellOverlay.tsx`, `create-onboarding-store.ts`, `OverviewView.tsx`, `ConnectedOverviewView.tsx`, `persona-live-store.ts`, `persona-remote-types.ts`, `OnboardingWizard.module.css`, locales onboarding/shell.
+
+**Testes:**
+- `onboarding-first-delivery.client.spec.tsx` (7/7 passados: intro, needsEngine, working, slow >45s, failed, celebrate, retry)
+- `overview-first-delivery.client.spec.tsx` (4/4 passados)
+- `first-delivery.host.spec.ts` (2/2 passados)
+- `node scripts/persona/check-pkg.mjs client-ui-persona` OK (23.7s, sem erros de tipo nem lint).
+
+---
+
 ## 2026-11-04 08:05 — G2 Canvas lista: foco roving + Home/End
 
 **CanvasView:** `useLayoutEffect` sincroniza foco com `listFocusIndex`; `onFocus` na linha; teclas Home/End.

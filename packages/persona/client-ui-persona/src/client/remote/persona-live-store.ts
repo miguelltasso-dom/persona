@@ -20,7 +20,7 @@ import type { KanbanCardModel } from '../kanban/types.ts'
 import { passThroughFollowers } from './derive-pass-through.ts'
 import { mapDmList, type DmListItemUi } from './map-dm-list.ts'
 import type { TurnContextUi } from './turn-context-ui.ts'
-import type { DmView, OverviewView as HostOverviewView, PersonaTenantScope, TeamView } from './persona-remote-types.ts'
+import type { DmView, FirstDeliveryView, OverviewView as HostOverviewView, PersonaTenantScope, TeamView } from './persona-remote-types.ts'
 import type { PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
@@ -115,6 +115,8 @@ export interface PersonaLiveSnapshot {
   readonly arrivingHostPersonaIds: readonly string[]
   /** #geral assuntos — bolinha W2-3 nos cartões do quadro por projeto. */
   readonly channelSubjects: readonly ConversationSubjectUi[]
+  /** First delivery status from host overview (V1-P0-2/4). */
+  readonly firstDelivery?: FirstDeliveryView | null | undefined
 }
 
 const EMPTY: PersonaLiveSnapshot = {
@@ -141,6 +143,7 @@ const EMPTY: PersonaLiveSnapshot = {
   channelComposerHints: DEFAULT_CHANNEL_COMPOSER_HINTS,
   arrivingHostPersonaIds: [],
   channelSubjects: DEFAULT_CONVERSATION_SUBJECTS,
+  firstDelivery: null,
 }
 
 /** Host-backed snapshot for shell panels (production path). */
@@ -653,6 +656,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         channelComposerHints,
         arrivingHostPersonaIds,
         channelSubjects,
+        firstDelivery: overview.firstDelivery ?? null,
       })
       await publishHostOnboardingState()
     } catch (error) {

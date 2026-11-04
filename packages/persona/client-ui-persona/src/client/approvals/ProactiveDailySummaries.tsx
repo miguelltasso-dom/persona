@@ -13,6 +13,8 @@ import {
 } from './approvals-ui-helpers.ts'
 import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
 
+export const PROACTIVE_PROPOSALS_PREVIEW_LIMIT = 3
+
 export interface ProactiveDailySummariesProps {
   readonly dict: LocaleDict
   readonly summaries: readonly PersonaDailyProactiveSummary[]
@@ -32,6 +34,11 @@ export function ProactiveDailySummaries({
 }: ProactiveDailySummariesProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [expandedMap, setExpandedMap] = useState<Readonly<Record<string, boolean>>>({})
+
+  const toggleExpanded = (personaId: string): void => {
+    setExpandedMap(prev => ({ ...prev, [personaId]: !prev[personaId] }))
+  }
 
   if (summaries.length === 0) return null
 
@@ -42,94 +49,116 @@ export function ProactiveDailySummaries({
       </h2>
       <p className={styles.sectionSubtitle}>{t('proactive.dailyHint')}</p>
       <ul className={styles.summaryList}>
-        {summaries.map(summary => (
-          <li key={summary.personaId}>
-            <Card padding="m" className={styles.personaGroup}>
-              <div className={styles.groupHeader}>
-                <Avatar
-                  name={summary.personaName}
-                  size={24}
-                  shape="portrait"
-                  {...(personaPortraitSrc(summary.personaCharacterId, summary.personaName) === undefined
-                    ? {}
-                    : { src: personaPortraitSrc(summary.personaCharacterId, summary.personaName) })}
-                  decorative
-                />
-                <h3 className={styles.personaName}>{summary.personaName}</h3>
-                <Chip tone="neutral" size="s">
-                  {proactiveCountLabel(dict, summary.proposals.length)}
-                </Chip>
-              </div>
-              <ul className={styles.proposalList}>
-                {summary.proposals.map(proposal => (
-                  <li
-                    key={proposal.id}
-                    className={`${styles.proposal}${stampExitId === proposal.id ? ` ${styles.proposalExiting}` : ''}`}
-                  >
-                    {stampExitId === proposal.id && stampLabel.length > 0 && (
-                      <div className={styles.proposalStamp}>
-                        <ApprovedStamp label={stampLabel} animate />
+        {summaries.map((summary) => {
+          const isExpanded = expandedMap[summary.personaId] === true
+          const hasOverflow = summary.proposals.length > PROACTIVE_PROPOSALS_PREVIEW_LIMIT
+          const visibleProposals = hasOverflow && !isExpanded
+            ? summary.proposals.slice(0, PROACTIVE_PROPOSALS_PREVIEW_LIMIT)
+            : summary.proposals
+
+          return (
+            <li key={summary.personaId}>
+              <Card padding="m" className={styles.personaGroup}>
+                <div className={styles.groupHeader}>
+                  <Avatar
+                    name={summary.personaName}
+                    size={24}
+                    shape="portrait"
+                    {...(personaPortraitSrc(summary.personaCharacterId, summary.personaName) === undefined
+                      ? {}
+                      : { src: personaPortraitSrc(summary.personaCharacterId, summary.personaName) })}
+                    decorative
+                  />
+                  <h3 className={styles.personaName}>{summary.personaName}</h3>
+                  <Chip tone="neutral" size="s">
+                    {proactiveCountLabel(dict, summary.proposals.length)}
+                  </Chip>
+                </div>
+                <ul className={styles.proposalList}>
+                  {visibleProposals.map(proposal => (
+                    <li
+                      key={proposal.id}
+                      className={`${styles.proposal}${stampExitId === proposal.id ? ` ${styles.proposalExiting}` : ''}`}
+                    >
+                      {stampExitId === proposal.id && stampLabel.length > 0 && (
+                        <div className={styles.proposalStamp}>
+                          <ApprovedStamp label={stampLabel} animate />
+                        </div>
+                      )}
+                      <Chip tone="accent" size="s">{t(`proactive.kind.${proposal.kind}`)}</Chip>
+                      <h4 className={styles.proposalTitle}>{proposal.title}</h4>
+                      <p className={styles.meta}>{proposal.oneQuestion}</p>
+                      <div className={styles.previewBox}>
+                        <p>{t('proactive.affectsLine', { name: summary.personaName })}</p>
+                        {(() => {
+                          const detail = proactiveImpactDetail(proposal)
+                          const redundant = detail.trim() === proposal.title.trim()
+                            || detail.trim() === proposal.oneQuestion.trim()
+                          if (redundant) return null
+                          return (
+                            <>
+                              <p className={styles.previewLabel}>{t('proactive.detailLabel')}</p>
+                              <p>{detail}</p>
+                            </>
+                          )
+                        })()}
+                        <p className={styles.previewLabel}>{t('proactive.costLabel')}</p>
+                        {(() => {
+                          const cost = proactiveCostLine(dict, proposal.cost)
+                          return (
+                            <p className={cost.muted ? styles.costUnknown : undefined}>{cost.text}</p>
+                          )
+                        })()}
                       </div>
-                    )}
-                    <Chip tone="accent" size="s">{t(`proactive.kind.${proposal.kind}`)}</Chip>
-                    <h4 className={styles.proposalTitle}>{proposal.title}</h4>
-                    <p className={styles.meta}>{proposal.oneQuestion}</p>
-                    <div className={styles.previewBox}>
-                      <p>{t('proactive.affectsLine', { name: summary.personaName })}</p>
-                      {(() => {
-                        const detail = proactiveImpactDetail(proposal)
-                        const redundant = detail.trim() === proposal.title.trim()
-                          || detail.trim() === proposal.oneQuestion.trim()
-                        if (redundant) return null
-                        return (
-                          <>
-                            <p className={styles.previewLabel}>{t('proactive.detailLabel')}</p>
-                            <p>{detail}</p>
-                          </>
-                        )
-                      })()}
-                      <p className={styles.previewLabel}>{t('proactive.costLabel')}</p>
-                      {(() => {
-                        const cost = proactiveCostLine(dict, proposal.cost)
-                        return (
-                          <p className={cost.muted ? styles.costUnknown : undefined}>{cost.text}</p>
-                        )
-                      })()}
-                    </div>
-                    {editingId === proposal.id && (
-                      <p className={styles.editHint} role="status">{t('proactive.editHint')}</p>
-                    )}
-                    <div className={styles.actions}>
-                      <Button
-                        variant="primary"
-                        size="s"
-                        onClick={() => { onDecide?.(proposal, true) }}
-                        disabled={onDecide === undefined || proposal.approvalKind === undefined}
-                      >
-                        {t('proactive.action.accept')}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="s"
-                        onClick={() => { onDecide?.(proposal, false) }}
-                        disabled={onDecide === undefined || proposal.approvalKind === undefined}
-                      >
-                        {t('proactive.action.reject')}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="s"
-                        onClick={() => { setEditingId(editingId === proposal.id ? null : proposal.id) }}
-                      >
-                        {t('proactive.action.edit')}
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          </li>
-        ))}
+                      {editingId === proposal.id && (
+                        <p className={styles.editHint} role="status">{t('proactive.editHint')}</p>
+                      )}
+                      <div className={styles.actions}>
+                        <Button
+                          variant="primary"
+                          size="s"
+                          onClick={() => { onDecide?.(proposal, true) }}
+                          disabled={onDecide === undefined || proposal.approvalKind === undefined}
+                        >
+                          {t('proactive.action.accept')}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="s"
+                          onClick={() => { onDecide?.(proposal, false) }}
+                          disabled={onDecide === undefined || proposal.approvalKind === undefined}
+                        >
+                          {t('proactive.action.reject')}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="s"
+                          onClick={() => { setEditingId(editingId === proposal.id ? null : proposal.id) }}
+                        >
+                          {t('proactive.action.edit')}
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {hasOverflow && (
+                  <div className={styles.expandRow}>
+                    <Button
+                      variant="secondary"
+                      size="s"
+                      onClick={() => { toggleExpanded(summary.personaId) }}
+                      aria-expanded={isExpanded}
+                    >
+                      {isExpanded
+                        ? t('proactive.showLess')
+                        : t('proactive.showMore', { count: summary.proposals.length - PROACTIVE_PROPOSALS_PREVIEW_LIMIT })}
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            </li>
+          )
+        })}
       </ul>
     </section>
   )

@@ -43,5 +43,6 @@ export function personaCardViewToInfo(view: PersonaCardView, talkAcl?: TalkAclVi
         },
       }),
     ...(talkAcl === undefined ? {} : { talk: talkAclViewToCardTalk(talkAcl) }),
+    ...(view.gestorAuditReason === undefined || view.gestorAuditReason === '' ? {} : { gestorAuditReason: view.gestorAuditReason }),
   }
 }

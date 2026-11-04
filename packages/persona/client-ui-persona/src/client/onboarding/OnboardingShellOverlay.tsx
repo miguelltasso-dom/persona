@@ -102,11 +102,42 @@ export function OnboardingShellOverlay({
     return () => { cancelled = true }
   }, [open, step, live.tenant, persona])
 
+  const anyHarnessReady = harnesses.some(h => h.ready)
+  useEffect(() => {
+    if (step === 5) {
+      if (!anyHarnessReady && (deliveryPhase === 'intro' || deliveryPhase === 'needsEngine')) {
+        setDeliveryPhase('needsEngine')
+      } else if (anyHarnessReady && deliveryPhase === 'needsEngine') {
+        setDeliveryPhase('intro')
+      }
+    }
+  }, [step, anyHarnessReady, deliveryPhase])
+
   useEffect(() => {
     if (deliveryPhase !== 'working') return
+    const timer = setTimeout(() => {
+      setDeliveryPhase(phase => (phase === 'working' ? 'slow' : phase))
+    }, 45_000)
+    return () => { clearTimeout(timer) }
+  }, [deliveryPhase])
+
+  useEffect(() => {
+    if (deliveryPhase !== 'working' && deliveryPhase !== 'slow') return
     const milestone = deriveFirstDeliveryMilestone(live.kanbanCards)
-    if (milestone !== undefined) setDeliveryPhase('celebrate')
-  }, [deliveryPhase, live.kanbanCards])
+    if (milestone !== undefined || live.firstDelivery?.status === 'ready') {
+      setDeliveryPhase('celebrate')
+    } else if (live.firstDelivery?.status === 'failed') {
+      setDeliveryPhase('failed')
+    }
+  }, [deliveryPhase, live.kanbanCards, live.firstDelivery])
+
+  useEffect(() => {
+    if (deliveryPhase !== 'working' && deliveryPhase !== 'slow') return
+    const messageWithError = live.messages.find(m => m.runError !== undefined)
+    if (messageWithError !== undefined) {
+      setDeliveryPhase('failed')
+    }
+  }, [deliveryPhase, live.messages])
 
   const activationPrompt = (): string => {
     const vaultReady = store.getSnapshot().vaultText.trim().length > 0
@@ -152,12 +183,21 @@ export function OnboardingShellOverlay({
             shellT,
             phase: deliveryPhase,
             milestone: deliveryPhase === 'celebrate'
-              ? deriveFirstDeliveryMilestone(live.kanbanCards)
+              ? (deriveFirstDeliveryMilestone(live.kanbanCards) ?? (live.firstDelivery != null && live.firstDelivery.status === 'ready' ? {
+                taskId: live.firstDelivery.ticketId,
+                title: live.firstDelivery.title,
+                personaName: live.firstDelivery.personaName,
+                characterId: live.firstDelivery.personaId,
+              } : undefined))
               : undefined,
             workingPersonaName: workingMember?.name,
+            runError: live.messages.find(m => m.runError !== undefined)?.runError,
             onRequest: requestFirstDelivery,
             onEnterApp: enterApp,
             onCelebrateContinue: celebrateContinue,
+            onConnectEngine: () => { actions.setStep(3) },
+            onRetry: requestFirstDelivery,
+            onKeepWaiting: () => { setDeliveryPhase('working') },
           }}
           {...(onScanVaultFolder === undefined ? {} : { onScanVaultFolder })}
           {...(onOrganizePreview === undefined ? {} : { onOrganizePreview })}

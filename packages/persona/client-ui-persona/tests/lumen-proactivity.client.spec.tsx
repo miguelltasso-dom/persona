@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ApprovalsInbox } from '../src/client/approvals/ApprovalsInbox.tsx'
 import { MOCK_PERSONA_DAILY_SUMMARIES } from '../src/client/approvals/proactivity-mock-data.ts'
+import type { PersonaDailyProactiveSummary } from '../src/client/approvals/proactivity-mock-data.ts'
 import { pt as approvalsPt } from '../src/client/locale/approvals/locales.ts'
 import { pt as profilePt } from '../src/client/locale/profile/locales.ts'
 import { pt as rulesPt } from '../src/client/locale/rules/locales.ts'
@@ -55,5 +56,33 @@ describe('proactivity UI (PROACTIVITY.md)', () => {
     expect(screen.getByRole('heading', { name: profilePt['proactivity.title'] })).toBeTruthy()
     expect(screen.getByText(profilePt['proactivity.lazinessGrade.strong'])).toBeTruthy()
     expect(document.querySelector('[data-persona-surface="proactivity-metrics"]')).toBeTruthy()
+  })
+
+  it('caps proactive proposals at 3 when overflowing and expands on click', () => {
+    const overflowSummaries: readonly PersonaDailyProactiveSummary[] = [
+      {
+        personaId: 'p-overflow',
+        personaName: 'Luna',
+        personaCharacterId: 'luna',
+        summaryDate: '2026-11-04',
+        proposals: [
+          { id: 'prop-1', kind: 'initiative', title: 'Prop 1', oneQuestion: 'Q 1?', impactDetail: 'Impact 1', cost: { tokens: 100, runs: 1 }, approvalKind: 'skill' },
+          { id: 'prop-2', kind: 'initiative', title: 'Prop 2', oneQuestion: 'Q 2?', impactDetail: 'Impact 2', cost: { tokens: 100, runs: 1 }, approvalKind: 'skill' },
+          { id: 'prop-3', kind: 'initiative', title: 'Prop 3', oneQuestion: 'Q 3?', impactDetail: 'Impact 3', cost: { tokens: 100, runs: 1 }, approvalKind: 'skill' },
+          { id: 'prop-4', kind: 'initiative', title: 'Prop 4', oneQuestion: 'Q 4?', impactDetail: 'Impact 4', cost: { tokens: 100, runs: 1 }, approvalKind: 'skill' },
+          { id: 'prop-5', kind: 'initiative', title: 'Prop 5', oneQuestion: 'Q 5?', impactDetail: 'Impact 5', cost: { tokens: 100, runs: 1 }, approvalKind: 'skill' },
+        ],
+      },
+    ]
+    wrap(<ApprovalsInbox dict={approvalsPt} proactiveSummaries={overflowSummaries} />)
+    expect(screen.getByText('Prop 1')).toBeTruthy()
+    expect(screen.getByText('Prop 3')).toBeTruthy()
+    expect(screen.queryByText('Prop 4')).toBeNull()
+    const toggleButton = screen.getByRole('button', { name: /Ver mais 2 propostas/i })
+    expect(toggleButton).toBeTruthy()
+    fireEvent.click(toggleButton)
+    expect(screen.getByText('Prop 4')).toBeTruthy()
+    expect(screen.getByText('Prop 5')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Mostrar menos/i })).toBeTruthy()
   })
 })

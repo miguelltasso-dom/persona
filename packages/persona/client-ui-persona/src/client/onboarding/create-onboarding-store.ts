@@ -40,6 +40,7 @@ export interface OnboardingActions {
   setRoster(roster: readonly MockPersonaDraft[]): void
   setBuilderPrompt(text: string): void
   applyBuilderDraft(coordinatorReply: string): void
+  setStep(step: OnboardingState['step']): void
   next(): void
   back(): void
 }
@@ -121,6 +122,10 @@ export function createOnboardingStore(): { store: ReturnType<typeof createSnapsh
         writeOnboardingStepDraft(step)
         store.set({ ...snapshot, step })
       }
+    },
+    setStep: (step) => {
+      writeOnboardingStepDraft(step)
+      store.set({ ...store.getSnapshot(), step })
     },
     back: () => {
       const snapshot = store.getSnapshot()

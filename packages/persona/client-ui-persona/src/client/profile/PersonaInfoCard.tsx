@@ -51,6 +51,8 @@ export interface PersonaCardInfo {
     readonly limitedUntil?: string | undefined
   } | undefined
   readonly paused?: boolean | undefined
+  /** GES-5 — reason/summary for the latest team manager action. */
+  readonly gestorAuditReason?: string | undefined
 }
 
 const LIVE_TO_NOW: Readonly<Record<PersonaLiveState, PersonaNowKind>> = {
@@ -122,6 +124,9 @@ export function personaCardFacts(
       tone: info.substituteName === undefined ? 'danger' : undefined,
     },
     { id: 'project', label: t('card.project'), value: info.projectName ?? t('card.noProject') },
+    ...(info.gestorAuditReason !== undefined && info.gestorAuditReason.length > 0
+      ? [{ id: 'gestor-audit', label: t('card.gestorAudit'), value: info.gestorAuditReason }]
+      : []),
   ]
   const quota = info.quota
   return {

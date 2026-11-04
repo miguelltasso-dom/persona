@@ -6,6 +6,7 @@ export type {
   AwayEventView,
   ChannelView,
   DmView,
+  FirstDeliveryView,
   OverviewNowView,
   OverviewView,
   PersonaNowView,

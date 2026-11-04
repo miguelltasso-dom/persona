@@ -48,4 +48,17 @@ describe('OverviewView first delivery milestone (peak-end)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ver no quadro' }))
     expect(onNavigate).toHaveBeenCalledWith('kanban')
   })
+
+  it('shows "Primeira entrega a caminho" notice when firstDeliveryPending is true', () => {
+    render(
+      <OverviewView
+        t={t}
+        attentionItems={[]}
+        nowRows={[]}
+        awayEvents={[]}
+        firstDeliveryPending
+      />,
+    )
+    expect(screen.getByText(shellPt['overview.firstDeliveryOnTheWay'])).toBeTruthy()
+  })
 })

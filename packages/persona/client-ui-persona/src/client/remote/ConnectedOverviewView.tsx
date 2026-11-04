@@ -15,6 +15,7 @@ export type ConnectedOverviewViewProps = PropsLocale<'persona.shell'> & InjectFa
 export function ConnectedOverviewView({ t, useLive, navigate, openAwayTask }: ConnectedOverviewViewProps): ReactNode {
   const live = useLive(state => state)
   const firstDelivery = deriveFirstDeliveryMilestone(live.kanbanCards)
+  const firstDeliveryPending = live.firstDelivery?.status === 'working'
   const awayEvents = live.awayEvents.map(event => ({
     id: event.id,
     body: event.body,
@@ -30,6 +31,7 @@ export function ConnectedOverviewView({ t, useLive, navigate, openAwayTask }: Co
       userName={live.team?.members.find(member => member.id === live.tenant?.memberId)?.displayName}
       suggestedTask={live.suggestedTask ?? undefined}
       {...(firstDelivery === undefined ? {} : { firstDelivery })}
+      firstDeliveryPending={firstDeliveryPending}
       onNavigate={navigate}
       onOpenAwayTask={openAwayTask}
     />

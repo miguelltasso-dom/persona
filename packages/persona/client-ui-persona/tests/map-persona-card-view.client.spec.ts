@@ -32,4 +32,13 @@ describe('personaCardViewToInfo', () => {
     })
     expect(info.activeAccountLabel).toBe('Claude · Trabalho')
   })
+
+  it('maps gestorAuditReason when present on host card (GES-5)', () => {
+    const info = personaCardViewToInfo({
+      ...CARD,
+      systemRoles: ['team_manager'],
+      gestorAuditReason: 'Alocou Nina no Site e criou 2 tarefas',
+    })
+    expect(info.gestorAuditReason).toBe('Alocou Nina no Site e criou 2 tarefas')
+  })
 })

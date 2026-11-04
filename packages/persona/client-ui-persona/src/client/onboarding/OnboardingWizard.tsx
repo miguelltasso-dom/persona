@@ -320,14 +320,23 @@ export function OnboardingWizard({
             <OnboardingFirstDeliveryStep
               dict={dict}
               shellT={firstDelivery.shellT}
+              {...(firstDelivery.chatT !== undefined ? { chatT: firstDelivery.chatT } : {})}
               greetingName={state.displayName || t('brand.name')}
               vaultReady={vaultReady}
               phase={firstDelivery.phase}
               milestone={firstDelivery.milestone}
               workingPersonaName={firstDelivery.workingPersonaName}
+              runError={firstDelivery.runError}
+              activities={firstDelivery.activities}
+              prompt={firstDelivery.prompt}
+              onPromptChange={firstDelivery.onPromptChange}
               onRequest={firstDelivery.onRequest}
               onEnterApp={firstDelivery.onEnterApp}
               onCelebrateContinue={firstDelivery.onCelebrateContinue}
+              onConnectEngine={firstDelivery.onConnectEngine ?? (() => { actions.setStep(3) })}
+              onRetry={firstDelivery.onRetry}
+              onKeepWaiting={firstDelivery.onKeepWaiting}
+              onAskChange={firstDelivery.onAskChange}
             />
           )}
           {state.step === 5 && firstDelivery === undefined && (

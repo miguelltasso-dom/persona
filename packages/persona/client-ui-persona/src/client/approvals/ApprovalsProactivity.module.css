@@ -123,3 +123,9 @@
   font-size: 0.8125rem;
   color: var(--persona-ink-soft);
 }
+
+.expandRow {
+  display: flex;
+  margin-top: var(--persona-space-3);
+  padding-top: var(--persona-space-2);
+}

@@ -425,4 +425,38 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
       }))
     })
   })
+
+  it('renders conversation subject dot when host card has topicId (W2-3)', async () => {
+    const boardWithTopic: ProjectBoardView = {
+      ...MOCK_BOARD,
+      cards: [{
+        ticketId: 't-hero',
+        title: 'Hero da home',
+        category: 'todo',
+        blocked: false,
+        topicId: 'sub-design',
+      }],
+    }
+    const persona = {
+      getProjectBoard: vi.fn(async () => ({ ok: true as const, value: boardWithTopic })),
+      moveTicket: vi.fn(),
+    } as unknown as PersonaRemoteClient
+
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <ConnectedProjectFlowBoard
+          persona={persona}
+          scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
+          channelSubjects={[{ id: 'sub-design', name: 'Design', colorIndex: 3, unreadCount: 0 }]}
+          onBack={() => {}}
+          onMutate={() => {}}
+        />
+      </PreviewFrame>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('Hero da home')).toBeTruthy()
+    })
+    expect(screen.getByText(kanbanPt['card.subjectLabel'].replace('{name}', 'Design'))).toBeTruthy()
+  })
 })

@@ -19,8 +19,15 @@ describe('mandatory Gestor de equipe — montar equipe (§ Aceite 1)', () => {
     '[GES-1a · Prism+Forge] chat pedido natural ("monte um time para o Site") → cartão de plano (contratar N, projeto, fluxo Site, sprint 1) com Aprovar / Ajustar',
   )
 
-  it.todo(
+  it(
     '[GES-1b · Forge+Anvil] após Aprovar: personas criadas com ferramentas/motor/orçamento ≤ Gestor; alocadas no projeto Site; quadro fluxo Site + sprint 1 planejado',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'assembles a team, board and sprint 1',
+      ])
+    },
+    120_000,
   )
 
   it.todo(
@@ -29,46 +36,109 @@ describe('mandatory Gestor de equipe — montar equipe (§ Aceite 1)', () => {
 })
 
 describe('mandatory Gestor de equipe — limites e aprovação (§ Aceite 2)', () => {
-  it.todo(
+  it(
     '[GES-2a · Forge] modo "sempre perguntar": nenhuma contratação/alocação/reorganização executa sem aprovação humana explícita',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'always_ask never applies a hire',
+      ])
+    },
+    120_000,
   )
 
-  it.todo(
+  it(
     '[GES-2b · adversarial · Forge] Gestor **sem** "pode conceder Gestor" tenta atribuir função Gestor de equipe → **recusado**',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'never grants Gestor de equipe without the explicit permit',
+      ])
+    },
+    120_000,
   )
 
-  it.todo(
+  it(
     '[GES-2c · adversarial · Forge] persona proposta com **mais ferramentas/motor** que o teto do Gestor → **recusado**',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'never creates a hire with more access than the Gestor',
+      ])
+    },
+    120_000,
   )
 
-  it.todo(
+  it(
     '[GES-2d · adversarial · Forge] contratar acima do **máximo de personas** do Gestor → **recusado**; sem persona parcial',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'respects max personas and budget',
+      ])
+    },
+    120_000,
   )
 
   it.todo(
     '[GES-2e · adversarial · Forge] plano acima do **orçamento total** → **recusado** ou exige aprovação (nunca silent over-budget)',
   )
 
-  it.todo(
+  it(
     '[GES-2f · adversarial · Forge] alocar/contratar fora dos **setores/projetos** permitidos → **recusado**',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'allocates a persona inside the mandate and refuses a project outside scope',
+      ])
+    },
+    120_000,
   )
 
-  it.todo(
+  it(
     '[GES-2g · Forge] "auto dentro de limites" executa; "auto e avisar" executa + auditoria',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'reorganizes work, pauses idle with notice',
+      ])
+    },
+    120_000,
   )
 })
 
 describe('mandatory Gestor de equipe — vários Gestores (§ Aceite 3)', () => {
-  it.todo(
+  it(
     '[GES-3a · Forge] dois Gestores com escopos distintos: ações de A não alteram projeto/setor fora do escopo de A',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'keeps two Gestores on different scopes from colliding',
+      ])
+    },
+    120_000,
   )
 
-  it.todo(
+  it(
     '[GES-3b · adversarial · Forge] conflito (dois Gestores, mesmo papel): primeiro propõe; segundo comenta; empate → Precisa de você',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'second Gestor comments; human tie picks the winner',
+      ])
+    },
+    120_000,
   )
 
-  it.todo(
+  it(
     '[GES-3c · Lumen+Anvil] auditoria com **motivo** visível no perfil do Gestor e Saúde da equipe',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'hires within Gestor access and writes the audit reason',
+      ])
+    },
+    120_000,
   )
 })
 
@@ -77,8 +147,15 @@ describe('mandatory Gestor de equipe — UI editor (§ UI)', () => {
     '[GES-4a · Prism] editor: interruptor **Gestor de equipe** + limites; selo **Gestor** no cartão (sem string "Maestro" na UI)',
   )
 
-  it.todo(
+  it(
     '[GES-4b · Lumen] organograma/rail: selo "Gestor" coerente com store; Coordenação template default também Gestor',
+    () => {
+      runVitestSubprocess('packages/persona/persona-core/tests/gestor.spec.ts', [
+        '-t',
+        'makes coordination also Gestor de equipe on the suggested template',
+      ])
+    },
+    120_000,
   )
 })
 

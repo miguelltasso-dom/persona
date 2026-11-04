@@ -1,5 +1,36 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 12:15 — fake-cli responde 1 turno (11/11); host + runner real + fake PASSOU; NSIS b3a4e5b933 instala; UI/instalado na fila da trava
+
+### PASSOU
+| Item | Evidência |
+|------|-----------|
+| **Fake-cli com turno completo (P0 #1)** | `fake-cli.spec.ts` **11/11** (`pnpm exec vitest run packages/persona/persona-e2e/tests/fake-cli.spec.ts --testTimeout 60000`, 2 s). Env: `FAKE_CLI_TURN_MS` latência, `FAKE_CLI_FAIL` (1 / mensagem / `crash` / `quota`), `FAKE_CLI_REPLY`, `FAKE_CLI_INPUT_TOKENS`, `FAKE_CLI_MODEL`. O `result` de sucesso leva `usage` + `modelUsage` (sem isso o ledger ficava vazio e o verificador acusava `measured-execution` e `call-budget`). `--help` não trava mais (`codex app-server --help`). Muse avisada. |
+| **Trava anti-gasto** | `withFakeCliOnPath()` agora também pina `OAR_CLAUDE_BIN`, `OAR_CODEX_BIN` e `OAR_OPENCODE_BIN` nos stubs (o OAR tem fallback para `~/.local/bin/claude.exe` e esta máquina tem claude/codex/opencode reais). Novo `withNoEngineOnPath()` (PATH mínimo, pins para arquivo inexistente, sem `DEEPSEEK_API_KEY`) para o caminho "Falta uma IA". |
+| **Host + runner real (OAR) + fake, sem UI** | `first-delivery-real-cli.ts` com o fake: `broke: []`, **25,7 s**, 3 turnos, ledger 3/3 `measured` (2 triagens + 1 execução ligada à Tarefa), Tarefa `done`, marco `ready`, entrega `source=runner` no #geral. Antes dos tokens medidos: `broke: [evidence:measured-execution, evidence:call-budget]`. As 3 causas do diagnóstico das 09:35 já estão corrigidas por Anvil/Forge. Spec novo: `mandatory-first-delivery-host-fake.spec.ts` + `scripts/first-delivery-fake-host.ts`. |
+| **NSIS b3a4e5b933** (`C:\p8c\Persona-Setup.exe`, 338 342 203 B, sha256 34DAFA1E274B51EA, não assinado) | Instalação silenciosa `/S /D=C:\p8i`: **exit 0**, atalhos no Menu Iniciar e na Área de Trabalho, entrada de desinstalação (HKCU, `Uninstall Persona.exe /currentuser`), 1 168 MB em disco, `app.asar` presente, `Persona.exe` com ProductName e FileDescription = Persona. |
+
+### ACHADOS (devolvidos)
+- **Instalação silenciosa levou 303 s** (32 k arquivos; Defender provável) → **[Rivet]** UX: progresso no instalador; considerar reduzir `app.asar.unpacked`/runtime.
+- **Metadados**: CompanyName do `Persona.exe` = "Hangzhou DeepSeek Artificial Intelligence Co., Ltd."; o **Setup** tem FileDescription "Electron desktop shell for a bundled dsh runtime and external plugins" (texto do upstream) → **[Rivet/Keel]** marca; manter crédito MIT em LICENSE/Sobre, mas não como empresa do produto.
+- **Sem MinGit no instalado** (esperado: SW-4 ainda `todo`).
+- **A 1ª entrega gasta 3 turnos de modelo**: inject do prompt da persona (`onb-1:prompt`) + triagem (`ingest:first-delivery`) + execução do worker. O orçamento "3 execuções reais" do projeto é consumido por UM V1-P0-5 → **[Keel]** decidir se o inject do prompt precisa ser turno pago ou se o orçamento conta só `execution`.
+
+### INCIDENTE (zero custo)
+Ao gravar este relato, um `node -e "..."` com crases dentro de aspas duplas fez o bash executar trechos do texto como comandos. Chegaram a rodar o `codex` real (`app-server --help`, só ajuda) e o `claude` real sem prompt (`--print` sem entrada → erro imediato). **Nenhuma chamada de modelo** e nada foi gravado fora deste relato. Corrigido: relatos agora vão por arquivo (Write), nunca por shell com crases.
+
+### EM CURSO (fila da trava build; Lumen/Anvil/Rivet na frente)
+- `mandatory-first-delivery-fake.spec.ts` (UI web: onboarding 1–5 → Pedir agora → Equipe trabalhando → celebrar → Aceitar e entrar → #geral + quadro; e o caminho sem IA "Falta uma IA") e `mandatory-first-delivery-installed.spec.ts` (mesmos 2 cenários no exe instalado `C:\p8i\Persona.exe`). Resultado no próximo relato.
+- V1-P0-5 real: só com o OK do Keel.
+
+### Arquivos tocados (Probe)
+`packages/persona/persona-e2e/`: `src/fake-cli.ts`, `fixtures/fake-cli/fake-cli.mjs`, `src/real-app-session.ts`, `src/index.ts`, `src/first-delivery-flow.ts` (novo), `scripts/first-delivery-fake-host.ts` (novo), `tests/fake-cli.spec.ts`, `tests/mandatory-first-delivery-fake.spec.ts` (novo), `tests/mandatory-first-delivery-installed.spec.ts` (novo), `tests/mandatory-first-delivery-host-fake.spec.ts` (novo), `README.md`. `check-pkg persona-e2e` OK.
+
+### Fila
+UI web + instalado (trava); SW-9/SW-10 depois de SW-1..8 (todos `todo`).
+
+---
+
 ## 2026-11-04 09:35 — B9 Tier 1 6/6 PASS; first-delivery contract 5/5; diagnóstico P0 real CLI; D8 unpacked falha confirmada
 
 ### PASSOU

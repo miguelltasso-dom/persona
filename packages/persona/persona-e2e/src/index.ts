@@ -19,7 +19,7 @@ export {
   type StartDesktopOptions,
   type DesktopHostHandle,
 } from './desktop-host.ts'
-export { withFakeCliOnPath, type FakeCliPathScope } from './fake-cli.ts'
+export { withFakeCliOnPath, withNoEngineOnPath, type FakeCliOptions, type FakeCliPathScope } from './fake-cli.ts'
 export { ARTIFACTS_DIR, REPO_ROOT, requireWebDist } from './paths.ts'
 export { watchConsole, assertConsoleClean, type ConsoleTripwire } from './console-tripwire.ts'
 export {

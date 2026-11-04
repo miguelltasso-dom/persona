@@ -2,7 +2,7 @@ import type { Page } from 'playwright'
 import { chat, onboarding, shell } from './real-app-locale.pt.ts'
 import { startWebHost, type WebHostHandle } from './web-host.ts'
 import { watchConsole, assertConsoleClean, type ConsoleTripwire } from './console-tripwire.ts'
-import { withFakeCliOnPath, type FakeCliPathScope } from './fake-cli.ts'
+import { withFakeCliOnPath, withNoEngineOnPath, type FakeCliOptions, type FakeCliPathScope } from './fake-cli.ts'
 import { dismissBlockingOverlays } from './boot-gate-bootstrap.ts'
 import { waitForGeralComposer } from './geral-composer.ts'
 import { navigateGalleryPanel, resetGalleryHome } from './real-gallery/navigate-panel.ts'
@@ -26,14 +26,30 @@ export interface OpenRealPersonaAppOptions {
   /** Force Lumen `mockLargeOrgChart` roster (60 or 150) for Quem cuida de quem captures. */
   orgChartScaleSeed?: 60 | 150
   viewport?: { width: number; height: number }
+  /**
+   * Engine the host sees. Default `fake` (stubs on PATH, OAR pinned to them). `{ kind: 'fake', ...FakeCliOptions }` adds
+   * turn latency / failure / reply. `{ kind: 'none' }` hides every CLI and key (the "Falta uma IA" path).
+   */
+  engine?: ({ kind: 'fake' } & FakeCliOptions) | { kind: 'none' }
+  /**
+   * Boot the host the way the desktop does (live runner: `PERSONA_REAL_CLI=1`, not the scripted Vitest runner), so the
+   * stubs actually answer turns. Without it `VITEST` leaks into the host and replies are scripted.
+   */
+  liveRunner?: boolean
+  /** Leave the onboarding overlay on screen (skip `dismissBlockingOverlays`) so the test can walk steps 1–5. */
+  keepOnboarding?: boolean
 }
 
 /**
  * Boot the real Persona profile (B9) in Chrome with console tripwire and fake CLIs on PATH.
  */
 export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}): Promise<RealPersonaSession> {
-  const fakeCli = withFakeCliOnPath()
-  const host = await startWebHost({ profile: 'persona' })
+  const engine = options.engine ?? { kind: 'fake' as const }
+  const fakeCli = engine.kind === 'none' ? withNoEngineOnPath() : withFakeCliOnPath(engine)
+  const host = await startWebHost({
+    profile: 'persona',
+    ...(options.liveRunner === true ? { env: { VITEST: '', PERSONA_SCRIPTED: '', PERSONA_REAL_CLI: '1' } } : {}),
+  })
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ channel: 'chrome' })
   const context = await browser.newContext({
@@ -55,7 +71,7 @@ export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}
   const tripwire = watchConsole(page)
   await page.goto(host.url, { waitUntil: 'load', timeout: 120_000 })
   await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
-  await dismissBlockingOverlays(page).catch(() => {})
+  if (options.keepOnboarding !== true) await dismissBlockingOverlays(page).catch(() => {})
 
   return {
     host,
@@ -100,8 +116,18 @@ export async function completeOnboardingOverlay(page: Page): Promise<void> {
   await continueBtn().click()
   await page.getByRole('button', { name: onboarding.step4TemplateBlank }).click()
   await continueBtn().click()
-  await page.getByRole('heading', { name: onboarding.step5Title }).waitFor({ state: 'visible' })
-  await page.getByRole('button', { name: onboarding.finish }).click()
+  const step5Heading = page.getByRole('heading', { name: onboarding.step5Title })
+  const step5LegacyHeading = page.getByRole('heading', { name: onboarding.step5TitleLegacy })
+  await step5Heading.or(step5LegacyHeading).first().waitFor({ state: 'visible', timeout: 30_000 })
+
+  const enterAppBtn = page.getByRole('button', { name: onboarding.enterApp })
+  const finishBtn = page.getByRole('button', { name: onboarding.finish })
+  if (await enterAppBtn.count() > 0) {
+    await enterAppBtn.click()
+  } else {
+    await finishBtn.click()
+  }
+  await step5Heading.or(step5LegacyHeading).first().waitFor({ state: 'hidden', timeout: 30_000 }).catch(() => {})
   await waitForGeralComposer(page, 60_000)
 }
 

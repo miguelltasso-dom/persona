@@ -53,6 +53,9 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
+    // The Persona Cofre needs the desktop's DPAPI channel; a web host has none, so the required `connection` plugin
+    // fails the whole boot ("Cofre indisponível neste modo"). Tests use the vault's test cipher (never set for the exe).
+    PERSONA_VAULT_TEST_CIPHER: '1',
     ...options.env,
     DSH_HOME: home,
     PERSONA_HOME: home,

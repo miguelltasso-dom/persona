@@ -5,12 +5,16 @@
 
 import {
   Engine,
+  MemoryPreRouteLog,
   RECOVERY_NOTE,
-  composeTalkPrompt,
+  allExternalSourceScope,
+  composeSourceScope,
+  composeTurnPrompt,
   milestoneSummary,
   followupOwners,
   internalSourceScope,
   latestAssignment,
+  preRoute,
   projectKanban,
   workerSessionId,
   type Assessor,
@@ -18,6 +22,8 @@ import {
   type Executor,
   type MergeMode,
   type Policy,
+  type PreRouteResult,
+  type RouteWindowEntry,
   type ReviewAcceptResult,
   type ReviewSummary,
   type ReviewWorktree,
@@ -27,8 +33,12 @@ import {
 } from '@deepseek-ai/dsh-persona-engine'
 import {
   authorizeContext,
+  canReadVault,
   compileVaultContext,
+  EMPTY_LAYERS,
   isRequiredVaultKind,
+  parseVaultRecord,
+  type TurnLedgerEntry,
 } from '@deepseek-ai/dsh-persona-core'
 import {
   createCoordinationDriver,
@@ -41,18 +51,25 @@ import {
   wordCount,
 } from '@deepseek-ai/dsh-persona-runners'
 import {
+  ProactivityRepos,
+  ScreenRepos,
   SqliteOutbox,
   SqliteRepositories,
   StoreError,
   type EventRepos,
+  type AccountRepos,
+  type OptRepos,
   type ProductRepos,
   type StoredEvent,
   type StoredPersona,
   type SqliteUsageStore,
   type VaultRepos,
 } from '@deepseek-ai/dsh-persona-store'
+import { compileSubjectVault } from './wave2.ts'
+import { foldSubjectSummary, shouldFoldSubject, SUBJECT_RECENT } from './subject-summary.ts'
 import type { AutonomyMode, UsedContextRecord } from './types.ts'
 import { ExecutionBudget } from './budget.ts'
+import { silenceUntilOf } from './proactivity.ts'
 import type { DeadLetterBook } from './dead-letter.ts'
 import type { MutantRunBook } from './mutant-run.ts'
 import { reviewDeliveryOf } from './review.ts'
@@ -82,6 +99,27 @@ const CLI_CHANNEL: Record<string, string> = {
   dsh: 'O executor DSH não está montado neste host.',
 }
 
+/** Host-bound inputs for {@link preRoute} (roster, budget, ACL). */
+export interface HostPreRoutePorts {
+  personas(): readonly { id: string; name: string }[]
+  budgetLeft(): boolean
+  silenceUntil(): number
+  canCommand(command: 'pausar' | 'retomar' | 'tarefa', senderId: string): boolean
+}
+
+const ROUTE_WINDOW_KIND = 'preroute_window'
+const ROUTE_WINDOW_ID = 'log'
+const ROUTE_WINDOW_KEEP = 80
+
+function defaultPreRoutePorts(): HostPreRoutePorts {
+  return {
+    personas: () => [],
+    budgetLeft: () => true,
+    silenceUntil: () => 0,
+    canCommand: () => true,
+  }
+}
+
 /** One project's live engine bound to SQLite. */
 export class ProjectRuntime {
   readonly repo: SqliteRepositories
@@ -91,6 +129,8 @@ export class ProjectRuntime {
   readonly launches: Array<{ ticketId: string; assignmentId: string }> = []
   readonly recoveryNotes: string[] = []
   readonly started: Set<string> = new Set<string>()
+  readonly routeLog: MemoryPreRouteLog = new MemoryPreRouteLog()
+  lastRoute: PreRouteResult | undefined
   runner: Runner | undefined
   readonly runnerReady: Promise<Runner>
 
@@ -98,8 +138,14 @@ export class ProjectRuntime {
    * @param repo - SQLite engine repositories for this project.
    * @param now - Instant factory.
    * @param _runnerFactory - Unused; per-persona resolve happens in {@link Orchestration.resolveFor}.
+   * @param ports - Roster / budget / ACL for the pre-router.
    */
-  constructor(repo: SqliteRepositories, now: () => string, _runnerFactory?: HostRunnerFactory) {
+  constructor(
+    repo: SqliteRepositories,
+    now: () => string,
+    _runnerFactory?: HostRunnerFactory,
+    ports: HostPreRoutePorts = defaultPreRoutePorts(),
+  ) {
     this.repo = repo
     this.outbox = new SqliteOutbox(repo.store, repo.projectId, now)
     this.runnerReady = Promise.resolve(createFakeRunner()).then((runner) => {
@@ -131,7 +177,7 @@ export class ProjectRuntime {
     this.engine = new Engine({
       repo,
       policy: () => policy,
-      scope: {
+      scope: composeSourceScope(allExternalSourceScope(), {
         scope: (input: { source: string; meta: Record<string, unknown> }) => {
           if (input.source === 'github') {
             const number = input.meta.number
@@ -144,12 +190,75 @@ export class ProjectRuntime {
           const kind = input.source === 'dm' ? 'dm' : 'channel'
           return internalSourceScope(kind).scope(input)
         },
-      },
+      }),
       assessor,
       executor,
       outbox: this.outbox,
       now,
+      preRoute: trigger => this.route(trigger, ports),
     })
+    this.restoreRouteWindow()
+  }
+
+  /**
+   * Run the deterministic pre-router and remember the message for the window.
+   * @param trigger - Inbound.
+   * @param ports - Roster / budget / ACL.
+   */
+  route(trigger: Trigger, ports: HostPreRoutePorts): PreRouteResult {
+    const thread = trigger.threads[0]
+    const threadKey = thread === undefined ? trigger.id : `${thread.source}:${thread.id}`
+    const parsed = Date.parse(trigger.at)
+    const at = Number.isFinite(parsed) ? parsed : 0
+    const result = preRoute({
+      text: trigger.text,
+      senderId: trigger.actor.id,
+      threadKey,
+      at,
+      personas: ports.personas(),
+      budgetLeft: ports.budgetLeft(),
+      silenceUntil: ports.silenceUntil(),
+      canCommand: command => ports.canCommand(command, trigger.actor.id),
+      window: this.routeLog.window,
+    })
+    this.routeLog.record({
+      at,
+      action: result.action,
+      ...(result.rule === undefined ? {} : { rule: result.rule }),
+      why: result.why,
+      modelCalled: result.modelCalled,
+      triggerId: trigger.id,
+    })
+    this.routeLog.remember({
+      text: trigger.text, senderId: trigger.actor.id, threadKey, at,
+    })
+    this.persistRouteWindow()
+    // @mention picks the speaker in ingest; it must not auto-accept a ticket.
+    const decided = result.rule === 'mention'
+      ? { action: 'model' as const, why: result.why, modelCalled: true, rule: result.rule }
+      : result
+    this.lastRoute = decided
+    return decided
+  }
+
+  /** Reload the duplicate window from `screen_doc` (process restart). */
+  private restoreRouteWindow(): void {
+    const rows = new ScreenRepos(this.repo.store).get<RouteWindowEntry[]>(
+      this.repo.projectId, ROUTE_WINDOW_KIND, ROUTE_WINDOW_ID,
+    )
+    if (!Array.isArray(rows)) return
+    for (const row of rows) {
+      if (typeof row.text !== 'string') continue
+      this.routeLog.remember(row)
+    }
+  }
+
+  /** Keep the newest window rows so a new runtime still de-dupes. */
+  private persistRouteWindow(): void {
+    new ScreenRepos(this.repo.store).put(
+      this.repo.projectId, ROUTE_WINDOW_KIND, ROUTE_WINDOW_ID,
+      this.routeLog.window.slice(-ROUTE_WINDOW_KEEP),
+    )
   }
 }
 
@@ -227,7 +336,14 @@ export class Orchestration {
   readonly deadLetters: DeadLetterBook | undefined
   readonly usage: SqliteUsageStore | undefined
   readonly mutant: MutantRunBook | undefined
+  /** Persist a core turn (host maps `usagePortWindow` at the Rivet port). */
+  recordLedger: ((projectId: string, entry: TurnLedgerEntry) => void) | undefined = undefined
   vault: VaultRepos | undefined
+  opt: OptRepos | undefined
+  accounts: AccountRepos | undefined
+  accountSeatOf?: (projectId: string, persona: StoredPersona) => { home: string; accountId?: string; activity?: string }
+  /** `persona_runtime` docs (same rows as `pausePersona`). */
+  screens: ScreenRepos | undefined
   /** Warm runner lease per project+persona+purpose (Rivet D10). */
   readonly warmRunners: Map<string, Runner> = new Map<string, Runner>()
   /** Stage timings from last ingest (ms from first mark). */
@@ -243,6 +359,10 @@ export class Orchestration {
   liveQuestion: string | undefined = undefined
   /** Test hook: force the scripted/real gate. Default follows env. */
   scripted: boolean = allowsScriptedReplies()
+  /** Names of files bound to a message (MediaHost). */
+  attachmentNamesOf?: (eventId: string) => string[]
+  /** Copy those files into worktree/talk `inputs/` (images skip the copy when `hasVision`). */
+  stageAttachments?: (eventId: string, destDir: string, hasVision?: boolean) => string[]
 
   /**
    * Record a named stage for the first-reply table.
@@ -304,7 +424,19 @@ export class Orchestration {
   runtime(projectId: string): ProjectRuntime {
     const existing = this.runtimes.get(projectId)
     if (existing !== undefined) return existing
-    const created = new ProjectRuntime(new SqliteRepositories(this.store, projectId), this.now, this.runnerFactory)
+    const created = new ProjectRuntime(
+      new SqliteRepositories(this.store, projectId),
+      this.now,
+      this.runnerFactory,
+      {
+        personas: () => this.product.listPersonas(projectId).map(persona => ({
+          id: persona.id, name: persona.name,
+        })),
+        budgetLeft: () => this.routeBudgetLeft(projectId),
+        silenceUntil: () => this.routeSilenceUntil(projectId),
+        canCommand: (command, senderId) => this.routeCanCommand(projectId, command, senderId),
+      },
+    )
     this.runtimes.set(projectId, created)
     for (const ticket of created.repo.tickets.open()) {
       const latest = latestAssignment(ticket)
@@ -358,6 +490,36 @@ export class Orchestration {
     const result = rt.engine.receive(trigger)
     if (result === 'duplicate' || result === 'filtered') return
     this.pass(event.projectId)
+    const routed = rt.lastRoute
+    const pauseCommand = pauseCommandOf(event.body)
+    if (pauseCommand !== undefined) {
+      if (this.routeCanCommand(event.projectId, pauseCommand, event.actorId)) {
+        this.applyPauseCommand(event, speaker, pauseCommand)
+      }
+      return
+    }
+    if (this.isPersonaPaused(event.projectId, speaker.id)) {
+      this.postAs(
+        event,
+        speaker,
+        `coord-${event.id}-paused`,
+        `${speaker.name} está pausada. Use /retomar para voltar.`,
+      )
+      return
+    }
+    if (routed !== undefined && !routed.modelCalled) {
+      const accepted = routed.action === 'assign'
+        || (routed.action === 'command' && routed.command === 'tarefa')
+      if (!accepted) {
+        if (routed.action === 'react' || !wantsWork(event.body)) {
+          this.work = this.work.then(() => this.finishReply(rt, event, speaker)).catch((error: unknown) => {
+            if (error instanceof Error && /not open/i.test(error.message)) return
+            this.failReply(event, speaker, error)
+          })
+        }
+        return
+      }
+    }
     if (followupOwners(trigger, rt.repo).length > 0) {
       this.advanceAssignments(rt, event.projectId)
       return
@@ -446,10 +608,17 @@ export class Orchestration {
    */
   ensureCoordination(projectId: string): void {
     const personas = this.product.listPersonas(projectId)
-    if (personas.some(persona => persona.systemRoles.includes('coordination'))) return
+    if (personas.length === 0) return
     const first = personas[0]
     if (first === undefined) return
-    this.product.updatePersona({ ...first, systemRoles: ['coordination'] }, projectId)
+    if (!personas.some(persona => persona.systemRoles.includes('coordination'))) {
+      this.product.updatePersona({ ...first, systemRoles: ['coordination', 'team_manager'] }, projectId)
+      return
+    }
+    const coord = personas.find(persona => persona.systemRoles.includes('coordination'))
+    if (coord === undefined || coord.systemRoles.includes('team_manager')) return
+    if (personas.some(persona => persona.systemRoles.includes('team_manager'))) return
+    this.product.updatePersona({ ...coord, systemRoles: [...coord.systemRoles, 'team_manager'] }, projectId)
   }
 
   /**
@@ -596,12 +765,14 @@ export class Orchestration {
     const rt = this.runtimes.get(projectId)
     const live = rt?.repo.tickets.get(ticketId)
     if (rt !== undefined && live !== undefined) {
+      const names = this.stageAttachments?.(live.origin.triggerId, tree.path, false) ?? []
+      const assignment = citeAttachments(live.execution?.assignment ?? live.title, names)
       rt.repo.tickets.save({
         ...live,
         execution: {
           name: live.execution?.name ?? '',
           directory: tree.path,
-          assignment: live.execution?.assignment ?? live.title,
+          assignment,
         },
       })
     }
@@ -747,8 +918,10 @@ export class Orchestration {
     const spec = specOfPersona(persona.runner)
     const permissionMode = permissionFor(spec, purpose, persona.tools, mode)
     assertCliPermission(spec, permissionMode)
-    const home = runnerHomeOf(projectId)
+    const seat = this.accountSeatOf?.(projectId, persona)
+    const home = seat?.home !== undefined && seat.home !== '' ? seat.home : runnerHomeOf(projectId)
     const usage = this.usage
+    const accountId = seat?.accountId
     const talkCwd = purpose === 'talk'
       ? (process.env.PERSONA_HOME !== undefined && process.env.PERSONA_HOME !== ''
         ? process.env.PERSONA_HOME
@@ -767,11 +940,29 @@ export class Orchestration {
       ...(talkCwd === '' ? {} : { cwd: talkCwd }),
       ...(onFirstToken === undefined ? {} : { onFirstToken }),
       ...(home === '' ? {} : { home }),
-      ...(usage === undefined ? {} : {
+      ...(usage === undefined && this.recordLedger === undefined ? {} : {
         usage: {
           record: (entry) => {
-            usage.record({
-              id: `${projectId}:${persona.id}:${entry.at}:${entry.provider}`,
+            const id = `${projectId}:${persona.id}:${entry.at}:${entry.provider}`
+            if (this.recordLedger !== undefined) {
+              this.recordLedger(projectId, {
+                id,
+                personaId: persona.id,
+                engine: entry.provider,
+                kind: purpose === 'talk' ? 'reply' : 'execution',
+                inputTokens: entry.inputTokens,
+                outputTokens: entry.outputTokens,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                layers: EMPTY_LAYERS,
+                at: entry.at,
+                origin: 'measured',
+                ...(accountId === undefined ? {} : { accountId }),
+              })
+              return
+            }
+            usage?.record({
+              id,
               projectId,
               personaId: persona.id,
               provider: entry.provider,
@@ -781,6 +972,7 @@ export class Orchestration {
               outputTokens: entry.outputTokens,
               origin: entry.origin,
               at: entry.at,
+              ...(accountId === undefined ? {} : { accountId }),
             })
           },
         },
@@ -917,7 +1109,7 @@ export class Orchestration {
       if (error instanceof Error && /not open/i.test(error.message)) return
       throw error
     } finally {
-      if (acquired) this.budget.release(event.projectId)
+      this.budget.release(event.projectId)
     }
   }
 
@@ -947,6 +1139,8 @@ export class Orchestration {
         this.postAs(event, speaker, `coord-${event.id}-token`, clipWords(text), 'partial')
       })
       const used = await contextWork
+      const talkHome = process.env.PERSONA_HOME ?? process.env.DSH_HOME ?? ''
+      if (talkHome !== '') this.stageAttachments?.(event.id, talkHome, runnerHasVision(runner))
       const talk = this.talkPrompt(event, speaker, used)
       await runner.ensureSession(`talk-${event.id}`, '.', speaker.name, 'coordinator')
       this.mark('session')
@@ -981,6 +1175,19 @@ export class Orchestration {
    * @param used - Compiled "Contexto usado".
    */
   talkPrompt(event: StoredEvent, speaker: StoredPersona, used: UsedContextRecord[]): string {
+    return this.talkLayers(event, speaker, used).text
+  }
+
+  /**
+   * Cache-stable prefix + full text. Clock and user message stay off the prefix.
+   * @param event - Human message.
+   * @param speaker - Persona.
+   * @param used - Cofre + subject fold.
+   */
+  talkLayers(event: StoredEvent, speaker: StoredPersona, used: UsedContextRecord[]): {
+    readonly prefix: string
+    readonly text: string
+  } {
     const role = speaker.systemRoles.includes('coordination')
       ? 'coordenação'
       : speaker.systemRoles.includes('watchdog') ? 'vigia' : speaker.title
@@ -996,20 +1203,84 @@ export class Orchestration {
           ...(fn === undefined ? {} : { role: fn }),
         }
       })
-    const context = used
-      .filter(row => !row.restricted && row.body !== '')
+      .sort((left, right) => left.name.localeCompare(right.name) || left.title.localeCompare(right.title))
+    const required = used
+      .filter(row => row.required && !row.restricted && row.body !== '')
+      .slice()
+      .sort((left, right) => left.id.localeCompare(right.id))
       .map(row => `${row.kind}: ${row.body}`)
       .join('\n')
-    return composeTalkPrompt({
-      identity: { name: speaker.name, title: speaker.title },
-      personality: speaker.personality,
-      instructions: speaker.instructions,
-      functionLabel: role,
-      colleagues,
-      context,
-      userText: event.body,
-      capabilities: 'resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta',
+    const subject = used
+      .filter(row => row.kind === 'subject_summary' && row.body !== '')
+      .map(row => row.body)
+      .join('\n')
+    const recall = used
+      .filter(row => !row.required && !row.restricted && row.body !== '' && row.kind !== 'subject_summary')
+      .map(row => `${row.kind}: ${row.body}`)
+      .join('\n')
+    const built = composeTurnPrompt({
+      fields: {
+        identity: { name: speaker.name, title: speaker.title },
+        personality: speaker.personality,
+        instructions: speaker.instructions,
+        functionLabel: role,
+        vault: '',
+        colleagues,
+        capabilities: 'resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta',
+      },
+      part: 'talk',
+      tools: [],
+      required,
+      ...(subject === '' ? {} : { subject }),
+      ...(recall === '' ? {} : { recall }),
+      message: citeAttachments(event.body, this.attachmentNamesOf?.(event.id) ?? []),
     })
+    return { prefix: built.prefix, text: built.text }
+  }
+
+  /**
+   * Fold new subject messages in lote and attach summary + last N (not full history).
+   * @param event - Human message.
+   * @param used - Cofre rows already mapped.
+   */
+  attachSubjectFold(event: StoredEvent, used: UsedContextRecord[]): void {
+    const topicId = event.topicId
+    if (topicId === undefined || topicId === '' || this.opt === undefined) return
+    const existing = this.opt.getSummary(topicId)
+    const fresh = this.events.listTopic(
+      event.streamId, { id: event.actorId }, topicId, existing?.lastSeq ?? 0, 200,
+    )
+    if (shouldFoldSubject(fresh.events.length)) {
+      this.opt.putSummary({
+        topicId,
+        workspaceId: event.workspaceId,
+        projectId: event.projectId,
+        summary: foldSubjectSummary(existing?.summary ?? '', fresh.events.map(row => row.body)),
+        lastSeq: fresh.nextSeq,
+        messageCount: (existing?.messageCount ?? 0) + fresh.events.length,
+      })
+    }
+    const stored = this.opt.getSummary(topicId)
+    if (stored !== undefined && stored.summary !== '') {
+      used.push({
+        id: `summary:${topicId}`,
+        kind: 'subject_summary',
+        body: stored.summary,
+        required: false,
+        restricted: false,
+      })
+    }
+    const recent = this.events.listTopic(event.streamId, { id: event.actorId }, topicId, 0, 200)
+      .events.slice(-SUBJECT_RECENT)
+    for (const row of recent) {
+      used.push({
+        id: `recent:${row.id}`,
+        kind: 'subject_recent',
+        body: row.body,
+        required: false,
+        restricted: false,
+      })
+    }
   }
 
   /**
@@ -1030,7 +1301,7 @@ export class Orchestration {
       projectIds: [event.projectId],
     }
     try {
-      await compileVaultContext({
+      const compileInput = {
         scope: {
           workspaceId: event.workspaceId,
           projectId: event.projectId,
@@ -1039,26 +1310,74 @@ export class Orchestration {
           audienceId: event.actorId,
           policyRevision: 'v1',
         },
-        records,
-        snapshotRevision: this.now(),
         budgetTokens: 2_000,
         countTokens: (text: string) => Math.max(1, Math.ceil(text.length / 4)),
         authorize: authorizeContext(actor),
-      })
+      }
+      const topicId = event.topicId
+      if (topicId !== undefined && topicId !== '') {
+        await compileSubjectVault(records, event.projectId, topicId, compileInput)
+      } else {
+        await compileVaultContext({
+          ...compileInput,
+          records,
+          snapshotRevision: this.now(),
+        })
+      }
     } catch {
       // Required Cofre denied still appears in Contexto usado as restricted.
     }
-    const used = records.map(record => ({
+    const used: UsedContextRecord[] = records.map(record => ({
       id: record.id,
       kind: record.kind,
       body: record.visibility.kind === 'workspace' ? record.body : '',
       required: isRequiredVaultKind(record.kind),
       restricted: record.visibility.kind !== 'workspace',
     }))
+    this.attachSubjectFold(event, used)
+    if (event.body.trim() !== '') {
+      const speakerActor = {
+        kind: 'persona' as const,
+        id: speaker.id,
+        workspaceId: event.workspaceId,
+        workspaceRole: 'member' as const,
+        projectIds: [event.projectId],
+        systemRoles: speaker.systemRoles,
+      }
+      for (const hit of vault.searchChunks(event.projectId, event.body, 8)) {
+        if (!canReadVault(speakerActor, parseVaultRecord({
+          id: hit.documentId,
+          workspaceId: event.workspaceId,
+          kind: 'memory',
+          body: hit.body.slice(0, 32) || 'x',
+          status: 'active',
+          sourceIds: [],
+          authorId: speaker.id,
+          visibility: hit.visibility,
+          createdAt: event.occurredAt,
+          revision: 1,
+        }))) continue
+        const restricted = hit.visibility.kind !== 'workspace'
+        used.push({
+          id: hit.id,
+          kind: 'document',
+          body: restricted ? '' : hit.body,
+          required: false,
+          restricted,
+          title: hit.title,
+          locator: hit.locator,
+        })
+      }
+    }
     this.usedContext.set(event.id, used)
     const ticket = this.runtime(event.projectId).repo.tickets.list()
       .find(item => item.origin.triggerId === event.id)
-    if (ticket !== undefined) this.usedContext.set(ticket.id, used)
+    if (ticket !== undefined) {
+      this.usedContext.set(ticket.id, used)
+      if (event.topicId !== undefined && event.topicId !== '') {
+        this.screens?.put(event.projectId, 'ticket_subject', ticket.id, { subjectId: event.topicId })
+      }
+    }
     this.mark('compile-context:done')
     return used
   }
@@ -1114,16 +1433,35 @@ export class Orchestration {
     sessionId: string,
     runner: Runner,
   ): void {
-    if (this.usage === undefined) return
-    const read = Reflect.get(runner, 'usage')
+    if (this.usage === undefined && this.recordLedger === undefined) return
+    const read: unknown = Reflect.get(runner, 'usage')
     if (typeof read !== 'function') return
     const at = this.now()
-    void Promise.resolve(read.call(runner, sessionId) as Promise<{ inputTokens: number; outputTokens: number }>).then((spent) => {
+    const spent = read.call(runner, sessionId) as Promise<{ inputTokens: number; outputTokens: number }>
+    void Promise.resolve(spent).then((spent) => {
+      const engine = persona.runner.kind === 'cli' ? persona.runner.cli : 'dsh'
+      const id = `${projectId}:${persona.id}:${sessionId}:${at}`
+      if (this.recordLedger !== undefined) {
+        this.recordLedger(projectId, {
+          id,
+          personaId: persona.id,
+          engine,
+          kind: 'execution',
+          inputTokens: spent.inputTokens,
+          outputTokens: spent.outputTokens,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          layers: EMPTY_LAYERS,
+          at,
+          origin: 'measured',
+        })
+        return
+      }
       this.usage?.record({
-        id: `${projectId}:${persona.id}:${sessionId}:${at}`,
+        id,
         projectId,
         personaId: persona.id,
-        provider: persona.runner.kind === 'cli' ? persona.runner.cli : 'dsh',
+        provider: engine,
         model: persona.runner.model,
         window: 'turn',
         inputTokens: spent.inputTokens,
@@ -1320,6 +1658,106 @@ export class Orchestration {
     return this.product.listPersonas(projectId).find(persona => persona.systemRoles.includes('coordination'))
   }
 
+  /**
+   * Slots left and coordination token/execution budget still positive.
+   * @param projectId - Tenant.
+   */
+  private routeBudgetLeft(projectId: string): boolean {
+    if (this.budget.of(projectId) >= this.budget.maxPerProject) return false
+    if (this.budget.total() >= this.budget.maxGlobal) return false
+    const coord = this.coordinationOf(projectId)
+    if (coord === undefined) return true
+    const row = new ProactivityRepos(this.store, this.now).getAutonomy(projectId, coord.id)
+    return row.tokenBudget > 0 && row.executionBudget > 0
+  }
+
+  /**
+   * Quiet-window end for the coordination persona, or 0.
+   * @param projectId - Tenant.
+   */
+  private routeSilenceUntil(projectId: string): number {
+    const coord = this.coordinationOf(projectId)
+    if (coord === undefined) return 0
+    const row = new ProactivityRepos(this.store, this.now).getAutonomy(projectId, coord.id)
+    return silenceUntilOf(this.now(), row.silenceStart, row.silenceEnd)
+  }
+
+  /**
+   * Card / `/pausar` flag. Missing row is not paused.
+   * @param projectId - Tenant.
+   * @param personaId - Persona.
+   */
+  isPersonaPaused(projectId: string, personaId: string): boolean {
+    return this.screens?.get<{ paused?: boolean }>(projectId, 'persona_runtime', personaId)?.paused === true
+  }
+
+  /**
+   * Persist the same `persona_runtime` row the card Remote reads.
+   * @param projectId - Tenant.
+   * @param personaId - Persona.
+   * @param paused - Offline when true.
+   */
+  setPersonaPaused(projectId: string, personaId: string, paused: boolean): void {
+    this.screens?.put(projectId, 'persona_runtime', personaId, { paused })
+  }
+
+  /**
+   * Owner `/pausar` / `/retomar` — named, @mentioned, or Coordination.
+   * @param event - Human command.
+   * @param speaker - Fallback Coordination / mentioned peer.
+   * @param command - Accepted command.
+   */
+  private applyPauseCommand(
+    event: StoredEvent,
+    speaker: StoredPersona,
+    command: 'pausar' | 'retomar',
+  ): void {
+    const target = this.pauseTargetOf(event, speaker)
+    this.setPersonaPaused(event.projectId, target.id, command === 'pausar')
+    this.postAs(
+      event,
+      speaker,
+      `coord-${event.id}-pause`,
+      command === 'pausar'
+        ? `${target.name} pausada. Sem conversa nem tarefa até /retomar.`
+        : `${target.name} retomada.`,
+    )
+  }
+
+  /**
+   * @param event - Command body.
+   * @param speaker - Fallback.
+   */
+  private pauseTargetOf(event: StoredEvent, speaker: StoredPersona): StoredPersona {
+    const mentioned = this.mentionedPersona(event.projectId, event.body)
+    if (mentioned !== undefined) return mentioned
+    const extra = event.body.trim().replace(/^\/(?:pausar|retomar)\s*/iu, '').trim()
+    if (extra !== '') {
+      const named = this.product.listPersonas(event.projectId)
+        .find(persona => persona.name.toLowerCase() === extra.toLowerCase())
+      if (named !== undefined) return named
+    }
+    return this.coordinationOf(event.projectId) ?? speaker
+  }
+
+  /**
+   * Guest and unknown senders cannot command. Pause/resume is owner-only.
+   * @param projectId - Tenant (membership is workspace-scoped).
+   * @param command - Short command.
+   * @param senderId - Trigger actor.
+   */
+  private routeCanCommand(
+    projectId: string,
+    command: 'pausar' | 'retomar' | 'tarefa',
+    senderId: string,
+  ): boolean {
+    const member = this.product.getMember(senderId)
+    if (member === undefined || member.role === 'guest') return false
+    const project = this.product.getProject(projectId)
+    if (project === undefined || member.workspaceId !== project.workspaceId) return false
+    return command === 'tarefa' || member.role === 'owner'
+  }
+
   private mentionedPersona(projectId: string, body: string): StoredPersona | undefined {
     return this.product.listPersonas(projectId).find(persona => body.includes(`@${persona.name}`))
   }
@@ -1366,12 +1804,23 @@ function clipWords(value: string): string {
   return words.slice(0, 100).join(' ')
 }
 
+function pauseCommandOf(body: string): 'pausar' | 'retomar' | undefined {
+  const match = /^\/(pausar|retomar)(?:\s|$)/iu.exec(body.trim())
+  const name = match?.[1]?.toLowerCase()
+  return name === 'pausar' || name === 'retomar' ? name : undefined
+}
+
 function wantsAttention(text: string): boolean {
   return /\?|precisa de você|aprovar/iu.test(text)
 }
 
 export function wantsWork(text: string): boolean {
   return /preciso|implement|cri[ae]|adicion|consert|corrig|escrev|readme|deploy|faz(er)?\b|tarefa|ticket|aprov/iu.test(text)
+}
+
+function citeAttachments(text: string, names: readonly string[]): string {
+  if (names.length === 0) return text
+  return `${text}\nAnexos: ${names.join(', ')}`
 }
 
 function cliOf(message: string): string {
@@ -1404,4 +1853,8 @@ function looksLikeOarLogin(text: string): boolean {
  */
 export function loginFailureFromText(text: string, cli: string): RunnerResolveError | undefined {
   return looksLikeOarLogin(text) ? new RunnerResolveError('not_logged_in', cli) : undefined
+}
+
+function runnerHasVision(runner: Runner): boolean {
+  return (runner.capabilities() as { vision?: boolean }).vision === true
 }

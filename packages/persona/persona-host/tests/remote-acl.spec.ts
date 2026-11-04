@@ -16,6 +16,7 @@ it('every remote goes through can() except the documented list', () => {
     const src = typeof value === 'function' ? Function.prototype.toString.call(value) : ''
     expect(
       src.includes('requireProject') || src.includes('requireWorkspace') || src.includes('requireFileRoot')
+      || src.includes('requireWrite') || src.includes('requireGovOwner') || src.includes('requireGovAvailability')
       || src.includes('actorOf') || src.includes('sessionCan'),
       `${name} skipped can()`,
     ).toBe(true)

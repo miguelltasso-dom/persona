@@ -4,7 +4,7 @@
 
 import type { SQLOutputValue } from 'node:sqlite'
 import { StoreError } from '../errors.ts'
-import { integer, run, text } from '../sql.ts'
+import { integer, optionalText, run, text } from '../sql.ts'
 import type { PersonaStore } from '../store.ts'
 import { zonedUtcMs } from './timezone.ts'
 
@@ -24,6 +24,9 @@ export interface StoredEvent {
   readonly subjectId: string
   readonly occurredAt: string
   readonly deleted: boolean
+  readonly replyToId?: string
+  readonly editedAt?: string
+  readonly topicId?: string
 }
 
 /** Stream identity. */
@@ -53,6 +56,8 @@ export interface AppendEventInput {
   readonly actorId: string
   readonly subjectId: string
   readonly occurredAt: string
+  readonly replyToId?: string
+  readonly topicId?: string
 }
 
 /** Cursor page. */
@@ -134,9 +139,10 @@ export class EventRepos {
       if (cursor === undefined) throw new StoreError('not-found', stream.id)
       const seq = integer(cursor, 'lastSeq') + 1
       run(db, 'UPDATE stream_cursor SET last_seq = ? WHERE stream_id = ?', [seq, stream.id])
-      run(db, 'INSERT INTO event (id, stream_id, workspace_id, project_id, seq, type, body, actor_id, subject_id, occurred_at, occurred_at_utc, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)', [
+      run(db, 'INSERT INTO event (id, stream_id, workspace_id, project_id, seq, type, body, actor_id, subject_id, occurred_at, occurred_at_utc, deleted, reply_to_id, edited_at, topic_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)', [
         input.id, stream.id, input.workspaceId, input.projectId, seq, input.type, input.body,
-        input.actorId, input.subjectId, input.occurredAt, occurredAtUtc,
+        input.actorId, input.subjectId, input.occurredAt, occurredAtUtc, input.replyToId ?? null,
+        input.topicId ?? null,
       ])
       return {
         id: input.id,
@@ -150,6 +156,8 @@ export class EventRepos {
         subjectId: input.subjectId,
         occurredAt: input.occurredAt,
         deleted: false,
+        ...(input.replyToId === undefined || input.replyToId === '' ? {} : { replyToId: input.replyToId }),
+        ...(input.topicId === undefined || input.topicId === '' ? {} : { topicId: input.topicId }),
       }
     })
     for (const listener of this.#listeners) listener(stored)
@@ -169,7 +177,8 @@ export class EventRepos {
   }
 
   /**
-   * Page events after `afterSeq`. ACL applied.
+   * Page events after `afterSeq`. ACL applied. Missing stream → empty page
+   * (a channel with zero messages is not `forbidden`).
    * @param streamId - Stream.
    * @param actor - Reader.
    * @param afterSeq - Exclusive cursor; 0 starts at the beginning.
@@ -177,14 +186,52 @@ export class EventRepos {
    * @returns Authorized events and the next cursor.
    */
   list(streamId: string, actor: EventActor, afterSeq?: number, limit?: number): EventPage {
-    this.assertRead(streamId, actor)
     const start = afterSeq ?? 0
     const cap = clampLimit(limit ?? 50)
+    if (this.getStream(streamId) === undefined) return { events: [], nextSeq: start }
+    this.assertRead(streamId, actor)
     const rows = this.store.db.prepare(
       'SELECT * FROM event WHERE stream_id = ? AND seq > ? AND deleted = 0 ORDER BY seq ASC LIMIT ?',
     ).all(streamId, start, cap)
     const events = rows.map(readEvent)
     return { events, nextSeq: events.at(-1)?.seq ?? start }
+  }
+
+  /**
+   * Page events of one topic after `afterSeq`.
+   * @param streamId - Stream.
+   * @param actor - Reader.
+   * @param topicId - Topic.
+   * @param afterSeq - Exclusive cursor.
+   * @param limit - Max rows.
+   */
+  listTopic(
+    streamId: string,
+    actor: EventActor,
+    topicId: string,
+    afterSeq?: number,
+    limit?: number,
+  ): EventPage {
+    const start = afterSeq ?? 0
+    const cap = clampLimit(limit ?? 50)
+    if (this.getStream(streamId) === undefined) return { events: [], nextSeq: start }
+    this.assertRead(streamId, actor)
+    const rows = this.store.db.prepare(
+      'SELECT * FROM event WHERE stream_id = ? AND topic_id = ? AND seq > ? AND deleted = 0 ORDER BY seq ASC LIMIT ?',
+    ).all(streamId, topicId, start, cap)
+    const events = rows.map(readEvent)
+    return { events, nextSeq: events.at(-1)?.seq ?? start }
+  }
+
+  /**
+   * All live events in a project, oldest first. Host-internal after ACL.
+   * @param projectId - Tenant.
+   */
+  listProject(projectId: string): StoredEvent[] {
+    const rows = this.store.db.prepare(
+      'SELECT * FROM event WHERE project_id = ? AND deleted = 0 ORDER BY occurred_at_utc ASC, seq ASC',
+    ).all(projectId)
+    return rows.map(readEvent)
   }
 
   /**
@@ -195,14 +242,18 @@ export class EventRepos {
    * @param limit - Max rows.
    * @returns Authorized hits, newest first.
    */
-  search(projectId: string, actor: EventActor, query: string, limit?: number): StoredEvent[] {
+  search(projectId: string, actor: EventActor, query: string, limit?: number, topicId?: string): StoredEvent[] {
     const allowed = this.readableStreamIds(projectId, actor)
     if (allowed.length === 0 || query.trim() === '') return []
     const cap = clampLimit(limit ?? 50)
     const placeholders = allowed.map(() => '?').join(', ')
+    const topicClause = topicId === undefined || topicId === '' ? '' : ' AND event.topic_id = ?'
+    const params: Array<string | number> = [...allowed, phrase(query)]
+    if (topicId !== undefined && topicId !== '') params.push(topicId)
+    params.push(cap)
     const rows = this.store.db.prepare(
-      `SELECT event.* FROM event JOIN event_fts ON event.rowid = event_fts.rowid WHERE event.deleted = 0 AND event.stream_id IN (${placeholders}) AND event_fts MATCH ? ORDER BY event.occurred_at_utc DESC, event.id DESC LIMIT ?`,
-    ).all(...allowed, phrase(query), cap)
+      `SELECT event.* FROM event JOIN event_fts ON event.rowid = event_fts.rowid WHERE event.deleted = 0 AND event.stream_id IN (${placeholders}) AND event_fts MATCH ?${topicClause} ORDER BY event.occurred_at_utc DESC, event.id DESC LIMIT ?`,
+    ).all(...params)
     return rows.map(readEvent)
   }
 
@@ -220,16 +271,22 @@ export class EventRepos {
     until?: string
     afterSeq?: number
     limit?: number
+    topicId?: string
   }): EventPage {
-    this.assertRead(input.streamId, input.actor)
     const afterSeq = input.afterSeq ?? 0
     const cap = clampLimit(input.limit ?? 50)
+    if (this.getStream(input.streamId) === undefined) return { events: [], nextSeq: afterSeq }
+    this.assertRead(input.streamId, input.actor)
     const from = input.since === undefined ? 0 : zonedUtcMs(input.since, input.timeZone, 'start')
     const to = input.until === undefined ? Number.MAX_SAFE_INTEGER : zonedUtcMs(input.until, input.timeZone, 'end')
     if (from > to) throw new StoreError('invalid-input', 'range')
+    const topicClause = input.topicId === undefined || input.topicId === '' ? '' : ' AND topic_id = ?'
+    const params: Array<string | number> = [input.streamId, afterSeq, input.subjectId, from, to]
+    if (input.topicId !== undefined && input.topicId !== '') params.push(input.topicId)
+    params.push(cap)
     const rows = this.store.db.prepare(
-      'SELECT * FROM event WHERE stream_id = ? AND seq > ? AND deleted = 0 AND subject_id = ? AND occurred_at_utc >= ? AND occurred_at_utc <= ? ORDER BY seq ASC LIMIT ?',
-    ).all(input.streamId, afterSeq, input.subjectId, from, to, cap)
+      `SELECT * FROM event WHERE stream_id = ? AND seq > ? AND deleted = 0 AND subject_id = ? AND occurred_at_utc >= ? AND occurred_at_utc <= ?${topicClause} ORDER BY seq ASC LIMIT ?`,
+    ).all(...params)
     const events = rows.map(readEvent)
     return { events, nextSeq: events.at(-1)?.seq ?? afterSeq }
   }
@@ -242,6 +299,124 @@ export class EventRepos {
     this.store.tx((db) => {
       run(db, 'UPDATE event SET deleted = 1, body = \'\' WHERE id = ?', [id])
     })
+  }
+
+  /**
+   * Replace the body and stamp `edited_at`.
+   * @param id - Event.
+   * @param body - New text.
+   * @param editedAt - Instant.
+   */
+  edit(id: string, body: string, editedAt: string): void {
+    this.store.tx((db) => {
+      run(db, 'UPDATE event SET body = ?, edited_at = ? WHERE id = ? AND deleted = 0', [body, editedAt, id])
+    })
+  }
+
+  /**
+   * @param id - Event.
+   */
+  get(id: string): StoredEvent | undefined {
+    const row = this.store.db.prepare('SELECT * FROM event WHERE id = ?').get(id)
+    return row === undefined ? undefined : readEvent(row)
+  }
+
+  /**
+   * Add a sticker reaction (idempotent).
+   * @param input - Event, actor, sticker.
+   */
+  addReaction(input: { eventId: string; actorId: string; stickerId: string; projectId: string }): void {
+    this.store.tx((db) => {
+      run(db, `INSERT INTO event_reaction (event_id, actor_id, sticker_id, project_id, created_at)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT(event_id, actor_id, sticker_id) DO NOTHING`, [
+        input.eventId, input.actorId, input.stickerId, input.projectId, this.now(),
+      ])
+    })
+  }
+
+  /**
+   * @param input - Event, actor, sticker.
+   */
+  removeReaction(input: { eventId: string; actorId: string; stickerId: string }): void {
+    this.store.tx((db) => {
+      run(db, 'DELETE FROM event_reaction WHERE event_id = ? AND actor_id = ? AND sticker_id = ?', [
+        input.eventId, input.actorId, input.stickerId,
+      ])
+    })
+  }
+
+  /**
+   * @param eventId - Event.
+   */
+  listReactions(eventId: string): Array<{ stickerId: string; actorId: string }> {
+    return this.store.db.prepare(
+      'SELECT sticker_id AS stickerId, actor_id AS actorId FROM event_reaction WHERE event_id = ? ORDER BY created_at ASC',
+    ).all(eventId).map(row => ({ stickerId: text(row, 'stickerId'), actorId: text(row, 'actorId') }))
+  }
+
+  /**
+   * Pin a message on its stream.
+   * @param input - Pin.
+   */
+  pin(input: { streamId: string; eventId: string; projectId: string; pinnedBy: string }): void {
+    this.store.tx((db) => {
+      run(db, `INSERT INTO stream_pin (stream_id, event_id, project_id, pinned_by, pinned_at)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT(stream_id, event_id) DO UPDATE SET pinned_by = excluded.pinned_by, pinned_at = excluded.pinned_at`, [
+        input.streamId, input.eventId, input.projectId, input.pinnedBy, this.now(),
+      ])
+    })
+  }
+
+  /**
+   * @param streamId - Stream.
+   * @param eventId - Event.
+   */
+  unpin(streamId: string, eventId: string): void {
+    this.store.tx((db) => {
+      run(db, 'DELETE FROM stream_pin WHERE stream_id = ? AND event_id = ?', [streamId, eventId])
+    })
+  }
+
+  /**
+   * @param streamId - Stream.
+   */
+  listPins(streamId: string): string[] {
+    return this.store.db.prepare(
+      'SELECT event_id AS eventId FROM stream_pin WHERE stream_id = ? ORDER BY pinned_at DESC',
+    ).all(streamId).map(row => text(row, 'eventId'))
+  }
+
+  /**
+   * @param eventId - Event.
+   */
+  isPinned(eventId: string): boolean {
+    return this.store.db.prepare('SELECT 1 AS ok FROM stream_pin WHERE event_id = ?').get(eventId) !== undefined
+  }
+
+  /**
+   * @param input - Audit row.
+   */
+  addAudit(input: { id: string; eventId: string; projectId: string; actorId: string; action: string; detail: string }): void {
+    this.store.tx((db) => {
+      run(db, 'INSERT INTO event_audit (id, event_id, project_id, actor_id, action, at, detail) VALUES (?, ?, ?, ?, ?, ?, ?)', [
+        input.id, input.eventId, input.projectId, input.actorId, input.action, this.now(), input.detail,
+      ])
+    })
+  }
+
+  /**
+   * @param eventId - Event.
+   */
+  listAudit(eventId: string): Array<{ id: string; actorId: string; action: string; at: string; detail: string }> {
+    return this.store.db.prepare(
+      'SELECT id, actor_id AS actorId, action, at, detail FROM event_audit WHERE event_id = ? ORDER BY at DESC',
+    ).all(eventId).map(row => ({
+      id: text(row, 'id'),
+      actorId: text(row, 'actorId'),
+      action: text(row, 'action'),
+      at: text(row, 'at'),
+      detail: text(row, 'detail'),
+    }))
   }
 
   private findStream(projectId: string, kind: StreamKind, ownerId: string): StreamRecord | undefined {
@@ -320,6 +495,9 @@ function readStream(row: Record<string, SQLOutputValue>): StreamRecord {
 }
 
 function readEvent(row: Record<string, SQLOutputValue>): StoredEvent {
+  const replyToId = optionalText(row, 'reply_to_id')
+  const editedAt = optionalText(row, 'edited_at')
+  const topicId = optionalText(row, 'topic_id')
   return {
     id: text(row, 'id'),
     streamId: text(row, 'stream_id'),
@@ -332,5 +510,8 @@ function readEvent(row: Record<string, SQLOutputValue>): StoredEvent {
     subjectId: text(row, 'subject_id'),
     occurredAt: text(row, 'occurred_at'),
     deleted: integer(row, 'deleted') === 1,
+    ...(replyToId === undefined || replyToId === '' ? {} : { replyToId }),
+    ...(editedAt === undefined || editedAt === '' ? {} : { editedAt }),
+    ...(topicId === undefined || topicId === '' ? {} : { topicId }),
   }
 }

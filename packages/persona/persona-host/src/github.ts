@@ -131,7 +131,7 @@ function spawnGh(args: readonly string[]): { status: number | null; stdout: stri
   const result = spawnSync('gh', [...args], { encoding: 'utf8', windowsHide: true })
   return {
     status: result.status,
-    stdout: result.stdout ?? '',
-    stderr: result.error === undefined ? (result.stderr ?? '') : result.error.message,
+    stdout: result.stdout,
+    stderr: result.error === undefined ? result.stderr : result.error.message,
   }
 }

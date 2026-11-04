@@ -43,6 +43,14 @@ it('lists and reads files under the project root', () => {
   expect(h.statFile({ ...scope, actorId: 'ana', path: 'src' }).kind).toBe('directory')
 })
 
+it('refuses a project file larger than 8 MB with a clear message', () => {
+  const { h, root, scope } = seeded()
+  writeFileSync(join(root, 'huge.bin'), Buffer.alloc(8 * 1024 * 1024 + 1, 0x61))
+  expect(() => {
+    h.readFile({ ...scope, actorId: 'ana', path: 'huge.bin' })
+  }).toThrow(/8 MB/)
+})
+
 it('refuses a path outside the project root', () => {
   const { h, root, scope } = seeded()
   expect(() => {

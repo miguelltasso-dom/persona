@@ -568,7 +568,450 @@ CREATE TABLE ticket_seat (
 CREATE INDEX ticket_seat_project ON ticket_seat (project_id);
 `
 
-/** Adjacent shipped layout: v1 product… v5 screens, v6 retention, v7 usage, v8 board. */
+const V9_MEDIA = `
+CREATE TABLE blob_object (
+  hash TEXT PRIMARY KEY,
+  bytes INTEGER NOT NULL,
+  mime TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('attachment', 'avatar')),
+  created_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE attachment (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+  stream_kind TEXT NOT NULL CHECK (stream_kind IN ('channel', 'dm')),
+  owner_id TEXT NOT NULL,
+  message_id TEXT,
+  hash TEXT NOT NULL REFERENCES blob_object(hash),
+  name TEXT NOT NULL,
+  credential_warning INTEGER NOT NULL CHECK (credential_warning IN (0, 1)),
+  created_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX attachment_message ON attachment (message_id);
+CREATE INDEX attachment_project ON attachment (project_id);
+CREATE INDEX attachment_hash ON attachment (hash);
+`
+
+const V10_CARD = `
+CREATE TABLE persona_speak (
+  persona_id TEXT PRIMARY KEY REFERENCES persona(id) ON DELETE CASCADE,
+  mode TEXT NOT NULL CHECK (mode IN ('everyone', 'members')),
+  principals_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE persona_charge (
+  persona_id TEXT PRIMARY KEY REFERENCES persona(id) ON DELETE CASCADE,
+  responsible_human_id TEXT NOT NULL,
+  substitute_human_id TEXT,
+  sector_id TEXT,
+  confirmed INTEGER NOT NULL CHECK (confirmed IN (0, 1)),
+  updated_at TEXT NOT NULL
+) STRICT;
+`
+
+const V11_GOVERNANCE = `
+CREATE TABLE sector (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  policy_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (workspace_id, name)
+) STRICT;
+
+CREATE INDEX sector_workspace ON sector (workspace_id);
+
+CREATE TABLE away_window (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  human_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('away', 'absent')),
+  starts_at TEXT NOT NULL,
+  until_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX away_window_workspace ON away_window (workspace_id, human_id);
+
+CREATE TABLE routine_charge (
+  routine_id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  executor_persona_id TEXT,
+  responsible_human_id TEXT,
+  sector_id TEXT,
+  requires_approval INTEGER NOT NULL CHECK (requires_approval IN (0, 1)),
+  approval_kind TEXT,
+  autonomy TEXT,
+  cadence TEXT,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX routine_charge_workspace ON routine_charge (workspace_id);
+
+CREATE TABLE governance_delegate (
+  workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  routine_id TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, routine_id)
+) STRICT;
+
+CREATE TABLE governance_audit (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  at TEXT NOT NULL,
+  action TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  body TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX governance_audit_workspace ON governance_audit (workspace_id, at);
+
+INSERT INTO persona_charge (persona_id, responsible_human_id, confirmed, updated_at)
+SELECT p.id, m.id, 1, '2026-11-03T00:00:00.000Z'
+  FROM persona p
+  JOIN member m ON m.workspace_id = p.workspace_id AND m.role = 'owner'
+ WHERE NOT EXISTS (SELECT 1 FROM persona_charge c WHERE c.persona_id = p.id);
+`
+
+/** Adjacent shipped layout: v1 product… v10 card, v11 governance. */
+const V12_CHAT = `
+ALTER TABLE event ADD COLUMN reply_to_id TEXT;
+ALTER TABLE event ADD COLUMN edited_at TEXT;
+
+CREATE TABLE event_reaction (
+  event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+  actor_id TEXT NOT NULL,
+  sticker_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (event_id, actor_id, sticker_id)
+) STRICT;
+
+CREATE INDEX event_reaction_project ON event_reaction (project_id);
+
+CREATE TABLE stream_pin (
+  stream_id TEXT NOT NULL REFERENCES stream(id) ON DELETE CASCADE,
+  event_id TEXT NOT NULL REFERENCES event(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL,
+  pinned_by TEXT NOT NULL,
+  pinned_at TEXT NOT NULL,
+  PRIMARY KEY (stream_id, event_id)
+) STRICT;
+
+CREATE INDEX stream_pin_project ON stream_pin (project_id);
+
+CREATE TABLE event_audit (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  action TEXT NOT NULL CHECK (action IN ('edit', 'delete', 'pin', 'unpin', 'react', 'unreact')),
+  at TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT ''
+) STRICT;
+
+CREATE INDEX event_audit_event ON event_audit (event_id, at);
+CREATE INDEX event_audit_project ON event_audit (project_id);
+CREATE INDEX event_stream_alive_seq ON event (stream_id, seq) WHERE deleted = 0;
+`
+
+const V13_VAULT_CHUNKS = `
+ALTER TABLE vault_document ADD COLUMN mime TEXT NOT NULL DEFAULT 'text/plain';
+ALTER TABLE vault_document ADD COLUMN filename TEXT NOT NULL DEFAULT '';
+ALTER TABLE vault_document ADD COLUMN hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE vault_document ADD COLUMN bytes INTEGER NOT NULL DEFAULT 0;
+
+CREATE TABLE vault_chunk (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES vault_document(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL REFERENCES project(id),
+  chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
+  locator TEXT NOT NULL,
+  body TEXT NOT NULL,
+  UNIQUE (document_id, chunk_index)
+) STRICT;
+
+CREATE INDEX vault_chunk_project ON vault_chunk (project_id, document_id);
+
+CREATE VIRTUAL TABLE vault_chunk_fts USING fts5(
+  body,
+  content='vault_chunk',
+  content_rowid='rowid'
+);
+
+CREATE TRIGGER vault_chunk_ai AFTER INSERT ON vault_chunk BEGIN
+  INSERT INTO vault_chunk_fts(rowid, body) VALUES (new.rowid, new.body);
+END;
+CREATE TRIGGER vault_chunk_ad AFTER DELETE ON vault_chunk BEGIN
+  INSERT INTO vault_chunk_fts(vault_chunk_fts, rowid, body) VALUES ('delete', old.rowid, old.body);
+END;
+CREATE TRIGGER vault_chunk_au AFTER UPDATE ON vault_chunk BEGIN
+  INSERT INTO vault_chunk_fts(vault_chunk_fts, rowid, body) VALUES ('delete', old.rowid, old.body);
+  INSERT INTO vault_chunk_fts(rowid, body) VALUES (new.rowid, new.body);
+END;
+`
+
+const V14_WAVE2 = `
+CREATE TABLE conversation_topic (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  project_id TEXT NOT NULL REFERENCES project(id),
+  stream_kind TEXT NOT NULL CHECK (stream_kind IN ('channel', 'dm')),
+  owner_id TEXT NOT NULL,
+  color_index INTEGER NOT NULL CHECK (color_index >= 0 AND color_index <= 6),
+  name TEXT NOT NULL,
+  archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
+  created_at TEXT NOT NULL,
+  UNIQUE (project_id, stream_kind, owner_id, color_index)
+) STRICT;
+
+CREATE INDEX conversation_topic_stream ON conversation_topic (project_id, stream_kind, owner_id);
+
+CREATE TABLE topic_read (
+  topic_id TEXT NOT NULL REFERENCES conversation_topic(id) ON DELETE CASCADE,
+  actor_id TEXT NOT NULL,
+  last_seq INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (topic_id, actor_id)
+) STRICT;
+
+ALTER TABLE event ADD COLUMN topic_id TEXT;
+
+CREATE TABLE provider_account (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  provider TEXT NOT NULL,
+  label TEXT NOT NULL,
+  home_dir TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL CHECK (status IN ('ok', 'limit', 'error', 'checking')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX provider_account_workspace ON provider_account (workspace_id, provider);
+
+CREATE TABLE account_policy (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  scope TEXT NOT NULL CHECK (scope IN ('workspace', 'persona')),
+  scope_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK (mode IN ('fixed', 'next', 'split', 'ask')),
+  account_ids_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (workspace_id, scope, scope_id, provider)
+) STRICT;
+
+ALTER TABLE usage_record ADD COLUMN account_id TEXT;
+
+CREATE TABLE teach_artifact (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  project_id TEXT NOT NULL REFERENCES project(id),
+  persona_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('recording', 'processing', 'draft', 'discarded')),
+  filename TEXT NOT NULL,
+  hash TEXT NOT NULL DEFAULT '',
+  bytes INTEGER NOT NULL DEFAULT 0,
+  transcript TEXT NOT NULL DEFAULT '',
+  skill_draft_json TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX teach_artifact_persona ON teach_artifact (project_id, persona_id);
+`
+
+const V15_SECOND_BRAIN = `
+CREATE TABLE brain_page (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  project_id TEXT NOT NULL REFERENCES project(id),
+  kind TEXT NOT NULL CHECK (kind IN ('company','person','client','project','process','rule','decision','permission','tool','glossary','learning')),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  properties_json TEXT NOT NULL,
+  sources_json TEXT NOT NULL,
+  visibility_json TEXT NOT NULL,
+  revision INTEGER NOT NULL CHECK (revision >= 1),
+  confirmed_at TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('active','superseded')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (project_id, slug)
+) STRICT;
+
+CREATE INDEX brain_page_project_kind ON brain_page (project_id, kind, updated_at);
+
+CREATE VIRTUAL TABLE brain_page_fts USING fts5(
+  title, body, kind,
+  content='brain_page',
+  content_rowid='rowid'
+);
+
+CREATE TRIGGER brain_page_ai AFTER INSERT ON brain_page BEGIN
+  INSERT INTO brain_page_fts(rowid, title, body, kind) VALUES (new.rowid, new.title, new.body, new.kind);
+END;
+CREATE TRIGGER brain_page_ad AFTER DELETE ON brain_page BEGIN
+  INSERT INTO brain_page_fts(brain_page_fts, rowid, title, body, kind) VALUES ('delete', old.rowid, old.title, old.body, old.kind);
+END;
+CREATE TRIGGER brain_page_au AFTER UPDATE ON brain_page BEGIN
+  INSERT INTO brain_page_fts(brain_page_fts, rowid, title, body, kind) VALUES ('delete', old.rowid, old.title, old.body, old.kind);
+  INSERT INTO brain_page_fts(rowid, title, body, kind) VALUES (new.rowid, new.title, new.body, new.kind);
+END;
+
+CREATE TABLE brain_link (
+  from_id TEXT NOT NULL,
+  project_id TEXT NOT NULL REFERENCES project(id),
+  to_slug TEXT NOT NULL,
+  PRIMARY KEY (from_id, to_slug)
+) STRICT;
+
+CREATE INDEX brain_link_project ON brain_link (project_id, to_slug);
+
+CREATE TABLE brain_version (
+  id TEXT PRIMARY KEY,
+  page_id TEXT NOT NULL,
+  project_id TEXT NOT NULL REFERENCES project(id),
+  revision INTEGER NOT NULL CHECK (revision >= 1),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  editor_kind TEXT NOT NULL CHECK (editor_kind IN ('person','persona')),
+  editor_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (page_id, revision)
+) STRICT;
+
+CREATE INDEX brain_version_page ON brain_version (page_id, revision);
+
+CREATE TABLE brain_grant (
+  id TEXT PRIMARY KEY,
+  page_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  project_id TEXT NOT NULL REFERENCES project(id),
+  grantor_id TEXT NOT NULL,
+  persona_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target TEXT NOT NULL,
+  limits_json TEXT NOT NULL,
+  validity TEXT NOT NULL CHECK (validity IN ('once','7d','until-revoke')),
+  expires_at TEXT,
+  revoked_at TEXT,
+  use_count INTEGER NOT NULL DEFAULT 0,
+  last_used_at TEXT,
+  created_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX brain_grant_persona ON brain_grant (project_id, persona_id, revoked_at);
+`
+
+const V16_TEAM_MANAGER = `
+CREATE TABLE team_manager_mandate (
+  persona_id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  limits_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX team_manager_mandate_workspace ON team_manager_mandate (workspace_id);
+
+CREATE TABLE team_manager_plan (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  team_manager_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  scope_key TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('proposed', 'applied', 'commented', 'rejected')),
+  body_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX team_manager_plan_scope ON team_manager_plan (workspace_id, scope_key, status);
+
+CREATE TABLE team_manager_audit (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  team_manager_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX team_manager_audit_workspace ON team_manager_audit (workspace_id, at);
+`
+
+const V17_TOKEN_OPT = `
+CREATE TABLE topic_summary (
+  topic_id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  last_seq INTEGER NOT NULL,
+  message_count INTEGER NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX topic_summary_project ON topic_summary (project_id);
+
+CREATE TABLE batch_cursor (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('librarian', 'initiative')),
+  last_at TEXT NOT NULL,
+  last_seq INTEGER NOT NULL DEFAULT 0
+) STRICT;
+
+CREATE INDEX batch_cursor_project ON batch_cursor (project_id, kind);
+
+CREATE TABLE provider_limit_pool (
+  project_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  body_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, provider)
+) STRICT;
+`
+
+const V18_TURN_LEDGER = `
+CREATE TABLE turn_ledger (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  persona_id TEXT NOT NULL,
+  engine TEXT NOT NULL,
+  account_id TEXT,
+  kind TEXT NOT NULL CHECK (kind IN (
+    'triage', 'reply', 'execution', 'initiative', 'librarian', 'watchdog', 'evaluation'
+  )),
+  input_tokens INTEGER NOT NULL CHECK (input_tokens >= 0),
+  output_tokens INTEGER NOT NULL CHECK (output_tokens >= 0),
+  cache_read_tokens INTEGER NOT NULL CHECK (cache_read_tokens >= 0),
+  cache_write_tokens INTEGER NOT NULL CHECK (cache_write_tokens >= 0),
+  layer_system INTEGER NOT NULL CHECK (layer_system >= 0),
+  layer_tools INTEGER NOT NULL CHECK (layer_tools >= 0),
+  layer_required INTEGER NOT NULL CHECK (layer_required >= 0),
+  layer_subject INTEGER NOT NULL CHECK (layer_subject >= 0),
+  layer_recall INTEGER NOT NULL CHECK (layer_recall >= 0),
+  layer_message INTEGER NOT NULL CHECK (layer_message >= 0),
+  ticket_id TEXT,
+  origin TEXT CHECK (origin IN ('measured', 'estimate') OR origin IS NULL),
+  at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX turn_ledger_project_at ON turn_ledger (project_id, at);
+CREATE INDEX turn_ledger_persona_at ON turn_ledger (project_id, persona_id, at);
+CREATE INDEX turn_ledger_ticket ON turn_ledger (ticket_id);
+
+ALTER TABLE usage_record ADD COLUMN kind TEXT;
+ALTER TABLE usage_record ADD COLUMN cache_read_tokens INTEGER;
+ALTER TABLE usage_record ADD COLUMN cache_write_tokens INTEGER;
+`
+
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -601,5 +1044,45 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 8,
     sql: V8_BOARD,
+  },
+  {
+    version: 9,
+    sql: V9_MEDIA,
+  },
+  {
+    version: 10,
+    sql: V10_CARD,
+  },
+  {
+    version: 11,
+    sql: V11_GOVERNANCE,
+  },
+  {
+    version: 12,
+    sql: V12_CHAT,
+  },
+  {
+    version: 13,
+    sql: V13_VAULT_CHUNKS,
+  },
+  {
+    version: 14,
+    sql: V14_WAVE2,
+  },
+  {
+    version: 15,
+    sql: V15_SECOND_BRAIN,
+  },
+  {
+    version: 16,
+    sql: V16_TEAM_MANAGER,
+  },
+  {
+    version: 17,
+    sql: V17_TOKEN_OPT,
+  },
+  {
+    version: 18,
+    sql: V18_TURN_LEDGER,
   },
 ]

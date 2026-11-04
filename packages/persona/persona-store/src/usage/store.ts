@@ -21,6 +21,11 @@ export interface StoredUsageEvent {
   readonly outputTokens: number
   readonly origin: UsageOrigin
   readonly at: string
+  readonly accountId?: string
+  /** Canonical TurnKind. Rivet leftover `exec`/`eval` is mapped at the port, never stored. */
+  readonly kind?: string
+  readonly cacheReadTokens?: number
+  readonly cacheWriteTokens?: number
 }
 
 /** Inclusive ISO-instant range plus optional tenant filters. */
@@ -81,8 +86,9 @@ export class SqliteUsageStore implements UsageStore {
   record(row: StoredUsageEvent): void {
     this.store.tx((db) => {
       run(db, `INSERT INTO usage_record
-        (id, project_id, persona_id, provider, model, window, input_tokens, output_tokens, origin, at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, project_id, persona_id, provider, model, window, input_tokens, output_tokens, origin, at, account_id,
+         kind, cache_read_tokens, cache_write_tokens)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           project_id = excluded.project_id,
           persona_id = excluded.persona_id,
@@ -92,7 +98,11 @@ export class SqliteUsageStore implements UsageStore {
           input_tokens = excluded.input_tokens,
           output_tokens = excluded.output_tokens,
           origin = excluded.origin,
-          at = excluded.at`, [
+          at = excluded.at,
+          account_id = excluded.account_id,
+          kind = excluded.kind,
+          cache_read_tokens = excluded.cache_read_tokens,
+          cache_write_tokens = excluded.cache_write_tokens`, [
         row.id,
         row.projectId,
         row.personaId === '' ? null : row.personaId,
@@ -103,6 +113,10 @@ export class SqliteUsageStore implements UsageStore {
         row.outputTokens,
         row.origin,
         row.at,
+        row.accountId === undefined || row.accountId === '' ? null : row.accountId,
+        row.kind === undefined || row.kind === '' ? null : row.kind,
+        row.cacheReadTokens === undefined ? null : row.cacheReadTokens,
+        row.cacheWriteTokens === undefined ? null : row.cacheWriteTokens,
       ])
     })
   }
@@ -133,7 +147,9 @@ export class SqliteUsageStore implements UsageStore {
   list(query: UsageQuery): StoredUsageEvent[] {
     const rows = this.store.db.prepare(
       `SELECT id, project_id AS projectId, persona_id AS personaId, provider, model, window,
-              input_tokens AS inputTokens, output_tokens AS outputTokens, origin, at
+              input_tokens AS inputTokens, output_tokens AS outputTokens, origin, at,
+              account_id AS accountId, kind,
+              cache_read_tokens AS cacheReadTokens, cache_write_tokens AS cacheWriteTokens
          FROM usage_record
         WHERE at >= ? AND at <= ?
           AND (? IS NULL OR project_id = ?)
@@ -223,6 +239,10 @@ function weaker(left: UsageOrigin, right: UsageOrigin): UsageOrigin {
 }
 
 function readEvent(row: Record<string, SQLOutputValue>): StoredUsageEvent {
+  const accountId = optionalText(row, 'accountId')
+  const kind = optionalText(row, 'kind')
+  const cacheRead = row.cacheReadTokens
+  const cacheWrite = row.cacheWriteTokens
   return {
     id: text(row, 'id'),
     projectId: text(row, 'projectId'),
@@ -234,6 +254,10 @@ function readEvent(row: Record<string, SQLOutputValue>): StoredUsageEvent {
     outputTokens: integer(row, 'outputTokens'),
     origin: text(row, 'origin') as UsageOrigin,
     at: text(row, 'at'),
+    ...(accountId === undefined || accountId === '' ? {} : { accountId }),
+    ...(kind === undefined || kind === '' ? {} : { kind }),
+    ...(typeof cacheRead === 'number' ? { cacheReadTokens: cacheRead } : {}),
+    ...(typeof cacheWrite === 'number' ? { cacheWriteTokens: cacheWrite } : {}),
   }
 }
 

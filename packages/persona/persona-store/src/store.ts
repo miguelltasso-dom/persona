@@ -2,8 +2,8 @@
  * Open, identify, migrate, and transact against `persona.db`.
  */
 
-import { closeSync, copyFileSync, mkdirSync, openSync, readdirSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { closeSync, copyFileSync, mkdirSync, openSync, readdirSync, renameSync, statSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
   PERSONA_APPLICATION_ID,
@@ -32,9 +32,10 @@ export class PersonaStore {
   readonly path: string
   readonly backupDir: string
   /** Live `DatabaseSync`. Callers must not close it. */
-  readonly db: DatabaseSync
+  db: DatabaseSync
   recoveredFrom: string | undefined
   recoveryMessage: string | undefined
+  safeMode: boolean = false
   #open = true
   #txDepth = 0
 
@@ -99,6 +100,81 @@ export class PersonaStore {
     }
   }
 
+  /**
+   * On-demand `VACUUM INTO` copy. Refuses `:memory:`.
+   * @returns Destination path.
+   */
+  backupNow(): string {
+    this.assertOpen()
+    if (this.path === ':memory:') throw new StoreError('backup-failed', 'memory')
+    mkdirSync(this.backupDir, { recursive: true, mode: 0o700 })
+    const stamp = new Date().toISOString().replaceAll(':', '').replaceAll('.', '')
+    const dest = join(this.backupDir, `persona-manual-${stamp}.db`)
+    vacuumInto(this.db, dest)
+    return dest
+  }
+
+  /**
+   * Newest first. Manual and pre-migration copies.
+   */
+  listBackups(): readonly { filename: string; path: string }[] {
+    this.assertOpen()
+    let names: string[] = []
+    try {
+      names = readdirSync(this.backupDir)
+    } catch {
+      return []
+    }
+    return names
+      .filter(name => name.endsWith('.db'))
+      .sort((a, b) => b.localeCompare(a))
+      .map(filename => ({ filename, path: join(this.backupDir, filename) }))
+  }
+
+  /**
+   * Truncate the WAL so readers stop holding the log. No-op on `:memory:`.
+   * @returns Checkpoint counters from SQLite (`busy`, `log`, `checkpointed`).
+   */
+  checkpointWal(): { busy: number; log: number; checkpointed: number } {
+    this.assertOpen()
+    if (this.path === ':memory:') return { busy: 0, log: 0, checkpointed: 0 }
+    const row = this.db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as
+      | { busy: number; log: number; checkpointed: number }
+      | undefined
+    return {
+      busy: row?.busy ?? 0,
+      log: row?.log ?? 0,
+      checkpointed: row?.checkpointed ?? 0,
+    }
+  }
+
+  /**
+   * Replace the live file with a listed backup. Closes and reopens the connection.
+   * @param filename - Name from {@link PersonaStore.listBackups}.
+   * @returns Absolute path of the backup that was applied.
+   */
+  restoreBackup(filename: string): string {
+    this.assertOpen()
+    if (this.path === ':memory:') throw new StoreError('backup-failed', 'memory')
+    const safe = basename(filename)
+    if (safe !== filename || !safe.endsWith('.db')) throw new StoreError('not-found', 'backup')
+    const src = join(this.backupDir, safe)
+    try {
+      statSync(src)
+    } catch (error: unknown) {
+      void error
+      throw new StoreError('not-found', 'backup')
+    }
+    this.db.close()
+    copyFileSync(src, this.path)
+    this.db = new DatabaseSync(this.path)
+    configurePragmas(this.db, this.path, PERSONA_BUSY_TIMEOUT_MS)
+    this.safeMode = false
+    this.recoveredFrom = src
+    this.recoveryMessage = 'Restaurei o backup escolhido.'
+    return src
+  }
+
   /** Close the connection. Further use throws `not-open`. */
   close(): void {
     if (!this.#open) return
@@ -121,15 +197,38 @@ export function openPersonaStore(options: OpenPersonaStoreOptions): PersonaStore
     return openPersonaStoreOnce(options)
   } catch (error: unknown) {
     if (options.path === ':memory:' || !isCorrupt(error)) throw error
-    const backupDir = options.backupDir ?? join(dirname(resolve(options.path)), 'backups')
+    const live = resolve(options.path)
+    const backupDir = options.backupDir ?? join(dirname(live), 'backups')
     const backup = latestBackup(backupDir)
-    if (backup === undefined) throw error
-    copyFileSync(backup, resolve(options.path))
-    const store = openPersonaStoreOnce(options)
-    store.recoveredFrom = backup
-    store.recoveryMessage = 'O banco estava danificado. Restaurei o último backup.'
-    return store
+    if (backup !== undefined) {
+      try {
+        copyFileSync(backup, live)
+        const store = openPersonaStoreOnce(options)
+        store.recoveredFrom = backup
+        store.recoveryMessage = 'O banco estava danificado. Restaurei o último backup.'
+        return store
+      } catch (restoreError: unknown) {
+        void restoreError
+      }
+    }
+    if (error instanceof StoreError) throw error
+    return openSafeEmpty(options, live)
   }
+}
+
+function openSafeEmpty(options: OpenPersonaStoreOptions, live: string): PersonaStore {
+  const stamp = new Date().toISOString().replaceAll(':', '').replaceAll('.', '')
+  const quarantine = `${live}.corrupt-${stamp}`
+  try {
+    renameSync(live, quarantine)
+  } catch (renameError: unknown) {
+    void renameError
+  }
+  const store = openPersonaStoreOnce(options)
+  store.safeMode = true
+  store.recoveredFrom = quarantine
+  store.recoveryMessage = 'O banco estava danificado e não havia backup. Abri em modo seguro. Restaure um backup se tiver.'
+  return store
 }
 
 function openPersonaStoreOnce(options: OpenPersonaStoreOptions): PersonaStore {

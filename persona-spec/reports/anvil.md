@@ -4,6 +4,733 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 04/11 02:05 — contratos GES-3 / T3 / B7 (folha; janela ainda fechada)
+
+Sem `JANELA ENCERRADA` — store/host intocados. Avancei o que o Forge pediu com mocks no domínio.
+
+### O que entrou
+- `persona-spec/contracts/working-send.md` — fila × direcionar / `/lado` / limite (RPCs Anvil).
+- `pending-rpc.contract.spec.ts`: GES-3 `commentGestorPlan` (`commentOnId`) + `resolveGestorTie`; T3 §9 fold vazio ≠ 0%; fila sobrevive `pauseAtLimit`.
+- Contratos `gestor.md` / `activity.md` / `lumen-rpc.md` com o wire pendente (`commentOnId` no view; allocate/reorganize ainda sem `@Remote`).
+
+### Já no host (sem editar)
+- B7: `MutantRunBook` 2º run = queued, 3º = refused; assunto capturado. `mutant-run.spec` + `gestor.spec` 11/11 com o contrato.
+- Store `team_manager_plan.body_json` já cabe `commentOnId`. `approveGestorPlan` / `listGestorPlans` / `rejectGestorPlan` já são Remote.
+
+### Prova
+- `vitest` pending-rpc + mutant-run + gestor 11/11
+- oxlint do spec novo OK
+
+### Dependências
+- **[Anvil→Keel]** depois da janela: `@Remote` `commentGestorPlan` / `resolveGestorTie` / `listTurnActivity` / fila T3 / `proposeGestorAllocate|Reorganize`; `GestorPlanView.commentOnId`.
+- **[Anvil→Lumen/Prism]** mockar esses RPCs com o contrato; `approveGestorPlan` já existe.
+- **[Anvil→Forge]** domínio usado sem cópia de kinds.
+
+### Fila
+Remotes acima = próximo código de host. E11 blocked. PLAN GES-1/SB-1 store já tem tabelas (v16 / brain); marcar done é do Keel.
+
+---
+
+## 04/11 02:00 — equipes à distância local + roster 150 (folha)
+
+Janela ainda sem `JANELA ENCERRADA` — store/host intocados. Fechei o buraco do E7 no edge e a prova A/B que o Atlas pediu para o Miguel.
+
+### O que entrou
+- **Membro no DO**: tabela `member`; dono via `POST /members`; redeem grava o desk; revogar convite ou `POST /members/:id/revoke` corta sync.
+- Header `x-persona-actor` em append/after → `ACCESS_REVOKED` / `NOT_A_MEMBER`. Sem header = caminho antigo (testes).
+- **`task-run:` / `run:`** nunca sobem (`isLocalOnlyStream`). Tarefa da persona de A fica no desk A.
+- Ciclo wrangler: convite A→B, `#geral` converge, DM recusada, B offline/retoma, revogar corta. Capturas em `.maestri/tmp/shots/remote/` (`index.html` lado a lado + `transcript.json`).
+- **150 ociosas**: `nextDue` justo (rotina → iniciativa → Vigia); 450 slots, 3 por persona, 0 IA quando nada venceu; tick < 200 ms.
+
+### Prova
+- `vitest` remote-teams + idle-roster 2/2
+- `vitest` edge.spec + client-cycle 5/5 (regressão)
+- `vitest` persona-sync 5/5
+- `check-pkg persona-sync` OK 8.2s
+- `tsc -p apps/persona-edge` + oxlint dos arquivos novos OK
+
+### Limitação
+Não são dois processos `PersonaHost` (o host não escuta porta; pacote fechado). Dois `SyncClient` + homes isolados (`MemorySyncLog`) + Worker local. E11 deploy blocked.
+
+### Dependências
+- **[Anvil→Atlas]** shots em `.maestri/tmp/shots/remote/index.html`
+- **[Anvil→Keel]** soak 150 no host (CPU/RAM reais + seed Lumen) depois de `JANELA ENCERRADA`
+- **[Anvil→Lumen]** getUsagePanel já no host (turno anterior); UI pode ligar
+
+### 150 no host (mesmo turno)
+`apps/persona-edge/tests/soak-150-host.spec.ts`: 150 personas, 8 ticks de 15 min, `tickProactivity`, 0 `runnerFactory`, RSS < 192 MB, handles estáveis, no máx. 1 fire/persona. vitest 1/1 em 872 ms. Sem editar host/store.
+
+### Fila
+GES/SB/`listTurnActivity` = host/store, congelados até `JANELA ENCERRADA`. E11 blocked.
+
+---
+
+## 04/11 01:56 — gate D-060 host VERDE (Keel snapshot)
+
+Keel: `usagePortKind` sem import + `usagePortWindow` sem uso. Fechei no mesmo passo: `persistTurn` usa `usagePortWindow` de persona-usage (window `exec`/`eval`); kinds canônicos ficam no `turn_ledger`.
+
+### Prova
+- `check-pkg persona-host` OK 31.5s
+- `check-pkg persona-store` OK 15.8s
+
+### Fila
+Distância local (dois hosts + wrangler) em seguida.
+
+---
+
+## 04/11 01:35 — OPT-7 ledger canônico + painel Uso (Keel/Forge OPT-1)
+
+Keel: persistir `TurnLedgerEntry` do core; `usagePortKind` só na fronteira Rivet; RPC para `foldUsagePanel`.
+
+### O que entrou
+- **v18 `turn_ledger`**: kinds canônicos `execution`/`evaluation` (CHECK recusa `exec`/`eval`). Camadas + cache read/write + ticket/conta/origem.
+- **`TurnLedgerRepos`**: `put`/`list` + `assertTurnEntry` do core.
+- Host: `recordTurnLedger` / `getUsagePanel` (= `foldUsagePanel`). `persistTurn` grava o livro e o port Rivet com `window = usagePortKind(kind)`.
+- Orquestração (talk/task medido) chama `recordLedger` — sem kinds duplicados.
+
+### Prova
+- vitest store `turn-ledger`+`open` 21/21
+- vitest host `token-opt`+`usage` 8/8
+- `check-pkg persona-store` OK · `check-pkg persona-host` OK
+- `generate-typert` 40 artifacts
+- oxlint dos arquivos novos OK
+
+### Dependências
+- **[Anvil→Rivet]** port `UsageStore` recebe `window: exec|eval` via `usagePortKind`. Livro SQLite guarda `TurnKind`. Não redefinir kinds no usage.
+- **[Anvil→Lumen]** `getUsagePanel({ workspaceId, projectId?, personaId?, period?, successfulTicketIds? })` → origin, tokensPerSuccessfulTask, byPersona, byKind, cacheHitRate. Vazio = `estimate`, não 0%. `recordTurnLedger` se o painel gravar.
+
+### Limitações
+Sem UI. Sem commit. Gate de publicação (check-pkg) verde nos três pacotes Anvil; oxlint do pacote inteiro ainda tem lixo antigo (não no gate D-060). Fila: distância local + carga 150.
+
+---
+
+## 04/11 01:15 — token-opt host/store (TOKEN-OPTIMIZATION §2)
+
+Atlas: resumo incremental, prefixo estável, lote Bibliotecário/iniciativa, pool de limites. Sem OPT-1.
+
+### O que entrou
+- **v17 `OptRepos`**: `topic_summary`, `batch_cursor`, `provider_limit_pool`
+- Assunto: fold extractivo a cada 6 msgs; compileUsed = obrigatórios + resumo + últimas 4 (não histórico bruto). Teste: constraint não some.
+- Prompt: `composeTurnPrompt` (Forge) — prefixo sistema→persona→tools→obrigatórios; mensagem/relógio fora. Snapshot de dois turnos iguais.
+- `tickLibrarianBatch` / `tickInitiativeBatch` só no que mudou (cursor).
+- `putProviderLimitReports` / `getProviderLimitPool` — `dedupeLimitAccounts` + `poolProviderLimits` (Rivet); mesma conta em 2 ambientes = 1.
+
+### Prova
+- vitest store `opt`+`open`+`gestor` + host `token-opt`+`gestor`+`chat`+`conductor`: verdes
+- `generate-typert` 40 · `check-pkg persona-host persona-store` OK
+
+### Dependências
+- **[Anvil→Rivet]** harvest T3 chama `putProviderLimitReports`. Redeem/UI = Rivet/Lumen.
+- **[Anvil→Forge]** fold do assunto é extractivo (lote barato, sem LLM). OPT-7 painel espera OPT-1.
+
+---
+
+## 04/11 00:55 — rename VERDE + BYC apply + GES-5 saúde
+
+Atlas P0: host/store alinhados a `team_manager` (não `gestor`/`maestro`). RPCs `getGestorMandate*` (nome Forge `Gestor*`). Keel avisado. Fila: `applyContextProposals` (BYC) e auditoria do Gestor em `getTeamHealth`.
+
+### Arquivos
+`persona-host/src/{index,types,governance,bring-context-apply,bring-context-walk}.ts` · `tests/{bring-context-apply,bring-context-walk,gestor}.spec.ts` · `README.md` · `contracts/lumen-rpc.md`
+
+### Prova
+- `vitest` gestor + governance + BYC apply/walk: 10+3 verdes
+- J19 export governança: verde
+- `generate-typert` 40 · `check-pkg persona-host persona-store` OK
+
+### Dependências
+- **[Anvil→Lumen]** `applyContextProposals` grava Cofre; privado = `members`. Saúde: `getTeamHealth.gestorAudit`.
+- **[Anvil→Keel]** rename VERDE (já no ask).
+
+---
+
+## 04/11 00:40 — rename Gestor (`team_manager`)
+
+Keel P1: host alinhado ao core (`TEAM_MANAGER_ROLE = 'team_manager'`). `SystemRoleView` e `toPersonaView` sem o literal antigo. Store v16 tabelas `team_manager_*`. Contrato em `lumen-rpc.md`.
+
+### Arquivos
+`persona-host/src/{types,index,gestor,orchestration}.ts` · `tests/gestor.spec.ts` · `README.md` · `persona-store/src/{migrations,gestor/repos}.ts` · `tests/open.spec.ts` · `README.md` · `contracts/lumen-rpc.md`
+
+### Prova
+- `vitest` `gestor.spec.ts` + `open.spec.ts`: 23/23
+- `generate-typert`: 40 artifacts
+- `check-pkg persona-host persona-store`: OK
+
+### Dependências
+- **[Anvil→Forge]** host/store usam `team_manager`. Core já tem `TEAM_MANAGER_ROLE`. Testes core que ainda esperam `'gestor'` no array de roles são seus.
+
+---
+
+## 04/11 00:10 — Segundo cérebro store/RPC (SB-1 / SB-4 / SB-10)
+
+BRIEFING 19. Onda 3/BYC sem fatia Anvil livre (BYC-4 espera Forge BYC-1..3). Este turno: páginas markdown + índice derivado + remotes.
+
+### 1. Store v15
+`BrainRepos` (`brain_page` + FTS5 + triggers, `brain_link`, `brain_version`, `brain_grant`). Markdown é a fonte; FTS/tipo/`[[links]]` são derivados. `putPage` sempre append de versão (pessoa ou persona). Soft-supersede só. `grant` / `revoke` / `recordUse` + `grantAllows` (escopo exato, nunca amplia). `listChangedSince` / `ensureStartHere`. `exportFolder` (mão única) / `importFolder` (slug+hash = skip). WAVE2 permanece v14.
+
+### 2. Host RPCs
+`putBrainPage` `getBrainPage` `listBrainPages` `searchBrainPages` `listBrainVersions` `restoreBrainPage` `listBrainChangedToday` `getBrainHome` `grantBrainPermission` `revokeBrainPermission` `listBrainPermissions` `useBrainPermission` `exportBrainVault` `importBrainVault`. ACL = `canReadVault` (página `persona` some do ator humano). Guest `forbidden` no write. Typert 40. `SystemRoleView` inclui `librarian` (Forge já no core).
+
+### Arquivos
+`persona-store/src/{constants,migrations,brain/repos,teach/repos,index}.ts` · `tests/{second-brain-pages,open}.spec.ts` · `README.md` · `persona-host/src/{types,brain,index}.ts` · `tests/second-brain.spec.ts` · `README.md` · `contracts/lumen-rpc.md` · `lib/typert.*`
+
+### Prova
+```
+node ./node_modules/vitest/vitest.mjs run …/second-brain-pages …/open …/second-brain → 28 OK (11.7s)
+node ./node_modules/vitest/vitest.mjs run …/second-brain-pages …/second-brain …/attention-retention → 12 OK (16.5s)
+node scripts/persona/check-pkg.mjs persona-store persona-host → OK 20.8s + 17.5s
+node --import tsx/esm scripts/generate-typert.ts → 40 artifacts (36.8s)
+```
+
+### Dependências
+- **[Anvil→Forge]** v15 = só Segundo cérebro. WAVE2 fica v14. Gate: `useBrainPermission` (alvo/persona/validade diferentes → `forbidden`). Curadoria/Bibliotecário e `brain_*` tools continuam seus.
+- **[Anvil→Lumen]** Empresa › Segundo cérebro: `getBrainHome` / `listBrainPages` / `getBrainPage` / `listBrainVersions` / `putBrainPage` / `listBrainPermissions` / `revokeBrainPermission` / `exportBrainVault`. Contrato em `lumen-rpc.md`. Lumen fora do canvas — recado no Status.
+- **[Anvil→Prism]** mesmos remotes se a tela passar pelo client.
+
+### Limitações
+Sem curadoria automática (Forge SB-2/SB-6). Sem tools de agente (Rivet SB-5). UI não ligada. App desktop não exercitado. Sem commit. Fila Anvil seguinte: BYC-4 (bloqueada) / SB-3 gate (Forge).
+
+---
+
+## 03/11 23:55 — Cofre documentos + citações + anexos visão + multi-cliente + soak
+
+Forge fechou WAVE2 RPC no host (v14 canônico, sem v15). Este turno: Cofre que lê arquivo + Contexto usado.
+
+### 1. Store
+PDF/DOCX/MD/TXT/CSV locais (sem dep nova). `detectVaultKind` recusa vazio, >8 MB (linha pt-BR) e EXE/MZ. `ingest`/`replace`/`delete` + `vault_chunk` FTS. `searchChunks` usa tokens OR (`ftsMatch`), não uma frase só — `compileUsed` acerta "Clausula do contrato".
+
+### 2. Host RPCs + citações
+`ingestVaultDocument` / `replaceVaultDocument` / `deleteVaultDocument` / `listVaultDocuments` / `searchVaultDocuments`. Hits trazem `title` + `locator` (página/seção). `compileUsed` anexa `kind: 'document'` no Contexto usado; ACL `canReadVault` (visibilidade persona some do ator humano e de outra persona). Typert 40.
+
+### 3. Anexos
+`MediaHost.stageForRunner(hasVision)`: imagem vira bytes se `capabilities().vision === true`; senão `inputs/` read-only. Talk encaminha o flag; worktree de review fica no caminho arquivo (seguro).
+
+### 4. Multi-cliente + soak
+Dois `followMessages` + `getProjectBoard` no mesmo workspace: 1 mensagem, cards por `ticketId` sem duplicata. 10 personas idle × 12 ticks de 5 min: 0 chamadas AI, rss/handles estáveis.
+
+### Arquivos
+`persona-store/src/vault/{extract,chunk,samples,repos}.ts` · `migrations` v13+v14 · `tests/vault-ingest.spec.ts` · `persona-host/src/{vault-docs,media,orchestration,index,types}.ts` · `tests/{vault-docs,attachments,multi-client,host-soak}.spec.ts` · `contracts/{lumen-rpc,attachments}.md` · `lib/typert.*`
+
+### Prova
+```
+pnpm exec vitest run …/vault-ingest …/vault …/open → 47 OK
+pnpm exec vitest run …/vault-docs → 4 OK
+pnpm exec vitest run …/attachments → 9 OK
+pnpm exec vitest run …/multi-client → 1 OK
+pnpm exec vitest run …/host-soak → 1 OK
+pnpm exec vitest run …/wave2 …/j05-cofre → 5 OK
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (68.5s)
+```
+
+### Dependências
+- **[Anvil→Lumen]** Conhecimento/Cofre: `ingest/replace/delete/list/searchVaultDocuments`; citações `listUsedContext`/`getTurnContext` com `title`+`locator` em `kind: 'document'`.
+- **[Anvil→Prism]** mesmos remotes se o upload/cite passar pelo client; `followMessages` já converge dois clientes.
+- **[Anvil→Forge]** OK — v14 permanece canônico. Não toquei WAVE2 RPC.
+
+### Limitações
+PDF = Tj/TJ + FlateDecode; DOCX = ZIP + `w:t`. Sem dep de parser. Visão só se o runner anunciar `vision` (DSH hoje não). Doc `persona` some da UI humana (`canReadVault`). App desktop não exercitado (só host). Sem commit.
+
+---
+
+## 03/11 22:29 — acceptWorkflowProposal + Conversa PB-5 (Atlas)
+
+Leftovers do turno 22:17 já no fio. Este turno: RPCs Lumen + lado host da Conversa.
+
+### 1. Proposta de fluxo
+`acceptWorkflowProposal({ columns, fields, destByRemoved?, template? })` — único `save` do cartão; `template` do cartão ou prefixo das colunas. `rejectWorkflowProposal(scope)` devolve o fluxo atual, store intacto. Guest `forbidden`.
+
+### 2. PB-5 Conversa (host)
+`getProjectConversation(scope)` → `{ projectId, channelId, name }`. `createProject` cria `#geral` (`id` = `geral:<projectId>`). Pessoal reusa `geral` se já existir.
+
+### 3. Dogfood
+Padaria DF-001..008: nenhum dono Anvil (Prism/Lumen/Muse/Forge). Sem edição.
+
+### Arquivos
+`persona-host/src/{index,types,boards}.ts` · `tests/{boards,j16-propose-flow,persona-card}.spec.ts` · `contracts/{project-boards-remote,lumen-rpc,ui-shell}.md`
+
+### Prova
+```
+pnpm exec vitest run …/boards …/j16-propose-flow …/persona-card …/preroute → 22 OK
+node scripts/persona/check-pkg.mjs persona-host → OK 52.9s
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (96.5s)
+```
+
+### Dependências
+- **[Anvil→Lumen]** trocar o aceite provisório (`updateWorkflow`) por `acceptWorkflowProposal`; recusa = `rejectWorkflowProposal`.
+- **[Anvil→Prism]** aba Conversa: `getProjectConversation` → abrir `channelId` (não o `#geral` do Pessoal).
+- E11 blocked. Sem commit.
+
+---
+
+## 03/11 22:17 — Sessão nova: fila Atlas 21:50 ok + leftovers host
+
+Maestri reiniciou. Fila Atlas (RPC share/insights + generate-typert + dogfood host/store + endurecimento) já estava no fio das 21:50. Confirmei e encadeei leftovers.
+
+### 1. Fila Atlas — já no código
+Share/insights/skills CLI, modo seguro, `restoreBackup`/`getStoreHealth`, anexo 8 MB. Padaria Lua: DF-001 Prism, DF-002 Forge — nenhum bug host/store.
+
+### 2. `/pausar` / `/retomar`
+Dono pausa a Coordenação (ou @nome). Mesma linha `persona_runtime` do cartão. Sem conversa/tarefa até `/retomar`. Membro continua recusado. Comando lido do texto (não de `lastRoute` velho).
+
+### 3. X-4 + cartão
+`pollExternal` passa `budget` (cap 4) a telegram/slack/discord/caldav/email. Tempestade 20 polls telegram: 4 fetch. `getPersonaCard` usa `quotaCardMeters` (ausente ≠ 0%).
+
+### Arquivos
+`persona-host/src/{orchestration,index,external-sources,persona-card}.ts` · `tests/{preroute,external-sources}.spec.ts`
+
+### Prova
+```
+pnpm exec vitest run …/preroute …/external-sources …/persona-card → 19 OK
+pnpm exec vitest run …/share-insights …/attachments …/lifecycle …/recovery → 19 OK
+node scripts/persona/check-pkg.mjs persona-host → OK 15.7s
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (39.1s)
+```
+
+### Dependências
+- **[Anvil→Lumen]** RPCs share/insights prontos (`lumen-rpc.md`). `acceptWorkflowProposal` = alias de `updateWorkflow` (já no fallback do Lumen).
+- E11 Cloudflare: blocked (Atlas).
+- Fila PLAN Anvil **vazia** (B7/GOV-5 no fio; Keel marca `done`).
+
+Sem commit.
+
+---
+
+## 03/11 21:50 — RPC share/insights + endurecimento (Atlas)
+
+Fila Atlas encadeada: (1) contratos Forge 21:45 (2) Padaria Lua — nenhum bug host/store chegou (3) endurecimento. Um host/teste pesado por vez. Sem commit.
+
+### 1. Share + skills CLI
+`exportPersona` / `importPersona` / `exportTeam` / `importTeam` / `previewCliSkills` / `proposeCliSkills`.
+
+Import cria proposta `hire` **pending** — nunca aplica. Skills CLI = `origin: learned`, `enabled: false`. Segredo → `SECRET_REFUSED` / `IMPORT_REFUSED`.
+
+### 2. Insights locais
+Dobra onboarding, mensagens de persona/runner, tickets `completed`/`merged`, aprovações `approved`. Sem telemetria.
+
+`getActivationFunnel` · `getPersonaImpact` · `listPersonaImpact` — **só dono**.
+
+### 3. Endurecimento
+- Corrupto + backup → restaura (já existia).
+- Corrupto sem backup → **modo seguro** (quarentena + banco vazio + mensagem). Arquivo alienígena com tabelas ainda recusa.
+- `restoreBackup({ filename })` + `getStoreHealth()`.
+- Migrações v1→v12 + rollback de falha (suíte existente + `recovery.spec.ts`).
+- Anexo/avatar/arquivo > limite → linha pt-BR (`Este anexo tem N MB. O limite é 8 MB.`).
+
+### Arquivos
+`persona-host/src/{index,types,auth,screens,share-remote,insights-fold,media,media-detect,files}.ts` · `tests/{share-insights,lifecycle,attachments,files}.spec.ts` · `persona-store/src/{store,events/repos}.ts` · `tests/recovery.spec.ts` · `persona-spec/contracts/lumen-rpc.md`
+
+### Prova
+```
+pnpm exec vitest run …/recovery.spec.ts …/migrate-fixtures.spec.ts …/open.spec.ts → 27 OK
+pnpm exec vitest run …/share-insights.spec.ts …/lifecycle.spec.ts …/attachments.spec.ts …/files.spec.ts → 20 OK
+pnpm exec vitest run …/remote-acl.spec.ts → 2 OK
+node scripts/persona/check-pkg.mjs persona-store → OK 9.0s
+node scripts/persona/check-pkg.mjs persona-host → OK 17.5s
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (39.1s)
+```
+
+### Dependências
+- **[Anvil→Lumen/Prism]** RPCs prontos: share (`exportPersona`/`importPersona`/`exportTeam`/`importTeam`/`previewCliSkills`/`proposeCliSkills`) e insights (`getActivationFunnel`/`getPersonaImpact`/`listPersonaImpact`). Contrato `lumen-rpc.md` + `share.md`/`insights.md`. Lumen não está no canvas.
+- **[Anvil→Forge]** nenhum bug Padaria Lua chegou. Pronto para o próximo.
+- E11 Cloudflare: blocked (Atlas).
+
+Fila Atlas desta rodada **fechada** (item 2 sem material). Sem commit.
+
+---
+
+## 03/11 21:27 — Escala + chat rico + Cloudflare dry-run (Atlas)
+
+Fila Atlas encadeada. Um host/teste pesado por vez. Sem login/deploy. Sem commit.
+
+### 1. Escala
+Workspace sintético 10 projetos / 30 personas / 10k msgs / 1k tarefas (SQL bulk, sem ingest). Índice `event_stream_alive_seq`, `checkpointWal` (`PRAGMA wal_checkpoint(TRUNCATE)`), `listMessages` paginado (50).
+
+**Números (depois; arquivo WAL, 12 amostras):**
+
+| RPC | p95 |
+|---|---|
+| `listMessages` (páginas 50) | **39.6 ms** |
+| `search` FTS (`needle`) | **16.5 ms** |
+| `listTasks` (~100 no 1º projeto) | **25.5 ms** |
+| `listPersonas` | **8.0 ms** |
+| baseline 1ª página | 13.2 ms |
+| seed | 2.55 s |
+| heap Δ | +5 MB |
+| checkpoint | busy 0 |
+
+Antes: sem suíte; stream sem partial index; sem RPC de checkpoint. Depois: p95 << 100 ms, heap estável.
+
+### 2. Chat rico (schema v12)
+Reações (catálogo Brush), reply (`replyToId`), pin, edit/apagar própria + audit, `suggestMentions` com talk ACL.
+
+RPCs: `listStickers` · `reactToMessage` · `unreactToMessage` · `replyToMessage` · `pinMessage` · `unpinMessage` · `listPinned` · `editMessage` · `deleteMessage` · `listMessageAudit` · `suggestMentions` · `checkpointWal`.
+
+### 3. Cloudflare (sem conta)
+`wrangler.toml` completo (DO, D1, R2, vars, secrets documentados). `migrations/0001_init.sql`. `persona-spec/CLOUDFLARE-DEPLOY.md` (passos + custo: DO exige Workers Paid ~US$ 5/mês; D1/R2 cabem no free).
+
+`wrangler deploy --dry-run --outdir .wrangler/dry` → exit 0 (594.99 KiB / gzip 91.99 KiB). Pasta dry apagada. Sem login.
+
+### Arquivos
+`persona-store/src/{constants,migrations,store,events/repos,scale/seed,index}.ts` · `tests/{open,chat-scale}.spec.ts` · `persona-host/src/{index,types,auth,stickers}.ts` · `tests/{chat,scale}.spec.ts` · `apps/persona-edge/{wrangler.toml,README.md}` · `persona-spec/{CLOUDFLARE-DEPLOY.md,contracts/lumen-rpc.md,reports/anvil.md}`
+
+### Prova
+```
+pnpm exec vitest run …/open.spec.ts …/chat-scale.spec.ts → 22 OK
+pnpm exec vitest run …/chat.spec.ts → 4 OK
+pnpm exec vitest run …/scale.spec.ts → 1 OK (p95 acima)
+node scripts/persona/check-pkg.mjs persona-host persona-store → host 20.9s / store 10.3s
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (56.4s)
+cd apps/persona-edge && pnpm exec wrangler deploy --dry-run --outdir .wrangler/dry → exit 0
+```
+
+### Dependências
+- **[Anvil→Muse]** `listStickers` ids = Brush (`stamp-aprovado`, `tray-*`, `nav-saude`, `nav-quem-cuida`). Combinar com `ReactionAdder`.
+- **[Anvil→Keel]** schema v12; PLAN E11 continua blocked até login do Atlas.
+- E11 deploy real: só Atlas.
+
+Fila Atlas desta rodada **fechada**. Sem commit.
+
+---
+
+## 03/11 21:01 — Engine.preRoute no ProjectRuntime (Forge 20:50)
+
+Vigia: executei o próximo (Forge→Anvil ligar `Engine.preRoute`). Não reescrevi regras do Forge.
+
+### Fio
+`ProjectRuntime` passa `preRoute` ao `Engine`. `ingest` curto-circuita cortesia/silêncio/duplicado/comando recusado (sem Tarefa). `@menção` escolhe a falante e cai no triage (`action: model`) — não auto-aceita Tarefa.
+
+### Portas reais (não stub)
+- `personas` = roster do projeto
+- `budgetLeft` = slot de `ExecutionBudget` + `tokenBudget`/`executionBudget` da Coordenação
+- `silenceUntil` = janela da Coordenação (`silenceUntilOf`)
+- `canCommand` = guest/desconhecido recusa; `/tarefa` member+owner; `/pausar` `/retomar` só owner
+
+### Persistência
+Janela de duplicados em `screen_doc` kind `preroute_window` (80 mais novas). Runtime novo recarrega.
+
+### Arquivos
+`persona-host/src/{orchestration.ts,proactivity.ts}` · `tests/{preroute.spec.ts,proactivity.spec.ts}`
+
+### Prova
+```
+pnpm exec vitest run …/preroute.spec.ts …/proactivity.spec.ts
+→ 2 files / 17 tests OK
+pnpm exec vitest run …/e2e-flows.spec.ts …/j07-budget.spec.ts …/external-sources.spec.ts …/attention-retention.spec.ts
+→ 4 files / 16 tests OK
+node scripts/persona/check-pkg.mjs persona-host → OK 17.1s
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (90.5s)
+```
+
+### Dependências
+- **[Anvil→Keel]** PLAN: GOV-5 e B7 podem `done` (já no fio).
+- **[Anvil→Rivet]** `ackAttention` + `attentionEvents` para toasts (turno 20:49).
+- E11 Cloudflare: blocked (Atlas). `/pausar` `/retomar` ainda não chamam `pausePersona` (só recusam Tarefa).
+
+Fila Anvil do PLAN **vazia** (E11 blocked). Sem commit.
+
+---
+
+## 03/11 20:49 — X-3 Cofre + GOV retenção + ackAttention (Vigia)
+
+Fila Anvil do PLAN encadeada: B7 já no fio (MutantRunBook + 2 specs; PLAN ainda `todo` — Keel). GOV-5 export/sync já no turno anterior. Este turno fecha leftovers Anvil.
+
+### X-3 `vault.get`
+`CofreSecretVault` lê `VaultRepos.findActiveFact(project, provider)` (`telegram`/`slack`/…). Sem token ⇒ skip. Token nunca no view. Host constrói o vault; testes ainda injetam Map.
+
+### GOV-5 retenção
+`pruneAudit(workspace, keep=200)` no tick de retenção (por workspace do projeto). Setores/away/rotinas não apagam.
+
+### Notificações (Rivet toasts)
+`ackAttention({ eventIds })` — ids saem do próximo `attentionEvents` baseline.
+
+### Prova
+```
+pnpm exec vitest run …/governance.spec.ts …/external-sources.spec.ts …/attention-retention.spec.ts …/remote-acl.spec.ts
+→ 4 files / 13 tests OK
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (55.2s)
+node scripts/persona/check-pkg.mjs persona-host persona-store → host 31.8s / store 9.4s OK
+```
+
+### Dependências
+- **[Anvil→Rivet]** `ackAttention` + `attentionEvents` para toasts desktop.
+- **[Anvil→Keel]** PLAN: GOV-5 pode `done`; B7 pode `done`.
+- E11 Cloudflare: blocked (Atlas). persona-vault DPAPI (Rivet) não ligado — Cofre da empresa cobre o host.
+
+Fila Anvil **vazia** no PLAN (E11 blocked). Sem commit.
+
+---
+
+## 03/11 20:40 — GOV-5 export/sync + exclusão/backup (CORTADO, files soltos)
+
+Forge soltou `index.ts` / `types.ts` / `migrations.ts`. Não reescrevi v11 remotes, card, sync client, edge, retention, scheduler, nem X-3 (`pollExternal`/`replyExternal`/`bindSprintGoal`/`queda`).
+
+### Dados — backup e exclusão
+- Store: `backupNow()` / `listBackups()`; `wipeWorkspace` / `wipeProject` (FK off, órfãos de blob).
+- Remote: `backupNow` · `listBackups` · `deleteWorkspace({confirmed})` · `deleteSharedProject({confirmed})`. Dono + confirm. Pessoal recusado. ACL_EXCEPTIONS só nos backups locais.
+
+### GOV-5 export/import/sync (workspace; DM não)
+- `SqliteGovernanceRepos.snapshot` / `restore` (idempotente).
+- Zip: `governanca.md` (setores, disponibilidade, rotinas, auditoria). Envelope `gov:<ws>` `classification: workspace` sobe; DM recusado.
+- Import markdown `governanca.md` não duplica (`md:governanca.md`).
+
+### Arquivos
+`persona-store/src/{store.ts,lifecycle/wipe.ts,governance/repos.ts,index.ts,README.md}` · `tests/{lifecycle,governance}.spec.ts` · `persona-host/src/{index.ts,types.ts,auth.ts,export-md.ts}` · `tests/{lifecycle,remote-acl}.spec.ts` · `tests/journeys/j19-gov-export.spec.ts` · `persona-spec/contracts/{lumen-rpc,governance}.md`
+
+### Prova
+```
+pnpm exec vitest run …/lifecycle.spec.ts …/governance.spec.ts …/remote-acl.spec.ts …/j19-gov-export.spec.ts …/export.spec.ts …/j18-board-export.spec.ts
+→ 7 files / 17 tests OK
+node scripts/persona/check-pkg.mjs persona-host persona-store
+→ host OK 15.3s · store OK 7.0s
+pnpm exec tsx scripts/generate-typert.ts → 40 artifacts (67.3s) após remotes de exclusão
+```
+
+Keel 20:39 `export-md.ts` TS1005 era mid-edit; arquivo fecha agora (check-pkg verde).
+
+### Limitações
+- `backupNow` recusa `:memory:`.
+- Wipe de avatar órfão usa `json_extract(avatar_json)`.
+- Retention de governança não tem política própria (dump viaja no export/sync).
+- Equipes à distância local / toasts desktop: Rivet; E5–E7 já no fio.
+
+Fila: distância/notif só se sobrar gap; senão próxima do PLAN. Sem commit.
+
+---
+
+## 03/11 20:23 — Handoff Forge GOV-5/X-3 (Atlas)
+
+Forge assume **temporariamente** GOV-5 + X-3 host. Confirmado via `maestri ask`.
+
+**Forge toca:** `store/src/governance/**`, `migrations.ts` (v11 já no fio), `host/src/governance.ts`, `index.ts` só GOV+X-3+startSprint, `types.ts` só GOV/X-3, `boards.ts` (bindSprintGoal), `tests/governance.spec.ts`, arquivo novo `external-sources.ts`.
+
+**Anvil não abre:** `persona-card.ts` + spec/contrato; `persona-sync/**`; `apps/persona-edge/**`; `export-md.ts`; `retention/**`; `scheduler.ts`. Fora de `index.ts`/`types.ts`/`migrations.ts` até Forge avisar «soltos».
+
+Cartão Muse já no fio. Fila Anvil: equipes à distância local, notificações, export/backup/exclusão. Sem código até SNAPSHOT CORTADO. Contexto alto — estado salvo aqui.
+
+---
+
+## 03/11 20:16 — VERDE snapshot (GOV-5 no caminho do build)
+
+Keel snapshot curto. Edição em curso (GOV-5) fechada o bastante para typecheck: schema v11 + remotes Lumen no host. Sem arquivo novo depois do pedido.
+
+### Já no fio (buildável)
+
+Store v11: `sector`, `away_window`, `routine_charge`, `governance_delegate`, `governance_audit`; backfill charge = dono. Remote: `getOrgChart` / `getTeamHealth` / `runTwoDayTest` / `applyFix` / `applyGovernanceFix` / `setResponsible` / `setSubstitute` / `setSector` / `setAvailability` / `setPersonaGovernance` / `recommendStructure` / `applyStructure` / `listAudit`. Views = `governance-contract.ts`.
+
+### Pendente pós-CORTADO
+
+Export/sync workspace (DM não); suíte de queda abortada; X-3 host (`replyTelegram`/`replyEmail` + poll).
+
+### Prova
+
+```
+pnpm exec vitest run …/persona-store/tests/governance.spec.ts …/open.spec.ts …/persona-host/tests/governance.spec.ts …/persona-card.spec.ts
+ Test Files  4 passed
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 30.8s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 13.1s
+persona-store: OK in 6.3s
+```
+
+Parado até SNAPSHOT CORTADO.
+
+---
+
+## 03/11 21:20 — Cartão Muse (getPersonaCard + talk ACL + pause/engine)
+
+Pedido Keel/Muse: cartão com dado real para o Prism montar. Sem schema bump (v10 speak/charge + `screen_doc` para pausa/auditoria).
+
+### Remote
+
+- `getPersonaCard` → `{ handle, systemRoles, nowKind, nowText, presence {online,lastActiveAt}, engine {runnerLabel,modelLabel}, sectorName?, ownerName?, substituteName?, currentProjectName?, quota? }`. `nowKind`: working|reviewing|waiting-approval|waiting-reply|quota|resting|stuck|offline. `nowText` derivado (Assignment/Attention/quota/ociosidade/pausa). `quota` de `getOfficialQuota`/`accountUsage`; **ausente = indisponível, nunca 0**.
+- `getPersonaTalkAcl` / `setPersonaTalkAcl` → `{ mode: 'workspace'|'chosen', principals: [{kind,id,name}] }`. Store interno `everyone`/`members`.
+- `pausePersona` / `resumePersona` / `setPersonaEngine` / `putPersonaCharge` — responsável ou dono; auditoria `persona_audit`.
+
+ACL no servidor: `createDm` e `@menção` recusam pt-BR (`Esta persona só conversa com quem o responsável escolheu.`), nunca silêncio. Dono e responsável sempre podem. Charge ausente → nomes omitidos.
+
+Contrato: `persona-spec/contracts/{lumen-rpc.md,persona-card.md}`.
+
+### Prova
+
+```
+pnpm exec vitest run …/persona-card.spec.ts
+ Test Files  1 passed
+      Tests  5 passed
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 56.4s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 23.3s
+persona-store: OK in 9.1s
+```
+
+[Anvil→Muse] getPersonaCard, getPersonaTalkAcl, setPersonaTalkAcl, pausePersona, resumePersona, setPersonaEngine.
+
+Próximo: GOV-5 (organograma / Saúde / 2 dias / estrutura) sem sujar este snapshot.
+
+---
+
+## 03/11 20:16 — Snapshot verde: J14/J18 + anexos/avatar (Keel)
+
+### J12–J18 (Forge)
+
+1. Canal sem stream não é `forbidden`. `EventRepos.list`/`recall` devolvem página vazia; `exportMarkdown` captura `StoreError` e exporta o canal vazio. Repro J18 sem `sayOn`.
+2. `mapBoardError` → `BoardRemoteError` (`code` estável + `message` pt-BR). Remover coluna com Tarefa sem destino = `column-needs-destination` («Escolha um destino…»), nunca `INVALID_WORKFLOW` no fio.
+
+### Anexos + avatar
+
+Store v9: `blob_object`, `attachment`. Disco: `<PERSONA_HOME>/attachments/<projectId>/<hash>` e `/avatars/<hash>`. Magic bytes; SVG/HTML/exe recusados; nome higienizado; cota; `looksLikeCredential` = aviso. HTTP `GET /api/persona/media?kind=&id=` (`kind: 'exact'`), `nosniff`, `Content-Type` fixo, `Content-Disposition` seguro. ACL no servidor (DM = participantes). Runner: `inputs/` + «Anexos: nome» no prompt. Avatar PNG/JPEG/WebP ≤2 MB; troca/remoção sem órfão.
+
+Remote: `attachFile` · `listAttachments` · `getAttachment` · `getAttachmentBytes` · `uploadPersonaAvatar` · `removePersonaAvatar`. `postMessage.attachmentIds`. Contrato: `persona-spec/contracts/attachments.md`.
+
+### Prova
+
+```
+pnpm exec vitest run …/journeys …/boards.spec.ts …/attachments.spec.ts …/export.spec.ts …/events.spec.ts …/open.spec.ts
+ Test Files  23 passed
+      Tests  74 passed
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 47.9s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 18.7s
+persona-store: OK in 9.6s
+```
+
+```
+pnpm exec vitest run …/attachments.spec.ts
+ Test Files  1 passed
+      Tests  7 passed
+```
+
+[Anvil→Prism] composer: `attachFile` / `listAttachments` / `getAttachment` / `getAttachmentBytes` + `postMessage.attachmentIds`. Editor: `uploadPersonaAvatar` / `removePersonaAvatar`. Flags `PERSONA_MESSAGE_ATTACHMENTS_HOST_READY` / `PERSONA_AVATAR_UPLOAD_HOST_READY`.
+
+Próximo: GOV-5 (store/RPC governança) após este snapshot.
+
+---
+
+## 03/11 19:12 — PB-4 Quadros (PROJECT-BOARDS / Atlas)
+
+Pedido Miguel: fluxo e sprints **por projeto**. Host/store já tinham v8; este turno fecha o aceite do Remote.
+
+### Persistência
+
+`user_version` 8: `project_workflow`, `workflow_column`, `workflow_field`, `sprint`, `sprint_ticket`, `ticket_seat`. v7→v8 preserva `engine_ticket`. `SqliteBoardRepos.snapshot`/`restore` (projeto; DM não). Crash: save abortado mantém o fluxo anterior. `deleteSprint` zera `seat.sprintId`.
+
+### Remote
+
+`listWorkflowTemplates` · `getProjectBoard` · `listBoards` (contagem por categoria, sprint atual, `workingNow`) · `createProject({ template? })` · `createWorkflowFromTemplate` · `updateWorkflow` (destino obrigatório) · `moveTicket` · CRUD sprint (`create`/`update`/`delete`/`list`) · `planSprint` · `startSprint` · `closeSprint` (`confirmed`; marco no 1º canal do projeto) · `sprintSummary` · `proposeWorkflow` (nunca grava). ACL: leitura `can(read, project)`; mutação `can(write, project)`.
+
+### Prova
+
+Contratação e Site: colunas diferentes; Tarefa de um não aparece no outro. Editar fluxo sem perder Tarefa. Encerrar sprint posta «Sprint S1…» no canal.
+
+```
+pnpm exec vitest run …/persona-store/tests/board.spec.ts …/persona-host/tests/boards.spec.ts …/journeys/j16-propose-flow.spec.ts
+ Test Files  2+1 passed
+      Tests  8 + J16
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 43.3s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 12.6s
+persona-store: OK in 6.8s
+```
+
+[Anvil→Lumen] `lumen-rpc.md` Quadros. [Anvil→Probe] j16 + isolation no host. Fila Anvil exclusiva: vazia.
+
+---
+
+## 03/11 19:40 — Voz da Coordenação + PB-4 Quadros (v8)
+
+### 1. #geral robótico (Atlas)
+
+Captura real: «Recebido. Vou encaminhar.» + eco da mensagem + «: recebido.»
+
+Host agora:
+
+- `coordinationHandoff` / `summarizeWork` — quem faz o quê e quando volta (`Bento assume o README. Te chamo na revisão…`). Palavras-chave, **nunca** cita o texto da pessoa.
+- `streamAck` só entrega o outbox (sem placeholder). Sem `digitando`.
+- Pedido simples (`wantsWork` falso) → resposta direta (`SCRIPTED_HELLO` / runner de talk).
+- Prompt de talk: `nunca ecoe…; sem placeholders; pedido simples responde direto`.
+- `recoverTalks` após crash: speaker = menção ?? DM ?? coordenação.
+- `postAs` ignora `StoreError` `constraint`/`not-open` (resto de wipe de teste).
+
+Prompts de modelo (`composeTalkPrompt` / `replies` no engine, `coordinationPrompt` no Rivet) ficam com Forge/Rivet. Host não ecoa mais sozinho.
+
+### 2. PB-4 — store v8 + Remote
+
+Migração adjacente v7→v8: `project_workflow`, `workflow_column`, `workflow_field`, `sprint`, `sprint_ticket`, `ticket_seat`. `SqliteBoardRepos` (fluxo, assentos, sprints, `snapshot`/`restore`). Fluxo e sprint são do projeto (sync `classification: project`); DM não sobe. Export Markdown inclui `fluxo.md` / `sprints.md`.
+
+Remote (ACL no servidor): `getProjectBoard`, `listBoards`, `createWorkflowFromTemplate`, `updateWorkflow`, `moveTicket`, `listSprints`, `createSprint`, `planSprint`, `startSprint`, `closeSprint`, `sprintSummary`, `proposeWorkflow` (cartão; **nunca aplica sozinho**). Contrato em `persona-spec/contracts/lumen-rpc.md`.
+
+### 3. Quality-core (fila anterior, ainda sem drop próprio)
+
+Host compartilhado + wipe (sem FTS) + `it` 60 s; shuffle seeds 1/17/42/99/2026 5/5. Store crash suite + effects/outbox. `HostPermissionMode` + generate-typert. CLI nunca `prompt` (D-052). Sem mais CLI real.
+
+### Arquivos
+
+- `packages/persona/persona-host/src/{orchestration,boards,index,types,export-md}.ts`
+- `packages/persona/persona-host/tests/{conductor,e2e-flows,talk-voice,boards}.spec.ts`
+- `packages/persona/persona-store/src/{constants,migrations,board/repos,index}.ts`
+- `packages/persona/persona-store/tests/{board,open}.spec.ts`
+- `persona-spec/contracts/lumen-rpc.md`
+
+### Comandos
+
+```
+pnpm exec vitest run …/conductor …/e2e-flows …/orchestration …/talk-voice
+ Test Files  4 passed (4)
+      Tests  28 passed (28)
+```
+
+```
+pnpm exec vitest run …/persona-store/tests/board.spec.ts …/persona-host/tests/boards.spec.ts
+ Test Files  2 passed (2)
+      Tests  7 passed (7)
+```
+
+```
+pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 37.2s
+```
+
+```
+node scripts/persona/check-pkg.mjs persona-host persona-store
+persona-host: OK in 14.3s
+persona-store: OK in 7.5s
+```
+
+### Limitações
+
+- Sem mais CLI real (orçamento). Prova de voz no app = Probe.
+- `proposeWorkflow` é keyword/JSON sujo (Forge PB-3); Remote não grava até o aceite.
+- RetentionKind do engine não tem `workflow` — dump via `snapshot`/`restore` + export MD.
+- Fila Anvil exclusiva no PLAN: vazia (PB-4 feito; B7/C8/PRO-2 já aceitos). [Anvil→Lumen] Quadros Remote pronto.
+
+---
+
 ## 03/11 18:10 — 1ª resposta real (BANANA) + CLI never prompt + perf + fluxos
 
 ### 1. Prova no canal + SQLite (não é o welcome)

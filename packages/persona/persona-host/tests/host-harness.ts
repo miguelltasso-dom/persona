@@ -5,6 +5,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import { afterAll, afterEach, beforeAll, it as baseIt } from 'vitest'
+import { CofreSecretVault } from '../src/cofre-secrets.ts'
 import PersonaHost from '../src/index.ts'
 import type { HostRunnerFactory } from '../src/runner.ts'
 
@@ -110,4 +111,7 @@ export function resetHost(host: PersonaHost, clock: string = CLOCK): void {
   host.scheduler.armed.clear()
   host.scheduler.lastReadyMs = 0
   host.connections.reset()
+  host.boards.goals.clear()
+  host.external.reset()
+  host.external.secrets = new CofreSecretVault(host.vault, host.product)
 }

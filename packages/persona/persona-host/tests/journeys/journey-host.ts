@@ -111,12 +111,84 @@ export function seedJourney(
   h.createChannel({ id: 'geral', workspaceId: 'ws', projectId: 'pp', name: 'geral', topic: '' })
 }
 
+/** `#geral` channel id for a project (`geral` on Pessoal; `geral:<projectId>` after createProject). */
+export function geralChannelId(h: PersonaHost, projectId: string): string {
+  const channels = h.listChannels({ workspaceId: 'ws', projectId })
+  const row = channels.find(channel => channel.name === 'geral')
+  if (row === undefined) throw new Error(`missing #geral for project ${projectId}`)
+  return row.id
+}
+
 /**
- * Human line on #geral.
+ * Second project on the same workspace (owner already exists).
  * @param h - Host.
+ * @param project - Id, name, optional flow template and team.
+ */
+export function seedProject(
+  h: PersonaHost,
+  project: {
+    id: string
+    name: string
+    template?: 'contratacao' | 'site' | 'software' | 'marketing' | 'atendimento' | 'simples' | 'em_branco'
+    team?: ReadonlyArray<{
+      id: string
+      name: string
+      title: string
+      coordination?: boolean
+    }>
+  },
+): void {
+  h.createProject({
+    id: project.id, workspaceId: 'ws', name: project.name, description: project.name,
+  })
+  for (const row of project.team ?? []) {
+    h.createPersona({
+      workspaceId: 'ws',
+      projectId: project.id,
+      id: row.id,
+      name: row.name,
+      title: row.title,
+      description: row.title,
+      personality: 'Clara.',
+      instructions: 'Ajude.',
+      avatarKind: 'gallery',
+      avatarRef: row.name.toLowerCase(),
+      runnerKind: 'dsh',
+      runnerCli: '',
+      runnerModel: 'm',
+      canRecruit: true,
+      createdBy: 'ana',
+      ...(row.coordination === true ? { systemRoles: ['coordination'] as const } : {}),
+    })
+  }
+  if (project.template !== undefined) {
+    h.createWorkflowFromTemplate({
+      workspaceId: 'ws', projectId: project.id, template: project.template,
+    })
+  }
+}
+
+/**
+ * Human line on a project channel.
+ * @param h - Host.
+ * @param projectId - Tenant.
  * @param id - Event id.
  * @param body - Text.
  */
+export function sayOn(h: PersonaHost, projectId: string, id: string, body: string): void {
+  h.postMessage({
+    id,
+    workspaceId: 'ws',
+    projectId,
+    streamKind: 'channel',
+    ownerId: geralChannelId(h, projectId),
+    body,
+    actorId: 'ana',
+    subjectId: id,
+    occurredAt: CLOCK,
+  })
+}
+
 export function say(h: PersonaHost, id: string, body: string): void {
   h.postMessage({
     id,

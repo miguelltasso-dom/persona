@@ -5,7 +5,16 @@
 
 import { deflateRawSync, inflateRawSync } from 'node:zlib'
 import { looksLikeCredential } from '@deepseek-ai/dsh-persona-core'
-import type { EventRepos, ProductRepos, VaultRepos } from '@deepseek-ai/dsh-persona-store'
+import {
+  StoreError,
+  type EventRepos,
+  type GovernanceDump,
+  type ProductRepos,
+  TopicRepos,
+  type SqliteBoardRepos,
+  type SqliteGovernanceRepos,
+  type VaultRepos,
+} from '@deepseek-ai/dsh-persona-store'
 
 /** Who and what to pack. */
 export interface ExportRequest {
@@ -26,6 +35,9 @@ export interface ExportArchive {
  * @param events - Channel (and optional DM) streams.
  * @param vault - Readable Cofre files.
  * @param request - Scope + optional DM ids.
+ * @param actorId - Session actor.
+ * @param board - Optional project flows/sprints (shared; never DMs).
+ * @param gov - Optional workspace governance (shared; never DMs).
  */
 export function exportMarkdown(
   product: ProductRepos,
@@ -33,6 +45,8 @@ export function exportMarkdown(
   vault: VaultRepos,
   request: ExportRequest,
   actorId: string,
+  board?: SqliteBoardRepos,
+  gov?: SqliteGovernanceRepos,
 ): ExportArchive {
   const files = new Map<string, string>()
   const projects = request.projectId === undefined
@@ -40,22 +54,48 @@ export function exportMarkdown(
     : [product.getProject(request.projectId)].filter((item): item is NonNullable<typeof item> => item !== undefined)
   const allowedDm = new Set(request.includeDmIds ?? [])
   files.set('README.md', redact(`# Persona\n\nExportado em ${new Date().toISOString()}\n`))
+  if (gov !== undefined) {
+    const dump = gov.snapshot(request.workspaceId)
+    files.set('governanca.md', redact(renderGovernance(dump)))
+  }
   for (const project of projects) {
     const prefix = `${slug(project.name)}/`
     files.set(`${prefix}projeto.md`, redact(`# ${project.name}\n\n${project.description}\n`))
+    if (board !== undefined) {
+      const flow = board.get(project.id)
+      if (flow !== undefined) {
+        const cols = flow.columns.map(column => `- ${column.name} (${column.category})`).join('\n')
+        files.set(`${prefix}fluxo.md`, redact(`# Fluxo ${flow.template}\n\n${cols}\n`))
+      }
+      const sprints = board.listSprints(project.id)
+      if (sprints.length > 0) {
+        files.set(
+          `${prefix}sprints.md`,
+          redact(sprints.map(row => `- ${row.name} (${row.status}): ${row.objective}`).join('\n')),
+        )
+      }
+    }
     const personas = product.listPersonas(project.id)
     files.set(
       `${prefix}equipe.md`,
       redact(personas.map(persona => `- ${persona.name} — ${persona.title}`).join('\n') || '- (vazia)'),
     )
+    const topics = new TopicRepos(vault.store)
     for (const channel of product.listChannels(project.id)) {
-      const page = events.list(`channel:${channel.id}`, { id: actorId }, 0, 200)
+      const page = listExport(events, `channel:${channel.id}`, actorId)
       const body = page.events.map(item => `- ${item.occurredAt} ${item.actorId}: ${item.body}`).join('\n')
       files.set(`${prefix}canais/${slug(channel.name)}.md`, redact(`# #${channel.name}\n\n${body}\n`))
+      const subjects = topics.list(project.id, 'channel', channel.id, true)
+      if (subjects.length > 0) {
+        files.set(
+          `${prefix}canais/${slug(channel.name)}-assuntos.md`,
+          redact(subjects.map(item => `- ${item.name}${item.archived ? ' (arquivo)' : ''}`).join('\n')),
+        )
+      }
     }
     for (const dm of product.listDms(project.id)) {
       if (!allowedDm.has(dm.id)) continue
-      const page = events.list(`dm:${dm.id}`, { id: actorId }, 0, 200)
+      const page = listExport(events, `dm:${dm.id}`, actorId)
       const body = page.events.map(item => `- ${item.occurredAt} ${item.actorId}: ${item.body}`).join('\n')
       files.set(`${prefix}dms/${slug(dm.id)}.md`, redact(`# DM ${dm.id}\n\n${body}\n`))
     }
@@ -100,6 +140,25 @@ export function readZipTexts(bytes: Uint8Array): Map<string, string> {
 export function redact(text: string): string {
   if (!looksLikeCredential(text)) return text
   return text.replace(/\b(?:sk-|tok-|key-|ghp_|github_pat_)[A-Za-z0-9._-]{6,}\b/gu, '[redacted]')
+}
+
+function listExport(events: EventRepos, streamId: string, actorId: string) {
+  try {
+    return events.list(streamId, { id: actorId }, 0, 200)
+  } catch (error: unknown) {
+    if (error instanceof StoreError && (error.code === 'forbidden' || error.code === 'not-found')) {
+      return { events: [], nextSeq: 0 }
+    }
+    throw error
+  }
+}
+
+function renderGovernance(dump: GovernanceDump): string {
+  const sectors = dump.sectors.map(row => `- ${row.name} (\`${row.id}\`)`).join('\n') || '- (nenhum)'
+  const away = dump.away.map(row => `- ${row.humanId}: ${row.kind} ${row.from} → ${row.until}`).join('\n') || '- (ninguém fora)'
+  const routines = dump.routines.map(row => `- ${row.title} (\`${row.routineId}\`)`).join('\n') || '- (nenhuma)'
+  const audit = dump.audit.map(row => `- ${row.at} ${row.action} ${row.actorId}`).join('\n') || '- (vazia)'
+  return `# Governança\n\n## Setores\n\n${sectors}\n\n## Disponibilidade\n\n${away}\n\n## Rotinas\n\n${routines}\n\n## Auditoria\n\n${audit}\n`
 }
 
 function slug(value: string): string {

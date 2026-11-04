@@ -35,7 +35,7 @@ function pragma(db: DatabaseSync, name: 'user_version' | 'application_id' | 'for
 it('persona-store skeleton loads', () => {
   expect(PACKAGE_STORE).toBe('persona-store')
   expect(PERSONAL_PROJECT_NAME).toBe('Pessoal')
-  expect(PERSONA_SCHEMA_VERSION).toBe(8)
+  expect(PERSONA_SCHEMA_VERSION).toBe(18)
 })
 
 it('stamps application_id and user_version on a fresh file', async () => {
@@ -283,7 +283,7 @@ it('creates missing parent directories', async () => {
 })
 
 it('ships a contiguous v1 migration and creates STRICT product tables', async () => {
-  expect(PERSONA_MIGRATIONS.map(item => item.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+  expect(PERSONA_MIGRATIONS.map(item => item.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])
   const { store } = await temp()
   const tables = (store.db.prepare(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT GLOB 'sqlite_*' AND name NOT GLOB '*_fts*' ORDER BY name",
@@ -291,12 +291,20 @@ it('ships a contiguous v1 migration and creates STRICT product tables', async ()
   expect(tables).toEqual(expect.arrayContaining([
     'workspace', 'member', 'project', 'persona', 'participation', 'channel', 'dm',
     'stream', 'event', 'stream_cursor',
-    'vault_record', 'vault_document', 'vault_version',
+    'vault_record', 'vault_document', 'vault_version', 'vault_chunk',
+    'conversation_topic', 'topic_read', 'provider_account', 'account_policy', 'teach_artifact',
+    'brain_page', 'brain_link', 'brain_version', 'brain_grant',
+    'team_manager_mandate', 'team_manager_plan', 'team_manager_audit',
+    'topic_summary', 'batch_cursor', 'provider_limit_pool', 'turn_ledger',
     'routine', 'routine_run',
     'engine_trigger', 'engine_ticket', 'engine_effect', 'engine_outbox',
     'sync_envelope', 'invite', 'invite_actor', 'import_batch',
     'autonomy', 'visit', 'initiative_fire', 'watchdog_audit', 'attention_spend',
     'screen_doc', 'usage_record', 'usage_quota',
     'project_workflow', 'workflow_column', 'workflow_field', 'sprint', 'sprint_ticket', 'ticket_seat',
+    'blob_object', 'attachment',
+    'persona_speak', 'persona_charge',
+    'sector', 'away_window', 'routine_charge', 'governance_delegate', 'governance_audit',
+    'event_reaction', 'stream_pin', 'event_audit',
   ]))
 })

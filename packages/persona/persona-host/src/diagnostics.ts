@@ -49,7 +49,7 @@ export interface DiagnosticsSource {
  * Build the card. Caller must persist nothing that failed {@link looksLikeCredential}.
  * @param host - Open host slice.
  */
-export async function collectDiagnostics(host: DiagnosticsSource): Promise<DiagnosticsView> {
+export function collectDiagnostics(host: DiagnosticsSource): DiagnosticsView {
   const workspaces = host.product.listWorkspaces()
   let projects = 0
   let personas = 0

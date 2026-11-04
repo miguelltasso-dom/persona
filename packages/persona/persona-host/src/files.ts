@@ -1,6 +1,7 @@
 /** Confine project file paths to the stored root (D-020). */
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
+import { MAX_FILE_BYTES, MediaError, fileTooLargeMessage } from './media-detect.ts'
 import type { ProjectFileEntry, ProjectFileListing, ProjectFileStat, ProjectFileText } from './types.ts'
 
 /**
@@ -70,6 +71,12 @@ export function readProjectFile(rootPath: string, rel: string): ProjectFileText 
   const target = resolveExisting(rootPath, rel)
   const info = statSync(target)
   if (!info.isFile()) throw new Error('not-regular')
+  if (info.size > MAX_FILE_BYTES) {
+    throw new MediaError(
+      'file-too-large',
+      fileTooLargeMessage(info.size, MAX_FILE_BYTES, 'Este arquivo'),
+    )
+  }
   const text = readFileSync(target, 'utf8')
   if (text.includes('\0')) throw new Error('not-text')
   return { status: 'ok', path: rel, text, bytes: info.size, message: '' }

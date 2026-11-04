@@ -14,6 +14,13 @@ export const ACL_EXCEPTIONS: Record<string, string> = {
   createWorkspace: 'creates the tenant; no member yet',
   exportDiagnostics: 'local support dump; actor is the session, no client ids',
   pickDirectory: 'Rivet OS dialog; host never opens it and has no tenant',
+  backupNow: 'local VACUUM copy; no tenant',
+  listBackups: 'local backup directory listing; no tenant',
+  listStickers: 'frozen Brush catalog; no tenant',
+  checkpointWal: 'local WAL truncate; no tenant',
+  previewCliSkills: 'local Claude/Codex skill scan; no tenant',
+  getStoreHealth: 'local db health; no tenant',
+  restoreBackup: 'local backup restore; no tenant',
 }
 
 /**

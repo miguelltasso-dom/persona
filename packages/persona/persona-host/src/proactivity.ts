@@ -5,9 +5,13 @@
 
 import {
   latestAssignment,
+  scoreInitiative,
   vigiaTick,
   waitsForPerson,
   watchdogWarnings,
+  type AttentionBudget,
+  type ExistingWorkItem,
+  type ProjectFact,
   type Ticket,
   type WatchdogWarning,
 } from '@deepseek-ai/dsh-persona-engine'
@@ -190,9 +194,11 @@ export class ProactivityHost {
     if (inSilence(at, autonomy.silenceStart, autonomy.silenceEnd)) return false
     const day = at.slice(0, 10)
     if (this.repos.proposalsToday(projectId, personaId, day) >= autonomy.proposalBudget) return false
+    const scored = scoreInitiativeProposal(this.orchestration, projectId, personaId, source, title, at, this.repos.proposalsToday(projectId, personaId, day), autonomy.proposalBudget)
+    if (scored === undefined) return false
     const id = `${source}:${personaId}:${at}`
     this.repos.recordFire({
-      projectId, id, personaId, source, kind: 'initiative', at, title,
+      projectId, id, personaId, source, kind: 'initiative', at, title: scored,
     })
     this.repos.addProposal(projectId, personaId, day)
     return true
@@ -412,10 +418,26 @@ function ownsTicket(ticket: Ticket, persona: StoredPersona): boolean {
  * @param end - `HH:MM` or undefined.
  */
 export function inSilence(iso: string, start: string | undefined, end: string | undefined): boolean {
-  if (start === undefined || end === undefined) return false
+  if (start === undefined || end === undefined || start === '' || end === '') return false
   const hm = iso.slice(11, 16)
   if (start <= end) return hm >= start && hm < end
   return hm >= start || hm < end
+}
+
+/**
+ * Epoch-ms end of the current quiet window, or 0 when the instant is not silent.
+ * @param iso - Instant.
+ * @param start - `HH:MM` or undefined.
+ * @param end - `HH:MM` or undefined.
+ */
+export function silenceUntilOf(iso: string, start: string | undefined, end: string | undefined): number {
+  if (!inSilence(iso, start, end)) return 0
+  const date = iso.slice(0, 10)
+  const hm = iso.slice(11, 16)
+  const endMs = Date.parse(`${date}T${end}:00.000Z`)
+  if (!Number.isFinite(endMs)) return 0
+  if (start !== undefined && end !== undefined && start > end && hm >= start) return endMs + 86_400_000
+  return endMs
 }
 
 /**
@@ -437,4 +459,68 @@ function initiativeHour(persona: StoredPersona): number {
   if (start === undefined) return 9
   const hour = Number(start.slice(0, 2))
   return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 9
+}
+
+const STALE_MS = 2 * 86_400_000
+
+/**
+ * Score a candidate against live tickets. Undefined = empty, duplicate, or no budget.
+ * @param orchestration - Ticket repo.
+ * @param projectId - Tenant.
+ * @param personaId - Speaker.
+ * @param source - Routine or event.
+ * @param title - Host hint.
+ * @param at - ISO now.
+ * @param proposedToday - Count today.
+ * @param proposalsPerDay - Cap.
+ */
+function scoreInitiativeProposal(
+  orchestration: Orchestration,
+  projectId: string,
+  personaId: string,
+  source: 'routine' | 'event',
+  title: string,
+  at: string,
+  proposedToday: number,
+  proposalsPerDay: number,
+): string | undefined {
+  void personaId
+  const now = Date.parse(at)
+  const tickets = orchestration.runtime(projectId).repo.tickets.list()
+  const facts: ProjectFact[] = []
+  const existing: ExistingWorkItem[] = []
+  for (const ticket of tickets) {
+    existing.push({ kind: 'ticket', title: ticket.title })
+    if (ticket.ended !== undefined) continue
+    if (ticket.attention !== undefined) {
+      facts.push({ kind: 'blocked', title: ticket.title, detail: ticket.attention.question })
+      continue
+    }
+    const updated = Date.parse(ticket.updatedAt)
+    if (Number.isFinite(now) && Number.isFinite(updated) && now - updated > STALE_MS) {
+      facts.push({ kind: 'stale_ticket', title: ticket.title, detail: 'Sem progresso recente.' })
+    }
+  }
+  if (facts.length === 0) {
+    facts.push({
+      kind: source === 'event' ? 'deadline' : 'gap',
+      title,
+      detail: title,
+    })
+  }
+  const budget: AttentionBudget = {
+    proposalsPerDay,
+    proposedToday,
+    silenceUntil: 0,
+    tokensLeft: 1,
+    runsLeft: 1,
+    acceptanceRate: 0.5,
+  }
+  const scored = scoreInitiative({
+    facts,
+    existing,
+    budget,
+    now: Number.isFinite(now) ? now : 0,
+  })
+  return scored.proposals[0]?.title
 }

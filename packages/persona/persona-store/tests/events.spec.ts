@@ -87,6 +87,15 @@ it('pages with an exclusive afterSeq cursor', async () => {
   expect(rest.events.map(item => item.id)).toEqual(['e3'])
 })
 
+it('lists a channel or DM with no stream as empty, not forbidden', async () => {
+  const { events } = await setup()
+  expect(events.list('channel:geral', { id: 'ana' }).events).toEqual([])
+  expect(events.list('dm:dm-ab', { id: 'ana' }).events).toEqual([])
+  expect(events.recall({
+    streamId: 'channel:geral', actor: { id: 'ana' }, subjectId: 's1', timeZone: 'UTC',
+  }).events).toEqual([])
+})
+
 it('lets a workspace member read a channel and refuses a stranger', async () => {
   const { events } = await setup()
   msg(events, { id: 'e1' })

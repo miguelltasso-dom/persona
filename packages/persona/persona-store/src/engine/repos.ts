@@ -152,6 +152,7 @@ export class SqliteRepositories implements Repositories {
     },
   }
 
+  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- caller chooses the stored engine document type
   #get<T>(table: string, id: string, column: string = 'id'): T | undefined {
     const row = this.store.db.prepare(
       `SELECT body FROM ${table} WHERE project_id = ? AND ${column} = ?`,
@@ -194,6 +195,7 @@ export function openSqliteRepositories(store: PersonaStore, projectId: string): 
   return new SqliteRepositories(store, projectId)
 }
 
+// oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- JSON body type is chosen by the caller
 function parseBody<T>(row: Record<string, SQLOutputValue>): T {
   return structuredClone(JSON.parse(text(row, 'body')) as T)
 }

@@ -87,7 +87,7 @@ export function githubWebhookHandler(
       res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'projectId' }))
       return
     }
-    const chunks: Buffer[] = []
+    const chunks: Buffer<ArrayBufferLike>[] = []
     let size = 0
     for await (const chunk of req) {
       const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)

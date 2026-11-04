@@ -1,6 +1,7 @@
 import type { Ticket } from '@deepseek-ai/dsh-persona-engine'
 import { expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
+import { silenceUntilOf } from '../src/proactivity.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
 const { host } = bindHostFile()
@@ -40,6 +41,15 @@ function ticket(overrides: Partial<Ticket> = {}): Ticket {
     ...overrides,
   }
 }
+
+it('silenceUntilOf is 0 outside the window and the next end inside it', () => {
+  expect(silenceUntilOf('2026-11-03T15:00:00.000Z', undefined, undefined)).toBe(0)
+  expect(silenceUntilOf('2026-11-03T15:00:00.000Z', '22:00', '07:00')).toBe(0)
+  expect(silenceUntilOf('2026-11-03T23:00:00.000Z', '22:00', '07:00'))
+    .toBe(Date.parse('2026-11-04T07:00:00.000Z'))
+  expect(silenceUntilOf('2026-11-03T03:00:00.000Z', '22:00', '07:00'))
+    .toBe(Date.parse('2026-11-03T07:00:00.000Z'))
+})
 
 it('creates a daily initiative routine and fires it on the scheduler tick', () => {
   const h = host()

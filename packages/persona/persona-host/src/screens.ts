@@ -18,6 +18,7 @@ import {
   rollbackImport,
   rollbackSkill,
   type PersonaProposal,
+  type PersonaSpec,
   type SkillRecord,
   type VaultProposal,
 } from '@deepseek-ai/dsh-persona-core'
@@ -606,6 +607,58 @@ export class ScreensHost {
   }
 
   /**
+   * User-imported persona. Always pending — never applies itself.
+   * @param request - Tenant, id, creator, full spec.
+   */
+  proposeImportedPersona(request: {
+    workspaceId: string
+    projectId: string
+    id: string
+    creatorPersonaId: string
+    spec: PersonaSpec
+  }): ApprovalView {
+    const proposal: PersonaProposal = {
+      id: request.id,
+      workspaceId: request.workspaceId,
+      creatorPersonaId: request.creatorPersonaId,
+      spec: request.spec,
+      policy: 'approval',
+      status: 'pending',
+      createdAt: this.now(),
+    }
+    this.screens.put(request.projectId, KIND_HIRE, request.id, proposal)
+    return hireCard(proposal, this.personaName(request.projectId, request.creatorPersonaId))
+  }
+
+  /**
+   * Learned CLI skill. Stays disabled until someone enables it.
+   * @param request - Tenant, persona, body.
+   */
+  putCandidateSkill(request: {
+    projectId: string
+    personaId: string
+    id: string
+    name: string
+    body: string
+  }): SkillView {
+    const row: StoredSkill = {
+      id: request.id,
+      name: request.name,
+      version: 1,
+      scope: 'persona',
+      origin: 'learned',
+      body: request.body,
+      enabled: false,
+      personaId: request.personaId,
+      projectId: request.projectId,
+      history: [request.body],
+      sharedWithTeam: false,
+    }
+    this.screens.put(request.projectId, KIND_SKILL, request.id, row)
+    return toSkillView(row)
+  }
+
+  /**
    * @param request - Skill.
    */
   putSkill(request: PutSkillRequest): SkillView {
@@ -730,10 +783,12 @@ function toBatchView(batch: { id: string; adapterId: string; applied: readonly u
 }
 
 function hireCard(proposal: PersonaProposal, personaName: string): ApprovalView {
+  const hireAvatarRef = proposal.spec.avatar.kind === 'gallery' ? proposal.spec.avatar.ref : undefined
   return {
     id: proposal.id, kind: 'hire', title: proposal.spec.name,
     question: `Contratar ${proposal.spec.name}?`, status: proposal.status,
     personaId: proposal.creatorPersonaId, personaName,
+    ...(hireAvatarRef === undefined ? {} : { hireAvatarRef }),
   }
 }
 

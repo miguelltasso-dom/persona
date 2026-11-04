@@ -4,7 +4,14 @@
  */
 
 import { DEFAULT_RETENTION, applyRetention } from '@deepseek-ai/dsh-persona-engine'
-import { SqliteRetention, type PersonaStore, type ScreenRepos } from '@deepseek-ai/dsh-persona-store'
+import {
+  SqliteGovernanceRepos,
+  SqliteRetention,
+  TeachRepos,
+  type PersonaStore,
+  type ScreenRepos,
+} from '@deepseek-ai/dsh-persona-store'
+import { TEACH_RETENTION_DAYS } from './wave2.ts'
 
 const KIND_POLICY = 'retention_policy'
 const KIND_LOG = 'retention_log'
@@ -99,6 +106,22 @@ export class HostScheduler {
       })),
     ]
     for (const row of rows) this.screens.put(projectId, KIND_LOG, row.id, row)
+    const workspace = this.store.db.prepare(
+      'SELECT workspace_id AS workspaceId FROM project WHERE id = ?',
+    ).get(projectId) as { workspaceId: string } | undefined
+    if (workspace !== undefined) {
+      new SqliteGovernanceRepos(this.store).pruneAudit(workspace.workspaceId)
+    }
+    const teachGone = new TeachRepos(this.store).purgeExpired(
+      new Date(this.nowMs()).toISOString(),
+      TEACH_RETENTION_DAYS,
+      projectId,
+    )
+    for (const item of teachGone) {
+      const row = { id: `del:${item.id}:${at}`, at, action: 'deleted' as const, recordId: item.id }
+      this.screens.put(projectId, KIND_LOG, row.id, row)
+      rows.push(row)
+    }
     return rows
   }
 
@@ -116,7 +139,7 @@ export class HostScheduler {
       for (const id of this.armed) this.tickRetention(id)
       if (this.armed.size > 0) this.arm(projectId)
     }, delay)
-    this.timer.unref?.()
+    this.timer.unref()
   }
 
   /** Drop the pending timeout (host dispose). */

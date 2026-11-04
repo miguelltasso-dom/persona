@@ -106,5 +106,5 @@ function isUnder(root: string, candidate: string): boolean {
 
 function git(args: string[], cwd: string): { status: number; stdout: string } {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, timeout: 4_000 })
-  return { status: result.status ?? 1, stdout: result.stdout ?? '' }
+  return { status: result.status ?? 1, stdout: result.stdout }
 }

@@ -2,11 +2,14 @@
  * Company vault: typed records, version history, and FTS5 documents (D-045).
  */
 
+import { createHash } from 'node:crypto'
 import { parseVaultRecord, type VaultRecord } from '@deepseek-ai/dsh-persona-core'
-import type { SQLOutputValue } from 'node:sqlite'
+import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
 import { StoreError } from '../errors.ts'
 import { integer, jsonValue, optionalText, run, text } from '../sql.ts'
 import type { PersonaStore } from '../store.ts'
+import { chunkExtracted } from './chunk.ts'
+import { extractVaultDocument, joinExtracted } from './extract.ts'
 
 /** Indexed attachment in the vault. */
 export interface VaultDocument {
@@ -19,6 +22,31 @@ export interface VaultDocument {
   readonly authorId: string
   readonly createdAt: string
   readonly revision: number
+  readonly mime: string
+  readonly filename: string
+  readonly hash: string
+  readonly bytes: number
+}
+
+/** One FTS chunk of an ingested file. */
+export interface VaultChunk {
+  readonly id: string
+  readonly documentId: string
+  readonly projectId: string
+  readonly index: number
+  readonly locator: string
+  readonly body: string
+}
+
+/** Upload bytes for extract + chunk. */
+export interface IngestVaultDocumentInput {
+  readonly id: string
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly filename: string
+  readonly bytes: Uint8Array
+  readonly authorId: string
+  readonly visibility: VaultRecord['visibility']
 }
 
 /** One historical body for a record or document. */
@@ -127,6 +155,20 @@ export class VaultRepos {
   }
 
   /**
+   * Newest active record with this `factKey`, or `undefined`.
+   * @param projectId - Tenant.
+   * @param factKey - Stable key (Rivet provider, webhook, …).
+   */
+  findActiveFact(projectId: string, factKey: string): VaultRecord | undefined {
+    const row = this.store.db.prepare(
+      `SELECT * FROM vault_record
+        WHERE project_id = ? AND fact_key = ? AND status = 'active'
+        ORDER BY created_at DESC, id DESC LIMIT 1`,
+    ).get(projectId, factKey)
+    return row === undefined ? undefined : recordFrom(row)
+  }
+
+  /**
    * Active constraints and decisions (mandatory context).
    * @param projectId - Tenant.
    * @returns Required records, newest first.
@@ -196,6 +238,10 @@ export class VaultRepos {
       authorId: input.authorId,
       createdAt: now,
       revision: 1,
+      mime: 'text/plain',
+      filename: input.title,
+      hash: '',
+      bytes: Buffer.byteLength(input.body),
     }
     this.writeDocument(doc)
     this.addVersion({
@@ -237,6 +283,7 @@ export class VaultRepos {
       body: patch.body ?? current.body,
       authorId,
       revision,
+      bytes: Buffer.byteLength(patch.body ?? current.body),
     }
     this.writeDocument(next)
     this.addVersion({
@@ -250,6 +297,131 @@ export class VaultRepos {
       createdAt: this.now(),
     })
     return next
+  }
+
+  /**
+   * Extract bytes, chunk, and index. Replaces an existing id.
+   * @param input - Upload.
+   */
+  ingestDocument(input: IngestVaultDocumentInput): VaultDocument {
+    const units = extractVaultDocument(input.bytes, input.filename)
+    const chunks = chunkExtracted(units)
+    const body = joinExtracted(units)
+    const title = titleOf(input.filename, units[0]?.locator ?? input.filename)
+    const hash = createHash('sha256').update(input.bytes).digest('hex')
+    const current = this.getDocument(input.id)
+    const now = this.now()
+    const doc: VaultDocument = {
+      id: input.id,
+      workspaceId: input.workspaceId,
+      projectId: input.projectId,
+      title,
+      body,
+      visibility: input.visibility,
+      authorId: input.authorId,
+      createdAt: current?.createdAt ?? now,
+      revision: current === undefined ? 1 : current.revision + 1,
+      mime: mimeOf(input.filename),
+      filename: input.filename,
+      hash,
+      bytes: input.bytes.byteLength,
+    }
+    this.store.tx((db) => {
+      this.writeDocumentRow(db, doc)
+      run(db, 'DELETE FROM vault_chunk WHERE document_id = ?', [doc.id])
+      for (const chunk of chunks) {
+        run(db, 'INSERT INTO vault_chunk (id, document_id, project_id, chunk_index, locator, body) VALUES (?, ?, ?, ?, ?, ?)', [
+          `${doc.id}:${String(chunk.index)}`, doc.id, doc.projectId, chunk.index, chunk.locator, chunk.body,
+        ])
+      }
+    })
+    this.addVersion({
+      id: `${doc.id}:v${String(doc.revision)}`,
+      projectId: doc.projectId,
+      targetKind: 'document',
+      targetId: doc.id,
+      revision: doc.revision,
+      body: doc.body,
+      authorId: doc.authorId,
+      createdAt: now,
+    })
+    return doc
+  }
+
+  /**
+   * Re-extract after a file replace. Visibility stays.
+   * @param id - Document.
+   * @param filename - New name.
+   * @param bytes - New bytes.
+   * @param authorId - Who replaced.
+   */
+  replaceDocument(id: string, filename: string, bytes: Uint8Array, authorId: string): VaultDocument {
+    const current = this.getDocument(id)
+    if (current === undefined) throw new StoreError('not-found', id)
+    return this.ingestDocument({
+      id,
+      workspaceId: current.workspaceId,
+      projectId: current.projectId,
+      filename,
+      bytes,
+      authorId,
+      visibility: current.visibility,
+    })
+  }
+
+  /**
+   * Drop document, chunks, and FTS rows.
+   * @param id - Document.
+   */
+  deleteDocument(id: string): void {
+    if (this.getDocument(id) === undefined) throw new StoreError('not-found', id)
+    this.store.tx((db) => {
+      run(db, 'DELETE FROM vault_chunk WHERE document_id = ?', [id])
+      run(db, 'DELETE FROM vault_document WHERE id = ?', [id])
+    })
+  }
+
+  /**
+   * @param projectId - Tenant.
+   */
+  listDocuments(projectId: string): VaultDocument[] {
+    return this.store.db.prepare(
+      'SELECT * FROM vault_document WHERE project_id = ? ORDER BY created_at DESC, id DESC',
+    ).all(projectId).map(documentFrom)
+  }
+
+  /**
+   * @param documentId - Document.
+   */
+  listChunks(documentId: string): VaultChunk[] {
+    return this.store.db.prepare(
+      'SELECT * FROM vault_chunk WHERE document_id = ? ORDER BY chunk_index ASC',
+    ).all(documentId).map(chunkFrom)
+  }
+
+  /**
+   * FTS5 over chunks. Hits include locator for Contexto usado.
+   * @param projectId - Tenant.
+   * @param query - User text (phrase).
+   * @param limit - Max rows.
+   */
+  searchChunks(projectId: string, query: string, limit?: number): Array<VaultChunk & { title: string; visibility: VaultDocument['visibility'] }> {
+    const cap = limit ?? 50
+    if (query.trim() === '') return []
+    if (!Number.isInteger(cap) || cap < 1 || cap > 200) throw new StoreError('invalid-input', 'limit')
+    const rows = this.store.db.prepare(
+      `SELECT vault_chunk.*, vault_document.title AS title, vault_document.visibility_json AS visibility_json
+         FROM vault_chunk
+         JOIN vault_chunk_fts ON vault_chunk.rowid = vault_chunk_fts.rowid
+         JOIN vault_document ON vault_document.id = vault_chunk.document_id
+        WHERE vault_chunk.project_id = ? AND vault_chunk_fts MATCH ?
+        ORDER BY vault_chunk.document_id, vault_chunk.chunk_index
+        LIMIT ?`,
+    ).all(projectId, ftsMatch(query), cap)
+    return rows.map((row) => {
+      const chunk = chunkFrom(row)
+      return { ...chunk, title: text(row, 'title'), visibility: visibilityFrom(row) }
+    })
   }
 
   /**
@@ -298,11 +470,16 @@ export class VaultRepos {
 
   private writeDocument(doc: VaultDocument): void {
     this.store.tx((db) => {
-      run(db, 'INSERT INTO vault_document (id, workspace_id, project_id, title, body, visibility_json, author_id, created_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, body = excluded.body, visibility_json = excluded.visibility_json, author_id = excluded.author_id, revision = excluded.revision', [
-        doc.id, doc.workspaceId, doc.projectId, doc.title, doc.body,
-        JSON.stringify(doc.visibility), doc.authorId, doc.createdAt, doc.revision,
-      ])
+      this.writeDocumentRow(db, doc)
     })
+  }
+
+  private writeDocumentRow(db: DatabaseSync, doc: VaultDocument): void {
+    run(db, 'INSERT INTO vault_document (id, workspace_id, project_id, title, body, visibility_json, author_id, created_at, revision, mime, filename, hash, bytes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, body = excluded.body, visibility_json = excluded.visibility_json, author_id = excluded.author_id, revision = excluded.revision, mime = excluded.mime, filename = excluded.filename, hash = excluded.hash, bytes = excluded.bytes', [
+      doc.id, doc.workspaceId, doc.projectId, doc.title, doc.body,
+      JSON.stringify(doc.visibility), doc.authorId, doc.createdAt, doc.revision,
+      doc.mime, doc.filename, doc.hash, doc.bytes,
+    ])
   }
 
   private addVersion(version: VaultVersion): void {
@@ -333,29 +510,68 @@ function recordFrom(row: Record<string, SQLOutputValue>): VaultRecord {
 }
 
 function documentFrom(row: Record<string, SQLOutputValue>): VaultDocument {
-  const visibility = jsonValue(text(row, 'visibility_json'))
   return {
     id: text(row, 'id'),
     workspaceId: text(row, 'workspace_id'),
     projectId: text(row, 'project_id'),
     title: text(row, 'title'),
     body: text(row, 'body'),
-    visibility: parseVaultRecord({
-      id: 'vis',
-      workspaceId: text(row, 'workspace_id'),
-      kind: 'brief',
-      body: 'x',
-      status: 'active',
-      sourceIds: [],
-      authorId: 'x',
-      visibility,
-      createdAt: '2026-11-03T12:00:00Z',
-      revision: 1,
-    }).visibility,
+    visibility: visibilityFrom(row),
     authorId: text(row, 'author_id'),
     createdAt: text(row, 'created_at'),
     revision: integer(row, 'revision'),
+    mime: optionalText(row, 'mime') ?? 'text/plain',
+    filename: optionalText(row, 'filename') ?? text(row, 'title'),
+    hash: optionalText(row, 'hash') ?? '',
+    bytes: row.bytes === null || row.bytes === undefined ? Buffer.byteLength(text(row, 'body')) : integer(row, 'bytes'),
   }
+}
+
+function chunkFrom(row: Record<string, SQLOutputValue>): VaultChunk {
+  return {
+    id: text(row, 'id'),
+    documentId: text(row, 'document_id'),
+    projectId: text(row, 'project_id'),
+    index: integer(row, 'chunk_index'),
+    locator: text(row, 'locator'),
+    body: text(row, 'body'),
+  }
+}
+
+function visibilityFrom(row: Record<string, SQLOutputValue>): VaultDocument['visibility'] {
+  const visibility = jsonValue(text(row, 'visibility_json'))
+  return parseVaultRecord({
+    id: 'vis',
+    workspaceId: optionalText(row, 'workspace_id') ?? 'ws',
+    kind: 'brief',
+    body: 'x',
+    status: 'active',
+    sourceIds: [],
+    authorId: 'x',
+    visibility,
+    createdAt: '2026-11-03T12:00:00Z',
+    revision: 1,
+  }).visibility
+}
+
+function titleOf(filename: string, locator: string): string {
+  const base = filename.replace(/\.[^.]+$/u, '').trim()
+  if (base !== '') return base
+  return locator.replace(/^(página|seção)\s+/iu, '') || filename
+}
+
+function mimeOf(filename: string): string {
+  if (/\.pdf$/iu.test(filename)) return 'application/pdf'
+  if (/\.docx$/iu.test(filename)) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  if (/\.md$/iu.test(filename)) return 'text/markdown'
+  if (/\.csv$/iu.test(filename)) return 'text/csv'
+  return 'text/plain'
+}
+
+function ftsMatch(query: string): string {
+  const tokens = query.trim().split(/\s+/u).filter(token => token.length >= 3).slice(0, 6)
+  const quoted = (tokens.length === 0 ? [query.trim()] : tokens).map(token => `"${token.replaceAll('"', '""')}"`)
+  return quoted.join(' OR ')
 }
 
 function versionFrom(row: Record<string, SQLOutputValue>): VaultVersion {

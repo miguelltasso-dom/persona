@@ -26,6 +26,18 @@ it('exposes attention policy and a baseline stream', async () => {
   expect(first.value?.kind).toBe('baseline')
 })
 
+it('ackAttention stores ids so the next baseline omits them', async () => {
+  const h = host()
+  const scope = seed(h)
+  expect(h.ackAttention({ ...scope, eventIds: ['need:tk-1', 'review:tk-1'] })).toBe(true)
+  const ac = new AbortController()
+  const iter = h.attentionEvents(scope, ac.signal)[Symbol.asyncIterator]()
+  const first = await iter.next()
+  ac.abort()
+  const events = first.value?.kind === 'baseline' ? first.value.events : []
+  expect(events.some((item: { id: string }) => item.id === 'need:tk-1' || item.id === 'review:tk-1')).toBe(false)
+})
+
 it('archives on tick and logs; delete stays off by default', () => {
   const h = host()
   const scope = seed(h)
@@ -38,4 +50,23 @@ it('archives on tick and logs; delete stays off by default', () => {
   expect(rows.some(item => item.action === 'archived' && item.recordId === 'old')).toBe(true)
   expect(rows.some(item => item.action === 'deleted')).toBe(false)
   expect(h.listRetentionLog(scope).length).toBeGreaterThan(0)
+})
+
+it('purges a teach recording older than 30 days on retention tick', () => {
+  const h = host()
+  const scope = seed(h)
+  h.createPersona({
+    workspaceId: 'ws', projectId: 'pp', id: 'nina', name: 'Nina', title: 'Executora',
+    description: 'Idle.', personality: 'Calma.', instructions: 'Espere.',
+    avatarKind: 'gallery', avatarRef: 'nina', runnerKind: 'dsh', runnerCli: '',
+    runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+  })
+  h.teach.now = () => '2026-01-01T00:00:00.000Z'
+  h.teach.create({
+    id: 'rec-old', workspaceId: 'ws', projectId: 'pp', personaId: 'nina',
+    filename: 'velha.webm',
+  })
+  const rows = h.tickRetention(scope)
+  expect(rows.some(item => item.action === 'deleted' && item.recordId === 'rec-old')).toBe(true)
+  expect(h.teach.get('rec-old')).toBeUndefined()
 })

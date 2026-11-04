@@ -1,5 +1,5 @@
 /** Review delivery for ordinary folders, with private Git objects and independent drafts. */
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { chmod, mkdir, open, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { basename, dirname, extname, join, resolve } from 'node:path'
@@ -20,6 +20,19 @@ export const HISTORY_COPY_LIMIT_BYTES: number = 256 * 1024 * 1024
 export const HISTORY_RESTORE_RETENTION_MS: number = 30 * 24 * 60 * 60 * 1000
 
 const historyQueues = new Map<string, Promise<void>>()
+
+function canonicalPath(path: string): string {
+  const absolute = resolve(path)
+  let parent = absolute
+  const missing: string[] = []
+  while (!existsSync(parent)) {
+    const next = dirname(parent)
+    if (next === parent) return absolute
+    missing.unshift(basename(parent))
+    parent = next
+  }
+  return join(realpathSync(parent), ...missing)
+}
 
 /** Private history settings; paths and resource limits are explicit host inputs. */
 export interface HistoryReviewOptions extends GitReviewOptions {
@@ -70,10 +83,10 @@ export class HistoryReviewDelivery implements ReviewDelivery {
 
   /** @param options - Explicit project paths and validated resource limits. */
   constructor(private readonly options: HistoryReviewOptions) {
-    this.root = resolve(options.projectRoot)
-    this.home = resolve(options.personaHome)
+    this.root = canonicalPath(options.projectRoot)
+    this.home = canonicalPath(options.personaHome)
     this.history = confinePath(join(this.home, 'history'), historySegment(options.projectId))
-    this.trees = resolve(options.worktreesRoot)
+    this.trees = canonicalPath(options.worktreesRoot)
     this.gitDir = join(this.history, 'git')
     this.copyLimit = options.maxCopyBytes ?? HISTORY_COPY_LIMIT_BYTES
     this.patchLimit = options.patchLimitBytes ?? REVIEW_PATCH_LIMIT_BYTES
@@ -323,7 +336,7 @@ export class HistoryReviewDelivery implements ReviewDelivery {
             do {
               duplicate = join(dirname(path), `${name} (da persona${suffix === 1 ? '' : ` ${suffix}`})${extension}`).replaceAll('\\', '/')
               suffix += 1
-            } while (reserved.has(process.platform === 'win32' ? duplicate.toLowerCase() : duplicate))
+            } while (reserved.has(process.platform === 'win32' ? duplicate.toLowerCase() : duplicate) || existsSync(join(this.root, duplicate)))
             reserved.add(process.platform === 'win32' ? duplicate.toLowerCase() : duplicate)
             plan.push({ path: duplicate, version })
             break

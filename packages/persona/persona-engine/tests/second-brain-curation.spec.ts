@@ -48,6 +48,22 @@ it('extracts a durable fact after a finished task and keeps the source', () => {
   expect(pages.some(row => row.body === 'Abrimos às 6h.' && row.sources[0]?.id === 't-close')).toBe(true)
 })
 
+it('keeps a DM fact private even when a public page already has the same title', () => {
+  const existing = page({ title: 'Horário', kind: 'learning', body: 'Informação pública.' })
+  const input = { facts: [{ title: 'Horário', kind: 'learning' as const, body: 'Reunião privada às seis.', required: false, linkTo: [] }],
+    pages: [existing], source: { kind: 'conversation' as const, id: 'dm-1' },
+    visibility: { kind: 'members' as const, memberIds: ['ana', 'bia'] }, workspaceId: 'ws', authorId: 'guia', now, policy: 'auto' as const }
+  const result = curateAfterWork(input)
+  expect(result.actions[0]).toMatchObject({ kind: 'create', page: { visibility: input.visibility } })
+  expect(result.pages.find(row => row.id === existing.id)).toEqual(existing)
+  const privatePage = result.pages.find(row => row.id !== existing.id)
+  expect(privatePage?.body).toBe('Reunião privada às seis.')
+  expect(curateAfterWork({ ...input, pages: result.pages, visibility: { kind: 'members', memberIds: ['bia', 'ana'] } }).actions).toEqual([])
+  const otherDm = curateAfterWork({ ...input, pages: result.pages, source: { kind: 'conversation', id: 'dm-2' },
+    visibility: { kind: 'members', memberIds: ['ana', 'dan'] } })
+  expect(otherDm.actions[0]).toMatchObject({ kind: 'create', page: { visibility: { kind: 'members', memberIds: ['ana', 'dan'] } } })
+})
+
 it('flags a contradiction and never overwrites the existing body', () => {
   const existing = page({
     id: 'd1',
@@ -74,6 +90,17 @@ it('flags a contradiction and never overwrites the existing body', () => {
   })
   expect(actions[0]).toMatchObject({ kind: 'contradiction', pageId: 'd1' })
   expect(pages.find(row => row.id === 'd1')?.body).toBe('O site usa lilás.')
+})
+
+it('keeps public and private copies separate during hygiene and deduplicates only the same audience', () => {
+  const publicPage = page({ id: 'public' })
+  const dm = page({ id: 'dm', visibility: { kind: 'members', memberIds: ['ana', 'bia'] } })
+  const sameDm = page({ id: 'same-dm', revision: 2, visibility: { kind: 'members', memberIds: ['bia', 'ana'] } })
+  const otherDm = page({ id: 'other-dm', visibility: { kind: 'members', memberIds: ['ana', 'dan'] } })
+  const foreign = page({ id: 'foreign', workspaceId: 'other-workspace' })
+  const result = runBrainHygiene([publicPage, dm, sameDm, otherDm, foreign], now)
+  expect(result.pages.filter(row => row.status === 'active').map(row => row.id)).toEqual(['public', 'same-dm', 'other-dm', 'foreign'])
+  expect(result.pages.find(row => row.id === 'dm')).toMatchObject({ status: 'replaced', replacedBy: 'same-dm', body: dm.body })
 })
 
 it('dedupes without an LLM and keeps the dropped page in history', () => {

@@ -4,11 +4,14 @@
  */
 
 import {
+  applyWorkflowEdit,
   firstColumnOf,
   wipWarning,
   type ProjectWorkflow,
   type StageCategory,
   type TicketBoardSeat,
+  type WorkflowColumn,
+  type WorkflowField,
 } from '@deepseek-ai/dsh-persona-core'
 import { ticketStage, type Ticket, type TicketStage } from './core/index.ts'
 import { kanbanColumn } from './kanban.ts'
@@ -39,7 +42,7 @@ export function stageBlocked(stage: TicketStage): boolean {
 
 /**
  * Column the ticket should occupy. A stored placement wins when its column still
- * exists and matches the current stage category; otherwise the first column of
+ * exists and matches the current stage category, or carries a matching flow-edit marker; otherwise the first column of
  * that category. Missing category column → undefined (blank flow).
  * @param workflow - Project flow.
  * @param ticket - Engine ticket.
@@ -54,9 +57,45 @@ export function resolveColumn(
   const storedId = placement?.columnId ?? ticket.columnId
   if (storedId !== undefined) {
     const current = workflow.columns.find(column => column.id === storedId)
-    if (current !== undefined && current.category === category) return current
+    if (current !== undefined && (current.category === category || placement?.workflowMove?.stageCategory === category)) return current
   }
   return firstColumnOf(workflow, category)
+}
+
+/**
+ * Move cards off removed columns without changing ticket execution or assignments.
+ * The host persists the returned flow and seats together in one transaction.
+ * @param current - Stored flow before the edit.
+ * @param columns - Remaining ordered columns.
+ * @param fields - Updated custom fields.
+ * @param seats - Existing placements in this project.
+ * @param tickets - Current tickets in the same authorized project.
+ * @param dest - Explicit destination for each removed occupied column.
+ * @returns Flow and seats; only migrated seats receive a category marker.
+ */
+export function applyBoardWorkflowEdit(
+  current: ProjectWorkflow,
+  columns: readonly WorkflowColumn[],
+  fields: readonly WorkflowField[],
+  seats: readonly TicketBoardSeat[],
+  tickets: readonly Ticket[],
+  dest: Readonly<Record<string, string>> = {},
+): { workflow: ProjectWorkflow; seats: TicketBoardSeat[] } {
+  const initial = [...seats]
+  const byTicket = new Map(tickets.map(ticket => [ticket.id, ticket]))
+  const placed = new Set(seats.map(seat => seat.ticketId))
+  for (const ticket of tickets) {
+    if (placed.has(ticket.id)) continue
+    const column = resolveColumn(current, ticket)
+    if (column !== undefined) initial.push({ projectId: current.projectId, ticketId: ticket.id, columnId: column.id })
+  }
+  const before = new Map(initial.map(seat => [seat.ticketId, seat]))
+  const edited = applyWorkflowEdit(current, columns, fields, initial, dest)
+  return { workflow: edited.workflow, seats: edited.seats.map((seat) => {
+    const ticket = byTicket.get(seat.ticketId)
+    if (ticket === undefined || seat.columnId === before.get(seat.ticketId)?.columnId) return seat
+    return { ...seat, workflowMove: { stageCategory: stageCategory(ticketStage(ticket)) } }
+  }) }
 }
 
 /**

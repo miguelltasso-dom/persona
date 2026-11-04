@@ -128,6 +128,21 @@ export function clipTextToTokens(text: string, maxTokens: number): string {
   return estimateTokens(clipped) <= maxTokens ? clipped : clipped.slice(0, maxChars).trimEnd()
 }
 
+/** Tells the model a slice was cut, so it can say so instead of guessing what is missing. */
+export const TRUNCATION_MARK = '\n[contexto truncado]'
+
+/**
+ * Clip to a token budget and say so. The mark counts inside the budget; text that fits is untouched.
+ * @param text - Subject / recall / message slice.
+ * @param maxTokens - Ceiling (`Number.POSITIVE_INFINITY` keeps the text whole).
+ */
+export function clipWithMark(text: string, maxTokens: number): string {
+  if (estimateTokens(text) <= maxTokens) return text
+  const room = maxTokens - estimateTokens(TRUNCATION_MARK)
+  if (room <= 0) return clipTextToTokens(text, maxTokens)
+  return `${clipTextToTokens(text, room)}${TRUNCATION_MARK}`
+}
+
 /**
  * OPT-3 policy score (stable prefix + cache). Rivet owns provider hit rate.
  * @returns Passed count and failed ids. Empty `failed` is the domain gate.
@@ -220,6 +235,11 @@ export function composeTurnPrompt(input: {
   readonly subject?: string
   readonly recall?: string
   readonly message?: string
+  /**
+   * Token ceiling for `message` (default {@link VARIABLE_LAYER_BUDGET}.message). A turn whose message IS
+   * the work order (a Ticket assignment) must pass `Number.POSITIVE_INFINITY`: clipping it drops the order.
+   */
+  readonly messageLimit?: number
 }): StablePrefix & { readonly text: string } {
   const system = composePrompt({
     part: input.part,
@@ -238,9 +258,9 @@ export function composeTurnPrompt(input: {
     persona,
     tools,
     required: input.required,
-    ...(input.subject === undefined ? {} : { subject: clipTextToTokens(input.subject, VARIABLE_LAYER_BUDGET.subject) }),
-    ...(input.recall === undefined ? {} : { recall: clipTextToTokens(input.recall, VARIABLE_LAYER_BUDGET.recall) }),
-    ...(input.message === undefined ? {} : { message: clipTextToTokens(input.message, VARIABLE_LAYER_BUDGET.message) }),
+    ...(input.subject === undefined ? {} : { subject: clipWithMark(input.subject, VARIABLE_LAYER_BUDGET.subject) }),
+    ...(input.recall === undefined ? {} : { recall: clipWithMark(input.recall, VARIABLE_LAYER_BUDGET.recall) }),
+    ...(input.message === undefined ? {} : { message: clipWithMark(input.message, input.messageLimit ?? VARIABLE_LAYER_BUDGET.message) }),
   })
   const variable = trimVariableAlreadyInPrefix(built.prefix, built.variable)
   const text = variable === '' ? built.prefix : `${built.prefix}\n\n${variable}`

@@ -9,7 +9,7 @@ import { personaPropose, proposalExceedsCreatorAccess } from './rules.ts'
 import { DomainError, type CliKind, type Persona, type PersonaProposal, type PersonaSpec } from './schemas.ts'
 import type { GovernanceAutonomy } from '../governance/model.ts'
 import type { HealthReport } from '../governance/health.ts'
-import { parseStructureAsk, recommendStructure, type StructureRecommendation } from '../governance/recommend.ts'
+import { parseStructureAsk, recommendStructure, type RecommendedPersona, type StructureRecommendation } from '../governance/recommend.ts'
 import { proposeWorkflow, type ProjectWorkflow, type WorkflowProposal } from '../board/workflow.ts'
 import { openSprint, type Sprint } from '../board/sprint.ts'
 
@@ -72,9 +72,17 @@ export type GestorDecision =
 
 export interface GestorAssemble {
   readonly structure: StructureRecommendation
+  readonly hire: readonly RecommendedPersona[]
+  readonly reuse: readonly ExistingGestorFunction[]
   readonly workflow: ProjectWorkflow
   readonly workflowProposal: WorkflowProposal
   readonly sprint: Sprint
+}
+
+/** Existing continuous function supplied only from the Gestor's authorized roster. */
+export interface ExistingGestorFunction {
+  readonly personaId: string
+  readonly function: string
 }
 
 export interface GestorInitiative {
@@ -182,6 +190,27 @@ export function assertGestorHire(input: {
   }
   if (proposalExceedsCreatorAccess(input.gestor, input.spec)) {
     throw new DomainError('ACCESS_ESCALATION')
+  }
+}
+
+/**
+ * Preflight all hires before the host writes any part of an approved assembly.
+ * Reused functions are excluded; their allocation checks remain the host's responsibility.
+ * @param input - Authorized holder, hire specs, scope, existing roster count and committed monthly budget.
+ */
+export function assertGestorAssemblyHires(input: {
+  readonly gestor: Persona
+  readonly limits: GestorLimits
+  readonly specs: readonly PersonaSpec[]
+  readonly rosterCount: number
+  readonly spentTokens: number
+  readonly scope: GestorScope
+}): void {
+  let reserved = input.spentTokens
+  for (const [index, spec] of input.specs.entries()) {
+    assertGestorHire({ gestor: input.gestor, limits: input.limits, spec, scope: input.scope,
+      rosterCount: input.rosterCount + index, spentTokens: reserved })
+    reserved += spec.limits.tokensPerMonth ?? 0
   }
 }
 
@@ -544,15 +573,24 @@ export function gestorHire(input: {
 }
 
 /**
- * One-shot team for a goal: structure + flow + sprint 1.
- * @param input - Free-text goal, project id, clock.
+ * One-shot team for a stated objective: structure + flow + sprint 1.
+ * Empty requests, bare team commands and unrelated one-off tasks are refused.
+ * @param input - Stated goal, project, clock and optional authorized functions; omitted functions mean all hires.
  */
 export function assembleTeamForGoal(input: {
   readonly goal: string
   readonly projectId: string
   readonly sprintId: string
   readonly at: string
+  readonly existingFunctions?: readonly ExistingGestorFunction[]
 }): GestorAssemble {
+  const goal = input.goal.trim()
+  const target = /\b(?:para|pra|for)\s+(.+)/iu.exec(goal)?.[1]
+    ?.replace(/^(?:(?:o|a|os|as|um|uma|the|a|an)\s+)+/iu, '').trim() ?? ''
+  const teamRequest = /\b(?:equipe|time|team)\b/iu.test(goal)
+  if (!teamRequest || !/[\p{L}\p{N}]/u.test(target) || /^(?:projeto|objetivo|trabalho|project|goal)[.!?\s]*$/iu.test(target)) {
+    throw new DomainError('INVALID_GESTOR', 'Informe para qual projeto ou objetivo a equipe deve ser montada.')
+  }
   const ask = parseStructureAsk(input.goal)
   const structure = recommendStructure({
     company: ask.company,
@@ -560,8 +598,18 @@ export function assembleTeamForGoal(input: {
     recurring: ask.recurring,
   })
   const workflowProposal = proposeWorkflow(input.projectId, input.goal)
+  const functionKey = (title: string): string => title.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase()
+  const hire: RecommendedPersona[] = []
+  const reuse: ExistingGestorFunction[] = []
+  for (const recommended of structure.personas) {
+    const existing = input.existingFunctions?.find(row => functionKey(row.function) === functionKey(recommended.title))
+    if (existing === undefined) hire.push(recommended)
+    else reuse.push({ personaId: existing.personaId, function: recommended.title })
+  }
   return {
     structure,
+    hire,
+    reuse,
     workflowProposal,
     workflow: workflowProposal.workflow,
     sprint: openSprint({

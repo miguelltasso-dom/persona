@@ -7,12 +7,14 @@
 import {
   ENGINE_REPORTS_CACHE,
   FAITHFUL_SCENARIO_IDS,
+  LEVERS_AS_WIRED,
   LEVERS_LEGACY,
   LEVERS_OPTIMIZED,
   runFaithfulScenario,
   type FaithfulEngine,
   type FaithfulReport,
   type FaithfulScenarioId,
+  type LeverSet,
 } from './token-faithful.ts'
 
 /** Regression threshold shared with TOKEN-OPTIMIZATION §3. */
@@ -41,6 +43,8 @@ export interface FaithfulBaseline {
   readonly optimized: readonly FaithfulBaselineRow[]
   /** What the same scenarios spend with every lever off (the "before"). */
   readonly legacy: readonly FaithfulBaselineRow[]
+  /** What the host spends today (levers as wired, see LEVERS_AS_WIRED). Informative: not gated. */
+  readonly wired: readonly FaithfulBaselineRow[]
 }
 
 export interface FaithfulGateFinding {
@@ -77,6 +81,7 @@ export function faithfulSnapshot(): FaithfulBaseline {
     note: 'Faithful scripted runner (persona-engine bench/token-faithful). Counts come from the real prompt composers over Padaria Lua fixtures; provider cache = longest common prefix; real CLI runs stay opt-in.',
     optimized: FAITHFUL_SCENARIO_IDS.map(id => rowOf(runFaithfulScenario(id, LEVERS_OPTIMIZED))),
     legacy: FAITHFUL_SCENARIO_IDS.map(id => rowOf(runFaithfulScenario(id, LEVERS_LEGACY))),
+    wired: FAITHFUL_SCENARIO_IDS.map(id => rowOf(runFaithfulScenario(id, LEVERS_AS_WIRED))),
   }
 }
 
@@ -147,18 +152,20 @@ function pct(before: number, after: number): string {
 }
 
 /**
- * Markdown table for `persona-spec/reports/tokens-faithful.md`.
+ * Markdown table: harness ingênuo → hoje (como o host está ligado) → todas as alavancas.
  * @param snapshot - Fresh snapshot.
  */
 export function formatFaithfulTable(snapshot: FaithfulBaseline): string {
+  const cell = (row: FaithfulBaselineRow): string => `${String(row.tokens)} / ${String(row.costMicroUsd)} / ${String(row.calls)}`
   const lines = [
-    '| cenário | antes: tokens / custo µUSD / chamadas | depois: tokens / custo µUSD / chamadas | Δ tokens | Δ custo | cache prefixo | qualidade |',
-    '|---|---|---|---:|---:|---:|---:|',
+    '| cenário | ingênuo: tokens / µUSD / chamadas | hoje (host) | todas as alavancas | Δ tokens hoje→todas | Δ custo hoje→todas | qualidade |',
+    '|---|---|---|---|---:|---:|---:|',
   ]
   for (const after of snapshot.optimized) {
     const before = snapshot.legacy.find(row => row.id === after.id)
-    if (before === undefined) continue
-    lines.push(`| ${after.id} | ${String(before.tokens)} / ${String(before.costMicroUsd)} / ${String(before.calls)} | ${String(after.tokens)} / ${String(after.costMicroUsd)} / ${String(after.calls)} | ${pct(before.tokens, after.tokens)} | ${pct(before.costMicroUsd, after.costMicroUsd)} | ${after.prefixHitRate.toFixed(2)} | ${before.quality.toFixed(2)} → ${after.quality.toFixed(2)} |`)
+    const today = snapshot.wired.find(row => row.id === after.id)
+    if (before === undefined || today === undefined) continue
+    lines.push(`| ${after.id} | ${cell(before)} | ${cell(today)} | ${cell(after)} | ${pct(today.tokens, after.tokens)} | ${pct(today.costMicroUsd, after.costMicroUsd)} | ${before.quality.toFixed(2)} → ${today.quality.toFixed(2)} → ${after.quality.toFixed(2)} |`)
   }
   return lines.join('\n')
 }
@@ -199,5 +206,70 @@ export function formatEngineCacheTable(rows: readonly EngineCacheRow[]): string 
     ...rows.map(row => row.reported
       ? `| ${row.engine} | sim | ${row.legacyPrefixHit.toFixed(2)} | ${row.optimizedPrefixHit.toFixed(2)} | ${row.optimizedPrefixHit >= 0.6 ? 'passou' : 'falhou'} |`
       : `| ${row.engine} | não (adapter não lê cache do vendor) | n/d | n/d | n/d — ausência ≠ 0% |`),
+  ].join('\n')
+}
+
+/** One lever the host has not wired yet, measured alone on top of what is live today. */
+export interface WiringGainRow {
+  readonly lever: string
+  readonly owner: string
+  readonly scenario: FaithfulScenarioId
+  readonly tokensBefore: number
+  readonly tokensAfter: number
+  readonly costBefore: number
+  readonly costAfter: number
+  readonly qualityBefore: number
+  readonly qualityAfter: number
+}
+
+/** Levers still off in {@link LEVERS_AS_WIRED}, with the file that has to call them. */
+export interface UnwiredLever {
+  readonly lever: string
+  readonly owner: string
+  readonly patch: Partial<LeverSet>
+  /** Scenario that shows the lever (default: the day). */
+  readonly scenario?: FaithfulScenarioId
+}
+
+export const UNWIRED_LEVERS: readonly UnwiredLever[] = [
+  { lever: 'batchBurst (batchRouterBurst na rajada do #geral)', owner: 'Anvil orchestration.ts ingest', patch: { batchBurst: true }, scenario: 'burst-geral' },
+  { lever: 'context:ranked (foldHostTalkUsed(used, event.body))', owner: 'Anvil orchestration.ts talkLayers', patch: { context: 'ranked' } },
+  { lever: 'minimalTools (só as ferramentas da tarefa)', owner: 'Rivet mcp/gateway + Forge toolsForTurn', patch: { minimalTools: true } },
+  { lever: 'leanReports (composePrompt worker leanReport:true)', owner: 'Rivet oar/session.ts prefixOwnerNorms', patch: { leanReports: true } },
+  { lever: 'supportOnCheap (triagem no runner barato)', owner: 'Anvil orchestration.ts runWork + Rivet resolve', patch: { supportOnCheap: true } },
+]
+
+/**
+ * Marginal gain of each unwired lever over the host today (default scenario: the day).
+ * @param scenario - Scenario to measure.
+ */
+export function wiringGainTable(defaultScenario: FaithfulScenarioId = 'dia-padaria'): WiringGainRow[] {
+  return UNWIRED_LEVERS.map((item) => {
+    const scenario = item.scenario ?? defaultScenario
+    const today = runFaithfulScenario(scenario, LEVERS_AS_WIRED)
+    const after = runFaithfulScenario(scenario, { ...LEVERS_AS_WIRED, ...item.patch })
+    return {
+      lever: item.lever,
+      owner: item.owner,
+      scenario,
+      tokensBefore: today.totalTokens,
+      tokensAfter: after.totalTokens,
+      costBefore: today.costMicroUsd,
+      costAfter: after.costMicroUsd,
+      qualityBefore: today.quality.score,
+      qualityAfter: after.quality.score,
+    }
+  })
+}
+
+/**
+ * Markdown table of {@link wiringGainTable}.
+ * @param rows - Rows from {@link wiringGainTable}.
+ */
+export function formatWiringGainTable(rows: readonly WiringGainRow[]): string {
+  return [
+    '| alavanca ainda não ligada | quem liga | cenário | tokens | custo µUSD | qualidade |',
+    '|---|---|---|---:|---:|---:|',
+    ...rows.map(row => `| ${row.lever} | ${row.owner} | ${row.scenario} | ${String(row.tokensBefore)} → ${String(row.tokensAfter)} (${pct(row.tokensBefore, row.tokensAfter)}) | ${String(row.costBefore)} → ${String(row.costAfter)} (${pct(row.costBefore, row.costAfter)}) | ${row.qualityBefore.toFixed(2)} → ${row.qualityAfter.toFixed(2)} |`),
   ].join('\n')
 }

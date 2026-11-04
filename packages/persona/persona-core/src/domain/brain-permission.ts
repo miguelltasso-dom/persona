@@ -28,6 +28,10 @@ export type PermissionConsult =
 
 const DAY_MS = 86_400_000
 
+function ambiguousScope(scope: Pick<PermissionGrant, 'personaId' | 'action' | 'target'>): boolean {
+  return [scope.personaId, scope.action, scope.target].some(value => value.trim() === '' || value.includes('*'))
+}
+
 /**
  * @param input - Human grant after "Lembrar esta permissão".
  * @param now - Clock (ms).
@@ -42,7 +46,7 @@ export function rememberPermission(input: {
   readonly validity: PermissionValidity
   readonly now: number
 }): PermissionGrant {
-  if (input.action.trim() === '' || input.target.trim() === '' || input.personaId.trim() === '') {
+  if (ambiguousScope(input)) {
     throw new DomainError('INVALID_BRAIN', 'SCOPE')
   }
   const days7 = input.validity === 'days7'
@@ -92,10 +96,10 @@ export function consultPermission(
   },
 ): PermissionConsult {
   if (grant === undefined) return { kind: 'ask', why: 'sem permissão lembrada' }
-  if (grant.action.trim() === '' || grant.target.trim() === '' || grant.personaId.trim() === '') {
+  if (ambiguousScope(grant)) {
     return { kind: 'ask', why: 'escopo ambíguo' }
   }
-  if (ask.action.trim() === '' || ask.target.trim() === '' || ask.personaId.trim() === '') {
+  if (ambiguousScope(ask)) {
     return { kind: 'ask', why: 'escopo ambíguo' }
   }
   if (grant.revoked) return { kind: 'ask', why: 'revogada' }
@@ -152,7 +156,7 @@ export function grantFromPermissionPage(page: BrainPage): PermissionGrant | unde
   const action = page.properties.action ?? ''
   const target = page.properties.target ?? ''
   const personaId = page.properties.personaId ?? ''
-  if (action === '' || target === '' || personaId === '') return undefined
+  if (ambiguousScope({ action, target, personaId })) return undefined
   const validity = page.properties.validity
   const known: PermissionValidity = validity === 'once' || validity === 'days7' || validity === 'until_revoked'
     ? validity

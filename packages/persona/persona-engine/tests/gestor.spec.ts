@@ -173,6 +173,9 @@ it('assembles a team plus sprint 1 from a goal', () => {
   const pack = runAssembleTeam('Monte um time para o Site', 'site', 'sp1', now)
   expect(pack.sprint.name).toBe('Sprint 1')
   expect(pack.structure.personas.length).toBeGreaterThan(0)
+  const reuse = runAssembleTeam('Monte um time para o Site', 'site', 'sp1', now, [{ personaId: 'guia', function: 'Coordenação' }])
+  expect(reuse.reuse).toEqual([{ personaId: 'guia', function: 'Coordenação' }])
+  expect(reuse.hire.map(row => row.title)).not.toContain('Coordenação')
   const mandate: GestorMandate = {
     personaId: 'atlas',
     workspaceId: 'ws',
@@ -199,11 +202,14 @@ it('assembles a team plus sprint 1 from a goal', () => {
     accepted: true,
     auditId: 'as2',
     at: now,
+    existingFunctions: [{ personaId: 'guia', function: 'Coordenação' }],
   })
   expect(done.decision.kind).toBe('apply')
   if (done.decision.kind !== 'apply') throw new Error('expected apply')
   expect(done.decision.plan.status).toBe('applied')
   expect(done.assemble?.sprint.name).toBe('Sprint 1')
+  expect(done.assemble?.reuse).toEqual(reuse.reuse)
+  expect(done.assemble?.hire).toEqual(reuse.hire)
   expect(proposeGestorChannelBody(plan)).toBe('contratar Pipoca\n\n[[gestor-plan:plan-1]]')
   const posted = emitGestorPropose({ plan, threadId: 'geral', at: now })
   expect(posted.channelBody).toContain('[[gestor-plan:plan-1]]')

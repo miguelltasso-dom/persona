@@ -12,6 +12,21 @@ import { parseReviewRestorePointId } from '../src/review/restore-point-id.ts'
 const roots: string[] = []
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
 
+it('excludes a private home inside the selected folder, including Windows path casing', async () => {
+  const f = await fixture()
+  const home = join(f.project, 'PersonaPrivate')
+  await mkdir(home)
+  await writeFile(join(home, 'private.txt'), 'must never enter the draft')
+  await writeFile(join(f.project, 'a.txt'), 'public project content')
+  const inputHome = process.platform === 'win32' ? home.toUpperCase() : home
+  const delivery = new HistoryReviewDelivery({ ...f.options, projectRoot: process.platform === 'win32' ? f.project.toUpperCase() : f.project,
+    personaHome: inputHome, worktreesRoot: join(inputHome, 'worktrees') })
+  const draft = await delivery.prepare({ id: 'a', ticketId: 'task' })
+  expect(await readFile(join(draft.path, 'a.txt'), 'utf8')).toBe('public project content')
+  expect(existsSync(join(draft.path, 'PersonaPrivate'))).toBe(false)
+  expect((await delivery.summary({ id: 'task', assignments: [] })).files).toEqual([])
+}, 30_000)
+
 it('admits only valid restoration UUIDs and returns canonical identifiers', () => {
   expect(parseReviewRestorePointId('550E8400-E29B-41D4-A716-446655440000')).toBe('550e8400-e29b-41d4-a716-446655440000')
   for (const invalid of ['', '../escape', 'task', '550e8400-e29b-01d4-a716-446655440000', '550e8400-e29b-41d4-z716-446655440000']) {
@@ -176,6 +191,7 @@ it.each(['keep_mine', 'keep_persona', 'keep_both'] as const)('resolves a shared 
   const f = await fixture()
   await writeFile(join(f.project, 'a.txt'), 'baseline\r\n')
   await writeFile(join(f.project, 'a (da persona).txt'), 'existing copy')
+  await mkdir(join(f.project, 'a (da persona 2).txt'))
   const delivery = new HistoryReviewDelivery(f.options)
   const draft = await delivery.prepare({ id: 'a', ticketId: 'task' })
   await writeFile(join(draft.path, 'a.txt'), 'persona version\r\n')
@@ -190,7 +206,7 @@ it.each(['keep_mine', 'keep_persona', 'keep_both'] as const)('resolves a shared 
   expect(body).toBe(choice === 'keep_persona' ? 'persona version\r\n' : 'user version\r\n')
   expect(body).not.toContain('<<<<<<<')
   expect(body).not.toContain('>>>>>>>')
-  const duplicate = join(f.project, 'a (da persona 2).txt')
+  const duplicate = join(f.project, 'a (da persona 3).txt')
   if (choice === 'keep_both') expect(await readFile(duplicate, 'utf8')).toBe('persona version\r\n')
   else expect(existsSync(duplicate)).toBe(false)
   expect(await delivery.undoApply(applied.restorePointId)).toEqual({ kind: 'restored', restorePointId: applied.restorePointId })

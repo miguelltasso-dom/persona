@@ -83,21 +83,31 @@ export const FIXTURE_SUBJECT_HISTORY: readonly string[] = [
   'Nina: lembrete: sexta de manhã separar a embalagem kraft para as 40 unidades da Ana.',
 ]
 
-/** Tool descriptions as a vendor / MCP server would publish them (verbose). */
+/**
+ * The tools a write-level worker is offered through the Persona MCP gateway, with the REAL one-line
+ * descriptions from persona-runners/src/mcp/* (the gateway filters by tool level only, not by task).
+ */
 export const FIXTURE_TOOL_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  files: 'Lê e escreve arquivos dentro das pastas autorizadas do projeto. Aceita caminho relativo, devolve o conteúdo completo e recusa qualquer caminho fora do escopo concedido pela pessoa.',
-  recall: 'Busca no Cofre e nos assuntos anteriores as notas relevantes para a pergunta. Devolve até dez resultados com título, trecho e origem, ordenados por relevância.',
-  shell: 'Executa um comando de terminal na pasta de trabalho com tempo limite. Registra a saída padrão e de erro, e exige confirmação para comandos destrutivos.',
-  browser: 'Abre uma página da web, lê o texto visível e permite clicar e preencher campos. Use apenas em endereços autorizados pela pessoa responsável.',
-  github: 'Consulta e comenta issues e pull requests do repositório conectado. Não faz merge nem altera ramos protegidos sem aprovação explícita.',
-  email: 'Lê e rascunha e-mails da caixa conectada. O envio sempre passa por aprovação da pessoa antes de sair.',
-  calendar: 'Consulta a agenda conectada e propõe horários livres. Criar ou mover eventos exige aprovação.',
-  notes: 'Cria e atualiza páginas do Segundo cérebro com título, tipo e corpo em markdown, respeitando as permissões do Cofre.',
+  persona_report: 'Report assignment progress to the ticket.',
+  persona_recall: 'Recall authorized memory for this run.',
+  persona_ask: 'Ask the person a question on the ticket.',
+  persona_browser_open: 'Open a page in the hosted browser (read).',
+  persona_browser_read: 'Read the current page text.',
+  persona_browser_act: 'Click or type in the hosted browser (external; needs approval).',
+  persona_computer_screenshot: 'Capture the local screen (read).',
+  persona_computer_click: 'Click on the local screen (external; needs approval).',
+  persona_computer_type: 'Type into the focused local window (external; needs approval).',
+  brain_search: 'Search Segundo cérebro pages (ACL per page; no title if denied).',
+  brain_read: 'Read a brain page and recall linked neighbors (ACL each hop).',
+  brain_propose: 'Propose a brain page edit. Required rules need human accept.',
+  persona_telegram_send: 'Reply on the origin Telegram chat (external; needs approval).',
+  persona_email_send: 'Reply on the origin email thread (external; needs approval).',
 }
 
-export const FIXTURE_MANDATE_TOOLS = [
-  'files', 'recall', 'shell', 'browser', 'github', 'email', 'calendar', 'notes',
-] as const
+export const FIXTURE_MANDATE_TOOLS = Object.keys(FIXTURE_TOOL_DESCRIPTIONS)
+
+/** What the MCP list carries per tool besides name and description. */
+export const FIXTURE_TOOL_SCHEMA = '{"type":"object","additionalProperties":true}'
 
 /** Verbose "legacy" model habits that the lean-output rules strip. */
 export const FIXTURE_NARRATION = 'Vou agora abrir o quadro e conferir os cartões antes de responder.'

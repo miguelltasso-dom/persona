@@ -38,6 +38,14 @@ export interface HygieneReport {
   readonly reminders: readonly { readonly pageId: string; readonly silentDays: number }[]
 }
 
+function sameAudience(left: BrainVisibility, right: BrainVisibility): boolean {
+  if (left.kind === 'workspace') return right.kind === 'workspace'
+  if (left.kind === 'project') return right.kind === 'project' && left.projectId === right.projectId
+  return right.kind === 'members'
+    && new Set(left.memberIds).size === new Set(right.memberIds).size
+    && left.memberIds.every(id => right.memberIds.includes(id))
+}
+
 /**
  * Extract durable facts after a task, conversation or approval.
  * Required new rules/decisions need a human accept even under `auto`.
@@ -54,8 +62,9 @@ export function curateBrain(input: {
   readonly policy: LibrarianPolicy
 }): LibrarianAction[] {
   const actions: LibrarianAction[] = []
+  const audiencePages = input.pages.filter(page => page.workspaceId === input.workspaceId && sameAudience(page.visibility, input.visibility))
   for (const [index, fact] of input.facts.entries()) {
-    const same = input.pages.find(page =>
+    const same = audiencePages.find(page =>
       page.status === 'active' && page.kind === fact.kind && nearDuplicate(page.body, fact.body))
     if (same !== undefined) {
       for (const toId of fact.linkTo) {
@@ -63,7 +72,7 @@ export function curateBrain(input: {
       }
       continue
     }
-    const clash = input.pages.find(page =>
+    const clash = audiencePages.find(page =>
       page.status === 'active'
       && (page.kind === 'decision' || page.kind === 'rule')
       && contradicts(page.body, fact.body))
@@ -86,37 +95,35 @@ export function curateBrain(input: {
       })
       continue
     }
-    if (input.policy === 'auto' && !needsAccept) {
-      const matchTitle = input.pages.find(page =>
-        page.status === 'active' && page.kind === fact.kind && page.title === fact.title)
-      if (matchTitle !== undefined) {
-        actions.push({ kind: 'update', pageId: matchTitle.id, body: fact.body, needsAccept: false })
-        continue
-      }
-      actions.push({
-        kind: 'create',
-        needsAccept: false,
-        page: {
-          id: `brain-${input.source.kind}-${input.source.id}-${String(index + 1)}`,
-          workspaceId: input.workspaceId,
-          kind: fact.kind,
-          title: fact.title,
-          body: fact.body,
-          properties: {},
-          sources: [input.source],
-          visibility: input.visibility,
-          revision: 1,
-          confirmedAt: input.now,
-          links: [...fact.linkTo],
-          required: false,
-          status: 'active',
-          authorId: input.authorId,
-          createdAt: input.now,
-          lastUsedAt: input.now,
-          replacedBy: '',
-        },
-      })
+    const matchTitle = audiencePages.find(page =>
+      page.status === 'active' && page.kind === fact.kind && page.title === fact.title)
+    if (matchTitle !== undefined) {
+      actions.push({ kind: 'update', pageId: matchTitle.id, body: fact.body, needsAccept: false })
+      continue
     }
+    actions.push({
+      kind: 'create',
+      needsAccept: false,
+      page: {
+        id: `brain-${input.source.kind}-${input.source.id}-${String(index + 1)}`,
+        workspaceId: input.workspaceId,
+        kind: fact.kind,
+        title: fact.title,
+        body: fact.body,
+        properties: {},
+        sources: [input.source],
+        visibility: input.visibility,
+        revision: 1,
+        confirmedAt: input.now,
+        links: [...fact.linkTo],
+        required: false,
+        status: 'active',
+        authorId: input.authorId,
+        createdAt: input.now,
+        lastUsedAt: input.now,
+        replacedBy: '',
+      },
+    })
   }
   return actions
 }
@@ -147,7 +154,8 @@ export function hygieneBrain(pages: readonly BrainPage[], now: number): HygieneR
   for (const page of active) {
     if (seen.has(page.id)) continue
     const twin = active.find(other =>
-      other.id !== page.id && other.kind === page.kind && nearDuplicate(page.body, other.body))
+      other.id !== page.id && other.workspaceId === page.workspaceId && sameAudience(other.visibility, page.visibility)
+      && other.kind === page.kind && nearDuplicate(page.body, other.body))
     if (twin !== undefined) {
       seen.add(twin.id)
       const keep = page.revision >= twin.revision ? page : twin

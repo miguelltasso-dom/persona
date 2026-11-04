@@ -168,3 +168,23 @@ it('the stable prefix does not move when only the message, recall or subject cha
   expect(two.text.startsWith(one.prefix)).toBe(true)
   expect(one.variable).not.toBe(two.variable)
 })
+
+it('a work-order message can be kept whole; the default still caps it (OPT-4 / first delivery)', () => {
+  const fields = {
+    identity: { name: 'Nina', title: 'Padeira-chefe' },
+    personality: 'Calmo.',
+    instructions: 'Entregue.',
+    functionLabel: 'executora',
+    vault: '',
+  }
+  const order = `Tarefa: ${'monte a equipe e o cardápio completo, com preço e horário. '.repeat(40)}FIM-DO-PEDIDO`
+  const capped = composeTurnPrompt({ fields, part: 'worker', tools: [], required: 'regra: nunca inventar preço.', message: order })
+  const whole = composeTurnPrompt({
+    fields, part: 'worker', tools: [], required: 'regra: nunca inventar preço.', message: order, messageLimit: Number.POSITIVE_INFINITY,
+  })
+  expect(capped.text).not.toContain('FIM-DO-PEDIDO')
+  expect(capped.layers.message).toBeLessThanOrEqual(VARIABLE_LAYER_BUDGET.message)
+  expect(whole.text).toContain('FIM-DO-PEDIDO')
+  expect(whole.prefix).toBe(capped.prefix)
+  expect(whole.variable.endsWith('FIM-DO-PEDIDO')).toBe(true)
+})

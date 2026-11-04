@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 import {
   afterAssignmentSettled,
   applyWorkflowEdit,
+  applyBoardWorkflowEdit,
   boardCounts,
   moveToColumn,
   projectBoardCard,
@@ -124,6 +125,47 @@ it('editing the flow migrates tickets off a removed column', () => {
   })
   expect(migrated.seats.find(row => row.ticketId === 't2')?.columnId).toBe('simples-fazer')
   expect(migrated.workflow.columns.map(column => column.id)).not.toContain('simples-fazendo')
+})
+
+it('keeps a removed-column destination without changing the ticket and resumes automatic mapping on review', () => {
+  const flow = workflowFromTemplate('p', 'software')
+  const moving = moveToColumn(flow, ticket('t1'), 'software-andamento', [], NOW)
+  const unchanged = structuredClone(moving.ticket)
+  const columns = flow.columns.filter(column => column.id !== 'software-andamento')
+  const other = { projectId: 'p', ticketId: 't2', columnId: 'software-backlog' }
+  const edited = applyBoardWorkflowEdit(flow, columns, flow.fields, [moving.placement, other], [moving.ticket], {
+    'software-andamento': 'software-backlog',
+  })
+  const placement = edited.seats.find(seat => seat.ticketId === 't1')
+  expect(placement).toMatchObject({ columnId: 'software-backlog', workflowMove: { stageCategory: 'doing' } })
+  expect(edited.seats.find(seat => seat.ticketId === 't2')).toEqual(other)
+  expect(moving.ticket).toEqual(unchanged)
+  expect(projectBoardCard(edited.workflow, moving.ticket, placement)).toMatchObject({ category: 'doing', columnId: 'software-backlog' })
+  expect(applyBoardWorkflowEdit(edited.workflow, columns, flow.fields, edited.seats, [moving.ticket])).toEqual(edited)
+  const ready = ticket('t1', { assignments: [{ id: 'a', state: 'ended', createdAt: NOW,
+    endedAt: NOW, report: { state: 'ready', summary: 'feito', at: NOW } }] })
+  expect(projectBoardCard(edited.workflow, ready, placement).columnId).toBe('software-revisao')
+  expect(syncPlacementFromStage(edited.workflow, ready, placement).workflowMove).toBeUndefined()
+  const done = ticket('t1', { ended: { at: NOW, by: 'executor', outcome: 'completed' } })
+  expect(projectBoardCard(edited.workflow, done, placement).columnId).toBe('software-pronto')
+  expect(moveToColumn(edited.workflow, moving.ticket, 'software-revisao', edited.seats, NOW).placement.workflowMove).toBeUndefined()
+})
+
+it('migrates an automatically projected card even when its seat has never been persisted', () => {
+  const flow = workflowFromTemplate('p', 'software')
+  const moving = moveToColumn(flow, ticket('t1'), 'software-andamento', [], NOW).ticket
+  const columns = flow.columns.filter(column => column.id !== 'software-andamento')
+  expect(() => applyBoardWorkflowEdit(flow, columns, flow.fields, [], [moving])).toThrow('INVALID_WORKFLOW')
+  const edited = applyBoardWorkflowEdit(flow, columns, flow.fields, [], [moving], { 'software-andamento': 'software-backlog' })
+  expect(projectBoardCard(edited.workflow, moving, edited.seats[0]).columnId).toBe('software-backlog')
+  expect(moving.columnId).toBe('software-andamento')
+})
+
+it('keeps unmarked placements on the existing stage mapping', () => {
+  const flow = workflowFromTemplate('p', 'software')
+  const moving = moveToColumn(flow, ticket('t1'), 'software-andamento', [], NOW).ticket
+  const columns = flow.columns.filter(column => column.id !== 'software-andamento')
+  expect(projectBoardCard({ ...flow, columns }, moving, { projectId: 'p', ticketId: 't1', columnId: 'software-backlog' }).columnId).toBeUndefined()
 })
 
 it('coordination proposes a flow from the project description', () => {

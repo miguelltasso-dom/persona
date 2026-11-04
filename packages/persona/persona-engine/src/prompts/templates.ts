@@ -103,11 +103,28 @@ export interface PromptIdentity {
   title: string
 }
 
+/**
+ * OPT-6, opt-in: asks the worker for a short structured final report. Off by default (it changes what the
+ * model writes; turn it on per host after a real-model check, never inside the first delivery).
+ */
+export const WORKER_LEAN_REPORT_RULE = 'Relato final curto: "Resultado:" e "Bloqueio:", no máximo 100 palavras; não narre passos nem repita a tarefa.'
+
 export interface ComposePromptInput {
   part: PromptPart
   identity: PromptIdentity
   policy: string
+  /**
+   * Worker only. When the policy already carries the owner-norms block ("Normas de dono:"),
+   * drop the template's own one-paragraph copy so the norms are written once (OPT-4).
+   * Default true; pass false to rebuild the old duplicated text (benchmarks).
+   */
+  dedupeOwnerNorms?: boolean
+  /** Worker only: append {@link WORKER_LEAN_REPORT_RULE}. Default false. */
+  leanReport?: boolean
 }
+
+/** The worker template's compact owner-norms paragraph (one line, between blank lines). */
+const WORKER_OWNER_NORMS_PARAGRAPH = /\nNormas de dono: termine[^\n]*\n/u
 
 /**
  * Fill required placeholders. Policy is applied last.
@@ -116,7 +133,12 @@ export interface ComposePromptInput {
 const CREDENTIAL = /(?:sk-[A-Za-z0-9_\-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|Bearer\s+[A-Za-z0-9._\-]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|xai-[A-Za-z0-9]{20,})/
 
 export function composePrompt(input: ComposePromptInput): string {
-  const template = PROMPT_TEMPLATES[input.part]
+  const raw = PROMPT_TEMPLATES[input.part]
+  const dedupe = input.part === 'worker' && input.dedupeOwnerNorms !== false && input.policy.includes('Normas de dono:')
+  const deduped = dedupe ? raw.replace(WORKER_OWNER_NORMS_PARAGRAPH, '\n') : raw
+  const template = input.part === 'worker' && input.leanReport === true
+    ? deduped.replace('{{policy}}', `${WORKER_LEAN_REPORT_RULE}\n\n{{policy}}`)
+    : deduped
   const text = template
     .replaceAll('{{persona_name}}', input.identity.name)
     .replaceAll('{{persona_title}}', input.identity.title)

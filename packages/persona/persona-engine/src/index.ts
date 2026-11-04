@@ -29,6 +29,7 @@ export type { KanbanColumn, KanbanProjection } from './kanban.ts'
 export {
   WorkflowError,
   applyCategoryToTicket,
+  applyBoardWorkflowEdit,
   moveToColumn,
   projectBoardCard,
   resolveColumn,
@@ -590,8 +591,11 @@ export { measureFirstDeliveryAcceptance } from './first-delivery-accept.ts'
 export type { FirstDeliveryAcceptance } from './first-delivery-accept.ts'
 export { FIRST_DELIVERY_MAX_PAID_TURNS, verifyFirstDeliveryRun } from './first-delivery-run.ts'
 export type { FirstDeliveryRunEvidence, FirstDeliveryRunFailure, FirstDeliveryRunResult } from './first-delivery-run.ts'
-export { firstDeliveryAsk, firstDeliveryExecutionPrompt, firstDeliveryTask } from './first-delivery.ts'
-export type { FirstDeliveryExecutionInput, FirstDeliveryInput, FirstDeliveryTask } from './first-delivery.ts'
+export { firstDeliveryAsk, firstDeliveryTask, firstDeliveryExecutionPrompt } from './first-delivery.ts'
+export { extractFactsFromReport, mapReportFactForCuration, REPORT_FACT_LIMITS } from './report-facts.ts'
+export type { ExtractedReportFact, FactReportInput, FactTicketContext, ReportFactAudience, ReportFactExtraction, ReportFactKind, ReportFactRejectionReason } from './report-facts.ts'
+export type { FirstDeliveryExecutionInput } from './first-delivery.ts'
+export type { FirstDeliveryInput, FirstDeliveryTask } from './first-delivery.ts'
 export { wantsWork, workSkipReason } from './wants-work.ts'
 export type { WorkSkipReason } from './wants-work.ts'
 export { assertV1Close, formatV1CloseMarkdown, measureV1Close, measureV1CloseView } from './v1-close.ts'

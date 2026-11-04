@@ -39,6 +39,19 @@ it('skips the same persona + action + target and writes the audit line', () => {
   })
 })
 
+it.each(['personaId', 'action', 'target'] as const)('never covers empty or wildcard %s, including persisted permission pages', (field) => {
+  const valid = grant()
+  for (const value of ['', '   ', '*', 'prefix:*']) {
+    const invalid = { ...valid, [field]: value }
+    expect(() => grant({ [field]: value })).toThrow('INVALID_BRAIN')
+    const ask = { personaId: invalid.personaId, action: invalid.action, target: invalid.target, now: grantedAt }
+    expect(consultPermission(invalid, ask)).toEqual({ kind: 'ask', why: 'escopo ambíguo' })
+    expect(consultPermission(valid, ask)).toEqual({ kind: 'ask', why: 'escopo ambíguo' })
+    const page = permissionPageFromGrant(invalid, 'ws', { kind: 'workspace' })
+    expect(grantFromPermissionPage(page)).toBeUndefined()
+  }
+})
+
 it('never expands a broader action (adversarial)', () => {
   const hit = consultPermission(grant(), {
     personaId: 'atlas',

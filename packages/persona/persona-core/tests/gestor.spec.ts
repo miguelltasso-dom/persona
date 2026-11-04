@@ -4,6 +4,7 @@ import {
   assembleTeamForGoal,
   assertGestorAllocate,
   assertGestorHire,
+  assertGestorAssemblyHires,
   claimGestorScope,
   applyGestorPlan,
   rejectGestorPlan,
@@ -122,37 +123,51 @@ it('hires within Gestor access and writes the audit reason', () => {
 })
 
 it('never creates a hire with more access than the Gestor (adversarial)', () => {
-  expect(() => assertGestorHire({
+  expect(() =>{  assertGestorHire({
     gestor: gestorPersona(),
     limits: limits(),
     spec: spec({ tools: { files: 'write', shell: 'write' } }),
     rosterCount: 1,
     spentTokens: 0,
     scope: {},
-  })).toThrow('ACCESS_ESCALATION')
+  }) }).toThrow('ACCESS_ESCALATION')
+})
+
+it('preflights the combined roster and budget of an assembly before any hiring writes', () => {
+  const input = { gestor: gestorPersona(), specs: [spec({ name: 'A' }), spec({ name: 'B' })],
+    rosterCount: 1, spentTokens: 0, scope: {} }
+  for (const ceiling of [limits({ maxPersonas: 2 }), limits({ maxPersonas: 3, budgetTokens: 9_000 })]) {
+    for (const candidate of input.specs) expect(() => {
+      assertGestorHire({ ...input, spec: candidate, limits: ceiling })
+    }).not.toThrow()
+    expect(() => { assertGestorAssemblyHires({ ...input, limits: ceiling }) }).toThrow('INVALID_GESTOR')
+  }
+  expect(() => {
+    assertGestorAssemblyHires({ ...input, limits: limits({ maxPersonas: 3, budgetTokens: 10_000 }) })
+  }).not.toThrow()
 })
 
 it('never grants Gestor de equipe without the explicit permit (adversarial)', () => {
-  expect(() => assertGestorHire({
+  expect(() =>{  assertGestorHire({
     gestor: gestorPersona(),
     limits: limits({ canGrantGestor: false }),
     spec: spec({ systemRoles: ['team_manager'] }),
     rosterCount: 1,
     spentTokens: 0,
     scope: {},
-  })).toThrow('INVALID_GESTOR')
-  expect(() => assertGestorAllocate({
+  }) }).toThrow('INVALID_GESTOR')
+  expect(() =>{  assertGestorAllocate({
     gestor: gestorPersona(),
     limits: limits({ canGrantGestor: false }),
     nextRoles: ['team_manager'],
     scope: {},
-  })).toThrow('INVALID_GESTOR')
-  expect(() => assertGestorAllocate({
+  }) }).toThrow('INVALID_GESTOR')
+  expect(() =>{  assertGestorAllocate({
     gestor: gestorPersona(),
     limits: limits({ canGrantGestor: true }),
     nextRoles: ['team_manager'],
     scope: {},
-  })).not.toThrow()
+  }) }).not.toThrow()
 })
 
 it('always_ask never applies a hire without approval (adversarial)', () => {
@@ -213,41 +228,41 @@ it('always_ask never applies a hire without approval (adversarial)', () => {
 })
 
 it('respects max personas and budget (adversarial)', () => {
-  expect(() => assertGestorHire({
+  expect(() =>{  assertGestorHire({
     gestor: gestorPersona(),
     limits: limits({ maxPersonas: 3 }),
     spec: spec(),
     rosterCount: 3,
     spentTokens: 0,
     scope: {},
-  })).toThrow('INVALID_GESTOR')
-  expect(() => assertGestorHire({
+  }) }).toThrow('INVALID_GESTOR')
+  expect(() =>{  assertGestorHire({
     gestor: gestorPersona(),
     limits: limits({ approval: 'auto_within_limits', budgetTokens: 12_000 }),
     spec: spec({ limits: { tokensPerMonth: 5_000 } }),
     rosterCount: 1,
     spentTokens: 10_000,
     scope: {},
-  })).toThrow('INVALID_GESTOR')
+  }) }).toThrow('INVALID_GESTOR')
 })
 
 it('caps tools and engines to the mandate (adversarial)', () => {
-  expect(() => assertGestorHire({
+  expect(() =>{  assertGestorHire({
     gestor: gestorPersona(),
     limits: limits({ allowedTools: ['files'] }),
     spec: spec({ tools: { files: 'read', recall: 'read' } }),
     rosterCount: 1,
     spentTokens: 0,
     scope: {},
-  })).toThrow('INVALID_GESTOR')
-  expect(() => assertGestorHire({
+  }) }).toThrow('INVALID_GESTOR')
+  expect(() =>{  assertGestorHire({
     gestor: gestorPersona({ runner: { kind: 'dsh', model: 'deepseek-chat' } }),
     limits: limits({ allowedEngines: ['dsh'] }),
     spec: spec({ runner: { kind: 'cli', cli: 'claude', model: 'haiku' } }),
     rosterCount: 1,
     spentTokens: 0,
     scope: {},
-  })).toThrow('INVALID_GESTOR')
+  }) }).toThrow('INVALID_GESTOR')
 })
 
 it('second Gestor comments; human tie picks the winner', () => {
@@ -281,6 +296,11 @@ it('keeps two Gestores on different scopes from colliding; same scope conflicts'
     .toEqual({ kind: 'claim' })
 })
 
+it.each(['', '   ', 'Monte um time', 'faça um café', 'Monte um time para o projeto', 'Monte um time para...'])('refuses team assembly without a stated objective: %s', (goal) => {
+  expect(() => assembleTeamForGoal({ goal, projectId: 'site', sprintId: 'sp1', at: now }))
+    .toThrow(expect.objectContaining({ code: 'INVALID_GESTOR', detail: 'Informe para qual projeto ou objetivo a equipe deve ser montada.' }))
+})
+
 it('assembles a team, board and sprint 1 from a goal sentence', () => {
   const pack = assembleTeamForGoal({
     goal: 'Monte um time para o Site — setores: criação, conteúdo',
@@ -289,9 +309,24 @@ it('assembles a team, board and sprint 1 from a goal sentence', () => {
     at: now,
   })
   expect(pack.structure.personas.length).toBeGreaterThanOrEqual(3)
+  expect(pack.hire).toEqual(pack.structure.personas)
+  expect(pack.reuse).toEqual([])
   expect(pack.workflow.projectId).toBe('site')
   expect(pack.sprint.name).toBe('Sprint 1')
   expect(pack.sprint.objective).toContain('Site')
+})
+
+it('reuses an authorized existing function rather than a persona name and preserves a deterministic hiring preview', () => {
+  const input = { goal: 'Monte um time para o Site', projectId: 'site', sprintId: 'sp1', at: now,
+    existingFunctions: [{ personaId: 'guia', function: ' coordenacao ' }] }
+  const pack = assembleTeamForGoal(input)
+  expect(pack.reuse).toEqual([{ personaId: 'guia', function: 'Coordenação' }])
+  expect(pack.hire.map(row => row.title)).not.toContain('Coordenação')
+  expect(pack.hire).toEqual(pack.structure.personas.filter(row => row.title !== 'Coordenação'))
+  expect(assembleTeamForGoal(input)).toEqual(pack)
+  const otherFunction = assembleTeamForGoal({ ...input, existingFunctions: [{ personaId: 'coordenação', function: 'Outra função' }] })
+  expect(otherFunction.reuse).toEqual([])
+  expect(otherFunction.hire).toEqual(otherFunction.structure.personas)
 })
 
 it('allocates a persona inside the mandate and refuses a project outside scope', () => {

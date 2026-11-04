@@ -357,10 +357,10 @@ export function previewBringVault(input: {
   for (const row of parsed.rejected) {
     ignored.push({ path: row.externalId.replace(/^md:/, ''), why: row.why ?? 'Ignorado.' })
   }
-  const proposals = parsed.accepted.map((row, index) => {
+  const proposals = parsed.accepted.map((row) => {
     const path = row.externalId.replace(/^md:/, '')
     return finishProposal({
-      id: `byc-vault-${contentHash(path)}-${String(index + 1)}`,
+      id: `byc-vault-${contentHash(path)}-${contentHash(row.body)}`,
       kind: 'memory',
       section: 'Vault',
       body: row.body,
@@ -380,12 +380,7 @@ export interface BringApplyItem {
 }
 
 /**
- * Review decisions. Blocked/conflict/discard never write. Edit uses the new body.
- * @param preview - Last preview.
- * @param items - Person choices.
- */
-/**
- * Map Cofre / vault rows so paste preview can flag duplicate and conflict.
+ * Map Cofre rows for comparison, excluding the importer's trailing source annotation.
  * Host must pass this instead of `existing: []`.
  * @param records - Active vault rows the actor can read.
  * @returns Rows ready for {@link parseBringPaste} `existing`.
@@ -395,14 +390,15 @@ export function vaultToBringExisting(
 ): BringExistingRecord[] {
   return records
     .filter(row => row.id !== '' && row.body.trim() !== '')
-    .map(row => ({ id: row.id, kind: row.kind, body: row.body }))
+    .map(row => ({ id: row.id, kind: row.kind,
+      body: row.body.replace(/\n\n\((?:colado do (?:ChatGPT|Claude|Gemini|Grok|outra IA) em \d{2}\/\d{2}|vault: [^\n]+)\)\s*$/u, '') }))
 }
 
 /**
  * Lumen / Anvil RPC name for {@link decideBringApply}.
  * @param preview - Last preview.
  * @param items - Person choices.
- * @returns Rows that may be written (never blocked/conflict/discard).
+ * @returns Reviewed rows; sensitive bodies, unresolved conflicts and discards never write.
  */
 export function applyContextProposals(
   preview: BringContextPreview,
@@ -411,6 +407,12 @@ export function applyContextProposals(
   return decideBringApply(preview, items)
 }
 
+/**
+ * Recheck explicit edits before applying the preview's default sensitive-data block.
+ * @param preview - Proposals shown to the person.
+ * @param items - Explicit review actions and replacement bodies.
+ * @returns Accepted non-sensitive rows, including edits that remove sensitive content.
+ */
 export function decideBringApply(
   preview: BringContextPreview,
   items: readonly BringApplyItem[],
@@ -420,9 +422,10 @@ export function decideBringApply(
   for (const proposal of preview.proposals) {
     const pick = choice.get(proposal.id)
     if (pick === undefined || pick.action === 'discard') continue
-    if (proposal.blocked) continue
+    if (proposal.blocked && pick.action !== 'edit') continue
     if (proposal.status === 'conflict') continue
     if (proposal.status === 'duplicate') continue
+    if (pick.action === 'edit' && (pick.body === undefined || pick.body.trim() === '')) continue
     const body = pick.body !== undefined && pick.body.trim() !== '' ? pick.body.trim() : proposal.body
     if (sensitiveWhy(body) !== '') continue
     out.push({

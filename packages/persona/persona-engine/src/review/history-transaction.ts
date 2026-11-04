@@ -1,7 +1,7 @@
 /** Journaled file replacement with rollback before any review operation resumes. */
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, realpathSync } from 'node:fs'
-import { copyFile, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { confineAbsolute, confinePath } from '../executor/confine.ts'
 import { HistoryReviewError, parseHistoryJson, type HistoryFileOps } from './history-files.ts'
@@ -17,7 +17,10 @@ interface Entry { area: 'project' | 'metadata'; path: string; before: string | n
 interface Journal { version: 1; phase: 'prepared' | 'applying' | 'committed'; entries: Entry[]; directories: string[] }
 
 async function hash(path: string): Promise<string | null> {
-  try { return createHash('sha256').update(await readFile(path)).digest('hex') }
+  try {
+    if (!(await lstat(path)).isFile()) throw new HistoryReviewError('unsafe_path', 'Este caminho deixou de ser um arquivo comum. Revise a pasta e tente de novo.')
+    return createHash('sha256').update(await readFile(path)).digest('hex')
+  }
   catch (error) { if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null; throw error }
 }
 

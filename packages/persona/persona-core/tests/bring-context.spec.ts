@@ -141,6 +141,47 @@ it('walks an Obsidian vault: ignores .obsidian/.trash/binaries and reimports by 
   expect(again.ignored.some(row => /mesmo caminho e hash/.test(row.why))).toBe(true)
 })
 
+it('deduplicates a fact imported from another AI without counting the importer source annotation', () => {
+  const fact = 'A Padaria Lua abre às seis da manhã de terça a sábado.'
+  const storedBody = `${fact}\n\n(colado do ChatGPT em 04/11)`
+  const existing = vaultToBringExisting([{ id: 'imported', kind: 'brief', body: storedBody }])
+  expect(existing).toEqual([{ id: 'imported', kind: 'brief', body: fact }])
+  const preview = parseBringPaste({ text: `## Sobre mim\n- Miguel.\n\n## Empresa e projetos\n- ${fact}`,
+    provider: 'claude', at: '2026-11-04T00:00:00.000Z', existing })
+  expect(preview.proposals.find(row => row.body === fact)).toMatchObject({ status: 'duplicate', duplicateOf: 'imported' })
+  const applied = decideBringApply(preview, preview.proposals.map(row => ({ id: row.id, action: 'accept' })))
+  expect(applied.map(row => row.body)).toEqual(['Miguel.'])
+  expect(storedBody).toContain('(colado do ChatGPT em 04/11)')
+})
+
+it('keys vault proposals by path and content rather than their position in the scan', () => {
+  const initial = previewBringVault({ files: [{ path: 'a.md', text: '# A\nTexto inicial.' }, { path: 'b.md', text: '# B\nOutra nota.' }] })
+  const reordered = previewBringVault({ files: [{ path: 'b.md', text: '# B\nOutra nota.' }, { path: 'a.md', text: '# A\nTexto inicial.' }] })
+  for (const proposal of initial.proposals) {
+    expect(reordered.proposals.find(row => row.path === proposal.path)?.id).toBe(proposal.id)
+  }
+  const changed = previewBringVault({ files: [{ path: 'a.md', text: '# A\nTexto revisado com horário de domingo.' }] })
+  expect(changed.proposals[0]?.id).not.toBe(initial.proposals.find(row => row.path === 'a.md')?.id)
+  expect(decideBringApply(changed, [{ id: changed.proposals[0]!.id, action: 'accept' }])[0]?.body).toContain('domingo')
+})
+
+it('allows an explicit edit removing sensitive data while keeping unchanged or still-sensitive rows blocked', () => {
+  const preview = parseBringPaste({ text: '## Pessoas e contatos de trabalho\n- Ana, contadora. CPF 123.456.789-00.',
+    provider: 'other', at: '2026-11-04T00:00:00.000Z' })
+  const proposal = preview.proposals[0]
+  if (proposal === undefined) throw new Error('missing sensitive proposal')
+  expect(proposal.blocked).toBe(true)
+  for (const action of ['accept', 'private'] as const) {
+    expect(decideBringApply(preview, [{ id: proposal.id, action, body: 'Ana, contadora.' }])).toEqual([])
+  }
+  for (const body of ['', '   ', 'Ana, contadora. CPF 123.456.789-00.']) {
+    expect(decideBringApply(preview, [{ id: proposal.id, action: 'edit', body }])).toEqual([])
+  }
+  expect(decideBringApply(preview, [{ id: proposal.id, action: 'edit' }])).toEqual([])
+  const applied = decideBringApply(preview, [{ id: proposal.id, action: 'edit', body: ' Ana, contadora. ' }])
+  expect(applied).toEqual([{ ...proposal, body: 'Ana, contadora.', blocked: false, sensitive: false, sensitiveWhy: '', status: 'ready' }])
+})
+
 it('apply accepts ready/uncertain edits and never writes blocked or discarded rows', () => {
   const preview = parseBringPaste({
     text: `

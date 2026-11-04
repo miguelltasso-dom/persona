@@ -3,18 +3,6 @@ import { firstDeliveryAsk, firstDeliveryExecutionPrompt, firstDeliveryTask } fro
 import { preRoute } from '../src/preroute/rules.ts'
 import { wantsWork, workSkipReason } from '../src/wants-work.ts'
 
-it('keeps persona context and the authorized first-delivery task in one logged worker input', () => {
-  const prompt = firstDeliveryExecutionPrompt({ personaContext: 'Você é Bia. Seja objetiva.',
-    task: { assignment: 'Resuma os dados da empresa nesta mensagem; apenas resposta, sem ferramentas.' } })
-  expect(prompt).toMatchInlineSnapshot(`
-    "Contexto da persona para esta execução; respeite o modo apenas resposta e as permissões da tarefa:
-    Você é Bia. Seja objetiva.
-
-    Pedido autorizado para este único turno:
-    Resuma os dados da empresa nesta mensagem; apenas resposta, sem ferramentas."
-  `)
-})
-
 it('Agência P0: Monte a equipe is work; oi is talk', () => {
   expect(wantsWork('Monte a equipe da Agência Ponto para o site e a campanha do cliente.')).toBe(true)
   expect(workSkipReason('Monte a equipe da Agência Ponto para o site e a campanha do cliente.')).toBeUndefined()
@@ -65,6 +53,21 @@ it('keeps the full multiline company brief inline while clipping only the title'
   expect(task.assignment).toContain('não a execute')
   expect(firstDeliveryAsk({ companyBrief: brief })).toBe(task.assignment)
   expect(wantsWork(task.assignment)).toBe(true)
+})
+
+it('keeps the complete assignment beyond the chat budget in a single worker prompt', () => {
+  const brief = `Agência Ponto. ${'Contexto autorizado. '.repeat(100)}\nReunião: 2026-11-04T10:00:00Z.\nÚltimo fato: cardápio aprovado.`
+  const task = firstDeliveryTask({ companyBrief: brief })
+  const prompt = firstDeliveryExecutionPrompt({
+    fields: { identity: { name: 'Guia', title: 'Coordenação' }, personality: 'Calma.',
+      instructions: 'Respeite os dados fornecidos.', functionLabel: 'Coordenação', vault: '' },
+    assignment: task.assignment,
+  })
+  expect(prompt).toContain(task.assignment)
+  expect(prompt).toContain(JSON.stringify(brief))
+  expect(prompt).toContain('Você executa a Tarefa autorizada.')
+  expect(prompt).toContain('Respeite os dados fornecidos.')
+  expect(prompt).not.toContain('Esta é uma conversa, não uma Tarefa')
 })
 
 it('labels missing company data without instructing a vault lookup', () => {

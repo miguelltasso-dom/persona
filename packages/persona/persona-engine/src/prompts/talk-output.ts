@@ -6,7 +6,8 @@
 import { estimateTokens } from '@deepseek-ai/dsh-persona-core'
 import { refuseHesitantOffer } from '../continue.ts'
 import { countWords, leanChannelReply } from '../lean-output.ts'
-import { composeTurnPrompt, type StablePrefix } from './stable-prefix.ts'
+import { rankRowsByRelevance } from './context-budget.ts'
+import { clipWithMark, composeTurnPrompt, type StablePrefix } from './stable-prefix.ts'
 import { TALK_CONTEXT_LIMIT, capTalkContext, wrapAsData, type TalkPromptInput } from './talk.ts'
 import { composePersonaPrompt, voiceSurfaceHint, type ComposePersonaPromptInput } from './voice.ts'
 
@@ -78,10 +79,15 @@ export interface HostTalkUsedFold {
 
 /**
  * Same fold the host talkLayers used: required vault, subject summary, recall.
+ * With `query` (the person's line) the recall rows go most-relevant first, so the head clip
+ * that follows keeps the note that answers the question (OPT-4); the last messages of the
+ * subject (`subject_recent`) stay first and in chronological order. Without `query` the
+ * order is unchanged.
  * @param used - Compiled "Contexto usado" rows.
+ * @param query - Optional: the person's line of this turn.
  * @returns Slices for {@link composeHostTalk}.
  */
-export function foldHostTalkUsed(used: readonly HostTalkUsedRow[]): HostTalkUsedFold {
+export function foldHostTalkUsed(used: readonly HostTalkUsedRow[], query?: string): HostTalkUsedFold {
   const required = used
     .filter(row => row.required && !row.restricted && row.body !== '')
     .slice()
@@ -92,10 +98,14 @@ export function foldHostTalkUsed(used: readonly HostTalkUsedRow[]): HostTalkUsed
     .filter(row => row.kind === 'subject_summary' && row.body !== '')
     .map(row => row.body)
     .join('\n')
-  const recall = used
-    .filter(row => !row.required && !row.restricted && row.body !== '' && row.kind !== 'subject_summary')
-    .map(row => `${row.kind}: ${row.body}`)
-    .join('\n')
+  const recallRows = used.filter(row => !row.required && !row.restricted && row.body !== '' && row.kind !== 'subject_summary')
+  const line = (row: HostTalkUsedRow): string => `${row.kind}: ${row.body}`
+  if (query === undefined || query.trim() === '') {
+    return { required, subject, recall: recallRows.map(line).join('\n') }
+  }
+  const recent = recallRows.filter(row => row.kind === 'subject_recent').map(line)
+  const others = recallRows.filter(row => row.kind !== 'subject_recent').map(line)
+  const recall = [...recent, ...rankRowsByRelevance(others, query)].join('\n')
   return { required, subject, recall }
 }
 
@@ -106,6 +116,12 @@ export interface HostTalkInput extends ComposePersonaPromptInput {
 }
 
 export type HostTalkCompose = StablePrefix & { readonly text: string }
+
+/**
+ * A person's own message (or one attachment) is the work: only a pathological paste is cut. It is cut
+ * BEFORE the data wrapper so the closing tag and the "treat as data" line always survive.
+ */
+export const USER_TEXT_LIMIT_TOKENS = 1_500
 
 /**
  * Host talk path (OPT-3): colleagues stay in the prefix; required vault,
@@ -120,9 +136,9 @@ export function composeHostTalk(input: HostTalkInput): HostTalkCompose {
     .filter(part => part !== '')
     .join('\n\n')
   const attachments = (input.attachments ?? [])
-    .map((item, index) => wrapAsData(`anexo-${String(index + 1)}`, item))
+    .map((item, index) => wrapAsData(`anexo-${String(index + 1)}`, clipWithMark(item, USER_TEXT_LIMIT_TOKENS)))
     .join('\n\n')
-  const user = input.userText === undefined ? '' : wrapAsData('mensagem', input.userText)
+  const user = input.userText === undefined ? '' : wrapAsData('mensagem', clipWithMark(input.userText, USER_TEXT_LIMIT_TOKENS))
   const message = [attachments, user].filter(part => part !== '').join('\n\n')
   return composeTurnPrompt({
     fields: {
@@ -139,7 +155,7 @@ export function composeHostTalk(input: HostTalkInput): HostTalkCompose {
     required,
     ...(input.subject === undefined || input.subject === '' ? {} : { subject: input.subject }),
     ...(input.recall === undefined || input.recall === '' ? {} : { recall: input.recall }),
-    ...(message === '' ? {} : { message }),
+    ...(message === '' ? {} : { message, messageLimit: Number.POSITIVE_INFINITY }),
   })
 }
 

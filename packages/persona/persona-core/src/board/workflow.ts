@@ -56,6 +56,8 @@ export interface TicketBoardSeat {
   sprintId?: string
   blocked?: boolean
   campos?: Readonly<Record<string, string | number>>
+  /** Flow-edit destination remains authoritative until this ticket category changes. */
+  workflowMove?: { stageCategory: StageCategory }
 }
 
 /** Catalog row. Display names are data, not hardcoded persona names. */

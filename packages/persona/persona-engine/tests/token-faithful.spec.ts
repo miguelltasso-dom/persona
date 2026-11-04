@@ -5,6 +5,7 @@ import { estimateTokens } from '@deepseek-ai/dsh-persona-core'
 import { describe, expect, it } from 'vitest'
 import {
   FAITHFUL_SCENARIO_IDS,
+  LEVERS_AS_WIRED,
   LEVERS_LEGACY,
   LEVERS_OPTIMIZED,
   LEVER_LADDER,
@@ -18,7 +19,10 @@ import {
 import {
   FAITHFUL_REGRESSION_RATIO,
   compareFaithfulRows,
+  UNWIRED_LEVERS,
   engineCacheTable,
+  formatWiringGainTable,
+  wiringGainTable,
   formatEngineCacheTable,
   faithfulSnapshot,
   formatFaithfulTable,
@@ -97,16 +101,27 @@ describe('faithful scripted runner (OPT-2)', () => {
     expect(warmSecond ?? 0).toBeLessThan((coldSecond ?? 0) - 400)
   })
 
-  it('model routing moves only support turns to the cheap engine', () => {
+  it('routes talk and support turns to the cheap engine; execution and evaluation stay on the persona engine', () => {
     const report = runFaithfulScenario('dia-padaria')
     for (const turn of report.turns) {
-      const heavy = turn.entry.kind === 'execution' || turn.entry.kind === 'reply'
-      expect(turn.tier).toBe(heavy ? 'persona' : 'cheap')
+      const heavy = turn.entry.kind === 'execution' || turn.entry.kind === 'evaluation'
+      expect(turn.tier, turn.entry.kind).toBe(heavy ? 'persona' : 'cheap')
     }
-    const legacy = runFaithfulScenario('dia-padaria', { ...LEVERS_OPTIMIZED, modelRouting: false })
-    expect(legacy.turns.every(turn => turn.tier === 'persona')).toBe(true)
-    expect(legacy.costMicroUsd).toBeGreaterThan(report.costMicroUsd)
-    expect(legacy.totalTokens).toBe(report.totalTokens)
+    const flat = runFaithfulScenario('dia-padaria', { ...LEVERS_OPTIMIZED, talkOnCheap: false, supportOnCheap: false })
+    expect(flat.turns.every(turn => turn.tier === 'persona')).toBe(true)
+    expect(flat.costMicroUsd).toBeGreaterThan(report.costMicroUsd)
+    expect(flat.totalTokens).toBe(report.totalTokens)
+  })
+
+  it('the host today sits between the naive harness and every lever on', () => {
+    for (const id of FAITHFUL_SCENARIO_IDS) {
+      const naive = runFaithfulScenario(id, LEVERS_LEGACY)
+      const today = runFaithfulScenario(id, LEVERS_AS_WIRED)
+      const all = runFaithfulScenario(id, LEVERS_OPTIMIZED)
+      expect(today.costMicroUsd, id).toBeLessThanOrEqual(naive.costMicroUsd)
+      expect(all.costMicroUsd, id).toBeLessThanOrEqual(today.costMicroUsd)
+      expect(today.quality.score, id).toBe(1)
+    }
   })
 
   it('reports cache hit per engine and never invents it for engines that do not report', () => {
@@ -250,5 +265,39 @@ describe('prefix cache per engine (OPT-3)', () => {
     expect(text).toContain('ausência ≠ 0%')
     const cursorRow = text.split('\n').find(line => line.startsWith('| cursor')) ?? ''
     expect(cursorRow).not.toContain('0.00')
+  })
+})
+
+describe('what is still unwired in the host (contract token-wiring.md)', () => {
+  it('measures each unwired lever alone, never worse on cost and never worse on quality', () => {
+    const rows = wiringGainTable()
+    expect(rows).toHaveLength(UNWIRED_LEVERS.length)
+    for (const row of rows) {
+      expect(row.costAfter, row.lever).toBeLessThanOrEqual(row.costBefore)
+      expect(row.tokensAfter, row.lever).toBeLessThanOrEqual(row.tokensBefore)
+      expect(row.qualityAfter, row.lever).toBeGreaterThanOrEqual(row.qualityBefore)
+    }
+    const byName = (needle: string) => rows.find(row => row.lever.startsWith(needle))
+    expect(byName('supportOnCheap')?.costAfter).toBeLessThan(byName('supportOnCheap')?.costBefore ?? 0)
+    expect(byName('minimalTools')?.tokensAfter).toBeLessThan(byName('minimalTools')?.tokensBefore ?? 0)
+    expect(formatWiringGainTable(rows)).toContain('Anvil orchestration.ts')
+  })
+})
+
+describe('burst batching (OPT-6)', () => {
+  it('triages a burst in #geral once per thread, with every line in the brief', () => {
+    const lines = runFaithfulScenario('burst-geral', { ...LEVERS_OPTIMIZED, batchBurst: false })
+    const batched = runFaithfulScenario('burst-geral', LEVERS_OPTIMIZED)
+    expect(lines.calls).toBe(4)
+    expect(batched.calls).toBe(1)
+    expect(batched.entries[0]?.kind).toBe('triage')
+    expect(batched.totalTokens).toBeLessThan(lines.totalTokens)
+    expect(batched.quality.score).toBe(1)
+    for (const needle of ['40 pães', 'fubá', '9h']) expect(batched.finalText).toContain(needle)
+  })
+
+  it('the courtesy line closes without a model in every configuration that has the pre-router', () => {
+    expect(runFaithfulScenario('burst-geral', LEVERS_AS_WIRED).calls).toBe(4)
+    expect(runFaithfulScenario('burst-geral', LEVERS_LEGACY).calls).toBe(5)
   })
 })

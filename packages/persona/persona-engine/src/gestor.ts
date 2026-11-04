@@ -15,6 +15,7 @@ import {
   gestorInitiative,
   gestorReorganize,
   type GestorAllocation,
+  type ExistingGestorFunction,
   type GestorAssemble,
   type GestorDecision,
   type GestorInitiative,
@@ -84,14 +85,16 @@ export function runGestorHire(input: {
  * @param projectId - Target project.
  * @param sprintId - Sprint 1 id.
  * @param at - ISO clock.
+ * @param existingFunctions - Optional functions in the authorized roster; omitted means all hires.
  */
 export function runAssembleTeam(
   goal: string,
   projectId: string,
   sprintId: string,
   at: string,
+  existingFunctions?: readonly ExistingGestorFunction[],
 ): GestorAssemble {
-  return assembleTeamForGoal({ goal, projectId, sprintId, at })
+  return assembleTeamForGoal({ goal, projectId, sprintId, at, ...(existingFunctions === undefined ? {} : { existingFunctions }) })
 }
 
 /**
@@ -108,6 +111,7 @@ export function runGestorAssemble(input: {
   readonly auditId: string
   readonly at: string
   readonly openPlans?: readonly GestorPlan[]
+  readonly existingFunctions?: readonly ExistingGestorFunction[]
 }): { readonly decision: GestorDecision; readonly assemble?: GestorAssemble } {
   const clash = clashOnScope(input.openPlans, input.plan, input.at)
   if (clash !== undefined) return { decision: clash }
@@ -126,6 +130,7 @@ export function runGestorAssemble(input: {
       projectId: input.projectId,
       sprintId: input.sprintId,
       at: input.at,
+      ...(input.existingFunctions === undefined ? {} : { existingFunctions: input.existingFunctions }),
     }),
   }
 }

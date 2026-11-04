@@ -22,12 +22,14 @@ import {
   type TurnLayerSizes,
   type TurnLedgerEntry,
 } from '@deepseek-ai/dsh-persona-core'
+import { batchRouterBurst } from '../activity.ts'
 import { batchInitiative, INITIATIVE_DAILY_TOKEN_BUDGET, leanChannelReply, trimInitiativeToBudget, type InitiativeDraft } from '../lean-output.ts'
 import { preRoute, type PreRouteInput } from '../preroute/rules.ts'
 import { ROUTER_FORBIDDEN_TOOLS } from '../ports/runner.ts'
+import { fitRowsToBudget, relevanceOverlap } from '../prompts/context-budget.ts'
 import { clipTextToTokens, composeStablePrefix, toolsForTurn, trimVariableAlreadyInPrefix, VARIABLE_LAYER_BUDGET } from '../prompts/stable-prefix.ts'
 import { capTalkContext, wrapAsData, type TalkColleague } from '../prompts/talk.ts'
-import { composePrompt } from '../prompts/templates.ts'
+import { composePrompt, WORKER_LEAN_REPORT_RULE } from '../prompts/templates.ts'
 import { composeVoicePolicy, composePersonaPrompt, voiceSurfaceHint, type PersonaVoiceFields } from '../prompts/voice.ts'
 import { vigiaTick } from '../watchdog.ts'
 import {
@@ -42,6 +44,7 @@ import {
   FIXTURE_SUBJECT_HISTORY,
   FIXTURE_TEAM,
   FIXTURE_TOOL_DESCRIPTIONS,
+  FIXTURE_TOOL_SCHEMA,
   type FixturePersona,
 } from './token-fixtures.ts'
 
@@ -64,12 +67,18 @@ export interface LeverSet {
   readonly minimalTools: boolean
   /** §2.3 OPT-4: owner norms written once in the worker prompt. */
   readonly dedupeNorms: boolean
-  /** §2.6 OPT-6: lean structured reports and brevity rules (no echo, no narration, no hedge). */
-  readonly leanOutput: boolean
-  /** §2.5 OPT-5: triage / evaluation / vigia / initiative on the cheap engine. */
-  readonly modelRouting: boolean
+  /** §2.6 OPT-6: channel text without echo, step narration or hedge, capped at 100 words (host `finishHostTalk`). */
+  readonly leanTalk: boolean
+  /** §2.6 OPT-6: the worker prompt asks for a short structured report (Resultado / Bloqueio); evaluation reads that, not a transcript. */
+  readonly leanReports: boolean
+  /** §2.5 OPT-5: the chat reply runs on the cheap talk model (host `purpose: 'talk'`). */
+  readonly talkOnCheap: boolean
+  /** §2.5 OPT-5: triage / Vigia / initiative / librarian run on the cheap engine. Evaluation stays on the persona engine. */
+  readonly supportOnCheap: boolean
   /** §2.5 OPT-5: coordination session is warm — the system prompt is delivered once. */
   readonly warmSession: boolean
+  /** §2.8 OPT-6: a burst of messages in one thread is triaged once (`batchRouterBurst`), not once per line. */
+  readonly batchBurst: boolean
   /** §2.7 OPT-6: initiative in daily batches, only when something changed, inside a token budget. */
   readonly initiativeBudget: boolean
 }
@@ -83,9 +92,12 @@ export const LEVERS_LEGACY: LeverSet = {
   context: 'raw',
   minimalTools: false,
   dedupeNorms: false,
-  leanOutput: false,
-  modelRouting: false,
+  leanTalk: false,
+  leanReports: false,
+  talkOnCheap: false,
+  supportOnCheap: false,
   warmSession: false,
+  batchBurst: false,
   initiativeBudget: false,
 }
 
@@ -105,9 +117,12 @@ export const LEVER_LADDER: readonly LadderStep[] = [
   { id: 'context:ranked', patch: { context: 'ranked' } },
   { id: 'minimalTools', patch: { minimalTools: true } },
   { id: 'dedupeNorms', patch: { dedupeNorms: true } },
-  { id: 'leanOutput', patch: { leanOutput: true } },
-  { id: 'modelRouting', patch: { modelRouting: true } },
+  { id: 'leanTalk', patch: { leanTalk: true } },
+  { id: 'leanReports', patch: { leanReports: true } },
+  { id: 'talkOnCheap', patch: { talkOnCheap: true } },
+  { id: 'supportOnCheap', patch: { supportOnCheap: true } },
   { id: 'warmSession', patch: { warmSession: true } },
+  { id: 'batchBurst', patch: { batchBurst: true } },
   { id: 'initiativeBudget', patch: { initiativeBudget: true } },
 ]
 
@@ -120,9 +135,12 @@ export const LEVERS_OPTIMIZED: LeverSet = {
   context: 'ranked',
   minimalTools: true,
   dedupeNorms: true,
-  leanOutput: true,
-  modelRouting: true,
+  leanTalk: true,
+  leanReports: true,
+  talkOnCheap: true,
+  supportOnCheap: true,
   warmSession: true,
+  batchBurst: true,
   initiativeBudget: true,
 }
 
@@ -145,6 +163,8 @@ export const FAITHFUL_SCENARIO_IDS = [
   'initiative-30-busy',
   'padaria-lua',
   'dia-padaria',
+  'burst-geral',
+  'dia-espacado',
 ] as const
 
 export type FaithfulScenarioId = (typeof FAITHFUL_SCENARIO_IDS)[number]
@@ -172,6 +192,10 @@ export interface FaithfulTurn {
   readonly costMicroUsd: number
   /** True when an earlier call under the same cache key already warmed the prefix. */
   readonly warm: boolean
+  /** The full prompt the call carried (the paired real run replays these). */
+  readonly prompt: string
+  /** Cache key (persona + purpose): calls with the same key share a prefix. */
+  readonly cacheKey: string
   /** Prefix tokens (system + tools + required) the provider served from cache on this call. */
   readonly prefixRead: number
   /** Channel text that reached a person, when this turn posts one. */
@@ -198,6 +222,13 @@ export const ENGINE_REPORTS_CACHE: Record<FaithfulEngine, boolean> = {
 
 export interface FaithfulOptions {
   readonly engine?: FaithfulEngine
+  /**
+   * Steady state: play the scenario once to warm the prefix cache and the sessions, then measure
+   * the second pass (a task that is not the first of the day). Default: cold, first of the day.
+   */
+  readonly warm?: boolean
+  /** Provider cache TTL in minutes (default {@link PROVIDER_CACHE_TTL_MIN}). */
+  readonly cacheTtlMin?: number
 }
 
 export interface FaithfulReport {
@@ -230,21 +261,29 @@ function commonPrefixLength(a: string, b: string): number {
   return i
 }
 
-/** Provider prefix cache: previous prompt per cache key. */
+/** Provider prefix cache TTL (ephemeral cache, minutes). A gap longer than this finds the prefix cold. */
+export const PROVIDER_CACHE_TTL_MIN = 5
+
+/** OAR keeps a CLI Session in memory this long without traffic (Rivet, 04/11). */
+export const SESSION_TTL_MIN = 10
+
+/** Provider prefix cache: previous prompt and time per cache key. */
 class PrefixCacheModel {
-  private readonly last = new Map<string, string>()
+  private readonly last = new Map<string, { readonly prompt: string; readonly at: number }>()
 
   /**
    * @param key - Persona + purpose.
    * @param prompt - Full prompt text of this call.
+   * @param nowMin - Virtual clock, minutes.
+   * @param ttlMin - Entries older than this are gone.
    * @returns Tokens read from cache (common prefix) and written (the rest).
    */
-  touch(key: string, prompt: string): { readonly read: number; readonly write: number; readonly warm: boolean } {
+  touch(key: string, prompt: string, nowMin: number, ttlMin: number): { readonly read: number; readonly write: number; readonly warm: boolean } {
     const input = estimateTokens(prompt)
     const previous = this.last.get(key)
-    this.last.set(key, prompt)
-    if (previous === undefined) return { read: 0, write: input, warm: false }
-    const read = Math.min(input, Math.floor(commonPrefixLength(previous, prompt) / 4))
+    this.last.set(key, { prompt, at: nowMin })
+    if (previous === undefined || nowMin - previous.at > ttlMin) return { read: 0, write: input, warm: false }
+    const read = Math.min(input, Math.floor(commonPrefixLength(previous.prompt, prompt) / 4))
     return { read, write: input - read, warm: true }
   }
 }
@@ -254,7 +293,11 @@ interface Run {
   readonly levers: LeverSet
   readonly cache: PrefixCacheModel
   readonly turns: FaithfulTurn[]
-  readonly warm: Set<string>
+  /** Last time a warm CLI session was used, per session key. */
+  readonly warm: Map<string, number>
+  readonly cacheTtlMin: number
+  /** Virtual clock, minutes since the first event. */
+  nowMin: number
   seq: number
 }
 
@@ -270,13 +313,18 @@ interface TurnInput {
   readonly posted?: string
 }
 
-function newRun(levers: LeverSet, engine: FaithfulEngine): Run {
-  return { engine, levers, cache: new PrefixCacheModel(), turns: [], warm: new Set(), seq: 0 }
+function newRun(levers: LeverSet, engine: FaithfulEngine, cacheTtlMin: number): Run {
+  return { engine, levers, cache: new PrefixCacheModel(), turns: [], warm: new Map(), cacheTtlMin, nowMin: 0, seq: 0 }
+}
+
+/** Move the virtual clock (a gap between two messages). */
+function advance(run: Run, minutes: number): void {
+  run.nowMin += minutes
 }
 
 function record(run: Run, input: TurnInput): FaithfulTurn {
   run.seq += 1
-  const usage = run.cache.touch(input.cacheKey, input.prompt)
+  const usage = run.cache.touch(input.cacheKey, input.prompt, run.nowMin, run.cacheTtlMin)
   const inputTokens = estimateTokens(input.prompt)
   const outputTokens = estimateTokens(input.output)
   const entry = turnFromLayers({
@@ -306,6 +354,8 @@ function record(run: Run, input: TurnInput): FaithfulTurn {
     freshTokens: fresh + outputTokens,
     costMicroUsd: Math.round(cost),
     warm: usage.warm,
+    prompt: input.prompt,
+    cacheKey: input.cacheKey,
     prefixRead: Math.min(usage.read, input.layers.system + input.layers.tools + input.layers.required),
     ...(input.posted === undefined ? {} : { posted: input.posted }),
   }
@@ -318,26 +368,17 @@ function sumOf(layers: TurnLayerSizes): number {
 }
 
 function tierFor(levers: LeverSet, kind: TurnKind): ModelTier {
-  if (!levers.modelRouting) return 'persona'
-  return kind === 'execution' || kind === 'reply' ? 'persona' : 'cheap'
-}
-
-/** Words of the recall row that overlap the message (relevance for ranking). */
-function overlapScore(row: string, message: string): number {
-  const stop = new Set(['de', 'da', 'do', 'e', 'a', 'o', 'que', 'em', 'um', 'uma', 'para', 'com', 'os', 'as', 'no', 'na', 'por', 'se', 'nota', 'qual'])
-  const words = (text: string): string[] =>
-    text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/u)
-      .filter(word => word.length > 2 && !stop.has(word))
-  const wanted = new Set(words(message))
-  let score = 0
-  for (const word of new Set(words(row))) if (wanted.has(word)) score += 1
-  return score
+  if (kind === 'reply') return levers.talkOnCheap ? 'cheap' : 'persona'
+  if (kind === 'triage' || kind === 'watchdog' || kind === 'initiative' || kind === 'librarian') {
+    return levers.supportOnCheap ? 'cheap' : 'persona'
+  }
+  return 'persona'
 }
 
 /** Rows a compile step returns for a query: the top ones by overlap, then emitted in stable id order (core `compileContext` re-sorts by kind/id). */
 export function retrieveRecall(rows: readonly string[], message: string, limit: number = 8): string[] {
   return rows
-    .map((row, index) => ({ row, index, score: overlapScore(row, message) }))
+    .map((row, index) => ({ row, index, score: relevanceOverlap(row, message) }))
     .filter(item => item.score > 0)
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, limit)
@@ -355,19 +396,7 @@ export function retrieveRecall(rows: readonly string[], message: string, limit: 
 export function fitRecall(rows: readonly string[], message: string, policy: ContextPolicy): string {
   if (policy === 'raw') return capTalkContext(rows.join('\n'))
   if (policy === 'headClip') return clipTextToTokens(rows.join('\n'), VARIABLE_LAYER_BUDGET.recall)
-  const ranked = rows
-    .map((row, index) => ({ row, index, score: overlapScore(row, message) }))
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-  const kept: string[] = []
-  let used = 0
-  for (const item of ranked) {
-    if (item.score === 0 && kept.length > 0) break
-    const cost = estimateTokens(item.row) + 1
-    if (used + cost > VARIABLE_LAYER_BUDGET.recall) continue
-    kept.push(item.row)
-    used += cost
-  }
-  return kept.join('\n')
+  return fitRowsToBudget(rows, message, VARIABLE_LAYER_BUDGET.recall)
 }
 
 /**
@@ -481,7 +510,7 @@ function scriptedReply(prompt: string, userText: string, facts: readonly Fact[])
 }
 
 function postable(levers: LeverSet, raw: string, userText: string): string {
-  return levers.leanOutput ? leanChannelReply(raw, userText) : raw.split(/\s+/).slice(0, 400).join(' ')
+  return levers.leanTalk ? leanChannelReply(raw, userText) : raw.split(/\s+/).slice(0, 400).join(' ')
 }
 
 function routeInput(text: string, at: number): PreRouteInput {
@@ -543,14 +572,15 @@ const OWNER_NORMS = [
 ].join('\n')
 
 /** Worker system prompt; `dedupe` drops the template's own owner-norms paragraph. */
-export function workerPromptText(persona: FixturePersona, dedupe: boolean): string {
+export function workerPromptText(persona: FixturePersona, dedupe: boolean, leanReport: boolean = false): string {
   const text = composePrompt({
     part: 'worker',
     identity: { name: persona.name, title: persona.title },
     policy: `${OWNER_NORMS}\n\nPersona instructions:\n${persona.instructions}`,
+    dedupeOwnerNorms: dedupe,
+    leanReport,
   })
-  if (!dedupe) return text
-  return text.split('\n').filter(line => !line.startsWith('Normas de dono: termine')).join('\n')
+  return text
 }
 
 function toolsText(levers: LeverSet, needed: readonly string[]): string {
@@ -558,7 +588,7 @@ function toolsText(levers: LeverSet, needed: readonly string[]): string {
   return names
     .map((name) => {
       const description = FIXTURE_TOOL_DESCRIPTIONS[name] ?? name
-      return levers.minimalTools ? `${name}: ${minifyToolDescription(description)}` : `- ${name}: ${description}`
+      return `- ${name}: ${minifyToolDescription(description)} ${FIXTURE_TOOL_SCHEMA}`
     })
     .join('\n')
 }
@@ -572,8 +602,9 @@ interface TriageInput {
 function triageTurn(run: Run, input: TriageInput): FaithfulTurn {
   const coordination = coordinationPromptText(FIXTURE_ATLAS)
   const key = 'atlas:coordination'
-  const warm = run.levers.warmSession && run.warm.has(key)
-  run.warm.add(key)
+  const lastUse = run.warm.get(key)
+  const warm = run.levers.warmSession && lastUse !== undefined && run.nowMin - lastUse <= SESSION_TTL_MIN
+  run.warm.set(key, run.nowMin)
   const subject = fitSubject(input.subject, run.levers.summarizeSubject, run.levers.context)
   const card = [
     'Candidato: pedido de Ana no #geral',
@@ -583,7 +614,7 @@ function triageTurn(run: Run, input: TriageInput): FaithfulTurn {
   // Cold coordination: the long prompt rides in every delivery. Warm: delivered once.
   const prompt = warm ? card : `${coordination}\n\n${card}`
   const decision = `persona_route {"to":"${FIXTURE_NINA.id}","title":"${input.ticketTitle}"}`
-  const output = run.levers.leanOutput ? decision : `${FIXTURE_NARRATION}\nPedido entendido; vou despachar para ${FIXTURE_NINA.name}.\n${decision}`
+  const output = decision
   return record(run, {
     kind: 'triage',
     persona: FIXTURE_ATLAS,
@@ -617,7 +648,7 @@ interface ExecutionInput {
 function executionTurn(run: Run, input: ExecutionInput): FaithfulTurn {
   const subject = fitSubject(input.subject, run.levers.summarizeSubject, run.levers.context)
   const recall = fitRecall(retrieveRecall(input.recall, input.title), input.title, run.levers.context)
-  const system = workerPromptText(input.persona, run.levers.dedupeNorms)
+  const system = workerPromptText(input.persona, run.levers.dedupeNorms, run.levers.leanReports)
   const tools = toolsText(run.levers, input.neededTools)
   const assignment = [
     `Tarefa: ${input.title}`,
@@ -631,7 +662,7 @@ function executionTurn(run: Run, input: ExecutionInput): FaithfulTurn {
     : [system, required, tools].join('\n\n')
   const prompt = `${prefix}\n\n${assignment}`
   const known = stateFacts(prompt, input.facts)
-  const raw = run.levers.leanOutput
+  const raw = prompt.includes(WORKER_LEAN_REPORT_RULE)
     ? `Resultado: ${input.resultLine} ${known}\nBloqueio: nenhum.`
     : `${FIXTURE_NARRATION}\nPasso 1. Li a tarefa e o contexto do assunto.\nPasso 2. Conferi o critério de pronto: ${input.acceptance}\nPasso 3. Executei o trabalho e anotei o que decidi e o que falta.\nResultado: ${input.resultLine} ${known}\n${FIXTURE_HEDGE}`
   return record(run, {
@@ -655,13 +686,14 @@ function executionTurn(run: Run, input: ExecutionInput): FaithfulTurn {
 }
 
 function evaluationTurn(run: Run, executionReport: string, criterion: string, needle: string): FaithfulTurn {
-  const system = workerPromptText(FIXTURE_BENTO, run.levers.dedupeNorms)
-  const report = run.levers.leanOutput ? leanChannelReply(executionReport) : executionReport
+  const system = workerPromptText(FIXTURE_BENTO, run.levers.dedupeNorms, run.levers.leanReports)
+  const lean = system.includes(WORKER_LEAN_REPORT_RULE)
+  const report = lean ? leanChannelReply(executionReport) : executionReport
   const prompt = `${system}\n\n${FIXTURE_REQUIRED_VAULT}\n\nRevisar contra o critério: ${criterion}\nRelato da executora:\n${report}`
   const verdict = report.toLowerCase().includes(needle.toLowerCase())
     ? `aprovado: ${needle} confere com o critério.`
     : 'devolvido: critério não evidenciado.'
-  const raw = run.levers.leanOutput ? verdict : `${FIXTURE_NARRATION}\nLi o relato inteiro e conferi cada ponto do critério.\n${verdict}\n${FIXTURE_HEDGE}`
+  const raw = lean ? verdict : `${FIXTURE_NARRATION}\nLi o relato inteiro e conferi cada ponto do critério.\n${verdict}\n${FIXTURE_HEDGE}`
   return record(run, {
     kind: 'evaluation',
     persona: FIXTURE_BENTO,
@@ -747,11 +779,23 @@ export function runFaithfulScenario(
   levers: LeverSet = LEVERS_OPTIMIZED,
   options: FaithfulOptions = {},
 ): FaithfulReport {
-  const run = newRun(levers, options.engine ?? 'claude')
+  const run = newRun(levers, options.engine ?? 'claude', options.cacheTtlMin ?? PROVIDER_CACHE_TTL_MIN)
+  const play = (): FaithfulReport => playScenario(id, run)
+  if (options.warm === true) {
+    play()
+    run.turns.length = 0
+    run.seq = 0
+  }
+  return play()
+}
+
+function playScenario(id: FaithfulScenarioId, run: Run): FaithfulReport {
   if (id === 'geral-simple') return geralSimple(run)
   if (id === 'multi-review') return multiReview(run)
   if (id === 'padaria-lua') return padariaLua(run)
   if (id === 'dia-padaria') return diaPadaria(run)
+  if (id === 'burst-geral') return burstGeral(run)
+  if (id === 'dia-espacado') return diaPadaria(run, 30, 'dia-espacado')
   if (id === 'idle-routines') return idleRoutines(run)
   return initiative30(run, id === 'initiative-30-busy' ? 5 : 0)
 }
@@ -780,7 +824,7 @@ function filterWithReview(run: Run, at: number): string {
     acceptance: 'filtro por data e status funcionando, com teste e revisão do Bento',
     subject: [],
     recall: FIXTURE_RECALL_ROWS,
-    neededTools: ['files', 'recall'],
+    neededTools: ['persona_report', 'persona_recall'],
     facts: [{ evidence: 'filtro por data e status', sentence: 'Filtro por data e status pronto, com teste.' }],
     resultLine: 'patch aplicado e testes passando.',
   })
@@ -799,7 +843,7 @@ function weekendOrder(run: Run, at: number): string {
     acceptance: 'cardápio fechado e encomenda da Ana confirmada com quantidade e horário',
     subject: FIXTURE_SUBJECT_HISTORY,
     recall: FIXTURE_RECALL_ROWS,
-    neededTools: ['files', 'recall'],
+    neededTools: ['persona_report', 'persona_recall'],
     facts: [
       { evidence: '40 pães', sentence: 'Encomenda da Ana: 40 pães de fermentação natural e 1 bolo de fubá.' },
       { evidence: 'retirada às 9h', sentence: 'Retirada às 9h.' },
@@ -835,6 +879,30 @@ function broadFriday(run: Run, at: number): string {
   }, [{ evidence: 'embalagem kraft acaba em duas semanas', sentence: 'A embalagem kraft acaba em duas semanas; a Nina faz o pedido ao fornecedor.' }]).posted ?? ''
 }
 
+/** Five lines in a row in #geral about one order (the last is a courtesy): one triage per line, or one per burst. */
+const BURST_LINES: readonly string[] = [
+  'Preciso do cardápio de sábado.',
+  'A Ana quer 40 pães de fermentação natural.',
+  'E um bolo de fubá.',
+  'Retirada às 9h.',
+  'valeu',
+]
+
+function burstGeral(run: Run): FaithfulReport {
+  const lines = BURST_LINES.filter((line, index) => needsModel(run.levers, line, 10 + index))
+  const events = lines.map((_, index) => ({ id: String(index), threadId: '#geral' }))
+  const groups = run.levers.batchBurst
+    ? batchRouterBurst(events)
+    : events.map(event => ({ threadId: event.threadId, ids: [event.id] }))
+  const brief: string[] = []
+  for (const group of groups) {
+    const text = group.ids.map(id => lines[Number(id)] ?? '').join('\n')
+    triageTurn(run, { userText: text, subject: [], ticketTitle: 'cardápio de sábado' })
+    brief.push(text)
+  }
+  return finish('burst-geral', run, brief.join(' '), ['cardápio', '40 pães', 'fubá', '9h'])
+}
+
 function geralSimple(run: Run): FaithfulReport {
   const finalText = askStandup(run, 1)
   courtesy(run, 'ok', 2, ['Qual o horário do standup?', finalText])
@@ -849,17 +917,28 @@ function padariaLua(run: Run): FaithfulReport {
   return finish('padaria-lua', run, weekendOrder(run, 1), ['Ana', '40 pães', '9h'])
 }
 
-/** A morning in the #geral: six lines, four reach a model, one is a two-step task. Cache and warm sessions show here. */
-function diaPadaria(run: Run): FaithfulReport {
+/**
+ * A day in the #geral: seven lines, five reach a model, one is a two-step task.
+ * `gapMin` is the time between lines: 1 = a burst (sessions and cache stay warm); 30 = a team that
+ * writes through the day (cache gone after 5 min, session after 10 min).
+ */
+function diaPadaria(run: Run, gapMin: number = 1, id: FaithfulScenarioId = 'dia-padaria'): FaithfulReport {
   const outputs: string[] = []
+  const step = (): void => { advance(run, gapMin) }
   outputs.push(askStandup(run, 1))
+  step()
   courtesy(run, 'ok', 2, [])
+  step()
   outputs.push(weekendOrder(run, 3))
+  step()
   courtesy(run, 'valeu!', 4, FIXTURE_SUBJECT_HISTORY)
+  step()
   outputs.push(swapQuestion(run, 5))
+  step()
   outputs.push(filterWithReview(run, 6))
+  step()
   outputs.push(broadFriday(run, 7))
-  return finish('dia-padaria', run, outputs.join(' | '), ['10h', '40 pães', '9h', 'cenoura', 'filtro', 'revis', 'kraft'])
+  return finish(id, run, outputs.join(' | '), ['10h', '40 pães', '9h', 'cenoura', 'filtro', 'revis', 'kraft'])
 }
 
 /** Cheap support prompt for a Vigia / routine tick when a model would be asked. */
@@ -898,7 +977,7 @@ function idleRoutines(run: Run): FaithfulReport {
     const built = supportPrompt('watchdog', FIXTURE_ATLAS, state)
     record(run, {
       kind: 'watchdog', persona: FIXTURE_ATLAS, cacheKey: 'atlas:watchdog', prompt: built.text, layers: built.layers,
-      output: run.levers.leanOutput ? 'nada a fazer.' : `${FIXTURE_NARRATION}\nConferi os sinais; a equipe está ociosa e sem pendências. Nada a ajustar agora.`,
+      output: 'nada a fazer.',
       tier: tierFor(run.levers, 'watchdog'),
     })
   }
@@ -937,7 +1016,7 @@ function initiative30(run: Run, busy: number): FaithfulReport {
     const built = supportPrompt('initiative', persona, run.levers.initiativeBudget ? state : `${state}\nRecall:\n${FIXTURE_RECALL_ROWS.join('\n')}`)
     record(run, {
       kind: 'initiative', persona, cacheKey: `${persona.id}:initiative`, prompt: built.text, layers: built.layers,
-      output: run.levers.leanOutput ? 'proposta: revisar o cartão com mudança.' : `${FIXTURE_NARRATION}\nAnalisei a área inteira antes de propor algo: sugiro revisar o cartão que mudou e atualizar o status.\n${FIXTURE_HEDGE}`,
+      output: 'proposta: revisar o cartão com mudança.',
       tier: tierFor(run.levers, 'initiative'),
     })
   }
@@ -969,3 +1048,20 @@ export function leverLadder(id: FaithfulScenarioId): LeverStep[] {
 
 /** Cumulative levers where the context policy stops at head clip (what Forge shipped). */
 export const LEVERS_FORGE_SHIPPED: LeverSet = { ...LEVERS_OPTIMIZED, context: 'headClip' }
+
+/**
+ * What the host runs today: talk on the cheap model, pre-router, Vigia rules, stable prefix, subject
+ * summary, the head-clip budget and the warm coordination session (OAR keeps the Session in memory per
+ * persona|cwd|model, TTL 10 min — Rivet 04/11; messages more than 10 min apart pay the ~500-token
+ * coordination prompt again, which this burst-shaped scenario does not show) are live. NOT wired yet:
+ * tool filtering by task, ranked recall (host still calls `foldHostTalkUsed` without the question),
+ * triage/support on the cheap engine and structured worker reports.
+ */
+export const LEVERS_AS_WIRED: LeverSet = {
+  ...LEVERS_OPTIMIZED,
+  context: 'headClip',
+  minimalTools: false,
+  leanReports: false,
+  supportOnCheap: false,
+  batchBurst: false,
+}

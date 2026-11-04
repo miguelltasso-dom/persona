@@ -3,6 +3,35 @@
  */
 
 import { wantsWork } from './wants-work.ts'
+import { composeTurnPrompt } from './prompts/stable-prefix.ts'
+import type { PersonaVoiceFields } from './prompts/voice.ts'
+
+/** Authorized worker input; the assignment is retained verbatim outside the chat budget. */
+export interface FirstDeliveryExecutionInput {
+  readonly fields: PersonaVoiceFields
+  readonly assignment: string
+  readonly required?: string
+  readonly subject?: string
+  readonly recall?: string
+}
+
+/**
+ * Compose persona context and the full authorized assignment for one execution turn.
+ * Company data remains in the variable tail, outside the cache-stability guard.
+ * @param input - Persona voice, authorized context and answer-only assignment.
+ * @returns Complete worker prompt, without a separate persona injection turn.
+ */
+export function firstDeliveryExecutionPrompt(input: FirstDeliveryExecutionInput): string {
+  const context = composeTurnPrompt({
+    fields: input.fields,
+    part: 'worker',
+    tools: [],
+    required: input.required ?? input.fields.vault,
+    ...(input.subject === undefined ? {} : { subject: input.subject }),
+    ...(input.recall === undefined ? {} : { recall: input.recall }),
+  })
+  return `${context.text}\n\n${input.assignment}`
+}
 
 export interface FirstDeliveryInput {
   readonly companyBrief: string
@@ -16,12 +45,6 @@ export interface FirstDeliveryTask {
   readonly readyCriterion: string
   readonly executionMode: 'answer-only'
   readonly permissionMode: 'deny'
-}
-
-/** Session context and the already-authorized assignment, delivered together rather than as separate turns. */
-export interface FirstDeliveryExecutionInput {
-  readonly personaContext: string
-  readonly task: Pick<FirstDeliveryTask, 'assignment'>
 }
 
 const FALLBACK_BRIEF = 'Nenhum dado da empresa foi informado.'
@@ -68,21 +91,6 @@ export function firstDeliveryAsk(input: FirstDeliveryInput): string {
   const ask = firstDeliveryTask(input).assignment
   if (!wantsWork(ask)) throw new Error('first-delivery ask must wantsWork')
   return ask
-}
-
-/**
- * Build one logged worker input containing persona context and the complete authorized task.
- * @param input - Persona context and answer-only assignment already bound by the host.
- * @returns A single execution prompt; the host sends it once without a prior inject or triage delivery.
- */
-export function firstDeliveryExecutionPrompt(input: FirstDeliveryExecutionInput): string {
-  return [
-    'Contexto da persona para esta execução; respeite o modo apenas resposta e as permissões da tarefa:',
-    input.personaContext,
-    '',
-    'Pedido autorizado para este único turno:',
-    input.task.assignment,
-  ].join('\n')
 }
 
 function clipBrief(raw: string): string {

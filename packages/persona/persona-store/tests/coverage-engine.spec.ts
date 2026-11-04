@@ -101,11 +101,11 @@ it('store.tx aborts every Nth write and rolls back', () => {
     })
   }
   write('a')
-  expect(() => write('b')).toThrow('abort-n')
+  expect(() => { write('b') }).toThrow('abort-n')
   const rows = store.db.prepare('SELECT id FROM workspace ORDER BY id').all() as Array<{ id: string }>
   expect(rows.map(item => item.id)).toEqual(['a'])
   write('c')
-  expect(() => write('d')).toThrow('abort-n')
+  expect(() => { write('d') }).toThrow('abort-n')
   const again = store.db.prepare('SELECT id FROM workspace ORDER BY id').all() as Array<{ id: string }>
   expect(again.map(item => item.id)).toEqual(['a', 'c'])
 })

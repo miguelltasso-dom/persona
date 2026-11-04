@@ -35,9 +35,11 @@ export function resolveSessionActor(
   sessionMemberId?: string,
 ): Actor | undefined {
   const members = product.listMembers(workspaceId)
-  const chosen = (sessionMemberId === undefined ? undefined : members.find(item => item.id === sessionMemberId))
-    ?? members.find(item => item.role === 'owner')
-    ?? members[0]
+  if (sessionMemberId !== undefined) {
+    const chosen = members.find(item => item.id === sessionMemberId)
+    return chosen === undefined ? undefined : actorOf(product, chosen)
+  }
+  const chosen = members.find(item => item.role === 'owner') ?? members[0]
   if (chosen === undefined) return undefined
   return actorOf(product, chosen)
 }

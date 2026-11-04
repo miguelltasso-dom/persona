@@ -50,6 +50,8 @@ it('completeOnboarding is idempotent and writes welcome without a hardcoded name
   expect(first.firstUse).toBe(false)
   expect(h.getOnboarding({ workspaceId: 'ws', projectId: 'pp' }).completed).toBe(true)
   expect(h.listPersonas({ workspaceId: 'ws', projectId: 'pp' }).map(item => item.name).sort()).toEqual(['Bento', 'Guia'])
+  const guia = h.listPersonas({ workspaceId: 'ws', projectId: 'pp' }).find(row => row.name === 'Guia')
+  expect(guia?.systemRoles).toEqual(['coordination', 'team_manager'])
   expect(h.listTasks({ workspaceId: 'ws', projectId: 'pp' })).toEqual([])
   const page = h.listMessages({
     workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',

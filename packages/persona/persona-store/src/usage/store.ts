@@ -36,7 +36,14 @@ export interface UsageQuery {
   readonly to: string
 }
 
-/** Official quota snapshot (persona-usage `OfficialQuota`). */
+/** One recorded reset clock for the Lumen «próximo refill» strip. */
+export interface QuotaRefillPoint {
+  readonly windowId: string
+  readonly resetsAt: string
+  readonly recordedAt: string
+}
+
+/** Official quota snapshot (persona-usage `OfficialQuota`) scoped to one login. */
 export interface StoredOfficialQuota {
   readonly provider: string
   readonly origin: UsageOrigin
@@ -48,7 +55,15 @@ export interface StoredOfficialQuota {
     readonly resetsAt?: string
   }[]
   readonly detail?: string
+  /** Connected account id from Rivet `OfficialQuotaPutRow`. Never `default`. */
+  readonly accountId?: string
+  readonly accountLabel?: string
+  /** Last few reset clocks (capped at {@link QUOTA_REFILL_HISTORY}). */
+  readonly refillHistory?: readonly QuotaRefillPoint[]
 }
+
+/** Keep a short next-refill trail per account. */
+export const QUOTA_REFILL_HISTORY = 8
 
 /**
  * Persist measured/estimated turns and official quota snapshots.
@@ -186,31 +201,35 @@ export class SqliteUsageStore implements UsageStore {
 
   /**
    * @param projectId - Tenant.
-   * @param quota - Latest official snapshot for one provider.
+   * @param quota - Latest official snapshot for one provider+account.
    */
   putQuota(projectId: string, quota: StoredOfficialQuota): void {
     const updatedAt = new Date().toISOString()
+    const accountId = quota.accountId ?? ''
+    const previous = this.listQuota(projectId, quota.provider)
+      .find(row => (row.accountId ?? '') === accountId)
+    const stored = mergeQuotaHistory(quota, previous, updatedAt)
     this.store.tx((db) => {
-      run(db, `INSERT INTO usage_quota (project_id, provider, origin, body, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(project_id, provider) DO UPDATE SET
+      run(db, `INSERT INTO usage_quota (project_id, provider, account_id, origin, body, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(project_id, provider, account_id) DO UPDATE SET
           origin = excluded.origin, body = excluded.body, updated_at = excluded.updated_at`, [
-        projectId, quota.provider, quota.origin, JSON.stringify(quota), updatedAt,
+        projectId, stored.provider, accountId, stored.origin, JSON.stringify(stored), updatedAt,
       ])
     })
   }
 
   /**
    * @param projectId - Tenant.
-   * @param provider - Optional filter.
+   * @param provider - Optional filter. One provider may have several accounts.
    */
   listQuota(projectId: string, provider?: string): StoredOfficialQuota[] {
     const rows = provider === undefined
       ? this.store.db.prepare(
-        'SELECT body FROM usage_quota WHERE project_id = ? ORDER BY provider',
+        'SELECT body FROM usage_quota WHERE project_id = ? ORDER BY provider, account_id',
       ).all(projectId)
       : this.store.db.prepare(
-        'SELECT body FROM usage_quota WHERE project_id = ? AND provider = ?',
+        'SELECT body FROM usage_quota WHERE project_id = ? AND provider = ? ORDER BY account_id',
       ).all(projectId, provider)
     return rows.map(readQuota)
   }
@@ -263,4 +282,25 @@ function readEvent(row: Record<string, SQLOutputValue>): StoredUsageEvent {
 
 function readQuota(row: Record<string, SQLOutputValue>): StoredOfficialQuota {
   return structuredClone(JSON.parse(text(row, 'body')) as StoredOfficialQuota)
+}
+
+/**
+ * Append current window reset clocks and keep the last {@link QUOTA_REFILL_HISTORY}.
+ * @param next - Incoming snapshot.
+ * @param previous - Last stored row for the same account, if any.
+ * @param recordedAt - Clock of this write.
+ */
+export function mergeQuotaHistory(
+  next: StoredOfficialQuota,
+  previous: StoredOfficialQuota | undefined,
+  recordedAt: string,
+): StoredOfficialQuota {
+  const fresh: QuotaRefillPoint[] = next.windows.flatMap((window) => {
+    if (window.resetsAt === undefined || window.resetsAt === '') return []
+    return [{ windowId: window.id, resetsAt: window.resetsAt, recordedAt }]
+  })
+  const prior = previous?.refillHistory ?? next.refillHistory ?? []
+  const refillHistory = [...prior, ...fresh].slice(-QUOTA_REFILL_HISTORY)
+  if (refillHistory.length === 0) return next
+  return { ...next, refillHistory }
 }

@@ -20,9 +20,9 @@ it('CLI talk denies every tool; task allow-once only when files write or safe sh
 })
 
 it('CLI never resolves prompt — invalid config fails early in pt-BR', () => {
-  expect(() => assertCliPermission(cli, 'prompt')).toThrow(/CLI não aceita modo prompt/u)
-  expect(() => assertCliPermission(cli, 'deny')).not.toThrow()
-  expect(() => assertCliPermission(dsh, 'prompt')).not.toThrow()
+  expect(() => { assertCliPermission(cli, 'prompt') }).toThrow(/CLI não aceita modo prompt/u)
+  expect(() => { assertCliPermission(cli, 'deny') }).not.toThrow()
+  expect(() => { assertCliPermission(dsh, 'prompt') }).not.toThrow()
 })
 
 it('permissionFor uses CLI policy, not autonomy prompt, for CLI specs', () => {

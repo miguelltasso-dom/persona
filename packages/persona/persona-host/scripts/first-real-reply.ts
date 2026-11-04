@@ -51,7 +51,7 @@ const onb = await h.completeOnboarding({
   cofreSeed: '',
 })
 const scope = { workspaceId: 'ws', projectId: onb.personalProjectId || 'pp' }
-const firstPaint = await h.listConnections(scope)
+const firstPaint = h.listConnections(scope)
 report.listConnectionsFirst = firstPaint.find(item => item.kind === 'claude')
 
 h.postMessage({

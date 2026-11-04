@@ -27,31 +27,41 @@ export type ConnectionDetector = (options: {
  */
 export class ConnectionProbe {
   /**
-   * @param options - Timeouts, injected detector (tests), clock.
+   * @param options - Timeouts, injected detector (tests), clock, quota persist.
    */
   constructor(options: {
     timeoutMs?: number
     cacheMs?: number
     detect?: ConnectionDetector
     now?: () => number
+    persistQuota?: ((snaps: readonly ConnectionSnapshot[]) => void) | undefined
   } = {}) {
     this.timeoutMs = options.timeoutMs ?? CONNECTION_PROBE_TIMEOUT_MS
     this.cacheMs = options.cacheMs ?? CONNECTION_CACHE_MS
     this.detect = options.detect ?? defaultDetect
     this.now = options.now ?? Date.now
+    this.persistQuota = options.persistQuota
   }
 
   readonly timeoutMs: number
   readonly cacheMs: number
   readonly detect: ConnectionDetector
   readonly now: () => number
+  readonly persistQuota: ((snaps: readonly ConnectionSnapshot[]) => void) | undefined
   private cache: { at: number; cards: ConnectionView[] } | undefined
   private inflight: Promise<void> | undefined
+  private lastSnaps: readonly ConnectionSnapshot[] = []
+
+  /** Last finished `detectConnections` cards (may carry `officialQuota`). */
+  snaps(): readonly ConnectionSnapshot[] {
+    return this.lastSnaps
+  }
 
   /** Drop cache and in-flight probe (tests wipe between `it`s). */
   reset(): void {
     this.cache = undefined
     this.inflight = undefined
+    this.lastSnaps = []
   }
 
   /** Kick a probe if the cache is cold or stale. */
@@ -91,7 +101,9 @@ export class ConnectionProbe {
   private async probe(): Promise<void> {
     try {
       const snaps = await this.detect({ timeoutMs: this.timeoutMs, force: true })
+      this.lastSnaps = snaps
       this.cache = { at: this.now(), cards: snaps.map(toCard) }
+      this.persistQuota?.(snaps)
     } catch {
       // Timeout/throw is not a definitive logout — keep checking / last ready cache.
     }

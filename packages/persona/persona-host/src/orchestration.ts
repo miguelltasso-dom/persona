@@ -9,7 +9,10 @@ import {
   RECOVERY_NOTE,
   allExternalSourceScope,
   composeSourceScope,
-  composeTurnPrompt,
+  capTalkContext,
+  composeHostTalk,
+  finishHostTalk,
+  foldHostTalkUsed,
   milestoneSummary,
   followupOwners,
   internalSourceScope,
@@ -1158,11 +1161,12 @@ export class Orchestration {
       this.failReply(event, speaker, login)
       return
     }
-    const body = this.scriptedHello(live)
-    if (body === undefined) {
+    const raw = this.scriptedHello(live)
+    if (raw === undefined) {
       this.failReply(event, speaker, new Error('resposta vazia'))
       return
     }
+    const body = finishHostTalk(raw, event.body)
     this.postAs(event, speaker, replyId, clipWords(body), live !== '' ? 'runner' : 'message')
     this.mark('reply')
     this.deliverOutbox(rt, event, speaker)
@@ -1204,21 +1208,8 @@ export class Orchestration {
         }
       })
       .sort((left, right) => left.name.localeCompare(right.name) || left.title.localeCompare(right.title))
-    const required = used
-      .filter(row => row.required && !row.restricted && row.body !== '')
-      .slice()
-      .sort((left, right) => left.id.localeCompare(right.id))
-      .map(row => `${row.kind}: ${row.body}`)
-      .join('\n')
-    const subject = used
-      .filter(row => row.kind === 'subject_summary' && row.body !== '')
-      .map(row => row.body)
-      .join('\n')
-    const recall = used
-      .filter(row => !row.required && !row.restricted && row.body !== '' && row.kind !== 'subject_summary')
-      .map(row => `${row.kind}: ${row.body}`)
-      .join('\n')
-    const built = composeTurnPrompt({
+    const folded = foldHostTalkUsed(used)
+    return composeHostTalk({
       fields: {
         identity: { name: speaker.name, title: speaker.title },
         personality: speaker.personality,
@@ -1228,14 +1219,12 @@ export class Orchestration {
         colleagues,
         capabilities: 'resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta',
       },
-      part: 'talk',
-      tools: [],
-      required,
-      ...(subject === '' ? {} : { subject }),
-      ...(recall === '' ? {} : { recall }),
-      message: citeAttachments(event.body, this.attachmentNamesOf?.(event.id) ?? []),
+      surface: 'talk',
+      userText: citeAttachments(event.body, this.attachmentNamesOf?.(event.id) ?? []),
+      required: folded.required,
+      ...(folded.subject === '' ? {} : { subject: folded.subject }),
+      ...(folded.recall === '' ? {} : { recall: capTalkContext(folded.recall) }),
     })
-    return { prefix: built.prefix, text: built.text }
   }
 
   /**

@@ -1012,6 +1012,24 @@ ALTER TABLE usage_record ADD COLUMN cache_read_tokens INTEGER;
 ALTER TABLE usage_record ADD COLUMN cache_write_tokens INTEGER;
 `
 
+const V19_QUOTA_ACCOUNT = `
+CREATE TABLE usage_quota_account (
+  project_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  origin TEXT NOT NULL CHECK (origin IN ('measured', 'estimate', 'official', 'unavailable')),
+  body TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (project_id, provider, account_id)
+) STRICT;
+
+INSERT INTO usage_quota_account (project_id, provider, account_id, origin, body, updated_at)
+SELECT project_id, provider, '', origin, body, updated_at FROM usage_quota;
+
+DROP TABLE usage_quota;
+ALTER TABLE usage_quota_account RENAME TO usage_quota;
+`
+
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -1084,5 +1102,9 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 18,
     sql: V18_TURN_LEDGER,
+  },
+  {
+    version: 19,
+    sql: V19_QUOTA_ACCOUNT,
   },
 ]

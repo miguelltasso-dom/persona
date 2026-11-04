@@ -117,6 +117,6 @@ it('keeps document visibility for ACL and refuses a missing replace', async () =
     authorId: 'ana', visibility: { kind: 'persona', personaId: 'nina' },
   })
   expect(doc.visibility).toEqual({ kind: 'persona', personaId: 'nina' })
-  expect(() => vault.replaceDocument('nope', 'x.txt', Buffer.from('x'), 'ana')).toThrow(StoreError)
-  expect(() => vault.deleteDocument('nope')).toThrow(StoreError)
+  expect(() => { vault.replaceDocument('nope', 'x.txt', Buffer.from('x'), 'ana') }).toThrow(StoreError)
+  expect(() => { vault.deleteDocument('nope') }).toThrow(StoreError)
 })

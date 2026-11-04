@@ -87,11 +87,11 @@ export function githubWebhookHandler(
       res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'projectId' }))
       return
     }
-    const chunks: Buffer<ArrayBufferLike>[] = []
+    const chunks: Uint8Array[] = []
     let size = 0
     for await (const chunk of req) {
-      const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-      size += part.length
+      const part = Uint8Array.from(Buffer.from(chunk))
+      size += part.byteLength
       if (size > MAX_BODY) {
         res.writeHead(413).end()
         return

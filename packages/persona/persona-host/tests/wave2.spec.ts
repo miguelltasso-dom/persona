@@ -21,6 +21,17 @@ function seed(h: PersonaHost): void {
   h.createChannel({ id: 'geral', workspaceId: 'ws', projectId: 'pp', name: 'geral', topic: '' })
 }
 
+it('listConversationSubjects is cheap: a burst hits one SQLite read', () => {
+  const h = host()
+  seed(h)
+  const first = h.listConversationSubjects(stream)
+  for (let i = 0; i < 80; i += 1) {
+    expect(h.listConversationSubjects(stream)).toBe(first)
+  }
+  h.createConversationSubject({ ...stream, name: 'UI', colorIndex: 1 })
+  expect(h.listConversationSubjects(stream).subjects.some(row => row.name === 'UI')).toBe(true)
+})
+
 it('lists Geral by default, creates a second subject, and isolates message history', () => {
   const h = host()
   seed(h)
@@ -57,16 +68,16 @@ it('moves a message and binds the ticket subject chip', () => {
   expect(page.events.map(row => row.id)).toEqual(['m-move'])
 })
 
-it('stores several accounts, swap policy, and isolated homes', async () => {
+it('stores several accounts, swap policy, and isolated homes', () => {
   const h = host()
   seed(h)
-  await h.addConnectionAccount({ ...scope, provider: 'claude', label: 'Pessoal' })
-  await h.addConnectionAccount({ ...scope, provider: 'claude', label: 'Trabalho' })
-  const bundle = await h.listConnectionAccounts(scope)
+  h.addConnectionAccount({ ...scope, provider: 'claude', label: 'Pessoal' })
+  h.addConnectionAccount({ ...scope, provider: 'claude', label: 'Trabalho' })
+  const bundle = h.listConnectionAccounts(scope)
   expect(bundle.accounts).toHaveLength(2)
   expect(bundle.accounts[0]?.label).toBe('Pessoal')
   expect(h.setRunnerSwapPolicy({ ...scope, policy: 'fixed', scope: 'workspace' })).toBe(true)
-  const again = await h.listConnectionAccounts(scope)
+  const again = h.listConnectionAccounts(scope)
   expect(again.swapPolicy).toBe('fixed')
   const pessoal = h.accounts.get('claude:pessoal')
   expect(pessoal?.homeDir).toContain('accounts')

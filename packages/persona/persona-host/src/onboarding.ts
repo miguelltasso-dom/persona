@@ -5,6 +5,7 @@
 
 import { createDraftDriver, createScriptedRunner, fallbackDraft } from '@deepseek-ai/dsh-persona-runners'
 import type { EventRepos, ProductRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
+import { withDefaultGestor } from './gestor.ts'
 import type { ScreensHost } from './screens.ts'
 import type {
   CompleteOnboardingRequest,
@@ -141,7 +142,7 @@ export class OnboardingHost {
         tools: {},
         skills: [],
         limits: {},
-        systemRoles: [...draft.systemRoles],
+        systemRoles: withDefaultGestor(draft.systemRoles),
         canRecruit: draft.canRecruit,
         createdAt,
         updatedAt: createdAt,
@@ -199,7 +200,7 @@ function toSpec(draft: ReturnType<typeof fallbackDraft>): OnboardingPersonaSpec 
     runnerCli: draft.runnerCli,
     runnerModel: draft.runnerModel,
     canRecruit: draft.canRecruit,
-    systemRoles: [...draft.systemRoles],
+    systemRoles: withDefaultGestor(draft.systemRoles),
   }
 }
 

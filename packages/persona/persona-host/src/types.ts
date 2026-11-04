@@ -4,7 +4,6 @@ import type {
   LedgerOrigin,
   TurnKind,
   TurnLayerSizes,
-  TurnLedgerEntry,
 } from '@deepseek-ai/dsh-persona-core'
 import type { UsageFold, UsageOrigin } from '@deepseek-ai/dsh-persona-usage'
 
@@ -1304,6 +1303,23 @@ export interface UsagePanelView {
   readonly cacheHitRate: number
 }
 
+/** PRO-6 / fechamento v1 — Probe chama; o host não remonta flags. */
+export interface ProactivityMeasureView {
+  readonly passed: number
+  readonly total: 6
+  readonly failed: readonly string[]
+}
+
+/** OPT-8 scripted + live book size (cut-40 stays blocked until enough live rows). */
+export interface Opt8MeasureView {
+  readonly passed: number
+  readonly total: 4
+  readonly failed: readonly string[]
+  readonly blocked: readonly string[]
+  readonly liveEntries: number
+  readonly liveOrigin: LedgerOrigin
+}
+
 /** Folded spend. Absence is never `usedPercent: 0`. */
 export interface UsageView {
   readonly period: UsagePeriod
@@ -1332,6 +1348,14 @@ export interface OfficialQuotaView {
   /** WAVE2 — when quota is scoped to one connected account. */
   readonly accountId?: string
   readonly accountLabel?: string
+  /** Soonest `windows.resetsAt` (or last refill-history point). */
+  readonly nextRefillAt?: string
+  /** Short trail of reset clocks for the Lumen «próximo refill» strip. */
+  readonly refillHistory?: readonly {
+    readonly windowId: string
+    readonly resetsAt: string
+    readonly recordedAt: string
+  }[]
 }
 
 /** One official window. `usedPercent` omitted when the vendor did not publish it. */
@@ -1707,6 +1731,8 @@ export interface PersonaCardView {
   readonly substituteName?: string
   readonly currentProjectName?: string
   readonly quota?: CardQuotaView
+  /** GES-5 — latest Gestor audit reason on this persona's profile. */
+  readonly gestorAuditReason?: string
 }
 
 /** Workspace-only read. */
@@ -2422,6 +2448,7 @@ export interface GestorPlanView {
   readonly reason: string
   readonly status: string
   readonly createdAt: string
+  readonly commentOnId?: string
 }
 
 /** Audit line. */
@@ -2522,6 +2549,130 @@ export interface ProposeGestorAssembleView {
 /** Open plans awaiting a human. */
 export interface ListGestorPlansRequest {
   readonly workspaceId: string
+}
+
+/** Second Gestor comments on an open plan (GES-3). */
+export interface CommentGestorPlanRequest {
+  readonly workspaceId: string
+  readonly planId: string
+  readonly commenterId: string
+  readonly comment: string
+}
+
+/** Human picks the winner on a tied scope. */
+export interface ResolveGestorTieRequest {
+  readonly workspaceId: string
+  readonly chosenId: string
+}
+
+/** Propose placing a persona on projects. */
+export interface ProposeGestorAllocateRequest {
+  readonly workspaceId: string
+  readonly id: string
+  readonly gestorId: string
+  readonly personaId: string
+  readonly projectIds: readonly string[]
+  readonly reason: string
+  readonly sectorId?: string
+}
+
+/** Propose a reorganize (move / pause / autonomy). */
+export interface ProposeGestorReorganizeRequest {
+  readonly workspaceId: string
+  readonly id: string
+  readonly gestorId: string
+  readonly kind: 'move_work' | 'pause_idle' | 'set_autonomy'
+  readonly targetPersonaId: string
+  readonly notice: string
+  readonly reason: string
+  readonly ticketIds?: readonly string[]
+  readonly nextAutonomy?: 'on_request' | 'propose' | 'act'
+  readonly projectId?: string
+}
+
+/** Queue a dashed composer bubble (T3 §4). */
+export interface EnqueueWorkingMessageRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly subjectId: string
+  readonly text: string
+}
+
+/** One queued composer row. */
+export interface QueuedMessageView {
+  readonly id: string
+  readonly personaId: string
+  readonly subjectId: string
+  readonly text: string
+  readonly createdAt: string
+}
+
+/** List or flush the dashed queue. */
+export interface WorkingQueueRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly subjectId: string
+}
+
+/** Edit or drop one queued row. */
+export interface EditQueuedMessageRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly subjectId: string
+  readonly id: string
+  readonly text?: string
+}
+
+/** `/lado` aside — never a thread message. */
+export interface OpenAsideAskRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly subjectId: string
+  readonly question: string
+}
+
+/** Aside view. */
+export interface AsideAskView {
+  readonly id: string
+  readonly personaId: string
+  readonly subjectId: string
+  readonly question: string
+  readonly onThread: false
+}
+
+/** One T3 §9 activity event on the wire. */
+export interface TurnActivityView {
+  readonly id: string
+  readonly personaId: string
+  readonly threadId: string
+  readonly kind: 'command' | 'file' | 'hire' | 'message' | 'read' | 'check'
+  readonly title: string
+  readonly status: 'done' | 'failed' | 'running' | 'waiting'
+  readonly at: string
+}
+
+/** Persist one T3 §9 activity event. */
+export interface RecordTurnActivityRequest extends ProjectScopeRequest {
+  readonly id: string
+  readonly personaId: string
+  readonly subjectId: string
+  readonly kind: 'command' | 'file' | 'hire' | 'message' | 'read' | 'check'
+  readonly title: string
+  readonly status: 'done' | 'failed' | 'running' | 'waiting'
+  readonly at?: string
+}
+
+/** Fold activity for a subject. */
+export interface ListTurnActivityRequest extends ProjectScopeRequest {
+  readonly subjectId: string
+  readonly personaId?: string
+}
+
+/** One ActivityGroup fold on the wire. */
+export interface ActivityGroupView {
+  readonly personaId: string
+  readonly threadId: string
+  readonly items: readonly TurnActivityView[]
+  readonly shownKinds: readonly string[]
+  readonly moreCount: number
+  readonly failedCount: number
+  readonly unfinished: boolean
 }
 
 /** Editor: assign system roles (incl. `team_manager`). */

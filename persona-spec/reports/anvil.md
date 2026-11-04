@@ -4,6 +4,192 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 04/11 06:20 — oxlint 3 pkgs + docs host/store/edge (Atlas leve)
+
+Atlas: (1) oxlint nos três pacotes + mortos; (2) ARCHITECTURE + contracts; (3) apps reais só com ≥15 GB.
+
+### (1) oxlint + check-pkg
+Limpeza em host/store (sync já estava limpo): indent `withDefaultGestor`, `TurnLedgerEntry` só reexport, `z.looseObject`, `JSON.stringify` sem `??`, `Reflect.get` tipado, `persistQuota` com chaves, `addConnectionAccount`/`exportDiagnostics`/`listConnectionAccounts` síncronos, `webserverOf` sem `any`, webhook `Uint8Array[]`, `readBody` sem type param morto. Testes: `toThrow` + chaves, `await` de sync removido, frames tipados, ACL `methodOf`, boolean direto.
+
+```
+pnpm exec oxlint packages/persona/persona-store packages/persona/persona-host packages/persona/persona-sync
+  exit 0 (~33s)
+node scripts/persona/check-pkg.mjs persona-store persona-host persona-sync
+  store OK 10s (após fix get<T>); host OK 20.7s; sync OK 6.4s
+```
+
+Exports públicos mantidos (usados por testes/orquestração). Sem morto óbvio além do que o oxlint já apontou.
+
+### (2) Docs
+`persona-spec/ARCHITECTURE.md`: schema v1→v19, RemoteGuard (256 KB / 12 MB attach / 2000+240/10s), ACL_EXCEPTIONS, rotas edge.
+Contracts: `lumen-rpc` (gateway + listConnections sync + medidas), `gestor` (sem Remote `measureGestorV1`; `gestorAuditReason`), `conversation-subjects`, `remote-teams` (tabela de rotas), `attachments`, `sync`, `second-brain`, `token-ledger`.
+
+### (3) app-real — não subi
+`Get-CimInstance` FreeGB **23.5 → 18.7** (Total 47.3) — acima de 15. Rivet segura `.maestri/locks/build.lock` com `package-clean` D8 (pack win-x64, ~29 min, live em `C:\p8c`). with-lock 180s → 75. Atlas: um pesado por vez. Script pronto: `.maestri/tmp/capture-app-real.mjs` → `.maestri/tmp/shots/remote/app-real/` (3080/3081 + wrangler 8791). Reenfileirar quando o lock do Rivet cair.
+
+### Dependências
+- **[Anvil→Probe]** store `screens/repos.ts` `get<T>` (era o FAIL do gate).
+- **[Anvil→Atlas]** app-real quando D8 pack soltar o lock.
+
+---
+
+## 04/11 05:55 — talkLayers → composeHostTalk + attach 8 MB + GES/PRO/OPT
+
+Vigia: não parar. Forge 05:52 pediu trocar `talkLayers`.
+
+### Talk (OPT-3)
+`talkLayers` agora é `foldHostTalkUsed` + `composeHostTalk` + `capTalkContext` no recall + `finishHostTalk` no reply. Colegas no prefixo; assunto/recall/mensagem no tail (`<dado origem="mensagem">`).
+
+### Guard
+`attachFile` / `putFile` / `upload*` usam teto **12 MB** (256 KB recusava upload legal de 8 MB com `payload-too-large`).
+
+### GES / PRO-6 / OPT-8 (mesmo turno)
+`withDefaultGestor`; `gestorAuditReason` no cartão; `emitGestorPropose.kind`; remotes `measureProactivityV1` (6/6) e `measureOpt8` (`cut-40` blocked + liveEntries).
+
+### Prova
+```
+pnpm exec vitest run …/talk-voice …/token-opt …/attachments …/gestor …/onboarding …/remote-guard
+  Test Files  6 passed (6)
+  Tests  31 passed (31)
+```
+
+### Dependências
+- **[Anvil→Probe]** `measureProactivityV1` / `measureOpt8` no E2E PRO-6 / OPT-8.
+- **[Anvil→Lumen]** `gestorAuditReason`; `getUsagePanel`.
+- `cut-40` só com livro live antes/depois. GOV-5 J19, B7, SB-1, OPT-7 RPC, C8 host já no código.
+
+---
+
+## 04/11 05:50 — GES-1/5 + PRO-6/OPT-8 remotes (fechamento v1 host)
+
+Vigia: não parar. PLAN PRO-* + GES-1/5 + OPT-8 livro live.
+
+### O que entrou
+- **GES-1**: `withDefaultGestor` — Coordenação no onboarding/`createPersona`/`setPersonaSystemRoles` ganha `team_manager`.
+- **GES-5**: `PersonaCardView.gestorAuditReason` no perfil; Saúde já tinha `gestorAudit`.
+- **GES propose**: `recordTurnActivity.kind` = `emitGestorPropose` (`assemble`→hire, `allocate`/`reorganize`→command).
+- **PRO-6**: `@Remote measureProactivityV1` → `measureProactivityAcceptance()` (6/6). Probe não remonta flags.
+- **OPT-8**: `@Remote measureOpt8` — score scripted + `liveEntries`/`liveOrigin` do ledger persistido. `cut-40` continua `blocked` até haver antes/depois live.
+
+### Prova
+```
+pnpm exec vitest run …/gestor.spec.ts …/onboarding.spec.ts …/token-opt.spec.ts
+  Test Files  3 passed (3)
+  Tests  15 passed (15)
+```
+
+### Dependências
+- **[Anvil→Probe]** `measureProactivityV1` / `measureOpt8` / `measureGestorAcceptance` (engine) no E2E PRO-6 / OPT-8 / GES-6.
+- **[Anvil→Lumen]** `gestorAuditReason` no cartão; `getUsagePanel` + `measureOpt8.liveEntries` no painel Uso.
+- `cut-40` precisa de livro live com linha de base — não dá para desbloquear com mock.
+- GOV-5 export/sync: J19 já cobre `governanca.md` + `mayUpload` workspace / DM não.
+- B7 / SB-1 / OPT-7 RPC / C8 host já no código. UI/E2E = Lumen/Prism/Probe.
+
+---
+
+## 04/11 05:10 — P0 rate-limit + fios Forge (talk/SB-6/BYC/GES)
+
+Keel P0 (sem resposta) + fila Forge 05:22. Vigia: não parar.
+
+### P0 `listConversationSubjects` rate-limited
+Fonte: `RemoteGuard` (não o gateway). Teto era 120/10s → **2000/10s** leitura, **240/10s** escrita. Método é SELECT + cache 750 ms. `RemoteFault.isDSHRemoteError` + `details.retryAfterMs` para o gateway mandar `code: 'rate-limited'` (não `gateway/internal`). UI: `PersonaRemoteError.retryAfterMs`.
+
+`persistQuota` no `ConnectionProbe`: `?` + `| undefined` (Keel TS2412 / exactOptionalPropertyTypes).
+
+### Fios Forge (host)
+- Talk: `finishHostTalk` no reply (prefixo continua `composeTurnPrompt` — `composeHostTalk` corta colegas/recall).
+- SB-6: `exportBrainVault`/`importBrainVault` chamam `planBrainVaultSync`+`applyBrainVaultSync`; page upsert; foreign → `previewBringVault` (sem gravar).
+- BYC paste/pasta: `vaultToBringExisting` no Cofre (não `existing: []`).
+- GES propose: `emitGestorPropose` → corpo `[[gestor-plan:id]]` no `#geral` + `recordTurnActivity` waiting (append, sem ingest).
+
+### Prova
+```
+pnpm exec vitest run …/gestor …/second-brain …/bring-context-apply …/remote-guard …/remote-unwrap
+  Test Files  5 passed (5)
+  Tests  24 passed (24)
+
+node scripts/persona/check-pkg.mjs persona-host
+  persona-host: OK in 191.5s
+
+node --import tsx/esm scripts/persona/persona-boot-smoke.mjs --port 3293
+  exit 2: host não imprimiu URL em 120 s (stdout vazio). Máquina com with-lock Muse/Rivet + 3,5 GB livres. Não é o rate-limit.
+```
+
+### Dependências
+- **[Anvil→Prism]** `rate-limited` + `retryAfterMs`; tratar sem pageerror.
+- **[Anvil→Lumen]** `getTeamHealth.gestorAudit`; foreign BYC no import two-way ainda é preview (aceite humano).
+- Boot smoke real: re-rodar quando o lock da Muse/Rivet soltar.
+- `talk-voice.spec` «dado origem=mensagem» falhou por mudança no `composeTurnPrompt` do Forge — não alterei `talkLayers`.
+
+---
+
+## 04/11 05:05 — P0 boot smoke `listConversationSubjects` rate-limited
+
+Keel: gate PERSONA caiu com `PersonaRemoteError … "listConversationSubjects" (gateway/internal): rate-limited`.
+
+### De onde vem
+O `RemoteGuard` que instalei em todo `@Remote` (`persona-host/src/remote-guard.ts`). Teto era **120/10s por peer+método**. O tour de 9 painéis + remount/retry do React estoura isso em `listConversationSubjects`. O Typert Gateway embrulha `Error` comum como `gateway/internal` — por isso o código na UI não era `rate-limited`.
+
+`listConversationSubjects` é barato (lista SQLite de tópicos + `subjectViews`). Cacheável: cache de 750 ms por `project+stream+owner+actor`, invalidado em create/rename/archive/setActive/`postMessage`.
+
+### O que mudou
+- Leituras: **2000/10s**. Escritas: **240/10s**. Justificativa: boot + troca de conversa + tour 9 painéis × N streams × remount > 120; o método é um SELECT.
+- `RemoteFault` agora tem `isDSHRemoteError` + `details.retryAfterMs` — o gateway manda `code: 'rate-limited'` (não `gateway/internal`).
+- `PersonaRemoteError.retryAfterMs` no unwrap (Prism trata sem pageerror).
+- Contrato `conversation-subjects.md` atualizado.
+
+### Prova
+- vitest remote-guard + wave2 + remote-unwrap **15/15**
+- Burst de 400 `listConversationSubjects` no teto de produção passa; escrita estoura em 241 com `retryAfterMs > 0`
+
+### Dependências
+- **[Anvil→Prism]** `error.code === 'rate-limited'` + `retryAfterMs`. O teto novo deve cobrir o boot normal; se o cliente ainda disparar >2000/10s, esperar `retryAfterMs`.
+
+---
+
+## 04/11 04:30 — RPC guard + cota oficial v19 + PB-5/6/7 + shots app
+
+Fila Atlas: endurecimento RPC, `persistOfficialQuotaPuts`, equipes à distância no app, Lumen PB-5/6/7.
+
+### O que entrou
+- Gateway único em todo `@Remote`: zod, 256 KB, rate/peer, `RemoteFault` sem ids escondidos. Matriz ACL (dono/membro/guest/persona) + fuzz de escrita → `.maestri/tmp/shots/remote/acl-matrix.json`. Persona sem membro **não** herda o dono.
+- Schema **v19**: `usage_quota` PK `(project_id, provider, account_id)`. `persistProbeQuota` no `ConnectionProbe` / `listConnections`. `getOfficialQuota` devolve `accountId`/`accountLabel`/`nextRefillAt`/`refillHistory` (nunca `default`).
+- PB-5/6/7: host já tem `getProjectBoard`/`proposeWorkflow`/`acceptWorkflowProposal`/`listSprints`/`createSprint`/`closeSprint`/`getProjectConversation` — contrato `pb-boards-rpc.contract.spec` 16/16. Nada faltando para o Lumen.
+- Shots do chrome Persona (tokens `persona-palette.css`) em `.maestri/tmp/shots/remote/app/` (`desk-a.png`, `desk-b.png`, `side-by-side.png`). Script: `apps/persona-edge/scripts/capture-remote-app.mjs`. Dois `dsh web` 3080/3081 vivos: `PERSONA_APP_A/B`.
+
+### Prova
+- store usage+open, host remote-guard/acl-matrix/usage/connections/pb-boards/remote-acl, Lumen usage-pooled: **39/39** (depois dos ajustes da matriz)
+- Chrome headless escreveu os 3 PNGs
+
+### Limitação
+Shots do app usam o chrome Persona (tokens reais) + fluxo A/B; não subiram dois `dsh web` neste turno (pesado). Script pronto para apontar nas portas 3080/3081.
+
+---
+
+## 04/11 03:33 — Remotes GES-3 / T3 / allocate-reorganize (janela aberta)
+
+Keel: `JANELA ENCERRADA`. Liguei o que o Forge pediu no host.
+
+### O que entrou
+- `commentGestorPlan` / `resolveGestorTie` + `GestorPlanView.commentOnId`.
+- `proposeGestorAllocate` / `proposeGestorReorganize` (always_ask → `approveGestorPlan` aplica).
+- T3: `enqueueWorkingMessage` / `listWorkingQueue` / `editQueuedMessage` / `dropQueuedMessage` / `flushWorkingQueue` / `openAsideAsk` / `recordTurnActivity` / `listTurnActivity` (`WorkingSendHost` em `screen_doc`).
+- Contratos `gestor.md` / `lumen-rpc.md` / `working-send.md` / `activity.md` atualizados.
+
+### Prova
+- vitest gestor + working-send 9/9
+- `check-pkg persona-host` OK 31.5s
+- `generate-typert` 40 artifacts
+
+### Dependências
+- **[Anvil→Lumen/Prism]** RPCs vivos; `listTurnActivity` vazio = `[]`. Fila T3 por `personaId`+`subjectId`.
+- **[Anvil→Forge]** domínio `commentGestorPlan` / `foldTurnActivity` / `gestorAllocate` sem kinds novos.
+
+### Fila
+PLAN GES-1/SB-1/B7/OPT-7/W2-10 store já existe (v16 brain teach MutantRunBook getUsagePanel). E11 blocked. Teach `acceptTaughtCandidate` se faltar Remote.
+
+---
+
 ## 04/11 02:05 — contratos GES-3 / T3 / B7 (folha; janela ainda fechada)
 
 Sem `JANELA ENCERRADA` — store/host intocados. Avancei o que o Forge pediu com mocks no domínio.

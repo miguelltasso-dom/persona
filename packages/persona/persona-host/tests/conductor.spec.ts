@@ -5,6 +5,7 @@ import { RunnerResolveError } from '@deepseek-ai/dsh-persona-runners'
 import { afterEach, expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
 import { coordinationHandoff, summarizeWork } from '../src/orchestration.ts'
+import type { MessageStreamFrame } from '../src/types.ts'
 import { bindHostFile, resetHost, it } from './host-harness.ts'
 
 const dirs: string[] = []
@@ -132,8 +133,9 @@ it('walks a task doing → review → done and streams the coordination reply', 
   }, ac.signal)
   const baseline = await follow[Symbol.asyncIterator]().next()
   ac.abort()
-  expect(baseline.value?.kind).toBe('baseline')
-  expect(baseline.value?.events.some((item: { actorId: string }) => item.actorId === 'coord')).toBe(true)
+  const frame = baseline.value as MessageStreamFrame | undefined
+  expect(frame?.kind).toBe('baseline')
+  expect(frame?.events.some((item: { actorId: string }) => item.actorId === 'coord')).toBe(true)
   h.runTicketCommand({
     workspaceId: 'ws', projectId: 'pp', ticketId: reviewing[0]!.id, command: 'complete', reason: '',
   })

@@ -41,12 +41,11 @@ export class ScreenRepos {
    * @param kind - Document kind.
    * @param id - Document id.
    */
-  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- caller chooses the stored document type
   get<T>(projectId: string, kind: string, id: string): T | undefined {
     const row = this.store.db.prepare(
       'SELECT body FROM screen_doc WHERE project_id = ? AND kind = ? AND id = ?',
     ).get(projectId, kind, id)
-    return row === undefined ? undefined : readBody<T>(row)
+    return row === undefined ? undefined : readBody(row) as T
   }
 
   /**
@@ -54,11 +53,10 @@ export class ScreenRepos {
    * @param projectId - Tenant.
    * @param kind - Document kind.
    */
-  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- caller chooses the stored document type
   list<T>(projectId: string, kind: string): T[] {
     return this.store.db.prepare(
       'SELECT body FROM screen_doc WHERE project_id = ? AND kind = ? ORDER BY updated_at DESC, id DESC',
-    ).all(projectId, kind).map(row => readBody<T>(row))
+    ).all(projectId, kind).map(row => readBody(row) as T)
   }
 
   /**
@@ -73,6 +71,6 @@ export class ScreenRepos {
   }
 }
 
-function readBody<T>(row: Record<string, SQLOutputValue>): T {
-  return structuredClone(JSON.parse(text(row, 'body')) as T)
+function readBody(row: Record<string, SQLOutputValue>): unknown {
+  return structuredClone(JSON.parse(text(row, 'body')))
 }

@@ -2,7 +2,20 @@
  * Second-brain host: ACL, citations, folder export. Persistence is {@link BrainRepos}.
  */
 
-import { can, canReadVault, parseVaultRecord, type Actor } from '@deepseek-ai/dsh-persona-core'
+import { createHash } from 'node:crypto'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { join, relative } from 'node:path'
+import {
+  applyBrainVaultSync,
+  can,
+  canReadVault,
+  foreignVaultToBringFiles,
+  parseVaultRecord,
+  planBrainVaultSync,
+  previewBringVault,
+  type Actor,
+  type BringContextPreview,
+} from '@deepseek-ai/dsh-persona-core'
 import { BrainRepos, type BrainGrant, type BrainPage, type ProductRepos } from '@deepseek-ai/dsh-persona-store'
 import type {
   BrainGrantView,
@@ -29,6 +42,9 @@ export class BrainHost {
     readonly brain: BrainRepos,
     readonly actorOf: (workspaceId: string) => Actor | undefined,
   ) {}
+
+  /** Last two-way dest notes that are not our pack (BYC, no write). */
+  lastForeignPreview: BringContextPreview | undefined
 
   /**
    * @param request - Page.
@@ -223,7 +239,35 @@ export class BrainHost {
   ): { files: number; created: number; skipped: number; direction: 'export' | 'import' } {
     this.assertWrite(workspaceId, projectId)
     const exported = this.brain.exportFolder(projectId, folderPath)
-    if (!twoWay) return { files: exported.files, created: 0, skipped: 0, direction: 'export' }
+    const known = new Set(this.brain.list(projectId).map(page => `${page.kind}/${page.slug}.md`))
+    if (!twoWay) {
+      this.lastForeignPreview = undefined
+      return { files: exported.files, created: 0, skipped: 0, direction: 'export' }
+    }
+    const dest = listDestMarkdown(folderPath)
+    const extras = dest.filter(file => !known.has(file.path.replaceAll('\\', '/')))
+    const applied = applyBrainVaultSync(planBrainVaultSync({
+      pages: [],
+      dest: extras,
+      mode: 'two_way',
+    }))
+    for (const item of applied.imports) {
+      if (item.kind !== 'page') continue
+      this.brain.putPage({
+        id: item.page.id === '' ? `imp-${item.page.title}` : item.page.id,
+        workspaceId,
+        projectId,
+        kind: item.page.kind,
+        title: item.page.title,
+        body: item.page.body,
+        editorKind: 'person',
+        editorId: actorId,
+        properties: item.page.properties,
+        sources: [`vault:${item.path}`],
+      })
+    }
+    const foreign = foreignVaultToBringFiles(applied.imports)
+    this.lastForeignPreview = foreign.length === 0 ? undefined : previewBringVault({ files: foreign })
     const imported = this.brain.importFolder(workspaceId, projectId, folderPath, actorId)
     return { files: exported.files, created: imported.created, skipped: imported.skipped, direction: 'import' }
   }
@@ -289,6 +333,30 @@ function asRecord(page: BrainPage) {
     createdAt: page.createdAt,
     revision: page.revision,
   })
+}
+
+function listDestMarkdown(root: string): { path: string; body: string; hash: string }[] {
+  if (!existsSync(root) || !statSync(root).isDirectory()) return []
+  const out: { path: string; body: string; hash: string }[] = []
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name === '.obsidian' || entry.name === '.trash' || entry.name === '.git') continue
+        walk(abs)
+        continue
+      }
+      if (!entry.name.endsWith('.md')) continue
+      const body = readFileSync(abs, 'utf8')
+      out.push({
+        path: relative(root, abs).replaceAll('\\', '/'),
+        body,
+        hash: createHash('sha256').update(body).digest('hex'),
+      })
+    }
+  }
+  walk(root)
+  return out
 }
 
 function toGrantView(row: BrainGrant): BrainGrantView {

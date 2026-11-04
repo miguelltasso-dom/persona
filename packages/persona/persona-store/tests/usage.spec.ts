@@ -46,6 +46,35 @@ it('stores official quota without inventing 0%', () => {
   }
 })
 
+it('keeps one official quota row per account and a short refill trail', () => {
+  const { store, usage } = book()
+  try {
+    usage.putQuota('pp', {
+      provider: 'claude', origin: 'official', accountId: 'work', accountLabel: 'Trabalho',
+      windows: [{ id: '5h', origin: 'official', usedPercent: 40, resetsAt: '2026-11-04T10:00:00.000Z' }],
+    })
+    usage.putQuota('pp', {
+      provider: 'claude', origin: 'official', accountId: 'home', accountLabel: 'Pessoal',
+      windows: [{ id: '5h', origin: 'official', usedPercent: 10, resetsAt: '2026-11-04T11:00:00.000Z' }],
+    })
+    usage.putQuota('pp', {
+      provider: 'claude', origin: 'official', accountId: 'work', accountLabel: 'Trabalho',
+      windows: [{ id: '5h', origin: 'official', usedPercent: 80, resetsAt: '2026-11-04T15:00:00.000Z' }],
+    })
+    const rows = usage.listQuota('pp', 'claude')
+    expect(rows.map(row => row.accountId)).toEqual(['home', 'work'])
+    const work = rows.find(row => row.accountId === 'work')
+    expect(work?.accountLabel).toBe('Trabalho')
+    expect(work?.windows[0]?.usedPercent).toBe(80)
+    expect(work?.refillHistory?.map(point => point.resetsAt)).toEqual([
+      '2026-11-04T10:00:00.000Z',
+      '2026-11-04T15:00:00.000Z',
+    ])
+  } finally {
+    store.close()
+  }
+})
+
 it('purges usage rows when retention kind usage expires', () => {
   const { store, usage } = book()
   try {

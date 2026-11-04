@@ -48,12 +48,21 @@ it('always_ask keeps the hire pending until approve; audit has a reason', () => 
     projectId: 'pp',
   })
   expect(plan.status).toBe('proposed')
+  const channel = h.listChannels({ workspaceId: 'ws', projectId: 'pp' })[0]!
+  expect(h.listMessages({
+    workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: channel.id,
+    actorId: 'ana', afterSeq: 0, limit: 20,
+  }).events.some(row => row.body.includes('[[gestor-plan:plan-1]]'))).toBe(true)
+  expect(h.listTurnActivity({
+    workspaceId: 'ws', projectId: 'pp', subjectId: channel.id,
+  }).some(group => group.items.some(row => row.status === 'waiting' && row.kind === 'hire'))).toBe(true)
   const applied = h.approveGestorPlan({ workspaceId: 'ws', planId: 'plan-1' })
   expect(applied.status).toBe('applied')
   const audit = h.listGestorAudit({ workspaceId: 'ws' })
   expect(audit[0]?.summary).toContain('Pipoca')
   expect(audit[0]?.reason).toContain('6 tarefas')
   expect(h.getTeamHealth({ workspaceId: 'ws' }).gestorAudit[0]?.reason).toContain('6 tarefas')
+  expect(h.getPersonaCard({ workspaceId: 'ws', projectId: 'pp', personaId: 'atlas' }).gestorAuditReason).toContain('6 tarefas')
 })
 
 it('second Gestor on the same scope comments instead of hiring (adversarial)', () => {
@@ -73,6 +82,44 @@ it('second Gestor on the same scope comments instead of hiring (adversarial)', (
     workspaceId: 'ws', id: 'plan-b', gestorId: 'iris', spec, reason: 'também vi a fila', projectId: 'pp',
   })
   expect(comment.status).toBe('commented')
+  expect(comment.commentOnId).toBe('plan-a')
+  const explicit = h.commentGestorPlan({
+    workspaceId: 'ws', planId: 'plan-a', commenterId: 'iris', comment: 'prefiro o tamanduá',
+  })
+  expect(explicit.status).toBe('commented')
+  expect(explicit.commentOnId).toBe('plan-a')
+  const winner = h.resolveGestorTie({ workspaceId: 'ws', chosenId: 'plan-b' })
+  expect(winner.status).toBe('proposed')
+  expect(h.listGestorPlans({ workspaceId: 'ws' }).find(row => row.id === 'plan-a')?.status).toBe('rejected')
+})
+
+it('proposeGestorAllocate and proposeGestorReorganize stay pending under always_ask', () => {
+  const h = host()
+  seed(h)
+  h.createPersona({
+    workspaceId: 'ws', projectId: 'pp', id: 'nina', name: 'Nina', title: 'Executora',
+    description: '', personality: '', instructions: '',
+    avatarKind: 'gallery', avatarRef: 'nina', runnerKind: 'dsh', runnerCli: '',
+    runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+    systemRoles: [],
+  })
+  const alloc = h.proposeGestorAllocate({
+    workspaceId: 'ws', id: 'al-1', gestorId: 'atlas', personaId: 'nina',
+    projectIds: ['pp'], reason: 'ela já conhece o site',
+  })
+  expect(alloc.status).toBe('proposed')
+  const channel = h.listChannels({ workspaceId: 'ws', projectId: 'pp' })[0]!
+  expect(h.listTurnActivity({
+    workspaceId: 'ws', projectId: 'pp', subjectId: channel.id,
+  }).some(group => group.items.some(row => row.id === 'act-al-1' && row.kind === 'command'))).toBe(true)
+  expect(h.approveGestorPlan({ workspaceId: 'ws', planId: 'al-1' }).status).toBe('applied')
+  const reorg = h.proposeGestorReorganize({
+    workspaceId: 'ws', id: 're-1', gestorId: 'atlas', kind: 'pause_idle',
+    targetPersonaId: 'nina', notice: 'fila vazia até segunda', reason: 'sem tarefa',
+    projectId: 'pp',
+  })
+  expect(reorg.status).toBe('proposed')
+  expect(h.approveGestorPlan({ workspaceId: 'ws', planId: 're-1' }).status).toBe('applied')
 })
 
 it('listGestorPlans returns open proposed plans', () => {

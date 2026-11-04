@@ -12,7 +12,7 @@ it('every remote goes through can() except the documented list', () => {
   for (const name of remotes) {
     if (ACL_EXCEPTIONS[name] !== undefined) continue
     const desc = Object.getOwnPropertyDescriptor(PersonaHost.prototype, name)
-    const value = desc?.value
+    const value: unknown = desc?.value
     const src = typeof value === 'function' ? Function.prototype.toString.call(value) : ''
     expect(
       src.includes('requireProject') || src.includes('requireWorkspace') || src.includes('requireFileRoot')

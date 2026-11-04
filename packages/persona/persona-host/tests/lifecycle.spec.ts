@@ -16,9 +16,9 @@ function seedOwner(h: ReturnType<typeof host>): void {
 it('deleteWorkspace requires owner and confirmed, then the tenant is gone', () => {
   const h = host()
   seedOwner(h)
-  expect(() => h.deleteWorkspace({ workspaceId: 'ws', confirmed: false })).toThrowError('not-confirmed')
+  expect(() => { h.deleteWorkspace({ workspaceId: 'ws', confirmed: false }) }).toThrow('not-confirmed')
   h.sessionMemberId = 'bia'
-  expect(() => h.deleteWorkspace({ workspaceId: 'ws', confirmed: true })).toThrowError('forbidden')
+  expect(() => { h.deleteWorkspace({ workspaceId: 'ws', confirmed: true }) }).toThrow('forbidden')
   h.sessionMemberId = 'ana'
   expect(h.deleteWorkspace({ workspaceId: 'ws', confirmed: true })).toBe(true)
   expect(h.product.getWorkspace('ws')).toBeUndefined()

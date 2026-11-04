@@ -32,6 +32,8 @@ import {
 import { dedupeLimitAccounts, foldUsage, poolProviderLimits, usagePortWindow } from '@deepseek-ai/dsh-persona-usage'
 import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
+import { persistProbeQuota } from './official-quota-persist.ts'
+import { installRemoteGuard, RemoteGuard } from './remote-guard.ts'
 import { MutantRunBook } from './mutant-run.ts'
 import { DeadLetterBook } from './dead-letter.ts'
 import { collectDiagnostics, stringifyDiagnostics } from './diagnostics.ts'
@@ -47,7 +49,8 @@ import { BoardsHost } from './boards.ts'
 import { MediaHost, mediaHttpHandler } from './media.ts'
 import { VaultDocsHost } from './vault-docs.ts'
 import { BrainHost } from './brain.ts'
-import { GestorHost } from './gestor.ts'
+import { GestorHost, withDefaultGestor } from './gestor.ts'
+import { WorkingSendHost } from './working-send-host.ts'
 import {
   SPEAK_REFUSED,
   canAddressPersona,
@@ -62,11 +65,20 @@ import { ScreensHost } from './screens.ts'
 import { draftPersonaWithDriver, draftTeamWithDriver } from './draft.ts'
 import { Orchestration, wantsWork } from './orchestration.ts'
 import { rememberReviewFeedback } from './feedback-wire.ts'
-import { computeActivationFunnel, computePersonaImpact, listPersonaImpact } from '@deepseek-ai/dsh-persona-engine'
+import {
+  computeActivationFunnel,
+  computePersonaImpact,
+  emitGestorPropose,
+  listPersonaImpact,
+  measureOpt8Acceptance,
+  measureProactivityAcceptance,
+} from '@deepseek-ai/dsh-persona-engine'
 import {
   defaultSkillDirIo,
   foldUsagePanel,
   parseBringPaste,
+  vaultToBringExisting,
+  type GestorPlan,
   type SkillDirIo,
 } from '@deepseek-ai/dsh-persona-core'
 import { selectedBringWrites } from './bring-context-apply.ts'
@@ -211,6 +223,8 @@ import type {
   GetOfficialQuotaRequest,
   GetUsagePanelRequest,
   GetUsageRequest,
+  Opt8MeasureView,
+  ProactivityMeasureView,
   OfficialQuotaView,
   RecordTurnLedgerRequest,
   TurnLedgerView,
@@ -343,6 +357,20 @@ import type {
   ProposeGestorAssembleRequest,
   ProposeGestorAssembleView,
   ProposeGestorHireRequest,
+  ProposeGestorAllocateRequest,
+  ProposeGestorReorganizeRequest,
+  CommentGestorPlanRequest,
+  ResolveGestorTieRequest,
+  EnqueueWorkingMessageRequest,
+  EditQueuedMessageRequest,
+  WorkingQueueRequest,
+  OpenAsideAskRequest,
+  AsideAskView,
+  QueuedMessageView,
+  RecordTurnActivityRequest,
+  ListTurnActivityRequest,
+  ActivityGroupView,
+  TurnActivityView,
   ListGestorPlansRequest,
   SetGestorLimitsRequest,
   SetPersonaSystemRolesRequest,
@@ -387,6 +415,19 @@ export {
 export { createHostRunner } from './runner.ts'
 export type { HostPermissionMode, RunnerPurpose } from './runner.ts'
 export { ConnectionProbe } from './connection-probe.ts'
+export { persistProbeQuota, storedQuotaFromPut } from './official-quota-persist.ts'
+export {
+  installRemoteGuard,
+  RemoteFault,
+  RemoteGuard,
+  RemoteRequestSchema,
+  REMOTE_PAYLOAD_LIMIT,
+  REMOTE_RATE_MAX,
+  REMOTE_RATE_WRITE_MAX,
+} from './remote-guard.ts'
+
+/** `listConversationSubjects` is a SQLite topic list — collapse boot storms. */
+export const SUBJECT_LIST_CACHE_MS = 750
 export { ACL_EXCEPTIONS } from './auth.ts'
 export { OnboardingHost } from './onboarding.ts'
 export { HostScheduler } from './scheduler.ts'
@@ -456,9 +497,13 @@ export default class PersonaHost extends TypertRemoteService {
   readonly vaultDocs: VaultDocsHost
   readonly brain: BrainHost
   readonly gestor: GestorHost
+  readonly workingSend: WorkingSendHost
   readonly opt: OptRepos
   readonly ledger: TurnLedgerRepos
   readonly webhookGuard: WebhookReplayGuard = new WebhookReplayGuard()
+  readonly remoteGuard: RemoteGuard
+  /** Short TTL for `listConversationSubjects` (boot storms hit the same stream). */
+  private readonly subjectListCache = new Map<string, { at: number; value: ConversationSubjectsBundleView }>()
   sessionMemberId: string | undefined
   readonly lastErrors: string[] = []
   skillIo: SkillDirIo = defaultSkillDirIo()
@@ -529,7 +574,12 @@ export default class PersonaHost extends TypertRemoteService {
     this.scheduler = new HostScheduler(this.store, screenRepos)
     this.github = new GithubSourceHost(detectGh(), this.orchestration, this.proactivity)
     this.external = new ExternalSourcesHost(this.orchestration, new CofreSecretVault(this.vault, this.product))
-    this.connections = new ConnectionProbe()
+    this.connections = new ConnectionProbe({
+      persistQuota: (snaps) => { this.persistOfficialQuota(snaps) },
+    })
+    this.remoteGuard = new RemoteGuard({
+      peerOf: () => this.sessionMemberId ?? 'local',
+    })
     this.topics = new TopicRepos(this.store, () => this.orchestration.now())
     this.accounts = new AccountRepos(this.store, () => this.orchestration.now())
     this.teach = new TeachRepos(this.store, () => this.orchestration.now())
@@ -541,6 +591,7 @@ export default class PersonaHost extends TypertRemoteService {
       new GestorRepos(this.store, () => this.orchestration.now()),
       () => this.orchestration.now(),
     )
+    this.workingSend = new WorkingSendHost(screenRepos, () => this.orchestration.now())
     this.opt = new OptRepos(this.store, () => this.orchestration.now())
     this.ledger = new TurnLedgerRepos(this.store)
     this.orchestration.opt = this.opt
@@ -566,6 +617,7 @@ export default class PersonaHost extends TypertRemoteService {
       void this.orchestration.disposeRunners()
       this.store.close()
     })
+    installRemoteGuard(this, this.remoteGuard)
   }
 
   /**
@@ -574,6 +626,11 @@ export default class PersonaHost extends TypertRemoteService {
    */
   get usedPersonaRunners(): boolean {
     return runnersOf(this.ctx) !== undefined
+  }
+
+  /** Drop the short `listConversationSubjects` cache (writes and test reset). */
+  forgetSubjectListCache(): void {
+    this.subjectListCache.clear()
   }
 
   /**
@@ -678,6 +735,7 @@ export default class PersonaHost extends TypertRemoteService {
       ...(sectorName === undefined ? {} : { sectorName }),
       ...(quota === undefined ? {} : { quota }),
       ...this.activeAccountView(request.workspaceId, persona.id, provider),
+      ...this.gestorAuditOnCard(request.workspaceId, persona.id, persona.systemRoles),
     }
   }
 
@@ -950,7 +1008,9 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   proposeGestorHire(request: ProposeGestorHireRequest): GestorPlanView {
     this.requireWorkspace(request)
-    return this.gestor.proposeHire(request)
+    const plan = this.gestor.proposeHire(request)
+    this.emitProposedGestor(plan, request.projectId)
+    return plan
   }
 
   /**
@@ -990,7 +1050,9 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   proposeGestorAssemble(request: ProposeGestorAssembleRequest): ProposeGestorAssembleView {
     this.requireWorkspace(request)
-    return this.gestor.proposeAssemble(request)
+    const pack = this.gestor.proposeAssemble(request)
+    this.emitProposedGestor(pack.plan, request.projectId)
+    return pack
   }
 
   /**
@@ -1004,7 +1066,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.assertCardEditor(request.workspaceId, request.personaId)
     const persona = this.product.getPersona(request.personaId)
     if (persona === undefined || persona.projectId !== request.projectId) throw new Error('persona-not-found')
-    const roles = [...request.systemRoles]
+    const roles = withDefaultGestor(request.systemRoles)
     const now = this.orchestration.now()
     if (roles.includes('coordination')) {
       for (const row of this.product.listPersonas(request.projectId)) {
@@ -1040,6 +1102,135 @@ export default class PersonaHost extends TypertRemoteService {
   listGestorAudit(request: ListGestorAuditRequest): GestorAuditView[] {
     this.requireWorkspace(request)
     return this.gestor.listAudit(request)
+  }
+
+  /**
+   * Second Gestor comments; the original plan stays proposed.
+   * @param request - Open plan and commenter.
+   */
+  @Remote
+  commentGestorPlan(request: CommentGestorPlanRequest): GestorPlanView {
+    this.requireWorkspace(request)
+    return this.gestor.commentPlan(request)
+  }
+
+  /**
+   * Human picks the winner; others on the same scope are rejected.
+   * @param request - Chosen plan.
+   */
+  @Remote
+  resolveGestorTie(request: ResolveGestorTieRequest): GestorPlanView {
+    this.requireWorkspace(request)
+    return this.gestor.resolveTie(request)
+  }
+
+  /**
+   * Propose placing a persona on projects.
+   * @param request - Allocation draft.
+   */
+  @Remote
+  proposeGestorAllocate(request: ProposeGestorAllocateRequest): GestorPlanView {
+    this.requireWorkspace(request)
+    const plan = this.gestor.proposeAllocate(request)
+    this.emitProposedGestor(plan, request.projectIds[0])
+    return plan
+  }
+
+  /**
+   * Propose moving work, pausing idle, or setting autonomy.
+   * @param request - Reorganize draft.
+   */
+  @Remote
+  proposeGestorReorganize(request: ProposeGestorReorganizeRequest): GestorPlanView {
+    this.requireWorkspace(request)
+    const plan = this.gestor.proposeReorganize(request)
+    this.emitProposedGestor(plan, request.projectId)
+    return plan
+  }
+
+  /**
+   * Queue a dashed composer bubble. Does not join the open turn.
+   * @param request - Persona, subject, text.
+   */
+  @Remote
+  enqueueWorkingMessage(request: EnqueueWorkingMessageRequest): QueuedMessageView {
+    this.requireProject(request)
+    return this.workingSend.enqueue(request)
+  }
+
+  /**
+   * @param request - Persona + subject.
+   */
+  @Remote
+  listWorkingQueue(request: WorkingQueueRequest): QueuedMessageView[] {
+    this.requireProject(request)
+    return this.workingSend.list(request)
+  }
+
+  /**
+   * Edit text or drop the row when `text` is omitted.
+   * @param request - Row.
+   */
+  @Remote
+  editQueuedMessage(request: EditQueuedMessageRequest): QueuedMessageView[] {
+    this.requireProject(request)
+    return this.workingSend.edit(request)
+  }
+
+  /**
+   * Remove one dashed bubble.
+   * @param request - Row id (omit `text`).
+   */
+  @Remote
+  dropQueuedMessage(request: EditQueuedMessageRequest): QueuedMessageView[] {
+    this.requireProject(request)
+    return this.workingSend.edit({
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      personaId: request.personaId,
+      subjectId: request.subjectId,
+      id: request.id,
+    })
+  }
+
+  /**
+   * Send the dashed queue now, in order, and clear it.
+   * @param request - Persona + subject.
+   */
+  @Remote
+  flushWorkingQueue(request: WorkingQueueRequest): QueuedMessageView[] {
+    this.requireProject(request)
+    return this.workingSend.flush(request)
+  }
+
+  /**
+   * `/lado` — stays off the thread.
+   * @param request - Question.
+   */
+  @Remote
+  openAsideAsk(request: OpenAsideAskRequest): AsideAskView {
+    this.requireProject(request)
+    return this.workingSend.aside(request)
+  }
+
+  /**
+   * Persist one T3 §9 activity event.
+   * @param request - Event.
+   */
+  @Remote
+  recordTurnActivity(request: RecordTurnActivityRequest): TurnActivityView {
+    this.requireProject(request)
+    return this.workingSend.recordActivity(request)
+  }
+
+  /**
+   * Fold turn activity for a subject. Empty is not 0% success.
+   * @param request - Subject filter.
+   */
+  @Remote
+  listTurnActivity(request: ListTurnActivityRequest): ActivityGroupView[] {
+    this.requireProject(request)
+    return this.workingSend.listActivity(request)
   }
 
   /**
@@ -2060,7 +2251,7 @@ export default class PersonaHost extends TypertRemoteService {
       tools: {},
       skills: [],
       limits: {},
-      systemRoles: request.systemRoles === undefined ? [] : [...request.systemRoles],
+      systemRoles: withDefaultGestor(request.systemRoles === undefined ? [] : request.systemRoles),
       canRecruit: request.canRecruit,
       createdAt: now,
       updatedAt: now,
@@ -2160,6 +2351,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   postMessage(request: PostMessageRequest): MessageView {
     this.requireProject(request)
+    this.forgetSubjectListCache()
     const actor = this.actorOf(request.workspaceId)
     if (actor !== undefined) {
       if (request.streamKind === 'dm') {
@@ -3083,9 +3275,7 @@ export default class PersonaHost extends TypertRemoteService {
       text: request.text,
       provider: request.provider,
       at: new Date().toISOString(),
-      existing: this.vault.listRecords(request.projectId).map(row => ({
-        id: row.id, kind: row.kind, body: row.body,
-      })),
+      existing: vaultToBringExisting(this.vault.listRecords(request.projectId)),
     })
   }
 
@@ -3098,9 +3288,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     return previewBringContextVaultFolder(
       request.rootPath,
-      this.vault.listRecords(request.projectId).map(row => ({
-        id: row.id, kind: row.kind, body: row.body,
-      })),
+      vaultToBringExisting(this.vault.listRecords(request.projectId)),
     )
   }
 
@@ -3179,6 +3367,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listConnections(request: ProjectScopeRequest): ConnectionView[] {
     this.requireProject(request)
+    this.persistOfficialQuota(this.connections.snaps(), request.projectId)
     return this.connections.list()
   }
 
@@ -3190,11 +3379,17 @@ export default class PersonaHost extends TypertRemoteService {
   listConversationSubjects(request: ConversationSubjectScope): ConversationSubjectsBundleView {
     this.requireProject(request)
     const actor = this.requireActor(request.workspaceId)
+    const cacheKey = `${request.projectId}:${request.streamKind}:${request.ownerId}:${actor.id}`
+    const hit = this.subjectListCache.get(cacheKey)
+    const now = Date.parse(this.orchestration.now())
+    if (hit !== undefined && now - hit.at < SUBJECT_LIST_CACHE_MS) return hit.value
     const subjects = subjectViews(this.topics, request, actor.id)
       .filter(row => !row.archived)
     const active = this.activeSubjectId(request.projectId, request.streamKind, request.ownerId)
       ?? subjects[0]?.id ?? ''
-    return { subjects, activeSubjectId: active }
+    const value = { subjects, activeSubjectId: active }
+    this.subjectListCache.set(cacheKey, { at: now, value })
+    return value
   }
 
   /**
@@ -3209,6 +3404,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.screens.screens.put(request.projectId, 'conversation_active', `${request.streamKind}:${request.ownerId}`, {
       subjectId: request.subjectId,
     })
+    this.subjectListCache.clear()
     return this.listConversationSubjects(request)
   }
 
@@ -3246,6 +3442,7 @@ export default class PersonaHost extends TypertRemoteService {
   renameConversationSubject(request: RenameConversationSubjectRequest): ConversationSubjectsBundleView {
     this.requireWrite(request)
     this.topics.rename(request.subjectId, request.name)
+    this.subjectListCache.clear()
     return this.listConversationSubjects(request)
   }
 
@@ -3256,6 +3453,7 @@ export default class PersonaHost extends TypertRemoteService {
   archiveConversationSubject(request: ArchiveConversationSubjectRequest): ConversationSubjectsBundleView {
     this.requireWrite(request)
     this.topics.archive(request.subjectId, true)
+    this.subjectListCache.clear()
     return this.listConversationSubjects(request)
   }
 
@@ -3341,7 +3539,7 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - Provider + label. Home is isolated.
    */
   @Remote
-  async addConnectionAccount(request: AddConnectionAccountRequest): Promise<ConnectionAccountsBundleView> {
+  addConnectionAccount(request: AddConnectionAccountRequest): ConnectionAccountsBundleView {
     this.requireWrite(request)
     const id = `${request.provider}:${request.label.trim().toLowerCase().replace(/\s+/g, '-')}`
     const home = request.homeDir ?? isolatedAccountHome(this.requireActor(request.workspaceId).id, request.provider, id)
@@ -3352,7 +3550,7 @@ export default class PersonaHost extends TypertRemoteService {
       label: request.label,
       homeDir: home,
     })
-    return await this.listConnectionAccounts(request)
+    return this.listConnectionAccounts(request)
   }
 
   /**
@@ -3532,6 +3730,36 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
+   * PRO-6 / fechamento v1. Probe scores this; do not reassemble flags.
+   */
+  @Remote
+  measureProactivityV1(): ProactivityMeasureView {
+    const measured = measureProactivityAcceptance()
+    return { passed: measured.passed, total: measured.total, failed: measured.failed }
+  }
+
+  /**
+   * OPT-8 scripted score plus how many live ledger rows the host holds.
+   * `cut-40` stays blocked until the live book can compare before/after.
+   * @param request - Workspace to count live entries.
+   */
+  @Remote
+  measureOpt8(request: WorkspaceScopeRequest): Opt8MeasureView {
+    this.requireWorkspace(request)
+    const scripted = measureOpt8Acceptance()
+    const entries = this.product.listProjects(request.workspaceId)
+      .flatMap(project => this.ledger.list({ projectId: project.id }))
+    return {
+      passed: scripted.passed,
+      total: scripted.total,
+      failed: scripted.failed,
+      blocked: scripted.blocked,
+      liveEntries: entries.length,
+      liveOrigin: foldUsagePanel(entries, []).origin,
+    }
+  }
+
+  /**
    * Folded spend for a period. Server actor + `can(read, project)`.
    * Empty book is `origin: unavailable` — never `usedPercent: 0`.
    * @param request - Period and optional tenant / persona.
@@ -3591,16 +3819,8 @@ export default class PersonaHost extends TypertRemoteService {
   getOfficialQuota(request: GetOfficialQuotaRequest): OfficialQuotaView[] {
     this.requireProject(request)
     const stored = this.usage.listQuota(request.projectId, request.provider)
-    if (stored.length > 0) {
-      return stored.map((row): OfficialQuotaView => {
-        const view = toOfficialView(row)
-        if (request.accountId === undefined) return view
-        const account = this.accounts.get(request.accountId)
-        return account === undefined
-          ? { ...view, accountId: request.accountId }
-          : { ...view, accountId: account.id, accountLabel: account.label }
-      })
-    }
+      .filter(row => request.accountId === undefined || row.accountId === request.accountId)
+    if (stored.length > 0) return stored.map(toOfficialView)
     const providers = request.provider === undefined ? ['claude', 'codex', 'dsh'] : [request.provider]
     return providers.map(provider => ({ provider, origin: 'unavailable' as const, windows: [] }))
   }
@@ -3946,7 +4166,7 @@ export default class PersonaHost extends TypertRemoteService {
    * @returns JSON string.
    */
   @Remote
-  async exportDiagnostics(): Promise<DiagnosticsJson> {
+  exportDiagnostics(): DiagnosticsJson {
     const json = stringifyDiagnostics(collectDiagnostics({
       protocol: PERSONA_PROTOCOL,
       product: this.product,
@@ -4182,6 +4402,27 @@ export default class PersonaHost extends TypertRemoteService {
     if (responderId !== undefined && responderId !== '') return true
     if (/@\S+/u.test(body)) return true
     return this.product.listPersonas(projectId).some(persona => persona.systemRoles.includes('coordination'))
+  }
+
+  /**
+   * Persist Rivet probe snaps into the official quota pool (all projects, or one).
+   * @param snaps - `detectConnections` cards.
+   * @param projectId - When set, only that tenant.
+   */
+  private persistOfficialQuota(
+    snaps: readonly import('@deepseek-ai/dsh-persona-runners').ConnectionSnapshot[],
+    projectId?: string,
+  ): void {
+    if (snaps.length === 0) return
+    if (projectId !== undefined) {
+      persistProbeQuota(this.usage, projectId, snaps)
+      return
+    }
+    for (const workspace of this.product.listWorkspaces()) {
+      for (const project of this.product.listProjects(workspace.id)) {
+        persistProbeQuota(this.usage, project.id, snaps)
+      }
+    }
   }
 
   private requireWorkspace(request: { workspaceId: string }): void {
@@ -4423,6 +4664,75 @@ export default class PersonaHost extends TypertRemoteService {
     return { projectId, channelId: created.id, name: created.name }
   }
 
+  /**
+   * GES-5: latest audit reason for a Gestor persona, for the profile card.
+   * @param workspaceId - Workspace.
+   * @param personaId - Persona.
+   * @param roles - Current roles.
+   */
+  private gestorAuditOnCard(
+    workspaceId: string,
+    personaId: string,
+    roles: readonly string[],
+  ): { gestorAuditReason?: string } {
+    if (!roles.includes('team_manager')) return {}
+    const reason = this.gestor.listAudit({ workspaceId })
+      .find(row => row.gestorId === personaId)?.reason
+    return reason === undefined || reason === '' ? {} : { gestorAuditReason: reason }
+  }
+
+  /**
+   * One write when a Gestor plan is proposed: `#geral` body + waiting activity.
+   * @param plan - Open plan.
+   * @param projectId - Tenant when the draft named one.
+   */
+  private emitProposedGestor(plan: GestorPlanView, projectId: string | undefined): void {
+    if (plan.status !== 'proposed') return
+    const project = projectId
+      ?? this.product.listProjects(plan.workspaceId)[0]?.id
+    if (project === undefined) return
+    const channelId = this.ensureProjectConversation(plan.workspaceId, project).channelId
+    const posted = emitGestorPropose({
+      plan: {
+        id: plan.id,
+        workspaceId: plan.workspaceId,
+        gestorId: plan.gestorId,
+        action: plan.action as GestorPlan['action'],
+        scopeKey: plan.scopeKey,
+        summary: plan.summary,
+        reason: plan.reason,
+        status: 'proposed',
+        createdAt: plan.createdAt,
+        ...(plan.commentOnId === undefined ? {} : { commentOnId: plan.commentOnId }),
+      },
+      threadId: channelId,
+      at: plan.createdAt,
+    })
+    this.recordTurnActivity({
+      workspaceId: plan.workspaceId,
+      projectId: project,
+      id: posted.activity.id,
+      personaId: posted.activity.personaId,
+      subjectId: posted.activity.threadId,
+      kind: posted.activity.kind,
+      title: posted.activity.title,
+      status: 'waiting',
+      at: posted.activity.at,
+    })
+    this.events.append({
+      id: `ges-msg-${plan.id}`,
+      workspaceId: plan.workspaceId,
+      projectId: project,
+      streamKind: 'channel',
+      ownerId: channelId,
+      type: 'message',
+      body: posted.channelBody,
+      actorId: plan.gestorId,
+      subjectId: channelId,
+      occurredAt: posted.activity.at,
+    })
+  }
+
   private auditPersona(projectId: string, personaId: string, action: string): void {
     const actor = this.actorOf(this.product.getProject(projectId)?.workspaceId ?? '')
     this.screens.screens.put(projectId, 'persona_audit', `${action}:${personaId}:${this.orchestration.now()}`, {
@@ -4529,9 +4839,35 @@ function toOfficialView(row: import('@deepseek-ai/dsh-persona-store').StoredOffi
       ...(window.resetsAt === undefined ? {} : { resetsAt: window.resetsAt }),
     }
   })
-  return row.detail === undefined
-    ? { provider: row.provider, origin: row.origin, windows }
-    : { provider: row.provider, origin: row.origin, windows, detail: row.detail }
+  const nextRefillAt = nextRefillOf(row)
+  return {
+    provider: row.provider,
+    origin: row.origin,
+    windows,
+    ...(row.detail === undefined ? {} : { detail: row.detail }),
+    ...(row.accountId === undefined || row.accountId === '' ? {} : { accountId: row.accountId }),
+    ...(row.accountLabel === undefined || row.accountLabel === '' ? {} : { accountLabel: row.accountLabel }),
+    ...(nextRefillAt === undefined ? {} : { nextRefillAt }),
+    ...(row.refillHistory === undefined || row.refillHistory.length === 0
+      ? {}
+      : { refillHistory: row.refillHistory }),
+  }
+}
+
+function nextRefillOf(row: import('@deepseek-ai/dsh-persona-store').StoredOfficialQuota): string | undefined {
+  let soonest: string | undefined
+  let soonestMs = Number.POSITIVE_INFINITY
+  for (const window of row.windows) {
+    if (window.resetsAt === undefined) continue
+    const at = Date.parse(window.resetsAt)
+    if (!Number.isNaN(at) && at < soonestMs) {
+      soonest = window.resetsAt
+      soonestMs = at
+    }
+  }
+  if (soonest !== undefined) return soonest
+  const last = row.refillHistory?.[row.refillHistory.length - 1]
+  return last?.resetsAt
 }
 
 function originLabelOf(origin: import('./types.ts').UsageOrigin): string {
@@ -4589,7 +4925,16 @@ function webserverOf(ctx: Context): {
     handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void | Promise<void>
   }) => () => void
 } | undefined {
-  return ctx.get('webServer')
+  const value: unknown = ctx.get('webServer')
+  if (value === undefined || value === null || typeof value !== 'object') return undefined
+  if (!('register' in value) || typeof Reflect.get(value, 'register') !== 'function') return undefined
+  return value as {
+    register: (route: {
+      kind: 'exact'
+      path: string
+      handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void | Promise<void>
+    }) => () => void
+  }
 }
 
 function asGithubEvent(event: string): 'issues' | 'issue_comment' | 'pull_request' | 'pull_request_review' | 'pull_request_review_comment' {

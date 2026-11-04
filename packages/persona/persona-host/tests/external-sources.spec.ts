@@ -44,10 +44,16 @@ function vaultOf(entries: Record<string, string>): SecretVault {
   }
 }
 
+function urlOf(input: RequestInfo | URL): string {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.href
+  return input.url
+}
+
 function fakeFetch(): { fetch: typeof fetch; calls: string[] } {
   const calls: string[] = []
-  const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = urlOf(input)
     calls.push(`${init?.method ?? 'GET'} ${url}`)
     if (url.includes('/getUpdates')) {
       return new Response(JSON.stringify({
@@ -84,7 +90,7 @@ function fakeFetch(): { fetch: typeof fetch; calls: string[] } {
       return new Response(ICS, { status: 200, headers: { 'content-type': 'text/calendar' } })
     }
     return new Response('', { status: 404 })
-  }) as typeof fetch
+  }
   return { fetch: fetchImpl, calls }
 }
 

@@ -71,6 +71,7 @@ export { SqliteRetention, applySqliteRetention } from './retention/store.ts'
 
 export { SqliteUsageStore } from './usage/store.ts'
 export type {
+  QuotaRefillPoint,
   StoredOfficialQuota,
   StoredUsageEvent,
   UsageOrigin,
@@ -78,6 +79,7 @@ export type {
   UsageStore,
   UsageTotals,
 } from './usage/store.ts'
+export { mergeQuotaHistory, QUOTA_REFILL_HISTORY } from './usage/store.ts'
 
 export { TurnLedgerRepos } from './ledger/repos.ts'
 export type { TurnLedgerQuery } from './ledger/repos.ts'

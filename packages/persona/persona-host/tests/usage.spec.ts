@@ -1,4 +1,5 @@
 import { expect } from 'vitest'
+import { persistProbeQuota } from '../src/official-quota-persist.ts'
 import PersonaHost from '../src/index.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
@@ -54,6 +55,42 @@ it('folds fake-runner spend across a month boundary and never prints 0%', async 
   const quota = h.getOfficialQuota({ workspaceId: 'ws', projectId: 'pp', provider: 'claude' })
   expect(quota).toEqual([{ provider: 'claude', origin: 'unavailable', windows: [] }])
   expect(JSON.stringify(quota)).not.toMatch(/"usedPercent":0/u)
+})
+
+it('persists Rivet officialQuota puts per account and exposes next refill', () => {
+  const h = host()
+  persistProbeQuota(h.usage, 'pp', [{
+    id: 'work',
+    officialQuota: {
+      provider: 'claude',
+      origin: 'official',
+      windows: [{
+        id: '5h', origin: 'official', usedPercent: 40, resetsAt: '2026-11-04T18:00:00.000Z',
+      }],
+    },
+  }])
+  const views = h.getOfficialQuota({ workspaceId: 'ws', projectId: 'pp', provider: 'claude' })
+  expect(views).toHaveLength(1)
+  expect(views[0]?.accountId).toBe('work')
+  expect(views[0]?.accountLabel).not.toBe('default')
+  expect(views[0]?.nextRefillAt).toBe('2026-11-04T18:00:00.000Z')
+  expect(views[0]?.refillHistory?.[0]?.resetsAt).toBe('2026-11-04T18:00:00.000Z')
+  persistProbeQuota(h.usage, 'pp', [{
+    id: 'work',
+    officialQuota: {
+      provider: 'claude',
+      origin: 'official',
+      windows: [{
+        id: '5h', origin: 'official', usedPercent: 90, resetsAt: '2026-11-04T23:00:00.000Z',
+      }],
+    },
+  }])
+  const again = h.getOfficialQuota({ workspaceId: 'ws', projectId: 'pp', provider: 'claude' })
+  expect(again[0]?.refillHistory?.map(point => point.resetsAt)).toEqual([
+    '2026-11-04T18:00:00.000Z',
+    '2026-11-04T23:00:00.000Z',
+  ])
+  expect(again[0]?.nextRefillAt).toBe('2026-11-04T23:00:00.000Z')
 })
 
 it('forbids a guest without project access', () => {

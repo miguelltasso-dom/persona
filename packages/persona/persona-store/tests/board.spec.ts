@@ -128,8 +128,8 @@ it('crash during save rolls back the previous flow', () => {
     writes += 1
     if (writes === 1) throw new Error('boom')
     return inner(work)
-  }) as typeof store.tx
-  expect(() => board.save(workflowFromTemplate('pp', 'site'))).toThrow('boom')
+  })
+  expect(() => { board.save(workflowFromTemplate('pp', 'site')) }).toThrow('boom')
   store.tx = inner
   expect(board.get('pp')?.template).toBe('simples')
 })

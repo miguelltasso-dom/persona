@@ -1,5 +1,6 @@
 import { expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
+import type { AttentionStreamFrame } from '../src/types.ts'
 import { SqliteRetention } from '@deepseek-ai/dsh-persona-store'
 import { bindHostFile, it } from './host-harness.ts'
 
@@ -23,7 +24,8 @@ it('exposes attention policy and a baseline stream', async () => {
   const iter = h.attentionEvents(scope, ac.signal)[Symbol.asyncIterator]()
   const first = await iter.next()
   ac.abort()
-  expect(first.value?.kind).toBe('baseline')
+  const frame = first.value as AttentionStreamFrame | undefined
+  expect(frame?.kind).toBe('baseline')
 })
 
 it('ackAttention stores ids so the next baseline omits them', async () => {
@@ -34,7 +36,8 @@ it('ackAttention stores ids so the next baseline omits them', async () => {
   const iter = h.attentionEvents(scope, ac.signal)[Symbol.asyncIterator]()
   const first = await iter.next()
   ac.abort()
-  const events = first.value?.kind === 'baseline' ? first.value.events : []
+  const frame = first.value as AttentionStreamFrame | undefined
+  const events = frame?.kind === 'baseline' ? frame.events : []
   expect(events.some((item: { id: string }) => item.id === 'need:tk-1' || item.id === 'review:tk-1')).toBe(false)
 })
 

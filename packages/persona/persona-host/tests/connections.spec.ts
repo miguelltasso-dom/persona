@@ -40,13 +40,36 @@ it('shows verificando without a false not_logged_in, then a slow CLI as logged i
   expect(claude?.error).toBeUndefined()
 })
 
-it('listConnections on a live host returns checking then ready, never a 400 ms false logout', async () => {
+it('probe persistQuota receives officialQuota snaps', async () => {
+  const seen: unknown[] = []
+  const probe = new ConnectionProbe({
+    timeoutMs: 8_000,
+    now: () => 0,
+    persistQuota: (snaps) => { seen.push(...snaps) },
+    detect: async () => [{
+      id: 'claude',
+      kind: 'cli',
+      installed: true,
+      loggedIn: true,
+      models: ['haiku'],
+      officialQuota: {
+        provider: 'claude', origin: 'official',
+        windows: [{ id: '5h', origin: 'official', usedPercent: 12, resetsAt: '2026-11-04T20:00:00.000Z' }],
+      },
+    }],
+  })
+  await probe.ready()
+  expect(probe.snaps()[0]?.officialQuota?.windows[0]?.resetsAt).toBe('2026-11-04T20:00:00.000Z')
+  expect(seen).toHaveLength(1)
+})
+
+it('listConnections on a live host returns checking then ready, never a 400 ms false logout', () => {
   const h = host()
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
   h.createMember({
     id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner',
   })
-  const first = await h.listConnections({ workspaceId: 'ws', projectId: 'pp' })
+  const first = h.listConnections({ workspaceId: 'ws', projectId: 'pp' })
   expect(first.length).toBeGreaterThan(0)
   const pending = first.filter(card => card.phase === 'checking')
   for (const card of pending) {

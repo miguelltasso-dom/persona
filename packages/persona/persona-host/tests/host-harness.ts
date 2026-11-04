@@ -111,6 +111,8 @@ export function resetHost(host: PersonaHost, clock: string = CLOCK): void {
   host.scheduler.armed.clear()
   host.scheduler.lastReadyMs = 0
   host.connections.reset()
+  host.remoteGuard.reset()
+  host.forgetSubjectListCache()
   host.boards.goals.clear()
   host.external.reset()
   host.external.secrets = new CofreSecretVault(host.vault, host.product)

@@ -63,7 +63,7 @@ it('J14 — editar fluxo com Tarefas vivas; sem destino recusa em pt-BR; Vigia/p
   expect(kept).toBeDefined()
   expect(kept!.category === 'doing' || kept!.columnId === 'software-andamento').toBe(true)
 
-  expect(() => h.proactivity.tickWatchdog('code', 60_000)).not.toThrow()
-  expect(() => h.orchestration.tick('code')).not.toThrow()
+  expect(() => { h.proactivity.tickWatchdog('code', 60_000) }).not.toThrow()
+  expect(() => { h.orchestration.tick('code') }).not.toThrow()
   expect(h.getProjectBoard(SCOPE).cards.some(card => card.ticketId === task!.id)).toBe(true)
 })

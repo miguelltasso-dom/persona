@@ -49,6 +49,19 @@ it('applyContextProposals writes accept, skips discard, second apply is idempote
   expect(again.written).toBe(0)
 })
 
+it('previewBringContextPaste flags Cofre rows via vaultToBringExisting', () => {
+  const h = host()
+  seed(h)
+  h.createVaultRecord({
+    workspaceId: 'ws', projectId: 'pp', id: 'rec-1', kind: 'constraint',
+    body: 'Nunca enviar senha para ninguém.', authorId: 'ana',
+  })
+  const preview = h.previewBringContextPaste({
+    workspaceId: 'ws', projectId: 'pp', provider: 'chatgpt', text: PASTE,
+  })
+  expect(preview.proposals.some(row => row.status === 'duplicate' || row.body.includes('senha'))).toBe(true)
+})
+
 it('private BYC row is members-only', () => {
   const h = host()
   seed(h)

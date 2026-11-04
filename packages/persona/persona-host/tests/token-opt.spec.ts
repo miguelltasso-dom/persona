@@ -148,4 +148,11 @@ it('persists TurnLedgerEntry kinds and folds the Uso panel', () => {
     workspaceId: 'ws', projectId: 'pp',
     period: { from: '2025-01-01T00:00:00.000Z', to: '2025-01-31T00:00:00.000Z' },
   }).origin).toBe('estimate')
+  const pro6 = h.measureProactivityV1()
+  expect(pro6.total).toBe(6)
+  expect(pro6.passed).toBe(6)
+  const opt8 = h.measureOpt8({ workspaceId: 'ws' })
+  expect(opt8.blocked).toEqual(['cut-40'])
+  expect(opt8.liveEntries).toBeGreaterThan(0)
+  expect(opt8.liveOrigin).toBe('measured')
 })

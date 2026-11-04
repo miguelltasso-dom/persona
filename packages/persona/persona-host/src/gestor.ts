@@ -5,11 +5,15 @@
 import {
   assembleTeamForGoal,
   claimGestorScope,
+  commentGestorPlan,
   decideGestorAction,
   formatGestorAudit,
-  isGestor,
+  gestorAllocate,
   gestorHire,
+  gestorReorganize,
   gestorScopeKey,
+  isGestor,
+  resolveGestorTie,
   type CliKind,
   type GestorLimits,
   type GestorPlan,
@@ -30,9 +34,23 @@ import type {
   ProposeGestorAssembleRequest,
   ProposeGestorAssembleView,
   ProposeGestorHireRequest,
+  ProposeGestorAllocateRequest,
+  ProposeGestorReorganizeRequest,
+  CommentGestorPlanRequest,
+  ResolveGestorTieRequest,
   ListGestorPlansRequest,
   SetGestorLimitsRequest,
+  SystemRoleView,
 } from './types.ts'
+
+/**
+ * GES-1: Coordenação template default também Gestor de equipe.
+ * @param roles - Requested roles.
+ */
+export function withDefaultGestor(roles: readonly SystemRoleView[]): SystemRoleView[] {
+  if (!roles.includes('coordination') || roles.includes('team_manager')) return [...roles]
+  return [...roles, 'team_manager']
+}
 
 function enginesOf(values: readonly string[]): GestorLimits['allowedEngines'] {
   return values.filter((item): item is 'dsh' | CliKind =>
@@ -77,6 +95,7 @@ function toPlanView(plan: GestorPlan): GestorPlanView {
     reason: plan.reason,
     status: plan.status,
     createdAt: plan.createdAt,
+    ...(plan.commentOnId === undefined ? {} : { commentOnId: plan.commentOnId }),
   }
 }
 
@@ -141,19 +160,15 @@ export class GestorHost {
     const clash = claimGestorScope(this.repos.listOpenPlans(request.workspaceId, scopeKey), scopeKey)
     const at = this.now()
     if (clash.kind === 'conflict') {
-      const comment: GestorPlan = {
-        id: request.id,
+      return this.storeComment({
         workspaceId: request.workspaceId,
-        gestorId: request.gestorId,
-        action: 'hire',
+        planId: clash.existingPlanId,
+        commenterId: request.gestorId,
+        comment: request.reason,
+        commentId: request.id,
+        at,
         scopeKey,
-        summary: `comentário no plano ${clash.existingPlanId}`,
-        reason: request.reason,
-        status: 'commented',
-        createdAt: at,
-      }
-      this.repos.putPlan(comment)
-      return toPlanView(comment)
+      })
     }
     const summary = formatGestorAudit({
       gestorName: persona.name,
@@ -215,7 +230,158 @@ export class GestorHost {
       auditId: `aud-${plan.id}`,
       at,
     })
-    this.applyHire({ ...plan }, persona, limits, true)
+    this.applyEnvelope({ ...plan }, persona, limits, true)
+    const applied = { ...plan, status: 'applied' as const }
+    this.repos.putPlan(applied)
+    if (decision.kind === 'apply' || decision.kind === 'notify') this.repos.putAudit(decision.audit)
+    return toPlanView(applied)
+  }
+
+  /**
+   * Second Gestor comments; the original plan stays proposed.
+   * @param request - Open plan and commenter.
+   */
+  commentPlan(request: CommentGestorPlanRequest): GestorPlanView {
+    const existing = this.repos.getPlan(request.planId)
+    if (existing === undefined || existing.workspaceId !== request.workspaceId) throw new Error('not-found')
+    const commenter = this.product.getPersona(request.commenterId)
+    if (commenter === undefined || !isGestor(commenter)) throw new Error('not-gestor')
+    return this.storeComment({
+      workspaceId: request.workspaceId,
+      planId: existing.id,
+      commenterId: request.commenterId,
+      comment: request.comment,
+      commentId: `c-${request.planId}-${request.commenterId}`,
+      at: this.now(),
+      scopeKey: existing.scopeKey,
+    })
+  }
+
+  /**
+   * Human picks the winner; others on the same scope are rejected.
+   * @param request - Chosen plan.
+   */
+  resolveTie(request: ResolveGestorTieRequest): GestorPlanView {
+    const chosen = this.repos.getPlan(request.chosenId)
+    if (chosen === undefined || chosen.workspaceId !== request.workspaceId) throw new Error('not-found')
+    const tied = this.repos.listDisplayPlans(request.workspaceId)
+      .filter(row => row.scopeKey === chosen.scopeKey)
+    const result = resolveGestorTie({ plans: tied, chosenId: request.chosenId })
+    this.repos.putPlan(result.winner)
+    for (const row of result.rejected) this.repos.putPlan(row)
+    return toPlanView(result.winner)
+  }
+
+  /**
+   * Propose placing a persona. always_ask stays pending.
+   * @param request - Allocation draft.
+   */
+  proposeAllocate(request: ProposeGestorAllocateRequest): GestorPlanView {
+    const persona = this.product.getPersona(request.gestorId)
+    if (persona === undefined || !isGestor(persona)) throw new Error('not-gestor')
+    const limits = this.repos.mandateOrDefault(request.gestorId, request.workspaceId)
+    const scope = {
+      ...(request.projectIds[0] === undefined ? {} : { projectId: request.projectIds[0] }),
+      ...(request.sectorId === undefined ? {} : { sectorId: request.sectorId }),
+    }
+    const scopeKey = gestorScopeKey(scope)
+    const at = this.now()
+    const clash = claimGestorScope(this.repos.listOpenPlans(request.workspaceId, scopeKey), scopeKey)
+    if (clash.kind === 'conflict') {
+      return this.storeComment({
+        workspaceId: request.workspaceId,
+        planId: clash.existingPlanId,
+        commenterId: request.gestorId,
+        comment: request.reason,
+        commentId: request.id,
+        at,
+        scopeKey,
+      })
+    }
+    const plan: AllocateEnvelope = {
+      id: request.id,
+      workspaceId: request.workspaceId,
+      gestorId: request.gestorId,
+      action: 'allocate',
+      scopeKey,
+      summary: `Alocar ${request.personaId} em ${request.projectIds.join(', ')}`,
+      reason: request.reason.startsWith('porque') ? request.reason : `porque ${request.reason}`,
+      status: 'proposed',
+      createdAt: at,
+      personaId: request.personaId,
+      projectIds: [...request.projectIds],
+      ...(request.sectorId === undefined ? {} : { sectorId: request.sectorId }),
+    }
+    const decision = decideGestorAction({
+      mandate: { personaId: request.gestorId, workspaceId: request.workspaceId, limits },
+      plan,
+      accepted: false,
+      auditId: `aud-${request.id}`,
+      at,
+    })
+    if (decision.kind === 'ask') {
+      this.repos.putPlan(plan)
+      return toPlanView(plan)
+    }
+    this.applyEnvelope(plan, persona, limits, true)
+    const applied = { ...plan, status: 'applied' as const }
+    this.repos.putPlan(applied)
+    if (decision.kind === 'apply' || decision.kind === 'notify') this.repos.putAudit(decision.audit)
+    return toPlanView(applied)
+  }
+
+  /**
+   * Propose a reorganize. always_ask stays pending.
+   * @param request - Reorganize draft.
+   */
+  proposeReorganize(request: ProposeGestorReorganizeRequest): GestorPlanView {
+    const persona = this.product.getPersona(request.gestorId)
+    if (persona === undefined || !isGestor(persona)) throw new Error('not-gestor')
+    const limits = this.repos.mandateOrDefault(request.gestorId, request.workspaceId)
+    const scope = { ...(request.projectId === undefined ? {} : { projectId: request.projectId }) }
+    const scopeKey = gestorScopeKey(scope)
+    const at = this.now()
+    const clash = claimGestorScope(this.repos.listOpenPlans(request.workspaceId, scopeKey), scopeKey)
+    if (clash.kind === 'conflict') {
+      return this.storeComment({
+        workspaceId: request.workspaceId,
+        planId: clash.existingPlanId,
+        commenterId: request.gestorId,
+        comment: request.reason,
+        commentId: request.id,
+        at,
+        scopeKey,
+      })
+    }
+    const plan: ReorganizeEnvelope = {
+      id: request.id,
+      workspaceId: request.workspaceId,
+      gestorId: request.gestorId,
+      action: 'reorganize',
+      scopeKey,
+      summary: `${request.kind} ${request.targetPersonaId}`,
+      reason: request.reason.startsWith('porque') ? request.reason : `porque ${request.reason}`,
+      status: 'proposed',
+      createdAt: at,
+      kind: request.kind,
+      targetPersonaId: request.targetPersonaId,
+      notice: request.notice,
+      ticketIds: request.ticketIds === undefined ? [] : [...request.ticketIds],
+      ...(request.nextAutonomy === undefined ? {} : { nextAutonomy: request.nextAutonomy }),
+      ...(request.projectId === undefined ? {} : { projectId: request.projectId }),
+    }
+    const decision = decideGestorAction({
+      mandate: { personaId: request.gestorId, workspaceId: request.workspaceId, limits },
+      plan,
+      accepted: false,
+      auditId: `aud-${request.id}`,
+      at,
+    })
+    if (decision.kind === 'ask') {
+      this.repos.putPlan(plan)
+      return toPlanView(plan)
+    }
+    this.applyEnvelope(plan, persona, limits, true)
     const applied = { ...plan, status: 'applied' as const }
     this.repos.putPlan(applied)
     if (decision.kind === 'apply' || decision.kind === 'notify') this.repos.putAudit(decision.audit)
@@ -334,6 +500,86 @@ export class GestorHost {
     }))
   }
 
+  private storeComment(input: {
+    readonly workspaceId: string
+    readonly planId: string
+    readonly commenterId: string
+    readonly comment: string
+    readonly commentId: string
+    readonly at: string
+    readonly scopeKey: string
+  }): GestorPlanView {
+    const result = commentGestorPlan({
+      open: this.repos.listOpenPlans(input.workspaceId, input.scopeKey),
+      scopeKey: input.scopeKey,
+      commenterId: input.commenterId,
+      workspaceId: input.workspaceId,
+      commentId: input.commentId,
+      comment: input.comment,
+      at: input.at,
+    })
+    if (result.kind === 'claim') throw new Error('not-found')
+    this.repos.putPlan(result.plan)
+    return toPlanView(result.plan)
+  }
+
+  private applyEnvelope(
+    plan: GestorPlan,
+    persona: Parameters<typeof gestorHire>[0]['gestor'],
+    limits: GestorLimits,
+    accepted: boolean,
+  ): void {
+    if (plan.action === 'hire') this.applyHire(plan, persona, limits, accepted)
+    if (plan.action === 'allocate') this.applyAllocate(plan, persona, limits)
+    if (plan.action === 'reorganize') this.applyReorganize(plan, persona, limits)
+  }
+
+  private applyAllocate(
+    plan: GestorPlan,
+    persona: Parameters<typeof gestorHire>[0]['gestor'],
+    limits: GestorLimits,
+  ): void {
+    const envelope = plan as AllocateEnvelope
+    if (envelope.personaId === undefined || envelope.projectIds === undefined) return
+    const allocation = gestorAllocate({
+      gestor: persona,
+      limits,
+      scope: {
+        ...(envelope.projectIds[0] === undefined ? {} : { projectId: envelope.projectIds[0] }),
+        ...(envelope.sectorId === undefined ? {} : { sectorId: envelope.sectorId }),
+      },
+      personaId: envelope.personaId,
+      projectIds: envelope.projectIds,
+    })
+    for (const projectId of allocation.projectIds) {
+      this.product.addParticipation({
+        personaId: allocation.personaId,
+        projectId,
+        kind: 'project',
+        targetId: projectId,
+      })
+    }
+  }
+
+  private applyReorganize(
+    plan: GestorPlan,
+    persona: Parameters<typeof gestorHire>[0]['gestor'],
+    limits: GestorLimits,
+  ): void {
+    const envelope = plan as ReorganizeEnvelope
+    if (envelope.targetPersonaId === undefined || envelope.kind === undefined) return
+    gestorReorganize({
+      gestor: persona,
+      limits,
+      scope: { ...(envelope.projectId === undefined ? {} : { projectId: envelope.projectId }) },
+      kind: envelope.kind,
+      targetPersonaId: envelope.targetPersonaId,
+      notice: envelope.notice ?? '',
+      ...(envelope.ticketIds === undefined ? {} : { ticketIds: envelope.ticketIds }),
+      ...(envelope.nextAutonomy === undefined ? {} : { nextAutonomy: envelope.nextAutonomy }),
+    })
+  }
+
   private applyHire(
     plan: HireEnvelope,
     persona: Parameters<typeof gestorHire>[0]['gestor'],
@@ -390,4 +636,19 @@ interface HireEnvelope extends GestorPlan {
   readonly spec?: GestorHireSpecView
   readonly projectId?: string
   readonly sectorId?: string
+}
+
+interface AllocateEnvelope extends GestorPlan {
+  readonly personaId?: string
+  readonly projectIds?: readonly string[]
+  readonly sectorId?: string
+}
+
+interface ReorganizeEnvelope extends GestorPlan {
+  readonly kind?: 'move_work' | 'pause_idle' | 'set_autonomy'
+  readonly targetPersonaId?: string
+  readonly notice?: string
+  readonly ticketIds?: readonly string[]
+  readonly nextAutonomy?: 'on_request' | 'propose' | 'act'
+  readonly projectId?: string
 }

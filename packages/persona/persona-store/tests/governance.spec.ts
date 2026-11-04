@@ -102,7 +102,7 @@ it('crash during putSector rolls back; reopen keeps sector and audit', async () 
     writes += 1
     if (writes === 1) throw new Error('boom')
     return inner(work)
-  }) as typeof handle.store.tx
+  })
   expect(() => gov.putSector({
     id: 'ops', workspaceId: 'ws', name: 'Ops',
     policyJson: JSON.stringify({ autonomy: 'act', requiredApprovals: [] }),

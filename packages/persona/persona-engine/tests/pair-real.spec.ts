@@ -6,11 +6,11 @@ import {
   foldPairRealEvents,
   runPairReal,
   summarizePairReal,
-  withRealReport,
   type PairRealEvent,
   type PairRealRunner,
   type PairRealStep,
 } from '../src/bench/pair-real.ts'
+import { WORKER_LEAN_REPORT_RULE } from '../src/prompts/templates.ts'
 import { LEVERS_AS_WIRED } from '../src/bench/token-faithful.ts'
 
 interface Spy {
@@ -61,8 +61,11 @@ describe('paired real run plan', () => {
     expect(plan.model).toBe('haiku')
     const direct = plan.calls.filter(call => call.arm === 'cli_direct')
     const persona = plan.calls.filter(call => call.arm === 'persona')
+    const lean = plan.calls.filter(call => call.arm === 'persona_lean')
+    expect(plan.callCount).toBe(9)
     expect(direct).toHaveLength(2)
-    expect(persona.map(call => call.step)).toEqual(['triage', 'execution', 'evaluation', 'triage', 'execution', 'evaluation', 'ttl_probe'])
+    expect(persona.map(call => call.step)).toEqual(['triage', 'execution', 'triage', 'execution', 'ttl_probe'])
+    expect(lean.map(call => call.step)).toEqual(['execution', 'execution'])
     for (const call of direct) expect(call.prompt).toContain('Implemente o filtro de pedidos')
     expect(plan.calls.at(-1)?.pass).toBe('after_gap')
   })
@@ -71,26 +74,29 @@ describe('paired real run plan', () => {
     const plan = buildPairRealPlan(LEVERS_AS_WIRED)
     const triage = plan.calls.find(call => call.step === 'triage')
     expect(triage?.prompt).toContain('Você é Atlas, Coordenação')
-    const execution = plan.calls.find(call => call.step === 'execution')
-    expect(execution?.prompt).toContain('Tarefa: Implementar o filtro de pedidos')
+    // The host hands the worker its persona prompt and the ticket title, nothing else.
+    const execution = plan.calls.find(call => call.arm === 'persona' && call.step === 'execution')
+    expect(execution?.prompt.endsWith('Implemente o filtro de pedidos.')).toBe(true)
+    expect(execution?.prompt).not.toContain('Critério de pronto')
     const warmTriage = plan.calls.filter(call => call.step === 'triage')[1]
     expect(warmTriage?.prompt.length).toBeLessThan(triage?.prompt.length ?? 0)
   })
 
-  it('swaps the scripted report for the real one only inside the evaluation prompt', () => {
-    const replaced = withRealReport('Revisar...\nRelato da executora:\nroteiro', 'o que o modelo escreveu')
-    expect(replaced).toBe('Revisar...\nRelato da executora:\no que o modelo escreveu')
-    expect(withRealReport('sem marcador', 'x')).toBe('sem marcador')
+  it('adds only the short-report rule on the lean arm, same title and persona', () => {
+    const plan = buildPairRealPlan()
+    const plain = plan.calls.find(call => call.arm === 'persona' && call.step === 'execution' && call.pass === 'cold')
+    const lean = plan.calls.find(call => call.arm === 'persona_lean' && call.pass === 'cold')
+    expect(lean?.prompt.length).toBeGreaterThan(plain?.prompt.length ?? 0)
+    expect(lean?.prompt.endsWith('Implemente o filtro de pedidos.')).toBe(true)
+    expect(plain?.prompt).not.toContain(WORKER_LEAN_REPORT_RULE)
+    expect(lean?.prompt).toContain(WORKER_LEAN_REPORT_RULE)
   })
 })
 
 describe('running the plan', () => {
-  it('runs every call, cancels each one, disposes once, and carries the real execution report forward', async () => {
+  it('runs every call, cancels each one and disposes once', async () => {
     const plan = buildPairRealPlan()
-    const spy = spyRunner({
-      usage: { inputTokens: 40, outputTokens: 7, cacheReadTokens: 1000, cacheWriteTokens: 0 },
-      text: prompt => (prompt.startsWith('Tarefa') || prompt.includes('Critério de pronto') ? 'RELATO-REAL-DA-EXECUCAO' : 'ok'),
-    })
+    const spy = spyRunner({ usage: { inputTokens: 40, outputTokens: 7, cacheReadTokens: 1000, cacheWriteTokens: 0 } })
     const slept: number[] = []
     const results = await runPairReal(spy.runner, plan, { sleep: async (ms) => { slept.push(ms); await Promise.resolve() }, gapMs: 123 })
     expect(results).toHaveLength(plan.callCount)
@@ -98,8 +104,6 @@ describe('running the plan', () => {
     expect(spy.cancelled).toHaveLength(plan.callCount)
     expect(spy.disposed).toBe(1)
     expect(slept).toEqual([123])
-    const evaluation = spy.started.find(call => call.step === 'evaluation')
-    expect(evaluation?.prompt).toContain('RELATO-REAL-DA-EXECUCAO')
     expect(results.every(row => row.inputTokens === 40 && row.cacheReadTokens === 1000)).toBe(true)
   })
 
@@ -161,5 +165,32 @@ describe('running the plan', () => {
     const warmCache = await runPairReal(spyRunner({ usage: { inputTokens: 50, outputTokens: 5, cacheReadTokens: 12_000 } }).runner, buildPairRealPlan(), { sleep: async () => { await Promise.resolve() }, gapMs: 0 })
     expect(summarizePairReal(warmCache).cacheSurvivedGap).toBe(true)
     expect(formatPairRealMarkdown(warmCache, 'real')).toContain('sim (TTL > 5 min)')
+  })
+})
+
+describe('W3 calibration and the ready criterion', () => {
+  it('compares the lean worker output against the plain one and checks both met the criterion', async () => {
+    const spy = spyRunner({
+      usage: { inputTokens: 100, outputTokens: 50 },
+      text: prompt => (prompt.includes(WORKER_LEAN_REPORT_RULE) ? 'Resultado: filtro de pedidos pronto.' : 'Passo 1... Passo 2... Resultado: filtro de pedidos pronto.'),
+    })
+    const results = await runPairReal(spy.runner, buildPairRealPlan(), { sleep: async () => { await Promise.resolve() }, gapMs: 0 })
+    const answers = results.filter(row => row.step === 'execution' || row.step === 'direct')
+    expect(answers.every(row => row.ready === true)).toBe(true)
+    expect(results.filter(row => row.step === 'triage' || row.step === 'ttl_probe').every(row => row.ready === undefined)).toBe(true)
+    const summary = summarizePairReal(results)
+    expect(summary.leanReadyHeld).toBe(true)
+    // same scripted usage on both arms here, so the ratio is exactly 1: the harness only reports it
+    expect(summary.leanOutputRatio).toBe(1)
+    expect(formatPairRealMarkdown(results, 'dry')).toContain('W3 (relato curto)')
+  })
+
+  it('flags a lean answer that lost the criterion', async () => {
+    const spy = spyRunner({
+      usage: { inputTokens: 100, outputTokens: 5 },
+      text: prompt => (prompt.includes(WORKER_LEAN_REPORT_RULE) ? 'Feito.' : 'Resultado: filtro pronto.'),
+    })
+    const results = await runPairReal(spy.runner, buildPairRealPlan(), { sleep: async () => { await Promise.resolve() }, gapMs: 0 })
+    expect(summarizePairReal(results).leanReadyHeld).toBe(false)
   })
 })

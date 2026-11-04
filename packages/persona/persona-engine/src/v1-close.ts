@@ -24,11 +24,14 @@ export interface V1CloseMeasure {
   readonly gestorMulti: GestorMultiAcceptance
   readonly firstDelivery: FirstDeliveryAcceptance
   readonly opt8: Opt8Acceptance
+  /** D-068, top level (mirrors `opt8.origin` / `opt8.baseline`). */
+  readonly origin: 'estimate'
+  readonly baseline: 'levers-before-wiring'
 }
 
 /**
  * One fake-clock pass over PRO-6, GES-6, GES-2, GES-3 and OPT-8.
- * `opt8.blocked` (cut-40 without a live book) does not fail the gate.
+ * `opt8.blocked` (pair-parity, cut-40 — D-068) does not fail the gate.
  * @param input - Optional live ledger for OPT-8 −40%.
  * @returns Combined score. `passed` is true when no function reports `failed`.
  */
@@ -56,6 +59,8 @@ export function measureV1Close(input?: {
     gestorMulti,
     firstDelivery,
     opt8,
+    origin: opt8.origin,
+    baseline: opt8.baseline,
   }
 }
 
@@ -68,11 +73,14 @@ export interface V1CloseMeasureView {
   readonly gestorMulti: { readonly passed: number; readonly total: 3; readonly failed: readonly string[] }
   readonly firstDelivery: { readonly passed: number; readonly total: 4; readonly failed: readonly string[] }
   readonly opt8: Opt8MeasureView
+  /** D-068, top level (mirrors `opt8.origin` / `opt8.baseline`). */
+  readonly origin: 'estimate'
+  readonly baseline: 'levers-before-wiring'
 }
 
 /**
  * v1 close plus live OPT-8 book size. Host `measureV1Close` returns this.
- * Empty book keeps `cut-40` blocked; a live book scores −40%.
+ * The live book is reported (count and origin) but does not move the OPT-8 goal (D-068).
  * @param entries - Host ledger rows (`TurnLedgerView` ≡ `TurnLedgerEntry`).
  * @returns Wire fields. `opt8.liveEntries` is `entries.length`.
  */
@@ -106,6 +114,8 @@ export function measureV1CloseView(entries: readonly TurnLedgerEntry[] = []): V1
       failed: scored.firstDelivery.failed,
     },
     opt8: measureOpt8View(entries),
+    origin: scored.opt8.origin,
+    baseline: scored.opt8.baseline,
   }
 }
 
@@ -160,7 +170,7 @@ export function formatV1CloseMarkdown(input?: {
     `| V1-P0-1 | ${String(scored.firstDelivery.passed)}/${String(scored.firstDelivery.total)} | ${scored.firstDelivery.failed.join(', ') || '—'} | — |`,
     `| OPT-8 | ${String(scored.opt8.passed)}/${String(scored.opt8.total)} | ${scored.opt8.failed.join(', ') || '—'} | ${scored.opt8.blocked.join(', ') || '—'} |`,
     '',
-    'OPT-8 `cut-40` fica `blocked` até o livro live (`measureV1CloseView(entries)` / `measureOpt8View`). Não falha o gate.',
+    'OPT-8 (D-068): `pair-parity` fica `blocked` até a rodada pareada real e `cut-40` fica `blocked` enquanto o conjunto completo de alavancas não estiver ligado (hoje falta a W3, relato curto do worker, desligada até a rodada real); só fica verde com ≥ 40% de custo estimado no pipeline fiel. Não falha o gate, mas também não conta como passou.',
     '',
     '```',
     'pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts',

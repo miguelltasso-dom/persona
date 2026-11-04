@@ -4,7 +4,7 @@
  */
 
 import { createHash } from 'node:crypto'
-import { contradicts, nearDuplicate } from '../domain/aging.ts'
+import { contradicts } from '../domain/aging.ts'
 import { looksLikeCredential } from '../domain/secrets.ts'
 import { looksLikeSecret } from './privacy.ts'
 import { markdownAdapter } from './markdown.ts'
@@ -189,8 +189,8 @@ export function contentHash(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 24)
 }
 
-function slug(value: string): string {
-  return value.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+function normalizeBringBody(value: string): string {
+  return value.normalize('NFC').replace(/\s+/gu, ' ').trim().toLowerCase()
 }
 
 function formatDay(at: string): string {
@@ -247,7 +247,8 @@ function finishProposal(base: Omit<BringContextProposal, 'status' | 'blocked' | 
 }): BringContextProposal {
   const why = sensitiveWhy(base.body)
   const uncertain = base.uncertain === true || /\((?:incerto|uncertain)\)/i.test(base.body)
-  const duplicate = base.existing.find(row => nearDuplicate(row.body, base.body))
+  const normalizedBody = normalizeBringBody(base.body)
+  const duplicate = base.existing.find(row => row.kind === base.kind && normalizeBringBody(row.body) === normalizedBody)
   const fixed = base.existing.find(row =>
     (row.kind === 'decision' || row.kind === 'constraint') && contradicts(row.body, base.body))
   let status: BringProposalStatus = 'ready'
@@ -271,7 +272,9 @@ function finishProposal(base: Omit<BringContextProposal, 'status' | 'blocked' | 
 
 /**
  * Paste from an existing AI → typed proposals with provenance.
+ * Proposal IDs retain the item position and kind plus a hash of the complete body.
  * @param input - Trusted paste, provider, clock, current Cofre.
+ * @returns Typed review proposals without persisting records.
  */
 export function parseBringPaste(input: {
   readonly text: string
@@ -286,15 +289,16 @@ export function parseBringPaste(input: {
   for (const section of splitSections(input.text)) {
     for (const body of splitItems(section.body)) {
       n += 1
+      const hash = contentHash(body)
       proposals.push(finishProposal({
-        id: `byc-paste-${String(n)}-${slug(body)}`,
+        id: `byc-paste-${String(n)}-${section.def.kind}-${hash}`,
         kind: section.def.kind,
         section: section.def.label,
         body,
         provenance,
         existing,
         path: '',
-        hash: contentHash(body),
+        hash,
       }))
     }
   }

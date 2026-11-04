@@ -461,6 +461,7 @@ export {
   grokAdapter,
   listVaultFolderFiles,
   looksLikeCredential,
+  containsSecretValue,
   looksLikeSecret,
   markdownAdapter,
   notionAdapter,

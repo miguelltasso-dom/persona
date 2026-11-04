@@ -1,6 +1,7 @@
 /** Bounded private-history Git operations; no shell, hooks, filters, or working-directory metadata. */
 import { spawn } from 'node:child_process'
-import { lstat } from 'node:fs/promises'
+import { lstat, open } from 'node:fs/promises'
+import { basename } from 'node:path'
 import type { HistoryFile } from './history-files.ts'
 import { HistoryReviewError } from './history-files.ts'
 import { confinePath } from '../executor/confine.ts'
@@ -57,6 +58,27 @@ export class HistoryGit {
     })
   }
 
+  private async hashFile(prefix: readonly string[], source: string): Promise<string> {
+    try { return (await this.run([...prefix, 'hash-object', '-w', '--no-filters', '--', source])).stdout.trim() }
+    catch (error) {
+      if (!(error instanceof HistoryReviewError) || error.code !== 'git_failed') throw error
+      // Diagnose the source only after Git fails; repository failures retain their original classification.
+      const handle = await open(source, 'r').catch((readError: unknown) => {
+        const code = typeof readError === 'object' && readError !== null && 'code' in readError ? readError.code : undefined
+        if (code === 'EACCES' || code === 'EPERM' || code === 'EBUSY') {
+          const name = basename(source).replace(/[\u0000-\u001f\u007f]/gu, ' ')
+          throw new HistoryReviewError('file_unavailable',
+            `Feche “${name}” no Excel, Word ou outro aplicativo e tente de novo. Se continuar, confira a permissão do arquivo.`,
+            new AggregateError([error, readError]))
+        }
+        throw error
+      })
+      try { await handle.close() }
+      catch (closeError) { throw new HistoryReviewError('git_failed', error.message, new AggregateError([error, closeError])) }
+      throw error
+    }
+  }
+
   /**
    * Store exact file bytes as a tree; hash-object disables attributes and clean filters.
    * @param gitDir - Private object repository.
@@ -70,7 +92,7 @@ export class HistoryGit {
     await this.run([...prefix, 'read-tree', '--empty'], undefined, undefined, index)
     const entries: string[] = []
     for (const file of files) {
-      const hash = (await this.run([...prefix, 'hash-object', '-w', '--no-filters', '--', confinePath(workTree, file.path)])).stdout.trim()
+      const hash = await this.hashFile(prefix, confinePath(workTree, file.path))
       if (!/^[a-f\d]{40,64}$/u.test(hash)) throw new HistoryReviewError('history_invalid', 'O histórico desta pasta precisa ser verificado antes de continuar.')
       entries.push(`${file.mode} ${hash}\t${file.path}\0`)
     }
@@ -111,7 +133,7 @@ export class HistoryGit {
     const rows: string[] = []
     for (const replacement of replacements) {
       if (replacement.source === undefined) { rows.push(`0 ${'0'.repeat(base.length)}\t${replacement.path}\0`); continue }
-      const hash = (await this.run([...prefix, 'hash-object', '-w', '--no-filters', '--', replacement.source])).stdout.trim()
+      const hash = await this.hashFile(prefix, replacement.source)
       const mode = (await lstat(replacement.source)).mode & 0o111 ? '100755' : '100644'
       if (!/^[a-f\d]{40,64}$/u.test(hash)) throw new HistoryReviewError('history_invalid', 'Não foi possível verificar o arquivo desta revisão.')
       rows.push(`${mode} ${hash}\t${replacement.path}\0`)

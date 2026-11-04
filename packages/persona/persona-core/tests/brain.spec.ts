@@ -25,6 +25,7 @@ import {
   brainSnapshot,
   compileBrainContext,
   curateBrain,
+  contentHash,
   hygieneBrain,
   hygieneChangedOnly,
   indexBrainByKind,
@@ -166,15 +167,16 @@ it('curates a finished task: new fact creates a page with source; contradiction 
     now,
     policy: 'auto',
   })
-  expect(created).toEqual([expect.objectContaining({
+  expect(created).toHaveLength(1)
+  expect(created[0]).toMatchObject({
     kind: 'create',
     needsAccept: false,
-    page: expect.objectContaining({
+    page: {
       body: 'Abrimos às 6h.',
       sources: [{ kind: 'task', id: 't9' }],
       links: ['d1'],
-    }),
-  })])
+    },
+  })
   const clash = curateBrain({
     facts: [{
       title: 'Cor',
@@ -368,6 +370,21 @@ it('copies a Cofre record onto a page and leaves the vault row intact', () => {
   expect(copied.required).toBe(true)
   expect(copied.sources).toEqual([{ kind: 'vault', id: 'v1' }])
   expect(record.id).toBe('v1')
+})
+
+it('plans a changed existing vault note for two-way import with its private audience intact', () => {
+  const original = page({ id: 'hours', kind: 'learning', title: 'Horário',
+    visibility: { kind: 'members', memberIds: ['ana', 'bia'] } })
+  const path = 'learning/hours.md'
+  const body = brainPageToMarkdown({ ...original, body: 'Entrega de pães somente às terças.' })
+  const changed = { path, body, hash: contentHash(body) }
+  const result = applyBrainVaultSync(planBrainVaultSync({ pages: [original], dest: [changed], mode: 'two_way' }))
+  expect(result.imports).toHaveLength(1)
+  expect(result.imports[0]).toMatchObject({ kind: 'page', path, hash: changed.hash,
+    page: { id: 'hours', body: 'Entrega de pães somente às terças.', visibility: original.visibility } })
+  expect(original.body).toBe('Pão e café em São Paulo.')
+  expect(planBrainVaultSync({ pages: [original], dest: [changed] }).importFiles).toEqual([])
+  expect(planBrainVaultSync({ pages: [original], dest: [changed], mode: 'two_way', existingHashes: new Set([changed.hash]) }).importFiles).toEqual([])
 })
 
 it('exports an Obsidian pack one-way and skips a file whose hash already exists', () => {

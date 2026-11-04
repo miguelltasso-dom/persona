@@ -1,5 +1,6 @@
 /** Deterministic, bounded extraction of explicitly reported knowledge; never invokes a model. */
-import type { BrainPageKind, BrainVisibility, LibrarianFact } from '@deepseek-ai/dsh-persona-core'
+import { stripVTControlCharacters } from 'node:util'
+import { containsSecretValue, type BrainPageKind, type BrainVisibility, type LibrarianFact } from '@deepseek-ai/dsh-persona-core'
 import { extractJsonText, MODEL_JSON_LIMIT, normalizeModelText } from './parse/model-output.ts'
 import { redactSecrets } from './review/redact.ts'
 
@@ -128,7 +129,10 @@ export function extractFactsFromReport(report: FactReportInput, ticket: FactTick
       || !normalizeModelText(report.summary).includes(normalizeModelText(row.evidence).trim())) {
       rejected.push({ index, reason: 'missing_evidence' }); continue
     }
-    if ([row.title, row.body, row.evidence].some(text => redactSecrets(text).redacted)) { rejected.push({ index, reason: 'secret' }); continue }
+    if ([row.title, row.body, row.evidence].some(text => redactSecrets(text).redacted
+      || containsSecretValue(stripVTControlCharacters(normalizeModelText(text))))) {
+      rejected.push({ index, reason: 'secret' }); continue
+    }
     const title = clip(row.title, REPORT_FACT_LIMITS.title, index, 'title')
     const key = JSON.stringify([row.kind, title.toLowerCase(), audienceVisibility(ticket.audience)])
     if (seen.has(key)) { rejected.push({ index, reason: 'duplicate' }); continue }

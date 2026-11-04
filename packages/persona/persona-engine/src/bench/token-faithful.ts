@@ -22,7 +22,6 @@ import {
   type TurnLayerSizes,
   type TurnLedgerEntry,
 } from '@deepseek-ai/dsh-persona-core'
-import { batchRouterBurst } from '../activity.ts'
 import { batchInitiative, INITIATIVE_DAILY_TOKEN_BUDGET, leanChannelReply, trimInitiativeToBudget, type InitiativeDraft } from '../lean-output.ts'
 import { preRoute, type PreRouteInput } from '../preroute/rules.ts'
 import { ROUTER_FORBIDDEN_TOOLS } from '../ports/runner.ts'
@@ -51,10 +50,25 @@ import {
 /** How the variable layers (subject / recall) are fitted to a budget. */
 export type ContextPolicy = 'raw' | 'headClip' | 'ranked'
 
+/**
+ * Which Persona MCP tools the prompt/tool list carries. The host of 04/11 sends NONE: the MCP gateway and
+ * the Persona tool servers are exported and tested but no adapter calls them (the vendor's own tool schema
+ * is what costs tokens there, and only a real run measures it). 'all' / 'needed' price the day they are wired.
+ */
+export type ToolsListing = 'all' | 'needed' | 'none'
+
+/** What the worker prompt carries: the ticket title only (the host), or Cofre + subject + tools too (a naive harness). */
+export type WorkerContext = 'title' | 'full'
+
 /** One switch per token lever (TOKEN-OPTIMIZATION §2). */
 export interface LeverSet {
   /** §2.1 deterministic pre-router: courtesy, empty, slash, injection never reach a model. */
   readonly preroute: boolean
+  /**
+   * A courtesy line ("valeu!", "ok") gets NO model call. The pre-router classifies it (`react`, modelCalled false), but the
+   * host's ingest still runs `finishReply` for it: one talk call on the cheap tier (probe 04/11: oi, obrigado, valeu!, ok = 1 delivery each).
+   */
+  readonly courtesyNoModel: boolean
   /** §2.1 Vigia / routines by rules: an idle day spends no model. */
   readonly vigiaRules: boolean
   /** §2.2 OPT-3: fixed order, required Cofre in the cached prefix, nothing volatile before the tail. */
@@ -64,7 +78,7 @@ export interface LeverSet {
   /** §2.3 OPT-4: budget per variable layer (head clip = Forge today; ranked = relevance first). */
   readonly context: ContextPolicy
   /** §2.4 OPT-4: only the tools the task asks for, one-line descriptions. */
-  readonly minimalTools: boolean
+  readonly toolsListing: ToolsListing
   /** §2.3 OPT-4: owner norms written once in the worker prompt. */
   readonly dedupeNorms: boolean
   /** §2.6 OPT-6: channel text without echo, step narration or hedge, capped at 100 words (host `finishHostTalk`). */
@@ -75,10 +89,12 @@ export interface LeverSet {
   readonly talkOnCheap: boolean
   /** §2.5 OPT-5: triage / Vigia / initiative / librarian run on the cheap engine. Evaluation stays on the persona engine. */
   readonly supportOnCheap: boolean
+  /** §2.3: what the worker prompt carries. The host sends the ticket title only (`bindExecution`). */
+  readonly workerContext: WorkerContext
+  /** §2.1: do not spend the coordination triage call: the host never reads its answer (no tools are served, the Ticket comes from the router). */
+  readonly skipTriage: boolean
   /** §2.5 OPT-5: coordination session is warm — the system prompt is delivered once. */
   readonly warmSession: boolean
-  /** §2.8 OPT-6: a burst of messages in one thread is triaged once (`batchRouterBurst`), not once per line. */
-  readonly batchBurst: boolean
   /** §2.7 OPT-6: initiative in daily batches, only when something changed, inside a token budget. */
   readonly initiativeBudget: boolean
 }
@@ -86,18 +102,20 @@ export interface LeverSet {
 /** Everything off: what a naive harness would send. */
 export const LEVERS_LEGACY: LeverSet = {
   preroute: false,
+  courtesyNoModel: false,
   vigiaRules: false,
   stablePrefix: false,
   summarizeSubject: false,
   context: 'raw',
-  minimalTools: false,
+  toolsListing: 'all',
   dedupeNorms: false,
   leanTalk: false,
   leanReports: false,
   talkOnCheap: false,
   supportOnCheap: false,
+  workerContext: 'full',
+  skipTriage: false,
   warmSession: false,
-  batchBurst: false,
   initiativeBudget: false,
 }
 
@@ -109,38 +127,41 @@ export interface LadderStep {
 
 /** Order the ladder turns levers on; each step is one lever's before → after. */
 export const LEVER_LADDER: readonly LadderStep[] = [
-  { id: 'preroute', patch: { preroute: true } },
+  { id: 'preroute', patch: { preroute: true, courtesyNoModel: true } },
   { id: 'vigiaRules', patch: { vigiaRules: true } },
+  { id: 'workerContext', patch: { workerContext: 'title' } },
   { id: 'stablePrefix', patch: { stablePrefix: true } },
   { id: 'summarizeSubject', patch: { summarizeSubject: true } },
   { id: 'context:headClip', patch: { context: 'headClip' } },
   { id: 'context:ranked', patch: { context: 'ranked' } },
-  { id: 'minimalTools', patch: { minimalTools: true } },
+  { id: 'toolsListing', patch: { toolsListing: 'none' } },
   { id: 'dedupeNorms', patch: { dedupeNorms: true } },
   { id: 'leanTalk', patch: { leanTalk: true } },
   { id: 'leanReports', patch: { leanReports: true } },
   { id: 'talkOnCheap', patch: { talkOnCheap: true } },
   { id: 'supportOnCheap', patch: { supportOnCheap: true } },
+  { id: 'skipTriage', patch: { skipTriage: true } },
   { id: 'warmSession', patch: { warmSession: true } },
-  { id: 'batchBurst', patch: { batchBurst: true } },
   { id: 'initiativeBudget', patch: { initiativeBudget: true } },
 ]
 
 /** Optimized configuration (what the repo ships). */
 export const LEVERS_OPTIMIZED: LeverSet = {
   preroute: true,
+  courtesyNoModel: true,
   vigiaRules: true,
   stablePrefix: true,
   summarizeSubject: true,
   context: 'ranked',
-  minimalTools: true,
+  toolsListing: 'none',
   dedupeNorms: true,
   leanTalk: true,
   leanReports: true,
   talkOnCheap: true,
   supportOnCheap: true,
+  workerContext: 'title',
+  skipTriage: true,
   warmSession: true,
-  batchBurst: true,
   initiativeBudget: true,
 }
 
@@ -157,13 +178,13 @@ export function leversAtStep(count: number): LeverSet {
 
 export const FAITHFUL_SCENARIO_IDS = [
   'geral-simple',
+  'geral-question',
   'multi-review',
   'idle-routines',
   'initiative-30',
   'initiative-30-busy',
   'padaria-lua',
   'dia-padaria',
-  'burst-geral',
   'dia-espacado',
 ] as const
 
@@ -178,7 +199,9 @@ export const TIER_PRICE: Record<ModelTier, { readonly input: number; readonly ou
   persona: { input: 3, output: 15 },
 }
 const CACHE_READ_FACTOR = 0.1
+/** Write price of the 5 min ephemeral cache, × the input price. The 1 h cache writes at {@link CACHE_WRITE_FACTOR_1H}. */
 const CACHE_WRITE_FACTOR = 1.25
+export const CACHE_WRITE_FACTOR_1H = 2
 
 const AT = '2026-11-04T09:00:00.000Z'
 
@@ -229,6 +252,8 @@ export interface FaithfulOptions {
   readonly warm?: boolean
   /** Provider cache TTL in minutes (default {@link PROVIDER_CACHE_TTL_MIN}). */
   readonly cacheTtlMin?: number
+  /** Cache write price × input price. Default 1.25 (5 min cache); a 1 h TTL writes at {@link CACHE_WRITE_FACTOR_1H}. */
+  readonly cacheWriteFactor?: number
 }
 
 export interface FaithfulReport {
@@ -296,6 +321,7 @@ interface Run {
   /** Last time a warm CLI session was used, per session key. */
   readonly warm: Map<string, number>
   readonly cacheTtlMin: number
+  readonly cacheWriteFactor: number
   /** Virtual clock, minutes since the first event. */
   nowMin: number
   seq: number
@@ -313,8 +339,8 @@ interface TurnInput {
   readonly posted?: string
 }
 
-function newRun(levers: LeverSet, engine: FaithfulEngine, cacheTtlMin: number): Run {
-  return { engine, levers, cache: new PrefixCacheModel(), turns: [], warm: new Map(), cacheTtlMin, nowMin: 0, seq: 0 }
+function newRun(levers: LeverSet, engine: FaithfulEngine, cacheTtlMin: number, cacheWriteFactor: number): Run {
+  return { engine, levers, cache: new PrefixCacheModel(), turns: [], warm: new Map(), cacheTtlMin, cacheWriteFactor, nowMin: 0, seq: 0 }
 }
 
 /** Move the virtual clock (a gap between two messages). */
@@ -346,7 +372,7 @@ function record(run: Run, input: TurnInput): FaithfulTurn {
   const fresh = Math.max(0, entry.inputTokens - usage.read)
   const cost = (fresh * price.input
     + usage.read * price.input * CACHE_READ_FACTOR
-    + (usage.write > 0 ? usage.write * price.input * (CACHE_WRITE_FACTOR - 1) : 0)
+    + (usage.write > 0 ? usage.write * price.input * (run.cacheWriteFactor - 1) : 0)
     + outputTokens * price.output)
   const turn: FaithfulTurn = {
     entry,
@@ -530,7 +556,10 @@ function routeInput(text: string, at: number): PreRouteInput {
 /** True when a person message reaches a model under this lever set. */
 function needsModel(levers: LeverSet, text: string, at: number): boolean {
   if (!levers.preroute) return true
-  return preRoute(routeInput(text, at)).modelCalled
+  const routed = preRoute(routeInput(text, at))
+  // The host answers a courtesy line with a talk call even though the rule says no model (see `courtesyNoModel`).
+  if (routed.rule === 'courtesy' && !levers.courtesyNoModel) return true
+  return routed.modelCalled
 }
 
 function talkTurn(run: Run, ctx: TalkContext, facts: readonly Fact[], ticketId?: string): FaithfulTurn {
@@ -571,6 +600,16 @@ const OWNER_NORMS = [
   '- Proibido encerrar com "posso fazer X se você quiser" quando X está no mandato: faça e reporte.',
 ].join('\n')
 
+/**
+ * Tokens of the host talk prompt for `persona` answering `userText`, with no subject and no recall (the floor `estimateAsk`
+ * starts from). The colleagues listed in it are the fixture team: a real team of another size moves it a little.
+ * @param persona - Who answers.
+ * @param userText - The person's message.
+ */
+export function talkPromptTokens(persona: FixturePersona, userText: string): number {
+  return estimateTokens(talkPrompt(LEVERS_AS_WIRED, { speaker: persona, userText, subject: [], recall: [] }).text)
+}
+
 /** Worker system prompt; `dedupe` drops the template's own owner-norms paragraph. */
 export function workerPromptText(persona: FixturePersona, dedupe: boolean, leanReport: boolean = false): string {
   const text = composePrompt({
@@ -584,7 +623,8 @@ export function workerPromptText(persona: FixturePersona, dedupe: boolean, leanR
 }
 
 function toolsText(levers: LeverSet, needed: readonly string[]): string {
-  const names = levers.minimalTools ? toolsForTurn(FIXTURE_MANDATE_TOOLS, needed) : [...FIXTURE_MANDATE_TOOLS]
+  if (levers.toolsListing === 'none') return ''
+  const names = levers.toolsListing === 'needed' ? toolsForTurn(FIXTURE_MANDATE_TOOLS, needed) : [...FIXTURE_MANDATE_TOOLS]
   return names
     .map((name) => {
       const description = FIXTURE_TOOL_DESCRIPTIONS[name] ?? name
@@ -636,7 +676,9 @@ function triageTurn(run: Run, input: TriageInput): FaithfulTurn {
 
 interface ExecutionInput {
   readonly persona: FixturePersona
+  /** The ticket title: what the host hands the worker as its assignment (`bindExecution`). */
   readonly title: string
+  /** Naive harness only: the extras a harness that stuffs everything into the worker prompt would add. */
   readonly acceptance: string
   readonly subject: readonly string[]
   readonly recall: readonly string[]
@@ -645,39 +687,52 @@ interface ExecutionInput {
   readonly resultLine: string
 }
 
+/**
+ * Worker turn. The host sends `executorPrompt` + the ticket title and NOTHING else: no Cofre, no subject, no
+ * tool list (`workerContext: 'title'`; `bindExecution` sets `assignment = ticket.title`). A naive harness would
+ * send everything (`'full'`). The scripted worker only states what its prompt carries.
+ */
 function executionTurn(run: Run, input: ExecutionInput): FaithfulTurn {
-  const subject = fitSubject(input.subject, run.levers.summarizeSubject, run.levers.context)
-  const recall = fitRecall(retrieveRecall(input.recall, input.title), input.title, run.levers.context)
   const system = workerPromptText(input.persona, run.levers.dedupeNorms, run.levers.leanReports)
-  const tools = toolsText(run.levers, input.neededTools)
-  const assignment = [
-    `Tarefa: ${input.title}`,
-    `Critério de pronto: ${input.acceptance}`,
-    subject === '' ? '' : `Assunto:\n${subject}`,
-    recall === '' ? '' : `Contexto:\n${recall}`,
-  ].filter(part => part !== '').join('\n')
-  const required = FIXTURE_REQUIRED_VAULT
-  const prefix = run.levers.stablePrefix
-    ? [system, tools, required].join('\n\n')
-    : [system, required, tools].join('\n\n')
-  const prompt = `${prefix}\n\n${assignment}`
-  const known = stateFacts(prompt, input.facts)
-  const raw = prompt.includes(WORKER_LEAN_REPORT_RULE)
-    ? `Resultado: ${input.resultLine} ${known}\nBloqueio: nenhum.`
-    : `${FIXTURE_NARRATION}\nPasso 1. Li a tarefa e o contexto do assunto.\nPasso 2. Conferi o critério de pronto: ${input.acceptance}\nPasso 3. Executei o trabalho e anotei o que decidi e o que falta.\nResultado: ${input.resultLine} ${known}\n${FIXTURE_HEDGE}`
-  return record(run, {
-    kind: 'execution',
-    persona: input.persona,
-    cacheKey: `${input.persona.id}:worker`,
-    prompt,
-    layers: {
+  let prompt: string
+  let layers: TurnLayerSizes
+  if (run.levers.workerContext === 'title') {
+    prompt = `${system}\n\n${input.title}`
+    layers = { system: estimateTokens(system), tools: 0, required: 0, subject: 0, recall: 0, message: estimateTokens(input.title) }
+  } else {
+    const subject = fitSubject(input.subject, run.levers.summarizeSubject, run.levers.context)
+    const recall = fitRecall(retrieveRecall(input.recall, input.title), input.title, run.levers.context)
+    const tools = toolsText(run.levers, input.neededTools)
+    const assignment = [
+      `Tarefa: ${input.title}`,
+      `Critério de pronto: ${input.acceptance}`,
+      subject === '' ? '' : `Assunto:\n${subject}`,
+      recall === '' ? '' : `Contexto:\n${recall}`,
+    ].filter(part => part !== '').join('\n')
+    const required = FIXTURE_REQUIRED_VAULT
+    const prefix = run.levers.stablePrefix
+      ? [system, tools, required].join('\n\n')
+      : [system, required, tools].join('\n\n')
+    prompt = `${prefix}\n\n${assignment}`
+    layers = {
       system: estimateTokens(system),
       tools: estimateTokens(tools),
       required: estimateTokens(required),
       subject: estimateTokens(subject),
       recall: estimateTokens(recall),
       message: estimateTokens(assignment) - estimateTokens(subject) - estimateTokens(recall),
-    },
+    }
+  }
+  const known = stateFacts(prompt, input.facts)
+  const raw = prompt.includes(WORKER_LEAN_REPORT_RULE)
+    ? `Resultado: ${input.resultLine} ${known}\nBloqueio: nenhum.`
+    : `${FIXTURE_NARRATION}\nPasso 1. Li a tarefa.\nPasso 2. Conferi o que o pedido exige.\nPasso 3. Executei o trabalho e anotei o que decidi e o que falta.\nResultado: ${input.resultLine} ${known}\n${FIXTURE_HEDGE}`
+  return record(run, {
+    kind: 'execution',
+    persona: input.persona,
+    cacheKey: `${input.persona.id}:worker`,
+    prompt,
+    layers,
     output: raw,
     tier: tierFor(run.levers, 'execution'),
     ticketId: 'ticket-1',
@@ -685,33 +740,13 @@ function executionTurn(run: Run, input: ExecutionInput): FaithfulTurn {
   })
 }
 
-function evaluationTurn(run: Run, executionReport: string, criterion: string, needle: string): FaithfulTurn {
-  const system = workerPromptText(FIXTURE_BENTO, run.levers.dedupeNorms, run.levers.leanReports)
-  const lean = system.includes(WORKER_LEAN_REPORT_RULE)
-  const report = lean ? leanChannelReply(executionReport) : executionReport
-  const prompt = `${system}\n\n${FIXTURE_REQUIRED_VAULT}\n\nRevisar contra o critério: ${criterion}\nRelato da executora:\n${report}`
-  const verdict = report.toLowerCase().includes(needle.toLowerCase())
-    ? `aprovado: ${needle} confere com o critério.`
-    : 'devolvido: critério não evidenciado.'
-  const raw = lean ? verdict : `${FIXTURE_NARRATION}\nLi o relato inteiro e conferi cada ponto do critério.\n${verdict}\n${FIXTURE_HEDGE}`
-  return record(run, {
-    kind: 'evaluation',
-    persona: FIXTURE_BENTO,
-    cacheKey: 'bento:worker',
-    prompt,
-    layers: {
-      system: estimateTokens(system),
-      tools: 0,
-      required: estimateTokens(FIXTURE_REQUIRED_VAULT),
-      subject: 0,
-      recall: 0,
-      message: estimateTokens(prompt) - estimateTokens(system) - estimateTokens(FIXTURE_REQUIRED_VAULT),
-    },
-    output: raw,
-    tier: tierFor(run.levers, 'evaluation'),
-    ticketId: 'ticket-1',
-    posted: raw,
-  })
+/**
+ * The coordination triage deliver. Its text is never read by the host (no MCP tools are served, the Ticket
+ * comes from the deterministic router), so `skipTriage` removes the call without changing what is delivered.
+ */
+function triage(run: Run, input: TriageInput): void {
+  if (run.levers.skipTriage) return
+  triageTurn(run, input)
 }
 
 function qualityOf(finalText: string, needles: readonly string[]): FaithfulQuality {
@@ -779,7 +814,7 @@ export function runFaithfulScenario(
   levers: LeverSet = LEVERS_OPTIMIZED,
   options: FaithfulOptions = {},
 ): FaithfulReport {
-  const run = newRun(levers, options.engine ?? 'claude', options.cacheTtlMin ?? PROVIDER_CACHE_TTL_MIN)
+  const run = newRun(levers, options.engine ?? 'claude', options.cacheTtlMin ?? PROVIDER_CACHE_TTL_MIN, options.cacheWriteFactor ?? CACHE_WRITE_FACTOR)
   const play = (): FaithfulReport => playScenario(id, run)
   if (options.warm === true) {
     play()
@@ -791,10 +826,10 @@ export function runFaithfulScenario(
 
 function playScenario(id: FaithfulScenarioId, run: Run): FaithfulReport {
   if (id === 'geral-simple') return geralSimple(run)
+  if (id === 'geral-question') return geralQuestion(run)
   if (id === 'multi-review') return multiReview(run)
   if (id === 'padaria-lua') return padariaLua(run)
   if (id === 'dia-padaria') return diaPadaria(run)
-  if (id === 'burst-geral') return burstGeral(run)
   if (id === 'dia-espacado') return diaPadaria(run, 30, 'dia-espacado')
   if (id === 'idle-routines') return idleRoutines(run)
   return initiative30(run, id === 'initiative-30-busy' ? 5 : 0)
@@ -813,52 +848,71 @@ function courtesy(run: Run, text: string, at: number, history: readonly string[]
   talkTurn(run, { speaker: FIXTURE_ATLAS, userText: text, subject: history, recall: FIXTURE_RECALL_ROWS }, [])
 }
 
-/** Task with review: triage → execution → evaluation. Returns what the channel shows. */
-function filterWithReview(run: Run, at: number): string {
-  const ask = 'Implemente o filtro de pedidos e peça revisão.'
-  if (!needsModel(run.levers, ask, at)) return ''
-  triageTurn(run, { userText: ask, subject: [], ticketTitle: 'filtro de pedidos' })
+/** A work message: triage (a call whose answer nobody reads) then the worker on the ticket title. */
+function workMessage(
+  run: Run,
+  at: number,
+  input: {
+    readonly ask: string
+    readonly persona: FixturePersona
+    readonly subject: readonly string[]
+    readonly acceptance: string
+    readonly facts: readonly Fact[]
+    readonly resultLine: string
+  },
+): string {
+  if (!needsModel(run.levers, input.ask, at)) return ''
+  triage(run, { userText: input.ask, subject: input.subject, ticketTitle: input.ask })
   const exec = executionTurn(run, {
-    persona: FIXTURE_NINA,
-    title: 'Implementar o filtro de pedidos',
-    acceptance: 'filtro por data e status funcionando, com teste e revisão do Bento',
-    subject: [],
+    persona: input.persona,
+    title: input.ask,
+    acceptance: input.acceptance,
+    subject: input.subject,
     recall: FIXTURE_RECALL_ROWS,
     neededTools: ['persona_report', 'persona_recall'],
-    facts: [{ evidence: 'filtro por data e status', sentence: 'Filtro por data e status pronto, com teste.' }],
-    resultLine: 'patch aplicado e testes passando.',
+    facts: input.facts,
+    resultLine: input.resultLine,
   })
-  const review = evaluationTurn(run, exec.posted ?? '', 'filtro por data e status', 'filtro')
-  return `${exec.posted ?? ''} Revisão do Bento: ${review.posted ?? ''}`.trim()
+  return exec.posted ?? ''
 }
 
-/** Padaria Lua order: triage → execution (subject + Cofre) → reply to Ana. */
-function weekendOrder(run: Run, at: number): string {
-  const ask = 'Cardápio de sábado e encomenda da Ana.'
-  if (!needsModel(run.levers, ask, at)) return ''
-  triageTurn(run, { userText: ask, subject: FIXTURE_SUBJECT_HISTORY, ticketTitle: 'cardápio de sábado e encomenda da Ana' })
-  const exec = executionTurn(run, {
+/** "Implemente o filtro": Nina executes; the title carries what the answer needs. */
+function filterTask(run: Run, at: number): string {
+  return workMessage(run, at, {
+    ask: 'Implemente o filtro de pedidos.',
     persona: FIXTURE_NINA,
-    title: 'Montar o cardápio de sábado e confirmar a encomenda da Ana',
-    acceptance: 'cardápio fechado e encomenda da Ana confirmada com quantidade e horário',
+    subject: [],
+    acceptance: 'filtro por data e status funcionando, com teste',
+    facts: [{ evidence: 'filtro de pedidos', sentence: 'Filtro de pedidos pronto, com teste.' }],
+    resultLine: 'patch aplicado e testes passando.',
+  })
+}
+
+/** Review is a second message to Bento (the host runs no evaluation turn): triage + his own execution. */
+function reviewMessage(run: Run, at: number): string {
+  return workMessage(run, at, {
+    ask: 'Bento, revise o filtro de pedidos.',
+    persona: FIXTURE_BENTO,
+    subject: [],
+    acceptance: 'filtro revisado contra o critério de pronto',
+    facts: [{ evidence: 'revise o filtro de pedidos', sentence: 'Revisão do filtro de pedidos: aprovado, com uma ressalva de teste.' }],
+    resultLine: 'revisão concluída.',
+  })
+}
+
+/** Padaria Lua order: triage + the worker. The worker never sees the Cofre or the subject, only the title. */
+function weekendOrder(run: Run, at: number): string {
+  return workMessage(run, at, {
+    ask: 'Cardápio de sábado e encomenda da Ana.',
+    persona: FIXTURE_NINA,
     subject: FIXTURE_SUBJECT_HISTORY,
-    recall: FIXTURE_RECALL_ROWS,
-    neededTools: ['persona_report', 'persona_recall'],
+    acceptance: 'cardápio fechado e encomenda da Ana confirmada com quantidade e horário',
     facts: [
-      { evidence: '40 pães', sentence: 'Encomenda da Ana: 40 pães de fermentação natural e 1 bolo de fubá.' },
-      { evidence: 'retirada às 9h', sentence: 'Retirada às 9h.' },
+      { evidence: 'Cardápio de sábado', sentence: 'Cardápio de sábado montado; encomenda da Ana separada para retirada.' },
+      { evidence: '40 pães', sentence: 'Encomenda da Ana: 40 pães de fermentação natural e 1 bolo de fubá, retirada às 9h.' },
     ],
     resultLine: 'cardápio fechado.',
   })
-  const reply = talkTurn(run, {
-    speaker: FIXTURE_ATLAS,
-    userText: `Avise a Ana: ${exec.posted ?? ''}`,
-    subject: FIXTURE_SUBJECT_HISTORY,
-    recall: FIXTURE_RECALL_ROWS,
-  }, [
-    { evidence: '40 pães', sentence: 'Ana, sua encomenda de sábado está confirmada: 40 pães e 1 bolo de fubá, retirada às 9h.' },
-  ], 'ticket-1')
-  return reply.posted ?? ''
 }
 
 /** Follow-up on the subject: the answer lives in the raw history, not in the Cofre. */
@@ -879,28 +933,10 @@ function broadFriday(run: Run, at: number): string {
   }, [{ evidence: 'embalagem kraft acaba em duas semanas', sentence: 'A embalagem kraft acaba em duas semanas; a Nina faz o pedido ao fornecedor.' }]).posted ?? ''
 }
 
-/** Five lines in a row in #geral about one order (the last is a courtesy): one triage per line, or one per burst. */
-const BURST_LINES: readonly string[] = [
-  'Preciso do cardápio de sábado.',
-  'A Ana quer 40 pães de fermentação natural.',
-  'E um bolo de fubá.',
-  'Retirada às 9h.',
-  'valeu',
-]
-
-function burstGeral(run: Run): FaithfulReport {
-  const lines = BURST_LINES.filter((line, index) => needsModel(run.levers, line, 10 + index))
-  const events = lines.map((_, index) => ({ id: String(index), threadId: '#geral' }))
-  const groups = run.levers.batchBurst
-    ? batchRouterBurst(events)
-    : events.map(event => ({ threadId: event.threadId, ids: [event.id] }))
-  const brief: string[] = []
-  for (const group of groups) {
-    const text = group.ids.map(id => lines[Number(id)] ?? '').join('\n')
-    triageTurn(run, { userText: text, subject: [], ticketTitle: 'cardápio de sábado' })
-    brief.push(text)
-  }
-  return finish('burst-geral', run, brief.join(' '), ['cardápio', '40 pães', 'fubá', '9h'])
+/** The standup question alone: what the paired comparison with a CLI asked once calls the "simple ask". */
+function geralQuestion(run: Run): FaithfulReport {
+  const finalText = askStandup(run, 1)
+  return finish('geral-question', run, finalText, ['10h'])
 }
 
 function geralSimple(run: Run): FaithfulReport {
@@ -910,11 +946,14 @@ function geralSimple(run: Run): FaithfulReport {
 }
 
 function multiReview(run: Run): FaithfulReport {
-  return finish('multi-review', run, filterWithReview(run, 1), ['filtro', 'revis'])
+  const built = filterTask(run, 1)
+  advance(run, 1)
+  const reviewed = reviewMessage(run, 2)
+  return finish('multi-review', run, `${built} ${reviewed}`.trim(), ['filtro', 'revis'])
 }
 
 function padariaLua(run: Run): FaithfulReport {
-  return finish('padaria-lua', run, weekendOrder(run, 1), ['Ana', '40 pães', '9h'])
+  return finish('padaria-lua', run, weekendOrder(run, 1), ['cardápio', 'Ana'])
 }
 
 /**
@@ -935,10 +974,12 @@ function diaPadaria(run: Run, gapMin: number = 1, id: FaithfulScenarioId = 'dia-
   step()
   outputs.push(swapQuestion(run, 5))
   step()
-  outputs.push(filterWithReview(run, 6))
+  outputs.push(filterTask(run, 6))
   step()
-  outputs.push(broadFriday(run, 7))
-  return finish(id, run, outputs.join(' | '), ['10h', '40 pães', '9h', 'cenoura', 'filtro', 'revis', 'kraft'])
+  outputs.push(reviewMessage(run, 7))
+  step()
+  outputs.push(broadFriday(run, 8))
+  return finish(id, run, outputs.join(' | '), ['10h', 'cardápio', 'Ana', 'cenoura', 'filtro', 'revis', 'kraft'])
 }
 
 /** Cheap support prompt for a Vigia / routine tick when a model would be asked. */
@@ -1050,18 +1091,24 @@ export function leverLadder(id: FaithfulScenarioId): LeverStep[] {
 export const LEVERS_FORGE_SHIPPED: LeverSet = { ...LEVERS_OPTIMIZED, context: 'headClip' }
 
 /**
- * What the host runs today: talk on the cheap model, pre-router, Vigia rules, stable prefix, subject
- * summary, the head-clip budget and the warm coordination session (OAR keeps the Session in memory per
- * persona|cwd|model, TTL 10 min — Rivet 04/11; messages more than 10 min apart pay the ~500-token
- * coordination prompt again, which this burst-shaped scenario does not show) are live. NOT wired yet:
- * tool filtering by task, ranked recall (host still calls `foldHostTalkUsed` without the question),
- * triage/support on the cheap engine and structured worker reports.
+ * What the host runs now (04/11, after W1 and W4): talk on the cheap model, pre-router, Vigia rules, stable
+ * prefix, subject summary, the warm coordination session (OAR keeps the Session in memory per
+ * persona|cwd|model, TTL 10 min — messages further apart pay the ~500-token coordination prompt again),
+ * recall ranked by the question (W4), triage on the cheap answer-only runner (W1, now moot) and NO triage
+ * call at all (`skipTriage`, D-073: nothing reads its answer) and a persona REACTION instead of a talk call for a
+ * courtesy line (`courtesyNoModel`, D-075). It sends NO Persona MCP tool list (no adapter
+ * calls the gateway). NOT on: the short worker report (W3, off by decision until a real-model check). W5 (burst batching) is retired: the host already folds a burst into follow-ups of the live Task.
  */
 export const LEVERS_AS_WIRED: LeverSet = {
   ...LEVERS_OPTIMIZED,
-  context: 'headClip',
-  minimalTools: false,
   leanReports: false,
+}
+
+/** The host before W1 and W4 (13:30): head-clip recall and triage on the executor's runner. */
+export const LEVERS_BEFORE_WIRING: LeverSet = {
+  ...LEVERS_AS_WIRED,
+  context: 'headClip',
   supportOnCheap: false,
-  batchBurst: false,
+  skipTriage: false,
+  courtesyNoModel: false,
 }

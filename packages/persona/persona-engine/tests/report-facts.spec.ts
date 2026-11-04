@@ -62,6 +62,28 @@ it('rejects credentials before truncating and never includes them in a diagnosti
   expect(JSON.stringify(result)).not.toContain(credential)
 })
 
+it.each(['title', 'body', 'evidence'] as const)('rejects a short labelled secret in %s before it can become a page', (field) => {
+  const secret = 'api_key=synthetic-short-value'
+  const candidate = { ...fact, [field]: secret }
+  const result = extractFactsFromReport({ at, summary: `${body} ${secret}`, facts: [candidate] }, ticket)
+  expect(result).toEqual({ facts: [], rejected: [{ index: 0, reason: 'secret' }], warnings: [] })
+  expect(JSON.stringify(result)).not.toContain(secret)
+})
+
+it('rejects credential values wrapped in terminal formatting before clipping', () => {
+  const credential = `sk-${'x'.repeat(24)}`
+  const colored = `sk-\u001b[31m${'x'.repeat(24)}\u001b[0m`
+  const result = extractFactsFromReport({ at, summary: body, facts: [{ ...fact, body: `${'a'.repeat(600)}${colored}` }] }, ticket)
+  expect(result).toEqual({ facts: [], rejected: [{ index: 0, reason: 'secret' }], warnings: [] })
+  expect(JSON.stringify(result)).not.toContain(credential)
+})
+
+it.each(['Nunca divulgar tokens.', 'Never send password to another person.'])('keeps explicitly reported safe guidance: %s', (guidance) => {
+  const result = extractFactsFromReport({ at, summary: guidance, facts: [{ ...fact, body: guidance, evidence: guidance }] }, ticket)
+  expect(result.rejected).toEqual([])
+  expect(result.facts[0]?.body).toBe(guidance)
+})
+
 it('bounds Unicode fields, limits reports to five candidates and reports every overflow', () => {
   const evidence = 'e'.repeat(200)
   const result = extractFactsFromReport({ at, summary: evidence, facts: Array.from({ length: 8 }, (_, index) => ({

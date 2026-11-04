@@ -12,7 +12,7 @@ export type {
 } from './types.ts'
 export { IMPORT_SCHEMA_PRESUMED, IMPORT_UNRECOGNIZED } from './types.ts'
 
-export { looksLikeCredential, looksLikeSecret, refuseSecrets } from './privacy.ts'
+export { containsSecretValue, looksLikeCredential, looksLikeSecret, refuseSecrets } from './privacy.ts'
 export { MemoryImportStore, applyImport, previewImport, rollbackImport } from './apply.ts'
 export { chatgptAdapter } from './chatgpt.ts'
 export { claudeAdapter } from './claude.ts'

@@ -232,11 +232,7 @@ export interface UnwiredLever {
 }
 
 export const UNWIRED_LEVERS: readonly UnwiredLever[] = [
-  { lever: 'batchBurst (batchRouterBurst na rajada do #geral)', owner: 'Anvil orchestration.ts ingest', patch: { batchBurst: true }, scenario: 'burst-geral' },
-  { lever: 'context:ranked (foldHostTalkUsed(used, event.body))', owner: 'Anvil orchestration.ts talkLayers', patch: { context: 'ranked' } },
-  { lever: 'minimalTools (só as ferramentas da tarefa)', owner: 'Rivet mcp/gateway + Forge toolsForTurn', patch: { minimalTools: true } },
-  { lever: 'leanReports (composePrompt worker leanReport:true)', owner: 'Rivet oar/session.ts prefixOwnerNorms', patch: { leanReports: true } },
-  { lever: 'supportOnCheap (triagem no runner barato)', owner: 'Anvil orchestration.ts runWork + Rivet resolve', patch: { supportOnCheap: true } },
+  { lever: 'leanReports (composePrompt worker leanReport:true)', owner: 'Rivet oar/session.ts prefixOwnerNorms (desligada até rodada real)', patch: { leanReports: true } },
 ]
 
 /**

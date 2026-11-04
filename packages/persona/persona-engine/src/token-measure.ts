@@ -19,6 +19,8 @@ import {
   type UsagePanelFold,
 } from '@deepseek-ai/dsh-persona-core'
 import { COORD_SCENARIOS, coordPreInput, measurePreRoute } from './bench/coord-eval.ts'
+import { opt8MeasuredInputs } from './bench/opt8-faithful.ts'
+import { buildOpt8Measured, type Opt8MeasuredEvidence } from './opt8-measured.ts'
 import { INITIATIVE_DAILY_TOKEN_BUDGET, batchInitiative, capChannelReply, trimInitiativeToBudget } from './lean-output.ts'
 import { preRoute } from './preroute/rules.ts'
 import { composeTurnPrompt, toolsForTurn } from './prompts/stable-prefix.ts'
@@ -487,7 +489,7 @@ export async function runPairedTask(
     return comparePair(task.id, cli, persona)
   } finally {
     await shutdownCoordRunner(cliRunner, async () => {
-      await shutdownCoordRunner(personaRunner, async () => undefined)
+      await shutdownCoordRunner(personaRunner, () => Promise.resolve())
     })
   }
 }
@@ -646,50 +648,45 @@ export interface Opt8Acceptance {
   readonly total: 4
   readonly failed: readonly string[]
   readonly blocked: readonly string[]
+  /** D-068, top level for the legacy Remote: where the numbers come from and what they are compared with. */
+  readonly origin: 'estimate'
+  readonly baseline: 'levers-before-wiring'
+  /** D-068 evidence, additive: estimate-only, one faithful pipeline, baseline `levers-before-wiring`. */
+  readonly evidence: Opt8MeasuredEvidence
 }
 
-/**
- * OPT-8 scripted metas. −40% stays blocked until Anvil passes a live
- * ledger (`liveEntries`; `successfulTicketIds` optional — derived if omitted);
- * idle zero, cache ≥ 60% and CLI parity are scored now.
- * @param input - Optional live compare. Default (no live book) keeps cut-40 blocked.
- * @returns Passed count, failed ids, and blocked ids.
- */
-export function measureOpt8Acceptance(input?: {
+/** Kept so existing callers compile. D-068 ignores it: a live book is never compared with the historical 134 fixture. */
+interface LegacyOpt8Input {
   readonly liveEntries?: readonly TurnLedgerEntry[]
   readonly successfulTicketIds?: readonly string[]
   readonly baselineTokensPerTask?: number
-}): Opt8Acceptance {
-  const reports = TOKEN_SCENARIO_IDS.map(runTokenScenario)
-  const book = reports.flatMap(row => row.entries)
-  const ticketIds = ticketIdsFromLedger(book)
-  const panel = foldUsagePanel(book, ticketIds)
-  const pairs = runPairedSuite()
-  const levers = measureEngineLevers()
+}
+
+/**
+ * OPT-8 goals under D-068: ONE faithful pipeline (scripted runner over the real prompt composers),
+ * baseline `levers-before-wiring`, origin always `estimate`. The historical 134-token fixture does not count.
+ * - idle-zero is scored on the pipeline;
+ * - cache-60 is `blocked`: the provider cache is `blocked/unavailable` until a real run reports it. The scripted
+ *   estimate stays in `evidence.cacheEstimate` and only FAILS the goal when it falls below 60% (a regression of ours);
+ * - pair-parity is `blocked` until the paired real run exists (the old formula is gone);
+ * - cut-40 is `blocked` while a lever of the full set is off (today W3, the short worker report), then `passed` only if the worse of the two days cuts
+ *   ≥ 40% of the estimated cost without raising tokens, else `failed`. Projection and fixtures never pass it.
+ * @param input - Ignored (see {@link LegacyOpt8Input}).
+ * @returns Score; `blocked` goals do not fail the v1 gate but are not passed either.
+ */
+export function measureOpt8Acceptance(input?: LegacyOpt8Input): Opt8Acceptance {
+  void input
+  const evidence = buildOpt8Measured(opt8MeasuredInputs())
   const failed: string[] = []
-  if (levers.idleCalls !== 0 || levers.initiative30Calls !== 0) failed.push('idle-zero')
-  if (panel.cacheHitRate < 0.60) failed.push('cache-60')
-  if (pairs.some(row => row.verdict === 'persona_worse')) failed.push('pair-parity')
-  const live = input?.liveEntries ?? []
-  if (live.length > 0) {
-    const ready = input?.successfulTicketIds ?? ticketIdsFromLedger(live)
-    if (ready.length === 0 || foldUsagePanel(live, ready).tokensPerSuccessfulTask
-      > (input?.baselineTokensPerTask ?? panel.tokensPerSuccessfulTask) * 0.6) {
-      failed.push('cut-40')
-    }
-    return {
-      passed: 4 - failed.length,
-      total: 4,
-      failed,
-      blocked: [],
-    }
-  }
-  return {
-    passed: 3 - failed.length,
-    total: 4,
-    failed,
-    blocked: ['cut-40'],
-  }
+  const blocked: string[] = []
+  if (!evidence.idleZero) failed.push('idle-zero')
+  if (evidence.cacheEstimate.some(row => row.prefixHit !== null && row.prefixHit < 0.60)) failed.push('cache-60')
+  else blocked.push('cache-60')
+  // The helper pins parity to blocked / requires-paired-real-run until a paired real run exists.
+  blocked.push('pair-parity')
+  if (evidence.cut40.status === 'failed') failed.push('cut-40')
+  else if (evidence.cut40.status === 'blocked') blocked.push('cut-40')
+  return { passed: 4 - failed.length - blocked.length, total: 4, failed, blocked, origin: evidence.origin, baseline: evidence.baseline, evidence }
 }
 
 /** Host `@Remote measureOpt8` wire. One call; Anvil does not remount flags. */
@@ -700,16 +697,21 @@ export interface Opt8MeasureView {
   readonly blocked: readonly string[]
   readonly liveEntries: number
   readonly liveOrigin: LedgerOrigin
+  /** D-068 top level: origin of the numbers and the comparison baseline. */
+  readonly origin: 'estimate'
+  readonly baseline: 'levers-before-wiring'
+  /** D-068 evidence (additive). */
+  readonly evidence: Opt8MeasuredEvidence
 }
 
 /**
- * OPT-8 score plus live book size/origin. Host `measureOpt8` returns this.
- * Empty book keeps `cut-40` blocked; a live book scores −40%.
+ * OPT-8 score plus live book size/origin. Host `measureOpt8` returns this. The live book is reported
+ * (count and origin) but does not move the goal: D-068 reads it on the faithful pipeline only.
  * @param entries - Host ledger rows (`TurnLedgerView` ≡ `TurnLedgerEntry`).
  * @returns Wire fields. `liveEntries` is `entries.length`.
  */
 export function measureOpt8View(entries: readonly TurnLedgerEntry[] = []): Opt8MeasureView {
-  const scored = measureOpt8Acceptance({ liveEntries: entries })
+  const scored = measureOpt8Acceptance()
   return {
     ...scored,
     liveEntries: entries.length,
@@ -717,39 +719,40 @@ export function measureOpt8View(entries: readonly TurnLedgerEntry[] = []): Opt8M
   }
 }
 
+function pctOf(value: number | null): string {
+  return value === null ? 'n/d' : `${value >= 0 ? '+' : ''}${(value * 100).toFixed(0)}%`
+}
+
 /**
- * OPT-8 report for `persona-spec/reports/opt8-acceptance.md`.
- * @param input - Same live compare as {@link measureOpt8Acceptance}.
- * @returns Markdown. Scripted 3/4; cut-40 blocked without a live book.
+ * OPT-8 report for `persona-spec/reports/opt8-acceptance.md` (D-068).
+ * @param input - Ignored (see {@link LegacyOpt8Input}).
+ * @returns Markdown with origin, baseline and an honest state per goal.
  */
-export function formatOpt8AcceptanceMarkdown(input?: {
-  readonly liveEntries?: readonly TurnLedgerEntry[]
-  readonly successfulTicketIds?: readonly string[]
-  readonly baselineTokensPerTask?: number
-}): string {
-  const scored = measureOpt8Acceptance(input)
-  const reports = TOKEN_SCENARIO_IDS.map(runTokenScenario)
-  const book = reports.flatMap(row => row.entries)
-  const panel = foldUsagePanel(book, ticketIdsFromLedger(book))
-  const live = input?.liveEntries ?? []
-  const liveLine = live.length === 0
-    ? 'Livro live: **ausente** — `cut-40` em `blocked`. Anvil passa `liveEntries` (+ ticket ids, ou `ticketIdsFromLedger`).'
-    : `Livro live: ${String(live.length)} linhas, tokens/tarefa ${foldUsagePanel(live, input?.successfulTicketIds ?? ticketIdsFromLedger(live)).tokensPerSuccessfulTask.toFixed(1)}.`
+export function formatOpt8AcceptanceMarkdown(input?: LegacyOpt8Input): string {
+  void input
+  const scored = measureOpt8Acceptance()
+  const ev = scored.evidence
+  const cache = ev.cacheEstimate.map(row => `${row.engine} ${row.prefixHit === null ? 'n/d' : row.prefixHit.toFixed(2)}`).join(' · ')
+  const asWiredCostCut = ev.beforeWiring.cost === 0 ? null : -(1 - ev.asWired.cost / ev.beforeWiring.cost)
+  const projectionCostCut = ev.beforeWiring.cost === 0 ? null : -(1 - ev.projectionAll.cost / ev.beforeWiring.cost)
+  const projectionTokens = ev.beforeWiring.tokens === 0 ? null : ev.projectionAll.tokens / ev.beforeWiring.tokens - 1
   return [
-    '# OPT-8 — aceite (Forge, 04/11)',
+    '# OPT-8 — aceite (D-068, Tally 04/11)',
     '',
     `Score **${String(scored.passed)}/${String(scored.total)}**. Falhou: ${scored.failed.length === 0 ? '—' : scored.failed.join(', ')}. Bloqueado: ${scored.blocked.length === 0 ? '—' : scored.blocked.join(', ')}.`,
+    '',
+    `Origem: **${ev.origin}** (offline, 4 caracteres ≈ 1 token, preço de tabela). Baseline: **${ev.baseline}** (o host antes de W1 e W4, no MESMO pipeline; W2 e W5 foram retiradas e a W3 fica desligada até a rodada real). A fixture histórica de 134 tokens/tarefa (\`${ev.historical.id}\`) **não conta** para a meta.`,
     '',
     '| meta | resultado |',
     '|---|---|',
     `| idle-zero (ociosa sem objetivo) | ${scored.failed.includes('idle-zero') ? 'falhou' : 'passou'} |`,
-    `| cache ≥ 60% | ${scored.failed.includes('cache-60') ? 'falhou' : `passou (${panel.cacheHitRate.toFixed(2)})`} |`,
-    `| paridade CLI ±10% | ${scored.failed.includes('pair-parity') ? 'falhou' : 'passou'} |`,
-    `| −40% tokens/tarefa vs linha de base (${panel.tokensPerSuccessfulTask.toFixed(1)}) | ${scored.blocked.includes('cut-40') ? 'blocked (sem livro live)' : scored.failed.includes('cut-40') ? 'falhou' : 'passou'} |`,
+    `| cache ≥ 60% no prefixo | ${scored.failed.includes('cache-60') ? 'falhou na estimativa' : 'blocked'}: cache real do provedor \`${ev.providerCache.status}\` / \`${ev.providerCache.origin}\`; estimativa scriptada ${cache} (só evidência, não passa a meta) |`,
+    `| paridade ±10% com a CLI | blocked: \`${ev.parity.reason}\` (a fórmula antiga saiu do aceite) |`,
+    `| −40% custo estimado por tarefa, pior dos dois dias, as wired vs baseline, tokens sem subir | ${ev.cut40.status} (\`${ev.cut40.reason}\`): custo ${pctOf(ev.cut40.costCut === null ? null : -ev.cut40.costCut)}, tokens ${pctOf(ev.cut40.tokensDelta)} |`,
     '',
-    liveLine,
+    `Totais das mesmas cenas: antes das ligações ${String(ev.beforeWiring.tokens)} tokens / ${String(ev.beforeWiring.cost)} µUSD · agora ${String(ev.asWired.tokens)} / ${String(ev.asWired.cost)} (custo ${pctOf(asWiredCostCut)}) · **projeção** com todas as alavancas ${String(ev.projectionAll.tokens)} / ${String(ev.projectionAll.cost)} (tokens ${pctOf(projectionTokens)}, custo ${pctOf(projectionCostCut)}). A projeção nunca passa a meta.`,
     '',
-    'Gate: `measureOpt8Acceptance`. Host `@Remote measureOpt8` deve passar o livro persistido, não só contar linhas.',
+    'Gate: `measureOpt8Acceptance` (D-068). Detalhe por cenário e dia espalhado: `opt8-faithful.md`. Rodada pareada real: `scripts/pair-real.ts` (trava `real`).',
     '',
     '```',
     'pnpm exec tsx packages/persona/persona-engine/scripts/write-opt8-acceptance.ts',

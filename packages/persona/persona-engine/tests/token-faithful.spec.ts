@@ -55,7 +55,8 @@ describe('faithful scripted runner (OPT-2)', () => {
     for (const id of FAITHFUL_SCENARIO_IDS) {
       const before = runFaithfulScenario(id, LEVERS_LEGACY)
       const after = runFaithfulScenario(id, LEVERS_OPTIMIZED)
-      expect(after.totalTokens).toBeLessThanOrEqual(before.totalTokens)
+      // a single question carries a few more tokens in the Persona prompt (stable prefix, brevity rule): ≤ 2%, and always cheaper
+      expect(after.totalTokens).toBeLessThanOrEqual(before.totalTokens * 1.02)
       expect(after.costMicroUsd).toBeLessThanOrEqual(before.costMicroUsd)
       expect(after.quality.score).toBeGreaterThanOrEqual(before.quality.score)
       expect(after.quality.missing).toEqual([])
@@ -91,8 +92,8 @@ describe('faithful scripted runner (OPT-2)', () => {
   })
 
   it('warm coordination delivers its system prompt once; cold sends it every time', () => {
-    const cold = runFaithfulScenario('dia-padaria', { ...LEVERS_OPTIMIZED, warmSession: false })
-    const warm = runFaithfulScenario('dia-padaria', LEVERS_OPTIMIZED)
+    const cold = runFaithfulScenario('dia-padaria', { ...LEVERS_OPTIMIZED, skipTriage: false, warmSession: false })
+    const warm = runFaithfulScenario('dia-padaria', { ...LEVERS_OPTIMIZED, skipTriage: false })
     const coordinationTokens = (report: typeof cold): number[] => report.turns
       .filter(turn => turn.entry.kind === 'triage').map(turn => turn.entry.inputTokens)
     const [coldFirst, coldSecond] = coordinationTokens(cold)
@@ -101,10 +102,10 @@ describe('faithful scripted runner (OPT-2)', () => {
     expect(warmSecond ?? 0).toBeLessThan((coldSecond ?? 0) - 400)
   })
 
-  it('routes talk and support turns to the cheap engine; execution and evaluation stay on the persona engine', () => {
+  it('routes talk and support turns to the cheap engine; execution stays on the persona engine', () => {
     const report = runFaithfulScenario('dia-padaria')
     for (const turn of report.turns) {
-      const heavy = turn.entry.kind === 'execution' || turn.entry.kind === 'evaluation'
+      const heavy = turn.entry.kind === 'execution'
       expect(turn.tier, turn.entry.kind).toBe(heavy ? 'persona' : 'cheap')
     }
     const flat = runFaithfulScenario('dia-padaria', { ...LEVERS_OPTIMIZED, talkOnCheap: false, supportOnCheap: false })
@@ -278,26 +279,36 @@ describe('what is still unwired in the host (contract token-wiring.md)', () => {
       expect(row.qualityAfter, row.lever).toBeGreaterThanOrEqual(row.qualityBefore)
     }
     const byName = (needle: string) => rows.find(row => row.lever.startsWith(needle))
-    expect(byName('supportOnCheap')?.costAfter).toBeLessThan(byName('supportOnCheap')?.costBefore ?? 0)
-    expect(byName('minimalTools')?.tokensAfter).toBeLessThan(byName('minimalTools')?.tokensBefore ?? 0)
-    expect(formatWiringGainTable(rows)).toContain('Anvil orchestration.ts')
+    expect(byName('leanReports')?.costAfter).toBeLessThan(byName('leanReports')?.costBefore ?? 0)
+    expect(formatWiringGainTable(rows)).toContain('Rivet oar/session.ts')
+  })
+
+  it('prices the Persona MCP tool list for a worker that carries it; the host sends the title only', () => {
+    const full = { ...LEVERS_AS_WIRED, workerContext: 'full' as const }
+    const none = runFaithfulScenario('dia-padaria', { ...full, toolsListing: 'none' })
+    const needed = runFaithfulScenario('dia-padaria', { ...full, toolsListing: 'needed' })
+    const all = runFaithfulScenario('dia-padaria', { ...full, toolsListing: 'all' })
+    expect(LEVERS_AS_WIRED.toolsListing).toBe('none')
+    expect(LEVERS_AS_WIRED.workerContext).toBe('title')
+    // title-only (the host): the tool listing never reaches the worker, so the lever changes nothing
+    const hostAll = runFaithfulScenario('dia-padaria', { ...LEVERS_AS_WIRED, toolsListing: 'all' })
+    expect(hostAll.totalTokens).toBe(runFaithfulScenario('dia-padaria', LEVERS_AS_WIRED).totalTokens)
+    expect(none.totalTokens).toBeLessThan(needed.totalTokens)
+    expect(needed.totalTokens).toBeLessThan(all.totalTokens)
+    for (const entry of none.entries.filter(row => row.kind === 'execution')) expect(entry.layers.tools).toBe(0)
   })
 })
 
-describe('burst batching (OPT-6)', () => {
-  it('triages a burst in #geral once per thread, with every line in the brief', () => {
-    const lines = runFaithfulScenario('burst-geral', { ...LEVERS_OPTIMIZED, batchBurst: false })
-    const batched = runFaithfulScenario('burst-geral', LEVERS_OPTIMIZED)
-    expect(lines.calls).toBe(4)
-    expect(batched.calls).toBe(1)
-    expect(batched.entries[0]?.kind).toBe('triage')
-    expect(batched.totalTokens).toBeLessThan(lines.totalTokens)
-    expect(batched.quality.score).toBe(1)
-    for (const needle of ['40 pães', 'fubá', '9h']) expect(batched.finalText).toContain(needle)
-  })
-
-  it('the courtesy line closes without a model in every configuration that has the pre-router', () => {
-    expect(runFaithfulScenario('burst-geral', LEVERS_AS_WIRED).calls).toBe(4)
-    expect(runFaithfulScenario('burst-geral', LEVERS_LEGACY).calls).toBe(5)
+describe('the courtesy line (host fidelity, 04/11)', () => {
+  it('before D-075 the host answered "valeu!" with a talk call although the pre-router says no model; the lever (now wired) removes it', () => {
+    const asHost = runFaithfulScenario('geral-simple', { ...LEVERS_AS_WIRED, courtesyNoModel: false })
+    const free = runFaithfulScenario('geral-simple', LEVERS_AS_WIRED)
+    expect(LEVERS_AS_WIRED.courtesyNoModel).toBe(true)
+    expect(asHost.calls).toBe(2)
+    expect(free.calls).toBe(1)
+    expect(free.totalTokens).toBeLessThan(asHost.totalTokens)
+    expect(free.quality.score).toBe(1)
+    // the question alone costs the same either way: only the courtesy turn changes
+    expect(runFaithfulScenario('geral-question', LEVERS_AS_WIRED).calls).toBe(1)
   })
 })

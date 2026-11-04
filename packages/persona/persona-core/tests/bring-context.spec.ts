@@ -165,6 +165,50 @@ it('keys vault proposals by path and content rather than their position in the s
   expect(decideBringApply(changed, [{ id: changed.proposals[0]!.id, action: 'accept' }])[0]?.body).toContain('domingo')
 })
 
+it('gives pasted rules with the same long prefix distinct identities and keeps replay stable', () => {
+  const parse = (client: string) => parseBringPaste({
+    text: `## Regras e restrições\n- Regra X nunca enviar proposta comercial sem revisão do jurídico do cliente ${client}.`,
+    provider: 'chatgpt', at: '2026-11-04T00:00:00.000Z',
+  }).proposals[0]!
+  const alfa = parse('Alfa')
+  const beta = parse('Beta')
+  expect(alfa.id).not.toBe(beta.id)
+  expect(parse('Alfa').id).toBe(alfa.id)
+  expect(alfa.id).toContain(contentHash(alfa.body))
+  expect(beta.id).toContain(contentHash(beta.body))
+})
+
+it('keeps a pasted rule for a different client reviewable against a saved rule with importer annotation', () => {
+  const alfa = 'Regra X nunca enviar proposta comercial sem revisão do jurídico do cliente Alfa.'
+  const beta = 'Regra X nunca enviar proposta comercial sem revisão do jurídico do cliente Beta.'
+  const existing = vaultToBringExisting([{ id: 'legacy-alpha', kind: 'constraint', body: `${alfa}\n\n(colado do ChatGPT em 04/11)` }])
+  expect(existing[0]?.body).toBe(alfa)
+  const preview = parseBringPaste({ text: `## Regras e restrições\n- ${beta}`,
+    provider: 'claude', at: '2026-11-04T00:00:00.000Z', existing })
+  expect(preview.proposals[0]).toMatchObject({ body: beta, status: 'ready', duplicateOf: '' })
+  expect(decideBringApply(preview, [{ id: preview.proposals[0]!.id, action: 'accept' }]).map(row => row.body)).toEqual([beta])
+  const replay = parseBringPaste({ text: `## Regras e restrições\n- ${alfa}`,
+    provider: 'claude', at: '2026-11-05T00:00:00.000Z', existing })
+  expect(replay.proposals[0]).toMatchObject({ status: 'duplicate', duplicateOf: 'legacy-alpha' })
+})
+
+it('distinguishes pasted proposal kinds and changed values while deduplicating equivalent spacing and case', () => {
+  const parse = (heading: string, body: string) => parseBringPaste({ text: `## ${heading}\n- ${body}`,
+    provider: 'other', at: '2026-11-04T00:00:00.000Z' }).proposals[0]!
+  const body = 'O prazo de pagamento combinado com o cliente Alfa é de 30 dias.'
+  expect(parse('Regras e restrições', body).id).not.toBe(parse('Empresa e projetos', body).id)
+  const existing = [{ id: 'old', kind: 'constraint', body }]
+  const changed = parseBringPaste({ text: `## Regras e restrições\n- ${body.replace('30', '45')}`,
+    provider: 'other', at: '2026-11-04T00:00:00.000Z', existing })
+  expect(changed.proposals[0]?.status).toBe('ready')
+  const same = parseBringPaste({ text: `## Regras e restrições\n- ${body.toUpperCase().replaceAll(' ', '  ')}`,
+    provider: 'other', at: '2026-11-04T00:00:00.000Z', existing })
+  expect(same.proposals[0]?.duplicateOf).toBe('old')
+  const otherKind = parseBringPaste({ text: `## Empresa e projetos\n- ${body}`,
+    provider: 'other', at: '2026-11-04T00:00:00.000Z', existing })
+  expect(otherKind.proposals[0]?.status).toBe('ready')
+})
+
 it('allows an explicit edit removing sensitive data while keeping unchanged or still-sensitive rows blocked', () => {
   const preview = parseBringPaste({ text: '## Pessoas e contatos de trabalho\n- Ana, contadora. CPF 123.456.789-00.',
     provider: 'other', at: '2026-11-04T00:00:00.000Z' })

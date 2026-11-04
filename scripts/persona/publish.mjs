@@ -9,7 +9,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const main = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const wt = resolve(main, '..', 'persona-push')
+const wt = resolve(main, '..', 'persona-ship')
 const run = (cwd, cmd, args, options = {}) => spawnSync(cmd, args, { cwd, encoding: 'utf8', shell: process.platform === 'win32' && cmd === 'pnpm', maxBuffer: 1 << 28, ...options })
 const log = (message) => console.log(`[publish ${new Date().toISOString()}] ${message}`)
 

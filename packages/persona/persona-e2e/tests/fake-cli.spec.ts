@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { withFakeCliOnPath } from '../src/fake-cli.ts'
@@ -11,11 +12,13 @@ async function runCliSession(
   args: string[],
   inputs: object[],
   env?: NodeJS.ProcessEnv,
+  cwd?: string,
 ): Promise<{ lines: string[]; parsed: unknown[]; elapsedMs: number }> {
   const t0 = Date.now()
   const child = spawn(process.execPath, [FAKE_CLI_SCRIPT, ...args], {
     env: { ...process.env, ...env },
     stdio: ['pipe', 'pipe', 'inherit'],
+    ...(cwd === undefined ? {} : { cwd }),
   })
 
   const lines: string[] = []
@@ -276,5 +279,73 @@ describe('persona-e2e fake CLI fixtures', () => {
       const shim = execFileSync(join(PACKAGE_ROOT, 'fixtures', 'fake-cli', `${tool}.cmd`), ['--version'], { encoding: 'utf8', shell: true, timeout: 10_000 }).trim()
       expect(shim, `${tool}.cmd`).toContain(version)
     }
+  })
+
+  describe('writes a real revision during the turn (Revisar mudanças without a model call)', () => {
+    const turn = [{ type: 'user', uuid: 'cmd-write', message: { role: 'user', content: [{ type: 'text', text: 'atualize o cardápio' }] } }]
+    const scratch = (): { draft: string; project: string; log: string; done(): void } => {
+      const root = mkdtempSync(join(tmpdir(), 'fake-write-'))
+      const draft = join(root, 'rascunho')
+      const project = join(root, 'projeto')
+      mkdirSync(draft)
+      mkdirSync(project)
+      return { draft, project, log: join(root, 'calls.jsonl'), done: () => { rmSync(root, { recursive: true, force: true }) } }
+    }
+
+    it('FAKE_CLI_WRITE_FILE writes the file in the stub\'s working directory (the draft) and logs it', async () => {
+      const dirs = scratch()
+      try {
+        await runCliSession(['claude', '-p', '--input-format', 'stream-json'], turn,
+          { FAKE_CLI_WRITE_FILE: 'cardapio.md', FAKE_CLI_WRITE_CONTENT: 'Pão francês: R$ 1,10\n', FAKE_CLI_LOG: dirs.log }, dirs.draft)
+        expect(readFileSync(join(dirs.draft, 'cardapio.md'), 'utf8')).toBe('Pão francês: R$ 1,10\n')
+        expect(existsSync(join(dirs.project, 'cardapio.md'))).toBe(false)
+        const calls = readFileSync(dirs.log, 'utf8').trim().split(/\r?\n/u).map(line => JSON.parse(line) as { event: string; file?: string })
+        expect(calls.some(call => call.event === 'write' && call.file === 'cardapio.md')).toBe(true)
+      } finally {
+        dirs.done()
+      }
+    })
+
+    it('FAKE_CLI_CONFLICT_DIR also edits the same file in the person\'s project: a real conflict', async () => {
+      const dirs = scratch()
+      try {
+        await runCliSession(['claude', '-p', '--input-format', 'stream-json'], turn, {
+          FAKE_CLI_WRITE_FILE: 'cardapio.md', FAKE_CLI_WRITE_CONTENT: 'versão da persona\n',
+          FAKE_CLI_CONFLICT_DIR: dirs.project, FAKE_CLI_CONFLICT_CONTENT: 'versão da pessoa\n', FAKE_CLI_LOG: dirs.log,
+        }, dirs.draft)
+        expect(readFileSync(join(dirs.draft, 'cardapio.md'), 'utf8')).toBe('versão da persona\n')
+        expect(readFileSync(join(dirs.project, 'cardapio.md'), 'utf8')).toBe('versão da pessoa\n')
+      } finally {
+        dirs.done()
+      }
+    })
+
+    it('refuses an absolute path or one that climbs out of the working directory (nothing is written)', async () => {
+      const dirs = scratch()
+      try {
+        for (const bad of ['../fora.md', join(dirs.project, 'abs.md'), 'a/../../fora.md']) {
+          await runCliSession(['claude', '-p', '--input-format', 'stream-json'], turn, { FAKE_CLI_WRITE_FILE: bad, FAKE_CLI_LOG: dirs.log }, dirs.draft)
+        }
+        expect(existsSync(join(dirs.draft, '..', 'fora.md'))).toBe(false)
+        expect(existsSync(join(dirs.project, 'abs.md'))).toBe(false)
+        const events = readFileSync(dirs.log, 'utf8').trim().split(/\r?\n/u).map(line => (JSON.parse(line) as { event: string }).event)
+        expect(events.filter(event => event === 'write-refused')).toHaveLength(3)
+        expect(events).not.toContain('write')
+      } finally {
+        dirs.done()
+      }
+    })
+
+    it('withFakeCliOnPath maps writeFile/conflictDir to the env and restores them', () => {
+      const scope = withFakeCliOnPath({ writeFile: 'cardapio.md', writeContent: 'x', conflictDir: tmpdir(), conflictContent: 'y' })
+      try {
+        expect(process.env.FAKE_CLI_WRITE_FILE).toBe('cardapio.md')
+        expect(process.env.FAKE_CLI_CONFLICT_DIR).toBe(tmpdir())
+      } finally {
+        scope.restore()
+      }
+      expect(process.env.FAKE_CLI_WRITE_FILE).toBeUndefined()
+      expect(process.env.FAKE_CLI_CONFLICT_DIR).toBeUndefined()
+    })
   })
 })

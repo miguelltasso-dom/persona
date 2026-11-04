@@ -6,10 +6,9 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { delimiter, dirname, join } from 'node:path'
+import { delimiter, dirname, join, parse } from 'node:path'
 import { tmpdir } from 'node:os'
 import { crc32, inflateRawSync, deflateRawSync } from 'node:zlib'
-import { E2E_TMP_ROOT } from './paths.ts'
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Minimal OOXML (.docx / .xlsx) writer and reader: real zip containers, so "antes/depois" can read the text back.
@@ -192,12 +191,32 @@ export const MENU_AFTER = [
 ] as const
 
 /**
- * Seed `cardápio.docx` + `preços.xlsx` + a note, under `.maestri/tmp` (never inside OneDrive, never with `.git`).
- * @param options - Optional parent directory and extra relative files (path → bytes).
+ * The nearest ancestor of `dir` (or `dir` itself) that holds a `.git`, if any. The review factory climbs the parents looking
+ * for one and, finding it, picks the real Git delivery (worktree + branch) instead of the private history: a fixture folder
+ * inside a repository would run `git` against that repository (04/11: it created `persona/t*` branches in the checkout).
+ * @param dir - Folder to inspect.
+ */
+export function gitAncestorOf(dir: string): string | undefined {
+  let current = dir
+  for (;;) {
+    if (existsSync(join(current, '.git'))) return current
+    const parent = dirname(current)
+    if (parent === current || current === parse(current).root) return undefined
+    current = parent
+  }
+}
+
+/**
+ * Seed `cardápio.docx` + `preços.xlsx` + a note under the OS temp directory: outside the repository (a `.git` ancestor would
+ * make the product choose Git, see {@link gitAncestorOf}), never inside OneDrive, never with `.git`.
+ * @param options - Optional parent directory (refused when it sits inside a repository) and extra relative files (path → bytes).
  */
 export async function createUserFolder(options: { parent?: string; extra?: Readonly<Record<string, Buffer | string>> } = {}): Promise<UserFolder> {
-  await mkdir(options.parent ?? E2E_TMP_ROOT, { recursive: true })
-  const dir = await mkdtemp(join(options.parent ?? E2E_TMP_ROOT, 'sw-user-folder-'))
+  const parent = options.parent ?? tmpdir()
+  const ancestor = gitAncestorOf(parent)
+  if (ancestor !== undefined) throw new Error(`refusing to create the user folder inside a Git repository (${ancestor}): the product would use Git there`)
+  await mkdir(parent, { recursive: true })
+  const dir = await mkdtemp(join(parent, 'sw-user-folder-'))
   const seeded: Record<string, Buffer | string> = {
     'cardápio.docx': buildDocx(MENU_BEFORE),
     'preços.xlsx': buildXlsx([['Item', 'Preço'], ['Pão francês', '0,90'], ['Pão de queijo', '4,50'], ['Café coado', '5,00']]),

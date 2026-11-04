@@ -13,7 +13,8 @@
  * - FAKE_CLI_REPLY / FAKE_CLI_RESPONSE: Custom response text for the turn.
  */
 
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import readline from 'node:readline'
 
 const args = process.argv.slice(2)
@@ -38,6 +39,38 @@ function logInvocation(event, extra = {}) {
   }
 }
 logInvocation('invoke')
+
+/**
+ * `FAKE_CLI_WRITE_FILE` (a RELATIVE path, no `..`): during a user turn, write that text file in the stub's working directory — the
+ * task's draft ("rascunho") when the runner runs in it — so "Revisar mudanças" has a REAL revision to show without a model call.
+ * `FAKE_CLI_WRITE_CONTENT` sets the text. `FAKE_CLI_CONFLICT_DIR` (absolute) ALSO writes the same relative file there with
+ * `FAKE_CLI_CONFLICT_CONTENT`, as if the person edited it at the same time: a real conflict. Every write is logged (event `write`).
+ */
+function applyConfiguredWrites() {
+  const relative = process.env.FAKE_CLI_WRITE_FILE
+  if (!relative) return
+  const clean = normalize(relative)
+  if (isAbsolute(clean) || clean.startsWith('..') || clean.split(/[\\/]/u).includes('..')) {
+    logInvocation('write-refused', { file: relative, reason: 'path must be relative and stay inside the working directory' })
+    return
+  }
+  const stamp = new Date().toISOString()
+  try {
+    const target = join(process.cwd(), clean)
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, process.env.FAKE_CLI_WRITE_CONTENT ?? `Cardápio atualizado pelo fake-cli em ${stamp}\n`)
+    logInvocation('write', { file: clean, cwd: process.cwd() })
+    const conflictDir = process.env.FAKE_CLI_CONFLICT_DIR
+    if (conflictDir && isAbsolute(conflictDir)) {
+      const other = join(resolve(conflictDir), clean)
+      mkdirSync(dirname(other), { recursive: true })
+      writeFileSync(other, process.env.FAKE_CLI_CONFLICT_CONTENT ?? `Edição da pessoa ao mesmo tempo em ${stamp}\n`)
+      logInvocation('write', { file: clean, cwd: resolve(conflictDir), conflict: true })
+    }
+  } catch (error) {
+    logInvocation('write-refused', { file: relative, reason: error instanceof Error ? error.message.slice(0, 120) : String(error) })
+  }
+}
 
 const versions = {
   claude: '2.1.317 (fake-persona-e2e)',
@@ -149,6 +182,7 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
     }
     if (method === 'turn/start') {
       logInvocation('turn')
+      applyConfiguredWrites()
       console.log(JSON.stringify({ id, result: { turn: { id: 'turn-fake-1' } } }))
       const latency = getLatencyMs()
       if (latency > 0) await sleep(latency)
@@ -254,6 +288,7 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
 
     if (msg.type === 'user') {
       logInvocation('turn')
+      applyConfiguredWrites()
       const latency = getLatencyMs()
       if (latency > 0) await sleep(latency)
 

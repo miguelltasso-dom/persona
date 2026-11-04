@@ -1,5 +1,93 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-04 17:00 — harness real: veredito pelo verificador do Forge, orçamento PURO e validado, loggedCli independente
+
+Nada real gasto. `check-pkg persona-e2e` OK; unidade verde (`real-run-budget` 6/6, `turn-cap`, `ledger-evidence` 4/4, gate do spec real). Ensaio web com o verificador na fila da trava `build`.
+- **Veredito = `verifyRealFirstDeliveryRun` (Forge, 57/57)**, rodado depois do `stop` por `scripts/verify-real-run.ts` sobre uma CÓPIA do banco: `ledger` canônico COMPLETO (`canonicalLedgerRows`: id, personaId, engine, kind, 4 contadores, 6 layers, at; opcionais NULL omitidos; obrigatório NULL fica NULL para o verificador reprovar — sem default inventado), `attempts` = histórico inteiro com a atual por último, `currentAttempt` 1-based, observation montada com as APIs de leitura do host na cópia (ticket, entrega `coord-<ticket>-done` source runner, marco). Verde só se `passed` do verificador E o ledger tem 1 execution medida E o limitador ≤ 1; a UI sozinha não vale.
+- **Achados do Gauge, corrigidos** (`src/real-run-budget.ts`, função pura): (1) guardião e verificador agora usam a MESMA contagem por linha, `max(paidTurns ?? 1, capTurns ?? 0)`, sempre conhecida (ledger ilegível = 1, não "corrompido"); (2) `assessAttempts` valida tipos (negativo/fracionário/texto/inseguro/ausente = problema, histórico não confiável, `readAttempts` lança); (3) `loggedCli` não é mais derivado do ledger (circular): `claude auth status --json` (só status, sem turno) ANTES da rodada e fora do app; sem CLI logado, nada é gasto. Separação fake × real: `exeIdentity` (sha256 do exe com fake verde) + `fakeLeaks` + limitador exigido no exe + `loggedCli` independente. Limite honesto: o verificador não autentica a origem de uma linha "measured"; o ensaio e o real divergem só em `loggedCli` (ensaio sem esse dado deriva do ledger).
+- **Ensaio com o verificador (fake, web): 3/3 PASS** (`mandatory-first-delivery-real-dryrun.spec.ts`): `verifyRealFirstDeliveryRun` aceitou — `passed: true`, `paidTurnsTotal 1`, `executionTurns 1`, `triageTurns 0`, `injectTurns 0`, `ledgerValid`/`attemptsValid` true; observation lida da cópia do banco: pedido `first-delivery`, Tarefa `done`, entrega `coord-<ticket>-done` (source runner), marco `ready` único. Primeira vez que a cadeia inteira (esquema real do `turn_ledger` → leitor → conversão canônica → verificador) roda sobre um banco de verdade.
+- **`scripts/persona/reap-orphans.mjs` endurecido**: a lista de processos do PowerShell trouxe caracteres de controle crus (uma mensagem longa de outro agente na linha de comando) e o `JSON.parse` lançou — o reaper caía no fim de job com trava. Agora troca os caracteres de controle por espaço e, se ainda não der para ler, avisa e pula a rodada (nunca lança).
+- **Seletores**: `dogfood-agencia.ts` aceita "Tirar permissão|Revogar" e "Tirar agora|Revogar agora" (Lumen/Muse); Gauge atualizou o dele.
+
+---
+
+## 2026-11-04 16:15 — harness da execução REAL endurecido (Keel/Forge D-069): orçamento por turnos pagos, falha fechado, limitador exigido no NSIS
+
+Nada real gasto. `mandatory-first-delivery-real-installed.spec.ts` (+ `src/turn-cap.ts`, `src/ledger-evidence.ts`, `src/exe-identity.ts`); `check-pkg persona-e2e` OK; unidade `turn-cap` + `ledger-evidence` + gate 7/7 (1 skip = o teste real, que só roda autorizado).
+- **Orçamento**: total = soma, por tentativa anterior, de `max(paidTurns do turn_ledger, turnos do ledger do limitador, 1 se ilegível)`; recusa se soma + 1 > 3, se já foram 3 tentativas ou houve verde; da 2ª em diante exige `PERSONA_REAL_E2E_DIAGNOSED`.
+- **Falha fechado**: `real-attempts.json` ausente = vazio; ilegível/corrompido/não-lista = erro (não devolve `[]`).
+- **Verde só depois do ledger**: após parar o app, exatamente **1 `execution` medida, 0 triage/inject/outros**, saída > 0, ledger do limitador ≤ 1; a UI "delivered" sozinha vira `UNVERIFIED` e consome a tentativa.
+- **Vigia durante a rodada** (o app não tem limitador pré-turno; `FIRST_DELIVERY_MAX_PAID_TURNS` só é lido pelo verificador depois do fato): copia o `turn_ledger` a cada 1,5 s e **mata a árvore do app** ao ver o 2º turno ou um turno que não seja `execution` (`OVERBUDGET`).
+- **Quadros** capturado na mesma rodada (`m9-quadros`, só leitura, antes do stop; exige 0 fixtures e "1 concluído").
+- **Limitador do app (Rivet)**: o app é lançado com `PERSONA_REAL_TURN_CAP=1` e `PERSONA_REAL_TURN_LEDGER=artifacts/first-delivery/real-turn-ledger/attempt-N.ledger` (um por tentativa, somam no total); **recuso gastar** se o exe instalado não contiver `PERSONA_REAL_TURN_CAP` (varredura do asar e do runtime). Formato do arquivo: lido de forma tolerante; pedi o exato ao Rivet.
+- **Para o verificador puro do Forge** (`verifyRealFirstDeliveryRun`): `proof.json` traz `ledger.rawRows` (todas as colunas), `attemptsSnapshot`, `currentAttempt` (1-based), `attemptsFile`, `timeline`; `evidence/persona.db` para montar a observation.
+- **Corrigido de passagem**: a varredura lia o asar duas vezes (teste de unidade pegou).
+
+### Para liberar o gasto faltam
+NSIS do hash novo **com o limitador** (Rivet) + chat do Anvil; fake instalado verde (com chat) no MESMO exe; OK do Keel.
+
+---
+
+## 2026-11-04 15:35 — SW engine S1 + S4 + S5×3 PASS (S4 promovido); rail novo (NAV-SPEC) sem depender de rótulo
+
+### PASSOU
+- **SW-9/SW-10 camada do engine, 4/4 + 4 todo** (`mandatory-simple-workspace.spec.ts`, 47 s; repo conferido antes e depois: `HEAD a1dccb5f8f`, 0 branches `persona/*`): **S1** (cardápio.docx: rascunho → Revisar → Aplicar → Desfazer byte a byte, pasta sem `.git`), **S5** ×3 (ficar com o meu / com o da persona / manter os dois + Desfazer, sem marcadores) e **S4** planilha aberta durante o Aplicar: tudo-ou-nada **e agora o aviso acionável** — "Feche “preços.xlsx” no Excel, Word ou outro aplicativo e tente de novo. Se continuar, confira a permissão do arquivo." (fix do Forge no engine; meu teste estava como `it.fails` e virou vermelho como previsto, então **promovi para `it`**). Pendentes: **S2** (git embutido, SW-4 Rivet), **S3** (OneDrive, SW-5 Rivet), camada host/UI (SW-6 Anvil, SW-8 Lumen) e SW-10 no instalado.
+
+### NAV-SPEC A-1 (6 lugares) — gates sem depender de rótulo
+`src/real-gallery/navigate-panel.ts` clica primeiro em `[data-nav-panel="<MainPanelId>"]` / `[data-tab-panel="<MainPanelId>"]` e só cai no rótulo legado se não existirem. Pedido ao Prism (e à Muse, via `tell`): pôr esses atributos nos itens do rail e nas abas com os ids atuais (as rotas não mudam) no mesmo commit do rail novo — assim a ordem de troca dos rótulos deixa de importar. Ainda usam rótulo do rail fora do meu pacote: `scripts/persona/design-shots.mjs`, `quill-remote-team-ui.mjs` (`nav(page,'Canais')`) e os scripts do Keel (ui-boot-check, persona-boot-smoke).
+
+### Estado da fila
+NSIS do hash novo (Rivet; o pack do a1dccb5f8f falhou às 15:09 e o Keel vai publicar hash novo com o fix do chat do Anvil) → instalar → fake instalado verde (agora com "digitar no #geral + Enter + recarregar") → execução REAL D-069 (harness pronto/ensaiado). SW-9 host/UI e SW-10 no instalado aguardam SW-6/SW-8.
+
+---
+
+## 2026-11-04 15:15 — SW-9/SW-10 camada do engine: S1 + S5×3 PASS, S4 tudo-ou-nada PASS; INCIDENTE (branches persona/t* criadas por engano, removidas); chat no fake instalado
+
+### INCIDENTE (corrigido, sem perda)
+Meu primeiro `scripts/sw-engine-acceptance.ts` criava a "pasta do usuário" em `.maestri/tmp`, DENTRO do repositório do projeto. A fábrica do `ReviewDelivery` sobe os pais procurando `.git` e escolheu o **Git real**: rodou `git worktree`/branch contra o checkout e deixou as branches **`persona/t1`, `persona/t4`, `persona/t5`** e 3 entradas de worktree órfãs. Conferido: `HEAD` do `persona-dev` seguiu em `a1dccb5f8f` (reflog só com os resets do Keel), as 3 branches apontavam para o MESMO commit (nenhum commit novo, nenhum merge efetivo). Removi **só as minhas** (`git branch -D persona/t1 persona/t4 persona/t5` + `git worktree prune`, que só tinha essas 3 órfãs). Causa apontada pelo Forge (obrigado) e confirmada. Correções na fixture: `createUserFolder` agora usa `os.tmpdir()`, **recusa** qualquer pai com `.git` ancestral (`gitAncestorOf`, teste novo) e o script aborta antes de preparar rascunho se a fábrica não devolver `HistoryReviewDelivery`. Reconferido depois da rodada boa: `HEAD a1dccb5f8f`, 0 branches `persona/*`.
+
+### PASSOU (engine, pasta fora de qualquer repositório, Office reais)
+`mandatory-simple-workspace.spec.ts` (`PERSONA_E2E=1`, 88 s): **3 passam, 1 falha esperada, 4 todo**; evidência `artifacts/sw/engine-acceptance.json`.
+| Cenário | Resultado |
+|---|---|
+| **S1 + núcleo do SW-10** — pasta sem git com git no PATH: "atualize o cardápio.docx" → rascunho (pasta intacta enquanto trabalha) → Revisar lista só o arquivo alterado → Aplicar (ponto de restauração) → .docx com os preços novos, demais arquivos idênticos → Desfazer devolve o .docx **byte a byte**; **nenhum `.git` na pasta**; histórico em `<home>/history/sw/git` | **PASS** |
+| **S5 conflito** (a pessoa edita o mesmo arquivo durante a Tarefa) × 3 escolhas: *ficar com o meu*, *ficar com o da persona*, *manter os dois* (cópia com sufixo) + Desfazer; nada é sobrescrito antes da escolha; sem marcadores | **PASS ×3** |
+| **S4 planilha aberta durante o Aplicar** (trava exclusiva do Windows, como o Excel) | **tudo-ou-nada PASS** (nada aplicado pela metade, arquivos intactos, funciona depois de fechar, Desfazer restaura os dois). **Falta o aviso acionável** — hoje: "Não conseguimos atualizar o histórico desta pasta. Seus arquivos continuam salvos; tente de novo." (tom certo, mas não diz "feche a planilha X") → **[Rivet SW-5]**; teste marcado `it.fails` (fica vermelho quando o SW-5 entrar: promover). |
+| **S2 sem git e sem git no PATH** | **bloqueado SW-4**: hoje "Não conseguimos preparar o rascunho. Reabra ou reinstale a Persona para restaurar o componente necessário." (pt-BR, sem jargão; o MinGit embutido ainda não é resolvido) |
+| **S3 OneDrive** | **bloqueado SW-5** (falta a simulação do placeholder online) |
+| Camada host/UI e SW-10 no instalado | aguardam SW-6 (Anvil) e SW-8 (Lumen) |
+
+### Pedido do Keel (chat) — incluído nos specs
+O candidato a1dccb5f8f tem um P0 de chat (caixa do #geral não envia: `postMessage` sem `occurredAt`). `sendGeralMessageAndReload` (web e instalado): digita no #geral + Enter, vê a mensagem, **recarrega o app** e vê de novo (persistida). Falha com mensagem clara ("composer não envia" / "mensagem sumiu após recarregar"). O fake e a execução REAL passam a valer para o hash NOVO que o Rivet reempacotar depois da correção do Anvil.
+
+### Fila
+NSIS do hash novo (Rivet, depois do fix do Anvil) → instalar em `C:\p8i` → fake instalado (inclui chat) verde → real D-069 sob `--lock real` (harness pronto e ensaiado). SW-9 host/UI e SW-10 instalado aguardam SW-6/SW-8. Detalhe técnico: `check-pkg persona-e2e` só acusa `mandatory-governance-host.spec.ts` (Gauge, TS6133).
+
+---
+
+## 2026-11-04 14:45 — web+fake 9/9 PASS (feliz + sem IA); rodada REAL preparada e travada (D-069); aguardo NSIS a1dccb5f8f
+
+### PASSOU
+| Item | Evidência |
+|------|-----------|
+| **1ª entrega UI web + fake CLI — 9/9** | `mandatory-first-delivery-fake.spec.ts` (v4, bundle do client rebuild às 14:0x): **feliz** — onboarding 1–5 → Pedir agora → "Equipe trabalhando" → celebrar → Aceitar e entrar → entrega no #geral → Quadros mostra o projeto real com "1 concluído" e 0 fixtures; **1 turno pago** visto pelo stub; foco nas fases (working → H1 no diálogo, celebrate → SECTION no diálogo); console limpo. **Sem IA** — o passo 5 abre direto em "Falta uma IA para a equipe trabalhar." (foco no H1 do diálogo), "Conectar uma IA" no diálogo, sem estado de trabalho/celebração, "Entrar sem pedir agora" entra no app, #geral sem "Carregando…". Passo 3 com fake: Claude e Codex "Pronta para usar", Cursor "Não detectada", sem IA todos "Não detectada" (o `installed=true` forçado foi corrigido pelo Rivet). `artifacts/first-delivery/{happy,no-engine}/proof.json` + capturas. |
+| **Tempo (máquina carregada)** | ask → celebrar: 11 s, 12,8 s, 14,7 s e **43 s** nas 4 rodadas web (o fake responde em 2,5 s: a diferença é o host/CPU com builds de outros em paralelo). A rodada real deve rodar com a máquina quieta (trava `real`; peço janela sem bundle/gate). |
+| **Host + runner + fake** | 2/2 PASS (13:28): 1 chamada, só `execution`, 0 triagem. |
+| **Harness da execução REAL (D-069)** | `mandatory-first-delivery-real-installed.spec.ts`: recusa sem `PERSONA_REAL_E2E=1` + `PERSONA_REAL_E2E_OK=D-069` + texto de autorização em `.maestri/tmp/atlas-ok-real-run.txt` + `PERSONA_INSTALLED_EXE` + `PERSONA_NSIS_COMMIT`; exige **fake verde no MESMO exe** (sha256 do `installed-happy/proof.json`); recusa se houver fake no ambiente; **orçamento**: máx. 3 tentativas no total (`artifacts/first-delivery/real-attempts.json`, a tentativa conta antes de gastar), para na 1ª verde, da 2ª em diante exige `PERSONA_REAL_E2E_DIAGNOSED=<diagnóstico offline com o fake>`; 120 s; `stop()` mata a árvore. Linha do tempo no formato da Muse (t0, working, slow, failed, accept visível, eco do pedido no #geral, 1ª mensagem de persona no #geral, t1 = primeiro entre accept e mensagem, t2 = clique; ms desde o anexo da janela) + 1 captura por marco; **ledger lido depois do `stop()`** (`turn_ledger`: tokens entrada/saída/cache, `measured`) e cópia do `persona.db` (+WAL/SHM) em `evidence/` para o Forge; diretório da rodada preservado até a leitura (`keepRunRoot`). Verificado: gate (skip), `ledger-evidence.spec.ts` 3/3, 17/17 com o fake-cli; `check-pkg persona-e2e` só acusa arquivos do Gauge (`mandatory-governance-host.spec.ts` TS6133). |
+
+### Ensaio do harness real (fake, web) — 2/2 PASS
+`mandatory-first-delivery-real-dryrun.spec.ts`: roda `runRealFirstDelivery` + `readLedgerEvidence` contra o app web com o fake, para não gastar uma das 3 tentativas reais com bug de harness. O 1º ensaio achou um erro MEU (a lista do #geral só carrega depois do clique, então "qualquer id novo" pegava mensagens antigas): agora a entrega é a mensagem `…-done` e todos os ids novos entram na timeline com o horário. 2º ensaio: timeline completa (t0 44,9 s; working +0,7 s; eco do pedido; `exec-…-progress`; `coord-…-done`; `first-delivery-milestone`; accept visível; t2), capturas m0/m1/m3/m4/m6/m7, ledger lido do `<home>/db/persona.db`: **1 turno, `execution`, `measured`**. Neste ensaio a máquina estava carregada (t1 − t0 ≈ 43 s com turno fake de 3 s: o eco do pedido só apareceu 37 s depois do clique) — o número real só vale com a máquina quieta.
+
+### ACHADOS NOVOS
+- **A detecção repete a cada ~57 s** com o app ocioso (timeline do stub: rodada em +0 s e outra em +57 s: `claude --version`, `claude auth status`, `claude -p --input-format stream-json`, `codex app-server --listen stdio://` ×2, `opencode models`…). Com CLIs reais são vários processos por minuto em segundo plano → **[Rivet/Tally]** custo/CPU/bateria; considerar intervalo maior e só com a janela visível.
+- **Um probe pendurado deixa o cartão em "Verificando…" indefinidamente** (OpenCode do fake não implementa `opencode serve`: 40 s depois ainda "Verificando…"). Em PC real, uma CLI travada faria o mesmo → **[Rivet/Prism]** teto (ex.: 10 s) e estado "Sem resposta".
+- Instalado: ainda aguardo o NSIS (a1dccb5f8f). Quando sair: instalar em `C:\p8i`, rodar o fake instalado (2 cenários), só então a real.
+
+### Plano da rodada real (para Keel/Forge/Muse)
+1) NSIS a1dccb5f8f instalado em perfil limpo (`/S /D=C:\p8i`); 2) fake instalado verde **no mesmo exe** (grava sha256); 3) `node scripts/persona/with-lock.mjs "Probe real" --lock real --wait-max 3600000 -- pnpm exec vitest run …real-installed.spec.ts` com `PERSONA_REAL_E2E=1 PERSONA_REAL_E2E_OK=D-069 PERSONA_NSIS_COMMIT=a1dccb5f8f PERSONA_INSTALLED_EXE=C:\p8i\Persona.exe`; 4) artefatos em `packages/persona/persona-e2e/artifacts/first-delivery/real-installed/` (`proof.json`, capturas por marco, `evidence/persona.db`); 5) aviso ao Forge (paths + ledger), à Muse (timeline) e ao Keel (hash, se verde). Máquina quieta durante a rodada.
+
+---
+
 ## 2026-11-04 14:00 — web+fake v3: foco nas fases OK, Quadros real OK; NSIS desinstala limpo; spec da execução REAL pronto (travado)
 
 ### PASSOU

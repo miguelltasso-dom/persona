@@ -232,7 +232,7 @@ describe('SB-4 — exportar para pasta e reimportar', () => {
     expect(h.listBrainVersions({ ...SCOPE, pageId: 'p-cli' })).toHaveLength(revisions)
   })
 
-  bug('Forge+Anvil', '[SB-4b] (baixa) editar o .md na pasta e reimportar em modo two-way atualiza a página (nova versão) — hoje a edição é ignorada (skipped) e se perde', () => {
+  it('[SB-4b] (baixa) editar o .md na pasta e reimportar em modo two-way atualiza a página (nova versão) — hoje a edição é ignorada (skipped) e se perde', () => {
     const h = seed()
     pages(h)
     const dir = tmp()
@@ -272,11 +272,17 @@ describe('SB-4 — exportar para pasta e reimportar', () => {
 })
 
 describe('SB-1 — curadoria: concluir tarefa com fato novo atualiza o Segundo cérebro', () => {
-  bug('Anvil+Forge', '[SB-1a] concluir uma Tarefa gera/atualiza uma página com FONTE (tarefa) — curateAfterWork não é chamado por nenhum fluxo do host', async () => {
+  bug('Anvil+Forge', '[SB-1a] concluir uma Tarefa cujo Report traz FATOS EXPLÍCITOS (persona_report.facts ou bloco ```json {facts}``` no summary) cria/atualiza uma página com FONTE (tarefa); sem fatos explícitos não nasce página genérica', async () => {
     const h = openJourney()
     seedJourney(h, [{ id: 'coord', name: 'Guia', title: 'Coordenação', coordination: true }])
     seedProject(h, { id: 'code', name: 'Software', template: 'software', team: [{ id: 'dev', name: 'Bento', title: 'Engenharia', coordination: true }] })
     const scope = { workspaceId: 'ws', projectId: 'code' } as const
+    h.orchestration.liveText = [
+      'Revisei o pedido: a Padaria Lua prefere pagamento em Pix.',
+      '```json',
+      JSON.stringify({ facts: [{ kind: 'preference', title: 'Padaria Lua paga em Pix', body: 'A Padaria Lua prefere pagar em Pix.', evidence: 'prefere pagamento em Pix' }] }),
+      '```',
+    ].join(String.fromCharCode(10))
     sayOn(h, 'code', 'm-1', 'preciso de um README no projeto')
     await h.orchestration.flush('code')
     const ticketId = h.getProjectBoard(scope).cards[0]!.ticketId
@@ -287,6 +293,7 @@ describe('SB-1 — curadoria: concluir tarefa com fato novo atualiza o Segundo c
     await h.orchestration.flush('code')
     const created = h.listBrainPages(scope)
     expect(created.length, 'nenhuma página criada pela curadoria').toBeGreaterThan(0)
+    expect(created.some(page => /Pix/u.test(`${page.title} ${page.body}`)), 'a página não traz o fato do Report').toBe(true)
     expect(created.some(page => page.sources.some(source => source.includes(ticketId))), 'página sem fonte da tarefa').toBe(true)
   })
 

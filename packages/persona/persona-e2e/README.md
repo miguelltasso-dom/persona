@@ -260,6 +260,16 @@ Screenshots and reports live in `packages/persona/persona-e2e/artifacts/` (gitig
 
 Real CLIs stay **read-only** unless `PERSONA_REAL_CLI=1` and Atlas approves (D-022).
 
+## Real-engine first delivery (D-069) and the installed exe
+
+- `mandatory-first-delivery-installed.spec.ts` — the installed `Persona.exe` (set `PERSONA_INSTALLED_EXE` and `PERSONA_NSIS_COMMIT`): happy path with the fake CLI (ask → delivery → accept → **type in #geral + Enter, reload, the message is still there**) and the no-engine path. It writes `proof.json` (exe sha256, stub calls, `turn_ledger` read after the app stopped), `electron.log` and screenshots even when it fails.
+- `mandatory-first-delivery-real-dryrun.spec.ts` — rehearses the real-run harness against the web app with the fake (milestone timeline + ledger read): run it before spending a real attempt.
+- `mandatory-first-delivery-real-installed.spec.ts` — **spends the user's quota**, so it refuses unless: `PERSONA_REAL_E2E=1`, `PERSONA_REAL_E2E_OK=D-069` (+ `.maestri/tmp/atlas-ok-real-run.txt`), the exe + `PERSONA_NSIS_COMMIT`, the fake-CLI proof green on the **same exe sha256**, no fake in the environment, and the attempt budget (max 3, stop at the first green, from the 2nd on `PERSONA_REAL_E2E_DIAGNOSED=<offline diagnosis>`). Run under `node scripts/persona/with-lock.mjs "Probe real" --lock real --wait-max 3600000 -- pnpm exec vitest run …`. Evidence in `artifacts/first-delivery/real-installed/`: Muse's milestone timeline (ms since the window attached), one screenshot per milestone, `evidence/persona.db` for Forge's read-only verifier. `src/ledger-evidence.ts` reads `turn_ledger` from a COPY of the run's database.
+
+## Simple workspace ("Rascunho da tarefa", SW-9/SW-10)
+
+`mandatory-simple-workspace.spec.ts` runs `scripts/sw-engine-acceptance.ts` (engine layer: private history, restore points, conflicts) on real `.docx`/`.xlsx` from `src/simple-workspace-fixtures.ts`. The user folder is created under the OS temp directory and **refused inside any Git repository** (a `.git` ancestor makes the product choose Git and run `git` against that repository). Scenarios S2 (bundled MinGit), S3 (OneDrive) and the host/UI + installed layers wait on SW-4/SW-5/SW-6/SW-8.
+
 ## First delivery (V1-P0) with the fake CLI
 
 UI end to end, no model call, opt-in `PERSONA_E2E=1` (one host boot per scenario, ~90 s):
@@ -272,3 +282,22 @@ $env:PERSONA_E2E='1'; pnpm exec vitest run packages/persona/persona-e2e/tests/ma
 - **no-engine**: step 5 shows "Falta uma IA para a equipe trabalhar." + "Conectar uma IA"; no working/celebrate state; the person can enter.
 - Installed exe: `mandatory-first-delivery-installed.spec.ts` (`PERSONA_INSTALLED_EXE=<Persona.exe>`), same two scenarios.
 - Evidence: `artifacts/first-delivery/<scenario>/proof.json` + screenshots. The REAL-engine run is `mandatory-first-delivery-real.spec.ts` (Keel-approved budget only).
+
+## Gauge — suítes obrigatórias por funcionalidade (QA nº 2)
+
+Cada funcionalidade tem **host real** (em memória, sem navegador, trava `check`) e **app real** (Chrome + CLI fake, trava `build`, host próprio com home temporário e porta livre). Bug de produto = `it.fails("[BUG→dono] …")` com a assertiva do comportamento exigido; vira `it` normal quando o dono corrige.
+
+| Funcionalidade | Host (`tests/`) | App (`tests/`) |
+|---|---|---|
+| BYC-6 | `mandatory-bring-your-context-host.spec.ts` | `real-byc-w2-app.spec.ts` |
+| GOV-10 / PB-9 | `mandatory-governance-host.spec.ts`, `mandatory-project-boards-host.spec.ts` | `real-gov-pb-app.spec.ts`, `real-pb-app.spec.ts` |
+| GES-6 / SB-7 | `mandatory-team-manager-host.spec.ts`, `mandatory-second-brain-host.spec.ts` | `real-sb-ges-app.spec.ts` |
+| W2-11 | `mandatory-wave2-host.spec.ts` | `real-byc-w2-app.spec.ts` |
+| B8 (SCOPE, B9) | `mandatory-scope-host.spec.ts` | `real-b8-app.spec.ts`, `real-onboarding-builder-app.spec.ts`, `real-desktop-app.spec.ts` (Electron) |
+| C9 | — | `real-c9-gallery.spec.ts` (claro/escuro, tokens da direção D, diff vs `dirD-tela.png`) |
+| F5 | — | `real-surface-a11y.spec.ts` (axe real + teclado em todas as telas) |
+| WIRE-5 | `wire-contract.spec.ts` (cliente × schemas gerados do host) | — |
+| Boot repetido | — | `real-boot-repeat.spec.ts` (`GAUGE_BOOT_CONFIGS=quick` no gate; `GAUGE_BOOT_REBUILD=1` reescreve o bundle durante as recargas) |
+| D-069 (execução real, sem gastar) | `mandatory-first-delivery-real-verifier.spec.ts` (SQL V18 → canônico → `verifyRealFirstDeliveryRun`), `mandatory-first-delivery-real-budget.spec.ts` (guardião `real-run-budget.ts` × verificador, 421 históricos) | — (o app real é do Probe, gated por `PERSONA_REAL_E2E=1`) |
+
+Helpers: `src/gauge-app.ts` (`openGaugeSession`, `panelHealth`, `shootBothThemes`, `blockingAxe`/`advisoryAxe`), `src/gauge-visual.ts` (cor média de PNG), `src/wire-contract.ts`, `src/bring-context-fixtures.ts`. `GAUGE_HOST_URL=<url>` reaproveita um host já no ar (só para iterar; os gates nunca usam). Capturas e relatórios vão para `artifacts/gauge/<suíte>/` (gitignored). Capturas "escuro" só valem com o tema escuro aplicado (`body[data-ds-dark-theme="true"]`; ver `[C9]`).

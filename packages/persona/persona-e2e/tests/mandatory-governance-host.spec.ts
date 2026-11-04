@@ -4,16 +4,11 @@
  * (`getOrgChart`, `getTeamHealth`, `runTwoDayTest`, `applyFix`, `setAvailability`, `recommendStructure`).
  * App layer (captures, axe, loading): {@link ./real-gov-pb-app.spec.ts}.
  */
-import { describe, expect, it as vitestIt } from 'vitest'
+import { describe, expect } from 'vitest'
 import PersonaHost from '../../persona-host/src/index.ts'
-import { bindHostFile, HOST_TEST_TIMEOUT_MS, it } from '../../persona-host/tests/host-harness.ts'
+import { bindHostFile, it } from '../../persona-host/tests/host-harness.ts'
 
 const { host } = bindHostFile('2026-11-03T09:00:00.000Z')
-
-/** Known product gap/bug: the body states the REQUIRED behaviour, fails today (`it.fails`), flips red when fixed. */
-function bug(owner: string, title: string, fn: () => unknown): void {
-  vitestIt.fails(`[BUG→${owner}] ${title}`, fn, HOST_TEST_TIMEOUT_MS)
-}
 
 const WS = { workspaceId: 'ws' } as const
 const FROM = '2026-11-03T00:00:00.000Z'
@@ -23,7 +18,7 @@ function persona(h: PersonaHost, id: string, name: string, title: string, cli: '
   h.createPersona({
     workspaceId: 'ws', projectId: 'team', id, name, title, description: `${title}.`, personality: 'Direto.',
     instructions: 'Entregue.', avatarKind: 'gallery', avatarRef: name.toLowerCase(), runnerKind: 'cli',
-    runnerCli: cli, runnerModel: 'haiku', canRecruit: false, createdBy: 'ana',
+    runnerCli: cli, runnerModel: 'haiku', canRecruit: true, createdBy: 'ana',
   })
 }
 
@@ -196,17 +191,47 @@ describe('GOV-4 — pessoa marcada "fora": aprovações vão ao substituto; sem 
     expect(h.setAvailability({ ...WS, humanId: 'bia', kind: 'away', from: FROM, until: UNTIL }).groups.find(row => row.id === 'bia')?.away).toBe(true)
   })
 
-  bug('Anvil+Forge', '[GOV-4] a aprovação/Attention de uma persona cuidada por quem está fora aparece para o SUBSTITUTO (ou espera com aviso explícito) — routeApproval ainda não é chamado pelo host', () => {
+  const proposeFor = (h: PersonaHost, id: string, creatorPersonaId: string): void => {
+    h.proposeHire({ ...WS, projectId: 'team', id, creatorPersonaId, name: 'Pipoca', title: 'Designer', description: 'Peças da semana.' })
+  }
+  const pending = (h: PersonaHost) => h.listApprovals({ ...WS, projectId: 'team' }).filter(row => row.status === 'pending')
+
+  it('[GOV-4] com substituto: a proposta de uma persona cuidada por quem está fora é roteada ao SUBSTITUTO, em nome do responsável', () => {
     const h = seed()
     h.setSubstitute({ ...WS, personaId: 'ops', humanId: 'bia' })
+    proposeFor(h, 'prop-1', 'ops')
+    expect(pending(h)[0]?.routedToId, 'sem ninguém fora, vai ao responsável').toBe('ana')
     h.setAvailability({ ...WS, humanId: 'ana', kind: 'away', from: FROM, until: UNTIL })
-    h.createVaultRecord({ workspaceId: 'ws', projectId: 'team', id: 'v-prop', kind: 'brief', body: 'Proposta da Nina.', authorId: 'ana' })
+    const routed = pending(h)[0]!
+    expect(routed.routedToId).toBe('bia')
+    expect(routed.onBehalfOfId).toBe('ana')
+    expect(routed.waitNotice).toBeUndefined()
     h.sessionMemberId = 'bia'
-    const approvals = h.listApprovals({ workspaceId: 'ws', projectId: 'team' }) as readonly unknown[] as readonly Record<string, unknown>[]
-    // Required behaviour (GOVERNANCE.md §3): every pending approval says who it was routed to / on whose behalf, or why it waits.
-    const routed = approvals.filter(row => row.status === 'pending')
-    expect(routed.length).toBeGreaterThan(0)
-    expect(routed.every(row => typeof row.onBehalfOf === 'string' || typeof row.waitNotice === 'string')).toBe(true)
+    expect(h.decideApproval({ ...WS, projectId: 'team', id: 'prop-1', kind: 'hire', accept: false }).status).toBe('rejected')
+  })
+
+  it('[GOV-4] sem substituto: a proposta ESPERA com aviso explícito (ninguém decide por engano) e volta ao responsável quando ele volta', () => {
+    const h = seed()
+    proposeFor(h, 'prop-2', 'ops')
+    h.setAvailability({ ...WS, humanId: 'ana', kind: 'away', from: FROM, until: UNTIL })
+    const waiting = pending(h)[0]!
+    expect(waiting.waitNotice, 'aviso de espera').toMatch(/espera/iu)
+    expect(waiting.routedToId).toBeUndefined()
+    expect(() => h.decideApproval({ ...WS, projectId: 'team', id: 'prop-2', kind: 'hire', accept: true })).toThrow(/approval-waiting|espera/iu)
+    h.setAvailability({ ...WS, humanId: 'ana', kind: 'available', from: FROM, until: UNTIL })
+    expect(pending(h)[0]?.routedToId).toBe('ana')
+    expect(pending(h)[0]?.waitNotice).toBeUndefined()
+  })
+
+  it('[GOV-4] a decisão deixa trilha de "quem aprovou o quê em nome de quem"', () => {
+    const h = seed()
+    h.setSubstitute({ ...WS, personaId: 'ops', humanId: 'bia' })
+    proposeFor(h, 'prop-3', 'ops')
+    h.setAvailability({ ...WS, humanId: 'ana', kind: 'away', from: FROM, until: UNTIL })
+    h.sessionMemberId = 'bia'
+    h.decideApproval({ ...WS, projectId: 'team', id: 'prop-3', kind: 'hire', accept: false })
+    const trail = h.screens.screens.get<{ actorId: string; onBehalfOfId: string; accept: boolean }>('team', 'approval_decision', 'hire:prop-3')
+    expect(trail).toMatchObject({ actorId: 'bia', onBehalfOfId: 'ana', accept: false })
   })
 })
 

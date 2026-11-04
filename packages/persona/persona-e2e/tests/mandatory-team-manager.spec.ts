@@ -15,8 +15,10 @@ describe.skipIf(!runApp)('GES layer 2 partial (contracts replay)', () => {
 })
 
 describe('mandatory Gestor de equipe — montar equipe (§ Aceite 1)', () => {
-  it.todo(
+  it(
     '[GES-1a · Prism+Forge] chat pedido natural ("monte um time para o Site") → cartão de plano (contratar N, projeto, fluxo Site, sprint 1) com Aprovar / Ajustar',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-team-manager-host.spec.ts', ['-t', 'GES-1a']) },
+    300_000,
   )
 
   it(
@@ -30,8 +32,10 @@ describe('mandatory Gestor de equipe — montar equipe (§ Aceite 1)', () => {
     120_000,
   )
 
-  it.todo(
+  it.skipIf(process.env.PERSONA_E2E !== '1')(
     '[GES-1c · Prism+Muse] pós-aprovação: personas entram animadas na faixa da equipe e no rail (locale pt-BR; reduced-motion)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/real-sb-ges-app.spec.ts', ['-t', 'GES-1c'], { inheritPersonaE2e: true }) },
+    900_000,
   )
 })
 
@@ -80,8 +84,10 @@ describe('mandatory Gestor de equipe — limites e aprovação (§ Aceite 2)', (
     120_000,
   )
 
-  it.todo(
+  it(
     '[GES-2e · adversarial · Forge] plano acima do **orçamento total** → **recusado** ou exige aprovação (nunca silent over-budget)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-team-manager-host.spec.ts', ['-t', 'GES-2e']) },
+    300_000,
   )
 
   it(
@@ -143,8 +149,10 @@ describe('mandatory Gestor de equipe — vários Gestores (§ Aceite 3)', () => 
 })
 
 describe('mandatory Gestor de equipe — UI editor (§ UI)', () => {
-  it.todo(
+  it.skipIf(process.env.PERSONA_E2E !== '1')(
     '[GES-4a · Prism] editor: interruptor **Gestor de equipe** + limites; selo **Gestor** no cartão (sem string "Maestro" na UI)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/real-sb-ges-app.spec.ts', ['-t', 'GES-4a'], { inheritPersonaE2e: true }) },
+    900_000,
   )
 
   it(

@@ -12,6 +12,7 @@ import {
   buildDocx,
   buildXlsx,
   createUserFolder,
+  gitAncestorOf,
   gitOnPath,
   holdExclusiveLock,
   readDocxParagraphs,
@@ -20,6 +21,7 @@ import {
   zipRead,
   type UserFolder,
 } from '../src/simple-workspace-fixtures.ts'
+import { E2E_TMP_ROOT } from '../src/paths.ts'
 
 const folders: UserFolder[] = []
 afterEach(async () => {
@@ -72,6 +74,15 @@ describe('simple-workspace fixtures (SW-9/SW-10)', () => {
     expect(userFolderProblems(folder.dir).join('\n')).toContain('.git found')
     writeFileSync(join(folder.dir, 'recado.txt'), 'a\n<<<<<<< ficou o meu\nb\n=======\nc\n>>>>>>> da persona\n')
     expect(userFolderProblems(folder.dir).join('\n')).toContain('conflict markers')
+  })
+
+  it('keeps the user folder OUTSIDE any Git repository (a .git ancestor makes the product choose Git) and refuses a parent inside one', async () => {
+    const folder = await createUserFolder()
+    folders.push(folder)
+    expect(gitAncestorOf(folder.dir)).toBeUndefined()
+    // The repository's own scratch directory is inside the checkout: the guard must refuse it.
+    await expect(createUserFolder({ parent: E2E_TMP_ROOT })).rejects.toThrow(/inside a Git repository/u)
+    expect(gitAncestorOf(E2E_TMP_ROOT)).toBeDefined()
   })
 
   it('hides git from PATH for the "sem git" scenarios and restores it', () => {

@@ -9,7 +9,7 @@ import { REPO_ROOT } from '../src/paths.ts'
 import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
 
 describe('V1 close — engine gate (persona-engine)', () => {
-  it('measureV1Close + assertV1Close: PRO 6/6, GES, V1-P0-1 4/4, OPT 3/4 (cut-40 blocked without live book)', () => {
+  it('measureV1Close + assertV1Close: PRO 6/6, GES, V1-P0-1 4/4, OPT 1/4 (D-068: cache-60, pair-parity and cut-40 blocked)', () => {
     runVitestSubprocess('packages/persona/persona-engine/tests/v1-close.spec.ts')
   }, 120_000)
 
@@ -23,7 +23,7 @@ describe('V1 close — engine gate (persona-engine)', () => {
 })
 
 describe('V1 close — host Remote wire (persona-host)', () => {
-  it('measureV1Close after live TurnLedger: proactivity + gestor + opt8 blocked cut-40', () => {
+  it('measureV1Close after live TurnLedger: proactivity + gestor + opt8 blocked cache-60/pair-parity/cut-40 (D-068)', () => {
     runVitestSubprocess('packages/persona/persona-host/tests/token-opt.spec.ts', [
       '-t',
       'persists TurnLedgerEntry kinds and folds the Uso panel',

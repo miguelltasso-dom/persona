@@ -16,6 +16,7 @@ import {
   FIRST_DELIVERY_PAID_TURNS_TARGET,
   createFirstDeliveryRecorder,
   runHappyFirstDelivery,
+  sendGeralMessageAndReload,
   runNoEngineFirstDelivery,
   walkOnboardingToStep5,
   type FirstDeliveryRecorder,
@@ -112,6 +113,10 @@ describe.skipIf(!runPersonaE2e)('first delivery — UI with fake CLI (V1-P0)', (
       expect(step3, 'step 3 note recorded').not.toBe('')
       expect(step3, 'Claude is on PATH and answered the delivery, yet its card says it was not detected').not.toMatch(/Claude \| Não detectada/u)
     })
+
+    it('typing in #geral + Enter sends the message and it persists after a reload (chat regression)', async () => {
+      await sendGeralMessageAndReload(session.page, rec, 'Mensagem do Probe: o composer envia e persiste.')
+    }, 240_000)
 
     it('leaves the console clean and writes proof.json', async () => {
       assertConsoleClean(session.tripwire)

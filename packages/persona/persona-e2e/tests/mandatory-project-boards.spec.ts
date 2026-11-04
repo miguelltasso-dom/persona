@@ -41,3 +41,14 @@ describe('mandatory project boards — PB-9 / PROJECT-BOARDS.md §3 (5 core)', (
 })
 
 /** PB-9+ gallery hub: {@link ./real-gallery-project-boards.spec.ts}; full §3 UI still PB-9.1–9.5 below. */
+
+/** PB-9 (Gauge): host real em memória (0 IA) + app real (Chrome, CLI fake). Bugs de produto ficam como `it.fails` "[BUG→dono]". */
+describe('PB-9 — suítes reais do Gauge', () => {
+  it('[PB-9 host] cenários do aceite no host real (adversarial)', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-project-boards-host.spec.ts', [])
+  }, 300_000)
+
+  it.skipIf(!runApp)('[PB-9 app] cenários no app real com capturas claro/escuro, axe e gate de painel', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/real-pb-app.spec.ts', [], { inheritPersonaE2e: true })
+  }, 1_200_000)
+})

@@ -53,3 +53,14 @@ describe('mandatory governance — GOVERNANCE.md §4 (5 core)', () => {
 })
 
 /** GOV+ gallery: {@link ./real-gallery-governance.spec.ts} + {@link ./mandatory-governance-contract.spec.ts} when PERSONA_E2E=1. */
+
+/** GOV-10 (Gauge): host real em memória (0 IA) + app real (Chrome, CLI fake). Bugs de produto ficam como `it.fails` "[BUG→dono]". */
+describe('GOV-10 — suítes reais do Gauge', () => {
+  it('[GOV-10 host] cenários do aceite no host real (adversarial)', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-governance-host.spec.ts', [])
+  }, 300_000)
+
+  it.skipIf(!runApp)('[GOV-10 app] cenários no app real com capturas claro/escuro, axe e gate de painel', () => {
+    runVitestSubprocess('packages/persona/persona-e2e/tests/real-gov-pb-app.spec.ts', [], { inheritPersonaE2e: true })
+  }, 1_200_000)
+})

@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { assertPersonaBootGateClean, runPersonaUiBootGate } from '../src/persona-boot-gate.ts'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
 import { checkReducedMotionOnPersonaPage } from '../src/motion-jank.ts'
 import {
   assertConsoleClean,
@@ -15,20 +16,30 @@ import {
 const runPersonaE2e = process.env.PERSONA_E2E === '1'
 
 describe('mandatory scope — user-built team (SCOPE.md)', () => {
-  it.todo(
-    'onboarding: user creates a persona from scratch via the conversational builder (template "Em branco" or natural-language "Nova persona"), completes review, and the new persona appears in the team rail with no pre-seeded fixed roster required',
+  it.skipIf(!runPersonaE2e)(
+    'onboarding: user creates a persona from scratch via the conversational builder (app real, home limpo; SCOPE-1)',
+    () => {
+      runVitestSubprocess('packages/persona/persona-e2e/tests/real-onboarding-builder-app.spec.ts', [], { inheritPersonaE2e: true })
+    },
+    900_000,
   )
 
-  it.todo(
-    'agent proposes agent: a persona with "Recrutar" calls persona_propose; the "Contratar <nome>?" card appears in channel / Precisa de você; approved persona never receives broader tool permissions, vault scope, or credentials than the proposing persona (policy: default always ask approval)',
+  it(
+    'agent proposes agent: "Contratar <nome>?" card, never broader than the proposer, human decides (SCOPE-2, host real)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-scope-host.spec.ts', ['-t', 'SCOPE-2']) },
+    180_000,
   )
 
-  it.todo(
-    'coordination handoff: user reassigns the Coordination function (Router) from persona A to persona B; channel and DM history, subjects, and prior runs remain readable and attributable; new dispatches use B without silent loss of transcript context',
+  it(
+    'coordination handoff A → B keeps history, subjects and attribution; new dispatches go to B (SCOPE-3, host real)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-scope-host.spec.ts', ['-t', 'SCOPE-3']) },
+    180_000,
   )
 
-  it.todo(
-    'vault in context: a workspace vault constraint/decision marked mandatory surfaces in the "Contexto usado" panel on the next turn in the same channel; user sees provenance (Cofre / restriction label) without raw secret values',
+  it(
+    'vault in context: mandatory Cofre constraint appears in "Contexto usado"; no secret value leaks (SCOPE-4, host real; secret leak tracked as [BUG→Forge+Anvil])',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/mandatory-scope-host.spec.ts', ['-t', 'SCOPE-4']) },
+    180_000,
   )
 })
 

@@ -12,7 +12,17 @@ export interface FakeCliOptions {
   readonly fail?: string | boolean
   /** Configurable assistant reply text (env `FAKE_CLI_REPLY`). */
   readonly reply?: string
+  /** During a turn, write this RELATIVE text file in the stub's working directory (the task draft): a real revision to review (env `FAKE_CLI_WRITE_FILE`). */
+  readonly writeFile?: string
+  /** Text of that file (env `FAKE_CLI_WRITE_CONTENT`). */
+  readonly writeContent?: string
+  /** ALSO write the same relative file in this absolute folder (the person's project) during the turn: a real conflict (env `FAKE_CLI_CONFLICT_DIR`). */
+  readonly conflictDir?: string
+  /** Text of the person's concurrent edit (env `FAKE_CLI_CONFLICT_CONTENT`). */
+  readonly conflictContent?: string
 }
+
+const WRITE_ENVS = ['FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT'] as const
 
 /** One line of the stub's invocation log (`FAKE_CLI_LOG`). */
 export interface FakeCliInvocation {
@@ -109,6 +119,7 @@ export function withFakeCliOnPath(options?: FakeCliOptions): FakeCliPathScope {
   const previousTurnMs = process.env.FAKE_CLI_TURN_MS
   const previousFail = process.env.FAKE_CLI_FAIL
   const previousReply = process.env.FAKE_CLI_REPLY
+  const previousWrites = WRITE_ENVS.map(name => [name, process.env[name]] as const)
   const previousExtraPath = process.env.PERSONA_E2E_EXTRA_PATH
   const previousPins = OAR_PINS.map(([envVar]) => [envVar, process.env[envVar]] as const)
   const previousLog = process.env.FAKE_CLI_LOG
@@ -130,6 +141,10 @@ export function withFakeCliOnPath(options?: FakeCliOptions): FakeCliPathScope {
   if (options?.fail !== undefined) {
     process.env.FAKE_CLI_FAIL = typeof options.fail === 'boolean' ? (options.fail ? '1' : '0') : options.fail
   }
+  if (options?.writeFile !== undefined) process.env.FAKE_CLI_WRITE_FILE = options.writeFile
+  if (options?.writeContent !== undefined) process.env.FAKE_CLI_WRITE_CONTENT = options.writeContent
+  if (options?.conflictDir !== undefined) process.env.FAKE_CLI_CONFLICT_DIR = options.conflictDir
+  if (options?.conflictContent !== undefined) process.env.FAKE_CLI_CONFLICT_CONTENT = options.conflictContent
   if (options?.reply !== undefined) {
     process.env.FAKE_CLI_REPLY = options.reply
   }
@@ -149,6 +164,10 @@ export function withFakeCliOnPath(options?: FakeCliOptions): FakeCliPathScope {
       else delete process.env.FAKE_CLI_FAIL
       if (previousReply !== undefined) process.env.FAKE_CLI_REPLY = previousReply
       else delete process.env.FAKE_CLI_REPLY
+      for (const [name, value] of previousWrites) {
+        if (value !== undefined) process.env[name] = value
+        else delete process.env[name]
+      }
       if (previousExtraPath !== undefined) process.env.PERSONA_E2E_EXTRA_PATH = previousExtraPath
       else delete process.env.PERSONA_E2E_EXTRA_PATH
       for (const [envVar, previous] of previousPins) {

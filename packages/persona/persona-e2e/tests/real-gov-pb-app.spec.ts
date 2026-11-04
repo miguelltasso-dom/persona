@@ -7,6 +7,8 @@
 import { afterAll, beforeAll, describe, expect, it as vitestIt } from 'vitest'
 import {
   advisoryAxe,
+  closeAwayPanel,
+  openAwayPanel,
   assistantToPreview,
   blockingAxe,
   mainText,
@@ -137,59 +139,63 @@ describe.skipIf(!run)('GOV-10 app — Quem cuida de quem, Saúde, Teste dos 2 di
     expect(text).not.toMatch(/não tem dono/u)
   }, 120_000)
 
-  bug('Lumen+Forge', '[GOV-3 app] o Teste dos 2 dias e a Saúde mostram NOMES humanos de rotina, nunca ids internos (hoje: "initiative:m-dia", "initiative:cria-o"…)', async () => {
+  vitestIt('[GOV-3 app] o Teste dos 2 dias e a Saúde mostram NOMES humanos de rotina, nunca ids internos (hoje: "initiative:m-dia", "initiative:cria-o"…)', async () => {
     await panelHealth(s, 'team-health')
     expect(await mainText(s.page)).not.toMatch(/initiative:[a-z0-9-]+/u)
   }, 120_000)
 
   vitestIt('[GOV-4 app] "Estou fora" sem substituto avisa que as decisões VÃO ESPERAR; desligar volta ao normal', async () => {
     const away = () => s.page.getByRole('switch', { name: 'Estou fora' })
-    await s.page.getByRole('button', { name: 'Conectado' }).first().click()
+    await openAwayPanel(s.page)
     await away().click()
     try {
       expect(await away().getAttribute('aria-checked')).toBe('true')
       await s.page.getByText('Ninguém foi definido para aprovar por você. As decisões vão esperar.').first().waitFor({ state: 'visible', timeout: 15_000 })
       expect(await s.page.getByRole('button', { name: 'Definir substituto' }).count(), 'ação para resolver o aviso').toBeGreaterThan(0)
       await shootBothThemes(s.page, SUITE, 'gov-fora-sem-substituto')
-      // Esc and click-outside do not close the popover, which also covers the nav (F5 bug test below): use the status chip.
-      await s.page.getByRole('button', { name: /Fora até/u }).first().click()
-      await away().waitFor({ state: 'detached', timeout: 10_000 })
     } finally {
-      if (await away().count() === 0) await s.page.getByRole('button', { name: /Fora até|Conectado/u }).first().click().catch(() => {})
-      if (await away().getAttribute('aria-checked').catch(() => 'false') === 'true') await away().click()
-      if (await away().count() > 0) await s.page.getByRole('button', { name: /Conectado|Fora até/u }).first().click().catch(() => {})
+      if (await away().count() > 0 && await away().getAttribute('aria-checked') === 'true') await away().click()
+      await closeAwayPanel(s.page)
     }
-    await s.page.getByRole('button', { name: /^Conectado/u }).first().waitFor({ state: 'visible', timeout: 15_000 })
+    await s.page.getByRole('button', { name: /^(Conectado|Claude|Codex|OpenCode|Cursor|Sem IA|Offline)/u }).first().waitFor({ state: 'visible', timeout: 15_000 })
   }, 180_000)
 
-  bug('Prism+Anvil', '[GOV-4 app] marcar "Estou fora" CHEGA ao host: o organograma passa a mostrar o selo "Fora" (hoje o estado é só do cliente — setAvailability nunca é chamado pelo shell)', async () => {
+  vitestIt('[GOV-4 app] marcar "Estou fora" CHEGA ao host: o organograma passa a mostrar o selo "Fora"', async () => {
     const away = () => s.page.getByRole('switch', { name: 'Estou fora' })
-    await s.page.getByRole('button', { name: /Conectado|Fora até/u }).first().click()
+    await openAwayPanel(s.page)
     await away().click()
     try {
-      await s.page.getByRole('button', { name: /Fora até/u }).first().click()
+      await closeAwayPanel(s.page)
       await panelHealth(s, 'org-chart')
       expect(await mainText(s.page), 'selo "Fora" no organograma').toMatch(/Fora/u)
     } finally {
-      await s.page.getByRole('button', { name: /Conectado|Fora até/u }).first().click().catch(() => {})
-      if (await away().getAttribute('aria-checked').catch(() => 'false') === 'true') await away().click().catch(() => {})
-      if (await away().count() > 0) await s.page.getByRole('button', { name: /Conectado|Fora até/u }).first().click().catch(() => {})
+      await openAwayPanel(s.page)
+      if (await away().getAttribute('aria-checked') === 'true') await away().click()
+      await closeAwayPanel(s.page)
     }
   }, 120_000)
 
-  bug('Prism', '[F5 app] a janela "Estou fora" fecha com Esc (padrão de popover; hoje fica aberta e só o clique fora fecha)', async () => {
-    const away = () => s.page.getByRole('switch', { name: 'Estou fora' })
-    await s.page.getByRole('button', { name: /Conectado|Fora até/u }).first().click()
-    await away().waitFor({ state: 'visible', timeout: 15_000 })
+  vitestIt('[F5 app] a janela "Estou fora" fecha com Esc (padrão de popover)', async () => {
+    await openAwayPanel(s.page)
     await s.page.keyboard.press('Escape')
     await s.page.waitForTimeout(500)
-    const open = await away().count()
-    await s.page.mouse.click(900, 70)
-    await s.page.waitForTimeout(300)
-    const afterOutside = await away().count()
-    if (afterOutside > 0) await s.page.getByRole('button', { name: /Conectado|Fora até/u }).first().click()
-    expect(open + afterOutside, 'o popover continuou aberto depois do Esc e do clique fora').toBe(0)
+    const open = await s.page.getByRole('switch', { name: 'Estou fora' }).count()
+    if (open > 0) await closeAwayPanel(s.page)
+    expect(open, 'o popover continuou aberto depois do Esc').toBe(0)
   }, 60_000)
+
+  vitestIt('[GOV-1 app] ao RECARREGAR com a equipe já montada o app não pisca o estado de equipe vazia ("Monte sua equipe", "Vaga aberta") antes dos dados chegarem — falta skeleton de carregamento', async () => {
+    expect(await railTeamCount(s.page), 'pré-condição: a equipe existe').toBeGreaterThanOrEqual(2)
+    await s.page.reload({ waitUntil: 'commit' })
+    let flashed = 0
+    for (let i = 0; i < 40; i += 1) {
+      const text = await s.page.locator('body').innerText().catch(() => '')
+      if (/Monte sua equipe|Vaga aberta/u.test(text)) flashed += 1
+      await s.page.waitForTimeout(100)
+    }
+    await s.page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 60_000 })
+    expect(flashed, 'quadros em que a tela disse que não há equipe').toBe(0)
+  }, 120_000)
 
   vitestIt('[GOV-10 app] gates: cada tela de governança fecha sem fatais de console, sem tela em branco/carregando preso e sem violação de axe crítica/séria', async () => {
     for (const slug of ['org-chart', 'team-health']) {

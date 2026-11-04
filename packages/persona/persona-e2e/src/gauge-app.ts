@@ -137,7 +137,9 @@ export async function openStructureAssistant(page: Page): Promise<void> {
  * @param company - Button label of the company type.
  */
 export async function assistantToPreview(page: Page, company: string): Promise<void> {
-  await page.getByRole('button', { name: company, exact: true }).click()
+  // The company cards are radios since the Muse a11y pass (names carry a one-line hint: "Agência Clientes, projetos…").
+  const card = page.getByRole('radio', { name: new RegExp(company, 'u') }).or(page.getByRole('button', { name: company, exact: true })).first()
+  await card.click()
   for (let i = 0; i < 3; i += 1) await page.getByRole('button', { name: 'Continuar', exact: true }).click()
   await page.getByText('Prévia do organograma e do Teste dos 2 dias offline.').waitFor({ state: 'visible', timeout: 30_000 })
 }
@@ -154,4 +156,21 @@ export function advisoryAxe(axe: AxeScanResult): string[] {
   return axe.violations
     .filter(row => row.impact !== 'critical' && row.impact !== 'serious')
     .map(row => `${row.id}[${row.impact ?? '?'}](${String(row.nodes)}): ${row.detail ?? ''}`)
+}
+
+/** The status chip at the foot of the rail that opens the "Estou fora" panel (its label is the engine chip, "Conectado" or "Fora até …"). */
+export async function openAwayPanel(page: Page): Promise<void> {
+  const away = page.getByRole('switch', { name: 'Estou fora' })
+  if (await away.count() > 0) return
+  const chip = page.getByRole('button', { name: /^(Conectado|Fora até|Claude|Codex|OpenCode|Cursor|Sem IA|Offline)/u }).first()
+  await chip.click({ timeout: 30_000 })
+  await away.waitFor({ state: 'visible', timeout: 15_000 })
+}
+
+/** Close the "Estou fora" panel through the same chip (Esc/click-outside are tracked separately). */
+export async function closeAwayPanel(page: Page): Promise<void> {
+  if (await page.getByRole('switch', { name: 'Estou fora' }).count() === 0) return
+  const chip = page.getByRole('button', { name: /^(Conectado|Fora até|Claude|Codex|OpenCode|Cursor|Sem IA|Offline)/u }).first()
+  await chip.click({ timeout: 15_000 }).catch(() => {})
+  await page.keyboard.press('Escape').catch(() => {})
 }

@@ -3,18 +3,12 @@
  * wave2.spec.ts: cross-stream/cross-project writes, limits, isolation of account homes, consent. REAL PersonaHost,
  * scripted runner, fake accounts, 0 AI. App layer (SubjectBar keyboard, Conexões, Ensinar consent): {@link ./real-gov-pb-app.spec.ts}.
  */
-import { describe, expect, it as vitestIt } from 'vitest'
+import { describe, expect } from 'vitest'
 import PersonaHost from '../../persona-host/src/index.ts'
 import { TEACH_CONSENT } from '../../persona-host/src/wave2.ts'
-import { HOST_TEST_TIMEOUT_MS } from '../../persona-host/tests/host-harness.ts'
 import { openJourney, seedJourney, it } from '../../persona-host/tests/journeys/journey-host.ts'
 
 const CLOCK = '2026-11-03T15:00:00.000Z'
-
-/** Known product bug: asserts the REQUIRED behaviour, fails today (`it.fails`), flips red when fixed. */
-function bug(owner: string, title: string, fn: () => unknown): void {
-  vitestIt.fails(`[BUG→${owner}] ${title}`, fn, HOST_TEST_TIMEOUT_MS)
-}
 
 const PP = { workspaceId: 'ws', projectId: 'pp' } as const
 
@@ -55,7 +49,7 @@ describe('W2-1 — assuntos: históricos separados na mesma DM', () => {
     expect(read(preco)).toEqual(['m-preco'])
   })
 
-  bug('Anvil+Forge', '[W2-1b] a RESPOSTA da persona fica no assunto certo: hoje ela nasce com topicId vazio, então ao filtrar por assunto só aparece a pergunta do usuário (o assunto parece sem resposta)', async () => {
+  it('[W2-1b] a RESPOSTA da persona fica no assunto certo: hoje ela nasce com topicId vazio, então ao filtrar por assunto só aparece a pergunta do usuário (o assunto parece sem resposta)', async () => {
     const h = world()
     const scope = dmScope('dm-bento')
     const geral = h.listConversationSubjects(scope).subjects[0]!
@@ -72,7 +66,7 @@ describe('W2-1 — assuntos: históricos separados na mesma DM', () => {
     expect(all.filter(row => row.actorId === 'bento').every(row => row.topicId !== ''), 'resposta sem assunto').toBe(true)
   })
 
-  bug('Forge+Anvil', '[W2-1b] uma mensagem do usuário na DM gera UMA resposta, não duas idênticas ("coord-<id>-reply" + "coord-<hash>") — reproduz no host com runner scriptado; confirmar no app com a CLI fake', async () => {
+  it('[W2-1b] uma mensagem do usuário na DM gera UMA resposta, não duas idênticas ("coord-<id>-reply" + "coord-<hash>") — reproduz no host com runner scriptado; confirmar no app com a CLI fake', async () => {
     const h = world()
     const scope = dmScope('dm-nina')
     h.postMessage({ id: 'm-one', ...scope, body: 'oi, tudo bem?', actorId: 'ana', subjectId: 's-one', occurredAt: CLOCK })
@@ -146,11 +140,11 @@ describe('W2-1 — assuntos: históricos separados na mesma DM', () => {
     expect(h.listMessages({ ...theirs, actorId: 'ana', afterSeq: 0, limit: 20, topicId: theirPick }).events.map(row => row.id)).toEqual(['m-deles'])
   })
 
-  bug('Anvil', '[W2-1] criar assunto com uma cor JÁ usada apaga o nome do assunto existente (id deriva da cor: createConversationSubject faz rename silencioso)', () => {
+  it('[W2-1] criar assunto com uma cor JÁ usada nunca apaga o nome do assunto existente (recusa com conflito ou usa outra cor)', () => {
     const h = world()
     const scope = dmScope('dm-bento')
     const first = h.createConversationSubject({ ...scope, name: 'Interface', colorIndex: 1 }).activeSubjectId
-    h.createConversationSubject({ ...scope, name: 'Outro assunto', colorIndex: 1 })
+    try { h.createConversationSubject({ ...scope, name: 'Outro assunto', colorIndex: 1 }) } catch { /* conflito é a resposta correta */ }
     expect(h.listConversationSubjects(scope).subjects.find(row => row.id === first)?.name, 'o 1º assunto perdeu o nome').toBe('Interface')
   })
 })
@@ -185,7 +179,7 @@ describe('W2-3 — várias contas por provedor: isolamento e política', () => {
     expect(h.accounts.get('claude:trabalho')?.homeDir ?? '').not.toBe('')
   })
 
-  bug('Rivet+Anvil', '[W2-3] rótulo com ../ não pode levar o home da conta para FORA da pasta de contas (isolatedAccountHome com rótulo hostil)', () => {
+  it('[W2-3] rótulo com ../ não pode levar o home da conta para FORA da pasta de contas (isolatedAccountHome com rótulo hostil)', () => {
     const h = world()
     h.addConnectionAccount({ ...PP, provider: 'claude', label: '../../evil' })
     expect(h.listConnectionAccounts(PP).accounts).toHaveLength(1)
@@ -196,7 +190,7 @@ describe('W2-3 — várias contas por provedor: isolamento e política', () => {
     expect(normalized).toMatch(/\/accounts\//u)
   })
 
-  bug('Anvil', '[W2-3] duas contas com o MESMO rótulo não podem se sobrescrever em silêncio (o id vem do rótulo: claude:trabalho)', () => {
+  it('[W2-3] duas contas com o MESMO rótulo não podem se sobrescrever em silêncio (o id vem do rótulo: claude:trabalho)', () => {
     const h = world()
     h.addConnectionAccount({ ...PP, provider: 'claude', label: 'Trabalho' })
     let second = true

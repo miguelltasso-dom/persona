@@ -17,6 +17,7 @@ import {
 import { checkReducedMotionOnPersonaPage } from '../src/motion-jank.ts'
 import { geralComposerLocator } from '../src/geral-composer.ts'
 import { resetGalleryHome } from '../src/real-gallery/navigate-panel.ts'
+import { runVitestSubprocess } from '../src/run-vitest-subprocess.ts'
 
 const runPersonaE2e = process.env.PERSONA_E2E === '1'
 const REFERENCE = join(REPO_ROOT, 'persona-assets', 'references', 'dirD-tela.png')
@@ -100,8 +101,14 @@ describe.skipIf(!runPersonaE2e)('persona-e2e mandatory-b9 (real app, profile per
     }, 120_000)
   })
 
-  it.todo('Tier 1: enviar mensagem no #geral e ver resposta do runner scriptado / fake CLI (Rivet/Anvil host wire)')
-  it.todo('Tier 1: kanban reflete tarefa criada pelo host após mensagem (Anvil store + host events)')
-  it.todo('Tier 1: criar e editar persona na superfície Equipe/Members (Prism + host)')
-  it.todo('Tier 2 desktop: onboarding + kanban + composer (smoke-desktop só boot shell hoje)')
+  it.skipIf(!runPersonaE2e)(
+    'Tier 1: #geral → resposta do runner; Tarefa no quadro; criar e editar persona (B8-1..4, host próprio, runner scriptado)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/real-b8-app.spec.ts', [], { inheritPersonaE2e: true }) },
+    900_000,
+  )
+  it.skipIf(!runPersonaE2e)(
+    'Tier 2 desktop: onboarding + #geral + Quadros + ponte nativa do seletor de pasta (B8-5, Electron via CDP)',
+    () => { runVitestSubprocess('packages/persona/persona-e2e/tests/real-desktop-app.spec.ts', [], { inheritPersonaE2e: true }) },
+    1_200_000,
+  )
 })

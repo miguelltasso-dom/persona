@@ -38,6 +38,11 @@ export interface OpenRealPersonaAppOptions {
   liveRunner?: boolean
   /** Leave the onboarding overlay on screen (skip `dismissBlockingOverlays`) so the test can walk steps 1–5. */
   keepOnboarding?: boolean
+  /**
+   * Turn on the 6-places rail (NAV-SPEC A-1, behind `persona.flag.navPlaces` per D-077; off = today's rail). Defaults to the env
+   * `PERSONA_NAV_PLACES=1`, so every existing gallery/B9 spec can be rerun against the new rail without editing it.
+   */
+  navPlaces?: boolean
 }
 
 /**
@@ -66,6 +71,9 @@ export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}
       seed: options.devSeed === true,
       orgScale: options.orgChartScaleSeed === undefined ? null : String(options.orgChartScaleSeed),
     })
+  }
+  if (options.navPlaces ?? process.env.PERSONA_NAV_PLACES === '1') {
+    await context.addInitScript(() => { try { localStorage.setItem('persona.flag.navPlaces', '1') } catch { /* storage blocked */ } })
   }
   const page = await context.newPage()
   const tripwire = watchConsole(page)

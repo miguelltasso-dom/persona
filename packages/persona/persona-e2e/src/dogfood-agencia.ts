@@ -227,10 +227,10 @@ async function walkAgencia(
     await perms.first().click().catch(() => {})
     await page.waitForTimeout(500)
     await shot('40-permissoes')
-    const revoke = page.getByRole('button', { name: /Revogar/i })
+    const revoke = page.getByRole('button', { name: /Tirar permissão|Revogar/i })
     if (await revoke.count() > 0) {
       await revoke.first().click()
-      const confirm = page.getByRole('button', { name: /Revogar agora/i })
+      const confirm = page.getByRole('button', { name: /Tirar agora|Revogar agora/i })
       if (await confirm.count() > 0) await confirm.click()
       await shot('40-revogada')
       stepsOk.push('permissão lembrada + revogar')

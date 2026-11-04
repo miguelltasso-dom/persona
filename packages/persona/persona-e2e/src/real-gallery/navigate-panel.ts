@@ -4,6 +4,34 @@ import { dismissBlockingOverlays } from '../boot-gate-bootstrap.ts'
 import { waitForGeralComposer } from '../geral-composer.ts'
 import { personaNameFromRailTalkLabel } from './rail-persona-name.ts'
 
+/**
+ * Gallery slug → `MainPanelId` (client `create-shell-store.ts`). NAV-SPEC A-1 (6 places + tabs) changes WHERE a screen lives, not its
+ * id: navigation uses `data-nav-panel` / `data-nav-contains` / `data-tab-panel` (see {@link navigateByPanelId}) and only falls back to
+ * the visible label (legacy rail).
+ */
+const PANEL_IDS: Readonly<Record<string, string>> = {
+  'visao-geral': 'overview',
+  geral: 'channels',
+  canais: 'channels',
+  dms: 'directMessages',
+  equipe: 'team',
+  'org-chart': 'orgChart',
+  'team-health': 'teamHealth',
+  projetos: 'projects',
+  kanban: 'kanban',
+  rotinas: 'routines',
+  conhecimento: 'knowledge',
+  'segundo-cerebro': 'secondBrain',
+  arquivos: 'files',
+  uso: 'usage',
+  conexoes: 'connections',
+  aprovacoes: 'approvals',
+  regras: 'rules',
+  membros: 'members',
+  importar: 'importers',
+  canvas: 'canvas',
+}
+
 const MORE_PANELS = new Set(['membros', 'importar', 'canvas'])
 const COMPANY_PANELS = new Set(['conhecimento', 'segundo-cerebro', 'arquivos', 'uso', 'conexoes', 'regras'])
 const TEAM_PANELS = new Set(['equipe', 'org-chart', 'team-health'])
@@ -104,6 +132,37 @@ function escapeRegExp(value: string): string {
 }
 
 /**
+ * NAV-SPEC A-1 resolution (Prism, 04/11): to reach ANY `MainPanelId`
+ *  1. a rail item whose entry screen is the id: `[data-nav-panel="<id>"]` → click;
+ *  2. otherwise the place that contains it: `[data-nav-contains~="<id>"]` → click, then its tab `[data-tab-panel="<id>"]` (tabs exist only
+ *     while the place is open; no tab means the place already opened on that screen);
+ *  3. otherwise the caller falls back to the visible label (legacy rail).
+ * @returns `true` when it navigated by id.
+ */
+async function navigateByPanelId(page: Page, spec: GalleryPanelSpec, panelId: string): Promise<boolean> {
+  const direct = page.locator(`[data-nav-panel="${panelId}"]`).first()
+  const place = page.locator(`[data-nav-contains~="${panelId}"]`).first()
+  if (await direct.count() > 0) {
+    await direct.scrollIntoViewIfNeeded({ timeout: 60_000 }).catch(() => {})
+    await direct.click({ timeout: 60_000 })
+  } else if (await place.count() > 0) {
+    await place.scrollIntoViewIfNeeded({ timeout: 60_000 }).catch(() => {})
+    await place.click({ timeout: 60_000 })
+    const tab = page.locator(`[data-tab-panel="${panelId}"]`).first()
+    await tab.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {})
+    if (await tab.count() > 0) await tab.click({ timeout: 30_000 })
+  } else {
+    return false
+  }
+  if (spec.slug === 'geral') {
+    const geral = page.getByRole('button', { name: '#geral' })
+    if (await geral.count() > 0) await geral.first().click({ timeout: 30_000 }).catch(() => {})
+  }
+  await waitAfterNavigation(page, spec)
+  return true
+}
+
+/**
  * Navigate via Muse grouped rail (expand "Mais" when needed).
  */
 export async function navigateGalleryPanel(page: Page, spec: GalleryPanelSpec): Promise<void> {
@@ -129,6 +188,9 @@ export async function navigateGalleryPanel(page: Page, spec: GalleryPanelSpec): 
     return
   }
 
+  const panelId = PANEL_IDS[spec.slug]
+  if (panelId !== undefined && spec.kind === 'nav' && await navigateByPanelId(page, spec, panelId)) return
+
   if (TEAM_PANELS.has(spec.slug)) await ensureNavGroupExpanded(page, 'team', 'Equipe')
   if (WORK_PANELS.has(spec.slug)) await ensureNavGroupExpanded(page, 'work', 'Trabalho')
   if (COMPANY_PANELS.has(spec.slug)) await ensureNavGroupExpanded(page, 'company', 'Empresa')
@@ -147,6 +209,10 @@ export async function navigateGalleryPanel(page: Page, spec: GalleryPanelSpec): 
     else await page.getByText('#geral').first().click({ timeout: 30_000 }).catch(() => {})
   }
 
+  await waitAfterNavigation(page, spec)
+}
+
+async function waitAfterNavigation(page: Page, spec: GalleryPanelSpec): Promise<void> {
   if (spec.slug === 'geral' || spec.slug === 'canais') {
     await waitForGeralComposer(page, 90_000)
   } else if (spec.readySelector !== undefined) {

@@ -1,5 +1,46 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-04 16:00 — Lote Muse/Gauge/Keel: SW-8, PB-5, SB-5/SB-7, BYC-4, Revisar (WIRE), honestidade da tela, botões mortos (verde no check-pkg; capturas depois da janela)
+
+**Estado:** `check-pkg client-ui-persona` OK (~15:55). Testes dos 14 arquivos que toquei: 82/82. Suíte do pacote na última rodada: 3 falhas, 2 minhas já corrigidas (`boards-home`, BYC-4d) e 1 do rail do Prism (`rail-ai-status`). `wire-contract` do Gauge: **0 desvios do meu lado** (111 chamadas, 49 tipos). Sem commit. Locales gerados em janela exclusiva (D-067). Capturas, galeria e axe: depois da janela de estabilidade do Keel (bundle `--exclusive`).
+
+### Decisões (DECISIONS-SPEC) — regra 4 corrigida pela Muse
+- `derive-decisions.ts`: **um cartão pendente nunca some por falta de dado.** Saiu o filtro "contratação sem motivo não aparece" (2 pontos); sem `reason` o cartão aparece sem a linha "Por quê" (só com o `reason` explícito do host). Testes `decisions-unified` e `decisions-cycle` agora afirmam isso.
+- `approval-brain-scope.ts` (Anvil): lembrar permissão usa **`permissionAction`/`permissionTarget` do host** (recurso estável `vault:<recordId>`); sem eles não se oferece "lembrar" (nunca um alvo inventado de `kind:id`). Teste novo `approval-brain-scope`.
+- **Em aberto:** na rodada claro 960 do app real a contagem voltou a "4 pendentes" depois de aprovar uma skill (a rodada seguinte, zoom 200, passou). Instrumentei o cenário (títulos antes/depois, releitura tardia, log do seed) em `lumen-viewport-shots.mjs`; falta rodar com o bundle novo. Hipótese: a primeira página da rodada ainda era servida durante o seed/boot do host.
+
+### SW-8 / Revisar (WIRE-2/3 do Keel e do Gauge)
+- `data/persona-review-remote.ts`: os tipos do wire **são os do host** (`TicketCommandRequest`, `AcceptReviewRequest`, `RequestChangesRequest`) — o `tsc` agora enxerga `command`/`reason`, `mode: 'ff'|'squash'` e `conflicts[]`.
+- `KanbanReviewSheet`: `reviewSummary` manda `command:'reevaluate'` + `reason`; `discardReview` manda `command:'dismiss'` + `reason`. O conflito de pasta é **ida e volta com o host**: Aplicar → `blocked` com `conflicts[{path,user,persona}]` → a tela mostra a escolha só desses arquivos → a resposta volta como `conflicts[{…versões mostradas, choice: keep_mine|keep_persona|keep_both}]` (nunca mais `choices`, que o host descartava em silêncio). Se a pessoa já respondeu todos, reenvia direto. Testes: `kanban-review-sheet` (contrato: command+reason, 2 chamadas, sem `"choices"`, mapeamento mine/theirs/both).
+- Arte da Muse (SW-7): `conflito-mesmo-arquivo` no conflito, `empty-historico` (240) no Histórico vazio, `rascunho-trabalhando` (240) em "Preparando as mudanças…".
+- `history-remote.ts`: o handle da tela virou `ProjectHistoryClient` (não é wire; o comparador do Gauge lia `list/undo` como Remote).
+
+### PB-5 Quadros
+- `ProjectBoardCard`: texto visível **"X de Y prontas"** + `CategoryBar` com `progress` (role progressbar, `aria-valuenow/max/text`), legenda por categoria, sprint, **"N trabalham agora"** com retratos; projeto **vazio** = "Nada no quadro ainda" + **"Criar a primeira tarefa"** (abre a conversa com a equipe; o clique não abre o quadro). `primitives/Board.tsx`: `CategoryBar` ganhou a prop opcional `progress` (aditiva). Teste `boards-project-card` (6) e `boards-home` atualizado.
+- **Novo projeto (Gauge PB-9 #2/#3):** o modal pede o **nome** e chama `createProject({id,name,template})` (antes trocava o fluxo do projeto "Pessoal"); a lista relê os projetos e **o cartão lê o modelo real de cada projeto** (`getProjectBoard.workflow.template`), então a etiqueta não fica velha. **"Nova tarefa"** do quadro (bug do Prism/Gauge) abre a conversa com a equipe e o botão só existe com ação (`onNewTask`).
+
+### SB-5 / SB-7 Segundo cérebro
+- Ids para gente: `person:owner` → "Você"/nome, `grant:owner` some das fontes, página de permissão vira "Responder no WhatsApp: clientes aprovados", ação/alvo em palavras também em Permissões; "índice automático" → "atualizado sozinho"; **"Comece aqui"** mostra as 2 primeiras linhas da página + **Abrir** (não repete o título); alvo de toque ≥ 24 px (`.brainPageLink`).
+- **Citada em** com a direção certa (páginas que citam esta); **Restaurar** versão (só nas antigas) e o histórico atualiza ao salvar; histórico com nomes; **Nova página** sempre visível (diálogo com título e tipo; sem `window.prompt`); o **bibliotecário** é a persona com a função (`librarian`), sem Atlas fixo. Testes: `second-brain-shell` (3), `second-brain-home`, `brain-ui-adapters`.
+- **Não feito:** SB-4 (exportar/importar a pasta: nenhum componente chama `exportBrainVault`/`importBrainVault`) — depois da janela.
+
+### BYC-4 / Importadores
+- **Laço de "Escolher pasta"** (Gauge, ALTA): o efeito dependia de `t` (função nova a cada render) e de `scope`; agora `t` é estável, deps primitivas e guarda contra resposta tardia. Teste: a pasta é lida **1×** mesmo com re-render (`bring-context-import-page`).
+- **Depois de gravar:** "N itens no Cofre ✓" + "Ver no Cofre" (antes voltava ao início em silêncio).
+- **BYC-4d (decisão da Muse):** **regras chegam NÃO aceitas** (`defaultChoice` pendente só p/ `constraint`); "Aceitar todas as regras (n)" no cabeçalho do grupo; "Falta/Faltam n regra(s) para você escolher"; "Regras sem escolha não entram"; o apply manda `discard` explícito. "Aceitar os limpos" nunca aceita regra. `ProposalDecision` ganhou `'pending'` (primitivo da Muse, aditivo).
+- Galeria (`lumen-review-gallery`) ganhou os estados `byc-review` (aceitar, editar, descartar, privado, duplicado, conflito com decisão fixada, incerto, sensível), `boards`, `boards-empty-only`, `second-brain`, `review-loading`.
+
+### Honestidade e fidelidade
+- `initiative:<id>` (nome interno da rotina de iniciativa) → "Iniciativa de {persona}" em Saúde, Teste dos 2 dias e Rotinas (`humanize-ids.ts`; só texto de tela, ids de chamada intactos). Uso › Por persona usa o nome. Plural real em `preset.estimate` + **guarda** (`locale-plural-guard`: nenhum "(s)/(ns)/(ões)" em `locale-sources`).
+- **Botões que não faziam nada** (varredura da Quill): Memória (aprovar/editar/esquecer com confirmação, ligados a `approveMemory/editMemory/forgetMemory`), Rotinas ("Adicionar janela" com formulário → `putQuietWindow`), Conhecimento (editar/aprovar/dispensar) e Arquivos (abrir/baixar): **só aparecem com ação**; sem host, somem.
+- Rail: busca com tokens sólidos (`--persona-rail-field/-hover/-kbd`) e item ativo com o creme no próprio botão (axe do rail 0, confirmado pela Muse nos itens anteriores).
+- Scripts de captura (Keel, D-067 add.): esperam `[data-persona-shell]` (15 s), print < 10 KB é **falha**, sem `PERSONA_VAULT_TEST_CIPHER`, relatório com horário e console, boot falho vira falha do passe (não derruba a rodada).
+
+### Limitações / pedidos
+1. **Anvil:** `BoardSummaryView` sem `template` (a tela faz N chamadas `getProjectBoard`); `undoApproval` ainda não existe (o Desfazer de decisões só aparece com ele); Forge/Anvil: id de proposta do BYC colide em itens que começam igual (Gauge).
+2. **Prism:** `SprintPlanningView` com `Avatar size={20}` (mínimo 24); testes `close-sprint-pb7`; A-1 (abas): preciso da API do anfitrião de abas.
+3. Arquivos e conexões do host que não existem hoje (abrir/baixar arquivo) ficam sem botão em vez de botão morto.
+
 ## 2026-11-04 15:40 — DECISIONS-SPEC (fonte única, mesmo ciclo) + UX-PHASE #3 Conexões + varredura 960×640/200% (capturas do "depois" pendentes na trava)
 
 **DECISIONS-SPEC (UX-PHASE item 4, com a Muse):**

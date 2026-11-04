@@ -387,7 +387,7 @@ export function ConnectionsView({
             <Card key={group.provider} padding="l" className={styles.providerCard}>
               <div className={styles.providerHead}>
                 <span className={styles.seal} aria-hidden="true">
-                  <EngineBrandIcon engineId={group.provider} size={22} />
+                  <EngineBrandIcon engineId={group.provider} size={44} />
                 </span>
                 <h3 className={styles.providerName}>{group.providerName}</h3>
                 {onOpenGuide !== undefined && (

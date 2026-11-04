@@ -56,9 +56,13 @@ export function SprintBand({
         dateLabel={sprint.startsAt !== undefined && sprint.endsAt !== undefined
           ? t('sprint.dates', { start: sprint.startsAt, end: sprint.endsAt })
           : ''}
-        remainingLabel={daysLeft !== undefined && daysLeft <= 0
-          ? t('sprint.overdue')
-          : t('sprint.daysLeft', { count: daysLeft ?? 0 })}
+        remainingLabel={daysLeft === undefined
+          ? ''
+          : daysLeft <= 0
+            ? t('sprint.overdue')
+            : daysLeft === 1
+              ? t('sprint.daysLeft.one')
+              : t('sprint.daysLeft', { count: daysLeft })}
         remainingTone={remainingTone}
         done={doneCount}
         total={totalCount}

@@ -6,7 +6,7 @@ import { Button, EmptyState, ErrorState, Skeleton } from '../primitives/index.ts
 import { bindLocale, type LocaleDict } from '../preview/locale-bind.ts'
 import styles from './Kanban.module.css'
 
-export type LumenEmptyIllustration = 'empty-kanban' | 'empty-connections' | 'empty-sem-ia' | 'empty-vault' | 'empty-routines' | 'empty-inbox' | 'bibliotecario'
+export type LumenEmptyIllustration = 'empty-kanban' | 'empty-connections' | 'empty-sem-ia' | 'empty-vault' | 'empty-routines' | 'empty-inbox' | 'bibliotecario' | 'empty-historico'
 
 export interface PersonaSurfaceProps {
   readonly dict: LocaleDict
@@ -15,6 +15,8 @@ export interface PersonaSurfaceProps {
   readonly hintKey?: string
   readonly primaryKey?: string
   readonly onPrimary?: () => void
+  /** Longest side of the art in px (EmptyState `artSize`). */
+  readonly artSize?: number | undefined
 }
 
 /** Empty state with Brush illustration. */
@@ -25,12 +27,14 @@ export function PersonaSurfaceEmpty({
   hintKey,
   primaryKey,
   onPrimary,
+  artSize,
 }: PersonaSurfaceProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const illustration = ILLUSTRATIONS[illustrationKey]
   return (
     <EmptyState
       illustration={illustration}
+      {...(artSize === undefined ? {} : { artSize })}
       title={t(titleKey)}
       body={hintKey === undefined ? undefined : t(hintKey)}
       // No dead controls (DESIGN-SYSTEM §9): the CTA only exists when something will happen.

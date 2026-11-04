@@ -17,6 +17,9 @@ export interface SprintPlanningState {
   readonly setSelectedSprintId: (id: string | null) => void
   readonly addSelectedToSprint: () => void
   readonly removeSelectedFromSprint: () => void
+  /** Arrastar e soltar: manda a tarefa direto, sem passar pela seleção. */
+  readonly moveToSprint: (ticketId: string) => void
+  readonly moveToBacklog: (ticketId: string) => void
   readonly backlogCards: readonly FlowCardModel[]
   readonly sprintCards: readonly FlowCardModel[]
 }
@@ -129,6 +132,16 @@ export function useSprintPlanningState(
     setSelectedSprintId(null)
   }, [selectedSprintId])
 
+  const moveToSprint = useCallback((ticketId: string) => {
+    setTicketIds(prev => (prev.includes(ticketId) ? prev : [...prev, ticketId]))
+    setSelectedBacklogId(current => (current === ticketId ? null : current))
+  }, [])
+
+  const moveToBacklog = useCallback((ticketId: string) => {
+    setTicketIds(prev => prev.filter(id => id !== ticketId))
+    setSelectedSprintId(current => (current === ticketId ? null : current))
+  }, [])
+
   if (!enabled || board === null) return null
 
   return {
@@ -143,6 +156,8 @@ export function useSprintPlanningState(
     setSelectedSprintId,
     addSelectedToSprint,
     removeSelectedFromSprint,
+    moveToSprint,
+    moveToBacklog,
     backlogCards,
     sprintCards,
   }

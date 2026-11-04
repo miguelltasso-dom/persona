@@ -26,6 +26,10 @@ export interface KnowledgeVaultProps {
   readonly onUploadDocument?: ((file: File) => Promise<void>) | undefined
   readonly onReplaceDocument?: ((documentId: string, file: File) => Promise<void>) | undefined
   readonly onDeleteDocument?: ((documentId: string) => Promise<void>) | undefined
+  /** Row actions of records and proposals. A missing one means no button. */
+  readonly onEditRecord?: ((recordId: string) => void) | undefined
+  readonly onApproveProposal?: ((proposalId: string) => void) | undefined
+  readonly onDismissProposal?: ((proposalId: string) => void) | undefined
 }
 
 function typeLabel(dict: LocaleDict, type: KnowledgeRecord['type']): string {
@@ -79,6 +83,9 @@ export function KnowledgeVault({
   onUploadDocument,
   onReplaceDocument,
   onDeleteDocument,
+  onEditRecord,
+  onApproveProposal,
+  onDismissProposal,
 }: KnowledgeVaultProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [tab, setTab] = useState<KnowledgeTab>('records')
@@ -204,7 +211,9 @@ export function KnowledgeVault({
                   {' · '}
                   {t('field.author', { name: record.author })}
                 </p>
-                <Button variant="ghost" size="s">{t('action.edit')}</Button>
+                {onEditRecord !== undefined && (
+                  <Button variant="ghost" size="s" onClick={() => { onEditRecord(record.id) }}>{t('action.edit')}</Button>
+                )}
               </Card>
             </li>
           ))}
@@ -293,10 +302,16 @@ export function KnowledgeVault({
                 <h2 className={styles.itemTitle}>{proposal.recordTitle}</h2>
                 <p className={styles.excerpt}>{proposal.summary}</p>
                 <p className={styles.meta}>{t('field.author', { name: proposal.proposer })}</p>
-                <div className={styles.actions}>
-                  <Button variant="primary" size="s">{t('proposal.approve')}</Button>
-                  <Button variant="secondary" size="s">{t('proposal.dismiss')}</Button>
-                </div>
+                {(onApproveProposal !== undefined || onDismissProposal !== undefined) && (
+                  <div className={styles.actions}>
+                    {onApproveProposal !== undefined && (
+                      <Button variant="primary" size="s" onClick={() => { onApproveProposal(proposal.id) }}>{t('proposal.approve')}</Button>
+                    )}
+                    {onDismissProposal !== undefined && (
+                      <Button variant="secondary" size="s" onClick={() => { onDismissProposal(proposal.id) }}>{t('proposal.dismiss')}</Button>
+                    )}
+                  </div>
+                )}
               </Card>
             </li>
           ))}

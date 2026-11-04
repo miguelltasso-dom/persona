@@ -18,6 +18,8 @@ export interface GlobalKanbanProps {
   readonly initialState?: KanbanSurfaceState
   readonly onOpenReview?: (card: KanbanCardModel) => void
   readonly onRemoteRetry?: () => void
+  /** Where a new task starts. Without it the button is not drawn. */
+  readonly onNewTask?: (() => void) | undefined
 }
 
 function columnLabelsFromDict(dict: LocaleDict): Record<KanbanColumnId, string> {
@@ -48,6 +50,7 @@ export function GlobalKanban({
   initialState = 'ready',
   onOpenReview,
   onRemoteRetry,
+  onNewTask,
 }: GlobalKanbanProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [allCards, setAllCards] = useState<readonly KanbanCardModel[]>(initialCards)
@@ -82,8 +85,8 @@ export function GlobalKanban({
         eyebrow={t('header.eyebrow')}
         title={t('title.global')}
         subtitle={t('subtitle.global')}
-        actions={(
-          <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />}>
+        actions={onNewTask === undefined ? undefined : (
+          <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />} onClick={() => { onNewTask() }}>
             {t('action.newTask')}
           </Button>
         )}

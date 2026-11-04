@@ -71,10 +71,17 @@ export function WorkflowEditorModal({
     setDraft(prev => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)))
   }
 
+  /**
+   * Tarefas que já foram mandadas PARA esta coluna por colunas removidas antes: se ela também for removida,
+   * essas tarefas precisam de um novo destino (senão o destino escolhido antes deixa de existir e o cartão fica sem coluna).
+   */
+  const inboundCount = (columnId: string): number => Object.entries(destByRemoved)
+    .reduce((sum, [removedId, destId]) => (destId === columnId ? sum + (ticketCountByColumn[removedId] ?? 0) : sum), 0)
+
   const tryRemoveColumn = (index: number): void => {
     const row = draft[index]
     if (row === undefined) return
-    const count = ticketCountByColumn[row.id] ?? 0
+    const count = (ticketCountByColumn[row.id] ?? 0) + inboundCount(row.id)
     if (count > 0) {
       setPendingRemove({ id: row.id, name: row.name, count })
       return
@@ -84,7 +91,13 @@ export function WorkflowEditorModal({
 
   const confirmRemove = (destinationId: string): void => {
     if (pendingRemove === null) return
-    setDestByRemoved(prev => ({ ...prev, [pendingRemove.id]: destinationId }))
+    // As colunas já removidas que apontavam para esta passam a apontar para o novo destino.
+    setDestByRemoved((prev) => {
+      const next: Record<string, string> = {}
+      for (const [removedId, destId] of Object.entries(prev)) next[removedId] = destId === pendingRemove.id ? destinationId : destId
+      next[pendingRemove.id] = destinationId
+      return next
+    })
     setDraft(prev => prev.filter(column => column.id !== pendingRemove.id))
     setPendingRemove(null)
   }

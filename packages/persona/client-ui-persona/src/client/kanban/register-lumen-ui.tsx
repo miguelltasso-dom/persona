@@ -229,6 +229,7 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
       clearBoardsFocusProject: () => { shell?.clearBoardsFocusProject() },
       clearKanbanFocusTicket: () => { shell?.clearKanbanFocusTicket() },
       setProjectWorkspaceProjectId: (projectId: string | null) => { shell?.setProjectWorkspaceProjectId(projectId) },
+      ...(shell?.selectPanel === undefined ? {} : { selectMainPanel: (panel: 'channels') => { shell.selectPanel(panel) } }),
       ...(shell?.personaCard === undefined
         ? {}
         : {

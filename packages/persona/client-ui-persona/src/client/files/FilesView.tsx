@@ -21,6 +21,9 @@ export interface FilesViewProps {
   /** PB-5: project opened from Quadros workspace tabs. */
   readonly scopeProjectId?: string | null
   readonly onEmptyPrimary?: (() => void) | undefined
+  /** Row actions. A missing one means no button (the host has no way to open or download a file yet). */
+  readonly onOpenFile?: ((fileId: string) => void) | undefined
+  readonly onDownloadFile?: ((fileId: string) => void) | undefined
 }
 
 /** File list with open/download actions (host-backed). */
@@ -32,6 +35,8 @@ export function FilesView({
   onRemoteRetry,
   scopeProjectId = null,
   onEmptyPrimary,
+  onOpenFile,
+  onDownloadFile,
 }: FilesViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -130,7 +135,9 @@ export function FilesView({
               <th scope="col">{t('column.project')}</th>
               <th scope="col">{t('column.updated')}</th>
               <th scope="col">{t('column.size')}</th>
-              <th scope="col"><span className={styles.srOnly}>{t('column.actions')}</span></th>
+              {(onOpenFile !== undefined || onDownloadFile !== undefined) && (
+                <th scope="col"><span className={styles.srOnly}>{t('column.actions')}</span></th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -140,12 +147,18 @@ export function FilesView({
                 <td>{file.projectName}</td>
                 <td>{file.updatedAt}</td>
                 <td>{file.sizeLabel}</td>
-                <td>
-                  <div className={styles.rowActions}>
-                    <Button variant="ghost" size="s">{t('action.open')}</Button>
-                    <Button variant="ghost" size="s">{t('action.download')}</Button>
-                  </div>
-                </td>
+                {(onOpenFile !== undefined || onDownloadFile !== undefined) && (
+                  <td>
+                    <div className={styles.rowActions}>
+                      {onOpenFile !== undefined && (
+                        <Button variant="ghost" size="s" onClick={() => { onOpenFile(file.id) }}>{t('action.open')}</Button>
+                      )}
+                      {onDownloadFile !== undefined && (
+                        <Button variant="ghost" size="s" onClick={() => { onDownloadFile(file.id) }}>{t('action.download')}</Button>
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

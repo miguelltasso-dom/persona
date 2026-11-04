@@ -1,8 +1,10 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { ENGINE_ICONS } from '../assets/generated-imports.ts'
-import iconStyles from '../primitives/Icon.module.css'
 
-/** Brush engine seal (ENGINE_ICONS) tinted with currentColor. */
+/**
+ * Brush engine seal (ENGINE_ICONS) in its own colours. These SVGs carry their own disc and outline, so they are drawn as an
+ * image: used as a mask they flatten into one lilac disc, and the provider is no longer recognisable.
+ */
 export function EngineBrandIcon({ engineId, size = 22, className }: {
   readonly engineId: string
   readonly size?: number
@@ -10,10 +12,5 @@ export function EngineBrandIcon({ engineId, size = 22, className }: {
 }): ReactNode {
   const url = ENGINE_ICONS[engineId]
   if (url === undefined) return null
-  const style = {
-    '--persona-icon-url': `url("${url}")`,
-    '--persona-icon-size': `${size}px`,
-  } as CSSProperties
-  const merged = className === undefined ? iconStyles.brand : `${iconStyles.brand} ${className}`
-  return <span className={merged} style={style} aria-hidden="true" />
+  return <img className={className} src={url} width={size} height={size} alt="" aria-hidden="true" draggable={false} />
 }

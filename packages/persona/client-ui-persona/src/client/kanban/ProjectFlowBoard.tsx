@@ -28,6 +28,8 @@ export interface ProjectFlowBoardProps {
   readonly onMoveCard?: (ticketId: string, columnId: string) => void
   readonly onOpenReview?: (ticketId: string) => void
   readonly onRetry?: () => void
+  /** Where a new task starts. Without it the button is not drawn. */
+  readonly onNewTask?: (() => void) | undefined
   readonly onPlanSprint?: () => void
   readonly onConfirmCloseSprint?: (leftover: 'next' | 'backlog') => void
   readonly workflowFields?: readonly WorkflowFieldView[]
@@ -60,6 +62,7 @@ export function ProjectFlowBoard({
   onMoveCard,
   onOpenReview,
   onRetry,
+  onNewTask,
   onPlanSprint,
   onConfirmCloseSprint,
   workflowFields = [],
@@ -88,6 +91,17 @@ export function ProjectFlowBoard({
     : flow.cards.filter(card => sprintTicketIds.has(card.id))
   const doneCount = sprintCards.filter(card => card.column === 'done').length
   const rolledCount = sprintCards.filter(card => card.column !== 'done').length
+  const contributors = (() => {
+    const byPerson = new Map<string, { id: string; name: string; count: number }>()
+    for (const card of sprintCards) {
+      if (card.column !== 'done' || card.assignee === undefined) continue
+      const row = byPerson.get(card.assignee.id) ?? { id: card.assignee.id, name: card.assignee.name, count: 0 }
+      row.count += 1
+      byPerson.set(card.assignee.id, row)
+    }
+    return [...byPerson.values()].sort((a, b) => b.count - a.count)
+  })()
+  const leftoverTasks = sprintCards.filter(card => card.column !== 'done').map(card => ({ id: card.id, title: card.title }))
   const ticketCountByColumn = ticketCountByColumnId(flow.cards)
 
   return (
@@ -131,7 +145,9 @@ export function ProjectFlowBoard({
             >
               {t('action.editFlow')}
             </Button>
-            <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />}>{t('action.newTask')}</Button>
+            {onNewTask !== undefined && (
+              <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />} onClick={() => { onNewTask() }}>{t('action.newTask')}</Button>
+            )}
           </>
         )}
       />
@@ -192,8 +208,9 @@ export function ProjectFlowBoard({
           dict={dict}
           sprintName={currentSprint.name}
           delivered={doneCount}
-          late={0}
           rolled={rolledCount}
+          contributors={contributors}
+          leftoverTasks={leftoverTasks}
           onClose={() => { setCloseSprintOpen(false) }}
           onConfirm={(leftover) => {
             setCloseSprintOpen(false)

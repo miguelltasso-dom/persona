@@ -5,7 +5,7 @@ import { FLOW_MODELS, flowModelLabel } from '../boards/flow-models.ts'
 import type { FlowModelId } from '../boards/types.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Button, Card, FlowIcon, Modal } from '../primitives/index.ts'
+import { Button, Card, FlowIcon, Input, Modal } from '../primitives/index.ts'
 import styles from './Kanban.module.css'
 
 const HOST_TEMPLATE: Record<FlowModelId, 'contratacao' | 'site' | 'software' | 'marketing' | 'atendimento' | 'simples' | 'em_branco'> = {
@@ -21,12 +21,17 @@ const HOST_TEMPLATE: Record<FlowModelId, 'contratacao' | 'site' | 'software' | '
 export interface NewProjectFlowModalProps {
   readonly dict: LocaleDict
   readonly onClose: () => void
-  readonly onSelectTemplate: (template: 'contratacao' | 'site' | 'software' | 'marketing' | 'atendimento' | 'simples' | 'em_branco') => void | Promise<void>
+  /** Creates the project: its name and the flow it starts with. A rejection is shown to the person as a sentence. */
+  readonly onSelectTemplate: (template: 'contratacao' | 'site' | 'software' | 'marketing' | 'atendimento' | 'simples' | 'em_branco', name: string) => void | Promise<void>
 }
 
 export function NewProjectFlowModal({ dict, onClose, onSelectTemplate }: NewProjectFlowModalProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [selected, setSelected] = useState<FlowModelId>('site')
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const defaultName = flowModelLabel(dict, selected)
 
   return (
     <Modal
@@ -41,13 +46,27 @@ export function NewProjectFlowModal({ dict, onClose, onSelectTemplate }: NewProj
           <Button variant="ghost" onClick={onClose}>{t('editor.discard')}</Button>
           <Button
             variant="primary"
-            onClick={() => { void onSelectTemplate(HOST_TEMPLATE[selected]) }}
+            loading={busy}
+            onClick={() => {
+              setBusy(true)
+              setFailed(false)
+              void Promise.resolve(onSelectTemplate(HOST_TEMPLATE[selected], name.trim() === '' ? defaultName : name.trim()))
+                .catch(() => { setFailed(true) })
+                .finally(() => { setBusy(false) })
+            }}
           >
             {t('newProject.confirm')}
           </Button>
         </>
       )}
     >
+      <Input
+        label={t('newProject.nameLabel')}
+        value={name}
+        placeholder={defaultName}
+        maxLength={80}
+        onChange={(event) => { setName(event.target.value) }}
+      />
       <div className={styles.modelGrid}>
         {FLOW_MODELS.map(model => (
           <Card
@@ -72,6 +91,7 @@ export function NewProjectFlowModal({ dict, onClose, onSelectTemplate }: NewProj
           </Card>
         ))}
       </div>
+      {failed && <p role="alert">{t('newProject.failed')}</p>}
     </Modal>
   )
 }

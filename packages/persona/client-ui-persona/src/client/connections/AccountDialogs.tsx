@@ -70,6 +70,8 @@ export function AddAccountDialog({
 
   const seat = savedLabel === null ? undefined : accounts.find(row => row.accountLabel === savedLabel)
   const command = seat?.loginCommand
+  // The host composes a PowerShell command on Windows; anything else is just "the terminal".
+  const shellName = command?.includes('$env:') === true ? 'PowerShell' : 'terminal'
   const ready = confirmed && command !== undefined && seat !== undefined && seat.status === 'ready' && seat.errorCode === undefined
   const step = savedLabel === null ? 1 : ready ? 3 : 2
 
@@ -145,27 +147,35 @@ export function AddAccountDialog({
     body = (
       <div className={styles.steps}>
         <p className={styles.lead}>{t('account.add.loginTitle', { label: shownLabel })}</p>
-        <ol className={styles.stepList}>
-          <li>{t('account.add.loginStep1')}</li>
-          {command === undefined ? null : (
-            <li>
-              {t('account.add.loginStep2', { label: shownLabel })}
-              <div className={styles.commandRow}>
-                <code className={styles.command} tabIndex={0}>{command}</code>
-                <Button
-                  size="s"
-                  variant="secondary"
-                  icon={<UiIcon name={copied ? 'check' : 'copy'} size={16} />}
-                  onClick={copy}
-                >
-                  {copied ? t('account.add.copied') : t('account.add.copy')}
-                </Button>
-              </div>
-              <span className={styles.stepNote}>{t('account.add.isolatedNote')}</span>
-            </li>
-          )}
-          {command === undefined ? null : <li>{t('account.add.loginStep3')}</li>}
-        </ol>
+        {command !== undefined && (
+          <>
+            <ol className={styles.stepList}>
+              <li>{t('account.add.loginStep1', { shell: shellName })}</li>
+              <li>
+                {t('account.add.loginStep2')}
+                {/* The button sits WITH the step it belongs to, so it is in view in a small window (no scrolling to find it).
+                    Copy is the first thing to do, so it is the primary until done; then "Já fiz login" takes over. */}
+                <div className={styles.commandRow}>
+                  <Button
+                    size="m"
+                    variant={copied ? 'secondary' : 'primary'}
+                    icon={<UiIcon name={copied ? 'check' : 'copy'} size={16} />}
+                    onClick={copy}
+                  >
+                    {copied ? t('account.add.copied') : t('account.add.copy')}
+                  </Button>
+                </div>
+              </li>
+              <li>{t('account.add.loginStep3')}</li>
+            </ol>
+            <span className={styles.stepNote}>{t('account.add.isolatedNote')}</span>
+            {/* The whole command is for who wants to read it; nobody has to. */}
+            <details className={styles.commandDetails}>
+              <summary>{t('account.add.showCommand')}</summary>
+              <code className={styles.command} tabIndex={0}>{command}</code>
+            </details>
+          </>
+        )}
         {command === undefined && <Notice tone="warning">{t('account.add.noCommand', { label: shownLabel })}</Notice>}
         {recheckNote !== null && <p className={styles.recheck} role="status">{recheckNote}</p>}
         <p className={styles.later}>{t('account.add.laterHint')}</p>
@@ -175,7 +185,7 @@ export function AddAccountDialog({
       <>
         <Button variant="ghost" onClick={onClose}>{t('account.add.later')}</Button>
         {command !== undefined && onRecheck !== undefined && (
-          <Button variant="primary" loading={checking} disabled={checking} onClick={() => { setConfirmed(true); onRecheck() }}>
+          <Button variant={copied ? 'primary' : 'secondary'} loading={checking} disabled={checking} onClick={() => { setConfirmed(true); onRecheck() }}>
             {checking ? t('action.checking') : t('action.alreadyLoggedIn')}
           </Button>
         )}

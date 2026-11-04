@@ -91,17 +91,21 @@
   font-weight: 700;
 }
 
+/* The engine seal brings its own disc and outline (Brush): just give it room and a sticker shadow. */
 .seal {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  border: var(--persona-border-width) solid var(--persona-outline);
-  border-radius: var(--persona-radius-m);
-  background: var(--persona-wash-strong);
-  color: var(--persona-brand);
-  box-shadow: var(--persona-shadow-press);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  filter: drop-shadow(0 3px 0 rgb(52 36 63 / 0.18));
+}
+
+.seal img {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 @media (max-width: 960px) {

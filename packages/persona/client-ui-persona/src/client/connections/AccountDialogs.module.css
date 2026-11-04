@@ -89,6 +89,26 @@
   user-select: all;
 }
 
+.commandDetails {
+  margin: 0;
+}
+
+.commandDetails summary {
+  cursor: pointer;
+  font: 700 14px/20px var(--persona-font-text);
+  color: var(--persona-brand);
+}
+
+.commandDetails summary:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+  border-radius: var(--persona-radius-s);
+}
+
+.commandDetails .command {
+  margin-top: var(--persona-space-2);
+}
+
 .stepNote,
 .later {
   display: block;

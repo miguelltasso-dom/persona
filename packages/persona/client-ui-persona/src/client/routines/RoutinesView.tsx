@@ -38,6 +38,8 @@ export interface RoutinesViewProps {
   readonly scopeProjectId?: string | null
   /** UX-14: empty → "Pedir sugestões à coordenação" (opens the coordinator DM with a ready request). */
   readonly onAskSuggestions?: (() => void) | undefined
+  /** Saves a silence window ("22:00" – "07:00"). Without it the "Adicionar janela" button is not drawn. */
+  readonly onAddQuietWindow?: ((window: { readonly label: string; readonly start: string; readonly end: string }) => Promise<void>) | undefined
 }
 
 /** Weekly routine calendar preview. */
@@ -49,10 +51,17 @@ export function RoutinesView({
   onRemoteRetry,
   scopeProjectId = null,
   onAskSuggestions,
+  onAddQuietWindow,
 }: RoutinesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [surfaceState, setSurfaceState] = useState(initialState)
   const [teamPaused, setTeamPaused] = useState(false)
+  const [addingQuiet, setAddingQuiet] = useState(false)
+  const [quietLabel, setQuietLabel] = useState('')
+  const [quietStart, setQuietStart] = useState('22:00')
+  const [quietEnd, setQuietEnd] = useState('07:00')
+  const [quietBusy, setQuietBusy] = useState(false)
+  const [quietFailed, setQuietFailed] = useState(false)
 
   useEffect(() => {
     setSurfaceState(initialState)
@@ -152,7 +161,41 @@ export function RoutinesView({
             </li>
           ))}
         </ul>
-        <Button variant="secondary" size="s">{t('quiet.add')}</Button>
+        {onAddQuietWindow !== undefined && !addingQuiet && (
+          <Button variant="secondary" size="s" onClick={() => { setQuietFailed(false); setAddingQuiet(true) }}>{t('quiet.add')}</Button>
+        )}
+        {onAddQuietWindow !== undefined && addingQuiet && (
+          <form
+            className={styles.quietForm}
+            onSubmit={(event) => {
+              event.preventDefault()
+              setQuietBusy(true)
+              setQuietFailed(false)
+              void onAddQuietWindow({ label: quietLabel.trim() === '' ? t('quiet.defaultLabel') : quietLabel.trim(), start: quietStart, end: quietEnd })
+                .then(() => { setAddingQuiet(false); setQuietLabel('') })
+                .catch(() => { setQuietFailed(true) })
+                .finally(() => { setQuietBusy(false) })
+            }}
+          >
+            <label className={styles.quietField}>
+              <span>{t('quiet.label')}</span>
+              <input type="text" value={quietLabel} placeholder={t('quiet.defaultLabel')} onChange={(event) => { setQuietLabel(event.target.value) }} />
+            </label>
+            <label className={styles.quietField}>
+              <span>{t('quiet.from')}</span>
+              <input type="time" required value={quietStart} onChange={(event) => { setQuietStart(event.target.value) }} />
+            </label>
+            <label className={styles.quietField}>
+              <span>{t('quiet.to')}</span>
+              <input type="time" required value={quietEnd} onChange={(event) => { setQuietEnd(event.target.value) }} />
+            </label>
+            <div className={styles.quietActions}>
+              <Button variant="primary" size="s" type="submit" loading={quietBusy}>{t('quiet.save')}</Button>
+              <Button variant="secondary" size="s" type="button" disabled={quietBusy} onClick={() => { setAddingQuiet(false); setQuietFailed(false) }}>{t('quiet.cancel')}</Button>
+            </div>
+            {quietFailed && <p className={styles.quietFailed} role="alert">{t('quiet.failed')}</p>}
+          </form>
+        )}
       </Card>
     </Screen>
   )

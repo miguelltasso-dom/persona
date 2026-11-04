@@ -413,7 +413,7 @@
   padding: var(--persona-space-1);
   border-radius: var(--persona-radius-m, var(--persona-space-2));
   border: var(--persona-border-width, 1px) solid var(--persona-outline-soft);
-  background: var(--persona-paper-raised);
+  background: var(--persona-card-raised);
   box-shadow: var(--persona-shadow-lift, 0 8px 24px color-mix(in srgb, var(--persona-ink) 14%, transparent));
 }
 
@@ -599,7 +599,7 @@
   height: 1.75rem;
   border: none;
   border-radius: var(--persona-radius-s, 6px);
-  background: var(--persona-surface-raised);
+  background: var(--persona-card-raised);
   color: var(--persona-ink-muted);
   cursor: grab;
   padding: 0;
@@ -842,4 +842,179 @@
   .closeSprintStats {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Planejamento de sprint: linhas com checkbox (teclado), arrastar e soltar, filtros e capacidade (BOARDS-SPEC §3) ── */
+.planningRow {
+  border: var(--persona-border-width, 1.5px) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
+}
+
+.planningRow[draggable='true'] {
+  cursor: grab;
+}
+
+.planningRow[data-selected] {
+  border-color: var(--persona-brand);
+  background: var(--persona-wash);
+}
+
+.planningRow[data-dragging] {
+  opacity: 0.55;
+}
+
+.planningRowLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-2) var(--persona-space-3);
+  cursor: pointer;
+}
+
+.planningRowLabel:focus-within {
+  outline: 2px solid var(--persona-focus-ring, var(--persona-brand));
+  outline-offset: 2px;
+  border-radius: var(--persona-radius-m);
+}
+
+.planningCheck {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--persona-brand);
+}
+
+.planningAssignee {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  margin-left: auto;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-soft);
+}
+
+.planningFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.planFilterChip {
+  padding: var(--persona-space-1) var(--persona-space-3);
+  border-radius: var(--persona-radius-pill, 999px);
+  border: var(--persona-border-width, 1.5px) solid var(--persona-outline-soft);
+  background: var(--persona-paper-sunken);
+  color: var(--persona-ink);
+  font: 600 0.8125rem/1.25rem var(--persona-font-text);
+  cursor: pointer;
+}
+
+.planFilterChip[aria-pressed='true'] {
+  border-color: var(--persona-brand);
+  background: var(--persona-wash);
+}
+
+.planningColumn[data-drop-target] {
+  outline: 2px dashed var(--persona-brand);
+  outline-offset: 4px;
+  border-radius: var(--persona-radius-m);
+}
+
+.capacityList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capacityRow {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  font-size: 0.8125rem;
+}
+
+.capacityName {
+  min-width: 5rem;
+  color: var(--persona-ink);
+  font-weight: 600;
+}
+
+.capacityBar {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--persona-wash);
+  overflow: hidden;
+}
+
+.capacityBar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--persona-brand);
+}
+
+.capacityCount {
+  min-width: 4.5rem;
+  text-align: right;
+  color: var(--persona-ink-soft);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .planningRow {
+    transition: background-color var(--motion-fast, 120ms) var(--ease-standard, ease), opacity var(--motion-fast, 120ms) linear;
+  }
+}
+
+/* Encerrar sprint: quem fez o quê e as tarefas que ficaram (BOARDS-SPEC §4) */
+.closeSprintWho {
+  margin-top: var(--persona-space-4);
+}
+
+.closeSprintWhoTitle {
+  margin: 0 0 var(--persona-space-2);
+  font: 800 0.75rem/1rem var(--persona-font-text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.closeSprintWhoList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.closeSprintWhoItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  font-weight: 600;
+}
+
+.closeSprintWhoCount {
+  font-variant-numeric: tabular-nums;
+  color: var(--persona-ink-soft);
+}
+
+.closeSprintTasks {
+  margin-top: var(--persona-space-3);
+  color: var(--persona-ink);
+}
+
+.closeSprintTasks summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.closeSprintTasks ul {
+  margin: var(--persona-space-2) 0 0;
+  padding-left: var(--persona-space-5);
 }

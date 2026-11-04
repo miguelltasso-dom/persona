@@ -70,9 +70,9 @@
   "account.add.saving": "Guardando…",
   "account.add.error": "Não consegui guardar a conta agora. Tente de novo.",
   "account.add.loginTitle": "Entre na conta {label}",
-  "account.add.loginStep1": "Abra um terminal neste computador.",
-  "account.add.loginStep2": "Cole este comando e entre com a conta que vai ser a {label}:",
-  "account.add.loginStep3": "Volte aqui e confirme.",
+  "account.add.loginStep1": "Abra o {shell} neste computador.",
+  "account.add.loginStep2": "Cole o comando e aperte Enter.",
+  "account.add.loginStep3": "Faça o login na janela que abrir.",
   "account.add.isolatedNote": "O login fica numa pasta só desta conta. Sua conta principal não muda.",
   "account.add.noCommand": "A conta {label} já está guardada, mas esta versão ainda não gera o comando de login separado. Não use o login padrão: ele entraria na sua conta principal.",
   "account.add.later": "Terminar depois",
@@ -103,5 +103,6 @@
   "swapPolicy.personaOwn": "A regra de {name} vale só para ela e vem antes da regra da equipe.",
   "swapPolicy.noPersonas": "Quando você contratar uma persona, dá para escolher uma regra só para ela.",
   "swapPolicy.saved": "Regra salva.",
-  "swapPolicy.saveError": "Não consegui salvar a regra agora. Tente de novo."
+  "swapPolicy.saveError": "Não consegui salvar a regra agora. Tente de novo.",
+  "account.add.showCommand": "Ver o comando"
 }

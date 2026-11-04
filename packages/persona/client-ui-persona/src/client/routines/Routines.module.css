@@ -125,3 +125,48 @@
   color: var(--persona-ink-soft);
   margin: 0;
 }
+
+.quietForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-3);
+}
+
+.quietField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--persona-ink-soft);
+}
+
+.quietField input {
+  min-height: 36px;
+  padding: 0 var(--persona-space-2);
+  border: var(--persona-border-width, 1.5px) solid var(--persona-outline);
+  border-radius: var(--persona-radius-s, 10px);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  font: inherit;
+}
+
+.quietField input:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.quietActions {
+  display: flex;
+  gap: var(--persona-space-2);
+}
+
+.quietFailed {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-danger-ink, var(--persona-ink));
+}

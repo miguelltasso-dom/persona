@@ -70,9 +70,9 @@
   "account.add.saving": "Saving…",
   "account.add.error": "I could not save the account right now. Try again.",
   "account.add.loginTitle": "Sign in to the {label} account",
-  "account.add.loginStep1": "Open a terminal on this computer.",
-  "account.add.loginStep2": "Paste this command and sign in with the account that will be {label}:",
-  "account.add.loginStep3": "Come back here and confirm.",
+  "account.add.loginStep1": "Open {shell} on this computer.",
+  "account.add.loginStep2": "Paste the command and press Enter.",
+  "account.add.loginStep3": "Sign in in the window that opens.",
   "account.add.isolatedNote": "The sign-in stays in a folder just for this account. Your main account does not change.",
   "account.add.noCommand": "The {label} account is saved, but this version cannot generate the separate sign-in command yet. Do not use the default sign-in: it would sign in to your main account.",
   "account.add.later": "Finish later",
@@ -103,5 +103,6 @@
   "swapPolicy.personaOwn": "{name}'s rule applies only to them and comes before the team rule.",
   "swapPolicy.noPersonas": "Once you hire a persona you can pick a rule just for them.",
   "swapPolicy.saved": "Rule saved.",
-  "swapPolicy.saveError": "I could not save the rule right now. Try again."
+  "swapPolicy.saveError": "I could not save the rule right now. Try again.",
+  "account.add.showCommand": "See the command"
 }

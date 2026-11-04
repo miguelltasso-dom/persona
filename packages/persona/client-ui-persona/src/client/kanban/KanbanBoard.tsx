@@ -6,7 +6,8 @@ import { useKanbanFlip } from './use-kanban-flip.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
-import { Chip, EmptyState } from '../primitives/index.ts'
+import { Chip, EmptyState, FixedRowVirtualScroller } from '../primitives/index.ts'
+import { KANBAN_CARD_ROW_PX, KANBAN_COLUMN_VIRTUAL_MIN } from './kanban-virtual.ts'
 import { KanbanCard } from './KanbanCard.tsx'
 import styles from './Kanban.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from './PersonaSurface.tsx'
@@ -150,7 +151,36 @@ export function KanbanBoard({
                   title={t('empty.column')}
                 />
               )}
-              {columnCards.map(card => (
+              {columnCards.length >= KANBAN_COLUMN_VIRTUAL_MIN ? (
+                <FixedRowVirtualScroller
+                  {...(styles.columnVirtual === undefined ? {} : { className: styles.columnVirtual })}
+                  rowCount={columnCards.length}
+                  rowHeight={KANBAN_CARD_ROW_PX}
+                  getRowKey={index => columnCards[index]?.id ?? `col-${columnId}-row-${index}`}
+                  renderRow={(index) => {
+                    const card = columnCards[index]
+                    if (card === undefined) return null
+                    return (
+                      <div className={styles.columnVirtualSlot}>
+                        <KanbanCard
+                          dict={dict}
+                          card={card}
+                          draggingId={draggingId}
+                          showProject={showProjectOnCard}
+                          columnLabels={columnLabels}
+                          onDragStart={(id) => { onDragStart(id) }}
+                          onDragEnd={onDragEnd}
+                          {...(onMoveCard !== undefined
+                            ? { onMoveCard: (id: string, toColumn: KanbanColumnId) => { markLocalMove(id); onMoveCard(id, toColumn) } }
+                            : {})}
+                          {...(onOpenReview !== undefined ? { onOpenReview } : {})}
+                          {...(onRequestStatus !== undefined ? { onRequestStatus } : {})}
+                        />
+                      </div>
+                    )
+                  }}
+                />
+              ) : columnCards.map(card => (
                 <KanbanCard
                   key={card.id}
                   dict={dict}

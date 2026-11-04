@@ -8,8 +8,8 @@ import {
 } from '../boards/board-locale.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { BoardColumn, BoardColumns, Button } from '../primitives/index.ts'
-import { KanbanCard } from './KanbanCard.tsx'
+import { BoardColumn, BoardColumns, Button, FixedRowVirtualScroller } from '../primitives/index.ts'
+import { KanbanCard, type KanbanCardProps } from './KanbanCard.tsx'
 import { useKanbanCarry } from './use-kanban-carry.ts'
 import { useKanbanFlip } from './use-kanban-flip.ts'
 import type { FlowCardModel, FlowColumnModel } from './flow-types.ts'
@@ -18,6 +18,13 @@ import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from 
 import { PersonaCardPopoverHost, usePersonaCardController } from '../profile/PersonaCardPopoverHost.tsx'
 import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge.ts'
 import styles from './Kanban.module.css'
+
+import { KANBAN_CARD_ROW_PX, KANBAN_COLUMN_VIRTUAL_MIN } from './kanban-virtual.ts'
+
+/** @deprecated use {@link KANBAN_CARD_ROW_PX} */
+export const FLOW_KANBAN_CARD_ROW_PX = KANBAN_CARD_ROW_PX
+/** @deprecated use {@link KANBAN_COLUMN_VIRTUAL_MIN} */
+export const FLOW_KANBAN_VIRTUAL_MIN = KANBAN_COLUMN_VIRTUAL_MIN
 
 export interface FlowKanbanBoardProps {
   readonly dict: LocaleDict
@@ -33,6 +40,79 @@ export interface FlowKanbanBoardProps {
   readonly celebrationNode?: ReactNode
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
+}
+
+interface FlowColumnCardsProps {
+  readonly dict: LocaleDict
+  readonly columnCards: readonly FlowCardModel[]
+  readonly draggingId: string | null
+  readonly columnLabels: Record<KanbanColumnId, string>
+  readonly flowMoveTargets: readonly { readonly id: string; readonly label: string }[]
+  readonly columns: readonly FlowColumnModel[]
+  readonly onDragStart: (cardId: string) => void
+  readonly onDragEnd: () => void
+  readonly onMoveCard?: (ticketId: string, columnId: string) => void
+  readonly markLocalMove: (cardId: string) => void
+  readonly onOpenReview?: (ticketId: string) => void
+  readonly freshApprovalStampIds?: ReadonlySet<string>
+  readonly assigneeCardTrigger?: KanbanCardProps['assigneeCardTrigger']
+  readonly setLiveMessage: (message: string) => void
+  readonly t: (key: string, params?: Readonly<Record<string, string | number>>) => string
+}
+
+function renderFlowKanbanCard(props: FlowColumnCardsProps, card: FlowCardModel): ReactNode {
+  const {
+    dict, draggingId, columnLabels, flowMoveTargets, columns, onDragStart, onDragEnd, onMoveCard,
+    markLocalMove, onOpenReview, freshApprovalStampIds, assigneeCardTrigger, setLiveMessage, t,
+  } = props
+  return (
+    <KanbanCard
+      dict={dict}
+      card={card}
+      draggingId={draggingId}
+      showProject={false}
+      columnLabels={columnLabels}
+      flowMoveTargets={flowMoveTargets}
+      currentFlowColumnId={card.columnId}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onMoveFlowColumn={(ticketId, columnId) => {
+        markLocalMove(ticketId)
+        onMoveCard?.(ticketId, columnId)
+        const target = columns.find(row => row.id === columnId)
+        if (target !== undefined) setLiveMessage(t('flow.movedTo', { column: target.name }))
+      }}
+      {...(onOpenReview !== undefined ? { onOpenReview } : {})}
+      approvalStampFresh={freshApprovalStampIds?.has(card.id) ?? false}
+      {...(assigneeCardTrigger === undefined ? {} : { assigneeCardTrigger })}
+    />
+  )
+}
+
+function FlowColumnCards(props: FlowColumnCardsProps): ReactNode {
+  const { columnCards } = props
+  if (columnCards.length >= KANBAN_COLUMN_VIRTUAL_MIN) {
+    return (
+      <FixedRowVirtualScroller
+        {...(styles.columnVirtual === undefined ? {} : { className: styles.columnVirtual })}
+        rowCount={columnCards.length}
+        rowHeight={KANBAN_CARD_ROW_PX}
+        getRowKey={index => columnCards[index]?.id ?? `row-${index}`}
+        renderRow={(index) => {
+          const card = columnCards[index]
+          if (card === undefined) return null
+          return (
+            <div className={styles.columnVirtualSlot}>
+              {renderFlowKanbanCard(props, card)}
+            </div>
+          )
+        }}
+      />
+    )
+  }
+  return columnCards.map(card => (
+    <div key={card.id}>{renderFlowKanbanCard(props, card)}</div>
+  ))
 }
 
 /** Horizontal flow columns with drag-drop onto column ids. */
@@ -189,29 +269,23 @@ export function FlowKanbanBoard({
                     }
                     : {})}
                 >
-                  {columnCards.map(card => (
-                    <KanbanCard
-                      key={card.id}
-                      dict={dict}
-                      card={card}
-                      draggingId={draggingId}
-                      showProject={false}
-                      columnLabels={columnLabels}
-                      flowMoveTargets={flowMoveTargets}
-                      currentFlowColumnId={card.columnId}
-                      onDragStart={onDragStart}
-                      onDragEnd={onDragEnd}
-                      onMoveFlowColumn={(ticketId, columnId) => {
-                        markLocalMove(ticketId)
-                        onMoveCard?.(ticketId, columnId)
-                        const target = columns.find(row => row.id === columnId)
-                        if (target !== undefined) setLiveMessage(t('flow.movedTo', { column: target.name }))
-                      }}
-                      {...(onOpenReview !== undefined ? { onOpenReview } : {})}
-                      approvalStampFresh={freshApprovalStampIds?.has(card.id) ?? false}
-                      {...(assigneeCardTrigger === undefined ? {} : { assigneeCardTrigger })}
-                    />
-                  ))}
+                  <FlowColumnCards
+                    dict={dict}
+                    columnCards={columnCards}
+                    draggingId={draggingId}
+                    columnLabels={columnLabels}
+                    flowMoveTargets={flowMoveTargets}
+                    columns={columns}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                    {...(onMoveCard === undefined ? {} : { onMoveCard })}
+                    markLocalMove={markLocalMove}
+                    {...(onOpenReview === undefined ? {} : { onOpenReview })}
+                    {...(freshApprovalStampIds === undefined ? {} : { freshApprovalStampIds })}
+                    {...(assigneeCardTrigger === undefined ? {} : { assigneeCardTrigger })}
+                    setLiveMessage={setLiveMessage}
+                    t={t}
+                  />
                 </BoardColumn>
               </div>
             )

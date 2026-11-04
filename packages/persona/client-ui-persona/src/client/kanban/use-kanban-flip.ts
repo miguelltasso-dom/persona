@@ -42,6 +42,10 @@ export function useKanbanFlip(
 
     const nextRects = new Map<string, DOMRect>()
     const nodes = board.querySelectorAll('[data-persona-kanban-card]')
+    if (nodes.length > 120) {
+      prevRects.current = new Map()
+      return
+    }
     for (const node of nodes) {
       if (!(node instanceof HTMLElement)) continue
       const id = node.dataset.personaKanbanCard

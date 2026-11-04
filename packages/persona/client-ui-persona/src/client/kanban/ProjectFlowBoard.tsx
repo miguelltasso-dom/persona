@@ -145,7 +145,13 @@ export function ProjectFlowBoard({
       <SprintBand
         dict={dict}
         {...(currentSprint !== undefined ? { sprint: currentSprint } : {})}
-        sprintsEnabled={flow.template === 'software' || currentSprint !== undefined}
+        sprintsEnabled={
+          flow.template === 'software'
+          || flow.template === 'site'
+          || flow.template === 'simples'
+          || flow.template === 'marketing'
+          || currentSprint !== undefined
+        }
         doneCount={doneCount}
         totalCount={sprintCards.length > 0 ? sprintCards.length : flow.cards.length}
         {...(onPlanSprint !== undefined ? { onPlan: onPlanSprint } : {})}

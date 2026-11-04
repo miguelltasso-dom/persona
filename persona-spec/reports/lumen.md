@@ -1,5 +1,55 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-04 08:05 — DESEMPENHO fase 2 (kanban 1k, aprovações, contexto)
+
+**Seed gallery:** `persona.kanbanScaleSeed` = `200`|`1000` + `mockLargeKanbanCards`; `applyDevSeedLargeTeam(150, 1000)` opcional; `ConnectedGlobalKanban` + `RemoteKanbanPanel` usam seed acima do host.
+
+**Virtualização:** `KanbanBoard` (5 colunas global) + constantes em `kanban-virtual.ts`; `ReactiveApprovalsList` (≥12); `TurnContextDrawer` registros (≥32); mantidos flow/SB/OrgMap.
+
+**Comandos:** vitest `mock-large-kanban` + `kanban-board-virtual` + `approvals-virtual` + `flow-kanban-virtual` + `fixed-row-virtual` + `board-adapters` + `lumen-queue2` + `dev-seed-large-team` → **pass** (batch DESEMPENHO). `check-pkg client-ui-persona` vermelho por `OnboardingWizard.tsx` (Prism, fora do escopo Lumen).
+
+**Fila:** Probe medir 16 ms/<300 ms abertura; chat 10k (Prism); capturas Muse 960×640+200%; proativas agrupadas se inbox > N; drag 1k no app real.
+
+## 2026-11-04 07:52 — W2-3 cartão + DESEMPENHO (fase 1) + viewport 960
+
+**W2-3 (Anvil `BoardCardView.topicId`):** `projectBoardToFlow` + `conversationSubjectChipForId` (`map-host-ui.ts`); `PersonaLiveSnapshot.channelSubjects` persistido no refresh; `ConnectedProjectFlowBoard` recebe assuntos do live → bolinha no `KanbanCard` (quadro por projeto). Global lanes já vinham de `enrichKanbanCardsFromHost`.
+
+**DESEMPENHO (fase 1):** primitivo `FixedRowVirtualScroller`; colunas do `FlowKanbanBoard` virtualizam ≥28 cartões (140 px); FLIP desliga acima de 120 nós visíveis; lista por tipo do Segundo cérebro virtualiza ≥40 linhas. Organograma lista já tinha janela (OrgMap).
+
+**960×640 / zoom:** `@media (max-width: 960px)` em `Screen.module.css` (header/actions wrap, padding); colunas do board `min(260px, 88vw)`.
+
+**Comandos:** vitest `board-adapters` + `enrich-kanban-subject` + `flow-kanban-virtual` + `fixed-row-virtual` + `connected-project-flow-board` → **19 passed** · `check-pkg client-ui-persona` OK (~24s).
+
+**Fila DESEMPENHO (fase 2):** seed 150/10k/1k + medir abertura <300 ms e frame 16 ms (Probe); virtualizar aprovações + atividade/T3; chat 10k (coord Prism); capturas Muse 960×640 e 200% zoom por painel.
+
+## 2026-11-04 07:43 — Remote panels restantes + PB-6 updateWorkflow
+
+**Painéis Remote:** `remote-kanban-panel` (`listTasks`), `remote-knowledge-panel` (Cofre), `remote-canvas-panel` (`listCanvas`).
+
+**PB-6:** `ConnectedProjectFlowBoard` — **Editar fluxo** → salvar chama `updateWorkflow`.
+
+**Harness:** `rail-team.client.spec.tsx` — matcher `Sobre` sem overload inválido.
+
+**Comandos:** vitest kanban/knowledge/canvas/flow (12) + batch anterior · `check-pkg client-ui-persona` OK (~25s).
+
+**Fila Lumen (implementável):** esgotada — restante é Probe E2E (PRO-6, PB-9, GOV-10, BYC-6), Rivet (W2-7/BYC-5), Forge (PB-10 docs), Prism (PB-5 abas, GOV-8, W2-3 DM), opcional `topicId` no cartão do quadro por projeto (W2-3).
+
+## 2026-11-04 07:30 — Revisar wire + SB/OPT remote + PRO resumo diário
+
+**Revisar:** `kanban-review-sheet.client.spec.tsx`; fluxo do projeto abre sheet pelo menu “Abrir” e `acceptReview`.
+
+**SB-5:** `remote-second-brain-panel.client.spec.tsx` — bundle `getBrainHome` + `changedToday`.
+
+**OPT-7:** `remote-usage-panel.client.spec.tsx`; `RemoteUsagePanel` não trata painel OPT-7 como empty quando só há `getUsagePanel`.
+
+**PRO-5:** resumo proativo (`listDailySummaries`) em `remote-approvals-panel`.
+
+**Harness:** `persona-about-settings.client.spec.tsx` — prop `close` explícita (check-pkg).
+
+**Comandos:** vitest review + flow + SB + usage + approvals → **14 passed** · `check-pkg client-ui-persona` OK (~33s).
+
+**Fila:** Probe PRO-6/PB-9/BYC-6/GOV-10 E2E; Rivet W2-7/BYC-5; Forge PB-10 docs.
+
 ## 2026-11-04 07:22 — PB-3/6 proposta + PB-7 closeSprint + PRO decideApproval
 
 **PB-3/6:** `ConnectedProjectFlowBoard` — botão “Sugestão da Coordenação” → `proposeWorkflow`; aceitar (`acceptWorkflowProposal`) e dispensar (`rejectWorkflowProposal`).

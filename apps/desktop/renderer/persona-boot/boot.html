@@ -1,0 +1,24 @@
+<persona-boot id="persona-boot-overlay"><template shadowrootmode="open"><link rel="stylesheet" href="/__persona-boot-ui__/boot.css"><main class="boot" data-state="splash">
+  <section class="splash" aria-live="polite" aria-labelledby="boot-status">
+    <img class="symbol" src="/__persona-boot-ui__/assets/symbol.svg" alt="" width="56" height="56">
+    <img class="pose" src="/__persona-boot-ui__/assets/atlas-disponivel.webp" alt="" width="200" height="200">
+    <p class="status" id="boot-status" data-i18n="opening">Abrindo a Persona…</p>
+    <p class="hint" id="boot-hint" hidden data-i18n="firstRun">Na primeira vez leva até um minuto.</p>
+    <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+  </section>
+
+  <section class="error" aria-labelledby="boot-error-title" hidden>
+    <img class="symbol small" src="/__persona-boot-ui__/assets/symbol.svg" alt="" width="40" height="40">
+    <img class="pose" src="/__persona-boot-ui__/assets/atlas-erro.webp" alt="" width="180" height="180">
+    <h1 id="boot-error-title" tabindex="-1" data-i18n="errorTitle">Não conseguimos abrir a Persona</h1>
+    <p class="body" id="boot-error-body" data-i18n="errorGeneric">Isso costuma se resolver tentando de novo. Se continuar, reinicie o computador.</p>
+    <div class="actions">
+      <button type="button" class="primary" id="boot-retry" data-i18n="retry">Tentar de novo</button>
+      <button type="button" class="link" id="boot-copy" data-i18n="copyDiag">Copiar diagnóstico</button>
+    </div>
+    <details class="details">
+      <summary data-i18n="details">Detalhes para o suporte</summary>
+      <code id="boot-diag">boot_timeout</code>
+    </details>
+  </section>
+</main></template></persona-boot>

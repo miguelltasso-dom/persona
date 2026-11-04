@@ -14,6 +14,7 @@ import {
 } from '../contract.ts'
 import { RunnerResolveError } from '../resolve/errors.ts'
 import { PRECISA_DE_VOCE, isPermissionAsk, type CliSessionPolicy } from '../resolve/cli-policy.ts'
+import { resolveCaughtError } from '../resolve/errors.ts'
 import { classifyLoginOutput, mayBecomeLogin } from './login-output.ts'
 import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/recovery.ts'
 
@@ -132,7 +133,7 @@ function isTurnEnd(kind: string): boolean {
  * @param event - Vendor or scripted event.
  * @param now - Clock.
  */
-function mapEvent(event: Event, now: () => Date): RunEvent | undefined {
+function mapEvent(event: Event, now: () => Date, requestedAction?: string): RunEvent | undefined {
   const at = eventTime(now)
   const kind: string = event.kind
   if (isTurnEnd(kind)) {
@@ -156,14 +157,14 @@ function mapEvent(event: Event, now: () => Date): RunEvent | undefined {
   }
   if (isPermissionAsk(event as { kind: string; type?: string })) {
     const record = event as Event & { type?: string }
-    const asked = typeof record.type === 'string' && record.type.length > 0 ? record.type : kind
+    const asked = requestedAction ?? (typeof record.type === 'string' && record.type.length > 0 ? record.type : kind)
     return {
       type: 'ended',
       at,
       report: {
         state: 'blocked',
         summary: `Pedido de permissão recusado (${asked}).`,
-        question: PRECISA_DE_VOCE,
+        question: `${PRECISA_DE_VOCE} Ação: ${asked}.`,
       },
     }
   }
@@ -353,7 +354,17 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       pending, heldText: '', partialText: '', unsub: () => {},
     }
     live.unsub = session.events((event) => {
-      const mapped = mapEvent(event, now)
+      let requestedAction: string | undefined
+      if (event.kind === 'app_request') {
+        const request = session.records().findLast(record => record.kind === 'request' && record.id === event.requestId)
+        if (request?.kind === 'request' && 'native' in request.body && isRecord(request.body.native)) {
+          const native = request.body.native
+          const body = isRecord(native.request) ? native.request : native
+          const name = body.tool_name ?? body.toolName
+          if (typeof name === 'string' && /^[\w:./-]{1,120}$/u.test(name)) requestedAction = name
+        }
+      }
+      const mapped = mapEvent(event, now, requestedAction)
       if (mapped !== undefined) {
         if (mapped.type === 'delta') {
           takeDelta(live, mapped, cli, now)
@@ -396,7 +407,13 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       if (login !== undefined) {
         live.loginError = new RunnerResolveError('not_logged_in', login.cli)
         live.finished = true
-      } else live.rejected = reason
+      } else {
+        const failure = resolveCaughtError(error, cli ?? 'dsh')
+        if (failure.code === 'provider_unreachable') {
+          live.loginError = failure
+          live.finished = true
+        } else live.rejected = reason
+      }
       live.wake?.()
     })
     return handle
@@ -423,7 +440,10 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
   const open = async (input: StartTurnInput, recovery: boolean): Promise<RunHandle> => {
     const cli = options.capabilities.cli
     requireExplicitPermission(input, cli)
-    const prompt = recovery ? `${RECOVERY_NOTE}\n\n${input.prompt}` : input.prompt
+    const inlineOnly = options.policy?.toolLevel === 'none'
+      ? 'Responda somente em texto usando o contexto já fornecido. Não use ferramentas, não leia arquivos nem peça permissões. Se faltar informação, diga qual.\n\n'
+      : ''
+    const prompt = inlineOnly + (recovery ? `${RECOVERY_NOTE}\n\n${input.prompt}` : input.prompt)
     const existing = reuse(input)
     const session = existing ?? await spawn(input)
     return attach(input, session, prompt)

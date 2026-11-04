@@ -44,7 +44,7 @@ describe('cliPolicyOf', () => {
 
   it('claude talk/deny disables skip-permissions and write tools', () => {
     const deny = cliPolicyOf('claude', {}, 'deny')
-    expect(deny.launchArgs).toEqual(['--permission-mode', 'dontAsk'])
+    expect(deny.launchArgs).toEqual(['--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--tools', ''])
     expect(deny.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Edit', 'Write', 'WebFetch']))
     const task = cliPolicyOf('claude', { files: 'write', shell: 'none' }, 'allow-once')
     expect(task.launchArgs).toEqual(['--permission-mode', 'acceptEdits'])
@@ -83,10 +83,17 @@ describe('CLI permission ask never hangs', () => {
         return {
           ...session,
           events: (listener: (event: Event) => void) => {
-            listener({ kind: 'app_request', type: 'can_use_tool' } as Event)
+            listener({ kind: 'app_request', type: 'can_use_tool', requestId: 'permission-1' } as Event)
             return () => undefined
           },
           prompt: async () => new Promise<never>(() => undefined),
+          records: () => [{
+            kind: 'request', id: 'permission-1', direction: 'toApp',
+            sessionId: session.id, agentPath: [], seq: 0, receivedAt: 0,
+            body: { kind: 'native', type: 'can_use_tool', native: {
+              request: { tool_name: 'Read', input: { file_path: 'DO_NOT_LOG_THIS_SECRET' } },
+            } },
+          }],
         } as Session
       },
     }
@@ -98,10 +105,11 @@ describe('CLI permission ask never hangs', () => {
       type: 'ended',
       report: {
         state: 'blocked',
-        summary: 'Pedido de permissão recusado (can_use_tool).',
-        question: PRECISA_DE_VOCE,
+        summary: 'Pedido de permissão recusado (Read).',
+        question: `${PRECISA_DE_VOCE} Ação: Read.`,
       },
     })
+    expect(JSON.stringify(events)).not.toContain('DO_NOT_LOG_THIS_SECRET')
   })
 
   it('resolveRunner refuses prompt on a CLI spec', async () => {

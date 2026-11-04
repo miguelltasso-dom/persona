@@ -8,5 +8,7 @@ Adapters for the engine `Runner` port (`persona-engine/src/ports/runner.ts`, `pe
 - `createExecutorAdapter` — maps engine `Executor` start/deliver/stop onto the port (conformance with Forge launch/delivery).
 - `servePersonaMcpTools` — Persona tools for CLIs; identity comes from the run, not the arguments.
 - Turn-level OAR wrappers (`createClaudeRunner`, `createCodexRunner`, `createOpencodeRunner`, `createCursorRunner`) keep explicit permission mode, resume, cancel, usage. CLI never opens with `prompt`. Cursor advertises MCP as unavailable.
+- Answer-only turns use inline context without requesting tools. Claude `deny` disables its native tools and permission prompts; Codex keeps the read-only sandbox. Unsupported vendor flags are not passed to OpenCode or Cursor. An unexpected approval still blocks the turn, with only the requested tool name in the summary and question; arguments never enter that diagnostic.
+- Resolve failures expose `RunnerResolveError.toPayload()` with the stable code, human provider name, optional login command and quota reset time. Network failures use `provider_unreachable`; the client owns localized recovery actions.
 
 Part of the Persona product group (`packages/persona/*`). See `persona-spec/PLAN.md` and `persona-spec/DECISIONS.md` (D-009, D-040, D-041, D-043).

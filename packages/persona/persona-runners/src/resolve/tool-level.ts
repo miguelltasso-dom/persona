@@ -77,7 +77,7 @@ export function withToolLevel(inner: Runner, level: ToolLevel): Runner {
           report: {
             state: 'blocked',
             summary: `Ferramenta ${name} recusada no nível ${level}.`,
-            question: PRECISA_DE_VOCE,
+            question: `${PRECISA_DE_VOCE} Ferramenta: ${name}.`,
           },
         }
         return

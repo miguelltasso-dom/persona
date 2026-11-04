@@ -2,6 +2,25 @@
 
 Mais recente no topo.
 
+## 04/11 — retomada: D8 b3a4e5b933 e bloqueio P0 (em execução)
+
+Keel autorizou os ajustes em `scripts/persona/package-clean.mjs`: worktree novo `C:\p8wb3a4e5b933`, cache `C:\p8c`, trava `pack`, sem `git checkout --force` nem `git clean`. Manifesto `apps/desktop-host/package.json` do checkout principal **inalterado**; apenas no worktree o overlay acrescenta `config/` a `files`. `core-package-set.ts` exige `config/electron.cordis.patch.yml` antes de materializar o runtime. Overlay também copia `boot-ui.ts`, `ipc.ts`, `preload-app.ts`, `renderer/persona-boot/`, além da lista registrada no JSON final. Assets/HTML/CSS/JS do boot derivam do protótipo local da Muse em `design/boot-prototype` (NOTICES: autoria Muse; assets Persona/Brush). Porte usa Shadow DOM para não alterar o estilo do app e recursos locais sem script inline/eval. Retry encerra o host anterior antes de iniciar outro. Ainda falta validação CDP e NSIS.
+
+Correção do teste adiado: `resolve-runner.spec.ts` consultava `ResolverSmokeRow.loginHint`, campo inexistente. Agora testa o helper tipado diretamente. `product.ts`, `dev.ts`, `main.ts` já forçam `PERSONA_REAL_CLI=1` fora de VITEST/PERSONA_SCRIPTED; app instalado é real. Nenhuma chamada real executada por mim.
+
+Verificações executadas:
+```text
+pnpm exec vitest run apps/desktop/tests/web-document.spec.ts apps/desktop/tests/core-package-set.spec.ts apps/desktop/tests/backend-controller.spec.ts packages/persona/persona-runners/tests/resolve-runner.spec.ts packages/persona/persona-runners/tests/run-errors.spec.ts --testTimeout=20000 --hookTimeout=30000
+Test Files  5 passed (5)
+Tests  38 passed (38)
+Duration  4.88s
+
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+exit 0 (sem saída)
+```
+
+Pack iniciado: `node scripts/persona/package-clean.mjs --commit b3a4e5b933 --dir --no-install`; build local do worktree em curso, gates native addon/Host Typert passaram. `.exe` novo ainda não validado. Em paralelo, diagnóstico P0 somente com leitura/mocks: Claude deny usava `--permission-mode dontAsk`, mas não desativava o conjunto completo de ferramentas nativas; o wrapper podia bloquear `Read` depois. Forge lidera a investigação; grants continuam inalterados.
+
 ---
 
 ## 04/11 08:30 — Muse: prepare:dsh --profile desktop (DVuNAA)

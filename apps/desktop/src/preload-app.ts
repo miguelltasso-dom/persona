@@ -164,6 +164,16 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
     ready: () => ipcRenderer.invoke(DESKTOP_IPC.boot) as Promise<unknown>,
     failed: (message: string) => ipcRenderer.invoke(DESKTOP_IPC.bootFailed, message) as Promise<void>,
   })
+  contextBridge.exposeInMainWorld('personaBoot', {
+    retry: () => ipcRenderer.invoke(DESKTOP_IPC.bootRetry) as Promise<void>,
+    diagnostic: () => ipcRenderer.invoke(DESKTOP_IPC.bootDiagnostic) as Promise<string>,
+    subscribe: (listener: (detail: { code: string; message: string }) => void) => {
+      const handle = (_event: Electron.IpcRendererEvent, detail: { code: string; message: string }): void => { listener(detail) }
+      ipcRenderer.on(DESKTOP_IPC.bootState, handle)
+      void ipcRenderer.invoke(DESKTOP_IPC.bootState).then((detail) => { if (detail !== undefined) listener(detail) })
+      return () => { ipcRenderer.off(DESKTOP_IPC.bootState, handle) }
+    },
+  })
   contextBridge.exposeInMainWorld('dshPlatform', {
     open: (page: 'usage' | 'top-up', bounds: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke(PLATFORM_IPC.open, page, bounds),
     setBounds: (bounds: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke(PLATFORM_IPC.bounds, bounds),

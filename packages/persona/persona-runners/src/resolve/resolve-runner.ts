@@ -22,7 +22,8 @@ import {
 import { nativeSessionEnv } from '../oar/native-cli-env.ts'
 import { prepareIsolatedHome, type IsolatedHomeIo } from '../oar/isolated-home.ts'
 import { pickProviderAccount, type AccountPolicy, type AccountQuota, type ProviderAccount } from './accounts.ts'
-import { RunnerResolveError } from './errors.ts'
+import { RunnerResolveError, resolveCaughtError } from './errors.ts'
+import { readOarAccountUsage } from '@deepseek-ai/dsh-persona-usage'
 import { asProbe, PROBE_TIMEOUT_MS, quotaExhausted, withTimeout } from './probe.ts'
 import { assertCliNeverPrompt, cliPolicyOf } from './cli-policy.ts'
 import { pickFastestModel } from './fastest-model.ts'
@@ -123,10 +124,14 @@ function applyAccountPolicy(
     ...(options.personaName === undefined ? {} : { personaName: options.personaName }),
   })
   if (pick.action === 'ask') {
-    throw new RunnerResolveError('quota_exhausted', `${provider}:${pick.accountId}:ask`)
+    const resetAt = options.accountQuotas?.find(row => row.accountId === pick.accountId)?.resetsAt
+    throw new RunnerResolveError('quota_exhausted', `${provider}:${pick.accountId}:ask`,
+      resetAt === undefined ? {} : { resetAt })
   }
   if (pick.action === 'stop') {
-    throw new RunnerResolveError('quota_exhausted', `${provider}:${pick.accountId}`)
+    const resetAt = options.accountQuotas?.find(row => row.accountId === pick.accountId)?.resetsAt
+    throw new RunnerResolveError('quota_exhausted', `${provider}:${pick.accountId}`,
+      resetAt === undefined ? {} : { resetAt })
   }
   const accountId = pick.action === 'switch' ? pick.to : pick.accountId
   const account = options.accounts.find(row => row.id === accountId)
@@ -232,7 +237,15 @@ async function assertReady(runtime: Runtime, spec: PersonaRunnerSpec, cwd: strin
   }
   if (probe.accountUsage !== undefined && authHit === undefined) {
     const usage = await withTimeout(PROBE_TIMEOUT_MS, probe.accountUsage(installation))
-    if (quotaExhausted(usage)) throw new RunnerResolveError('quota_exhausted', provider)
+    const quota = readOarAccountUsage(provider, usage)
+    const exhausted = quota.windows.filter(window => (window.usedPercent ?? 0) >= 100)
+    if (quotaExhausted(usage) || exhausted.length > 0) {
+      const clocks = exhausted.map(window => window.resetsAt)
+      const resetAt = clocks.length === 0 || clocks.some(clock => clock === undefined)
+        ? undefined
+        : clocks.filter((clock): clock is string => clock !== undefined).sort().at(-1)
+      throw new RunnerResolveError('quota_exhausted', provider, resetAt === undefined ? {} : { resetAt })
+    }
   }
   return probe.installation === undefined ? undefined : installation
 }
@@ -498,7 +511,10 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
   } else {
     assertCliNeverPrompt(options.permissionMode)
     const runtime = await loadRuntime(spec.cli, options.runtime)
-    const installation = await assertReady(runtime, spec, cwd)
+    const installation = await assertReady(runtime, spec, cwd).catch((error: unknown) => {
+      const failure = resolveCaughtError(error, spec.cli)
+      throw failure.code === 'provider_unreachable' ? failure : error
+    })
     const inner = await createCliRunner(
       spec, runtime, installation, options.home, chosen.accountHome ?? options.accountHome, vaultEnv, options.homeIo,
       options.permissionMode, options.tools,

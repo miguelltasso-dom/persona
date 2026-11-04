@@ -14,6 +14,8 @@ import {
   WINDOWS_TITLEBAR_SYMBOL_LIGHT,
 } from './windows-layout.ts'
 import { access, readFile, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { attachBootUi, BOOT_UI_PATH } from './boot-ui.ts'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -102,7 +104,7 @@ import { readPersonaShellPrefs, writePersonaShellPrefs } from './shell-prefs.ts'
 import { DesktopNotifications, policyFromAutonomy } from './notifications.ts'
 import { allowShellNavigation, hardenSession, isExternalHttpUrl, secureWebPreferences, windowOpenAction } from './secure-shell.ts'
 import { copyPersonaDiagnostic, createPersonaLogger, personaLogsDir } from './persona-log.ts'
-import { bootErrorUrl, bootSplashUrl, reconnectingPageUrl } from './reconnecting-page.ts'
+import { reconnectingPageUrl } from './reconnecting-page.ts'
 import { ALWAYS_ON_IPC, isAlwaysOnAttention, runningAssignmentCount } from './always-on-ipc.ts'
 import { DesktopPower } from './power.ts'
 import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
@@ -495,6 +497,13 @@ async function main(): Promise<void> {
   let startup: Promise<void> | undefined
   let workspaceRecovery: Promise<void> | undefined
   let mainWindow: BrowserWindow | undefined
+  let bootFailure: { code: string; message: string } | undefined
+  const showBootFailure = (error: unknown): void => {
+    bootFailure = { code: 'boot_failed', message: (error instanceof Error ? error.message : String(error)).split('\n')[0] ?? '' }
+    mainWindow?.webContents.send(DESKTOP_IPC.bootState, bootFailure)
+    console.error(error)
+    void persistCrashReport(error, 'host')
+  }
   let welcomeWindow: BrowserWindow | undefined
   const installFileDrag = (): (() => Promise<void>) => installDesktopFileDrag(
     event => assertProductSender(event),
@@ -652,6 +661,7 @@ async function main(): Promise<void> {
       })
     return {
       start: async () => {
+        if (process.env.PERSONA_TEST_BOOT_FAILURE === '1') throw new Error('Forced startup failure')
         const ready = await host.start()
         const cookie = await authenticateWebHost(ready.url)
         hostCookie = cookie
@@ -730,17 +740,7 @@ async function main(): Promise<void> {
       void navigateMain(applicationUrl).catch((error: unknown) => { reportFatal(error, 'main') })
     }
     if (state.phase === 'error') {
-      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
-        const { messages, id } = currentDesktopLocale()
-        void mainWindow.loadURL(bootErrorUrl({
-          message: messages.fatalSummary,
-          help: messages.startupReinstallAdvice,
-          retry: messages.bootRetry,
-          copy: messages.copyDiagnostic,
-          lang: id,
-        })).catch((error: unknown) => { console.error(error) })
-      }
-      reportFatal(state.failure, 'host')
+      showBootFailure(state.failure)
     }
     else if (!shuttingDown) backendReady = state.phase === 'ready'
   }, process.env.VITEST === 'true' ? undefined : {
@@ -824,8 +824,7 @@ async function main(): Promise<void> {
       // The existing Web document resumes through the boot IPC response.
     })().catch((error: unknown) => {
       updateJournal?.action('workspace-failed')
-      reportFatal(error, 'main')
-      throw error
+      showBootFailure(error)
     }).finally(() => { startup = undefined })
     return startup
   }
@@ -936,11 +935,21 @@ async function main(): Promise<void> {
     if (url.hostname === 'shell') return serveWebDocument(request, join(app.getAppPath(),
       url.pathname === '/design-platform.css' ? 'lib/welcome' : 'renderer'))
     if (url.hostname === 'app') {
+      if (url.pathname.startsWith(BOOT_UI_PATH)) {
+        const asset = new URL(request.url)
+        asset.pathname = url.pathname.slice(BOOT_UI_PATH.length)
+        return serveWebDocument(new Request(asset, request), join(app.getAppPath(), 'renderer', 'persona-boot'))
+      }
       const boot = servePersonaBootScript(request, bootScripts)
       if (boot !== undefined) return Promise.resolve(boot)
       if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.startsWith('/assets/')
         || ['/favicon.svg', '/manifest.webmanifest'].includes(url.pathname)) {
-        return serveWebDocument(request, join(resources.dsh, 'node_modules', '@deepseek-ai', 'dsh-web-frontend', 'dist'))
+        return serveWebDocument(request, join(resources.dsh, 'node_modules', '@deepseek-ai', 'dsh-web-frontend', 'dist')).then(async (response) => {
+          if (!response.ok || request.method === 'HEAD' || !['/', '/index.html'].includes(url.pathname)) return response
+          const html = await attachBootUi(await response.text(), join(app.getAppPath(), 'renderer'),
+            !existsSync(join(resolvePersonaProcessHome(), 'db', 'persona.db')), locale.id)
+          return new Response(html, { headers: response.headers })
+        })
       }
       if (backend.host === undefined || hostUrl === undefined || hostCookie === undefined) {
         return Promise.resolve(new Response(null, { status: 503 }))
@@ -1055,7 +1064,30 @@ async function main(): Promise<void> {
       throw new Error('dsh desktop: rejected startup failure from a non-primary frame')
     }
     if (typeof message !== 'string') throw new Error('dsh desktop: startup failure must be text')
-    reportFatal(new Error(message), 'web-boot')
+    showBootFailure(new Error(message))
+  })
+
+  ipcMain.handle(DESKTOP_IPC.bootState, (event) => {
+    assertProductSender(event)
+    return bootFailure
+  })
+  ipcMain.handle(DESKTOP_IPC.bootDiagnostic, (event) => {
+    assertProductSender(event)
+    const diagnostic = `Persona ${app.getVersion()} · ${bootFailure?.code ?? 'boot_timeout'} · ${app.getPath('logs')}`
+    clipboard.writeText(diagnostic)
+    return diagnostic
+  })
+  let retryingBoot: Promise<void> | undefined
+  ipcMain.handle(DESKTOP_IPC.bootRetry, (event) => {
+    assertProductSender(event)
+    retryingBoot ??= (async () => {
+      await backend.stop()
+      bootFailure = undefined
+      delete process.env.PERSONA_TEST_BOOT_FAILURE
+      navigation = undefined
+      await reconcileBackend()
+    })().catch(showBootFailure).finally(() => { retryingBoot = undefined })
+    return retryingBoot
   })
 
   ipcMain.handle(DESKTOP_IPC.browserAcquire, (event, workspace: unknown) => {
@@ -1685,7 +1717,7 @@ async function main(): Promise<void> {
   const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
     mainWindow = window
-    void window.loadURL(bootSplashUrl(currentDesktopLocale().messages.bootSplash, currentDesktopLocale().id))
+    void navigateMain(applicationUrl)
       .catch((error: unknown) => { console.error(error) })
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)

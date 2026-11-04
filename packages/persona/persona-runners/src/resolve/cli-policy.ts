@@ -128,7 +128,9 @@ function claudePolicy(mode: CliPermissionMode, grants: ToolGrants, toolLevel: To
   return {
     permissionMode: mode,
     toolLevel,
-    launchArgs: ['--permission-mode', acceptEdits ? 'acceptEdits' : 'dontAsk'],
+    launchArgs: mode === 'deny'
+      ? ['--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--tools', '']
+      : ['--permission-mode', acceptEdits ? 'acceptEdits' : 'dontAsk'],
     disallowedTools: [...new Set(denied)],
   }
 }

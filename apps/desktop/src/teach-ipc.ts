@@ -16,6 +16,7 @@ import {
   teachConsentOk,
   teachOverlayHtml,
   teachTranscript,
+  type TeachBlurRect,
   type TeachProjectedFrame,
   type TeachSource,
 } from './teach-capture.ts'
@@ -32,6 +33,7 @@ export interface TeachStopResult {
   readonly artifactPath: string
   readonly frames: readonly TeachProjectedFrame[]
   readonly transcript: string
+  readonly blurRects: readonly TeachBlurRect[]
 }
 
 /**
@@ -107,6 +109,7 @@ export function installTeachCapture(
       artifactPath: stopped.artifactPath,
       frames: redact ? redactProjectedFrames(projected) : projected,
       transcript: teachTranscript({ typed: typedText }),
+      blurRects: session.state().blurRects,
     }
   })
 }

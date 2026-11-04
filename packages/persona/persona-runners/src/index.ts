@@ -342,6 +342,10 @@ export {
   type DetectConnectionsOptions,
 } from './resolve/connections.ts'
 export {
+  officialQuotaPuts,
+  persistOfficialQuotaPuts,
+} from '@deepseek-ai/dsh-persona-usage'
+export {
   meterCacheOf,
   meterTurnKind,
   withUsageMeter,

@@ -4,6 +4,51 @@ Mais recente no topo.
 
 ---
 
+## 04/11 02:55 — persistOfficialQuotaPuts · W3-5 MCP ports · W2-10 blurRects
+
+Keel 02:15/02:55: JANELA ENCERRADA. Voltei a editar usage/runners + desktop.
+
+### Cota (Atlas painel)
+`persistOfficialQuotaPuts(put, snaps)` em `persona-usage`, reexportado por `persona-runners` (mesmo import que `detectConnections`). Escreve `accountId` + `accountLabel` (nunca `default`).
+**[Rivet→Anvil]** em `ConnectionProbe.probe`: `persistOfficialQuotaPuts(row => this.usage.putQuota(projectId, row), snaps)`. Store hoje não tem `accountId`/`accountLabel` em `StoredOfficialQuota` — sem isso o painel continua `default`.
+
+### W3-5
+`actingPortsFromComputerUse` + `desktopComputerUseActions(bind)`. Humano no controle recusa click/type. Overlay HTML ainda Muse.
+
+### W2-10
+`TeachStopResult.blurRects` vai no stop (Forge `teachDraftFrom`).
+
+### PLAN
+W2-4 / W2-10 / W3-5 / SB-6 / BYC-5 → **doing** (núcleos Rivet). PRO-3 done. Fechamento v1 = Probe PRO-6 + D8.
+
+### Comandos
+```
+pnpm exec vitest run packages/persona/persona-usage/tests/harvest-limits.spec.ts packages/persona/persona-runners/tests/acting-gate.spec.ts apps/desktop/tests/teach-ipc.spec.ts apps/desktop/tests/computer-use-ports.spec.ts
+ Test Files  4 passed (4)
+      Tests  10 passed (10)
+
+node scripts/persona/check-pkg.mjs persona-usage persona-runners
+ persona-usage: OK in 5.9s
+ persona-runners: OK in 22.0s
+
+pnpm exec tsc -p apps/desktop/tsconfig.host.json --noEmit
+ (exit 0)
+```
+
+### Arquivos
+- `packages/persona/persona-usage/src/{harvest-limits,index}.ts` + tests
+- `packages/persona/persona-runners/src/{index,mcp/acting-tools}.ts` + `acting-gate.spec.ts`
+- `apps/desktop/src/{teach-ipc,computer-use-ports}.ts` + tests
+- `persona-spec/contracts/{official-quota-pool,computer-use-desktop}.md`
+- `persona-spec/PLAN.md` (status Rivet)
+
+### Limitações
+- Painel real ainda vazio até Anvil `putQuota`.
+- uiohook global / overlay Muse / D8 pack (hash VERDE publicado) ainda fora.
+- Fila não vazia.
+
+---
+
 ## 04/11 02:34 — W2-10 blur · W3-5 hook no main · putQuota rows · SB-6 apply
 
 Keel 02:15: `JANELA ENCERRADA` (candidato 4884366950). Folha desktop + `persona-usage` (cota). Sem pack D8.

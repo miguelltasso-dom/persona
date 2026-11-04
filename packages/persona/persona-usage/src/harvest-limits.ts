@@ -140,6 +140,7 @@ export function officialQuotaPuts(snaps: readonly OfficialQuotaSnapCard[]): read
  * Write putQuota rows. Anvil persists; this is the host one-liner.
  * @param put - `usage.putQuota` bound to a project (or a test array push).
  * @param snaps - detectConnections cards.
+ * @returns Rows that were written.
  */
 export function persistOfficialQuotaPuts(
   put: (row: OfficialQuotaPutRow) => void,

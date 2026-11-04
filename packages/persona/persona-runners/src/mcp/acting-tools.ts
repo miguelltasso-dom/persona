@@ -132,6 +132,7 @@ export function gateComputerActing(ports: ActingPorts, held: () => boolean): Act
 /**
  * Bind desktop computer-use (UIA / hook) onto MCP acting ports.
  * @param host - Overlay hold + injected click/type/screenshot.
+ * @returns Ports for {@link actingMcpTools}.
  */
 export function actingPortsFromComputerUse(host: {
   readonly held: () => boolean

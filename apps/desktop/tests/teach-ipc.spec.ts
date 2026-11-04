@@ -50,6 +50,7 @@ describe('teach capture IPC', () => {
     expect(sources).toEqual([{ id: 'screen:0', name: 'Tela 1', kind: 'screen' }])
     f.handler(DESKTOP_IPC.teachStart)!(f.event, 'screen:0', true, CONSENT)
     expect(f.handler(DESKTOP_IPC.teachIngest)!(f.event, Buffer.from('frame-a'))).toBe(true)
+    expect(f.handler(DESKTOP_IPC.teachBlur)!(f.event, { x: 1, y: 2, width: 3, height: 4 })).toBe(true)
     f.handler(DESKTOP_IPC.teachPause)!(f.event)
     expect(f.handler(DESKTOP_IPC.teachIngest)!(f.event, Buffer.from('frame-b'))).toBe(false)
     f.handler(DESKTOP_IPC.teachResume)!(f.event)
@@ -57,12 +58,14 @@ describe('teach capture IPC', () => {
       artifactPath: string
       frames: Array<{ atMs: number; imageRef: string; changeScore: number }>
       transcript: string
+      blurRects: Array<{ x: number; y: number; width: number; height: number }>
     }
     expect(stopped.transcript).toBe('clique em salvar')
     expect(stopped.artifactPath).toMatch(/teach-5000\.webm$/u)
     expect(stopped.frames).toHaveLength(1)
     expect(stopped.frames[0]?.imageRef).toMatch(/^file:/u)
     expect(stopped.frames[0]?.changeScore).toBe(1)
+    expect(stopped.blurRects).toEqual([{ x: 1, y: 2, width: 3, height: 4 }])
   })
 
   it('strips imageRef when stop asks for redaction', () => {

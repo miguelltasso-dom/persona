@@ -45,6 +45,7 @@ import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installTeachCapture } from './teach-ipc.ts'
 import { createComputerUseComHost, installComputerUseBind } from './computer-use-bind.ts'
+import { desktopComputerUseActions } from './computer-use-ports.ts'
 import { spawnSync } from 'node:child_process'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
@@ -948,7 +949,7 @@ async function main(): Promise<void> {
       }))
     },
   })
-  installComputerUseBind(() => mainWindow, {
+  const computerUseBind = installComputerUseBind(() => mainWindow, {
     ...createComputerUseComHost({
       spawn: (command, args, env) => {
         const result = spawnSync(command, [...args], {
@@ -976,6 +977,7 @@ async function main(): Promise<void> {
       return () => { globalShortcut.unregister(accelerator) }
     },
   })
+  desktopComputerUseActions(computerUseBind)
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
   hardenSession(session.defaultSession)
   const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),

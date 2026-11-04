@@ -50,6 +50,7 @@ Sem `project.rootPath` os métodos **não lançam**. Devolvem `status: 'need-roo
 | `listFiles` / `statFile` / `readFile` | `status: ok \| need-root` + `message` |
 | `setProjectRoot({ rootPath })` | `status: ok \| cleared \| invalid` (vazio limpa). Recusa UNC, raiz do sistema, home inteira, arquivo, pasta inexistente, overlap/aninhamento com outro projeto. pt-BR. |
 | `getProjectRoot` | pasta + `isRepo` / `defaultBranch` / `dirty` |
+| `listProjectRoots({ workspaceId })` | pastas registradas (`rootPath` não vazio). Rivet `revealInFolder` allowlist. ACL `read` por projeto. |
 | `pickDirectory` | Rivet IPC; host devolve `{ path: null }` |
 | `updateProject.rootPath` | equivalente; vazio limpa |
 
@@ -59,7 +60,7 @@ Todo `@Remote` passa por `installRemoteGuard`. JSON ≤ 256 KB; `attach*`/`putFi
 
 Schema store **v19**. Catálogo de versões: `ARCHITECTURE.md` (v1→v19).
 
-Medidas (Probe, sem remount): `measureProactivityV1()` → `{ passed, total, failed }`; `measureOpt8({ workspaceId })` → `measureOpt8Acceptance({ liveEntries })` + `liveOrigin`. `cut-40` fica `blocked` só quando o livro live está vazio. `measureGestorV1` e `measureV1Close` são engine (Probe importa); host pode expor `@Remote measureV1Close` = `measureV1Close({ liveEntries })`.
+Medidas (Probe, sem remount): `measureProactivityV1()` → `{ passed, total, failed }`; `measureOpt3()` / `measureOpt4()` / `measureOpt5()` / `measureOpt6()` → `{ passed, total: 3, failed }`; `measureOpt8({ workspaceId })` → `measureOpt8View(entries)`; `@Remote measureV1Close({ workspaceId })` = `measureV1CloseView(liveEntries)` (PRO+GES+OPT; livro live pontua `cut-40`). `measureGestorV1` / `measureGestorToolsAcceptance` / `assertV1Close` continuam engine.
 
 ## Conexões — `listConnections(scope)` (síncrono)
 
@@ -135,13 +136,13 @@ Markdown é a fonte; FTS/tipo/links são índice derivado. Versões nunca apagam
 | `listBrainVersions({ pageId })` | Histórico (pessoa ou persona) |
 | `restoreBrainPage({ pageId, revision })` | Regrava o corpo antigo como versão nova |
 | `listBrainChangedToday(scope)` | O que mudou hoje (relógio do host) |
-| `getBrainHome(scope)` | Comece aqui + mudou hoje + grants ativos + contradições |
+| `getBrainHome(scope)` | Comece aqui + mudou hoje + grants ativos + contradições + `leftover[]` do último sync (persistido) |
 | `grantBrainPermission({ id, personaId, action, target, validity })` | Lembra aprovação (escopo exato) |
 | `revokeBrainPermission({ grantId })` | Revoga na hora; a página fica |
 | `listBrainPermissions(scope)` | Grants (ativos e revogados) |
 | `useBrainPermission({ grantId, personaId, action, target })` | Uso; alvo/persona/validade diferentes → `forbidden` |
-| `exportBrainVault({ folderPath, twoWay? })` | `applyBrainVaultSync(planBrainVaultSync({ mode: twoWay ? 'two_way' : 'one_way' }))` — write/skip; two-way `page` upsert + `foreign` → BYC |
-| `importBrainVault({ folderPath })` | Mesmo apply; slug+hash = skip; leftover nunca apagado |
+| `exportBrainVault({ folderPath, twoWay? })` | `applyBrainVaultSync(planBrainVaultSync({ mode: twoWay ? 'two_way' : 'one_way' }))` — write/skip; two-way `page` upsert + `foreign` → BYC; `leftover[]` = dest extras (nunca apagados) |
+| `importBrainVault({ folderPath })` | Mesmo apply; slug+hash = skip; `leftover[]` nunca apagado |
 
 **[Anvil→Lumen]** Empresa › Segundo cérebro: início = `getBrainHome`; busca/tipo = `listBrainPages`/`searchBrainPages`; página = `getBrainPage` + `listBrainVersions`; editar = `putBrainPage`; permissões = `listBrainPermissions` / `revokeBrainPermission` / `grantBrainPermission`; exportar pasta = `exportBrainVault`.
 
@@ -159,7 +160,7 @@ Forge: `resolveWorkingSend` / `enqueueWorkingMessage` / `openAsideAsk`. Anvil pe
 | `flushWorkingQueue({ personaId })` | Manda agora, em ordem |
 | `openAsideAsk({ personaId, subjectId, question })` | `/lado` — `onThread: false` |
 | `composeCitedMessage({ quote, comment })` | Chip citar (T3 §5) |
-| `listTurnActivity({ subjectId, personaId? })` | T3 §9: folds `groupTurnActivity` (falha ≠ feito; waiting ≠ terminou) |
+| `listTurnActivity({ subjectId, personaId? })` | T3 §9: folds `groupTurnActivity` (falha ≠ feito; waiting ≠ terminou). Host: `EngineOptions.emit` = `withTurnActivityEmit` → `recordTurnActivity` em `assignment.reported`. |
 | `pauseAtLimit` / `resumeAfterLimit` | Faixa "No limite"; fila permanece (T3 §12) |
 | `acceptTaughtCandidate` / `activateTaughtSkill` | Ensinar: candidato; só ativa no aceite (W2-10) |
 

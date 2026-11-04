@@ -1,0 +1,5 @@
+# Electron has no Vite. client-hmr is immediately:true and holds GET /plugins/events
+# (SSE). On dsh-app:// that long-lived stream can stall later plugin fetches, so
+# dest:desktop / the packaged app stay on "HARNESS / Loading plugins".
+- id: client-hmr
+  disabled: true

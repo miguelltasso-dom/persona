@@ -1,6 +1,6 @@
 # Solução de problemas
 
-**CLI não encontrada.** Instale a ferramenta. Feche e abra o app. Em Configurações → Conexões o status fica ausente até o executável existir no PATH. A Persona não pede token: faça `claude login` (ou o login da CLI) no terminal.
+**CLI não encontrada.** Instale a ferramenta. Feche e abra o app. Em **Conexões**, na barra lateral, ela aparece como não encontrada até o programa estar instalado. A Persona não pede token: faça `claude login` (ou o login da CLI) no terminal.
 
 **Não conectado.** A CLI está instalada, mas sem login, ou a chave falta. Abra o terminal, entre na conta, volte em Conexões e atualize.
 

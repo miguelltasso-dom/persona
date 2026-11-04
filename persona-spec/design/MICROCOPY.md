@@ -1,4 +1,4 @@
-# Microcópia do Persona: tom, glossário e regras
+# Microcópia da Persona: tom, glossário e regras
 
 Muse, 04/11. Este guia vale para pt-BR e en. Quem escreve texto de interface (dicionários em `client-ui-persona/locale-sources/*.json`, toasts e erros) consulta este arquivo antes.
 
@@ -14,6 +14,8 @@ Muse, 04/11. Este guia vale para pt-BR e en. Quem escreve texto de interface (di
 
 | Diga | Nunca diga para quem usa | en |
 |---|---|---|
+| **a Persona** (o app, P maiúsculo, feminino: "abrir a Persona", "Sobre a Persona", "Entrar na Persona") | "o Persona" | Persona (sem artigo) |
+| **persona** (cada agente, minúsculo) | agente, bot, assistente | persona |
 | equipe / toda a equipe | workspace, tenant | team / everyone on the team |
 | motor ("Trocar motor"), a IA que faz o trabalho | runner, harness, engine id, `dsh · default` | engine, the AI that does the work |
 | ferramentas de IA neste computador | CLIs, harnesses detectados | AI tools on this computer |

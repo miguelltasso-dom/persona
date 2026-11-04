@@ -32,7 +32,7 @@ Relatório da linha de base: `persona-spec/reports/tokens-baseline.md` (`formatT
 
 `assertScenarioRegression(baseline, measured, qualityGain?)` falha se tokens subirem > 10% sem ganho de qualidade ≥ 0,15.
 
-OPT-8: `measureOpt8Acceptance` — idle zero, cache ≥ 60%, paridade CLI. Sem livro live, `cut-40` fica em `blocked` (3/4). Com `liveEntries`, o corte −40% vs `baselineTokensPerTask` (default = tokens/tarefa scripted) entra no score; `successfulTicketIds` é opcional (`ticketIdsFromLedger` se omitido). Host `@Remote measureOpt8` deve passar o livro persistido, não só contar linhas. Relatório: `persona-spec/reports/opt8-acceptance.md`.
+OPT-8: `measureOpt8Acceptance` — idle zero, cache ≥ 60%, paridade CLI. Sem livro live, `cut-40` fica em `blocked` (3/4). Com `liveEntries`, o corte −40% vs `baselineTokensPerTask` (default = tokens/tarefa scripted) entra no score; `successfulTicketIds` é opcional (`ticketIdsFromLedger` se omitido). Host `@Remote measureOpt8` = `measureOpt8View(entries)` (`TurnLedgerView` ≡ `TurnLedgerEntry`); não remonta flags nem só conta linhas. Relatório: `persona-spec/reports/opt8-acceptance.md`.
 
 Fechamento v1: `measureV1Close` = PRO-6 + GES-6 + OPT-8. `opt8.blocked` não falha o gate. Relatório: `persona-spec/reports/v1-close.md`. Probe importa; host pode expor `@Remote measureV1Close`.
 

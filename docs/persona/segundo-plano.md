@@ -8,4 +8,4 @@ A equipe fica ligada enquanto o app está aberto.
 
 **Precisa de você.** Abra o cartão. Uma pergunta. Uma ação. Responda ali. A Tarefa retoma.
 
-Se o host cair, abra o app de novo. As Tarefas abertas retomam. Nada some e nada duplica.
+Se o app fechar sem querer, abra de novo. As Tarefas abertas retomam. Nada some e nada duplica.

@@ -486,3 +486,59 @@ bundle (with-lock) → Build complete, 99 files
   - As 8 variantes da landing seguem com axe 0, 0 rolagem lateral, 0 imagens sem carregar e cerca de 850 KB.
   - Capturas em `.maestri/tmp/shots/design/site/{desktop,mobile}-{light,dark}-{pt,en}-{fold,full}.png`.
   - **Item 4:** o Probe registrou que o instalador D8 `1d4e5e95b8` abriu com `#root` vazio (CSP `unsafe-eval`). O Rivet reempacota (`dfe13272c6`), e a revisão do primeiro uso instalado entra assim que o pacote novo passar.
+- **06:25, correção das capturas da landing** (Atlas):
+  - **(1) Fold no meio da página.** Não era a página: o meu script voltava com `scrollTo(0,0)` e o `scroll-behavior: smooth` animava a volta, então a captura saía no meio da rolagem. O script agora pula direto, espera `scrollY === 0` e dois quadros, e confere o valor.
+  - **(2) Áreas em branco.** A página não tem revelação por scroll (sem IntersectionObserver e sem `opacity: 0`). O branco vinha de dois artefatos de captura: tiles ainda não pintados no meio da rolagem suave, e o full do celular com 17.884 px (DPR 2), acima do teto de textura de 16.384 px, que repetia o hero no fim. Agora o full sai em pixels CSS (`scale: 'css'`).
+  - **Prova:** 0 elementos invisíveis nas 8 variantes. Sem JS e com reduced-motion, as 8 seções têm a mesma altura e nada fica oculto.
+  - Rótulos de Bento e Nina separados.
+- **06:45, item 4 (1º uso instalado), preparado:**
+  - Script `.maestri/tmp/muse/first-run.mts` sobre o `startInstalledDesktop` do Probe: perfil limpo; marca o tempo de cada etapa (janela → onboarding 1..5 → #geral → 1ª mensagem → 1ª resposta); captura cada passo; roda o axe (por CDP, porque o CSP do app bloqueia script inline); grava `timeline.json`.
+  - **Rodada a seco no pacote `dfe13272c6`:** a janela fica branca por 120 s (sem splash, mensagem ou saída) e há um `EvalError` de CSP. Isso confirma o relato do Probe.
+  - O Rivet já corrigiu a causa (perfil `persona` e fail-loud). Pedi três coisas de design para o próximo NSIS: janela com o fundo do tema, splash desde o 1º quadro, e a tela de erro do boot com "Tentar de novo".
+  - Rodo o script assim que o NSIS novo sair.
+- **07:00, contrato da 1ª janela e nome do app:**
+  - **`persona-spec/design/BOOT-SPEC.md`**, sobre a splash e a tela de erro do Rivet:
+    - fundo do tema desde o 1º quadro;
+    - splash estática em ≤ 500 ms, sem depender do bundle nem de script inline (CSP);
+    - linhas de status pt e en, com o aviso do 1º uso;
+    - prazo de 20 s (60 s no 1º uso) → tela de erro com "Tentar de novo" reiniciando o host e o diagnóstico dobrado;
+    - crossfade só depois do 1º quadro do app;
+    - aceite medido pelo `first-run.mts`.
+  - Pedi ao Rivet uma variável para forçar falha do host, para testar o item 4 do aceite.
+  - **Nome do app: "a Persona"** (feminino, como nas specs e na tela do Rivet). Eu era quem destoava, com "o Persona". Alinhei em 21 pontos: About, landing, kit, glossário, `onboarding.pt` ("Entrar na Persona", "Boas-vindas à Persona"), o espelho E2E e o seletor dos gates `scripts/persona/playwright-onboarding.mjs`.
+  - Avisei o Probe (seletores) e pedi ao Anvil a linha `SYSTEM_WELCOME` do host.
+  - Testes 10/10. O DS vivo foi regerado; a landing segue com axe 0.
+
+## 2026-11-04 07:40 — Ajuda, Novidades e erros de execução (fila do Atlas, sem host)
+
+- **(1) Ajuda no app** (`src/client/help/`):
+  - `scripts/persona/gen-help-docs.mjs` transforma `docs/persona/*.md` numa árvore JSON no build (58 KB). O cliente não leva parser de markdown e nunca renderiza HTML cru; links entre guias viram navegação interna.
+  - Primitivo `HelpArticle`: tipografia de leitura e `<mark>` da busca, sem acento.
+  - `HelpView`: índice e busca (todas as palavras, título primeiro, sem acento), artigo com "Nesta página", anterior/próximo, e vazio com "Perguntar no #geral".
+  - Namespace de locale `help` (pt e en; em en, um aviso honesto de que os guias estão em pt). `register-help.tsx` exporta `registerHelpLocale` e `HelpPanel`.
+  - O Prism liga no shell: painel, Mais › Ajuda, Ctrl K e o `?` do canal, que hoje é um **controle morto**, sem onClick.
+  - axe 0 em 8 variantes (claro, escuro, busca, vazio, en, celular). Testes 6/6.
+  - **Guias corrigidos:** o "Primeiros passos" e o "Guia" descreviam outro onboarding ("escolha o idioma", "crie o espaço de trabalho"); agora seguem os 5 passos reais. Tirei também runner, host, workspace e "Configurações → Conexões" (caminho que não existe) de 9 guias.
+  - Pedi ao Brush os ícones `ajuda` e `novidades`.
+- **(2) Novidades:** `docs/persona/novidades.md` no modelo do kit (versão 0.2.2-alpha.3), só com o que existe. Aparece numa aba da Ajuda, com o selo da Luna.
+- **(3) Erros de execução** (`design/RUN-ERRORS-SPEC.md`):
+  - 8 códigos (não logado, não instalado, modelo, cota com e sem outra conta, orçamento, sem internet, motor indisponível, app fora do ar), cada um com o que aconteceu, o que fazer e um botão útil, no máximo mais um.
+  - `describeRunError` e `runErrorText` (puros), primitivo `RunErrorCard` (a persona fala, comando copiável, tom âmbar ou vermelho) e as chaves `chat.runError.*` em pt e en.
+  - Testes 5/5 garantem 0 jargão nos 8 códigos, nas duas línguas. axe 0 nos dois temas.
+  - Hoje o texto do runner e do host sai cru ("CLI codex não está logada", "indisponível neste runner", "executor DSH não está montado neste host").
+  - Pedi ao Rivet e ao Anvil que mandem o código com os textos de reserva novos, e ao Prism que renderize o cartão e ligue as ações.
+- check-pkg client-ui-persona OK.
+- **07:45, pendente por queda do Maestri:** desde ~07:40 nenhum comando `maestri` responde (`list`, `note read` e `note edit` dão timeout). Nenhuma edição foi aplicada pela metade (conferido). Quando voltar:
+  - confirmar ou reenviar os handoffs de erros de execução ao Prism, Rivet e Anvil, e o de ligar a Ajuda ao Prism;
+  - adicionar a linha 07:40 no Status e a decisão (g)(h) no UX & Animação.
+- **08:00, Maestri de volta:** linhas no Status e no UX & Animação aplicadas (uma vez cada, conferido). Handoff do Prism reenviado e entregue. Rivet, Anvil e Forge não aparecem mais conectados ao meu terminal desde a queda; pedi ao Atlas para reconectar ou repassar os handoffs de erros de execução, BOOT-SPEC e SYSTEM_WELCOME.
+- **08:15, Ajuda no app real:**
+  - O Prism ligou tudo: painel `help` com `openHelp({ docId, tab })`, Mais › Ajuda, Ctrl K, e o `RunErrorCard` no fio com as ações (o host ainda manda texto cru em parte dos casos).
+  - Captura no app real: `panel:Ajuda`, axe 0 no claro e no escuro, 0 erros de console.
+  - Ajuste: os links entre guias viraram `<a>` de verdade, porque o botão quebrava a linha entre "(" e o link e era anunciado como botão.
+  - O `uso.md` perdeu o resto de jargão ("livro de turnos", "cache do prefixo", "tipo de turno"). Testes 6/6.
+- **08:25, RUN-ERRORS no host (Anvil):**
+  - Os posts de CLI e de orçamento agora saem como `[[run-error:{code,provider,persona,command}]]`, nunca em prosa, e o `SYSTEM_WELCOME` virou "Boas-vindas à Persona.".
+  - Conferi de ponta a ponta com uma linha no formato do host: `parseRunErrorMarker` → `describeRunError` → cartão certo nos 3 códigos (Tentar de novo / Ajustar limite / Escolher outro motor), sem resto de marcador visível e sem jargão.
+  - Falta o lado do runner (Rivet): `cli_not_found`, `model_unavailable`, `quota_exhausted` com `resetAt`, e `provider_unreachable`.
+

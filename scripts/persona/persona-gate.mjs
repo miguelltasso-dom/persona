@@ -62,6 +62,12 @@ if (bundle.status !== 0) {
   failing.add('client-ui-persona')
 } else log('client bundle ok')
 
+const evalScan = run('node', ['scripts/persona/assert-client-no-eval.mjs'])
+if (evalScan.status !== 0) {
+  log(`client eval scan FAILED:${NL}${(evalScan.stdout + evalScan.stderr).trim()}`)
+  failing.add('web-frontend')
+} else log((evalScan.stdout + evalScan.stderr).trim() || 'client eval scan ok')
+
 if (!skipSmoke && failing.size === 0) {
   const smoke = run(process.execPath, ['--import', 'tsx/esm', 'scripts/persona/persona-boot-smoke.mjs', '--root', root])
   log(`boot smoke: ${`${smoke.stdout}${smoke.stderr}`.trim().split(NL).slice(-3).join(' | ')}`)

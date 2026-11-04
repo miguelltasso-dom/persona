@@ -29,7 +29,7 @@ Colored **assuntos** per channel or DM stream. Maps to engine **Thread** ids whe
   name: string
   colorIndex: number // 0..6, fixed palette (SUBJECTS-SPEC)
   unreadCount: number
-  workingPersonaIds?: readonly string[] // optional live indicator
+  workingPersonaIds?: readonly string[] // open tickets on this subject (mandate actor via ticket_subject at ingest); empty = nobody working
   archived?: boolean
 }
 ```
@@ -47,5 +47,7 @@ Same as stream read/write. Moving messages requires write on the stream.
 `defaultSubjects`, `renameSubject`, `archiveSubject`, `activateSubject`, `moveMessageToSubject`, `bindTicketToSubject`, `ticketSubjectChip`, `ticketCardTopic` (`topicId` + chip para `TaskView`), `restrictSnapshotToSubject`, `compileActiveSubject`. Thread key = `kind:conversationId:subject:subjectId`. `compileContext` sees only the active subject + required vault/decisions; other subjects enter only as Chain of Recall hops when cited.
 
 ## Client until host ships
+
+`listTasks` / `getProjectBoard.cards` set `topicId` (+ `conversationSubjectId` on `TaskView`) from `ticket_subject` at ingest. Empty = no chip.
 
 Prism uses `DEFAULT_CONVERSATION_SUBJECTS` locally and persists `activeSubjectId` per stream in session storage; replaces when `listConversationSubjects` exists.

@@ -12,6 +12,6 @@ Editar o fluxo (renomear, reordenar, acrescentar, tirar coluna) não some com Ta
 
 Fluxo e sprint viajam com o [export e o sync](./backup.md) do projeto. Mensagem direta não.
 
-Na interface, o item da barra lateral chama-se **Quadros** (antes «Kanban»). O painel técnico no host continua com a chave `kanban` por compatibilidade; dentro dele você vê a grade de projetos, abre o fluxo de cada um e usa **Revisar** no cartão como antes.
+Na barra lateral, o item chama-se **Quadros** (antes «Kanban»). Dentro dele você vê a grade de projetos, abre o fluxo de cada um e usa **Revisar** no cartão como antes.
 
 O quadro misturado antigo (A fazer · Em andamento · Em revisão · Bloqueado / Precisa de você · Concluído) vira o modelo **Simples**: cada coluna cai na categoria do mesmo nome; Bloqueado vira **Precisa de você** com o marcador no cartão. Tarefa sem coluna cai na primeira coluna da categoria do estado. **Revisar** continua no cartão — não some na troca.

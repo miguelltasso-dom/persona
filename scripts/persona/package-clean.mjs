@@ -11,7 +11,7 @@
  * Exit: 0 Setup/exe ready, 1 typecheck/package red, 2 setup failure.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -115,12 +115,39 @@ function ensureJunction(short, target) {
 function applyOverlay(wt) {
   const desktop = join(wt, 'apps', 'desktop')
   const scripts = join(desktop, 'scripts')
+  const host = join(wt, 'apps', 'desktop-host')
+  const hostConfig = join(host, 'config')
   copyFileSync(join(main, 'apps/desktop/scripts/installer-select.nsh'), join(scripts, 'installer-select.nsh'))
   copyFileSync(join(main, 'apps/desktop/scripts/installer-stock.nsh'), join(scripts, 'installer-stock.nsh'))
   copyFileSync(join(main, 'apps/desktop/scripts/prepare-windows-installer.ps1'), join(scripts, 'prepare-windows-installer.ps1'))
   copyFileSync(join(main, 'apps/desktop/scripts/runtime-patch-policy.ts'), join(scripts, 'runtime-patch-policy.ts'))
   copyFileSync(join(main, 'apps/desktop/src/persona-vault-ipc.ts'), join(desktop, 'src/persona-vault-ipc.ts'))
   copyFileSync(join(main, 'apps/desktop/src/secure-shell.ts'), join(desktop, 'src/secure-shell.ts'))
+  // Published hash still has hashed script-src + executeJavaScript(title). Without
+  // this overlay the installer #root stays empty (Probe 05:48). Dirty dest:desktop
+  // already proved onboarding with these files and no unsafe-eval.
+  copyFileSync(join(main, 'apps/desktop/src/rewrite-boot-injections.ts'), join(desktop, 'src/rewrite-boot-injections.ts'))
+  copyFileSync(join(main, 'apps/desktop/src/web-document.ts'), join(desktop, 'src/web-document.ts'))
+  copyFileSync(join(main, 'apps/desktop/src/main.ts'), join(desktop, 'src/main.ts'))
+  mkdirSync(hostConfig, { recursive: true })
+  copyFileSync(join(main, 'apps/desktop-host/src/index.ts'), join(host, 'src/index.ts'))
+  copyFileSync(
+    join(main, 'apps/desktop-host/config/electron.cordis.patch.yml'),
+    join(hostConfig, 'electron.cordis.patch.yml'),
+  )
+  // V28: loader evaluate is lazy. Published hash still inlines `new Function` at
+  // module init (index-B2q7cWGa.js). Overlay src+lib and the rebuilt web dist.
+  const loaderSrc = join(wt, 'vendor/loader/src/config')
+  const loaderLib = join(wt, 'vendor/loader/lib/types/config')
+  mkdirSync(loaderSrc, { recursive: true })
+  mkdirSync(loaderLib, { recursive: true })
+  copyFileSync(join(main, 'vendor/loader/src/config/utils.ts'), join(loaderSrc, 'utils.ts'))
+  copyFileSync(join(main, 'vendor/loader/lib/types/config/utils.js'), join(loaderLib, 'utils.js'))
+  copyFileSync(join(main, 'vendor/loader/lib/index.js'), join(wt, 'vendor/loader/lib/index.js'))
+  const webDist = join(main, 'apps/web/dist')
+  if (existsSync(webDist)) {
+    cpSync(webDist, join(wt, 'apps/web/dist'), { recursive: true })
+  }
 
   const ebc = join(scripts, 'electron-builder-config.mjs')
   let cfg = readFileSync(ebc, 'utf8')
@@ -149,6 +176,9 @@ function applyOverlay(wt) {
     'installer-select.nsh', 'installer-stock.nsh', 'prepare-windows-installer.ps1',
     'runtime-patch-policy.ts',
     'electron-builder-config.mjs', 'persona-vault-ipc.ts', 'secure-shell.ts',
+    'rewrite-boot-injections.ts', 'web-document.ts', 'main.ts',
+    'desktop-host/index.ts', 'desktop-host/electron.cordis.patch.yml',
+    'vendor/loader src+lib', 'apps/web/dist',
   ]
 }
 

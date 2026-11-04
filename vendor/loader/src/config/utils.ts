@@ -1,12 +1,33 @@
 import { valueMap } from '@deepseek-ai/cosmokit'
 
-// eslint-disable-next-line no-new-func
-/** Evaluate a JavaScript expression against a loader context scope. */
-export const evaluate = new Function('ctx', 'expr', `
+type EvaluateFn = (ctx: object, expr: string) => unknown
+
+let compiled: EvaluateFn | undefined
+
+/**
+ * Compile the `!!js` evaluator. Lazy: a top-level `new Function` is a CSP
+ * `unsafe-eval` violation in the desktop renderer (Persona `#root` empty).
+ * @returns Host evaluator. The renderer never reaches this on boot.
+ */
+function compileEvaluate(): EvaluateFn {
+  return new Function('ctx', 'expr', `
   with (ctx) {
     return eval(expr)
   }
-`) as ((ctx: object, expr: string) => any)
+`) as EvaluateFn
+}
+
+/**
+ * Evaluate a JavaScript expression against a loader context scope.
+ * Built on first `!!js` node, never at import (desktop CSP).
+ * @param ctx - Loader context (`with (ctx)` scope).
+ * @param expr - Expression text from a `!!js` node.
+ * @returns The value of `expr` in `ctx`.
+ */
+export function evaluate(ctx: object, expr: string): unknown {
+  compiled ??= compileEvaluate()
+  return compiled(ctx, expr)
+}
 
 /** Recursively replace YAML `!!js` expression nodes with evaluated values. */
 export function interpolate(ctx: object, value: any) {

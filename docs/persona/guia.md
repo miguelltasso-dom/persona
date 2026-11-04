@@ -6,11 +6,11 @@ A Persona é a equipe de agentes no seu computador. Este guia reúne o caminho c
 
 Cinco passos até a primeira resposta útil:
 
-1. Abra o app e escolha o idioma.
-2. Crie o espaço de trabalho. Tudo fica neste computador.
-3. Escolha um modelo de equipe ou comece vazia. Sempre nasce uma Coordenação — a voz da equipe nos canais.
-4. Ligue uma [conexão](./conexoes.md) (CLI já logada ou chave; várias contas no mesmo provedor, com política explícita). Sem isso ninguém executa Tarefa.
-5. Escreva no canal Geral. Peça uma coisa concreta. Assuntos coloridos separam o fio ([Assuntos](./assuntos.md)).
+1. Diga como quer ser chamado.
+2. Conte sobre a empresa. Isso vira o Cofre, e dá para trazer o que suas outras IAs já sabem ([Importar](./importar.md)).
+3. Confira as [ferramentas de IA](./conexoes.md) já logadas neste computador (várias contas no mesmo provedor, com política explícita). Sem nenhuma, ninguém executa Tarefa.
+4. Monte a equipe: um modelo pronto ou descreva quem você precisa. Sempre nasce uma Coordenação — a voz da equipe nos canais.
+5. Comece no #geral. Peça uma coisa concreta. Assuntos coloridos separam o fio ([Assuntos](./assuntos.md)).
 
 A equipe aparece na barra. O que espera você fica em **Precisa de você**. No perfil ou na conversa, **Ensinar** grava a tela neste computador e vira rascunho de skill ([Ensinar](./ensinar.md)). Passo a passo: [Primeiros passos](./primeiros-passos.md).
 
@@ -44,12 +44,12 @@ Fora do turno a persona não começa o dia sozinha. Sem saldo de atenção ela f
 
 ## Uso, limites e insights locais
 
-Em **Uso e limites** você vê consumo por conexão (sempre com a origem: medido, estimado ou oficial). Tokens por tarefa e cache vêm do livro de turnos; equipe ociosa sem objetivo não chama modelo. Só o dono do workspace também vê o **funil de ativação** e o **impacto por persona** — calculados só com eventos já guardados no app; nada disso vai para nuvem nem analytics de terceiro. Horas poupadas aparecem como **estimativa**. Detalhe: [Uso e limites](./uso.md).
+Em **Uso e limites** você vê consumo por conexão (sempre com a origem: medido, estimado ou oficial). O consumo por tarefa é medido a cada rodada, e equipe parada, sem objetivo, não gasta nada. Só quem é dono da equipe também vê o **funil de ativação** e o **impacto por persona** — calculados só com eventos já guardados no app; nada disso vai para nuvem nem analytics de terceiro. Horas poupadas aparecem como **estimativa**. Detalhe: [Uso e limites](./uso.md).
 
 ## Privacidade
 
 Não sai deste computador sem você mandar: conversas diretas, chaves, Cofre, Tarefas, memória, código local.
 
-Pode sair só se você ligou a conexão: o texto da Tarefa para o runner, e um webhook que **você** encaminhou.
+Pode sair só se você ligou a conexão: o texto da Tarefa para a IA que você conectou, e um webhook que **você** encaminhou.
 
 Arquivar não apaga. Excluir não deixa resto em busca. Convite revogado corta no meio do trabalho. [Privacidade](./privacidade.md) · [Cofre](./cofre.md) · [Backup](./backup.md).

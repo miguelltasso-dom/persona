@@ -9,7 +9,7 @@ O que **nunca sai deste computador** sem você mandar:
 
 O que **pode** sair, só se você ligou a conexão:
 
-- o texto que a persona envia ao runner (CLI ou API) para executar a Tarefa
+- o texto que a persona envia à IA que faz o trabalho (pela ferramenta ou chave que você conectou) para executar a Tarefa
 - um webhook que **você** encaminhou (por exemplo GitHub) para virar pedido
 
 A gravação de **Ensinar** fica só neste computador, como artefato privado da persona, com retenção de 30 dias. Nada sobe sem você exportar. DM e projeto privado não viram skill pública sem promoção explícita.

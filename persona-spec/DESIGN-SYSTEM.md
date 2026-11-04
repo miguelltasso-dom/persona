@@ -190,7 +190,7 @@ Importar de `src/client/primitives/index.ts`. Estados obrigatórios em todos: re
 | `ChoiceCards` | Escolha explícita em cartões-rádio (ícone, título, uma frase, selo "Recomendado"): `input type=radio` real por baixo; base do `AccountPolicyPicker` e das predefinições de Regras. Use no lugar de números crus. |
 | `QuotaMeter` | Medidor oficial 5h/semana (role=meter, tom por nível), compartilhado entre cartão e Conexões. |
 | `Switch` | O único liga/desliga do app (Gestor, Ensinar › microfone, editor): `role=switch` real, trilha com contorno `outline-control` (≥ 3:1 nos dois temas; o `outline` puro some no escuro), alvo de 44 px sem crescer o desenho, ligado = âmbar. Não use para escolher entre opções com nome (use `ChoiceCards`). |
-| `AboutPersona` | Tela "Sobre o Persona": foto da equipe do Brush, frase, versão, créditos verificados (`PERSONA_CREDITS`: DeepSeek Harness MIT, OAR Apache-2.0, t3code MIT), links abertos pelo host, nunca navegando a janela (`design/LAUNCH-KIT.md`). |
+| `AboutPersona` | Tela "Sobre a Persona": foto da equipe do Brush, frase, versão, créditos verificados (`PERSONA_CREDITS`: DeepSeek Harness MIT, OAR Apache-2.0, t3code MIT), links abertos pelo host, nunca navegando a janela (`design/LAUNCH-KIT.md`). |
 
 **Página viva:** `persona-spec/design/system/index.html` renderiza os primitivos REAIS em claro e escuro, com os tokens lidos da paleta, os ícones, o movimento e a regra "use quando / não use quando". Ela abre direto do disco. Fonte em `design/system-src/`; para regenerar, rode `pnpm exec vite build --config persona-spec/design/system-src/vite.config.mjs`. O texto segue `design/MICROCOPY.md`.
 

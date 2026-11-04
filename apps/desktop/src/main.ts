@@ -106,7 +106,8 @@ import { DesktopNotifications, policyFromAutonomy } from './notifications.ts'
 import { allowShellNavigation, hardenSession, isExternalHttpUrl, secureWebPreferences, windowOpenAction } from './secure-shell.ts'
 import { copyPersonaDiagnostic, createPersonaLogger, personaLogsDir } from './persona-log.ts'
 import { reconnectingPageUrl } from './reconnecting-page.ts'
-import { ALWAYS_ON_IPC, isAlwaysOnAttention, isAlwaysOnResolved, runningAssignmentCount } from './always-on-ipc.ts'
+import { ALWAYS_ON_IPC, isAlwaysOnAttention, isAlwaysOnResolved, needsYouCountValue, runningAssignmentCount } from './always-on-ipc.ts'
+import { applyThemeOverride } from './theme-override.ts'
 import { DesktopPower } from './power.ts'
 import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
 import { parsePersonaDeepLink } from './deep-link.ts'
@@ -467,6 +468,8 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
 }
 
 async function main(): Promise<void> {
+  // Forced theme for installed-app captures (P0-7): must be set before any window paints.
+  const forcedTheme = applyThemeOverride(nativeTheme, process.env, process.argv)
   const desktopSettings = await readDesktopSettings(app.getPath('userData'))
   void pruneCrashReports(app.getPath('logs'))
   const personaLogger = createPersonaLogger(resolvePersonaProcessHome())
@@ -548,6 +551,7 @@ async function main(): Promise<void> {
   let tray: DesktopTray | undefined
   let trayWorking = 0
   let trayNeedsYou = 0
+  let trayPaused = false
   /**
    * The operating system is ending the session: the quit skips its confirmation. Windows sets it
    * on the definitive session-end message. macOS sets it on the power-off notification, which
@@ -1145,6 +1149,8 @@ async function main(): Promise<void> {
   // Only the main window may synchronize its palette with the native material.
   ipcMain.on(DESKTOP_IPC.nativeThemeSet, (event, source: unknown) => {
     if (mainWindow === undefined || event.sender !== mainWindow.webContents) return
+    // A forced theme (PERSONA_THEME / --persona-theme) stays pinned: the renderer must not undo it.
+    if (forcedTheme !== undefined) return
     if (source === 'light' || source === 'dark' || source === 'system') nativeTheme.themeSource = source
   })
   ipcMain.handle(DESKTOP_IPC.localeBootstrap, async (event) => {
@@ -1446,9 +1452,8 @@ async function main(): Promise<void> {
       return
     }
     if (isAlwaysOnAttention(payload)) {
+      // The toast only. The tray number is SET by the renderer through `needsYouCount` (it also goes down when a card is decided).
       desktopNotifications.ingest(payload)
-      if (payload.kind === 'needs-you') trayNeedsYou += 1
-      tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: false })
     }
   })
   ipcMain.on(ALWAYS_ON_IPC.runningAssignments, (event, payload: unknown) => {
@@ -1457,14 +1462,21 @@ async function main(): Promise<void> {
     if (count !== undefined) {
       desktopPower.setRunningAssignments(count)
       trayWorking = count
-      tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: false })
+      tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: trayPaused })
     }
+  })
+  ipcMain.on(ALWAYS_ON_IPC.needsYouCount, (event, payload: unknown) => {
+    assertDesktopSender(event, ['app'])
+    const count = needsYouCountValue(payload)
+    if (count === undefined || count === trayNeedsYou) return
+    trayNeedsYou = count
+    tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: trayPaused })
   })
   const openPersonaLink = (href: string): void => {
     const link = parsePersonaDeepLink(href)
     focusPrimaryWindow()
     if (link !== undefined && mainWindow !== undefined && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send(ALWAYS_ON_IPC.openTask, link.ticketId)
+      mainWindow.webContents.send(ALWAYS_ON_IPC.openTask, link.ticketId, link.view ?? 'thread')
     }
   }
   const runBackupNow = async (): Promise<void> => {
@@ -1507,6 +1519,7 @@ async function main(): Promise<void> {
   const pauseTeam = (): void => {
     void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
       await writePersonaShellPrefs(app.getPath('userData'), { ...prefs, teamPaused: true })
+      trayPaused = true
       tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: true })
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(ALWAYS_ON_IPC.pauseTeam)
@@ -1516,6 +1529,7 @@ async function main(): Promise<void> {
   const resumeTeam = (): void => {
     void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
       await writePersonaShellPrefs(app.getPath('userData'), { ...prefs, teamPaused: false })
+      trayPaused = false
       tray?.setPresence({ working: trayWorking, needsYou: trayNeedsYou, paused: false })
     }).catch((error: unknown) => { console.error(error) })
   }

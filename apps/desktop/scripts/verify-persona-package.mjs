@@ -31,6 +31,8 @@ for (const name of [
 const manifest = JSON.parse(asar.extractFile(archive, 'package.json').toString())
 console.log(`COMMIT ${manifest.dshBuildCommit}`)
 const results = []
+// --real-theme: pin the REAL native theme per run through PERSONA_THEME (P0-7) instead of faking dark by writing the DOM attribute.
+const realTheme = process.argv.includes('--real-theme')
 const vaultHome = process.argv.includes('--vault') ? mkdtempSync(join(tmpdir(), 'persona-native-package-')) : undefined
 if (vaultHome) prepareVaultProof(join(vaultHome, 'home'))
 for (const dark of (process.argv.includes('--light-only') ? [false] : [false, true])) {
@@ -46,6 +48,7 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
       DSH_DESKTOP_USER_DATA_DIR: join(home, 'user'), DSH_TELEMETRY_DISABLED: '1',
       DSH_DESKTOP_WELCOME: '0', DSH_DESKTOP_UPDATES: '0',
       ...(vaultHome ? { PERSONA_VAULT_TEST_CIPHER: '1' } : {}),
+      ...(realTheme ? { PERSONA_THEME: dark ? 'dark' : 'light' } : {}),
       PERSONA_TEST_BOOT_FAILURE: dark ? '1' : '0',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -77,10 +80,18 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
     await profiler.send('Profiler.start')
     const consoleErrors = []
     page.on('pageerror', error => consoleErrors.push(error.message))
-    if (dark) {
+    if (dark && !realTheme) {
       await page.evaluate(() => document.documentElement.setAttribute('data-ds-theme-source', 'dark'))
       await page.waitForFunction(() => matchMedia('(prefers-color-scheme: dark)').matches)
     }
+    // The forced theme must reach the renderer by the real path: prefers-color-scheme follows nativeTheme, and the app writes
+    // data-ds-dark-theme="true" in dark and REMOVES it in light (Keel's contract).
+    const theme = realTheme
+      ? await page.waitForFunction(expectDark => (matchMedia('(prefers-color-scheme: dark)').matches === expectDark
+        && (document.documentElement.getAttribute('data-ds-dark-theme') === 'true') === expectDark)
+        ? { prefersDark: expectDark, darkAttribute: document.documentElement.getAttribute('data-ds-dark-theme') } : false, dark, { timeout: 20000 })
+        .then(handle => handle.jsonValue())
+      : undefined
     await page.screenshot({ path: join(output, dark ? 'dark-first-frame.png' : 'light-first-frame.png') })
     if (dark) {
       await page.locator('#boot-error-title').waitFor({ state: 'visible', timeout: 65000 })
@@ -103,9 +114,16 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
       .sort((a, b) => b.durationMs - a.durationMs).slice(0, 12))
     const profile = await profiler.send('Profiler.stop')
     writeFileSync(join(output, dark ? 'dark.cpuprofile' : 'light.cpuprofile'), JSON.stringify(profile.profile))
+    // P0-6: the harness's own splash ("HARNESS" / "Loading plugins…") must not stay in the DOM under the app (a screen reader
+    // reads it in English), and the house fonts must be loaded for the splash and the error page.
+    const harness = await page.evaluate(() => ({
+      harnessBootNodes: document.querySelectorAll('[data-dsh-boot]').length,
+      loadingPluginsText: (document.body.innerText + document.body.textContent).includes('Loading plugins'),
+      fonts: Object.fromEntries(['Fredoka', 'Nunito'].map(family => [family, document.fonts.check(`16px "${family}"`)])),
+    }))
     const vault = vaultHome ? readVaultProof(join(home, 'home'), dark) : undefined
     results.push({ dark, elapsedMs: Date.now() - started, retry: dark, text: text.slice(0, 800), consoleErrors, resources,
-      ...(vault ? { vault } : {}) })
+      harness, ...(theme ? { theme } : {}), ...(vault ? { vault } : {}) })
     console.log(JSON.stringify(results.at(-1)))
     if (consoleErrors.length) throw new Error(`Renderer errors: ${consoleErrors.join('; ')}`)
   } finally {

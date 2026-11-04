@@ -13,6 +13,33 @@ describe('persona deep links', () => {
     expect(parsePersonaDeepLink('persona://task/%')).toBeUndefined()
     expect(() => personaTaskHref('Ticket_9')).toThrow(/invalid persona ticket id/u)
   })
+
+  it('carries the landing view through a closed ?v= allowlist', () => {
+    expect(personaTaskHref('t-1')).toBe('persona://task/t-1')
+    expect(personaTaskHref('t-1', 'thread')).toBe('persona://task/t-1')
+    expect(personaTaskHref('t-1', 'approvals')).toBe('persona://task/t-1?v=approvals')
+    for (const view of ['thread', 'approvals', 'review', 'overview'] as const) {
+      const parsed = parsePersonaDeepLink(`persona://task/t-1?v=${view}`)
+      expect(parsed).toEqual({ kind: 'task', ticketId: 't-1', view })
+      expect(parsePersonaDeepLink(personaTaskHref('t-1', view))?.ticketId).toBe('t-1')
+    }
+    // Without a view the parser does not invent one: the caller treats absence as the thread.
+    expect(parsePersonaDeepLink('persona://task/t-1')).toEqual({ kind: 'task', ticketId: 't-1' })
+  })
+
+  it.each([
+    'persona://task/t-1?v=settings',
+    'persona://task/t-1?v=',
+    'persona://task/t-1?v=review&v=approvals',
+    'persona://task/t-1?v=review&x=1',
+    'persona://task/t-1?x=1&v=review',
+    'persona://task/t-1?view=review',
+    'persona://task/t-1?v=review#frag',
+    'persona://task/t-1?v=https://example.com',
+    'persona://task/t-1?V=review',
+  ])('rejects a link outside the allowlist (%s)', (link) => {
+    expect(parsePersonaDeepLink(link)).toBeUndefined()
+  })
 })
 
 describe('reconnecting page', () => {

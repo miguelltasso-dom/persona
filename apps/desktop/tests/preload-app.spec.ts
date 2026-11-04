@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { installMandatoryUpdateOverlay } from '../src/preload-mandatory-overlay.ts'
 import { syncWindowsAppearance } from '../src/preload-windows.ts'
+import { ALWAYS_ON_IPC } from '../src/always-on-ipc.ts'
 import { DESKTOP_IPC, type DshDesktopProductApi } from '../src/ipc.ts'
 
 const electron = vi.hoisted(() => ({
@@ -49,6 +50,30 @@ it('routes original-file requests through the trusted application bridge', async
     [DESKTOP_IPC.fileSave, request],
     [DESKTOP_IPC.clipboardImageRead, 'https://images.example/original.gif'],
   ])
+})
+
+it('exposes the tray "needs you" count and the click landing view to the application document', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'personaAlwaysOn')?.[1] as {
+    needsYouCount(count: number): void
+    onOpenTask(listener: (ticketId: string, view?: string) => void): () => void
+  }
+  api.needsYouCount(2)
+  api.needsYouCount(0)
+  expect(electron.ipcRenderer.send.mock.calls).toEqual([
+    [ALWAYS_ON_IPC.needsYouCount, 2],
+    [ALWAYS_ON_IPC.needsYouCount, 0],
+  ])
+  const listener = vi.fn()
+  const off = api.onOpenTask(listener)
+  const handler = electron.ipcRenderer.on.mock.calls.find(([channel]) => channel === ALWAYS_ON_IPC.openTask)?.[1] as
+    (event: unknown, ticketId: string, view?: string) => void
+  handler({}, 't-1', 'approvals')
+  handler({}, 't-2')
+  expect(listener.mock.calls).toEqual([['t-1', 'approvals'], ['t-2', undefined]])
+  off()
+  expect(electron.ipcRenderer.off).toHaveBeenCalledWith(ALWAYS_ON_IPC.openTask, handler)
 })
 
 it('limits product documents to update status and a native confirmation action', async () => {

@@ -2,6 +2,22 @@
 
 Mais recente no topo.
 
+## 04/11 18:12 — H2: retipo `quota_exhausted`, IV-2 desktop, P0-7 e estado final do package-clean fechados
+
+O pack do H (`71b87a1d18`) falhou no `host aggregate check` (testes do Keel, já corrigidos por ele); encerrei só a árvore que eu lancei e não relancei. Espero o H2.
+
+**Retipo no meio do turno** (`persona-runners`): `withQuotaRecheck` (camada mais externa do ramo CLI com `accountUsage`, ou seja Claude/Codex) relê o `accountUsage` uma vez quando o turno termina `failed` ou o stream lança erro sem tipo; janela ≥ 100% vira `RunnerResolveError('quota_exhausted', resetAt = relógio mais tardio das janelas cheias)` e o bloqueio fica lembrado, então a sessão quente do pool recusa o próximo turno antes de abrir o CLI. Leitura que falha ou mostra folga deixa o resultado original intacto. `assertReady` passou a usar o mesmo `quotaVerdict`. `quota-recheck.spec.ts` 13/13 (inclui `resolveRunner` + pool); 10 specs de runners/91 testes; `check-pkg persona-runners` OK. `plugin-composition.spec.ts` corrigido (cofre honesto, `PERSONA_VAULT_TEST_CIPHER=1`).
+
+**IV-2 desktop** (`contracts/notify-bridge.md`): canal e preload `needsYouCount` (SET da bandeja), `onOpenTask(ticketId, view)`, deep link `?v=` em lista fechada, href por tipo (agrupado → Visão geral), `trayPaused` (a pausa não é mais desfeita por avisos). **P0-7**: `PERSONA_THEME`/`--persona-theme=` fixa `nativeTheme.themeSource` antes da janela (`theme-override.ts`); `verify-persona-package.mjs --real-theme` + sonda do P0-6. 66/66 specs do desktop; `tsc -p apps/desktop/tsconfig.host.json` sem erros; os 5 specs tocados passam o `tsc` estrito (a config do desktop só cobre `src`, os testes só passam pelo agregado da raiz). **Falta:** prova real de P0-6/P0-7 e o clique/captura reais no Windows (precisam do NSIS do H2); o cliente do IV-2 é do Lumen.
+
+**package-clean grava sempre o estado final** (pedido do Atlas): `pack-state.mjs`, `pack-status.mjs` (morte dura: "died (pid X gone at stage Y)"). Detalhe no recado ao Keel; 25/25 testes, inclusive processos reais e o script real de ponta a ponta. Bug antigo corrigido: `git rev-parse <rev inexistente>` ecoa o argumento e o "cannot resolve" nunca disparava. Sem commit.
+
+## 04/11 17:25 — campo `at` da cota (A-5) pronto; retipo `quota_exhausted` no meio do turno aguarda o descongelamento
+
+P0 do H2 (Atlas): `OfficialQuotaView.at` = instante da última leitura da cota por conta, inclusive quando a leitura não achou nada. `SqliteUsageStore.putQuota` carimba `quota.at ?? agora` (sem migração: o campo vive no corpo JSON); `OfficialQuotaPutRow.at` e `officialQuotaPuts(snaps, at?)` deixam a sonda informar o instante; o host expõe na view. Linhas antigas vêm sem `at` (a UI não mostra "há X min"). Contrato: `contracts/official-quota-pool.md` (seção Rivet). Prova: vitest store+usage+host, 3 arquivos/12 testes PASS; `check-pkg` persona-store, persona-usage e persona-host OK (um erro transitório em `account-swap.spec.ts`, de outra pessoa, já corrigido por ela às 17:21). Sem commit.
+
+Respostas à Tally (cota da pilula): leitor de cota do OAR é de assinatura (Claude `get_usage`, Codex só `chatgpt`); Cursor/OpenCode não têm; ninguém dispara a leitura periódica em produção (o loader da pilula chama `listConnections` antes de `getOfficialQuota`). **Pendente (P0 do H2, em `persona-runners`, congelado):** reler `accountUsage` quando um turno termina com erro de motor e tipar como `quota_exhausted` com o `resetAt` da janela; checar também a sessão quente do pool (hoje `pool.get` volta antes do pré-voo).
+
 ## 04/11 16:18 — limitador de turnos reais (D-069) pronto para o H
 
 Pedido do Keel (achado do Forge): nada limitava os turnos pagos ANTES do turno no app instalado. `withRealTurnCap(runner, { cap, ledgerPath })` em `persona-runners/src/resolve/real-turn-cap.ts`, ligado no `resolveRunner` só no ramo CLI real (camada mais interna, então as retentativas de infra também contam) e só com `PERSONA_REAL_TURN_CAP` no ambiente; sem a variável, zero efeito. Ledger em `PERSONA_REAL_TURN_LEDGER` (caminho absoluto): JSON `{version, turns, entries[]}`, trava `.lock` entre processos + tmp/`fsync`/rename. Conta `start`/`startTurn`/`resume` antes de delegar ao CLI; `prime` não conta. Falha fechada (cap inválida, ledger ausente/relativo/ilegível/corrompido/diretório, trava ou gravação falha) com `RealTurnCapError` em pt-BR sem jargão, e o CLI não inicia. Contrato: `persona-spec/contracts/real-turn-cap.md`.

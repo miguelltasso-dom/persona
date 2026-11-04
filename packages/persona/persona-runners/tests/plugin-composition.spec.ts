@@ -2,12 +2,20 @@ import { Context } from '@deepseek-ai/cordis'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import PersonaUsage from '@deepseek-ai/dsh-persona-usage'
 import PersonaVault from '@deepseek-ai/dsh-persona-vault'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it } from 'vitest'
 import PersonaRunners from '../src/plugin.ts'
 
 const roots: Context[] = []
+let previousCipher: string | undefined
+// The Cofre is honestly unavailable outside Electron; this composition test opts into the in-memory test cipher.
+beforeEach(() => {
+  previousCipher = process.env.PERSONA_VAULT_TEST_CIPHER
+  process.env.PERSONA_VAULT_TEST_CIPHER = '1'
+})
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => root.fiber.dispose()))
+  if (previousCipher === undefined) delete process.env.PERSONA_VAULT_TEST_CIPHER
+  else process.env.PERSONA_VAULT_TEST_CIPHER = previousCipher
 })
 
 it('mounts personaRunners, personaVault/credentials and personaUsage on one Context', async () => {

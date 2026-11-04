@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { isAlwaysOnAttention, isAlwaysOnResolved, runningAssignmentCount } from '../src/always-on-ipc.ts'
+import {
+  ALWAYS_ON_IPC, isAlwaysOnAttention, isAlwaysOnResolved, needsYouCountValue, runningAssignmentCount,
+} from '../src/always-on-ipc.ts'
 
 describe('always-on IPC wire', () => {
+  it('has a distinct channel for the tray "needs you" count', () => {
+    expect(ALWAYS_ON_IPC.needsYouCount).toBe('dsh-desktop:needs-you-count')
+    expect(new Set(Object.values(ALWAYS_ON_IPC)).size).toBe(Object.values(ALWAYS_ON_IPC).length)
+  })
+
+  it('coerces the needs-you count to a whole number >= 0 and drops anything else', () => {
+    expect(needsYouCountValue(0)).toBe(0)
+    expect(needsYouCountValue(3)).toBe(3)
+    expect(needsYouCountValue(2.9)).toBe(2)
+    for (const bad of [-1, Number.NaN, Number.POSITIVE_INFINITY, '2', null, undefined, {}, [2], true]) {
+      expect(needsYouCountValue(bad)).toBeUndefined()
+    }
+  })
+
   it('accepts a needs-you payload and rejects a network-looking object', () => {
     expect(isAlwaysOnAttention({
       id: 'a1', kind: 'needs-you', title: 'Nina', ticketId: 't-1', at: '2026-11-03T15:00:00Z',

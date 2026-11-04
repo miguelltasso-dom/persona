@@ -125,4 +125,16 @@ describe('T3 harvest → putProviderLimitReports', () => {
     expect(stored[0]?.accountLabel).toBe('Claude Max')
     expect(stored[0]?.accountId).toBe('claude')
   })
+
+  it('stamps the read instant on every row only when the caller gives one', () => {
+    const snaps = [{
+      id: 'claude',
+      officialQuota: { provider: 'claude', origin: 'official' as const, windows: [window({ id: '5h', usedPercent: 10 })] },
+    }]
+    expect(officialQuotaPuts(snaps)[0]).not.toHaveProperty('at')
+    expect(officialQuotaPuts(snaps, '2026-11-04T19:00:00.000Z')[0]?.at).toBe('2026-11-04T19:00:00.000Z')
+    const seen: Array<string | undefined> = []
+    persistOfficialQuotaPuts((row) => { seen.push(row.at) }, snaps, '2026-11-04T19:05:00.000Z')
+    expect(seen).toEqual(['2026-11-04T19:05:00.000Z'])
+  })
 })

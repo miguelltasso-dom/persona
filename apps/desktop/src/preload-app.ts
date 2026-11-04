@@ -142,8 +142,9 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
   contextBridge.exposeInMainWorld('personaAlwaysOn', {
     attention: (event: unknown) => { ipcRenderer.send(ALWAYS_ON_IPC.attention, event) },
     runningAssignments: (count: number) => { ipcRenderer.send(ALWAYS_ON_IPC.runningAssignments, count) },
-    onOpenTask: (listener: (ticketId: string) => void) => {
-      const handle = (_event: Electron.IpcRendererEvent, ticketId: string): void => { listener(ticketId) }
+    needsYouCount: (count: number) => { ipcRenderer.send(ALWAYS_ON_IPC.needsYouCount, count) },
+    onOpenTask: (listener: (ticketId: string, view?: string) => void) => {
+      const handle = (_event: Electron.IpcRendererEvent, ticketId: string, view?: string): void => { listener(ticketId, view) }
       ipcRenderer.on(ALWAYS_ON_IPC.openTask, handle)
       return () => { ipcRenderer.off(ALWAYS_ON_IPC.openTask, handle) }
     },

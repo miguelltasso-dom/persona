@@ -1,7 +1,14 @@
 /** Honest Windows toasts: attention budget, silence windows, grouping, internal deep links. */
 
-import { personaTaskHref } from './deep-link.ts'
+import { personaTaskHref, type PersonaLinkView } from './deep-link.ts'
 import { nativeNotificationMessages } from './notification-locale.ts'
+
+/** Where a click on this kind of toast lands (NOTIFICATIONS-SPEC §3). `thread` is the default and carries no query. */
+function linkViewOf(kind: 'needs-you' | 'review' | 'question' | 'failed' | 'done'): PersonaLinkView {
+  if (kind === 'needs-you') return 'approvals'
+  if (kind === 'review') return 'review'
+  return 'thread'
+}
 
 /** Policy from Anvil Remote `getAttentionPolicy` (Status contract). */
 export interface DesktopAttentionPolicy {
@@ -193,7 +200,8 @@ export class DesktopNotifications {
     const first = held[0]
     if (first === undefined) return
     const locale = nativeNotificationMessages(this.options.localeId?.() ?? 'en')
-    const href = personaTaskHref(first.ticketId)
+    // The grouped toast opens the overview, not one arbitrary task (SPEC §3).
+    const href = personaTaskHref(first.ticketId, 'overview')
     const needs = held.filter(event => event.kind !== 'done' && event.kind !== 'review').length
     const done = held.length - needs
     const toast = this.options.notify.show({
@@ -214,7 +222,7 @@ export class DesktopNotifications {
       : event.kind === 'done' ? `“${task}”`
         : event.kind === 'question' ? trimText(event.question ?? task)
           : event.kind === 'failed' ? locale.failures[event.code ?? ''] ?? locale.unknownFailure : task
-    const href = personaTaskHref(event.ticketId)
+    const href = personaTaskHref(event.ticketId, linkViewOf(event.kind))
     if (event.kind === 'review' || event.kind === 'done') this.shownToday += 1
     const toast = this.options.notify.show({
       title,

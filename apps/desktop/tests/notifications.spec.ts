@@ -106,9 +106,25 @@ describe('desktop notifications', () => {
     f.notifications.flush()
     expect(f.shown).toHaveLength(1)
     expect(f.shown[0]?.body).toBe('0 coisas esperam você · 5 entregas')
-    expect(f.shown[0]?.href).toBe(personaTaskHref('t-1'))
+    // The grouped toast opens the overview, not one arbitrary task (SPEC §3).
+    expect(f.shown[0]?.href).toBe(personaTaskHref('t-1', 'overview'))
     if (f.shown[0] !== undefined) f.open(f.shown[0].href)
-    expect(f.open).toHaveBeenCalledWith('persona://task/t-1')
+    expect(f.open).toHaveBeenCalledWith('persona://task/t-1?v=overview')
+  })
+
+  it('opens the exact place for each kind of toast', () => {
+    const f = harness({ delivery: 'ping', proposalBudget: 9 })
+    const kinds = ['needs-you', 'review', 'question', 'failed', 'done'] as const
+    kinds.forEach((kind, index) => {
+      f.notifications.ingest({ id: `k-${kind}`, kind, title: 'Tarefa', ticketId: `t-${String(index)}`, at: '2026-11-03T15:00:00Z' })
+    })
+    expect(f.shown.map(toast => toast.href)).toEqual([
+      'persona://task/t-0?v=approvals',
+      'persona://task/t-1?v=review',
+      'persona://task/t-2',
+      'persona://task/t-3',
+      'persona://task/t-4',
+    ])
   })
 
   it('maps Anvil silence windows onto quietStart/quietEnd', () => {
@@ -125,6 +141,6 @@ describe('desktop notifications', () => {
     f.notifications.ingest({ id: 'n', kind: 'needs-you', title: 'Bloqueada', ticketId: 't-8', at: '2026-11-03T15:01:00Z' })
     expect(f.shown).toHaveLength(2)
     expect(f.shown[0]?.title).toBe('Persona deixou mudanças para você revisar')
-    expect(f.shown[0]?.href).toBe('persona://task/t-9')
+    expect(f.shown[0]?.href).toBe('persona://task/t-9?v=review')
   })
 })

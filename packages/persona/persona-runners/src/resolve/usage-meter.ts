@@ -23,6 +23,11 @@ export interface MeasuredUsage {
   accountId?: string
   cacheReadTokens?: number
   cacheWriteTokens?: number
+  /**
+   * Wall time of the turn in whole milliseconds (`ended.at − started.at` of the SAME stream). Absent when the turn emitted no
+   * `started`, or the two instants do not give a number ≥ 0: never an invented 0 (OPT-9 estimate calibration).
+   */
+  durationMs?: number
 }
 
 export interface UsageMeterSink {
@@ -46,6 +51,7 @@ export interface UsageStorePort {
     accountId?: string
     cacheReadTokens?: number
     cacheWriteTokens?: number
+    durationMs?: number
   }): void
 }
 
@@ -99,9 +105,22 @@ export function usageStoreSink(
         kind: entry.kind,
         ...(entry.accountId === undefined ? {} : { accountId: entry.accountId }),
         ...meterCacheOf(entry),
+        ...(entry.durationMs === undefined ? {} : { durationMs: entry.durationMs }),
       })
     },
   }
+}
+
+/**
+ * Whole milliseconds between the start and the end of one turn.
+ * @param startedAt - `started.at` ISO instant, when the stream emitted one.
+ * @param endedAt - `ended.at` ISO instant.
+ * @returns An integer ≥ 0, or undefined when either instant is missing or unparseable or the end precedes the start.
+ */
+export function turnDurationMs(startedAt: string | undefined, endedAt: string): number | undefined {
+  if (startedAt === undefined) return undefined
+  const span = Date.parse(endedAt) - Date.parse(startedAt)
+  return Number.isFinite(span) && span >= 0 ? Math.round(span) : undefined
 }
 
 /**
@@ -119,9 +138,14 @@ export function withUsageMeter(
 ): Runner {
   const kind = options.kind ?? 'execution'
   const play = async function *(handle: RunHandle): AsyncIterable<RunEvent> {
+    // The FIRST `started` of this turn; a stream with none yields no duration.
+    let startedAt: string | undefined
     for await (const event of inner.stream(handle)) {
+      if (event.type === 'started' && startedAt === undefined) startedAt = event.at
       if (event.type === 'ended') {
         const usage = await inner.usage(handle)
+        const durationMs = turnDurationMs(startedAt, event.at)
+        startedAt = undefined
         sink.record({
           provider,
           model: handle.model,
@@ -133,6 +157,7 @@ export function withUsageMeter(
           kind,
           ...(options.accountId === undefined ? {} : { accountId: options.accountId }),
           ...meterCacheOf(usage),
+          ...(durationMs === undefined ? {} : { durationMs }),
         })
         yield { type: 'usage', at: event.at, usage }
       }

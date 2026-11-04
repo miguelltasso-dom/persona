@@ -5,6 +5,8 @@ import { PERSONA_TICKET_ID } from './deep-link.ts'
 export const ALWAYS_ON_IPC = {
   attention: 'dsh-desktop:attention',
   runningAssignments: 'dsh-desktop:running-assignments',
+  /** Renderer → main: the number shown as "Precisa de você · n" on the tray. A SET, never an increment. */
+  needsYouCount: 'dsh-desktop:needs-you-count',
   catchUp: 'dsh-desktop:catch-up',
   openTask: 'dsh-desktop:open-task',
   pauseTeam: 'dsh-desktop:pause-team',
@@ -55,4 +57,13 @@ export function isAlwaysOnResolved(value: unknown): value is { kind: 'resolved';
 export function runningAssignmentCount(value: unknown): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined
   return Math.floor(value)
+}
+
+/**
+ * Coerce the "needs you" count the renderer sets for the tray.
+ * @param value - Untrusted IPC argument.
+ * @returns A whole number >= 0, or undefined for anything else (the previous count then stays).
+ */
+export function needsYouCountValue(value: unknown): number | undefined {
+  return runningAssignmentCount(value)
 }

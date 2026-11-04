@@ -23,8 +23,8 @@ import { nativeSessionEnv } from '../oar/native-cli-env.ts'
 import { prepareIsolatedHome, type IsolatedHomeIo } from '../oar/isolated-home.ts'
 import { pickProviderAccount, type AccountPolicy, type AccountQuota, type ProviderAccount } from './accounts.ts'
 import { RunnerResolveError, resolveCaughtError } from './errors.ts'
-import { readOarAccountUsage } from '@deepseek-ai/dsh-persona-usage'
-import { asProbe, PROBE_TIMEOUT_MS, quotaExhausted, withTimeout } from './probe.ts'
+import { asProbe, PROBE_TIMEOUT_MS, withTimeout } from './probe.ts'
+import { quotaVerdict, withQuotaRecheck } from './quota-recheck.ts'
 import { assertCliNeverPrompt, cliPolicyOf } from './cli-policy.ts'
 import { pickFastestModel } from './fastest-model.ts'
 import { cachedAuth, cachedModels, rememberAuth, rememberModels } from './probe-cache.ts'
@@ -240,14 +240,9 @@ async function assertReady(runtime: Runtime, spec: PersonaRunnerSpec, cwd: strin
   }
   if (probe.accountUsage !== undefined && authHit === undefined) {
     const usage = await withTimeout(PROBE_TIMEOUT_MS, probe.accountUsage(installation))
-    const quota = readOarAccountUsage(provider, usage)
-    const exhausted = quota.windows.filter(window => (window.usedPercent ?? 0) >= 100)
-    if (quotaExhausted(usage) || exhausted.length > 0) {
-      const clocks = exhausted.map(window => window.resetsAt)
-      const resetAt = clocks.length === 0 || clocks.some(clock => clock === undefined)
-        ? undefined
-        : clocks.filter((clock): clock is string => clock !== undefined).sort().at(-1)
-      throw new RunnerResolveError('quota_exhausted', provider, resetAt === undefined ? {} : { resetAt })
+    const verdict = quotaVerdict(provider, usage)
+    if (verdict.exhausted) {
+      throw new RunnerResolveError('quota_exhausted', provider, verdict.resetAt === undefined ? {} : { resetAt: verdict.resetAt })
     }
   }
   return probe.installation === undefined ? undefined : installation
@@ -532,6 +527,16 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
       spec.model,
       purpose,
     )
+    // Outermost, so the pooled (warm) instance remembers a quota block and refuses the next turn before the CLI starts.
+    // Only CLIs that can report their account usage (Claude, Codex); Cursor/OpenCode have nothing to re-read.
+    const usageProbe = asProbe(runtime)
+    if (usageProbe.accountUsage !== undefined && installation !== undefined) {
+      const readUsage = usageProbe.accountUsage
+      resolved = withQuotaRecheck(resolved, {
+        provider: spec.cli,
+        reread: () => withTimeout(PROBE_TIMEOUT_MS, readUsage(installation)),
+      })
+    }
   }
   pool?.set(key, resolved)
   return resolved

@@ -425,3 +425,9 @@ export {
   type RealTurnCapOptions,
   type RealTurnCapReason,
 } from './resolve/real-turn-cap.ts'
+export {
+  quotaVerdict,
+  withQuotaRecheck,
+  type QuotaRecheckOptions,
+  type QuotaVerdict,
+} from './resolve/quota-recheck.ts'

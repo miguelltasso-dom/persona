@@ -106,6 +106,8 @@ export interface OfficialQuotaPutRow {
   readonly accountId: string
   readonly accountLabel: string
   readonly detail?: string
+  /** ISO instant the probe read this quota. Omitted: the store stamps the time of the write. */
+  readonly at?: string
 }
 
 const KNOWN_PLAN = new Set(['max', 'pro', 'chatgpt', 'plus', 'logged_in'])
@@ -113,8 +115,9 @@ const KNOWN_PLAN = new Set(['max', 'pro', 'chatgpt', 'plus', 'logged_in'])
 /**
  * Build putQuota rows from detectConnections cards that already have officialQuota.
  * @param snaps - Probe cards.
+ * @param at - ISO instant the probe read them (stamped on every row when given).
  */
-export function officialQuotaPuts(snaps: readonly OfficialQuotaSnapCard[]): readonly OfficialQuotaPutRow[] {
+export function officialQuotaPuts(snaps: readonly OfficialQuotaSnapCard[], at?: string): readonly OfficialQuotaPutRow[] {
   const rows: OfficialQuotaPutRow[] = []
   for (const snap of snaps) {
     const quota = snap.officialQuota
@@ -131,6 +134,7 @@ export function officialQuotaPuts(snaps: readonly OfficialQuotaSnapCard[]): read
         ...(planKey !== undefined && KNOWN_PLAN.has(planKey) ? { plan: planKey } : {}),
       }),
       ...(quota.detail === undefined ? {} : { detail: quota.detail }),
+      ...(at === undefined ? {} : { at }),
     })
   }
   return rows
@@ -140,13 +144,15 @@ export function officialQuotaPuts(snaps: readonly OfficialQuotaSnapCard[]): read
  * Write putQuota rows. Anvil persists; this is the host one-liner.
  * @param put - `usage.putQuota` bound to a project (or a test array push).
  * @param snaps - detectConnections cards.
+ * @param at - ISO instant the probe read them.
  * @returns Rows that were written.
  */
 export function persistOfficialQuotaPuts(
   put: (row: OfficialQuotaPutRow) => void,
   snaps: readonly OfficialQuotaSnapCard[],
+  at?: string,
 ): readonly OfficialQuotaPutRow[] {
-  const rows = officialQuotaPuts(snaps)
+  const rows = officialQuotaPuts(snaps, at)
   for (const row of rows) put(row)
   return rows
 }

@@ -1,4 +1,7 @@
 import { expect } from 'vitest'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import PersonaHost from '../src/index.ts'
 import { TEACH_CONSENT, isolatedAccountHome } from '../src/wave2.ts'
 import { bindHostFile, it } from './host-harness.ts'
@@ -6,6 +9,23 @@ import { bindHostFile, it } from './host-harness.ts'
 const { host } = bindHostFile()
 const scope = { workspaceId: 'ws', projectId: 'pp' }
 const stream = { ...scope, streamKind: 'channel' as const, ownerId: 'geral' }
+
+it('an isolated account reports only its own login and returns the isolated PowerShell command', () => {
+  const h = host()
+  seed(h)
+  const homeDir = mkdtempSync(join(tmpdir(), 'persona-account-login-'))
+  h.addConnectionAccount({ ...scope, provider: 'claude', label: 'Isolada', homeDir })
+  const before = h.listConnectionAccounts(scope).accounts.find(row => row.label === 'Isolada')
+  expect(before?.loggedIn).toBe(false)
+  expect(before?.loginCommand).toContain(`$env:CLAUDE_CONFIG_DIR='${homeDir}'`)
+  expect(before?.loginCommand).toMatch(/; claude login$/u)
+  writeFileSync(join(homeDir, '.credentials.json'), '{}', 'utf8')
+  expect(h.listConnectionAccounts(scope).accounts.find(row => row.label === 'Isolada')?.loggedIn).toBe(true)
+  h.setRunnerSwapPolicy({ ...scope, policy: 'fixed', scope: 'persona', personaId: 'nina' })
+  expect(h.listConnectionAccounts({ ...scope, personaId: 'nina' })).toMatchObject({
+    swapPolicy: 'fixed', swapPolicyScope: 'persona', personaPolicies: [{ personaId: 'nina', policy: 'fixed' }],
+  })
+})
 
 function seed(h: PersonaHost): void {
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
@@ -100,7 +120,7 @@ it('stores several accounts, swap policy, and isolated homes', () => {
   const pessoal = h.accounts.get('claude:pessoal')
   expect(pessoal?.homeDir).toContain('accounts')
   expect(pessoal?.homeDir).toContain('claude')
-  expect(isolatedAccountHome('ana', 'claude', 'claude:pessoal')).toContain('claude:pessoal')
+  expect(isolatedAccountHome('ana', 'claude', 'claude:pessoal')).toMatch(/[\\/]accounts[\\/][a-f0-9]{32}[\\/]claude[\\/][a-f0-9]{32}$/u)
   const card = h.getPersonaCard({ ...scope, personaId: 'nina' })
   expect(card.activeAccount?.label).toBe('Pessoal')
 })

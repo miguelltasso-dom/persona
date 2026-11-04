@@ -146,7 +146,8 @@ it('talk resolve carries personaName, personaTitle and purpose talk', async () =
     projectId: 'pp',
     streamKind: 'channel',
     ownerId: 'geral',
-    body: 'oi',
+    // A real question: "oi" is a courtesy line and gets a reaction without a model (D-075)
+    body: 'Qual o horário do standup?',
     actorId: 'ana',
     subjectId: 't-hi',
     occurredAt: '2026-11-03T15:00:00.000Z',

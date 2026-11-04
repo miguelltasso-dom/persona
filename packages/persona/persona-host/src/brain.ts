@@ -54,6 +54,9 @@ export class BrainHost {
    */
   put(request: PutBrainPageRequest): BrainPageView {
     this.assertWrite(request.workspaceId, request.projectId)
+    const current = this.brain.get(request.id)
+    if (current !== undefined && (current.workspaceId !== request.workspaceId || current.projectId !== request.projectId
+      || !this.visible(request.workspaceId, current))) throw new Error('forbidden')
     const page = this.brain.putPage({
       id: request.id,
       workspaceId: request.workspaceId,
@@ -63,7 +66,7 @@ export class BrainHost {
       body: request.body,
       editorKind: request.editorKind,
       editorId: request.editorId,
-      visibility: visibilityOf(request),
+      visibility: request.visibility === undefined && current !== undefined ? current.visibility : visibilityOf(request),
       ...(request.sources === undefined ? {} : { sources: request.sources }),
       ...(request.properties === undefined ? {} : { properties: request.properties }),
     })
@@ -233,11 +236,11 @@ export class BrainHost {
   }
 
   /**
-   * One-way export. `twoWay` also imports (no duplicate on slug+hash).
+   * One-way export; two-way captures and imports edits before writing exported pages.
    * @param workspaceId - Workspace.
    * @param projectId - Tenant.
    * @param folderPath - Local folder.
-   * @param twoWay - Optional import after export.
+   * @param twoWay - Import changed notes before export, preserving existing visibility.
    * @param actorId - Importer.
    */
   syncFolder(
@@ -249,40 +252,30 @@ export class BrainHost {
   ): { files: number; created: number; skipped: number; direction: 'export' | 'import'; leftover: readonly string[] } {
     this.assertWrite(workspaceId, projectId)
     const visible = this.brain.list(projectId).filter(page => this.visible(workspaceId, page))
-    const exported = this.brain.exportFolder(projectId, folderPath, visible)
     const dest = listDestMarkdown(folderPath)
     const destRels = dest.map(file => file.path.replaceAll('\\', '/'))
     const packRels = visible.map(page => `${page.kind}/${page.slug}.md`)
     if (!twoWay) {
+      const exported = this.brain.exportFolder(projectId, folderPath, visible)
       this.lastForeignPreview = undefined
       this.lastLeftover = leftoverDestFiles(destRels, packRels)
       return { files: exported.files, created: 0, skipped: 0, direction: 'export', leftover: this.lastLeftover }
     }
-    const extras = dest.filter(file => !packRels.includes(file.path.replaceAll('\\', '/')))
     const applied = applyBrainVaultSync(planBrainVaultSync({
       pages: [],
-      dest: extras,
+      dest,
       mode: 'two_way',
     }))
-    for (const item of applied.imports) {
-      if (item.kind !== 'page') continue
-      this.brain.putPage({
-        id: item.page.id === '' ? `imp-${item.page.title}` : item.page.id,
-        workspaceId,
-        projectId,
-        kind: item.page.kind,
-        title: item.page.title,
-        body: item.page.body,
-        editorKind: 'person',
-        editorId: actorId,
-        properties: item.page.properties,
-        sources: [`vault:${item.path}`],
-      })
-    }
     const foreign = foreignVaultToBringFiles(applied.imports)
     this.lastForeignPreview = foreign.length === 0 ? undefined : previewBringVault({ files: foreign })
-    const imported = this.brain.importFolder(workspaceId, projectId, folderPath, actorId)
-    const knownAfter = this.brain.list(projectId).map(page => `${page.kind}/${page.slug}.md`)
+    const imported = this.brain.importFolder(workspaceId, projectId, folderPath, actorId, {
+      canImport: page => page.workspaceId === workspaceId && this.visible(workspaceId, page),
+      newVisibility: { kind: 'project', projectId },
+      paths: new Set(applied.imports.filter(item => item.kind === 'page').map(item => item.path)),
+    })
+    const after = this.brain.list(projectId).filter(page => this.visible(workspaceId, page))
+    const exported = this.brain.exportFolder(projectId, folderPath, after)
+    const knownAfter = after.map(page => `${page.kind}/${page.slug}.md`)
     this.lastLeftover = leftoverDestFiles(destRels, knownAfter)
     return {
       files: exported.files,
@@ -327,6 +320,7 @@ export class BrainHost {
       editorHint: latest === undefined ? '' : `${latest.editorKind}:${latest.editorId}`,
       updatedAt: page.updatedAt,
       restricted: !this.visible(workspaceId, page),
+      audience: page.visibility.kind === 'members' ? 'private' : page.visibility.kind,
     }
   }
 }

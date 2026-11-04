@@ -8,6 +8,7 @@ import { SqliteSyncLog, type EventRepos, type PersonaStore, type ScreenRepos, ty
 import type {
   AcceptRemoteInviteRequest, ConnectRemoteTeamRequest, RemoteTeamState,
   InviteView, IssueInviteRequest, ProjectScopeRequest,
+  RemoteMemberView,
 } from './types.ts'
 
 const KIND = 'remote_team'
@@ -26,7 +27,14 @@ const StatePayload = z.object({
   role: z.enum(['owner', 'member', 'guest']), channelIds: z.array(z.string()),
   status: z.enum(['connected', 'offline', 'revoked', 'vault_unavailable']), cursors: z.record(z.string(), z.number().int().nonnegative()),
   errorCode: z.string(),
+  syncedAt: z.iso.datetime().optional(),
+  behindBy: z.number().int().nonnegative().optional(),
+  remoteHeads: z.record(z.string(), z.number().int().nonnegative()).optional(),
 })
+const RemoteMembers = z.object({ members: z.array(z.object({
+  actor: z.object({ id: z.string(), workspaceId: z.string(), workspaceRole: z.enum(['owner', 'member', 'guest']) }),
+  displayName: z.string().optional(), joinedAt: z.number(), revokedAt: z.number().optional(), inviteId: z.string().optional(),
+})) })
 
 /** Vault capability supplied by persona-vault; tokens never enter screen documents. */
 export interface RemoteTeamVault {
@@ -80,13 +88,18 @@ export class RemoteTeamHost {
   /** @param scope - Local project. @returns Last durable state, absent before explicit connection. */
   state(scope: ProjectScopeRequest): RemoteTeamState | undefined {
     const live = this.connections.get(scope.projectId)
-    if (live !== undefined) return live
+    if (live !== undefined) return this.withLag(live)
     const stored = this.options.screens.get<unknown>(scope.projectId, KIND, 'connection')
     if (stored === undefined) return undefined
-    const state = StatePayload.parse(stored)
+    const { syncedAt, behindBy, remoteHeads, ...base } = StatePayload.parse(stored)
+    const state: RemoteTeamState = { ...base,
+      ...(syncedAt === undefined ? {} : { syncedAt }),
+      ...(behindBy === undefined ? {} : { behindBy }),
+      ...(remoteHeads === undefined ? {} : { remoteHeads }),
+    }
     if (state.workspaceId !== scope.workspaceId || state.projectId !== scope.projectId) throw new Error('remote-team-state-scope')
     localEdgeOrigin(state.edgeUrl)
-    return state
+    return this.withLag(state)
   }
 
   /** @param scope - Existing project to resume. */
@@ -98,12 +111,12 @@ export class RemoteTeamHost {
   }
 
   /** @param request - Explicit channels. @param actor - Server-resolved owner. @returns Durable connection state. */
-  async connect(request: ConnectRemoteTeamRequest, actor: Actor): Promise<RemoteTeamState> {
+  async connect(request: ConnectRemoteTeamRequest, actor: Actor, displayName: string): Promise<RemoteTeamState> {
     if (actor.workspaceRole !== 'owner') throw new Error('forbidden')
     this.requireVault()
     const edgeUrl = localEdgeOrigin(request.edgeUrl)
     const joined = z.object({ member: z.object({ actor: z.object({ workspaceRole: z.enum(['owner', 'member', 'guest']) }) }) })
-      .parse(await this.json(edgeUrl, request.workspaceId, actor.id, '/members', { ...actor }))
+      .parse(await this.json(edgeUrl, request.workspaceId, actor.id, '/members', { ...actor, displayName }))
     if (joined.member.actor.workspaceRole !== 'owner') throw new Error('remote-team-owner-required')
     return this.save({
       workspaceId: request.workspaceId, projectId: request.projectId, edgeUrl, actorId: actor.id,
@@ -128,12 +141,12 @@ export class RemoteTeamHost {
   }
 
   /** @param request - Transient token. @param actor - Server-resolved local identity. @returns Granted channel state. */
-  async accept(request: AcceptRemoteInviteRequest, actor: Actor): Promise<RemoteTeamState> {
+  async accept(request: AcceptRemoteInviteRequest, actor: Actor, displayName: string): Promise<RemoteTeamState> {
     this.requireVault()
     const edgeUrl = localEdgeOrigin(request.edgeUrl)
     const response = InviteResponse.parse(await this.json(edgeUrl, request.workspaceId, actor.id, '/invites/redeem', {
       token: request.token,
-      actor: { kind: 'user', id: actor.id, workspaceId: request.workspaceId, workspaceRole: 'guest', projectIds: [] },
+      actor: { kind: 'user', id: actor.id, workspaceId: request.workspaceId, workspaceRole: 'guest', projectIds: [], displayName },
     }))
     const { invite } = response
     if (!invite.grant.projectIds.includes(request.projectId)) throw new Error('remote-team-project-not-granted')
@@ -150,12 +163,40 @@ export class RemoteTeamHost {
     await this.json(state.edgeUrl, state.workspaceId, state.actorId, `/invites/${encodeURIComponent(inviteId)}/revoke`, {})
     const invite = this.options.screens.get<InviteView>(state.projectId, INVITES, inviteId)
     if (invite !== undefined) this.options.screens.put(state.projectId, INVITES, inviteId, { ...invite, status: 'revoked' })
+    const members = this.options.screens.get<RemoteMemberView[]>(state.projectId, 'remote_team_members', 'current')
+    if (members !== undefined) this.options.screens.put(state.projectId, 'remote_team_members', 'current',
+      members.map(row => row.inviteId === inviteId ? { ...row, status: 'revoked' } : row))
     await vault.dropInviteToken(inviteId)
   }
 
   /** @param scope - Connected project. @returns Metadata-only invite rows, never the sealed token. */
   invites(scope: ProjectScopeRequest): InviteView[] {
     return this.options.screens.list<InviteView>(scope.projectId, INVITES)
+  }
+
+  /**
+   * Refresh accepted member metadata, retaining the last cache while offline or revoked.
+   * @param scope - Authorized connected project.
+   * @returns Names and roles with invite ids for revocation, never sealed tokens or other project grants.
+   */
+  async members(scope: ProjectScopeRequest): Promise<RemoteMemberView[]> {
+    const cached = this.options.screens.get<RemoteMemberView[]>(scope.projectId, 'remote_team_members', 'current') ?? []
+    const state = this.state(scope)
+    if (state === undefined || state.status === 'revoked' || state.status === 'vault_unavailable') return cached
+    try {
+      const result = RemoteMembers.parse(await this.getJson(state, `/members?projectId=${encodeURIComponent(scope.projectId)}`))
+      const members = result.members.filter(row => row.actor.workspaceId === scope.workspaceId).map(row => ({
+        actorId: row.actor.id, displayName: row.displayName ?? row.actor.id, role: row.actor.workspaceRole,
+        status: row.revokedAt === undefined ? 'active' as const : 'revoked' as const,
+        joinedAt: new Date(row.joinedAt).toISOString(), inviteId: row.inviteId ?? '',
+      }))
+      this.options.screens.put(scope.projectId, 'remote_team_members', 'current', members)
+      return members
+    } catch (error: unknown) {
+      if (!(error instanceof SyncTransportError)) throw error
+      this.save({ ...state, status: error.code === 'ACCESS_REVOKED' ? 'revoked' : 'offline', errorCode: error.code })
+      return cached
+    }
   }
 
   /** @param scope - Connected project. @returns State after serialized push/pull; refusals remain visible and durable. */
@@ -216,7 +257,15 @@ export class RemoteTeamHost {
         pending.delete(eventId)
         this.options.screens.delete(state.projectId, PENDING, eventId)
       }
-      this.save({ ...state, status: 'connected', errorCode: '', cursors: client.cursorSnapshot() })
+      const remoteHeads: Record<string, number> = {}
+      for (const channelId of state.channelIds) {
+        const streamId = remoteStream(state.projectId, channelId)
+        const result = z.object({ head: z.number().int().nonnegative() })
+          .parse(await this.getJson(state, `/sync/head?streamId=${encodeURIComponent(streamId)}`))
+        remoteHeads[streamId] = result.head
+      }
+      this.save({ ...state, status: 'connected', errorCode: '', cursors: client.cursorSnapshot(), remoteHeads,
+        syncedAt: new Date().toISOString() })
     } catch (error) {
       if (!(error instanceof SyncTransportError)) throw error
       this.save({
@@ -269,7 +318,32 @@ export class RemoteTeamHost {
     this.options.screens.put(state.projectId, KIND, 'connection', state)
     this.connections.set(state.projectId, state)
     this.arm()
-    return state
+    return this.withLag(state)
+  }
+
+  private withLag(state: RemoteTeamState): RemoteTeamState {
+    if (state.remoteHeads === undefined) return state
+    const log = new SqliteSyncLog(this.options.store)
+    const incoming = Object.entries(state.remoteHeads).reduce((sum, [stream, head]) => sum + Math.max(0, head - log.head(stream)), 0)
+    return { ...state, behindBy: this.loadPending(state.projectId).size + incoming }
+  }
+
+  private async getJson(state: RemoteTeamState, path: string): Promise<unknown> {
+    let response: Response
+    try {
+      response = await this.fetch(`${state.edgeUrl}/w/${encodeURIComponent(state.workspaceId)}${path}`, {
+        headers: { 'x-persona-actor': state.actorId },
+      })
+    } catch (error: unknown) {
+      void error
+      throw new SyncTransportError('SYNC_UNAVAILABLE', 0)
+    }
+    if (!response.ok) {
+      const body: unknown = await response.json()
+      const code = z.object({ code: z.string().optional() }).safeParse(body)
+      throw new SyncTransportError(code.success ? code.data.code ?? 'REMOTE_TEAM_REQUEST_FAILED' : 'REMOTE_TEAM_REQUEST_FAILED', response.status)
+    }
+    return response.json()
   }
 
   private arm(): void {

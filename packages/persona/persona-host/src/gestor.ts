@@ -19,10 +19,11 @@ import {
   type CliKind,
   type GestorLimits,
   type GestorPlan,
+  type GestorAssemble,
   type PersonaSpec,
 } from '@deepseek-ai/dsh-persona-core'
 import { z } from 'zod'
-import { GestorRepos, type ProductRepos } from '@deepseek-ai/dsh-persona-store'
+import { GestorRepos, type ProductRepos, type StoredPersona } from '@deepseek-ai/dsh-persona-store'
 import type { BoardsHost } from './boards.ts'
 import type {
   ApproveGestorPlanRequest,
@@ -103,18 +104,31 @@ function toPlanView(plan: GestorPlan): GestorPlanView {
   }
 }
 
+function functionKey(value: string): string {
+  return value.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase()
+}
+
+function assemblyView(preview: GestorAssemble): AssembleTeamView {
+  return { company: preview.structure.company, explanation: preview.structure.explanation,
+    personaTitles: preview.structure.personas.map(row => row.title), workflowId: preview.workflow.template,
+    sprintName: preview.sprint.name, hire: preview.hire.map(row => ({ function: row.title })), reuse: preview.reuse }
+}
+
 /** Host-side Gestor de equipe. */
 export class GestorHost {
   /**
    * @param product - Personas.
    * @param repos - Mandate/plan store.
    * @param now - Clock.
+   * @param boards - Workflow and sprint writes using the same SQLite transaction.
+   * @param initializePersona - Responsibility, sector and routine ownership for a persisted hire.
    */
   constructor(
     readonly product: ProductRepos,
     readonly repos: GestorRepos,
     readonly now: () => string,
     readonly boards: BoardsHost,
+    readonly initializePersona: (persona: StoredPersona, sectorName?: string) => void,
   ) {}
 
   /**
@@ -416,6 +430,7 @@ export class GestorHost {
   proposeAssemble(request: ProposeGestorAssembleRequest): ProposeGestorAssembleView {
     const persona = this.product.getPersona(request.gestorId)
     if (persona === undefined || !isGestor(persona)) throw new Error('not-gestor')
+    if (this.repos.getPlan(request.id) !== undefined) throw new Error('conflict')
     const limits = this.repos.mandateOrDefault(request.gestorId, request.workspaceId)
     const at = this.now()
     const sprintId = `sprint-${request.id}`
@@ -432,6 +447,12 @@ export class GestorHost {
         .map(row => ({ personaId: row.id, function: row.title })),
     })
     const scopeKey = gestorScopeKey({ projectId: request.projectId })
+    const clash = claimGestorScope(this.repos.listOpenPlans(request.workspaceId, scopeKey), scopeKey)
+    if (clash.kind === 'conflict') {
+      const plan = this.storeComment({ workspaceId: request.workspaceId, planId: clash.existingPlanId,
+        commenterId: request.gestorId, comment: request.goal, commentId: request.id, at, scopeKey })
+      return { plan, preview: assemblyView(preview) }
+    }
     const titles = preview.hire.map(row => row.title).join(', ')
     const summary = `Vou contratar ${preview.hire.length} personas (${titles}) e montar o fluxo ${preview.workflow.template}.`
     const plan = {
@@ -450,6 +471,7 @@ export class GestorHost {
         projectId: request.projectId,
         hires: preview.hire.map(row => ({
           id: `hire-${request.id}-${row.id}`,
+          sectorName: row.sectorName,
           spec: {
             name: row.title, title: row.title,
             avatar: { kind: 'gallery' as const, ref: row.id },
@@ -486,15 +508,7 @@ export class GestorHost {
     }
     return {
       plan: toPlanView(decision.kind === 'ask' ? plan : { ...plan, status: 'applied' }),
-      preview: {
-        company: preview.structure.company,
-        explanation: preview.structure.explanation,
-        personaTitles: preview.structure.personas.map(row => row.title),
-        workflowId: preview.workflow.template,
-        sprintName: preview.sprint.name,
-        hire: preview.hire.map(row => ({ function: row.title })),
-        reuse: preview.reuse,
-      },
+      preview: assemblyView(preview),
     }
   }
 
@@ -580,6 +594,8 @@ export class GestorHost {
     const roster = this.product.listProjects(plan.workspaceId).flatMap(row => this.product.listPersonas(row.id))
     const hires = assembly.hires.map(row => ({ ...row, spec: parsePersonaSpec(row.spec) }))
     const specs = hires.map(row => row.spec)
+    const currentFunctions = new Set(this.product.listPersonas(project.id).map(row => functionKey(row.title)))
+    if (hires.some(row => currentFunctions.has(functionKey(row.spec.title)))) throw new Error('assembly-changed')
     assertGestorAssemblyHires({ gestor: persona, limits, specs,
       rosterCount: roster.length,
       spentTokens: roster.reduce((sum, row) => sum + (row.limits.tokensPerMonth ?? 0), 0),
@@ -587,7 +603,8 @@ export class GestorHost {
     })
     for (const reuse of assembly.reuse) {
       const target = this.product.getPersona(reuse.personaId)
-      if (target?.workspaceId !== plan.workspaceId || target.projectId !== project.id || target.title !== reuse.function) {
+      if (target?.workspaceId !== plan.workspaceId || target.projectId !== project.id
+        || functionKey(target.title) !== functionKey(reuse.function)) {
         throw new Error('assembly-changed')
       }
       gestorAllocate({ gestor: persona, limits, scope: { projectId: project.id },
@@ -595,8 +612,9 @@ export class GestorHost {
     }
     for (const hire of hires) {
       if (this.product.getPersona(hire.id) !== undefined) throw new Error('conflict')
-      this.product.createPersona({ ...hire.spec, id: hire.id, workspaceId: plan.workspaceId,
+      const created = this.product.createPersona({ ...hire.spec, id: hire.id, workspaceId: plan.workspaceId,
         createdAt: this.now(), updatedAt: this.now(), createdBy: persona.id }, project.id)
+      this.initializePersona(created, hire.sectorName)
     }
     for (const reuse of assembly.reuse) {
       this.product.addParticipation({ personaId: reuse.personaId, projectId: project.id, kind: 'project', targetId: project.id })
@@ -682,7 +700,7 @@ export class GestorHost {
       accepted,
     })
     const at = this.now()
-    this.product.createPersona({
+    const created = this.product.createPersona({
       id: hireId,
       workspaceId: plan.workspaceId,
       name: spec.name,
@@ -701,12 +719,13 @@ export class GestorHost {
       updatedAt: at,
       createdBy: persona.id,
     }, projectId)
+    this.initializePersona(created)
   }
 }
 
 const assemblySchema = z.object({
   projectId: z.string().min(1),
-  hires: z.array(z.object({ id: z.string().min(1), spec: z.unknown() })),
+  hires: z.array(z.object({ id: z.string().min(1), sectorName: z.string().optional(), spec: z.unknown() })),
   reuse: z.array(z.object({ personaId: z.string().min(1), function: z.string().min(1) })),
   template: z.enum(['contratacao', 'site', 'software', 'marketing', 'atendimento', 'simples', 'em_branco']),
   sprint: z.object({ id: z.string().min(1), name: z.string().min(1), objective: z.string(), startsAt: z.string() }),

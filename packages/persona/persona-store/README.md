@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-persona-store
 
+Brain page identity is its ID; a colliding title receives a distinct slug without overwriting another page or audience. Folder import resolves known authorized slugs explicitly. Board workflow migration markers and host report metadata use additive JSON records; routine renaming preserves schedules and pending runs.
+
 Owns `persona.db` through `node:sqlite`: monotonic `user_version`, `application_id` `PNSQ` (`0x504E5351`), WAL, `busy_timeout`, `STRICT` tables, `VACUUM INTO` backup before each adjacent immutable migration, and synchronous `tx()` (nested via savepoints; never `await` inside).
 
 Open with `openPersonaStore({ path })`. Default on-disk layout is `<PERSONA_HOME>/db/persona.db` with backups in `<PERSONA_HOME>/db/backups/` (D-007, D-008). `backupNow()` writes an on-demand `VACUUM INTO` copy; `wipeWorkspace` / `wipeProject` delete tenant rows (personal project stays). Tests use `openTempStore` / `withTempStore`.

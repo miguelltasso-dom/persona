@@ -2,7 +2,10 @@
  * Workspace snapshot and Muse/Lumen views for GOV-5 remotes.
  */
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
+import { z } from 'zod'
+import { ScreenRepos, type StoredPersona } from '@deepseek-ai/dsh-persona-store'
+import { routeApproval } from '@deepseek-ai/dsh-persona-engine'
 import {
   applyGovernanceFix,
   assessTeamHealth,
@@ -37,6 +40,7 @@ import type {
 } from '@deepseek-ai/dsh-persona-store'
 import type { ProactivityHost } from './proactivity.ts'
 import type {
+  ApprovalView,
   ApplyGovernanceFixRequest,
   GetOrgChartRequest,
   GovernanceAuditView,
@@ -69,10 +73,15 @@ const COMPANY_WIRE: Readonly<Record<string, CompanyKind>> = {
   escritorio: 'escritorio',
 }
 
+function functionKey(value: string): string {
+  return value.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase()
+}
+
 /**
  * Assemble a live snapshot and map core governance to the Lumen wire.
  */
 export class GovernanceHost {
+  private readonly functionPlans: ScreenRepos
   /**
    * @param product - Members and personas.
    * @param cards - Charge rows.
@@ -88,7 +97,43 @@ export class GovernanceHost {
     readonly routines: RoutineRepos,
     readonly proactivity: ProactivityHost,
     readonly now: () => string,
-  ) {}
+  ) {
+    this.functionPlans = new ScreenRepos(gov.store)
+  }
+
+  /**
+   * Initialize a hired persona and its initiative with a real human responsible for both.
+   * Existing human choices win over recommendation defaults.
+   * @param persona - Persona already persisted in this store transaction.
+   * @param sectorName - Approved assembly function's sector; omitted uses the structure recommendation.
+   */
+  registerPersona(persona: StoredPersona, sectorName?: string): void {
+    const humans = this.product.listMembers(persona.workspaceId).filter(row => row.role !== 'guest')
+    const current = this.cards.getCharge(persona.id)
+    const creatorCharge = this.cards.getCharge(persona.createdBy)
+    const humanId = [current?.responsibleHumanId, persona.createdBy, creatorCharge?.responsibleHumanId,
+      humans.find(row => row.role === 'owner')?.id].find(id => humans.some(row => row.id === id)) ?? ''
+    const project = this.product.listProjects(persona.workspaceId).find(row => row.kind === 'personal')
+    const raw = project === undefined ? undefined : this.functionPlans.get<unknown>(project.id, 'governance_function', functionKey(persona.title))
+    const plan = raw === undefined ? undefined : z.object({ sectorId: z.string() }).parse(raw)
+    let sectorId = current?.sectorId ?? plan?.sectorId
+    if (sectorId === undefined && sectorName !== undefined && sectorName.trim() !== '') {
+      const existing = this.gov.listSectors(persona.workspaceId).find(row => functionKey(row.name) === functionKey(sectorName))
+      sectorId = existing?.id ?? `sector-${createHash('sha256').update(`${persona.workspaceId}:${functionKey(sectorName)}`).digest('hex').slice(0, 24)}`
+      if (existing === undefined) this.gov.putSector({ id: sectorId, workspaceId: persona.workspaceId,
+        name: sectorName.trim(), policyJson: JSON.stringify(defaultSectorPolicy()) })
+    }
+    this.cards.putCharge({ personaId: persona.id, responsibleHumanId: humanId,
+      confirmed: humanId !== '' && (current?.confirmed ?? true),
+      ...(current?.substituteHumanId === undefined ? {} : { substituteHumanId: current.substituteHumanId }),
+      ...(sectorId === undefined ? {} : { sectorId }),
+    })
+    this.proactivity.ensureInitiativeRoutine(persona)
+    this.gov.putRoutineCharge({ routineId: `initiative:${persona.id}`, workspaceId: persona.workspaceId,
+      title: `Iniciativa de ${persona.name}`, executorPersonaId: persona.id,
+      ...(humanId === '' ? {} : { responsibleHumanId: humanId }),
+      ...(sectorId === undefined ? {} : { sectorId }), requiresApproval: false })
+  }
 
   /**
    * In-memory picture for core helpers.
@@ -143,6 +188,24 @@ export class GovernanceHost {
       queueByPersona,
       idleSince,
     }
+  }
+
+  /**
+   * Resolve a pending card against current availability and the responsible person's substitute.
+   * @param workspaceId - Workspace owning the approval.
+   * @param card - Proposal or ticket attention card.
+   * @returns Card with its current recipient or explicit waiting notice.
+   */
+  approval(workspaceId: string, card: ApprovalView): ApprovalView {
+    if (card.status !== 'pending') return card
+    const delivery = routeApproval({ snapshot: this.snapshot(workspaceId), personaId: card.personaId,
+      at: this.now(), required: true, ticketId: card.id })
+    if (delivery.route.kind === 'wait') return { ...card, waitNotice: delivery.route.notice }
+    if (delivery.route.kind === 'coordination') return { ...card, routedToId: delivery.route.personaId }
+    return { ...card, routedToId: delivery.route.humanId,
+      ...(delivery.route.onBehalfOf === undefined ? {} : {
+        onBehalfOfId: delivery.route.onBehalfOf, onBehalfOf: delivery.route.onBehalfOf,
+      }) }
   }
 
   /**
@@ -208,13 +271,26 @@ export class GovernanceHost {
         policyJson: JSON.stringify(sector.policy),
       })
     }
+    const project = this.product.listProjects(request.workspaceId).find(row => row.kind === 'personal')
+    const roster = this.product.listProjects(request.workspaceId).flatMap(row => this.product.listPersonas(row.id))
+    const actualIds = new Map<string, string>()
+    for (const recommended of raw.personas) {
+      const charge = raw.preview.charges.find(row => row.personaId === recommended.id)
+      if (project !== undefined && charge?.sectorId !== undefined) {
+        this.functionPlans.put(project.id, 'governance_function', functionKey(recommended.title), { sectorId: charge.sectorId })
+      }
+      const actual = roster.find(row => functionKey(row.title) === functionKey(recommended.title))
+      if (actual !== undefined) actualIds.set(recommended.id, actual.id)
+    }
+    for (const persona of roster) this.registerPersona(persona)
     for (const routine of raw.preview.routines) {
+      const executorId = routine.executorPersonaId === undefined ? undefined : actualIds.get(routine.executorPersonaId)
       this.gov.putRoutineCharge({
         routineId: routine.routineId,
         workspaceId: request.workspaceId,
         title: routine.title,
         requiresApproval: routine.requiresApproval,
-        ...(routine.executorPersonaId === undefined ? {} : { executorPersonaId: routine.executorPersonaId }),
+        ...(executorId === undefined ? {} : { executorPersonaId: executorId }),
         ...(routine.responsibleHumanId === undefined ? {} : { responsibleHumanId: routine.responsibleHumanId }),
         ...(routine.sectorId === undefined ? {} : { sectorId: routine.sectorId }),
         ...(routine.approvalKind === undefined ? {} : { approvalKind: routine.approvalKind }),

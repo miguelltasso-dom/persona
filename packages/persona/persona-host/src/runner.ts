@@ -262,6 +262,7 @@ export async function resolveHostRunner(
 export interface TextCapture {
   last: string
   report?: NormalizedReport
+  reportAt?: string
   firstAt?: number
   onFirst?: (text: string) => void
   question?: string
@@ -294,6 +295,11 @@ export function lastRunnerReport(runner: Runner): NormalizedReport | undefined {
   return captures.get(runner)?.report
 }
 
+/** @param runner - Session runner with a captured report. @returns Source timestamp of its latest report event. */
+export function lastRunnerReportAt(runner: Runner): string | undefined {
+  return captures.get(runner)?.reportAt
+}
+
 /**
  * Tee OAR deltas so the host can persist the real reply.
  * @param turn - Rivet turn runner.
@@ -306,6 +312,7 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
       delete capture.firstAt
       delete capture.question
       delete capture.report
+      delete capture.reportAt
     }
     if (event.type === 'delta') {
       const first = capture.last === ''
@@ -324,6 +331,7 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
     }
     if (event.type === 'ended' || event.type === 'report') {
       capture.report = event.report
+      capture.reportAt = event.at
       const question = event.report.question
       if (typeof question === 'string' && question !== '') capture.question = question
       if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '') {

@@ -132,8 +132,16 @@ export class BrainRepos {
     const title = input.title.trim()
     const body = input.body
     if (title === '') throw new StoreError('invalid-input', 'title')
-    const slug = input.slug?.trim() || slugOf(title)
-    const current = this.get(input.id) ?? this.bySlug(input.projectId, slug)
+    let slug = input.slug?.trim() || slugOf(title)
+    const current = this.get(input.id)
+    if (current !== undefined && (current.workspaceId !== input.workspaceId || current.projectId !== input.projectId)) {
+      throw new StoreError('forbidden', 'page-scope')
+    }
+    const occupied = this.bySlug(input.projectId, slug)
+    if (occupied !== undefined && occupied.id !== input.id) {
+      const suffix = createHash('sha256').update(input.id).digest('hex').slice(0, 16)
+      slug = `${slug.slice(0, 63)}-${suffix}`
+    }
     const now = this.now()
     const revision = current === undefined ? 1 : current.revision + 1
     const page: BrainPage = {
@@ -254,7 +262,7 @@ export class BrainRepos {
     const slug = `comece-aqui${suffix}`
     const others = (visiblePages ?? this.list(projectId).filter(page => page.visibility.kind === 'workspace'))
       .filter(page => page.projectId === projectId && !page.sources.includes('derived-index'))
-    const lines = ['# Comece aqui', '', 'Índice derivado do Segundo cérebro.', '']
+    const lines = ['# Comece aqui', '', 'Atualizado sozinho a partir das páginas.', '']
     for (const kind of BRAIN_KINDS) {
       const group = others.filter(page => page.kind === kind)
       if (group.length === 0) continue
@@ -400,15 +408,28 @@ export class BrainRepos {
    * @param projectId - Tenant.
    * @param folderPath - Source directory.
    * @param editorId - Who imported.
+   * @param options - Caller authorization for existing pages and visibility for new notes.
    */
-  importFolder(workspaceId: string, projectId: string, folderPath: string, editorId: string): { created: number; skipped: number } {
+  importFolder(workspaceId: string, projectId: string, folderPath: string, editorId: string, options: {
+    readonly canImport?: (page: BrainPage) => boolean
+    readonly newVisibility?: BrainPage['visibility']
+    readonly paths?: ReadonlySet<string>
+  } = {}): { created: number; skipped: number } {
     const files = listMarkdown(folderPath)
     let created = 0
     let skipped = 0
     for (const file of files) {
+      if (options.paths !== undefined && !options.paths.has(relative(folderPath, file).replaceAll('\\', '/'))) {
+        skipped += 1
+        continue
+      }
       const parsed = parseVaultMarkdown(readFileSync(file, 'utf8'))
       const slug = parsed.slug || slugOf(parsed.title || relative(folderPath, file))
       const existing = this.bySlug(projectId, slug)
+      if (existing !== undefined && options.canImport?.(existing) === false) {
+        skipped += 1
+        continue
+      }
       const incoming = parsed.body.replace(/^\uFEFF/, '').replace(/^\r?\n/u, '').trimEnd()
       const hash = createHash('sha256').update(incoming).digest('hex')
       if (existing !== undefined && createHash('sha256').update(existing.body.trimEnd()).digest('hex') === hash) {
@@ -426,6 +447,7 @@ export class BrainRepos {
         editorId,
         slug,
         sources: [`vault:${relative(folderPath, file).replaceAll('\\', '/')}`],
+        ...(existing === undefined && options.newVisibility !== undefined ? { visibility: options.newVisibility } : {}),
       })
       created += 1
     }

@@ -50,6 +50,16 @@ export interface CreateRoutineInput {
   readonly silenceEnd?: string
 }
 
+/** Editable fields of a routine. `null` clears a silence window. */
+export interface UpdateRoutineInput {
+  readonly name?: string
+  readonly rrule?: string
+  readonly timeZone?: string
+  readonly catchUp?: CatchUp
+  readonly silenceStart?: string | null
+  readonly silenceEnd?: string | null
+}
+
 /** Repositories for `routine` / `routine_run`. Clock is injectable for tests. */
 export class RoutineRepos {
   readonly store: PersonaStore
@@ -92,6 +102,64 @@ export class RoutineRepos {
   get(id: string): Routine | undefined {
     const row = this.store.db.prepare('SELECT * FROM routine WHERE id = ?').get(id)
     return row === undefined ? undefined : readRoutine(row)
+  }
+
+  /**
+   * Change a routine's display name without altering its schedule or queued runs.
+   * @param id - Existing routine.
+   * @param name - Nonempty human-readable title.
+   * @returns Updated routine.
+   */
+  rename(id: string, name: string): Routine {
+    const current = this.get(id)
+    if (current === undefined) throw new StoreError('not-found', id)
+    if (name.trim() === '') throw new StoreError('invalid-input', 'name')
+    const at = this.now()
+    this.store.tx((db) => {
+      run(db, 'UPDATE routine SET name = ?, updated_at = ? WHERE id = ?', [name.trim(), at, id])
+    })
+    return { ...current, name: name.trim(), updatedAt: at }
+  }
+
+  /**
+   * Edit a routine. A new schedule or zone cancels the runs still queued for the old one, so the new rule starts clean.
+   * @param id - Existing routine.
+   * @param patch - Fields to change.
+   * @returns The updated routine.
+   */
+  update(id: string, patch: UpdateRoutineInput): Routine {
+    const current = this.get(id)
+    if (current === undefined) throw new StoreError('not-found', id)
+    const name = patch.name === undefined ? current.name : patch.name.trim()
+    if (name === '') throw new StoreError('invalid-input', 'name')
+    const rrule = patch.rrule ?? current.rrule
+    const timeZone = patch.timeZone ?? current.timeZone
+    const silenceStart = patch.silenceStart === undefined ? current.silenceStart : (patch.silenceStart ?? undefined)
+    const silenceEnd = patch.silenceEnd === undefined ? current.silenceEnd : (patch.silenceEnd ?? undefined)
+    const at = this.now()
+    this.store.tx((db) => {
+      run(db, 'UPDATE routine SET name = ?, rrule = ?, time_zone = ?, catch_up = ?, silence_start = ?, silence_end = ?, updated_at = ? WHERE id = ?', [
+        name, rrule, timeZone, patch.catchUp ?? current.catchUp, silenceStart ?? null, silenceEnd ?? null, at, id,
+      ])
+      if (rrule !== current.rrule || timeZone !== current.timeZone) {
+        run(db, "UPDATE routine_run SET status = 'cancelled', lease_until = NULL WHERE routine_id = ? AND status IN ('pending', 'leased')", [id])
+      }
+    })
+    const next = this.get(id)
+    if (next === undefined) throw new StoreError('not-found', id)
+    return next
+  }
+
+  /**
+   * Delete a routine and its runs.
+   * @param id - Existing routine.
+   */
+  delete(id: string): void {
+    if (this.get(id) === undefined) throw new StoreError('not-found', id)
+    this.store.tx((db) => {
+      run(db, 'DELETE FROM routine_run WHERE routine_id = ?', [id])
+      run(db, 'DELETE FROM routine WHERE id = ?', [id])
+    })
   }
 
   /**

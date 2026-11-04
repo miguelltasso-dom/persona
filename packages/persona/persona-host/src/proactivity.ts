@@ -40,6 +40,8 @@ export interface PersonaNowView {
   readonly idleMinutes: number
   readonly deliveriesToday: number
   readonly proposalsAcceptedToday: number
+  /** Files the persona already changed in the draft of its current task. Absent (or 0) = no draft (SW-7). */
+  readonly draftFiles?: number
 }
 
 /** Visão geral — agora. */
@@ -83,6 +85,8 @@ export class ProactivityHost {
   readonly repos: ProactivityRepos
   readonly orchestration: Orchestration
   readonly now: () => string
+  /** Draft size of a running ticket (the scheduler keeps it fresh). Unset = no draft information. */
+  draftFilesOf: ((projectId: string, ticketId: string) => number | undefined) | undefined = undefined
 
   /**
    * @param product - Personas.
@@ -111,14 +115,18 @@ export class ProactivityHost {
    */
   ensureInitiativeRoutine(persona: StoredPersona): void {
     const id = `${INITIATIVE_PREFIX}${persona.id}`
-    if (this.routines.get(id) !== undefined) return
+    const current = this.routines.get(id)
+    if (current !== undefined) {
+      if (current.name === id) this.routines.rename(id, `Iniciativa de ${persona.name}`)
+      return
+    }
     const timeZone = persona.schedule?.timeZone ?? 'UTC'
     const hour = initiativeHour(persona)
     this.routines.create({
       id,
       workspaceId: persona.workspaceId,
       projectId: persona.projectId,
-      name: id,
+      name: `Iniciativa de ${persona.name}`,
       rrule: `FREQ=DAILY;BYHOUR=${hour}`,
       timeZone,
       catchUp: 'run_once',
@@ -276,7 +284,7 @@ export class ProactivityHost {
     const fires = this.repos.firesSince(projectId, `${day}T00:00:00.000Z`)
     const personas = this.product.listPersonas(projectId)
     return {
-      personas: personas.map(persona => this.personaNow(persona, tickets, stalled, fires, now)),
+      personas: personas.map(persona => this.personaNow(projectId, persona, tickets, stalled, fires, now)),
     }
   }
 
@@ -347,6 +355,7 @@ export class ProactivityHost {
   }
 
   private personaNow(
+    projectId: string,
     persona: StoredPersona,
     tickets: Ticket[],
     stalled: Set<string>,
@@ -377,6 +386,8 @@ export class ProactivityHost {
     const day = now.slice(0, 10)
     const deliveriesToday = mine.filter(ticket => ticket.ended?.at.startsWith(day)).length
     const proposalsAcceptedToday = fires.filter(item => item.personaId === persona.id && item.ticketId !== undefined).length
+    const changed = state === 'working' && current !== undefined ? this.draftFilesOf?.(projectId, current.id) : undefined
+    const draftFiles = changed !== undefined && changed > 0 ? changed : undefined
     return {
       personaId: persona.id,
       name: persona.name,
@@ -388,6 +399,7 @@ export class ProactivityHost {
       idleMinutes,
       deliveriesToday,
       proposalsAcceptedToday,
+      ...(draftFiles === undefined ? {} : { draftFiles }),
     }
   }
 

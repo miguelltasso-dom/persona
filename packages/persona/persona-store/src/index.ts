@@ -38,7 +38,7 @@ export type {
 export { zonedUtcMs } from './events/timezone.ts'
 
 export { RoutineRepos } from './routines/repos.ts'
-export type { CatchUp, CreateRoutineInput, Routine, RoutineRun } from './routines/repos.ts'
+export type { CatchUp, CreateRoutineInput, Routine, RoutineRun, UpdateRoutineInput } from './routines/repos.ts'
 
 export { SqliteBoardRepos } from './board/repos.ts'
 export type { BoardSnapshot } from './board/repos.ts'

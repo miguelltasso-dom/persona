@@ -187,6 +187,10 @@ it('approving an assembly applies its preview once and reuses functions already 
   expect(approve().status).toBe('applied')
   const ids = h.listPersonas(scope).map(row => row.id)
   expect(ids).toHaveLength((preview.preview.hire?.length ?? 0) + 1)
+  for (const id of ids) {
+    expect(h.cards.getCharge(id)?.responsibleHumanId).toBe('ana')
+    expect(h.governance.gov.listRoutineCharges('ws').find(row => row.routineId === `initiative:${id}`)?.responsibleHumanId).toBe('ana')
+  }
   expect(h.getProjectBoard(scope).workflow.template).toBe('site')
   expect(h.listSprints(scope)).toHaveLength(1)
   expect(approve().status).toBe('applied')
@@ -227,4 +231,39 @@ it('a sprint write failure rolls back the assembly, workflow and audit together'
   expect(h.listSprints(scope)).toEqual([])
   expect(h.listGestorAudit({ workspaceId: 'ws' })).toEqual([])
   expect(h.approveGestorPlan({ workspaceId: 'ws', planId: plan.plan.id }).status).toBe('applied')
+})
+
+it('assembly reuse normalizes accents and case without treating the approved preview as changed', () => {
+  const h = host()
+  seed(h)
+  h.sessionMemberId = 'ana'
+  const current = h.product.getPersona('atlas')
+  if (current === undefined) throw new Error('missing-fixture')
+  h.product.updatePersona({ ...current, title: '  coordenacao  ' }, 'pp')
+  const scope = { workspaceId: 'ws', projectId: 'pp' }
+  const preview = h.proposeGestorAssemble({ ...scope, gestorId: 'atlas', id: 'normalized', goal: 'Monte um time para o Site' })
+  expect(preview.preview.reuse).toContainEqual({ personaId: 'atlas', function: 'Coordenação' })
+  expect(h.approveGestorPlan({ workspaceId: 'ws', planId: preview.plan.id }).status).toBe('applied')
+})
+
+it('two assembly requests on the same scope share one plan, and an outdated hire preview writes nothing', () => {
+  const h = host()
+  seed(h)
+  h.sessionMemberId = 'ana'
+  const scope = { workspaceId: 'ws', projectId: 'pp' }
+  const first = h.proposeGestorAssemble({ ...scope, gestorId: 'atlas', id: 'first', goal: 'Monte um time para o Site' })
+  const second = h.proposeGestorAssemble({ ...scope, gestorId: 'atlas', id: 'second', goal: 'Monte um time para o Site' })
+  expect(second.plan.status).toBe('commented')
+  expect(second.plan.commentOnId).toBe(first.plan.id)
+  expect(() => h.approveGestorPlan({ workspaceId: 'ws', planId: second.plan.id })).toThrow()
+  const nextFunction = first.preview.hire?.[0]?.function
+  if (nextFunction === undefined) throw new Error('missing-hire-fixture')
+  h.createPersona({ ...scope, id: 'new-function', name: 'Outra', title: nextFunction, description: '', personality: '',
+    instructions: '', avatarKind: 'gallery', avatarRef: 'nina', runnerKind: 'dsh', runnerCli: '', runnerModel: 'm',
+    canRecruit: false, createdBy: 'ana', systemRoles: [] })
+  const ids = h.listPersonas(scope).map(row => row.id)
+  expect(() => h.approveGestorPlan({ workspaceId: 'ws', planId: first.plan.id })).toThrow('assembly-changed')
+  expect(h.listPersonas(scope).map(row => row.id)).toEqual(ids)
+  expect(h.listSprints(scope)).toEqual([])
+  expect(h.listGestorAudit({ workspaceId: 'ws' })).toEqual([])
 })

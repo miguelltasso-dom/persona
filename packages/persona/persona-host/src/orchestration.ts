@@ -77,6 +77,9 @@ import {
   type VaultRepos,
 } from '@deepseek-ai/dsh-persona-store'
 import { compileSubjectVault } from './wave2.ts'
+import { doneEventId } from './ticket-done.ts'
+import { QuotaWaitBook } from './quota-wait.ts'
+import { safeUsedContext } from './used-context-safety.ts'
 import { foldSubjectSummary, shouldFoldSubject, SUBJECT_RECENT } from './subject-summary.ts'
 import type { AutonomyMode, EngineStatusView, UsedContextRecord } from './types.ts'
 import { ExecutionBudget } from './budget.ts'
@@ -92,6 +95,7 @@ import {
   createHostRunner,
   lastRunnerQuestion,
   lastRunnerReport,
+  lastRunnerReportAt,
   lastRunnerText,
   permissionFor,
   runnerHomeOf,
@@ -101,6 +105,11 @@ import {
   type HostRunnerRequest,
   type RunnerPurpose,
 } from './runner.ts'
+
+/** Sticker (Brush catalog) the persona answers a courtesy line with: a heart for thanks, a thumbs-up for the rest. Muse owns the final form. */
+export function courtesyStickerFor(body: string): 'coracao' | 'joinha' {
+  return /obrigad|valeu|vlw|🙏|❤|thanks?/iu.test(body) ? 'coracao' : 'joinha'
+}
 
 /** Fixture strings that must never reach a real-mode channel. */
 export const SCRIPTED_HELLO = 'Olá — em que posso ajudar?'
@@ -384,6 +393,8 @@ export class Orchestration {
   engineReadinessOf: (() => Pick<EngineStatusView, 'state' | 'reason'>) | undefined = undefined
   /** Arm host reconnection polling after intake retains a message. */
   onEngineDeferred: (() => void) | undefined = undefined
+  /** A Task was stopped by the quota window (IV-7): the host arms its re-check (reset clock, or a fixed period). */
+  onQuotaWaiting: (() => void) | undefined = undefined
   vault: VaultRepos | undefined
   opt: OptRepos | undefined
   accounts: AccountRepos | undefined
@@ -405,6 +416,18 @@ export class Orchestration {
   liveText: string | undefined = undefined
   /** Test hook: `ended.report.question` (D-052). */
   liveQuestion: string | undefined = undefined
+  /**
+   * Token lever SK (D-073): do not spend the coordination triage call. It runs on an answer-only runner (no tools) and
+   * nothing reads its answer: Tickets come from the router, the worker from the Ticket. Turn it off to bring the call back,
+   * e.g. if the MCP tools are ever wired to the adapters (contracts/token-wiring.md).
+   */
+  skipTriage: boolean = true
+  /**
+   * Token lever CF (D-075): a courtesy line ("valeu!", "ok") gets a visible reaction of the persona instead of a model call.
+   * Never when the persona has something open for the person in that thread (an Attention question, or her last line is a
+   * question): then "ok" is an answer and takes the normal route. Courtesy + a request is work (`wantsWork` wins).
+   */
+  courtesyNoModel: boolean = true
   /** Test hook: force the scripted/real gate. Default follows env. */
   scripted: boolean = allowsScriptedReplies()
   /** Names of files bound to a message (MediaHost). */
@@ -582,6 +605,8 @@ export class Orchestration {
         || (routed.action === 'command' && routed.command === 'tarefa')
       if (!accepted) {
         if (routed.action === 'react' || !wantsWork(event.body)) {
+          if (this.courtesyNoModel && routed.action === 'react' && routed.rule === 'courtesy' && !wantsWork(event.body)
+            && !this.pendingFromPersona(rt, event) && this.reactCourtesy(event, speaker)) return
           this.work = this.work.then(() => this.finishReply(rt, event, speaker)).catch((error: unknown) => {
             if (error instanceof Error && /not open/i.test(error.message)) return
             this.failReply(event, speaker, error)
@@ -677,21 +702,163 @@ export class Orchestration {
     })
   }
 
+  private quotaBook(): QuotaWaitBook | undefined {
+    return this.screens === undefined ? undefined : new QuotaWaitBook(this.screens)
+  }
+
+  /** Remember a Task the quota window stopped, so it runs again when the engine is ready (IV-7). */
+  private waitForQuota(projectId: string, ticket: { readonly id: string; readonly assignments: readonly { readonly id: string }[] }, error: { readonly code: string }): void {
+    const book = this.quotaBook()
+    const latest = ticket.assignments.at(-1)
+    if (book === undefined || latest === undefined) return
+    const extra = error as { resetAt?: string; provider?: string }
+    book.record(projectId, {
+      ticketId: ticket.id,
+      assignmentId: latest.id,
+      provider: extra.provider ?? '',
+      ...(extra.resetAt === undefined ? {} : { resetAt: extra.resetAt }),
+      since: this.now(),
+    })
+    this.onQuotaWaiting?.()
+  }
+
+  /**
+   * Tasks waiting for the quota, across projects, oldest first (the host decides when to look again).
+   * @returns The rows with their project.
+   */
+  quotaWaiting(): { readonly projectId: string; readonly ticketId: string; readonly resetAt?: string }[] {
+    const book = this.quotaBook()
+    if (book === undefined) return []
+    return [...this.runtimes.keys()].flatMap(projectId => book.list(projectId).map(row => ({
+      projectId, ticketId: row.ticketId, ...(row.resetAt === undefined ? {} : { resetAt: row.resetAt }),
+    })))
+  }
+
+  /**
+   * Run again, in order, the Tasks the quota window stopped, once the engine is ready: on the probe saying so, at the reset
+   * clock, or when the person clicks Retomar. Each Ticket gets a new Assignment (`retryTicket`) and runs once; a Ticket that
+   * moved on since (someone retried it, stopped it, finished it) is dropped from the list without running.
+   * @param projectId - Tenant.
+   * @returns How many Tasks were run again.
+   */
+  async resumeQuotaWaiting(projectId: string): Promise<number> {
+    const book = this.quotaBook()
+    if (book === undefined || this.engineReadinessOf?.().state !== 'ready') return 0
+    const rt = this.runtime(projectId)
+    let resumed = 0
+    for (const row of book.list(projectId)) {
+      book.clear(projectId, row.ticketId)
+      const ticket = rt.repo.tickets.get(row.ticketId)
+      if (ticket === undefined || ticket.ended !== undefined || latestAssignment(ticket)?.id !== row.assignmentId) continue
+      try {
+        rt.engine.retryTicket(ticket.id)
+      } catch (error) {
+        void error
+        continue
+      }
+      await this.driveTicket(projectId, ticket.id)
+      resumed += 1
+    }
+    return resumed
+  }
+
+  /** True when the persona has something open for the person in the thread of `event`: an Attention question or a last line that asks. */
+  private pendingFromPersona(rt: ProjectRuntime, event: StoredEvent): boolean {
+    return this.pendingInStream(rt, event.streamId, event.seq)
+  }
+
+  /**
+   * Does the persona have something open for the person in this stream? The rule `ingest` applies before it lets a courtesy
+   * be a reaction, asked BEFORE a message is sent (the estimate under the composer).
+   * @param projectId - Tenant.
+   * @param streamId - `channel:<id>` or `dm:<id>`.
+   * @returns True when a Ticket of that stream waits on the person (Attention) or the persona's last line is a question.
+   */
+  pendingFromPersonaIn(projectId: string, streamId: string): boolean {
+    return this.pendingInStream(this.runtime(projectId), streamId, Number.MAX_SAFE_INTEGER)
+  }
+
+  private pendingInStream(rt: ProjectRuntime, streamId: string, beforeSeq: number): boolean {
+    for (const ticket of rt.repo.tickets.list()) {
+      if (ticket.attention === undefined) continue
+      if (this.events.get(ticket.origin.triggerId)?.streamId === streamId) return true
+    }
+    const last = this.store.db.prepare(
+      "SELECT actor_id AS actorId, body FROM event WHERE stream_id = ? AND seq < ? AND deleted = 0 AND type <> 'partial' ORDER BY seq DESC LIMIT 1",
+    ).get(streamId, beforeSeq) as { actorId: string; body: string } | undefined
+    return last !== undefined && this.product.getPersona(last.actorId) !== undefined && /[?？]\s*$/u.test(last.body.trim())
+  }
+
+  /** The persona reacts to a courtesy line with a catalog sticker (no model, no Ticket). Idempotent. */
+  private reactCourtesy(event: StoredEvent, speaker: StoredPersona): boolean {
+    const stickerId = courtesyStickerFor(event.body)
+    if (!this.events.listReactions(event.id).some(row => row.actorId === speaker.id && row.stickerId === stickerId)) {
+      this.events.addReaction({ eventId: event.id, actorId: speaker.id, stickerId, projectId: event.projectId })
+      this.events.addAudit({
+        id: `react:${event.id}:${speaker.id}:${stickerId}`,
+        eventId: event.id, projectId: event.projectId, actorId: speaker.id, action: 'react', detail: stickerId,
+      })
+    }
+    this.mark('courtesy:react')
+    return true
+  }
+
   private async settleTask(
     rt: ProjectRuntime,
     event: StoredEvent,
     coordination: StoredPersona | undefined,
     preferred?: StoredPersona,
+    only?: string,
   ): Promise<void> {
     let failed = false
     try {
-      await this.runLaunched(rt, event, coordination, preferred)
+      await this.runLaunched(rt, event, coordination, preferred, only)
     } catch (error: unknown) {
       if (error instanceof Error && /not open/i.test(error.message)) return
       failed = true
       this.failReply(event, preferred ?? coordination, error)
     }
     this.onTaskSettled?.(event, failed)
+  }
+
+  /**
+   * Run one open ticket whose assignment is running but that nobody executes: a retry, an answered question, a full slot
+   * ("Aguardando vaga"), a restart. It joins the same chain as a person's message, so it never races one; only that ticket
+   * runs, as the persona it is bound to. Used by the proactivity scheduler (IV-1).
+   * @param projectId - Tenant.
+   * @param ticketId - Ticket to run.
+   */
+  driveTicket(projectId: string, ticketId: string): Promise<void> {
+    const rt = this.runtime(projectId)
+    this.advanceAssignments(rt, projectId)
+    let ticket = rt.repo.tickets.get(ticketId)
+    const queued = ticket === undefined ? undefined : latestAssignment(ticket)
+    if (ticket !== undefined && ticket.ended === undefined && queued?.state === 'pending') {
+      rt.engine.assignmentStarted(ticketId, queued.id)
+      ticket = rt.repo.tickets.get(ticketId)
+    }
+    if (ticket === undefined || ticket.ended !== undefined || latestAssignment(ticket)?.state !== 'running') return Promise.resolve()
+    const trigger = rt.repo.triggers.get(ticket.origin.triggerId)
+    const thread = trigger?.threads[0]
+    const streamKind = thread?.source === 'dm' ? 'dm' : 'channel'
+    const event: StoredEvent = {
+      id: ticket.origin.triggerId,
+      streamId: `${streamKind}:${thread?.id ?? 'geral'}`,
+      workspaceId: this.product.getProject(projectId)?.workspaceId ?? '',
+      projectId,
+      seq: 0,
+      type: 'message',
+      body: trigger?.text ?? ticket.title,
+      actorId: trigger?.actor.id ?? '',
+      subjectId: ticket.origin.triggerId,
+      occurredAt: this.now(),
+      deleted: false,
+    }
+    const owner = ticket.execution?.name
+    const persona = owner === undefined ? undefined : this.product.listPersonas(projectId).find(item => item.name === owner)
+    const run = this.work.then(() => this.settleTask(rt, event, this.coordinationOf(projectId), persona, ticketId))
+    this.work = run.catch(() => undefined)
+    return run
   }
 
   /**
@@ -899,7 +1066,7 @@ export class Orchestration {
   async prepareReview(projectId: string, ticketId: string, assignmentId: string): Promise<ReviewWorktree | undefined> {
     const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket !== undefined && this.firstDeliveryRoute(projectId, ticket.origin.triggerId) !== undefined) return undefined
-    const delivery = this.reviewDelivery(projectId)
+    const delivery = await this.reviewDelivery(projectId)
     if (delivery === undefined) return undefined
     const tree = await delivery.prepare({ id: assignmentId, ticketId })
     const rt = this.runtimes.get(projectId)
@@ -920,7 +1087,7 @@ export class Orchestration {
   }
 
   /** @param projectId - Local project. @returns Automatically selected file-delivery provider, absent without a folder. */
-  reviewDelivery(projectId: string): ReviewDelivery | undefined {
+  reviewDelivery(projectId: string): Promise<ReviewDelivery | undefined> {
     return reviewDeliveryOf(this.product, this.runtimes, projectId, { ...this.reviewOptions, now: this.now })
   }
 
@@ -931,7 +1098,7 @@ export class Orchestration {
   async reviewSummary(projectId: string, ticketId: string): Promise<ReviewSummary> {
     const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
-    const delivery = this.reviewDelivery(projectId)
+    const delivery = await this.reviewDelivery(projectId)
     if (delivery === undefined) {
       return {
         ticketId,
@@ -957,7 +1124,7 @@ export class Orchestration {
   async acceptReview(projectId: string, ticketId: string, mode: MergeMode, options?: ReviewApplyOptions): Promise<ReviewAcceptResult> {
     const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
-    const delivery = this.reviewDelivery(projectId)
+    const delivery = await this.reviewDelivery(projectId)
     if (delivery === undefined) return { kind: 'blocked', explanation: 'Projeto sem pasta — Tarefa sem código.' }
     return delivery.accept(ticket, mode, options)
   }
@@ -970,7 +1137,7 @@ export class Orchestration {
   async requestChanges(projectId: string, ticketId: string, feedback: string): Promise<void> {
     const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
-    const delivery = this.reviewDelivery(projectId)
+    const delivery = await this.reviewDelivery(projectId)
     if (delivery === undefined) {
       const rt = this.runtime(projectId)
       rt.engine.note(ticketId, feedback)
@@ -991,7 +1158,7 @@ export class Orchestration {
    * @param ticketId - Ticket.
    */
   async discardReview(projectId: string, ticketId: string): Promise<void> {
-    const delivery = this.reviewDelivery(projectId)
+    const delivery = await this.reviewDelivery(projectId)
     if (delivery === undefined) return
     await delivery.discard({ id: ticketId })
   }
@@ -1001,7 +1168,7 @@ export class Orchestration {
    * @param projectId - Tenant.
    */
   async sweepReviews(projectId: string): Promise<string[]> {
-    const delivery = this.reviewDelivery(projectId)
+    const delivery = await this.reviewDelivery(projectId)
     if (delivery === undefined) return []
     return delivery.sweepOrphans()
   }
@@ -1154,12 +1321,15 @@ export class Orchestration {
     error: { code: string; message: string },
   ): void {
     const line = reportLineFor(error, coordination?.name)
+    const stopped = rt.repo.tickets.get(ticketId)
     rt.engine.report(ticketId, {
       state: 'blocked',
       summary: line,
       question: line,
     })
-    this.postCoord(event, coordination, `coord-${ticketId}-done`, channelLineFor(error, coordination?.name))
+    if (error.code === 'quota_exhausted' && stopped !== undefined) this.waitForQuota(event.projectId, stopped, error)
+    const ticket = rt.repo.tickets.get(ticketId)
+    this.postCoord(event, coordination, ticket === undefined ? `coord-${ticketId}-done` : doneEventId(ticket), channelLineFor(error, coordination?.name))
   }
 
   private async runLaunched(
@@ -1167,6 +1337,7 @@ export class Orchestration {
     event: StoredEvent,
     coordination: StoredPersona | undefined,
     preferred?: StoredPersona,
+    only?: string,
   ): Promise<void> {
     const acquired = this.budget.acquire(event.projectId)
     if (!acquired) {
@@ -1182,7 +1353,7 @@ export class Orchestration {
         : this.product.listPersonas(event.projectId).find(persona => persona.id === firstDelivery.executorId)
       if (executor === undefined) return
       if (this.overTokenBudget(event.projectId, executor)) {
-        for (const ticket of rt.repo.tickets.list()) {
+        for (const ticket of rt.repo.tickets.list().filter(item => only === undefined || item.id === only)) {
           if (latestAssignment(ticket)?.state !== 'running') continue
           const line = reportLineFor({ code: 'budget_exhausted', message: '' }, executor.name)
           rt.engine.report(ticket.id, {
@@ -1190,7 +1361,7 @@ export class Orchestration {
             summary: line,
             question: line,
           })
-          this.postAs(event, coordinationPersona, `coord-${ticket.id}-done`, runErrorLine({
+          this.postAs(event, coordinationPersona, doneEventId(ticket), runErrorLine({
             code: 'budget_exhausted',
             provider: providerOf(cliOfPersona(executor)),
             persona: executor.name,
@@ -1205,9 +1376,9 @@ export class Orchestration {
         await contextWork
       } catch (error: unknown) {
         if (!isRunnerResolveError(error)) throw error
-        for (const ticket of rt.repo.tickets.list()) {
+        for (const ticket of rt.repo.tickets.list().filter(item => only === undefined || item.id === only)) {
           if (latestAssignment(ticket)?.state !== 'running') continue
-          if (this.events.has(`coord-${ticket.id}-done`)) continue
+          if (this.events.has(doneEventId(ticket))) continue
           this.reportResolveFailure(rt, event, coordinationPersona, ticket.id, error)
         }
         return
@@ -1216,7 +1387,7 @@ export class Orchestration {
         this.postAs(event, coordinationPersona, `coord-${event.id}-reply`, 'Resposta cancelada.')
         return
       }
-      if (coordinationPersona !== undefined && firstDelivery === undefined) {
+      if (coordinationPersona !== undefined && firstDelivery === undefined && !this.skipTriage) {
         // OPT-5 (W1): triage is support work. It runs on the cheap talk slot, not on the executor's task runner;
         // if that cannot resolve, it falls back to the executor's runner exactly as before.
         // answerOnly gives it its own runner object (no tools, deny): it never shares the talk reply's callbacks or ledger kind.
@@ -1234,10 +1405,10 @@ export class Orchestration {
         await driver.start()
         await driver.deliver(`ingest:${event.id}`, event.body, 'queue')
       }
-      for (const ticket of rt.repo.tickets.list()) {
+      for (const ticket of rt.repo.tickets.list().filter(item => only === undefined || item.id === only)) {
         const latest = latestAssignment(ticket)
         if (latest?.state !== 'running') continue
-        const doneId = `coord-${ticket.id}-done`
+        const doneId = doneEventId(ticket)
         if (this.events.has(doneId)) continue
         const sessionId = workerSessionId(ticket.id)
         this.setRunnerUsageContext(runner, 'execution', ticket.id)
@@ -1265,6 +1436,12 @@ export class Orchestration {
         await this.noteUsage(event.projectId, executor, sessionId, runner)
         const report = lastRunnerReport(runner)
         const live = this.takeLive(runner)
+        if (report !== undefined) {
+          this.screens?.put(event.projectId, 'worker_report', latest.id, {
+            ticketId: ticket.id, assignmentId: latest.id, personaId: executor.id,
+            report: { ...report, at: lastRunnerReportAt(runner) ?? this.now() },
+          })
+        }
         const login = loginFailureFromText(live, cliOfPersona(executor))
         if (login !== undefined) {
           this.reportResolveFailure(rt, event, coordinationPersona, ticket.id, login)
@@ -1564,17 +1741,18 @@ export class Orchestration {
         })
       }
     }
-    this.usedContext.set(event.id, used)
+    const safe = safeUsedContext(used)
+    this.usedContext.set(event.id, safe)
     const ticket = this.runtime(event.projectId).repo.tickets.list()
       .find(item => item.origin.triggerId === event.id)
     if (ticket !== undefined) {
-      this.usedContext.set(ticket.id, used)
+      this.usedContext.set(ticket.id, safe)
       if (event.topicId !== undefined && event.topicId !== '') {
         this.screens?.put(event.projectId, 'ticket_subject', ticket.id, { subjectId: event.topicId })
       }
     }
     this.mark('compile-context:done')
-    return used
+    return safe
   }
 
   private deliverOutbox(
@@ -1614,12 +1792,19 @@ export class Orchestration {
       this.postAs(event, speaker, `coord-${event.id}-reply`, channelLineFor(error, speaker?.name), 'error')
       return
     }
-    const message = error instanceof Error ? error.message : 'falha'
-    const safe = /stack|token|sk-/iu.test(message) ? 'falha do executor' : message
-    this.lastErrors.push(safe)
+    const failure = { code: 'engine_unavailable', message: 'A execução falhou. Tente de novo ou escolha outro motor.' }
+    this.lastErrors.push(failure.message)
     if (this.lastErrors.length > 8) this.lastErrors.shift()
-    this.postAs(event, speaker, `coord-${event.id}-reply`, `não consegui responder: ${safe}`, 'error')
-    this.postAs(event, speaker, `coord-${event.id}-action`, 'Tente de novo ou escolha outra persona.')
+    const rt = this.runtime(event.projectId)
+    const tickets = rt.repo.tickets.list().filter(ticket => ticket.ended === undefined
+      && latestAssignment(ticket)?.state === 'running'
+      && (ticket.origin.triggerId === event.id || ticket.origin.triggerIds.includes(event.id)
+        || ticket.inputs.some(input => input.kind === 'trigger' && input.triggerId === event.id)))
+    if (tickets.length > 0) {
+      for (const ticket of tickets) this.reportResolveFailure(rt, event, speaker, ticket.id, failure)
+      return
+    }
+    this.postAs(event, speaker, `coord-${event.id}-reply`, `Não consegui responder. ${channelLineFor(failure, speaker?.name)}`, 'error')
   }
 
   private async noteUsage(
@@ -1795,6 +1980,8 @@ export class Orchestration {
       if (this.product.getPersona(row.actorId) !== undefined) continue
       if (wantsWork(row.body)) continue
       if (this.events.has(`coord-${row.id}-reply`)) continue
+      // A courtesy line the persona already reacted to is answered (CF, D-075): recovery must not turn it into a model call.
+      if (this.events.listReactions(row.id).some(reaction => this.product.getPersona(reaction.actorId) !== undefined)) continue
       const streamKind = row.streamId.startsWith('dm:') ? 'dm' : 'channel'
       const ownerId = row.streamId.slice(row.streamId.indexOf(':') + 1)
       const speaker = this.mentionedPersona(projectId, row.body)
@@ -1985,7 +2172,9 @@ export class Orchestration {
     return {
       id: event.id,
       source: streamKind,
-      threads: [{ source: streamKind, id: ownerId }],
+      // A request from the team itself (routine, plan, initiative) is its own conversation: on the shared #geral thread it
+      // would be read as a follow-up of whichever ticket is still open there. Replies still go to `channel` below.
+      threads: [{ source: /^(routine|team):/u.test(event.actorId) ? `${streamKind}:${event.id}` : streamKind, id: ownerId }],
       actor: { source: streamKind, id: event.actorId },
       human: true,
       ...(addressed ? { addressed: streamKind === 'dm' ? 'direct' : 'mention' } : {}),

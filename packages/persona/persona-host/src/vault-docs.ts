@@ -4,6 +4,7 @@
  */
 
 import { can, canReadVault, parseVaultRecord, type Actor } from '@deepseek-ai/dsh-persona-core'
+import { safeUsedContext } from './used-context-safety.ts'
 import {
   VaultDocError,
   VaultRepos,
@@ -126,7 +127,7 @@ export class VaultDocsHost {
    */
   citeUsed(workspaceId: string, projectId: string, query: string): UsedContextRecord[] {
     if (query.trim() === '') return []
-    return this.search({ workspaceId, projectId, query }).map(hit => ({
+    return safeUsedContext(this.search({ workspaceId, projectId, query }).map(hit => ({
       id: hit.id,
       kind: 'document',
       body: hit.body,
@@ -134,7 +135,7 @@ export class VaultDocsHost {
       restricted: hit.restricted,
       title: hit.title,
       locator: hit.locator,
-    }))
+    })))
   }
 
   private visible(workspaceId: string, doc: VaultDocument): boolean {

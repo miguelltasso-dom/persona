@@ -4,6 +4,238 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 04/11 17:01 — App real aprovado: FR-3 60ms, envio nativo e Site com Sprint 1
+
+A fila build liberou a rodada `engine-unavailable-real.mjs`: home temporário e porta livre, perfil dsh persona, detector explicitamente sem motores e zero chamadas de modelo. Nenhum seed de produto mascara disponibilidade. O compositor nativo recebeu texto/Enter, o gateway aceitou o payload sem occurredAt e listMessages confirmou corpo e horário persistidos. GES criou quatro personas somente após aprovação, cada uma com responsável humano/setor, fluxo Site e Sprint 1; replay não duplicou contratação. Captura de Quadros agora mostra os cartões Site/Pessoal e Sprint 1, sem skeleton, e foi conferida.
+
+```text
+FR3-runtime:PASS immediate=60ms deferred=1 task=0 vault-unavailable=2 modelCalls=0
+WIRE1-GES-runtime:PASS native-composer + host-time + assembly=4 + site + sprint1 + replay; modelCalls=0
+dark-capture:pending theme attribute is not true (wire-1-composer-dark.png)
+dark-capture:pending theme attribute is not true (ges-site-board-dark.png)
+```
+
+proof.json em `.maestri/tmp/shots/remote/engine-unavailable/` tem passed:true e darkCaptures composer:false/board:false. Isso é aprovação funcional, não aceite visual escuro: a correção do atributo continua com Prism/Muse. A mensagem enviada fica no contêiner rolável; a captura de chat conferida mostra a faixa honesta de IA ausente, mas não enquadrou o texto novo. Acrescentei somente scrollIntoViewIfNeeded no harness e reenfileirei a captura para enquadrar esse texto. A captura anterior de Quadros já é válida. App/browser/árvore Node da rodada encerrados pelo cleanup; só novo waiter build ativo.
+
+SB ainda depende do Forge para a rejeição de credencial curta no produtor report-facts; o RED focal e o motivo estão no relato abaixo. As demais provas43/43,29/29, check host41,8s e Typert40/40 continuam registradas. Nenhum modelo real, deploy ou commit.
+
+---
+
+## 04/11 16:57 — SB: regressão de credencial curta entregue ao produtor do extrator
+
+Avancei no contrato report-facts.md enquanto a captura aguarda a trava build. O extrator ainda verifica somente redactSecrets do diff, que não reconhece credenciais rotuladas curtas. A prova nova em real-path.spec.ts entrega Report ready com fato reference explícito cujo corpo/evidência é uma api_key sintética curta; o host cria uma página learning privada com esse valor, contrariando a rejeição antes do clip definida no contrato. A audiência fica privada corretamente; não houve vazamento para outro ator nesta prova.
+
+```text
+with-lock check -- vitest run persona-host/tests/real-path.spec.ts --testNamePattern=curation.rejects.a.short --testTimeout=60000 --hookTimeout=60000
+Test Files  1 failed (1)
+Tests  1 failed | 18 skipped (19)
+Duration  12.52s
+```
+
+Mantive as assertivas: nenhuma página criada e auditoria report_curation com written0/facts[]/rejected reason secret. Enviei ao Forge a causa e o uso do containsSecretValue central em title/body/evidence no produtor; não editei engine/core e não dupliquei a validação no host. O teste focal usa padrão sem espaços, seleciona somente o caso novo e não chama modelo. Esta regressão ainda está aberta; não alego que toda curadoria está verde. O SCOPE-4/contexto43/43, ledger-em-falha29/29 e check host41,8s anteriores permanecem as provas dos outros caminhos.
+
+Runtime de compositor/Quadros continua atrás de Gauge final2 A na fila build. Nenhum app meu ativo; aguardando a janela sem disputar portas ou usar perfil real do usuário. Zero IA real, commit ou deploy.
+
+---
+
+## 04/11 16:52 — SCOPE-4 43/43 e uso persistido mesmo com executor falhando
+
+Correção plural do Forge consumida em containsSecretValue; o host não tem regex própria nem exceção por Nunca/Never. A suíte valida corpo/título/localizador, senha JSON, orientações legítimas sem valor mantidas NO PROMPT e valores atribuídos omitidos inclusive com rótulo plural. Filtro e teste obrigatório agora estão verdes.
+
+```text
+with-lock check -- vitest run used-context-safety.spec.ts real-path.spec.ts vault-docs.spec.ts mandatory-scope-host.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  4 passed (4)
+Tests  43 passed (43)
+Duration  11.02s
+```
+
+Próximo item de anvil-next.txt (uso persistido mesmo em falha): acrescentei uma prova com runner falso que grava o uso e rejeita deliver. A primeira rodada revelou Ticket ainda doing. Corrigi somente o ramo genérico de failReply: bloqueia os Tickets running que usam a mensagem de origem/input, persiste o Report e publica RUN-ERROR estruturado no stream original. Exceção desconhecida não é copiada para mensagem/lastErrors. Falha sem Ticket mantém resposta acionável; erros tipados conhecidos conservam seus códigos. Não alterei driveTicket/settleTask/triagem/scheduler.
+
+O teste usa SQLite em pasta temporária e outra conexão readOnly, provando uma linha execution com ticketId, provedor, tokens e cache já no disco após a falha. Verifica o bloqueio e a ausência do detalhe privado da exceção no canal/diagnóstico. real-path + conductor: 2 arquivos29/29 em37,65s; o focal43/43 acima inclui a versão final com as assertivas de privacidade. A limpeza fecha a conexão e remove somente o diretório temporário verificado depois de o harness fechar o host. Lint final exit0; check-pkg persona-host após estes últimos trechos OK em41,8s.
+
+A seleção isolada com `-t` e texto com espaços no Windows executou mais arquivos do que o pretendido (log: 46 pass / 4 skipped, 496 pass / 27 skipped,133,16s); não uso essa seleção como prova focal. Os quatro caminhos explícitos do comando43/43 acima são a prova reportada da integração. Novos filtros devem usar padrões sem espaços ou caminhos explícitos para evitar a divisão pelo shell do wrapper.
+
+Galeria real E12 organizada em [sync-real/index.html](../../.maestri/tmp/shots/remote/sync-real/index.html): seis passos, doze PNGs originais lado a lado, ligados ao proof.json aprovado. Conferi as capturas da mensagem nova aparecendo nos dois perfis. Nenhuma imagem foi alterada e nenhuma nova execução foi feita para gerar a galeria; tentativas failure-* anteriores ficam preservadas, fora da execução aprovada. As capturas atuais de compositor/Quadros continuam na fila build, agora atrás de Gauge final2 A, após o ship/bundle. O contrato/fallback de tema escuro continua honesto.
+
+Fila não vazia: recaptura runtime e aceite dos donos de UI/instalador/IA real. Nenhum processo de app meu ativo ainda; apenas waiter build. Zero chamadas reais de modelo, deploy ou commit.
+
+---
+
+## 04/11 16:35 — Predicado central consumido; resta um controle negativo plural
+
+`safeUsedContext` agora usa somente containsSecretValue do core, campo a campo (body/title/locator), sem sensitiveWhy e sem regex de senha própria. O reconhecimento de senha PT e JSON foi centralizado pelo Forge. O prompt real preserva as orientações Nunca divulgar tokens e Never send password; os segredos curtos originais continuam omitidos, sem alterar a fonte do Cofre. README atualizado e lint exit0.
+
+```text
+with-lock check -- vitest run used-context-safety.spec.ts real-path.spec.ts vault-docs.spec.ts mandatory-scope-host.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  1 failed | 3 passed (4)
+Tests  1 failed | 41 passed (42)
+Duration  6.98s
+```
+
+Único caso pendente: `Nunca divulgar tokens: synthetic-value` ainda passa pelo detector central por causa do rótulo plural. Mantive a assertiva que exige omitir o valor e entreguei o caso exato ao Forge por ask; não há exceção por prefixo Nunca/Never no host. Esta suíte ainda não está toda verde. O próximo passo é consumir a correção do produtor, rodar o focal pendente e check host novamente; não exige regenerar Remotes nem chamar modelo.
+
+Runtime permanece na fila build após Keel ship, com dois pontos de espera sem skeleton antes das capturas. WIRE-1 e DTOs continuam aprovados pela prova gerada e check registrados antes; nenhuma edição em UI. Zero IA real.
+
+---
+
+## 04/11 16:29 — WIRE final aprovado; qualidade do filtro de contexto em integração
+
+Gateway com a contribuição gerada final e comparador WIRE-5 encerraram: 2 arquivos, 9 pass / 2 expected fail (11), 8,55s. Não apareceu desvio novo; os dois expected failures continuam sendo os achados conhecidos do cliente, não erro do postMessage sem horário. A lib contém occurredAt opcional e attention.avatarId opcional. Check host verde21,4s e Typert40/40 em68,7s do relato anterior permanecem a prova dessas assinaturas.
+
+Forge ampliou o detector central para senha PT rotulada com valor, incluindo JSON e sem consumir a próxima linha. A reutilização de sensitiveWhy no host revelou um problema de qualidade: o classificador de import é amplo por palavra e omite orientação legítima com token/password. Criei `used-context-safety.spec.ts`: primeira rodada RED com 4 failed / 4 passed (8), 2,20s, cobrindo orientações sem valor e citação sensível em body/title/locator. Acrescentei depois três controles negativos e o mesmo controle legítimo no prompt de real-path. Não marquei esta melhoria pronta nem alterei as assertivas para esconder o RED.
+
+Solicitei ao Forge um predicado central de valor explícito, separado da classificação ampla de import; o host o consumirá e removerá PASSWORD_VALUE duplicado. Não haverá exceção baseada apenas em Nunca/Never, que poderia deixar uma senha atribuída passar. Dependência registrada; novos focais e check host serão executados após consumir. A curadoria e a primeira entrega não recebem turno adicional de IA.
+
+A recaptura do perfil real voltou à fila build com wait-max correto, atrás de Keel ship (gate exclusivo). Ainda não há app meu ativo. Testes leves de controle e documentação avançaram durante a espera. O tema escuro continua uma dependência explícita Prism/Muse: só conta captura com atributo true. Zero IA real, source de UI intacto, nenhum commit/deploy.
+
+---
+
+## 04/11 16:24 — Check host e Typert finais verdes; WIRE-1 pronto para publicar
+
+O teste novo de proatividade foi corrigido pelo dono: listMessages recebe actorId e lê MessagePage.events. Não alterei esse arquivo. O check integrado seguinte passou no estado atual, incluindo SCOPE-4, BYC transacional, DTOs D070 do Forge e attention.avatarId. Regeneração final também terminou depois dos últimos campos opcionais.
+
+```text
+with-lock check -- pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 68.7s
+
+with-lock check -- node scripts/persona/check-pkg.mjs persona-host
+persona-host: OK in 21.4s
+
+with-lock check -- vitest run persona-host/tests/attention.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  1 passed (1)
+Tests  2 passed (2)
+Duration  14.63s
+```
+
+O teste de attention verifica galeria, exclusão de upload/caminho e os campos/deep links/resolved já existentes. A primeira rodada expôs o uso incorreto de avatarKind/avatarRef no registro de domínio; foi corrigido para persona.avatar.kind/ref antes da prova acima. Lint dos arquivos alterados exit0; git diff --check exit0. node --check dos dois scripts de captura exit0. Nenhum erro foi ignorado.
+
+Keel pode publicar o WIRE-1: occurredAt opcional no fonte e no artefato regenerado, fallback no relógio do host e validação ISO antes de gravar; a prova Web com Enter/persistência já passou. reviewSummary/prepareReview/discardReview não exigem command/reason; acceptReview continua conflicts, histórico continua listRestorePoints/undoApply. Contratos entregues ao Prism; Quill recebeu os campos finais de membros/sincronização. Comparador WIRE-5 e gateway com os artefatos finais estão em curso. Não alterei source após esta regeneração.
+
+O script antigo capture-remote-app tinha uma fixture HTML rotulada como app real. Mantive sua finalidade visual, retirei portas/homes fixos de exemplo e corrigi o README produzido para distinguir fixture de captura de app existente; ele declara expressamente que não prova sincronização e indica remote-team-real.mjs, que usa dois homes temporários/portas livres e mensagens novas. A prova E12 canônica aprovada é sync-real/proof.json; screenshots de fixture não contam como aceite.
+
+Fila ativa: conferir WIRE-5 final, recapturar Quadros sem skeleton e registrar o estado real do tema escuro; aceite SW instalado/primeira entrega real e fixtures SB/W2 continuam com os donos indicados nos relatos anteriores. Nenhum app meu está aberto neste instante. Zero IA real, commits ou deploy.
+
+---
+
+## 04/11 16:14 — SCOPE-4: texto sensível fora do contexto e do prompt
+
+`used-context-safety.ts` filtra corpo/título/localizador das citações com sensitiveWhy do core e reconhecimento de senha rotulada em português com valor. `orchestration.compileUsed` retém e devolve somente esse conjunto para getTurnContext/listUsedContext e composição do prompt; `VaultDocsHost.citeUsed` aplica a mesma regra. A citação fica restricted com texto vazio, preservando ID/required; o registro original continua no Cofre. Regras seguras continuam obrigatórias. Não é redaction pelo helper de diff: ele não reconhecia os valores curtos do caso do Gauge. Não editei o core.
+
+Provas novas em real-path.spec.ts e vault-docs.spec.ts: chave curta e senha PT separadas não aparecem no contexto/prompt, regra segura aparece, fonte original fica intacta e documento sensível não entra na citação. Junto com gateway gerado, três arquivos passaram; a quarta suíte só ficou vermelha porque o corpo do it.fails do Gauge passou (Expect test to fail). Converti esse único marcador para it e removi o wrapper sem uso, sem mudar suas assertivas.
+
+```text
+with-lock check -- vitest run real-path.spec.ts vault-docs.spec.ts gateway.spec.ts mandatory-scope-host.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  1 failed | 3 passed (4)
+Tests  1 failed | 35 passed (36)
+Duration  16.28s
+Failure: Expect test to fail (SCOPE-4 corrigido)
+
+with-lock check -- vitest run persona-e2e/tests/mandatory-scope-host.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  1 passed (1)
+Tests  9 passed (9)
+Duration  14.17s
+```
+
+Lint de orchestration/segurança/docs/testes/gateway exit0. Novo check host e Typert final ainda pendentes. O arquivo orchestration foi editado somente no import e retenção do compileUsed; não alterei triagem/ledger do Tally. Contrato lumen-rpc.md explicita texto omitido por sensibilidade. Acrescentei avatarId opcional de galeria ao evento de attention para o consumidor desktop do Rivet; uploads/caminhos não saem nesse campo. Prova de attention e regeneração estão em curso.
+
+A recaptura Web ficou na fila atrás de Flint/Quill; cancelei somente meu waiter ainda sem filho para executar os checks em sequência. Não havia app meu aberto. O harness agora espera Quadros sair do carregamento e só grava dark quando body[data-ds-dark-theme="true"] estiver aplicado. O bug de tema da UI continua com Prism/Muse; não vou registrar claro/claro como claro/escuro. As provas nativas de compositor/GES e o E12 local já aprovados permanecem no relato anterior. Sem IA real.
+
+---
+
+## 04/11 16:02 — BYC sem perda, gateway gerado e provas integradas do host
+
+BYC: `applyContextProposals` aplica o lote em uma transação e recusa um ID já usado por conteúdo diferente com `conflict`, sem revelar o conteúdo existente nem deixar gravação parcial. Repetir o mesmo registro continua idempotente. O parser do Forge agora identifica o corpo inteiro e compara duplicatas por tipo/corpo normalizado. Novo teste usa dois previews e aplicações normais, sem alterar IDs: Alfa e Beta ficam ready, cada aplicação grava um registro, os dois corpos ficam no Cofre e repetir Alfa por outra IA fica duplicate. O teste legado força colisão e comprova rollback da linha anterior e preservação do original. Forge recebeu a prova por ask.
+
+```text
+with-lock check -- vitest run persona-host/tests/bring-context-apply.spec.ts persona-host/tests/gateway.spec.ts persona-e2e/tests/mandatory-bring-your-context-host.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  3 passed (3)
+Tests  27 passed (27)
+Duration  12.04s
+```
+
+WIRE-1/3/4/5: Typert foi regenerado após o timestamp opcional, os DTOs opcionais D070 do Forge e ReviewTicketRequest: 40/40 artefatos em 72,8s. reviewSummary/prepareReview/discardReview aceitam somente escopo e ticketId; command/reason antigos são opcionais. acceptReview continua com conflicts e snapshots exatos; os nomes canônicos de histórico são listRestorePoints/undoApply. Não existe undoApproval. Contrato simple-workspace.md e mensagem ao Prism entregues. A fixture anterior de gateway usava o fallback SRC, apesar do texto no relato das 15:08: os dois casos novos agora registram explicitamente a contribuição gerada, verificam codec strict e passam com o corpo real do compositor e da revisão. A prova nativa do perfil, abaixo, também carrega o gateway do app. Após esta rodada, o registro do teste foi colocado em ctx.effect e a tipagem do import dinâmico foi ajustada; lint/check finais seguem em curso.
+
+App real, home temporário e porta dinâmica sob build: `engine-unavailable-real.mjs` aprovou aviso imediato em 226ms, pending1/tasks0, dois erros vault-unavailable antes de rede e zero chamadas de modelo. A caixa nativa recebeu texto e Enter, o RPC respondeu sucesso e listMessages comprovou corpo e horário persistidos. GES aprovou equipe Site somente após aprovação: quatro personas, responsável Ana e setor em cada cartão, fluxo Site, Sprint 1 e replay sem contratar de novo. proof.json em `.maestri/tmp/shots/remote/engine-unavailable/`. A captura de Quadros foi conferida e ainda mostrava carregamento; o harness agora aguarda os dados e refaz claro/escuro. Não é aceite visual da Muse.
+
+E12/E13: o host expõe listRemoteMembers com nome/papel/status/entrada/convite e estado com syncedAt/behindBy/remoteHeads persistidos. Revogação atualiza o cache; offline preserva dados conhecidos sem inventar medição. O edge canoniza quem aceita convite como guest antes do grant, recusa workspace diferente e membro ativo já existente; papel/projetos/DMs injetados pelo cliente não ampliam acesso. Bridge e remote-teams: 2/2 em 58,83s; typecheck edge exit0. A prova anterior com dois perfis, sem seed, fez convite/aceite, mensagem nova convergindo, DM ausente, retomada por cursor e revogação, com 12 capturas e passed:true em `.maestri/tmp/shots/remote/sync-real/`. Tudo é local; tokens continuam só no Cofre. UI de membros/atraso é da Quill.
+
+SB: identidade de página é o ID; título repetido ganha slug distinto e não sobrescreve outra página/audiência. BrainPageView.audience informa workspace/project/private/persona; restricted conserva o sentido de leitura negada. Índice não inclui páginas de persona para humanos. Aprovação de Cofre/skill consulta gateRememberedPermission com alvo estável do registro/skill, autorização atual, validade e limites; consumo e mutação são transacionais. A trilha permissionGrantId/permissionAudit explica a dispensa. Testes remembered-approval/screens/governance 16/16 em18,88s. Curadoria consome facts explícitos do Report integral com audiência original; primeira entrega e Report sem facts não criam página genérica.
+
+GOV/GES: contratação direta, proposta aprovada e montagem do Gestor inicializam responsável humano, setor aprovado e rotina de iniciativa com nome legível; perfis existentes são reconciliados no boot sem ampliar grants. PB persiste workflowMove em JSON aditivo; teste de reabertura/limpeza da marca 5/5 em9,17s. Seis suítes obrigatórias host: 107 pass e 2 expected failures (109) em44,55s naquela rodada: fixture SB sem facts explícitos e fixture W2 que não aceita a recusa de cor repetida. Não afrouxei essas assertivas. Host check passou em29,5s e store em23,9s antes do último guard BYC; novo check host pendente. Lint integrado anterior passou; a rodada nova achou apenas import dinâmico any do teste gerado, ajustado para o tipo da contribuição.
+
+Pendências: check/lint finais, capturas estáveis claro/escuro e aceite dos donos de UI; fixtures obrigatórias restantes do Gauge; transporte facts em NormalizedReport com Rivet; MinGit instalado e SW-9/SW-10 com Rivet/Probe; primeira entrega de um turno com IA real somente pelo Probe/Atlas. Tally recebeu que a chamada de triagem não alimenta Ticket/Assignment/resposta, mas ainda alimenta ledger/uso e a expectativa offline de 1 triage + 1 execution; não removi essa chamada sem decisão do Atlas. Todos os processos de app/edge das provas encerradas foram fechados; somente a nova rodada de capturas está ativa. Nenhuma IA real, deploy ou commit.
+
+---
+
+## 04/11 15:08 — P0 compositor sem horário corrigido e aprovado pela fronteira real
+
+Decisão do Keel aplicada em `src/types.ts`: PostMessageRequest.occurredAt é opcional. `src/index.ts` resolve a ausência com orchestration.now(), valida ISO com offset antes de persistir e preserva o timestamp explícito válido. Valor vazio, data impossível, texto e data sem offset retornam erro tipado invalid-payload sem criar evento. Nenhuma edição no cliente.
+
+`tests/post-message-time.spec.ts`: três casos de relógio ausente, timestamp remoto preservado e inválidos recusados. `tests/gateway.spec.ts`: o corpo atual do compositor, sem occurredAt e com attachmentIds/topicId, passa pelo TypertGatewayService/RemoteAccessService/codec gerado e grava a mensagem; o horário inválido atravessa o codec de string e é recusado pelo host com código tipado.
+
+```text
+with-lock check -- vitest run persona-host/tests/post-message-time.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  1 passed (1)
+Tests  3 passed (3)
+Duration  16.05s
+
+with-lock check -- pnpm exec tsx scripts/generate-typert.ts
+generate-typert: wrote 40 Typert artifact(s) for 40 package(s) in 94.5s
+
+with-lock check -- vitest run persona-host/tests/gateway.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  1 passed (1)
+Tests  4 passed (4)
+Duration  27.19s
+
+with-lock check -- node scripts/persona/check-pkg.mjs persona-host
+persona-host: OK in 26.5s
+```
+
+Uma rodada anterior leu o estado E13 antes da correção de exactOptionalPropertyTypes em remote-team.ts; a reconstrução de campos opcionais foi corrigida e o check acima usa o estado atual. Keel avisado no Status para publicação imediata; Rivet reempacota. Não executei chamadas reais de IA.
+
+Outras provas encerradas antes deste P0: Web FR-3/Cofre `passed:true`, aviso 141ms/pending1/tasks0/vault-unavailable2/modelCalls0, captura no-engine-ready.png conferida; GOV/GES/host 6 arquivos68/68 e rodada focada4 arquivos53/53; SB/mandatory4 arquivos75pass2expected (duas fixtures ainda pendentes naquela rodada); E13 edge bridge/members/head 2 arquivos2/2 em28,08s. Todas as árvores de app/edge do harness foram encerradas. Próxima fila: bugs de identidade/audiência SB relatados pelo Gauge, permissões lembradas reais, contratos e aceite integrado restantes.
+
+---
+
+## 04/11 14:31 — Atenção desktop, SW-6, contas e curadoria SB
+
+`attention.ts` e o Remote attentionEvents agora enviam question/failed/done, além de needs-you/review, com nome dado à persona, IDs de persona/Tarefa/fio/stream e código RUN-ERRORS na falha. Done só aparece para o autor humano da Tarefa; DMs são filtradas pelos participantes. IDs por episódio são estáveis. O frame resolved retira os IDs decididos/respondidos/confirmados em outro cliente. Silêncio/foco/orçamento continuam com o desktop; o host preserva a fila. Contrato attention-events.md entregue a Muse/Rivet. Prova: 2 arquivos, 6/6 em 10,43s.
+
+SW-6: `reviewDeliveryOf` usa resolveGitExecutable do Rivet e PERSONA_BUNDLED_GIT quando não há historyGit explícito. Consumidores aguardam a resolução assíncrona; primeira entrega continua sem rascunho. Filesystem/Git + P0 + W2: 5 arquivos, 41 pass / 1 expected fail / 1 skipped (43), 35,45s. O expected fail restante é o setup W2 de cor repetida que não aceita a recusa conflict; a conta hostil/duplicada e os dois bugs de resposta tiveram corpos aprovados e só seus quatro marcadores viraram it. O teste antigo que exigia dois-pontos no nome de pasta Windows foi atualizado para exigir segmentos hash confinados em accounts/. O empacotamento real de MinGit continua com Rivet/Probe.
+
+Contas: `wave2.ts` gera segmentos hash sob accounts, sem usar o rótulo como caminho. addConnectionAccount recusa ID repetido, normaliza rótulo hostil e não sobrescreve. Leitura do login usa accountLoginStatus no próprio home; loginCommand usa ACCOUNT env do Rivet com quoting PowerShell. listConnectionAccounts aceita personaId opcional e retorna personaPolicies/escopo efetivo; escrita de política confere o projeto da persona. Remover/renomear conta confere workspace. Testes adicionais de marcador de login local e política por persona passaram na rodada citada. Quill avisado; nenhuma leitura de credencial nem login real foi executado.
+
+SB two-way agora captura notas antes de qualquer export, importa somente páginas reconhecidas, deixa notas soltas para BYC e reexporta depois. Import de página existente exige leitura autorizada e preserva a audiência; nota nova fica no projeto. Testes reais em pasta temporária cobrem edição, nova versão, replay sem duplicar e tentativa de substituir a nota privada de outra pessoa. Resultado: 2 arquivos, 27 pass / 1 expected fail (28), 18,13s; único expected fail é a ligação da curadoria no mandatory, cuja fixture deve emitir facts explícitos conforme Keel/Forge. SB4b foi convertido a it após corpo passar.
+
+`report-curation.ts` consome extractFactsFromReport/mapReportFactForCuration/curateAfterWork no onTaskSettled com Report ready. Audiência é persistida antes do ingest; Report integral é capturado antes do clip da UI, com timestamp do evento do runner. Fonte, evidência, fatos extraídos e rejeições seguras ficam auditáveis; replay por Assignment não cria versões repetidas. Sem facts explícitos não cria página genérica, e a primeira entrega retorna antes da curadoria. Prova: real-path + first-delivery, 2 arquivos, 23 pass / 1 skipped (24), 46,27s. Todos os runners são simulados, zero IA real. Transporte persona_report → RunEvent com facts opcional depende do Rivet; schema/hook MCP está pronto, campo em NormalizedReport solicitado por Status. Fallback JSON cercado do extrator já é consumido.
+
+Check host passou em 23,9s antes das novas ligações. Depois, a rodada detectou readonly BrainVisibility no adaptador store, já corrigido com cópia de memberIds. Check store, novo check host, lint e Typert integrados ainda pendentes. Lint inicial achou somente 2 arrow-parens no módulo novo, corrigidos. Forge recebeu quatro blocos D068 e um teste dedicado com autorização; Typert aguarda o pronto dele. Prova Web FR-3/Cofre expirou duas filas de 720s e agora aguarda com wait-max maior atrás de Probe/Keel, sem contornar a trava.
+
+Fila restante inclui SB permissão lembrada na aprovação real, GOV responsáveis/setores/rotinas do assistente, E13 membros/syncedAt/behindBy para Quill, fechamento de contratos/Typert/required suites e app/capturas. Nenhum item foi marcado done no PLAN com essas provas pendentes. Sem commits/reset/clean/deploy.
+
+---
+
+## 04/11 14:12 — Gestor aplica equipe atomicamente; aprovações e avisos em integração
+
+GES-1b: `gestor.ts` persiste a prévia hire/reuse e as specs; aprovação faz preflight acumulado via assertGestorAssemblyHires antes das gravações e aplica personas, alocações, fluxo, Sprint 1, estado do plano e auditoria na mesma transação. Repetir aprovação aplicada é no-op. Aprovação/recusa continuam restritas ao dono. A prévia reutiliza funções já presentes no projeto, sem conceder acesso a outras equipes. Objetivo sem equipe/projeto é recusado pelo core. Testes locais cobrem limite agregado, rollback com falha na sprint e idempotência. Gauge GES-1b teve corpo aprovado; só o marcador foi convertido para it, sem alterar assertivas.
+
+```text
+vitest run persona-host/tests/gestor.spec.ts + mandatory-team-manager-host.spec.ts --testTimeout=60000 --hookTimeout=60000
+Test Files  2 passed (2)
+Tests  26 passed (26)
+Duration  12.10s
+```
+
+Forge revisou sem editar e encontrou normalização de título em reuse e concorrência de planos. Corrigi os dois: mesma normalização acento/caixa/espaços do core; segundo plano no mesmo escopo vira comentário do primeiro; funções contratadas desde a prévia invalidam o plano antes das gravações. Testes adicionais e check-pkg aguardam/rodam sob check. Primeiro check detectou apenas readonly na prévia persistida, já corrigido com cópia explícita; não declaro o check final verde antes da nova saída.
+
+GOV: listApprovals agora consome routeApproval e devolve routedToId/onBehalfOfId/onBehalfOf/waitNotice. decideApproval revalida disponibilidade e destinatário e persiste quem decidiu em nome de quem na mesma transação. ApprovalView.reason é proposal.spec.description, pedido Muse/Lumen. Teste host com proposta de Cofre real está em curso. O caso obrigatório GOV-4 ainda cria registro direto sem proposta pendente e falha antes de testar roteamento; pedi ao Gauge que ajuste somente esse setup. Não retirei seu it.fails.
+
+Prova Web FR-3/Cofre sem test cipher expirou 720s esperando build, sem abrir app; reenfileirada com porta livre e home temporário. BYC obrigatório 17/17 e PB obrigatório 15/15 confirmados pelo Forge no Status. P0 OAR+CLI fake 2/2, 1 execution/0 triage e UI 14,7s conforme Probe; nenhum aceite com provedor real inferido. Zero chamadas reais de IA por Anvil.
+
+Fila continua: SW-6 resolver Git empacotado; atenção desktop question/failed/done/resolved; SB extrator/curadoria fora da primeira entrega, two-way e permissão lembrada; contas isoladas W2; responsáveis/setores/rotinas GOV. W1–W5 seguem com Tally, orchestration.ts não foi tocado nesta rodada. Sem commit/reset/clean/deploy.
+
+---
+
 ## 04/11 13:47 — P0 um turno; SW-6 e correções do Gauge em andamento
 
 ### P0 / FR-3

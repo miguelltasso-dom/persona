@@ -6,6 +6,7 @@ import type {
   TurnLayerSizes,
 } from '@deepseek-ai/dsh-persona-core'
 import type { UsageFold, UsageOrigin } from '@deepseek-ai/dsh-persona-usage'
+import type { Opt8MeasuredEvidence } from '@deepseek-ai/dsh-persona-engine'
 
 export type { OfficialQuota, UsageFold, UsageOrigin, UsageRecord, UsageWindow } from '@deepseek-ai/dsh-persona-usage'
 export type { LedgerOrigin, TurnKind, TurnLayerSizes, TurnLedgerEntry } from '@deepseek-ai/dsh-persona-core'
@@ -99,6 +100,31 @@ export interface OverviewView {
   readonly inProgress: readonly TaskView[]
   readonly firstDelivery?: FirstDeliveryView
   readonly engineStatus?: EngineStatusView
+}
+
+/** What the person is about to send (the composer, or step 5 of onboarding). */
+export interface EstimateAskRequest extends ProjectScopeRequest {
+  readonly texto: string
+  readonly streamKind: 'channel' | 'dm'
+  readonly ownerId: string
+  /** Step 5: the host routes straight to the executor, with no triage. */
+  readonly primeiraEntrega?: boolean
+}
+
+/** Estimate of one ask (persona-spec/contracts/estimate-ask.md): calls exact, tokens and cost ranges, time only when measured. */
+export interface EstimateAskView {
+  readonly tipo: 'sem-chamada' | 'conversa' | 'trabalho' | 'nao-sei'
+  readonly chamadas: { readonly min: number; readonly max: number } | null
+  readonly detalhe: readonly { readonly papel: 'conversa' | 'execucao' | 'triagem'; readonly nivel: 'barato' | 'seu-modelo' }[]
+  readonly tokens: { readonly min: number; readonly max: number } | null
+  readonly baseDoVendorIncluida: boolean
+  readonly custo: { readonly microUsd: { readonly min: number; readonly max: number } } | null
+  readonly tempo: { readonly segundos: { readonly min: number; readonly max: number } } | null
+  readonly origin: 'estimate' | 'calibrated' | 'unknown'
+  /** Ready-to-show line (pt-BR). */
+  readonly rotulo: string
+  /** One short reason for a tooltip. */
+  readonly motivo: string
 }
 
 /** Definitive cached reason an addressed request cannot reach a connected engine. */
@@ -236,7 +262,8 @@ export interface PostMessageRequest {
   readonly body: string
   readonly actorId: string
   readonly subjectId: string
-  readonly occurredAt: string
+  /** Host clock when omitted; explicit offset ISO timestamp is preserved for remote ordering. */
+  readonly occurredAt?: string
   readonly responderId?: string
   /** Uploaded file ids from `attachFile`, bound on post. */
   readonly attachmentIds?: readonly string[]
@@ -341,6 +368,16 @@ export interface ReviewSummaryView {
   readonly secretsRedacted: boolean
   readonly testsClaimed: readonly string[]
   readonly hasWorktree: boolean
+}
+
+/** Ticket selected for summary, preparation or discard. */
+export interface ReviewTicketRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly ticketId: string
+  /** Ignored legacy command; review operations require only the ticket identifier. */
+  readonly command?: TicketCommandRequest['command']
+  readonly reason?: string
 }
 
 /** Accept the review (ff or squash). */
@@ -702,6 +739,12 @@ export interface ConnectionAccountView {
   readonly phase: 'checking' | 'ready'
   readonly error?: ConnectionProbeError
   readonly inUseCount?: number
+  readonly loginCommand?: string
+}
+
+/** Optional persona selects its effective account rotation policy. */
+export interface ListConnectionAccountsRequest extends ProjectScopeRequest {
+  readonly personaId?: string
 }
 
 /** `listConnectionAccounts` payload. */
@@ -709,6 +752,7 @@ export interface ConnectionAccountsBundleView {
   readonly accounts: readonly ConnectionAccountView[]
   readonly swapPolicy: RunnerSwapPolicy
   readonly swapPolicyScope: RunnerSwapPolicyScope
+  readonly personaPolicies?: readonly { readonly personaId: string; readonly policy: RunnerSwapPolicy }[]
 }
 
 /** Persist swap policy (owner/responsible). */
@@ -874,16 +918,26 @@ export interface PutAttentionPolicyRequest {
 /** One grouped attention line for the desktop. */
 export interface AttentionEventView {
   readonly id: string
-  readonly kind: 'needs-you' | 'review'
+  readonly kind: 'needs-you' | 'review' | 'question' | 'failed' | 'done'
   readonly title: string
   readonly ticketId: string
   readonly at: string
+  readonly personaId?: string
+  readonly personaName?: string
+  /** Gallery resource id; uploaded avatar paths never leave the host here. */
+  readonly avatarId?: string
+  readonly threadId?: string
+  readonly streamId?: string
+  readonly question?: string
+  readonly code?: RunErrorCode
 }
 
 /** Stream frame for {@link attentionEvents}. */
 export interface AttentionStreamFrame {
-  readonly kind: 'baseline' | 'upsert'
+  readonly kind: 'baseline' | 'upsert' | 'resolved'
   readonly events: readonly AttentionEventView[]
+  /** Ids removed from the current pending set, including decisions and acknowledgements elsewhere. */
+  readonly eventIds?: readonly string[]
 }
 
 /** Desktop toast ack. Acked ids drop out of the next baseline. */
@@ -1023,6 +1077,8 @@ export interface PersonaNowView {
   readonly idleMinutes: number
   readonly deliveriesToday: number
   readonly proposalsAcceptedToday: number
+  /** Files the persona already changed in the draft of its current task (SW-7). Absent or 0 = no draft: the task stays just “Trabalhando”. */
+  readonly draftFiles?: number
 }
 
 /** Visão geral — agora. */
@@ -1092,6 +1148,20 @@ export interface RemoteTeamState {
   readonly status: 'connected' | 'offline' | 'revoked' | 'vault_unavailable'
   readonly cursors: Record<string, number>
   readonly errorCode: string
+  readonly syncedAt?: string
+  /** Pending outgoing events plus missing incoming events at the last remote-head measurement. */
+  readonly behindBy?: number
+  readonly remoteHeads?: Record<string, number>
+}
+
+/** Accepted local-edge member metadata; no token or unrelated project grants. */
+export interface RemoteMemberView {
+  readonly actorId: string
+  readonly displayName: string
+  readonly role: 'owner' | 'member' | 'guest'
+  readonly status: 'active' | 'revoked'
+  readonly joinedAt: string
+  readonly inviteId: string
 }
 
 /** Cofre capability for remote-team controls, without probing or exposing credentials. */
@@ -1241,8 +1311,23 @@ export interface ApprovalView {
   readonly personaName: string
   /** Gallery/upload ref for hire cards (gallery ref only today). */
   readonly hireAvatarRef?: string
-  /** Description supplied by the hiring proposal. */
+  /** The proposer's real motive for the hire. Absent when it gave none (never the persona's description). */
   readonly reason?: string
+  /** Function of the proposed persona (hire cards): the card reads “Contratar uma persona para {roleTitle}?”. */
+  readonly roleTitle?: string
+  /** What the proposed persona is like (hire cards). */
+  readonly description?: string
+  /** Average tasks per month, only when the host can measure it. The host does not today, so it is never sent. */
+  readonly monthlyTasks?: number
+  readonly routedToId?: string
+  readonly onBehalfOfId?: string
+  /** Responsible person represented by the substitute. */
+  readonly onBehalfOf?: string
+  readonly waitNotice?: string
+  readonly permissionAction?: string
+  readonly permissionTarget?: string
+  readonly permissionGrantId?: string
+  readonly permissionAudit?: string
 }
 
 /** Daily proactive proposals grouped by persona. */
@@ -1307,6 +1392,8 @@ export interface ProposeHireRequest {
   readonly name: string
   readonly title: string
   readonly description: string
+  /** Why the proposer wants this hire; becomes the card's “Por que”. Omit when there is no real motive. */
+  readonly reason?: string
 }
 
 /** Vault proposal. */
@@ -1518,19 +1605,14 @@ export interface GestorToolsMeasureView {
 /** Combined v1 close (PRO-6 + GES-6 + OPT-8). Probe calls this; do not remount flags. */
 export interface V1CloseMeasureView {
   readonly passed: boolean
+  readonly origin?: Opt8MeasuredEvidence['origin']
+  readonly baseline?: Opt8MeasuredEvidence['baseline']
   readonly proactivity: ProactivityMeasureView
   readonly gestor: GestorMeasureView
-  readonly opt8: {
-    readonly passed: number
-    readonly total: 4
-    readonly failed: readonly string[]
-    readonly blocked: readonly string[]
-    readonly liveEntries: number
-    readonly liveOrigin: LedgerOrigin
-  }
+  readonly opt8: Opt8MeasureView
 }
 
-/** OPT-8 scripted + live book size (cut-40 stays blocked until enough live rows). */
+/** Faithful estimate evidence plus the separately reported live ledger size and origin. */
 export interface Opt8MeasureView {
   readonly passed: number
   readonly total: 4
@@ -1538,6 +1620,9 @@ export interface Opt8MeasureView {
   readonly blocked: readonly string[]
   readonly liveEntries: number
   readonly liveOrigin: LedgerOrigin
+  readonly origin?: Opt8MeasuredEvidence['origin']
+  readonly baseline?: Opt8MeasuredEvidence['baseline']
+  readonly evidence?: Opt8MeasuredEvidence
 }
 
 /** Folded spend. Absence is never `usedPercent: 0`. */
@@ -2500,6 +2585,8 @@ export interface BrainPageView {
   readonly editorHint: string
   readonly updatedAt: string
   readonly restricted: boolean
+  /** Visibility classification; readable private pages still have restricted:false. */
+  readonly audience?: 'workspace' | 'project' | 'private' | 'persona'
 }
 
 /** One immutable revision. */
@@ -2982,3 +3069,7 @@ export interface ProviderLimitPoolView {
     readonly nextResetAt?: string
   }[]
 }
+
+// ---- IV-1: the team acts on its own (Bolt) --------------------------------------------------------------------
+export type { ProactivityStatusView, SchedulerActionView, SchedulerEventKind, SchedulerState } from './proactivity-scheduler.ts'
+export type { TeamStateView } from './team-state.ts'

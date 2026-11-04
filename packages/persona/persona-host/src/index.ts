@@ -2,6 +2,8 @@
 import { statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import { z } from 'zod'
+import { accountLoginStatus } from '@deepseek-ai/dsh-persona-runners'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   AccountRepos,
@@ -33,9 +35,12 @@ import { dedupeLimitAccounts, foldUsage, poolProviderLimits } from '@deepseek-ai
 import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
 import { cachedEngineReadiness } from './engine-readiness.ts'
+import { ticketAttention } from './attention.ts'
+import { curateSettledReport, rememberReportAudience } from './report-curation.ts'
 import { RemoteTeamHost, type RemoteTeamVault } from './remote-team.ts'
 import type { AcceptRemoteInviteRequest, ConnectRemoteTeamRequest, RemoteTeamAvailability, RemoteTeamState,
   RestorePointListView, UndoApplyRequest, UndoApplyView, ProjectStorageUsageView } from './types.ts'
+import type { RemoteMemberView } from './types.ts'
 import { projectStorageUsage } from './history-storage.ts'
 import type { EngineStatusView, EngineTriggerActionRequest } from './types.ts'
 import { persistProbeQuota } from './official-quota-persist.ts'
@@ -48,9 +53,13 @@ import { GithubSourceHost, detectGh } from './github.ts'
 import { ExternalSourcesHost } from './external-sources.ts'
 import { CofreSecretVault } from './cofre-secrets.ts'
 import { detectProjectGit, validateProjectRoot } from './project-root.ts'
-import { allowsScriptedReplies, ensureProductionRealCli, hostRunnerFromContext, loggedCliFromCards, type DetectedCli } from './runner.ts'
+import { allowsScriptedReplies, ensureProductionRealCli, hostRunnerFromContext, loggedCliFromCards, specFromConnection, type DetectedCli } from './runner.ts'
 import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
+import { createProactivityScheduler } from './proactivity-wire.ts'
+import type { ProactivityScheduler, ProactivityStatusView } from './proactivity-scheduler.ts'
+import { TeamStateBook, type TeamStateView } from './team-state.ts'
+import { DraftFilesBook } from './draft-files.ts'
 import { BoardsHost } from './boards.ts'
 import { MediaHost, mediaHttpHandler } from './media.ts'
 import { VaultDocsHost } from './vault-docs.ts'
@@ -70,6 +79,7 @@ import { GovernanceHost } from './governance.ts'
 import { ScreensHost } from './screens.ts'
 import { draftPersonaWithDriver, draftTeamWithDriver } from './draft.ts'
 import { Orchestration, wantsWork } from './orchestration.ts'
+import { quotaRecheckDelay } from './quota-wait.ts'
 import { rememberReviewFeedback } from './feedback-wire.ts'
 import {
   computeActivationFunnel,
@@ -93,6 +103,8 @@ import {
   measureProactivityAcceptance,
   measureV1CloseView,
   parseReviewRestorePointId,
+  gateRememberedPermission,
+  estimateAsk as estimateAskFor,
 } from '@deepseek-ai/dsh-persona-engine'
 import {
   defaultSkillDirIo,
@@ -122,7 +134,7 @@ import {
   specsFromTemplate,
 } from './share-remote.ts'
 import { FIRST_DELIVERY_EVENT_ID, FIRST_DELIVERY_MILESTONE_EVENT_ID, OnboardingHost } from './onboarding.ts'
-import { HostScheduler, inQuietWindow } from './scheduler.ts'
+import { HostScheduler } from './scheduler.ts'
 import { CHAT_STICKERS, isChatSticker } from './stickers.ts'
 import {
   listProjectFiles,
@@ -131,6 +143,8 @@ import {
 } from './files.ts'
 import type {
   ChannelView,
+  EstimateAskRequest,
+  EstimateAskView,
   ClaimRoutinesRequest,
   CreateChannelRequest,
   CreateDmRequest,
@@ -160,6 +174,7 @@ import type {
   RequestChangesRequest,
   ReviewAcceptView,
   ReviewSummaryView,
+  ReviewTicketRequest,
   AckAttentionRequest,
   PutAttentionPolicyRequest,
   PutRetentionPolicyRequest,
@@ -351,6 +366,7 @@ import type {
   ConversationSubjectScope,
   ConversationSubjectsBundleView,
   ConnectionAccountsBundleView,
+  ListConnectionAccountsRequest,
   CreateConversationSubjectRequest,
   MoveMessageToSubjectRequest,
   RemoveConnectionAccountRequest,
@@ -418,6 +434,7 @@ import type {
 } from './types.ts'
 import {
   isolatedAccountHome,
+  isolatedAccountLoginCommand,
   resolveAccountSeat,
   storedSwapPolicy,
   subjectViews,
@@ -494,6 +511,8 @@ export interface Config {
   readonly remoteTeamTimeoutMs?: number
   /** Recheck retained messages; zero disables the retry timer. Default 15000 ms. */
   readonly engineRetryPollMs?: number
+  /** Team scheduler cycle (routines, Vigia, planning); zero disables it. Default 30000 ms. Never armed under Vitest. */
+  readonly proactivityCycleMs?: number
   /** Ordinary-folder draft size limit; defaults to the engine's configured default. */
   readonly historyMaxCopyBytes?: number
   /** Deadline for private-history git commands; defaults to the engine's default. */
@@ -550,11 +569,15 @@ export default class PersonaHost extends TypertRemoteService {
   readonly brain: BrainHost
   readonly gestor: GestorHost
   readonly workingSend: WorkingSendHost
+  readonly teamState: TeamStateBook
+  readonly draftFiles: DraftFilesBook
+  readonly proactivityScheduler: ProactivityScheduler
   readonly opt: OptRepos
   readonly ledger: TurnLedgerRepos
   readonly remoteTeam: RemoteTeamHost
   private readonly engineRetryPollMs: number
   private engineRetryTimer: ReturnType<typeof setInterval> | undefined
+  private quotaRecheckTimer: ReturnType<typeof setTimeout> | undefined
   private engineReadinessDisposed = false
   readonly webhookGuard: WebhookReplayGuard = new WebhookReplayGuard()
   readonly remoteGuard: RemoteGuard
@@ -627,11 +650,16 @@ export default class PersonaHost extends TypertRemoteService {
       new SqliteInviteBook(this.store),
       new SqliteImportStore(this.store),
       this.orchestration,
+      (persona) => { this.governance.registerPersona(persona) },
     )
     this.orchestration.screens = screenRepos
     this.orchestration.onTaskSettled = (event, failed) => {
-      if (event.id !== FIRST_DELIVERY_EVENT_ID) return
-      this.sealFirstDelivery({ workspaceId: event.workspaceId, projectId: event.projectId }, failed ? 'failed' : undefined)
+      if (event.id === FIRST_DELIVERY_EVENT_ID) {
+        this.sealFirstDelivery({ workspaceId: event.workspaceId, projectId: event.projectId }, failed ? 'failed' : undefined)
+        return
+      }
+      if (failed) return
+      this.curateProjectReports(event.projectId)
     }
     this.onboarding = new OnboardingHost(this.product, this.events, screenRepos, this.screens)
     this.scheduler = new HostScheduler(this.store, screenRepos)
@@ -645,6 +673,7 @@ export default class PersonaHost extends TypertRemoteService {
       ? { state: 'ready', reason: null }
       : cachedEngineReadiness(this.connections.list())
     this.orchestration.onEngineDeferred = () => { this.armEngineRetry() }
+    this.orchestration.onQuotaWaiting = () => { this.armQuotaRecheck() }
     for (const value of [config.historyMaxCopyBytes, config.historyGitTimeoutMs]) {
       if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) throw new Error('invalid-history-limit')
     }
@@ -671,8 +700,24 @@ export default class PersonaHost extends TypertRemoteService {
       new GestorRepos(this.store, () => this.orchestration.now()),
       () => this.orchestration.now(),
       this.boards,
+      (persona, sectorName) => { this.governance.registerPersona(persona, sectorName) },
     )
     this.workingSend = new WorkingSendHost(screenRepos, () => this.orchestration.now())
+    this.teamState = new TeamStateBook(screenRepos, this.routines, () => this.orchestration.now())
+    this.draftFiles = new DraftFilesBook(screenRepos, () => this.orchestration.now())
+    this.proactivity.draftFilesOf = (projectId, ticketId) => this.draftFiles.get(projectId, ticketId)
+    this.proactivityScheduler = createProactivityScheduler({
+      product: this.product,
+      events: this.events,
+      routines: this.routines,
+      proactivity: this.proactivity,
+      screens: screenRepos,
+      orchestration: this.orchestration,
+      boards: this.boards,
+      teamState: this.teamState,
+      governance: this.governance,
+      draftFiles: this.draftFiles,
+    }, { cycleMs: config.proactivityCycleMs ?? 30_000 })
     this.opt = new OptRepos(this.store, () => this.orchestration.now())
     this.ledger = new TurnLedgerRepos(this.store)
     this.orchestration.opt = this.opt
@@ -712,19 +757,26 @@ export default class PersonaHost extends TypertRemoteService {
     if (process.env.VITEST !== 'true') {
       this.connections.warm()
       this.orchestration.prewarmAll()
+      this.proactivityScheduler.start()
     }
     this.mountGithubWebhook(ctx)
     this.mountMedia(ctx)
     for (const workspace of this.product.listWorkspaces()) {
       for (const project of this.product.listProjects(workspace.id)) {
+        for (const persona of this.product.listPersonas(project.id)) this.governance.registerPersona(persona)
         this.scheduler.arm(project.id)
         this.remoteTeam.resume({ workspaceId: workspace.id, projectId: project.id })
-        if (!allowsScriptedReplies()) this.orchestration.runtime(project.id)
+        if (!allowsScriptedReplies()) {
+          this.orchestration.runtime(project.id)
+          this.curateProjectReports(project.id)
+        }
       }
     }
     ctx.effect(() => async () => {
       this.engineReadinessDisposed = true
+      this.proactivityScheduler.dispose()
       if (this.engineRetryTimer !== undefined) clearInterval(this.engineRetryTimer)
+      if (this.quotaRecheckTimer !== undefined) clearTimeout(this.quotaRecheckTimer)
       this.scheduler.dispose()
       try {
         await this.orchestration.work
@@ -1756,6 +1808,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   tickLibrarianBatch(request: ProjectScopeRequest): LibrarianBatchView {
     this.requireProject(request)
+    this.curateProjectReports(request.projectId)
     return tickLibrarianBatch(
       this.brain.brain,
       this.opt,
@@ -1858,7 +1911,8 @@ export default class PersonaHost extends TypertRemoteService {
       const channel = this.product.getChannel(id)
       if (channel === undefined || channel.projectId !== request.projectId) throw new Error('channel-not-found')
     }
-    return this.remoteTeam.connect(request, actor)
+    const displayName = this.product.listMembers(request.workspaceId).find(row => row.id === actor.id)?.displayName ?? actor.id
+    return this.remoteTeam.connect(request, actor, displayName)
   }
 
   /** @param request - Single-use token; the caller cannot choose a remote role. @returns Granted channel state. */
@@ -1867,7 +1921,15 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireWrite(request)
     const actor = this.actorOf(request.workspaceId)
     if (actor === undefined) throw new Error('forbidden')
-    return this.remoteTeam.accept(request, actor)
+    const displayName = this.product.listMembers(request.workspaceId).find(row => row.id === actor.id)?.displayName ?? actor.id
+    return this.remoteTeam.accept(request, actor, displayName)
+  }
+
+  /** @param request - Authorized connected project. @returns Accepted members and revocation metadata without credentials. */
+  @Remote
+  async listRemoteMembers(request: ProjectScopeRequest): Promise<RemoteMemberView[]> {
+    this.requireProject(request)
+    return this.remoteTeam.members(request)
   }
 
   /** @param request - Invite whose redeemed member is revoked. @returns True after the edge acknowledges revocation. */
@@ -1905,7 +1967,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   async listRestorePoints(request: ProjectScopeRequest): Promise<RestorePointListView> {
     this.requireProject(request)
-    const delivery = this.orchestration.reviewDelivery(request.projectId)
+    const delivery = await this.orchestration.reviewDelivery(request.projectId)
     if (delivery === undefined) return { status: 'unconfigured', points: [] }
     if (delivery.listRestorePoints === undefined) return { status: 'unsupported', points: [] }
     return { status: 'available', points: await delivery.listRestorePoints() }
@@ -1917,7 +1979,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireWrite(request)
     if (this.actorOf(request.workspaceId)?.kind !== 'user') throw new Error('forbidden')
     const pointId = parseReviewRestorePointId(request.restorePointId)
-    const delivery = this.orchestration.reviewDelivery(request.projectId)
+    const delivery = await this.orchestration.reviewDelivery(request.projectId)
     if (delivery?.listRestorePoints === undefined || delivery.undoApply === undefined) {
       return { kind: 'blocked', explanation: 'Este projeto não tem restauração disponível pela Persona.' }
     }
@@ -1987,8 +2049,38 @@ export default class PersonaHost extends TypertRemoteService {
     if (this.engineReadinessDisposed || allowsScriptedReplies()) return
     if (cachedEngineReadiness(this.connections.list()).state !== 'ready') return
     for (const workspace of this.product.listWorkspaces()) {
-      for (const project of this.product.listProjects(workspace.id)) this.orchestration.resumeEngineTriggers(project.id)
+      for (const project of this.product.listProjects(workspace.id)) {
+        this.orchestration.resumeEngineTriggers(project.id)
+        // A Task the quota window stopped runs again now that an engine is ready (IV-7).
+        void this.orchestration.resumeQuotaWaiting(project.id).catch((error: unknown) => {
+          // The row stays out of the list only after it ran or went stale; a failure here leaves the Ticket blocked for Retomar.
+          void error
+        })
+      }
     }
+  }
+
+  /** Look again when the quota window resets (or in 5 min when the vendor gave no clock), while a Task waits for it. */
+  private armQuotaRecheck(): void {
+    if (this.engineReadinessDisposed) return
+    if (this.quotaRecheckTimer !== undefined) clearTimeout(this.quotaRecheckTimer)
+    const rows = this.orchestration.quotaWaiting()
+    const delay = quotaRecheckDelay(rows, Date.now(), 5 * 60_000)
+    if (delay === undefined) {
+      this.quotaRecheckTimer = undefined
+      return
+    }
+    this.quotaRecheckTimer = setTimeout(() => {
+      this.quotaRecheckTimer = undefined
+      void this.connections.ready().then(() => {
+        this.handleReadyEngines()
+        if (this.orchestration.quotaWaiting().length > 0) this.armQuotaRecheck()
+      }).catch((error: unknown) => {
+        void error
+        this.armQuotaRecheck()
+      })
+    }, delay)
+    this.quotaRecheckTimer.unref()
   }
 
   private armEngineRetry(): void {
@@ -2287,7 +2379,12 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listApprovals(request: ProjectScopeRequest): ApprovalView[] {
     this.requireProject(request)
-    return this.screens.listApprovals(request.projectId)
+    return this.screens.listApprovals(request.projectId).map((card) => {
+      const audit = this.screens.screens.get<{ grantId: string; explanation: string }>(
+        request.projectId, 'remembered_approval', `${card.kind}:${card.id}`)
+      return { ...this.governance.approval(request.workspaceId, card),
+        ...(audit === undefined ? {} : { permissionGrantId: audit.grantId, permissionAudit: audit.explanation }) }
+    })
   }
 
   /**
@@ -2307,7 +2404,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   proposeVault(request: ProposeVaultRequest): ApprovalView {
     this.requireProject(request)
-    return this.screens.proposeVault(request)
+    return this.applyRememberedApproval(request, this.screens.proposeVault(request))
   }
 
   /**
@@ -2317,7 +2414,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   proposeSkill(request: ProposeSkillRequest): ApprovalView {
     this.requireProject(request)
-    return this.screens.proposeSkill(request)
+    return this.applyRememberedApproval(request, this.screens.proposeSkill(request))
   }
 
   /**
@@ -2326,8 +2423,21 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   decideApproval(request: DecideApprovalRequest): ApprovalView {
-    this.requireProject(request)
-    return this.screens.decide(request)
+    this.requireWrite(request)
+    const card = this.listApprovals(request).find(row => row.id === request.id && row.kind === request.kind)
+    if (card === undefined) throw new Error('approval-not-found')
+    if (card.status !== 'pending') return card
+    const actor = this.actorOf(request.workspaceId)
+    if (card.waitNotice !== undefined) throw new HostRemoteFault('approval-waiting', card.waitNotice)
+    if (actor?.id !== card.routedToId && actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    return this.store.tx(() => {
+      const decided = this.screens.decide(request)
+      this.screens.screens.put(request.projectId, 'approval_decision', `${request.kind}:${request.id}`, {
+        actorId: actor?.id ?? '', routedToId: card.routedToId ?? '', onBehalfOfId: card.onBehalfOfId ?? '',
+        accept: request.accept, at: this.orchestration.now(),
+      })
+      return { ...card, ...decided }
+    })
   }
 
   /**
@@ -2566,37 +2676,33 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   createPersona(request: CreatePersonaRequest): PersonaView {
     this.requireProject(request)
-    const now = new Date().toISOString()
-    const stored = this.product.createPersona({
-      id: request.id,
-      workspaceId: request.workspaceId,
-      name: request.name,
-      title: request.title,
-      description: request.description,
-      personality: request.personality,
-      instructions: request.instructions,
-      avatar: { kind: request.avatarKind, ref: request.avatarRef },
-      runner: request.runnerKind === 'dsh'
-        ? { kind: 'dsh', model: request.runnerModel }
-        : { kind: 'cli', cli: asCli(request.runnerCli), model: request.runnerModel },
-      tools: {},
-      skills: [],
-      limits: {},
-      systemRoles: withDefaultGestor(request.systemRoles === undefined ? [] : request.systemRoles),
-      canRecruit: request.canRecruit,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: request.createdBy,
-    }, request.projectId)
-    this.proactivity.ensureInitiativeRoutine(stored)
-    this.orchestration.ensureCoordination(request.projectId)
-    const owner = this.product.listMembers(request.workspaceId).find(row => row.role === 'owner')
-    this.cards.putCharge({
-      personaId: stored.id,
-      responsibleHumanId: request.createdBy === '' ? (owner?.id ?? request.createdBy) : request.createdBy,
-      confirmed: true,
+    return this.store.tx(() => {
+      const now = new Date().toISOString()
+      const stored = this.product.createPersona({
+        id: request.id,
+        workspaceId: request.workspaceId,
+        name: request.name,
+        title: request.title,
+        description: request.description,
+        personality: request.personality,
+        instructions: request.instructions,
+        avatar: { kind: request.avatarKind, ref: request.avatarRef },
+        runner: request.runnerKind === 'dsh'
+          ? { kind: 'dsh', model: request.runnerModel }
+          : { kind: 'cli', cli: asCli(request.runnerCli), model: request.runnerModel },
+        tools: {},
+        skills: [],
+        limits: {},
+        systemRoles: withDefaultGestor(request.systemRoles === undefined ? [] : request.systemRoles),
+        canRecruit: request.canRecruit,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: request.createdBy,
+      }, request.projectId)
+      this.governance.registerPersona(stored)
+      this.orchestration.ensureCoordination(request.projectId)
+      return toPersonaView(stored)
     })
-    return toPersonaView(stored)
   }
 
   /**
@@ -2686,6 +2792,8 @@ export default class PersonaHost extends TypertRemoteService {
 
   private appendMessage(request: PostMessageRequest, firstDelivery?: { executorId: string; title: string }): MessageView {
     this.requireProject(request)
+    const timestamp = z.iso.datetime({ offset: true }).safeParse(request.occurredAt ?? this.orchestration.now())
+    if (!timestamp.success) throw new HostRemoteFault('invalid-payload', 'Informe um horário ISO válido para a mensagem.')
     this.forgetSubjectListCache()
     const actor = this.actorOf(request.workspaceId)
     if (actor !== undefined) {
@@ -2714,10 +2822,11 @@ export default class PersonaHost extends TypertRemoteService {
       body: request.body,
       actorId: request.actorId,
       subjectId: request.subjectId,
-      occurredAt: request.occurredAt,
+      occurredAt: timestamp.data,
       ...(request.replyToId === undefined || request.replyToId === '' ? {} : { replyToId: request.replyToId }),
       ...(topicId === undefined || topicId === '' ? {} : { topicId }),
     })
+    rememberReportAudience(this.product, this.screens.screens, stored)
     this.media.bindToMessage(
       stored.id,
       request.attachmentIds ?? [],
@@ -3602,7 +3711,7 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
-   * Two-way folder sync (export then import; same slug+hash is a skip).
+   * Two-way folder sync imports authorized edits before export; same slug+hash is a skip.
    * @param request - Folder path.
    */
   @Remote
@@ -3659,31 +3768,44 @@ export default class PersonaHost extends TypertRemoteService {
     const actor = this.actorOf(request.workspaceId)
     const authorId = actor?.id ?? 'owner'
     const { writes, privateIds } = selectedBringWrites(request.preview, request.items)
-    const ids: string[] = []
-    for (const proposal of writes) {
-      if (this.vault.getRecord(proposal.id) !== undefined) continue
-      const visibility = privateIds.has(proposal.id) && actor !== undefined
-        ? { kind: 'members' as const, memberIds: [actor.id] }
-        : { kind: 'workspace' as const }
-      this.vault.createRecord({
-        id: proposal.id,
-        workspaceId: request.workspaceId,
-        projectId: request.projectId,
-        kind: proposal.kind,
-        body: proposal.provenance === ''
-          ? proposal.body
-          : `${proposal.body}\n\n(${proposal.provenance})`,
-        authorId,
-        visibility,
-        ...(proposal.hash === '' ? {} : { factKey: `byc:${proposal.hash}` }),
-      })
-      ids.push(proposal.id)
-    }
-    return {
-      written: ids.length,
-      skipped: Math.max(0, request.items.length - ids.length),
-      ids,
-    }
+    return this.store.tx(() => {
+      const ids: string[] = []
+      const projectRecordIds = new Set(this.vault.listRecords(request.projectId).map(row => row.id))
+      for (const proposal of writes) {
+        const existing = this.vault.getRecord(proposal.id)
+        if (existing !== undefined) {
+          if (existing.workspaceId !== request.workspaceId || !projectRecordIds.has(existing.id)
+            || actor === undefined || !canReadVault(actor, existing)) throw new Error('forbidden')
+          const body = vaultToBringExisting([existing])[0]?.body ?? ''
+          if (existing.kind !== proposal.kind || body.trim() !== proposal.body.trim()) {
+            throw new HostRemoteFault('conflict', 'Há conteúdo diferente com a mesma identificação. Nada foi gravado.')
+          }
+          continue
+        }
+        const visibility = privateIds.has(proposal.id) && actor !== undefined
+          ? { kind: 'members' as const, memberIds: [actor.id] }
+          : { kind: 'workspace' as const }
+        this.vault.createRecord({
+          id: proposal.id,
+          workspaceId: request.workspaceId,
+          projectId: request.projectId,
+          kind: proposal.kind,
+          body: proposal.provenance === ''
+            ? proposal.body
+            : `${proposal.body}\n\n(${proposal.provenance})`,
+          authorId,
+          visibility,
+          ...(proposal.hash === '' ? {} : { factKey: `byc:${proposal.hash}` }),
+        })
+        projectRecordIds.add(proposal.id)
+        ids.push(proposal.id)
+      }
+      return {
+        written: ids.length,
+        skipped: Math.max(0, request.items.length - ids.length),
+        ids,
+      }
+    })
   }
 
   /**
@@ -3766,6 +3888,38 @@ export default class PersonaHost extends TypertRemoteService {
   getFirstDelivery(request: ProjectScopeRequest): FirstDeliveryView {
     this.requireProject(request)
     return this.readFirstDelivery(request.projectId)
+  }
+
+  /**
+   * What an ask will cost before it is sent: how many calls of the person's AI, whether it becomes a Ticket, token and cost
+   * ranges, and time only when a real run measured it. Local and synchronous: no model is called
+   * (persona-spec/contracts/estimate-ask.md).
+   * @param request - Text, stream and whether it is the step 5 first delivery.
+   * @returns The estimate with a ready-to-show line.
+   */
+  @Remote
+  estimateAsk(request: EstimateAskRequest): EstimateAskView {
+    this.requireProject(request)
+    const personas = this.product.listPersonas(request.projectId)
+    const dm = request.streamKind === 'dm' ? this.product.getDm(request.ownerId) : undefined
+    const persona = dm === undefined
+      ? personas.find(row => row.systemRoles.includes('coordination'))
+      : [dm.participantA, dm.participantB].map(id => this.product.getPersona(id)).find(row => row !== undefined)
+    const logged = this.orchestration.loggedCliOf?.(request.projectId)
+    const spec = persona === undefined ? undefined : specFromConnection(persona.runner, logged)
+    const cli = spec?.kind === 'cli' ? spec.cli : (logged ?? 'none')
+    return estimateAskFor({
+      texto: request.texto,
+      ...(persona === undefined ? {} : {
+        persona: { id: persona.id, name: persona.name, title: persona.title, personality: persona.personality, instructions: persona.instructions },
+      }),
+      motor: { cli, connected: cli !== 'none' },
+      contexto: {
+        primeiraEntrega: request.primeiraEntrega === true,
+        pendenteDaPersona: this.orchestration.pendingFromPersonaIn(request.projectId, `${request.streamKind}:${request.ownerId}`),
+      },
+      host: { skipTriage: this.orchestration.skipTriage, courtesyNoModel: this.orchestration.courtesyNoModel },
+    })
   }
 
   /**
@@ -4127,8 +4281,12 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - Tenant.
    */
   @Remote
-  listConnectionAccounts(request: ProjectScopeRequest): ConnectionAccountsBundleView {
+  listConnectionAccounts(request: ListConnectionAccountsRequest): ConnectionAccountsBundleView {
     this.requireProject(request)
+    const named = request.personaId === undefined ? undefined : this.product.getPersona(request.personaId)
+    if (request.personaId !== undefined && (named?.workspaceId !== request.workspaceId || named.projectId !== request.projectId)) {
+      throw new Error('not-found')
+    }
     const probes = this.connections.list()
     const stored = this.accounts.list(request.workspaceId)
     const accounts = stored.length > 0
@@ -4136,16 +4294,21 @@ export default class PersonaHost extends TypertRemoteService {
         const probe = probes.find(item => item.kind === row.provider)
         const used = this.accounts.usageForAccount(row.id)[0]
         const runs = used?.runs ?? 0
+        const loggedIn = row.homeDir === '' ? probe?.loggedIn ?? false : accountLoginStatus(row.homeDir) === 'logged_in'
+        const loginCommand = isolatedAccountLoginCommand(row.provider, row.homeDir)
         return {
           id: row.id,
           provider: (probe?.kind ?? row.provider) as ConnectionView['kind'],
           label: row.label,
-          available: probe?.available ?? row.status !== 'error',
-          loggedIn: probe?.loggedIn ?? row.status === 'ok',
+          available: probe?.available ?? false,
+          loggedIn,
           loginHint: probe?.loginHint ?? '',
           phase: probe?.phase ?? (row.status === 'checking' ? 'checking' as const : 'ready' as const),
-          ...(probe?.error === undefined ? {} : { error: probe.error }),
+          ...(!loggedIn && row.homeDir !== ''
+            ? { error: { code: 'not_logged_in' as const, message: 'Entre na conta usando o comando de login desta conta.' } }
+            : probe?.error === undefined || probe.error.code === 'not_logged_in' ? {} : { error: probe.error }),
           ...(runs === 0 ? {} : { inUseCount: runs }),
+          ...(loginCommand === undefined ? {} : { loginCommand }),
         }
       })
       : probes.map(row => ({
@@ -4158,8 +4321,13 @@ export default class PersonaHost extends TypertRemoteService {
         phase: row.phase,
         ...(row.error === undefined ? {} : { error: row.error }),
       }))
-    const swap = storedSwapPolicy(this.accounts, request.workspaceId, accounts[0]?.provider ?? 'dsh')
-    return { accounts, swapPolicy: swap.policy, swapPolicyScope: swap.scope }
+    const provider = named?.runner.kind === 'cli' ? named.runner.cli : accounts[0]?.provider ?? 'dsh'
+    const swap = storedSwapPolicy(this.accounts, request.workspaceId, provider, request.personaId)
+    const personaPolicies = this.product.listPersonas(request.projectId).flatMap((persona) => {
+      const policy = storedSwapPolicy(this.accounts, request.workspaceId, provider, persona.id)
+      return policy.scope === 'persona' ? [{ personaId: persona.id, policy: policy.policy }] : []
+    })
+    return { accounts, swapPolicy: swap.policy, swapPolicyScope: swap.scope, personaPolicies }
   }
 
   /**
@@ -4171,6 +4339,9 @@ export default class PersonaHost extends TypertRemoteService {
     const named = request.personaId === undefined
       ? undefined
       : this.product.getPersona(request.personaId)
+    if (request.scope === 'persona' && (named?.workspaceId !== request.workspaceId || named.projectId !== request.projectId)) {
+      throw new Error('not-found')
+    }
     const providers = new Set(
       this.accounts.list(request.workspaceId).map(row => row.provider),
     )
@@ -4196,7 +4367,11 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   addConnectionAccount(request: AddConnectionAccountRequest): ConnectionAccountsBundleView {
     this.requireWrite(request)
-    const id = `${request.provider}:${request.label.trim().toLowerCase().replace(/\s+/g, '-')}`
+    const labelKey = request.label.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase()
+      .replace(/[^a-z0-9]+/gu, '-').replace(/^-+|-+$/gu, '')
+    if (labelKey === '') throw new Error('invalid-label')
+    const id = `${request.provider}:${labelKey}`
+    if (this.accounts.get(id) !== undefined) throw new Error('conflict')
     const home = request.homeDir ?? isolatedAccountHome(this.requireActor(request.workspaceId).id, request.provider, id)
     this.accounts.create({
       id,
@@ -4214,6 +4389,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   removeConnectionAccount(request: RemoveConnectionAccountRequest): boolean {
     this.requireWrite(request)
+    if (this.accounts.get(request.accountId)?.workspaceId !== request.workspaceId) throw new Error('not-found')
     this.accounts.delete(request.accountId)
     return true
   }
@@ -4224,6 +4400,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   updateConnectionAccount(request: UpdateConnectionAccountRequest): boolean {
     this.requireWrite(request)
+    if (this.accounts.get(request.accountId)?.workspaceId !== request.workspaceId) throw new Error('not-found')
     this.accounts.update(request.accountId, { label: request.label })
     return true
   }
@@ -4479,95 +4656,115 @@ export default class PersonaHost extends TypertRemoteService {
 
   /**
    * PRO-6 / fechamento v1. Probe scores this; do not reassemble flags.
+   * @param request - Workspace (dono ou dev; uma persona nunca mede).
    */
   @Remote
-  measureProactivityV1(): ProactivityMeasureView {
+  measureProactivityV1(request: WorkspaceScopeRequest): ProactivityMeasureView {
+    this.requireWorkspace(request)
     const measured = measureProactivityAcceptance()
     return { passed: measured.passed, total: measured.total, failed: measured.failed }
   }
 
   /**
    * V1-P0-1 engine checklist. Probe does not remount flags.
+   * @param request - Workspace (dono ou dev; uma persona nunca mede).
    */
   @Remote
-  measureFirstDeliveryAcceptance(): FirstDeliveryMeasureView {
+  measureFirstDeliveryAcceptance(request: WorkspaceScopeRequest): FirstDeliveryMeasureView {
+    this.requireWorkspace(request)
     const measured = scoreFirstDeliveryAcceptance()
     return { passed: measured.passed, total: measured.total, failed: measured.failed }
   }
 
   /**
    * GES-6 / fechamento v1. Probe scores this; do not reassemble flags.
+   * @param request - Workspace (dono ou dev; uma persona nunca mede).
    */
   @Remote
-  measureGestorV1(): GestorMeasureView {
+  measureGestorV1(request: WorkspaceScopeRequest): GestorMeasureView {
+    this.requireWorkspace(request)
     const measured = measureGestorV1()
     return { passed: measured.passed, total: measured.total, failed: measured.failed }
   }
 
   /**
    * GES-2 hire / allocate / reorganize / assemble. Probe does not remount flags.
+   * @param request - Workspace (dono ou dev; uma persona nunca mede).
    */
   @Remote
-  measureGestorToolsAcceptance(): GestorToolsMeasureView {
+  measureGestorToolsAcceptance(request: WorkspaceScopeRequest): GestorToolsMeasureView {
+    this.requireWorkspace(request)
     return measureGestorToolsAcceptance()
   }
 
   /**
    * OPT-3 prefix/cache. Probe does not remount flags.
+   * @param request - Workspace (dono ou dev; uma persona nunca mede).
    */
   @Remote
-  measureOpt3(): OptPolicyMeasureView {
+  measureOpt3(request: WorkspaceScopeRequest): OptPolicyMeasureView {
+    this.requireWorkspace(request)
     return measureOpt3Acceptance()
   }
 
   /**
    * OPT-4 min tools / dedupe / layer budget.
+   * @param request - Workspace (dono ou dev; uma persona nunca mede).
    */
   @Remote
-  measureOpt4(): OptPolicyMeasureView {
+  measureOpt4(request: WorkspaceScopeRequest): OptPolicyMeasureView {
+    this.requireWorkspace(request)
     return measureOpt4Acceptance()
   }
 
   /**
    * OPT-5 cheap vs persona + session reuse.
+   * @param request - Workspace (dono ou dev; uma persona nunca mede).
    */
   @Remote
-  measureOpt5(): OptPolicyMeasureView {
+  measureOpt5(request: WorkspaceScopeRequest): OptPolicyMeasureView {
+    this.requireWorkspace(request)
     return measureOpt5Acceptance()
   }
 
   /**
    * OPT-6 lean channel + initiative batch + router burst.
+   * @param request - Workspace (dono ou dev; uma persona nunca mede).
    */
   @Remote
-  measureOpt6(): OptPolicyMeasureView {
+  measureOpt6(request: WorkspaceScopeRequest): OptPolicyMeasureView {
+    this.requireWorkspace(request)
     return measureOpt6Acceptance()
   }
 
   /**
    * PRO-6 + GES-6 + OPT-8 via `measureV1CloseView`. Probe does not remount flags.
-   * @param request - Workspace whose live ledger feeds OPT-8.
+   * @param request - Workspace for live ledger metadata, separate from the faithful estimate baseline.
    */
   @Remote
   measureV1Close(request: WorkspaceScopeRequest): V1CloseMeasureView {
     this.requireWorkspace(request)
-    return measureV1CloseView(
+    const view = measureV1CloseView(
       this.product.listProjects(request.workspaceId)
         .flatMap(project => this.ledger.list({ projectId: project.id })),
     )
+    const evidence = view.opt8.evidence
+    return { ...view, origin: evidence.origin, baseline: evidence.baseline,
+      opt8: { ...view.opt8, origin: evidence.origin, baseline: evidence.baseline } }
   }
 
   /**
-   * OPT-8 via `measureOpt8View`. Empty book keeps `cut-40` blocked; live book scores −40%.
+   * OPT-8 faithful estimates; live ledger metadata never changes the comparable baseline or the goal.
    * @param request - Workspace whose ledger is the live book.
    */
   @Remote
   measureOpt8(request: WorkspaceScopeRequest): Opt8MeasureView {
     this.requireWorkspace(request)
-    return measureOpt8View(
+    const view = measureOpt8View(
       this.product.listProjects(request.workspaceId)
         .flatMap(project => this.ledger.list({ projectId: project.id })),
     )
+    return { ...view, origin: view.evidence.origin, baseline: view.evidence.baseline }
   }
 
   /**
@@ -4697,13 +4894,17 @@ export default class PersonaHost extends TypertRemoteService {
   async *attentionEvents(request: ProjectScopeRequest, signal: AbortSignal): AsyncIterable<AttentionStreamFrame> {
     this.requireProject(request)
     const snapshot = (): AttentionEventView[] => this.collectAttention(request)
-    yield { kind: 'baseline', events: snapshot() }
-    let previous = new Set(snapshot().map(item => item.id))
+    const initial = snapshot()
+    yield { kind: 'baseline', events: initial }
+    let previous = new Set(initial.map(item => item.id))
     while (!signal.aborted) {
       await sleep(1_000, signal)
       const next = snapshot()
       const fresh = next.filter(item => !previous.has(item.id))
-      previous = new Set(next.map(item => item.id))
+      const current = new Set(next.map(item => item.id))
+      const resolved = [...previous].filter(id => !current.has(id))
+      previous = current
+      if (resolved.length > 0) yield { kind: 'resolved', events: [], eventIds: resolved }
       if (fresh.length > 0) yield { kind: 'upsert', events: fresh }
     }
   }
@@ -4899,9 +5100,54 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   pauseTeam(request: ProjectScopeRequest): boolean {
     this.requireProject(request)
-    this.routines.pauseTeam(request.projectId)
+    this.teamState.pause(request.projectId)
     void this.orchestration.disposeRunners()
     return true
+  }
+
+  /**
+   * "Retomar equipe": the routines the pause switched off come back; occurrences missed meanwhile are not replayed.
+   * @param request - Tenant.
+   * @returns The new team state.
+   */
+  @Remote
+  resumeTeam(request: ProjectScopeRequest): TeamStateView {
+    this.requireWrite(request)
+    return this.teamState.resume(request.projectId)
+  }
+
+  /**
+   * Whether the team is paused ("Pausar equipe" survives a reload).
+   * @param request - Tenant.
+   * @returns Pause state.
+   */
+  @Remote
+  getTeamState(request: ProjectScopeRequest): TeamStateView {
+    this.requireProject(request)
+    return this.teamState.get(request.projectId)
+  }
+
+  /**
+   * What the team's scheduler is doing now (working, resting, paused, waiting for an AI) and its last actions.
+   * @param request - Tenant.
+   * @returns Scheduler state for the Visão geral and Rotinas.
+   */
+  @Remote
+  getProactivityStatus(request: ProjectScopeRequest): ProactivityStatusView {
+    this.requireProject(request)
+    return this.proactivityScheduler.status(request.projectId)
+  }
+
+  /**
+   * "Verificar agora": run one scheduler cycle now instead of waiting for the timer.
+   * @param request - Tenant.
+   * @returns Scheduler state after the cycle.
+   */
+  @Remote
+  async runProactivityCycle(request: ProjectScopeRequest): Promise<ProactivityStatusView> {
+    this.requireWrite(request)
+    await this.proactivityScheduler.cycle()
+    return this.proactivityScheduler.status(request.projectId)
   }
 
   /**
@@ -4993,8 +5239,8 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - Ticket.
    */
   @Remote
-  async prepareReview(request: TicketCommandRequest): Promise<ReviewSummaryView> {
-    this.requireProject(request)
+  async prepareReview(request: ReviewTicketRequest): Promise<ReviewSummaryView> {
+    this.requireWrite(request)
     const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
     const latest = ticket === undefined ? undefined : ticket.assignments.at(-1)
     if (ticket === undefined || latest === undefined) throw new Error('ticket-not-found')
@@ -5007,7 +5253,7 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - Ticket.
    */
   @Remote
-  async reviewSummary(request: TicketCommandRequest): Promise<ReviewSummaryView> {
+  async reviewSummary(request: ReviewTicketRequest): Promise<ReviewSummaryView> {
     this.requireProject(request)
     const sum = await this.orchestration.reviewSummary(request.projectId, request.ticketId)
     return {
@@ -5060,8 +5306,8 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - Ticket.
    */
   @Remote
-  async discardReview(request: TicketCommandRequest): Promise<boolean> {
-    this.requireProject(request)
+  async discardReview(request: ReviewTicketRequest): Promise<boolean> {
+    this.requireWrite(request)
     await this.orchestration.discardReview(request.projectId, request.ticketId)
     return true
   }
@@ -5305,31 +5551,72 @@ export default class PersonaHost extends TypertRemoteService {
     throw new Error('forbidden')
   }
 
+  private applyRememberedApproval(scope: ProjectScopeRequest, card: ApprovalView): ApprovalView {
+    const action = card.permissionAction
+    const target = card.permissionTarget
+    if (card.status !== 'pending' || action === undefined || target === undefined || card.kind === 'hire') return card
+    const routed = this.governance.approval(scope.workspaceId, card)
+    const at = this.orchestration.now()
+    if (!Number.isFinite(Date.parse(at))) return routed
+    const grants = this.brain.brain.listGrants(scope.projectId).filter((grant) => {
+      if (grant.workspaceId !== scope.workspaceId || Object.keys(grant.limits).some(key => key !== 'maxUses')) return false
+      if (!Number.isFinite(Date.parse(grant.createdAt))
+        || (grant.expiresAt !== undefined && !Number.isFinite(Date.parse(grant.expiresAt)))) return false
+      const maxUses = grant.limits.maxUses
+      if (maxUses !== undefined && (!/^\d+$/u.test(maxUses) || !Number.isSafeInteger(Number(maxUses)))) return false
+      const grantor = resolveSessionActor(this.product, scope.workspaceId, grant.grantorId)
+      if (grantor === undefined || !sessionCan(grantor, 'write', { type: 'project', ...scope })) return false
+      return grantor.workspaceRole === 'owner' || grantor.id === routed.routedToId || grantor.id === routed.onBehalfOfId
+    })
+    const hit = gateRememberedPermission(grants.map(row => ({
+      id: row.id, grantorId: row.grantorId, personaId: row.personaId, action: row.action, target: row.target,
+      maxUses: row.limits.maxUses === undefined ? 0 : Number(row.limits.maxUses),
+      validity: row.validity === 'once' ? 'once' : row.validity === '7d' ? 'days7' : 'until_revoked',
+      grantedAt: Date.parse(row.createdAt), expiresAt: row.expiresAt === undefined ? 0 : Date.parse(row.expiresAt),
+      revoked: row.revokedAt !== undefined, uses: row.useCount,
+    })), { personaId: card.personaId, action, target, now: Date.parse(at) })
+    if (hit.kind !== 'skip') return routed
+    return this.store.tx(() => {
+      const spent = this.brain.brain.recordUse(hit.grantId, card.personaId, action, target)
+      if (spent === undefined) return routed
+      const decided = this.screens.decide({ ...scope, id: card.id, kind: card.kind, accept: true })
+      this.screens.screens.put(scope.projectId, 'remembered_approval', `${card.kind}:${card.id}`, {
+        grantId: hit.grantId, grantorId: spent.grantorId, explanation: hit.audit, at,
+      })
+      return { ...decided, permissionAction: action, permissionTarget: target,
+        permissionGrantId: hit.grantId, permissionAudit: hit.audit }
+    })
+  }
+
+  private curateProjectReports(projectId: string): void {
+    for (const ticket of this.orchestration.runtime(projectId).repo.tickets.list()) {
+      const event = this.events.get(ticket.origin.triggerId)
+      if (event === undefined) continue
+      try {
+        curateSettledReport({ event, ticket, brain: this.brain.brain, screens: this.screens.screens,
+          firstDelivery: event.id === FIRST_DELIVERY_EVENT_ID })
+      } catch (error: unknown) {
+        // The report remains durable for the next librarian pass; curation must not fail an already delivered task.
+        void error
+        const notice = 'Não conseguimos atualizar o conhecimento da equipe. O relatório foi guardado para tentar de novo.'
+        if (!this.lastErrors.includes(notice)) this.lastErrors.push(notice)
+      }
+    }
+  }
+
   private collectAttention(request: ProjectScopeRequest): AttentionEventView[] {
-    const policy = this.getAttentionPolicy(request)
-    if (policy.delivery === 'ping' && inQuietWindow(Date.now(), policy.quietStart, policy.quietEnd)) {
-      return []
-    }
-    const events: AttentionEventView[] = []
-    for (const card of this.listTasks(request)) {
-      if (card.stage === 'blocked') {
-        events.push({
-          id: `need:${card.id}`, kind: 'needs-you', title: card.title, ticketId: card.id, at: this.orchestration.now(),
-        })
-      }
-      if (card.stage === 'review') {
-        events.push({
-          id: `review:${card.id}`, kind: 'review', title: card.title, ticketId: card.id, at: this.orchestration.now(),
-        })
-      }
-    }
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) return []
+    const events = ticketAttention({ projectId: request.projectId, actorId: actor.id,
+      tickets: this.orchestration.runtime(request.projectId).repo.tickets.list(),
+      stages: new Map(this.listTasks(request).map(row => [row.id, row.stage])), events: this.events, product: this.product })
     for (const letter of this.deadLetters.list(request.projectId)) {
       events.push({
         id: `dead:${letter.id}`, kind: 'needs-you', title: letter.cause, ticketId: letter.id, at: letter.at,
       })
     }
     const acked = new Set(this.screens.screens.get<string[]>(request.projectId, 'attention_ack', 'ids') ?? [])
-    return events.filter(item => !acked.has(item.id)).slice(0, policy.proposalBudget)
+    return events.filter(item => !acked.has(item.id))
   }
 
   private viewMessage(event: {

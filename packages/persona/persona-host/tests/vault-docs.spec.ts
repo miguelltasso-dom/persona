@@ -77,6 +77,19 @@ it('ingests PDF, DOCX, MD, TXT and CSV, cites locator, and reprocesses on replac
   expect(docs.list('ws', 'pp').map(item => item.id)).not.toContain('d-md')
 })
 
+it('document citations omit sensitive content and metadata before entering a prompt', () => {
+  const h = seed()
+  const docs = docsOf(h)
+  const secret = ['synthetic', 'value'].join('-')
+  docs.ingest({ ...scope, id: 'secret-doc', name: 'access.txt',
+    bytesBase64: Buffer.from(`Connection reference api_key=${secret}`).toString('base64') }, 'ana')
+  expect(docs.search({ ...scope, query: 'Connection' })).not.toHaveLength(0)
+  const cited = docs.citeUsed('ws', 'pp', 'Connection')
+  expect(cited).not.toHaveLength(0)
+  expect(cited.every(row => row.restricted && row.body === '')).toBe(true)
+  expect(JSON.stringify(cited)).not.toContain(secret)
+})
+
 it('refuses oversized and unknown files with a clear pt-BR line', () => {
   const h = seed()
   const docs = docsOf(h)

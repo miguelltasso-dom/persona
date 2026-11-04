@@ -24,6 +24,19 @@ let log = ''
 let stopping = false
 let passed = false
 
+async function captureDark(page, name) {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  try {
+    await page.locator('body[data-ds-dark-theme="true"]').waitFor({ timeout: 3000 })
+  } catch (error) {
+    if (error.name !== 'TimeoutError') throw error
+    console.log(`dark-capture:pending theme attribute is not true (${name})`)
+    return false
+  }
+  await page.screenshot({ path: join(out, name), fullPage: true })
+  return true
+}
+
 async function cleanup() {
   if (stopping) return
   stopping = true
@@ -111,14 +124,68 @@ try {
   await page.locator('[data-persona-shell]').waitFor({ timeout: 60_000 })
   await page.getByRole('button', { name: 'Canais', exact: true }).click()
   await page.locator('[data-persona-area="composer"] textarea').first().waitFor({ timeout: 30_000 })
+  await page.locator('[aria-labelledby="persona-team-strip-title"]:not([aria-busy="true"])').waitFor({ timeout: 30_000 })
   await page.screenshot({ path: join(out, 'no-engine-ready.png'), fullPage: true })
   if (pageErrors.length !== 0) throw new Error(`profile UI errors:${pageErrors.join(',')}`)
   await rpc('dismissEngineTrigger', { ...scope, triggerId: id })
   if ((await rpc('getEngineStatus', scope)).pending !== 0) throw new Error('dismiss did not release backlog')
+  const composerText = `Mensagem nativa do compositor ${randomUUID()}`
+  const delivered = page.waitForResponse(response => new URL(response.url()).pathname === '/api/persona/postMessage', { timeout: 30_000 })
+  const composer = page.locator('[data-persona-area="composer"] textarea').first()
+  await composer.fill(composerText)
+  await composer.press('Enter')
+  const response = await delivered
+  const submitted = (await response.json()).result
+  if (!submitted?.ok) throw new Error(`composer gateway:${submitted?.error?.code ?? 'unknown'}`)
+  const posted = (await rpc('listMessages', { ...scope, streamKind: 'channel', ownerId: channelId,
+    actorId: 'ana', afterSeq: 0, limit: 100 })).events.find(event => event.body === composerText)
+  if (posted === undefined || !Number.isFinite(Date.parse(posted.occurredAt))) throw new Error('composer did not persist host time')
+  await page.getByText(composerText, { exact: true }).last().waitFor({ timeout: 30_000 })
+  await page.getByText(composerText, { exact: true }).last().scrollIntoViewIfNeeded()
+  await page.screenshot({ path: join(out, 'wire-1-composer.png'), fullPage: true })
+  const composerDark = await captureDark(page, 'wire-1-composer-dark.png')
+  await rpc('dismissEngineTrigger', { ...scope, triggerId: posted.id })
+  const site = { workspaceId: scope.workspaceId, projectId: 'site' }
+  await rpc('createProject', { id: site.projectId, workspaceId: site.workspaceId, name: 'Site', description: 'Prova GES sem IA.' })
+  const manager = (await rpc('listPersonas', scope)).find(persona => persona.systemRoles.includes('team_manager'))
+  if (manager === undefined) throw new Error('missing team manager')
+  const assembly = await rpc('proposeGestorAssemble', { ...site, gestorId: manager.id, id: 'ges-app-real', goal: 'Monte um time para o Site' })
+  if (assembly.plan.status !== 'proposed' || (await rpc('listPersonas', site)).length !== 0) throw new Error('assembly wrote before approval')
+  await rpc('approveGestorPlan', { workspaceId: site.workspaceId, planId: assembly.plan.id })
+  const team = await rpc('listPersonas', site)
+  const board = await rpc('getProjectBoard', site)
+  const sprints = await rpc('listSprints', site)
+  if (team.length !== assembly.preview.hire.length || board.workflow.template !== 'site'
+    || !sprints.some(sprint => sprint.name === 'Sprint 1')) throw new Error('assembly missing team/workflow/sprint')
+  for (const persona of team) {
+    const card = await rpc('getPersonaCard', { ...site, personaId: persona.id })
+    if (card.ownerName !== 'Ana' || card.sectorName === '') throw new Error('assembly missing human responsibility or sector')
+  }
+  await rpc('approveGestorPlan', { workspaceId: site.workspaceId, planId: assembly.plan.id })
+  if ((await rpc('listPersonas', site)).length !== team.length) throw new Error('assembly replay hired twice')
+  const siteContext = await browser.newContext({ locale: 'pt-BR', viewport: { width: 1440, height: 900 } })
+  await siteContext.request.get(url)
+  await siteContext.addInitScript(({ site }) => {
+    localStorage.setItem('persona.tenant.v1', JSON.stringify({ ...site, memberId: 'ana', channelId: 'geral:site' }))
+    localStorage.setItem('persona.onboarding.complete.v1', '1')
+  }, { site })
+  const boardPage = await siteContext.newPage()
+  boardPage.on('pageerror', error => { pageErrors.push(error.name) })
+  await boardPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+  await boardPage.locator('[data-persona-shell]').waitFor({ timeout: 60_000 })
+  await boardPage.getByRole('button', { name: 'Quadros', exact: true }).click()
+  await boardPage.locator('[data-persona-boards]:not([aria-busy="true"])').waitFor({ timeout: 30_000 })
+  await boardPage.getByText('Site', { exact: true }).first().waitFor({ timeout: 30_000 })
+  await boardPage.screenshot({ path: join(out, 'ges-site-board.png'), fullPage: true })
+  const boardDark = await captureDark(boardPage, 'ges-site-board-dark.png')
+  if (pageErrors.length !== 0) throw new Error(`profile UI errors:${pageErrors.join(',')}`)
   passed = true
   writeFileSync(join(out, 'proof.json'), `${JSON.stringify({ passed, elapsedMs, status, availability,
-    notices: notices.length, tasks: 0, modelCalls: 0, detector: 'explicit keyless harness', home }, null, 2)}\n`)
+    notices: notices.length, tasks: 0, modelCalls: 0, detector: 'explicit keyless harness', home,
+    composer: { persisted: true, occurredAt: posted.occurredAt }, darkCaptures: { composer: composerDark, board: boardDark },
+    assembly: { personas: team.length, template: board.workflow.template, sprint: 'Sprint 1', replayIdempotent: true } }, null, 2)}\n`)
   console.log(`FR3-runtime:PASS immediate=${elapsedMs}ms deferred=1 task=0 vault-unavailable=2 modelCalls=0`)
+  console.log(`WIRE1-GES-runtime:PASS native-composer + host-time + assembly=${team.length} + site + sprint1 + replay; modelCalls=0`)
 } finally {
   if (!passed) writeFileSync(join(out, 'proof.json'), `${JSON.stringify({ passed: false, home })}\n`)
   clearTimeout(watchdog)

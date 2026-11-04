@@ -62,6 +62,57 @@ it('previewBringContextPaste flags Cofre rows via vaultToBringExisting', () => {
   expect(preview.proposals.some(row => row.status === 'duplicate' || row.body.includes('senha'))).toBe(true)
 })
 
+it('a reused preview id with different content rejects the whole batch instead of silently skipping a row', () => {
+  const h = host()
+  seed(h)
+  const scope = { workspaceId: 'ws', projectId: 'pp' }
+  const first = h.previewBringContextPaste({ ...scope, provider: 'chatgpt', text: '## Sobre mim\nO catálogo usa fotos claras.' })
+  const original = first.proposals[0]
+  if (original === undefined) throw new Error('missing-original')
+  h.applyContextProposals({ ...scope, preview: first, items: [{ id: original.id, action: 'accept' }] })
+  const next = h.previewBringContextPaste({ ...scope, provider: 'claude', text: '## Sobre mim\nO atendimento termina às dezoito horas.' })
+  const row = next.proposals[0]
+  if (row === undefined) throw new Error('missing-next')
+  const stale = { ...next, proposals: [{ ...row, id: 'fresh-row' }, { ...row, id: original.id }] }
+  expect(() => h.applyContextProposals({ ...scope, preview: stale,
+    items: [{ id: 'fresh-row', action: 'accept' }, { id: original.id, action: 'accept' }] }))
+    .toThrow(expect.objectContaining({ code: 'conflict' }))
+  expect(h.vault.getRecord('fresh-row')).toBeUndefined()
+  expect(h.vault.getRecord(original.id)?.body).toContain('O catálogo usa fotos claras.')
+  expect(h.vault.listRecords(scope.projectId)).toHaveLength(1)
+})
+
+it('two normal paste previews preserve different rules sharing the same prefix', () => {
+  const h = host()
+  seed(h)
+  const scope = { workspaceId: 'ws', projectId: 'pp' }
+  const bodies = [
+    'Regra X nunca enviar proposta comercial sem revisão do jurídico do cliente Alfa.',
+    'Regra X nunca enviar proposta comercial sem revisão do jurídico do cliente Beta.',
+  ]
+  const ids: string[] = []
+  for (const [index, body] of bodies.entries()) {
+    const preview = h.previewBringContextPaste({ ...scope, provider: index === 0 ? 'chatgpt' : 'claude',
+      text: `## Regras e restrições\n- ${body}` })
+    expect(preview.proposals).toHaveLength(1)
+    const proposal = preview.proposals[0]!
+    expect(proposal.status).toBe('ready')
+    expect(proposal.body).toBe(body)
+    const result = h.applyContextProposals({ ...scope, preview, items: [{ id: proposal.id, action: 'accept' }] })
+    expect(result.written).toBe(1)
+    expect(result.ids).toEqual([proposal.id])
+    ids.push(proposal.id)
+  }
+  expect(new Set(ids).size).toBe(2)
+  const records = h.vault.listRecords(scope.projectId)
+  expect(records).toHaveLength(2)
+  for (const body of bodies) expect(records.filter(record => record.body.includes(body))).toHaveLength(1)
+  const replay = h.previewBringContextPaste({ ...scope, provider: 'claude',
+    text: `## Regras e restrições\n- ${bodies[0]}` })
+  expect(replay.proposals).toHaveLength(1)
+  expect(replay.proposals[0]?.status).toBe('duplicate')
+})
+
 it('private BYC row is members-only', () => {
   const h = host()
   seed(h)

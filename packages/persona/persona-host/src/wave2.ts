@@ -20,7 +20,8 @@ import {
   type TaughtSkillDraft,
   type TeachStepDraft,
 } from '@deepseek-ai/dsh-persona-engine'
-import { accountHomeDir, formatAccountSwitch, pickProviderAccount } from '@deepseek-ai/dsh-persona-runners'
+import { createHash } from 'node:crypto'
+import { accountHomeDir, accountIsolationEnv, formatAccountSwitch, pickProviderAccount } from '@deepseek-ai/dsh-persona-runners'
 import type { AccountRepos, ConversationTopic, ProviderAccount, TopicRepos } from '@deepseek-ai/dsh-persona-store'
 import type {
   ConversationSubjectView,
@@ -45,7 +46,27 @@ export function isolatedAccountHome(personId: string, provider: string, accountI
     || provider === 'grok' || provider === 'openrouter' || provider === 'opencode-go'
     ? provider
     : 'dsh'
-  return accountHomeDir(root, personId, engine, accountId)
+  const segment = (id: string): string => createHash('sha256').update(id).digest('hex').slice(0, 32)
+  return accountHomeDir(root, segment(personId), engine, segment(accountId))
+}
+
+/**
+ * PowerShell login command scoped to the account's own configuration directory.
+ * @param provider - Supported CLI family.
+ * @param homeDir - Persisted isolated directory, never native default credentials.
+ * @returns Shell command without reading authentication files, or undefined for providers without a CLI login.
+ */
+export function isolatedAccountLoginCommand(provider: string, homeDir: string): string | undefined {
+  if (homeDir === '') return undefined
+  const cli = provider === 'claude' ? 'claude login' : provider === 'codex' ? 'codex login'
+    : provider === 'cursor' ? 'cursor-agent login' : provider === 'opencode' ? 'opencode auth login' : undefined
+  if (cli === undefined) return undefined
+  const engine = provider === 'claude' || provider === 'codex' || provider === 'cursor' ? provider : 'opencode'
+  const env = accountIsolationEnv(engine, homeDir)
+  const assignments = Object.entries(env).map(([name, value]) => value === null
+    ? `Remove-Item Env:${name} -ErrorAction SilentlyContinue`
+    : `$env:${name}='${value.replaceAll("'", "''")}'`)
+  return [...assignments, cli].join('; ')
 }
 
 /**

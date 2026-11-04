@@ -29,6 +29,25 @@ function seed(store: PersonaStore): void {
   product.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
 }
 
+it('workflow migration marks survive reopen beside existing fields and clear on the next stage placement', async () => {
+  const handle = await openTempStore()
+  temps.push(handle)
+  seed(handle.store)
+  const board = new SqliteBoardRepos(handle.store)
+  board.save(workflowFromTemplate('pp', 'software'))
+  board.saveSeat({ projectId: 'pp', ticketId: 'pinned', columnId: 'software-backlog', campos: { nota: 2 },
+    workflowMove: { stageCategory: 'doing' } })
+  handle.store.close()
+  const reopened = openPersonaStore({ path: handle.path })
+  stores.push(reopened)
+  const restored = new SqliteBoardRepos(reopened)
+  expect(restored.of('pinned')).toMatchObject({ columnId: 'software-backlog', campos: { nota: 2 },
+    workflowMove: { stageCategory: 'doing' } })
+  restored.saveSeat({ projectId: 'pp', ticketId: 'pinned', columnId: 'software-review', campos: { nota: 2 } })
+  expect(restored.of('pinned')?.workflowMove).toBeUndefined()
+  expect(restored.of('pinned')?.campos).toEqual({ nota: 2 })
+})
+
 it('migrates v7 → v8 and keeps existing tickets', async () => {
   const v7 = PERSONA_MIGRATIONS.filter(item => item.version <= 7)
   const handle = await openTempStore({ migrations: v7 })

@@ -28,7 +28,9 @@ import {
   SqliteInviteBook,
   type ProductRepos,
   type VaultRepos,
+  type StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
+import { resolveHireIdentity, type HireIdentity } from './hire-identity.ts'
 import type { Orchestration } from './orchestration.ts'
 import type {
   ApprovalView,
@@ -110,6 +112,7 @@ export class ScreensHost {
    * @param invites - Invite book.
    * @param imports - Import batches.
    * @param orchestration - Attention tickets.
+   * @param initializePersona - Assigns the new hire's human responsibility and initiative ownership.
    * @param now - Instant factory.
    * @param nowMs - Epoch ms.
    */
@@ -120,6 +123,7 @@ export class ScreensHost {
     invites: SqliteInviteBook,
     imports: SqliteImportStore,
     orchestration: Orchestration,
+    readonly initializePersona: (persona: StoredPersona) => void,
     now: () => string = () => new Date().toISOString(),
     nowMs: () => number = () => Date.now(),
   ) {
@@ -342,13 +346,15 @@ export class ScreensHost {
   proposeHire(request: ProposeHireRequest): ApprovalView {
     const creator = this.product.getPersona(request.creatorPersonaId)
     if (creator === undefined) throw new Error('persona-not-found')
+    // The card must not show the name or face of someone already on the team (A-4).
+    const identity = this.hireIdentity(request.projectId, request.name, '')
     const proposal = personaPropose({
       id: request.id,
       workspaceId: request.workspaceId,
       creator,
       spec: {
-        name: request.name,
-        avatar: { kind: 'gallery', ref: request.name.toLowerCase() },
+        name: identity.name,
+        avatar: { kind: 'gallery', ref: identity.avatarRef },
         title: request.title,
         description: request.description,
         personality: 'Proposta.',
@@ -363,8 +369,28 @@ export class ScreensHost {
       policy: 'approval',
       createdAt: this.now(),
     })
-    this.screens.put(request.projectId, KIND_HIRE, request.id, proposal)
-    return hireCard(proposal, this.personaName(request.projectId, request.creatorPersonaId))
+    const reason = request.reason?.trim() ?? ''
+    const stored: StoredHire = reason === '' ? proposal : { ...proposal, reason }
+    this.screens.put(request.projectId, KIND_HIRE, request.id, stored)
+    return hireCard(stored, this.personaName(request.projectId, request.creatorPersonaId))
+  }
+
+  /**
+   * Name and animal for a proposed hire: never one already on the team or in another pending proposal.
+   * @param projectId - Tenant.
+   * @param name - Requested name.
+   * @param avatarRef - Requested gallery ref (empty ⇒ derived from the name).
+   */
+  private hireIdentity(projectId: string, name: string, avatarRef: string): HireIdentity {
+    const pending = this.screens.list<StoredHire>(projectId, KIND_HIRE).filter(row => row.status === 'pending')
+    const refOf = (avatar: { kind: string; ref?: string }): string => (avatar.kind === 'gallery' ? (avatar.ref ?? '') : '')
+    return resolveHireIdentity(name, avatarRef, {
+      names: [...this.product.listPersonas(projectId).map(persona => persona.name), ...pending.map(row => row.spec.name)],
+      avatarRefs: [
+        ...this.product.listPersonas(projectId).map(persona => refOf(persona.avatar)),
+        ...pending.map(row => refOf(row.spec.avatar)),
+      ],
+    })
   }
 
   /**
@@ -404,6 +430,7 @@ export class ScreensHost {
     return {
       id: row.id, kind: 'skill', title: row.title, question: `Ativar ${row.title}?`,
       status: 'pending', personaId: request.creatorPersonaId, personaName: this.personaName(request.projectId, request.creatorPersonaId),
+      permissionAction: 'skill.activate', permissionTarget: `skill:${row.skillId}`,
     }
   }
 
@@ -484,18 +511,20 @@ export class ScreensHost {
    */
   listApprovals(projectId: string): ApprovalView[] {
     const cards: ApprovalView[] = [
-      ...this.screens.list<PersonaProposal>(projectId, KIND_HIRE).map(row => hireCard(row, this.personaName(projectId, row.creatorPersonaId))),
+      ...this.screens.list<StoredHire>(projectId, KIND_HIRE).map(row => hireCard(row, this.personaName(projectId, row.creatorPersonaId))),
       ...this.screens.list<VaultProposal>(projectId, KIND_VAULT).map(row => vaultCard(row, this.personaName(projectId, row.creatorPersonaId))),
       ...this.screens.list<SkillProposal>(projectId, KIND_SKILL_PROP).map(row => ({
         id: row.id, kind: 'skill' as const, title: row.title, question: `Ativar ${row.title}?`, status: row.status,
         personaId: row.creatorPersonaId, personaName: this.personaName(projectId, row.creatorPersonaId),
+        permissionAction: 'skill.activate', permissionTarget: `skill:${row.skillId}`,
       })),
     ]
     for (const ticket of this.orchestration.runtime(projectId).repo.tickets.list()) {
       if (ticket.attention === undefined) continue
+      const persona = this.product.listPersonas(projectId).find(row => row.name === ticket.execution?.name)
       cards.push({
         id: ticket.id, kind: 'attention', title: ticket.title, question: ticket.title, status: 'pending',
-        personaId: '', personaName: ticket.execution?.name ?? '',
+        personaId: persona?.id ?? '', personaName: ticket.execution?.name ?? '',
       })
     }
     return cards
@@ -617,11 +646,18 @@ export class ScreensHost {
     creatorPersonaId: string
     spec: PersonaSpec
   }): ApprovalView {
+    const identity = this.hireIdentity(
+      request.projectId, request.spec.name, request.spec.avatar.kind === 'gallery' ? request.spec.avatar.ref : '',
+    )
     const proposal: PersonaProposal = {
       id: request.id,
       workspaceId: request.workspaceId,
       creatorPersonaId: request.creatorPersonaId,
-      spec: request.spec,
+      spec: {
+        ...request.spec,
+        name: identity.name,
+        ...(request.spec.avatar.kind === 'gallery' ? { avatar: { kind: 'gallery' as const, ref: identity.avatarRef } } : {}),
+      },
       policy: 'approval',
       status: 'pending',
       createdAt: this.now(),
@@ -744,13 +780,13 @@ export class ScreensHost {
   }
 
   private decideHire(request: DecideApprovalRequest): ApprovalView {
-    const proposal = this.screens.get<PersonaProposal>(request.projectId, KIND_HIRE, request.id)
+    const proposal = this.screens.get<StoredHire>(request.projectId, KIND_HIRE, request.id)
     if (proposal === undefined) throw new Error('approval-not-found')
     const next = { ...proposal, status: request.accept ? 'approved' as const : 'rejected' as const }
     this.screens.put(request.projectId, KIND_HIRE, request.id, next)
     if (request.accept) {
       const now = this.now()
-      this.product.createPersona({
+      const created = this.product.createPersona({
         ...proposal.spec,
         id: `hire:${proposal.id}`,
         workspaceId: request.workspaceId,
@@ -758,6 +794,7 @@ export class ScreensHost {
         updatedAt: now,
         createdBy: proposal.creatorPersonaId,
       }, request.projectId)
+      this.initializePersona(created)
     }
     return hireCard(next, this.personaName(request.projectId, next.creatorPersonaId))
   }
@@ -808,13 +845,24 @@ function toBatchView(batch: { id: string; adapterId: string; applied: readonly u
   return { id: batch.id, adapterId: batch.adapterId, applied: batch.applied.length, rolledBack: batch.rolledBack }
 }
 
-function hireCard(proposal: PersonaProposal, personaName: string): ApprovalView {
+/** A stored hire proposal; `reason` is the proposer's real motive, absent when it gave none. */
+type StoredHire = PersonaProposal & { readonly reason?: string }
+
+/**
+ * `description` describes the persona; `reason` is only a real motive (the UI labels it “Por que”). `monthlyTasks` is
+ * never sent: the host cannot measure it for someone not yet hired.
+ * @param proposal - Stored proposal.
+ * @param personaName - Proposer's name.
+ */
+function hireCard(proposal: StoredHire, personaName: string): ApprovalView {
   const hireAvatarRef = proposal.spec.avatar.kind === 'gallery' ? proposal.spec.avatar.ref : undefined
   return {
     id: proposal.id, kind: 'hire', title: proposal.spec.name,
     question: `Contratar ${proposal.spec.name}?`, status: proposal.status,
-    reason: proposal.spec.description,
+    roleTitle: proposal.spec.title,
+    description: proposal.spec.description,
     personaId: proposal.creatorPersonaId, personaName,
+    ...(proposal.reason === undefined || proposal.reason === '' ? {} : { reason: proposal.reason }),
     ...(hireAvatarRef === undefined ? {} : { hireAvatarRef }),
   }
 }
@@ -824,6 +872,7 @@ function vaultCard(proposal: VaultProposal, personaName: string): ApprovalView {
     id: proposal.id, kind: 'vault', title: proposal.recordId,
     question: 'Atualizar registro no Cofre?', status: proposal.status,
     personaId: proposal.creatorPersonaId, personaName,
+    permissionAction: 'vault.update', permissionTarget: `vault:${proposal.recordId}`,
   }
 }
 

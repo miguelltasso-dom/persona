@@ -7,6 +7,69 @@ import { bindHostFile, it } from './host-harness.ts'
 const { host } = bindHostFile()
 const scope = { workspaceId: 'ws', projectId: 'pp' } as const
 
+it('distinct ids with the same title coexist and preserve their separate bodies and audiences', () => {
+  const h = seed()
+  const first = h.putBrainPage({ ...scope, id: 'public-a', kind: 'learning', title: 'Mesmo título', body: 'Conteúdo público.',
+    editorKind: 'person', editorId: 'ana', visibility: 'workspace' })
+  const second = h.putBrainPage({ ...scope, id: 'private-b', kind: 'learning', title: 'Mesmo título', body: 'Conteúdo privado.',
+    editorKind: 'person', editorId: 'ana', visibility: 'members', memberIds: ['ana'] })
+  expect(first.id).toBe('public-a')
+  expect(second.id).toBe('private-b')
+  expect(second.slug).not.toBe(first.slug)
+  expect(h.getBrainPage({ ...scope, pageId: first.id })).toMatchObject({ body: 'Conteúdo público.', audience: 'workspace' })
+  expect(h.getBrainPage({ ...scope, pageId: second.id })).toMatchObject({ body: 'Conteúdo privado.', audience: 'private', restricted: false })
+  h.putBrainPage({ ...scope, id: second.id, kind: 'learning', title: second.title, body: 'Edição ainda privada.',
+    editorKind: 'person', editorId: 'ana' })
+  expect(h.brain.brain.get(second.id)?.visibility).toEqual({ kind: 'members', memberIds: ['ana'] })
+  expect(h.getBrainPage({ ...scope, pageId: first.id }).body).toBe('Conteúdo público.')
+})
+
+it('the owner index never includes a persona-only title or body', () => {
+  const h = seed()
+  h.putBrainPage({ ...scope, id: 'persona-only', kind: 'learning', title: 'Segredo persona SBGES', body: 'Memória só da persona.',
+    editorKind: 'person', editorId: 'ana', visibility: 'persona', personaId: 'atendimento' })
+  const home = h.getBrainHome(scope)
+  expect(h.getBrainPage({ ...scope, pageId: home.startHereId }).body).not.toContain('Segredo persona SBGES')
+  expect(JSON.stringify(home)).not.toContain('Segredo persona SBGES')
+  expect(h.listBrainPages(scope).some(page => page.id === 'persona-only')).toBe(false)
+  expect(() => h.getBrainPage({ ...scope, pageId: 'persona-only' })).toThrow('forbidden')
+})
+
+it('two-way imports an edited exported note before writing and preserves the private audience', () => {
+  const h = seed()
+  const page = h.putBrainPage({ ...scope, id: 'private-edited', kind: 'learning', title: 'Acordo privado', body: 'Texto inicial.',
+    editorKind: 'person', editorId: 'ana', visibility: 'members', memberIds: ['ana'] })
+  const folderPath = mkdtempSync(join(tmpdir(), 'persona-brain-two-way-'))
+  h.exportBrainVault({ ...scope, folderPath })
+  const file = join(folderPath, 'learning', `${page.slug}.md`)
+  writeFileSync(file, readFileSync(file, 'utf8').replace('Texto inicial.', 'Texto alterado fora do app.'), 'utf8')
+  h.importBrainVault({ ...scope, folderPath })
+  expect(h.getBrainPage({ ...scope, pageId: page.id }).body).toContain('Texto alterado fora do app.')
+  expect(h.brain.brain.get(page.id)?.visibility).toEqual({ kind: 'members', memberIds: ['ana'] })
+  expect(h.listBrainVersions({ ...scope, pageId: page.id })).toHaveLength(2)
+  h.importBrainVault({ ...scope, folderPath })
+  expect(h.listBrainVersions({ ...scope, pageId: page.id })).toHaveLength(2)
+})
+
+it('two-way cannot update a private note belonging to another reader through a matching exported slug', () => {
+  const h = seed()
+  h.createMember({ id: 'bia', workspaceId: 'ws', projectId: 'pp', displayName: 'Bia', handle: 'bia', role: 'member' })
+  h.createProject({ id: 'shared', workspaceId: 'ws', name: 'Projeto', description: '' })
+  const shared = { workspaceId: 'ws', projectId: 'shared' }
+  const page = h.putBrainPage({ ...shared, id: 'private-other', kind: 'learning', title: 'Segredo da Ana', body: 'Somente Ana.',
+    editorKind: 'person', editorId: 'ana', visibility: 'members', memberIds: ['ana'] })
+  const folderPath = mkdtempSync(join(tmpdir(), 'persona-brain-foreign-import-'))
+  h.exportBrainVault({ ...shared, folderPath })
+  const file = join(folderPath, 'learning', `${page.slug}.md`)
+  const external = readFileSync(file, 'utf8').replace('Somente Ana.', 'Tentativa de substituir.')
+  writeFileSync(file, external, 'utf8')
+  h.sessionMemberId = 'bia'
+  h.importBrainVault({ ...shared, folderPath })
+  expect(h.brain.brain.get(page.id)?.body).toBe('Somente Ana.')
+  expect(h.brain.brain.get(page.id)?.visibility).toEqual({ kind: 'members', memberIds: ['ana'] })
+  expect(readFileSync(file, 'utf8')).toBe(external)
+})
+
 function seed() {
   const h = host()
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })

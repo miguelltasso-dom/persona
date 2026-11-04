@@ -228,7 +228,7 @@ it('fake runner: postMessage → Ticket → first_delivery ready + milestone on 
     ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'owner', afterSeq: 0, limit: 40,
   }).events.filter(item => item.id === FIRST_DELIVERY_MILESTONE_EVENT_ID)).toHaveLength(1)
 
-  const measured = h.measureFirstDeliveryAcceptance()
+  const measured = h.measureFirstDeliveryAcceptance({ workspaceId: 'ws' })
   expect(measured).toEqual({ passed: 4, total: 4, failed: [] })
 })
 

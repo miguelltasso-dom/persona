@@ -70,6 +70,8 @@ export type RemoteFaultCode =
   | 'forbidden'
   | 'not-found'
   | 'vault-unavailable'
+  | 'approval-waiting'
+  | 'conflict'
 
 export interface RemoteGuardOptions {
   readonly payloadLimit?: number

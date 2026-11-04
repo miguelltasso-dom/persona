@@ -4,6 +4,126 @@ Mais recente no topo.
 
 ---
 
+## 04/11 07:28 — V28 loader lazy; rebuild web index-ZjNmkjRJ; NSIS de novo
+
+Forge: `new Function` no INIT era `vendor/loader` (evaluate eager) → `apps/web/dist/assets/index-B2q7cWGa.js`. V28 deixou evaluate lazy. **Sem** `unsafe-eval` na CSP.
+
+Cancelei o pack que ia sair com o loader eager do `bef5f7d859`. Rebuild `apps/web`: **index-ZjNmkjRJ.js** (`function ek(){return new Function...}` só no primeiro `!!js`). Overlay agora leva loader src+lib + `apps/web/dist`. NSIS em curso (`Rivet D8 V28 ZjNmkjRJ`). Quando o index estiver no pack: `maestri ask Forge pack ok hash=ZjNmkjRJ`.
+
+---
+
+## 04/11 07:25 — D8 bef5f7d859 em fila (overlay CSP)
+
+Keel: empacotar `bef5f7d859`. Esse hash **ainda tem** CSP só-hash + `executeJavaScript(title)` — o mesmo #root vazio do Probe 05:48. Overlay do `package-clean` agora leva o rewrite (`rewrite-boot-injections.ts`, `main.ts`, `web-document.ts`, `secure-shell.ts`, host HMR off) para o worktree limpo. Sem isso o Setup sai em branco.
+
+Pack: `with-lock "Rivet D8 bef5f7d859"` (espera Muse shots) → `package-clean --commit bef5f7d859`. Depois: win-unpacked CDP → NSIS + Probe no exe.
+
+---
+
+## 04/11 07:20 — CSP apertada: boot sem eval, onboarding no dest:desktop
+
+Keel/Atlas: o `unsafe-eval` do Probe 05:48 no exe 1d4e5e **não é** schemastery/cordis no bundle do client. `client-ui-persona` e o web-frontend **não** têm `eval`/`new Function`. O Host manda ModuleLoader+tema como `kind: 'script'`; `applyIndexInjections` aplica com `textContent` (script inline). No 1d4e5e, hashes BOOT+READY faziam o Chromium **ignorar** `'unsafe-inline'` e o `executeJavaScript(document.title)` era o `unsafe-eval` visível. schemastery `new Function` só no **host Node**, não no renderer.
+
+### Correção (só `apps/desktop`, sem afrouxar CSP, sem D-061)
+
+- `rewrite-boot-injections.ts`: `kind: 'script'` → `script-src /__persona-boot__/N.js` servido no protocolo `dsh-app`
+- boot gate vira arquivo `/__persona-boot__/ready.js` (não inline)
+- `PERSONA_CSP` `script-src`: `'self' blob: dsh-app: http://127.0.0.1:*` — **sem** `'unsafe-eval'`, **sem** `'unsafe-inline'`, **sem** hash
+- `style-src` mantém `'unsafe-inline'` (tema `kind: 'style'`)
+- título só nativo (já estava)
+- HMR desligado no host (já estava)
+- perfil padrão `persona` (já estava)
+
+Não preciso mexer em `persona-app` nem no bundle do client.
+
+```
+pnpm exec vitest run apps/desktop/tests/secure-shell.spec.ts apps/desktop/tests/persona-decouple.spec.ts apps/desktop/tests/rewrite-boot-injections.spec.ts apps/desktop/tests/web-document.spec.ts --testTimeout=30000
+```
+4 files / **24 passed**.
+
+### dest:desktop CDP (perfil `persona`, CSP apertada)
+
+`hasPersonaShell: true` · `#root` 1 filho · `moduleLoader: object` · `inlineScriptCount: 0` · `bootScriptSrcs: /__persona-boot__/0.js, 1.js` · `cspViolations: []` · `Runtime.exceptionThrown: []` · bundles base+web-app+persona-app.
+
+Body: **PASSO 1 DE 5 / Como podemos te chamar?**  
+Captura: `packages/persona/persona-e2e/artifacts/dev-desktop-onboarding.png`  
+cópia: `.maestri/tmp/shots/dev-desktop-onboarding-csp-tight.png`
+
+Dep restante: `personaHost.createWorkspace` (Anvil). Overlay de onboarding mesmo assim.
+
+**Sem NSIS agora.** O exe 1d4e5e/dfe132 não tem este rewrite. Keel publica estes arquivos desktop → aí D8 + Probe. Empacotar o worktree sujo bloquearia o ciclo de 40 min e sairia sem hash VERDE.
+
+Não fui eu no `note write` do Status.
+
+---
+
+## 04/11 07:00 — dest:desktop mostra onboarding (passo 1)
+
+Atlas/Vigia: continue. Causa real do splash eterno: Chromium **ignora `'unsafe-inline'` se houver hash** no `script-src`. BOOT/READY hasheados anulavam o inline do ModuleLoader → `__ModuleLoader__` ausente → "Loading plugins".
+
+### Correção
+
+- `PERSONA_CSP` sem hashes (só `'unsafe-inline'` + `blob:` + loopback)
+- host desliga `client-hmr` (`apps/desktop-host/config/electron.cordis.patch.yml`) — SSE no `dsh-app://`
+
+```
+pnpm exec vitest run apps/desktop/tests/secure-shell.spec.ts apps/desktop-host/tests/persona-profile.spec.ts --testTimeout=30000
+```
+2 files / **6 passed**.
+
+### dest:desktop CDP (perfil `persona`)
+
+`hasPersonaShell: true` · `bootEntryCount: 27` · `client-ui-persona` · sem HMR. Body: **PASSO 1 DE 5 / Como podemos te chamar?**
+
+Captura: `packages/persona/persona-e2e/artifacts/dev-desktop-onboarding.png`  
+cópia: `.maestri/tmp/shots/dev-desktop-onboarding-passo-1.png`
+
+Dep: `personaHost.createWorkspace` ausente (live store / Anvil). Overlay de onboarding mesmo assim.
+
+NSIS do hash publicado **ainda não** — o exe 1d4e5e/dfe132 não tem este CSP. Keel publica → aí pack.
+
+---
+
+## 04/11 06:50 — #root vazio: CSP bloqueia boot, não o título DSH
+
+Keel: `build.lock` **livre** (pid 38856 morto). NSIS dfe132 **não** vai a Probe — Atlas cancelou. Sem Setup novo. Ciclos de 25 min podem voltar.
+
+### CDP 1d4e5e (Persona.exe 04:53)
+
+`appleTitle: DSH` é o `apps/web/index.html` (sempre). Não prova perfil Harness.
+
+| fato | valor |
+|---|---|
+| `profiles/desktop` bundles | base + web-app + **persona-app** + `cordis.patch` |
+| `profiles/persona` | ausente (host ainda pedia `desktop`) |
+| `__DSH_BOOT__` | **0** entradas |
+| `#root` | 0 filhos |
+| pageerror | CSP `unsafe-eval` / inline (`script-src` só hashes BOOT+READY) |
+
+O Host **já** lista persona-app. O vazio é o boot: `bootInjections` manda `kind: 'script'` (ModuleLoader + tema) e `applyIndexInjections` faz `textContent`. PERSONA_CSP sem `'unsafe-inline'` bloqueia; `__DSH_BOOT__` nunca aplica; `#root` fica vazio. `executeJavaScript(document.title)` no main é o `unsafe-eval`.
+
+### Correção (origem)
+
+- `secure-shell.ts`: `'unsafe-inline'` + `blob:` + loopback `http/ws://127.0.0.1:*`; **sem** `unsafe-eval`
+- `main.ts`: título só nativo (`setTitle` / `page-title-updated`)
+- perfil `persona` (turno anterior) permanece
+- `legal-notices.ts`: stubs `aboutLegalText` / `formatDesktopLegalNotices` para o `tsc` do desktop (Sobre WIP)
+
+```
+pnpm exec vitest run apps/desktop/tests/secure-shell.spec.ts apps/desktop/tests/persona-decouple.spec.ts --testTimeout=30000
+```
+2 files / **14 passed**.
+
+### dest:desktop (perfil de empacotamento)
+
+`$DSH_HOME/profiles/persona`: base + web-app + persona-app + `cordis.patch.yml`. Host pede `persona`.
+
+`__DSH_BOOT__` **28** entradas, `client-ui-persona` presente, `#root` 1 filho. Tela **HARNESS / Loading plugins** (não mais branco) ainda após 240s — splash do boot DSH, não onboarding. Captura: `packages/persona/persona-e2e/artifacts/dev-desktop-onboarding.png`.
+
+NSIS do hash publicado **só** depois do onboarding em captura. Setup `C:\p8c\Persona-Setup.exe` (dfe132) **não** embarcar.
+
+---
+
 ## 04/11 06:30 — Causa do client DSH no instalado: host `profile:"desktop"`
 
 Atlas: não reempacotar; o HTML com `apple-mobile-web-app-title DSH` + `assets/index-*.js` é o template web do Harness. NSIS do dfe132 sairia em branco de novo.

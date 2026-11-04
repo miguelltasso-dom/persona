@@ -1,13 +1,13 @@
 /** Local Web document and authenticated HTTP forwarding for the application window. */
 import { readFile } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
+import { PERSONA_BOOT_READY_MARKUP } from './rewrite-boot-injections.ts'
 
 const MIME: Readonly<Record<string, string>> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.json': 'application/json',
   '.woff2': 'font/woff2', '.png': 'image/png', '.ico': 'image/x-icon',
 }
-const BOOT = '<script>globalThis.__DSH_BOOT_READY__ = Promise.withResolvers()</script>'
 
 /**
  * Read an application-owned static asset; the index waits for asynchronous Host injections.
@@ -29,7 +29,7 @@ export async function serveWebDocument(request: Request, root: string): Promise<
     throw error
   }
   const content = pathname === '/' || pathname === '/index.html'
-    ? body.toString().replace('<head>', '<head>' + BOOT) : new Uint8Array(body)
+    ? body.toString().replace('<head>', '<head>' + PERSONA_BOOT_READY_MARKUP) : new Uint8Array(body)
   return new Response(request.method === 'HEAD' ? null : content, {
     headers: { 'content-type': MIME[extname(target)] ?? 'application/octet-stream' },
   })

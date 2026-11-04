@@ -27,3 +27,19 @@ export async function resolveThirdPartyNoticesPath(
   }
   return undefined
 }
+
+/**
+ * About-box legal block: bundled notices when present.
+ * @param notices - File body, if resolved.
+ */
+export function aboutLegalText(notices: string | undefined): string {
+  return notices?.trim() ?? ''
+}
+
+/**
+ * Fallback About legal line when the notices file is missing.
+ * @returns Empty string; the About box already has version and credits.
+ */
+export function formatDesktopLegalNotices(): string {
+  return ''
+}

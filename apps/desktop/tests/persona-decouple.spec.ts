@@ -23,6 +23,7 @@ import {
   resolvePersonaStartupSurface,
   shouldShowDeepSeekWelcome,
 } from '../src/product.ts'
+import { PERSONA_CSP } from '../src/secure-shell.ts'
 import { PROFILE_TEMPLATES } from '@deepseek-ai/dsh-official-bundles'
 import { resolvePersonaHome } from '@deepseek-ai/dsh-home-paths'
 import { resolveDesktopPaths } from '../src/paths.ts'
@@ -38,7 +39,8 @@ describe('Persona DeepSeek decoupling', () => {
     const main = readFileSync(join(repo, 'apps/desktop/src/main.ts'), 'utf8')
     expect(main).toContain('pinPersonaWindowTitle')
     expect(main).toContain('page-title-updated')
-    expect(main).toContain('document.title = ${JSON.stringify(PERSONA_PRODUCT_NAME)}')
+    expect(main).toContain('window.setTitle(PERSONA_PRODUCT_NAME)')
+    expect(main).not.toMatch(/executeJavaScript\(`document\.title/u)
   })
 
   it('names the product Persona and uses the persona:// protocol', () => {
@@ -75,6 +77,15 @@ describe('Persona DeepSeek decoupling', () => {
   it('resolves the process home to ~/.persona when neither env is set', () => {
     expect(resolvePersonaProcessHome({})).toBe(join(homedir(), '.persona'))
     expect(resolvePersonaHome(undefined, {})).toBe(join(homedir(), '.persona'))
+  })
+
+  it('rewrites Host inline boot scripts so the default persona profile never needs unsafe-eval', () => {
+    const main = readFileSync(join(repo, 'apps/desktop/src/main.ts'), 'utf8')
+    expect(PERSONA_DSH_PROFILE).toBe('persona')
+    expect(main).toContain('applyRewrittenBootInjections')
+    expect(main).toContain('servePersonaBootScript')
+    expect(PERSONA_CSP).not.toContain('unsafe-eval')
+    expect(PERSONA_CSP).not.toMatch(/script-src[^;]*'unsafe-inline'/u)
   })
 
   it('publishes DSH_PROFILE=persona before the host starts', () => {

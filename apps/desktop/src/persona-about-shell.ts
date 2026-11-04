@@ -1,6 +1,6 @@
 /** Persona Configurações › Sobre: external links and THIRD_PARTY_NOTICES (kit de lançamento). */
 
-import { dialog, ipcMain, shell, type BrowserWindow } from 'electron'
+import { ipcMain, shell, type BrowserWindow } from 'electron'
 import { assertDesktopSender, DESKTOP_IPC } from './ipc.ts'
 import { resolveThirdPartyNoticesPath } from './legal-notices.ts'
 import { isExternalHttpUrl } from './secure-shell.ts'

@@ -2,17 +2,21 @@
 
 import type { HandlerDetails, PermissionRequest, Session, WebPreferences } from 'electron'
 
-/** sha256 of `web-document` BOOT and host `READY_MARKUP` (inline, no unsafe-inline). */
-const BOOT_SCRIPT_HASH = "'sha256-ikYDEfGOZZNuGAdbu2YAz9STcFnRaWk0u5Dc0unuOyI='"
-const READY_SCRIPT_HASH = "'sha256-W1J9ifi3GWzqjTB2F6YQEv18k/YCJPpN1tANFrO28pg='"
-
+/**
+ * Script policy is intentionally tight: no `'unsafe-eval'` and no
+ * `'unsafe-inline'`. Host `kind: 'script'` rows (ModuleLoader, theme) are
+ * rewritten to same-origin `/__persona-boot__/N.js` files; the boot gate is
+ * `/__persona-boot__/ready.js` rather than an inline tag. `blob:` stays only
+ * for worker transports that already emit blob URLs. Loopback is the owned
+ * Host. Theme `kind: 'style'` rows still need style `'unsafe-inline'`.
+ */
 export const PERSONA_CSP = [
   "default-src 'self' dsh-app:",
-  `script-src 'self' dsh-app: ${BOOT_SCRIPT_HASH} ${READY_SCRIPT_HASH}`,
+  "script-src 'self' blob: dsh-app: http://127.0.0.1:*",
   "style-src 'self' 'unsafe-inline' dsh-app:",
   "img-src 'self' data: dsh-app:",
   "font-src 'self' data: dsh-app:",
-  "connect-src 'self' dsh-app:",
+  "connect-src 'self' dsh-app: http://127.0.0.1:* ws://127.0.0.1:*",
   "object-src 'none'",
   "base-uri 'none'",
   "frame-src 'none'",

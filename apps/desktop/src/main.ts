@@ -62,6 +62,11 @@ import { DesktopUpdateCoordinator } from './update-coordinator.ts'
 import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
 import { serveWebDocument, authenticateWebHost, forwardWebRequest, removeLegacyHostCookies } from './web-document.ts'
+import {
+  applyRewrittenBootInjections,
+  createPersonaBootScriptStore,
+  servePersonaBootScript,
+} from './rewrite-boot-injections.ts'
 import { DesktopFatalRecovery } from './fatal-recovery.ts'
 import { pruneCrashReports, RendererConsoleTail, writeCrashReport, type CrashReportSource } from './crash-report.ts'
 import { OperationJournal } from './operation-journal.ts'
@@ -320,9 +325,6 @@ function pinPersonaWindowTitle(window: BrowserWindow): void {
   })
   window.webContents.on('did-finish-load', () => {
     apply()
-    void window.webContents.executeJavaScript(`document.title = ${JSON.stringify(PERSONA_PRODUCT_NAME)}`).catch(() => {
-      // Native title is already Persona when the renderer rejects the write.
-    })
   })
 }
 
@@ -590,6 +592,7 @@ async function main(): Promise<void> {
   let hostCookie: string | undefined
   const browserGuests = new DesktopBrowserGuests(() => hostUrl)
   let injections: readonly unknown[] = []
+  const bootScripts = createPersonaBootScriptStore()
   let welcomeBackend: DesktopWelcomeBackend | undefined
   let reportedLaunch = false
   let analyticsEnabled = false
@@ -650,7 +653,7 @@ async function main(): Promise<void> {
         void removeLegacyHostCookies(session.defaultSession.cookies, ready.url)
           .catch((error: unknown) => { console.error('desktop: legacy Host cookie cleanup failed', error) })
         if (ready.injections === undefined) throw new Error('Desktop Host did not provide boot injections')
-        injections = ready.injections
+        injections = applyRewrittenBootInjections(ready.injections, bootScripts)
         welcomeBackend = connectDesktopWelcome(ready.url, cookie)
         analyticsEnabled = await welcomeBackend.analyticsEnabled().catch(() => false)
         if (!reportedLaunch) { reportedLaunch = true; void track('desktop_app_launch', {}) }
@@ -927,6 +930,8 @@ async function main(): Promise<void> {
     if (url.hostname === 'shell') return serveWebDocument(request, join(app.getAppPath(),
       url.pathname === '/design-platform.css' ? 'lib/welcome' : 'renderer'))
     if (url.hostname === 'app') {
+      const boot = servePersonaBootScript(request, bootScripts)
+      if (boot !== undefined) return Promise.resolve(boot)
       if (url.pathname === '/' || url.pathname === '/index.html' || url.pathname.startsWith('/assets/')
         || ['/favicon.svg', '/manifest.webmanifest'].includes(url.pathname)) {
         return serveWebDocument(request, join(resources.dsh, 'node_modules', '@deepseek-ai', 'dsh-web-frontend', 'dist'))

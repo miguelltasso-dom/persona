@@ -12,6 +12,7 @@ describe('installed CDP launch (Probe Tier 2)', () => {
     })
     expect(launch.args).toContain('--remote-debugging-port=9333')
     expect(launch.env.PERSONA_HOME).toBe('C:/tmp/home')
+    expect(launch.env.DSH_PROFILE).toBe('persona')
     expect(launch.env.DSH_DESKTOP_OPEN_DEVTOOLS).toBe('0')
     expect(launch.env.DSH_DESKTOP_UPDATES).toBe('0')
   })

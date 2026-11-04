@@ -1,4 +1,4 @@
-export type UsageOrigin = 'measured' | 'estimated' | 'official' | 'unavailable'
+export type UsageOrigin = 'measured' | 'estimated' | 'official' | 'unavailable' | 'notYet'
 
 export interface UsageMeter {
   readonly id: string
@@ -24,3 +24,6 @@ export const MOCK_LIMIT_NOTICE: UsageLimitNotice = {
   connection: 'Cursor agent',
   percent: 82,
 }
+
+/** Gallery preview — Claude with 3 seats (T3 §7). */
+export { MOCK_USAGE_PROVIDER_POOLS } from './mock-usage-pools.ts'

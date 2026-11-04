@@ -2,6 +2,7 @@
   "header.eyebrow": "Company",
   "title": "Files",
   "subtitle": "Project deliverables and attachments with preview when available",
+  "scope.project": "Project: {project}",
   "column.name": "Name",
   "column.updated": "Updated",
   "column.size": "Size",

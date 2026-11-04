@@ -7,6 +7,7 @@ import { Button, Card, Chip, Screen, ScreenHeader } from '../primitives/index.ts
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Routines.module.css'
 import { WEEK_DAYS, type QuietWindow, type RoutineRun } from './mock-data.ts'
+import { ProjectWorkspaceScopeChip } from '../data/ProjectWorkspaceScopeChip.tsx'
 import { pt as defaultDict } from '../locale/routines/locales.ts'
 
 export type RoutinesSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -34,6 +35,9 @@ export interface RoutinesViewProps {
   readonly quietWindows?: readonly QuietWindow[]
   readonly initialState?: RoutinesSurfaceState
   readonly onRemoteRetry?: () => void
+  readonly scopeProjectId?: string | null
+  /** UX-14: empty → "Pedir sugestões à coordenação" (opens the coordinator DM with a ready request). */
+  readonly onAskSuggestions?: (() => void) | undefined
 }
 
 /** Weekly routine calendar preview. */
@@ -43,6 +47,8 @@ export function RoutinesView({
   quietWindows = [],
   initialState = 'ready',
   onRemoteRetry,
+  scopeProjectId = null,
+  onAskSuggestions,
 }: RoutinesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -60,11 +66,13 @@ export function RoutinesView({
       subtitle={t('subtitle')}
     />
   )
+  const scopeChip = <ProjectWorkspaceScopeChip dict={dict} projectId={scopeProjectId} />
 
   if (surfaceState === 'loading') {
     return (
       <Screen className={styles.shell} data-persona-surface="routines">
         {header}
+        {scopeChip}
         <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={7} />
       </Screen>
     )
@@ -73,6 +81,7 @@ export function RoutinesView({
     return (
       <Screen className={styles.shell} data-persona-surface="routines">
         {header}
+        {scopeChip}
         <PersonaSurfaceError
           dict={dict}
           titleKey="error.title"
@@ -86,12 +95,14 @@ export function RoutinesView({
     return (
       <Screen className={styles.shell} data-persona-surface="routines">
         {header}
+        {scopeChip}
         <PersonaSurfaceEmpty
           dict={dict}
           illustrationKey="empty-routines"
           titleKey="empty.title"
           hintKey="empty.hint"
           primaryKey="empty.action"
+          {...(onAskSuggestions === undefined ? {} : { onPrimary: onAskSuggestions })}
         />
       </Screen>
     )
@@ -100,6 +111,7 @@ export function RoutinesView({
   return (
     <Screen className={styles.shell} data-persona-surface="routines">
       {header}
+      {scopeChip}
       <p className={styles.hint}>{t('week.label', { start: '03/11', end: '09/11' })}</p>
       <div className={styles.toolbar}>
         <Button

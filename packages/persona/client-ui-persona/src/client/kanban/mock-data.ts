@@ -44,6 +44,7 @@ export const MOCK_PROJECT_KANBAN_CARDS: readonly KanbanCardModel[] = [
     teamId: 't1',
     teamName: 'Equipe principal',
     column: 'in_progress',
+    conversationSubject: { name: 'Design', colorIndex: 2 },
     assignee: bento,
     assigneeState: 'working',
     dueLabel: 'Amanhã',

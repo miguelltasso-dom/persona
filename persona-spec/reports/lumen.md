@@ -1,5 +1,318 @@
 # Lumen — relatos de implementação UI
 
+## 2026-11-04 02:42 — Keel: JANELA ENCERRADA (snapshot 4884366950)
+
+**Protocolo:** Corte em worktree do Keel; **Lumen pode editar de novo** `client-ui-persona` e coordenar com Anvil/Forge em host/store conforme PLAN. Manter **`node scripts/persona/check-pkg.mjs client-ui-persona` + bundle** verdes ao fechar cada edição.
+
+**Estado ao ack:** `check-pkg client-ui-persona` OK (02:42).
+
+**Fila inalterada:** PB-5/6/7 · GOV-6/7 aceite Probe · W2-7 · BYC-4 · SB-5 · OPT-7 RPC.
+
+## 2026-11-04 02:12 — Fila: testes Muse integ + aceite GOV/Uso
+
+**Pronto:** Cobertura regressão pós-polish — `MOCK_USAGE_PROVIDER_POOL_NO_LIMITS` + teste linha sem limites / **Conta principal**; `mockLargeOrgChart` assert sem `Persona 1` + Luna; `deriveTwoDayFromLive` assert 1× Vigia (Luna) com roster `p-luna`; fix import duplicado `PooledAccount`; dedupe chaves `usage.en.json`.
+
+**Comandos:** `vitest` mock-large-org + derive-two-day + two-day-dedupe + usage-provider-pool → **9 passed** · `check-pkg client-ui-persona` OK · `bundle` OK.
+
+**Fila Lumen (PLAN, não vazia):** PB-5/6/7 (depende PB-8 Muse/Brush); GOV-6/7 aceite Probe (GOV-10); W2-7 aceite Probe; BYC-4 Importar revisão (parcial Cofre ✔); SB-5 Segundo cérebro UI; OPT-7 wire RPC Anvil. **Próximo encadeável:** testes Saúde/Org com scale seed + a11y lista organograma.
+
+## 2026-11-04 02:05 — Muse integ pós-seed (4 itens Lumen)
+
+**Pronto:** (1) **Org 60/150:** `mock-large-org-roster.ts` — 17 ids Brush, cargos/setores reais, 8 responsáveis humanos; `mockLargeOrgChart` usa `orgScalePersonaAt` + `ORG_SCALE_HUMAN_LEADS`. (2) **Teste 2 dias:** `two-day-dedupe.ts` + dedupe em `preferDerivedTwoDay` e `derive-two-day-from-live` (persona+papel). (3) **Uso pool:** `UsageProviderPoolCard` — `Conta principal`, linha `pool.providerNoLimits` sem barras vazias, `EngineBrandIcon` no cabeçalho; locales `pool.*`. (4) **Conexões:** Card política sem título/hint duplicados; selo via `EngineBrandIcon` (já nas linhas).
+
+**Comandos:** `vitest` two-day-dedupe + usage-provider-pool → **4 passed** · `node scripts/persona/check-pkg.mjs client-ui-persona` OK · `pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle` OK.
+
+**Fora (Muse):** ChoiceCards 2×2 + “Simular de novo” ao lado do título. **Limitação:** fixtures live ainda genéricos fora do seed `mockLargeOrgChart` até Forge roster JSON.
+
+## 2026-11-04 01:50 — JANELA D-060: client-ui-persona VERDE
+
+**Pronto:** Gate **check-pkg + bundle** `@deepseek-ai/dsh-client-ui-persona` verde (BYC `await unwrapRemote`, `UsageMeter` dedupe, `GestorWire`, `cardSystemRoles`, locale `persona.secondBrain`, mount BYC tipado, testes gestor snapshot). **Não** editar pacotes fechados até Keel “JANELA ENCERRADA”.
+
+**Comandos:** `node scripts/persona/check-pkg.mjs client-ui-persona` OK · `pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle` OK.
+
+**Fila (docs/testes folha):** PB-9 Probe · relatório PLAN · persona-host (Anvil `usagePortKind`).
+
+## 2026-11-04 01:45 — OPT-7 + GES-5 perfil + BYC-4 Cofre (fila Atlas)
+
+**Pronto:** **OPT-7:** `usage-panel.ts` / `UsageTokenPanel` / `loadUsagePanelRemote`; `RemoteUsagePanel` + mock dev-seed (`readClientDevSeedEnabled` → `MOCK_USAGE_TOKEN_PANEL` quando host sem `getUsagePanel`). Locales `section.tokens` / `token.*`. **GES-5:** auditoria Gestor no **Perfil** (`gestorAuditItems` + `ActivityGroup`); wire `RemoteProfilePanel` com mock; teste `lumen-queue2` gestor. **BYC-4:** chip/lista **privado** no Cofre (`VisibilityChip`, `visibility.privateAria`, CSS cadeado); teste `knowledge-vault-visibility`.
+
+**Dependência [Lumen→Anvil]:** `getUsagePanel` RPC real · audit trail Gestor no host (mock em dev-seed/Saúde/Perfil). **[Lumen→Forge]:** `TaskView.topicId` p/ assunto no cartão live.
+
+**Gates:** gen-locales (usage, knowledge) · vitest usage-panel + usage-token-panel + lumen-queue2 (gestor) + boards-home + derive-board-summaries + knowledge-vault-visibility → **12+ passed** (batch 01:45).
+
+**Fila:** PB-5/6/7 aceite Probe (PB-9); W2-7 (Muse Conexões); GOV-6/7 marcar após capturas; SB-5 polish; PRO-6 Probe; GES-4 selo Prism.
+
+## 2026-11-04 01:35 — GES-5 + W2-3 (fila Atlas)
+
+**Pronto:** **GES-5 (parcial):** `TeamHealthView` + `ActivityGroup` + locales `activity.*` / `health.gestorAudit*`; mock `gestor-audit-mock.ts` wired em `ConnectedTeamHealthPanel` até RPC Anvil. **W2-3 (Lumen):** `KanbanCardModel.conversationSubject` + `SubjectDot` no cartão; mock `k2` · teste `kanban-subject-dot`.
+
+**Dependência [Lumen→Anvil]:** audit trail real do Gestor no wire de Saúde/Perfil. **[Lumen→Forge]:** `TaskView.topicId` / subject link p/ cartão live (mock/UI prontos).
+
+**BYC-4:** teste conflito decisão fixada → `contextProposalsFromPreview` (`bring-context-ui.client.spec.ts` 4/4).
+
+**Gates:** gen-locales (governance, kanban) · vitest activity-group + governance-health + kanban-subject + bring-context-ui → **7 passed**.
+
+**Fila:** PB-5/6/7 · BYC-4 polish · W2-7 (Muse integra Conexões) · OPT-7 · SB-5 grafo · PRO-6 Probe.
+
+## 2026-11-04 01:15 — Atlas fila: GOV seed + gates (pós-turno)
+
+**Pronto:** **`data/dev-seed-large-team.ts`** (`applyDevSeedLargeTeam(60|150)` = `persona.devSeed.v1` + `persona.orgChartScaleSeed`). Teste **`governance-fetch-scale`** (scale vence `getOrgChart`). **`TwoDayTimeline`** `data-two-day-row` p/ E2E. **`real-gallery-two-day-health.spec.ts`** (≥2 linhas). **`connection-swap-policy-map`** switches exaustivos (TS2366). **`UsageProviderPoolCard`** fix `bindLocale` params.
+
+**Coordenação Muse:** Atlas integra Conexões/Uso/Saúde/Org — evitar `lumen-remote-panels.tsx`, `usage-pooled.ts`, `UsageProviderPoolCard.tsx`; ok `ConnectionsView`, `UsageLimits`, `TeamHealthView`, `OrgChartView`, `dev-seed-large-team.ts`.
+
+**Gates:** `pnpm exec vitest run …/dev-seed-large-team.client.spec.ts …/governance-fetch-scale.client.spec.ts …/connection-swap-policy-map.client.spec.ts …/usage-provider-pool.client.spec.tsx …/governance-health.client.spec.tsx` → **5 files, 5 passed**.
+
+**Fila Lumen (PLAN):** GOV-6/7 marcar done após capturas Muse; W2-7 polish; PB-5/6/7; PRO-6 (Probe); BYC-4; GES-4/5 auditoria ActivityGroup opcional.
+
+## 2026-11-04 00:30 — Atlas: Gestor (rename) + organograma 60/150
+
+**Pronto:** UI/código Lumen sem string **Maestro** (comentários → `GESTOR-SPEC`). **Quem cuida de quem:** `OrgMap` já ativo >24 personas (zoom/pan, minimap, busca+foco, grupos recolhíveis, lista virtualizada); labels via `org.map.*`; selo **Gestor** no chart (`team_manager` live + braço `Gestor de equipe` no mock grande). **Seed:** `mockLargeOrgChart(60|150)`; `localStorage persona.orgChartScaleSeed = '60'|'150'` **vence** RPC (captura no app). E2E: `real-gallery-org-chart-scale.spec.ts` (`openRealPersonaApp({ orgChartScaleSeed: 150 })`). `OrgChartView` passa `scaleLabels` via `org.map.*`.
+
+**T3 colheita §7/§12:** `UsageLimits` + `UsageProviderPoolCard` (`PooledQuotaBar` 5h/semana, `AccountRow`); `officialQuotasToProviderPools`; composer `onSwapAccount` + link locale `composer.swapAccount`. Mock: `MOCK_USAGE_PROVIDER_POOLS`.
+
+**Gates:** gen-locales · vitest org-map + org-chart-scale + mock-large-org-chart + gestor + map-governance-ui.
+
+## 2026-11-04 00:20 — Muse gallery: Conexões dark + Teste dos 2 dias
+
+**Pronto:** **Conexões (WAVE2 §c):** `ConnectionsView` usa `Card` + `AccountPolicyPicker` (4 cartões-rádio) + `Tabs` Toda a equipe / Uma persona; `Notice` info (termos); por provedor `EngineBrandIcon` (`ENGINE_ICONS`) + `runnerLabel()`; `AccountList`/`AccountRow`; “Como funciona” ghost no cabeçalho; botão secundário `+ Adicionar outra conta {Provider}` + hint isolamento; menu renomear/remover. **`connection-swap-policy-map`**. **Saúde:** `deriveTwoDayFromLive` expande roster + fila “Aprovações (você)” com `waits`/`stops`; `preferDerivedTwoDay` substitui stub host só-verde (ex. Vigia).
+
+**Dependência [Lumen→Forge]:** `runTwoDayTest` idealmente devolve linhas por persona/rotina/aprovação; até lá o merge live cobre stub degenerado.
+
+**Gates:** gen-locales · vitest `derive-two-day-from-live`, `connection-swap-policy-map`, `wave2-primitives` (11 passed).
+
+**Recaptura:** Muse/Atlas podem refazer `21-panel-conexoes-dark` e `13-panel-sau-de-*`.
+
+## 2026-11-04 00:25 — BRIEFING 19 Segundo cérebro (spec Muse)
+
+**Pronto:** Início 2 col (`ChangeFeed`, `ContradictionCard`, `PermissionRow`, busca, tipos com `BrandIcon`); vazio `bibliotecario`; lista por tipo com `Tabs` (Tudo/privada/contradição) + **Lista|Grafo** (grafo estático + “Ver como lista”); página com `PageMeta`, confirmação 90d, salvar corpo via `putBrainPage`; **Aprovações:** `RememberPermission` (default Só desta vez) + carimbo “Lembrado · Ver em Permissões” + locales `remember.*`; rail `secondBrain` → ícone `conhecimento-memoria`.
+
+**Pendente:** grafo canvas com física (SB-10); export/import pasta vault UI; Forge expor `existing`/`incoming` de contradição no wire (UI infere de corpo/fontes hoje).
+
+**Gates:** gen-locales · vitest brain-ui-adapters + brain-primitives + derive-two-day + governance-health (13 passed).
+
+**Recaptura Muse:** início, página, lista por tipo, grafo, permissões (revogar aberto), aprovações com Lembrar aberto — claro/escuro.
+
+## 2026-11-04 00:16 — BRIEFING 19 Segundo cérebro + Permissões
+
+**Pronto:** Namespace **`persona.secondBrain`** (locale-sources + gen). **`SecondBrainShell`**: início 2 colunas (ChangeFeed, contradições, permissões compactas, mais usadas, por tipo), lista por tipo, **página** (`PageMeta` + corpo markdown), **Permissões** (filtros Ativas/Vencidas/Revogadas + `PermissionRow`). **`RemoteSecondBrainPanel`**: `getBrainHome`, `listBrainPages`, `listBrainPermissions`, revoke; slot **`secondBrain`** em `register-prism-screens`. **`brain-remote`**: list/get/put page + list permissions. Rail **`sidebar.secondBrain`**.
+
+**Pendente (fila):** grafo/canvas (SB-10), export vault folder UI, `ContradictionCard` completo, ícones Brush por tipo, busca no header, RememberPermission no cartão Aprovações (Lumen/Aprovações), salvar edição de página via `putBrainPage`.
+
+**Gates:** gen-locales · vitest `brain-ui-adapters` + BYC (7 passed).
+
+## 2026-11-04 00:12 — BRIEFING 18 BYC (Importar + revisão)
+
+**Pronto:** **`BringContextImportPage`** (Muse § Importar): 2 colunas ≥1100px (`CopyPrompt`/`PasteBox` | `FolderDrop` + cartão exportação avançada); **`ProposalReview`** tela cheia; **`RemoteImportPanel`** wired. **RPC:** `previewBringContextPasteRemote`, `previewBringVaultFolderRemote`, **`applyBringContextRemote`** (`applyContextProposals` quando existir, senão `createVaultRecord` + `decideBringApply`). **Cofre:** botão **Importar** → painel `importers`. Locales importers/knowledge pt/en.
+
+**Dependência [Lumen→Forge]:** Remote `applyContextProposals` (tipos prontos; fallback Lumen grava via `createVaultRecord`). **Dedup Cofre:** host ainda passa `existing: []` no paste RPC — conflitos completos quando Forge enriquecer.
+
+**Gates:** gen-locales · vitest `bring-context-ui.client.spec.ts` (3 passed).
+
+**Fila:** W2-7 primitivos Conexões; BYC-4 polish privado/cadeado no Cofre quando host expuser visibilidade.
+
+## 2026-11-04 00:00 — Muse UX-18 + callbacks Cofre/Rotinas + Forge contas (painéis)
+
+**Pronto:** **`lumen-remote-panels.tsx`**: `KnowledgeVault.onDescribeCompany` → `createVaultRecord` (`kind: brief`, id `company-brief`); `RoutinesView.onAskSuggestions` → `sendToPersona` (coordenação, prompt 3 rotinas); **UX-18** CTAs vivos — Uso → `connections`, Arquivos/Rotinas/Regras → DM coordenação, Canvas → `projects`, Membros → `issueInvite`, Conexões empty → retry, Perfil empty → `orgChart`. **Conexões:** add/rename/remove via RPC (`prompt`/`confirm` + locales `account.removeConfirm`). **Perfil:** `listConnectionAccounts.swapPolicy` → `accountPolicyText` no cartão. **`register-prism-screens`**: injeta `sendToPersona` + `selectMainPanel` nos painéis Remote.
+
+**Dependência [Lumen→Muse]:** W2-7 §(c) — trocar layout custom de Conexões por `AccountList`/`AccountRow`/`AccountPolicyPicker`/`Notice` (handlers já no painel). **Bundle:** falha pré-existente (`dsh-persona-core` purity em outro diff).
+
+**Gates:** gen-locales · vitest lumen-rpc-adapters + connections-remote + map-persona-card (17 passed).
+
+**Fila:** W2-7 primitivos Conexões; PB-5 Conversa (Prism); PB-9/GOV-10 (Probe).
+
+## 2026-11-03 23:05 — WAVE2 §3 Conexões multi-conta + Uso/cartão
+
+**Pronto:** Contrato **`persona-spec/contracts/connections-accounts.md`**. Host types: `ConnectionAccountView`, `RunnerSwapPolicy`, `OfficialQuotaView.accountLabel`, `PersonaCardView.activeAccount`. UI: **`ConnectionsView`** agrupa por provedor, aviso de termos, seletores de política/escopo; **`loadConnectionsAccountsUi`** (`listConnectionAccounts` ou fallback `listConnections`); **`setRunnerSwapPolicy`** quando exposto. **Uso:** `usageBookToMeters` rotula cotas por conta. **Cartão:** “Conta em uso” em `PersonaCardFacts`. Locales connections/profile pt/en.
+
+**Dependência [Lumen→Anvil]:** implementar Remote `listConnectionAccounts`, `setRunnerSwapPolicy`, cotas por `accountId`, `getPersonaCard.activeAccount`.
+
+**Gates:** gen-locales · vitest lumen-rpc-adapters + map-persona-card-view (17 passed) · bundle OK · persona-host check-pkg OK (client-ui-persona check-pkg ainda falha por erros TS pré-existentes em chat/teach/register-lumen-ui, fora deste diff).
+
+**Fila:** PB-5 Conversa (**Prism**); PB-9/GOV-10 (**Probe**); microcópia/a11y restante.
+
+## 2026-11-03 22:32 — PB-3 aceite/rejeição RPC + docs insights
+
+**Pronto:** **`boards-remote.ts`**: `buildAcceptWorkflowRequest` (incl. `template`), `proposeWorkflowRemote`, **`acceptWorkflowProposalRemote`** (fallback `updateWorkflow`), **`rejectWorkflowProposalRemote`** no dismiss do cartão. **`ConnectedProjectFlowBoard`** usa o helper (Anvil RPC já no host). Teste **`accept-workflow-proposal.client.spec.ts`** (+1). **A11y:** editor de fluxo → região `a11y.editorPreview`. **PB-10/docs:** § insights locais em `docs/persona/guia.md`.
+
+**Dependência [Lumen→Prism] PB-5 Conversa:** aba já troca painel + `projectWorkspaceProjectId`; falta **`getProjectConversation`** → focar `#geral` do projeto em `ConnectedGeneralChannelView` (RPC Anvil pronto).
+
+**Gates:** check-pkg OK · vitest accept-workflow + lumen-a11y · bundle OK.
+
+**Microcópia:** `org.previewNote` pt/en (menos jargão “host”). **Fila:** Prism Conversa (`getProjectConversation`); Probe PB-9/GOV-10.
+
+## 2026-11-03 22:18 — Insights locais (Uso) + a11y Quadros/Saúde
+
+**Pronto:** **`LocalInsights`** + adapters **`insights.ts`**: `RemoteUsagePanel` chama `getActivationFunnel` / `listPersonaImpact` / `listPersonas` quando o host expõe (owner-only; falha silenciosa). Funil + impacto por persona em **Uso e limites** (pt/en, rótulo `estimativa`). **A11y:** `a11y.boardsGrid` na grade **Quadros**; `a11y.healthFindings` em Saúde; testes lumen-a11y (+2).
+
+**Gates:** gen-locales · check-pkg OK · vitest adapters+a11y+storm (32 passed) · bundle OK.
+
+**Fila:** PB-5 aba Conversa (**Prism**); `acceptWorkflowProposal` (**Anvil**); PB-9/GOV-10 (**Probe**); microcópia restante; PB-10 docs já em `docs/persona/quadros.md`.
+
+## 2026-11-03 22:50 — Sessão retomada (pós-reboot Maestri): hireAvatarRef + gates
+
+**Contexto:** Maestri reiniciou; fila Atlas: Quadros/GOV/Aprovações storm → a11y/locale depois.
+
+**Pronto:** **`ApprovalView.hireAvatarRef`** (host `hireCard` a partir de `spec.avatar` gallery) + **`approvalsToInbox`** usa ref antes do título (retrato certo em contratações). Teste adapter hire `sol-default` → `sol`.
+
+**Gates:** check-pkg client-ui-persona + persona-host OK · vitest lumen-rpc-adapters + remote-storm + governance-health (18 passed) · bundle OK.
+
+**Fila:** PB-5 aba Conversa (Prism); PB-6/7 polish; `acceptWorkflowProposal` Anvil; GOV-10 Probe; insights UI quando RPC Forge/Anvil; passe a11y/microcópia nas telas Lumen.
+
+## 2026-11-03 22:45 — Gates + PB-5 escopo Arquivos/Rotinas + conexões kind
+
+**Pronto:** **`derive-two-day-from-live`**: shadowing corrigido (check-pkg verde). **Conexões:** dedupe também por **`kind`** (fim do DSH triplicado). **PB-5:** chip `scope.project` em Arquivos/Rotinas quando `projectWorkspaceProjectId` vem do quadro (`ProjectWorkspaceScopeChip`).
+
+**Gates:** gen-locales · vitest adapters + use-remote-project-scope (12 passed) · check-pkg OK.
+
+**Fila Lumen:** PB-5 aba **Conversa** (Prism: canal por projeto + chip); PB-6 editor de fluxo; PB-7 sprints UI; PB-10 docs; PB-9/GOV-10 (Probe). **Anvil:** `acceptWorkflowProposal` estável no Remote tipado.
+
+## 2026-11-03 22:35 — Muse panel review: Regras, Conexões, Uso, Arquivos, Membros
+
+**Pronto:** **Regras:** locale (sem PROACTIVITY §6; “Quando pedir sua aprovação”; “Modo só registrar (você liga)”; log `formatTriageLogAt` → “hoje, 21:22”). **Conexões:** dedupe por `id`; `runnerLabel()`; selo `BrandIcon skills` no cartão. **Uso:** labels via `runnerLabel()`; projeto ocioso → origem `notYet` (“Sem medição ainda”, sem 0% Medido). **Arquivos:** `needRoot` usa `empty-inbox`. **Membros:** “Revogar acesso” oculto quando `isSelf` (`actorId` do tenant).
+
+**Gates:** gen-locales · vitest `lumen-rpc-adapters` + `format-triage-log-at` (11 passed). **check-pkg:** 5 erros pré-existentes fora deste diff (approvals, derive-two-day, PersonaCardPopoverHost, ConnectedProjectFlowBoard).
+
+**Limitação:** ícone do cartão de conexão ainda é selo `skills` genérico até Brush marcar por runner; dedupe é por `id` (se host repetir `kind` com ids distintos, avisar).
+
+## 2026-11-03 22:26 — Muse recapture #2: TWO_DAY art, live 2-day, aprovações
+
+**Pronto:** **Saúde:** `TWO_DAY_ART` na `legendRow` (120px, direita da legenda, oculta &lt;1200px); `HealthScore` com arte padrão 132px; `fetchTwoDayTest` sem mock Iara/Rio — `deriveTwoDayFromLive` (nowRows + kanban `needs_you`/`blocked`). **Aprovações:** hire com `approvalHireVisual` (retrato do draft ou `BrandIcon convidar`); Avatar portrait `object-fit: contain`; linha “Resumo” só se `impactDetail` ≠ título/pergunta. **PB-5 (parcial):** `projectWorkspaceProjectId` + `useRemoteProjectScope` para Arquivos/Rotinas ao sair do quadro.
+
+**Gates:** vitest approvals/governance-health/shell/remote-storm (18 passed) · check-pkg · bundle (pendente neste commit).
+
+**Dependência Anvil:** `acceptWorkflowProposal` RPC (fallback `updateWorkflow`); `ApprovalView.hireAvatarRef` para retrato sem mock.
+
+## 2026-11-03 22:10 — Muse recapture: org card + saúde ordem + engineLabel
+
+**Pronto:** **Organograma:** `sector` no map (`Cargo · Setor`); `SectorIcon` size 20 por setor; `usePersonaCardController` + `PersonaCardPopover`/`PersonaInfoCard` (`cardInfo` bridge via `mount` → `LumenPersonaCardBridge`); fallback `orgPersonaToCardInfo`. **Saúde:** ordem `HealthScore` (gauge `score` + `health.scoreLabel`) → card Teste 2 dias (timeline + fixes) → arte `TWO_DAY_ART` ≤120px pós-legenda, oculta &lt;1200px → achados por último; `HealthScore` `illustration={null}`. **Motor:** `engineLabel()` em `map-persona-card-from-host` e `map-persona-card-view`.
+
+**Gates:** gen-locales · vitest map-governance / enrich-org / engine-label / map-persona-card* (9+) · governance client specs · check-pkg · bundle OK.
+
+**Limitações:** clique no nó do organograma abre card (trigger); perfil/DM só pelo card — `onSelectPersona` no primitivo fica atrás do `cardTrigger.onClick`.
+
+## 2026-11-03 21:55 — Muse: ApprovedStamp + HealthScore/TWO_DAY_ART
+
+**Pronto:** `ApprovedStamp` + `usePawCelebration` em **Aprovações** (saída do cartão com stamp animado) e no **quadro** após `acceptReview` (`KanbanCard`, `ConnectedProjectFlowBoard`). Stamp estático (`animate={false}`) em cartões já em `done` ao carregar. **Saúde:** `HealthScore` sem prop `illustration` (arte por nível no primitivo); **Teste dos 2 dias** em `Card` com `TWO_DAY_ART` 140px no cabeçalho. Locales `stamp.approved`. Teste `kanban-approved-stamp.client.spec.tsx`.
+
+**Gates:** gen-locales · vitest celebration/governance-health/kanban-stamp (5 passed) · check-pkg · bundle OK.
+
+## 2026-11-03 21:48 — PB-7 pico-fim: resumo ao encerrar sprint
+
+**Pronto:** `ConnectedProjectFlowBoard` lê `CloseSprintView.summary` do RPC e mostra `Toast` `celebrate` (locales `closeSprint.toastTitle` / `toastDismiss`, `a11y.toastRegion`). `applyGovernanceFix` tipado para retornar `TeamHealthView | null` (host pós-fix).
+
+**Gates:** gen-locales · vitest close-sprint + governance-health + connected-kanban (4 passed) · check-pkg · bundle OK.
+
+**Fila:** PB-5 (contexto projeto nas abas Conversa/Arquivos — Prism shell), PB-6 aceite `acceptWorkflowProposal` (Anvil), PB-9/GOV-10 (Probe), D5b polish Uso.
+
+## 2026-11-03 22:32 — Muse GOV-6/7 revisão captura (10 itens)
+
+**Pronto:** `governance-ui-helpers.ts` (characterId, sector, slot labels, fix labels, illustration, plural humanos). `map-governance-ui` filtra braço direito dos members; `twoDayToUi` com labels Dia 1/2. `derive-org-from-live` normaliza avatar. `OrgChartView` subtitle plural + `SectorIcon`. `TeamHealthView` header `equipe`, `HealthScore` illustration prop, ações por `fixKind`, empty two-day, `twoDayPending`. `governance-remote` fallback mock se RPC `rows` vazio. Mock veredito curto + «depende de você». Locales pt/en (`org.subtitleHumans*`, `health.fix.*`, `twoDay.empty*`). Testes `map-governance-ui.spec.ts` + governance vitest.
+
+**Gates:** gen-locales · vitest governance (6 passed) · check-pkg client-ui-persona · bundle OK.
+
+**Limitações:** ilustrações `equipe-saudavel` / `ponto-unico-falha` só aparecem quando Brush entregar no manifest; ícone header Saúde permanece `equipe` até asset `saude`.
+
+## 2026-11-03 21:48 — SNAPSHOT: typert GOV-5 (Anvil) + fila Atlas
+
+**Fix pós-Anvil:** `governance-remote` usa RPC tipado (`getOrgChart`/`applyGovernanceFix` com `GovernanceFixKind`); `ConnectedOrgChartPanel` sem cast quebrado. **VERDE:** check-pkg client-ui-persona 21.8s + bundle OK.
+
+**Congelado (Keel, sem SNAPSHOT CORTADO):** PB-6 polish; **Muse→Lumen** perfil (`onMessage`/`onEdit`/nomes projeto) — próximo após corte. **Prism→Lumen** PB-5 abas workspace.
+
+**Fila Lumen (não vazia):** PB-5/6/7/10, GOV RPC real, Probe E2E, D5b, design-shots.
+
+## 2026-11-03 20:42 — SNAPSHOT Keel (VERDE)
+
+**Gates:** `node scripts/persona/gen-client-ui-persona-locales.mjs` · `node scripts/persona/check-pkg.mjs client-ui-persona` (38.7s OK) · `pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle` OK · `check-pkg.mjs persona-e2e` (4.5s OK).
+
+**Em curso (congelado até SNAPSHOT CORTADO):** PB-6 editor — arrastar colunas + CRUD campos extras no modal (código landed; relatório 20:08 cartão proposta).
+
+**Dependências outros donos:** Anvil `acceptWorkflowProposal`; Prism abas workspace PB-5; Forge ARCHITECTURE PB-10.
+
+## 2026-11-03 20:08 — PB-6 cartão «Usar este fluxo?» + aceite provisório
+
+**Pronto:** **`WorkflowProposalCard`** (`data-persona-surface="workflow-proposal"`) com pergunta/impacto/prévia de colunas e degrade. **`ConnectedProjectFlowBoard`**: botão **Sugestão da Coordenação** → `proposeWorkflow` (quando Remote expõe); aceite via **`updateWorkflow`** + **`destByRemovedForProposal`**; recusar fecha o cartão. Contrato **`project-boards-remote.md`** atualizado (aceite provisório até `acceptWorkflowProposal` Anvil). **`projectHint`** do live (`nome + kind`).
+
+**Dependência Anvil:** RPC dedicado de aceite/recusa; hoje aceite = `updateWorkflow` (não `createWorkflowFromTemplate`).
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run …/accept-workflow-proposal …/workflow-proposal-card …/workflow-editor-draft …/connected-kanban → 6 passed
+```
+
+**Fila:** PB-6 campos extras editáveis + drag colunas no editor; PB-5 abas projeto (Prism); PB-10 ARCHITECTURE (Forge); GOV-5 RPC.
+
+## 2026-11-03 20:00 — GOV derive ao vivo + PB-6 cores + galeria Probe
+
+**Pronto:** **`deriveOrgChartFromLive`** + **`ConnectedOrgChartPanel`**: RPC → derive do live → mock, banner `org.previewNote`. Contrato **`persona-spec/contracts/governance-remote.md`**. Teste **`derive-org-from-live.spec.ts`**. **Probe:** `REAL_GALLERY_PANELS` entradas Quem cuida / Saúde; Quadros `readySelector` → `[data-persona-surface="boards"]`. **PB-6:** paleta de **cores de coluna** no editor (`EDITOR_COLUMN_COLOR_PRESETS`, persiste em `updateWorkflow`). A11y org lista no `lumen-a11y`.
+
+**Dependências:** Anvil GOV-5 (RPC real); cartão proposta Coordenação (`proposeWorkflow`) ainda sem UI Lumen; campos extras editáveis = fase 2; PB-5 abas Conversa/Arquivos/Rotinas no workspace = Prism `navigateProjectTab`.
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run …/derive-org-from-live …/governance-* …/workflow-editor-* …/lumen-a11y → 14+ passed
+```
+
+## 2026-11-03 19:50 — GOV-6/GOV-7 governança (Quem cuida de quem + Saúde + Teste 2 dias)
+
+**Pronto:** Painéis **`orgChart`** e **`teamHealth`** com primitivos Muse (`OrgChart`, `HealthScore`, `HealthItem`, `TwoDayTimeline`). **`OrgChartView`**: Por pessoa / Por setor + organograma/lista; clique abre perfil da persona. **`TeamHealthView`**: nota + achados acionáveis + timeline do **Teste dos 2 dias** (4 meias-jornadas). **`governance-remote.ts`**: chama `getOrgChart` / `getTeamHealth` / `runTwoDayTest` / `applyGovernanceFix` quando Anvil expuser; **fallback mock** alinhado à ref visual até GOV-5. **Nav (com Prism):** grupo rail **Equipe** → Equipe · Quem cuida de quem · Saúde (`MainPanelId` `orgChart` | `teamHealth`). Locale `persona.governance`.
+
+**Dependência Anvil (GOV-5):** Remote real + Typert; hoje mocks e `applyFix` no-op sem RPC. **Muse GOV-9:** specs/arte saúde pendente (Brush). **Prism GOV-8:** assistente de estrutura.
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run …/governance-org-chart.client.spec.tsx …/governance-health.client.spec.tsx → 2 passed
+```
+
+## 2026-11-03 19:42 — PB-6 editor de fluxo + `updateWorkflow` (BOARDS-SPEC §5)
+
+**Pronto:** **`WorkflowEditorModal`** em dois painéis — editar colunas (nome, categoria segmentada, WIP, reordenar ↑↓, remover), **`RemoveWorkflowColumnModal`** com `destByRemoved`, validação todo+done, **prévia ao vivo** com `BoardColumns`/`BoardColumn`. **`workflow-editor-draft.ts`** (pure). **`ConnectedProjectFlowBoard`** persiste via `persona.updateWorkflow`. Campos extras só leitura (host já tem `fields`; UI de chips = fase 2). Arrastar colunas e paleta de cor = fase 2 (teclado coberto por reordenar).
+
+**Testes:** `workflow-editor-draft.spec.ts`, `workflow-editor-modal.client.spec.tsx` (4 passed).
+
+**Fila:** PB-6 campos extras + drag; PB-5 polish Prism; PB-10 ARCHITECTURE (Forge); bundle purity (Prism).
+
+## 2026-11-03 19:35 — PB-7 planejamento de sprint (BOARDS-SPEC §3)
+
+**Pronto:** **`SprintPlanningView`** (backlog ↔ sprint, teclado via cartão selecionável + botões adicionar/remover; campos nome/objetivo/datas; primário **Iniciar sprint** desabilitado sem objetivo/tarefas). **`useSprintPlanningState`** + **`ConnectedProjectFlowBoard`**: RPC `createSprint` / `updateSprint` → `planSprint` → `startSprint`. Aba **Sprints** e **Planejar** na faixa (`SprintBand`) ficam no quadro do projeto (`ConnectedGlobalKanban` mantém `board`/`sprints` local; Conversa/Arquivos/Rotinas ainda navegam para outros painéis). **`ProjectFlowBoard`**: abas refletem `workspaceTab`.
+
+**Limitações:** medidor de capacidade por persona ainda só conta tarefas (host não expõe assignee no `BoardCardView`); iniciar nova sprint com sprint **ativa** no host não encerra a anterior (Anvil pode reforçar regra); arrastar backlog↔sprint = fase 2 (botões cobrem a11y). **Bundle client:** ainda bloqueado por import `@deepseek-ai/dsh-persona-host/src/draft.ts` (fora do escopo Lumen).
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run …/sprint-planning.client.spec.tsx …/close-sprint-modal.client.spec.tsx …/lumen-a11y.client.spec.tsx
+→ sprint 2 + close 2 + a11y 11 passed
+```
+
+**Fila Lumen:** PB-6 editor completo + `updateWorkflow`; PB-5 sidebar Prism; PB-10 docs/migração (Forge); PB-7 modal encerrar “quem fez o quê” se host expuser; design-shots Quadros.
+
+## 2026-11-03 19:25 — PB-8 primitivos Muse (BoardColumn/CategoryBar/SprintStrip/FlowIcon)
+
+**Pronto:** Quadros usam **`CategoryBar` + `FlowIcon` (40px)** via `board-locale.ts` (labels traduzidos). **`FlowKanbanBoard`** → `BoardColumns`/`BoardColumn` com `empty.column.*`, `dropTarget`, `empty.addTask` na 1ª coluna todo. **`SprintBand`** → `SprintStrip`. **`CloseSprintModal`** + `ILLUSTRATIONS['sprint-concluida']` + `persona.closeSprint`. Removidos `boards/CategoryBar.tsx` e `FlowModelIcon.tsx` (duplicatas).
+
+**Testes:** `boards-home`, `flow-kanban`, `close-sprint-modal`, `board-primitives` + bundle OK.
+
+## 2026-11-03 19:10 — P0 tempestade + PB §2 fluxo (Anvil PB-4) + cartão Muse
+
+**P0 (Carregando… / ERR_INSUFFICIENT_RESOURCES):** confirmado `usePersonaRemoteLoad` com `loadRef` (identidade de `load` não re-dispara fetch). Testes **`remote-load-storm`**: hook + **Conhecimento, Uso, Aprovações** — ≤1 RPC por `loadKey` com re-renders forçados.
+
+**PB §2 (quadro por projeto):** drill-down usa **`getProjectBoard` + `moveTicket`** (`ConnectedProjectFlowBoard` → `ProjectFlowBoard` + **`FlowKanbanBoard`** colunas 296px, faixa categoria 4px, WIP, tint `needs_you`, scroll-snap). **`SprintBand`** (ativo / tracejada idle). Hub: **`listBoards`** quando host responde; **visão global** `GlobalCategoryLanes`; **Novo projeto** → `NewProjectFlowModal` + `createWorkflowFromTemplate`. Editor: **`WorkflowEditorModal`** (lista colunas; save = fechar por ora). **`FlowIcon`** nos selos (Brush).
+
+**Cartão Muse:** título + chips meta; **rodapé** avatar 24 + chip estado + menu ⋯ com **`flowMoveTargets`** (sem `<select>`).
+
+**Pendente PB:** §3 planejamento sprint, §4 encerrar sprint (modal + marco), editor completo (arrastar colunas, destino ao remover), abas projeto Conversa/Arquivos/Rotinas/Sprints; capturas `panel:Quadros` + quadros Contratação/Site.
+
+**Testes:**
+```
+node scripts/persona/gen-client-ui-persona-locales.mjs
+pnpm exec vitest run …/remote-load-storm …/flow-kanban …/boards-home …/kanban-preview …/connected-kanban …/live-tenant-bridge …/lumen-a11y
+→ 7 files / 25 passed (storm 5 + flow 1 + …)
+pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle
+```
+
 ## 2026-11-03 19:18 — PB-5 §1 Quadros (BOARDS-SPEC) + cartão Kanban Muse
 
 **Pronto:** Rail **Kanban → Quadros** (`shell` locale). Slot `kanban` agora abre **`BoardsHome`** (`data-persona-boards`): grade 320px, selo do modelo (BrandIcon/UiIcon até Brush `flow-*`), chips modelo+sprint, **barra de categorias** (`--persona-cat-*`), avatares 24px sobrepostos, chip “Precisa de você”. Mocks **Contratação + Site** para captura Muse; `deriveBoardSummaries` usa host quando ≥2 projetos. Drill-down abre **`KanbanWithReview`** filtrado por projeto (interim até colunas de fluxo PB-4). **Cartão:** avatar 24 + chip estado, projeto, prazo/dep/evidência, menu ⋯ (sem `<select>`), coluna vazia `EmptyState` compact + min-height 420px. **`usePersonaRemoteLoad`:** `loadRef` + deps estáveis (P0 tempestade). Instrumentação `personaRemoteLoadStartCounts`.

@@ -1,6 +1,7 @@
 {
   "header.eyebrow": "Trabalho",
   "title": "Rotinas",
+  "scope.project": "Projeto: {project}",
   "subtitle": "Calendário semanal, resultados das execuções e silêncio da equipe",
   "week.label": "Semana de {start} – {end}",
   "pauseTeam": "Pausar equipe",
@@ -14,8 +15,8 @@
   "run.result.failed": "Falhou",
   "run.result.skipped": "Ignorada (silêncio)",
   "empty.title": "Nenhuma rotina ainda",
-  "empty.hint": "Peça à equipe no canal ou configure uma rotina diária.",
-  "empty.action": "Sugerir rotina",
+  "empty.hint": "Rotinas são tarefas que se repetem sozinhas, como o resumo de segunda de manhã. A coordenação sugere as primeiras para você aprovar.",
+  "empty.action": "Pedir sugestões à coordenação",
   "empty.illustration": "Ilustração: calendário com patas",
   "loading": "Carregando rotinas…",
   "error.title": "Não consegui falar com a equipe agora",

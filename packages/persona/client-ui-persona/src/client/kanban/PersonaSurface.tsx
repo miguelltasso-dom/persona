@@ -6,7 +6,7 @@ import { Button, EmptyState, ErrorState, Skeleton } from '../primitives/index.ts
 import { bindLocale, type LocaleDict } from '../preview/locale-bind.ts'
 import styles from './Kanban.module.css'
 
-export type LumenEmptyIllustration = 'empty-kanban' | 'empty-connections' | 'empty-vault' | 'empty-routines' | 'empty-inbox'
+export type LumenEmptyIllustration = 'empty-kanban' | 'empty-connections' | 'empty-vault' | 'empty-routines' | 'empty-inbox' | 'bibliotecario'
 
 export interface PersonaSurfaceProps {
   readonly dict: LocaleDict
@@ -33,8 +33,9 @@ export function PersonaSurfaceEmpty({
       illustration={illustration}
       title={t(titleKey)}
       body={hintKey === undefined ? undefined : t(hintKey)}
-      action={primaryKey === undefined ? undefined : (
-        <Button variant="primary" onClick={() => { onPrimary?.() }}>{t(primaryKey)}</Button>
+      // No dead controls (DESIGN-SYSTEM §9): the CTA only exists when something will happen.
+      action={primaryKey === undefined || onPrimary === undefined ? undefined : (
+        <Button variant="primary" onClick={() => { onPrimary() }}>{t(primaryKey)}</Button>
       )}
     />
   )

@@ -1,6 +1,7 @@
 {
   "header.eyebrow": "Work",
   "title": "Routines",
+  "scope.project": "Project: {project}",
   "subtitle": "Weekly calendar, run outcomes, and team quiet hours",
   "week.label": "Week of {start} – {end}",
   "pauseTeam": "Pause team",
@@ -14,8 +15,8 @@
   "run.result.failed": "Failed",
   "run.result.skipped": "Skipped (quiet hours)",
   "empty.title": "No routines yet",
-  "empty.hint": "Ask the team in a channel or set up a daily routine.",
-  "empty.action": "Suggest routine",
+  "empty.hint": "Routines are tasks that repeat on their own, like the Monday morning summary. The coordinator suggests the first ones for you to approve.",
+  "empty.action": "Ask the coordinator for ideas",
   "empty.illustration": "Illustration: calendar with paw prints",
   "loading": "Loading routines…",
   "error.title": "Couldn't reach the team right now",

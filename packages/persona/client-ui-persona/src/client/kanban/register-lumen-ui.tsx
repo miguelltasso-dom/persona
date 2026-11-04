@@ -13,6 +13,9 @@ import {
 } from '../data/lumen-remote-panels.tsx'
 import { ConnectedGlobalKanban } from '../remote/ConnectedGlobalKanban.tsx'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
+import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
+import type { MainPanelId, ShellState } from '../shell/create-shell-store.ts'
+import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import {
   de as connectionsDe, en as connectionsEn, es as connectionsEs, fr as connectionsFr,
   ja as connectionsJa, CONNECTIONS_NS, pt as connectionsPt, ru as connectionsRu, zh as connectionsZh,
@@ -66,6 +69,16 @@ import {
   de as canvasDe, en as canvasEn, es as canvasEs, fr as canvasFr, ja as canvasJa, CANVAS_NS,
   pt as canvasPt, ru as canvasRu, zh as canvasZh, type CanvasKey,
 } from '../locale/canvas/locales.ts'
+import {
+  de as governanceDe, en as governanceEn, es as governanceEs, fr as governanceFr, ja as governanceJa,
+  GOVERNANCE_NS, pt as governancePt, ru as governanceRu, zh as governanceZh, type GovernanceKey,
+} from '../locale/governance/locales.ts'
+import {
+  de as secondBrainDe, en as secondBrainEn, es as secondBrainEs, fr as secondBrainFr, ja as secondBrainJa,
+  SECOND_BRAIN_NS, pt as secondBrainPt, ru as secondBrainRu, zh as secondBrainZh, type SecondBrainKey,
+} from '../locale/second-brain/locales.ts'
+import { ConnectedOrgChartPanel } from '../remote/ConnectedOrgChartPanel.tsx'
+import { ConnectedTeamHealthPanel } from '../remote/ConnectedTeamHealthPanel.tsx'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -82,11 +95,36 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'persona.members': MembersKey
     'persona.importers': ImportersKey
     'persona.canvas': CanvasKey
+    'persona.governance': GovernanceKey
+    'persona.secondBrain': SecondBrainKey
   }
 }
 
+import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge.ts'
+
+export type LumenPersonaCardBridge = PersonaCardShellBridge
+
+export interface LumenShellBridge {
+  selectPanel(id: MainPanelId): void
+  clearBoardsFocusProject(): void
+  openPersonaProfile(personaId: string): void
+  setProjectWorkspaceProjectId(projectId: string | null): void
+  openTeamSetup(): void
+  shell: HostObservable<ShellState>
+  personaCard?: LumenPersonaCardBridge
+}
+
+function mainPanelForProjectTab(tab: ProjectWorkspaceTab): MainPanelId | null {
+  if (tab === 'board') return null
+  if (tab === 'conversation') return 'channels'
+  if (tab === 'files') return 'files'
+  if (tab === 'routines') return 'routines'
+  if (tab === 'sprints') return 'kanban'
+  return null
+}
+
 /** Register Lumen locale namespaces and queue-1 `main` keys (host Remote). */
-export function registerLumenUi(ctx: Context, live: PersonaLiveStore): void {
+export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: LumenShellBridge): void {
   ctx.effect(() => ctx.locale.register(KANBAN_NS, {
     zh: kanbanZh, en: kanbanEn, ja: kanbanJa, es: kanbanEs, fr: kanbanFr, de: kanbanDe, ru: kanbanRu, pt: kanbanPt,
   }), 'persona: kanban dictionaries')
@@ -131,11 +169,43 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore): void {
   ctx.effect(() => ctx.locale.register(CANVAS_NS, {
     zh: canvasZh, en: canvasEn, ja: canvasJa, es: canvasEs, fr: canvasFr, de: canvasDe, ru: canvasRu, pt: canvasPt,
   }), 'persona: canvas dictionaries')
+  ctx.effect(() => ctx.locale.register(GOVERNANCE_NS, {
+    zh: governanceZh, en: governanceEn, ja: governanceJa, es: governanceEs, fr: governanceFr, de: governanceDe,
+    ru: governanceRu, pt: governancePt,
+  }), 'persona: governance dictionaries')
+  ctx.effect(() => ctx.locale.register(SECOND_BRAIN_NS, {
+    zh: secondBrainZh, en: secondBrainEn, ja: secondBrainJa, es: secondBrainEs, fr: secondBrainFr, de: secondBrainDe,
+    ru: secondBrainRu, pt: secondBrainPt,
+  }), 'persona: second brain dictionaries')
 
   const tenantObservable = createLiveTenantObservable(live)
+  const shellStub: HostObservable<ShellState> = {
+    getSnapshot: () => ({
+      activePanel: 'kanban',
+      hostStatus: 'unknown',
+      hostProtocol: null,
+      onboardingOpen: false,
+      profilePersonaId: null,
+      profileEditorOpen: false,
+      boardsFocusProjectId: null,
+      projectWorkspaceProjectId: null,
+      talkAclPersonaId: null,
+      enginePersonaId: null,
+      teachPersonaId: null,
+      teachCapture: null,
+    }),
+    subscribe: () => () => {},
+  }
   const lumenInject = (): LumenRemoteInjected => ({
     persona: ctx.remote.persona,
-    hooks: { tenant: tenantObservable },
+    hooks: {
+      tenant: tenantObservable,
+      shell: shell?.shell ?? shellStub,
+    },
+    ...(shell?.personaCard?.sendToPersona === undefined
+      ? {}
+      : { sendToPersona: shell.personaCard.sendToPersona }),
+    ...(shell?.selectPanel === undefined ? {} : { selectMainPanel: shell.selectPanel }),
   })
 
   ctx.slots.register({
@@ -145,9 +215,22 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore): void {
     inject: () => ({
       persona: ctx.remote.persona,
       refreshKanban: () => live.refresh(),
+      navigateProjectTab: (tab: ProjectWorkspaceTab) => {
+        const panel = mainPanelForProjectTab(tab)
+        if (panel !== null) shell?.selectPanel(panel)
+      },
+      clearBoardsFocusProject: () => { shell?.clearBoardsFocusProject() },
+      setProjectWorkspaceProjectId: (projectId: string | null) => { shell?.setProjectWorkspaceProjectId(projectId) },
+      ...(shell?.personaCard === undefined
+        ? {}
+        : {
+          personaCard: shell.personaCard,
+          openPersonaProfile: shell.openPersonaProfile,
+        }),
       hooks: {
         live: live.observable,
         tenant: tenantObservable,
+        shell: shell?.shell ?? shellStub,
       },
     }),
   }, ConnectedGlobalKanban)
@@ -163,4 +246,68 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore): void {
   for (const { key, locale, Panel } of panels) {
     ctx.slots.register({ name: 'main', key, locale, inject: lumenInject }, Panel)
   }
+
+  const openTeamSetup = (): void => { shell?.openTeamSetup() }
+
+  ctx.slots.register({
+    name: 'main',
+    key: 'orgChart',
+    locale: GOVERNANCE_NS,
+    inject: () => ({
+      ...lumenInject(),
+      openTeamSetup,
+      openPersonaProfile: (personaId: string) => { shell?.openPersonaProfile(personaId) },
+      ...(shell?.personaCard === undefined
+        ? {}
+        : {
+          cardInfo: shell.personaCard.cardInfo,
+          prefetchPersonaCard: shell.personaCard.prefetch,
+          cardDict: shell.personaCard.cardDict,
+          sendToPersona: shell.personaCard.sendToPersona,
+          togglePersonaPause: shell.personaCard.togglePause,
+          switchPersonaEngine: shell.personaCard.switchEngine,
+          editPersonaTalk: shell.personaCard.editTalk,
+          teachPersona: shell.personaCard.teachPersona,
+        }),
+      hooks: {
+        ...lumenInject().hooks,
+        live: live.observable,
+        personaCardRevision: shell?.personaCard?.revision ?? {
+          getSnapshot: () => ({ n: 0 }),
+          subscribe: () => () => {},
+        },
+        shell: shell?.shell ?? {
+          getSnapshot: () => ({
+            activePanel: 'orgChart',
+            hostStatus: 'unknown',
+            hostProtocol: null,
+            onboardingOpen: false,
+            profilePersonaId: null,
+            profileEditorOpen: false,
+            boardsFocusProjectId: null,
+            projectWorkspaceProjectId: null,
+            talkAclPersonaId: null,
+            enginePersonaId: null,
+            teachPersonaId: null,
+            teachCapture: null,
+          } satisfies ShellState),
+          subscribe: () => () => {},
+        },
+      },
+    }),
+  }, ConnectedOrgChartPanel)
+
+  ctx.slots.register({
+    name: 'main',
+    key: 'teamHealth',
+    locale: GOVERNANCE_NS,
+    inject: () => ({
+      ...lumenInject(),
+      openTeamSetup,
+      hooks: {
+        ...lumenInject().hooks,
+        live: live.observable,
+      },
+    }),
+  }, ConnectedTeamHealthPanel)
 }

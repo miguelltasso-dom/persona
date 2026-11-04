@@ -60,6 +60,41 @@
   flex: 1 1 auto;
 }
 
+.poolHead {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  margin-bottom: var(--persona-space-4);
+}
+
+.poolTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.poolBars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  margin-bottom: var(--persona-space-4);
+}
+
+.poolNoLimits {
+  margin: 0 0 var(--persona-space-4);
+  color: var(--persona-ink-soft);
+  font-size: 0.9375rem;
+}
+
+.poolList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
 .sectionEyebrow {
   margin: 0 0 1rem;
   font-size: var(--persona-space-3);
@@ -108,4 +143,134 @@
 .percent {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+}
+
+.insightsLead {
+  margin: 0 0 var(--persona-space-3);
+  color: var(--persona-ink-soft);
+  font-size: 0.9375rem;
+}
+
+.insightsStage {
+  margin-bottom: var(--persona-space-3);
+}
+
+.funnelList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
+.funnelStep {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  font-size: 0.9375rem;
+  color: var(--persona-ink-soft);
+}
+
+.funnelStep[data-done] {
+  color: var(--persona-ink);
+  font-weight: 600;
+}
+
+.funnelIcon {
+  display: inline-flex;
+  width: 1.25rem;
+  justify-content: center;
+}
+
+.impactList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.impactRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.impactName {
+  font-weight: 700;
+}
+
+.impactMeta {
+  font-size: 0.875rem;
+  color: var(--persona-ink-soft);
+}
+
+.tokenHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2) var(--persona-space-3);
+  margin-bottom: var(--persona-space-2);
+}
+
+.tokenLead {
+  margin: 0 0 var(--persona-space-4);
+  font-size: 1.125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tokenSliceBlock {
+  margin-top: var(--persona-space-3);
+}
+
+.tokenSliceTitle {
+  margin: 0 0 var(--persona-space-2);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-ink-soft);
+}
+
+.tokenSliceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
+.tokenSliceRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--persona-space-2);
+  font-size: 0.9375rem;
+}
+
+.tokenSliceKey {
+  font-weight: 600;
+}
+
+.tokenSliceMeta {
+  color: var(--persona-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Muse: limits lead the page; the empty impact is one honest line, not five rows of zeros. */
+.poolsSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
+.impactEmpty {
+  margin: 0;
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) dashed var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  color: var(--persona-ink-soft);
+  font: 500 14px/20px var(--persona-font-text);
 }

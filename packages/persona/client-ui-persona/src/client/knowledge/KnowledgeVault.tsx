@@ -19,6 +19,13 @@ export interface KnowledgeVaultProps {
   readonly proposals?: readonly KnowledgeProposal[]
   readonly initialState?: KnowledgeSurfaceState
   readonly onRemoteRetry?: () => void
+  /** UX-13: empty Cofre → "Descrever a empresa" (Lumen wires: open the company brief editor). */
+  readonly onDescribeCompany?: (() => void) | undefined
+  /** BRIEFING 18: open Conhecimento › Importar (BYC). */
+  readonly onOpenImport?: (() => void) | undefined
+  readonly onUploadDocument?: ((file: File) => Promise<void>) | undefined
+  readonly onReplaceDocument?: ((documentId: string, file: File) => Promise<void>) | undefined
+  readonly onDeleteDocument?: ((documentId: string) => Promise<void>) | undefined
 }
 
 function typeLabel(dict: LocaleDict, type: KnowledgeRecord['type']): string {
@@ -36,6 +43,29 @@ function visibilityLabel(dict: LocaleDict, visibility: KnowledgeRecord['visibili
   return bindLocale(dict, `visibility.${visibility}`)
 }
 
+function VisibilityChip({
+  dict,
+  visibility,
+}: {
+  readonly dict: LocaleDict
+  readonly visibility: KnowledgeRecord['visibility']
+}): ReactNode {
+  const label = visibilityLabel(dict, visibility)
+  if (visibility === 'private') {
+    return (
+      <Chip
+        tone="neutral"
+        size="s"
+        className={styles.visibilityPrivate}
+        aria-label={bindLocale(dict, 'visibility.privateAria', { label })}
+      >
+        {label}
+      </Chip>
+    )
+  }
+  return <Chip tone="neutral" size="s">{label}</Chip>
+}
+
 /** Cofre da empresa preview surface. */
 export function KnowledgeVault({
   dict = defaultDict,
@@ -44,6 +74,11 @@ export function KnowledgeVault({
   proposals = [],
   initialState = 'ready',
   onRemoteRetry,
+  onDescribeCompany,
+  onOpenImport,
+  onUploadDocument,
+  onReplaceDocument,
+  onDeleteDocument,
 }: KnowledgeVaultProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [tab, setTab] = useState<KnowledgeTab>('records')
@@ -67,6 +102,15 @@ export function KnowledgeVault({
       eyebrow={t('header.eyebrow')}
       title={t('title')}
       subtitle={t('subtitle')}
+      {...(onOpenImport === undefined
+        ? {}
+        : {
+          actions: (
+            <Button variant="secondary" size="m" onClick={() => { onOpenImport() }}>
+              {t('action.import')}
+            </Button>
+          ),
+        })}
     />
   )
 
@@ -103,6 +147,7 @@ export function KnowledgeVault({
           titleKey="empty.title"
           hintKey="empty.hint"
           primaryKey="empty.action"
+          {...(onDescribeCompany === undefined ? {} : { onPrimary: onDescribeCompany })}
         />
       </Screen>
     )
@@ -148,7 +193,7 @@ export function KnowledgeVault({
               >
                 <div className={styles.itemHeader}>
                   <Chip tone={typeChipTone(record.type)} size="s">{typeLabel(dict, record.type)}</Chip>
-                  <Chip tone="neutral" size="s">{visibilityLabel(dict, record.visibility)}</Chip>
+                  <VisibilityChip dict={dict} visibility={record.visibility} />
                 </div>
                 <h2 className={styles.itemTitle}>{record.title}</h2>
                 <p className={styles.excerpt}>{record.excerpt}</p>
@@ -166,23 +211,78 @@ export function KnowledgeVault({
         </ul>
       )}
       {tab === 'documents' && (
-        <ul className={styles.list}>
-          {documents.map(doc => (
-            <li key={doc.id}>
-              <Card padding="m" className={styles.item}>
-                <h2 className={styles.itemTitle}>{doc.name}</h2>
-                <p className={styles.meta}>
-                  {t('field.version', { version: doc.version })}
-                  {' · '}
-                  {t('field.updated', { date: doc.updatedAt })}
-                  {' · '}
-                  {visibilityLabel(dict, doc.visibility)}
-                </p>
-                <Button variant="ghost" size="s">{t('action.edit')}</Button>
-              </Card>
-            </li>
-          ))}
-        </ul>
+        <>
+          {onUploadDocument !== undefined && (
+            <p className={styles.uploadRow}>
+              <label className={styles.uploadLabel}>
+                <input
+                  type="file"
+                  className={styles.uploadInput}
+                  accept=".pdf,.docx,.md,.txt,.csv,application/pdf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    e.target.value = ''
+                    if (file === undefined) return
+                    void onUploadDocument(file)
+                  }}
+                />
+                <Button variant="secondary" size="s" type="button">{t('action.uploadDocument')}</Button>
+              </label>
+              <span className={styles.uploadHint}>{t('documents.uploadHint')}</span>
+            </p>
+          )}
+          <ul className={styles.list}>
+            {documents.map(doc => (
+              <li key={doc.id}>
+                <Card padding="m" className={styles.item}>
+                  <h2 className={styles.itemTitle}>{doc.name}</h2>
+                  <p className={styles.meta}>
+                    {t('field.version', { version: doc.version })}
+                    {doc.chunks !== undefined && (
+                      <>
+                        {' · '}
+                        {t('field.chunks', { count: doc.chunks })}
+                      </>
+                    )}
+                    {doc.updatedAt !== '' && (
+                      <>
+                        {' · '}
+                        {t('field.updated', { date: doc.updatedAt })}
+                      </>
+                    )}
+                    {' · '}
+                    <span className={doc.visibility === 'private' ? styles.visibilityPrivateInline : undefined}>
+                      {visibilityLabel(dict, doc.visibility)}
+                    </span>
+                  </p>
+                  <div className={styles.actions}>
+                    {onReplaceDocument !== undefined && (
+                      <label>
+                        <input
+                          type="file"
+                          className={styles.uploadInput}
+                          accept=".pdf,.docx,.md,.txt,.csv,application/pdf"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            e.target.value = ''
+                            if (file === undefined) return
+                            void onReplaceDocument(doc.id, file)
+                          }}
+                        />
+                        <Button variant="ghost" size="s" type="button">{t('action.replaceDocument')}</Button>
+                      </label>
+                    )}
+                    {onDeleteDocument !== undefined && (
+                      <Button variant="ghost" size="s" onClick={() => { void onDeleteDocument(doc.id) }}>
+                        {t('action.deleteDocument')}
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {tab === 'proposals' && (
         <ul className={styles.list}>

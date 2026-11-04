@@ -1,11 +1,12 @@
 /** Single Kanban card with drag lift, persona row, chips, and overflow menu. */
 
-import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
-import { Avatar, Card, Chip, PawTrail, UiIcon } from '../primitives/index.ts'
+import { type DragEvent, type MouseEvent, type ReactNode } from 'react'
+import { ApprovedStamp, Avatar, Card, Chip, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
-import { KanbanCardMenu } from './KanbanCardMenu.tsx'
+import { SubjectDot } from '../chat/SubjectBar.tsx'
+import { KanbanCardMenu, type FlowMoveTarget } from './KanbanCardMenu.tsx'
 import styles from './Kanban.module.css'
 import type { KanbanCardModel, KanbanColumnId } from './types.ts'
 
@@ -18,8 +19,17 @@ export interface KanbanCardProps {
   readonly onDragStart: (cardId: string) => void
   readonly onDragEnd: () => void
   readonly onMoveCard?: (cardId: string, toColumn: KanbanColumnId) => void
+  readonly flowMoveTargets?: readonly FlowMoveTarget[]
+  readonly currentFlowColumnId?: string
+  readonly onMoveFlowColumn?: (cardId: string, columnId: string) => void
   readonly onOpenReview?: (cardId: string) => void
   readonly onRequestStatus?: (cardId: string) => void
+  /** True only on the beat after the human accepts Revisar (peak-end stamp animation). */
+  readonly approvalStampFresh?: boolean
+  readonly assigneeCardTrigger?: ((personaId: string) => {
+    readonly onClick: (event: MouseEvent<HTMLElement>) => void
+    readonly onPointerEnter: (event: MouseEvent<HTMLElement>) => void
+  }) | undefined
 }
 
 function stateChipTone(state: PersonaWorkUiState): 'brand' | 'accent' | 'danger' | 'neutral' {
@@ -47,22 +57,21 @@ export function KanbanCard({
   onDragStart,
   onDragEnd,
   onMoveCard,
+  flowMoveTargets,
+  currentFlowColumnId,
+  onMoveFlowColumn,
   onOpenReview,
   onRequestStatus,
+  approvalStampFresh = false,
+  assigneeCardTrigger,
 }: KanbanCardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
-  const [celebrate, setCelebrate] = useState(false)
   const dragging = draggingId === card.id
   const workState = resolveWorkState(card)
   const assigneeName = card.assignee?.name ?? t('card.unassigned')
   const canOpenReview = card.column === 'in_review' || card.blocked
 
-  useEffect(() => {
-    if (!card.reviewApproved || card.column !== 'done') return
-    setCelebrate(true)
-    const timer = window.setTimeout(() => { setCelebrate(false) }, 900)
-    return () => { window.clearTimeout(timer) }
-  }, [card.column, card.id, card.reviewApproved])
+  const showApprovalStamp = card.reviewApproved && card.column === 'done'
 
   const onDragStartCard = (event: DragEvent<HTMLElement>): void => {
     event.dataTransfer.setData('text/persona-kanban-card', card.id)
@@ -94,34 +103,22 @@ export function KanbanCard({
           </span>
         </div>
       )}
-      <div className={styles.cardTop}>
-        <Avatar
-          name={assigneeName}
-          size={24}
-          shape="portrait"
-          decorative={card.assignee !== undefined}
-        />
+      <div className={styles.cardTitleRow}>
+        {card.conversationSubject !== undefined && (
+          <SubjectDot colorIndex={card.conversationSubject.colorIndex} size={10} />
+        )}
         <h3 className={styles.cardTitle}>{card.title}</h3>
-        {onMoveCard !== undefined && (
-          <KanbanCardMenu
-            dict={dict}
-            currentColumn={card.column}
-            columnLabels={columnLabels}
-            canOpenReview={canOpenReview}
-            onMove={(toColumn) => { onMoveCard(card.id, toColumn) }}
-            {...(onOpenReview !== undefined && canOpenReview
-              ? { onOpen: () => { onOpenReview(card.id) } }
-              : {})}
-            {...(onRequestStatus !== undefined ? { onRequestStatus: () => { onRequestStatus(card.id) } } : {})}
-          />
-        )}
       </div>
-      <div className={styles.chips}>
-        <Chip tone={stateChipTone(workState)} size="s">{stateLabel}</Chip>
-        {showProject && (
+      {card.conversationSubject !== undefined && (
+        <span className="persona-sr-only">
+          {t('card.subjectLabel', { name: card.conversationSubject.name })}
+        </span>
+      )}
+      {showProject && (
+        <div className={styles.chips}>
           <Chip tone="neutral" size="s">{card.projectName}</Chip>
-        )}
-      </div>
+        </div>
+      )}
       {(card.flowFields !== undefined && card.flowFields.length > 0
         || card.dueLabel !== undefined
         || card.dependency === true
@@ -158,10 +155,47 @@ export function KanbanCard({
           <Chip tone="success" size="s">{t(`outcome.${card.outcome}`)}</Chip>
         </div>
       )}
-      {celebrate && (
-        <span className={styles.celebrationPaws} role="img" aria-label={t('celebration.label')}>
-          <PawTrail />
-        </span>
+      <div className={styles.cardFooter}>
+        {card.assignee !== undefined && assigneeCardTrigger !== undefined ? (
+          <button
+            type="button"
+            className={styles.assigneeButton}
+            aria-label={assigneeName}
+            {...assigneeCardTrigger(card.assignee.id)}
+          >
+            <Avatar name={assigneeName} size={24} shape="portrait" decorative />
+          </button>
+        ) : (
+          <Avatar
+            name={assigneeName}
+            size={24}
+            shape="portrait"
+            decorative={card.assignee !== undefined}
+          />
+        )}
+        <Chip tone={stateChipTone(workState)} size="s">{stateLabel}</Chip>
+        {(onMoveCard !== undefined || onMoveFlowColumn !== undefined) && (
+          <KanbanCardMenu
+            dict={dict}
+            currentColumn={card.column}
+            columnLabels={columnLabels}
+            canOpenReview={canOpenReview}
+            onMove={(toColumn) => { onMoveCard?.(card.id, toColumn) }}
+            {...(flowMoveTargets !== undefined ? { flowMoveTargets, currentFlowColumnId } : {})}
+            {...(onMoveFlowColumn !== undefined
+              ? { onMoveFlowColumn: (columnId) => { onMoveFlowColumn(card.id, columnId) } }
+              : {})}
+            {...(onOpenReview !== undefined && canOpenReview
+              ? { onOpen: () => { onOpenReview(card.id) } }
+              : {})}
+            {...(onRequestStatus !== undefined ? { onRequestStatus: () => { onRequestStatus(card.id) } } : {})}
+          />
+        )}
+      </div>
+      {showApprovalStamp && (
+        <div className={styles.approvalStamp}>
+          <ApprovedStamp label={t('stamp.approved')} animate={approvalStampFresh} />
+        </div>
       )}
     </Card>
   )

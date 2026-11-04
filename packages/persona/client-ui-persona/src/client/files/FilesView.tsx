@@ -7,6 +7,7 @@ import { Button, Card, Chip, Screen, ScreenHeader, Skeleton } from '../primitive
 import { PersonaSurfaceEmpty, PersonaSurfaceError } from '../kanban/PersonaSurface.tsx'
 import styles from './Files.module.css'
 import type { FileEntry } from './mock-data.ts'
+import { ProjectWorkspaceScopeChip } from '../data/ProjectWorkspaceScopeChip.tsx'
 import { pt as defaultDict } from '../locale/files/locales.ts'
 
 export type FilesSurfaceState = 'loading' | 'error' | 'empty' | 'ready' | 'needRoot'
@@ -17,6 +18,9 @@ export interface FilesViewProps {
   readonly initialState?: FilesSurfaceState
   readonly onChooseProjectRoot?: () => void
   readonly onRemoteRetry?: () => void
+  /** PB-5: project opened from Quadros workspace tabs. */
+  readonly scopeProjectId?: string | null
+  readonly onEmptyPrimary?: (() => void) | undefined
 }
 
 /** File list with open/download actions (host-backed). */
@@ -26,6 +30,8 @@ export function FilesView({
   initialState = 'ready',
   onChooseProjectRoot,
   onRemoteRetry,
+  scopeProjectId = null,
+  onEmptyPrimary,
 }: FilesViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -42,11 +48,13 @@ export function FilesView({
       subtitle={t('subtitle')}
     />
   )
+  const scopeChip = <ProjectWorkspaceScopeChip dict={dict} projectId={scopeProjectId} />
 
   if (surfaceState === 'loading') {
     return (
       <Screen className={styles.shell} data-persona-surface="files" role="status" aria-busy="true">
         {header}
+        {scopeChip}
         <Card padding="l">
           <Skeleton height={14} width="30%" />
           <Skeleton height={48} shape="block" />
@@ -60,6 +68,7 @@ export function FilesView({
     return (
       <Screen className={styles.shell} data-persona-surface="files">
         {header}
+        {scopeChip}
         <PersonaSurfaceError
           dict={dict}
           titleKey="error.title"
@@ -74,9 +83,10 @@ export function FilesView({
     return (
       <Screen className={styles.shell} data-persona-surface="files">
         {header}
+        {scopeChip}
         <PersonaSurfaceEmpty
           dict={dict}
-          illustrationKey="empty-vault"
+          illustrationKey="empty-inbox"
           titleKey="needRoot.title"
           hintKey="needRoot.hint"
           primaryKey="needRoot.action"
@@ -90,12 +100,14 @@ export function FilesView({
     return (
       <Screen className={styles.shell} data-persona-surface="files">
         {header}
+        {scopeChip}
         <PersonaSurfaceEmpty
           dict={dict}
           illustrationKey="empty-inbox"
           titleKey="empty.title"
           hintKey="empty.hint"
           primaryKey="empty.action"
+          {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
         />
       </Screen>
     )
@@ -104,6 +116,7 @@ export function FilesView({
   return (
     <Screen className={styles.shell} data-persona-surface="files">
       {header}
+      {scopeChip}
       {files.length > 0 && (
         <div className={styles.breadcrumb}>
           <Chip tone="neutral" size="s">{files[0]?.projectName ?? t('column.project')}</Chip>

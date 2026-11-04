@@ -1,5 +1,6 @@
 /** Kanban view models (preview / host projection). */
 
+import type { SubjectColorIndex } from '../chat/conversation-subjects.ts'
 import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
 
 export type KanbanColumnId = 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done'
@@ -46,6 +47,8 @@ export interface KanbanCardModel {
   readonly reviewApproved: boolean
   readonly outcome?: 'completed' | 'merged' | 'closed'
   readonly carry?: PersonaCarryAnimation
+  /** W2-3 — conversation subject linked to the task (when host exposes it). */
+  readonly conversationSubject?: { readonly name: string; readonly colorIndex: SubjectColorIndex } | undefined
 }
 
 export interface KanbanFilterOptions {

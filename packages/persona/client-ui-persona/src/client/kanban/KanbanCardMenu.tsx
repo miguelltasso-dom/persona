@@ -7,18 +7,27 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import { KANBAN_COLUMN_ORDER, type KanbanColumnId } from './types.ts'
 import styles from './Kanban.module.css'
 
+export interface FlowMoveTarget {
+  readonly id: string
+  readonly label: string
+}
+
 export interface KanbanCardMenuProps {
   readonly dict: LocaleDict
   readonly currentColumn: KanbanColumnId
   readonly columnLabels: Readonly<Record<KanbanColumnId, string>>
   readonly canOpenReview: boolean
   readonly onMove: (toColumn: KanbanColumnId) => void
+  readonly flowMoveTargets?: readonly FlowMoveTarget[]
+  readonly currentFlowColumnId?: string
+  readonly onMoveFlowColumn?: (columnId: string) => void
   readonly onOpen?: () => void
   readonly onRequestStatus?: () => void
 }
 
 type MenuEntry =
   | { readonly kind: 'move'; readonly column: KanbanColumnId }
+  | { readonly kind: 'moveFlow'; readonly columnId: string; readonly label: string }
   | { readonly kind: 'open' }
   | { readonly kind: 'status' }
 
@@ -28,6 +37,9 @@ export function KanbanCardMenu({
   columnLabels,
   canOpenReview,
   onMove,
+  flowMoveTargets,
+  currentFlowColumnId,
+  onMoveFlowColumn,
   onOpen,
   onRequestStatus,
 }: KanbanCardMenuProps): ReactNode {
@@ -39,8 +51,16 @@ export function KanbanCardMenu({
   const [focusIndex, setFocusIndex] = useState(0)
 
   const entries: MenuEntry[] = []
-  for (const column of KANBAN_COLUMN_ORDER) {
-    if (column !== currentColumn) entries.push({ kind: 'move', column })
+  if (flowMoveTargets !== undefined && flowMoveTargets.length > 0) {
+    for (const target of flowMoveTargets) {
+      if (target.id !== currentFlowColumnId) {
+        entries.push({ kind: 'moveFlow', columnId: target.id, label: target.label })
+      }
+    }
+  } else {
+    for (const column of KANBAN_COLUMN_ORDER) {
+      if (column !== currentColumn) entries.push({ kind: 'move', column })
+    }
   }
   if (canOpenReview && onOpen !== undefined) entries.push({ kind: 'open' })
   if (onRequestStatus !== undefined) entries.push({ kind: 'status' })
@@ -65,6 +85,7 @@ export function KanbanCardMenu({
 
   const activate = (entry: MenuEntry): void => {
     if (entry.kind === 'move') onMove(entry.column)
+    else if (entry.kind === 'moveFlow') onMoveFlowColumn?.(entry.columnId)
     else if (entry.kind === 'open') onOpen?.()
     else onRequestStatus?.()
     close()
@@ -105,6 +126,7 @@ export function KanbanCardMenu({
 
   const labelFor = (entry: MenuEntry): string => {
     if (entry.kind === 'move') return t('action.moveTo', { column: columnLabels[entry.column] })
+    if (entry.kind === 'moveFlow') return t('action.moveTo', { column: entry.label })
     if (entry.kind === 'open') return t('action.open')
     return t('action.requestStatus')
   }
@@ -133,7 +155,7 @@ export function KanbanCardMenu({
         >
           {entries.map((entry, index) => (
             <button
-              key={entry.kind === 'move' ? `move-${entry.column}` : entry.kind}
+              key={entry.kind === 'move' ? `move-${entry.column}` : entry.kind === 'moveFlow' ? `flow-${entry.columnId}` : entry.kind}
               type="button"
               role="menuitem"
               className={styles.cardMenuItem}
@@ -143,7 +165,7 @@ export function KanbanCardMenu({
               }}
               onClick={() => { activate(entry) }}
             >
-              {entry.kind === 'move' && (
+              {(entry.kind === 'move' || entry.kind === 'moveFlow') && (
                 <UiIcon name="arrowRight" size={16} strokeWidth={2} className={styles.cardMenuIcon} />
               )}
               {labelFor(entry)}

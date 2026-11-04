@@ -18,6 +18,9 @@ export interface KnowledgeDocument {
   readonly version: number
   readonly updatedAt: string
   readonly visibility: KnowledgeVisibility
+  readonly chunks?: number | undefined
+  readonly bytes?: number | undefined
+  readonly filename?: string | undefined
 }
 
 export interface KnowledgeProposal {

@@ -28,53 +28,78 @@
   margin: 0;
 }
 
-.list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-@media (max-width: 52rem) {
-  .list {
-    grid-template-columns: 1fr;
-  }
-}
-
-.cliCard {
+.policyCard {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  height: 100%;
 }
 
-.body {
+.providerCard {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.375rem;
-  min-width: 0;
+  gap: 0.75rem;
 }
 
-.name {
+.sectionTitle {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 700;
-  line-height: 1.3;
 }
 
-.detail {
+.sectionHint,
+.legacyHint,
+.addAccountHint {
   margin: 0;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: var(--persona-ink-soft);
   line-height: 1.45;
 }
 
-.actions {
+.addAccountRow {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+}
+
+.providerList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.providerGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.providerHead {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: auto;
+}
+
+.learnLink {
+  margin-left: auto;
+}
+
+.providerName {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.seal {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-wash-strong);
+  color: var(--persona-brand);
+  box-shadow: var(--persona-shadow-press);
 }

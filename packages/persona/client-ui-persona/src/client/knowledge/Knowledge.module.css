@@ -114,6 +114,34 @@
   margin-top: var(--persona-space-3);
 }
 
+.uploadRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin-bottom: var(--persona-space-3);
+}
+
+.uploadLabel {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.uploadInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.uploadHint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-soft);
+}
+
 .statePanel {
   text-align: center;
   padding: 2rem 1rem;
@@ -125,4 +153,26 @@
   height: 4.5rem;
   border-radius: var(--persona-space-3);
   background: var(--persona-wash);
+}
+
+.visibilityPrivate {
+  border-style: dashed;
+  font-weight: 600;
+}
+
+.visibilityPrivate::before {
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 0.65em;
+  margin-right: 0.35em;
+  vertical-align: -0.08em;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+  box-shadow: 0 -0.45em 0 -0.12em currentColor;
+}
+
+.visibilityPrivateInline {
+  font-weight: 600;
+  border-bottom: 1px dashed var(--persona-outline);
 }

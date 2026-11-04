@@ -2,6 +2,7 @@
   "header.eyebrow": "Empresa",
   "title": "Arquivos",
   "subtitle": "Entregas e anexos do projeto, com preview quando disponível",
+  "scope.project": "Projeto: {project}",
   "column.name": "Nome",
   "column.updated": "Atualizado",
   "column.size": "Tamanho",

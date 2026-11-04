@@ -7,7 +7,14 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import { Button, Card, Chip, Screen, ScreenHeader, type ChipTone } from '../primitives/index.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Usage.module.css'
+import type { ActivationFunnelView } from '@deepseek-ai/dsh-persona-host/types'
+import type { PersonaImpactUi } from '../data/adapters/insights.ts'
 import type { UsageLimitNotice, UsageMeter, UsageOrigin } from './mock-data.ts'
+import type { UsageProviderPoolUi } from '../data/adapters/usage-pooled.ts'
+import { UsageProviderPoolCard } from './UsageProviderPoolCard.tsx'
+import type { UsageTokenPanelUi } from '../data/adapters/usage-panel.ts'
+import { LocalInsights } from './LocalInsights.tsx'
+import { UsageTokenPanel } from './UsageTokenPanel.tsx'
 import { pt as defaultDict } from '../locale/usage/locales.ts'
 
 export type UsageSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -15,16 +22,24 @@ export type UsageSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 export interface UsageLimitsProps {
   readonly dict?: LocaleDict
   readonly meters?: readonly UsageMeter[]
+  readonly providerPools?: readonly UsageProviderPoolUi[]
+  /** "Trocar de conta" on the limit notice (Onda 2); omitted → no button (no dead control). */
+  readonly onLimitAction?: (() => void) | undefined
   readonly limitNotice?: UsageLimitNotice | null
   readonly initialState?: UsageSurfaceState
   readonly showLimitNotice?: boolean
   readonly onRemoteRetry?: () => void
+  readonly insightsFunnel?: ActivationFunnelView | null
+  readonly insightsImpacts?: readonly PersonaImpactUi[]
+  readonly onEmptyPrimary?: (() => void) | undefined
+  /** OPT-7 token ledger fold (null = hide section). */
+  readonly tokenPanel?: UsageTokenPanelUi | null
 }
 
 function originChipTone(origin: UsageOrigin): ChipTone {
   if (origin === 'official') return 'success'
   if (origin === 'estimated') return 'accent'
-  if (origin === 'unavailable') return 'neutral'
+  if (origin === 'unavailable' || origin === 'notYet') return 'neutral'
   return 'brand'
 }
 
@@ -34,7 +49,7 @@ function originLabel(dict: LocaleDict, origin: UsageOrigin): string {
 
 function MeterRow({ dict, meter }: { dict: LocaleDict; meter: UsageMeter }): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
-  const unavailable = meter.origin === 'unavailable' || meter.percent === undefined
+  const unavailable = meter.origin === 'unavailable' || meter.origin === 'notYet' || meter.percent === undefined
   const width = unavailable ? 0 : Math.min(100, Math.max(0, meter.percent))
   const fillClass = unavailable
     ? styles.barUnavailable
@@ -71,10 +86,16 @@ function MeterRow({ dict, meter }: { dict: LocaleDict; meter: UsageMeter }): Rea
 export function UsageLimits({
   dict = defaultDict,
   meters = [],
+  providerPools = [],
+  onLimitAction,
   limitNotice = null,
   initialState = 'ready',
   showLimitNotice = true,
   onRemoteRetry,
+  insightsFunnel = null,
+  insightsImpacts = [],
+  onEmptyPrimary,
+  tokenPanel = null,
 }: UsageLimitsProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -125,20 +146,37 @@ export function UsageLimits({
           titleKey="empty.title"
           hintKey="empty.hint"
           primaryKey="empty.action"
+          {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
         />
       </Screen>
     )
   }
 
+  // Muse (integração Atlas): the screen is "Uso e LIMITES" → pooled limits first (T3-UX-HARVEST §7), then
+  // consumption, then local insights. Impact lists only personas that delivered something (no invented ~0 h rows).
+  const deliveredImpacts = insightsImpacts.filter(row => row.tasksCompleted > 0 || row.proposalsAccepted > 0)
   return (
     <Screen className={styles.shell} data-persona-surface="usage">
       {header}
       {showLimitNotice && limitNotice !== null && (
         <Card padding="m" className={styles.notice} tone="accent">
           <p>{t('limit.contextual', { connection: limitNotice.connection, percent: limitNotice.percent })}</p>
-          <Button variant="secondary" size="s">{t('limit.action')}</Button>
+          {onLimitAction !== undefined && <Button variant="secondary" size="s" onClick={onLimitAction}>{t('limit.action')}</Button>}
         </Card>
       )}
+      {providerPools.length > 0 && (
+        <section aria-labelledby="usage-limits-pools" className={styles.poolsSection}>
+          <p id="usage-limits-pools" className={styles.sectionEyebrow}>{t('section.limits')}</p>
+          <ul className={styles.poolList}>
+            {providerPools.map(pool => (
+              <li key={pool.provider}>
+                <UsageProviderPoolCard dict={dict} pool={pool} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {tokenPanel !== null && <UsageTokenPanel dict={dict} panel={tokenPanel} />}
       <Card padding="m" as="section" aria-labelledby="usage-connections">
         <p id="usage-connections" className={styles.sectionEyebrow}>{t('section.connections')}</p>
         <ul className={styles.meterList}>
@@ -147,6 +185,14 @@ export function UsageLimits({
           ))}
         </ul>
       </Card>
+      {insightsFunnel !== null && (
+        <>
+          {deliveredImpacts.length === 0 && insightsImpacts.length > 0 && (
+            <p className={styles.impactEmpty}>{t('insights.impact.none')}</p>
+          )}
+          <LocalInsights dict={dict} funnel={insightsFunnel} impacts={deliveredImpacts} />
+        </>
+      )}
     </Screen>
   )
 }

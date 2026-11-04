@@ -61,5 +61,16 @@
   "remember.scopeTarget.attention": "Tarefa: {title}",
   "remember.scopeTarget.vault": "Registro do Cofre",
   "remember.scopeTarget.skill": "Skill proposta",
-  "stamp.remembered": "Lembrado · Ver em Permissões"
+  "stamp.remembered": "Lembrado · Ver em Permissões",
+  "decision.approve": "Aprovar",
+  "decision.review": "Revisar",
+  "decision.declined": "Deixado de lado",
+  "decision.failed": "Não consegui registrar a decisão agora.",
+  "decision.retry": "Tentar de novo",
+  "decision.undoToast": "Aprovado: {title}",
+  "decision.undo": "Desfazer",
+  "decision.live.accepted": "Aprovado: {title}",
+  "decision.live.declined": "Deixado de lado: {title}",
+  "decision.noticesLabel": "Avisos das decisões",
+  "hire.why": "Por quê: {reason}"
 }

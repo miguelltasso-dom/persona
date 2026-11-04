@@ -66,7 +66,10 @@ describe('ConnectionsView (W2-7 copy)', () => {
     fireEvent.click(screen.getByRole('button', {
       name: connectionsPt['account.addButton'].replace('{provider}', 'Claude Code'),
     }))
-    expect(onAdd).toHaveBeenCalledWith('claude')
+    // The button opens the step-by-step dialog; nothing is saved until the person names the account.
+    expect(onAdd).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(screen.getByText(
       connectionsPt['account.addIsolatedHint'].replace('{provider}', 'Claude Code'),
     )).toBeTruthy()

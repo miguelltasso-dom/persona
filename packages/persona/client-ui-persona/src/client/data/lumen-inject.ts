@@ -13,6 +13,8 @@ export interface LumenRemoteInjected {
   }
   readonly sendToPersona?: ((personaId: string, text: string) => void) | undefined
   readonly selectMainPanel?: ((panel: MainPanelId) => void) | undefined
+  /** Open a Ajuda guide (e.g. `conexoes`) from a panel's "Ver guia" action. */
+  readonly openHelp?: ((docId: string) => void) | undefined
 }
 
 /** Slot panel: `useTenant` comes from `hooks.tenant`. */

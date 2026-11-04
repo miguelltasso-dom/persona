@@ -1,0 +1,94 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  max-height: 70vh;
+}
+
+.search {
+  flex-shrink: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--persona-space-3);
+  overflow-y: auto;
+  padding: 2px;
+  outline: none;
+}
+
+@media (min-width: 560px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.empty {
+  margin: var(--persona-space-6) 0;
+  text-align: center;
+  font: 500 14px/20px var(--persona-font-body);
+  color: var(--persona-ink-soft);
+  grid-column: 1 / -1;
+}
+
+.optionWrap {
+  display: flex;
+  min-width: 0;
+}
+
+.card {
+  width: 100%;
+  border-radius: var(--persona-radius-m);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+.card:hover,
+.cardFocused {
+  border-color: var(--persona-brand);
+  box-shadow: 0 0 0 2px var(--persona-focus-ring);
+}
+
+.cardContent {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-width: 0;
+  width: 100%;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.name {
+  font: 600 17px/24px var(--persona-font-title, Fredoka, system-ui);
+  color: var(--persona-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role {
+  font: 700 13px/18px var(--persona-font-body, Nunito, system-ui);
+  color: var(--persona-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--persona-space-2);
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}

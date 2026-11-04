@@ -302,6 +302,7 @@ export interface ChannelMessageUi {
   /** Host persona id (for engine picker / run-error actions). */
   readonly authorPersonaId?: string
   readonly runError?: RunErrorPayload
+  readonly steeredPersonaName?: string
 }
 
 export function mapMessage(

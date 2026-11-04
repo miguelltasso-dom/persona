@@ -16,11 +16,28 @@ const LOGIN_COMMANDS: Record<string, string> = {
 
 export type { RunnerSwapPolicy, RunnerSwapPolicyScope }
 
+/** Optional fields a newer host may add to a seat; read defensively (older hosts omit them). */
+interface HostAccountExtras { readonly loginCommand?: string | undefined }
+interface HostBundleExtras {
+  readonly personaPolicies?: readonly { readonly personaId: string; readonly policy: RunnerSwapPolicy }[] | undefined
+}
+
 export interface ConnectionAccountUiRow extends ConnectionEntry {
   /** User-defined seat label ("Trabalho"). */
   readonly accountLabel: string
   readonly inUseCount?: number
   readonly quota?: { readonly fiveHourPct?: number; readonly weekPct?: number }
+  /**
+   * Host-built command that signs in to THIS seat's own folder (the default login would sign in to the main account).
+   * Absent until the host sends it: the add-account steps then say so instead of showing a command that could clobber another seat.
+   */
+  readonly loginCommand?: string
+}
+
+/** Per-persona swap rule the host may report (optional: older hosts only accept writes). */
+export interface PersonaSwapPolicyUi {
+  readonly personaId: string
+  readonly policy: RunnerSwapPolicy
 }
 
 export interface ConnectionProviderGroupUi {
@@ -35,6 +52,8 @@ export interface ConnectionsAccountsUi {
   readonly swapPolicyScope: RunnerSwapPolicyScope
   /** True only in unit tests that simulate legacy `listConnections`. */
   readonly legacySingleSeat: boolean
+  /** Rules that belong to one persona; a persona not listed follows the team rule. */
+  readonly personaPolicies?: readonly PersonaSwapPolicyUi[]
 }
 
 /** One-line swap policy for the persona card (locale-owned). */
@@ -100,6 +119,7 @@ function accountRowFromProbe(
   loginHint: string,
   error: ConnectionView['error'],
   inUseCount?: number,
+  loginCommand?: string,
 ): ConnectionAccountUiRow {
   void phase
   const code = error?.code
@@ -117,6 +137,7 @@ function accountRowFromProbe(
     ...(errorCode === undefined ? {} : { errorCode }),
     ...(copyCommand === undefined ? {} : { copyCommand }),
     ...(inUseCount === undefined ? {} : { inUseCount }),
+    ...(loginCommand === undefined || loginCommand.trim() === '' ? {} : { loginCommand }),
   }
 }
 
@@ -148,22 +169,29 @@ function groupAccounts(rows: readonly ConnectionAccountUiRow[]): ConnectionProvi
 
 /** Host multi-account bundle → grouped UI rows. */
 export function connectionAccountsBundleToUi(bundle: ConnectionAccountsBundleView): ConnectionsAccountsUi {
-  const rows = bundle.accounts.map(row => accountRowFromProbe(
-    row.id,
-    row.provider,
-    row.label,
-    row.available,
-    row.loggedIn,
-    row.phase,
-    row.loginHint,
-    row.error,
-    row.inUseCount,
-  ))
+  const wire = bundle as ConnectionAccountsBundleView & HostBundleExtras
+  const rows = bundle.accounts.map((row) => {
+    const extra = row as typeof row & HostAccountExtras
+    return accountRowFromProbe(
+      row.id,
+      row.provider,
+      row.label,
+      row.available,
+      row.loggedIn,
+      row.phase,
+      row.loginHint,
+      row.error,
+      row.inUseCount,
+      extra.loginCommand,
+    )
+  })
+  const personaPolicies = (wire.personaPolicies ?? []).map(row => ({ personaId: row.personaId, policy: row.policy }))
   return {
     groups: groupAccounts(rows),
     swapPolicy: bundle.swapPolicy,
     swapPolicyScope: bundle.swapPolicyScope,
     legacySingleSeat: false,
+    ...(personaPolicies.length === 0 ? {} : { personaPolicies }),
   }
 }
 

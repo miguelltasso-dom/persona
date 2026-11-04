@@ -526,3 +526,13 @@
     transition: none;
   }
 }
+
+@media (max-width: 960px) {
+  .search {
+    flex: 1 1 100%;
+  }
+
+  .toolbar {
+    gap: var(--persona-space-2);
+  }
+}

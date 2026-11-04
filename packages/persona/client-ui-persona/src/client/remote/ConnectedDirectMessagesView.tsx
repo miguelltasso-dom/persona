@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { DirectMessagesView, type DmRowUi } from '../chat/DirectMessagesView.tsx'
+import type { SelectablePersonaOption } from '../chat/NewDmPersonaModal.tsx'
 import { subjectDisplayName } from '../chat/SubjectBar.tsx'
 import { conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { useHostConversationSubjects } from '../chat/use-host-conversation-subjects.ts'
@@ -10,6 +11,8 @@ import { resolveHostPersonaId } from './map-host-ui.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from './persona-live-store.ts'
 import type { ActivityGroupProps } from '../primitives/Pooled.tsx'
 import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
+import type { EngineRemoteWire } from './engine-status.ts'
+import { ConnectedEngineBanner } from './ConnectedEngineBanner.tsx'
 
 const STATE_TONE: Readonly<Record<PersonaWorkUiState, ChipTone>> = { working: 'success', waiting: 'accent', stuck: 'danger', resting: 'neutral' }
 
@@ -26,6 +29,10 @@ export interface ConnectedDmInjected {
   readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
   runErrorHandlers?: RunErrorHandlerContext | undefined
   openTeachPersona(personaId: string): void
+  /** FR-3: Remote do host para a faixa "Falta uma IA" (sem ele, nada é mostrado). */
+  readonly engineRemote?: EngineRemoteWire | undefined
+  /** Abre Conexões (ação "Conectar uma IA" da faixa). */
+  readonly onOpenConnections?: (() => void) | undefined
 }
 
 export type ConnectedDirectMessagesViewProps =
@@ -48,6 +55,8 @@ export function ConnectedDirectMessagesView({
   turnActivityLabels,
   runErrorHandlers,
   openTeachPersona,
+  engineRemote,
+  onOpenConnections,
 }: ConnectedDirectMessagesViewProps): ReactNode {
   const live = useLive(state => state)
   const dmId = live.selectedDmId
@@ -69,6 +78,21 @@ export function ConnectedDirectMessagesView({
         state: member.state,
       }
   })
+  const availablePersonas: readonly SelectablePersonaOption[] = (live.team?.personas ?? []).map((p) => {
+    const member = live.stripMembers.find(m => m.id === p.avatarRef || m.name === p.name)
+    const hasExistingDm = live.dms.some(d => d.peerId === p.id || d.peerName === p.name)
+    return {
+      id: p.id,
+      name: p.name,
+      role: p.title || p.description,
+      characterId: p.avatarRef,
+      state: member?.state,
+      stateLabel: member !== undefined ? shellT(WORK_STATUS_KEY[member.state]) : undefined,
+      stateTone: member !== undefined ? STATE_TONE[member.state] : undefined,
+      isCoordination: p.systemRoles.includes('coordination'),
+      hasExistingDm,
+    }
+  })
   const selectedRow = rows.find(row => row.id === dmId)
   const onTeach = selectedRow?.characterId === undefined
     ? undefined
@@ -77,6 +101,17 @@ export function ConnectedDirectMessagesView({
     <DirectMessagesView
       t={chatT}
       shellT={shellT}
+      {...(engineRemote === undefined ? {} : {
+        engineBanner: (
+          <ConnectedEngineBanner
+            t={chatT}
+            engineRemote={engineRemote}
+            workspaceId={live.tenant?.workspaceId}
+            projectId={live.tenant?.projectId}
+            onConnect={onOpenConnections}
+          />
+        ),
+      })}
       loading={!live.ready}
       dms={rows}
       selectedId={live.selectedDmId}
@@ -120,6 +155,8 @@ export function ConnectedDirectMessagesView({
       }}
       {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
       {...(onTeach === undefined ? {} : { onTeach })}
+      {...(availablePersonas.length === 0 ? {} : { availablePersonas })}
+      onSelectPersonaForNewDm={(personaId) => { void liveStore.openPersonaDm(personaId) }}
     />
   )
 }

@@ -12,6 +12,7 @@ import {
   proactiveImpactDetail,
 } from './approvals-ui-helpers.ts'
 import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
+import { DecisionStateNote } from '../decisions/DecisionStateNote.tsx'
 
 export const PROACTIVE_PROPOSALS_PREVIEW_LIMIT = 3
 
@@ -75,71 +76,99 @@ export function ProactiveDailySummaries({
                   </Chip>
                 </div>
                 <ul className={styles.proposalList}>
-                  {visibleProposals.map(proposal => (
-                    <li
-                      key={proposal.id}
-                      className={`${styles.proposal}${stampExitId === proposal.id ? ` ${styles.proposalExiting}` : ''}`}
-                    >
-                      {stampExitId === proposal.id && stampLabel.length > 0 && (
-                        <div className={styles.proposalStamp}>
-                          <ApprovedStamp label={stampLabel} animate />
-                        </div>
-                      )}
-                      <Chip tone="accent" size="s">{t(`proactive.kind.${proposal.kind}`)}</Chip>
-                      <h4 className={styles.proposalTitle}>{proposal.title}</h4>
-                      <p className={styles.meta}>{proposal.oneQuestion}</p>
-                      <div className={styles.previewBox}>
-                        <p>{t('proactive.affectsLine', { name: summary.personaName })}</p>
-                        {(() => {
-                          const detail = proactiveImpactDetail(proposal)
-                          const redundant = detail.trim() === proposal.title.trim()
+                  {visibleProposals.map((proposal) => {
+                    // DECISIONS-SPEC: a proposal with a decisionState is driven by the shared store (same cycle as every card).
+                    const state = proposal.decisionState
+                    const controlled = state !== undefined
+                    const stamped = controlled ? state === 'accepted' : stampExitId === proposal.id
+                    const leaving = controlled ? (state === 'accepted' || state === 'declined') : stampExitId === proposal.id
+                    const deciding = controlled && state === 'deciding'
+                    const locked = onDecide === undefined || proposal.approvalKind === undefined
+                    return (
+                      <li
+                        key={proposal.id}
+                        data-decision-id={proposal.id}
+                        data-decision-state={state}
+                        className={`${styles.proposal}${leaving ? ` ${state === 'declined' ? styles.proposalExitingDeclined : styles.proposalExiting}` : ''}`}
+                      >
+                        {stamped && stampLabel.length > 0 && (
+                          <div className={styles.proposalStamp}>
+                            <ApprovedStamp label={stampLabel} animate />
+                          </div>
+                        )}
+                        <Chip tone="accent" size="s">{t(`proactive.kind.${proposal.kind}`)}</Chip>
+                        <h4 className={styles.proposalTitle}>{proposal.title}</h4>
+                        <p className={styles.meta}>{proposal.oneQuestion}</p>
+                        <div className={styles.previewBox}>
+                          <p>{t('proactive.affectsLine', { name: summary.personaName })}</p>
+                          {(() => {
+                            const detail = proactiveImpactDetail(proposal)
+                            const redundant = detail.trim() === proposal.title.trim()
                             || detail.trim() === proposal.oneQuestion.trim()
-                          if (redundant) return null
-                          return (
-                            <>
-                              <p className={styles.previewLabel}>{t('proactive.detailLabel')}</p>
-                              <p>{detail}</p>
-                            </>
-                          )
-                        })()}
-                        <p className={styles.previewLabel}>{t('proactive.costLabel')}</p>
-                        {(() => {
-                          const cost = proactiveCostLine(dict, proposal.cost)
-                          return (
-                            <p className={cost.muted ? styles.costUnknown : undefined}>{cost.text}</p>
-                          )
-                        })()}
-                      </div>
-                      {editingId === proposal.id && (
-                        <p className={styles.editHint} role="status">{t('proactive.editHint')}</p>
-                      )}
-                      <div className={styles.actions}>
-                        <Button
-                          variant="primary"
-                          size="s"
-                          onClick={() => { onDecide?.(proposal, true) }}
-                          disabled={onDecide === undefined || proposal.approvalKind === undefined}
-                        >
-                          {t('proactive.action.accept')}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="s"
-                          onClick={() => { onDecide?.(proposal, false) }}
-                          disabled={onDecide === undefined || proposal.approvalKind === undefined}
-                        >
-                          {t('proactive.action.reject')}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="s"
-                          onClick={() => { setEditingId(editingId === proposal.id ? null : proposal.id) }}
-                        >
-                          {t('proactive.action.edit')}
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
+                            if (redundant) return null
+                            return (
+                              <>
+                                <p className={styles.previewLabel}>{t('proactive.detailLabel')}</p>
+                                <p>{detail}</p>
+                              </>
+                            )
+                          })()}
+                          <p className={styles.previewLabel}>{t('proactive.costLabel')}</p>
+                          {(() => {
+                            const cost = proactiveCostLine(dict, proposal.cost)
+                            return (
+                              <p className={cost.muted ? styles.costUnknown : undefined}>{cost.text}</p>
+                            )
+                          })()}
+                        </div>
+                        {editingId === proposal.id && (
+                          <p className={styles.editHint} role="status">{t('proactive.editHint')}</p>
+                        )}
+                        {state === 'declined' ? (
+                          <div className={styles.actions}>
+                            <DecisionStateNote state={state} t={t} />
+                          </div>
+                        ) : (
+                          <>
+                            {state === 'failed' && (
+                              <DecisionStateNote
+                                state={state}
+                                t={t}
+                                {...(locked ? {} : { onRetry: () => { onDecide(proposal, true) } })}
+                              />
+                            )}
+                            <div className={styles.actions}>
+                              <Button
+                                variant="primary"
+                                size="s"
+                                loading={deciding}
+                                onClick={() => { onDecide?.(proposal, true) }}
+                                disabled={locked || leaving}
+                              >
+                                {t('proactive.action.accept')}
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="s"
+                                onClick={() => { onDecide?.(proposal, false) }}
+                                disabled={locked || leaving || deciding}
+                              >
+                                {t('proactive.action.reject')}
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="s"
+                                onClick={() => { setEditingId(editingId === proposal.id ? null : proposal.id) }}
+                                disabled={leaving}
+                              >
+                                {t('proactive.action.edit')}
+                              </Button>
+                            </div>
+                          </>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
                 {hasOverflow && (
                   <div className={styles.expandRow}>

@@ -123,6 +123,7 @@ export function OnboardingWizard({
   firstDelivery,
 }: OnboardingWizardProps): ReactNode {
   const [structureOpen, setStructureOpen] = useState(false)
+  const [builderOpen, setBuilderOpen] = useState(false)
   const state = useStoreSnapshot(store)
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
 
@@ -218,10 +219,10 @@ export function OnboardingWizard({
             <section className={styles.step}>
               <h1 className={styles.title}>{t('step3.title')}</h1>
               <p className={styles.hint}>{t('step3.hint')}</p>
+              {!anyHarnessReady && (
+                <Notice tone="warning">{t('step3.connectRequired')}</Notice>
+              )}
               <ul className={styles.harnessList}>
-                {!anyHarnessReady && (
-                  <Notice tone="warning">{t('step3.connectRequired')}</Notice>
-                )}
                 {harnesses.map(row => (
                   <li key={row.id} className={styles.harnessRow} data-ready={row.ready ? '' : undefined}>
                     <span className={styles.harnessIcon} aria-hidden="true">
@@ -256,13 +257,6 @@ export function OnboardingWizard({
             <section className={styles.step}>
               <h1 className={styles.title}>{t('step4.title')}</h1>
               <p className={styles.hint}>{t('step4.hint')}</p>
-              <Button
-                variant="secondary"
-                icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />}
-                onClick={() => { setStructureOpen(true) }}
-              >
-                {t('step4.structureOpen')}
-              </Button>
               <div className={styles.templateGrid} role="group" aria-label={t('step4.title')}>
                 {(Object.keys(TEMPLATE_KEYS) as TeamTemplateId[]).map(id => (
                   <button
@@ -292,28 +286,49 @@ export function OnboardingWizard({
                   })}
                 </ul>
               )}
-              <BuilderThread
-                messages={state.builderThread}
-                userLabel={t('step4.builderYou')}
-                coordinatorLabel={t('step4.coordinatorName')}
-              />
-              <div className={styles.builderRow}>
-                <Textarea
-                  label={t('step4.builderLabel')}
-                  value={state.builderPrompt}
-                  rows={2}
-                  onChange={(event) => { actions.setBuilderPrompt(event.target.value) }}
-                  placeholder={t('step4.builderPlaceholder')}
-                />
+              <div className={styles.otherPaths}>
                 <Button
-                  variant="secondary"
+                  variant="ghost"
                   icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />}
-                  disabled={state.builderPrompt.trim().length === 0}
-                  onClick={() => { actions.applyBuilderDraft(coordinatorReply(dict, state.builderPrompt)) }}
+                  onClick={() => { setStructureOpen(true) }}
                 >
-                  {t('step4.builderApply')}
+                  {t('step4.structureOpen')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  aria-expanded={builderOpen}
+                  aria-controls="persona-onboarding-builder"
+                  onClick={() => { setBuilderOpen(open => !open) }}
+                >
+                  {t('step4.builderToggle')}
                 </Button>
               </div>
+              {(builderOpen || state.builderThread.length > 0) && (
+                <div id="persona-onboarding-builder" className={styles.builder}>
+                  <BuilderThread
+                    messages={state.builderThread}
+                    userLabel={t('step4.builderYou')}
+                    coordinatorLabel={t('step4.coordinatorName')}
+                  />
+                  <div className={styles.builderRow}>
+                    <Textarea
+                      label={t('step4.builderLabel')}
+                      value={state.builderPrompt}
+                      rows={2}
+                      onChange={(event) => { actions.setBuilderPrompt(event.target.value) }}
+                      placeholder={t('step4.builderPlaceholder')}
+                    />
+                    <Button
+                      variant="secondary"
+                      icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />}
+                      disabled={state.builderPrompt.trim().length === 0}
+                      onClick={() => { actions.applyBuilderDraft(coordinatorReply(dict, state.builderPrompt)) }}
+                    >
+                      {t('step4.builderApply')}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </section>
           )}
           {state.step === 5 && firstDelivery !== undefined && (
@@ -326,11 +341,13 @@ export function OnboardingWizard({
               phase={firstDelivery.phase}
               milestone={firstDelivery.milestone}
               workingPersonaName={firstDelivery.workingPersonaName}
+              workingCharacterId={firstDelivery.workingCharacterId}
               runError={firstDelivery.runError}
               activities={firstDelivery.activities}
               prompt={firstDelivery.prompt}
               onPromptChange={firstDelivery.onPromptChange}
               onRequest={firstDelivery.onRequest}
+              requestDisabled={firstDelivery.requestDisabled}
               onEnterApp={firstDelivery.onEnterApp}
               onCelebrateContinue={firstDelivery.onCelebrateContinue}
               onConnectEngine={firstDelivery.onConnectEngine ?? (() => { actions.setStep(3) })}

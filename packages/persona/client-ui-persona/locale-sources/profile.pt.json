@@ -137,5 +137,17 @@
   "teach.mockHint": "Exemplo de passos enquanto a gravação real fica pronta.",
   "teach.stepLabel": "Passo {n}",
   "teach.doneBody": "Skill candidata salva. Revise em Skills antes de ativar.",
-  "card.badge.team_manager": "Gestor"
+  "card.badge.team_manager": "Gestor",
+  "card.whatCanDoTitle": "O que pode fazer",
+  "card.autonomyLevel.on-request": "Sempre pergunta",
+  "card.autonomyLevel.propose": "Sugere e espera",
+  "card.autonomyLevel.act-within-limits": "Decide o rotineiro",
+  "card.autonomy": "Autonomia",
+  "card.adjust": "Ajustar",
+  "card.tools": "Ferramentas",
+  "card.toolsOnlyTalk": "Só conversa",
+  "card.scope": "Alcance",
+  "card.scopeAll": "Toda a equipe",
+  "card.permissions": "Permissões lembradas",
+  "card.permissionsActive": "{count} ativas"
 }

@@ -481,6 +481,8 @@
 /* ── Two-day test ───────────────────────────────────────── */
 .timeline {
   --slots: 4;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-2);

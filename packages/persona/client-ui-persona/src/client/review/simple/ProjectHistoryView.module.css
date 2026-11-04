@@ -1,0 +1,77 @@
+/* Projeto › Histórico. Tokens only; wraps cleanly at 960 px and at 200 % zoom. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+  max-width: 52rem;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font: 600 22px/28px var(--persona-font-display);
+  color: var(--persona-ink);
+}
+
+.subtitle {
+  margin: var(--persona-space-1) 0 0;
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--persona-ink-soft);
+}
+
+.day {
+  margin: 0 0 var(--persona-space-2);
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
+}
+
+.text {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.line {
+  margin: 0;
+  font: 700 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.files {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--persona-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--persona-ink-muted);
+}

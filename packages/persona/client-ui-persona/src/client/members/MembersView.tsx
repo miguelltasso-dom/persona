@@ -16,6 +16,8 @@ export interface MembersViewProps {
   readonly onRemoteRetry?: () => void
   readonly onEmptyPrimary?: (() => void) | undefined
   readonly onInvite?: (() => void) | undefined
+  /** Seção extra abaixo da lista (E13: Equipe remota). Aparece também quando só o dono está na equipe. */
+  readonly extra?: ReactNode
 }
 
 export function MembersView({
@@ -25,6 +27,7 @@ export function MembersView({
   onRemoteRetry,
   onEmptyPrimary,
   onInvite,
+  extra,
 }: MembersViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
 
@@ -75,6 +78,7 @@ export function MembersView({
           primaryKey="empty.action"
           {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
         />
+        {extra}
       </Screen>
     )
   }
@@ -111,6 +115,7 @@ export function MembersView({
           <li>{t('sync.never')}</li>
         </ul>
       </Card>
+      {extra}
     </Screen>
   )
 }

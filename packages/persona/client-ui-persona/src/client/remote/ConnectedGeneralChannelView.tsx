@@ -9,6 +9,9 @@ import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
 import type { ActivityGroupProps } from '../primitives/Pooled.tsx'
 import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from './persona-live-store.ts'
+import type { EngineRemoteWire } from './engine-status.ts'
+import { ConnectedEngineBanner } from './ConnectedEngineBanner.tsx'
+import { openBlockingCount } from '../decisions/decision-selectors.ts'
 
 export interface ConnectedChannelInjected {
   readonly liveStore: PersonaLiveStore
@@ -22,8 +25,12 @@ export interface ConnectedChannelInjected {
   onOpenConnections?: (() => void) | undefined
   onOpenHelp?: (() => void) | undefined
   onOpenSearch?: (() => void) | undefined
+  /** Sino do cabeçalho → Aprovações. */
+  onOpenApprovals?: (() => void) | undefined
   runErrorHandlers?: RunErrorHandlerContext | undefined
   readonly turnActivityLabels?: ActivityGroupProps['labels'] | undefined
+  /** FR-3: Remote do host para a faixa "Falta uma IA" (sem ele, nada é mostrado). */
+  readonly engineRemote?: EngineRemoteWire | undefined
 }
 
 export type ConnectedGeneralChannelViewProps =
@@ -52,8 +59,10 @@ export function ConnectedGeneralChannelView({
   onOpenConnections,
   onOpenHelp,
   onOpenSearch,
+  onOpenApprovals,
   runErrorHandlers,
   turnActivityLabels,
+  engineRemote,
 }: ConnectedGeneralChannelViewProps): ReactNode {
   const live = useLive(state => state)
   const composerHints = live.channelComposerHints
@@ -120,8 +129,20 @@ export function ConnectedGeneralChannelView({
       {...(onOpenConnections === undefined ? {} : { onSwapAccount: onOpenConnections })}
       {...(onOpenHelp === undefined ? {} : { onOpenHelp })}
       {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
+      {...(onOpenApprovals === undefined ? {} : { onOpenNotifications: onOpenApprovals, notificationsCount: openBlockingCount(live.decisions) })}
       {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
       conversationKey={ownerId === null ? 'channel:geral' : `channel:${ownerId}`}
+      {...(engineRemote === undefined ? {} : {
+        engineBanner: (
+          <ConnectedEngineBanner
+            t={t}
+            engineRemote={engineRemote}
+            workspaceId={live.tenant?.workspaceId}
+            projectId={live.tenant?.projectId}
+            onConnect={onOpenConnections}
+          />
+        ),
+      })}
     />
   )
 }

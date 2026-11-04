@@ -1,0 +1,61 @@
+.queuedMessage {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: 1.5px dashed var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
+  box-shadow: none;
+  transition: border 220ms ease, opacity 220ms ease;
+  margin: var(--persona-space-2) 0;
+}
+
+:global(body[data-ds-dark-theme='true']) .queuedMessage {
+  border-color: var(--persona-outline-control);
+}
+
+.queuedMessage[data-sending='true'] {
+  border-style: solid;
+}
+
+.gutter {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  min-width: 0;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.clockIcon {
+  display: grid;
+  place-items: center;
+  color: inherit;
+}
+
+.text {
+  margin: 2px 0 var(--persona-space-2);
+  font: 500 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}

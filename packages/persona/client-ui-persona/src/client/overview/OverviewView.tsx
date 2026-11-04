@@ -1,21 +1,43 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { usePersonaMotion } from '../motion/index.ts'
-import { Accent, Button, Card, EmptyState, MilestoneCard, Notice, UiIcon } from '../primitives/index.ts'
+import {
+  Accent,
+  ApprovedStamp,
+  Avatar,
+  Button,
+  Card,
+  EmptyState,
+  MilestoneCard,
+  Notice,
+  UiIcon,
+  usePawCelebration,
+} from '../primitives/index.ts'
 import type { AwaySummaryEvent, PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import { AwayWhileOutPanel } from './AwayWhileOutPanel.tsx'
 import { OverviewNowStrip } from './OverviewNowStrip.tsx'
+import type { Decision } from '../decisions/decision-types.ts'
+import { DecisionFeedback } from '../decisions/DecisionFeedback.tsx'
+import { DecisionStateNote } from '../decisions/DecisionStateNote.tsx'
+import { blockingDecisions as selectBlocking, openBlockingCount } from '../decisions/decision-selectors.ts'
+import { useDecisionListMotion } from '../decisions/use-decision-list-motion.ts'
+import { personaPortraitSrc } from '../approvals/approvals-ui-helpers.ts'
 import styles from './OverviewView.module.css'
 
 export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
-  readonly attentionItems: readonly string[]
+  readonly attentionItems?: readonly string[] | undefined
+  /** Single source human decisions (DECISIONS-SPEC / UX-PHASE item 4). */
+  readonly decisions?: readonly Decision[] | undefined
+  readonly onDecide?: ((decisionId: string, accept: boolean) => void) | undefined
+  /** Undo a reversible decision (the toast only exists when the host marked it reversible). */
+  readonly onUndoDecision?: ((decisionId: string) => void) | undefined
   readonly nowRows: readonly PersonaNowSnapshot[]
   readonly awayEvents: readonly AwaySummaryEvent[]
   /** User display name for the greeting (falls back to a plain "Olá!"). */
   readonly userName?: string | undefined
   /** Navigate to another main panel (shell). */
-  readonly onNavigate?: ((panel: 'channels' | 'kanban' | 'approvals') => void) | undefined
+  readonly onNavigate?: ((panel: 'channels' | 'kanban' | 'approvals', query?: { focus?: string }) => void) | undefined
   readonly onOpenAwayTask?: ((taskId: string) => void) | undefined
   /** Live first task (C8); falls back to locale copy when absent. */
   readonly suggestedTask?: { readonly id: string; readonly title: string } | undefined
@@ -46,9 +68,22 @@ const PLACEHOLDER_NAMES: ReadonlySet<string> = new Set(['você', 'voce', 'owner'
 
 /** Visão geral — "o que precisa de você" first, then what the team is doing now (RCD: never a blank dashboard). */
 export function OverviewView({
-  t, attentionItems, nowRows, awayEvents, userName, onNavigate, onOpenAwayTask, suggestedTask, firstDelivery, firstDeliveryPending,
+  t,
+  attentionItems = [],
+  decisions,
+  onDecide,
+  onUndoDecision,
+  nowRows,
+  awayEvents,
+  userName,
+  onNavigate,
+  onOpenAwayTask,
+  suggestedTask,
+  firstDelivery,
+  firstDeliveryPending,
 }: OverviewViewProps): ReactNode {
   const [dismissedTaskId, setDismissedTaskId] = useState<string | null>(null)
+  const paw = usePawCelebration()
   const showMilestone = firstDelivery !== undefined && dismissedTaskId !== firstDelivery.taskId && !firstDeliverySeen(firstDelivery.taskId)
   const dismissMilestone = (): void => {
     if (firstDelivery === undefined) return
@@ -61,8 +96,32 @@ export function OverviewView({
   }
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 8 })
   const teamHasActiveTask = nowRows.some(row => row.currentTask !== undefined && row.currentTask.length > 0)
-  const showFirstTask = attentionItems.length === 0 && !teamHasActiveTask
+
+  // One paw burst per decision that becomes accepted while this screen is open; spoken feedback and the undo toast
+  // live in <DecisionFeedback> so Visão geral and Aprovações behave the same (DECISIONS-SPEC Regra 2).
+  const pawRef = useRef(paw)
+  pawRef.current = paw
+  const celebrated = useRef(new Set<string>((decisions ?? []).filter(d => d.state === 'accepted').map(d => d.id)))
+  useEffect(() => {
+    let fresh = false
+    for (const d of decisions ?? []) {
+      if (d.state !== 'accepted' || celebrated.current.has(d.id)) continue
+      celebrated.current.add(d.id)
+      fresh = true
+    }
+    if (fresh) pawRef.current.celebrate()
+  }, [decisions])
+  const attentionListRef = useRef<HTMLUListElement | null>(null)
+  const attentionTitleRef = useRef<HTMLSpanElement | null>(null)
+  const blockingDecisions = decisions === undefined ? undefined : selectBlocking(decisions)
+  const hasDecisions = blockingDecisions !== undefined
+  const shownDecisions = (blockingDecisions ?? []).slice(0, 3)
+  useDecisionListMotion(attentionListRef, shownDecisions.map(d => d.id), attentionTitleRef)
+  // The one number every screen reads: pending + failed, never a count of its own.
+  const pendingCount = hasDecisions ? openBlockingCount(decisions) : attentionItems.length
+  const showFirstTask = (hasDecisions ? blockingDecisions.length === 0 : attentionItems.length === 0) && !teamHasActiveTask
   const firstTaskTitle = suggestedTask?.title ?? t('overview.suggestedTaskBody')
+
   // Placeholder member names ("Você", "Owner") are not names: greet without one.
   const firstName = userName?.trim().split(/\s+/u)[0] ?? ''
   const greeting = firstName.length > 0 && !PLACEHOLDER_NAMES.has(firstName.toLowerCase())
@@ -86,6 +145,9 @@ export function OverviewView({
           {t('overview.newTask')}
         </Button>
       </header>
+
+      <div className={styles.pawContainer}>{paw.node}</div>
+      <DecisionFeedback decisions={decisions} t={t} onUndo={onUndoDecision} />
 
       {showMilestone && (
         <section className={styles.milestone} aria-label={t('overview.firstDelivery.eyebrow')}>
@@ -128,11 +190,88 @@ export function OverviewView({
             as="section"
             titleAs="h2"
             aria-labelledby="persona-attention-title"
-            eyebrow={attentionItems.length > 0 ? t('overview.attentionCount', { count: String(attentionItems.length) }) : undefined}
-            title={<span id="persona-attention-title">{t('overview.attentionTitle')}</span>}
+            eyebrow={pendingCount > 0 ? t('overview.attentionCount', { count: String(pendingCount) }) : undefined}
+            title={<span id="persona-attention-title" ref={attentionTitleRef} tabIndex={-1}>{t('overview.attentionTitle')}</span>}
             className={styles.attentionCard}
           >
-            {attentionItems.length > 0 ? (
+            {hasDecisions ? (
+              blockingDecisions.length > 0 ? (
+                <>
+                  <ul className={styles.attentionList} role="list" ref={attentionListRef}>
+                    {shownDecisions.map((decision) => {
+                      const portrait = personaPortraitSrc(decision.requester.personaId, decision.requester.name)
+                      const titleId = `persona-decision-${decision.id}`
+                      const leaving = decision.state === 'accepted' || decision.state === 'declined'
+                      return (
+                        <li
+                          key={decision.id}
+                          data-decision-id={decision.id}
+                          data-decision-state={decision.state}
+                          className={`${styles.attentionItem}${leaving ? ` ${decision.state === 'declined' ? styles.attentionLeavingDeclined : styles.attentionLeaving}` : ''}`}
+                        >
+                          <Avatar
+                            name={decision.requester.name}
+                            size={32}
+                            shape="portrait"
+                            decorative
+                            {...(portrait === undefined ? {} : { src: portrait })}
+                          />
+                          <span className={styles.attentionText}>
+                            <span className={styles.attentionKind}>{t(`decision.kind.${decision.kind}`)} · {decision.requester.name}</span>
+                            <span id={titleId} className={styles.attentionTitle}>{decision.title}</span>
+                          </span>
+                          {decision.state === 'deciding' && (
+                            <Button size="s" variant="secondary" loading aria-describedby={titleId}>
+                              {t('decision.approve')}
+                            </Button>
+                          )}
+                          {decision.state === 'accepted' && (
+                            <ApprovedStamp label={t('decision.live.accepted', { title: decision.title })} animate />
+                          )}
+                          {(decision.state === 'declined' || decision.state === 'failed') && (
+                            <DecisionStateNote
+                              state={decision.state}
+                              t={t}
+                              {...(onDecide === undefined ? {} : { onRetry: () => { onDecide(decision.id, true) } })}
+                            />
+                          )}
+                          {decision.state === 'pending' && (
+                            decision.risk === 'low' ? (
+                              <Button size="s" variant="primary" aria-describedby={titleId} onClick={() => { onDecide?.(decision.id, true) }}>
+                                {t('decision.approve')}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="s"
+                                variant="secondary"
+                                aria-describedby={titleId}
+                                onClick={() => { onNavigate?.('approvals', { focus: decision.id }) }}
+                              >
+                                {t('decision.review')}
+                              </Button>
+                            )
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  {blockingDecisions.length > 3 && (
+                    <div className={styles.seeAllRow}>
+                      <Button variant="ghost" size="s" onClick={() => { onNavigate?.('approvals') }}>
+                        {t('overview.seeAllDecisions', { count: String(blockingDecisions.length) })}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <EmptyState
+                  compact
+                  illustration={ILLUSTRATIONS['empty-inbox']}
+                  title={t('overview.attentionEmptyTitle')}
+                  body={t('overview.attentionEmptyBody')}
+                />
+              )
+            ) : attentionItems.length > 0 ? (
               <ul className={styles.attentionList}>
                 {attentionItems.map(item => (
                   <li key={item} className={styles.attentionItem}>

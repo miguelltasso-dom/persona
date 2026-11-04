@@ -14,7 +14,6 @@ import type { LumenRemoteInjected } from '../data/lumen-inject.ts'
 import type { ShellState } from './create-shell-store.ts'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  RemoteApprovalsPanel,
   RemoteCanvasPanel,
   RemoteImportPanel,
   RemoteMembersPanel,
@@ -30,6 +29,7 @@ import { MEMBERS_NS } from '../locale/members/locales.ts'
 import { PROFILE_NS } from '../locale/profile/locales.ts'
 import { RULES_NS } from '../locale/rules/locales.ts'
 import { ConnectedGeneralChannelView } from '../remote/ConnectedGeneralChannelView.tsx'
+import { ConnectedApprovalsPanel } from '../remote/ConnectedApprovalsPanel.tsx'
 import { ConnectedOverviewView } from '../remote/ConnectedOverviewView.tsx'
 import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge.ts'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
@@ -111,11 +111,13 @@ export function registerPrismScreens(
     openTaskOnBoard: (ticketId: string) => { shellHandle.actions.openKanbanTicket(ticketId) },
     turnActivityLabels,
     onOpenConnections: () => { shellHandle.actions.selectPanel('connections') },
+    engineRemote: ctx.remote.persona,
     onBuildTeam: () => {
       shellHandle.actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)
       shellHandle.actions.selectPanel('profile')
     },
     onOpenHelp: () => { shellHandle.actions.openHelp({ docId: 'canais', tab: 'guias' }) },
+    onOpenApprovals: () => { shellHandle.actions.selectPanel('approvals') },
     onOpenSearch: () => {
       shellHandle.actions.selectPanel('search')
       window.dispatchEvent(new Event(SEARCH_FOCUS_EVENT))
@@ -139,8 +141,16 @@ export function registerPrismScreens(
     locale: SHELL_NS,
     inject: () => ({
       hooks: { live: live.observable },
-      navigate: (panel: 'channels' | 'kanban' | 'approvals') => { selectPanel?.(panel) },
+      navigate: (panel: 'channels' | 'kanban' | 'approvals', query?: { focus?: string }) => {
+        if (panel === 'approvals' && query?.focus) {
+          shellHandle.actions.openApproval(query.focus)
+        } else {
+          selectPanel?.(panel)
+        }
+      },
       openAwayTask: (taskId: string) => { shellHandle.actions.openKanbanTicket(taskId) },
+      decideDecision: (decisionId: string, accept: boolean) => { void live.decide?.(decisionId, accept) },
+      ...(live.undoDecision === undefined ? {} : { undoDecision: (decisionId: string) => { void live.undoDecision!(decisionId) } }),
     }),
   }, ConnectedOverviewView)
 
@@ -255,10 +265,25 @@ export function registerPrismScreens(
       turnActivityLabels,
       runErrorHandlers: runErrorHandlersFor(live, shellHandle),
       openTeachPersona: (personaId: string) => { shellHandle.actions.openTeachPersona(personaId) },
+      engineRemote: ctx.remote.persona,
+      onOpenConnections: () => { shellHandle.actions.selectPanel('connections') },
     }),
   }, ConnectedDirectMessagesView)
 
-  ctx.slots.register({ name: 'main', key: 'approvals', locale: APPROVALS_NS, inject: remoteInject }, RemoteApprovalsPanel)
+  // DECISIONS-SPEC: Aprovações reads the same Decision[] and runs the same cycle as Visão geral (live store).
+  ctx.slots.register({
+    name: 'main',
+    key: 'approvals',
+    locale: APPROVALS_NS,
+    inject: () => ({
+      persona: ctx.remote.persona,
+      hooks: { tenant: tenantObservable, shell: shellObservable, live: live.observable },
+      decideDecision: (decisionId: string, accept: boolean) => live.decide?.(decisionId, accept) ?? Promise.resolve(undefined),
+      ...(live.undoDecision === undefined ? {} : { undoDecision: (decisionId: string) => live.undoDecision!(decisionId) }),
+      refreshLive: () => { void live.refresh() },
+      clearApprovalFocus: () => { shellHandle.actions.clearFocusedApproval() },
+    }),
+  }, ConnectedApprovalsPanel)
   ctx.slots.register({ name: 'main', key: 'rules', locale: RULES_NS, inject: remoteInject }, RemoteRulesPanel)
   ctx.slots.register({
     name: 'main',

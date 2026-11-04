@@ -168,7 +168,7 @@ describe('onboarding step 5 first delivery (V1-P0-4 / FIRST-DELIVERY-SPEC)', () 
     expect(screen.getByText(/O Claude não está conectado neste computador/u)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }))
     expect(onRetry).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole('button', { name: pt['step5.enterApp'] }))
+    fireEvent.click(screen.getByRole('button', { name: pt['step5.enterAppPlain'] }))
     expect(onEnterApp).toHaveBeenCalledTimes(1)
   })
 

@@ -49,6 +49,9 @@ describe('onboarding builder thread', () => {
     const { store, actions } = createOnboardingStore()
     store.set({ ...store.getSnapshot(), step: 4 })
     render(<OnboardingWizard dict={pt} structureDict={governancePt} store={store} actions={actions} />)
+    // UX-17: descrever com as próprias palavras é caminho secundário, aberto sob demanda
+    expect(screen.queryByPlaceholderText(pt['step4.builderPlaceholder'])).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: pt['step4.builderToggle'] }))
     fireEvent.change(screen.getByPlaceholderText(pt['step4.builderPlaceholder']), {
       target: { value: 'Revisor de contratos' },
     })

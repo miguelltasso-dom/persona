@@ -77,3 +77,9 @@
 .fieldGrid:not(:first-child) {
   margin-top: var(--persona-space-4);
 }
+
+@media (max-width: 960px) {
+  .saveRow {
+    flex-wrap: wrap;
+  }
+}

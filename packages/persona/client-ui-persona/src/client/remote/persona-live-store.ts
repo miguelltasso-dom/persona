@@ -67,6 +67,16 @@ import {
 import { personaScreensRemote } from '../data/persona-screens-remote.ts'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import { unwrapRemote } from '../data/remote-call.ts'
+import {
+  DECISION_ACCEPT_EXIT_MS,
+  DECISION_DECLINE_EXIT_MS,
+  type Decision,
+  type DecisionState,
+} from '../decisions/decision-types.ts'
+import { deriveDecisions, type HostApprovalCard } from '../decisions/derive-decisions.ts'
+import { openBlockingTitles } from '../decisions/decision-selectors.ts'
+
+export type { Decision, DecisionState } from '../decisions/decision-types.ts'
 
 const OPTIONAL_BOOT_REMOTE_MS = 1_500
 
@@ -117,6 +127,8 @@ export interface PersonaLiveSnapshot {
   readonly channelSubjects: readonly ConversationSubjectUi[]
   /** First delivery status from host overview (V1-P0-2/4). */
   readonly firstDelivery?: FirstDeliveryView | null | undefined
+  /** Single source human decisions across Overview and Approvals (DECISIONS-SPEC). */
+  readonly decisions?: readonly Decision[] | undefined
 }
 
 const EMPTY: PersonaLiveSnapshot = {
@@ -144,6 +156,7 @@ const EMPTY: PersonaLiveSnapshot = {
   arrivingHostPersonaIds: [],
   channelSubjects: DEFAULT_CONVERSATION_SUBJECTS,
   firstDelivery: null,
+  decisions: [],
 }
 
 /** Host-backed snapshot for shell panels (production path). */
@@ -200,6 +213,14 @@ export interface PersonaLiveStore {
   approveGestorPlan(planId: string): Promise<void>
   rejectGestorPlan(planId: string): Promise<void>
   feedbackGestorPlan(planId: string, body: string): Promise<void>
+  /**
+   * One decision cycle for every screen (DECISIONS-SPEC Regra 2): `deciding` → host → `accepted`/`declined`
+   * (stamp holds 750/400 ms, then the card leaves every list and counter together) or `failed` (back with a retry).
+   * Resolves with the final state so a caller can chain extra work (e.g. a remembered permission).
+   */
+  decide?(decisionId: string, accept: boolean): Promise<DecisionState | undefined>
+  /** Undo a reversible decision (only wired when the host offers `undoApproval`). */
+  undoDecision?(decisionId: string): Promise<void>
 }
 
 type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
@@ -210,7 +231,21 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
   listTeam(request: PersonaTenantScope): TeamView
   listProjects(request: PersonaTenantScope): readonly { id: string; name: string; kind: string }[]
   listTasks(request: PersonaTenantScope): readonly import('./persona-remote-types.ts').TaskView[]
-  listApprovals?(request: PersonaTenantScope): readonly { readonly title: string; readonly status: string }[]
+  listApprovals?(request: PersonaTenantScope): readonly HostApprovalCard[]
+  listDailySummaries?(request: PersonaTenantScope): readonly import('@deepseek-ai/dsh-persona-host/types').DailySummaryView[]
+  decideApproval?(request: {
+    readonly workspaceId: string
+    readonly projectId: string
+    readonly id: string
+    readonly kind: 'hire' | 'vault' | 'skill' | 'attention'
+    readonly accept: boolean
+  }): unknown
+  /** Optional host undo for decisions the host marks `reversible` (DECISIONS-SPEC Regra 2). */
+  undoApproval?(request: {
+    readonly workspaceId: string
+    readonly projectId: string
+    readonly id: string
+  }): unknown
   listDms?(request: PersonaTenantScope): readonly DmView[]
   createDm?(request: {
     id: string
@@ -400,6 +435,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   const subjectsCache = new Map<string, MappedConversationSubjects>()
   const subjectsInflight = new Map<string, Promise<MappedConversationSubjects>>()
   let arrivingUntil: Record<string, number> = {}
+  const decisionStates = new Map<string, DecisionState>()
+  const decisionTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   const activeArrivingIds = (nowMs: number = Date.now()): Set<string> => {
     const ids = new Set<string>()
@@ -561,16 +598,22 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       const arrivingHostPersonaIds = [...arrivingIds]
       const stripMembers = mapTeamToStrip(team, now.personas, arrivingIds)
       const awayEvents = away.events.map(mapAwayEventLive)
-      const pendingApprovals = remote.listApprovals !== undefined
-        ? (await Promise.resolve(remote.listApprovals(scope)))
-          .filter(row => row.status === 'pending')
-          .map(row => row.title)
-        : []
-      const attentionTitles = [
-        ...overview.needsYou.map(card => card.title),
-        ...pendingApprovals,
-        ...overview.inProgress.map(card => card.title),
-      ]
+      const [rawApprovals, rawSummaries] = await Promise.all([
+        remote.listApprovals !== undefined
+          ? Promise.resolve(remote.listApprovals(scope))
+          : Promise.resolve([] as readonly HostApprovalCard[]),
+        remote.listDailySummaries !== undefined
+          ? settleOptionalRemote(() => Promise.resolve(remote.listDailySummaries!(scope)), [])
+          : Promise.resolve([]),
+      ])
+      const decisions = deriveDecisions({
+        needsYou: overview.needsYou,
+        approvals: rawApprovals,
+        dailySummaries: rawSummaries,
+        statesById: decisionStates,
+      })
+      // One list, one count: what blocks the team is derived from the same Decision[] every screen reads.
+      const attentionTitles = openBlockingTitles(decisions)
       const taskTitleById = new Map(tasks.map(task => [task.id, task.title]))
       const suggestedPick = overview.inProgress[0] ?? overview.needsYou[0] ?? null
       const suggestedTask = suggestedPick !== null
@@ -640,6 +683,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         stripMembers,
         awayEvents,
         attentionTitles,
+        decisions,
         messages,
         passThroughFollowers: passThroughFollowers(nowRows),
         dms,
@@ -1419,11 +1463,75 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     await Promise.resolve(remote.setAutonomy(patchAutonomyMode(current, level)))
   }
 
+  /** Put one decision in a new lifecycle state; every list and counter derives from this one array. */
+  const setDecisionState = (decisionId: string, state: DecisionState): void => {
+    decisionStates.set(decisionId, state)
+    const snap = store.getSnapshot()
+    const next = (snap.decisions ?? []).map(d => (d.id === decisionId ? { ...d, state } : d))
+    store.set({ ...snap, decisions: next, attentionTitles: openBlockingTitles(next) })
+  }
+
+  const dropDecision = (decisionId: string): void => {
+    decisionStates.delete(decisionId)
+    decisionTimers.delete(decisionId)
+    const snap = store.getSnapshot()
+    const next = (snap.decisions ?? []).filter(d => d.id !== decisionId)
+    store.set({ ...snap, decisions: next, attentionTitles: openBlockingTitles(next) })
+  }
+
+  const decide = async (decisionId: string, accept: boolean): Promise<DecisionState | undefined> => {
+    const current = (store.getSnapshot().decisions ?? []).find(d => d.id === decisionId)
+    if (current === undefined) return undefined
+    // A second click while the host is answering, or while the stamp is leaving, must not decide twice.
+    if (current.state === 'deciding' || current.state === 'accepted' || current.state === 'declined') return current.state
+
+    // Optimistic and single: the card leaves "pending" in every list at once.
+    setDecisionState(decisionId, 'deciding')
+    try {
+      if (remote.decideApproval !== undefined) {
+        if (tenant === null) throw new Error('no-tenant')
+        await Promise.resolve(remote.decideApproval({
+          workspaceId: tenant.workspaceId,
+          projectId: tenant.projectId,
+          id: current.id,
+          kind: current.targetApprovalKind ?? (current.kind === 'blocker' ? 'attention' : (current.kind as 'hire' | 'vault' | 'skill')),
+          accept,
+        }))
+      }
+    } catch {
+      setDecisionState(decisionId, 'failed')
+      return 'failed'
+    }
+    const nextState: DecisionState = accept ? 'accepted' : 'declined'
+    setDecisionState(decisionId, nextState)
+    const existingTimer = decisionTimers.get(decisionId)
+    if (existingTimer !== undefined) clearTimeout(existingTimer)
+    decisionTimers.set(decisionId, setTimeout(() => {
+      dropDecision(decisionId)
+      // The host already moved on (new task, new card): pick it up once the stamp is gone.
+      void refresh()
+    }, accept ? DECISION_ACCEPT_EXIT_MS : DECISION_DECLINE_EXIT_MS))
+    return nextState
+  }
+
+  const undoDecision = async (decisionId: string): Promise<void> => {
+    if (remote.undoApproval === undefined || tenant === null) return
+    await Promise.resolve(remote.undoApproval({
+      workspaceId: tenant.workspaceId,
+      projectId: tenant.projectId,
+      id: decisionId,
+    }))
+    await refresh()
+  }
+
   const dispose = (): void => {
     stopMessageStream()
     stopDmStream()
     hostOnboardingSink = null
     subjectsInflight.clear()
+    for (const timer of decisionTimers.values()) clearTimeout(timer)
+    decisionTimers.clear()
+    decisionStates.clear()
   }
 
   return {
@@ -1467,5 +1575,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     approveGestorPlan,
     rejectGestorPlan,
     feedbackGestorPlan,
+    decide,
+    undoDecision,
   }
 }

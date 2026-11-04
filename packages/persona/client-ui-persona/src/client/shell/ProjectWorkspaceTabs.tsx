@@ -5,7 +5,7 @@ import { Tabs } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 
-export type ProjectWorkspaceTab = 'board' | 'conversation' | 'files' | 'routines' | 'sprints'
+export type ProjectWorkspaceTab = 'board' | 'conversation' | 'files' | 'routines' | 'sprints' | 'history'
 
 const TAB_ORDER: readonly ProjectWorkspaceTab[] = [
   'board',
@@ -13,6 +13,7 @@ const TAB_ORDER: readonly ProjectWorkspaceTab[] = [
   'files',
   'routines',
   'sprints',
+  'history',
 ]
 
 export interface ProjectWorkspaceTabsProps {

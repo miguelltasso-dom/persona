@@ -194,6 +194,7 @@ export const pt = {
   'planSprint.emptySprint': 'Escolha tarefas do backlog',
   'a11y.planningRegion': 'Planejamento de sprint',
   'a11y.boardsGrid': 'Grade de projetos',
+  'project.tabs.history': 'Histórico',
 } as const
 
 /** English copy. */
@@ -387,6 +388,7 @@ export const en = {
   'planSprint.emptySprint': 'Pick tasks from the backlog',
   'a11y.planningRegion': 'Sprint planning',
   'a11y.boardsGrid': 'Project grid',
+  'project.tabs.history': 'History',
 } as const
 
 export const zh = {
@@ -579,6 +581,7 @@ export const zh = {
   'planSprint.emptySprint': 'Pick tasks from the backlog',
   'a11y.planningRegion': 'Sprint planning',
   'a11y.boardsGrid': 'Project grid',
+  'project.tabs.history': 'History',
 } as const
 export const ja = {
   'header.eyebrow': 'Work',
@@ -770,6 +773,7 @@ export const ja = {
   'planSprint.emptySprint': 'Pick tasks from the backlog',
   'a11y.planningRegion': 'Sprint planning',
   'a11y.boardsGrid': 'Project grid',
+  'project.tabs.history': 'History',
 } as const
 export const es = {
   'header.eyebrow': 'Work',
@@ -961,6 +965,7 @@ export const es = {
   'planSprint.emptySprint': 'Pick tasks from the backlog',
   'a11y.planningRegion': 'Sprint planning',
   'a11y.boardsGrid': 'Project grid',
+  'project.tabs.history': 'History',
 } as const
 export const fr = {
   'header.eyebrow': 'Work',
@@ -1152,6 +1157,7 @@ export const fr = {
   'planSprint.emptySprint': 'Pick tasks from the backlog',
   'a11y.planningRegion': 'Sprint planning',
   'a11y.boardsGrid': 'Project grid',
+  'project.tabs.history': 'History',
 } as const
 export const de = {
   'header.eyebrow': 'Work',
@@ -1343,6 +1349,7 @@ export const de = {
   'planSprint.emptySprint': 'Pick tasks from the backlog',
   'a11y.planningRegion': 'Sprint planning',
   'a11y.boardsGrid': 'Project grid',
+  'project.tabs.history': 'History',
 } as const
 export const ru = {
   'header.eyebrow': 'Work',
@@ -1534,6 +1541,7 @@ export const ru = {
   'planSprint.emptySprint': 'Pick tasks from the backlog',
   'a11y.planningRegion': 'Sprint planning',
   'a11y.boardsGrid': 'Project grid',
+  'project.tabs.history': 'History',
 } as const
 
 export type KanbanKey = keyof typeof pt

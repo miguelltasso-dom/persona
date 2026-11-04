@@ -28,6 +28,7 @@ export {
   PersonaCardPopover,
   QuotaMeter,
   usePersonaCardController,
+  type PersonaCapabilitiesInfo,
   type PersonaCardBadge,
   type PersonaCardController,
   type PersonaCardEngine,
@@ -60,3 +61,4 @@ export { ABOUT_LABELS_EN, ABOUT_LABELS_PT, AboutPersona, PERSONA_CREDITS, type A
 export { HelpArticle, markSegments, type HelpArticleProps } from './HelpArticle.tsx'
 export { RunErrorCard, type RunErrorCardProps } from './RunErrorCard.tsx'
 export { describeResetTime, describeRunError, legacyRunErrorFromText, runErrorText, type RunErrorAction, type RunErrorCode, type RunErrorDescription, type RunErrorPayload } from './run-errors.ts'
+export { FileChangeRow, fileTypeOf, summarizeFileChanges, type FileChange, type FileChangeKind, type FileChangeLabels, type FileChangeRowProps, type FileChangeSummaryLabels, type FileType } from './FileChange.tsx'

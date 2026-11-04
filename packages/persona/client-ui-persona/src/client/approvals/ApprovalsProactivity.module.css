@@ -63,14 +63,42 @@
   pointer-events: none;
 }
 
+/* Same cycle as the reactive cards: stamp readable ~530 ms, gone at 750 ms; set aside gone at 400 ms. */
 .proposalExiting {
-  animation: persona-approval-exit var(--motion-base, 220ms) var(--ease-standard, ease) forwards;
+  animation: persona-proactive-exit var(--motion-base, 220ms) var(--ease-standard, ease) 530ms forwards;
 }
 
-@keyframes persona-approval-exit {
+.proposalExitingDeclined {
+  animation: persona-proactive-exit var(--motion-base, 220ms) var(--ease-standard, ease) 180ms forwards;
+}
+
+@keyframes persona-proactive-exit {
   to {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proposalExiting,
+  .proposalExitingDeclined {
+    animation-name: persona-proactive-fade;
+    animation-duration: 120ms;
+    animation-timing-function: linear;
+  }
+
+  .proposalExiting {
+    animation-delay: 630ms;
+  }
+
+  .proposalExitingDeclined {
+    animation-delay: 280ms;
+  }
+}
+
+@keyframes persona-proactive-fade {
+  to {
+    opacity: 0;
   }
 }
 

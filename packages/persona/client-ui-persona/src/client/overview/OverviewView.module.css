@@ -148,3 +148,85 @@
 .milestone {
   margin-bottom: var(--persona-space-6);
 }
+
+
+.pawContainer {
+  position: relative;
+  height: 0;
+}
+
+.attentionText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.attentionKind {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: var(--persona-ink-muted);
+}
+
+.attentionTitle {
+  overflow-wrap: anywhere;
+}
+
+/* The card stays readable with its stamp, then fades and rises 4 px: gone at 750 ms (declined: 400 ms). */
+.attentionLeaving {
+  animation: persona-attention-exit var(--motion-base, 220ms) var(--ease-standard, ease) 530ms forwards;
+}
+
+.attentionLeavingDeclined {
+  animation: persona-attention-exit var(--motion-base, 220ms) var(--ease-standard, ease) 180ms forwards;
+}
+
+@keyframes persona-attention-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes persona-attention-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attentionLeaving,
+  .attentionLeavingDeclined {
+    animation-name: persona-attention-fade;
+    animation-duration: 120ms;
+    animation-timing-function: linear;
+  }
+
+  .attentionLeaving {
+    animation-delay: 630ms;
+  }
+
+  .attentionLeavingDeclined {
+    animation-delay: 280ms;
+  }
+}
+
+.seeAllRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--persona-space-3);
+  padding-top: var(--persona-space-2);
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+@media (max-width: 960px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--persona-space-4);
+  }
+
+  .attentionItem {
+    flex-wrap: wrap;
+  }
+}

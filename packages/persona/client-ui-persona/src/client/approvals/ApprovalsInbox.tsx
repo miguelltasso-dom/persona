@@ -1,5 +1,5 @@
 /** Central human decisions (one question per card — Neutrality is omission). */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Screen,
   ScreenHeader,
@@ -17,6 +17,7 @@ import { ReactiveApprovalsList } from './ReactiveApprovalsList.tsx'
 import type { ApprovalItem } from './mock-data.ts'
 import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
 import { pt as defaultDict } from '../locale/approvals/locales.ts'
+import { useDecisionListMotion } from '../decisions/use-decision-list-motion.ts'
 
 export type ApprovalsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
@@ -48,6 +49,7 @@ export interface ApprovalsInboxProps {
   readonly items?: readonly ApprovalItem[]
   readonly proactiveSummaries?: readonly PersonaDailyProactiveSummary[]
   readonly initialState?: ApprovalsSurfaceState
+  readonly focusId?: string | undefined
   readonly onDecideItem?: (item: ApprovalItem, accept: boolean, remember?: ApprovalRememberChoice) => void
   readonly onDecideProactive?: (proposal: ProactiveProposal, accept: boolean) => void
   readonly onRemoteRetry?: () => void
@@ -58,6 +60,7 @@ export function ApprovalsInbox({
   items = [],
   proactiveSummaries = [],
   initialState = 'ready',
+  focusId,
   onDecideItem,
   onDecideProactive,
   onRemoteRetry,
@@ -68,12 +71,41 @@ export function ApprovalsInbox({
   const [rememberGrant, setRememberGrant] = useState(false)
   const [rememberValidity, setRememberValidity] = useState<PermissionValidity>('once')
   const [rememberStampNote, setRememberStampNote] = useState<string | null>(null)
-  const headItem = items[0]
+  // DECISIONS-SPEC: cards driven by the shared store keep their place while they leave; the head is the first one still open.
+  const headItem = items.find(item => item.decisionState === undefined || item.decisionState === 'pending' || item.decisionState === 'failed')
   const headScope = headItem === undefined ? undefined : approvalPermissionScope(dict, headItem)
   const summaryIso = proactiveSummaries.find(summary => summary.proposals.length > 0)?.summaryDate ?? ''
   const summaryDateLabel = summaryIso === '' ? '' : formatSummaryDate(dict, summaryIso)
   const hasReactive = items.length > 0
   const hasProactive = proactiveSummaries.some(s => s.proposals.length > 0)
+
+  const reactiveListRef = useRef<HTMLDivElement | null>(null)
+  const reactiveTitleRef = useRef<HTMLHeadingElement | null>(null)
+  const proactiveRef = useRef<HTMLDivElement | null>(null)
+  useDecisionListMotion(reactiveListRef, items.map(item => item.id), reactiveTitleRef)
+  useDecisionListMotion(
+    proactiveRef,
+    proactiveSummaries.flatMap(summary => summary.proposals.map(proposal => proposal.id)),
+    reactiveTitleRef,
+  )
+
+  // One paw burst per decision that becomes accepted while this screen is open (the store drives the state).
+  const acceptedIds = [
+    ...items.filter(item => item.decisionState === 'accepted').map(item => item.id),
+    ...proactiveSummaries.flatMap(summary => summary.proposals.filter(proposal => proposal.decisionState === 'accepted').map(proposal => proposal.id)),
+  ]
+  const celebrated = useRef(new Set<string>(acceptedIds))
+  const acceptedKey = acceptedIds.join('|')
+  useEffect(() => {
+    let fresh = false
+    for (const id of acceptedIds) {
+      if (celebrated.current.has(id)) continue
+      celebrated.current.add(id)
+      fresh = true
+    }
+    if (fresh) paw.celebrate()
+    // acceptedKey is the identity of acceptedIds
+  }, [acceptedKey])
 
   const celebrateAccept = (id: string, proceed: () => void): void => {
     setExitStampId(id)
@@ -133,33 +165,41 @@ export function ApprovalsInbox({
       {header}
       <div className={styles.inboxCelebrate}>{paw.node}</div>
       {hasProactive && (
-        <ProactiveDailySummaries
-          dict={dict}
-          summaries={proactiveSummaries}
-          summaryDateLabel={summaryDateLabel}
-          stampExitId={exitStampId}
-          stampLabel={t('stamp.approved')}
-          {...(onDecideProactive !== undefined
-            ? {
-              onDecide: (proposal, accept) => {
-                if (!accept) {
-                  onDecideProactive(proposal, false)
-                  return
-                }
-                if (proposal.approvalKind === undefined) return
-                celebrateAccept(proposal.id, () => { onDecideProactive(proposal, true) })
-              },
-            }
-            : {})}
-        />
+        <div ref={proactiveRef}>
+          <ProactiveDailySummaries
+            dict={dict}
+            summaries={proactiveSummaries}
+            summaryDateLabel={summaryDateLabel}
+            stampExitId={exitStampId}
+            stampLabel={t('stamp.approved')}
+            {...(onDecideProactive !== undefined
+              ? {
+                onDecide: (proposal, accept) => {
+                  if (!accept) {
+                    onDecideProactive(proposal, false)
+                    return
+                  }
+                  if (proposal.approvalKind === undefined) return
+                  // Store-driven proposal: the Decision cycle already shows the stamp; no second local timer.
+                  if (proposal.decisionState !== undefined) {
+                    onDecideProactive(proposal, true)
+                    return
+                  }
+                  celebrateAccept(proposal.id, () => { onDecideProactive(proposal, true) })
+                },
+              }
+              : {})}
+          />
+        </div>
       )}
       {hasReactive && (
         <section aria-labelledby="persona-reactive-approvals" data-persona-approvals="reactive">
-          <h2 id="persona-reactive-approvals" className={styles.sectionTitle}>{t('reactive.title')}</h2>
+          <h2 id="persona-reactive-approvals" ref={reactiveTitleRef} tabIndex={-1} className={styles.sectionTitle}>{t('reactive.title')}</h2>
           <p className={styles.sectionHint}>{t('reactive.subtitle')}</p>
-          <div className={styles.list} role="list">
+          <div className={styles.list} role="list" ref={reactiveListRef}>
             <ReactiveApprovalsList
               dict={dict}
+              focusId={focusId}
               items={items}
               headScope={headScope}
               exitStampId={exitStampId}

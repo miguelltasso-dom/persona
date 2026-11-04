@@ -1,4 +1,5 @@
 import type { PersonaProposal } from '@deepseek-ai/dsh-persona-core'
+import type { DecisionState } from '../decisions/decision-types.ts'
 
 export type ApprovalKind = 'hire' | 'vault' | 'skill' | 'attention'
 
@@ -13,6 +14,10 @@ export interface ApprovalItem {
   readonly proposerPersonaId?: string
   readonly hirePortraitKey?: string
   readonly contextBody?: string
+  /** One-line "why" from the host for a hire (UX-02). */
+  readonly hireWhy?: string
+  /** Lifecycle of the shared Decision (DECISIONS-SPEC). Present = the card is driven by the live store, not by local state. */
+  readonly decisionState?: DecisionState
   /** When set, accept can call `grantBrainPermission` (Segundo cérebro). */
   readonly brain?: {
     readonly grantId: string

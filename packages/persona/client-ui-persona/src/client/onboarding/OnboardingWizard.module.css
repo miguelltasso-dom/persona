@@ -370,6 +370,20 @@
   text-overflow: ellipsis;
 }
 
+/* Caminhos secundários do passo 4 (UX-17): o modelo é o principal; assistente e descrição ficam como links. */
+.otherPaths {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.builder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
 .builderRow {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -50,3 +50,10 @@
   color: var(--persona-ink-soft);
   font-size: 0.9375rem;
 }
+
+@media (max-width: 960px) {
+  .memberHead {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+}

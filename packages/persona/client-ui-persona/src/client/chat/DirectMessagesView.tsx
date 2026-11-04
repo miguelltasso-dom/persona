@@ -5,7 +5,7 @@ import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
 import { uiStateToPose, type PersonaWorkUiState } from '../team/persona-work-state.ts'
 import { Avatar, BrandIcon, Button, Chip, EmptyState, MenuButton, Skeleton, Toast, ToastRegion, UiIcon, type ChipTone } from '../primitives/index.ts'
 import { subjectDisplayName } from './SubjectBar.tsx'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
 import { ChannelComposer } from './ChannelComposer.tsx'
 import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
@@ -14,6 +14,7 @@ import { MessageList } from './GeneralChannelView.tsx'
 import { TurnContextDrawer } from './TurnContextDrawer.tsx'
 import type { TurnContextUi } from '../remote/turn-context-ui.ts'
 import type { RunErrorHandlerContext } from './run-error-handlers.ts'
+import { NewDmPersonaModal, type SelectablePersonaOption } from './NewDmPersonaModal.tsx'
 import styles from './DirectMessagesView.module.css'
 
 /** One DM row as the presentation needs it (Prism maps host data). */
@@ -63,6 +64,11 @@ export interface DirectMessagesViewProps {
   readonly runErrorHandlers?: RunErrorHandlerContext | undefined
   /** W2-10 — consent overlay for the persona in this thread. */
   readonly onTeach?: (() => void) | undefined
+  readonly availablePersonas?: readonly SelectablePersonaOption[] | undefined
+  readonly onSelectPersonaForNewDm?: ((personaId: string) => void) | undefined
+  readonly onHirePersona?: (() => void) | undefined
+  /** FR-3: faixa "Falta uma IA" acima do composer. */
+  readonly engineBanner?: import('react').ReactNode | undefined
 }
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
@@ -94,8 +100,21 @@ export function DirectMessagesView({
   passThroughFollowers = [],
   runErrorHandlers,
   onTeach,
+  availablePersonas,
+  onSelectPersonaForNewDm,
+  onHirePersona,
+  engineBanner,
 }: DirectMessagesViewProps): ReactNode {
+  const [isNewDmModalOpen, setIsNewDmModalOpen] = useState(false)
   const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string; readonly revertSubjectId: string } | null>(null)
+
+  const handleOpenNewDm = useCallback((): void => {
+    if (availablePersonas !== undefined && onSelectPersonaForNewDm !== undefined) {
+      setIsNewDmModalOpen(true)
+    } else {
+      onNewConversation?.()
+    }
+  }, [availablePersonas, onSelectPersonaForNewDm, onNewConversation])
   const selected = dms.find(row => row.id === selectedId) ?? null
 
   if (!loading && dms.length === 0) {
@@ -105,12 +124,25 @@ export function DirectMessagesView({
           illustration={ILLUSTRATIONS['empty-dm']}
           title={t('dm.emptyTitle')}
           body={t('dm.emptyBody')}
-          action={onNewConversation !== undefined ? (
-            <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />} onClick={onNewConversation}>
+          action={(onSelectPersonaForNewDm !== undefined || onNewConversation !== undefined) ? (
+            <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />} onClick={handleOpenNewDm}>
               {t('dm.newConversation')}
             </Button>
           ) : undefined}
         />
+        {availablePersonas !== undefined && onSelectPersonaForNewDm !== undefined && (
+          <NewDmPersonaModal
+            t={t}
+            open={isNewDmModalOpen}
+            personas={availablePersonas}
+            onClose={() => { setIsNewDmModalOpen(false) }}
+            onSelectPersona={(personaId) => {
+              setIsNewDmModalOpen(false)
+              onSelectPersonaForNewDm(personaId)
+            }}
+            onHirePersona={onHirePersona}
+          />
+        )}
       </div>
     )
   }
@@ -124,6 +156,17 @@ export function DirectMessagesView({
             <h1 id="persona-dm-title" className={styles.title}>{shellT('sidebar.directMessages')}</h1>
             <p className={styles.subtitle}>{t('dm.subtitle')}</p>
           </div>
+          {(onSelectPersonaForNewDm !== undefined || onNewConversation !== undefined) && (
+            <button
+              type="button"
+              className={styles.newDmHeaderButton}
+              onClick={handleOpenNewDm}
+              aria-label={t('dm.newConversation')}
+              title={t('dm.newConversation')}
+            >
+              <UiIcon name="plus" size={18} strokeWidth={2.2} />
+            </button>
+          )}
         </header>
         {loading ? (
           <div className={styles.skeletons} aria-hidden="true">
@@ -272,6 +315,7 @@ export function DirectMessagesView({
             </div>
             <TurnContextDrawer t={t} context={turnContext} activityLabels={turnActivityLabels} />
             <div className={styles.composer}>
+              {engineBanner}
               <ChannelComposer
                 t={t}
                 members={[]}
@@ -306,6 +350,19 @@ export function DirectMessagesView({
           </>
         )}
       </section>
+      {availablePersonas !== undefined && onSelectPersonaForNewDm !== undefined && (
+        <NewDmPersonaModal
+          t={t}
+          open={isNewDmModalOpen}
+          personas={availablePersonas}
+          onClose={() => { setIsNewDmModalOpen(false) }}
+          onSelectPersona={(personaId) => {
+            setIsNewDmModalOpen(false)
+            onSelectPersonaForNewDm(personaId)
+          }}
+          onHirePersona={onHirePersona}
+        />
+      )}
     </div>
   )
 }

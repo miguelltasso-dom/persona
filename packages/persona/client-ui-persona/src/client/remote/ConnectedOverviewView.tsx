@@ -6,13 +6,22 @@ import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 
 export interface ConnectedOverviewInjected {
   hooks: { live: HostObservable<PersonaLiveSnapshot> }
-  navigate(panel: 'channels' | 'kanban' | 'approvals'): void
+  navigate(panel: 'channels' | 'kanban' | 'approvals', query?: { focus?: string }): void
   openAwayTask(taskId: string): void
+  decideDecision?(decisionId: string, accept: boolean): void
+  undoDecision?(decisionId: string): void
 }
 
 export type ConnectedOverviewViewProps = PropsLocale<'persona.shell'> & InjectFace<ConnectedOverviewInjected>
 
-export function ConnectedOverviewView({ t, useLive, navigate, openAwayTask }: ConnectedOverviewViewProps): ReactNode {
+export function ConnectedOverviewView({
+  t,
+  useLive,
+  navigate,
+  openAwayTask,
+  decideDecision,
+  undoDecision,
+}: ConnectedOverviewViewProps): ReactNode {
   const live = useLive(state => state)
   const firstDelivery = deriveFirstDeliveryMilestone(live.kanbanCards)
   const firstDeliveryPending = live.firstDelivery?.status === 'working'
@@ -26,6 +35,9 @@ export function ConnectedOverviewView({ t, useLive, navigate, openAwayTask }: Co
     <OverviewView
       t={t}
       attentionItems={live.attentionTitles}
+      decisions={live.decisions}
+      onDecide={decideDecision}
+      onUndoDecision={undoDecision}
       nowRows={live.nowRows}
       awayEvents={awayEvents}
       userName={live.team?.members.find(member => member.id === live.tenant?.memberId)?.displayName}

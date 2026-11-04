@@ -9,6 +9,7 @@ import { inferPersonaPaused } from '../profile/infer-persona-paused.ts'
 import { personaCardFromHost } from '../profile/map-persona-card-from-host.ts'
 import { talkAclViewToCardTalk } from '../profile/map-talk-acl.ts'
 import type { PersonaCardHostDto } from '../profile/persona-card-host-dto.ts'
+import { hostModeToAutonomyLevel } from '../persona-editor/autonomy-map.ts'
 import type { PersonaCardInfo } from '../profile/PersonaInfoCard.tsx'
 import type { PersonaLiveStore } from './persona-live-store.ts'
 
@@ -64,8 +65,23 @@ export function createPersonaCardBridge(
         talk = undefined
       }
     }
+    let autonomyLevel: PersonaCardInfo['autonomyLevel'] | undefined = undefined
+    if ('getAutonomy' in client && typeof client.getAutonomy === 'function') {
+      try {
+        const row = await unwrapRemote(
+          await client.getAutonomy(scope) as RemoteResult<{ readonly mode: 'asked' | 'propose' | 'act' }>,
+        )
+        autonomyLevel = hostModeToAutonomyLevel(row.mode)
+      } catch {
+        autonomyLevel = undefined
+      }
+    }
     const base = personaCardFromHost(dto, characterIdForPersona(live, personaId) ?? dto.handle)
-    cards.set(personaId, talk === undefined ? base : { ...base, talk })
+    cards.set(personaId, {
+      ...base,
+      ...(talk === undefined ? {} : { talk }),
+      ...(autonomyLevel === undefined ? {} : { autonomyLevel }),
+    })
     bump()
   }
 

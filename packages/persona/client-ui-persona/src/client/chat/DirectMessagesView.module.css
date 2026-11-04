@@ -387,3 +387,22 @@
   font: 700 12px/16px var(--persona-font-text);
   cursor: pointer;
 }
+
+.newDmHeaderButton {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-wash);
+  color: var(--persona-ink);
+  cursor: pointer;
+  transition: border-color var(--motion-fast) ease, background var(--motion-fast) ease;
+}
+
+.newDmHeaderButton:hover {
+  border-color: var(--persona-brand);
+  background: var(--persona-wash-strong);
+}

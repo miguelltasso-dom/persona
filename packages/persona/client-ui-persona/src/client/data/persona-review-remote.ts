@@ -10,6 +10,8 @@ export interface PersonaReviewRemote {
     projectId: string
     ticketId: string
     mode: 'ff' | 'merge'
+    /** Per clashing file: what stays (SW-3/SW-6; see contracts/simple-workspace-ui.md §3). */
+    choices?: Readonly<Record<string, 'mine' | 'theirs' | 'both'>>
   }): Promise<RemoteResult<ReviewAcceptView>>
   requestChanges(request: {
     workspaceId: string

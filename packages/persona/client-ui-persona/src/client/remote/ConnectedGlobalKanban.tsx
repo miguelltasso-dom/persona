@@ -18,6 +18,7 @@ import { ConnectedProjectFlowBoard } from './ConnectedProjectFlowBoard.tsx'
 import { readKanbanScaleSeed } from '../kanban/kanban-scale-dev.ts'
 import { mockLargeKanbanCards } from '../kanban/mock-large-kanban-cards.ts'
 import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
+import { ConnectedProjectHistory } from './ConnectedProjectHistory.tsx'
 import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 
 export interface ConnectedKanbanInjected {
@@ -135,7 +136,7 @@ export function ConnectedGlobalKanban({
   }, [live.projects, openProjectId])
 
   const handleProjectWorkspaceTab = useCallback((tab: ProjectWorkspaceTab): void => {
-    if (tab === 'board' || tab === 'sprints') {
+    if (tab === 'board' || tab === 'sprints' || tab === 'history') {
       setProjectWorkspaceTab(tab)
       setProjectWorkspaceProjectId(null)
       return
@@ -164,6 +165,23 @@ export function ConnectedGlobalKanban({
         summaries={summaries}
         previewCards={displayKanbanCards}
         onBack={() => { setMode('grid') }}
+      />
+    )
+  }
+
+  if (mode === 'project' && projectScope !== null && projectWorkspaceTab === 'history') {
+    return (
+      <ConnectedProjectHistory
+        persona={persona}
+        scope={projectScope}
+        kanbanDict={kanbanDict}
+        onBack={() => {
+          setOpenProjectId(null)
+          setProjectWorkspaceTab('board')
+          setProjectWorkspaceProjectId(null)
+          setMode('grid')
+        }}
+        onWorkspaceTabChange={handleProjectWorkspaceTab}
       />
     )
   }

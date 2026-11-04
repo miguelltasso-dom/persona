@@ -1,5 +1,7 @@
 /** Proactive initiative proposals (grouped daily per persona — PROACTIVITY.md §4–6). */
 
+import type { DecisionState } from '../decisions/decision-types.ts'
+
 export type ProactiveProposalKind = 'initiative' | 'followUp' | 'risk'
 
 export interface ProactiveCostEstimate {
@@ -17,6 +19,8 @@ export interface ProactiveProposal {
   /** Plain-language effect (not the proposer name alone). */
   readonly impactDetail: string
   readonly cost?: ProactiveCostEstimate
+  /** Lifecycle of the shared Decision (DECISIONS-SPEC). Present = driven by the live store. */
+  readonly decisionState?: DecisionState
 }
 
 export interface PersonaDailyProactiveSummary {

@@ -1,5 +1,82 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-04 14:30 — Fechamento: "Pedir agora" espera a IA, cabeçalho sem controle morto, trava `check`
+
+- **"Pedir agora" só habilita depois da 1ª leitura da IA** (`useEngineStatus.settled`): antes havia uma janela de dezenas de ms em que o passo 5 mostrava o botão antes de saber se havia IA. Teste novo no `onboarding-overlay-first-delivery` (12/12).
+- **#geral: cabeçalho sem controle morto** (UX-PHASE: "nenhum controle morto"). O sino e o menu da conta não tinham handler. Agora o sino abre **Aprovações** e o ponto só aparece com decisão esperando (mesmo número do rail e da Visão geral, `openBlockingCount`); o avatar vira só presença (não é botão, não reage ao mouse) até existir um menu de conta. Sem destino, o sino nem aparece. `channel-header-controls` 3/3.
+- **Gate:** `check-pkg client-ui-persona` **OK em 45,3 s** na trava `check` (pacote inteiro, testes incluídos). Vitest dos arquivos que mexi: 18/18 (cabeçalho + vizinhos) e 12/12 (overlay).
+- **Capturas claro/escuro com host real:** script `.maestri/tmp/prism/run-shots.mjs` (bundle fresco + `step5-shots.mjs`: sem IA → needsEngine + faixa no #geral; scripted → intro/working/celebrate; axe e console incl. `listGestorPlans`, porta livre + home por processo). Reenfileirado na trava `build` (FIFO); saída em `.maestri/tmp/shots/prism-step5/`.
+- **UX-17 (onboarding passo 4):** o modelo sugerido (já marcado, equipe à vista) é o caminho principal; o Assistente de estrutura e "Prefere descrever com suas palavras?" viraram links secundários abaixo dos modelos (o construtor abre sob demanda, `aria-expanded`). O botão mantém "Assistente de estrutura" no nome (seletor de `persona-e2e/dogfood-padaria.ts` e das capturas, que casam por substring). `onboarding-step4-paths` 5/5 + `onboarding-builder` atualizado. UX-BACKLOG: UX-17/08/09 e DF-001/002/008/010 (lado Prism) marcados como feitos, aguardando aceite visual da Muse.
+- **Pendências de outros donos:** Anvil: retry da 1ª entrega → `first_delivery` volta a `working`. Quill: "Revogar acesso" por membro (`MembersView.tsx:105` sem handler). Lumen: 2 testes fora do meu escopo (`ux-backlog-muse` UX-05, perfs de virtualização).
+
+## 2026-11-04 13:40 — E13: UI Equipe remota (feita antes do repasse ao Quill)
+
+Contrato `contracts/remote-team.md` (Anvil, E12 verde). Painel novo como seção da tela **Membros** (mesmo no estado "só você"):
+- `remote-team/remote-team-model.ts` (puro): estado apresentado (sem conexão + Cofre indisponível = "Cofre indisponível", sem formulário e **sem gravação alternativa**), o que cada estado permite (revogado só reabre com novo convite; só o dono convida), validação do endereço (http/https), erro do Remote → motivo em português (o código nunca é a mensagem), convites do mais novo ao mais antigo (só "Aceito" revoga; o token do host nunca vira linha da tela).
+- `RemoteTeamPanel.tsx` (+css): status honesto (Não conectada · Conectada · Sem conexão "o que você escrever fica guardado" · Acesso encerrado · Cofre indisponível), canais pelo **nome** (nunca o id interno), conectar (endereço + canais; **nada marcado por padrão**, compartilhar é decisão da pessoa), entrar com convite (código em campo de senha), gerar convite (Membro/Convidado), código mostrado **uma vez** com aviso + copiar endereço+código + "Já enviei", lista de convites com Revogar, Sincronizar agora.
+- `ConnectedRemoteTeamPanel.tsx`: lê `getRemoteTeamAvailability/State`, `listChannels`, `listInvites`; `connectRemoteTeam/issueInvite(token vazio)/acceptInvite/revokeMember/syncRemoteTeam`; polling 5 s; o código do convite só vive em estado de tela (testado: nada em localStorage/sessionStorage); host sem os métodos (versão antiga) → painel não aparece. `settle` preserva o `code` tipado do host.
+- Integração: prop opcional `extra` em `members/MembersView.tsx` e 1 bloco `extra=` em `RemoteMembersPanel` (`data/lumen-remote-panels.tsx`). Textos pt/en em `members.{pt,en}.json` (chaves `remote.*`), sem jargão (endereço da equipe, código do convite).
+
+**Testes:** 34/34 em 4 arquivos (`remote-team-model` 7, `remote-team-panel` 15, `connected-remote-team` 11 [convidar → aceitar → ver o canal com host de mentira stateful, Cofre indisponível, revogação vista pelo polling, host antigo], `remote-members-panel` existente).
+
+**Repassado ao Quill (Atlas):** captura do fluxo com dois perfis clicando na UI (o `remote-team-real.mjs` do Anvil usa RPC), polimento visual com a Muse, e "Revogar acesso" por membro na lista de Membros (o botão em `MembersView.tsx` não tem handler: controle morto do Lumen; a revogação real é por convite aceito no painel novo). **Passo W2-7, W2-10 (UI do Ensinar) e G2 (canvas) ao Quill.**
+
+## 2026-11-04 12:50 — FR-2/FR-3/FR-5/FR-6 + UX-PHASE 5/6/8/10 (sessão nova, motor trocado)
+
+**P0 do gate (Keel), 2 quebras minhas:** `GeneralChannelView` chamava `onSend` (não existe → `onSendMessage?.()`); `ChannelComposer.module.css` tinha 2 linhas soltas (duplicata de `.autonomyChip`, já na linha 321) que derrubavam o lightningcss. Corrigidas; os 95 `.css` do pacote passam no lightningcss; bundle passou sob a trava ("Build complete"). O check-pkg só pega TS, não CSS: lição para o gate (rodar o bundle).
+
+**FR-2 — passo 5 no estado REAL do host.** Antes a fase era adivinhada (lista de IAs só carregada no passo 3, com *mock* "pronto" de fallback; nada atualizava o host enquanto "trabalhando"; o `failed` inventava "O Claude não está conectado"). Agora:
+- `onboarding/first-delivery-phase.ts` (puro): fase = f(IA pronta?, marco `getFirstDelivery`, erro tipado NOVO no #geral, 45 s, janela de retry). `checking`/`unknown` nunca bloqueiam ("sem IA" só quando o host diz `unavailable`).
+- `OnboardingShellOverlay.tsx` reescrito: polling de `getEngineStatus` (3 s; relê forçado ao voltar o foco da janela, que é quando a pessoa volta do login no terminal) e de `getFirstDelivery` (2 s) enquanto há pedido; `refreshLive` quando o marco vira ready/failed (injetado no `mount.ts`).
+- **Bug real achado:** o `RunErrorCard` do passo 5 lia `runError.*` do dicionário do onboarding (chaves só existem no chat) → card sem texto no app. Agora `chatDict` é injetado.
+- `failed` sem erro no fio descreve pelo motivo do host (login/cota/nenhuma IA/"motor de IA"), não por um Claude inventado; falha ao iniciar o pedido → `app_offline` com "Tentar reconectar" (nunca fica sem saída). A ação primária do card leva ao lugar certo (conectar IA → passo 3; tentar de novo → reconfere o motor + `runTicketCommand retry` na tarefa; esperar cota → entrar no app).
+- Pedido retido sem IA (FR-3) mostra `needsEngine` em vez de "trabalhando" para sempre; IA volta → volta a trabalhando. Celebrate: "Pedir ajuste" agora existe (leva ao #geral). Retrato da persona no card de falha.
+
+**FR-3 — faixa "Falta uma IA" (#geral e DM).** `remote/engine-status.ts` + `use-engine-status.ts` + `chat/EngineMissingBanner.tsx` + `remote/ConnectedEngineBanner.tsx`. Só aparece com `state: unavailable` (nunca em `checking`); motivo (nenhuma IA / falta login / cota), "Conectar uma IA" (abre Conexões), "Conferir de novo" (`retryEngine`), "Mensagens guardadas: n"; ao conectar vira "IA conectada. Retomando…" por 6 s. `engineRemote` injetado em `register-prism-screens.tsx` (2 linhas).
+
+**FR-5** retrato no `ConversationRunErrorCard` (#geral). **FR-6** passo 3: aviso fora do `<ul>`; passo 5: `StaggerEntrance as="li"` + rótulo "Sua equipe se apresenta" (era só "Miguel").
+
+**UX-PHASE (itens 5/6/8/10) — havia código sem teste e 3 pontas soltas:**
+- 6 (fila/steer): o `GeneralChannelView` passava `editingQueuedText`/`onCancelEditQueued` que o composer não aceitava (erro de tipo que o gate ainda ia pegar) e a fila local nunca era alimentada. Completo: com a persona trabalhando "na fila" guarda como balão tracejado; sai sozinha quando ela termina o passo; Mandar agora / Editar (volta ao composer com chip + Cancelar) / Tirar (toast Desfazer 6 s); região live; nomes acessíveis localizados. Só no #geral (DM segue enviando direto).
+- 5: o balão "Quem responde" **nunca era ligado** (estado existia, nada o ativava). Ligado: 1×/instalação, só com >1 persona, não rouba foco, Esc/Entendi/trocar o seletor fecham, storage bloqueado = nunca insiste. Seletor de DM ganhou `aria-activedescendant`.
+- 8 ("Estou fora"): "Fora até {quando}" estava fixo em português → localizado; **prazo real** (`untilAt`: próximo 18h / 8h do dia seguinte / fim do dia escolhido) com retorno automático no rail (1 efeito em `PersonaSidebar.tsx`, fora dos trechos do Lumen).
+- 10: a seção "O que {persona} pode fazer" nunca recebia dados (`personaCardFacts` nem repassava `capabilities`). Agora a linha **Autonomia** vem do `getAutonomy` do host, com "Ajustar" → editor. Ferramentas/alcance/permissões continuam dependendo de dado do Anvil (a seção só aparece quando há dado: nada de "Só conversa" inventado).
+
+**Testes (vitest, timeout, sem watch):** 11 arquivos / **81/81**: `first-delivery-phase` (16), `onboarding-overlay-first-delivery` (11, host de mentira que muda de estado), `engine-missing-banner` (8), `onboarding-a11y-lists` (3), `queued-message-steer` (7), `who-responds-hint` (6), `composer-autonomy-chip` (2), `new-dm-persona-modal` (6), `user-away-control` (9), `persona-card-capabilities` (6) + `onboarding-first-delivery` atualizado (7). Suíte inteira do pacote: 202/205 arquivos; as **3 falhas não tocam o que editei** e são determinísticas: `message-list-scale` e `second-brain-permissions-scale` (contagem de linhas virtualizadas no jsdom) e `ux-backlog-muse` UX-05 (label "Tokens / mês por persona" não existe em `rules`; área do Lumen/Muse).
+
+**Gate:** ver linha final (check-pkg + capturas). Erros de TS fora do meu escopo vistos no check-pkg das 12:15: `tests/decisions-cycle.client.spec.tsx` 270/329 `approvals` não lido (Lumen, edição em andamento).
+
+**Limitações:** (1) Retry do primeiro pedido usa `runTicketCommand retry`; o host deixa `first_delivery=failed` até o novo selo, então a UI ignora o `failed` antigo por 8 s: peço ao Anvil que o retry vire `working` no host (não bloqueia). (2) Balão da fila só no #geral; "Mandar agora" = enviar até o steer real do Forge; sem fade de 220 ms na saída. (3) Estou fora: o substituto de aprovações ainda não vem do host (aviso honesto "Ninguém foi definido"). (4) axe sem `axe-core` no repo: medi com a cópia da Muse nas capturas (ver linha final).
+
+## 2026-11-04 10:25 — GES-4 + W2-3 + GOV-8: Gestor de equipe, Assuntos na DM e Contratar tudo
+
+**GES-4 (Gestor de equipe):**
+- Suíte completa de testes de UI do Gestor (`tests/ges-4-ui.client.spec.tsx` 7/7):
+  - Interruptor **Gestor de equipe** no editor (`GestorSettings`) revela limites em linguagem simples (aprovação, stepper máx personas, orçamento, escopo setores/projetos, conceder função).
+  - **Selo Gestor**: badge `data-tone="gestor"` em `PersonaInfoCard`, ícone de bastão (`UiIcon name="baton"`) no avatar do rail (`RailTeam`), e tag na faixa da equipe (`TeamChannelStrip`).
+  - **Cartão plano**: `GestorPlanCard` com passos de contratação/quadro, estados pendente com Aprovar/Ajustar/Agora não, e selo de Aprovado com status afirmativo.
+  - **Animação de entrada**: `mergeArrivingFlags` com expiração de 4 s, e renderização de `data-arriving` + anúncio de status acessível ("chegou!") na `TeamChannelStrip` e `RailTeam`.
+
+**W2-3 (Assuntos na DM):**
+- Prova de funcionamento de 3 assuntos na mesma conversa de DM (`tests/dm-subjects.client.spec.tsx` 3/3):
+  - `DirectMessagesView` com `SubjectBar` (bolinhas coloridas, contagem de não lidas e anel pulsante de "persona trabalhando").
+  - Troca de assunto por clique e navegação de foco por teclado (ArrowRight, ArrowLeft).
+  - Painel de mensagens associado ao tablist via `role="tabpanel"` e `id="persona-dm-subject-panel"`.
+  - Controle flutuante `MoveMessageSubject` permitindo mover mensagem para outro assunto na DM.
+
+**GOV-8 (Assistente de estrutura em "Contratar"):**
+- Cobertura em `tests/connected-persona-editor-hire.client.spec.tsx` (3/3):
+  - Fluxo de 4 passos com modelo SaaS levando ao botão "Contratar todos" (`action.hireAll`), criando todas as personas recomendadas via `persona.createPersona` e acionando `onHireComplete`.
+  - Ação "Contratar uma persona" (`action.hireOne`) a partir do passo 4 preenchendo o rascunho no editor.
+
+**Arquivos:** `tests/ges-4-ui.client.spec.tsx`, `tests/dm-subjects.client.spec.tsx`, `tests/connected-persona-editor-hire.client.spec.tsx`.
+
+**Testes & Gate:**
+- Vitest: 13/13 testes verdes (`ges-4-ui` 7/7, `dm-subjects` 3/3, `connected-persona-editor-hire` 3/3).
+- `node scripts/persona/check-pkg.mjs client-ui-persona`: **OK in 28.6s** (sem erros de tipo nem lint).
+
+---
+
 ## 2026-11-04 09:40 — V1-P0-4 / FIRST-DELIVERY-SPEC: Primeira entrega sem caminho no vazio
 
 **FIRST-DELIVERY-SPEC:** UI completa do passo 5 do onboarding com os 6 estados (`intro` | `needsEngine` | `working` | `slow` | `failed` | `celebrate`):

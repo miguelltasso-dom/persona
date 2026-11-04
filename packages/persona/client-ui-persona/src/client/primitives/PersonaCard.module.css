@@ -320,10 +320,49 @@
   color: var(--persona-brand);
 }
 
+.capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  padding-bottom: var(--persona-space-4);
+  border-bottom: var(--persona-border-width) dashed var(--persona-outline-soft);
+}
+
+.capabilitiesHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.capabilities .fact {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.toolChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.toolMore {
+  font: 700 12px/1 var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
 .factList {
   display: grid;
   gap: var(--persona-space-3);
   margin: 0;
+}
+
+.facts[data-layout='wide'] .capabilities {
+  grid-column: 1 / -1;
 }
 
 .facts[data-layout='wide'] .factList {

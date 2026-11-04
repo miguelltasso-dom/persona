@@ -161,6 +161,17 @@
   color: var(--persona-ink);
 }
 
+/* Sem menu de conta ainda: o avatar mostra só a presença (não é botão, não reage ao mouse). */
+.userButton[data-static] {
+  padding: 3px;
+  cursor: default;
+}
+
+.userButton[data-static]:hover {
+  background: transparent;
+  color: var(--persona-ink-soft);
+}
+
 /* ── Scroll area ────────────────────────────────────────── */
 .scroll {
   flex: 1 1 auto;
@@ -482,4 +493,10 @@
     grid-template-columns: 44px minmax(0, 1fr);
     padding: var(--persona-space-2);
   }
+}
+
+.steeredChipContent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }

@@ -324,6 +324,45 @@
   color: var(--persona-lilac-700);
 }
 
+/* Visually hidden, still read: the pending count as the button's description. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Count of decisions waiting on the person: a sticker pill, never a red alarm. */
+.navBadge {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  font: 800 12px/1 var(--persona-font-text);
+}
+
+.sidebar[data-collapsed] .navBadge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
 .navLabel {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -423,4 +462,36 @@
   color: var(--persona-ink);
   border-color: var(--persona-outline-control);
   box-shadow: 0 2px 0 0 var(--persona-outline);
+}
+
+.statusAnchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.hostStatusButton {
+  cursor: pointer;
+  background: var(--persona-cream-50);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+.hostStatusButton:hover {
+  border-color: var(--persona-outline-control);
+}
+
+.hostStatus[data-status='away'] {
+  border-color: var(--persona-outline-control);
+  color: var(--persona-brand-strong, var(--persona-plum-900));
+}
+
+.hostStatus[data-status='away'] .statusDot {
+  background: var(--persona-accent);
+}
+
+.awayPopover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 50;
 }

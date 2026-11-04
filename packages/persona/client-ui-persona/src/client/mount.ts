@@ -14,6 +14,7 @@ import type { BringYourContextBlockProps } from './bring-context/BringYourContex
 import type { BringContextPreview } from '@deepseek-ai/dsh-persona-core'
 import type { ProposalChoice } from './primitives/BringContext.tsx'
 import { SHELL_NS } from './locale/shell/locales.ts'
+import { CHAT_NS } from './locale/chat/locales.ts'
 import { createOnboardingStore } from './onboarding/create-onboarding-store.ts'
 import { OnboardingShellOverlay } from './onboarding/OnboardingShellOverlay.tsx'
 import { installComposerHostCapabilities } from './chat/composer-host-capabilities.ts'
@@ -39,6 +40,8 @@ import { PersonaTalkAclOverlay } from './profile/PersonaTalkAclOverlay.tsx'
 import { TeachPersonaOverlay } from './profile/TeachPersonaOverlay.tsx'
 import { TeachPersonaSession } from './profile/TeachPersonaSession.tsx'
 import type { PersonaCardShellBridge } from './remote/persona-card-shell-bridge.ts'
+import { createApprovalsBadgeObservable } from './decisions/approvals-badge.ts'
+import { bindTrayNeedsYou } from './decisions/tray-needs-you-bridge.ts'
 import { HIRE_PERSONA_PROFILE_ID } from './shell/create-shell-store.ts'
 
 export const inject = [
@@ -52,6 +55,8 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
   installComposerHostCapabilities(ctx.remote.persona as Parameters<typeof installComposerHostCapabilities>[0])
   const { store, actions } = shellHandle
   const live = createPersonaLiveStore(ctx.remote.persona as unknown as Parameters<typeof createPersonaLiveStore>[0])
+  // Tray "precisa de você" follows the same count as the chip and the rail badge (no-op outside the desktop shell).
+  bindTrayNeedsYou(live)
 
   void ctx.remote.persona.ping().then((result) => {
     actions.setHostPing(result.ok, result.ok ? result.value.protocol : null)
@@ -96,6 +101,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       shell: shellObservable,
       team: railTeamObservable,
       personaCardRevision: personaCardBridge.revision,
+      approvals: createApprovalsBadgeObservable(live),
     },
     cardInfo: personaCardBridge.cardInfo,
     prefetchPersonaCard: personaCardBridge.prefetch,
@@ -158,6 +164,7 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     clearKanbanFocusTicket: actions.clearKanbanFocusTicket,
     setProjectWorkspaceProjectId: actions.setProjectWorkspaceProjectId,
     openTeamSetup: () => { actions.setOnboardingOpen(true) },
+    openHelp: (docId: string) => { actions.openHelp({ docId, tab: 'guias' }) },
     openPersonaProfile: (personaId: string) => {
       actions.closePersonaEditor()
       actions.setProfilePersonaId(personaId)
@@ -176,11 +183,13 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       dict: localeBindAsDict((key, params) => ctx.locale.bind(ONBOARDING_NS)(key as never, params as never)),
       structureDict: localeBindAsDict((key, params) => ctx.locale.bind(GOVERNANCE_NS)(key as never, params as never)),
       shellDict: localeBindAsDict((key, params) => ctx.locale.bind(SHELL_NS)(key as never, params as never)),
+      chatDict: localeBindAsDict((key, params) => ctx.locale.bind(CHAT_NS)(key as never, params as never)),
       store: onboardingHandle.store,
       actions: onboardingHandle.actions,
       persona: ctx.remote.persona,
       postChannelMessage: (body: string) => live.postChannelMessage(body),
       selectPanel: (panel: MainPanelId) => { actions.selectPanel(panel) },
+      refreshLive: () => live.refresh(),
       finishOnboardingWizard: async () => {
         const snapshot = onboardingHandle.store.getSnapshot()
         clearOnboardingBycDraft()

@@ -61,5 +61,16 @@
   "remember.scopeTarget.attention": "Task: {title}",
   "remember.scopeTarget.vault": "Vault record",
   "remember.scopeTarget.skill": "Proposed skill",
-  "stamp.remembered": "Remembered · See Permissions"
+  "stamp.remembered": "Remembered · See Permissions",
+  "decision.approve": "Approve",
+  "decision.review": "Review",
+  "decision.declined": "Set aside",
+  "decision.failed": "I couldn’t record the decision right now.",
+  "decision.retry": "Try again",
+  "decision.undoToast": "Approved: {title}",
+  "decision.undo": "Undo",
+  "decision.live.accepted": "Approved: {title}",
+  "decision.live.declined": "Set aside: {title}",
+  "decision.noticesLabel": "Decision notices",
+  "hire.why": "Why: {reason}"
 }

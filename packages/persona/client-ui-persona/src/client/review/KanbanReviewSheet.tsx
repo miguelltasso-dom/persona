@@ -7,6 +7,7 @@ import { reviewBlockedFromAccept, reviewSummaryFromHost } from '../data/adapters
 import { unwrapRemote } from '../data/remote-call.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { ReviewDeliveryPanel } from './ReviewDeliveryPanel.tsx'
+import type { ApplyPhase, ConflictChoice } from './simple/draft-types.ts'
 import styles from './KanbanReviewSheet.module.css'
 
 export interface KanbanReviewSheetProps {
@@ -14,6 +15,8 @@ export interface KanbanReviewSheetProps {
   readonly scope: ProjectScopeRequest
   readonly ticketId: string
   readonly taskTitle: string
+  /** Who made the draft ("Bia"); "A persona" when unknown. */
+  readonly personaName?: string | undefined
   readonly onClose: () => void
   readonly onMutate: () => void
   /** Peak-end: stamp + paw burst before the board reloads. */
@@ -25,6 +28,7 @@ export function KanbanReviewSheet({
   scope,
   ticketId,
   taskTitle,
+  personaName,
   onClose,
   onMutate,
   onAccepted,
@@ -43,33 +47,36 @@ export function KanbanReviewSheet({
   const { state } = usePersonaRemoteLoad(true, loadKey, load)
   const summary = state.status === 'ready' ? state.data ?? null : null
   const [blocked, setBlocked] = useState<{ explanation: string } | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [phase, setPhase] = useState<ApplyPhase>({ kind: 'idle' })
 
-  const accept = async (): Promise<void> => {
-    setBusy(true)
+  const accept = async (choices: Readonly<Record<string, ConflictChoice>> = {}): Promise<void> => {
+    setPhase({ kind: 'applying' })
     try {
       const result = await unwrapRemote(await review.acceptReview({
         workspaceId: scope.workspaceId,
         projectId: scope.projectId,
         ticketId,
         mode: 'ff',
+        ...(Object.keys(choices).length === 0 ? {} : { choices }),
       }))
       const conflict = reviewBlockedFromAccept(result)
       if (conflict !== null) {
         setBlocked(conflict)
+        setPhase({ kind: 'idle' })
         onMutate()
         return
       }
       onAccepted?.(ticketId)
       onMutate()
       onClose()
-    } finally {
-      setBusy(false)
+    } catch (error) {
+      // Never a silent failure: the sentence is plain, the host's own words stay folded for support.
+      setPhase({ kind: 'failed', detail: error instanceof Error ? error.message : String(error) })
     }
   }
 
   const requestChanges = async (feedback: string): Promise<void> => {
-    setBusy(true)
+    setPhase({ kind: 'applying' })
     try {
       await unwrapRemote(await review.requestChanges({
         workspaceId: scope.workspaceId,
@@ -79,13 +86,13 @@ export function KanbanReviewSheet({
       }))
       onMutate()
       onClose()
-    } finally {
-      setBusy(false)
+    } catch (error) {
+      setPhase({ kind: 'failed', detail: error instanceof Error ? error.message : String(error) })
     }
   }
 
   const discard = async (): Promise<void> => {
-    setBusy(true)
+    setPhase({ kind: 'applying' })
     try {
       await unwrapRemote(await review.discardReview({
         workspaceId: scope.workspaceId,
@@ -94,8 +101,8 @@ export function KanbanReviewSheet({
       }))
       onMutate()
       onClose()
-    } finally {
-      setBusy(false)
+    } catch (error) {
+      setPhase({ kind: 'failed', detail: error instanceof Error ? error.message : String(error) })
     }
   }
 
@@ -116,18 +123,20 @@ export function KanbanReviewSheet({
         </header>
         <ReviewDeliveryPanel
           taskTitle=""
+          personaName={personaName}
           summary={summary}
           blocked={blocked}
+          phase={phase}
           initialState={
             state.status === 'loading' ? 'loading'
               : state.status === 'error' ? 'empty'
                 : summary === null ? 'empty' : 'ready'
           }
-          onAccept={() => { void accept() }}
+          onAccept={(choices) => { void accept(choices) }}
+          onRetry={() => { void accept() }}
           onRequestChanges={(feedback) => { void requestChanges(feedback) }}
           onDiscard={() => { void discard() }}
         />
-        {busy && <p className={styles.busy} aria-live="polite">…</p>}
       </div>
     </div>
   )

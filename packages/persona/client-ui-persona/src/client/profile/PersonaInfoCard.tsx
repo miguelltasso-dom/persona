@@ -53,6 +53,9 @@ export interface PersonaCardInfo {
   readonly paused?: boolean | undefined
   /** GES-5 — reason/summary for the latest team manager action. */
   readonly gestorAuditReason?: string | undefined
+  readonly capabilities?: import('../primitives/index.ts').PersonaCapabilitiesInfo | undefined
+  /** Nível de autonomia atual (host `getAutonomy`): vira a linha "Autonomia" de "O que {persona} pode fazer". */
+  readonly autonomyLevel?: 'on-request' | 'propose' | 'act-within-limits' | undefined
 }
 
 const LIVE_TO_NOW: Readonly<Record<PersonaLiveState, PersonaNowKind>> = {
@@ -100,6 +103,15 @@ export function personaCardLabels(dict: LocaleDict, name: string): PersonaCardLa
       away: t('card.presence.away'),
       offline: t('card.presence.offline'),
     },
+    whatCanDoTitle: t('card.whatCanDoTitle'),
+    autonomy: t('card.autonomy'),
+    adjust: t('card.adjust'),
+    tools: t('card.tools'),
+    toolsOnlyTalk: t('card.toolsOnlyTalk'),
+    scope: t('card.scope'),
+    scopeAll: t('card.scopeAll'),
+    permissions: t('card.permissions'),
+    permissionsActive: t('card.permissionsActive'),
   }
 }
 
@@ -107,6 +119,7 @@ export function personaCardFacts(
   dict: LocaleDict,
   info: PersonaCardInfo,
   onEditTalk?: (() => void)  ,
+  onAdjustAutonomy?: (() => void),
 ): Omit<PersonaCardFactsProps, 'labels' | 'layout'> {
   const t = (key: string, params?: Readonly<Record<string, string>>) => bindLocale(dict, key, params)
   const facts: PersonaCardFact[] = [
@@ -139,6 +152,19 @@ export function personaCardFacts(
         onEdit: onEditTalk,
       },
     facts,
+    ...(info.capabilities === undefined && info.autonomyLevel === undefined
+      ? {}
+      : {
+        capabilities: {
+          ...(info.capabilities ?? {}),
+          ...(info.autonomyLevel === undefined
+            ? {}
+            : {
+              autonomyLabel: t(`card.autonomyLevel.${info.autonomyLevel}`),
+              ...(onAdjustAutonomy === undefined ? {} : { onAdjustAutonomy }),
+            }),
+        },
+      }),
     engine: info.engineLabel === undefined
       ? undefined
       : {
@@ -206,7 +232,7 @@ export function PersonaInfoCard({
       onOpenProfile={onOpenProfile}
       onSendMessage={onSendMessage}
       labels={personaCardLabels(dict, info.name)}
-      {...personaCardFacts(dict, info, onEditTalk)}
+      {...personaCardFacts(dict, info, onEditTalk, onEdit)}
     />
   )
 }

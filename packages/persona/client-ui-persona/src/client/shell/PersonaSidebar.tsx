@@ -9,6 +9,7 @@ import type { PersonaCardInfo } from '../profile/PersonaInfoCard.tsx'
 import { RailTeam, type RailPersona } from './RailTeam.tsx'
 import { NAV_GROUPS as GROUPS, SEARCH_FOCUS_EVENT } from './nav-groups.ts'
 import { installAreaNavigation } from './area-navigation.ts'
+import { UserAwayControl, formatAwayUntilWhen, isAwayExpired, type UserAwayState } from './UserAwayControl.tsx'
 import styles from './PersonaSidebar.module.css'
 
 export interface PersonaSidebarInjected {
@@ -18,6 +19,8 @@ export interface PersonaSidebarInjected {
     team: HostObservable<readonly RailPersona[]>
     /** Bumps when a host persona card finishes loading (rail popover). */
     personaCardRevision: HostObservable<{ readonly n: number }>
+    /** Open decisions waiting on the person (same count as the Visão geral chip; DECISIONS-SPEC). */
+    approvals: HostObservable<{ readonly pending: number }>
   }
   selectPanel(id: MainPanelId): void
   readonly openPersonaDm?: ((personaId: string) => void) | undefined
@@ -70,6 +73,7 @@ export function PersonaSidebar({
   useShell,
   useTeam,
   usePersonaCardRevision,
+  useApprovals,
   selectPanel,
   renderSlot,
   openPersonaDm,
@@ -87,6 +91,7 @@ export function PersonaSidebar({
   const shell = useShell(state => state)
   const members = useTeam(rows => rows)
   void usePersonaCardRevision(state => state.n)
+  const approvalsPending = useApprovals(state => state.pending)
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const toggleCollapsed = useCallback((): void => {
     setCollapsed((value) => {
@@ -128,6 +133,36 @@ export function PersonaSidebar({
     window.addEventListener('keydown', onKeyDown)
     return () => { window.removeEventListener('keydown', onKeyDown) }
   }, [selectPanel])
+
+  const [awayState, setAwayState] = useState<UserAwayState>(() => {
+    try {
+      const stored = localStorage.getItem('persona.user.away')
+      if (stored) return JSON.parse(stored) as UserAwayState
+    } catch {}
+    return { isAway: false, untilChoice: 'today18' }
+  })
+  const [awayPopoverOpen, setAwayPopoverOpen] = useState(false)
+
+  const handleAwayChange = useCallback((next: UserAwayState): void => {
+    setAwayState(next)
+    try {
+      localStorage.setItem('persona.user.away', JSON.stringify(next))
+      if (!next.isAway) {
+        sessionStorage.removeItem('persona.proactivity.awaySummary.dismissed')
+      }
+    } catch {}
+  }, [])
+
+  // Passou o prazo de "Estou fora": a pessoa voltou sozinha (pílula volta a "Conectado"; a Visão geral mostra o resumo).
+  useEffect(() => {
+    if (!awayState.isAway) return undefined
+    const check = (): void => {
+      if (isAwayExpired(awayState, Date.now())) handleAwayChange({ ...awayState, isAway: false, untilAt: undefined })
+    }
+    check()
+    const timer = setInterval(check, 60_000)
+    return () => { clearInterval(timer) }
+  }, [awayState, handleAwayChange])
 
   const indicator = useActiveIndicator(navRef, '[data-nav-item][aria-current="page"]', 'y', [shell.activePanel, groupsOpen, collapsed, members.length])
 
@@ -227,11 +262,24 @@ export function PersonaSidebar({
                         className={styles.navItem}
                         aria-current={shell.activePanel === item.panel ? 'page' : undefined}
                         aria-label={collapsed ? t(item.labelKey) : undefined}
+                        // The count is a description, NOT part of the name: boot gate, gallery and screen readers keep finding "Aprovações".
+                        aria-describedby={item.panel === 'approvals' && approvalsPending > 0 ? 'persona-nav-approvals-pending' : undefined}
                         title={collapsed ? t(item.labelKey) : undefined}
                         onClick={() => { selectPanel(item.panel) }}
                       >
                         <BrandIcon name={item.icon} size={20} className={styles.navIcon ?? ''} />
                         <span className={styles.navLabel}>{t(item.labelKey)}</span>
+                        {item.panel === 'approvals' && approvalsPending > 0 && (
+                          <>
+                            <span className={styles.navBadge} aria-hidden="true">
+                              {approvalsPending > 99 ? '99+' : approvalsPending}
+                            </span>
+                            {/* aria-hidden: still read as the description (aria-describedby), never folded into the button name */}
+                            <span id="persona-nav-approvals-pending" className={styles.srOnly} aria-hidden="true">
+                              {t('sidebar.approvalsPending', { count: String(approvalsPending) })}
+                            </span>
+                          </>
+                        )}
                       </button>
                     </li>
                   ))}
@@ -261,10 +309,33 @@ export function PersonaSidebar({
       </div>
 
       <div className={styles.footer}>
-        <div className={styles.hostStatus} role="status" data-status={shell.hostStatus}>
-          <span className={styles.statusDot} aria-hidden="true" />
-          {hostLabel}
-          {devBadge}
+        <div className={styles.statusAnchor}>
+          <button
+            type="button"
+            className={`${styles.hostStatus} ${styles.hostStatusButton}`}
+            data-status={awayState.isAway ? 'away' : shell.hostStatus}
+            onClick={() => { setAwayPopoverOpen(prev => !prev) }}
+            aria-expanded={awayPopoverOpen}
+            aria-haspopup="dialog"
+            aria-label={awayState.isAway ? t('away.railAwayUntil', { when: formatAwayUntilWhen(t, awayState) }) : hostLabel}
+          >
+            <span className={styles.statusDot} aria-hidden="true" />
+            {awayState.isAway ? t('away.railAwayUntil', { when: formatAwayUntilWhen(t, awayState) }) : hostLabel}
+            {devBadge}
+          </button>
+          {awayPopoverOpen && (
+            <div className={styles.awayPopover}>
+              <UserAwayControl
+                t={t}
+                awayState={awayState}
+                onChange={handleAwayChange}
+                onDefineSubstitute={() => {
+                  setAwayPopoverOpen(false)
+                  selectPanel('orgChart')
+                }}
+              />
+            </div>
+          )}
         </div>
         <div className={styles.settingsFoot}>
           {renderSlot('sidebar.settings', { wide: true })}

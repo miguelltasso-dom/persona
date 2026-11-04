@@ -137,5 +137,17 @@
   "teach.mockHint": "Sample steps while the real recording gets ready.",
   "teach.stepLabel": "Step {n}",
   "teach.doneBody": "Candidate skill saved. Review it under Skills before activating.",
-  "card.badge.team_manager": "Team manager"
+  "card.badge.team_manager": "Team manager",
+  "card.whatCanDoTitle": "What they can do",
+  "card.autonomyLevel.on-request": "Always asks",
+  "card.autonomyLevel.propose": "Suggests and waits",
+  "card.autonomyLevel.act-within-limits": "Handles the routine",
+  "card.autonomy": "Autonomy",
+  "card.adjust": "Adjust",
+  "card.tools": "Tools",
+  "card.toolsOnlyTalk": "Conversation only",
+  "card.scope": "Scope",
+  "card.scopeAll": "Entire team",
+  "card.permissions": "Remembered permissions",
+  "card.permissionsActive": "{count} active"
 }

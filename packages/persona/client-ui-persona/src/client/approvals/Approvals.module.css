@@ -60,14 +60,49 @@
   text-align: right;
 }
 
+/* Accepted: the stamp is readable for ~530 ms, then the card fades and rises 4 px so it is gone at 750 ms. */
 .listItemExiting {
-  animation: persona-approval-exit var(--motion-base, 220ms) var(--ease-standard, ease) forwards;
+  animation: persona-approval-exit var(--motion-base, 220ms) var(--ease-standard, ease) 530ms forwards;
+}
+
+/* Set aside: the neutral chip shows, then a quick 220 ms exit that ends at 400 ms. */
+.listItemExitingDeclined {
+  animation: persona-approval-exit var(--motion-base, 220ms) var(--ease-standard, ease) 180ms forwards;
 }
 
 @keyframes persona-approval-exit {
   to {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No travel, no paws: the exit is a plain 120 ms fade and the stamp stays still. */
+  .listItemExiting,
+  .listItemExitingDeclined {
+    animation-name: persona-approval-fade;
+    animation-duration: 120ms;
+    animation-timing-function: linear;
+  }
+
+  .listItemExiting {
+    animation-delay: 630ms;
+  }
+
+  .listItemExitingDeclined {
+    animation-delay: 280ms;
+  }
+
+  .focusHighlight {
+    animation: none;
+    outline: 2px solid var(--persona-accent);
+  }
+}
+
+@keyframes persona-approval-fade {
+  to {
+    opacity: 0;
   }
 }
 
@@ -109,6 +144,15 @@
   line-height: 1.45;
 }
 
+/* UX-02: the one-line reason a hire is proposed (a repeating need), never a hidden tooltip. */
+.hireWhy {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--persona-ink);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -125,4 +169,21 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+
+/* Revisar from Visão geral lands here: a 1.2 s halo on the right card, in the focus-ring token. */
+@keyframes focusPulse {
+  0% {
+    outline: 2px solid var(--persona-accent);
+    box-shadow: 0 0 0 4px var(--persona-focus-halo);
+  }
+  100% {
+    outline: 2px solid transparent;
+    box-shadow: none;
+  }
+}
+
+.focusHighlight {
+  animation: focusPulse 1.2s ease-out forwards;
 }

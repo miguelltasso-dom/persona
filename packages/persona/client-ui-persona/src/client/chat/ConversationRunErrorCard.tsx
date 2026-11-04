@@ -9,18 +9,20 @@ export interface ConversationRunErrorCardProps {
   readonly personaName: string
   readonly payload: RunErrorPayload
   readonly hostPersonaId?: string | undefined
+  /** Retrato da persona (FR-5): sem ele o cartão cai na inicial, e o erro do Atlas aparecia como "A". */
+  readonly avatarSrc?: string | undefined
   readonly handlers: RunErrorHandlerContext
 }
 
 /** Persona-voiced run error in the channel/DM stream (Muse RunErrorCard + Prism handlers). */
-export function ConversationRunErrorCard({ t, personaName, payload, hostPersonaId, handlers }: ConversationRunErrorCardProps): ReactNode {
+export function ConversationRunErrorCard({ t, personaName, payload, hostPersonaId, avatarSrc, handlers }: ConversationRunErrorCardProps): ReactNode {
   const desc = describeRunError({ ...payload, persona: payload.persona ?? personaName })
   const text = runErrorText(desc, (key, params) => t(key as never, params as never))
   const run = (action: typeof desc.primary): void => { runRunErrorAction(action, handlers, hostPersonaId) }
   return (
     <RunErrorCard
       tone={desc.tone}
-      persona={{ name: personaName }}
+      persona={{ name: personaName, ...(avatarSrc === undefined ? {} : { avatarSrc }) }}
       title={text.title}
       body={text.body}
       {...(desc.command === undefined ? {} : { command: desc.command })}

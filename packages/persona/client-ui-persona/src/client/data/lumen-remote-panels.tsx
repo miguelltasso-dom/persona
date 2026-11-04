@@ -1,6 +1,6 @@
 /** Main panels that load {@link PersonaRemoteClient} data (production path). */
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type {
   ActivationFunnelView,
   AddConnectionAccountRequest,
@@ -13,7 +13,7 @@ import type {
 import { ApprovalsInbox, type ApprovalRememberChoice } from '../approvals/ApprovalsInbox.tsx'
 import type { ApprovalItem } from '../approvals/mock-data.ts'
 import { SecondBrainShell } from '../second-brain/SecondBrainShell.tsx'
-import { ConnectionsView } from '../connections/ConnectionsView.tsx'
+import { ConnectionsView, type PolicyPersona } from '../connections/ConnectionsView.tsx'
 import { FilesView } from '../files/FilesView.tsx'
 import type { FileEntry } from '../files/mock-data.ts'
 import { KnowledgeVault } from '../knowledge/KnowledgeVault.tsx'
@@ -24,6 +24,8 @@ import { PersonaProfilePage } from '../profile/PersonaProfilePage.tsx'
 import type { PersonaProfileSnapshot } from '../profile/mock-data.ts'
 import type { PersonaAvatar } from '@deepseek-ai/dsh-persona-core'
 import { MembersView } from '../members/MembersView.tsx'
+import { ConnectedRemoteTeamPanel } from '../remote-team/ConnectedRemoteTeamPanel.tsx'
+import { pt as membersDict } from '../locale/members/locales.ts'
 import { BringContextImportPage } from '../importers/BringContextImportPage.tsx'
 import { CanvasView } from '../canvas/CanvasView.tsx'
 import { approvalsToInbox } from './adapters/approvals.ts'
@@ -35,11 +37,10 @@ import {
   removeConnectionAccountRemote,
   updateConnectionAccountRemote,
 } from './connections-remote.ts'
-import { swapPolicyCardSummaryLine, type RunnerSwapPolicyScope } from './adapters/connection-accounts.ts'
+import { swapPolicyCardSummaryLine, type ConnectionsAccountsUi, type RunnerSwapPolicyScope } from './adapters/connection-accounts.ts'
 import { coordinationPersonaId } from './coordination-persona.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as profileDict } from '../locale/profile/locales.ts'
-import { pt as connectionsDict } from '../locale/connections/locales.ts'
 import { tasksToKanbanCards } from './adapters/kanban.ts'
 import { readKanbanScaleSeed } from '../kanban/kanban-scale-dev.ts'
 import { mockLargeKanbanCards } from '../kanban/mock-large-kanban-cards.ts'
@@ -448,7 +449,7 @@ export function RemoteUsagePanel({ persona, useTenant, useShell, selectMainPanel
   )
 }
 
-export function RemoteConnectionsPanel({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+export function RemoteConnectionsPanel({ persona, useTenant, useShell, selectMainPanel, openHelp }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
@@ -457,52 +458,72 @@ export function RemoteConnectionsPanel({ persona, useTenant, useShell }: LumenRe
     return loadConnectionsAccountsUi(persona, { workspaceId, projectId })
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
-  const accountsUi = state.status === 'ready' ? state.data : undefined
-  const onSwapPolicyChange = useCallback(async (policy: RunnerSwapPolicy, policyScope: RunnerSwapPolicyScope) => {
-    if (scope === null) return
+  // "Já fiz login" re-probes in place (no full-screen loading): `fresh` overrides the panel data until the next full load.
+  const [fresh, setFresh] = useState<ConnectionsAccountsUi | null>(null)
+  useEffect(() => { setFresh(null) }, [state])
+  const accountsUi = fresh ?? (state.status === 'ready' ? state.data : undefined)
+  // Silent reload after a change: the screen keeps what it shows (no skeleton) and swaps in the host's answer.
+  const refreshSilently = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) return
+    setFresh(await loadConnectionsAccountsUi(persona, { workspaceId, projectId }))
+  }, [persona, workspaceId, projectId])
+  // Personas for "Uma persona". Without the list the scope says so instead of offering an empty picker.
+  const [policyPersonas, setPolicyPersonas] = useState<readonly PolicyPersona[]>([])
+  useEffect(() => {
+    if (workspaceId === undefined || projectId === undefined) return undefined
+    let alive = true
+    void (async () => {
+      try {
+        const rows = await unwrapRemote(await persona.listPersonas({ workspaceId, projectId }))
+        if (alive) setPolicyPersonas(rows.map(row => ({ id: row.id, name: row.name, characterId: row.avatarRef })))
+      } catch {
+        if (alive) setPolicyPersonas([])
+      }
+    })()
+    return () => { alive = false }
+  }, [persona, workspaceId, projectId])
+  const onSwapPolicyChange = useCallback(async (policy: RunnerSwapPolicy, policyScope: RunnerSwapPolicyScope, personaId?: string) => {
+    if (scope === null) throw new Error('no-scope')
     await persistRunnerSwapPolicy(persona, {
       workspaceId: scope.workspaceId,
       projectId: scope.projectId,
       policy,
       scope: policyScope,
+      ...(personaId === undefined ? {} : { personaId }),
     })
-    retry()
-  }, [persona, scope, retry])
+    // The rule is saved; a failed refresh must not turn it into a "not saved" message.
+    await refreshSilently().catch(() => { /* next full load picks it up */ })
+  }, [persona, scope, refreshSilently])
   const scopeReq = scope === null ? null : { workspaceId: scope.workspaceId, projectId: scope.projectId }
-  const onAddAccount = useCallback((provider: AddConnectionAccountRequest['provider']) => {
-    if (scopeReq === null) return
-    const label = window.prompt(bindLocale(connectionsDict, 'account.newLabel'))
-    if (label === null || label.trim() === '') return
-    void (async () => {
-      await addConnectionAccountRemote(persona, { ...scopeReq, provider, label: label.trim() })
-      retry()
-    })()
-  }, [persona, scopeReq, retry])
-  const onRenameAccount = useCallback((accountId: string, currentLabel: string) => {
-    if (scopeReq === null) return
-    const label = window.prompt(bindLocale(connectionsDict, 'account.newLabel'), currentLabel)
-    if (label === null || label.trim() === '') return
-    void (async () => {
-      await updateConnectionAccountRemote(persona, { ...scopeReq, accountId, label: label.trim() })
-      retry()
-    })()
-  }, [persona, scopeReq, retry])
-  const onRemoveAccount = useCallback((accountId: string) => {
-    if (scopeReq === null) return
-    if (!window.confirm(bindLocale(connectionsDict, 'account.removeConfirm'))) return
-    void (async () => {
-      await removeConnectionAccountRemote(persona, { ...scopeReq, accountId })
-      retry()
-    })()
-  }, [persona, scopeReq, retry])
+  const onAddAccount = useCallback(async (provider: AddConnectionAccountRequest['provider'], label: string) => {
+    if (scopeReq === null) throw new Error('no-scope')
+    setFresh(await addConnectionAccountRemote(persona, { ...scopeReq, provider, label: label.trim() }))
+  }, [persona, scopeReq])
+  const onRenameAccount = useCallback(async (accountId: string, label: string) => {
+    if (scopeReq === null) throw new Error('no-scope')
+    await updateConnectionAccountRemote(persona, { ...scopeReq, accountId, label: label.trim() })
+    await refreshSilently().catch(() => { /* next full load picks it up */ })
+  }, [persona, scopeReq, refreshSilently])
+  const onRemoveAccount = useCallback(async (accountId: string) => {
+    if (scopeReq === null) throw new Error('no-scope')
+    await removeConnectionAccountRemote(persona, { ...scopeReq, accountId })
+    await refreshSilently().catch(() => { /* next full load picks it up */ })
+  }, [persona, scopeReq, refreshSilently])
   return (
     <ConnectionsView
       accountsUi={accountsUi}
       swapPolicyReadOnly={accountsUi?.legacySingleSeat === true}
+      personas={policyPersonas}
       onSwapPolicyChange={onSwapPolicyChange}
       initialState={remotePanelSurface(gate, state, data => data.groups.every(g => g.accounts.length === 0))}
       onRetry={() => { retryBootstrap(); retry() }}
       onEmptyPrimary={() => { retryBootstrap(); retry() }}
+      onRecheck={() => {
+        if (workspaceId === undefined || projectId === undefined) return
+        void loadConnectionsAccountsUi(persona, { workspaceId, projectId }).then(setFresh).catch(() => { /* the view says "ainda não" when no answer comes */ })
+      }}
+      onOpenGuide={openHelp === undefined ? undefined : () => { openHelp('conexoes') }}
+      onOpenUsage={selectMainPanel === undefined ? undefined : () => { selectMainPanel('usage') }}
       onAddAccount={onAddAccount}
       onRenameAccount={onRenameAccount}
       onRemoveAccount={onRemoveAccount}
@@ -512,6 +533,7 @@ export function RemoteConnectionsPanel({ persona, useTenant, useShell }: LumenRe
 
 export function RemoteApprovalsPanel({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
+  const shell = useShell(s => s)
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:approvals:${reloadToken}`
   const workspaceId = scope?.workspaceId
@@ -528,7 +550,8 @@ export function RemoteApprovalsPanel({ persona, useTenant, useShell }: LumenRemo
   const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
   const items = payload === null ? [] : approvalsToInbox(payload.approvals)
-  const proactiveSummaries = payload === null ? [] : dailySummariesToUi(payload.summaries)
+  const blockingIds = new Set(items.map(item => item.id))
+  const proactiveSummaries = payload === null ? [] : dailySummariesToUi(payload.summaries, blockingIds)
   const inboxEmpty = items.length === 0 && !proactiveSummaries.some(summary => summary.proposals.length > 0)
   const reload = (): void => { setReloadToken(token => token + 1) }
   const decide = async (
@@ -562,6 +585,7 @@ export function RemoteApprovalsPanel({ persona, useTenant, useShell }: LumenRemo
     <ApprovalsInbox
       items={items}
       proactiveSummaries={proactiveSummaries}
+      focusId={shell.focusedApprovalId ?? undefined}
       initialState={remotePanelSurface(gate, state, () => inboxEmpty)}
       onRemoteRetry={() => { retryBootstrap(); retry(); reload() }}
       onDecideItem={(item, accept, remember) => { void decide(item.id, item.kind, accept, remember, item.brain) }}
@@ -956,6 +980,13 @@ export function RemoteMembersPanel({ persona, useTenant, useShell }: LumenRemote
       onRemoteRetry={() => { retryBootstrap(); retry() }}
       onInvite={() => { void issueInvite() }}
       onEmptyPrimary={() => { void issueInvite() }}
+      extra={(
+        <ConnectedRemoteTeamPanel
+          t={(key, params) => bindLocale(membersDict, key, params)}
+          remote={persona as never}
+          scope={scope === null ? null : { workspaceId: scope.workspaceId, projectId: scope.projectId }}
+        />
+      )}
     />
   )
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import {
@@ -31,11 +31,15 @@ export interface OnboardingFirstDeliveryStepProps {
   readonly phase: FirstDeliveryPhase
   readonly milestone?: FirstDelivery | undefined
   readonly workingPersonaName?: string | undefined
+  /** Id do personagem (retrato) de quem pegou o pedido; sem ele, mostra a inicial. */
+  readonly workingCharacterId?: string | undefined
   readonly runError?: RunErrorPayload | undefined
   readonly activities?: readonly ActivityItem[] | undefined
   readonly prompt?: string | undefined
   readonly onPromptChange?: ((text: string) => void) | undefined
   readonly onRequest: () => void
+  /** Enquanto a 1ª leitura da IA não voltou, "Pedir agora" espera (evita pedir no instante antes de saber se há IA). */
+  readonly requestDisabled?: boolean | undefined
   readonly onEnterApp: () => void
   readonly onCelebrateContinue: () => void
   readonly onConnectEngine?: (() => void) | undefined
@@ -49,16 +53,17 @@ export function OnboardingFirstDeliveryStep({
   dict,
   shellT,
   chatT,
-  greetingName,
   vaultReady,
   phase,
   milestone,
   workingPersonaName,
+  workingCharacterId,
   runError,
   activities,
   prompt,
   onPromptChange,
   onRequest,
+  requestDisabled = false,
   onEnterApp,
   onCelebrateContinue,
   onConnectEngine,
@@ -104,23 +109,43 @@ export function OnboardingFirstDeliveryStep({
       command: 'claude login',
     }
     const personaName = workingPersonaName ?? errorPayload.persona ?? t('step5.workingFallbackName')
+    const failedAvatar = workingCharacterId === undefined ? undefined : (AVATAR_96 as Readonly<Record<string, string>>)[workingCharacterId.toLowerCase()]
     const desc = describeRunError({ ...errorPayload, persona: personaName })
     const localT = chatT ?? ((k: string, p?: Readonly<Record<string, string | number>>) => t(k, p))
     const text = runErrorText(desc, (k, p) => localT(k, p))
+    // A ação do cartão leva para onde resolve: tentar de novo, conectar/trocar a IA (passo 3) ou seguir para o app.
+    const onPrimary = (): void => {
+      switch (desc.primary) {
+        case 'retry':
+        case 'retryNow':
+        case 'reconnect':
+          ;(onRetry ?? onRequest)()
+          return
+        case 'pickEngine':
+        case 'otherEngine':
+        case 'howToConnect':
+        case 'howToInstall':
+        case 'swapAccount':
+          ;(onConnectEngine ?? onRetry ?? onRequest)()
+          return
+        default:
+          onEnterApp()
+      }
+    }
     return (
       <section className={styles.step} aria-live="polite">
         <RunErrorCard
           tone={desc.tone}
-          persona={{ name: personaName }}
+          persona={{ name: personaName, ...(failedAvatar === undefined ? {} : { avatarSrc: failedAvatar }) }}
           title={text.title}
           body={text.body}
           {...(desc.command === undefined ? {} : { command: desc.command })}
           primary={{
             label: text.primary || t('runError.action.retry') || 'Tentar de novo',
-            onClick: onRetry ?? onRequest,
+            onClick: onPrimary,
           }}
           secondary={{
-            label: t('step5.enterApp'),
+            label: t('step5.enterAppPlain'),
             onClick: onEnterApp,
           }}
           labels={{
@@ -224,7 +249,7 @@ export function OnboardingFirstDeliveryStep({
     <section className={styles.step}>
       <h1 className={styles.title}>{t('step5.title')}</h1>
       <p className={styles.hint}>{t('step5.hint')}</p>
-      <TeamIntroQueue lines={MOCK_INTRO_LINES} greetingName={greetingName} />
+      <TeamIntroQueue lines={MOCK_INTRO_LINES} label={t('step5.introLabel')} />
       <div className={styles.taskPreview}>
         <p className={styles.taskPreviewLabel}>{t('step5.taskPreviewLabel')}</p>
         {onPromptChange !== undefined ? (
@@ -244,6 +269,7 @@ export function OnboardingFirstDeliveryStep({
           variant="primary"
           size="l"
           icon={<UiIcon name="sparkle" size={18} strokeWidth={2} />}
+          disabled={requestDisabled}
           onClick={onRequest}
         >
           {t('step5.requestNow')}

@@ -1,7 +1,7 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
-import { Avatar, Button, Chip, UiIcon } from '../primitives/index.ts'
+import { Avatar, Button, Chip, Tooltip, UiIcon } from '../primitives/index.ts'
 import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { ComposerLimitsPanel } from './ComposerLimitsPanel.tsx'
@@ -58,9 +58,25 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
   readonly onResumeQuota?: (() => void) | undefined
   /** T3-UX-HARVEST §12 — Onda 2 account swap when engine is at limit. */
   readonly onSwapAccount?: (() => void) | undefined
+  readonly onOpenPersonaCard?: ((personaId: string) => void) | undefined
+  /**
+   * Steer (UX-PHASE §6): com o responder trabalhando, "na fila" NÃO envia — entrega o texto a quem guarda a fila
+   * (balão tracejado). Sem este callback, enviar na fila é enviar (comportamento anterior).
+   */
+  readonly onQueueMessage?: ((text: string, responder: { readonly id: string; readonly name: string }) => void) | undefined
+  /** Texto de uma mensagem da fila que voltou para edição; some quando `undefined`. */
+  readonly editingQueuedText?: string | undefined
+  readonly onCancelEditQueued?: (() => void) | undefined
 }
 
 const MAX_ROWS_PX = 8 * 24
+
+/** Dica de 1ª vez do seletor "Quem responde" (UX-PHASE §5): uma vez por instalação. */
+export const WHO_RESPONDS_HINT_KEY = 'persona.hint.whoResponds'
+
+function whoRespondsHintSeen(): boolean {
+  try { return localStorage.getItem(WHO_RESPONDS_HINT_KEY) === '1' } catch { return true /* storage bloqueado: nunca insiste */ }
+}
 
 /** Composer card (dirD): auto-growing field, tool row, "Responde" persona chip, amber send. */
 export function ChannelComposer({
@@ -79,6 +95,10 @@ export function ChannelComposer({
   quotaResumeLabel,
   onResumeQuota,
   onSwapAccount,
+  onOpenPersonaCard,
+  onQueueMessage,
+  editingQueuedText,
+  onCancelEditQueued,
 }: ChannelComposerProps): ReactNode {
   const [draft, setDraft] = useState('')
   const [pending, setPending] = useState<readonly ComposerPendingAttachment[]>([])
@@ -89,6 +109,11 @@ export function ChannelComposer({
     return pocket === null ? null : formatPocketTime(pocket.savedAt)
   })
   const [showLimits, setShowLimits] = useState(false)
+  const [showWhoRespondsHint, setShowWhoRespondsHint] = useState(false)
+  const dismissWhoRespondsHint = useCallback(() => {
+    setShowWhoRespondsHint(false)
+    try { localStorage.setItem(WHO_RESPONDS_HINT_KEY, '1') } catch { /* sem storage: some só nesta sessão */ }
+  }, [])
   const [slashIndex, setSlashIndex] = useState(0)
   const [sendMode, setSendMode] = useState<'queue' | 'steer'>('queue')
   const fieldRef = useRef<HTMLTextAreaElement>(null)
@@ -113,6 +138,33 @@ export function ChannelComposer({
     node.style.height = 'auto'
     node.style.height = `${Math.min(node.scrollHeight, MAX_ROWS_PX)}px`
   }, [draft])
+
+  // Dica de 1ª vez: só faz sentido com mais de uma persona para escolher; não rouba o foco; Esc fecha.
+  const canPickResponder = members.length > 1
+  useEffect(() => {
+    if (canPickResponder && !whoRespondsHintSeen()) setShowWhoRespondsHint(true)
+  }, [canPickResponder])
+  useEffect(() => {
+    if (!showWhoRespondsHint) return undefined
+    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      if (event.key === 'Escape') dismissWhoRespondsHint()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => { document.removeEventListener('keydown', onKeyDown) }
+  }, [showWhoRespondsHint, dismissWhoRespondsHint])
+
+  // "Editar" no balão da fila: o texto volta para o campo; ao cancelar, o campo esvazia (só se ainda for aquele texto).
+  const editingTextRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    const previous = editingTextRef.current
+    editingTextRef.current = editingQueuedText
+    if (editingQueuedText !== undefined) {
+      setDraft(editingQueuedText)
+      fieldRef.current?.focus()
+    } else if (previous !== undefined) {
+      setDraft(current => (current === previous ? '' : current))
+    }
+  }, [editingQueuedText])
 
   useLayoutEffect(() => {
     if (members.length === 0) return
@@ -162,7 +214,10 @@ export function ChannelComposer({
     if (text.length === 0 && readyAttachmentIds(pending).length === 0) return
     const ids = readyAttachmentIds(pending)
     pushSentHistory(conversationKey, text)
-    onSend?.(text, ids)
+    const shouldQueue = (modeOverride ?? 'queue') === 'queue' && responderWorking && responder !== undefined
+      && onQueueMessage !== undefined && ids.length === 0
+    if (shouldQueue) onQueueMessage(text, { id: responder.id, name: responder.name })
+    else onSend?.(text, ids)
     setDraft('')
     setPending([])
     setHistoryIndex(null)
@@ -233,6 +288,18 @@ export function ChannelComposer({
               <UiIcon name="close" size={14} strokeWidth={2.4} />
             </button>
           )}
+        </div>
+      )}
+      {editingQueuedText !== undefined && (
+        <div className={styles.editingQueuedRow} role="status">
+          <span className={styles.editingQueuedText}>{t('composer.steer.editingLabel')}</span>
+          <button
+            type="button"
+            className={styles.cancelEditQueuedButton}
+            onClick={() => { onCancelEditQueued?.() }}
+          >
+            {t('composer.steer.cancelEdit')}
+          </button>
         </div>
       )}
       <input
@@ -406,22 +473,63 @@ export function ChannelComposer({
           {responder !== undefined && (
             <>
               <span className={styles.divider} aria-hidden="true" />
-              <label className={styles.responder}>
-                <span className={styles.responderLabel}>{t('composer.respondsLabel')}</span>
-                <Avatar name={responder.name} src={AVATAR_96[responder.id]} size={24} decorative />
-                <span className={styles.responderName} aria-hidden="true">{responder.name}</span>
-                <UiIcon name="chevronDown" size={14} strokeWidth={2.4} />
-                <select
-                  className={styles.responderSelect}
-                  aria-label={t('composer.modelLabel')}
-                  value={responder.id}
-                  onChange={(event) => { setResponderId(event.target.value) }}
+              <div className={styles.responderContainer}>
+                <label className={styles.responder}>
+                  <span className={styles.responderLabel}>{t('composer.respondsLabel')}</span>
+                  <Avatar name={responder.name} src={AVATAR_96[responder.id]} size={24} decorative />
+                  <span className={styles.responderName} aria-hidden="true">{responder.name}</span>
+                  <UiIcon name="chevronDown" size={14} strokeWidth={2.4} />
+                  <select
+                    className={styles.responderSelect}
+                    aria-label={t('composer.modelLabel')}
+                    value={responder.id}
+                    onChange={(event) => {
+                      dismissWhoRespondsHint()
+                      setResponderId(event.target.value)
+                    }}
+                  >
+                    {members.map(member => (
+                      <option key={member.id} value={member.id}>{member.name + ' — ' + member.role}</option>
+                    ))}
+                  </select>
+                </label>
+                {showWhoRespondsHint && (
+                  <div className={styles.whoRespondsBalloon} role="dialog" aria-label={t('composer.whoRespondsHintTitle')}>
+                    <span className={styles.whoRespondsArrow} aria-hidden="true" />
+                    <p className={styles.whoRespondsTitle}>{t('composer.whoRespondsHintTitle')}</p>
+                    <p className={styles.whoRespondsBody}>{t('composer.whoRespondsHintBody')}</p>
+                    <Button size="s" variant="secondary" onClick={dismissWhoRespondsHint}>
+                      {t('composer.whoRespondsGotIt')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {responderAutonomy !== 'propose' && (
+                <Tooltip
+                  content={
+                    responderAutonomy === 'on-request'
+                      ? (responder.name + ' sempre pergunta antes de qualquer ação.')
+                      : (responder.name + ' decide o rotineiro dentro dos limites.')
+                  }
                 >
-                  {members.map(member => (
-                    <option key={member.id} value={member.id}>{`${member.name} — ${member.role}`}</option>
-                  ))}
-                </select>
-              </label>
+                  <button
+                    type="button"
+                    className={styles.autonomyButton}
+                    onClick={() => { onOpenPersonaCard?.(responder.id) }}
+                    aria-label={t(`composer.autonomy.${responderAutonomy}` as const)}
+                  >
+                    <Chip
+                      size="s"
+                      tone={responderAutonomy === 'on-request' ? 'info' : 'accent'}
+                    >
+                      <span className={styles.autonomyChipContent}>
+                        <UiIcon name={responderAutonomy === 'on-request' ? 'lock' : 'sparkle'} size={13} strokeWidth={2.2} />
+                        {t(`composer.autonomy.${responderAutonomy}` as const)}
+                      </span>
+                    </Chip>
+                  </button>
+                </Tooltip>
+              )}
             </>
           )}
         </div>

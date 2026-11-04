@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useSyncExternalStore, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
@@ -10,11 +10,23 @@ import { OnboardingWizard } from './OnboardingWizard.tsx'
 import type { FirstDeliveryPhase } from './OnboardingFirstDeliveryStep.tsx'
 import { MOCK_HARNESSES, type HarnessRow } from './mock-data.ts'
 import { harnessRowsFromConnections } from './harness-from-connections.ts'
+import { nextFirstDeliveryPhase, runErrorForFailed } from './first-delivery-phase.ts'
 import { deriveFirstDeliveryMilestone } from '../overview/derive-first-delivery.ts'
 import type { PersonaLiveSnapshot } from '../remote/persona-live-store.ts'
+import type { FirstDeliveryView } from '../remote/persona-remote-types.ts'
+import { isRemoteResult } from '../remote/persona-remote-unwrap.ts'
+import { retryEngineStatus, type EngineRemoteWire } from '../remote/engine-status.ts'
+import { useEngineStatus } from '../remote/use-engine-status.ts'
 import { unwrapRemote } from '../data/remote-call.ts'
 import type { ConnectionView } from '@deepseek-ai/dsh-persona-host/types'
 import styles from './OnboardingShellOverlay.module.css'
+
+/** Passou disso esperando, o passo 5 admite que está lento e oferece entrar (FIRST-DELIVERY-SPEC). */
+export const FIRST_DELIVERY_SLOW_MS = 45_000
+/** Leitura do marco no host enquanto a pessoa espera (barata: linha persistida). */
+const DELIVERY_POLL_MS = 2_000
+/** Depois de "Tentar de novo" o `failed` antigo ainda aparece no host por um instante. */
+const RETRY_GRACE_MS = 8_000
 
 export interface OnboardingShellOverlayInjected {
   hooks: {
@@ -24,12 +36,16 @@ export interface OnboardingShellOverlayInjected {
   readonly dict: LocaleDict
   readonly structureDict: LocaleDict
   readonly shellDict: LocaleDict
+  /** Textos do cartão de erro do passo 5 (`runError.*` mora no namespace do chat, não no do onboarding). */
+  readonly chatDict?: LocaleDict | undefined
   readonly store: ReturnType<typeof createOnboardingStore>['store']
   readonly actions: OnboardingActions
   dismissOnboarding(): void
   lockOnboardingForFirstDelivery(): void
   finishOnboardingWizard(): Promise<void>
-  postChannelMessage(body: string): Promise<void>
+  /** Relê o snapshot live (quadro, #geral, marco) quando o host muda de estado. */
+  refreshLive?: (() => Promise<void>) | undefined
+  postChannelMessage?: ((body: string) => Promise<void>) | undefined
   selectPanel(panel: ShellState['activePanel']): void
   readonly persona: PersonaRemoteClient
   readonly onScanVaultFolder?: ((rootPath: string) => Promise<import('@deepseek-ai/dsh-persona-core').BringContextPreview>) | undefined
@@ -43,11 +59,40 @@ export interface OnboardingShellOverlayInjected {
 
 export type OnboardingShellOverlayProps = InjectFace<OnboardingShellOverlayInjected>
 
+/** Superfície do Remote usada só pelo passo 5 (tolerante: hosts/fakes antigos podem não ter tudo). */
+interface FirstDeliveryRemoteWire extends EngineRemoteWire {
+  getFirstDelivery?(request: { workspaceId: string; projectId: string }): unknown
+  runTicketCommand?(request: {
+    workspaceId: string
+    projectId: string
+    ticketId: string
+    command: 'retry'
+    reason: string
+  }): unknown
+}
+
+async function settle(value: unknown): Promise<unknown> {
+  const resolved = await Promise.resolve(value)
+  return isRemoteResult(resolved) ? unwrapRemote(resolved) : resolved
+}
+
+function isDeliveryView(value: unknown): value is FirstDeliveryView {
+  if (typeof value !== 'object' || value === null) return false
+  const status = (value as { status?: unknown }).status
+  return status === 'idle' || status === 'working' || status === 'ready' || status === 'failed'
+}
+
+function sameDelivery(a: FirstDeliveryView | null, b: FirstDeliveryView): boolean {
+  return a !== null && a.status === b.status && a.ticketId === b.ticketId && a.title === b.title
+    && a.personaId === b.personaId && a.personaName === b.personaName
+}
+
 /** Full-screen onboarding overlay on `shell.overlay` (first-run). */
 export function OnboardingShellOverlay({
   dict,
   structureDict,
   shellDict,
+  chatDict,
   store,
   actions,
   useShell,
@@ -55,7 +100,8 @@ export function OnboardingShellOverlay({
   dismissOnboarding,
   lockOnboardingForFirstDelivery,
   finishOnboardingWizard,
-  postChannelMessage,
+  refreshLive,
+  postChannelMessage: _postChannelMessage,
   selectPanel,
   persona,
   onScanVaultFolder,
@@ -70,17 +116,40 @@ export function OnboardingShellOverlay({
     () => store.getSnapshot().step,
   )
   const live = useLive(state => state)
-  const [deliveryPhase, setDeliveryPhase] = useState<FirstDeliveryPhase>('intro')
   const [harnesses, setHarnesses] = useState<readonly HarnessRow[]>(MOCK_HARNESSES)
+
+  // --- estado do passo 5 (tudo derivado do host; só o que a PESSOA fez fica aqui) -------------------------------
+  const [requested, setRequested] = useState(false)
+  const [startFailed, setStartFailed] = useState(false)
+  const [slowElapsed, setSlowElapsed] = useState(false)
+  const [slowEpoch, setSlowEpoch] = useState(0)
+  const [retryGrace, setRetryGrace] = useState(false)
+  const [runErrorBaseline, setRunErrorBaseline] = useState<string | null>(null)
+  const [hostDelivery, setHostDelivery] = useState<FirstDeliveryView | null>(null)
+  const [celebrated, setCelebrated] = useState(false)
+  const lastDeliveryStatus = useRef<string>('idle')
 
   const shellT = useCallback(
     (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(shellDict, key, params),
     [shellDict],
   )
+  const chatT = useCallback(
+    (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(chatDict ?? dict, key, params),
+    [chatDict, dict],
+  )
 
+  const tenant = live.tenant
+  const workspaceId = tenant?.workspaceId
+  const projectId = tenant?.projectId
+  const scope = useMemo(
+    () => (workspaceId === undefined || projectId === undefined ? null : { workspaceId, projectId }),
+    [workspaceId, projectId],
+  )
+  const wire = persona as unknown as FirstDeliveryRemoteWire
+
+  // Passo 3: lista de IAs (cartões reais do host; o mock só vale quando não há host, ex.: preview).
   useEffect(() => {
     if (!open || step !== 3) return
-    const tenant = live.tenant
     if (tenant === null || persona.listConnections === undefined) {
       setHarnesses(MOCK_HARNESSES)
       return
@@ -100,60 +169,110 @@ export function OnboardingShellOverlay({
       }
     })()
     return () => { cancelled = true }
-  }, [open, step, live.tenant, persona])
+  }, [open, step, tenant, persona])
 
-  const anyHarnessReady = harnesses.some(h => h.ready)
+  // Passo 5: "tem IA?" vem do host (getEngineStatus), com polling e releitura forçada ao voltar o foco.
+  const { status: engine, settled: engineSettled } = useEngineStatus(wire, scope, { enabled: open && step === 5, pollMs: 3_000, readyPollMs: 6_000 })
+
+  // Marco da primeira entrega no host enquanto há pedido em curso.
   useEffect(() => {
-    if (step === 5) {
-      if (!anyHarnessReady && (deliveryPhase === 'intro' || deliveryPhase === 'needsEngine')) {
-        setDeliveryPhase('needsEngine')
-      } else if (anyHarnessReady && deliveryPhase === 'needsEngine') {
-        setDeliveryPhase('intro')
+    if (!open || !requested || celebrated || scope === null || wire.getFirstDelivery === undefined) return undefined
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const tick = async (): Promise<void> => {
+      try {
+        const view = await settle(wire.getFirstDelivery?.(scope))
+        if (cancelled) return
+        if (isDeliveryView(view)) {
+          setHostDelivery(prev => (sameDelivery(prev, view) ? prev : view))
+          if (view.status !== lastDeliveryStatus.current) {
+            lastDeliveryStatus.current = view.status
+            if (view.status === 'ready' || view.status === 'failed') void refreshLive?.()
+          }
+        }
+      } catch {
+        /* host ocupado: tenta de novo no próximo ciclo */
       }
+      if (!cancelled) timer = setTimeout(() => { void tick() }, DELIVERY_POLL_MS)
     }
-  }, [step, anyHarnessReady, deliveryPhase])
+    void tick()
+    return () => {
+      cancelled = true
+      if (timer !== undefined) clearTimeout(timer)
+    }
+  }, [open, requested, celebrated, scope, wire, refreshLive])
+
+  const delivery = hostDelivery ?? live.firstDelivery ?? null
+
+  // O `failed` antigo some da janela de retry assim que o host volta a "trabalhando"/"pronto".
+  useEffect(() => {
+    if (retryGrace && delivery !== null && delivery.status !== 'failed') setRetryGrace(false)
+  }, [retryGrace, delivery])
+  useEffect(() => {
+    if (!retryGrace) return undefined
+    const timer = setTimeout(() => { setRetryGrace(false) }, RETRY_GRACE_MS)
+    return () => { clearTimeout(timer) }
+  }, [retryGrace])
+
+  const latestErrorMessage = useMemo(
+    () => [...live.messages].reverse().find(message => message.runError !== undefined),
+    [live.messages],
+  )
+  const freshRunError = latestErrorMessage !== undefined && latestErrorMessage.id !== runErrorBaseline
+  const kanbanMilestone = deriveFirstDeliveryMilestone(live.kanbanCards)
+
+  const derivedPhase: FirstDeliveryPhase = nextFirstDeliveryPhase({
+    phase: celebrated ? 'celebrate' : 'intro',
+    requested,
+    engine,
+    delivery,
+    milestoneDone: kanbanMilestone !== undefined,
+    freshRunError,
+    slowElapsed,
+    retryGrace,
+    startFailed,
+  })
+  const deliveryPhase: FirstDeliveryPhase = step === 5 || requested ? derivedPhase : 'intro'
 
   useEffect(() => {
-    if (deliveryPhase !== 'working') return
-    const timer = setTimeout(() => {
-      setDeliveryPhase(phase => (phase === 'working' ? 'slow' : phase))
-    }, 45_000)
-    return () => { clearTimeout(timer) }
+    if (deliveryPhase === 'celebrate') setCelebrated(true)
   }, [deliveryPhase])
 
+  // 45 s esperando de verdade (só conta enquanto a equipe está trabalhando; "Continuar esperando" reinicia).
   useEffect(() => {
-    if (deliveryPhase !== 'working' && deliveryPhase !== 'slow') return
-    const milestone = deriveFirstDeliveryMilestone(live.kanbanCards)
-    if (milestone !== undefined || live.firstDelivery?.status === 'ready') {
-      setDeliveryPhase('celebrate')
-    } else if (live.firstDelivery?.status === 'failed') {
-      setDeliveryPhase('failed')
-    }
-  }, [deliveryPhase, live.kanbanCards, live.firstDelivery])
-
-  useEffect(() => {
-    if (deliveryPhase !== 'working' && deliveryPhase !== 'slow') return
-    const messageWithError = live.messages.find(m => m.runError !== undefined)
-    if (messageWithError !== undefined) {
-      setDeliveryPhase('failed')
-    }
-  }, [deliveryPhase, live.messages])
-
-  const activationPrompt = (): string => {
-    const vaultReady = store.getSnapshot().vaultText.trim().length > 0
-    return bindLocale(dict, vaultReady ? 'step5.activationPrompt' : 'step5.activationPromptEmpty')
-  }
+    if (deliveryPhase !== 'working') return undefined
+    const timer = setTimeout(() => { setSlowElapsed(true) }, FIRST_DELIVERY_SLOW_MS)
+    return () => { clearTimeout(timer) }
+  }, [deliveryPhase, slowEpoch])
 
   const enterApp = (): void => {
-    void finishOnboardingWizard().finally(() => { dismissOnboarding() })
+    void finishOnboardingWizard().catch(() => undefined).finally(() => { dismissOnboarding() })
   }
 
-  const requestFirstDelivery = (): void => {
+  const requestFirstDelivery = (isRetry: boolean): void => {
     lockOnboardingForFirstDelivery()
-    setDeliveryPhase('working')
-    void finishOnboardingWizard()
-      .then(() => postChannelMessage(activationPrompt()))
-      .catch(() => { setDeliveryPhase('intro') })
+    setRequested(true)
+    setStartFailed(false)
+    setSlowElapsed(false)
+    setSlowEpoch(epoch => epoch + 1)
+    setRunErrorBaseline(latestErrorMessage?.id ?? null)
+    if (isRetry) setRetryGrace(true)
+    void (async () => {
+      try {
+        if (isRetry && scope !== null) {
+          // A pessoa pode ter acabado de conectar a IA: confere de verdade antes de reenfileirar.
+          await retryEngineStatus(wire, scope)
+        }
+        await finishOnboardingWizard()
+        const ticketId = delivery?.ticketId ?? ''
+        if (isRetry && scope !== null && ticketId !== '' && wire.runTicketCommand !== undefined) {
+          await settle(wire.runTicketCommand({ ...scope, ticketId, command: 'retry', reason: 'first-delivery-retry' }))
+        }
+      } catch {
+        setRetryGrace(false)
+        setStartFailed(true)
+      }
+    })()
   }
 
   const celebrateContinue = (): void => {
@@ -161,9 +280,28 @@ export function OnboardingShellOverlay({
     selectPanel('overview')
   }
 
+  /** "Pedir ajuste": a conversa onde a entrega chegou é o #geral; a pessoa responde ali. */
+  const askChange = (): void => {
+    dismissOnboarding()
+    selectPanel('channels')
+  }
+
   const workingMember = live.stripMembers.find(member => member.state === 'working')
+  const personaName = workingMember?.name ?? (delivery !== null && delivery.personaName !== '' ? delivery.personaName : undefined)
+  const portraitMember = workingMember ?? live.stripMembers.find(member => delivery !== null && member.name === delivery.personaName)
 
   if (!open) return null
+
+  const milestone = deliveryPhase === 'celebrate'
+    ? (kanbanMilestone ?? (delivery !== null && delivery.status === 'ready'
+      ? {
+        taskId: delivery.ticketId,
+        title: delivery.title,
+        personaName: delivery.personaName,
+        characterId: delivery.personaId,
+      }
+      : undefined))
+    : undefined
 
   return (
     <div className={styles.scrim} role="presentation">
@@ -181,23 +319,28 @@ export function OnboardingShellOverlay({
           harnesses={harnesses}
           firstDelivery={{
             shellT,
+            chatT,
             phase: deliveryPhase,
-            milestone: deliveryPhase === 'celebrate'
-              ? (deriveFirstDeliveryMilestone(live.kanbanCards) ?? (live.firstDelivery != null && live.firstDelivery.status === 'ready' ? {
-                taskId: live.firstDelivery.ticketId,
-                title: live.firstDelivery.title,
-                personaName: live.firstDelivery.personaName,
-                characterId: live.firstDelivery.personaId,
-              } : undefined))
+            milestone,
+            workingPersonaName: personaName,
+            workingCharacterId: portraitMember?.id,
+            runError: deliveryPhase === 'failed'
+              ? runErrorForFailed(latestErrorMessage?.runError, engine, {
+                startFailed,
+                providerLabel: bindLocale(dict, 'step5.genericProvider'),
+              })
               : undefined,
-            workingPersonaName: workingMember?.name,
-            runError: live.messages.find(m => m.runError !== undefined)?.runError,
-            onRequest: requestFirstDelivery,
+            onRequest: () => { requestFirstDelivery(false) },
+            requestDisabled: scope !== null && !engineSettled,
             onEnterApp: enterApp,
             onCelebrateContinue: celebrateContinue,
+            onAskChange: askChange,
             onConnectEngine: () => { actions.setStep(3) },
-            onRetry: requestFirstDelivery,
-            onKeepWaiting: () => { setDeliveryPhase('working') },
+            onRetry: () => { requestFirstDelivery(true) },
+            onKeepWaiting: () => {
+              setSlowElapsed(false)
+              setSlowEpoch(epoch => epoch + 1)
+            },
           }}
           {...(onScanVaultFolder === undefined ? {} : { onScanVaultFolder })}
           {...(onOrganizePreview === undefined ? {} : { onOrganizePreview })}

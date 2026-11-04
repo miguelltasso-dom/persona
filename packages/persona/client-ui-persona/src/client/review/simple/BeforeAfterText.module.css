@@ -1,0 +1,100 @@
+/* Antes e depois (texto). Tokens only; narrow = one column + tabs, decided by the width of the review itself. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  min-width: 0;
+}
+
+.tabs {
+  display: none;
+}
+
+.panel {
+  min-width: 0;
+  overflow-x: auto;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font: 500 14px/1.5 var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.head {
+  padding: var(--persona-space-2) var(--persona-space-3);
+  text-align: left;
+  font: 800 11px/14px var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-muted);
+  border-bottom: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.cell {
+  padding: 2px var(--persona-space-3);
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cell[data-col='after'] {
+  border-left: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+/* What left: struck through on a red tint. What came in: underlined on a green tint. Shape + colour, never colour alone. */
+.del {
+  display: inline;
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  background: var(--persona-danger-tint);
+  color: var(--persona-ink);
+}
+
+.ins {
+  display: inline;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  background: var(--persona-success-tint);
+  color: var(--persona-ink);
+}
+
+.gap {
+  padding: 2px var(--persona-space-3);
+  text-align: center;
+  color: var(--persona-ink-muted);
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--persona-ink-soft);
+}
+
+/* Narrow review (or 200 % zoom): one column at a time, switched by the tabs. */
+@container (max-width: 560px) {
+  .tabs {
+    display: block;
+  }
+
+  .root[data-side='before'] [data-col='after'],
+  .root[data-side='after'] [data-col='before'] {
+    display: none;
+  }
+
+  .cell[data-col='after'] {
+    border-left: 0;
+  }
+
+  .root :is(th, td):not([colspan]) {
+    width: 100%;
+  }
+}

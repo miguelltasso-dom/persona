@@ -86,3 +86,10 @@
 .twoDayHead > :last-child {
   flex: 0 0 auto;
 }
+
+@media (max-width: 960px) {
+  .twoDayHead {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+}

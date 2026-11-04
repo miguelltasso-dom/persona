@@ -15,6 +15,14 @@ function nodeCenter(node: CanvasNode): { cx: number; cy: number } {
   return { cx: node.x + 28, cy: node.y + 28 }
 }
 
+/** Longest label drawn inside the scene (the full text stays in the aria-label and the list view). */
+export const CANVAS_LABEL_MAX = 22
+
+export function shortNodeLabel(label: string, max: number = CANVAS_LABEL_MAX): string {
+  const text = label.trim()
+  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`
+}
+
 export interface CanvasViewProps {
   readonly dict?: LocaleDict
   readonly nodes?: readonly CanvasNode[]
@@ -202,8 +210,10 @@ export function CanvasView({
                   onClick={() => { setFocusedNodeId(node.id) }}
                 >
                   <circle className={styles.nodeCircle} cx={node.x + 28} cy={node.y + 28} r="28" />
+                  {/* A long label would run over its neighbour and off the scene: show the start, keep the whole text on hover. */}
                   <text className={styles.nodeLabel} x={node.x + 28} y={node.y + 64} textAnchor="middle" aria-hidden="true">
-                    {node.label}
+                    {shortNodeLabel(node.label) !== node.label.trim() && <title>{node.label}</title>}
+                    {shortNodeLabel(node.label)}
                   </text>
                 </g>
               ))}

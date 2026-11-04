@@ -21,6 +21,7 @@ import { createPortal } from 'react-dom'
 import { AVATAR_96, ILLUSTRATIONS, OVERLAY_ICONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId, type PersonaPoseState } from '../assets/asset-url.ts'
 import { Avatar } from './Avatar.tsx'
+import { Chip } from './Chip.tsx'
 import { IconButton } from './Button.tsx'
 import { MenuButton } from './MenuButton.tsx'
 import { BrandIcon, UiIcon, type UiIconName } from './icons.tsx'
@@ -98,6 +99,15 @@ export interface PersonaCardEngine {
   readonly quota?: PersonaCardQuota | undefined
 }
 
+export interface PersonaCapabilitiesInfo {
+  readonly autonomyLabel?: string | undefined
+  readonly onAdjustAutonomy?: (() => void) | undefined
+  readonly tools?: readonly string[] | undefined
+  readonly scope?: string | undefined
+  readonly permissionsCount?: number | undefined
+  readonly onOpenPermissions?: (() => void) | undefined
+}
+
 export interface PersonaCardFact {
   readonly id: string
   readonly label: string
@@ -121,6 +131,15 @@ export interface PersonaCardLabels {
   readonly messagePlaceholder: string
   /** Presence word for the seal tooltip ("Online"). */
   readonly presence: Readonly<Record<PersonaPresence, string>>
+  readonly whatCanDoTitle?: string | undefined
+  readonly autonomy?: string | undefined
+  readonly adjust?: string | undefined
+  readonly tools?: string | undefined
+  readonly toolsOnlyTalk?: string | undefined
+  readonly scope?: string | undefined
+  readonly scopeAll?: string | undefined
+  readonly permissions?: string | undefined
+  readonly permissionsActive?: string | undefined
 }
 
 export interface PersonaCardMenuItem {
@@ -134,6 +153,7 @@ export interface PersonaCardFactsProps {
   readonly labels: PersonaCardLabels
   readonly now: PersonaCardNow
   readonly talk?: PersonaCardTalk | undefined
+  readonly capabilities?: PersonaCapabilitiesInfo | undefined
   /** Presence, responsible human, substitute, current project — in this order. */
   readonly facts: readonly PersonaCardFact[]
   readonly engine?: PersonaCardEngine | undefined
@@ -177,7 +197,7 @@ export function QuotaMeter({ label, pct }: { readonly label: string; readonly pc
 }
 
 /** The shared data block: "agora", who can talk, presence/owner/substitute/project and the engine with its quota. */
-export function PersonaCardFacts({ labels, now, talk, facts, engine, layout = 'card' }: PersonaCardFactsProps): ReactNode {
+export function PersonaCardFacts({ labels, now, talk, capabilities, facts, engine, layout = 'card' }: PersonaCardFactsProps): ReactNode {
   const quota = engine?.quota
   const hasMeters = quota !== undefined && (quota.fiveHourPct !== undefined || quota.weekPct !== undefined)
   return (
@@ -204,6 +224,66 @@ export function PersonaCardFacts({ labels, now, talk, facts, engine, layout = 'c
             </span>
             {talk.value}
           </p>
+        </section>
+      )}
+
+      {capabilities !== undefined && (
+        <section className={styles.capabilities} aria-label={labels.whatCanDoTitle ?? 'O que pode fazer'}>
+          <div className={styles.capabilitiesHead}>
+            <span className={styles.factLabel}>{labels.whatCanDoTitle ?? 'O que pode fazer'}</span>
+          </div>
+          <dl className={styles.factList}>
+            {capabilities.autonomyLabel !== undefined && (
+              <div className={styles.fact}>
+                <dt className={styles.factLabel}>{labels.autonomy ?? 'Autonomia'}</dt>
+                <dd className={styles.factValue}>
+                  <span>{capabilities.autonomyLabel}</span>
+                  {capabilities.onAdjustAutonomy !== undefined && (
+                    <button type="button" className={styles.linkButton} onClick={capabilities.onAdjustAutonomy}>
+                      {labels.adjust ?? 'Ajustar'}
+                    </button>
+                  )}
+                </dd>
+              </div>
+            )}
+            <div className={styles.fact}>
+              <dt className={styles.factLabel}>{labels.tools ?? 'Ferramentas'}</dt>
+              <dd className={styles.factValue}>
+                {capabilities.tools !== undefined && capabilities.tools.length > 0 ? (
+                  <span className={styles.toolChips}>
+                    {capabilities.tools.slice(0, 4).map(tool => (
+                      <Chip key={tool} size="s" tone="neutral">{tool}</Chip>
+                    ))}
+                    {capabilities.tools.length > 4 && (
+                      <span className={styles.toolMore}>+{capabilities.tools.length - 4}</span>
+                    )}
+                  </span>
+                ) : (
+                  <span>{labels.toolsOnlyTalk ?? 'Só conversa'}</span>
+                )}
+              </dd>
+            </div>
+            <div className={styles.fact}>
+              <dt className={styles.factLabel}>{labels.scope ?? 'Alcance'}</dt>
+              <dd className={styles.factValue}>
+                {capabilities.scope ?? labels.scopeAll ?? 'Toda a equipe'}
+              </dd>
+            </div>
+            {capabilities.permissionsCount !== undefined && capabilities.permissionsCount > 0 && (
+              <div className={styles.fact}>
+                <dt className={styles.factLabel}>{labels.permissions ?? 'Permissões lembradas'}</dt>
+                <dd className={styles.factValue}>
+                  {capabilities.onOpenPermissions !== undefined ? (
+                    <button type="button" className={styles.linkButton} onClick={capabilities.onOpenPermissions}>
+                      {(labels.permissionsActive ?? '{count} ativas').replace('{count}', String(capabilities.permissionsCount))}
+                    </button>
+                  ) : (
+                    <span>{(labels.permissionsActive ?? '{count} ativas').replace('{count}', String(capabilities.permissionsCount))}</span>
+                  )}
+                </dd>
+              </div>
+            )}
+          </dl>
         </section>
       )}
 

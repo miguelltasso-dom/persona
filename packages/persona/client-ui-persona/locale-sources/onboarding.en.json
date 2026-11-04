@@ -77,7 +77,7 @@
   "step3.ready": "Ready to use",
   "step3.missing": "Not detected",
   "step4.title": "Build your team",
-  "step4.hint": "Pick a ready-made team or describe who you need. You can adjust everything before hiring.",
+  "step4.hint": "Start with the suggested template: you adjust everything before hiring.",
   "step4.templates.equipeAnimais": "Suggested team (animals)",
   "step4.templates.startup": "Software startup",
   "step4.templates.agencia": "Agency",
@@ -85,7 +85,7 @@
   "step4.builderLabel": "Describe who you need",
   "step4.builderPlaceholder": "E.g. I need someone to review contracts and reply to clients…",
   "step4.builderApply": "Generate draft",
-  "step4.structureOpen": "Structure assistant",
+  "step4.structureOpen": "Not sure where to start? Open the Structure assistant",
   "step4.structureBack": "Back to ready-made teams",
   "step5.title": "First delivery",
   "step5.hint": "A small, useful request — your team works for real and you see the result in #general.",
@@ -108,6 +108,9 @@
   "step5.slowBody": "Still working. You can go in; the delivery arrives in #general and I’ll let you know.",
   "step5.keepWaiting": "Keep waiting",
   "step5.acceptAndEnter": "Accept and go in",
+  "step5.genericProvider": "AI engine",
+  "step5.enterAppPlain": "Go to the app",
+  "step5.introLabel": "Your team introduces itself",
   "step5.askChange": "Ask for a change",
   "step5.activationPrompt": "Team, please: summarize in 5 bullet points what you already know about our company from the Vault and propose one practical first task for this week.",
   "step5.activationPromptEmpty": "Team, please: list 3 concrete things you can do for me this week and execute the first one.",
@@ -130,5 +133,6 @@
   "step3.guideSays": "We found these tools on this computer. No passwords: we use the login you already have.",
   "step4.guideSays": "Pick a team template or describe who you need. You can edit everything later.",
   "step5.guideSays": "Let's request the first real delivery — under two minutes.",
-  "step3.statusLabel": "{name} status"
+  "step3.statusLabel": "{name} status",
+  "step4.builderToggle": "Prefer to describe it in your own words?"
 }

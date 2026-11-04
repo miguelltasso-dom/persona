@@ -142,6 +142,14 @@ export type DevHarnessSeedRemote = PersonaCreatorRemote & {
     title: string
     description: string
   }): unknown
+  proposeSkill?(request: {
+    workspaceId: string
+    projectId: string
+    id: string
+    skillId: string
+    title: string
+    creatorPersonaId: string
+  }): unknown
   setPersonaSystemRoles?(request: {
     workspaceId: string
     projectId: string
@@ -439,12 +447,54 @@ export async function seedDevHarnessScenario(
     }
   }
 
+  await seedDevHarnessDecisions(remote, tenant, atlasId, approvals)
+
   if (atlasId !== undefined) {
     await seedDevHarnessGestorPlanMessage(remote, tenant, atlasId, messageClock)
     await seedDevHarnessBrainGrant(remote, tenant, atlasId)
   }
 
   return true
+}
+
+/**
+ * Captures of the single decision cycle need several cards ("Aprovar" on the line, "Ver todas (n)"). Opt-in, dev only:
+ * `localStorage['persona.devSeed.decisions'] = '1'`.
+ */
+const DEV_DECISIONS_KEY = 'persona.devSeed.decisions'
+const DEV_HARNESS_SKILLS: readonly { readonly id: string; readonly title: string }[] = [
+  { id: 'dev-harness-v1-skill-1', title: 'Resumo semanal das vendas' },
+  { id: 'dev-harness-v1-skill-2', title: 'Lembrete de contratos a vencer' },
+  { id: 'dev-harness-v1-skill-3', title: 'Revisão ortográfica dos textos' },
+]
+
+async function seedDevHarnessDecisions(
+  remote: DevHarnessSeedRemote,
+  tenant: PersonaTenantScope,
+  atlasId: string | undefined,
+  approvals: readonly { id: string }[],
+): Promise<void> {
+  if (atlasId === undefined || remote.proposeSkill === undefined || !readClientDevSeedEnabled()) return
+  try {
+    if (localStorage.getItem(DEV_DECISIONS_KEY) !== '1') return
+  } catch {
+    return
+  }
+  for (const skill of DEV_HARNESS_SKILLS) {
+    if (approvals.some(row => row.id === skill.id)) continue
+    try {
+      await Promise.resolve(remote.proposeSkill({
+        workspaceId: tenant.workspaceId,
+        projectId: tenant.projectId,
+        id: skill.id,
+        skillId: skill.id,
+        title: skill.title,
+        creatorPersonaId: atlasId,
+      }))
+    } catch {
+      /* duplicate */
+    }
+  }
 }
 
 /** Dogfood AG-004: remembered grant for Permissões UI — dev harness only. */

@@ -1,0 +1,16 @@
+/* FileChangeRow (Muse, SIMPLE-WORKSPACE-SPEC §3). */
+.row { list-style: none; border: var(--persona-border-width) solid var(--persona-outline-soft); border-radius: var(--persona-radius-m); background: var(--persona-card); overflow: hidden; }
+.row + .row { margin-top: var(--persona-space-2); }
+.head { display: flex; align-items: center; gap: var(--persona-space-3); width: 100%; min-height: 52px; padding: var(--persona-space-2) var(--persona-space-3); border: 0; background: none; color: var(--persona-ink); font: inherit; text-align: left; }
+button.head { cursor: pointer; }
+button.head:hover { background: var(--persona-wash); }
+.icon { display: grid; place-items: center; flex: 0 0 36px; height: 36px; border-radius: var(--persona-radius-s); background: var(--persona-paper-sunken); color: var(--persona-ink-soft); }
+.text { display: grid; flex: 1 1 auto; min-width: 0; }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 15px/20px var(--persona-font-text); }
+.row[data-kind='deleted'] .name { text-decoration: line-through; text-decoration-color: var(--persona-danger); }
+.folder, .note { color: var(--persona-ink-soft); font: 600 13px/18px var(--persona-font-text); }
+.note { color: var(--persona-danger); }
+.chevron { display: grid; place-items: center; color: var(--persona-ink-soft); transition: transform var(--motion-fast) var(--ease-standard); }
+.chevron[data-open] { transform: rotate(180deg); }
+.panel { padding: var(--persona-space-3) var(--persona-space-4) var(--persona-space-4); border-top: 1px solid var(--persona-outline-soft); }
+@media (prefers-reduced-motion: reduce) { .chevron { transition: none; } }

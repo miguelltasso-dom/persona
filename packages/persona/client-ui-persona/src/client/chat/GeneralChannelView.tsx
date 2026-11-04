@@ -7,6 +7,7 @@ import {
   BrandIcon,
   DayDivider,
   Button,
+  Chip,
   EmptyState,
   IconButton,
   REACTION_EMOJI,
@@ -28,6 +29,7 @@ import { MoveMessageSubject } from './MoveMessageSubject.tsx'
 import { subjectDisplayName } from './SubjectBar.tsx'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { TeamChannelStrip } from '../team/TeamChannelStrip.tsx'
+import { QueuedMessageBubble, type QueuedMessageItem } from './QueuedMessageBubble.tsx'
 import { ChannelComposer } from './ChannelComposer.tsx'
 import { MessageQuoteToolbar, type MessageQuote } from './MessageQuoteToolbar.tsx'
 import type { ComposerSlashCommand } from './composer-slash-commands.ts'
@@ -65,6 +67,12 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   /** Header ? → Ajuda (guide canais). */
   readonly onOpenHelp?: (() => void) | undefined
   readonly onOpenSearch?: (() => void) | undefined
+  /** Sino do cabeçalho: abre o que espera a pessoa (Aprovações). Sem handler, o sino nem aparece (nada de controle morto). */
+  readonly onOpenNotifications?: (() => void) | undefined
+  /** Quantas decisões esperam a pessoa; o ponto do sino só aparece com pelo menos 1. */
+  readonly notificationsCount?: number | undefined
+  /** Menu da conta (ainda não existe): sem handler o avatar é só a presença, não um botão. */
+  readonly onOpenAccount?: (() => void) | undefined
   readonly runErrorHandlers?: RunErrorHandlerContext | undefined
   readonly team?: TeamView | null
   readonly personaCard?: PersonaCardShellBridge | undefined
@@ -92,6 +100,13 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly onResumeQuota?: (() => void) | undefined
   readonly onSwapAccount?: (() => void) | undefined
   readonly responderAutonomy?: import('../persona-editor/persona-draft.ts').AutonomyLevel | undefined
+  /** UX-PHASE §6: messages waiting for the responder's current step; local queue when the host has none. */
+  readonly queuedMessages?: readonly QueuedMessageItem[] | undefined
+  readonly onSendQueuedNow?: ((id: string) => void) | undefined
+  readonly onEditQueued?: ((id: string) => void) | undefined
+  readonly onRemoveQueued?: ((id: string) => void) | undefined
+  /** FR-3: faixa "Falta uma IA" fixa acima do composer (Connected liga ao host). */
+  readonly engineBanner?: ReactNode | undefined
 }
 
 function isReactionId(id: string): id is ReactionId {
@@ -128,6 +143,9 @@ export function GeneralChannelView({
   onBuildTeam,
   onOpenHelp,
   onOpenSearch,
+  onOpenNotifications,
+  notificationsCount = 0,
+  onOpenAccount,
   runErrorHandlers,
   uploadAttachment,
   team = null,
@@ -155,7 +173,83 @@ export function GeneralChannelView({
   onResumeQuota,
   onSwapAccount,
   responderAutonomy,
+  queuedMessages,
+  onSendQueuedNow,
+  onEditQueued,
+  onRemoveQueued,
+  engineBanner,
 }: GeneralChannelViewProps): ReactNode {
+  const [localQueued, setLocalQueued] = useState<readonly QueuedMessageItem[]>([])
+  const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
+  const [removedQueued, setRemovedQueued] = useState<QueuedMessageItem | null>(null)
+  const [queueAnnounce, setQueueAnnounce] = useState('')
+  const queueSeq = useRef(0)
+  const effectiveQueued = queuedMessages ?? localQueued
+  const editingQueuedItem = effectiveQueued.find(q => q.id === editingQueuedId)
+
+  /** Enviar de verdade: se a mensagem veio de uma edição da fila, o item original sai da fila. */
+  const sendMessage = (body: string, attachmentIds?: readonly string[]): void => {
+    if (editingQueuedId !== null) {
+      setLocalQueued(prev => prev.filter(q => q.id !== editingQueuedId))
+      setEditingQueuedId(null)
+    }
+    onSendMessage?.(body, attachmentIds)
+  }
+  /** "Na fila" com a persona trabalhando: guarda como balão tracejado até ela terminar o passo atual. */
+  const enqueueMessage = (text: string, responder: { readonly id: string; readonly name: string }): void => {
+    queueSeq.current += 1
+    const item: QueuedMessageItem = {
+      id: `queued-${String(queueSeq.current)}`,
+      text,
+      targetPersonaName: responder.name,
+      targetPersonaId: responder.id,
+    }
+    setLocalQueued(prev => [...prev.filter(q => q.id !== editingQueuedId), item])
+    setEditingQueuedId(null)
+    setQueueAnnounce(t('composer.steer.queuedAnnounce'))
+  }
+  const handleSendQueuedNow = (id: string): void => {
+    if (onSendQueuedNow !== undefined) { onSendQueuedNow(id); return }
+    const item = localQueued.find(q => q.id === id)
+    if (item === undefined) return
+    setLocalQueued(prev => prev.filter(q => q.id !== id))
+    if (editingQueuedId === id) setEditingQueuedId(null)
+    onSendMessage?.(item.text)
+    setQueueAnnounce(t('composer.steer.sentAnnounce'))
+  }
+  const handleEditQueued = (id: string): void => {
+    if (onEditQueued !== undefined) { onEditQueued(id); return }
+    setEditingQueuedId(id)
+  }
+  const handleRemoveQueued = (id: string): void => {
+    if (onRemoveQueued !== undefined) { onRemoveQueued(id); return }
+    const item = localQueued.find(q => q.id === id)
+    setLocalQueued(prev => prev.filter(q => q.id !== id))
+    if (editingQueuedId === id) setEditingQueuedId(null)
+    if (item !== undefined) setRemovedQueued(item)
+  }
+  const undoRemoveQueued = (): void => {
+    if (removedQueued !== null) setLocalQueued(prev => [...prev, removedQueued])
+    setRemovedQueued(null)
+  }
+  useEffect(() => {
+    if (removedQueued === null) return undefined
+    const timer = setTimeout(() => { setRemovedQueued(null) }, 6_000)
+    return () => { clearTimeout(timer) }
+  }, [removedQueued])
+  // A fila sai sozinha quando a persona alvo termina o passo atual (ou some do elenco).
+  useEffect(() => {
+    if (queuedMessages !== undefined || localQueued.length === 0) return
+    const ready = localQueued.filter((item) => {
+      if (item.id === editingQueuedId) return false
+      const target = members.find(member => member.id === item.targetPersonaId)
+      return target === undefined || target.state !== 'working'
+    })
+    if (ready.length === 0) return
+    setLocalQueued(prev => prev.filter(item => !ready.some(r => r.id === item.id)))
+    for (const item of ready) onSendMessage?.(item.text)
+    setQueueAnnounce(t('composer.steer.sentAnnounce'))
+  }, [members, localQueued, editingQueuedId, queuedMessages, onSendMessage, t])
   const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string; readonly revertSubjectId: string } | null>(null)
   const [pendingQuote, setPendingQuote] = useState<MessageQuote | null>(null)
   const [adjustTarget, setAdjustTarget] = useState<{ readonly planId: string; readonly gestorName: string } | null>(null)
@@ -183,7 +277,7 @@ export function GeneralChannelView({
       }
     }
   const composerProps = {
-    ...(onSendMessage !== undefined ? { onSend: onSendMessage } : {}),
+    ...(onSendMessage !== undefined ? { onSend: sendMessage, onQueueMessage: enqueueMessage } : {}),
     ...(uploadAttachment !== undefined ? { uploadAttachment } : {}),
     ...(composerSubjectPlaceholder !== undefined ? { placeholder: composerSubjectPlaceholder } : {}),
     ...(composerSubjectColorIndex !== undefined ? { activeSubjectColorIndex: composerSubjectColorIndex } : {}),
@@ -225,16 +319,29 @@ export function GeneralChannelView({
             icon={<BrandIcon name="busca" size={20} />}
             {...(onOpenSearch === undefined ? {} : { onClick: onOpenSearch })}
           />
-          <IconButton label={t('header.notifications')} icon={<UiIcon name="bell" size={21} />} badge />
+          {onOpenNotifications !== undefined && (
+            <IconButton
+              label={notificationsCount > 0 ? t('header.notificationsCount', { count: notificationsCount }) : t('header.notifications')}
+              icon={<UiIcon name="bell" size={21} />}
+              badge={notificationsCount > 0}
+              onClick={onOpenNotifications}
+            />
+          )}
           <IconButton
             label={t('header.help')}
             icon={<UiIcon name="help" size={21} />}
             {...(onOpenHelp === undefined ? {} : { onClick: onOpenHelp })}
           />
-          <button type="button" className={styles.userButton} aria-label={t('header.userMenu')}>
-            <Avatar name={userName} size={40} presence="online" decorative />
-            <UiIcon name="chevronDown" size={16} strokeWidth={2.2} />
-          </button>
+          {onOpenAccount === undefined ? (
+            <span className={styles.userButton} data-static="">
+              <Avatar name={userName} size={40} presence="online" decorative />
+            </span>
+          ) : (
+            <button type="button" className={styles.userButton} aria-label={t('header.userMenu')} onClick={onOpenAccount}>
+              <Avatar name={userName} size={40} presence="online" decorative />
+              <UiIcon name="chevronDown" size={16} strokeWidth={2.2} />
+            </button>
+          )}
         </div>
       </header>
 
@@ -331,6 +438,17 @@ export function GeneralChannelView({
                 {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
               />
             )}
+            {effectiveQueued.map(item => (
+              <QueuedMessageBubble
+                key={item.id}
+                t={t}
+                item={item}
+                isOnlyItem={effectiveQueued.length === 1}
+                onSendNow={handleSendQueuedNow}
+                onEdit={handleEditQueued}
+                onRemove={handleRemoveQueued}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -339,9 +457,28 @@ export function GeneralChannelView({
 
       <div className={styles.composerDock}>
         <div className={styles.column}>
-          <ChannelComposer t={t} members={members} {...composerProps} />
+          {engineBanner}
+          <ChannelComposer
+            t={t}
+            members={members}
+            {...composerProps}
+            {...(editingQueuedItem === undefined ? {} : {
+              editingQueuedText: editingQueuedItem.text,
+              onCancelEditQueued: () => { setEditingQueuedId(null) },
+            })}
+          />
         </div>
       </div>
+      <span className="persona-sr-only" role="status" aria-live="polite">{queueAnnounce}</span>
+      {removedQueued !== null && (
+        <ToastRegion label={t('composer.steer.removedToast')}>
+          <Toast
+            tone="neutral"
+            title={t('composer.steer.removedToast')}
+            action={<Button variant="ghost" size="s" onClick={undoRemoveQueued}>{t('composer.steer.undoRemove')}</Button>}
+          />
+        </ToastRegion>
+      )}
       {moveToast !== null && (
         <ToastRegion label={t('subjects.move')}>
           <Toast
@@ -590,6 +727,14 @@ function ChannelMessageRow(props: {
           <div className={styles.meta}>
             <span className={styles.author}>{message.authorName}</span>
             <time className={styles.time} dateTime={message.timeLabel}>{message.timeLabel}</time>
+            {message.steeredPersonaName !== undefined && (
+              <Chip size="s" tone="brand">
+                <span className={styles.steeredChipContent}>
+                  <UiIcon name="arrowRight" size={12} strokeWidth={2.4} />
+                  {t('composer.steer.steeredBadge', { name: message.steeredPersonaName })}
+                </span>
+              </Chip>
+            )}
           </div>
         )}
         {message.runError !== undefined && runErrorHandlers !== undefined ? (
@@ -598,6 +743,7 @@ function ChannelMessageRow(props: {
               t={t}
               personaName={message.authorName}
               payload={message.runError}
+              {...(avatarFor(message.authorId) === undefined ? {} : { avatarSrc: avatarFor(message.authorId) })}
               {...(message.authorPersonaId === undefined ? {} : { hostPersonaId: message.authorPersonaId })}
               handlers={runErrorHandlers}
             />

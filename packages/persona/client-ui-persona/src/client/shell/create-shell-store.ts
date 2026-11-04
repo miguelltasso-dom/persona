@@ -47,6 +47,8 @@ export interface ShellState {
   readonly boardsFocusProjectId: string | null
   /** PRO-4: Visão geral → cartão no quadro global (consumed by ConnectedGlobalKanban). */
   readonly kanbanFocusTicketId: string | null
+  /** DECISIONS-SPEC / UX-PHASE: Visão geral → cartão na tela de Aprovações. */
+  readonly focusedApprovalId?: string | null | undefined
   /** PB-5: Arquivos/Rotinas/Conversa scoped to this project after leaving the quadro tab. */
   readonly projectWorkspaceProjectId: string | null
   /** Talk ACL editor overlay for a persona (rail/profile). */
@@ -83,6 +85,9 @@ export interface ShellActions {
   /** PRO-4: open Quadros and scroll to the ticket card when present. */
   openKanbanTicket(ticketId: string): void
   clearKanbanFocusTicket(): void
+  /** DECISIONS-SPEC: open Approvals and highlight/focus the approval card. */
+  openApproval(approvalId: string): void
+  clearFocusedApproval(): void
   setProjectWorkspaceProjectId(projectId: string | null): void
   openTalkAclEditor(personaId: string): void
   closeTalkAclEditor(): void
@@ -108,6 +113,7 @@ const INITIAL: ShellState = {
   profileEditorOpen: false,
   boardsFocusProjectId: null,
   kanbanFocusTicketId: null,
+  focusedApprovalId: null,
   projectWorkspaceProjectId: null,
   talkAclPersonaId: null,
   enginePersonaId: null,
@@ -191,6 +197,16 @@ export function createShellStore(): {
     },
     clearKanbanFocusTicket: () => {
       store.set({ ...store.getSnapshot(), kanbanFocusTicketId: null })
+    },
+    openApproval: (focusedApprovalId) => {
+      store.set({
+        ...store.getSnapshot(),
+        activePanel: 'approvals',
+        focusedApprovalId,
+      })
+    },
+    clearFocusedApproval: () => {
+      store.set({ ...store.getSnapshot(), focusedApprovalId: null })
     },
     setProjectWorkspaceProjectId: (projectWorkspaceProjectId) => {
       store.set({ ...store.getSnapshot(), projectWorkspaceProjectId })

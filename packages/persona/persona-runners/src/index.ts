@@ -249,6 +249,8 @@ export {
 } from './memory/ai-memory.ts'
 export { createOarRunner, requireExplicitPermission, type OarRunnerOptions } from './oar/adapter.ts'
 export { createOarSessionRunner, type OarSessionOptions } from './oar/session.ts'
+export { resolveGitExecutable, GitUnavailableError, type GitResolution, type GitResolutionOptions, type GitVersionProbe } from './resolve/git.ts'
+export { createWindowsHistoryFileOps, WindowsHistoryFileError, type WindowsHistoryIo, type WindowsHistoryFileOptions, type WindowsFileFailure } from './workspace/windows-files.ts'
 export { CLAUDE_CAPABILITIES, createClaudeRunner, type ClaudeRunnerOptions } from './oar/claude.ts'
 export { CODEX_CAPABILITIES, createCodexRunner, type CodexRunnerOptions } from './oar/codex.ts'
 export { CLI_ISOLATION_VARS, nativeSessionEnv, restoreNativeCliLogin } from './oar/native-cli-env.ts'

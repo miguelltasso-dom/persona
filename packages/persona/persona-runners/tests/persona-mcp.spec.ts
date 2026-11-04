@@ -13,6 +13,23 @@ function trigger(id: string): Trigger {
 }
 
 describe('Persona MCP tools (D3)', () => {
+  it('passes explicitly supplied report facts to the host without inventing audience or origin', async () => {
+    const calls: Array<{ facts?: unknown }> = []
+    const tools = personaMcpTools(
+      { personaId: 'p1', ticketId: 't1', assignmentId: 'a1' },
+      { report: input => { calls.push(input) }, recall: () => '', ask: () => {} },
+    )
+    const report = tools.find(tool => tool.name === 'persona_report')!
+    const facts = [{ kind: 'decision', title: 'Escolha', body: 'Cor lilás', evidence: 'Cor lilás' }]
+    await report.handler({ summary: 'Cor lilás', facts })
+    await report.handler({ summary: 'sem fatos' })
+    await report.handler({ summary: 'vazio', facts: [] })
+    expect(calls[0]?.facts).toEqual(facts)
+    expect(Object.hasOwn(calls[1]!, 'facts')).toBe(false)
+    expect(calls[2]?.facts).toEqual([])
+    expect(report.inputSchema.properties).toHaveProperty('facts')
+  })
+
   it('uses the run identity, refuses a forged actor, and reports onto the ticket', async () => {
     const repo = new MemoryRepositories()
     const requests: Candidate[] = []

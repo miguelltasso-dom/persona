@@ -86,11 +86,19 @@ it('complete answer-only assignment delivers under the same deny policy without 
 
 it('delivers persona context and first-delivery assignment in one OAR turn without prompt injection', async () => {
   const task = firstDeliveryTask({ companyBrief: BRIEF, executorName: 'Guia' })
-  const prompt = firstDeliveryExecutionPrompt({ personaContext: 'Você é Guia. Trabalhe com clareza e objetividade.', task })
+  const prompt = firstDeliveryExecutionPrompt({
+    fields: {
+      identity: { name: 'Guia', title: 'Coordenação' },
+      personality: 'Calma.', instructions: 'Você é Guia. Trabalhe com clareza e objetividade.', functionLabel: 'Coordenação',
+      vault: '', capabilities: 'Primeira entrega em texto. Sem ferramentas, shell ou arquivos. Execute a atribuição diretamente.',
+    },
+    assignment: task.assignment,
+  })
   const run = await replay(prompt)
   expect(run.inputs).toHaveLength(1)
   expect(run.inputs[0]).toContain('Você é Guia. Trabalhe com clareza e objetividade.')
   expect(run.inputs[0]).toContain(task.assignment)
+  expect(run.inputs[0]).toContain('Você executa a Tarefa autorizada.')
   expect(run.toolAttempts).toEqual([])
   expect(run.events.at(-1)).toMatchObject({ type: 'ended', report: { state: 'ready' } })
   expect(run.events.filter(event => event.type === 'delta').map(event => event.text).join('')).toBe(RESULT)

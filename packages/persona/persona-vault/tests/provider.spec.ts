@@ -33,7 +33,7 @@ it('keeps Web boot available while vault writes fail with an actionable typed er
   const vault = await boot(path)
   expect(vault.availability).toBe('unavailable')
   expect(vault.status()).toEqual({ available: false, protection: 'unavailable' })
-  expect(() => vault.assertAvailable()).toThrow(VaultUnavailableError)
+  expect(() => { vault.assertAvailable() }).toThrow(VaultUnavailableError)
   expect(await vault.vault.get('owner', 'dsh')).toBeUndefined()
   expect(await vault.listRecords()).toEqual([])
   await expect(vault.vault.set('owner', 'dsh', 'synthetic-secret')).rejects.toBeInstanceOf(VaultUnavailableError)

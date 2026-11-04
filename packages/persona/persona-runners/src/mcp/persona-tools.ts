@@ -20,7 +20,7 @@ export interface PersonaToolCall {
 }
 
 export interface PersonaToolHooks {
-  report(input: { run: PersonaRunIdentity; state: string; summary: string }): void
+  report(input: { run: PersonaRunIdentity; state: string; summary: string; facts?: unknown }): void
   recall(input: { run: PersonaRunIdentity; query: string }): string
   ask(input: { run: PersonaRunIdentity; question: string }): void
 }
@@ -51,10 +51,11 @@ export function personaMcpTools(
   hooks: PersonaToolHooks,
   toolLevel: ToolLevel = 'write',
 ): PersonaMcpTool[] {
-  const bind = (name: string, description: string, handle: (args: Record<string, unknown>) => string): PersonaMcpTool => ({
+  const bind = (name: string, description: string, handle: (args: Record<string, unknown>) => string,
+    inputSchema: Record<string, unknown> = { type: 'object', additionalProperties: true }): PersonaMcpTool => ({
     name,
     description,
-    inputSchema: { type: 'object', additionalProperties: true },
+    inputSchema,
     handler: async (args: Record<string, unknown>) => {
       if (typeof args.personaId === 'string' && args.personaId !== run.personaId) {
         return { content: 'forged actor refused' }
@@ -69,8 +70,18 @@ export function personaMcpTools(
     bind(`${PERSONA_TOOL}report`, 'Report assignment progress to the ticket.', (args) => {
       const summary = typeof args.summary === 'string' ? args.summary : ''
       const state = typeof args.state === 'string' ? args.state : 'progress'
-      hooks.report({ run, state, summary })
+      hooks.report({ run, state, summary, ...(Object.hasOwn(args, 'facts') ? { facts: args.facts } : {}) })
       return 'reported'
+    }, {
+      type: 'object', additionalProperties: true,
+      properties: {
+        state: { type: 'string' }, summary: { type: 'string' },
+        facts: { type: 'array', items: { type: 'object', additionalProperties: false,
+          properties: {
+            kind: { type: 'string', enum: ['decision', 'preference', 'rule', 'person', 'process', 'reference'] },
+            title: { type: 'string' }, body: { type: 'string' }, evidence: { type: 'string' },
+          }, required: ['kind', 'title', 'body', 'evidence'] } },
+      },
     }),
     bind(`${PERSONA_TOOL}recall`, 'Recall authorized memory for this run.', (args) => {
       const query = typeof args.query === 'string' ? args.query : ''

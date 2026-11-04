@@ -39,14 +39,17 @@ export async function withTimeout<T>(ms: number, work: Promise<T>): Promise<T> {
  * Exec `{bin} --version` (Probe fake-cli fixtures speak this).
  * @param bin - `claude` / `codex` / `opencode` / `cursor-agent`.
  * @param env - Process env (tests prepend the fake-cli dir to PATH).
+ * @param timeoutMs - Version process deadline; defaults to the runner resolution deadline.
  */
-export function probeCliBinary(bin: string, env: NodeJS.ProcessEnv = process.env): Promise<{ ok: boolean; version?: string }> {
+export function probeCliBinary(
+  bin: string, env: NodeJS.ProcessEnv = process.env, timeoutMs: number = PROBE_TIMEOUT_MS,
+): Promise<{ ok: boolean; version?: string; timedOut?: boolean }> {
   return new Promise((resolve) => {
     execFile(bin, ['--version'], {
-      encoding: 'utf8', timeout: PROBE_TIMEOUT_MS, env,
+      encoding: 'utf8', timeout: timeoutMs, env,
       windowsHide: true, shell: process.platform === 'win32',
     }, (error, stdout, stderr) => {
-      if (error !== null) { resolve({ ok: false }); return }
+      if (error !== null) { resolve(error.killed ? { ok: false, timedOut: true } : { ok: false }); return }
       const line = `${stdout}\n${stderr}`.trim().split(/\r?\n/u, 1)[0] ?? ''
       resolve(line === '' ? { ok: false } : { ok: true, version: line })
     })

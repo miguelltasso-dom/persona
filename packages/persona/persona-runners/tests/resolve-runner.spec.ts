@@ -2,7 +2,7 @@ import { delimiter } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { scriptedRuntime } from '@botiverse/oar/testing'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   RunnerResolveError,
   createSessionPool,
@@ -307,6 +307,40 @@ describe('resolveRunner', () => {
 })
 
 describe('detectConnections + fake CLI fixtures', () => {
+  it('shares concurrent detection and probes CLIs in parallel', async () => {
+    let calls = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const runtime = Object.assign(sayingRuntime(), {
+      installation: async () => { calls += 1; await gate; return { kind: 'available' } },
+    })
+    const options = { timeoutMs: 2_000, runtimes: { claude: runtime, codex: runtime, opencode: runtime, cursor: runtime } }
+    const first = detectConnections(options)
+    const second = detectConnections(options)
+    await vi.waitFor(() => { expect(calls).toBe(4) })
+    release()
+    const [a, b] = await Promise.all([first, second])
+    expect(a).toBe(b)
+    expect(a.filter(card => card.kind === 'cli' && card.loggedIn)).toHaveLength(4)
+  })
+
+  it('keeps installation timeouts unknown and a confirmed login when models time out', async () => {
+    const hungInstallation = Object.assign(sayingRuntime(), {
+      installation: () => new Promise<{ kind: string }>(() => undefined),
+    })
+    const hungModels = Object.assign(sayingRuntime(), {
+      listModels: () => new Promise<{ models: never[] }>(() => undefined),
+    })
+    const cards = await detectConnections({
+      timeoutMs: 50, force: true,
+      runtimes: { claude: hungInstallation, codex: hungModels, opencode: sayingRuntime(), cursor: sayingRuntime() },
+    })
+    expect(cards.find(card => card.id === 'claude')).toMatchObject({ authUnknown: true, installed: false })
+    expect(cards.find(card => card.id === 'claude')?.error).toBeUndefined()
+    expect(cards.find(card => card.id === 'codex')).toMatchObject({ loggedIn: true, installed: true })
+    expect(cards.find(card => card.id === 'codex')?.authUnknown).toBeUndefined()
+  })
+
   it('reads Probe fake-cli --version and never leaks a token', async () => {
     const previous = process.env.PATH ?? ''
     process.env.PATH = `${FAKE_CLI}${delimiter}${previous}`

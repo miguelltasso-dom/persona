@@ -12,7 +12,6 @@ import { readOarAccountUsage, type OfficialQuota } from '@deepseek-ai/dsh-person
 import {
   asProbe,
   probeCliBinary,
-  PROBE_TIMEOUT_MS,
   quotaExhausted,
   withTimeout,
   type ProbeRuntime,
@@ -39,6 +38,7 @@ export interface ConnectionSnapshot {
 }
 
 export interface DetectConnectionsOptions {
+  /** Total deadline per CLI, including installation, auth, models and quota; defaults to 2000 ms. */
   timeoutMs?: number
   cacheMs?: number
   now?: () => number
@@ -60,7 +60,9 @@ const CLI_BINS: Record<CliKind, string> = {
   cursor: 'cursor-agent',
 }
 
-let cache: { at: number; value: ConnectionSnapshot[] } | undefined
+let cache: { kind: 'ready'; at: number; value: ConnectionSnapshot[] }
+  | { kind: 'checking'; promise: Promise<ConnectionSnapshot[]> }
+  | undefined
 
 function redact(value: ConnectionSnapshot): ConnectionSnapshot {
   const blob = JSON.stringify(value)
@@ -71,6 +73,7 @@ function redact(value: ConnectionSnapshot): ConnectionSnapshot {
       installed: value.installed,
       loggedIn: value.loggedIn,
       models: value.models,
+      ...(value.authUnknown === undefined ? {} : { authUnknown: value.authUnknown }),
       ...(value.usageOrigin === undefined ? {} : { usageOrigin: value.usageOrigin }),
       ...(value.officialQuota === undefined ? {} : { officialQuota: value.officialQuota }),
     }
@@ -98,7 +101,10 @@ async function probeCli(
   timeoutMs: number,
   env: NodeJS.ProcessEnv,
 ): Promise<ConnectionSnapshot> {
-  const binary = runtime === undefined ? await probeCliBinary(CLI_BINS[id], env) : { ok: true, version: undefined as string | undefined }
+  const deadline = Date.now() + timeoutMs
+  const remaining = (): number => Math.max(1, deadline - Date.now())
+  const binary: { ok: boolean; version?: string; timedOut?: boolean } = runtime === undefined
+    ? await probeCliBinary(CLI_BINS[id], env, remaining()) : { ok: false }
   const card: ConnectionSnapshot = {
     id,
     kind: 'cli',
@@ -109,6 +115,7 @@ async function probeCli(
   if (binary.version !== undefined) card.version = binary.version
   if (runtime === undefined) {
     if (!binary.ok) {
+      if (binary.timedOut === true) return { ...card, authUnknown: true }
       card.error = { code: 'cli_not_found', message: new RunnerResolveError('cli_not_found', id).message }
       card.loginHint = loginHintFor(id)
       return redact(card)
@@ -120,46 +127,55 @@ async function probeCli(
   try {
     const snap = probe.installation === undefined
       ? { kind: 'available', version: binary.version }
-      : await withTimeout(timeoutMs, probe.installation())
-    card.installed = snap.kind === 'available' || binary.ok
+      : await withTimeout(remaining(), probe.installation())
+    card.installed = snap.kind === 'available'
     if (typeof snap.version === 'string' && snap.version.length > 0) card.version = snap.version
-    if (snap.kind !== 'available' && !binary.ok) {
+    if (snap.kind !== 'available') {
       card.error = { code: 'cli_not_found', message: new RunnerResolveError('cli_not_found', id).message }
       card.loginHint = loginHintFor(id)
       return redact(card)
     }
     if (probe.authStatus !== undefined && snap.kind === 'available') {
       try {
-        const auth = await withTimeout(timeoutMs, probe.authStatus(snap as never, { timeoutMs }))
+        const auth = await withTimeout(remaining(), probe.authStatus(snap as never, { timeoutMs: remaining() }))
         rememberAuth(id, auth.kind)
         card.loggedIn = auth.kind === 'logged_in'
         if (auth.kind === 'logged_out' || auth.kind === 'unauthenticated') {
           card.error = { code: 'not_logged_in', message: new RunnerResolveError('not_logged_in', id).message }
+        } else if (auth.kind !== 'logged_in') {
+          card.authUnknown = true
         }
-      } catch {
+      } catch (error) {
+        // Authentication failure leaves the host in checking, never logged out.
+        void error
         card.authUnknown = true
       }
-    } else if (id === 'opencode') {
-      card.loggedIn = card.installed
+    } else {
+      card.authUnknown = true
     }
-    if (probe.listModels !== undefined && card.installed) {
-      const listed = await withTimeout(timeoutMs, probe.listModels(snap as never, { timeoutMs }))
+    const models = async (): Promise<void> => {
+      if (probe.listModels === undefined || Date.now() >= deadline) return
+      const listed = await withTimeout(remaining(), probe.listModels(snap as never, { timeoutMs: remaining() }))
       card.models = (listed.models ?? [])
         .map(item => item.id)
         .filter((model): model is string => typeof model === 'string')
         .slice(0, 32)
       rememberModels(id, '', card.models)
     }
-    if (probe.accountUsage !== undefined && card.loggedIn) {
+    const quota = async (): Promise<void> => {
+      if (probe.accountUsage === undefined || !card.loggedIn) return
       let usage: unknown
       try {
-        usage = await withTimeout(timeoutMs, probe.accountUsage(snap as never))
-      } catch {
+        if (Date.now() >= deadline) throw new Error('probe timeout')
+        usage = await withTimeout(remaining(), probe.accountUsage(snap as never))
+      } catch (error) {
+        // Quota is optional; preserve the confirmed installation and login.
+        void error
         card.usageOrigin = 'unavailable'
         card.officialQuota = {
           provider: id, origin: 'unavailable', windows: [], detail: 'accountUsage timeout',
         }
-        return redact(card)
+        return
       }
       const quota = readOarAccountUsage(id, usage)
       card.officialQuota = quota
@@ -168,12 +184,12 @@ async function probeCli(
         card.error = { code: 'quota_exhausted', message: new RunnerResolveError('quota_exhausted', id).message }
       }
     }
-  } catch {
-    if (!card.installed) {
-      card.error = { code: 'cli_not_found', message: new RunnerResolveError('cli_not_found', id).message }
-    } else {
-      card.authUnknown = true
-    }
+    // Model discovery cannot turn a confirmed login into an unknown one.
+    await Promise.allSettled([models(), quota()])
+  } catch (error) {
+    // Installation failure is unknown; only an explicit absence is cli_not_found.
+    void error
+    card.authUnknown = true
   }
   if (!card.loggedIn && card.authUnknown !== true) card.loginHint = loginHintFor(id)
   return redact(card)
@@ -196,26 +212,48 @@ async function defaultRuntime(cli: CliKind): Promise<Runtime | undefined> {
 }
 
 /**
- * List dsh + four CLIs. Cached 60 s. Never returns tokens or emails.
+ * List connections in parallel with one deadline per CLI. Cache 60 s and share an in-flight pass.
+ * Installation/auth timeouts remain unknown; model/quota failures preserve confirmed login.
  * @param options - Timeouts, cache, injected runtimes (tests / fake-cli).
+ * @returns Read-only connection observations without tokens or emails.
  */
 export async function detectConnections(options: DetectConnectionsOptions = {}): Promise<ConnectionSnapshot[]> {
   const now = options.now ?? Date.now
   const cacheMs = options.cacheMs ?? CACHE_MS
-  if (options.force !== true && cache !== undefined && now() - cache.at < cacheMs) return cache.value
-  const timeoutMs = options.timeoutMs ?? PROBE_TIMEOUT_MS
-  const env = options.env ?? process.env
-  const cards: ConnectionSnapshot[] = [await probeDsh(env)]
-  for (const id of ['claude', 'codex', 'opencode', 'cursor'] as const) {
-    const runtime = options.runtimes === undefined ? await defaultRuntime(id) : options.runtimes[id]
-    cards.push(await probeCli(id, runtime, timeoutMs, env))
+  if (cache?.kind === 'checking') return cache.promise
+  if (options.force !== true && cache?.kind === 'ready' && now() - cache.at < cacheMs) return cache.value
+  const pending = { kind: 'checking' as const, promise: readConnections(options) }
+  cache = pending
+  try {
+    const cards = await pending.promise
+    if (cache === pending) cache = { kind: 'ready', at: now(), value: cards }
+    return cards
+  } catch (error) {
+    if (cache === pending) cache = undefined
+    throw error
   }
-  const locals = await detectLocalProviders({
+}
+
+async function readConnections(options: DetectConnectionsOptions): Promise<ConnectionSnapshot[]> {
+  const timeoutMs = options.timeoutMs ?? 2_000
+  const env = options.env ?? process.env
+  const cliCards = (['claude', 'codex', 'opencode', 'cursor'] as const).map(async (id) => {
+    try {
+      const runtime = options.runtimes === undefined ? await withTimeout(timeoutMs, defaultRuntime(id)) : options.runtimes[id]
+      return await probeCli(id, runtime, timeoutMs, env)
+    } catch (error) {
+      void error
+      return { id, kind: 'cli' as const, installed: false, loggedIn: false, models: [], authUnknown: true }
+    }
+  })
+  const localCards = detectLocalProviders({
     timeoutMs: Math.min(timeoutMs, 400),
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     ...(options.ollama === undefined ? {} : { ollama: options.ollama }),
     ...(options.lmstudio === undefined ? {} : { lmstudio: options.lmstudio }),
   })
+  const cards: ConnectionSnapshot[] = [await probeDsh(env), ...await Promise.all(cliCards)]
+  const locals = await localCards
   for (const local of locals) {
     cards.push({
       id: local.id,
@@ -227,7 +265,6 @@ export async function detectConnections(options: DetectConnectionsOptions = {}):
       loginHint: LOCAL_LABEL,
     })
   }
-  cache = { at: now(), value: cards }
   return cards
 }
 

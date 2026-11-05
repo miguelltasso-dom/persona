@@ -92,6 +92,19 @@ export function prepareRuntimePatches(
 }
 
 /**
+ * Start the disposable runtime resolution FROM the workspace lockfile (ENG-1): pnpm prefers the versions an existing lockfile
+ * already locks whenever they satisfy a range, so nothing the workspace has tested floats to a newer release. Without this seed the
+ * runtime resolved `^1.3.0` to 1.5.0 for most of `@earendil-works/*` while `pi-ai` stayed pinned, and the installed app could not
+ * load its AI engines. The seed is only a starting point; `assertRuntimeLockfileWithinWorkspace` is the proof.
+ * @param projectRoot Disposable project that will run `pnpm install --lockfile-only`.
+ * @param repositoryRoot Source repository; its lockfile is read, never written.
+ */
+export function seedRuntimeLockfile(projectRoot: string, repositoryRoot: string): void {
+  if (resolve(projectRoot) === resolve(repositoryRoot)) throw new Error('desktop patches: destination must not be the source workspace')
+  writeFileSync(join(projectRoot, 'pnpm-lock.yaml'), readFileSync(join(repositoryRoot, 'pnpm-lock.yaml')))
+}
+
+/**
  * Reject changed patch bytes, lock hashes or resolved versions before the frozen production install.
  * @param projectRoot Independent Desktop installation containing its resolved lockfile.
  * @param plan Expected identities and exclusions returned by patch preparation.

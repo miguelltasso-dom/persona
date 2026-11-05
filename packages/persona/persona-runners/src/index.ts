@@ -275,6 +275,7 @@ export {
   type AccountQuota,
   type ProviderAccount,
 } from './resolve/accounts.ts'
+export { checkRuntimeImports, type RuntimeImportCheck, type RuntimeImportName } from './resolve/runtime-imports.ts'
 export {
   LOGIN_REQUIRED_PHRASES,
   classifyLoginOutput,

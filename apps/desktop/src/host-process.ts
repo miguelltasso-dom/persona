@@ -57,8 +57,12 @@ export interface DesktopQuitInspection {
   readonly scheduledTasks: boolean
 }
 
-/** Quit inspection deadline; a slower Host counts as unknown work and the shell asks before quitting. */
-export const QUIT_INSPECTION_DEADLINE_MS = 2_000
+/**
+ * Quit inspection deadline; a slower Host counts as unknown work and the shell asks before quitting (nothing about WHAT it asks changed).
+ * 1 s instead of 2 s (BUG-QUIT-1, Keel 05/11): a healthy Host answers in 3-18 ms (measured), so this only shortens the case
+ * where the Host does not answer at all; "Sair" then reaches its question (and, once confirmed, the quit) a second sooner.
+ */
+export const QUIT_INSPECTION_DEADLINE_MS = 1_000
 
 const MAX_HOST_DIAGNOSTIC_CHARS = 64 * 1024
 const runIdSchema = z.uuid()

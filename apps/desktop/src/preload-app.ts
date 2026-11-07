@@ -9,6 +9,7 @@ import { ALWAYS_ON_IPC } from './always-on-ipc.ts'
 import { PLATFORM_IPC } from './platform-ipc.ts'
 import { markDocumentPlatform, syncWindowFullscreen } from './preload-platform.ts'
 import { syncNativeTheme } from './preload-theme.ts'
+import { parseThemeOverride } from './theme-override.ts'
 import { syncWindowsAppearance } from './preload-windows.ts'
 import { installMandatoryUpdateOverlay } from './preload-mandatory-overlay.ts'
 import { createDesktopBrowserBridge } from './preload-browser.ts'
@@ -108,6 +109,9 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
   // Persona "Novo projeto" / "Mostrar na pasta". The path is not persisted
   // here; the host validates it in setProjectRoot.
   contextBridge.exposeInMainWorld('personaDesktop', {
+    // TH-1: the theme forced by PERSONA_THEME / --persona-theme (captures, proofs). It wins over the saved choice; absent = no forced theme.
+    // Only the argument the main process put on this window is read (the sandboxed preload has no access to the main environment).
+    forcedTheme: parseThemeOverride({}, process.argv),
     pickDirectory: (request: { title?: string; purpose?: 'project' | 'vault' | 'export' } = {}) =>
       ipcRenderer.invoke(DESKTOP_IPC.directoryPick, request) as Promise<string | null>,
     pickVaultFolder: () =>
@@ -131,6 +135,17 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
         ipcRenderer.invoke(DESKTOP_IPC.teachBlur, rect) as Promise<boolean>,
       state: () => ipcRenderer.invoke(DESKTOP_IPC.teachState) as Promise<unknown>,
       stop: (typed?: string) => ipcRenderer.invoke(DESKTOP_IPC.teachStop, typed) as Promise<unknown>,
+      /**
+       * A button of the always-on-top recording pill. The Persona window may be minimized while the recorder runs, so the
+       * renderer must handle it exactly like its own Pausar / Retomar / Parar. Returns the unsubscribe.
+       */
+      onPillAction: (listener: (action: 'pause' | 'resume' | 'stop') => void) => {
+        const handle = (_event: Electron.IpcRendererEvent, action: unknown): void => {
+          if (action === 'pause' || action === 'resume' || action === 'stop') listener(action)
+        }
+        ipcRenderer.on(DESKTOP_IPC.teachPillAction, handle)
+        return () => { ipcRenderer.off(DESKTOP_IPC.teachPillAction, handle) }
+      },
     },
   })
   // The composer cites dropped, picked, and pasted files and folders that

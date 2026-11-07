@@ -1,0 +1,22 @@
+{
+  "kind": "available",
+  "plan": "max",
+  "email": "redacted",
+  "rateLimited": false,
+  "windows": [
+    {
+      "label": "Weekly",
+      "usedRatio": 0.67,
+      "resetsAt": "2026-11-07T16:00:01.001Z",
+      "id": "seven_day",
+      "durationMs": 604800000
+    },
+    {
+      "label": "Fable",
+      "usedRatio": 0,
+      "resetsAt": "2026-11-07T16:00:00.000Z",
+      "id": "model_scoped:Fable",
+      "durationMs": 604800000
+    }
+  ]
+}

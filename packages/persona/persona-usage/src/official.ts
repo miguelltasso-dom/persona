@@ -25,6 +25,9 @@ function usedPercentOf(raw: Record<string, unknown>): number | undefined {
   if (direct !== undefined) return clampPct(direct)
   const remaining = numberField(raw.remaining_percent) ?? numberField(raw.remainingPercent)
   if (remaining !== undefined) return clampPct(100 - remaining)
+  // OAR's Claude payload (measured 05/11 on a Max account): `usedRatio` is the SHARE of the window used, 0..1 (0.67 = 67%), always a ratio.
+  const ratio = numberField(raw.usedRatio) ?? numberField(raw.used_ratio)
+  if (ratio !== undefined) return clampPct(ratio * 100)
   const util = numberField(raw.utilization) ?? numberField(raw.utilized)
   if (util === undefined) return undefined
   return util <= 1 ? clampPct(util * 100) : clampPct(util)
@@ -46,14 +49,17 @@ function resetsAtOf(raw: Record<string, unknown>): string | undefined {
 }
 
 function canonicalWindowId(id: string, windowMinutes: number | undefined): string {
+  // A window scoped to a model (`model_scoped:Fable`) lasts a week too, but it is NOT the week of the account: it keeps its own id.
+  if (id.includes(':')) return id
   if (/5h|five|session/iu.test(id) || windowMinutes === 300) return '5h'
-  if (/week|semana|7d/iu.test(id) || windowMinutes === 10_080) return 'week'
+  if (/week|semana|7d|seven/iu.test(id) || windowMinutes === 10_080) return 'week'
   return id
 }
 
 function windowOf(id: string, raw: Record<string, unknown>): UsageWindow {
   const usedPercent = usedPercentOf(raw)
-  const windowMinutes = numberField(raw.window_minutes) ?? numberField(raw.windowMinutes)
+  const durationMs = numberField(raw.durationMs) ?? numberField(raw.duration_ms)
+  const windowMinutes = numberField(raw.window_minutes) ?? numberField(raw.windowMinutes) ?? (durationMs === undefined ? undefined : Math.round(durationMs / 60_000))
   const resetsAt = resetsAtOf(raw)
   const canonical = canonicalWindowId(id, windowMinutes)
   if (usedPercent === undefined && windowMinutes === undefined && resetsAt === undefined) {

@@ -19,12 +19,27 @@ import {
 
 export type ConnectionKind = CliKind | 'dsh' | 'ollama' | 'lmstudio'
 
+/**
+ * EFF-1 (D-088): one model the ENGINE offers, with the reasoning-effort levels IT accepts for that model. The screen builds its menu
+ * from this (never a hard-coded model or level). `efforts` absent = the engine exposes none for this model: no effort choice.
+ */
+export interface ModelMenuEntry {
+  id: string
+  label?: string
+  efforts?: readonly string[]
+  defaultEffort?: string
+  /** The engine lists the model but refuses to run it as it is. */
+  disabled?: boolean
+}
+
 export interface ConnectionSnapshot {
   id: ConnectionKind
   kind: 'dsh' | 'cli' | 'local'
   installed: boolean
   loggedIn: boolean
   models: readonly string[]
+  /** EFF-1: the same models with what the engine says about each (name, effort menu). Absent when the engine said nothing more than ids. */
+  modelMenu?: readonly ModelMenuEntry[]
   version?: string
   usageOrigin?: 'official' | 'unavailable'
   /** Official windows for Anvil `putQuota` / Lumen pool. Never `default`. */
@@ -160,6 +175,18 @@ async function probeCli(
         .map(item => item.id)
         .filter((model): model is string => typeof model === 'string')
         .slice(0, 32)
+      const menu: ModelMenuEntry[] = []
+      for (const item of listed.models ?? []) {
+        if (typeof item.id !== 'string' || menu.length >= 32) continue
+        menu.push({
+          id: item.id,
+          ...(typeof item.displayName === 'string' && item.displayName !== '' ? { label: item.displayName } : {}),
+          ...(Array.isArray(item.effortLevels) && item.effortLevels.length > 0 ? { efforts: item.effortLevels.filter((level): level is string => typeof level === 'string') } : {}),
+          ...(typeof item.defaultEffort === 'string' && item.defaultEffort !== '' ? { defaultEffort: item.defaultEffort } : {}),
+          ...(item.disabled === undefined ? {} : { disabled: true }),
+        })
+      }
+      if (menu.some(entry => entry.label !== undefined || entry.efforts !== undefined)) card.modelMenu = menu
       rememberModels(id, '', card.models)
     }
     const quota = async (): Promise<void> => {

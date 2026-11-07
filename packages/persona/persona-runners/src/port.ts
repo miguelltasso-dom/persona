@@ -3,7 +3,9 @@
  */
 
 export type {
+  DeliverImage,
   DeliverMode,
+  DeliverOptions,
   Runner,
   RunnerBackground,
   RunnerCapabilities,

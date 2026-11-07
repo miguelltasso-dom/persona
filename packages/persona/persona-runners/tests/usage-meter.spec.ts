@@ -70,8 +70,38 @@ describe('OPT-1 usage meter', () => {
   })
 })
 
+describe('EFF-1 what the person chose reaches the ledger sink', () => {
+  const ended = (): RunEvent => ({ type: 'ended', at: '2026-11-07T12:00:00.000Z', report: { state: 'ready', summary: 'ok' } })
+  async function sinkRow(usage: Record<string, unknown>): Promise<MeasuredUsage> {
+    const records: MeasuredUsage[] = []
+    const runner = withUsageMeter(createScriptedRunner({ turns: [{ events: [ended()], usage: { inputTokens: 5, outputTokens: 2, ...usage } as never }] }), { record: (row) => { records.push(row) } }, 'claude')
+    const handle = await runner.start(input)
+    for await (const _event of runner.stream(handle)) { /* drain */ }
+    return records[0]!
+  }
+
+  it('the choice (model, effort) and what the engine did about it (model/effort dropped) are handed to the sink as they are', async () => {
+    const row = await sinkRow({ modelRequested: 'opus', effortRequested: 'max', modelDropped: 'opus-9-9', effortDropped: 'max' })
+    expect(row).toMatchObject({ modelRequested: 'opus', effortRequested: 'max', modelDropped: 'opus-9-9', effortDropped: 'max' })
+  })
+
+  it('no choice => the four fields are ABSENT from the entry (not empty strings): "Padrão do motor" says nothing', async () => {
+    const row = await sinkRow({})
+    for (const key of ['modelRequested', 'effortRequested', 'modelDropped', 'effortDropped']) expect(key in row).toBe(false)
+  })
+
+  it('a model alone, or a refused effort alone, only carries its own fields', async () => {
+    const onlyModel = await sinkRow({ modelRequested: 'sonnet' })
+    expect(onlyModel.modelRequested).toBe('sonnet')
+    for (const key of ['effortRequested', 'modelDropped', 'effortDropped']) expect(key in onlyModel).toBe(false)
+    const refused = await sinkRow({ modelRequested: 'haiku', effortRequested: 'high', effortDropped: 'high' })
+    expect(refused).toMatchObject({ modelRequested: 'haiku', effortRequested: 'high', effortDropped: 'high' })
+    expect('modelDropped' in refused).toBe(false)
+  })
+})
+
 describe('OPT-9 turn duration', () => {
-  const handleOf = () => ({ runId: 'r', sessionId: 's', ticketId: 't', assignmentId: 'a', personaId: 'nina', cwd: 'C:/tmp', model: 'haiku' })
+  const handleOf =() => ({ runId: 'r', sessionId: 's', ticketId: 't', assignmentId: 'a', personaId: 'nina', cwd: 'C:/tmp', model: 'haiku' })
   const started = (at: string): RunEvent => ({ type: 'started', at, handle: handleOf() })
   const ended = (at: string): RunEvent => ({ type: 'ended', at, report: { state: 'ready', summary: 'done' } })
 

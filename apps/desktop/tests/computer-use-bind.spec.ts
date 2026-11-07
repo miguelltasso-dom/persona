@@ -70,8 +70,96 @@ describe('W3-5 computer-use bind', () => {
         loadURL: (url) => { loaded.push(url) },
       }),
     })
+    bind.control.begin('nina')
     expect(loaded).toHaveLength(1)
     expect(decodeURIComponent(loaded[0] ?? '')).toContain('__personaOverlay')
+    bind.close()
+  })
+
+  it('opens no overlay window until a persona uses the computer, and only one for several (BUG-QUIT-1)', () => {
+    const frame = { url: 'dsh-app://app/' }
+    const window = { webContents: { mainFrame: frame }, isDestroyed: () => false }
+    const created: string[] = []
+    const closed: string[] = []
+    let monitors = 1
+    const bind = installComputerUseBind(() => window as unknown as BrowserWindow, {
+      displays: () => Array.from({ length: monitors }, (_, id) => ({ id, bounds: { x: 0, y: 0, width: 800, height: 600 }, scaleFactor: 1 })),
+      createWindow: () => {
+        const name = `w${String(created.length)}`
+        created.push(name)
+        return { setIgnoreMouseEvents: () => undefined, close: () => { closed.push(name) } }
+      },
+    })
+    // An idle app holds no full-screen, topmost, transparent window: with one alive the packaged app never finished "Sair".
+    expect(created).toEqual([])
+    expect(bind.overlaysOpen()).toBe(false)
+    bind.close()
+    expect(closed).toEqual([])
+
+    monitors = 2 // the monitors are read when the overlay opens, not at boot
+    bind.control.begin('nina')
+    bind.control.begin('bento')
+    expect(created).toEqual(['w0', 'w1'])
+    expect(bind.overlaysOpen()).toBe(true)
+    expect(bind.control.personas().map(row => row.personaId)).toEqual(['nina', 'bento'])
+
+    bind.release()
+    expect(closed).toEqual(['w0', 'w1'])
+    expect(bind.overlaysOpen()).toBe(false)
+    bind.release()
+    bind.close()
+    expect(closed).toEqual(['w0', 'w1'])
+
+    bind.control.begin('nina') // a later use opens them again
+    expect(bind.overlaysOpen()).toBe(true)
+    bind.close()
+    expect(closed).toEqual(['w0', 'w1', 'w2', 'w3'])
+  })
+
+  it('holds the global Devolver shortcut only while the overlay is open, so an idle Persona takes no chord from other apps', () => {
+    const frame = { url: 'dsh-app://app/' }
+    const window = { webContents: { mainFrame: frame }, isDestroyed: () => false }
+    const registered: string[] = []
+    const freed: string[] = []
+    const callbacks: Array<() => void> = []
+    const bind = installComputerUseBind(() => window as unknown as BrowserWindow, {
+      createWindow: () => ({ setIgnoreMouseEvents: () => undefined, close: () => undefined }),
+      registerShortcut: (accelerator, callback) => {
+        registered.push(accelerator)
+        callbacks.push(callback)
+        return () => { freed.push(accelerator) }
+      },
+    })
+    expect(registered).toEqual([])
+    expect(bind.shortcutHeld()).toBe(false)
+
+    bind.control.begin('nina')
+    bind.control.begin('bento') // once, however many personas
+    expect(registered).toEqual(['CommandOrControl+Shift+Space'])
+    expect(bind.shortcutHeld()).toBe(true)
+
+    // The chord still gives control back: the human takes over, the shortcut resumes.
+    bind.onHook({})
+    expect(bind.held()).toBe(true)
+    callbacks[0]?.()
+    expect(bind.held()).toBe(false)
+
+    bind.release()
+    expect(freed).toEqual(['CommandOrControl+Shift+Space'])
+    expect(bind.shortcutHeld()).toBe(false)
+    bind.close()
+    expect(freed).toHaveLength(1)
+  })
+
+  it('still answers state and resume without any overlay (no window factory)', () => {
+    const frame = { url: 'dsh-app://app/' }
+    const window = { webContents: { mainFrame: frame }, isDestroyed: () => false }
+    const bind = installComputerUseBind(() => window as unknown as BrowserWindow, {})
+    bind.control.begin('nina')
+    expect(bind.overlaysOpen()).toBe(false)
+    const event = { sender: window.webContents, senderFrame: frame } as unknown as IpcMainInvokeEvent
+    const state = electron.handle.mock.calls.find(call => call[0] === COMPUTER_USE_IPC.state)?.[1]
+    expect(state?.(event)).toEqual([{ personaId: 'nina', state: 'idle', progress: 0 }])
     bind.close()
   })
 

@@ -42,6 +42,8 @@ export function createCodexRunner(options: CodexRunnerOptions): Runner {
     ...(options.policy === undefined ? {} : { policy: options.policy }),
     ...(options.warmTtlMs === undefined ? {} : { warmTtlMs: options.warmTtlMs }),
     ...(options.warmCap === undefined ? {} : { warmCap: options.warmCap }),
+    // HT-0: the isolated home is the only one whose config.toml the product writes (to pre-approve its own tools server).
+    ...(options.homeDir === undefined ? {} : { codexHome: options.homeDir }),
   }
   return createOarRunner(oar)
 }

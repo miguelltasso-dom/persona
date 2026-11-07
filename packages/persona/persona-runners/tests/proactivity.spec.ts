@@ -128,7 +128,7 @@ describe('PRO-3 owner norms and laziness suite', () => {
     const text = executorPrompt({ id: 'nina', name: 'Nina', title: 'Engenharia' })
     expect(text).toContain('Nina')
     expect(text).toContain(OWNER_NORMS)
-    expect(text).toMatch(/Não devolva trabalho/u)
+    expect(text).toMatch(/sem devolver o que cabe a você/u)
   })
 
   it('scores diligent scripted turns as strong completion and initiative', async () => {

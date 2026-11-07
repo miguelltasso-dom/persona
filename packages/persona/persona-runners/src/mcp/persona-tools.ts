@@ -22,7 +22,12 @@ export interface PersonaToolCall {
 export interface PersonaToolHooks {
   report(input: { run: PersonaRunIdentity; state: string; summary: string; facts?: unknown }): void
   recall(input: { run: PersonaRunIdentity; query: string }): string
-  ask(input: { run: PersonaRunIdentity; question: string }): void
+  /**
+   * The persona asks the person. `question` is the plain form; `questions` carries the structured form (chips, a sequence) exactly
+   * as the model wrote it (the Host validates); `assumption` is the persona going on without an answer. Whatever string the hook
+   * returns is handed back to the model (a refusal with the way forward); returning nothing answers `asked`.
+   */
+  ask(input: { run: PersonaRunIdentity; question: string; questions?: unknown; assumption?: string }): void | string
 }
 
 export interface PersonaMcpTool {
@@ -87,10 +92,30 @@ export function personaMcpTools(
       const query = typeof args.query === 'string' ? args.query : ''
       return hooks.recall({ run, query })
     }),
-    bind(`${PERSONA_TOOL}ask`, 'Ask the person a question on the ticket.', (args) => {
+    bind(`${PERSONA_TOOL}ask`, 'Ask the person a question: 2-8 short options if it is a choice, up to 5 questions. If it is not worth interrupting, go on and state your assumption.', (args) => {
       const question = typeof args.question === 'string' ? args.question : ''
-      hooks.ask({ run, question })
-      return 'asked'
+      const assumption = typeof args.assumption === 'string' ? args.assumption : undefined
+      // The structured form: a `questions` list, or a `question` with `options`/`multiple`. The Host reads and validates it.
+      const structured = Object.hasOwn(args, 'questions')
+        ? args.questions
+        : (Object.hasOwn(args, 'options') || args.multiple === true ? { question, options: args.options, multiple: args.multiple } : undefined)
+      const answered = hooks.ask({
+        run, question,
+        ...(structured === undefined ? {} : { questions: structured }),
+        ...(assumption === undefined ? {} : { assumption }),
+      })
+      return typeof answered === 'string' && answered !== '' ? answered : 'asked'
+    }, {
+      type: 'object', additionalProperties: true,
+      properties: {
+        question: { type: 'string' },
+        options: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 8 },
+        multiple: { type: 'boolean' },
+        questions: { type: 'array', maxItems: 5, items: { type: 'object', additionalProperties: false,
+          properties: { question: { type: 'string' }, options: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 8 }, multiple: { type: 'boolean' } },
+          required: ['question'] } },
+        assumption: { type: 'string' },
+      },
     }),
   ].filter(tool => allowsTool(toolLevel, tool.name))
 }

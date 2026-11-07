@@ -3,6 +3,14 @@ import type { IpcVaultTransport } from './cipher.ts'
 import { VaultUnavailableError } from './errors.ts'
 
 /**
+ * Default deadline for a main-process answer. The FIRST request of a launch waits behind the main process's own start-up work:
+ * measured on the installed app (INST-2), it answers in 2–7 s on an idle machine and longer under load or while an antivirus scans
+ * the install, while DPAPI itself takes 0–2 ms. A 10 s deadline turned that slow first answer into "Cofre indisponível" on
+ * roughly one launch in four. A request still never waits forever.
+ */
+export const VAULT_REQUEST_TIMEOUT_MS = 60_000
+
+/**
  * Create a transport whose listener and pending requests belong to the caller.
  * @param timeoutMs - Deadline for a main-process response.
  * @returns Transport and disposer; disposal rejects pending requests.

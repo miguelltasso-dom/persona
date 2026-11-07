@@ -59,6 +59,12 @@ export interface SessionPoolKey {
   permissionMode?: string
   toolLevel?: string
   accountId?: string
+  /** EFF-1: the persona's effort. A runner opened with another effort must not be handed back. */
+  effort?: string
+  /** ISO-5: fingerprint of the account connectors asked for. A runner opened with other ones must not be handed back. */
+  connectors?: string
+  /** HT-11: the person's skills are on. A runner opened with them must not be handed to a call that has them off. */
+  skills?: boolean
 }
 
 /**
@@ -66,7 +72,7 @@ export interface SessionPoolKey {
  * @param input - Persona, project, purpose, runner, model, cwd.
  */
 export function sessionPoolKey(input: SessionPoolKey): string {
-  return `${input.personaId}|${input.projectId}|${input.purpose}|${input.provider}|${input.model}|${input.cwd ?? ''}|${input.permissionMode ?? ''}|${input.toolLevel ?? ''}|${input.accountId ?? ''}`
+  return `${input.personaId}|${input.projectId}|${input.purpose}|${input.provider}|${input.model}|${input.cwd ?? ''}|${input.permissionMode ?? ''}|${input.toolLevel ?? ''}|${input.accountId ?? ''}${input.effort === undefined ? '' : `|${input.effort}`}${input.connectors === undefined ? '' : `|c:${input.connectors}`}${input.skills === true ? '|k:1' : ''}`
 }
 
 interface Slot<T> {

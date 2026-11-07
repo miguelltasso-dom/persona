@@ -8,7 +8,7 @@ import {
 import { createIpcVaultCipher, createMemoryCipher, type VaultCipher } from './cipher.ts'
 import { VaultUnavailableError } from './errors.ts'
 import { vaultBackend } from './backend.ts'
-import { createProcessVaultTransport } from './process-transport.ts'
+import { VAULT_REQUEST_TIMEOUT_MS, createProcessVaultTransport } from './process-transport.ts'
 import { emptyStoredVault, readStoredVault, writeStoredVault, type StoredVault } from './storage.ts'
 import { dropInviteToken, openInviteToken, sealInviteToken } from './invite-token.ts'
 import { createPersonaVault, type PersonaVault, type VaultConnection } from './vault.ts'
@@ -20,7 +20,7 @@ const EPHEMERAL_RECORD_SCOPES: ReadonlySet<string> = new Set(['client-connection
 export interface Config {
   /** Empty selects volatile ciphertext storage; production profiles set persona-vault.json. */
   path: string
-  /** Main-process request deadline; defaults to 10000 ms. */
+  /** Main-process request deadline; defaults to {@link VAULT_REQUEST_TIMEOUT_MS} (60 s: the first answer of a booting app is slow). */
   timeoutMs?: number
 }
 
@@ -53,7 +53,7 @@ function decodeRecord(text: string): CredentialRecord {
 /** Web permits ephemeral local browser authentication; persistent secrets require explicit encryption. */
 export default class PersonaVaultProvider extends CredentialProvider {
   static inject: string[] = []
-  static Config: z<Config> = z.object({ path: z.string().default(''), timeoutMs: z.number().min(1).default(10000) })
+  static Config: z<Config> = z.object({ path: z.string().default(''), timeoutMs: z.number().min(1).default(VAULT_REQUEST_TIMEOUT_MS) })
   readonly config: Required<Config>
   readonly availability: 'available' | 'unavailable' | 'test'
   readonly cipher: VaultCipher
@@ -71,7 +71,7 @@ export default class PersonaVaultProvider extends CredentialProvider {
   constructor(ctx: Context, config: Config = { path: '' }) {
     super(ctx)
     ctx.effect(() => () => { this.ephemeralRecords.clear() })
-    this.config = { path: config.path, timeoutMs: config.timeoutMs ?? 10000 }
+    this.config = { path: config.path, timeoutMs: config.timeoutMs ?? VAULT_REQUEST_TIMEOUT_MS }
     this.availability = vaultBackend(process.versions.electron !== undefined,
       process.connected && process.send !== undefined, process.env.PERSONA_VAULT_TEST_CIPHER === '1')
     if (this.availability === 'available') {

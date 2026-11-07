@@ -14,8 +14,11 @@ import { quotaVerdict, withQuotaRecheck } from '../src/resolve/quota-recheck.ts'
 const input: StartTurnInput = {
   ticketId: 't1', assignmentId: 'a1', personaId: 'nina', cwd: 'C:/tmp', prompt: 'hi', model: 'haiku', permissionMode: 'deny',
 }
-const FIVE_HOUR = '2026-11-04T22:00:00.000Z'
-const WEEK = '2026-11-08T10:00:00.000Z'
+// Reset clocks are relative to the REAL clock: the resolveRunner integration test goes through the real Date.now(), and a fixed
+// date stops being "in the future" the day the suite runs after it (the pooled runner would then, correctly, not refuse).
+const HOUR = 3_600_000
+const FIVE_HOUR = new Date(Date.now() + 5 * HOUR).toISOString()
+const WEEK = new Date(Date.now() + 7 * 24 * HOUR).toISOString()
 
 const full = (extra: Array<Record<string, unknown>> = []) => ({
   kind: 'available',
@@ -126,7 +129,7 @@ describe('withQuotaRecheck', () => {
   })
 
   it('remembers the block: the next turn on the same warm runner is refused before the CLI starts, until the reset', async () => {
-    let clock = Date.parse('2026-11-04T20:00:00.000Z')
+    let clock = Date.parse(FIVE_HOUR) - 2 * HOUR
     let reads = 0
     const inner = fakeInner(async function *() { yield ended('failed', 'limit') })
     const runner = withQuotaRecheck(inner, { provider: 'claude', now: () => clock, reread: async () => { reads += 1; return full() } })
@@ -141,7 +144,7 @@ describe('withQuotaRecheck', () => {
     expect(reads).toBe(1)
 
     // The clock passes: the block lifts and the turn runs.
-    clock = Date.parse('2026-11-04T22:00:01.000Z')
+    clock = Date.parse(FIVE_HOUR) + 1000
     await runner.start(input)
     expect(inner.calls.start).toBe(2)
   })

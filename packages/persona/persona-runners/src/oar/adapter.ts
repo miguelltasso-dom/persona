@@ -9,13 +9,21 @@ import {
   type RunHandle,
   type Runner,
   type RunnerCapabilities,
+  type RunnerEnvironment,
   type RunnerUsage,
   type StartTurnInput,
 } from '../contract.ts'
 import { RunnerResolveError, resolveCaughtError } from '../resolve/errors.ts'
 import { PRECISA_DE_VOCE, isPermissionAsk, type CliSessionPolicy } from '../resolve/cli-policy.ts'
 import { classifyLoginOutput, mayBecomeLogin } from './login-output.ts'
+import { environmentOf, mainLoopOf, usageSince } from './usage-detail.ts'
+import { redactCliStderr } from './stderr-redact.ts'
+import { checkTurnImages, ImagesRefusedError, type DeliverableImage } from './turn-images.ts'
 import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/recovery.ts'
+import { bindTools, claudeAllowToolsArgs, serverNameOf, toolSignature, type ServeHostTools, type ToolBinding } from './tool-binding.ts'
+import { ensureCodexToolsConfig, type CodexConfigIo } from './codex-tools-config.ts'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 const LOGIN_HOLD_CHARS = 240
 
@@ -34,9 +42,64 @@ export interface OarRunnerOptions {
   warmCap?: number
   /** Infra recovery. Tests inject a no-op waiter. */
   infra?: InfraRecoveryOptions
+  /** HT-0: how product tools are served to the CLI. Default: OAR `serveMcpTools`. Tests inject a double. */
+  serveTools?: ServeHostTools
+  /** HT-0 (Codex): the ISOLATED `CODEX_HOME` the product owns. Absent (the person's native home) ⇒ Codex is offered no product tools. */
+  codexHome?: string
+  /** Tests inject the filesystem used to write the Codex `config.toml` block. */
+  codexConfigIo?: CodexConfigIo
+}
+
+const defaultCodexConfigIo: CodexConfigIo = {
+  read: path => (existsSync(path) ? readFileSync(path, 'utf8') : undefined),
+  write: (path, text) => {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, text)
+  },
 }
 
 const BUNDLED: AvailableInstallation = { kind: 'available', via: 'bundled' }
+
+/** HT-0: the served tool server behind a session (disposed with it). */
+const bindingOf = new WeakMap<object, ToolBinding>()
+const closedToolSets = new WeakSet<object>()
+
+/** Close the host's lease of a turn's tool set, once. */
+async function closeToolSet(set: { close?: () => void | Promise<void> } | undefined): Promise<void> {
+  if (set === undefined || set.close === undefined || closedToolSets.has(set)) return
+  closedToolSets.add(set)
+  try {
+    await set.close()
+  } catch (error) {
+    void error
+  }
+}
+
+/** Dispose a CLI session and the tool server it carried. */
+async function disposeSession(session: Session): Promise<void> {
+  const binding = bindingOf.get(session)
+  if (binding !== undefined) {
+    const turn = binding.current
+    binding.current = undefined
+    await closeToolSet(turn)
+  }
+  try {
+    await session.dispose()
+  } finally {
+    if (binding !== undefined) {
+      try {
+        await binding.close()
+      } catch (error) {
+        void error
+      }
+    }
+  }
+}
+
+async function defaultServeTools(): Promise<ServeHostTools> {
+  const oar = await import('@botiverse/oar')
+  return oar.serveMcpTools as unknown as ServeHostTools
+}
 
 async function openSession(
   options: OarRunnerOptions,
@@ -47,6 +110,7 @@ async function openSession(
     env?: Readonly<Record<string, string | null>>
     launchArgs?: readonly string[]
     disallowedTools?: readonly string[]
+    mcpServers?: readonly ToolBinding['server'][]
   },
   policy: CliSessionPolicy | undefined,
 ): Promise<Session> {
@@ -79,10 +143,38 @@ export function requireExplicitPermission(input: StartTurnInput, cli?: CliKind):
   }
 }
 
+/** EFF-1: the effort a session was asked to run at that its engine refused (the call then ran at the engine's default). */
+const droppedEffort = new WeakMap<object, string>()
+
+/** ISO-4: the start frame is read once per session (records only grow; the first root `system/init` never changes). */
+const environmentCache = new WeakMap<object, RunnerEnvironment | null>()
+
+function environmentOfSession(session: Session): RunnerEnvironment | undefined {
+  const cached = environmentCache.get(session)
+  if (cached !== undefined) return cached ?? undefined
+  // Scripted and older sessions may not offer `records()`: then there is simply nothing to summarise.
+  const records = typeof session.records === 'function' ? session.records() : undefined
+  const found = records === undefined ? undefined : environmentOf(records)
+  if (found !== undefined) environmentCache.set(session, found)
+  return found
+}
+
 function usageOf(session: Session): RunnerUsage {
-  const total = session.usage().value.total
+  const reading = session.usage().value
+  const total = reading.total
   const extra = total === undefined || total === null ? {} : cacheFromVendor(total)
-  return { inputTokens: total?.input ?? 0, outputTokens: total?.output ?? 0, ...extra }
+  // ISO-4: the main loop next to the total, only when the runtime told them apart; never an estimate.
+  const main = mainLoopOf(reading)
+  const environment = environmentOfSession(session)
+  const dropped = droppedEffort.get(session)
+  return {
+    inputTokens: total?.input ?? 0,
+    outputTokens: total?.output ?? 0,
+    ...extra,
+    ...(main === undefined ? {} : { mainLoopInputTokens: main.inputTokens, mainLoopOutputTokens: main.outputTokens }),
+    ...(environment === undefined ? {} : { environment }),
+    ...(dropped === undefined ? {} : { effortDropped: dropped }),
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -132,7 +224,7 @@ function isTurnEnd(kind: string): boolean {
  * @param event - Vendor or scripted event.
  * @param now - Clock.
  */
-function mapEvent(event: Event, now: () => Date, requestedAction?: string): RunEvent | undefined {
+function mapEvent(event: Event, now: () => Date, requestedAction?: string, toolName?: string): RunEvent | undefined {
   const at = eventTime(now)
   const kind: string = event.kind
   if (isTurnEnd(kind)) {
@@ -169,15 +261,40 @@ function mapEvent(event: Event, now: () => Date, requestedAction?: string): RunE
   }
   if (kind === 'tool' || kind.includes('tool')) {
     const record = event as Event & { name?: string; tool?: string }
-    const name = typeof record.name === 'string' && record.name.length > 0
+    const named = toolName ?? (typeof record.name === 'string' && record.name.length > 0
       ? record.name
-      : typeof record.tool === 'string' && record.tool.length > 0 ? record.tool : 'tool'
-    return { type: 'report', at, report: { state: 'progress', summary: `tool:${name}` } }
+      : typeof record.tool === 'string' && record.tool.length > 0 ? record.tool : undefined)
+    // `tool_call_input` / `_input_delta` / `_ended` / `_progress` only carry a callId: they are the SAME call as its `_started`, not a
+    // tool called "tool" (which the tool-level guard would then refuse as an unknown write tool).
+    if (named === undefined && kind !== 'tool') return undefined
+    return { type: 'report', at, report: { state: 'progress', summary: `tool:${named ?? 'tool'}` } }
   }
   const text = eventText(event)
   if (text !== undefined && (kind === 'text_delta' || kind.includes('text') || kind.includes('delta')
     || kind === 'item' || kind === 'agent_message' || kind === 'message' || kind === 'output_item')) {
     return { type: 'delta', at, text }
+  }
+  return undefined
+}
+
+/**
+ * The `mcp__<server>__<tool>` name of a Codex MCP call, read from the native `item/started` frame of that call (the same spelling
+ * Claude uses, so the tool-level guard and the offered-tool exemption treat both CLIs the same). Absent when the frame is not there.
+ * @param session - Live OAR session.
+ * @param callId - `tool_call_started.callId` (the Codex item id).
+ */
+function mcpToolNameOf(session: Session, callId: unknown): string | undefined {
+  if (typeof callId !== 'string' || typeof session.records !== 'function') return undefined
+  const records = session.records()
+  for (let index = records.length - 1; index >= 0 && index >= records.length - 60; index -= 1) {
+    const record = records[index] as { kind?: unknown; body?: unknown } | undefined
+    if (record?.kind !== 'frame' || !isRecord(record.body) || !isRecord(record.body.native)) continue
+    const item = record.body.native.item
+    if (!isRecord(item) || item.id !== callId || item.type !== 'mcpToolCall') continue
+    const { server, tool } = item
+    if (typeof server === 'string' && typeof tool === 'string' && /^[\w-]{1,64}$/u.test(server) && /^[\w-]{1,64}$/u.test(tool)) {
+      return `mcp__${server}__${tool}`
+    }
   }
   return undefined
 }
@@ -195,6 +312,21 @@ interface Live {
   unsub: () => void
   rejected?: string
   wake?: () => void
+  /** HT-0: the tool set this turn offered (its lease is closed when the turn is over). */
+  toolSet?: StartTurnInput['mcpTools']
+  /** What the session had spent (cumulative) when this turn began: a turn's usage is the session's total now minus this (`usageSince`). */
+  base?: RunnerUsage
+  /** The turn's usage once it is over, fixed at the first reading after the end: a later turn of the same session must not move it. */
+  final?: RunnerUsage
+}
+
+/** HT-0: the turn is over (ended, failed, cancelled): the CLI can no longer call its tools and the host's lease is released. */
+async function endTurnTools(live: Live): Promise<void> {
+  const set = live.toolSet
+  if (set === undefined) return
+  const binding = bindingOf.get(live.session)
+  if (binding !== undefined && binding.current === set) binding.current = undefined
+  await closeToolSet(set)
 }
 
 /**
@@ -259,7 +391,7 @@ async function releaseLive(sessions: Map<string, Live>, sessionId: string | unde
     live.finished = true
     live.wake?.()
     try {
-      await live.session.dispose()
+      await disposeSession(live.session)
     } catch (error) {
       void error
     }
@@ -279,8 +411,11 @@ interface WarmSlot {
   lastUsed: number
 }
 
-function warmKey(input: { personaId: string; cwd: string; model: string }): string {
-  return `${input.personaId}|${input.cwd}|${input.model}`
+function warmKey(input: { personaId: string; cwd: string; model: string; effort?: string; mcpTools?: StartTurnInput['mcpTools'] }): string {
+  // The effort is part of the session: a persona that changes it must not be handed a warm session opened with the old one.
+  // HT-0: so is the LIST of product tools (the CLI lists them once, at start); who calls them is the turn, not the session.
+  const tools = toolSignature(input.mcpTools)
+  return `${input.personaId}|${input.cwd}|${input.model}|${input.effort ?? ''}${tools === '' ? '' : `|tools:${tools}`}`
 }
 
 export function createOarRunner(options: OarRunnerOptions): Runner {
@@ -296,7 +431,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     if (slot === undefined) return
     warm.delete(key)
     try {
-      await slot.session.dispose()
+      await disposeSession(slot.session)
     } catch (error) {
       void error
     }
@@ -336,6 +471,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     input: StartTurnInput,
     session: Session,
     prompt: string | undefined,
+    images?: readonly DeliverableImage[],
   ): RunHandle => {
     const cli = options.capabilities.cli
     const handle: RunHandle = {
@@ -352,6 +488,11 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       handle, session, cancelled: false, finished: false, accepted: prompt === undefined,
       pending, heldText: '', partialText: '', unsub: () => {},
     }
+    if (prompt !== undefined && bindingOf.has(session) && input.mcpTools !== undefined) live.toolSet = input.mcpTools
+    // A warm session is reused across turns and OAR counts since it opened: remember where it stood when THIS turn began.
+    if (prompt !== undefined) {
+      try { live.base = usageOf(session) } catch (error) { void error }
+    }
     live.unsub = session.events((event) => {
       let requestedAction: string | undefined
       if (event.kind === 'app_request') {
@@ -363,7 +504,11 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
           if (typeof name === 'string' && /^[\w:./-]{1,120}$/u.test(name)) requestedAction = name
         }
       }
-      const mapped = mapEvent(event, now, requestedAction)
+      // Codex reports an MCP call as the item TYPE (`mcpToolCall`), not as a tool name; the name is in the native frame (server + tool).
+      const toolName = event.kind === 'tool_call_started' && (event as Event & { tool?: unknown }).tool === 'mcpToolCall'
+        ? mcpToolNameOf(session, (event as Event & { callId?: unknown }).callId)
+        : undefined
+      const mapped = mapEvent(event, now, requestedAction, toolName)
       if (mapped !== undefined) {
         if (mapped.type === 'delta') {
           takeDelta(live, mapped, cli, now)
@@ -387,9 +532,9 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       live.pending.push({ type: 'ended', at: eventTime(now), report: { state: 'ready', summary: 'warmed' } })
       return handle
     }
-    void session.prompt(prompt).then((outcome) => {
+    void session.prompt(prompt, images === undefined ? undefined : { images }).then((outcome) => {
       if (outcome.kind === 'rejected') {
-        const reason = outcome.reason
+        const reason = redactCliStderr(outcome.reason)
         const login = cli === undefined ? undefined : classifyLoginOutput(cli, reason)
         if (login !== undefined) {
           live.loginError = new RunnerResolveError('not_logged_in', login.cli)
@@ -401,7 +546,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       }
       live.wake?.()
     }).catch((error: unknown) => {
-      const reason = error instanceof Error ? error.message : String(error)
+      const reason = redactCliStderr(error instanceof Error ? error.message : String(error))
       const login = cli === undefined ? undefined : classifyLoginOutput(cli, reason)
       if (login !== undefined) {
         live.loginError = new RunnerResolveError('not_logged_in', login.cli)
@@ -418,7 +563,38 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     return handle
   }
 
+  /** HT-0: serve this turn's product tools, for CLIs that take MCP servers. Absent tools, or a CLI without MCP, ⇒ nothing. */
+  const bindFor = async (input: StartTurnInput): Promise<ToolBinding | undefined> => {
+    const set = input.mcpTools
+    if (set === undefined || set.tools.length === 0 || options.capabilities.mcpTools !== 'available') return undefined
+    if (options.capabilities.cli === 'codex') {
+      // Codex declines an unapproved MCP tool under approvalPolicy "never": pre-approve only the server we serve (the gateway is the ACL).
+      // That lives in the config.toml of an ISOLATED Codex home; the person's native ~/.codex is never written, so there Codex gets no tools.
+      if (options.codexHome === undefined) return undefined
+      ensureCodexToolsConfig(options.codexHome, serverNameOf(set), options.codexConfigIo ?? defaultCodexConfigIo)
+    }
+    return bindTools(set, options.serveTools ?? await defaultServeTools())
+  }
+
   const spawn = async (input: StartTurnInput): Promise<Session> => {
+    const binding = await bindFor(input)
+    try {
+      const session = await spawnWith(input, binding)
+      if (binding !== undefined) bindingOf.set(session, binding)
+      return session
+    } catch (error) {
+      if (binding !== undefined) {
+        try {
+          await binding.close()
+        } catch (closeError) {
+          void closeError
+        }
+      }
+      throw error
+    }
+  }
+
+  const spawnWith = async (input: StartTurnInput, binding: ToolBinding | undefined): Promise<Session> => {
     const policy = options.policy
     const sessionOptions: {
       cwd: string
@@ -427,25 +603,61 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       env?: Readonly<Record<string, string | null>>
       launchArgs?: readonly string[]
       disallowedTools?: readonly string[]
+      effort?: string
+      mcpServers?: readonly ToolBinding['server'][]
     } = { cwd: input.cwd }
     if (input.model !== 'default') sessionOptions.model = input.model
+    // EFF-1: Claude takes `--effort`, Codex takes `model_reasoning_effort` (OAR sets it from the same option); another CLI is not sent an option it may refuse (it keeps its own default).
+    if ((options.capabilities.cli === 'claude' || options.capabilities.cli === 'codex') && input.effort !== undefined && input.effort !== '' && input.effort !== 'default') sessionOptions.effort = input.effort
     if (input.resumeSessionId !== undefined) sessionOptions.resume = input.resumeSessionId
     if (options.env !== undefined) sessionOptions.env = options.env
     if (policy !== undefined && policy.launchArgs.length > 0) sessionOptions.launchArgs = policy.launchArgs
     if (policy !== undefined && policy.disallowedTools.length > 0) sessionOptions.disallowedTools = policy.disallowedTools
-    return openSession(options, sessionOptions, policy)
+    if (binding !== undefined) {
+      sessionOptions.mcpServers = [binding.server]
+      // Claude in `dontAsk` refuses what no rule allows: allow exactly the server we serve (each handler is behind the gateway's ACL).
+      if (options.capabilities.cli === 'claude') sessionOptions.launchArgs = [...(sessionOptions.launchArgs ?? []), ...claudeAllowToolsArgs(binding.name)]
+    }
+    try {
+      return await openSession(options, sessionOptions, policy)
+    } catch (error) {
+      // A model without an effort menu makes the runtime REFUSE the option (never ignore it). The persona's call must not fail for it
+      // and must not hide it either: reopen without the effort, and say so in the usage.
+      const message = error instanceof Error ? error.message : String(error)
+      const asked = sessionOptions.effort
+      if (asked === undefined || !/effort/iu.test(message)) throw error
+      const retry = { ...sessionOptions }
+      delete retry.effort
+      const session = await openSession(options, retry, policy)
+      droppedEffort.set(session, asked)
+      return session
+    }
   }
 
   const open = async (input: StartTurnInput, recovery: boolean): Promise<RunHandle> => {
     const cli = options.capabilities.cli
     requireExplicitPermission(input, cli)
+    // HT-0: a turn that was offered product tools must not be told to use none; the native ones (files, shell) stay off.
+    const offeredTools = input.mcpTools !== undefined && input.mcpTools.tools.length > 0 && options.capabilities.mcpTools === 'available'
     const inlineOnly = options.policy?.toolLevel === 'none'
-      ? 'Responda somente em texto usando o contexto já fornecido. Não use ferramentas, não leia arquivos nem peça permissões. Se faltar informação, diga qual.\n\n'
+      ? offeredTools
+        ? 'Responda usando o contexto já fornecido e, se faltar algo, as ferramentas da Persona oferecidas neste turno. Não leia arquivos nem peça permissões. Se ainda faltar informação, diga qual.\n\n'
+        : 'Responda somente em texto usando o contexto já fornecido. Não use ferramentas, não leia arquivos nem peça permissões. Se faltar informação, diga qual.\n\n'
       : ''
     const prompt = inlineOnly + (recovery ? `${RECOVERY_NOTE}\n\n${input.prompt}` : input.prompt)
+    // TEAM-5: the images are checked BEFORE a session is opened; a turn that cannot carry them is refused, never sent without them.
+    const images = input.images === undefined || input.images.length === 0 ? undefined : checkTurnImages(input.images, options.capabilities.images === 'available')
     const existing = reuse(input)
     const session = existing ?? await spawn(input)
-    return attach(input, session, prompt)
+    if (images !== undefined && session.capabilities.images !== true) throw new ImagesRefusedError('engine')
+    // HT-0: from here on the tools of THIS turn answer the CLI's calls (a warm session never keeps a previous turn's).
+    const binding = bindingOf.get(session)
+    if (binding !== undefined) {
+      const previous = binding.current
+      binding.current = input.mcpTools
+      if (previous !== undefined && previous !== input.mcpTools) await closeToolSet(previous)
+    }
+    return attach(input, session, prompt, images)
   }
 
   async function *play(handle: RunHandle): AsyncIterable<RunEvent> {
@@ -474,6 +686,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       if (live.loginError !== undefined) throw live.loginError
     } finally {
       live.unsub()
+      await endTurnTools(live)
     }
   }
 
@@ -495,6 +708,8 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       if (live === undefined) throw new Error(`unknown run ${handle.runId}`)
       live.cancelled = true
       live.wake?.()
+      // HT-0: a cancelled turn can no longer reach its tools, even if the CLI is slow to stop.
+      await endTurnTools(live)
       await live.session.abort()
     },
     resume: async (input) => {
@@ -510,6 +725,10 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       if (input.permissionMode !== undefined) next.permissionMode = input.permissionMode
       if (input.history !== undefined) next.history = input.history
       if (input.resumeSessionId !== undefined) next.resumeSessionId = input.resumeSessionId
+      // The session is reopened from `next`: whatever shapes the session (effort, product tools) has to travel with it, or a resumed
+      // turn would silently lose it (and miss its own warm slot, keyed by both).
+      if (input.effort !== undefined) next.effort = input.effort
+      if (input.mcpTools !== undefined) next.mcpTools = input.mcpTools
       const hit = reuse(next)
       if (hit === undefined) await releaseLive(sessions, input.resumeSessionId)
       return open(next, true)
@@ -517,7 +736,12 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     usage: async (handle) => {
       if (handle === undefined) return { inputTokens: 0, outputTokens: 0 }
       const live = sessions.get(handle.runId)
-      return live === undefined ? { inputTokens: 0, outputTokens: 0 } : usageOf(live.session)
+      if (live === undefined) return { inputTokens: 0, outputTokens: 0 }
+      if (live.final !== undefined) return live.final
+      // The TURN's own spend, not the warm session's running total (see `usageSince`).
+      const turn = usageSince(usageOf(live.session), live.base)
+      if (live.finished) live.final = turn
+      return turn
     },
     prime: async (input) => {
       requireExplicitPermission(input, options.capabilities.cli)

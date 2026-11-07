@@ -13,7 +13,16 @@ export interface ProbeRuntime {
   listModels?: (
     installation: AvailableInstallation,
     options?: { cwd?: string; timeoutMs?: number },
-  ) => Promise<{ kind?: string; models?: readonly { id?: string }[] }>
+  ) => Promise<{
+    kind?: string
+    models?: readonly {
+      id?: string
+      displayName?: string
+      effortLevels?: readonly string[]
+      defaultEffort?: string
+      disabled?: { reason: string }
+    }[]
+  }>
   accountUsage?: (installation: AvailableInstallation) => Promise<unknown>
 }
 

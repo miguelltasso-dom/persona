@@ -2,8 +2,8 @@
  * Map a turn-level OAR runner onto the engine session Runner port.
  */
 
-import type { RunHandle, Runner as TurnRunner, StartTurnInput } from '../contract.ts'
-import type { DeliverMode, Runner, RunnerCapabilities, RunnerEvent, RunnerRole, RunnerStatus } from '../port.ts'
+import type { RunHandle, Runner as TurnRunner, StartTurnInput, TurnToolSet } from '../contract.ts'
+import type { DeliverMode, DeliverOptions, Runner, RunnerCapabilities, RunnerEvent, RunnerRole, RunnerStatus } from '../port.ts'
 import { prefixOwnerNorms } from '../proactivity/owner-prompt.ts'
 
 export interface OarSessionOptions {
@@ -18,6 +18,11 @@ export interface OarSessionOptions {
   model: string
   permissionMode: 'prompt' | 'allow-once' | 'deny'
   now?: () => Date
+  /**
+   * HT-0: product tools for ONE turn. Called on every delivered turn; the host opens its gateway lease for that assignment and
+   * returns tools bound to it (and `close` to release the lease). Absent = the turn has no product tools. Never read from the prompt.
+   */
+  toolsFor?: (turn: { ticketId: string; assignmentId: string; personaId: string; cwd: string; role: RunnerRole }) => TurnToolSet | undefined
 }
 
 interface Live {
@@ -53,6 +58,8 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
     background: false,
     tools: options.turn.capabilities().mcpTools === 'available' ? 'mcp' : 'native',
     resume: options.turn.capabilities().resume,
+    // TEAM-5: only a CLI proven to read images says `available`; the host asks this before it attaches one.
+    ...(options.turn.capabilities().images === undefined ? {} : { images: options.turn.capabilities().images }),
   })
 
   return {
@@ -66,7 +73,7 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
       }
       sessions.set(id, { cwd, title, role, status: 'idle', seen: new Set(), ticketId: id.replace(/^worker-/u, ''), ownerNorms: false })
     },
-    deliver: async (sessionId: string, requestId: string, text: string, mode: DeliverMode) => {
+    deliver: async (sessionId: string, requestId: string, text: string, mode: DeliverMode, deliverOptions?: DeliverOptions) => {
       const live = sessions.get(sessionId)
       if (live === undefined) throw new Error(`missing session ${sessionId}`)
       if (live.seen.has(requestId)) return
@@ -91,11 +98,24 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
         prompt,
         model: options.model,
         permissionMode: options.permissionMode,
+        // TEAM-5: images of THIS delivery only (never sticky). A refusal comes from start() as ImagesRefusedError and takes the catch below.
+        ...(deliverOptions?.images === undefined || deliverOptions.images.length === 0 ? {} : { images: deliverOptions.images }),
       }
       let handle: RunHandle
+      let offered: TurnToolSet | undefined
       try {
+        // HT-0: the host opens its gateway lease for THIS turn (identity = this assignment) and hands the runner the bound tools.
+        offered = options.toolsFor?.({ ticketId: live.ticketId, assignmentId: requestId, personaId: options.personaId, cwd: live.cwd, role: live.role })
+        if (offered !== undefined) input.mcpTools = offered
         handle = await options.turn.start(input)
       } catch (error) {
+        if (offered?.close !== undefined) {
+          try {
+            await offered.close()
+          } catch (closeError) {
+            void closeError
+          }
+        }
         // The turn never started (e.g. the real-turn cap refused it). Undo the optimistic bookkeeping so a retry of
         // this request is a real attempt, not a silent "already delivered", and the session does not stay "running".
         live.seen.delete(requestId)

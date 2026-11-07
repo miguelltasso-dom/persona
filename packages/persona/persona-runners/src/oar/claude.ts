@@ -13,6 +13,7 @@ export const CLAUDE_CAPABILITIES: RunnerCapabilities = {
   resume: true,
   usage: true,
   mcpTools: 'available',
+  images: 'available',
   permission: 'explicit',
 }
 

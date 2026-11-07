@@ -143,11 +143,13 @@ describe('resolveRunner', () => {
       runtime: sayingRuntime({ auth: { kind: 'logged_out' } }),
     })).rejects.toBeInstanceOf(RunnerResolveError)
     resetProbeCache()
-    await expect(resolveRunner({
+    // EFF-1 (Atlas 05/11): a chosen model the engine does not offer no longer drops the Task: it runs on the engine's default and the usage says so (tests/eff1-runner.spec.ts)
+    const dropped = await resolveRunner({
       spec: { kind: 'cli', cli: 'claude', model: 'opus-missing' },
       permissionMode: 'deny',
       runtime: sayingRuntime({ models: ['haiku'] }),
-    })).rejects.toMatchObject({ code: 'model_unavailable' })
+    })
+    expect(typeof dropped.start).toBe('function')
     resetProbeCache()
     await expect(resolveRunner({
       spec: { kind: 'cli', cli: 'claude', model: 'haiku' },

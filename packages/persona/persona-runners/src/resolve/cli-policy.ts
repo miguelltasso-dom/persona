@@ -19,7 +19,9 @@ export interface CliSessionPolicy {
   sandbox?: 'read-only' | 'workspace-write'
 }
 
-const CLAUDE_WRITE = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'MultiEdit'] as const
+const CLAUDE_WRITE = ['Bash', 'PowerShell', 'Edit', 'Write', 'NotebookEdit', 'MultiEdit'] as const
+/** The CLI's command-running tools (Windows has PowerShell next to Bash): a persona without a shell grant gets neither. */
+const CLAUDE_SHELL = ['Bash', 'PowerShell'] as const
 const CLAUDE_NET = ['WebFetch', 'WebSearch'] as const
 const CURSOR_WRITE = ['Bash', 'Shell', 'Write', 'Edit', 'Delete', 'ApplyPatch'] as const
 const CURSOR_NET = ['WebFetch', 'WebSearch'] as const
@@ -121,16 +123,20 @@ export function cliPolicyOf(
 
 function claudePolicy(mode: CliPermissionMode, grants: ToolGrants, toolLevel: ToolLevel): CliSessionPolicy {
   const denied: string[] = []
-  if (mode === 'deny' || grants.files !== 'write') denied.push(...CLAUDE_WRITE.filter(name => name !== 'Bash'))
-  if (mode === 'deny' || grants.shell === 'none') denied.push('Bash')
+  if (mode === 'deny' || grants.files !== 'write') denied.push(...CLAUDE_WRITE.filter(name => !(CLAUDE_SHELL as readonly string[]).includes(name)))
+  if (mode === 'deny' || grants.shell === 'none') denied.push(...CLAUDE_SHELL)
   if (grants.web === 'none') denied.push(...CLAUDE_NET)
   const acceptEdits = mode === 'allow-once' && grants.files === 'write'
+  // P0-1: a persona that may only SAVE FILES (no shell) gets exactly the built-in tools of that grant, not the CLI's whole default set (which also carries sub-agents, skills, workflows, scheduled wake-ups…):
+  // "never more access than the person granted" (D-081/D-083). `ToolSearch` stays: it only loads the schema of a deferred tool, and connectors need it.
+  const filesOnly = acceptEdits && grants.shell === 'none'
+  const nativeList = ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'ToolSearch', ...(grants.web === 'none' ? [] : CLAUDE_NET)].join(',')
   return {
     permissionMode: mode,
     toolLevel,
     launchArgs: mode === 'deny'
       ? ['--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--tools', '']
-      : ['--permission-mode', acceptEdits ? 'acceptEdits' : 'dontAsk'],
+      : ['--permission-mode', acceptEdits ? 'acceptEdits' : 'dontAsk', ...(filesOnly ? ['--tools', nativeList] : [])],
     disallowedTools: [...new Set(denied)],
   }
 }

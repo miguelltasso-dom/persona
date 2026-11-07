@@ -49,3 +49,16 @@ export function applyThemeOverride(target: ThemeTarget, env: NodeJS.ProcessEnv, 
   if (forced !== undefined) target.themeSource = forced
   return forced
 }
+
+/**
+ * The renderer argument that carries a forced theme to the preload (TH-1): the sandboxed preload cannot read the main process's
+ * environment, but it sees the `additionalArguments` of its own web contents in `process.argv`. The environment or command line
+ * of the main process is resolved here once, so the preload only ever reads `--persona-theme=<value>`.
+ * @param env - Process environment of the main process.
+ * @param argv - Process arguments of the main process.
+ * @returns `additionalArguments` for the window's web preferences: the flag when a valid theme was forced, none otherwise.
+ */
+export function themeOverrideArguments(env: NodeJS.ProcessEnv, argv: readonly string[]): string[] {
+  const forced = parseThemeOverride(env, argv)
+  return forced === undefined ? [] : [`${PERSONA_THEME_ARG}${forced}`]
+}

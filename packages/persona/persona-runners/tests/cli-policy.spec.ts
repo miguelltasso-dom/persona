@@ -47,8 +47,9 @@ describe('cliPolicyOf', () => {
     expect(deny.launchArgs).toEqual(['--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--tools', ''])
     expect(deny.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Edit', 'Write', 'WebFetch']))
     const task = cliPolicyOf('claude', { files: 'write', shell: 'none' }, 'allow-once')
-    expect(task.launchArgs).toEqual(['--permission-mode', 'acceptEdits'])
-    expect(task.disallowedTools).toContain('Bash')
+    // P0-1: a persona that only saves files gets exactly those built-in tools (no sub-agents, skills, workflows, wake-ups), and neither shell
+    expect(task.launchArgs).toEqual(['--permission-mode', 'acceptEdits', '--tools', 'Read,Glob,Grep,Edit,Write,MultiEdit,NotebookEdit,ToolSearch'])
+    expect(task.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'PowerShell']))
     expect(task.disallowedTools).not.toContain('Write')
   })
 

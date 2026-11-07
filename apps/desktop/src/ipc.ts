@@ -40,6 +40,8 @@ export const DESKTOP_IPC = {
   teachStop: 'dsh-desktop:teach-stop',
   teachState: 'dsh-desktop:teach-state',
   teachBlur: 'dsh-desktop:teach-blur',
+  /** Main → renderer: a button of the always-on-top recording pill ('pause' | 'resume' | 'stop'). */
+  teachPillAction: 'dsh-desktop:teach-pill-action',
   fileDragPrepare: 'dsh-desktop:file-drag-prepare',
   fileDragCancel: 'dsh-desktop:file-drag-cancel',
   fileDragStart: 'dsh-desktop:file-drag-start',

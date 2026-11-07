@@ -4,6 +4,7 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DESKTOP_IPC } from '../src/ipc.ts'
+import type { TeachRecordingHooks } from '../src/teach-chrome.ts'
 
 const electron = vi.hoisted(() => ({
   handle: vi.fn<(
@@ -26,15 +27,16 @@ const CONSENT = {
 
 beforeEach(() => { vi.resetAllMocks() })
 
-function fixture(url: string = 'dsh-app://app/') {
+function fixture(url: string = 'dsh-app://app/', extra: { recording?: TeachRecordingHooks; home?: string } = {}) {
   const frame = { url }
   const window = {
     webContents: { mainFrame: frame },
     isDestroyed: vi.fn(() => false),
   }
-  const home = mkdtempSync(join(tmpdir(), 'persona-teach-ipc-'))
+  const home = extra.home ?? mkdtempSync(join(tmpdir(), 'persona-teach-ipc-'))
   installTeachCapture(() => window as unknown as BrowserWindow, {
     personaHome: () => home,
+    ...(extra.recording === undefined ? {} : { recording: extra.recording }),
     listSources: async () => [{ id: 'screen:0', name: 'Tela 1', kind: 'screen' }],
     now: () => 5_000,
     prepareImage: (_png, rects) => ({ png: Buffer.from(`sanitized:${String(rects.length)}`), thumbnail: 'data:image/png;base64,cHJldmlldw==' }),
@@ -112,6 +114,59 @@ describe('teach capture IPC', () => {
     f.handler(DESKTOP_IPC.teachIngest)!(f.event, Buffer.from('second'))
     f.handler(DESKTOP_IPC.teachStop)!(f.event, { redact: true })
     expect(readFileSync(join(dir, original), 'utf8')).toBe('previous')
+  })
+
+  describe('recording chrome hooks (minimize the Persona, always-on-top pill)', () => {
+    const hooks = () => ({ started: vi.fn(), changed: vi.fn(), ended: vi.fn() })
+
+    it('announces start, pause, resume and end with the clock, in order', () => {
+      const recording = hooks()
+      const f = fixture('dsh-app://app/', { recording })
+      f.handler(DESKTOP_IPC.teachStart)!(f.event, 'window:42:0', false, CONSENT)
+      expect(recording.started).toHaveBeenCalledTimes(1)
+      expect(recording.started.mock.calls[0]?.[0]).toBe('window:42:0')
+      expect(recording.started.mock.calls[0]?.[1]).toMatchObject({ phase: 'recording' })
+      f.handler(DESKTOP_IPC.teachPause)!(f.event)
+      expect(recording.changed.mock.calls.at(-1)?.[0]).toMatchObject({ phase: 'paused' })
+      f.handler(DESKTOP_IPC.teachResume)!(f.event)
+      expect(recording.changed.mock.calls.at(-1)?.[0]).toMatchObject({ phase: 'recording' })
+      expect(recording.ended).not.toHaveBeenCalled()
+      f.handler(DESKTOP_IPC.teachStop)!(f.event, 'x')
+      expect(recording.ended).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not announce anything for a refused start (no consent, no source)', () => {
+      const recording = hooks()
+      const f = fixture('dsh-app://app/', { recording })
+      expect(() => f.handler(DESKTOP_IPC.teachStart)!(f.event, 'window:1:0', false, { accepted: false })).toThrow(/consent/u)
+      expect(() => f.handler(DESKTOP_IPC.teachStart)!(f.event, '  ', false, CONSENT)).toThrow(/sourceId/u)
+      expect(recording.started).not.toHaveBeenCalled()
+    })
+
+    it('a failing chrome never loses or blocks the recording', () => {
+      const boom = () => { throw new Error('window gone') }
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const f = fixture('dsh-app://app/', { recording: { started: boom, changed: boom, ended: boom } })
+      f.handler(DESKTOP_IPC.teachStart)!(f.event, 'screen:0', false, CONSENT)
+      expect(f.handler(DESKTOP_IPC.teachIngest)!(f.event, Buffer.from('frame-a'))).toBe(true)
+      f.handler(DESKTOP_IPC.teachPause)!(f.event)
+      f.handler(DESKTOP_IPC.teachResume)!(f.event)
+      const stopped = f.handler(DESKTOP_IPC.teachStop)!(f.event, 'ok') as { frames: unknown[] }
+      expect(stopped.frames).toHaveLength(1)
+      expect(error).toHaveBeenCalled()
+      error.mockRestore()
+    })
+
+    it('takes the pill down and brings the Persona back even when writing the artifact fails', () => {
+      const recording = hooks()
+      // `teach` cannot be created under a regular file, so session.stop() throws.
+      const blocker = join(mkdtempSync(join(tmpdir(), 'persona-teach-block-')), 'not-a-dir')
+      writeFileSync(blocker, 'file')
+      const f = fixture('dsh-app://app/', { recording, home: blocker })
+      f.handler(DESKTOP_IPC.teachStart)!(f.event, 'screen:0', false, CONSENT)
+      expect(() => f.handler(DESKTOP_IPC.teachStop)!(f.event, 'x')).toThrow()
+      expect(recording.ended).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('refuses start without the four consent flags', () => {

@@ -23,6 +23,8 @@ export function quotaCardMeters(quota: OfficialQuota): QuotaCardMeters | undefin
   let limitedUntil: string | undefined
   for (const window of quota.windows) {
     if (window.origin !== 'official') continue
+    // A window scoped to one model (`model_scoped:Fable`) lasts a week too, but it is not the week of the ACCOUNT: it never feeds these meters.
+    if (window.id.includes(':')) continue
     const pct = window.usedPercent
     const five = /5h|five/iu.test(window.id) || window.windowMinutes === 300
     const week = /week|semana|7d/iu.test(window.id) || window.windowMinutes === 10_080

@@ -20,6 +20,7 @@ import {
   type TeachSource,
 } from './teach-capture.ts'
 import { prepareTeachImage } from './teach-image.ts'
+import type { TeachRecordingHooks } from './teach-chrome.ts'
 
 /** Injectable home and source list for tests. */
 export interface TeachCaptureHost {
@@ -27,6 +28,8 @@ export interface TeachCaptureHost {
   listSources?: () => Promise<readonly TeachSource[]>
   now?: () => number
   prepareImage?: typeof prepareTeachImage
+  /** Window chrome around a recording (minimize the Persona, always-on-top pill). Absent in tests that do not need it. */
+  recording?: TeachRecordingHooks
 }
 
 /** `stop` payload consumed by host `teachDraftFrom`. */
@@ -52,6 +55,12 @@ export function installTeachCapture(
     ...(host.now === undefined ? {} : { now: host.now }),
   })
 
+  // The chrome is a courtesy around the recording: a failure there must never lose or block a recording.
+  const chrome = (run: (hooks: TeachRecordingHooks) => void): void => {
+    if (host.recording === undefined) return
+    try { run(host.recording) } catch (error) { console.error(error) }
+  }
+
   const assertOwner = (event: { readonly sender: unknown; readonly senderFrame: unknown }): void => {
     const window = getWindow()
     if (window === undefined || window.isDestroyed() || event.sender !== window.webContents
@@ -70,14 +79,17 @@ export function installTeachCapture(
     if (typeof sourceId !== 'string' || sourceId.trim() === '') throw new Error('teach: sourceId required')
     if (!teachConsentOk(consent)) throw new Error('teach: consent required')
     session.start(sourceId, mic === true)
+    chrome((hooks) => { hooks.started(sourceId, teachClockView(session.state())) })
   })
   ipcMain.handle(DESKTOP_IPC.teachPause, (event) => {
     assertOwner(event)
     session.pause()
+    chrome((hooks) => { hooks.changed(teachClockView(session.state())) })
   })
   ipcMain.handle(DESKTOP_IPC.teachResume, (event) => {
     assertOwner(event)
     session.resume()
+    chrome((hooks) => { hooks.changed(teachClockView(session.state())) })
   })
   ipcMain.handle(DESKTOP_IPC.teachIngest, (event, raw: unknown) => {
     assertOwner(event)
@@ -96,8 +108,14 @@ export function installTeachCapture(
   ipcMain.handle(DESKTOP_IPC.teachStop, (event, typed: unknown): TeachStopResult => {
     assertOwner(event)
     const dir = join(personaHome(), 'teach')
-    applyTeachRetention(dir, TEACH_RETENTION_MS)
-    const stopped = session.stop(dir)
+    // The pill goes away and the Persona comes back even if cleaning old artifacts or writing the new one fails.
+    let stopped: ReturnType<typeof session.stop>
+    try {
+      applyTeachRetention(dir, TEACH_RETENTION_MS)
+      stopped = session.stop(dir)
+    } finally {
+      chrome((hooks) => { hooks.ended() })
+    }
     const redact = typed !== null && typeof typed === 'object' && (typed as { redact?: unknown }).redact === true
     const typedText = typeof typed === 'string'
       ? typed

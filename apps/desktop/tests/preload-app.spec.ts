@@ -76,6 +76,40 @@ it('exposes the tray "needs you" count and the click landing view to the applica
   expect(electron.ipcRenderer.off).toHaveBeenCalledWith(ALWAYS_ON_IPC.openTask, handler)
 })
 
+it('relays only the three recording-pill buttons to the application document', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'personaDesktop')?.[1] as {
+    teach: { onPillAction(listener: (action: 'pause' | 'resume' | 'stop') => void): () => void }
+  }
+  const listener = vi.fn()
+  const off = api.teach.onPillAction(listener)
+  const handler = electron.ipcRenderer.on.mock.calls.find(([channel]) => channel === DESKTOP_IPC.teachPillAction)?.[1] as
+    (event: unknown, action: unknown) => void
+  for (const action of ['pause', 'resume', 'stop', 'start', 'STOP', '', null, 7, { action: 'stop' }]) handler({}, action)
+  expect(listener.mock.calls).toEqual([['pause'], ['resume'], ['stop']])
+  off()
+  expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.teachPillAction, handler)
+})
+
+it('publishes the theme forced by the app (TH-1) from the window argument, and nothing when none was forced', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  for (const [argv, expected] of [
+    [['Persona.exe', '--type=renderer', '--persona-theme=dark'], 'dark'],
+    [['Persona.exe', '--persona-theme=LIGHT'], 'light'],
+    [['Persona.exe', '--persona-theme=system'], 'system'],
+    [['Persona.exe', '--type=renderer'], undefined],
+    [['Persona.exe', '--persona-theme=purple'], undefined],
+  ] as const) {
+    vi.stubGlobal('process', { ...process, isMainFrame: true, argv: [...argv], env: { PERSONA_THEME: 'dark' } })
+    vi.resetModules()
+    electron.contextBridge.exposeInMainWorld.mockClear()
+    await import('../src/preload-app.ts')
+    const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'personaDesktop')?.[1] as { forcedTheme?: string }
+    expect(api.forcedTheme).toBe(expected)
+  }
+})
+
 it('limits product documents to update status and a native confirmation action', async () => {
   vi.stubGlobal('location', new URL('dsh-app://app/index.html'))
   await import('../src/preload-app.ts')

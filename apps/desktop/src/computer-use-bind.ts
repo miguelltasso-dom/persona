@@ -10,6 +10,7 @@ import {
   createComputerUseController,
   humanHoldsComputer,
   resumeHeldPersonas,
+  type ComputerUseController,
 } from './computer-use-control.ts'
 import { attachComputerUseHook, type PhysicalHookEvent } from './computer-use-hook.ts'
 import { installComputerUseOverlays, overlayWindowSpec, type OverlayDisplay, type OverlayWindowHandle } from './computer-use-overlay.ts'
@@ -81,7 +82,40 @@ export function installComputerUseBind(
   getWindow: () => BrowserWindow | undefined,
   host: ComputerUseBindHost = {},
 ) {
-  const control = createComputerUseController()
+  // BUG-QUIT-1: the overlay is a full-screen, transparent, always-on-top window with its own renderer. Created at boot it sat there for the
+  // whole run (visible in idle, with a requestAnimationFrame loop nobody drove) and, measured on the packaged app, "Sair" never finished
+  // with it alive (every process of the app stayed up; without it all of them left in 2.5 s). It now exists only while a persona
+  // uses the computer: the first `control.begin` opens it; `release` and `close` (quit) remove it. The same goes for the global "Devolver"
+  // shortcut (Ctrl/Cmd+Shift+Space): registered at boot it took that chord from every other application (an editor's parameter hints, an
+  // input method) for as long as Persona ran, doing nothing; it is held only while the overlay is.
+  let overlays: { close(): void } | undefined
+  let disposeShortcut: (() => void) | undefined
+  const baseControl = createComputerUseController()
+  const arm = (): void => {
+    if (overlays === undefined && host.createWindow !== undefined) {
+      overlays = installComputerUseOverlays(host.displays?.() ?? [], host.createWindow, personaCursorOverlayHtml())
+    }
+    if (disposeShortcut === undefined && host.registerShortcut !== undefined) {
+      disposeShortcut = host.registerShortcut(COMPUTER_USE_RESUME_ACCELERATOR, () => {
+        resumeHeldPersonas(baseControl)
+      })
+    }
+  }
+  const release = (): void => {
+    const open = overlays
+    const shortcut = disposeShortcut
+    overlays = undefined
+    disposeShortcut = undefined
+    shortcut?.()
+    open?.close()
+  }
+  const control: ComputerUseController = {
+    ...baseControl,
+    begin: (personaId) => {
+      arm()
+      baseControl.begin(personaId)
+    },
+  }
   const assertOwner = (event: { readonly sender: unknown; readonly senderFrame: unknown }): void => {
     const window = getWindow()
     if (window === undefined || window.isDestroyed() || event.sender !== window.webContents
@@ -100,10 +134,6 @@ export function installComputerUseBind(
     return control.personas()
   })
 
-  const displays = host.displays?.() ?? []
-  const overlays = host.createWindow === undefined
-    ? undefined
-    : installComputerUseOverlays(displays, host.createWindow, personaCursorOverlayHtml())
 
   const uia = host.uia ?? createFakeUiaPort([])
   const disposeHook = host.subscribeHook === undefined
@@ -112,15 +142,15 @@ export function installComputerUseBind(
       if (action === 'pause') applyPhysicalInput(control, {})
       else resumeHeldPersonas(control)
     }, host.subscribeHook)
-  const disposeShortcut = host.registerShortcut === undefined
-    ? undefined
-    : host.registerShortcut(COMPUTER_USE_RESUME_ACCELERATOR, () => {
-      resumeHeldPersonas(control)
-    })
 
   return {
     control,
-    overlays,
+    /** Whether the cursor overlay windows exist right now (they open with the first persona that uses the computer). */
+    overlaysOpen: (): boolean => overlays !== undefined,
+    /** Whether the global Devolver shortcut is registered right now (held only while the overlay is). */
+    shortcutHeld: (): boolean => disposeShortcut !== undefined,
+    /** Remove the overlay windows and give the global shortcut back. Safe to repeat. */
+    release,
     onHook: (event: { readonly synthesized?: boolean }) => applyPhysicalInput(control, event),
     resumeHeld: () => resumeHeldPersonas(control),
     held: () => humanHoldsComputer(control),
@@ -145,8 +175,7 @@ export function installComputerUseBind(
     },
     close: () => {
       disposeHook?.()
-      disposeShortcut?.()
-      overlays?.close()
+      release()
     },
   }
 }

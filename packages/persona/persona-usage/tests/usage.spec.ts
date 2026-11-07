@@ -40,6 +40,30 @@ describe('usage book', () => {
 })
 
 describe('official quota', () => {
+  it('reads the REAL Claude Max payload: usedRatio (0..1) and durationMs, the account week as "week" and a model window under its own id', () => {
+    // The shape OAR returned on 05/11 for a Max account: the week 67% used, a per-model window at 0%, and NO 5-hour window.
+    const quota = readOarAccountUsage('claude', load('oar-claude-max-ratio.json'))
+    expect(quota.origin).toBe('official')
+    expect(quota.detail).toBe('max')
+    expect(quota.windows).toEqual([
+      { id: 'week', origin: 'official', usedPercent: 67, windowMinutes: 10_080, resetsAt: '2026-11-07T16:00:01.001Z' },
+      { id: 'model_scoped:Fable', origin: 'official', usedPercent: 0, windowMinutes: 10_080, resetsAt: '2026-11-07T16:00:00.000Z' },
+    ])
+    expect(quotaUiState(quota)).toBe('ready')
+    const meters = quotaCardMeters(quota)
+    expect(meters?.weekPct).toBe(67)
+    expect(meters?.fiveHourPct).toBeUndefined()
+  })
+
+  it('a ratio is a ratio: 1 is 100%, never above, never below 0; a missing ratio stays unknown (not 0)', () => {
+    const windowOf = (usedRatio: number | undefined) => readOarAccountUsage('claude', { kind: 'available', windows: [{ id: 'seven_day', durationMs: 604_800_000, resetsAt: '2026-11-07T16:00:00Z', ...(usedRatio === undefined ? {} : { usedRatio }) }] }).windows[0]
+    expect(windowOf(1)?.usedPercent).toBe(100)
+    expect(windowOf(1.4)?.usedPercent).toBe(100)
+    expect(windowOf(-0.2)?.usedPercent).toBe(0)
+    expect(windowOf(0)?.usedPercent).toBe(0)
+    expect(windowOf(undefined)?.usedPercent).toBeUndefined()
+  })
+
   it('reads OAR claude accountUsage windows', () => {
     const quota = readOarAccountUsage('claude', load('oar-claude-usage.json'))
     expect(quota.origin).toBe('official')

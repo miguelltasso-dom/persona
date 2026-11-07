@@ -5,7 +5,8 @@
  */
 
 import { usagePortKind, usagePortWindow, type CanonicalTurnKind } from '@deepseek-ai/dsh-persona-usage'
-import type { RunEvent, RunHandle, Runner, RunnerUsage } from '../contract.ts'
+import type { ConnectorFallback } from '../oar/connector-reach.ts'
+import type { ConnectorUnreached, RunEvent, RunHandle, Runner, RunnerUsage } from '../contract.ts'
 
 /** Core ledger kinds the meter writes. */
 export type MeterTurnKind = CanonicalTurnKind
@@ -28,6 +29,20 @@ export interface MeasuredUsage {
    * `started`, or the two instants do not give a number ≥ 0: never an invented 0 (OPT-9 estimate calibration).
    */
   durationMs?: number
+  /** D-085: the environment mode this call RAN with, so a measurement says what it measured. Absent when the runner did not say. */
+  envMode?: 'native' | 'answer-only' | 'needed'
+  /** D-096: why the call ran in `envMode` (a code: `verified`, `unverified`, `connector-unreached`…). Absent when the runner did not say. */
+  envModeReason?: string
+  /** D-096: the GRANTED connectors the isolated launch did not deliver, by position in the list the host passed (codes only: no URL, no name). Absent = none missed. */
+  connectorsUnreached?: readonly ConnectorUnreached[]
+  /** D-096: what the runner did about it: `native-once` (this call ran native) or `floor` (kept the isolated floor). */
+  connectorsFallback?: ConnectorFallback
+  /** EFF-1: what the person chose for the persona (model, effort) and the chosen model the engine does not offer (the call ran on the default). */
+  modelRequested?: string
+  effortRequested?: string
+  modelDropped?: string
+  /** EFF-1: the chosen effort the model refused (the call ran at the model's default). Absent = none refused. */
+  effortDropped?: string
 }
 
 export interface UsageMeterSink {
@@ -52,6 +67,7 @@ export interface UsageStorePort {
     cacheReadTokens?: number
     cacheWriteTokens?: number
     durationMs?: number
+    envMode?: 'native' | 'answer-only' | 'needed'
   }): void
 }
 
@@ -106,6 +122,7 @@ export function usageStoreSink(
         ...(entry.accountId === undefined ? {} : { accountId: entry.accountId }),
         ...meterCacheOf(entry),
         ...(entry.durationMs === undefined ? {} : { durationMs: entry.durationMs }),
+        ...(entry.envMode === undefined ? {} : { envMode: entry.envMode }),
       })
     },
   }
@@ -158,6 +175,14 @@ export function withUsageMeter(
           ...(options.accountId === undefined ? {} : { accountId: options.accountId }),
           ...meterCacheOf(usage),
           ...(durationMs === undefined ? {} : { durationMs }),
+          ...(usage.envMode === undefined ? {} : { envMode: usage.envMode }),
+          ...(usage.envModeReason === undefined ? {} : { envModeReason: usage.envModeReason }),
+          ...(usage.connectorsUnreached === undefined ? {} : { connectorsUnreached: usage.connectorsUnreached }),
+          ...(usage.connectorsFallback === undefined ? {} : { connectorsFallback: usage.connectorsFallback }),
+          ...(usage.modelRequested === undefined ? {} : { modelRequested: usage.modelRequested }),
+          ...(usage.effortRequested === undefined ? {} : { effortRequested: usage.effortRequested }),
+          ...(usage.modelDropped === undefined ? {} : { modelDropped: usage.modelDropped }),
+          ...(usage.effortDropped === undefined ? {} : { effortDropped: usage.effortDropped }),
         })
         yield { type: 'usage', at: event.at, usage }
       }

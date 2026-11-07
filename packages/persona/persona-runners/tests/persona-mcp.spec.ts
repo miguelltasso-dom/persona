@@ -90,11 +90,37 @@ describe('Persona MCP tools (D3)', () => {
     expect((await report.handler({ ticketId: 't-forged', summary: 'x' })).content).toBe('forged actor refused')
   })
 
+  it('persona_ask carries the structured form untouched, the assumption, and hands the host sentence back to the model', async () => {
+    const seen: Array<{ question: string; questions?: unknown; assumption?: string }> = []
+    const tools = personaMcpTools(
+      { personaId: 'p1', ticketId: 't1', assignmentId: 'a1' },
+      { report: () => {}, recall: () => '', ask: (input) => { seen.push(input); return input.assumption === undefined ? undefined : 'Registrei a suposição.' } },
+    )
+    const ask = tools.find(tool => tool.name === 'persona_ask')!
+    // plain, as before
+    expect((await ask.handler({ question: 'Qual pasta?' })).content).toBe('asked')
+    expect(Object.hasOwn(seen[0]!, 'questions')).toBe(false)
+    // one question with options (the model's own words; the host validates)
+    await ask.handler({ question: 'Qual canal?', options: ['Email', 'WhatsApp'], multiple: true })
+    expect(seen[1]).toEqual({ run: expect.anything(), question: 'Qual canal?', questions: { question: 'Qual canal?', options: ['Email', 'WhatsApp'], multiple: true } })
+    // a sequence
+    const questions = [{ question: 'A?', options: ['x', 'y'] }, { question: 'B?' }]
+    await ask.handler({ questions })
+    expect(seen[2]?.questions).toEqual(questions)
+    // an assumption comes back as the host's sentence
+    expect((await ask.handler({ assumption: 'Vou usar a pasta padrão.' })).content).toBe('Registrei a suposição.')
+    expect(seen[3]?.assumption).toBe('Vou usar a pasta padrão.')
+    // the schema advertises the structured fields and stays open for the rest
+    expect(ask.inputSchema.properties).toMatchObject({ question: {}, options: {}, multiple: {}, questions: {}, assumption: {} })
+    // a forged identity is still refused
+    expect((await ask.handler({ ticketId: 'forged', question: 'x' })).content).toBe('forged actor refused')
+  })
+
   it('advertises only tools at or below the persona grant', () => {
     const hooks = { report: () => {}, recall: () => '', ask: () => {} }
     const run = { personaId: 'p1', ticketId: 't1', assignmentId: 'a1' }
     expect(personaMcpTools(run, hooks, 'none').map(tool => tool.name)).toEqual([])
-    expect(personaMcpTools(run, hooks, 'read').map(tool => tool.name)).toEqual(['persona_recall'])
+    expect(personaMcpTools(run, hooks, 'read').map(tool => tool.name)).toEqual(['persona_recall', 'persona_ask'])
     expect(personaMcpTools(run, hooks, 'write').map(tool => tool.name)).toEqual([
       'persona_report', 'persona_recall', 'persona_ask',
     ])

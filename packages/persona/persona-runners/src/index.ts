@@ -20,11 +20,19 @@ export {
   type Runner as TurnRunner,
   type RunnerAuth,
   type RunnerCapabilities as TurnCapabilities,
+  type RunnerEnvironment,
   type RunnerHealth,
   type RunnerKind,
+  type ConnectorUnreached,
+  type ConnectorUnreachedReason,
   type RunnerUsage,
   type StartTurnInput,
+  type TurnImage,
+  type TurnTool,
+  type TurnToolSet,
 } from './contract.ts'
+export { openTurnTools, type OpenTurnToolsInput } from './mcp/turn-tools.ts'
+export { bindTools, DEFAULT_TOOL_SERVER, toolSignature, ToolsUnavailableError, type ServeHostTools, type ToolBinding } from './oar/tool-binding.ts'
 
 export { createScriptedRunner, scriptedHistory } from './scripted.ts'
 
@@ -125,6 +133,13 @@ export {
   gestorMcpTools,
   type GestorPorts,
 } from './mcp/gestor-tools.ts'
+export {
+  HARNESS_TOOLS,
+  harnessMcpTools,
+  type HarnessCall,
+  type HarnessMcpPorts,
+  type HarnessToolName,
+} from './mcp/harness-tools.ts'
 export {
   EMAIL_SOURCE,
   emailMessageToTrigger,
@@ -252,6 +267,83 @@ export { createOarSessionRunner, type OarSessionOptions } from './oar/session.ts
 export { resolveGitExecutable, GitUnavailableError, type GitResolution, type GitResolutionOptions, type GitVersionProbe } from './resolve/git.ts'
 export { createWindowsHistoryFileOps, WindowsHistoryFileError, type WindowsHistoryIo, type WindowsHistoryFileOptions, type WindowsFileFailure } from './workspace/windows-files.ts'
 export { CLAUDE_CAPABILITIES, createClaudeRunner, type ClaudeRunnerOptions } from './oar/claude.ts'
+// ISO-1 / D-084 / D-085: "load only what the call needs" (the plan, the proof per CLI version, the mode of each call)
+export {
+  CLAUDE_CONNECTOR_ARGS,
+  cliCapabilityReport,
+  type CliCapabilityReport,
+  type PreviewSupport,
+  CLAUDE_ISOLATION_ARGS,
+  CLAUDE_ISOLATION_ENV,
+  CLI_ENV_SWITCH,
+  DEFAULT_CLI_ENV_MODE,
+  NOT_ISOLATED,
+  cliEnvMode,
+  cliIsolation,
+  cliIsolationReport,
+  isolationPlan,
+  type CallKind,
+  type CliEnvMode,
+  type IsolationLevel,
+  type IsolationPlan,
+  type IsolationReport,
+} from './oar/isolation.ts'
+export { evaluateIsolationProbe, type IsolationProbeReading, type IsolationProbeVerdict } from './oar/isolation-probe.ts'
+export { openClaudeControl, type ControlLaunch, type ControlSession, type OpenControl } from './oar/claude-control.ts'
+export { probeConnector, probeCwd, probeParity, probeSkills, readApplied, runIsolationProbe, type Applied, type ConnectorProbe, type IsolationRun, type ParityResult, type SkillsProbe } from './oar/isolation-run.ts'
+export {
+  IsolationGate,
+  IsolationRuntime,
+  connectorKey,
+  defaultGatePath,
+  cliIsolationProven,
+  defaultIsolationRuntime,
+  fileGateIo,
+  parityKey,
+  settingsFingerprint,
+  type DecisionReason,
+  type GateIo,
+  type GateVerdict,
+  type IsolationDecision,
+} from './oar/isolation-gate.ts'
+export { prewarmCliIsolation, proveCliIsolation, type IsolationProof, type PrewarmOptions, type ProveOptions } from './oar/isolation-prove.ts'
+export { McpStatusCache, accountConnectorsOf, availableConnectorsOf, defaultMcpStatusCache, mcpStatusOf, refreshMcpStatus, slimMcpStatus, type AccountConnector, type McpStatusCacheDeps, type SlimMcpServer } from './oar/mcp-status-cache.ts'
+export { CLI_PLUMBING_TOOLS, ToolObserver, callsForCriterion, observeRuntime, type ObservedCallReport } from './oar/tool-observer.ts'
+export { contextDelta, measureContext, type ContextReading } from './oar/context-measure.ts'
+export { withEnvMode } from './oar/env-mode.ts'
+export { withChoiceReport, type ChoiceReport } from './oar/choice-report.ts'
+export { STATIC_EFFORT_LEVELS, effortLevelsFor, type EffortOrigin } from './oar/effort-table.ts'
+export { NATIVE_CAN_REACH, connectorFallback, unreachedReasonOf, type ConnectorFallback } from './oar/connector-reach.ts'
+export { checkTurnImages, ImagesRefusedError, MAX_IMAGE_BYTES, MAX_TURN_IMAGES, type DeliverableImage, type ImagesRefusal } from './oar/turn-images.ts'
+export { mergeFlagSettings, settingsArgs, type FlagSettings } from './oar/flag-settings.ts'
+export { defaultSkillsRoot, personalSkillsSource, syncSkillsRoot, type SkillsFs, type SkillsRoot } from './oar/personal-skills.ts'
+export { STDERR_OMITTED, redactCliStderr } from './oar/stderr-redact.ts'
+export { environmentOf, mainLoopOf, type MainLoopUsage } from './oar/usage-detail.ts'
+export {
+  GATE_TOKEN_HEADER,
+  NEEDS_APPROVAL_TEXT,
+  NEVER_PRE_ALLOWED,
+  PermissionGate,
+  annotationTable,
+  withPermissionReport,
+  type ApprovedAction,
+  type GateArming,
+  type PermissionGateOptions,
+  type PermissionRequest,
+} from './resolve/permission-gate.ts'
+// HT-8/HT-9: the kind of action a tool is, and the two views of a call's arguments (the hash approval is checked against; the bounded preview)
+export { classifyTool, type ActionClass, type ToolAction, type ToolAnnotations } from './resolve/tool-action.ts'
+export {
+  INPUT_MAX_FIELDS,
+  INPUT_MAX_STRING_BYTES,
+  INPUT_MAX_TOTAL_BYTES,
+  MASKED,
+  argsHash,
+  boundedInput,
+  canonicalJson,
+  type BoundedInput,
+  type FlatValue,
+} from './resolve/tool-input.ts'
 export { CODEX_CAPABILITIES, createCodexRunner, type CodexRunnerOptions } from './oar/codex.ts'
 export { CLI_ISOLATION_VARS, nativeSessionEnv, restoreNativeCliLogin } from './oar/native-cli-env.ts'
 export {
@@ -306,6 +398,7 @@ export {
   modelForWork,
   prewarmCoordination,
   resolveRunner,
+  TOOL_SEARCH_OURS_INLINE,
   type PersonaRunnerSpec,
   type ResolveRunnerOptions,
   type VaultSecretReader,
@@ -346,6 +439,7 @@ export {
   toUiConnection,
   type ConnectionKind,
   type ConnectionSnapshot,
+  type ModelMenuEntry,
   type ConnectionUiRow,
   type DetectConnectionsOptions,
 } from './resolve/connections.ts'
@@ -368,6 +462,7 @@ export {
   allowsTool,
   classifyToolAccess,
   effectiveToolLevel,
+  gatewayToolLevel,
   toolNameFromEvent,
   withToolLevel,
   type ToolLevel,

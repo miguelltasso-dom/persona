@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { createProcessVaultTransport } from '../src/process-transport.ts'
+import { VAULT_REQUEST_TIMEOUT_MS, createProcessVaultTransport } from '../src/process-transport.ts'
+import PersonaVaultProvider from '../src/plugin.ts'
 import { VaultUnavailableError } from '../src/errors.ts'
 
 const sendDescriptor = Object.getOwnPropertyDescriptor(process, 'send')
@@ -58,6 +59,28 @@ it('bounds a missing reply and returns a typed error without request contents', 
   await vi.advanceTimersByTimeAsync(100)
   await rejected
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('waits for the slow FIRST answer of a booting app (INST-2) but still gives up eventually', async () => {
+  // Installed app, idle machine: the first request is answered after 2–7 s; under load, after more than the old 10 s deadline.
+  expect(VAULT_REQUEST_TIMEOUT_MS).toBeGreaterThanOrEqual(30_000)
+  const late = createProcessVaultTransport(VAULT_REQUEST_TIMEOUT_MS)
+  transports.push(late)
+  const first = late.request('seal', 'synthetic-input')
+  await vi.advanceTimersByTimeAsync(20_000)
+  reply({ type: 'persona-vault', requestId: sent[0]!.requestId, payload: 'synthetic-ciphertext' })
+  expect(await first).toBe('synthetic-ciphertext')
+
+  const never = late.request('seal', 'synthetic-input')
+  const rejected = expect(never).rejects.toBeInstanceOf(VaultUnavailableError)
+  await vi.advanceTimersByTimeAsync(VAULT_REQUEST_TIMEOUT_MS)
+  await rejected
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('uses that deadline by default in the plugin configuration', () => {
+  expect(PersonaVaultProvider.Config({ path: '' }).timeoutMs).toBe(VAULT_REQUEST_TIMEOUT_MS)
+  expect(PersonaVaultProvider.Config({ path: '', timeoutMs: 5000 }).timeoutMs).toBe(5000)
 })
 
 it('contains native errors and releases its listener and pending requests on disposal', async () => {

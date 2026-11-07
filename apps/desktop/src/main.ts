@@ -48,6 +48,8 @@ import { installDesktopFileDrag } from './file-drag.ts'
 import { installDesktopDirectoryPicker } from './directory-picker.ts'
 import { installPersonaAboutShellIpc } from './persona-about-shell.ts'
 import { installTeachCapture } from './teach-ipc.ts'
+import { createTeachRecordingChrome } from './teach-chrome.ts'
+import { createTeachPill } from './teach-pill.ts'
 import { teachSourceView } from './teach-sources.ts'
 import { createComputerUseComHost, installComputerUseBind } from './computer-use-bind.ts'
 import { interpretOverlayConsole } from './computer-use-cursor-renderer.ts'
@@ -60,6 +62,7 @@ import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } fro
 import { readDeviceInfo } from './device-info.ts'
 import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
+import { armQuitWatchdog } from './quit-watchdog.ts'
 import { desktopUpdateChannel } from './update-channel.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
 import { prepareDesktopUpdateWindow } from './update-window.ts'
@@ -107,7 +110,7 @@ import { allowShellNavigation, hardenSession, isExternalHttpUrl, secureWebPrefer
 import { copyPersonaDiagnostic, createPersonaLogger, personaLogsDir } from './persona-log.ts'
 import { reconnectingPageUrl } from './reconnecting-page.ts'
 import { ALWAYS_ON_IPC, isAlwaysOnAttention, isAlwaysOnResolved, needsYouCountValue, runningAssignmentCount } from './always-on-ipc.ts'
-import { applyThemeOverride } from './theme-override.ts'
+import { applyThemeOverride, themeOverrideArguments } from './theme-override.ts'
 import { DesktopPower } from './power.ts'
 import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
 import { parsePersonaDeepLink } from './deep-link.ts'
@@ -359,7 +362,8 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
       // 'followWindow' washes the sidebar out behind an unfocused window.
       visualEffectState: 'active' as const,
     } : {}),
-    webPreferences: { ...secureWebPreferences(preload), devTools: true },
+    // TH-1: a forced theme (PERSONA_THEME / --persona-theme) reaches the preload as an argument, which publishes it to the client.
+    webPreferences: { ...secureWebPreferences(preload), additionalArguments: themeOverrideArguments(process.env, process.argv), devTools: true },
   })
   pinPersonaWindowTitle(window)
   window.webContents.setWindowOpenHandler((details) => {
@@ -987,8 +991,40 @@ async function main(): Promise<void> {
       return choice.response === 1
     },
   })
+  // "Ensinar": while another window or screen is recorded the Persona is minimized, so the clock and the Pausar/Parar buttons live
+  // in a small always-on-top pill that is excluded from the capture. Its buttons go back to the renderer, which owns the recorder.
+  let teachChrome!: ReturnType<typeof createTeachRecordingChrome>
+  const teachPill = createTeachPill({
+    createWindow: size => new BrowserWindow({
+      ...size,
+      show: false,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      focusable: false,
+      hasShadow: false,
+      alwaysOnTop: true,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, spellcheck: false },
+    }),
+    workArea: () => screen.getPrimaryDisplay().workArea,
+    localeId: () => currentDesktopLocale().id,
+    onAction: (action) => { teachChrome.onPillAction(action) },
+  })
+  teachChrome = createTeachRecordingChrome({
+    getWindow: () => mainWindow,
+    pill: teachPill,
+    relay: (action) => {
+      if (mainWindow !== undefined && !mainWindow.isDestroyed()) mainWindow.webContents.send(DESKTOP_IPC.teachPillAction, action)
+    },
+  })
+  app.once('will-quit', () => { teachChrome.ended() })
   installTeachCapture(() => mainWindow, {
     personaHome: () => resolvePersonaProcessHome(),
+    recording: teachChrome,
     listSources: async () => {
       const sources = await desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 320, height: 200 } })
       return sources.map(teachSourceView)
@@ -1930,7 +1966,24 @@ async function main(): Promise<void> {
     if (process.platform !== 'darwin') app.quit()
   })
   if (process.platform !== 'win32') powerMonitor.on('shutdown', () => { sessionEnding = true })
+  /**
+   * BUG-QUIT-1: the packaged app's native shutdown did not finish after "Sair" (window gone, process alive at 0% CPU, the next launch handed over to
+   * the invisible instance). Everything that needs closing is closed below, so the process ends here instead of waiting for Chromium's own teardown;
+   * the watchdog (a detached helper) ends only OUR tree if even that does not happen.
+   */
+  const endProcess = async (): Promise<void> => {
+    try {
+      await Promise.race([
+        Promise.all([session.defaultSession.cookies.flushStore(), Promise.resolve(session.defaultSession.flushStorageData())]),
+        new Promise<void>((resolve) => { setTimeout(resolve, 1500) }),
+      ])
+    } catch (error) { console.error(error) }
+    // The `will-quit` listeners (global shortcuts, input hook, power monitor, timers) release what they hold; `app.exit` does not emit it.
+    try { app.emit('will-quit', { preventDefault: () => undefined }) } catch (error) { console.error(error) }
+    app.exit(0)
+  }
   const finishQuit = (): void => {
+    armQuitWatchdog({ pid: process.pid, execPath: process.execPath })
     quitting = true
     shuttingDown = true
     updateJournal?.action('quit-requested')
@@ -1943,6 +1996,9 @@ async function main(): Promise<void> {
     updateSchedule.dispose()
     updateDialog.dispose()
     mandatoryUI?.dispose()
+    // The cursor overlay (a full-screen topmost window while a persona uses the computer) and the global Devolver shortcut go before the
+    // rest: the `will-quit` listener that used to close them does not run when "Sair" ends the application this way.
+    computerUseBind.release()
     void Promise.all([stopOperationReports(), Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()),
       backend.close().then(async () => { await operationJournal?.drain(500) }, async (error: unknown) => {
         await operationJournal?.drain(500)
@@ -1951,10 +2007,13 @@ async function main(): Promise<void> {
       platformView.dispose(),
       disposeFileDrag(),
     ].map(cleanup => cleanup.catch((error: unknown) => { console.error(error) })))
-      .then(() => { app.quit() })
+      .then(() => endProcess())
+      .catch((error: unknown) => { console.error(error); app.exit(0) })
   }
   app.on('before-quit', (event) => {
     if (shellInstallerOwnsQuit) {
+      // The installer waits for this process to end: the same safety net as a normal quit.
+      armQuitWatchdog({ pid: process.pid, execPath: process.execPath })
       shuttingDown = true
       quitConfirmation.dispose()
       backgroundNotice?.dispose()

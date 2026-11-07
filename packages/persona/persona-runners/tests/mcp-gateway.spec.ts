@@ -48,6 +48,7 @@ describe('MCP gateway', () => {
     expect(gw.list(none.token)).toEqual([])
     expect(gw.list(read.token)).toEqual([
       'persona_recall',
+      'persona_ask',
       'persona_browser_open',
       'persona_browser_read',
       'persona_computer_screenshot',

@@ -30,6 +30,42 @@ for (const name of [
 }
 const manifest = JSON.parse(asar.extractFile(archive, 'package.json').toString())
 console.log(`COMMIT ${manifest.dshBuildCommit}`)
+let engineGate
+let imageGate
+// ENG-1 gate: the packaged AI engines must LOAD with the exe's own node (and run a turn through the product's resolveRunner), or the
+// pack fails. H2 #3 shipped with a dependency drift that threw at `import('@botiverse/oar')`; detection still said "Pronta" and no
+// engine could start. Runs before any window opens; ~2 s for the imports, ~10-40 s for the stub turn (--no-turn-smoke skips only that).
+{
+  const probe = join(dirname(fileURLToPath(import.meta.url)), 'packaged-runners-probe.mjs')
+  const lib = join(dirname(exe), 'resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-persona-runners/lib/index.js')
+  const stubs = join(root, 'packages/persona/persona-e2e/fixtures/fake-cli')
+  const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => !['NODE_OPTIONS', 'NODE_PATH', 'VITEST'].includes(name)))
+  const run = (args, timeout) => {
+    const done = spawnSync(exe, [probe, ...args], { env: { ...cleanEnv, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', timeout, windowsHide: true })
+    const text = `${done.stdout ?? ''}${done.stderr ?? ''}`
+    const line = text.split(/\r?\n/u).find(row => /^(?:RUNTIME-IMPORTS|RUNNER-TURN|SHARP-RASTER) /u.test(row))
+    if (line === undefined) throw new Error(`Packaged runner probe printed nothing (${args[0]}, exit ${String(done.status)}): ${text.slice(-600)}`)
+    return JSON.parse(line.slice(line.indexOf(' ') + 1))
+  }
+  const imports = run(['imports', lib], 120_000)
+  console.log(`RUNTIME-IMPORTS ${JSON.stringify(imports)}`)
+  if (imports.ok !== true) {
+    const bad = imports.rows === undefined ? imports.error : imports.rows.filter(row => !row.ok).map(row => `${row.runtime}: ${row.error}`).join(' | ')
+    throw new Error(`A packaged AI engine cannot load with the exe's own node (ENG-1): ${bad}`)
+  }
+  if (!process.argv.includes('--no-turn-smoke')) {
+    const turn = run(['turn', lib, stubs], 240_000)
+    console.log(`RUNNER-TURN ${JSON.stringify(turn)}`)
+    if (turn.ok !== true) throw new Error(`The packaged resolveRunner could not complete a turn with the faithful claude stub (ENG-1): ${turn.error ?? JSON.stringify(turn)}`)
+  }
+  engineGate = { runtimeImports: imports.rows, runnerTurn: process.argv.includes('--no-turn-smoke') ? 'skipped' : 'ok' }
+  // Image gate (Keel 07/11): the v1.1 image features rasterize SVGs with `sharp`, whose native binary is NOT in the asar. Resolved from the persona-host's own place
+  // in the runtime, like the product does. A pack that forgot to unpack it, or lost the package, fails here in ~5 s instead of failing the person's first image.
+  const rasterized = run(['sharp', join(dirname(exe), 'resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-persona-host/package.json')], 90_000)
+  console.log(`SHARP-RASTER ${JSON.stringify(rasterized)}`)
+  if (rasterized.ok !== true) throw new Error(`The packaged runtime cannot rasterize an SVG with sharp (the v1.1 image features need it): ${rasterized.error ?? JSON.stringify(rasterized)}`)
+  imageGate = rasterized
+}
 const results = []
 // --real-theme: pin the REAL native theme per run through PERSONA_THEME (P0-7) instead of faking dark by writing the DOM attribute.
 const realTheme = process.argv.includes('--real-theme')
@@ -84,18 +120,27 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
       await page.evaluate(() => document.documentElement.setAttribute('data-ds-theme-source', 'dark'))
       await page.waitForFunction(() => matchMedia('(prefers-color-scheme: dark)').matches)
     }
-    // The forced theme must reach the renderer by the real path: prefers-color-scheme follows nativeTheme, and the app writes
-    // data-ds-dark-theme="true" in dark and REMOVES it in light (Keel's contract).
-    const theme = realTheme
-      ? await page.waitForFunction(expectDark => (matchMedia('(prefers-color-scheme: dark)').matches === expectDark
-        && (document.documentElement.getAttribute('data-ds-dark-theme') === 'true') === expectDark)
-        ? { prefersDark: expectDark, darkAttribute: document.documentElement.getAttribute('data-ds-dark-theme') } : false, dark, { timeout: 20000 })
-        .then(handle => handle.jsonValue())
-      : undefined
-    await page.screenshot({ path: join(output, dark ? 'dark-first-frame.png' : 'light-first-frame.png') })
+    // The forced theme must reach the renderer by the real path. FIRST FRAME (splash or boot error): prefers-color-scheme follows the
+    // forced nativeTheme. After the app MOUNTS: the app writes data-ds-dark-theme="true" in dark and REMOVES it in light (Keel's contract).
+    // data-ds-dark-theme lives on <body> (preload-windows.ts observes it there), not on <html>.
+    const themeSeen = () => page.evaluate(() => ({
+      prefersDark: matchMedia('(prefers-color-scheme: dark)').matches,
+      darkAttribute: document.body?.getAttribute('data-ds-dark-theme') ?? null,
+      themeSource: document.documentElement.getAttribute('data-ds-theme-source'),
+    }))
+    let theme
+    if (realTheme) {
+      // Playwright over CDP emulates prefers-color-scheme: light by default, which hides the real nativeTheme (and made the
+      // installed dark theme look broken). Drop the emulation so what is measured and captured is what the person sees.
+      await page.emulateMedia({ colorScheme: null })
+      await page.waitForFunction(expectDark => matchMedia('(prefers-color-scheme: dark)').matches === expectDark, dark, { timeout: 20000 })
+        .catch(async () => { throw new Error(`forced ${dark ? 'dark' : 'light'} theme did not reach the first frame: ${JSON.stringify(await themeSeen())}`) })
+      theme = { firstFrame: await themeSeen() }
+    }
+    await page.screenshot({ timeout: 120_000, path: join(output, dark ? 'dark-first-frame.png' : 'light-first-frame.png') })
     if (dark) {
       await page.locator('#boot-error-title').waitFor({ state: 'visible', timeout: 65000 })
-      await page.screenshot({ path: join(output, 'dark-boot-error.png') })
+      await page.screenshot({ timeout: 120_000, path: join(output, 'dark-boot-error.png') })
       const focused = await page.locator('#boot-retry').evaluate(button => button.getRootNode().activeElement === button)
       if (!focused) throw new Error('Retry did not receive focus')
       await page.getByRole('button', { name: 'Tentar de novo', exact: true }).click()
@@ -107,7 +152,13 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
       state: document.getElementById('persona-boot-overlay')?.shadowRoot?.querySelector('.boot')?.getAttribute('data-state'),
     })) }))
     await page.locator('#persona-boot-overlay').waitFor({ state: 'detached', timeout: 10000 })
-    await page.screenshot({ path: join(output, dark ? 'dark-onboarding.png' : 'light-onboarding.png') })
+    if (realTheme) {
+      await page.waitForFunction(expectDark => (document.body?.getAttribute('data-ds-dark-theme') === 'true') === expectDark
+        && matchMedia('(prefers-color-scheme: dark)').matches === expectDark, dark, { timeout: 20000 })
+        .catch(async () => { throw new Error(`forced ${dark ? 'dark' : 'light'} theme did not reach the mounted app: ${JSON.stringify(await themeSeen())}`) })
+      theme = { ...theme, mounted: await themeSeen() }
+    }
+    await page.screenshot({ timeout: 120_000, path: join(output, dark ? 'dark-onboarding.png' : 'light-onboarding.png') })
     const text = await page.locator('#root').innerText()
     const resources = await page.evaluate(() => performance.getEntriesByType('resource')
       .map(entry => ({ path: new URL(entry.name).pathname, durationMs: Math.round(entry.duration) }))
@@ -132,4 +183,4 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
     writeFileSync(join(output, dark ? 'dark.log' : 'light.log'), log.join(''))
   }
 }
-writeFileSync(join(output, 'proof.json'), JSON.stringify({ commit: manifest.dshBuildCommit, archive, results }, null, 2) + '\n')
+writeFileSync(join(output, 'proof.json'), JSON.stringify({ commit: manifest.dshBuildCommit, archive, engineGate, imageGate, results }, null, 2) + '\n')

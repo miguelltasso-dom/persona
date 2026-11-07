@@ -6,7 +6,7 @@ const CLAUDE = { cli: 'claude', connected: true }
 const NINA = { id: 'nina', name: 'Nina', title: 'Pesquisa', personality: 'Curiosa.', instructions: 'Pesquise e resuma com fontes.' }
 
 function ask(texto: string, extra: Partial<EstimateAskInput> = {}) {
-  return estimateAsk({ texto, motor: CLAUDE, persona: NINA, ...extra })
+  return estimateAsk({ texto, motor: CLAUDE, persona: NINA, conta: { billing: 'api' }, ...extra })
 }
 
 describe('estimateAsk: says "não sei" instead of guessing', () => {
@@ -263,5 +263,45 @@ describe('estimateAsk: the person\'s own measured history (OPT-9, D-080 c)', () 
     for (const row of [ask(WORK, { calibracao: history() }), ask('Qual o horário do standup?', { calibracao: history() })]) {
       expect(['estimate', 'calibrated']).toContain(row.origin)
     }
+  })
+})
+
+describe('estimateAsk counts the images of the message at the MEASURED cost (reports/image-cost-real.md)', () => {
+  const sized = { size: { width: 1500, height: 1000 } }
+  const base = ask('Qual o horário do standup?')
+
+  it('the image goes to the call that receives the message: +1,816..2,220 tokens, billed at the cache-write price', () => {
+    const withImage = ask('Qual o horário do standup?', { imagens: [sized] })
+    expect(withImage.chamadas).toEqual(base.chamadas)
+    expect((withImage.tokens?.min ?? 0) - (base.tokens?.min ?? 0)).toBe(1816)
+    expect((withImage.tokens?.max ?? 0) - (base.tokens?.max ?? 0)).toBe(2220)
+    // the conversation call is on the cheap tier (price 1 µUSD/token): 1,816 × 1.25 = 2,270
+    expect((withImage.custo?.microUsd.min ?? 0) - (base.custo?.microUsd.min ?? 0)).toBe(2270)
+    expect(withImage.imagens).toMatchObject({ count: 1, origin: 'calibrated', tokens: { min: 1816, max: 2220 } })
+    expect(withImage.imagens?.basis).toContain('2.018')
+  })
+
+  it('an unknown size gives the wide range and no claim of calibration', () => {
+    const result = ask('Qual o horário do standup?', { imagens: [{}] })
+    expect(result.imagens).toMatchObject({ count: 1, origin: 'estimate' })
+    expect(result.imagens).not.toHaveProperty('basis')
+    expect(result.imagens?.tokens.max).toBeGreaterThan(result.imagens?.tokens.min ?? Number.POSITIVE_INFINITY)
+  })
+
+  it('a work ask puts the image on the execution call (the last), not on the triage', () => {
+    const result = ask('Monte o cardápio da semana com a foto anexa', { imagens: [sized], host: { skipTriage: false } })
+    expect(result.detalhe.at(-1)?.papel).toBe('execucao')
+    const plain = ask('Monte o cardápio da semana com a foto anexa', { host: { skipTriage: false } })
+    expect((result.tokens?.min ?? 0) - (plain.tokens?.min ?? 0)).toBe(1816)
+    // the execution runs on the person's own model (price 3): 1,816 × 3 × 1.25 = 6,810
+    expect((result.custo?.microUsd.min ?? 0) - (plain.custo?.microUsd.min ?? 0)).toBe(6810)
+  })
+
+  it('no images: the field is absent; a message with no call ignores them; at most 4 count', () => {
+    expect(base).not.toHaveProperty('imagens')
+    const courtesy = ask('obrigado!', { imagens: [sized] })
+    expect(courtesy.tipo).toBe('sem-chamada')
+    expect(courtesy).not.toHaveProperty('imagens')
+    expect(ask('Qual o horário do standup?', { imagens: Array.from({ length: 9 }, () => sized) }).imagens?.count).toBe(4)
   })
 })

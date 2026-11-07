@@ -1,8 +1,9 @@
 /** What the Executor and its workers report about the Assignments that run tickets. */
 import { key } from './ids.ts'
 import { UserError } from './errors.ts'
+import { initialAsk } from './ask.ts'
 import { latestAssignment, liveTicket, runningAssignment } from './model.ts'
-import type { ReportState, Ticket } from './model.ts'
+import type { AskQuestion, ReportState, Ticket } from './model.ts'
 import { EnginePart, type EngineOptions } from './part.ts'
 import type { Replies } from './replies.ts'
 import { automatic, type Tickets } from './tickets.ts'
@@ -17,6 +18,8 @@ export interface WorkerReport {
   askedBy?: string
   /** The person's question this report answers, which the worker thereby takes up; authorizes the main Session to send an answer reply. */
   answers?: string
+  /** A structured question or a sequence of them (already normalized): the first becomes the open question; `question` is then ignored. */
+  ask?: readonly AskQuestion[]
 }
 export const RECOVERY_NOTE = 'The host restarted during this ticket. Inspect the current worktree, git history and GitHub state before continuing. Do not repeat an already completed external operation. Finish the original assignment and report its status.'
 
@@ -100,8 +103,11 @@ export class Assignments extends EnginePart {
     const ticket = this.require(ticketId)
     if (!liveTicket(ticket)) throw new UserError('ticketEnded')
     if (!this.policy().revalidate(ticket.mandate)) throw new UserError('mandateRevoked')
-    if (report.question && (report.state === 'ready' || report.answers)) throw new UserError('questionWithResult')
-    if (report.askedBy && !report.question) throw new UserError('askerWithoutQuestion')
+    // A structured ask (chips, a sequence) brings its own first question; `question` is only the plain form.
+    const structured = report.ask !== undefined && report.ask.length > 0 ? initialAsk(report.ask) : undefined
+    const questionText = structured?.question ?? report.question
+    if (questionText && (report.state === 'ready' || report.answers)) throw new UserError('questionWithResult')
+    if (report.askedBy && !questionText) throw new UserError('askerWithoutQuestion')
     const person = (id: string, channel: boolean) => {
       const trigger = this.repo.triggers.get(id)
       return !!trigger?.human && (!channel || !!trigger.channel) && this.reaches(ticket, trigger, false)
@@ -113,8 +119,12 @@ export class Assignments extends EnginePart {
     if (assignment.state === 'ended') throw new UserError('assignmentEnded')
     const at = this.now()
     const previous = ticket.attention
-    const ask = (question: string) => ({ id: key('attention', ticketId, question, at), question, ...(report.askedBy ? { triggerId: report.askedBy } : {}) })
-    const asked = report.question && report.question !== previous?.question ? ask(report.question) : previous
+    const ask = (question: string) => ({
+      id: key('attention', ticketId, question, at), question,
+      ...(report.askedBy ? { triggerId: report.askedBy } : {}),
+      ...(structured === undefined ? {} : { ask: structured.ask }),
+    })
+    const asked = questionText && questionText !== previous?.question ? ask(questionText) : previous
     const attention = report.question === null || report.state === 'ready' ? undefined : asked
     if (attention) ticket.attention = attention
     else delete ticket.attention

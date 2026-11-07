@@ -245,6 +245,8 @@ export function composeTurnPrompt(input: {
     part: input.part,
     identity: input.fields.identity,
     policy: '',
+    // A turn that offers no tools (the answer-only route) does not carry the sentences about tools.
+    ...(input.tools.length === 0 ? { tools: 'none' as const } : {}),
   }).trim()
   const { capabilities, vault: _vault, ...voice } = input.fields
   const persona = composeVoicePolicy({

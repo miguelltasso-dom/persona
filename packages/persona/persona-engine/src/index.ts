@@ -247,7 +247,9 @@ export {
   workerSessionId,
 } from './ports/runner.ts'
 export type {
+  DeliverImage,
   DeliverMode,
+  DeliverOptions,
   Runner,
   RunnerBackground,
   RunnerCapabilities,
@@ -312,8 +314,11 @@ export type {
 export { MasterAssessor } from './router/assessor.ts'
 export type { ThreadContext } from './router/assessor.ts'
 export {
+  OWNER_NORMS,
   PROMPT_PLACEHOLDERS,
   PROMPT_TEMPLATES,
+  WORKER_LEAN_REPORT_RULE,
+  WORKER_PROMPT_MARK,
   composePrompt,
   missingPlaceholders,
 } from './prompts/templates.ts'
@@ -622,17 +627,44 @@ export { FIRST_DELIVERY_MAX_PAID_TURNS, verifyFirstDeliveryRun } from './first-d
 export type { FirstDeliveryRunEvidence, FirstDeliveryRunFailure, FirstDeliveryRunResult } from './first-delivery-run.ts'
 export { FIRST_DELIVERY_REAL_TURN_CAP, FIRST_DELIVERY_REAL_ATTEMPT_CAP, verifyRealFirstDeliveryRun } from './first-delivery-real-run.ts'
 export type { RealFirstDeliveryRunInput, RealFirstDeliveryRunFailure, RealFirstDeliveryRunResult } from './first-delivery-real-run.ts'
-export { firstDeliveryAsk, firstDeliveryTask, firstDeliveryExecutionPrompt } from './first-delivery.ts'
+export { firstDeliveryAsk, firstDeliveryTask, firstDeliveryExecutionPrompt, firstDeliveryVisibleLine } from './first-delivery.ts'
 export { extractFactsFromReport, mapReportFactForCuration, REPORT_FACT_LIMITS } from './report-facts.ts'
 export { buildOpt8Measured } from './opt8-measured.ts'
 export type { Opt8MeasuredBucket, Opt8MeasuredEvidence, Opt8MeasuredInput, Opt8MeasuredRow, Opt8QualityStatus } from './opt8-measured.ts'
 export type { ExtractedReportFact, FactReportInput, FactTicketContext, ReportFactAudience, ReportFactExtraction, ReportFactKind, ReportFactRejectionReason } from './report-facts.ts'
 export type { FirstDeliveryExecutionInput } from './first-delivery.ts'
 export type { FirstDeliveryInput, FirstDeliveryTask } from './first-delivery.ts'
+export {
+  HANDOFF_DAILY_CAP, HANDOFF_MAX_DEPTH, HANDOFF_MAX_PER_TASK, HANDOFF_TITLE_MAX, HandoffError, NOTE_FILE_MAX, NOTE_ITEM_MAX, NOTE_MAX_FILES, NOTE_MAX_ITEMS,
+  checkHandoff, depthOf, noteForColleague, pathOf, readNote, readTitle,
+} from './handoff.ts'
+export type { ChainLink, HandoffFailure, HandoffKind, HandoffNote, HandoffRequest, NoteBody, PathStep } from './handoff.ts'
+export { verdictFromText } from './review-verdict-text.ts'
+export { humanPartName, humanTaskTitle, subjectOf, TASK_TITLE_MAX } from './task-title.ts'
 export { wantsWork, workSkipReason } from './wants-work.ts'
-export { estimateAsk, MIN_HISTORY_SAMPLES } from './ux/estimate-ask.ts'
+export { NEEDED_CALL_CAP, NEEDED_CONTENT_TASKS, NEEDED_FLOOR_TOKENS, NEEDED_TASKS, NEEDED_TOLERANCE, NEEDED_WHOLE_ACCOUNT_EXTRA_TOKENS, answerSharesWord, assertNeededGuards, chooseNeededConnector, evaluateNeededRound, isContentTool, renderNeededReport } from './bench/needed-round.ts'
+export type { NeededAttempt, NeededCandidate, NeededCheck, NeededChoice, NeededPlan, NeededResult, NeededTaskKind, NeededToolCall, NeededVerdict } from './bench/needed-round.ts'
+export { approxTokens, groupThousands, renderTeam10Technical, team10Reading } from './bench/team10-reading.ts'
+export type { Team10Budget, Team10BudgetVerdict, Team10Calibration, Team10Quota, Team10QuotaWindow, Team10Reading, Team10ReadingInput, Team10Turn, Team10WindowReading } from './bench/team10-reading.ts'
+export { classifyShortAnswer, isShortAnswerTask, SHORT_ANSWER_MAX_CHARS } from './short-answer.ts'
+export type { ShortAnswerVerdict } from './short-answer.ts'
+export { estimateAsk, estimateAskReference, MIN_HISTORY_SAMPLES } from './ux/estimate-ask.ts'
+export { billingOf, calibrateQuota, impactLine, MIN_QUOTA_DELTA, MIN_QUOTA_PAIRS, pickWindow, quotaImpact, quotaPairs, SAME_CYCLE_MS, shapeForAccount, usdLine } from './ux/billing.ts'
+export type { AccountInput, AccountShape, Billing, QuotaCalibration, QuotaImpact, QuotaPair, QuotaReading, QuotaWindowId, QuotaWindowReading } from './ux/billing.ts'
 export type { AskCall, AskCalibration, AskKind, AskLevel, AskRole, AskSource, CallTokens as AskCallTokens, EstimateAskInput, EstimateAskResult, Range as AskRange, Samples as AskSamples } from './ux/estimate-ask.ts'
+export { budgetOpinionRound, DEFAULT_DAILY_ASKS, DEFAULT_MAX_REPLIES, DEFAULT_OPINION_ROUNDS, MAX_DAILY_ASKS, MAX_OPINION_IMAGES, MAX_OPINION_ROUNDS, MIN_DAILY_ASKS, MIN_OPINION_ROUNDS } from './ux/opinion-budget.ts'
+export type { OpinionBudget, OpinionBudgetInput, OpinionCost, OpinionDraft, OpinionReader, OpinionSkip, OpinionStop } from './ux/opinion-budget.ts'
+export { IMAGE_CACHE_WRITE_FACTOR, IMAGE_COST_MEASURED, IMAGE_MAX_EDGE, IMAGE_TOKENS_MAX, IMAGE_TOKENS_UNKNOWN, imageSizeOf, imageTokens } from './ux/image-tokens.ts'
+export type { ImageSize } from './ux/image-tokens.ts'
+export { chooseReviewer, groupReviewFailures, MAX_REVIEW_PASSES, MAX_REVIEW_POINTS, MAX_REVIEW_RETURNS, NEW_PROJECT_REVIEW, readVerdict, REVIEW_IDLE, returnNoteFor, reviewCost, reviewDue, reviewRequestFor, reviewStep } from './review-step.ts'
+export type { ReviewAction, ReviewCandidate, ReviewCost, ReviewFailure, ReviewFailureGroup, ReviewEvent, ReviewLine, ReviewMode, ReviewPolicy, ReviewSkip, ReviewState, ReviewStep, ReviewView, ReviewerChoice, ReviewerPick, Verdict as ReviewVerdict } from './review-step.ts'
+export { BRIEF_FALLBACK_MINUTES, BRIEF_ON_DEMAND_FROM_MINUTES, BRIEF_OPEN_FROM_MINUTES, briefDueNow, briefShowsSpot, briefTitle, briefVariant, buildMorningBrief, dayBounds, DEFAULT_YESTERDAY_LINES, renderMorningText } from './morning-brief.ts'
+export type { BriefVariant, MorningBriefInput, MorningBriefResult, MorningLine, MorningState, MorningTask } from './morning-brief.ts'
+export { opinionDigestFor } from './opinion-reply.ts'
+export type { OpinionMark } from './opinion-reply.ts'
 export type { WorkSkipReason } from './wants-work.ts'
+export { MAX_CONNECTORS_PER_CALL, asHumanText, connectorsNeededBy } from './connectors-needed.ts'
+export type { AvailableConnector, ConnectorChoice, ConnectorKind, ConnectorsNeeded, HumanText } from './connectors-needed.ts'
 export { assertV1Close, formatV1CloseMarkdown, measureV1Close, measureV1CloseView } from './v1-close.ts'
 export type { V1CloseMeasure, V1CloseMeasureView } from './v1-close.ts'
 export type { ProactivityMeasure } from './proactivity-measure.ts'

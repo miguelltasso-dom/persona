@@ -20,6 +20,21 @@ export type PromptPart =
   | 'handoff'
   | 'owner_norms'
 
+/**
+ * The owner norms, written ONCE (OPT-10: they used to live in three copies, the template, the runner's owner prompt and the bench). The worker
+ * template carries them as one paragraph; the host also puts them in the policy block, and when it does, {@link composePrompt} drops the template's
+ * copy (OPT-4). Every rule is here and none twice: finish the mandate; verify the acceptance criterion; report with evidence; propose the next step
+ * (structured); never close with "posso fazer X se você quiser" when X is in the mandate. The runtime check for that last rule is `laziness.ts`.
+ */
+/** The sentence that says a prompt is the worker's. A prompt that already carries it must not be wrapped in a second worker prompt. */
+export const WORKER_PROMPT_MARK = 'Você executa a Tarefa autorizada.'
+
+/** Said only when the turn offers tools: with none (an answer-only call) it points at nothing (OPT-10 B). */
+const WORKER_TOOLS_CLAUSE = ' com as ferramentas da Persona quando disponíveis e necessárias'
+const WORKER_EXTERNAL_OPS_LINE = 'Antes de repetir uma operação externa, confira o diretório de trabalho e o histórico.'
+
+export const OWNER_NORMS = 'Normas de dono: termine o que o mandato pede, sem devolver o que cabe a você; verifique o critério de aceite e reporte com evidência (teste, arquivo, comando, IDs, caminhos); proponha o próximo passo como proposta estruturada; nunca encerre com "posso fazer X se você quiser" quando X está no mandato: faça e reporte.'
+
 export const PROMPT_TEMPLATES: Record<PromptPart, string> = {
   coordinator: `Você é {{persona_name}}, {{persona_title}}. Você coordena a equipe: avalia pedidos e despacha Tarefas.
 
@@ -59,14 +74,13 @@ Observe ociosidade, travamento e falha de infraestrutura. Ajuste ou alerte. Sem 
 
 {{policy}}
 `,
-  worker: `Você é {{persona_name}}, {{persona_title}}. Você executa a Tarefa autorizada.
+  worker: `Você é {{persona_name}}, {{persona_title}}. ${WORKER_PROMPT_MARK}
 
-Fique no escopo da autorização. Relate progresso, bloqueio ou resultado com as ferramentas da Persona quando disponíveis e necessárias.
-Não fale no canal: a coordenação responde às pessoas.
-Em tarefas que pedem apenas uma resposta em texto com contexto fornecido, não use ferramentas: devolva o resultado e a evidência no texto final. Não inspecione arquivos, diretório de trabalho ou histórico, não execute comandos e não crie registros para a tarefa proposta.
-Em tarefas com operações externas autorizadas, inspecione o diretório de trabalho e o histórico antes de repetir uma operação externa.
+Fique no escopo da autorização. Relate progresso, bloqueio ou resultado${WORKER_TOOLS_CLAUSE}. Não fale no canal: a coordenação responde às pessoas.
+Tarefa que pede só uma resposta em texto, com o contexto fornecido: sem ferramentas, arquivos, comandos, registros, diretório de trabalho ou histórico; resultado e evidência no texto final.
+${WORKER_EXTERNAL_OPS_LINE}
 
-Normas de dono: termine o que está no mandato; verifique o critério de pronto com evidência; relate; proponha o próximo passo. Não devolva trabalho que já está autorizado com "posso fazer se você quiser" — faça e reporte.
+${OWNER_NORMS}
 
 {{policy}}
 `,
@@ -121,6 +135,12 @@ export interface ComposePromptInput {
   dedupeOwnerNorms?: boolean
   /** Worker only: append {@link WORKER_LEAN_REPORT_RULE}. Default false. */
   leanReport?: boolean
+  /**
+   * Worker only: `'none'` = this turn offers NO tools (an answer-only call). The two pieces that only make sense with tools ("com as ferramentas da Persona
+   * quando disponíveis" and the external-operation check) are left out; everything else, the text-only rule included, stays. A turn with tools (or
+   * when unsure) leaves it out of the input and keeps the full text.
+   */
+  tools?: 'none'
 }
 
 /** The worker template's compact owner-norms paragraph (one line, between blank lines). */
@@ -135,10 +155,13 @@ const CREDENTIAL = /(?:sk-[A-Za-z0-9_\-]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A
 export function composePrompt(input: ComposePromptInput): string {
   const raw = PROMPT_TEMPLATES[input.part]
   const dedupe = input.part === 'worker' && input.dedupeOwnerNorms !== false && input.policy.includes('Normas de dono:')
-  const deduped = dedupe ? raw.replace(WORKER_OWNER_NORMS_PARAGRAPH, '\n') : raw
-  const template = input.part === 'worker' && input.leanReport === true
+  const deduped = dedupe ? raw.replace(WORKER_OWNER_NORMS_PARAGRAPH, '') : raw
+  const lean = input.part === 'worker' && input.leanReport === true
     ? deduped.replace('{{policy}}', `${WORKER_LEAN_REPORT_RULE}\n\n{{policy}}`)
     : deduped
+  const template = input.part === 'worker' && input.tools === 'none'
+    ? lean.replace(WORKER_TOOLS_CLAUSE, '').replace(`\n${WORKER_EXTERNAL_OPS_LINE}`, '')
+    : lean
   const text = template
     .replaceAll('{{persona_name}}', input.identity.name)
     .replaceAll('{{persona_title}}', input.identity.title)

@@ -28,7 +28,7 @@ import { ROUTER_FORBIDDEN_TOOLS } from '../ports/runner.ts'
 import { fitRowsToBudget, relevanceOverlap } from '../prompts/context-budget.ts'
 import { clipTextToTokens, composeStablePrefix, toolsForTurn, trimVariableAlreadyInPrefix, VARIABLE_LAYER_BUDGET } from '../prompts/stable-prefix.ts'
 import { capTalkContext, wrapAsData, type TalkColleague } from '../prompts/talk.ts'
-import { composePrompt, WORKER_LEAN_REPORT_RULE } from '../prompts/templates.ts'
+import { composePrompt, OWNER_NORMS, WORKER_LEAN_REPORT_RULE } from '../prompts/templates.ts'
 import { composeVoicePolicy, composePersonaPrompt, voiceSurfaceHint, type PersonaVoiceFields } from '../prompts/voice.ts'
 import { vigiaTick } from '../watchdog.ts'
 import {
@@ -250,6 +250,8 @@ export interface FaithfulOptions {
    * the second pass (a task that is not the first of the day). Default: cold, first of the day.
    */
   readonly warm?: boolean
+  /** The worker turns are answer-only calls (no tools offered): their prompt is the toolless one (OPT-10 B). Default false: a call with tools. */
+  readonly workerToolless?: boolean
   /** Provider cache TTL in minutes (default {@link PROVIDER_CACHE_TTL_MIN}). */
   readonly cacheTtlMin?: number
   /** Cache write price × input price. Default 1.25 (5 min cache); a 1 h TTL writes at {@link CACHE_WRITE_FACTOR_1H}. */
@@ -322,6 +324,7 @@ interface Run {
   readonly warm: Map<string, number>
   readonly cacheTtlMin: number
   readonly cacheWriteFactor: number
+  readonly workerToolless: boolean
   /** Virtual clock, minutes since the first event. */
   nowMin: number
   seq: number
@@ -339,8 +342,8 @@ interface TurnInput {
   readonly posted?: string
 }
 
-function newRun(levers: LeverSet, engine: FaithfulEngine, cacheTtlMin: number, cacheWriteFactor: number): Run {
-  return { engine, levers, cache: new PrefixCacheModel(), turns: [], warm: new Map(), cacheTtlMin, cacheWriteFactor, nowMin: 0, seq: 0 }
+function newRun(levers: LeverSet, engine: FaithfulEngine, cacheTtlMin: number, cacheWriteFactor: number, workerToolless: boolean = false): Run {
+  return { engine, levers, cache: new PrefixCacheModel(), turns: [], warm: new Map(), cacheTtlMin, cacheWriteFactor, workerToolless, nowMin: 0, seq: 0 }
 }
 
 /** Move the virtual clock (a gap between two messages). */
@@ -591,15 +594,6 @@ export function coordinationPromptText(persona: FixturePersona): string {
     .join('\n')
 }
 
-const OWNER_NORMS = [
-  'Normas de dono:',
-  '- Termine o que o mandato pede. Não devolva trabalho que cabe a você.',
-  '- Verifique o critério de aceite com evidência (teste, arquivo, comando).',
-  '- Reporte com evidência (IDs, caminhos, resultado).',
-  '- Proponha o próximo passo que descobriu — proposta estruturada, não "posso fazer se você quiser".',
-  '- Proibido encerrar com "posso fazer X se você quiser" quando X está no mandato: faça e reporte.',
-].join('\n')
-
 /**
  * Tokens of the host talk prompt for `persona` answering `userText`, with no subject and no recall (the floor `estimateAsk`
  * starts from). The colleagues listed in it are the fixture team: a real team of another size moves it a little.
@@ -611,13 +605,14 @@ export function talkPromptTokens(persona: FixturePersona, userText: string): num
 }
 
 /** Worker system prompt; `dedupe` drops the template's own owner-norms paragraph. */
-export function workerPromptText(persona: FixturePersona, dedupe: boolean, leanReport: boolean = false): string {
+export function workerPromptText(persona: FixturePersona, dedupe: boolean, leanReport: boolean = false, toolless: boolean = false): string {
   const text = composePrompt({
     part: 'worker',
     identity: { name: persona.name, title: persona.title },
     policy: `${OWNER_NORMS}\n\nPersona instructions:\n${persona.instructions}`,
     dedupeOwnerNorms: dedupe,
     leanReport,
+    ...(toolless ? { tools: 'none' as const } : {}),
   })
   return text
 }
@@ -693,7 +688,7 @@ interface ExecutionInput {
  * send everything (`'full'`). The scripted worker only states what its prompt carries.
  */
 function executionTurn(run: Run, input: ExecutionInput): FaithfulTurn {
-  const system = workerPromptText(input.persona, run.levers.dedupeNorms, run.levers.leanReports)
+  const system = workerPromptText(input.persona, run.levers.dedupeNorms, run.levers.leanReports, run.workerToolless)
   let prompt: string
   let layers: TurnLayerSizes
   if (run.levers.workerContext === 'title') {
@@ -814,7 +809,7 @@ export function runFaithfulScenario(
   levers: LeverSet = LEVERS_OPTIMIZED,
   options: FaithfulOptions = {},
 ): FaithfulReport {
-  const run = newRun(levers, options.engine ?? 'claude', options.cacheTtlMin ?? PROVIDER_CACHE_TTL_MIN, options.cacheWriteFactor ?? CACHE_WRITE_FACTOR)
+  const run = newRun(levers, options.engine ?? 'claude', options.cacheTtlMin ?? PROVIDER_CACHE_TTL_MIN, options.cacheWriteFactor ?? CACHE_WRITE_FACTOR, options.workerToolless === true)
   const play = (): FaithfulReport => playScenario(id, run)
   if (options.warm === true) {
     play()

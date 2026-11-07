@@ -17,6 +17,18 @@ export interface RunnerBackground {
   stopSubagents: (sessionId: string, keepInbox: boolean) => Promise<void>
 }
 
+/** An image file of this machine that travels with one delivery (TEAM-5). The runner reads it; the prompt never carries its path or bytes. */
+export interface DeliverImage {
+  path: string
+  mediaType?: string
+}
+
+/** Optional per-delivery payload. Additive: a runner that ignores it behaves exactly as before. */
+export interface DeliverOptions {
+  /** Images for THIS turn only (not sticky). A runner that cannot read images refuses the whole turn in human words. */
+  images?: readonly DeliverImage[]
+}
+
 /** Capability flags advertised before a turn starts. */
 export interface RunnerCapabilities {
   steer: boolean
@@ -25,6 +37,8 @@ export interface RunnerCapabilities {
   background: boolean
   tools: 'native' | 'mcp'
   resume: boolean
+  /** TEAM-5: the turn can carry images the persona really sees. Absent = `unavailable`. */
+  images?: 'available' | 'unavailable'
 }
 
 export type RunnerEventType = 'idle' | 'running' | 'error' | 'inputTaken' | 'userTurnStarted'
@@ -58,8 +72,9 @@ export interface Runner {
    * @param requestId - Delivery id (input id, launch id, recovery id).
    * @param text - Prompt or input body.
    * @param mode - `queue` appends, `steer` interrupts, `inject` is silent.
+   * @param options - Optional per-delivery payload (images, TEAM-5).
    */
-  deliver(sessionId: string, requestId: string, text: string, mode: DeliverMode): Promise<void>
+  deliver(sessionId: string, requestId: string, text: string, mode: DeliverMode, options?: DeliverOptions): Promise<void>
   /**
    * Cancel the current turn.
    * @param sessionId - Session to cancel.

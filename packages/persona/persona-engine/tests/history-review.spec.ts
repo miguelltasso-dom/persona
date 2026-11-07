@@ -190,8 +190,8 @@ it('recovers a persisted interrupted transaction before the next read', async ()
 it.each(['keep_mine', 'keep_persona', 'keep_both'] as const)('resolves a shared edit with %s without markers, then undoes to the pre-apply user version', async (choice) => {
   const f = await fixture()
   await writeFile(join(f.project, 'a.txt'), 'baseline\r\n')
-  await writeFile(join(f.project, 'a (da persona).txt'), 'existing copy')
-  await mkdir(join(f.project, 'a (da persona 2).txt'))
+  await writeFile(join(f.project, 'a (rascunho).txt'), 'existing copy')
+  await mkdir(join(f.project, 'a (rascunho 2).txt'))
   const delivery = new HistoryReviewDelivery(f.options)
   const draft = await delivery.prepare({ id: 'a', ticketId: 'task' })
   await writeFile(join(draft.path, 'a.txt'), 'persona version\r\n')
@@ -206,14 +206,16 @@ it.each(['keep_mine', 'keep_persona', 'keep_both'] as const)('resolves a shared 
   expect(body).toBe(choice === 'keep_persona' ? 'persona version\r\n' : 'user version\r\n')
   expect(body).not.toContain('<<<<<<<')
   expect(body).not.toContain('>>>>>>>')
-  const duplicate = join(f.project, 'a (da persona 3).txt')
+  const duplicate = join(f.project, 'a (rascunho 3).txt')
   if (choice === 'keep_both') expect(await readFile(duplicate, 'utf8')).toBe('persona version\r\n')
   else expect(existsSync(duplicate)).toBe(false)
   expect(await delivery.undoApply(applied.restorePointId)).toEqual({ kind: 'restored', restorePointId: applied.restorePointId })
   expect(await readFile(join(f.project, 'a.txt'), 'utf8')).toBe('user version\r\n')
-  expect(await readFile(join(f.project, 'a (da persona).txt'), 'utf8')).toBe('existing copy')
+  expect(await readFile(join(f.project, 'a (rascunho).txt'), 'utf8')).toBe('existing copy')
   expect(existsSync(duplicate)).toBe(false)
-}, 30_000)
+  // Justified: this runs a git worktree and several restore points on Windows while the team's builds saturate the machine (1.4 s alone,
+  // over 30 s in the full parallel suite). It is a limit against a hang, never a wall-clock assertion.
+}, 120_000)
 
 it('refuses stale conflict decisions and leaves every file unchanged until all conflicts are resolved', async () => {
   const f = await fixture()
@@ -259,10 +261,10 @@ it('keeps both versions of a delete-versus-edit conflict without reviving the us
   const applied = await delivery.accept({ id: 'task' }, 'ff', { conflicts: [{ ...blocked.conflicts[0], choice: 'keep_both' }] })
   if (applied.kind !== 'merged' || !applied.restorePointId) throw new Error('missing restore point')
   expect(existsSync(join(f.project, 'a.txt'))).toBe(false)
-  expect(await readFile(join(f.project, 'a (da persona).txt'), 'utf8')).toBe('persona edit')
+  expect(await readFile(join(f.project, 'a (rascunho).txt'), 'utf8')).toBe('persona edit')
   await delivery.undoApply(applied.restorePointId)
   expect(existsSync(join(f.project, 'a.txt'))).toBe(false)
-  expect(existsSync(join(f.project, 'a (da persona).txt'))).toBe(false)
+  expect(existsSync(join(f.project, 'a (rascunho).txt'))).toBe(false)
 }, 30_000)
 
 it('serializes two delivery instances preparing the same task without overwriting the first draft', async () => {

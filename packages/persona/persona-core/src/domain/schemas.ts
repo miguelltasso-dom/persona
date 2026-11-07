@@ -68,9 +68,16 @@ export const avatarSchema = z.discriminatedUnion('kind', [
 ])
 export type PersonaAvatar = z.infer<typeof avatarSchema>
 
+/**
+ * EFF-1: the engine's reasoning-effort levels BY THE NAMES THE CLIS USE, lightest first (Claude: low … max; Codex also lists `ultra` on some models).
+ * The same names as the runners' static table. Absent on a persona = the engine's default; nothing is sent.
+ */
+export const effortLevelSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max', 'ultra'])
+export type PersonaEffortLevel = z.infer<typeof effortLevelSchema>
+
 export const runnerSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('dsh'), model: nonempty.max(128) }),
-  z.object({ kind: z.literal('cli'), cli: cliKindSchema, model: nonempty.max(128) }),
+  z.object({ kind: z.literal('cli'), cli: cliKindSchema, model: nonempty.max(128), effort: effortLevelSchema.optional() }),
 ])
 export type PersonaRunner = z.infer<typeof runnerSchema>
 

@@ -334,7 +334,8 @@ export class HistoryReviewDelivery implements ReviewDelivery {
             const name = basename(path, extension)
             let suffix = 1, duplicate: string
             do {
-              duplicate = join(dirname(path), `${name} (da persona${suffix === 1 ? '' : ` ${suffix}`})${extension}`).replaceAll('\\', '/')
+              // "(rascunho)" ALWAYS (Muse/Lumen, 05/11): the engine does not know the persona's name and the screen promises exactly this; a second copy is "(rascunho 2)".
+              duplicate = join(dirname(path), `${name} (rascunho${suffix === 1 ? '' : ` ${suffix}`})${extension}`).replaceAll('\\', '/')
               suffix += 1
             } while (reserved.has(process.platform === 'win32' ? duplicate.toLowerCase() : duplicate) || existsSync(join(this.root, duplicate)))
             reserved.add(process.platform === 'win32' ? duplicate.toLowerCase() : duplicate)

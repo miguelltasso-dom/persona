@@ -93,6 +93,19 @@ export function firstDeliveryAsk(input: FirstDeliveryInput): string {
   return ask
 }
 
+/**
+ * LEAK-1: the ONLY line of the first delivery the person sees in #geral, in their name — short and human. The instructions
+ * (answer-only, no tools, the brief as data) stay in the Ticket's assignment, which no screen shows. It is already a work
+ * request, so it becomes a Ticket.
+ * @param coordinationName - Who the person is talking to (the Coordenação); a neutral address when unknown.
+ */
+export function firstDeliveryVisibleLine(coordinationName?: string): string {
+  const who = coordinationName?.trim() ?? ''
+  const line = `${who === '' ? 'Equipe' : who}, resuma o que já sabemos da empresa e proponha a primeira tarefa da semana.`
+  if (!wantsWork(line)) throw new Error('first-delivery visible line must wantsWork')
+  return line
+}
+
 function clipBrief(raw: string): string {
   const line = raw.trim().split(/\r?\n/u, 1)[0]?.trim() ?? ''
   if (line === '') return FALLBACK_BRIEF

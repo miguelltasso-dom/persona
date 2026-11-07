@@ -55,6 +55,68 @@ export interface TurnLedgerEntry {
   readonly origin?: LedgerOrigin
   /** Wall-clock length of the call in whole milliseconds (OPT-9: the per-person median calibrates `estimateAsk`). Omitted when unknown. */
   readonly durationMs?: number
+  /**
+   * D-085: how the call's environment was set up — `native` (the runtime's own tools and connectors), `answer-only` (no tools:
+   * text in, text out) or `needed` (only the connectors the task asked for). Omitted when the runner does not say.
+   */
+  readonly envMode?: LedgerEnvMode
+  /** D-096: WHY the call ran in `envMode` (a code such as `connector-unreached` or `failed-version`); omitted when the runner does not say. */
+  readonly envModeReason?: string
+  /**
+   * EFF-1: the model the call was started with (`default` = the engine's own). Recorded only together with a choice or a drop below;
+   * a persona left on "Padrão do motor" sends nothing and the row says nothing.
+   */
+  readonly model?: string
+  /** EFF-1: the model the person chose for the persona (absent = "Padrão do motor"). */
+  readonly modelRequested?: string
+  /** EFF-1: the effort level the person chose (absent = none). */
+  readonly effortRequested?: string
+  /** EFF-1: the chosen model the engine does not offer: the call ran on the engine's default instead (the Task was not lost). */
+  readonly modelDropped?: string
+  /** EFF-1: the chosen effort the model refused: the call ran at the engine's default effort. */
+  readonly effortDropped?: string
+}
+
+/** EFF-1: the per-turn engine choice fields of a {@link TurnLedgerEntry}, in a fixed order. */
+export const LEDGER_CHOICE_FIELDS = ['model', 'modelRequested', 'effortRequested', 'modelDropped', 'effortDropped'] as const
+
+/** One of {@link LEDGER_CHOICE_FIELDS}. */
+export type LedgerChoiceField = (typeof LEDGER_CHOICE_FIELDS)[number]
+
+/** A model id or an effort level as the CLIs name them (`claude-opus-5-5`, `opus`, `gpt-5.1-codex`, `opus[1m]`, `xhigh`). Never free text. */
+const CHOICE_VALUE = /^[A-Za-z0-9][\w.:[\]/-]{0,79}$/u
+
+/**
+ * @param value - Candidate model id / effort level.
+ * @returns Whether it is a short identifier (no spaces, no prose).
+ */
+export function isLedgerChoiceValue(value: unknown): value is string {
+  return typeof value === 'string' && CHOICE_VALUE.test(value)
+}
+
+/**
+ * EFF-1: what a row says about the engine choice, or `undefined` when it says nothing (no choice and no drop: the engine's
+ * default ran, and `model` alone is not kept).
+ * @param entry - Ledger row.
+ * @returns The choice fields that are present.
+ */
+export function ledgerChoiceOf(entry: TurnLedgerEntry): Partial<Record<LedgerChoiceField, string>> | undefined {
+  if (entry.modelRequested === undefined && entry.effortRequested === undefined
+    && entry.modelDropped === undefined && entry.effortDropped === undefined) return undefined
+  const choice: Partial<Record<LedgerChoiceField, string>> = {}
+  for (const field of LEDGER_CHOICE_FIELDS) {
+    const value = entry[field]
+    if (value !== undefined) choice[field] = value
+  }
+  return choice
+}
+
+/** The three ways a call's environment is set up (D-085). */
+export type LedgerEnvMode = 'native' | 'answer-only' | 'needed'
+
+/** @param value - Candidate mode. @returns Whether it is one of the three. */
+export function isLedgerEnvMode(value: unknown): value is LedgerEnvMode {
+  return value === 'native' || value === 'answer-only' || value === 'needed'
 }
 
 /** Empty layer row. */
@@ -127,6 +189,16 @@ export function assertTurnEntry(entry: TurnLedgerEntry): void {
   }
   if (entry.durationMs !== undefined && (!Number.isInteger(entry.durationMs) || entry.durationMs < 0)) {
     throw new DomainError('INVALID_TOKEN_LEDGER', 'DURATION')
+  }
+  if (entry.envMode !== undefined && !isLedgerEnvMode(entry.envMode)) {
+    throw new DomainError('INVALID_TOKEN_LEDGER', 'ENV_MODE')
+  }
+  if (entry.envModeReason !== undefined && !/^[a-z][a-z0-9-]{0,39}$/u.test(entry.envModeReason)) {
+    throw new DomainError('INVALID_TOKEN_LEDGER', 'ENV_MODE_REASON')
+  }
+  for (const field of LEDGER_CHOICE_FIELDS) {
+    const value = entry[field]
+    if (value !== undefined && !isLedgerChoiceValue(value)) throw new DomainError('INVALID_TOKEN_LEDGER', 'ENGINE_CHOICE')
   }
 }
 

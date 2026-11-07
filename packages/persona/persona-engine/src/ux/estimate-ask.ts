@@ -21,6 +21,8 @@ import { TIER_PRICE, talkPromptTokens, workerPromptText, type ModelTier } from '
 import { preRoute } from '../preroute/rules.ts'
 import { USER_TEXT_LIMIT_TOKENS } from '../prompts/talk-output.ts'
 import { wantsWork } from '../wants-work.ts'
+import { shapeForAccount, type AccountInput, type Billing, type QuotaImpact } from './billing.ts'
+import { IMAGE_CACHE_WRITE_FACTOR, IMAGE_COST_MEASURED, imageTokens, type ImageSize } from './image-tokens.ts'
 
 export interface Range {
   readonly min: number
@@ -95,6 +97,17 @@ export interface EstimateAskInput {
   /** Host switches that change the number of calls. Default: the host as it is now (D-073, D-075). */
   readonly host?: { readonly skipTriage?: boolean; readonly courtesyNoModel?: boolean }
   readonly calibracao?: AskCalibration
+  /**
+   * Images the message carries (sizes when known), so the ask counts them. Their cost is the MEASURED one (reports/image-cost-real.md: a 1500×1000
+   * image added 2,018 input tokens on a real call, billed at the cache-write price): added to the call that receives the message. At most 4 count
+   * (the runner refuses more). A message with no call (a courtesy) ignores them.
+   */
+  readonly imagens?: readonly { readonly size?: ImageSize }[]
+  /**
+   * USD-1 / D-092: the account that will run the ask. Absent = `unknown`: the safe default shows NO money. A subscription account sees the impact on the
+   * window the vendor publishes (`janelas`) and tokens; only `billing: 'api'` sees US$ (persona-spec/contracts/usd-subscription.md).
+   */
+  readonly conta?: AccountInput
 }
 
 /** Where the calibrated numbers came from. Absent = a plain estimate. */
@@ -110,14 +123,22 @@ export interface EstimateAskResult {
   /** True only when EVERY call of the ask carries the vendor base (measured by the history, or a dev reference). */
   readonly baseDoVendorIncluida: boolean
   /**
-   * List-price-equivalent cost in micro-USD (a subscription user may not see money: the UI decides). On the history path the
-   * ledger's input is cache read + write + fresh in one number, so the range is bounded by the cache-read price (floor) and the
-   * cache-write price (ceiling): wide on purpose, never a single invented figure.
+   * List-price-equivalent cost in micro-USD, ONLY for `billing: 'api'`; `null` for a subscription or an unknown account, so that no screen can show a
+   * dollar by mistake (D-092). On the history path the ledger's input is cache read + write + fresh in one number, so the range is bounded by the
+   * cache-read price (floor) and the cache-write price (ceiling): wide on purpose, never a single invented figure.
    */
   readonly custo: { readonly microUsd: Range } | null
+  /** The account type the numbers were shaped for. `unknown` shows no money. */
+  readonly billing: Billing
+  /** Subscription / unknown: the impact on the window the vendor publishes. `null` when it publishes none, or for an API account. */
+  readonly quota: QuotaImpact | null
+  /** Ready-to-show line (pt-BR) of what the ask uses: the share of the window, "cota não medida", the calls, or (API only) "≈ US$ x–y (estimativa)". */
+  readonly impacto: string
   /** Seconds. `null` until a measured calibration exists for EVERY call. `mediana` only from the history. */
   readonly tempo: { readonly segundos: Range; readonly mediana?: number } | null
   readonly origin: 'estimate' | 'calibrated' | 'unknown'
+  /** Present only when the message carried images: how many, their input tokens (range) and where the number comes from. */
+  readonly imagens?: { readonly count: number; readonly tokens: Range; readonly origin: 'estimate' | 'calibrated'; readonly basis?: string }
   /** `historico` = the person's own measured turns; `referencia-dev` = a one-machine development reference. Absent for a plain estimate. */
   readonly fonte?: AskSource
   /** Measured turns behind the statement in `motivo`. Only with `fonte: 'historico'`. */
@@ -141,11 +162,14 @@ function tierOf(level: AskLevel): ModelTier {
   return level === 'seu-modelo' ? 'persona' : 'cheap'
 }
 
-function unknown(motivo: string, rotulo: string): EstimateAskResult {
+/** The estimate before the account shapes it: it still carries the list-price cost every account has (internal). */
+type CoreResult = Omit<EstimateAskResult, 'billing' | 'quota' | 'impacto'>
+
+function unknown(motivo: string, rotulo: string): CoreResult {
   return { tipo: 'nao-sei', chamadas: null, detalhe: [], tokens: null, baseDoVendorIncluida: false, custo: null, tempo: null, origin: 'unknown', rotulo, motivo }
 }
 
-function none(motivo: string): EstimateAskResult {
+function none(motivo: string): CoreResult {
   return {
     tipo: 'sem-chamada', chamadas: { min: 0, max: 0 }, detalhe: [], tokens: { min: 0, max: 0 }, baseDoVendorIncluida: false,
     custo: { microUsd: { min: 0, max: 0 } }, tempo: null, origin: 'estimate', rotulo: 'Sem chamada da sua IA', motivo,
@@ -239,12 +263,31 @@ interface CallNumbers {
   readonly history: boolean
 }
 
+/** Shape the numbers for the account: dollars only for an API account, the impact on the window for the rest. */
+function forAccount(core: CoreResult, conta: EstimateAskInput['conta']): EstimateAskResult {
+  const shape = shapeForAccount({ conta, tokens: core.tokens, calls: core.chamadas, microUsd: core.custo?.microUsd ?? null })
+  return { ...core, custo: shape.microUsd === null ? null : { microUsd: shape.microUsd }, billing: shape.billing, quota: shape.quota, impacto: shape.impacto }
+}
+
 /**
- * Estimate one ask.
- * @param input - Text, persona, engine, context, host switches and an optional calibration.
- * @returns Calls (exact), tokens and cost (ranges), time (only when measured), a ready label and a reason.
+ * Estimate one ask, shaped for the account (D-092): what goes to the screen.
+ * @param input - Text, persona, engine, context, host switches, an optional calibration and the account.
+ * @returns Calls (exact), tokens (ranges), cost only for an API account, the impact on the quota for the rest, time (only when measured), a ready label and a reason.
  */
 export function estimateAsk(input: EstimateAskInput): EstimateAskResult {
+  return forAccount(estimateCore(input), input.conta)
+}
+
+/**
+ * The same estimate plus the list-price US$ of the ask, for technical reports and tests ONLY (D-092: it never goes to a screen of a subscription account).
+ * @param input - As {@link estimateAsk}.
+ */
+export function estimateAskReference(input: EstimateAskInput): { readonly screen: EstimateAskResult; readonly referenciaMicroUsd: Range | null } {
+  const core = estimateCore(input)
+  return { screen: forAccount(core, input.conta), referenciaMicroUsd: core.custo?.microUsd ?? null }
+}
+
+function estimateCore(input: EstimateAskInput): CoreResult {
   if (input.texto.trim() === '') return unknown('escreva o pedido para ver a estimativa', 'Escreva o pedido para estimar')
   if (!input.motor.connected || input.motor.cli === 'none' || input.motor.cli === '') {
     return unknown('nenhuma IA conectada', 'Conecte uma IA para estimar')
@@ -313,6 +356,21 @@ export function estimateAsk(input: EstimateAskInput): EstimateAskResult {
     }
   })
 
+  // Images go to the call that RECEIVES the message (the last one: the answer or the execution), at the measured cache-write price.
+  const attached = (input.imagens ?? []).slice(0, 4)
+  const imagesIn = attached.map(image => imageTokens(image.size)).reduce<Range>((total, row) => ({ min: total.min + row.min, max: total.max + row.max }), { min: 0, max: 0 })
+  const imagesSized = attached.length > 0 && attached.every(image => image.size !== undefined)
+  const receiving = numbers.length - 1
+  const receiver = numbers[receiving]
+  const receiverCall = detalhe[receiving]
+  if (receiver !== undefined && receiverCall !== undefined && attached.length > 0) {
+    const rate = TIER_PRICE[tierOf(receiverCall.nivel)].input * IMAGE_CACHE_WRITE_FACTOR
+    numbers[receiving] = {
+      ...receiver,
+      input: { min: receiver.input.min + imagesIn.min, max: receiver.input.max + imagesIn.max },
+      cost: { min: receiver.cost.min + Math.round(imagesIn.min * rate), max: receiver.cost.max + Math.round(imagesIn.max * rate) },
+    }
+  }
   const tokens = numbers.reduce<Range>((total, row) => ({
     min: total.min + row.input.min + row.output.min + (row.history ? 0 : base),
     max: total.max + row.input.max + row.output.max + (row.history ? 0 : base),
@@ -369,6 +427,7 @@ export function estimateAsk(input: EstimateAskInput): EstimateAskResult {
     custo: { microUsd: costRange },
     tempo,
     origin: fonte === undefined ? 'estimate' : 'calibrated',
+    ...(attached.length === 0 ? {} : { imagens: { count: attached.length, tokens: imagesIn, origin: imagesSized ? 'calibrated' as const : 'estimate' as const, ...(imagesSized ? { basis: IMAGE_COST_MEASURED.basis } : {}) } }),
     ...(fonte === undefined ? {} : { fonte }),
     ...(amostras === undefined ? {} : { amostras }),
     rotulo: tempo === null ? callsLabel(chamadas) : `${timeLabel(tempo.segundos, tempo.mediana)} · ${callsLabel(chamadas)}`,

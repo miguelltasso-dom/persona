@@ -7,6 +7,7 @@ export {
   TEAM_MANAGER_ROLE,
   avatarSchema,
   cliKindSchema,
+  effortLevelSchema,
   limitsSchema,
   parsePersona,
   parsePersonaProposal,
@@ -36,6 +37,7 @@ export type {
   PersonaAvatar,
   PersonaLimits,
   PersonaProposal,
+  PersonaEffortLevel,
   PersonaRunner,
   PersonaSchedule,
   PersonaSpec,
@@ -306,8 +308,11 @@ export type { BrainPageMarkdown, BrainVaultApply, BrainVaultExport, BrainVaultEx
 
 export {
   EMPTY_LAYERS,
+  LEDGER_CHOICE_FIELDS,
   appendTurn,
   assertTurnEntry,
+  isLedgerChoiceValue,
+  ledgerChoiceOf,
   cacheHitRate,
   callsForTicket,
   estimateTokens,
@@ -327,6 +332,7 @@ export {
   usagePortKind,
 } from './token-ledger.ts'
 export type {
+  LedgerChoiceField,
   LedgerOrigin,
   TurnKind,
   TurnLayerSizes,

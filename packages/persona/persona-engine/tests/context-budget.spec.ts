@@ -120,7 +120,7 @@ describe('worker owner norms are written once (OPT-4)', () => {
 
   it('keeps the template paragraph when the policy has no norms (nothing is lost)', () => {
     const bare = composePrompt({ part: 'worker', identity: { name: 'Nina', title: 'Padeira-chefe' }, policy: '' })
-    expect(bare).toContain('Normas de dono: termine o que está no mandato')
+    expect(bare).toContain('Normas de dono: termine o que o mandato pede')
     const talk = composePrompt({ part: 'talk', identity: { name: 'Nina', title: 'Padeira-chefe' }, policy })
     expect(talk).toBe(composePrompt({ part: 'talk', identity: { name: 'Nina', title: 'Padeira-chefe' }, policy, dedupeOwnerNorms: false }))
   })

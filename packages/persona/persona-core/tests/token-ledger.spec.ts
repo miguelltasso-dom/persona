@@ -140,6 +140,16 @@ it('durationMs is optional; a present value must be a whole number of millisecon
   }
 })
 
+it('envMode (D-085) is optional; present it must be native, answer-only or needed', () => {
+  for (const mode of ['native', 'answer-only', 'needed'] as const) {
+    expect(appendTurn([], entry({ envMode: mode }))[0]?.envMode, mode).toBe(mode)
+  }
+  expect(appendTurn([], entry({}))[0]?.envMode).toBeUndefined()
+  for (const bad of ['', 'strict', 'NATIVE', 'answer_only', 7, null]) {
+    expect(() => appendTurn([], entry({ envMode: bad as never })), String(bad)).toThrow('INVALID_TOKEN_LEDGER')
+  }
+})
+
 it('refuses a negative counter and layers larger than input', () => {
   expect(() => appendTurn([], entry({ inputTokens: -1 }))).toThrow(DomainError)
   expect(() => appendTurn([], entry({

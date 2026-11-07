@@ -75,7 +75,25 @@ export interface PreRouteInput {
 }
 
 /** Host-authorized first delivery target; roster and task ACL remain mandatory. */
-export interface FirstDeliveryRouteDirective { executorId: string; title: string }
+export interface FirstDeliveryRouteDirective {
+  executorId: string
+  title: string
+  /**
+   * LEAK-1: the instructions the worker runs on (answer-only, no tools, the company brief). They live HERE, host-owned and
+   * invisible; the line the person sees in #geral is a short human sentence (see `firstDeliveryVisibleLine`).
+   */
+  assignment?: string | undefined
+  /**
+   * `first-delivery` (default): the onboarding delivery, answer-only. `task`: the same host-authorized target and invisible
+   * assignment, but the Task runs as any other (the persona's own tools): a request one persona made to a colleague (TEAM-3).
+   */
+  mode?: 'first-delivery' | 'task' | undefined
+  /**
+   * INTEGRITY (TEAM-3): the line that opens a colleague's Task is written by the PERSONA who asked, never in the person's name. The
+   * Task still inherits the person's scope: this is the member whose mandate the asker ran under (the host sets it from the run).
+   */
+  mandateActorId?: string | undefined
+}
 
 export type PreRouteAction = 'ignore' | 'react' | 'silent' | 'assign' | 'command' | 'model'
 

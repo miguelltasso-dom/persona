@@ -107,6 +107,11 @@ export async function copyHistoryFiles(source: string, destination: string, file
     const target = confinePath(destination, file.path)
     await mkdir(dirname(target), { recursive: true })
     try { await operations.copyFile(confinePath(source, file.path), target) }
-    catch (error) { throw new HistoryReviewError('file_unavailable', `Não conseguimos copiar “${file.path}”. Feche o arquivo, confirme que ele está disponível neste computador e tente de novo.`, error) }
+    catch (error) {
+      // The platform layer already knows WHY (a file another program holds, an online-only OneDrive file, a long path) and says
+      // what to do with the file name: that line is the one the person must read, not the generic one below.
+      if (error instanceof HistoryReviewError) throw error
+      throw new HistoryReviewError('file_unavailable', `Não conseguimos copiar “${file.path}”. Feche o arquivo, confirme que ele está disponível neste computador e tente de novo.`, error)
+    }
   }
 }

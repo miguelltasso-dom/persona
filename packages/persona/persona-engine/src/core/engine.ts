@@ -1,5 +1,6 @@
 /** The domain Engine: the single entry point of the core, and the role interfaces its callers receive. */
 import { applyAttentionAnswer } from '../attention.ts'
+import { applyAskAnswer, type AskAnswerInput } from './ask.ts'
 import { UserError } from './errors.ts'
 import { isoTime, liveTicket } from './model.ts'
 import type { Decision, EngineUnavailableReason, PolicyEffect, ThreadRef, Ticket, Trigger } from './model.ts'
@@ -220,9 +221,28 @@ export class Engine {
       const ticket = this.repo.tickets.get(ticketId)
       if (ticket === undefined) throw new UserError('unknownTicket')
       const at = this.options.now?.() ?? new Date().toISOString()
-      const next = applyAttentionAnswer(ticket, text, at)
+      // A structured question (chips, a sequence) is answered by words too: it advances the sequence like any other answer.
+      const next = ticket.attention?.ask === undefined ? applyAttentionAnswer(ticket, text, at) : applyAskAnswer(ticket, { text }, at).ticket
       this.repo.tickets.save(next)
       return this.repo.tickets.get(ticketId) ?? next
+    })
+  }
+  /**
+   * Person answers the open structured question with chips and/or words. A sequence opens its next question (the worker keeps
+   * waiting); after the last one a single input carries every answer and the question is cleared (contracts/structured-question.md).
+   * @param ticketId - Ticket waiting on a person.
+   * @param answer - Chosen option ids and/or text.
+   * @returns The ticket, and whether it stopped waiting on the person.
+   * @throws AskError for a chip the question does not have, two chips on a single choice, or an empty answer.
+   */
+  answerAsk(ticketId: string, answer: AskAnswerInput): { ticket: Ticket; done: boolean } {
+    return this.repo.atomic(() => {
+      const ticket = this.repo.tickets.get(ticketId)
+      if (ticket === undefined) throw new UserError('unknownTicket')
+      const at = this.options.now?.() ?? new Date().toISOString()
+      const result = applyAskAnswer(ticket, answer, at)
+      this.repo.tickets.save(result.ticket)
+      return { ticket: this.repo.tickets.get(ticketId) ?? result.ticket, done: result.done }
     })
   }
 

@@ -214,7 +214,7 @@ describe('worker prompt dedupe (OPT-4)', () => {
     const dedup = workerPromptText(FIXTURE_NINA, true)
     expect(full.match(/Normas de dono/g)).toHaveLength(2)
     expect(dedup.match(/Normas de dono/g)).toHaveLength(1)
-    expect(dedup).toContain('Proibido encerrar com')
+    expect(dedup).toContain('nunca encerre com')
     expect(estimateTokens(dedup)).toBeLessThan(estimateTokens(full) - 30)
   })
 })

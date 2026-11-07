@@ -284,8 +284,23 @@ export interface PolicyEffect {
 export type TicketEndBy = 'executor' | 'human'
 /** How a ticket ended: with its result, with its pull request merged or closed unmerged, with nothing to do, or stopped by a person. */
 export type TicketOutcome = 'completed' | 'merged' | 'closed' | 'dropped' | 'stopped'
-/** A question for a person; `triggerId` is the human message that raised it, whose conversation it goes back to. */
-export interface Attention { id: string; question: string; triggerId?: string }
+/** An answer chip of a structured question (contracts/structured-question.md): a stable id and the words the person sees. */
+export interface AskOption { id: string; label: string }
+/** One question a persona asks: free text, or 2..8 chips (single choice, or `multiple`). */
+export interface AskQuestion { question: string; options?: AskOption[]; multiple?: boolean }
+/**
+ * What makes an Attention structured: its chips, whether several may be chosen, where it sits in a sequence of questions asked
+ * one at a time (`step`, 1-based), the questions still to ask (`later`) and the ones already answered (`collected`).
+ */
+export interface AskState {
+  options?: AskOption[]
+  multiple: boolean
+  step?: { index: number; total: number }
+  later?: AskQuestion[]
+  collected?: { question: string; options?: AskOption[]; optionIds: string[]; text: string }[]
+}
+/** A question for a person; `triggerId` is the human message that raised it, whose conversation it goes back to. `ask` makes it structured. */
+export interface Attention { id: string; question: string; triggerId?: string; ask?: AskState }
 /** Ticket aggregate: an authorized work item with its assignments, channels, thread bindings, and inputs. */
 export interface Ticket {
   id: string

@@ -1,0 +1,109 @@
+{
+  "owner": "Flint",
+  "bundle": "6",
+  "dir": ".maestri/tmp/shots/flint/final-all",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": [
+    "light",
+    "dark"
+  ],
+  "viewports": [
+    "1440x900",
+    "960x640",
+    "zoom200"
+  ],
+  "viewportNames": {
+    "1440x900": "1440x900",
+    "960x640": "960x640",
+    "zoom200": "640x360@2x"
+  },
+  "roster": [
+    "Atlas",
+    "Bento",
+    "Nina",
+    "Sol",
+    "Luna",
+    "Bolota",
+    "Pipa",
+    "Capi",
+    "Bia",
+    "Teo",
+    "Téo",
+    "Lia",
+    "Caio",
+    "Tuca",
+    "Yara"
+  ],
+  "scenes": [
+    {
+      "id": "bubbles__bubbles-channel"
+    },
+    {
+      "id": "bubbles__bubbles-channel-user"
+    },
+    {
+      "id": "bubbles__bubbles-dm"
+    },
+    {
+      "id": "composer__composer-state"
+    },
+    {
+      "id": "lamp__bubbles-channel",
+      "schemes": [
+        "dark"
+      ]
+    },
+    {
+      "id": "lamp__bubbles-channel-user",
+      "schemes": [
+        "dark"
+      ]
+    },
+    {
+      "id": "lamp__bubbles-dm",
+      "schemes": [
+        "dark"
+      ]
+    },
+    {
+      "id": "preview__preview-thread-1-pending-send"
+    },
+    {
+      "id": "preview__preview-thread-2-pending-pay"
+    },
+    {
+      "id": "preview__preview-thread-3-pending-delete"
+    },
+    {
+      "id": "preview__preview-thread-4-pending-send"
+    },
+    {
+      "id": "preview__preview-thread-5-pending-send"
+    },
+    {
+      "id": "preview__preview-thread-6-pending-send"
+    },
+    {
+      "id": "preview__preview-thread-7-sent-na"
+    },
+    {
+      "id": "preview__preview-thread-8-failed-na"
+    },
+    {
+      "id": "teamwork__teamwork-opinion"
+    },
+    {
+      "id": "teamwork__teamwork-opinion-chip"
+    },
+    {
+      "id": "teamwork__teamwork-opinion2"
+    },
+    {
+      "id": "teamwork__teamwork-proposals"
+    },
+    {
+      "id": "teamwork__teamwork-stopped"
+    }
+  ],
+  "note": "Lote 2 do Flint no LIB 6 (client.js sha1 7787c74602b1, candidato), shell REAL com a CLI falsa, harness .maestri/tmp/flint com a sonda do pré-aceite em cada foto, erro de console por documento, semeadura que avança o stream_cursor. Rodadas: prévia no fio REAL (host real), teamwork (opinião, propostas, Parar), balões, luz da luminária (só escuro), composer. A cena queue (a fila de persona parada visível) NÃO está aqui: só vai à Muse quando provada no host real."
+}

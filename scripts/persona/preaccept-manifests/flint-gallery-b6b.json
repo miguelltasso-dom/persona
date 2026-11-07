@@ -1,0 +1,16 @@
+{
+  "owner": "Flint",
+  "bundle": "6b",
+  "dir": ".maestri/tmp/shots/flint/gallery-b6b",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna"],
+  "scenes": [
+    { "id": "responder-popover" },
+    { "id": "opinion-roundscap1" },
+    { "id": "opinion-roundscap2" }
+  ],
+  "shell": false,
+  "note": "LOTE 4 do Flint (galeria regerada do src atual, DADOS DE EXEMPLO; lib 6b): (1) responder-popover = o popover 'Quem responde' (CV-3) com o composer COLADO NO FUNDO da janela, como no shell real, aberto pelo clique na pílula; a 200% (janela 640×360 CSS px) ele agora cabe na janela: altura limitada ao espaço (a lista rola, a busca fica fixa no topo) e alinhado pela direita da pílula na barra estreita; o check `dialogo` da sonda v2 julga a geometria. (2) opinion-roundscap1/2 = a frase do teto de rodadas no SINGULAR ('já usou a rodada de opinião…', com 1 rodada) e no plural ('já usou as 2 rodadas…')."
+}

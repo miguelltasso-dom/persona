@@ -1,0 +1,16 @@
+{
+  "owner": "Gauge (dia no app real)",
+  "bundle": "3 (padrão do produto)",
+  "dir": "packages/persona/persona-e2e/artifacts/gauge/team-day-app-b3-padrao",
+  "legacyKind": "gauge-day",
+  "legacyText": { "file": "tela.json", "scope": "all" },
+  "legacyAxe": { "file": "axe.json" },
+  "fileTemplate": "dia-{scene}-{scheme}",
+  "schemeNames": { "light": "claro", "dark": "escuro" },
+  "schemes": ["light", "dark"],
+  "viewports": ["unico"],
+  "shell": false,
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "note": "O dia no app real (real-team-day-app.spec.ts): 6 passos de rolagem do #geral, claro e escuro, num tamanho só (o spec do Gauge não faz 960 nem 200%). O texto vem de tela.json (por passo) e o axe de axe.json. Para entrar nos 6 modos o spec precisaria rodar também em 960x640 e zoom 200%.",
+  "scenes": ["01", "02", "03", "04", "05", "06"]
+}

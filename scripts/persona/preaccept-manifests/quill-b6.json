@@ -1,0 +1,21 @@
+{
+  "owner": "Quill (shell real, bundle 6)",
+  "bundle": "6",
+  "dir": ".maestri/tmp/shots/quill/bundle6",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "shell": true,
+  "note": "Lote do Quill no bundle 6 (so o que mudou desde o aceite do bundle 5): Configurações › Personas sem os dois interruptores sem host (skills do Claude e Contratar direto saem da tela na v1.1), diálogo de motor que abre ROLADO até o modelo salvo (a lista real do Claude tem 12 linhas) e que não joga fora o modelo ao clicar de novo no motor já escolhido, e o texto no singular em Até 1 pedido / Até 1 rodada. Régua: scripts/persona/quill-shots.mjs (QUILL_OUT=.maestri/tmp/shots/quill/bundle6, QUILL_AXE e PREACCEPT_AXE). Conexões, Ensinar, Away e Canvas só trocam o rosto sem animal conhecido pelo bicho estável (D-069): nenhum rosto conhecido muda, então não foram recapturados.",
+  "scenes": [
+    "personas-1-panel",
+    "personas-1b-team-help",
+    "personas-1c-team-review",
+    "personas-2-engine-dialog",
+    "effortreal-3-host-list",
+    "effortreal-4-host-model",
+    "effortreal-5-host-effort",
+    "effortreal-6-chip-after-apply"
+  ]
+}

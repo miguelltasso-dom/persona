@@ -1,0 +1,161 @@
+{
+  "at": "2026-11-07T15:19:19.015Z",
+  "rows": [
+    {
+      "label": "Opus + Máximo",
+      "spec": {
+        "model": "opus",
+        "effort": "max"
+      },
+      "sessionOptionsHandedToOar": {
+        "model": "opus",
+        "effort": "max"
+      },
+      "requestTheCliSent": {
+        "model": "claude-opus-5-5",
+        "effort": "max",
+        "thinking": {
+          "type": "adaptive",
+          "display": "updates"
+        },
+        "keys": [
+          "model",
+          "messages",
+          "system",
+          "tools",
+          "metadata",
+          "max_tokens",
+          "thinking",
+          "context_management",
+          "output_config",
+          "stream"
+        ]
+      },
+      "usage": {
+        "modelRequested": "opus",
+        "effortRequested": "max",
+        "modelDropped": null,
+        "effortDropped": null,
+        "envMode": "needed"
+      },
+      "ended": "ready"
+    },
+    {
+      "label": "Sonnet + Alto",
+      "spec": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "sessionOptionsHandedToOar": {
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "requestTheCliSent": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high",
+        "thinking": {
+          "type": "adaptive",
+          "display": "updates"
+        },
+        "keys": [
+          "model",
+          "messages",
+          "system",
+          "tools",
+          "metadata",
+          "max_tokens",
+          "thinking",
+          "context_management",
+          "output_config",
+          "stream"
+        ]
+      },
+      "usage": {
+        "modelRequested": "sonnet",
+        "effortRequested": "high",
+        "modelDropped": null,
+        "effortDropped": null,
+        "envMode": "needed"
+      },
+      "ended": "ready"
+    },
+    {
+      "label": "Padrão do motor (sem escolha)",
+      "spec": {
+        "model": "default",
+        "effort": null
+      },
+      "sessionOptionsHandedToOar": {
+        "model": null,
+        "effort": null
+      },
+      "requestTheCliSent": {
+        "model": "claude-sonnet-5-5",
+        "effort": "xhigh",
+        "thinking": {
+          "type": "adaptive",
+          "display": "updates"
+        },
+        "keys": [
+          "model",
+          "messages",
+          "system",
+          "tools",
+          "metadata",
+          "max_tokens",
+          "thinking",
+          "context_management",
+          "output_config",
+          "stream"
+        ]
+      },
+      "usage": {
+        "modelRequested": null,
+        "effortRequested": null,
+        "modelDropped": null,
+        "effortDropped": null,
+        "envMode": "needed"
+      },
+      "ended": "ready"
+    },
+    {
+      "label": "Modelo que o motor não oferece",
+      "spec": {
+        "model": "opus-9-9-nao-existe",
+        "effort": "high"
+      },
+      "sessionOptionsHandedToOar": {
+        "model": null,
+        "effort": "high"
+      },
+      "requestTheCliSent": {
+        "model": "claude-sonnet-5-5",
+        "effort": "high",
+        "thinking": {
+          "type": "adaptive",
+          "display": "updates"
+        },
+        "keys": [
+          "model",
+          "messages",
+          "system",
+          "tools",
+          "metadata",
+          "max_tokens",
+          "thinking",
+          "context_management",
+          "output_config",
+          "stream"
+        ]
+      },
+      "usage": {
+        "modelRequested": "opus-9-9-nao-existe",
+        "effortRequested": "high",
+        "modelDropped": "opus-9-9-nao-existe",
+        "effortDropped": null,
+        "envMode": "needed"
+      },
+      "ended": "ready"
+    }
+  ]
+}

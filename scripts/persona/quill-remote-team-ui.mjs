@@ -93,6 +93,29 @@ async function startDesk(name, port) {
   return { name, port, owned, url, home: deskHome }
 }
 
+/**
+ * What one desk shows and knows about the message that was sent: (a) every list item of the thread with its message id and text as the
+ * CLIENT draws it, (b) the host's own rows (listMessages, raw) that carry the text. Written to dup-probe.json, also when all is well.
+ */
+async function probeThread(desk, text) {
+  const probe = { desk: desk.name, at: new Date().toISOString() }
+  try {
+    probe.drawn = await desk.page.evaluate((needle) => [...document.querySelectorAll('[role="listitem"]')]
+      .filter(li => (li.textContent ?? '').includes(needle))
+      .map(li => ({
+        id: li.getAttribute('data-message-id') ?? li.querySelector('[data-message-id]')?.getAttribute('data-message-id') ?? null,
+        ids: [...li.querySelectorAll('[data-message-id]')].map(node => node.getAttribute('data-message-id')),
+        paragraphs: [...li.querySelectorAll('p')].filter(p => (p.textContent ?? '').includes(needle)).length,
+        text: (li.textContent ?? '').slice(0, 160),
+      })), text)
+  } catch (error) { probe.drawn = `probe-failed: ${String(error).slice(0, 160)}` }
+  try {
+    const page = await rpc(desk, 'listMessages', { ...scope, streamKind: 'channel', ownerId: channelId, actorId: desk.name, afterSeq: 0, limit: 200 })
+    probe.host = (page.events ?? []).filter(event => JSON.stringify(event).includes(text))
+  } catch (error) { probe.host = `probe-failed: ${String(error).slice(0, 160)}` }
+  return probe
+}
+
 async function rpc(desk, method, request) {
   const response = await desk.context.request.post(new URL(`/api/persona/${method}`, desk.url).href, {
     data: { type: 'client-request', rpcId: randomUUID(), method: `persona/${method}`, payload: { args: { request } } },
@@ -146,7 +169,17 @@ async function nav(page, label) {
 const remoteCard = page => page.locator('[data-persona-surface="remote-team"]')
 
 /** Light then dark shot of the current state at the current size (the app reads the theme from a body attribute). */
-async function capture(desk, step, suffix) {
+async function capture(desk, step, suffix, anchor = step.startsWith('04-') ? 'invite' : 'card') {
+  // The card is far down the Membros page: bring it (or its "Pessoas na equipe" list) to the top of the window, at every size.
+  await desk.page.evaluate((where) => {
+    const card = document.querySelector('[data-persona-surface="remote-team"]')
+    if (card === null) return
+    const people = [...card.querySelectorAll('h3')].find(heading => /pessoas na equipe/iu.test(heading.textContent ?? ''))
+    const issued = card.querySelector('[role="group"]')
+    const target = where === 'people' ? people : where === 'invite' ? issued : null
+    ;(target ?? card).scrollIntoView({ block: 'start' })
+  }, anchor)
+  await desk.page.waitForTimeout(150)
   for (const scheme of ['light', 'dark']) {
     await desk.page.evaluate((dark) => {
       if (dark) document.body.setAttribute('data-ds-dark-theme', 'true')
@@ -171,12 +204,16 @@ const EXTRA_SIZES = [{ tag: '1440', width: 1440, height: 900 }, { tag: 'zoom200'
 async function shoot(desk, step) {
   await desk.page.waitForSelector('[data-persona-shell]', { timeout: 15_000 })
   const base = desk.page.viewportSize()
+  // Steps that are about the list of people get a second shot with that list at the top of the window.
+  const peopleToo = step === '09b-people-alice' || step === '10-revoked-alice'
   await capture(desk, step, '')
+  if (peopleToo) await capture(desk, step, '-people')
   if (base !== null && base.width === 960 && base.height === 640) {
     for (const size of EXTRA_SIZES) {
       await desk.page.setViewportSize({ width: size.width, height: size.height })
       await desk.page.waitForTimeout(300)
       await capture(desk, step, `-${size.tag}`)
+      if (peopleToo) await capture(desk, step, `-${size.tag}-people`, 'people')
     }
     await desk.page.setViewportSize(base)
     await desk.page.waitForTimeout(200)
@@ -210,6 +247,7 @@ async function cleanup() {
   for (const owned of [...children]) await stop(owned).catch(() => undefined)
 }
 
+let pasteWorked = false
 const watchdog = setTimeout(() => { void cleanup().finally(() => { console.error('e13-ui:deadline'); process.exit(1) }) }, 780_000)
 
 try {
@@ -251,14 +289,35 @@ try {
   const token = (await code.textContent())?.trim() ?? ''
   if (token.length < 8) throw new Error('invite-token-empty')
   await shoot(a, '04-invite-shown-once')
+  // "Copiar convite" copies the address AND the code in one paste; the Toast says so.
+  await a.context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(a.url).origin }).catch(() => undefined)
+  await alice.getByRole('button', { name: 'Copiar convite' }).click()
+  await a.page.getByText('Convite copiado').first().waitFor({ timeout: 10_000 })
+  await shoot(a, '04-invite-copied')
+  const copiedInvite = await a.page.evaluate(() => navigator.clipboard.readText()).catch(() => '')
   await alice.getByRole('button', { name: 'Já enviei' }).click()
   if (await alice.locator('code').count() !== 0) throw new Error('token-still-visible-after-dismiss')
   await shoot(a, '05-invite-dismissed')
 
   // 3 — Bob joins with the address and the code he received (UI only)
   const bob = remoteCard(b.page)
-  await bob.getByLabel('Endereço da equipe').last().fill(edgeUrl)
-  await bob.getByLabel('Código do convite').fill(token)
+  const bobAddress = bob.getByLabel('Endereço da equipe').last()
+  let pasted = false
+  if (copiedInvite.includes(token)) {
+    await bobAddress.evaluate((node, text) => {
+      node.focus()
+      const data = new DataTransfer()
+      data.setData('text', text)
+      node.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }))
+    }, copiedInvite)
+    pasted = (await bobAddress.inputValue()) === edgeUrl && (await bob.getByLabel('Código do convite').inputValue()) === token
+  }
+  // If the browser would not hand over the clipboard, fall back to typing both: the proof then says so (pasteWorked: false).
+  if (!pasted) {
+    await bobAddress.fill(edgeUrl)
+    await bob.getByLabel('Código do convite').fill(token)
+  }
+  pasteWorked = pasted
   await shoot(b, '06-accept-filled')
   await bob.getByRole('button', { name: 'Entrar na equipe' }).click()
   await bob.getByText('Conectada', { exact: true }).waitFor({ timeout: 30_000 })
@@ -271,9 +330,19 @@ try {
   const marker = `Olá do Alice · ${randomUUID().slice(0, 8)}`
   await a.page.locator('[data-persona-area="composer"] textarea').first().fill(marker)
   await a.page.keyboard.press('Enter')
-  await a.page.getByText(marker, { exact: true }).waitFor({ timeout: 30_000 })
+  // The message must be on the thread EXACTLY once on each desk. Anything else is a regression: dump both sides, then fail.
+  await until(async () => (await a.page.getByText(marker, { exact: true }).count()) > 0, 'message-on-alice', 30_000)
+  await a.page.waitForTimeout(2500)
+  const onAlice = await a.page.getByText(marker, { exact: true }).count()
+  const probeAlice = await probeThread(a, marker)
+  writeFileSync(join(out, 'dup-probe.json'), `${JSON.stringify({ marker, onAlice, alice: probeAlice }, null, 2)}\n`)
+  if (onAlice !== 1) throw new Error(`message-drawn-${String(onAlice)}-times-on-alice (see dup-probe.json)`)
   await nav(b.page, 'Canais')
-  await b.page.getByText(marker, { exact: true }).waitFor({ timeout: 45_000 })
+  await until(async () => (await b.page.getByText(marker, { exact: true }).count()) > 0, 'message-on-bob', 45_000)
+  await b.page.waitForTimeout(1500)
+  const onBob = await b.page.getByText(marker, { exact: true }).count()
+  writeFileSync(join(out, 'dup-probe.json'), `${JSON.stringify({ marker, onAlice, alice: probeAlice, onBob, bob: await probeThread(b, marker) }, null, 2)}\n`)
+  if (onBob !== 1) throw new Error(`message-drawn-${String(onBob)}-times-on-bob (see dup-probe.json)`)
   await shoot(a, '08-channel-alice')
   await shoot(b, '09-channel-bob-received')
 
@@ -303,7 +372,7 @@ try {
     const wide = await desk.page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)
     if (wide) sideways.push(desk.name)
   }
-  writeFileSync(join(out, 'proof.json'), `${JSON.stringify({ at: new Date().toISOString(), passed: consoleErrors.length === 0 && axeFindings.every(row => row.violations.length === 0), scope, steps: steps.length, consoleErrors, sideways, axe: axeFindings, realModelCalls: 0, noDevSeed: true, operatedThroughUi: ['connect', 'issueInvite', 'dismiss', 'accept', 'post', 'revoke'] }, null, 2)}\n`)
+  writeFileSync(join(out, 'proof.json'), `${JSON.stringify({ at: new Date().toISOString(), passed: consoleErrors.length === 0 && axeFindings.every(row => row.violations.length === 0), scope, steps: steps.length, consoleErrors, sideways, axe: axeFindings, pasteWorked, realModelCalls: 0, noDevSeed: true, operatedThroughUi: ['connect', 'issueInvite', 'dismiss', 'accept', 'post', 'revoke'] }, null, 2)}\n`)
   console.log(`e13-ui:PASS steps=${steps.length} consoleErrors=${consoleErrors.length} sideways=${sideways.join(',') || 'none'}`)
   process.exitCode = consoleErrors.length === 0 && axeFindings.every(row => row.violations.length === 0) ? 0 : 1
 } catch (error) {

@@ -1,0 +1,18 @@
+{
+  "owner": "Muse",
+  "bundle": "v1.1 instalado (corte final)",
+  "dir": ".maestri/tmp/shots/design/accept-installed/<hash>-v11",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio", "Miguel"],
+  "note": "Varredura final da Muse no app INSTALADO do corte da v1.1 (.maestri/tmp/muse/accept-installed-v11.mts, um tema por execução, PERSONA_THEME real, padrões de produção, CLI falsa). Passe --dir com a pasta do hash.",
+  "scenes": [
+    "overview", "geral", "dm",
+    "projects", "kanban", "routines", "files", "canvas",
+    "approvals",
+    "team", "orgChart", "teamHealth",
+    "secondBrain", "knowledge", "rules",
+    "connections", "personas", "personasReview", "usage", "members", "importers", "appearance", "personality", "about"
+  ]
+}

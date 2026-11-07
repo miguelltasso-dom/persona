@@ -1,0 +1,73 @@
+{
+  "note": "ISO-1: prova seca com os ARGUMENTOS REAIS do produto (cliPolicyOf + isolationPlan), login real, so pedidos de controle (initialize, mcp_status, get_context_usage), zero modelo. openingContextTokens = tamanho do contexto que a PRIMEIRA requisicao de cada chamada carrega. Contagens apenas.",
+  "claudeVersion": "2.1.318 (Claude Code)",
+  "isolated": {
+    "ok": true,
+    "rows": [
+      {
+        "name": "conversa (deny, sem ferramentas)",
+        "reading": {
+          "loggedIn": true,
+          "mcpServers": 0,
+          "commands": 0,
+          "builtinToolTokens": 0
+        },
+        "openingContextTokens": 1608,
+        "ok": true,
+        "failures": [],
+        "args": 10
+      },
+      {
+        "name": "tarefa (allow-once, arquivos)",
+        "reading": {
+          "loggedIn": true,
+          "mcpServers": 0,
+          "commands": 0,
+          "builtinToolTokens": 51897
+        },
+        "openingContextTokens": 31414,
+        "ok": true,
+        "failures": [],
+        "args": 6
+      }
+    ]
+  },
+  "native": {
+    "ok": false,
+    "note": "PERSONA_CLI_ENV=native = como o host rodava",
+    "rows": [
+      {
+        "name": "conversa (deny, sem ferramentas)",
+        "reading": {
+          "loggedIn": true,
+          "mcpServers": 21,
+          "commands": 104,
+          "builtinToolTokens": 0
+        },
+        "openingContextTokens": 377321,
+        "ok": false,
+        "failures": [
+          "mcp-servers:21!=0",
+          "commands-visible:104"
+        ],
+        "args": 6
+      },
+      {
+        "name": "tarefa (allow-once, arquivos)",
+        "reading": {
+          "loggedIn": true,
+          "mcpServers": 21,
+          "commands": 104,
+          "builtinToolTokens": 36498
+        },
+        "openingContextTokens": 28223,
+        "ok": false,
+        "failures": [
+          "mcp-servers:21!=0",
+          "commands-visible:104"
+        ],
+        "args": 2
+      }
+    ]
+  }
+}

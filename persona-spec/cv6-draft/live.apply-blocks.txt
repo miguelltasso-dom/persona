@@ -1,0 +1,40 @@
+@@@ file=scripts/proactivity-live.ts name=phase16-cv6
+<<<FROM
+say('--- #geral ---')
+===TO
+// Phase 16 — CV-6: the channels of the organogram, in a real host process (no model is called).
+{
+  h.teamworkEnabled = true
+  h.governance.gov.putSector({ id: 's-eng', workspaceId: 'ws', name: 'Engenharia', policyJson: '{}' })
+  h.setSector({ workspaceId: 'ws', personaId: 'p1', sectorId: 's-eng' })
+  h.setSector({ workspaceId: 'ws', personaId: 'p2', sectorId: 's-eng' })
+  const team = h.listChannels(scope).find(item => item.kind === 'team' && item.teamName === 'Engenharia')
+  const members = team === undefined ? [] : h.listChannelMembers({ ...scope, channelId: team.id }).map(item => item.id).sort()
+  // the person renames it, archives it and writes to it: refused with the stable reason
+  let refused = ''
+  let renamed = ''
+  if (team !== undefined) {
+    renamed = h.renameChannel({ ...scope, channelId: team.id, name: 'time-eng' }).name
+    h.archiveChannel({ ...scope, channelId: team.id })
+    try { h.postMessage({ id: 'm-arch', ...scope, streamKind: 'channel', ownerId: team.id, body: 'oi', actorId: 'ana', subjectId: 'm-arch' }) } catch (error) {
+      refused = String((error as { details?: { reason?: string } }).details?.reason ?? '')
+    }
+    h.unarchiveChannel({ ...scope, channelId: team.id })
+  }
+  // the team empties: the channel is archived with ONE line, never deleted; it comes back with the team
+  h.setSector({ workspaceId: 'ws', personaId: 'p1', sectorId: '' })
+  h.setSector({ workspaceId: 'ws', personaId: 'p2', sectorId: '' })
+  const gone = team === undefined ? undefined : h.listChannels(scope).find(item => item.id === team.id)
+  const goneLines = team === undefined ? 0 : h.events.listProject('pp').filter(row => row.id === `team-gone:${team.id}`).length
+  h.setSector({ workspaceId: 'ws', personaId: 'p1', sectorId: 's-eng' })
+  h.setSector({ workspaceId: 'ws', personaId: 'p2', sectorId: 's-eng' })
+  const back = team === undefined ? undefined : h.listChannels(scope).find(item => item.id === team.id)
+  say(`phase 16 CV-6: team channel=${team?.name ?? '-'} members=${members.join(',')} renamed=${renamed} · post to archived → reason=${refused} · empty → archived=${String(gone?.archived)} (${gone?.archivedReason ?? '-'}) lines=${String(goneLines)} · back → archived=${String(back?.archived)}`)
+  results.cv6TeamChannel = team !== undefined && members.join(',') === 'p1,p2'
+  results.cv6RenameArchivePost = renamed === 'time-eng' && refused === 'channel-archived'
+  results.cv6NeverDeleted = gone?.archived === true && gone.archivedReason === 'team-gone' && goneLines === 1 && back?.archived === false && back.id === team?.id
+  h.teamworkEnabled = false
+}
+
+say('--- #geral ---')
+>>>

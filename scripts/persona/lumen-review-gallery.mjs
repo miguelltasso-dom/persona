@@ -112,6 +112,10 @@ try {
         reducedMotion: process.env.LUMEN_REDUCED === '1' ? 'reduce' : 'no-preference',
       })
       const page = await context.newPage()
+      // D-089 (b): the house ornaments are behind persona.flag.houseDecor; LUMEN_DECOR=1 turns them on for the states that show them.
+      // D-090: the team-work chips need the flag and the two dev keys (the example cards); LUMEN_TEAMWORK=1 sets all three.
+      if (process.env.LUMEN_TEAMWORK === '1') await page.addInitScript(() => { try { localStorage.setItem('persona.flag.teamwork', '1'); localStorage.setItem('persona.devSeed.v1', '1'); localStorage.setItem('persona.devSeed.teamwork', '1'); localStorage.setItem('persona.flag.houseDecor', '1') } catch { /* storage blocked */ } })
+      if (process.env.LUMEN_DECOR === '1') await page.addInitScript(() => { try { localStorage.setItem('persona.flag.houseDecor', '1') } catch { /* storage blocked */ } })
       page.on('response', (r) => { if (r.status() >= 400) errors.push(`[${scheme} ${viewport.tag}] HTTP ${String(r.status())} ${new URL(r.url()).pathname}`) })
       page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 200)}`) })
       page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 200)}`))
@@ -131,6 +135,12 @@ try {
           if (state === 'review') {
             // Open every file so the screen shows its before/after by type.
             for (const toggle of await page.locator('button[aria-expanded="false"]').all()) await toggle.click().catch(() => undefined)
+            await page.waitForTimeout(300)
+          }
+          if (state === 'teamwork-board') {
+            // Open the work path of the first example card so the capture shows the 3 steps and the open note.
+            await page.getByRole('button', { name: 'Caminho do trabalho' }).first().click().catch(() => undefined)
+            await page.getByRole('button', { name: /Bilhete de/ }).first().click().catch(() => undefined)
             await page.waitForTimeout(300)
           }
           if (state === 'byc-review') {

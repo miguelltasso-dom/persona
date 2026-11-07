@@ -1,0 +1,17 @@
+{
+  "owner": "Ember",
+  "bundle": "6 (lib candidato a release, 07/11 14:2x)",
+  "dir": ".maestri/tmp/shots/ember/shell-b6",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "note": "Captura do Ember no lib 6 (candidato), shell real: a Caixa V2 com a prévia real da ação externa (e-mail: Enviar; pagamento: Pagar), os dois cartões de conector e a lista com os chips, já com 'nunca iniciais' (resolvePersonaFace, aceito pela Muse 13:33 pela galeria b6). Os cartões vêm dos exemplos 'Exemplo' do dev seed (o host real não manda ação/conector sozinho). Fora do shell real (galeria + testes): ação SEM prévia, prévia cortada, o Responder do IV-10 e o Téo (a galeria b6).",
+  "scenes": [
+    "approvals-v2-action-email",
+    { "id": "approvals-v2-action-pay", "allowCurrency": true },
+    "approvals-v2-connector",
+    "approvals-v2-connector-initiative",
+    { "id": "approvals-v2-action-list", "allowCurrency": true }
+  ]
+}

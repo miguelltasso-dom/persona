@@ -1,0 +1,256 @@
+{
+  "mode": "real",
+  "note": "raw vendor counters of every attempt, then the verdict by the pre-registered rule",
+  "rows": [
+    {
+      "cell": "direct-cold",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 3023,
+      "outputTokens": 822,
+      "cacheReadTokens": 649,
+      "cacheWriteTokens": 2372,
+      "mainLoopInputTokens": 3023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-cold",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 3487,
+      "outputTokens": 829,
+      "cacheReadTokens": 2319,
+      "cacheWriteTokens": 1166,
+      "mainLoopInputTokens": 3487,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "direct-warm",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 3023,
+      "outputTokens": 829,
+      "cacheReadTokens": 3021,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-warm",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 3487,
+      "outputTokens": 1236,
+      "cacheReadTokens": 3485,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3487,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "triage-warm",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 3058,
+      "outputTokens": 298,
+      "cacheReadTokens": 2319,
+      "cacheWriteTokens": 737,
+      "mainLoopInputTokens": 3058,
+      "envMode": "answer-only"
+    },
+    {
+      "cell": "direct-cold",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 3023,
+      "outputTokens": 707,
+      "cacheReadTokens": 3021,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-cold",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 3487,
+      "outputTokens": 1260,
+      "cacheReadTokens": 3485,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3487,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "direct-warm",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 3023,
+      "outputTokens": 781,
+      "cacheReadTokens": 3021,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-warm",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 3487,
+      "outputTokens": 1342,
+      "cacheReadTokens": 3485,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3487,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "triage-warm",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 3058,
+      "outputTokens": 390,
+      "cacheReadTokens": 3056,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3058,
+      "envMode": "answer-only"
+    },
+    {
+      "cell": "direct-cold",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 3023,
+      "outputTokens": 782,
+      "cacheReadTokens": 3021,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-cold",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 3487,
+      "outputTokens": 1096,
+      "cacheReadTokens": 3485,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3487,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "direct-warm",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 3023,
+      "outputTokens": 789,
+      "cacheReadTokens": 3021,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-warm",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 3487,
+      "outputTokens": 1045,
+      "cacheReadTokens": 3485,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3487,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "triage-warm",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 3058,
+      "outputTokens": 345,
+      "cacheReadTokens": 3056,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 3058,
+      "envMode": "answer-only"
+    }
+  ],
+  "evaluation": {
+    "cells": {
+      "direct-cold": {
+        "cell": "direct-cold",
+        "n": 3,
+        "median": 3023,
+        "min": 3023,
+        "max": 3023,
+        "dispersion": 0,
+        "readyAll": true,
+        "medianOutput": 782,
+        "medianMainLoop": 3023
+      },
+      "direct-warm": {
+        "cell": "direct-warm",
+        "n": 3,
+        "median": 3023,
+        "min": 3023,
+        "max": 3023,
+        "dispersion": 0,
+        "readyAll": true,
+        "medianOutput": 789,
+        "medianMainLoop": 3023
+      },
+      "persona-cold": {
+        "cell": "persona-cold",
+        "n": 3,
+        "median": 3487,
+        "min": 3487,
+        "max": 3487,
+        "dispersion": 0,
+        "readyAll": true,
+        "medianOutput": 1096,
+        "medianMainLoop": 3487
+      },
+      "persona-warm": {
+        "cell": "persona-warm",
+        "n": 3,
+        "median": 3487,
+        "min": 3487,
+        "max": 3487,
+        "dispersion": 0,
+        "readyAll": true,
+        "medianOutput": 1236,
+        "medianMainLoop": 3487
+      },
+      "triage-warm": {
+        "cell": "triage-warm",
+        "n": 3,
+        "median": 3058,
+        "min": 3058,
+        "max": 3058,
+        "dispersion": 0,
+        "readyAll": null,
+        "medianOutput": 345,
+        "medianMainLoop": 3058
+      }
+    },
+    "ratios": {
+      "cold": 1.1534899106847503,
+      "warm": 1.1534899106847503
+    },
+    "callsMade": 15,
+    "withinCeiling": true,
+    "modes": [
+      "answer-only"
+    ],
+    "verdict": "no-parity",
+    "reasons": [
+      "as duas razões estão fora de [0,90; 1,10] no mesmo sentido (a Persona gasta MAIS), com dispersão ≤ 0,50"
+    ],
+    "unblocksPairParity": false
+  }
+}

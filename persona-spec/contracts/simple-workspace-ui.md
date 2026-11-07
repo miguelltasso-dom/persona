@@ -46,7 +46,7 @@ Para cada `files[i].conflict === true` a tela mostra "Você e {Persona} mudaram 
 
 - `mine` — Ficar com o meu: mantém o arquivo da pasta, descarta a mudança da persona **neste arquivo**.
 - `theirs` — Ficar com o da persona: usa o rascunho; **a versão da pessoa fica no Histórico por 30 dias**.
-- `both` — Manter os dois (recomendado): grava a versão da persona como `"{nome} (de {Persona}).{ext}"` ao lado.
+- `both` — Manter os dois (recomendado): grava a versão do rascunho como `"{arquivo} (rascunho).{ext}"` ao lado (`"(rascunho 2)"`, `"(rascunho 3)"`… quando já existe). **SEMPRE `(rascunho)`**, com ou sem nome de persona: o motor não sabe o nome e a tela promete exatamente isto (Muse/Lumen, 05/11; antes `(de {Persona})` no contrato e `(da persona)` no motor).
 
 **Nunca** marcadores `<<<<` em arquivo da pessoa. O nome da cópia é calculado pela UI (`conflictCopyName`) só para mostrar; o host é quem grava e deve usar a mesma regra.
 

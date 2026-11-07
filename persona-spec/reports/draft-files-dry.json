@@ -1,0 +1,37 @@
+{
+  "note": "P0-1 draft files against the real CLI; fake endpoint; zero model",
+  "claudeVersion": "2.1.319 (Claude Code)",
+  "ok": true,
+  "rows": [
+    {
+      "name": "só-texto (tools {}): nenhuma ferramenta de arquivo nem de shell, nada é escrito",
+      "ok": true,
+      "detail": "offered: (none)"
+    },
+    {
+      "name": "files:write — Write DENTRO do rascunho salva o arquivo; Edit oferecido; Bash/PowerShell NÃO",
+      "ok": true,
+      "detail": "offered: Edit,Glob,Grep,Read,ToolSearch,DeferredToolPlaceholder,Write"
+    },
+    {
+      "name": "files:write — Write FORA do rascunho (a pasta real) é NEGADO",
+      "ok": true,
+      "detail": "offered: Edit,Glob,Grep,Read,ToolSearch,DeferredToolPlaceholder,Write"
+    },
+    {
+      "name": "files:write — Write por \"..\" (rascunho/../pasta-real) é NEGADO",
+      "ok": true,
+      "detail": "offered: Edit,Glob,Grep,Read,ToolSearch,DeferredToolPlaceholder,Write"
+    },
+    {
+      "name": "files:write — Bash NÃO executa (a escrita de arquivo não abre o shell)",
+      "ok": true,
+      "detail": "offered: Edit,Glob,Grep,Read,ToolSearch,DeferredToolPlaceholder,Write"
+    },
+    {
+      "name": "files:write — PowerShell NÃO executa (a escrita de arquivo não abre o shell)",
+      "ok": true,
+      "detail": "offered: Edit,Glob,Grep,Read,ToolSearch,DeferredToolPlaceholder,Write"
+    }
+  ]
+}

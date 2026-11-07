@@ -1,0 +1,13 @@
+{
+  "owner": "Flint",
+  "bundle": "6c",
+  "dir": ".maestri/tmp/shots/flint/final-queue",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "viewportNames": { "1440x900": "1440x900", "960x640": "960x640", "zoom200": "640x360@2x" },
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio", "Tuca", "Yara"],
+  "skipChecks": ["artigo"],
+  "scenes": [{ "id": "queue-visible" }],
+  "note": "A FILA depois do Parar no shell REAL, lib 6c, CLI falsa, host real: a Nina trabalha, a fila é semeada NO ASSUNTO ATIVO (channel:geral:t0), a pessoa pára, a tela recarrega; os 2 balões tracejados com a frase NOVA 'Na fila · sai quando você continuar' (Muse 16:37) e 'Mandar agora' (nome acessível 'Mandar agora e continuar'), 'Você parou aqui · Continuar'. `artigo` dispensado de propósito: a mensagem de persona gerada pela CLI falsa ('…proposta de contratação para a Luna revisar…') não é copy da tela."
+}

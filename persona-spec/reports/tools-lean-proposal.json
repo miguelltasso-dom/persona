@@ -1,0 +1,478 @@
+{
+  "persona_ask": {
+    "description": "Ask the person a question: 2-8 short options if it is a choice, up to 5 questions. If it is not worth interrupting, go on and state your assumption.",
+    "lean-a": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "maxItems": 8
+        },
+        "multiple": {
+          "type": "boolean"
+        },
+        "questions": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "question"
+            ],
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 2,
+                "maxItems": 8
+              },
+              "multiple": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "assumption": {
+          "type": "string"
+        }
+      }
+    },
+    "lean-b": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "multiple": {
+          "type": "boolean"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "question"
+            ],
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "multiple": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "assumption": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "ask_team_opinion": {
+    "description": "Ask the team for a short opinion on your draft (text and/or attached images); each reply is marked liked / suggestion / attention. Rounds cost the person time and money and are limited: use only when worth it, then decide and go on.",
+    "lean-a": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "draft"
+      ],
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "draft": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Text and/or attached images (at least one)",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "attachmentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "alt": {
+              "type": "string",
+              "description": "Short image description"
+            }
+          }
+        },
+        "audience": {
+          "description": "'team' (default) | 'everyone' | colleague ids",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "team",
+                "everyone"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "lean-b": {
+      "type": "object",
+      "required": [
+        "question",
+        "draft"
+      ],
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "draft": {
+          "type": "object",
+          "description": "Text and/or attached images (at least one)",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "attachmentIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "alt": {
+              "type": "string",
+              "description": "Short image description"
+            }
+          }
+        },
+        "audience": {
+          "description": "'team' (default) | 'everyone' | colleague ids",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "team",
+                "everyone"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "ask_colleague": {
+    "description": "Ask a colleague for help with part of YOUR task and wait for their delivery. Limited per task and per day; not someone already in this chain; two levels at most. After it succeeds, finish what you can and end your turn saying what you wait for; do not do their part.",
+    "lean-a": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "colleague",
+        "title"
+      ],
+      "properties": {
+        "colleague": {
+          "type": "string",
+          "description": "Name or id"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short title (the person reads it)"
+        },
+        "done": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Project-relative paths"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lean-b": {
+      "type": "object",
+      "required": [
+        "colleague",
+        "title"
+      ],
+      "properties": {
+        "colleague": {
+          "type": "string",
+          "description": "Name or id"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short title (the person reads it)"
+        },
+        "done": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Project-relative paths"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "pass_forward": {
+    "description": "Pass the work on to a colleague with a note: your part is done, the next is theirs, and you do not wait. Same limits as asking for help. Then deliver YOUR part; never theirs.",
+    "lean-a": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "colleague",
+        "title"
+      ],
+      "properties": {
+        "colleague": {
+          "type": "string",
+          "description": "Name or id"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short title (the person reads it)"
+        },
+        "done": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Project-relative paths"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "lean-b": {
+      "type": "object",
+      "required": [
+        "colleague",
+        "title"
+      ],
+      "properties": {
+        "colleague": {
+          "type": "string",
+          "description": "Name or id"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short title (the person reads it)"
+        },
+        "done": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Project-relative paths"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "review_verdict": {
+    "description": "Verdict on the work you review: \"approve\", or \"changes\" with at most 6 short points. Review tasks only; end with one short sentence.",
+    "lean-a": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict"
+      ],
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "changes"
+          ]
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "With \"changes\": what to adjust"
+        }
+      }
+    },
+    "lean-b": {
+      "type": "object",
+      "required": [
+        "verdict"
+      ],
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "changes"
+          ]
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "With \"changes\": what to adjust"
+        }
+      }
+    }
+  },
+  "hand_off": {
+    "description": "Hand work to a colleague with a note. kind \"ask\": help with part of YOUR task, you wait for their delivery (not someone already in this chain; two levels at most); finish what you can, end your turn saying what you wait for, and do not do their part. kind \"pass\": your part is done, the next is theirs, you do not wait; deliver YOUR part, never theirs. Limited per task and per day.",
+    "lean-c": {
+      "type": "object",
+      "required": [
+        "kind",
+        "colleague",
+        "title"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "pass"
+          ]
+        },
+        "colleague": {
+          "type": "string",
+          "description": "Name or id"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short title (the person reads it)"
+        },
+        "done": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Project-relative paths"
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -41,7 +41,7 @@ medida já inclui a base do vendor), por tipo, motor e conta.
 - **Mediana e faixa:** mediana (`mediana`) e quartis (faixa = P25..P75, para não ser refém de um turno atípico). Interpolação linear entre vizinhos.
 - **Tipos:** `reply` → `conversa`; `execution` → `execucao`; `triage` → `triagem`. Outros tipos (initiative, librarian, watchdog, evaluation) não calibram o pedido.
 - **Tempo** (`secondsPerCall`): só linhas com `duration_ms`; segundos, com a mesma `Range` do engine; `mediana` junto.
-- **Tokens** (`tokensPerCall`): entrada medida = `inputTokens + cacheReadTokens + cacheWriteTokens`; saída = `outputTokens`; faixa P25..P75 por tipo.
+- **Tokens** (`tokensPerCall`): entrada medida = `inputTokens`, que no livro é o TOTAL (o cache lido e o gravado são PARTES dele: numa linha real 16.180 = 11.046 + 5.130 + 4; somar o cache por cima contava em dobro, corrigido em 07/11). Só quando `inputTokens` é MENOR que `cacheReadTokens + cacheWriteTokens` (linha de uma fonte que registra só o não-cacheado, antiga ou estimada) o cache é somado: a mesma guarda do `pair-real` e do Probe; saída = `outputTokens`; faixa P25..P75 por tipo.
 
 ```ts
 interface AskCalibration {            // engine (Tally) — campos antigos mantidos

@@ -1,0 +1,46 @@
+{
+  "plan": {
+    "connector": "fixture",
+    "tools": 30,
+    "connectorTokens": 0,
+    "floorMeasured": 31414
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "failedForCli": true,
+      "effectiveMode": "needed",
+      "toolCalls": [
+        {
+          "server": "builtin",
+          "tool": "ToolSearch",
+          "actionClass": "send",
+          "denied": false,
+          "ok": true
+        }
+      ],
+      "finalTextChars": 0
+    },
+    {
+      "attempt": 2,
+      "failedForCli": true,
+      "effectiveMode": "needed",
+      "toolCalls": [
+        {
+          "server": "builtin",
+          "tool": "ToolSearch",
+          "actionClass": "send",
+          "denied": false
+        }
+      ],
+      "finalTextChars": 0
+    }
+  ],
+  "result": {
+    "checks": [],
+    "securityFindings": 0,
+    "maxInputAllowed": 39432,
+    "verdict": "not-measurable",
+    "reason": "todas as chamadas falharam por motivo da CLI"
+  }
+}

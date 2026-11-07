@@ -1,0 +1,17 @@
+{
+  "owner": "Prism (galeria interna)",
+  "bundle": "6",
+  "dir": ".maestri/tmp/shots/prism-gallery",
+  "shell": false,
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio", "Tuca"],
+  "note": "Os 2 achados devolvidos pela Muse para o bundle 6, com os componentes REAIS na galeria (scripts/persona/prism-accept-gallery.mjs, sem o trilho): a faixa da equipe em caixas estreitas (4 e 5 membros, estados longos; a página mede sobreposição e etiqueta fora da caixa) e o cartão da persona aberto de verdade (topo fixo, meio que rola, campo de mensagem fixo embaixo; a checagem `dialogo` do pré-aceite confere a caixa e o rodapé dentro da janela). Gere com PRISM_AXE=<axe.min.js >= 4.7>.",
+  "scenes": [
+    "faixa-equipe-estreita",
+    "cartao-persona-rodape",
+    "cartao-persona-rodape-baixo",
+    "cartao-persona-rodape-rolado"
+  ]
+}

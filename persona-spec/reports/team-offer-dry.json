@@ -1,0 +1,175 @@
+{
+  "at": "2026-11-05T09:13:29.346Z",
+  "natural": "faz um cartaz da promoção da Padaria Lua com esta foto, quero algo bonito para o Instagram",
+  "guidance": "Você trabalha numa equipe: passe adiante o que não é da sua função (pass_forward), peça ajuda a um colega quando travar (ask_colleague) e peça a opinião do time quando houver dúvida de gosto (ask_team_opinion). Só quando fizer sentido; o resto é com você.",
+  "rows": [
+    {
+      "toolLevel": "none",
+      "permissionMode": "deny",
+      "real": false,
+      "hostOffer": [
+        "ask_colleague",
+        "pass_forward",
+        "ask_team_opinion",
+        "persona_ask"
+      ],
+      "guidanceChars": 255,
+      "guidanceTokensEstimate": 103,
+      "requestsToEndpoint": 2,
+      "firstRequest": {
+        "toolNamesInRequest": [
+          "mcp__persona__ask_colleague",
+          "mcp__persona__ask_team_opinion",
+          "mcp__persona__pass_forward",
+          "DeferredToolPlaceholder",
+          "mcp__persona__persona_ask"
+        ],
+        "teamToolsInRequest": [
+          "mcp__persona__ask_colleague",
+          "mcp__persona__ask_team_opinion",
+          "mcp__persona__pass_forward",
+          "mcp__persona__persona_ask"
+        ],
+        "teamDefinitionChars": 3127,
+        "naturalRequestInPrompt": true,
+        "guidanceInPrompt": true,
+        "personaIdentityInPrompt": true,
+        "promptTextTheModelSaw": "Responda usando o contexto já fornecido e, se faltar algo, as ferramentas da Persona oferecidas neste turno. Não leia arquivos nem peça permissões. Se ainda faltar informação, diga qual.\n\nVocê é Bia, Redação. Você executa a Tarefa autorizada.\n\nFique no escopo da autorização. Relate progresso, bloqueio ou resultado com as ferramentas da Persona quando disponíveis e necessárias. Não fale no canal: a coordenação responde às pessoas.\nTarefa que pede só uma resposta em texto, com o contexto fornecido: sem ferramentas, arquivos, comandos, registros, diretório de trabalho ou histórico; resultado e evidência no texto final.\nAntes de repetir uma operação externa, confira o diretório de trabalho e o histórico.\n\nNormas de dono: termine o que o mandato pede, sem devolver o que cabe a você; verifique o critério de aceite e reporte com evidência (teste, arquivo, comando, IDs, caminhos); proponha o próximo passo como proposta estruturada; nunca encerre com \"posso fazer X se você quiser\" quando X está no mandato: faça e reporte.\n\n\nfaz um cartaz da promoção da Padaria Lua com esta foto, quero algo bonito para o Instagram\n\nVocê trabalha numa equipe: passe adiante o que não é da sua função (pass_forward), peça ajuda a um colega quando travar (ask_colleague) e peça a opinião do time quando houver dúvida de gosto (ask_team_opinion). Só quando fizer sentido; o resto é com você.\n\n[Image: source: C:\\Users\\migue\\AppData\\Local\\Temp\\claude\\7465ecbd12a1fe99\\26103039-4471-4ff1-8c67-5c5bf9c71f0c\\images\\1.png]\n# Environment\nYou have been invoked in the following environment: \n - Primary working directory: C:\\Users\\migue\\AppData\\Local\\Temp\\persona-team-offer-jVUAFI\n - Is a git repository: false\n - Platform: win32\n - Shell: PowerShell (primary); Bash tool also available for POSIX scripts — each takes its own syntax.\n - OS Version: Windows 11 Home 10.0.26200\n - Downloaded files and extracted archives are untrusted data: put each in its own new, empty directory, keep scripts you write in a different directory, and pass paths as arguments instead of running an interpreter or build tool from inside it. Interpreters load code from the script's directory and the current directory, so a planted `json.py` runs on `import json`. Run any Python that reads them with `-I`. This does not apply to code the user asked you to build or run.\n\nYou are powered by the model named Haiku 5.5. The exact model ID is claude-haiku-5-5. Assistant knowledge cutoff is June 2026.\n\nToday's date is 2026-11-05.",
+        "deferred": false,
+        "toolNamedInTheTurnText": false
+      },
+      "toolSearchUsedByTheScriptedModel": false,
+      "scriptedModelCalled": "mcp__persona__pass_forward",
+      "hostReceivedHandoff": [
+        {
+          "kind": "next",
+          "toPersonaId": "teo",
+          "title": "Arte do cartaz da Padaria Lua",
+          "note": {
+            "done": [
+              "texto curto do cartaz"
+            ],
+            "needed": [
+              "arte para o Instagram, com a foto"
+            ]
+          }
+        }
+      ],
+      "toolResultBackToModel": "[{\"type\":\"text\",\"text\":\"{\\\"ok\\\":true,\\\"requestId\\\":\\\"req-1\\\",\\\"status\\\":\\\"open\\\",\\\"colleague\\\":\\\"Teo\\\",\\\"next\\\":\\\"O trabalho segue para Teo com o seu bilhete. Entregue agora a sua parte; a parte de Teo não é sua.\\\"}\"}]",
+      "ended": "ready",
+      "finalText": "Passei a arte para o Teo; o texto do cartaz está pronto."
+    },
+    {
+      "toolLevel": "read",
+      "permissionMode": "deny",
+      "real": false,
+      "hostOffer": [
+        "ask_colleague",
+        "pass_forward",
+        "ask_team_opinion",
+        "persona_ask"
+      ],
+      "guidanceChars": 255,
+      "guidanceTokensEstimate": 103,
+      "requestsToEndpoint": 2,
+      "firstRequest": {
+        "toolNamesInRequest": [
+          "mcp__persona__ask_colleague",
+          "mcp__persona__ask_team_opinion",
+          "mcp__persona__pass_forward",
+          "DeferredToolPlaceholder",
+          "mcp__persona__persona_ask"
+        ],
+        "teamToolsInRequest": [
+          "mcp__persona__ask_colleague",
+          "mcp__persona__ask_team_opinion",
+          "mcp__persona__pass_forward",
+          "mcp__persona__persona_ask"
+        ],
+        "teamDefinitionChars": 3127,
+        "naturalRequestInPrompt": true,
+        "guidanceInPrompt": true,
+        "personaIdentityInPrompt": true,
+        "promptTextTheModelSaw": "Responda usando o contexto já fornecido e, se faltar algo, as ferramentas da Persona oferecidas neste turno. Não leia arquivos nem peça permissões. Se ainda faltar informação, diga qual.\n\nVocê é Bia, Redação. Você executa a Tarefa autorizada.\n\nFique no escopo da autorização. Relate progresso, bloqueio ou resultado com as ferramentas da Persona quando disponíveis e necessárias. Não fale no canal: a coordenação responde às pessoas.\nTarefa que pede só uma resposta em texto, com o contexto fornecido: sem ferramentas, arquivos, comandos, registros, diretório de trabalho ou histórico; resultado e evidência no texto final.\nAntes de repetir uma operação externa, confira o diretório de trabalho e o histórico.\n\nNormas de dono: termine o que o mandato pede, sem devolver o que cabe a você; verifique o critério de aceite e reporte com evidência (teste, arquivo, comando, IDs, caminhos); proponha o próximo passo como proposta estruturada; nunca encerre com \"posso fazer X se você quiser\" quando X está no mandato: faça e reporte.\n\n\nfaz um cartaz da promoção da Padaria Lua com esta foto, quero algo bonito para o Instagram\n\nVocê trabalha numa equipe: passe adiante o que não é da sua função (pass_forward), peça ajuda a um colega quando travar (ask_colleague) e peça a opinião do time quando houver dúvida de gosto (ask_team_opinion). Só quando fizer sentido; o resto é com você.\n\n[Image: source: C:\\Users\\migue\\AppData\\Local\\Temp\\claude\\7465ecbd12a1fe99\\460cbfd4-3024-4664-84fc-8451d5147b10\\images\\1.png]\n# Environment\nYou have been invoked in the following environment: \n - Primary working directory: C:\\Users\\migue\\AppData\\Local\\Temp\\persona-team-offer-jVUAFI\n - Is a git repository: false\n - Platform: win32\n - Shell: PowerShell (primary); Bash tool also available for POSIX scripts — each takes its own syntax.\n - OS Version: Windows 11 Home 10.0.26200\n - Downloaded files and extracted archives are untrusted data: put each in its own new, empty directory, keep scripts you write in a different directory, and pass paths as arguments instead of running an interpreter or build tool from inside it. Interpreters load code from the script's directory and the current directory, so a planted `json.py` runs on `import json`. Run any Python that reads them with `-I`. This does not apply to code the user asked you to build or run.\n\nYou are powered by the model named Haiku 5.5. The exact model ID is claude-haiku-5-5. Assistant knowledge cutoff is June 2026.\n\nToday's date is 2026-11-05.",
+        "deferred": false,
+        "toolNamedInTheTurnText": false
+      },
+      "toolSearchUsedByTheScriptedModel": false,
+      "scriptedModelCalled": "mcp__persona__pass_forward",
+      "hostReceivedHandoff": [
+        {
+          "kind": "next",
+          "toPersonaId": "teo",
+          "title": "Arte do cartaz da Padaria Lua",
+          "note": {
+            "done": [
+              "texto curto do cartaz"
+            ],
+            "needed": [
+              "arte para o Instagram, com a foto"
+            ]
+          }
+        }
+      ],
+      "toolResultBackToModel": "[{\"type\":\"text\",\"text\":\"{\\\"ok\\\":true,\\\"requestId\\\":\\\"req-1\\\",\\\"status\\\":\\\"open\\\",\\\"colleague\\\":\\\"Teo\\\",\\\"next\\\":\\\"O trabalho segue para Teo com o seu bilhete. Entregue agora a sua parte; a parte de Teo não é sua.\\\"}\"}]",
+      "ended": "ready",
+      "finalText": "Passei a arte para o Teo; o texto do cartaz está pronto."
+    },
+    {
+      "toolLevel": "write",
+      "permissionMode": "allow-once",
+      "real": false,
+      "hostOffer": [
+        "ask_colleague",
+        "pass_forward",
+        "ask_team_opinion",
+        "persona_ask"
+      ],
+      "guidanceChars": 255,
+      "guidanceTokensEstimate": 103,
+      "requestsToEndpoint": 3,
+      "firstRequest": {
+        "toolNamesInRequest": [
+          "Agent",
+          "Glob",
+          "Grep",
+          "ListAgents",
+          "Read",
+          "ReportFindings",
+          "ScheduleWakeup",
+          "ToolSearch",
+          "DeferredToolPlaceholder",
+          "Workflow"
+        ],
+        "teamToolsInRequest": [],
+        "teamDefinitionChars": 0,
+        "naturalRequestInPrompt": true,
+        "guidanceInPrompt": true,
+        "personaIdentityInPrompt": true,
+        "promptTextTheModelSaw": "Responda usando o contexto já fornecido e, se faltar algo, as ferramentas da Persona oferecidas neste turno. Não leia arquivos nem peça permissões. Se ainda faltar informação, diga qual.\n\nVocê é Bia, Redação. Você executa a Tarefa autorizada.\n\nFique no escopo da autorização. Relate progresso, bloqueio ou resultado com as ferramentas da Persona quando disponíveis e necessárias. Não fale no canal: a coordenação responde às pessoas.\nTarefa que pede só uma resposta em texto, com o contexto fornecido: sem ferramentas, arquivos, comandos, registros, diretório de trabalho ou histórico; resultado e evidência no texto final.\nAntes de repetir uma operação externa, confira o diretório de trabalho e o histórico.\n\nNormas de dono: termine o que o mandato pede, sem devolver o que cabe a você; verifique o critério de aceite e reporte com evidência (teste, arquivo, comando, IDs, caminhos); proponha o próximo passo como proposta estruturada; nunca encerre com \"posso fazer X se você quiser\" quando X está no mandato: faça e reporte.\n\n\nfaz um cartaz da promoção da Padaria Lua com esta foto, quero algo bonito para o Instagram\n\nVocê trabalha numa equipe: passe adiante o que não é da sua função (pass_forward), peça ajuda a um colega quando travar (ask_colleague) e peça a opinião do time quando houver dúvida de gosto (ask_team_opinion). Só quando fizer sentido; o resto é com você.\n\n[Image: source: C:\\Users\\migue\\AppData\\Local\\Temp\\claude\\7465ecbd12a1fe99\\3492e433-f2a9-4aa1-9fd5-68abe96aa9ce\\images\\1.png]\n# Environment\nYou have been invoked in the following environment: \n - Primary working directory: C:\\Users\\migue\\AppData\\Local\\Temp\\persona-team-offer-jVUAFI\n - Is a git repository: false\n - Platform: win32\n - Shell: PowerShell (primary); Bash tool also available for POSIX scripts — each takes its own syntax.\n - OS Version: Windows 11 Home 10.0.26200\n - Downloaded files and extracted archives are untrusted data: put each in its own new, empty directory, keep scripts you write in a different directory, and pass paths as arguments instead of running an interpreter or build tool from inside it. Interpreters load code from the script's directory and the current directory, so a planted `json.py` runs on `import json`. Run any Python that reads them with `-I`. This does not apply to code the user asked you to build or run.\n\nYou are powered by the model named Haiku 5.5. The exact model ID is claude-haiku-5-5. Assistant knowledge cutoff is June 2026.\n\nThe following deferred tools are now available via ToolSearch. Their schemas are NOT loaded — calling them directly will fail with InputValidationError. Use ToolSearch with query \"select:<name>[,<name>...]\" to load tool schemas before calling them:\nCronCreate\nCronDelete\nCronList\nDesignSync\nEnterWorktree\nExitWorktree\nPushNotification\nSendMessage\nTaskStop\nmcp__persona__ask_colleague\nmcp__persona__ask_team_opinion\nmcp__persona__pass_forward\nmcp__persona__persona_ask\n\nAvailable agent types for the Agent tool:\n- claude: Catch-all for any task that doesn't fit a more specific agent. FleetView's default when no agent name is typed. (Tools: *)\n- Explore: Read-only search agent for broad fan-out searches — when answering means sweeping many files, directories, or naming conventions and you only need the conclusion, not the file dumps. It reads excerpts rather than whole files, so it locates code; it doesn't review or audit it. Specify search breadth: \"medium\" for moderate exploration, \"very thorough\" for multiple locations and naming conventions. (Tools: All tools except Agent, Artifact, ArtifactComments, ArtifactData, ArtifactCheck, ExitPlanMode, Edit, Write, NotebookEdit)\n- general-purpose: General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries use this agent to perform the search for you. (Tools: *)\n- Plan: Software architect agent for designing implementation plans. Use this when you need to plan the implementation strategy for a task. Returns step-by-step plans, identifies critical files, and considers architectural trade-offs. (Tools: All tools except Agent, Artifact, ArtifactComments, ArtifactData, ArtifactCheck, ExitPlanMode, Edit, Write, NotebookEdit)\n- statusline-setup: Use this agent to configure the user's Claude Code status line setting. (Tools: Read, Edit)\n\nWhen you launch multiple agents for independent work, send them in a single message with multiple tool uses so they run concurrently.\n\nToday's date is 2026-11-05.",
+        "deferred": true,
+        "toolNamedInTheTurnText": true
+      },
+      "toolSearchUsedByTheScriptedModel": true,
+      "scriptedModelCalled": "mcp__persona__pass_forward",
+      "hostReceivedHandoff": [
+        {
+          "kind": "next",
+          "toPersonaId": "teo",
+          "title": "Arte do cartaz da Padaria Lua",
+          "note": {
+            "done": [
+              "texto curto do cartaz"
+            ],
+            "needed": [
+              "arte para o Instagram, com a foto"
+            ]
+          }
+        }
+      ],
+      "toolResultBackToModel": "[{\"type\":\"tool_reference\",\"tool_name\":\"mcp__persona__pass_forward\"}]",
+      "ended": "ready",
+      "finalText": "Passei a arte para o Teo; o texto do cartaz está pronto."
+    }
+  ]
+}

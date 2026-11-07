@@ -4,6 +4,7 @@ import { readFileSync, realpathSync } from 'node:fs'
 import { createRequire, isBuiltin } from 'node:module'
 import { basename, dirname, join, sep, toNamespacedPath } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { cachedNodeInternal } from './node-internals.ts'
 
 /** Package fields Node's resolver consumes; exports and imports hold JSON values. */
 interface PackageConfig {
@@ -77,7 +78,9 @@ function requireInternal(id: string): unknown {
     }
   }
   try {
-    return (require('node-addon-require-builtin') as { requireBuiltin(id: string): unknown }).requireBuiltin(id)
+    const addon = require('node-addon-require-builtin') as { requireBuiltin(id: string): unknown }
+    // P0-25: shared with the resolver install (dsh-app-boot): the native lookup costs ~420 ms per call during boot.
+    return cachedNodeInternal(id, requested => addon.requireBuiltin(requested))
   } catch (_error) {
     // Without the addon, the caller reports the missing interface.
   }

@@ -1,3 +1,5 @@
+> **D-084 (04/11): a regra de produto deste doc foi substituída pela `PERSONA-POWERS-SPEC.md`.** Continuam valendo daqui as formas de Conexões › "Seus conectores" (a linha, os rostos, o Tirar) e o aviso do Codex. A regra "só local é concedível" caiu: os da conta também ficam disponíveis.
+
 # Dar a uma persona acesso a um conector seu (D-081 · ISO-3)
 
 Muse, 04/11. A implementação é do **Quill**, depois do hash do instalador.
@@ -5,6 +7,26 @@ Muse, 04/11. A implementação é do **Quill**, depois do hash do instalador.
 **Primitivos:** `Card`, `Avatar`, `Chip`, `Button`, `Modal`, `ChoiceCards`, `Switch`, `Notice`, `Toast`, `formatWhen`. Nenhum componente novo.
 
 **A regra de fundo (D-081):** a persona roda isolada. Por padrão ela **não** vê nada do ambiente pessoal da CLI. Um conector só vale para uma persona quando **a pessoa concede, a ela, por nome**.
+
+## 0. ~~O que pode ser concedido~~ (caiu com a D-084)
+**Pela D-084, os conectores da conta do Claude e os locais ficam TODOS disponíveis às personas.** A linha "A Persona ainda não usa conectores da conta" deixou de valer. A regra de produto e as telas novas estão na `PERSONA-POWERS-SPEC.md`; daqui continuam valendo só a forma da linha do conector (§1) e o aviso do Codex.
+
+**Combinado com o Anvil** (o contrato é `contracts/connector-grants.md`; os códigos do host são `not-grantable` e `isolation-partial`):
+- **Os da conta aparecem por nome** (nunca escondidos), na sub-lista "Da sua conta Claude", cada um com o `Chip` neutral **"Da sua conta · não dá para dar às personas"**. Sem botão.
+- **`isolation-partial`**: a IA não isola o ambiente (hoje, o Codex). No topo da seção vai um `Notice tone="warning"`: **"O {motor} não separa o seu ambiente do das personas: quem usa o {motor} já pode usar os seus conectores."** Sem "Dar acesso" para esse motor. No cartão da persona que usa esse motor, a linha "Conectores" diz **"Todos os seus (o {motor} não isola)"**, em `warning`.
+- Essa é uma informação de segurança: ela aparece sempre que for verdade, e nunca fica atrás de um "saiba mais".
+
+| Chave | pt-BR | en |
+|---|---|---|
+| connectors.account | Da sua conta Claude | From your Claude account |
+| connectors.accountChip | Da sua conta · não dá para dar às personas | From your account · can't be given to personas |
+| connectors.accountNote | Este conector vive na sua conta do Claude. A Persona ainda não usa conectores da conta. | This connector lives in your Claude account. Persona doesn't use account connectors yet. |
+| connectors.accountNoteIso5 | Este conector vive na sua conta do Claude. Dá para liberar para uma persona, mas cada chamada dela fica mais cara. | This connector lives in your Claude account. You can release it to a persona, but each of its calls costs more. |
+| grant.iso5Warning | {name} vai gastar mais por chamada enquanto usar o {connector}. | {name} will spend more per call while using {connector}. |
+| grant.iso5Cost (v1.2, Muse 07/11, com custo `measured` do host) | Com o {connector}, cada chamada de {name} usa ≈ {tokens} tokens a mais do seu limite. | With {connector}, each call by {name} uses ≈ {tokens} more tokens of your limit. |
+| grant.iso5CostUnknown (v1.2, custo `unknown`; substitui o grant.iso5Warning) | Com o {connector}, cada chamada de {name} usa mais do seu limite. A Persona ainda não mediu quanto. | With {connector}, each call by {name} uses more of your limit. Persona hasn't measured how much yet. |
+| connectors.isolationPartial | O {engine} não separa o seu ambiente do das personas: quem usa o {engine} já pode usar os seus conectores. | {engine} doesn't separate your environment from the personas': anyone using {engine} can already use your connectors. |
+| connectors.allYours | Todos os seus (o {engine} não isola) | All of yours ({engine} doesn't isolate) |
 
 ## 1. Onde aparece
 

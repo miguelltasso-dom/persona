@@ -1,0 +1,42 @@
+{
+  "note": "HT-11 dry 2: --add-dir with a product-owned skills dir; control requests only; counts only",
+  "copied": 22,
+  "rows": [
+    {
+      "variant": "S1 project, slash ON (reference)",
+      "commands": 55,
+      "skillsTokens": 2281,
+      "systemTools": 19823,
+      "total": 23899,
+      "effort": "medium",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "variant": "A1 + --add-dir (all personal skills copied)",
+      "commands": 76,
+      "skillsTokens": 5104,
+      "systemTools": 17000,
+      "total": 23899,
+      "effort": "medium",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "variant": "A2 + --add-dir (ONE skill copied)",
+      "commands": 56,
+      "skillsTokens": 2376,
+      "systemTools": 19728,
+      "total": 23899,
+      "effort": "medium",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "variant": "A3 + --add-dir but --disable-slash-commands",
+      "commands": 0,
+      "skillsTokens": 0,
+      "systemTools": 29665,
+      "total": 31414,
+      "effort": "medium",
+      "model": "claude-opus-5-5"
+    }
+  ]
+}

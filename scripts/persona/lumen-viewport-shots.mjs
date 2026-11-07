@@ -8,6 +8,7 @@ import { spawn, execFileSync } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { freePort } from './free-port.mjs'
+import { collectProbe, writeProbe } from './preaccept-probe.mjs'
 
 const root = 'C:/Users/migue/dev/persona'
 const require = createRequire(`${root}/packages/persona/persona-e2e/package.json`)
@@ -32,11 +33,20 @@ const VIEWPORTS = [
 const startedAt = new Date().toISOString()
 /** A blank page is ~3 KB: below 10 KB the capture failed (empty window), so it is never saved as a result. */
 const MIN_SHOT_BYTES = 10_000
+/** Pre-accept (Ember/Keel): the probe sits next to each picture (`<shot>.probe.json`); a shot without it can only come out INCOMPLETO. */
+let consoleErrorsSeen = 0
+/** Scenes that are mid-motion or evidence of a failure: the probe's one Tab press would spoil them. */
+const NO_TAB_SHOT = /decisions-|stamp|falha|depois-do-conflito|dump/u
 async function shoot(page, path) {
   await page.locator('[data-persona-shell]').first().waitFor({ state: 'visible', timeout: 15_000 })
   const buffer = await page.screenshot()
   if (buffer.length < MIN_SHOT_BYTES) throw new Error(`blank capture (${String(buffer.length)} bytes < ${String(MIN_SHOT_BYTES)}): ${path}`)
   writeFileSync(path, buffer)
+  if (process.env.LUMEN_PROBE === '0') return
+  const fresh = errors.slice(consoleErrorsSeen)
+  consoleErrorsSeen = errors.length
+  const axePath = process.env.LUMEN_AXE
+  writeProbe(path, await collectProbe(page, { ...(axePath === undefined ? {} : { axePath }), consoleErrors: fresh, focus: !NO_TAB_SHOT.test(path) }))
 }
 const slugOf = label => label.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
@@ -45,16 +55,52 @@ const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_
 const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open', '--port', String(await freePort())], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
 let out = ''
 let browser
+let hostUrl = ''
+let hostChild = child
+/** Is the web host still answering? */
+async function hostAlive() {
+  try {
+    const response = await fetch(hostUrl, { signal: AbortSignal.timeout(8000) })
+    return response.status < 500
+  } catch {
+    return false
+  }
+}
+/** Brings a dead host back (same temp home, a free port, a new token); returns true when the URL changed (pages must navigate to it). */
+async function ensureHost() {
+  if (hostUrl === '' || await hostAlive()) return false
+  console.log('[host] not answering: starting a new one on the same temp home')
+  try { execFileSync('taskkill', ['/T', '/F', '/PID', String(hostChild.pid)], { stdio: 'ignore' }) } catch { /* already gone */ }
+  const next = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open', '--port', String(await freePort())], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
+  let text = ''
+  hostUrl = await new Promise((resolveUrl, reject) => {
+    const wait = setTimeout(() => reject(new Error('the host did not come back in 120 s')), 120_000)
+    const listen = (chunk) => {
+      text += chunk.toString()
+      const found = /(http:\/\/127\.0\.0\.1:\d+\/\?token=[^\s]+)/.exec(text)
+      if (found) { clearTimeout(wait); resolveUrl(found[1]) }
+    }
+    next.stdout.on('data', listen); next.stderr.on('data', listen)
+  })
+  hostChild = next
+  return true
+}
 const errors = []
 const report = []
 const finish = async (code, note) => {
   console.log(note)
   try { await browser?.close() } catch { /* closing */ }
   try { execFileSync('taskkill', ['/T', '/F', '/PID', String(child.pid)], { stdio: 'ignore' }) } catch { /* gone */ }
+  if (hostChild !== child) { try { execFileSync('taskkill', ['/T', '/F', '/PID', String(hostChild.pid)], { stdio: 'ignore' }) } catch { /* gone */ } }
   try { rmSync(home, { recursive: true, force: true }) } catch { /* temp home still in use: reap-orphans cleans later */ }
   process.exit(code)
 }
-const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), 1_800_000)
+const timer = setTimeout(() => finish(1, `TIMEOUT\n${out.slice(-1200)}`), Number(process.env.LUMEN_TIMEOUT_MS ?? 1_800_000))
+
+/** LUMEN_SCENARIOS=a,b,c: is this scenario part of the run? */
+function scenarioOn(name) {
+  return process.env.LUMEN_SCENARIOS?.split(',').includes(name) === true
+}
 
 async function open(url, scheme, viewport) {
   const context = await browser.newContext({
@@ -64,7 +110,7 @@ async function open(url, scheme, viewport) {
     colorScheme: scheme,
     locale: 'pt-BR',
   })
-  await context.addInitScript(([dark, withReview]) => {
+  await context.addInitScript(([dark, withReview, withDecor, withTeamwork, withConnector]) => {
     localStorage.setItem('persona.rail.collapsed.v1', '0')
     localStorage.setItem('persona.onboarding.complete.v1', '1')
     localStorage.setItem('persona.devSeed.v1', '1')
@@ -72,10 +118,23 @@ async function open(url, scheme, viewport) {
     localStorage.setItem('persona.devSeed.decisions', '1')
     // Capture-only sample of "Revisar mudanças" (the fake CLI writes no files): the sheet says "Exemplo".
     if (withReview) localStorage.setItem('persona.devSeed.review', '1')
+    // D-089 (b): the house ornaments are behind persona.flag.houseDecor.
+    if (withDecor) localStorage.setItem('persona.flag.houseDecor', '1')
+    // D-090: team work is behind persona.flag.teamwork; the example board needs the SECOND dev key (the first one is persona.devSeed.v1 above).
+    // "Liberar para {B}": two example cards need the SECOND dev key (the first one is persona.devSeed.v1 above); they say "Exemplo" and never reach the host.
+    if (withConnector) {
+      localStorage.setItem('persona.devSeed.connector', '1')
+      // HT-9 / D-095: the external-action cards of the same sample (the thread's preview card is behind this flag until the bundle that ships it).
+      localStorage.setItem('persona.flag.actionPreview', '1')
+    }
+    if (withTeamwork) {
+      localStorage.setItem('persona.flag.teamwork', '1')
+      localStorage.setItem('persona.devSeed.teamwork', '1')
+    }
     const apply = () => { if (dark) document.body?.setAttribute('data-ds-dark-theme', 'true') }
     if (document.body) apply()
     else document.addEventListener('DOMContentLoaded', apply, { once: true })
-  }, [scheme === 'dark', process.env.LUMEN_SCENARIOS?.split(',').includes('review') === true])
+  }, [scheme === 'dark', scenarioOn('review'), scenarioOn('decor') || scenarioOn('teamwork'), scenarioOn('teamwork'), scenarioOn('connector')])
   const page = await context.newPage()
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 240)}`) })
   page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 240)}`))
@@ -85,10 +144,48 @@ async function open(url, scheme, viewport) {
   await page.reload({ waitUntil: 'load' })
   await page.waitForTimeout(6000)
   await page.locator('[data-persona-shell]').first().waitFor({ state: 'visible', timeout: 15_000 })
+  if (process.env.LUMEN_DUMP_NAV === '1') {
+    // Debug aid: what the shell's buttons are called in THIS bundle (labels move between bundles).
+    const names = await page.getByRole('button').evaluateAll(nodes => nodes.map(node => (node.getAttribute('aria-label') ?? node.textContent ?? '').trim().slice(0, 40)).filter(Boolean))
+    console.log(`[dump-nav ${scheme} ${viewport.tag}] ${JSON.stringify(names.slice(0, 70))}`)
+    writeFileSync(`${outDir}/dump-shell-${scheme}-${viewport.tag}.png`, await page.screenshot())
+  }
   return { context, page }
 }
 
+/** Old screen label → the place in the rail and the tab (`data-tab-panel`) inside it, in the single-bar shell (nav-places.ts). */
+const PLACE_TAB = {
+  'Quadros': ['Projetos', 'kanban'],
+  'Rotinas': ['Projetos', 'routines'],
+  'Arquivos': ['Projetos', 'files'],
+  'Canvas': ['Projetos', 'canvas'],
+  'Quem cuida de quem': ['Equipe', 'orgChart'],
+  'Saúde': ['Equipe', 'teamHealth'],
+  'Segundo cérebro': ['Memória da empresa', 'secondBrain'],
+  'Conhecimento': ['Memória da empresa', 'knowledge'],
+  'Regras': ['Memória da empresa', 'rules'],
+  'Conexões': ['Configurações', 'connections'],
+  'Uso e limites': ['Configurações', 'usage'],
+  'Membros': ['Configurações', 'members'],
+  'Importadores': ['Configurações', 'importers'],
+}
+
 async function nav(page, label) {
+  const placeTab = PLACE_TAB[label]
+  if (placeTab !== undefined && await page.getByRole('button', { name: 'Memória da empresa', exact: true }).count() > 0) {
+    const [place, panel] = placeTab
+    await page.getByRole('button', { name: place, exact: true }).first().click({ timeout: 15_000 })
+    await page.waitForTimeout(900)
+    // The tab carries `data-tab-panel` (Tabs.tsx). A missing tab must STOP the scenario: skipping the click photographs the place's default tab under the wrong name.
+    const tab = page.locator(`[data-persona-area="place-tabs"] [data-tab-panel="${panel}"]`).first()
+    await tab.waitFor({ state: 'attached', timeout: 10_000 }).catch(() => { throw new Error(`nav("${label}"): the tab ${panel} of "${place}" is not on screen`) })
+    if (await tab.getAttribute('aria-selected') !== 'true') await tab.click({ timeout: 10_000 })
+    await page.locator(`[data-persona-area="place-tabs"] [data-tab-panel="${panel}"][aria-selected="true"]`).first().waitFor({ timeout: 8000 }).catch(() => { throw new Error(`nav("${label}"): the tab ${panel} did not become the selected one`) })
+    await page.waitForTimeout(1800)
+    await page.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout: 20_000 }).catch(() => undefined)
+    await page.waitForTimeout(400)
+    return
+  }
   await page.getByRole('button', { name: 'Visão geral', exact: true }).first().waitFor({ timeout: 20_000 }).catch(() => undefined)
   for (let attempt = 0; attempt < 3 && await page.getByRole('button', { name: label, exact: true }).count() === 0; attempt += 1) {
     for (const toggle of await page.locator('button[aria-controls^="persona-nav-"][aria-expanded="false"]').all()) {
@@ -173,6 +270,36 @@ async function axeLine(page, name, tag) {
   return list?.length ?? 'skipped'
 }
 
+/**
+ * LUMEN_GEOM=1: where the dialog really sits (its own box and every ancestor that changes what `position: fixed` or `max-height` mean).
+ * A dialog taller than the window is a layout fact, not a guess: the pre-accept's `dialogo` check reports it, this says why.
+ */
+async function dialogGeom(page, step, tag) {
+  if (process.env.LUMEN_GEOM !== '1') return
+  const geom = await page.evaluate(() => {
+    const dialog = document.querySelector('[role="dialog"]')
+    if (dialog === null) return null
+    const rect = (el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), h: Math.round(r.height) } }
+    const chain = []
+    for (let el = dialog; el !== null && el !== document.documentElement; el = el.parentElement) {
+      const cs = getComputedStyle(el)
+      chain.push({
+        el: `${el.tagName.toLowerCase()}.${typeof el.className === 'string' ? el.className.split(' ')[0] : ''}`,
+        ...rect(el),
+        position: cs.position,
+        transform: cs.transform === 'none' ? undefined : cs.transform,
+        filter: cs.filter === 'none' ? undefined : cs.filter,
+        willChange: cs.willChange === 'auto' ? undefined : cs.willChange,
+        contain: cs.contain === 'none' ? undefined : cs.contain,
+        overflowY: cs.overflowY === 'visible' ? undefined : cs.overflowY,
+        maxHeight: cs.maxHeight === 'none' ? undefined : cs.maxHeight,
+      })
+    }
+    return { win: { w: window.innerWidth, h: window.innerHeight }, rootFont: getComputedStyle(document.documentElement).fontSize, chain }
+  })
+  console.log(`[geom ${step} ${tag}] ${JSON.stringify(geom)}`)
+}
+
 /** "Revisar mudanças" in the complete shell: the list + preview, the clash moment, the success moment. */
 async function reviewShots(page, scheme, viewport) {
   const tag = `${scheme}-${viewport.tag}`
@@ -182,17 +309,38 @@ async function reviewShots(page, scheme, viewport) {
   await page.locator('[data-testid="review-panel"]').waitFor({ timeout: 20_000 })
   await page.waitForTimeout(700)
   await shoot(page, `${outDir}/revisar-lista-${tag}.png`)
+  await dialogGeom(page, 'lista', tag)
   const axe1 = await axeLine(page, 'revisar-lista', tag)
   await page.locator('[data-testid="review-apply"]').click()
   await page.locator('[data-testid="review-conflict"]').waitFor({ timeout: 10_000 })
   await page.waitForTimeout(500)
   await shoot(page, `${outDir}/revisar-conflito-${tag}.png`)
+  await dialogGeom(page, 'conflito', tag)
   const axe2 = await axeLine(page, 'revisar-conflito', tag)
-  await page.getByText('Manter os dois', { exact: false }).first().click()
+  // The card's own radio sits over its title (a hidden input that covers the card): choose it directly, like a person's click lands on it.
+  await page.locator('input[type="radio"][value="both"]').first().dispatchEvent('click')
+  await page.waitForTimeout(300)
   await page.locator('[data-testid="review-apply"]').click()
-  await page.locator('[data-testid="review-applied"]').waitFor({ timeout: 10_000 })
+  await page.locator('[data-testid="review-applied"]').waitFor({ timeout: 10_000 }).catch(async (error) => {
+    // Say what the screen shows instead (a failed step must leave evidence, not only a timeout).
+    await shoot(page, `${outDir}/revisar-depois-do-conflito-${tag}.png`).catch(() => undefined)
+    const bar = await page.locator('[data-testid^="review-"]').evaluateAll(nodes => nodes.map(node => `${node.getAttribute('data-testid')}:${(node.textContent ?? '').slice(0, 60)}`)).catch(() => [])
+    console.log(`[revisar ${tag}] depois de escolher: ${JSON.stringify(bar.map(row => row.slice(0, 40)))}`)
+    const detail = await page.evaluate(() => {
+      const apply = document.querySelector('[data-testid="review-apply"]')
+      return {
+        bar: document.querySelector('[data-testid="review-bar"]')?.textContent?.slice(0, 220) ?? null,
+        applyDisabled: apply === null ? null : apply.disabled === true,
+        checked: [...document.querySelectorAll('input[type=radio]')].map(node => node.value + ':' + String(node.checked)),
+        alerts: [...document.querySelectorAll('[role=alert],[role=status]')].map(node => (node.textContent ?? '').slice(0, 120)),
+      }
+    }).catch(() => null)
+    console.log(`[revisar ${tag}] estado: ${JSON.stringify(detail)}`)
+    throw error
+  })
   await page.waitForTimeout(900)
   await shoot(page, `${outDir}/revisar-sucesso-${tag}.png`)
+  await dialogGeom(page, 'sucesso', tag)
   const axe3 = await axeLine(page, 'revisar-sucesso', tag)
   console.log(`[revisar ${tag}] lista axe=${axe1} conflito axe=${axe2} sucesso axe=${axe3}`)
 }
@@ -224,13 +372,48 @@ async function bycShots(page, scheme, viewport) {
   console.log(`[byc ${tag}] revisao axe=${axe1} gravado axe=${axe2}`)
 }
 
-/** Segundo cérebro: the home, Permissões, and the new-page dialog. */
+/** Saúde da equipe on a brand-new app: the calm first-day note — no score, no red sentence, no crosses. */
+async function healthShots(page, scheme, viewport) {
+  const tag = `${scheme}-${viewport.tag}`
+  await nav(page, 'Saúde')
+  await page.waitForTimeout(900)
+  await shoot(page, `${outDir}/saude-1o-dia-${tag}.png`)
+  // Where the tab bar and the page really sit (a clipped bar in the picture is a layout fact, not a guess).
+  const geom = await page.evaluate(() => {
+    const box = (selector) => {
+      const node = document.querySelector(selector)
+      if (node === null) return null
+      const rect = node.getBoundingClientRect()
+      const style = getComputedStyle(node)
+      return { top: Math.round(rect.top), height: Math.round(rect.height), marginTop: style.marginTop, transform: style.transform, overflow: style.overflow, position: style.position }
+    }
+    const center = document.querySelector('[data-persona-grain]')
+    return {
+      bar: box('[data-persona-area="place-tabs"]'),
+      track: box('[data-persona-area="place-tabs"] [role="tablist"]'),
+      main: box('[data-persona-area="main"]'),
+      centerScrollTop: center === null ? null : center.scrollTop,
+      mainScrollTop: document.querySelector('[data-persona-area="main"]')?.scrollTop ?? null,
+      animatingInMain: [...document.querySelectorAll('[data-persona-area="main"], [data-persona-area="main"] *')].filter(node => node.getAnimations().length > 0).length,
+    }
+  })
+  console.log(`[saude ${tag}] geom=${JSON.stringify(geom)}`)
+  const axe1 = await axeLine(page, 'saude', tag)
+  console.log(`[saude ${tag}] axe=${axe1}`)
+}
+
+/** Segundo cérebro: the home, the ⋯ menu, Permissões, and the new-page dialog. */
 async function brainShots(page, scheme, viewport) {
   const tag = `${scheme}-${viewport.tag}`
   await nav(page, 'Segundo cérebro')
   await page.waitForTimeout(700)
   await shoot(page, `${outDir}/segundo-cerebro-real-${tag}.png`)
   const axe1 = await axeLine(page, 'segundo-cerebro', tag)
+  // the ⋯ menu (SB-4): on the web both items are disabled and say "Só funciona no app instalado."
+  await page.getByRole('button', { name: 'Mais ações' }).click().catch(() => undefined)
+  await page.waitForTimeout(300)
+  await shoot(page, `${outDir}/segundo-cerebro-menu-${tag}.png`)
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Permissões', exact: true }).click()
   await page.waitForTimeout(600)
   await shoot(page, `${outDir}/segundo-cerebro-permissoes-${tag}.png`)
@@ -247,6 +430,87 @@ async function brainShots(page, scheme, viewport) {
  * Content the person cannot reach: an element that pokes out of the viewport, or out of an ancestor that CLIPS it
  * (overflow hidden/clip) — an overflow-x auto/scroll ancestor is fine (reachable by scrolling) and only counted.
  */
+/** D-089 a: Aprovações — the card is titled by the task's name, the question under it, the verb is "Revisar". */
+async function approvalsShots(page, scheme, viewport) {
+  const tag = `${scheme}-${viewport.tag}`
+  await nav(page, 'Aprovações')
+  await page.waitForTimeout(600)
+  await shoot(page, `${outDir}/aprovacoes-titulo-${tag}.png`)
+  const axe = await axeLine(page, 'aprovacoes', tag)
+  const heads = await page.locator('[data-persona-root] h3').allInnerTexts().catch(() => [])
+  const verbs = await page.getByRole('button', { name: /^(Revisar|Abrir tarefa)$/ }).allInnerTexts().catch(() => [])
+  console.log(`[aprovacoes ${tag}] axe=${axe} títulos=${JSON.stringify(heads.slice(0, 4))} verbos=${JSON.stringify(verbs.slice(0, 4))}`)
+}
+
+/** D-089 b: the house ornaments (persona.flag.houseDecor): Visão geral, Aprovações, the night empties. */
+async function decorShots(page, scheme, viewport) {
+  const tag = `${scheme}-${viewport.tag}`
+  await nav(page, 'Visão geral')
+  await shoot(page, `${outDir}/enfeites-visao-geral-${tag}.png`)
+  const axe1 = await axeLine(page, 'enfeites-visao-geral', tag)
+  const found = await page.evaluate(() => ({
+    sprig: document.querySelectorAll('[data-house-decor="sprig"]').length,
+    doodles: document.querySelectorAll('[data-house-decor="doodles"]').length,
+    bodyAttr: document.body.hasAttribute('data-house-decor'),
+    animated: document.getAnimations().filter(an => an.playState === 'running').length,
+  }))
+  await nav(page, 'Aprovações')
+  await shoot(page, `${outDir}/enfeites-aprovacoes-${tag}.png`)
+  const axe2 = await axeLine(page, 'enfeites-aprovacoes', tag)
+  console.log(`[enfeites ${tag}] visão-geral axe=${axe1} aprovações axe=${axe2} ${JSON.stringify(found)}`)
+}
+
+/** D-090: "Precisa de você / Liberar para {B}" (Anvil §9): the colleague card (3 choices) and the initiative card (no "sempre"), as examples. */
+async function connectorShots(page, scheme, viewport) {
+  const tag = `${scheme}-${viewport.tag}`
+  await nav(page, 'Aprovações')
+  // D-095 (V2 inbox, the default): each example card is reached THROUGH THE LIST — the first card selected is not the one we want.
+  // [list title, file, what the card must offer]
+  const cards = [
+    ['Liberar o Gmail para Bento', 'liberar-conector', 'conector'],
+    ['Liberar o Drive para Luna', 'liberar-conector-iniciativa', 'conector'],
+    ['Enviar um email pelo Gmail', 'acao-email', 'acao'],
+    ['Pagar R$ 120,00 pelo Mercado Pago', 'acao-pagamento', 'acao'],
+  ]
+  for (const [title, file, kind] of cards) {
+    const option = page.locator('[role="option"]', { hasText: title }).first()
+    await option.waitFor({ timeout: 20_000 })
+    await option.click()
+    await page.getByRole('heading', { name: title }).first().waitFor({ timeout: 10_000 })
+    await page.waitForTimeout(600)
+    await shoot(page, `${outDir}/${file}-${tag}.png`)
+    const axe = await axeLine(page, file, tag)
+    const choices = kind === 'conector'
+      ? await page.locator('[data-connector-choice]').evaluateAll(nodes => nodes.map(node => node.textContent))
+      : await page.locator('article button, [data-persona-approval-detail] button').evaluateAll(nodes => nodes.map(node => (node.textContent ?? '').trim()).filter(Boolean))
+    console.log(`[${file} ${tag}] axe=${axe} botoes=${JSON.stringify(choices)}`)
+    // One-pane layouts show the detail over the list: back to the list for the next card.
+    const back = page.getByRole('button', { name: /Voltar|Fechar/u }).first()
+    if (viewport.width <= 960 && await back.count() > 0) await back.click().catch(() => undefined)
+  }
+}
+
+/** D-090: the board with the team-work chips (the example cards: flag + the 2 dev keys), the work path and the open note. */
+async function teamworkShots(page, scheme, viewport) {
+  const tag = `${scheme}-${viewport.tag}`
+  // The "Revisar" sample auto-opens when a board mounts while this key is set (the review scenario ran before): the chips need the plain board.
+  await page.evaluate(() => { try { localStorage.removeItem('persona.devSeed.review') } catch { /* storage blocked */ } })
+  await nav(page, 'Quadros')
+  await page.locator('[data-persona-boards] article').first().click({ position: { x: 90, y: 28 }, timeout: 10_000 })
+  await page.getByText('Pedido por Nina').first().waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(500)
+  await shoot(page, `${outDir}/equipe-quadro-${tag}.png`)
+  const axe1 = await axeLine(page, 'equipe-quadro', tag)
+  await page.getByRole('button', { name: 'Caminho do trabalho' }).first().click()
+  await page.getByRole('button', { name: 'Bilhete de Nina' }).first().click()
+  await page.waitForTimeout(500)
+  await shoot(page, `${outDir}/equipe-caminho-bilhete-${tag}.png`)
+  const axe2 = await axeLine(page, 'equipe-caminho', tag)
+  console.log(`[equipe ${tag}] quadro axe=${axe1} caminho axe=${axe2}`)
+  await page.keyboard.press('Escape')
+  await page.getByRole('dialog').waitFor({ state: 'detached', timeout: 5000 }).catch(() => undefined)
+}
+
 function probeOverflow() {
   const vw = document.documentElement.clientWidth
   const hits = []
@@ -296,16 +560,18 @@ const onData = async (chunk) => {
   out += chunk.toString()
   const match = /(http:\/\/127\.0\.0\.1:\d+\/\?token=[^\s]+)/.exec(out)
   if (!match) return
+  hostUrl = match[1]
   child.stdout.off('data', onData); child.stderr.off('data', onData)
   clearTimeout(timer)
   try {
     browser = await chromium.launch({ channel: 'chrome', headless: true })
     for (const viewport of VIEWPORTS) {
       for (const scheme of ['light', 'dark']) {
-        if (process.env.LUMEN_ONLY !== undefined && process.env.LUMEN_ONLY !== `${scheme}-${viewport.tag}`) continue
+        if (process.env.LUMEN_ONLY !== undefined && !process.env.LUMEN_ONLY.split(',').includes(`${scheme}-${viewport.tag}`)) continue
         let opened
         try {
-          opened = await open(match[1], scheme, viewport)
+          await ensureHost()
+          opened = await open(hostUrl, scheme, viewport)
         } catch (error) {
           // The shell never showed (empty window): say so for this pass with the browser's own errors, and go on.
           const why = errors.filter(row => row.startsWith(`[${scheme} ${viewport.tag}]`)).slice(-3).join(' | ')
@@ -336,15 +602,27 @@ const onData = async (chunk) => {
           }
         }
         const scenarios = new Set((process.env.LUMEN_SCENARIOS ?? '').split(',').filter(Boolean))
-        for (const [name, run] of [['brain', brainShots], ['byc', bycShots], ['review', reviewShots]]) {
+        for (const [name, run] of [['health', healthShots], ['brain', brainShots], ['byc', bycShots], ['review', reviewShots], ['approvals', approvalsShots], ['decor', decorShots], ['teamwork', teamworkShots], ['connector', connectorShots]]) {
           if (!scenarios.has(name)) continue
-          try { await run(page, scheme, viewport) } catch (error) {
+          try {
+            try { await run(page, scheme, viewport) } catch (first) {
+              console.log(`[${name} ${scheme}-${viewport.tag}] retry once after: ${String(first).replace(/\x1b\[[0-9;]*m/gu, '').split('\n')[0]?.slice(0, 160) ?? ''}`)
+              await page.keyboard.press('Escape').catch(() => undefined)
+              if (await ensureHost()) { await page.goto(hostUrl, { waitUntil: 'load' }); await page.waitForTimeout(9000) }
+              await page.reload({ waitUntil: 'load' })
+              await page.waitForTimeout(6000)
+              await page.locator('[data-persona-shell]').first().waitFor({ state: 'visible', timeout: 20_000 })
+              await run(page, scheme, viewport)
+            }
+          } catch (error) {
             report.push({ panel: `(${name})`, scheme, viewport: viewport.tag, error: String(error).slice(0, 200), at: new Date().toISOString() })
-            console.log(`[${name} ${scheme}-${viewport.tag}] FAILED ${String(error).slice(0, 200)}`)
+            console.log(`[${name} ${scheme}-${viewport.tag}] FAILED ${String(error).replace(/\x1b\[[0-9;]*m/gu, '').slice(0, 1400)}`)
+            // Evidence of WHERE it stopped: a failure that leaves no picture cannot be fixed in one try.
+            await page.screenshot({ path: `${outDir}/falha-${name}-${scheme}-${viewport.tag}.png` }).catch(() => undefined)
           }
         }
         if (process.env.LUMEN_DECISIONS === '1') {
-          try { await decisionShots(page, scheme, viewport) } catch (error) { console.log(`[decisions ${scheme}-${viewport.tag}] FAILED ${String(error).slice(0, 200)}`) }
+          try { await decisionShots(page, scheme, viewport) } catch (error) { console.log(`[decisions ${scheme}-${viewport.tag}] FAILED ${String(error).replace(/\x1b\[[0-9;]*m/gu, '').slice(0, 1400)}`) }
         }
         await context.close()
       }

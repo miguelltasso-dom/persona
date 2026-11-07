@@ -1,0 +1,17 @@
+{
+  "owner": "Ember",
+  "bundle": "5 (d8109efa)",
+  "dir": ".maestri/tmp/shots/ember/shell-b5",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "note": "Captura final do Ember no bundle 5 (lib d8109efa, 07/11), shell real: a Caixa V2 com a prévia real da ação externa (e-mail: Enviar; pagamento: Pagar), os dois cartões de conector e a lista com os chips. Os cartões vêm dos 4 exemplos 'Exemplo' do dev seed (o host real não manda action/connector sozinho). Sem código novo meu desde o aceite do bundle 4: o que mudou por baixo é o ActionPreviewCard (Flint: action.missing/largura) e a regra 4 de Aprovações (Quill, NextStepBar OFF). Fora do shell real (galeria + testes): ação SEM prévia, prévia cortada e o Responder do IV-10.",
+  "scenes": [
+    "approvals-v2-action-email",
+    { "id": "approvals-v2-action-pay", "allowCurrency": true },
+    "approvals-v2-connector",
+    "approvals-v2-connector-initiative",
+    { "id": "approvals-v2-action-list", "allowCurrency": true }
+  ]
+}

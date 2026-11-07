@@ -1,0 +1,23 @@
+{
+  "note": "HT-11 pre-flight with the product code path; control requests only (zero model); counts only",
+  "claudeVersion": "2.1.318 (Claude Code)",
+  "ok": true,
+  "pointers": 21,
+  "probe": {
+    "ok": true,
+    "status": "loaded",
+    "extraCommands": 21,
+    "openingTokens": 23899,
+    "baselineTokens": 23899
+  },
+  "combined": {
+    "tried": true,
+    "commandsWithFolder": 76,
+    "commandsWithoutFolder": 55,
+    "extraCommands": 21,
+    "mcpServers": 1,
+    "connected": 1,
+    "connectorOnlyServers": 1,
+    "effort": "medium"
+  }
+}

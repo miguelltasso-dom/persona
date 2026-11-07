@@ -271,7 +271,9 @@
     "scripts/*.client.spec.ts",
     "scripts/client-bundle-css.spec.ts",
     "packages/typert/generator/tests/fixtures/**",
-    "scripts/client-bundle-purity.spec.ts"
+    "scripts/client-bundle-purity.spec.ts",
+    // Persona (FLAGS-ON-1): the vitest setup file imports the Persona client's flags module, which only the Client aggregate may see.
+    "scripts/test-dom-environment.ts"
   ],
   "references": [
     { "path": "./packages/experimental/action-cards" },

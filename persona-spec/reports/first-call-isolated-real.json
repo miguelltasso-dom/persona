@@ -1,0 +1,27 @@
+{
+  "at": "2026-11-05T03:55:01.507Z",
+  "version": "2.1.318 (Claude Code)",
+  "gatePath": "C:\\Users\\migue\\AppData\\Local\\Temp\\tally-fresh-GSL7\\persona-cli-env\\isolation-gate.json",
+  "beforeSettle": {
+    "effectiveMode": "native",
+    "reason": "unverified"
+  },
+  "waitedMs": 16996,
+  "afterSettle": {
+    "effectiveMode": "answer-only",
+    "reason": "verified"
+  },
+  "launchArgsOfTheFirstCall": [
+    "--strict-mcp-config",
+    "--setting-sources",
+    "project",
+    "--disable-slash-commands"
+  ],
+  "envOfTheFirstCall": [
+    "CLAUDE_CODE_DISABLE_AGENT_PROGRESS_SUMMARIES",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY",
+    "CLAUDE_CODE_DISABLE_ORG_MEMORY"
+  ],
+  "gateFileWritten": true,
+  "modelCalls": 0
+}

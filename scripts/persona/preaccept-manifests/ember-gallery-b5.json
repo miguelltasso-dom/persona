@@ -1,0 +1,24 @@
+{
+  "owner": "Ember (galeria interna)",
+  "bundle": "5 (src de 07/11, lib d8109efa)",
+  "dir": ".maestri/tmp/shots/ember/gallery-b5",
+  "shell": false,
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "note": "Regressão da galeria interna do Ember no src do bundle 5 (07/11): os estados que o shell real não produz (ação SEM prévia, prévia cortada) e as telas que o ActionPreviewCard (Flint), a regra 4 de Aprovações (Quill, NextStepBar OFF) e o KanbanCard (inReviewSince) tocam. Recortadas em <main>, sem o trilho. Gere com EMBER_GALLERY_OUT=<pasta> EMBER_AXE=<axe.min.js>.",
+  "scenes": [
+    { "id": "inbox" },
+    { "id": "inbox-action" },
+    { "id": "inbox-action-pay", "allowCurrency": true },
+    { "id": "inbox-action-blind" },
+    { "id": "inbox-connector" },
+    { "id": "inbox-vault" },
+    { "id": "inbox-empty" },
+    { "id": "approvals-hire" },
+    { "id": "approvals-hire-details" },
+    { "id": "board-not-started" },
+    { "id": "board-started-now" }
+  ]
+}

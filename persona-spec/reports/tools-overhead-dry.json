@@ -1,0 +1,130 @@
+{
+  "at": "2026-11-05T06:33:23.338Z",
+  "version": "2.1.318 (Claude Code)",
+  "baseline": {
+    "totalTokens": 1608,
+    "categories": [
+      {
+        "name": "System prompt",
+        "tokens": 1608
+      },
+      {
+        "name": "Autocompact buffer",
+        "tokens": 33000
+      },
+      {
+        "name": "Free space",
+        "tokens": 965392
+      }
+    ]
+  },
+  "teamToolNames": {
+    "write": [
+      "persona_report",
+      "persona_recall",
+      "persona_ask",
+      "board_list",
+      "board_card_move",
+      "sprint_list",
+      "sprint_create",
+      "sprint_plan",
+      "sprint_start",
+      "sprint_close",
+      "routine_list",
+      "routine_create",
+      "routine_update",
+      "routine_pause",
+      "persona_hire",
+      "ask_team_opinion",
+      "ask_colleague",
+      "pass_forward",
+      "review_verdict"
+    ],
+    "read": [
+      "persona_recall",
+      "persona_ask",
+      "board_list",
+      "sprint_list",
+      "routine_list",
+      "review_verdict"
+    ]
+  },
+  "turn-ask-only": {
+    "tools": 1,
+    "definitionChars": 810,
+    "connected": true,
+    "serverTools": 1,
+    "totalTokens": 2036,
+    "deltaTokens": 428,
+    "mcpCategoryTokens": 428,
+    "tokensPerTool": 428,
+    "charsPerToken": 1.89
+  },
+  "turn-worker-team": {
+    "tools": 4,
+    "definitionChars": 4900,
+    "connected": true,
+    "serverTools": 4,
+    "totalTokens": 4148,
+    "deltaTokens": 2540,
+    "mcpCategoryTokens": 2540,
+    "tokensPerTool": 635,
+    "charsPerToken": 1.93
+  },
+  "turn-reviewer": {
+    "tools": 2,
+    "definitionChars": 1456,
+    "connected": true,
+    "serverTools": 2,
+    "totalTokens": 2381,
+    "deltaTokens": 773,
+    "mcpCategoryTokens": 773,
+    "tokensPerTool": 387,
+    "charsPerToken": 1.88
+  },
+  "turn-worker-team-board": {
+    "tools": 6,
+    "definitionChars": 5459,
+    "connected": true,
+    "serverTools": 6,
+    "totalTokens": 4473,
+    "deltaTokens": 2865,
+    "mcpCategoryTokens": 2865,
+    "tokensPerTool": 478,
+    "charsPerToken": 1.91
+  },
+  "team-write": {
+    "tools": 19,
+    "definitionChars": 11620,
+    "connected": true,
+    "serverTools": 19,
+    "totalTokens": 7848,
+    "deltaTokens": 6240,
+    "mcpCategoryTokens": 6240,
+    "tokensPerTool": 328,
+    "charsPerToken": 1.86
+  },
+  "team-read": {
+    "tools": 6,
+    "definitionChars": 2173,
+    "connected": true,
+    "serverTools": 6,
+    "totalTokens": 2830,
+    "deltaTokens": 1222,
+    "mcpCategoryTokens": 1222,
+    "tokensPerTool": 204,
+    "charsPerToken": 1.78
+  },
+  "connector-fixture-30": {
+    "tools": 30,
+    "definitionChars": 25110,
+    "connected": true,
+    "serverTools": 30,
+    "totalTokens": 14252,
+    "deltaTokens": 12644,
+    "mcpCategoryTokens": 12644,
+    "tokensPerTool": 421,
+    "charsPerToken": 1.99
+  },
+  "modelCalls": 0
+}

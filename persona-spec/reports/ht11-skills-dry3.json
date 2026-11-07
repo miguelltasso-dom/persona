@@ -1,0 +1,11 @@
+{
+  "note": "HT-11 / ISO-5 dry 3: which setting sources keep the PROJECT's own CLAUDE.md and skills while the account connector still arrives and a project .mcp.json server stays out. Test project: one CLAUDE.md, one project skill, one project .mcp.json stdio server. Claude 2.1.318, control requests only (zero model), counts only.",
+  "rows": [
+    { "variant": "A floor: strict + project + no slash", "commands": 0, "memoryTokens": 419, "servers": 0, "total": 31833 },
+    { "variant": "B connector (as shipped before): local + no slash + allow-list", "commands": 0, "memoryTokens": 0, "servers": 1, "connected": 1, "total": 32878, "finding": "project CLAUDE.md DROPPED (419 -> 0)" },
+    { "variant": "C local,project + no slash + allow-list", "commands": 0, "memoryTokens": 419, "servers": 1, "connected": 1, "projectScopeServers": 0, "total": 33297, "finding": "CLAUDE.md kept; only the account connector; the project .mcp.json server does not load" },
+    { "variant": "D local,project + add-dir folder (slash on) + allow-list", "commands": 57, "skillsTokens": 2395, "memoryTokens": 419, "servers": 1, "connected": 1, "total": 25782, "finding": "skills folder + connector + CLAUDE.md together" },
+    { "variant": "E strict + project + add-dir folder (slash on)", "commands": 57, "skillsTokens": 2395, "memoryTokens": 419, "servers": 0, "total": 24318 }
+  ],
+  "decision": "CLAUDE_CONNECTOR_ARGS uses --setting-sources local,project"
+}

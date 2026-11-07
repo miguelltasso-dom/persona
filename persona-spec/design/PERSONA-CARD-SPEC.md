@@ -34,7 +34,7 @@ Pedido do Miguel via Atlas. A referência `ref-cartao-persona.jpg` dá **só a e
 6. **Modelo**: rótulo do motor mais as barras **5h** e **Semana**:
    - âmbar a partir de 80%, vermelho a partir de 100%;
    - "No limite até 18:30" em vermelho;
-   - **sem cota = texto "Cota oficial indisponível para este motor". Nunca 0%.**
+   - **sem cota = texto "Este motor não informa a cota." (D-092, 07/11). Nunca 0%.**
 7. **Mensagem para Nina…**: campo-pílula com o botão enviar. Enter envia **na DM** e fecha o cartão.
 
 ## 3. Comportamento e acessibilidade

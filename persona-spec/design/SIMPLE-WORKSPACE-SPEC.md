@@ -104,7 +104,7 @@ O vocabulário técnico aparece só em **Projeto › Configurações avançadas*
 - `ChoiceCards`, por arquivo, com a recomendação marcada:
   1. **Ficar com o meu**: "Mantém o arquivo da sua pasta e descarta a mudança de {Persona} neste arquivo."
   2. **Ficar com o de {Persona}**: "Usa a versão do rascunho. A sua fica guardada em Histórico por 30 dias."
-  3. **Manter os dois** (recomendado): "Salva a versão de {Persona} como '{nome} (de {Persona}).{ext}' ao lado da sua."
+  3. **Manter os dois** (recomendado): "Salva a versão do rascunho como '{arquivo} (rascunho).{ext}' ao lado da sua."
 - Ver as duas versões lado a lado com o mesmo componente de antes e depois.
 - **Nunca** os marcadores `<<<<` no arquivo.
 

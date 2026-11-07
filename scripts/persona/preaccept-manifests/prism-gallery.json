@@ -1,0 +1,19 @@
+{
+  "owner": "Prism (galeria interna)",
+  "bundle": "4",
+  "dir": ".maestri/tmp/shots/prism-gallery",
+  "shell": false,
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio", "Tuca"],
+  "note": "Componentes REAIS na galeria (scripts/persona/prism-accept-gallery.mjs, sem o trilho): o Bom dia (manhã e tarde), o cartão de entrega, o plano vivo e Equipe › Personas. A Aparência (escolha que força o tema) é do shell real. Gere com PRISM_AXE=<axe.min.js> para a sonda trazer o axe.",
+  "scenes": [
+    "bom-dia",
+    "bom-dia-tarde",
+    "entrega",
+    "plano-vivo",
+    "equipe-personas",
+    "equipe-personas-vazio"
+  ]
+}

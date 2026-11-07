@@ -1,0 +1,454 @@
+@@@ file=src/remote-guard.ts name=reason-types
+<<<FROM
+/** Typed Remote failure. Message never carries an id the caller did not send. */
+export class RemoteFault extends Error {
+===TO
+/**
+ * The closed vocabulary of `RemoteFault.details.reason`: a stable, kebab-case id the client keys on instead of reading the message (Anvil/Keel, CV-6).
+ * Never a sentence for a person.
+ */
+export type RemoteFaultReason = 'channel-archived'
+
+/** What a fault carries besides its code. */
+export interface RemoteFaultDetails {
+  readonly retryAfterMs?: number
+  readonly reason?: RemoteFaultReason
+}
+
+/** Typed Remote failure. Message never carries an id the caller did not send. */
+export class RemoteFault extends Error {
+>>>
+@@@ file=src/remote-guard.ts name=reason-field
+<<<FROM
+  readonly details: { readonly retryAfterMs?: number }
+===TO
+  readonly details: RemoteFaultDetails
+>>>
+@@@ file=src/remote-guard.ts name=reason-ctor
+<<<FROM
+  constructor(code: RemoteFaultCode, message: string, details: { readonly retryAfterMs?: number } = {}) {
+===TO
+  constructor(code: RemoteFaultCode, message: string, details: RemoteFaultDetails = {}) {
+>>>
+@@@ file=src/governance.ts name=hook-field
+<<<FROM
+export class GovernanceHost {
+  private readonly functionPlans: ScreenRepos
+===TO
+export class GovernanceHost {
+  private readonly functionPlans: ScreenRepos
+  /** CV-6: the organogram changed for the projects of these personas (a persona joined, left a team, changed sector or role). The host reconciles the team channels. */
+  onOrganogramChange: ((projectId: string) => void) | undefined = undefined
+>>>
+@@@ file=src/governance.ts name=hook-register
+<<<FROM
+      ...(sectorId === undefined ? {} : { sectorId }),
+    })
+    this.proactivity.ensureInitiativeRoutine(persona)
+===TO
+      ...(sectorId === undefined ? {} : { sectorId }),
+    })
+    this.onOrganogramChange?.(persona.projectId)
+    this.proactivity.ensureInitiativeRoutine(persona)
+>>>
+@@@ file=src/governance.ts name=hook-set-sector
+<<<FROM
+      ...(sectorId === '' ? {} : { sectorId }),
+    })
+    this.audit(workspaceId, actorId, 'set-sector', { personaId, sectorId })
+===TO
+      ...(sectorId === '' ? {} : { sectorId }),
+    })
+    this.changedFor([personaId])
+    this.audit(workspaceId, actorId, 'set-sector', { personaId, sectorId })
+>>>
+@@@ file=src/governance.ts name=hook-persist
+<<<FROM
+  private persistCharges(charges: readonly PersonaCharge[]): void {
+    for (const charge of charges) {
+      this.cards.putCharge({
+        personaId: charge.personaId,
+        responsibleHumanId: charge.responsibleHumanId,
+        confirmed: charge.confirmed,
+        ...(charge.substituteHumanId === undefined ? {} : { substituteHumanId: charge.substituteHumanId }),
+        ...(charge.sectorId === undefined ? {} : { sectorId: charge.sectorId }),
+      })
+    }
+  }
+===TO
+  private persistCharges(charges: readonly PersonaCharge[]): void {
+    for (const charge of charges) {
+      this.cards.putCharge({
+        personaId: charge.personaId,
+        responsibleHumanId: charge.responsibleHumanId,
+        confirmed: charge.confirmed,
+        ...(charge.substituteHumanId === undefined ? {} : { substituteHumanId: charge.substituteHumanId }),
+        ...(charge.sectorId === undefined ? {} : { sectorId: charge.sectorId }),
+      })
+    }
+    this.changedFor(charges.map(charge => charge.personaId))
+  }
+
+  /** Tell the host which projects' organogram changed (once per project). */
+  private changedFor(personaIds: readonly string[]): void {
+    if (this.onOrganogramChange === undefined) return
+    for (const projectId of new Set(personaIds.flatMap(id => this.product.getPersona(id)?.projectId ?? []))) this.onOrganogramChange(projectId)
+  }
+>>>
+@@@ file=src/types.ts name=channel-view
+<<<FROM
+export interface ChannelView {
+  readonly id: string
+  readonly projectId: string
+  readonly name: string
+  readonly topic: string
+}
+===TO
+export interface ChannelView {
+  readonly id: string
+  readonly projectId: string
+  readonly name: string
+  readonly topic: string
+  /** CV-6: the project's name, so a list that mixes projects says where each channel is from. */
+  readonly projectName: string
+  /** `general` = the automatic #geral (never archived or renamed); `team` = a team of the organogram; `directorate` = #diretoria; `custom` = the person's. */
+  readonly kind: 'general' | 'team' | 'directorate' | 'custom'
+  /** Members now (derived from the organogram for team/directorate/general; stored for custom). */
+  readonly memberCount: number
+  readonly archived: boolean
+  readonly archivedReason?: 'team-gone' | 'directorate-gone' | 'by-person'
+  /** Pinned by the person who asks (pinning is each person's own). */
+  readonly pinned: boolean
+  /** `team`: the name of the sector, as the organogram writes it. */
+  readonly teamName?: string
+}
+
+/** CV-6: one member of a channel. */
+export interface ChannelMemberView {
+  readonly kind: 'persona' | 'human'
+  readonly id: string
+  readonly name: string
+}
+
+/** CV-6: a channel of a project. */
+export interface ChannelScopeRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly channelId: string
+}
+
+/** CV-6: rename (1–32 characters, no `#`, unique in the project; a channel the person renamed is never renamed back by the organogram). */
+export interface RenameChannelRequest extends ChannelScopeRequest {
+  readonly name: string
+}
+
+/** CV-6: pin or unpin for the person who asks. */
+export interface SetChannelPinnedRequest extends ChannelScopeRequest {
+  readonly pinned: boolean
+}
+>>>
+@@@ file=src/types.ts name=create-channel-members
+<<<FROM
+export interface CreateChannelRequest {
+  readonly id: string
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly name: string
+  readonly topic: string
+}
+===TO
+export interface CreateChannelRequest {
+  readonly id: string
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly name: string
+  readonly topic: string
+  /** CV-6: who is in a channel the person makes (personas of the project and people of the workspace). */
+  readonly memberIds?: readonly { readonly kind: 'persona' | 'human'; readonly id: string }[]
+}
+>>>
+@@@ file=src/index.ts name=imports-store
+<<<FROM
+  ConnectorGrantRepos,
+  TicketConnectorAuthRepos,
+===TO
+  ChannelRepos,
+  ConnectorGrantRepos,
+  TicketConnectorAuthRepos,
+>>>
+@@@ file=src/index.ts name=imports-team-channels
+<<<FROM
+import { TeamOpinions } from './opinion-run.ts'
+===TO
+import { TeamOpinions } from './opinion-run.ts'
+import { TeamChannels } from './team-channels.ts'
+>>>
+@@@ file=src/index.ts name=imports-types
+<<<FROM
+  ChannelView,
+===TO
+  ChannelMemberView,
+  ChannelScopeRequest,
+  ChannelView,
+  RenameChannelRequest,
+  SetChannelPinnedRequest,
+>>>
+@@@ file=src/index.ts name=fields
+<<<FROM
+  readonly topics: TopicRepos
+===TO
+  readonly topics: TopicRepos
+  /** CV-6: channels beyond {id, name, topic} (kind, archive, name lock, members, pins). */
+  readonly channelRepos: ChannelRepos
+  /** CV-6: the channels of the organogram (team channels, #diretoria) and who is on each. */
+  readonly teamChannels: TeamChannels
+>>>
+@@@ file=src/index.ts name=construct
+<<<FROM
+    this.topics = new TopicRepos(this.store, () => this.orchestration.now())
+===TO
+    this.topics = new TopicRepos(this.store, () => this.orchestration.now())
+    this.channelRepos = new ChannelRepos(this.store, () => this.orchestration.now())
+    this.teamChannels = new TeamChannels({
+      channels: this.channelRepos,
+      personas: projectId => this.product.listPersonas(projectId),
+      project: projectId => this.product.getProject(projectId),
+      sectors: workspaceId => this.governance.gov.listSectors(workspaceId),
+      sectorOf: workspaceId => new Map(this.cards.listCharges(workspaceId).flatMap(charge => (charge.sectorId === undefined ? [] : [[charge.personaId, charge.sectorId] as const]))),
+      ownerIds: workspaceId => this.product.listMembers(workspaceId).filter(member => member.role === 'owner').map(member => member.id),
+      say: (line) => {
+        if (this.events.has(line.id)) return false
+        this.events.append({
+          id: line.id, workspaceId: line.workspaceId, projectId: line.projectId, streamKind: 'channel', ownerId: line.channelId,
+          type: 'message', body: line.body, actorId: line.actorId, subjectId: '', occurredAt: line.at,
+        })
+        return true
+      },
+      now: () => this.orchestration.now(),
+      enabled: () => this.teamworkEnabled,
+    })
+    // The organogram changed (a persona joined, left, moved or changed role): the team channels follow. Fail-soft: a channel never blocks a hire.
+    this.governance.onOrganogramChange = (projectId) => {
+      try { this.teamChannels.reconcile(projectId) } catch (error: unknown) { this.orchestration.softFailure('team-channels', error) }
+    }
+    // CV-8: who is the team of a channel is the organogram's answer now (was: every persona of the project).
+    this.teamOf = (projectId, channelId) => this.teamChannels.teamPersonasOf(projectId, channelId)
+>>>
+@@@ file=src/index.ts name=boot
+<<<FROM
+          for (const persona of this.product.listPersonas(project.id)) this.governance.registerPersona(persona)
+===TO
+          for (const persona of this.product.listPersonas(project.id)) this.governance.registerPersona(persona)
+          this.teamChannels.reconcile(project.id) // heals a base that already had teams: their channels are born here
+>>>
+@@@ file=src/index.ts name=retire-hook
+<<<FROM
+      this.orchestration.evictWarmRunners(request.projectId, persona.id)
+      this.auditPersona(request.projectId, persona.id, 'retire')
+    }
+===TO
+      this.orchestration.evictWarmRunners(request.projectId, persona.id)
+      this.auditPersona(request.projectId, persona.id, 'retire')
+      this.teamChannels.reconcile(request.projectId) // a team that lost its last person is archived (never deleted)
+    }
+>>>
+@@@ file=src/index.ts name=archived-post
+<<<FROM
+  private appendMessage(request: PostMessageRequest, firstDelivery?: { executorId: string; title: string; assignment?: string }): MessageView {
+    this.requireProject(request)
+===TO
+  private appendMessage(request: PostMessageRequest, firstDelivery?: { executorId: string; title: string; assignment?: string }): MessageView {
+    this.requireProject(request)
+    // A line to a channel nobody reads would be silence (D-079): refuse it, with the stable reason the client keys on. Reading stays allowed.
+    if (request.streamKind === 'channel' && this.channelRepos.get(request.ownerId)?.archivedAt !== undefined) {
+      throw new HostRemoteFault('conflict', 'Este canal está arquivado. Desarquive para escrever.', { reason: 'channel-archived' })
+    }
+>>>
+@@@ file=src/index.ts name=list-channels
+<<<FROM
+  listChannels(request: ProjectScopeRequest): ChannelView[] {
+    this.requireProject(request)
+    return this.product.listChannels(request.projectId).map(channel => ({
+      id: channel.id,
+      projectId: channel.projectId,
+      name: channel.name,
+      topic: channel.topic,
+    }))
+  }
+===TO
+  listChannels(request: ProjectScopeRequest): ChannelView[] {
+    this.requireProject(request) // pure read: the team channels are reconciled at boot and when the organogram changes, never here
+    const me = this.actorOf(request.workspaceId)?.id
+    const pinned = me === undefined ? new Set<string>() : this.channelRepos.pinnedBy(me)
+    const sectors = new Map(this.governance.gov.listSectors(request.workspaceId).map(sector => [sector.id, sector.name] as const))
+    const rank = (view: ChannelView): number => (view.archived ? 3 : view.pinned ? 0 : view.kind === 'general' ? 1 : 2)
+    return this.channelRepos.list(request.projectId)
+      .map(channel => this.channelViewOf(channel, pinned, sectors))
+      .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+  }
+
+  private channelViewOf(channel: ReturnType<ChannelRepos['get']> & object, pinned: ReadonlySet<string>, sectors: ReadonlyMap<string, string>): ChannelView {
+    const teamName = channel.sourceId === undefined ? undefined : sectors.get(channel.sourceId)
+    return {
+      id: channel.id, projectId: channel.projectId, name: channel.name, topic: channel.topic,
+      projectName: this.product.getProject(channel.projectId)?.name ?? '',
+      kind: channel.kind,
+      memberCount: this.teamChannels.membersOf(channel.projectId, channel.id).length,
+      archived: channel.archivedAt !== undefined,
+      ...(channel.archivedReason === undefined ? {} : { archivedReason: channel.archivedReason }),
+      pinned: pinned.has(channel.id),
+      ...(teamName === undefined ? {} : { teamName }),
+    }
+  }
+
+  /**
+   * Who is on a channel (the organogram's answer for team/directorate/general, the stored list for a channel the person made).
+   * @param request - Channel.
+   */
+  @Remote
+  listChannelMembers(request: ChannelScopeRequest): ChannelMemberView[] {
+    this.requireProject(request)
+    this.ownChannel(request)
+    return this.teamChannels.membersOf(request.projectId, request.channelId).map((member) => {
+      const name = member.kind === 'persona' ? this.product.getPersona(member.id)?.name : this.product.getMember(member.id)?.displayName
+      return { kind: member.kind, id: member.id, name: name ?? '' }
+    })
+  }
+
+  /**
+   * Rename a channel (not #geral: the morning card and the Tasks find it by that name). The person's name sticks: the organogram never renames it back.
+   * @param request - Channel and the new name.
+   */
+  @Remote
+  renameChannel(request: RenameChannelRequest): ChannelView {
+    this.requireWrite(request)
+    const channel = this.ownChannel(request)
+    if (channel.kind === 'general') throw new HostRemoteFault('forbidden', 'O #geral não muda de nome.')
+    const name = request.name.trim()
+    // eslint-disable-next-line no-control-regex -- control characters are exactly what a name must not have
+    if (name === '' || name.length > 32 || /[#\u0000-\u001f\u007f]/u.test(name)) {
+      throw new HostRemoteFault('invalid-payload', 'O nome do canal tem de ter de 1 a 32 caracteres, sem “#”.')
+    }
+    try {
+      this.channelRepos.rename(channel.id, name, true)
+    } catch (error: unknown) {
+      if (error instanceof StoreError && error.code === 'conflict') throw new HostRemoteFault('conflict', 'Já existe um canal com esse nome.')
+      throw error
+    }
+    return this.channelView(request.projectId, channel.id)
+  }
+
+  /**
+   * Archive a channel (it goes to Arquivados; nothing is deleted and the history stays). Not #geral.
+   * @param request - Channel.
+   */
+  @Remote
+  archiveChannel(request: ChannelScopeRequest): ChannelView {
+    this.requireWrite(request)
+    const channel = this.ownChannel(request)
+    if (channel.kind === 'general') throw new HostRemoteFault('forbidden', 'O #geral não pode ser arquivado.')
+    this.channelRepos.archive(channel.id, 'by-person')
+    return this.channelView(request.projectId, channel.id)
+  }
+
+  /**
+   * Bring an archived channel back (history intact).
+   * @param request - Channel.
+   */
+  @Remote
+  unarchiveChannel(request: ChannelScopeRequest): ChannelView {
+    this.requireWrite(request)
+    const channel = this.ownChannel(request)
+    this.channelRepos.unarchive(channel.id)
+    return this.channelView(request.projectId, channel.id)
+  }
+
+  /**
+   * Pin or unpin a channel for the person who asks (each person pins their own).
+   * @param request - Channel and the switch.
+   */
+  @Remote
+  setChannelPinned(request: SetChannelPinnedRequest): ChannelView {
+    this.requireProject(request)
+    const channel = this.ownChannel(request)
+    const me = this.actorOf(request.workspaceId)?.id
+    if (me === undefined) throw new HostRemoteFault('forbidden', 'Entre para fixar um canal.')
+    this.channelRepos.setPinned(channel.id, me, request.pinned)
+    return this.channelView(request.projectId, channel.id)
+  }
+
+  /**
+   * Make the team channels match the organogram NOW (the host does it at boot and when the organogram changes; this is for a flow that needs it sooner).
+   * @param request - Project.
+   */
+  @Remote
+  reconcileTeamChannels(request: ProjectScopeRequest): ChannelView[] {
+    this.requireWrite(request)
+    this.teamChannels.reconcile(request.projectId)
+    return this.listChannels(request)
+  }
+
+  private ownChannel(request: ChannelScopeRequest): NonNullable<ReturnType<ChannelRepos['get']>> {
+    const channel = this.channelRepos.get(request.channelId)
+    if (channel === undefined || channel.projectId !== request.projectId) throw new HostRemoteFault('not-found', 'Esse canal não existe mais.')
+    return channel
+  }
+
+  private channelView(projectId: string, channelId: string): ChannelView {
+    const found = this.listChannels({ workspaceId: this.product.getProject(projectId)?.workspaceId ?? '', projectId }).find(view => view.id === channelId)
+    if (found === undefined) throw new HostRemoteFault('not-found', 'Esse canal não existe mais.')
+    return found
+  }
+>>>
+@@@ file=src/index.ts name=create-channel-members
+<<<FROM
+    const channel = this.product.createChannel({
+      id: request.id,
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      name: request.name,
+      topic: request.topic,
+    })
+    return { id: channel.id, projectId: channel.projectId, name: channel.name, topic: channel.topic }
+===TO
+    const channel = this.product.createChannel({
+      id: request.id,
+      workspaceId: request.workspaceId,
+      projectId: request.projectId,
+      name: request.name,
+      topic: request.topic,
+    })
+    if (request.memberIds !== undefined && request.memberIds.length > 0) {
+      const known = new Set(this.product.listPersonas(request.projectId).map(persona => persona.id))
+      this.channelRepos.setMembers(channel.id, request.memberIds.filter(member => member.kind === 'human' ? this.product.getMember(member.id) !== undefined : known.has(member.id)))
+    }
+    return this.channelView(request.projectId, channel.id)
+>>>
+@@@ file=src/index.ts name=general-kind
+<<<FROM
+    const created = this.product.createChannel({
+      id: `geral:${projectId}`,
+      workspaceId,
+      projectId,
+      name: 'geral',
+      topic: '',
+    })
+===TO
+    const created = this.channelRepos.create({
+      id: `geral:${projectId}`,
+      workspaceId,
+      projectId,
+      name: 'geral',
+      topic: '',
+      kind: 'general', // CV-6: the automatic #geral is never archived or renamed
+    })
+>>>
+@@@ file=src/index.ts name=general-fallback
+<<<FROM
+      ?? existing.find(channel => channel.name === 'geral')
+      ?? existing[0]
+===TO
+      ?? existing.find(channel => channel.name === 'geral')
+      ?? existing.find(channel => this.channelRepos.get(channel.id)?.kind === 'general')
+      ?? existing[0]
+>>>

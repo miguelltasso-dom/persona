@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { createRequire } from 'node:module'
 import { extname, join, normalize, resolve } from 'node:path'
 import { freePort } from './free-port.mjs'
+import { collectProbe, writeProbe } from './preaccept-probe.mjs'
 
 const root = 'C:/Users/migue/dev/persona'
 const pkg = `${root}/packages/persona/client-ui-persona`
@@ -21,7 +22,8 @@ const VIEWPORTS = [
   { tag: '960x640', width: 960, height: 640, dpr: 1 },
   { tag: 'zoom200', width: 640, height: 360, dpr: 2 },
 ]
-const outDir = `${root}/.maestri/tmp/shots/ember`
+// EMBER_GALLERY_OUT: a new batch (bundle 5) must not overwrite the images the Muse already accepted in .maestri/tmp/shots/ember/.
+const outDir = process.env.EMBER_GALLERY_OUT ?? `${root}/.maestri/tmp/shots/ember`
 const dist = resolve(`${root}/.maestri/tmp/ember-gallery-${process.pid}`)
 mkdirSync(outDir, { recursive: true })
 rmSync(dist, { recursive: true, force: true })
@@ -128,6 +130,7 @@ try {
       page.on('console', (m) => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 200)}`) })
       page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 200)}`))
       for (const state of STATES) {
+        const errorMark = errors.length
         try {
           // A blank page passes axe: the screen must have real text before it counts as a capture.
           let mainText = ''
@@ -158,15 +161,12 @@ try {
           else await page.screenshot({ path: `${outDir}/${file}` })
           const probe = await page.evaluate(probeOverflow)
           let axe = 'skipped'
-          const axeFile = process.env.EMBER_AXE
-          if (axeFile !== undefined) {
-            await page.addScriptTag({ path: axeFile })
-            const violations = await page.evaluate(async () => {
-              const r = await globalThis.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } })
-              return r.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.length, sample: v.nodes.slice(0, 2).map(n => n.target.join(' ')) }))
-            })
-            axe = violations.length
-            for (const v of violations) console.log(`[axe ${state} ${scheme} ${viewport.tag}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 200)}`)
+          // Pré-aceite mecânico: a sonda (texto visível, imagens, ícones, tema, axe, foco no 1º Tab) vai ao lado da imagem como <captura>.probe.json.
+          const preaccept = await collectProbe(page, { axePath: process.env.EMBER_AXE, consoleErrors: errors.slice(errorMark), focus: process.env.PREACCEPT_FOCUS !== '0' })
+          writeProbe(`${outDir}/${file}`, preaccept)
+          if (preaccept.axe !== undefined) {
+            axe = preaccept.axe.length
+            for (const v of preaccept.axe) console.log(`[axe ${state} ${scheme} ${viewport.tag}] ${v.impact} ${v.id} x${v.nodes} :: ${v.sample.join(' | ').slice(0, 200)}`)
           }
           const infinite = await page.evaluate(() => document.getAnimations().filter(an => an.playState === 'running' && Number(an.effect?.getComputedTiming().iterations) === Infinity).length)
           report.push({ state, scheme, viewport: viewport.tag, file, axe, infiniteAnimations: infinite, ...(keyboard === undefined ? {} : { keyboard }), ...probe })

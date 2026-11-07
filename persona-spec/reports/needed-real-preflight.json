@@ -1,0 +1,14 @@
+{
+  "at": "2026-11-05T06:45:09.554Z",
+  "version": "2.1.318 (Claude Code)",
+  "needed": true,
+  "tools": 30,
+  "measuredFloorTokens": 31414,
+  "registeredFloorTokens": 31414,
+  "fixtureConnected": true,
+  "fixtureServerTools": 30,
+  "fixtureTokens": 0,
+  "maxRequestInputAllowed": 39432,
+  "runnerBuilt": true,
+  "modelCalls": 0
+}

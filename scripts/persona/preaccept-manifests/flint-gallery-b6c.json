@@ -1,0 +1,19 @@
+{
+  "owner": "Flint",
+  "bundle": "6c",
+  "dir": ".maestri/tmp/shots/flint/gallery-b6c",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna"],
+  "scenes": [
+    { "id": "files-saved-one" },
+    { "id": "files-saved-many" },
+    { "id": "files-saved-four-icons" },
+    { "id": "opinion-art" },
+    { "id": "opinion-art-collapsed" },
+    { "id": "opinion-art-pair" }
+  ],
+  "shell": false,
+  "note": "LOTE 5 do Flint (galeria do src atual = lib 6c, DADOS DE EXEMPLO; o host ainda não entrega): a linha tipada '{name} salvou {file} no rascunho' (um arquivo; 5 arquivos = 3 miniaturas de 40 px + '+2 arquivos'; 4 arquivos só com ícones do tipo + '+1 arquivo'; miniaturas logo depois do texto, ajuste da Muse 16:50) e a ARTE no cartão de opinião (aberto; recolhido; .svg + .png irmão = UMA miniatura). Miniaturas = PNG de 192 px feitas com sharp (o que o host fará)."
+}

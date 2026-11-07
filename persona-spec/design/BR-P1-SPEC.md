@@ -214,3 +214,7 @@ Revisado com `.maestri/tmp/muse/review-life.py tucano`; quadro em `br-p1/tucano-
   - `acenando`;
   - `pensando-1/2/3`: sem balão, mesma escala.
 - **Os 12 extras com o kit de vida completo (6 frames cada):** capivara, cervo, coelho, coruja, guaxinim, lobo-guará, lontra, ouriço, panda, raposa, tamanduá e tucano. Tudo no app.
+- **Kit do mico (BR-P1 P3) aprovado (22:25).** O tail v3 tem 6,18% no review-life, mas só 0,67% fora da cauda: aceito. Regra: em bicho de cauda grande, a tolerância vale quando ≤ 1% da mudança cai fora da parte que se move.
+- **Os 3 bichos restantes do P3 (preguiça, tatu-bola, arara-azul) vão para a v1.2** (Atlas, 23:00; orçamento de arte). O Brush os produz sem pressa, depois do BR-P5, e nada entra no pipeline antes da v1.2.
+- **O quadro 'disponivel-tail' em bicho sem cauda visível** (preguiça, v1.2): é o 2º movimento de vida, um gesto lento e pequeno (inclinar a cabeça ~4° ou baixar o braço do aceno). Valem a mesma silhueta e a mudança ≤ 6%, e o nome do arquivo não muda.
+- **Os 3 kits da v1.2 estão fechados (05/11, 01:20):** preguiça, tatu-bola e arara-azul (arara v3, erro v2), em `persona-assets/concepts/v1.2/`. A vida foi feita por composição com máscara (`persona-assets/tools/life-composite/`). Ficam fora do pipeline até a v1.2; aí entram de uma vez, com o peso medido.

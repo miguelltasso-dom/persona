@@ -1,0 +1,83 @@
+{
+  "note": "REAL: two calls on haiku, answer-only, vendor-reported counters; Atlas authorised 04/11 22:40 (ceiling 2)",
+  "real": true,
+  "claudeVersion": "2.1.318 (Claude Code)",
+  "model": "haiku",
+  "image": {
+    "width": 1500,
+    "height": 1000,
+    "bytes": 6725,
+    "type": "image/png"
+  },
+  "calls": [
+    {
+      "label": "sem-imagem",
+      "ended": true,
+      "ms": 18392,
+      "reply": "Não há nenhuma imagem anexada à sua mensagem, então não há como descrever o conteúdo.",
+      "inputTokens": 3031,
+      "outputTokens": 38,
+      "cacheReadTokens": 2319,
+      "cacheWriteTokens": 710,
+      "mainLoopInputTokens": 3031,
+      "mainLoopOutputTokens": 38,
+      "envMode": "answer-only",
+      "envModeRequested": null,
+      "environment": {
+        "tools": 0,
+        "mcpServers": 0,
+        "skills": 0,
+        "slashCommands": 0,
+        "plugins": 4,
+        "model": "claude-haiku-5-5"
+      }
+    },
+    {
+      "label": "com-imagem",
+      "ended": true,
+      "ms": 7300,
+      "reply": "Uma faixa azul-clara ocupa a parte superior da imagem e uma faixa verde ocupa a parte inferior, sem outros elementos.",
+      "inputTokens": 5049,
+      "outputTokens": 53,
+      "cacheReadTokens": 2319,
+      "cacheWriteTokens": 2728,
+      "mainLoopInputTokens": 5049,
+      "mainLoopOutputTokens": 53,
+      "envMode": "answer-only",
+      "envModeRequested": null,
+      "environment": {
+        "tools": 0,
+        "mcpServers": 0,
+        "skills": 0,
+        "slashCommands": 0,
+        "plugins": 4,
+        "model": "claude-haiku-5-5"
+      }
+    }
+  ],
+  "image_tokens_measured": {
+    "mainLoopInputDifference": 2018,
+    "totalInputDifference": 2018
+  },
+  "sameMode": true,
+  "ledger": {
+    "version": 1,
+    "turns": 2,
+    "entries": [
+      {
+        "at": "2026-11-05T01:45:26.261Z",
+        "kind": "start",
+        "ticketId": "image-cost",
+        "assignmentId": "image-cost-sem-imagem",
+        "personaId": "img-base"
+      },
+      {
+        "at": "2026-11-05T01:45:32.491Z",
+        "kind": "start",
+        "ticketId": "image-cost",
+        "assignmentId": "image-cost-com-imagem",
+        "personaId": "img-with"
+      }
+    ]
+  }
+}

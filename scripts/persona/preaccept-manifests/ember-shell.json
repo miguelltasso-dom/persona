@@ -1,0 +1,107 @@
+{
+  "owner": "Ember",
+  "bundle": "3",
+  "dir": ".maestri/tmp/shots/ember/shell",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": [
+    "light",
+    "dark"
+  ],
+  "viewports": [
+    "1440x900",
+    "960x640",
+    "zoom200"
+  ],
+  "roster": [
+    "Atlas",
+    "Bento",
+    "Nina",
+    "Sol",
+    "Luna",
+    "Bolota",
+    "Pipa",
+    "Capi",
+    "Bia",
+    "Teo",
+    "Téo",
+    "Lia",
+    "Caio"
+  ],
+  "scenes": [
+    {
+      "id": "approvals"
+    },
+    {
+      "id": "approvals-v2"
+    },
+    {
+      "id": "approvals-v2-batch-button"
+    },
+    {
+      "id": "approvals-v2-batch-confirm"
+    },
+    {
+      "id": "approvals-v2-batch-toast"
+    },
+    {
+      "id": "approvals-v2-cofre"
+    },
+    {
+      "id": "approvals-v2-empty"
+    },
+    {
+      "id": "approvals-v2-out-of-order"
+    },
+    {
+      "id": "approvals-v2-stamp"
+    },
+    {
+      "id": "empty-org"
+    },
+    {
+      "id": "routines"
+    },
+    {
+      "id": "routines-empty"
+    },
+    {
+      "id": "routines-new"
+    },
+    {
+      "id": "skills-empty"
+    },
+    {
+      "id": "thread-ask-multiple"
+    },
+    {
+      "id": "thread-ask-single"
+    },
+    {
+      "id": "thread-proposal-digest"
+    },
+    {
+      "id": "thread-proposal-single"
+    }
+  ],
+  "logs": [
+    ".maestri/tmp/ember-shell-shots-iv8.log",
+    ".maestri/tmp/ember-shell-shots-inbox.log",
+    ".maestri/tmp/ember-shell-shots-inbox-proofs.log",
+    ".maestri/tmp/ember-shell-shots-iv9.log",
+    ".maestri/tmp/ember-shell-shots-inbox-matrix.log",
+    ".maestri/tmp/ember-shell-shots-iv9b.log",
+    ".maestri/tmp/ember-shell-shots-skills.log",
+    ".maestri/tmp/ember-shell-shots-final.log",
+    ".maestri/tmp/ember-shell-shots-fix.log",
+    ".maestri/tmp/ember-shell-shots-fix2.log",
+    ".maestri/tmp/ember-shell-shots-final2.log",
+    ".maestri/tmp/ember-shell-shots-final3.log",
+    ".maestri/tmp/ember-shell-shots-final3b.log",
+    ".maestri/tmp/ember-shell-shots-final3c.log",
+    ".maestri/tmp/ember-shell-shots-final3d.log"
+  ],
+  "note": "Lote real-shell do bundle 3 (aceito pela Muse). Tem 6 modos por cena; sem sonda (anterior ao pré-aceite): rode com --legacy-ok para ver só o que os logs permitem.",
+  "reports": [
+    ".maestri/tmp/shots/ember/shell/report-all.json"
+  ]
+}

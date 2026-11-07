@@ -1,0 +1,80 @@
+{
+  "owner": "Flint",
+  "bundle": "5",
+  "dir": ".maestri/tmp/shots/flint/gallery-b5",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": [
+    "light",
+    "dark"
+  ],
+  "viewports": [
+    "1440x900",
+    "960x640",
+    "zoom200"
+  ],
+  "roster": [
+    "Atlas",
+    "Bento",
+    "Nina",
+    "Sol",
+    "Luna",
+    "Bolota",
+    "Pipa",
+    "Capi",
+    "Bia",
+    "Teo",
+    "Téo",
+    "Lia",
+    "Caio"
+  ],
+  "scenes": [
+    {
+      "id": "composer-idle"
+    },
+    {
+      "id": "composer-responding"
+    },
+    {
+      "id": "group-after-card"
+    },
+    {
+      "id": "opinion-collapsed"
+    },
+    {
+      "id": "opinion-collapsed-open"
+    },
+    {
+      "id": "opinion-novision"
+    },
+    {
+      "id": "opinion-open"
+    },
+    {
+      "id": "opinion-textonly"
+    },
+    {
+      "id": "preview-delete"
+    },
+    {
+      "id": "preview-email"
+    },
+    {
+      "id": "preview-missing"
+    },
+    {
+      "id": "preview-partial"
+    },
+    {
+      "id": "preview-pay",
+      "allowCurrency": true
+    },
+    {
+      "id": "preview-sending"
+    },
+    {
+      "id": "preview-sent"
+    }
+  ],
+  "shell": false,
+  "note": "Galeria do Flint no bundle 5 (DADOS DE EXEMPLO, regerada do src atual com .maestri/tmp/flint/flint-gallery.mjs; sem o shell): o cartão da prévia de ação NO FIO (email, pagamento, apagar, parcial, SEM prévia = action.missing, enviando, enviado), o composer sem resposta x respondendo (Parar), a opinião (aberta, recolhida com a miniatura de 160 px, sem visão, só pelo texto) e o agrupamento depois de cartão. A prévia REAL no fio (shell real, host real) vem da receita final-preview da captura FINAL do bundle 5; a do V2 de Aprovações é do Ember/Lumen."
+}

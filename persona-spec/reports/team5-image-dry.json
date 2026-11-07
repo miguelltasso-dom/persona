@@ -1,0 +1,41 @@
+{
+  "note": "TEAM-5 dry proof: real claude CLI through the product resolveRunner, fake Anthropic endpoint, zero model, zero spend; bytes compared by sha256, no content printed",
+  "ok": true,
+  "rows": [
+    {
+      "scenario": "one-image",
+      "ok": true,
+      "why": "images=1 type=image/png bytesEqual=true order=image>text>text pathInText=false"
+    },
+    {
+      "scenario": "two-images",
+      "ok": true,
+      "why": "images=2 inOrder=true"
+    },
+    {
+      "scenario": "not-sticky",
+      "ok": true,
+      "why": "images=0"
+    },
+    {
+      "scenario": "refuse-count",
+      "ok": true,
+      "why": "count|Só dá para enviar até 4 imagens por vez.; requestsAfter=0"
+    },
+    {
+      "scenario": "refuse-size",
+      "ok": true,
+      "why": "size|Uma das imagens passa de 5 MB. Envie uma versão menor.; requestsAfter=0"
+    },
+    {
+      "scenario": "refuse-type",
+      "ok": true,
+      "why": "type|Só leio imagens PNG, JPG, GIF ou WebP.; requestsAfter=0"
+    },
+    {
+      "scenario": "refuse-unreadable",
+      "ok": true,
+      "why": "unreadable|Não consegui abrir uma das imagens. Envie de novo.; requestsAfter=0"
+    }
+  ]
+}

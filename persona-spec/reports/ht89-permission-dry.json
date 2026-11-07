@@ -1,0 +1,270 @@
+{
+  "note": "HT-8/HT-9: experimento seco do gate de permissao. CLI real (claude 2.1.318) contra endpoint Anthropic FALSO em 127.0.0.1 e um servidor MCP local falso; nenhum modelo real, nenhum gasto, nenhum login usado (modo chave de API ficticia, HOME vazio). Argumentos de teste ficticios.",
+  "claudeVersion": "2.1.318",
+  "a_command_hook_and_modes": [
+    {
+      "scenario": "S1 dontAsk, nada liberado",
+      "finished": true,
+      "modelOfferedTheTool": true,
+      "toolReallyRan": false,
+      "ranArgs": null,
+      "modelSawToolResult": true,
+      "toolResultIsError": true,
+      "toolResultText": "Permission to use mcp__fake__send_message has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to ",
+      "controlAsksFromCli": [],
+      "hookCalls": []
+    },
+    {
+      "scenario": "S2 dontAsk + --allowedTools da ferramenta",
+      "finished": true,
+      "modelOfferedTheTool": true,
+      "toolReallyRan": true,
+      "ranArgs": {
+        "to": "ana@x.com",
+        "body": "oi"
+      },
+      "modelSawToolResult": true,
+      "toolResultIsError": false,
+      "toolResultText": "[{\"type\":\"text\",\"text\":\"ran send_message\"}]",
+      "controlAsksFromCli": [],
+      "hookCalls": []
+    },
+    {
+      "scenario": "S3 modo padrao (sem --permission-mode), nada liberado",
+      "finished": true,
+      "modelOfferedTheTool": true,
+      "toolReallyRan": false,
+      "ranArgs": null,
+      "modelSawToolResult": true,
+      "toolResultIsError": true,
+      "toolResultText": "Claude requested permissions to use mcp__fake__send_message, but you haven't granted it yet.",
+      "controlAsksFromCli": [],
+      "hookCalls": []
+    },
+    {
+      "scenario": "S4 gancho PreToolUse + dontAsk, nada aprovado",
+      "finished": true,
+      "modelOfferedTheTool": true,
+      "toolReallyRan": false,
+      "ranArgs": null,
+      "modelSawToolResult": true,
+      "toolResultIsError": true,
+      "toolResultText": "PreToolUse:mcp__fake__send_message hook error: not approved for these arguments",
+      "controlAsksFromCli": [],
+      "hookCalls": [
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__fake__send_message",
+          "inputKeys": [
+            "to",
+            "body"
+          ],
+          "hash": "a0923c75e770",
+          "match": false,
+          "fields": [
+            "session_id",
+            "transcript_path",
+            "cwd",
+            "prompt_id",
+            "permission_mode",
+            "effort",
+            "hook_event_name",
+            "tool_name",
+            "tool_input",
+            "tool_use_id",
+            "mcp_server"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": "S5 gancho + dontAsk, APROVADO este hash",
+      "finished": true,
+      "modelOfferedTheTool": true,
+      "toolReallyRan": true,
+      "ranArgs": {
+        "to": "ana@x.com",
+        "body": "oi"
+      },
+      "modelSawToolResult": true,
+      "toolResultIsError": false,
+      "toolResultText": "[{\"type\":\"text\",\"text\":\"ran send_message\"}]",
+      "controlAsksFromCli": [],
+      "hookCalls": [
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__fake__send_message",
+          "inputKeys": [
+            "to",
+            "body"
+          ],
+          "hash": "a0923c75e770",
+          "match": true,
+          "fields": [
+            "session_id",
+            "transcript_path",
+            "cwd",
+            "prompt_id",
+            "permission_mode",
+            "effort",
+            "hook_event_name",
+            "tool_name",
+            "tool_input",
+            "tool_use_id",
+            "mcp_server"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": "S6 gancho + dontAsk, aprovado OUTRO hash (argumentos trocados)",
+      "finished": true,
+      "modelOfferedTheTool": true,
+      "toolReallyRan": false,
+      "ranArgs": null,
+      "modelSawToolResult": true,
+      "toolResultIsError": true,
+      "toolResultText": "PreToolUse:mcp__fake__send_message hook error: not approved for these arguments",
+      "controlAsksFromCli": [],
+      "hookCalls": [
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__fake__send_message",
+          "inputKeys": [
+            "to",
+            "body"
+          ],
+          "hash": "a0923c75e770",
+          "match": false,
+          "fields": [
+            "session_id",
+            "transcript_path",
+            "cwd",
+            "prompt_id",
+            "permission_mode",
+            "effort",
+            "hook_event_name",
+            "tool_name",
+            "tool_input",
+            "tool_use_id",
+            "mcp_server"
+          ]
+        }
+      ]
+    },
+    {
+      "scenario": "S7 gancho + modo padrao, APROVADO este hash",
+      "finished": true,
+      "modelOfferedTheTool": true,
+      "toolReallyRan": true,
+      "ranArgs": {
+        "to": "ana@x.com",
+        "body": "oi"
+      },
+      "modelSawToolResult": true,
+      "toolResultIsError": false,
+      "toolResultText": "[{\"type\":\"text\",\"text\":\"ran send_message\"}]",
+      "controlAsksFromCli": [],
+      "hookCalls": [
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__fake__send_message",
+          "inputKeys": [
+            "to",
+            "body"
+          ],
+          "hash": "a0923c75e770",
+          "match": true,
+          "fields": [
+            "session_id",
+            "transcript_path",
+            "cwd",
+            "prompt_id",
+            "permission_mode",
+            "effort",
+            "hook_event_name",
+            "tool_name",
+            "tool_input",
+            "tool_use_id",
+            "mcp_server"
+          ]
+        }
+      ]
+    }
+  ],
+  "b_http_hook": [
+    {
+      "name": "H1 http hook, nada aprovado",
+      "finished": true,
+      "hookCalls": 1,
+      "hook": {
+        "method": "POST",
+        "runHeader": "run-1",
+        "tool": "mcp__fake__send_message",
+        "inputKeys": [
+          "to",
+          "body"
+        ],
+        "hashPrefix": "a0923c75e770",
+        "ok": false
+      },
+      "toolRan": false,
+      "toolResultError": true,
+      "toolResultText": "PreToolUse:mcp__fake__send_message hook error: needs the person approval for these arguments"
+    },
+    {
+      "name": "H2 http hook, aprovado este hash",
+      "finished": true,
+      "hookCalls": 1,
+      "hook": {
+        "method": "POST",
+        "runHeader": "run-1",
+        "tool": "mcp__fake__send_message",
+        "inputKeys": [
+          "to",
+          "body"
+        ],
+        "hashPrefix": "a0923c75e770",
+        "ok": true
+      },
+      "toolRan": true,
+      "toolResultError": false,
+      "toolResultText": "[{\"type\":\"text\",\"text\":\"ran send_message\"}]"
+    },
+    {
+      "name": "H3 http hook, aprovado OUTRO hash",
+      "finished": true,
+      "hookCalls": 1,
+      "hook": {
+        "method": "POST",
+        "runHeader": "run-1",
+        "tool": "mcp__fake__send_message",
+        "inputKeys": [
+          "to",
+          "body"
+        ],
+        "hashPrefix": "a0923c75e770",
+        "ok": false
+      },
+      "toolRan": false,
+      "toolResultError": true,
+      "toolResultText": "PreToolUse:mcp__fake__send_message hook error: needs the person approval for these arguments"
+    },
+    {
+      "name": "H4 gancho HTTP FORA DO AR (porta fechada), dontAsk",
+      "finished": true,
+      "hookCalls": 0,
+      "toolRan": false,
+      "toolResultError": true,
+      "toolResultText": "Permission to use mcp__fake__send_message has been denied because Claude Code is running in don't ask mode. IMPORTANT: Y"
+    },
+    {
+      "name": "H5 gancho HTTP FORA DO AR e a ferramenta liberada por --allowedTools (o gancho nao pode ser a unica trava?)",
+      "finished": true,
+      "hookCalls": 0,
+      "toolRan": true,
+      "toolResultError": false,
+      "toolResultText": "[{\"type\":\"text\",\"text\":\"ran send_message\"}]"
+    }
+  ]
+}

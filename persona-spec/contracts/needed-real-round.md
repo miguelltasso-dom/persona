@@ -1,0 +1,82 @@
+# OPT-10b — a rodada real do modo `needed` (passo B): desenho no papel, UMA tarefa (Tally, 05/11)
+
+**Estado: PROPOSTA. Nada foi rodado. Precisa do OK do Atlas (via Keel) antes de qualquer chamada.** O padrão do corte final é `answer-only` (D-085); o `needed` (todas as chamadas, com o roteador HT-10 escolhendo os conectores da tarefa por URL, ISO-5) só liga depois de uma prova a seco e de uma rodada real pequena. Esta é a rodada.
+
+## O que a rodada responde (uma pergunta só)
+Uma tarefa **só de leitura** que precisa de **um** conector da conta (agenda ou e-mail) roda em `needed` e (a) o conector responde de verdade, (b) só ele é carregado, (c) a requisição custa ≈ o piso + o conector, e não os ~309 mil tokens do nativo (D-069: 308.902 por requisição).
+
+## O que já está provado a seco (zero modelo, CLI real 2.1.318)
+- Piso da tarefa **31.414** tokens por chamada; conector concedido **+375 / +445 / +1.464** (medidos em `reports/iso5-preflight-dry.json`, três conectores reais); o nativo de hoje carrega **308.902** na requisição.
+- A receita de lançamento (`--setting-sources local,project --disable-slash-commands` + `--settings {allowedMcpServers:[{serverUrl}]}`, sem `--strict-mcp-config`) deixa **1 servidor** `connected`, estável após 4 s; o stderr com nomes dos outros conectores não chega a tela nem a log (ISO-5).
+- O portão de permissão (HT-9) é real e está provado sem modelo: leitura passa só se o servidor provou `readOnly`; enviar/pagar/apagar não passam sem aprovação do hash exato (`ht9-gate-contract.spec`, `scripts/ht89-dry.ts`).
+
+## O desenho
+| | |
+|---|---|
+| **Tarefa (única)** | **Não lê conteúdo nenhum** (Keel, 05/11): "Use o conector de e-mail para listar os rótulos da minha caixa. Diga quantos são e cite o nome de até três. Não leia nenhuma mensagem." (ou, no de agenda, "listar as minhas agendas (calendários)… Não leia nenhum evento."). Pede NOMES, não só a contagem, para a resposta poder ser conferida contra o resultado. O conector é o que a pré-checagem mostrar `connected` e usável **com uma ferramenta que o PRÓPRIO servidor prova somente-leitura e cujo nome não lê conteúdo** (rótulos, agendas), o de menor custo medido. **Alternativa, só se NENHUM conector tiver essa ferramenta e só com `PERSONA_NEEDED_ALLOW_CONTENT=1`:** ler UM item ("o assunto do último e-mail", "o título e a hora do próximo compromisso"); o pedido de OK ao Atlas tem de dizer isso com todas as letras. |
+| **Modelo / modo** | Claude haiku, `PERSONA_CLI_ENV=needed`, chamada COM ferramentas, o conector concedido por URL pelo roteador; portão HT-9 armado com **só `read`** em `preAllow` (qualquer escrita é negada e registrada). |
+| **Chamadas** | **1** tarefa. Se a CLI falhar por motivo da CLI (limite, rede), **uma** troca; **teto 3** chamadas no total (`PERSONA_REAL_TURN_CAP=3`). Sem repetição para "ver de novo". |
+| **Controle nativo** | **Não se roda** (custaria ~309 mil tokens de novo): o nativo é o número do D-069, medido pelo Probe; o piso vem do pré-voo. |
+| **Guardas (as do OPT-8b)** | trava `real`, ledger absoluto e FRESCO, env limpo (sem `CLAUDE_CODE_*`/`MAESTRI_*`), `needed` PROVADO para a versão antes da 1ª chamada (como `proveCliIsolation`), cota oficial antes/depois (`quota-read`). Sai com custo zero se: o conector não estiver `connected`, o `needed` não estiver provado, ou o `ht89-dry` falhar na versão. |
+| **Privacidade** | Agenda/e-mail são da pessoa. O script grava só **booleanos, contagens e tokens**; nunca o texto do compromisso ou do e-mail, nem no relatório, nem no log. |
+
+## Critério de pronto (registrado ANTES do dado)
+**PASSA** se, ao mesmo tempo (sete itens: os seis abaixo e o `no-content-read`):
+1. houve **pelo menos uma chamada de ferramenta do conector concedido** com resultado sem erro (visto nos eventos do turno);
+2. **nenhuma** chamada de ferramenta de outro servidor, e nenhuma escrita tentada e liberada (uma escrita TENTADA e negada pelo portão é registrada como achado de segurança, e o critério ainda é avaliado);
+2b. **nenhuma ferramenta que lê conteúdo** (mensagem, thread, rascunho, anexo, evento…, pelo nome da ferramenta) foi chamada com sucesso — critério `no-content-read`; com o consentimento da alternativa ele fica "consentido" e nada é impresso nem guardado;
+3. a **maior** entrada de requisição ≤ **1,15 × (31.414 + o maior entre o custo do conector medido no pré-voo e 2.875)** = **39.432** quando o pré-voo mede ≤ 2.875: 2.875 é o que os SETE conectores da conta somam (ISO-5, medido). O pré-voo pode ler +0 para um conector de muitas ferramentas (a CLI adia os esquemas e eles carregam quando o modelo pede); nesse caso o piso sozinho daria um limite apertado demais e um FALSO fracasso. Um conector só pode custar o que a conta toda mediu, e nenhum a mais; o nativo (308.902) fica muito fora;
+4. o texto final é não vazio e **contém ao menos uma palavra que também está no resultado da ferramenta** (comparação feita pelo script, sem imprimir o conteúdo);
+5. o modo efetivo registrado no uso é `needed` (não `native`).
+**NÃO PASSA** se qualquer item falhar; o relatório diz qual. **Sem ganho a declarar** se a requisição passar de 1,15× o previsto (então o `needed` não vale para esse conector).
+
+## Custo
+Duas requisições internas por tarefa com ferramenta (a que pede e a que responde): ≈ **70 mil tokens** de entrada + saída pequena. Menos de **1 ponto** da semana (invisível a 1%; D-092: a tela do Miguel não vê dólar). Referência de lista, só relatório técnico: ≈ US$ 0,1. Com teto 3, o pior caso é ≈ US$ 0,3 de lista.
+
+## O que falta construir antes de pedir o OK de rodar (a seco, sem modelo)
+- `persona-runners/scripts/needed-real.ts` (seco por padrão: pré-checagem, escolha do conector, prova do `needed`, impressão do plano e dos guardas; real só com `PERSONA_NEEDED_REAL=1` e todos os guardas). Reaproveita `proveCliIsolation`, o roteador e o pré-voo do ISO-5.
+- A avaliação do critério como função pura com testes escritos antes de qualquer dado (como `evaluatePairRealB`).
+- Depende da cola do HT-9 do Anvil só se a tarefa fosse de escrita; esta é só leitura, então **não depende**.
+
+## O pedido
+OK do Atlas para **1 tarefa real de leitura em `needed`, teto 3 chamadas**, nas condições acima. Eu construo o script seco e a função de critério primeiro e só peço a execução depois de mostrar o ensaio seco.
+
+## Estado (05/11 03:00): construído a seco, ensaiado, NÃO rodado
+**No tree:** `persona-engine/src/bench/needed-round.ts` (critério, guardas, escolha do conector; **43 testes** com o observador, escritos antes de qualquer dado), `persona-runners/src/oar/tool-observer.ts` (envolve o runtime do OAR e vê cada chamada de ferramenta, com o resultado só em memória; 6 testes no runtime roteirizado, sem tocar no adapter) e `persona-runners/scripts/needed-real.ts` (seco por padrão; `--preflight` sem modelo; real só com todos os guardas).
+
+**Ensaio seco no CLI real (2.1.318, login real, 0 chamadas de modelo; `reports/needed-real-preflight.json`, só ids opacos e números):** `needed` PROVADO para a versão; 7 conectores da conta, 5 conectados e usáveis; o escolhido é o de **e-mail**; o de agenda NÃO está conectado (a rodada de agenda não rodaria nesta conta); o runner foi montado exatamente como a rodada real o monta (runtime observado, portão armado só com leitura, conector por URL, modo `needed`) e parou antes de qualquer turno.
+
+**Dois achados do ensaio:**
+1. **O custo medido do conector de e-mail é +0.** A CLI adia os esquemas das ferramentas de um conector com muitas ferramentas; eles carregam quando o modelo os pede. Usar +0 como base do limite daria um limite apertado demais (36.126) e um FALSO fracasso. Por isso o limite do item 3 usa o maior entre o custo medido e **2.875** (o que os sete conectores da conta somam, medido): **39.432** quando o pré-voo mede ≤ 2.875. Escrito aqui ANTES de qualquer dado.
+2. **Privacidade (sugestão do Keel, aplicada):** a tarefa padrão lista RÓTULOS (ou agendas), não lê mensagem nem evento. Três travas: (a) a ferramenta do conector tem de ser provada somente-leitura pelo servidor e não ter nome de conteúdo; sem uma assim a rodada termina a custo zero, salvo `PERSONA_NEEDED_ALLOW_CONTENT=1` (alternativa que lê um item); (b) o observador NEM GUARDA em memória o resultado de uma ferramenta de conteúdo (só vê a chamada); (c) o critério `no-content-read` reprova a rodada se uma delas foi chamada sem o consentimento. No ensaio do pré-voo desta conta, o conector de e-mail TEM ferramenta segura (`readsContent: false`).
+
+**Como a requisição é medida:** o turno reporta UM total de entrada; um turno com chamada de ferramenta tem pelo menos duas requisições, então a maior requisição é medida como o total ÷ 2 (conservador: a 2ª só acrescenta o resultado da ferramenta à 1ª). Se o OAR passar a dar a entrada por requisição, o critério passa a usá-la.
+
+**Falta para pedir o OK de rodar (nesta ordem):** (1) a decisão do HT-9 das 12:00 (se os conectores ficarem só de leitura, o `needed` continua valendo: a rodada é de leitura); (2) o `scripts/ht89-dry.ts` verde na versão instalada (o portão é parte da rodada); (3) o OK do Atlas, com as condições deste documento e a ciência de que a tarefa lê UM assunto de e-mail.
+
+## REESCRITO por ordem do Atlas (05/11 ~03:30): conector de TESTE local, NADA da conta do Miguel
+**Atlas:** rodada real AUTORIZADA, "mas SEM a conta pessoal do Miguel. Nada de Gmail dele, nem só os rótulos: é dado pessoal. Use um MCP de TESTE local (fixture com contagem de ferramentas parecida com a de um conector real) para medir o modo `needed`. Teto 3, o limite registrado antes do dado."
+- **O conector:** `persona-runners/src/mcp/connector-fixture.ts`, um conector de e-mail de TESTE com **30 ferramentas** (o tamanho de um conector de e-mail real), nomes/descrições/esquemas do porte dos reais, anotações `readOnly`/`destructive` como um servidor declara e respostas 100% **sintéticas** (rótulos inventados). É servido à CLI como as ferramentas do produto (OAR `serveMcpTools`) sob o nome de servidor `fixture_mail`. O script **não lista, lê nem toca em conector de conta nenhum** (o ensaio de conectores da conta foi retirado).
+- **Tarefa:** a de rótulos ("Use o conector de e-mail para listar os rótulos da minha caixa. Diga quantos são e cite o nome de até três. Não leia nenhuma mensagem."), agora sobre dados inventados. Como o fixture não tem dado pessoal, o item `no-content-read` fica "consentido" (uma ferramenta de conteúdo do fixture não vaza nada); **escrita continua recusada pelo portão** e reprova se liberada.
+- **Modo:** `PERSONA_CLI_ENV=needed`, chamada de TAREFA (`permissionMode: allow-once`, `toolLevel: read`), haiku, com as ferramentas do fixture como `mcpTools` do turno e o portão armado só com `read`. Teto **3**, ledger fresco, trava `real`, env limpo.
+- **LIMITE registrado ANTES do dado (a regra não mudou, os números vêm do pré-voo sem modelo desta execução):** maior requisição ≤ **1,15 × (piso medido 31.414 + max(custo do conector medido pela CLI, 2.875))**. Pré-voo de 05/11 06:42 UTC (CLI 2.1.318, 0 modelo): `needed` provado; o conector de teste conectou com 30 ferramentas; **piso medido 31.414** (idêntico ao registrado); o conector acrescenta **+0** ao contexto de abertura (com as ferramentas nativas presentes a CLI adia os esquemas de um servidor com muitas ferramentas; carregam quando o modelo pede) ⇒ limite = 1,15 × (31.414 + 2.875) = **39.432**. (Sem as ferramentas nativas, o mesmo fixture custa +12.644 por requisição, medido pela CLI: é o que uma chamada de resposta com um conector de 30 ferramentas carrega; não é este caso.)
+- **Requisições:** o turno reporta UM total de entrada; cada chamada de ferramenta (inclusive a busca do esquema adiado) é seguida de uma requisição a mais, então as requisições do turno são **chamadas de ferramenta + 1** e a maior é medida como o total ÷ isso (pode subestimar um turno com chamadas em paralelo, raro nesta tarefa).
+- **Critério, passa/não passa, "sem evidência", chamadas e teto: os mesmos** (7 itens, `evaluateNeededRound`, 52 testes escritos antes do dado). **Nada repetido:** uma troca só se a CLI falhar.
+- **Nada disso gasta a conta do Miguel:** o custo é a cota da assinatura de quem roda (≈ 100 mil tokens de entrada e uma saída pequena, < 1 ponto da semana); o conector não toca em nenhuma caixa de e-mail.
+
+## Tentativa 1+1 (05/11 03:46): NOT-MEASURABLE POR INSTRUMENTAÇÃO — e o que ela ensinou (nada apagado: `reports/needed-real-tentativa-1.md/.json`)
+As duas chamadas (1 + a única troca) falharam em 2–3 s, **0 tokens**, sem resposta de modelo. Diagnóstico a **custo zero** (`needed-real.ts --preflight --fake`: a MESMA tentativa, runner, portão, observador e conector, com a CLI falando com um endpoint falso em 127.0.0.1 e uma chave de mentira, que não autoriza nada):
+1. **Causa (produto, não só da rodada):** a ferramenta nativa `ToolSearch` da CLI carrega o esquema de uma ferramenta; com ferramentas nativas presentes a CLI **adia** os esquemas de um servidor MCP com muitas ferramentas, então o modelo TEM de chamá-la antes de usar o conector. O `classifyToolAccess` não a conhecia ⇒ "desconhecida = escrita" ⇒ uma persona de nível `read` era parada ("Ferramenta ToolSearch recusada no nível read", turno `blocked`) antes do conector. Quebraria TODA leitura por conector de conta de uma persona `read`. **Corrigido:** `toolsearch` no READ (`tool-level.ts`, Rivet de acordo) + teste.
+2. **Instrumentação:** o script engolia o motivo ("catch vazio"). Agora cada tentativa imprime o motivo (o relato do runner, o evento de infra ou a mensagem do erro: textos curtos, sem dado pessoal).
+3. **O ensaio revelou mais um erro nosso do critério, também a custo zero:** a própria `ToolSearch` era contada como "chamada a outro servidor" e como "escrita liberada". Ela é **encanamento da CLI**, não uma ferramenta que a tarefa usa: sai das chamadas que o critério lê (`callsForCriterion`) e entra na contagem de requisições do turno (toda chamada é seguida de uma requisição a mais).
+4. **Resultado do ensaio com endpoint falso depois das correções:** a tentativa chega a um veredito limpo (`pass`, 7/7 itens, com os números FALSOS do endpoint falso; não vale como medida), via `ToolSearch` → `list_labels` executada pelo conector de teste → resposta final.
+**Teto de trocas esgotado:** nova rodada real = **novo OK** (ledger novo e fresco, teto 3, MESMA regra, MESMO limite 39.432). Pedido ao Keel.
+
+## Resultado da rodada real (05/11 04:31): **PASS 7/7** — a rodada do modo `needed` no conector de teste
+Ordem do Atlas (04:12, via Keel): UMA rodada, conector de TESTE local (30 ferramentas, dados sintéticos, zero dado pessoal), MESMA regra, MESMO limite registrado antes do dado (**39.432**), teto 3, ledger novo (`needed-ledger-1793863790.json`), trava `real`, env limpo. Ensaio com endpoint falso (0 modelo) na árvore do momento antes: 7/7.
+- **Uma tentativa, sem troca** (1 de 3): a persona `read` chamou a `ToolSearch` da CLI (encanamento, fora do critério), depois `list_labels` do conector de teste (executada, sem erro) e respondeu usando uma palavra do resultado.
+- **Itens:** connector-called, only-granted, no-write-released, no-content-read, input-bounded, answer-uses-result, mode-needed — **todos sim**. Escritas recusadas pelo portão: 0. Modo efetivo `needed`.
+- **Tokens do turno (medidos pelo fornecedor):** entrada **62.212**, saída **244**; 3 requisições (ToolSearch, `list_labels`, resposta). **Maior requisição pela regra registrada (total ÷ requisições): 20.738 ≤ 39.432.** O que a regra não prova sozinha: uma requisição pode ser maior que a média; o teto firme é que o turno INTEIRO (62.212) já é ~20% de UMA requisição do nativo (308.902, D-069).
+- **Cota da semana (só informativo, D-092):** 80% antes e 80% depois (leitura oficial, 07:30:15Z e 07:32:24Z): invisível a 1 ponto, como o previsto.
+- **Guarda do ToolSearch:** `persona-runners/tests/tool-level.spec.ts` — o teste de classificação (`ToolSearch` = read; `ToolSearchAndRun` e `Tool` = write) e o novo "GUARD (OPT-10b)": uma persona `read` NÃO para na `ToolSearch` (o turno segue até a próxima ferramenta de leitura; no nível `none` ainda para). Quebrar a linha `toolsearch` em `src/resolve/tool-level.ts` derruba os dois.
+- **O que NÃO vale concluir:** é UM conector sintético e UMA tarefa. Mostra que o modo `needed` roda de ponta a ponta (CLI real, portão armado, mandato, observador) e fica longe do nativo; não mede um conector real nem a qualidade da resposta. Sem repetição sem novo OK.

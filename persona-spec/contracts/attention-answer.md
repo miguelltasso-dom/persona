@@ -19,7 +19,7 @@ A mesma regra vale para quem responde **em palavras no próprio fio** (mensagem 
 
 | Código | Quando | Mensagem |
 | --- | --- | --- |
-| `invalid-payload` | sem texto e sem arquivo; texto > 8000; ids inválidos; arquivo de outra conversa ou inexistente | “Escreva a resposta ou anexe um arquivo.” · “A resposta passa de 8000 caracteres.” · “Um dos arquivos não pertence a esta conversa. Anexe de novo.” |
+| `invalid-payload` | sem texto e sem arquivo; texto > 8000; ids inválidos; arquivo de outra conversa ou inexistente | “Escreva a resposta, escolha uma opção ou anexe um arquivo.” · “A resposta passa de 8000 caracteres.” · “Um dos arquivos não pertence a esta conversa. Anexe de novo.” |
 | `not-found` | Tarefa inexistente neste projeto | “Tarefa não encontrada neste projeto.” |
 | `conflict` | a pergunta já foi respondida (uma resposta por pergunta; a primeira fica) | “Essa pergunta já foi respondida.” |
 | `forbidden` | guest ou persona (agora exige escrita no projeto) | — |

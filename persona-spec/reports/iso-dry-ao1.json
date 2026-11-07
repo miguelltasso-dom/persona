@@ -1,0 +1,69 @@
+{
+  "note": "AO-1 / D-085: prova seca do modo answer-only com o codigo FINAL do runner (IsolationRuntime/probeParity), login real, so pedidos de controle, zero modelo. Valores de modelo/esforco e contagens apenas.",
+  "claudeVersion": "2.1.318 (Claude Code)",
+  "persona_default": {
+    "mode": "answer-only",
+    "ok": true,
+    "rows": [
+      {
+        "call": "answer",
+        "reading": {
+          "loggedIn": true,
+          "mcpServers": 0,
+          "commands": 0,
+          "builtinToolTokens": 0
+        },
+        "ok": true,
+        "failures": [],
+        "openingContextTokens": 1608
+      }
+    ],
+    "parity": {
+      "ok": true,
+      "extraArgs": [
+        "--model",
+        "claude-opus-5-5",
+        "--effort",
+        "xhigh"
+      ],
+      "native": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "isolated": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      }
+    }
+  },
+  "persona_haiku": {
+    "mode": "answer-only",
+    "ok": true,
+    "rows": [
+      {
+        "call": "answer",
+        "reading": {
+          "loggedIn": true,
+          "mcpServers": 0,
+          "commands": 0,
+          "builtinToolTokens": 0
+        },
+        "ok": true,
+        "failures": [],
+        "openingContextTokens": 1608
+      }
+    ],
+    "parity": {
+      "ok": true,
+      "extraArgs": [],
+      "native": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium"
+      },
+      "isolated": {
+        "model": "claude-haiku-5-5",
+        "effort": "medium"
+      }
+    }
+  }
+}

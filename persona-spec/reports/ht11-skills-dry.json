@@ -1,0 +1,132 @@
+{
+  "note": "HT-11 dry: control requests only; counts and generic category names",
+  "rows": [
+    {
+      "variant": "F  floor: project + disable-slash-commands",
+      "loggedIn": true,
+      "commands": 0,
+      "mcpServers": 0,
+      "applied": {
+        "model": "claude-opus-5-5",
+        "effort": "medium"
+      },
+      "totalTokens": 31414,
+      "skillsTokens": 0,
+      "memoryTokens": 0,
+      "categories": {
+        "System prompt": 1749,
+        "System tools": 29665,
+        "System tools (deferred)": 22232,
+        "Autocompact buffer": 33000,
+        "Free space": 935586
+      }
+    },
+    {
+      "variant": "S1 project (slash commands ON)",
+      "loggedIn": true,
+      "commands": 55,
+      "mcpServers": 0,
+      "applied": {
+        "model": "claude-opus-5-5",
+        "effort": "medium"
+      },
+      "totalTokens": 23899,
+      "skillsTokens": 2281,
+      "memoryTokens": 0,
+      "categories": {
+        "System prompt": 1795,
+        "System tools": 19823,
+        "System tools (deferred)": 22232,
+        "Skills": 2281,
+        "Autocompact buffer": 33000,
+        "Free space": 943101
+      }
+    },
+    {
+      "variant": "S2 user,project + disable-slash-commands",
+      "loggedIn": true,
+      "commands": 0,
+      "mcpServers": 0,
+      "applied": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "totalTokens": 31414,
+      "skillsTokens": 0,
+      "memoryTokens": 0,
+      "categories": {
+        "System prompt": 1749,
+        "System tools": 29665,
+        "System tools (deferred)": 22347,
+        "Autocompact buffer": 33000,
+        "Free space": 935586
+      }
+    },
+    {
+      "variant": "S3 user,project (slash commands ON)",
+      "loggedIn": true,
+      "commands": 104,
+      "mcpServers": 0,
+      "applied": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "totalTokens": 23899,
+      "skillsTokens": 9040,
+      "memoryTokens": 0,
+      "categories": {
+        "System prompt": 1795,
+        "System tools": 13064,
+        "System tools (deferred)": 22347,
+        "Skills": 9040,
+        "Autocompact buffer": 33000,
+        "Free space": 943101
+      }
+    },
+    {
+      "variant": "S4 user only (slash commands ON)",
+      "loggedIn": true,
+      "commands": 104,
+      "mcpServers": 0,
+      "applied": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "totalTokens": 23899,
+      "skillsTokens": 9040,
+      "memoryTokens": 0,
+      "categories": {
+        "System prompt": 1795,
+        "System tools": 13064,
+        "System tools (deferred)": 22347,
+        "Skills": 9040,
+        "Autocompact buffer": 33000,
+        "Free space": 943101
+      }
+    },
+    {
+      "variant": "N  native (no isolation args)",
+      "loggedIn": true,
+      "commands": 104,
+      "mcpServers": 21,
+      "applied": {
+        "model": "claude-opus-5-5",
+        "effort": "xhigh"
+      },
+      "totalTokens": 27521,
+      "skillsTokens": 9040,
+      "memoryTokens": 0,
+      "categories": {
+        "System prompt": 1795,
+        "System tools": 13064,
+        "MCP tools": 811,
+        "MCP server instructions": 2811,
+        "MCP tools (deferred)": 371391,
+        "System tools (deferred)": 23434,
+        "Skills": 9040,
+        "Autocompact buffer": 33000,
+        "Free space": 939479
+      }
+    }
+  ]
+}

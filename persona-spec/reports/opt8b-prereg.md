@@ -28,3 +28,30 @@ Só o `pair-parity` do gate D-068: a execução de uma tarefa pelo caminho da Pe
 ## Saída
 
 `reports/pair-real-b.md` e `.json` com os contadores BRUTOS do vendor de cada chamada, a tabela célula × (mediana, mín, máx, dispersão), as duas razões e o veredito segundo esta regra, mais o placar D-068 atualizado (`pair-parity` só deixa de ser `blocked` se houver paridade pela regra).
+
+---
+
+## Adendo 1 — registrado em 04/11 20:20 (relógio real), ANTES de qualquer chamada da OPT-8b. Origem: D-085 do Atlas
+
+A regra original acima **não muda** (mediana de 3, ±10%, dispersão ≤ 0,5, "não mensurável" quando a dispersão impede). O adendo fixa **em que ambiente** a rodada acontece, porque a medição seca de 04/11 mostrou que o ambiente pessoal da pessoa domina o tamanho de uma chamada sem ferramentas (377 321 tokens de definições MCP contra 1 608 com nada carregado, `reports/iso-dry-product.json`) e uma razão entre braços com ambientes diferentes mediria o isolamento, não o desenho da Persona.
+
+1. **Os dois braços rodam com o MESMO isolamento:** modo `answer-only` (Claude, chamadas sem ferramentas: o mesmo `--strict-mcp-config --setting-sources project --disable-slash-commands` e as mesmas três chaves de ambiente) nos braços `direta` e `execução da Persona`. Ambos passam pelo mesmo `resolveRunner`, então o plano vale igual; o harness define `PERSONA_CLI_ENV=answer-only` para a rodada inteira.
+2. **O modo é anotado no cru** de cada chamada (`envMode` do `RunnerUsage`), junto do modo pedido e do modo efetivo (o efetivo pode cair para `native` se a regressão do `iso-dry` da versão da CLI falhar); o veredito só vale se as 15 chamadas tiverem o mesmo modo efetivo `answer-only`. Se alguma cair para `native`, a rodada é marcada **inválida para o veredito** e relatada como observação (mesmo critério para todas).
+3. **O ganho do isolamento contra a CLI nativa NÃO entra nesta razão.** Já está medido a seco (−99,6% de contexto de abertura nas chamadas sem ferramentas) e vai a um relatório separado; a pareada real do isolamento nativo contra isolado é o experimento OPT-10b, com o OK do Atlas.
+4. **Teto inalterado:** 40 chamadas no total, mesmo limitador do Rivet (`PERSONA_REAL_TURN_CAP=40`, livro absoluto), mesma trava `real`, depois da rodada única do Probe. Plano de 15 chamadas. O braço `persona_lean` segue fora (W3 adiada).
+5. **Contadores:** `inputTokens` total (métrica primária, como na regra), e **também** o laço principal (`mainLoopInputTokens`) e o resumo do ambiente (`environment`, só contagens) por chamada, do ISO-4, sem custo extra de chamada.
+
+---
+
+## Adendo 2 — registrado em 04/11 23:55 (relógio real), ANTES de qualquer chamada da OPT-8b. Origem: transformar a regra em código com teste
+
+Nenhuma chamada da OPT-8b foi feita. A regra original e o Adendo 1 **não mudam**. Este adendo só fixa, antes dos dados, como ler os casos que o texto original deixava em aberto, para o veredito sair de uma função e não de uma decisão depois de ver o resultado. A regra está em `persona-engine/src/bench/pair-real-b.ts` (`evaluatePairRealB`) e trancada em `tests/pair-real-b.spec.ts` (21 testes, escritos antes de existir qualquer dado).
+
+1. **Razões fora da faixa em sentidos opostos** (uma acima de 1,10 e a outra abaixo de 0,90): **não mensurável**. "Não há paridade" exige o mesmo sentido.
+2. **Razões dentro da faixa e dispersão ≤ 0,50, mas o critério de pronto (qualidade) falhou em alguma chamada** das quatro células primárias: **não mensurável**, e não "paridade". A comparação deixa de ser entre trabalhos equivalentes.
+3. **Célula primária com menos de 3 chamadas válidas** (a falha da CLI foi substituída uma vez e a substituta também falhou, ou faltou chamada): **não mensurável**. Nada é preenchido por estimativa.
+4. **A célula `triagem quente`** não entra na razão nem no veredito: é só o valor de chamada que o `skipTriage` economiza, relatado como número.
+5. **Teto:** mais de 40 chamadas feitas, contando toda tentativa (a que falhou e a substituta), torna a rodada **inválida**. O guarda (`assertPairRealBGuards`) recusa `PERSONA_REAL_TURN_CAP` acima de 40 e exige `PERSONA_CLI_ENV=answer-only`, a trava `real`, o limitador e o ledger absoluto.
+6. **Mediana, não média:** a mediana das 3 chamadas de cada célula (uma chamada fora da curva não a move, mas aumenta a dispersão e pode tornar a célula não mensurável).
+7. **Validade (Adendo 1, item 2):** só vale com TODAS as chamadas com modo efetivo `answer-only`; qualquer outro valor, ou modo não reportado, torna a rodada inválida para o veredito (fica como observação).
+8. O plano de 15 chamadas (`buildPairRealBPlan`): por repetição (3 vezes) o par frio (direta, execução da Persona) e o trio quente (direta, execução da Persona, triagem); sem o braço `persona_lean`.

@@ -20,11 +20,12 @@
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { constants as osConstants, setPriority } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { applyOverlay } from './package-clean-overlay.mjs'
+import { prepareWarmWorktree, writeMarker } from './package-clean-warm.mjs'
+import { runInstallTrial } from './install-trial.mjs'
 import { createPackState, installDeathHandlers } from './pack-state.mjs'
 
 const main = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -38,9 +39,18 @@ const noInstall = argv.includes('--no-install')
 const noOverlay = argv.includes('--no-overlay')
 const commitFlag = argv.indexOf('--commit')
 const requested = commitFlag >= 0 ? argv[commitFlag + 1] : 'origin/persona-dev'
+// Warm start (package-clean-warm.mjs): advance an older PACK worktree in place instead of building a new one. Falls back to the clean pack on any doubt.
+const warmFlag = argv.indexOf('--warm-from')
+const warmFrom = warmFlag >= 0 ? argv[warmFlag + 1] : undefined
+// Below-normal CPU priority for the whole pack tree (children inherit it): lets captures and tests keep the machine while a rehearsal runs.
+const lowPriority = argv.includes('--low-priority')
 
 if (wantResume && (wantDir || proofFlag < 0 || !argv[proofFlag + 1])) {
   console.error('[package-clean] --resume requires --proof <proof.json> and cannot be combined with --dir')
+  process.exit(2)
+}
+if (warmFlag >= 0 && (warmFrom === undefined || warmFrom.startsWith('--') || wantResume)) {
+  console.error('[package-clean] --warm-from needs the path of an older pack worktree and cannot be combined with --resume')
   process.exit(2)
 }
 
@@ -149,39 +159,23 @@ function findArtifact(root, pattern) {
   return (listed.stdout ?? '').split(/\r?\n/u).map(line => line.trim()).find(line => pattern.test(line))
 }
 
+/**
+ * Silent install/uninstall check of the Setup (scripts/persona/install-trial.mjs). It must never take the pack run down with it:
+ * a cleanup problem (the temp dir still in use) is a warning inside the result, and anything unexpected becomes `{ error }`.
+ * @param setup - Setup path.
+ */
 function installTrial(setup) {
-  const dest = mkdtempSync(join(tmpdir(), 'persona-nsis-'))
-  const t0 = Date.now()
-  const installed = run(dest, setup, ['/S', `/D=${dest}`], { timeout: 10 * 60_000 })
-  const installMs = Date.now() - t0
-  const exe = join(dest, 'Persona.exe')
-  const uninstaller = ['Uninstall Persona.exe', 'Uninstall.exe']
-    .map(name => join(dest, name))
-    .find(path => existsSync(path))
-  let uninstallMs
-  let uninstallExit
-  if (uninstaller !== undefined) {
-    const u0 = Date.now()
-    const undone = run(dest, uninstaller, ['/S'], { timeout: 180_000 })
-    uninstallMs = Date.now() - u0
-    uninstallExit = undone.status
-  }
-  const exePresent = existsSync(exe)
-  rmSync(dest, { recursive: true, force: true })
-  return {
-    dest,
-    exe: exePresent ? exe : null,
-    exePresent,
-    installMs,
-    installExit: installed.status,
-    uninstaller: uninstaller ?? null,
-    uninstallMs: uninstallMs ?? null,
-    uninstallExit: uninstallExit ?? null,
+  try {
+    const trial = runInstallTrial(setup)
+    return { ...trial, exePresent: trial.installed.exe, exe: trial.installed.exe ? join(trial.dest, 'Persona.exe') : null }
+  } catch (error) {
+    log(`install trial could not run: ${error instanceof Error ? error.message : String(error)}`)
+    return { error: error instanceof Error ? error.message : String(error), exePresent: false, exe: null }
   }
 }
 
 if (argv.includes('--help')) {
-  process.stdout.write('usage: node scripts/persona/package-clean.mjs [--commit origin/persona-dev] [--dir] [--resume] [--no-install] [--no-overlay]\n')
+  process.stdout.write('usage: node scripts/persona/package-clean.mjs [--commit origin/persona-dev] [--dir] [--resume] [--no-install] [--no-overlay] [--warm-from <C:\\p8w...>] [--low-priority]\n')
   process.exit(0)
 }
 
@@ -190,6 +184,14 @@ writeFileSync(PACK_LOG, '')
 const started = Date.now()
 packState = createPackState({ liveFile: LIVE, reportFile: join(CACHE, 'package-clean.json'), requested, resume: wantResume, logPath: PACK_LOG })
 installDeathHandlers(packState, { kill: killActiveChild })
+if (lowPriority) {
+  try {
+    setPriority(0, osConstants.priority.PRIORITY_BELOW_NORMAL)
+    log('running at BELOW_NORMAL priority (pnpm, tsc, electron-builder inherit it)')
+  } catch (error) {
+    log(`could not lower the priority: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
 live('resolve', { requested })
 // `git rev-parse <unknown>` echoes its argument and fails, so check the status: --verify --quiet <rev>^{commit} prints only a real commit.
 const resolvedRev = run(main, 'git', ['rev-parse', '--verify', '--quiet', `${requested}^{commit}`])
@@ -204,7 +206,28 @@ log(`target ${target.slice(0, 10)} ${run(main, 'git', ['log', '-1', '--format=%s
 const published = run(main, 'git', ['branch', '-r', '--contains', target]).stdout.trim().length > 0
 log(published ? 'commit is on a remote branch (published)' : 'WARNING: commit is not on any remote branch (D-071 expects a published, green commit)')
 
-const wt = `C:\\p8w${target.slice(0, 10)}`
+let wt = `C:\\p8w${target.slice(0, 10)}`
+const previousReport = wantResume ? JSON.parse(readFileSync(join(CACHE, 'package-clean.json'), 'utf8')) : undefined
+// A warm pack advanced an OLDER worktree in place, so its name is not the commit's: the NSIS step reuses the worktree the --dir step recorded.
+if (previousReport?.commit === target && typeof previousReport.worktree === 'string' && existsSync(previousReport.worktree)) wt = previousReport.worktree
+let warm = { mode: 'clean' }
+if (warmFrom !== undefined && !existsSync(wt)) {
+  const advanced = prepareWarmWorktree({ main, candidate: warmFrom, target, run })
+  if (advanced.ok) {
+    wt = advanced.path
+    warm = { mode: 'warm', from: advanced.from, changedFiles: advanced.changedFiles }
+    log(`warm start: ${wt} advanced ${advanced.from.slice(0, 10)} -> ${target.slice(0, 10)} in place (${String(advanced.changedFiles)} files differ, no dependency input changed)`)
+  } else {
+    warm = { mode: 'clean', refused: advanced.reason }
+    // --warm-strict: a rehearsal that must measure the warm path stops instead of quietly building (and filling the disk with) a clean worktree.
+    if (argv.includes('--warm-strict')) {
+      log(`warm start refused (${advanced.reason}); --warm-strict: stopping, nothing was built`)
+      packState.finalize({ state: 'failed', stage: 'warm-refused', reason: `warm refused: ${advanced.reason}`.slice(0, 200), extra: {} })
+      process.exit(2)
+    }
+    log(`warm start refused (${advanced.reason}); falling back to a clean worktree`)
+  }
+}
 if (!existsSync(wt)) {
   const created = run(main, 'git', ['worktree', 'add', '--detach', wt, target])
   if (created.status !== 0) {
@@ -231,13 +254,16 @@ if (!existsSync(join(wt, 'node_modules'))) {
 }
 
 live('overlay', {})
-const previous = wantResume ? JSON.parse(readFileSync(join(CACHE, 'package-clean.json'), 'utf8')) : undefined
+const previous = previousReport
 const proof = wantResume ? JSON.parse(readFileSync(resolve(argv[proofFlag + 1]), 'utf8')) : undefined
 if (wantResume && (previous?.ok !== true || previous.commit !== target || typeof previous.exe !== 'string'
   || !existsSync(previous.exe) || proof?.commit !== target || !Array.isArray(proof.results)
   || !proof.results.some(row => row.dark === false && row.consoleErrors?.length === 0 && row.vault?.ok === true)
+  // ENG-1: the NSIS is built only from a --dir whose AI engines loaded with the exe's own node and ran a turn through resolveRunner.
+  || !Array.isArray(proof.engineGate?.runtimeImports) || proof.engineGate.runtimeImports.length === 0
+  || !proof.engineGate.runtimeImports.every(row => row.ok === true) || proof.engineGate.runnerTurn !== 'ok'
   || resolve(proof.archive) !== resolve(dirname(previous.exe), 'resources', 'app.asar'))) {
-  throw new Error('Cannot resume: unpacked executable and successful light/vault proof must match the requested commit')
+  throw new Error('Cannot resume: unpacked executable and successful light/vault proof (with the ENG-1 engine gate: runtime imports ok + stub turn ok) must match the requested commit')
 }
 const overlayResult = wantResume
   ? { applied: previous.overlay ?? [], inSource: previous.overlayInSource ?? [] }
@@ -287,10 +313,17 @@ if (!noInstall && !wantDir && setup !== undefined) {
   trial = installTrial(setup)
 }
 
+const packOk = packed.status === 0 && (wantDir ? exe !== undefined : setup !== undefined)
+// A finished --dir pack makes this worktree a known-good base for the next --warm-from (node_modules, .tsbuildinfo, extracted Electron).
+if (packOk && wantDir) {
+  try { writeMarker(run, wt, target, { elapsedMs: Date.now() - started, mode: warm.mode }) } catch (error) { log(`could not record the warm-base marker: ${error instanceof Error ? error.message : String(error)}`) }
+}
 const report = {
-  ok: packed.status === 0 && (wantDir ? exe !== undefined : setup !== undefined),
+  ok: packOk,
   commit: target,
   requested,
+  warm,
+  lowPriority,
   worktree: wt,
   shortWorktree: short,
   cache: CACHE,

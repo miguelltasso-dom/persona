@@ -15,3 +15,10 @@ Muse: cursor HTML. Forge: shared-control domain.
 - MCP: `actingPortsFromComputerUse` + desktop `desktopComputerUseActions(bind)`. Human hold: `onInput('human')` → every persona `human`; `gateComputerActing` recusa click/type; screenshot fica.
 - Resume só `resume(personaId)`.
 - Cursor cap: 2 por monitor (`OVERLAY_CURSOR_CAP`).
+
+## Ciclo de vida do overlay e do atalho global (BUG-QUIT-1, 05/11 — regra, não detalhe)
+
+- **O overlay e o atalho global `CommandOrControl+Shift+Space` NÃO existem em idle.** `installComputerUseBind` só abre as janelas (uma por monitor, lido na hora) e registra o atalho no **primeiro `control.begin(personaId)`**; `release()` (chamado no `finishQuit` do desktop) e `close()` devolvem as duas coisas. Dizia "sem overlay no boot" aqui e o `main` abria no boot: era a causa do bug abaixo.
+- **Por quê (medido no exe, 05/11):** com a janela de overlay viva (transparente, tela cheia, `alwaysOnTop`, página com rAF eterno) o "Sair" não terminava — raiz + GPU + network + 1 renderer ficavam vivos com 0% de CPU (reabrir o app entregava ao processo fantasma: "nada aparece"). Sem ela os processos somem em ~2,5 s. Destruir/fechar a janela antes do quit NÃO cura; `setIgnoreMouseEvents` sem `forward` e o nível `screen-saver` foram exonerados no bisect do Bolt. Por isso, quando o overlay ESTÁ aberto (persona usando o computador), o quit passa por `app.exit(0)` + `quit-watchdog` (`apps/desktop/src/quit-watchdog.ts`), não por `app.quit()` sozinho.
+- **O atalho global tira o acorde de TODOS os outros apps enquanto estiver registrado** (dicas de parâmetro do VS Code, alguns IMEs): só com o overlay aberto, nunca em idle. O overlay em si nunca interceptou mouse/foco (medido: `WS_EX_TRANSPARENT|NOACTIVATE|LAYERED|TOPMOST`, `focusable:false`; o pixel sob ele é do app de baixo).
+- Quem ligar o driver real do computer-use: chame `bind.control.begin` ao começar a usar a tela e `bind.release()` ao terminar o último uso (hoje só o quit chama `release`); não crie janela de overlay em outro lugar. Medidor e aceite: `scripts/persona/bug-quit/` (`validate-exe.mjs`).

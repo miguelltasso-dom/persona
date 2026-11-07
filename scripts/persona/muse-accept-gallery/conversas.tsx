@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { Avatar } from '../../../packages/persona/client-ui-persona/src/client/primitives/Avatar.tsx'
 import { Chip } from '../../../packages/persona/client-ui-persona/src/client/primitives/Chip.tsx'
 import { BrandIcon, UiIcon } from '../../../packages/persona/client-ui-persona/src/client/primitives/icons.tsx'
-import { AVATAR_96 } from '../../../packages/persona/client-ui-persona/src/client/assets/generated-imports.ts'
+import { AVATAR_96, ILLUSTRATIONS } from '../../../packages/persona/client-ui-persona/src/client/assets/generated-imports.ts'
 
 type State = 'working' | 'resting' | 'waiting'
 interface P { readonly name: string; readonly role: string; readonly animal: string; readonly team: string; readonly state: State; readonly last?: string; readonly when?: string; readonly unread?: number }
@@ -73,6 +73,17 @@ function RailPerson({ p, active, compact }: { readonly p: P; readonly active?: b
   )
 }
 
+function LeafDivider(): ReactNode {
+  return (
+    <svg viewBox="0 0 240 12" width="100%" height="12" aria-hidden="true" style={{ display: 'block', color: 'var(--persona-rail-ink-soft)', margin: '10px 0 2px', padding: '0 14px', boxSizing: 'border-box' }}>
+      <g fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 6h216" />
+        <path d="M12 6C8 6 5 4.5 4 1.5 8 1.5 11 3 12 6ZM228 6c4 0 7-1.5 8-4.5-4 0-7 1.5-8 4.5Z" />
+      </g>
+    </svg>
+  )
+}
+
 function RailTeam({ name, people, open }: { readonly name: string; readonly people: readonly P[]; readonly open: boolean }): ReactNode {
   return (
     <div>
@@ -85,13 +96,18 @@ function RailTeam({ name, people, open }: { readonly name: string; readonly peop
   )
 }
 
-function Sidebar({ many, dm }: { readonly many: boolean; readonly dm: boolean }): ReactNode {
+export function ConversasSidebar({ many, dm, activePerson = 1 }: { readonly many: boolean; readonly dm: boolean; readonly activePerson?: number }): ReactNode {
   const all = many ? [...CORE, ...MORE] : CORE
   const byTeam = (team: string) => all.filter(p => p.team === team)
   const rule = '1px solid color-mix(in srgb, var(--persona-rail-ink) 16%, transparent)'
   return (
-    <aside style={{ background: 'var(--persona-rail)', display: 'flex', flexDirection: 'column', minHeight: 0, height: '100vh' }}>
-      <div style={{ padding: '16px 10px 6px' }}>
+    <aside style={{ background: 'var(--persona-rail)', display: 'flex', flexDirection: 'column', minHeight: 0, height: '100vh', position: 'relative', overflow: 'hidden' }}>
+      {/* The foliage lives in its own band at the bottom (it never sits behind list text): the list ends above it with a fade. */}
+      <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 150, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+        <img src={document.body.getAttribute('data-ds-dark-theme') === 'true' ? ILLUSTRATIONS['rail-foliage-dark'] : ILLUSTRATIONS['rail-foliage-light']} alt=""
+          style={{ position: 'absolute', left: 0, bottom: 0, width: '100%', height: 'auto' }} />
+      </div>
+      <div style={{ padding: '16px 10px 6px', position: 'relative', zIndex: 1 }}>
         <div style={{ font: '700 22px/28px var(--persona-font-display)', color: R.ink, margin: '0 8px 10px' }}>Persona</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', margin: '0 4px', borderRadius: 12, background: 'var(--persona-rail-field)', color: R.ink, font: '600 13px/18px var(--persona-font-text)' }}>
           <BrandIcon name="busca" size={15} /><span style={{ flex: 1 }}>Buscar ou ir para…</span>
@@ -102,14 +118,15 @@ function Sidebar({ many, dm }: { readonly many: boolean; readonly dm: boolean })
           <Place icon="equipe" label="Equipe" /><Place icon="conhecimento-memoria" label="Memória da empresa" />
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', borderTop: rule, paddingBottom: 8 }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', borderTop: rule, paddingBottom: 8, position: 'relative', zIndex: 1, marginBottom: 86, maskImage: 'linear-gradient(to bottom, black calc(100% - 28px), transparent)', WebkitMaskImage: 'linear-gradient(to bottom, black calc(100% - 28px), transparent)' }}>
         <div style={railEyebrow}>Canais</div>
         <RailChannel name="geral" />
         {many && <><RailChannel name="marketing" unread={4} active={!dm} /><RailChannel name="atendimento" /><RailChannel name="financeiro" /></>}
         <RailChannel name="diretoria" note="gestores" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', margin: '0 6px', color: R.soft, font: '700 13px/18px var(--persona-font-text)' }}><UiIcon name="plus" size={14} />Novo canal</div>
+        <LeafDivider />
         <div style={railEyebrow}>{many ? 'Recentes' : 'Pessoas'}</div>
-        {(many ? CORE.slice(0, 4) : CORE).map((p, i) => <RailPerson key={p.name} p={p} active={dm && i === 1} />)}
+        {(many ? CORE.slice(0, 4) : CORE).map((p, i) => <RailPerson key={p.name} p={p} active={dm && i === activePerson} />)}
         {many && (
           <>
             <div style={railEyebrow}>Todas as personas · {all.length}</div>
@@ -121,7 +138,7 @@ function Sidebar({ many, dm }: { readonly many: boolean; readonly dm: boolean })
           </>
         )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px 14px', borderTop: rule }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px 14px', position: 'relative', zIndex: 1 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 11px', borderRadius: 999, background: R.active, color: R.activeInk, font: '700 13px/18px var(--persona-font-text)' }}>
           <span style={{ width: 9, height: 9, borderRadius: 999, background: 'var(--persona-success)' }} />Claude · 82% livre
         </span>
@@ -158,11 +175,20 @@ function CardRow({ p, active }: { readonly p: P; readonly active?: boolean }): R
 }
 
 function Picker(): ReactNode {
-  const hits = MORE.filter(p => p.team === 'Marketing').slice(0, 5)
+  const hits = MORE.filter(p => p.team === 'Marketing').slice(0, 3)
   return (
     <div style={{ ...card, position: 'absolute', bottom: 74, left: 16, width: 360, boxShadow: 'var(--persona-shadow-float)', padding: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1.5px solid var(--persona-outline)', borderRadius: 10, font: '600 14px/18px var(--persona-font-text)', color: 'var(--persona-ink)' }}>
         <BrandIcon name="busca" size={16} />mar<span style={{ width: 1.5, height: 16, background: 'var(--persona-ink)' }} />
+      </div>
+      {/* CV-8 (Miguel): the whole team, and "whoever has something to add" */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', marginTop: 8, borderRadius: 10 }}>
+        <span style={{ display: 'flex' }}>{MORE.filter(p => p.team === 'Marketing').slice(0, 4).map((p, i) => <span key={p.name} style={{ marginLeft: i === 0 ? 0 : -8 }}><Avatar name={p.name} src={face(p.animal)} size={24} shape="portrait" decorative /></span>)}</span>
+        <b style={{ font: '700 14px/18px var(--persona-font-text)', color: 'var(--persona-ink)' }}>Toda a equipe (10)</b>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px', borderRadius: 10 }}>
+        <span style={{ width: 24, height: 24, display: 'grid', placeItems: 'center', borderRadius: 8, background: 'var(--persona-wash)', color: 'var(--persona-ink)' }}><UiIcon name="sparkle" size={14} /></span>
+        <span><b style={{ font: '700 14px/18px var(--persona-font-text)', color: 'var(--persona-ink)' }}>Quem tiver algo a dizer</b> <span style={{ font: '500 12px/16px var(--persona-font-text)', color: 'var(--persona-ink-soft)' }}>A Coordenação escolhe quem responde</span></span>
       </div>
       <div style={{ ...eyebrow, margin: '10px 6px 4px' }}>Quem responde aqui</div>
       <CardRow p={CORE[0]!} />
@@ -209,6 +235,11 @@ function Thread({ many, picker }: { readonly many: boolean; readonly picker: boo
       <div style={{ ...card, margin: '0 16px 16px', padding: '12px 14px' }}>
         <div style={{ font: '500 15px/22px var(--persona-font-text)', color: 'var(--persona-ink-soft)', marginBottom: 10 }}>{many ? 'Mensagem em #marketing… (@ chama alguém)' : 'Mensagem para Nina…'}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* The composer keeps every tool (Miguel 04/11): + · image · attach · emoji · @ */}
+          {(['plus', 'image', 'attach', 'smile', 'at'] as const).map(icon => (
+            <span key={icon} style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', borderRadius: 10, border: '1.5px solid var(--persona-outline-soft)', color: 'var(--persona-ink)', background: 'var(--persona-card)' }}><UiIcon name={icon} size={16} /></span>
+          ))}
+          <span style={{ width: 1, height: 22, background: 'var(--persona-outline-soft)', margin: '0 2px' }} />
           {many && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 999, border: `1.5px solid ${picker ? 'var(--persona-outline)' : 'var(--persona-outline-soft)'}`, font: '700 13px/18px var(--persona-font-text)', color: 'var(--persona-ink)' }}>
               Quem responde <Avatar name="Atlas" src={face('atlas')} size={24} shape="portrait" decorative />Coordenação<UiIcon name="chevronDown" size={14} />
@@ -226,7 +257,7 @@ function Thread({ many, picker }: { readonly many: boolean; readonly picker: boo
 export function ConversasPrototype({ many, picker = false, dm = false }: { readonly many: boolean; readonly picker?: boolean; readonly dm?: boolean }): ReactNode {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '296px minmax(0, 1fr)', height: '100vh', background: 'var(--persona-paper)', fontFamily: 'var(--persona-font-text)' }}>
-      <Sidebar many={many} dm={dm} />
+      <ConversasSidebar many={many} dm={dm} />
       <Thread many={many && !dm} picker={picker} />
     </div>
   )

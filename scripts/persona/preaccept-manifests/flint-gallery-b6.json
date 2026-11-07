@@ -1,0 +1,40 @@
+{
+  "owner": "Flint",
+  "bundle": "6",
+  "dir": ".maestri/tmp/shots/flint/gallery-b6",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": [
+    "light",
+    "dark"
+  ],
+  "viewports": [
+    "1440x900",
+    "960x640",
+    "zoom200"
+  ],
+  "roster": [
+    "Atlas",
+    "Bento",
+    "Nina",
+    "Sol",
+    "Luna",
+    "Bolota",
+    "Pipa",
+    "Capi",
+    "Bia",
+    "Teo",
+    "Téo",
+    "Lia",
+    "Caio"
+  ],
+  "scenes": [
+    {
+      "id": "group-after-card"
+    },
+    {
+      "id": "opinion-noversion"
+    }
+  ],
+  "shell": false,
+  "note": "LOTE 3 do Flint (galeria, DADOS DE EXEMPLO, regerada do src atual, bundle 6): (1) recaptura da cena group-after-card pedida pela Muse no lote 1: a linha de EQUIPE TIPADA 'retomou' (MessageView.handoff, status resumed: os dois rostos, sem balão) quebra o grupo e a mensagem seguinte abre com o rosto + 'Nome · função · hora'; o cabeçalho do balão ganhou o espaço que faltava ('Nina · Pesquisa · hora'); (2) opinion-noversion: o 'Depois' VAZIO que o Gauge achou no dia roteirizado (a consolidação que só promete, sem nova versão): agora fica só a frase da consolidação, sem 'Versão k' nem Antes · Depois. As outras 14 cenas da galeria foram ACEITAS no lote 1 (gallery-b5) e não mudaram."
+}

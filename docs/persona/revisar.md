@@ -15,7 +15,7 @@ Em **Revisar mudanças** você vê:
 
 ## Quando você e a persona mudaram o mesmo arquivo
 
-A Persona avisa qual arquivo e deixa você escolher o que fica: **Ficar com o meu**, **Ficar com o da persona** ou **Manter os dois**, que é o recomendado e guarda a versão da persona ao lado da sua. Nada é aplicado antes de você escolher, e o seu arquivo nunca fica com marcas estranhas dentro.
+A Persona avisa qual arquivo e deixa você escolher o que fica: **Ficar com o meu**, **Ficar com a versão do rascunho** ou **Manter os dois**, que é o recomendado e guarda a versão do rascunho ao lado da sua, com “(rascunho)” no nome (por exemplo, “cardápio (rascunho).docx”). Nada é aplicado antes de você escolher, e o seu arquivo nunca fica com marcas estranhas dentro.
 
 ## Quando um arquivo está aberto
 

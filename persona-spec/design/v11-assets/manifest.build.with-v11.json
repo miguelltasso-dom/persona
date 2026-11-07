@@ -1,0 +1,2652 @@
+{
+  "summary": {
+    "generatedAt": "2026-11-04T23:24:27.336Z",
+    "source": "persona-assets",
+    "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
+    "files": 660,
+    "totalBytes": 10520142,
+    "withinBudget": true
+  },
+  "files": [
+    {
+      "rel": "brand/app-icon.svg",
+      "bytes": 688
+    },
+    {
+      "rel": "brand/logo-horizontal-dark.svg",
+      "bytes": 1085
+    },
+    {
+      "rel": "brand/logo-horizontal-light.svg",
+      "bytes": 1085
+    },
+    {
+      "rel": "brand/logo-stacked.svg",
+      "bytes": 1086
+    },
+    {
+      "rel": "brand/monochrome.svg",
+      "bytes": 378
+    },
+    {
+      "rel": "brand/symbol-small.svg",
+      "bytes": 375
+    },
+    {
+      "rel": "brand/symbol.svg",
+      "bytes": 579
+    },
+    {
+      "rel": "brand/tray/tray-idle-16.svg",
+      "bytes": 436
+    },
+    {
+      "rel": "brand/tray/tray-idle-24.svg",
+      "bytes": 436
+    },
+    {
+      "rel": "brand/tray/tray-needs-you-16.svg",
+      "bytes": 519
+    },
+    {
+      "rel": "brand/tray/tray-needs-you-24.svg",
+      "bytes": 519
+    },
+    {
+      "rel": "brand/tray/tray-paused-16.svg",
+      "bytes": 572
+    },
+    {
+      "rel": "brand/tray/tray-paused-24.svg",
+      "bytes": 572
+    },
+    {
+      "rel": "brand/tray/tray-working-16.svg",
+      "bytes": 559
+    },
+    {
+      "rel": "brand/tray/tray-working-24.svg",
+      "bytes": 559
+    },
+    {
+      "rel": "brand/tray-16.svg",
+      "bytes": 375
+    },
+    {
+      "rel": "brand/tray-24.svg",
+      "bytes": 375
+    },
+    {
+      "rel": "icons/nav/ajuda.png",
+      "bytes": 1722
+    },
+    {
+      "rel": "icons/nav/ajuda.svg",
+      "bytes": 429
+    },
+    {
+      "rel": "icons/nav/arquivos.svg",
+      "bytes": 281
+    },
+    {
+      "rel": "icons/nav/busca.svg",
+      "bytes": 242
+    },
+    {
+      "rel": "icons/nav/canais.svg",
+      "bytes": 224
+    },
+    {
+      "rel": "icons/nav/canvas.svg",
+      "bytes": 353
+    },
+    {
+      "rel": "icons/nav/configuracoes.svg",
+      "bytes": 524
+    },
+    {
+      "rel": "icons/nav/conhecimento-memoria.svg",
+      "bytes": 335
+    },
+    {
+      "rel": "icons/nav/conversa.svg",
+      "bytes": 320
+    },
+    {
+      "rel": "icons/nav/convidar.svg",
+      "bytes": 289
+    },
+    {
+      "rel": "icons/nav/decisoes.svg",
+      "bytes": 265
+    },
+    {
+      "rel": "icons/nav/equipe.svg",
+      "bytes": 290
+    },
+    {
+      "rel": "icons/nav/kanban.svg",
+      "bytes": 277
+    },
+    {
+      "rel": "icons/nav/mensagens-diretas.svg",
+      "bytes": 319
+    },
+    {
+      "rel": "icons/nav/novidades.png",
+      "bytes": 1377
+    },
+    {
+      "rel": "icons/nav/novidades.svg",
+      "bytes": 375
+    },
+    {
+      "rel": "icons/nav/projetos.svg",
+      "bytes": 247
+    },
+    {
+      "rel": "icons/nav/quadro.svg",
+      "bytes": 272
+    },
+    {
+      "rel": "icons/nav/quem-cuida.png",
+      "bytes": 1409
+    },
+    {
+      "rel": "icons/nav/quem-cuida.svg",
+      "bytes": 365
+    },
+    {
+      "rel": "icons/nav/rotinas.svg",
+      "bytes": 268
+    },
+    {
+      "rel": "icons/nav/saude.png",
+      "bytes": 2496
+    },
+    {
+      "rel": "icons/nav/saude.svg",
+      "bytes": 336
+    },
+    {
+      "rel": "icons/nav/skills.svg",
+      "bytes": 315
+    },
+    {
+      "rel": "icons/nav/sprints.png",
+      "bytes": 1674
+    },
+    {
+      "rel": "icons/nav/sprints.svg",
+      "bytes": 344
+    },
+    {
+      "rel": "icons/nav/uso-e-limites.svg",
+      "bytes": 234
+    },
+    {
+      "rel": "icons/nav/visao-geral.svg",
+      "bytes": 254
+    },
+    {
+      "rel": "icons/ui/assumir-controle.svg",
+      "bytes": 400
+    },
+    {
+      "rel": "icons/ui/atalho.svg",
+      "bytes": 256
+    },
+    {
+      "rel": "icons/ui/avisos.svg",
+      "bytes": 263
+    },
+    {
+      "rel": "icons/ui/citar.svg",
+      "bytes": 389
+    },
+    {
+      "rel": "icons/ui/desfazer.svg",
+      "bytes": 255
+    },
+    {
+      "rel": "icons/ui/direcionar.svg",
+      "bytes": 257
+    },
+    {
+      "rel": "icons/ui/ensinar.svg",
+      "bytes": 303
+    },
+    {
+      "rel": "icons/ui/fila.svg",
+      "bytes": 276
+    },
+    {
+      "rel": "icons/ui/lado.svg",
+      "bytes": 374
+    },
+    {
+      "rel": "icons/ui/mover-assunto.svg",
+      "bytes": 263
+    },
+    {
+      "rel": "icons/ui/trocar-conta.svg",
+      "bytes": 358
+    },
+    {
+      "rel": "icons/brain/aprendizado.svg",
+      "bytes": 290
+    },
+    {
+      "rel": "icons/brain/cliente.svg",
+      "bytes": 292
+    },
+    {
+      "rel": "icons/brain/decisao.svg",
+      "bytes": 254
+    },
+    {
+      "rel": "icons/brain/empresa.svg",
+      "bytes": 300
+    },
+    {
+      "rel": "icons/brain/ferramenta.svg",
+      "bytes": 277
+    },
+    {
+      "rel": "icons/brain/glossario.svg",
+      "bytes": 378
+    },
+    {
+      "rel": "icons/brain/permissao.svg",
+      "bytes": 271
+    },
+    {
+      "rel": "icons/brain/pessoa.svg",
+      "bytes": 245
+    },
+    {
+      "rel": "icons/brain/processo.svg",
+      "bytes": 316
+    },
+    {
+      "rel": "icons/brain/projeto.svg",
+      "bytes": 233
+    },
+    {
+      "rel": "icons/brain/regra.svg",
+      "bytes": 263
+    },
+    {
+      "rel": "icons/overlays/approval-badge.svg",
+      "bytes": 320
+    },
+    {
+      "rel": "icons/overlays/error-badge.svg",
+      "bytes": 228
+    },
+    {
+      "rel": "icons/overlays/paw-burst.svg",
+      "bytes": 727
+    },
+    {
+      "rel": "icons/overlays/review-loupe.svg",
+      "bytes": 215
+    },
+    {
+      "rel": "icons/overlays/sparkle-burst.svg",
+      "bytes": 304
+    },
+    {
+      "rel": "icons/overlays/thinking-bubble.svg",
+      "bytes": 460
+    },
+    {
+      "rel": "icons/overlays/typing-dots.svg",
+      "bytes": 216
+    },
+    {
+      "rel": "icons/overlays/zzz.svg",
+      "bytes": 281
+    },
+    {
+      "rel": "accents/divider-leaves.svg",
+      "bytes": 283
+    },
+    {
+      "rel": "accents/doodle-arrow.svg",
+      "bytes": 257
+    },
+    {
+      "rel": "accents/doodle-circle.svg",
+      "bytes": 297
+    },
+    {
+      "rel": "accents/leaf-1.svg",
+      "bytes": 275
+    },
+    {
+      "rel": "accents/leaf-2.svg",
+      "bytes": 274
+    },
+    {
+      "rel": "accents/paw-prints.svg",
+      "bytes": 1079
+    },
+    {
+      "rel": "accents/sparkle-1.svg",
+      "bytes": 262
+    },
+    {
+      "rel": "accents/sparkle-2.svg",
+      "bytes": 329
+    },
+    {
+      "rel": "accents/squiggle-1.svg",
+      "bytes": 232
+    },
+    {
+      "rel": "accents/squiggle-2.svg",
+      "bytes": 245
+    },
+    {
+      "rel": "accents/squiggle-3.svg",
+      "bytes": 256
+    },
+    {
+      "rel": "accents/stamp-aprovado.svg",
+      "bytes": 446
+    },
+    {
+      "rel": "accents/stars-cluster.svg",
+      "bytes": 327
+    },
+    {
+      "rel": "icons/flows/flow-atendimento.svg",
+      "bytes": 309
+    },
+    {
+      "rel": "icons/flows/flow-branco.svg",
+      "bytes": 292
+    },
+    {
+      "rel": "icons/flows/flow-contratacao.svg",
+      "bytes": 334
+    },
+    {
+      "rel": "icons/flows/flow-marketing.svg",
+      "bytes": 278
+    },
+    {
+      "rel": "icons/flows/flow-simples.svg",
+      "bytes": 274
+    },
+    {
+      "rel": "icons/flows/flow-site.svg",
+      "bytes": 260
+    },
+    {
+      "rel": "icons/flows/flow-software.svg",
+      "bytes": 224
+    },
+    {
+      "rel": "icons/engines/claude.svg",
+      "bytes": 355
+    },
+    {
+      "rel": "icons/engines/codex.svg",
+      "bytes": 317
+    },
+    {
+      "rel": "icons/engines/cursor.svg",
+      "bytes": 302
+    },
+    {
+      "rel": "icons/engines/deepseek.svg",
+      "bytes": 356
+    },
+    {
+      "rel": "icons/engines/dsh.svg",
+      "bytes": 510
+    },
+    {
+      "rel": "icons/engines/gemini.svg",
+      "bytes": 387
+    },
+    {
+      "rel": "icons/engines/grok.svg",
+      "bytes": 312
+    },
+    {
+      "rel": "icons/engines/ollama.svg",
+      "bytes": 312
+    },
+    {
+      "rel": "icons/engines/opencode.svg",
+      "bytes": 309
+    },
+    {
+      "rel": "icons/engines/openrouter.svg",
+      "bytes": 342
+    },
+    {
+      "rel": "icons/sectors/admin.svg",
+      "bytes": 228
+    },
+    {
+      "rel": "icons/sectors/conteudo.svg",
+      "bytes": 271
+    },
+    {
+      "rel": "icons/sectors/dados.svg",
+      "bytes": 238
+    },
+    {
+      "rel": "icons/sectors/engenharia.svg",
+      "bytes": 281
+    },
+    {
+      "rel": "icons/sectors/financeiro.svg",
+      "bytes": 336
+    },
+    {
+      "rel": "icons/sectors/juridico.svg",
+      "bytes": 295
+    },
+    {
+      "rel": "icons/sectors/marketing.svg",
+      "bytes": 278
+    },
+    {
+      "rel": "icons/sectors/operacoes.svg",
+      "bytes": 382
+    },
+    {
+      "rel": "icons/sectors/pessoas.svg",
+      "bytes": 314
+    },
+    {
+      "rel": "icons/sectors/produto.svg",
+      "bytes": 321
+    },
+    {
+      "rel": "icons/sectors/suporte.svg",
+      "bytes": 270
+    },
+    {
+      "rel": "icons/sectors/vendas.svg",
+      "bytes": 253
+    },
+    {
+      "rel": "icons/columns/a-fazer.svg",
+      "bytes": 226
+    },
+    {
+      "rel": "icons/columns/bloqueado.svg",
+      "bytes": 229
+    },
+    {
+      "rel": "icons/columns/concluido.svg",
+      "bytes": 232
+    },
+    {
+      "rel": "icons/columns/em-andamento.svg",
+      "bytes": 230
+    },
+    {
+      "rel": "icons/columns/em-revisao.svg",
+      "bytes": 229
+    },
+    {
+      "rel": "brand/banner-team-light.webp",
+      "bytes": 19388
+    },
+    {
+      "rel": "brand/banner-team-dark.webp",
+      "bytes": 17978
+    },
+    {
+      "rel": "brand/rail-foliage.webp",
+      "bytes": 8344
+    },
+    {
+      "rel": "brand/rail-foliage-light.webp",
+      "bytes": 13740
+    },
+    {
+      "rel": "brand/rail-foliage-dark.webp",
+      "bytes": 13220
+    },
+    {
+      "rel": "illustrations/team-banner-light.webp",
+      "bytes": 37084
+    },
+    {
+      "rel": "illustrations/team-banner-dark.webp",
+      "bytes": 32704
+    },
+    {
+      "rel": "illustrations/rail-foliage-light.webp",
+      "bytes": 42946
+    },
+    {
+      "rel": "illustrations/rail-foliage-dark.webp",
+      "bytes": 40522
+    },
+    {
+      "rel": "textures/paper-light.webp",
+      "bytes": 22008
+    },
+    {
+      "rel": "textures/paper-dark.webp",
+      "bytes": 27646
+    },
+    {
+      "rel": "illustrations/empty-col-todo.webp",
+      "bytes": 7666
+    },
+    {
+      "rel": "illustrations/empty-col-doing.webp",
+      "bytes": 6720
+    },
+    {
+      "rel": "illustrations/empty-col-review.webp",
+      "bytes": 6948
+    },
+    {
+      "rel": "illustrations/empty-col-needs-you.webp",
+      "bytes": 7540
+    },
+    {
+      "rel": "illustrations/empty-col-done.webp",
+      "bytes": 8350
+    },
+    {
+      "rel": "illustrations/empty-col-blocked.webp",
+      "bytes": 6156
+    },
+    {
+      "rel": "illustrations/sprint-concluida.webp",
+      "bytes": 66382
+    },
+    {
+      "rel": "illustrations/away-entregas.webp",
+      "bytes": 41444
+    },
+    {
+      "rel": "illustrations/primeira-entrega.webp",
+      "bytes": 54608
+    },
+    {
+      "rel": "illustrations/ensinar-atlas.webp",
+      "bytes": 27350
+    },
+    {
+      "rel": "illustrations/ensinar-bento.webp",
+      "bytes": 20498
+    },
+    {
+      "rel": "illustrations/ensinar-nina.webp",
+      "bytes": 31418
+    },
+    {
+      "rel": "illustrations/ensinar-sol.webp",
+      "bytes": 21948
+    },
+    {
+      "rel": "illustrations/ensinar-luna.webp",
+      "bytes": 23166
+    },
+    {
+      "rel": "illustrations/bibliotecario.webp",
+      "bytes": 29758
+    },
+    {
+      "rel": "illustrations/conflito-mesmo-arquivo.webp",
+      "bytes": 47480
+    },
+    {
+      "rel": "illustrations/empty-historico.webp",
+      "bytes": 33068
+    },
+    {
+      "rel": "illustrations/rascunho-trabalhando.webp",
+      "bytes": 32940
+    },
+    {
+      "rel": "illustrations/empty-limite.webp",
+      "bytes": 33936
+    },
+    {
+      "rel": "illustrations/empty-equipe-remota.webp",
+      "bytes": 47900
+    },
+    {
+      "rel": "illustrations/acesso-encerrado.webp",
+      "bytes": 30146
+    },
+    {
+      "rel": "illustrations/sucesso-aplicado.webp",
+      "bytes": 37478
+    },
+    {
+      "rel": "illustrations/empty-aprovacoes.webp",
+      "bytes": 44538
+    },
+    {
+      "rel": "illustrations/sucesso-skill-aprendida.webp",
+      "bytes": 27738
+    },
+    {
+      "rel": "illustrations/sucesso-convite-aceito.webp",
+      "bytes": 44402
+    },
+    {
+      "rel": "illustrations/sucesso-equipe-chegou.webp",
+      "bytes": 42628
+    },
+    {
+      "rel": "illustrations/spot-limite.webp",
+      "bytes": 7204
+    },
+    {
+      "rel": "illustrations/spot-ajuda-conectar-ia.webp",
+      "bytes": 5806
+    },
+    {
+      "rel": "illustrations/spot-ajuda-contratar.webp",
+      "bytes": 6596
+    },
+    {
+      "rel": "illustrations/spot-ajuda-ensinar.webp",
+      "bytes": 4964
+    },
+    {
+      "rel": "illustrations/spot-ajuda-quadros.webp",
+      "bytes": 6396
+    },
+    {
+      "rel": "illustrations/spot-ajuda-avisos.webp",
+      "bytes": 5996
+    },
+    {
+      "rel": "illustrations/spot-ajuda-privacidade.webp",
+      "bytes": 6858
+    },
+    {
+      "rel": "illustrations/spot-sem-ia.webp",
+      "bytes": 5990
+    },
+    {
+      "rel": "illustrations/about-team.webp",
+      "bytes": 103948
+    },
+    {
+      "rel": "illustrations/release-notes-badge.webp",
+      "bytes": 14356
+    },
+    {
+      "rel": "illustrations/equipe-saudavel.webp",
+      "bytes": 55140
+    },
+    {
+      "rel": "illustrations/ponto-unico-falha.webp",
+      "bytes": 65270
+    },
+    {
+      "rel": "illustrations/voce-de-ferias.webp",
+      "bytes": 67188
+    },
+    {
+      "rel": "illustrations/empty-inbox.webp",
+      "bytes": 15888
+    },
+    {
+      "rel": "illustrations/empty-kanban.webp",
+      "bytes": 26554
+    },
+    {
+      "rel": "illustrations/empty-search.webp",
+      "bytes": 20402
+    },
+    {
+      "rel": "illustrations/empty-vault.webp",
+      "bytes": 23784
+    },
+    {
+      "rel": "illustrations/empty-routines.webp",
+      "bytes": 16580
+    },
+    {
+      "rel": "illustrations/empty-connections.webp",
+      "bytes": 19898
+    },
+    {
+      "rel": "illustrations/empty-error.webp",
+      "bytes": 15004
+    },
+    {
+      "rel": "illustrations/empty-dm.webp",
+      "bytes": 18196
+    },
+    {
+      "rel": "illustrations/empty-sem-ia.webp",
+      "bytes": 39772
+    },
+    {
+      "rel": "illustrations/empty-dm-noite.webp",
+      "bytes": 23418
+    },
+    {
+      "rel": "illustrations/empty-aprovacoes-noite.webp",
+      "bytes": 38178
+    },
+    {
+      "rel": "illustrations/empty-geral-noite.webp",
+      "bytes": 24692
+    },
+    {
+      "rel": "illustrations/channel-marketing.webp",
+      "bytes": 2918
+    },
+    {
+      "rel": "illustrations/channel-atendimento.webp",
+      "bytes": 2634
+    },
+    {
+      "rel": "illustrations/channel-financeiro.webp",
+      "bytes": 3200
+    },
+    {
+      "rel": "illustrations/channel-diretoria.webp",
+      "bytes": 3608
+    },
+    {
+      "rel": "illustrations/channel-produto.webp",
+      "bytes": 2966
+    },
+    {
+      "rel": "illustrations/channel-equipe.webp",
+      "bytes": 3612
+    },
+    {
+      "rel": "accents/firefly.webp",
+      "bytes": 1088
+    },
+    {
+      "rel": "stickers/atlas-comemorando.webp",
+      "bytes": 6738
+    },
+    {
+      "rel": "stickers/atlas-coracao.webp",
+      "bytes": 5742
+    },
+    {
+      "rel": "stickers/atlas-feito.webp",
+      "bytes": 6374
+    },
+    {
+      "rel": "stickers/atlas-joinha.webp",
+      "bytes": 5246
+    },
+    {
+      "rel": "stickers/atlas-pensando.webp",
+      "bytes": 5402
+    },
+    {
+      "rel": "stickers/atlas-rindo.webp",
+      "bytes": 4982
+    },
+    {
+      "rel": "stickers/bento-comemorando.webp",
+      "bytes": 6746
+    },
+    {
+      "rel": "stickers/bento-coracao.webp",
+      "bytes": 5542
+    },
+    {
+      "rel": "stickers/bento-feito.webp",
+      "bytes": 6038
+    },
+    {
+      "rel": "stickers/bento-joinha.webp",
+      "bytes": 5816
+    },
+    {
+      "rel": "stickers/bento-pensando.webp",
+      "bytes": 5264
+    },
+    {
+      "rel": "stickers/bento-rindo.webp",
+      "bytes": 5320
+    },
+    {
+      "rel": "stickers/capivara-comemorando.webp",
+      "bytes": 6282
+    },
+    {
+      "rel": "stickers/capivara-coracao.webp",
+      "bytes": 5768
+    },
+    {
+      "rel": "stickers/capivara-feito.webp",
+      "bytes": 6094
+    },
+    {
+      "rel": "stickers/capivara-joinha.webp",
+      "bytes": 5440
+    },
+    {
+      "rel": "stickers/capivara-pensando.webp",
+      "bytes": 6538
+    },
+    {
+      "rel": "stickers/capivara-rindo.webp",
+      "bytes": 6622
+    },
+    {
+      "rel": "stickers/cervo-comemorando.webp",
+      "bytes": 8456
+    },
+    {
+      "rel": "stickers/cervo-coracao.webp",
+      "bytes": 7202
+    },
+    {
+      "rel": "stickers/cervo-feito.webp",
+      "bytes": 7810
+    },
+    {
+      "rel": "stickers/cervo-joinha.webp",
+      "bytes": 8158
+    },
+    {
+      "rel": "stickers/cervo-pensando.webp",
+      "bytes": 6564
+    },
+    {
+      "rel": "stickers/cervo-rindo.webp",
+      "bytes": 7976
+    },
+    {
+      "rel": "stickers/coelho-comemorando.webp",
+      "bytes": 7696
+    },
+    {
+      "rel": "stickers/coelho-coracao.webp",
+      "bytes": 5940
+    },
+    {
+      "rel": "stickers/coelho-feito.webp",
+      "bytes": 6694
+    },
+    {
+      "rel": "stickers/coelho-joinha.webp",
+      "bytes": 5978
+    },
+    {
+      "rel": "stickers/coelho-pensando.webp",
+      "bytes": 6424
+    },
+    {
+      "rel": "stickers/coelho-rindo.webp",
+      "bytes": 6502
+    },
+    {
+      "rel": "stickers/coruja-comemorando.webp",
+      "bytes": 6792
+    },
+    {
+      "rel": "stickers/coruja-coracao.webp",
+      "bytes": 6238
+    },
+    {
+      "rel": "stickers/coruja-feito.webp",
+      "bytes": 6884
+    },
+    {
+      "rel": "stickers/coruja-joinha.webp",
+      "bytes": 6742
+    },
+    {
+      "rel": "stickers/coruja-pensando.webp",
+      "bytes": 5692
+    },
+    {
+      "rel": "stickers/coruja-rindo.webp",
+      "bytes": 8068
+    },
+    {
+      "rel": "stickers/guaxinim-comemorando.webp",
+      "bytes": 6480
+    },
+    {
+      "rel": "stickers/guaxinim-coracao.webp",
+      "bytes": 5918
+    },
+    {
+      "rel": "stickers/guaxinim-feito.webp",
+      "bytes": 6690
+    },
+    {
+      "rel": "stickers/guaxinim-joinha.webp",
+      "bytes": 6540
+    },
+    {
+      "rel": "stickers/guaxinim-pensando.webp",
+      "bytes": 5822
+    },
+    {
+      "rel": "stickers/guaxinim-rindo.webp",
+      "bytes": 7484
+    },
+    {
+      "rel": "stickers/lobo-guara-comemorando.webp",
+      "bytes": 7526
+    },
+    {
+      "rel": "stickers/lobo-guara-coracao.webp",
+      "bytes": 6208
+    },
+    {
+      "rel": "stickers/lobo-guara-feito.webp",
+      "bytes": 6666
+    },
+    {
+      "rel": "stickers/lobo-guara-joinha.webp",
+      "bytes": 7074
+    },
+    {
+      "rel": "stickers/lobo-guara-pensando.webp",
+      "bytes": 5196
+    },
+    {
+      "rel": "stickers/lobo-guara-rindo.webp",
+      "bytes": 7138
+    },
+    {
+      "rel": "stickers/lontra-comemorando.webp",
+      "bytes": 5986
+    },
+    {
+      "rel": "stickers/lontra-coracao.webp",
+      "bytes": 5042
+    },
+    {
+      "rel": "stickers/lontra-feito.webp",
+      "bytes": 5604
+    },
+    {
+      "rel": "stickers/lontra-joinha.webp",
+      "bytes": 6136
+    },
+    {
+      "rel": "stickers/lontra-pensando.webp",
+      "bytes": 6330
+    },
+    {
+      "rel": "stickers/lontra-rindo.webp",
+      "bytes": 6860
+    },
+    {
+      "rel": "stickers/luna-comemorando.webp",
+      "bytes": 7422
+    },
+    {
+      "rel": "stickers/luna-coracao.webp",
+      "bytes": 6040
+    },
+    {
+      "rel": "stickers/luna-feito.webp",
+      "bytes": 6158
+    },
+    {
+      "rel": "stickers/luna-joinha.webp",
+      "bytes": 5700
+    },
+    {
+      "rel": "stickers/luna-pensando.webp",
+      "bytes": 5662
+    },
+    {
+      "rel": "stickers/luna-rindo.webp",
+      "bytes": 6540
+    },
+    {
+      "rel": "stickers/nina-comemorando.webp",
+      "bytes": 8838
+    },
+    {
+      "rel": "stickers/nina-coracao.webp",
+      "bytes": 7124
+    },
+    {
+      "rel": "stickers/nina-feito.webp",
+      "bytes": 7812
+    },
+    {
+      "rel": "stickers/nina-joinha.webp",
+      "bytes": 7536
+    },
+    {
+      "rel": "stickers/nina-pensando.webp",
+      "bytes": 7110
+    },
+    {
+      "rel": "stickers/nina-rindo.webp",
+      "bytes": 7304
+    },
+    {
+      "rel": "stickers/ourico-comemorando.webp",
+      "bytes": 5634
+    },
+    {
+      "rel": "stickers/ourico-coracao.webp",
+      "bytes": 5904
+    },
+    {
+      "rel": "stickers/ourico-feito.webp",
+      "bytes": 5698
+    },
+    {
+      "rel": "stickers/ourico-joinha.webp",
+      "bytes": 5984
+    },
+    {
+      "rel": "stickers/ourico-pensando.webp",
+      "bytes": 6012
+    },
+    {
+      "rel": "stickers/ourico-rindo.webp",
+      "bytes": 6336
+    },
+    {
+      "rel": "stickers/panda-comemorando.webp",
+      "bytes": 6550
+    },
+    {
+      "rel": "stickers/panda-coracao.webp",
+      "bytes": 5774
+    },
+    {
+      "rel": "stickers/panda-feito.webp",
+      "bytes": 6132
+    },
+    {
+      "rel": "stickers/panda-joinha.webp",
+      "bytes": 6030
+    },
+    {
+      "rel": "stickers/panda-pensando.webp",
+      "bytes": 5726
+    },
+    {
+      "rel": "stickers/panda-rindo.webp",
+      "bytes": 6256
+    },
+    {
+      "rel": "stickers/raposa-comemorando.webp",
+      "bytes": 5828
+    },
+    {
+      "rel": "stickers/raposa-coracao.webp",
+      "bytes": 6118
+    },
+    {
+      "rel": "stickers/raposa-feito.webp",
+      "bytes": 6400
+    },
+    {
+      "rel": "stickers/raposa-joinha.webp",
+      "bytes": 6570
+    },
+    {
+      "rel": "stickers/raposa-pensando.webp",
+      "bytes": 6756
+    },
+    {
+      "rel": "stickers/raposa-rindo.webp",
+      "bytes": 7764
+    },
+    {
+      "rel": "stickers/sol-comemorando.webp",
+      "bytes": 6662
+    },
+    {
+      "rel": "stickers/sol-coracao.webp",
+      "bytes": 5532
+    },
+    {
+      "rel": "stickers/sol-feito.webp",
+      "bytes": 5642
+    },
+    {
+      "rel": "stickers/sol-joinha.webp",
+      "bytes": 5246
+    },
+    {
+      "rel": "stickers/sol-pensando.webp",
+      "bytes": 5476
+    },
+    {
+      "rel": "stickers/sol-rindo.webp",
+      "bytes": 4988
+    },
+    {
+      "rel": "stickers/tamandua-comemorando.webp",
+      "bytes": 7480
+    },
+    {
+      "rel": "stickers/tamandua-coracao.webp",
+      "bytes": 6374
+    },
+    {
+      "rel": "stickers/tamandua-feito.webp",
+      "bytes": 5978
+    },
+    {
+      "rel": "stickers/tamandua-joinha.webp",
+      "bytes": 6522
+    },
+    {
+      "rel": "stickers/tamandua-pensando.webp",
+      "bytes": 5976
+    },
+    {
+      "rel": "stickers/tamandua-rindo.webp",
+      "bytes": 6154
+    },
+    {
+      "rel": "stickers/tucano-comemorando.webp",
+      "bytes": 6578
+    },
+    {
+      "rel": "stickers/tucano-coracao.webp",
+      "bytes": 6448
+    },
+    {
+      "rel": "stickers/tucano-feito.webp",
+      "bytes": 5808
+    },
+    {
+      "rel": "stickers/tucano-joinha.webp",
+      "bytes": 5580
+    },
+    {
+      "rel": "stickers/tucano-pensando.webp",
+      "bytes": 6240
+    },
+    {
+      "rel": "stickers/tucano-rindo.webp",
+      "bytes": 5794
+    },
+    {
+      "rel": "avatars/atlas-blink-256.webp",
+      "bytes": 13040
+    },
+    {
+      "rel": "avatars/atlas-blink-96.webp",
+      "bytes": 3800
+    },
+    {
+      "rel": "avatars/atlas-blink-48.webp",
+      "bytes": 1822
+    },
+    {
+      "rel": "avatars/atlas-256.webp",
+      "bytes": 13214
+    },
+    {
+      "rel": "avatars/atlas-96.webp",
+      "bytes": 3840
+    },
+    {
+      "rel": "avatars/atlas-48.webp",
+      "bytes": 1836
+    },
+    {
+      "rel": "avatars/bento-blink-256.webp",
+      "bytes": 12162
+    },
+    {
+      "rel": "avatars/bento-blink-96.webp",
+      "bytes": 3566
+    },
+    {
+      "rel": "avatars/bento-blink-48.webp",
+      "bytes": 1700
+    },
+    {
+      "rel": "avatars/bento-256.webp",
+      "bytes": 12402
+    },
+    {
+      "rel": "avatars/bento-96.webp",
+      "bytes": 3616
+    },
+    {
+      "rel": "avatars/bento-48.webp",
+      "bytes": 1706
+    },
+    {
+      "rel": "avatars/capivara-blink-256.webp",
+      "bytes": 12146
+    },
+    {
+      "rel": "avatars/capivara-blink-96.webp",
+      "bytes": 3760
+    },
+    {
+      "rel": "avatars/capivara-blink-48.webp",
+      "bytes": 1734
+    },
+    {
+      "rel": "avatars/capivara-256.webp",
+      "bytes": 12602
+    },
+    {
+      "rel": "avatars/capivara-96.webp",
+      "bytes": 3780
+    },
+    {
+      "rel": "avatars/capivara-48.webp",
+      "bytes": 1734
+    },
+    {
+      "rel": "avatars/cervo-blink-256.webp",
+      "bytes": 15588
+    },
+    {
+      "rel": "avatars/cervo-blink-96.webp",
+      "bytes": 4662
+    },
+    {
+      "rel": "avatars/cervo-blink-48.webp",
+      "bytes": 2020
+    },
+    {
+      "rel": "avatars/cervo-256.webp",
+      "bytes": 15660
+    },
+    {
+      "rel": "avatars/cervo-96.webp",
+      "bytes": 4672
+    },
+    {
+      "rel": "avatars/cervo-48.webp",
+      "bytes": 2026
+    },
+    {
+      "rel": "avatars/coelho-blink-256.webp",
+      "bytes": 12474
+    },
+    {
+      "rel": "avatars/coelho-blink-96.webp",
+      "bytes": 3734
+    },
+    {
+      "rel": "avatars/coelho-blink-48.webp",
+      "bytes": 1684
+    },
+    {
+      "rel": "avatars/coelho-256.webp",
+      "bytes": 12732
+    },
+    {
+      "rel": "avatars/coelho-96.webp",
+      "bytes": 3766
+    },
+    {
+      "rel": "avatars/coelho-48.webp",
+      "bytes": 1696
+    },
+    {
+      "rel": "avatars/coruja-blink-256.webp",
+      "bytes": 13590
+    },
+    {
+      "rel": "avatars/coruja-blink-96.webp",
+      "bytes": 4168
+    },
+    {
+      "rel": "avatars/coruja-blink-48.webp",
+      "bytes": 1844
+    },
+    {
+      "rel": "avatars/coruja-256.webp",
+      "bytes": 14100
+    },
+    {
+      "rel": "avatars/coruja-96.webp",
+      "bytes": 4220
+    },
+    {
+      "rel": "avatars/coruja-48.webp",
+      "bytes": 1868
+    },
+    {
+      "rel": "avatars/guaxinim-blink-256.webp",
+      "bytes": 13004
+    },
+    {
+      "rel": "avatars/guaxinim-blink-96.webp",
+      "bytes": 3996
+    },
+    {
+      "rel": "avatars/guaxinim-blink-48.webp",
+      "bytes": 1850
+    },
+    {
+      "rel": "avatars/guaxinim-256.webp",
+      "bytes": 13096
+    },
+    {
+      "rel": "avatars/guaxinim-96.webp",
+      "bytes": 3972
+    },
+    {
+      "rel": "avatars/guaxinim-48.webp",
+      "bytes": 1826
+    },
+    {
+      "rel": "avatars/lobo-guara-blink-256.webp",
+      "bytes": 13182
+    },
+    {
+      "rel": "avatars/lobo-guara-blink-96.webp",
+      "bytes": 3826
+    },
+    {
+      "rel": "avatars/lobo-guara-blink-48.webp",
+      "bytes": 1704
+    },
+    {
+      "rel": "avatars/lobo-guara-256.webp",
+      "bytes": 13276
+    },
+    {
+      "rel": "avatars/lobo-guara-96.webp",
+      "bytes": 3838
+    },
+    {
+      "rel": "avatars/lobo-guara-48.webp",
+      "bytes": 1712
+    },
+    {
+      "rel": "avatars/lontra-blink-256.webp",
+      "bytes": 12522
+    },
+    {
+      "rel": "avatars/lontra-blink-96.webp",
+      "bytes": 3834
+    },
+    {
+      "rel": "avatars/lontra-blink-48.webp",
+      "bytes": 1748
+    },
+    {
+      "rel": "avatars/lontra-256.webp",
+      "bytes": 12474
+    },
+    {
+      "rel": "avatars/lontra-96.webp",
+      "bytes": 3832
+    },
+    {
+      "rel": "avatars/lontra-48.webp",
+      "bytes": 1744
+    },
+    {
+      "rel": "avatars/luna-blink-256.webp",
+      "bytes": 11710
+    },
+    {
+      "rel": "avatars/luna-blink-96.webp",
+      "bytes": 3414
+    },
+    {
+      "rel": "avatars/luna-blink-48.webp",
+      "bytes": 1640
+    },
+    {
+      "rel": "avatars/luna-256.webp",
+      "bytes": 12130
+    },
+    {
+      "rel": "avatars/luna-96.webp",
+      "bytes": 3556
+    },
+    {
+      "rel": "avatars/luna-48.webp",
+      "bytes": 1658
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-blink-256.webp",
+      "bytes": 12894
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-blink-96.webp",
+      "bytes": 4026
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-blink-48.webp",
+      "bytes": 1788
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-256.webp",
+      "bytes": 13064
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-96.webp",
+      "bytes": 4072
+    },
+    {
+      "rel": "avatars/mico-leao-dourado-48.webp",
+      "bytes": 1808
+    },
+    {
+      "rel": "avatars/nina-blink-256.webp",
+      "bytes": 15906
+    },
+    {
+      "rel": "avatars/nina-blink-96.webp",
+      "bytes": 4606
+    },
+    {
+      "rel": "avatars/nina-blink-48.webp",
+      "bytes": 2080
+    },
+    {
+      "rel": "avatars/nina-256.webp",
+      "bytes": 16258
+    },
+    {
+      "rel": "avatars/nina-96.webp",
+      "bytes": 4642
+    },
+    {
+      "rel": "avatars/nina-48.webp",
+      "bytes": 2068
+    },
+    {
+      "rel": "avatars/ourico-blink-256.webp",
+      "bytes": 13586
+    },
+    {
+      "rel": "avatars/ourico-blink-96.webp",
+      "bytes": 4052
+    },
+    {
+      "rel": "avatars/ourico-blink-48.webp",
+      "bytes": 1758
+    },
+    {
+      "rel": "avatars/ourico-256.webp",
+      "bytes": 13590
+    },
+    {
+      "rel": "avatars/ourico-96.webp",
+      "bytes": 4048
+    },
+    {
+      "rel": "avatars/ourico-48.webp",
+      "bytes": 1778
+    },
+    {
+      "rel": "avatars/panda-blink-256.webp",
+      "bytes": 12386
+    },
+    {
+      "rel": "avatars/panda-blink-96.webp",
+      "bytes": 4018
+    },
+    {
+      "rel": "avatars/panda-blink-48.webp",
+      "bytes": 1828
+    },
+    {
+      "rel": "avatars/panda-256.webp",
+      "bytes": 12674
+    },
+    {
+      "rel": "avatars/panda-96.webp",
+      "bytes": 4088
+    },
+    {
+      "rel": "avatars/panda-48.webp",
+      "bytes": 1818
+    },
+    {
+      "rel": "avatars/raposa-blink-256.webp",
+      "bytes": 13400
+    },
+    {
+      "rel": "avatars/raposa-blink-96.webp",
+      "bytes": 3944
+    },
+    {
+      "rel": "avatars/raposa-blink-48.webp",
+      "bytes": 1806
+    },
+    {
+      "rel": "avatars/raposa-256.webp",
+      "bytes": 13544
+    },
+    {
+      "rel": "avatars/raposa-96.webp",
+      "bytes": 3930
+    },
+    {
+      "rel": "avatars/raposa-48.webp",
+      "bytes": 1792
+    },
+    {
+      "rel": "avatars/sol-blink-256.webp",
+      "bytes": 9626
+    },
+    {
+      "rel": "avatars/sol-blink-96.webp",
+      "bytes": 3106
+    },
+    {
+      "rel": "avatars/sol-blink-48.webp",
+      "bytes": 1496
+    },
+    {
+      "rel": "avatars/sol-256.webp",
+      "bytes": 9616
+    },
+    {
+      "rel": "avatars/sol-96.webp",
+      "bytes": 3090
+    },
+    {
+      "rel": "avatars/sol-48.webp",
+      "bytes": 1506
+    },
+    {
+      "rel": "avatars/tamandua-blink-256.webp",
+      "bytes": 12460
+    },
+    {
+      "rel": "avatars/tamandua-blink-96.webp",
+      "bytes": 3830
+    },
+    {
+      "rel": "avatars/tamandua-blink-48.webp",
+      "bytes": 1804
+    },
+    {
+      "rel": "avatars/tamandua-256.webp",
+      "bytes": 12674
+    },
+    {
+      "rel": "avatars/tamandua-96.webp",
+      "bytes": 3832
+    },
+    {
+      "rel": "avatars/tamandua-48.webp",
+      "bytes": 1832
+    },
+    {
+      "rel": "avatars/tucano-blink-256.webp",
+      "bytes": 10416
+    },
+    {
+      "rel": "avatars/tucano-blink-96.webp",
+      "bytes": 3296
+    },
+    {
+      "rel": "avatars/tucano-blink-48.webp",
+      "bytes": 1572
+    },
+    {
+      "rel": "avatars/tucano-256.webp",
+      "bytes": 10580
+    },
+    {
+      "rel": "avatars/tucano-96.webp",
+      "bytes": 3294
+    },
+    {
+      "rel": "avatars/tucano-48.webp",
+      "bytes": 1572
+    },
+    {
+      "rel": "poses/atlas-acenando.webp",
+      "bytes": 20962
+    },
+    {
+      "rel": "poses/atlas-aguardando-aprovacao.webp",
+      "bytes": 27476
+    },
+    {
+      "rel": "poses/atlas-aguardando-resposta.webp",
+      "bytes": 29096
+    },
+    {
+      "rel": "poses/atlas-comemorando.webp",
+      "bytes": 32006
+    },
+    {
+      "rel": "poses/atlas-confuso.webp",
+      "bytes": 29964
+    },
+    {
+      "rel": "poses/atlas-descansando.webp",
+      "bytes": 57278
+    },
+    {
+      "rel": "poses/atlas-digitando.webp",
+      "bytes": 31584
+    },
+    {
+      "rel": "poses/atlas-disponivel-blink.webp",
+      "bytes": 19164
+    },
+    {
+      "rel": "poses/atlas-disponivel-tail.webp",
+      "bytes": 19854
+    },
+    {
+      "rel": "poses/atlas-disponivel.webp",
+      "bytes": 29526
+    },
+    {
+      "rel": "poses/atlas-erro.webp",
+      "bytes": 36284
+    },
+    {
+      "rel": "poses/atlas-lendo.webp",
+      "bytes": 30796
+    },
+    {
+      "rel": "poses/atlas-offline.webp",
+      "bytes": 28772
+    },
+    {
+      "rel": "poses/atlas-pensando-1.webp",
+      "bytes": 19676
+    },
+    {
+      "rel": "poses/atlas-pensando-2.webp",
+      "bytes": 19694
+    },
+    {
+      "rel": "poses/atlas-pensando-3.webp",
+      "bytes": 19594
+    },
+    {
+      "rel": "poses/atlas-revisando.webp",
+      "bytes": 33098
+    },
+    {
+      "rel": "poses/atlas-trabalhando.webp",
+      "bytes": 32572
+    },
+    {
+      "rel": "poses/bento-acenando.webp",
+      "bytes": 23306
+    },
+    {
+      "rel": "poses/bento-aguardando-aprovacao.webp",
+      "bytes": 28566
+    },
+    {
+      "rel": "poses/bento-aguardando-resposta.webp",
+      "bytes": 29004
+    },
+    {
+      "rel": "poses/bento-comemorando.webp",
+      "bytes": 40058
+    },
+    {
+      "rel": "poses/bento-confuso.webp",
+      "bytes": 37568
+    },
+    {
+      "rel": "poses/bento-descansando.webp",
+      "bytes": 63342
+    },
+    {
+      "rel": "poses/bento-digitando.webp",
+      "bytes": 37874
+    },
+    {
+      "rel": "poses/bento-disponivel-blink.webp",
+      "bytes": 24578
+    },
+    {
+      "rel": "poses/bento-disponivel-tail.webp",
+      "bytes": 24620
+    },
+    {
+      "rel": "poses/bento-disponivel.webp",
+      "bytes": 36750
+    },
+    {
+      "rel": "poses/bento-erro.webp",
+      "bytes": 40314
+    },
+    {
+      "rel": "poses/bento-lendo.webp",
+      "bytes": 36562
+    },
+    {
+      "rel": "poses/bento-offline.webp",
+      "bytes": 27664
+    },
+    {
+      "rel": "poses/bento-pensando-1.webp",
+      "bytes": 18968
+    },
+    {
+      "rel": "poses/bento-pensando-2.webp",
+      "bytes": 19118
+    },
+    {
+      "rel": "poses/bento-pensando-3.webp",
+      "bytes": 18972
+    },
+    {
+      "rel": "poses/bento-revisando.webp",
+      "bytes": 33206
+    },
+    {
+      "rel": "poses/bento-trabalhando.webp",
+      "bytes": 33376
+    },
+    {
+      "rel": "poses/capivara-acenando.webp",
+      "bytes": 19498
+    },
+    {
+      "rel": "poses/capivara-aguardando-aprovacao.webp",
+      "bytes": 30604
+    },
+    {
+      "rel": "poses/capivara-aguardando-resposta.webp",
+      "bytes": 27506
+    },
+    {
+      "rel": "poses/capivara-descansando.webp",
+      "bytes": 57402
+    },
+    {
+      "rel": "poses/capivara-disponivel-blink.webp",
+      "bytes": 19038
+    },
+    {
+      "rel": "poses/capivara-disponivel-tail.webp",
+      "bytes": 19232
+    },
+    {
+      "rel": "poses/capivara-disponivel.webp",
+      "bytes": 29800
+    },
+    {
+      "rel": "poses/capivara-erro.webp",
+      "bytes": 27250
+    },
+    {
+      "rel": "poses/capivara-offline.webp",
+      "bytes": 24408
+    },
+    {
+      "rel": "poses/capivara-pensando-1.webp",
+      "bytes": 18246
+    },
+    {
+      "rel": "poses/capivara-pensando-2.webp",
+      "bytes": 18106
+    },
+    {
+      "rel": "poses/capivara-pensando-3.webp",
+      "bytes": 18082
+    },
+    {
+      "rel": "poses/capivara-revisando.webp",
+      "bytes": 26928
+    },
+    {
+      "rel": "poses/capivara-trabalhando.webp",
+      "bytes": 31882
+    },
+    {
+      "rel": "poses/cervo-acenando.webp",
+      "bytes": 23676
+    },
+    {
+      "rel": "poses/cervo-aguardando-aprovacao.webp",
+      "bytes": 32674
+    },
+    {
+      "rel": "poses/cervo-aguardando-resposta.webp",
+      "bytes": 32848
+    },
+    {
+      "rel": "poses/cervo-descansando.webp",
+      "bytes": 66804
+    },
+    {
+      "rel": "poses/cervo-disponivel-blink.webp",
+      "bytes": 21972
+    },
+    {
+      "rel": "poses/cervo-disponivel-tail.webp",
+      "bytes": 22210
+    },
+    {
+      "rel": "poses/cervo-disponivel.webp",
+      "bytes": 33562
+    },
+    {
+      "rel": "poses/cervo-erro.webp",
+      "bytes": 32844
+    },
+    {
+      "rel": "poses/cervo-offline.webp",
+      "bytes": 27858
+    },
+    {
+      "rel": "poses/cervo-pensando-1.webp",
+      "bytes": 21966
+    },
+    {
+      "rel": "poses/cervo-pensando-2.webp",
+      "bytes": 21940
+    },
+    {
+      "rel": "poses/cervo-pensando-3.webp",
+      "bytes": 21684
+    },
+    {
+      "rel": "poses/cervo-revisando.webp",
+      "bytes": 33326
+    },
+    {
+      "rel": "poses/cervo-trabalhando.webp",
+      "bytes": 36962
+    },
+    {
+      "rel": "poses/coelho-acenando.webp",
+      "bytes": 20550
+    },
+    {
+      "rel": "poses/coelho-aguardando-aprovacao.webp",
+      "bytes": 29684
+    },
+    {
+      "rel": "poses/coelho-aguardando-resposta.webp",
+      "bytes": 28776
+    },
+    {
+      "rel": "poses/coelho-descansando.webp",
+      "bytes": 50780
+    },
+    {
+      "rel": "poses/coelho-disponivel-blink.webp",
+      "bytes": 20990
+    },
+    {
+      "rel": "poses/coelho-disponivel-tail.webp",
+      "bytes": 21362
+    },
+    {
+      "rel": "poses/coelho-disponivel.webp",
+      "bytes": 31540
+    },
+    {
+      "rel": "poses/coelho-erro.webp",
+      "bytes": 29352
+    },
+    {
+      "rel": "poses/coelho-offline.webp",
+      "bytes": 21946
+    },
+    {
+      "rel": "poses/coelho-pensando-1.webp",
+      "bytes": 18900
+    },
+    {
+      "rel": "poses/coelho-pensando-2.webp",
+      "bytes": 18674
+    },
+    {
+      "rel": "poses/coelho-pensando-3.webp",
+      "bytes": 18498
+    },
+    {
+      "rel": "poses/coelho-revisando.webp",
+      "bytes": 27988
+    },
+    {
+      "rel": "poses/coelho-trabalhando.webp",
+      "bytes": 28948
+    },
+    {
+      "rel": "poses/coruja-acenando.webp",
+      "bytes": 25578
+    },
+    {
+      "rel": "poses/coruja-aguardando-aprovacao.webp",
+      "bytes": 33200
+    },
+    {
+      "rel": "poses/coruja-aguardando-resposta.webp",
+      "bytes": 30664
+    },
+    {
+      "rel": "poses/coruja-descansando.webp",
+      "bytes": 46974
+    },
+    {
+      "rel": "poses/coruja-disponivel-blink.webp",
+      "bytes": 22058
+    },
+    {
+      "rel": "poses/coruja-disponivel-tail.webp",
+      "bytes": 22848
+    },
+    {
+      "rel": "poses/coruja-disponivel.webp",
+      "bytes": 34514
+    },
+    {
+      "rel": "poses/coruja-erro.webp",
+      "bytes": 31206
+    },
+    {
+      "rel": "poses/coruja-offline.webp",
+      "bytes": 23602
+    },
+    {
+      "rel": "poses/coruja-pensando-1.webp",
+      "bytes": 22214
+    },
+    {
+      "rel": "poses/coruja-pensando-2.webp",
+      "bytes": 21974
+    },
+    {
+      "rel": "poses/coruja-pensando-3.webp",
+      "bytes": 21566
+    },
+    {
+      "rel": "poses/coruja-revisando.webp",
+      "bytes": 31400
+    },
+    {
+      "rel": "poses/coruja-trabalhando.webp",
+      "bytes": 34130
+    },
+    {
+      "rel": "poses/guaxinim-acenando.webp",
+      "bytes": 23502
+    },
+    {
+      "rel": "poses/guaxinim-aguardando-aprovacao.webp",
+      "bytes": 30466
+    },
+    {
+      "rel": "poses/guaxinim-aguardando-resposta.webp",
+      "bytes": 31082
+    },
+    {
+      "rel": "poses/guaxinim-descansando.webp",
+      "bytes": 48598
+    },
+    {
+      "rel": "poses/guaxinim-disponivel-blink.webp",
+      "bytes": 22292
+    },
+    {
+      "rel": "poses/guaxinim-disponivel-tail.webp",
+      "bytes": 22552
+    },
+    {
+      "rel": "poses/guaxinim-disponivel.webp",
+      "bytes": 33968
+    },
+    {
+      "rel": "poses/guaxinim-erro.webp",
+      "bytes": 29680
+    },
+    {
+      "rel": "poses/guaxinim-offline.webp",
+      "bytes": 21108
+    },
+    {
+      "rel": "poses/guaxinim-pensando-1.webp",
+      "bytes": 21024
+    },
+    {
+      "rel": "poses/guaxinim-pensando-2.webp",
+      "bytes": 20966
+    },
+    {
+      "rel": "poses/guaxinim-pensando-3.webp",
+      "bytes": 20522
+    },
+    {
+      "rel": "poses/guaxinim-revisando.webp",
+      "bytes": 30020
+    },
+    {
+      "rel": "poses/guaxinim-trabalhando.webp",
+      "bytes": 31696
+    },
+    {
+      "rel": "poses/lobo-guara-acenando.webp",
+      "bytes": 20034
+    },
+    {
+      "rel": "poses/lobo-guara-aguardando-aprovacao.webp",
+      "bytes": 27900
+    },
+    {
+      "rel": "poses/lobo-guara-aguardando-resposta.webp",
+      "bytes": 26888
+    },
+    {
+      "rel": "poses/lobo-guara-descansando.webp",
+      "bytes": 63938
+    },
+    {
+      "rel": "poses/lobo-guara-disponivel-blink.webp",
+      "bytes": 19830
+    },
+    {
+      "rel": "poses/lobo-guara-disponivel-tail.webp",
+      "bytes": 20330
+    },
+    {
+      "rel": "poses/lobo-guara-disponivel.webp",
+      "bytes": 31140
+    },
+    {
+      "rel": "poses/lobo-guara-erro.webp",
+      "bytes": 27628
+    },
+    {
+      "rel": "poses/lobo-guara-offline.webp",
+      "bytes": 24422
+    },
+    {
+      "rel": "poses/lobo-guara-pensando-1.webp",
+      "bytes": 17538
+    },
+    {
+      "rel": "poses/lobo-guara-pensando-2.webp",
+      "bytes": 17496
+    },
+    {
+      "rel": "poses/lobo-guara-pensando-3.webp",
+      "bytes": 17394
+    },
+    {
+      "rel": "poses/lobo-guara-revisando.webp",
+      "bytes": 27888
+    },
+    {
+      "rel": "poses/lobo-guara-trabalhando.webp",
+      "bytes": 31380
+    },
+    {
+      "rel": "poses/lontra-acenando.webp",
+      "bytes": 20386
+    },
+    {
+      "rel": "poses/lontra-aguardando-aprovacao.webp",
+      "bytes": 28370
+    },
+    {
+      "rel": "poses/lontra-aguardando-resposta.webp",
+      "bytes": 27216
+    },
+    {
+      "rel": "poses/lontra-descansando.webp",
+      "bytes": 63270
+    },
+    {
+      "rel": "poses/lontra-disponivel-blink.webp",
+      "bytes": 19750
+    },
+    {
+      "rel": "poses/lontra-disponivel-tail.webp",
+      "bytes": 20248
+    },
+    {
+      "rel": "poses/lontra-disponivel.webp",
+      "bytes": 30462
+    },
+    {
+      "rel": "poses/lontra-erro.webp",
+      "bytes": 27434
+    },
+    {
+      "rel": "poses/lontra-offline.webp",
+      "bytes": 21356
+    },
+    {
+      "rel": "poses/lontra-pensando-1.webp",
+      "bytes": 17992
+    },
+    {
+      "rel": "poses/lontra-pensando-2.webp",
+      "bytes": 17938
+    },
+    {
+      "rel": "poses/lontra-pensando-3.webp",
+      "bytes": 17794
+    },
+    {
+      "rel": "poses/lontra-revisando.webp",
+      "bytes": 26946
+    },
+    {
+      "rel": "poses/lontra-trabalhando.webp",
+      "bytes": 29836
+    },
+    {
+      "rel": "poses/luna-acenando.webp",
+      "bytes": 21278
+    },
+    {
+      "rel": "poses/luna-aguardando-aprovacao.webp",
+      "bytes": 30810
+    },
+    {
+      "rel": "poses/luna-aguardando-resposta.webp",
+      "bytes": 28796
+    },
+    {
+      "rel": "poses/luna-comemorando.webp",
+      "bytes": 34560
+    },
+    {
+      "rel": "poses/luna-confuso.webp",
+      "bytes": 32818
+    },
+    {
+      "rel": "poses/luna-descansando.webp",
+      "bytes": 51010
+    },
+    {
+      "rel": "poses/luna-digitando.webp",
+      "bytes": 33410
+    },
+    {
+      "rel": "poses/luna-disponivel-blink.webp",
+      "bytes": 19782
+    },
+    {
+      "rel": "poses/luna-disponivel-tail.webp",
+      "bytes": 22384
+    },
+    {
+      "rel": "poses/luna-disponivel.webp",
+      "bytes": 29908
+    },
+    {
+      "rel": "poses/luna-erro.webp",
+      "bytes": 39696
+    },
+    {
+      "rel": "poses/luna-lendo.webp",
+      "bytes": 30508
+    },
+    {
+      "rel": "poses/luna-offline.webp",
+      "bytes": 28110
+    },
+    {
+      "rel": "poses/luna-pensando-1.webp",
+      "bytes": 19826
+    },
+    {
+      "rel": "poses/luna-pensando-2.webp",
+      "bytes": 19692
+    },
+    {
+      "rel": "poses/luna-pensando-3.webp",
+      "bytes": 19458
+    },
+    {
+      "rel": "poses/luna-revisando.webp",
+      "bytes": 30668
+    },
+    {
+      "rel": "poses/luna-trabalhando.webp",
+      "bytes": 38442
+    },
+    {
+      "rel": "poses/mico-leao-dourado-disponivel.webp",
+      "bytes": 47010
+    },
+    {
+      "rel": "poses/nina-acenando.webp",
+      "bytes": 26360
+    },
+    {
+      "rel": "poses/nina-aguardando-aprovacao.webp",
+      "bytes": 40176
+    },
+    {
+      "rel": "poses/nina-aguardando-resposta.webp",
+      "bytes": 35236
+    },
+    {
+      "rel": "poses/nina-comemorando.webp",
+      "bytes": 41934
+    },
+    {
+      "rel": "poses/nina-confuso.webp",
+      "bytes": 40706
+    },
+    {
+      "rel": "poses/nina-descansando.webp",
+      "bytes": 64108
+    },
+    {
+      "rel": "poses/nina-digitando.webp",
+      "bytes": 37880
+    },
+    {
+      "rel": "poses/nina-disponivel-blink.webp",
+      "bytes": 25200
+    },
+    {
+      "rel": "poses/nina-disponivel-tail.webp",
+      "bytes": 27262
+    },
+    {
+      "rel": "poses/nina-disponivel.webp",
+      "bytes": 39128
+    },
+    {
+      "rel": "poses/nina-erro.webp",
+      "bytes": 47030
+    },
+    {
+      "rel": "poses/nina-lendo.webp",
+      "bytes": 34182
+    },
+    {
+      "rel": "poses/nina-offline.webp",
+      "bytes": 34474
+    },
+    {
+      "rel": "poses/nina-pensando-1.webp",
+      "bytes": 23340
+    },
+    {
+      "rel": "poses/nina-pensando-2.webp",
+      "bytes": 23290
+    },
+    {
+      "rel": "poses/nina-pensando-3.webp",
+      "bytes": 23212
+    },
+    {
+      "rel": "poses/nina-revisando.webp",
+      "bytes": 39112
+    },
+    {
+      "rel": "poses/nina-trabalhando.webp",
+      "bytes": 37648
+    },
+    {
+      "rel": "poses/ourico-acenando.webp",
+      "bytes": 22858
+    },
+    {
+      "rel": "poses/ourico-aguardando-aprovacao.webp",
+      "bytes": 32552
+    },
+    {
+      "rel": "poses/ourico-aguardando-resposta.webp",
+      "bytes": 32798
+    },
+    {
+      "rel": "poses/ourico-descansando.webp",
+      "bytes": 55604
+    },
+    {
+      "rel": "poses/ourico-disponivel-blink.webp",
+      "bytes": 22106
+    },
+    {
+      "rel": "poses/ourico-disponivel-tail.webp",
+      "bytes": 22570
+    },
+    {
+      "rel": "poses/ourico-disponivel.webp",
+      "bytes": 33992
+    },
+    {
+      "rel": "poses/ourico-erro.webp",
+      "bytes": 32654
+    },
+    {
+      "rel": "poses/ourico-offline.webp",
+      "bytes": 30694
+    },
+    {
+      "rel": "poses/ourico-pensando-1.webp",
+      "bytes": 22176
+    },
+    {
+      "rel": "poses/ourico-pensando-2.webp",
+      "bytes": 22082
+    },
+    {
+      "rel": "poses/ourico-pensando-3.webp",
+      "bytes": 21872
+    },
+    {
+      "rel": "poses/ourico-revisando.webp",
+      "bytes": 33364
+    },
+    {
+      "rel": "poses/ourico-trabalhando.webp",
+      "bytes": 35786
+    },
+    {
+      "rel": "poses/panda-acenando.webp",
+      "bytes": 18876
+    },
+    {
+      "rel": "poses/panda-aguardando-aprovacao.webp",
+      "bytes": 25720
+    },
+    {
+      "rel": "poses/panda-aguardando-resposta.webp",
+      "bytes": 23852
+    },
+    {
+      "rel": "poses/panda-descansando.webp",
+      "bytes": 43804
+    },
+    {
+      "rel": "poses/panda-disponivel-blink.webp",
+      "bytes": 17788
+    },
+    {
+      "rel": "poses/panda-disponivel-tail.webp",
+      "bytes": 18038
+    },
+    {
+      "rel": "poses/panda-disponivel.webp",
+      "bytes": 26956
+    },
+    {
+      "rel": "poses/panda-erro.webp",
+      "bytes": 23314
+    },
+    {
+      "rel": "poses/panda-offline.webp",
+      "bytes": 20244
+    },
+    {
+      "rel": "poses/panda-pensando-1.webp",
+      "bytes": 16484
+    },
+    {
+      "rel": "poses/panda-pensando-2.webp",
+      "bytes": 16346
+    },
+    {
+      "rel": "poses/panda-pensando-3.webp",
+      "bytes": 16184
+    },
+    {
+      "rel": "poses/panda-revisando.webp",
+      "bytes": 23246
+    },
+    {
+      "rel": "poses/panda-trabalhando.webp",
+      "bytes": 25420
+    },
+    {
+      "rel": "poses/raposa-acenando.webp",
+      "bytes": 24440
+    },
+    {
+      "rel": "poses/raposa-aguardando-aprovacao.webp",
+      "bytes": 35598
+    },
+    {
+      "rel": "poses/raposa-aguardando-resposta.webp",
+      "bytes": 33370
+    },
+    {
+      "rel": "poses/raposa-descansando.webp",
+      "bytes": 52514
+    },
+    {
+      "rel": "poses/raposa-disponivel-blink.webp",
+      "bytes": 22332
+    },
+    {
+      "rel": "poses/raposa-disponivel-tail.webp",
+      "bytes": 23210
+    },
+    {
+      "rel": "poses/raposa-disponivel.webp",
+      "bytes": 35006
+    },
+    {
+      "rel": "poses/raposa-erro.webp",
+      "bytes": 35064
+    },
+    {
+      "rel": "poses/raposa-offline.webp",
+      "bytes": 23034
+    },
+    {
+      "rel": "poses/raposa-pensando-1.webp",
+      "bytes": 22040
+    },
+    {
+      "rel": "poses/raposa-pensando-2.webp",
+      "bytes": 21900
+    },
+    {
+      "rel": "poses/raposa-pensando-3.webp",
+      "bytes": 21660
+    },
+    {
+      "rel": "poses/raposa-revisando.webp",
+      "bytes": 34078
+    },
+    {
+      "rel": "poses/raposa-trabalhando.webp",
+      "bytes": 36274
+    },
+    {
+      "rel": "poses/sol-acenando.webp",
+      "bytes": 22756
+    },
+    {
+      "rel": "poses/sol-aguardando-aprovacao.webp",
+      "bytes": 33932
+    },
+    {
+      "rel": "poses/sol-aguardando-resposta.webp",
+      "bytes": 30440
+    },
+    {
+      "rel": "poses/sol-comemorando.webp",
+      "bytes": 38770
+    },
+    {
+      "rel": "poses/sol-confuso.webp",
+      "bytes": 35588
+    },
+    {
+      "rel": "poses/sol-descansando.webp",
+      "bytes": 57444
+    },
+    {
+      "rel": "poses/sol-digitando.webp",
+      "bytes": 37070
+    },
+    {
+      "rel": "poses/sol-disponivel-blink.webp",
+      "bytes": 21622
+    },
+    {
+      "rel": "poses/sol-disponivel-tail.webp",
+      "bytes": 23296
+    },
+    {
+      "rel": "poses/sol-disponivel.webp",
+      "bytes": 33576
+    },
+    {
+      "rel": "poses/sol-erro.webp",
+      "bytes": 35722
+    },
+    {
+      "rel": "poses/sol-lendo.webp",
+      "bytes": 35236
+    },
+    {
+      "rel": "poses/sol-offline.webp",
+      "bytes": 25846
+    },
+    {
+      "rel": "poses/sol-pensando-1.webp",
+      "bytes": 19612
+    },
+    {
+      "rel": "poses/sol-pensando-2.webp",
+      "bytes": 19568
+    },
+    {
+      "rel": "poses/sol-pensando-3.webp",
+      "bytes": 19458
+    },
+    {
+      "rel": "poses/sol-revisando.webp",
+      "bytes": 32950
+    },
+    {
+      "rel": "poses/sol-trabalhando.webp",
+      "bytes": 42942
+    },
+    {
+      "rel": "poses/tamandua-acenando.webp",
+      "bytes": 18966
+    },
+    {
+      "rel": "poses/tamandua-aguardando-aprovacao.webp",
+      "bytes": 26536
+    },
+    {
+      "rel": "poses/tamandua-aguardando-resposta.webp",
+      "bytes": 25574
+    },
+    {
+      "rel": "poses/tamandua-descansando.webp",
+      "bytes": 55888
+    },
+    {
+      "rel": "poses/tamandua-disponivel-blink.webp",
+      "bytes": 18678
+    },
+    {
+      "rel": "poses/tamandua-disponivel-tail.webp",
+      "bytes": 18776
+    },
+    {
+      "rel": "poses/tamandua-disponivel.webp",
+      "bytes": 28204
+    },
+    {
+      "rel": "poses/tamandua-erro.webp",
+      "bytes": 26208
+    },
+    {
+      "rel": "poses/tamandua-offline.webp",
+      "bytes": 24722
+    },
+    {
+      "rel": "poses/tamandua-pensando-1.webp",
+      "bytes": 18218
+    },
+    {
+      "rel": "poses/tamandua-pensando-2.webp",
+      "bytes": 18190
+    },
+    {
+      "rel": "poses/tamandua-pensando-3.webp",
+      "bytes": 18076
+    },
+    {
+      "rel": "poses/tamandua-revisando.webp",
+      "bytes": 25608
+    },
+    {
+      "rel": "poses/tamandua-trabalhando.webp",
+      "bytes": 28142
+    },
+    {
+      "rel": "poses/tucano-acenando.webp",
+      "bytes": 21426
+    },
+    {
+      "rel": "poses/tucano-aguardando-aprovacao.webp",
+      "bytes": 27818
+    },
+    {
+      "rel": "poses/tucano-aguardando-resposta.webp",
+      "bytes": 26932
+    },
+    {
+      "rel": "poses/tucano-descansando.webp",
+      "bytes": 44258
+    },
+    {
+      "rel": "poses/tucano-disponivel-blink.webp",
+      "bytes": 21162
+    },
+    {
+      "rel": "poses/tucano-disponivel-tail.webp",
+      "bytes": 21714
+    },
+    {
+      "rel": "poses/tucano-disponivel.webp",
+      "bytes": 31672
+    },
+    {
+      "rel": "poses/tucano-erro.webp",
+      "bytes": 27074
+    },
+    {
+      "rel": "poses/tucano-offline.webp",
+      "bytes": 20688
+    },
+    {
+      "rel": "poses/tucano-pensando-1.webp",
+      "bytes": 17368
+    },
+    {
+      "rel": "poses/tucano-pensando-2.webp",
+      "bytes": 17340
+    },
+    {
+      "rel": "poses/tucano-pensando-3.webp",
+      "bytes": 17154
+    },
+    {
+      "rel": "poses/tucano-revisando.webp",
+      "bytes": 26616
+    },
+    {
+      "rel": "poses/tucano-trabalhando.webp",
+      "bytes": 32352
+    }
+  ]
+}

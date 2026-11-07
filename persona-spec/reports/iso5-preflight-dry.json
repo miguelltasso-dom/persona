@@ -1,0 +1,40 @@
+{
+  "note": "ISO-5 pre-flight with the product code path; control requests only (zero model); no connector name or URL",
+  "claudeVersion": "2.1.318 (Claude Code)",
+  "ok": true,
+  "rows": [
+    {
+      "connector": "#1",
+      "urlHash": "db8bcc0a",
+      "ok": true,
+      "status": "connected",
+      "extraTokens": 1464,
+      "percent": 0.047,
+      "basisTokens": 31414,
+      "usableByRunner": true,
+      "ms": 8448
+    },
+    {
+      "connector": "#2",
+      "urlHash": "579a3d4e",
+      "ok": true,
+      "status": "connected",
+      "extraTokens": 375,
+      "percent": 0.012,
+      "basisTokens": 31414,
+      "usableByRunner": true,
+      "ms": 9811
+    },
+    {
+      "connector": "#3",
+      "urlHash": "17fb03d8",
+      "ok": true,
+      "status": "connected",
+      "extraTokens": 445,
+      "percent": 0.014,
+      "basisTokens": 31414,
+      "usableByRunner": true,
+      "ms": 9589
+    }
+  ]
+}

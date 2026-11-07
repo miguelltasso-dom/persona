@@ -1,5 +1,99 @@
 # Muse — Diretor de Design (relatos)
 
+## ▶ RETOMADA (07/11, ordem do Miguel via Atlas: força total até fechar a v1.1)
+- **Fila:** o aceite final em lote do bundle 5, na ordem Quill → Ember → Prism → Lumen → Flint, só o que passar no pré-aceite do Ember. Depois, a varredura do instalado do corte.
+- **Novo:** `.maestri/tmp/muse/accept-installed-v11.mts` (a varredura do INSTALADO com os padrões de produção, PERSONA_THEME real e a sonda do pré-aceite em cada captura; 23 cenas × 3 tamanhos × 2 temas) + `scripts/persona/preaccept-manifests/muse-installed.json`.
+- **Aceites do lib 6 (7bd08b15), todos com o pré-aceite do Ember:**
+  - SW-7 "Num rascunho";
+  - Ember: V2 b5 + b6 sem iniciais;
+  - Lumen: decoração + Saúde, e o **Revisar no app real (18/18: cabe nas 3 larguras; sucesso inteiro a 200%; o toast só depois que a folha fecha)**;
+  - Prism: b6 na galeria + **o shell real 36/36 (o cartão da persona cabe; "Este motor não informa a cota."; a faixa da equipe sem sobreposição)**;
+  - Flint: lotes 1, 3 e 4;
+  - Quill: EFF-1 (b5) + os singulares b6;
+  - Gauge: **"Um dia da equipe" de fábrica no lib 6 (9/9, 54/54; a opinião sem versão nova sem o Antes/Depois vazio)**.
+- **Decisões de hoje:**
+  - EFF-1 com os NÍVEIS NATIVOS (EFFORT-SPEC §1);
+  - a opinião sem versão nova esconde o bloco;
+  - o popover CV-3 a 200% entra no 6b;
+  - a Revisão escondida ganha uma frase estática (review.alwaysOn, no tree do Forge);
+  - o cartão sem responsável leva o ícone da equipe, neutro e sem letra (Lumen, 6b);
+  - o "Atl…" do Gestor na faixa a 200% sai no 6b (com o OK do Keel);
+  - o custo do conector ISO-5 (v1.2: grant.iso5Cost / iso5CostUnknown, em tokens, nunca em US$);
+  - **os ARQUIVOS NO RASCUNHO (EQUIPE-REAL §e)**:
+    - no lib 6c: o interruptor + "Ferramentas" (Quill), e a linha tipada + a miniatura na opinião + a prévia no Revisar (Flint/Lumen);
+    - prioridade 2: o chip no bilhete e o bloco no "Pronto".
+- **Espera:**
+  - o lote do 6b: EFF-1 nativo (Quill); o cartão sem responsável (Lumen); a faixa sem o "Atl…" (Prism); a frase da Revisão (Forge); o Flint lote 2 no shell real;
+  - o 6c dos arquivos;
+  - a transcrição da tentativa 3/4;
+  - o Setup do corte para a varredura do instalado.
+
+## ⏸ PAUSA TOTAL (05/11, ~06:35, ordem do Miguel via Atlas: cota semanal do Claude em 85%) — ESTADO EXATO
+
+**Nada pela metade:** nenhuma edição aberta e nenhum job meu rodando. O observador D-069 já tinha encerrado.
+
+### Feito e NO TREE (a v1.1)
+- **Arte (`build-assets.mjs`, último build 02:32: 745 arquivos, 9,76 MiB de 12):**
+  - BR-P4 (noite/enfeites), BR-P5 (36 figurinhas), BR-P6 (12 ícones da equipe real + 2 spots a 96), BR-P7 (5 ícones de meio em `icons/actions`), o kit do mico, a folhagem clara v3;
+  - **mudanças no pipeline:**
+    - as poses de estado em q76/alpha 90;
+    - as reações `bom-dia`/`ate-amanha`;
+    - as pranchas `stickers-preview-*` excluídas;
+    - as peças de decoração em `illustrations/`;
+    - só os 5 `icons/actions` de meio entram;
+    - **o clean preserva os `.ts/.tsx` escritos à mão** em `client/assets`.
+- **Código meu no cliente:**
+  - `primitives/PersonaCard.tsx` (o `QuotaMeter` não desenha com pct não finito) + `primitives/Accounts.tsx` (só medidores com número) + teste novo `tests/quota-meter-finite.client.spec.tsx` (5/5);
+  - `theme/persona-palette.css` (os tokens `--persona-night-glow/-vignette/-active-glow`).
+  - Testes verdes; `check-pkg` não foi rodado por mim depois do último (os donos rodaram a suíte inteira).
+- **Specs publicadas hoje:**
+  - EQUIPE-REAL-SPEC (§0 a regra do fio; os ajustes do transcrito; o resumo a pedido; a opinião sem visão);
+  - COTA-NAO-DOLAR-SPEC (D-092, a frase do pct=null);
+  - EFFORT-SPEC (§4.1, a versão mínima da v1.1 + a linha de origem + o layout empilhado);
+  - APARENCIA-SPEC (TH-1);
+  - BR-P5/P6/P7-SPEC;
+  - NEXT-STEP-SHORTCUTS §1 (Aprovações sem a regra 1 + o hábito) e §3.1 (atalhos, v1.2);
+  - CONVERSAS §0.1 (o rodapé do trilho) e §4.1 (CV-7);
+  - NIGHT-THEME §5–6 (a luz da luminária).
+- **v1.2 pronta FORA do pipeline (`persona-assets/concepts/v1.2/`):** os kits da preguiça, do tatu-bola e da arara-azul; os 4 vazios noturnos v2. Ferramenta `persona-assets/tools/life-composite/composite.py`.
+
+### Aceites dados (linhas ACEITE na Status)
+- **Bundle 2:**
+  - IV-9, IV-8, Aprovações V2 + A-4b (Ember);
+  - CV-4 e DMs a 200% (Prism);
+  - Canvas, E13 (Quill);
+  - A-5 e o composer a 200% (Flint).
+- **Bundle 3/4:**
+  - IV-10 e P1-9 (Ember);
+  - Conexões, Ensinar, Configurações › Personas, P1-7 (Quill);
+  - TH-1, Equipe › Personas, Resumir o dia, IV-6 (Prism);
+  - cartões de ação externa e permissão (Ember);
+  - Revisar mudanças (Lumen).
+
+### Pela metade (esperando os outros, nada meu aberto)
+- **EFF-1 (modelo + capricho, LIGADO na v1.1 por ordem do Atlas):** host feito (Anvil); tela no tree até 07:15 (Quill: o layout empilhado, a lista completa de 12 modelos, a linha de origem, o chip). **Falta:** a captura no shell real com a lista do host + o turno no ledger (Opus + Máximo, Tally). O meu aceite depende disso.
+- **Bundle 5 (não saiu antes da pausa):** as correções do Lumen (o texto sem nome do Revisar; a Saúde sem a rotina do sistema), do Quill (a NextStepBar em Aprovações; Quadros com o inReviewSince), do Flint (o composer Parar; a opinião recolhida com a imagem; a opinião sem visão; o agrupamento que quebra em cartão; o action.missing) e do Prism.
+- **A capturar e aceitar:**
+  - a captura do Flint (CV-1/trilho, CV-9 balões + luz, P0-22, opinião, prévia no fio) nunca chegou;
+  - Lumen: os enfeites (houseDecor), o P1-10 e a Saúde neutra.
+
+### Decisões de corte que eu tomei (para o Keel/Atlas)
+- **NextStepBar:** OFF no corte (sem prova visual da regra certa; v1.2).
+- **Ressalvas da v1.1:**
+  - "Adicionar/Remover conta" a 200% (a borda passa 11/2 px; o primário inteiro);
+  - "Claude Max…" a 18 px no rodapé de Uso (a 1ª da v1.2).
+- **Alvos de 20–22 px:** ok na v1.1 e a 24 px na v1.2.
+- **Os 3 bichos da v1.2:** fora da v1.1 (orçamento).
+
+### Próximos passos quando o Atlas chamar
+1. Revisar as capturas do bundle 5 na ordem Quill → Ember → Prism → Lumen → Flint (com o pré-aceite do Ember).
+2. Aceitar o EFF-1 (a captura + o turno).
+3. Revisar o transcrito da tentativa 2 do TEAM-10, quando for remarcada (critérios: o pedido inteiro, nenhum "Em andamento", um só Bom dia em cartão, a captura sem o onboarding).
+4. A varredura final do instalado da v1.1 (`.maestri/tmp/muse/accept-installed.mts`, PERSONA_THEME claro/escuro; com a passada `MUSE_NAV_PLACES=1`).
+5. Registrar na v1.2: os 3 bichos + os 4 vazios noturnos (o build-assets e a medida do peso).
+
+---
+
 ## 2026-11-03 — Design system "escritório acolhedor" + núcleo + 3 telas-vitrine
 
 **Contexto:** feedback do Miguel — "imagens dos animais MUITO boas, resto MUITO ruim, genérico, sem personalidade". Diagnóstico em `DESIGN-SYSTEM.md` §0.
@@ -922,3 +1016,45 @@ bundle (with-lock) → Build complete, 99 files
   - o registro no `build-assets` dos 3 sucessos + os 6 spots, sem regenerar;
   - o protótipo na galeria.
 - **Pendente para depois do H2 #3:** o `build-assets` (os sucessos e os spots da Ajuda) e a varredura de aceite no instalado.
+
+**20:05:**
+- **Balões (CV-9):** o protótipo da DM e do #marketing, claro e escuro, está em `baloes-prototipo/` (axe 0). O canal manteve o chip "Quem responde", e só a DM fica sem ele. O Atlas leva ao Miguel.
+- **Poderes (D-084):** `design/PERSONA-POWERS-SPEC.md` alinhada com o Keel:
+  - o pedido explícito não pede prévia em "Age dentro de limites"; pagar e apagar pedem sempre;
+  - o Desfazer só aparece quando o host marca `undoable`; email, post e pagamento saem só com "Ver";
+  - Codex: nada irreversível por iniciativa própria.
+- **Colheita Lodi e Folhagem:** registradas na UX-BEYOND e na CONVERSAS-SPEC §0. Todo protótipo que vai ao Miguel leva a folhagem e os enfeites da casa.
+- **Varredura do instalado (H2 #3, `4b2c752b47`):** o roteiro está pronto em `.maestri/tmp/muse/accept-installed.mts`:
+  - são 19 painéis, claro/escuro × 1440/960/200 %, com axe, overflow e tela em branco;
+  - há uma 2ª passada nova com `MUSE_NAV_PLACES=1` (a flag dos 6 lugares, mais a aba Sobre).
+  - Ela só roda quando o Rivet publicar o Setup com o sha256. O pedido do Keel e do Atlas é manter a CPU baixa.
+- **20:13 · A luz da luminária no chat (ideia do Miguel, só no escuro):** protótipo em `baloes-luz/`.
+  - A luz cai só no fundo, e os balões continuam sólidos (axe 0; texto solto no pior ponto 6,2:1).
+  - Regras na NIGHT-THEME-SPEC §5. Foi ao Atlas.
+- **`build-assets`:** registrados os 3 vazios noturnos, os 6 ícones-cena dos canais e o vaga-lume (webp). Ainda não regenerei, por causa da CPU baixa até o Setup.
+- **Flint:** pedi o CV-9 (balões) atrás de `persona.flag.bubbles` (D-077) até o meu aceite.
+- **20:30 · Corte D-086 (Keel):** o `assets/` do client voltou a ser IGUAL ao H2 #3 (`4b2c752b47`).
+  - Toda a arte nova saiu do tree: BR-P4 (vazios noturnos, ícones-cena, vaga-lume, folhagem v2 com luminária), BR-P3 P1 (sucessos, spots da Ajuda, 7 ícones ui) e o divider-leaves.
+  - Está guardada em `persona-spec/design/v11-assets/`, para reaplicar na v1.1 com o build-assets.
+  - Ninguém roda o build-assets antes do hash do H3.
+- **Luz da luminária (v1.1):** o Flint está implementando atrás de `lampLight` + `bubbles`. A origem da luz vem do retângulo real da folhagem; o centro da luminária fica em 66,5 % × 75,1 % da arte v2.
+- **20:55 · Varredura do H2 #3 fechada:** 114 capturas (`accept-installed/4b2c752b47-{light,dark}/`), axe 0.
+  - Bloqueadores: DM a 200% (Prism, corrigido) e LEAK-1, o prompt interno da 1ª entrega como "Você" (Forge+Anvil).
+  - Não bloqueadores com os donos: Equipe→Membros, Saúde no 1º dia, título de Aprovações, engrenagem a 200%.
+  - O congelamento foi cancelado (D-087): tudo vai para a v1.1.
+- **EFFORT-SPEC:** modelo + capricho por persona, para Flint, Anvil e Tally (hoje o modelo vai fixo em `sonnet`).
+- **Rodapé do trilho de 64 px:** CONVERSAS §0.1 (Flint).
+- **Aceites:** A-5 e o composer a 200%.
+
+**00:25 · D-069, a 1ª entrega REAL: o que a pessoa vê (H2 #4 `bc28dac5c2`; a linha do tempo oficial do Probe)**
+- **O tempo:** 28,1 s de "Equipe trabalhando" (28.687 ms) à 1ª entrega na tela (56.740 ms); 29,1 s do pedido ao "Aceitar e entrar". Cabe folgado nos 2 min prometidos ("leva menos de dois minutos").
+- **A experiência está boa:**
+  - o Guia avisa antes;
+  - "Equipe trabalhando" tem a pose do bicho e o "Isso usa o motor de IA que você conectou. Pode levar um minuto.";
+  - a celebração "Sua equipe entregou o primeiro trabalho!" usa a arte da equipe;
+  - na Visão geral, o cartão fica em cima e o "Precisa de você" vazio é honesto;
+  - em Quadros, "1 de 1 pronta".
+- **Achados (v1.1):**
+  1. **Sem a aparência da persona:** a persona "Probe Real" aparece com o avatar de LETRAS "PR" na barra e sem bicho escolhido. É do roteiro (o nome do teste), mas mostra que uma persona sem aparência cai nas iniciais. Uma persona sempre tem um bicho padrão (Quill/Prism, a verificar).
+  2. **O subtítulo do "Equipe trabalhando"** troca de "Sua equipe está no pedido" para "Probe Real está no pedido" no meio da espera, o que faz o texto pular. Fique num só, com o nome quando ele já se sabe.
+  3. **O LEAK-1** (o prompt interno como "Você" no #geral) ainda está neste build; já está corrigido no tree da v1.1.

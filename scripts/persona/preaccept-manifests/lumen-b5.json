@@ -1,0 +1,18 @@
+{
+  "owner": "Lumen",
+  "bundle": "5",
+  "dir": ".maestri/tmp/shots/lumen-viewport/bundle5",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "note": "Lote do Lumen no bundle 5 (d8109efa, Quill 12:30): Saúde sem as rotinas do sistema (host Anvil 06:03) + Revisão com os textos sem nome (cabeçalho, avatar com ícone, conflito, sucesso) + os enfeites da casa (houseDecor: Visão geral e Aprovações). Régua: scripts/persona/lumen-viewport-shots.mjs (LUMEN_SCENARIOS=health,review,decor, LUMEN_1440=1, LUMEN_AXE). A Revisão usa o exemplo marcado 'Exemplo' (duas chaves de dev).",
+  "scenes": [
+    "saude-1o-dia",
+    "revisar-lista",
+    "revisar-conflito",
+    "revisar-sucesso",
+    "enfeites-visao-geral",
+    "enfeites-aprovacoes"
+  ]
+}

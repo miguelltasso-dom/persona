@@ -9,6 +9,7 @@ import { DraftReviewPanel } from '../../../packages/persona/client-ui-persona/sr
 import { ProjectHistoryView, type HistoryEntryUi } from '../../../packages/persona/client-ui-persona/src/client/review/simple/ProjectHistoryView.tsx'
 import type { DraftFileUi } from '../../../packages/persona/client-ui-persona/src/client/review/simple/draft-types.ts'
 import { diffLines } from '../../../packages/persona/client-ui-persona/src/client/review/simple/text-diff.ts'
+import { draftFilesFromReviewSummary } from '../../../packages/persona/client-ui-persona/src/client/review/simple/patch-to-changes.ts'
 import { BoardsHome } from '../../../packages/persona/client-ui-persona/src/client/boards/BoardsHome.tsx'
 import { MOCK_PROJECT_BOARD_SUMMARIES } from '../../../packages/persona/client-ui-persona/src/client/boards/mock-data.ts'
 import type { ProjectBoardSummary } from '../../../packages/persona/client-ui-persona/src/client/boards/types.ts'
@@ -20,6 +21,21 @@ import { pt as bycPt } from '../../../packages/persona/client-ui-persona/src/cli
 import { ProposalReview, type ContextProposal, type ProposalChoice } from '../../../packages/persona/client-ui-persona/src/client/primitives/index.ts'
 import { bindLocale } from '../../../packages/persona/client-ui-persona/src/client/preview/locale-bind.ts'
 import { useState } from 'react'
+import { OverviewView } from '../../../packages/persona/client-ui-persona/src/client/overview/OverviewView.tsx'
+import { MOCK_AWAY_SUMMARY, MOCK_OVERVIEW_NOW } from '../../../packages/persona/client-ui-persona/src/client/overview/mock-overview-proactivity.ts'
+import { shellTranslate } from '../../../packages/persona/client-ui-persona/src/client/preview/shell-translate.ts'
+import { ApprovalsInbox } from '../../../packages/persona/client-ui-persona/src/client/approvals/ApprovalsInbox.tsx'
+import { approvalViewToItem } from '../../../packages/persona/client-ui-persona/src/client/data/adapters/approvals.ts'
+import { pt as approvalsPt } from '../../../packages/persona/client-ui-persona/src/client/locale/approvals/locales.ts'
+import { houseEmptyArt } from '../../../packages/persona/client-ui-persona/src/client/decor/HouseDecor.tsx'
+import { ILLUSTRATIONS } from '../../../packages/persona/client-ui-persona/src/client/assets/generated-imports.ts'
+import { EmptyState } from '../../../packages/persona/client-ui-persona/src/client/primitives/index.ts'
+import { ConnectedProjectFlowBoard } from '../../../packages/persona/client-ui-persona/src/client/remote/ConnectedProjectFlowBoard.tsx'
+import { FanoutBlock } from '../../../packages/persona/client-ui-persona/src/client/chat/fanout/FanoutBlock.tsx'
+import { FanoutChip } from '../../../packages/persona/client-ui-persona/src/client/chat/fanout/FanoutChip.tsx'
+import { buildFanoutBlocks } from '../../../packages/persona/client-ui-persona/src/client/chat/fanout/fanout-block-model.ts'
+import { pt as chatPt } from '../../../packages/persona/client-ui-persona/src/client/locale/chat/locales.ts'
+import type { ChannelMessageUi } from '../../../packages/persona/client-ui-persona/src/client/remote/map-host-ui.ts'
 
 const svg = (fill: string, label: string): string =>
   `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="${fill}"/><text x="160" y="108" font-size="28" text-anchor="middle" fill="#2a1b3d" font-family="sans-serif">${label}</text></svg>`)}`
@@ -39,6 +55,31 @@ const sheet: DraftFileUi = {
 }
 const image: DraftFileUi = { id: 'logo', name: 'logo.png', folder: 'Marca', kind: 'changed', type: 'image', beforeImageSrc: svg('#e9dcf7', 'Antes'), afterImageSrc: svg('#fbe3a8', 'Depois') }
 const pdf: DraftFileUi = { id: 'contrato', name: 'contrato.pdf', folder: 'Contratos', kind: 'new', type: 'pdf', canOpenDraft: true }
+
+// Atlas 07/11 (lib 6c): a poster the persona saved as `cartaz.svg` is drawn from the patch; the PNG next to it comes from the host (here a canvas stands in for its bytes).
+const POSTER_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200"><rect width="320" height="200" rx="16" fill="#fde7c4"/><circle cx="262" cy="52" r="26" fill="#e8a33d"/><text x="24" y="96" font-size="30" font-family="sans-serif" fill="#34243f">Promoção de Natal</text><text x="24" y="136" font-size="18" font-family="sans-serif" fill="#5e4e6b">Pão doce e panetone</text></svg>'
+const posterPng = (): string => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 320
+  canvas.height = 200
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = '#fde7c4'; ctx.fillRect(0, 0, 320, 200)
+  ctx.fillStyle = '#e8a33d'; ctx.beginPath(); ctx.arc(262, 52, 26, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = '#34243f'; ctx.font = '30px sans-serif'; ctx.fillText('Promoção de Natal', 24, 96)
+  ctx.fillStyle = '#5e4e6b'; ctx.font = '18px sans-serif'; ctx.fillText('Pão doce e panetone', 24, 136)
+  return canvas.toDataURL('image/png')
+}
+const POSTER_FILES = draftFilesFromReviewSummary({
+  ticketId: 't-poster',
+  files: [{ path: 'Cartaz/cartaz.svg', added: 1, deleted: 0 }, { path: 'Cartaz/cartaz.png', added: 0, deleted: 0, kind: 'new', afterImage: posterPng() }],
+  added: 1,
+  deleted: 0,
+  patch: ['diff --git a/Cartaz/cartaz.svg b/Cartaz/cartaz.svg', 'new file mode 100644', '--- /dev/null', '+++ b/Cartaz/cartaz.svg', '@@ -0,0 +1,1 @@', `+${POSTER_SVG}`].join('\n'),
+  patchTruncated: false,
+  patchLimitBytes: 32_768,
+  secretsRedacted: false,
+  testsClaimed: [],
+})
 const gone: DraftFileUi = { id: 'velho', name: 'cardapio-2025.md', folder: 'Cardápio/2025', kind: 'deleted', type: 'text', ops: diffLines('# Cardápio de 2025\nPão: R$ 10\n', '') }
 
 const now = Date.now()
@@ -112,7 +153,56 @@ function BycReviewGallery(): ReactNode {
   )
 }
 
+const ATTENTION_CARD = approvalViewToItem({ id: 'att-1', kind: 'attention', title: 'Primeira entrega', question: 'Primeira entrega', status: 'pending', personaId: 'bento', personaName: 'Bento' })
+const SECOND_CARD = approvalViewToItem({ id: 'att-2', kind: 'attention', title: 'Cardápio de novembro', question: 'Posso publicar o cardápio novo?', status: 'pending', personaId: 'nina', personaName: 'Nina' })
+
+// D-090: the board with the team-work chips (run with LUMEN_TEAMWORK=1: the flag + the two dev keys). Internal only.
+const TEAMWORK_BOARD = {
+  projectId: 'proj-site', projectName: 'Site da agência', persisted: true,
+  counts: { todo: 0, doing: 1, review: 0, needs_you: 0, done: 0, blocked: 0 },
+  workflow: { projectId: 'proj-site', template: 'site', fields: [], columns: [{ id: 'c-todo', name: 'A fazer', category: 'todo' }, { id: 'c-doing', name: 'Fazendo', category: 'doing' }, { id: 'c-review', name: 'Em revisão', category: 'review' }, { id: 'c-done', name: 'Live', category: 'done' }] },
+  cards: [{ ticketId: 't-real', title: 'Preço do pão', category: 'doing', columnId: 'c-doing', blocked: false }],
+}
+const TEAMWORK_PERSONAS = [{ id: 'nina', name: 'Nina', title: 'Revisão', systemRoles: [] }, { id: 'bento', name: 'Bento', title: 'Código', systemRoles: [] }, { id: 'atlas', name: 'Atlas', title: 'Coordenação', systemRoles: [] }]
+const teamworkPersona = { getProjectBoard: async () => ({ ok: true, value: TEAMWORK_BOARD }), moveTicket: async () => ({ ok: true, value: undefined }), listPersonas: async () => ({ ok: true, value: TEAMWORK_PERSONAS }) }
+
+// CV-8: the card "Respostas da equipe de {x}" and the estimate chip (internal gallery; the acceptance capture is the real shell).
+const chatT = ((key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(chatPt, key, params)) as never
+const fanLine = (index: number, personaId: string, name: string, kind: 'reply' | 'nothing' | 'limit' | 'failed', body: string, extra: Record<string, unknown> = {}): ChannelMessageUi => ({
+  id: `coord-m1-fan-${personaId}`, authorId: personaId, authorName: name, body, timeLabel: '10:00', reactions: [],
+  fanout: { id: 'fan-m1', source: 'everyone', total: 6, index, personaId, kind, ...extra },
+} as ChannelMessageUi)
+const FAN_LINES: readonly ChannelMessageUi[] = [
+  fanLine(1, 'nina', 'Nina', 'reply', 'Eu cuido do contrato e posso mandar hoje.\nVou revisar o anexo também e aviso a Maria quando estiver pronto, ainda antes das 17h.\nSe faltar algo, peço pelo canal.'),
+  fanLine(2, 'bento', 'Bento', 'reply', 'O site já está no ar; só falta o texto da página de contato.'),
+  fanLine(3, 'sol', 'Sol', 'nothing', ''),
+  fanLine(4, 'luna', 'Luna', 'nothing', ''),
+  fanLine(5, 'atlas', 'Atlas', 'limit', '', { until: '2026-11-04T17:30:00' }),
+  fanLine(6, 'cervo', 'Cervo', 'failed', '', { message: 'Houve um problema ao responder. Tente de novo em instantes.' }),
+]
+
+// "Precisa de você / Liberar para {B}" (contracts/team-real.md §9): the colleague case and the initiative case, as the live store would drive them.
+const CONNECTOR_COLLEAGUE = approvalViewToItem({ id: 'conn-1', kind: 'connector', title: 'Liberar o Gmail para Téo', question: '', status: 'pending', personaId: 'bento', personaName: 'Bento', connector: { reason: 'colleague', connectorName: 'Gmail', cli: 'claude', connectorId: 'gmail', access: 'read', requestedByPersonaId: 'nina', requestedByPersonaName: 'Nina', taskId: 't-1', taskTitle: 'Arte da home', options: ['once', 'always', 'not-now'] } } as never)
+const CONNECTOR_INITIATIVE = approvalViewToItem({ id: 'conn-2', kind: 'connector', title: 'Liberar o Drive para Luna', question: '', status: 'pending', personaId: 'luna', personaName: 'Luna', connector: { reason: 'initiative', connectorName: 'Drive', cli: 'claude', connectorId: 'drive', access: 'read', purpose: 'organizar as notas da semana na pasta Clientes', options: ['once', 'not-now'] } } as never)
+
 const STATES: Readonly<Record<string, () => ReactNode>> = {
+  'approvals-connector': () => <ApprovalsInbox dict={approvalsPt} items={[{ ...CONNECTOR_COLLEAGUE, decisionState: 'pending' }, { ...CONNECTOR_INITIATIVE, decisionState: 'pending' }]} onDecideItem={() => {}} onDecideConnector={() => {}} />,
+  'fanout-block': () => <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}><FanoutBlock t={chatT} block={[...buildFanoutBlocks(FAN_LINES).values()][0]!} teamName="Marketing" /></ol>,
+  'fanout-block-progress': () => <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}><FanoutBlock t={chatT} block={[...buildFanoutBlocks(FAN_LINES.slice(0, 2)).values()][0]!} teamName="Marketing" /></ol>,
+  'fanout-chip': () => (
+    <div style={{ display: 'grid', gap: 16, maxWidth: 560 }}>
+      <FanoutChip t={chatT} choice="everyone" teamCount={4} estimate={{ replies: 4, calls: { min: 4, max: 4 } }} />
+      <FanoutChip t={chatT} choice="everyone" teamCount={4} />
+      <FanoutChip t={chatT} choice="everyone" teamCount={30} estimate={{ replies: 30, calls: { min: 30, max: 30 } }} confirming onConfirm={() => {}} onRelevantOnly={() => {}} />
+    </div>
+  ),
+  'teamwork-board': () => <ConnectedProjectFlowBoard persona={teamworkPersona as never} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} />,
+  // D-089 (b): the house ornaments (run with LUMEN_DECOR=1 so persona.flag.houseDecor is on). Internal only: the acceptance capture is the real shell.
+  'decor-overview': () => <OverviewView t={shellTranslate} attentionItems={['Aprovar o cardápio de novembro']} nowRows={MOCK_OVERVIEW_NOW} awayEvents={MOCK_AWAY_SUMMARY} />,
+  'decor-approvals': () => <ApprovalsInbox dict={approvalsPt} items={[ATTENTION_CARD, SECOND_CARD]} />,
+  'decor-empty-approvals': () => <ApprovalsInbox dict={approvalsPt} items={[]} />,
+  'decor-empty-dm': () => <EmptyState compact illustration={ILLUSTRATIONS['empty-dm']} art={houseEmptyArt('empty-dm', 'empty-dm-noite')} title="Nenhuma conversa ainda" body="Escolha alguém da equipe para começar." />,
+  'decor-empty-geral': () => <EmptyState compact illustration={ILLUSTRATIONS['empty-dm']} art={houseEmptyArt('empty-dm', 'empty-geral-noite')} title="Este é o começo do #geral" body="Peça algo e a equipe divide entre si." />,
   boards: () => <BoardsHome dict={kanbanPt} summaries={[...MOCK_PROJECT_BOARD_SUMMARIES, ONE_WORKER, EMPTY_PROJECT]} onOpenProject={() => {}} onNewProject={() => {}} onGlobalView={() => {}} onCreateFirstTask={() => {}} />,
   'boards-empty-only': () => <BoardsHome dict={kanbanPt} summaries={[EMPTY_PROJECT]} onOpenProject={() => {}} onNewProject={() => {}} onCreateFirstTask={() => {}} />,
   'second-brain': () => (
@@ -134,6 +224,8 @@ const STATES: Readonly<Record<string, () => ReactNode>> = {
   'review-loading': () => <ReviewDeliveryPanel initialState="loading" summary={null} />,
   review: () => <DraftReviewPanel personaName="Bia" taskTitle="Atualizar o cardápio" files={[doc, sheet, image, pdf, gone]} onApply={() => {}} onRequestChanges={() => {}} onDiscard={() => {}} onOpenDraftFile={() => {}} />,
   'review-text': () => <DraftReviewPanel personaName="Bia" taskTitle="Atualizar o cardápio" files={[doc]} onApply={() => {}} onRequestChanges={() => {}} onDiscard={() => {}} />,
+  'review-image': () => <DraftReviewPanel personaName="Bia" taskTitle="Cartaz de natal" files={POSTER_FILES} onApply={() => {}} onRequestChanges={() => {}} onDiscard={() => {}} />,
+  'review-image-done': () => <DraftReviewPanel personaName="Bia" taskTitle="Cartaz de natal" files={POSTER_FILES} phase={{ kind: 'done', undoable: true }} onApply={() => {}} onRequestChanges={() => {}} onDiscard={() => {}} onUndoApplied={() => {}} onLeave={() => {}} />,
   'review-conflict': () => <DraftReviewPanel personaName="Bia" files={[{ ...doc, id: 'c1', name: 'cardapio.docx', conflict: true, folderText: MENU_BEFORE.replace('R$ 12', 'R$ 13').replace('Café coado: R$ 6', 'Café coado: R$ 7') }, sheet]} onApply={() => {}} onRequestChanges={() => {}} onDiscard={() => {}} />,
   'review-locked': () => <DraftReviewPanel personaName="Bia" files={[doc, sheet]} phase={{ kind: 'locked', file: 'precos.xlsx' }} onApply={() => {}} onRetry={() => {}} onRequestChanges={() => {}} onDiscard={() => {}} />,
   'review-onedrive': () => <DraftReviewPanel personaName="Bia" files={[doc, sheet]} phase={{ kind: 'downloading', file: 'cardapio.docx', percent: 40 }} onApply={() => {}} onRequestChanges={() => {}} onDiscard={() => {}} />,

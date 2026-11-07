@@ -1,0 +1,78 @@
+{
+  "measuredInputs": {
+    "baseAnswerOnly": 2986,
+    "workerPromptTokens": 398,
+    "talkPromptTokens": 771,
+    "reviewRequestTokens": 204,
+    "image1500x1000": {
+      "min": 1816,
+      "max": 2220
+    },
+    "imageUnknownSize": {
+      "min": 150,
+      "max": 3300
+    },
+    "imageBasis": "1 medição real (haiku, CLI 2.1.318, PNG 1500×1000 = 2.018 tokens)",
+    "tools": {
+      "askOnly": 428,
+      "workerTeam": 2540,
+      "reviewer": 773,
+      "workerTeamBoard": 2865,
+      "all19": 6240
+    }
+  },
+  "requests": {
+    "workerFirst": {
+      "label": "worker, 1st request (Task with the poster)",
+      "min": 5898,
+      "max": 10769
+    },
+    "workerLater": {
+      "label": "worker, later request of the same turn",
+      "min": 6148,
+      "max": 12169
+    },
+    "opinionReply": {
+      "label": "opinion reply of a colleague (no tools, with the image)",
+      "min": 5633,
+      "max": 8057
+    },
+    "consolidation": {
+      "label": "consolidation by the asker (the replies, no image)",
+      "min": 4082,
+      "max": 7394
+    },
+    "reviewer": {
+      "label": "reviewer (the bilhete, no image)",
+      "min": 4481,
+      "max": 5181
+    }
+  },
+  "turns12": {
+    "turns": 11,
+    "parts": {
+      "workers": {
+        "min": 17694,
+        "max": 105321
+      },
+      "followUps": {
+        "min": 11796,
+        "max": 70214
+      },
+      "opinionReplies": {
+        "min": 16899,
+        "max": 24171
+      },
+      "consolidation": {
+        "min": 4082,
+        "max": 7394
+      },
+      "reviews": {
+        "min": 8962,
+        "max": 10362
+      }
+    },
+    "totalInputMin": 59433,
+    "totalInputMax": 217462
+  }
+}

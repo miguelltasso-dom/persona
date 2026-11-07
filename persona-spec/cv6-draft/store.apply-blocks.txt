@@ -1,0 +1,78 @@
+@@@ file=../persona-store/src/constants.ts name=version
+<<<FROM
+export const PERSONA_SCHEMA_VERSION = 23
+===TO
+export const PERSONA_SCHEMA_VERSION = 24
+>>>
+@@@ file=../persona-store/src/migrations.ts name=v24-const
+<<<FROM
+/** HT-6/D-084: a persona can be RETIRED ("aposentada"): she leaves the team, her history stays, her name and face are free again. Reversible. */
+const V23_PERSONA_RETIRED = `
+===TO
+/** CV-6 / contracts/team-channels.md: kind, origin, archive, name lock; members of a channel the person made; pins per person. Additive. */
+const V24_TEAM_CHANNELS = `
+ALTER TABLE channel ADD COLUMN kind TEXT NOT NULL DEFAULT 'custom' CHECK (kind IN ('general', 'team', 'directorate', 'custom'));
+ALTER TABLE channel ADD COLUMN source_id TEXT;
+ALTER TABLE channel ADD COLUMN archived_at TEXT;
+ALTER TABLE channel ADD COLUMN archived_reason TEXT CHECK (archived_reason IS NULL OR archived_reason IN ('team-gone', 'directorate-gone', 'by-person'));
+ALTER TABLE channel ADD COLUMN name_locked INTEGER NOT NULL DEFAULT 0 CHECK (name_locked IN (0, 1));
+UPDATE channel SET kind = 'general' WHERE name = 'geral';
+CREATE UNIQUE INDEX channel_team_source ON channel (project_id, source_id) WHERE source_id IS NOT NULL;
+
+CREATE TABLE channel_member (
+  channel_id TEXT NOT NULL REFERENCES channel(id) ON DELETE CASCADE,
+  member_kind TEXT NOT NULL CHECK (member_kind IN ('persona', 'human')),
+  member_id TEXT NOT NULL,
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (channel_id, member_kind, member_id)
+) STRICT;
+
+CREATE TABLE channel_pin (
+  channel_id TEXT NOT NULL REFERENCES channel(id) ON DELETE CASCADE,
+  member_id TEXT NOT NULL,
+  pinned_at TEXT NOT NULL,
+  PRIMARY KEY (channel_id, member_id)
+) STRICT;
+`
+
+/** HT-6/D-084: a persona can be RETIRED ("aposentada"): she leaves the team, her history stays, her name and face are free again. Reversible. */
+const V23_PERSONA_RETIRED = `
+>>>
+@@@ file=../persona-store/src/migrations.ts name=v24-list
+<<<FROM
+  {
+    version: 23,
+    sql: V23_PERSONA_RETIRED,
+  },
+]
+===TO
+  {
+    version: 23,
+    sql: V23_PERSONA_RETIRED,
+  },
+  {
+    version: 24,
+    sql: V24_TEAM_CHANNELS,
+  },
+]
+>>>
+@@@ file=../persona-store/src/index.ts name=export
+<<<FROM
+export { TopicRepos, DEFAULT_TOPIC_NAMES } from './topic/repos.ts'
+===TO
+export { TopicRepos, DEFAULT_TOPIC_NAMES } from './topic/repos.ts'
+export { ChannelRepos } from './channel/repos.ts'
+export type { ArchiveReason, ChannelKind, ChannelMember, TeamChannel } from './channel/repos.ts'
+>>>
+@@@ file=../persona-store/tests/open.spec.ts name=pin-version
+<<<FROM
+  expect(PERSONA_SCHEMA_VERSION).toBe(23)
+===TO
+  expect(PERSONA_SCHEMA_VERSION).toBe(24)
+>>>
+@@@ file=../persona-store/tests/open.spec.ts name=pin-migrations
+<<<FROM
+18, 19, 20, 21, 22, 23])
+===TO
+18, 19, 20, 21, 22, 23, 24])
+>>>

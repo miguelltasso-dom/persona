@@ -1,0 +1,89 @@
+{
+  "owner": "Flint",
+  "bundle": "6",
+  "dir": ".maestri/tmp/shots/flint/final-all",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": [
+    "light",
+    "dark"
+  ],
+  "viewports": [
+    "1440x900",
+    "960x640",
+    "zoom200"
+  ],
+  "viewportNames": {
+    "1440x900": "1440x900",
+    "960x640": "960x640",
+    "zoom200": "640x360@2x"
+  },
+  "roster": [
+    "Atlas",
+    "Bento",
+    "Nina",
+    "Sol",
+    "Luna",
+    "Bolota",
+    "Pipa",
+    "Capi",
+    "Bia",
+    "Teo",
+    "Téo",
+    "Lia",
+    "Caio",
+    "Tuca",
+    "Yara"
+  ],
+  "skipChecks": [
+    "artigo"
+  ],
+  "scenes": [
+    {
+      "id": "conv5__conv-p5"
+    },
+    {
+      "id": "conv5__conv-p5-dm"
+    },
+    {
+      "id": "conv5__conv-p5-trail-channels",
+      "viewports": [
+        "960x640",
+        "zoom200"
+      ]
+    },
+    {
+      "id": "conv5__conv-p5-trail-open",
+      "viewports": [
+        "960x640",
+        "zoom200"
+      ]
+    },
+    {
+      "id": "conv5__footer-focus-help",
+      "viewports": [
+        "1440x900"
+      ]
+    },
+    {
+      "id": "conv5__footer-focus-settings",
+      "viewports": [
+        "1440x900"
+      ]
+    },
+    {
+      "id": "conv5__pill-popover"
+    },
+    {
+      "id": "conv5__pill-tooltip",
+      "viewports": [
+        "1440x900",
+        "960x640",
+        "zoom200"
+      ]
+    },
+    {
+      "id": "conv5__rail"
+    }
+  ],
+  "note": "Cenas de CONVERSA (CV-1 barra lilás única, trilho, pílula, atalhos do rodapé, P0-22 a engrenagem a 200%) do shell real, lib 6. Os TAMANHOS de cada cena são os que o roteiro realmente produz (o tooltip da pílula e o trilho só existem a 960 e 200%; a 1440 o trilho já está sempre à vista). `artigo` DISPENSADO de propósito neste manifesto: o texto que reprova (\"proposta de contratação para a Luna revisar, preciso que você…\") é uma MENSAGEM DE PERSONA gerada em tempo de execução pela CLI falsa na 1ª entrega, não copy da tela. Todos os outros checks continuam valendo."
+}

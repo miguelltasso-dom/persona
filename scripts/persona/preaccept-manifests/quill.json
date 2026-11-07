@@ -1,0 +1,145 @@
+{
+  "owner": "Quill (shell real, bundle 4)",
+  "bundle": "4",
+  "dir": ".maestri/tmp/shots/quill",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": [
+    "light",
+    "dark"
+  ],
+  "viewports": [
+    "1440x900",
+    "960x640",
+    "zoom200"
+  ],
+  "roster": [
+    "Atlas",
+    "Bento",
+    "Nina",
+    "Sol",
+    "Luna",
+    "Bolota",
+    "Pipa",
+    "Capi",
+    "Bia",
+    "Teo",
+    "Téo",
+    "Lia",
+    "Caio"
+  ],
+  "scenes": [
+    {
+      "id": "away-1-away"
+    },
+    {
+      "id": "away-2-opened"
+    },
+    {
+      "id": "canvas-1-map-or-empty"
+    },
+    {
+      "id": "canvas-2-list"
+    },
+    {
+      "id": "canvas-3-list-selected"
+    },
+    {
+      "id": "canvas-4-map-selection-kept"
+    },
+    {
+      "id": "connections-add-1-name"
+    },
+    {
+      "id": "connections-add-1-name-empty-error"
+    },
+    {
+      "id": "connections-add-2-login"
+    },
+    {
+      "id": "connections-list"
+    },
+    {
+      "id": "connections-list-after-add"
+    },
+    {
+      "id": "connections-list-after-remove"
+    },
+    {
+      "id": "connections-persona-scope"
+    },
+    {
+      "id": "connections-remove"
+    },
+    {
+      "id": "connections-rename"
+    },
+    {
+      "id": "nextstep-1-boards"
+    },
+    {
+      "id": "nextstep-2-routines"
+    },
+    {
+      "id": "nextstep-3-usage"
+    },
+    {
+      "id": "nextstep-4-approvals",
+      "rejected": "barra de regra 1 sobre a própria lista (Muse, 05/11 05:48)"
+    },
+    {
+      "id": "nextstep-5-brain"
+    },
+    {
+      "id": "personas-1-panel"
+    },
+    {
+      "id": "personas-1b-team-help"
+    },
+    {
+      "id": "personas-1c-team-review"
+    },
+    {
+      "id": "personas-2-engine-dialog"
+    },
+    {
+      "id": "effort-3-claude-default"
+    },
+    {
+      "id": "effort-4-opus-max"
+    },
+    {
+      "id": "effort-5-haiku-snapped"
+    },
+    {
+      "id": "teach-1-consent"
+    },
+    {
+      "id": "teach-10-share"
+    },
+    {
+      "id": "teach-2-source"
+    },
+    {
+      "id": "teach-3-countdown"
+    },
+    {
+      "id": "teach-4-recording"
+    },
+    {
+      "id": "teach-5-narrate"
+    },
+    {
+      "id": "teach-6-review"
+    },
+    {
+      "id": "teach-7-review-added"
+    },
+    {
+      "id": "teach-8-done"
+    },
+    {
+      "id": "teach-9-activated-or-refused"
+    }
+  ],
+  "shell": true
+}

@@ -1,0 +1,256 @@
+{
+  "mode": "dry",
+  "note": "raw vendor counters of every attempt, then the verdict by the pre-registered rule",
+  "rows": [
+    {
+      "cell": "direct-cold",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 1023,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-cold",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 1311,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1311,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "direct-warm",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 1023,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-warm",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 1311,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1311,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "triage-warm",
+      "repeat": 1,
+      "attempt": 1,
+      "inputTokens": 1038,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1038,
+      "envMode": "answer-only"
+    },
+    {
+      "cell": "direct-cold",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 1023,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-cold",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 1311,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1311,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "direct-warm",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 1023,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-warm",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 1311,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1311,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "triage-warm",
+      "repeat": 2,
+      "attempt": 1,
+      "inputTokens": 1038,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1038,
+      "envMode": "answer-only"
+    },
+    {
+      "cell": "direct-cold",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 1023,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-cold",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 1311,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1311,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "direct-warm",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 1023,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1023,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "persona-warm",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 1311,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1311,
+      "envMode": "answer-only",
+      "ready": true
+    },
+    {
+      "cell": "triage-warm",
+      "repeat": 3,
+      "attempt": 1,
+      "inputTokens": 1038,
+      "outputTokens": 50,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "mainLoopInputTokens": 1038,
+      "envMode": "answer-only"
+    }
+  ],
+  "evaluation": {
+    "cells": {
+      "direct-cold": {
+        "cell": "direct-cold",
+        "n": 3,
+        "median": 1023,
+        "min": 1023,
+        "max": 1023,
+        "dispersion": 0,
+        "readyAll": true,
+        "medianOutput": 50,
+        "medianMainLoop": 1023
+      },
+      "direct-warm": {
+        "cell": "direct-warm",
+        "n": 3,
+        "median": 1023,
+        "min": 1023,
+        "max": 1023,
+        "dispersion": 0,
+        "readyAll": true,
+        "medianOutput": 50,
+        "medianMainLoop": 1023
+      },
+      "persona-cold": {
+        "cell": "persona-cold",
+        "n": 3,
+        "median": 1311,
+        "min": 1311,
+        "max": 1311,
+        "dispersion": 0,
+        "readyAll": true,
+        "medianOutput": 50,
+        "medianMainLoop": 1311
+      },
+      "persona-warm": {
+        "cell": "persona-warm",
+        "n": 3,
+        "median": 1311,
+        "min": 1311,
+        "max": 1311,
+        "dispersion": 0,
+        "readyAll": true,
+        "medianOutput": 50,
+        "medianMainLoop": 1311
+      },
+      "triage-warm": {
+        "cell": "triage-warm",
+        "n": 3,
+        "median": 1038,
+        "min": 1038,
+        "max": 1038,
+        "dispersion": 0,
+        "readyAll": null,
+        "medianOutput": 50,
+        "medianMainLoop": 1038
+      }
+    },
+    "ratios": {
+      "cold": 1.281524926686217,
+      "warm": 1.281524926686217
+    },
+    "callsMade": 15,
+    "withinCeiling": true,
+    "modes": [
+      "answer-only"
+    ],
+    "verdict": "no-parity",
+    "reasons": [
+      "as duas razões estão fora de [0,90; 1,10] no mesmo sentido (a Persona gasta MAIS), com dispersão ≤ 0,50"
+    ],
+    "unblocksPairParity": false
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "cli": "2.1.318 (Claude Code)",
+  "at": "2026-11-05T08:45:03.195Z",
+  "baseTokens": 1608,
+  "note": "extraTokens = opening context with the tools minus the same launch with no server (CLI-counted, zero model)",
+  "rows": {
+    "persona_ask": {
+      "current": {
+        "tools": 1,
+        "connected": true,
+        "chars": 810,
+        "extraTokens": 428
+      },
+      "lean-a": {
+        "tools": 1,
+        "connected": true,
+        "chars": 707,
+        "extraTokens": 376
+      },
+      "lean-b": {
+        "tools": 1,
+        "connected": true,
+        "chars": 585,
+        "extraTokens": 315
+      }
+    },
+    "ask_team_opinion": {
+      "current": {
+        "tools": 1,
+        "connected": true,
+        "chars": 1059,
+        "extraTokens": 552
+      },
+      "lean-a": {
+        "tools": 1,
+        "connected": true,
+        "chars": 865,
+        "extraTokens": 455
+      },
+      "lean-b": {
+        "tools": 1,
+        "connected": true,
+        "chars": 807,
+        "extraTokens": 426
+      }
+    },
+    "ask_colleague": {
+      "current": {
+        "tools": 1,
+        "connected": true,
+        "chars": 1019,
+        "extraTokens": 532
+      },
+      "lean-a": {
+        "tools": 1,
+        "connected": true,
+        "chars": 798,
+        "extraTokens": 422
+      },
+      "lean-b": {
+        "tools": 1,
+        "connected": true,
+        "chars": 769,
+        "extraTokens": 407
+      }
+    },
+    "pass_forward": {
+      "current": {
+        "tools": 1,
+        "connected": true,
+        "chars": 846,
+        "extraTokens": 446
+      },
+      "lean-a": {
+        "tools": 1,
+        "connected": true,
+        "chars": 705,
+        "extraTokens": 375
+      },
+      "lean-b": {
+        "tools": 1,
+        "connected": true,
+        "chars": 676,
+        "extraTokens": 361
+      }
+    },
+    "review_verdict": {
+      "current": {
+        "tools": 1,
+        "connected": true,
+        "chars": 647,
+        "extraTokens": 346
+      },
+      "lean-a": {
+        "tools": 1,
+        "connected": true,
+        "chars": 437,
+        "extraTokens": 241
+      },
+      "lean-b": {
+        "tools": 1,
+        "connected": true,
+        "chars": 408,
+        "extraTokens": 227
+      }
+    },
+    "worker-team (persona_ask + ask_colleague + pass_forward + ask_team_opinion)": {
+      "current": {
+        "tools": 4,
+        "connected": true,
+        "chars": 3731,
+        "extraTokens": 1956
+      },
+      "lean-a": {
+        "tools": 4,
+        "connected": true,
+        "chars": 3072,
+        "extraTokens": 1626
+      },
+      "lean-b": {
+        "tools": 4,
+        "connected": true,
+        "chars": 2834,
+        "extraTokens": 1507
+      }
+    },
+    "reviewer (persona_ask + review_verdict)": {
+      "current": {
+        "tools": 2,
+        "connected": true,
+        "chars": 1456,
+        "extraTokens": 773
+      },
+      "lean-a": {
+        "tools": 2,
+        "connected": true,
+        "chars": 1143,
+        "extraTokens": 617
+      },
+      "lean-b": {
+        "tools": 2,
+        "connected": true,
+        "chars": 992,
+        "extraTokens": 541
+      }
+    },
+    "hand_off (merged ask_colleague + pass_forward)": {
+      "lean-c": {
+        "tools": 1,
+        "connected": true,
+        "chars": 938,
+        "extraTokens": 492
+      }
+    },
+    "worker-team MERGED (persona_ask + hand_off + ask_team_opinion)": {
+      "lean-c": {
+        "tools": 3,
+        "connected": true,
+        "chars": 2328,
+        "extraTokens": 1232
+      }
+    }
+  }
+}

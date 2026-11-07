@@ -46,6 +46,10 @@ Prova: `persona-host/tests/estimate-ask-remote.spec.ts` (5: local e sem modelo; 
 
 **Para Prism/Flint (depois da forma da Muse):** chamar com debounce de ~400 ms enquanto a pessoa digita; mostrar `rotulo` numa linha abaixo do composer (e ao lado do "Pedir agora" no passo 5, com `primeiraEntrega: true`); `motivo` no tooltip; esconder a linha com o campo vazio; `tipo: 'nao-sei'` + "Conecte uma IA para estimar" leva a Conexões. O cliente precisa acrescentar `estimateAsk` na sua interface do Remote (`persona-screens-remote.ts` e equivalentes).
 
+## Imagens na mensagem (custo MEDIDO)
+
+`EstimateAskInput.imagens?: [{ size?: {width,height} }]` (opcional, aditivo): a mensagem leva imagens (TEAM-5). O custo é o **medido** em 2 chamadas reais no haiku (`reports/image-cost-real.md`): uma imagem 1500×1000 acrescentou **2.018 tokens** de entrada e foi cobrada como escrita de cache (1,25×). As imagens (no máximo 4) entram na chamada que RECEBE a mensagem (a resposta numa conversa; a execução num pedido de trabalho, não a triagem), em `tokens` e `custo`, e o resultado ganha `imagens: { count, tokens: {min,max}, origin: 'calibrated'|'estimate', basis? }`: `calibrated` com a base escrita quando todos os tamanhos são conhecidos (ressalva: uma medição), `estimate` e largo (150–3.300) quando algum tamanho não é. Uma mensagem sem chamada (cortesia) ignora as imagens. O Remote do host ainda não passa `imagens` (Anvil: o tamanho vem de `imageSizeOf` nos primeiros 64 KB do anexo).
+
 ## Calibração (OPT-9: o histórico da própria pessoa)
 
 `AskCalibration` (`persona-engine/src/ux/estimate-ask.ts`):
@@ -66,3 +70,6 @@ Regras do engine:
 - `origin: calibrated` só quando algum campo usado veio da calibração; `fonte: 'historico'` quando é a da pessoa.
 
 Limites conhecidos: o tamanho da mensagem não entra no caminho do histórico (a mediana é de mensagens típicas; uma de 1 500 tokens soma ~4% sobre uma base de ~40 mil, dentro da faixa P25..P75); as linhas de `execution` refletem o contador da sessão da CLI, que soma as requisições internas do agente: é exatamente o que a pessoa gastou, então a estimativa de trabalho sobe para onde o uso real está (ver OPT-10).
+
+## D-092 / USD-1: a assinatura não tem dólar (05/11)
+O resultado de `estimateAsk` (e o `EstimateAskView` do host) passou a ter `billing` (`'subscription' | 'api' | 'unknown'`), `quota` (o impacto na janela que o fornecedor publica: `'5h'` se existir, senão `'week'`; `pct: null` = "cota não medida", nunca 0%) e `impacto` (a linha pronta em pt-BR). **`custo` só vem com `billing: 'api'`**; com assinatura ou conta desconhecida é `null` (nenhuma tela consegue mostrar dólar por engano). O host decide o tipo de conta com `accountForEstimate` (`persona-host/src/estimate-account.ts`): CLI com chave de API/Bedrock/Vertex/Foundry no ambiente = `api`; CLI logada (plano reportado ou login conhecido) = `subscription`; sem sinal = `unknown`. O US$ de lista segue existindo para relatório técnico em `estimateAskReference`. Formato completo e regras: `contracts/usd-subscription.md`.

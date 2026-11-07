@@ -1,0 +1,195 @@
+{
+  "owner": "Flint",
+  "bundle": "5",
+  "dir": ".maestri/tmp/shots/flint/final-all",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": [
+    "light",
+    "dark"
+  ],
+  "viewports": [
+    "1440x900",
+    "960x640",
+    "zoom200"
+  ],
+  "viewportNames": {
+    "1440x900": "1440x900",
+    "960x640": "960x640",
+    "zoom200": "640x360@2x"
+  },
+  "roster": [
+    "Atlas",
+    "Bento",
+    "Nina",
+    "Sol",
+    "Luna",
+    "Bolota",
+    "Pipa",
+    "Capi",
+    "Bia",
+    "Teo",
+    "Téo",
+    "Lia",
+    "Caio",
+    "Tuca"
+  ],
+  "scenes": [
+    {
+      "id": "bubbles__bubbles-channel"
+    },
+    {
+      "id": "bubbles__bubbles-channel-user"
+    },
+    {
+      "id": "bubbles__bubbles-dm"
+    },
+    {
+      "id": "composer__composer-state"
+    },
+    {
+      "id": "conv30__conv-p30"
+    },
+    {
+      "id": "conv30__conv-p30-dm"
+    },
+    {
+      "id": "conv30__conv-p30-group-open"
+    },
+    {
+      "id": "conv30__conv-p30-trail-channels"
+    },
+    {
+      "id": "conv30__conv-p30-trail-open"
+    },
+    {
+      "id": "conv5__conv-p5"
+    },
+    {
+      "id": "conv5__conv-p5-dm"
+    },
+    {
+      "id": "conv5__conv-p5-trail-channels"
+    },
+    {
+      "id": "conv5__conv-p5-trail-open"
+    },
+    {
+      "id": "conv5__footer-focus-help"
+    },
+    {
+      "id": "conv5__footer-focus-settings"
+    },
+    {
+      "id": "conv5__pill-popover"
+    },
+    {
+      "id": "conv5__pill-tooltip"
+    },
+    {
+      "id": "conv5__rail"
+    },
+    {
+      "id": "default__bar"
+    },
+    {
+      "id": "default__dms"
+    },
+    {
+      "id": "default__limit-back"
+    },
+    {
+      "id": "default__limit-banner"
+    },
+    {
+      "id": "default__limit-queued"
+    },
+    {
+      "id": "default__limit-reload"
+    },
+    {
+      "id": "default__markdown"
+    },
+    {
+      "id": "default__markdown-copied"
+    },
+    {
+      "id": "default__pill-popover"
+    },
+    {
+      "id": "default__pill-tooltip"
+    },
+    {
+      "id": "default__rail"
+    },
+    {
+      "id": "lamp__bubbles-channel",
+      "schemes": [
+        "dark"
+      ]
+    },
+    {
+      "id": "lamp__bubbles-channel-user",
+      "schemes": [
+        "dark"
+      ]
+    },
+    {
+      "id": "lamp__bubbles-dm",
+      "schemes": [
+        "dark"
+      ]
+    },
+    {
+      "id": "preview__preview-thread-1-pending-send"
+    },
+    {
+      "id": "preview__preview-thread-2-pending-pay"
+    },
+    {
+      "id": "preview__preview-thread-3-pending-delete"
+    },
+    {
+      "id": "preview__preview-thread-4-pending-send"
+    },
+    {
+      "id": "preview__preview-thread-5-pending-send"
+    },
+    {
+      "id": "preview__preview-thread-6-pending-send"
+    },
+    {
+      "id": "preview__preview-thread-7-sent-na"
+    },
+    {
+      "id": "preview__preview-thread-8-failed-na"
+    },
+    {
+      "id": "responder__responder-mention"
+    },
+    {
+      "id": "responder__responder-popover"
+    },
+    {
+      "id": "responder__responder-search"
+    },
+    {
+      "id": "teamwork__teamwork-opinion"
+    },
+    {
+      "id": "teamwork__teamwork-opinion-chip"
+    },
+    {
+      "id": "teamwork__teamwork-opinion2"
+    },
+    {
+      "id": "teamwork__teamwork-proposals"
+    },
+    {
+      "id": "teamwork__teamwork-stopped"
+    },
+    {
+      "id": "tip__shortcut-tip"
+    }
+  ],
+  "note": "Captura FINAL do Flint no BUNDLE 5 (lib d8109efa, sem rebuild), shell REAL com a CLI falsa (rig do Probe/Gauge), harness .maestri/tmp/flint/flint-shots.mjs + flint-preview-shots.mjs com a sonda do pré-aceite em cada foto. Rodadas: default (rail, pílula, DMs, markdown, composer a 200%, limite/fila), composer (sem resposta), tip (dica de atalho), responder (Quem responde), conv5/conv30 (barra lilás, trilho, pílula), bubbles/lamp (CV-9 balões e luz, só escuro), teamwork (opinião, propostas, Parar) e preview (prévia de ação NO FIO, host real). A galeria com dados de exemplo é outro manifesto (flint-gallery-b5.json)."
+}

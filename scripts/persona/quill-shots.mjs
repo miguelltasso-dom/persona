@@ -6,9 +6,10 @@
 // Env: QUILL_AXE=<path to axe.min.js> (WCAG A/AA scan of each state), QUILL_REDUCED=1 (reduced motion), QUILL_SCHEMES=light|dark.
 // Output: .maestri/tmp/shots/quill/<scenario>-<state>-<scheme>-<viewport>.png and a JSON summary on the last line.
 import { spawn, execFileSync } from 'node:child_process'
-import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, createWriteStream, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { freePort } from './free-port.mjs'
+import { collectProbe, writeProbe } from './preaccept-probe.mjs'
 
 const root = 'C:/Users/migue/dev/persona'
 const require = createRequire(`${root}/packages/persona/persona-e2e/package.json`)
@@ -24,7 +25,8 @@ const viewports = (requested.length > 0 ? requested : ['1440x900', '960x640', 'z
 const schemes = process.env.QUILL_SCHEMES === undefined ? ['light', 'dark'] : [process.env.QUILL_SCHEMES]
 
 const home = `${root}/.maestri/tmp/quill-shot-home-${process.pid}`
-const outDir = `${root}/.maestri/tmp/shots/quill`
+// QUILL_OUT redirects a debug run away from the official capture folder (the bundle captures stay untouched).
+const outDir = process.env.QUILL_OUT ?? `${root}/.maestri/tmp/shots/quill`
 rmSync(home, { recursive: true, force: true })
 mkdirSync(home, { recursive: true }); mkdirSync(outDir, { recursive: true })
 
@@ -32,8 +34,18 @@ mkdirSync(home, { recursive: true }); mkdirSync(outDir, { recursive: true })
 const env = { ...process.env, DSH_HOME: home, PERSONA_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
 const child = spawn(process.execPath, ['--import', 'tsx/esm', 'apps/cli/src/bin.ts', '--profile', 'persona', '--no-open', '--port', String(await freePort())], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
 let out = ''
+// The host's stdout and stderr go to a file from the first byte (Keel 03:17): a dead host is then explained by its own last lines.
+const hostLog = createWriteStream(`${outDir}/host-${scenario}-${process.pid}.log`)
+child.stdout.pipe(hostLog, { end: false })
+child.stderr.pipe(hostLog, { end: false })
+child.on('exit', (code, signal) => {
+  // Diagnostics only: the host's last output and how it ended, kept next to the shots.
+  try { writeFileSync(`${outDir}/host-exit-${scenario}.log`, `${out.slice(-6000)}\nexit code=${code} signal=${signal} at ${new Date().toISOString()}\n`) } catch { /* diagnostics only */ }
+})
 let browser
 const errors = []
+// Each probe sidecar gets only the console errors raised since the previous capture (not the whole scene's list).
+let probeMark = 0
 const summary = []
 const finish = async (code, note) => {
   console.log(note)
@@ -63,6 +75,20 @@ async function open(url, scheme, viewport) {
     else document.addEventListener('DOMContentLoaded', apply, { once: true })
   }, [scheme === 'dark'])
   const page = await context.newPage()
+  if (process.env.QUILL_NETLOG === '1') {
+    // Debug only: one JSON line per host response (method, path, status, first 300 chars of the body) to learn the wire shape.
+    page.on('response', async (res) => {
+      try {
+        const u = new URL(res.url())
+        if (u.hostname !== '127.0.0.1' && u.hostname !== 'localhost') return
+        if (/\.(js|css|svg|png|webp|woff2?|ico|map)$/u.test(u.pathname)) return
+        // Persona RPC bodies are kept whole (up to 60 KB) so the NextStepBar / EFF-1 intercepts can copy their real shape.
+        const limit = u.pathname.startsWith('/api/persona/') ? 60_000 : 300
+        const body = (await res.text()).slice(0, limit)
+        appendFileSync(`${outDir}/netlog.jsonl`, `${JSON.stringify({ at: new Date().toISOString(), method: res.request().method(), path: u.pathname + u.search.slice(0, 120), status: res.status(), type: res.headers()['content-type'] ?? '', body })}\n`)
+      } catch { /* a response that closed early is not a finding */ }
+    })
+  }
   await page.goto(url, { waitUntil: 'load' })
   await page.waitForTimeout(9000)
   // A cold host can race the plugin boot order (SlotAssemblyError on the first load): reload until the app answers.
@@ -72,15 +98,18 @@ async function open(url, scheme, viewport) {
     shellUp = await page.waitForSelector('[data-persona-shell]', { timeout: 15_000 }).then(() => true, () => false)
   }
   if (!shellUp) throw new Error(`app shell never appeared (${scheme} ${viewport.tag}) — blank page, not a capture`)
-  // The first loads above only warm the host up. Errors are recorded from one more, WARM boot on: those are the app's.
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 240)}`) })
-  page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 240)}`))
+  // The loads above only warm the host up, and every reload aborts the previous page's in-flight fetches (a "Failed to fetch"
+  // that is the browser's, not the app's). One more, WARM boot, and only THEN the listeners: what they hear is the app's.
   await page.reload({ waitUntil: 'load' })
   await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
-  await page.waitForTimeout(2500)
+  await page.waitForTimeout(4000)
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${scheme} ${viewport.tag}] ${m.text().slice(0, 240)}`) })
+  page.on('pageerror', (e) => errors.push(`[${scheme} ${viewport.tag}] pageerror ${String(e).slice(0, 240)}`))
   return { context, page }
 }
 
+// Bundle 3 (CV-1 trilho): the rail shows places; their tabs hold the screens. A label that is not a rail button is reached through its place.
+const PLACE_OF = { 'Quadros': 'Projetos', 'Rotinas': 'Projetos', 'Arquivos': 'Projetos', 'Canvas': 'Projetos', 'Segundo cérebro': 'Memória da empresa', 'Conhecimento': 'Memória da empresa', 'Regras': 'Memória da empresa', 'Conexões': 'Configurações', 'Personas': 'Configurações', 'Uso e limites': 'Configurações', 'Membros': 'Configurações', 'Aparência': 'Configurações' }
 async function nav(page, label) {
   await page.getByRole('button', { name: 'Visão geral', exact: true }).first().waitFor({ timeout: 20_000 }).catch(() => undefined)
   for (let attempt = 0; attempt < 3 && await page.getByRole('button', { name: label, exact: true }).count() === 0; attempt += 1) {
@@ -88,6 +117,17 @@ async function nav(page, label) {
       await toggle.evaluate((node) => { node.click() }).catch(() => undefined)
     }
     await page.waitForTimeout(500)
+  }
+  if (await page.getByRole('button', { name: label, exact: true }).count() === 0 && PLACE_OF[label] !== undefined) {
+    await page.getByRole('button', { name: PLACE_OF[label], exact: true }).first().click({ timeout: 10_000 })
+    await page.waitForTimeout(900)
+    const tab = page.getByRole('tab', { name: label, exact: true })
+    const target = (await tab.count()) > 0 ? tab.first() : page.getByRole('button', { name: label, exact: true }).first()
+    await target.click({ timeout: 10_000 })
+    await page.waitForTimeout(1800)
+    await page.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout: 20_000 }).catch(() => undefined)
+    await page.waitForTimeout(400)
+    return
   }
   const target = page.getByRole('button', { name: label, exact: true }).first()
   await target.evaluate((node) => { node.scrollIntoView({ block: 'center' }) })
@@ -102,6 +142,13 @@ const AXE_SCOPE = {
   connections: ['[data-persona-surface="connections"]', '[role="dialog"]'],
   teach: ['[data-persona-teach]', '[data-persona-teach-layer]', '[role="dialog"]'],
   canvas: ['[data-persona-surface="canvas"]'],
+  away: ['[data-persona-away]'],
+  personas: ['[data-persona-settings]', '[data-persona-engine-overlay]', '[role="dialog"]'],
+  nextstep: ['[data-persona-next-step]'],
+  effort: ['[data-persona-settings]', '[data-persona-engine-overlay]', '[role="dialog"]'],
+  savefiles: ['[data-persona-settings]'],
+  effortreal: ['[data-persona-settings]', '[data-persona-engine-overlay]', '[role="dialog"]'],
+  effortcodex: ['[data-persona-settings]', '[data-persona-engine-overlay]', '[role="dialog"]'],
 }
 
 /** QUILL_AXE=<axe.min.js>: A/AA violations of the current page, split in mine / outside (null = skipped). */
@@ -134,6 +181,11 @@ function shooter(page, scheme, viewport) {
     const file = `${outDir}/${scenario}-${state}-${scheme}-${viewport.tag}.png`
     await page.waitForSelector('[data-persona-shell]', { timeout: 15_000 })
     await page.screenshot({ path: file })
+    // Pre-acceptance probe (Keel 04:26): a sidecar <capture>.probe.json next to each PNG, read by preaccept.mjs.
+    const sinceLast = errors.slice(probeMark)
+    probeMark = errors.length
+    // The pre-acceptance probe needs an axe that knows target-size (4.7+); QUILL_AXE (3.3) stays for the scene axe pass.
+    writeProbe(file, await collectProbe(page, { axePath: process.env.PREACCEPT_AXE ?? process.env.QUILL_AXE, consoleErrors: sinceLast }))
     // A near-empty PNG is a blank page: that is a FAILURE, not a result (Keel, D-067 addendum).
     if (statSync(file).size < 10_000) {
       rmSync(file, { force: true })
@@ -256,6 +308,47 @@ SCENARIOS.teach = async function teach(page, shot) {
   await page.getByRole('button', { name: 'Concluir' }).click()
 }
 
+/** The same call the client makes, from the page's own browser session (a real host RPC, not a mock). */
+async function hostRpc(page, method, request) {
+  const response = await page.context().request.post(new URL(`/api/persona/${method}`, url).href, {
+    data: { type: 'client-request', rpcId: crypto.randomUUID(), method: `persona/${method}`, payload: { args: { request } } },
+    timeout: 60_000,
+  })
+  const body = await response.json()
+  if (body.result?.ok !== true) throw new Error(`rpc:${method}:${body.result?.error?.code ?? 'invalid-result'}`)
+  return body.result.value
+}
+
+/**
+ * P1-7: "Enquanto você estava fora" with what the host really knows. A persona proposes a hire (a real approval card waits for the
+ * person → a real "Espera você" row). Nothing is dismissed here: every size sees the same window (dismissing is covered by tests).
+ */
+SCENARIOS.away = async function away(page, shot) {
+  const tenant = await page.evaluate(() => {
+    try { return JSON.parse(localStorage.getItem('persona.tenant.v1') ?? 'null') } catch { return null }
+  })
+  if (tenant === null) throw new Error('no tenant in localStorage: the host session is not up')
+  const scope = { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
+  const team = await hostRpc(page, 'listTeam', scope)
+  const creator = team.personas[0]
+  if (creator === undefined) throw new Error('the team is empty: nobody can propose a hire')
+  // A fixed id: the same real card for every size (a repeat is refused by the host, which is fine).
+  await hostRpc(page, 'proposeHire', {
+    ...scope, id: 'hire-away-capture', creatorPersonaId: creator.id, name: 'Bolota', title: 'Revisor de contratos',
+    description: 'Lê contratos e aponta riscos.', reason: 'Os contratos estão acumulando.',
+  }).catch(() => undefined)
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await nav(page, 'Visão geral')
+  await page.locator('[data-persona-away]').waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(600)
+  await shot('1-away')
+  // The row's link goes to the real card in Aprovações.
+  await page.locator('[data-persona-away]').getByRole('button', { name: /^Abrir/u }).first().click()
+  await page.waitForTimeout(1800)
+  await shot('2-opened')
+}
+
 /** G2: map and list of the canvas; keyboard selection in the list (empty state is a valid, honest capture too). */
 SCENARIOS.canvas = async function canvas(page, shot) {
   await nav(page, 'Canvas')
@@ -283,6 +376,272 @@ SCENARIOS.canvas = async function canvas(page, shot) {
   }
 }
 
+/** HT-13 + EFF-1 + D-090: Configurações › Personas and the Motor, Modelo e Esforço dialog (native effort levels). */
+SCENARIOS.personas = async function personas(page, shot) {
+  await page.evaluate(() => {
+    localStorage.setItem('persona.flag.settingsPersonas', '1')
+    localStorage.setItem('persona.flag.engineEffort', '1')
+    localStorage.setItem('persona.flag.teamwork', '1')
+  })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Conexões')
+  const tab = page.getByRole('tab', { name: 'Personas', exact: true }).first()
+  if (await tab.count() > 0) {
+    await tab.click()
+  } else {
+    await nav(page, 'Personas')
+  }
+  await page.locator('[data-persona-settings="personas"]').waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(800)
+  await shot('1-panel')
+  // Keel (01:58): the team controls (help between colleagues, review before delivery) sit below the fold: capture them too.
+  const helpControl = page.getByText('Pode pedir ajuda a colegas', { exact: false }).first()
+  if (await helpControl.count() > 0) {
+    await helpControl.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(300)
+    await shot('1b-team-help')
+  }
+  const reviewBlock = page.getByText('Revisão antes de entregar', { exact: false }).first()
+  if (await reviewBlock.count() > 0) {
+    await reviewBlock.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(300)
+    await shot('1c-team-review')
+  }
+  const trigger = page.locator('[data-persona-engine-trigger]').first()
+  if (await trigger.count() > 0) {
+    await trigger.scrollIntoViewIfNeeded()
+    await trigger.click()
+    await page.getByRole('dialog').waitFor({ timeout: 10_000 })
+    await page.waitForTimeout(500)
+    await shot('2-engine-dialog')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+  }
+}
+
+/** EFF-1 (EFFORT-SPEC §6, pedido do Keel): the engine dialog with a CONNECTED engine that reports models and levels. Fake client:
+ *  the host's own `listConnections` answer with only the Claude row changed (logged in, models, levels). These models and levels are TEST data. */
+const FAKE_CLAUDE_MODELS = [
+  { id: 'haiku', label: 'Haiku', effortLevels: ['low', 'medium', 'high'] },
+  { id: 'sonnet', label: 'Sonnet', effortLevels: ['low', 'medium', 'high', 'max'] },
+  { id: 'opus', label: 'Opus', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
+]
+const FAKE_CLAUDE_DEFAULT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max']
+
+async function fakeClaudeEngine(page) {
+  await page.route('**/api/persona/listConnections', async route => {
+    // The app polls listConnections: a poll still in flight when the scene's context closes is not an error of the scene (it crashed a run at 12:47).
+    try {
+      const upstream = await route.fetch()
+      const headers = { ...upstream.headers() }
+      delete headers['content-length']
+      delete headers['content-encoding']
+      const text = await upstream.text()
+      let body = null
+      try { body = JSON.parse(text) } catch { body = null }
+      if (body === null || !Array.isArray(body?.result?.value)) { await route.fulfill({ status: upstream.status(), headers, body: text }); return }
+      body.result.value = body.result.value.map(row => row?.kind === 'claude'
+        ? { ...row, available: true, loggedIn: true, phase: 'ready', error: undefined, models: FAKE_CLAUDE_MODELS, defaultEffortLevels: FAKE_CLAUDE_DEFAULT_LEVELS, source: 'cli' }
+        : row)
+      await route.fulfill({ status: upstream.status(), headers, body: JSON.stringify(body) })
+    } catch { /* context closed or page gone: nothing left to answer */ }
+  })
+}
+
+SCENARIOS.effort = async function effort(page, shot) {
+  await fakeClaudeEngine(page)
+  await page.evaluate(() => {
+    localStorage.setItem('persona.flag.settingsPersonas', '1')
+    localStorage.setItem('persona.flag.engineEffort', '1')
+    localStorage.setItem('persona.flag.teamwork', '1')
+  })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Conexões')
+  const tab = page.getByRole('tab', { name: 'Personas', exact: true }).first()
+  if (await tab.count() > 0) {
+    await tab.click()
+  } else {
+    await nav(page, 'Personas')
+  }
+  await page.locator('[data-persona-settings="personas"]').waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(800)
+  const trigger = page.locator('[data-persona-engine-trigger]').first()
+  await trigger.scrollIntoViewIfNeeded()
+  await trigger.click()
+  await page.getByRole('dialog').waitFor({ timeout: 10_000 })
+  await page.getByRole('option', { name: /Claude Code/ }).click()
+  const modelBlock = page.locator('[data-engine-block="model"]')
+  const effortBlock = page.locator('[data-engine-block="effort"]')
+  await effortBlock.waitFor({ timeout: 10_000 })
+  await page.waitForTimeout(400)
+  // Guard: without the fake answer the Claude engine has no models, and the shots would prove nothing about EFF-1.
+  if (await modelBlock.getByText('Opus', { exact: true }).count() === 0) throw new Error('fake Claude engine not applied: no Opus in the model block')
+  await shot('3-claude-default')
+  // The model cards are real radio inputs covered by their title (the title itself is not clickable): choose by input.
+  await modelBlock.locator('input[name="persona-engine-model"][value="opus"]').check()
+  await effortBlock.locator('input[name="persona-engine-effort"][value="max"]').check()
+  await page.waitForTimeout(300)
+  // The notice and the hint sit under the segmented control: show the end of the block, with the Modal's "more below" fade gone.
+  await effortBlock.evaluate((node) => { node.scrollIntoView({ block: 'end' }) })
+  await page.waitForTimeout(500)
+  await shot('4-opus-max')
+  // Haiku has no "max": the level must fall to the nearest one below and the dialog must say so (EFFORT-SPEC §2).
+  await modelBlock.locator('input[name="persona-engine-model"][value="haiku"]').check()
+  await effortBlock.evaluate((node) => { node.scrollIntoView({ block: 'end' }) })
+  await page.waitForTimeout(500)
+  await shot('5-haiku-snapped')
+}
+
+/** EFF-1 com a lista REAL do host (Anvil 06:27: Claude com os modelos da conta, source 'cli'; sem cliente falso). A tela mostra o que o host manda
+ *  e o chip do cartão depois de Aplicar (Muse, EFFORT-SPEC §6: shell real, lista do host, chip depois de salvar). */
+SCENARIOS.effortreal = async function effortreal(page, shot) {
+  await page.evaluate(() => {
+    localStorage.setItem('persona.flag.settingsPersonas', '1')
+    localStorage.setItem('persona.flag.engineEffort', '1')
+    localStorage.setItem('persona.flag.teamwork', '1')
+  })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Conexões')
+  const tab = page.getByRole('tab', { name: 'Personas', exact: true }).first()
+  if (await tab.count() > 0) {
+    await tab.click()
+  } else {
+    await nav(page, 'Personas')
+  }
+  await page.locator('[data-persona-settings="personas"]').waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(800)
+  const trigger = page.locator('[data-persona-engine-trigger]').first()
+  await trigger.scrollIntoViewIfNeeded()
+  await trigger.click()
+  await page.getByRole('dialog').waitFor({ timeout: 10_000 })
+  await page.getByRole('option', { name: /Claude Code/ }).click()
+  const modelBlock = page.locator('[data-engine-block="model"]')
+  const effortBlock = page.locator('[data-engine-block="effort"]')
+  await effortBlock.waitFor({ timeout: 10_000 })
+  await page.waitForTimeout(400)
+  // Guard: the host must send models for Claude Code; without them the screen has nothing to show.
+  const modelInputs = modelBlock.locator('input[name="persona-engine-model"]:not([value="__default__"])')
+  if (await modelInputs.count() === 0) throw new Error('host sent no models for Claude Code (real list)')
+  // A start that does not depend on what the host stored: when the team is bound to the logged-in Claude with its cheap first-delivery model is a race, and the dialog now
+  // opens on the saved model. 3-host-list is the list from its engine default (the saved-model case is the `personas` scene).
+  await modelBlock.locator('input[name="persona-engine-model"][value="__default__"]').check()
+  await page.waitForTimeout(400)
+  await shot('3-host-list')
+  // The model a person would pick to show the chip: the first "Opus" of the host's own list (its newest comes first), else the first row.
+  const opusRow = modelBlock.locator('label', { hasText: /Opus/u }).locator('input[name="persona-engine-model"]').first()
+  await ((await opusRow.count()) > 0 ? opusRow : modelInputs.first()).check()
+  await page.waitForTimeout(300)
+  await shot('4-host-model')
+  // The heaviest level that model accepts (its native name: "max", or "ultra" where the host lists it); the rows are in the engine's order, lightest first.
+  const levels = effortBlock.locator('input[name="persona-engine-effort"]:not([value="__default__"])')
+  const levelCount = await levels.count()
+  if (levelCount > 0) await levels.nth(levelCount - 1).check()
+  await page.waitForTimeout(300)
+  await shot('5-host-effort')
+  await page.getByRole('button', { name: 'Aplicar' }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached', timeout: 15_000 }).catch(() => {})
+  await page.waitForTimeout(1200)
+  await shot('6-chip-after-apply')
+}
+
+/** DIAGNOSTIC (not for acceptance): the engine dialog on Codex, whose host list is long (many models): how it stacks and scrolls. */
+SCENARIOS.effortcodex = async function effortcodex(page, shot) {
+  await page.evaluate(() => {
+    localStorage.setItem('persona.flag.settingsPersonas', '1')
+    localStorage.setItem('persona.flag.engineEffort', '1')
+    localStorage.setItem('persona.flag.teamwork', '1')
+  })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Conexões')
+  const tab = page.getByRole('tab', { name: 'Personas', exact: true }).first()
+  if (await tab.count() > 0) await tab.click()
+  else await nav(page, 'Personas')
+  await page.locator('[data-persona-settings="personas"]').waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(800)
+  const trigger = page.locator('[data-persona-engine-trigger]').first()
+  await trigger.scrollIntoViewIfNeeded()
+  await trigger.click()
+  await page.getByRole('dialog').waitFor({ timeout: 10_000 })
+  await page.getByRole('option', { name: /Codex/ }).click()
+  const modelBlock = page.locator('[data-engine-block="model"]')
+  await modelBlock.waitFor({ timeout: 10_000 })
+  await page.waitForTimeout(500)
+  console.log(`[codex models] ${await modelBlock.locator('input[name="persona-engine-model"]').count()} rows incl. the engine default`)
+  console.log(`[codex model names] ${(await modelBlock.locator('label span[class*="modelName"]').allTextContents()).join(' | ')}`)
+  await shot('3-codex-list')
+  await page.locator('[data-engine-block="effort"]').evaluate((node) => { node.scrollIntoView({ block: 'end' }) })
+  await page.waitForTimeout(500)
+  await shot('4-codex-end')
+}
+
+/** P1-6: "Próximo passo" across the 5 screens of the 1st batch (Quadros, Rotinas, Uso e limites, Aprovações, Segundo cérebro). */
+SCENARIOS.nextstep = async function nextstep(page, shot) {
+  await page.evaluate(() => {
+    localStorage.setItem('persona.flag.nextStep', '1')
+  })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Quadros')
+  await page.waitForTimeout(600)
+  await shot('1-boards')
+  await nav(page, 'Rotinas')
+  await page.waitForTimeout(600)
+  await shot('2-routines')
+  await nav(page, 'Uso e limites')
+  await page.waitForTimeout(600)
+  await shot('3-usage')
+  await nav(page, 'Aprovações')
+  await page.waitForTimeout(600)
+  await shot('4-approvals')
+  await nav(page, 'Segundo cérebro')
+  await page.waitForTimeout(600)
+  await shot('5-brain')
+}
+
+/** lib 6c: "Pode salvar arquivos no rascunho" LIGADO (projeto com pasta). listTeam answered with canSaveFiles/canSaveFilesAvailable true: host de mentira só nesses 2 campos. */
+SCENARIOS.savefiles = async function savefiles(page, shot) {
+  await page.route('**/api/persona/listTeam', async route => {
+    try {
+      const upstream = await route.fetch()
+      const headers = { ...upstream.headers() }
+      delete headers['content-length']; delete headers['content-encoding']
+      const text = await upstream.text()
+      let body = null
+      try { body = JSON.parse(text) } catch { body = null }
+      const value = body?.result?.value
+      if (value === undefined || !Array.isArray(value.personas)) { await route.fulfill({ status: upstream.status(), headers, body: text }); return }
+      value.personas = value.personas.map(row => ({ ...row, canSaveFiles: true, canSaveFilesAvailable: true }))
+      await route.fulfill({ status: upstream.status(), headers, body: JSON.stringify(body) })
+    } catch { /* context closed */ }
+  })
+  await page.evaluate(() => {
+    localStorage.setItem('persona.flag.settingsPersonas', '1')
+    localStorage.setItem('persona.flag.teamwork', '1')
+  })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Conexões')
+  const tab = page.getByRole('tab', { name: 'Personas', exact: true }).first()
+  if (await tab.count() > 0) await tab.click()
+  else await nav(page, 'Personas')
+  await page.locator('[data-persona-settings="personas"]').waitFor({ timeout: 20_000 })
+  await page.waitForTimeout(1200)
+  const toggle = page.locator('[id^="switch-save-files-"]').first()
+  await toggle.waitFor({ timeout: 10_000 })
+  if (await toggle.isDisabled()) throw new Error('switch still disabled with canSaveFilesAvailable true')
+  await shot('1-on')
+}
+
 const run = SCENARIOS[scenario]
 if (run === undefined) await finish(2, `unknown scenario "${scenario}" (known: ${Object.keys(SCENARIOS).join(', ')})`)
 
@@ -303,15 +662,29 @@ browser = await chromium.launch({ channel: 'chrome', headless: true })
 let failed = false
 for (const scheme of schemes) {
   for (const viewport of viewports) {
-    const { context, page } = await open(url, scheme, viewport)
-    try {
-      await run(page, shooter(page, scheme, viewport))
-    } catch (error) {
-      failed = true
-      console.log(`[FAIL ${scenario} ${scheme} ${viewport.tag}] ${String(error).slice(0, 600)}`)
-      try { await page.screenshot({ path: `${outDir}/${scenario}-FAILED-${scheme}-${viewport.tag}.png` }) } catch { /* page gone */ }
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const rows = summary.length
+      const heard = errors.length
+      const { context, page } = await open(url, scheme, viewport)
+      let ok = true
+      try {
+        await run(page, shooter(page, scheme, viewport))
+      } catch (error) {
+        ok = false
+        console.log(`[${attempt === 1 ? 'retry' : 'FAIL'} ${scenario} ${scheme} ${viewport.tag}] ${String(error).slice(0, 600)}`)
+        if (attempt === 2) {
+          failed = true
+          try { await page.screenshot({ path: `${outDir}/${scenario}-FAILED-${scheme}-${viewport.tag}.png` }) } catch { /* page gone */ }
+        } else {
+          // The first attempt is thrown away whole: its rows and console lines do not count.
+          summary.length = rows
+          errors.length = heard
+        }
+      }
+      await page.unrouteAll({ behavior: 'ignoreErrors' }).catch(() => undefined)
+      await context.close()
+      if (ok) break
     }
-    await context.close()
   }
 }
 writeFileSync(`${outDir}/${scenario}-summary.json`, JSON.stringify({ at: new Date().toISOString(), scenario, errors, summary }, null, 2))

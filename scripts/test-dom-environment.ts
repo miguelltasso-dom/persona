@@ -1,5 +1,10 @@
 /** Initial resize delivery from jsdom's modeled offsets; geometry/timing suites supply their own observers. */
 import { afterAll, beforeEach } from 'vitest'
+import { setFlagDefaults } from '../packages/persona/client-ui-persona/src/client/flags.ts'
+
+// Persona client (FLAGS-ON-1): the product ships every v1.1 flag ON by default, but the specs written while they were born OFF assume the off default.
+// The test lane therefore starts each test file with the defaults off; a spec that proves the production default calls `setFlagDefaults(undefined)`.
+setFlagDefaults(false)
 
 const original = Object.getOwnPropertyDescriptor(globalThis, 'ResizeObserver')
 let installed = false

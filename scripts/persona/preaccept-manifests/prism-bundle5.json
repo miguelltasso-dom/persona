@@ -1,0 +1,32 @@
+{
+  "owner": "Prism",
+  "bundle": "5",
+  "dir": ".maestri/tmp/shots/prism-shell-b5",
+  "fileTemplate": "{scheme}-{viewport}-{scene}",
+  "viewportNames": { "1440x900": "1440", "960x640": "960", "zoom200": "zoom200" },
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio", "Tuca"],
+  "note": "Lote real-shell do Prism no bundle 5 (lib d8109efa, sem rebuild; rig .maestri/tmp/prism/shell-shots.mjs com a sonda do pré-aceite em shoot()). Regressão das telas aceitas no bundle 4: nada nas minhas telas mudou no bundle 5. A Aparência força o tema: o arquivo leva o tema que a tela MOSTRA (Claro = light, Escuro = dark), por isso essas duas cenas só valem em um tema. Rode a captura com PRISM_AXE=<axe.min.js >= 4.7>.",
+  "scenes": [
+    "aparencia-sistema",
+    { "id": "aparencia-claro", "schemes": ["light"] },
+    { "id": "aparencia-escuro", "schemes": ["dark"] },
+    "equipe-personas",
+    "equipe-personas-perfil",
+    "visao-geral-resumir",
+    "resumir-resultado",
+    "resumir-2o-pedido",
+    "geral",
+    "resumo-canal-pensando",
+    "resumo-canal-resposta",
+    "resumo-dm-pensando",
+    "resumo-dm-resposta",
+    "lado-canal-resposta",
+    "lado-dm-resposta",
+    "dm-conversa",
+    "cartao-persona-hover",
+    "cartao-persona-menu",
+    "configuracoes-conexoes"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "owner": "Prism",
+  "bundle": "6",
+  "dir": ".maestri/tmp/shots/prism-shell-b6",
+  "fileTemplate": "{scheme}-{viewport}-{scene}",
+  "viewportNames": { "1440x900": "1440", "960x640": "960", "zoom200": "zoom200" },
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio", "Tuca"],
+  "note": "Lote real-shell do Prism no lib do bundle 6 (sem rebuild; rig .maestri/tmp/prism/shell-shots.mjs com a sonda do pré-aceite em shoot()), SÓ o que a Muse pediu (14:15): o CARTÃO DA PERSONA no shell real (cartao-persona-hover e cartao-persona-menu: o popover cabe na janela, o Enviar dentro; cartao-persona-rolado: o meio rolado até o fim, com Modelo e o texto 'Este motor não informa a cota.', o topo e o campo fixos), a FAIXA DA EQUIPE estreita sem sobreposição (geral, a 960 e a 200% as etiquetas ficam só com nome + ponto) e o texto 'Este motor não informa a cota.' também no /limites do canal (limites-canal). As outras 14 cenas do lote do bundle 5 já estão ACEITAS e não mudaram. Rode a captura com PRISM_AXE=<axe.min.js >= 4.7> e PRISM_SKIP para pular o resto.",
+  "scenes": [
+    "geral",
+    "cartao-persona-hover",
+    "cartao-persona-menu",
+    "cartao-persona-rolado",
+    "limites-canal"
+  ]
+}

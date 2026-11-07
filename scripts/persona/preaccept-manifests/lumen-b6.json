@@ -1,0 +1,15 @@
+{
+  "owner": "Lumen",
+  "bundle": "6",
+  "dir": ".maestri/tmp/shots/lumen-viewport/bundle6",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "note": "Lote do Lumen no lib 6 (7bd08b15, Quill 14:27): o Revisar (lista, conflito, sucesso) sem o diálogo passar da tela e, a 200%, o título e 'Voltar ao quadro' inteiros (Muse 13:01). Régua: scripts/persona/lumen-viewport-shots.mjs (LUMEN_SCENARIOS=review, LUMEN_1440=1, LUMEN_AXE, LUMEN_GEOM=1). A Revisão usa o exemplo marcado 'Exemplo' (duas chaves de dev). Os enfeites e a Saúde já foram aceitos no bundle 5.",
+  "scenes": [
+    "revisar-lista",
+    "revisar-conflito",
+    "revisar-sucesso"
+  ]
+}

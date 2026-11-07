@@ -1,0 +1,13 @@
+{
+  "owner": "Gauge (dia no app real)",
+  "bundle": "4",
+  "dir": "packages/persona/persona-e2e/artifacts/gauge/team-day-app-b4",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemeNames": { "light": "claro", "dark": "escuro" },
+  "viewportNames": { "1440x900": "1440x900", "960x640": "960x640", "zoom200": "zoom200" },
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "note": "O dia no app real (tests/real-team-day-app.spec.ts, GAUGE_FLAGS_DEFAULT=1 = de fábrica): 9 cenas do #geral escolhidas pelo QUE aparece na tela (plano, entrega, passagem, ajuda, opinião, Bom dia, proposta, cobrança), claro e escuro, 1440, 960 e zoom 200 % (640x360), cada uma com a sonda do pré-aceite ao lado (<captura>.probe.json). O manifesto gauge-day-app.json é o do lote antigo (legado, 1 tamanho).",
+  "scenes": ["abertura", "plano", "entrega", "passagem", "ajuda", "opiniao", "bom-dia", "proposta", "cobranca"]
+}

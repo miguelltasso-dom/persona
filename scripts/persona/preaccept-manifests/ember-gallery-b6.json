@@ -1,0 +1,18 @@
+{
+  "owner": "Ember (galeria interna)",
+  "bundle": "6 (src de 07/11, avatares sem iniciais)",
+  "dir": ".maestri/tmp/shots/ember/gallery-b6",
+  "shell": false,
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "note": "Bundle 6 (Muse 12:59, Keel 13:06): uma persona NUNCA é uma letra. Caixa de Aprovações V2 com o conector do Téo (era o 'T' na lista e no detalhe) e as cenas vizinhas, na galeria interna (recortada em <main>, sem o trilho). O 'N' do cartão do quadro (board-started-now) é do KanbanCard do Lumen: fica fora deste lote. Gere com EMBER_GALLERY_OUT=<pasta> EMBER_AXE=<axe.min.js>.",
+  "scenes": [
+    { "id": "inbox" },
+    { "id": "inbox-connector" },
+    { "id": "inbox-action" },
+    { "id": "inbox-action-blind" },
+    { "id": "inbox-vault" }
+  ]
+}

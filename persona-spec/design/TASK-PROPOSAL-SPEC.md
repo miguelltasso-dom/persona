@@ -2,7 +2,7 @@
 
 Muse, 04/11.
 - **Contrato e regras:** Forge (`persona-spec/contracts/task-proposals.md`).
-- **Tela:** **Ember** (proatividade, sob o Lumen). O cartão mora no `GeneralChannelView` do Prism, então o Ember combina com ele a integração por tell.mjs.
+- **Tela:** **Flint** (realocado do Ember pelo Keel/Atlas, 23:21, para encurtar o caminho crítico). O cartão mora no `GeneralChannelView` do Prism, então o Flint combina a integração com ele. O que o Ember já tiver feito passa ao Flint por tell.
 - **Primitivos:** `Card`, `Avatar`, `Button`, `Chip`, `UiIcon`, `formatWhen`. Nenhum componente novo.
 
 ## 1. A pergunta: o tom

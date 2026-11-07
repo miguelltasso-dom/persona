@@ -1,0 +1,508 @@
+{
+  "note": "ISO-5 / D-083 item 2: conceder conector de CONTA do claude.ai a UMA persona sem copiar credencial. Somente pedidos de CONTROLE (initialize, mcp_status, get_context_usage, mcp_toggle) a claude -p --input-format stream-json: nenhuma mensagem de usuario, nenhuma chamada de modelo. Contagens apenas: sem nomes de conectores, sem URLs, sem e-mail. Claude Code 2.1.318, login de assinatura real, cwd = pasta temporaria vazia.",
+  "claude_version": "2.1.318",
+  "a_setting_source_matrix": [
+    {
+      "variant": "S0 nativo",
+      "loggedIn": true,
+      "commands": 104,
+      "mcpServers": 21,
+      "byScope": {
+        "dynamic": 11,
+        "user": 3,
+        "claudeai": 7
+      },
+      "totalTokens": 28220,
+      "mcpLoadedTools": 3,
+      "mcpInstructionTokens": 2811,
+      "skills": 63,
+      "skillTokens": 9040,
+      "memoryFiles": 0,
+      "categories": {
+        "System prompt": 2495,
+        "System tools": 13064,
+        "MCP tools": 810,
+        "MCP server instructions": 2811,
+        "MCP tools (deferred)": 364390,
+        "System tools (deferred)": 23434,
+        "Skills": 9040,
+        "Autocompact buffer": 33000,
+        "Free space": 938780
+      }
+    },
+    {
+      "variant": "S1 --setting-sources user",
+      "loggedIn": true,
+      "commands": 104,
+      "mcpServers": 21,
+      "byScope": {
+        "dynamic": 11,
+        "user": 3,
+        "claudeai": 7
+      },
+      "totalTokens": 27922,
+      "mcpLoadedTools": 3,
+      "mcpInstructionTokens": 2513,
+      "skills": 63,
+      "skillTokens": 9040,
+      "memoryFiles": 0,
+      "categories": {
+        "System prompt": 2495,
+        "System tools": 13064,
+        "MCP tools": 810,
+        "MCP server instructions": 2513,
+        "MCP tools (deferred)": 364390,
+        "System tools (deferred)": 23434,
+        "Skills": 9040,
+        "Autocompact buffer": 33000,
+        "Free space": 939078
+      }
+    },
+    {
+      "variant": "S2 --setting-sources user,project",
+      "loggedIn": true,
+      "commands": 104,
+      "mcpServers": 21,
+      "byScope": {
+        "dynamic": 11,
+        "user": 3,
+        "claudeai": 7
+      },
+      "totalTokens": 27922,
+      "mcpLoadedTools": 3,
+      "mcpInstructionTokens": 2513,
+      "skills": 63,
+      "skillTokens": 9040,
+      "memoryFiles": 0,
+      "categories": {
+        "System prompt": 2495,
+        "System tools": 13064,
+        "MCP tools": 810,
+        "MCP server instructions": 2513,
+        "MCP tools (deferred)": 364390,
+        "System tools (deferred)": 23434,
+        "Skills": 9040,
+        "Autocompact buffer": 33000,
+        "Free space": 939078
+      }
+    },
+    {
+      "variant": "S3 --setting-sources project",
+      "loggedIn": true,
+      "commands": 55,
+      "mcpServers": 0,
+      "byScope": {},
+      "totalTokens": 24599,
+      "mcpLoadedTools": 0,
+      "mcpInstructionTokens": 0,
+      "skills": 14,
+      "skillTokens": 2281,
+      "memoryFiles": 0,
+      "categories": {
+        "System prompt": 2495,
+        "System tools": 19823,
+        "System tools (deferred)": 22232,
+        "Skills": 2281,
+        "Autocompact buffer": 33000,
+        "Free space": 942401
+      }
+    },
+    {
+      "variant": "S4 --setting-sources local",
+      "loggedIn": true,
+      "commands": 55,
+      "mcpServers": 7,
+      "byScope": {
+        "claudeai": 7
+      },
+      "totalTokens": 27474,
+      "mcpLoadedTools": 3,
+      "mcpInstructionTokens": 2065,
+      "skills": 14,
+      "skillTokens": 2281,
+      "memoryFiles": 0,
+      "categories": {
+        "System prompt": 2495,
+        "System tools": 19823,
+        "MCP tools": 810,
+        "MCP server instructions": 2065,
+        "MCP tools (deferred)": 355673,
+        "System tools (deferred)": 23319,
+        "Skills": 2281,
+        "Autocompact buffer": 33000,
+        "Free space": 939526
+      }
+    },
+    {
+      "variant": "S5 --setting-sources \"\" (vazio)",
+      "loggedIn": true,
+      "commands": 55,
+      "mcpServers": 0,
+      "byScope": {},
+      "totalTokens": 24599,
+      "mcpLoadedTools": 0,
+      "mcpInstructionTokens": 0,
+      "skills": 14,
+      "skillTokens": 2281,
+      "memoryFiles": 0,
+      "categories": {
+        "System prompt": 2495,
+        "System tools": 19823,
+        "System tools (deferred)": 22232,
+        "Skills": 2281,
+        "Autocompact buffer": 33000,
+        "Free space": 942401
+      }
+    },
+    {
+      "variant": "S6 --disable-slash-commands",
+      "loggedIn": true,
+      "commands": 0,
+      "mcpServers": 21,
+      "byScope": {
+        "dynamic": 11,
+        "user": 3,
+        "claudeai": 7
+      },
+      "totalTokens": 35736,
+      "mcpLoadedTools": 3,
+      "mcpInstructionTokens": 2811,
+      "skills": null,
+      "skillTokens": null,
+      "memoryFiles": 0,
+      "categories": {
+        "System prompt": 2449,
+        "System tools": 29665,
+        "MCP tools": 811,
+        "MCP server instructions": 2811,
+        "MCP tools (deferred)": 371391,
+        "System tools (deferred)": 23434,
+        "Autocompact buffer": 33000,
+        "Free space": 931264
+      }
+    },
+    {
+      "variant": "S7 --setting-sources user --disable-slash-commands",
+      "loggedIn": true,
+      "commands": 0,
+      "mcpServers": 21,
+      "byScope": {
+        "dynamic": 11,
+        "user": 3,
+        "claudeai": 7
+      },
+      "totalTokens": 35736,
+      "mcpLoadedTools": 3,
+      "mcpInstructionTokens": 2811,
+      "skills": null,
+      "skillTokens": null,
+      "memoryFiles": 0,
+      "categories": {
+        "System prompt": 2449,
+        "System tools": 29665,
+        "MCP tools": 811,
+        "MCP server instructions": 2811,
+        "MCP tools (deferred)": 371391,
+        "System tools (deferred)": 23434,
+        "Autocompact buffer": 33000,
+        "Free space": 931264
+      }
+    }
+  ],
+  "b_permission_rules_and_toggle": [
+    {
+      "label": "V0 nativo",
+      "loggedIn": true,
+      "totalTokens": 28221,
+      "categories": {
+        "System prompt": 2495,
+        "System tools": 13064,
+        "MCP tools": 811,
+        "MCP server instructions": 2811,
+        "MCP tools (deferred)": 371391,
+        "System tools (deferred)": 23434,
+        "Skills": 9040,
+        "Autocompact buffer": 33000,
+        "Free space": 938779
+      },
+      "mcpServersListed": 21,
+      "mcpToolsListed": 397,
+      "mcpToolsLoaded": 3,
+      "mcpToolTokens": 372202,
+      "mcpInstructionTokens": 2811,
+      "mcpInstructionServers": 7,
+      "skillTokens": 9040,
+      "slashCommandTokens": 1417,
+      "statusAfter": {
+        "needs-auth": 9,
+        "failed": 4,
+        "connected": 8
+      }
+    },
+    {
+      "label": "V1 isolado (--strict-mcp-config)",
+      "loggedIn": true,
+      "totalTokens": 32114,
+      "categories": {
+        "System prompt": 2449,
+        "System tools": 29665,
+        "System tools (deferred)": 22232,
+        "Autocompact buffer": 33000,
+        "Free space": 934886
+      },
+      "mcpServersListed": 0,
+      "mcpToolsListed": 0,
+      "mcpToolsLoaded": 0,
+      "mcpToolTokens": 0,
+      "mcpInstructionTokens": 0,
+      "mcpInstructionServers": 0,
+      "skillTokens": null,
+      "slashCommandTokens": null,
+      "statusAfter": {}
+    },
+    {
+      "label": "V2 opcao 3: sem strict + dontAsk + allowedTools do concedido",
+      "loggedIn": true,
+      "totalTokens": 34989,
+      "categories": {
+        "System prompt": 2449,
+        "System tools": 29665,
+        "MCP tools": 810,
+        "MCP server instructions": 2065,
+        "MCP tools (deferred)": 355673,
+        "System tools (deferred)": 23319,
+        "Autocompact buffer": 33000,
+        "Free space": 932011
+      },
+      "mcpServersListed": 7,
+      "mcpToolsListed": 362,
+      "mcpToolsLoaded": 3,
+      "mcpToolTokens": 356483,
+      "mcpInstructionTokens": 2065,
+      "mcpInstructionServers": 4,
+      "skillTokens": null,
+      "slashCommandTokens": null,
+      "statusAfter": {
+        "connected": 5,
+        "needs-auth": 2
+      }
+    },
+    {
+      "label": "V3 opcao 3 + disallowed-tools dos outros servidores",
+      "loggedIn": true,
+      "totalTokens": 32114,
+      "categories": {
+        "System prompt": 2449,
+        "System tools": 29665,
+        "System tools (deferred)": 22232,
+        "Autocompact buffer": 33000,
+        "Free space": 934886
+      },
+      "mcpServersListed": 0,
+      "mcpToolsListed": 0,
+      "mcpToolsLoaded": 0,
+      "mcpToolTokens": 0,
+      "mcpInstructionTokens": 0,
+      "mcpInstructionServers": 0,
+      "skillTokens": null,
+      "slashCommandTokens": null,
+      "statusAfter": {}
+    },
+    {
+      "label": "V4 opcao 3 + mcp_toggle off nos outros",
+      "loggedIn": true,
+      "toggleOk": 6,
+      "toggleFailed": 0,
+      "toggleFirstError": null,
+      "totalTokens": 33578,
+      "categories": {
+        "System prompt": 2449,
+        "System tools": 29665,
+        "MCP tools": 833,
+        "MCP server instructions": 631,
+        "MCP tools (deferred)": 1980,
+        "System tools (deferred)": 23319,
+        "Autocompact buffer": 33000,
+        "Free space": 933422
+      },
+      "mcpServersListed": 7,
+      "mcpToolsListed": 8,
+      "mcpToolsLoaded": 3,
+      "mcpToolTokens": 2813,
+      "mcpInstructionTokens": 631,
+      "mcpInstructionServers": 1,
+      "skillTokens": null,
+      "slashCommandTokens": null,
+      "statusAfter": {
+        "connected": 1,
+        "disabled": 6
+      }
+    }
+  ],
+  "c_denylist_debug": [
+    {
+      "info": "derived",
+      "baseServers": 7,
+      "serversWithToolMap": 5,
+      "grantedPrefixCount": 1,
+      "grantedPrefixLooksRight": true,
+      "otherPrefixCount": 4,
+      "anyOtherEqualsGranted": false,
+      "otherPrefixesLookRight": true,
+      "otherPrefixLengths": [
+        20,
+        22,
+        23,
+        21
+      ]
+    },
+    {
+      "label": "D0 base (local, sem restricao)",
+      "servers": 7,
+      "byStatus": {
+        "connected": 5,
+        "needs-auth": 2
+      },
+      "tools": 362,
+      "deferredToolTokens": 355673,
+      "loadedToolTokens": 810,
+      "instrTokens": 2065,
+      "total": 34989
+    },
+    {
+      "label": "D1 denylist de UM outro servidor",
+      "servers": 7,
+      "byStatus": {
+        "connected": 5,
+        "needs-auth": 2
+      },
+      "tools": 332,
+      "deferredToolTokens": 319417,
+      "loadedToolTokens": 810,
+      "instrTokens": 2065,
+      "total": 34989
+    },
+    {
+      "label": "D2 denylist de TODOS os outros (sem allowedTools)",
+      "servers": 7,
+      "byStatus": {
+        "connected": 5,
+        "needs-auth": 2
+      },
+      "tools": 8,
+      "deferredToolTokens": 1980,
+      "loadedToolTokens": 833,
+      "instrTokens": 2065,
+      "total": 35012
+    },
+    {
+      "label": "D3 denylist de todos os outros, uma entrada por argumento com curinga",
+      "servers": 0,
+      "byStatus": {},
+      "tools": 0,
+      "deferredToolTokens": 0,
+      "loadedToolTokens": 0,
+      "instrTokens": 0,
+      "total": 32114
+    },
+    {
+      "label": "D4 denylist de TODOS os outros + dontAsk + allowedTools do concedido",
+      "servers": 7,
+      "byStatus": {
+        "connected": 5,
+        "needs-auth": 2
+      },
+      "tools": 8,
+      "deferredToolTokens": 1980,
+      "loadedToolTokens": 833,
+      "instrTokens": 2065,
+      "total": 35012
+    },
+    {
+      "label": "D5 so allowedTools do concedido + dontAsk (sem denylist)",
+      "servers": 7,
+      "byStatus": {
+        "connected": 5,
+        "needs-auth": 2
+      },
+      "tools": 362,
+      "deferredToolTokens": 355673,
+      "loadedToolTokens": 810,
+      "instrTokens": 2065,
+      "total": 34989
+    }
+  ],
+  "d_allowlist_policy_by_name_vs_url": [
+    {
+      "label": "N0 base (local)",
+      "serversAtSettle": 7,
+      "serversLater": 7,
+      "arrivedAfterMs": 3128,
+      "byStatus": {
+        "connected": 5,
+        "needs-auth": 2
+      },
+      "tools": 362,
+      "instrTokens": 2065,
+      "total": 34989,
+      "blockedWarning": false
+    },
+    {
+      "label": "N1 allowedMcpServers por NOME",
+      "serversAtSettle": 0,
+      "serversLater": 0,
+      "arrivedAfterMs": 15429,
+      "byStatus": {},
+      "tools": 0,
+      "instrTokens": 0,
+      "total": 32114,
+      "blockedWarning": true
+    },
+    {
+      "label": "N2 allowedMcpServers por URL",
+      "serversAtSettle": 1,
+      "serversLater": 1,
+      "arrivedAfterMs": 1228,
+      "byStatus": {
+        "connected": 1
+      },
+      "tools": 8,
+      "instrTokens": 631,
+      "total": 33578,
+      "blockedWarning": true
+    },
+    {
+      "label": "N3 allowed por URL INEXISTENTE (fail-closed?)",
+      "serversAtSettle": 0,
+      "serversLater": 0,
+      "arrivedAfterMs": 15206,
+      "byStatus": {},
+      "tools": 0,
+      "instrTokens": 0,
+      "total": 32114,
+      "blockedWarning": true
+    },
+    {
+      "label": "N4 allowedMcpServers vazia",
+      "serversAtSettle": 0,
+      "serversLater": 0,
+      "arrivedAfterMs": 15089,
+      "byStatus": {},
+      "tools": 0,
+      "instrTokens": 0,
+      "total": 32114,
+      "blockedWarning": true
+    },
+    {
+      "label": "N5 allowed por URL + strict-mcp-config (strict vence?)",
+      "serversAtSettle": 0,
+      "serversLater": 0,
+      "arrivedAfterMs": 15039,
+      "byStatus": {},
+      "tools": 0,
+      "instrTokens": 0,
+      "total": 32114,
+      "blockedWarning": false
+    }
+  ]
+}

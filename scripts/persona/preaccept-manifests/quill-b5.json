@@ -1,0 +1,24 @@
+{
+  "owner": "Quill (shell real, bundle 5)",
+  "bundle": "5",
+  "dir": ".maestri/tmp/shots/quill/bundle5",
+  "fileTemplate": "{scene}-{scheme}-{viewport}",
+  "schemes": ["light", "dark"],
+  "viewports": ["1440x900", "960x640", "zoom200"],
+  "roster": ["Atlas", "Bento", "Nina", "Sol", "Luna", "Bolota", "Pipa", "Capi", "Bia", "Teo", "Téo", "Lia", "Caio"],
+  "shell": true,
+  "note": "Lote do Quill no bundle 5 (so o que mudou): EFF-1 empilhado com a lista REAL do host (effortreal: lista, modelo, nivel, chip depois de Aplicar), EFF-1 com cliente de teste para o snap do Haiku (effort) e o painel de Personas com o dialogo de motor no layout novo (personas). Regua: scripts/persona/quill-shots.mjs (QUILL_OUT=.maestri/tmp/shots/quill/bundle5, QUILL_AXE e PREACCEPT_AXE). Conexoes, Ensinar, Away e Canvas nao mudaram desde o aceite da Muse (bundle 4): continuam em .maestri/tmp/shots/quill/ (quill.json).",
+  "scenes": [
+    "effortreal-3-host-list",
+    "effortreal-4-host-model",
+    "effortreal-5-host-effort",
+    "effortreal-6-chip-after-apply",
+    "effort-3-claude-default",
+    "effort-4-opus-max",
+    "effort-5-haiku-snapped",
+    "personas-1-panel",
+    "personas-1b-team-help",
+    "personas-1c-team-review",
+    "personas-2-engine-dialog"
+  ]
+}

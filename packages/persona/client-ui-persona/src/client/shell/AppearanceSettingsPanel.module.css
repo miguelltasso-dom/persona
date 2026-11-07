@@ -1,0 +1,161 @@
+/* Configurações › Aparência (TH-1): a miniatura 120 × 72 do tema é desenhada só com tokens; cada cena abre o escopo da paleta pedida. */
+
+.mini {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 120px;
+  height: 72px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper-sunken);
+}
+
+/* O escopo `[data-persona-scheme]` (persona-palette.css) redefine os tokens neste elemento: a cena "Claro" é clara dentro de uma janela escura. */
+.scene {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background-color: var(--persona-paper);
+  background-image: var(--persona-night-glow);
+}
+
+/* "Sistema": a metade clara em cima à esquerda, a escura embaixo à direita, partidas na diagonal. */
+.scene[data-half='light'] {
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.scene[data-half='dark'] {
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
+.rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 22px;
+  box-sizing: border-box;
+  padding: 10px 7px;
+  background: var(--persona-rail);
+}
+
+.railDot {
+  display: block;
+  height: 5px;
+  border-radius: 2px;
+  background: var(--persona-rail-ink);
+  opacity: 0.7;
+}
+
+.head,
+.panelBig,
+.panelSmall {
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+  border: 1px solid var(--persona-outline-soft);
+  border-radius: 3px;
+  background: var(--persona-card);
+}
+
+.head {
+  top: 8px;
+  right: 8px;
+  left: 30px;
+  height: 10px;
+}
+
+.panelBig {
+  top: 24px;
+  bottom: 8px;
+  left: 30px;
+  width: 40px;
+}
+
+.panelSmall {
+  top: 24px;
+  right: 8px;
+  left: 76px;
+  height: 18px;
+}
+
+.chip {
+  position: absolute;
+  top: 48px;
+  left: 76px;
+  display: block;
+  width: 26px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--persona-accent);
+}
+
+/* Só na noite: a luminária acesa (um ponto âmbar com brilho) e três vaga-lumes. */
+.lamp {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--persona-amber-300);
+  box-shadow: 0 0 8px 2px var(--persona-amber-300);
+}
+
+.firefly {
+  position: absolute;
+  display: block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--persona-amber-300);
+  box-shadow: 0 0 4px var(--persona-amber-300);
+}
+
+.firefly[data-n='1'] {
+  top: 30px;
+  left: 82px;
+}
+
+.firefly[data-n='2'] {
+  top: 56px;
+  left: 50px;
+}
+
+.firefly[data-n='3'] {
+  top: 14px;
+  left: 100px;
+}
+
+.tipsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-4);
+}
+
+.tipsText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tipsTitle {
+  margin: 0;
+  color: var(--persona-ink);
+  font: 700 15px/20px var(--persona-font-text);
+}
+
+.tipsHint {
+  margin: 0;
+  color: var(--persona-ink-soft);
+  font: 500 13px/19px var(--persona-font-text);
+}

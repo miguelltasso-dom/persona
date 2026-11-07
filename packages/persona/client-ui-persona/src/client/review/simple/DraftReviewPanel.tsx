@@ -6,7 +6,7 @@
  */
 
 import { useState, type ReactNode } from 'react'
-import { Avatar, Button, Chip, summarizeFileChanges, type ChipTone } from '../../primitives/index.ts'
+import { Avatar, BrandIcon, Button, Chip, summarizeFileChanges, type ChipTone } from '../../primitives/index.ts'
 import { usePersonaMotion } from '../../theme/usePersonaMotion.ts'
 import type { LocaleDict } from '../../preview/locale-bind.ts'
 import { bindLocale } from '../../preview/locale-bind.ts'
@@ -14,16 +14,19 @@ import { pt as defaultDict } from '../../locale/review/locales.ts'
 import { AppliedMoment } from './AppliedMoment.tsx'
 import { ApplyNotice } from './ApplyNotice.tsx'
 import { ConflictChoices } from './ConflictChoices.tsx'
+import { conflictText, unnamedText } from './conflict-text.ts'
 import { FilePreview } from './FilePreview.tsx'
+import { safeReviewImageSrc } from './image-src.ts'
 import { ReviewFileList } from './ReviewFileList.tsx'
+import { ReviewedBySeal, type ReviewedBySealReviewer } from '../../teamwork/ReviewedBySeal.tsx'
 import type { ApplyPhase, ConflictChoice, DraftFileUi } from './draft-types.ts'
 import styles from './DraftReview.module.css'
 
 export interface DraftReviewPanelProps {
   readonly dict?: LocaleDict
-  /** Who made the draft ("Bia"). Falls back to "A persona". */
+  /** Who made the draft ("Bia"). Unknown = no name is written anywhere: the header and every text have their own wording ("Mudanças prontas para revisar"). */
   readonly personaName?: string | undefined
-  /** Her animal's portrait (the header wears it); initials when unknown. */
+  /** Her animal's portrait (the header wears it); with no name and no portrait, the draft's icon (never initials). */
   readonly personaAvatarSrc?: string | undefined
   /** What she says she did, in her words (up to 2 lines). Without it the header says nothing extra: the list has the words summary. */
   readonly personaSummary?: string | undefined
@@ -46,6 +49,8 @@ export interface DraftReviewPanelProps {
   readonly onLeave?: (() => void) | undefined
   /** A capture-only sample (dev seed): the header says "Exemplo" so it is never taken for real work. */
   readonly example?: boolean | undefined
+  /** TEAM-8: o selo "Revisado por {R}" no cabeçalho quando um colega aprovou sem pontos em aberto. */
+  readonly reviewedBy?: ReviewedBySealReviewer | undefined
 }
 
 type Mode = 'review' | 'feedback' | 'discard'
@@ -70,9 +75,12 @@ export function DraftReviewPanel({
   onUndoApplied,
   onLeave,
   example = false,
+  reviewedBy,
 }: DraftReviewPanelProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
-  const name = personaName !== undefined && personaName.trim() !== '' ? personaName.trim() : t('persona.fallback')
+  // No stand-in name anywhere (Muse 04:33, 05:51): "A persona" / "O rascunho" read as a machine in a sentence, and initials like "OR" in the
+  // avatar. With no name known every text has its own wording without one (conflict-text.ts); with a name it is "{nome} preparou mudanças".
+  const knownName = personaName !== undefined && personaName.trim() !== '' ? personaName.trim() : undefined
   const motion = usePersonaMotion({ preset: 'base', fromOpacity: 0, fromTranslateY: 6 })
   const [mode, setMode] = useState<Mode>('review')
   const [feedback, setFeedback] = useState('')
@@ -102,6 +110,11 @@ export function DraftReviewPanel({
   const kindTone: Readonly<Record<DraftFileUi['kind'], ChipTone>> = { new: 'success', changed: 'info', deleted: 'danger' }
 
   if (phase.kind === 'done') {
+    // The pictures that were just applied (a deleted one has nothing to show): the person sees the image, not only a file name.
+    const pictures = files.flatMap((file) => {
+      const src = file.type === 'image' && file.kind !== 'deleted' ? safeReviewImageSrc(file.afterImageSrc) : undefined
+      return src === undefined ? [] : [{ name: file.name, src }]
+    })
     return (
       <div className={styles.shell} ref={motion.ref} style={motion.style} data-persona-surface="review-delivery" data-testid="review-panel">
         <AppliedMoment
@@ -110,6 +123,7 @@ export function DraftReviewPanel({
           onUndo={onUndoApplied}
           onBack={() => { onLeave?.() }}
           t={t}
+          pictures={pictures}
         />
       </div>
     )
@@ -118,14 +132,21 @@ export function DraftReviewPanel({
   return (
     <div className={styles.shell} ref={motion.ref} style={motion.style} data-persona-surface="review-delivery" data-testid="review-panel">
       <header className={styles.hero}>
-        <Avatar name={name} size={56} shape="portrait" decorative {...(personaAvatarSrc === undefined ? {} : { src: personaAvatarSrc })} />
+        {personaAvatarSrc === undefined
+          ? <span className={styles.heroIcon} aria-hidden="true"><BrandIcon name="revisao" size={32} /></span>
+          : <Avatar name={knownName ?? ''} size={56} shape="portrait" decorative src={personaAvatarSrc} />}
         <div className={styles.heroText}>
           <p className={styles.eyebrow}>
             {t('title')}
             {example && <> <Chip size="s" tone="neutral">{t('example.chip')}</Chip></>}
+            {reviewedBy !== undefined && <> <ReviewedBySeal reviewer={reviewedBy} label={t('review.seal', { name: reviewedBy.name })} /></>}
           </p>
-          <h1 className={styles.title}>{taskTitle === '' ? t('hero.title.notask', { name }) : t('hero.title', { name, task: taskTitle })}</h1>
-          <p className={styles.subtitle}>{t('subtitle', { name })}</p>
+          <h1 className={styles.title}>
+            {knownName === undefined
+              ? (taskTitle === '' ? unnamedText(t, 'hero.title.unnamed.notask') : unnamedText(t, 'hero.title.unnamed', { task: taskTitle }))
+              : (taskTitle === '' ? t('hero.title.notask', { name: knownName }) : t('hero.title', { name: knownName, task: taskTitle }))}
+          </h1>
+          <p className={styles.subtitle}>{knownName === undefined ? unnamedText(t, 'subtitle.unnamed') : t('subtitle', { name: knownName })}</p>
           {personaSummary !== undefined && personaSummary.trim() !== '' && <p className={styles.personaSummary}>{personaSummary.trim()}</p>}
         </div>
       </header>
@@ -133,8 +154,8 @@ export function DraftReviewPanel({
       {blocked && (
         <section className={styles.blockedCard} aria-labelledby="persona-review-blocked">
           <span className={styles.chipBlocked}>{t('blocked.chip')}</span>
-          <h2 id="persona-review-blocked" className={styles.question}>{t('blocked.title', { name })}</h2>
-          <p className={styles.body}>{t('conflict.body', { name })}</p>
+          <h2 id="persona-review-blocked" className={styles.question}>{conflictText(t, 'blocked.title', knownName)}</h2>
+          <p className={styles.body}>{conflictText(t, 'conflict.body', knownName)}</p>
           {blockedDetail !== undefined && blockedDetail.trim() !== '' && (
             <details className={styles.details}>
               <summary>{t('apply.details')}</summary>
@@ -174,7 +195,7 @@ export function DraftReviewPanel({
             {selected.conflict === true && (
               <ConflictChoices
                 files={[selected]}
-                personaName={name}
+                personaName={knownName}
                 choices={choices}
                 onChoose={(fileId, choice) => { setChoices(current => ({ ...current, [fileId]: choice })) }}
                 t={t}
@@ -226,7 +247,7 @@ export function DraftReviewPanel({
       {mode === 'discard' && (
         <div className={styles.confirm} role="alertdialog" aria-labelledby="persona-review-discard-title" aria-describedby="persona-review-discard-body">
           <h3 id="persona-review-discard-title" className={styles.question}>{t('discard.title')}</h3>
-          <p id="persona-review-discard-body" className={styles.body}>{t('discard.body', { name })}</p>
+          <p id="persona-review-discard-body" className={styles.body}>{knownName === undefined ? unnamedText(t, 'discard.body.unnamed') : t('discard.body', { name: knownName })}</p>
           <div className={styles.actions}>
             <Button variant="danger" onClick={() => { onDiscard?.(); setMode('review') }}>{t('discard.confirm')}</Button>
             <Button variant="secondary" onClick={() => { setMode('review') }}>{t('discard.cancel')}</Button>

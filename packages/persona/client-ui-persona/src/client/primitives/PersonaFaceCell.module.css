@@ -1,0 +1,28 @@
+.cell {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+/* O ⋯ fica no canto do cartão da persona; o rosto (o botão grande) abre a DM. */
+.more {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  cursor: pointer;
+}
+
+.more:hover,
+.more[aria-expanded='true'] {
+  background: var(--persona-wash);
+  color: var(--persona-ink);
+}

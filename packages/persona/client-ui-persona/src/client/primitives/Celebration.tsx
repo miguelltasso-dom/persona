@@ -4,8 +4,9 @@
  * Never loops; reduced-motion shows a single static check badge; at most one burst every few seconds.
  */
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ACCENTS, AVATAR_96 } from '../assets/generated-imports.ts'
+import { houseStampUrl } from '../decor/HouseDecor.tsx'
 import { Avatar } from './Avatar.tsx'
 import { UiIcon } from './icons.tsx'
 import styles from './Celebration.module.css'
@@ -144,19 +145,26 @@ export interface ApprovedStampProps {
   readonly size?: number
   /** Stamp-in once (the moment of approval); false for a card that was already approved. */
   readonly animate?: boolean
+  /** A stable text of the card (its id): with the house ornaments on, it picks the drawn stamp ("feito", "boa!", "uau!"). */
+  readonly seed?: string
 }
 
 /** Brush "aprovado" paw stamp: pressed onto a card once when the human approves (peak-end). */
-export function ApprovedStamp({ label, size = 64, animate = true }: ApprovedStampProps): ReactNode {
+export function ApprovedStamp({ label, size = 64, animate = true, seed }: ApprovedStampProps): ReactNode {
   const url = ACCENTS['stamp-aprovado']
+  const fallbackSeed = useId()
+  // BR-P4 #12 (behind persona.flag.houseDecor): the drawn stamp. The word in the art is decoration; the real text stays below.
+  const drawn = houseStampUrl(seed ?? fallbackSeed)
   return (
     <span
       className={styles.stamp}
       data-animate={animate ? '' : undefined}
+      data-drawn={drawn === undefined ? undefined : ''}
       style={{ '--stamp-size': `${size}px` } as CSSProperties}
       role="img"
       aria-label={label}
     >
+      {drawn !== undefined && <img className={styles.stampArt} src={drawn} alt="" aria-hidden="true" />}
       {url !== undefined && <span className={styles.stampMark} style={{ '--stamp-url': `url("${url}")` } as CSSProperties} aria-hidden="true" />}
       <span className={styles.stampText} aria-hidden="true">{label}</span>
     </span>

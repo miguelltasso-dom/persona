@@ -1,0 +1,22 @@
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-4);
+}
+
+.text {
+  min-width: 0;
+}
+
+.label {
+  margin: 0;
+  font: 700 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.hint {
+  margin: var(--persona-space-1) 0 0;
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}

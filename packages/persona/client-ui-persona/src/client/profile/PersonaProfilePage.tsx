@@ -1,4 +1,5 @@
 /** E9 — Persona profile with live state, overview, memory and skills tabs. */
+import { personaFaceSrc } from '../hire/persona-face.ts'
 import { useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
@@ -256,7 +257,7 @@ export function PersonaProfilePage({
               <Card padding="m" title={bindLocale(governanceDict, 'health.gestorAudit')}>
                 <p className={styles.quiet}>{bindLocale(governanceDict, 'health.gestorAuditLead')}</p>
                 <ActivityGroup
-                  persona={{ name: persona.name, avatarSrc: AVATAR_96[avatarRef as keyof typeof AVATAR_96] }}
+                  persona={{ name: persona.name, avatarSrc: personaFaceSrc(avatarRef, persona.id) ?? AVATAR_96[avatarRef as keyof typeof AVATAR_96] }}
                   items={gestorAuditItems}
                   labels={activityGroupLabelsFromDict(governanceDict)}
                 />

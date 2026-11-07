@@ -1,4 +1,5 @@
 /** UI model aligned with persona-engine ReviewSummary (client-local). */
+import type { ReviewedBySealReviewer } from '../teamwork/ReviewedBySeal.tsx'
 
 export interface ReviewFileChangeUi {
   readonly path: string
@@ -11,6 +12,8 @@ export interface ReviewFileChangeUi {
   readonly cells?: readonly { readonly sheet: string; readonly cell: string; readonly before: string; readonly after: string }[] | undefined
   readonly beforeImage?: string | undefined
   readonly afterImage?: string | undefined
+  /** Conflict on an image: what the person's folder has now, as an inline picture (`data:image/png|svg+xml`, ≤ ~256 KB). */
+  readonly folderImage?: string | undefined
   readonly conflict?: boolean | undefined
   readonly truncated?: boolean | undefined
   readonly canOpenDraft?: boolean | undefined
@@ -26,6 +29,8 @@ export interface ReviewSummaryUi {
   readonly patchLimitBytes: number
   readonly secretsRedacted: boolean
   readonly testsClaimed: readonly string[]
+  /** TEAM-8: o selo "Revisado por {R}" no cabeçalho do Revisar mudanças quando um colega aprovou sem pontos em aberto. */
+  readonly reviewedBy?: ReviewedBySealReviewer | undefined
 }
 
 export interface ReviewBlockedUi {

@@ -19,6 +19,8 @@ import type { PersonaCardInfo } from '../profile/PersonaInfoCard.tsx'
 
 export interface ConnectedOrgChartInjected extends LumenRemoteInjected {
   readonly openPersonaProfile: (personaId: string) => void
+  /** CV-4: clicar no rosto abre a DM. */
+  readonly openPersonaDm?: ((personaId: string) => void) | undefined
   readonly cardInfo?: ((personaId: string) => PersonaCardInfo | undefined) | undefined
   readonly prefetchPersonaCard?: ((personaId: string) => void) | undefined
   readonly cardDict?: LocaleDict | undefined
@@ -76,6 +78,7 @@ export function ConnectedOrgChartPanel({
   useShell,
   usePersonaCardRevision,
   openPersonaProfile,
+  openPersonaDm,
   cardInfo,
   prefetchPersonaCard,
   cardDict,
@@ -127,6 +130,7 @@ export function ConnectedOrgChartPanel({
       {...(prefetchPersonaCard === undefined ? {} : { onCardPrefetch: prefetchPersonaCard })}
       {...(sendToPersona === undefined ? {} : { onSendToPersona: sendToPersona })}
       onOpenPersonaProfile={openPersonaProfile}
+      {...(openPersonaDm === undefined ? {} : { onOpenPersonaDm: openPersonaDm })}
       {...(togglePersonaPause === undefined ? {} : { onTogglePersonaPause: togglePersonaPause })}
       {...(switchPersonaEngine === undefined ? {} : { onSwitchPersonaEngine: switchPersonaEngine })}
       {...(editPersonaTalk === undefined ? {} : { onEditPersonaTalk: editPersonaTalk })}

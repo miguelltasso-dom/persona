@@ -1,9 +1,9 @@
+import { personaFaceSrc } from '../hire/persona-face.ts'
 import type { GestorPlanView } from '@deepseek-ai/dsh-persona-host/types'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ReactNode } from 'react'
 import { GestorPlanCard, type GestorPlanStep } from '../primitives/Gestor.tsx'
 import type { TeamView } from '../remote/persona-remote-types.ts'
-import { AVATAR_96 } from '../assets/generated-imports.ts'
 
 function planState(status: string): 'pending' | 'approved' | 'declined' | 'adjusting' {
   if (status === 'applied') return 'approved'
@@ -41,9 +41,8 @@ export function GestorPlanMessageCard({
 }): ReactNode {
   const gestorPersona = team?.personas.find(row => row.id === plan.gestorId)
   const gestorName = gestorPersona?.name ?? plan.gestorId
-  const avatarSrc = gestorPersona !== undefined
-    ? AVATAR_96[gestorPersona.avatarRef as keyof typeof AVATAR_96]
-    : undefined
+  // Muse (D-069): nunca as iniciais; sem animal na referência, um bicho estável da galeria.
+  const avatarSrc = gestorPersona !== undefined ? personaFaceSrc(gestorPersona.avatarRef, gestorPersona.id) : undefined
   const state = planState(plan.status)
   return (
     <GestorPlanCard

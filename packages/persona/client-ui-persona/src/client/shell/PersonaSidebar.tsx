@@ -10,9 +10,15 @@ import { RailTeam, type RailPersona } from './RailTeam.tsx'
 import { NAV_GROUPS as GROUPS, SEARCH_FOCUS_EVENT } from './nav-groups.ts'
 import { installAreaNavigation } from './area-navigation.ts'
 import { isPlacesNavEnabled } from './nav-flag.ts'
+import type { ConversationTarget, OpenConversation } from './conversation-selection.ts'
 import { PlacesRailNav } from './PlacesRailNav.tsx'
+import { ConversationsRail } from './ConversationsRail.tsx'
+import { FoliageLampHalo } from './FoliageLampHalo.tsx'
+import { isLampLightFlagOn } from '../chat/lamp-light.ts'
+import { EMPTY_CONVERSATIONS, type ConversationsSource } from './conversations-source.ts'
 import { UserAwayControl, formatAwayUntilWhen, isAwayExpired, type UserAwayState } from './UserAwayControl.tsx'
 import { useShortViewport } from './use-short-viewport.ts'
+import { useNarrowWindow } from './use-narrow-window.ts'
 import type { RailAiStatus } from './rail-ai-status.ts'
 import { deriveRailPill, railAiHint, railAiRowText } from './rail-pill.ts'
 import styles from './PersonaSidebar.module.css'
@@ -28,6 +34,18 @@ export interface PersonaSidebarInjected {
     approvals: HostObservable<{ readonly pending: number }>
   }
   selectPanel(id: MainPanelId): void
+  /**
+   * A conversa aberta (canal ou pessoa) para pintar a linha ativa da barra única; `null` fora das conversas.
+   * Prop de topo (não `hooks`): o runtime transforma todo `hooks.x` em um `useX` OBRIGATÓRIO, e o rail antigo não precisa dele.
+   */
+  readonly activeConversation?: HostObservable<ConversationTarget | null> | undefined
+  /** Abre uma conversa com 1 clique (canal ou pessoa), sem a 2ª lista de DMs. */
+  readonly openConversation?: OpenConversation | undefined
+  /**
+   * CV-1: Canais e Pessoas da barra única (linhas prontas, com a equipe de cada persona). Prop de topo pelo mesmo motivo de
+   * `activeConversation`. Sem ela (preview, testes) a barra antiga de pessoas (`RailTeam`) continua.
+   */
+  readonly conversations?: HostObservable<ConversationsSource> | undefined
   readonly openPersonaDm?: ((personaId: string) => void) | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
   /** "Estou fora" mudou (liga/desliga/prazo/expirou): o host precisa saber (organograma, aprovações). */
@@ -90,6 +108,9 @@ export function PersonaSidebar({
   renderSlot,
   openPersonaDm,
   openPersonaProfile,
+  activeConversation,
+  openConversation,
+  conversations,
   onAwayChange,
   hirePersona,
   sendToPersona,
@@ -108,11 +129,25 @@ export function PersonaSidebar({
     : { subscribe: (listener: () => void) => railAi.subscribe(listener), getSnapshot: () => railAi.getSnapshot() as RailAiStatus | undefined }), [railAi])
   const aiStatus = useSyncExternalStore(aiStore.subscribe, aiStore.getSnapshot, NO_AI)
   const members = useTeam(rows => rows)
+  // CV-1: as linhas da barra de conversas e a conversa aberta (mesmo cuidado do aiStore: sem fonte, fica vazio e estável).
+  const conversationsStore = useMemo(() => (conversations === undefined
+    ? { subscribe: NO_SUBSCRIBE, getSnapshot: (): ConversationsSource => EMPTY_CONVERSATIONS }
+    : { subscribe: (listener: () => void) => conversations.subscribe(listener), getSnapshot: (): ConversationsSource => conversations.getSnapshot() }), [conversations])
+  const conversationsSource = useSyncExternalStore(conversationsStore.subscribe, conversationsStore.getSnapshot, () => EMPTY_CONVERSATIONS)
+  const activeStore = useMemo(() => (activeConversation === undefined
+    ? { subscribe: NO_SUBSCRIBE, getSnapshot: (): ConversationTarget | null => null }
+    : { subscribe: (listener: () => void) => activeConversation.subscribe(listener), getSnapshot: (): ConversationTarget | null => activeConversation.getSnapshot() }), [activeConversation])
+  const activeConversationTarget = useSyncExternalStore(activeStore.subscribe, activeStore.getSnapshot, () => null)
   void usePersonaCardRevision(state => state.n)
   const approvalsPending = useApprovals(state => state.pending)
-  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const [userCollapsed, setCollapsed] = useState(readCollapsed)
   // P0-22: janela baixa (< 600 px, zoom 200%): sem folhagem e com o rodapé numa linha só.
   const short = useShortViewport()
+  // CV-1: janela estreita (≤ 960 px) = o trilho de 64 px; a barra inteira abre por cima.
+  const narrow = useNarrowWindow()
+  const [trailOpen, setTrailOpen] = useState(false)
+  const navElRef = useRef<HTMLElement>(null)
+  const collapseRef = useRef<HTMLButtonElement>(null)
   const toggleCollapsed = useCallback((): void => {
     setCollapsed((value) => {
       try {
@@ -125,6 +160,35 @@ export function PersonaSidebar({
   }, [])
   const navRef = useRef<HTMLDivElement>(null)
   const placesNav = isPlacesNavEnabled()
+  // CV-1: a barra única (Canais + Pessoas no lugar da faixa da equipe) só existe com a flag do A-1 E com as conversas injetadas.
+  const barraUnica = placesNav && conversations !== undefined && openConversation !== undefined
+  const trail = barraUnica && narrow
+  // O trilho fechado é a barra recolhida (ícones e rostos); aberto por cima mostra tudo.
+  const collapsed = userCollapsed || (trail && !trailOpen)
+  const closeTrail = useCallback((): void => { setTrailOpen(false) }, [])
+  // CONVERSAS-SPEC §0.1: o rodapé do trilho (e da barra única recolhida) é uma coluna de alvos de 40 px: ponto, Ajuda, Configurações.
+  const compactFooter = barraUnica && collapsed
+  const toggleTrail = useCallback((): void => { setTrailOpen(open => !open) }, [])
+  useEffect(() => { if (!trail) setTrailOpen(false) }, [trail])
+  useEffect(() => {
+    if (!trail || !trailOpen) return undefined
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      setTrailOpen(false)
+      collapseRef.current?.focus()
+    }
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node | null
+      if (target !== null && navElRef.current?.contains(target) === true) return
+      setTrailOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('pointerdown', onPointerDown, true)
+    }
+  }, [trail, trailOpen])
   // A faixa SUA EQUIPE é a mesma no rail antigo e no novo (D-077: o novo só liga depois do aceite da Muse).
   const railTeam = (members.length > 0 || hirePersona !== undefined)
     ? (
@@ -296,7 +360,7 @@ export function PersonaSidebar({
       aria-expanded={awayPopoverOpen}
       aria-haspopup="dialog"
       aria-label={pill.text}
-      {...(aiHint === null ? { title: pill.text } : {})}
+      {...(aiHint === null && !compactFooter ? { title: pill.text } : {})}
     >
       <span className={styles.statusDot} aria-hidden="true" />
       <span className={styles.hostStatusText}>
@@ -306,15 +370,34 @@ export function PersonaSidebar({
     </button>
   )
 
+  const helpFootButton = (
+    <Tooltip content={t('sidebar.helpShortcuts')} shortcut={['?']} side="top">
+      <button
+        type="button"
+        className={styles.helpButton}
+        data-nav-item=""
+        data-nav-panel="help"
+        aria-current={shell.activePanel === 'help' ? 'page' : undefined}
+        aria-label={t('sidebar.helpShortcuts')}
+        aria-keyshortcuts="?"
+        onClick={() => { selectPanel('help') }}
+      >
+        <BrandIcon name="ajuda" size={18} />
+      </button>
+    </Tooltip>
+  )
+
   return (
-    <nav className={styles.sidebar} aria-label={t('brand.name')} data-persona-grain="" data-persona-area="rail" data-collapsed={collapsed ? '' : undefined} data-short={short ? '' : undefined}>
+    <nav className={styles.sidebar} aria-label={t('brand.name')} data-persona-grain="" data-persona-area="rail" ref={navElRef} data-collapsed={collapsed ? '' : undefined} data-short={short ? '' : undefined} data-conversations={barraUnica ? '' : undefined} data-trail={trail ? '' : undefined} data-trail-open={trail && trailOpen ? '' : undefined}>
       <div className={styles.foliage} aria-hidden="true">
         {ILLUSTRATIONS['rail-foliage-light'] !== undefined && (
           <img className={styles.foliageLight} src={ILLUSTRATIONS['rail-foliage-light']} alt="" />
         )}
         {ILLUSTRATIONS['rail-foliage-dark'] !== undefined && (
-          <img className={styles.foliageDark} src={ILLUSTRATIONS['rail-foliage-dark']} alt="" />
+          <img className={styles.foliageDark} src={ILLUSTRATIONS['rail-foliage-dark']} alt="" data-persona-foliage-dark="" />
         )}
+        {/* O halo da luminária (v1.1, atrás de persona.flag.lampLight; só no escuro e só com a arte v2): atrás de tudo, nunca do texto. */}
+        {isLampLightFlagOn() && <FoliageLampHalo />}
       </div>
 
       <div className={styles.brandRow}>
@@ -328,7 +411,8 @@ export function PersonaSidebar({
           aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
           title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
           aria-pressed={collapsed}
-          onClick={toggleCollapsed}
+          ref={collapseRef}
+          onClick={trail ? toggleTrail : toggleCollapsed}
         >
           <UiIcon name="chevronDown" size={16} strokeWidth={2.4} className={styles.collapseIcon} />
         </button>
@@ -340,7 +424,7 @@ export function PersonaSidebar({
         aria-label={t('sidebar.search')}
         aria-keyshortcuts="Control+K Meta+K"
         aria-current={shell.activePanel === 'search' ? 'page' : undefined}
-        onClick={() => { selectPanel('search') }}
+        onClick={() => { selectPanel('search'); closeTrail() }}
       >
         <BrandIcon name="busca" size={18} />
         <span className={styles.searchText}>{t('sidebar.searchHint')}</span>
@@ -355,8 +439,19 @@ export function PersonaSidebar({
         />
         {placesNav ? (
           <div className={styles.group}>
-            <PlacesRailNav t={t} collapsed={collapsed} activePanel={shell.activePanel} approvalsPending={approvalsPending} selectPanel={selectPanel} />
-            {railTeam}
+            <PlacesRailNav t={t} collapsed={collapsed} activePanel={shell.activePanel} approvalsPending={approvalsPending} selectPanel={barraUnica ? (panel) => { selectPanel(panel); closeTrail() } : selectPanel} compact={barraUnica} />
+            {barraUnica && openConversation !== undefined
+              ? (
+                <ConversationsRail
+                  t={t}
+                  source={conversationsSource}
+                  active={activeConversationTarget}
+                  openConversation={(target) => { openConversation(target); closeTrail() }}
+                  onOrganizeTeam={() => { selectPanel('orgChart'); closeTrail() }}
+                  variant={collapsed ? 'trail' : 'full'}
+                />
+              )
+              : railTeam}
           </div>
         ) : GROUPS.map((group) => {
           const expanded = group.labelKey === undefined
@@ -434,7 +529,7 @@ export function PersonaSidebar({
       <div className={styles.footer}>
         <div ref={awayAnchorRef} className={styles.statusAnchor}>
           {/* Com o popover aberto o tooltip não existe: a linha da IA do popover já diz a mesma frase (Muse, A-5). */}
-          {aiHint === null ? pillButton : <Tooltip content={aiHint} side="top" disabled={awayPopoverOpen}>{pillButton}</Tooltip>}
+          {(compactFooter ? (aiHint ?? pill.text) : aiHint) === null ? pillButton : <Tooltip content={compactFooter ? (aiHint ?? pill.text) : (aiHint ?? '')} side="top" disabled={awayPopoverOpen}>{pillButton}</Tooltip>}
           {awayPopoverOpen && (
             <div className={styles.awayPopover} role="dialog" aria-label={t('away.switchLabel')}>
               <UserAwayControl
@@ -475,23 +570,11 @@ export function PersonaSidebar({
           // Flag A-1 LIGADA (D-077): "Configurações" é o lugar (o nosso SettingsLauncher no `settings.launcher`) e "Ajuda e
           // atalhos" é o ícone do rodapé. O slot do DSW segue montado: os indicadores de conexão e de atualização ficam ao lado.
           <div className={styles.footActions}>
+            {compactFooter && helpFootButton}
             <div className={styles.settingsSlot}>
-              {renderSlot('sidebar.settings', { wide: true })}
+              {renderSlot('sidebar.settings', { wide: !compactFooter })}
             </div>
-            <Tooltip content={t('sidebar.helpShortcuts')} shortcut={['?']} side="top">
-              <button
-                type="button"
-                className={styles.helpButton}
-                data-nav-item=""
-                data-nav-panel="help"
-                aria-current={shell.activePanel === 'help' ? 'page' : undefined}
-                aria-label={t('sidebar.helpShortcuts')}
-                aria-keyshortcuts="?"
-                onClick={() => { selectPanel('help') }}
-              >
-                <BrandIcon name="ajuda" size={18} />
-              </button>
-            </Tooltip>
+            {!compactFooter && helpFootButton}
           </div>
         ) : (
           // Flag DESLIGADA (padrão): o app é o de antes. "Configurações" é o gatilho do DSW (o fallback do `settings.launcher`,

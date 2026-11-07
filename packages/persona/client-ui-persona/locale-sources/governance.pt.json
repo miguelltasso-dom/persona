@@ -53,6 +53,9 @@
   "state.offline": "Fora do ar",
   "health.title": "Saúde da equipe",
   "health.subtitle": "Em linguagem simples — o que melhorar para a equipe se sustentar sozinha",
+  "health.firstDay.title": "Ainda conhecendo a equipe",
+  "health.firstDay.body": "A nota aparece depois que a equipe trabalhar alguns dias. Até lá, nada aqui é problema.",
+  "health.firstDay.noData": "Ainda sem dados",
   "health.scoreLabel": "Nota da equipe",
   "health.findings": "O que pede atenção",
   "health.gestorAudit": "Atividade do Gestor de equipe",
@@ -164,5 +167,7 @@
   "org.subtitlePersonasOne": "1 persona",
   "activity.command.one": "rodou 1 comando",
   "activity.file.one": "mudou 1 arquivo",
-  "activity.message.one": "mandou 1 mensagem"
+  "activity.message.one": "mandou 1 mensagem",
+  "org.cardMenu": "Sobre {name}",
+  "org.openDm": "Conversar com {name}"
 }

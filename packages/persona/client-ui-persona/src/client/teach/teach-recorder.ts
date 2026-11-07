@@ -25,9 +25,22 @@ export interface TeachStopPayload {
   readonly transcript: string
 }
 
+/** What the desktop's always-on-top pill can ask for (contracts/teach-pill.md). */
+export type TeachPillAction = 'pause' | 'resume' | 'stop'
+
+/** Anything else the desktop might send is ignored: only the three known actions ever reach the screen. */
+export function parseTeachPillAction(raw: unknown): TeachPillAction | null {
+  return raw === 'pause' || raw === 'resume' || raw === 'stop' ? raw : null
+}
+
 export interface TeachRecorder {
   /** `desktop` records for real; `synthetic` is the dev/test example that records nothing. */
   readonly kind: 'desktop' | 'synthetic'
+  /**
+   * Listen to the desktop pill (Pausar / Retomar / Parar). Returns the function that stops listening. Absent = no pill
+   * (browser, example recorder): nothing to listen to.
+   */
+  onPillAction?(listener: (action: TeachPillAction) => void): () => void
   listSources(): Promise<readonly TeachSource[]>
   start(sourceId: string, microphone: boolean): Promise<void>
   pause(): Promise<void>
@@ -47,6 +60,8 @@ export interface TeachBridge {
   resume(): Promise<void>
   ingestFrame(png: string): Promise<boolean>
   stop(typed?: unknown): Promise<unknown>
+  /** The pill's buttons; returns the unsubscribe. Older desktops do not have it. */
+  onPillAction?(listener: (action: unknown) => void): unknown
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -114,6 +129,14 @@ export function createDesktopRecorder(bridge: TeachBridge, deps: DesktopRecorder
 
   return {
     kind: 'desktop',
+    onPillAction(listener) {
+      const off = bridge.onPillAction?.((raw) => {
+        const action = parseTeachPillAction(raw)
+        if (action !== null) listener(action)
+      })
+      // The bridge hands back its own unsubscribe (typed unknown here): call it only if it is a function.
+      return typeof off === 'function' ? () => { Reflect.apply(off, undefined, []) } : () => undefined
+    },
     async listSources() {
       return parseTeachSources(await bridge.listSources())
     },

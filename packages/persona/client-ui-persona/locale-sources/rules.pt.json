@@ -3,7 +3,7 @@
   "title": "Regras de triagem",
   "subtitle": "Limites de proatividade, silêncio e triagem em linguagem natural",
   "limits.title": "Orçamento e propostas",
-  "limits.subtitle": "Evita barulho e custo descontrolado",
+  "limits.subtitle": "Evita barulho e uso descontrolado da sua cota",
   "limits.maxProposals": "Máx. propostas por persona / dia",
   "limits.tokensPersona": "Tokens por mês, por persona",
   "limits.tokensProject": "Tokens por mês, por projeto",

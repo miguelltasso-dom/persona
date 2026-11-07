@@ -84,6 +84,11 @@
   gap: var(--persona-space-2);
   flex: 0 1 160px;
   min-width: 0;
+  /*
+   * As etiquetas NUNCA se sobrepõem (Muse, SW-7): a caixa do membro encolhe junto com a faixa, a etiqueta fica DENTRO dela e o que ela mostra
+   * depende da largura que a caixa de fato recebeu (o `@container` mais abaixo), qualquer que seja a quantidade de membros e o idioma.
+   */
+  container: persona-member / inline-size;
 }
 
 .figureButton {
@@ -113,6 +118,9 @@
   flex-direction: column;
   align-items: center;
   gap: 1px;
+  /* border-box: com content-box o `max-width: 100%` deixava a etiqueta 27 px mais larga que a caixa do membro (padding + borda) e ela invadia a vizinha. */
+  box-sizing: border-box;
+  min-width: 0;
   max-width: 100%;
   padding: 3px 12px 4px;
   border: var(--persona-border-width) solid var(--persona-outline);
@@ -127,17 +135,82 @@
 }
 
 .tagName {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   font: 600 15px/18px var(--persona-font-display);
   color: var(--persona-ink);
+}
+
+/* Nome comprido: reticências no texto, nunca no ⋯ (que é o jeito de abrir o cartão) e nunca por cima da etiqueta vizinha. */
+.tagNameText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tagStatus {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
+  max-width: 100%;
   font: 700 12px/16px var(--persona-font-text);
   color: var(--persona-ink-soft);
   white-space: nowrap;
+}
+
+.tagStatusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Abaixo da largura em que o texto do estado cabe, a etiqueta mostra só o nome e o ponto de estado: o texto sai da vista e continua para o leitor de
+ * tela (mesma técnica do `persona-sr-only`, nunca `display: none`) e para o `title` da etiqueta. A largura é a da CAIXA DO MEMBRO (container), não
+ * a da janela: a faixa estreita por causa do canal, do zoom ou de muitos membros cai no mesmo caso.
+ */
+@container persona-member (max-width: 144px) {
+  .tag {
+    padding-inline: 6px;
+  }
+
+  .tagStatusText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tagStatus {
+    gap: 0;
+  }
+}
+
+/*
+ * Muito estreito (≤ 100 px por membro; o zoom 200% com 5 pessoas dá ~94 px): o nome inteiro vale mais que o ícone do Gestor, que cede o lugar (é decorativo: o papel segue no cartão
+ * da persona); o ⋯ continua com 24 px e encosta mais no nome, e a etiqueta perde 2 px de cada lado. Sem isso o nome do Gestor ("Atlas") ficava com reticências a 200%.
+ */
+@container persona-member (max-width: 100px) {
+  .tag {
+    padding-inline: 4px;
+  }
+
+  .gestorIcon {
+    display: none;
+  }
+
+  .tagMore {
+    margin-left: 2px;
+  }
 }
 
 .statusDot {
@@ -164,6 +237,18 @@
 
 .member[data-state='waiting'] .statusDot {
   background: var(--persona-card);
+}
+
+/* O nome e o ⋯ também usam a tinta do âmbar: no escuro, --persona-ink é creme e sobre o âmbar dava 1,7:1. */
+.member[data-state='waiting'] .tagName,
+.member[data-state='waiting'] .tagMore {
+  color: var(--persona-accent-ink);
+}
+
+.member[data-state='waiting'] .tagMore:hover,
+.member[data-state='waiting'] .tagMore[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--persona-accent-ink) 14%, transparent);
+  color: var(--persona-accent-ink);
 }
 
 /* Empty channel: inviting open seats (dashed silhouettes) */
@@ -293,6 +378,7 @@
 }
 
 .gestorIcon {
+  flex: none;
   margin-right: 4px;
   vertical-align: -1px;
   color: var(--persona-accent-text);
@@ -316,4 +402,27 @@
       opacity: 0;
     }
   }
+}
+
+/* CV-4: o ⋯ do rosto abre o cartão ("Sobre {nome}"); o rosto em si abre a DM. */
+.tagMore {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.tagMore:hover,
+.tagMore[aria-expanded='true'] {
+  background: var(--persona-wash);
+  color: var(--persona-ink);
 }

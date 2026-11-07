@@ -53,6 +53,9 @@
   "state.offline": "Away",
   "health.title": "Team health",
   "health.subtitle": "Plain language — what to improve so the team sustains itself",
+  "health.firstDay.title": "Still getting to know the team",
+  "health.firstDay.body": "The score shows up after the team has worked a few days. Until then, nothing here is a problem.",
+  "health.firstDay.noData": "No data yet",
   "health.scoreLabel": "Team score",
   "health.findings": "Needs attention",
   "health.gestorAudit": "Team manager activity",
@@ -164,5 +167,7 @@
   "org.subtitlePersonasOne": "1 persona",
   "activity.command.one": "ran 1 command",
   "activity.file.one": "changed 1 file",
-  "activity.message.one": "sent 1 message"
+  "activity.message.one": "sent 1 message",
+  "org.cardMenu": "About {name}",
+  "org.openDm": "Talk to {name}"
 }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Chip, PersonaCardPopover, Screen, ScreenHeader, SectorIcon, Tabs, usePersonaCardController } from '../primitives/index.ts'
+import { Chip, PersonaCardPopover, Screen, ScreenHeader, SectorIcon, Tabs, usePersonaCardController, type PersonaFaceTriggers } from '../primitives/index.ts'
 import { OrgChart as OrgChartPrimitive } from '../primitives/Governance.tsx'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import type { OrgChartGroupBy, OrgChartView as OrgChartDto } from './governance-contract.ts'
@@ -28,6 +28,8 @@ export interface OrgChartViewProps {
   readonly onCardPrefetch?: ((personaId: string) => void) | undefined
   readonly onSendToPersona?: ((personaId: string, text: string) => void) | undefined
   readonly onOpenPersonaProfile?: ((personaId: string) => void) | undefined
+  /** CV-4: clicar no rosto abre a DM com a persona; o cartão vem pelo ⋯, hover longo ou Shift+F10. */
+  readonly onOpenPersonaDm?: ((personaId: string) => void) | undefined
   readonly onTogglePersonaPause?: ((personaId: string) => void) | undefined
   readonly onSwitchPersonaEngine?: ((personaId: string) => void) | undefined
   readonly onEditPersonaTalk?: ((personaId: string) => void) | undefined
@@ -65,6 +67,7 @@ export function OrgChartView({
   onCardPrefetch,
   onSendToPersona,
   onOpenPersonaProfile,
+  onOpenPersonaDm,
   onTogglePersonaPause,
   onSwitchPersonaEngine,
   onEditPersonaTalk,
@@ -104,6 +107,34 @@ export function OrgChartView({
       },
     }
   }, [card, onCardPrefetch])
+
+  // CV-4: o rosto abre a DM; o ⋯ ("Sobre {nome}"), o hover longo e o Shift+F10 abrem o cartão.
+  const faces = useMemo((): PersonaFaceTriggers | undefined => {
+    if (onOpenPersonaDm === undefined) return undefined
+    return {
+      face: (personaId) => {
+        const face = card.faceProps(personaId, () => { onOpenPersonaDm(personaId) })
+        return {
+          ...face,
+          onPointerEnter: (event) => {
+            onCardPrefetch?.(personaId)
+            face.onPointerEnter(event)
+          },
+        }
+      },
+      menu: (personaId) => {
+        const menu = card.menuProps(personaId)
+        return {
+          ...menu,
+          onClick: (event) => {
+            onCardPrefetch?.(personaId)
+            menu.onClick(event)
+          },
+        }
+      },
+      menuLabel: name => bindLocale(dict, 'org.cardMenu', { name }),
+    }
+  }, [card, dict, onCardPrefetch, onOpenPersonaDm])
 
   const cardData = useMemo((): PersonaCardInfo | undefined => {
     if (card.personaId === null || ui === null) return undefined
@@ -223,6 +254,7 @@ export function OrgChartView({
         label={t('a11y.orgRegion')}
         {...(onSelectPersona !== undefined ? { onSelectPersona } : {})}
         cardTrigger={cardTrigger}
+        {...(faces === undefined ? {} : { faces })}
         scaleLabels={scaleLabels}
       />
       {cardData !== undefined && (

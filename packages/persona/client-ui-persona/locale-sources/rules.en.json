@@ -3,7 +3,7 @@
   "title": "Triage rules",
   "subtitle": "Proactivity limits, quiet hours, and natural-language triage",
   "limits.title": "Budget and proposals",
-  "limits.subtitle": "Prevents noise and runaway cost",
+  "limits.subtitle": "Prevents noise and runaway quota use",
   "limits.maxProposals": "Max proposals per persona / day",
   "limits.tokensPersona": "Tokens per month, per persona",
   "limits.tokensProject": "Tokens per month, per project",

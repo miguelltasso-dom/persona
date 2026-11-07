@@ -61,7 +61,8 @@ export function Modal({ open, title, eyebrow, description, footer, closeLabel, o
     const check = (): void => {
       const scrolls = body.scrollHeight > body.clientHeight + 1
       setBodyScrolls(scrolls)
-      setBodyMore(scrolls && body.scrollTop + body.clientHeight < body.scrollHeight - 4)
+      // The body keeps 8 px of bottom padding: at the END of the scroll that padding is not "more below", so the fade is gone and the last line is never under it (Muse 16:08).
+      setBodyMore(scrolls && body.scrollTop + body.clientHeight < body.scrollHeight - 12)
     }
     body.addEventListener('scroll', check, { passive: true })
     check()
@@ -135,6 +136,14 @@ export function Modal({ open, title, eyebrow, description, footer, closeLabel, o
       </div>
     </div>
   )
+}
+
+/**
+ * Muse (P1-11): uma tecla em `kbd`, no mesmo formato das do {@link Tooltip} (borda, raio, Nunito 700 11), mas em tinta sobre o fundo claro
+ * (o Tooltip é escuro). Para dicas escritas no meio de uma frase ("Dica: Ctrl K → …").
+ */
+export function KeyCap({ children }: { readonly children: string }): ReactNode {
+  return <kbd className={styles.keyCap}>{children}</kbd>
 }
 
 export type ToastTone = 'neutral' | 'success' | 'warning' | 'danger' | 'celebrate'

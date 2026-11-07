@@ -21,7 +21,7 @@
   "error.title": "Não consegui carregar as skills agora",
   "error.retry": "Tentar de novo",
   "action.activating": "Ativando…",
-  "action.backToCandidate": "Voltar a candidata",
+  "action.backToCandidate": "Desativar",
   "action.rollingBack": "Voltando…",
   "status.shared": "Compartilhada",
   "error.activate": "Não consegui ativar {name}. Se ela usa uma ferramenta que a persona ainda não tem, peça a aprovação antes.",
@@ -32,7 +32,7 @@
   "live.rolledBack": "{name} voltou à versão anterior.",
   "live.shared": "{name} foi compartilhada com a equipe.",
   "share.title": "Compartilhar {name} com a equipe?",
-  "share.body": "Outras personas passam a poder usar esta skill. Você pode voltar a candidata depois, mas quem já a usou não é desfeito.",
+  "share.body": "Outras personas passam a poder usar esta skill. Você pode desativar depois, mas quem já a usou não é desfeito.",
   "share.confirm": "Compartilhar",
   "share.cancel": "Agora não",
   "share.close": "Fechar"

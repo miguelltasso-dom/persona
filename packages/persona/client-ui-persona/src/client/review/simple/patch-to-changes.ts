@@ -7,6 +7,7 @@
 import { fileTypeOf } from '../../primitives/index.ts'
 import type { ReviewSummaryUi } from '../mock-data.ts'
 import type { DraftFileUi } from './draft-types.ts'
+import { safeReviewImageSrc, svgTextToImageSrc } from './image-src.ts'
 import { diffLines, type DiffOp } from './text-diff.ts'
 
 export interface ParsedFilePatch {
@@ -14,6 +15,11 @@ export interface ParsedFilePatch {
   readonly kind: 'new' | 'changed' | 'deleted'
   readonly ops: readonly DiffOp[]
   readonly binary: boolean
+  /**
+   * The patch carries the WHOLE file text on each side: one hunk from the first line, read to its end (no `gap`, not cut short). A new or deleted
+   * file is always whole this way; a changed file is whole only when its single hunk reaches both ends. Only then can an SVG be drawn from the patch.
+   */
+  readonly wholeFile: boolean
 }
 
 interface Builder {
@@ -26,6 +32,9 @@ interface Builder {
   /** Lines still expected in the current hunk (old side, new side). */
   oldLeft: number
   newLeft: number
+  /** Where the first hunk starts on each side (a new file starts at 0 on the old side). */
+  firstOldStart: number
+  firstNewStart: number
   fromGit: boolean
 }
 
@@ -37,7 +46,7 @@ function cleanPath(raw: string): string {
 }
 
 function fresh(path: string, fromGit: boolean): Builder {
-  return { path, oldPath: undefined, kind: 'changed', ops: [], binary: false, hunks: 0, oldLeft: 0, newLeft: 0, fromGit }
+  return { path, oldPath: undefined, kind: 'changed', ops: [], binary: false, hunks: 0, oldLeft: 0, newLeft: 0, firstOldStart: -1, firstNewStart: -1, fromGit }
 }
 
 /** Reads `git diff` style patches (with or without the `diff --git` lines). */
@@ -46,7 +55,9 @@ export function parseUnifiedPatch(patch: string): readonly ParsedFilePatch[] {
   let cur: Builder | null = null
   const finish = (): void => {
     if (cur !== null && (cur.path !== '' || cur.ops.length > 0)) {
-      files.push({ path: cur.path, kind: cur.kind, ops: cur.ops, binary: cur.binary })
+      // One hunk, from the first line on both sides, read to its end: the patch holds the whole text of the file.
+      const wholeFile = !cur.binary && cur.hunks === 1 && cur.oldLeft === 0 && cur.newLeft === 0 && cur.firstOldStart <= 1 && cur.firstNewStart <= 1
+      files.push({ path: cur.path, kind: cur.kind, ops: cur.ops, binary: cur.binary, wholeFile })
     }
     cur = null
   }
@@ -90,9 +101,13 @@ export function parseUnifiedPatch(patch: string): readonly ParsedFilePatch[] {
       else cur.path = cleanPath(raw)
     } else if (line.startsWith('@@')) {
       if (cur === null) cur = fresh('', false)
-      const match = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/u.exec(line)
-      cur.oldLeft = match?.[1] === undefined ? 1 : Number(match[1])
-      cur.newLeft = match?.[2] === undefined ? 1 : Number(match[2])
+      const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u.exec(line)
+      cur.oldLeft = match?.[2] === undefined ? 1 : Number(match[2])
+      cur.newLeft = match?.[4] === undefined ? 1 : Number(match[4])
+      if (cur.hunks === 0) {
+        cur.firstOldStart = Number(match?.[1] ?? 1)
+        cur.firstNewStart = Number(match?.[3] ?? 1)
+      }
       if (cur.hunks > 0) cur.ops.push({ t: 'gap' })
       cur.hunks += 1
     }
@@ -109,9 +124,33 @@ export function splitPath(path: string): { readonly name: string; readonly folde
   return { name, folder }
 }
 
+/** The text of one side of a parsed file: its unchanged lines plus the lines that side owns (`before` = removed, `after` = added). */
+function sideText(ops: readonly DiffOp[], side: 'before' | 'after'): string {
+  const lines: string[] = []
+  for (const op of ops) {
+    if (op.t === 'same') lines.push(op.text)
+    else if (op.t === 'del' && side === 'before') lines.push(op.text)
+    else if (op.t === 'add' && side === 'after') lines.push(op.text)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * The picture(s) an SVG file makes, read from the patch ALONE (today's host sends no image bytes). Only when the patch holds the whole file on each side
+ * (a new or deleted file always does; a changed one only when its single hunk reaches both ends) and the text is a complete `<svg>…</svg>`: a half-read
+ * file never becomes a broken picture. It is only ever drawn through `<img>`, so nothing in it runs.
+ */
+function svgPicturesFromPatch(section: ParsedFilePatch): { readonly before?: string; readonly after?: string } {
+  if (!section.wholeFile) return {}
+  const before = section.kind === 'new' ? undefined : svgTextToImageSrc(sideText(section.ops, 'before'))
+  const after = section.kind === 'deleted' ? undefined : svgTextToImageSrc(sideText(section.ops, 'after'))
+  return { ...(before === undefined ? {} : { before }), ...(after === undefined ? {} : { after }) }
+}
+
 /**
  * Review summary of today's host → the files of "Revisar mudanças".
  * A file listed without a patch section (cut short) is shown as changed, with "Aqui vai o começo.".
+ * Pictures: what the host sends (`beforeImage`/`afterImage`/`folderImage`) passes through {@link safeReviewImageSrc}; an SVG with nothing sent is drawn from the patch.
  */
 export function draftFilesFromReviewSummary(summary: ReviewSummaryUi): readonly DraftFileUi[] {
   const parsed = new Map(parseUnifiedPatch(summary.patch).map(file => [file.path, file]))
@@ -130,7 +169,11 @@ export function draftFilesFromReviewSummary(summary: ReviewSummaryUi): readonly 
     const patchShowable = section !== undefined && !section.binary && (type === 'text' || type === 'other' || type === 'sheet')
     const ops = fullOps ?? (patchShowable ? section.ops : undefined)
     const hasCells = host?.cells !== undefined && host.cells.length > 0
-    const hasImages = host?.beforeImage !== undefined || host?.afterImage !== undefined
+    const fromPatch = type === 'image' && /\.svg$/iu.test(name) && section !== undefined ? svgPicturesFromPatch(section) : {}
+    const beforeImageSrc = safeReviewImageSrc(host?.beforeImage) ?? fromPatch.before
+    const afterImageSrc = safeReviewImageSrc(host?.afterImage) ?? fromPatch.after
+    const folderImageSrc = safeReviewImageSrc(host?.folderImage)
+    const hasImages = beforeImageSrc !== undefined || afterImageSrc !== undefined
     const showable = ops !== undefined || hasCells || hasImages
     files.push({
       id: path,
@@ -140,8 +183,9 @@ export function draftFilesFromReviewSummary(summary: ReviewSummaryUi): readonly 
       type,
       ...(ops === undefined ? {} : { ops }),
       ...(hasCells ? { cells: host.cells } : {}),
-      ...(host?.beforeImage === undefined ? {} : { beforeImageSrc: host.beforeImage }),
-      ...(host?.afterImage === undefined ? {} : { afterImageSrc: host.afterImage }),
+      ...(beforeImageSrc === undefined ? {} : { beforeImageSrc }),
+      ...(afterImageSrc === undefined ? {} : { afterImageSrc }),
+      ...(folderImageSrc === undefined ? {} : { folderImageSrc }),
       ...(host?.truncated === true || (section === undefined && host?.before === undefined && summary.patchTruncated) ? { truncated: true } : {}),
       ...(host?.canOpenDraft === true || section?.binary === true || (!showable && type !== 'text') ? { canOpenDraft: true } : {}),
       ...(host?.conflict === true ? { conflict: true } : {}),

@@ -110,3 +110,28 @@ describe('A-3: quem está acompanhando o assunto', () => {
     ])).toEqual([{ name: 'Luna', id: 'luna' }])
   })
 })
+
+describe('CV-4: rosto na faixa da equipe — clicar abre a DM; o cartão vem pelo ⋯', () => {
+  it('clicar no rosto chama a DM da persona e não abre o cartão', () => {
+    const onOpenPersonaDm = vi.fn()
+    view({ personaCard: bridge(), openPersonaProfile: () => undefined, onOpenPersonaDm, passThroughFollowers: [] })
+    fireEvent.click(screen.getByRole('button', { name: 'Conversar com Luna' }))
+    expect(onOpenPersonaDm).toHaveBeenCalledWith('p-luna')
+    expect(screen.queryByRole('dialog', { name: 'Luna' })).toBeNull()
+  })
+
+  it('o ⋯ ("Sobre Luna") abre o cartão e traz data-persona-card-trigger', () => {
+    const { container } = view({ personaCard: bridge(), openPersonaProfile: () => undefined, onOpenPersonaDm: () => undefined, passThroughFollowers: [] })
+    const more = screen.getByRole('button', { name: 'Sobre Luna' })
+    expect(more.getAttribute('data-persona-card-trigger')).toBe('p-luna')
+    expect(container.querySelectorAll('[data-persona-card-trigger]').length).toBeGreaterThanOrEqual(2) // Atlas e Luna
+    fireEvent.click(more)
+    expect(screen.getByRole('dialog', { name: 'Luna' })).toBeTruthy()
+  })
+
+  it('sem o handler da DM a faixa se comporta como antes (clicar no rosto abre o cartão)', () => {
+    view({ personaCard: bridge(), openPersonaProfile: () => undefined, passThroughFollowers: [] })
+    fireEvent.click(screen.getByRole('button', { name: 'Luna' }))
+    expect(screen.getByRole('dialog', { name: 'Luna' })).toBeTruthy()
+  })
+})

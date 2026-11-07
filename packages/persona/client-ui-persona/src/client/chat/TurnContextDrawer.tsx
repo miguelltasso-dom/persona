@@ -122,7 +122,7 @@ export function TurnContextDrawer({ t, context, activityLabels, limits = ENGINE_
       )}
       <div className={styles.limits}>
         <p className={styles.label}>{t('context.limitsLabel')}</p>
-        {/* IV-4 = P0-28: as cotas oficiais do motor (as mesmas do /limites e de Uso); sem dado, "—" e "Cota oficial indisponível". */}
+        {/* IV-4 = P0-28: as cotas oficiais do motor (as mesmas do /limites e de Uso); sem dado, "—" e "Este motor não informa a cota.". */}
         <EngineLimitsBars t={t} limits={limits} />
         <p className={styles.compactHint}>{t('context.compactMark')}</p>
       </div>

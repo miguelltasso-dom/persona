@@ -102,6 +102,9 @@ export const pt = {
   'remote.members.revokeNamed': 'Encerrar acesso de {name}',
   'remote.revoke.titleNamed': 'Encerrar o acesso de {name}?',
   'remote.invites.emptyOpen': 'Nenhum convite em aberto.',
+  'remote.body.revokedBy': '{name} encerrou o seu acesso a esta equipe. O que já estava aqui continua aqui.',
+  'remote.invite.copiedToast': 'Convite copiado',
+  'remote.invite.toastRegion': 'Avisos',
 } as const
 
 /** English copy. */
@@ -203,6 +206,9 @@ export const en = {
   'remote.members.revokeNamed': 'End access for {name}',
   'remote.revoke.titleNamed': 'End {name}\'s access?',
   'remote.invites.emptyOpen': 'No open invites.',
+  'remote.body.revokedBy': '{name} ended your access to this team. What was already here stays here.',
+  'remote.invite.copiedToast': 'Invite copied',
+  'remote.invite.toastRegion': 'Notices',
 } as const
 
 export const zh = {
@@ -303,6 +309,9 @@ export const zh = {
   'remote.members.revokeNamed': 'End access for {name}',
   'remote.revoke.titleNamed': 'End {name}\'s access?',
   'remote.invites.emptyOpen': 'No open invites.',
+  'remote.body.revokedBy': '{name} ended your access to this team. What was already here stays here.',
+  'remote.invite.copiedToast': 'Invite copied',
+  'remote.invite.toastRegion': 'Notices',
 } as const
 export const ja = {
   'header.eyebrow': 'Company',
@@ -402,6 +411,9 @@ export const ja = {
   'remote.members.revokeNamed': 'End access for {name}',
   'remote.revoke.titleNamed': 'End {name}\'s access?',
   'remote.invites.emptyOpen': 'No open invites.',
+  'remote.body.revokedBy': '{name} ended your access to this team. What was already here stays here.',
+  'remote.invite.copiedToast': 'Invite copied',
+  'remote.invite.toastRegion': 'Notices',
 } as const
 export const es = {
   'header.eyebrow': 'Company',
@@ -501,6 +513,9 @@ export const es = {
   'remote.members.revokeNamed': 'End access for {name}',
   'remote.revoke.titleNamed': 'End {name}\'s access?',
   'remote.invites.emptyOpen': 'No open invites.',
+  'remote.body.revokedBy': '{name} ended your access to this team. What was already here stays here.',
+  'remote.invite.copiedToast': 'Invite copied',
+  'remote.invite.toastRegion': 'Notices',
 } as const
 export const fr = {
   'header.eyebrow': 'Company',
@@ -600,6 +615,9 @@ export const fr = {
   'remote.members.revokeNamed': 'End access for {name}',
   'remote.revoke.titleNamed': 'End {name}\'s access?',
   'remote.invites.emptyOpen': 'No open invites.',
+  'remote.body.revokedBy': '{name} ended your access to this team. What was already here stays here.',
+  'remote.invite.copiedToast': 'Invite copied',
+  'remote.invite.toastRegion': 'Notices',
 } as const
 export const de = {
   'header.eyebrow': 'Company',
@@ -699,6 +717,9 @@ export const de = {
   'remote.members.revokeNamed': 'End access for {name}',
   'remote.revoke.titleNamed': 'End {name}\'s access?',
   'remote.invites.emptyOpen': 'No open invites.',
+  'remote.body.revokedBy': '{name} ended your access to this team. What was already here stays here.',
+  'remote.invite.copiedToast': 'Invite copied',
+  'remote.invite.toastRegion': 'Notices',
 } as const
 export const ru = {
   'header.eyebrow': 'Company',
@@ -798,6 +819,9 @@ export const ru = {
   'remote.members.revokeNamed': 'End access for {name}',
   'remote.revoke.titleNamed': 'End {name}\'s access?',
   'remote.invites.emptyOpen': 'No open invites.',
+  'remote.body.revokedBy': '{name} ended your access to this team. What was already here stays here.',
+  'remote.invite.copiedToast': 'Invite copied',
+  'remote.invite.toastRegion': 'Notices',
 } as const
 
 export type MembersKey = keyof typeof pt

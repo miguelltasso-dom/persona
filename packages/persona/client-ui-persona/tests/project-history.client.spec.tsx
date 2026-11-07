@@ -149,6 +149,25 @@ describe('restorePointsToEntries (host contract SW-6)', () => {
     expect(rows[2]?.undone).toBe(true)
     expect(JSON.stringify(rows)).not.toMatch(/Cardápio\/2026|a\/b/u) // never a folder path
   })
+
+  it('with nobody to name, the entry names nobody (the line never says "A persona aplicou")', () => {
+    const rows = restorePointsToEntries([point({ id: 'p1', ticketId: 'unknown' })], undefined)
+    expect(rows[0]?.who).toBeUndefined()
+  })
+})
+
+describe('the entry line with no name (Muse 05:51)', () => {
+  it('says "1 mudança aplicada · hora" and "{n} mudanças aplicadas · hora", never a stand-in name', () => {
+    view({
+      entries: [
+        { id: 'u1', who: undefined, at: at(0, 14, 20), files: [{ name: 'a.docx' }] },
+        { id: 'u2', who: undefined, at: at(0, 10, 5), files: [{ name: 'b.docx' }, { name: 'c.docx' }, { name: 'd.docx' }] },
+      ],
+    })
+    expect(screen.getByText('1 mudança aplicada · 14:20')).toBeTruthy()
+    expect(screen.getByText('3 mudanças aplicadas · 10:05')).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/A persona|O rascunho aplicou/u)
+  })
 })
 
 function connected(persona: PersonaRemoteClient, tasks: React.ComponentProps<typeof ConnectedProjectHistory>['tasks'] = []) {
@@ -198,7 +217,8 @@ describe('ConnectedProjectHistory', () => {
     const listRestorePoints = vi.fn(async () => ({ ok: true as const, value: { status: 'available' as const, points: [point({ id: 'rp1', createdAt: new Date().toISOString() })] } }))
     const undoApply = vi.fn(async () => ({ ok: true as const, value: results.shift()! }))
     connected({ listRestorePoints, undoApply } as unknown as PersonaRemoteClient)
-    await waitFor(() => { expect(screen.getByText(/aplicou 1 mudança/u)).toBeTruthy() })
+    // No assignee on the board here: the line names nobody ("1 mudança aplicada", Muse 05:51).
+    await waitFor(() => { expect(screen.getByText(/1 mudança aplicada/u)).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Desfazer' }))
     await waitFor(() => { expect(screen.getByRole('alert').textContent).toContain('Não vou sobrescrever') })

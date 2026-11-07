@@ -1,3 +1,4 @@
+import { pickUnusedGalleryAnimal } from '../hire/gallery-animals.ts'
 import type {
   CompleteOnboardingRequest,
   GestorPlanView,
@@ -8,6 +9,7 @@ import { DEFAULT_CONVERSATION_SUBJECT_ID } from '../chat/conversation-subjects.t
 import { gestorPlanMarker } from '../chat/gestor-plan-message.ts'
 import type { PersonaTenantScope } from './persona-remote-types.ts'
 import { readClientDevSeedEnabled } from './persona-dev-seed.ts'
+import { seedDevTeam30 } from './dev-seed-team30.ts'
 
 /** Dev harness: pending Gestor assemble plan + #geral card (Muse gallery). */
 export const DEV_HARNESS_GESTOR_PLAN_ID = 'dev-harness-v1-gestor-assemble'
@@ -39,7 +41,8 @@ export interface OnboardingRosterPerson {
 
 /** Wizard roster → host `CompleteOnboardingRequest.team` (DF-002). */
 export function rosterToHostTeam(roster: readonly OnboardingRosterPerson[]): readonly OnboardingPersonaSpec[] {
-  return roster.map((person) => {
+  const refs = rosterGalleryRefs(roster)
+  return roster.map((person, index) => {
     const systemRoles = person.systemRoles ?? []
     return {
       name: person.name,
@@ -48,7 +51,7 @@ export function rosterToHostTeam(roster: readonly OnboardingRosterPerson[]): rea
       personality: 'Proativo e claro.',
       instructions: 'Trabalhe até concluir; reporte com evidência.',
       avatarKind: 'gallery',
-      avatarRef: galleryRefForRosterPerson(person),
+      avatarRef: refs[index] ?? galleryRefForRosterPerson(person),
       runnerKind: 'dsh',
       runnerCli: '',
       runnerModel: 'default',
@@ -77,10 +80,23 @@ export function suggestedGalleryToHostTeam(): readonly OnboardingPersonaSpec[] {
 }
 
 /** Gallery ref from draft row (explicit ref wins; else neutral slug). */
-export function galleryRefForRosterPerson(person: OnboardingRosterPerson): string {
+export function galleryRefForRosterPerson(person: OnboardingRosterPerson, used: readonly string[] = []): string {
   if (person.galleryRef !== undefined && person.galleryRef.length > 0) return person.galleryRef
-  const slug = person.name.trim().toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')
-  return slug.length > 0 ? slug.slice(0, 32) : 'neutral'
+  // Muse (D-069): toda persona nasce com um bicho padrão, o 1º livre da galeria; o slug do nome NÃO é um animal e fazia o rosto cair nas iniciais.
+  return pickUnusedGalleryAnimal(used)
+}
+
+/**
+ * Os bichos de TODA a equipe do onboarding, na ordem: quem já escolheu um animal o mantém e quem não escolheu ganha o 1º livre da galeria
+ * (sem repetir um que outro da equipe já tem).
+ */
+export function rosterGalleryRefs(roster: readonly OnboardingRosterPerson[], alreadyOnTeam: readonly string[] = []): readonly string[] {
+  const used = [...alreadyOnTeam, ...roster.flatMap(person => (person.galleryRef !== undefined && person.galleryRef.length > 0 ? [person.galleryRef] : []))]
+  return roster.map((person) => {
+    const ref = galleryRefForRosterPerson(person, used)
+    if (person.galleryRef === undefined || person.galleryRef.length === 0) used.push(ref)
+    return ref
+  })
 }
 
 type PersonaCreatorRemote = {
@@ -363,6 +379,8 @@ export async function seedDevHarnessScenario(
     await seedDevTeamIfEmpty(remote, tenant)
     team = unwrap(await Promise.resolve(remote.listTeam({ workspaceId: tenant.workspaceId, projectId: tenant.projectId })))
   }
+  // Capturas da barra única com 30 personas (CV-1): só com `persona.devSeed.v1` E `persona.devSeed.team30`; sem as duas, nada.
+  await seedDevTeam30(remote, tenant)
 
   const atlasId = personaIdByName(team, 'Atlas')
   const bentoId = personaIdByName(team, 'Bento')
@@ -448,6 +466,7 @@ export async function seedDevHarnessScenario(
   }
 
   await seedDevHarnessDecisions(remote, tenant, atlasId, approvals)
+  await seedDevHarnessThreadCards(remote, tenant, team.personas, messageClock)
 
   if (atlasId !== undefined) {
     await seedDevHarnessGestorPlanMessage(remote, tenant, atlasId, messageClock)
@@ -500,6 +519,109 @@ async function seedDevHarnessDecisions(
         skillId: id,
         title: skill.title,
         creatorPersonaId: atlasId,
+      }))
+    } catch {
+      /* duplicate */
+    }
+  }
+}
+
+/**
+ * Captures of the cards that live in the #geral thread (IV-10's structured question with chips, P1-9's "Proposta de {persona}") need their
+ * messages in the host: the card is read from the marker at the end of the body, like the Gestor's plan. Opt-in, dev only:
+ * `localStorage['persona.devSeed.threadCards'] = '1'`. Only the OPEN states can be seeded this way (the live state — answered, accepted — is
+ * the host's own record, `listPersonaAsks` / `listTaskProposals`); the ids below are never real tickets.
+ */
+const DEV_THREAD_CARDS_KEY = 'persona.devSeed.threadCards'
+
+async function seedDevHarnessThreadCards(
+  remote: DevHarnessSeedRemote,
+  tenant: PersonaTenantScope,
+  personas: readonly { readonly id: string; readonly name: string }[],
+  messageClock?: DevHarnessMessageClock,
+): Promise<void> {
+  if (!readClientDevSeedEnabled() || messageClock === undefined) return
+  try {
+    if (localStorage.getItem(DEV_THREAD_CARDS_KEY) !== '1') return
+  } catch {
+    return
+  }
+  const named = (name: string): { readonly id: string; readonly name: string } | undefined => personas.find(row => row.name === name)
+  const atlas = named('Atlas')
+  const nina = named('Nina')
+  const bento = named('Bento')
+  if (atlas === undefined || nina === undefined || bento === undefined) return
+  const option = (id: string, label: string): { readonly id: string; readonly label: string } => ({ id, label })
+  const posts: readonly { readonly id: string; readonly actorId: string; readonly body: string }[] = [
+    {
+      id: 'dev-harness-v1-ask-single',
+      actorId: atlas.id,
+      body: [
+        'Atlas pergunta: O que a sua empresa faz? Com isso eu monto uma equipe pronta, e você só confere.',
+        'Opções: Padaria · Agência · Loja online · Clínica ou consultório · Escritório de serviços · Outra coisa',
+        `[[persona-ask:${JSON.stringify({
+          askId: 'dev-ask-1', ticketId: 'dev-ticket-ask-1', personaId: atlas.id, personaName: atlas.name,
+          question: 'O que a sua empresa faz? Com isso eu monto uma equipe pronta, e você só confere.',
+          options: [option('padaria', 'Padaria'), option('agencia', 'Agência'), option('loja', 'Loja online'), option('clinica', 'Clínica ou consultório'), option('escritorio', 'Escritório de serviços'), option('outra', 'Outra coisa')],
+          multiple: false, step: { index: 1, total: 3 },
+        })}]]`,
+      ].join('\n'),
+    },
+    {
+      id: 'dev-harness-v1-ask-multiple',
+      actorId: atlas.id,
+      body: [
+        'Atlas pergunta: O que mais toma o seu tempo hoje?',
+        'Opções: Responder clientes · Cobrar quem atrasou · Postar nas redes · Fazer orçamentos · Organizar a agenda · Controlar o estoque',
+        `[[persona-ask:${JSON.stringify({
+          askId: 'dev-ask-2', ticketId: 'dev-ticket-ask-2', personaId: atlas.id, personaName: atlas.name,
+          question: 'O que mais toma o seu tempo hoje?',
+          options: [option('clientes', 'Responder clientes'), option('cobrar', 'Cobrar quem atrasou'), option('redes', 'Postar nas redes'), option('orcamentos', 'Fazer orçamentos'), option('agenda', 'Organizar a agenda'), option('estoque', 'Controlar o estoque')],
+          multiple: true, step: { index: 2, total: 3 },
+        })}]]`,
+      ].join('\n'),
+    },
+    {
+      id: 'dev-harness-v1-proposal-single',
+      actorId: nina.id,
+      body: [
+        'Nina sugeriu: Posso retomar “Relatório de sexta”? (Está parado há 3 dias.)',
+        `[[task-proposal:${JSON.stringify({
+          kind: 'single',
+          items: [{ id: 'dev-proposal-1', personaId: nina.id, personaName: nina.name, question: 'Posso retomar “Relatório de sexta”?', reason: 'Está parado há 3 dias.' }],
+        })}]]`,
+      ].join('\n'),
+    },
+    {
+      id: 'dev-harness-v1-proposal-digest',
+      actorId: atlas.id,
+      body: [
+        'A equipe tem 3 sugestões para você. Abra a Persona para responder.',
+        `[[task-proposal:${JSON.stringify({
+          kind: 'digest',
+          items: [
+            { id: 'dev-proposal-2', personaId: nina.id, personaName: nina.name, question: 'Posso retomar “Relatório de sexta”?', reason: 'Está parado há 3 dias.' },
+            { id: 'dev-proposal-3', personaId: bento.id, personaName: bento.name, question: 'Posso destravar “Formulário de pedidos”?', reason: 'Falta o preço do bolo de cenoura.' },
+            { id: 'dev-proposal-4', personaId: atlas.id, personaName: atlas.name, question: 'Posso dar o próximo passo em “Site da padaria”?', reason: 'O objetivo está aberto e nada está andando.' },
+          ],
+        })}]]`,
+      ].join('\n'),
+    },
+  ]
+  for (const post of posts) {
+    if (await hasChannelMessage(remote, tenant, post.id)) continue
+    try {
+      await Promise.resolve(remote.postMessage({
+        id: post.id,
+        workspaceId: tenant.workspaceId,
+        projectId: tenant.projectId,
+        streamKind: 'channel',
+        ownerId: tenant.channelId,
+        body: post.body,
+        actorId: post.actorId,
+        subjectId: post.id,
+        occurredAt: messageClock.next(),
+        topicId: DEFAULT_CONVERSATION_SUBJECT_ID,
       }))
     } catch {
       /* duplicate */

@@ -45,6 +45,7 @@ import { coordinationPersonaId } from './coordination-persona.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as profileDict } from '../locale/profile/locales.ts'
 import { tasksToKanbanCards } from './adapters/kanban.ts'
+import { countStaleReviews } from '../kanban/review-stale.ts'
 import { readKanbanScaleSeed } from '../kanban/kanban-scale-dev.ts'
 import { mockLargeKanbanCards } from '../kanban/mock-large-kanban-cards.ts'
 import { memoryViewsToRows } from './adapters/memory.ts'
@@ -200,6 +201,13 @@ export function RemoteKanbanPanel({ persona, useTenant, useShell }: LumenRemoteP
   }, [persona, workspaceId, projectId])
   const [reloadToken, setReloadToken] = useState(0)
   const { state, retry } = usePersonaRemoteLoad(scope !== null, `${loadKey}:${reloadToken}`, load)
+  // Quadros, regra 4 (Keel 06:07): the cards in review and when each one entered it (`BoardCardView.inReviewSince`), from this project's board.
+  const loadBoard = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    return unwrapRemote(await persona.getProjectBoard({ workspaceId, projectId }))
+  }, [persona, workspaceId, projectId])
+  const { state: boardState } = usePersonaRemoteLoad(scope !== null, `${loadKey}:board:${reloadToken}`, loadBoard)
+  const staleReviewCount = boardState.status === 'ready' ? countStaleReviews(boardState.data.cards, Date.now()) : 0
   const kanbanScaleSeed = readKanbanScaleSeed()
   const cards = kanbanScaleSeed !== null
     ? [...mockLargeKanbanCards(kanbanScaleSeed)]
@@ -217,6 +225,7 @@ export function RemoteKanbanPanel({ persona, useTenant, useShell }: LumenRemoteP
       scope={scope}
       initialCards={cards}
       initialState={remotePanelSurface(gate, state, data => data.length === 0)}
+      staleReviewCount={staleReviewCount}
       onMutate={() => { setReloadToken(token => token + 1) }}
       onRemoteRetry={onRemoteRetry}
     />
@@ -727,19 +736,22 @@ export function RemoteApprovalsPanel({ persona, useTenant, useShell }: LumenRemo
   const reload = (): void => { setReloadToken(token => token + 1) }
   const decide = async (
     id: string,
-    kind: 'hire' | 'vault' | 'skill' | 'attention',
+    kind: 'hire' | 'vault' | 'skill' | 'attention' | 'connector' | 'action',
     accept: boolean,
     remember?: ApprovalRememberChoice,
     brain?: ApprovalItem['brain'],
+    connectorChoice?: 'once' | 'always' | 'not-now',
   ): Promise<void> => {
     if (scope === null) return
     const scopeReq = { workspaceId: scope.workspaceId, projectId: scope.projectId }
+    // `kind: 'connector'` and `choice` are newer than the host types (contracts/team-real.md §9): sent as data.
     await unwrapRemote(await persona.decideApproval({
       ...scopeReq,
       id,
       kind,
       accept,
-    }))
+      ...(connectorChoice === undefined ? {} : { choice: connectorChoice }),
+    } as Parameters<typeof persona.decideApproval>[0]))
     if (accept && remember !== undefined && brain !== undefined) {
       await grantBrainPermissionRemote(persona, {
         ...scopeReq,
@@ -759,7 +771,11 @@ export function RemoteApprovalsPanel({ persona, useTenant, useShell }: LumenRemo
       focusId={shell.focusedApprovalId ?? undefined}
       initialState={remotePanelSurface(gate, state, () => inboxEmpty)}
       onRemoteRetry={() => { retryBootstrap(); retry(); reload() }}
-      onDecideItem={(item, accept, remember) => { void decide(item.id, item.kind, accept, remember, item.brain) }}
+      onDecideItem={(item, accept, remember) => {
+        if (item.kind === 'connector') { void decide(item.id, item.kind, accept, undefined, undefined, accept ? 'once' : 'not-now'); return }
+        void decide(item.id, item.kind, accept, remember, item.brain)
+      }}
+      onDecideConnector={(item, choice) => { void decide(item.id, item.kind, choice !== 'not-now', undefined, undefined, choice) }}
       onDecideProactive={(proposal, accept) => {
         if (proposal.approvalKind === undefined) return
         void decide(proposal.id, proposal.approvalKind, accept)

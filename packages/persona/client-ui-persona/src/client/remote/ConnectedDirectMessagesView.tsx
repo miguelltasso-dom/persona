@@ -6,6 +6,7 @@ import { subjectDisplayName } from '../chat/SubjectBar.tsx'
 import { conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { useHostConversationSubjects } from '../chat/use-host-conversation-subjects.ts'
 import type { ComposerSlashActions } from '../chat/composer-slash-commands.ts'
+import { useConnectedAside } from './use-connected-aside.tsx'
 import type { ChipTone } from '../primitives/index.ts'
 import { WORK_STATUS_KEY, type PersonaWorkUiState } from '../team/persona-work-state.ts'
 import { resolveHostPersonaId } from './map-host-ui.ts'
@@ -15,7 +16,12 @@ import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
 import type { EngineRemoteWire } from './engine-status.ts'
 import { ConnectedEngineBanner } from './ConnectedEngineBanner.tsx'
 import { appendNotStartedRows } from './dm-team-rows.ts'
+import { workingOnFor } from './working-on.ts'
 import { useEngineLimits } from './use-engine-limits.ts'
+import { useConnectedPersonaAsks } from '../ask/use-connected-persona-asks.ts'
+import { useConnectedReply } from '../answer/use-connected-reply.ts'
+import { useConnectedHostQueue } from './use-connected-host-queue.ts'
+import { useConnectedTurnControls } from './use-connected-turn-controls.ts'
 
 const STATE_TONE: Readonly<Record<PersonaWorkUiState, ChipTone>> = { working: 'success', waiting: 'accent', stuck: 'danger', resting: 'neutral' }
 
@@ -73,6 +79,7 @@ export function ConnectedDirectMessagesView({
   const peerName = live.dms.find(row => row.id === dmId)?.peerName ?? ''
   const rows: DmRowUi[] = live.dms.map((row) => {
     const member = live.stripMembers.find(m => m.name === row.peerName)
+    const workingOn = member === undefined ? undefined : workingOnFor(live.nowRows, member)
     return member === undefined
       ? { id: row.id, peerId: row.peerId, peerName: row.peerName }
       : {
@@ -84,6 +91,7 @@ export function ConnectedDirectMessagesView({
         stateLabel: shellT(WORK_STATUS_KEY[member.state]),
         stateTone: STATE_TONE[member.state],
         state: member.state,
+        ...(workingOn === undefined ? {} : { workingOn }),
       }
   })
   const availablePersonas: readonly SelectablePersonaOption[] = (live.team?.personas ?? []).map((p) => {
@@ -114,17 +122,71 @@ export function ConnectedDirectMessagesView({
   useEffect(() => {
     if (turnTicketId !== undefined) loadEngineLimits()
   }, [turnTicketId, loadEngineLimits])
-  // P0-27: o menu "/" só lista o que faz alguma coisa aqui. /lado e /resumo saem até terem ação.
+  // P0-27: o menu "/" só lista o que faz alguma coisa aqui. /lado e /resumo entram com o host do IV-6.
+  // IV-6: /lado e /resumo ao host, com a persona da DM respondendo.
+  const aside = useConnectedAside({
+    t: chatT,
+    liveStore,
+    team: live.team,
+    conversationKey: subjectStreamKey ?? 'dm',
+    personaId: selectedRow === undefined ? '' : resolveHostPersonaId(live.team, selectedRow.peerId),
+    subjectId: subjectState.activeSubjectId,
+    streamKind: 'dm',
+    ownerId: dmId,
+  })
+  // IV-10 (atrás de `persona.flag.personaAsk`): sem a flag ou sem as chamadas no host, `undefined` e o fio fica como era.
+  const personaAsks = useConnectedPersonaAsks({
+    remote: engineRemote,
+    tenant: live.tenant,
+    messages: subjectState.filteredMessages,
+    refreshKey: `${String(live.dmMessages.length)}:${live.dmMessages.at(-1)?.id ?? ''}`,
+  })
+  // FL-11 (atrás de `persona.flag.workingControl`): a fila do host, o Parar e o Direcionar da DM. A DM usa a MESMA fila do canal: `streamKind:'dm'`, e o id da
+  // DM é ao mesmo tempo o assunto e o dono (contracts/working-control.md). Sem a flag, sem as chamadas do host ou sem DM aberta, ambos são `undefined`.
+  const peerMember = selectedRow === undefined ? undefined : live.stripMembers.find(member => member.name === selectedRow.peerName)
+  const dmMembers = peerMember === undefined ? [] : [peerMember]
+  const hostQueue = useConnectedHostQueue({
+    remote: engineRemote,
+    tenant: live.tenant,
+    team: live.team,
+    members: dmMembers,
+    responderMemberId: peerMember?.id ?? '',
+    subjectId: dmId ?? '',
+    streamKind: 'dm',
+    ownerId: dmId,
+    refreshKey: `${String(live.dmMessages.length)}:${live.dmMessages.at(-1)?.id ?? ''}`,
+  })
+  const turnControls = useConnectedTurnControls({
+    remote: engineRemote,
+    tenant: live.tenant,
+    team: live.team,
+    members: dmMembers,
+    messages: subjectState.filteredMessages,
+    responderMemberId: peerMember?.id ?? '',
+    subjectId: dmId ?? '',
+    streamKind: 'dm',
+    ownerId: dmId,
+  })
+  // IV-10 "Responder" (atrás de `persona.flag.personaAsk`): o alvo escolhido no cartão de decisão vira o chip do composer e o Enviar chama `answerAttention`.
+  const reply = useConnectedReply({
+    remote: engineRemote,
+    tenant: live.tenant,
+    streamKind: 'dm',
+    ownerId: dmId,
+    chipLabel: (name, question) => chatT('reply.chip', { name, question }),
+  })
   const slashActions: ComposerSlashActions = {
     ...(dmId === null ? {} : { assunto: (name: string) => { subjectState.openSubjectByName(name) } }),
     ...(onTeach === undefined ? {} : { ensinar: () => { onTeach() } }),
     ...(onBuildTeam === undefined ? {} : { contratar: () => { onBuildTeam() } }),
+    ...aside.slashActions,
   }
   return (
     <DirectMessagesView
       t={chatT}
       shellT={shellT}
       slashActions={slashActions}
+      asideSlot={aside.card}
       engineLimits={engineLimits}
       onOpenLimits={loadEngineLimits}
       {...(engineRemote === undefined ? {} : {
@@ -144,6 +206,11 @@ export function ConnectedDirectMessagesView({
       // P0-30: as mensagens que o host não recebeu desta conversa ficam no fim do fio, marcadas "Não enviado".
       messages={[...subjectState.filteredMessages, ...(live.failedSends ?? []).filter(row => row.streamKind === 'dm' && row.ownerId === dmId).map(row => row.message)]}
       onRetrySend={(messageId) => { void liveStore.retryFailedSend?.(messageId) }}
+      onResumePersona={personaId => liveStore.resumePersona?.(personaId)}
+      {...(personaAsks === undefined ? {} : { personaAsks })}
+      {...(reply ?? {})}
+      {...(hostQueue === undefined ? {} : { hostQueue })}
+      {...(turnControls === undefined ? {} : { turnControls })}
       subjectBar={dmId === null ? undefined : {
         subjects: subjectState.subjects,
         activeSubjectId: subjectState.activeSubjectId,

@@ -16,9 +16,18 @@ export interface DecisionFeedbackProps {
   readonly onUndo?: ((decisionId: string) => void) | undefined
 }
 
+/** "Agora Téo pode ler o Gmail sem perguntar": the grant is READ only, so the line says read (never "usar"). Falls back to these words while the locale lacks the key. */
+function connectorGrantLine(t: DecisionT, grant: { readonly personaName: string; readonly connectorName: string }): string {
+  const key = 'decision.undoToast.connector'
+  const params = { name: grant.personaName, connector: grant.connectorName }
+  // The key is newer than the generated locale types: read as text (the fallback below covers a build that lacks it).
+  const text = (t as unknown as (key: string, params?: Readonly<Record<string, string | number>>) => string)(key, params)
+  return text !== key && text.length > 0 ? text : `Agora ${grant.personaName} pode ler o ${grant.connectorName} sem perguntar`
+}
+
 export function DecisionFeedback({ decisions, t, onUndo }: DecisionFeedbackProps): ReactNode {
   const [announcement, setAnnouncement] = useState('')
-  const [undo, setUndo] = useState<{ readonly id: string; readonly title: string } | null>(null)
+  const [undo, setUndo] = useState<{ readonly id: string; readonly title: string; readonly connector?: { readonly personaName: string; readonly connectorName: string } } | null>(null)
   const seen = useRef(new Map<string, DecisionState>())
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -32,7 +41,7 @@ export function DecisionFeedback({ decisions, t, onUndo }: DecisionFeedbackProps
       if (decision.state === 'accepted') {
         setAnnouncement(t('decision.live.accepted', { title: decision.title }))
         if (decision.reversible === true && onUndo !== undefined) {
-          setUndo({ id: decision.id, title: decision.title })
+          setUndo({ id: decision.id, title: decision.title, ...(decision.connectorGrant === undefined ? {} : { connector: decision.connectorGrant }) })
           if (timer.current !== null) clearTimeout(timer.current)
           timer.current = setTimeout(() => { setUndo(null); timer.current = null }, DECISION_UNDO_MS)
         }
@@ -53,7 +62,9 @@ export function DecisionFeedback({ decisions, t, onUndo }: DecisionFeedbackProps
         <ToastRegion label={t('decision.noticesLabel')}>
           <Toast
             tone="success"
-            title={t('decision.undoToast', { title: undo.title })}
+            title={undo.connector === undefined
+              ? t('decision.undoToast', { title: undo.title })
+              : connectorGrantLine(t, undo.connector)}
             action={(
               <Button
                 size="s"

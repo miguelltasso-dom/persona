@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { houseEmptyArt } from '../decor/HouseDecor.tsx'
 import {
   Button,
   EmptyState,
@@ -20,6 +21,9 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import { PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import { approvalPermissionScope, type ApprovalRememberChoice, type ApprovalsSurfaceState } from './ApprovalsInbox.tsx'
 import { InboxDetail } from './InboxDetail.tsx'
+import type { ReplyTarget } from '../answer/reply-target.ts'
+import type { ActionDecision } from '../chat/ActionPreviewCard.tsx'
+import type { ConnectorChoice } from './connector-ask.ts'
 import { InboxList } from './InboxList.tsx'
 import {
   batchEligible,
@@ -30,9 +34,11 @@ import {
   type InboxRow,
   type RememberChoice,
 } from './inbox-model.ts'
+import { isStaleDecision, sortGroupsOldestFirst } from './inbox-age.ts'
 import type { ApprovalItem } from './mock-data.ts'
 import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
 import { pt as defaultDict } from '../locale/approvals/locales.ts'
+import { NextStepBar } from '../next-step/NextStepBar.tsx'
 import styles from './Inbox.module.css'
 
 const ACCEPT_EXIT_MS = 750
@@ -53,7 +59,18 @@ export interface ApprovalsInboxV2Props {
   readonly onUndoDecision?: ((decisionId: string) => void) | undefined
   /** The empty state's way out ("Ver o que a equipe está fazendo"). No handler, no button. */
   readonly onOpenOverview?: (() => void) | undefined
+  /** IV-10 "Responder": takes the person to the thread where the question was asked, with the reply target set. No handler, no button. */
+  readonly onReply?: ((target: ReplyTarget) => void) | undefined
+  /** "Liberar para {B}": the three-way choice of a connector card. The generic Aceitar never decides one. */
+  readonly onDecideConnector?: ((item: ApprovalItem, choice: ConnectorChoice) => void) | undefined
+  /** HT-9 / D-095: the person's answer to the preview of an external action (Enviar · Editar · Cancelar). The generic Aceitar never sends one. */
+  readonly onDecideAction?: ((decision: ActionDecision) => void | Promise<void>) | undefined
   readonly onRemoteRetry?: () => void
+}
+
+/** Cards decided on their own card (the preview, the connector's choices), never by the generic Aceitar / A / D or the batch. */
+function decidesOnItsOwnCard(item: ApprovalItem | undefined): boolean {
+  return item !== undefined && (item.kind === 'action' || item.kind === 'connector' || item.blindAction === true)
 }
 
 export function ApprovalsInboxV2({
@@ -66,6 +83,9 @@ export function ApprovalsInboxV2({
   onDecideProactive,
   onUndoDecision,
   onOpenOverview,
+  onReply,
+  onDecideConnector,
+  onDecideAction,
   onRemoteRetry,
 }: ApprovalsInboxV2Props): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
@@ -87,9 +107,13 @@ export function ApprovalsInboxV2({
   const [detailOpen, setDetailOpen] = useState(false)
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchDone, setBatchDone] = useState<readonly string[] | null>(null)
+  // "Ver as mais antigas" (regra 4 de Aprovações): the list stays oldest first until the screen is left.
+  const [oldestFirst, setOldestFirst] = useState(false)
 
   const groups = useMemo(() => buildInboxGroups(dict, items, proactiveSummaries), [dict, items, proactiveSummaries])
-  const rows = useMemo(() => flattenRows(groups), [groups])
+  const shownGroups = useMemo(() => (oldestFirst ? sortGroupsOldestFirst(groups) : groups), [groups, oldestFirst])
+  const rows = useMemo(() => flattenRows(shownGroups), [shownGroups])
+  const nowMs = Date.now()
   const selected = rows.find(row => row.id === selectedId) ?? rows.find(row => isOpen(row.state)) ?? rows[0]
   const eligible = useMemo(() => batchEligible(rows), [rows])
 
@@ -169,6 +193,8 @@ export function ApprovalsInboxV2({
   const approve = (row: InboxRow): void => {
     if (row.example === true) return // a capture-only sample never reaches the host
     const item = row.item
+    // A (and the generic Aceitar) never approves an external action or a connector: they are decided on their own card.
+    if (decidesOnItsOwnCard(item)) return
     if (item !== undefined) {
       if (onDecideItem === undefined || (item.dependsOnTitle?.trim() ?? '') !== '') return
       const choice = rememberFor(item.id)
@@ -188,6 +214,15 @@ export function ApprovalsInboxV2({
     if (row.example === true) return
     if (row.item !== undefined) onDecideItem?.(row.item, false)
     else if (row.proposal !== undefined) onDecideProactive?.(row.proposal, false)
+  }
+
+  const chooseConnector = (row: InboxRow, choice: ConnectorChoice): void => {
+    const item = row.item
+    if (item === undefined || onDecideConnector === undefined || row.example === true) return // a capture-only sample never reaches the host
+    if ((item.dependsOnTitle?.trim() ?? '') !== '') return
+    // Store-driven card: the Decision cycle shows the stamp. Uncontrolled: the granting choices keep the stamp moment, like Aceitar.
+    if (item.decisionState !== undefined || choice === 'not-now') onDecideConnector(item, choice)
+    else celebrateAccept(item.id, () => { onDecideConnector(item, choice) })
   }
 
   const approveBatch = (): void => {
@@ -220,7 +255,11 @@ export function ApprovalsInboxV2({
       case 'Home': if (onRow) go(0); break
       case 'End': if (onRow) go(rows.length - 1); break
       case 'a': case 'A': event.preventDefault(); approve(selected); break
-      case 'd': case 'D': event.preventDefault(); dismiss(selected); break
+      case 'd': case 'D':
+        event.preventDefault()
+        // The D key never cancels a send / closes a permission by accident: those have their own buttons on the card.
+        if (!decidesOnItsOwnCard(selected.item)) dismiss(selected)
+        break
       case 'Enter':
         if (!onRow) break
         event.preventDefault()
@@ -275,6 +314,7 @@ export function ApprovalsInboxV2({
         {header}
         <EmptyState
           illustration={ILLUSTRATIONS['empty-aprovacoes'] ?? ILLUSTRATIONS['empty-inbox']}
+          art={houseEmptyArt('empty-aprovacoes', 'empty-aprovacoes-noite', 240)}
           artSize={240}
           title={t('empty.title')}
           body={t('empty.hint')}
@@ -303,6 +343,9 @@ export function ApprovalsInboxV2({
         : selected.item !== undefined ? onDecideItem !== undefined : onDecideProactive !== undefined && selected.proposal?.approvalKind !== undefined}
       onApprove={() => { approve(selected) }}
       onDismiss={() => { dismiss(selected) }}
+      {...(onDecideAction === undefined ? {} : { onDecideAction })}
+      {...(onDecideConnector === undefined || selected.item === undefined ? {} : { onChooseConnector: (choice: ConnectorChoice) => { chooseConnector(selected, choice) } })}
+      {...(onReply === undefined || selected.item?.replyTarget === undefined ? {} : { onReply: () => { onReply(selected.item!.replyTarget!) } })}
       detailsOpen={detailsFor === selected.id}
       onDetailsChange={(open) => { setDetailsFor(open ? selected.id : null) }}
       onBack={narrow ? () => { setDetailOpen(false); rowNodes.current.get(selected.id)?.focus() } : undefined}
@@ -313,12 +356,31 @@ export function ApprovalsInboxV2({
   return (
     <Screen width="full" className={styles.inbox} data-persona-surface="approvals">
       {header}
+      <NextStepBar
+        screen="approvals"
+        state={{
+          isEmpty: rows.length === 0,
+          blockedWaitingCount: rows.filter(row => row.group === 'now' && isOpen(row.state)).length,
+          staleDecisionCount: rows.filter(row => isStaleDecision(row.at, isOpen(row.state), nowMs)).length,
+        }}
+        onAction={(step) => {
+          if (step.actionId === 'see-oldest') {
+            // Orders the list oldest first and focuses its first open decision (Muse, 05/11 05:52).
+            setOldestFirst(true)
+            const oldest = flattenRows(sortGroupsOldestFirst(groups)).find(row => isOpen(row.state))
+            if (oldest !== undefined) select(oldest.id, true)
+            return
+          }
+          const firstNow = rows.find(row => row.group === 'now' && isOpen(row.state))
+          if (firstNow !== undefined) select(firstNow.id, true)
+        }}
+      />
       <div className={styles.inboxCelebrate}>{paw.node}</div>
       <div ref={rootRef} className={styles.layout} data-persona-inbox onKeyDown={onKeyDown}>
         <div className={narrow && detailOpen ? `${styles.listPane} ${styles.paneHidden}` : styles.listPane}>
           <InboxList
             dict={dict}
-            groups={groups}
+            groups={shownGroups}
             selectedId={selected.id}
             onSelect={(id) => { select(id, false) }}
             registerRow={(id, node) => { if (node === null) rowNodes.current.delete(id); else rowNodes.current.set(id, node) }}

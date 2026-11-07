@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
@@ -105,6 +105,12 @@ export function OnboardingFirstDeliveryStep({
       .catch(() => { if (!cancelled) setSuggestions([]) })
     return () => { cancelled = true }
   }, [phase, suggestFirstRequests, businessText])
+
+  // Muse (D-069): o subtítulo do "Equipe trabalhando" é UMA frase só do começo ao fim da espera. Se o nome de quem pegou o pedido já se sabe quando
+  // a espera começa, ele entra ("{nome} está no pedido…"); se não, fica "Sua equipe está no pedido." e NÃO troca quando o nome chega (o texto pulava).
+  const subtitleName = useRef<string | null>(null)
+  if (phase === 'working' || phase === 'slow') subtitleName.current ??= workingPersonaName ?? t('step5.workingFallbackName')
+  else subtitleName.current = null
 
   if (phase === 'celebrate' && milestone !== undefined) {
     return (
@@ -240,7 +246,7 @@ export function OnboardingFirstDeliveryStep({
           )}
           <div className={styles.workingText}>
             <h1 id="persona-onboarding-title" className={styles.title}>{t('step5.workingTitle')}</h1>
-            <p className={styles.hint}>{t('step5.workingBody', { name: workingLabel })}</p>
+            <p className={styles.hint}>{t('step5.workingBody', { name: subtitleName.current ?? workingLabel })}</p>
             {isSlow ? (
               <div role="status">
                 <Notice tone="info">{t('step5.slowBody')}</Notice>

@@ -8,7 +8,8 @@ import type { CSSProperties, ReactNode } from 'react'
 import { AVATAR_96, ILLUSTRATIONS, OVERLAY_ICONS } from '../assets/generated-imports.ts'
 import { Avatar } from './Avatar.tsx'
 import { Button } from './Button.tsx'
-import type { PersonaCardTriggerProps } from './PersonaCard.tsx'
+import type { PersonaCardTriggerProps, PersonaFaceTriggers } from './PersonaCard.tsx'
+import { PersonaFaceCell } from './PersonaFaceCell.tsx'
 import { UiIcon, type UiIconName } from './icons.tsx'
 import { OrgMap, type OrgMapLabels } from './OrgMap.tsx'
 import styles from './Governance.module.css'
@@ -66,6 +67,8 @@ export interface OrgChartProps {
   readonly onSelectGroup?: ((id: string) => void) | undefined
   /** Persona card trigger (usePersonaCardController().triggerProps): click opens the card, hover previews it. */
   readonly cardTrigger?: ((personaId: string) => PersonaCardTriggerProps) | undefined
+  /** CV-4: com isto, clicar no rosto abre a DM e o ⋯ ao lado abre o cartão (manda sobre `cardTrigger`). */
+  readonly faces?: PersonaFaceTriggers | undefined
   /** Labels for the large-team map (search, zoom, minimap…); pt-BR defaults when omitted. */
   readonly scaleLabels?: OrgMapLabels | undefined
 }
@@ -73,24 +76,24 @@ export interface OrgChartProps {
 /** Above this many personas the chart becomes the zoomable, searchable OrgMap (Miguel: 60–150+). */
 export const ORG_MAP_THRESHOLD = 24
 
-function PersonaCard({ persona, onSelect, cardTrigger, compact = false }: {
+function PersonaCard({ persona, onSelect, cardTrigger, faces, compact = false }: {
   readonly persona: OrgPersona
   readonly onSelect?: ((id: string) => void) | undefined
   readonly cardTrigger?: ((personaId: string) => PersonaCardTriggerProps) | undefined
+  readonly faces?: PersonaFaceTriggers | undefined
   readonly compact?: boolean
 }): ReactNode {
   // Gallery refs arrive as 'atlas-default'; portraits are keyed by the bare animal id.
   const portrait = persona.characterId !== undefined ? PORTRAITS[persona.characterId.replace(/-default$/u, '')] : undefined
   const icon = STATE_ICON[persona.state]
-  return (
+  const button = (
     <button
       type="button"
       className={compact ? `${styles.persona} ${styles.personaCompact}` : styles.persona}
       data-state={persona.state}
       aria-label={`${persona.name}${persona.gestor === true ? ` (${persona.gestorLabel ?? 'Gestor'})` : ''}, ${persona.role} — ${persona.stateLabel}`}
       title={persona.stateLabel}
-      onClick={() => { onSelect?.(persona.id) }}
-      {...cardTrigger?.(persona.id)}
+      {...(faces === undefined ? { onClick: () => { onSelect?.(persona.id) }, ...cardTrigger?.(persona.id) } : faces.face(persona.id))}
     >
       <span className={styles.personaAvatar}>
         <Avatar name={persona.name} src={portrait} shape="portrait" size={40} decorative />
@@ -105,20 +108,25 @@ function PersonaCard({ persona, onSelect, cardTrigger, compact = false }: {
       </span>
     </button>
   )
+  return (
+    <PersonaFaceCell personaId={persona.id} personaName={persona.name} menu={faces?.menu} menuLabel={faces?.menuLabel}>
+      {button}
+    </PersonaFaceCell>
+  )
 }
 
 /** "Quem cuida de quem": right hand on top, people/sectors below, personas hanging from each. */
-export function OrgChart({ root, groups, mode, label, onSelectPersona, onSelectGroup, cardTrigger, scaleLabels }: OrgChartProps): ReactNode {
+export function OrgChart({ root, groups, mode, label, onSelectPersona, onSelectGroup, cardTrigger, faces, scaleLabels }: OrgChartProps): ReactNode {
   const total = groups.reduce((sum, g) => sum + g.members.length, 0)
   if (total > ORG_MAP_THRESHOLD) {
-    return <OrgMap root={root} groups={groups} mode={mode} label={label} onSelectPersona={onSelectPersona} cardTrigger={cardTrigger as never} labels={scaleLabels} />
+    return <OrgMap root={root} groups={groups} mode={mode} label={label} onSelectPersona={onSelectPersona} cardTrigger={cardTrigger as never} faces={faces} labels={scaleLabels} />
   }
   if (mode === 'list') {
     return (
       <div className={styles.list} role="region" aria-label={label}>
         {root !== undefined && (
           <p className={styles.listRoot}>
-            <PersonaCard persona={root} onSelect={onSelectPersona} cardTrigger={cardTrigger} />
+            <PersonaCard persona={root} onSelect={onSelectPersona} cardTrigger={cardTrigger} faces={faces} />
             <span className={styles.listCaption}>{root.caption}</span>
           </p>
         )}
@@ -132,7 +140,7 @@ export function OrgChart({ root, groups, mode, label, onSelectPersona, onSelectG
               </h3>
               <ul className={styles.listMembers}>
                 {group.members.map(persona => (
-                  <li key={persona.id}><PersonaCard persona={persona} onSelect={onSelectPersona} cardTrigger={cardTrigger} compact /></li>
+                  <li key={persona.id}><PersonaCard persona={persona} onSelect={onSelectPersona} cardTrigger={cardTrigger} faces={faces} compact /></li>
                 ))}
               </ul>
             </li>
@@ -147,7 +155,7 @@ export function OrgChart({ root, groups, mode, label, onSelectPersona, onSelectG
       {root !== undefined && (
         <div className={styles.rootRow}>
           <div className={styles.rootCard}>
-            <PersonaCard persona={root} onSelect={onSelectPersona} cardTrigger={cardTrigger} />
+            <PersonaCard persona={root} onSelect={onSelectPersona} cardTrigger={cardTrigger} faces={faces} />
             <span className={styles.rootCaption}>{root.caption}</span>
           </div>
         </div>
@@ -170,7 +178,7 @@ export function OrgChart({ root, groups, mode, label, onSelectPersona, onSelectG
             <ul className={styles.members}>
               {group.members.map(persona => (
                 <li key={persona.id} className={styles.member}>
-                  <PersonaCard persona={persona} onSelect={onSelectPersona} cardTrigger={cardTrigger} />
+                  <PersonaCard persona={persona} onSelect={onSelectPersona} cardTrigger={cardTrigger} faces={faces} />
                 </li>
               ))}
             </ul>

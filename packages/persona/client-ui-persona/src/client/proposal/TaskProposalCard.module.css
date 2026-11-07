@@ -1,0 +1,150 @@
+/*
+ * P1-9 · "Proposta de {persona}" (TASK-PROPOSAL-SPEC §2–4): Card padding s com a borda esquerda de 3 px em `brand`, SEM sombra de sticker
+ * (é sugestão, não pendência). Só tokens `--persona-*`.
+ */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  margin: var(--persona-space-4) 0;
+  list-style: none;
+}
+
+.main {
+  min-width: 0;
+  max-width: 640px;
+  flex: 1;
+}
+
+.who {
+  margin-bottom: var(--persona-space-1);
+  color: var(--persona-ink);
+  font: 800 13px/18px var(--persona-font-text);
+}
+
+.time {
+  color: var(--persona-ink-soft);
+  font-weight: 600;
+}
+
+/* Sugestão, não pendência: nada de sombra de sticker. */
+.card {
+  box-shadow: none;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  color: var(--persona-brand);
+  font: 800 11px/16px var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+}
+
+.itemBody {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+
+.question {
+  margin: 0;
+  color: var(--persona-ink);
+  font: 700 16px/22px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.reason {
+  margin: var(--persona-space-1) 0 0;
+  color: var(--persona-ink-soft);
+  font: 500 14px/20px var(--persona-font-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-2);
+}
+
+/* No resumo: os botões à direita da linha; abaixo de 560 px (o flex quebra) descem para baixo do motivo. */
+.list .actions {
+  margin-top: 0;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem + .listItem {
+  margin-top: var(--persona-space-3);
+  padding-top: var(--persona-space-3);
+  border-top: 1px solid var(--persona-outline-soft);
+}
+
+.states {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+}
+
+.stateLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: 0;
+  color: var(--persona-ink);
+  font: 600 14px/20px var(--persona-font-text);
+}
+
+.soft {
+  color: var(--persona-ink-soft);
+}
+
+.stateIcon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--persona-success);
+}
+
+.titleLink {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink);
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-color: var(--persona-accent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.failed {
+  margin: var(--persona-space-1) 0 0;
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--persona-accent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

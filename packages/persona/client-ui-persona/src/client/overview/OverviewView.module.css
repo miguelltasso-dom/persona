@@ -23,6 +23,15 @@
   min-width: 0;
 }
 
+/* "Resumir o dia" (secundário, pequeno) perto do "Nova tarefa"; a 200 % os dois empilham/quebram em vez de sair da tela. */
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--persona-space-3);
+}
+
 .eyebrow {
   margin: 0 0 var(--persona-space-1);
   font: 800 12px/16px var(--persona-font-text);

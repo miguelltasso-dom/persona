@@ -1,3 +1,4 @@
+import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import type { KanbanCardModel, KanbanColumnId } from '../kanban/types.ts'
 import { resolveProjectDisplayName } from '../kanban/resolve-project-name.ts'
 import type { PersonaNowSnapshot } from '../team/persona-work-state.ts'
@@ -41,7 +42,11 @@ export function deriveBoardSummaries(input: {
 
   const workers = input.nowRows
     .filter(row => row.member.state === 'working' || row.member.state === 'waiting')
-    .map(row => ({ name: row.member.name, state: row.member.state }))
+    .map((row) => {
+      // D-069: the tile shows the persona's animal (its id is the gallery animal in the live data), never a letter.
+      const avatarSrc = resolvePersonaFace({ id: row.member.id, name: row.member.name })
+      return { name: row.member.name, state: row.member.state, ...(avatarSrc === undefined ? {} : { avatarSrc }) }
+    })
 
   const fromLive = input.projects.map((project) => {
     const cards = cardsByProject.get(project.id) ?? []

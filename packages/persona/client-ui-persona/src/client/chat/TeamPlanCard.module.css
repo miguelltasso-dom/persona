@@ -1,0 +1,100 @@
+/* EQUIPE-REAL §0: o cartão vivo do plano no #geral. Cada parte: rosto 24 · título curto · chip de estado que muda no lugar. Cabe a 200%. */
+.row {
+  margin: var(--persona-space-4) 0;
+  list-style: none;
+}
+
+.card {
+  min-width: 0;
+}
+
+.parts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2) var(--persona-space-3);
+  min-width: 0;
+}
+
+.partText {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.partTitle {
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.chipGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+/* O rosto 16 dentro do chip ("com Teo", "esperando Teo"). */
+.face16 {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+/* "precisa de você": o chip inteiro é o botão (abre o cartão que pede a decisão). */
+.chipButton {
+  padding: 0;
+  border: 0;
+  border-radius: var(--persona-radius-pill, 999px);
+  background: transparent;
+  cursor: pointer;
+}
+
+.chipButton:hover,
+.chipButton:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.link {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 13px/20px var(--persona-font-text);
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
+}
+
+.reasonPart {
+  margin: 0 0 var(--persona-space-2);
+  font: 800 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.reasonText {
+  margin: 0;
+  font: 500 14px/21px var(--persona-font-text);
+  color: var(--persona-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -1,7 +1,7 @@
 /**
  * Limites REAIS do motor para o `/limites` do composer e para a gaveta "Contexto usado" (UX-BEYOND IV-4 = P0-28).
  * Lê as mesmas cotas oficiais que a tela Uso (`getOfficialQuota` → `officialQuotasToProviderPools`) e devolve só o que o
- * provedor publicou: sem dado é `unavailable` (a tela mostra "—" e "Cota oficial indisponível"), nunca um número inventado.
+ * provedor publicou: sem dado é `unavailable` (a tela mostra "—" e "Este motor não informa a cota."), nunca um número inventado.
  */
 import type { ConnectionView, OfficialQuotaView } from '@deepseek-ai/dsh-persona-host/types'
 import { unwrapRemote } from '../data/remote-call.ts'

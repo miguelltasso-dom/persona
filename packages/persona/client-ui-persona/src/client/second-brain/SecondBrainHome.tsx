@@ -34,6 +34,8 @@ import {
   topBrainPages,
 } from './brain-ui-adapters.ts'
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
+import { NextStepBar } from '../next-step/NextStepBar.tsx'
+import { VaultFolderMenu } from './VaultFolderMenu.tsx'
 import styles from './SecondBrain.module.css'
 
 export type SecondBrainSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -55,6 +57,11 @@ export interface SecondBrainHomeProps {
   readonly onOpenPage?: (pageId: string) => void
   readonly onBringContext?: () => void
   readonly onWritePage?: () => void
+  /** SB-4: write the pages into a folder / read a folder through the BYC review. Both live in the ⋯ menu. */
+  readonly onExportVault?: (() => void) | undefined
+  readonly onImportFolder?: (() => void) | undefined
+  /** The installed app (native folder picker). Without it the menu items are disabled and say so. */
+  readonly vaultFolderAvailable?: boolean | undefined
   /** Injectable clock (tests, captures); defaults to now. */
   readonly nowMs?: number
 }
@@ -100,6 +107,9 @@ export function SecondBrainHome({
   onOpenPage,
   onBringContext,
   onWritePage,
+  onExportVault,
+  onImportFolder,
+  vaultFolderAvailable = false,
   nowMs: nowMsProp,
 }: SecondBrainHomeProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
@@ -139,7 +149,7 @@ export function SecondBrainHome({
       eyebrow={t('header.eyebrow')}
       title={t('title')}
       subtitle={t('subtitle')}
-      {...(onOpenPermissions === undefined && onWritePage === undefined
+      {...(onOpenPermissions === undefined && onWritePage === undefined && onExportVault === undefined && onImportFolder === undefined
         ? {}
         : {
           actions: (
@@ -153,6 +163,9 @@ export function SecondBrainHome({
                 <Button variant="secondary" size="m" onClick={() => { onOpenPermissions() }}>
                   {t('nav.permissions')}
                 </Button>
+              )}
+              {(onExportVault !== undefined || onImportFolder !== undefined) && (
+                <VaultFolderMenu dict={dict} available={vaultFolderAvailable} onExport={onExportVault} onImport={onImportFolder} />
               )}
             </>
           ),
@@ -199,6 +212,20 @@ export function SecondBrainHome({
   return (
     <Screen className={styles.shell} data-persona-surface="second-brain">
       {header}
+      <NextStepBar
+        screen="brain"
+        state={{
+          isEmpty: sparseHome,
+          blockedWaitingCount: contradictions.length,
+          stalePagesCount: pages.filter((page) => {
+            const updatedMs = Date.parse(page.updatedAt)
+            return Number.isFinite(updatedMs) && nowMs - updatedMs >= 30 * 24 * 60 * 60 * 1000
+          }).length,
+        }}
+        onAction={(step) => {
+          if (step.actionId === 'ask-librarian' && pages[0] !== undefined) onOpenPage?.(pages[0].id)
+        }}
+      />
       <Input
         label={t('search.placeholder')}
         hideLabel

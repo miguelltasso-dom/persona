@@ -57,7 +57,8 @@ const STATE_ICON: Readonly<Record<AccountState, ReactNode>> = {
 }
 
 export function AccountRow({ label, providerName, state, stateText, action, quota, labels, usedBy = [], inUse = false, menu = [] }: AccountRowProps): ReactNode {
-  const hasMeters = quota !== undefined && (quota.fiveHourPct !== undefined || quota.weekPct !== undefined)
+  const finite = (v: number | undefined): v is number => typeof v === 'number' && Number.isFinite(v)
+  const hasMeters = quota !== undefined && (finite(quota.fiveHourPct) || finite(quota.weekPct))
   const shown = usedBy.slice(0, 3)
   return (
     <li className={styles.row} data-state={state} data-in-use={inUse ? '' : undefined}>

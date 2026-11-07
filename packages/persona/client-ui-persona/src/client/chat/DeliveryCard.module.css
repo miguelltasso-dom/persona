@@ -1,0 +1,64 @@
+/* EQUIPE-REAL §0: o cartão de entrega por pedido ("Pronto: …", as partes com os rostos, o selo e "Revisar"). Cabe a 200%. */
+.row {
+  margin: var(--persona-space-4) 0;
+  list-style: none;
+}
+
+.card {
+  min-width: 0;
+}
+
+/* BR-P6 (Muse): o spot "pedido pronto" à direita do título; só a partir de 960 px. */
+.spot {
+  display: none;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+@media (min-width: 960px) {
+  .spot {
+    display: block;
+  }
+}
+
+.parts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-width: 0;
+}
+
+.partText {
+  min-width: 0;
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-4);
+}
+
+/* O rosto 16 de quem revisou, dentro do selo "Revisado por …". */
+.face16 {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+}

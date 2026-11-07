@@ -58,8 +58,10 @@ export interface Decision {
   readonly reason?: string
   /** The host's own one-line "why" (only when the host said it; never the question fallback). Shown on the hire card. */
   readonly why?: string
+  /** "Sempre permitir" made a permanent READ grant: the words of the toast's Desfazer ("Agora {name} pode ler o {connector} sem perguntar"). */
+  readonly connectorGrant?: { readonly personaName: string; readonly connectorName: string }
   /** Underlying host approval kind for RPC routing. */
-  readonly targetApprovalKind?: 'hire' | 'vault' | 'skill' | 'attention'
+  readonly targetApprovalKind?: 'hire' | 'vault' | 'skill' | 'attention' | 'connector' | 'action'
   /** Raw host card (Approvals builds its rich card — brain scope, hire portrait — from it). */
   readonly approval?: ApprovalView
   /** Decision came from a daily-summary proposal (Approvals shows it in the daily list). */

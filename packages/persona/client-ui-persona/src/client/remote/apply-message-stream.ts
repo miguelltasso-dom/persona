@@ -25,11 +25,18 @@ export function applyMessageStreamFrame(
   if (frame.kind === 'baseline') {
     return mapSortedMessageStream(frame.events, team, memberId, taskTitleById)
   }
-  const byId = new Map(current.map(row => [row.id, row]))
-  for (const event of frame.events) {
-    byId.set(event.id, mapMessage(event, team, memberId, taskTitleById))
+  const incoming = frame.events.map(event => mapMessage(event, team, memberId, taskTitleById))
+  // O eco do host de uma mensagem que a PRÓPRIA pessoa acabou de escrever é a mesma mensagem da linha otimista (`local-…` / `local-dm-…`):
+  // a otimista sai (uma por eco), senão o fio mostra o texto 2× até o próximo refresh (P0 duplicata no #geral). Texto igual, mesma autora.
+  let base = current
+  for (const row of incoming) {
+    if (row.authorId !== 'user' || base.some(known => known.id === row.id)) continue
+    const index = base.findIndex(known => known.id.startsWith('local-') && known.authorId === 'user' && known.body === row.body)
+    if (index >= 0) base = base.filter((_, position) => position !== index)
   }
-  const order = [...current.map(row => row.id)]
+  const byId = new Map(base.map(row => [row.id, row]))
+  for (const row of incoming) byId.set(row.id, row)
+  const order = [...base.map(row => row.id)]
   for (const id of frame.order) {
     if (!order.includes(id)) order.push(id)
   }

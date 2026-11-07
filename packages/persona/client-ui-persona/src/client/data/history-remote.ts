@@ -62,7 +62,8 @@ export interface HistoryTaskInfo {
  */
 export function restorePointsToEntries(
   points: readonly RestorePointView[],
-  fallbackWho: string,
+  /** Who to name when the board does not know the Tarefa's persona; `undefined` = name nobody (the line says "1 mudança aplicada"). */
+  fallbackWho: string | undefined,
   tasks: ReadonlyMap<string, HistoryTaskInfo> = new Map(),
 ): readonly HistoryEntryUi[] {
   return points

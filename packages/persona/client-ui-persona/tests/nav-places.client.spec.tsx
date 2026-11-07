@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// A-1 (NAV-SPEC fase 1): 6 lugares no rail, telas de hoje como abas, apelidos antigos, última aba lembrada.
+// A-1 (NAV-SPEC fase 1) + CV-1: 5 lugares compactos no topo do rail (as conversas são a própria barra), telas de hoje como abas, apelidos antigos, última aba lembrada.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NAV_GROUPS } from '../src/client/shell/nav-groups.ts'
@@ -33,19 +33,28 @@ function memoryStorage(initial: Record<string, string> = {}) {
   }
 }
 
+/** CV-1: Canais e Mensagens diretas moram na barra de conversas, não num lugar com abas. */
+const CONVERSATION_PANELS: readonly string[] = ['channels', 'directMessages']
+
 describe('os lugares', () => {
-  it('seis no topo do rail e Configurações no rodapé', () => {
-    expect(RAIL_PLACES.map(place => place.id)).toEqual(['overview', 'conversations', 'projects', 'approvals', 'team', 'memory'])
+  it('cinco no topo do rail (sem "Conversas": as conversas são a própria barra) e Configurações no rodapé', () => {
+    expect(RAIL_PLACES.map(place => place.id)).toEqual(['overview', 'projects', 'approvals', 'team', 'memory'])
     expect(NAV_PLACES.map(place => place.id)).toContain('settings')
+    expect(NAV_PLACES.map(place => place.id)).not.toContain('conversations')
     expect(RAIL_PLACES.map(place => shellPt[place.labelKey])).toEqual([
-      'Visão geral', 'Conversas', 'Projetos', 'Aprovações', 'Equipe', 'Memória da empresa',
+      'Visão geral', 'Projetos', 'Aprovações', 'Equipe', 'Memória da empresa',
     ])
   })
 
-  it('nenhuma tela some: tudo o que o rail antigo mostrava continua a 1 clique de algum lugar', () => {
+  it('nenhuma tela some: tudo o que o rail antigo mostrava continua a 1 clique de algum lugar (ou da barra de conversas)', () => {
     const reachable = new Set(panelsReachableFromPlaces())
     const old = NAV_GROUPS.flatMap(group => group.items.map(item => item.panel)).filter(panel => panel !== 'help')
-    for (const panel of old) expect(reachable.has(panel), `painel ${panel} perdeu o lugar`).toBe(true)
+    for (const panel of old) {
+      if (CONVERSATION_PANELS.includes(panel)) continue
+      expect(reachable.has(panel), `painel ${panel} perdeu o lugar`).toBe(true)
+    }
+    // Canais e DMs não estão em nenhum lugar: a barra de conversas os abre.
+    for (const panel of CONVERSATION_PANELS) expect(reachable.has(panel as never), panel).toBe(false)
   })
 
   it('cada tela está em um lugar só (as rotas não mudam e o rótulo da aba não é ambíguo)', () => {
@@ -53,12 +62,13 @@ describe('os lugares', () => {
     expect(new Set(all).size).toBe(all.length)
   })
 
-  it('o lugar das abas: Equipe, Memória, Configurações, Conversas e Projetos', () => {
+  it('o lugar das abas: Equipe, Memória, Configurações e Projetos (Canais e DMs não têm lugar: são a barra)', () => {
     expect(placeOfPanel('orgChart')?.id).toBe('team')
     expect(placeOfPanel('teamHealth')?.id).toBe('team')
     expect(placeOfPanel('rules')?.id).toBe('memory')
     expect(placeOfPanel('usage')?.id).toBe('settings')
-    expect(placeOfPanel('directMessages')?.id).toBe('conversations')
+    expect(placeOfPanel('directMessages')).toBeUndefined()
+    expect(placeOfPanel('channels')).toBeUndefined()
     expect(placeOfPanel('kanban')?.id).toBe('projects')
     expect(placeOfPanel('help')).toBeUndefined()
     expect(placeOfPanel('profile')).toBeUndefined()
@@ -97,6 +107,7 @@ describe('apelidos para o Ctrl K', () => {
   it('todo apelido leva a uma tela que algum lugar alcança', () => {
     const reachable = new Set(panelsReachableFromPlaces())
     for (const row of PLACE_ALIASES) {
+      if (CONVERSATION_PANELS.includes(row.panel)) continue // "canais", "dms"…: a barra de conversas abre
       expect(reachable.has(row.panel), row.alias).toBe(true)
       expect(row.alias, row.alias).toBe(normalizeAlias(row.alias))
     }

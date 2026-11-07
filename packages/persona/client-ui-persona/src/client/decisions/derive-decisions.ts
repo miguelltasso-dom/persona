@@ -40,6 +40,8 @@ function kindOf(raw: ApprovalView['kind'], fromSummary: boolean): DecisionKind {
 }
 
 function riskOf(card: HostApprovalCard): 'low' | 'normal' {
+  // Anything that leaves the company or opens an access is never "de risco baixo", whatever the host says: no batch, no one-click from Visão geral.
+  if (card.kind === 'action' || card.kind === 'connector') return 'normal'
   if (card.risk !== undefined) return card.risk
   return card.kind === 'vault' || card.kind === 'skill' ? 'low' : 'normal'
 }

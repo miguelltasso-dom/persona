@@ -110,7 +110,7 @@ describe('KanbanReviewSheet (Revisar wire)', () => {
     expect(acceptReview).toHaveBeenCalledTimes(2)
   })
 
-  it('a clash after apply says "Você e a persona mudaram o mesmo arquivo"; the host explanation stays folded', async () => {
+  it('a clash after apply says "{persona} e você mudaram o mesmo arquivo"; the host explanation stays folded', async () => {
     const reviewSummary = vi.fn(async () => ({ ok: true as const, value: SUMMARY }))
     const acceptReview = vi.fn(async () => ({ ok: true as const, value: { kind: 'blocked' as const, explanation: 'CONFLICT (content): Merge conflict in src/hero.tsx' } }))
     const persona = { reviewSummary, acceptReview } as unknown as PersonaRemoteClient
@@ -121,7 +121,7 @@ describe('KanbanReviewSheet (Revisar wire)', () => {
     )
     await waitFor(() => { expect(screen.getByRole('option', { name: /hero.tsx/u })).toBeTruthy() })
     fireEvent.click(screen.getByRole('button', { name: reviewPt['action.accept'] }))
-    await waitFor(() => { expect(screen.getByText('Você e Bia mudaram o mesmo arquivo')).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByText('Bia e você mudaram o mesmo arquivo')).toBeTruthy() })
     const visible = document.body.textContent ?? ''
     // the technical sentence exists only inside the folded details element
     const details = document.querySelector('details')
@@ -146,7 +146,7 @@ describe('KanbanReviewSheet (Revisar wire)', () => {
     await waitFor(() => { expect(screen.getByRole('option', { name: /hero.tsx/u })).toBeTruthy() })
     // 1st Aplicar: a plain apply (nothing to answer yet).
     fireEvent.click(screen.getByRole('button', { name: reviewPt['action.accept'] }))
-    await waitFor(() => { expect(screen.getByText('Você e Bia mudaram cardapio.docx')).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByText('Bia e você mudaram cardapio.docx')).toBeTruthy() })
     expect(acceptReview).toHaveBeenNthCalledWith(1, { workspaceId: 'ws', projectId: 'proj', ticketId: 't-rev', mode: 'ff' })
     expect(onClose).not.toHaveBeenCalled()
     const apply = screen.getByRole('button', { name: reviewPt['action.accept'] }) as HTMLButtonElement

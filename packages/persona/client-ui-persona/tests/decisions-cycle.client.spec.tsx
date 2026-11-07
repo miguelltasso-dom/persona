@@ -99,7 +99,8 @@ async function booted(cards: Card[], extra?: Parameters<typeof hostWith>[1]): Pr
   return { live, ...built }
 }
 
-beforeEach(() => { localStorage.clear() })
+// The two-pane inbox is the default (Muse, 05/11); this spec drives the OLD screen, so it asks for it explicitly.
+beforeEach(() => { localStorage.clear(); localStorage.setItem('persona.approvalsInbox.v2', '0') })
 afterEach(() => {
   cleanup()
   localStorage.clear()

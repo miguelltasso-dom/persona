@@ -334,6 +334,12 @@
   color: var(--persona-lilac-700);
 }
 
+/* CV-1 (CONVERSAS-SPEC §0): os lugares compactos no topo da barra única: linhas de 30 px, ícone 16. */
+.navList[data-compact] .navItem {
+  min-height: 30px;
+  font-size: 14px;
+}
+
 /* Visually hidden, still read: the pending count as the button's description. */
 .srOnly {
   position: absolute;
@@ -682,7 +688,8 @@
 /* Muse (P0-22): a engrenagem tem a MESMA altura da pílula (30 px = 5 + 18 + 5 + 2 de borda), só o ícone; o rótulo está no Tooltip do
    slot. O slot do DSW traz uma caixa de 36 px com 8/10 px de margem (era um quadrado alto, mais que o dobro da pílula): aqui ela
    some. O botão ocupa a pílula inteira (alvo de toque de 28 px, não só o ícone). */
-.sidebar[data-short] .settingsFoot > :global(div) {
+/* qualquer div dentro do slot (o slot pode embrulhar a linha do DSW): as margens e a largura de 36 px dela não valem aqui */
+.sidebar[data-short] .settingsFoot :global(div) {
   width: auto;
   margin: 0;
 }
@@ -693,4 +700,121 @@
   height: 28px;
   min-height: 0;
   padding: 0 var(--persona-space-2);
+}
+
+/*
+ * CV-1 (CONVERSAS-SPEC §0): a barra lilás única tem 296 px. Com a janela estreita (≤ 960 px, ou zoom de 200%) vira o TRILHO de 64 px
+ * (ícones dos lugares, # dos canais, rostos das Recentes) e abre a barra inteira POR CIMA do conteúdo: a margem negativa mantém a
+ * coluna do shell em 64 px, então nada do que está ao lado se mexe. Esc ou clique fora fecham.
+ */
+.sidebar[data-conversations] {
+  width: 296px;
+}
+
+.sidebar[data-conversations] .awayPopover {
+  width: calc(296px - 2 * var(--persona-space-3));
+}
+
+.sidebar[data-trail] {
+  width: 64px;
+  padding-left: var(--persona-space-2);
+  padding-right: var(--persona-space-2);
+}
+
+.sidebar[data-trail][data-trail-open] {
+  width: 296px;
+  margin-right: -232px;
+  z-index: 50;
+  padding-left: var(--persona-space-3);
+  padding-right: var(--persona-space-3);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+/*
+ * CV-1 / CONVERSAS-SPEC §0.1 (Muse): o rodapé do TRILHO de 64 px (e da barra única recolhida): uma coluna vertical centrada, de cima
+ * para baixo — o ponto de estado (o centro de um alvo de 40 px, Tooltip com o texto da pílula, abre o mesmo popover), a Ajuda (?) e as
+ * Configurações (a engrenagem, embaixo, como no rail aberto). Todos 40×40, 8 px entre eles, em fundo sólido (rail-field), sem
+ * sobreposição. Nada some: o display:none do settingsSlot do rail recolhido NÃO vale aqui. A folhagem fica só como faixa atrás.
+ */
+.sidebar[data-conversations][data-collapsed] .footer {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--persona-space-2);
+  min-height: 0;
+  padding-top: 0;
+}
+
+.sidebar[data-conversations][data-collapsed] .statusAnchor {
+  flex: none;
+}
+
+.sidebar[data-conversations][data-collapsed] .hostStatus {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-rail-field);
+  box-shadow: none;
+  font-size: 0;
+}
+
+.sidebar[data-conversations][data-collapsed] .statusDot {
+  width: 10px;
+  height: 10px;
+}
+
+.sidebar[data-conversations][data-collapsed] .footActions {
+  flex-direction: column;
+  width: auto;
+  gap: var(--persona-space-2);
+}
+
+.sidebar[data-conversations][data-collapsed] .settingsSlot {
+  display: flex;
+  flex: none;
+}
+
+.sidebar[data-conversations][data-collapsed] .helpButton,
+.sidebar[data-conversations][data-collapsed] .settingsSlot :global(button) {
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-rail-field);
+  color: var(--persona-rail-ink);
+  box-shadow: none;
+}
+
+.sidebar[data-conversations][data-collapsed] .hostStatus:hover,
+.sidebar[data-conversations][data-collapsed] .helpButton:hover,
+.sidebar[data-conversations][data-collapsed] .settingsSlot :global(button):hover {
+  background: var(--persona-rail-field-hover);
+}
+
+/* O halo da luminária na folhagem (NIGHT-THEME-SPEC §5): só no escuro, só com a arte v2, atrás de tudo (a folhagem é z-index -1). */
+.halo {
+  display: none;
+}
+
+@media (forced-colors: none) {
+  :global(body[data-ds-dark-theme='true']) .halo:not([hidden]) {
+    display: block;
+    position: absolute;
+    width: 90px;
+    height: 90px;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    background: radial-gradient(90px 90px at 50% 50%, rgb(242 186 110 / 0.35), transparent 70%);
+  }
 }

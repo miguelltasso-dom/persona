@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Button, Card, EmptyState, Screen, ScreenHeader } from '../primitives/index.ts'
+import { Button, Card, EmptyState, Notice, Screen, ScreenHeader } from '../primitives/index.ts'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { ActivityGroup, type ActivityItem } from '../primitives/Pooled.tsx'
 import { HealthItem, HealthScore, TWO_DAY_ART, TwoDayTimeline } from '../primitives/Governance.tsx'
@@ -32,6 +32,11 @@ export interface TeamHealthViewProps {
     readonly items: readonly ActivityItem[]
   } | undefined
   readonly onBuildTeam?: (() => void) | undefined
+  /**
+   * The team has not run or finished anything yet (its first day): no score, no red sentence, no grid of crosses — a calm
+   * "still getting to know the team" note instead. The score comes with real data.
+   */
+  readonly firstDay?: boolean | undefined
 }
 
 /**
@@ -55,8 +60,14 @@ export function TeamHealthView({
   twoDayFailed = false,
   gestorAudit,
   onBuildTeam,
+  firstDay = false,
 }: TeamHealthViewProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
+  /** New first-day copy: the same words in pt/en if this build's generated locale does not carry the keys yet. */
+  const tFirst = (key: string, fallback: string): string => {
+    const text = bindLocale(dict, key)
+    return text === key ? fallback : text
+  }
   const [twoDayOpen, setTwoDayOpen] = useState(true)
 
   const header = (
@@ -110,12 +121,20 @@ export function TeamHealthView({
   return (
     <Screen width="full" className={styles.shell} data-persona-surface="team-health">
       {header}
-      <HealthScore
-        level={health.level}
-        title={youInSentence(health.title)}
-        {...(health.body === undefined ? {} : { body: youInSentence(health.body) })}
-        {...(health.score === undefined ? {} : { score: health.score, scoreLabel: t('health.scoreLabel') })}
-      />
+      {firstDay
+        ? (
+          <Notice tone="info" title={tFirst('health.firstDay.title', 'Ainda conhecendo a equipe')}>
+            {tFirst('health.firstDay.body', 'A nota aparece depois que a equipe trabalhar alguns dias. Até lá, nada aqui é problema.')}
+          </Notice>
+        )
+        : (
+          <HealthScore
+            level={health.level}
+            title={youInSentence(health.title)}
+            {...(health.body === undefined ? {} : { body: youInSentence(health.body) })}
+            {...(health.score === undefined ? {} : { score: health.score, scoreLabel: t('health.scoreLabel') })}
+          />
+        )}
       {twoDayOpen && (
         <Card padding="m" className={styles.twoDayCard} aria-labelledby="two-day-heading">
           {/* UX-10: the re-run lives on the test's own card (the header button repeated the section). */}
@@ -139,7 +158,10 @@ export function TeamHealthView({
               onRetry={() => { onRunTwoDayTest?.() }}
             />
           )}
-          {!twoDayPending && twoDay !== null && timeline !== null && timeline.rows.length === 0 && (
+          {!twoDayPending && firstDay && (
+            <p className={styles.twoDayLead} role="status">{tFirst('health.firstDay.noData', 'Ainda sem dados')}</p>
+          )}
+          {!twoDayPending && !firstDay && twoDay !== null && timeline !== null && timeline.rows.length === 0 && (
             <EmptyState
               compact
               illustration={ILLUSTRATIONS['empty-inbox']}
@@ -147,7 +169,7 @@ export function TeamHealthView({
               body={t('twoDay.emptyBody')}
             />
           )}
-          {!twoDayPending && timeline !== null && timeline.rows.length > 0 && (
+          {!twoDayPending && !firstDay && timeline !== null && timeline.rows.length > 0 && (
             <>
               <TwoDayTimeline
                 rows={timeline.rows}

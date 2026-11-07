@@ -1,0 +1,377 @@
+/*
+ * CV-1 (CONVERSAS-SPEC §0): Canais e Pessoas da barra lilás única.
+ * Regra da Muse (axe): nenhum fundo atrás de texto é color-mix(… transparent). Só tokens sólidos:
+ * --persona-rail (a barra), --persona-rail-field (hover), --persona-cream-50 (a linha ativa).
+ * O texto secundário da linha ativa é a mistura OPACA de 75% plum-900 com o creme (≥ 4,5:1 nos dois temas).
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  min-width: 0;
+}
+
+.section {
+  min-width: 0;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Canais e Pessoas: o cabeçalho que recolhe. */
+.sectionHead,
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  width: 100%;
+  min-height: 28px;
+  padding: 0 var(--persona-space-2);
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: transparent;
+  color: var(--persona-rail-ink-soft);
+  font: 800 12px/1 var(--persona-font-text);
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.sectionHead:hover,
+.groupHead:hover {
+  background: var(--persona-rail-field);
+  color: var(--persona-rail-ink);
+}
+
+.chevron {
+  flex-shrink: 0;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.chevronClosed {
+  transform: rotate(-90deg);
+}
+
+.subhead {
+  margin: var(--persona-space-2) 0 var(--persona-space-1);
+  padding: 0 var(--persona-space-2);
+  color: var(--persona-rail-ink-soft);
+  font: 800 12px/1 var(--persona-font-text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* O grupo de uma equipe: nome, contagem e, recolhido, até 4 rostos de 24 empilhados. */
+.group + .group {
+  margin-top: var(--persona-space-1);
+}
+
+.groupHead {
+  text-transform: none;
+  letter-spacing: 0;
+  font: 700 13px/1 var(--persona-font-text);
+}
+
+.groupName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupCount {
+  color: var(--persona-rail-ink-soft);
+  font: 700 12px/1 var(--persona-font-text);
+}
+
+.faces {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.face {
+  display: inline-flex;
+  margin-left: -8px;
+  border-radius: var(--persona-radius-s);
+  /* contorno na cor da barra: os rostos empilhados se separam sem fundo translúcido */
+  box-shadow: 0 0 0 2px var(--persona-rail);
+}
+
+.face:first-child {
+  margin-left: 0;
+}
+
+/* A linha: canal, pessoa completa (40 px) e pessoa compacta (30 px). */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  width: 100%;
+  min-width: 0;
+  padding: 0 var(--persona-space-2);
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  color: var(--persona-rail-ink);
+  font: 700 14px/1.2 var(--persona-font-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+
+.rowFull {
+  min-height: 40px;
+}
+
+.rowCompact,
+.rowChannel {
+  min-height: 30px;
+}
+
+.row:hover:not([aria-current='page']) {
+  background: var(--persona-rail-field);
+}
+
+.row[aria-current='page'] {
+  background: var(--persona-cream-50);
+  color: var(--persona-plum-900);
+  font-weight: 800;
+}
+
+.hash {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  color: var(--persona-rail-ink-soft);
+  font: 800 15px/1 var(--persona-font-display);
+}
+
+.row[aria-current='page'] .hash {
+  color: var(--persona-lilac-700);
+}
+
+.channelName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  flex-shrink: 0;
+  color: var(--persona-rail-ink-soft);
+  font: 600 12px/1 var(--persona-font-text);
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Nome + função na mesma linha. */
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--persona-space-2);
+  min-width: 0;
+}
+
+.name {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--persona-rail-ink-soft);
+  font: 600 12px/1.2 var(--persona-font-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.last {
+  overflow: hidden;
+  color: var(--persona-rail-ink-soft);
+  font: 500 12px/1.3 var(--persona-font-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  flex-shrink: 0;
+  color: var(--persona-rail-ink-soft);
+  font: 600 12px/1 var(--persona-font-text);
+}
+
+.row[aria-current='page'] .role,
+.row[aria-current='page'] .last,
+.row[aria-current='page'] .time,
+.row[aria-current='page'] .note {
+  color: color-mix(in srgb, var(--persona-plum-900) 75%, var(--persona-cream-50));
+}
+
+/* O selo de não lidas: o âmbar da casa, igual ao de Aprovações. */
+.badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  font: 800 12px/1 var(--persona-font-text);
+}
+
+/* "Organizar a equipe": link ghost no fim do grupo sem equipe definida. */
+.organize {
+  margin: var(--persona-space-1) 0 0 var(--persona-space-2);
+  padding: var(--persona-space-1) var(--persona-space-2);
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: transparent;
+  color: var(--persona-rail-ink);
+  font: 700 12px/1.2 var(--persona-font-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.organize:hover {
+  background: var(--persona-rail-field);
+}
+
+/* O TRILHO de 64 px (960 / 200%): # dos canais e os rostos das Recentes. Alvos de 40 px; ativo = creme (token sólido). */
+.trail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-width: 0;
+}
+
+.trailHash,
+.trailFace {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  color: var(--persona-rail-ink);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.trailHash {
+  font: 800 20px/1 var(--persona-font-display);
+}
+
+.trailHash:hover,
+.trailFace:hover {
+  background: var(--persona-rail-field);
+}
+
+.trailHash[aria-current='page'],
+.trailFace[aria-current='page'] {
+  background: var(--persona-cream-50);
+  color: var(--persona-plum-900);
+}
+
+.trailFaces {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--persona-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trailBadge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: inline-grid;
+  place-items: center;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  font: 800 11px/1 var(--persona-font-text);
+}
+
+/* A lista dos canais abre POR CIMA, ao lado do #. Fixa: o rail corta o que sai dele. */
+.trailPopover {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+  margin: 0;
+  padding: var(--persona-space-2);
+  list-style: none;
+  background: var(--persona-rail);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+/* Lido pelo leitor de tela, invisível. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .row {
+    transition: none;
+  }
+}
+
+/* Brilho âmbar mínimo no escuro (NIGHT-THEME-SPEC §3; só com `persona.flag.houseDecor`): o `--persona-night-active-glow` a 50%, numa camada à parte. */
+:global(body[data-house-decor][data-ds-dark-theme='true']) .badge {
+  position: relative;
+}
+
+:global(body[data-house-decor][data-ds-dark-theme='true']) .badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--persona-night-active-glow);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  :global(body[data-house-decor][data-ds-dark-theme='true']) .badge::after {
+    display: none;
+  }
+}

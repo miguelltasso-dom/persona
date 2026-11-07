@@ -1,0 +1,206 @@
+/* EQUIPE REAL (D-090): chips do cartão, o "Caminho do trabalho" e o bilhete. Só tokens; nada de movimento (o anel de "esperando" é PARADO). */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 10px 2px 3px;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: 999px;
+  background: var(--persona-paper-sunken);
+  color: var(--persona-ink);
+  font: 700 12px/16px var(--persona-font-text);
+}
+
+.chip > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.face {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--persona-card);
+  color: var(--persona-ink);
+}
+
+.face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.initial {
+  font: 800 10px/1 var(--persona-font-text);
+}
+
+/* "Esperando {B}": the ring is still (no pulse): the work is waiting, not running. */
+.face[data-waiting] {
+  box-shadow: 0 0 0 2px var(--persona-warning);
+}
+
+.pathLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--persona-ink-soft);
+  font: 700 12px/16px var(--persona-font-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pathLink:focus-visible,
+.noteToggle:focus-visible {
+  color: var(--persona-ink);
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+/* The work path: a short vertical timeline with the faces. */
+.path {
+  display: grid;
+  gap: var(--persona-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pathStep {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--persona-space-3);
+}
+
+.pathStep:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  top: 30px;
+  bottom: calc(var(--persona-space-4) * -1 + 2px);
+  width: 2px;
+  background: var(--persona-outline-soft);
+}
+
+.pathFace {
+  position: relative;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+}
+
+/* The current step has the ring. */
+.pathFace[data-current] {
+  box-shadow: 0 0 0 2px var(--persona-accent);
+}
+
+.pathCheck {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--persona-success);
+  color: var(--persona-card);
+}
+
+.pathBody {
+  min-width: 0;
+}
+
+.pathLine {
+  margin: 0;
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.noteToggle {
+  margin: var(--persona-space-1) 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--persona-ink-soft);
+  font: 700 12px/16px var(--persona-font-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The note: the persona's own words as plain text — never an instruction. */
+.note {
+  display: grid;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-2);
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper-sunken);
+}
+
+.noteTitle {
+  margin: 0;
+  font: 800 13px/18px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.noteSection {
+  display: grid;
+  gap: 2px;
+}
+
+.noteHeading {
+  margin: 0;
+  font: 800 11px/14px var(--persona-font-text);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.noteList {
+  margin: 0;
+  padding-left: var(--persona-space-4);
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+/* The "Exemplo" tag of a capture-only card (never in the real app). */
+.sample {
+  padding: 1px 8px;
+  border: var(--persona-border-width) dashed var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  font: 800 11px/16px var(--persona-font-text);
+  letter-spacing: 0.04em;
+}
+
+/* BR-P6: the "caminho" icon beside the title of the work path (never alone, never decoration that replaces the words). */
+.titleWithIcon {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}

@@ -6,6 +6,7 @@ import type { ApprovalView } from '@deepseek-ai/dsh-persona-host/types'
 import { ApprovalsInboxV2, type ApprovalsInboxV2Props } from '../src/client/approvals/ApprovalsInboxV2.tsx'
 import { APPROVALS_DEV_SAMPLE, approvalsDevSampleEnabled } from '../src/client/approvals/approvals-dev-sample.ts'
 import { APPROVALS_INBOX_V2_KEY, approvalsInboxV2Enabled } from '../src/client/approvals/inbox-flag.ts'
+import { setFlagDefaults } from '../src/client/flags.ts'
 import { batchEligible, buildInboxGroups, flattenRows, nextOpenAfter } from '../src/client/approvals/inbox-model.ts'
 import type { ApprovalItem } from '../src/client/approvals/mock-data.ts'
 import type { PersonaDailyProactiveSummary } from '../src/client/approvals/proactivity-mock-data.ts'
@@ -67,6 +68,34 @@ describe('the model: three groups, no forced order', () => {
     const all = flattenRows(buildInboxGroups(approvalsPt, [HIRE, TASK, VAULT_LOW], []))
     expect(nextOpenAfter(all, 'hire-1')).toBe('task-1')
     expect(nextOpenAfter(all, 'vault-1')).toBe('task-1')
+  })
+})
+
+describe('Muse 22:25: one title for list and detail, a role in the middle of the sentence, an icon for the team', () => {
+  it('the list row says the SAME title as the detail heading (the list only truncates it)', () => {
+    mount()
+    const row = rows().find(node => node.getAttribute('data-decision-id') === 'hire-1')!
+    expect(within(row).getByText('Contratar uma persona para revisar cláusulas de rescisão?')).toBeTruthy()
+    expect(within(row).queryByText(/^Contratar Bolota$/u)).toBeNull()
+    const groups = buildInboxGroups(approvalsPt, [HIRE], [])
+    expect(groups[0]?.rows[0]?.listTitle).toBe(groups[0]?.rows[0]?.title)
+  })
+
+  it('a role the host capitalises is lowered in the middle of the sentence; acronyms and names stay', () => {
+    const shouting = card({ id: 'hire-2', roleTitle: 'Aprovar envio do contrato' })
+    const groups = buildInboxGroups(approvalsPt, [shouting], [])
+    expect(groups[0]?.rows[0]?.title).toBe('Contratar uma persona para aprovar envio do contrato?')
+    const acronym = card({ id: 'hire-3', roleTitle: 'SDR de vendas' })
+    expect(buildInboxGroups(approvalsPt, [acronym], [])[0]?.rows[0]?.title).toBe('Contratar uma persona para SDR de vendas?')
+  })
+
+  it('an actor with no persona ("Equipe") gets the team icon, not a letter; a known persona keeps the portrait', () => {
+    const team: ApprovalItem = card({ id: 'task-team', kind: 'attention', title: 'Bom dia, equipe! Preciso fechar o orçamento', personaName: 'Equipe', personaId: '' })
+    mount({ items: [team, TASK] })
+    const teamRow = rows().find(node => node.getAttribute('data-decision-id') === 'task-team')!
+    expect(teamRow.querySelector('[data-icon]')).not.toBeNull()
+    const knownRow = rows().find(node => node.getAttribute('data-decision-id') === 'task-1')!
+    expect(knownRow.querySelector('[data-icon]')).toBeNull()
   })
 })
 
@@ -307,14 +336,19 @@ describe('the capture-only Cofre sample (dev seed)', () => {
 })
 
 describe('the flag', () => {
-  it('is off unless the key is "1"; blocked storage is off, never a crash', () => {
-    expect(approvalsInboxV2Enabled()).toBe(false)
-    localStorage.setItem(APPROVALS_INBOX_V2_KEY, '1')
-    expect(approvalsInboxV2Enabled()).toBe(true)
-    localStorage.setItem(APPROVALS_INBOX_V2_KEY, '0')
-    expect(approvalsInboxV2Enabled()).toBe(false)
-    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
-    expect(approvalsInboxV2Enabled()).toBe(false)
-    spy.mockRestore()
+  it('is the default (Muse accepted it, 05/11): on unless the key is "0"; blocked storage keeps the default, never a crash', () => {
+    setFlagDefaults(undefined) // the test setup leaves every flag off; this proves the PRODUCTION default
+    try {
+      expect(approvalsInboxV2Enabled()).toBe(true)
+      localStorage.setItem(APPROVALS_INBOX_V2_KEY, '1')
+      expect(approvalsInboxV2Enabled()).toBe(true)
+      localStorage.setItem(APPROVALS_INBOX_V2_KEY, '0')
+      expect(approvalsInboxV2Enabled()).toBe(false)
+      const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+      expect(approvalsInboxV2Enabled()).toBe(true)
+      spy.mockRestore()
+    } finally {
+      setFlagDefaults(false)
+    }
   })
 })

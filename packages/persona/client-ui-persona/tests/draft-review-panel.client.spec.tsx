@@ -181,7 +181,7 @@ describe('Revisar em duas colunas (REVIEW-APPROVALS-REDESIGN §1)', () => {
     const clash: DraftFileUi = { ...doc, id: 'cardapio.docx', name: 'cardapio.docx', folder: undefined, conflict: true }
     renderPanel({ files: [pdf, clash] })
     expect(screen.getByRole('heading', { level: 3, name: 'cardapio.docx' })).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 4, name: 'Você e Bia mudaram cardapio.docx' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 4, name: 'Bia e você mudaram cardapio.docx' })).toBeTruthy()
     expect(screen.getByLabelText(/Manter os dois/u)).toBeTruthy()
   })
 
@@ -284,21 +284,60 @@ describe('Conflito por arquivo', () => {
   it('Aplicar waits for an answer on every clashing file; the three choices are plain, "Manter os dois" is recommended', () => {
     const onApply = vi.fn()
     renderPanel({ files: [clash, pdf], onApply })
-    expect(screen.getByRole('heading', { level: 4, name: 'Você e Bia mudaram cardapio.docx' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 4, name: 'Bia e você mudaram cardapio.docx' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Aplicar na pasta' }).hasAttribute('disabled')).toBe(true)
     expect(screen.getByText('Escolha o que fica em 1 arquivo antes de aplicar.')).toBeTruthy()
     expect(screen.getByText('Recomendado')).toBeTruthy()
-    expect(screen.getByText('Salva a versão de Bia como “cardapio (de Bia).docx” ao lado da sua.')).toBeTruthy()
+    expect(screen.getByText('Salva a versão de Bia como “cardapio (rascunho).docx” ao lado da sua.')).toBeTruthy()
 
-    fireEvent.click(screen.getByLabelText(/Ficar com o de Bia/u))
+    fireEvent.click(screen.getByLabelText(/Ficar com a versão de Bia/u))
     expect(screen.getByRole('button', { name: 'Aplicar na pasta' }).hasAttribute('disabled')).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar na pasta' }))
     expect(onApply).toHaveBeenCalledWith({ 'cardapio.docx': 'theirs' })
   })
 
-  it('the copy name keeps the extension: "{nome} (de {Persona}).{ext}"', () => {
-    expect(conflictCopyName('cardapio.docx', 'Bia')).toBe('cardapio (de Bia).docx')
-    expect(conflictCopyName('LEIAME', 'Bia')).toBe('LEIAME (de Bia)')
+  it('the copy name keeps the extension and is always "{nome} (rascunho).{ext}"', () => {
+    expect(conflictCopyName('cardapio.docx')).toBe('cardapio (rascunho).docx')
+    expect(conflictCopyName('LEIAME')).toBe('LEIAME (rascunho)')
+  })
+
+  it('without a name no stand-in is written into the sentences: "Você e a equipe…", "a versão do rascunho", "(rascunho)" (Muse 04:10)', () => {
+    renderPanel({ files: [clash, pdf], personaName: undefined, blocked: true })
+    const text = document.body.textContent ?? ''
+    expect(screen.getByRole('heading', { level: 4, name: 'Você e a equipe mudaram cardapio.docx' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Você e a equipe mudaram o mesmo arquivo' })).toBeTruthy()
+    expect(screen.getAllByText('O rascunho foi feito enquanto você mudava o arquivo. Escolha o que fica.').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText(/Ficar com a versão do rascunho/u)).toBeTruthy()
+    expect(screen.getByText('Salva a versão do rascunho como “cardapio (rascunho).docx” ao lado da sua.')).toBeTruthy()
+    expect(screen.getByText('Mantém o arquivo da sua pasta e descarta a mudança do rascunho neste arquivo.')).toBeTruthy()
+    // No stand-in name anywhere (Muse 05:51): the header says what it is, the subtitle is not a tautology, and the avatar is never initials.
+    expect(text).not.toContain('A persona')
+    expect(text).not.toContain('de A persona')
+    expect(text).not.toContain('O rascunho fez isto')
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Mudanças prontas para revisar')
+    expect(screen.getByText('Isto está num rascunho. Sua pasta ainda não mudou.')).toBeTruthy()
+    expect(screen.queryByText('OR')).toBeNull()
+    expect(document.querySelector('[data-persona-surface="review-delivery"] header [style*="--persona-icon-url"]')).not.toBeNull()
+  })
+
+  it('without a name, discarding does not say "as mudanças de O rascunho"', () => {
+    renderPanel({ personaName: undefined })
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText('As mudanças do rascunho somem. Sua pasta continua como está.')).toBeTruthy()
+  })
+
+  it('with a name the header is "{nome} preparou mudanças" and the avatar is the animal (initials only if there is no portrait)', () => {
+    renderPanel({ files: [clash, pdf] })
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Bia preparou mudanças')
+    expect(screen.getByText('Bia fez isto num rascunho. Sua pasta ainda não mudou.')).toBeTruthy()
+  })
+
+  it('with a name the words are "{nome} e você mudaram…", "{nome} estava trabalhando nele…", "Ficar com a versão de {nome}"', () => {
+    renderPanel({ files: [clash, pdf], blocked: true })
+    expect(screen.getByRole('heading', { level: 2, name: 'Bia e você mudaram o mesmo arquivo' })).toBeTruthy()
+    expect(screen.getAllByText('Bia estava trabalhando nele quando você mudou o arquivo. Escolha o que fica.').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText(/Ficar com a versão de Bia/u)).toBeTruthy()
   })
 })
 

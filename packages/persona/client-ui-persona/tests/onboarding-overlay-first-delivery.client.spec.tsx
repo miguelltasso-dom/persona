@@ -185,7 +185,9 @@ describe('onboarding passo 5 ligado ao estado real do host (FR-2)', () => {
     expect(calls.lock).toHaveBeenCalledTimes(1)
     expect(calls.finish).toHaveBeenCalledTimes(1)
     expect(screen.getByText(pt['step5.workingTitle'])).toBeTruthy()
-    expect(screen.getByText(/Nina está no pedido/u)).toBeTruthy()
+    // Muse (D-069): a frase do subtítulo é uma só durante a espera; o nome não estava no 1º quadro, então NÃO troca depois (o nome de quem pegou fica no rótulo ao lado do bicho).
+    expect(screen.getByText(/Sua equipe está no pedido/u)).toBeTruthy()
+    expect(screen.queryByText(/Nina está no pedido/u)).toBeNull()
 
     host.delivery = view('ready')
     await pass(2_100)

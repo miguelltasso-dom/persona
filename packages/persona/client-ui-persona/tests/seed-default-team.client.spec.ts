@@ -4,10 +4,13 @@ import {
   DEV_HARNESS_BRAIN_GRANT_ID,
   devHarnessMessageTimes,
   galleryRefForRosterPerson,
+  rosterGalleryRefs,
+  rosterToHostTeam,
   suggestedGalleryToHostTeam,
   SUGGESTED_TEAM_GALLERY,
 } from '../src/client/remote/seed-default-team.ts'
 import { readClientDevSeedEnabled } from '../src/client/remote/persona-dev-seed.ts'
+import { PERSONA_GALLERY_ANIMALS } from '../src/client/hire/gallery-animals.ts'
 
 describe('suggested team gallery', () => {
   it('exposes five example gallery cards with brush refs', () => {
@@ -31,8 +34,31 @@ describe('suggested team gallery', () => {
     expect(galleryRefForRosterPerson({ name: 'Any', role: 'R', galleryRef: 'sol' })).toBe('sol')
   })
 
-  it('slugifies name when galleryRef omitted (no fixed character names)', () => {
-    expect(galleryRefForRosterPerson({ name: 'Minha Persona', role: 'R' })).toBe('minha-persona')
+  it('sem galleryRef a persona nasce com o 1º animal LIVRE da galeria, nunca o slug do nome (que cai nas iniciais)', () => {
+    expect(galleryRefForRosterPerson({ name: 'Minha Persona', role: 'R' })).toBe('atlas')
+    expect(galleryRefForRosterPerson({ name: 'Minha Persona', role: 'R' }, ['atlas', 'bento'])).toBe('nina')
+    expect(PERSONA_GALLERY_ANIMALS).toContain(galleryRefForRosterPerson({ name: 'PR Pesquisa', role: 'R' }))
+  })
+
+  it('rosterGalleryRefs: quem escolheu mantém; quem não escolheu ganha o 1º livre, sem repetir ninguém da equipe', () => {
+    const refs = rosterGalleryRefs([
+      { name: 'Pesquisa', role: 'R' },
+      { name: 'Escolhida', role: 'R', galleryRef: 'atlas' },
+      { name: 'Texto', role: 'R' },
+      { name: 'Arte', role: 'R' },
+    ])
+    expect(refs).toEqual(['bento', 'atlas', 'nina', 'sol'])
+    expect(new Set(refs).size).toBe(refs.length)
+  })
+
+  it('rosterGalleryRefs: os que a equipe já tem não se repetem', () => {
+    expect(rosterGalleryRefs([{ name: 'Nova', role: 'R' }], ['atlas', 'bento', 'nina'])).toEqual(['sol'])
+  })
+
+  it('o host recebe um animal da galeria para toda persona do onboarding (a equipe em branco com nomes livres)', () => {
+    const team = rosterToHostTeam([{ name: 'PR Pesquisa de preços', role: 'Pesquisa' }, { name: 'Redação', role: 'Texto' }])
+    expect(team.map(row => row.avatarRef)).toEqual(['atlas', 'bento'])
+    for (const row of team) expect(PERSONA_GALLERY_ANIMALS).toContain(row.avatarRef)
   })
 })
 

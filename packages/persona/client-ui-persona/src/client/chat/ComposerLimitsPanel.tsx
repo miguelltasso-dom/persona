@@ -7,7 +7,7 @@ import styles from './ChannelComposer.module.css'
 
 /**
  * Temporary limits readout above the composer after `/limites` (T3-UX-HARVEST §8).
- * IV-4 = P0-28: só as cotas oficiais que o host publicou; sem dado, "—" e "Cota oficial indisponível". Nunca um número de exemplo.
+ * IV-4 = P0-28: só as cotas oficiais que o host publicou; sem dado, "—" e "Este motor não informa a cota.". Nunca um número de exemplo.
  */
 export function ComposerLimitsPanel({
   t,

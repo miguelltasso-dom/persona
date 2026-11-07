@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
   CloseSprintView,
@@ -18,6 +18,7 @@ import { unwrapRemote } from '../data/remote-call.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as kanbanDict } from '../locale/kanban/locales.ts'
+import { MOVE_UNDO_MS, undoableMove, type UndoableMove } from '../kanban/move-undo.ts'
 import { ProjectFlowBoard } from '../kanban/ProjectFlowBoard.tsx'
 import { SprintPlanningView } from '../kanban/SprintPlanningView.tsx'
 import { sprintDatesFromDraft, useSprintPlanningState } from '../kanban/use-sprint-planning-state.ts'
@@ -31,6 +32,16 @@ import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import { destByRemovedForProposal } from '../kanban/accept-workflow-proposal.ts'
 import { ticketCountByColumnId } from '../kanban/workflow-editor-draft.ts'
 import { Button, Toast, ToastRegion, usePawCelebration } from '../primitives/index.ts'
+import { ConfettiMoment } from '../decor/HouseDecor.tsx'
+import { personaFaceSrc } from '../hire/persona-face.ts'
+import { personaPortrait } from '../second-brain/brain-ui-adapters.ts'
+import { isTeamworkEnabled } from '../teamwork/teamwork-flag.ts'
+import { TeamworkProvider, type TeamworkContextValue, type TeamworkPersona } from '../teamwork/teamwork-context.tsx'
+import { useStartedNow } from '../kanban/started-now.ts'
+import { StartedNowProvider } from '../kanban/StartedNowNote.tsx'
+import { readHandoffNote, readReviewing, readWorkPath, type HandoffNoteUi, type PathStepUi, type ReviewingUi } from '../teamwork/teamwork-wire.ts'
+import { isTeamworkSampleCardId, teamworkDevSampleEnabled, teamworkSampleCards, teamworkSamplePersona } from '../teamwork/teamwork-dev-sample.ts'
+import { WorkPathSheet } from '../teamwork/WorkPathSheet.tsx'
 import type { ConversationSubjectUi } from '../chat/conversation-subjects.ts'
 
 export interface ConnectedProjectFlowBoardProps {
@@ -71,6 +82,13 @@ export function ConnectedProjectFlowBoard({
   onNewTask,
 }: ConnectedProjectFlowBoardProps): ReactNode {
   const [reloadToken, setReloadToken] = useState(0)
+  /** New copy: the same words if this build's generated locale does not carry the keys yet. */
+  const tr = (key: string, fallback: string): string => {
+    const text = t(key)
+    return text === key ? fallback : text
+  }
+  /** P1-10: the last move that can be put back exactly (see move-undo.ts); gone after 6 s or at the next move. */
+  const [moveUndo, setMoveUndo] = useState<(UndoableMove & { readonly ticketId: string; readonly title: string; readonly failed?: boolean }) | null>(null)
   const [moveBlocked, setMoveBlocked] = useState<{ readonly id: string; readonly title: string } | null>(null)
   const [reviewTarget, setReviewTarget] = useState<{ id: string; title: string } | null>(
     // Capture-only (dev seed + persona.devSeed.review): the sample opens on its own, once. Never without the flag.
@@ -87,6 +105,12 @@ export function ConnectedProjectFlowBoard({
   const proposeEnabled = canProposeWorkflow(persona)
 
   useEffect(() => {
+    if (moveUndo === null) return
+    const timer = window.setTimeout(() => { setMoveUndo(null) }, MOVE_UNDO_MS)
+    return () => { window.clearTimeout(timer) }
+  }, [moveUndo])
+
+  useEffect(() => {
     if (freshApprovalIds.size === 0) return
     const timer = window.setTimeout(() => { setFreshApprovalIds(new Set()) }, 1200)
     return () => { window.clearTimeout(timer) }
@@ -99,19 +123,95 @@ export function ConnectedProjectFlowBoard({
 
   const { state, retry } = usePersonaRemoteLoad(true, boardLoadKey(scope, reloadToken), load)
 
-  const surfaceState: KanbanSurfaceState = state.status === 'loading'
-    ? 'loading'
-    : state.status === 'error'
-      ? 'error'
-      : state.data.cards.length === 0 && state.data.workflow.columns.length === 0
+  // A reload (after a move, an Aplicar, a sprint closing) keeps the board it already has on screen until the new one arrives. Dropping it to
+  // "carregando" swapped the whole tree, and the review sheet — mounted only with a board — was torn down in the middle of "Aplicar na pasta":
+  // the success moment and its Desfazer were lost, and the sheet came back as a fresh one. Another project never borrows this board.
+  const lastBoard = useRef<{ readonly key: string; readonly board: ProjectBoardView } | null>(null)
+  const scopeKey = `${scope.workspaceId}:${scope.projectId}`
+  if (state.status === 'ready') lastBoard.current = { key: scopeKey, board: state.data }
+  const staleBoard = state.status === 'loading' && lastBoard.current?.key === scopeKey ? lastBoard.current.board : null
+  const shownBoard = state.status === 'ready' ? state.data : staleBoard
+
+  const surfaceState: KanbanSurfaceState = state.status === 'error'
+    ? 'error'
+    : shownBoard === null
+      ? 'loading'
+      : shownBoard.cards.length === 0 && shownBoard.workflow.columns.length === 0
         ? 'empty'
         : 'ready'
 
-  const board: ProjectBoardView | null = state.status === 'ready' ? state.data : null
-  const flow = board !== null
+  const board: ProjectBoardView | null = shownBoard
+  const boardFlow = board !== null
     ? projectBoardToFlow(board, { conversationSubjects: channelSubjects })
     : null
+  // EQUIPE REAL (D-090): the bilhete and the work path live on the host's TASK (`TaskView.note/path`), not on the board card: read below.
+  const [taskExtras, setTaskExtras] = useState<ReadonlyMap<string, { readonly note?: HandoffNoteUi; readonly path?: readonly PathStepUi[]; readonly reviewing?: ReviewingUi }>>(() => new Map())
+  const flowMerged = boardFlow === null || taskExtras.size === 0
+    ? boardFlow
+    : {
+      ...boardFlow,
+      cards: boardFlow.cards.map((card) => {
+        const extra = taskExtras.get(card.id)
+        return extra === undefined ? card : { ...card, ...(extra.note === undefined ? {} : { note: extra.note }), ...(extra.path === undefined ? {} : { path: extra.path }), ...(extra.reviewing === undefined ? {} : { reviewing: extra.reviewing }) }
+      }),
+    }
+  // CAPTURES ONLY (two dev keys: persona.devSeed.v1 + persona.devSeed.teamwork): three example cards so the design review can see the chips.
+  const teamworkSample = teamworkDevSampleEnabled()
+  const flow = flowMerged === null || !teamworkSample
+    ? flowMerged
+    : { ...flowMerged, cards: [...flowMerged.cards, ...teamworkSampleCards(flowMerged.columns, flowMerged.projectId, flowMerged.projectName)] }
   const sprint = board?.currentSprint
+
+  // EQUIPE REAL (D-090, behind persona.flag.teamwork): the chip "Pedido por {A}" needs A's name and face, which the card only has as an id.
+  // The team is read ONCE, and only when some card actually carries a handoff or a work path; without it the chip never appears.
+  const [teamPersonas, setTeamPersonas] = useState<ReadonlyMap<string, TeamworkPersona>>(() => new Map())
+  const [pathCardId, setPathCardId] = useState<string | null>(null)
+  const teamworkWanted = isTeamworkEnabled() && boardFlow !== null && boardFlow.cards.length > 0
+  useEffect(() => {
+    if (!teamworkWanted) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const rows = await unwrapRemote(await persona.listPersonas({ workspaceId: scope.workspaceId, projectId: scope.projectId }))
+        if (cancelled) return
+        // D-069: a persona is never a letter. A name or reference that is not a gallery animal ("Téo") gets the stable animal of its id.
+        setTeamPersonas(new Map(rows.map(row => [row.id, { name: row.name, avatarSrc: personaPortrait(row) ?? personaFaceSrc(row.avatarRef, row.id) }] as const)))
+      } catch {
+        /* no names, no chip: the card stays as it was */
+      }
+      // The bilhete and the work path: `TaskView.note/path` (contracts/team-real.md), matched to the card by id. Nothing there = nothing drawn.
+      try {
+        const tasksWire = persona as unknown as { listTasks?(request: { workspaceId: string; projectId: string }): Promise<RemoteResult<readonly unknown[]>> }
+        if (tasksWire.listTasks === undefined) return
+        const tasks = await unwrapRemote(await tasksWire.listTasks({ workspaceId: scope.workspaceId, projectId: scope.projectId }))
+        if (cancelled) return
+        const extras = new Map<string, { note?: HandoffNoteUi; path?: readonly PathStepUi[]; reviewing?: ReviewingUi }>()
+        for (const task of tasks) {
+          const row = task as { id?: unknown; note?: unknown; path?: unknown; reviewing?: unknown }
+          if (typeof row.id !== 'string') continue
+          const note = readHandoffNote(row.note)
+          const path = readWorkPath(row.path)
+          const reviewing = readReviewing(row.reviewing)
+          if (note === undefined && path.length === 0 && reviewing === undefined) continue
+          extras.set(row.id, { ...(note === undefined ? {} : { note }), ...(path.length === 0 ? {} : { path }), ...(reviewing === undefined ? {} : { reviewing }) })
+        }
+        setTaskExtras(extras)
+      } catch {
+        /* no work path: the card keeps its chip only */
+      }
+    })()
+    return () => { cancelled = true }
+  }, [teamworkWanted, reloadToken, persona, scope.workspaceId, scope.projectId])
+  const teamworkValue: TeamworkContextValue = {
+    personaFor: personaId => teamPersonas.get(personaId) ?? (teamworkSample ? teamworkSamplePersona(personaId) : undefined),
+    openPath: (cardId) => { setPathCardId(cardId) },
+  }
+  const pathCard = pathCardId === null ? undefined : flow?.cards.find(card => card.id === pathCardId)
+  // HT-3 (behind persona.flag.teamwork): "{nome} começou agora" on the card the PERSON just moved to Fazendo, only when that persona's current task IS the card.
+  const startedNow = useStartedNow({
+    enabled: isTeamworkEnabled(),
+    readNow: async () => (await unwrapRemote(await persona.getOverviewNow({ workspaceId: scope.workspaceId, projectId: scope.projectId }))).personas,
+  })
 
   const planningEnabled = workspaceTab === 'sprints' && board !== null
   const planning = useSprintPlanningState(board, flow?.cards ?? [], planningEnabled)
@@ -132,10 +232,20 @@ export function ConnectedProjectFlowBoard({
     if (flow === null || card === undefined) return null
     const from = flow.columns.find(column => column.id === card.columnId)
     const to = flow.columns.find(column => column.id === columnId)
-    return from?.category === 'review' && to?.category === 'done' ? { id: card.id, title: card.title } : null
+    if (to?.category !== 'done') return null
+    // The host knows (`BoardCardView.deliveryPending`): `true` = a result waits (wherever the card sits), `false` = nothing waits (e.g. a
+    // task without a folder has no draft), so the move is allowed. Without the field, the old guess: a card in review is waiting.
+    const waiting = card.deliveryPending ?? from?.category === 'review'
+    return waiting ? { id: card.id, title: card.title } : null
   }
 
   const onMoveCard = async (ticketId: string, columnId: string): Promise<void> => {
+    // An example card (captures only) is not a task: nothing to move at the host; the board simply settles back.
+    if (isTeamworkSampleCardId(ticketId)) { reload(); return }
+    // A new move closes the old notice: "Desfazer" must never put back something older than what the person just did.
+    setMoveUndo(null)
+    const movedCard = flow?.cards.find(row => row.id === ticketId)
+    const fromColumnId = movedCard?.columnId
     const waiting = deliveryWaiting(ticketId, columnId)
     if (waiting !== null) {
       setMoveBlocked(waiting)
@@ -156,7 +266,37 @@ export function ConnectedProjectFlowBoard({
       return
     }
     await unwrapRemote(result)
+    // HT-3: the person moved it to Fazendo in this session: watch (up to 2 min) whether the persona starts ON this card.
+    if (flow?.columns.find(column => column.id === columnId)?.category === 'doing') startedNow.watch(ticketId)
+    const undoable = fromColumnId === undefined || flow === null ? null : undoableMove(flow.columns, fromColumnId, columnId)
+    if (undoable !== null) setMoveUndo({ ...undoable, ticketId, title: movedCard?.title ?? '' })
     reload()
+  }
+
+  /** "Desfazer": the card goes back to the column it came from. The undo itself is not undoable (no second notice). */
+  const undoMove = async (): Promise<void> => {
+    const pending = moveUndo
+    if (pending === null) return
+    setMoveUndo(null)
+    try {
+      const result = await persona.moveTicket({
+        workspaceId: scope.workspaceId,
+        projectId: scope.projectId,
+        ticketId: pending.ticketId,
+        columnId: pending.fromColumnId,
+      })
+      if (!result.ok) throw new Error('move-undo-failed')
+    } catch {
+      setMoveUndo({ ...pending, failed: true })
+    }
+    reload()
+  }
+
+  /** Words with slots: the same text if this build's generated locale does not carry the key yet. */
+  const trSlots = (key: string, fallback: string, slots: Readonly<Record<string, string>>): string => {
+    const text = bindLocale(kanbanDict, key, slots)
+    if (text !== key) return text
+    return Object.entries(slots).reduce((line, [name, value]) => line.replace('{' + name + '}', value), fallback)
   }
 
   const goToBoardTab = (): void => {
@@ -290,126 +430,166 @@ export function ConnectedProjectFlowBoard({
   }
 
   return (
-    <>
-      <ProjectFlowBoard
-        dict={kanbanDict}
-        flow={flow}
-        surfaceState={surfaceState}
-        workspaceTab={workspaceTab}
-        {...(sprint !== undefined ? { currentSprint: sprint } : {})}
-        onBack={onBack}
-        onMoveCard={(ticketId, columnId) => { void onMoveCard(ticketId, columnId) }}
-        onOpenReview={(ticketId) => {
-          const card = flow.cards.find(row => row.id === ticketId)
-          if (card !== undefined) setReviewTarget({ id: ticketId, title: card.title })
-        }}
-        onRetry={reload}
-        onNewTask={onNewTask}
-        onPlanSprint={() => { onWorkspaceTabChange?.('sprints') }}
-        workflowFields={board?.workflow.fields ?? []}
-        onSaveWorkflow={async (columns, destByRemoved, fields) => {
-          await unwrapRemote(await persona.updateWorkflow({
-            workspaceId: scope.workspaceId,
-            projectId: scope.projectId,
-            columns,
-            fields,
-            ...(Object.keys(destByRemoved).length > 0 ? { destByRemoved } : {}),
-          }))
-          reload()
-        }}
-        {...(sprint !== undefined
-          ? {
-            onConfirmCloseSprint: (leftover) => {
-              void (async () => {
-                const closed = await unwrapRemote(
-                  await persona.closeSprint({
-                    workspaceId: scope.workspaceId,
-                    projectId: scope.projectId,
-                    sprintId: sprint.id,
-                    leftover,
-                    confirmed: true,
-                  }) as RemoteResult<CloseSprintView>,
-                )
-                if (closed.summary.trim().length > 0) {
-                  setSprintCloseSummary(closed.summary)
-                }
-                reload()
-              })()
-            },
-          }
-          : {})}
-        {...(onWorkspaceTabChange !== undefined ? { onWorkspaceTabChange } : {})}
-        freshApprovalStampIds={freshApprovalIds}
-        celebrationNode={paw.node}
-        {...(proposeEnabled
-          ? {
-            workflowProposal,
-            workflowProposalPending: proposalPending,
-            workflowProposalAcceptPending: acceptProposalPending,
-            onRequestWorkflowProposal: requestWorkflowProposal,
-            onAcceptWorkflowProposal: acceptWorkflowProposal,
-            onDismissWorkflowProposal: dismissWorkflowProposal,
-          }
-          : {})}
-        {...(personaCard === undefined ? {} : { personaCard })}
-        {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
-      />
-      {reviewTarget !== null && (
-        <KanbanReviewSheet
-          persona={persona}
-          scope={scope}
-          ticketId={reviewTarget.id}
-          taskTitle={reviewTarget.title}
-          onClose={() => { setReviewTarget(null) }}
-          onMutate={reload}
-          onAccepted={(id) => {
-            setFreshApprovalIds(prev => new Set(prev).add(id))
-            paw.celebrate()
+    <TeamworkProvider value={teamworkValue}>
+      <StartedNowProvider value={startedNow}>
+        <ProjectFlowBoard
+          dict={kanbanDict}
+          flow={flow}
+          surfaceState={surfaceState}
+          workspaceTab={workspaceTab}
+          {...(sprint !== undefined ? { currentSprint: sprint } : {})}
+          onBack={onBack}
+          onMoveCard={(ticketId, columnId) => { void onMoveCard(ticketId, columnId) }}
+          onOpenReview={(ticketId) => {
+            const card = flow.cards.find(row => row.id === ticketId)
+            if (card !== undefined) setReviewTarget({ id: ticketId, title: card.title })
           }}
-          onApplied={(info) => { setApplied(info.restorePointId === undefined ? {} : { restorePointId: info.restorePointId }) }}
-          {...(personaHistoryRemote(persona).available
-            ? { onUndoApplied: (restorePointId: string) => { void personaHistoryRemote(persona).undo(scope, restorePointId).then(reload).catch(() => { /* the history screen shows it if it did not work */ }) } }
+          onRetry={reload}
+          onNewTask={onNewTask}
+          onPlanSprint={() => { onWorkspaceTabChange?.('sprints') }}
+          workflowFields={board?.workflow.fields ?? []}
+          onSaveWorkflow={async (columns, destByRemoved, fields) => {
+            await unwrapRemote(await persona.updateWorkflow({
+              workspaceId: scope.workspaceId,
+              projectId: scope.projectId,
+              columns,
+              fields,
+              ...(Object.keys(destByRemoved).length > 0 ? { destByRemoved } : {}),
+            }))
+            reload()
+          }}
+          {...(sprint !== undefined
+            ? {
+              onConfirmCloseSprint: (leftover) => {
+                void (async () => {
+                  const closed = await unwrapRemote(
+                    await persona.closeSprint({
+                      workspaceId: scope.workspaceId,
+                      projectId: scope.projectId,
+                      sprintId: sprint.id,
+                      leftover,
+                      confirmed: true,
+                    }) as RemoteResult<CloseSprintView>,
+                  )
+                  if (closed.summary.trim().length > 0) {
+                    setSprintCloseSummary(closed.summary)
+                  }
+                  reload()
+                })()
+              },
+            }
             : {})}
-        />
-      )}
-      {applied !== null && (
-        <AppliedToast
-          onDismiss={() => { setApplied(null) }}
-          {...(applied.restorePointId !== undefined && personaHistoryRemote(persona).available
-            ? { onUndo: () => {
-              const id = applied.restorePointId
-              if (id !== undefined) void personaHistoryRemote(persona).undo(scope, id).then(reload).catch(() => { /* the history screen shows it if it did not work */ })
-            } }
+          {...(onWorkspaceTabChange !== undefined ? { onWorkspaceTabChange } : {})}
+          freshApprovalStampIds={freshApprovalIds}
+          celebrationNode={paw.node}
+          {...(proposeEnabled
+            ? {
+              workflowProposal,
+              workflowProposalPending: proposalPending,
+              workflowProposalAcceptPending: acceptProposalPending,
+              onRequestWorkflowProposal: requestWorkflowProposal,
+              onAcceptWorkflowProposal: acceptWorkflowProposal,
+              onDismissWorkflowProposal: dismissWorkflowProposal,
+            }
             : {})}
+          {...(personaCard === undefined ? {} : { personaCard })}
+          {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
         />
-      )}
-      {moveBlocked !== null && (
-        <ToastRegion label={t('a11y.toastRegion')}>
-          <Toast
-            tone="warning"
-            title={t('moveBlocked.title')}
-            body={t('moveBlocked.body')}
-            action={(
-              <Button size="s" variant="primary" onClick={() => { setReviewTarget({ id: moveBlocked.id, title: moveBlocked.title }); setMoveBlocked(null) }}>
-                {t('moveBlocked.review')}
-              </Button>
-            )}
-            dismissLabel={t('moveBlocked.dismiss')}
-            onDismiss={() => { setMoveBlocked(null) }}
+        {reviewTarget !== null && (
+          <KanbanReviewSheet
+            persona={persona}
+            scope={scope}
+            ticketId={reviewTarget.id}
+            taskTitle={reviewTarget.title}
+            onClose={() => { setReviewTarget(null) }}
+            onMutate={reload}
+            onAccepted={(id) => {
+              setFreshApprovalIds(prev => new Set(prev).add(id))
+              paw.celebrate()
+            }}
+            onApplied={(info) => { setApplied(info.restorePointId === undefined ? {} : { restorePointId: info.restorePointId }) }}
+            {...(personaHistoryRemote(persona).available
+              ? { onUndoApplied: (restorePointId: string) => { setApplied(null); void personaHistoryRemote(persona).undo(scope, restorePointId).then(reload).catch(() => { /* the history screen shows it if it did not work */ }) } }
+              : {})}
           />
-        </ToastRegion>
-      )}
-      {sprintCloseSummary !== null && (
-        <ToastRegion label={t('a11y.toastRegion')}>
-          <Toast
-            tone="celebrate"
-            title={t('closeSprint.toastTitle')}
-            body={sprintCloseSummary}
-            dismissLabel={t('closeSprint.toastDismiss')}
-            onDismiss={() => { setSprintCloseSummary(null) }}
+        )}
+        {/* The success moment already says "Aplicado na pasta" and offers Desfazer: the toast waits for the sheet to close (it sat over "Voltar ao quadro" at 200 % zoom). */}
+        {applied !== null && reviewTarget === null && (
+          <AppliedToast
+            onDismiss={() => { setApplied(null) }}
+            {...(applied.restorePointId !== undefined && personaHistoryRemote(persona).available
+              ? { onUndo: () => {
+                const id = applied.restorePointId
+                if (id !== undefined) void personaHistoryRemote(persona).undo(scope, id).then(reload).catch(() => { /* the history screen shows it if it did not work */ })
+              } }
+              : {})}
           />
-        </ToastRegion>
-      )}
-    </>
+        )}
+        {moveUndo !== null && (
+          <ToastRegion label={t('a11y.toastRegion')}>
+            {moveUndo.failed === true
+              ? (
+                <Toast
+                  tone="warning"
+                  title={tr('moveUndo.failed', 'Não consegui desfazer agora. O cartão ficou onde está.')}
+                  dismissLabel={tr('moveBlocked.dismiss', 'Fechar aviso')}
+                  onDismiss={() => { setMoveUndo(null) }}
+                />
+              )
+              : (
+                <Toast
+                  tone="neutral"
+                  title={trSlots('moveUndo.title', '“{title}” foi para {column}', { title: moveUndo.title, column: moveUndo.toName })}
+                  action={(
+                    <Button size="s" variant="ghost" onClick={() => { void undoMove() }}>
+                      {tr('moveUndo.undo', 'Desfazer')}
+                    </Button>
+                  )}
+                />
+              )}
+          </ToastRegion>
+        )}
+        {moveBlocked !== null && (
+          <ToastRegion label={t('a11y.toastRegion')}>
+            <Toast
+              tone="warning"
+              title={tr('moveBlocked.title', 'Esse cartão tem mudanças esperando revisão')}
+              body={tr('moveBlocked.body', 'Revise e aplique as mudanças, ou peça ajustes, antes de concluir a tarefa.')}
+              action={(
+                <Button size="s" variant="primary" onClick={() => { setReviewTarget({ id: moveBlocked.id, title: moveBlocked.title }); setMoveBlocked(null) }}>
+                  {tr('moveBlocked.review', 'Revisar')}
+                </Button>
+              )}
+              dismissLabel={tr('moveBlocked.dismiss', 'Fechar aviso')}
+              onDismiss={() => { setMoveBlocked(null) }}
+            />
+          </ToastRegion>
+        )}
+        {sprintCloseSummary !== null && (
+          <ToastRegion label={t('a11y.toastRegion')}>
+            <ConfettiMoment>
+              <Toast
+                tone="celebrate"
+                title={t('closeSprint.toastTitle')}
+                body={sprintCloseSummary}
+                dismissLabel={t('closeSprint.toastDismiss')}
+                onDismiss={() => { setSprintCloseSummary(null) }}
+              />
+            </ConfettiMoment>
+          </ToastRegion>
+        )}
+        {pathCard !== undefined && isTeamworkEnabled() && (pathCard.path?.length ?? 0) > 0 && (
+          <WorkPathSheet
+            dict={kanbanDict}
+            open
+            taskTitle={pathCard.title}
+            steps={pathCard.path ?? []}
+            note={pathCard.note}
+            personaFor={teamworkValue.personaFor}
+            onClose={() => { setPathCardId(null) }}
+          />
+        )}
+      </StartedNowProvider>
+    </TeamworkProvider>
   )
 }

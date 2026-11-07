@@ -221,4 +221,30 @@ describe('ConnectedTeamHealthPanel ready (GOV-7)', () => {
       expect({ file, imports: /gestor-audit-mock/u.test(readFileSync(root + file, 'utf8')) }).toEqual({ file, imports: false })
     }
   })
+
+  it('the first day: no task has started → the calm note instead of the red score; a task in progress → the score is back', async () => {
+    const health = { ...mockTeamHealth('ws-gov'), score: 16, title: 'A equipe para se alguém some' }
+    const persona = {
+      getTeamHealth: async () => ({ ok: true as const, value: health }),
+      runTwoDayTest: async () => ({ ok: true as const, value: mockTwoDayTest('ws-gov') }),
+    } as never
+    const show = (live: PersonaLiveSnapshot) => {
+      const { useLive, useTenant, useShell } = harness(live)
+      return render(
+        <PreviewFrame brandLabel="Persona">
+          <ConnectedTeamHealthPanel persona={persona} useTenant={useTenant} useLive={useLive} useShell={useShell} />
+        </PreviewFrame>,
+      )
+    }
+    show(LIVE_WITH_TEAM)
+    await waitFor(() => { expect(screen.getByText('Ainda conhecendo a equipe')).toBeTruthy() })
+    expect(screen.queryByText('A equipe para se alguém some')).toBeNull()
+    cleanup()
+    show({
+      ...LIVE_WITH_TEAM,
+      kanbanCards: [{ id: 'c1', title: 'Primeira entrega', column: 'in_progress', teamId: 't', teamName: 'T', projectId: 'p', projectName: 'P', blocked: false, reviewApproved: false, waitingEvent: false }],
+    })
+    await waitFor(() => { expect(screen.getByText('A equipe para se alguém some')).toBeTruthy() })
+    expect(screen.queryByText('Ainda conhecendo a equipe')).toBeNull()
+  })
 })

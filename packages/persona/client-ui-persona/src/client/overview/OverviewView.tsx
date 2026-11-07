@@ -1,24 +1,32 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { CardSprig, HeaderDoodles } from '../decor/HouseDecor.tsx'
 import { usePersonaMotion } from '../motion/index.ts'
 import {
   Accent,
   ApprovedStamp,
   Avatar,
+  BrandIcon,
   Button,
   Card,
   EmptyState,
   MilestoneCard,
   Notice,
+  Toast,
+  ToastRegion,
   UiIcon,
   usePawCelebration,
 } from '../primitives/index.ts'
+import { requestMessageFocus } from '../chat/message-focus.ts'
+import { DAILY_NOW_FAILED, planDailyNow, type DailyNowAction, type DailyNowNotice, type DailyNowResult } from './daily-now.ts'
 import type { AwaySummaryEvent, PersonaNowSnapshot } from '../team/persona-work-state.ts'
+import type { AwayLive } from '../remote/map-host-ui.ts'
 import { AwayWhileOutPanel } from './AwayWhileOutPanel.tsx'
 import { OverviewNowStrip } from './OverviewNowStrip.tsx'
 import type { Decision } from '../decisions/decision-types.ts'
 import { DecisionFeedback } from '../decisions/DecisionFeedback.tsx'
+import type { ReplyTarget } from '../answer/reply-target.ts'
 import { DecisionStateNote } from '../decisions/DecisionStateNote.tsx'
 import { blockingDecisions as selectBlocking, openBlockingCount } from '../decisions/decision-selectors.ts'
 import { useDecisionListMotion } from '../decisions/use-decision-list-motion.ts'
@@ -32,14 +40,28 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   readonly onDecide?: ((decisionId: string, accept: boolean) => void) | undefined
   /** Undo a reversible decision (the toast only exists when the host marked it reversible). */
   readonly onUndoDecision?: ((decisionId: string) => void) | undefined
+  /** IV-10 "Responder": the questions in words that carry the thread they were asked in, by decision id. Absent = every line keeps its usual button. */
+  readonly replyTargets?: ReadonlyMap<string, ReplyTarget> | undefined
+  readonly onReply?: ((target: ReplyTarget) => void) | undefined
   readonly nowRows: readonly PersonaNowSnapshot[]
   /** Os dados do host ainda não chegaram (recarregar): o "Agora" mostra skeleton em vez de "Monte sua equipe". */
   readonly loading?: boolean | undefined
   readonly awayEvents: readonly AwaySummaryEvent[]
+  /** P1-7: the host's real "while you were away" (`null` = nothing/dismissed; absent = use `awayEvents`). */
+  readonly away?: AwayLive | null | undefined
+  /** "Entendi": the host starts the next window. */
+  readonly onDismissAway?: (() => void) | undefined
   /** User display name for the greeting (falls back to a plain "Olá!"). */
   readonly userName?: string | undefined
   /** Navigate to another main panel (shell). */
-  readonly onNavigate?: ((panel: 'channels' | 'kanban' | 'approvals', query?: { focus?: string }) => void) | undefined
+  readonly onNavigate?: ((panel: 'channels' | 'kanban' | 'approvals' | 'team', query?: { focus?: string }) => void) | undefined
+  /**
+   * "Resumir o dia" (EQUIPE-REAL §(b) "O resumo a pedido"): pede ao host o cartão do dia AGORA. Sem o handler (host sem o pedido, `teamwork` desligada) o botão
+   * não existe: nada de botão morto.
+   */
+  readonly onAskDailyBrief?: (() => Promise<DailyNowResult>) | undefined
+  /** "Retomar" no aviso "O resumo do dia está pausado": só existe se o host aceita retomar a rotina (sem isto, o aviso não tem ação). */
+  readonly onResumeDailyBrief?: (() => void | Promise<void>) | undefined
   readonly onOpenAwayTask?: ((taskId: string) => void) | undefined
   /** Live first task (C8); falls back to locale copy when absent. */
   readonly suggestedTask?: { readonly id: string; readonly title: string } | undefined
@@ -68,6 +90,9 @@ function firstDeliverySeen(taskId: string): boolean {
 
 const PLACEHOLDER_NAMES: ReadonlySet<string> = new Set(['você', 'voce', 'owner', 'you'])
 
+/** Quanto o aviso do "Resumir o dia" fica na tela (a pessoa também pode fechá-lo). */
+const DAILY_NOTICE_MS = 8000
+
 /** Visão geral — "o que precisa de você" first, then what the team is doing now (RCD: never a blank dashboard). */
 export function OverviewView({
   t,
@@ -75,17 +100,59 @@ export function OverviewView({
   decisions,
   onDecide,
   onUndoDecision,
+  replyTargets,
+  onReply,
   nowRows,
   loading = false,
   awayEvents,
+  away,
+  onDismissAway,
   userName,
   onNavigate,
+  onAskDailyBrief,
+  onResumeDailyBrief,
   onOpenAwayTask,
   suggestedTask,
   firstDelivery,
   firstDeliveryPending,
 }: OverviewViewProps): ReactNode {
   const [dismissedTaskId, setDismissedTaskId] = useState<string | null>(null)
+  // "Resumir o dia": o botão vira "Resumindo…" (desabilitado) durante a chamada; o resultado vira o cartão (posted) ou um aviso neutro com a ação que resolve.
+  const [asking, setAsking] = useState(false)
+  const [dailyNotice, setDailyNotice] = useState<DailyNowNotice | null>(null)
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (noticeTimer.current !== null) clearTimeout(noticeTimer.current) }, [])
+  const showDailyNotice = (plan: DailyNowNotice): void => {
+    if (noticeTimer.current !== null) clearTimeout(noticeTimer.current)
+    setDailyNotice(plan)
+    noticeTimer.current = setTimeout(() => { setDailyNotice(null) }, DAILY_NOTICE_MS)
+  }
+  const goToDailyCard = (messageId: string | undefined): void => {
+    // O pedido de foco espera o cartão chegar pelo fio (a tela do canal pode nem estar montada ainda).
+    if (messageId !== undefined) requestMessageFocus(messageId)
+    onNavigate?.('channels')
+  }
+  const runDailyAction = (action: DailyNowAction): void => {
+    setDailyNotice(null)
+    if (action.kind === 'see') goToDailyCard(action.messageId)
+    else if (action.kind === 'team') onNavigate?.('team')
+    else if (action.kind === 'retry') void askDailyBrief()
+    else void onResumeDailyBrief?.()
+  }
+  const askDailyBrief = async (): Promise<void> => {
+    if (onAskDailyBrief === undefined || asking) return
+    setAsking(true)
+    setDailyNotice(null)
+    try {
+      const plan = planDailyNow(await onAskDailyBrief(), { canResume: onResumeDailyBrief !== undefined })
+      if (plan.kind === 'go') goToDailyCard(plan.messageId)
+      else showDailyNotice(plan)
+    } catch {
+      showDailyNotice(DAILY_NOW_FAILED)
+    } finally {
+      setAsking(false)
+    }
+  }
   const paw = usePawCelebration()
   const showMilestone = firstDelivery !== undefined && dismissedTaskId !== firstDelivery.taskId && !firstDeliverySeen(firstDelivery.taskId)
   const dismissMilestone = (): void => {
@@ -131,6 +198,12 @@ export function OverviewView({
     ? t('overview.greeting', { name: firstName })
     : t('overview.greetingFallback')
 
+  const newTaskButton = (
+    <Button variant="primary" size="l" icon={<UiIcon name="plus" size={20} strokeWidth={2.2} />} onClick={() => { onNavigate?.('channels') }}>
+      {t('overview.newTask')}
+    </Button>
+  )
+
   return (
     <div className={styles.view} data-persona-root="" ref={motion.ref} style={motion.style}>
       <header className={styles.header}>
@@ -144,10 +217,39 @@ export function OverviewView({
           </h1>
           <p className={styles.subtitle}>{t('overview.subtitle')}</p>
         </div>
-        <Button variant="primary" size="l" icon={<UiIcon name="plus" size={20} strokeWidth={2.2} />} onClick={() => { onNavigate?.('channels') }}>
-          {t('overview.newTask')}
-        </Button>
+        <HeaderDoodles />
+        {onAskDailyBrief === undefined ? newTaskButton : (
+          // "Resumir o dia" (secundário, pequeno) perto do "Nova tarefa". Sem o handler o cabeçalho segue como sempre: o botão é filho direto.
+          <div className={styles.headerActions}>
+            <Button
+              variant="secondary"
+              size="s"
+              icon={<BrandIcon name="bom-dia" size={16} />}
+              disabled={asking}
+              aria-busy={asking}
+              data-daily-ask=""
+              onClick={() => { void askDailyBrief() }}
+            >
+              {asking ? t('daily.asking') : t('daily.askNow')}
+            </Button>
+            {newTaskButton}
+          </div>
+        )}
       </header>
+
+      {dailyNotice !== null && (
+        <ToastRegion label={t('daily.noticesLabel')}>
+          <Toast
+            tone={dailyNotice.tone}
+            title={t(dailyNotice.textKey)}
+            action={dailyNotice.action === undefined ? undefined : (
+              <Button size="s" variant="ghost" onClick={() => { runDailyAction(dailyNotice.action!) }}>{t(dailyNotice.action.labelKey)}</Button>
+            )}
+            dismissLabel={t('daily.dismiss')}
+            onDismiss={() => { setDailyNotice(null) }}
+          />
+        </ToastRegion>
+      )}
 
       <div className={styles.pawContainer}>{paw.node}</div>
       <DecisionFeedback decisions={decisions} t={t} onUndo={onUndoDecision} />
@@ -197,6 +299,7 @@ export function OverviewView({
             title={<span id="persona-attention-title" ref={attentionTitleRef} tabIndex={-1}>{t('overview.attentionTitle')}</span>}
             className={styles.attentionCard}
           >
+            <CardSprig />
             {hasDecisions ? (
               blockingDecisions.length > 0 ? (
                 <>
@@ -230,7 +333,7 @@ export function OverviewView({
                             </Button>
                           )}
                           {decision.state === 'accepted' && (
-                            <ApprovedStamp label={t('decision.live.accepted', { title: decision.title })} animate />
+                            <ApprovedStamp label={t('decision.live.accepted', { title: decision.title })} animate seed={decision.id} />
                           )}
                           {(decision.state === 'declined' || decision.state === 'failed') && (
                             <DecisionStateNote
@@ -239,7 +342,12 @@ export function OverviewView({
                               {...(onDecide === undefined ? {} : { onRetry: () => { onDecide(decision.id, true) } })}
                             />
                           )}
-                          {decision.state === 'pending' && (
+                          {decision.state === 'pending' && onReply !== undefined && replyTargets?.get(decision.id) !== undefined && (
+                            <Button size="s" variant="primary" aria-describedby={titleId} onClick={() => { onReply(replyTargets.get(decision.id)!) }}>
+                              {t('decision.reply')}
+                            </Button>
+                          )}
+                          {decision.state === 'pending' && !(onReply !== undefined && replyTargets?.get(decision.id) !== undefined) && (
                             decision.risk === 'low' ? (
                               <Button size="s" variant="primary" aria-describedby={titleId} onClick={() => { onDecide?.(decision.id, true) }}>
                                 {t('decision.approve')}
@@ -299,7 +407,16 @@ export function OverviewView({
             )}
           </Card>
 
-          <AwayWhileOutPanel t={t} events={awayEvents} onOpenTask={onOpenAwayTask} />
+          <AwayWhileOutPanel
+            t={t}
+            events={awayEvents}
+            away={away}
+            onOpenTask={onOpenAwayTask}
+            onOpenApproval={onNavigate === undefined ? undefined : (approvalId) => { onNavigate('approvals', { focus: approvalId }) }}
+            onDismiss={onDismissAway}
+            onScreenAttention={shownDecisions.map(decision => ({ id: decision.id, title: decision.title }))}
+            onOpenAttention={() => { attentionTitleRef.current?.focus() }}
+          />
 
           {showFirstTask && (
             <Card

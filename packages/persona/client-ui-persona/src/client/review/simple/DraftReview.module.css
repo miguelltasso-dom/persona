@@ -24,6 +24,19 @@
   min-width: 0;
 }
 
+/* No name known: the draft's own icon where the animal's face would be (never initials like "OR"). */
+.heroIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-accent-tint);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
 [data-persona-root] .eyebrow {
   margin: 0 0 var(--persona-space-1);
   font: 800 12px/16px var(--persona-font-text);
@@ -235,7 +248,9 @@
   border: var(--persona-border-width) solid var(--persona-outline);
   border-radius: var(--persona-radius-l);
   background: var(--persona-card);
-  box-shadow: var(--persona-shadow-sticker);
+  /* The second layer is an opaque skirt (the sheet's own surface) under the bar: the 4 px strip the scroller keeps below it for the sticker shadow
+     must not show the text scrolling past. Without a sheet around it the variable is unset and the skirt is invisible. */
+  box-shadow: var(--persona-shadow-sticker), 0 4px 0 0 var(--review-bar-skirt, transparent);
 }
 
 .barText {
@@ -298,6 +313,64 @@
   font-size: 16px;
   line-height: 24px;
   color: var(--persona-ink-soft);
+}
+
+/* The pictures that were just applied: small, in a row, and only an <img> each (Atlas 07/11). They go away on a short window so the title and both buttons keep fitting at 200 %. */
+.donePictures {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--persona-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.donePicture {
+  margin: 0;
+}
+
+.donePictureImg {
+  display: block;
+  width: 112px;
+  height: 84px;
+  object-fit: contain;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+}
+
+/* "Voltar ao quadro" is the way out: when the moment is taller than its scroller (text zoom, a very short window) it stays in view. */
+.done .actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--persona-active-surface);
+}
+
+/* Short windows (a 640 × 360 window at 200 % zoom): the art at its small size, so the title and both buttons fit without scrolling (Muse 07/11). */
+@media (max-height: 36rem) {
+  .done {
+    gap: var(--persona-space-2);
+    padding: var(--persona-space-1) var(--persona-space-4);
+  }
+
+  .doneArt {
+    width: 88px;
+  }
+
+  .donePictures {
+    display: none;
+  }
+
+  [data-persona-root] .doneTitle {
+    font-size: 22px;
+    line-height: 28px;
+  }
+
+  .doneBody {
+    font-size: 15px;
+    line-height: 22px;
+  }
 }
 
 /* Narrow review (a 960 px window, 200 % zoom): one column, the list above the preview. */

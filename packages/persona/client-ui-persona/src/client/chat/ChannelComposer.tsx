@@ -7,6 +7,11 @@ import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { ComposerLimitsPanel } from './ComposerLimitsPanel.tsx'
 import { ENGINE_LIMITS_UNAVAILABLE, type EngineLimitsUi } from '../remote/engine-limits.ts'
 import { ComposerSlashMenu } from './ComposerSlashMenu.tsx'
+import { FanoutChip } from './fanout/FanoutChip.tsx'
+import { fanoutText, needsFanoutConfirm, type FanoutChoice, type FanoutEstimateUi } from './fanout/fanout-rules.ts'
+import { ResponderMenu, optionId } from './ResponderMenu.tsx'
+import { activeMentionToken, buildResponderItems, insertMention, moveResponderActive, type ResponderItem } from './responder-menu.ts'
+import { isPlacesNavEnabled } from '../shell/nav-flag.ts'
 import { LimitBanner } from './LimitBanner.tsx'
 import { ComposerToolButton } from './ComposerToolButton.tsx'
 import {
@@ -42,10 +47,24 @@ import type { SubjectColorIndex } from './conversation-subjects.ts'
 import { SubjectDot } from './SubjectBar.tsx'
 import styles from './ChannelComposer.module.css'
 
+/** CV-8: o que sai junto com a mensagem; `fanout` só existe quando a pessoa escolheu "Toda a equipe" ou "Quem tiver algo a dizer" para ESTA mensagem. */
+export interface ComposerSendOptions {
+  readonly fanout?: FanoutChoice
+  /** TEAM-8c: esta mensagem é a opinião da PESSOA sobre um pedido de opinião da equipe (`requestId`). */
+  readonly opinionFor?: string
+}
+
+/** FL-11 / IV-5: há uma resposta (ou Tarefa) que a pessoa pode parar; o botão de enviar vira "Parar" enquanto o campo está vazio. */
+export interface ComposerStop {
+  readonly onStop: () => void
+  /** Quem está respondendo (vai no nome acessível: "Parar a resposta de {persona}"). */
+  readonly personaName: string
+}
+
 export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
   /** Channel roster; coordination persona is the default responder when present. */
   readonly members?: readonly ChannelPersonaMember[]
-  readonly onSend?: ((body: string, attachmentIds?: readonly string[]) => void) | undefined
+  readonly onSend?: ((body: string, attachmentIds?: readonly string[], options?: ComposerSendOptions) => void) | undefined
   /** Host `attachFile` (Anvil); omit when attachments gate is off. */
   readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
   /** Overrides the #geral placeholder (DMs: "Mensagem para Nina…"). */
@@ -59,7 +78,7 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
   readonly responderAutonomy?: AutonomyLevel | undefined
   /** O que cada comando "/" faz (P0-27). Sem handler o comando não aparece no menu; `/limites` é sempre do composer. */
   readonly slashActions?: ComposerSlashActions | undefined
-  /** IV-4: limites REAIS do motor para o `/limites`; sem fonte, "—" e "Cota oficial indisponível" (nunca número de exemplo). */
+  /** IV-4: limites REAIS do motor para o `/limites`; sem fonte, "—" e "Este motor não informa a cota." (nunca número de exemplo). */
   readonly engineLimits?: EngineLimitsUi | undefined
   /** Chamado quando o `/limites` abre: quem monta a tela lê as cotas agora. */
   readonly onOpenLimits?: (() => void) | undefined
@@ -83,6 +102,34 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
     responder: { readonly id: string; readonly name: string },
     options?: { readonly heldForQuota?: boolean; readonly attachments?: readonly { readonly id: string; readonly name: string }[] },
   ) => void) | undefined
+  /** FL-11 / IV-5 (atrás de `persona.flag.workingControl`): "Direcionar agora" chama o host; sem isto, direcionar é enviar (comportamento anterior). */
+  readonly onSteer?: ((text: string, responder: { readonly id: string; readonly name: string }) => void) | undefined
+  /** FL-11 / IV-5: o Parar. Sem isto, o botão de enviar é sempre o de enviar. */
+  readonly stop?: ComposerStop | undefined
+  /**
+   * Alguém está DE FATO respondendo a esta conversa (resposta crescendo ou "está escrevendo…"). Com o controle de trabalho ligado, só isto liga a dica "Enter na fila…",
+   * o relógio de modo e o Enviar em modo fila (Muse 03:26: persona trabalhando numa Tarefa não é resposta). Ausente = o estado `working` da persona (como antes).
+   */
+  readonly responding?: boolean | undefined
+  /** DM: o único "responder" é a persona da conversa; a lógica de fila/direcionar/parar vale, mas o seletor "Quem responde" e o `@nome` não existem. */
+  readonly responderHidden?: boolean | undefined
+  /** TEAM-8c (atrás de `persona.flag.teamwork`): a pessoa está dando a opinião dela sobre um pedido da equipe; mostra o chip "Opinando sobre: {pergunta} · ✕". */
+  readonly opinionContext?: { readonly requestId: string; readonly question: string } | undefined
+  readonly onClearOpinionContext?: (() => void) | undefined
+  /**
+   * IV-10 (Ember): "Responder" a uma pergunta da persona. O chip (`label` já composto por quem chama, ex. "Respondendo a Nina: …") aparece acima da caixa; ✕ chama
+   * `onClear` SEM apagar o texto. Com `onSendReply`, o Enviar chama a resposta (answerAttention) em vez do postMessage / fila / direcionar / fan-out.
+   */
+  readonly replyTarget?: { readonly id: string; readonly label: string; readonly onClear: () => void } | undefined
+  readonly onSendReply?: ((text: string, attachmentIds: readonly string[]) => Promise<void>) | undefined
+  /** CV-8: o canal oferece "Toda a equipe ({n})" e "Quem tiver algo a dizer" (`Config.fanout` ligada e 2+ personas). Sem isto, só a equipe. */
+  readonly fanoutChoices?: { readonly teamCount: number } | undefined
+  /** CV-8: avisa quando a escolha do fan-out muda (e `undefined` depois de enviar); quem calcula a estimativa é o chamador. */
+  readonly onFanoutChoiceChange?: ((choice: FanoutChoice | undefined) => void) | undefined
+  /** CV-8: os números MEDIDOS do host para o chip "Toda a equipe · n respostas · ≈ c chamadas". */
+  readonly fanoutEstimate?: FanoutEstimateUi | undefined
+  /** CV-3: "Ctrl+Enter abre a conversa com {nome}" no popover; sem isto, o atalho não existe. */
+  readonly onOpenPersonaDm?: ((personaId: string) => void) | undefined
   /** P0-19: "Ver uso e limites" da faixa "No limite até {hora}". */
   readonly onSeeUsage?: (() => void) | undefined
   /** P0-19: outro motor conectado → "Usar {motor} enquanto isso" na faixa do limite (sem handler, o botão não existe). */
@@ -126,6 +173,18 @@ export function ChannelComposer({
   onOpenPersonaCard,
   suppressHint = false,
   onQueueMessage,
+  onSteer,
+  stop,
+  responding,
+  responderHidden = false,
+  opinionContext,
+  onClearOpinionContext,
+  replyTarget,
+  onSendReply,
+  fanoutChoices,
+  onFanoutChoiceChange,
+  fanoutEstimate,
+  onOpenPersonaDm,
   onSeeUsage,
   otherEngine,
   editingQueuedText,
@@ -154,6 +213,22 @@ export function ChannelComposer({
   }, [])
   const [slashIndex, setSlashIndex] = useState(0)
   const [sendMode, setSendMode] = useState<'queue' | 'steer'>('queue')
+  // CV-3 / CV-8: o "Quem responde" com a equipe inteira (popover) e o `@nome`. Só no modo CV-3 (flag navPlaces ou o canal oferece o fan-out);
+  // fora dele o seletor é o `<select>` de sempre. A escolha vale SÓ para a próxima mensagem.
+  const [placesNav] = useState(isPlacesNavEnabled)
+  const menuMode = (placesNav || fanoutChoices !== undefined) && !responderHidden
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuQuery, setMenuQuery] = useState('')
+  const [menuActive, setMenuActive] = useState(0)
+  const [fanoutChoice, setFanoutChoice] = useState<FanoutChoice | undefined>(undefined)
+  const [confirming, setConfirming] = useState(false)
+  const [caret, setCaret] = useState(0)
+  const [mentionActive, setMentionActive] = useState(0)
+  const [mentionDismissed, setMentionDismissed] = useState<number | null>(null)
+  const menuInputRef = useRef<HTMLInputElement>(null)
+  const pendingCaret = useRef<number | null>(null)
+  const menuListId = useId()
+  const mentionListId = useId()
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -166,12 +241,60 @@ export function ChannelComposer({
   // P0-19 (ACCOUNT-SWAP-SPEC §3): o composer NUNCA desabilita no limite; a mensagem entra na fila e sai quando a cota voltar.
   const canSend = composerCanSend(draft, pending)
   const comingSoon = t('composer.comingSoon')
-  const responderWorking = responder?.state === 'working'
+  const responderWorking = responding ?? responder?.state === 'working'
+  const defaultId = defaultChannelResponderId(members)
+  const teamFaces = members.map(member => ({ id: member.id, name: member.name }))
+  const menuItems = menuMode && menuOpen
+    ? buildResponderItems({ members, defaultId, query: menuQuery, fanoutTeamCount: fanoutChoices?.teamCount })
+    : []
+  const mention = menuMode && !menuOpen ? activeMentionToken(draft, caret) : null
+  const mentionItems: readonly ResponderItem[] = mention === null || mention.start === mentionDismissed
+    ? []
+    : buildResponderItems({ members, defaultId, query: mention.query }).map(item => (item.kind === 'default' ? { kind: 'persona' as const, member: item.member } : item))
+  const mentionIndex = Math.min(mentionActive, Math.max(mentionItems.length - 1, 0))
+  const responderLabel = fanoutChoice === 'everyone'
+    ? fanoutText(t, 'composer.fanout.everyone', 'Toda a equipe ({count})', { count: fanoutChoices?.teamCount ?? members.length })
+    : fanoutChoice === 'relevant'
+      ? fanoutText(t, 'composer.fanout.relevant', 'Quem tiver algo a dizer')
+      : (responder?.name ?? '')
+  // O Parar só toma o lugar do Enviar com o campo vazio: quem já escreveu algo ainda pode enfileirar ou direcionar.
+  const showStop = stop !== undefined && draft.trim().length === 0 && pending.length === 0
   const slashToken = activeSlashToken(draft, fieldRef.current?.selectionStart ?? draft.length)
   const slashItems = slashToken === null ? [] : filterSlashCommands(slashToken.query, availableSlashIds(slashActions))
   const showSlashMenu = slashItems.length > 0 && slashToken !== null
 
   useEffect(() => { setSlashIndex(0) }, [draft, slashToken?.query])
+  // TEAM-8c: "Dar minha opinião" leva o foco ao campo.
+  const opinionRequestId = opinionContext?.requestId
+  useEffect(() => { if (opinionRequestId !== undefined) fieldRef.current?.focus() }, [opinionRequestId])
+
+  // CV-3: o popover abre com o foco na busca; clicar fora fecha SEM roubar o foco de onde a pessoa clicou.
+  useEffect(() => { if (menuOpen) menuInputRef.current?.focus() }, [menuOpen])
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const onDown = (event: MouseEvent): void => {
+      const box = responderBoxRef.current
+      if (box !== null && event.target instanceof Node && !box.contains(event.target)) {
+        setMenuOpen(false)
+        setMenuQuery('')
+        setMenuActive(0)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => { document.removeEventListener('mousedown', onDown) }
+  }, [menuOpen])
+  // CV-3: depois de escolher no `@nome`, o cursor fica logo depois do nome inserido.
+  useLayoutEffect(() => {
+    if (pendingCaret.current === null) return
+    const position = pendingCaret.current
+    pendingCaret.current = null
+    const node = fieldRef.current
+    if (node !== null) {
+      node.focus()
+      node.setSelectionRange(position, position)
+    }
+    setCaret(position)
+  }, [draft])
 
   useLayoutEffect(() => {
     const node = fieldRef.current
@@ -296,25 +419,110 @@ export function ChannelComposer({
     return `${quote}${base}`.trim()
   }
 
-  const send = (modeOverride?: 'queue' | 'steer'): void => {
+  const chooseFanout = (choice: FanoutChoice | undefined): void => {
+    setFanoutChoice(choice)
+    setConfirming(false)
+    onFanoutChoiceChange?.(choice)
+  }
+  const closeMenu = (refocus = true): void => {
+    setMenuOpen(false)
+    setMenuQuery('')
+    setMenuActive(0)
+    if (refocus) fieldRef.current?.focus()
+  }
+  const openMenu = (): void => {
+    dismissWhoRespondsHint()
+    setMenuQuery('')
+    setMenuActive(0)
+    setMenuOpen(true)
+  }
+  const pickResponder = (item: ResponderItem): void => {
+    if (item.kind === 'fanout') chooseFanout(item.choice)
+    else {
+      setResponderId(item.member.id)
+      chooseFanout(undefined)
+    }
+    closeMenu()
+  }
+  const pickMention = (item: ResponderItem): void => {
+    if (mention === null || item.kind === 'fanout') return
+    const next = insertMention(draft, mention, caret, item.member.name)
+    pendingCaret.current = next.caret
+    setDraft(next.text)
+    setMentionActive(0)
+  }
+  const onMenuKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMenu()
+      return
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      setMenuActive(index => moveResponderActive(index, event.key === 'ArrowDown' ? 1 : -1, menuItems.length))
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const item = menuItems[Math.min(menuActive, menuItems.length - 1)]
+      if (item === undefined) return
+      if ((event.ctrlKey || event.metaKey) && item.kind !== 'fanout' && onOpenPersonaDm !== undefined) {
+        onOpenPersonaDm(item.member.id)
+        closeMenu(false)
+        return
+      }
+      pickResponder(item)
+    }
+  }
+
+  const send = (modeOverride?: 'queue' | 'steer', fanoutOverride?: FanoutChoice): void => {
     if (!canSend && modeOverride === undefined) return
     const text = buildOutbound()
     if (text.length === 0 && readyAttachmentIds(pending).length === 0) return
     const ids = readyAttachmentIds(pending)
+    // CV-8: `Toda a equipe` para MAIS de 5 pede uma confirmação inline no chip antes de enviar (o custo que mais surpreende).
+    const fanout = fanoutOverride ?? (menuMode ? fanoutChoice : undefined)
+    if (fanoutOverride === undefined && !confirming && needsFanoutConfirm(fanout, fanoutChoices?.teamCount ?? 0)) {
+      setConfirming(true)
+      return
+    }
     pushSentHistory(conversationKey, text)
+    // IV-10: a resposta a uma pergunta da persona vai para quem a recebe (answerAttention), não para o fio como mensagem nova. Rejeitou = o texto volta ao campo.
+    if (replyTarget !== undefined && onSendReply !== undefined) {
+      void Promise.resolve(onSendReply(text, ids)).catch(() => { setDraft(current => (current === '' ? text : current)) })
+      setDraft('')
+      setPending([])
+      setPastedTexts({})
+      setOpenPastedKey(null)
+      setHistoryIndex(null)
+      setShowLimits(false)
+      onClearQuote?.()
+      replyTarget.onClear()
+      fieldRef.current?.focus()
+      return
+    }
     // Na fila: com a persona trabalhando OU com a cota esgotada (nesse caso a mensagem espera a cota voltar, com os anexos
     // desta sessão). Com a persona trabalhando e anexos o envio segue normal (a fila do passo atual só guarda texto).
     const mode = quotaBlocked ? 'queue' : (modeOverride ?? 'queue')
+    // CV-3: outra persona escolhida = a mensagem sai com o `@Nome ` (o host roteia por menção); a mensagem fica no canal.
+    const handle = menuMode && fanout === undefined && responder !== undefined && responder.id !== defaultId ? `@${responder.name.replace(/\s+/gu, '')}` : ''
+    const routed = handle !== '' && !text.includes(handle) ? `${handle} ${text}` : text
     const shouldQueue = mode === 'queue' && (responderWorking || quotaBlocked) && responder !== undefined
       && onQueueMessage !== undefined && (ids.length === 0 || quotaBlocked)
-    if (shouldQueue) {
+    if (fanout !== undefined) {
+      onSend?.(text, ids, { fanout })
+    } else if (shouldQueue) {
       const attachments = pending.flatMap(row => (row.status === 'ready' ? [{ id: row.id, name: row.name }] : []))
       onQueueMessage(
         text,
         { id: responder.id, name: responder.name },
         quotaBlocked ? { heldForQuota: true, ...(attachments.length > 0 ? { attachments } : {}) } : undefined,
       )
-    } else onSend?.(text, ids)
+    } else if (mode === 'steer' && responderWorking && onSteer !== undefined && responder !== undefined && ids.length === 0) {
+      onSteer(text, { id: responder.id, name: responder.name })
+    } else if (opinionContext !== undefined) {
+      onSend?.(routed, ids, { opinionFor: opinionContext.requestId })
+    } else onSend?.(routed, ids)
     setDraft('')
     setPending([])
     setPastedTexts({})
@@ -322,6 +530,13 @@ export function ChannelComposer({
     setHistoryIndex(null)
     setShowLimits(false)
     onClearQuote?.()
+    // CV-3: escolher outra persona vale SÓ para a próxima mensagem: depois de enviar o chip volta à Coordenação.
+    setConfirming(false)
+    if (opinionContext !== undefined) onClearOpinionContext?.()
+    if (menuMode) {
+      setResponderId(defaultId)
+      chooseFanout(undefined)
+    }
     fieldRef.current?.focus()
   }
 
@@ -378,10 +593,12 @@ export function ChannelComposer({
   return (
     <form
       data-persona-area="composer"
+      data-lit=""
       className={styles.composer}
       aria-label={t('composer.placeholder')}
       onSubmit={(event) => {
         event.preventDefault()
+        if (showStop) return
         if (responderWorking && sendMode === 'steer') send('steer')
         else send('queue')
       }}
@@ -402,6 +619,28 @@ export function ChannelComposer({
           </Chip>
           {onClearQuote !== undefined && (
             <button type="button" className={styles.attachRemove} aria-label={t('composer.quoteClear')} onClick={onClearQuote}>
+              <UiIcon name="close" size={14} strokeWidth={2.4} />
+            </button>
+          )}
+        </div>
+      )}
+      {replyTarget !== undefined && (
+        <div className={styles.quoteChip} data-persona-reply-target={replyTarget.id}>
+          <Chip size="s" tone="plain" icon={<UiIcon name="copy" size={12} strokeWidth={2.2} />}>
+            {replyTarget.label}
+          </Chip>
+          <button type="button" className={styles.attachRemove} aria-label={t('composer.steer.cancelEdit')} onClick={replyTarget.onClear}>
+            <UiIcon name="close" size={14} strokeWidth={2.4} />
+          </button>
+        </div>
+      )}
+      {opinionContext !== undefined && (
+        <div className={styles.quoteChip} data-persona-opinion-context="">
+          <Chip size="s" tone="plain" icon={<UiIcon name="copy" size={12} strokeWidth={2.2} />}>
+            {t('opinion.quoting', { question: opinionContext.question.slice(0, 60) })}
+          </Chip>
+          {onClearOpinionContext !== undefined && (
+            <button type="button" className={styles.attachRemove} aria-label={t('composer.steer.cancelEdit')} onClick={onClearOpinionContext}>
               <UiIcon name="close" size={14} strokeWidth={2.4} />
             </button>
           )}
@@ -475,6 +714,17 @@ export function ChannelComposer({
           <pre className={styles.pastedPreview}>{pastedTexts[openPastedKey]}</pre>
         </Modal>
       )}
+      {menuMode && fanoutChoices !== undefined && (
+        <FanoutChip
+          t={t}
+          choice={fanoutChoice}
+          teamCount={fanoutChoices.teamCount}
+          estimate={fanoutEstimate}
+          confirming={confirming}
+          onConfirm={() => { send('queue', 'everyone') }}
+          onRelevantOnly={() => { send('queue', 'relevant') }}
+        />
+      )}
       <label htmlFor={fieldId} className="persona-sr-only">{placeholder ?? t('composer.placeholderChannel')}</label>
       {showSlashMenu && (
         <ComposerSlashMenu
@@ -483,6 +733,20 @@ export function ChannelComposer({
           activeIndex={slashIndex}
           onPick={(command) => { applySlash(command) }}
         />
+      )}
+      {mentionItems.length > 0 && (
+        <div className={styles.mentionMenu} data-persona-mention-menu="">
+          <ResponderMenu
+            t={t}
+            listId={mentionListId}
+            items={mentionItems}
+            activeIndex={mentionIndex}
+            selectedId={responder?.id ?? ''}
+            teamFaces={teamFaces}
+            onActivate={setMentionActive}
+            onPick={pickMention}
+          />
+        </div>
       )}
       <div className={styles.fieldRow}>
         {activeSubjectColorIndex !== undefined && (
@@ -502,8 +766,12 @@ export function ChannelComposer({
           aria-describedby={hintId}
           onChange={(event) => {
             setDraft(event.target.value)
+            setCaret(event.target.selectionStart)
+            setMentionActive(0)
+            setMentionDismissed(null)
             if (historyIndex !== null) setHistoryIndex(null)
           }}
+          onSelect={(event) => { setCaret(event.currentTarget.selectionStart) }}
           onPaste={(event) => {
             const text = event.clipboardData.getData('text/plain')
             if (text.length < COMPOSER_LARGE_PASTE_BYTES || uploadAttachment === undefined) return
@@ -511,6 +779,25 @@ export function ChannelComposer({
             queueFile(new File([text], t('composer.pasteFileName'), { type: 'text/plain' }), text)
           }}
           onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+            // CV-3: com o `@nome` aberto, ↑↓ movem, Enter/Tab escolhem e Esc fecha (o texto fica como está).
+            if (mentionItems.length > 0 && !event.nativeEvent.isComposing) {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault()
+                setMentionActive(moveResponderActive(mentionIndex, event.key === 'ArrowDown' ? 1 : -1, mentionItems.length))
+                return
+              }
+              if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault()
+                const pick = mentionItems[mentionIndex]
+                if (pick !== undefined) pickMention(pick)
+                return
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                setMentionDismissed(mention?.start ?? null)
+                return
+              }
+            }
             if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
               event.preventDefault()
               // Com o campo vazio o mesmo atalho devolve o rascunho guardado; com texto, guarda e esvazia.
@@ -558,6 +845,12 @@ export function ChannelComposer({
                 setHistoryIndex(nextIndex)
                 setDraft(history[nextIndex] ?? '')
               }
+              return
+            }
+            // Esc no campo vazio também para a resposta (o mesmo que o botão Parar).
+            if (event.key === 'Escape' && showStop && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              stop.onStop()
               return
             }
             if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
@@ -610,29 +903,84 @@ export function ChannelComposer({
                 icon={<UiIcon name="at" size={20} />}
               />
             </div>
-            {responder !== undefined && (
+            {responder !== undefined && !responderHidden && (
               <div className={styles.responderGroup} data-persona-composer-responder="">
                 <span className={styles.divider} aria-hidden="true" />
                 <div ref={responderBoxRef} className={styles.responderContainer}>
                   <label className={styles.responder}>
                     <span className={styles.responderLabel}>{t('composer.respondsLabel')}</span>
                     <Avatar name={responder.name} src={AVATAR_96[responder.id]} size={24} decorative />
-                    <span className={styles.responderName} aria-hidden="true">{responder.name}</span>
+                    <span className={styles.responderName} aria-hidden="true">{responderLabel}</span>
                     <UiIcon name="chevronDown" size={14} strokeWidth={2.4} />
-                    <select
-                      className={styles.responderSelect}
-                      aria-label={t('composer.modelLabel')}
-                      value={responder.id}
-                      onChange={(event) => {
-                        dismissWhoRespondsHint()
-                        setResponderId(event.target.value)
-                      }}
-                    >
-                      {members.map(member => (
-                        <option key={member.id} value={member.id}>{member.name + ' — ' + member.role}</option>
-                      ))}
-                    </select>
+                    {menuMode ? (
+                      <button
+                        type="button"
+                        className={styles.responderSelect}
+                        aria-label={t('composer.modelLabel')}
+                        aria-haspopup="listbox"
+                        aria-expanded={menuOpen}
+                        {...(menuOpen ? { 'aria-controls': menuListId } : {})}
+                        onClick={() => { if (menuOpen) closeMenu(false); else openMenu() }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'ArrowDown' && !menuOpen) {
+                            event.preventDefault()
+                            openMenu()
+                          }
+                        }}
+                      />
+                    ) : (
+                      <select
+                        className={styles.responderSelect}
+                        aria-label={t('composer.modelLabel')}
+                        value={responder.id}
+                        onChange={(event) => {
+                          dismissWhoRespondsHint()
+                          setResponderId(event.target.value)
+                        }}
+                      >
+                        {members.map(member => (
+                          <option key={member.id} value={member.id}>{member.name + ' — ' + member.role}</option>
+                        ))}
+                      </select>
+                    )}
                   </label>
+                  {menuMode && menuOpen && (
+                    <div className={styles.responderPopover} role="dialog" aria-label={t('composer.modelLabel')} data-persona-responder-popover="">
+                      <input
+                        ref={menuInputRef}
+                        className={styles.responderSearch}
+                        type="search"
+                        role="combobox"
+                        aria-label={t('composer.modelLabel')}
+                        placeholder={t('dm.searchPlaceholder')}
+                        aria-expanded="true"
+                        aria-controls={menuListId}
+                        {...(menuItems.length > 0 ? { 'aria-activedescendant': optionId(menuListId, Math.min(menuActive, menuItems.length - 1)) } : {})}
+                        value={menuQuery}
+                        onChange={(event) => {
+                          setMenuQuery(event.target.value)
+                          setMenuActive(0)
+                        }}
+                        onKeyDown={onMenuKeyDown}
+                      />
+                      <ResponderMenu
+                        t={t}
+                        listId={menuListId}
+                        items={menuItems}
+                        activeIndex={Math.min(menuActive, menuItems.length - 1)}
+                        selectedId={responder.id}
+                        selectedFanout={fanoutChoice}
+                        teamFaces={teamFaces}
+                        onActivate={setMenuActive}
+                        onPick={pickResponder}
+                      />
+                      {onOpenPersonaDm !== undefined && menuItems[Math.min(menuActive, menuItems.length - 1)]?.kind !== 'fanout' && menuItems.length > 0 && (
+                        <p className={styles.responderFooter}>
+                          {t('responder.footer', { name: (menuItems[Math.min(menuActive, menuItems.length - 1)] as Exclude<ResponderItem, { kind: 'fanout' }>).member.name })}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {showWhoRespondsHint && (
                     <div ref={whoRespondsBalloonRef} className={styles.whoRespondsBalloon} role="dialog" aria-label={t('composer.whoRespondsHintTitle')} style={{ '--who-responds-arrow-left': `${String(hintArrowLeft)}px`, '--who-responds-shift': `${String(hintShift)}px` } as CSSProperties}>
                       <span className={styles.whoRespondsArrow} aria-hidden="true" />
@@ -693,29 +1041,51 @@ export function ChannelComposer({
             </div>
           )}
           {responderWorking && (
-            <button
-              type="button"
-              className={styles.attachRemove}
-              aria-label={sendMode === 'queue' ? t('composer.modeSteer') : t('composer.modeQueue')}
-              onClick={() => { setSendMode(mode => mode === 'queue' ? 'steer' : 'queue') }}
-            >
-              <UiIcon name={sendMode === 'queue' ? 'clock' : 'arrowRight'} size={18} strokeWidth={2.2} />
-            </button>
+            // O relógio nunca fica solto: o tooltip diz o que ele faz (a dica de texto some a ≤ 1180 px).
+            <Tooltip content={sendMode === 'queue' ? t('composer.modeSteer') : t('composer.modeQueue')}>
+              <button
+                type="button"
+                className={styles.attachRemove}
+                data-persona-composer-mode=""
+                aria-label={sendMode === 'queue' ? t('composer.modeSteer') : t('composer.modeQueue')}
+                onClick={() => { setSendMode(mode => mode === 'queue' ? 'steer' : 'queue') }}
+              >
+                <UiIcon name={sendMode === 'queue' ? 'clock' : 'arrowRight'} size={18} strokeWidth={2.2} />
+              </button>
+            </Tooltip>
           )}
           {responderAutonomy !== 'propose' && (
             <Chip size="s" tone="plain" className={styles.autonomyChip}>
               {t(`composer.autonomy.${responderAutonomy}`)}
             </Chip>
           )}
-          <button
-            type="submit"
-            className={styles.send}
-            data-mode={(responderWorking && sendMode === 'queue') || quotaBlocked ? 'queue' : undefined}
-            disabled={!canSend}
-            aria-label={(responderWorking && sendMode === 'queue') || quotaBlocked ? t('composer.sendQueue') : t('composer.send')}
-          >
-            <UiIcon name={(responderWorking && sendMode === 'queue') || quotaBlocked ? 'clock' : 'send'} size={20} strokeWidth={2} />
-          </button>
+          {showStop ? (
+            <Tooltip content={t('composer.stop')} shortcut={['Esc']}>
+              <Button
+                variant="secondary"
+                className={styles.stop}
+                data-persona-composer-stop=""
+                aria-label={t('composer.stopLabel', { name: stop.personaName })}
+                icon={<UiIcon name="close" size={20} strokeWidth={2.2} />}
+                onClick={() => {
+                  stop.onStop()
+                  fieldRef.current?.focus()
+                }}
+              >
+                {t('composer.stop')}
+              </Button>
+            </Tooltip>
+          ) : (
+            <button
+              type="submit"
+              className={styles.send}
+              data-mode={(responderWorking && sendMode === 'queue') || quotaBlocked ? 'queue' : undefined}
+              disabled={!canSend}
+              aria-label={(responderWorking && sendMode === 'queue') || quotaBlocked ? t('composer.sendQueue') : t('composer.send')}
+            >
+              <UiIcon name={(responderWorking && sendMode === 'queue') || quotaBlocked ? 'clock' : 'send'} size={20} strokeWidth={2} />
+            </button>
+          )}
         </div>
       </div>
     </form>

@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TeachDraftView, TeachStepView } from '@deepseek-ai/dsh-persona-host/types'
-import { personaPortraitSrc } from '../approvals/approvals-ui-helpers.ts'
+import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import { unwrapRemote } from '../data/remote-call.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
@@ -19,6 +19,8 @@ import { TeachDone } from '../teach/TeachDone.tsx'
 import { TeachEmpty, TeachFailed, TeachLayer, TeachReview, TeachStudying } from '../teach/TeachReview.tsx'
 import type { TeachLive, TeachRemote } from '../teach/teach-deps.ts'
 import { clearTeachHandoff, restoreTeachOpener, takeTeachHandoff, type TeachHandoff } from '../teach/teach-handoff.ts'
+import { mainBoxStyle, useMainBox } from '../teach/use-main-box.ts'
+import { suggestSkillName } from '../teach/teach-model.ts'
 import { TEACH_MAX_SECONDS, type TeachStopPayload } from '../teach/teach-recorder.ts'
 import styles from '../teach/TeachFlow.module.css'
 import { teachIllustrationSrc } from './teach-art-key.ts'
@@ -59,7 +61,7 @@ export function TeachPersonaSession({
   const team = live.observable.getSnapshot().team
   const who = team?.personas.find(row => row.id === personaId)
   const name = who?.name ?? personaId
-  const portrait = who === undefined ? undefined : personaPortraitSrc(who.avatarRef, who.name)
+  const portrait = who === undefined ? undefined : resolvePersonaFace({ id: who.id, characterId: who.avatarRef, name: who.name })
   const art = teachIllustrationSrc(personaId === '' ? null : personaId, team)
   const t = useMemo(() => (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params), [dict])
 
@@ -135,6 +137,34 @@ export function TeachPersonaSession({
     void handoff.current?.recorder.pause().catch(() => undefined)
   }, [t])
 
+  const pauseRecording = useCallback((): void => {
+    setPaused(true)
+    void handoff.current?.recorder.pause().catch(() => undefined)
+    void live.pauseTeachSession(sessionId)
+  }, [live, sessionId])
+
+  const resumeRecording = useCallback((): void => {
+    setPaused(false)
+    void handoff.current?.recorder.resume().catch(() => undefined)
+    void live.resumeTeachSession(sessionId)
+  }, [live, sessionId])
+
+  // The desktop's always-on-top pill (the Persona may be minimized while recording) asks for the SAME things the buttons do.
+  // It is heard only while recording; the window is never assumed to be visible.
+  const pausedNow = useRef(false)
+  pausedNow.current = paused
+  const pillHandlers = useRef({ pauseRecording, resumeRecording, stopRecording })
+  pillHandlers.current = { pauseRecording, resumeRecording, stopRecording }
+  useEffect(() => {
+    if (phase !== 'recording') return undefined
+    const off = handoff.current?.recorder.onPillAction?.((action) => {
+      if (action === 'pause' && !pausedNow.current) pillHandlers.current.pauseRecording()
+      else if (action === 'resume' && pausedNow.current) pillHandlers.current.resumeRecording()
+      else if (action === 'stop') pillHandlers.current.stopRecording()
+    })
+    return () => { off?.() }
+  }, [phase])
+
   useEffect(() => {
     if (phase === 'recording' && elapsedSec >= TEACH_MAX_SECONDS) stopRecording()
   }, [phase, elapsedSec, stopRecording])
@@ -181,13 +211,15 @@ export function TeachPersonaSession({
     return { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
   }
 
-  const saveCandidate = async (steps: readonly TeachStepView[]): Promise<void> => {
-    const view = await live.submitTeachDraft(sessionId, steps, false)
+  const saveCandidate = async (steps: readonly TeachStepView[], title: string): Promise<void> => {
+    const view = await live.submitTeachDraft(sessionId, steps, false, title)
     if (view.candidateSkillId === undefined) throw new Error('not-found')
-    setSaved({ skillId: view.candidateSkillId, skillTitle: view.skillTitle })
+    // The name is the person's own; the host's default ("Skill ensinada") never reaches the screens that follow.
+    setSaved({ skillId: view.candidateSkillId, skillTitle: title })
     setPhase('done')
   }
 
+  const mainBox = useMainBox()
   if (capture === null || sessionId === '') return null
 
   const layerLabel = t('teach.region')
@@ -195,7 +227,7 @@ export function TeachPersonaSession({
   if (phase === 'countdown' || phase === 'recording') {
     const pillState: RecordingState = phase === 'countdown' ? 'countdown' : paused ? 'paused' : 'recording'
     return (
-      <div className={styles.recordingRoot} data-persona-root="" data-persona-teach="recording">
+      <div className={styles.recordingRoot} style={mainBoxStyle(mainBox)} data-persona-root="" data-persona-teach="recording">
         <RecordingFrame paused={paused} />
         <div className={styles.pillDock}>
           <RecordingPill
@@ -216,16 +248,8 @@ export function TeachPersonaSession({
               micOff: t('teach.microphoneOff'),
               region: t('teach.recordingRegion'),
             }}
-            onPause={() => {
-              setPaused(true)
-              void handoff.current?.recorder.pause().catch(() => undefined)
-              void live.pauseTeachSession(sessionId)
-            }}
-            onResume={() => {
-              setPaused(false)
-              void handoff.current?.recorder.resume().catch(() => undefined)
-              void live.resumeTeachSession(sessionId)
-            }}
+            onPause={pauseRecording}
+            onResume={resumeRecording}
             onStop={stopRecording}
           />
         </div>
@@ -236,7 +260,7 @@ export function TeachPersonaSession({
 
   if (phase === 'startFailed') {
     return (
-      <TeachLayer key="startFailed" label={layerLabel} onEscape={discardRecording}>
+      <TeachLayer key="startFailed" label={layerLabel} onEscape={discardRecording} back={{ label: t('teach.backToChat', { name }), onBack: discardRecording }}>
         <TeachFailed
           t={t}
           art={art}
@@ -296,7 +320,7 @@ export function TeachPersonaSession({
 
   if (phase === 'failed') {
     return (
-      <TeachLayer key="failed" label={layerLabel} onEscape={discardRecording}>
+      <TeachLayer key="failed" label={layerLabel} onEscape={discardRecording} back={{ label: t('teach.backToChat', { name }), onBack: discardRecording }}>
         <TeachFailed t={t} art={art} onRetry={() => { void finalize() }} onClose={discardRecording} />
       </TeachLayer>
     )
@@ -304,7 +328,7 @@ export function TeachPersonaSession({
 
   if (phase === 'empty' && !writeOwn) {
     return (
-      <TeachLayer key="empty" label={layerLabel} onEscape={discardRecording}>
+      <TeachLayer key="empty" label={layerLabel} onEscape={discardRecording} back={{ label: t('teach.backToChat', { name }), onBack: discardRecording }}>
         <TeachEmpty
           t={t}
           art={art}
@@ -319,7 +343,7 @@ export function TeachPersonaSession({
     const skillRequest = (): { readonly workspaceId: string; readonly projectId: string; readonly skillId: string } =>
       ({ ...scope(), skillId: saved.skillId })
     return (
-      <TeachLayer key="done" label={layerLabel} onEscape={close}>
+      <TeachLayer key="done" label={layerLabel} onEscape={close} back={{ label: t('teach.backToChat', { name }), onBack: close }}>
         <TeachDone
           t={t}
           personaName={name}
@@ -338,12 +362,12 @@ export function TeachPersonaSession({
 
   // review (or "write the steps yourself" after an empty draft)
   return (
-    <TeachLayer key="review" label={layerLabel} onEscape={() => { setConfirmDiscard(true) }}>
+    <TeachLayer key="review" label={layerLabel} onEscape={() => { setConfirmDiscard(true) }} back={{ label: t('teach.backToChat', { name }), onBack: () => { setConfirmDiscard(true) } }}>
       <TeachReview
         t={t}
         personaName={name}
         portraitSrc={portrait}
-        skillTitle={draft?.skillTitle ?? ''}
+        suggestedTitle={suggestSkillName(payload.current?.transcript ?? typed, draft?.steps ?? [], draft?.skillTitle ?? '')}
         draftSteps={draft?.steps ?? []}
         onSave={saveCandidate}
         onDiscard={() => { setConfirmDiscard(true) }}

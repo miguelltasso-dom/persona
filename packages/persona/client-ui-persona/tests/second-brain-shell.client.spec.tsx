@@ -112,4 +112,54 @@ describe('SecondBrainShell (Gauge SB-7 app findings)', () => {
     await screen.findByRole('heading', { level: 1, name: 'Como atendemos' })
     expect(persona.putBrainPage).toHaveBeenCalledWith(expect.objectContaining({ title: 'Como atendemos', kind: 'process', editorId: 'owner' }))
   })
+
+  it('SB-4: the ⋯ menu — on the web both items are disabled and say why; in the installed app Exportar picks a folder and says what it wrote', async () => {
+    const exportBrainVault = vi.fn(async () => ({ ok: true as const, value: { files: 7, created: 7, skipped: 0, direction: 'export' as const, leftover: [] } }))
+    const selectMainPanel = vi.fn()
+    const persona = fakePersona({ exportBrainVault })
+    const render2 = () => render(
+      <PreviewFrame brandLabel="Persona">
+        <SecondBrainShell
+          persona={persona}
+          scope={{ workspaceId: 'ws', projectId: 'proj' }}
+          actorId="owner"
+          home={HOME}
+          pages={[RULE, CLIENT]}
+          grants={[]}
+          personaNames={{ nina: 'Nina' }}
+          memberNames={{ owner: 'Você' }}
+          surfaceState="ready"
+          selectMainPanel={selectMainPanel}
+        />
+      </PreviewFrame>,
+    )
+    // web: no folder picker
+    render2()
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações' }))
+    expect((screen.getByRole('menuitem', { name: 'Exportar para uma pasta' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('menuitem', { name: 'Importar de uma pasta' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText('Só funciona no app instalado.')).toBeTruthy()
+    // Esc closes it
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    cleanup()
+
+    // installed app: the native picker exists
+    const pickDirectory = vi.fn(async () => 'C:\\Users\\bia\\Documentos\\cofre')
+    Object.defineProperty(window, 'personaDesktop', { configurable: true, value: { pickDirectory } })
+    try {
+      render2()
+      fireEvent.click(screen.getByRole('button', { name: 'Mais ações' }))
+      expect(screen.queryByText('Só funciona no app instalado.')).toBeNull()
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Exportar para uma pasta' }))
+      await waitFor(() => { expect(exportBrainVault).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj', folderPath: 'C:\\Users\\bia\\Documentos\\cofre' }) })
+      expect(await screen.findByText('Exportado: 7 páginas em cofre')).toBeTruthy()
+      // Importar never writes: it goes to the review (Importadores)
+      fireEvent.click(screen.getByRole('button', { name: 'Mais ações' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Importar de uma pasta' }))
+      expect(selectMainPanel).toHaveBeenCalledWith('importers')
+    } finally {
+      Reflect.deleteProperty(window, 'personaDesktop')
+    }
+  }, 20_000)
 })

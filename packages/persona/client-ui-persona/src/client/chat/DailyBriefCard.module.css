@@ -1,0 +1,242 @@
+/* D-090 / TEAM-7: o cartão "Bom dia" do #geral. Largura cheia da coluna, altura máxima de 320 px (o resto em "Ver tudo"), cabe a 200%. */
+.row {
+  margin: var(--persona-space-4) 0;
+  list-style: none;
+}
+
+.card {
+  min-width: 0;
+}
+
+.eyebrowRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.headerActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+}
+
+/* BR-P6 (Muse): o ícone "bom-dia" ao lado do texto do eyebrow (nunca sozinho). */
+.eyebrowIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--persona-ink-soft);
+}
+
+/* BR-P6: o spot do Bom dia, à direita do título; só a partir de 960 px (o spot nunca divide a linha com o texto em janelas estreitas). */
+.spot {
+  display: none;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  margin-right: var(--persona-space-2);
+  object-fit: contain;
+}
+
+@media (min-width: 960px) {
+  .spot {
+    display: block;
+  }
+}
+
+/* "Resumir o dia" → o cartão novo pisca 1× quando a tela chega a ele (`message-focus`): um anel que abre e some, sem tirar a sombra do cartão. */
+@keyframes dailyFocus {
+  from {
+    outline: 0 solid var(--persona-accent);
+    outline-offset: 0;
+  }
+
+  35% {
+    outline: 4px solid var(--persona-accent);
+    outline-offset: 3px;
+  }
+
+  to {
+    outline: 0 solid transparent;
+    outline-offset: 6px;
+  }
+}
+
+.row[data-focus-pulse] .card {
+  animation: dailyFocus 1200ms var(--ease-standard) 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Sem movimento: o destaque fica parado (o anel) e some junto com o atributo. */
+  .row[data-focus-pulse] .card {
+    animation: none;
+    outline: 3px solid var(--persona-accent);
+    outline-offset: 3px;
+  }
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+  min-width: 0;
+}
+
+.body[hidden] {
+  display: none;
+}
+
+/* Passou de 320 px: corta e deixa o resto para "Ver tudo" (um degradê no pé avisa que há mais). */
+.body[data-clamped] {
+  max-height: 320px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+
+.section {
+  min-width: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--persona-space-2);
+  font: 800 12px/16px var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-width: 0;
+}
+
+.lineText {
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.lineLink {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink);
+  font: 600 14px/20px var(--persona-font-text);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.lineLink:hover,
+.lineLink:focus-visible {
+  text-decoration-color: var(--persona-accent);
+}
+
+.more {
+  margin: var(--persona-space-2) 0 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--persona-space-2) var(--persona-space-3);
+  margin: 0;
+  font: 700 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.moreLink {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 13px/20px var(--persona-font-text);
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.moreLink:hover,
+.moreLink:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--persona-space-2);
+}
+
+/* A trilha de patinhas entre "Ontem" e "Hoje" (Muse 22:12): 8 px de altura, ink-soft a 40%, só decoração (aria-hidden), nunca atrás de texto. */
+.pawTrail {
+  display: block;
+  align-self: center;
+  width: 120px;
+  height: 8px;
+  background: color-mix(in srgb, var(--persona-ink-soft) 40%, transparent);
+  -webkit-mask: var(--paw-trail-url) center / contain no-repeat;
+  mask: var(--paw-trail-url) center / contain no-repeat;
+  pointer-events: none;
+}
+
+@media (max-width: 800px) {
+  .pawTrail {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .pawTrail {
+    display: none;
+  }
+}
+
+/* Ontem: um PEDIDO terminado em UM item ("[rostos 16] Campanha de Natal ficou pronta · Texto, Arte e Posts"); as partes em ink-soft. */
+.faces {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.face16 {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.facesMore {
+  margin-left: 2px;
+  font: 700 11px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.requestText {
+  color: var(--persona-ink);
+}
+
+.requestParts {
+  color: var(--persona-ink-soft);
+  font-weight: 500;
+}

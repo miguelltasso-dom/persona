@@ -1,17 +1,22 @@
 /* Abas do lugar: ficam acima da tela, no mesmo respiro lateral das telas. Rolam na horizontal se a janela for estreita. */
-.bar {
+/*
+ * `div.bar`, not `.bar`: PersonaAppFrame.module.css gives every child of the center column `flex: 1 1 auto; min-height: 0` (`.center > *`, same
+ * specificity as a lone class, so the stylesheet loaded last won). The bar then SHRANK on any page taller than the window (Saúde: 31px for a 42px
+ * track at 1440x900) and cut the tabs. The element in the selector wins by specificity, whatever the load order.
+ */
+div.bar {
   flex: 0 0 auto;
   padding: var(--persona-space-4) var(--persona-space-6) 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.bar::-webkit-scrollbar {
+div.bar::-webkit-scrollbar {
   display: none;
 }
 
 @media (max-width: 720px) {
-  .bar {
+  div.bar {
     padding-inline: var(--persona-space-4);
   }
 }

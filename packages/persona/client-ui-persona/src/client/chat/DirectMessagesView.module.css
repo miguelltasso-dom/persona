@@ -406,3 +406,90 @@
   border-color: var(--persona-brand);
   background: var(--persona-wash-strong);
 }
+
+/*
+ * Luz da luminária (NIGHT-THEME-SPEC §5; só no escuro, atrás de `persona.flag.lampLight` + balões). A luz cai SÓ numa camada de fundo
+ * `aria-hidden`; os balões, os cartões e o composer mantêm o fundo sólido (o contraste do texto não muda). Perto da luz (`--lit`, 0–1,
+ * calculado por layout), uma borda quente nos lados que olham para ela e uma sombra jogada para longe. Respiro de 14 s só sem
+ * reduced-motion; forced-colors e o tema claro ficam sem nada.
+ */
+.lampLayer {
+  display: none;
+}
+
+@media (forced-colors: none) {
+  :global(body[data-ds-dark-theme='true']) .threadPane[data-lamp] .lampLayer {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(1150px 780px at -110px 93%, rgb(242 186 110 / 0.3), rgb(242 186 110 / 0.13) 34%, rgb(242 186 110 / 0.04) 58%, transparent 74%),
+      radial-gradient(115% 105% at 10% 92%, transparent 42%, rgb(8 4 12 / 0.55));
+    animation: lampBreathe 14s ease-in-out infinite alternate;
+  }
+
+  /* o conteúdo fica acima da camada de luz */
+  :global(body[data-ds-dark-theme='true']) .threadPane[data-lamp] > :not(.lampLayer) {
+    position: relative;
+    z-index: 1;
+  }
+
+  :global(body[data-ds-dark-theme='true']) .threadPane[data-lamp] [data-lit] {
+    border-left-color: color-mix(in srgb, #f2c27a calc(var(--lit, 0) * 80%), var(--persona-outline-soft));
+    border-bottom-color: color-mix(in srgb, #f2c27a calc(var(--lit, 0) * 80%), var(--persona-outline-soft));
+    box-shadow: calc(2px + var(--lit, 0) * 5px) calc(-1px - var(--lit, 0) * 4px) calc(10px + var(--lit, 0) * 10px) rgb(6 3 10 / calc(0.28 + var(--lit, 0) * 0.3));
+  }
+}
+
+@keyframes lampBreathe {
+  from {
+    opacity: 0.9;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(body[data-ds-dark-theme='true']) .threadPane[data-lamp] .lampLayer {
+    animation: none;
+  }
+}
+
+/* WCAG 1.4.10 (reflow, 200% = 640×360 css): a 272–320 px de lista deixava ~38 px para o painel da direita e o texto era cortado
+   (Muse, varredura do H2 #3). Em largura estreita a lista fica em cima, rolando, e o vazio/a conversa embaixo; nada some. */
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 40%) minmax(0, 1fr);
+  }
+
+  .listPane {
+    border-right: 0;
+    border-bottom: var(--persona-border-width) solid var(--persona-outline-soft);
+  }
+}
+
+/* Brilho âmbar mínimo no escuro (NIGHT-THEME-SPEC §3; só com `persona.flag.houseDecor`): o `--persona-night-active-glow` a 50%, numa camada à parte. */
+:global(body[data-house-decor][data-ds-dark-theme='true']) .unread {
+  position: relative;
+}
+
+:global(body[data-house-decor][data-ds-dark-theme='true']) .unread::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--persona-night-active-glow);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  :global(body[data-house-decor][data-ds-dark-theme='true']) .unread::after {
+    display: none;
+  }
+}

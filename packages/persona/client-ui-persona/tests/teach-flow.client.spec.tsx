@@ -13,7 +13,7 @@ import { TeachDone } from '../src/client/teach/TeachDone.tsx'
 import type { TeachLive, TeachLiveSnapshot, TeachRemote } from '../src/client/teach/teach-deps.ts'
 import { TeachLayer, TeachReview } from '../src/client/teach/TeachReview.tsx'
 import { clearTeachHandoff, forgetTeachOpener, rememberTeachOpener, setTeachHandoff, takeTeachHandoff } from '../src/client/teach/teach-handoff.ts'
-import type { TeachRecorder } from '../src/client/teach/teach-recorder.ts'
+import type { TeachPillAction, TeachRecorder } from '../src/client/teach/teach-recorder.ts'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 
@@ -57,14 +57,29 @@ const DRAFT: TeachDraftView = {
 
 // ── Review ──────────────────────────────────────────────────────────────────────────────────────
 describe('TeachReview', () => {
-  function renderReview(onSave: (steps: readonly TeachStepView[]) => Promise<void>, draftSteps: readonly TeachStepView[] = DRAFT.steps) {
+  function renderReview(onSave: (steps: readonly TeachStepView[], title: string) => Promise<void>, draftSteps: readonly TeachStepView[] = DRAFT.steps, suggestedTitle = 'Aprovar entregas') {
     const onDiscard = vi.fn()
-    render(<TeachReview t={t} personaName="Nina" skillTitle="Aprovar entregas" draftSteps={draftSteps} onSave={onSave} onDiscard={onDiscard} />)
+    render(<TeachReview t={t} personaName="Nina" suggestedTitle={suggestedTitle} draftSteps={draftSteps} onSave={onSave} onDiscard={onDiscard} />)
     return { onDiscard }
   }
 
+  it('Muse: o nome da skill é obrigatório (motivo à vista), vem sugerido e sai junto no salvar', async () => {
+    const onSave = vi.fn<(steps: readonly TeachStepView[], title: string) => Promise<void>>(async () => {})
+    renderReview(onSave, DRAFT.steps, 'Conferir pedido e avisar o cliente')
+    const nameField = screen.getByLabelText(t('teach.review.nameLabel')) as HTMLInputElement
+    expect(nameField.value).toBe('Conferir pedido e avisar o cliente')
+    // sem nome: não salva, e a tela diz por quê
+    fireEvent.change(nameField, { target: { value: '   ' } })
+    expect(screen.getByRole('button', { name: t('teach.review.save') })).toHaveProperty('disabled', true)
+    expect(screen.getByText(t('teach.review.needName'))).toBeTruthy()
+    fireEvent.change(nameField, { target: { value: '  Aprovar entregas  ' } })
+    fireEvent.click(screen.getByRole('button', { name: t('teach.review.save') }))
+    await waitFor(() => { expect(onSave).toHaveBeenCalledTimes(1) })
+    expect(onSave.mock.calls[0]?.[1]).toBe('Aprovar entregas')
+  })
+
   it('edits, reorders, removes and adds, then saves renumbered steps as a candidate', async () => {
-    const onSave = vi.fn<(steps: readonly TeachStepView[]) => Promise<void>>(async () => {})
+    const onSave = vi.fn<(steps: readonly TeachStepView[], title: string) => Promise<void>>(async () => {})
     renderReview(onSave)
     expect(screen.getByRole('heading', { name: t('teach.review.title', { name: 'Nina' }) })).toBeTruthy()
     const boxes = screen.getAllByLabelText(t('teach.step.instruction')) as HTMLTextAreaElement[]
@@ -307,8 +322,73 @@ async function tick(ms: number): Promise<void> {
   }
 }
 
+describe('TeachDone — o nome padrão do host não vira frase', () => {
+  const props = (skillTitle: string) => ({ t, personaName: 'Atlas', skillTitle, art: '', onActivate: vi.fn(async () => {}), onRevert: vi.fn(async () => {}), onShare: vi.fn(async () => {}), onClose: vi.fn() })
+  it('"Skill ensinada" (o padrão do host) vira "Atlas aprendeu uma skill nova"; um nome de verdade entra na frase', () => {
+    render(<TeachDone {...props('Skill ensinada')} />)
+    expect(screen.getByText('Atlas aprendeu uma skill nova')).toBeTruthy()
+    expect(document.body.textContent).not.toContain('aprendeu Skill ensinada')
+    cleanup()
+    render(<TeachDone {...props('Aprovar entregas')} />)
+    expect(screen.getByText('Atlas aprendeu “Aprovar entregas”')).toBeTruthy()
+  })
+})
+
 describe('TeachPersonaSession (the whole flow, recorder is a fake)', () => {
   beforeEach(() => { vi.useFakeTimers() })
+
+  it('Muse: a revisão tem o caminho de volta "Voltar para a conversa com {persona}" (pede confirmação antes de perder o rascunho)', async () => {
+    const recorder = fakeRecorder()
+    mountSession(recorder)
+    await tick(3000)
+    await tick(2000)
+    fireEvent.click(screen.getByRole('button', { name: t('teach.stop') }))
+    fireEvent.click(screen.getByRole('button', { name: t('teach.studyAction') }))
+    await tick(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar para a conversa com Nina' }))
+    expect(screen.getByRole('dialog', { name: t('teach.discardConfirm.title') })).toBeTruthy()
+  })
+
+  it('a pílula do desktop faz EXATAMENTE o que os botões da tela: pausar, retomar e parar (só ouve gravando; desligar ao sair)', async () => {
+    let send: ((action: TeachPillAction) => void) | undefined
+    const off = vi.fn()
+    const recorder = fakeRecorder({ onPillAction: (listener) => { send = listener; return off } })
+    const { live } = mountSession(recorder)
+    // countdown: the pill is not heard yet
+    expect(send).toBeUndefined()
+    await tick(3000)
+    expect(send).toBeDefined()
+
+    await act(async () => { send?.('pause') })
+    expect(recorder.calls).toContain('pause')
+    expect(live.pauseTeachSession).toHaveBeenCalledWith('teach-1')
+    expect(screen.getByRole('button', { name: t('teach.resume') })).toBeTruthy()
+    // pausing twice does nothing more
+    await act(async () => { send?.('pause') })
+    expect(live.pauseTeachSession).toHaveBeenCalledTimes(1)
+
+    await act(async () => { send?.('resume') })
+    expect(live.resumeTeachSession).toHaveBeenCalledWith('teach-1')
+    expect(screen.getByRole('button', { name: t('teach.pause') })).toBeTruthy()
+    await act(async () => { send?.('resume') })
+    expect(live.resumeTeachSession).toHaveBeenCalledTimes(1)
+
+    // stop = the screen's "Parar": the recorder pauses and the person is asked for their own words; no teach.stop yet
+    await act(async () => { send?.('stop') })
+    expect(screen.getByRole('dialog', { name: t('teach.narrateTitle') })).toBeTruthy()
+    expect(recorder.calls.some(call => call.startsWith('stop:'))).toBe(false)
+    expect(live.stopTeachSession).not.toHaveBeenCalled()
+    // it stops listening once the recording is over
+    expect(off).toHaveBeenCalled()
+  })
+
+  it('sem pílula (navegador ou gravador de exemplo): tudo segue pelos botões da tela', async () => {
+    const recorder = fakeRecorder()
+    mountSession(recorder)
+    await tick(3000)
+    fireEvent.click(screen.getByRole('button', { name: t('teach.stop') }))
+    expect(screen.getByRole('dialog', { name: t('teach.narrateTitle') })).toBeTruthy()
+  })
 
   it('countdown → recording → narrate → studying → review → candidate → on → back to candidate', async () => {
     const recorder = fakeRecorder()
@@ -341,19 +421,25 @@ describe('TeachPersonaSession (the whole flow, recorder is a fake)', () => {
 
     // review with the host's draft; save as candidate
     expect(screen.getByRole('heading', { name: t('teach.review.title', { name: 'Nina' }) })).toBeTruthy()
+    // a name the host really gave starts the field; the person can change it (the placeholder case starts from the narration)
+    const nameField = screen.getByLabelText(t('teach.review.nameLabel')) as HTMLInputElement
+    expect(nameField.value).toBe('Aprovar entregas')
+    fireEvent.change(nameField, { target: { value: 'Aprovar entregas do dia' } })
     fireEvent.click(screen.getByRole('button', { name: t('teach.review.save') }))
     await tick(0)
     expect(live.submitTeachDraft).toHaveBeenCalledWith('teach-1', [
       { order: 1, instruction: 'Abrir o pedido novo' },
       { order: 2, instruction: 'Conferir os dados', verifyHint: 'Nome e valor batem' },
-    ], false)
-    expect(screen.getByText(t('teach.done.title', { name: 'Nina', skill: 'Aprovar entregas' }))).toBeTruthy()
+    ], false, 'Aprovar entregas do dia')
+    expect(screen.getByText(t('teach.done.title', { name: 'Nina', skill: 'Aprovar entregas do dia' }))).toBeTruthy()
     expect(persona.activateTaughtSkill).not.toHaveBeenCalled() // nothing turns on by itself
 
     fireEvent.click(screen.getByRole('button', { name: t('teach.done.activate', { name: 'Nina' }) }))
     await tick(0)
     expect(persona.activateTaughtSkill).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'pp', skillId: 'taught-teach-1' })
-    fireEvent.click(screen.getByRole('button', { name: t('teach.done.revert') }))
+    // "Desativar" says what it does underneath
+    expect(screen.getByText(t('teach.done.revertHint', { name: 'Nina' }))).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Desativar' }))
     await tick(0)
     expect(persona.rollbackTaughtSkill).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'pp', skillId: 'taught-teach-1' })
 

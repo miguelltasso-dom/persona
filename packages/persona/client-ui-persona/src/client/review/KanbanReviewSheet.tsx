@@ -9,6 +9,7 @@ import { reviewBlockedFromAccept, reviewConflictsFromAccept, reviewSummaryFromHo
 import { unwrapRemote } from '../data/remote-call.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { ReviewDeliveryPanel } from './ReviewDeliveryPanel.tsx'
+import type { ReviewedBySealReviewer } from '../teamwork/ReviewedBySeal.tsx'
 import { REVIEW_DEV_SUMMARY, REVIEW_DEV_TICKET_ID, reviewDevAccept, reviewDevSampleEnabled } from './review-dev-sample.ts'
 import type { ApplyPhase, ConflictChoice } from './simple/draft-types.ts'
 import styles from './KanbanReviewSheet.module.css'
@@ -28,6 +29,8 @@ export interface KanbanReviewSheetProps {
   readonly onApplied?: ((info: { readonly ticketId: string; readonly restorePointId?: string | undefined }) => void) | undefined
   /** "Desfazer" on the success moment: puts the earlier versions back (needs the restore point the host gave). */
   readonly onUndoApplied?: ((restorePointId: string) => void) | undefined
+  /** TEAM-8: o selo "Revisado por {R}" no cabeçalho do Revisar mudanças quando um colega aprovou sem pontos em aberto. */
+  readonly reviewedBy?: ReviewedBySealReviewer | undefined
 }
 
 export function KanbanReviewSheet({
@@ -41,6 +44,7 @@ export function KanbanReviewSheet({
   onAccepted,
   onApplied,
   onUndoApplied,
+  reviewedBy,
 }: KanbanReviewSheetProps): ReactNode {
   const loadKey = `${scope.workspaceId}:${scope.projectId}:review:${ticketId}`
   const review = personaReviewRemote(persona)
@@ -175,26 +179,29 @@ export function KanbanReviewSheet({
             ×
           </button>
         </header>
-        <ReviewDeliveryPanel
-          taskTitle=""
-          personaName={personaName}
-          summary={summary}
-          blocked={blocked}
-          phase={phase}
-          example={sample}
-          personaAvatarSrc={personaPortraitSrc(undefined, personaName ?? '')}
-          onUndoApplied={restorePoint === undefined || onUndoApplied === undefined ? undefined : () => { onUndoApplied(restorePoint); onClose() }}
-          onLeave={onClose}
-          initialState={
-            state.status === 'loading' ? 'loading'
-              : state.status === 'error' ? 'empty'
-                : summary === null ? 'empty' : 'ready'
-          }
-          onAccept={(choices) => { void accept(choices) }}
-          onRetry={() => { void accept() }}
-          onRequestChanges={(feedback) => { void requestChanges(feedback) }}
-          onDiscard={() => { void discard() }}
-        />
+        <div className={styles.sheetBody} data-testid="review-sheet-body">
+          <ReviewDeliveryPanel
+            taskTitle=""
+            personaName={personaName}
+            summary={summary}
+            blocked={blocked}
+            phase={phase}
+            example={sample}
+            personaAvatarSrc={personaPortraitSrc(undefined, personaName ?? '')}
+            onUndoApplied={restorePoint === undefined || onUndoApplied === undefined ? undefined : () => { onUndoApplied(restorePoint); onClose() }}
+            onLeave={onClose}
+            initialState={
+              state.status === 'loading' ? 'loading'
+                : state.status === 'error' ? 'empty'
+                  : summary === null ? 'empty' : 'ready'
+            }
+            onAccept={(choices) => { void accept(choices) }}
+            onRetry={() => { void accept() }}
+            onRequestChanges={(feedback) => { void requestChanges(feedback) }}
+            onDiscard={() => { void discard() }}
+            {...(reviewedBy === undefined ? {} : { reviewedBy })}
+          />
+        </div>
       </div>
     </div>
   )

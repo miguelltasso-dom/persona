@@ -32,6 +32,12 @@ import { ConnectedGeneralChannelView } from '../remote/ConnectedGeneralChannelVi
 import { ConnectedApprovalsPanel } from '../remote/ConnectedApprovalsPanel.tsx'
 import { ConnectedOverviewView } from '../remote/ConnectedOverviewView.tsx'
 import { AboutSettingsPanel } from './AboutSettingsPanel.tsx'
+import { AppearanceSettingsPanel } from './AppearanceSettingsPanel.tsx'
+import { ConnectedPersonasTeamPanel } from '../remote/ConnectedPersonasTeamPanel.tsx'
+import { isPlacesNavEnabled } from './nav-flag.ts'
+import { createThemeBridge, type ThemeBridge } from '../theme/theme-preference.ts'
+import { PersonalitySettingsPanel } from '../figurinhas/PersonalitySettingsPanel.tsx'
+import { ConnectedPersonasSettings } from '../settings-personas/ConnectedPersonasSettings.tsx'
 import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge.ts'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
 import { HIRE_PERSONA_PROFILE_ID, type MainPanelId, type ShellStoreHandle } from './create-shell-store.ts'
@@ -52,7 +58,7 @@ import { SEARCH_FOCUS_EVENT } from './nav-groups.ts'
 function liveInject(live: PersonaLiveStore): {
   liveStore: PersonaLiveStore
   hooks: { live: PersonaLiveStore['observable'] }
-  postChannelMessage(body: string, attachmentIds?: readonly string[]): void
+  postChannelMessage(body: string, attachmentIds?: readonly string[], options?: { readonly fanout?: 'everyone' | 'relevant'; readonly opinionFor?: string }): void
   uploadChannelAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   loadTurnContext(ticketId: string): void
   toggleMessageReaction(streamKind: 'channel' | 'dm', eventId: string, stickerId: string): void
@@ -60,7 +66,7 @@ function liveInject(live: PersonaLiveStore): {
   return {
     liveStore: live,
     hooks: { live: live.observable },
-    postChannelMessage: (body, attachmentIds) => { void live.postChannelMessage(body, attachmentIds) },
+    postChannelMessage: (body, attachmentIds, options) => { void live.postChannelMessage(body, attachmentIds, options) },
     uploadChannelAttachment: file => live.uploadChannelAttachment(file),
     loadTurnContext: (ticketId: string) => { void live.loadTurnContext(ticketId) },
     toggleMessageReaction: (streamKind, eventId, stickerId) => {
@@ -120,6 +126,15 @@ export function registerPrismScreens(
     },
     onOpenHelp: () => { shellHandle.actions.openHelp({ docId: 'canais', tab: 'guias' }) },
     onOpenApprovals: () => { shellHandle.actions.selectPanel('approvals') },
+    // D-090 (TEAM-7): o cartão "Bom dia" leva a Quadros ("e mais n") e a Rotinas ("Pausar o resumo da manhã").
+    onOpenBoard: () => { shellHandle.actions.selectPanel('kanban') },
+    onOpenRoutines: () => { shellHandle.actions.selectPanel('routines') },
+    onOpenApprovalItem: (approvalId: string) => { shellHandle.actions.openApproval(approvalId) },
+    // CV-4: clicar no rosto da persona (faixa da equipe) abre a DM com ela.
+    onOpenPersonaDm: (personaId: string) => {
+      shellHandle.actions.selectPanel('directMessages')
+      void live.openPersonaDm(personaId)
+    },
     onOpenSearch: () => {
       shellHandle.actions.selectPanel('search')
       window.dispatchEvent(new Event(SEARCH_FOCUS_EVENT))
@@ -143,15 +158,34 @@ export function registerPrismScreens(
     locale: SHELL_NS,
     inject: () => ({
       hooks: { live: live.observable },
-      navigate: (panel: 'channels' | 'kanban' | 'approvals', query?: { focus?: string }) => {
+      navigate: (panel: 'channels' | 'kanban' | 'approvals' | 'team', query?: { focus?: string }) => {
         if (panel === 'approvals' && query?.focus) {
           shellHandle.actions.openApproval(query.focus)
+        } else if (panel === 'team') {
+          shellHandle.actions.selectPanel('team')
         } else {
           selectPanel?.(panel)
         }
       },
+      // "Resumir o dia": o cartão do dia AGORA, sem requestId (idempotente: o do ritual ou de um pedido anterior volta como `already`, sem duplicar).
+      ...(live.postDailyBriefNow === undefined ? {} : {
+        askDailyBrief: async () => {
+          const view = await live.postDailyBriefNow!()
+          return { outcome: view.outcome, ...(view.messageId === undefined || view.messageId === '' ? {} : { messageId: view.messageId }) }
+        },
+      }),
       openAwayTask: (taskId: string) => { shellHandle.actions.openKanbanTicket(taskId) },
       decideDecision: (decisionId: string, accept: boolean) => { void live.decide?.(decisionId, accept) },
+      // IV-10 "Responder": the conversation where the question was asked (the channel, or that DM).
+      openConversation: (streamKind: 'channel' | 'dm', ownerId: string) => {
+        if (streamKind === 'dm') {
+          shellHandle.actions.selectPanel('directMessages')
+          void live.selectDm(ownerId)
+        } else {
+          shellHandle.actions.selectPanel('channels')
+        }
+      },
+      ...(live.dismissWhileAway === undefined ? {} : { dismissAway: () => { void live.dismissWhileAway!() } }),
       ...(live.undoDecision === undefined ? {} : { undoDecision: (decisionId: string) => { void live.undoDecision!(decisionId) } }),
     }),
   }, ConnectedOverviewView)
@@ -163,7 +197,30 @@ export function registerPrismScreens(
     inject: channelInject,
   }, ConnectedGeneralChannelView)
 
-  ctx.slots.register({ name: 'main', key: 'team', locale: MEMBERS_NS, inject: remoteInject }, RemoteMembersPanel)
+  // Equipe › Personas (NAV-SPEC; Keel 03:33): com a navegação por lugares (o padrão) a aba é a LISTA de personas; "Membros e convites" fica só em
+  // Configurações › Membros (a chave `members`). Com a navegação antiga (flag desligada) o item "Equipe" continua abrindo Membros, como sempre.
+  if (isPlacesNavEnabled()) {
+    ctx.slots.register({
+      name: 'main',
+      key: 'team',
+      locale: SHELL_NS,
+      inject: () => ({
+        hooks: { live: live.observable },
+        persona: ctx.remote.persona,
+        openPersonaProfile: (personaId: string) => {
+          shellHandle.actions.closePersonaEditor()
+          shellHandle.actions.setProfilePersonaId(personaId)
+          shellHandle.actions.selectPanel('profile')
+        },
+        hirePersona: () => {
+          shellHandle.actions.setProfilePersonaId(HIRE_PERSONA_PROFILE_ID)
+          shellHandle.actions.selectPanel('profile')
+        },
+      }),
+    }, ConnectedPersonasTeamPanel)
+  } else {
+    ctx.slots.register({ name: 'main', key: 'team', locale: MEMBERS_NS, inject: remoteInject }, RemoteMembersPanel)
+  }
 
   // Muse (UX-06): Ctrl K / Busca finds every screen and persona even when rail groups are folded.
   const searchT = (key: string, params?: Record<string, string>): string => ctx.locale.bind(SHELL_NS)(key as never, params as never)
@@ -285,12 +342,22 @@ export function registerPrismScreens(
     inject: () => ({
       persona: ctx.remote.persona,
       hooks: { tenant: tenantObservable, shell: shellObservable, live: live.observable },
-      decideDecision: (decisionId: string, accept: boolean) => live.decide?.(decisionId, accept) ?? Promise.resolve(undefined),
+      decideDecision: (decisionId: string, accept: boolean, choice?: 'once' | 'always' | 'not-now') => live.decide?.(decisionId, accept, choice) ?? Promise.resolve(undefined),
+      ...(live.decideActionApproval === undefined ? {} : { decideActionApproval: (decision: Parameters<NonNullable<typeof live.decideActionApproval>>[0]) => live.decideActionApproval!(decision) }),
       ...(live.undoDecision === undefined ? {} : { undoDecision: (decisionId: string) => live.undoDecision!(decisionId) }),
       refreshLive: () => { void live.refresh() },
       clearApprovalFocus: () => { shellHandle.actions.clearFocusedApproval() },
       // The empty inbox's way out: "Ver o que a equipe está fazendo".
       openOverview: () => { shellHandle.actions.selectPanel('overview') },
+      // IV-10 "Responder": the conversation where the question was asked (the channel, or that DM).
+      openConversation: (streamKind: 'channel' | 'dm', ownerId: string) => {
+        if (streamKind === 'dm') {
+          shellHandle.actions.selectPanel('directMessages')
+          void live.selectDm(ownerId)
+        } else {
+          shellHandle.actions.selectPanel('channels')
+        }
+      },
     }),
   }, ConnectedApprovalsPanel)
   ctx.slots.register({ name: 'main', key: 'rules', locale: RULES_NS, inject: remoteInject }, RemoteRulesPanel)
@@ -321,6 +388,26 @@ export function registerPrismScreens(
   }, RemoteProfilePanel)
   ctx.slots.register({ name: 'main', key: 'members', locale: MEMBERS_NS, inject: remoteInject }, RemoteMembersPanel)
   ctx.slots.register({ name: 'main', key: 'about', locale: SHELL_NS }, AboutSettingsPanel)
+  // Aparência (TH-1): a ponte com o serviço de tema do host nasce na primeira vez que a tela abre (um só objeto para o painel todo).
+  let themeBridge: ThemeBridge | undefined
+  ctx.slots.register({
+    name: 'main',
+    key: 'appearance',
+    locale: SHELL_NS,
+    inject: () => ({ themeBridge: (themeBridge ??= createThemeBridge(ctx)) }),
+  }, AppearanceSettingsPanel)
+  ctx.slots.register({ name: 'main', key: 'personality', locale: SHELL_NS }, PersonalitySettingsPanel)
+  ctx.slots.register({
+    name: 'main',
+    key: 'personas',
+    locale: SHELL_NS,
+    inject: () => ({
+      hooks: { live: live.observable },
+      persona: ctx.remote.persona,
+      openEngineEditor: (personaId: string) => { shellHandle.actions.openEngineEditor(personaId) },
+      refreshLive: () => { void live.refresh() },
+    }),
+  }, ConnectedPersonasSettings)
   ctx.slots.register({ name: 'main', key: 'importers', locale: IMPORTERS_NS, inject: remoteInject }, RemoteImportPanel)
   ctx.slots.register({ name: 'main', key: 'canvas', locale: CANVAS_NS, inject: remoteInject }, RemoteCanvasPanel)
   ctx.slots.register({ name: 'main', key: 'secondBrain', locale: SECOND_BRAIN_NS, inject: remoteInject }, RemoteSecondBrainPanel)

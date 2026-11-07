@@ -1,0 +1,163 @@
+/* D-084 / PERSONA-POWERS §1: o cartão de prévia de ação externa no fio. Borda esquerda âmbar (Card tone="accent"), cabe a 200%. */
+.row {
+  margin: var(--persona-space-3) 0;
+  list-style: none;
+}
+
+.card {
+  min-width: 0;
+}
+
+.eyebrowRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.asked {
+  margin: 0 0 var(--persona-space-2);
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  margin: 0 0 var(--persona-space-2);
+}
+
+.fields div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  min-width: 0;
+}
+
+.fields dt {
+  min-width: 80px;
+  font: 700 13px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.fields dd {
+  margin: 0;
+  min-width: 0;
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.fields strong {
+  font-weight: 800;
+}
+
+.bodyWrap {
+  margin: 0 0 var(--persona-space-2);
+}
+
+.bodyText {
+  margin: 0;
+  padding: var(--persona-space-3);
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-paper-sunken);
+  font: 500 14px/21px var(--persona-font-text);
+  color: var(--persona-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* No máximo 6 linhas; "Ver tudo" abre o resto. */
+.bodyText[data-clamped] {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.items {
+  margin: 0 0 var(--persona-space-2);
+  padding-left: var(--persona-space-5);
+  font: 500 14px/21px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.items li {
+  overflow-wrap: anywhere;
+}
+
+.moreItems {
+  list-style: none;
+  margin-left: calc(-1 * var(--persona-space-5));
+  color: var(--persona-ink-soft);
+  font-weight: 600;
+}
+
+.edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  margin-bottom: var(--persona-space-2);
+}
+
+.link {
+  margin-top: var(--persona-space-1);
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 13px/20px var(--persona-font-text);
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
+}
+
+.remember {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-2);
+  margin: var(--persona-space-2) 0;
+  font: 600 13px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.remember input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--persona-brand);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-3);
+}
+
+/* O que já aconteceu vira uma linha discreta (o cartão some). */
+.done {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: var(--persona-space-2) 0;
+  list-style: none;
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.doneIcon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--persona-success, var(--persona-ink-soft));
+}

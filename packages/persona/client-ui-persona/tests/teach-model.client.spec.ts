@@ -19,6 +19,7 @@ import {
   createDesktopRecorder,
   createSyntheticRecorder,
   detectTeachRecorder,
+  parseTeachPillAction,
   parseTeachSources,
   parseTeachStop,
   type TeachBridge,
@@ -166,6 +167,31 @@ describe('desktop recorder', () => {
     expect(track.stop).toHaveBeenCalledTimes(1)
   })
 
+  it('a pílula do desktop: só pause/resume/stop chegam à tela; o resto é ignorado; desligar para de ouvir', () => {
+    expect(parseTeachPillAction('pause')).toBe('pause')
+    expect(parseTeachPillAction('resume')).toBe('resume')
+    expect(parseTeachPillAction('stop')).toBe('stop')
+    expect(parseTeachPillAction('close')).toBeNull()
+    expect(parseTeachPillAction({ action: 'stop' })).toBeNull()
+    let send: ((raw: unknown) => void) | undefined
+    const off = vi.fn()
+    const bridge = { ...fakeBridge(), onPillAction: (listener: (raw: unknown) => void) => { send = listener; return off } }
+    const recorder = createDesktopRecorder(bridge, { openStream: async () => ({ getTracks: () => [] }), grabFrame: () => null, setInterval: () => 1, clearInterval: () => {} })
+    const heard: string[] = []
+    const stop = recorder.onPillAction?.((action) => { heard.push(action) })
+    send?.('pause'); send?.('nonsense'); send?.(undefined); send?.('stop')
+    expect(heard).toEqual(['pause', 'stop'])
+    stop?.()
+    expect(off).toHaveBeenCalledTimes(1)
+  })
+
+  it('desktop antigo (sem onPillAction): ouvir a pílula não quebra e não faz nada', () => {
+    const recorder = createDesktopRecorder(fakeBridge(), { openStream: async () => ({ getTracks: () => [] }), grabFrame: () => null, setInterval: () => 1, clearInterval: () => {} })
+    const stop = recorder.onPillAction?.(() => { throw new Error('nunca') })
+    expect(typeof stop).toBe('function')
+    stop?.()
+  })
+
   it('"não guardar as imagens" asks the desktop to redact', async () => {
     const bridge = fakeBridge()
     const recorder = createDesktopRecorder(bridge, {
@@ -203,5 +229,30 @@ describe('detection and the example recorder', () => {
     setTeachHandoff({ recorder, sourceId: 'synthetic:screen' })
     expect(takeTeachHandoff()?.sourceId).toBe('synthetic:screen')
     expect(takeTeachHandoff()).toBeNull()
+  })
+})
+
+describe('nome da skill sugerido (Muse)', () => {
+  it('sai da narração: a 1ª frase, sem pontuação no fim, cortada numa palavra, com a inicial maiúscula', async () => {
+    const { suggestSkillName } = await import('../src/client/teach/teach-model.ts')
+    expect(suggestSkillName('abro o pedido, confiro o valor e aviso o cliente. Depois arquivo.', [])).toBe('Abro o pedido, confiro o valor e aviso o cliente')
+    expect(suggestSkillName('Conferir pedido e avisar o cliente!', [])).toBe('Conferir pedido e avisar o cliente')
+    const long = 'abro o pedido novo no painel de vendas e confiro o nome do cliente com o valor da nota fiscal'
+    const cut = suggestSkillName(long, [])
+    expect(cut.length).toBeLessThanOrEqual(60)
+    expect(long.toLowerCase()).toContain(cut.toLowerCase())
+    expect(cut.endsWith(' ')).toBe(false)
+  })
+
+  it('sem narração usa o 1º passo; sem nada fica vazio (e o campo é obrigatório); um nome de verdade do host é mantido', async () => {
+    const { suggestSkillName, isGenericSkillTitle } = await import('../src/client/teach/teach-model.ts')
+    expect(suggestSkillName('   ', [{ instruction: '  ' }, { instruction: 'Abrir o pedido novo.' }])).toBe('Abrir o pedido novo')
+    expect(suggestSkillName('', [])).toBe('')
+    expect(suggestSkillName('qualquer', [], 'Aprovar entregas')).toBe('Aprovar entregas')
+    expect(suggestSkillName('abro o pedido', [], 'Skill ensinada')).toBe('Abro o pedido')
+    expect(isGenericSkillTitle('Skill ensinada')).toBe(true)
+    expect(isGenericSkillTitle('  skill ENSINADA ')).toBe(true)
+    expect(isGenericSkillTitle('')).toBe(true)
+    expect(isGenericSkillTitle('Aprovar entregas')).toBe(false)
   })
 })

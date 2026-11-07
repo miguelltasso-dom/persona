@@ -56,6 +56,17 @@
   }
 }
 
+/* Só o ícone também no rodapé do trilho de 64 px (wide: false): o tamanho do alvo (40 px) vem do rodapé do rail. */
+.button[data-icon-only] {
+  min-height: 0;
+  justify-content: center;
+  padding: 5px 10px;
+}
+
+.button[data-icon-only] .label {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .button {
     transition: none;

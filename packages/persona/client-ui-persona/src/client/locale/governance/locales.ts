@@ -59,6 +59,9 @@ export const pt = {
   'state.offline': 'Fora do ar',
   'health.title': 'Saúde da equipe',
   'health.subtitle': 'Em linguagem simples — o que melhorar para a equipe se sustentar sozinha',
+  'health.firstDay.title': 'Ainda conhecendo a equipe',
+  'health.firstDay.body': 'A nota aparece depois que a equipe trabalhar alguns dias. Até lá, nada aqui é problema.',
+  'health.firstDay.noData': 'Ainda sem dados',
   'health.scoreLabel': 'Nota da equipe',
   'health.findings': 'O que pede atenção',
   'health.gestorAudit': 'Atividade do Gestor de equipe',
@@ -171,6 +174,8 @@ export const pt = {
   'activity.command.one': 'rodou 1 comando',
   'activity.file.one': 'mudou 1 arquivo',
   'activity.message.one': 'mandou 1 mensagem',
+  'org.cardMenu': 'Sobre {name}',
+  'org.openDm': 'Conversar com {name}',
 } as const
 
 /** English copy. */
@@ -229,6 +234,9 @@ export const en = {
   'state.offline': 'Away',
   'health.title': 'Team health',
   'health.subtitle': 'Plain language — what to improve so the team sustains itself',
+  'health.firstDay.title': 'Still getting to know the team',
+  'health.firstDay.body': 'The score shows up after the team has worked a few days. Until then, nothing here is a problem.',
+  'health.firstDay.noData': 'No data yet',
   'health.scoreLabel': 'Team score',
   'health.findings': 'Needs attention',
   'health.gestorAudit': 'Team manager activity',
@@ -341,6 +349,8 @@ export const en = {
   'activity.command.one': 'ran 1 command',
   'activity.file.one': 'changed 1 file',
   'activity.message.one': 'sent 1 message',
+  'org.cardMenu': 'About {name}',
+  'org.openDm': 'Talk to {name}',
 } as const
 
 export const zh = {
@@ -398,6 +408,9 @@ export const zh = {
   'state.offline': 'Away',
   'health.title': 'Team health',
   'health.subtitle': 'Plain language — what to improve so the team sustains itself',
+  'health.firstDay.title': 'Still getting to know the team',
+  'health.firstDay.body': 'The score shows up after the team has worked a few days. Until then, nothing here is a problem.',
+  'health.firstDay.noData': 'No data yet',
   'health.scoreLabel': 'Team score',
   'health.findings': 'Needs attention',
   'health.gestorAudit': 'Team manager activity',
@@ -510,6 +523,8 @@ export const zh = {
   'activity.command.one': 'ran 1 command',
   'activity.file.one': 'changed 1 file',
   'activity.message.one': 'sent 1 message',
+  'org.cardMenu': 'About {name}',
+  'org.openDm': 'Talk to {name}',
 } as const
 export const ja = {
   'header.eyebrowTeam': 'Team',
@@ -566,6 +581,9 @@ export const ja = {
   'state.offline': 'Away',
   'health.title': 'Team health',
   'health.subtitle': 'Plain language — what to improve so the team sustains itself',
+  'health.firstDay.title': 'Still getting to know the team',
+  'health.firstDay.body': 'The score shows up after the team has worked a few days. Until then, nothing here is a problem.',
+  'health.firstDay.noData': 'No data yet',
   'health.scoreLabel': 'Team score',
   'health.findings': 'Needs attention',
   'health.gestorAudit': 'Team manager activity',
@@ -678,6 +696,8 @@ export const ja = {
   'activity.command.one': 'ran 1 command',
   'activity.file.one': 'changed 1 file',
   'activity.message.one': 'sent 1 message',
+  'org.cardMenu': 'About {name}',
+  'org.openDm': 'Talk to {name}',
 } as const
 export const es = {
   'header.eyebrowTeam': 'Team',
@@ -734,6 +754,9 @@ export const es = {
   'state.offline': 'Away',
   'health.title': 'Team health',
   'health.subtitle': 'Plain language — what to improve so the team sustains itself',
+  'health.firstDay.title': 'Still getting to know the team',
+  'health.firstDay.body': 'The score shows up after the team has worked a few days. Until then, nothing here is a problem.',
+  'health.firstDay.noData': 'No data yet',
   'health.scoreLabel': 'Team score',
   'health.findings': 'Needs attention',
   'health.gestorAudit': 'Team manager activity',
@@ -846,6 +869,8 @@ export const es = {
   'activity.command.one': 'ran 1 command',
   'activity.file.one': 'changed 1 file',
   'activity.message.one': 'sent 1 message',
+  'org.cardMenu': 'About {name}',
+  'org.openDm': 'Talk to {name}',
 } as const
 export const fr = {
   'header.eyebrowTeam': 'Team',
@@ -902,6 +927,9 @@ export const fr = {
   'state.offline': 'Away',
   'health.title': 'Team health',
   'health.subtitle': 'Plain language — what to improve so the team sustains itself',
+  'health.firstDay.title': 'Still getting to know the team',
+  'health.firstDay.body': 'The score shows up after the team has worked a few days. Until then, nothing here is a problem.',
+  'health.firstDay.noData': 'No data yet',
   'health.scoreLabel': 'Team score',
   'health.findings': 'Needs attention',
   'health.gestorAudit': 'Team manager activity',
@@ -1014,6 +1042,8 @@ export const fr = {
   'activity.command.one': 'ran 1 command',
   'activity.file.one': 'changed 1 file',
   'activity.message.one': 'sent 1 message',
+  'org.cardMenu': 'About {name}',
+  'org.openDm': 'Talk to {name}',
 } as const
 export const de = {
   'header.eyebrowTeam': 'Team',
@@ -1070,6 +1100,9 @@ export const de = {
   'state.offline': 'Away',
   'health.title': 'Team health',
   'health.subtitle': 'Plain language — what to improve so the team sustains itself',
+  'health.firstDay.title': 'Still getting to know the team',
+  'health.firstDay.body': 'The score shows up after the team has worked a few days. Until then, nothing here is a problem.',
+  'health.firstDay.noData': 'No data yet',
   'health.scoreLabel': 'Team score',
   'health.findings': 'Needs attention',
   'health.gestorAudit': 'Team manager activity',
@@ -1182,6 +1215,8 @@ export const de = {
   'activity.command.one': 'ran 1 command',
   'activity.file.one': 'changed 1 file',
   'activity.message.one': 'sent 1 message',
+  'org.cardMenu': 'About {name}',
+  'org.openDm': 'Talk to {name}',
 } as const
 export const ru = {
   'header.eyebrowTeam': 'Team',
@@ -1238,6 +1273,9 @@ export const ru = {
   'state.offline': 'Away',
   'health.title': 'Team health',
   'health.subtitle': 'Plain language — what to improve so the team sustains itself',
+  'health.firstDay.title': 'Still getting to know the team',
+  'health.firstDay.body': 'The score shows up after the team has worked a few days. Until then, nothing here is a problem.',
+  'health.firstDay.noData': 'No data yet',
   'health.scoreLabel': 'Team score',
   'health.findings': 'Needs attention',
   'health.gestorAudit': 'Team manager activity',
@@ -1350,6 +1388,8 @@ export const ru = {
   'activity.command.one': 'ran 1 command',
   'activity.file.one': 'changed 1 file',
   'activity.message.one': 'sent 1 message',
+  'org.cardMenu': 'About {name}',
+  'org.openDm': 'Talk to {name}',
 } as const
 
 export type GovernanceKey = keyof typeof pt

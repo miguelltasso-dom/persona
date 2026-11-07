@@ -1,0 +1,59 @@
+/* P1-4: "{persona} está escrevendo…" no fio. A pose `digitando` inteira a 48 px de altura; sem ela, o retrato de 32 px. */
+.typing {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: 48px;
+  padding: var(--persona-space-1) 0;
+  color: var(--persona-ink-soft);
+}
+
+.pose {
+  display: block;
+  flex-shrink: 0;
+  width: auto;
+  height: 48px;
+  object-fit: contain;
+}
+
+.text {
+  font: 600 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+/* As reticências: três pontos que acendem em sequência. Sem animação (reduced-motion) ficam todos acesos. */
+.dots {
+  display: inline-flex;
+  margin-left: 1px;
+}
+
+.dots i {
+  font-style: normal;
+  animation: personaTypingDot 1.2s ease-in-out infinite both;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes personaTypingDot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+
+  30% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dots i {
+    animation: none;
+  }
+}

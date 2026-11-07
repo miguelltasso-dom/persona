@@ -91,6 +91,8 @@ export interface PersonaCardQuota {
 export interface PersonaCardEngine {
   /** "Plano do Claude · Sonnet". */
   readonly value: string
+  /** EFF-1: chip "Opus · max" (ou "Sonnet") ao lado do motor (`EFFORT-SPEC.md` §3). */
+  readonly chip?: string | undefined
   /** WAVE2 — connected seat label, e.g. "Claude · Trabalho". */
   readonly activeAccountLabel?: string | undefined
   /** WAVE2 — the swap policy in one plain line ("Troca para Pessoal no limite"). */
@@ -175,15 +177,21 @@ function quotaTone(pct: number | undefined): 'ok' | 'high' | 'full' {
   return 'ok'
 }
 
-/** Official quota meter (5h / week): label + %, tone by level, role=meter. Shared by the card and Conexões. */
+/**
+ * Official quota meter (5h / week): label + %, tone by level. Shared by the card and Conexões. role=progressbar: the axe of the
+ * capture rounds (chrome-devtools copy) rejects role=meter (aria-roles, aria-allowed-attr); progressbar takes the same aria-value*.
+ */
 export function QuotaMeter({ label, pct }: { readonly label: string; readonly pct: number }): ReactNode {
+  // A non-number from the host (NaN, Infinity, a string that slipped through) would become aria-valuenow="NaN" (axe critical,
+  // Quill's Conexões capture 05/11): no meter at all is more honest than a broken one.
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) return null
   const shown = Math.max(0, Math.round(pct))
   return (
     <div className={styles.meter} data-tone={quotaTone(pct)}>
       <span className={styles.meterLabel} aria-hidden="true">{label} · {shown}%</span>
       <span
         className={styles.meterTrack}
-        role="meter"
+        role="progressbar"
         aria-label={label}
         aria-valuemin={0}
         aria-valuemax={100}
@@ -196,20 +204,25 @@ export function QuotaMeter({ label, pct }: { readonly label: string; readonly pc
   )
 }
 
-/** The shared data block: "agora", who can talk, presence/owner/substitute/project and the engine with its quota. */
-export function PersonaCardFacts({ labels, now, talk, capabilities, facts, engine, layout = 'card' }: PersonaCardFactsProps): ReactNode {
+/** The "agora" line ("Descansando — nada na fila · O que está fazendo agora"). On the card it belongs to the FIXED top; on the profile it opens the facts block. */
+function NowLine({ labels, now }: { readonly labels: PersonaCardLabels; readonly now: PersonaCardNow }): ReactNode {
+  return (
+    <p className={styles.now} data-kind={now.kind}>
+      <span className={styles.nowIcon} aria-hidden="true"><NowIcon kind={now.kind} /></span>
+      <span className={styles.nowText}>
+        <span className={styles.nowValue}>{now.text}</span>
+        <span className={styles.nowCaption}>{labels.nowCaption}</span>
+      </span>
+    </p>
+  )
+}
+
+/** Everything below the "agora" line: who can talk, what it can do, presence/owner/substitute/project and the engine with its quota. On the card this is the part that scrolls. */
+function FactsDetails({ labels, talk, capabilities, facts, engine }: Omit<PersonaCardFactsProps, 'now' | 'layout'>): ReactNode {
   const quota = engine?.quota
   const hasMeters = quota !== undefined && (quota.fiveHourPct !== undefined || quota.weekPct !== undefined)
   return (
-    <div className={styles.facts} data-layout={layout}>
-      <p className={styles.now} data-kind={now.kind}>
-        <span className={styles.nowIcon} aria-hidden="true"><NowIcon kind={now.kind} /></span>
-        <span className={styles.nowText}>
-          <span className={styles.nowValue}>{now.text}</span>
-          <span className={styles.nowCaption}>{labels.nowCaption}</span>
-        </span>
-      </p>
-
+    <>
       {talk !== undefined && (
         <section className={styles.talk} aria-label={labels.talkTitle}>
           <div className={styles.talkHead}>
@@ -301,6 +314,9 @@ export function PersonaCardFacts({ labels, now, talk, capabilities, facts, engin
               <span className={styles.engineValue}>
                 <UiIcon name="sparkle" size={16} strokeWidth={2.2} />
                 {humanizeEngineLabel(engine.value)}
+                {engine.chip !== undefined && engine.chip !== '' && (
+                  <Chip size="s" tone="neutral" data-persona-engine-chip="">{engine.chip}</Chip>
+                )}
               </span>
               {engine.activeAccountLabel !== undefined && engine.activeAccountLabel !== '' && (
                 <span className={styles.activeAccount}>
@@ -326,6 +342,16 @@ export function PersonaCardFacts({ labels, now, talk, capabilities, facts, engin
           </div>
         )}
       </dl>
+    </>
+  )
+}
+
+/** The shared data block: "agora", who can talk, presence/owner/substitute/project and the engine with its quota (the profile draws it in one piece). */
+export function PersonaCardFacts({ labels, now, layout = 'card', ...details }: PersonaCardFactsProps): ReactNode {
+  return (
+    <div className={styles.facts} data-layout={layout}>
+      <NowLine labels={labels} now={now} />
+      <FactsDetails labels={labels} {...details} />
     </div>
   )
 }
@@ -416,40 +442,58 @@ export function PersonaCard({
 
   return (
     <article className={styles.card} aria-labelledby={titleId}>
-      <div className={styles.stage} aria-hidden="true">
-        {ILLUSTRATIONS['team-banner-light'] !== undefined && <img className={styles.stageLight} src={ILLUSTRATIONS['team-banner-light']} alt="" />}
-        {ILLUSTRATIONS['team-banner-dark'] !== undefined && <img className={styles.stageDark} src={ILLUSTRATIONS['team-banner-dark']} alt="" />}
-        {pose !== undefined ? (
-          <img key={facts.now.kind} className={styles.pose} data-kind={facts.now.kind} src={pose} alt="" />
-        ) : (
-          <span className={styles.portrait}><Avatar name={name} src={portrait} size={56} shape="portrait" decorative /></span>
-        )}
-      </div>
-      {menu.length > 0 && <CardMenu label={labels.menu} items={menu} />}
+      {/*
+        Muse, bundle 6 (pré-aceite `dialogo` do Ember): o cartão nunca passa da janela. FIXO no topo: a pose, o nome, os papéis e o "agora"; só o MEIO rola
+        (Quem pode falar … Modelo e cota); FIXO embaixo: o campo de mensagem rápida e o "Enviar". Em janela baixa (zoom 200%) o topo também rola.
+      */}
+      <div className={styles.scroll}>
+        <div className={styles.head}>
+          <div className={styles.stage} aria-hidden="true">
+            {ILLUSTRATIONS['team-banner-light'] !== undefined && <img className={styles.stageLight} src={ILLUSTRATIONS['team-banner-light']} alt="" />}
+            {ILLUSTRATIONS['team-banner-dark'] !== undefined && <img className={styles.stageDark} src={ILLUSTRATIONS['team-banner-dark']} alt="" />}
+            {pose !== undefined ? (
+              <img key={facts.now.kind} className={styles.pose} data-kind={facts.now.kind} src={pose} alt="" />
+            ) : (
+              <span className={styles.portrait}><Avatar name={name} src={portrait} size={56} shape="portrait" decorative /></span>
+            )}
+          </div>
+          {menu.length > 0 && <CardMenu label={labels.menu} items={menu} />}
 
-      <div className={styles.body}>
-        <header className={styles.identity}>
-          <h2 id={titleId} className={styles.name}>
-            {onOpenProfile === undefined ? name : <button type="button" className={styles.nameLink} onClick={onOpenProfile}>{name}</button>}
-            <span className={styles.presence} data-presence={presence} title={labels.presence[presence]}>
-              <span className={styles.srOnly}>{labels.presence[presence]}</span>
-            </span>
-          </h2>
-          {subtitle.length > 0 && <p className={styles.subtitle}>{subtitle}</p>}
-          {badges.length > 0 && (
-            <ul className={styles.badges}>
-              {badges.map(badge => (
-                <li key={badge.id} className={styles.badge} data-tone={badge.tone}>
-                  {badge.tone === 'gestor' ? <UiIcon name="baton" size={14} strokeWidth={2.2} /> : <BrandIcon name="equipe" size={14} />}
-                  {badge.label}
-                </li>
-              ))}
-            </ul>
-          )}
-        </header>
-        <PersonaCardFacts labels={labels} {...facts} />
-        {onSendMessage !== undefined && <CardComposer placeholder={labels.messagePlaceholder} sendLabel={labels.send} onSend={onSendMessage} />}
+          <div className={styles.headBody}>
+            <header className={styles.identity}>
+              <h2 id={titleId} className={styles.name}>
+                {onOpenProfile === undefined ? name : <button type="button" className={styles.nameLink} onClick={onOpenProfile}>{name}</button>}
+                <span className={styles.presence} data-presence={presence} title={labels.presence[presence]}>
+                  <span className={styles.srOnly}>{labels.presence[presence]}</span>
+                </span>
+              </h2>
+              {subtitle.length > 0 && <p className={styles.subtitle}>{subtitle}</p>}
+              {badges.length > 0 && (
+                <ul className={styles.badges}>
+                  {badges.map(badge => (
+                    <li key={badge.id} className={styles.badge} data-tone={badge.tone}>
+                      {badge.tone === 'gestor' ? <UiIcon name="baton" size={14} strokeWidth={2.2} /> : <BrandIcon name="equipe" size={14} />}
+                      {badge.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </header>
+            <NowLine labels={labels} now={facts.now} />
+          </div>
+        </div>
+
+        <div className={styles.body}>
+          <div className={styles.facts} data-layout={facts.layout ?? 'card'}>
+            <FactsDetails labels={labels} talk={facts.talk} capabilities={facts.capabilities} facts={facts.facts} engine={facts.engine} />
+          </div>
+        </div>
       </div>
+      {onSendMessage !== undefined && (
+        <div className={styles.dock}>
+          <CardComposer placeholder={labels.messagePlaceholder} sendLabel={labels.send} onSend={onSendMessage} />
+        </div>
+      )}
     </article>
   )
 }
@@ -469,7 +513,12 @@ export interface PersonaCardPopoverProps {
 }
 
 const GAP = 10
+/** Folga lateral entre o cartão e a borda da janela. */
 const MARGIN = 12
+/** Folga vertical: a altura máxima do cartão é a janela − 2 × EDGE (o CSS usa `100dvh - 16px`). */
+const EDGE = 8
+/** O cartão começa um pouco acima do rosto (abrindo para baixo) ou termina um pouco abaixo dele (abrindo para cima). */
+const FACE_OVERHANG = 24
 
 /** Non-modal dialog anchored next to the avatar (portaled to body so rail masks never clip it); Esc / outside click close; focus returns to the anchor. */
 export function PersonaCardPopover({ open, anchor, onClose, label, focusOnOpen = false, onPointerEnter, onPointerLeave, children }: PersonaCardPopoverProps): ReactNode {
@@ -486,7 +535,10 @@ export function PersonaCardPopover({ open, anchor, onClose, label, focusOnOpen =
       const height = panel.offsetHeight
       const fitsRight = rect.right + GAP + width <= window.innerWidth - MARGIN
       const left = fitsRight ? rect.right + GAP : Math.max(MARGIN, rect.left - GAP - width)
-      const top = Math.min(Math.max(MARGIN, rect.top - 24), Math.max(MARGIN, window.innerHeight - MARGIN - height))
+      // Abre para baixo; se faltar espaço abaixo do rosto, abre PARA CIMA (Muse, bundle 6). Nunca sai da janela: a altura máxima já é a janela − 2 × EDGE.
+      const downTop = rect.top - FACE_OVERHANG
+      const wanted = downTop + height <= window.innerHeight - EDGE ? downTop : rect.bottom + FACE_OVERHANG - height
+      const top = Math.min(Math.max(EDGE, wanted), Math.max(EDGE, window.innerHeight - EDGE - height))
       setPosition({ top, left, side: fitsRight ? 'right' : 'left' })
     }
     place()
@@ -564,7 +616,8 @@ export function PersonaCardPopover({ open, anchor, onClose, label, focusOnOpen =
   )
 }
 
-const HOVER_OPEN_MS = 450
+/** Hover longo (CONVERSAS-SPEC §5): o cartão não abre no caminho do mouse; ~700 ms de parada. */
+const HOVER_OPEN_MS = 700
 const HOVER_CLOSE_MS = 220
 
 export interface PersonaCardTriggerProps {
@@ -575,10 +628,40 @@ export interface PersonaCardTriggerProps {
   readonly 'aria-expanded': boolean
 }
 
+/** O rosto de uma persona (rail, faixa da equipe, organograma): clicar ABRE A DM; o cartão vem por hover longo ou teclado. */
+export interface PersonaCardFaceProps {
+  readonly onClick: (event: MouseEvent<HTMLElement>) => void
+  readonly onPointerEnter: (event: MouseEvent<HTMLElement>) => void
+  readonly onPointerLeave: () => void
+  /** Shift+F10 / tecla de menu abre o cartão (Enter segue abrindo a DM: é o clique do botão). */
+  readonly onKeyDown: (event: KeyboardEvent<HTMLElement>) => void
+  readonly 'aria-keyshortcuts': 'Shift+F10'
+}
+
+/** O botão ⋯ ("Sobre {nome}") do rosto: abre o cartão. `data-persona-card-trigger` é o gancho estável para gates e capturas. */
+export interface PersonaCardMenuProps {
+  readonly onClick: (event: MouseEvent<HTMLElement>) => void
+  readonly 'aria-haspopup': 'dialog'
+  readonly 'aria-expanded': boolean
+  readonly 'data-persona-card-trigger': string
+}
+
+/** Rosto + ⋯ prontos para uma tela que lista pessoas (organograma): clicar no rosto abre a DM. */
+export interface PersonaFaceTriggers {
+  readonly face: (personaId: string) => PersonaCardFaceProps
+  readonly menu: (personaId: string) => PersonaCardMenuProps
+  /** Rótulo do ⋯ ("Sobre {nome}"). */
+  readonly menuLabel: (name: string) => string
+}
+
 export interface PersonaCardController {
   readonly personaId: string | null
   /** Spread on any avatar/name button: click opens (focus moves in), hover opens after a short delay. */
   readonly triggerProps: (personaId: string) => PersonaCardTriggerProps
+  /** Rosto: clique = `onOpen` (a DM); hover longo e Shift+F10 = cartão. */
+  readonly faceProps: (personaId: string, onOpen: () => void) => PersonaCardFaceProps
+  /** ⋯ ao lado do rosto: abre o cartão (foco entra nele). */
+  readonly menuProps: (personaId: string) => PersonaCardMenuProps
   readonly popoverProps: Omit<PersonaCardPopoverProps, 'label' | 'children'>
   readonly close: () => void
 }
@@ -644,9 +727,41 @@ export function usePersonaCardController(): PersonaCardController {
     onPointerLeave: scheduleClose,
   })
 
+  const faceProps = (personaId: string, onOpen: () => void): PersonaCardFaceProps => {
+    const hover = triggerProps(personaId)
+    return {
+      onClick: () => {
+        // Clicar é ir falar com a persona: o cartão (se estava aberto por hover) sai do caminho.
+        clearTimers()
+        setState(null)
+        onOpen()
+      },
+      onPointerEnter: hover.onPointerEnter,
+      onPointerLeave: hover.onPointerLeave,
+      onKeyDown: (event) => {
+        if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return
+        event.preventDefault()
+        hover.onClick(event as unknown as MouseEvent<HTMLElement>)
+      },
+      'aria-keyshortcuts': 'Shift+F10',
+    }
+  }
+
+  const menuProps = (personaId: string): PersonaCardMenuProps => {
+    const base = triggerProps(personaId)
+    return {
+      onClick: base.onClick,
+      'aria-haspopup': 'dialog',
+      'aria-expanded': base['aria-expanded'],
+      'data-persona-card-trigger': personaId,
+    }
+  }
+
   return {
     personaId: state?.personaId ?? null,
     triggerProps,
+    faceProps,
+    menuProps,
     close,
     popoverProps: {
       open: state !== null,

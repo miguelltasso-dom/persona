@@ -95,5 +95,8 @@
   "remote.members.you": "You",
   "remote.members.revokeNamed": "End access for {name}",
   "remote.revoke.titleNamed": "End {name}'s access?",
-  "remote.invites.emptyOpen": "No open invites."
+  "remote.invites.emptyOpen": "No open invites.",
+  "remote.body.revokedBy": "{name} ended your access to this team. What was already here stays here.",
+  "remote.invite.copiedToast": "Invite copied",
+  "remote.invite.toastRegion": "Notices"
 }

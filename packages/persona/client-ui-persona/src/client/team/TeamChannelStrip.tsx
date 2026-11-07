@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
-import { BrandIcon, Button, Chip, Skeleton, TeamScene, UiIcon, usePawCelebration } from '../primitives/index.ts'
+import { BrandIcon, Button, Chip, Skeleton, TeamScene, UiIcon, usePawCelebration, type PersonaCardFaceProps, type PersonaCardMenuProps } from '../primitives/index.ts'
 import type { ChannelPersonaMember } from './persona-work-state.ts'
 import { WORK_STATUS_KEY } from './persona-work-state.ts'
 import { PersonaTeamFigure } from './PersonaTeamFigure.tsx'
@@ -13,6 +13,12 @@ export interface TeamChannelStripProps extends PropsLocale<'persona.shell'> {
   readonly onBuildTeam?: (() => void) | undefined
   /** Os dados do host ainda não chegaram: skeleton no lugar do "Monte sua equipe" (nunca afirma equipe vazia). */
   readonly loading?: boolean | undefined
+  /**
+   * CONVERSAS-SPEC §5: clicar no rosto abre a DM; o cartão vem por hover longo, ⋯ ou Shift+F10. Quando `personaFace` e
+   * `personaMenu` vêm juntos, mandam sobre `personaCardTrigger` (que abria o cartão no clique).
+   */
+  readonly personaFace?: ((characterId: string) => PersonaCardFaceProps) | undefined
+  readonly personaMenu?: ((characterId: string) => PersonaCardMenuProps) | undefined
   readonly personaCardTrigger?: ((characterId: string) => {
     readonly onClick: (event: MouseEvent<HTMLElement>) => void
     readonly onPointerEnter: (event: MouseEvent<HTMLElement>) => void
@@ -46,7 +52,7 @@ function useAmbientPause(): [RefObject<HTMLElement>, boolean] {
 }
 
 /** "Sua equipe neste canal" — Brush banner scene, full-body poses on one ground line, sticker name tags. */
-export function TeamChannelStrip({ t, members, onBuildTeam, loading = false, personaCardTrigger }: TeamChannelStripProps): ReactNode {
+export function TeamChannelStrip({ t, members, onBuildTeam, loading = false, personaCardTrigger, personaFace, personaMenu }: TeamChannelStripProps): ReactNode {
   const showLoading = loading && members.length === 0
   const [ref, paused] = useAmbientPause()
   const paw = usePawCelebration()
@@ -120,7 +126,16 @@ export function TeamChannelStrip({ t, members, onBuildTeam, loading = false, per
               style={{ '--arrive-delay': `${index * 180}ms` } as CSSProperties}
             >
               {member.arriving === true && <span className={styles.arrived} role="status">{t('team.arrived', { name: member.name })}</span>}
-              {personaCardTrigger === undefined ? (
+              {personaFace !== undefined && personaMenu !== undefined ? (
+                <button
+                  type="button"
+                  className={styles.figureButton}
+                  aria-label={t('sidebar.team.openDm', { name: member.name })}
+                  {...personaFace(member.id)}
+                >
+                  <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
+                </button>
+              ) : personaCardTrigger === undefined ? (
                 <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
               ) : (
                 <button
@@ -132,22 +147,34 @@ export function TeamChannelStrip({ t, members, onBuildTeam, loading = false, per
                   <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
                 </button>
               )}
-              <span className={styles.tag}>
+              {/* O `title` repete "nome · estado": abaixo da largura que cabe, a etiqueta só mostra o nome e o ponto (o texto do estado vira só leitura de tela, CSS). */}
+              <span className={styles.tag} title={`${member.name} · ${inDraft ? t('team.statusDraft') : status}`}>
                 <span className={styles.tagName}>
                   {member.systemRoles?.includes('team_manager') === true && <UiIcon name="baton" size={13} strokeWidth={2.4} className={styles.gestorIcon} />}
-                  {member.name}
+                  <span className={styles.tagNameText}>{member.name}</span>
+                  {personaFace !== undefined && personaMenu !== undefined && (
+                    <button
+                      type="button"
+                      className={styles.tagMore}
+                      aria-label={t('sidebar.team.profile', { name: member.name })}
+                      title={t('sidebar.team.profile', { name: member.name })}
+                      {...personaMenu(member.id)}
+                    >
+                      <UiIcon name="more" size={16} />
+                    </button>
+                  )}
                 </span>
                 {inDraft ? (
                   // SW-7: "Trabalhando num rascunho" — o ponto brand + o texto (nunca só cor); o leitor de tela ouve a frase inteira.
                   <span className={styles.tagStatus} data-draft="">
                     <span className={styles.statusDot} data-state="draft" aria-hidden="true" />
-                    <span aria-hidden="true">{t('team.statusDraft')}</span>
+                    <span className={styles.tagStatusText} aria-hidden="true">{t('team.statusDraft')}</span>
                     <span className="persona-sr-only">{t('team.statusDraftSr')}</span>
                   </span>
                 ) : (
                   <span className={styles.tagStatus}>
                     <span className={styles.statusDot} data-state={member.state} aria-hidden="true" />
-                    {status}
+                    <span className={styles.tagStatusText}>{status}</span>
                   </span>
                 )}
                 <span className="persona-sr-only">{`, ${member.role}`}</span>

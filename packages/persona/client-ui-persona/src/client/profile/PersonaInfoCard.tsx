@@ -16,7 +16,9 @@ import {
   type PersonaPresence,
 } from '../primitives/index.ts'
 import { pt as defaultDict } from '../locale/profile/locales.ts'
-import { humanizeEngineLabel } from '../team/engine-label.ts'
+import { humanizeEngineLabel, runnerLabel } from '../team/engine-label.ts'
+import { isEngineEffortEnabled } from './engine-effort-flag.ts'
+import { formatEngineEffortChip } from './engine-effort-model.ts'
 import type { PersonaLiveState } from './mock-data.ts'
 
 export interface PersonaCardInfo {
@@ -41,6 +43,12 @@ export interface PersonaCardInfo {
   readonly projectName?: string | undefined
   /** "Plano do Claude · Sonnet" */
   readonly engineLabel?: string | undefined
+  /** EFF-1: modelo escolhido (null = Padrão do motor). */
+  readonly runnerModel?: string | null | undefined
+  /** EFF-1: nível de esforço escolhido, com o nome nativo do motor (null = Padrão do motor). */
+  readonly runnerEffort?: string | null | undefined
+  /** EFF-1: chip "Opus · max" (ou "Sonnet") pré-formatado quando vier de fora. */
+  readonly engineChip?: string | undefined
   /** WAVE2 — "Claude · Trabalho" when a seat is active. */
   readonly activeAccountLabel?: string | undefined
   /** WAVE2 — "Troca para Pessoal no limite". */
@@ -56,6 +64,8 @@ export interface PersonaCardInfo {
   /** GES-5 — reason/summary for the latest team manager action. */
   readonly gestorAuditReason?: string | undefined
   readonly capabilities?: import('../primitives/index.ts').PersonaCapabilitiesInfo | undefined
+  /** "Pode salvar arquivos no rascunho" (host `PersonaView.canSaveFiles`): `true` põe "Arquivos no rascunho" como 1º chip de Ferramentas. */
+  readonly canSaveFiles?: boolean | undefined
   /** Nível de autonomia atual (host `getAutonomy`): vira a linha "Autonomia" de "O que {persona} pode fazer". */
   readonly autonomyLevel?: 'on-request' | 'propose' | 'act-within-limits' | undefined
 }
@@ -161,11 +171,12 @@ export function personaCardFacts(
         onEdit: onEditTalk,
       },
     facts,
-    ...(info.capabilities === undefined && info.autonomyLevel === undefined
+    ...(info.capabilities === undefined && info.autonomyLevel === undefined && info.canSaveFiles === undefined
       ? {}
       : {
         capabilities: {
           ...(info.capabilities ?? {}),
+          ...(info.canSaveFiles === true ? { tools: [t('card.toolsDraftFiles'), ...(info.capabilities?.tools ?? [])] } : {}),
           ...(info.autonomyLevel === undefined
             ? {}
             : {
@@ -174,20 +185,29 @@ export function personaCardFacts(
             }),
         },
       }),
-    engine: info.engineLabel === undefined
+    engine: info.engineLabel === undefined && info.engineChip === undefined && info.runnerModel === undefined && info.runnerEffort === undefined
       ? undefined
-      : {
-        value: humanizeEngineLabel(info.engineLabel),
-        ...(info.activeAccountLabel === undefined ? {} : { activeAccountLabel: info.activeAccountLabel }),
-        ...(info.accountPolicyText === undefined ? {} : { accountPolicyText: info.accountPolicyText }),
-        quota: quota === undefined
-          ? undefined
-          : {
-            fiveHourPct: quota.fiveHourPct,
-            weekPct: quota.weekPct,
-            limitText: quota.limitedUntil === undefined ? undefined : t('card.quotaLimit', { time: quota.limitedUntil }),
-          },
-      },
+      : ((): PersonaCardFactsProps['engine'] => {
+        const useChip = info.engineChip !== undefined || info.runnerEffort !== undefined || (isEngineEffortEnabled() && info.runnerModel !== undefined)
+        const chip = info.engineChip ?? (useChip
+          ? formatEngineEffortChip({ runnerModel: info.runnerModel, runnerEffort: info.runnerEffort })
+          : undefined)
+        const baseValue = info.engineLabel ?? ''
+        const runnerOnly = baseValue.includes(' · ') ? runnerLabel(baseValue.split(' · ')[0] ?? baseValue) : humanizeEngineLabel(baseValue)
+        return {
+          value: chip !== undefined && baseValue !== '' ? runnerOnly : humanizeEngineLabel(baseValue),
+          ...(chip === undefined ? {} : { chip }),
+          ...(info.activeAccountLabel === undefined ? {} : { activeAccountLabel: info.activeAccountLabel }),
+          ...(info.accountPolicyText === undefined ? {} : { accountPolicyText: info.accountPolicyText }),
+          quota: quota === undefined
+            ? undefined
+            : {
+              fiveHourPct: quota.fiveHourPct,
+              weekPct: quota.weekPct,
+              limitText: quota.limitedUntil === undefined ? undefined : t('card.quotaLimit', { time: quota.limitedUntil }),
+            },
+        }
+      })(),
   }
 }
 

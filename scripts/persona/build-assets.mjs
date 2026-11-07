@@ -100,7 +100,8 @@ async function poseDerivative(fromAbs, baseName, box) {
   const life = LIFE_POSE.test(baseName)
   const maxHeight = life ? LIFE_POSE_MAX_HEIGHT : POSE_MAX_HEIGHT
   if (height > maxHeight) pipeline = pipeline.resize({ height: maxHeight })
-  await pipeline.webp({ quality: life ? LIFE_POSE_QUALITY : 82, alphaQuality: 100 }).toFile(toAbs)
+  // Muse 22:45 (budget): state poses q82→76 + alpha 90 (−19 %, indistinguishable at 2× on the dark paper); life frames unchanged.
+  await pipeline.webp({ quality: life ? LIFE_POSE_QUALITY : 76, alphaQuality: life ? 100 : 90 }).toFile(toAbs)
   track(toRel, toAbs)
 }
 
@@ -122,12 +123,27 @@ function copyTree(relDir, filter) {
 const ASSET_URL_STUB = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets/asset-url.ts')
 
 async function main() {
-  const assetUrlBackup = existsSync(ASSET_URL_STUB) ? readFileSync(ASSET_URL_STUB, 'utf8') : null
+  // Hand-written code living next to the generated assets (asset-url.ts and any other *.ts/*.tsx a builder put here, e.g. Prism's
+  // persona-face.ts) survives the clean; only generated-imports.ts is rewritten. (Prism 05/11: the old clean deleted an
+  // unversioned file.) Everything else under OUT is generated and is wiped.
+  const keep = new Map()
+  const collect = (dir) => {
+    if (!existsSync(dir)) return
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name)
+      if (entry.isDirectory()) { collect(abs); continue }
+      if (/\.(ts|tsx)$/u.test(entry.name) && entry.name !== 'generated-imports.ts') keep.set(abs, readFileSync(abs, 'utf8'))
+    }
+  }
+  collect(OUT)
+  if (existsSync(ASSET_URL_STUB)) keep.set(ASSET_URL_STUB, readFileSync(ASSET_URL_STUB, 'utf8'))
   rmSync(OUT, { recursive: true, force: true })
   ensureDir(OUT)
-  if (assetUrlBackup !== null) {
-    writeFileSync(ASSET_URL_STUB, assetUrlBackup)
+  for (const [abs, text] of keep) {
+    ensureDir(dirname(abs))
+    writeFileSync(abs, text)
   }
+  if (keep.size > 1) console.log(`kept ${String(keep.size)} hand-written file(s) under assets/: ${[...keep.keys()].map(k => k.slice(OUT.length + 1)).join(', ')}`)
 
   copyTree('brand', (name, rel) => {
     const ext = extname(name).toLowerCase()
@@ -140,6 +156,10 @@ async function main() {
   copyTree('icons/nav', () => true)
   // Muse: Brush UI action icons (WAVE2: ensinar, trocar-conta, mover-assunto) share the BrandIcon mask set.
   if (existsSync(join(SRC, 'icons/ui'))) copyTree('icons/ui', name => name.endsWith('.svg'))
+  // Muse (BR-P7): the 5 'medium' icons of external actions (preview card + action line), shipped in the same ui map. The rest of
+  // icons/actions is Brush's older set that no screen uses yet, so it stays out of the bundle.
+  const ACTION_MEDIA = new Set(['email.svg', 'publicar.svg', 'pagar.svg', 'apagar.svg', 'arquivo.svg'])
+  if (existsSync(join(SRC, 'icons/actions'))) copyTree('icons/actions', name => ACTION_MEDIA.has(name))
   // Muse (BRIEFING 19): Segundo cérebro page-type icons, same mask set.
   if (existsSync(join(SRC, 'icons/brain'))) copyTree('icons/brain', name => name.endsWith('.svg'))
   copyTree('icons/overlays', () => true)
@@ -210,6 +230,10 @@ async function main() {
     )),
     // Muse (BR-P1 P2 nº 2): "Falta uma IA" spot for the composer banner (192 shown at 96).
     { from: 'illustrations/spot-sem-ia.png', to: 'illustrations/spot-sem-ia.webp', width: 192, quality: 88 },
+    // Muse (BR-P6): equipe real spots, 192 source shown at 96 (Brush asked for a 96-px output; the app shows them at 96).
+    ...['spot-pedido-pronto', 'spot-bom-dia'].map(name => (
+      { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 96, quality: 88 }
+    )),
     // Muse (kit de lançamento): "Sobre a Persona" team photo (Brush, brand/launch).
     { from: 'brand/launch/about-team.png', to: 'illustrations/about-team.webp', width: 960, quality: 86 },
     { from: 'brand/launch/release-notes-badge.png', to: 'illustrations/release-notes-badge.webp', width: 256, quality: 86 },
@@ -218,6 +242,21 @@ async function main() {
     )),
     ...['inbox', 'kanban', 'search', 'vault', 'routines', 'connections', 'error', 'dm', 'sem-ia'].map(name => (
       { from: `illustrations/empty-${name}.png`, to: `illustrations/empty-${name}.webp`, width: 480, quality: 86 }
+    )),
+    // Muse (BR-P4 P1, NIGHT-THEME-SPEC): night empties, used ONLY in the dark theme (480 → 240).
+    ...['empty-dm-noite', 'empty-aprovacoes-noite', 'empty-geral-noite'].map(name => (
+      { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
+    )),
+    // Muse (BR-P4 P1): team scene icons for channels (96 → 48).
+    ...['marketing', 'atendimento', 'financeiro', 'diretoria', 'produto', 'equipe'].map(name => (
+      { from: `illustrations/channel-${name}.png`, to: `illustrations/channel-${name}.webp`, width: 96, quality: 88 }
+    )),
+    // Muse (BR-P4): house decor, emitted under illustrations/ so they land in ILLUSTRATIONS (accents/ only imports SVG).
+    // All sources are already 2× of the display size; kept at native width.
+    ...[['accents/firefly.png', 32], ['accents/corner-leaf-tl.png', 96], ['accents/corner-leaf-br.png', 96], ['accents/flower-pin.png', 48],
+      ['accents/butterfly.png', 32], ['accents/stamp-feito.png', 96], ['accents/stamp-boa.png', 96], ['accents/stamp-uau.png', 96],
+      ['accents/confetti-leaves.png', 192], ['illustrations/header-doodles-light.png', 720], ['illustrations/header-doodles-dark.png', 720]].map(([from, width]) => (
+      { from, to: `illustrations/${String(from).split('/').pop().replace(/\.png$/u, '.webp')}`, width, quality: 88 }
     )),
   ]
   for (const spec of ILLUSTRATION_SPECS) {
@@ -231,8 +270,9 @@ async function main() {
 
   // Muse: reaction stickers (Brush: stickers/<animal>/<reaction>.png 256², legacy flat <animal>-<reaction>.png)
   // → stickers/<animal>-<reaction>.webp at 128 px (2× of the 64 px picker).
-  const REACTIONS = new Set(['joinha', 'coracao', 'rindo', 'comemorando', 'pensando', 'feito'])
-  const STICKER_FLAT = /^([a-z-]+)-(joinha|coracao|rindo|comemorando|pensando|feito)\.png$/u
+  // BR-P5 (Muse): bom-dia / ate-amanha are the persona's day moments (figurinhas), not picker reactions.
+  const REACTIONS = new Set(['joinha', 'coracao', 'rindo', 'comemorando', 'pensando', 'feito', 'bom-dia', 'ate-amanha'])
+  const STICKER_FLAT = /^([a-z-]+?)-(joinha|coracao|rindo|comemorando|pensando|feito|bom-dia|ate-amanha)\.png$/u
   /** @type {{ from: string, id: string }[]} */
   const stickerSources = []
   const stickerRoot = join(SRC, 'stickers')
@@ -244,7 +284,8 @@ async function main() {
           if (file.endsWith('.png') && REACTIONS.has(reaction)) stickerSources.push({ from: join(stickerRoot, entry.name, file), id: `${entry.name}-${reaction}` })
         }
       } else {
-        const match = STICKER_FLAT.exec(entry.name)
+        // Brush's review boards (stickers-preview-*.png) are not stickers.
+        const match = entry.name.startsWith('stickers-preview') ? null : STICKER_FLAT.exec(entry.name)
         if (match !== null) stickerSources.push({ from: join(stickerRoot, entry.name), id: `${match[1]}-${match[2]}` })
       }
     }
@@ -298,7 +339,7 @@ async function main() {
 
   const poseFiles = manifest.filter(f => f.rel.startsWith('poses/') && f.rel.endsWith('.webp'))
   const avatar96 = manifest.filter(f => f.rel.match(/^avatars\/[^/]+-96\.webp$/u))
-  const navIcons = manifest.filter(f => (f.rel.startsWith('icons/nav/') || f.rel.startsWith('icons/ui/') || f.rel.startsWith('icons/brain/')) && f.rel.endsWith('.svg'))
+  const navIcons = manifest.filter(f => (f.rel.startsWith('icons/nav/') || f.rel.startsWith('icons/ui/') || f.rel.startsWith('icons/actions/') || f.rel.startsWith('icons/brain/')) && f.rel.endsWith('.svg'))
   const overlayIcons = manifest.filter(f => f.rel.startsWith('icons/overlays/') && f.rel.endsWith('.svg'))
   const bannerLight = manifest.find(f => f.rel === 'brand/banner-team-light.webp')
   const bannerDark = manifest.find(f => f.rel === 'brand/banner-team-dark.webp')
@@ -474,7 +515,7 @@ async function main() {
     ...accentEntries,
     '}',
     '',
-    '/** Brush reaction stickers keyed `<animal>-<reaction>` (Muse; reactions: joinha, coracao, rindo, comemorando, pensando, feito). */',
+    '/** Brush reaction stickers keyed `<animal>-<reaction>` (Muse; reactions: joinha, coracao, rindo, comemorando, pensando, feito; moments: bom-dia, ate-amanha). */',
     'export const STICKERS: Readonly<Record<string, string>> = {',
     ...stickerEntries,
     '}',

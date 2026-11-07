@@ -239,6 +239,28 @@
   opacity: 0.92;
 }
 
+/* The drawn stamp (BR-P4 #12, behind persona.flag.houseDecor): 48 px, in place of the one-color paw mark. In forced-colors the paw mark (currentColor) comes back. */
+.stampArt {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.stamp[data-drawn] .stampMark {
+  display: none;
+}
+
+@media (forced-colors: active) {
+  .stamp[data-drawn] .stampArt {
+    display: none;
+  }
+
+  .stamp[data-drawn] .stampMark {
+    display: block;
+  }
+}
+
 .stampText {
   font: 800 12px/1 var(--persona-font-text);
   letter-spacing: 0.12em;

@@ -18,27 +18,34 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './Approvals.module.css'
 import {
   approvalHireVisual,
-  hireHeading,
+  approvalTitle,
   hireMonthlyTasksLine,
   hireWhyLine,
-  personaPortraitSrc,
   reactiveApprovalContext,
+  resolvePersonaFace,
   vaultChangeLine,
-  vaultHeading,
 } from './approvals-ui-helpers.ts'
+import { CardSprig } from '../decor/HouseDecor.tsx'
+import { ActionPreviewCard, type ActionDecision } from '../chat/ActionPreviewCard.tsx'
+import { pt as chatDict } from '../locale/chat/locales.ts'
+import { ConnectorActions } from './ConnectorActions.tsx'
+import { connectorText, type ConnectorChoice } from './connector-ask.ts'
 import { HireDetailsModal } from './HireDetailsModal.tsx'
 import type { RememberChoice } from './inbox-model.ts'
 import type { ApprovalItem } from './mock-data.ts'
+import type { ReplyTarget } from '../answer/reply-target.ts'
 import { DecisionStateNote } from '../decisions/DecisionStateNote.tsx'
+import { ReviewedBySeal } from '../teamwork/ReviewedBySeal.tsx'
 
 const APPROVAL_ROW_PX = 360
+
+/** The preview card speaks the chat's words (one wording for the thread and for Aprovações). */
+const actionT = ((key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(chatDict, key, params)) as Parameters<typeof ActionPreviewCard>[0]['t']
 const APPROVAL_VIRTUAL_MIN = 12
 
+/** The card's title is the same one the V2 list and the detail say: a task that needs the person is its own title (never "Precisa de você" repeating the section). */
 function cardTitle(dict: LocaleDict, item: ApprovalItem): string {
-  if (item.kind === 'hire') return hireHeading(dict, item)
-  if (item.kind === 'vault') return vaultHeading(dict, item)
-  const key = `${item.kind}.title` as 'vault.title' | 'skill.title' | 'attention.title'
-  return bindLocale(dict, key)
+  return approvalTitle(dict, item)
 }
 
 export type { RememberChoice }
@@ -54,6 +61,12 @@ export interface ReactiveApprovalsListProps {
   readonly rememberStampNote: string | null
   readonly onRememberChange: (id: string, patch: Partial<RememberChoice>) => void
   readonly onDecideItem?: (item: ApprovalItem, accept: boolean, remember?: { readonly validity: PermissionValidity }) => void
+  /** IV-10 "Responder": a question in words → the primary takes the person to the thread (the card must carry its `replyTarget`). */
+  readonly onReply?: ((target: ReplyTarget) => void) | undefined
+  /** "Liberar para {B}" (kind connector): the choice the person made among what the host accepts. */
+  readonly onDecideConnector?: (item: ApprovalItem, choice: ConnectorChoice) => void
+  /** HT-9 / D-095 (kind action): Enviar · Editar · Cancelar of the external action's preview. Without it the card is read-only (no dead buttons). */
+  readonly onDecideAction?: ((decision: ActionDecision) => void | Promise<void>) | undefined
   readonly onCelebrateAccept: (id: string, proceed: () => void) => void
 }
 
@@ -67,8 +80,12 @@ function ReactiveApprovalRow({
   rememberStampNote,
   onRememberChange,
   onDecideItem,
+  onReply,
+  onDecideConnector,
+  onDecideAction,
   onCelebrateAccept,
-}: ReactiveApprovalsListProps & { readonly item: ApprovalItem }): ReactNode {
+  decorSprig = false,
+}: ReactiveApprovalsListProps & { readonly item: ApprovalItem; readonly decorSprig?: boolean }): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const isFocused = focusId !== undefined && item.id === focusId
   // DECISIONS-SPEC: a card with a decisionState is driven by the shared store; without one the legacy local cycle runs.
@@ -88,13 +105,19 @@ function ReactiveApprovalRow({
     if (controlled) onDecideItem(item, true, remember)
     else onCelebrateAccept(item.id, () => { onDecideItem(item, true, remember) })
   }
+  const chooseConnector = (connectorChoice: ConnectorChoice): void => {
+    if (onDecideConnector === undefined || blocked) return
+    // Uncontrolled (no live store): the granting choices keep the stamp moment, like Aceitar.
+    if (controlled || connectorChoice === 'not-now') onDecideConnector(item, connectorChoice)
+    else onCelebrateAccept(item.id, () => { onDecideConnector(item, connectorChoice) })
+  }
   const [detailsOpen, setDetailsOpen] = useState(false)
   const isHire = item.kind === 'hire'
   const hireRole = item.hireRoleTitle?.trim() ?? ''
   const proposer = item.proposerName?.trim() ?? ''
   const proposerPortrait = isHire || proposer.length === 0
     ? undefined
-    : (personaPortraitSrc(item.proposerPersonaId, proposer) ?? personaPortraitSrc(undefined, proposer))
+    : resolvePersonaFace({ id: item.proposerPersonaId, name: proposer, avatarSrc: item.proposerAvatarSrc })
   const changeLine = item.kind === 'vault' ? vaultChangeLine(dict, item) : undefined
   const whyLine = isHire ? hireWhyLine(dict, item) : undefined
   const costLine = isHire ? hireMonthlyTasksLine(dict, item) : undefined
@@ -121,110 +144,135 @@ function ReactiveApprovalRow({
       >
         {stamped && (
           <div className={styles.approvalStamp}>
-            <ApprovedStamp label={t('stamp.approved')} animate />
+            <ApprovedStamp label={t('stamp.approved')} animate seed={item.id} />
             {rememberStampNote !== null && (
               <p className={styles.rememberStampNote}>{rememberStampNote}</p>
             )}
           </div>
         )}
-        <Card padding="m" tone="accent" className={styles.approvalCard}>
-          <div className={styles.approvalHead}>
-            {(() => {
-              const hireVisual = approvalHireVisual(item)
-              if (hireVisual?.kind === 'invite') {
+        {item.kind === 'action' && item.actionPreview !== undefined ? (
+          <>
+            {item.example === true && <p className={styles.context}><Chip tone="neutral" size="s">{t('inbox.example')}</Chip> {t('inbox.exampleNote')}</p>}
+            <ActionPreviewCard t={actionT} preview={item.actionPreview} rowTag="div" {...(onDecideAction === undefined ? {} : { onDecide: onDecideAction })} />
+          </>
+        ) : (
+          <Card padding="m" tone="accent" className={styles.approvalCard}>
+            {decorSprig && <CardSprig />}
+            <div className={styles.approvalHead}>
+              {(() => {
+                const hireVisual = approvalHireVisual(item)
+                if (hireVisual?.kind === 'invite') {
+                  return (
+                    <span className={styles.hireInviteSeal} aria-hidden="true">
+                      <BrandIcon name="convidar" size={40} />
+                    </span>
+                  )
+                }
+                // A hire shows the proposed animal; every other card shows who proposes it (never initials of its title).
+                const avatarSrc = hireVisual?.kind === 'portrait' ? hireVisual.src : isHire ? undefined : proposerPortrait
                 return (
-                  <span className={styles.hireInviteSeal} aria-hidden="true">
-                    <BrandIcon name="convidar" size={40} />
-                  </span>
+                  <Avatar
+                    name={isHire ? item.title : (proposer.length > 0 ? proposer : item.title)}
+                    size={isHire ? 48 : 40}
+                    shape="portrait"
+                    {...(avatarSrc === undefined ? {} : { src: avatarSrc })}
+                  />
                 )
-              }
-              // A hire shows the proposed animal; every other card shows who proposes it (never initials of its title).
-              const avatarSrc = hireVisual?.kind === 'portrait' ? hireVisual.src : isHire ? undefined : proposerPortrait
-              return (
-                <Avatar
-                  name={isHire ? item.title : (proposer.length > 0 ? proposer : item.title)}
-                  size={isHire ? 48 : 40}
-                  shape="portrait"
-                  {...(avatarSrc === undefined ? {} : { src: avatarSrc })}
-                />
-              )
-            })()}
-            <div>
-              <Chip tone="accent" size="s">{t(`type.${item.kind}`)}</Chip>
-              <h3 className={styles.question}>{cardTitle(dict, item)}</h3>
-              {isHire && hireRole.length > 0 && (
+              })()}
+              <div>
+                <Chip tone="accent" size="s">{item.kind === 'connector' ? connectorText(dict, 'type.connector', 'Permissão') : item.kind === 'action' ? connectorText(dict, 'type.action', 'Ação externa') : t(`type.${item.kind}`)}</Chip>
+                {item.example === true && <> <Chip tone="neutral" size="s">{t('inbox.example')}</Chip></>}
+                {item.reviewedBy !== undefined && <> <ReviewedBySeal reviewer={item.reviewedBy} label={t('review.seal', { name: item.reviewedBy.name })} /></>}
+                <h3 className={styles.question}>{cardTitle(dict, item)}</h3>
+                {isHire && hireRole.length > 0 && (
                 // The role is already in the heading, so no chip repeats it here (the details dialog keeps it).
-                <p className={styles.hireWho}>
-                  <span className={styles.hireWhoName}>{item.title}</span>
-                </p>
-              )}
-            </div>
-          </div>
-          {isHire && item.hireDescription !== undefined && <p className={styles.hireIntro}>{item.hireDescription}</p>}
-          <p className={styles.context}>{reactiveApprovalContext(dict, item)}</p>
-          {changeLine !== undefined && <p className={styles.vaultChange}>{changeLine}</p>}
-          {whyLine !== undefined && <p className={styles.hireWhy}>{whyLine}</p>}
-          {costLine !== undefined && <p className={styles.hireCost}>{costLine}</p>}
-          {scope !== undefined && !leaving && state !== 'declined' && (
-            <RememberPermission
-              scope={scope}
-              remember={choice.grant}
-              onRememberChange={(grant) => { onRememberChange(item.id, { grant }) }}
-              validity={choice.validity}
-              onValidityChange={(validity) => { onRememberChange(item.id, { validity }) }}
-              labels={{
-                remember: t('remember.toggle'),
-                scopeLead: persona => t('remember.scopeLead', { persona }),
-                validity: t('remember.validityLabel'),
-                validities: {
-                  once: t('remember.validity.once'),
-                  week: t('remember.validity.week'),
-                  'until-revoked': t('remember.validity.untilRevoked'),
-                },
-                guard: t('remember.guard'),
-              }}
-            />
-          )}
-          {state === 'declined' ? (
-            <div className={styles.actions}>
-              <DecisionStateNote state={state} t={t} />
-            </div>
-          ) : (
-            <>
-              {state === 'failed' && (
-                <DecisionStateNote state={state} t={t} {...(onDecideItem === undefined ? {} : { onRetry: acceptItem })} />
-              )}
-              <div className={styles.actions}>
-                <Button
-                  variant="primary"
-                  size="s"
-                  loading={deciding}
-                  onClick={acceptItem}
-                  disabled={blocked || onDecideItem === undefined || leaving || (!controlled && exitStampId !== null)}
-                >
-                  {t(item.primaryKey)}
-                </Button>
-                {isHire && (
-                  <Button variant="secondary" size="s" onClick={() => { setDetailsOpen(true) }}>
-                    {t('hire.details')}
-                  </Button>
+                  <p className={styles.hireWho}>
+                    <span className={styles.hireWhoName}>{item.title}</span>
+                  </p>
                 )}
-                <Button
-                  variant="secondary"
-                  size="s"
-                  onClick={() => { onDecideItem?.(item, false) }}
-                  disabled={onDecideItem === undefined || leaving || deciding || (!controlled && exitStampId !== null)}
-                >
-                  {t('action.dismiss')}
-                </Button>
               </div>
-              {/* Off only for a real dependency the host named: the card says on what, instead of leaving the button faded. */}
-              {blocked && !leaving && !deciding && (
-                <p className={styles.dependsNote}>{t('depends.note', { title: blockedBy })}</p>
-              )}
-            </>
-          )}
-        </Card>
+            </div>
+            {isHire && item.hireDescription !== undefined && <p className={styles.hireIntro}>{item.hireDescription}</p>}
+            <p className={styles.context}>{reactiveApprovalContext(dict, item)}</p>
+            {item.example === true && <p className={styles.context}>{t('inbox.exampleNote')}</p>}
+            {changeLine !== undefined && <p className={styles.vaultChange}>{changeLine}</p>}
+            {whyLine !== undefined && <p className={styles.hireWhy}>{whyLine}</p>}
+            {costLine !== undefined && <p className={styles.hireCost}>{costLine}</p>}
+            {scope !== undefined && !leaving && state !== 'declined' && (
+              <RememberPermission
+                scope={scope}
+                remember={choice.grant}
+                onRememberChange={(grant) => { onRememberChange(item.id, { grant }) }}
+                validity={choice.validity}
+                onValidityChange={(validity) => { onRememberChange(item.id, { validity }) }}
+                labels={{
+                  remember: t('remember.toggle'),
+                  scopeLead: persona => t('remember.scopeLead', { persona }),
+                  validity: t('remember.validityLabel'),
+                  validities: {
+                    once: t('remember.validity.once'),
+                    week: t('remember.validity.week'),
+                    'until-revoked': t('remember.validity.untilRevoked'),
+                  },
+                  guard: t('remember.guard'),
+                }}
+              />
+            )}
+            {state === 'declined' ? (
+              <div className={styles.actions}>
+                <DecisionStateNote state={state} t={t} />
+              </div>
+            ) : (
+              <>
+                {state === 'failed' && (
+                  <DecisionStateNote state={state} t={t} {...(onDecideItem === undefined ? {} : { onRetry: acceptItem })} />
+                )}
+                {item.kind === 'connector' && item.connector !== undefined ? (
+                  <ConnectorActions
+                    dict={dict}
+                    ask={item.connector}
+                    personaName={proposer}
+                    deciding={deciding}
+                    disabled={onDecideConnector === undefined || leaving || blocked || (!controlled && exitStampId !== null)}
+                    onChoose={chooseConnector}
+                  />
+                ) : (
+                  <div className={styles.actions}>
+                    {onReply !== undefined && item.replyTarget !== undefined && (
+                      <Button variant="primary" size="s" onClick={() => { onReply(item.replyTarget!) }} disabled={leaving || deciding}>{t('action.reply')}</Button>
+                    )}
+                    <Button
+                      variant={onReply !== undefined && item.replyTarget !== undefined ? 'secondary' : 'primary'}
+                      size="s"
+                      loading={deciding}
+                      onClick={acceptItem}
+                      disabled={blocked || item.blindAction === true || onDecideItem === undefined || leaving || (!controlled && exitStampId !== null)}
+                    >
+                      {t(item.primaryKey)}
+                    </Button>
+                    {isHire && (
+                      <Button variant="secondary" size="s" onClick={() => { setDetailsOpen(true) }}>
+                        {t('hire.details')}
+                      </Button>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="s"
+                      onClick={() => { onDecideItem?.(item, false) }}
+                      disabled={onDecideItem === undefined || leaving || deciding || (!controlled && exitStampId !== null)}
+                    >
+                      {t('action.dismiss')}
+                    </Button>
+                  </div>
+                )}
+                {/* Off only for a real dependency the host named: the card says on what, instead of leaving the button faded. */}
+                {blocked && !leaving && !deciding && (
+                  <p className={styles.dependsNote}>{t('depends.note', { title: blockedBy })}</p>
+                )}
+              </>
+            )}
+          </Card>
+        )}
       </div>
       {isHire && <HireDetailsModal dict={dict} item={item} open={detailsOpen} onClose={() => { setDetailsOpen(false) }} />}
     </div>
@@ -233,7 +281,7 @@ function ReactiveApprovalRow({
 
 export function ReactiveApprovalsList(props: ReactiveApprovalsListProps): ReactNode {
   const { items } = props
-  const rowProps = (index: number) => ({ ...props, item: items[index]! })
+  const rowProps = (index: number) => ({ ...props, item: items[index]!, decorSprig: index === 0 })
 
   if (items.length >= APPROVAL_VIRTUAL_MIN) {
     return (

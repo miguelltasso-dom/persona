@@ -39,14 +39,14 @@ describe('PersonaInfoCard', () => {
     expect(screen.getByText('Toda a equipe')).toBeTruthy()
     expect(screen.getByText('Ana')).toBeTruthy()
     expect(screen.getByText('Ninguém definido')).toBeTruthy()
-    expect(screen.getByRole('meter', { name: '5h' }).getAttribute('aria-valuenow')).toBe('100')
+    expect(screen.getByRole('progressbar', { name: '5h' }).getAttribute('aria-valuenow')).toBe('100')
     expect(screen.getByText('No limite até 18:30')).toBeTruthy()
   })
 
   it('never shows 0% when the quota is unknown', () => {
     render(<PersonaInfoCard info={{ ...NINA, quota: undefined }} />)
-    expect(screen.queryByRole('meter')).toBeNull()
-    expect(screen.getByText('Cota oficial indisponível para este motor')).toBeTruthy()
+    expect(screen.queryByRole('progressbar')).toBeNull()
+    expect(screen.getByText('Este motor não informa a cota.')).toBeTruthy()
     expect(screen.queryByText(/0%/u)).toBeNull()
   })
 

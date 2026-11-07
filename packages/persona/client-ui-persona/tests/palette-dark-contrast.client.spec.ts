@@ -6,11 +6,17 @@ import { describe, expect, it } from 'vitest'
  * (achado do Lumen: --persona-ink-muted #60516b on card #2a1e35). Every --persona-ink-* must be redefined in the
  * dark block and reach WCAG AA (4.5:1) on every dark surface that carries text.
  */
-const CSS = readFileSync(new URL('../src/client/theme/persona-palette.css', import.meta.url), 'utf8')
+// O arquivo pode vir com CRLF (Windows): as buscas por trecho com quebra de linha usam LF.
+const CSS = readFileSync(new URL('../src/client/theme/persona-palette.css', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
 
+/**
+ * O bloco da paleta que abre com o seletor. Os blocos claro e escuro também valem para um escopo local
+ * (`[data-persona-scheme]`, a miniatura da aba Aparência): o seletor pode vir seguido de `,` e do escopo.
+ */
 function block(selector: string): string {
-  const start = CSS.indexOf(`${selector} {`)
-  expect(start, `${selector} block`).toBeGreaterThanOrEqual(0)
+  const starts = [`${selector} {`, `${selector},\n`].map(head => CSS.indexOf(head)).filter(index => index >= 0)
+  expect(starts.length, `${selector} block`).toBeGreaterThan(0)
+  const start = Math.min(...starts)
   return CSS.slice(start, CSS.indexOf('}', start))
 }
 
@@ -61,5 +67,62 @@ describe('dark palette coverage', () => {
     const rootColours = [...root.matchAll(/--(persona-[\w-]+):\s*(#|var\(--persona-|color-mix)/gu)].map(m => m[1]!)
     const missing = rootColours.filter(name => !SCALE.test(name) && !darkNames.has(name))
     expect(missing).toEqual([])
+  })
+})
+
+/**
+ * Axe F5 (Gauge 04/11 20:18): os componentes do host pintam texto com a família `--dsw-alias-label-*`. Ela precisa casar com as
+ * tintas do Persona, senão o cinza-azulado do DS cai sobre creme/lilás (claro) ou sobre o roxo (escuro) e reprova o contraste.
+ */
+describe('host label tokens (descrições de Configurações) reach AA on every text surface, light and dark', () => {
+  // A regra dos aliases "label" do host mora numa regra própria, MAIS ESPECÍFICA que o `body`/`body[data-ds-dark-theme]` do design-platform.css.
+  const aliasStart = CSS.indexOf('html body,\nhtml body[data-ds-dark-theme] {')
+  const aliasBlock = CSS.slice(aliasStart, CSS.indexOf('\n}', aliasStart))
+  const aliasOf = (name: string): string => new RegExp(String.raw`--${name}:\s*var\(--(persona-[\w-]+)\)`, 'u').exec(aliasBlock)?.[1] ?? ''
+
+  function resolver(source: string): (name: string) => string {
+    const defs = new Map<string, string>()
+    for (const match of source.matchAll(/--(persona-[\w-]+):\s*([^;]+);/gu)) defs.set(match[1]!, match[2]!.trim())
+    const resolve = (name: string, depth = 0): string => {
+      const value = defs.get(name) ?? ''
+      const ref = /^var\(--(persona-[\w-]+)\)$/u.exec(value)
+      return ref !== null && depth < 8 ? resolve(ref[1]!, depth + 1) : value
+    }
+    return resolve
+  }
+  const lightResolve = resolver([root, light].join('\n'))
+  const darkResolve = resolver([root, block("body[data-ds-dark-theme='true']")].join('\n'))
+
+  it.each([
+    ['dsw-alias-label-primary', 'persona-ink'],
+    ['dsw-alias-label-secondary', 'persona-ink-soft'],
+    ['dsw-alias-label-tertiary', 'persona-ink-soft'],
+  ])('%s -> %s', (alias, token) => {
+    expect(aliasOf(alias)).toBe(token)
+  })
+
+  it.each([['claro', lightResolve], ['escuro', darkResolve]] as const)('terciário do host em %s: >= 4,5:1 em toda superfície de texto', (scheme, resolve) => {
+    const ink = resolve(aliasOf('dsw-alias-label-tertiary'))
+    expect(ink).toMatch(/^#[0-9a-fA-F]{6}$/u)
+    // No claro o trilho é roxo-médio com tinta clara própria (`--persona-rail-ink`): o texto do host não aparece sobre ele.
+    for (const surface of TEXT_SURFACES.filter(name => scheme === 'escuro' || name !== 'persona-rail')) {
+      const fill = resolve(surface)
+      expect(fill, surface).toMatch(/^#[0-9a-fA-F]{6}$/u)
+      expect(contrast(ink, fill), `${ink} on ${surface} ${fill}`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})
+
+describe('os aliases "label" do host vencem o design-platform.css nos DOIS temas (axe F5 no bundle 2)', () => {
+  it('a regra tem especificidade MAIOR que `body` e que `body[data-ds-dark-theme]` do host', () => {
+    expect(CSS).toContain('html body,\nhtml body[data-ds-dark-theme] {')
+    // `html body` = (0,0,2) > `body` (0,0,1); `html body[data-ds-dark-theme]` = (0,1,2) > `body[data-ds-dark-theme]` (0,1,1)
+    const rule = CSS.slice(CSS.indexOf('html body,\nhtml body[data-ds-dark-theme] {'))
+    expect(rule).toContain('--dsw-alias-label-tertiary: var(--persona-ink-soft)')
+  })
+
+  it('o `body` simples do bloco de aliases NÃO redefine mais o label (um lugar só, o mais forte)', () => {
+    const compat = CSS.slice(CSS.indexOf('Compatibility aliases'), CSS.indexOf('html body,\nhtml body[data-ds-dark-theme] {'))
+    expect(compat).not.toContain('--dsw-alias-label-')
   })
 })

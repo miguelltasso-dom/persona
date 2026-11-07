@@ -1,0 +1,15 @@
+.figure {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--persona-space-2);
+  margin: 0;
+}
+
+.art {
+  display: block;
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
+  user-select: none;
+}

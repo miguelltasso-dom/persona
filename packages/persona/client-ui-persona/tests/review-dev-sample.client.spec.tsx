@@ -60,7 +60,7 @@ describe('the review sample is capture-only', () => {
     expect(screen.getByText('Exemplo')).toBeTruthy()
     // 1st Aplicar: one file changed in the folder meanwhile → the focused clash moment
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar na pasta' }))
-    await screen.findByRole('heading', { level: 4, name: 'Você e Bia mudaram promocao-de-natal.docx' })
+    await screen.findByRole('heading', { level: 4, name: 'Bia e você mudaram promocao-de-natal.docx' })
     fireEvent.click(screen.getByLabelText(/Manter os dois/u))
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar na pasta' }))
     await screen.findByRole('heading', { name: 'Aplicado na pasta' })

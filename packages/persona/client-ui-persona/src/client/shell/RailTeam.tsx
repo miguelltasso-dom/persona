@@ -1,6 +1,6 @@
 /** Rail “Sua equipe” — Muse owns presentation; Prism maps {@link RailPersona} in mount. */
 
-import { useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { rovingVerticalKey } from './rail-roving-focus.ts'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96, OVERLAY_ICONS } from '../assets/generated-imports.ts'
@@ -184,6 +184,8 @@ export function RailTeam({
               status,
               member.unread > 0 ? t('sidebar.team.unread', { count: String(member.unread) }) : '',
             ].filter(Boolean).join(' · ')
+            // CONVERSAS-SPEC §5: clicar no rosto abre a DM; o cartão vem por hover longo, ⋯ ou Shift+F10.
+            const face = card.faceProps(member.id, () => { onOpenDm?.(member.id) })
             return (
               <li key={member.id} className={styles.row} data-state={member.state}>
                 <button
@@ -191,21 +193,18 @@ export function RailTeam({
                   className={styles.person}
                   aria-label={label}
                   ref={(node) => { rowRefs.current[index] = node }}
-                  onClick={() => { card.close(); onOpenDm?.(member.id) }}
-                  aria-keyshortcuts="Shift+F10"
+                  onClick={face.onClick}
+                  aria-keyshortcuts={face['aria-keyshortcuts']}
                   onKeyDown={(event) => {
                     if (rovingVerticalKey(event, index, visible.length, focusRow)) return
-                    // Keyboard path to the persona card in every density (UX-BACKLOG UX-07).
-                    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
-                      event.preventDefault()
-                      card.triggerProps(member.id).onClick(event as unknown as MouseEvent<HTMLElement>)
-                    }
+                    // Keyboard path to the persona card in every density (UX-BACKLOG UX-07): Shift+F10 / tecla de menu.
+                    face.onKeyDown(event)
                   }}
                   onPointerEnter={(event) => {
                     onCardPrefetch?.(member.id)
-                    card.triggerProps(member.id).onPointerEnter(event)
+                    face.onPointerEnter(event)
                   }}
-                  onPointerLeave={card.triggerProps(member.id).onPointerLeave}
+                  onPointerLeave={face.onPointerLeave}
                 >
                   <span className={styles.avatar} data-arriving={member.arriving === true ? '' : undefined} style={{ '--blink-delay': `${2.3 + index * 1.7}s` } as CSSProperties} aria-hidden="true">
                     {member.gestor === true && <span className={styles.gestorMark}><UiIcon name="baton" size={11} strokeWidth={2.6} /></span>}
@@ -238,11 +237,10 @@ export function RailTeam({
                     className={styles.more}
                     aria-label={t('sidebar.team.profile', { name: member.name })}
                     title={t('sidebar.team.profile', { name: member.name })}
-                    aria-haspopup="dialog"
-                    aria-expanded={card.personaId === member.id}
+                    {...card.menuProps(member.id)}
                     onClick={(event) => {
                       onCardPrefetch?.(member.id)
-                      card.triggerProps(member.id).onClick(event)
+                      card.menuProps(member.id).onClick(event)
                     }}
                   >
                     <UiIcon name="more" size={18} />

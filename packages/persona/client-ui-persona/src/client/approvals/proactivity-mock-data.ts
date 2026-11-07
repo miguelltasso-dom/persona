@@ -1,12 +1,15 @@
 /** Proactive initiative proposals (grouped daily per persona — PROACTIVITY.md §4–6). */
 
 import type { DecisionState } from '../decisions/decision-types.ts'
+import type { UsageUi } from '../chat/quota-text.ts'
 
 export type ProactiveProposalKind = 'initiative' | 'followUp' | 'risk'
 
 export interface ProactiveCostEstimate {
   readonly tokens: number
   readonly runs: number
+  /** D-092: the account type and the share of the quota window (subscription) or the US$ (API key only). Absent = tokens and runs only. */
+  readonly usage?: UsageUi | undefined
 }
 
 export interface ProactiveProposal {

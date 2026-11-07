@@ -3,9 +3,31 @@
   position: fixed;
   inset: 0;
   z-index: 45;
+  display: flex;
+  flex-direction: column;
   background: var(--persona-paper);
   color: var(--persona-ink);
   animation: persona-fade-in var(--motion-base) var(--ease-enter);
+}
+
+/* The way back to the conversation, above whatever the layer shows. */
+.layerBar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: var(--persona-space-3) var(--persona-space-4) 0;
+}
+
+.backIcon {
+  display: inline-flex;
+  transform: scaleX(-1);
+}
+
+/* Takes what is left under the bar; the screen inside scrolls by itself. */
+.layerBody {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .reviewGrid {
@@ -295,9 +317,17 @@
   position: absolute;
   left: 50%;
   bottom: var(--persona-space-6);
-  max-width: calc(100vw - var(--persona-space-6));
+  max-width: calc(100% - var(--persona-space-6));
   transform: translateX(-50%);
   pointer-events: auto;
+}
+
+/* Narrow window: the bar sits at the TOP of the main area, so it never covers the composer or the bar at the bottom. */
+@media (max-width: 960px) {
+  .pillDock {
+    top: var(--persona-space-4);
+    bottom: auto;
+  }
 }
 
 /* The layer is focused by code when it opens; a ring around the whole window would be noise. */

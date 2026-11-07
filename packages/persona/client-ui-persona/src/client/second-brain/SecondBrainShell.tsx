@@ -1,7 +1,10 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { BrainGrantView, BrainHomeView, BrainKindView, BrainPageView, ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
-import { canRestoreBrainPage, getBrainPageRemote, listBrainVersionsRemote, putBrainPageRemote, restoreBrainPageRemote } from '../data/brain-remote.ts'
+import { canExportBrainVault, canRestoreBrainPage, exportBrainVaultRemote, getBrainPageRemote, listBrainVersionsRemote, putBrainPageRemote, restoreBrainPageRemote } from '../data/brain-remote.ts'
+import { personaDesktopBridge } from '../bring-context/persona-desktop-bridge.ts'
+import { bindLocale } from '../preview/locale-bind.ts'
+import { Toast, ToastRegion } from '../primitives/index.ts'
 import type { MainPanelId } from '../shell/create-shell-store.ts'
 import { NewPageDialog } from './NewPageDialog.tsx'
 import { SecondBrainHome, type SecondBrainSurfaceState } from './SecondBrainHome.tsx'
@@ -55,6 +58,29 @@ export function SecondBrainShell({
   const [pageDetail, setPageDetail] = useState<BrainPageView | null>(null)
   const [pageVersions, setPageVersions] = useState<Awaited<ReturnType<typeof listBrainVersionsRemote>>>([])
   const [newPageOpen, setNewPageOpen] = useState(false)
+  const [exportNote, setExportNote] = useState<{ readonly kind: 'done'; readonly count: number; readonly folder: string } | { readonly kind: 'failed' } | null>(null)
+  /** Same words if this build's generated locale does not carry the new keys yet. */
+  const tr = (key: string, fallback: string): string => {
+    const text = bindLocale(brainDict, key)
+    return text === key ? fallback : text
+  }
+  // The installed app has the native folder picker; the web build has none (the ⋯ items are disabled and say so).
+  const vaultFolderAvailable = personaDesktopBridge() !== undefined && canExportBrainVault(persona)
+
+  /** One-way: the pages as .md files in a folder the person picks. Never reads the folder back (importing goes through the review). */
+  const exportVault = async (): Promise<void> => {
+    const bridge = personaDesktopBridge()
+    if (bridge === undefined || scope === null) return
+    const picked = await bridge.pickDirectory({ title: tr('export.pickTitle', 'Escolha a pasta para exportar o Segundo cérebro') })
+    if (picked === null || picked === '') return
+    try {
+      const result = await exportBrainVaultRemote(persona, scope, picked)
+      const parts = picked.replace(/\\/gu, '/').split('/').filter(Boolean)
+      setExportNote({ kind: 'done', count: result.files, folder: parts.at(-1) ?? picked })
+    } catch {
+      setExportNote({ kind: 'failed' })
+    }
+  }
 
   const openPage = useCallback(async (pageId: string) => {
     if (scope === null) return
@@ -196,9 +222,26 @@ export function SecondBrainShell({
           ? {}
           : { onBringContext: () => { selectMainPanel('importers') } })}
         {...(scope === null ? {} : { onWritePage: () => { setNewPageOpen(true) } })}
+        vaultFolderAvailable={vaultFolderAvailable}
+        {...(canExportBrainVault(persona) ? { onExportVault: () => { void exportVault() } } : {})}
+        {...(selectMainPanel === undefined ? {} : { onImportFolder: () => { selectMainPanel('importers') } })}
       />
       {newPageOpen && (
         <NewPageDialog dict={brainDict} onClose={() => { setNewPageOpen(false) }} onCreate={createPage} />
+      )}
+      {exportNote !== null && (
+        <ToastRegion label={tr('menu.more', 'Mais ações')}>
+          <Toast
+            tone={exportNote.kind === 'done' ? 'success' : 'warning'}
+            title={exportNote.kind === 'done'
+              ? (exportNote.count === 1
+                ? tr('export.done.one', 'Exportado: 1 página em {folder}').replace('{folder}', exportNote.folder)
+                : tr('export.done', 'Exportado: {count} páginas em {folder}').replace('{count}', String(exportNote.count)).replace('{folder}', exportNote.folder))
+              : tr('export.failed', 'Não consegui exportar agora. Nada foi apagado na pasta. Tente de novo.')}
+            dismissLabel={tr('export.dismiss', 'Fechar aviso')}
+            onDismiss={() => { setExportNote(null) }}
+          />
+        </ToastRegion>
       )}
     </>
   )

@@ -450,3 +450,24 @@
     animation: none;
   }
 }
+
+/* Brilho âmbar mínimo no escuro (NIGHT-THEME-SPEC §3; só com `persona.flag.houseDecor`): o `--persona-night-active-glow` a 50%, numa camada à parte. */
+:global(body[data-house-decor][data-ds-dark-theme='true']) .unread {
+  position: relative;
+}
+
+:global(body[data-house-decor][data-ds-dark-theme='true']) .unread::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--persona-night-active-glow);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@media (forced-colors: active) {
+  :global(body[data-house-decor][data-ds-dark-theme='true']) .unread::after {
+    display: none;
+  }
+}

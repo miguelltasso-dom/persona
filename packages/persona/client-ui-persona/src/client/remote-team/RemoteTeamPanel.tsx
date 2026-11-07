@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ClipboardEvent, type FormEvent, type ReactNode } from 'react'
 import type { RemoteTeamAvailability, RemoteTeamState } from '@deepseek-ai/dsh-persona-host/types'
-import { Button, Card, ChoiceCards, Chip, Input, Modal, Notice, Skeleton, UiIcon, formatUntil, formatWhen } from '../primitives/index.ts'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { Button, Card, ChoiceCards, Chip, Input, Modal, Notice, Skeleton, Toast, ToastRegion, UiIcon, formatUntil, formatWhen } from '../primitives/index.ts'
 import {
   STATUS_ICON,
   STATUS_KEY,
@@ -94,8 +95,12 @@ export function RemoteTeamPanel({
   const [acceptUrl, setAcceptUrl] = useState('')
   const [acceptToken, setAcceptToken] = useState('')
   const [inviteRole, setInviteRole] = useState<'member' | 'guest'>('member')
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
+  // Which form the person already tried to send. The messages are derived from what is in the fields NOW, so they go away as soon
+  // as the field is valid (while typing), not on the next press of the button.
+  const [attempted, setAttempted] = useState<{ readonly connect: boolean; readonly accept: boolean }>({ connect: false, accept: false })
   const [copied, setCopied] = useState(false)
+  // The Toast "Convite copiado" lasts a moment; the button keeps saying "Copiado" until the person taps "Já enviei".
+  const [copiedToast, setCopiedToast] = useState(false)
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null)
 
   // #geral comes checked: the common case is one tap. Once the person touches the list, it is theirs.
@@ -104,6 +109,12 @@ export function RemoteTeamPanel({
     const general = channels.filter(channel => channel.name.trim().toLowerCase() === 'geral').map(channel => channel.id)
     setSelected(current => (current.length === 0 && general.length > 0 ? general : current))
   }, [channels, channelsTouched])
+
+  useEffect(() => {
+    if (!copiedToast) return undefined
+    const timer = setTimeout(() => { setCopiedToast(false) }, 3200)
+    return () => { clearTimeout(timer) }
+  }, [copiedToast])
 
   const status = deriveRemoteTeamStatus(state, vault)
   const can = remoteTeamCapabilities(status, state?.role)
@@ -118,24 +129,31 @@ export function RemoteTeamPanel({
     )
   }
 
+  const connectCheck = checkEdgeUrl(connectUrl)
+  const acceptCheck = checkEdgeUrl(acceptUrl)
+  const connectErrors: FieldErrors = attempted.connect
+    ? {
+      ...(connectCheck.ok ? {} : { address: t('remote.error.address') }),
+      ...(selected.length === 0 ? { channels: t('remote.error.channels') } : {}),
+    }
+    : {}
+  const acceptErrors: FieldErrors = attempted.accept
+    ? {
+      ...(acceptCheck.ok ? {} : { address: t('remote.error.address') }),
+      ...(acceptToken.trim().length === 0 ? { token: t('remote.error.token') } : {}),
+    }
+    : {}
+
   const submitConnect = (event: FormEvent): void => {
     event.preventDefault()
-    const check = checkEdgeUrl(connectUrl)
-    const next: FieldErrors = {}
-    if (!check.ok) next.address = t('remote.error.address')
-    if (selected.length === 0) next.channels = t('remote.error.channels')
-    setFieldErrors(next)
-    if (check.ok && selected.length > 0) onConnect(check.url, selected)
+    setAttempted(current => ({ ...current, connect: true }))
+    if (connectCheck.ok && selected.length > 0) onConnect(connectCheck.url, selected)
   }
 
   const submitAccept = (event: FormEvent): void => {
     event.preventDefault()
-    const check = checkEdgeUrl(acceptUrl)
-    const next: FieldErrors = {}
-    if (!check.ok) next.address = t('remote.error.address')
-    if (acceptToken.trim().length === 0) next.token = t('remote.error.token')
-    setFieldErrors(next)
-    if (check.ok && acceptToken.trim().length > 0) onAccept(check.url, acceptToken.trim())
+    setAttempted(current => ({ ...current, accept: true }))
+    if (acceptCheck.ok && acceptToken.trim().length > 0) onAccept(acceptCheck.url, acceptToken.trim())
   }
 
   /** A pasted invite is read from the clipboard BEFORE the field flattens its line breaks. */
@@ -145,7 +163,6 @@ export function RemoteTeamPanel({
     event.preventDefault()
     setAcceptUrl(parts.address)
     setAcceptToken(parts.token)
-    setFieldErrors({})
   }
 
   /** The whole invite typed/pasted into either field fills both (fallback when the paste arrives already flattened). */
@@ -154,7 +171,6 @@ export function RemoteTeamPanel({
     if (parts.address !== undefined && parts.token !== undefined) {
       setAcceptUrl(parts.address)
       setAcceptToken(parts.token)
-      setFieldErrors({})
       return
     }
     if (field === 'address') setAcceptUrl(value)
@@ -171,13 +187,15 @@ export function RemoteTeamPanel({
     // `navigator.clipboard` does not exist outside secure contexts (plain-HTTP pages), whatever the DOM typings say.
     // oxlint-disable-next-line typescript/no-unnecessary-condition
     void navigator.clipboard?.writeText(text).then(
-      () => { setCopied(true) },
+      () => { setCopied(true); setCopiedToast(true) },
       () => { setCopied(false) },
     )
   }
 
   const hostError = error === null ? null : t(`remote.error.${error}`)
   // Dates are said the product way (primitives/when): "há 3 min", "hoje 14:20", "até amanhã 09:00".
+  // Who ended the access: the owner of the team, when the host's list of people says so (it keeps the last list after a revoke).
+  const ownerName = members?.find(member => member.role === 'owner')?.name
   // The host's own clock (`syncedAt`, persisted) wins; this session's last exchange only stands in for an older host.
   const exchangeAt = parseSyncedAt(state?.syncedAt) ?? lastExchangeAt ?? null
   const exchange = exchangeAt === null ? null : formatWhen(exchangeAt)
@@ -186,9 +204,12 @@ export function RemoteTeamPanel({
     ? t('remote.body.connectedAt', { when: exchange })
     : status === 'offline' && exchange !== null
       ? t('remote.body.offlineAt', { when: exchange })
-      : t(`remote.body.${statusKey}`)
+      : status === 'revoked' && ownerName !== undefined
+        ? t('remote.body.revokedBy', { name: ownerName })
+        : t(`remote.body.${statusKey}`)
   const behind = behindLine(status, state?.behindBy)
   const openInvites = invitesWithoutMembers(invites, members)
+  const revokedArt = status === 'revoked' ? ILLUSTRATIONS['acesso-encerrado'] : undefined
   const revoking = confirmRevoke === null ? undefined : members?.find(member => member.inviteId === confirmRevoke)
 
   return (
@@ -200,7 +221,14 @@ export function RemoteTeamPanel({
           {t(`remote.status.${statusKey}`)}
         </Chip>
         {state !== null && <Chip tone="neutral" size="s">{t(`remote.role.${state.role}`)}</Chip>}
-        <p className={styles.statusBody}>{helpLine}</p>
+        {revokedArt === undefined ? (
+          <p className={styles.statusBody}>{helpLine}</p>
+        ) : (
+          <div className={styles.revokedRow}>
+            <p className={styles.statusBody}>{helpLine}</p>
+            <img className={styles.revokedArt} src={revokedArt} width={96} height={96} alt="" aria-hidden="true" draggable={false} />
+          </div>
+        )}
         {behind !== null && (
           <p className={styles.statusBody} data-persona-remote-behind={behind.key}>
             {t(`remote.behind.${behind.key}`, { count: behind.count })}
@@ -284,7 +312,7 @@ export function RemoteTeamPanel({
             inputMode="url"
             autoComplete="off"
             onChange={(event) => { setConnectUrl(event.target.value) }}
-            {...(fieldErrors.address === undefined ? {} : { error: fieldErrors.address })}
+            {...(connectErrors.address === undefined ? {} : { error: connectErrors.address })}
           />
           <fieldset className={styles.channels} aria-describedby={`${connectId}-channels-hint`}>
             <legend className={styles.blockTitle}>{t('remote.connect.channels')}</legend>
@@ -299,10 +327,10 @@ export function RemoteTeamPanel({
                 <span>{`#${channel.name}`}</span>
               </label>
             ))}
-            {fieldErrors.channels !== undefined && (
+            {connectErrors.channels !== undefined && (
               <p className={styles.fieldError} role="alert">
                 <UiIcon name="alert" size={16} />
-                {fieldErrors.channels}
+                {connectErrors.channels}
               </p>
             )}
           </fieldset>
@@ -324,7 +352,7 @@ export function RemoteTeamPanel({
             autoComplete="off"
             onChange={(event) => { pasteInto('address', event.target.value) }}
             onPaste={onPaste}
-            {...(fieldErrors.address === undefined || can.canConnect ? {} : { error: fieldErrors.address })}
+            {...(acceptErrors.address === undefined ? {} : { error: acceptErrors.address })}
           />
           <Input
             label={t('remote.accept.token')}
@@ -334,7 +362,7 @@ export function RemoteTeamPanel({
             spellCheck={false}
             onChange={(event) => { pasteInto('token', event.target.value) }}
             onPaste={onPaste}
-            {...(fieldErrors.token === undefined ? {} : { error: fieldErrors.token })}
+            {...(acceptErrors.token === undefined ? {} : { error: acceptErrors.token })}
           />
           <Button type="submit" variant="secondary" disabled={busy === 'accept' || vault === 'unavailable'}>
             {busy === 'accept' ? t('remote.accept.joining') : t('remote.accept.action')}
@@ -432,6 +460,12 @@ export function RemoteTeamPanel({
             </ul>
           )}
         </div>
+      )}
+
+      {copiedToast && (
+        <ToastRegion label={t('remote.invite.toastRegion')}>
+          <Toast tone="success" title={t('remote.invite.copiedToast')} />
+        </ToastRegion>
       )}
 
       {confirmRevoke !== null && (

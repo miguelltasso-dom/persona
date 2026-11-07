@@ -1,0 +1,337 @@
+/* D-090 / TEAM-8 (c): o cartão "Pedido de opinião". Só tokens existentes; sem cor nova. */
+.row {
+  display: block;
+  margin: var(--persona-space-3) 0;
+  list-style: none;
+}
+
+.card {
+  max-width: 680px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.eyebrow {
+  font: 700 12px/16px var(--persona-font-text);
+  letter-spacing: 0.02em;
+  color: var(--persona-ink-soft);
+}
+
+.round {
+  font: 600 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-faint);
+}
+
+.question {
+  margin: var(--persona-space-2) 0 0;
+  font: 700 16px/24px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.draftImages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-2);
+}
+
+.imageButton {
+  display: block;
+  padding: 0;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.imageButton:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+}
+
+.thumb {
+  display: block;
+  max-width: min(480px, 100%);
+  max-height: 360px;
+  height: auto;
+}
+
+/* Muse 03:29: no cartão recolhido a miniatura é de até 160 px (o clique abre em tamanho real). Sem `100%` no max-width: com a porcentagem o botão em volta contava a
+   largura natural da imagem (480) no cálculo do flex e sobrava uma faixa vazia ao lado da miniatura. */
+.thumbSmall {
+  max-width: 160px;
+  max-height: 160px;
+}
+
+/* O cartão recolhido (depois de consolidado): miniatura + pergunta numa linha + chips das marcas. */
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-2);
+}
+
+.summaryText {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  min-width: 0;
+}
+
+.questionLine {
+  margin: 0;
+  font: 700 16px/24px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.full {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.imageLoading {
+  display: block;
+  width: 240px;
+  height: 160px;
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-wash);
+}
+
+.imageMissing {
+  display: inline-block;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: 1px dashed var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.draftText,
+.replyText {
+  margin: var(--persona-space-2) 0 0;
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.draftText[data-clamped='6'],
+.replyText[data-clamped='3'] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.draftText[data-clamped='6'] {
+  -webkit-line-clamp: 6;
+}
+
+.replyText[data-clamped='3'] {
+  -webkit-line-clamp: 3;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 13px/20px var(--persona-font-text);
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
+}
+
+.footnote {
+  margin: var(--persona-space-2) 0 0;
+  font: 600 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-faint);
+}
+
+.replies {
+  margin: var(--persona-space-3) 0 0;
+  padding: var(--persona-space-2) 0 0;
+  list-style: none;
+  border-top: 1px solid var(--persona-outline-soft);
+}
+
+.reply {
+  display: flex;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-2) 0;
+}
+
+.replyBody {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.replyHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.replyName {
+  font: 700 14px/20px var(--persona-font-text);
+}
+
+.replyText {
+  margin-top: 0;
+}
+
+.nothing {
+  padding: var(--persona-space-1) 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.blind {
+  margin-top: var(--persona-space-2);
+}
+
+.blindList {
+  margin: var(--persona-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.blindRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  font: 500 13px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.merged {
+  margin-top: var(--persona-space-3);
+  padding-top: var(--persona-space-2);
+  border-top: 1px solid var(--persona-outline-soft);
+}
+
+.mergedLine {
+  margin: 0;
+  font: 700 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.version {
+  margin-top: var(--persona-space-2);
+}
+
+.versionTitle {
+  margin: 0;
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+/* Antes · Depois de imagem: lado a lado a partir de 960 px, empilhadas abaixo disso. */
+.compare {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-2);
+}
+
+@media (min-width: 960px) {
+  .compare {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.side {
+  margin: 0;
+}
+
+.side figcaption {
+  margin-bottom: var(--persona-space-1);
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.toggle {
+  display: inline-flex;
+  gap: var(--persona-space-1);
+  margin-top: var(--persona-space-2);
+}
+
+.toggle button {
+  min-height: 28px;
+  padding: 0 var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-paper);
+  color: var(--persona-ink-soft);
+  font: 700 12px/16px var(--persona-font-text);
+  cursor: pointer;
+}
+
+.toggle button[aria-pressed='true'] {
+  border-color: var(--persona-outline);
+  background: var(--persona-wash);
+  color: var(--persona-ink);
+}
+
+.cap {
+  margin: var(--persona-space-2) 0 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.actions {
+  margin-top: var(--persona-space-3);
+}
+
+/* Recolhido depois de consolidado: uma linha. */
+
+/* EQUIPE-REAL-SPEC §(e) / Atlas 07/11: a ARTE salva como arquivo no rascunho (SVG/PNG) aparece no cartão para a opinião ser sobre a IMAGEM; o nome do arquivo embaixo. */
+.artFigure {
+  display: grid;
+  gap: var(--persona-space-1);
+  justify-items: start;
+  margin: 0;
+}
+
+.artName {
+  max-width: 192px;
+  overflow: hidden;
+  color: var(--persona-ink-soft);
+  font: 600 12px/16px var(--persona-font-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

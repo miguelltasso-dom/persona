@@ -99,8 +99,9 @@
 
 /* Short windows (zoom 200%, small laptops): less gutter, so the body keeps room to scroll. */
 @media (max-height: 520px) {
+  /* Muse (04:18): at 200% the step 2 of "Adicionar conta" touched the bottom edge; 16 px of gutter keeps the footer off it. */
   .scrim {
-    --persona-modal-gutter: var(--persona-space-2);
+    --persona-modal-gutter: var(--persona-space-4, 16px);
   }
 
   .modal {
@@ -251,4 +252,18 @@
   .tooltip {
     animation: persona-fade-in var(--motion-reduced-fade) linear;
   }
+}
+
+/* P1-11: a tecla no meio da frase (Toast da dica de atalho): o formato do .tooltipKey, em tinta sobre o fundo claro. */
+.keyCap {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid var(--persona-outline);
+  border-radius: 5px;
+  background: var(--persona-wash);
+  font: 700 11px/14px var(--persona-font-text);
+  text-align: center;
+  vertical-align: 1px;
+  color: var(--persona-ink);
 }

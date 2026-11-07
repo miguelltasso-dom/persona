@@ -150,3 +150,41 @@
     grid-template-columns: 1fr;
   }
 }
+
+/*
+ * variant="preview" (Configurações › Aparência, TH-1): a miniatura 120 × 72 em cima, o título e a frase embaixo, os cartões em linha.
+ * A 960 px e a 200 % de zoom (janela ≤ 1024 px) os cartões empilham, com a miniatura ao lado do texto.
+ */
+.grid[data-variant='preview'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid[data-variant='preview'] .card {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.grid[data-variant='preview'] .icon,
+.grid[data-variant='preview'] .card[data-checked] .icon {
+  display: block;
+  flex: none;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  /* O `.icon` base centra o conteúdo (`place-items: center`) e o Chrome aplica isso também em bloco: a miniatura fica à esquerda, sobre o texto. */
+  place-items: start;
+}
+
+@media (max-width: 1024px) {
+  .grid[data-variant='preview'] {
+    grid-template-columns: 1fr;
+  }
+
+  .grid[data-variant='preview'] .card {
+    flex-direction: row;
+    align-items: center;
+  }
+}

@@ -31,7 +31,8 @@ export function EmptyState({ illustration, art, title, body, action, secondaryAc
         {art ?? (illustration !== undefined ? <img src={illustration} alt="" {...(artSize === undefined ? {} : { style: { maxHeight: artSize, maxWidth: artSize } })} /> : <PawTrail />)}
       </div>
       <Title id={titleId} className={styles.emptyTitle}>{title}</Title>
-      {body !== undefined && <p className={styles.emptyBody}>{body}</p>}
+      {/* `div`, não `p`: o corpo pode ser uma lista (os rostos da equipe do CV-7) e `ul` dentro de `p` é HTML inválido; a classe já zera a margem. */}
+      {body !== undefined && <div className={styles.emptyBody}>{body}</div>}
       {(action !== undefined || secondaryAction !== undefined) && (
         <div className={styles.emptyActions}>
           {action}

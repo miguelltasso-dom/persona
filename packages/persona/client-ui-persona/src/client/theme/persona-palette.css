@@ -75,8 +75,11 @@
   --persona-grain-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.2 0 0 0 0 0.14 0 0 0 0 0.25 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* ── Light scheme (default) ───────────────────────────────── */
-body:not([data-ds-dark-theme='true']) {
+/* ── Light scheme (default) ─────────────────────────────────
+   `[data-persona-scheme='light']` deixa um elemento (a miniatura do cartão "Claro" em Configurações › Aparência, TH-1) usar esta paleta
+   qualquer que seja o tema da janela: o desenho vem dos tokens, nunca de uma captura. */
+body:not([data-ds-dark-theme='true']),
+[data-persona-scheme='light'] {
   --persona-paper: var(--persona-cream-100);
   --persona-paper-sunken: var(--persona-cream-200);
   --persona-card: var(--persona-cream-50);
@@ -95,6 +98,10 @@ body:not([data-ds-dark-theme='true']) {
   --persona-rail-field: #544171;
   --persona-rail-field-hover: #564274;
   --persona-rail-kbd: #423156;
+  /* NIGHT-THEME-SPEC §1: the night tokens exist in both schemes; in light they are inert. */
+  --persona-night-glow: none;
+  --persona-night-vignette: none;
+  --persona-night-active-glow: none;
   --persona-rail-ink-soft: var(--persona-lilac-200);
   --persona-rail-hill-1: var(--persona-lilac-600);
   --persona-rail-hill-2: var(--persona-lilac-500);
@@ -140,8 +147,10 @@ body:not([data-ds-dark-theme='true']) {
   --persona-scene-shadow: rgb(103 82 144 / 0.22);
 }
 
-/* ── Dark scheme: deep plum night, never grey ─────────────── */
-body[data-ds-dark-theme='true'] {
+/* ── Dark scheme: deep plum night, never grey ───────────────
+   `[data-persona-scheme='dark']`: o mesmo escopo para a miniatura do cartão "Escuro". */
+body[data-ds-dark-theme='true'],
+[data-persona-scheme='dark'] {
   --persona-paper: #1e1526;
   --persona-paper-sunken: #18111f;
   --persona-card: #2a1e35;
@@ -165,6 +174,9 @@ body[data-ds-dark-theme='true'] {
   --persona-rail-field: #2e203c;
   --persona-rail-field-hover: #33243f;
   --persona-rail-kbd: #3a2a4f;
+  --persona-night-glow: radial-gradient(120% 80% at 0% 100%, rgb(242 194 122 / 0.1), transparent 60%);
+  --persona-night-vignette: radial-gradient(140% 100% at 50% 0%, transparent 55%, rgb(10 6 14 / 0.35));
+  --persona-night-active-glow: 0 0 0 3px rgb(242 194 122 / 0.18), 0 6px 18px rgb(242 194 122 / 0.12);
   --persona-rail-ink-soft: var(--persona-lilac-300);
   --persona-rail-hill-1: #3a2a4f;
   --persona-rail-hill-2: #45335d;
@@ -290,6 +302,19 @@ body {
   --dsw-alias-state-business-primary: var(--persona-accent);
   --dsw-alias-link: var(--persona-brand);
   --dsw-alias-illustration-accent: var(--persona-accent);
+}
+
+/* ── Label aliases (host) — mais específica que o `body` / `body[data-ds-dark-theme]` do design-platform.css ───────────────────────────────────
+   Família "label" do host (ui-chat/ui-shortcuts: descrições de Configurações, linhas de preferência): sem isto ela mantém o cinza-azulado do DS
+   (#81858c no claro, 12 px) sobre o creme/lilás do Persona e reprova o contraste (axe F5, Gauge 04/11 e de novo no bundle 2).
+   O design-platform.css define estas variáveis em `body` e em `body[data-ds-dark-theme]`: com a MESMA especificidade ganha quem carrega por último, e no
+   escuro o `[data-ds-dark-theme]` (0,1,1) vence um `body` simples. Por isso `html body` (0,0,2) e `html body[data-ds-dark-theme]` (0,1,2): vencem nos
+   dois temas, em qualquer ordem. O terciário do host é texto de descrição de 12 px: usa a tinta suave (>= 5,5:1 em todas as superfícies), não a "faint". */
+html body,
+html body[data-ds-dark-theme] {
+  --dsw-alias-label-primary: var(--persona-ink);
+  --dsw-alias-label-secondary: var(--persona-ink-soft);
+  --dsw-alias-label-tertiary: var(--persona-ink-soft);
 }
 
 @media (prefers-reduced-motion: reduce) {

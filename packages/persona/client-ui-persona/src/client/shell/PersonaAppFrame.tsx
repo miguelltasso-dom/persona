@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MainPanelId, ShellState } from './create-shell-store.ts'
 import { PlaceTabsBar } from './PlaceTabsBar.tsx'
+import { ShortcutTipToast } from './ShortcutTipToast.tsx'
 import { isPlacesNavEnabled } from './nav-flag.ts'
 import { installComposerFocusRestore } from '../chat/composer-focus.ts'
 import { ErrorState, PanelBoundary } from '../primitives/index.ts'
@@ -85,6 +86,8 @@ export function PersonaAppFrame({ renderSlot, useShell, selectPanel, t }: Person
       <div className={styles.overlayLayer}>
         {renderSlot('shell.overlay', {})}
       </div>
+      {/* P1-11: a dica de atalho (Toast neutro de 6 s) na 3ª chegada pelo mouse à mesma tela. */}
+      <ShortcutTipToast t={t} activePanel={shell.activePanel} />
     </div>
   )
 }

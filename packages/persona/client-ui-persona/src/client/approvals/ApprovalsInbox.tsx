@@ -17,7 +17,10 @@ import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from 
 import { ProactiveDailySummaries } from './ProactiveDailySummaries.tsx'
 import { personaPortraitSrc } from './approvals-ui-helpers.ts'
 import { ReactiveApprovalsList, type RememberChoice } from './ReactiveApprovalsList.tsx'
+import type { ConnectorChoice } from './connector-ask.ts'
+import type { ActionDecision } from '../chat/ActionPreviewCard.tsx'
 import type { ApprovalItem } from './mock-data.ts'
+import type { ReplyTarget } from '../answer/reply-target.ts'
 import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
 import { pt as defaultDict } from '../locale/approvals/locales.ts'
 import { useDecisionListMotion } from '../decisions/use-decision-list-motion.ts'
@@ -57,6 +60,12 @@ export interface ApprovalsInboxProps {
   readonly focusId?: string | undefined
   readonly onDecideItem?: (item: ApprovalItem, accept: boolean, remember?: ApprovalRememberChoice) => void
   readonly onDecideProactive?: (proposal: ProactiveProposal, accept: boolean) => void
+  /** "Liberar para {B}": the three-way choice of a connector card ("só desta vez" · "sempre" · "agora não"). */
+  readonly onDecideConnector?: (item: ApprovalItem, choice: ConnectorChoice) => void
+  /** HT-9 / D-095: the person's answer to the preview of an external action (Enviar · Editar · Cancelar). */
+  readonly onDecideAction?: ((decision: ActionDecision) => void | Promise<void>) | undefined
+  /** IV-10 "Responder": a question in words (the card carries its `replyTarget`) takes the person to the thread where it was asked. No handler, no button. */
+  readonly onReply?: ((target: ReplyTarget) => void) | undefined
   readonly onRemoteRetry?: () => void
 }
 
@@ -67,7 +76,10 @@ export function ApprovalsInbox({
   initialState = 'ready',
   focusId,
   onDecideItem,
+  onReply,
   onDecideProactive,
+  onDecideConnector,
+  onDecideAction,
   onRemoteRetry,
 }: ApprovalsInboxProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
@@ -159,6 +171,7 @@ export function ApprovalsInbox({
         <PersonaSurfaceEmpty
           dict={dict}
           illustrationKey="empty-inbox"
+          nightPair={{ day: 'empty-aprovacoes', night: 'empty-aprovacoes-noite' }}
           titleKey="empty.title"
           hintKey="empty.hint"
         />
@@ -218,6 +231,9 @@ export function ApprovalsInbox({
                   onDecideItem(item, accept, remember)
                 },
               })}
+              {...(onDecideConnector === undefined ? {} : { onDecideConnector })}
+              {...(onDecideAction === undefined ? {} : { onDecideAction })}
+              {...(onReply === undefined ? {} : { onReply })}
               onCelebrateAccept={celebrateAccept}
             />
           </div>

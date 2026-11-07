@@ -1,0 +1,125 @@
+/*
+ * TEAM-8: as linhas do fio da equipe real. A mesma família da linha do HT-3 (HarnessEventLine.module.css): discreta, sem balão, a borda
+ * esquerda de 3 px; aqui com os dois rostos 24 e a seta. Só tokens `--persona-*`.
+ */
+.line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  margin: var(--persona-space-2) 0;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border-left: 3px solid var(--persona-outline-soft);
+  border-radius: 0 var(--persona-radius-s) var(--persona-radius-s) 0;
+  list-style: none;
+  color: var(--persona-ink-soft);
+}
+
+/* O bloqueio (o colega não pode usar o conector) chama atenção sem alarmar: a borda âmbar do cartão de aviso. */
+.line[data-team-line='handoff-blocked'],
+.line[data-team-line='handoff-held'],
+.line[data-team-line='review-returned'] {
+  border-left-color: var(--persona-accent);
+}
+
+.faces {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--persona-space-1);
+}
+
+.arrow {
+  display: grid;
+  place-items: center;
+  color: var(--persona-ink-soft);
+}
+
+.body {
+  min-width: 0;
+  flex: 1;
+}
+
+.text {
+  margin: 0;
+  font: 600 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+/* BR-P6 (Muse 01:43): o ícone da linha fica ao lado do texto, na mesma linha de base. */
+.lineIcon {
+  flex-shrink: 0;
+  margin-inline-end: 6px;
+  vertical-align: -0.2em;
+}
+
+.time {
+  font-weight: 500;
+  color: var(--persona-ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-1) var(--persona-space-3);
+}
+
+.action {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 13px/20px var(--persona-font-text);
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.action:hover,
+.action:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
+}
+
+.group .groupList {
+  margin: var(--persona-space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviewedSeal {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reviewedFace {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  font: 800 10px/1 var(--persona-font-text);
+}
+
+.reviewedFace img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reviewSkippedNote {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--persona-font-text);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--persona-ink-soft);
+}

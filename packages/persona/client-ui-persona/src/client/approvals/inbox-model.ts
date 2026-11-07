@@ -9,6 +9,7 @@ import type { PermissionValidity } from '../primitives/index.ts'
 import type { DecisionState } from '../decisions/decision-types.ts'
 import { approvalTitle } from './approvals-ui-helpers.ts'
 import type { ApprovalItem, ApprovalKind } from './mock-data.ts'
+import type { ReviewedBySealReviewer } from '../teamwork/ReviewedBySeal.tsx'
 import type { PersonaDailyProactiveSummary, ProactiveProposal } from './proactivity-mock-data.ts'
 
 /** What the person chose on one card's "Lembrar esta permissão" (each card keeps its own: they are decided in any order). */
@@ -33,12 +34,16 @@ export interface InboxRow {
   readonly proposerPersonaId?: string | undefined
   /** Gallery id of the proposer's animal, when the summary knows it. */
   readonly proposerCharacterId?: string | undefined
+  /** D-069: the proposer's real portrait when the Decision store resolved it from the team; the face drawn on the row and in the detail comes first from here. */
+  readonly proposerAvatarSrc?: string | undefined
   /** ISO moment (or the summary's day) for `formatWhen`. */
   readonly at?: string | undefined
   readonly state: DecisionState | undefined
   readonly risk: 'low' | 'normal'
   /** A capture-only sample (dev seed): says "Exemplo" and is never decided against the host. */
   readonly example?: boolean
+  /** TEAM-8: o selo "Revisado por {R}" no cartão de Aprovações quando um colega aprovou sem pontos em aberto. */
+  readonly reviewedBy?: ReviewedBySealReviewer | undefined
   readonly item?: ApprovalItem
   readonly proposal?: ProactiveProposal
 }
@@ -62,15 +67,18 @@ function itemRow(dict: LocaleDict, item: ApprovalItem): InboxRow {
     id: item.id,
     source: 'item',
     group: item.kind === 'vault' ? 'vault' : 'now',
-    kind: item.kind,
+    // An external action that arrived without its preview is still an "Ação externa" (not a plain "Tarefa"): the chip says what it is.
+    kind: item.blindAction === true ? 'action' : item.kind,
     title,
-    listTitle: item.kind === 'hire' ? bindLocale(dict, 'inbox.row.hire', { name: item.title }) : title,
+    listTitle: title,
     proposerName: item.proposerName?.trim() ?? '',
     proposerPersonaId: item.proposerPersonaId,
+    proposerAvatarSrc: item.proposerAvatarSrc,
     at: item.createdAt,
     state: item.decisionState,
     risk: item.risk ?? 'normal',
     ...(item.example === true ? { example: true } : {}),
+    ...(item.reviewedBy === undefined ? {} : { reviewedBy: item.reviewedBy }),
     item,
   }
 }
@@ -123,6 +131,8 @@ export function flattenRows(groups: readonly InboxGroup[]): readonly InboxRow[] 
 export function batchEligible(rows: readonly InboxRow[]): readonly InboxRow[] {
   return rows.filter(row => row.source === 'item'
     && row.example !== true
+    // Whatever leaves the company or opens a door is decided on its own card, never in the batch (even if the host says `low`).
+    && row.kind !== 'action' && row.kind !== 'connector' && row.item?.blindAction !== true
     && row.risk === 'low'
     && (row.state === undefined || row.state === 'pending')
     && (row.item?.dependsOnTitle?.trim() ?? '') === '')

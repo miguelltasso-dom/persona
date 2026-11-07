@@ -2,7 +2,7 @@ import type { ConnectionView } from '@deepseek-ai/dsh-persona-host/types'
 import type { RunnerOptionUi } from '../persona-editor/PersonaEditor.tsx'
 
 const LABELS: Record<ConnectionView['kind'], string> = {
-  dsh: 'Persona (DSH)',
+  dsh: 'Persona (motor próprio)',
   claude: 'Claude Code',
   codex: 'Codex',
   cursor: 'Cursor agent',

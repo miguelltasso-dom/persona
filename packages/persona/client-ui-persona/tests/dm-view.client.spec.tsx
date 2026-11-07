@@ -29,6 +29,14 @@ describe('DM with a persona', () => {
     expect(onSend.mock.calls[0]?.[0]).toBe('Oi, Nina')
   })
 
+  it('"Você parou aqui · Continuar" na DM manda "Continue de onde parou." (a conversa já é com ela, sem menção)', () => {
+    const onSend = vi.fn()
+    const stopped = { id: 'coord-m1-reply', authorId: 'nina', authorName: 'Nina', body: 'Vou explicar em três passos: primeiro', timeLabel: '10:01', reactions: [], stopped: true as const }
+    render(<DirectMessagesView t={t} shellT={shellTranslate} loading={false} dms={[NINA]} selectedId="dm-nina" messages={[stopped]} onSelect={() => undefined} onSend={onSend} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(onSend).toHaveBeenCalledWith('Continue de onde parou.')
+  })
+
   it('thread header ⋯ menu opens Ensinar for a persona peer', () => {
     const onTeach = vi.fn()
     render(

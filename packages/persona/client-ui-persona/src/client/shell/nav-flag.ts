@@ -8,22 +8,12 @@
  * Para desligar: remover a chave (ou gravar '0').
  */
 
+import { readFlag } from '../flags.ts'
+// FLAGS-ON-1 (v1.1): LIGADA por padrão; '0' no localStorage (ou window.__PERSONA_FLAGS__ = { navPlaces: false }) desliga. Leitor central: ../flags.ts (persona-spec/contracts/flags-defaults.md).
+
 export const NAV_PLACES_FLAG_KEY = 'persona.flag.navPlaces'
 
-interface FlagWindow {
-  readonly __PERSONA_FLAGS__?: { readonly navPlaces?: boolean }
-}
-
-/** A navegação em 6 lugares está ligada? Nunca lança (storage bloqueado = desligada). */
+/** A navegação em 6 lugares está ligada? Nunca lança (storage bloqueado: vale o padrão, LIGADO na v1.1). */
 export function isPlacesNavEnabled(): boolean {
-  try {
-    if (typeof window !== 'undefined' && (window as unknown as FlagWindow).__PERSONA_FLAGS__?.navPlaces === true) return true
-  } catch {
-    /* janela sem acesso às flags: segue para o storage */
-  }
-  try {
-    return typeof localStorage !== 'undefined' && localStorage.getItem(NAV_PLACES_FLAG_KEY) === '1'
-  } catch {
-    return false
-  }
+  return readFlag('navPlaces')
 }

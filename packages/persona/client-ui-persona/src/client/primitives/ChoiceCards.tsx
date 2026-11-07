@@ -27,13 +27,15 @@ export interface ChoiceCardsProps<T extends string> {
   readonly disabled?: boolean
   /** Visually hide the legend when a card title above already says it. */
   readonly hideLegend?: boolean
+  /** `preview`: the `icon` is a larger picture (Aparência's 120 × 72 theme miniature) above the text; stacks on narrow windows. */
+  readonly variant?: 'preview' | undefined
 }
 
-export function ChoiceCards<T extends string>({ legend, name, options, value, onChange, disabled = false, hideLegend = false }: ChoiceCardsProps<T>): ReactNode {
+export function ChoiceCards<T extends string>({ legend, name, options, value, onChange, disabled = false, hideLegend = false, variant }: ChoiceCardsProps<T>): ReactNode {
   return (
     <fieldset className={styles.group} disabled={disabled}>
       <legend className={hideLegend ? 'persona-sr-only' : styles.legend}>{legend}</legend>
-      <div className={styles.grid} data-count={options.length}>
+      <div className={styles.grid} data-count={options.length} data-variant={variant}>
         {options.map(option => (
           <label key={option.id} className={styles.card} data-checked={value === option.id ? '' : undefined}>
             <input

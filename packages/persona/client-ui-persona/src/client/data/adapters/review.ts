@@ -1,5 +1,6 @@
 import type { ReviewAcceptView, ReviewConflictResolutionView, ReviewFileConflictView, ReviewSummaryView } from '@deepseek-ai/dsh-persona-host/types'
 import type { ReviewBlockedUi, ReviewFileChangeUi, ReviewSummaryUi } from '../../review/mock-data.ts'
+import type { ReviewedBySealReviewer } from '../../teamwork/ReviewedBySeal.tsx'
 
 /** Engine default when the host omits byte limit on the wire. */
 export const REVIEW_PATCH_LIMIT_BYTES = 32_768
@@ -9,6 +10,7 @@ export function reviewSummaryFromHost(payload: ReviewSummaryView): ReviewSummary
   if (!payload.hasWorktree && payload.files.length === 0 && payload.patch.trim() === '') {
     return null
   }
+  const extraSummary = payload as ReviewSummaryView & { readonly reviewedBy?: ReviewedBySealReviewer | undefined }
   return {
     ticketId: payload.ticketId,
     files: payload.files.map((file) => {
@@ -24,6 +26,7 @@ export function reviewSummaryFromHost(payload: ReviewSummaryView): ReviewSummary
         ...(extra.cells === undefined ? {} : { cells: extra.cells }),
         ...(extra.beforeImage === undefined ? {} : { beforeImage: extra.beforeImage }),
         ...(extra.afterImage === undefined ? {} : { afterImage: extra.afterImage }),
+        ...(extra.folderImage === undefined ? {} : { folderImage: extra.folderImage }),
         ...(extra.conflict === undefined ? {} : { conflict: extra.conflict }),
         ...(extra.truncated === undefined ? {} : { truncated: extra.truncated }),
         ...(extra.canOpenDraft === undefined ? {} : { canOpenDraft: extra.canOpenDraft }),
@@ -36,6 +39,7 @@ export function reviewSummaryFromHost(payload: ReviewSummaryView): ReviewSummary
     patchLimitBytes: REVIEW_PATCH_LIMIT_BYTES,
     secretsRedacted: payload.secretsRedacted,
     testsClaimed: payload.testsClaimed,
+    ...(extraSummary.reviewedBy === undefined ? {} : { reviewedBy: extraSummary.reviewedBy }),
   }
 }
 

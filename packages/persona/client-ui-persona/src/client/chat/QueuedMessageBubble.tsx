@@ -14,6 +14,8 @@ export interface QueuedMessageItem {
   readonly isSending?: boolean | undefined
   /** P0-19: entrou na fila porque a cota acabou; só sai quando ela voltar (não quando a persona termina o passo). */
   readonly heldForQuota?: boolean | undefined
+  /** Depois do Parar a fila fica guardada e a persona está parada: o balão diz "sai quando você continuar" (e não "quando {name} terminar o passo atual"). Quem monta a tela decide pelo fio (`queued-after-stop.ts`). */
+  readonly heldAfterStop?: boolean | undefined
   /** Voltou do `localStorage` depois de recarregar a janela: o balão diz "Ainda na fila". */
   readonly restored?: boolean | undefined
   /** Anexos já enviados ao host, só nesta sessão (os ids não são guardados): saem junto com a mensagem. */
@@ -39,6 +41,7 @@ function metaText(t: QueuedMessageBubbleProps['t'], item: QueuedMessageItem, quo
       : t('composer.steer.queuedMetaQuota')
   }
   if (item.restored === true) return t('composer.steer.stillQueued')
+  if (item.heldAfterStop === true) return t('composer.steer.queuedMetaStopped')
   return t('composer.steer.queuedMeta', { name: item.targetPersonaName })
 }
 
@@ -54,6 +57,8 @@ export function QueuedMessageBubble({
   // Com anexos desta sessão o "Editar" não existe: o texto voltaria ao composer sem eles (a fila só edita texto).
   const canEdit = item.attachments === undefined || item.attachments.length === 0
   const lost = item.lostAttachmentNames ?? []
+  // Parada pela pessoa: "Mandar agora" envia de verdade e a persona responde, ou seja, ela CONTINUA (Muse 16:37): o nome acessível diz isso.
+  const sendNowLabel = t(item.heldAfterStop === true ? 'composer.steer.sendNowStoppedLabel' : 'composer.steer.sendNowLabel')
   return (
     <article
       className={styles.queuedMessage}
@@ -104,7 +109,7 @@ export function QueuedMessageBubble({
                 size="s"
                 variant="ghost"
                 onClick={() => { onSendNow(item.id) }}
-                aria-label={t('composer.steer.sendNowLabel')}
+                aria-label={sendNowLabel}
               >
                 {t('composer.steer.sendNow')}
               </Button>
@@ -133,7 +138,7 @@ export function QueuedMessageBubble({
                 size="s"
                 variant="ghost"
                 onClick={() => { onSendNow(item.id) }}
-                aria-label={t('composer.steer.sendNowLabel')}
+                aria-label={sendNowLabel}
               >
                 {t('composer.steer.sendNow')}
               </Button>

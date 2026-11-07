@@ -1,0 +1,135 @@
+/* IV-6: o cartão "Pergunta à parte", acima do composer e fora do fio. Cabe a 200% (largura cheia, rola por dentro, sem cortar texto). */
+.region {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  max-height: min(40vh, 320px);
+  margin: 0 0 var(--persona-space-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.item {
+  min-width: 0;
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-left: 3px solid var(--persona-lilac-300);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper-sunken);
+  color: var(--persona-ink);
+}
+
+.item[data-aside-item='failed'] {
+  border-left-color: var(--persona-accent);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: 800 13px/18px var(--persona-font-text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.question {
+  margin: var(--persona-space-2) 0 0;
+  font: 700 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: var(--persona-space-2) 0 0;
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--persona-ink-soft);
+  animation: asideDot 1.2s ease-in-out infinite;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes asideDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+  }
+
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dots i {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+.answer {
+  margin-top: var(--persona-space-2);
+}
+
+.answerBy {
+  margin: 0;
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.answerText {
+  margin: var(--persona-space-1) 0 0;
+  font: 500 14px/21px var(--persona-font-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.failed {
+  margin-top: var(--persona-space-2);
+}
+
+.failedText {
+  margin: 0;
+  font: 600 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-2);
+}
+
+.note {
+  margin: var(--persona-space-2) 0 0;
+  font: 500 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}

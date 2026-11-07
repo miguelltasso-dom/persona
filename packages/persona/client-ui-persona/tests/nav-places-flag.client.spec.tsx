@@ -74,15 +74,15 @@ describe('rail com a flag DESLIGADA (o app de antes)', () => {
   })
 })
 
-describe('rail com a flag LIGADA (6 lugares)', () => {
+describe('rail com a flag LIGADA (5 lugares compactos + a barra de conversas)', () => {
   beforeEach(() => { localStorage.setItem(NAV_PLACES_FLAG_KEY, '1') })
 
-  it('seis lugares na ordem do NAV-SPEC, sem grupos recolhíveis', () => {
+  it('cinco lugares na ordem do NAV-SPEC (Conversas saiu: são a própria barra), sem grupos recolhíveis', () => {
     const { container } = rail()
     const places = items(container).filter(node => node.hasAttribute('data-nav-place'))
-    expect(places.map(node => node.getAttribute('data-nav-place'))).toEqual(['overview', 'conversations', 'projects', 'approvals', 'team', 'memory'])
+    expect(places.map(node => node.getAttribute('data-nav-place'))).toEqual(['overview', 'projects', 'approvals', 'team', 'memory'])
     expect(places.map(node => node.querySelector('[class*="navLabel"]')?.textContent)).toEqual([
-      'Visão geral', 'Conversas', 'Projetos', 'Aprovações', 'Equipe', 'Memória da empresa',
+      'Visão geral', 'Projetos', 'Aprovações', 'Equipe', 'Memória da empresa',
     ])
     expect(container.querySelector('#persona-nav-places [aria-expanded]')).toBeNull() // nada de grupo que dobra
     expect(container.querySelector('[class*="groupToggle"]')).toBeNull()

@@ -1,0 +1,55 @@
+/* The ⋯ menu of the Segundo cérebro header (tokens only). */
+
+.root {
+  position: relative;
+  display: inline-flex;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + var(--persona-space-1));
+  right: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  min-width: 14rem;
+  padding: var(--persona-space-1);
+  border: var(--persona-border-width, 1.5px) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m, 14px);
+  background: var(--persona-card-raised);
+  box-shadow: var(--persona-shadow-lift);
+}
+
+.item {
+  min-height: 40px;
+  padding: 0 var(--persona-space-3);
+  border: 0;
+  border-radius: var(--persona-radius-s, 10px);
+  background: none;
+  color: var(--persona-ink);
+  font: 700 14px/20px var(--persona-font-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover:not(:disabled),
+.item:focus-visible {
+  background: var(--persona-wash);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--persona-accent);
+  outline-offset: -2px;
+}
+
+.item:disabled {
+  color: var(--persona-ink-soft);
+  cursor: not-allowed;
+}
+
+.note {
+  margin: var(--persona-space-1) var(--persona-space-3) var(--persona-space-2);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--persona-ink-soft);
+}

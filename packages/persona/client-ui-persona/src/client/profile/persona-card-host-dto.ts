@@ -11,7 +11,13 @@ export interface PersonaCardHostDto {
   readonly nowKind: PersonaNowKind
   readonly nowText: string
   readonly presence: { readonly online: boolean; readonly lastActiveAt: string }
-  readonly engine: { readonly runnerLabel: string; readonly modelLabel: string }
+  readonly engine: {
+    readonly runnerLabel: string
+    readonly modelLabel: string
+    readonly runnerModel?: string | null
+    /** Nome nativo do nível de esforço (o que o motor chama: low, medium, high, xhigh, max, ultra…); `null` = Padrão do motor. */
+    readonly runnerEffort?: string | null
+  }
   readonly sectorName?: string
   readonly ownerName?: string
   readonly substituteName?: string

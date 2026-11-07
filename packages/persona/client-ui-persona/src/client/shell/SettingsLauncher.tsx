@@ -25,7 +25,7 @@ export type SettingsLauncherProps =
 
 const SETTINGS_PLACE = NAV_PLACES.find(place => place.id === 'settings')
 
-export function SettingsLauncher({ t, useShell, selectPanel, openSettings }: SettingsLauncherProps): ReactNode {
+export function SettingsLauncher({ t, useShell, selectPanel, openSettings, wide }: SettingsLauncherProps): ReactNode {
   const activePanel = useShell(state => state.activePanel)
   const short = useShortViewport()
   useEffect(() => {
@@ -34,10 +34,13 @@ export function SettingsLauncher({ t, useShell, selectPanel, openSettings }: Set
   }, [openSettings])
   if (SETTINGS_PLACE === undefined) return null
   const label = t('place.settings')
+  // Só o ícone quando a janela é baixa OU quando o rodapé é o do trilho de 64 px (a sidebar passa `wide: false`).
+  const iconOnly = short || wide === false
   const button = (
     <button
       type="button"
       className={styles.button}
+      data-icon-only={iconOnly ? '' : undefined}
       data-nav-item=""
       data-nav-place="settings"
       data-nav-panel={placeEntryPanel(SETTINGS_PLACE)}
@@ -50,6 +53,6 @@ export function SettingsLauncher({ t, useShell, selectPanel, openSettings }: Set
       <span className={styles.label}>{label}</span>
     </button>
   )
-  // Em janela baixa só o ícone aparece; o nome fica no tooltip (e no aria-label).
-  return short ? <Tooltip content={label} side="top">{button}</Tooltip> : button
+  // Só o ícone aparece; o nome fica no tooltip (e no aria-label).
+  return iconOnly ? <Tooltip content={label} side="top">{button}</Tooltip> : button
 }

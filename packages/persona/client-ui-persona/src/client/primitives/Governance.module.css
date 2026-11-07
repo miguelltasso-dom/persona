@@ -392,6 +392,20 @@
   }
 }
 
+/* Narrow (200% zoom): the meter stacks ABOVE the title, centered, instead of squeezing the sentence beside it. */
+@media (max-width: 520px) {
+  .score {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--persona-space-3);
+    padding: var(--persona-space-4);
+  }
+
+  .gauge {
+    align-self: center;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .gaugeFill {
     transition: none;

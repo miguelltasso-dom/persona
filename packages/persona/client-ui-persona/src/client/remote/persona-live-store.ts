@@ -1,12 +1,12 @@
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import type { AwayEventLive, ChannelMessageUi } from './map-host-ui.ts'
-import { mapAwayEventLive, mapMessage, mapPersonaNowRow, mapSortedMessageStream, mapTeamToStrip, resolveHostPersonaId } from './map-host-ui.ts'
+import type { AwayEventLive, AwayLive, ChannelMessageUi } from './map-host-ui.ts'
+import { mapAwayEventLive, mapAwayLive, mapMessage, mapPersonaNowRow, mapSortedMessageStream, mapTeamToStrip, resolveHostPersonaId } from './map-host-ui.ts'
 import { readClientDevSeedEnabled } from './persona-dev-seed.ts'
 import { bootstrapPersonaTenant, hostReportsFirstUse, type TenantBootstrapRemote } from './bootstrap-tenant.ts'
 import { shouldWriteCacheComplete } from './onboarding-host.ts'
 import {
-  galleryRefForRosterPerson,
+  rosterGalleryRefs,
   rosterToHostTeam,
   seedDevHarnessScenario,
   type DevHarnessSeedRemote,
@@ -29,6 +29,8 @@ import type { AttachmentView } from '@deepseek-ai/dsh-persona-host/types'
 import { readFileAsBase64 } from '../chat/read-file-as-base64.ts'
 import { unwrapPersonaRemote } from './persona-remote-unwrap.ts'
 import type {
+  AsideAskView,
+  DailyBriefNowView,
   ConversationSubjectScope,
   ConversationSubjectsBundleView,
   GestorPlanView,
@@ -116,6 +118,8 @@ export interface PersonaLiveSnapshot {
   readonly nowRows: readonly PersonaNowSnapshot[]
   readonly stripMembers: readonly ChannelPersonaMember[]
   readonly awayEvents: readonly AwayEventLive[]
+  /** P1-7: the host's real "while you were away" (null = nothing to show or already dismissed). Absent in old snapshots. */
+  readonly away?: AwayLive | null | undefined
   readonly attentionTitles: readonly string[]
   readonly messages: readonly ChannelMessageUi[]
   /** `id` = o mesmo id que a faixa da equipe usa para abrir o cartão da persona (A-3). */
@@ -185,6 +189,13 @@ const EMPTY: PersonaLiveSnapshot = {
 }
 
 /** Host-backed snapshot for shell panels (production path). */
+/** CV-8: what the person chose for ONE message (only present when they chose; the host ignores it without `Config.fanout`). */
+export interface ChannelSendOptions {
+  readonly fanout?: 'everyone' | 'relevant'
+  /** TEAM-8c: esta mensagem é a opinião da PESSOA sobre um pedido de opinião da equipe (`opinion.requestId`); o host a grava como resposta e NÃO a roteia. */
+  readonly opinionFor?: string
+}
+
 export interface PersonaLiveStore {
   readonly observable: HostObservable<PersonaLiveSnapshot>
   bootstrap(onFirstUse: (firstUse: boolean) => void): Promise<void>
@@ -192,9 +203,31 @@ export interface PersonaLiveStore {
   refresh(): Promise<void>
   /** Test/teardown: abort follow streams and drop onboarding sink. */
   dispose(): void
-  postChannelMessage(body: string, attachmentIds?: readonly string[]): Promise<void>
+  postChannelMessage(body: string, attachmentIds?: readonly string[], options?: ChannelSendOptions): Promise<void>
   /** P0-30: tenta de novo uma mensagem marcada "Não enviado" (some do fio se der certo; volta se falhar de novo). */
   retryFailedSend?(messageId: string): Promise<void>
+  /** HT-3: "Retomar {persona}" na linha de evento "não começou: persona em pausa" (só chama o que o host expõe; recarrega depois). */
+  resumePersona?(personaId: string): Promise<void>
+  /** D-084 §3: a saída do pedido de iniciativa (`decideApproval({ kind: 'connector', id, choice })`); recarrega depois. */
+  decideInitiativeApproval?(approvalId: string, choice: 'once' | 'always' | 'not-now'): Promise<boolean>
+  /** D-084 §3: o Desfazer do Toast de "Sempre permitir" (`revokeConnector` da concessão que o `decideApproval` devolveu; idempotente). */
+  undoInitiativeGrant?(approvalId: string): Promise<void>
+  /** D-084 / HT-7: "Desfazer" de uma ação que a persona fez direto (`undoPersonaAction({ activityId })`); recarrega depois. */
+  undoPersonaAction?(activityId: string): Promise<void>
+  /** D-084 / HT-9: a decisão da pessoa sobre o cartão de prévia de ação externa (`decideApproval({ kind: 'action', … })`); recarrega depois. */
+  decideActionApproval?(decision: { approvalId: string; choice: 'send' | 'edit' | 'cancel'; edited?: { subject?: string; body?: string }; remember?: boolean }): Promise<void>
+  /** IV-6: `/lado` — a pergunta guardada já volta com `status: 'asking'`; nada vai para o fio. */
+  openAsideAsk?(personaId: string, subjectId: string, question: string): Promise<AsideAskView>
+  /** IV-6: `/resumo` — a persona resume a conversa; lê-se como um `/lado` (`getAsideAsk`). */
+  summarizeConversation?(input: { personaId: string; subjectId: string; streamKind: 'channel' | 'dm'; ownerId: string; topicId?: string }): Promise<AsideAskView>
+  getAsideAsk?(id: string): Promise<AsideAskView>
+  listAsideAsks?(personaId: string, subjectId: string): Promise<readonly AsideAskView[]>
+  /**
+   * "Resumir o dia" (Visão geral, EQUIPE-REAL §(b) "O resumo a pedido"): posta o cartão do dia AGORA, sem modelo. Sem `requestId` é o cartão do DIA
+   * (idempotente: o do ritual da manhã ou o de um pedido anterior volta como `already`, sem duplicar); com `requestId`, um cartão extra próprio.
+   * O cartão chega pelo fio normal (`MessageView.dailyBrief`).
+   */
+  postDailyBriefNow?(requestId?: string): Promise<DailyBriefNowView>
   uploadChannelAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   uploadDmAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   selectDm(dmId: string | null): Promise<void>
@@ -241,7 +274,7 @@ export interface PersonaLiveStore {
   ): Promise<TeachSessionView>
   getTeachSession(sessionId: string): Promise<TeachSessionView>
   getTeachDraft(sessionId: string): Promise<TeachDraftView>
-  submitTeachDraft(sessionId: string, steps: readonly TeachStepView[], activate: boolean): Promise<TeachDraftView>
+  submitTeachDraft(sessionId: string, steps: readonly TeachStepView[], activate: boolean, skillTitle?: string): Promise<TeachDraftView>
   approveGestorPlan(planId: string): Promise<void>
   rejectGestorPlan(planId: string): Promise<void>
   feedbackGestorPlan(planId: string, body: string): Promise<void>
@@ -250,15 +283,20 @@ export interface PersonaLiveStore {
    * (stamp holds 750/400 ms, then the card leaves every list and counter together) or `failed` (back with a retry).
    * Resolves with the final state so a caller can chain extra work (e.g. a remembered permission).
    */
-  decide?(decisionId: string, accept: boolean): Promise<DecisionState | undefined>
+  /** `choice` only for a connector card ("Liberar só desta vez" / "Sempre permitir" / "Agora não"); `accept` is then derived from it. */
+  decide?(decisionId: string, accept: boolean, choice?: 'once' | 'always' | 'not-now'): Promise<DecisionState | undefined>
   /** Undo a reversible decision (only wired when the host offers `undoApproval`). */
   undoDecision?(decisionId: string): Promise<void>
+  /** P1-7: "Entendi" on "Enquanto você estava fora" (hides this window; the host starts the next one). */
+  dismissWhileAway?(): Promise<void>
 }
 
 type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
   ping(): unknown
   getOverviewNow(request: PersonaTenantScope): { personas: readonly import('./persona-remote-types.ts').PersonaNowView[] }
-  getWhileAway(request: PersonaTenantScope): { events: readonly import('./persona-remote-types.ts').AwayEventView[] }
+  getWhileAway(request: PersonaTenantScope): import('./persona-remote-types.ts').WhileAwayView
+  /** The person saw it: the host starts the next window now. Absent on an older host. */
+  dismissWhileAway?(request: PersonaTenantScope): unknown
   getOverview(request: PersonaTenantScope): HostOverviewView
   listTeam(request: { readonly workspaceId: string; readonly projectId: string }): TeamView
   listProjects(request: PersonaTenantScope): readonly { id: string; name: string; kind: string }[]
@@ -269,9 +307,13 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     readonly workspaceId: string
     readonly projectId: string
     readonly id: string
-    readonly kind: 'hire' | 'vault' | 'skill' | 'attention'
+    readonly kind: 'hire' | 'vault' | 'skill' | 'attention' | 'connector' | 'action'
     readonly accept: boolean
+    /** Connector cards only (contracts/team-real.md §9). */
+    readonly choice?: 'once' | 'always' | 'not-now'
   }): unknown
+  /** Takes back a permanent connector grant (the "Desfazer" of "Sempre permitir"). */
+  revokeConnector?(request: { readonly workspaceId: string; readonly projectId: string; readonly personaId: string; readonly cli: string; readonly connectorId: string }): unknown
   /** Optional host undo for decisions the host marks `reversible` (DECISIONS-SPEC Regra 2). */
   undoApproval?(request: {
     readonly workspaceId: string
@@ -320,6 +362,10 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     body: string
     attachmentIds?: readonly string[]
     topicId?: string
+    /** CV-8: send this one message to the whole team or to whoever the Coordenação picks (host flag `fanout`). */
+    fanout?: 'everyone' | 'relevant'
+    /** TEAM-8c: a opinião da pessoa sobre o pedido `requestId` (Anvil: volta como `MessageView.opinion` kind `reply`; nenhuma Tarefa nasce). */
+    opinionOn?: { requestId: string }
   }): unknown
   listConversationSubjects?(scope: ConversationSubjectScope): ConversationSubjectsBundleView
   setActiveConversationSubject?(scope: ConversationSubjectScope & { subjectId: string }): ConversationSubjectsBundleView
@@ -327,6 +373,20 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
   renameConversationSubject?(scope: ConversationSubjectScope & { subjectId: string; name: string }): ConversationSubjectsBundleView
   archiveConversationSubject?(scope: ConversationSubjectScope & { subjectId: string }): ConversationSubjectsBundleView
   moveMessageToSubject?(scope: ConversationSubjectScope & { eventId: string; subjectId: string }): boolean
+  /** IV-6 (contracts/aside.md): `/lado` e `/resumo` respondem fora do fio e da Tarefa; o estado sai de `asking` por `getAsideAsk`. */
+  openAsideAsk?(request: { workspaceId: string; projectId: string; personaId: string; subjectId: string; question: string }): AsideAskView | Promise<AsideAskView>
+  getAsideAsk?(request: { workspaceId: string; projectId: string; id: string }): AsideAskView | Promise<AsideAskView>
+  listAsideAsks?(request: { workspaceId: string; projectId: string; personaId: string; subjectId: string }): readonly AsideAskView[] | Promise<readonly AsideAskView[]>
+  summarizeConversation?(request: {
+    workspaceId: string
+    projectId: string
+    personaId: string
+    subjectId: string
+    streamKind: 'channel' | 'dm'
+    ownerId: string
+    topicId?: string
+  }): AsideAskView | Promise<AsideAskView>
+  postDailyBriefNow?(request: { workspaceId: string; projectId: string; requestId?: string }): DailyBriefNowView | Promise<DailyBriefNowView>
   startTeachSession?(request: StartTeachSessionRequest): TeachSessionStartView
   pauseTeachSession?(request: TeachSessionIdRequest): TeachSessionView
   resumeTeachSession?(request: TeachSessionIdRequest): TeachSessionView
@@ -655,6 +715,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       const arrivingHostPersonaIds = [...arrivingIds]
       const stripMembers = mapTeamToStrip(team, now.personas, arrivingIds)
       const awayEvents = away.events.map(mapAwayEventLive)
+      const awayLive = mapAwayLive(away, team)
       const [rawApprovals, rawSummaries] = await Promise.all([
         remote.listApprovals !== undefined
           ? Promise.resolve(remote.listApprovals(scope))
@@ -753,6 +814,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         nowRows,
         stripMembers,
         awayEvents,
+        // The same window stays hidden after "Entendi" until the host starts a new one (its `since` changes).
+        away: awayHiddenSince === awayLive.since || (awayLive.done.length === 0 && awayLive.waiting.length === 0) ? null : awayLive,
         attentionTitles,
         decisions,
         messages,
@@ -860,7 +923,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     return attachStreamFile('dm', dmId, file)
   }
 
-  const postChannelMessage = async (body: string, attachmentIds: readonly string[] = []): Promise<void> => {
+  const postChannelMessage = async (body: string, attachmentIds: readonly string[] = [], options: ChannelSendOptions = {}): Promise<void> => {
     if (tenant === null) return
     const trimmed = body.trim()
     if (trimmed.length === 0 && attachmentIds.length === 0) return
@@ -890,10 +953,12 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         body: trimmed,
         attachmentIds: [...attachmentIds],
         ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+        ...(options.fanout === undefined ? {} : { fanout: options.fanout }),
+        ...(options.opinionFor === undefined ? {} : { opinionOn: { requestId: options.opinionFor } }),
       }))
     } catch {
       // P0-30: o host não recebeu. A mensagem não fica no fio como se tivesse sido enviada: vira "Não enviado · Tentar de novo".
-      markSendFailed('channel', scope.channelId, optimistic, attachmentIds)
+      markSendFailed('channel', scope.channelId, optimistic, attachmentIds, options.fanout, options.opinionFor)
       return
     }
     await refresh()
@@ -901,13 +966,21 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
 
   /** P0-30: guarda o que não foi enviado (com os anexos, para tentar de novo) e tira a mensagem otimista do fio normal. */
   const failedSendAttachments = new Map<string, readonly string[]>()
+  /** CV-8: a retry goes to the same audience the person chose (they already confirmed it). */
+  const failedSendFanout = new Map<string, 'everyone' | 'relevant'>()
+  /** TEAM-8c: a retry of a person's opinion goes to the same request. */
+  const failedSendOpinion = new Map<string, string>()
   const markSendFailed = (
     streamKind: 'channel' | 'dm',
     ownerId: string,
     optimistic: ChannelMessageUi,
     attachmentIds: readonly string[],
+    fanout?: 'everyone' | 'relevant',
+    opinionFor?: string,
   ): void => {
     failedSendAttachments.set(optimistic.id, attachmentIds)
+    if (fanout !== undefined) failedSendFanout.set(optimistic.id, fanout)
+    if (opinionFor !== undefined) failedSendOpinion.set(optimistic.id, opinionFor)
     const snap = store.getSnapshot()
     store.set({
       ...snap,
@@ -1119,15 +1192,107 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     await refresh()
   }
 
+  /** IV-6: o escopo do projeto para as chamadas de lado; sem tenant (host fora) ou sem a chamada no host, a promessa recusa e a UI diz "não consegui". */
+  const asideScope = (): { workspaceId: string; projectId: string } => {
+    if (tenant === null) throw new Error('aside: no tenant')
+    return { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
+  }
+  const openAsideAsk = async (personaId: string, subjectId: string, question: string): Promise<AsideAskView> => {
+    if (typeof remote.openAsideAsk !== 'function') throw new Error('aside: unavailable')
+    return await remote.openAsideAsk({ ...asideScope(), personaId, subjectId, question })
+  }
+  const summarizeConversation = async (
+    input: { personaId: string; subjectId: string; streamKind: 'channel' | 'dm'; ownerId: string; topicId?: string },
+  ): Promise<AsideAskView> => {
+    if (typeof remote.summarizeConversation !== 'function') throw new Error('aside: unavailable')
+    return await remote.summarizeConversation({ ...asideScope(), ...input })
+  }
+  const postDailyBriefNow = async (requestId?: string): Promise<DailyBriefNowView> => {
+    if (typeof remote.postDailyBriefNow !== 'function') throw new Error('daily brief: unavailable')
+    return await remote.postDailyBriefNow({ ...asideScope(), ...(requestId === undefined ? {} : { requestId }) })
+  }
+  const getAsideAsk = async (id: string): Promise<AsideAskView> => {
+    if (typeof remote.getAsideAsk !== 'function') throw new Error('aside: unavailable')
+    return await remote.getAsideAsk({ ...asideScope(), id })
+  }
+  const listAsideAsks = async (personaId: string, subjectId: string): Promise<readonly AsideAskView[]> => {
+    if (typeof remote.listAsideAsks !== 'function') return []
+    return await remote.listAsideAsks({ ...asideScope(), personaId, subjectId })
+  }
+
+  /** A concessão permanente que o host devolveu por pedido (`connectorDecision.grant`), para o Desfazer do Toast. */
+  const initiativeGrants = new Map<string, { personaId: string; cli: string; connectorId: string }>()
+  const decideInitiativeApproval = async (approvalId: string, choice: 'once' | 'always' | 'not-now'): Promise<boolean> => {
+    if (tenant === null || typeof remote.decideApproval !== 'function') throw new Error('initiative: unavailable')
+    const host = remote.decideApproval as unknown as (request: Record<string, unknown>) => unknown
+    const answer = await Promise.resolve(host({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, kind: 'connector', id: approvalId, choice })) as
+      { connectorDecision?: { grant?: { personaId?: string; cli?: string; connectorId?: string } } } | undefined
+    const grant = answer?.connectorDecision?.grant
+    const undoable = choice === 'always' && grant?.personaId !== undefined && grant.cli !== undefined && grant.connectorId !== undefined
+    if (undoable) initiativeGrants.set(approvalId, { personaId: grant.personaId!, cli: grant.cli!, connectorId: grant.connectorId! })
+    await refresh()
+    return undoable
+  }
+
+  const undoInitiativeGrant = async (approvalId: string): Promise<void> => {
+    const grant = initiativeGrants.get(approvalId)
+    if (tenant === null || grant === undefined) throw new Error('initiative: no grant')
+    const host = remote as unknown as { revokeConnector?: (request: Record<string, unknown>) => unknown }
+    if (typeof host.revokeConnector !== 'function') throw new Error('initiative: unavailable')
+    await Promise.resolve(host.revokeConnector({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, ...grant }))
+    initiativeGrants.delete(approvalId)
+  }
+
+  const undoPersonaAction = async (activityId: string): Promise<void> => {
+    if (tenant === null) throw new Error('action: unavailable')
+    const host = remote as unknown as { undoPersonaAction?: (request: { workspaceId: string; projectId: string; activityId: string }) => unknown }
+    if (typeof host.undoPersonaAction !== 'function') throw new Error('action: unavailable')
+    await Promise.resolve(host.undoPersonaAction({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, activityId }))
+    await refresh()
+  }
+
+  const decideActionApproval = async (
+    decision: { approvalId: string; choice: 'send' | 'edit' | 'cancel'; edited?: { subject?: string; body?: string }; remember?: boolean },
+  ): Promise<void> => {
+    if (tenant === null || typeof remote.decideApproval !== 'function') throw new Error('action: unavailable')
+    // O contrato do HT-9 estende o `decideApproval` com `kind: 'action'` (connector-grants.md); a forma tipada de hoje só tem os 4 tipos antigos.
+    const host = remote.decideApproval as unknown as (request: Record<string, unknown>) => unknown
+    await Promise.resolve(host({
+      workspaceId: tenant.workspaceId,
+      projectId: tenant.projectId,
+      kind: 'action',
+      id: decision.approvalId,
+      choice: decision.choice,
+      ...(decision.edited === undefined ? {} : { edited: decision.edited }),
+      ...(decision.remember === true ? { remember: true } : {}),
+    }))
+    await refresh()
+  }
+
+  const resumePersona = async (personaId: string): Promise<void> => {
+    if (tenant === null) return
+    const host = remote as unknown as { resumePersona?: (scope: { workspaceId: string; projectId: string; personaId: string }) => Promise<unknown> }
+    if (typeof host.resumePersona !== 'function') return
+    await host.resumePersona({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, personaId })
+    await refresh()
+  }
+
   const retryFailedSend = async (messageId: string): Promise<void> => {
     const snap = store.getSnapshot()
     const failed = snap.failedSends?.find(row => row.message.id === messageId)
     if (failed === undefined) return
     const attachmentIds = failedSendAttachments.get(messageId) ?? []
     failedSendAttachments.delete(messageId)
+    const fanout = failedSendFanout.get(messageId)
+    failedSendFanout.delete(messageId)
+    const opinionFor = failedSendOpinion.get(messageId)
+    failedSendOpinion.delete(messageId)
     store.set({ ...snap, failedSends: (snap.failedSends ?? []).filter(row => row.message.id !== messageId) })
     if (failed.streamKind === 'channel') {
-      await postChannelMessage(failed.message.body, attachmentIds)
+      await postChannelMessage(failed.message.body, attachmentIds, {
+        ...(fanout === undefined ? {} : { fanout }),
+        ...(opinionFor === undefined ? {} : { opinionFor }),
+      })
       return
     }
     // A DM só recebe a retentativa na conversa onde a pessoa escreveu (nunca em outra DM).
@@ -1155,9 +1320,12 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       }
     }
     let index = 0
+    // Muse (D-069): quem não escolheu um bicho ganha o 1º livre da galeria (nunca o slug do nome, que cai nas iniciais).
+    const avatarRefs = rosterGalleryRefs(roster)
     for (const person of roster) {
-      const id = slugId(person.name, index++)
-      const avatarRef = galleryRefForRosterPerson(person)
+      const id = slugId(person.name, index)
+      const avatarRef = avatarRefs[index] ?? 'capivara'
+      index += 1
       const systemRoles = person.systemRoles ?? []
       const canRecruit = systemRoles.includes('coordination')
       try {
@@ -1497,10 +1665,13 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     sessionId: string,
     steps: readonly TeachStepView[],
     activate: boolean,
+    skillTitle?: string,
   ): Promise<TeachDraftView> => {
     const scope = teachScope()
     if (scope === null || remote.submitTeachDraft === undefined) return { steps: [], skillTitle: '' }
-    return Promise.resolve(remote.submitTeachDraft({ ...scope, sessionId, steps, activate }))
+    // The name the person chose goes along (the host names a taught skill "Skill ensinada" until it takes this field).
+    const named = skillTitle !== undefined && skillTitle.trim() !== '' ? { skillTitle: skillTitle.trim() } : {}
+    return Promise.resolve(remote.submitTeachDraft({ ...scope, sessionId, steps, activate, ...named }))
   }
 
   const searchMessages = async (
@@ -1599,7 +1770,12 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     store.set({ ...snap, decisions: next, attentionTitles: openBlockingTitles(next) })
   }
 
-  const decide = async (decisionId: string, accept: boolean): Promise<DecisionState | undefined> => {
+  /** The permanent grants a connector decision made ("Sempre permitir"), kept so its Desfazer can take exactly that back. */
+  const connectorGrants = new Map<string, { readonly personaId: string; readonly cli: string; readonly connectorId: string }>()
+
+  const decide = async (decisionId: string, acceptRequested: boolean, choice?: 'once' | 'always' | 'not-now'): Promise<DecisionState | undefined> => {
+    // A connector card is decided by its three-way choice; "accept" follows from it (once/always grant, not-now does not).
+    const accept = choice === undefined ? acceptRequested : choice !== 'not-now'
     const current = (store.getSnapshot().decisions ?? []).find(d => d.id === decisionId)
     if (current === undefined) return undefined
     // A second click while the host is answering, or while the stamp is leaving, must not decide twice.
@@ -1610,13 +1786,28 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     try {
       if (remote.decideApproval !== undefined) {
         if (tenant === null) throw new Error('no-tenant')
-        await Promise.resolve(remote.decideApproval({
+        const answer = await Promise.resolve(remote.decideApproval({
           workspaceId: tenant.workspaceId,
           projectId: tenant.projectId,
           id: current.id,
           kind: current.targetApprovalKind ?? (current.kind === 'blocker' ? 'attention' : (current.kind as 'hire' | 'vault' | 'skill')),
           accept,
+          ...(choice === undefined ? {} : { choice }),
         }))
+        // "Sempre permitir": the host returns the grant; with it the toast's Desfazer is real (it revokes exactly that).
+        const grant = (answer as { connectorDecision?: { grant?: { personaId?: unknown; cli?: unknown; connectorId?: unknown } } } | null | undefined)?.connectorDecision?.grant
+        if (choice === 'always' && grant !== undefined && typeof grant.personaId === 'string' && typeof grant.cli === 'string' && typeof grant.connectorId === 'string') {
+          connectorGrants.set(decisionId, { personaId: grant.personaId, cli: grant.cli, connectorId: grant.connectorId })
+          // The grant makes the decision reversible: the toast's "Desfazer" exists only now (a "só desta vez" has nothing to take back).
+          const snapshot = store.getSnapshot()
+          const connectorName = current.approval?.connector?.connectorName
+          store.set({
+            ...snapshot,
+            decisions: (snapshot.decisions ?? []).map(d => (d.id === decisionId
+              ? { ...d, reversible: true, ...(connectorName === undefined ? {} : { connectorGrant: { personaName: current.requester.name, connectorName } }) }
+              : d)),
+          })
+        }
       }
     } catch {
       setDecisionState(decisionId, 'failed')
@@ -1635,7 +1826,27 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     return nextState
   }
 
+  // "Entendi" on the away card: hide this window now, tell the host so the next one starts, then read again.
+  let awayHiddenSince: string | null = null
+  const dismissWhileAway = async (): Promise<void> => {
+    const current = store.getSnapshot().away
+    if (current === null || current === undefined || tenant === null) return
+    awayHiddenSince = current.since
+    store.set({ ...store.getSnapshot(), away: null })
+    if (remote.dismissWhileAway !== undefined) await Promise.resolve(remote.dismissWhileAway(tenant)).catch(() => undefined)
+    await refresh()
+  }
+
   const undoDecision = async (decisionId: string): Promise<void> => {
+    // A permanent connector grant is undone by revoking exactly that grant (there is no separate undo call for it).
+    const grant = connectorGrants.get(decisionId)
+    if (grant !== undefined && remote.revokeConnector !== undefined && tenant !== null) {
+      connectorGrants.delete(decisionId)
+      await Promise.resolve(remote.revokeConnector({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, ...grant }))
+      settledDecisions.delete(decisionId)
+      await refresh()
+      return
+    }
     if (remote.undoApproval === undefined || tenant === null) return
     await Promise.resolve(remote.undoApproval({
       workspaceId: tenant.workspaceId,
@@ -1670,6 +1881,16 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     dispose,
     postChannelMessage,
     retryFailedSend,
+    resumePersona,
+    decideActionApproval,
+    undoPersonaAction,
+    decideInitiativeApproval,
+    undoInitiativeGrant,
+    openAsideAsk,
+    summarizeConversation,
+    postDailyBriefNow,
+    getAsideAsk,
+    listAsideAsks,
     uploadChannelAttachment,
     uploadDmAttachment,
     selectDm,
@@ -1703,5 +1924,6 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     feedbackGestorPlan,
     decide,
     undoDecision,
+    dismissWhileAway,
   }
 }

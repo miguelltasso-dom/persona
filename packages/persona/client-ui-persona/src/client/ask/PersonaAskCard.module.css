@@ -1,0 +1,177 @@
+/*
+ * IV-10 · o cartão da pergunta estruturada no fio (Colheita Lodi A(1)). A forma é a do protótipo da Muse
+ * (scripts/persona/muse-accept-gallery/lodi.tsx): cartão-sticker, chips em pílula, o escolhido âmbar com ✓.
+ * Só tokens `--persona-*`; nada de cor ou raio inventado.
+ */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  margin: var(--persona-space-4) 0;
+  list-style: none;
+}
+
+.main {
+  min-width: 0;
+  max-width: 640px;
+  flex: 1;
+}
+
+.who {
+  margin-bottom: var(--persona-space-1);
+  color: var(--persona-ink);
+  font: 800 13px/18px var(--persona-font-text);
+}
+
+.time {
+  color: var(--persona-ink-soft);
+  font-weight: 600;
+}
+
+.card {
+  margin-top: var(--persona-space-2);
+  padding: var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+/* Respondida (ou cancelada): perde a sombra e a borda firme; é só leitura. */
+.done {
+  border-color: var(--persona-outline-soft);
+  box-shadow: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+  margin-bottom: var(--persona-space-1);
+}
+
+.eyebrow {
+  color: var(--persona-brand);
+  font: 800 11px/16px var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.question {
+  margin: 0 0 var(--persona-space-3);
+  color: var(--persona-ink);
+  font: 700 16px/22px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  padding: 7px 14px;
+  border: 1.5px solid var(--persona-outline-soft);
+  border-radius: 999px;
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  font: 700 14px/18px var(--persona-font-text);
+}
+
+.button {
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--persona-outline);
+}
+
+.button:disabled {
+  cursor: default;
+}
+
+/* O escolhido: âmbar com ✓ e o relevo de "apertado". */
+.picked {
+  border-color: var(--persona-outline);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  box-shadow: var(--persona-shadow-press);
+}
+
+/* Depois de respondida, as não escolhidas esmaecem. */
+.muted {
+  opacity: 0.75;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+  margin-top: var(--persona-space-3);
+}
+
+.send {
+  padding: 8px 16px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  box-shadow: var(--persona-shadow-press);
+  font: 800 14px/18px var(--persona-font-text);
+  cursor: pointer;
+}
+
+.send:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Nothing picked yet: the button holds its place without showing (visibility, never display: the chips must not jump). */
+.sendIdle {
+  visibility: hidden;
+}
+
+.hint {
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.failed {
+  margin: var(--persona-space-2) 0 0;
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--persona-accent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

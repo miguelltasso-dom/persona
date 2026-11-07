@@ -17,9 +17,11 @@ export interface DraftFileUi extends FileChange {
   readonly ops?: readonly DiffOp[] | undefined
   /** Spreadsheet: which cells changed. */
   readonly cells?: readonly SheetCellChange[] | undefined
-  /** Image: addresses of the two versions (any URL the webview can show). */
+  /** Image: the two versions as INLINE pictures (`data:image/…`, already through `safeReviewImageSrc`), drawn only as `<img>`. */
   readonly beforeImageSrc?: string | undefined
   readonly afterImageSrc?: string | undefined
+  /** Conflict on an image: what the person's folder has right now (the compare puts it beside the draft's). */
+  readonly folderImageSrc?: string | undefined
   /** The change was cut short: "Aqui vai o começo." */
   readonly truncated?: boolean | undefined
   /** PDF/other: the person can open the draft's copy (read only) from the system. */

@@ -1,0 +1,158 @@
+/*
+ * Enfeites da casa (NIGHT-THEME-SPEC §2–4). As regras que não mudam:
+ *  - nada atrás de texto: cada enfeite mora FORA do conteúdo (acima da borda do cartão, entre o título e o botão do cabeçalho);
+ *  - aria-hidden e pointer-events: none em tudo;
+ *  - nenhum movimento, EXCETO o confete de UM marco (a sprint concluída: 8 folhas, uma vez, ≤ 1,2 s; parado com reduced-motion);
+ *  - a 200% (a janela vira ≤ 800 px de CSS) e em forced-colors (alto contraste do Windows) os enfeites somem.
+ */
+
+/* O par dia/noite de uma arte: o MESMO quadro nos dois (a troca de tema não faz o título pular). */
+.pair {
+  display: grid;
+  place-items: center;
+}
+
+.pair > .nightOnly {
+  display: none;
+}
+
+:global(body[data-ds-dark-theme='true']) .pair > .dayOnly {
+  display: none;
+}
+
+:global(body[data-ds-dark-theme='true']) .pair > .nightOnly {
+  display: block;
+}
+
+/* Um ramo saindo de cima do canto do cartão grande: 1 por cartão, na margem de cima (nunca sobre o título nem as ações). */
+.sprig {
+  position: absolute;
+  top: -30px;
+  right: 36px;
+  width: 48px;
+  height: 48px;
+  margin: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.sprig img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Os rabiscos do cabeçalho da Visão geral: entre o título e o botão "Nova tarefa", nunca atrás dele. */
+.doodles {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  align-self: stretch;
+  pointer-events: none;
+  user-select: none;
+}
+
+.doodles .pair {
+  width: 360px;
+  max-width: 100%;
+  height: 60px;
+}
+
+.doodles img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: right bottom;
+}
+
+/* O ícone-cena de um canal de equipe (48 px, ao lado do nome). */
+.scene {
+  display: inline-block;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.scene img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* A 200% e em alto contraste somem os enfeites de canto e de cabeçalho (os vazios noturnos são ilustração, não enfeite: ficam). */
+@media (max-width: 800px), (forced-colors: active) {
+  .sprig,
+  .doodles {
+    display: none;
+  }
+}
+
+/* O Visão geral empilha o cabeçalho a 960: sem lugar "entre" o título e o botão, os rabiscos não aparecem. */
+@media (max-width: 960px) {
+  .doodles {
+    display: none;
+  }
+}
+
+/* O confete de folhinhas de um marco (BR-P4 #13): 8 células de 24 px numa tira de 192; cada folha cai UMA vez (850 ms + até 350 ms de atraso = 1,2 s) e some. */
+.confettiHost {
+  position: relative;
+}
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+}
+
+.leaf {
+  position: absolute;
+  top: -28px;
+  left: calc(var(--i) * 12% + 4%);
+  width: 24px;
+  height: 24px;
+  background: var(--confetti-url) calc(var(--i) * -24px) 0 / 192px 24px no-repeat;
+  opacity: 0;
+  animation: persona-confetti-fall 850ms ease-in calc(var(--i) * 50ms) 1 both;
+}
+
+@keyframes persona-confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(0) rotate(0deg);
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(150px) rotate(220deg);
+  }
+}
+
+/* Reduced motion: the same leaves, still, around the title. */
+@media (prefers-reduced-motion: reduce) {
+  .leaf {
+    top: -10px;
+    opacity: 1;
+    animation: none;
+    transform: rotate(calc(var(--i) * 40deg - 120deg));
+  }
+}
+
+@media (forced-colors: active) {
+  .confetti {
+    display: none;
+  }
+}

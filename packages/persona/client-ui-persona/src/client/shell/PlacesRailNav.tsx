@@ -13,12 +13,14 @@ export interface PlacesRailNavProps {
   readonly activePanel: MainPanelId
   readonly approvalsPending: number
   readonly selectPanel: (panel: MainPanelId) => void
+  /** CV-1: linhas de 30 px com ícone 16 (a barra única abaixo ganha o espaço). */
+  readonly compact?: boolean | undefined
 }
 
-export function PlacesRailNav({ t, collapsed, activePanel, approvalsPending, selectPanel }: PlacesRailNavProps): ReactNode {
+export function PlacesRailNav({ t, collapsed, activePanel, approvalsPending, selectPanel, compact = false }: PlacesRailNavProps): ReactNode {
   const activePlace = placeOfPanel(activePanel)
   return (
-    <ul className={styles.navList} id="persona-nav-places">
+    <ul className={styles.navList} id="persona-nav-places" data-compact={compact ? '' : undefined}>
       {RAIL_PLACES.map((place) => {
         const entry = placeEntryPanel(place)
         const withBadge = place.id === 'approvals' && approvalsPending > 0
@@ -39,7 +41,7 @@ export function PlacesRailNav({ t, collapsed, activePanel, approvalsPending, sel
               title={collapsed ? t(place.labelKey) : undefined}
               onClick={() => { selectPanel(placeEntryPanel(place)) }}
             >
-              <BrandIcon name={place.icon} size={20} className={styles.navIcon ?? ''} />
+              <BrandIcon name={place.icon} size={compact ? 16 : 20} className={styles.navIcon ?? ''} />
               <span className={styles.navLabel}>{t(place.labelKey)}</span>
               {withBadge && (
                 <>

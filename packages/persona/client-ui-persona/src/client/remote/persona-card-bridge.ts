@@ -11,6 +11,7 @@ import { talkAclViewToCardTalk } from '../profile/map-talk-acl.ts'
 import type { PersonaCardHostDto } from '../profile/persona-card-host-dto.ts'
 import { hostModeToAutonomyLevel } from '../persona-editor/autonomy-map.ts'
 import type { PersonaCardInfo } from '../profile/PersonaInfoCard.tsx'
+import { readFileTools } from '../settings-personas/file-tools.ts'
 import type { PersonaLiveStore } from './persona-live-store.ts'
 
 export interface PersonaCardBridge {
@@ -54,10 +55,19 @@ export function createPersonaCardBridge(
     if (files === undefined || files < 1) return base
     return { ...base, nowKind: 'working', draftFiles: files }
   }
+  /** O interruptor "Pode salvar arquivos no rascunho" vem da persona do time (host `PersonaView`), não do cartão carregado antes. */
+  const withFileTools = (personaId: string, base: PersonaCardInfo | undefined): PersonaCardInfo | undefined => {
+    if (base === undefined) return base
+    const row = live.observable.getSnapshot().team?.personas.find(item => item.id === personaId)
+    const canSaveFiles = row === undefined ? undefined : readFileTools(row).canSaveFiles
+    return canSaveFiles === undefined ? base : { ...base, canSaveFiles }
+  }
   // O cartão aberto acompanha o rascunho: só avisa quando a contagem muda (não a cada leitura do live).
   let draftSignature = ''
   live.observable.subscribe(() => {
-    const next = live.observable.getSnapshot().stripMembers.map(member => `${member.id}:${member.state === 'working' ? (member.draftFiles ?? 0) : 0}`).join('|')
+    const snapshot = live.observable.getSnapshot()
+    const next = snapshot.stripMembers.map(member => `${member.id}:${member.state === 'working' ? (member.draftFiles ?? 0) : 0}`).join('|')
+      + '#' + (snapshot.team?.personas ?? []).map(row => `${row.id}:${String(readFileTools(row).canSaveFiles)}`).join('|')
     if (next === draftSignature) return
     draftSignature = next
     bump()
@@ -153,7 +163,7 @@ export function createPersonaCardBridge(
       getSnapshot: () => revision.getSnapshot(),
       subscribe: listener => revision.subscribe(listener),
     },
-    cardInfo: personaId => withDraft(personaId, cards.get(personaId)),
+    cardInfo: personaId => withFileTools(personaId, withDraft(personaId, cards.get(personaId))),
     prefetch,
     invalidate: reload,
     togglePause,

@@ -26,6 +26,8 @@ export function personaCardFromHost(dto: PersonaCardHostDto, characterId?: strin
     ...(dto.substituteName === undefined ? {} : { substituteName: dto.substituteName }),
     ...(dto.currentProjectName === undefined ? {} : { projectName: dto.currentProjectName }),
     engineLabel: engineLabelText,
+    ...(dto.engine.runnerModel === undefined ? {} : { runnerModel: dto.engine.runnerModel }),
+    ...(dto.engine.runnerEffort === undefined ? {} : { runnerEffort: dto.engine.runnerEffort }),
     ...(dto.quota === undefined
       ? {}
       : {

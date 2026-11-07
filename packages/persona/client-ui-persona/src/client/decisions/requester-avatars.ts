@@ -3,6 +3,7 @@
  * every screen that draws a decision gets `requester.avatarSrc` and never guesses from a host id.
  */
 
+import { personaFaceSrc } from '../hire/persona-face.ts'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 import { normalizeCharacterId } from '../governance/governance-ui-helpers.ts'
 import type { Decision } from './decision-types.ts'
@@ -15,7 +16,8 @@ export interface RequesterPersona {
 
 function portraitOf(persona: RequesterPersona): string | undefined {
   const key = normalizeCharacterId(persona.avatarRef) ?? normalizeCharacterId(persona.name)
-  return key === undefined ? undefined : AVATAR_96[key as keyof typeof AVATAR_96]
+  // Muse (D-069): quem não tem um animal na referência ganha um bicho estável da galeria em vez das iniciais.
+  return key === undefined ? personaFaceSrc(persona.avatarRef, persona.id) : AVATAR_96[key as keyof typeof AVATAR_96]
 }
 
 /** Adds `requester.avatarSrc` by persona id, else by name (an attention card only knows the name). */

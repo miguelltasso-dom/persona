@@ -56,7 +56,7 @@ describe('Esc fecha o cartão da persona', () => {
     vi.useFakeTimers()
     render(<Harness />)
     fireEvent.pointerEnter(screen.getByRole('button', { name: 'Nina' }))
-    act(() => { vi.advanceTimersByTime(600) })
+    act(() => { vi.advanceTimersByTime(800) })
     expect(screen.getByRole('dialog', { name: 'Cartão de Nina' })).toBeTruthy()
     fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -77,7 +77,7 @@ describe('Esc fecha o cartão da persona', () => {
     render(<Harness />)
     const trigger = screen.getByRole('button', { name: 'Nina' })
     fireEvent.pointerEnter(trigger)
-    act(() => { vi.advanceTimersByTime(600) })
+    act(() => { vi.advanceTimersByTime(800) })
     expect(screen.getByRole('dialog')).toBeTruthy()
     fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -95,7 +95,7 @@ describe('Esc fecha o cartão da persona', () => {
     })
     fireEvent.pointerLeave(trigger)
     fireEvent.pointerEnter(trigger)
-    act(() => { vi.advanceTimersByTime(600) })
+    act(() => { vi.advanceTimersByTime(800) })
     expect(screen.getByRole('dialog')).toBeTruthy()
   })
 
@@ -132,9 +132,129 @@ describe('o cartão cabe na janela', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Nina' }))
     const dialog = screen.getByRole('dialog')
     const bottomOf = (): number => Number.parseFloat(dialog.style.top) + height
-    expect(bottomOf()).toBeLessThanOrEqual(900 - 12)
+    expect(bottomOf()).toBeLessThanOrEqual(900 - 8)
     height = 520 // o cartão cresce quando chegam os dados
     act(() => { resize?.() })
-    expect(bottomOf()).toBeLessThanOrEqual(900 - 12)
+    expect(bottomOf()).toBeLessThanOrEqual(900 - 8)
+  })
+
+  /** Abre o cartão de um rosto na posição dada (a janela é 1440×900, o cartão mede `height` × 344) e devolve o topo e o fundo do popover. */
+  function openAt(face: { readonly top: number; readonly bottom: number }, height: number): { readonly top: number; readonly bottom: number } {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height)
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(() => 344)
+    vi.stubGlobal('innerHeight', 900)
+    vi.stubGlobal('innerWidth', 1440)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
+      top: face.top, bottom: face.bottom, left: 100, right: 140, width: 40, height: face.bottom - face.top, x: 100, y: face.top, toJSON: () => ({}),
+    }))
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'Nina' }))
+    const top = Number.parseFloat(screen.getByRole('dialog').style.top)
+    return { top, bottom: top + height }
+  }
+
+  it('com espaço abaixo do rosto, o cartão abre PARA BAIXO: começa 24 px acima do rosto', () => {
+    const box = openAt({ top: 100, bottom: 140 }, 500)
+    expect(box.top).toBe(76)
+    expect(box.bottom).toBeLessThanOrEqual(900 - 8)
+  })
+
+  it('sem espaço abaixo do rosto, o cartão abre PARA CIMA: termina 24 px abaixo do rosto e nunca passa do fundo', () => {
+    const box = openAt({ top: 700, bottom: 740 }, 520)
+    expect(box.bottom).toBe(764)
+    expect(box.top).toBe(244)
+    expect(box.bottom).toBeLessThanOrEqual(900 - 8)
+  })
+
+  it('um cartão da altura da janela (janela − 16 px) cobre de 8 px do topo a 8 px do fundo, qualquer que seja o rosto', () => {
+    for (const face of [{ top: 100, bottom: 140 }, { top: 450, bottom: 490 }, { top: 820, bottom: 860 }]) {
+      cleanup()
+      vi.restoreAllMocks()
+      const box = openAt(face, 900 - 16)
+      expect(box.top).toBe(8)
+      expect(box.bottom).toBe(900 - 8)
+    }
+  })
+
+  it('o topo nunca fica acima da janela, nem com um rosto colado no alto e o cartão para cima', () => {
+    const box = openAt({ top: 10, bottom: 50 }, 880)
+    expect(box.top).toBeGreaterThanOrEqual(8)
+    expect(box.bottom).toBeLessThanOrEqual(900 - 8)
+  })
+})
+
+// CV-4 (CONVERSAS-SPEC §5): clicar no rosto abre a DM; o cartão vem por hover longo (~700 ms), ⋯ ou Shift+F10.
+function FaceHarness({ onOpenDm }: { onOpenDm: () => void }): ReactNode {
+  const card = usePersonaCardController()
+  const face = card.faceProps('nina', onOpenDm)
+  return (
+    <>
+      <button type="button" {...face}>Nina</button>
+      <button type="button" aria-label="Sobre Nina" {...card.menuProps('nina')}>⋯</button>
+      <PersonaCardPopover {...card.popoverProps} label="Cartão de Nina">
+        <PersonaInfoCard info={NINA} />
+      </PersonaCardPopover>
+    </>
+  )
+}
+
+describe('rosto: clique = DM, cartão por hover longo / ⋯ / Shift+F10', () => {
+  it('clicar (ou Enter) no rosto abre a DM e NÃO abre o cartão', () => {
+    const onOpenDm = vi.fn()
+    render(<FaceHarness onOpenDm={onOpenDm} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Nina' }))
+    expect(onOpenDm).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('hover longo (~700 ms) abre o cartão; passar de leve pelo rosto não abre', () => {
+    vi.useFakeTimers()
+    render(<FaceHarness onOpenDm={() => undefined} />)
+    const face = screen.getByRole('button', { name: 'Nina' })
+    fireEvent.pointerEnter(face)
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.pointerLeave(face)
+    act(() => { vi.advanceTimersByTime(500) })
+    expect(screen.queryByRole('dialog')).toBeNull() // saiu antes dos 700 ms: nunca abriu no caminho do mouse
+    fireEvent.pointerEnter(face)
+    act(() => { vi.advanceTimersByTime(800) })
+    expect(screen.getByRole('dialog', { name: 'Cartão de Nina' })).toBeTruthy()
+  })
+
+  it('clicar no rosto com o cartão aberto por hover fecha o cartão e abre a DM', () => {
+    vi.useFakeTimers()
+    const onOpenDm = vi.fn()
+    render(<FaceHarness onOpenDm={onOpenDm} />)
+    const face = screen.getByRole('button', { name: 'Nina' })
+    fireEvent.pointerEnter(face)
+    act(() => { vi.advanceTimersByTime(800) })
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.click(face)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(onOpenDm).toHaveBeenCalledTimes(1)
+  })
+
+  it('Shift+F10 e a tecla de menu no rosto abrem o cartão com o foco dentro (sem abrir a DM)', () => {
+    const onOpenDm = vi.fn()
+    render(<FaceHarness onOpenDm={onOpenDm} />)
+    const face = screen.getByRole('button', { name: 'Nina' })
+    expect(face.getAttribute('aria-keyshortcuts')).toBe('Shift+F10')
+    fireEvent.keyDown(face, { key: 'F10', shiftKey: true })
+    expect(screen.getByRole('dialog', { name: 'Cartão de Nina' })).toBeTruthy()
+    expect(onOpenDm).not.toHaveBeenCalled()
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    fireEvent.keyDown(face, { key: 'ContextMenu' })
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('⋯ abre o cartão e traz data-persona-card-trigger (gancho estável para gates e capturas)', () => {
+    const { container } = render(<FaceHarness onOpenDm={() => undefined} />)
+    const more = screen.getByRole('button', { name: 'Sobre Nina' })
+    expect(more.getAttribute('data-persona-card-trigger')).toBe('nina')
+    expect(container.querySelectorAll('[data-persona-card-trigger]')).toHaveLength(1)
+    fireEvent.click(more)
+    expect(screen.getByRole('dialog', { name: 'Cartão de Nina' })).toBeTruthy()
+    expect(more.getAttribute('aria-expanded')).toBe('true')
   })
 })

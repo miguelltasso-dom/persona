@@ -8,6 +8,8 @@
  * - List mode: virtualized rows (fixed height), groups collapsible.
  */
 
+import type { PersonaFaceTriggers } from './PersonaCard.tsx'
+import { PersonaFaceCell } from './PersonaFaceCell.tsx'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { AVATAR_96, OVERLAY_ICONS } from '../assets/generated-imports.ts'
 import { Avatar } from './Avatar.tsx'
@@ -88,10 +90,12 @@ export interface OrgMapProps {
   readonly label: string
   readonly onSelectPersona?: ((id: string) => void) | undefined
   readonly cardTrigger?: ((id: string) => Record<string, unknown>) | undefined
+  /** CV-4: clicar no rosto abre a DM, ⋯ abre o cartão (manda sobre `cardTrigger`). */
+  readonly faces?: PersonaFaceTriggers | undefined
   readonly labels?: OrgMapLabels | undefined
 }
 
-export function OrgMap({ root, groups, mode, label, onSelectPersona, cardTrigger, labels = ORG_MAP_LABELS_PT }: OrgMapProps): ReactNode {
+export function OrgMap({ root, groups, mode, label, onSelectPersona, cardTrigger, faces, labels = ORG_MAP_LABELS_PT }: OrgMapProps): ReactNode {
   const total = useMemo(() => groups.reduce((sum, g) => sum + g.members.length, 0), [groups])
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set(
     total <= 40 ? groups.map(g => g.id) : groups.filter(g => g.members.some(m => ATTENTION.has(m.state))).map(g => g.id),
@@ -130,7 +134,7 @@ export function OrgMap({ root, groups, mode, label, onSelectPersona, cardTrigger
     return (
       <div className={styles.wrap} role="region" aria-label={label}>
         {toolbar}
-        <VirtualList groups={groups} open={open} toggle={toggle} focusId={focusId} labels={labels} onSelectPersona={onSelectPersona} cardTrigger={cardTrigger} />
+        <VirtualList groups={groups} open={open} toggle={toggle} focusId={focusId} labels={labels} onSelectPersona={onSelectPersona} cardTrigger={cardTrigger} faces={faces} />
       </div>
     )
   }
@@ -142,7 +146,7 @@ export function OrgMap({ root, groups, mode, label, onSelectPersona, cardTrigger
         {root !== undefined && (
           <div className={styles.rootRow}>
             <div className={styles.rootCard}>
-              <MapPersona persona={root} labels={labels} onSelect={onSelectPersona} cardTrigger={cardTrigger} focused={focusId === root.id} />
+              <MapPersona persona={root} labels={labels} onSelect={onSelectPersona} cardTrigger={cardTrigger} faces={faces} focused={focusId === root.id} />
               <span className={styles.rootCaption}>{root.caption}</span>
             </div>
           </div>
@@ -183,7 +187,7 @@ export function OrgMap({ root, groups, mode, label, onSelectPersona, cardTrigger
                   <ul className={styles.members}>
                     {visible.map(m => (
                       <li key={m.id}>
-                        <MapPersona persona={m} labels={labels} onSelect={onSelectPersona} cardTrigger={cardTrigger} focused={focusId === m.id} />
+                        <MapPersona persona={m} labels={labels} onSelect={onSelectPersona} cardTrigger={cardTrigger} faces={faces} focused={focusId === m.id} />
                       </li>
                     ))}
                     {hidden > 0 && (
@@ -202,15 +206,16 @@ export function OrgMap({ root, groups, mode, label, onSelectPersona, cardTrigger
   )
 }
 
-function MapPersona({ persona, labels, onSelect, cardTrigger, focused }: {
+function MapPersona({ persona, labels, onSelect, cardTrigger, faces, focused }: {
   readonly persona: OrgPersona
   readonly labels: OrgMapLabels
   readonly onSelect?: ((id: string) => void) | undefined
   readonly cardTrigger?: ((id: string) => Record<string, unknown>) | undefined
+  readonly faces?: PersonaFaceTriggers | undefined
   readonly focused: boolean
 }): ReactNode {
   const icon = STATE_ICON[persona.state]
-  return (
+  const button = (
     <button
       type="button"
       className={styles.persona}
@@ -219,8 +224,7 @@ function MapPersona({ persona, labels, onSelect, cardTrigger, focused }: {
       data-focused={focused ? '' : undefined}
       aria-label={`${persona.name}${persona.gestor === true ? ` (${persona.gestorLabel ?? labels.gestor})` : ''}, ${persona.role} — ${persona.stateLabel}`}
       title={persona.stateLabel}
-      onClick={() => { onSelect?.(persona.id) }}
-      {...cardTrigger?.(persona.id)}
+      {...(faces === undefined ? { onClick: () => { onSelect?.(persona.id) }, ...cardTrigger?.(persona.id) } : faces.face(persona.id))}
     >
       <span className={styles.avatar}>
         <Avatar name={persona.name} src={portraitOf(persona)} shape="portrait" size={32} decorative />
@@ -234,6 +238,11 @@ function MapPersona({ persona, labels, onSelect, cardTrigger, focused }: {
         <span className={styles.personaRole}>{subtitleOf(persona)}</span>
       </span>
     </button>
+  )
+  return (
+    <PersonaFaceCell personaId={persona.id} personaName={persona.name} menu={faces?.menu} menuLabel={faces?.menuLabel}>
+      {button}
+    </PersonaFaceCell>
   )
 }
 
@@ -518,7 +527,7 @@ const ROW_H = 52
 
 type Row = { readonly kind: 'group'; readonly group: OrgGroup } | { readonly kind: 'persona'; readonly persona: OrgPersona; readonly group: OrgGroup }
 
-function VirtualList({ groups, open, toggle, focusId, labels, onSelectPersona, cardTrigger }: {
+function VirtualList({ groups, open, toggle, focusId, labels, onSelectPersona, cardTrigger, faces }: {
   readonly groups: readonly OrgGroup[]
   readonly open: ReadonlySet<string>
   readonly toggle: (id: string) => void
@@ -526,6 +535,7 @@ function VirtualList({ groups, open, toggle, focusId, labels, onSelectPersona, c
   readonly labels: OrgMapLabels
   readonly onSelectPersona?: ((id: string) => void) | undefined
   readonly cardTrigger?: ((id: string) => Record<string, unknown>) | undefined
+  readonly faces?: PersonaFaceTriggers | undefined
 }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -578,7 +588,7 @@ function VirtualList({ groups, open, toggle, focusId, labels, onSelectPersona, c
           }
           return (
             <li key={row.persona.id} className={`${styles.listRow} ${styles.listPersonaRow}`} style={style} aria-rowindex={index + 1}>
-              <MapPersona persona={row.persona} labels={labels} onSelect={onSelectPersona} cardTrigger={cardTrigger} focused={focusId === row.persona.id} />
+              <MapPersona persona={row.persona} labels={labels} onSelect={onSelectPersona} cardTrigger={cardTrigger} faces={faces} focused={focusId === row.persona.id} />
             </li>
           )
         })}

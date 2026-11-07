@@ -4,6 +4,7 @@ import type {
   ProjectBoardView,
   WorkflowColumnView,
 } from '@deepseek-ai/dsh-persona-host/types'
+import { readCardHandoff, readHandoffNote, readReviewing, readWorkPath } from '../../teamwork/teamwork-wire.ts'
 import type { FlowModelId, ProjectBoardSummary, StageCategoryCounts } from '../../boards/types.ts'
 import type { ConversationSubjectUi } from '../../chat/conversation-subjects.ts'
 import { conversationSubjectChipForId } from '../../remote/map-host-ui.ts'
@@ -63,6 +64,13 @@ function toFlowCard(
   const waitingEvent = card.chip === 'waiting'
   const subjectId = (card as { readonly conversationSubjectId?: string; readonly topicId?: string }).conversationSubjectId ?? card.topicId
   const conversationSubject = conversationSubjectChipForId(subjectId, conversationSubjects)
+  // EQUIPE REAL (D-090; contracts/team-real.md): not in the host types yet, so read as data and never trusted.
+  const wire = card as { readonly handoff?: unknown; readonly note?: unknown; readonly path?: unknown; readonly reviewing?: unknown }
+  const handoff = readCardHandoff(wire.handoff)
+  const note = readHandoffNote(wire.note)
+  const path = readWorkPath(wire.path)
+  const reviewing = readReviewing(wire.reviewing)
+  const collaborators = (card.collaborators ?? []).filter(row => typeof row.name === 'string' && row.name.trim() !== '').map(row => ({ personaId: row.personaId, name: row.name.trim() }))
   return {
     id: card.ticketId,
     title: card.title,
@@ -76,6 +84,12 @@ function toFlowCard(
     waitingEvent,
     reviewApproved: category === 'done',
     ...(conversationSubject === undefined ? {} : { conversationSubject }),
+    ...(handoff === undefined ? {} : { handoff }),
+    ...(note === undefined ? {} : { note }),
+    ...(path.length === 0 ? {} : { path }),
+    ...(reviewing === undefined ? {} : { reviewing }),
+    ...(collaborators.length === 0 ? {} : { collaborators }),
+    ...(typeof card.deliveryPending === 'boolean' ? { deliveryPending: card.deliveryPending } : {}),
   }
 }
 

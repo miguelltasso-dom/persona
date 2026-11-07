@@ -78,6 +78,31 @@ export function updateStep(
   return steps.map(step => (step.key === key ? { ...step, ...patch } : step))
 }
 
+export const SKILL_NAME_MAX = 80
+const SKILL_NAME_SUGGEST_MAX = 60
+
+/** The host names a taught skill "Skill ensinada" until the person names it: that is a placeholder, not a name. */
+export function isGenericSkillTitle(title: string): boolean {
+  const text = title.trim().toLowerCase()
+  return text === '' || text === 'skill ensinada'
+}
+
+/**
+ * The name the field starts with, taken from what the person said (the narration), else from the first step: the first sentence,
+ * without its ending punctuation, cut at a word. The person edits it; a name the host really gave is kept as it is.
+ */
+export function suggestSkillName(narration: string, steps: readonly { readonly instruction: string }[], hostTitle = ''): string {
+  if (!isGenericSkillTitle(hostTitle)) return hostTitle.trim()
+  const fromText = (text: string): string => {
+    const first = text.trim().split(/(?<=[.!?])\s+|\n+/u)[0] ?? ''
+    const clean = first.replace(/\s+/gu, ' ').replace(/[.!?…:;,\s]+$/u, '').trim()
+    if (clean === '') return ''
+    const cut = clean.length <= SKILL_NAME_SUGGEST_MAX ? clean : clean.slice(0, SKILL_NAME_SUGGEST_MAX).replace(/\s+\S*$/u, '').trim()
+    return cut.charAt(0).toLocaleUpperCase('pt-BR') + cut.slice(1)
+  }
+  return fromText(narration) || fromText(steps.find(step => step.instruction.trim() !== '')?.instruction ?? '')
+}
+
 /** At least one step with words. An empty list can still be saved as a thought, but a candidate needs a step. */
 export function canSaveCandidate(steps: readonly EditableStep[]): boolean {
   return steps.some(step => step.instruction.trim().length > 0)

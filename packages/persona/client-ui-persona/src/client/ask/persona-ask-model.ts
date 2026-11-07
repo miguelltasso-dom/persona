@@ -1,0 +1,111 @@
+/**
+ * IV-10 · a pergunta estruturada da persona no fio (contracts/structured-question.md; forma: UX-BEYOND §Colheita Lodi A(1)).
+ *
+ * O host manda DADOS (`MessageView.personaAsk` = o cartão; `listPersonaAsks` = o estado vivo); as palavras são daqui. Este módulo é puro:
+ * o mapa do host para a tela e a regra da escolha (única × múltipla).
+ */
+
+export interface AskOptionUi {
+  readonly id: string
+  readonly label: string
+}
+
+/** O cartão, como o fio o desenha. `options` vazio = só palavras (o composer responde; sem chips). */
+export interface PersonaAskUi {
+  /** O id da pergunta aberta (o `Attention`): estável. */
+  readonly askId: string
+  readonly ticketId: string
+  readonly personaId: string
+  readonly personaName: string
+  /** O retrato da persona (o `characterId` do elenco); a camada que tem o elenco preenche. */
+  readonly characterId?: string
+  readonly question: string
+  readonly options: readonly AskOptionUi[]
+  readonly multiple: boolean
+  /** Só em sequência ("Pergunta 2 de 3"), 1-based. */
+  readonly step?: { readonly index: number; readonly total: number }
+}
+
+export type PersonaAskStatus = 'open' | 'answered' | 'cancelled'
+
+/** O estado vivo (`listPersonaAsks`): aberta, respondida (só leitura, com as escolhas) ou cancelada (a tarefa acabou antes). */
+export interface PersonaAskLiveUi {
+  readonly status: PersonaAskStatus
+  readonly optionIds: readonly string[]
+  readonly text: string
+}
+
+/** O formato do cartão que o host manda (um subconjunto estrutural de `PersonaAskCardView`, para este módulo não importar o host). */
+export interface PersonaAskCardInput {
+  readonly askId: string
+  readonly ticketId: string
+  readonly personaId: string
+  readonly personaName: string
+  readonly question: string
+  readonly options?: readonly { readonly id: string; readonly label: string }[] | undefined
+  readonly multiple: boolean
+  readonly step?: { readonly index: number; readonly total: number } | undefined
+}
+
+/** O estado vivo que o host manda (um subconjunto estrutural de `PersonaAskView`). */
+export interface PersonaAskLiveInput {
+  readonly status: PersonaAskStatus
+  readonly answer?: { readonly optionIds: readonly string[]; readonly text: string } | undefined
+}
+
+/**
+ * O cartão do host vira o da tela. Sem pergunta legível não há cartão (a frase simples do host segue no fio); a sequência só conta
+ * quando tem 2 ou mais passos e o passo cabe nela.
+ */
+export function mapPersonaAsk(input: PersonaAskCardInput | undefined): PersonaAskUi | undefined {
+  if (input === undefined) return undefined
+  const question = input.question.trim()
+  if (input.askId === '' || input.ticketId === '' || question === '') return undefined
+  const seen = new Set<string>()
+  const options: AskOptionUi[] = []
+  for (const option of input.options ?? []) {
+    const label = option.label.trim()
+    if (option.id === '' || label === '' || seen.has(option.id)) continue
+    seen.add(option.id)
+    options.push({ id: option.id, label })
+  }
+  const step = input.step !== undefined && input.step.total >= 2 && input.step.index >= 1 && input.step.index <= input.step.total
+    ? { index: input.step.index, total: input.step.total }
+    : undefined
+  return {
+    askId: input.askId,
+    ticketId: input.ticketId,
+    personaId: input.personaId,
+    personaName: input.personaName,
+    question,
+    options,
+    multiple: input.multiple && options.length > 1,
+    ...(step === undefined ? {} : { step }),
+  }
+}
+
+export function mapPersonaAskLive(input: PersonaAskLiveInput | undefined): PersonaAskLiveUi | undefined {
+  if (input === undefined) return undefined
+  return { status: input.status, optionIds: input.answer?.optionIds ?? [], text: input.answer?.text ?? '' }
+}
+
+/** Marca ou desmarca uma opção: única = só ela (tocar de novo na escolhida a mantém); múltipla = liga/desliga, na ordem das opções. */
+export function toggleOption(
+  options: readonly AskOptionUi[],
+  selected: readonly string[],
+  id: string,
+  multiple: boolean,
+): readonly string[] {
+  if (!options.some(option => option.id === id)) return selected
+  if (!multiple) return [id]
+  const next = new Set(selected)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  return options.filter(option => next.has(option.id)).map(option => option.id)
+}
+
+/** Só as escolhas que ainda são opções desta pergunta, na ordem delas (o host pode trazer uma opção que saiu). */
+export function knownChoices(options: readonly AskOptionUi[], ids: readonly string[]): readonly string[] {
+  const wanted = new Set(ids)
+  return options.filter(option => wanted.has(option.id)).map(option => option.id)
+}

@@ -151,6 +151,7 @@ export function ConnectedTeamHealthPanel({ persona, useTenant, useLive, openTeam
       onTwoDayFix={onTwoDayFix}
       gestorAudit={{ persona: gestorPersona, items: gestorItems }}
       twoDayPending={twoDayState.status === 'loading'}
+      firstDay={live.ready && !live.kanbanCards.some(card => card.column !== 'todo')}
       twoDayFailed={twoDayState.status === 'error'}
       {...(openTeamSetup === undefined ? {} : { onBuildTeam: openTeamSetup })}
     />

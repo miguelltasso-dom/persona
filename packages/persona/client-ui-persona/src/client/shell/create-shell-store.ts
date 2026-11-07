@@ -26,6 +26,9 @@ export type MainPanelId =
   | 'teamHealth'
   | 'help'
   | 'about'
+  | 'personality'
+  | 'personas'
+  | 'appearance'
 
 export type HelpShellTab = 'guias' | 'novidades'
 

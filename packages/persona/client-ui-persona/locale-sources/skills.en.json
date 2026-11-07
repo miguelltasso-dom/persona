@@ -21,7 +21,7 @@
   "error.title": "I couldn't load the skills right now",
   "error.retry": "Try again",
   "action.activating": "Turning on…",
-  "action.backToCandidate": "Back to candidate",
+  "action.backToCandidate": "Turn off",
   "action.rollingBack": "Going back…",
   "status.shared": "Shared",
   "error.activate": "I could not turn on {name}. If it uses a tool the persona does not have yet, ask for approval first.",

@@ -22,6 +22,7 @@ import {
 } from './locale/chat/locales.ts'
 import { mountPersonaUi, personaRemote } from './mount.ts'
 import './theme/index.ts'
+import { applyStoredThemeEarly } from './theme/theme-preference.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -54,6 +55,8 @@ function registerLocales(ctx: ClientContext): void {
 
 /** Mount Persona Remote, shell root, and locale dictionaries. */
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
+  // TH-1: antes de qualquer outra coisa, o tema salvo (ou o forçado) vai para o <html>/<body>; o app abre no tema certo, sem piscar o outro.
+  applyStoredThemeEarly()
   registerLocales(ctx)
   return mountPersonaUi(ctx, personaRemote)
 }

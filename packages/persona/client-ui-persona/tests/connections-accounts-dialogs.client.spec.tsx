@@ -198,6 +198,33 @@ describe('add account: step by step', () => {
     expect(within(dialog).getByText(t('account.add.noCommand', { label: 'Equipe' }))).toBeTruthy()
   })
 
+  it('Muse W2-7: o erro do nome só aparece depois de "Continuar" com o campo vazio; abrir e perder o foco não mostram nada; fechar e reabrir zera', () => {
+    render(<ConnectionsView accountsUi={ui([personal])} onAddAccount={async () => {}} onRecheck={() => {}} />)
+    const empty = t('account.label.empty')
+    const nameField = (): HTMLElement => screen.getByLabelText(t('account.add.nameLabel'))
+    // abrir: sem erro (nem depois de o foco sair do campo, como acontece quando o modal assume o foco)
+    fireEvent.click(screen.getByRole('button', { name: addLabel }))
+    expect(screen.queryByText(empty)).toBeNull()
+    fireEvent.blur(nameField())
+    expect(screen.queryByText(empty)).toBeNull()
+    expect(nameField().getAttribute('aria-invalid')).not.toBe('true')
+    // Continuar com o campo vazio: agora sim
+    fireEvent.click(screen.getByRole('button', { name: t('account.add.continue') }))
+    expect(screen.getByText(empty)).toBeTruthy()
+    // fechar e reabrir: zerado
+    fireEvent.click(screen.getByRole('button', { name: t('account.cancel') }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: addLabel }))
+    expect(screen.queryByText(empty)).toBeNull()
+  })
+
+  it('um nome já recusado (repetido) é dito assim que é digitado; só vazio espera o Continuar', () => {
+    render(<ConnectionsView accountsUi={ui([personal])} onAddAccount={async () => {}} onRecheck={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: addLabel }))
+    fireEvent.change(screen.getByLabelText(t('account.add.nameLabel')), { target: { value: 'Pessoal' } })
+    expect(screen.getByText(t('account.label.duplicate', { provider: 'Claude' }))).toBeTruthy()
+  })
+
   it('a refused name puts the cursor back in the field where the message is', () => {
     render(<ConnectionsView accountsUi={ui([personal, work])} onAddAccount={async () => {}} />)
     fireEvent.click(screen.getByRole('button', { name: addLabel }))
@@ -309,6 +336,8 @@ describe('swap rule: team and one persona', () => {
       expect.stringContaining('Ficar nesta conta'),
     ])
     expect(screen.queryByText(/Dividir o uso/u)).toBeNull()
+    // o padrão é dito uma vez, acima das escolhas
+    expect(screen.getByText(t('swapPolicy.hint'))).toBeTruthy()
     // quem não escolheu nada fica em "Perguntar antes de trocar" e só ela leva o selo
     expect((policyCard(t('accountPolicy.ask.title')) as HTMLInputElement).checked).toBe(true)
     const badges = screen.getAllByText(t('accountPolicy.recommended'))

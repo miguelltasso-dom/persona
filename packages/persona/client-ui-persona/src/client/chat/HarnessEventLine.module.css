@@ -1,0 +1,82 @@
+/* HT-3: a linha de evento do fio ("Nina começou “X” porque você moveu para Fazendo"). Discreta: sem balão, o rosto 24 e o texto. */
+.line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  margin: var(--persona-space-2) 0;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border-left: 3px solid var(--persona-outline-soft);
+  border-radius: 0 var(--persona-radius-s) var(--persona-radius-s) 0;
+  list-style: none;
+  color: var(--persona-ink-soft);
+}
+
+/* "Esperando" não é erro (Muse): a barra segue neutra (outline-soft), como a do "começou"; o relógio pequeno ao lado do rosto diz que espera. */
+.clock {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 24px;
+  margin-left: calc(-1 * var(--persona-space-2));
+  color: var(--persona-ink-soft);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--persona-ink-soft);
+}
+
+.body {
+  min-width: 0;
+  flex: 1;
+}
+
+.text {
+  margin: 0;
+  font: 600 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.time {
+  font-weight: 500;
+  color: var(--persona-ink-soft);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-1) var(--persona-space-3);
+}
+
+.actions:empty {
+  display: none;
+}
+
+/* Ações como links ghost (o mesmo gesto dos cartões de tarefa do fio). */
+.action {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 13px/20px var(--persona-font-text);
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.action:hover,
+.action:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
+}
+
+.action:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

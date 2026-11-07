@@ -244,6 +244,20 @@
 }
 
 @media (max-width: 720px) {
+  /* Muse (02:00): abaixo de ~720 px a barra de gravação quebra em 2 linhas: "Atlas está olhando · 0:05" em cima e os controles à direita embaixo. */
+  .pill {
+    flex-wrap: wrap;
+    height: auto;
+    row-gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .controls {
+    width: 100%;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+
   .step {
     grid-template-columns: minmax(0, 1fr) auto;
   }

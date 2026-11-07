@@ -75,11 +75,12 @@
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   grid-template-areas:
-    'face title chip'
-    'face meta  chip';
-  align-items: center;
+    'face title'
+    'face chips'
+    'face meta';
+  align-items: start;
   column-gap: var(--persona-space-3);
   row-gap: 2px;
   min-height: 56px;
@@ -115,9 +116,12 @@
 .rowTitle {
   grid-area: title;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
   font: 800 15px/1.25 var(--persona-font-text);
 }
 
@@ -131,9 +135,34 @@
   color: var(--persona-ink-soft);
 }
 
-.rowChip {
-  grid-area: chip;
-  align-self: start;
+/* The chips sit on ONE line under the title; when the extra chip does not fit the row shows "+1" instead (container query on the chips line). */
+.rowChips {
+  grid-area: chips;
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--persona-space-1, 4px);
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.rowChips > * {
+  flex: 0 0 auto;
+}
+
+.chipMore {
+  display: none;
+}
+
+@container (max-width: 190px) {
+  .chipExtra {
+    display: none;
+  }
+
+  .chipMore {
+    display: inline-flex;
+  }
 }
 
 /* A decided card keeps its place for the stamp, then fades (same timing as the old cards). */

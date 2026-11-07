@@ -12,7 +12,7 @@ describe('AccountRow / AccountPolicyPicker / Notice (WAVE2-SPEC c)', () => {
     const login = vi.fn()
     render(<AccountList label="Contas Claude"><AccountRow label="Trabalho" providerName="Claude" state="login" stateText="Precisa entrar" action={{ label: 'Entrar', onClick: login }} labels={ROW_LABELS} usedBy={[{ name: 'Nina' }, { name: 'Bento' }]} /></AccountList>)
     expect(screen.getByText('Sem estimativa ainda')).toBeTruthy()
-    expect(screen.queryByRole('meter')).toBeNull()
+    expect(screen.queryByRole('progressbar')).toBeNull()
     expect(screen.getByRole('img', { name: 'Em uso por: Nina, Bento' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }))
     expect(login).toHaveBeenCalled()
@@ -20,7 +20,7 @@ describe('AccountRow / AccountPolicyPicker / Notice (WAVE2-SPEC c)', () => {
 
   it('renders official meters when the provider reports them', () => {
     render(<AccountList label="Contas"><AccountRow label="Pessoal" providerName="Claude" state="limit" stateText="No limite até 18:30" quota={{ fiveHourPct: 100, weekPct: 40 }} labels={ROW_LABELS} inUse /></AccountList>)
-    expect(screen.getByRole('meter', { name: '5h' }).getAttribute('aria-valuenow')).toBe('100')
+    expect(screen.getByRole('progressbar', { name: '5h' }).getAttribute('aria-valuenow')).toBe('100')
     expect(screen.getByText('Em uso agora')).toBeTruthy()
   })
 

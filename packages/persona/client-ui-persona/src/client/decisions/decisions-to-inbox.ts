@@ -35,6 +35,8 @@ export function decisionsToInbox(decisions: readonly Decision[]): DecisionInbox 
       ...approvalViewToItem(viewOf(decision)),
       decisionState: decision.state,
       risk: decision.risk,
+      // D-069: the store already resolved the proposer's real portrait from the team: the inbox never guesses a face from a host id.
+      ...(decision.requester.avatarSrc === undefined ? {} : { proposerAvatarSrc: decision.requester.avatarSrc }),
       ...(decision.createdAt.length > 0 ? { createdAt: decision.createdAt } : {}),
       ...(decision.kind === 'hire' && decision.why !== undefined ? { hireWhy: decision.why } : {}),
     }))

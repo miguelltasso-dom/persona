@@ -36,7 +36,6 @@ export function ConnectedProjectHistory({
   const [undoMessage, setUndoMessage] = useState<string | null>(null)
   const load = useCallback(async () => history.list(scope), [history, scope])
   const { state, retry } = usePersonaRemoteLoad(true, `${scope.workspaceId}:${scope.projectId}:history`, load)
-  const fallbackWho = bindLocale(reviewDict, 'persona.fallback')
   const taskInfo = useMemo(
     () => new Map<string, HistoryTaskInfo>(tasks.map(task => [task.id, { title: task.title, personaName: task.assignee?.name }])),
     [tasks],
@@ -66,7 +65,7 @@ export function ConnectedProjectHistory({
       <ProjectWorkspaceTabs dict={kanbanDict} value="history" onChange={onWorkspaceTabChange} />
       <ProjectHistoryView
         state={state.status === 'ready' ? 'ready' : state.status === 'error' ? 'error' : 'loading'}
-        entries={listed === null ? [] : restorePointsToEntries(listed.points, fallbackWho, taskInfo)}
+        entries={listed === null ? [] : restorePointsToEntries(listed.points, undefined, taskInfo)}
         canUndo={history.available && listed?.status === 'available'}
         unavailable={listed !== null && listed.status !== 'available'}
         undoingId={undoingId}

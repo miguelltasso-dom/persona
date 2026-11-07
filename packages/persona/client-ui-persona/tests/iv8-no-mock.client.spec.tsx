@@ -175,6 +175,15 @@ const LIVE_WITH_TEAM: PersonaLiveSnapshot = {
   },
 }
 
+// A team that already worked (one card past "A fazer"): on its FIRST day the health screen is the calm "still getting to know" note (Lumen) and draws no timeline.
+const LIVE_WORKED: PersonaLiveSnapshot = {
+  ...LIVE_WITH_TEAM,
+  kanbanCards: [{
+    id: 'k-1', title: 'Tarefa em andamento', projectId: 'proj', projectName: 'Projeto', teamId: 'team', teamName: 'Equipe',
+    column: 'in_progress', waitingEvent: false, blocked: false, reviewApproved: false,
+  }],
+}
+
 describe('IV-8b · Saúde da equipe e Teste dos 2 dias: no sample health', () => {
   it('the fetchers reject instead of drawing a sample', async () => {
     await expect(fetchTeamHealth({} as never, 'ws')).rejects.toThrow('team-health-unavailable')
@@ -213,7 +222,7 @@ describe('IV-8b · Saúde da equipe e Teste dos 2 dias: no sample health', () =>
 
   it('a Teste dos 2 dias the host cannot run is drawn from the REAL roster, never from a sample', async () => {
     const health = { ...mockTeamHealth('ws-iv8'), gestorAudit: [] }
-    renderHealth(LIVE_WITH_TEAM, health)
+    renderHealth(LIVE_WORKED, health)
     expect(await screen.findByText(health.findings[0]!.title)).toBeTruthy()
     // Atlas is on the real team: the test shows her row; the made-up names of the sample test do not appear.
     await waitFor(() => { expect(screen.getAllByText(/Atlas/u).length).toBeGreaterThan(0) })

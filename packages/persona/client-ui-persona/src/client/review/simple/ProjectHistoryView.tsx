@@ -9,6 +9,7 @@ import type { LocaleDict } from '../../preview/locale-bind.ts'
 import { bindLocale } from '../../preview/locale-bind.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../../kanban/PersonaSurface.tsx'
 import { pt as defaultDict } from '../../locale/review/locales.ts'
+import { unnamedText } from './conflict-text.ts'
 import styles from './ProjectHistoryView.module.css'
 
 /** The earlier versions are kept this long; older entries leave the list. */
@@ -22,8 +23,8 @@ export interface HistoryFileUi {
 
 export interface HistoryEntryUi {
   readonly id: string
-  /** "Bia", or "Você". */
-  readonly who: string
+  /** "Bia", or "Você"; `undefined` = the host did not say who: the line has no name ("1 mudança aplicada"), never "A persona aplicou". */
+  readonly who: string | undefined
   /** ISO time of the apply. */
   readonly at: string
   readonly files: readonly HistoryFileUi[]
@@ -133,9 +134,14 @@ export function ProjectHistoryView({
               const lineId = `persona-history-${entry.id}`
               const shown = entry.files.slice(0, MAX_FILES_SHOWN)
               const extra = entry.files.length - shown.length
-              const line = entry.files.length === 1
-                ? t('history.entry.one', { who: entry.who, when: whenOf(entry.at) })
-                : t('history.entry.many', { who: entry.who, count: entry.files.length, when: whenOf(entry.at) })
+              const who = entry.who
+              const line = who === undefined
+                ? (entry.files.length === 1
+                  ? unnamedText(t, 'history.entry.unnamed.one', { when: whenOf(entry.at) })
+                  : unnamedText(t, 'history.entry.unnamed.many', { count: entry.files.length, when: whenOf(entry.at) }))
+                : (entry.files.length === 1
+                  ? t('history.entry.one', { who, when: whenOf(entry.at) })
+                  : t('history.entry.many', { who, count: entry.files.length, when: whenOf(entry.at) }))
               return (
                 <li key={entry.id} className={styles.item}>
                   <div className={styles.text}>

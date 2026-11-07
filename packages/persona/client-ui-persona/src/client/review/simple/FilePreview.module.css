@@ -64,6 +64,11 @@
   gap: var(--persona-space-3);
 }
 
+/* One picture only (a new or a deleted file, an SVG drawn from the patch): it takes the whole row, and there is nothing to switch. */
+.image[data-single] .imagePair {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .figure {
   margin: 0;
   min-width: 0;

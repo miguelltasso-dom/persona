@@ -11,6 +11,7 @@ import { PersonaSurfaceEmpty } from '../kanban/PersonaSurface.tsx'
 import type { ReviewBlockedUi, ReviewSummaryUi } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/review/locales.ts'
 import { DraftReviewPanel } from './simple/DraftReviewPanel.tsx'
+import type { ReviewedBySealReviewer } from '../teamwork/ReviewedBySeal.tsx'
 import { draftFilesFromReviewSummary } from './simple/patch-to-changes.ts'
 import type { ApplyPhase, ConflictChoice } from './simple/draft-types.ts'
 
@@ -34,6 +35,8 @@ export interface ReviewDeliveryPanelProps {
   readonly onUndoApplied?: (() => void) | undefined
   readonly onLeave?: (() => void) | undefined
   readonly onOpenDraftFile?: (fileId: string) => void
+  /** TEAM-8: o selo "Revisado por {R}" no cabeçalho do Revisar mudanças quando um colega aprovou sem pontos em aberto. */
+  readonly reviewedBy?: ReviewedBySealReviewer | undefined
 }
 
 /** One question per card; the amber primary is "Aplicar na pasta" only. */
@@ -54,6 +57,7 @@ export function ReviewDeliveryPanel({
   example,
   onUndoApplied,
   onLeave,
+  reviewedBy,
 }: ReviewDeliveryPanelProps): ReactNode {
   const files = useMemo(() => (summary === null ? [] : draftFilesFromReviewSummary(summary)), [summary])
 
@@ -96,6 +100,7 @@ export function ReviewDeliveryPanel({
       {...(example === true ? { example } : {})}
       {...(onUndoApplied === undefined ? {} : { onUndoApplied })}
       {...(onLeave === undefined ? {} : { onLeave })}
+      {...((reviewedBy ?? summary.reviewedBy) === undefined ? {} : { reviewedBy: reviewedBy ?? summary.reviewedBy })}
     />
   )
 }

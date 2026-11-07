@@ -1,0 +1,156 @@
+/* CV-8: the chip above the composer ("Toda a equipe · n respostas · ≈ c chamadas") and the card "Respostas da equipe de {x}". Tokens only. */
+
+.chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-2) var(--persona-space-3);
+  margin: 0 0 var(--persona-space-2);
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper-sunken);
+  color: var(--persona-ink);
+  font: 700 13px/18px var(--persona-font-text);
+}
+
+.chipText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chipDetail {
+  font-weight: 600;
+  color: var(--persona-ink-soft);
+}
+
+.chipActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+/* The block sits in the thread like any card: aligned with the lines, never inside a bubble. With the bubbles it is set in by the avatar column (42 px). */
+.row {
+  list-style: none;
+  margin: var(--persona-space-3) 0;
+}
+
+.rowBubbles {
+  margin-left: 42px;
+}
+
+.progress {
+  margin: 0 0 var(--persona-space-2);
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.lines {
+  display: grid;
+  gap: var(--persona-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reply {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--persona-space-3);
+  align-items: start;
+}
+
+.replyBody {
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font: 800 13px/18px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.text,
+.textFull {
+  margin: 0;
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The first 2 lines; "Ler tudo" opens the rest. */
+.text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.link {
+  margin: var(--persona-space-1) 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link:focus-visible {
+  color: var(--persona-ink);
+  outline: 2px solid var(--persona-accent);
+  outline-offset: 2px;
+}
+
+.note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--persona-space-3);
+  align-items: center;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.nobody {
+  margin: var(--persona-space-2) 0 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.nothing {
+  display: grid;
+  justify-items: start;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-3);
+  padding-top: var(--persona-space-2);
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+/* 200 % and narrow windows: the set-in goes away so the answers keep their width. */
+@media (max-width: 640px) {
+  .rowBubbles {
+    margin-left: 0;
+  }
+}
+
+/* D-092: o trecho "cerca de {pct}% da janela" leva o nome da janela no tooltip; o sublinhado pontilhado diz que há mais a ver. */
+.chipUsage {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.chipUsage:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+}
+
+/* D-092: o uso oficial da janela só vira alerta a partir de 80% (o mesmo tom `warning` de Uso e limites); antes disso a linha é neutra. */
+.chip[data-tone='warning'] {
+  border-color: var(--persona-warning);
+}

@@ -7,7 +7,7 @@
  */
 import { useState, type ReactNode } from 'react'
 import { Button, ChoiceCards, MilestoneCard } from '../primitives/index.ts'
-import { teachFailureKind, type TeachShareScope } from './teach-model.ts'
+import { isGenericSkillTitle, teachFailureKind, type TeachShareScope } from './teach-model.ts'
 import type { TeachT } from './TeachReview.tsx'
 import styles from './TeachFlow.module.css'
 
@@ -28,6 +28,8 @@ export interface TeachDoneProps {
 type Busy = 'activate' | 'revert' | 'share' | null
 
 export function TeachDone({ t, personaName, skillTitle, art, onActivate, onRevert, onShare, onClose }: TeachDoneProps): ReactNode {
+  // The host names a taught skill "Skill ensinada" until the person renames it: that placeholder is not a name to put in a sentence.
+  const generic = isGenericSkillTitle(skillTitle)
   const [active, setActive] = useState(false)
   const [busy, setBusy] = useState<Busy>(null)
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +56,7 @@ export function TeachDone({ t, personaName, skillTitle, art, onActivate, onRever
   const activate = (): void => {
     run('activate', onActivate, () => {
       setActive(true)
-      setLive(t('teach.done.activeTitle', { skill: skillTitle, name: personaName }))
+      setLive(generic ? t('teach.done.activeTitleGeneric', { name: personaName }) : t('teach.done.activeTitle', { skill: skillTitle, name: personaName }))
     })
   }
   const revert = (): void => {
@@ -99,11 +101,12 @@ export function TeachDone({ t, personaName, skillTitle, art, onActivate, onRever
         celebrate
         eyebrow={active ? t('teach.done.activeEyebrow') : t('teach.done.eyebrow')}
         title={active
-          ? t('teach.done.activeTitle', { skill: skillTitle, name: personaName })
-          : t('teach.done.title', { skill: skillTitle, name: personaName })}
+          ? (generic ? t('teach.done.activeTitleGeneric', { name: personaName }) : t('teach.done.activeTitle', { skill: skillTitle, name: personaName }))
+          : (generic ? t('teach.done.titleGeneric', { name: personaName }) : t('teach.done.title', { skill: skillTitle, name: personaName }))}
         body={active ? t('teach.done.activeBody', { name: personaName }) : t('teach.done.body')}
         actions={actions}
       />
+      {active && <p className={styles.hint}>{t('teach.done.revertHint', { name: personaName })}</p>}
       {error !== null && <p className={styles.failure} role="alert">{error}</p>}
       {sharedWith !== null && <p className={styles.hint}>{t('teach.share.done', { scope: sharedWith.toLowerCase() })}</p>}
       {shareOpen && (

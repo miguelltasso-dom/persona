@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   EmptyState,
+  Input,
   Modal,
   Screen,
   ScreenHeader,
@@ -19,6 +20,7 @@ import {
   type TeachStepCardProps,
 } from '../primitives/index.ts'
 import {
+  SKILL_NAME_MAX,
   TEACH_MAX_STEPS,
   addStep,
   blankStepCount,
@@ -32,6 +34,7 @@ import {
   updateStep,
   type EditableStep,
 } from './teach-model.ts'
+import { mainBoxStyle, useMainBox } from './use-main-box.ts'
 import styles from './TeachFlow.module.css'
 
 export type TeachT = (key: string, params?: Readonly<Record<string, string | number>>) => string
@@ -43,8 +46,16 @@ const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), in
  * Tab wraps at the ends, and focus that escapes to the app underneath is pulled back (the rail is still in the page).
  * A dialog opened on top of it (zoom, discard confirmation) has its own trap and is left alone.
  */
-export function TeachLayer({ label, onEscape, children }: { readonly label: string; readonly onEscape?: (() => void) | undefined; readonly children: ReactNode }): ReactNode {
+export function TeachLayer({ label, onEscape, back, children }: {
+  readonly label: string
+  readonly onEscape?: (() => void) | undefined
+  /** The way back to the conversation (always on the screens that leave the person in the middle of something). */
+  readonly back?: { readonly label: string; readonly onBack: () => void } | undefined
+  readonly children: ReactNode
+}): ReactNode {
   const layer = useRef<HTMLDivElement>(null)
+  // Over the shell's main area (rail and bars stay visible); the whole window only when there is no main to measure.
+  const box = useMainBox()
   // Latest handler without re-subscribing the document listeners on every render.
   const escape = useRef(onEscape)
   escape.current = onEscape
@@ -99,8 +110,15 @@ export function TeachLayer({ label, onEscape, children }: { readonly label: stri
     }
   }, [])
   return (
-    <div ref={layer} className={styles.layer} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} data-persona-teach-layer="">
-      {children}
+    <div ref={layer} className={styles.layer} style={mainBoxStyle(box)} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} data-persona-teach-layer="">
+      {back !== undefined && (
+        <div className={styles.layerBar}>
+          <Button variant="ghost" size="s" icon={<span className={styles.backIcon}><UiIcon name="arrowRight" size={16} strokeWidth={2.2} /></span>} onClick={back.onBack}>
+            {back.label}
+          </Button>
+        </div>
+      )}
+      <div className={styles.layerBody}>{children}</div>
     </div>
   )
 }
@@ -172,21 +190,23 @@ export interface TeachReviewProps {
   readonly personaName: string
   readonly portraitSrc?: string | undefined
   /** Name the host gave the skill (read-only: the host keeps the name). */
-  readonly skillTitle: string
+  /** What the name field starts with (taken from the person's narration); the person edits it. */
+  readonly suggestedTitle: string
   /** Steps from the host draft; an empty list starts with one blank step to write in. */
   readonly draftSteps: readonly TeachStepView[]
-  /** Save as candidate. Rejects with the host error; the screen shows what the person can do about it. */
-  readonly onSave: (steps: readonly TeachStepView[]) => Promise<void>
+  /** Save as candidate, with the name the person chose. Rejects with the host error; the screen shows what the person can do about it. */
+  readonly onSave: (steps: readonly TeachStepView[], title: string) => Promise<void>
   readonly onDiscard: () => void
 }
 
 /** Step editor + the one primary action ("Salvar como skill candidata"). */
-export function TeachReview({ t, personaName, portraitSrc, skillTitle, draftSteps, onSave, onDiscard }: TeachReviewProps): ReactNode {
+export function TeachReview({ t, personaName, portraitSrc, suggestedTitle, draftSteps, onSave, onDiscard }: TeachReviewProps): ReactNode {
   const initial = useMemo(() => {
     const rows = stepsFromDraft(draftSteps)
     return rows.length > 0 ? rows : addStep([])
   }, [draftSteps])
   const [steps, setSteps] = useState<readonly EditableStep[]>(initial)
+  const [title, setTitle] = useState(suggestedTitle)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [zoom, setZoom] = useState<{ readonly n: number; readonly src: string } | null>(null)
@@ -202,14 +222,15 @@ export function TeachReview({ t, personaName, portraitSrc, skillTitle, draftStep
   }, [steps.length])
 
   const blanks = blankStepCount(steps)
-  const canSave = canSaveCandidate(steps)
+  const hasName = title.trim().length > 0
+  const canSave = canSaveCandidate(steps) && hasName
   const atLimit = steps.length >= TEACH_MAX_STEPS
 
   const save = (): void => {
     if (!canSave || busy) return
     setBusy(true)
     setError(null)
-    void onSave(stepsToWire(steps)).catch((caught: unknown) => {
+    void onSave(stepsToWire(steps), title.trim()).catch((caught: unknown) => {
       const kind = teachFailureKind(caught)
       setError(kind === 'tools' ? t('teach.error.tools', { name: personaName })
         : kind === 'forbidden' ? t('teach.error.forbidden')
@@ -283,14 +304,22 @@ export function TeachReview({ t, personaName, portraitSrc, skillTitle, draftStep
             <Avatar name={personaName} src={portraitSrc} size={40} shape="portrait" decorative />
             <div>
               <p className={styles.sideLabel}>{t('teach.review.skill')}</p>
-              <p className={styles.sideTitle}>{skillTitle}</p>
               <p className={styles.hint}>{t('teach.review.stepCount', { count: stepsToWire(steps).length })}</p>
             </div>
           </div>
+          <Input
+            label={t('teach.review.nameLabel')}
+            hint={t('teach.review.nameHint', { name: personaName })}
+            value={title}
+            maxLength={SKILL_NAME_MAX}
+            autoComplete="off"
+            onChange={(event) => { setTitle(event.target.value) }}
+          />
           <p className={styles.hint}>{t('teach.review.whatIsSkill', { name: personaName })}</p>
           <p className={styles.hint}>{t('teach.review.candidateNote', { name: personaName })}</p>
           {blanks > 0 && canSave && <p className={styles.hint}>{t('teach.review.blank')}</p>}
-          {!canSave && <p className={styles.hint}>{t('teach.review.needStep')}</p>}
+          {!canSaveCandidate(steps) && <p className={styles.hint}>{t('teach.review.needStep')}</p>}
+          {canSaveCandidate(steps) && !hasName && <p className={styles.hint}>{t('teach.review.needName')}</p>}
           {error !== null && <p className={styles.failure} role="alert">{error}</p>}
           <div className={styles.sideActions}>
             <Button variant="primary" block loading={busy} disabled={!canSave} onClick={save}>

@@ -75,3 +75,27 @@ describe('a card with a delivery waiting never leaves for Concluído (FLOW-1)', 
     expect(screen.queryByText('Esse cartão tem mudanças esperando revisão')).toBeNull()
   })
 })
+
+describe('the host\'s own answer (BoardCardView.deliveryPending) wins over the column guess', () => {
+  const withCard = (card: Record<string, unknown>): ProjectBoardView => ({ ...BOARD, cards: [card as unknown as ProjectBoardView['cards'][number]] })
+  const mountWith = (view: ProjectBoardView, moveTicket: ReturnType<typeof vi.fn>) => board({
+    getProjectBoard: vi.fn(async () => ({ ok: true as const, value: view })),
+    moveTicket,
+  } as unknown as PersonaRemoteClient)
+
+  it('a card the host marks pending is held back even outside a review column', async () => {
+    const moveTicket = vi.fn(async () => ({ ok: true as const, value: undefined }))
+    mountWith(withCard({ ticketId: 't-hero', title: 'Hero da home', category: 'doing', columnId: 'col-doing', blocked: false, deliveryPending: true }), moveTicket)
+    await moveHeroTo('Live')
+    expect(await screen.findByText('Esse cartão tem mudanças esperando revisão')).toBeTruthy()
+    expect(moveTicket).not.toHaveBeenCalled()
+  })
+
+  it('a card in review that the host says has nothing waiting (a task without a folder) goes to Concluído', async () => {
+    const moveTicket = vi.fn(async () => ({ ok: true as const, value: undefined }))
+    mountWith(withCard({ ticketId: 't-hero', title: 'Hero da home', category: 'review', columnId: 'col-review', blocked: false, deliveryPending: false }), moveTicket)
+    await moveHeroTo('Live')
+    await waitFor(() => { expect(moveTicket).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj-site', ticketId: 't-hero', columnId: 'col-done' }) })
+    expect(screen.queryByText('Esse cartão tem mudanças esperando revisão')).toBeNull()
+  })
+})

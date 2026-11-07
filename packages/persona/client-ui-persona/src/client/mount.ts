@@ -1,5 +1,7 @@
 /** Mount Persona Remote + shell slot registrations. */
 
+import { installHouseDecorAttribute } from './decor/house-decor-flag.ts'
+import { installThemeSync } from './theme/theme-preference.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -27,9 +29,11 @@ import { registerPersonaAboutSettings } from './shell/register-persona-about-set
 import { PersonaAppFrame } from './shell/PersonaAppFrame.tsx'
 import { PersonaSidebar } from './shell/PersonaSidebar.tsx'
 import { createRailAiObservable, type RailAiRemote } from './shell/rail-ai-status.ts'
+import { createConversationsObservable, createRosterChangeSubscriber, createSectorsObservable, type SectorsRemote } from './shell/conversations-source.ts'
 import { SettingsLauncher } from './shell/SettingsLauncher.tsx'
 import { isPlacesNavEnabled } from './shell/nav-flag.ts'
 import { createShellStore, type MainPanelId, type ShellStoreHandle } from './shell/create-shell-store.ts'
+import { createActiveConversationObservable, type ConversationTarget } from './shell/conversation-selection.ts'
 import { overlayOpenFromHost } from './remote/onboarding-host.ts'
 import { signalPersonaFirstPaint } from './boot/signal-first-paint.ts'
 import { rosterFromDrafts } from './onboarding/roster-from-draft.ts'
@@ -40,7 +44,7 @@ import { installPersonaColorScheme } from './theme/install-color-scheme.ts'
 import { createLiveRailTeamObservable } from './remote/live-rail-bridge.ts'
 import { createPersonaCardBridge } from './remote/persona-card-bridge.ts'
 import { PROFILE_NS } from './locale/profile/locales.ts'
-import { PersonaEngineOverlay } from './profile/PersonaEngineOverlay.tsx'
+import { PersonaEngineOverlay, isEngineEffortEnabled } from './profile/PersonaEngineOverlay.tsx'
 import { PersonaTalkAclOverlay } from './profile/PersonaTalkAclOverlay.tsx'
 import { TeachPersonaOverlay } from './profile/TeachPersonaOverlay.tsx'
 import { TeachPersonaSession } from './profile/TeachPersonaSession.tsx'
@@ -57,6 +61,9 @@ export const inject = [
 
 function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
   installPersonaColorScheme()
+  // TH-1: a escolha de tema do Config do usuário vai para o DOM (o presenter do host não escreve neste perfil) e para o espelho.
+  installThemeSync(ctx)
+  installHouseDecorAttribute()
   installComposerHostCapabilities(ctx.remote.persona as Parameters<typeof installComposerHostCapabilities>[0])
   const { store, actions } = shellHandle
   const live = createPersonaLiveStore(ctx.remote.persona as unknown as Parameters<typeof createPersonaLiveStore>[0])
@@ -127,6 +134,19 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
     },
     subscribeScope: listener => live.observable.subscribe(listener),
   })
+  // CV-1: Canais e Pessoas da barra única. A equipe de cada persona vem do organograma (setores), lida só enquanto a barra assina e
+  // quando o elenco muda.
+  const sectorsObservable = createSectorsObservable({
+    remote: ctx.remote.persona as unknown as SectorsRemote,
+    workspaceId: () => live.observable.getSnapshot().tenant?.workspaceId ?? null,
+    subscribeChange: createRosterChangeSubscriber(live),
+  })
+  const conversationsObservable = createConversationsObservable({
+    live,
+    railTeam: railTeamObservable,
+    sectors: sectorsObservable,
+    generalName: () => ctx.locale.bind(SHELL_NS)('conversations.generalChannel' as never),
+  })
   const sidebarInject = () => ({
     hooks: {
       shell: shellObservable,
@@ -134,11 +154,23 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       personaCardRevision: personaCardBridge.revision,
       approvals: createApprovalsBadgeObservable(live),
     },
+    // CONVERSAS-SPEC §0: a barra pinta a conversa aberta e abre qualquer uma com 1 clique.
+    activeConversation: createActiveConversationObservable(live, shellHandle),
+    conversations: conversationsObservable,
     railAi: railAiObservable,
     cardInfo: personaCardBridge.cardInfo,
     prefetchPersonaCard: personaCardBridge.prefetch,
     cardDict,
     selectPanel: (id: Parameters<typeof actions.selectPanel>[0]) => { actions.selectPanel(id) },
+    openConversation: (target: ConversationTarget) => {
+      if (target.kind === 'dm') {
+        actions.selectPanel('directMessages')
+        void live.openPersonaDm(target.personaId)
+        return
+      }
+      // Hoje só existe o #geral; os canais por equipe (CV-6) entram aqui quando o host os trouxer.
+      actions.selectPanel('channels')
+    },
     openPersonaDm: (personaId: string) => {
       actions.selectPanel('directMessages')
       void live.openPersonaDm(personaId)
@@ -216,6 +248,10 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       actions.closePersonaEditor()
       actions.setProfilePersonaId(personaId)
       actions.selectPanel('profile')
+    },
+    openPersonaDm: (personaId: string) => {
+      actions.selectPanel('directMessages')
+      void live.openPersonaDm(personaId)
     },
     shell: shellObservable,
     personaCard: personaCardShell,
@@ -320,6 +356,8 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
       dict: cardDict,
       persona: ctx.remote.persona,
       cardBridge: personaCardBridge,
+      effortEnabled: isEngineEffortEnabled(),
+      onSaved: () => { void live.refresh() },
       scope: () => {
         const tenant = live.observable.getSnapshot().tenant
         return tenant === null ? null : {

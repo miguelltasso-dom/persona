@@ -56,10 +56,10 @@ describe('mapMessage task cards (C5b)', () => {
     expect(row.ticketId).toBe('t-42')
   })
 
-  it('falls back to subject id when title is unknown', () => {
+  it('never falls back to the subject id: without a real task title there is no task card (P0-31)', () => {
     const row = mapMessage(taskEvent('t-unknown'), team, 'ana', new Map())
-    expect(row.taskTitle).toBe('t-unknown')
-    expect(row.ticketId).toBe('t-unknown')
+    expect(row.taskTitle).toBeUndefined()
+    expect(row.ticketId).toBeUndefined()
   })
 
   it('treats missing reactions as empty (legacy fake host)', () => {

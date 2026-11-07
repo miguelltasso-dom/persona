@@ -1,0 +1,74 @@
+/* CV-3: a lista do "Quem responde" (popover do seletor e `@nome`). Só tokens existentes. */
+.list {
+  margin: 0;
+  padding: var(--persona-space-1);
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  /* dentro do popover (coluna flex com altura limitada) a lista encolhe e rola; fora dele (menu do @nome) estas duas linhas não têm efeito */
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+.heading {
+  padding: var(--persona-space-2) var(--persona-space-3) var(--persona-space-1);
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.heading[data-has-divider] {
+  margin-top: var(--persona-space-1);
+  border-top: 1px solid var(--persona-outline-soft);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: 40px;
+  padding: var(--persona-space-1) var(--persona-space-3);
+  border-radius: var(--persona-radius-s);
+  color: var(--persona-ink);
+  cursor: pointer;
+}
+
+.option[data-active] {
+  background: var(--persona-wash);
+}
+
+.option[aria-selected='true'] {
+  font-weight: 700;
+}
+
+.faces {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.faces > * + * {
+  margin-left: -8px;
+}
+
+.text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  font: 700 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.role {
+  font: 600 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  overflow-wrap: anywhere;
+}
+
+@media (forced-colors: active) {
+  .option[data-active] {
+    outline: 2px solid Highlight;
+  }
+}

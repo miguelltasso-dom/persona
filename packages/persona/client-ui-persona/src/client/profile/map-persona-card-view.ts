@@ -28,6 +28,8 @@ export function personaCardViewToInfo(view: PersonaCardView, talkAcl?: TalkAclVi
     ...(view.substituteName === undefined ? {} : { substituteName: view.substituteName }),
     ...(view.currentProjectName === undefined ? {} : { projectName: view.currentProjectName }),
     engineLabel: engineLabel(view.engine.runnerLabel, view.engine.modelLabel),
+    ...(view.engine.runnerModel === undefined ? {} : { runnerModel: view.engine.runnerModel }),
+    ...(view.engine.runnerEffort === undefined ? {} : { runnerEffort: view.engine.runnerEffort }),
     ...(view.activeAccount === undefined
       ? {}
       : { activeAccountLabel: `${runnerLabel(view.activeAccount.provider)} · ${view.activeAccount.label}` }),

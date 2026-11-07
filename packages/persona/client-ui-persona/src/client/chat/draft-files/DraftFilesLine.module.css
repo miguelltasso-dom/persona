@@ -1,0 +1,73 @@
+/* EQUIPE-REAL-SPEC §(e): a linha "salvou … no rascunho". Mesma família da linha de equipe (TeamLine): barra fina à esquerda, sem balão. */
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2) var(--persona-space-3);
+  margin: var(--persona-space-2) 0;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border-left: 3px solid var(--persona-outline-soft);
+  border-radius: 0 var(--persona-radius-s) var(--persona-radius-s) 0;
+  list-style: none;
+  color: var(--persona-ink-soft);
+}
+
+.face {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* A frase pode quebrar; as miniaturas ficam logo depois do texto (Muse 16:50: nada de ~470 px de vão a 1440) e descem para a linha de baixo quando não cabem. */
+.text {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font: 600 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.time {
+  font-weight: 500;
+  color: var(--persona-ink-soft);
+}
+
+/* A frase é o alvo do clique (≥ 24 px de altura): parece texto, sublinha ao passar/focar. */
+.open {
+  display: inline-block;
+  min-height: 24px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.open:hover,
+.open:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
+}
+
+.open:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+  border-radius: var(--persona-radius-xs);
+}
+
+.thumbs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+}
+
+.more {
+  margin-inline-start: var(--persona-space-1);
+  font: 600 13px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  white-space: nowrap;
+}

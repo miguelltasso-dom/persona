@@ -9,7 +9,7 @@ export { Avatar, type AvatarPresence, type AvatarProps, type AvatarSize } from '
 export { Tabs, type TabItem, type TabsProps } from './Tabs.tsx'
 export { MenuButton, type MenuButtonHandle, type MenuButtonProps, type MenuItem } from './MenuButton.tsx'
 export { useActiveIndicator, type ActiveIndicatorBox } from './use-active-indicator.ts'
-export { Modal, Toast, ToastRegion, Tooltip, type ModalProps, type ToastProps, type ToastTone, type TooltipProps } from './Overlays.tsx'
+export { KeyCap, Modal, Toast, ToastRegion, Tooltip, type ModalProps, type ToastProps, type ToastTone, type TooltipProps } from './Overlays.tsx'
 export { DayDivider, EmptyState, Skeleton, type EmptyStateProps, type SkeletonProps } from './Feedback.tsx'
 export { HealthItem, HealthScore, OrgChart, TWO_DAY_ART, TwoDayTimeline, type HealthLevel, type OrgChartProps, type OrgGroup, type OrgPersona, type OrgPersonaState, type TwoDayOutcome, type TwoDayRow } from './Governance.tsx'
 export { ApprovedStamp, MilestoneCard, PawBurst, usePawCelebration, type ApprovedStampProps, type MilestoneCardProps, type MilestoneContributor, type MilestoneStat } from './Celebration.tsx'
@@ -42,6 +42,9 @@ export {
   type PersonaCardQuota,
   type PersonaCardTalk,
   type PersonaCardTriggerProps,
+  type PersonaCardFaceProps,
+  type PersonaCardMenuProps,
+  type PersonaFaceTriggers,
   type PersonaNowKind,
   type PersonaPresence,
 } from './PersonaCard.tsx'

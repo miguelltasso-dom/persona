@@ -100,9 +100,9 @@ describe('loadEngineLimits', () => {
 describe('EngineLimitsBars', () => {
   const FAKE_NUMBERS = /38%|66%|42%|18:30|Trabalho|Pessoal/u
 
-  it('sem dado: "—" e "Cota oficial indisponível", sem nenhum número de exemplo', () => {
+  it('sem dado: "—" e "Este motor não informa a cota.", sem nenhum número de exemplo', () => {
     const { container } = render(<EngineLimitsBars t={t} limits={ENGINE_LIMITS_UNAVAILABLE} />)
-    expect(screen.getByText('Cota oficial indisponível')).toBeTruthy()
+    expect(screen.getByText('Este motor não informa a cota.')).toBeTruthy()
     expect(container.textContent).toContain('—')
     expect(container.textContent).not.toMatch(FAKE_NUMBERS)
     expect(container.textContent).not.toMatch(/\d+%/u)
@@ -196,9 +196,9 @@ describe('ligação nas telas: /limites e gaveta mostram o dado real ou "indispo
     return screen.getByRole('region', { name: chatPt['composer.limitsPanelTitle'] })
   }
 
-  it('/limites sem fonte de dados: "—" e "Cota oficial indisponível", sem nenhum número de exemplo', () => {
+  it('/limites sem fonte de dados: "—" e "Este motor não informa a cota.", sem nenhum número de exemplo', () => {
     const panel = composer()
-    expect(panel.textContent).toContain('Cota oficial indisponível')
+    expect(panel.textContent).toContain('Este motor não informa a cota.')
     expect(panel.textContent).not.toMatch(FAKE)
   })
 
@@ -213,7 +213,7 @@ describe('ligação nas telas: /limites e gaveta mostram o dado real ou "indispo
   it('a gaveta "Contexto usado" usa o mesmo dado: indisponível por padrão, real quando chega', () => {
     const context = { ticketId: 't1', title: 'Pesquisa de preços', triggerIds: [], records: [] }
     const { container, rerender } = render(<TurnContextDrawer t={t} context={context} />)
-    expect(container.textContent).toContain('Cota oficial indisponível')
+    expect(container.textContent).toContain('Este motor não informa a cota.')
     expect(container.textContent).not.toMatch(FAKE)
     rerender(<TurnContextDrawer t={t} context={context} limits={ready} />)
     expect(container.textContent).toContain('62% sobrando')

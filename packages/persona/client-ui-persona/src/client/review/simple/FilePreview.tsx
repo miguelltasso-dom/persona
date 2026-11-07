@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { Button } from '../../primitives/index.ts'
 import type { DraftFileUi } from './draft-types.ts'
 import { BeforeAfterText } from './BeforeAfterText.tsx'
+import { safeReviewImageSrc } from './image-src.ts'
 import styles from './FilePreview.module.css'
 
 export interface FilePreviewProps {
@@ -16,34 +17,42 @@ export interface FilePreviewProps {
 type ImageView = 'before' | 'after'
 
 function ImageBeforeAfter({ file, t }: Pick<FilePreviewProps, 'file' | 't'>): ReactNode {
+  // Every picture goes through the gate again here (an inline image of a known type within the size limit), and is only ever an <img>: an SVG shown this
+  // way runs no script and loads nothing from outside.
+  const before = safeReviewImageSrc(file.beforeImageSrc)
+  const after = safeReviewImageSrc(file.afterImageSrc)
+  const both = before !== undefined && after !== undefined
   // Wide: both versions side by side and no buttons. Narrow (CSS container query): one at a time, switched here.
   const [view, setView] = useState<ImageView>('after')
+  const shown: ImageView = both ? view : after === undefined ? 'before' : 'after'
   return (
-    <div className={styles.image} data-view={view}>
-      <div className={styles.imageControls} role="group" aria-label={t('image.group')}>
-        {(['before', 'after'] as const).map(side => (
-          <Button
-            key={side}
-            size="s"
-            variant={view === side ? 'primary' : 'secondary'}
-            aria-pressed={view === side}
-            onClick={() => { setView(side) }}
-          >
-            {t(`image.${side}`)}
-          </Button>
-        ))}
-      </div>
+    <div className={styles.image} data-view={shown} data-single={both ? undefined : ''}>
+      {both && (
+        <div className={styles.imageControls} role="group" aria-label={t('image.group')}>
+          {(['before', 'after'] as const).map(side => (
+            <Button
+              key={side}
+              size="s"
+              variant={view === side ? 'primary' : 'secondary'}
+              aria-pressed={view === side}
+              onClick={() => { setView(side) }}
+            >
+              {t(`image.${side}`)}
+            </Button>
+          ))}
+        </div>
+      )}
       <div className={styles.imagePair}>
-        {file.beforeImageSrc !== undefined && (
+        {before !== undefined && (
           <figure className={styles.figure} data-side="before">
-            <img className={styles.img} src={file.beforeImageSrc} alt={`${file.name} · ${t('image.before')}`} />
-            <figcaption className={styles.caption}>{t('image.before')}</figcaption>
+            <img className={styles.img} src={before} alt={both ? `${file.name} · ${t('image.before')}` : file.name} />
+            {both && <figcaption className={styles.caption}>{t('image.before')}</figcaption>}
           </figure>
         )}
-        {file.afterImageSrc !== undefined && (
+        {after !== undefined && (
           <figure className={styles.figure} data-side="after">
-            <img className={styles.img} src={file.afterImageSrc} alt={`${file.name} · ${t('image.after')}`} />
-            <figcaption className={styles.caption}>{t('image.after')}</figcaption>
+            <img className={styles.img} src={after} alt={both ? `${file.name} · ${t('image.after')}` : file.name} />
+            {both && <figcaption className={styles.caption}>{t('image.after')}</figcaption>}
           </figure>
         )}
       </div>
@@ -69,7 +78,7 @@ function SheetCells({ file, t }: Pick<FilePreviewProps, 'file' | 't'>): ReactNod
 
 export function FilePreview({ file, t, onOpenDraftFile }: FilePreviewProps): ReactNode {
   let body: ReactNode = null
-  if (file.type === 'image' && (file.beforeImageSrc !== undefined || file.afterImageSrc !== undefined)) {
+  if (file.type === 'image' && (safeReviewImageSrc(file.beforeImageSrc) !== undefined || safeReviewImageSrc(file.afterImageSrc) !== undefined)) {
     body = <ImageBeforeAfter file={file} t={t} />
   } else if (file.type === 'sheet' && file.cells !== undefined && file.cells.length > 0) {
     body = <SheetCells file={file} t={t} />

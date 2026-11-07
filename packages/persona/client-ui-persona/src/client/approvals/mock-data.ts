@@ -1,7 +1,11 @@
 import type { PersonaProposal } from '@deepseek-ai/dsh-persona-core'
 import type { DecisionState } from '../decisions/decision-types.ts'
+import type { ConnectorAskUi } from './connector-ask.ts'
+import type { ActionPreviewUi } from '../remote/map-host-ui.ts'
+import type { ReviewedBySealReviewer } from '../teamwork/ReviewedBySeal.tsx'
+import type { ReplyTarget } from '../answer/reply-target.ts'
 
-export type ApprovalKind = 'hire' | 'vault' | 'skill' | 'attention'
+export type ApprovalKind = 'hire' | 'vault' | 'skill' | 'attention' | 'connector' | 'action'
 
 export interface ApprovalItem {
   readonly id: string
@@ -12,10 +16,14 @@ export interface ApprovalItem {
   readonly hireProposal?: PersonaProposal
   readonly proposerName?: string
   readonly proposerPersonaId?: string
+  /** D-069: the proposer's REAL portrait, resolved once in the Decision store from the real team (`requester.avatarSrc`). Absent = the screen resolves a face from id/name. */
+  readonly proposerAvatarSrc?: string | undefined
   readonly hirePortraitKey?: string
   readonly contextBody?: string
   /** One-line "why" from the host for a hire (UX-02). */
   readonly hireWhy?: string
+  /** IV-10 "Responder": a question that wants WORDS and the thread it was asked in (the composer there answers it). Absent = the card is not answerable here. */
+  readonly replyTarget?: ReplyTarget
   /** Role the proposed persona fills (spec.title); the card title reads "Contratar uma persona para {role}?" (A-4). */
   readonly hireRoleTitle?: string
   /** What the proposed persona does (spec.description): the card's intro line, never labelled as a motive. */
@@ -24,6 +32,15 @@ export interface ApprovalItem {
   readonly hireMonthlyTasks?: number
   /** A capture-only sample (dev seed): shown with the "Exemplo" chip, never sent to the host, never in the batch. */
   readonly example?: boolean
+  /** "Precisa de você / Liberar para {B}" (kind `connector`): which connector, who asked, what the host accepts (contracts/team-real.md §9). */
+  readonly connector?: ConnectorAskUi | undefined
+  /** HT-9 / D-095 (kind `action`): the real content of the external action waiting for the person (the thread's own card model). */
+  readonly actionPreview?: ActionPreviewUi | undefined
+  /**
+   * The host sent an external action (`kind: 'action'`) WITHOUT a usable preview, so the card degraded to `attention` (the host's words).
+   * It can never be approved from here (nothing shows what would leave the company): only cancelled.
+   */
+  readonly blindAction?: boolean | undefined
   /** `low` = may go in the batch "Aprovar de risco baixo"; anything else (hire, spend, access) never does. */
   readonly risk?: 'low' | 'normal'
   /** ISO moment the host created the card (rendered with `formatWhen`); absent = no time shown. */
@@ -36,6 +53,8 @@ export interface ApprovalItem {
   readonly dependsOnTitle?: string
   /** Lifecycle of the shared Decision (DECISIONS-SPEC). Present = the card is driven by the live store, not by local state. */
   readonly decisionState?: DecisionState
+  /** TEAM-8: o selo "Revisado por {R}" no cartão de Aprovações quando um colega aprovou sem pontos em aberto. */
+  readonly reviewedBy?: ReviewedBySealReviewer | undefined
   /** When set, accept can call `grantBrainPermission` (Segundo cérebro). */
   readonly brain?: {
     readonly grantId: string

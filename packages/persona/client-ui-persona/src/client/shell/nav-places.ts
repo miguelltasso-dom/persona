@@ -5,9 +5,11 @@
 
 import type { BrandIconName } from '../primitives/index.ts'
 import type { ShellKey } from '../locale/shell/locales.ts'
+import { isStickersEnabled } from '../figurinhas/figurinhas-flag.ts'
+import { isSettingsPersonasEnabled } from '../settings-personas/personas-flag.ts'
 import type { MainPanelId } from './create-shell-store.ts'
 
-export type PlaceId = 'overview' | 'conversations' | 'projects' | 'approvals' | 'team' | 'memory' | 'settings'
+export type PlaceId = 'overview' | 'projects' | 'approvals' | 'team' | 'memory' | 'settings'
 
 export interface NavTab {
   readonly panel: MainPanelId
@@ -29,15 +31,6 @@ export const NAV_PLACES: readonly NavPlace[] = [
     labelKey: 'sidebar.overview',
     icon: 'visao-geral',
     tabs: [{ panel: 'overview', labelKey: 'sidebar.overview' }],
-  },
-  {
-    id: 'conversations',
-    labelKey: 'place.conversations',
-    icon: 'canais',
-    tabs: [
-      { panel: 'channels', labelKey: 'sidebar.channels' },
-      { panel: 'directMessages', labelKey: 'sidebar.directMessages' },
-    ],
   },
   {
     id: 'projects',
@@ -84,9 +77,15 @@ export const NAV_PLACES: readonly NavPlace[] = [
     icon: 'configuracoes',
     tabs: [
       { panel: 'connections', labelKey: 'sidebar.connections' },
+      // Personas (HT-13/EFF-1, D-090): entre Conexões e Uso, só com `persona.flag.settingsPersonas` ligada.
+      ...(isSettingsPersonasEnabled() ? [{ panel: 'personas', labelKey: 'tab.settings.personas' } as const] : []),
       { panel: 'usage', labelKey: 'sidebar.usage' },
       { panel: 'members', labelKey: 'tab.settings.members' },
       { panel: 'importers', labelKey: 'sidebar.importers' },
+      // Aparência (TH-1): Tema Sistema/Claro/Escuro + Dicas de atalho; entre Importadores e Sobre (APARENCIA-SPEC).
+      { panel: 'appearance', labelKey: 'tab.settings.appearance' },
+      // Figurinhas (D-089): a aba só existe com `persona.flag.figurinhas` ligada, até a Muse aceitar.
+      ...(isStickersEnabled() ? [{ panel: 'personality', labelKey: 'tab.settings.personality' } as const] : []),
       { panel: 'about', labelKey: 'tab.settings.about' },
     ],
   },

@@ -1,0 +1,61 @@
+/* D-084 §2: a linha de uma ação que a persona fez direto. Discreta (sem balão), com o Desfazer contando quando existe. */
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2) var(--persona-space-3);
+  margin: var(--persona-space-2) 0;
+  list-style: none;
+  color: var(--persona-ink-soft);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.text {
+  min-width: 0;
+  font: 600 14px/20px var(--persona-font-text);
+  overflow-wrap: anywhere;
+}
+
+.undo {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 700 13px/20px var(--persona-font-text);
+  text-decoration: underline;
+  text-decoration-color: var(--persona-outline-soft);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.undo:hover,
+.undo:focus-visible {
+  color: var(--persona-ink);
+  text-decoration-color: var(--persona-accent);
+}
+
+.undo:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* O carimbo do "Ver" ("Enviado às 09:00"): discreto, no pé do conteúdo. */
+.stamp {
+  margin: var(--persona-space-3) 0 0;
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+/* O título do "Ver": o rosto 24 de quem agiu ao lado de "Email enviado por Nina" (o mesmo rosto do eyebrow da prévia). */
+.modalTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+}

@@ -18,14 +18,20 @@ function plan(id: string, status: string, extra: Partial<GestorPlanView> = {}): 
 }
 
 describe('resolveGestorPlanForMessage', () => {
-  it('shows adjusting when a peer Gestor commented on this plan', () => {
+  it('GES-1b: um comentário no mesmo escopo NÃO esconde as ações do plano que segue proposed no host', () => {
     const original = plan('plan-a', 'proposed')
     const byId = {
       'plan-a': original,
       'plan-b': plan('plan-b', 'commented', { commentOnId: 'plan-a' }),
     }
     const resolved = resolveGestorPlanForMessage(original, byId, {})
-    expect(resolved?.status).toBe('commented')
+    expect(resolved?.status).toBe('proposed')
+    expect(resolved).toBe(original)
+  })
+
+  it('o comentário em si continua "comentado" (é só o texto do outro plano, nunca aprovável)', () => {
+    const comment = plan('plan-b', 'commented', { commentOnId: 'plan-a' })
+    expect(resolveGestorPlanForMessage(comment, { 'plan-b': comment }, {})?.status).toBe('commented')
   })
 
   it('shows adjusting while human feedback is in flight', () => {

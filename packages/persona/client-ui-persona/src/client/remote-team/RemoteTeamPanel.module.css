@@ -35,6 +35,26 @@
   color: var(--persona-ink);
 }
 
+/* "Acesso encerrado": the text with the BR-P3 spot beside it. */
+.revokedRow {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: var(--persona-space-4);
+}
+
+.revokedRow .statusBody {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.revokedArt {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
 .alert {
   margin-top: var(--persona-space-3);
 }

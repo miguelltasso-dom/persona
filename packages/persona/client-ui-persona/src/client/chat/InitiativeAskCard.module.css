@@ -1,0 +1,43 @@
+/* D-084 §3: o pedido de iniciativa ("{persona} quer usar o {conector} para …") com as três saídas. */
+.row {
+  margin: var(--persona-space-3) 0;
+  list-style: none;
+}
+
+.card {
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+}
+
+.text {
+  margin: 0;
+  min-width: 0;
+  font: 700 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.failed {
+  margin: var(--persona-space-2) 0 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-3);
+}
+
+.done {
+  margin: var(--persona-space-2) 0;
+  list-style: none;
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}

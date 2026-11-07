@@ -64,6 +64,37 @@ describe('Equipe remota — sem conexão', () => {
     expect(screen.queryByRole('button', { name: 'Sincronizar agora' })).toBeNull()
   })
 
+  it('Muse E13: o erro do endereço some assim que o campo fica válido (ao digitar), em Conectar e nos DOIS campos de "Entrar com um convite"', () => {
+    panel()
+    const addressError = /Confira o endereço da equipe/u
+    // nada de erro antes de tentar
+    expect(screen.queryAllByText(addressError)).toHaveLength(0)
+    // tentar Conectar com o campo vazio: o erro nasce no formulário de conectar (e só nele)
+    fireEvent.click(screen.getByRole('button', { name: 'Conectar' }))
+    expect(screen.getAllByText(addressError)).toHaveLength(1)
+    // digitar um endereço VÁLIDO: o erro some na hora, sem apertar nada
+    const connectField = screen.getAllByLabelText('Endereço da equipe')[0]!
+    fireEvent.change(connectField, { target: { value: 'http://127.0.0.1:56446' } })
+    expect(screen.queryAllByText(addressError)).toHaveLength(0)
+    // voltar a um endereço inválido: o erro volta (já tentou)
+    fireEvent.change(connectField, { target: { value: 'equipe' } })
+    expect(screen.getAllByText(addressError)).toHaveLength(1)
+    fireEvent.change(connectField, { target: { value: 'http://127.0.0.1:56446' } })
+    expect(screen.queryAllByText(addressError)).toHaveLength(0)
+
+    // "Entrar com um convite": tentar vazio mostra endereço E código; cada um some quando fica válido
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar na equipe' }))
+    expect(screen.getAllByText(addressError)).toHaveLength(1)
+    expect(screen.getByText('Cole o código do convite.')).toBeTruthy()
+    const acceptAddress = screen.getAllByLabelText('Endereço da equipe')[1]!
+    fireEvent.change(acceptAddress, { target: { value: 'https://equipe.exemplo.test' } })
+    expect(screen.queryAllByText(addressError)).toHaveLength(0)
+    expect(screen.getByText('Cole o código do convite.')).toBeTruthy()
+    const token = screen.getAllByLabelText('Código do convite').find(el => el.tagName === 'INPUT')!
+    fireEvent.change(token, { target: { value: 'tok-123' } })
+    expect(screen.queryByText('Cole o código do convite.')).toBeNull()
+  })
+
   it('#geral já vem marcado; conectar valida o endereço e, sem nenhum canal, pede um antes de chamar o host', () => {
     const { onConnect } = panel()
     const channels = screen.getByRole('group', { name: 'O que compartilhar' })
@@ -147,6 +178,9 @@ describe('Equipe remota — conectada', () => {
     fireEvent.click(within(group).getByRole('button', { name: 'Copiar convite' }))
     expect(writeText).toHaveBeenCalledWith('Endereço: http://127.0.0.1:8791\nCódigo do convite: tok-abc-123')
     await screen.findByRole('button', { name: 'Copiado' })
+    // Muse: o Toast "Convite copiado" avisa; some sozinho, e o botão segue dizendo "Copiado" até o "Já enviei"
+    expect(screen.getByText('Convite copiado')).toBeTruthy()
+    expect(within(screen.getByRole('region', { name: 'Avisos' })).getByText('Convite copiado')).toBeTruthy()
 
     fireEvent.click(within(group).getByRole('button', { name: 'Já enviei' }))
     expect(onDismissIssued).toHaveBeenCalledTimes(1)
@@ -403,5 +437,23 @@ describe('Equipe remota — o que o host já sabe (syncedAt, behindBy, pessoas)'
     panel({ state: state(), members: PEOPLE, invites: [invites[0]!] })
     expect(screen.getByText('Nenhum convite em aberto.')).toBeTruthy()
     expect(container).toBeTruthy()
+  })
+})
+
+describe('Equipe remota — "Acesso encerrado" com o nome de quem encerrou (Muse, polimento)', () => {
+  const owner: MemberRow = { actorId: 'a1', name: 'Alice', role: 'owner', status: 'active', joinedAt: new Date().toISOString(), inviteId: '' }
+
+  it('com o dono conhecido pelo host: "{nome} encerrou o seu acesso…" e o spot ao lado do texto (decorativo)', () => {
+    const { container } = panel({ state: state({ status: 'revoked', role: 'member', actorId: 'b2' }), members: [owner] })
+    expect(screen.getByText('Alice encerrou o seu acesso a esta equipe. O que já estava aqui continua aqui.')).toBeTruthy()
+    const art = container.querySelector('[data-status="revoked"] img')
+    expect(art?.getAttribute('alt')).toBe('')
+    expect(art?.getAttribute('aria-hidden')).toBe('true')
+    expect(art?.getAttribute('width')).toBe('96')
+  })
+
+  it('sem saber quem foi: a frase de antes, sem nome inventado', () => {
+    panel({ state: state({ status: 'revoked', role: 'member', actorId: 'b2' }) })
+    expect(screen.getByText('A pessoa dona da equipe encerrou o seu acesso. O que já estava aqui continua aqui.')).toBeTruthy()
   })
 })

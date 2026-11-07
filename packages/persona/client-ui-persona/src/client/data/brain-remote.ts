@@ -18,6 +18,7 @@ type BrainRemote = {
   getBrainPage?(req: ProjectScopeRequest & { pageId: string }): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainPageView>>
   listBrainVersions?(req: ProjectScopeRequest & { pageId: string }): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainVersionView[]>>
   restoreBrainPage?(req: ProjectScopeRequest & { pageId: string; revision: number }): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainPageView>>
+  exportBrainVault?(req: ProjectScopeRequest & { folderPath: string; twoWay?: boolean }): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<{ files: number; created: number; skipped: number; direction: 'export' | 'import'; leftover: readonly string[] }>>
   putBrainPage?(req: PutBrainPageRequest): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainPageView>>
   listBrainPermissions?(req: ProjectScopeRequest): Promise<import('@deepseek-ai/dsh-api-remotes/client').RemoteResult<BrainGrantView[]>>
   grantBrainPermission?(
@@ -132,4 +133,21 @@ export async function restoreBrainPageRemote(
 /** Whether the host can restore versions at all (the button is only drawn then). */
 export function canRestoreBrainPage(persona: PersonaRemoteClient): boolean {
   return typeof brainClient(persona).restoreBrainPage === 'function'
+}
+
+/** Whether the host can write the Second Brain into a folder (the menu item is only live then). */
+export function canExportBrainVault(persona: PersonaRemoteClient): boolean {
+  return typeof brainClient(persona).exportBrainVault === 'function'
+}
+
+/** One-way export: the pages as .md files in a folder the person chose (opens in Obsidian). Never reads anything back. */
+export async function exportBrainVaultRemote(
+  persona: PersonaRemoteClient,
+  scope: ProjectScopeRequest,
+  folderPath: string,
+): Promise<{ readonly files: number; readonly created: number }> {
+  const remote = brainClient(persona)
+  if (remote.exportBrainVault === undefined) throw new Error('exportBrainVault-unavailable')
+  const result = await unwrapRemote(await remote.exportBrainVault({ ...scope, folderPath }))
+  return { files: result.files, created: result.created }
 }

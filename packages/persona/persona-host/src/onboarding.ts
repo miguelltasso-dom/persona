@@ -137,7 +137,7 @@ export class OnboardingHost {
         instructions: draft.instructions,
         avatar: { kind: draft.avatarKind, ref: draft.avatarRef },
         runner: runnerOfDraft(draft, request.runnerChoices),
-        tools: {},
+        tools: { files: 'write' }, // D-099: saves files into the draft (effective only in a project with a folder); never a shell
         skills: [],
         limits: {},
         systemRoles: withDefaultGestor(draft.systemRoles),

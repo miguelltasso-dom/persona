@@ -5,11 +5,15 @@
 import { join } from 'node:path'
 import { confinePath, createReviewDelivery, type HistoryReviewOptions, type ReviewDelivery } from '@deepseek-ai/dsh-persona-engine'
 import type { ProductRepos } from '@deepseek-ai/dsh-persona-store'
-import { resolveGitExecutable } from '@deepseek-ai/dsh-persona-runners'
+import { createWindowsHistoryFileOps, resolveGitExecutable } from '@deepseek-ai/dsh-persona-runners'
 import type { ProjectRuntime } from './orchestration.ts'
 
-/** Host-configured resource limits and executable; the engine resolves its defaults. */
-export type HostReviewOptions = Pick<HistoryReviewOptions, 'maxCopyBytes' | 'gitTimeoutMs' | 'git' | 'now'>
+/**
+ * Host-configured resource limits and executable; the engine resolves its defaults. `fileOps` is the copy layer of the draft:
+ * on Windows it defaults to {@link createWindowsHistoryFileOps} (SW-5: hydrate an online-only OneDrive file before copying,
+ * “Feche “planilha.xlsx”…” for a file another program holds, long paths), elsewhere to the engine's plain copy.
+ */
+export type HostReviewOptions = Pick<HistoryReviewOptions, 'maxCopyBytes' | 'gitTimeoutMs' | 'git' | 'now' | 'fileOps'>
 
 /** @returns Private application data directory; ordinary-folder history never uses the project folder. */
 export function reviewHomeOf(): string {
@@ -54,8 +58,10 @@ export async function reviewDeliveryOf(
     ...(bundled === undefined || bundled === '' ? {} : { bundledExecutable: bundled }),
     ...(options.gitTimeoutMs === undefined ? {} : { timeoutMs: options.gitTimeoutMs }),
   })).executable
+  const fileOps = options.fileOps ?? (process.platform === 'win32' ? createWindowsHistoryFileOps() : undefined)
   return createReviewDelivery({
     ...options,
+    ...(fileOps === undefined ? {} : { fileOps }),
     git,
     projectId,
     personaHome: reviewHomeOf(),

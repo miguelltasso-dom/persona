@@ -73,15 +73,20 @@ export { SqliteUsageStore } from './usage/store.ts'
 export type {
   QuotaRefillPoint,
   StoredOfficialQuota,
+  StoredQuotaReading,
   StoredUsageEvent,
   UsageOrigin,
   UsageQuery,
   UsageStore,
   UsageTotals,
 } from './usage/store.ts'
-export { mergeQuotaHistory, QUOTA_REFILL_HISTORY } from './usage/store.ts'
+export { mergeQuotaHistory, mergeQuotaReadings, QUOTA_READINGS_CAP, QUOTA_REFILL_HISTORY } from './usage/store.ts'
 
 export { TurnLedgerRepos } from './ledger/repos.ts'
+export { ASK_ALWAYS, ConnectorGrantRepos, MAX_CONNECTOR_GRANTS_PER_PERSONA } from './connectors/repos.ts'
+export { TicketConnectorAuthRepos } from './connectors/auth.ts'
+export type { TicketAuthSource, TicketConnectorAuth } from './connectors/auth.ts'
+export type { ConfirmClass, ConfirmMode, ConfirmPolicy, ConnectorAccess, ConnectorGrantChange, ConnectorGrantInput, ConnectorGrantLogRow, StoredConnectorGrant } from './connectors/repos.ts'
 export type { TurnLedgerQuery } from './ledger/repos.ts'
 
 export { SqliteSyncLog } from './sync/log.ts'
@@ -113,6 +118,8 @@ export type { VaultChunkDraft } from './vault/chunk.ts'
 export { sampleDocx, samplePdf } from './vault/samples.ts'
 
 export { TopicRepos, DEFAULT_TOPIC_NAMES } from './topic/repos.ts'
+export { ChannelRepos } from './channel/repos.ts'
+export type { ArchiveReason, ChannelKind, ChannelMember, TeamChannel } from './channel/repos.ts'
 export type { ConversationTopic } from './topic/repos.ts'
 
 export { AccountRepos } from './account/repos.ts'

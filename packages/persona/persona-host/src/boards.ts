@@ -27,16 +27,20 @@ import {
   closeSprint,
   MemoryGoalBoard,
   hasPendingDelivery,
+  latestAssignment,
   moveToColumn,
   projectBoardCard,
+  projectKanban,
   WorkflowError,
   type Ticket,
 } from '@deepseek-ai/dsh-persona-engine'
 import type { EventRepos, ProductRepos, SqliteBoardRepos } from '@deepseek-ai/dsh-persona-store'
 import type { Orchestration } from './orchestration.ts'
+import { collaboratorViews } from './ticket-collaborators.ts'
 import type {
   BoardCardView,
   BoardSummaryView,
+  CollaboratorView,
   CloseSprintView,
   CreateSprintRequest,
   CreateWorkflowRequest,
@@ -67,6 +71,8 @@ export class BoardsHost {
   readonly board: SqliteBoardRepos
   readonly orchestration: Orchestration
   readonly goals: MemoryGoalBoard = new MemoryGoalBoard()
+  /** TEAM-1/6: what a card carries of the team (the request chip, "Revisando", the seal); the host sets it with `Config.teamwork`; absent = never. */
+  teamworkOf?: (projectId: string, ticketId: string) => Partial<Pick<BoardCardView, 'handoff' | 'reviewing' | 'reviewedBy'>> | undefined
 
   /**
    * @param product - Projects.
@@ -104,10 +110,14 @@ export class BoardsHost {
       const synced = syncPlacementFromStage(workflow, ticket, previous)
       if (JSON.stringify(previous) !== JSON.stringify(synced)) this.board.save(synced)
     }
-    const cards = tickets.map(ticket => toCard(
-      workflow, ticket, this.board.of(ticket.id), this.topicOf(projectId, ticket.id),
-      this.pendingDelivery(projectId, ticket),
-    ))
+    const cards = tickets.map((ticket) => {
+      const card = toCard(
+        workflow, ticket, this.board.of(ticket.id), this.topicOf(projectId, ticket.id),
+        this.pendingDelivery(projectId, ticket), this.collaboratorsOf(projectId, ticket.id),
+      )
+      const team = this.teamworkOf?.(projectId, ticket.id)
+      return team === undefined ? card : { ...card, ...team }
+    })
     const current = this.board.current(projectId)
     return {
       projectId,
@@ -225,24 +235,63 @@ export class BoardsHost {
    * @returns Updated card and WIP warning; a pending delivery refuses the move before writes.
    */
   moveTicket(projectId: string, ticketId: string, columnId: string): MoveTicketView {
+    const moved = this.moveTicketWith(projectId, ticketId, columnId)
+    // The personas' tools come this way (the person's Remote uses moveTicketWith, which lets the thread say it): a result that waits for the
+    // person is not hers to push back into “working”. She is refused as for Concluído (FLOW-1) and nothing changes.
+    if (moved.deliveryWaiting && moved.toCategory === 'doing') throw mapBoardError(new WorkflowError('delivery_pending', columnId, ticketId))
+    return moved.view
+  }
+
+  /**
+   * {@link BoardsHost.moveTicket} plus what only this moment knows and the host needs to START the owner honestly (HT-3): the category of
+   * the destination column, whether the card held a result waiting for the person's Aplicar/Descartar (FLOW-1) and whether the Task had
+   * ended. Dragging a card with such a result into Fazendo is NOT a move: it would rewrite the very report that marks the delivery into
+   * “working”, orphan its draft and leave a card nobody works on. Nothing is written, the card stays where its delivery waits and the
+   * caller (the person's Remote) lets the thread say why.
+   * @param projectId - Tenant.
+   * @param ticketId - Ticket.
+   * @param columnId - Destination.
+   * @returns The view the Remote returns, and the context above.
+   */
+  moveTicketWith(projectId: string, ticketId: string, columnId: string): {
+    readonly view: MoveTicketView
+    /** Category of the DESTINATION column (what the person asked for), not of the Task's stage afterwards. */
+    readonly toCategory: string | undefined
+    /** Before the move the card held a result waiting for Aplicar/Descartar (FLOW-1: a project with a folder). */
+    readonly deliveryWaiting: boolean
+    /** Before the move the Task had ended (stopped by the person, completed): the move reopened it. */
+    readonly reopened: boolean
+  } {
     const ticket = this.orchestration.runtime(projectId).repo.tickets.get(ticketId)
     if (ticket === undefined) throw new Error('ticket-not-found')
     const workflow = this.board.get(projectId) ?? workflowFromTemplate(projectId, 'simples')
     // FLOW-1: a task of a project without a folder has no draft to apply or discard, so nothing waits on the person.
     const moveOptions = this.hasDraftFolder(projectId) ? {} : { deliveryPending: false }
+    const toCategory: string | undefined = workflow.columns.find(row => row.id === columnId)?.category
+    const deliveryWaiting = this.pendingDelivery(projectId, ticket)
+    const seats = this.board.list(projectId)
     try {
-      const moved = moveToColumn(
-        workflow, ticket, columnId, this.board.list(projectId), this.orchestration.now(),
-        moveOptions,
-      )
+      const moved = moveToColumn(workflow, ticket, columnId, seats, this.orchestration.now(), moveOptions)
+      if (deliveryWaiting && toCategory === 'doing') {
+        const card = toCard(
+          workflow, ticket, seats.find(row => row.ticketId === ticketId), this.topicOf(projectId, ticketId),
+          true, this.collaboratorsOf(projectId, ticketId),
+        )
+        return { view: { card, wipWarning: false }, toCategory, deliveryWaiting, reopened: false }
+      }
       this.orchestration.runtime(projectId).repo.tickets.save(moved.ticket)
       this.board.save(moved.placement)
       return {
-        card: toCard(
-          workflow, moved.ticket, moved.placement, this.topicOf(projectId, moved.ticket.id),
-          this.pendingDelivery(projectId, moved.ticket),
-        ),
-        wipWarning: moved.wipWarning,
+        view: {
+          card: toCard(
+            workflow, moved.ticket, moved.placement, this.topicOf(projectId, moved.ticket.id),
+            this.pendingDelivery(projectId, moved.ticket), this.collaboratorsOf(projectId, moved.ticket.id),
+          ),
+          wipWarning: moved.wipWarning,
+        },
+        toCategory,
+        deliveryWaiting,
+        reopened: ticket.ended !== undefined,
       }
     } catch (error: unknown) {
       throw mapBoardError(error)
@@ -446,6 +495,10 @@ export class BoardsHost {
     return toWorkflowView(this.board.get(projectId) ?? workflowFromTemplate(projectId, 'simples'))
   }
 
+  private collaboratorsOf(projectId: string, ticketId: string): CollaboratorView[] {
+    return collaboratorViews(this.orchestration.screens, projectId, ticketId, id => this.product.getPersona(id)?.name)
+  }
+
   private topicOf(projectId: string, ticketId: string): string | undefined {
     return this.orchestration.screens?.get<{ subjectId: string }>(projectId, 'ticket_subject', ticketId)?.subjectId
   }
@@ -513,24 +566,38 @@ function seatsForCounts(
   })
 }
 
+/**
+ * When a result began to wait for the person's review: the instant its worker reported `ready` (the report the Task is in Revisar for). Only a Task that
+ * IS in the person's review now has one (a card the person dragged to a column called "Revisão" does not: nothing recorded when it got there).
+ * @param ticket - Engine ticket.
+ */
+function inReviewSince(ticket: Ticket): string | undefined {
+  const { stage } = projectKanban(ticket)
+  return stage.stage === 'person' && stage.action === 'review' ? latestAssignment(ticket)?.report?.at : undefined
+}
+
 function toCard(
   workflow: ProjectWorkflow,
   ticket: Ticket,
   seat?: TicketBoardSeat,
   topicId?: string,
   deliveryPending = false,
+  collaborators: readonly CollaboratorView[] = [],
 ): BoardCardView {
   const card = projectBoardCard(workflow, ticket, seat)
+  const since = inReviewSince(ticket)
   return {
     ticketId: ticket.id,
     title: ticket.title,
     category: card.category,
     blocked: card.blocked,
     ...(deliveryPending ? { deliveryPending: true } : {}),
+    ...(since === undefined ? {} : { inReviewSince: since }),
     ...(card.columnId === undefined ? {} : { columnId: card.columnId }),
     ...(card.columnName === undefined ? {} : { columnName: card.columnName }),
     ...(card.chip === undefined ? {} : { chip: card.chip }),
     ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+    ...(collaborators.length === 0 ? {} : { collaborators }),
   }
 }
 

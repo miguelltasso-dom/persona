@@ -3,7 +3,7 @@ import { statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { z } from 'zod'
-import { accountLoginStatus } from '@deepseek-ai/dsh-persona-runners'
+import { accountLoginStatus, createMcpGateway, prewarmCliIsolation } from '@deepseek-ai/dsh-persona-runners'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   AccountRepos,
@@ -22,20 +22,27 @@ import {
   SqliteInviteBook,
   SqliteMediaRepos,
   SqliteUsageStore,
+  StoreError,
   TeachRepos,
   TopicRepos,
   TurnLedgerRepos,
+  ChannelRepos,
+  ConnectorGrantRepos,
+  TicketConnectorAuthRepos,
   VaultRepos,
   openPersonaStore,
   wipeProject,
   wipeWorkspace,
   type PersonaStore,
   type Routine,
+  type StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
 import { dedupeLimitAccounts, foldUsage, poolProviderLimits } from '@deepseek-ai/dsh-persona-usage'
 import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
 import { cachedEngineReadiness } from './engine-readiness.ts'
+import { ConnectorGrantsHost, type ConnectorPorts } from './connector-grants-host.ts'
+import { accountForEstimate } from './estimate-account.ts'
 import { calibrationFromLedger, calibrationWindowStart } from './estimate-calibration.ts'
 import { ticketAttention } from './attention.ts'
 import { curateSettledReport, rememberReportAudience } from './report-curation.ts'
@@ -55,18 +62,62 @@ import { GithubSourceHost, detectGh } from './github.ts'
 import { ExternalSourcesHost } from './external-sources.ts'
 import { CofreSecretVault } from './cofre-secrets.ts'
 import { detectProjectGit, validateProjectRoot } from './project-root.ts'
+import { engineChoiceOf, isEffortLevel, nextRunner } from './engine-menu.ts'
+import { animalFor } from './hire-identity.ts'
+import { ConnectorAsks } from './connector-asks.ts'
+import { ActionBridge } from './action-bridge.ts'
+import { claudeConnectorBridge, type ConnectorBridge } from './connector-bridge.ts'
+import { flagsBootLine, resolveHostFlags, type HostFlagsView } from './flags.ts'
+import { ExternalActions, type ExternalActionDoc } from './external-actions.ts'
+import { TeamCards } from './team-cards.ts'
+import { isTechnicalAuthor } from './thread-authors.ts'
+import { MORNING_ROUTINE_PREFIX, MorningBriefHost, NOW_TEXT } from './morning-brief-host.ts'
+import { readReviewPolicy, reviewPolicyView } from './review-policy.ts'
+import { TeamworkSettings } from './teamwork-settings.ts'
 import { allowsScriptedReplies, ensureProductionRealCli, hostRunnerFromContext, loggedCliFromCards, specFromConnection, type DetectedCli } from './runner.ts'
+import { canSaveFiles, gatewayLevelOf, withFilesSaving } from './file-tools.ts'
+import { withReviewImages } from './review-images.ts'
+import { harnessMcpPorts } from './harness-dispatch.ts'
+import { offeredToolNames, productToolsOpener, type ProductToolsRules } from './harness-turn.ts'
 import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { createProactivityScheduler, postTeamRequest } from './proactivity-wire.ts'
 import { TaskProposalHost } from './task-proposals.ts'
 import { taskProposalFromBody } from './task-proposal-wire.ts'
+import { PersonaAsks } from './persona-asks.ts'
+import { Handoffs } from './handoffs.ts'
+import { PersonWaiting } from './person-waiting.ts'
+import { HiringPorts } from './harness-hiring.ts'
+import { HireDirect } from './hire-direct.ts'
+import { createAskTool } from './persona-ask-tool.ts'
+import { handoffFromBody } from './handoff-wire.ts'
+import { reviewFromBody } from './review-wire.ts'
+import { personaAskFromBody } from './persona-ask-wire.ts'
+import { isDelivered } from './proactivity.ts'
 import { ROUTINE_SPEC_KIND, type ProactivityScheduler, type ProactivityStatusView } from './proactivity-scheduler.ts'
 import { TeamStateBook, type TeamStateView } from './team-state.ts'
+import { AsideAsks } from './aside-ask.ts'
+import { SUMMARY_SHOWN, summaryQuestion, type SummaryLine } from './conversation-summary.ts'
 import { DraftFilesBook } from './draft-files.ts'
 import { MessageFlags } from './message-flags.ts'
+import { mentionsOf } from './mentions.ts'
+import { TeamFanout } from './fanout-host.ts'
+import { TeamOpinions } from './opinion-run.ts'
+import { TeamChannels } from './team-channels.ts'
+import { OpinionTool, withOpinionTool } from './opinion-host.ts'
+import { engineSeesImages } from './turn-images.ts'
+import { svgBlocksIn, svgToPng } from './svg-to-png.ts'
+import { BoardPorts } from './harness-boards.ts'
+import { HarnessPorts } from './harness-ports.ts'
+import { TeamTools, withTeamTools } from './harness-team.ts'
+import { RoutinePorts } from './harness-routines.ts'
+import { collaboratorPrompt, countFanout, fanoutCalls, fanoutPrompt, planFanout, type FanoutSource } from './fanout-plan.ts'
+import { collaboratorViews, getCollaborators } from './ticket-collaborators.ts'
 import { WorkingControl } from './working-control.ts'
 import type {
+  GetAsideAskRequest,
+  ListAsideAsksRequest,
+  SummarizeConversationRequest,
   FlushWorkingQueueRequest,
   RestoreQueuedMessageRequest,
   SteerWorkingTurnRequest,
@@ -131,6 +182,10 @@ import {
   activateTaughtSkill,
   cheapModelForFirstDelivery,
   firstDeliveryAsk,
+  firstDeliveryVisibleLine,
+  projectKanban,
+  type MorningTask,
+  type ReviewPolicy,
   measureFirstDeliveryAcceptance as scoreFirstDeliveryAcceptance,
   publishTaughtSkill as promoteTaughtSkill,
   rollbackTaughtSkill as disableTaughtSkill,
@@ -139,6 +194,8 @@ import {
   parseReviewRestorePointId,
   gateRememberedPermission,
   estimateAsk as estimateAskFor,
+  AskError,
+  checkAskAnswer,
 } from '@deepseek-ai/dsh-persona-engine'
 import {
   defaultSkillDirIo,
@@ -185,7 +242,11 @@ import type {
   DeclineAccountSwapRequest,
   UndoAccountSwapRequest,
   UndoAccountSwapResultView,
+  ChannelMemberView,
+  ChannelScopeRequest,
   ChannelView,
+  RenameChannelRequest,
+  SetChannelPinnedRequest,
   EstimateAskRequest,
   EstimateAskView,
   ClaimRoutinesRequest,
@@ -260,6 +321,8 @@ import type {
   RoutineScheduleView,
   UpdateRoutineRequest,
   ProposalStatsView,
+  ListPersonaAsksRequest,
+  PersonaAskView,
   ReopenTaskProposalRequest,
   TaskProposalView,
   SetProjectRootRequest,
@@ -272,6 +335,25 @@ import type {
   SearchRequest,
   TaskView,
   TeamView,
+  DailyBriefNowRequest,
+  IncludeOpinionTextOnlyRequest,
+  IncludeOpinionTextOnlyView,
+  DailyBriefNowView,
+  ActionPreviewWire,
+  DailyBriefView,
+  RetiredPersonaView,
+  DeliveryCardView,
+  TeamPlanView,
+  GetReviewPolicyRequest,
+  HandoffNoteView,
+  OpinionView,
+  ReviewedByView,
+  ReviewingView,
+  ReviewPolicyView,
+  SetReviewPolicyRequest,
+  PathStepView,
+  BoardCardView,
+  BoardHandoffView,
   UpdateProjectRequest,
   AutonomyConfig,
   FireProactiveEventRequest,
@@ -280,6 +362,12 @@ import type {
   ProactivityTickView,
   TickProactivityRequest,
   WhileAwayView,
+  ConnectorGrantCostView,
+  ConnectorGrantView,
+  EstimateConnectorGrantCostRequest,
+  GrantConnectorRequest,
+  ListConnectorGrantsRequest,
+  RevokeConnectorRequest,
   ApprovalView,
   CanvasGraphView,
   ConfirmImportRequest,
@@ -369,7 +457,13 @@ import type {
   PutPersonaChargeRequest,
   RecommendStructureRequest,
   SetAvailabilityRequest,
+  SetPersonaCanRecruitRequest,
+  SetPersonaCanSaveFilesRequest,
+  RetryFanoutReplyRequest,
+  RetryFanoutReplyView,
+  SetPersonaHireDirectRequest,
   SetPersonaEngineRequest,
+  SetPersonaTeamworkRequest,
   SetPersonaGovernanceRequest,
   SetPersonaTalkAclRequest,
   SetResponsibleRequest,
@@ -502,6 +596,8 @@ export { openHostSync, openHostSyncFromEnv } from './sync.ts'
 export { ProactivityHost } from './proactivity.ts'
 export { BoardRemoteError, BoardsHost } from './boards.ts'
 export { MediaHost } from './media.ts'
+// P0-C2: the SVG -> PNG the team SEES. Exposed so the installed app's verifier can call the product's own function (Rivet's 5 s check).
+export { renderSvgSiblings, svgBlocksIn, svgToPng } from './svg-to-png.ts'
 export { VaultDocsHost } from './vault-docs.ts'
 export { BrainHost } from './brain.ts'
 export { GestorHost } from './gestor.ts'
@@ -534,6 +630,8 @@ export {
 
 /** `listConversationSubjects` is a SQLite topic list — collapse boot storms. */
 export const SUBJECT_LIST_CACHE_MS = 750
+/** The most messages one `listMessages` page may ask for (the store's own bound): more is read by paging with `nextSeq`. */
+export const MAX_PAGE_LIMIT = 200
 export { ACL_EXCEPTIONS } from './auth.ts'
 export { OnboardingHost } from './onboarding.ts'
 export { HostScheduler } from './scheduler.ts'
@@ -562,6 +660,19 @@ export interface Config {
   readonly engineRetryPollMs?: number
   /** Team scheduler cycle (routines, Vigia, planning); zero disables it. Default 30000 ms. Never armed under Vitest. */
   readonly proactivityCycleMs?: number
+  /** HT-3 (v1.1): the persona starts the moment the person moves its card to “Fazendo”. Default ON (TEAM-15); `false` or `PERSONA_START_ON_BOARD=0` turns it off. */
+  readonly startOnBoardMove?: boolean
+  /** CV-8 (v1.1): “Toda a equipe”, “Quem tiver algo a dizer” and several @menções answered as a block of typed lines. Default ON (TEAM-15); `false` or `PERSONA_FANOUT=0` turns it off. */
+  readonly fanout?: boolean
+  /** D-090 (v1.1): the personas work as a team (hand work over, ask for help and opinion, review each other, the morning brief). Default ON (TEAM-15); `false` or `PERSONA_TEAMWORK=0` turns it off. */
+  readonly teamwork?: boolean
+  /** HT-0 (v1.1): offer the product tools (board, sprints, routines) to a persona's Task on a CLI. Default ON (TEAM-15); `false` or `PERSONA_PRODUCT_TOOLS=0` turns it off. */
+  readonly productTools?: boolean
+  /**
+   * TEAM-15: `'production'` makes the default of the four switches above ON even under Vitest (suites that must prove what the installed app does with
+   * no Config and no env). Same as `PERSONA_HOST_FLAGS=production`. A switch named in Config, or `PERSONA_<FLAG>=0`, still wins.
+   */
+  readonly flagDefaults?: 'production'
   /** Ordinary-folder draft size limit; defaults to the engine's configured default. */
   readonly historyMaxCopyBytes?: number
   /** Deadline for private-history git commands; defaults to the engine's default. */
@@ -608,13 +719,53 @@ export default class PersonaHost extends TypertRemoteService {
   readonly external: ExternalSourcesHost
   readonly onboarding: OnboardingHost
   readonly scheduler: HostScheduler
+  /** D-090: what the person decided about teamwork, per persona (the engine's handoff door reads it through a port). */
+  readonly teamwork: TeamworkSettings
+  /** EQUIPE-REAL §0: the plan card and the ONE delivery card of a request done in parts (they replace the status lines). */
+  readonly teamCards: TeamCards
+  /** The (CLI version, models) whose isolation proof was already started: one proof per pair for the life of the app. */
+  private readonly warmedIsolation = new Set<string>()
+  /** Proves the environment mode ahead of the first call (zero model, never throws). Replaced by tests. */
+  prewarmIsolation: (modelArgs: readonly string[]) => Promise<unknown> = modelArgs => prewarmCliIsolation({ modelArgs: [...modelArgs] })
+  /** D-084/TEAM-3: "a persona needs a connector she cannot use yet" — one card in Aprovações (colleague or initiative). */
+  readonly connectorAsks: ConnectorAsks
+  /** HT-9: the PREVIEW of an external action (e-mail, post, payment, delete) a persona wants to take: one card in Aprovações (Enviar · Editar · Cancelar). */
+  readonly externalActions: ExternalActions
+  /** HT-9: the gate of a Task's runner turned into cards (Aprovações) and back into an approved call (`action-bridge.ts`). */
+  readonly actionBridge: ActionBridge
+  /**
+   * HT-9: the person approved a call; the Task must be reopened with `approvedFor(...)` so the gate lets THAT call through, once. Set by
+   * the runner wiring; until it exists the approval is kept and nothing is executed (fail closed).
+   */
+  onActionApproved: ((action: ExternalActionDoc) => void) | undefined = undefined
+  /** TEAM-7: the morning meeting of the Coordenação (the card in #geral, at zero cost). Inert without `Config.teamwork`. */
+  readonly morningBrief: MorningBriefHost
+  /** EQUIPE-REAL: what waits for the person in review for days is asked for, once a day at most (inert unless `Config.teamwork`). */
+  readonly personWaiting: PersonWaiting
+  /** TEAM-7: minutes the person's local time is ahead of UTC at an instant; the machine's zone unless a test sets it. */
+  timezoneOffsetMinutes: (nowIso: string) => number = nowIso => -new Date(nowIso).getTimezoneOffset()
+  /** D-090: `Config.teamwork`. With it off, nothing of the real-team behavior becomes an event and no view carries its fields. */
+  teamworkEnabled: boolean
   readonly deadLetters: DeadLetterBook
   readonly connections: ConnectionProbe
   readonly usage: SqliteUsageStore
   readonly topics: TopicRepos
+  /** CV-6: channels beyond {id, name, topic} (kind, archive, name lock, members, pins). */
+  readonly channelRepos: ChannelRepos
+  /** CV-6: the channels of the organogram (team channels, #diretoria) and who is on each. */
+  readonly teamChannels: TeamChannels
   readonly accounts: AccountRepos
   /** The account switch at the quota limit (D-078): limit book, proposals, switch, Desfazer. */
   readonly accountSwap: AccountSwapHost
+  /** ISO-2: connectors of the person's CLI granted to a persona. */
+  readonly connectorGrants: ConnectorGrantsHost
+  /** The runner's read-only ports (connector definition, CLI isolation, cost). The desktop bridge installs them; absent = nothing is grantable. */
+  connectorPorts: ConnectorPorts = {}
+  /**
+   * HT-8/9: the connectors of the person's Claude account, read with control requests (zero model) and answered as ports. Created at boot (never under
+   * Vitest); a test or the shell may set its own. What `connectorPorts` names wins over it.
+   */
+  connectorBridge: ConnectorBridge | undefined = undefined
   readonly teach: TeachRepos
   readonly vaultDocs: VaultDocsHost
   readonly brain: BrainHost
@@ -623,9 +774,31 @@ export default class PersonaHost extends TypertRemoteService {
   readonly teamState: TeamStateBook
   readonly draftFiles: DraftFilesBook
   readonly messageFlags: MessageFlags
+  readonly asides: AsideAsks
   readonly workingControl: WorkingControl
   readonly taskProposals: TaskProposalHost
+  readonly personaAsks: PersonaAsks
+  /** EQUIPE-REAL: requests between personas (TEAM-2/3). Inert unless `Config.teamwork`. */
+  readonly handoffs: Handoffs
   readonly proactivityScheduler: ProactivityScheduler
+  /** CV-8: the blocks of “Toda a equipe” / “Quem tiver algo a dizer” / several @menções. */
+  readonly fanout: TeamFanout
+  /** TEAM-4: rounds of opinion a persona asks of the team (the Tally's tool calls `opinions.run` after the budget said `ask`). Inert unless `Config.teamwork`. */
+  readonly opinions: TeamOpinions
+  /** HT-6: the person's “Contratar direto” switch per persona (off unless she turned it on). */
+  readonly hireDirect: HireDirect
+  /** `Config.productTools`: the persona tools (and what only they need, like “Contratar direto”) exist. */
+  readonly productToolsEnabled: boolean
+  /** TEAM-15: the four v1.1 switches as they resolved at boot (diagnostics and the boot line show them). */
+  readonly hostFlags: HostFlagsView
+  /** TEAM-4: the `ask_team_opinion` tool in front of `opinions`: identity, rounds per Task, requests per day and the budget (Tally). Inert unless `Config.teamwork`. */
+  readonly opinionTool: OpinionTool
+  /** The team tools of a real persona (ask a colleague, pass the work on, a review's verdict) in front of `handoffs`. Inert unless `Config.teamwork`. */
+  readonly teamTools: TeamTools
+  /** HT-0 (host half): the ports a persona's tools call (board, sprints, routines) and the identity of a run. Not served to a CLI until the transport exists. */
+  readonly harness: HarnessPorts
+  /** CV-8: who is the team of a channel. Default: every persona of the project; Anvil's `teamPersonasOf` (CV-6) replaces it. */
+  teamOf: (projectId: string, channelId: string) => StoredPersona[] = projectId => this.product.listPersonas(projectId)
   readonly opt: OptRepos
   readonly ledger: TurnLedgerRepos
   readonly remoteTeam: RemoteTeamHost
@@ -696,6 +869,7 @@ export default class PersonaHost extends TypertRemoteService {
       () => this.orchestration.now(),
     )
     this.orchestration.attachmentNamesOf = eventId => this.media.namesOf(eventId)
+    this.orchestration.imagesFor = (eventIds, destDir) => this.media.stageTurnImages(eventIds, destDir)
     this.orchestration.stageAttachments = (eventId, dest, hasVision) =>
       this.media.stageForRunner(eventId, dest, hasVision === true).stagedNames
     this.screens = new ScreensHost(
@@ -708,13 +882,27 @@ export default class PersonaHost extends TypertRemoteService {
       (persona) => { this.governance.registerPersona(persona) },
     )
     this.orchestration.screens = screenRepos
+    this.teamwork = new TeamworkSettings(screenRepos)
+    this.boards.teamworkOf = (projectId, ticketId) => this.boardTeamwork(projectId, ticketId)
+    // TEAM-15: the v1.1 behaviors are ON in the real app; `Config` or `PERSONA_<FLAG>=0` turns one off (flags.ts, contracts/flags-defaults.md).
+    this.hostFlags = resolveHostFlags(config)
+    this.teamworkEnabled = this.hostFlags.teamwork
+    this.productToolsEnabled = this.hostFlags.productTools
+    this.hireDirect = new HireDirect(screenRepos)
     this.orchestration.onTaskSettled = (event, failed) => {
-      if (event.id === FIRST_DELIVERY_EVENT_ID) {
-        this.sealFirstDelivery({ workspaceId: event.workspaceId, projectId: event.projectId }, failed ? 'failed' : undefined)
-        return
+      try {
+        if (event.id === FIRST_DELIVERY_EVENT_ID) {
+          this.sealFirstDelivery({ workspaceId: event.workspaceId, projectId: event.projectId }, failed ? 'failed' : undefined)
+          return
+        }
+        if (failed) return
+        this.curateProjectReports(event.projectId)
+      } catch (error: unknown) {
+        // Quit race: the Task settled after the store closed. Nothing can be written now; boot curates the reports again
+        // (the same "not open" rule `settleTask` applies to the turn itself). Any other error still surfaces.
+        if (error instanceof Error && /not open/i.test(error.message)) return
+        throw error
       }
-      if (failed) return
-      this.curateProjectReports(event.projectId)
     }
     this.onboarding = new OnboardingHost(this.product, this.events, screenRepos, this.screens)
     this.scheduler = new HostScheduler(this.store, screenRepos)
@@ -751,6 +939,32 @@ export default class PersonaHost extends TypertRemoteService {
       peerOf: () => this.sessionMemberId ?? 'local',
     })
     this.topics = new TopicRepos(this.store, () => this.orchestration.now())
+    this.channelRepos = new ChannelRepos(this.store, () => this.orchestration.now())
+    this.teamChannels = new TeamChannels({
+      channels: this.channelRepos,
+      personas: projectId => this.product.listPersonas(projectId),
+      project: projectId => this.product.getProject(projectId),
+      sectors: workspaceId => this.governance.gov.listSectors(workspaceId),
+      sectorOf: workspaceId => new Map(this.cards.listCharges(workspaceId).flatMap(charge => (charge.sectorId === undefined ? [] : [[charge.personaId, charge.sectorId] as const]))),
+      ownerIds: workspaceId => this.product.listMembers(workspaceId).filter(member => member.role === 'owner').map(member => member.id),
+      say: (line) => {
+        if (this.events.has(line.id)) return false
+        this.events.append({
+          id: line.id, workspaceId: line.workspaceId, projectId: line.projectId, streamKind: 'channel', ownerId: line.channelId,
+          type: 'message', body: line.body, actorId: line.actorId, subjectId: '', occurredAt: line.at,
+        })
+        return true
+      },
+      now: () => this.orchestration.now(),
+      enabled: () => this.teamworkEnabled,
+    })
+    // The organogram changed (a persona joined, left, moved or changed role): the team channels follow. Fail-soft: a channel never blocks a hire.
+    this.governance.onOrganogramChange = (projectId) => {
+      try { this.teamChannels.reconcile(projectId) } catch (error: unknown) { this.orchestration.softFailure('team-channels', error) }
+    }
+    // CV-8: who is the team of a channel is the organogram's answer now (was: every persona of the project).
+    // A conversation with no channel row (an old base, a test host that writes to "geral" directly) keeps the old answer: the whole project.
+    this.teamOf = (projectId, channelId) => (this.channelRepos.get(channelId) === undefined ? this.product.listPersonas(projectId) : this.teamChannels.teamPersonasOf(projectId, channelId))
     this.accounts = new AccountRepos(this.store, () => this.orchestration.now())
     this.accountSwap = new AccountSwapHost({
       product: this.product,
@@ -777,6 +991,10 @@ export default class PersonaHost extends TypertRemoteService {
     this.teamState = new TeamStateBook(screenRepos, this.routines, () => this.orchestration.now())
     this.draftFiles = new DraftFilesBook(screenRepos, () => this.orchestration.now())
     this.messageFlags = new MessageFlags(screenRepos)
+    this.asides = new AsideAsks(screenRepos, this.workingSend, {
+      blocked: (projectId, personaId) => this.orchestration.asideBlocked(projectId, personaId),
+      answer: (projectId, personaId, askId, question) => this.orchestration.answerAside(projectId, personaId, askId, question),
+    }, () => this.orchestration.now())
     this.workingControl = new WorkingControl({
       product: this.product,
       events: this.events,
@@ -802,6 +1020,133 @@ export default class PersonaHost extends TypertRemoteService {
       postRequest: request => postTeamRequest(this, request),
       humanActorId: workspaceId => this.actorOf(workspaceId)?.id ?? this.product.listMembers(workspaceId).find(row => row.role === 'owner')?.id,
     })
+    this.personaAsks = new PersonaAsks({
+      product: this.product,
+      screens: screenRepos,
+      events: this.events,
+      orchestration: this.orchestration,
+    })
+    // A worker that ended its turn with a structured question (chips, a sequence) opens its card on the Ticket (budget applies).
+    this.orchestration.structuredAsk = input => this.personaAsks.ask(input)
+    // What was answered (chips, words, files) is remembered for the read-only card, and a sequence opens its next card.
+    this.orchestration.attentionAnswered = (info) => {
+      this.personaAsks.recordAnswer(info.projectId, info.attentionId, {
+        optionIds: info.optionIds,
+        text: info.text,
+        attachmentIds: this.media.listByMessage(info.messageId).map(row => row.id),
+      })
+      if (info.done) return
+      const ticket = this.orchestration.runtime(info.projectId).repo.tickets.get(info.ticketId)
+      if (ticket !== undefined) this.personaAsks.openCard(info.projectId, ticket)
+    }
+    // EQUIPE-REAL (TEAM-2/3): a persona asks a colleague; the Task of whoever asked waits and the delivery wakes it. Inert unless `Config.teamwork`.
+    this.handoffs = new Handoffs({
+      product: this.product,
+      screens: screenRepos,
+      events: this.events,
+      enabled: () => this.teamworkEnabled,
+      limitsOf: (projectId, personaId) => this.teamwork.get(projectId, personaId),
+      // D-084: a colleague inherits the scope of the request; a connector the person's words need and she may not use waits for the person.
+      connectorGate: (_projectId, toPersonaId, rootTicketId) => {
+        const to = this.product.getPersona(toPersonaId)
+        return to === undefined ? undefined : this.connectorGrants.gapFor(to, rootTicketId)
+      },
+      needConnector: (input) => {
+        this.connectorAsks.open({
+          id: `connector-ask:${input.requestId}`, projectId: input.projectId, reason: 'colleague', personaId: input.toPersonaId,
+          connector: input.connector, access: input.access, requestedByPersonaId: input.fromPersonaId, handoffId: input.requestId, taskTitle: input.title,
+        })
+      },
+      orchestration: this.orchestration,
+    })
+    this.connectorAsks = new ConnectorAsks({
+      screens: screenRepos,
+      product: this.product,
+      // Lazy: the grants are built further down.
+      grants: {
+        grant: (request, actorId) => this.connectorGrants.grant(request, actorId),
+        list: (workspaceId, personaId) => this.connectorGrants.list(workspaceId, personaId),
+        authorizeOnce: (persona, connector, ticketId, messageId) => { this.connectorGrants.authorizeOnce(persona, connector, ticketId, messageId) },
+      },
+      release: (ask, choice) => ask.handoffId === undefined ? undefined : this.handoffs.release(ask.projectId, ask.handoffId, choice),
+      now: () => this.orchestration.now(),
+    })
+    this.screens.extraApprovals.push(projectId => this.connectorAsks.approvals(projectId))
+    this.externalActions = new ExternalActions({
+      screens: screenRepos,
+      product: this.product,
+      grants: {
+        grant: (request, actorId) => this.connectorGrants.grant(request, actorId),
+        list: (workspaceId, personaId) => this.connectorGrants.list(workspaceId, personaId),
+      },
+      wake: (projectId, ticketId, note) => this.orchestration.wakeTicket(projectId, ticketId, note),
+      changed: (doc) => { this.events.touch(`action-card:${doc.id}`) },
+      now: () => this.orchestration.now(),
+    })
+    this.screens.extraApprovals.push(projectId => this.externalActions.approvals(projectId))
+    // One number for the person: requests to colleagues (help, pass on) plus rounds of opinion (TEAM-4). Lazy, so `opinionTool` may be built later.
+    this.teamwork.askedToday = (projectId, personaId) => {
+      const day = this.orchestration.now().slice(0, 10)
+      return this.handoffs.askedToday(projectId, personaId, day) + this.opinionTool.askedToday(projectId, personaId, day)
+    }
+    this.orchestration.handoffWait = (projectId, ticketId, delivered) => this.handoffs.waitingLine(projectId, ticketId, delivered)
+    this.orchestration.inReview = (projectId, ticketId) => this.handoffs.reviewing(projectId, ticketId) !== undefined
+    this.orchestration.humanTitles = () => this.teamworkEnabled // EQUIPE-REAL §0: short human titles, never the raw request
+    this.orchestration.functionRouting = () => this.teamworkEnabled // TEAM-13: by function, only with the team behavior on
+    this.orchestration.ticketSettled = (info) => { this.handoffs.settled(info) }
+    this.orchestration.taskDelivered = info => this.handoffs.delivered(info)
+    this.orchestration.entregaOf = (projectId, requestId) => this.handoffs.entregaBlock(projectId, requestId)
+    this.orchestration.entregaImagesOf = (projectId, requestId, destDir) => this.handoffs.entregaImages(projectId, requestId, destDir)
+    this.handoffs.svg = { blocksIn: svgBlocksIn, toPng: svg => svgToPng(svg) } // Forge's helper: the art of a delivery as a PNG for the colleague's turn
+    this.orchestration.quietTask = (projectId, ticketId) => this.handoffs.isReviewTask(projectId, ticketId)
+    // EQUIPE-REAL §0: the plan and delivery cards stand for the state lines and the closing sentence of a request done in parts.
+    this.orchestration.hiddenByCards = (projectId, eventId) => this.teamCards.replaced(projectId, eventId)
+    this.orchestration.requestIdOf = (projectId, ticketId) => this.handoffs.requestOf(projectId, ticketId)?.requestId
+    this.orchestration.planCardsOn = () => this.teamworkEnabled
+    // TEAM-12: the Gestor's approved plan opens the first part of the campaign (the mandate is the person who approved).
+    this.gestor.campaignStarter = (input) => {
+      const workspaceId = this.product.getProject(input.projectId)?.workspaceId
+      const actor = workspaceId === undefined ? undefined : (this.actorOf(workspaceId) ?? this.product.listMembers(workspaceId).find(row => row.role === 'owner'))
+      if (actor === undefined) return
+      this.handoffs.startCampaign({ projectId: input.projectId, planId: input.planId, goal: input.goal, mandateActorId: actor.id, announcerId: input.gestorId, steps: input.steps })
+    }
+    this.teamCards = new TeamCards({
+      enabled: () => this.teamworkEnabled,
+      now: () => this.orchestration.now(),
+      product: this.product,
+      events: this.events,
+      screens: screenRepos,
+      tickets: projectId => this.orchestration.runtime(projectId).repo.tickets.list(),
+      conversationOfTicket: (projectId, ticketId) => this.orchestration.conversationOfTicket(projectId, ticketId),
+      requestOf: (projectId, ticketId) => this.handoffs.requestOf(projectId, ticketId),
+      reviewing: (projectId, ticketId) => this.handoffs.reviewing(projectId, ticketId),
+      reviewedBy: (projectId, ticketId) => this.handoffs.reviewedBy(projectId, ticketId),
+      handoffChip: (projectId, ticketId) => this.handoffChipOf(projectId, ticketId),
+      stateLineOf: (projectId, eventId) => this.messageFlags.of(projectId, eventId).stateLine,
+    })
+    this.morningBrief = new MorningBriefHost({
+      enabled: () => this.teamworkEnabled,
+      now: () => this.orchestration.now(),
+      offsetMinutes: nowIso => this.timezoneOffsetMinutes(nowIso),
+      product: this.product,
+      events: this.events,
+      screens: screenRepos,
+      routines: this.routines,
+      tasks: projectId => this.morningTasks(projectId),
+      needsYou: projectId => this.needsYouCount(projectId),
+      requestOf: (projectId, taskId) => this.teamCards.requestOfLine(projectId, taskId),
+      timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })
+    this.personWaiting = new PersonWaiting({
+      enabled: () => this.teamworkEnabled,
+      now: () => this.orchestration.now(),
+      product: this.product,
+      events: this.events,
+      screens: screenRepos,
+      waiting: projectId => this.morningTasks(projectId, { keepWaiting: true }).filter(task => task.state === 'review' && this.waitingOnPerson(projectId).has(task.taskId)).map(task => ({
+        taskId: task.taskId, personaId: task.personaId, title: task.title, since: task.updatedAt,
+      })),
+    })
     this.proactivityScheduler = createProactivityScheduler({
       product: this.product,
       events: this.events,
@@ -815,9 +1160,224 @@ export default class PersonaHost extends TypertRemoteService {
       draftFiles: this.draftFiles,
       workingControl: this.workingControl,
       taskProposals: this.taskProposals,
+      // The morning ritual and the reminder of what waits for the person share the host's tick.
+      morningBrief: { check: (projectId, event) => { const outcome = this.morningBrief.check(projectId, event); this.personWaiting.check(projectId); return outcome } },
     }, { cycleMs: config.proactivityCycleMs ?? 30_000 })
+    this.orchestration.startOnBoardMove = this.hostFlags.startOnBoardMove
+    this.orchestration.fanoutEnabled = this.hostFlags.fanout
+    this.fanout = new TeamFanout({
+      gateOf: (projectId, persona) => this.orchestration.fanoutGateOf(projectId, persona),
+      answer: (projectId, persona, session, prompt) => this.orchestration.answerOnce(projectId, persona, session, prompt, `Resposta de ${persona.name}.`),
+      say: (event, persona, id, body) => { this.orchestration.postLine(event, persona, id, body) },
+      flag: (projectId, lineId, view) => { this.messageFlags.set(projectId, lineId, { fanout: view }) },
+      edit: (lineId, body) => { this.events.edit(lineId, body, this.orchestration.now()) },
+      begin: (projectId, messageId, fanoutId) => { this.messageFlags.set(projectId, messageId, { ...this.messageFlags.of(projectId, messageId), fanoutId }) },
+      queue: (job) => { this.orchestration.queueWork(job) },
+      concurrency: 3,
+    })
+    this.opinions = new TeamOpinions({
+      enabled: () => this.teamworkEnabled,
+      persona: (projectId, id) => {
+        const found = this.product.getPersona(id)
+        return found !== undefined && found.projectId === projectId ? found : undefined
+      },
+      askerTask: (projectId, ticketId, askerName) => {
+        const found = this.orchestration.runtime(projectId).repo.tickets.get(ticketId)
+        return found !== undefined && found.ended === undefined && found.execution?.name === askerName
+      },
+      conversationOf: (projectId, ticketId) => this.orchestration.conversationOfTicket(projectId, ticketId),
+      workspaceOf: projectId => this.product.getProject(projectId)?.workspaceId,
+      now: () => this.orchestration.now(),
+      gateOf: (projectId, persona) => this.orchestration.fanoutGateOf(projectId, persona),
+      existingAttachments: (projectId, ids, stream) => this.media.existingIds(projectId, ids, stream),
+      bindAttachments: (projectId, messageId, ids, stream) => {
+        try {
+          this.media.bindDraft(messageId, ids, projectId, stream)
+        } catch (error: unknown) {
+          void error // the round does not depend on the clip being tied; the image already reaches the colleagues
+        }
+      },
+      stageImages: (projectId, ids, key) => this.media.stageAttachmentImages(projectId, ids, key),
+      stageBufferImages: (items, key) => this.media.stageBufferImages(items, key),
+      answer: (projectId, persona, session, prompt, images, scripted) => this.orchestration.answerOnce(projectId, persona, session, prompt, scripted, images),
+      say: (line) => {
+        if (this.events.has(line.id)) return false
+        this.events.append({
+          id: line.id, workspaceId: line.workspaceId, projectId: line.projectId, streamKind: line.streamKind, ownerId: line.ownerId,
+          type: 'message', body: line.body, actorId: line.actorId, subjectId: line.subjectId, occurredAt: line.at,
+          ...(line.topicId === '' ? {} : { topicId: line.topicId }),
+        })
+        return true
+      },
+      bodyOf: id => this.events.get(id)?.body,
+      flag: (projectId, lineId, view) => { this.messageFlags.set(projectId, lineId, { opinion: view }) },
+      flagOf: (projectId, lineId) => this.messageFlags.of(projectId, lineId).opinion,
+      concurrency: 3,
+    })
+    this.harness = new HarnessPorts({
+      product: this.product,
+      ticketOf: (projectId, ticketId) => this.orchestration.runtime(projectId).repo.tickets.get(ticketId),
+      eventActorOf: eventId => this.events.get(eventId)?.actorId,
+      autonomyOf: (projectId, personaId) => this.proactivity.getAutonomy(projectId, personaId).mode,
+      boards: new BoardPorts({
+        product: this.product, boards: this.boards, ticketOf: (projectId, ticketId) => this.orchestration.runtime(projectId).repo.tickets.get(ticketId),
+        screens: this.screens.screens, now: () => this.orchestration.now(), newId: () => `sp-${globalThis.crypto.randomUUID()}`,
+      }),
+      routines: new RoutinePorts({
+        product: this.product, routines: this.routines, screens: this.screens.screens, now: () => this.orchestration.now(), newId: () => `rt-${globalThis.crypto.randomUUID()}`,
+      }),
+      hiring: new HiringPorts({
+        product: this.product,
+        propose: request => this.screens.proposeHire(request),
+        decide: request => this.screens.decide(request),
+        approvals: projectId => this.screens.listApprovals(projectId),
+        hireDirectOf: (projectId, personaId) => this.hireDirect.get(projectId, personaId),
+        directToday: (projectId, personaId, day) => this.hireDirect.hiredOn(projectId, personaId, day),
+        noteDirect: (projectId, personaId, day) => { this.hireDirect.noteHire(projectId, personaId, day) },
+        now: () => this.orchestration.now(),
+      }),
+    })
+    this.opinionTool = new OpinionTool({
+      enabled: () => this.teamworkEnabled,
+      now: () => this.orchestration.now(),
+      product: this.product,
+      screens: screenRepos,
+      opinions: this.opinions,
+      limitsOf: (projectId, personaId) => this.teamwork.get(projectId, personaId),
+      otherAsksToday: (projectId, personaId, dayIso) => this.handoffs.askedToday(projectId, personaId, dayIso),
+      isRunning: (projectId, ticketId, personaId) => {
+        const found = this.orchestration.runtime(projectId).repo.tickets.get(ticketId)
+        const who = this.product.getPersona(personaId)
+        return found !== undefined && who !== undefined && found.ended === undefined && found.execution?.name === who.name
+      },
+      gateOf: (projectId, persona) => this.orchestration.fanoutGateOf(projectId, persona),
+      // D-092: the asker's account decides whether the budget carries US$ (API) or the impact on the quota window (subscription).
+      accountOf: (projectId, persona) => {
+        const logged = this.orchestration.loggedCliOf?.(projectId)
+        const spec = specFromConnection(persona.runner, logged)
+        const cli = spec.kind === 'cli' ? spec.cli : (logged ?? 'none')
+        const account = this.screens.screens.get<{ accountId: string }>(projectId, 'active_account', persona.id)?.accountId
+        return accountForEstimate({
+          specKind: spec.kind, cli, ...(logged === undefined ? {} : { loggedCli: logged }), env: process.env,
+          quotas: this.usage.listQuota(projectId), ...(account === undefined ? {} : { accountId: account }),
+          ledger: this.ledger.list({ projectId }),
+        })
+      },
+      // "The team" of a round of opinion = the people LINKED to this work, not the whole project: the other Tasks of the same request of the
+      // person (the parts of a split), the collaborators of the Task, and the Coordenação (Atlas, 05/11 00:05).
+      involvedIn: (projectId, ticketId) => {
+        const rt = this.orchestration.runtime(projectId)
+        const mine = rt.repo.tickets.get(ticketId)
+        const people = this.product.listPersonas(projectId)
+        const linked = new Set<string>()
+        // The parts of a split are each a Task of their own child event `split:<message>:<persona>`: they belong together by the message.
+        const requestOf = (triggerId: string): string => (triggerId.startsWith('split:') ? triggerId.slice(0, triggerId.lastIndexOf(':')) : triggerId)
+        if (mine !== undefined) {
+          for (const other of rt.repo.tickets.list()) {
+            if (other.id === mine.id || requestOf(other.origin.triggerId) !== requestOf(mine.origin.triggerId)) continue
+            const who = people.find(row => row.name === other.execution?.name)
+            if (who !== undefined) linked.add(who.id)
+          }
+        }
+        for (const id of getCollaborators(this.screens.screens, projectId, ticketId)?.personaIds ?? []) linked.add(id)
+        for (const row of people) if (row.systemRoles.includes('coordination')) linked.add(row.id)
+        return [...linked]
+      },
+      motorOf: persona => ({ cli: persona.runner.kind === 'cli' ? persona.runner.cli : 'dsh', connected: true, readsImages: engineSeesImages(persona.runner) }),
+      // P0-C2: the draft folder of the asker's Task, where the art she saved is (`draft.files`).
+      draftRootOf: (projectId, ticketId) => this.orchestration.runtime(projectId).repo.tickets.get(ticketId)?.execution?.directory,
+      // The model reads attachments by NAME: the tool takes a name for an id, and the image that came with the request is the draft when none is named.
+      attachmentsOf: (projectId, ticketId) => {
+        const ticket = this.orchestration.runtime(projectId).repo.tickets.get(ticketId)
+        const where = this.orchestration.conversationOfTicket(projectId, ticketId)
+        const named = (rows: ReadonlyArray<{ readonly id: string; readonly name: string }>): Array<{ id: string; name: string }> => rows.map(row => ({ id: row.id, name: row.name }))
+        // A part of a split request (`split:<message>:<persona>`) is made from the message of the person: its files are that message's.
+        const trigger = ticket?.origin.triggerId ?? ''
+        const message = trigger.startsWith('split:') ? trigger.slice('split:'.length, trigger.lastIndexOf(':')) : trigger
+        return {
+          thread: where === undefined ? [] : named(this.media.listByStream(projectId, where.streamKind, where.ownerId)),
+          request: message === '' ? [] : named(this.media.listByMessage(message)),
+        }
+      },
+    })
+    // The team tools of a REAL persona (ask a colleague, pass the work on, a review's verdict): the live CLI's door to `handoffs`. Inert unless `Config.teamwork`.
+    this.teamTools = new TeamTools({
+      enabled: () => this.teamworkEnabled,
+      product: this.product,
+      harness: this.harness,
+      handoffs: this.handoffs,
+      limitsOf: (projectId, personaId) => this.teamwork.get(projectId, personaId),
+      ticketOf: (projectId, ticketId) => this.orchestration.runtime(projectId).repo.tickets.get(ticketId),
+    })
+    if (this.productToolsEnabled) {
+      // One process gateway; each turn of a Task opens its own lease. Only the harness tools are offered (see `productToolsOpener`).
+      const gateway = createMcpGateway({
+        // `persona_ask` is the one persona tool a CLI worker gets: it opens the question on the Task through `PersonaAsks` (D-079 b).
+        hooks: {
+          report: () => undefined, recall: () => '',
+          ask: createAskTool({
+            product: this.product, screens: screenRepos, asks: this.personaAsks,
+            ticketOf: (projectId, ticketId) => this.orchestration.runtime(projectId).repo.tickets.get(ticketId),
+          }),
+        },
+        harness: withTeamTools(withOpinionTool(harnessMcpPorts(this.harness, {
+          // HT-7 (Anvil) replaces this with the activity feed; until then nothing a persona did in the product is lost.
+          onActivity: (who, activity) => { this.screens.screens.put(who.projectId, 'harness_activity', `${activity.at}:${who.callId}`, { personaId: who.personaId, ...activity }) },
+        }), this.opinionTool), this.teamTools),
+        onlyWired: true,
+      })
+      // What decides the tools of a turn: the words of the request for board/sprints/routines/hiring, and the HOST's rule (not the words) for the team tools (D-097).
+      const toolRules = (persona: StoredPersona, projectId: string): ProductToolsRules => ({
+        taskTextOf: (ticketId) => {
+          const rt = this.orchestration.runtime(projectId)
+          const found = rt.repo.tickets.get(ticketId)
+          return found === undefined ? '' : `${found.title}\n${found.execution?.assignment ?? ''}\n${rt.repo.triggers.get(found.origin.triggerId)?.text ?? ''}`
+        },
+        teamToolsOf: turn => this.teamTools.toolsFor(projectId, persona, turn.ticketId),
+      })
+      this.orchestration.productToolsOf = (persona, projectId) => productToolsOpener({ gateway, toolLevel: gatewayLevelOf(persona.tools), ...toolRules(persona, projectId) })
+      // Only a Task that runs on a CLI is offered tools (conversation and answer-only calls never are): the same test `resolveFor` makes.
+      const onACli = (persona: StoredPersona, projectId: string): boolean => specFromConnection(persona.runner, this.orchestration.loggedCliOf?.(projectId)).kind === 'cli'
+      // D-097: what the worker is told about the team, and the read-only record of each turn (the full prompt and the tools it was offered).
+      this.orchestration.teamGuidanceOf = (projectId, persona, ticketId) => (onACli(persona, projectId) ? this.teamTools.guidanceFor(projectId, persona, ticketId) : undefined)
+      this.orchestration.offeredToolsOf = (projectId, persona, ticketId) => (onACli(persona, projectId) ? offeredToolNames(toolRules(persona, projectId), gatewayLevelOf(persona.tools), { personaId: persona.id, ticketId }) : [])
+    }
+    this.orchestration.onMentionsFanout = (event, cited) => { this.fanout.start({ event, source: 'mentions', personas: cited }) }
+    this.orchestration.onCollaborators = (event, ticket, lead, others) => {
+      this.fanout.start({ event, source: 'mentions', personas: others, promptOf: () => collaboratorPrompt(ticket.title, lead.name, event.body) })
+    }
     this.opt = new OptRepos(this.store, () => this.orchestration.now())
     this.ledger = new TurnLedgerRepos(this.store)
+    this.connectorGrants = new ConnectorGrantsHost({
+      grants: new ConnectorGrantRepos(this.store, () => this.orchestration.now()),
+      auth: new TicketConnectorAuthRepos(this.store, () => this.orchestration.now()),
+      product: this.product,
+      ticketTriggers: (projectId, ticketId) => {
+        const ticket = this.orchestration.runtime(projectId).repo.tickets.get(ticketId)
+        return ticket === undefined ? undefined : [...ticket.origin.triggerIds, ...ticket.inputs.flatMap(input => (input.kind === 'trigger' ? [input.id] : []))]
+      },
+      eventOf: eventId => this.events.get(eventId),
+      isHuman: (workspaceId, actorId) => this.product.listMembers(workspaceId).some(member => member.id === actorId),
+      autonomyOf: (projectId, personaId) => this.proactivity.getAutonomy(projectId, personaId).mode,
+      events: this.events,
+      orchestration: this.orchestration,
+      geralOf: (workspaceId, projectId) => this.ensureProjectConversation(workspaceId, projectId).channelId,
+      ports: () => this.portsNow(),
+      approvedFor: (projectId, ticketId) => this.externalActions.approvedWithConnector(projectId, ticketId),
+      audit: (workspaceId, actorId, action, detail) => { this.governance.audit(workspaceId, actorId, action, detail) },
+      now: () => this.orchestration.now(),
+    })
+    // Typed explicitly: the orchestration field still declares two parameters (Bolt adds the Task id there); the third one is optional.
+    this.orchestration.connectorsOf = (persona: StoredPersona, cli: string, ticketId?: string) => this.connectorGrants.forRunner(persona, cli, ticketId)
+    // HT-9: a Task that carries connectors on Claude gets a gate; what it refuses becomes a card and the approval comes back as one allowed call.
+    this.actionBridge = new ActionBridge({ actions: this.externalActions, ports: () => this.portsNow(), announce: (doc) => { this.announceAction(doc) } })
+    this.orchestration.actions = this.actionBridge
+    this.orchestration.connectorLabel = (cli, id) => this.portsNow().availableConnectors?.(cli).find(item => item.id === id)?.name
+    // The person approved the preview: the Task wakes carrying the approval (its next runner is armed with exactly those arguments, once). What
+    // she approved is DATA for the persona; the gate, not this sentence, is what lets the call through.
+    this.onActionApproved = (action) => {
+      this.orchestration.wakeTicket(action.projectId, action.ticketId, 'A pessoa aprovou a ação externa que você pediu. Faça de novo exatamente a mesma chamada, com os mesmos argumentos: ela passa uma vez. Se mudar qualquer coisa, será outro pedido.')
+    }
     this.orchestration.opt = this.opt
     this.orchestration.recordLedger = (projectId, entry) => {
       this.persistTurn(projectId, entry)
@@ -853,7 +1413,10 @@ export default class PersonaHost extends TypertRemoteService {
     })
     if (this.store.recoveryMessage !== undefined) this.lastErrors.push(this.store.recoveryMessage)
     if (process.env.VITEST !== 'true') {
+      process.stderr.write(`${flagsBootLine(this.hostFlags)}\n`) // a verifier reads the app's log: the four switches as they resolved, no env needed
       this.connections.warm()
+      this.connectorBridge ??= claudeConnectorBridge(cli => this.connections.list().find(card => card.kind === cli)?.version) // the installed version decides what isolation can be called proven
+      void this.connectorBridge.refresh() // background, control requests only: the account's connectors become available when it answers
       this.orchestration.prewarmAll()
       this.proactivityScheduler.start()
     }
@@ -861,12 +1424,19 @@ export default class PersonaHost extends TypertRemoteService {
     this.mountMedia(ctx)
     for (const workspace of this.product.listWorkspaces()) {
       for (const project of this.product.listProjects(workspace.id)) {
-        for (const persona of this.product.listPersonas(project.id)) this.governance.registerPersona(persona)
-        this.scheduler.arm(project.id)
-        this.remoteTeam.resume({ workspaceId: workspace.id, projectId: project.id })
-        if (!allowsScriptedReplies()) {
-          this.orchestration.runtime(project.id)
-          this.curateProjectReports(project.id)
+        // Boot is fail-soft per project: an old base with something odd in one project (a subject nobody can read, an archived channel, a persona
+        // that was retired) says so in one diagnostics line and never takes the whole host down.
+        try {
+          for (const persona of this.product.listPersonas(project.id)) this.governance.registerPersona(persona)
+          this.teamChannels.reconcile(project.id) // heals a base that already had teams: their channels are born here
+          this.scheduler.arm(project.id)
+          this.remoteTeam.resume({ workspaceId: workspace.id, projectId: project.id })
+          if (!allowsScriptedReplies()) {
+            this.orchestration.runtime(project.id)
+            this.curateProjectReports(project.id)
+          }
+        } catch (error: unknown) {
+          this.orchestration.softFailure('boot-project', error)
         }
       }
     }
@@ -944,7 +1514,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     return {
       members: this.product.listMembers(request.workspaceId).map(toMemberView),
-      personas: this.product.listPersonas(request.projectId).map(toPersonaView),
+      personas: this.product.listPersonas(request.projectId).map(persona => this.personaView(persona)),
     }
   }
 
@@ -956,7 +1526,191 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listPersonas(request: ProjectScopeRequest): PersonaView[] {
     this.requireProject(request)
-    return this.product.listPersonas(request.projectId).map(toPersonaView)
+    return this.product.listPersonas(request.projectId).map(persona => this.personaView(persona))
+  }
+
+  /**
+   * TEAM-4: the view of the PERSON's own answer to a round of opinion, or undefined when the message is not one. Refuses, writing nothing,
+   * when the team behavior is off, the mark is unknown or the request is not in this very conversation.
+   */
+  private personOpinionOf(request: PostMessageRequest): OpinionView | undefined {
+    const on = request.opinionOn
+    if (on === undefined) return undefined
+    const mark: string | undefined = on.mark // a wire value
+    if (!this.teamworkEnabled) throw new HostRemoteFault('invalid-payload', 'Esta equipe ainda não pede opinião.')
+    if (mark !== undefined && mark !== 'liked' && mark !== 'suggestion' && mark !== 'attention') {
+      throw new HostRemoteFault('invalid-payload', 'Escolha Gostei, Sugestão ou Ponto de atenção.')
+    }
+    const line = this.events.get(`opinion:${on.requestId}:request`)
+    const asked = line === undefined ? undefined : this.messageFlags.of(request.projectId, line.id).opinion
+    if (line === undefined || asked?.kind !== 'request' || line.projectId !== request.projectId || line.streamId !== `${request.streamKind}:${request.ownerId}`) {
+      throw new HostRemoteFault('not-found', 'Esse pedido de opinião não existe mais.')
+    }
+    return { kind: 'reply', requestId: asked.requestId, taskId: asked.taskId, round: asked.round, maxRounds: asked.maxRounds, ...(on.mark === undefined ? {} : { mark: on.mark }) }
+  }
+
+  /**
+   * What a person may read in a thread: never an internal author, and — with the team behavior on — never a status line that the plan card
+   * or the delivery card of its request replaces.
+   */
+  private shownInThread(event: { readonly id: string; readonly actorId: string; readonly projectId: string }): boolean {
+    return !isTechnicalAuthor(event.actorId) && !(this.teamworkEnabled && this.teamCards.absorbed(event.projectId, event.id))
+  }
+
+  /** The plan card and the delivery card of a thread message, when it is one. */
+  private cardsOf(projectId: string, eventId: string): { teamPlan?: TeamPlanView; deliveryCard?: DeliveryCardView; actionPreview?: ActionPreviewWire; body?: string } {
+    const teamPlan = this.teamCards.planViewOf(projectId, eventId)
+    const deliveryCard = this.teamCards.deliveryViewOf(projectId, eventId)
+    const action = eventId.startsWith('action-card:') ? this.externalActions.get(projectId, eventId.slice('action-card:'.length)) : undefined
+    return {
+      ...(action === undefined ? {} : { actionPreview: this.externalActions.previewOf(action) }),
+      ...(teamPlan === undefined ? {} : { teamPlan, body: this.teamCards.planText(teamPlan) }),
+      ...(deliveryCard === undefined ? {} : { deliveryCard, body: this.teamCards.deliveryText(deliveryCard) }),
+    }
+  }
+
+  /**
+   * HT-9: a new pending action gets its card IN the thread: one message of the persona, `action-card:<id>`, with a fixed sentence and no argument (LEAK-1);
+   * the content lives in the document and reaches the client as `MessageView.actionPreview`. Idempotent.
+   */
+  private announceAction(doc: ExternalActionDoc): void {
+    const id = `action-card:${doc.id}`
+    if (this.events.has(id)) return
+    const where = this.orchestration.conversationOfTicket(doc.projectId, doc.ticketId)
+    const project = this.product.getProject(doc.projectId)
+    if (where === undefined || project === undefined) return
+    const name = this.product.getPersona(doc.personaId)?.name ?? 'A persona'
+    const verb = doc.actionClass === 'pay' ? 'pagar' : doc.actionClass === 'delete' ? 'apagar' : 'enviar'
+    this.events.append({
+      id, workspaceId: project.workspaceId, projectId: doc.projectId, streamKind: where.streamKind, ownerId: where.ownerId, type: 'message',
+      body: `${name} quer ${verb} pelo ${doc.connector.name}. Confira antes.`, actorId: doc.personaId, subjectId: where.subjectId,
+      occurredAt: this.orchestration.now(), ...(where.topicId === '' ? {} : { topicId: where.topicId }),
+    })
+  }
+
+  /** TEAM-7: the morning card of a thread message, when it is one. */
+  private briefOf(projectId: string, eventId: string): { dailyBrief?: DailyBriefView } {
+    const dailyBrief = this.morningBrief.viewOf(projectId, eventId)
+    return dailyBrief === undefined ? {} : { dailyBrief }
+  }
+
+  /** TEAM-7: the Tasks of a project as plain facts for the morning card (ids, the human title, the state and the instants; nothing else leaves). */
+  private morningTasks(projectId: string, options: { readonly keepWaiting?: boolean } = {}): MorningTask[] {
+    const personaByName = new Map(this.product.listPersonas(projectId).map(persona => [persona.name, persona.id]))
+    const out: MorningTask[] = []
+    for (const ticket of this.orchestration.runtime(projectId).repo.tickets.list()) {
+      const personaId = personaByName.get(ticket.execution?.name ?? '')
+      if (personaId === undefined) continue
+      const card = projectKanban(ticket)
+      const state: MorningTask['state'] | undefined = card.column === 'done'
+        ? (isDelivered(ticket) ? 'done' : 'failed')
+        : card.column === 'review' ? 'review' : card.column === 'blocked' ? 'blocked'
+          : card.column === 'doing' ? (card.chip === 'waiting' ? 'waiting' : 'running') : undefined
+      if (state === undefined) continue
+      out.push({
+        taskId: ticket.id, personaId, title: ticket.title, state, updatedAt: ticket.updatedAt,
+        ...(state === 'done' && ticket.ended !== undefined ? { endedAt: ticket.ended.at } : {}),
+      })
+    }
+    // A finished request is ONE line ("Campanha de Natal (Texto, Arte e Posts)"), not one per part with the long title; and a step the team
+    // took between colleagues (a request for help, a hand-over that closed by itself) is not a line of its own: the work is the request's.
+    const coordination = this.product.listPersonas(projectId).find(persona => persona.systemRoles.includes('coordination'))
+    const grouped = coordination === undefined ? out : this.teamCards.groupDone(projectId, out, coordination.id)
+    const internal = new Set(this.orchestration.runtime(projectId).repo.tickets.list().filter(ticket => ticket.origin.triggerId.startsWith('handoff:')).map(ticket => ticket.id))
+    // A Task that waits for the person is counted in "Precisa de você" and is NOT also a line of "Hoje": the same Task never appears in two sections.
+    return grouped.filter(task => !(task.state === 'done' && internal.has(task.taskId)) && (options.keepWaiting === true || task.state !== 'review'))
+  }
+
+  /**
+   * THE one criterion of "waits for the person" (Keel 04:16): the Tasks in review or blocked. A request for help or a review a colleague was asked
+   * to do is a step of the team, never a decision of the person (it closes by itself); a PASSAGE of the work that was delivered is real work and waits
+   * for the person's review like any Task. "Precisa de você", the reminder of what waits (EQ-14) and the lines of "Hoje" all read THIS, so a Task
+   * is in exactly one place.
+   * @param projectId - Tenant.
+   * @returns The ids of the Tasks that wait for the person.
+   */
+  private waitingOnPerson(projectId: string): Set<string> {
+    const tickets = this.orchestration.runtime(projectId).repo.tickets
+    const ids = new Set<string>()
+    for (const card of this.orchestration.kanban(projectId)) {
+      if (card.column !== 'review' && card.column !== 'blocked') continue
+      const handoff = (tickets.get(card.ticketId)?.origin.triggerId ?? '').startsWith('handoff:')
+      if (handoff && !(card.column === 'review' && this.handoffs.isPassageTask(projectId, card.ticketId))) continue
+      ids.add(card.ticketId)
+    }
+    return ids
+  }
+
+  /** TEAM-7: what waits for the person: the Tasks of {@link waitingOnPerson} and the approvals still pending. */
+  private needsYouCount(projectId: string): number {
+    return this.waitingOnPerson(projectId).size + this.screens.listApprovals(projectId).filter(item => item.status === 'pending' && item.kind !== 'attention').length
+  }
+
+  /** D-096: the sentence that says the engine ran this Task differently from what was set (kept by the usage meter), when there is one. */
+  private engineNoteField(projectId: string, ticketId: string): { engineNote?: string } {
+    const kept = this.screens.screens.get<{ note: string }>(projectId, 'engine_note', ticketId)
+    return kept === undefined ? {} : { engineNote: kept.note }
+  }
+
+  /** TEAM-1/6: what a board card carries of the team: the request chip, "Revisando: {R}" and the seal. */
+  private boardTeamwork(projectId: string, ticketId: string): Partial<Pick<BoardCardView, 'handoff' | 'reviewing' | 'reviewedBy'>> | undefined {
+    if (!this.teamworkEnabled) return undefined
+    const handoff = this.handoffChipOf(projectId, ticketId)
+    const reviewing = this.handoffs.reviewing(projectId, ticketId)
+    const reviewedBy = this.handoffs.reviewedBy(projectId, ticketId)
+    return {
+      ...(handoff === undefined ? {} : { handoff }),
+      ...(reviewing === undefined ? {} : { reviewing }),
+      ...(reviewedBy === undefined ? {} : { reviewedBy }),
+    }
+  }
+
+  /** TEAM-1/6: the bilhete this Task received, the path the work took, the review in progress and the seal (only what exists). */
+  private taskTeamwork(projectId: string, ticketId: string): { note?: HandoffNoteView; path?: PathStepView[]; reviewing?: ReviewingView; reviewedBy?: ReviewedByView; reviewFailed?: 'unreadable' | 'engine' } {
+    const path = this.handoffs.pathOf(projectId, ticketId)
+    const received = this.handoffs.notesOf(projectId, ticketId).filter(row => row.role === 'asked').at(-1)
+    const reviewing = this.handoffs.reviewing(projectId, ticketId)
+    const reviewedBy = this.handoffs.reviewedBy(projectId, ticketId)
+    const reviewFailed = this.handoffs.reviewFailure(projectId, ticketId)
+    return {
+      ...(reviewing === undefined ? {} : { reviewing }),
+      ...(reviewedBy === undefined ? {} : { reviewedBy }),
+      ...(reviewFailed === undefined ? {} : { reviewFailed }),
+      ...(received === undefined ? {} : {
+        note: {
+          fromPersonaId: received.fromPersonaId, toPersonaId: received.toPersonaId, taskId: ticketId,
+          done: received.note.done, needed: received.note.needed, files: received.note.files, decisions: received.note.decisions, at: received.at,
+        },
+      }),
+      ...(path.length === 0 ? {} : { path }),
+    }
+  }
+
+  /**
+   * TEAM-1: the chip of a card in a request between colleagues. Whoever asked and still waits shows "Esperando {B}"; the colleague's
+   * Task shows "Pedido por {A}". A Task that is both (asked by A, waiting for C) shows what it waits for.
+   */
+  private handoffChipOf(projectId: string, ticketId: string): BoardHandoffView | undefined {
+    if (!this.teamworkEnabled) return undefined
+    const rows = this.handoffs.notesOf(projectId, ticketId)
+    const waiting = rows.filter(row => row.role === 'asker' && (row.status === 'asked' || row.status === 'held')).at(-1)
+    if (waiting !== undefined) return { role: 'waiting', otherPersonaId: waiting.toPersonaId }
+    const asked = rows.filter(row => row.role === 'asked').at(-1)
+    return asked === undefined ? undefined : { role: 'asked', otherPersonaId: asked.fromPersonaId }
+  }
+
+  /** The roster view plus what Configurações › Personas reads: the engine choice and, with `Config.teamwork`, the teamwork settings. */
+  private personaView(persona: StoredPersona): PersonaView {
+    return {
+      ...toPersonaView(persona),
+      engine: {
+        runnerKind: persona.runner.kind, runnerCli: persona.runner.kind === 'cli' ? persona.runner.cli : '', ...engineChoiceOf(persona.runner),
+      },
+      ...(this.teamworkEnabled ? { teamwork: this.teamwork.view(persona.projectId, persona.id) } : {}),
+      ...(this.productToolsEnabled && persona.canRecruit ? { hireDirect: this.hireDirect.get(persona.projectId, persona.id) } : {}),
+      canSaveFiles: canSaveFiles(persona.tools),
+      canSaveFilesAvailable: this.projectHasFolder(persona.projectId),
+    }
   }
 
   /**
@@ -998,7 +1752,7 @@ export default class PersonaHost extends TypertRemoteService {
       nowKind: now.nowKind,
       nowText: now.nowText,
       presence: now.presence,
-      engine: { runnerLabel, modelLabel: persona.runner.model },
+      engine: { runnerLabel, modelLabel: persona.runner.model, ...engineChoiceOf(persona.runner) },
       ...(project === undefined ? {} : { currentProjectName: project.name }),
       ...(charge.ownerName === undefined ? {} : { ownerName: charge.ownerName }),
       ...(charge.substituteName === undefined ? {} : { substituteName: charge.substituteName }),
@@ -1085,9 +1839,46 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     this.requireWrite(request)
     this.assertCardEditor(request.workspaceId, request.personaId)
+    // HT-6: a retired persona comes back to the team the same way a paused one does (the contract: "reverter = resumePersona").
+    if (this.product.retiredAt(request.personaId) !== undefined) this.product.unretirePersona(request.personaId)
     this.orchestration.setPersonaPaused(request.projectId, request.personaId, false)
     this.auditPersona(request.projectId, request.personaId, 'resume')
     return this.getPersonaCard(request)
+  }
+
+  /**
+   * HT-6 / D-084 ("aposentar", the undo of a direct hire): the person RETIRES a persona. She leaves the team, her history stays (everything
+   * she wrote and did, and her name in it), and her name and face are free again. Reversible with `resumePersona`. Idempotent. Workspace
+   * owner only; the Coordenação cannot be retired (the team would have nobody to answer).
+   * @param request - Persona.
+   */
+  @Remote
+  retirePersona(request: PersonaScopeRequest): RetiredPersonaView {
+    this.requireProject(request)
+    this.requireWrite(request)
+    this.requireGovOwner(request.workspaceId)
+    const persona = this.product.getPersona(request.personaId)
+    if (persona === undefined || persona.projectId !== request.projectId) throw new HostRemoteFault('not-found', 'Essa persona não existe mais.')
+    if (persona.systemRoles.includes('coordination')) {
+      throw new HostRemoteFault('invalid-payload', 'A Coordenação não pode ser aposentada. Escolha outra pessoa para coordenar antes.')
+    }
+    const at = this.orchestration.now()
+    if (this.product.retirePersona(persona.id, at)) {
+      this.orchestration.evictWarmRunners(request.projectId, persona.id)
+      this.auditPersona(request.projectId, persona.id, 'retire')
+      this.teamChannels.reconcile(request.projectId) // a team that lost its last person is archived (never deleted)
+    }
+    return { personaId: persona.id, retiredAt: this.product.retiredAt(persona.id) ?? at }
+  }
+
+  /**
+   * The personas the person retired: not in the team, but old messages and Tasks still name them.
+   * @param request - Project.
+   */
+  @Remote
+  listRetiredPersonas(request: ProjectScopeRequest): PersonaView[] {
+    this.requireProject(request)
+    return this.product.listRetiredPersonas(request.projectId).map(persona => ({ ...this.personaView(persona), retiredAt: this.product.retiredAt(persona.id) ?? '' }))
   }
 
   /**
@@ -1101,15 +1892,117 @@ export default class PersonaHost extends TypertRemoteService {
     this.assertCardEditor(request.workspaceId, request.personaId)
     const persona = this.product.getPersona(request.personaId)
     if (persona === undefined) throw new Error('persona-not-found')
+    // EFF-1: the model and the "Capricho" are the person's choice; null/absent = the engine's default (nothing is sent to the CLI).
     this.product.updatePersona({
       ...persona,
-      runner: request.runnerKind === 'dsh'
-        ? { kind: 'dsh', model: request.runnerModel }
-        : { kind: 'cli', cli: asCli(request.runnerCli), model: request.runnerModel },
+      runner: nextRunner(persona.runner, request, request.runnerKind === 'dsh' ? undefined : asCli(request.runnerCli)),
       updatedAt: this.orchestration.now(),
     }, request.projectId)
+    // A warm session was opened with the previous model/level: the next turn must open with the new choice.
+    this.orchestration.evictWarmRunners(request.projectId, request.personaId)
     this.auditPersona(request.projectId, request.personaId, 'engine')
     return this.getPersonaCard(request)
+  }
+
+  /**
+   * D-090 / TEAM-3: the person decides whether a persona may ask colleagues for help, how many asks a day and how many opinion rounds.
+   * Responsável or workspace owner. Only the named fields change; a number outside its range is refused whole.
+   * @param request - Persona and the new values.
+   */
+  @Remote
+  setPersonaTeamwork(request: SetPersonaTeamworkRequest): PersonaView {
+    this.requireProject(request)
+    this.requireWrite(request)
+    this.assertCardEditor(request.workspaceId, request.personaId)
+    const persona = this.product.getPersona(request.personaId)
+    if (persona === undefined) throw new HostRemoteFault('not-found', 'Essa persona não existe mais.')
+    this.teamwork.set(request.projectId, request)
+    this.auditPersona(request.projectId, request.personaId, 'teamwork')
+    return this.personaView(persona)
+  }
+
+  /**
+   * TEAM-6: how the project reviews its deliveries. A project nobody configured reviews EVERY delivery, by the Coordenação (the person turns it off).
+   * @param request - Project.
+   */
+  @Remote
+  getReviewPolicy(request: GetReviewPolicyRequest): ReviewPolicyView {
+    this.requireProject(request)
+    return reviewPolicyView(this.screens.screens.get<ReviewPolicy>(request.projectId, 'review_policy', 'v1'))
+  }
+
+  /**
+   * TEAM-6: the person turns the review before delivery off, on for every delivery, or on for some task types, and says who reviews.
+   * Workspace owner. A reviewer persona must be of the project; nothing is half-written.
+   * @param request - The new policy.
+   */
+  @Remote
+  setReviewPolicy(request: SetReviewPolicyRequest): ReviewPolicyView {
+    this.requireProject(request)
+    this.requireGovOwner(request.workspaceId)
+    const policy = readReviewPolicy(request, personaId => this.product.getPersona(personaId)?.projectId === request.projectId)
+    this.screens.screens.put(request.projectId, 'review_policy', 'v1', policy)
+    return reviewPolicyView(policy)
+  }
+
+  /**
+   * "Pode contratar": whether a persona may bring people to the team (each hire still asks the person). Responsável or workspace owner.
+   * @param request - Persona and the choice.
+   */
+  @Remote
+  setPersonaCanRecruit(request: SetPersonaCanRecruitRequest): PersonaView {
+    this.requireProject(request)
+    this.requireWrite(request)
+    this.assertCardEditor(request.workspaceId, request.personaId)
+    const persona = this.product.getPersona(request.personaId)
+    if (persona === undefined) throw new HostRemoteFault('not-found', 'Essa persona não existe mais.')
+    const updated = { ...persona, canRecruit: request.canRecruit, updatedAt: this.orchestration.now() }
+    this.product.updatePersona(updated, request.projectId)
+    this.auditPersona(request.projectId, request.personaId, 'recruit')
+    return this.personaView(updated)
+  }
+
+  /**
+   * “Contratar direto” (HT-6): whether a persona who may hire can do it WITHOUT the card in Aprovações. Off unless the person turns it on;
+   * only for a persona who may hire. Responsável or workspace owner.
+   * @param request - Persona and the choice.
+   */
+  @Remote
+  setPersonaHireDirect(request: SetPersonaHireDirectRequest): PersonaView {
+    this.requireProject(request)
+    this.requireWrite(request)
+    this.assertCardEditor(request.workspaceId, request.personaId)
+    const persona = this.product.getPersona(request.personaId)
+    if (persona === undefined) throw new HostRemoteFault('not-found', 'Essa persona não existe mais.')
+    if (!persona.canRecruit && request.hireDirect) throw new HostRemoteFault('invalid-payload', 'Primeiro deixe esta persona contratar (“Pode contratar”).')
+    this.hireDirect.set(request.projectId, request.personaId, request.hireDirect)
+    this.auditPersona(request.projectId, request.personaId, 'recruit-direct')
+    return this.personaView(persona)
+  }
+
+  /**
+   * “Pode salvar arquivos no rascunho” (D-099): whether ONE persona saves files — only into the draft of the project's folder (the person applies them in Revisar
+   * mudanças), never with a shell. On for every persona the product creates; on or off is the person's. Responsável or workspace owner. A warm session opened with
+   * the previous grant is dropped, so the next Task opens with the new one.
+   * @param request - Persona and the choice.
+   */
+  @Remote
+  setPersonaCanSaveFiles(request: SetPersonaCanSaveFilesRequest): PersonaView {
+    this.requireProject(request)
+    this.requireWrite(request)
+    this.assertCardEditor(request.workspaceId, request.personaId)
+    const persona = this.product.getPersona(request.personaId)
+    if (persona === undefined) throw new HostRemoteFault('not-found', 'Essa persona não existe mais.')
+    const updated = { ...persona, tools: withFilesSaving(persona.tools, request.canSaveFiles), updatedAt: this.orchestration.now() }
+    this.product.updatePersona(updated, request.projectId)
+    this.orchestration.evictWarmRunners(request.projectId, request.personaId)
+    this.auditPersona(request.projectId, request.personaId, 'files')
+    return this.personaView(updated)
+  }
+
+  private projectHasFolder(projectId: string): boolean {
+    const root = this.product.getProject(projectId)?.rootPath
+    return typeof root === 'string' && root !== ''
   }
 
   /**
@@ -1509,7 +2402,64 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   openAsideAsk(request: OpenAsideAskRequest): AsideAskView {
     this.requireProject(request)
-    return this.workingSend.aside(request)
+    if (request.question.trim() === '') throw new HostRemoteFault('invalid-payload', 'Escreva a pergunta de lado.')
+    return this.asides.open(request)
+  }
+
+  /**
+   * One side question with its state (`asking` · `answered` · `failed`) and answer.
+   * @param request - Ask id.
+   * @returns The ask.
+   */
+  @Remote
+  getAsideAsk(request: GetAsideAskRequest): AsideAskView {
+    this.requireProject(request)
+    const ask = this.asides.get(request.projectId, request.id)
+    if (ask === undefined) throw new HostRemoteFault('not-found', 'Essa pergunta de lado não existe mais.')
+    return ask
+  }
+
+  /**
+   * Side questions of a persona in a subject (a reload finds them again).
+   * @param request - Persona and subject.
+   * @returns Asks, oldest first.
+   */
+  @Remote
+  listAsideAsks(request: ListAsideAsksRequest): AsideAskView[] {
+    this.requireProject(request)
+    return this.asides.list(request.projectId, request.personaId, request.subjectId)
+  }
+
+  /**
+   * `/resumo`: the persona summarises the conversation (last 30 messages) in up to 3 sentences, off the thread. Answered like
+   * a `/lado` (`asking` → `answered` | `failed`); read it with `getAsideAsk`.
+   * @param request - Persona and conversation.
+   * @returns The ask in progress.
+   */
+  @Remote
+  summarizeConversation(request: SummarizeConversationRequest): AsideAskView {
+    this.requireProject(request)
+    const viewer = this.actorOf(request.workspaceId)?.id ?? ''
+    const lines: SummaryLine[] = []
+    let after = 0
+    for (let page = 0; page < 6; page += 1) {
+      const got = this.listMessages({
+        workspaceId: request.workspaceId, projectId: request.projectId, streamKind: request.streamKind, ownerId: request.ownerId,
+        actorId: viewer, afterSeq: after, limit: 200, ...(request.topicId === undefined ? {} : { topicId: request.topicId }),
+      })
+      for (const message of got.events) {
+        const who = this.product.getPersona(message.actorId)?.name ?? this.product.getMember(message.actorId)?.displayName ?? 'Alguém'
+        lines.push({ who, body: message.body })
+      }
+      if (got.events.length < 200 || got.nextSeq <= after) break
+      after = got.nextSeq
+    }
+    const question = summaryQuestion(lines)
+    if (question === undefined) throw new HostRemoteFault('invalid-payload', 'Ainda não há conversa para resumir.')
+    return this.asides.open({
+      workspaceId: request.workspaceId, projectId: request.projectId, personaId: request.personaId, subjectId: request.subjectId, question,
+      kind: 'summary', shown: SUMMARY_SHOWN, // the host's prompt is asked, never shown
+    })
   }
 
   /**
@@ -1570,13 +2520,127 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   listChannels(request: ProjectScopeRequest): ChannelView[] {
+    this.requireProject(request) // pure read: the team channels are reconciled at boot and when the organogram changes, never here
+    const me = this.actorOf(request.workspaceId)?.id
+    const pinned = me === undefined ? new Set<string>() : this.channelRepos.pinnedBy(me)
+    const sectors = new Map(this.governance.gov.listSectors(request.workspaceId).map(sector => [sector.id, sector.name] as const))
+    const rank = (view: ChannelView): number => (view.archived ? 3 : view.pinned ? 0 : view.kind === 'general' ? 1 : 2)
+    return this.channelRepos.list(request.projectId)
+      .map(channel => this.channelViewOf(channel, pinned, sectors))
+      .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
+  }
+
+  private channelViewOf(channel: ReturnType<ChannelRepos['get']> & object, pinned: ReadonlySet<string>, sectors: ReadonlyMap<string, string>): ChannelView {
+    const teamName = channel.sourceId === undefined ? undefined : sectors.get(channel.sourceId)
+    return {
+      id: channel.id, projectId: channel.projectId, name: channel.name, topic: channel.topic,
+      projectName: this.product.getProject(channel.projectId)?.name ?? '',
+      kind: channel.kind,
+      memberCount: this.teamChannels.membersOf(channel.projectId, channel.id).length,
+      archived: channel.archivedAt !== undefined,
+      ...(channel.archivedReason === undefined ? {} : { archivedReason: channel.archivedReason }),
+      pinned: pinned.has(channel.id),
+      ...(teamName === undefined ? {} : { teamName }),
+    }
+  }
+
+  /**
+   * Who is on a channel (the organogram's answer for team/directorate/general, the stored list for a channel the person made).
+   * @param request - Channel.
+   */
+  @Remote
+  listChannelMembers(request: ChannelScopeRequest): ChannelMemberView[] {
     this.requireProject(request)
-    return this.product.listChannels(request.projectId).map(channel => ({
-      id: channel.id,
-      projectId: channel.projectId,
-      name: channel.name,
-      topic: channel.topic,
-    }))
+    this.ownChannel(request)
+    return this.teamChannels.membersOf(request.projectId, request.channelId).map((member) => {
+      const name = member.kind === 'persona' ? this.product.getPersona(member.id)?.name : this.product.getMember(member.id)?.displayName
+      return { kind: member.kind, id: member.id, name: name ?? '' }
+    })
+  }
+
+  /**
+   * Rename a channel (not #geral: the morning card and the Tasks find it by that name). The person's name sticks: the organogram never renames it back.
+   * @param request - Channel and the new name.
+   */
+  @Remote
+  renameChannel(request: RenameChannelRequest): ChannelView {
+    this.requireWrite(request)
+    const channel = this.ownChannel(request)
+    if (channel.kind === 'general') throw new HostRemoteFault('forbidden', 'O #geral não muda de nome.')
+    const name = request.name.trim()
+    // eslint-disable-next-line no-control-regex -- control characters are exactly what a name must not have
+    if (name === '' || name.length > 32 || /[#\u0000-\u001f\u007f]/u.test(name)) {
+      throw new HostRemoteFault('invalid-payload', 'O nome do canal tem de ter de 1 a 32 caracteres, sem “#”.')
+    }
+    try {
+      this.channelRepos.rename(channel.id, name, true)
+    } catch (error: unknown) {
+      if (error instanceof StoreError && error.code === 'conflict') throw new HostRemoteFault('conflict', 'Já existe um canal com esse nome.')
+      throw error
+    }
+    return this.channelView(request.projectId, channel.id)
+  }
+
+  /**
+   * Archive a channel (it goes to Arquivados; nothing is deleted and the history stays). Not #geral.
+   * @param request - Channel.
+   */
+  @Remote
+  archiveChannel(request: ChannelScopeRequest): ChannelView {
+    this.requireWrite(request)
+    const channel = this.ownChannel(request)
+    if (channel.kind === 'general') throw new HostRemoteFault('forbidden', 'O #geral não pode ser arquivado.')
+    this.channelRepos.archive(channel.id, 'by-person')
+    return this.channelView(request.projectId, channel.id)
+  }
+
+  /**
+   * Bring an archived channel back (history intact).
+   * @param request - Channel.
+   */
+  @Remote
+  unarchiveChannel(request: ChannelScopeRequest): ChannelView {
+    this.requireWrite(request)
+    const channel = this.ownChannel(request)
+    this.channelRepos.unarchive(channel.id)
+    return this.channelView(request.projectId, channel.id)
+  }
+
+  /**
+   * Pin or unpin a channel for the person who asks (each person pins their own).
+   * @param request - Channel and the switch.
+   */
+  @Remote
+  setChannelPinned(request: SetChannelPinnedRequest): ChannelView {
+    this.requireProject(request)
+    const channel = this.ownChannel(request)
+    const me = this.actorOf(request.workspaceId)?.id
+    if (me === undefined) throw new HostRemoteFault('forbidden', 'Entre para fixar um canal.')
+    this.channelRepos.setPinned(channel.id, me, request.pinned)
+    return this.channelView(request.projectId, channel.id)
+  }
+
+  /**
+   * Make the team channels match the organogram NOW (the host does it at boot and when the organogram changes; this is for a flow that needs it sooner).
+   * @param request - Project.
+   */
+  @Remote
+  reconcileTeamChannels(request: ProjectScopeRequest): ChannelView[] {
+    this.requireWrite(request)
+    this.teamChannels.reconcile(request.projectId)
+    return this.listChannels(request)
+  }
+
+  private ownChannel(request: ChannelScopeRequest): NonNullable<ReturnType<ChannelRepos['get']>> {
+    const channel = this.channelRepos.get(request.channelId)
+    if (channel === undefined || channel.projectId !== request.projectId) throw new HostRemoteFault('not-found', 'Esse canal não existe mais.')
+    return channel
+  }
+
+  private channelView(projectId: string, channelId: string): ChannelView {
+    const found = this.listChannels({ workspaceId: this.product.getProject(projectId)?.workspaceId ?? '', projectId }).find(view => view.id === channelId)
+    if (found === undefined) throw new HostRemoteFault('not-found', 'Esse canal não existe mais.')
+    return found
   }
 
   /**
@@ -1614,15 +2678,24 @@ export default class PersonaHost extends TypertRemoteService {
         'ticket_subject',
         card.ticketId,
       )
+      const collaborators = collaboratorViews(this.screens.screens, request.projectId, card.ticketId, id => this.product.getPersona(id)?.name)
+      const teamwork = this.teamworkEnabled ? this.taskTeamwork(request.projectId, card.ticketId) : {}
+      // IV-10: while the Task has an open question, the card knows where it was asked and what it says.
+      const asking = this.orchestration.runtime(request.projectId).repo.tickets.get(card.ticketId)?.attention
+      const where = asking === undefined ? undefined : this.orchestration.conversationOfTicket(request.projectId, card.ticketId)
       return {
         id: card.ticketId,
         projectId: request.projectId,
         title: card.title,
         stage: card.column,
         stageAction: card.chip === 'waiting' ? 'waiting' : card.stageAction,
+        ...teamwork,
+        ...this.engineNoteField(request.projectId, card.ticketId),
+        ...(asking === undefined || where === undefined ? {} : { questionStreamId: `${where.streamKind}:${where.ownerId}`, question: shortQuestion(asking.question) }),
         ...(subjectLink === undefined || subjectLink.subjectId === ''
           ? {}
           : { topicId: subjectLink.subjectId, conversationSubjectId: subjectLink.subjectId }),
+        ...(collaborators.length === 0 ? {} : { collaborators }),
       }
     })
   }
@@ -1709,7 +2782,14 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   moveTicket(request: MoveTicketRequest): MoveTicketView {
     this.requireWrite(request)
-    return this.boards.moveTicket(request.projectId, request.ticketId, request.columnId)
+    const moved = this.boards.moveTicketWith(request.projectId, request.ticketId, request.columnId)
+    // HT-3: THIS path is the person's (a persona is not an actor of a Remote). Moving a card to Fazendo only marks it as running;
+    // here the persona that owns it actually starts. The personas' own tools call `boards.moveTicket` directly and never come this way.
+    // The trigger is the DESTINATION column: a result still waiting for Aplicar/Descartar keeps its stage, so its card is not “doing”.
+    if (this.orchestration.startOnBoardMove && moved.toCategory === 'doing') {
+      this.orchestration.startFromBoard(request.projectId, request.ticketId, { deliveryPending: moved.deliveryWaiting, reopened: moved.reopened })
+    }
+    return moved.view
   }
 
   /**
@@ -1849,6 +2929,86 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   /**
+   * ISO-2: the connectors of the person's CLI given to a persona (names and levels only; no command, URL or secret is kept).
+   * @param request - Project scope and, optionally, one persona.
+   */
+  @Remote
+  listConnectorGrants(request: ListConnectorGrantsRequest): ConnectorGrantView[] {
+    this.requireProject(request)
+    return this.connectorGrants.list(request.workspaceId, request.personaId)
+  }
+
+  /**
+   * ISO-2: give ONE persona a connector, by name. Only the workspace owner (the connector is on THIS person's CLI). Refuses with a typed
+   * code, and writes nothing, what could never take effect (`not-grantable`, `isolation-partial`, `limit-reached`).
+   * @param request - Persona, connector and level.
+   */
+  @Remote
+  grantConnector(request: GrantConnectorRequest): ConnectorGrantView {
+    this.requireProject(request)
+    this.requireGovOwner(request.workspaceId)
+    return this.connectorGrants.grant(request, this.requireActor(request.workspaceId).id)
+  }
+
+  /**
+   * ISO-2: take a connector back. Idempotent; the next call (and the next warm session) no longer carries it.
+   * @param request - Persona and connector.
+   * @returns Whether there was a grant to remove.
+   */
+  @Remote
+  revokeConnector(request: RevokeConnectorRequest): boolean {
+    this.requireProject(request)
+    this.requireGovOwner(request.workspaceId)
+    return this.connectorGrants.revoke(request, this.requireActor(request.workspaceId).id)
+  }
+
+  /**
+   * ISO-2/ISO-5: what the connector would add to every call of the persona, measured by a control-only pre-flight (zero model), so the
+   * person sees it BEFORE confirming. Never writes; `unknown` when nothing was measured.
+   * @param request - Persona and connector.
+   */
+  @Remote
+  async estimateConnectorGrantCost(request: EstimateConnectorGrantCostRequest): Promise<ConnectorGrantCostView> {
+    this.requireProject(request)
+    this.requireGovOwner(request.workspaceId)
+    return this.connectorGrants.costOf(request)
+  }
+
+  /**
+   * "Incluir só pelo texto" (team-real.md §12): in a round of opinion with an image, the colleagues whose engine does not read images are NOT
+   * called (they show on the card as "não veem imagens neste motor"); the PERSON may include one by TEXT ONLY: one short turn with the question,
+   * the draft text and the asker's description of the image, never the image, and her line comes back flagged `textOnly` (the chip "Opinou só
+   * pelo texto"). It costs one turn of that colleague, from the person (it is not one of the asker's requests of the day), never reopens the round
+   * and never redoes the consolidation. Idempotent: a repeat answers the line that is there.
+   * @param request - The card (`requestId` of its OpinionView) and the colleague (one of its `noVision`).
+   */
+  @Remote
+  async includeOpinionTextOnly(request: IncludeOpinionTextOnlyRequest): Promise<IncludeOpinionTextOnlyView> {
+    this.requireWrite(request)
+    if (!this.teamworkEnabled) throw new HostRemoteFault('invalid-payload', 'Esta equipe ainda não pede opinião.')
+    if (!/^[A-Za-z0-9:_-]{1,200}$/u.test(request.requestId) || request.personaId === '') throw new HostRemoteFault('invalid-payload', 'Diga o pedido de opinião (requestId) e a pessoa (personaId).')
+    const result = await this.opinions.includeTextOnly({ projectId: request.projectId, requestId: request.requestId, personaId: request.personaId })
+    if (!result.ok) throw new HostRemoteFault('invalid-payload', result.message)
+    return { replyId: result.replyId, mark: result.mark, ...(result.failed === true ? { failed: true as const } : {}), ...(result.already === true ? { already: true as const } : {}) }
+  }
+
+  /**
+   * "Bom dia" NOW (TEAM-7, on demand): posts the day's card in #geral as the Coordenação — the same zero-model facts the morning ritual
+   * uses, with no clock window and no "nothing changed" rule, because the person (or the real round) asked. Idempotent: the day's card
+   * once (`already` after that); a `requestId` asks for one more card of its own. Pausing the morning routine does not stop an explicit ask.
+   * @param request - Tenant and the optional key of this ask.
+   */
+  @Remote
+  postDailyBriefNow(request: DailyBriefNowRequest): DailyBriefNowView {
+    this.requireProject(request)
+    if (request.requestId !== undefined && !/^[A-Za-z0-9_-]{1,64}$/u.test(request.requestId)) {
+      throw new HostRemoteFault('invalid-payload', 'requestId deve ter de 1 a 64 letras, números, "-" ou "_".')
+    }
+    const result = this.morningBrief.postNow(request.projectId, request.requestId)
+    return { outcome: result.outcome, ...(result.messageId === undefined ? {} : { messageId: result.messageId }), text: NOW_TEXT[result.outcome] }
+  }
+
+  /**
    * "Enquanto você estava fora": what the team did since the person was last here, and what waits for them now, from the
    * host's real records with a link to the real Task. Reading does NOT consume it: it stays the same for the whole session
    * until {@link dismissWhileAway}.
@@ -1857,6 +3017,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   getWhileAway(request: ProjectScopeRequest): WhileAwayView {
     this.requireProject(request)
+    this.morningBrief.check(request.projectId, 'app-open') // TEAM-7: the first opening of the day after 6:00 brings the card
     return this.proactivity.whileAway(request.projectId)
   }
 
@@ -2248,7 +3409,7 @@ export default class PersonaHost extends TypertRemoteService {
   private alternativeEngines(projectId: string): string[] {
     const waitingProviders = new Set(this.orchestration.quotaRows(projectId).flatMap((row) => {
       const persona = row.personaId === undefined ? undefined : this.product.getPersona(row.personaId)
-      return persona?.runner.kind === 'cli' && persona.runner.cli !== undefined ? [persona.runner.cli] : []
+      return persona?.runner.kind === 'cli' ? [persona.runner.cli] : []
     }))
     return this.connections.list()
       .filter(card => card.kind !== 'dsh' && card.available && card.loggedIn && card.error?.code !== 'quota_exhausted' && !waitingProviders.has(card.kind))
@@ -2278,6 +3439,7 @@ export default class PersonaHost extends TypertRemoteService {
   private handleReadyEngines(): void {
     if (this.engineReadinessDisposed || allowsScriptedReplies()) return
     if (cachedEngineReadiness(this.connections.list()).state !== 'ready') return
+    this.warmIsolation()
     for (const workspace of this.product.listWorkspaces()) {
       for (const project of this.product.listProjects(workspace.id)) {
         this.accountSwap.expireLimits(project.id)
@@ -2289,6 +3451,30 @@ export default class PersonaHost extends TypertRemoteService {
         })
       }
     }
+  }
+
+  /**
+   * The isolation proof of the CLI (answer-only mode) is made ONCE per version and model, the moment the engine is ready — so the first
+   * delivery of a fresh install does not wait for it. Zero model, never throws, never blocks: the call is not awaited. The model arguments are
+   * EXACTLY the ones the runner will use for each persona (a proof is per version + model argument). Never at construction: only the real boot
+   * reaches here (scripted hosts and tests return before).
+   */
+  private warmIsolation(): void {
+    const claude = this.connections.list().find(card => card.kind === 'claude' && card.loggedIn && card.available)
+    if (claude === undefined) return
+    const models = new Set<string>()
+    for (const workspace of this.product.listWorkspaces()) {
+      for (const project of this.product.listProjects(workspace.id)) {
+        for (const persona of this.product.listPersonas(project.id)) {
+          const spec = specFromConnection(persona.runner, this.orchestration.loggedCliOf?.(project.id))
+          if (spec.kind === 'cli' && spec.cli === 'claude') models.add(spec.model)
+        }
+      }
+    }
+    const key = `${claude.version ?? ''}|${[...models].sort().join(',')}`
+    if (models.size === 0 || this.warmedIsolation.has(key)) return
+    this.warmedIsolation.add(key)
+    void this.prewarmIsolation([...models].sort()).catch((error: unknown) => { void error })
   }
 
   /** Look again when the quota window resets (or in 5 min when the vendor gave no clock), while a Task waits for it. */
@@ -2652,6 +3838,9 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   decideApproval(request: DecideApprovalRequest): ApprovalView {
     this.requireWrite(request)
+    if (request.kind === 'connector') return this.decideConnectorAsk(request)
+    if (request.kind === 'action') return this.decideAction(request)
+    if (request.accept === undefined) throw new HostRemoteFault('invalid-payload', 'Diga se aceita ou recusa.')
     const card = this.listApprovals(request).find(row => row.id === request.id && row.kind === request.kind)
     if (card === undefined) throw new Error('approval-not-found')
     if (card.status !== 'pending') return card
@@ -2666,6 +3855,42 @@ export default class PersonaHost extends TypertRemoteService {
       })
       return { ...card, ...decided }
     })
+  }
+
+  /**
+   * The connector ports at this moment: what the desktop bridge installed, plus the one answer the host itself knows — Claude stops a call
+   * through its PreToolUse hook (`blocked-report`), every other CLI cannot (`none`: its connectors load read-only). The bridge may override it.
+   */
+  private portsNow(): ConnectorPorts {
+    return { permissionRequests: cli => cli === 'claude' ? 'blocked-report' : 'none', ...this.connectorBridge?.ports(), ...this.connectorPorts }
+  }
+
+  /** HT-9: the person answers the preview of an external action (`send` · `edit` · `cancel`). The workspace owner decides. */
+  private decideAction(request: DecideApprovalRequest): ApprovalView {
+    const choice = request.choice
+    if (choice !== 'send' && choice !== 'edit' && choice !== 'cancel') throw new HostRemoteFault('invalid-payload', 'Escolha enviar, editar ou cancelar.')
+    const card = this.listApprovals(request).find(row => row.id === request.id && row.kind === 'action')
+    if (card === undefined) throw new Error('approval-not-found')
+    const actor = this.actorOf(request.workspaceId)
+    if (actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    const { card: decided, approved } = this.externalActions.decide({
+      workspaceId: request.workspaceId, projectId: request.projectId, id: request.id, choice,
+      ...(request.edited === undefined ? {} : { edited: request.edited }), ...(request.remember === undefined ? {} : { remember: request.remember }),
+    }, actor.id)
+    if (approved !== undefined) this.onActionApproved?.(approved)
+    return decided
+  }
+
+  /** D-084/TEAM-3: the person answers "a persona needs a connector" (`once` · `always` · `not-now`). The workspace owner decides. */
+  private decideConnectorAsk(request: DecideApprovalRequest): ApprovalView {
+    const choice = request.choice
+    if (choice !== 'once' && choice !== 'always' && choice !== 'not-now') throw new HostRemoteFault('invalid-payload', 'Escolha liberar só desta vez, sempre permitir ou agora não.')
+    const card = this.listApprovals(request).find(row => row.id === request.id && row.kind === 'connector')
+    if (card === undefined) throw new Error('approval-not-found')
+    const actor = this.actorOf(request.workspaceId)
+    if (actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    const { card: decided, decision } = this.connectorAsks.decide({ workspaceId: request.workspaceId, projectId: request.projectId, id: request.id, choice }, actor.id)
+    return { ...decided, connectorDecision: decision }
   }
 
   /**
@@ -2914,11 +4139,15 @@ export default class PersonaHost extends TypertRemoteService {
         description: request.description,
         personality: request.personality,
         instructions: request.instructions,
-        avatar: { kind: request.avatarKind, ref: request.avatarRef },
+        // D-069: a gallery persona always has an animal of the gallery (the first free one when none was chosen).
+        avatar: { kind: request.avatarKind, ref: request.avatarKind === 'gallery' ? animalFor(request.avatarRef, this.product.listPersonas(request.projectId).map(row => row.avatar.ref)) : request.avatarRef },
         runner: request.runnerKind === 'dsh'
           ? { kind: 'dsh', model: request.runnerModel }
-          : { kind: 'cli', cli: asCli(request.runnerCli), model: request.runnerModel },
-        tools: {},
+          : {
+            kind: 'cli', cli: asCli(request.runnerCli), model: request.runnerModel,
+            ...(request.runnerEffort === undefined || request.runnerEffort === null ? {} : { effort: effortOf(request.runnerEffort) }),
+          },
+        tools: { files: 'write' }, // D-099: saves files into the draft (effective only in a project with a folder); never a shell
         skills: [],
         limits: {},
         systemRoles: withDefaultGestor(request.systemRoles === undefined ? [] : request.systemRoles),
@@ -2970,14 +4199,20 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   createChannel(request: CreateChannelRequest): ChannelView {
     this.requireProject(request)
-    const channel = this.product.createChannel({
+    // A channel called "geral" is the automatic #geral (the migration says the same for the ones that already exist): never renamed or archived.
+    const channel = this.channelRepos.create({
       id: request.id,
       workspaceId: request.workspaceId,
       projectId: request.projectId,
       name: request.name,
       topic: request.topic,
+      kind: request.name === 'geral' ? 'general' : 'custom',
     })
-    return { id: channel.id, projectId: channel.projectId, name: channel.name, topic: channel.topic }
+    if (request.memberIds !== undefined && request.memberIds.length > 0) {
+      const known = new Set(this.product.listPersonas(request.projectId).map(persona => persona.id))
+      this.channelRepos.setMembers(channel.id, request.memberIds.filter(member => member.kind === 'human' ? this.product.getMember(member.id) !== undefined : known.has(member.id)))
+    }
+    return this.channelView(request.projectId, channel.id)
   }
 
   /**
@@ -3019,8 +4254,12 @@ export default class PersonaHost extends TypertRemoteService {
     return this.appendMessage(request)
   }
 
-  private appendMessage(request: PostMessageRequest, firstDelivery?: { executorId: string; title: string }): MessageView {
+  private appendMessage(request: PostMessageRequest, firstDelivery?: { executorId: string; title: string; assignment?: string }): MessageView {
     this.requireProject(request)
+    // A line to a channel nobody reads would be silence (D-079): refuse it, with the stable reason the client keys on. Reading stays allowed.
+    if (request.streamKind === 'channel' && this.channelRepos.get(request.ownerId)?.archivedAt !== undefined) {
+      throw new HostRemoteFault('conflict', 'Este canal está arquivado. Desarquive para escrever.', { reason: 'channel-archived' })
+    }
     const timestamp = z.iso.datetime({ offset: true }).safeParse(request.occurredAt ?? this.orchestration.now())
     if (!timestamp.success) throw new HostRemoteFault('invalid-payload', 'Informe um horário ISO válido para a mensagem.')
     this.forgetSubjectListCache()
@@ -3033,12 +4272,12 @@ export default class PersonaHost extends TypertRemoteService {
           this.assertCanAddress(request.workspaceId, dm.participantB, actor.id)
         }
       }
-      for (const persona of this.product.listPersonas(request.projectId)) {
-        if (request.body.includes(`@${persona.name}`)) {
-          this.assertCanAddress(request.workspaceId, persona.id, actor.id)
-        }
+      // CV-5: the same whole-name rule as the routing (an "@Anabela" does not address "Ana"; an e-mail addresses nobody).
+      for (const persona of mentionsOf(this.product.listPersonas(request.projectId), request.body)) {
+        this.assertCanAddress(request.workspaceId, persona.id, actor.id)
       }
     }
+    const personOpinion = this.personOpinionOf(request) // validated BEFORE anything is written
     const topicId = request.topicId
       ?? this.activeSubjectId(request.projectId, request.streamKind, request.ownerId)
     const stored = this.events.append({
@@ -3063,7 +4302,23 @@ export default class PersonaHost extends TypertRemoteService {
       request.streamKind,
       request.ownerId,
     )
-    this.orchestration.ingest(stored, request.streamKind, request.ownerId, request.responderId ?? '', undefined, firstDelivery)
+    if (personOpinion !== undefined) {
+      // An answer to a round of opinion: the person's line under the request. It is not routed (no Task, nobody is woken by it).
+      this.messageFlags.set(request.projectId, stored.id, { opinion: personOpinion })
+      return this.viewMessage(stored)
+    }
+    const audience = request.fanout !== undefined && this.orchestration.fanoutEnabled && request.streamKind === 'channel' && firstDelivery === undefined
+      ? this.fanoutAudience(request.workspaceId, request.projectId, request.ownerId, actor?.id)
+      : []
+    if (request.fanout !== undefined && audience.length > 0) {
+      // CV-8: ONE message to the team becomes a block of typed lines; the single-persona route is not taken for it.
+      const coordination = request.fanout === 'relevant'
+        ? this.product.listPersonas(request.projectId).find(item => item.systemRoles.includes('coordination'))
+        : undefined
+      this.fanout.start({ event: stored, source: request.fanout, personas: audience, ...(coordination === undefined ? {} : { coordination }) })
+    } else {
+      this.orchestration.ingest(stored, request.streamKind, request.ownerId, request.responderId ?? '', undefined, firstDelivery)
+    }
     const ticketed = this.orchestration.runtime(request.projectId).repo.tickets.list()
       .some(ticket => ticket.origin.triggerId === request.id)
     const answered = this.events.has(`coord-${request.id}-reply`)
@@ -3202,6 +4457,11 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   listMessages(request: ListMessagesRequest): MessagePage {
+    // A malformed page request is a client bug, not an empty conversation: say so (it leaks nothing, it does not depend on who is asking).
+    if (!Number.isInteger(request.limit) || request.limit < 1 || request.limit > MAX_PAGE_LIMIT) {
+      throw new HostRemoteFault('invalid-payload', `limit deve ser um inteiro de 1 a ${String(MAX_PAGE_LIMIT)}; peça mais páginas com nextSeq.`)
+    }
+    if (!Number.isInteger(request.afterSeq) || request.afterSeq < 0) throw new HostRemoteFault('invalid-payload', 'afterSeq deve ser um inteiro a partir de 0.')
     try {
       this.requireProject(request)
     } catch {
@@ -3217,14 +4477,17 @@ export default class PersonaHost extends TypertRemoteService {
         return { events: [], nextSeq: request.afterSeq }
       }
     }
+    this.teamCards.sync(request.projectId) // the plan and delivery cards reflect the Tasks as they are now
     const streamId = `${request.streamKind}:${request.ownerId}`
     try {
       const page = request.topicId === undefined || request.topicId === ''
         ? this.events.list(streamId, { id: actor.id }, request.afterSeq, request.limit)
         : this.events.listTopic(streamId, { id: actor.id }, request.topicId, request.afterSeq, request.limit)
-      return { events: page.events.map(event => this.viewMessage(event)), nextSeq: page.nextSeq }
-    } catch {
-      return { events: [], nextSeq: request.afterSeq }
+      return { events: page.events.filter(event => this.shownInThread(event)).map(event => this.viewMessage(event)), nextSeq: page.nextSeq }
+    } catch (error) {
+      // Only “you may not read it” and “there is no such conversation” are an empty page (so nothing leaks); any other failure is a real one.
+      if (error instanceof StoreError && (error.code === 'forbidden' || error.code === 'not-found')) return { events: [], nextSeq: request.afterSeq }
+      throw error
     }
   }
 
@@ -3240,19 +4503,20 @@ export default class PersonaHost extends TypertRemoteService {
     const streamId = `${request.streamKind}:${request.ownerId}`
     const queue: Array<{ view: MessageView; changed: boolean }> = []
     const disposeAppends = this.events.subscribe((event) => {
-      if (event.streamId !== streamId) return
+      if (event.streamId !== streamId || !this.shownInThread(event)) return
       queue.push({ view: this.viewMessage(event), changed: false })
     })
     // A reply that is being written grows in place: its changes are re-sent as upserts of the same id.
     const disposeChanges = this.events.subscribeChanges((event) => {
-      if (event.streamId !== streamId) return
+      if (event.streamId !== streamId || !this.shownInThread(event)) return
       queue.push({ view: this.viewMessage(event), changed: true })
     })
     const dispose = (): void => { disposeAppends(); disposeChanges() }
     try {
+      this.teamCards.sync(request.projectId)
       const actor = this.actorOf(request.workspaceId)
       const page = this.events.list(streamId, { id: actor?.id ?? '' }, request.afterSeq, request.limit)
-      const events = page.events.map(event => this.viewMessage(event))
+      const events = page.events.filter(event => this.shownInThread(event)).map(event => this.viewMessage(event))
       const seen = new Set(events.map(item => item.id))
       yield { kind: 'baseline', events, order: events.map(item => item.id) }
       while (!signal.aborted) {
@@ -3688,17 +4952,27 @@ export default class PersonaHost extends TypertRemoteService {
    * person's own message in the conversation the question was asked in (files bound to it), the ticket receives the text with
    * the file names, the files are copied next to the worker, and the worker wakes and reads it. Answering twice is refused
    * (`conflict`) — one answer per question, and the first one stays.
-   * @param request - Ticket, text and optional `attachFile` ids (uploaded to the conversation the question was asked in).
-   * @returns true when the question is cleared.
+   * On a structured question (chips, “Pergunta n de m”) the person may also choose `optionIds`; the chips are checked against the
+   * OPEN question before anything is posted. In a sequence the next question opens and the worker keeps waiting.
+   * @param request - Ticket, text, optional chips and optional `attachFile` ids (uploaded to the conversation the question was asked in).
+   * @returns true when the Ticket no longer waits on the person (the worker wakes); false when a sequence opened its next question.
    */
   @Remote
   answerAttention(request: AttentionReplyRequest): boolean {
     this.requireWrite(request)
-    const answer = checkAttentionAnswer(request.text, request.attachmentIds)
+    const answer = checkAttentionAnswer(request.text, request.attachmentIds, request.optionIds)
     const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
     if (ticket === undefined) throw new HostRemoteFault('not-found', 'Tarefa não encontrada neste projeto.')
     const question = ticket.attention
     if (question === undefined) throw new HostRemoteFault('conflict', 'Essa pergunta já foi respondida.')
+    try {
+      checkAskAnswer(question, { text: answer.text, optionIds: answer.optionIds })
+    } catch (error: unknown) {
+      if (error instanceof AskError) throw new HostRemoteFault('invalid-payload', error.message)
+      throw error
+    }
+    const chosen = answer.optionIds.map(id => question.ask?.options?.find(option => option.id === id)?.label ?? id).join(', ')
+    const spoken = chosen === '' ? answer.text : answer.text === '' ? chosen : `${chosen} — ${answer.text}`
     const where = this.orchestration.conversationOfTicket(request.projectId, ticket.id)
     const owner = this.actorOf(request.workspaceId) ?? this.product.listMembers(request.workspaceId).find(row => row.role === 'owner')
     if (where === undefined || owner === undefined) throw new HostRemoteFault('forbidden', 'forbidden')
@@ -3720,14 +4994,27 @@ export default class PersonaHost extends TypertRemoteService {
         streamKind: where.streamKind,
         ownerId: where.ownerId,
         type: 'message',
-        body: answer.text,
+        body: spoken,
         actorId: owner.id,
         subjectId: where.subjectId,
         occurredAt: this.orchestration.now(),
         ...(where.topicId === '' ? {} : { topicId: where.topicId }),
       })
     }
-    return this.orchestration.deliverAttentionAnswer(request.projectId, ticket.id, answer.text, messageId)
+    return this.orchestration.deliverAttentionAnswer(request.projectId, ticket.id, answer.text, messageId, answer.optionIds)
+  }
+
+  /**
+   * The structured questions personas asked (chips, “Pergunta n de m”) with their live state: `open`, `answered` (the card is
+   * read-only and shows the chosen chips) or `cancelled` (the task ended without an answer).
+   * @param request - Tenant and, optionally, one Ticket.
+   * @returns Questions, oldest first.
+   */
+  @Remote
+  listPersonaAsks(request: ListPersonaAsksRequest): PersonaAskView[] {
+    this.requireProject(request)
+    if (request.ticketId !== undefined && typeof request.ticketId !== 'string') throw new HostRemoteFault('invalid-payload', 'Tarefa inválida.')
+    return this.personaAsks.list(request.projectId, request.ticketId)
   }
 
   /**
@@ -4199,7 +5486,7 @@ export default class PersonaHost extends TypertRemoteService {
       this.ledger.list({ projectId: request.projectId, ...(windowStart === undefined ? {} : { from: windowStart }) }),
       { engine: cli, ...(account === undefined || account === '' ? {} : { accountId: account }), now },
     )
-    return estimateAskFor({
+    const base = estimateAskFor({
       texto: request.texto,
       ...(persona === undefined ? {} : {
         persona: { id: persona.id, name: persona.name, title: persona.title, personality: persona.personality, instructions: persona.instructions },
@@ -4211,7 +5498,83 @@ export default class PersonaHost extends TypertRemoteService {
       },
       host: { skipTriage: this.orchestration.skipTriage, courtesyNoModel: this.orchestration.courtesyNoModel },
       ...(calibracao === undefined ? {} : { calibracao }),
+      // D-092: the kind of account decides whether the person sees the impact on the quota window or (API only) US$.
+      conta: accountForEstimate({
+        ...(spec === undefined ? {} : { specKind: spec.kind }), cli, ...(logged === undefined ? {} : { loggedCli: logged }),
+        env: process.env, quotas: this.usage.listQuota(request.projectId), ...(account === undefined ? {} : { accountId: account }),
+        ledger: this.ledger.list({ projectId: request.projectId, ...(windowStart === undefined ? {} : { from: windowStart }) }),
+      }),
     })
+    return this.withFanoutEstimate(request, base)
+  }
+
+  /**
+   * CV-8 “Tentar de novo”: repeat ONE persona of a block whose line says she could not answer. Her line is replaced in place when the
+   * turn ends. Only a `failed` line, only with the `fanout` flag, never for a paused persona or one at her limit, one attempt at a time.
+   * @param request - The person's message that opened the block and the persona.
+   * @returns Whether it started, or why not.
+   */
+  @Remote
+  retryFanoutReply(request: RetryFanoutReplyRequest): RetryFanoutReplyView {
+    this.requireWrite(request)
+    if (!this.orchestration.fanoutEnabled) return { started: false, reason: 'disabled' }
+    const event = this.events.get(request.messageId)
+    const persona = this.product.getPersona(request.personaId)
+    const line = this.messageFlags.of(request.projectId, `coord-${request.messageId}-fan-${request.personaId}`).fanout
+    if (event === undefined || event.projectId !== request.projectId || persona === undefined || persona.projectId !== request.projectId || line === undefined) {
+      return { started: false, reason: 'not-found' }
+    }
+    if (line.kind !== 'failed') return { started: false, reason: 'not-failed' }
+    const actor = this.actorOf(request.workspaceId)
+    if (actor !== undefined) this.assertCanAddress(request.workspaceId, persona.id, actor.id)
+    const gate = this.orchestration.fanoutGateOf(request.projectId, persona)
+    if (gate.paused) return { started: false, reason: 'paused' }
+    if (gate.limited) return { started: false, reason: 'limit' }
+    const collaborating = this.orchestration.runtime(request.projectId).repo.tickets.list().find(ticket => ticket.origin.triggerId === event.id
+      && collaboratorViews(this.screens.screens, request.projectId, ticket.id, id => this.product.getPersona(id)?.name).some(item => item.personaId === persona.id))
+    const lead = collaborating?.execution?.name
+    const prompt = collaborating !== undefined && lead !== undefined
+      ? collaboratorPrompt(collaborating.title, lead, event.body)
+      : fanoutPrompt(event.body, line.total, line.source)
+    return this.fanout.retry({ event, persona, line, prompt }) ? { started: true } : { started: false, reason: 'running' }
+  }
+
+  /**
+   * CV-8: who a block would ask, for the channel `ownerId`: the team of the channel that this person may address (a persona the sender
+   * cannot address is left out: it must not be woken by a message to "everyone").
+   * @param workspaceId - Workspace.
+   * @param projectId - Tenant.
+   * @param channelId - The channel.
+   * @param actorId - The sender, when known.
+   */
+  private fanoutAudience(workspaceId: string, projectId: string, channelId: string, actorId: string | undefined): StoredPersona[] {
+    return this.teamOf(projectId, channelId).filter((persona) => {
+      if (actorId === undefined) return true
+      try {
+        this.assertCanAddress(workspaceId, persona.id, actorId)
+        return true
+      } catch {
+        return false
+      }
+    })
+  }
+
+  /** CV-8: the numbers of the whole block for `estimateAsk`, when the ask goes to several personas (nothing is called, nothing is written). */
+  private withFanoutEstimate(request: EstimateAskRequest, base: EstimateAskView): EstimateAskView {
+    if (!this.orchestration.fanoutEnabled || request.streamKind !== 'channel') return base
+    const cited = mentionsOf(this.product.listPersonas(request.projectId), request.texto)
+    let source: FanoutSource | undefined
+    let audience: StoredPersona[] = []
+    if (request.audience !== undefined) {
+      source = request.audience
+      audience = this.teamOf(request.projectId, request.ownerId)
+    } else if (cited.length >= 2) {
+      source = 'mentions'
+      audience = wantsWork(request.texto) ? cited.slice(1) : cited // a Task's first named persona leads it (the normal send); the others are collaborators
+    }
+    if (source === undefined || audience.length === 0) return base
+    const counts = countFanout(planFanout(audience, persona => this.orchestration.fanoutGateOf(request.projectId, persona)))
+    return { ...base, fanout: { source, ...counts, chamadas: fanoutCalls(counts, source) } }
   }
 
   /**
@@ -4264,17 +5627,21 @@ export default class PersonaHost extends TypertRemoteService {
       const executor = this.product.listPersonas(projectId).find(persona => !persona.systemRoles.includes('coordination'))
         ?? this.product.listPersonas(projectId).find(persona => persona.systemRoles.includes('coordination'))
       if (executor === undefined) return
+      const coordination = this.product.listPersonas(projectId).find(persona => persona.systemRoles.includes('coordination'))
+      // LEAK-1: the person sees ONE short human line in their own name (their own words when they wrote the request); the
+      // instructions the worker runs on (answer-only, no tools, the brief as data) travel in the host-owned route, invisible.
+      const assignment = firstRequest === '' ? firstDeliveryAsk({ companyBrief: brief }) : firstRequestAsk(firstRequest, brief)
       this.appendMessage({
         id: FIRST_DELIVERY_EVENT_ID,
         workspaceId: request.workspaceId,
         projectId,
         streamKind: 'channel',
         ownerId: 'geral',
-        body: firstRequest === '' ? firstDeliveryAsk({ companyBrief: brief }) : firstRequestAsk(firstRequest, brief),
+        body: firstRequest === '' ? firstDeliveryVisibleLine(coordination?.name) : firstRequest,
         actorId: owner.id,
         subjectId: 'first-delivery',
         occurredAt: this.orchestration.now(),
-      }, { executorId: executor.id, title: 'Primeira entrega' })
+      }, { executorId: executor.id, title: 'Primeira entrega', assignment })
     }
     this.markFirstDeliveryWorking(projectId)
   }
@@ -4310,6 +5677,20 @@ export default class PersonaHost extends TypertRemoteService {
     if (current.status === 'ready') return
     const ticket = this.firstDeliveryTicket(request.projectId)
     const who = this.firstDeliveryActor(request.projectId, ticket?.execution?.name ?? current.personaName)
+    // DET-1: the ask is kept and waits for an engine that is still being detected. That is a wait, not a failure: stay `working`
+    // (the typed `no_engine_ready` line is already on #geral); the delivery runs and is sealed when the engine is ready.
+    if (force !== 'failed' && ticket === undefined && this.firstDeliveryWaitsForEngine(request.projectId)) {
+      this.persistFirstDelivery(request.projectId, {
+        status: 'working',
+        eventId: FIRST_DELIVERY_EVENT_ID,
+        ticketId: current.ticketId,
+        title: current.title,
+        personaId: who.id,
+        personaName: who.name,
+        feedEventId: current.feedEventId,
+      })
+      return
+    }
     if (force === 'failed' || ticket === undefined) {
       this.persistFirstDelivery(request.projectId, {
         status: 'failed',
@@ -4359,6 +5740,15 @@ export default class PersonaHost extends TypertRemoteService {
       personaName: who.name,
       feedEventId: FIRST_DELIVERY_MILESTONE_EVENT_ID,
     })
+  }
+
+  /**
+   * The first-delivery ask is retained by the engine because no engine was ready when it was sent (FR-3).
+   * @param projectId - Tenant.
+   */
+  firstDeliveryWaitsForEngine(projectId: string): boolean {
+    return this.orchestration.runtime(projectId).engine.pendingEngineTriggers()
+      .some(trigger => trigger.id === FIRST_DELIVERY_EVENT_ID)
   }
 
   /**
@@ -4803,7 +6193,7 @@ export default class PersonaHost extends TypertRemoteService {
     if (row === undefined) throw new Error('not-found')
     if (row.projectId !== request.projectId || row.workspaceId !== request.workspaceId) throw new Error('forbidden')
     this.teach.putDraft(request.sessionId, row.transcript, JSON.stringify({
-      title: 'Skill ensinada',
+      title: skillTitleOf(request.skillTitle),
       steps: request.steps,
       activate: false,
     }))
@@ -5293,6 +6683,7 @@ export default class PersonaHost extends TypertRemoteService {
     const actor = this.actorOf(request.workspaceId)
     if (actor === undefined) return []
     return this.events.search(request.projectId, { id: actor.id }, request.query, request.limit, request.topicId)
+      .filter(event => this.shownInThread(event))
       .map(event => this.viewMessage(event))
   }
 
@@ -5389,6 +6780,7 @@ export default class PersonaHost extends TypertRemoteService {
   updateRoutine(request: UpdateRoutineRequest): RoutineView {
     this.requireWrite(request)
     const current = requireRoutineIn(this.routines, request.projectId, request.id)
+    if (current.id.startsWith(MORNING_ROUTINE_PREFIX)) throw new HostRemoteFault('invalid-payload', 'Esta rotina é da própria equipe: dá para pausar, mas não para mudar.')
     const spec = readRoutineSpec(this.screens.screens, request.projectId, current.id)
     const nextSpec = {
       prompt: request.prompt === undefined ? spec.prompt : checkRoutinePrompt(request.prompt),
@@ -5421,7 +6813,7 @@ export default class PersonaHost extends TypertRemoteService {
   deleteRoutine(request: DeleteRoutineRequest): boolean {
     this.requireWrite(request)
     const current = requireRoutineIn(this.routines, request.projectId, request.id)
-    if (current.id.startsWith(INITIATIVE_ROUTINE_PREFIX)) {
+    if (current.id.startsWith(INITIATIVE_ROUTINE_PREFIX) || current.id.startsWith(MORNING_ROUTINE_PREFIX)) {
       throw new HostRemoteFault('invalid-payload', 'Esta rotina é da própria equipe e não pode ser apagada. Pause-a se não quiser que rode.')
     }
     this.routines.delete(current.id)
@@ -5644,6 +7036,8 @@ export default class PersonaHost extends TypertRemoteService {
       store: this.store,
       lastErrors: [...this.lastErrors, ...this.orchestration.lastErrors],
       scheduler: this.scheduler,
+      flags: this.hostFlags,
+      menus: this.connections.menuSources(),
     }))
     return { json }
   }
@@ -5670,9 +7064,12 @@ export default class PersonaHost extends TypertRemoteService {
   async reviewSummary(request: ReviewTicketRequest): Promise<ReviewSummaryView> {
     this.requireProject(request)
     const sum = await this.orchestration.reviewSummary(request.projectId, request.ticketId)
+    // P0-1: a picture the persona saved in the draft is SEEN in Revisar (bounded data addresses, confined to the draft and to the folder): see review-images.ts.
+    const draft = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)?.execution?.directory
+    const folder = this.product.getProject(request.projectId)?.rootPath ?? undefined
     return {
       ticketId: sum.ticketId,
-      files: sum.files,
+      files: sum.files.map(file => withReviewImages(file, draft, folder)),
       added: sum.added,
       deleted: sum.deleted,
       patch: sum.patch,
@@ -6033,6 +7430,11 @@ export default class PersonaHost extends TypertRemoteService {
     return events.filter(item => !acked.has(item.id))
   }
 
+  private coordinationAuthor(projectId: string): { actorId: string } | Record<string, never> {
+    const coordination = this.product.listPersonas(projectId).find(persona => persona.systemRoles.includes('coordination'))
+    return coordination === undefined ? {} : { actorId: coordination.id }
+  }
+
   private viewMessage(event: {
     id: string
     streamId: string
@@ -6051,9 +7453,19 @@ export default class PersonaHost extends TypertRemoteService {
     const flags = event.projectId === undefined ? {} : this.messageFlags.of(event.projectId, event.id)
     return {
       ...toMessageView(event),
+      // An older base holds lines written with no speaker (the literal "coordination"): the thread shows the Coordination persona, never an id nobody can name.
+      ...(event.actorId !== 'coordination' || event.projectId === undefined ? {} : this.coordinationAuthor(event.projectId)),
       ...(flags.steeredPersonaId === undefined ? {} : { steeredPersonaId: flags.steeredPersonaId }),
       ...(flags.stopped === true ? { stopped: true as const } : {}),
       ...(flags.stoppedTicketId === undefined ? {} : { stoppedTicketId: flags.stoppedTicketId }),
+      ...(flags.taskWith === undefined ? {} : { taskWith: flags.taskWith }),
+      ...(event.projectId === undefined ? {} : this.briefOf(event.projectId, event.id)),
+      ...(event.projectId === undefined ? {} : this.cardsOf(event.projectId, event.id)),
+      ...(flags.harness === undefined ? {} : { harness: flags.harness }),
+      ...(flags.fanout === undefined ? {} : { fanout: flags.fanout }),
+      ...(flags.opinion === undefined || !this.teamworkEnabled ? {} : { opinion: flags.opinion }),
+      ...(flags.stateLine === undefined || !this.teamworkEnabled ? {} : { stateLine: flags.stateLine }),
+      ...(flags.filesSaved === undefined || !this.teamworkEnabled ? {} : { filesSaved: flags.filesSaved }),
       attachmentIds: this.media.listByMessage(event.id).map(row => row.id),
       replyToId: event.replyToId ?? '',
       editedAt: event.editedAt ?? '',
@@ -6192,16 +7604,18 @@ export default class PersonaHost extends TypertRemoteService {
     const existing = this.product.listChannels(projectId)
     const preferred = existing.find(channel => channel.id === `geral:${projectId}`)
       ?? existing.find(channel => channel.name === 'geral')
+      ?? existing.find(channel => this.channelRepos.get(channel.id)?.kind === 'general')
       ?? existing[0]
     if (preferred !== undefined) {
       return { projectId, channelId: preferred.id, name: preferred.name }
     }
-    const created = this.product.createChannel({
+    const created = this.channelRepos.create({
       id: `geral:${projectId}`,
       workspaceId,
       projectId,
       name: 'geral',
       topic: '',
+      kind: 'general', // CV-6: the automatic #geral is never archived or renamed
     })
     return { projectId, channelId: created.id, name: created.name }
   }
@@ -6552,6 +7966,15 @@ function toPersonaView(persona: {
   }
 }
 
+/** A question in one line of at most 120 characters, cut at a word (never in the middle of one). */
+function shortQuestion(question: string): string {
+  const flat = question.replace(/\s+/gu, ' ').trim()
+  if (flat.length <= 120) return flat
+  const cut = flat.slice(0, 119)
+  const space = cut.lastIndexOf(' ')
+  return `${(space > 0 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/u, '')}…`
+}
+
 function toMessageView(event: {
   id: string
   streamId: string
@@ -6569,6 +7992,9 @@ function toMessageView(event: {
   const accountSwap = accountSwapFromBody(event.body)
   const accountAsk = accountAskFromBody(event.body)
   const taskProposal = taskProposalFromBody(event.body)
+  const personaAsk = personaAskFromBody(event.body)
+  const handoff = type === 'handoff' ? handoffFromBody(event.body) : undefined
+  const review = type === 'review' ? reviewFromBody(event.body) : undefined
   return {
     id: event.id,
     streamId: event.streamId,
@@ -6591,6 +8017,9 @@ function toMessageView(event: {
     ...(accountSwap === undefined ? {} : { accountSwap }),
     ...(accountAsk === undefined ? {} : { accountAsk }),
     ...(taskProposal === undefined ? {} : { taskProposal }),
+    ...(personaAsk === undefined ? {} : { personaAsk }),
+    ...(handoff === undefined ? {} : { handoff }),
+    ...(review === undefined ? {} : { review }),
   }
 }
 
@@ -6668,6 +8097,20 @@ function decodeBase64(raw: string): Uint8Array {
 function handleOf(name: string): string {
   const slug = name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')
   return slug === '' ? 'persona' : slug
+}
+
+/** W2-10: the name the person chose for a taught skill (1–80 letters, trimmed, one line); without one, the default of today. */
+function skillTitleOf(value: string | undefined): string {
+  const title = (value ?? '').replace(/\p{Cc}/gu, ' ').replace(/\s+/gu, ' ').trim()
+  if (title === '') return 'Skill ensinada'
+  if (Array.from(title).length > 80) throw new HostRemoteFault('invalid-payload', 'O nome da habilidade pode ter até 80 letras.')
+  return title
+}
+
+/** EFF-1: a level typed by a client must be one the host stores. */
+function effortOf(value: string): 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra' {
+  if (isEffortLevel(value)) return value
+  throw new HostRemoteFault('invalid-payload', 'Escolha um dos níveis de esforço que o motor oferece.')
 }
 
 function asCli(value: string): 'claude' | 'codex' | 'cursor' | 'opencode' {

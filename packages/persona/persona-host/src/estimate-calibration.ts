@@ -11,6 +11,7 @@
  */
 
 import type { TurnKind, TurnLedgerEntry } from '@deepseek-ai/dsh-persona-core'
+import { ledgerInputTotal } from './ledger-input.ts'
 
 /** Fewest measured turns of one kind before the host says anything about it. */
 export const MIN_CALIBRATION_SAMPLES = 5
@@ -136,7 +137,7 @@ export function calibrationFromLedger(
     let tokenRows = 0
     let timedRows = 0
     if (newest.length >= MIN_CALIBRATION_SAMPLES) {
-      const input = summary(newest.map(row => row.inputTokens + row.cacheReadTokens + row.cacheWriteTokens))
+      const input = summary(newest.map(ledgerInputTotal))
       const output = summary(newest.map(row => row.outputTokens))
       tokens[kind] = {
         input: { min: roundTokens(input.range.min), max: roundTokens(input.range.max) },

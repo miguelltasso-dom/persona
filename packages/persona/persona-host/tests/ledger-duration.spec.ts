@@ -23,7 +23,7 @@ function seed(h: PersonaHost): void {
   h.sessionMemberId = 'ana'
 }
 
-function work(h: PersonaHost, durationMs: number | undefined): void {
+function work(h: PersonaHost, durationMs: number | undefined, envMode?: 'native' | 'answer-only' | 'needed'): void {
   h.orchestration.runnerFactory = async (request) => {
     const runner = createFakeRunner()
     return {
@@ -35,6 +35,7 @@ function work(h: PersonaHost, durationMs: number | undefined): void {
           inputTokens: 40, outputTokens: 10, cacheReadTokens: 30, cacheWriteTokens: 2,
           at: '2026-11-04T12:00:00.000Z', origin: 'measured',
           ...(durationMs === undefined ? {} : { durationMs }),
+          ...(envMode === undefined ? {} : { envMode }),
         })
       },
     }
@@ -44,12 +45,12 @@ function work(h: PersonaHost, durationMs: number | undefined): void {
 it('the measured wall time of a turn is stored with it, and read back by the calibration', async () => {
   const h = host()
   seed(h)
-  work(h, 4_200)
+  work(h, 4_200, 'needed')
   h.postMessage({ id: 'm1', ...scope, streamKind: 'channel', ownerId: 'geral', body: 'preciso de um README no projeto', actorId: 'ana', subjectId: 't1' })
   await h.orchestration.flush('pp')
   const rows = h.ledger.list({ projectId: 'pp' }).filter(row => row.kind === 'execution')
   expect(rows).toHaveLength(1)
-  expect(rows[0]).toMatchObject({ engine: 'claude', inputTokens: 40, outputTokens: 10, durationMs: 4_200 })
+  expect(rows[0]).toMatchObject({ engine: 'claude', inputTokens: 40, outputTokens: 10, durationMs: 4_200, envMode: 'needed' }) // D-085: the mode comes along
 })
 
 it('a runner that did not measure the time leaves the turn without one', async () => {
@@ -61,4 +62,5 @@ it('a runner that did not measure the time leaves the turn without one', async (
   const rows = h.ledger.list({ projectId: 'pp' }).filter(row => row.kind === 'execution')
   expect(rows).toHaveLength(1)
   expect(rows[0]).not.toHaveProperty('durationMs')
+  expect(rows[0]).not.toHaveProperty('envMode') // not reported ⇒ absent, never a default
 })

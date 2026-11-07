@@ -37,6 +37,7 @@ import type {
   ScreenRepos,
   StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
+import { MORNING_ROUTINE_PREFIX } from './morning-brief-host.ts'
 import type { ProactivityHost } from './proactivity.ts'
 import { inSilence } from './proactivity.ts'
 import { nextOccurrence, occurrencesBetween, RruleError, zonedParts } from './rrule-lite.ts'
@@ -130,6 +131,8 @@ export interface SchedulerDeps {
   flushQueues?(projectId: string): number
   /** Hand back requests the pre-router held (silence, full project) once the gate is open. Returns how many. */
   releaseHeld?(projectId: string): number
+  /** TEAM-7: the morning card of the Coordenação when it is time (no model; it runs even when no engine is connected). */
+  morningBrief?(projectId: string): void
   /** Re-measure the draft of a running ticket (SW-7 “Num rascunho · N arquivos”). Failures are not fatal. */
   refreshDraft?(projectId: string, ticketId: string): Promise<void>
   /** Tokens a persona spent since `fromIso` (0 when unmetered). */
@@ -383,6 +386,7 @@ export class ProactivityScheduler {
       return report(projectId, 'resting')
     }
     deps.proactivity.ensureAllInitiativeRoutines(projectId)
+    deps.morningBrief?.(projectId)
     if (!deps.engineReady()) {
       this.states.set(projectId, 'no_engine')
       this.note(projectId, 'no_engine', nowIso)
@@ -532,6 +536,8 @@ export class ProactivityScheduler {
 
   private runCustom(workspaceId: string, projectId: string, routine: Routine, run: RoutineRun, nowIso: string): 'model' | 'done' | 'skipped' {
     const { deps } = this
+    // TEAM-7: "Resumo da manhã" is the team's own ritual: the card is posted by `morningBrief` (deterministic, no model), never as a Task.
+    if (routine.id.startsWith(MORNING_ROUTINE_PREFIX)) return 'done'
     const spec = deps.screens.get<RoutineSpecDoc>(projectId, ROUTINE_SPEC_KIND, routine.id)
     const charge = deps.chargeOf?.(workspaceId, routine.id)
     // No named owner ⇒ the Coordenação decides (Muse/Ember, IV-9).

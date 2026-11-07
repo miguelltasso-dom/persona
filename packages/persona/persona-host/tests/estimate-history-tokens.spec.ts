@@ -28,12 +28,12 @@ function seed(h: PersonaHost): void {
   h.createChannel({ id: 'geral', ...SCOPE, name: 'geral', topic: '' })
 }
 
-/** `count` measured turns of one kind: input = fresh + cache read + cache write, all counted by the Remote. */
+/** `count` measured turns of one kind: `input` is the TOTAL input of the call (the ledger's `inputTokens`); the cache read and written are PARTS of it (4 tokens uncached), as the OAR adapter books them. */
 function record(h: PersonaHost, kind: TurnKind, count: number, input: number, output: number, withTime = true): void {
   for (let index = 0; index < count; index += 1) {
     const row: TurnLedgerEntry = {
       id: `${kind}${String(index)}`, personaId: 'atlas', engine: 'claude', kind,
-      inputTokens: 1_000 + index, outputTokens: output + index, cacheReadTokens: input - 1_000 - 4_000, cacheWriteTokens: 4_000,
+      inputTokens: input + index, outputTokens: output + index, cacheReadTokens: input - 4_000 - 4, cacheWriteTokens: 4_000,
       layers: EMPTY_LAYERS, at: ago((index + 1) * 60_000), origin: 'measured',
       ...(withTime ? { durationMs: (kind === 'execution' ? 60_000 : 8_000) + index * 1_000 } : {}),
     }

@@ -132,7 +132,8 @@ it('posts, pages and searches messages with DM ACL', () => {
     afterSeq: 0,
     limit: 50,
   })
-  expect(page.events.map(item => item.id)).toEqual(['m1'])
+  // D-079: a channel with NOBODY on the team still answers the person once, honestly (this test has no persona on purpose).
+  expect(page.events.map(item => item.id)).toEqual(['m1', 'coord-m1-ignored'])
   h.sessionMemberId = 'cia'
   expect(h.search({
     workspaceId: 'ws', projectId: 'pp', actorId: 'cia', query: 'token-xyz', limit: 50,
@@ -159,7 +160,8 @@ it('followMessages re-sends a message as an upsert when a persona reacts to it o
     workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 50,
   }, abort.signal)[Symbol.asyncIterator]()
   const baseline = await stream.next()
-  expect(baseline.value).toMatchObject({ kind: 'baseline', order: ['m1'] })
+  // D-079: a channel with NOBODY on the team still answers the person once, honestly (this test has no persona on purpose).
+  expect(baseline.value).toMatchObject({ kind: 'baseline', order: ['m1', 'coord-m1-ignored'] })
   // Not a request: the host's own code (the persona's courtesy reaction) writes straight to the log.
   h.events.addReaction({ eventId: 'm1', actorId: 'p1', stickerId: 'heart', projectId: 'pp' })
   const upsert = await stream.next()
@@ -198,7 +200,8 @@ it('followMessages yields a baseline then an upsert', async () => {
     limit: 50,
   }, abort.signal)[Symbol.asyncIterator]()
   const baseline = await stream.next()
-  expect(baseline.value).toMatchObject({ kind: 'baseline', order: ['m1'] })
+  // D-079: a channel with NOBODY on the team still answers the person once, honestly (this test has no persona on purpose).
+  expect(baseline.value).toMatchObject({ kind: 'baseline', order: ['m1', 'coord-m1-ignored'] })
   h.postMessage({
     id: 'm2',
     workspaceId: 'ws',

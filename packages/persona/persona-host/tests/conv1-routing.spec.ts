@@ -7,7 +7,7 @@
  */
 import type { Runner, Ticket } from '@deepseek-ai/dsh-persona-engine'
 import { latestAssignment } from '@deepseek-ai/dsh-persona-engine'
-import { expect, it as vitestIt } from 'vitest'
+import { expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
 import { doneEventId } from '../src/ticket-done.ts'
 import { bindHostFile, it } from './host-harness.ts'
@@ -152,11 +152,9 @@ it('a request sent while paused is held, starts exactly once after /retomar, and
   expect(tickets(h)).toHaveLength(1) // ...and does not start the same work a second time
 })
 
-// [BUG→Bolt] D-079 (aberto, esperado a falhar): uma mensagem que o Task em andamento ABSORVEU (`coord-<id>-absorbed`, entregue ao turno
-// aberto) também recebe uma resposta de CONVERSA (`coord-<id>-reply`, "Olá — em que posso ajudar?" no fake), depois das linhas de
-// absorção: duas respostas a uma instrução de trabalho e, com modelo real, uma chamada de conversa a mais por mensagem. Volta a `it`
-// quando só a linha de absorção sobrar.
-vitestIt.fails('an absorbed message is not ALSO answered as a chat message (one answer, not two)', async () => {
+// D-079 / CONV-2 (corrigido): uma mensagem que o Task em andamento ABSORVEU (`coord-<id>-absorbed`) não recebe também uma resposta de
+// CONVERSA. A causa era `recoverTalks` (varredura de recuperação) tratar toda mensagem sem `coord-<id>-reply` como resposta perdida.
+it('an absorbed message is not ALSO answered as a chat message (one answer, not two)', async () => {
   const h = host()
   seed(h)
   const log: string[] = []

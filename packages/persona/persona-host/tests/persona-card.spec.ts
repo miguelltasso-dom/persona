@@ -34,7 +34,7 @@ it('getPersonaCard defaults to workspace ACL, charge names, omitted quota, resti
   expect(card.nowKind).toBe('resting')
   expect(card.nowText).toBe('Descansando — nada na fila')
   expect(card.presence.online).toBe(true)
-  expect(card.engine).toEqual({ runnerLabel: 'claude', modelLabel: 'haiku' })
+  expect(card.engine).toEqual({ runnerLabel: 'claude', modelLabel: 'haiku', runnerModel: 'haiku', runnerEffort: null })
   expect(card.currentProjectName).toBe('Time')
   expect(card.ownerName).toBe('Ana')
   expect(card.substituteName).toBeUndefined()
@@ -156,7 +156,7 @@ it('pausePersona / resumePersona / setPersonaEngine require card editor and audi
   const engine = h.setPersonaEngine({
     ...scope, personaId: 'dev', runnerKind: 'dsh', runnerCli: '', runnerModel: 'sonnet',
   })
-  expect(engine.engine).toEqual({ runnerLabel: 'dsh', modelLabel: 'sonnet' })
+  expect(engine.engine).toEqual({ runnerLabel: 'dsh', modelLabel: 'sonnet', runnerModel: 'sonnet', runnerEffort: null }) // EFF-1: what the person chose
   h.sessionMemberId = 'bia'
   expect(() => h.pausePersona({ ...scope, personaId: 'dev' })).toThrow('forbidden')
   expect(() => h.setPersonaEngine({

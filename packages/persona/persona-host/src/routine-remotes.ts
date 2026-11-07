@@ -7,6 +7,7 @@
  */
 
 import type { ProductRepos, Routine, RoutineRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
+import { MORNING_ROUTINE_PREFIX } from './morning-brief-host.ts'
 import { nextRoutineRun, ROUTINE_SPEC_KIND, type RoutineSpecDoc } from './proactivity-scheduler.ts'
 import { RemoteFault } from './remote-guard.ts'
 import { describeRrule, parseRrule, RruleError } from './rrule-lite.ts'
@@ -174,7 +175,7 @@ export function routineViewOf(routine: Routine, spec: { readonly prompt: string;
     ...(spec.ownerPersonaId === '' ? {} : { ownerPersonaId: spec.ownerPersonaId }),
     humanSchedule: describeRrule(routine.rrule),
     nextRunAt: next === undefined ? '' : new Date(next).toISOString(),
-    ...(routine.id.startsWith(INITIATIVE_ROUTINE_PREFIX) ? { system: true as const } : {}),
+    ...(routine.id.startsWith(INITIATIVE_ROUTINE_PREFIX) || routine.id.startsWith(MORNING_ROUTINE_PREFIX) ? { system: true as const } : {}),
   }
 }
 

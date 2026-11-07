@@ -15,6 +15,7 @@ import {
   effectiveToolLevel,
   resolveRunner,
   RunnerResolveError,
+  type PermissionGate,
   type PersonaRunnerSpec,
   type NormalizedReport,
   type RunEvent,
@@ -22,6 +23,7 @@ import {
   type TurnRunner,
   type UsageMeterSink,
 } from '@deepseek-ai/dsh-persona-runners'
+import type { ProductToolsOpener } from './harness-turn.ts'
 import type { AutonomyMode } from './types.ts'
 
 /** Why this runner is opening. Talk has no tools; task runs in a worktree. */
@@ -29,6 +31,20 @@ export type RunnerPurpose = 'talk' | 'task'
 
 /** CLI/DSH permission. Never inline a comment inside this union (Typert). */
 export type HostPermissionMode = 'prompt' | 'allow-once' | 'deny'
+
+/** One connector of the person's CLI granted to the persona (ISO-2). Sorted by `(cli, id)` by whoever builds the list. */
+export interface HostConnectorGrant {
+  readonly cli: string
+  readonly id: string
+  /** How far THIS Task may go. */
+  readonly access: 'read' | 'write'
+  /** Why it is authorized: the person's request or "desta vez" (that Task only), or a permanent permission. */
+  readonly basis: 'request' | 'once' | 'permanent'
+  /** Classes the runner lets through at launch without asking; anything else the CLI asks for and the turn ends `blocked`. Pay and delete are in only when explicitly waived. */
+  readonly preAllow: readonly ('read' | 'change' | 'send' | 'pay' | 'delete')[]
+  /** After the person approved: this tool, ONCE, only with these arguments (the runner checks the hash of the real call). */
+  readonly approved?: readonly { readonly tool: string; readonly argsHash: string }[]
+}
 
 /** Spec + host-derived permission for one persona. */
 export interface HostRunnerRequest {
@@ -40,6 +56,12 @@ export interface HostRunnerRequest {
   readonly personId: string
   readonly usage?: UsageMeterSink
   readonly tools?: Readonly<Record<string, ToolLevel>>
+  /** Only a Task's execution on a CLI carries connectors; absent = the runner builds a config with no MCP at all (D-081). */
+  readonly connectors?: readonly HostConnectorGrant[]
+  /** HT-9: the gate the CLI's PreToolUse hook points at (Claude only). The host arms it before each turn and reads what it refused after (`action-bridge.ts`). */
+  readonly permissionGate?: PermissionGate
+  /** HT-0 (v1.1, OFF by default): opens the product tools of each turn of a Task (board, sprints, routines) on the turn lease. */
+  readonly productTools?: ProductToolsOpener
   readonly purpose?: RunnerPurpose
   readonly projectId?: string
   readonly personaName?: string
@@ -168,7 +190,7 @@ export type DetectedCli = 'claude' | 'codex' | 'opencode' | 'cursor'
  * @returns Rivet spec for {@link resolveHostRunner}.
  */
 export function specFromConnection(
-  runner: { kind: 'dsh' | 'cli'; model: string; cli?: string },
+  runner: { kind: 'dsh' | 'cli'; model: string; cli?: string | undefined; effort?: string | undefined },
   logged?: DetectedCli,
 ): PersonaRunnerSpec {
   const stored = specOfPersona(runner)
@@ -196,10 +218,11 @@ export function loggedCliFromCards(
  * Persona store runner → Rivet spec.
  * @param runner - Stored runner.
  */
-export function specOfPersona(runner: { kind: 'dsh' | 'cli'; model: string; cli?: string }): PersonaRunnerSpec {
+export function specOfPersona(runner: { kind: 'dsh' | 'cli'; model: string; cli?: string | undefined; effort?: string | undefined }): PersonaRunnerSpec {
   if (runner.kind === 'cli' && runner.cli !== undefined && runner.cli !== '') {
     if (runner.cli === 'claude' || runner.cli === 'codex' || runner.cli === 'opencode' || runner.cli === 'cursor') {
-      return { kind: 'cli', cli: runner.cli, model: runner.model }
+      // EFF-1: only what the person chose; without a choice the spec has no `effort` and the engine runs at its default.
+      return { kind: 'cli', cli: runner.cli, model: runner.model, ...(runner.effort === undefined ? {} : { effort: runner.effort }) }
     }
   }
   return { kind: 'dsh', model: runner.model === '' ? 'default' : runner.model }
@@ -232,6 +255,7 @@ export async function resolveHostRunner(
   }
   const home = request.home === undefined || request.home === '' ? undefined : request.home
   const tools = request.tools
+  const accountConnectors = request.spec.kind === 'cli' && request.spec.cli === 'claude' ? (request.connectors ?? []).filter(item => item.cli === 'claude').map(item => item.id) : []
   const turn = tapTurn(await resolve({
     spec: request.spec,
     permissionMode: request.permissionMode,
@@ -244,6 +268,9 @@ export async function resolveHostRunner(
     ...(home === undefined ? {} : { home }),
     ...(request.cwd === undefined ? {} : { cwd: request.cwd }),
     ...(request.usage === undefined ? {} : { usage: request.usage }),
+    // HT-8/9: the connectors of THIS Task (a Claude Task only) and the gate that guards their calls. Without a gate the runner loads them read-only.
+    ...(accountConnectors.length === 0 ? {} : { accountConnectors }),
+    ...(request.permissionGate === undefined ? {} : { permissionGate: request.permissionGate }),
   }), capture)
   const session = createOarSessionRunner({
     turn,
@@ -253,6 +280,9 @@ export async function resolveHostRunner(
     ...(request.purpose === undefined ? {} : { purpose: request.purpose }),
     ...(request.personaName === undefined ? {} : { personaName: request.personaName }),
     ...(request.personaTitle === undefined ? {} : { personaTitle: request.personaTitle }),
+    ...(request.productTools === undefined ? {} : {
+      toolsFor: turn => request.productTools?.({ personaId: turn.personaId, ticketId: turn.ticketId, assignmentId: turn.assignmentId, cwd: turn.cwd }),
+    }),
   })
   capture.onPartial = (text) => { partialSinks.get(session)?.(text) }
   captures.set(session, capture)
@@ -269,6 +299,8 @@ export interface TextCapture {
   /** Every cumulative piece of text of the turn (streaming into the thread); wired by {@link setRunnerPartialSink}. */
   onPartial?: (text: string) => void
   question?: string
+  /** The structured question the persona wrote (untrusted; the host reads it with `askInputOf`). */
+  ask?: unknown
 }
 
 const captures = new WeakMap<Runner, TextCapture>()
@@ -312,6 +344,14 @@ export function lastRunnerQuestion(runner: Runner): string | undefined {
 }
 
 /**
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @returns The structured question (chips, a sequence) the persona wrote in the latest turn, exactly as written (untrusted).
+ */
+export function lastRunnerAsk(runner: Runner): unknown {
+  return captures.get(runner)?.ask
+}
+
+/**
  * Last worker report, absent on session-only fake runners.
  * @param runner - Session runner returned by resolveHostRunner.
  * @returns The report from the most recent turn, or undefined before a report arrives.
@@ -336,6 +376,7 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
       capture.last = ''
       delete capture.firstAt
       delete capture.question
+      delete capture.ask
       delete capture.report
       delete capture.reportAt
     }
@@ -361,6 +402,7 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
       capture.reportAt = event.at
       const question = event.report.question
       if (typeof question === 'string' && question !== '') capture.question = question
+      if (event.report.ask !== undefined) capture.ask = event.report.ask
       if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '') {
         capture.last = event.report.summary
       }

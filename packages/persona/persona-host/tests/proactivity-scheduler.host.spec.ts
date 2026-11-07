@@ -135,7 +135,10 @@ it('a due routine becomes a real Ticket for its persona and is done in #geral', 
   expect(tickets[0]?.execution?.name).toBe('Iris')
   expect(tickets[0] === undefined ? undefined : latestAssignment(tickets[0])?.report?.state).toBe('ready')
   const lines = channelBodies(r.h)
-  expect(lines).toContain('@Iris Resuma o que a equipe entregou ontem.')
+  // EQUIPE-REAL §0 (R5): the routine's own request is a trigger for the engine, never a line of the thread (its author is `routine:…`);
+  // what the person sees is the persona taking it. The request itself is still stored: that is how the Task was made.
+  expect(lines).not.toContain('@Iris Resuma o que a equipe entregou ontem.')
+  expect(r.h.events.listProject('pp').some(event => event.body === '@Iris Resuma o que a equipe entregou ontem.' && event.actorId.startsWith('routine:'))).toBe(true)
   expect(lines.some(line => line.startsWith('Em andamento:'))).toBe(true)
   await r.scheduler.cycle()
   await r.settle()

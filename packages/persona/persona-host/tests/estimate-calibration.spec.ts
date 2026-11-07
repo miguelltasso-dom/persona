@@ -48,9 +48,12 @@ plain('the median and the P25..P75 range come from the person own measured turns
   expect(got?.mediana?.conversa).toBe(3)
   expect(got?.tokensPerCall?.conversa).toEqual({ input: { min: 101, max: 103 }, output: { min: 11, max: 13 } })
   expect(got?.samples?.conversa).toEqual({ tokens: 5, tempo: 5 })
-  // The measured input already carries the vendor base, and the cache reads/writes are input too.
+  // The measured input is the TOTAL (it already carries the vendor base and the cache read/written are PARTS of it): the cache is never counted twice.
   const cached = calibrationFromLedger(rows(5, { cacheReadTokens: 50, cacheWriteTokens: 20 }), scope)
-  expect(cached?.tokensPerCall?.conversa?.input).toEqual({ min: 171, max: 173 })
+  expect(cached?.tokensPerCall?.conversa?.input).toEqual({ min: 101, max: 103 })
+  // A row whose input is below its own cache comes from a source that books the uncached input alone: the cache is added (the guard).
+  const uncachedOnly = calibrationFromLedger(rows(5, { inputTokens: 30, cacheReadTokens: 50, cacheWriteTokens: 20 }), scope)
+  expect(uncachedOnly?.tokensPerCall?.conversa?.input).toEqual({ min: 100, max: 100 })
   // Each kind is its own statement: executions never borrow the time of conversations.
   const mixed = calibrationFromLedger([...rows(5), ...rows(5, { id: 'x', kind: 'execution', durationMs: 60_000 })], scope)
   expect(mixed?.secondsPerCall?.conversa).toEqual({ min: 2, max: 4 })

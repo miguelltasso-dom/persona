@@ -1,6 +1,8 @@
 /**
- * A-6: the first request of the onboarding is the person's own words. The host keeps it (≤ 500 characters, trimmed) and
- * uses that very text in the #geral message and in the first-delivery assignment; without it the fixed ask stays.
+ * A-6: the first request of the onboarding is the person's own words. The host keeps it (≤ 500 characters, trimmed). That very text
+ * is the ONLY thing the thread shows (LEAK-1); the instructions around it (answer-only, no tools, the company brief as data) form the
+ * first-delivery assignment, which lives in the host-owned route and never reaches a message. Without a request, a short human line
+ * stands in (`firstDeliveryVisibleLine`).
  * Suggestions come from what the person wrote about the business — never from facts the host invented.
  */
 
@@ -20,8 +22,8 @@ export function normalizeFirstRequest(raw: string | undefined): string {
 }
 
 /**
- * The #geral line and assignment for a first delivery that carries the person's own request. Same guard rails as the
- * default ask (answer-only, no tools, the company text is data), and the request is quoted as written.
+ * The ASSIGNMENT (internal instructions, never shown in the thread) of a first delivery that carries the person's own request. Same
+ * guard rails as the default ask (answer-only, no tools, the company text is data), and the request is quoted as written.
  * @param request - Normalized first request (non-empty).
  * @param companyBrief - Company text from the Cofre seed.
  */

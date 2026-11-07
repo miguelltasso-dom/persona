@@ -147,6 +147,28 @@ it('renames, archives, searches, and reports unread per subject', () => {
   expect(h.listConversationSubjects(stream).subjects.every(row => row.id !== created.activeSubjectId)).toBe(true)
 })
 
+it('W2-10: the name the person chose in the review card becomes the candidate\'s title; without one the default stays', async () => {
+  const h = host()
+  seed(h)
+  const taught = async (skillTitle?: string): Promise<{ skillTitle: string; name: string | undefined }> => {
+    const start = h.startTeachSession({ ...scope, personaId: 'nina', consentVersion: TEACH_CONSENT })
+    await h.stopTeachSession({
+      ...scope, sessionId: start.sessionId, includeMicrophone: false, transcript: 'Abra o catálogo e publique.',
+      frames: [{ atMs: 0, imageRef: 'file://local/f0.webp', changeScore: 1 }],
+    })
+    const draft = h.getTeachDraft({ ...scope, sessionId: start.sessionId })
+    const saved = h.submitTeachDraft({
+      ...scope, sessionId: start.sessionId, steps: draft.steps, activate: false,
+      ...(skillTitle === undefined ? {} : { skillTitle }),
+    })
+    return { skillTitle: saved.skillTitle, name: h.screens.listSkills(scope.projectId).find(row => row.id === saved.candidateSkillId)?.name }
+  }
+  expect(await taught('  Publicar produto   na loja ')).toEqual({ skillTitle: 'Publicar produto na loja', name: 'Publicar produto na loja' })
+  expect(await taught()).toEqual({ skillTitle: 'Skill ensinada', name: 'Skill ensinada' }) // no field: today's behavior
+  expect((await taught('   ')).skillTitle).toBe('Skill ensinada') // blank is "no name"
+  await expect(taught('a'.repeat(81))).rejects.toThrow(/80 letras/iu)
+})
+
 it('drafts a taught skill without enabling it', async () => {
   const h = host()
   seed(h)

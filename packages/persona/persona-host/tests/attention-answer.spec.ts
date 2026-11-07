@@ -96,7 +96,7 @@ it('a files-only answer gets a plain sentence; an empty answer is refused', asyn
   const h = openJourney()
   const { ticketId, attentionId } = await asked(h)
   expect(fault(() => h.answerAttention({ ...SCOPE, ticketId, text: '   ' })).code).toBe('invalid-payload')
-  expect(fault(() => h.answerAttention({ ...SCOPE, ticketId, text: '', attachmentIds: [] })).message).toMatch(/Escreva a resposta ou anexe/)
+  expect(fault(() => h.answerAttention({ ...SCOPE, ticketId, text: '', attachmentIds: [] })).message).toMatch(/Escreva a resposta, escolha uma opção ou anexe um arquivo/u)
   expect(h.orchestration.runtime(SCOPE.projectId).repo.tickets.get(ticketId)?.attention).toBeDefined() // still asking
   const fileId = upload(h, 'logo.txt', 'x')
   expect(h.answerAttention({ ...SCOPE, ticketId, text: '', attachmentIds: [fileId] })).toBe(true)

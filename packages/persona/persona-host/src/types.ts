@@ -57,6 +57,78 @@ export interface PersonaView {
   readonly avatarRef: string
   readonly systemRoles: readonly SystemRoleView[]
   readonly canRecruit: boolean
+  /** EFF-1: the engine, model and "Capricho" the person chose (Configurações › Personas); `null` = "Padrão do motor". */
+  readonly engine?: PersonaEngineChoiceView
+  /** HT-6: when the person retired her ("aposentada"); only on `listRetiredPersonas`. */
+  readonly retiredAt?: string
+  /** D-090: what the person decided about teamwork for this persona. Present only with `Config.teamwork`. */
+  readonly teamwork?: PersonaTeamworkView
+  /** HT-6: the person lets this persona hire WITHOUT the card in Aprovações. Only for a persona who may hire, and only with the product tools on. */
+  readonly hireDirect?: boolean
+  /** D-099: “Pode salvar arquivos no rascunho” — the persona saves files into the draft of the project's folder (never with a shell). The host always sends it. */
+  readonly canSaveFiles?: boolean
+  /** D-099: whether that can take effect now: the persona's project has a folder. Without one she answers in text only. The host always sends it. */
+  readonly canSaveFilesAvailable?: boolean
+}
+
+/** HT-6: the answer of `retirePersona`. */
+export interface RetiredPersonaView {
+  readonly personaId: string
+  readonly retiredAt: string
+}
+
+/** EFF-1: the engine choice of one persona. */
+export interface PersonaEngineChoiceView {
+  readonly runnerKind: 'dsh' | 'cli'
+  readonly runnerCli: string
+  readonly runnerModel: string | null
+  readonly runnerEffort: PersonaEffortLevel | null
+}
+
+/** D-090 / TEAM-3: the person's settings of teamwork for one persona (defaults: on, 6 a day, 2 rounds). */
+export interface PersonaTeamworkView {
+  /** "Pode pedir ajuda a colegas". */
+  readonly canAskColleagues: boolean
+  /** "Até {n} pedidos a colegas por dia", 1 to 20. */
+  readonly askCapPerDay: number
+  /** Asks the persona already made today (the opinion rounds count too). */
+  readonly askedToday: number
+  /** Rounds of opinion a Task may use, 1 to 3. */
+  readonly maxOpinionRounds: number
+}
+
+/** The person changes what they decided about teamwork for a persona. Only the named fields change. Responsável or workspace owner. */
+export interface SetPersonaTeamworkRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  readonly canAskColleagues?: boolean
+  readonly askCapPerDay?: number
+  readonly maxOpinionRounds?: number
+}
+
+/** "Pode contratar": whether the persona may bring people to the team (with the person's permission each time). */
+export interface SetPersonaCanRecruitRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  readonly canRecruit: boolean
+}
+
+/** D-099: “Pode salvar arquivos no rascunho” — whether one persona saves files into the draft of the project's folder (never with a shell). Off is always allowed. */
+export interface SetPersonaCanSaveFilesRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  readonly canSaveFiles: boolean
+}
+
+/** HT-6: “Contratar direto” — the person lets one persona hire without the card (off unless she turned it on). */
+export interface SetPersonaHireDirectRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  readonly hireDirect: boolean
 }
 
 /** Team roster for one project. */
@@ -71,6 +143,42 @@ export interface ChannelView {
   readonly projectId: string
   readonly name: string
   readonly topic: string
+  /** CV-6: the project's name, so a list that mixes projects says where each channel is from. */
+  readonly projectName: string
+  /** `general` = the automatic #geral (never archived or renamed); `team` = a team of the organogram; `directorate` = #diretoria; `custom` = the person's. */
+  readonly kind: 'general' | 'team' | 'directorate' | 'custom'
+  /** Members now (derived from the organogram for team/directorate/general; stored for custom). */
+  readonly memberCount: number
+  readonly archived: boolean
+  readonly archivedReason?: 'team-gone' | 'directorate-gone' | 'by-person'
+  /** Pinned by the person who asks (pinning is each person's own). */
+  readonly pinned: boolean
+  /** `team`: the name of the sector, as the organogram writes it. */
+  readonly teamName?: string
+}
+
+/** CV-6: one member of a channel. */
+export interface ChannelMemberView {
+  readonly kind: 'persona' | 'human'
+  readonly id: string
+  readonly name: string
+}
+
+/** CV-6: a channel of a project. */
+export interface ChannelScopeRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly channelId: string
+}
+
+/** CV-6: rename (1–32 characters, no `#`, unique in the project; a channel the person renamed is never renamed back by the organogram). */
+export interface RenameChannelRequest extends ChannelScopeRequest {
+  readonly name: string
+}
+
+/** CV-6: pin or unpin for the person who asks. */
+export interface SetChannelPinnedRequest extends ChannelScopeRequest {
+  readonly pinned: boolean
 }
 
 /** One DM on the wire. */
@@ -92,6 +200,86 @@ export interface TaskView {
   readonly topicId?: string
   /** Same id as `topicId` — Prism card chip. */
   readonly conversationSubjectId?: string
+  /** CV-5: personas working WITH the lead (“com Bento”); absent when the Task has none. */
+  readonly collaborators?: readonly CollaboratorView[]
+  /** TEAM-1 (`Config.teamwork`): the bilhete this Task received from a colleague. Text of the persona, shown as text, never as an instruction. */
+  readonly note?: HandoffNoteView
+  /** TEAM-1: "o caminho do trabalho" — who asked and who delivered, oldest first. Absent when the Task never took part in a handoff. */
+  readonly path?: readonly PathStepView[]
+  /** TEAM-6: a colleague is reviewing this Task's work now ("Revisando: {R}"). `round` = how many returns there already were (0..2). */
+  readonly reviewing?: ReviewingView
+  /** TEAM-6: the seal ("Revisado por {R}"); with `openPoints` the work went on WITHOUT it and the points in plain sight. */
+  readonly reviewedBy?: ReviewedByView
+  /** TEAM-6: why the review of this Task did not run (`unreadable`: the reviewer answered with no verdict; `engine`: the reviewer's engine failed). The detail says it; the delivery groups it in ONE line. */
+  readonly reviewFailed?: 'unreadable' | 'engine'
+  /** D-096: a plain sentence when the engine ran this Task differently from what was set ("Rodou no modo nativo desta vez: o Gmail não estava disponível"). Absent when it ran as set. */
+  readonly engineNote?: string
+  /** IV-10 "Responder": the thread where the persona asked her open question (`channel:geral`, `dm:…`), so the card takes the person there. Only while a question is open. */
+  readonly questionStreamId?: string
+  /** IV-10: that question in one line (at most 120 characters, cut at a word), for "Respondendo a {persona}: {pergunta}". */
+  readonly question?: string
+}
+
+/** TEAM-6: who is reviewing now and in which round (0, 1 or 2 returns so far). */
+export interface ReviewingView {
+  readonly personaId: string
+  readonly round: number
+}
+
+/** TEAM-6: who reviewed and when; `openPoints` only after the third look, when the delivery went on without the seal. */
+export interface ReviewedByView {
+  readonly personaId: string
+  readonly at: string
+  readonly openPoints?: number
+}
+
+/** TEAM-6: how the project reviews its deliveries (Projeto › Configurações › "Revisão antes de entregar"). */
+export interface ReviewPolicyView {
+  readonly mode: 'off' | 'all' | 'types'
+  /** With `mode: 'types'`: the task types that are reviewed. */
+  readonly types: readonly string[]
+  /** Who reviews: the Coordenação, a colleague of the same function, or one persona. */
+  readonly reviewer: { readonly kind: 'coordination' | 'same-role' | 'persona'; readonly personaId?: string }
+}
+
+/** Read the review policy of a project (the default of a new project is ON in every delivery, by the Coordenação). */
+export interface GetReviewPolicyRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+}
+
+/** Set the review policy of a project. Workspace owner. */
+export interface SetReviewPolicyRequest extends GetReviewPolicyRequest {
+  readonly mode: 'off' | 'all' | 'types'
+  readonly types?: readonly string[]
+  readonly reviewer: { readonly kind: 'coordination' | 'same-role' | 'persona'; readonly personaId?: string }
+}
+
+/** TEAM-1: what one persona handed to another ("O que já está pronto", "O que falta", "Arquivos", "Decisões tomadas"). */
+export interface HandoffNoteView {
+  readonly fromPersonaId: string
+  readonly toPersonaId: string
+  /** The Task that received it. */
+  readonly taskId: string
+  readonly done: readonly string[]
+  readonly needed: readonly string[]
+  /** Paths relative to the project. */
+  readonly files: readonly string[]
+  readonly decisions: readonly string[]
+  readonly at: string
+}
+
+/** TEAM-1: one step of the path the work took. */
+export interface PathStepView {
+  readonly personaId: string
+  readonly step: 'wrote' | 'asked' | 'handed' | 'delivered' | 'reviewed'
+  readonly at: string
+}
+
+/** TEAM-1: the chip of a board card that is part of a request between colleagues ("Pedido por {A}" / "Esperando {B}"). */
+export interface BoardHandoffView {
+  readonly role: 'asked' | 'waiting'
+  readonly otherPersonaId: string
 }
 
 /** Visão geral: "Precisa de você" first, then in-progress. Healthy work is omitted. */
@@ -220,6 +408,8 @@ export interface EstimateAskRequest extends ProjectScopeRequest {
   readonly ownerId: string
   /** Step 5: the host routes straight to the executor, with no triage. */
   readonly primeiraEntrega?: boolean
+  /** CV-8: estimate the whole team (`everyone`) or the Coordenação's pick (`relevant`) instead of one persona. Several @menções in `texto` are read by the host. */
+  readonly audience?: 'everyone' | 'relevant'
 }
 
 /** Estimate of one ask (persona-spec/contracts/estimate-ask.md): calls exact, tokens and cost ranges, time only when measured. */
@@ -229,7 +419,26 @@ export interface EstimateAskView {
   readonly detalhe: readonly { readonly papel: 'conversa' | 'execucao' | 'triagem'; readonly nivel: 'barato' | 'seu-modelo' }[]
   readonly tokens: { readonly min: number; readonly max: number } | null
   readonly baseDoVendorIncluida: boolean
+  /** List-price cost in micro-USD. ONLY with `billing: 'api'`; `null` for a subscription or an unknown account (D-092: no screen can show a dollar by mistake). */
   readonly custo: { readonly microUsd: { readonly min: number; readonly max: number } } | null
+  /** USD-1 (contracts/usd-subscription.md): the account type the numbers are shaped for. `unknown` shows no money, like a subscription. */
+  readonly billing: 'subscription' | 'api' | 'unknown'
+  /**
+   * Subscription / unknown: the impact on the window the vendor publishes (`5h` when there is one, otherwise the `week`). `pct` is the share of the whole
+   * window the ask uses, or `null` = "cota não medida" (no calibration on this account yet; never 0). `usedPct`/`remainingPct` are the vendor's own reading
+   * and can be shown even when `pct` is null. `null` here = the vendor publishes no window (or an API account).
+   */
+  readonly quota: {
+    readonly window: '5h' | 'week'
+    readonly pct: { readonly min: number; readonly max: number } | null
+    readonly usedPct?: number
+    readonly remainingPct?: number
+    readonly resetsAt?: string
+    readonly origin: 'calibrated' | 'not-measured'
+    readonly basis?: string
+  } | null
+  /** Ready-to-show line (pt-BR) of what the ask uses: a share of the window, "cota não medida", the calls, or (API only) "≈ US$ x–y (estimativa)". */
+  readonly impacto: string
   /** Seconds. `null` until a measured calibration exists for EVERY call. `mediana` only from the person's own history (OPT-9). */
   readonly tempo: { readonly segundos: { readonly min: number; readonly max: number }; readonly mediana?: number } | null
   readonly origin: 'estimate' | 'calibrated' | 'unknown'
@@ -241,6 +450,8 @@ export interface EstimateAskView {
   readonly rotulo: string
   /** One short reason for a tooltip. */
   readonly motivo: string
+  /** CV-8: the numbers of the whole block, when the ask goes to several personas (absent for a plain ask). */
+  readonly fanout?: FanoutEstimateView
 }
 
 /** Definitive cached reason an addressed request cannot reach a connected engine. */
@@ -341,6 +552,8 @@ export interface CreatePersonaRequest {
   readonly runnerKind: 'dsh' | 'cli'
   readonly runnerCli: string
   readonly runnerModel: string
+  /** EFF-1: absent/null = the engine's default (no `--effort`). */
+  readonly runnerEffort?: PersonaEffortLevel | null
   readonly canRecruit: boolean
   readonly createdBy: string
   /** When omitted, the first persona in the project receives Coordenação. */
@@ -363,6 +576,8 @@ export interface CreateChannelRequest {
   readonly projectId: string
   readonly name: string
   readonly topic: string
+  /** CV-6: who is in a channel the person makes (personas of the project and people of the workspace). */
+  readonly memberIds?: readonly { readonly kind: 'persona' | 'human'; readonly id: string }[]
 }
 
 /** Create a DM. */
@@ -391,6 +606,14 @@ export interface PostMessageRequest {
   readonly attachmentIds?: readonly string[]
   readonly replyToId?: string
   readonly topicId?: string
+  /** CV-8: send this one message to the whole team (`everyone`) or to whoever the Coordenação picks (`relevant`). Needs the host's `fanout` flag. */
+  readonly fanout?: 'everyone' | 'relevant'
+  /**
+   * TEAM-4 ("Dar minha opinião"): this message is the PERSON's own answer to a round of opinion a persona asked of the team. It is stored as
+   * the person's line, shown as `opinion.kind = 'reply'` under the request, and — being an answer, not a new request — it is not routed:
+   * it never becomes a Task or wakes a persona. Needs `Config.teamwork`; `requestId` is the `opinion.requestId` of the request line.
+   */
+  readonly opinionOn?: { readonly requestId: string; readonly mark?: 'liked' | 'suggestion' | 'attention' }
 }
 
 /** Page or follow messages. `afterSeq` is 0 to start; `limit` is 1–200. */
@@ -439,6 +662,322 @@ export interface MessageView {
   readonly stoppedTicketId?: string
   /** P1-9 “Proposta de {persona}”: the card with Aceitar · Agora não (read from the body marker; the live status is `listTaskProposals`). */
   readonly taskProposal?: TaskProposalCardView
+  /** A persona's structured question (chips, “Pergunta n de m”); the live state is `listPersonaAsks`. */
+  readonly personaAsk?: PersonaAskCardView
+  /** EQUIPE-REAL: a request one persona made to a colleague (“Bia pediu ajuda ao Teo”, “Teo entregou para Bia”); the bilhete is in the Task, never here. */
+  readonly handoff?: HandoffCardView
+  /** EQUIPE-REAL: a colleague reviewed the work before it reached the person (“Revisado pelo Atlas”, “Atlas pediu ajustes”). */
+  readonly review?: ReviewCardView
+  /** CV-8: this line is one persona's part of a block (“Toda a equipe”, “Quem tiver algo a dizer”, several @menções). */
+  readonly fanout?: FanoutLineView
+  /** HT-3: a harness action the host took for the person, with the outcome (the UI writes the words from the fields). */
+  readonly harness?: HarnessActionView
+  /** CV-5: the status line of a Task several personas were named for (“Bento está com Nina em “…””); the UI writes the words from the fields. */
+  readonly taskWith?: TaskWithView
+  /** TEAM-7: this message is the morning card (“Bom dia”) of the Coordenação; the body is the same card as plain text. */
+  readonly dailyBrief?: DailyBriefView
+  /** HT-9: the preview of an external action, when this message IS its card (`action-card:<id>`): the real content, updated in place as the person decides. */
+  readonly actionPreview?: ActionPreviewWire
+  /** TEAM-4: this line is part of a round of OPINION a persona asked of the team (the question, one colleague's answer, or the consolidation). */
+  readonly opinion?: OpinionView
+  /** EQUIPE-REAL §0: the PLAN of a request done in parts, once; its chips change in place (the stream re-sends the same message). */
+  readonly teamPlan?: TeamPlanView
+  /** EQUIPE-REAL §0: the ONE delivery card of a request, when every part is ready for the person. */
+  readonly deliveryCard?: DeliveryCardView
+  /**
+   * R1 (EQUIPE-REAL §0): this line is a STATE of a Task, written by the host — not something anybody said. Typed and stored with the event
+   * (never read from the words), so the cards (plan, delivery) can take it in and the thread can leave it out. Only with `Config.teamwork`.
+   */
+  readonly stateLine?: StateLineView
+  /**
+   * P0-1 (Atlas 07/11, EQUIPE-REAL-SPEC §(e)): the files a persona SAVED in the draft of a Task during ONE turn. ONE typed line per turn that saved something
+   * (never one per write), authored by the persona that saved; the same path written many times is one item (its final state, in the order of the first write).
+   * `body` is the Portuguese fallback sentence; the screen writes its own. Only with `Config.teamwork`.
+   */
+  readonly filesSaved?: { readonly files: readonly DraftFileView[] }
+}
+
+/**
+ * P0-1 (EQUIPE-REAL-SPEC §(e)): a file a persona saved in the DRAFT of a Task (art as a file, a text, a sheet). The screen opens it in Revisar mudanças
+ * (`onOpenDraftFile({ taskId, path })`); the picture comes from `thumb`, never from a new byte RPC.
+ */
+export interface DraftFileView {
+  /** Relative to the root of the draft, with `/`: the SAME string `ReviewFileView.path` has for this file. */
+  readonly path: string
+  /** What the chip shows (`cartaz.svg`). */
+  readonly name: string
+  readonly mime: string
+  /** The Ticket the Revisar uses. */
+  readonly taskId: string
+  readonly personaId: string
+  readonly size?: number
+  /**
+   * A small PNG (`data:image/png;base64,…`, at most 24 KB of text, 192 px falling to 96 px; `DRAFT_THUMB_MAX_CHARS` in `draft-turn-files.ts`) the host made when the line was written, so the thread keeps the picture after
+   * Aplicar or Descartar. Absent when the file is not an image or the host could not make it (the screen then shows the icon of the type).
+   */
+  readonly thumb?: string
+  /** For an SVG: the PNG sibling the team SAW (models only read raster). */
+  readonly pngPath?: string
+}
+
+/**
+ * The state a host line stands for. `task_progress` = “Em andamento: …” (a Task started); `part_done` = a PART of a request done in parts
+ * delivered; `task_done` = a Task that is not a part delivered. `text`: `status` = the host wrote the sentence (“Pronto: …”), `result` = the
+ * line is the persona's OWN words (the delivery itself — the cards fold it in, they do not drop it).
+ */
+export interface StateLineView {
+  readonly kind: 'task_progress' | 'part_done' | 'task_done'
+  readonly ticketId: string
+  /** The request the Task is a part of — the same id the plan card carries (`split-<message>`, or the campaign's). Absent for a lone Task. */
+  readonly groupId?: string
+  readonly text: 'status' | 'result'
+}
+
+/** One part of a request on the plan card. `taskId` is empty while the part is not open yet (it is "queued"). */
+export interface TeamPlanPartView {
+  readonly taskId: string
+  readonly personaId: string
+  /** The SHORT name of the part ("Texto", "Arte", "Posts", ≤ 24): what the cards write; the long `title` stays for the board and the Task (tooltip). */
+  readonly shortName: string
+  /** Short and human (≤ 48), never the raw request. */
+  readonly title: string
+  readonly status: 'queued' | 'doing' | 'waiting' | 'with-colleague' | 'reviewing' | 'needs-you' | 'done' | 'stopped'
+  /** `with-colleague`: with whom. */
+  readonly withPersonaId?: string
+  /** `needs-you`: the card of Aprovações that asks for the decision (the Task id for a delivery that waits for her review). */
+  readonly approvalId?: string
+  /** `stopped`: a short human reason ("Ver motivo"). */
+  readonly reason?: string
+}
+
+/** The plan of a request ("Dividi assim:"). */
+export interface TeamPlanView {
+  readonly requestId: string
+  readonly title: string
+  readonly parts: readonly TeamPlanPartView[]
+}
+
+/** The delivery of a request: one card, with the seal when a colleague reviewed it. */
+export interface DeliveryCardView {
+  readonly requestId: string
+  readonly title: string
+  readonly parts: readonly { readonly taskId: string; readonly personaId: string; readonly shortName: string; readonly title: string }[]
+  readonly reviewedBy?: { readonly personaId: string; readonly name: string }
+  /** The card of Aprovações that opens the delivery waiting for the person ("Revisar"); without it there is no button. */
+  readonly approvalId?: string
+}
+
+/** A colleague's mark on a draft: liked, a suggestion, a point of attention, or nothing to add. */
+export type OpinionMark = 'liked' | 'suggestion' | 'attention' | 'nothing'
+
+/**
+ * TEAM-4 (contracts/team-real.md §3/§7): one line of a round of opinion. `request` carries the question (the body) and the draft;
+ * `reply` one colleague's answer (the body is 1–3 lines) with its `mark`; `consolidated` the 1–2 lines of the asker, with the
+ * “Antes · Depois” when the text changed. The words around are the UI's; the body is a readable fallback.
+ */
+export interface OpinionView {
+  readonly kind: 'request' | 'reply' | 'consolidated'
+  /** Ties the lines of ONE round (the tool call that asked). */
+  readonly requestId: string
+  /** The Task of the persona that asked. */
+  readonly taskId: string
+  readonly round: number
+  readonly maxRounds: number
+  /** `request`: the draft in text. */
+  readonly draftText?: string
+  /** `request`: the draft's images (attachment ids). */
+  readonly attachmentIds?: readonly string[]
+  /** `request`: what the asker wrote about the image. */
+  readonly alt?: string
+  /** `request`: the ART the asker saved in the draft of her Task and put in opinion (`draft.files`); the person's own attachments stay in `attachmentIds`. */
+  readonly files?: readonly DraftFileView[]
+  readonly audience?: 'team' | 'some'
+  /** Only when the Tally measures. */
+  readonly estimate?: { readonly responses: number; readonly cost?: string }
+  /** `request`: colleagues whose engine does not read the image (not called). */
+  readonly noVision?: readonly string[]
+  /** `request`: who asked (the prompt of a colleague included by text only names them). */
+  readonly askerPersonaId?: string
+  /** `request`: the colleagues of `noVision` the PERSON included by text only (`includeOpinionTextOnly`). The card shows `noVision` minus these as "não veem imagens neste motor". */
+  readonly textOnlyPersonaIds?: readonly string[]
+  /** `request`: the colleagues invited to answer. */
+  readonly replierPersonaIds?: readonly string[]
+  /** `reply`: the mark. */
+  readonly mark?: OpinionMark
+  /** `reply`: the turn failed or came back empty (the body says so; this is NOT “nothing to add”). */
+  readonly failed?: true
+  /** `reply`: the colleague does not see the image and answered by TEXT ONLY. ALWAYS set for such a reply (the chip "Opinou só pelo texto"); the body is her own words, never prefixed. */
+  readonly textOnly?: true
+  /** The Tally's budget of the round (`contracts/opinion-budget.md`): the footer comes ready. */
+  readonly budget?: {
+    readonly rodape?: string
+    readonly round?: number
+    readonly roundsCap?: number
+    readonly stop?: string
+    readonly skipped?: readonly { readonly id: string; readonly why: string }[]
+  }
+  /** `consolidated`: the new version, for “Antes · Depois”. */
+  readonly version?: {
+    readonly k: number
+    readonly before: { readonly text?: string; readonly attachmentIds?: readonly string[] }
+    readonly after: { readonly text?: string; readonly attachmentIds?: readonly string[] }
+  }
+}
+
+/** TEAM-7 (contracts/team-real.md §4/§7): the morning meeting, with the real ids. Nothing here comes from a model. */
+export interface DailyBriefView {
+  /** The person's local day, `YYYY-MM-DD`. */
+  readonly day: string
+  readonly coordinatorPersonaId: string
+  /** Finished yesterday, newest first, at most 3. */
+  readonly yesterday: readonly DailyBriefLineView[]
+  /** The "e mais {n}" of Ontem. */
+  readonly yesterdayMore: number
+  /** Who is on what today: one per busy persona. */
+  readonly today: readonly DailyBriefLineView[]
+  /** What waits for the person ("Precisa de você"). */
+  readonly needsYou: { readonly count: number }
+  /** The person paused "Resumo da manhã" after this card went out. */
+  readonly paused: boolean
+  /** For "Pausar o resumo da manhã". */
+  readonly routineId: string
+  /** `morning` = the automatic "Bom dia" (with the sunrise spot); `on-demand` = asked for by hand after noon, "Resumo do dia · {hora}" (no spot). */
+  readonly variant: 'morning' | 'on-demand'
+}
+
+/** One line of the morning card: ids and the human title of the Task, never anything else. */
+export interface DailyBriefLineView {
+  readonly taskId: string
+  readonly personaId: string
+  readonly title: string
+  /**
+   * Present when the line stands for a finished REQUEST (every part done): the name of the request, the short names of its parts and the
+   * personas who did them, in order — the faces are THEIRS, never the Coordenação's. A line WITHOUT it is the part of a request still open.
+   */
+  readonly request?: DailyBriefRequestView
+}
+
+/** A finished request as the morning card groups it ("Campanha de lançamento ficou pronta (Texto, Arte e Posts)"). */
+export interface DailyBriefRequestView {
+  readonly requestId: string
+  /** The name of the work, short ("Campanha de lançamento"), never the person's own sentence. */
+  readonly title: string
+  /** The short names of the parts ("Texto", "Arte", "Posts"). */
+  readonly parts: readonly string[]
+  /** Who did them, in the order of the parts (no repeats). */
+  readonly personaIds: readonly string[]
+}
+
+/** `postDailyBriefNow` (contracts/team-real.md §7): the card of the day, asked for NOW. `requestId` asks for one more card of its own. */
+export interface DailyBriefNowRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  /** `[A-Za-z0-9_-]`, 1..64: the same key returns the same card, a new key a new card. Omit for the day's card. */
+  readonly requestId?: string
+}
+
+/** Posted now / was already there / why there is none. The UI writes its own words; `text` is the readable fallback (pt-BR). */
+export type DailyBriefNowOutcome = 'posted' | 'already' | 'nothing-to-say' | 'off' | 'no-coordination' | 'no-channel'
+
+export interface DailyBriefNowView {
+  readonly outcome: DailyBriefNowOutcome
+  /** The thread message that carries the card (`posted`, `already`); its `MessageView.dailyBrief` is the card. */
+  readonly messageId?: string
+  readonly text: string
+}
+
+/** `includeOpinionTextOnly` (contracts/team-real.md §12): the person includes a colleague who does not see images, BY TEXT ONLY. */
+export interface IncludeOpinionTextOnlyRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  /** The `OpinionView.requestId` of the card. */
+  readonly requestId: string
+  /** A colleague of `noVision` who has no reply yet. */
+  readonly personaId: string
+}
+
+/** Her line is in the thread (`MessageView.opinion` with `textOnly: true`); `already` when she had answered before (nothing was asked again). */
+export interface IncludeOpinionTextOnlyView {
+  readonly replyId: string
+  readonly mark: OpinionMark
+  readonly failed?: true
+  readonly already?: true
+}
+
+/**
+ * CV-8 (contracts/mentions-fanout.md): one persona's line in a block. TYPED: the UI writes the words (fanout.* keys); the body of the
+ * message is only a readable fallback.
+ */
+export interface FanoutLineView {
+  /** Same for every line of the block. */
+  readonly id: string
+  readonly source: 'everyone' | 'relevant' | 'mentions'
+  /** Lines the block will have, and this line's place among them (1-based). */
+  readonly total: number
+  readonly index: number
+  readonly personaId: string
+  /** `reply` answered · `nothing` “nada a acrescentar” · `limit` at its limit (no call) · `paused` (no call) · `failed` the turn failed or came back empty. */
+  readonly kind: 'reply' | 'nothing' | 'limit' | 'paused' | 'failed'
+  /** `limit`: when it lifts (ISO), when known. */
+  readonly until?: string
+  /** `failed`: a fixed, honest sentence with no jargon (tooltip). */
+  readonly message?: string
+  /** “Quem tiver algo a dizer” and nobody was picked: the one line of the Coordenação. */
+  readonly nobody?: true
+}
+
+/** CV-8 “Tentar de novo”: repeat ONE persona of a block whose line says she could not answer. */
+export interface RetryFanoutReplyRequest extends ProjectScopeRequest {
+  /** The person's message that opened the block. */
+  readonly messageId: string
+  readonly personaId: string
+}
+
+/** Whether the retry started (the line is replaced in place when it finishes) or why not. */
+export interface RetryFanoutReplyView {
+  readonly started: boolean
+  readonly reason?: 'disabled' | 'not-found' | 'not-failed' | 'running' | 'paused' | 'limit'
+}
+
+/** CV-8: what the composer chip shows before sending (“Toda a equipe · n respostas · ≈ c chamadas da sua IA”). Calls are EXACT, except “relevant” (1 + 0..5). */
+export interface FanoutEstimateView {
+  readonly source: 'everyone' | 'relevant' | 'mentions'
+  /** Personas that will have a line. */
+  readonly replies: number
+  /** Personas that make a model call. */
+  readonly asked: number
+  readonly limited: number
+  readonly paused: number
+  readonly chamadas: { readonly min: number; readonly max: number }
+}
+
+/**
+ * HT-3 (contracts/harness-tools.md): what happened when the PERSON moved a card to a “Fazendo” column. `started` = the persona that
+ * owns it began working now; `held` = it did not, and `reason` says why (the card stays where the person put it).
+ */
+export interface HarnessActionView {
+  readonly verb: 'board_card_move'
+  readonly outcome: 'started' | 'held'
+  readonly reason?: 'paused' | 'silence' | 'delivery_pending' | 'no_owner'
+  /** For `silence`: the hour the silence ends ("07:00"), when the persona has a window. */
+  readonly until?: string
+  readonly ticketId: string
+  readonly title: string
+  readonly persona?: CollaboratorView
+}
+
+/** A persona that works WITH the lead of a Task (CV-5, contracts/mentions-fanout.md). */
+export interface CollaboratorView {
+  readonly personaId: string
+  readonly name: string
+}
+
+/** The thread line of a Task with collaborators: the lead (first named) and who is with it. */
+export interface TaskWithView {
+  readonly ticketId: string
+  readonly title: string
+  readonly lead: CollaboratorView
+  readonly with: readonly CollaboratorView[]
 }
 
 /** One thing a persona proposes (P1-9, contracts/task-proposals.md). The words are final; the UI draws what comes. */
@@ -546,6 +1085,12 @@ export interface ReviewFileView {
   readonly path: string
   readonly added: number
   readonly deleted: number
+  /** P0-1: for a PICTURE (png, jpeg, webp, gif, svg), the file in the draft as a data address: what the persona made. Absent when it is not a picture or is too big. */
+  readonly afterImage?: string
+  /** P0-1: the same picture as it is now in the person's own folder (what Aplicar would replace); absent for a new file. */
+  readonly beforeImage?: string
+  /** P0-1: the folder's version, for the conflict screen ("yours"); the same address as beforeImage. */
+  readonly folderImage?: string
 }
 
 /** Diff card for Lumen Revisar. */
@@ -865,6 +1410,91 @@ export interface AttentionReplyRequest {
   readonly text: string
   /** Files uploaded with `attachFile` to the conversation the question was asked in (`channel geral`, or that DM). */
   readonly attachmentIds?: readonly string[]
+  /** Chips chosen on a structured question (`PersonaAskCardView.options`); one for a single choice, several for a multiple one. */
+  readonly optionIds?: readonly string[]
+}
+
+/** An answer chip of a structured question. */
+export interface AskOptionView {
+  readonly id: string
+  readonly label: string
+}
+
+/** How a request to a colleague stands: asked, delivered (the colleague's work came back), resumed (the asker went on with it), held (the colleague is paused), blocked. */
+export type HandoffStatus = 'asked' | 'delivered' | 'resumed' | 'held' | 'blocked'
+
+/**
+ * A request one persona made to a colleague, as the thread line carries it (contracts/team-real.md). `taskId` is the colleague's
+ * Task, `fromTaskId` the Task that asked. `mode`: `help` = the colleague helps and hands it back; `handoff` = the work goes on to the
+ * colleague. `connector` names the one the colleague lacks when `blocked`. The words are the UI's.
+ */
+export interface HandoffCardView {
+  readonly fromPersonaId: string
+  readonly toPersonaId: string
+  readonly taskId: string
+  readonly fromTaskId: string
+  readonly title: string
+  readonly mode: 'handoff' | 'help'
+  readonly status: HandoffStatus
+  readonly reason?: string
+  readonly connector?: string
+  /** `review`: the request is the review step of the flow (“Bia pediu a revisão ao Atlas”), not a persona's own ask for help. */
+  readonly purpose?: 'review'
+}
+
+/**
+ * The outcome of a review between colleagues, as the thread line carries it (contracts/team-real.md; `[[review:{json}]]`).
+ * `reviewed` = approved (the “Revisado pelo {R}” seal); `returned` = sent back to the author (round 1 or 2), or, with `openPoints`,
+ * the third time: the work goes on to the person WITHOUT the seal and with the points in plain sight.
+ */
+export interface ReviewCardView {
+  readonly kind: 'reviewed' | 'returned'
+  readonly reviewerPersonaId: string
+  readonly authorPersonaId: string
+  readonly taskId: string
+  readonly round: number
+  readonly maxRounds: number
+  readonly openPoints?: number
+  /** `returned`: the first point, one line. */
+  readonly summary?: string
+}
+
+/**
+ * A persona's structured question as the thread card carries it (contracts/structured-question.md): chips, single or multiple
+ * choice, and where it sits in a sequence asked one at a time (“Pergunta 2 de 3”). Free text and files always answer too.
+ */
+export interface PersonaAskCardView {
+  /** The Attention id: stable for this question. */
+  readonly askId: string
+  readonly ticketId: string
+  readonly personaId: string
+  readonly personaName: string
+  readonly question: string
+  /** 2..8 chips; absent = words only. */
+  readonly options?: readonly AskOptionView[]
+  readonly multiple: boolean
+  readonly step?: { readonly index: number; readonly total: number }
+}
+
+/** A structured question with its live state: `open`, `answered` (read-only, with the choices) or `cancelled` (the task ended first). */
+export interface PersonaAskView extends PersonaAskCardView {
+  readonly status: 'open' | 'answered' | 'cancelled'
+  /** The thread message that carries the card. */
+  readonly cardId: string
+  readonly createdAt: string
+  readonly answer?: {
+    readonly optionIds: readonly string[]
+    readonly text: string
+    readonly attachmentIds: readonly string[]
+    readonly answeredAt: string
+  }
+}
+
+/** The structured questions of a project (optionally of one Ticket), oldest first. */
+export interface ListPersonaAsksRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly ticketId?: string
 }
 
 /** Create a vault record. */
@@ -972,9 +1602,29 @@ export interface ConnectionView {
   readonly available: boolean
   readonly loggedIn: boolean
   readonly loginHint: string
+  /** The CLI's version when the probe read it (the host warms the isolation proof once per version). */
+  readonly version?: string
   /** `checking` = still probing; UI must not show "desconectado". */
   readonly phase: 'checking' | 'ready'
   readonly error?: ConnectionProbeError
+  /** EFF-1: the models this ENGINE accepts and the levels of each (absent until the engine said). No "recommended" field exists. */
+  readonly models?: readonly EngineModelView[]
+  /** EFF-1: the levels that apply to "Padrão do motor" (the engine's own default model); empty/absent = no choice of effort. */
+  readonly defaultEffortLevels?: readonly PersonaEffortLevel[]
+  /** EFF-1 (EFFORT-SPEC §4.1): where the menu above came from — `cli` (the engine said it) or `static` (the table of what it is known to offer, when the CLI did not answer). Absent when there is no menu. */
+  readonly source?: 'cli' | 'static'
+}
+
+/** EFF-1: the engine's reasoning-effort levels by the names the CLIs use (Claude: low … max; Codex also `ultra` on some models), lightest first. */
+export type PersonaEffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra'
+
+/** EFF-1: one model of an engine, as the engine reported it. Empty `effortLevels` = that model has no choice of effort. */
+export interface EngineModelView {
+  readonly id: string
+  readonly label: string
+  readonly effortLevels: readonly PersonaEffortLevel[]
+  /** What the engine itself runs at when no level is chosen, when it said. Informational only: the screen never pre-selects it. */
+  readonly defaultEffort?: PersonaEffortLevel
 }
 
 /** WAVE2 — how personas rotate among your accounts on the same provider. */
@@ -1106,6 +1756,8 @@ export interface StopTeachSessionRequest extends TeachSessionIdRequest {
 export interface SubmitTeachDraftRequest extends TeachSessionIdRequest {
   readonly steps: readonly TeachStepView[]
   readonly activate: boolean
+  /** W2-10: the name the person chose in the review card (1–80 letters, trimmed). Without it the candidate keeps "Skill ensinada". */
+  readonly skillTitle?: string
 }
 
 /** Enable a taught candidate after review. Tools cannot exceed the persona allow-list. */
@@ -1184,6 +1836,12 @@ export interface AttentionEventView {
   readonly threadId?: string
   readonly streamId?: string
   readonly question?: string
+  /** The question is structured: its chips, whether several may be chosen, and its place in a sequence. */
+  readonly ask?: {
+    readonly options?: readonly AskOptionView[]
+    readonly multiple: boolean
+    readonly step?: { readonly index: number; readonly total: number }
+  }
   readonly code?: RunErrorCode
 }
 
@@ -1366,7 +2024,7 @@ export interface AwayWaitingView {
   readonly taskId: string
   /** The Aprovações card: an `approval`, and also a `question` (the card of a Task's question has the Task's id). Same id as `ApprovalView.id`. */
   readonly approvalId?: string
-  readonly approvalKind?: 'hire' | 'vault' | 'skill' | 'attention'
+  readonly approvalKind?: 'hire' | 'vault' | 'skill' | 'attention' | 'connector' | 'action'
   readonly personaId: string
   readonly personaName: string
   /** When it started waiting; absent when the host does not record it. */
@@ -1603,12 +2261,18 @@ export interface ScreenDocRequest {
 /** One inbox card. */
 export interface ApprovalView {
   readonly id: string
-  readonly kind: 'hire' | 'vault' | 'skill' | 'attention'
+  readonly kind: 'hire' | 'vault' | 'skill' | 'attention' | 'connector' | 'action'
   readonly title: string
   readonly question: string
   readonly status: 'pending' | 'approved' | 'rejected'
   readonly personaId: string
   readonly personaName: string
+  /** D-084/TEAM-3 (`kind: 'connector'`): a persona needs a connector she cannot use yet — the colleague asked, or her own initiative. */
+  readonly connector?: ConnectorAskView
+  /** What the answer did (only on the reply of `decideApproval` for `kind: 'connector'`). */
+  readonly connectorDecision?: ConnectorDecisionView
+  /** HT-9 (`kind: 'action'`): the REAL content of an external action the persona wants to take (e-mail, post, payment, delete). */
+  readonly actionPreview?: ActionPreviewView
   /** Gallery/upload ref for hire cards (gallery ref only today). */
   readonly hireAvatarRef?: string
   /** The proposer's real motive for the hire. Absent when it gave none (never the persona's description). */
@@ -1689,8 +2353,85 @@ export interface DecideApprovalRequest {
   readonly workspaceId: string
   readonly projectId: string
   readonly id: string
-  readonly kind: 'hire' | 'vault' | 'skill' | 'attention'
-  readonly accept: boolean
+  readonly kind: 'hire' | 'vault' | 'skill' | 'attention' | 'connector' | 'action'
+  /** Required for every kind but `connector` and `action`. */
+  readonly accept?: boolean
+  /**
+   * Required for `kind: 'connector'`: `once` (only that Task), `always` (permanent read permission), `not-now` (stays blocked, with the reason).
+   * Required for `kind: 'action'`: `send` (Enviar · Pagar · Apagar: ONE call with exactly what the card shows), `edit` (with `edited`), `cancel`.
+   */
+  readonly choice?: ConnectorAskChoice | ActionChoice
+  /** `kind: 'action'`, `choice: 'edit'`: what the person wants changed (data for the persona's next request). */
+  readonly edited?: string
+  /** `kind: 'action'`, `choice: 'send'`: "Não perguntar de novo para a {persona}" — only e-mail/post; the host ignores it for payment and delete. */
+  readonly remember?: boolean
+}
+
+/** HT-9: the answers to the preview of an external action. */
+export type ActionChoice = 'send' | 'edit' | 'cancel'
+
+/** HT-9: what kind of external action it is. Payment and delete ALWAYS ask. */
+export type ActionClass = 'send' | 'pay' | 'delete' | 'post'
+
+/**
+ * HT-9 (contracts/team-real.md §10): the preview of an external action — the real content, as the persona asked for it. The UI writes the
+ * words; fields are present only when the connector's call had them.
+ */
+export type ActionPreviewWire = ActionPreviewView & { readonly approvalId: string; readonly personaId: string }
+
+export interface ActionPreviewView {
+  readonly actionClass: ActionClass
+  /** The word that decided the class ("send", "post", "pay", "delete"…), for the label. */
+  readonly verb: string
+  readonly connectorName: string
+  readonly to?: string
+  readonly subject?: string
+  readonly body?: string
+  readonly amount?: string
+  readonly payee?: string
+  readonly reference?: string
+  /** Delete: what would go (up to 20). */
+  readonly items?: readonly string[]
+  readonly count?: number
+  /** The preview is cut: it is NOT all of what would go out, so it cannot be approved blind. */
+  readonly truncated: boolean
+  /** A part is hidden (a secret): same rule. */
+  readonly masked: boolean
+  /** The person's own words asked for it ("Você pediu · {persona} confirma antes de enviar"). */
+  readonly requestedByPerson: boolean
+  readonly status: 'pending' | 'sending' | 'sent' | 'cancelled' | 'failed' | 'adjusted'
+  /** Only e-mail and post may be waived with "Não perguntar de novo". */
+  readonly canRemember: boolean
+  readonly sentTo?: string
+  readonly sentAt?: string
+  readonly failureReason?: string
+}
+
+/** The answers to "a persona needs a connector". */
+export type ConnectorAskChoice = 'once' | 'always' | 'not-now'
+
+/** D-084/TEAM-3: what the card of a connector request says (the words are the UI's; `question` is the host's plain-text fallback). */
+export interface ConnectorAskView {
+  readonly reason: 'colleague' | 'initiative'
+  readonly connectorName: string
+  readonly cli: string
+  readonly connectorId: string
+  readonly access: 'read' | 'write'
+  /** `colleague`: who asked. */
+  readonly requestedByPersonaId?: string
+  readonly requestedByPersonaName?: string
+  /** `colleague`: the Task that waits (its id exists once the request was released). */
+  readonly taskId?: string
+  readonly taskTitle?: string
+  /** `initiative`: why, in a human sentence. */
+  readonly purpose?: string
+  readonly options: readonly ConnectorAskChoice[]
+}
+
+/** The result of answering a connector request. `grant` is present only when a NEW permanent permission was made: it is what the Desfazer revokes. */
+export interface ConnectorDecisionView {
+  readonly choice?: ConnectorAskChoice
+  readonly grant?: { readonly personaId: string; readonly cli: string; readonly connectorId: string }
 }
 
 /** Hire proposal. */
@@ -1844,6 +2585,20 @@ export interface TurnLedgerView {
   readonly origin?: LedgerOrigin
   /** Measured wall time of the turn in ms (OPT-9); absent when the runner did not report it. Never a made-up 0. */
   readonly durationMs?: number
+  /** D-085: the mode the call ran in, as the runner reports it; absent when it did not. */
+  readonly envMode?: 'native' | 'answer-only' | 'needed'
+  /** D-096: why the call ran in `envMode` (a code), when the runner said. */
+  readonly envModeReason?: string
+  /** EFF-1: the model the call was started with (`default` = the engine's own); kept only with a choice or a drop below. */
+  readonly model?: string
+  /** EFF-1: the model the person chose for the persona; absent = "Padrão do motor" (nothing was sent). */
+  readonly modelRequested?: string
+  /** EFF-1: the effort ("Capricho") the person chose; absent = none. */
+  readonly effortRequested?: string
+  /** EFF-1: the chosen model the engine does not offer: the call ran on the engine's default (the Task was not lost). */
+  readonly modelDropped?: string
+  /** EFF-1: the chosen effort the model refused: the call ran at the engine's default effort. */
+  readonly effortDropped?: string
 }
 
 /** Persist one core turn. Kinds stay `execution` / `evaluation`. */
@@ -1852,6 +2607,74 @@ export interface RecordTurnLedgerRequest {
   readonly projectId: string
   readonly entry: TurnLedgerView
 }
+
+/** A connector of the person's CLI, as the desktop bridge names it (ISO-2). `name` is untrusted text from the CLI's config. */
+export interface ConnectorRef {
+  readonly cli: string
+  /** The connector's id in that CLI; for a connector of the ACCOUNT, its proxy URL. Never shown to the person. */
+  readonly id: string
+  readonly name: string
+  /** The bridge's label hint (`user` · `project` · `claudeai` …). A hint only: the runner's port decides what can be granted. */
+  readonly source?: string
+}
+
+/** One connector a persona may use. A pointer with a level: no command, URL or secret of the connector is kept. */
+export interface ConnectorGrantView {
+  readonly personaId: string
+  readonly cli: string
+  readonly connectorId: string
+  readonly name: string
+  readonly access: 'read' | 'write'
+  /**
+   * What the person waived, class by class: `never` = that class runs and is reported instead of asking first. `send` comes from the
+   * "Não perguntar de novo" box; `pay` and `delete` only from an explicit permission of their own (Configurações, with a warning).
+   */
+  readonly confirm: { readonly send: 'ask' | 'never'; readonly pay: 'ask' | 'never'; readonly delete: 'ask' | 'never' }
+  /** The CLI loads every connector already (it does not isolate, e.g. Codex): the permission is still the host's policy, and the screen says so. */
+  readonly loadedAlways: boolean
+  readonly grantedBy: string
+  readonly grantedAt: string
+}
+
+/** List grants of the workspace, or of one persona. */
+export interface ListConnectorGrantsRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId?: string
+}
+
+/** Give a persona a connector (or change the level). Owner only. */
+export interface GrantConnectorRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  readonly connector: ConnectorRef
+  readonly access: 'read' | 'write'
+  /** Classes to waive; every class not named stays `ask` (pay and delete ask unless waived HERE, explicitly). */
+  readonly confirm?: { readonly send?: 'ask' | 'never'; readonly pay?: 'ask' | 'never'; readonly delete?: 'ask' | 'never' }
+}
+
+/** Take a connector back from a persona. Owner only; idempotent. */
+export interface RevokeConnectorRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  readonly cli: string
+  readonly connectorId: string
+}
+
+/** What the connector would add to every call of the persona (measured by a control-only pre-flight, zero model). */
+export interface EstimateConnectorGrantCostRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  readonly connector: ConnectorRef
+}
+
+/** `unknown`: nothing was measured, so the screen writes no number. */
+export type ConnectorGrantCostView =
+  | { readonly status: 'measured'; readonly extraTokens: number; readonly percent: number; readonly basisTokens: number }
+  | { readonly status: 'unknown' }
 
 /** OPT-7 Uso e limites fold. Empty book is `estimate`, never 0% quota. */
 export interface GetUsagePanelRequest {
@@ -2038,6 +2861,19 @@ export interface BoardCardView {
    * column is refused with the typed error `delivery_pending` until the person decides.
    */
   readonly deliveryPending?: boolean
+  /** CV-5: personas working WITH the lead (“com Bento”); absent when the Task has none. */
+  readonly collaborators?: readonly CollaboratorView[]
+  /** TEAM-1 (`Config.teamwork`): "Pedido por {A}" on the colleague's card, "Esperando {B}" on the card of whoever asked. */
+  readonly handoff?: BoardHandoffView
+  /** TEAM-6: "Revisando: {R}" while a colleague reviews this card's work. */
+  readonly reviewing?: ReviewingView
+  /** TEAM-6: the seal "Revisado por {R}". */
+  readonly reviewedBy?: ReviewedByView
+  /**
+   * ISO instant the result began to wait for the person's review (its worker reported `ready`); present only while the Task is in the person's review.
+   * Lets the screen say "entregas em revisão há mais de 2 dias" without guessing from `updatedAt`.
+   */
+  readonly inReviewSince?: string
 }
 
 /** Counts by category for Quadros. */
@@ -2327,7 +3163,13 @@ export interface SetPersonaEngineRequest {
   readonly personaId: string
   readonly runnerKind: 'dsh' | 'cli'
   readonly runnerCli: string
-  readonly runnerModel: string
+  /** EFF-1: `null` = "Padrão do motor" (no `--model`). */
+  readonly runnerModel: string | null
+  /**
+   * EFF-1: `null` = "Padrão do motor" (no `--effort`). Left out = keep the current level while the engine and model stay the same;
+   * clear it when either changes. The host stores any level; the engine decides at run time.
+   */
+  readonly runnerEffort?: PersonaEffortLevel | null
 }
 
 /** Live now-line kind (Muse i18n). */
@@ -2358,7 +3200,13 @@ export interface PersonaCardView {
   readonly nowKind: PersonaNowKind
   readonly nowText: string
   readonly presence: { readonly online: boolean; readonly lastActiveAt: string }
-  readonly engine: { readonly runnerLabel: string; readonly modelLabel: string }
+  readonly engine: {
+    readonly runnerLabel: string
+    readonly modelLabel: string
+    /** EFF-1: what the person chose; `null` = "Padrão do motor" (`modelLabel` keeps the stored name, `default`). */
+    readonly runnerModel?: string | null
+    readonly runnerEffort?: PersonaEffortLevel | null
+  }
   /** WAVE2 — CLI account label in use (e.g. Trabalho). */
   readonly activeAccount?: { readonly provider: string; readonly label: string }
   readonly sectorName?: string
@@ -3276,7 +4124,12 @@ export interface EditQueuedMessageRequest extends ProjectScopeRequest {
 export interface OpenAsideAskRequest extends ProjectScopeRequest {
   readonly personaId: string
   readonly subjectId: string
+  /** What the persona is asked. For a `summary` this is the host's own prompt and is NEVER stored as the question the person sees. */
   readonly question: string
+  /** What kind of side question it is (default `aside`: the person typed it). */
+  readonly kind?: 'aside' | 'summary'
+  /** What the person sees as the question, when it is not what was asked (`summary`: "Resumo desta conversa"). */
+  readonly shown?: string
 }
 
 /** Aside view. */
@@ -3284,8 +4137,40 @@ export interface AsideAskView {
   readonly id: string
   readonly personaId: string
   readonly subjectId: string
+  /** The question as the PERSON sees it: what she typed (`aside`) or a short title (`summary`: "Resumo desta conversa") — never the host's prompt. */
   readonly question: string
+  /** `aside` (/lado: she asked) or `summary` (/resumo: the host asked for her). Absent only on asks stored before it existed (read as `aside`). */
+  readonly kind?: 'aside' | 'summary'
   readonly onThread: false
+  /** `asking` while the persona answers, then `answered` or `failed`. Absent on asks stored before the answer existed. */
+  readonly status?: 'asking' | 'answered' | 'failed'
+  /** The answer (3 sentences at most), outside the thread. */
+  readonly answer?: string
+  readonly answeredAt?: string
+  /** Why it failed: `paused` · `no_engine` · `failed`. */
+  readonly error?: 'paused' | 'no_engine' | 'failed'
+  /** Safe sentence for `error`. */
+  readonly message?: string
+}
+
+/** One side question. */
+export interface GetAsideAskRequest extends ProjectScopeRequest {
+  readonly id: string
+}
+
+/** Side questions of one persona in one subject, oldest first. */
+export interface ListAsideAsksRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly subjectId: string
+}
+
+/** `/resumo`: a persona summarises a conversation, off the thread (answered like a `/lado`; read it with `getAsideAsk`). */
+export interface SummarizeConversationRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly subjectId: string
+  readonly streamKind: 'channel' | 'dm'
+  readonly ownerId: string
+  readonly topicId?: string
 }
 
 /** One T3 §9 activity event on the wire. */

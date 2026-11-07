@@ -13,7 +13,8 @@ it('a direct question carries persona and deep-link data and resolves when answe
     const frame = await stream.next()
     if (frame.done) throw new Error('attention-stream-ended')
     const question = frame.value.events.find(row => row.kind === 'question')
-    expect(question).toMatchObject({ personaId: 'coord', personaName: 'Guia', avatarId: 'guia', threadId: 'question-request', streamId: 'channel:geral' })
+    // D-069: the seed names the avatar after the persona ("guia", not a gallery animal), so the host gave her the first free animal
+    expect(question).toMatchObject({ personaId: 'coord', personaName: 'Guia', avatarId: 'atlas', threadId: 'question-request', streamId: 'channel:geral' })
     if (question === undefined) throw new Error('missing-question')
     h.answerAttention({ ...SCOPE, ticketId: question.ticketId, text: 'Na pasta src.' })
     const resolved = await stream.next()

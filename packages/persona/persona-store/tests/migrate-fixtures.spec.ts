@@ -32,7 +32,8 @@ it('fixtures v1..v6 migrate to current and keep workspace rows', async () => {
     expect(row.name).toBe(`Acme v${version}`)
     migrated.close()
   }
-})
+// Justified: one temp SQLite per schema version (25 now, one more with each migration) on a loaded Windows box; not a wall-clock assertion.
+}, 60_000)
 
 it('refuses a newer database with a clear pt-BR message and does not migrate down', async () => {
   const temp = await openTempStore()

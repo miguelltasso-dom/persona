@@ -22,7 +22,7 @@ export const REMOTE_RATE_MAX = 2_000
 /** Writes stay tighter than reads. */
 export const REMOTE_RATE_WRITE_MAX = 240
 const TEST_RATE_MAX = 10_000
-const WRITE = /^(create|update|put|delete|post|move|accept|reject|enqueue|drop|flush|edit|propose|resolve|comment|record|set|claim|fire|confirm|issue|redeem|schedule|pause|complete|apply|import|wipe|open|plan|start|close|approve|revoke|cancel|ack|tick|backup|restore|checkpoint|draft|invite|connect|sync|retry|dismiss|undo)/u
+const WRITE = /^(create|update|put|delete|grant|post|move|accept|reject|enqueue|drop|flush|edit|propose|resolve|comment|record|set|claim|fire|confirm|issue|redeem|schedule|pause|complete|apply|import|wipe|open|plan|start|close|approve|revoke|cancel|ack|tick|backup|restore|checkpoint|draft|invite|connect|sync|retry|dismiss|undo)/u
 
 const IdField = z.string().max(200)
 
@@ -43,19 +43,31 @@ export const RemoteRequestSchema = z.looseObject({
   provider: z.string().max(64).optional(),
 })
 
+/**
+ * The closed vocabulary of `RemoteFault.details.reason`: a stable, kebab-case id the client keys on instead of reading the message (Anvil/Keel, CV-6).
+ * Never a sentence for a person.
+ */
+export type RemoteFaultReason = 'channel-archived'
+
+/** What a fault carries besides its code. */
+export interface RemoteFaultDetails {
+  readonly retryAfterMs?: number
+  readonly reason?: RemoteFaultReason
+}
+
 /** Typed Remote failure. Message never carries an id the caller did not send. */
 export class RemoteFault extends Error {
   /** Structural marker so Typert Gateway ships `code` + `details` (not `gateway/internal`). */
   readonly isDSHRemoteError: true = true
   readonly code: RemoteFaultCode
-  readonly details: { readonly retryAfterMs?: number }
+  readonly details: RemoteFaultDetails
 
   /**
    * @param code - Stable discriminator.
    * @param message - Safe copy (no hidden ids).
    * @param details - `retryAfterMs` on `rate-limited`.
    */
-  constructor(code: RemoteFaultCode, message: string, details: { readonly retryAfterMs?: number } = {}) {
+  constructor(code: RemoteFaultCode, message: string, details: RemoteFaultDetails = {}) {
     super(message)
     this.name = 'RemoteFault'
     this.code = code
@@ -72,6 +84,9 @@ export type RemoteFaultCode =
   | 'vault-unavailable'
   | 'approval-waiting'
   | 'conflict'
+  | 'not-grantable'
+  | 'isolation-partial'
+  | 'limit-reached'
 
 export interface RemoteGuardOptions {
   readonly payloadLimit?: number

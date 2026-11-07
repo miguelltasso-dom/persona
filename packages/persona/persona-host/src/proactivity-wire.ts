@@ -9,6 +9,7 @@ import type { BoardsHost } from './boards.ts'
 import type { DraftFilesBook } from './draft-files.ts'
 import type { WorkingControl } from './working-control.ts'
 import type { GovernanceHost } from './governance.ts'
+import type { MorningBriefHost } from './morning-brief-host.ts'
 import type { Orchestration, ProjectRuntime } from './orchestration.ts'
 import type { ProactivityHost } from './proactivity.ts'
 import { ProactivityScheduler, type PostResult, type SchedulerOptions, type TeamRequest } from './proactivity-scheduler.ts'
@@ -30,6 +31,8 @@ export interface ProactivityWireHost {
   readonly workingControl: WorkingControl
   /** P1-9 “Proposta de {persona}”; absent ⇒ no cards. */
   readonly taskProposals?: TaskProposalPort
+  /** TEAM-7: the morning card; absent ⇒ none. */
+  readonly morningBrief?: Pick<MorningBriefHost, 'check'>
 }
 
 /**
@@ -104,5 +107,6 @@ export function createProactivityScheduler(host: ProactivityWireHost, options: S
       projectId, personaId, from: fromIso, to: host.orchestration.now(),
     }) ?? 0,
     ...(host.taskProposals === undefined ? {} : { proposals: host.taskProposals }),
+    ...(host.morningBrief === undefined ? {} : { morningBrief: (projectId) => { host.morningBrief?.check(projectId, 'tick') } }),
   }, options)
 }

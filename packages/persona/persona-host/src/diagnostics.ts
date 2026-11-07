@@ -4,6 +4,7 @@
 
 import { looksLikeCredential } from '@deepseek-ai/dsh-persona-core'
 import { PERSONA_SCHEMA_VERSION, type PersonaStore, type ProductRepos } from '@deepseek-ai/dsh-persona-store'
+import type { HostFlagsView } from './flags.ts'
 import type { HostScheduler } from './scheduler.ts'
 
 /** JSON-safe diagnostic card. */
@@ -21,6 +22,10 @@ export interface DiagnosticsView {
     readonly events: number
   }
   readonly lastErrors: readonly string[]
+  /** TEAM-15: the v1.1 switches as the host resolved them at boot (smoke: the installed app came up ON with no env). */
+  readonly flags?: HostFlagsView
+  /** EFF-1: where each engine's menu of models came from (`cli` | `static`). */
+  readonly menus?: Readonly<Record<string, 'cli' | 'static'>>
   readonly scheduler: {
     readonly armed: readonly string[]
     readonly hasTimer: boolean
@@ -43,6 +48,8 @@ export interface DiagnosticsSource {
   readonly store: PersonaStore
   readonly lastErrors: readonly string[]
   readonly scheduler: HostScheduler
+  readonly flags?: HostFlagsView
+  readonly menus?: Readonly<Record<string, 'cli' | 'static'>>
 }
 
 /**
@@ -80,6 +87,8 @@ export function collectDiagnostics(host: DiagnosticsSource): DiagnosticsView {
       events: eventRow?.n ?? 0,
     },
     lastErrors: [...host.lastErrors],
+    ...(host.flags === undefined ? {} : { flags: host.flags }),
+    ...(host.menus === undefined || Object.keys(host.menus).length === 0 ? {} : { menus: host.menus }),
     scheduler: {
       armed: [...host.scheduler.armed],
       hasTimer: host.scheduler.timer !== undefined,

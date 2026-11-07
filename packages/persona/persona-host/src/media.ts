@@ -12,7 +12,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ProductRepos, SqliteMediaRepos, StoredAttachment } from '@deepseek-ai/dsh-persona-store'
@@ -26,6 +26,7 @@ import {
   detectUpload,
   sanitizeUploadName,
 } from './media-detect.ts'
+import { imageTypeOf, pickTurnImages, type SkippedImage, type TurnImage } from './turn-images.ts'
 
 /** One attachment on the wire. */
 export interface AttachmentView {
@@ -212,6 +213,111 @@ export class MediaHost {
       stagedNames.push(row.name)
     }
     return { stagedNames, visionImages }
+  }
+
+  /**
+   * TEAM-5: the images of the messages a turn is about, put where the runner can read them (an ABSOLUTE path under `destDir/inputs/`)
+   * and validated the way the runner will (4 types, ≤ 4 per turn, ≤ 5 MB each). Whatever is left out is reported, never dropped in silence.
+   * Same ACL as the other staging: only files bound to those messages.
+   * @param eventIds - The messages the turn is about, in thread order.
+   * @param destDir - Worktree or talk cwd.
+   */
+  stageTurnImages(eventIds: readonly string[], destDir: string): { images: TurnImage[]; skipped: SkippedImage[] } {
+    const rows = [...new Set(eventIds)].flatMap(id => this.media.listByMessage(id))
+    const { chosen, skipped } = pickTurnImages(rows.map(row => ({ id: row.id, name: row.name, mime: row.mime, bytes: row.bytes })))
+    if (chosen.length === 0) return { images: [], skipped }
+    const inputs = join(destDir, 'inputs')
+    mkdirSync(inputs, { recursive: true, mode: 0o700 })
+    const images: TurnImage[] = []
+    for (const pick of chosen) {
+      const row = rows.find(item => item.id === pick.id)
+      const mediaType = imageTypeOf(pick.mime)
+      if (row === undefined || mediaType === undefined) continue
+      const dest = join(inputs, `${row.id}-${sanitizeUploadName(row.name)}`)
+      copyFileSync(this.blobPath('attachment', row.projectId, row.hash), dest)
+      images.push({ path: resolve(dest), mediaType, name: row.name })
+    }
+    return { images, skipped }
+  }
+
+  /**
+   * TEAM-4: which of these attachment ids exist in the project (a persona may name any id).
+   * @param projectId - Tenant.
+   * @param ids - Attachment ids.
+   */
+  existingIds(projectId: string, ids: readonly string[], stream: { readonly streamKind: 'channel' | 'dm'; readonly ownerId: string }): string[] {
+    // Only files of the SAME conversation the Task is in: a persona must not show the team a file from another channel or someone's DM.
+    return ids.filter((id) => {
+      const row = this.media.get(id)
+      return row !== undefined && row.projectId === projectId && row.streamKind === stream.streamKind && row.ownerId === stream.ownerId
+    })
+  }
+
+  /**
+   * TEAM-4: tie the draft's files to the line that shows them (so the clip is in the thread and in the database). Only files not tied to a
+   * message yet; one that already belongs to another message stays there (it is shown there).
+   * @param messageId - The request line.
+   * @param ids - Attachment ids that passed {@link existingIds}.
+   * @param projectId - Tenant.
+   * @param stream - The conversation of the Task.
+   * @returns The ids now tied to the line.
+   */
+  bindDraft(messageId: string, ids: readonly string[], projectId: string, stream: { readonly streamKind: 'channel' | 'dm'; readonly ownerId: string }): string[] {
+    const loose = ids.filter(id => this.media.get(id)?.messageId === undefined)
+    if (loose.length === 0) return []
+    this.bindToMessage(messageId, loose, projectId, stream.streamKind, stream.ownerId)
+    return loose
+  }
+
+  /**
+   * TEAM-4: the images of a draft a persona names by attachment id, as files the runner can read (an ABSOLUTE path under the media home),
+   * validated the way the runner will (4 types, ≤ 4, ≤ 5 MB). Only attachments of this project; what is not a valid image is counted, never sent.
+   * @param projectId - Tenant.
+   * @param ids - Attachment ids, in the order the persona named them.
+   * @param key - The round (names the folder, so a repeat reuses it).
+   */
+  stageAttachmentImages(projectId: string, ids: readonly string[], key: string): { images: TurnImage[]; skipped: number } {
+    const rows = ids.flatMap((id) => {
+      const row = this.media.get(id)
+      return row !== undefined && row.projectId === projectId ? [row] : []
+    })
+    const { chosen, skipped } = pickTurnImages(rows.map(row => ({ id: row.id, name: row.name, mime: row.mime, bytes: row.bytes })))
+    if (chosen.length === 0) return { images: [], skipped: skipped.length }
+    const dir = join(this.root, 'opinion', sanitizeUploadName(key))
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+    const images: TurnImage[] = []
+    for (const pick of chosen) {
+      const row = rows.find(item => item.id === pick.id)
+      const mediaType = imageTypeOf(pick.mime)
+      if (row === undefined || mediaType === undefined) continue
+      const dest = join(dir, `${row.id}-${sanitizeUploadName(row.name)}`)
+      copyFileSync(this.blobPath('attachment', row.projectId, row.hash), dest)
+      images.push({ path: resolve(dest), mediaType, name: row.name })
+    }
+    return { images, skipped: skipped.length }
+  }
+
+  /**
+   * P0-C2: images that are NOT attachments (the art a persona saved in the draft of her Task, an SVG already turned into PNG) as files the runner can read, validated the
+   * way {@link stageAttachmentImages} does (4 types, ≤ 4, ≤ 5 MB). Nothing is stored in the media library: they live in the round's own folder.
+   * @param items - Name, media type and bytes, in the order they should be shown.
+   * @param key - The round (names the folder, so a repeat reuses it).
+   */
+  stageBufferImages(items: readonly { readonly name: string; readonly mime: string; readonly bytes: Buffer }[], key: string): { images: TurnImage[]; skipped: number } {
+    const { chosen, skipped } = pickTurnImages(items.map((item, at) => ({ id: String(at), name: item.name, mime: item.mime, bytes: item.bytes.length })))
+    if (chosen.length === 0) return { images: [], skipped: skipped.length }
+    const dir = join(this.root, 'opinion', sanitizeUploadName(key))
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+    const images: TurnImage[] = []
+    for (const pick of chosen) {
+      const item = items[Number(pick.id)]
+      const mediaType = imageTypeOf(pick.mime)
+      if (item === undefined || mediaType === undefined) continue
+      const dest = join(dir, `art-${pick.id}-${sanitizeUploadName(item.name)}`)
+      writeFileSync(dest, item.bytes, { mode: 0o600 })
+      images.push({ path: resolve(dest), mediaType, name: item.name })
+    }
+    return { images, skipped: skipped.length }
   }
 
   /**

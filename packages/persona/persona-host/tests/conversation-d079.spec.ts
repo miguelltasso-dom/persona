@@ -2,6 +2,7 @@ import type { Runner, Ticket } from '@deepseek-ai/dsh-persona-engine'
 import { latestAssignment } from '@deepseek-ai/dsh-persona-engine'
 import { expect } from 'vitest'
 import PersonaHost from '../src/index.ts'
+import { postTeamRequest } from '../src/proactivity-wire.ts'
 import { doneEventId } from '../src/ticket-done.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
@@ -282,4 +283,207 @@ it('the first delivery stays untouched: its ask is still its own Ticket', async 
   const tickets = h.orchestration.runtime('pp').repo.tickets.list()
   expect(tickets.some(item => item.origin.triggerId === 'first-delivery')).toBe(true)
   expect(h.getFirstDelivery(scope).status).toMatch(/working|ready/)
+})
+
+// ---- BUG-RT-1 (D-079, integrity): only a PERSON answers a question or continues a turn; the team never answers for her ----
+
+/** Bento asked a question in #geral and waits; a second persona exists to be @-mentioned. */
+async function waitingOnAnswer(h: PersonaHost): Promise<Ticket> {
+  seed(h)
+  h.createPersona({
+    id: 'p2', workspaceId: 'ws', projectId: 'pp', name: 'Lia', title: 'Texto', description: 'Escreve.', personality: 'Calma.', instructions: 'Escreva.',
+    avatarKind: 'gallery', avatarRef: 'lia', runnerKind: 'dsh', runnerCli: '', runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+  })
+  h.orchestration.liveQuestion = 'Qual a paleta da marca?'
+  await say(h, '@Bento Faça a arte dos 3 posts')
+  h.orchestration.liveQuestion = undefined
+  const asking = h.orchestration.runtime('pp').repo.tickets.list().find(item => item.attention !== undefined)
+  if (asking === undefined) throw new Error('the question never opened')
+  return asking
+}
+
+/** A message written by the HOST for the team (a routine, the team's initiative or plan), as the scheduler writes it. */
+async function systemSays(h: PersonaHost, actorId: string, id: string, body: string): Promise<string[]> {
+  h.postMessage({ id, ...scope, streamKind: 'channel', ownerId: 'geral', body, actorId, subjectId: '' })
+  await h.orchestration.flush('pp')
+  const events = stream(h)
+  return events.slice(events.findIndex(item => item.id === id) + 1).filter(item => item.actorId !== actorId).map(item => item.body)
+}
+
+it('BUG-RT-1: the morning routine (@Lia …) with a question pending is NOT the answer: the question stays open and it is new work', async () => {
+  const h = host()
+  const asking = await waitingOnAnswer(h)
+  const said = await systemSays(h, 'routine:manha', 'routine-run:manha:1', '@Lia Faça um resumo curto da equipe')
+  expect(said.join('|')).not.toContain('Resposta enviada')
+  expect(h.orchestration.runtime('pp').repo.tickets.get(asking.id)?.attention?.question).toBe('Qual a paleta da marca?') // still waiting on the PERSON
+  expect(otherTickets(h, asking.id).some(item => item.execution?.name === 'Lia')).toBe(true) // the routine became Lia's own task
+})
+
+it('BUG-RT-1: even plain words from the team (no work verb) are never the answer: routine:, team: and the scheduler\'s own ids', async () => {
+  const h = host()
+  const asking = await waitingOnAnswer(h)
+  for (const [actorId, id] of [['routine:manha', 'x1'], ['team:initiative', 'initiative:run-1'], ['team:plan', 'plan:g1:now'], ['someone-else', 'x4']] as const) {
+    const said = await systemSays(h, actorId, id, 'Azul e verde')
+    expect(said.join('|'), `${actorId}`).not.toContain('Resposta enviada')
+  }
+  expect(h.orchestration.runtime('pp').repo.tickets.get(asking.id)?.attention).toBeDefined()
+  expect(h.orchestration.runtime('pp').repo.tickets.get(asking.id)?.assignments).toHaveLength(1) // no second turn was ever started for her
+})
+
+it('BUG-RT-1: a message of the team never continues a RUNNING turn either: it is its own task, the open turn gets nothing (the continuation by the person is test (1))', async () => {
+  const h = host()
+  seed(h)
+  const log: string[] = []
+  openTurn(h, log)
+  await systemSays(h, 'routine:manha', 'routine-run:manha:2', '@Bento resuma a semana')
+  expect(log.filter(line => line.includes(':worker-t1:') && line.includes('resuma a semana'))).toEqual([]) // nothing went into the open turn
+  expect(h.orchestration.runtime('pp').repo.tickets.get('t1')?.inputs).toEqual([]) // and it was not recorded as the person's input
+  expect(otherTickets(h, 't1').length).toBeGreaterThan(0) // the routine became new work
+})
+
+it('a message of the PERSON still answers: plain words to the asker', async () => {
+  const h = host()
+  const asking = await waitingOnAnswer(h)
+  const toBento = await say(h, '@Bento Azul e verde')
+  expect(toBento.lines.join('|')).toContain('Resposta enviada para Bento')
+  expect(h.orchestration.runtime('pp').repo.tickets.get(asking.id)?.attention).toBeUndefined()
+})
+
+it('a reply written ON the question line answers even when the words name someone else', async () => {
+  const h = host()
+  const asking = await waitingOnAnswer(h)
+  h.postMessage({ id: 'r1', ...scope, streamKind: 'channel', ownerId: 'geral', body: 'Pergunte à @Lia: é azul', actorId: 'ana', subjectId: '', replyToId: doneEventId(asking) })
+  await h.orchestration.flush('pp')
+  expect(h.orchestration.runtime('pp').repo.tickets.get(asking.id)?.attention).toBeUndefined()
+})
+
+it('a message from the person addressed to ANOTHER persona is not the answer to this one: it goes to her', async () => {
+  const h = host()
+  const asking = await waitingOnAnswer(h)
+  const toLia = await say(h, '@Lia como está o texto da campanha?')
+  expect(toLia.lines.join('|')).not.toContain('Resposta enviada para Bento')
+  expect(h.orchestration.runtime('pp').repo.tickets.get(asking.id)?.attention?.question).toBe('Qual a paleta da marca?')
+  expectAnswered(toLia.back, 'a message to Lia')
+})
+
+// ---- D-079 · a channel where NOBODY is on the team yet (the installed H2 #4: "Monte sua equipe") ----
+
+function emptyTeam(h: PersonaHost): void {
+  counter = 0
+  h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
+  h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
+  h.sessionMemberId = 'ana'
+}
+const NOBODY = 'Ainda não há ninguém na equipe para responder. Chame o primeiro colega em “Montar equipe” e escreva de novo.'
+
+it('a thank-you in a channel with NO persona is not silence: one honest line says why, and what to do', async () => {
+  const h = host()
+  emptyTeam(h)
+  const result = await say(h, 'obrigado')
+  expect(result.lines).toEqual([NOBODY])
+  expect(result.back[0]?.id).toBe(`coord-${result.id}-ignored`)
+  await h.orchestration.flush('pp')
+  expect(stream(h).filter(item => item.body === NOBODY)).toHaveLength(1) // once, however many times the host looks again
+})
+
+it('the team\'s own lines and a DM between two people are not waiting for that answer', async () => {
+  const h = host()
+  emptyTeam(h)
+  h.createMember({ id: 'beto', workspaceId: 'ws', projectId: 'pp', displayName: 'Beto', handle: 'beto', role: 'member' })
+  h.createDm({ id: 'dm-ab', workspaceId: 'ws', projectId: 'pp', participantA: 'ana', participantB: 'beto' })
+  const dm = await say(h, 'oi, tudo bem?', { kind: 'dm', owner: 'dm-ab' })
+  expect(dm.lines).toEqual([])
+  h.postMessage({ id: 'routine-run:x:1', ...scope, streamKind: 'channel', ownerId: 'geral', body: 'Resumo da manhã', actorId: 'routine:manha', subjectId: '' })
+  await h.orchestration.flush('pp')
+  expect(stream(h).filter(item => item.body === NOBODY)).toHaveLength(0)
+})
+
+it('as soon as someone is on the team the normal path is back: the same thank-you gets her reaction', async () => {
+  const h = host()
+  emptyTeam(h)
+  h.createPersona({
+    id: 'p1', workspaceId: 'ws', projectId: 'pp', name: 'Bento', title: 'Engenharia', description: 'Implementa.',
+    personality: 'Direto.', instructions: 'Prove.', avatarKind: 'gallery', avatarRef: 'bento',
+    runnerKind: 'dsh', runnerCli: '', runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+  })
+  const result = await say(h, 'obrigado')
+  expect(result.lines).not.toContain(NOBODY)
+  expect(result.back.length + h.events.listReactions(result.id).length).toBeGreaterThan(0)
+})
+
+// ---- TEAM-R5: a routine the team writes for a persona is a REQUEST to her, however it is worded ----
+
+it('a routine without a work verb ("@Bento Resumo curto da equipe") is Bento\'s Task, never a chat: no "Olá — em que posso ajudar?"', async () => {
+  const h = host()
+  seed(h)
+  const result = postTeamRequest(h, { id: 'routine-run:manha:9', workspaceId: 'ws', projectId: 'pp', actorId: 'routine:manha', personaId: 'p1', body: '@Bento Resumo curto da equipe', kind: 'routine' })
+  await h.orchestration.flush('pp')
+  expect(result.ok).toBe(true)
+  expect(h.orchestration.runtime('pp').repo.tickets.list().map(item => item.execution?.name)).toEqual(['Bento'])
+  expect(stream(h).map(item => item.body).join('|')).not.toContain('Olá — em que posso ajudar?')
+})
+
+it('a PERSON\'s words are still read by what they say: "obrigado" is a thank-you, not a Task, even right after a routine', async () => {
+  const h = host()
+  seed(h)
+  postTeamRequest(h, { id: 'routine-run:manha:10', workspaceId: 'ws', projectId: 'pp', actorId: 'routine:manha', personaId: 'p1', body: '@Bento Resumo curto da equipe', kind: 'routine' })
+  await h.orchestration.flush('pp')
+  const before = h.orchestration.runtime('pp').repo.tickets.list().length
+  await say(h, 'obrigado')
+  expect(h.orchestration.runtime('pp').repo.tickets.list()).toHaveLength(before)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// (restart) Bolt, 07/11: the person's ANSWER (and a colleague's delivery) must reach the worker's prompt even when THIS runtime never launched
+// the Task, which is every Task after the app is closed and opened again. The Executor of the host queues only the FIRST start of a Task per
+// runtime; for any other the new Assignment's launch was queued and `advanceAssignments` marked the note/answer as delivered before the prompt
+// was built, so the worker woke up without it (and asked again, or guessed).
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The words each Assignment's launch carried to a runner (what the worker was actually told). */
+function launchTexts(h: PersonaHost): string[] {
+  const texts: string[] = []
+  const original = h.orchestration.runnerFactory
+  h.orchestration.runnerFactory = async (request) => {
+    const runner: Runner = await original(request)
+    const deliver = runner.deliver.bind(runner)
+    Object.assign(runner, {
+      deliver: (...args: Parameters<Runner['deliver']>): ReturnType<Runner['deliver']> => {
+        if (args[1].startsWith('launch:')) texts.push(args[2])
+        return deliver(...args)
+      },
+    })
+    return runner
+  }
+  return texts
+}
+
+it('(restart) the person\'s ANSWER reaches the worker even when this runtime never launched the Task (the app was closed and opened again)', async () => {
+  const h = host()
+  seed(h)
+  const texts = launchTexts(h)
+  const at = '2026-11-03T14:30:00.000Z'
+  // The Task as the database holds it after a restart: it asked and waits; nothing in THIS runtime launched it.
+  h.orchestration.runtime('pp').repo.tickets.save(ticket({
+    assignments: [{ id: 't1-a1', state: 'running', createdAt: at, startedAt: at, report: { state: 'waiting', summary: 'Qual cor?', at } }],
+    attention: { id: 'att-t1', question: 'Qual cor?' },
+  }))
+  h.orchestration.deliverAttentionAnswer('pp', 't1', 'Use a cor azul', 'msg-answer')
+  await h.orchestration.flush('pp')
+  expect(texts).toHaveLength(1) // the Task was woken: a new Assignment ran
+  expect(texts[0]).toContain('Use a cor azul') // and it was TOLD the answer (before: the prompt was only “Faça o relatório do dia”)
+})
+
+it('(restart) a colleague\'s delivery that wakes a waiting Task reaches the worker even when this runtime never launched it', async () => {
+  const h = host()
+  seed(h)
+  const texts = launchTexts(h)
+  const at = '2026-11-03T14:30:00.000Z'
+  h.orchestration.runtime('pp').repo.tickets.save(ticket({
+    assignments: [{ id: 't1-a1', state: 'running', createdAt: at, startedAt: at, report: { state: 'waiting', summary: 'Esperando a Lia', at } }],
+  }))
+  expect(h.orchestration.wakeTicket('pp', 't1', 'Lia entregou: o texto do cartaz.')).toBe(true)
+  await h.orchestration.flush('pp')
+  expect(texts).toHaveLength(1)
+  expect(texts[0]).toContain('Lia entregou: o texto do cartaz.')
 })

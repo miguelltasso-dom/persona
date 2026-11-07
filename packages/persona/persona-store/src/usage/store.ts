@@ -62,10 +62,36 @@ export interface StoredOfficialQuota {
   readonly at?: string
   /** Last few reset clocks (capped at {@link QUOTA_REFILL_HISTORY}). */
   readonly refillHistory?: readonly QuotaRefillPoint[]
+  /**
+   * The trail of official readings of the 5-hour and weekly windows (USD-1, D-092): what the vendor said, when, and for which cycle. The host pairs
+   * two readings of the same cycle with the tokens it measured between them to learn how much of the window a token costs. Newest last, capped at
+   * {@link QUOTA_READINGS_CAP}. Rows written before the trail existed have none.
+   */
+  readonly readings?: readonly StoredQuotaReading[]
+}
+
+/** One official reading of one window, as the calibration reads it (`QuotaReading` of persona-engine). */
+export interface StoredQuotaReading {
+  /** ISO instant the vendor was read. */
+  readonly at: string
+  /** `5h` or `week` (the account's own windows; a window scoped to one model is not recorded). */
+  readonly windowId: string
+  /** 0..100, as published. */
+  readonly usedPercent: number
+  /** ISO instant the window resets: it tells one cycle from the next. */
+  readonly resetsAt?: string
 }
 
 /** Keep a short next-refill trail per account. */
 export const QUOTA_REFILL_HISTORY = 8
+
+/** Readings kept per account (newest). A reading is appended only when something changed, so this is weeks of use. */
+export const QUOTA_READINGS_CAP = 200
+
+/** The vendor's reset clock carries milliseconds that vary between reads of the same cycle: within this many ms it is the same cycle (as persona-engine's `SAME_CYCLE_MS`). */
+const QUOTA_SAME_CYCLE_MS = 2000
+
+const QUOTA_READING_WINDOWS: ReadonlySet<string> = new Set(['5h', 'week'])
 
 /**
  * Persist measured/estimated turns and official quota snapshots.
@@ -210,7 +236,8 @@ export class SqliteUsageStore implements UsageStore {
     const accountId = quota.accountId ?? ''
     const previous = this.listQuota(projectId, quota.provider)
       .find(row => (row.accountId ?? '') === accountId)
-    const stored = mergeQuotaHistory({ ...quota, at: quota.at ?? updatedAt }, previous, updatedAt)
+    const read = { ...quota, at: quota.at ?? updatedAt }
+    const stored = mergeQuotaReadings(mergeQuotaHistory(read, previous, updatedAt), previous, read.at)
     this.store.tx((db) => {
       run(db, `INSERT INTO usage_quota (project_id, provider, account_id, origin, body, updated_at)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -305,4 +332,42 @@ export function mergeQuotaHistory(
   const refillHistory = [...prior, ...fresh].slice(-QUOTA_REFILL_HISTORY)
   if (refillHistory.length === 0) return next
   return { ...next, refillHistory }
+}
+
+function sameCycle(left: string | undefined, right: string | undefined): boolean {
+  if (left === undefined || right === undefined) return left === right
+  const a = Date.parse(left)
+  const b = Date.parse(right)
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return left === right
+  return Math.abs(a - b) <= QUOTA_SAME_CYCLE_MS
+}
+
+/**
+ * Append what this read says to the trail of readings (USD-1). A window's reading is added only when it tells something new: the first one, a
+ * different percentage, or a different cycle (another reset clock, even at the same percentage); the same number read again changes nothing the
+ * calibration could use. Only the 5-hour and weekly windows are recorded, only with a published percentage. The trail is the account's own: it
+ * comes from the previous row (a snapshot arriving with its own is not trusted), keeps the newest {@link QUOTA_READINGS_CAP}, and survives a read
+ * that found nothing.
+ * @param next - Incoming snapshot (its `at` is the instant of the read).
+ * @param previous - Last stored row for the same account, if any.
+ * @param at - ISO instant of this read.
+ */
+export function mergeQuotaReadings(
+  next: StoredOfficialQuota,
+  previous: StoredOfficialQuota | undefined,
+  at: string | undefined,
+): StoredOfficialQuota {
+  const trail: StoredQuotaReading[] = [...(previous?.readings ?? next.readings ?? [])]
+  const when = at ?? next.at ?? new Date().toISOString()
+  for (const window of next.windows) {
+    const percent = window.usedPercent
+    if (!QUOTA_READING_WINDOWS.has(window.id) || typeof percent !== 'number' || !Number.isFinite(percent)) continue
+    let last: StoredQuotaReading | undefined
+    for (let index = trail.length - 1; index >= 0 && last === undefined; index -= 1) if (trail[index]?.windowId === window.id) last = trail[index]
+    if (last !== undefined && last.usedPercent === percent && sameCycle(last.resetsAt, window.resetsAt)) continue
+    trail.push({ at: when, windowId: window.id, usedPercent: percent, ...(window.resetsAt === undefined || window.resetsAt === '' ? {} : { resetsAt: window.resetsAt }) })
+  }
+  const readings = trail.slice(-QUOTA_READINGS_CAP)
+  if (readings.length === 0) return next
+  return { ...next, readings }
 }

@@ -41,8 +41,14 @@ export function ticketAttention(input: {
         code: error?.code ?? 'engine_unavailable' })
     } else if (ticket.attention !== undefined) {
       const question = report?.state === 'waiting'
+      const ask = ticket.attention.ask
       rows.push({ ...common, id: `${question ? 'question' : 'need'}:${ticket.id}:${ticket.attention.id}`,
-        kind: question ? 'question' : 'needs-you', question: ticket.attention.question })
+        kind: question ? 'question' : 'needs-you', question: ticket.attention.question,
+        ...(ask === undefined ? {} : { ask: {
+          ...(ask.options === undefined ? {} : { options: ask.options }),
+          multiple: ask.multiple,
+          ...(ask.step === undefined ? {} : { step: ask.step }),
+        } }) })
     } else if (input.stages.get(ticket.id) === 'review') {
       rows.push({ ...common, id: `review:${ticket.id}:${latest?.id ?? 'draft'}`, kind: 'review' })
     } else if ((ticket.ended?.outcome === 'completed' || ticket.ended?.outcome === 'merged')

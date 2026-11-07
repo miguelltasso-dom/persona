@@ -279,8 +279,51 @@ export class ProductRepos {
    */
   listPersonas(projectId: string): StoredPersona[] {
     return this.store.db.prepare(
-      'SELECT * FROM persona WHERE project_id = ? ORDER BY created_at DESC, id DESC',
+      'SELECT * FROM persona WHERE project_id = ? AND retired_at IS NULL ORDER BY created_at DESC, id DESC',
     ).all(projectId).map(personaFrom)
+  }
+
+  /**
+   * The personas the person retired ("aposentadas"), newest first: they are not in the team, but the history still names them.
+   * @param projectId - Tenant project.
+   */
+  listRetiredPersonas(projectId: string): StoredPersona[] {
+    return this.store.db.prepare(
+      'SELECT * FROM persona WHERE project_id = ? AND retired_at IS NOT NULL ORDER BY retired_at DESC, id DESC',
+    ).all(projectId).map(personaFrom)
+  }
+
+  /**
+   * @param id - Persona id.
+   * @returns When she was retired, or `undefined` when she is on the team (or does not exist).
+   */
+  retiredAt(id: string): string | undefined {
+    const row = this.store.db.prepare('SELECT retired_at FROM persona WHERE id = ?').get(id)
+    const value = row?.retired_at
+    return typeof value === 'string' ? value : undefined
+  }
+
+  /**
+   * Retire a persona: she leaves the team and her name and face are free again; her record and everything she did stay. Idempotent.
+   * @param id - Persona id.
+   * @param at - ISO instant.
+   * @returns Whether this call retired her (false when she already was).
+   * @throws StoreError `not-found` for an unknown persona.
+   */
+  retirePersona(id: string, at: string): boolean {
+    if (this.getPersona(id) === undefined) throw new StoreError('not-found', id)
+    return this.store.tx(db => Number(db.prepare('UPDATE persona SET retired_at = ? WHERE id = ? AND retired_at IS NULL').run(at, id).changes)) > 0
+  }
+
+  /**
+   * Bring a retired persona back to the team. Idempotent.
+   * @param id - Persona id.
+   * @returns Whether this call brought her back.
+   * @throws StoreError `not-found` for an unknown persona.
+   */
+  unretirePersona(id: string): boolean {
+    if (this.getPersona(id) === undefined) throw new StoreError('not-found', id)
+    return this.store.tx(db => Number(db.prepare('UPDATE persona SET retired_at = NULL WHERE id = ? AND retired_at IS NOT NULL').run(id).changes)) > 0
   }
 
   /**

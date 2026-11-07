@@ -95,10 +95,65 @@ it('OPT-9: a v19 database opens at v20 with its ledger rows intact and no time i
       expect(old).toHaveLength(1)
       expect(old[0]).toMatchObject({ id: 'old', inputTokens: 30, outputTokens: 5, origin: 'measured' })
       expect(old[0]).not.toHaveProperty('durationMs')
+      expect(old[0]).not.toHaveProperty('envMode') // D-085: nothing is back-filled either
     } finally {
       migrated.close()
     }
   } finally {
     await temp.dispose()
   }
+})
+
+it('D-085: keeps the mode a call ran in when the runner reported it, and leaves it absent otherwise', async () => {
+  await withTempStore(async (store) => {
+    const book = new TurnLedgerRepos(store)
+    for (const [id, mode] of [['n', 'native'], ['a', 'answer-only'], ['d', 'needed']] as const) book.put('pp', entry({ id, envMode: mode }))
+    book.put('pp', entry({ id: 'unknown' }))
+    const rows = new Map(book.list({ projectId: 'pp' }).map(row => [row.id, row]))
+    expect(rows.get('n')?.envMode).toBe('native')
+    expect(rows.get('a')?.envMode).toBe('answer-only')
+    expect(rows.get('d')?.envMode).toBe('needed')
+    expect(rows.get('unknown')).not.toHaveProperty('envMode') // never a made-up mode
+    // Only the three known modes are recorded: the core refuses anything else before it reaches the book.
+    expect(() => book.put('pp', entry({ id: 'bad', envMode: 'sandbox' as unknown as 'native' }))).toThrow()
+    expect(book.list({ projectId: 'pp' }).some(row => row.id === 'bad')).toBe(false)
+  })
+})
+
+it('EFF-1: keeps the model and effort the person chose (and what the engine dropped) with the row, without a schema change', async () => {
+  await withTempStore(async (store) => {
+    const version = PERSONA_SCHEMA_VERSION
+    const book = new TurnLedgerRepos(store)
+    book.put('pp', entry({ id: 'opus-max', model: 'opus', modelRequested: 'opus', effortRequested: 'max' }))
+    book.put('pp', entry({ id: 'dropped', model: 'default', modelRequested: 'claude-nope-9', modelDropped: 'claude-nope-9', effortRequested: 'xhigh', effortDropped: 'xhigh' }))
+    book.put('pp', entry({ id: 'default', model: 'default' })) // "Padrão do motor": nothing chosen, nothing said
+    book.put('other', entry({ id: 'opus-max-other', modelRequested: 'sonnet' }))
+    const rows = new Map(book.list({ projectId: 'pp' }).map(row => [row.id, row]))
+    expect(rows.get('opus-max')).toMatchObject({ model: 'opus', modelRequested: 'opus', effortRequested: 'max' })
+    expect(rows.get('opus-max')).not.toHaveProperty('modelDropped')
+    expect(rows.get('opus-max')).not.toHaveProperty('effortDropped')
+    expect(rows.get('dropped')).toMatchObject({ model: 'default', modelRequested: 'claude-nope-9', modelDropped: 'claude-nope-9', effortRequested: 'xhigh', effortDropped: 'xhigh' })
+    for (const field of ['model', 'modelRequested', 'effortRequested', 'modelDropped', 'effortDropped']) expect(rows.get('default')).not.toHaveProperty(field)
+    // The detail is per project: another tenant's row with the same kind never leaks into this book.
+    expect(book.list({ projectId: 'other' })[0]).toMatchObject({ id: 'opus-max-other', modelRequested: 'sonnet' })
+    expect(book.list({ projectId: 'pp', personaId: 'atlas' })).toHaveLength(3)
+    // Written as a JSON detail (screen_doc), only for the turns with a choice: no column, no migration.
+    const docs = store.db.prepare('SELECT project_id, id FROM screen_doc WHERE kind = ? ORDER BY project_id, id').all('turn_engine')
+    expect(docs.map(doc => `${String(doc.project_id)}:${String(doc.id)}`)).toEqual(['other:opus-max-other', 'pp:dropped', 'pp:opus-max'])
+    expect(PERSONA_SCHEMA_VERSION).toBe(version)
+    // Replacing a row without a choice drops its old detail (the book never shows a choice the turn did not have).
+    book.put('pp', entry({ id: 'opus-max' }))
+    expect(book.list({ projectId: 'pp' }).find(row => row.id === 'opus-max')).not.toHaveProperty('modelRequested')
+    expect(store.db.prepare('SELECT COUNT(*) AS n FROM screen_doc WHERE kind = ? AND id = ?').get('turn_engine', 'opus-max')?.n).toBe(0)
+    // Values are identifiers, never prose: the core refuses anything else before it reaches the book.
+    expect(() => book.put('pp', entry({ id: 'prose', modelRequested: 'use o melhor modelo' }))).toThrow()
+    expect(book.list({ projectId: 'pp' }).some(row => row.id === 'prose')).toBe(false)
+    // A damaged detail is left out field by field; the row still reads.
+    store.db.prepare('INSERT INTO screen_doc (project_id, kind, id, body, updated_at) VALUES (?, ?, ?, ?, ?)').run('pp', 'turn_engine', 'default', '{"modelRequested":"bad value","effortRequested":"high"', at)
+    expect(book.list({ projectId: 'pp' }).find(row => row.id === 'default')).not.toHaveProperty('effortRequested')
+    store.db.prepare('UPDATE screen_doc SET body = ? WHERE kind = ? AND id = ?').run('{"modelRequested":"bad value","effortRequested":"high"}', 'turn_engine', 'default')
+    const damaged = book.list({ projectId: 'pp' }).find(row => row.id === 'default')
+    expect(damaged?.effortRequested).toBe('high')
+    expect(damaged).not.toHaveProperty('modelRequested')
+  })
 })

@@ -1,4 +1,5 @@
 import { expect } from 'vitest'
+import { canSaveFiles } from '../../src/file-tools.ts'
 import { SCOPE, openJourney, seedJourney, it } from './journey-host.ts'
 
 it('J3 — três Contratar? em cadeia, sem escalar acesso, só depois da aprovação', () => {
@@ -18,7 +19,7 @@ it('J3 — três Contratar? em cadeia, sem escalar acesso, só depois da aprova�
     expect(hired).toBeDefined()
     expect(hired!.canRecruit).toBe(false)
     const stored = h.product.getPersona(hired!.id)!
-    expect(stored.tools).toEqual({})
+    expect(stored.tools).toEqual(canSaveFiles(h.product.getPersona('coord')!.tools) ? { files: 'write' } : {}) // never more than the hirer (D-099)
     expect(JSON.stringify(stored)).not.toMatch(/sk-|ghp_|Bearer /)
     expect(index).toBeLessThan(3)
   }

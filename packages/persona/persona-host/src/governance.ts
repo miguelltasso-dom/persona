@@ -38,7 +38,9 @@ import type {
   StoredRoutineCharge,
   StoredSector,
 } from '@deepseek-ai/dsh-persona-store'
+import { MORNING_ROUTINE_PREFIX } from './morning-brief-host.ts'
 import type { ProactivityHost } from './proactivity.ts'
+import { INITIATIVE_ROUTINE_PREFIX } from './routine-remotes.ts'
 import type {
   ApprovalView,
   ApplyGovernanceFixRequest,
@@ -58,6 +60,11 @@ import type {
   TwoDayOutcomeView,
   TwoDayTestView,
 } from './types.ts'
+
+/** The team's own routines (the morning card, a persona's initiative): not the person's to own, not a failure to count. */
+export function isSystemRoutine(routineId: string): boolean {
+  return routineId.startsWith(MORNING_ROUTINE_PREFIX) || routineId.startsWith(INITIATIVE_ROUTINE_PREFIX)
+}
 
 const COMPANY_WIRE: Readonly<Record<string, CompanyKind>> = {
   agency: 'agencia',
@@ -82,6 +89,8 @@ function functionKey(value: string): string {
  */
 export class GovernanceHost {
   private readonly functionPlans: ScreenRepos
+  /** CV-6: the organogram changed for the projects of these personas (a persona joined, left a team, changed sector or role). The host reconciles the team channels. */
+  onOrganogramChange: ((projectId: string) => void) | undefined = undefined
   /**
    * @param product - Members and personas.
    * @param cards - Charge rows.
@@ -128,6 +137,7 @@ export class GovernanceHost {
       ...(current?.substituteHumanId === undefined ? {} : { substituteHumanId: current.substituteHumanId }),
       ...(sectorId === undefined ? {} : { sectorId }),
     })
+    this.onOrganogramChange?.(persona.projectId)
     this.proactivity.ensureInitiativeRoutine(persona)
     this.gov.putRoutineCharge({ routineId: `initiative:${persona.id}`, workspaceId: persona.workspaceId,
       title: `Iniciativa de ${persona.name}`, executorPersonaId: persona.id,
@@ -173,7 +183,9 @@ export class GovernanceHost {
     const loose: RoutineCharge[] = []
     for (const project of this.product.listProjects(workspaceId)) {
       for (const routine of this.routines.list(project.id)) {
-        if (charged.has(routine.id)) continue
+        // A routine of the SYSTEM (the morning card, a persona's initiative) is the team's own: it never becomes a Task or a line the person could own, so
+        // "no executions" is not a failure and "no owner" is not a gap. The Saúde does not list it and it does not lower the score (Muse, Keel 05:53).
+        if (charged.has(routine.id) || isSystemRoutine(routine.id)) continue
         loose.push({ routineId: routine.id, title: routine.name, requiresApproval: false })
       }
     }
@@ -397,6 +409,7 @@ export class GovernanceHost {
       ...(current.substituteHumanId === undefined ? {} : { substituteHumanId: current.substituteHumanId }),
       ...(sectorId === '' ? {} : { sectorId }),
     })
+    this.changedFor([personaId])
     this.audit(workspaceId, actorId, 'set-sector', { personaId, sectorId })
   }
 
@@ -502,6 +515,13 @@ export class GovernanceHost {
         ...(charge.sectorId === undefined ? {} : { sectorId: charge.sectorId }),
       })
     }
+    this.changedFor(charges.map(charge => charge.personaId))
+  }
+
+  /** Tell the host which projects' organogram changed (once per project). */
+  private changedFor(personaIds: readonly string[]): void {
+    if (this.onOrganogramChange === undefined) return
+    for (const projectId of new Set(personaIds.flatMap(id => this.product.getPersona(id)?.projectId ?? []))) this.onOrganogramChange(projectId)
   }
 
   private persistRoutines(workspaceId: string, routines: readonly RoutineCharge[]): void {

@@ -16,9 +16,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { ticketGoal, type Runner } from '@deepseek-ai/dsh-persona-engine'
-import { createFakeRunner } from '@deepseek-ai/dsh-persona-runners'
+import { createFakeRunner, createMcpGateway } from '@deepseek-ai/dsh-persona-runners'
 import PersonaHost from '../src/index.ts'
 import { emitRunnerPartial } from '../src/runner.ts'
+import { harnessMcpPorts } from '../src/harness-dispatch.ts'
+import { productToolsOpener } from '../src/harness-turn.ts'
+import { ASK_TOOL, createAskTool } from '../src/persona-ask-tool.ts'
 
 if (process.env.PERSONA_SCRIPTED !== '1') throw new Error('refusing to run: set PERSONA_SCRIPTED=1 (no real model in this proof)')
 
@@ -43,6 +46,10 @@ for (const [id, name] of [['p1', 'Bento'], ['p2', 'Iris']] as const) {
     runnerKind: 'dsh', runnerCli: '', runnerModel: 'm', canRecruit: false, createdBy: 'ana',
   })
 }
+
+// This proof is about the scheduler, the conversation and the tools — not about the review step (it has its own proof): with the review on, its Tasks
+// run beside these phases, take the one-shot `liveText` hook before the reply that waits for it, and add a Task the counts below do not expect.
+h.screens.screens.put('pp', 'review_policy', 'v1', { mode: 'off', reviewer: { kind: 'coordination' } })
 
 let resolves = 0
 const original = h.orchestration.runnerFactory
@@ -253,6 +260,247 @@ h.proactivityScheduler.dispose()
   say(`phase 8 D-079: open tasks=${String(openNow)} chat answered by ${chatBack.map(item => item.id).join(',')} · work lines=${workBack.map(item => item.id).join(',')} · new tickets=${String(after.length - before)}`)
   results.chatNeverSilent = chatBack.some(item => item.id === 'coord-m-chat-reply')
   results.workNeverSilent = workBack.length > 0 && after.length - before === 1
+}
+
+// 9. IV-6 (/lado, /resumo) and CONV-2 (the recovery sweep never adds a second answer): nothing lands in the conversation.
+{
+  const geral = (): string[] => h.events.listProject('pp').filter(item => item.streamId === 'channel:geral').map(item => item.id)
+  const key = { ...scope, personaId: 'p1', subjectId: 'geral' }
+  h.orchestration.warmRunners.clear()
+  h.orchestration.runnerFactory = () => Promise.resolve(createFakeRunner())
+  const before = geral()
+  const asked = h.openAsideAsk({ ...key, question: 'quanto falta para terminar?' })
+  const askedAtOnce = asked.status === 'asking' && !asked.onThread
+  await h.asides.whenIdle()
+  const answered = h.getAsideAsk({ ...scope, id: asked.id })
+  const summary = h.summarizeConversation({ ...key, streamKind: 'channel', ownerId: 'geral' })
+  await h.asides.whenIdle()
+  const summarised = h.getAsideAsk({ ...scope, id: summary.id })
+  await (h.orchestration as unknown as { recoverTalks(rt: unknown, projectId: string): Promise<void> }).recoverTalks(h.orchestration.runtime('pp'), 'pp')
+  await h.orchestration.flush('pp')
+  const after = geral()
+  say(`phase 9 IV-6/CONV-2: /lado ${answered.status} "${(answered.answer ?? '').slice(0, 40)}" · /resumo ${summarised.status} · #geral lines before=${String(before.length)} after=${String(after.length)}${after.length === before.length ? '' : ` NEW=${after.filter(id => !before.includes(id)).join(',')}`}`)
+  results.asideAnswered = askedAtOnce && answered.status === 'answered' && (answered.answer ?? '') !== ''
+  results.summaryAnswered = summarised.status === 'answered' && (summarised.answer ?? '') !== ''
+  results.asideOffThread = after.length === before.length // /lado, /resumo and the recovery sweep wrote nothing in the conversation
+}
+
+// 10. CV-8 (flag on): ONE message to the whole team is answered by a block of typed lines, one per persona, and the recovery sweep adds nothing.
+{
+  h.orchestration.fanoutEnabled = true
+  h.orchestration.warmRunners.clear()
+  h.orchestration.runnerFactory = () => Promise.resolve(createFakeRunner())
+  const team = h.product.listPersonas('pp').length
+  h.postMessage({ id: 'm-fan', ...scope, streamKind: 'channel', ownerId: 'geral', body: 'Como a equipe está hoje?', actorId: 'ana', subjectId: '', fanout: 'everyone' })
+  await h.orchestration.flush('pp')
+  await (h.orchestration as unknown as { recoverTalks(rt: unknown, projectId: string): Promise<void> }).recoverTalks(h.orchestration.runtime('pp'), 'pp')
+  await h.orchestration.flush('pp')
+  const block = h.listMessages({ ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 200 }).events
+    .filter(item => item.id.startsWith('coord-m-fan-fan-'))
+  const single = h.events.has('coord-m-fan-reply')
+  h.orchestration.fanoutEnabled = false
+  say(`phase 10 CV-8: ${String(team)} personas · block lines=${String(block.length)} kinds=${block.map(item => item.fanout?.kind ?? '?').join(',')} · one-persona reply=${String(single)}`)
+  results.fanoutBlock = team > 1 && block.length === team && block.every(item => item.fanout?.kind === 'reply' && item.fanout.total === team)
+  results.fanoutNotSingle = !single
+}
+
+// 11. TEAM-13 (flag on): a request that names nobody goes to the persona of its FUNCTION; a list of functions becomes one Task per persona.
+const functionTeam = [['p-bia', 'Bia', 'Redação'], ['p-teo', 'Teo', 'Design'], ['p-caio', 'Caio', 'Mídia']] as const
+for (const [id, name, title] of functionTeam) {
+  h.createPersona({
+    id, workspaceId: 'ws', projectId: 'pp', name, title, description: title,
+    personality: 'Clara.', instructions: 'Ajude.', avatarKind: 'gallery', avatarRef: name.toLowerCase(),
+    runnerKind: 'dsh', runnerCli: '', runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+  })
+}
+let askerTicketId = ''
+{
+  h.teamworkEnabled = true
+  h.orchestration.warmRunners.clear()
+  h.orchestration.runnerFactory = () => Promise.resolve(createFakeRunner())
+  const before = new Set(tickets().map(item => item.id))
+  h.postMessage({ id: 'm-camp', ...scope, streamKind: 'channel', ownerId: 'geral', body: 'preciso de uma campanha de lançamento do nosso produto: texto, arte e posts', actorId: 'ana', subjectId: '' })
+  await h.orchestration.flush('pp')
+  const made = tickets().filter(item => !before.has(item.id) && !item.title.startsWith('Revisar:'))
+  const executors = made.map(item => item.execution?.name ?? '?').sort()
+  const splitLine = h.events.get('team-plan:split-m-camp')?.body ?? '' // the plan card is the ONE statement of the split (EQUIPE-REAL §0)
+  askerTicketId = made.find(item => item.execution?.name === 'Bia')?.id ?? ''
+  const beforeOne = new Set(tickets().map(item => item.id))
+  h.postMessage({ id: 'm-arte', ...scope, streamKind: 'channel', ownerId: 'geral', body: 'Preciso da arte do cartaz de domingo', actorId: 'ana', subjectId: '' })
+  await h.orchestration.flush('pp')
+  const one = tickets().filter(item => !beforeOne.has(item.id) && !item.title.startsWith('Revisar:'))
+  say(`phase 11 TEAM-13: list → ${executors.join('+')} · line="${splitLine.slice(0, 80)}" · one function → ${one.map(item => item.execution?.name ?? '?').join(',')} · mandate=${made.map(item => item.mandate.actor.id).join(',')}`)
+  results.splitByFunction = executors.join(',') === 'Bia,Caio,Teo' && splitLine.startsWith('Dividi assim') && !h.events.has('coord-m-camp-split')
+  results.splitKeepsMandate = made.length === 3 && made.every(item => item.mandate.actor.id === 'ana')
+  results.oneFunctionOneOwner = one.length === 1 && one[0]?.execution?.name === 'Teo'
+}
+
+// 12. TEAM-4 (flag on): Bia asks the team about a draft with an image: ONE request, one reply per colleague, ONE consolidation; a repeat of the call changes nothing.
+{
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+  const image = h.attachFile({ ...scope, streamKind: 'channel', ownerId: 'geral', name: 'cartaz.png', bytesBase64: png }).id
+  const input = {
+    projectId: 'pp', ticketId: askerTicketId, requestId: 'live-opinion-1', askerId: 'p-bia', question: 'O que acham do cartaz?',
+    draft: { text: 'Cartaz de domingo', attachmentIds: [image] }, readerIds: ['p-teo', 'p-caio'], round: 1, maxRounds: 2, audience: 'team' as const,
+  }
+  const first = await h.opinions.run(input)
+  const linesAfterFirst = h.events.listProject('pp').filter(item => item.id.startsWith('opinion:live-opinion-1:')).length
+  const imageTurns = h.orchestration.imageTurns.filter(turn => turn.session.startsWith('opinion-live-opinion-1-')).length
+  const again = await h.opinions.run(input)
+  const linesAfterAgain = h.events.listProject('pp').filter(item => item.id.startsWith('opinion:live-opinion-1:')).length
+  const thread = h.listMessages({ ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 200 }).events
+    .filter(item => item.id.startsWith('opinion:live-opinion-1:'))
+  say(`phase 12 TEAM-4: state=${first.state} replies=${String(first.replies.length)} lines=${String(linesAfterFirst)} kinds=${thread.map(item => item.opinion?.kind ?? '?').join(',')} · image turns=${String(imageTurns)} · repeat lines=${String(linesAfterAgain)} state=${again.state}`)
+  results.opinionRound = askerTicketId !== '' && first.state === 'done' && first.replies.length === 2 && linesAfterFirst === 4
+    && thread.map(item => item.opinion?.kind).join(',').replace('reply,reply', 'reply') === 'request,reply,consolidated'
+  results.opinionImage = imageTurns === 2 && first.ignoredAttachmentIds.length === 0
+  results.opinionIdempotent = linesAfterAgain === linesAfterFirst && again.state === first.state
+  h.teamworkEnabled = false
+}
+
+// 13. HT-6 (flag on): a persona the person allowed to hire leaves a CARD in Aprovações; nobody joins until she approves; "Contratar direto" (hers to turn on) hires at once.
+{
+  h.teamworkEnabled = true
+  const run = { personaId: 'p-bia', ticketId: askerTicketId, assignmentId: 'live-a1' }
+  const ports = harnessMcpPorts(h.harness)
+  const hire = async (callId: string, name: string) => JSON.parse(await ports.call!({ tool: 'persona_hire', run, args: { name, title: 'Revisão', description: 'Revisa os textos.' }, callId })) as { ok: boolean; status?: string; code?: string; hire?: { id: string; name: string } }
+  const before = h.product.listPersonas('pp').length
+  const refused = await hire('hire-0', 'Sem Permissão')
+  h.setPersonaCanRecruit({ ...scope, personaId: 'p-bia', canRecruit: true })
+  const card = await hire('hire-1', 'Bolota')
+  const cardListed = h.screens.listApprovals('pp').some(row => row.kind === 'hire' && row.id === card.hire?.id && row.status === 'pending' && row.personaId === 'p-bia')
+  const stillBefore = h.product.listPersonas('pp').length
+  h.screens.decide({ ...scope, id: card.hire?.id ?? '', kind: 'hire', accept: true })
+  const approved = h.product.listPersonas('pp').find(item => item.createdBy === 'p-bia' && item.id.startsWith('hire:'))
+  h.orchestration.setPersonaPaused('pp', 'p-bia', false)
+  h.setPersonaHireDirect({ ...scope, personaId: 'p-bia', hireDirect: true })
+  const direct = await hire('hire-2', 'Direta')
+  say(`phase 13 HT-6: no permission → ${refused.code ?? '?'} · card → ${card.status ?? '?'} listed=${String(cardListed)} team ${String(before)}→${String(stillBefore)} · approved → ${approved?.name ?? '-'} (tools ${JSON.stringify(approved?.tools ?? {})}) · direct → ${direct.status ?? direct.code ?? '?'}`)
+  results.hireNeedsPermission = refused.ok === false && refused.code === 'forbidden'
+  results.hireIsACard = card.ok && card.status === 'pending' && cardListed && stillBefore === before
+  results.hireApprovedNoMoreAccess = approved?.name === 'Bolota' && Object.keys(approved.tools).length === 0 && approved.canRecruit === false
+  results.hireDirectOnlyWhenOn = direct.ok && direct.status === 'hired'
+  h.teamworkEnabled = false
+}
+
+// 14. D-079 (b): a worker of a REAL CLI asks the person through the TOOL during its turn; the Task WAITS (no delivery), and the answer returns to the SAME Task and session.
+{
+  const gateway = createMcpGateway({
+    hooks: {
+      report: () => undefined, recall: () => '',
+      ask: createAskTool({ product: h.product, screens: h.screens.screens, asks: h.personaAsks, ticketOf: (projectId, id) => h.orchestration.runtime(projectId).repo.tickets.get(id) }),
+    },
+    onlyWired: true,
+  })
+  const open = productToolsOpener({ gateway, toolLevel: 'write', taskTextOf: id => h.orchestration.runtime('pp').repo.tickets.get(id)?.execution?.assignment ?? '' })
+  const prompts: string[] = []
+  const sessions: string[] = []
+  let toolSaid = ''
+  let first = true
+  const inner = createFakeRunner()
+  const stub: Runner = {
+    ensureSession: (...args) => inner.ensureSession(...args),
+    deliver: async (session, request, text, mode) => {
+      sessions.push(session)
+      prompts.push(text)
+      if (first) {
+        first = false
+        const set = open({ personaId: 'p2', ticketId: session.replace(/^worker-/u, ''), assignmentId: request, cwd: '.' })
+        const ask = set?.tools.find(tool => tool.name === ASK_TOOL)
+        toolSaid = ask === undefined ? 'NOT OFFERED' : (await ask.handler({ question: 'Qual cor usamos no relatório?' })).content
+        await set?.close?.()
+      }
+      await inner.deliver(session, request, text, mode)
+    },
+    cancel: (...args) => inner.cancel(...args),
+    status: id => inner.status(id),
+    whenIdle: id => inner.whenIdle(id),
+    onEvent: listener => inner.onEvent(listener),
+    capabilities: () => inner.capabilities(),
+  }
+  h.orchestration.warmRunners.set('pp:p2:task', stub)
+  h.postMessage({ id: 'm-ask', ...scope, streamKind: 'channel', ownerId: 'geral', body: '@Iris Faça o relatório do dia', actorId: 'ana', subjectId: '' })
+  await h.orchestration.flush('pp')
+  const task = tickets().find(item => item.origin.triggerId === 'm-ask')
+  const waiting = task !== undefined && h.orchestration.runtime('pp').repo.tickets.get(task.id)?.attention?.question === 'Qual cor usamos no relatório?'
+  const noDelivery = task !== undefined && !h.events.has(`coord-${task.id}-done`)
+  const answered = task !== undefined && h.answerAttention({ ...scope, ticketId: task.id, text: 'Azul' })
+  await h.orchestration.flush('pp')
+  const after = task === undefined ? undefined : h.orchestration.runtime('pp').repo.tickets.get(task.id)
+  say(`phase 14 persona_ask: tool→"${toolSaid.slice(0, 30)}" · waiting=${String(waiting)} · delivery before answer=${String(!noDelivery)} · sessions=${sessions.join(',')} · answer in 2nd prompt=${String(prompts[1]?.includes('Azul') === true)} · attention after=${String(after?.attention !== undefined)}`)
+  results.askOpensQuestion = toolSaid.startsWith('Pergunta enviada') && waiting
+  results.askIsNotDelivery = noDelivery
+  results.askAnswerSameTask = answered && sessions.length === 2 && sessions[0] === sessions[1] && prompts[1]?.includes('Azul') === true && after?.attention === undefined && (after?.assignments.length ?? 0) === 2
+  h.orchestration.warmRunners.delete('pp:p2:task')
+}
+
+// Phase 15 — TEAM-7 on demand: "Bom dia agora" at whatever hour the real clock says, from the real records, with no model.
+{
+  h.teamworkEnabled = true
+  // This script talks in channel:geral without a channel row and has no Coordenação: the card needs both (a real team has them from its first day).
+  if (!h.listChannels(scope).some(row => row.name === 'geral')) h.createChannel({ id: 'geral', ...scope, name: 'geral', topic: '' })
+  if (!h.product.listPersonas('pp').some(row => row.systemRoles.includes('coordination'))) {
+    h.createPersona({
+      id: 'guia15', ...scope, name: 'Guia', title: 'Coordenação', description: 'Coordena.', personality: 'Clara.', instructions: 'Ajude.',
+      avatarKind: 'gallery', avatarRef: 'guia', runnerKind: 'dsh', runnerCli: '', runnerModel: 'm', canRecruit: false, createdBy: 'ana', systemRoles: ['coordination'],
+    })
+  }
+  const before = resolves
+  const tickets15 = h.orchestration.runtime('pp').repo.tickets
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString()
+  const stamp15 = new Date().toISOString()
+  const make = (id: string, title: string, by: string, over: Record<string, unknown>) => tickets15.save({
+    id, title, decisionId: `d-${id}`,
+    mandate: { strength: 'explicit', policyVersion: 'v1', basis: { via: 'listed' }, actor: { source: 'channel', id: 'ana' }, scope: 'small' },
+    channels: [], assignments: [{ id: `a-${id}`, state: 'running', createdAt: stamp15 }], inputs: [], undelivered: [],
+    createdAt: stamp15, updatedAt: stamp15, origin: { triggerId: `t-${id}`, triggerIds: [`t-${id}`] },
+    execution: { name: by, directory: '.', assignment: title }, ...over,
+  } as Parameters<typeof tickets15.save>[0])
+  make('live-brief-done', 'Relatório da semana', 'Bento', { ended: { at: yesterday, by: 'executor', outcome: 'completed' } })
+  make('live-brief-busy', 'Revisão do roteiro', 'Iris', {})
+  const first = h.postDailyBriefNow({ ...scope, requestId: 'live-1' })
+  const second = h.postDailyBriefNow({ ...scope, requestId: 'live-1' })
+  const geral15 = h.listMessages({ ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 200 }).events
+  const card = geral15.find(item => item.id === first.messageId)
+  say(`phase 15 Bom dia agora: ${first.outcome} → ${second.outcome} · card="${(card?.body ?? '').slice(0, 90)}" · by=${card?.actorId ?? '?'} · model calls=${String(resolves - before)}`)
+  results.briefNowPosted = first.outcome === 'posted' && card?.dailyBrief !== undefined && card.body.startsWith('Bom dia.')
+  results.briefNowIdempotent = second.outcome === 'already' && second.messageId === first.messageId && geral15.filter(item => item.id === first.messageId).length === 1
+  results.briefNowNoModel = resolves === before && card?.actorId !== 'ana'
+  h.teamworkEnabled = false
+}
+
+// Phase 16 — CV-6: the channels of the organogram, in a real host process (no model is called).
+{
+  h.teamworkEnabled = true
+  h.governance.gov.putSector({ id: 's-eng', workspaceId: 'ws', name: 'Engenharia', policyJson: '{}' })
+  h.setSector({ workspaceId: 'ws', personaId: 'p1', sectorId: 's-eng' })
+  h.setSector({ workspaceId: 'ws', personaId: 'p2', sectorId: 's-eng' })
+  const team = h.listChannels(scope).find(item => item.kind === 'team' && item.teamName === 'Engenharia')
+  const members = team === undefined ? [] : h.listChannelMembers({ ...scope, channelId: team.id }).map(item => item.id).sort()
+  // the person renames it, archives it and writes to it: refused with the stable reason
+  let refused = ''
+  let renamed = ''
+  if (team !== undefined) {
+    renamed = h.renameChannel({ ...scope, channelId: team.id, name: 'time-eng' }).name
+    h.archiveChannel({ ...scope, channelId: team.id })
+    try { h.postMessage({ id: 'm-arch', ...scope, streamKind: 'channel', ownerId: team.id, body: 'oi', actorId: 'ana', subjectId: 'm-arch' }) } catch (error) {
+      refused = String((error as { details?: { reason?: string } }).details?.reason ?? '')
+    }
+    h.unarchiveChannel({ ...scope, channelId: team.id })
+  }
+  // the team empties: the channel is archived with ONE line, never deleted; it comes back with the team
+  h.setSector({ workspaceId: 'ws', personaId: 'p1', sectorId: '' })
+  h.setSector({ workspaceId: 'ws', personaId: 'p2', sectorId: '' })
+  const gone = team === undefined ? undefined : h.listChannels(scope).find(item => item.id === team.id)
+  const goneLines = team === undefined ? 0 : h.events.listProject('pp').filter(row => row.id === `team-gone:${team.id}`).length
+  h.setSector({ workspaceId: 'ws', personaId: 'p1', sectorId: 's-eng' })
+  h.setSector({ workspaceId: 'ws', personaId: 'p2', sectorId: 's-eng' })
+  const back = team === undefined ? undefined : h.listChannels(scope).find(item => item.id === team.id)
+  say(`phase 16 CV-6: team channel=${team?.name ?? '-'} members=${members.join(',')} renamed=${renamed} · post to archived → reason=${refused} · empty → archived=${String(gone?.archived)} (${gone?.archivedReason ?? '-'}) lines=${String(goneLines)} · back → archived=${String(back?.archived)}`)
+  results.cv6TeamChannel = team !== undefined && members.join(',') === 'p1,p2'
+  results.cv6RenameArchivePost = renamed === 'time-eng' && refused === 'channel-archived'
+  results.cv6NeverDeleted = gone?.archived === true && gone.archivedReason === 'team-gone' && goneLines === 1 && back?.archived === false && back.id === team?.id
+  h.teamworkEnabled = false
 }
 
 say('--- #geral ---')

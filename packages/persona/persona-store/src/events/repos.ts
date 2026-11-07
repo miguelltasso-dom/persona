@@ -340,6 +340,16 @@ export class EventRepos {
     return this.announce(Number(changed) > 0, id)
   }
 
+  /**
+   * Tell the followers of the stream that a message CHANGED without its stored body changing (a card whose state is computed when it is read):
+   * they get the same message again, as an upsert of the same id.
+   * @param id - Event.
+   * @returns false when the event is missing.
+   */
+  touch(id: string): boolean {
+    return this.announce(true, id)
+  }
+
   private announce(changed: boolean, id: string): boolean {
     if (!changed) return false
     const event = this.get(id)

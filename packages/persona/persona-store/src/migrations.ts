@@ -1044,6 +1044,95 @@ ALTER TABLE visit ADD COLUMN window_since TEXT;
 ALTER TABLE visit ADD COLUMN window_opened_at TEXT;
 `
 
+/**
+ * ISO-2 (D-081): the connector of the person's CLI a persona may use. A POINTER with a level, never a command, URL or token. Kept
+ * apart from persona.tools (its highest level decides the persona's effective tool level). The log only grows and outlives the persona.
+ */
+/** CV-6 / contracts/team-channels.md: kind, origin, archive, name lock; members of a channel the person made; pins per person. Additive. */
+const V24_TEAM_CHANNELS = `
+ALTER TABLE channel ADD COLUMN kind TEXT NOT NULL DEFAULT 'custom' CHECK (kind IN ('general', 'team', 'directorate', 'custom'));
+ALTER TABLE channel ADD COLUMN source_id TEXT;
+ALTER TABLE channel ADD COLUMN archived_at TEXT;
+ALTER TABLE channel ADD COLUMN archived_reason TEXT CHECK (archived_reason IS NULL OR archived_reason IN ('team-gone', 'directorate-gone', 'by-person'));
+ALTER TABLE channel ADD COLUMN name_locked INTEGER NOT NULL DEFAULT 0 CHECK (name_locked IN (0, 1));
+UPDATE channel SET kind = 'general' WHERE name = 'geral';
+CREATE UNIQUE INDEX channel_team_source ON channel (project_id, source_id) WHERE source_id IS NOT NULL;
+
+CREATE TABLE channel_member (
+  channel_id TEXT NOT NULL REFERENCES channel(id) ON DELETE CASCADE,
+  member_kind TEXT NOT NULL CHECK (member_kind IN ('persona', 'human')),
+  member_id TEXT NOT NULL,
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (channel_id, member_kind, member_id)
+) STRICT;
+
+CREATE TABLE channel_pin (
+  channel_id TEXT NOT NULL REFERENCES channel(id) ON DELETE CASCADE,
+  member_id TEXT NOT NULL,
+  pinned_at TEXT NOT NULL,
+  PRIMARY KEY (channel_id, member_id)
+) STRICT;
+`
+
+/** HT-6/D-084: a persona can be RETIRED ("aposentada"): she leaves the team, her history stays, her name and face are free again. Reversible. */
+const V23_PERSONA_RETIRED = `
+ALTER TABLE persona ADD COLUMN retired_at TEXT;
+CREATE INDEX persona_retired ON persona (project_id, retired_at);
+`
+
+const V22_CONNECTOR_GRANTS = `
+CREATE TABLE connector_grant (
+  workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+  persona_id TEXT NOT NULL REFERENCES persona(id) ON DELETE CASCADE,
+  cli TEXT NOT NULL,
+  connector_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  access TEXT NOT NULL CHECK (access IN ('read', 'write')),
+  confirm_send TEXT NOT NULL DEFAULT 'ask' CHECK (confirm_send IN ('ask', 'never')),
+  confirm_pay TEXT NOT NULL DEFAULT 'ask' CHECK (confirm_pay IN ('ask', 'never')),
+  confirm_delete TEXT NOT NULL DEFAULT 'ask' CHECK (confirm_delete IN ('ask', 'never')),
+  granted_by TEXT NOT NULL,
+  granted_at TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, persona_id, cli, connector_id)
+) STRICT;
+
+CREATE INDEX connector_grant_persona ON connector_grant (persona_id);
+
+CREATE TABLE connector_grant_log (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  persona_id TEXT NOT NULL,
+  cli TEXT NOT NULL,
+  connector_id TEXT NOT NULL,
+  action TEXT NOT NULL CHECK (action IN ('grant', 'change', 'revoke')),
+  access TEXT CHECK (access IS NULL OR access IN ('read', 'write')),
+  confirm_json TEXT,
+  actor_id TEXT NOT NULL,
+  at TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX connector_grant_log_persona ON connector_grant_log (workspace_id, persona_id, at);
+
+-- D-085: the MODE a call ran in (native | answer-only | needed), as the runner reports it. NULL = not reported; old rows stay NULL (nothing is back-filled).
+ALTER TABLE turn_ledger ADD COLUMN env_mode TEXT CHECK (env_mode IS NULL OR env_mode IN ('native', 'answer-only', 'needed'));
+
+-- The authorization of a connector for ONE Task, from the person's own words. It never carries over to another Task.
+CREATE TABLE ticket_connector_auth (
+  ticket_id TEXT NOT NULL,
+  cli TEXT NOT NULL,
+  connector_id TEXT NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('request', 'once')),
+  message_id TEXT NOT NULL,
+  at TEXT NOT NULL,
+  PRIMARY KEY (ticket_id, cli, connector_id)
+) STRICT;
+`
+
+/** D-096: WHY a call ran in the mode it did (a code). NULL = not reported; old rows stay NULL. */
+const V25_ENV_MODE_REASON = `
+ALTER TABLE turn_ledger ADD COLUMN env_mode_reason TEXT CHECK (env_mode_reason IS NULL OR length(env_mode_reason) BETWEEN 1 AND 40);
+`
+
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -1128,5 +1217,21 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 21,
     sql: V21_AWAY_WINDOW,
+  },
+  {
+    version: 22,
+    sql: V22_CONNECTOR_GRANTS,
+  },
+  {
+    version: 23,
+    sql: V23_PERSONA_RETIRED,
+  },
+  {
+    version: 24,
+    sql: V24_TEAM_CHANNELS,
+  },
+  {
+    version: 25,
+    sql: V25_ENV_MODE_REASON,
   },
 ]

@@ -125,7 +125,7 @@ builtIt('FLOW-1 forwards delivery_pending as a typed refusal through the generat
   const h = ctx.personaHost
   h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
   const refusal = new BoardRemoteError('delivery_pending', 'Revise, aplique ou descarte a entrega pendente antes de mover a Tarefa.')
-  const move = vi.spyOn(h.boards, 'moveTicket').mockImplementation(() => { throw refusal })
+  const move = vi.spyOn(h.boards, 'moveTicketWith').mockImplementation(() => { throw refusal }) // the person's Remote goes through moveTicketWith (HT-3)
   try {
     await expect(invoke(ctx, OWNER, 'moveTicket', { request: {
       workspaceId: 'ws', projectId: 'pp', ticketId: 'pending-ticket', columnId: 'done',

@@ -23,8 +23,11 @@ import {
   type PersonaSpec,
 } from '@deepseek-ai/dsh-persona-core'
 import { z } from 'zod'
+import { gestorHireTools } from './file-tools.ts'
 import { GestorRepos, type ProductRepos, type StoredPersona } from '@deepseek-ai/dsh-persona-store'
 import type { BoardsHost } from './boards.ts'
+import { campaignTeamOf, CAMPAIGN_FUNCTIONS } from './campaign-team.ts'
+import { routeByFunction, type RoutablePersona } from './function-route.ts'
 import type {
   ApproveGestorPlanRequest,
   RejectGestorPlanRequest,
@@ -249,13 +252,15 @@ export class GestorHost {
       auditId: `aud-${plan.id}`,
       at,
     })
-    return this.repos.store.tx(() => {
+    const view = this.repos.store.tx(() => {
       this.applyEnvelope(plan, persona, limits, true)
       const applied = { ...plan, status: 'applied' as const }
       this.repos.putPlan(applied)
       if (decision.kind === 'apply' || decision.kind === 'notify') this.repos.putAudit(decision.audit)
       return toPlanView(applied)
     })
+    this.startCampaignOf(plan)
+    return view
   }
 
   /**
@@ -438,7 +443,7 @@ export class GestorHost {
     if (project?.workspaceId !== request.workspaceId || persona.workspaceId !== request.workspaceId) {
       throw new Error('project-not-found')
     }
-    const preview = assembleTeamForGoal({
+    const generic = assembleTeamForGoal({
       goal: request.goal,
       projectId: request.projectId,
       sprintId,
@@ -446,6 +451,21 @@ export class GestorHost {
       existingFunctions: this.product.listPersonas(request.projectId)
         .map(row => ({ personaId: row.id, function: row.title })),
     })
+    // A CAMPAIGN that did not list its functions still needs text, art and posts (EQ-8/EQ-9): reuse who already does each one and hire only
+    // what nobody does, instead of the generic structure (Atendimento, Financeiro, Pessoas) and no Task at all.
+    const campaignTeam = campaignTeamOf(request.goal, this.product.listPersonas(request.projectId).map(row => ({
+      id: row.id, name: row.name, title: row.title, description: row.description, coordination: row.systemRoles.includes('coordination'), paused: false,
+    })))
+    const preview: GestorAssemble = campaignTeam === undefined ? generic : {
+      ...generic,
+      hire: campaignTeam.hire,
+      reuse: campaignTeam.reuse,
+      structure: {
+        ...generic.structure,
+        personas: [...campaignTeam.reuse.map(row => ({ id: row.personaId, title: row.function, sectorName: 'Marketing', continuous: true as const })), ...campaignTeam.hire],
+        explanation: `porque uma campanha precisa de ${CAMPAIGN_FUNCTIONS.map(need => need.title).join(', ')}: aproveito quem já faz cada uma e contrato só o que falta`,
+      },
+    }
     const scopeKey = gestorScopeKey({ projectId: request.projectId })
     const clash = claimGestorScope(this.repos.listOpenPlans(request.workspaceId, scopeKey), scopeKey)
     if (clash.kind === 'conflict') {
@@ -454,7 +474,11 @@ export class GestorHost {
       return { plan, preview: assemblyView(preview) }
     }
     const titles = preview.hire.map(row => row.title).join(', ')
-    const summary = `Vou contratar ${preview.hire.length} personas (${titles}) e montar o fluxo ${preview.workflow.template}.`
+    const campaign = this.campaignStepsOf(request.id, request.projectId, request.goal, preview, campaignTeam?.request)
+    const reused = preview.reuse.map(row => this.product.getPersona(row.personaId)?.name ?? row.function)
+    const summary = reused.length === 0
+      ? `Vou contratar ${preview.hire.length} personas (${titles}) e montar o fluxo ${preview.workflow.template}.`
+      : `Vou aproveitar ${reused.join(', ')}${preview.hire.length === 0 ? '' : ` e contratar ${preview.hire.length} (${titles})`} e montar o fluxo ${preview.workflow.template}.`
     const plan = {
       id: request.id,
       workspaceId: request.workspaceId,
@@ -475,15 +499,18 @@ export class GestorHost {
           spec: {
             name: row.title, title: row.title,
             avatar: { kind: 'gallery' as const, ref: row.id },
-            description: `${row.title} — ${request.goal.trim()}`,
+            // The FUNCTION only: the routing by function reads the description, and an objective in it would send every request that shares
+            // a word with the objective to this persona. The objective stays where the persona reads it: her instructions.
+            description: row.title,
             personality: persona.personality,
             instructions: `Cuide da função ${row.title} no projeto: ${request.goal.trim()}`,
-            runner: persona.runner, tools: {}, skills: [], limits: {}, systemRoles: [], canRecruit: false,
+            runner: persona.runner, tools: gestorHireTools(persona.tools, limits.allowedTools), skills: [], limits: {}, systemRoles: [], canRecruit: false,
           } satisfies PersonaSpec,
         })),
         reuse: preview.reuse.map(row => ({ ...row })),
         template: preview.workflow.template,
         sprint: { id: sprintId, name: preview.sprint.name, objective: request.goal, startsAt: at },
+        ...(campaign.length === 0 ? {} : { campaign: { goal: request.goal, steps: campaign } }),
       },
     } satisfies GestorPlan & { assembly: z.input<typeof assemblySchema> }
     const decision = decideGestorAction({
@@ -505,10 +532,45 @@ export class GestorHost {
         this.repos.putPlan(applied)
         if (decision.kind === 'apply' || decision.kind === 'notify') this.repos.putAudit(decision.audit)
       })
+      this.startCampaignOf(plan)
     }
     return {
       plan: toPlanView(decision.kind === 'ask' ? plan : { ...plan, status: 'applied' }),
       preview: assemblyView(preview),
+    }
+  }
+
+  /**
+   * TEAM-12: the host starts the campaign of an approved plan (set by the host; unset = the team behavior is off). Called AFTER the plan
+   * was applied, outside its transaction: opening Tasks must not be part of hiring people.
+   */
+  campaignStarter: ((input: { readonly projectId: string; readonly planId: string; readonly gestorId: string; readonly goal: string; readonly steps: readonly { readonly personaId: string; readonly label: string }[] }) => void) | undefined = undefined
+
+  /** The parts of the goal, in order, each for the persona of its function (the team that will exist once the plan is applied). */
+  private campaignStepsOf(requestId: string, projectId: string, goal: string, preview: GestorAssemble, asked?: string): { personaId: string; label: string }[] {
+    const existing: RoutablePersona[] = this.product.listPersonas(projectId).map(row => ({
+      id: row.id, name: row.name, title: row.title, description: row.description, coordination: row.systemRoles.includes('coordination'), paused: false,
+    }))
+    const hired: RoutablePersona[] = preview.hire.map(row => ({
+      // The function only: the goal is NOT part of the description here, or every word of it would route the whole goal to this persona.
+      id: `hire-${requestId}-${row.id}`, name: row.title, title: row.title, description: row.title, coordination: false, paused: false,
+    }))
+    // A campaign that did not list its functions is read as the functions its team was built for ("texto, arte, posts").
+    const route = routeByFunction([...existing, ...hired], asked ?? goal)
+    if (route === undefined) return []
+    const parts = route.kind === 'split' ? route.parts : [route.part]
+    return parts.map(part => ({ personaId: part.persona.id, label: part.cues.join(', ') })).filter(step => step.label !== '')
+  }
+
+  /** Start the campaign of a plan that was just applied. Never fails the plan: the team was hired either way. */
+  private startCampaignOf(plan: GestorPlan): void {
+    const parsed = z.object({ assembly: assemblySchema }).safeParse(plan)
+    const campaign = parsed.success ? parsed.data.assembly.campaign : undefined
+    if (!parsed.success || campaign === undefined || campaign.steps.length === 0) return
+    try {
+      this.campaignStarter?.({ projectId: parsed.data.assembly.projectId, planId: plan.id, gestorId: plan.gestorId, goal: campaign.goal, steps: campaign.steps })
+    } catch (error: unknown) {
+      process.stderr.write(`[persona-host] campaign not started (${plan.id}): ${error instanceof Error ? error.name : 'Error'}\n`)
     }
   }
 
@@ -729,6 +791,8 @@ const assemblySchema = z.object({
   reuse: z.array(z.object({ personaId: z.string().min(1), function: z.string().min(1) })),
   template: z.enum(['contratacao', 'site', 'software', 'marketing', 'atendimento', 'simples', 'em_branco']),
   sprint: z.object({ id: z.string().min(1), name: z.string().min(1), objective: z.string(), startsAt: z.string() }),
+  // TEAM-12: the parts of the campaign, in order, each for the persona of its function; each delivery opens the next.
+  campaign: z.object({ goal: z.string(), steps: z.array(z.object({ personaId: z.string().min(1), label: z.string().min(1) })) }).optional(),
 })
 
 interface HireEnvelope extends GestorPlan {

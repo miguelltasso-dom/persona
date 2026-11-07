@@ -30,6 +30,7 @@ import {
   type VaultRepos,
   type StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
+import { canSaveFiles } from './file-tools.ts'
 import { resolveHireIdentity, type HireIdentity } from './hire-identity.ts'
 import type { Orchestration } from './orchestration.ts'
 import type {
@@ -360,7 +361,7 @@ export class ScreensHost {
         personality: 'Proposta.',
         instructions: 'Aguardando aprovação.',
         runner: { kind: 'dsh', model: 'default' },
-        tools: {},
+        tools: canSaveFiles(creator.tools) ? { files: 'write' } : {}, // D-099: never more access than the persona who hires her
         skills: [],
         limits: {},
         systemRoles: [],
@@ -509,6 +510,9 @@ export class ScreensHost {
   /**
    * @param projectId - Tenant.
    */
+  /** Cards of other modules (the connector requests): each returns what it has for a project. */
+  readonly extraApprovals: Array<(projectId: string) => ApprovalView[]> = []
+
   listApprovals(projectId: string): ApprovalView[] {
     const cards: ApprovalView[] = [
       ...this.screens.list<StoredHire>(projectId, KIND_HIRE).map(row => hireCard(row, this.personaName(projectId, row.creatorPersonaId))),
@@ -527,6 +531,7 @@ export class ScreensHost {
         personaId: persona?.id ?? '', personaName: ticket.execution?.name ?? '',
       })
     }
+    for (const provider of this.extraApprovals) cards.push(...provider(projectId))
     return cards
   }
 
@@ -537,6 +542,7 @@ export class ScreensHost {
     if (request.kind === 'hire') return this.decideHire(request)
     if (request.kind === 'vault') return this.decideVault(request)
     if (request.kind === 'skill') return this.decideSkill(request)
+    if (request.kind === 'connector') throw new Error('approval-not-found') // answered by the connector requests, never here
     this.orchestration.runtime(request.projectId).engine.note(
       request.id, request.accept ? 'approved' : 'rejected',
     )

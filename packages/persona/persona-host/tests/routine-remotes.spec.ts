@@ -219,7 +219,9 @@ it('a routine made by the Remote runs when due: the prompt goes to its owner as 
   expect(tickets).toHaveLength(1)
   expect(tickets[0]?.execution?.name).toBe('Iris')
   const lines = h.listMessages({ ...scope, streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 200 }).events.map(item => item.body)
-  expect(lines).toContain('@Iris Resuma o que a equipe entregou ontem.')
+  // EQUIPE-REAL §0 (R5): the routine's request is a trigger, not a line of the thread; the Task above is the proof it ran.
+  expect(lines).not.toContain('@Iris Resuma o que a equipe entregou ontem.')
+  expect(h.events.listProject('pp').some(event => event.body === '@Iris Resuma o que a equipe entregou ontem.' && event.actorId.startsWith('routine:'))).toBe(true)
   await scheduler.cycle()
   await scheduler.whenIdle()
   await h.orchestration.flush('pp')

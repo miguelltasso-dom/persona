@@ -41,6 +41,20 @@ export function identityKey(value: string): string {
 }
 
 /**
+ * D-069 (Muse): a persona the host creates always has the default ANIMAL of the gallery. An animal the caller named stays (the person
+ * may repeat one on purpose); anything else (empty, "neutral", the slug of the name) becomes the first animal not already on the team.
+ * @param requestedRef - The gallery ref asked for.
+ * @param usedRefs - The animals already on the team.
+ * @returns A gallery animal.
+ */
+export function animalFor(requestedRef: string, usedRefs: readonly string[]): string {
+  const wanted = identityKey(requestedRef)
+  if (GALLERY_ANIMALS.includes(wanted)) return wanted
+  const used = new Set(usedRefs.map(identityKey))
+  return GALLERY_ANIMALS.find(candidate => !used.has(candidate)) ?? (GALLERY_ANIMALS.at(-1) ?? 'capivara')
+}
+
+/**
  * Keep the requested name and animal when they are free; otherwise pick a free one.
  * @param requestedName - Name the proposer asked for.
  * @param requestedRef - Gallery ref the proposer asked for (empty ⇒ derive from the name).

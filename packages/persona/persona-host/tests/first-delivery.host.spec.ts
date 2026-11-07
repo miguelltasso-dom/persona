@@ -103,7 +103,10 @@ it('the introductory task uses one execution delivery with persona context and n
   expect(calls[0]?.text).toContain('Bento')
   expect(calls[0]?.text).toContain('Prove.')
   expect(calls[0]?.text).toContain('Não use ferramentas')
-  expect(calls[0]?.text).toContain(h.events.get(FIRST_DELIVERY_EVENT_ID)!.body)
+  // LEAK-1: what the person sees is one short line; the worker still receives the full instructions (above) in its own prompt.
+  const visible = h.events.get(FIRST_DELIVERY_EVENT_ID)!.body
+  expect(visible).toBe('Guia, resuma o que já sabemos da empresa e proponha a primeira tarefa da semana.')
+  expect(visible).not.toMatch(/Não use ferramentas|resuma somente|\bbrief\b/iu)
   expect(calls[0]?.text).toContain('REGRA_FINAL_2026-11-04T12:00:00Z')
   const delivery = h.getFirstDelivery(scope)
   expect(delivery.status).toBe('ready')

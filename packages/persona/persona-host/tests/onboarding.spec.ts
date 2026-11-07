@@ -57,7 +57,11 @@ it('completeOnboarding is idempotent and writes welcome without a hardcoded name
     workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral',
     actorId: 'owner', afterSeq: 0, limit: 20,
   })
-  expect(page.events.find(item => item.id === 'first-delivery')?.body).toContain('Tom de voz calmo.')
+  // LEAK-1: the thread shows one short human line; the company text and the instructions stay in the Task's assignment.
+  const asked = page.events.find(item => item.id === 'first-delivery')?.body ?? ''
+  expect(asked).toBe('Guia, resuma o que já sabemos da empresa e proponha a primeira tarefa da semana.')
+  expect(asked).not.toContain('Tom de voz calmo.')
+  expect(h.orchestration.runtime('pp').repo.tickets.list()[0]?.execution?.assignment).toContain('Tom de voz calmo.')
   expect(page.events.some(item => /Boas-vindas! Estou aqui para coordenar a equipe/u.test(item.body))).toBe(true)
   expect(JSON.stringify(page.events)).not.toMatch(/Boas-vindas ao Persona/u)
   expect(JSON.stringify(page.events)).not.toMatch(/Atlas/)

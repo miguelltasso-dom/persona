@@ -1,5 +1,6 @@
 /** Explicit channel replication between local Persona hosts through the local edge. */
 import { randomBytes } from 'node:crypto'
+import { isTechnicalAuthor } from './thread-authors.ts'
 import { z } from 'zod'
 import { RemoteFault } from './remote-guard.ts'
 import type { Actor, SyncEnvelope } from '@deepseek-ai/dsh-persona-core'
@@ -305,7 +306,7 @@ export class RemoteTeamHost {
   }
 
   private isAllowed(state: RemoteTeamState, event: StoredEvent): boolean {
-    return event.workspaceId === state.workspaceId && event.projectId === state.projectId
+    return event.workspaceId === state.workspaceId && event.projectId === state.projectId && !isTechnicalAuthor(event.actorId)
       && event.streamId.startsWith('channel:') && state.channelIds.includes(event.streamId.slice('channel:'.length))
   }
 

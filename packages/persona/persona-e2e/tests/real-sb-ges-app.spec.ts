@@ -29,7 +29,9 @@ const STAMP = String(Date.now())
 
 /** Known product bug: asserts the REQUIRED behaviour, fails today (`it.fails`), flips red when fixed. */
 function bug(owner: string, title: string, fn: () => Promise<void>, timeout = 180_000): void {
-  vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
+  // GAUGE_BUGS_AS_TESTS=1: o bug roda como teste NORMAL (passou = consertado; falhou = aberto, com a mensagem do que a tela fez).
+  if (process.env.GAUGE_BUGS_AS_TESTS === '1') vitestIt(`[BUG→${owner}] ${title}`, fn, timeout)
+  else vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
 }
 
 describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe', () => {
@@ -523,15 +525,22 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
       try {
         await s.page.getByRole('button', { name: 'Aprovar' }).first().waitFor({ state: 'visible', timeout: 30_000 })
       } catch (error) {
-        const buttons = await s.page.getByRole('button').evaluateAll(els => els.map(el => (el.textContent ?? '').trim()).filter(Boolean).slice(0, 40))
-        console.log(`[gauge-diag] GES-1b sem Aprovar. planos: ${JSON.stringify((await plansOf().catch(() => [])).map(plan => ({ id: plan.id, status: plan.status })))} botões: ${JSON.stringify(buttons)}`)
+        const buttons = await s.page.getByRole('button').evaluateAll(els => els.map(el => (el.textContent ?? '').trim()).filter(Boolean).slice(-40))
+        console.log(`[gauge-diag] GES-1b sem Aprovar. planos: ${JSON.stringify((await plansOf().catch(() => [])).map(plan => ({ id: plan.id, status: plan.status })))} últimos botões: ${JSON.stringify(buttons)} trecho do plano: ${JSON.stringify(((await s.page.locator('body').innerText()).match(/.{0,80}[Pp][Ll][Aa][Nn][Oo].{0,120}/u) ?? ['(sem "plano" na tela)'])[0])}`)
         throw error
       }
       await dismissCoachmark()
       const approve = s.page.getByRole('button', { name: 'Aprovar' }).first()
       await approve.scrollIntoViewIfNeeded()
       await approve.click({ timeout: 90_000 })
-      await s.page.getByText('Aprovado', { exact: false }).first().waitFor({ state: 'visible', timeout: 20_000 })
+      try {
+        await s.page.getByText('Aprovado', { exact: false }).first().waitFor({ state: 'visible', timeout: 20_000 })
+      } catch (error) {
+        const shots = await shootBothThemes(s.page, SUITE, 'ges-plano-aprovado-falhou')
+        const tail = (await mainText(s.page)).slice(-1_400).replace(/\s+/gu, ' ')
+        await writeFile(join(await captureDir(SUITE), 'ges-1b-diag.txt'), `planos: ${JSON.stringify((await plansOf().catch(() => [])).map(plan => ({ id: plan.id, status: plan.status })))}\nfim da tela: ${tail}\ncapturas: ${shots.join(', ')}\n`, 'utf8')
+        throw error
+      }
       await shootBothThemes(s.page, SUITE, 'ges-plano-aprovado')
       await expect.poll(async () => (await plansOf()).filter(plan => plan.status === 'applied').length, { timeout: 15_000 }).toBeGreaterThan(0)
       const audit = await hostRpcOk<{ summary: string; reason: string }[]>(s.page, 'listGestorAudit', { workspaceId: tenant.workspaceId })
@@ -540,7 +549,7 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
       expect(audit.map(row => `${row.summary} ${row.reason}`).join(' ')).not.toMatch(/undefined|\[object|plan-\d/u)
     })
 
-    bug('Anvil+Forge', '[GES-1b] depois de "Aprovado — Personas alocadas conforme o plano", as personas, o fluxo Site e a Sprint 1 EXISTEM de verdade (hoje o cartão afirma isso e nada é criado: host.approveGestorPlan não monta equipe)', async () => {
+    vitestIt('[GES-1b] depois de "Aprovado — Personas alocadas conforme o plano", as personas, o fluxo Site e a Sprint 1 EXISTEM de verdade (antes o cartão afirmava isso e nada era criado; Anvil+Forge corrigiram no bundle 2)', async () => {
       const personas = await hostRpcOk<unknown[]>(s.page, 'listPersonas', scope)
       expect(personas.length, 'personas criadas pelo plano').toBeGreaterThan(personasBefore)
       const sprints = await hostRpcOk<{ name: string }[]>(s.page, 'listSprints', scope)

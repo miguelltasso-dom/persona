@@ -36,7 +36,11 @@ async function leaveAssistant(page: GaugeSession['page']): Promise<void> {
 
 /** Known product bug: asserts the REQUIRED behaviour, fails today (`it.fails`), flips red when fixed. */
 function bug(owner: string, title: string, fn: () => Promise<void>, timeout = 120_000): void {
-  vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
+  // GAUGE_BUGS_AS_TESTS=1: o bug roda como teste NORMAL (passou = consertado; falhou = aberto, com a mensagem do que a tela fez).
+
+  if (process.env.GAUGE_BUGS_AS_TESTS === '1') vitestIt(`[BUG→${owner}] ${title}`, fn, timeout)
+
+  else vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
 }
 
 describe.skipIf(!run)('GOV-10 app — Quem cuida de quem, Saúde, Teste dos 2 dias, assistente', () => {
@@ -208,7 +212,7 @@ describe.skipIf(!run)('GOV-10 app — Quem cuida de quem, Saúde, Teste dos 2 di
     }
   }, 180_000)
 
-  bug('Prism+Lumen', '[F5 app] as telas de governança têm UM landmark <main> e todo o conteúdo dentro de landmarks (axe landmark-one-main + region; moderado, vale p/ o shell inteiro)', async () => {
+  vitestIt('[F5 app] as telas de governança têm UM landmark <main> e todo o conteúdo dentro de landmarks (axe landmark-one-main + region; moderado, vale p/ o shell inteiro) (corrigido)', async () => {
     for (const slug of ['org-chart', 'team-health']) {
       const health = await panelHealth(s, slug)
       expect(advisoryAxe(health.axe).filter(row => /^(landmark-one-main|region)/u.test(row)).join(' || '), slug).toBe('')

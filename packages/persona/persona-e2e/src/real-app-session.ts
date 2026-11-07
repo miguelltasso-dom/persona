@@ -2,7 +2,7 @@ import type { Page } from 'playwright'
 import { chat, onboarding, shell } from './real-app-locale.pt.ts'
 import { startWebHost, type WebHostHandle } from './web-host.ts'
 import { watchConsole, assertConsoleClean, type ConsoleTripwire } from './console-tripwire.ts'
-import { withFakeCliOnPath, withNoEngineOnPath, type FakeCliOptions, type FakeCliPathScope } from './fake-cli.ts'
+import { withFakeCliOnPath, withNoEngineOnPath, withRealEngine, type FakeCliOptions, type FakeCliPathScope } from './fake-cli.ts'
 import { dismissBlockingOverlays } from './boot-gate-bootstrap.ts'
 import { waitForGeralComposer } from './geral-composer.ts'
 import { navigateGalleryPanel, resetGalleryHome } from './real-gallery/navigate-panel.ts'
@@ -30,7 +30,7 @@ export interface OpenRealPersonaAppOptions {
    * Engine the host sees. Default `fake` (stubs on PATH, OAR pinned to them). `{ kind: 'fake', ...FakeCliOptions }` adds
    * turn latency / failure / reply. `{ kind: 'none' }` hides every CLI and key (the "Falta uma IA" path).
    */
-  engine?: ({ kind: 'fake' } & FakeCliOptions) | { kind: 'none' }
+  engine?: ({ kind: 'fake' } & FakeCliOptions) | { kind: 'none' } | { kind: 'real' }
   /**
    * Boot the host the way the desktop does (live runner: `PERSONA_REAL_CLI=1`, not the scripted Vitest runner), so the
    * stubs actually answer turns. Without it `VITEST` leaks into the host and replies are scripted.
@@ -43,6 +43,15 @@ export interface OpenRealPersonaAppOptions {
    * `PERSONA_NAV_PLACES=1`, so every existing gallery/B9 spec can be rerun against the new rail without editing it.
    */
   navPlaces?: boolean
+  /** Extra environment for the HOST (the web host child), e.g. the team opt-in `PERSONA_TEAMWORK=1` / `PERSONA_FANOUT=1` (Flint/Keel/Anvil, 05/11). */
+  hostEnv?: Record<string, string>
+  /**
+   * The host gets a CLEAN environment (no `VITEST*`/`PERSONA_SCRIPTED*`/`NODE_ENV=test`; see `startWebHost`). Do not combine with `liveRunner` (which blanks those variables
+   * instead of removing them): pass `hostEnv: { PERSONA_REAL_CLI: '1' }`. A REAL round (TEAM-10) uses this.
+   */
+  cleanHostEnv?: boolean
+  /** Keep the host's `PERSONA_HOME` here (it survives `close()`), so the database can be read and copied after the run. */
+  home?: string
 }
 
 /**
@@ -50,10 +59,16 @@ export interface OpenRealPersonaAppOptions {
  */
 export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}): Promise<RealPersonaSession> {
   const engine = options.engine ?? { kind: 'fake' as const }
-  const fakeCli = engine.kind === 'none' ? withNoEngineOnPath() : withFakeCliOnPath(engine)
+  const fakeCli = engine.kind === 'none' ? withNoEngineOnPath() : engine.kind === 'real' ? withRealEngine() : withFakeCliOnPath(engine)
+  const hostEnv: Record<string, string> = {
+    ...(options.liveRunner === true ? { VITEST: '', PERSONA_SCRIPTED: '', PERSONA_REAL_CLI: '1' } : {}),
+    ...(options.hostEnv ?? {}),
+  }
   const host = await startWebHost({
     profile: 'persona',
-    ...(options.liveRunner === true ? { env: { VITEST: '', PERSONA_SCRIPTED: '', PERSONA_REAL_CLI: '1' } } : {}),
+    ...(options.cleanHostEnv === true ? { cleanEnv: true } : {}),
+    ...(options.home === undefined ? {} : { home: options.home }),
+    ...(Object.keys(hostEnv).length === 0 ? {} : { env: hostEnv }),
   })
   const { chromium } = await import('playwright')
   const browser = await chromium.launch({ channel: 'chrome' })
@@ -74,6 +89,8 @@ export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}
   }
   if (options.navPlaces ?? process.env.PERSONA_NAV_PLACES === '1') {
     await context.addInitScript(() => { try { localStorage.setItem('persona.flag.navPlaces', '1') } catch { /* storage blocked */ } })
+  } else if (options.navPlaces === false) {
+    await context.addInitScript(() => { try { localStorage.setItem('persona.flag.navPlaces', '0') } catch { /* storage blocked */ } })
   }
   const page = await context.newPage()
   const tripwire = watchConsole(page)

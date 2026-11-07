@@ -1,6 +1,7 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
+import { cleanChildEnv, testModeVariablesIn } from './clean-env.ts'
 import { E2E_TMP_ROOT, requireWebDist } from './paths.ts'
 import { probeFreePort } from './ports.ts'
 import { launchDirect, launchUnderLock } from './locked-launch.ts'
@@ -30,12 +31,19 @@ export interface StartWebHostOptions {
   home?: string
   /** Extra environment variables for the host process. */
   env?: Record<string, string>
+  /**
+   * The host gets the test process environment WITHOUT anything that makes the product run its scripted fake (`VITEST*`, `PERSONA_SCRIPTED*`, `NODE_ENV=test`), and the start
+   * is refused if any survives the caller's own overrides. Needed by a REAL round (TEAM-10): a host that inherited Vitest would answer from the fake runner.
+   */
+  cleanEnv?: boolean
 }
 
 export interface WebHostHandle {
   readonly url: string
   readonly home: string
   readonly profile: WebHostProfile
+  /** Everything the host process printed so far (boot lines such as `[persona-host] flags …`). */
+  output(): string
   stop(): Promise<void>
 }
 
@@ -52,7 +60,7 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
   const port = await probeFreePort()
 
   const env: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...(options.cleanEnv === true ? cleanChildEnv(process.env) : process.env),
     // No vault flag here on purpose (Keel 04/11): the client-connection scope has an in-memory layer, so the web host
     // boots without the DPAPI channel and this e2e covers the real behavior. Specs that write real secrets (Anvil's E12)
     // pass `PERSONA_VAULT_TEST_CIPHER: '1'` through `options.env`.
@@ -60,6 +68,11 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
     DSH_HOME: home,
     PERSONA_HOME: home,
     DSH_TELEMETRY_DISABLED: '1',
+  }
+
+  if (options.cleanEnv === true) {
+    const leaked = testModeVariablesIn(env)
+    if (leaked.length > 0) throw new Error(`the host environment still carries test-mode variables: ${leaked.join(', ')}`)
   }
 
   const cliArgs = [
@@ -123,5 +136,5 @@ export async function startWebHost(options: StartWebHostOptions = {}): Promise<W
     }
   }
 
-  return { url, home, profile, stop }
+  return { url, home, profile, output: () => launch.output.text(), stop }
 }

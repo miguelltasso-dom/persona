@@ -69,8 +69,22 @@ export async function walkOnboardingToStep5(
   // Measured 04/11: detection takes 10–27 s and the cards say "Não detectada" the whole time (no "Verificando…"), so
   // "settled" means the text changed from the first snapshot, or 40 s passed with no change (nothing to detect).
   const firstCards = await cardsText()
-  const settleDeadline = step3At + 40_000
-  while (Date.now() < settleDeadline && (/Verificando/iu.test(await cardsText()) || await cardsText() === firstCards)) {
+  // `PERSONA_E2E_DETECT_SETTLE_MS` lengthens the wait on a loaded machine / the installed app (default 40 s).
+  const settleDeadline = step3At + Number(process.env.PERSONA_E2E_DETECT_SETTLE_MS ?? 40_000)
+  // Measured on the INSTALLED exe (H2 #3, loaded machine): Claude says "Pronta para usar" only after ~1–3 min while another card still says "Verificando…";
+  // with an engine ready there is nothing else to wait for.
+  const engineReady = async (): Promise<boolean> => /Claude [|] Pronta para usar/u.test(await cardsText())
+  // The card can flash "Pronta para usar" and go back to "Verificando…" (measured on H2 #3): ready counts only when it STAYS ready for 4 s.
+  let readySince: number | null = null
+  const stableReady = async (): Promise<boolean> => {
+    if (await engineReady()) {
+      readySince ??= Date.now()
+      return Date.now() - readySince >= 4_000
+    }
+    readySince = null
+    return false
+  }
+  while (Date.now() < settleDeadline && !(await stableReady()) && (/Verificando/iu.test(await cardsText()) || await cardsText() === firstCards || readySince !== null)) {
     await page.waitForTimeout(500)
   }
   const changed = await cardsText() !== firstCards
@@ -200,7 +214,15 @@ export async function runHappyFirstDelivery(
   await expectFocusInDialog(page, rec, 'working')
   await rec.shot('06-working')
 
-  await page.getByText(firstDeliveryCopy.celebrateTitle).waitFor({ state: 'visible', timeout: options.deadlineMs })
+  // Fail FAST with the app's own words when the engine could not run (it used to look like a 2-minute timeout): "O motor de X não está disponível…".
+  const celebrateText = page.getByText(firstDeliveryCopy.celebrateTitle)
+  const engineFailure = page.getByText(/não está disponível neste computador/u)
+  await celebrateText.or(engineFailure).first().waitFor({ state: 'visible', timeout: options.deadlineMs })
+  if (await engineFailure.first().isVisible().catch(() => false) && !(await celebrateText.isVisible().catch(() => false))) {
+    await rec.shot('zz-engine-unavailable')
+    const said = ((await engineFailure.first().innerText().catch(() => '')) ?? '').replace(/\s+/gu, ' ').trim()
+    throw new Error(`the first delivery failed instead of being delivered: "${said.slice(0, 200)}" (engine_unavailable before any model turn)`)
+  }
   const celebratedAt = rec.mark('celebrate visible')
   await expectFocusInDialog(page, rec, 'celebrate')
   await rec.shot('07-celebrate')
@@ -293,7 +315,8 @@ export async function expectBootOverlayGone(page: Page, rec: FirstDeliveryRecord
 export async function sendGeralMessageAndReload(page: Page, rec: FirstDeliveryRecorder, text: string): Promise<void> {
   await ensureGeralComposer(page)
   const composer = geralComposerLocator(page).first()
-  await composer.click()
+  // Focus, do not click: with a team in the channel a balloon ("A Coordenação distribui o pedido") can sit over the composer and intercept the pointer.
+  await composer.focus()
   await composer.fill(text)
   await composer.press('Enter')
   rec.mark('chat message sent')
@@ -348,7 +371,15 @@ const REACTION_LABEL = /^(Joinha|Coração|Rindo|Comemorando|Pensando|Feito)/u
  * @param text - Unique message text.
  * @param timeoutMs - How long to wait for the acknowledgement.
  */
-export async function converseInGeral(page: Page, rec: FirstDeliveryRecorder, text: string, timeoutMs = 30_000): Promise<ConversationOutcome> {
+export async function converseInGeral(
+  page: Page,
+  rec: FirstDeliveryRecorder,
+  text: string,
+  timeoutMs = 30_000,
+  options: { readonly expectReply?: boolean } = {},
+): Promise<ConversationOutcome> {
+  // `expectReply`: a QUESTION is first met with a reaction ("Pensando") and answered later by the persona's turn: keep waiting for the reply itself.
+  const expectReply = options.expectReply === true
   await ensureGeralComposer(page)
   const idsNow = async (): Promise<string[]> => page.evaluate(() => [...document.querySelectorAll('[data-message-id]')].map(node => node.getAttribute('data-message-id') ?? ''))
   const statusLines = async (): Promise<string[]> => page.evaluate(() => [...document.querySelectorAll('[role="status"], [aria-live]')]
@@ -356,7 +387,8 @@ export async function converseInGeral(page: Page, rec: FirstDeliveryRecorder, te
   const before = new Set(await idsNow())
   const statusBefore = new Set(await statusLines())
   const composer = geralComposerLocator(page).first()
-  await composer.click()
+  // Focus, do not click: with a team in the channel a balloon ("A Coordenação distribui o pedido") can sit over the composer and intercept the pointer.
+  await composer.focus()
   await composer.fill(text)
   await composer.press('Enter')
   const startedAt = Date.now()
@@ -371,7 +403,7 @@ export async function converseInGeral(page: Page, rec: FirstDeliveryRecorder, te
   let reaction: string | null = null
   let reply: { id: string; text: string } | null = null
   let stateLine: string | null = null
-  while (Date.now() - startedAt < timeoutMs && reaction === null && reply === null && stateLine === null) {
+  while (Date.now() - startedAt < timeoutMs && (expectReply ? reply === null : (reaction === null && reply === null && stateLine === null))) {
     const chip = own.getByRole('button', { name: REACTION_LABEL }).first()
       .or(own.locator('xpath=..').getByRole('button', { name: REACTION_LABEL }).first())
     if (await chip.count() > 0) reaction = (await chip.getAttribute('aria-label')) ?? 'reaction'
@@ -380,10 +412,10 @@ export async function converseInGeral(page: Page, rec: FirstDeliveryRecorder, te
       const body = ((await page.locator(`[data-message-id="${id}"]`).first().innerText().catch(() => '')) ?? '').trim()
       if (body !== '' && !body.includes(text)) { reply = { id, text: body.slice(0, 240) }; break }
     }
-    if (reaction === null && reply === null) {
+    if (!expectReply && reaction === null && reply === null) {
       stateLine = (await statusLines()).find(line => !statusBefore.has(line) && !line.includes(text)) ?? null
     }
-    if (reaction === null && reply === null && stateLine === null) await page.waitForTimeout(500)
+    if (expectReply ? reply === null : (reaction === null && reply === null && stateLine === null)) await page.waitForTimeout(500)
   }
   const waitedMs = Date.now() - startedAt
   rec.notes.push(`converse "${text}": reaction=${reaction ?? 'none'}, reply=${reply === null ? 'none' : JSON.stringify(reply)}, stateLine=${stateLine === null ? 'none' : JSON.stringify(stateLine.slice(0, 160))}, after ${String(waitedMs)} ms`)
@@ -529,4 +561,29 @@ export async function runRealFirstDelivery(
     outcome,
     messageIds,
   }
+}
+
+/** LEAK-1 (Muse, 04/11, H2 #3 instalado): the INTERNAL prompt of the first delivery must never show up as a message in #geral. */
+export const LEAK_1_PATTERNS: readonly RegExp[] = [/Não use ferramentas/iu, /resuma somente/iu, /\bbrief\b/iu]
+
+/** Every message visible in the open conversation (id + text, whoever wrote it). */
+export async function visibleMessages(page: Page): Promise<Array<{ id: string; text: string }>> {
+  return page.evaluate(() => [...document.querySelectorAll('[data-message-id]')].map(node => ({
+    id: node.getAttribute('data-message-id') ?? '',
+    text: ((node as HTMLElement).innerText ?? '').replace(/\s+/gu, ' ').trim(),
+  })))
+}
+
+/** What leaked: one `id: matched phrase` per visible message that carries an internal-prompt phrase. */
+export function leakedInternalPrompt(messages: ReadonlyArray<{ id: string; text: string }>): string[] {
+  return messages.flatMap(message => LEAK_1_PATTERNS.filter(pattern => pattern.test(message.text)).map(pattern => `${message.id}: ${pattern.source}`))
+}
+
+/**
+ * Read #geral after the first delivery: the visible lines (for the proof, 300 chars each) and what leaked. The caller decides whether a leak
+ * fails the run (the REAL run only records it: LEAK-1 does not block D-069).
+ */
+export async function recordFirstDeliveryLines(page: Page): Promise<{ lines: string[]; leaked: string[] }> {
+  const messages = await visibleMessages(page)
+  return { lines: messages.map(message => `${message.id}: ${message.text.slice(0, 300)}`), leaked: leakedInternalPrompt(messages) }
 }

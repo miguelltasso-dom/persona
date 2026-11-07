@@ -50,8 +50,33 @@ describe.skipIf(!run)('SW-9/SW-10 — engine layer (private history, restore poi
     expect(byId('S4').status).toBe('pass')
   })
 
-  it.todo('S2: pasta sem git e SEM git no PATH usa o git embutido (SW-4 Rivet: MinGit + injeção do git/fileOps no harness)')
-  it.todo('S3: pasta no OneDrive — arquivo só online é hidratado antes de copiar (SW-5 Rivet: simulação do placeholder)')
+  // SW-4 / SW-5 (Forge, 04/11 19:35): the host wires the Windows file layer and the bundled MinGit; the engine harness injects the same.
+  it('S2: pasta sem git e SEM git no PATH (só System32) usa o MinGit embutido — rascunho, revisar, aplicar, desfazer, pasta sem .git', (context) => {
+    if (byId('S2').status === 'blocked') context.skip(byId('S2').detail ?? 'MinGit not available')
+    expect(byId('S2').failed).toEqual([])
+    expect(byId('S2').status).toBe('pass')
+  })
+
+  it('S3: planilha aberta ao PREPARAR o rascunho — "Feche “preços.xlsx”…", nenhum rascunho pela metade, funciona depois de fechar', () => {
+    expect(byId('S3-prepare-locked').failed).toEqual([])
+    expect(byId('S3-prepare-locked').status).toBe('pass')
+  })
+
+  it('S3: planilha aberta durante o APLICAR (camada do Windows) — tudo ou nada, "Feche “preços.xlsx”…", Desfazer exato', () => {
+    expect(byId('S3-apply-locked').failed).toEqual([])
+    expect(byId('S3-apply-locked').status).toBe('pass')
+  })
+
+  it('S3: caminho com mais de 300 caracteres — rascunho, Aplicar e Desfazer funcionam', () => {
+    expect(byId('S3-long-path').failed).toEqual([])
+    expect(byId('S3-long-path').status).toBe('pass')
+  })
+
+  it('S3: arquivo só online do OneDrive (hidratação SIMULADA) é hidratado antes da cópia; se a nuvem falha, o aviso manda abrir o OneDrive', () => {
+    expect(byId('S3-hydrate').failed).toEqual([])
+    expect(byId('S3-hydrate').status).toBe('pass')
+  })
+
   it.todo('SW-9 host/UI: os mesmos cenários pelo app real (Revisar em linguagem simples, Aplicar, Desfazer, escolha de conflito) — SW-6 Anvil + SW-8 Lumen')
   it.todo('SW-10: perfil limpo no exe instalado, usuário sem git, pasta de documentos, "atualize o cardápio.docx": nenhuma palavra técnica na tela e a pasta continua sem .git')
 })

@@ -32,6 +32,7 @@ import { describe, expect, it } from 'vitest'
 import { watchConsole } from '../src/console-tripwire.ts'
 import { exeIdentity, fakeGreenProblem } from '../src/exe-identity.ts'
 import {
+  recordFirstDeliveryLines,
   FIRST_DELIVERY_PAID_TURNS_TARGET,
   createFirstDeliveryRecorder,
   expectBootOverlayGone,
@@ -40,7 +41,7 @@ import {
   walkOnboardingToStep5,
 } from '../src/first-delivery-flow.ts'
 import { startInstalledDesktop } from '../src/installed-desktop.ts'
-import { readLedgerEvidence } from '../src/ledger-evidence.ts'
+import { baselineD085, fakeRunnerSignature, readLedgerEvidence } from '../src/ledger-evidence.ts'
 import { probeLoggedCli } from '../src/logged-cli.ts'
 import { assessAttempts, attemptsForVerifier, refusalsForNextAttempt, spentTurns, type BudgetAttempt } from '../src/real-run-budget.ts'
 import { runRealRunVerifier } from '../src/real-run-verifier.ts'
@@ -142,6 +143,11 @@ describe('first delivery — REAL engine in the installed exe (D-069, gated)', (
     const { page } = desktop
     const tripwire = watchConsole(page)
     const rec = await createFirstDeliveryRecorder(page, 'real-installed')
+    // Muse (D-069) measures the time from "Equipe trabalhando" to the first delivery with a READ-ONLY observer attached to this renderer: publish the CDP port
+    // as soon as the window is up (before the request). She only reads; she never clicks.
+    mkdirSync(join(REPO_ROOT, '.maestri', 'tmp'), { recursive: true })
+    writeFileSync(join(REPO_ROOT, '.maestri', 'tmp', 'probe-real-cdp-port.txt'), `${String(desktop.rendererPort)}\n`)
+    writeFileSync(join(rec.dir, 'cdp-port.txt'), `${String(desktop.rendererPort)}\n`)
 
     // The guard that does not exist in the app: watch the ledger and kill the tree on the first sign of a second paid turn.
     let overBudget: string | undefined
@@ -160,17 +166,25 @@ describe('first delivery — REAL engine in the installed exe (D-069, gated)', (
     let flowFailure: unknown
     let timeline: unknown = null
     let board: { fixtures: number; doneVisible: boolean } | null = null
+    let firstDeliveryLines: { lines: string[]; leaked: string[] } | null = null
     try {
       await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
       await expectBootOverlayGone(page, rec)
       await walkOnboardingToStep5(page, 'Probe Real', rec.shot, rec.notes)
       rec.mark('step5 visible')
+      // Optional grace so the observer is attached BEFORE "Pedir agora" (PERSONA_REAL_E2E_OBSERVER_GRACE_MS, default 8 s): it is outside the measured window,
+      // which starts at the request.
+      const grace = Number(process.env.PERSONA_REAL_E2E_OBSERVER_GRACE_MS ?? 8_000)
+      if (grace > 0) await page.waitForTimeout(grace)
       const result = await runRealFirstDelivery(page, rec, { deadlineMs: UX_PHASE_A_MS })
       timeline = result
       flowOutcome = result.outcome
       expect(result.outcome, 'real delivery outcome').toBe('delivered')
       expect(result.t1 === undefined ? Infinity : result.t1 - result.t0, 'ask → first delivery (t1 − t0) must fit 2 min').toBeLessThan(UX_PHASE_A_MS)
       expect(overBudget, 'budget tripwire').toBeUndefined()
+      // LEAK-1 (Muse/Keel, 04/11): RECORD the visible text of the first-delivery lines in #geral (and whether the internal prompt leaked). It does NOT
+      // fail the real run (D-069 runs on H2 #3 as is); the installed fake asserts it.
+      firstDeliveryLines = await recordFirstDeliveryLines(page).catch(() => null)
 
       // READ-ONLY: the delivered card must be done on the user's board (Quadros), in the same run, before the app stops.
       const kanban = REAL_GALLERY_PANELS.find(panel => panel.slug === 'kanban')!
@@ -199,6 +213,12 @@ describe('first delivery — REAL engine in the installed exe (D-069, gated)', (
       const problems: string[] = []
       if (flowFailure !== undefined) problems.push(`flow: ${flowFailure instanceof Error ? flowFailure.message.slice(0, 300) : String(flowFailure)}`)
       if (overBudget !== undefined) problems.push(overBudget)
+      // D-085: the native-mode baseline is only usable when fully measured; otherwise the proof accuses instead of accepting an estimate.
+      const baseline = baselineD085(ledger)
+      // A REAL run must not carry the scripted fake's fingerprint (engine dsh / 1-1 tokens): it means the app ran its fake (e.g. VITEST leaked in).
+      const fakeRows = fakeRunnerSignature(ledger)
+      if (fakeRows.length > 0) problems.push(`the ledger carries the FAKE runner signature — this was not a real run: ${fakeRows.join(' | ')}`)
+      if (!baseline.valid) problems.push(`baseline D-085 unusable: ${baseline.reason ?? 'unknown'}`)
       if (ledger === null) problems.push('no ledger could be read after the run: the paid turn cannot be verified')
       else if (!ledgerOk) {
         problems.push(`ledger after the run: ${String(ledger.turns)} turn(s) [${ledger.rows.map(row => row.kind).join(', ')}], measured=${String(ledger.allMeasured)}, output tokens=${String(ledger.outputTokens)}; expected exactly ONE measured execution (0 triage, 0 inject)`)
@@ -243,6 +263,10 @@ describe('first delivery — REAL engine in the installed exe (D-069, gated)', (
         attemptsSnapshot: attempts.map(row => ({ ...row })),
         verdict: { green, problems, paidTurnsSpentTotal: spentTurns(attempts), loggedCli, loggedCliSource: 'claude auth status --json, before the run, outside the app (not derived from the ledger)' },
         outcome: flowOutcome, timeline, board, bootOverlay: overlay, ledger, verifier,
+        // D-085 (Atlas/Keel): the real BEFORE of the first delivery, native mode (the bloated call). Fail closed: `valid:false` + reason when not fully measured.
+        'baseline D-085': baseline,
+        // LEAK-1: the visible #geral lines of the first delivery (300 chars each) and the internal-prompt phrases found in them (recorded, not asserted here).
+        leak1: firstDeliveryLines,
         turnCap: { env: [TURN_CAP_ENV, TURN_LEDGER_ENV], scan: { found: capScan.found, file: capScan.file ?? null }, ledgerFile: capLedger, ledger: { exists: cap.exists, valid: cap.valid, turns: cap.turns, error: cap.error ?? null, raw: cap.raw.slice(0, 2_000) } },
         costNote: 'no price table in the repository: tokens are exact (turn_ledger, measured); dollar cost is an estimate to be stated in the report',
         consoleErrors: tripwire.consoleErrors.slice(0, 20),

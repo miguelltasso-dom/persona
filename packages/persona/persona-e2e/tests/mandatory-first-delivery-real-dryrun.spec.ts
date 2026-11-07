@@ -14,7 +14,7 @@ import {
   type FirstDeliveryRecorder,
   type RealDeliveryTimeline,
 } from '../src/first-delivery-flow.ts'
-import { readLedgerEvidence } from '../src/ledger-evidence.ts'
+import { baselineD085, readLedgerEvidence } from '../src/ledger-evidence.ts'
 import { runRealRunVerifier } from '../src/real-run-verifier.ts'
 import { openRealPersonaApp, type RealPersonaSession } from '../src/real-app-session.ts'
 
@@ -87,5 +87,9 @@ describe.skipIf(!runPersonaE2e).sequential('real-run harness rehearsal (fake CLI
     expect(ledger!.turns).toBeLessThanOrEqual(1)
     expect(ledger!.allMeasured).toBe(true)
     expect(ledger!.outputTokens).toBeGreaterThan(0)
+    // D-085: the proof's baseline block is usable on a fully measured ledger (native mode declared; fail closed otherwise).
+    const baseline = baselineD085(ledger!)
+    rec.notes.push(`baseline D-085 ${JSON.stringify({ valid: baseline.valid, mode: baseline.mode, in: baseline.inputTokens, out: baseline.outputTokens, cacheRead: baseline.cacheReadTokens, cacheWrite: baseline.cacheWriteTokens, tools: baseline.layers.tools })}`)
+    expect(baseline).toMatchObject({ id: 'D-085', mode: 'native', valid: true, reason: null })
   })
 })

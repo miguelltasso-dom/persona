@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { canonicalLedgerRows, readLedgerEvidence } from '../src/ledger-evidence.ts'
+import { baselineD085, canonicalLedgerRows, fakeRunnerSignature, readLedgerEvidence } from '../src/ledger-evidence.ts'
 
 const homes: string[] = []
 afterEach(() => {
@@ -74,5 +74,36 @@ describe('readLedgerEvidence', () => {
       layer_message: 0, ticket_id: null, origin: null, account_id: null, at: '2026-11-04T12:00:00Z' }])
     expect(broken[0]!.personaId).toBeNull() // a required NULL is NOT replaced by '' or 0: the verifier rejects it
     expect(broken[0]).not.toHaveProperty('origin')
+  })
+})
+
+describe('baselineD085 (the real "before" of the first delivery, native mode)', () => {
+  it('records mode=native with input, output and cache totals of a fully measured ledger', () => {
+    const baseline = baselineD085(readLedgerEvidence(seedHome([['execution', 377_000, 900, 'measured']]))!)
+    expect(baseline).toMatchObject({
+      id: 'D-085', mode: 'native', valid: true, reason: null, turns: 1,
+      inputTokens: 377_000, outputTokens: 900, cacheReadTokens: 7, cacheWriteTokens: 3, totalRequestTokens: 377_000, // inputTokens already includes the (tiny) cache columns: no double count
+    })
+    expect(baseline.perTurn).toEqual([{ kind: 'execution', engine: 'claude', origin: 'measured', inputTokens: 377_000, outputTokens: 900, cacheReadTokens: 7, cacheWriteTokens: 3 }])
+    expect(baseline.layers).toEqual({ system: 0, tools: 0, required: 0, subject: 0, recall: 0, message: 0 })
+  })
+
+  it('fails closed: an estimate, an empty ledger or an unreadable one is NOT a baseline, and it says why', () => {
+    const estimate = baselineD085(readLedgerEvidence(seedHome([['execution', 10, 1, 'estimate']]))!)
+    expect(estimate.valid).toBe(false)
+    expect(estimate.reason).toMatch(/allMeasured=false/u)
+    const mixed = baselineD085(readLedgerEvidence(seedHome([['execution', 10, 1, 'measured'], ['triage', 5, 1, null]]))!)
+    expect(mixed.valid).toBe(false)
+    const missing = baselineD085(null)
+    expect(missing).toMatchObject({ valid: false, turns: 0, mode: 'native' })
+    expect(missing.reason).toMatch(/no ledger/u)
+  })
+})
+
+describe('fakeRunnerSignature (a real run must not carry the scripted fake fingerprint)', () => {
+  it('flags 1/1 tokens, and a real-looking measured turn is clean', () => {
+    expect(fakeRunnerSignature(readLedgerEvidence(seedHome([['execution', 1, 1, 'measured']]))!)).toHaveLength(1)
+    expect(fakeRunnerSignature(readLedgerEvidence(seedHome([['execution', 377_000, 900, 'measured']]))!)).toEqual([])
+    expect(fakeRunnerSignature(null)).toEqual([])
   })
 })

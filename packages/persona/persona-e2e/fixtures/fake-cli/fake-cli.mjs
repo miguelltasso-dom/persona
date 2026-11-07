@@ -10,6 +10,10 @@
  * Configurable via environment variables:
  * - FAKE_CLI_TURN_MS / FAKE_CLI_LATENCY_MS: Turn latency delay in ms (default 0).
  * - FAKE_CLI_FAIL: Simulate failure ('1', 'true', error message, 'crash', 'rate_limit').
+ * - FAKE_CLI_FAIL_FILE: ABSOLUTE path of a file; WHILE it exists every turn fails (its text, when not empty, is the error message). The host's environment is fixed when it
+ *   starts, so this is the only way for a test to say "the first turn fails, the next one works" (create the file, ask, delete the file, retry).
+ * - FAKE_CLI_NEEDLES: JSON array of strings; every logged `turn` says, per needle, whether the prompt the CLI received contains it (`needles`) and how long the prompt was
+ *   (`promptChars`) — proof that the WHOLE request text reached the worker, never the prompt itself.
  * - FAKE_CLI_REPLY / FAKE_CLI_RESPONSE: Custom response text for the turn.
  */
 
@@ -98,11 +102,21 @@ if (/auth|login/i.test(joined)) {
     console.log('Logged in using ChatGPT (fake-persona-e2e)')
     process.exit(0)
   }
+  // Same field set and value shapes as the REAL `claude auth status --json` (compared 04/11 on Claude Code 2.x): a guard in the packaged
+  // product that reads account / organization / expiry fields must see what a real login shows. Values are fake; `status`, `tool` and
+  // `source` are kept (extras the real CLI does not print) so the stub stays identifiable in logs.
   console.log(JSON.stringify({
     loggedIn: true,
-    authMethod: 'oauth',
+    authMethod: 'claude.ai',
+    apiProvider: 'firstParty',
+    analyticsDisabled: false,
+    projectsDirectory: process.env.FAKE_CLI_CONFIG_DIR === undefined ? 'C:\\persona-e2e-fake\\.claude\\projects' : `${process.env.FAKE_CLI_CONFIG_DIR}\\projects`,
+    configDirectory: process.env.FAKE_CLI_CONFIG_DIR ?? 'C:\\persona-e2e-fake\\.claude',
+    loginExpiresAt: '2030-01-01T00:00:00.000Z',
     email: 'probe@persona.local',
-    subscriptionType: 'pro',
+    orgId: '00000000-0000-4000-8000-000000000001',
+    orgName: "Probe's Organization",
+    subscriptionType: 'max',
     status: 'authenticated',
     tool,
     source: 'persona-e2e-fake-cli',
@@ -184,9 +198,39 @@ function getLatencyMs() {
 }
 
 function getFailure() {
+  const failFile = process.env.FAKE_CLI_FAIL_FILE
+  if (failFile && existsSync(failFile)) {
+    try {
+      const text = readFileSync(failFile, 'utf8').trim()
+      return text === '' ? '1' : text
+    } catch {
+      return '1'
+    }
+  }
   const fail = process.env.FAKE_CLI_FAIL
   if (!fail || fail === '0' || fail === 'false') return null
   return fail
+}
+
+/**
+ * `FAKE_CLI_NEEDLES`: which of the configured strings the prompt of THIS turn contains, and the prompt length — never the prompt itself (the log stays small and private).
+ * The text is every `text` block of the user message joined, so JSON escaping of quotes and line breaks cannot hide a needle.
+ */
+function promptReport(content) {
+  const blocks = Array.isArray(content) ? content : [content]
+  const text = blocks.map(block => (typeof block === 'string' ? block : (block && typeof block.text === 'string' ? block.text : ''))).join('\n')
+  const report = { promptChars: text.length }
+  const raw = process.env.FAKE_CLI_NEEDLES
+  if (!raw) return report
+  try {
+    const needles = JSON.parse(raw)
+    if (!Array.isArray(needles)) return report
+    const found = {}
+    for (const needle of needles) if (typeof needle === 'string' && needle !== '') found[needle] = text.includes(needle)
+    return { ...report, needles: found }
+  } catch {
+    return report
+  }
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -277,6 +321,10 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
 } else {
   // 4. Claude / stream-json mode
   const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity })
+  // Diagnostics (04/11, installed exe): say what the host sent and why this session ended, so "0 turns" can be told apart from
+  // "the host never wrote to stdin" and "stdin closed at once". New event names only; `turn` keeps its meaning.
+  rl.on('close', () => { logInvocation('stdin-end') })
+  process.on('exit', (code) => { logInvocation('exit', { code }) })
 
   rl.on('line', async (line) => {
     const trimmed = line.trim()
@@ -285,8 +333,10 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
     try {
       msg = JSON.parse(trimmed)
     } catch {
+      logInvocation('stdin-unparsed', { head: trimmed.slice(0, 80) })
       return
     }
+    logInvocation('stdin', { type: String(msg.type), subtype: String(msg.request?.subtype ?? '') })
 
     if (msg.type === 'control_request') {
       const reqId = msg.request_id
@@ -339,7 +389,20 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
     }
 
     if (msg.type === 'user') {
-      logInvocation('turn')
+      // TEAM-10 plumbing: say whether an IMAGE reached the CLI (content blocks of type "image", with their media types) — never the bytes.
+      const blocks = Array.isArray(msg.message?.content) ? msg.message.content : []
+      const images = blocks.filter(block => block?.type === 'image')
+      const mentionsFile = /[A-Za-z0-9_\\/:.-]+\.(?:png|jpe?g|webp)\b/iu.exec(JSON.stringify(msg.message?.content ?? ''))
+      logInvocation('turn', {
+        // P0-1 (Tally 07/11): where the CLI ran — a persona with a project folder works in the Task's DRAFT directory, a text-only persona has none.
+        cwd: process.cwd(),
+        ...promptReport(msg.message?.content),
+        ...(images.length === 0 ? (mentionsFile === null ? {} : { imagePathInText: mentionsFile[0].slice(-80) }) : {
+          images: images.length,
+          imageTypes: images.map(block => String(block.source?.media_type ?? block.source?.mediaType ?? block.media_type ?? '')),
+          imageSources: images.map(block => String(block.source?.type ?? '')),
+        }),
+      })
       applyConfiguredWrites()
       const promptText = JSON.stringify(msg.message?.content ?? '')
       const latency = getLatencyMs()

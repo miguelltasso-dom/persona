@@ -20,11 +20,17 @@ const SUITE = 'f5'
 
 /** Known product bug: asserts the REQUIRED behaviour, fails today (`it.fails`), flips red when fixed. */
 function bug(owner: string, title: string, fn: () => Promise<void>, timeout = 180_000): void {
-  vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
+  // GAUGE_BUGS_AS_TESTS=1: o bug roda como teste NORMAL (passou = consertado; falhou = aberto, com a mensagem do que a tela fez).
+
+  if (process.env.GAUGE_BUGS_AS_TESTS === '1') vitestIt(`[BUG→${owner}] ${title}`, fn, timeout)
+
+  else vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
 }
 
 /** Panels with a known critical/serious axe finding (owner). Remove from the map the moment the owner fixes it. */
-const KNOWN_BLOCKERS: Readonly<Record<string, string>> = {}
+const KNOWN_BLOCKERS: Readonly<Record<string, string>> = {
+  // Configurações saiu da lista em 07/11: o job do bundle 3 (05/11 03:25) deu "Expect test to fail" (contraste do Prism corrigido).
+}
 
 describe.skipIf(!runA11y)('F5 — axe + teclado em todas as telas reais', () => {
   let s: GaugeSession

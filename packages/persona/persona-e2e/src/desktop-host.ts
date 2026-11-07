@@ -7,7 +7,8 @@ import { promisify } from 'node:util'
 import { chromium, type Page } from 'playwright'
 import { E2E_TMP_ROOT, REPO_ROOT } from './paths.ts'
 import { probeFreePort } from './ports.ts'
-import { launchUnderLock } from './locked-launch.ts'
+import { cleanChildEnv } from './clean-env.ts'
+import { launchDirect, launchUnderLock } from './locked-launch.ts'
 
 const execFileAsync = promisify(execFile)
 
@@ -15,6 +16,8 @@ export interface StartDesktopOptions {
   home?: string
   userData?: string
   env?: Record<string, string>
+  /** Drop VITEST*, PERSONA_SCRIPTED*, NODE_ENV=test from the child's inherited environment (the app then runs its LIVE runner, as a user's would). */
+  cleanEnv?: boolean
 }
 
 export interface DesktopHostHandle {
@@ -79,7 +82,7 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
   const devtoolsLine = /DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//i
 
   const env: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...(options.cleanEnv === true ? cleanChildEnv(process.env) : process.env),
     ...options.env,
     DSH_HOME: home,
     PERSONA_HOME: home,
@@ -91,13 +94,17 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
     DSH_DESKTOP_HOST_INSPECT_PORT: String(hostPort),
   }
 
-  const launch = launchUnderLock({
-    label: 'Probe persona-e2e startDesktop',
-    releaseOn: 'DevTools listening',
-    command: 'pnpm',
-    args: ['start:desktop'],
-    env,
-  })
+  // A caller that already runs under `with-lock` (PERSONA_LOCK is set) must not queue a SECOND lock on itself: that deadlocks until the 300 s timeout.
+  const callerHoldsLock = (process.env.PERSONA_LOCK ?? '') !== ''
+  const launch = callerHoldsLock
+    ? launchDirect({ command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', args: ['start:desktop'], env })
+    : launchUnderLock({
+      label: 'Probe persona-e2e startDesktop',
+      releaseOn: 'DevTools listening',
+      command: 'pnpm',
+      args: ['start:desktop'],
+      env,
+    })
 
   await new Promise<void>((resolve, reject) => {
     const deadline = Date.now() + 300_000

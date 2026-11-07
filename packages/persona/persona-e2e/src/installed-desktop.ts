@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { chromium, type Page } from 'playwright'
+import { cleanChildEnv, testModeVariablesIn } from './clean-env.ts'
 import { installedDesktopLaunch, waitForInstalledCdp } from './installed-cdp.ts'
 import { E2E_TMP_ROOT } from './paths.ts'
 import { probeFreePort } from './ports.ts'
@@ -66,7 +67,11 @@ export async function startInstalledDesktop(options: StartInstalledDesktopOption
 
   const rendererPort = await probeFreePort()
   const launch = installedDesktopLaunch({ exe: options.exe, home, userData, rendererPort })
-  const env: NodeJS.ProcessEnv = { ...process.env, ...launch.env, ...options.env }
+  // The test process carries VITEST=true / NODE_ENV=test; the product reads them to run its scripted FAKE (forced-ready engine, 0-turn
+  // delivery, in-memory db). The installed exe must run as a user's would: scrub them, and refuse to launch if anything test-mode is left.
+  const env: NodeJS.ProcessEnv = { ...cleanChildEnv(process.env), ...launch.env, ...options.env }
+  const leftover = testModeVariablesIn(env)
+  if (leftover.length > 0) throw new Error(`refusing to launch the installed exe with test-mode variables in its environment: ${leftover.join(', ')}`)
 
   const child: ChildProcess = spawn(launch.exe, [...launch.args], {
     env,

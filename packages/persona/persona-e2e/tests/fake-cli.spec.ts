@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -209,6 +209,51 @@ describe('persona-e2e fake CLI fixtures', () => {
       message: { content: { type: string; text: string }[] }
     }
     expect(assistantMsg.message.content[0]?.text).toBe(customText)
+  })
+
+  it('FAKE_CLI_FAIL_FILE: a turn fails while the switch file exists and works once it is deleted (the host environment cannot change after it starts, the file can)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fake-cli-failfile-'))
+    const failFile = join(dir, 'fail.txt')
+    const turn = (uuid: string) => runCliSession(
+      ['claude', '-p', '--input-format', 'stream-json'],
+      [{ type: 'user', uuid, message: { role: 'user', content: [{ type: 'text', text: 'tente' }] } }],
+      { FAKE_CLI_FAIL_FILE: failFile },
+    )
+    try {
+      writeFileSync(failFile, 'motor de mentira falhou\n')
+      const failing = await turn('cmd-ff-1')
+      const failed = failing.parsed.find(m => (m as { type?: string })?.type === 'result') as { is_error: boolean; errors: string[] }
+      expect(failed.is_error).toBe(true)
+      expect(failed.errors).toContain('motor de mentira falhou')
+      rmSync(failFile)
+      const working = await turn('cmd-ff-2')
+      expect(working.parsed.find(m => (m as { type?: string })?.type === 'assistant'), 'without the file the very next turn answers').toBeDefined()
+      expect(working.parsed.find(m => (m as { is_error?: boolean })?.is_error === true)).toBeUndefined()
+      writeFileSync(failFile, '')
+      const bare = await turn('cmd-ff-3')
+      expect((bare.parsed.find(m => (m as { type?: string })?.type === 'result') as { errors: string[] }).errors, 'an empty file still means "fail"').toContain('Simulated fake CLI failure')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('FAKE_CLI_NEEDLES: each logged turn says whether its prompt held every needle and how long it was — never the prompt itself', async () => {
+    const needle = 'Faz um cartaz da promoção da Padaria Lua — pedido inteiro até o fim'
+    const scope = withFakeCliOnPath({ reply: 'ok', needles: [needle, 'texto que não está lá'] })
+    try {
+      await runCliSession(['claude', '-p', '--input-format', 'stream-json'], [
+        { type: 'user', uuid: 'cmd-nd-1', message: { role: 'user', content: [{ type: 'text', text: `Contexto interno confidencial\n\n"${needle}"` }, { type: 'text', text: 'segundo bloco' }] } },
+      ], { FAKE_CLI_LOG: scope.logFile })
+      const turns = scope.invocations().filter(call => call.event === 'turn')
+      expect(turns).toHaveLength(1)
+      expect(turns[0]!.needles).toEqual({ [needle]: true, 'texto que não está lá': false })
+      expect(turns[0]!.promptChars).toBeGreaterThan(needle.length)
+      expect(readFileSync(scope.logFile, 'utf8'), 'the log never carries the prompt').not.toContain('Contexto interno confidencial')
+    } finally {
+      scope.restore()
+    }
+    expect(process.env.FAKE_CLI_NEEDLES).toBeUndefined()
+    expect(process.env.FAKE_CLI_FAIL_FILE).toBeUndefined()
   })
 
   it('supports withFakeCliOnPath options helper', () => {

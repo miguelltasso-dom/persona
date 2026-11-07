@@ -45,18 +45,44 @@ export async function openGaugeSession(options: GaugeSessionOptions = {}): Promi
     await page.goto(devUrl, { waitUntil: 'load', timeout: 120_000 })
     await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 180_000 })
     await page.waitForTimeout(2_000)
-    if (onboard) await completeOnboardingOverlay(page).catch(() => {})
+    if (onboard) {
+      await completeOnboardingOverlay(page).catch(() => {})
+      await settleFirstDelivery(page)
+    }
     return { page, via: 'dev-host', console: tripwire, close: async () => { await context.close(); await browser.close() } }
   }
   const session: RealPersonaSession = await openRealPersonaApp({
     keepOnboarding: true,
+    // The product's rail is the single lilac bar since bundle 3; these suites walk the old rail (opt-out) until they move: GAUGE_NAV_PLACES=1 = product default.
+    navPlaces: process.env.GAUGE_NAV_PLACES === '1',
     ...(options.engine === undefined ? {} : { engine: options.engine }),
     ...(options.viewport === undefined ? {} : { viewport: options.viewport }),
   })
   const tripwire = createPanelConsoleTripwire()
   tripwire.attach(session.page)
-  if (onboard) await completeOnboardingOverlay(session.page)
+  if (onboard) {
+    await completeOnboardingOverlay(session.page)
+    await settleFirstDelivery(session.page)
+  }
   return { page: session.page, via: 'own-host', console: tripwire, close: () => session.close() }
+}
+
+/**
+ * Finishing onboarding makes the app run the first delivery on its own (the first request goes to #geral, the team answers, and the app
+ * returns to #geral when it is done). A test that opens a screen in that window gets bounced back to #geral mid-click (the "Contratar
+ * persona" assistant lost its company cards). Wait until the conversation stops changing before any test starts.
+ * @param page - Live page right after onboarding.
+ */
+export async function settleFirstDelivery(page: Page, maxMs = 25_000): Promise<void> {
+  const deadline = Date.now() + maxMs
+  let last = -1
+  let stable = 0
+  while (Date.now() < deadline && stable < 5) {
+    const count = await page.locator('li[data-message-id]').count().catch(() => -1)
+    stable = count === last ? stable + 1 : 0
+    last = count
+    await page.waitForTimeout(700)
+  }
 }
 
 /** Directory for this suite's captures (gitignored under artifacts/). */
@@ -139,7 +165,20 @@ export async function openStructureAssistant(page: Page): Promise<void> {
 export async function assistantToPreview(page: Page, company: string): Promise<void> {
   // The company cards are radios since the Muse a11y pass (names carry a one-line hint: "Agência Clientes, projetos…").
   const card = page.getByRole('radio', { name: new RegExp(company, 'u') }).or(page.getByRole('button', { name: company, exact: true })).first()
-  await card.click()
+  try {
+    await card.click()
+  } catch (error) {
+    // Diagnosis: what does step 1 actually show? (screenshot + the visible radios/buttons/headings)
+    const seen = await page.evaluate(() => ({
+      headings: [...document.querySelectorAll('h1,h2,h3')].map(el => (el.textContent ?? '').trim().slice(0, 50)).slice(0, 8),
+      radios: [...document.querySelectorAll('[role="radio"]')].map(el => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 50)).slice(0, 10),
+      buttons: [...document.querySelectorAll('button')].map(el => (el.textContent ?? '').trim().slice(0, 30)).filter(Boolean).slice(0, 24),
+    })).catch(() => ({}))
+    const dir = await captureDir('diag')
+    await page.screenshot({ path: join(dir, `assistant-${company}.png`) }).catch(() => undefined)
+    console.log(`[gauge-diag] assistente sem o cartão "${company}": ${JSON.stringify(seen)}`)
+    throw error
+  }
   for (let i = 0; i < 3; i += 1) await page.getByRole('button', { name: 'Continuar', exact: true }).click()
   await page.getByText('Prévia do organograma e do Teste dos 2 dias offline.').waitFor({ state: 'visible', timeout: 30_000 })
 }

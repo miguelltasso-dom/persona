@@ -20,6 +20,8 @@ export interface LedgerRow {
   readonly cacheWriteTokens: number
   readonly ticketId: string | null
   readonly at: string
+  /** D-085: how the call's environment was set up (`native` | `answer-only` | `needed`); `null` when the runner did not say (or the column does not exist yet). */
+  readonly envMode: string | null
 }
 
 /** Ledger totals for the report. */
@@ -49,7 +51,13 @@ export function readLedgerEvidence(home: string): LedgerEvidence | undefined {
     const copy = join(scratch, 'persona.db')
     copyFileSync(source, copy)
     for (const suffix of ['-wal', '-shm']) {
-      if (existsSync(source + suffix)) copyFileSync(source + suffix, copy + suffix)
+      if (!existsSync(source + suffix)) continue
+      try {
+        copyFileSync(source + suffix, copy + suffix)
+      } catch (error) {
+        // A LIVE host keeps `-shm` locked on Windows (EBUSY). It is only the shared-memory index, rebuilt from the WAL when the copy is opened; the WAL itself must copy.
+        if (suffix !== '-shm') throw error
+      }
     }
     const db = new DatabaseSync(copy)
     try {
@@ -64,6 +72,7 @@ export function readLedgerEvidence(home: string): LedgerEvidence | undefined {
         cacheWriteTokens: Number(row.cache_write_tokens),
         ticketId: row.ticket_id === null || row.ticket_id === undefined ? null : String(row.ticket_id),
         at: String(row.at),
+        envMode: row.env_mode === null || row.env_mode === undefined ? null : String(row.env_mode),
       }))
       const sum = (pick: (row: LedgerRow) => number): number => rows.reduce((total, row) => total + pick(row), 0)
       return {
@@ -116,5 +125,97 @@ export function canonicalLedgerRows(rawRows: readonly Record<string, unknown>[])
     if (row.account_id !== null && row.account_id !== undefined) entry.accountId = row.account_id
     if (row.origin !== null && row.origin !== undefined) entry.origin = row.origin
     return entry
+  })
+}
+
+/** The six layers of a model request as `turn_ledger` books them (`layer_*` columns). */
+export interface LedgerLayers {
+  readonly system: number
+  readonly tools: number
+  readonly required: number
+  readonly subject: number
+  readonly recall: number
+  readonly message: number
+}
+
+/**
+ * D-085 baseline (Atlas/Keel, 04/11): the REAL "before" of the first delivery, run in the engine's NATIVE mode (the bloated call, with the
+ * MCP tool layer). It is only usable when EVERY turn was measured: otherwise it says why and `valid` is false (fail closed — the proof
+ * accuses instead of accepting an estimate as a baseline).
+ */
+export interface BaselineD085 {
+  readonly id: 'D-085'
+  /** Declared by the decree, not detected: the first real delivery of this round runs native. The `layers.tools` total is the evidence. */
+  readonly mode: 'native'
+  readonly valid: boolean
+  /** Why the baseline cannot be used; `null` when valid. */
+  readonly reason: string | null
+  readonly turns: number
+  readonly inputTokens: number
+  readonly outputTokens: number
+  readonly cacheReadTokens: number
+  readonly cacheWriteTokens: number
+  /**
+   * What the request carried in. The engine's `inputTokens` ALREADY INCLUDES the cache-write tokens (measured in the D-069 real run, 05/11: input 308 902 =
+   * 2 fresh + 308 900 written to cache), so adding the cache columns again would double count. When `inputTokens` is at least as large as the two cache
+   * columns together it is taken as inclusive; otherwise (the columns are separate counters) they are added.
+   */
+  readonly totalRequestTokens: number
+  /** Sum of each layer over the turns (`tools` = the MCP weight). */
+  readonly layers: LedgerLayers
+  readonly perTurn: ReadonlyArray<{ readonly kind: string; readonly engine: string; readonly origin: string | null; readonly inputTokens: number; readonly outputTokens: number; readonly cacheReadTokens: number; readonly cacheWriteTokens: number }>
+}
+
+const LAYER_COLUMNS = { system: 'layer_system', tools: 'layer_tools', required: 'layer_required', subject: 'layer_subject', recall: 'layer_recall', message: 'layer_message' } as const
+
+/**
+ * @param ledger - Evidence read after the run (`null` when the database could not be read).
+ * @returns The D-085 baseline block for the proof; `valid:false` with the reason when no measured turn exists or any turn is an estimate.
+ */
+export function baselineD085(ledger: LedgerEvidence | null): BaselineD085 {
+  const zero: LedgerLayers = { system: 0, tools: 0, required: 0, subject: 0, recall: 0, message: 0 }
+  if (ledger === null) {
+    return { id: 'D-085', mode: 'native', valid: false, reason: 'no ledger could be read after the run', turns: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalRequestTokens: 0, layers: zero, perTurn: [] }
+  }
+  const layer = (column: string): number => ledger.rawRows.reduce((total, row) => total + Number(row[column] ?? 0), 0)
+  const layers: LedgerLayers = {
+    system: layer(LAYER_COLUMNS.system), tools: layer(LAYER_COLUMNS.tools), required: layer(LAYER_COLUMNS.required),
+    subject: layer(LAYER_COLUMNS.subject), recall: layer(LAYER_COLUMNS.recall), message: layer(LAYER_COLUMNS.message),
+  }
+  const reason = ledger.turns === 0
+    ? 'the ledger holds no turn'
+    : ledger.allMeasured ? null : 'turn_ledger is not fully measured (allMeasured=false): an estimate is not a baseline'
+  return {
+    id: 'D-085',
+    mode: 'native',
+    valid: reason === null,
+    reason,
+    turns: ledger.turns,
+    inputTokens: ledger.inputTokens,
+    outputTokens: ledger.outputTokens,
+    cacheReadTokens: ledger.cacheReadTokens,
+    cacheWriteTokens: ledger.cacheWriteTokens,
+    totalRequestTokens: ledger.inputTokens >= ledger.cacheReadTokens + ledger.cacheWriteTokens
+      ? ledger.inputTokens
+      : ledger.inputTokens + ledger.cacheReadTokens + ledger.cacheWriteTokens,
+    layers,
+    perTurn: ledger.rows.map(row => ({ kind: row.kind, engine: row.engine, origin: row.origin, inputTokens: row.inputTokens, outputTokens: row.outputTokens, cacheReadTokens: row.cacheReadTokens, cacheWriteTokens: row.cacheWriteTokens })),
+  }
+}
+
+/**
+ * The scripted FAKE runner's fingerprint in `turn_ledger` (Forge, 04/11): engine `dsh` and/or exactly 1 input + 1 output token. A REAL run
+ * whose ledger carries it ran the fake (for instance because `VITEST=true` leaked into the app's environment), whatever the screen says.
+ * @param ledger - Evidence read after the run.
+ * @returns One line per fake-looking row; empty when none.
+ */
+export function fakeRunnerSignature(ledger: LedgerEvidence | null): string[] {
+  if (ledger === null) return []
+  return ledger.rows.flatMap((row, index) => {
+    const reasons = [
+      ...(row.engine === 'dsh' ? ['engine is "dsh" (the scripted fake), not a real CLI engine'] : []),
+      ...(row.inputTokens === 1 && row.outputTokens === 1 ? ['1 input / 1 output token (the fake runner\'s counters)'] : []),
+    ]
+    return reasons.length === 0 ? [] : [`turn ${String(index + 1)} (${row.kind}): ${reasons.join('; ')}`]
   })
 }

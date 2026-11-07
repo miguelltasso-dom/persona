@@ -24,9 +24,16 @@ export interface FakeCliOptions {
   readonly conflictDir?: string
   /** Text of the person's concurrent edit (env `FAKE_CLI_CONFLICT_CONTENT`). */
   readonly conflictContent?: string
+  /**
+   * ABSOLUTE path of a switch file (env `FAKE_CLI_FAIL_FILE`): while it EXISTS every turn fails (its text, when not empty, is the error message). The host's environment is fixed when
+   * it starts, so this is how a test says "the first turn fails, the next one works": create the file, ask, delete the file, retry.
+   */
+  readonly failFile?: string
+  /** Strings whose presence in the prompt of each turn is logged (env `FAKE_CLI_NEEDLES`, a JSON array): proof the WHOLE request reached the worker, never the prompt itself. */
+  readonly needles?: readonly string[]
 }
 
-const WRITE_ENVS = ['FAKE_CLI_RULES', 'FAKE_CLI_REPLIES', 'FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT'] as const
+const WRITE_ENVS = ['FAKE_CLI_RULES', 'FAKE_CLI_REPLIES', 'FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT', 'FAKE_CLI_FAIL_FILE', 'FAKE_CLI_NEEDLES'] as const
 
 /** One line of the stub's invocation log (`FAKE_CLI_LOG`). */
 export interface FakeCliInvocation {
@@ -37,6 +44,18 @@ export interface FakeCliInvocation {
   readonly argv: readonly string[]
   readonly pid: number
   readonly ppid: number
+  /** `turn` only: number of image content blocks the CLI received (the stub never logs bytes). */
+  readonly images?: number
+  readonly imageTypes?: readonly string[]
+  readonly imageSources?: readonly string[]
+  /** `turn` only: an image file name that appeared in the prompt TEXT (the runner may hand the path instead of a block). */
+  readonly imagePathInText?: string
+  /** `turn` only (Claude stream-json): length of the text the CLI received as the user turn. */
+  /** `turn` only (Claude stream-json): the working directory the CLI ran in (the Task's draft directory for a persona with a project folder). */
+  readonly cwd?: string
+  readonly promptChars?: number
+  /** `turn` only: per configured needle (`FakeCliOptions.needles`), whether the prompt contained it. */
+  readonly needles?: Readonly<Record<string, boolean>>
 }
 
 export interface FakeCliPathScope {
@@ -114,6 +133,19 @@ export function withNoEngineOnPath(): FakeCliPathScope {
 }
 
 /**
+ * The REAL engine (TEAM-10, tree host): touches nothing — the host finds the person's own logged-in `claude` the way the app does. It REFUSES to hand out a
+ * "real" scope while any fake pin is still in the environment (`OAR_*_BIN`, the stub directory on `PATH`, `FAKE_CLI_LOG`, `PERSONA_E2E_EXTRA_PATH`): a real round
+ * that silently reached a stub would look green and prove nothing.
+ * @returns Inert scope (`binDir`/`logFile` empty, no invocations).
+ */
+export function withRealEngine(): FakeCliPathScope {
+  const leaks = [...OAR_PINS.map(([name]) => name), 'FAKE_CLI_LOG', 'PERSONA_E2E_EXTRA_PATH', 'FAKE_CLI_TURN_MS', 'FAKE_CLI_FAIL', 'FAKE_CLI_FAIL_FILE', 'FAKE_CLI_NEEDLES', 'FAKE_CLI_REPLY'].filter(name => (process.env[name] ?? '') !== '')
+  if ((process.env.PATH ?? '').split(delimiter).some(entry => entry === FAKE_CLI_DIR)) leaks.push('PATH (stub directory)')
+  if (leaks.length > 0) throw new Error(`a real-engine session cannot start with fake CLI pins in the environment: ${leaks.join(', ')}`)
+  return { binDir: '', logFile: '', invocations: () => [], restore: () => {} }
+}
+
+/**
  * Prepend fake CLI stubs (`claude`, `codex`, `opencode`, `cursor-agent`) to `PATH` and pin the OAR binaries to them.
  * @param options - Optional latency, failure and reply overrides.
  * @returns Scope handle with restore method.
@@ -151,6 +183,8 @@ export function withFakeCliOnPath(options?: FakeCliOptions): FakeCliPathScope {
   if (options?.writeContent !== undefined) process.env.FAKE_CLI_WRITE_CONTENT = options.writeContent
   if (options?.conflictDir !== undefined) process.env.FAKE_CLI_CONFLICT_DIR = options.conflictDir
   if (options?.conflictContent !== undefined) process.env.FAKE_CLI_CONFLICT_CONTENT = options.conflictContent
+  if (options?.failFile !== undefined) process.env.FAKE_CLI_FAIL_FILE = options.failFile
+  if (options?.needles !== undefined) process.env.FAKE_CLI_NEEDLES = JSON.stringify(options.needles)
   if (options?.reply !== undefined) {
     process.env.FAKE_CLI_REPLY = options.reply
   }

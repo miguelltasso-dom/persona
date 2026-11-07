@@ -619,16 +619,16 @@ describe.skipIf(!run)('W2-3 app — várias contas por provedor, política de tr
     await shootBothThemes(s.page, SUITE, 'w2-conexoes-2-contas')
   }, 180_000)
 
-  vitestIt('[W2-3b/c/d app] as 4 políticas existem; escolher "Dividir o uso" chega ao host e SOBREVIVE ao recarregar; "Perguntar" e "Fixa" também', async () => {
+  vitestIt('[W2-3b/c/d app] as 3 políticas da v1 existem (Dividir o uso saiu de propósito na D-078); cada escolha chega ao host e SOBREVIVE ao recarregar', async () => {
     await panelHealth(s, 'conexoes')
     const policies = [
-      { name: /Uma conta fixa/u, host: 'fixed' },
+      { name: /Ficar nesta conta/u, host: 'fixed' },
       { name: /Perguntar antes de trocar/u, host: 'ask_before_swap' },
-      { name: /Dividir o uso/u, host: 'round_robin' },
-      { name: /Usar a próxima/u, host: 'next_on_limit' },
+      { name: /Trocar sozinha para a próxima conta/u, host: 'next_on_limit' },
     ] as const
     const radioNames = await s.page.getByRole('radio').evaluateAll(els => els.map(el => (el.getAttribute('aria-label') ?? el.closest('label')?.textContent ?? el.parentElement?.textContent ?? '').trim().slice(0, 60)))
-    expect(radioNames.length, `as 4 políticas (radios vistos: ${JSON.stringify(radioNames)})`).toBeGreaterThanOrEqual(4)
+    expect(radioNames.length, `as 3 políticas (radios vistos: ${JSON.stringify(radioNames)})`).toBe(3)
+    expect(radioNames.join(' | '), 'Dividir o uso saiu das opções (D-078)').not.toMatch(/Dividir o uso/u)
     for (const policy of policies) {
       await s.page.getByRole('radio', { name: policy.name }).check()
       await expect.poll(async () => (await hostRpc<AccountsBundle>(s.page, 'listConnectionAccounts')).swapPolicy, { timeout: 15_000 }).toBe(policy.host)
@@ -638,16 +638,16 @@ describe.skipIf(!run)('W2-3 app — várias contas por provedor, política de tr
       await panelHealth(s, 'conexoes')
       expect(await s.page.getByRole('radio', { name: policy.name }).isChecked(), `${policy.host} persistiu`).toBe(true)
     }
-    await s.page.getByRole('radio', { name: /Dividir o uso/u }).check()
-    await expect.poll(async () => (await hostRpc<AccountsBundle>(s.page, 'listConnectionAccounts')).swapPolicy, { timeout: 15_000 }).toBe('round_robin')
-    await shootBothThemes(s.page, SUITE, 'w2-conexoes-politica-dividir')
+    await s.page.getByRole('radio', { name: /Trocar sozinha para a próxima conta/u }).check()
+    await expect.poll(async () => (await hostRpc<AccountsBundle>(s.page, 'listConnectionAccounts')).swapPolicy, { timeout: 15_000 }).toBe('next_on_limit')
+    await shootBothThemes(s.page, SUITE, 'w2-conexoes-politica-trocar-sozinha')
   }, 300_000)
 
-  vitestIt('[W2-3e app] o cartão da persona diz como o uso é dividido (política ativa) e Uso e limites abre sem erro', async () => {
+  vitestIt('[W2-3e app] o cartão da persona diz a política de conta ativa ("Troca sozinha para a próxima conta no limite") e Uso e limites abre sem erro', async () => {
     const perfil = { ...REAL_GALLERY_PANELS.find(p => p.slug === 'perfil')!, profileRailPersona: 'Coordenação' }
     await navigateGalleryPanel(s.page, perfil)
     await s.page.locator('[data-persona-surface="profile"]').waitFor({ state: 'visible', timeout: 30_000 })
-    await expect.poll(async () => await mainText(s.page), { timeout: 20_000 }).toMatch(/Divide o uso entre as contas/u)
+    await expect.poll(async () => await mainText(s.page), { timeout: 20_000 }).toMatch(/Troca sozinha para a próxima conta no limite/u)
     await shootBothThemes(s.page, SUITE, 'w2-cartao-politica')
     const health = await panelHealth(s, 'uso')
     expect(health.fatals).toEqual([])

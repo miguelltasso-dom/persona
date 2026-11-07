@@ -106,9 +106,14 @@ export async function navigateProfileViaRailCard(
     await page.keyboard.press('Shift+F10')
   }
 
-  await page.getByRole('button', { name: `Mais ações para ${resolved}`, exact: true }).first()
-    .click({ timeout: 30_000 })
-  await page.getByRole('menuitem', { name: 'Abrir perfil', exact: true }).click({ timeout: 30_000 })
+  // CV-4: the face now opens the DM; the rail ⋯ ("Sobre {nome}", data-persona-card-trigger) opens the card. Either the ⋯ already offers
+  // "Abrir perfil" or the card's own "Mais ações para {nome}" does: take whichever is there.
+  const openProfile = page.getByRole('menuitem', { name: 'Abrir perfil', exact: true })
+  if (!(await openProfile.first().isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: `Mais ações para ${resolved}`, exact: true }).first()
+      .click({ timeout: 30_000 })
+  }
+  await openProfile.first().click({ timeout: 30_000 })
   await page.locator('[data-persona-surface="profile"]').first().waitFor({ state: 'visible', timeout: 60_000 })
 }
 

@@ -4,16 +4,22 @@
  * axe (critical/serious must be 0) and the panel health gate.
  * Host contracts: {@link ./mandatory-project-boards-host.spec.ts}. GOV app layer: {@link ./real-gov-pb-app.spec.ts}.
  */
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it as vitestIt } from 'vitest'
 import { scanAccessibility } from '../src/axe-check.ts'
-import { blockingAxe, mainText, openGaugeSession, panelHealth, shootBothThemes, type GaugeSession } from '../src/gauge-app.ts'
+import { blockingAxe, captureDir, mainText, openGaugeSession, panelHealth, shootBothThemes, type GaugeSession } from '../src/gauge-app.ts'
 
 const run = process.env.PERSONA_E2E === '1'
 const SUITE = 'pb'
 
 /** Known product bug: asserts the REQUIRED behaviour, fails today (`it.fails`), flips red when fixed. */
 function bug(owner: string, title: string, fn: () => Promise<void>, timeout = 120_000): void {
-  vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
+  // GAUGE_BUGS_AS_TESTS=1: o bug roda como teste NORMAL (passou = consertado; falhou = aberto, com a mensagem do que a tela fez).
+
+  if (process.env.GAUGE_BUGS_AS_TESTS === '1') vitestIt(`[BUG→${owner}] ${title}`, fn, timeout)
+
+  else vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
 }
 
 describe.skipIf(!run)('PB-9 app — Quadros por projeto: fluxo próprio, editar fluxo, sugestão da Coordenação, sprints', () => {
@@ -26,6 +32,13 @@ describe.skipIf(!run)('PB-9 app — Quadros por projeto: fluxo próprio, editar 
   afterAll(async () => {
     await s?.close()
   }, 60_000)
+
+  /** Diagnóstico embutido (Gauge 07/11): o que a pessoa VÊ depois da ação (captura + texto), para separar defeito do produto de expectativa velha do teste. */
+  const snapDiag = async (name: string, extra = ''): Promise<void> => {
+    const dir = await captureDir(SUITE)
+    await s.page.screenshot({ path: join(dir, `${name}.png`) }).catch(() => {})
+    await writeFile(join(dir, `${name}.txt`), `${s.page.url()}\n${extra}\n\n${(await mainText(s.page)).slice(0, 3000)}`, 'utf8').catch(() => {})
+  }
 
   const flowHeader = async (): Promise<string> =>
     (await mainText(s.page)).split('\n').find(line => /Fluxo próprio deste projeto/u.test(line)) ?? ''
@@ -109,27 +122,29 @@ describe.skipIf(!run)('PB-9 app — Quadros por projeto: fluxo próprio, editar 
     await s.page.getByRole('button', { name: 'Cancelar' }).click()
   }, 120_000)
 
-  bug('Lumen', '[PB-9 app] "Nova tarefa" (ação primária do quadro) abre um formulário/entrada — hoje o clique não faz nada visível', async () => {
+  // Comportamento ATUAL (Gauge 07/11, lido em ConnectedGlobalKanban.tsx): "Nova tarefa" leva ao canal, onde a tarefa é pedida; o formulário/ferramenta de criar cartão (HT-2b) ficou para a v1.1.x.
+  vitestIt('[PB-9 app] "Nova tarefa" (ação primária do quadro) leva à conversa do canal, onde a tarefa é pedida: o campo de mensagem do #geral fica à vista e a pessoa sai do quadro', async () => {
     await openBoard()
-    const cardsBefore = await s.page.getByRole('button', { name: 'Ações da tarefa' }).count()
     await s.page.getByRole('button', { name: 'Nova tarefa' }).click()
     await s.page.waitForTimeout(1_500)
-    const dialogs = await s.page.getByRole('dialog').count()
-    const inputs = await s.page.locator('[data-persona-surface] input:visible, [data-persona-surface] textarea:visible').count()
-    const cardsAfter = await s.page.getByRole('button', { name: 'Ações da tarefa' }).count()
-    expect(dialogs + inputs + (cardsAfter - cardsBefore), 'nada apareceu depois de "Nova tarefa"').toBeGreaterThan(0)
-  })
+    await snapDiag('pb9-nova-tarefa-depois')
+    await s.page.getByPlaceholder(/Mensagem em /u).first().waitFor({ state: 'visible', timeout: 20_000 })
+    expect(await s.page.getByRole('button', { name: 'Voltar aos quadros' }).count(), 'ainda no quadro depois de "Nova tarefa"').toBe(0)
+  }, 120_000)
 
-  bug('Lumen+Prism', '[PB-9.1 app] "Novo projeto" → modelo "Site / produto" → "Usar este modelo" CRIA um projeto novo "Site" na lista de Quadros (hoje troca o fluxo do projeto Pessoal e não cria nada)', async () => {
+  // Comportamento ATUAL: o projeto novo nasce com o fluxo do modelo e o quadro DELE abre; o Pessoal não muda. Ao voltar, a lista tem um projeto a mais.
+  vitestIt('[PB-9.1 app] "Novo projeto" → modelo "Site / produto" → "Usar este modelo" CRIA um projeto novo (não troca o fluxo do Pessoal), ABRE o quadro dele e, ao voltar, a lista tem um projeto a mais', async () => {
     const health = await panelHealth(s, 'kanban')
     expect(health.fatals).toEqual([])
     const cardsBefore = await s.page.getByRole('button', { name: 'Ações do projeto' }).count()
     await s.page.getByRole('button', { name: 'Novo projeto' }).click()
     await s.page.getByRole('button', { name: 'Site / produto', exact: true }).click()
     await s.page.getByRole('button', { name: 'Usar este modelo' }).click()
-    await s.page.waitForTimeout(2_500)
-    expect(await s.page.getByRole('button', { name: 'Ações do projeto' }).count(), 'nenhum projeto novo na lista').toBe(cardsBefore + 1)
-  })
+    await s.page.getByRole('button', { name: 'Voltar aos quadros' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+    await snapDiag('pb9-novo-projeto-depois', `cartões de projeto antes: ${String(cardsBefore)}`)
+    await s.page.getByRole('button', { name: 'Voltar aos quadros' }).first().click()
+    await expect.poll(() => s.page.getByRole('button', { name: 'Ações do projeto' }).count(), { timeout: 20_000, message: 'nenhum projeto novo na lista' }).toBe(cardsBefore + 1)
+  }, 120_000)
 
   bug('Lumen', '[PB-9.1 app] a etiqueta do fluxo no cartão da lista de Quadros acompanha o fluxo real do quadro (depois de trocar o modelo o cartão diz "Simples" e o quadro "Contratação")', async () => {
     await panelHealth(s, 'kanban')

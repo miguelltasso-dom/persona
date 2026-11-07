@@ -10,10 +10,6 @@ import { navigateProfileViaRailCard } from '../src/real-gallery/navigate-panel.t
 const run = process.env.PERSONA_E2E === '1'
 const SUITE = 'b8'
 
-function bug(owner: string, title: string, fn: () => Promise<void>, timeout = 180_000): void {
-  vitestIt.fails(`[BUG→${owner}] ${title}`, fn, timeout)
-}
-
 const railCount = async (page: Page): Promise<number> => {
   const text = await page.locator('#persona-rail-team-title').innerText().catch(() => '')
   return Number(/(\d+)/u.exec(text)?.[1] ?? '0')
@@ -39,7 +35,7 @@ describe.skipIf(!run)('B8 app — #geral → resposta → Tarefa no quadro → c
     await s?.close()
   }, 60_000)
 
-  bug('Anvil+Prism', '[P0][B8-1] mensagem no #geral: aparece na hora, o compositor limpa e uma persona responde em ≤ 40 s (sem fatais de console)', async () => {
+  vitestIt('[P0][B8-1] mensagem no #geral: aparece na hora, o compositor limpa e uma persona responde em ≤ 40 s (sem fatais de console) (corrigido)', async () => {
     let step = 'abrir #geral'
     try {
       const health = await panelHealth(s, 'geral')
@@ -64,7 +60,7 @@ describe.skipIf(!run)('B8 app — #geral → resposta → Tarefa no quadro → c
     }
   }, 120_000)
 
-  bug('Anvil+Prism', '[P0][B8-2] (depende do envio no #geral) a Tarefa criada pela mensagem aparece no quadro do projeto', async () => {
+  vitestIt('[P0][B8-2] (depende do envio no #geral) a Tarefa criada pela mensagem aparece no quadro do projeto (corrigido)', async () => {
     await panelHealth(s, 'kanban')
     const back = s.page.getByRole('button', { name: 'Voltar aos quadros' })
     if (await back.count() > 0) await back.first().click()
@@ -111,7 +107,7 @@ describe.skipIf(!run)('B8 app — #geral → resposta → Tarefa no quadro → c
     await expect.poll(async () => await s.page.locator('body').innerText(), { timeout: 30_000, message: 'cargo novo não apareceu' }).toMatch(/Revisora sênior/u)
   }, 180_000)
 
-  bug('Prism', '[B8] resposta da persona no #geral vem no assunto ativo e SEM duplicata (uma mensagem do usuário → uma resposta)', async () => {
+  vitestIt('[B8] resposta da persona no #geral vem no assunto ativo e SEM duplicata (uma mensagem do usuário → uma resposta) (corrigido)', async () => {
     await panelHealth(s, 'geral')
     const before = await messageCount(s.page)
     await s.page.getByPlaceholder(/Mensagem em/u).first().fill('oi, tudo bem? (gauge único)')

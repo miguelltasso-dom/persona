@@ -50,7 +50,10 @@ describe('SCOPE-2 — agente propõe agente: cartão de aprovação, nunca com m
     expect(created?.name).toBe('Pipoca')
     expect(created?.systemRoles ?? []).toEqual([])
     expect(created?.canRecruit).toBe(false)
-    expect(Object.values(created?.tools ?? {}).every(level => level === 'none' || level === undefined), `ferramentas: ${JSON.stringify(created?.tools)}`).toBe(true)
+    // D-099: a persona saves files into the draft by default, but NEVER more than the one who proposed her (the ceiling is the proposer's own grant).
+    const proposer = h.product.getPersona('atlas')?.tools ?? {}
+    const rank = { none: 0, read: 1, write: 2 } as const
+    expect(Object.entries(created?.tools ?? {}).every(([name, level]) => rank[level] <= rank[proposer[name] ?? 'none']), `ferramentas: ${JSON.stringify(created?.tools)} (proponente: ${JSON.stringify(proposer)})`).toBe(true)
     expect(created?.createdBy).toBe('atlas')
   })
 

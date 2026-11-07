@@ -61,14 +61,9 @@ describe('mandatory wave2 — várias contas por provedor (WAVE2 §3)', () => {
 
   /** W2-3b/c fixed+ask+next: {@link ./mandatory-wave2-contract.spec.ts} resolve-runner WAVE2 test. */
 
-  it(
-    '[W2-3d · Rivet] policy "dividir": alternates or balances by remaining official quota across linked accounts (fake quota fixtures; core account-policy split_balance)',
-    () => { runVitestSubprocess('packages/persona/persona-core/tests/account-policy.spec.ts', ['-t', 'split_balance']) },
-    300_000,
-  )
-
+  // W2-3d ("Dividir o uso") was DEFERRED to P2 on purpose (D-078, Keel 04/11 20:19): v1 offers 3 account policies. The old core split_balance test is no longer a v1 acceptance.
   it.skipIf(process.env.PERSONA_E2E !== '1')(
-    '[W2-3d · Rivet+Lumen] policy "dividir" is selectable in Conexões, reaches the host and survives a reload (app)',
+    '[W2-3b/c/d · Rivet+Lumen] the 3 v1 policies (Perguntar antes de trocar = padrão, Trocar sozinha, Ficar nesta conta) reach the host and survive a reload; Dividir o uso is no longer offered (app)',
     () => { runVitestSubprocess('packages/persona/persona-e2e/tests/real-byc-w2-app.spec.ts', ['-t', 'W2-3b/c/d'], { inheritPersonaE2e: true }) },
     900_000,
   )

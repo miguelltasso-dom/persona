@@ -43,6 +43,22 @@ function must(condition: boolean, message: string): void {
   if (!condition) throw new Error(message)
 }
 
+/** A channel with NO persona answers a person's message with one honest line (Bolt, 05/11; v1.1 tree) instead of silence. */
+export const LINE_NO_TEAM = /Ainda não há ninguém na equipe para responder/u
+
+/**
+ * (a0) a channel WITHOUT a team ("Monte sua equipe"): the person's message must meet the honest line, never silence. Only the v1.1 tree/exe has the line
+ * (the H2 base was mute here — the known D-079 (a) failure of the installed exe).
+ */
+export async function d079StepNoTeam(context: D079Context): Promise<void> {
+  const { page, rec, outcomes } = context
+  const lonely = await converseInGeral(page, rec, 'obrigado')
+  outcomes.push(lonely)
+  must(lonely.sent, '(a0) "obrigado" was not sent')
+  must(acknowledged(lonely), '(a0) a channel without a team went mute (no line, no reaction, no reply)')
+  await page.getByText(LINE_NO_TEAM).first().waitFor({ state: 'visible', timeout: 15_000 })
+}
+
 /** (a) another subject. */
 export async function d079StepA(context: D079Context): Promise<void> {
   const { page, rec, outcomes } = context
@@ -50,7 +66,7 @@ export async function d079StepA(context: D079Context): Promise<void> {
   outcomes.push(thanks)
   must(thanks.sent, '(a) "obrigado" was not sent')
   must(acknowledged(thanks), '(a) "obrigado": no reaction, no reply, no state line (the conversation went mute)')
-  const cost = await converseInGeral(page, rec, 'quanto custou isso?')
+  const cost = await converseInGeral(page, rec, 'quanto custou isso?', 60_000, { expectReply: true })
   outcomes.push(cost)
   must(cost.sent, '(a) "quanto custou isso?" was not sent')
   must(cost.reply !== null, '(a) "quanto custou isso?" needs a visible ANSWER from the team (a reaction alone is not enough)')
@@ -98,15 +114,20 @@ export async function d079StepC(context: D079Context): Promise<void> {
 /** (d) nothing silent. */
 export function d079StepD(context: D079Context): void {
   const { outcomes } = context
-  must(outcomes.length >= 5, `(d) expected at least 5 messages, saw ${String(outcomes.length)}`)
+  must(outcomes.length >= 4, `(d) expected at least 4 messages, saw ${String(outcomes.length)}`)
   const silent = outcomes.filter(outcome => !acknowledged(outcome)).map(outcome => outcome.text)
   must(silent.length === 0, `(d) messages with no reaction, no reply and no state line: ${JSON.stringify(silent)}`)
 }
 
-/** All four, in order (the installed run). */
+/**
+ * (a), (c), (d) in order (the installed run). (b) — the answer to the persona's question CONTINUES the Task — is NOT run through a CLI stub: a real `claude`
+ * worker asks the person through a host TOOL (HT-0 "ask"), and the OAR adapter never parses a question out of the reply text (its only reports are
+ * `progress` and `ended: ready/failed/dropped`; measured 05/11 against the tree: the stub's `{state:"waiting",question}` JSON shows up in the thread as plain
+ * text and the person's answer is treated as a new conversation). (b) is proven at the host (Bolt's `conversation-d079.spec.ts`, scripted worker reports);
+ * `d079StepB` stays exported for the day the stub can call the host's tool.
+ */
 export async function runD079Scenarios(context: D079Context): Promise<void> {
   await d079StepA(context)
-  await d079StepB(context)
   await d079StepC(context)
   d079StepD(context)
 }

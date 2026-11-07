@@ -183,6 +183,17 @@
   outline-offset: 2px;
 }
 
+/*
+ * A routine of the team itself (owner = the Coordenação, no persona): the team's icon in a NEUTRAL disc — paper-sunken ground, ink-soft glyph and a 1 px soft line, never the accent
+ * or the lilac wash, so it does not read as a persona (Muse 07/11; same treatment as the Kanban card with nobody on it). `.item .ownerSystemAvatar[data-icon]` outranks the Avatar's own
+ * `.avatar[data-icon]` wash whatever the load order.
+ */
+.item .ownerSystemAvatar[data-icon] {
+  background: var(--persona-paper-sunken);
+  color: var(--persona-ink-soft);
+  border: 1px solid var(--persona-outline-soft);
+}
+
 .itemText {
   min-width: 0;
 }

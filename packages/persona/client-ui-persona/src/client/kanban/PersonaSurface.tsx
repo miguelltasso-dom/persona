@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
+import { houseEmptyArt } from '../decor/HouseDecor.tsx'
 import { Button, EmptyState, ErrorState, Skeleton } from '../primitives/index.ts'
 import { bindLocale, type LocaleDict } from '../preview/locale-bind.ts'
 import styles from './Kanban.module.css'
@@ -17,6 +18,8 @@ export interface PersonaSurfaceProps {
   readonly onPrimary?: () => void
   /** Longest side of the art in px (EmptyState `artSize`). */
   readonly artSize?: number | undefined
+  /** The same scene by day and by night (BR-P4): with `persona.flag.houseDecor` the dark theme shows the night one, in the same frame. */
+  readonly nightPair?: { readonly day: string; readonly night: string }
 }
 
 /** Empty state with Brush illustration. */
@@ -28,12 +31,14 @@ export function PersonaSurfaceEmpty({
   primaryKey,
   onPrimary,
   artSize,
+  nightPair,
 }: PersonaSurfaceProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const illustration = ILLUSTRATIONS[illustrationKey]
   return (
     <EmptyState
       illustration={illustration}
+      {...(nightPair === undefined ? {} : { art: houseEmptyArt(nightPair.day, nightPair.night, artSize) })}
       {...(artSize === undefined ? {} : { artSize })}
       title={t(titleKey)}
       body={hintKey === undefined ? undefined : t(hintKey)}

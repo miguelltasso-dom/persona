@@ -122,6 +122,18 @@
   pointer-events: none;
 }
 
+/*
+ * Nothing decorative sits on text (Muse 07/11): the sticker stays in the top-right corner and the title leaves 44 px for it; the stamp's WORD ("Aprovado", the stamp's last
+ * child) is not drawn on the card, because it crossed the state chip — the card says it as its own chip in the footer.
+ */
+.cardTitleRowStamped {
+  padding-right: 44px;
+}
+
+.approvalStamp [aria-hidden='true']:last-child {
+  display: none;
+}
+
 .flowBoardCelebrate {
   position: relative;
 }
@@ -144,6 +156,15 @@
 .ticket:focus-visible {
   outline: 2px solid var(--persona-accent);
   outline-offset: 2px;
+}
+
+/*
+ * The card's own ⋯ menu hangs BELOW it. `will-change` makes every card a stacking context, so the menu's z-index stays inside its card and the NEXT card (later in the
+ * column) painted over it: "Mover para…" was hidden behind the card below (found in the real shell; jsdom has no layout). The card whose menu is open (or that has focus) rises over its neighbours.
+ */
+.ticket:has(.cardMenu),
+.ticket:focus-within {
+  z-index: 4;
 }
 
 .ticketDragging {
@@ -171,6 +192,17 @@
 
 .cardFooter .cardMenuWrap {
   margin-left: auto;
+}
+
+/*
+ * A card with nobody on it (the host sends no responsible persona yet): the team's icon in a NEUTRAL disc — paper-sunken ground, ink-soft glyph and a 1 px
+ * soft line, never the accent or the lilac wash, so it does not read as a persona (Muse 07/11). It keeps the 24 px box of the faces, so the footer row does not jump.
+ * `.cardFooter .unassignedAvatar[data-icon]` outranks the Avatar's own `.avatar[data-icon]` wash whatever the load order.
+ */
+.cardFooter .unassignedAvatar[data-icon] {
+  background: var(--persona-paper-sunken);
+  color: var(--persona-ink-soft);
+  border: 1px solid var(--persona-outline-soft);
 }
 
 .cardTitleRow {

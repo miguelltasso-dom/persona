@@ -1,0 +1,34 @@
+/* HT-3: "{nome} começou agora" no cartão do quadro — o rosto com o anel que pulsa UMA vez. Só tokens `--persona-*`. */
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: var(--persona-space-2) 0 0;
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.ring {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: var(--persona-radius-s);
+  animation: persona-started-ring 900ms ease-out 1;
+}
+
+@keyframes persona-started-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--persona-accent);
+  }
+
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+/* Reduced-motion: o anel não pulsa; fica só o texto. */
+@media (prefers-reduced-motion: reduce) {
+  .ring {
+    animation: none;
+  }
+}

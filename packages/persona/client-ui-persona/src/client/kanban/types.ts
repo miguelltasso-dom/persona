@@ -2,6 +2,7 @@
 
 import type { SubjectColorIndex } from '../chat/conversation-subjects.ts'
 import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
+import type { CardHandoffUi, HandoffNoteUi, PathStepUi, ReviewingUi } from '../teamwork/teamwork-wire.ts'
 
 export type KanbanColumnId = 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done'
 
@@ -49,6 +50,23 @@ export interface KanbanCardModel {
   readonly carry?: PersonaCarryAnimation
   /** W2-3 — conversation subject linked to the task (when host exposes it). */
   readonly conversationSubject?: { readonly name: string; readonly colorIndex: SubjectColorIndex } | undefined
+  /** CV-5 (host `BoardCardView.collaborators`): the personas WITH the lead — "com Bento". Absent when there are none. */
+  readonly collaborators?: readonly { readonly personaId: string; readonly name: string }[] | undefined
+  /** FLOW-1 (host `BoardCardView.deliveryPending`): a result waits for Aplicar/Descartar. `false` = the host knows nothing waits; absent = infer from the column. */
+  readonly deliveryPending?: boolean | undefined
+  /** EQUIPE REAL (D-090): "Pedido por {A}" / "Esperando {B}" — drawn only with `persona.flag.teamwork`. */
+  readonly handoff?: CardHandoffUi | undefined
+  /** EQUIPE REAL: the last handoff note ("Bilhete de {A}"), shown inside the work path. */
+  readonly note?: HandoffNoteUi | undefined
+  /** EQUIPE REAL: who wrote, handed on, delivered and reviewed this task ("Caminho do trabalho"). */
+  readonly path?: readonly PathStepUi[] | undefined
+  /** EQUIPE REAL: a colleague is reviewing this task now ("Revisando: {R}"). */
+  readonly reviewing?: ReviewingUi | undefined
+  /** IV-10: the open question of the task in one line (≤ 120 characters) and the thread it was asked in (`channel:geral`, `dm:<id>`); gone once answered. */
+  readonly question?: string | undefined
+  readonly questionStreamId?: string | undefined
+  /** Capture-only example card (`teamwork-dev-sample.ts`): it carries the "Exemplo" chip and never reaches the host. */
+  readonly sample?: true | undefined
 }
 
 export interface KanbanFilterOptions {

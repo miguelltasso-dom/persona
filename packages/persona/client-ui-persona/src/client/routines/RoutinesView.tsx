@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Avatar, Button, Card, Chip, EmptyState, Input, Screen, ScreenHeader, Toast, ToastRegion, UiIcon } from '../primitives/index.ts'
+import { Avatar, BrandIcon, Button, Card, Chip, EmptyState, Input, Screen, ScreenHeader, Toast, ToastRegion, UiIcon } from '../primitives/index.ts'
 import { PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Routines.module.css'
 import editorStyles from './RoutineEditor.module.css'
@@ -13,6 +13,7 @@ import { RoutineEditorModal, type EditorPersona, type EditorProject, type Routin
 import { DEFAULT_WHEN, describeWhen, weekRangeLabel, whenFromRrule } from './routine-schedule.ts'
 import { ProjectWorkspaceScopeChip } from '../data/ProjectWorkspaceScopeChip.tsx'
 import { pt as defaultDict } from '../locale/routines/locales.ts'
+import { NextStepBar } from '../next-step/NextStepBar.tsx'
 
 export type RoutinesSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
@@ -273,6 +274,16 @@ export function RoutinesView({
     <Screen className={styles.shell} data-persona-surface="routines">
       {header}
       {scopeChip}
+      <NextStepBar
+        screen="routines"
+        state={{
+          isEmpty: !hasRoutines,
+          activeRoutinesCount: routineRows.filter(row => !row.paused).length,
+        }}
+        onAction={() => {
+          if (actions !== undefined) setEditor({ mode: 'create' })
+        }}
+      />
       <p className={styles.hint}>{t('week.label', { range: weekRangeLabel(new Date()) })}</p>
       {hasRoutines && (
         <Card padding="m" as="section" aria-labelledby="routines-list-heading">
@@ -281,6 +292,7 @@ export function RoutinesView({
             {routineRows.map((row) => {
               const when = whenFromRrule(row.rrule)
               const whenText = when === undefined ? readableSchedule(row, t('list.custom')) : describeWhen(t, when)
+              // D-069 (Muse): a routine of the team itself (owner = the Coordenação, no persona) has no portrait: the team icon in a neutral disc (RoutineEditor.module.css `.ownerSystemAvatar`), never a letter.
               const who = row.ownerName ?? t('list.coordination')
               const canEdit = actions?.canEdit === true
               return (
@@ -294,7 +306,7 @@ export function RoutinesView({
                     size={32}
                     shape="portrait"
                     decorative
-                    {...(row.ownerAvatarSrc === undefined ? {} : { src: row.ownerAvatarSrc })}
+                    {...(row.ownerAvatarSrc === undefined ? { icon: <BrandIcon name="equipe" size={18} />, className: editorStyles.ownerSystemAvatar } : { src: row.ownerAvatarSrc })}
                   />
                   <div className={editorStyles.itemText}>
                     <p className={editorStyles.itemName}>{row.name}</p>

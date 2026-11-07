@@ -109,6 +109,8 @@ export interface LumenShellBridge {
   clearBoardsFocusProject(): void
   clearKanbanFocusTicket(): void
   openPersonaProfile(personaId: string): void
+  /** CV-4: abre a DM com a persona (rosto do organograma). */
+  openPersonaDm?(personaId: string): void
   setProjectWorkspaceProjectId(projectId: string | null): void
   openTeamSetup(): void
   openHelp?(docId: string): void
@@ -266,6 +268,7 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
       ...lumenInject(),
       openTeamSetup,
       openPersonaProfile: (personaId: string) => { shell?.openPersonaProfile(personaId) },
+      ...(shell?.openPersonaDm === undefined ? {} : { openPersonaDm: (personaId: string) => { shell.openPersonaDm!(personaId) } }),
       ...(shell?.personaCard === undefined
         ? {}
         : {

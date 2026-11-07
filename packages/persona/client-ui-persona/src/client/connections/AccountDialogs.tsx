@@ -53,7 +53,9 @@ export function AddAccountDialog({
   const [label, setLabel] = useState('')
   const [savedLabel, setSavedLabel] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [touched, setTouched] = useState(false)
+  // The "write a name" message belongs to a press of Continuar on an empty field: never on opening, never on a blur (the dialog
+  // moves focus around when it opens). A name that was typed and is refused (taken, too long) is said as soon as it is typed.
+  const [attempted, setAttempted] = useState(false)
   const [failed, setFailed] = useState(false)
   const [copied, setCopied] = useState(false)
   // "Ready" only counts after the person said they signed in to THIS seat: until the host checks each seat's own folder,
@@ -65,7 +67,7 @@ export function AddAccountDialog({
 
   const taken = accounts.map(row => row.accountLabel)
   const check = checkAccountLabel(label, taken)
-  const nameError = touched ? labelErrorText(t, providerName, check) : undefined
+  const nameError = attempted || label.trim() !== '' ? labelErrorText(t, providerName, check) : undefined
   const suggestions = suggestAccountLabels(taken)
 
   const seat = savedLabel === null ? undefined : accounts.find(row => row.accountLabel === savedLabel)
@@ -77,7 +79,7 @@ export function AddAccountDialog({
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
-    setTouched(true)
+    setAttempted(true)
     // A refused name puts the cursor back in the field, where the message is.
     if (!check.ok) { nameInput.current?.focus(); return }
     if (busy) return
@@ -115,7 +117,6 @@ export function AddAccountDialog({
           autoComplete="off"
           autoFocus
           onChange={(event) => { setLabel(event.target.value); setFailed(false) }}
-          onBlur={() => { setTouched(true) }}
           {...(nameError === undefined ? {} : { error: nameError })}
         />
         {suggestions.length > 0 && (
@@ -125,7 +126,7 @@ export function AddAccountDialog({
                 key={name}
                 type="button"
                 className={styles.suggestion}
-                onClick={() => { setLabel(name); setTouched(true); setFailed(false) }}
+                onClick={() => { setLabel(name); setFailed(false) }}
               >
                 {name}
               </button>
@@ -232,14 +233,15 @@ export function RenameAccountDialog({ t, providerName, currentLabel, otherLabels
   const [label, setLabel] = useState(currentLabel)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [touched, setTouched] = useState(false)
+  const [attempted, setAttempted] = useState(false)
   const nameInput = useRef<HTMLInputElement>(null)
   const check = checkAccountLabel(label, otherLabels, currentLabel)
-  const error = touched ? labelErrorText(t, providerName, check) : undefined
+  // Same rule as adding: the message waits for Salvar (or for a name that is already refused as typed), not for a blur.
+  const error = attempted || label.trim() !== '' ? labelErrorText(t, providerName, check) : undefined
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
-    setTouched(true)
+    setAttempted(true)
     if (!check.ok) { nameInput.current?.focus(); return }
     if (busy) return
     if (check.label === currentLabel) { onClose(); return }
@@ -276,7 +278,6 @@ export function RenameAccountDialog({ t, providerName, currentLabel, otherLabels
           autoComplete="off"
           autoFocus
           onChange={(event) => { setLabel(event.target.value); setFailed(false) }}
-          onBlur={() => { setTouched(true) }}
           {...(error === undefined ? {} : { error })}
         />
         {failed && <p className={styles.failure} role="alert">{t('account.rename.error')}</p>}

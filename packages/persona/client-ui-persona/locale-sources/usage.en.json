@@ -31,7 +31,7 @@
   "pool.segmentRefillAt": ", refills at {time}",
   "pool.accountsHeading": "{provider} accounts",
   "pool.defaultAccount": "Primary account",
-  "pool.providerNoLimits": "{provider} does not report limits for this account",
+  "pool.providerNoLimits": "This engine doesn't report its quota. We show the calls and tokens we measured here.",
   "account.fiveHour": "5 h",
   "account.week": "Week",
   "account.quotaUnavailable": "No official estimate",

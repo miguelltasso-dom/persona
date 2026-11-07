@@ -31,7 +31,7 @@
   "pool.segmentRefillAt": ", volta às {time}",
   "pool.accountsHeading": "Contas {provider}",
   "pool.defaultAccount": "Conta principal",
-  "pool.providerNoLimits": "O {provider} não informa limites desta conta",
+  "pool.providerNoLimits": "Este motor não informa a cota. Mostramos as chamadas e os tokens que medimos aqui.",
   "account.fiveHour": "5 h",
   "account.week": "Semana",
   "account.quotaUnavailable": "Sem estimativa oficial",

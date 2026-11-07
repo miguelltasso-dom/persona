@@ -10,6 +10,7 @@ import styles from './Kanban.module.css'
 import { deriveKanbanFilterOptions } from './derive-filter-options.ts'
 import { DEFAULT_KANBAN_FILTERS } from './mock-data.ts'
 import { pt as defaultDict } from '../locale/kanban/locales.ts'
+import { NextStepBar } from '../next-step/NextStepBar.tsx'
 import type { KanbanCardModel, KanbanColumnId, KanbanFilters, KanbanSurfaceState } from './types.ts'
 
 export interface GlobalKanbanProps {
@@ -20,6 +21,8 @@ export interface GlobalKanbanProps {
   readonly onRemoteRetry?: () => void
   /** Where a new task starts. Without it the button is not drawn. */
   readonly onNewTask?: (() => void) | undefined
+  /** Quadros, regra 4: cards in review for more than 2 days, counted by the panel from the board (`BoardCardView.inReviewSince`). */
+  readonly staleReviewCount?: number | undefined
 }
 
 function columnLabelsFromDict(dict: LocaleDict): Record<KanbanColumnId, string> {
@@ -51,6 +54,7 @@ export function GlobalKanban({
   onOpenReview,
   onRemoteRetry,
   onNewTask,
+  staleReviewCount = 0,
 }: GlobalKanbanProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [allCards, setAllCards] = useState<readonly KanbanCardModel[]>(initialCards)
@@ -90,6 +94,18 @@ export function GlobalKanban({
             {t('action.newTask')}
           </Button>
         )}
+      />
+      <NextStepBar
+        screen="boards"
+        state={{
+          isEmpty: boardSurface === 'empty',
+          blockedWaitingCount: visibleCards.filter(card => card.blocked || card.waitingEvent).length,
+          staleReviewCount,
+        }}
+        onAction={(step) => {
+          if (step.actionId === 'view-blocked') updateFilter('column', 'blocked')
+          else if (step.actionId === 'review-stale') updateFilter('column', 'in_review')
+        }}
       />
       <Card padding="m" className={styles.filtersCard}>
         <div className={styles.filters} role="search">

@@ -1,5 +1,103 @@
 # Lumen — relatos de implementação UI
 
+## 07/11 15:05 — 6b NO TREE (OK do Keel 14:51): o "SR" do cartão vira ícone da equipe + guarda do USD-2; notas da versão; rodada limpa do Revisar na fila
+
+- **Achado (captura real no lib 6):** o host não manda o responsável do cartão (`BoardCardView` só tem `collaborators`; `data/adapters/board.ts` não mapeia nenhum). Uma tarefa REAL da Nina criada pelo #geral aparece "Trabalhando" mas o rodapé mostra "SR" (iniciais de "Sem responsável"); o "N" que a Muse viu era do dev-seed do Ember (responsável injetado). Evidência: `.maestri/tmp/shots/lumen-viewport/bundle6-faces-evidence/` (os chips Pedido por/Esperando/Revisando já mostram o rosto). Registrado como v1.1.x do Anvil: `BoardCardView.leadPersonaId` (aí o rosto de verdade).
+- **6b (Keel 14:51, A + B):** (A) `kanban/KanbanCard.tsx`: sem responsável = ícone da equipe (`BrandIcon equipe` no `Avatar icon`, o mesmo do ator de sistema da Caixa de Aprovações; `aria-label` "Sem responsável" mantido), nunca "SR"; testes em `board-card-faces.client.spec.tsx` (ícone presente sem responsável, ausente com responsável). (B) `tests/usd-money-surfaces.client.spec.tsx` (7: Uso e limites em inglês, pool de chave de API sem janela, o adaptador não carrega dólar que o host mande por engano, cartão da persona de assinatura pt/en e de chave de API) → USD-2 (D-092) fechado em código e testes; falta só a captura de Uso e limites.
+- **Provas:** `check-pkg client-ui-persona` OK 15:00; `find-bad-css` `[]`; vitest 9 arquivos / 55 testes verdes (board-card-faces, usd-money-surfaces, usd-no-dollar, usd-uso-limites, kanban-*, card-collaborators, teamwork-board); suíte inteira do cliente do Ember no lib 6: 373 arquivos / 2819 verdes (14:05–14:26).
+- **Notas da versão** (`persona-spec/RELEASE-NOTES-v1.1.md`): linhas de Revisar, Quadros e Uso e limites e os limites (Cota em conta nova, Gasto em dólar, Revisar a 200%, responsável no cartão) em português claro.
+- **REVISAR ACEITO pela Muse (15:08, lib 6 7bd08b15):** captura limpa `.maestri/tmp/shots/lumen-viewport/bundle6/` (revisar-lista/conflito/sucesso × claro/escuro × 1440/960/200 %), pré-aceite 18/18 (conferido também pelo Ember, de forma independente), axe 0, console 0. Ela aprovou o toast só depois que a folha fecha e manteve o "Recomendado" em "Manter os dois".
+- **Cartão sem responsável — as 4 condições da Muse (15:00):** (a) mesma caixa de 24 px dos rostos; (b) disco NEUTRO: `Kanban.module.css` `.cardFooter .unassignedAvatar[data-icon]` = fundo `--persona-paper-sunken`, glifo `--persona-ink-soft`, borda `1px solid --persona-outline-soft` (nunca o lilás/destaque; vence o wash do `Avatar` por especificidade); (c) `aria-label` "Sem responsável" mantido, cópia intocada; (d) nenhuma letra. Teste: `board-card-faces` (guarda de CSS + DOM; 9 no arquivo). `check-pkg` OK 15:08; vitest 5 arquivos / 32 verdes.
+- **Falta (depende do Quill):** lib 6b → captura do quadro REAL (cena `board`, claro/escuro × 1440 e 200 %, manifesto `.maestri/tmp/lumen/manifests/lumen-6b-board.json`) com o pré-aceite → Muse aceita "no lote". USD-2: código e guardas fechados; captura de Uso e limites só se a Muse pedir.
+- **Capturas:** a rodada com a cena do rosto contaminou o Revisar (a cena criou tarefas reais no host, que persiste entre as combinações; o pré-aceite acusou "artigo" no texto do quadro atrás da folha). Lição: cena que CRIA dado roda sozinha, nunca na mesma rodada das outras. Rodada limpa só do Revisar (régua `.maestri/tmp/lumen/ruler/`, com o erro do 1º documento fora da conta) na fila FIFO; depois, no 6b: Revisar + cartão do quadro (sem "SR") com o pré-aceite do Ember → Muse.
+
+## 07/11 14:35 — RETOMADA: bundle 5 (aceito), Revisar a 200% + rostos no LIB 6 (candidato 7bd08b15), capturas do lote na fila
+
+**Estado:** meus itens do lib 6 estão NO LIB (conferi no `client.js`). Nada mais em client src (congelamento do candidato 14:35). `check-pkg client-ui-persona` OK 14:20; `find-bad-css` `[]`.
+
+### Bundle 5 (d8109efa) — capturas 12:37–12:42, pré-aceite do Ember
+- Saúde (`saude-1o-dia`) e enfeites (`enfeites-visao-geral`, `enfeites-aprovacoes`): 6/6 modos, axe 0, console 0 → **ACEITOS pela Muse 13:01** (o ✕ do "Resumo da manhã" sumiu: host do Anvil).
+- Revisar (lista/conflito/sucesso): reprovado pela checagem `dialogo` do Ember (a caixa passava da janela) → **BLOQUEADOR do corte** (Muse 13:01, sem exceção).
+
+### Revisar: causa MEDIDA e conserto (prova em browser real)
+- **Causa** (log `LUMEN_GEOM=1` no app real, bundle 5): o fundo `position: fixed` da folha NÃO é a janela; o `main` da página fica com `transform` identidade depois da animação de entrada e vira o bloco de contenção (58 px mais baixo que a janela). A `.sheet` era `content-box` com `max-height: min(92vh, 56rem)`: 828 + 38 (padding + borda) = **866 px numa área de 842** (base +12 px a 1440; +22 px a 960×640); abaixo de 48rem o `flex-end` empurrava o topo a **−25 px** (200 %), cortando o título e o "Voltar ao quadro".
+- **Conserto:** `review/KanbanReviewSheet.module.css` (`border-box`; `max-height: 100%` do PRÓPRIO fundo, nunca `vh`; cabeçalho fixo + `.sheetBody` único rolável; `@media (max-height: 36rem)` tira cromo) e `.tsx` (corpo rolável); `review/simple/DraftReview.module.css` (sucesso: botões `sticky` + arte 88 px em janela baixa; saia opaca sob a barra fixa, sem texto aparecendo embaixo); `DraftReviewPanel.tsx` (sem retrato = ícone do rascunho, nunca inicial); `remote/ConnectedProjectFlowBoard.tsx` (o toast "Aplicado na pasta · Desfazer" só aparece quando a folha fecha: a 200 % ele cobria o "Voltar ao quadro"; some se a pessoa desfez ali).
+- **Prova:** `scripts/persona/lumen-sheet-fit.mjs` (galeria isolada com Vite, NÃO toca o lib; moldura com `main` transformado; roda a medição do próprio pré-aceite). **Controle negativo** com o CSS antigo reproduz o app EXATAMENTE (866 px/base +12; 627/+22; 369/topo −25); com o CSS novo: **18/18 passos** (lista/conflito/sucesso × claro/escuro × 1440/960/200 %), sem corte, título dentro, "Aplicar na pasta"/"Voltar ao quadro" dentro da janela e alcançáveis (nada por cima), axe 0. Imagens em `.maestri/tmp/shots/lumen-sheet-fit/{control-old-css,after}`.
+- **Testes novos:** `tests/review-sheet-fit.client.spec.tsx` (10: sem `vh`, border-box, `max-height:100%`, corpo único rolável, cabeçalho fixo, saia, sucesso sticky/compacto + estrutura lista→conflito→sucesso dentro do corpo, título e Fechar fora) e +1 em `review-survives-reload` (o toast espera a folha fechar).
+
+### Rostos (D-069): o "N" da Nina e o "T" do Téo
+- `kanban/KanbanCard.tsx` (rodapé ×2 e a animação de carregar usam `resolvePersonaFace`; o `Avatar` do rodapé não recebia `src`), `kanban/StartedNowNote.tsx`, `boards/derive-board-summaries.ts` (`avatarSrc` dos "trabalhando agora"), `remote/ConnectedProjectFlowBoard.tsx` (personas do trabalho em equipe: `personaPortrait ?? personaFaceSrc(avatarRef, id)` — some o "T" nos chips Pedido por/Esperando/Revisando e no Caminho do trabalho). Teste: `tests/board-card-faces.client.spec.tsx` (6).
+- Não são meus (Quill/Ember): `CanvasView`, `ConnectionsView`, `PersonasSettingsPanel`, `TeachPersonaSession`, `AwayWhileOutPanel`; `ReviewedBySeal` (Ember). Os cartões REAIS do quadro semeado não têm responsável (mostram "SR" de "Sem responsável"): por isso a captura do rosto usa uma tarefa real da Nina criada pelo #geral.
+
+### USD-2 (D-092): código e guardas já estavam feitos desde 05/11 01:32
+- `usd-no-dollar.client.spec.ts` (10) + `usd-uso-limites.client.spec.tsx` (1): assinatura nunca mostra "US$"/"$"/"custo"; US$ só com chave de API ("≈ US$", rotulado estimado); troca de conta troca a forma; locales varridos (`proactive.costLabel` = Uso estimado, `inbox.section.cost` = Impacto e uso, `limits.subtitle`). Falta só a captura de Uso e limites (depois do lib 6) e, no cartão da persona, um guarda de DOM (a fazer só se o Keel autorizar; hoje nenhuma tela de Uso/cartão desenha dinheiro: o host não manda).
+
+### Capturas (FIFO na build; sem `--priority`)
+- Lote do lib 6: Revisar ×3 (`LUMEN_SCENARIOS=review`, pasta `.maestri/tmp/shots/lumen-viewport/bundle6`, manifesto `scripts/persona/preaccept-manifests/lumen-b6.json`) + cartão do quadro com rosto (régua em `.maestri/tmp/lumen/ruler/`, fora de `scripts/**`). Depois: pré-aceite do Ember → Muse.
+- Limitações: o toast mudou de momento (agora depois de fechar a folha); o selo "SR" do cartão sem responsável segue (placeholder "Sem responsável"; troca por ícone neutro só com OK do Keel).
+
+## ⏸ (SUPERADA em 07/11) PAUSA TOTAL (Atlas/Miguel, cota semanal do Claude em 85%) — estado exato em 05/11 06:31
+
+**Nada pela metade.** Nenhuma edição em andamento, nenhum job meu rodando, nenhum teste rodando. Monitor da caixa de entrada parado. Última verificação verde: `check-pkg client-ui-persona` OK 06:04 (depois do último save em `src`), vitest 64/64 nos 6 specs da área, `find-bad-css` `[]`. Não lancei nada depois da pausa.
+
+**FEITO**
+- Bundle 3: captura final feita (`.maestri/tmp/shots/lumen-viewport/bundle3`; imagens erradas da 1ª rodada em `.maestri/tmp/shots/lumen/descartadas-bundle3-seletor-errado`).
+- Bundle 4: captura final feita e **ACEITA pela Muse** (`.maestri/tmp/shots/lumen-viewport/bundle4`, pré-aceite 24/24 PASSOU): Revisão lista/conflito/sucesso + barra de abas da Saúde (58 px nas 6 janelas).
+- Bundle 5, meu item **NO TREE (06:04)**: textos "sem nome" da Revisão aprovados pela Muse 05:51 — cabeçalho "Mudanças prontas para revisar", subtítulo "Isto está num rascunho…", ícone `revisao` no avatar (nunca iniciais), descarte e Histórico ("1 mudança aplicada · hora"); `persona.fallback` removida; gen-locales rodado. Arquivos: `review/simple/{DraftReviewPanel.tsx,conflict-text.ts,DraftReview.module.css,ProjectHistoryView.tsx}`, `data/history-remote.ts`, `remote/ConnectedProjectHistory.tsx`, `locale-sources/review.{pt,en}.json` (+ locales gerados), specs `draft-review-panel`, `project-history`, `lumen-surfaces`.
+- Correções do bundle 4 (já no tree, no lib do bundle 4): quadro mantém o board no reload (`remote/ConnectedProjectFlowBoard.tsx`, `tests/review-survives-reload`), trava HT-9 de ação externa (`approvals/action-approval.ts#genericDecisionRoute`, `remote/ConnectedApprovalsPanel.tsx`, `decisions/derive-decisions.ts#riskOf`), texto da Revisão com/sem nome (`ConflictChoices`, `conflict-text.ts`), barra de abas `div.bar` (`shell/PlaceTabsBar.module.css`, `tests/place-tabs-bar-css.client.spec.ts`).
+- Revisão do Ctrl K sobreposto do Prism (staging `.maestri/tmp/prism/staging-cmdk`): aprovada, 4 ajustes feitos por ele, 63/63. Spec: `persona-spec/design/CMDK-OVERLAY-SPEC.md`.
+- Régua `scripts/persona/lumen-viewport-shots.mjs` (nav falha alto sem aba, sonda do pré-aceite em `shoot()`, cena `connector` pela lista do V2, log `geom` da Saúde); manifestos `scripts/persona/preaccept-manifests/{lumen.json,lumen-b5.json}`.
+
+**PELA METADE:** nada. (O staging `.maestri/staging/lumen-b5` já foi aplicado com `apply.sh`; não resta nada a aplicar.)
+
+**PRÓXIMOS PASSOS (só quando o Atlas chamar; nada disso foi iniciado)**
+1. Depois do GO do bundle 5 (Keel previa ~07:20, agora fora de data pela pausa): recapturar **Saúde + Revisão** no lib novo: `LUMEN_SCENARIOS=health,review LUMEN_SKIP_PANELS=1 LUMEN_1440=1 LUMEN_TIMEOUT_MS=4200000 LUMEN_AXE=C:/Users/migue/dev/persona/node_modules/.pnpm/axe-core@4.13.0/node_modules/axe-core/axe.min.js node scripts/persona/with-lock.mjs "Lumen captura FINAL bundle 5" --lock build --priority --wait-max 3600000 -- node scripts/persona/lumen-viewport-shots.mjs bundle5`; depois `node scripts/persona/preaccept.mjs --manifest scripts/persona/preaccept-manifests/lumen-b5.json`; avisar o próximo na ordem, o Keel e a Muse (só a lista "Pronto para a Muse"). Confirma o que o Anvil corrigiu (Resumo da manhã fora da Saúde) e o rótulo novo da Revisão; a checagem `dialogo` (sonda v2) pode apontar a folha de Revisão a 200% — se reprovar, corrigir `review/KanbanReviewSheet.module.css`.
+2. Ctrl K sobreposto (v1.2): o Prism aplica depois do corte da v1.1; eu só reviso o diff.
+3. De outros: `personaId` no `ReviewSummaryView` (Anvil) para usar o nome real; ícone `arquivo` aguarda o verbo `file` da ação externa; host gravar a cópia `(rascunho)` já feito (Forge).
+- Nota: nenhum job real/IA foi rodado por mim; as capturas usam o app com o fake.
+
+## 2026-11-04 22:55 — D-089 + CV-8 + D-090: Aprovações, P1-10, enfeites, Saúde, fan-out, equipe real (verde; capturas após o bundle 2)
+
+**Estado:** `check-pkg client-ui-persona` OK nos meus arquivos (o único erro do pacote às 22:50 era `approvals/InboxDetail.tsx`, edição do Ember). Suíte do pacote inteira: **324 arquivos / 2027 testes verdes**. Tudo novo atrás de flag, exceto Aprovações (título/verbo) e P1-10, que valem para todos.
+
+### O que mudou
+- **Aprovações (D-089 a):** `approvals-ui-helpers.ts` (`reactiveApprovalContext`: pergunta em palavras quando o host só repete o nome), `ReactiveApprovalsList.tsx` (`cardTitle` = `approvalTitle`, a mesma fonte do V2), `approvals.{pt,en}.json` (`action.primary.attention` = Revisar/Review, `attention.question`). O V2 herda sem edição. Teste: `approvals-attention-title` (5).
+- **P1-10:** `kanban/move-undo.ts` (regra: só A fazer/Fazendo/Em revisão → Fazendo/Em revisão), `ConnectedProjectFlowBoard.tsx` (aviso de 6 s; o Desfazer move o cartão de volta; um novo movimento fecha o aviso velho; falha do host vira frase honesta). `move-undo` (7).
+- **Enfeites (D-089 b, `persona.flag.houseDecor`):** `decor/{house-decor-flag.ts, HouseDecor.tsx, HouseDecor.module.css}` (lugar único, a Muse confirmou). Vazios -noite (Aprovações V2 e antiga, #geral, DMs), ramo (`corner-leaf-tl`) no cartão "Precisa de você" e no 1º de Aprovações, rabiscos do cabeçalho (> 960 px), ícone-cena no canal de equipe, carimbos sorteados por hash do id (`ApprovedStamp seed`), confete da Sprint concluída (`ConfettiMoment`), brilho do selo não lido (`body[data-house-decor]` + `--persona-night-active-glow` a 50 % em RailTeam, ConversationsRail e DMs). `house-decor` (22).
+- **Saúde (D-089 d):** o medidor empilha a ≤ 520 px (`Governance.module.css`). `health-gauge-narrow` (2).
+- **CV-8 UI:** `chat/fanout/{FanoutBlock, FanoutChip, fanout-rules, fanout-block-model, Fanout.module.css}`, `mapFanoutLine` em `remote/map-host-ui.ts`, o bloco desenhado em `MessageList` (um cartão por `fanout.id`, sem janela virtual quando há bloco), `persona-live-store.postChannelMessage(…, { fanout })` (+ retry com a mesma audiência), `remote/use-connected-fanout.ts` (a UI PERGUNTA ao host por `estimateAsk({ audience: 'everyone' })`; sem `fanout` na resposta o composer é o de sempre), chaves `composer.fanout.*`/`fanout.*` em `chat.{pt,en}.json` com fallback de texto. O composer (popover, chip montado, confirmação > 5) é do Flint. `fanout-ui` (18), `use-connected-fanout` (3).
+- **D-090 (`persona.flag.teamwork`):** `teamwork/{teamwork-flag, teamwork-wire, teamwork-context, HandoffChip, WorkPathSheet, Teamwork.module.css}`. Chips no cartão do quadro (rosto 16; "Esperando" com anel parado), link "Caminho do trabalho" → linha do tempo com rostos 24 (passo atual com anel, anteriores com ✓) e o "Bilhete de {A}" recolhido (pronto/falta/decisões/arquivos, sempre TEXTO). Lido SEM confiar no tipo (campos ainda fora de `host/types`): `BoardCardView.handoff` e `TaskView.note/path` (por id, via `listTasks`). Sem nome da persona, sem chip (nunca um id). `teamwork-board` (12).
+
+### Adendo 23:10 (Muse 22:44/22:45)
+- **Chip "Revisando: {R}"** a partir de `reviewing?: { personaId, round }` (BoardCardView e TaskView, nomes finais do Anvil): rosto 16, anel PARADO como o "Esperando"; sem o campo, sem chip.
+- **Quadro de exemplo para a captura** (`teamwork/teamwork-dev-sample.ts`): só com as DUAS chaves de dev (`persona.devSeed.v1` + `persona.devSeed.teamwork`) e a flag `persona.flag.teamwork`. Três cartões com o selo "Exemplo" (Pedido por Nina com caminho de 3 passos e bilhete; Esperando Bento; Revisando: Atlas); nunca chamam o host (mover um deles não faz nada). Receita: `localStorage` com `persona.flag.teamwork`, `persona.flag.houseDecor`, `persona.devSeed.v1`, `persona.devSeed.teamwork` = '1'.
+- Galeria interna: `LUMEN_TEAMWORK=1 node scripts/persona/lumen-review-gallery.mjs teamwork-board` (não é aceite; a captura de aceite é no shell real).
+
+### Adendo 23:40
+- **CV-5 "com {nome}"** no cartão do quadro a partir de `BoardCardView.collaborators` (chip neutro; "com Bento", "com Bento, Luna e Sol"; sem colaboradores, sem chip). `card-collaborators` (2).
+- **FLOW-1 pelo dado do host:** `BoardCardView.deliveryPending` decide se um cartão pode ir a Concluído (`true` = segura, em qualquer coluna; `false` = solta, ex. tarefa sem pasta; ausente = o palpite antigo pela coluna). +2 testes em `flow-delivery-pending`.
+- **Roteiro da captura final pronto** (`scripts/persona/lumen-viewport-shots.mjs`): cenários novos `approvals`, `decor` (liga `persona.flag.houseDecor`) e `teamwork` (liga a flag + as 2 chaves de dev do quadro de exemplo). Comando: `LUMEN_SCENARIOS=approvals,decor,teamwork LUMEN_SKIP_PANELS=1 LUMEN_1440=1 LUMEN_AXE=<axe.min.js> node scripts/persona/with-lock.mjs "<label>" --lock build -- node scripts/persona/lumen-viewport-shots.mjs real` (só depois do bundle 2).
+- **Galeria interna com axe** (não é aceite) nos estados novos (bloco/chip do fan-out, quadro com os chips + caminho + bilhete, enfeites, vazios noturnos): 54 capturas (claro/escuro × 1280/960/200 %), **axe 0, 0 estouro, 0 erro de console**.
+
+### Adendo 00:10 — o cartão "Precisa de você / Liberar para {B}" (Anvil, team-real.md §9; Keel: é meu)
+- **Um só tipo** `ApprovalView.kind: 'connector'` para "a Bia pediu ao Téo e ele não pode usar o Gmail" (reason `colleague`) e "a Nina quer usar o Drive" (reason `initiative`). `approvals/connector-ask.ts` lê `ApprovalView.connector` COMO DADO (nada estranho vira cartão de conector: degrada para um cartão de atenção com o título/pergunta do host, que continua sendo uma decisão pendente) e escreve as palavras a partir dos campos (título "Liberar o {conector} para {B}", pergunta do colega/da iniciativa).
+- **As escolhas** (`approvals/ConnectorActions.tsx`): exatamente as que o host aceita em `options`, na ordem "Liberar só desta vez" · "Sempre permitir para {B}" · "Agora não" ("Agora não" sempre existe); a consequência do "sempre" (só LEITURA; escrever e apagar continuam perguntando) fica escrita embaixo dos botões; as outras duas vão por `aria-describedby`. Sem handler ligado os botões ficam desabilitados.
+- **Caminho até o host:** `ApprovalsInbox/ReactiveApprovalsList.onDecideConnector` → `ConnectedApprovalsPanel` → `live.decide(id, accept, choice)` → `decideApproval({ kind: 'connector', choice, accept })`. O Aceitar/Dispensar genérico (a V2 do Ember só tem esses dois) vale "só desta vez"/"Agora não".
+- **Desfazer de verdade:** o `connectorDecision.grant` que o host devolve com "sempre" fica guardado; ele marca a decisão como reversível (o toast "Desfazer" só existe aí) e o Desfazer chama `revokeConnector({ personaId, cli, connectorId })` — exatamente aquela concessão. "Só desta vez" não tem o que desfazer.
+- **Sem flag:** o cartão aparece sempre que o host o manda (ele só manda com `Config.teamwork`/concessões ligadas); esconder uma decisão pendente por flag da UI violaria a regra 4 das DECISIONS.
+- **Testes:** `approvals-connector` (9). Galeria interna com axe: `approvals-connector` 6 capturas, axe 0. Suíte do pacote: 334 de 335 arquivos / 2214 de 2215 testes; o único vermelho é `css-tokens-defined` por `next-step/NextStepBar.module.css` (3 tokens que não existem: `persona-font-body`, `persona-text-s`, `persona-leading-s`), de OUTRO dono.
+- **Dependência registrada:** os textos novos (`approvals.{pt,en}.json`: `connector.*`, `type.connector`, `action.primary.connector`) têm fallback no cartão da lista antiga; na V2 do Ember (`t(item.primaryKey)`) o botão só lê certo depois do gen de locales.
+
+### Adendo 00:35 — Muse aprovou o cartão "Liberar para {B}"
+- Retoques: sem artigo antes do nome da persona (já era assim); o Toast do "Sempre permitir" diz "Agora {B} pode ler o {conector} sem perguntar · Desfazer" (só com o grant do host; chave `decision.undoToast.connector`, com fallback).
+- Exemplo para a captura do bundle 3: `persona.devSeed.v1` + `persona.devSeed.connector` (2 cartões "Exemplo", nunca chamam o host; testado). Cenário `connector` no roteiro de captura.
+
+### Limitações conhecidas / abertos
+- "Revisando {R}" (chip) não tem dado no contrato; o selo "Revisado por" é do Ember; "Responder a uma resposta" do bloco (Ajuste 3) depende do IV-10; o "Tentar de novo" da linha `failed` não existe (o host não tem retry).
+- Rabiscos do cabeçalho só acima de 960 px (a 960 o cabeçalho empilha); a Muse aprovou.
+- Locales: as chaves novas estão só em `locale-sources`; todo texto tem fallback no componente, então nada depende do gen.
+- Capturas no shell real: depois do bundle 2 (00:30) e da vez na fila build; só as flags ligadas.
+
 ## 2026-11-04 16:00 — Lote Muse/Gauge/Keel: SW-8, PB-5, SB-5/SB-7, BYC-4, Revisar (WIRE), honestidade da tela, botões mortos (verde no check-pkg; capturas depois da janela)
 
 **Estado:** `check-pkg client-ui-persona` OK (~15:55). Testes dos 14 arquivos que toquei: 82/82. Suíte do pacote na última rodada: 3 falhas, 2 minhas já corrigidas (`boards-home`, BYC-4d) e 1 do rail do Prism (`rail-ai-status`). `wire-contract` do Gauge: **0 desvios do meu lado** (111 chamadas, 49 tipos). Sem commit. Locales gerados em janela exclusiva (D-067). Capturas, galeria e axe: depois da janela de estabilidade do Keel (bundle `--exclusive`).
@@ -999,3 +1097,47 @@ Saída: exit 0.
 - FLIP persona carregando cartão: hook quando evento host existir (mock `carry` preparado no tipo).
 
 **Realinhamento Keel:** pastas movidas de `src/{kanban,...}` para `src/client/{kanban,...}`.
+
+## 05/11 04:45 — captura final do bundle 3 + 4 correções para o bundle 4 (Lumen)
+
+**Captura do bundle 3 (feita; `.maestri/tmp/shots/lumen-viewport/bundle3`, claro/escuro × 1440/960/200%).** A 1ª rodada saiu errada e foi parada: o script procurava a aba por `[data-panel]` (o atributo real é `data-tab-panel`) e pulava o clique em silêncio — "saúde" mostrava "Membros e convites". Agora `nav()` falha ALTO se a aba não existe ou não fica selecionada; imagens erradas em `.maestri/tmp/shots/lumen/descartadas-bundle3-seletor-errado`. Rodada refeita: saúde, segundo cérebro, importadores (4), aprovações, enfeites, quadro+caminho/bilhete, revisar (lista, conflito), decisions: axe 0, console 0. Falta só o passo "sucesso" da Revisão (dist antigo, ver 1). Evidência do bug em `bundle3/evidencia-bug-aplicar`.
+
+**Correções no tree (testes verdes, check-pkg OK 04:40):**
+1. **Quadro desmontava a folha de Revisar no Aplicar** (`remote/ConnectedProjectFlowBoard.tsx`): `reload()` punha o estado em "carregando", `flow` virava `null`, outra árvore era renderizada e a folha perdia a tela de sucesso + Desfazer (voltava do zero). Agora o quadro anterior fica até o novo chegar (outro projeto nunca pega o quadro velho). Prova: `tests/review-survives-reload.client.spec.tsx` (falha sem a correção: `review-applied` não aparece). Efeito bom: mover cartão não pisca o esqueleto.
+2. **Trava HT-9**: no V2 uma ação externa (`kind:'action'`) só tinha o detalhe genérico e o Aceitar aprovaria o envio SEM mostrar o conteúdo. `approvals/action-approval.ts#genericDecisionRoute` (+ `ConnectedApprovalsPanel`): Aceitar genérico recusado, Dispensar = `cancel`; `decisions/derive-decisions.ts#riskOf`: action/connector sempre `normal` (nunca no lote "de risco baixo"). Ember pôs a prévia/ConnectorActions no detalhe do V2 e marcou `blindAction`. Testes em `approvals-action-card` (27).
+3. **Texto da Revisão (Muse 04:10/04:33)**: sem "A persona" no meio da frase; com nome "{nome} e você mudaram…", sem nome "Você e a equipe…"; "Ficar com a versão de {nome}/do rascunho"; cópia SEMPRE "{arquivo} (rascunho).ext"; fallback do cabeçalho "O rascunho". `review/simple/conflict-text.ts` (novo), `ConflictChoices`, `DraftReviewPanel`, `locale-sources/review.{pt,en}.json`, gen-locales rodado; 4 specs do review ajustados + 2 novos (39/39).
+4. **Barra de abas encolhia em página alta** (`shell/PlaceTabsBar.module.css`): `.center > * {flex:1 1 auto}` do quadro tem a mesma especificidade de `.bar {flex:0 0 auto}` e ganha pela ordem; medi no app real a `.bar` com 31 px (1440), 28 (960) e 22 (200%) para um track de 42 px. Agora `div.bar` em todas as regras; `tests/place-tabs-bar-css.client.spec.ts`. A captura imprime `geom` (healthShots) para confirmar no bundle 4.
+
+**Régua**: `shoot()` grava a sonda do pré-aceite (`<captura>.probe.json`, Ember); cena `connector` agora entra pela lista do V2 e fotografa os 4 cartões (conector colega, iniciativa, e-mail, pagamento).
+
+**Dependências abertas (não minhas)**: host gravar a cópia como `(rascunho)` (hoje `history.ts` grava "(da persona)"; Forge/Keel); `personaId` no `ReviewSummaryView` para ter o nome real (Anvil); ícone `arquivo` aguarda o verbo `file` da ação externa.
+
+## 05/11 05:52 — captura final do bundle 4 (Lumen) — FEITA
+
+**Onde:** `.maestri/tmp/shots/lumen-viewport/bundle4` (claro/escuro × 1440/960/200%; régua `scripts/persona/lumen-viewport-shots.mjs`, `LUMEN_SCENARIOS=health,review`, axe 4.13.0, sonda do pré-aceite do Ember; manifesto `scripts/persona/preaccept-manifests/lumen.json`).
+
+**Pré-aceite mecânico:** 24 capturas → 24 PASSOU, 0 FALHOU, 0 INCOMPLETO; 4/4 cenas prontas para a Muse (`revisar-lista`, `revisar-conflito`, `revisar-sucesso`, `saude-1o-dia`). axe 0 em todas; console 0.
+
+**Provas no app real (dist do bundle 4):**
+- Revisão completa nos 6 contextos: lista → clash → "Manter os dois" → Aplicar → "Aplicado na pasta · 5 arquivos · Desfazer por 30 dias" + toast. É o passo que falhava no bundle 3 (o quadro recarregava e desmontava a folha).
+- Barra de abas da Saúde: `.bar` = 58 px (= 16 de respiro + 42 do track) nas seis janelas; antes 31/28/22 px (log `geom` do `healthShots`).
+- Texto novo da Revisão (Muse 04:10/04:33): "Você e a equipe mudaram {arquivo}", "O rascunho foi feito enquanto você mudava o arquivo", "Ficar com a versão do rascunho", cópia "{arquivo} (rascunho).ext" (o host grava o mesmo, Forge 04:41).
+
+**Achados para a Muse (enviados 05:51; vão no bundle 5, final):** no cabeçalho sem nome o fallback "O rascunho" deixa "O rascunho fez isto num rascunho." (tautologia), avatar com as iniciais "OR" e, no Histórico, "O rascunho aplicou 1 mudança". Propostas enviadas: "Isto está num rascunho…", ícone de rascunho no lugar das iniciais, "Mudanças prontas para revisar" / "Mudanças aplicadas".
+
+**Avisos:** Flint (próximo na ordem) e Keel com "captura Lumen feita" + caminho; trava build liberada.
+
+**Congelamento geral (Keel 05:18):** sem saves em `src`/`lib` até o "rodada real terminada" do Probe. O que fica para depois: texto do cabeçalho sem nome (Muse), `personaId` no `ReviewSummaryView` (Anvil), Ctrl K sobreposto (v1.2; spec em `persona-spec/design/CMDK-OVERLAY-SPEC.md`).
+
+## 05/11 06:05 — bundle 4 aceito pela Muse + bundle 5 (meu item) no tree (Lumen)
+
+**Muse aceitou o lote do bundle 4** (05:51): Revisão (lista antes → depois, conflito com o texto novo, sucesso "Aplicado na pasta · Desfazer por 30 dias" + Toast) e a barra de abas da Saúde na altura natural.
+
+**Bundle 5 — textos "sem nome" da Revisão (Muse 05:51), `src` liberado pelo Keel 06:02, no tree 06:04:**
+- Cabeçalho sem nome: "Mudanças prontas para revisar" (com tarefa: "… em {tarefa}"); subtítulo "Isto está num rascunho. Sua pasta ainda não mudou."; ícone `revisao` do pack no avatar (nunca iniciais "OR"; só quando não há nome nem retrato).
+- Descarte sem nome: "As mudanças do rascunho somem. Sua pasta continua como está." (achado meu no mesmo molde: dizia "As mudanças de O rascunho somem").
+- Histórico sem nome: "1 mudança aplicada · hora" / "{n} mudanças aplicadas · hora" (mantive a contagem). Com nome segue "{nome} preparou mudanças" / "{nome} aplicou…".
+- `HistoryEntryUi.who` agora `string | undefined`; `persona.fallback` removida dos locales (nada mais a usa); `review/simple/conflict-text.ts` ganhou `unnamedText`. Preparado em staging (`.maestri/staging/lumen-b5`, com `apply.sh` que confere se alguém mexeu nos arquivos) enquanto o `src` estava congelado.
+- Testes: 64/64 nos 6 specs da área (draft-review-panel, project-history, lumen-surfaces, kanban-review-sheet, review-dev-sample, review-survives-reload) + css; check-pkg client-ui-persona OK; find-bad-css [].
+
+**Aberto (não é meu):** Saúde › Teste dos 2 dias marca ✕ em "Resumo da manhã" (rotina do sistema) e isso baixa a nota — causa no host: `persona-host/src/governance.ts:174-182` + `persona-core/src/governance/health.ts` (pedido ao Anvil/Forge 05:53; recapturo a Saúde se entrar no bundle 5). `personaId` no `ReviewSummaryView` (Anvil). Ícone `arquivo` espera o verbo `file`. Ctrl K sobreposto: o Prism adianta em staging a pedido do Atlas; eu reviso (spec em `persona-spec/design/CMDK-OVERLAY-SPEC.md`).

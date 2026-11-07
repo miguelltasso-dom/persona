@@ -16,6 +16,7 @@ import type { UsageTokenPanelUi } from '../data/adapters/usage-panel.ts'
 import { LocalInsights } from './LocalInsights.tsx'
 import { UsageTokenPanel } from './UsageTokenPanel.tsx'
 import { pt as defaultDict } from '../locale/usage/locales.ts'
+import { NextStepBar } from '../next-step/NextStepBar.tsx'
 
 export type UsageSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
@@ -158,6 +159,16 @@ export function UsageLimits({
   return (
     <Screen className={styles.shell} data-persona-surface="usage">
       {header}
+      <NextStepBar
+        screen="usage"
+        state={{
+          isEmpty: meters.length === 0 && providerPools.length === 0,
+          highUsageWindow: limitNotice !== null && limitNotice.percent > 80
+            ? { engineName: limitNotice.connection, percent: limitNotice.percent, untilLabel: '18:30' }
+            : undefined,
+        }}
+        {...(onLimitAction === undefined ? {} : { onAction: () => { onLimitAction() } })}
+      />
       {showLimitNotice && limitNotice !== null && (
         <Card padding="m" className={styles.notice} tone="accent">
           <p>{t('limit.contextual', { connection: limitNotice.connection, percent: limitNotice.percent })}</p>

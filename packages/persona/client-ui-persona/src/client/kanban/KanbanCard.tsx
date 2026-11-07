@@ -1,7 +1,11 @@
 /** Single Kanban card with drag lift, persona row, chips, and overflow menu. */
 
+import { HandoffChip } from '../teamwork/HandoffChip.tsx'
+import { StartedNowNote } from './StartedNowNote.tsx'
+import { teamworkText } from '../teamwork/teamwork-context.tsx'
 import { type DragEvent, type MouseEvent, type ReactNode } from 'react'
-import { ApprovedStamp, Avatar, Card, Chip, UiIcon } from '../primitives/index.ts'
+import { ApprovedStamp, Avatar, BrandIcon, Card, Chip, UiIcon } from '../primitives/index.ts'
+import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
@@ -49,6 +53,15 @@ function resolveWorkState(card: KanbanCardModel): PersonaWorkUiState {
 }
 
 /** Draggable ticket card. */
+/** "Bento", "Bento e Luna", "Bento, Luna e Sol" (the person's language): never a raw join with commas only. */
+function listNames(names: readonly string[]): string {
+  try {
+    return new Intl.ListFormat('pt-BR', { style: 'long', type: 'conjunction' }).format(names)
+  } catch {
+    return names.join(', ')
+  }
+}
+
 export function KanbanCard({
   dict,
   card,
@@ -71,6 +84,9 @@ export function KanbanCard({
   const dragging = draggingId === card.id
   const workState = resolveWorkState(card)
   const assigneeName = card.assignee?.name ?? t('card.unassigned')
+  // D-069: a persona is never a letter. The face of the card's persona (the gallery animal for its id/name, else the stable one for its id).
+  const assigneeFace = card.assignee === undefined ? undefined : resolvePersonaFace({ id: card.assignee.id, name: card.assignee.name })
+  const carryFace = card.carry === undefined ? undefined : resolvePersonaFace({ id: card.carry.persona.id, name: card.carry.persona.name })
   const canOpenReview = card.column === 'in_review' || card.blocked
 
   const showApprovalStamp = card.reviewApproved && card.column === 'done'
@@ -101,12 +117,12 @@ export function KanbanCard({
       {card.carry !== undefined && (
         <div className={styles.carryLayer} aria-live="polite">
           <span className={styles.carryAvatar} title={t('personaMove.label', { name: card.carry.persona.name })}>
-            <Avatar name={card.carry.persona.name} size={24} shape="portrait" decorative />
+            <Avatar name={card.carry.persona.name} size={24} shape="portrait" decorative {...(carryFace === undefined ? {} : { src: carryFace })} />
             <span className={styles.srOnly}>{t('personaMove.label', { name: card.carry.persona.name })}</span>
           </span>
         </div>
       )}
-      <div className={styles.cardTitleRow}>
+      <div className={showApprovalStamp ? `${styles.cardTitleRow} ${styles.cardTitleRowStamped}` : styles.cardTitleRow}>
         {card.conversationSubject !== undefined && (
           <SubjectDot colorIndex={card.conversationSubject.colorIndex} size={10} />
         )}
@@ -125,13 +141,19 @@ export function KanbanCard({
       {(card.flowFields !== undefined && card.flowFields.length > 0
         || card.dueLabel !== undefined
         || card.dependency === true
-        || card.evidence === true) && (
+        || card.evidence === true
+        || (card.collaborators?.length ?? 0) > 0) && (
         <div className={styles.metaChips}>
           {card.flowFields?.map(field => (
             <Chip key={`${field.label}:${field.value}`} tone="neutral" size="s">
               {t('card.flowField', { label: field.label, value: field.value })}
             </Chip>
           ))}
+          {(card.collaborators?.length ?? 0) > 0 && (
+            <Chip tone="neutral" size="s">
+              {teamworkText(dict, 'card.with', 'com {names}', { names: listNames((card.collaborators ?? []).map(row => row.name)) })}
+            </Chip>
+          )}
           {card.dueLabel !== undefined && (
             <Chip tone="neutral" size="s" icon={<UiIcon name="clock" size={14} strokeWidth={2} />}>
               {card.dueLabel}
@@ -153,6 +175,8 @@ export function KanbanCard({
           )}
         </div>
       )}
+      <StartedNowNote cardId={card.id} label={name => t('card.startedNow', { name })} />
+      <HandoffChip dict={dict} card={card} />
       {(card.column === 'done' && card.outcome !== undefined) && (
         <div className={styles.chips}>
           <Chip tone="success" size="s">{t(`outcome.${card.outcome}`)}</Chip>
@@ -166,7 +190,7 @@ export function KanbanCard({
             aria-label={assigneeName}
             {...assigneeCardTrigger(card.assignee.id)}
           >
-            <Avatar name={assigneeName} size={24} shape="portrait" decorative />
+            <Avatar name={assigneeName} size={24} shape="portrait" decorative {...(assigneeFace === undefined ? {} : { src: assigneeFace })} />
           </button>
         ) : (
           <Avatar
@@ -174,9 +198,13 @@ export function KanbanCard({
             size={24}
             shape="portrait"
             decorative={card.assignee !== undefined}
+            {...(assigneeFace === undefined ? {} : { src: assigneeFace })}
+            // No responsible persona on the card (the host sends none yet): the team's icon in a neutral disc (Kanban.module.css `.unassignedAvatar`), never the initials "SR".
+            {...(card.assignee === undefined ? { icon: <BrandIcon name="equipe" size={13} />, className: styles.unassignedAvatar } : {})}
           />
         )}
         <Chip tone={stateChipTone(workState)} size="s">{stateLabel}</Chip>
+        {showApprovalStamp && <Chip tone="success" size="s" data-card-approved="">{t('stamp.approved')}</Chip>}
         {(onMoveCard !== undefined || onMoveFlowColumn !== undefined) && (
           <KanbanCardMenu
             dict={dict}
@@ -200,7 +228,7 @@ export function KanbanCard({
       </div>
       {showApprovalStamp && (
         <div className={styles.approvalStamp}>
-          <ApprovedStamp label={t('stamp.approved')} animate={approvalStampFresh} />
+          <ApprovedStamp label={t('stamp.approved')} animate={approvalStampFresh} seed={card.id} />
         </div>
       )}
     </Card>

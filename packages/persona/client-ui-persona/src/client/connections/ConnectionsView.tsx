@@ -34,7 +34,7 @@ import type {
 import { runnerLabel } from '../team/engine-label.ts'
 import { accountPolicyToRunnerSwapPolicy, runnerSwapPolicyToAccountPolicy } from './connection-swap-policy-map.ts'
 import { EngineBrandIcon } from './engine-brand-icon.tsx'
-import { personaPortraitSrc } from '../approvals/approvals-ui-helpers.ts'
+import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import { AddAccountDialog, RemoveAccountDialog, RenameAccountDialog } from './AccountDialogs.tsx'
 
 export type ConnectionsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -320,6 +320,8 @@ export function ConnectionsView({
           {ui.legacySingleSeat && (
             <Notice tone="info">{t('swapPolicy.pendingHost')}</Notice>
           )}
+          {/* What happens when nobody chose: the Persona asks (D-078). Said once, above the choices. */}
+          <p className={styles.sectionHint}>{t('swapPolicy.hint')}</p>
           <Tabs
             idPrefix={`${policyCardId}-scope`}
             label={t('swapPolicy.scopeLabel')}
@@ -339,7 +341,7 @@ export function ConnectionsView({
                 <div className={styles.personaOptions}>
                   {personas.map((row) => {
                     const checked = selectedPersona?.id === row.id
-                    const src = personaPortraitSrc(row.characterId, row.name)
+                    const src = resolvePersonaFace({ id: row.id, characterId: row.characterId, name: row.name })
                     return (
                       <label key={row.id} className={styles.personaOption} data-checked={checked ? '' : undefined}>
                         <input

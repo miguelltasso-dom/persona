@@ -108,6 +108,46 @@
 
 ---
 
+## 2b. Onde cada comportamento já mora (engine/host) — o que falta é fio, não motor
+
+Conferido no tree: a maior parte do catálogo **já tem primitiva**. O trabalho da v1.1 é ligar, limitar e provar — não construir do zero.
+
+| Comportamento | Primitiva que já existe | O que falta de verdade |
+|---|---|---|
+| A1 pegar a próxima | `pull.ts:51 nextEligible` + `proactivity-scheduler.ts` (tick) | provar o pull no mesmo ciclo (já é aceite da PROACTIVITY) |
+| A2 terminar o que começou | `continue.ts:30 verifyReady` + `goal-round-driver` | `finishTurn` no loop DSH (TOP15 #9) |
+| A3 propor | `initiative-quality.ts:104 scoreInitiative` + `budget.ts mayPropose` + `proactivity.ts` | afinar dedupe/teto; o motor existe |
+| A4 agir sem pedir | `proactivity-scheduler.ts` (`sched:initiative_act`) + `orchestration.ts` | nada além de orçamento |
+| A5 propor o seguimento | `continue.ts:14 FollowupProposal` + `task-proposal.ts` | o cartão no fio |
+| A6 replanejar | `proactivity-scheduler.ts` (fila vazia + goal) + `gestor.ts` | nada |
+| B1/B2 passar/pedir ajuda | `handoff.ts:172 checkHandoff` + `handoffs.ts` | nada (dry 22/22) |
+| B3 opinião | `opinion-host.ts` + `opinion-reply.ts:16` | nada (dry cobre) |
+| B4 revisão | `review-step.ts:55 reviewDue/chooseReviewer` + `handoffs.ts` | nada (dry cobre) |
+| B5 cutucar | `watchdog.ts:121 vigiaTick` (`nudge`/`escalate` em 156–159) | **marca de "já cutucou" + linha `handoff.nudged`** |
+| B6 oferecer ajuda | — | **regra `offer_help` (nova)** |
+| B7 pedir status | `harness-turn.ts teamToolsOf` (a oferta de ferramentas de equipe) | **não oferecer** (decisão) |
+| C1 avisar antes de travar | `attention.ts` + `persona-ask-tool.ts` | **checkpoint 70% do `tokenBudget`** |
+| C2 decisão com opções | `persona-ask-tool.ts` + `attention.ts` | **imagem no `persona_ask`** |
+| C3 entrega parcial | `outbox.ts` + `team-cards.ts` | nada |
+| C4 não interromper | `team-state.ts` + `budget.ts inSilence` | nada |
+| C5 custo antes | `estimate-account.ts` / `budget.ts` | nada |
+| C6 explicar o "não deu" | `orchestration.ts` (run error) | nada |
+| D1 celebrar | `team-cards.ts` (`DeliveryCardView`) | nada |
+| D2 reconhecer | `handoff-wire.ts` + cartão de entrega | nada |
+| D3 contexto ao sair | `governance.ts` + `second-brain.ts` | **nota de saída determinística** |
+| D4 admitir erro | `review/` + `handoffs.ts` | nada |
+| D5 dizer não | `orchestration.ts` (report) | **`suggestedPersonaId`** |
+| E1 registrar aprendizado | `second-brain.ts:35 curateAfterWork` + `persona-runners/src/mcp/brain-tools.ts` | **gatilho no fim da Tarefa** |
+| E2 ensinar no bilhete | `handoff.ts:203 noteForColleague` | nada |
+| E3 curadoria | `second-brain.ts:60 runBrainHygiene` + `harness-routines.ts` | nada |
+| F1 agrupar | cliente (`client-ui-persona`) | nada |
+| F2 silêncio | `team-state.ts` + `inSilence` | nada |
+| F3 orçamento | `budget.ts` (`mayPropose`/`spend`) | nada |
+
+**Leitura:** dos 30 comportamentos, **23 já têm motor**; 7 precisam de fio/regra nova (B5, B6, C1, C2, D3, D5, E1). Além deles, dois itens de loop (`finishTurn`, `tool_search`) vêm do TOP15. É o argumento para a v1.1 ser barata: o catálogo não pede um motor novo, pede ligação e teto.
+
+---
+
 ## 3. Orçamento de atenção (números concretos, todos ajustáveis)
 
 O engine já tem as peças (`AttentionBudget`, `mayPropose`, `nextProposalIntervalHours`, `proposalDigest`, `ExecutionBudget`). O que falta é a **política única** aplicada a todos os comportamentos, não só à iniciativa:
@@ -132,6 +172,8 @@ O engine já tem as peças (`AttentionBudget`, `mayPropose`, `nextProposalInterv
 ---
 
 ## 4. Lacunas no contrato `team-real` (o que falta para o catálogo existir)
+
+> **Atualização 09/11:** os 3 P0 da retomada (arquivos entre rascunhos, só a resposta final no fio, sem jargão/sem pedir PNG) são o primeiro pedaço de **B1–B4** e fecham a lacuna de arquivo que o §8 do contrato não cobria. Texto proposto para o contrato em `.maestri/staging/jade-p0-contract/` (o Bolt aplica). As lacunas abaixo são as de **v1.2**.
 
 Ordenadas por valor. Nenhuma muda nome de campo existente; todas são aditivas.
 

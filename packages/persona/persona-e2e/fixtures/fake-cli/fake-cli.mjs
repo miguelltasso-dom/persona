@@ -17,7 +17,8 @@
  * - FAKE_CLI_REPLY / FAKE_CLI_RESPONSE: Custom response text for the turn.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import readline from 'node:readline'
 
@@ -50,7 +51,86 @@ logInvocation('invoke')
  * `FAKE_CLI_WRITE_CONTENT` sets the text. `FAKE_CLI_CONFLICT_DIR` (absolute) ALSO writes the same relative file there with
  * `FAKE_CLI_CONFLICT_CONTENT`, as if the person edited it at the same time: a real conflict. Every write is logged (event `write`).
  */
-function applyConfiguredWrites() {
+/**
+ * What the working directory holds when a turn STARTS (before the stub writes anything): relative path (`/`), size and the SHA-256 of the file (files above 4 MB: no hash). This is the
+ * stub's own look at "what the persona would find" — the end state of a draft cannot tell a file the host put there from one the persona recreated. Bounded: depth 6, 200 files.
+ */
+function listCwd() {
+  const out = []
+  const root = process.cwd()
+  const visit = (dir, prefix, depth) => {
+    if (depth > 6 || out.length >= 200) return
+    let entries
+    try { entries = readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      if (entry.name === '.git' || entry.name === 'node_modules') continue
+      const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) visit(full, relative, depth + 1)
+      else if (entry.isFile()) {
+        try {
+          const size = statSync(full).size
+          out.push({ p: relative, s: size, h: size <= 4 * 1024 * 1024 ? createHash('sha256').update(readFileSync(full)).digest('hex') : null })
+        } catch { /* gone while reading */ }
+      }
+    }
+  }
+  visit(root, '', 0)
+  return out
+}
+
+/**
+ * The files a prompt PROMISES the worker — "Anexos do pedido: <files>." and the bilhete's "Arquivos:" list — and whether each one exists in the working directory right now. A path in the
+ * free text of a bilhete ("salvar como x.png") may be a file still to be created, so only those two places count (same reading as `promisedFiles` in `src/team-draft-checks.ts`).
+ */
+function promisedPaths(promptText) {
+  const found = new Set()
+  const token = /(?<![\p{L}\p{N}_:/.\\-])(?:[\p{L}\p{N}_.-]+[\\/])*[\p{L}\p{N}_.-]+\.(?:png|svg|jpe?g|webp|gif|pdf|txt|md|json|csv)(?![\p{L}\p{N}_/\\-])/giu
+  const take = (text) => {
+    for (const match of String(text).matchAll(token)) {
+      const path = match[0].trim().replace(/\\/gu, '/').replace(/^\.\//u, '')
+      if (path !== '' && !/^[a-z]:/iu.test(path) && !path.startsWith('/') && !path.includes('..')) found.add(path)
+    }
+  }
+  for (const match of promptText.matchAll(/Anexos do pedido:[ \t]*([^\n]*)/gu)) take(match[1] ?? '')
+  for (const match of promptText.matchAll(/^Arquivos:[ \t]*\n((?:[ \t]*[-•][^\n]*\n?)*)/gmu)) take(match[1] ?? '')
+  for (const match of promptText.matchAll(/^Arquivos que chegaram no seu rascunho[^\n]*\n((?:[ \t]*[-•][^\n]*\n?)*)/gmu)) take(match[1] ?? '')
+  return [...found].slice(0, 40).map((path) => ({ p: path, present: existsSync(join(process.cwd(), path)) }))
+}
+
+let turnCounter = 0
+
+/**
+ * `FAKE_CLI_WRITE_RULES` (a JSON array of `{ match, file, content, fillIn? }`): content-based writes, so only the turn that IS the art part writes the art (`FAKE_CLI_WRITE_FILE` writes it in
+ * every turn, which hides a colleague that does not find the file). `fillIn: true` plays the model that does not find the file a prompt tells it about and MAKES ONE (what Lia did in the real
+ * round of 07/11): it writes only if the file is missing from the working directory, and the log says `recreated: true` — the proof that the file was not shared.
+ */
+function applyWriteRules(promptText) {
+  const raw = process.env.FAKE_CLI_WRITE_RULES
+  if (!raw || promptText === undefined) return
+  let rules
+  try { rules = JSON.parse(raw) } catch { return }
+  if (!Array.isArray(rules)) return
+  for (const rule of rules) {
+    if (!rule || typeof rule.match !== 'string' || typeof rule.file !== 'string') continue
+    if (!new RegExp(rule.match, 'iu').test(promptText)) continue
+    const clean = normalize(rule.file)
+    if (isAbsolute(clean) || clean.startsWith('..') || clean.split(/[\\/]/u).includes('..')) { logInvocation('write-refused', { file: rule.file, reason: 'path must be relative' }); continue }
+    const target = join(process.cwd(), clean)
+    if (rule.fillIn === true && existsSync(target)) continue
+    try {
+      mkdirSync(dirname(target), { recursive: true })
+      const content = typeof rule.content === 'string' ? rule.content : `escrito pelo fake-cli em ${new Date().toISOString()}\n`
+      writeFileSync(target, content)
+      logInvocation('write', { proc: process.pid, seq: turnCounter, file: clean.replace(/\\/gu, '/'), cwd: process.cwd(), sha: createHash('sha256').update(content).digest('hex'), ...(rule.fillIn === true ? { recreated: true } : {}) })
+    } catch (error) {
+      logInvocation('write-refused', { file: rule.file, reason: error instanceof Error ? error.message.slice(0, 120) : String(error) })
+    }
+  }
+}
+
+function applyConfiguredWrites(promptText) {
+  applyWriteRules(promptText)
   const relative = process.env.FAKE_CLI_WRITE_FILE
   if (!relative) return
   const clean = normalize(relative)
@@ -158,19 +238,120 @@ function turnNumber() {
  * user turn decides the reply. Content-based, so a run can script "the work request makes the persona ask a question, the answer finishes
  * it" no matter how many other model turns (conversation replies, triage) happen in between. Put the most specific rule first.
  */
-function ruleReply(promptText) {
+function matchingRule(promptText) {
   const rules = process.env.FAKE_CLI_RULES
   if (!rules || promptText === undefined) return undefined
   try {
     const list = JSON.parse(rules)
     if (!Array.isArray(list)) return undefined
     for (const rule of list) {
-      if (rule && typeof rule.match === 'string' && typeof rule.reply === 'string' && new RegExp(rule.match, 'iu').test(promptText)) return rule.reply
+      if (rule && typeof rule.match === 'string' && typeof rule.reply === 'string' && new RegExp(rule.match, 'iu').test(promptText)) return rule
     }
   } catch {
     // A malformed rule list falls through to the sequence / single reply.
   }
   return undefined
+}
+
+function ruleReply(promptText) {
+  return matchingRule(promptText)?.reply
+}
+
+/**
+ * `narration` of a matching rule (an array of strings): what a real model says BETWEEN its tool calls ("Vou começar conferindo se o foto.png existe…"). The stub emits each one the way the
+ * real CLI does — an `assistant` message with a text block and a tool call, then the tool's result — and only THEN the final answer (`reply`), so a product that puts the whole text of the
+ * turn in the thread shows the monologue, and one that keeps the text after the last tool shows the answer alone (P0-2 of the real round of 07/11).
+ */
+function ruleNarration(promptText) {
+  const narration = matchingRule(promptText)?.narration
+  return Array.isArray(narration) ? narration.filter(item => typeof item === 'string') : []
+}
+
+// ── MCP: the stub as a SCRIPTED model that calls the product's own tools (`pass_forward`, `ask_colleague`, …) through the server the CLI was given (`--mcp-config`) ─────────────────────
+function mcpEntry() {
+  const at = rawArgs.indexOf('--mcp-config')
+  if (at < 0 || rawArgs[at + 1] === undefined) return undefined
+  try {
+    const arg = rawArgs[at + 1]
+    const config = JSON.parse(existsSync(arg) ? readFileSync(arg, 'utf8') : arg)
+    const servers = config?.mcpServers ?? {}
+    const entry = servers.persona ?? Object.values(servers)[0]
+    return entry && typeof entry.url === 'string' ? entry : undefined
+  } catch { return undefined }
+}
+
+async function mcpRpc(entry, session, id, method, params) {
+  const headers = { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(entry.headers ?? {}), ...(session === undefined ? {} : { 'mcp-session-id': session }) }
+  const body = id === undefined ? { jsonrpc: '2.0', method, params } : { jsonrpc: '2.0', id, method, params }
+  const response = await fetch(entry.url, { method: 'POST', headers, body: JSON.stringify(body) })
+  const sid = response.headers.get('mcp-session-id') ?? session
+  const text = await response.text()
+  if (id === undefined || text.trim() === '') return { sid, json: undefined }
+  const event = (response.headers.get('content-type') ?? '').includes('text/event-stream') ? text.split('\n').find(row => row.startsWith('data:'))?.slice(5) : text
+  try { return { sid, json: event === undefined ? undefined : JSON.parse(event) } } catch { return { sid, json: undefined } }
+}
+
+async function mcpSession(entry) {
+  const opened = await mcpRpc(entry, undefined, 1, 'initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'fake-cli', version: '0' } })
+  await mcpRpc(entry, opened.sid, undefined, 'notifications/initialized', {})
+  return opened.sid
+}
+
+async function mcpCall(toolName, toolArgs) {
+  const entry = mcpEntry()
+  if (entry === undefined) return { ok: false, text: 'no mcp server in --mcp-config' }
+  try {
+    const sid = await mcpSession(entry)
+    const { json } = await mcpRpc(entry, sid, 2, 'tools/call', { name: toolName, arguments: toolArgs })
+    const text = (json?.result?.content ?? []).map(part => part?.text ?? '').join(' ') || JSON.stringify(json?.error ?? '')
+    return { ok: json?.result !== undefined && json.result.isError !== true && json.error === undefined, text: text.slice(0, 400) }
+  } catch (error) {
+    return { ok: false, text: error instanceof Error ? error.message.slice(0, 200) : String(error) }
+  }
+}
+
+/** `FAKE_CLI_TOOLS_PROBE=1`: list the tools the CLI was offered, once per process, and log their names and descriptions (the persona-facing text the product wrote). */
+let toolsProbed = false
+async function probeTools() {
+  if (process.env.FAKE_CLI_TOOLS_PROBE !== '1' || toolsProbed) return
+  const entry = mcpEntry()
+  if (entry === undefined) return
+  toolsProbed = true
+  try {
+    const sid = await mcpSession(entry)
+    const { json } = await mcpRpc(entry, sid, 3, 'tools/list', {})
+    const tools = (json?.result?.tools ?? []).map(item => ({ name: String(item.name), description: String(item.description ?? '').slice(0, 2000) }))
+    logInvocation('tools', { proc: process.pid, seq: turnCounter, tools })
+  } catch (error) {
+    logInvocation('tools', { proc: process.pid, seq: turnCounter, error: error instanceof Error ? error.message.slice(0, 160) : String(error) })
+  }
+}
+
+/**
+ * `FAKE_CLI_TOOL_CALLS` (a JSON array of `{ match, once?, calls: [{ tool, args }] }`): when the prompt of a turn matches, call these tools of the product, in order, as the model would
+ * (after the turn's writes). `once` makes a rule run in the first matching turn only. Every call is logged (`toolcall`: ok + the first words of the answer).
+ */
+async function runToolCalls(rawPrompt) {
+  const raw = process.env.FAKE_CLI_TOOL_CALLS
+  if (!raw || rawPrompt === undefined) return
+  let rules
+  try { rules = JSON.parse(raw) } catch { return }
+  if (!Array.isArray(rules)) return
+  const logText = process.env.FAKE_CLI_LOG && existsSync(process.env.FAKE_CLI_LOG) ? readFileSync(process.env.FAKE_CLI_LOG, 'utf8') : ''
+  for (const [index, rule] of rules.entries()) {
+    if (!rule || typeof rule.match !== 'string' || !Array.isArray(rule.calls) || !new RegExp(rule.match, 'iu').test(rawPrompt)) continue
+    if (rule.once === true && logText.includes(`"event":"toolcall"`) && logText.includes(`"rule":${String(index)},`)) continue
+    for (const call of rule.calls) {
+      const result = await mcpCall(String(call.tool), call.args ?? {})
+      logInvocation('toolcall', { rule: index, proc: process.pid, seq: turnCounter, cwd: process.cwd(), toolName: String(call.tool), ok: result.ok, text: result.text })
+    }
+  }
+}
+
+/** The text of a user turn (every text block joined with real line breaks), for rules that need `^`/`$` per line. */
+function rawPromptOf(content) {
+  const blocks = Array.isArray(content) ? content : [content]
+  return blocks.map(block => (typeof block === 'string' ? block : (block && typeof block.text === 'string' ? block.text : ''))).join('\n')
 }
 
 function getReplyText(promptText) {
@@ -393,9 +574,13 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
       const blocks = Array.isArray(msg.message?.content) ? msg.message.content : []
       const images = blocks.filter(block => block?.type === 'image')
       const mentionsFile = /[A-Za-z0-9_\\/:.-]+\.(?:png|jpe?g|webp)\b/iu.exec(JSON.stringify(msg.message?.content ?? ''))
+      turnCounter += 1
+      const rawPrompt = rawPromptOf(msg.message?.content)
       logInvocation('turn', {
         // P0-1 (Tally 07/11): where the CLI ran — a persona with a project folder works in the Task's DRAFT directory, a text-only persona has none.
         cwd: process.cwd(),
+        // P0-1 (Atlas 07/11, shared files): what the working directory held when the turn STARTED, and which of the files the prompt promises were there.
+        proc: process.pid, seq: turnCounter, cwdFiles: listCwd(), promptPaths: promisedPaths(rawPrompt),
         ...promptReport(msg.message?.content),
         ...(images.length === 0 ? (mentionsFile === null ? {} : { imagePathInText: mentionsFile[0].slice(-80) }) : {
           images: images.length,
@@ -403,7 +588,9 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
           imageSources: images.map(block => String(block.source?.type ?? '')),
         }),
       })
-      applyConfiguredWrites()
+      applyConfiguredWrites(rawPrompt)
+      await probeTools()
+      await runToolCalls(rawPrompt)
       const promptText = JSON.stringify(msg.message?.content ?? '')
       const latency = getLatencyMs()
       if (latency > 0) await sleep(latency)
@@ -440,6 +627,13 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
           command_uuid: msg.uuid,
         }))
       }
+
+      // What a real model says between its tool calls (see `ruleNarration`): each step is a text block + a tool call, answered by the tool's result.
+      ruleNarration(promptText).forEach((narrated, index) => {
+        const toolUseId = `toolu_fake_${String(turnCounter)}_${String(index)}`
+        console.log(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: narrated }, { type: 'tool_use', id: toolUseId, name: 'Glob', input: { pattern: '**/*' } }] } }))
+        console.log(JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: '(nenhum resultado)' }] } }))
+      })
 
       console.log(JSON.stringify({
         type: 'assistant',

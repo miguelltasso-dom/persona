@@ -226,6 +226,17 @@ describe('what the reviewer and the author read (data, never instructions)', () 
     expect(text).not.toContain('revisão 1')
   })
 
+  it('TEAM-10 t5 (P0-3): the reviewer is told the SVG art already arrives as an image, so she never asks for an export or a PNG — in plain words, short', () => {
+    const text = reviewRequestFor({ authorName: 'Bia', reviewerName: 'Lia', title: 'Cartaz do sábado', pass: 1, note })
+    expect(text).toMatch(/SVG/u)
+    expect(text).toMatch(/imagem pronta/u)
+    expect(text).toMatch(/não peça (?:exportação|exportar)[^.\n]*PNG/iu)
+    expect(text).toMatch(/palavras simples/u)
+    expect(text).not.toMatch(/shell|ferramenta de conversão/iu)
+    const sentence = text.split('\n').find(line => line.includes('imagem pronta')) ?? ''
+    expect(sentence.length).toBeLessThan(220) // every review request pays for it
+  })
+
   it('from the 2nd pass the reviewer is told it is a re-check and sees the points it asked before', () => {
     const text = reviewRequestFor({ authorName: 'Bia', reviewerName: 'Atlas', title: 'Cartaz', pass: 2, note, previousPoints: ['Troque o título'] })
     expect(text).toContain('revisão 2')

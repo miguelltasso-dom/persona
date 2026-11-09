@@ -185,7 +185,7 @@ it('a request that lists two functions is split, and EACH part\'s turn carries t
     expect(turn?.images).toHaveLength(1)
     expect(turn?.images?.[0]?.mediaType).toBe('image/png')
     expect(existsSync(turn?.images?.[0]?.path ?? '')).toBe(true)
-    expect(turn?.prompt).toContain('Anexos do pedido: capa.png') // and the words say which file it is
+    expect(turn?.prompt).toContain('Anexos do pedido: inputs/capa.png') // and the words say which file it is: its REAL path in the draft (P0-1, draft-inbox.ts copies it there)
     expect(turn?.prompt).not.toContain(turn?.images?.[0]?.path ?? '__none__') // never a path in the words
   }
 })

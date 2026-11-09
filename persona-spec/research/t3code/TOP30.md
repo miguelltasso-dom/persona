@@ -1,6 +1,7 @@
 # TOP 30 — o que trazer do T3 Code para a Persona
 
-**Fonte:** `INVENTARIO.md` (628 itens) e `DESEMPENHO.md`, lidos no commit `25bf84ab` do T3 Code em 07/11/2026.
+**Fonte:** `INVENTARIO.md` (842 itens em 26 áreas) e `DESEMPENHO.md`, lidos no commit `25bf84ab` do T3 Code em 07/11/2026.
+**Re-verificação 09/11:** ver `TICKETS-UI-DRAFT.md`. O item 17 (aprovação com escopo) já está no tree; 5, 12, 14, 15, 21, 23, 24, 26, 27 e 30 são parciais — em vários deles o harness já tem o plugin (atalhos, `@`, draft, anexos, terminal) e a Persona o desliga. A tabela de integração abaixo é o retrato de 07/11 e não foi reescrita.
 **Critério de ordem:** valor para a Persona **agora**, não completude do T3. Três filtros:
 1. **Corrige algo que a Persona promete e não entrega** (proatividade, equipe visível, nunca mentir) — sobe.
 2. **Faz a equipe parecer viva e competente** (streaming, tempo, rosto, aviso) — sobe.
@@ -67,10 +68,53 @@ Cada item traz **por quê** (o que muda para a pessoa) e **primeiro passo** (o m
 
 | # | O que trazer | Por quê | Primeiro passo | Tam. | Ref. |
 |---|---|---|---|---|---|
-| **27** | **Terminal embutido, com "mandar o trecho para a conversa"** | A Persona executa CLIs nativas; ver o que elas fazem é metade do valor. E o trecho selecionado virar contexto no composer é a ponte com a persona — o T3 tem isso e é o que mais impressiona. | Começar pequeno: um terminal por projeto, sessão no host, sem split. Depois o popover "Mandar para a conversa". | G | §6.1–6.14 |
+| **27** | **Terminal na tela, com "mandar o trecho para a conversa"** | A Persona executa CLIs nativas; ver o que elas fazem é metade do valor. E o trecho selecionado virar contexto no composer é a ponte com a persona. **O backend já existe** (`packages/terminal` → `ctx.terminals`, `packages/terminal-bash`): falta a superfície e a persistência. | Abrir o drawer sobre `ctx.terminals` com um terminal por projeto, sem split; depois persistir a sessão (hoje ela morre no restart) e o popover "Mandar para a conversa". | M | §6.1–6.14, §6.21 |
 | **28** | **Checkpoint por turno, sem git** | É o que permite "voltar o turno" e "reverter os arquivos" sem exigir que a pessoa use git. O T3 usa refs ocultas; a Persona pode usar cópia por turno dentro do workspace. | Gravar o estado da pasta antes de cada turno que escreve; o Revisar passa a comparar contra o checkpoint. | G | §12.27, §12.28 |
 | **29** | **Convidado: link de uso único para o cliente ver o trabalho** | "Mostrar para o cliente" é o caso de uso que vende a Persona. O T3 tem o fluxo inteiro: link de 24 h, um navegador, mensagens do convidado pendentes de aprovação. | Só depois da Cloudflare (persona-sync). O modelo de dados é o do T3: share com TTL, mensagens pendentes, badge na lista. | G | §15.22–15.25 |
 | **30** | **Acessibilidade que o T3 acertou e quase ninguém acerta** | A Persona é vendida como "equipe com rosto"; quem não vê a tela precisa saber que a Nina terminou. O T3 tem região viva com NBSP para repetição, F6 em fase de captura e navegação de árvore completa. | `primitives/` ganha `useLiveRegion` (com o NBSP) e o anúncio de segundo plano; o F6 passa a incluir o `TurnContextDrawer`. | M | §14.31, §14.32, §14.34, §14.37 |
+
+---
+
+## Integração com o backlog já aberto (para não criar ticket duplicado)
+
+Cruzamento com `persona-spec/design/UX-BEYOND-T3.md` (P0/P1/IV/F/A) e `CMDK-OVERLAY-SPEC.md`. **Não abra ticket novo para o que já tem ID.**
+
+| # | Já está em | Dono atual |
+|---|---|---|
+| 1 Streaming + Parar | **P1-1** (subiu para P0) + **IV-5** | Flint + Forge/Bolt |
+| 2 Fila real + steer | **P0-18** + **IV-5** | Flint + Anvil/Bolt |
+| 3 No limite + Retomar | **P0-19** + **IV-7** | Flint + Anvil/Bolt |
+| 4 Notificação que dispara | **P0-16** + **IV-2** | Prism + Rivet + Anvil |
+| 5 Dobra do turno + cronômetro | **novo** | — |
+| 6 SnapShot | **novo** | — |
+| 7 Rewind "Editar daqui" | **novo** (P1-10 é desfazer de ação, não rewind) | — |
+| 8 Rotinas com destino | **novo** (IV-9 cobre só criar/editar) | — |
+| 9 Side chat | **P1-21** + **IV-6** | Flint + Bolt |
+| 10 Undo de 5 s | **P1-10** | Ember |
+| 11 Concluir / Adiar / Arquivar | **P1-20** + **IV-6** | Flint + Anvil |
+| 12 Busca full-text nas mensagens | **novo** | — |
+| 13 Find na conversa | **novo** | — |
+| 14 Atalhos remapeáveis | **novo** | — |
+| 15 Tela de atalhos | **P1-22** (só o `?`; o editor é novo) | Muse |
+| 16 Paleta overlay | **P1-18** (1–9) + **CMDK-OVERLAY-SPEC** (forma decidida) | Flint/Lumen |
+| 17 Aprovação com escopo | **novo** | — |
+| 18 Recusar explicando | **novo** | — |
+| 19 Aprovação de subagente | **novo** | — |
+| 20 Limite no host | **novo** | — |
+| 21 Registro da decisão | **novo** | — |
+| 22 Envio que falha | **P0-30** | Flint |
+| 23 `@` arquivos e `$` skills | **P0-27** (só o `/`; `@` e `$` são novos) | Flint |
+| 24 Rascunho com anexos | **novo** (P0-17 é a memória das DMs) | — |
+| 25 Diagnóstico de CLI | **P0-26** | Quill (+ Rivet no P1) |
+| 26 Colar imagem / HEIC | **novo** | — |
+| 27 Terminal na tela | **novo** | — |
+| 28 Checkpoint por turno | **novo** | — |
+| 29 Convidado | **novo** | — |
+| 30 Acessibilidade | **P0-4** (plural/live) + **P1-17** (F6 no drawer) | Prism + Lumen + Flint |
+
+**Resultado:** 11 dos 30 já têm ID e dono — não precisam de ticket. **19 são novos.** Desses, 6 são baratos (`P`) e podem entrar na onda A sem esperar: 22 (já é P0-30), 25 (já é P0-26), 30 (já tem ID), e os novos 5, 13 e 26.
+
+**Atenção para o Keel:** os itens 1, 2, 3, 4, 9, 11 e 22 já estão atribuídos a Flint/Anvil/Bolt/Rivet. O meu TOP30 não muda o dono; ele só acrescenta o **como** (o arquivo:linha do T3 que mostra a forma pronta).
 
 ---
 

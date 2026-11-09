@@ -6,7 +6,8 @@
  * What it refuses to print as if it were fine: an internal marker (`[[…:…]]`) or an internal-prompt phrase (LEAK-1) in a visible line is
  * reported in `leaks` and shown with a visible tag, so a transcript never hides a leak.
  */
-import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, type Dirent } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
@@ -34,6 +35,24 @@ export interface TranscriptTicket {
   readonly stage: string
   readonly assignmentState: string | null
   readonly ended: boolean
+  /** Where it came from: `split:<message>:<persona>` (a part of the split), `handoff:<…>` (pass/help/review), … — `origin.triggerId` of the Ticket. */
+  readonly trigger?: string
+  /** What the worker was handed (`execution.assignment`): the request, "Anexos do pedido: …", the bilhete. */
+  readonly assignment?: string
+}
+
+/** One file of a Task's DRAFT on disk, relative to the draft, with `/` separators. `sha` is the SHA-256 of the whole file (files above 4 MB only carry their size). */
+export interface DraftFile {
+  readonly path: string
+  readonly size: number
+  readonly sha: string | null
+}
+
+/** The DRAFT directory of one Task (`<home>/worktrees/<project>/<ticketId>`) and what is in it now (P0-1: what the worker really finds). */
+export interface TranscriptDraft {
+  readonly ticketId: string
+  readonly directory: string
+  readonly files: readonly DraftFile[]
 }
 
 export interface TeamTranscript {
@@ -59,6 +78,13 @@ export interface TeamTranscript {
   readonly splitAssignments: readonly string[]
   /** The assignment text of each reviewer's Task ("Revisar: …"): everything she is handed of the author's delivery (the review note was clipped to 290 characters in the real round of 07/11). */
   readonly reviewAssignments: readonly string[]
+  /** `execution.directory` of every Task that has one: the DRAFT directory of a project with a folder (D-099). */
+  readonly draftDirectories: readonly string[]
+  /**
+   * The drafts found on disk under the home (`worktrees/<project>/<ticketId>`), one per Task, with their files (P0-1). A real round keeps them after the host stops; a transcript built
+   * by hand (the pure specs) has none, and the shared-files check then has nothing to read.
+   */
+  readonly drafts?: readonly TranscriptDraft[]
 }
 
 export interface TranscriptReview {
@@ -92,6 +118,8 @@ export interface TranscriptNote {
   /** The colleague's Ticket (found by `origin.triggerId` = this request's id) carries the bilhete between `<bilhete>` delimiters: the positive proof of the handoff. */
   readonly colleagueReceived: boolean
   readonly colleagueTicketId: string | null
+  /** The Ticket of the SENDER (`fromTicketId` of the handoff record): its draft is where the files of the bilhete were saved. */
+  readonly fromTicketId?: string
   /**
    * Who made the request: the MODEL through a team tool (`ask_colleague` / `pass_forward`), or the HOST by its own rule (the call id starts with `mention:`, `campaign:` or
    * `review:` — the same split Forge's observer uses). Attempt 3 must say which of the behaviors came from the model's choice and which from the host's plan.
@@ -201,6 +229,56 @@ export function leaksIn(visible: string, options: { readonly ownWords?: boolean 
   ]
 }
 
+const MAX_HASHED_BYTES = 4 * 1024 * 1024
+const MAX_DRAFT_FILES = 400
+
+/** The files of one directory, recursively, relative with `/`; never follows a link outside, never reads a file above `MAX_HASHED_BYTES`. */
+function walkDraft(root: string): DraftFile[] {
+  const out: DraftFile[] = []
+  const visit = (dir: string, prefix: string): void => {
+    if (out.length >= MAX_DRAFT_FILES) return
+    let entries: Dirent[]
+    try { entries = readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.name === '.git' || entry.name === 'node_modules') continue
+      const relative = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) visit(full, relative)
+      else if (entry.isFile()) {
+        try {
+          const size = statSync(full).size
+          out.push({ path: relative, size, sha: size <= MAX_HASHED_BYTES ? createHash('sha256').update(readFileSync(full)).digest('hex') : null })
+        } catch { /* a file that vanished while reading proves nothing */ }
+      }
+    }
+  }
+  visit(root, '')
+  return out
+}
+
+/**
+ * The DRAFT of every Task of the round, from disk: `<home>/worktrees/<project>/<ticketId>` (the convention of the host; the database's `execution.directory` is not always filled for a
+ * colleague's Task — attempt 4 of the real round had `.` for most of them). Only Tasks of THIS database are read.
+ */
+export function readDrafts(home: string, ticketIds: readonly string[]): TranscriptDraft[] {
+  const base = join(home, 'worktrees')
+  if (!existsSync(base)) return []
+  const wanted = new Set(ticketIds)
+  const drafts: TranscriptDraft[] = []
+  let projects: string[]
+  try { projects = readdirSync(base) } catch { return [] }
+  for (const project of projects) {
+    let tickets: string[]
+    try { tickets = readdirSync(join(base, project)) } catch { continue }
+    for (const ticketId of tickets) {
+      if (!wanted.has(ticketId)) continue
+      const directory = join(base, project, ticketId)
+      drafts.push({ ticketId, directory, files: walkDraft(directory) })
+    }
+  }
+  return drafts
+}
+
 function table(db: DatabaseSync, name: string): boolean {
   return db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== undefined
 }
@@ -257,8 +335,15 @@ export function readTeamTranscript(home: string): TeamTranscript | undefined {
           id: string; stage: string; assignment_state: string | null; ended: number; body: string
         }>).map((row) => {
           let title = row.id
-          try { title = String((JSON.parse(row.body) as { title?: string }).title ?? row.id) } catch { /* keep the id */ }
-          return { id: row.id, title, stage: row.stage, assignmentState: row.assignment_state, ended: row.ended === 1 }
+          let trigger: string | undefined
+          let assignment: string | undefined
+          try {
+            const body = JSON.parse(row.body) as { title?: string; origin?: { triggerId?: string }; execution?: { assignment?: string } }
+            title = String(body.title ?? row.id)
+            trigger = body.origin?.triggerId
+            assignment = body.execution?.assignment
+          } catch { /* keep the id */ }
+          return { id: row.id, title, stage: row.stage, assignmentState: row.assignment_state, ended: row.ended === 1, ...(trigger === undefined ? {} : { trigger }), ...(assignment === undefined ? {} : { assignment }) }
         })
         : []
       const ignoredTypes: Record<string, number> = {}
@@ -275,10 +360,12 @@ export function readTeamTranscript(home: string): TeamTranscript | undefined {
       let splitTasks = 0
       const splitAssignments: string[] = []
       const reviewAssignments: string[] = []
+      const draftDirectories: string[] = []
       if (table(db, 'engine_ticket')) {
         for (const row of db.prepare('SELECT id, body FROM engine_ticket').all() as Array<{ id: string; body: string }>) {
           try {
-            const ticket = JSON.parse(row.body) as { title?: string; origin?: { triggerId?: string; triggerIds?: string[] }; execution?: { assignment?: string } }
+            const ticket = JSON.parse(row.body) as { title?: string; origin?: { triggerId?: string; triggerIds?: string[] }; execution?: { assignment?: string; directory?: string } }
+            if (typeof ticket.execution?.directory === 'string' && ticket.execution.directory !== '') draftDirectories.push(ticket.execution.directory)
             if (/^split:/u.test(ticket.origin?.triggerId ?? '')) { splitTasks += 1; splitAssignments.push(ticket.execution?.assignment ?? '') }
             // The reviewer's Task ("Revisar: <título>"): what she is handed to review — her whole view of the author's delivery.
             if (/^Revisar:/u.test(ticket.title ?? '')) reviewAssignments.push(ticket.execution?.assignment ?? '')
@@ -292,7 +379,7 @@ export function readTeamTranscript(home: string): TeamTranscript | undefined {
       const notes: TranscriptNote[] = table(db, 'screen_doc')
         ? (db.prepare("SELECT id, body FROM screen_doc WHERE kind = 'handoff' ORDER BY updated_at, id").all() as Array<{ id: string; body: string }>).flatMap((row) => {
           try {
-            const record = JSON.parse(row.body) as { kind?: string; fromPersonaId?: string; toPersonaId?: string; title?: string; status?: string; askedAt?: string; callId?: string; note?: Record<string, unknown> }
+            const record = JSON.parse(row.body) as { fromTicketId?: string; kind?: string; fromPersonaId?: string; toPersonaId?: string; title?: string; status?: string; askedAt?: string; callId?: string; note?: Record<string, unknown> }
             const name = (id: string | undefined): string => (id === undefined ? '?' : (names[id] ?? id))
             const got = received.get(row.id)
             return [{
@@ -300,6 +387,7 @@ export function readTeamTranscript(home: string): TeamTranscript | undefined {
               status: record.status ?? 'n/d', askedAt: record.askedAt ?? '',
               done: strings(record.note?.done), needed: strings(record.note?.needed), files: strings(record.note?.files), decisions: strings(record.note?.decisions),
               colleagueReceived: got?.hasNote === true, colleagueTicketId: got?.ticketId ?? null,
+              ...(typeof record.fromTicketId === 'string' ? { fromTicketId: record.fromTicketId } : {}),
               via: /^(?:mention|campaign|review):/u.test(record.callId ?? '') ? 'host' as const : 'model' as const,
             }]
           } catch { return [] }
@@ -323,7 +411,16 @@ export function readTeamTranscript(home: string): TeamTranscript | undefined {
       // the author of the request; `decisions` and `files` leak in ANY line. The `<bilhete>` delimiters / the word are caught per line by `leaksIn`.
       // A file NAME the person attached to the thread herself (the poster of her own request) is public to her: a bilhete that lists it as a file ("Arquivos: foto.png") and a persona
       // who says "o foto.png não mostra pão de queijo" is not the note leaking (attempt 3 of the real round was wrongly marked for it).
+      // A file the PRODUCT itself announces in the thread ("Téo salvou cartaz.svg no rascunho", D-099) is public to the person: its name (or the end of a path to it) is not the note leaking.
+      const announcedNames = new Set(lines.flatMap(line => [...line.text.matchAll(/salvou\s+(\S+)\s+no rascunho/gu)].map(match => match[1]!.replace(/[\\/]/gu, '/').split('/').pop() ?? '')))
       const attachedNames = new Set([...attachments.values()].flat().map(name => name.trim()))
+      // The person's OWN attachment is public to her under whatever path the host keeps it (attempt 5, 09/11: a bilhete listing `inputs/foto.png` and a persona saying "usei o rascunho `inputs/foto.png`"
+      // was wrongly marked LEAK-1): the name as attached, `inputs/<name>` and `inputs/<id>-<name>` — the host's drop folder for what the person attached to the request.
+      const isPersonsFile = (item: string): boolean => {
+        const path = item.trim().replace(/\\/gu, '/').replace(/^\.\//u, '')
+        const base = path.split('/').pop() ?? path
+        return attachedNames.has(path) || attachedNames.has(base) || path.startsWith('inputs/') || [...attachedNames].some(name => base.endsWith(`-${name}`))
+      }
       const checked = lines.map((line) => {
         const echoed = new Set<string>()
         for (const note of notes) {
@@ -331,13 +428,13 @@ export function readTeamTranscript(home: string): TeamTranscript | undefined {
           const candidates = [
             ...(others ? [...note.done, ...note.needed].filter(item => item.trim().length >= 12) : []),
             ...note.decisions.filter(item => item.trim().length >= 8),
-            ...note.files.filter(item => item.trim().length >= 8 && !attachedNames.has(item.trim())),
+            ...note.files.filter(item => item.trim().length >= 8 && !isPersonsFile(item) && !announcedNames.has(item.trim().split(/[\\/]/u).pop() ?? '')),
           ]
           for (const item of candidates) if (line.text.includes(item)) echoed.add(`bilhete text in the thread: "${item.slice(0, 40)}"`)
         }
         return echoed.size === 0 ? line : { ...line, leaks: [...line.leaks, ...echoed] }
       })
-      return { lines: checked, tickets, ledger: readLedgerEvidence(home), names, personas, ignoredTypes, notes, reviews, asks, splitTasks, splitAssignments, reviewAssignments, leaks: checked.flatMap(line => line.leaks.map(leak => `${line.id}: ${leak}`)) }
+      return { lines: checked, tickets, ledger: readLedgerEvidence(home), names, personas, ignoredTypes, notes, reviews, asks, splitTasks, splitAssignments, reviewAssignments, draftDirectories, drafts: readDrafts(home, tickets.map(ticket => ticket.id)), leaks: checked.flatMap(line => line.leaks.map(leak => `${line.id}: ${leak}`)) }
     } finally {
       db.close()
     }

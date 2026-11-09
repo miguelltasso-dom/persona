@@ -125,6 +125,17 @@ describe('draftFilesOfTurn', () => {
     expect(next).toEqual([])
   }, 30_000)
 
+  it('what the HOST put in the draft (inputs/ attachments, recebidos/ copies of a colleague) is never "saved by the persona"; her own files still are (P0-1 resto, Probe 09/11)', async () => {
+    const dir = draft()
+    const start = Date.now() - 60_000
+    write(dir, 'inputs/foto.png', 'host', start + 1000)
+    write(dir, 'inputs/abc-foto.png', 'host', start + 1000)
+    write(dir, 'recebidos/Teo/cartaz.svg', poster(), start + 1000)
+    write(dir, 'texto.md', '# dela', start + 2000)
+    const files = await draftFilesOfTurn({ root: dir, since: start, taskId: 't1', personaId: 'bia' })
+    expect(files.map(file => file.path)).toEqual(['texto.md'])
+  })
+
   it('a turn that saved nothing, or whose files are not readable, gives no line; and at most 12 files are named', async () => {
     const dir = draft()
     const start = Date.now() - 60_000

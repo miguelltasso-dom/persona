@@ -9,7 +9,8 @@
  * thread, the Tasks, the screens and the reading transcript, stops the host and reads the database for the verdict (`evaluateTeamRound`).
  */
 import { execFileSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, statSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -19,6 +20,8 @@ import { readLedgerEvidence, type LedgerEvidence } from './ledger-evidence.ts'
 import { REPO_ROOT } from './paths.ts'
 import { openRealPersonaApp, type RealPersonaSession } from './real-app-session.ts'
 import { buildPosterPng, POSTER_ALT } from './team-image-fixture.ts'
+import { savedLinesProblems, stubTurnProblems, type StubTurnEvent } from './team-draft-checks.ts'
+import { pngAssuranceIn } from './team-p0-rules.ts'
 import { createAskAnswerer, type AnsweredAsk } from './team-round-asks.ts'
 import { isolationProofProblems, ledgerGuard } from './team-round-guard.ts'
 import { evaluateTeamRound, type TeamRoundVerdict } from './team-round-verdict.ts'
@@ -36,13 +39,29 @@ export class PreflightRefusal extends Error {}
  * the round had nothing more to measure. Attempt 3 (Atlas 07/11, `atlas-ok-team10-3.txt`; Bolt's text) is natural AND self-sufficient: the offer, price, days and channel are in
  * the request and both parts are asked for as a person would ("texto e arte"), still with no word that names a tool. If the team asks anyway, the harness answers (`team-round-asks.ts`).
  */
-export const REQUEST_TEXT = 'Faz o cartaz da promoção do pão de queijo da Padaria Lua para o Instagram: 2 por R$ 9 de sexta a domingo, pedidos pelo WhatsApp (11) 91234-5678. Preciso do texto e da arte; a foto é o rascunho atual.'
+export const REQUEST_TEXT = 'Faz o cartaz da promoção do pão de queijo da Padaria Lua para o Instagram: 2 por R$ 9 de sexta a domingo, pedidos pelo WhatsApp (11) 91234-5678. Preciso do texto e da arte; a foto é o rascunho atual. Quero a opinião do time sobre a arte antes de eu aprovar.'
 export const ATTACHMENT_NAME = 'foto.png'
 
 /**
  * The last words of the stub's long delivery. The real round of 07/11 showed the reviewer got only the START of an author's delivery (the review note is clipped to 290 characters: "o bilhete foi
  * cortado logo após a menção ao SVG, não consegui conferir a arte"); a delivery that is far longer than that and ends in this marker lets the fake prove the WHOLE of it reaches the reviewer.
  */
+/** The art file the stub's parts write in their cwd (the Task's draft) — an SVG, since the persona has no image tool. */
+export const ART_FILE = 'cartaz-arte.svg'
+const ART_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><rect width="1080" height="1350" fill="#1F40AE"/><circle cx="540" cy="480" r="240" fill="#DC2626"/><text x="540" y="500" text-anchor="middle" fill="#fff" font-size="72">2 por R$ 9</text></svg>\n'
+/** Bolt: the reviewer gets the author's WHOLE delivery in the PROMPT of her turn, inside this block (not in the card note). */
+export const ENTREGA_BLOCK = '<entrega>'
+/** The delimiters of the bilhete in the assignment of whoever receives a pass/help/review. */
+export const BILHETE_BLOCK = '<bilhete>'
+/**
+ * What a real model says BETWEEN its tool calls — the words of attempt 4 (`artifacts/team10/real-attempt-4-*`, Téo's line in the thread): the intention to check, a tool result said aloud, the next
+ * intention. The stub's art part says them before its delivery, each followed by a tool call, so a product that puts all the text of the turn in the thread shows them glued together
+ * ("…contém.Nenhum arquivo…") — P0-2 of the real round of 07/11.
+ */
+export const NARRATION_STEPS: readonly string[] = [
+  'Vou começar conferindo se o `foto.png` existe no projeto e o que ele contém.',
+  'Nenhum arquivo de imagem no diretório de trabalho. Vou verificar o diretório e procurar `foto.png` mais amplamente.',
+]
 export const DELIVERY_END = 'FIM-DA-ENTREGA-COMPLETA'
 const LONG_DELIVERY = [
   'Aqui está a minha parte, pronta para a revisão.',
@@ -106,6 +125,10 @@ export interface TeamRoundResult {
    * because the worker got a cut title; at least one turn must see the request whole. `undefined` on the real engine (the real prompt is not observable from here).
    */
   readonly stubRequestTurns: number | undefined
+  /** Fake only: the stub turns whose prompt carried the `<entrega>` block (the reviewer's turns) and how many of them held the delivery's last words. */
+  readonly reviewPromptsWhole: { readonly turns: number; readonly whole: number } | undefined
+  /** Attempt 4 (Atlas D-099): the project has a FOLDER; the art is a file in the Task's DRAFT, never in the real folder before Apply. Fake only. */
+  readonly draftProof: { readonly projectRoot: string; readonly realFolderFiles: readonly string[]; readonly drafts: ReadonlyArray<{ readonly directory: string; readonly files: readonly string[]; readonly artBytes: number }>; readonly writerArgvs: readonly string[]; readonly turnCwds: readonly string[] } | undefined
   /** The question cards of the team the HARNESS answered as the person (attempt 3), in order, and why it stopped answering if it did (asked again after the last round, the host failed). */
   readonly answeredAsks: readonly AnsweredAsk[]
   readonly askStopped: string | undefined
@@ -119,6 +142,20 @@ export interface TeamRoundResult {
   readonly diagnostics: { readonly lastErrors: readonly string[]; readonly flags: unknown } | undefined
   /** The `[persona-host] soft …` lines the host wrote to its stderr (once per kind, outside Vitest). */
   readonly hostSoftLines: readonly string[]
+  /**
+   * Fake only — what the stub saw and did for the three P0 of 07/11: `problems` = the shared-files defects it observed itself (a turn told about a file its working directory did not have, a
+   * file recreated because the colleague's was not there); the tool calls the scripted model made (accepted or refused by the product); and the tool catalog the CLI was offered (is the
+   * persona told the app makes the PNG by itself?).
+   */
+  readonly stubProof: {
+    readonly problems: readonly string[]
+    readonly turns: number
+    readonly toolCalls: ReadonlyArray<{ readonly toolName: string; readonly ok: boolean; readonly text: string }>
+    readonly toolCatalog: { readonly tools: number; readonly pngAssurance: boolean }
+    readonly recreated: readonly string[]
+    /** One row per stub turn (cwd tail, which needles its prompt held, prompt length, what its working directory held when it started): the evidence behind the checks above. */
+    readonly turnTable: ReadonlyArray<{ readonly turn: string; readonly draft: string; readonly needles: Readonly<Record<string, boolean>>; readonly promptChars: number | null; readonly files: readonly string[] }>
+  } | undefined
 }
 
 type Loose = Record<string, unknown>
@@ -170,6 +207,50 @@ function copyDatabase(home: string, dir: string): void {
   }
 }
 
+/** Where each Task's draft is (from the database), what is in it, and whether the REAL folder stayed clean; plus the argv/cwd the stub received (Tally's P0-1 contract). */
+function collectDraftProof(calls: ReturnType<RealPersonaSession['fakeCli']['invocations']>, projectRoot: string, home: string): NonNullable<TeamRoundResult['draftProof']> {
+  const list = (dir: string): string[] => { try { return readdirSync(dir).sort() } catch { return [] } }
+  const drafts: Array<{ directory: string; files: string[]; artBytes: number }> = []
+  const transcript = readTeamTranscript(home)
+  for (const directory of new Set(transcript?.draftDirectories ?? [])) {
+    const art = join(directory, ART_FILE)
+    drafts.push({ directory, files: list(directory), artBytes: existsSync(art) ? statSync(art).size : 0 })
+  }
+  const writerArgvs = [...new Set(calls.filter(call => call.event === 'invoke' && call.argv.includes('-p') && call.argv.includes('--permission-mode')).map(call => call.argv.join(' ')))]
+  return { projectRoot, realFolderFiles: list(projectRoot), drafts, writerArgvs, turnCwds: [...new Set(calls.filter(call => call.event === 'turn').map(call => call.cwd ?? ''))] }
+}
+
+/**
+ * What the stub saw for the three P0 (see `TeamRoundResult.stubProof`): its own look at each working directory when a turn started, the tool calls of its scripted model, the tool
+ * catalog the CLI was offered. A turn "carries the request" when its prompt holds the request's text (a part of the split) or a bilhete that is not a review (the colleague of a pass/help).
+ */
+function readStubProof(calls: ReturnType<RealPersonaSession['fakeCli']['invocations']>, transcript: TeamTranscript | undefined): NonNullable<TeamRoundResult['stubProof']> {
+  const carriesRequest = (turn: StubTurnEvent): boolean => turn.needles?.[REQUEST_TEXT] === true || (turn.needles?.[BILHETE_BLOCK] === true && turn.needles?.review_verdict !== true)
+  const problems = stubTurnProblems(calls, { attachmentName: ATTACHMENT_NAME, posterSha256: POSTER_SHA256 }, carriesRequest)
+  // "X salvou … no rascunho" only for what X's own turn wrote (a copy the host handed her is not her work).
+  if (transcript !== undefined) problems.push(...savedLinesProblems(transcript, calls.filter(call => call.event === 'write' && call.recreated !== true)))
+  const toolCalls = calls.filter(call => call.event === 'toolcall').map(call => ({ toolName: call.toolName ?? '?', ok: call.ok === true, text: (call.text ?? '').slice(0, 240) }))
+  for (const wanted of ['pass_forward', 'ask_colleague']) {
+    const mine = toolCalls.filter(call => call.toolName === wanted)
+    if (mine.length === 0) problems.push(`P0-1 stub: the scripted model never called ${wanted}: the receivers of a bilhete with a file were not exercised`)
+    else if (!mine.some(call => call.ok)) problems.push(`P0-1 stub: the product refused every ${wanted} of the scripted model (${mine.map(call => call.text).join(' | ')}): the receivers of a bilhete with a file were not exercised`)
+  }
+  const catalogs = calls.filter(call => call.event === 'tools')
+  const descriptions = catalogs.flatMap(call => (call.tools ?? []).map(item => `${item.name}: ${item.description}`))
+  const pngAssurance = descriptions.some(pngAssuranceIn)
+  if (catalogs.length === 0 || descriptions.length === 0) problems.push('P0-3 catalog: the tool catalog the CLI was offered could not be read (no `tools` line in the stub log)')
+  else if (!pngAssurance) problems.push(`P0-3 catalog: none of the ${String(descriptions.length)} tool descriptions tells the persona that the app makes the PNG of an SVG by itself (and that nobody is asked to export one)`)
+  return {
+    problems, turns: calls.filter(call => call.event === 'turn').length, toolCalls, toolCatalog: { tools: descriptions.length, pngAssurance },
+    recreated: calls.filter(call => call.event === 'write' && call.recreated === true).map(call => `${call.file ?? '?'} (${(call.cwd ?? '?').split(/[\\/]/u).slice(-1)[0] ?? '?'})`),
+    turnTable: calls.filter(call => call.event === 'turn').map(call => ({
+      turn: `${String(call.proc)}#${String(call.seq)}`, draft: (call.cwd ?? '?').split(/[\\/]/u).slice(-1)[0] ?? '?', needles: call.needles ?? {}, promptChars: call.promptChars ?? null, files: (call.cwdFiles ?? []).map(file => file.p),
+    })),
+  }
+}
+
+const POSTER_SHA256 = createHash('sha256').update(buildPosterPng()).digest('hex')
+
 export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRoundResult> {
   const startedAt = Date.now()
   const real = options.engine === 'real'
@@ -197,10 +278,30 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
     // review_verdict estiver disponível…, responda assim"), so the stub answers it with the first-line verdict the host reads in words — the peer review runs to its SEAL on the tree before
     // any real turn; a part of a split request ("Sua parte: …") answers with a LONG delivery that ends in `DELIVERY_END`, so the rehearsal can prove the reviewer gets the WHOLE delivery.
     engine: real ? { kind: 'real' } : {
-      kind: 'fake', turnMs: 1_500, needles: [REQUEST_TEXT],
+      kind: 'fake', turnMs: 1_500, needles: [REQUEST_TEXT, DELIVERY_END, ENTREGA_BLOCK, BILHETE_BLOCK, 'review_verdict'], toolsProbe: true,
+      // P0-1 (Atlas 07/11): ONLY the art part writes the art (the old `writeFile` wrote it in EVERY turn, so a colleague that could not find it never showed). A turn whose prompt names the art file
+      // while the file is not in its working directory MAKES one — what Lia did in the real round — and the log says so (`recreated`).
+      writeRules: [
+        { match: 'Sua parte: arte', file: ART_FILE, content: ART_SVG },
+        { match: ART_FILE.replace(/\./gu, '\\.'), file: ART_FILE, content: ART_SVG, fillIn: true },
+      ],
+      // The stub as the MODEL of the art part: it passes the work on to Bia with the art as a file of the bilhete (`pass_forward`) and asks Lia for help with it (`ask_colleague`), through the
+      // product's own tools — the only way a rehearsal with no model reaches the receivers of a bilhete.
+      toolCalls: [{
+        match: 'Sua parte: arte', once: true,
+        calls: [
+          { tool: 'pass_forward', args: { colleague: 'Bia', title: 'Texto do cartaz', done: ['Arte-base pronta, seguindo a foto do pedido.'], needed: ['O texto do título e o contato do WhatsApp para a faixa branca.'], files: [ART_FILE], decisions: ['Formato 4:5 para o Instagram.'] } },
+          { tool: 'ask_colleague', args: { colleague: 'Lia', title: 'Conferir o contraste da arte', done: ['Arte-base pronta.'], needed: ['Dizer se o contraste funciona para o Instagram.'], files: [ART_FILE], decisions: [] } },
+        ],
+      }],
       rules: [
         { match: 'review_verdict', reply: 'APROVADO\n\nO texto e a arte estão coerentes com o pedido.' },
+        // P0-2: what a real model says between its tool calls (the words of attempt 4) comes BEFORE the delivery; only the delivery may reach the thread, the bilhete and the review.
+        { match: 'Sua parte: arte', reply: LONG_DELIVERY, narration: NARRATION_STEPS },
         { match: 'Sua parte:', reply: LONG_DELIVERY },
+        // The colleague of a pass/help (her prompt carries the bilhete) — and the art part when it RESUMES with the colleague's delivery: a plain answer, not the stub's default first-delivery text.
+        // It still ends in DELIVERY_END: the resumed art part is what the reviewer is handed, and the reviewer must get the whole of it.
+        { match: BILHETE_BLOCK, reply: `Li o bilhete e os arquivos que chegaram no meu rascunho.\n${LONG_DELIVERY}` },
       ],
     },
     cleanHostEnv: true,
@@ -266,6 +367,10 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
     }
     const names: Record<string, string> = Object.fromEntries([...CAST.map(member => [member.id, member.name] as const), [tenant.memberId, 'Pessoa']])
 
+    // D-099: a persona may write files ONLY in the Task's draft of a project that has a folder. The folder is a temp dir with one file; the art must never appear in it before Apply.
+    const projectRoot = mkdtempSync(join(tmpdir(), 'team10-folder-'))
+    writeFileSync(join(projectRoot, 'LEIAME.txt'), 'Pasta da Padaria Lua\n')
+    await hostRpcOk(page, 'setProjectRoot', { ...scope, rootPath: projectRoot })
     const poster = buildPosterPng()
     const attachment = await hostRpcOk<{ id: string; mime: string }>(page, 'attachFile', { ...scope, streamKind: 'channel', ownerId: tenant.channelId, name: ATTACHMENT_NAME, bytesBase64: poster.toString('base64') })
     if (attachment.mime !== 'image/png') throw new PreflightRefusal(`preflight: the poster was stored as ${attachment.mime}`)
@@ -363,12 +468,23 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
     const hostSoftLines = session.host.output().split(/\r?\n/u).filter(line => line.includes('[persona-host] soft ')).map(line => line.trim().slice(0, 300))
     const stubTurns = session.fakeCli.invocations().filter(call => call.event === 'turn')
     const stubImageTurns = real ? undefined : stubTurns.filter(call => (call.images ?? 0) > 0 || call.imagePathInText !== undefined).length
+    const draftProof = real ? undefined : collectDraftProof(session.fakeCli.invocations(), projectRoot, options.home)
+    // The stub's log goes away with the session (`restore` removes it): take the events NOW, read them against the transcript after the stop.
+    const stubEvents = real ? undefined : [...session.fakeCli.invocations()]
+    // The REVIEWER's turns: the `<entrega>` block of a colleague who is handed a pass/help return (also a block, but of a clipped summary) is not what the review reads — a review asks for its verdict.
+    const reviewPromptTurns = real ? undefined : stubTurns.filter(call => call.needles?.[ENTREGA_BLOCK] === true && call.needles?.review_verdict === true)
+    const reviewPromptsWhole = reviewPromptTurns === undefined ? undefined : { turns: reviewPromptTurns.length, whole: reviewPromptTurns.filter(call => call.needles?.[DELIVERY_END] === true).length }
     const stubRequestTurns = real ? undefined : stubTurns.filter(call => call.needles?.[REQUEST_TEXT] === true).length
     await stopHost()
 
     const ledger = readLedgerEvidence(options.home)
     const transcript = readTeamTranscript(options.home)
-    const verdict = transcript === undefined ? undefined : evaluateTeamRound(transcript, { ceilingTurns: options.cap, minPersonas: 2, requireImage: true, answeredAsks: answerer.answered.length })
+    const stubProof = stubEvents === undefined ? undefined : readStubProof(stubEvents, transcript)
+    // P0-1/2/3 of the real round of 07/11 are part of the verdict itself (real and fake): the shared files are read from the drafts on disk, the words from the thread/bilhetes/reviews.
+    const verdict = transcript === undefined ? undefined : evaluateTeamRound(transcript, {
+      ceilingTurns: options.cap, minPersonas: 2, requireImage: true, answeredAsks: answerer.answered.length,
+      sharedFiles: { attachmentName: ATTACHMENT_NAME, posterSha256: POSTER_SHA256, requireDrafts: true },
+    })
     copyDatabase(options.home, join(options.outDir, 'evidence'))
     writeFileSync(join(options.outDir, 'reading-transcript.md'), reading.markdown)
     if (transcript !== undefined) writeFileSync(join(options.outDir, 'transcript.md'), renderTranscriptMarkdown(transcript, `TEAM-10 (${options.engine}) — o que a pessoa vê`))
@@ -376,7 +492,7 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
       engine: options.engine,
       preflight: { isolation, hostFlags, flagsOn, claudeReady, personas: roster.map(row => row.name) },
       attachmentId: attachment.id, requestId, aborted, timedOut, ledger, transcript, verdict,
-      threadLines: rows.length, reading, stubImageTurns, stubRequestTurns, answeredAsks: answerer.answered, askStopped: answerer.stopped, shots, elapsedMs: Date.now() - startedAt, quota: { before: quotaBefore, after: quotaAfter }, morningBrief, diagnostics, hostSoftLines,
+      threadLines: rows.length, reading, stubImageTurns, stubRequestTurns, reviewPromptsWhole, draftProof, stubProof, answeredAsks: answerer.answered, askStopped: answerer.stopped, shots, elapsedMs: Date.now() - startedAt, quota: { before: quotaBefore, after: quotaAfter }, morningBrief, diagnostics, hostSoftLines,
     }
   } finally {
     await stopHost()

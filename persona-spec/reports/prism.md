@@ -1,5 +1,10 @@
 # Prism — relatos (mais recente no topo)
 
+## 2026-11-07 17:15 — LIB 6c (`1688d21b`): cena "Aguardando você" no escuro DISPENSADA (ordem do Keel, opção C); STANDBY
+- Não capturei a cena no shell real. O host roteirizado só devolve "Descansando" e o stub de CLI não consegue perguntar (D-079 (b) segue `it.todo`), então nenhuma persona entra em "aguardando" ali. Nada rodou no lib 6c.
+- A prova da tinta do âmbar no escuro é a galeria `prism-strip-waiting-ink` (6 capturas, 0 com estouro/axe/erro; log `.maestri/tmp/prism/gallery-ink.log`) + `team-strip-waiting-ink.client.spec.tsx` + `find-bad-css` limpo. Se o estado aparecer de verdade na tentativa 4 do TEAM-10 ou na varredura do instalado, a Muse vê lá.
+- Pendências só se o Keel chamar: olhos de UI no transcrito da tentativa 3, modo estreito da faixa com o rosto dentro da etiqueta (v1.2), aplicar os pacotes em staging após o corte.
+
 ## 2026-11-07 15:55 — LIB 6b e 6c: faixa (Atlas) e tinta do âmbar no escuro; STANDBY (ordem do Keel, cota)
 
 - **Estado exato (nada pela metade, nenhum job meu rodando):** tudo o que o Keel aprovou por escrito está no tree e provado; o resto está em STAGING fora de `src`. Parado em STANDBY desde 15:50 (Keel 15:40, cota do Claude): só tarefa fechada que o Keel chamar.

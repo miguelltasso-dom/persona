@@ -13,6 +13,8 @@
  */
 import { POSTER_FACTS } from './team-image-fixture.ts'
 import { fakeRunnerSignature } from './ledger-evidence.ts'
+import { sharedFilesProblems, type SharedFilesOptions } from './team-draft-checks.ts'
+import { p0TextProblems } from './team-p0-rules.ts'
 import type { TeamTranscript, TranscriptNote } from './team-transcript.ts'
 
 export interface TeamRoundExpectation {
@@ -24,6 +26,8 @@ export interface TeamRoundExpectation {
   readonly requireImage: boolean
   /** How many question cards the HARNESS answered as the person (`team-round-asks.ts`); only changes what the verdict says about a round that stopped at a question. */
   readonly answeredAsks?: number
+  /** P0-1 (Atlas 07/11): read the Task drafts on disk — the request's attachment and the files of the bilhetes must be where each receiving Task works. Off when absent (pure specs without disk). */
+  readonly sharedFiles?: SharedFilesOptions
 }
 
 /**
@@ -32,7 +36,7 @@ export interface TeamRoundExpectation {
  *   - `findings`: "não colaborou" — the model/product did not hand off, ask for help, open a round or review; reported as a FINDING about the team, never as a harness error.
  * `problems` keeps both (so `passed` is false for either); `outcome` says which it was.
  */
-export type TeamRoundOutcome = 'passed' | 'did-not-collaborate' | 'harness-problem'
+export type TeamRoundOutcome = 'passed' | 'did-not-collaborate' | 'harness-problem' | 'ran-out-of-turns'
 
 export interface TeamRoundVerdict {
   readonly passed: boolean
@@ -64,6 +68,14 @@ export interface TeamRoundVerdict {
 
 // Forge's final visible phrases (04/11): "{A} passou para {B}: {título}", "{A} pediu ajuda a {B}: …", "{B} entregou para {A}: …", "… pediu a {B}, que está em
 // pausa / mas não deu para seguir", "{A} retomou “…” com a entrega de {B}"; the typed `handoff` event is the primary signal, the words the fallback.
+/**
+ * A line of the opinion round: the typed `opinion` event, or a `message` whose id is `opinion:<call>:request|reply:<persona>|consolidated` (how the host stores the lines of a round the PERSONA
+ * opened; attempt 5 had 7 of them on screen and the verdict counted 0 by type alone).
+ */
+const isOpinionLine = (line: { readonly type: string; readonly id: string }): boolean => line.type === 'opinion' || line.id.startsWith('opinion:')
+/** What the host says in the thread when the round's TURN CAP (a limit of the test harness, never of the product) stops a Task from starting. */
+const TURN_CAP_LINE = /limite de execuções reais desta rodada foi atingido/iu
+
 const HANDOFF = /\b(pass(ou|ei|ando|ar)|encaminh(ou|ei)|entreg(ou|uei)|pediu ajuda|retomou)\b.*\b(para|ao|à|a|com)\b/iu
 const IMAGE_NAME = /\.(png|jpe?g|webp|gif)$/iu
 const ENGINE_ERROR = /erro do motor|não está disponível neste computador/iu
@@ -108,7 +120,7 @@ export function describeBehaviors(transcript: TeamTranscript, morning?: { readon
   const reached = requests.filter(note => note.colleagueReceived)
   const peer = transcript.reviews.filter(review => review.reviewer !== review.author)
   const sealed = peer.filter(review => review.sealed)
-  const opinions = transcript.lines.filter(line => line.type === 'opinion').length
+  const opinions = transcript.lines.filter(isOpinionLine).length
   const outcome = String((morning?.day as { outcome?: unknown } | undefined)?.outcome ?? 'none')
   const brief = morning !== undefined && ['posted', 'already'].includes(outcome) && morning.turnsBefore >= 0 && morning.turnsAfter === morning.turnsBefore
   return [
@@ -181,16 +193,27 @@ export function evaluateTeamRound(transcript: TeamTranscript, expectation: TeamR
   for (const leak of transcript.leaks) harnessProblems.push(`LEAK-1: ${leak}`)
   // A review that could not run is a defect of the PRODUCT's plumbing (Bolt 07/11: the real CLI closes a turn with the placeholder report "turn ended", so the reviewer received
   // that instead of the author's text), never a choice of the model — so it is a problem of the run, not "did not collaborate".
+  // A review that failed "in the engine" while the round's turn cap had been reached (the thread says so, or the ledger sits at the ceiling) did not fail: the harness's cap stopped the
+  // reviewer from resuming (attempt 5: two questions of the reviewer to the person, answered by the harness, used the last turns). That is "ran out of turns" — a finding about the round's budget.
+  const capReached = transcript.lines.some(line => TURN_CAP_LINE.test(line.text)) || (ledger !== undefined && ledger.turns >= expectation.ceilingTurns)
+  let cutByCap = false
   for (const review of transcript.reviews) {
     if (review.failure === 'unreadable') harnessProblems.push(`the review of ${review.author}'s work could not read it (the reviewer got the placeholder "turn ended" instead of the author's text): the review note carries no text`)
+    else if (review.failure === 'engine' && capReached) { cutByCap = true; findings.push(`ran out of turns: the review of ${review.author}'s work could not resume (the round's ${String(expectation.ceilingTurns)}-turn cap was reached): it has no seal`) }
     else if (review.failure === 'engine') harnessProblems.push(`the review of ${review.author}'s work failed in the reviewer's engine`)
   }
+
+  // The three P0 of the real round of 07/11 (Atlas): a defect of the PRODUCT the person would read or hit, never a choice of the model — so a problem of the run, not "did not collaborate".
+  //   P0-1 the receiving Tasks do not find the shared files (drafts on disk) or say a file does not exist; P0-2 the narration between tool calls reaches the thread/bilhete/review;
+  //   P0-3 machine jargon ("ferramenta de shell") or a request to export a PNG. Text rules always; the files check only when the caller gave the attachment (`sharedFiles`).
+  harnessProblems.push(...p0TextProblems(transcript))
+  if (expectation.sharedFiles !== undefined) harnessProblems.push(...sharedFilesProblems(transcript, expectation.sharedFiles))
 
   // What the team really did (the four behaviors D-097 reads), counted from the database: bilhetes by kind, typed opinion lines, peer reviews and their seal.
   const behaviors = {
     passedForward: transcript.notes.filter(note => note.kind === 'next').length,
     askedHelp: transcript.notes.filter(note => note.kind === 'help').length,
-    opinionLines: transcript.lines.filter(line => line.type === 'opinion').length,
+    opinionLines: transcript.lines.filter(isOpinionLine).length,
     reviews: transcript.reviews.filter(review => review.reviewer !== review.author).length,
     // A seal by the author herself is not a peer review (Forge's observer calls it a false seal).
     seals: transcript.reviews.filter(review => review.sealed && review.reviewer !== review.author).length,
@@ -208,6 +231,8 @@ export function evaluateTeamRound(transcript: TeamTranscript, expectation: TeamR
   }
 
   const problems = [...harnessProblems, ...findings]
-  const outcome: TeamRoundOutcome = problems.length === 0 ? 'passed' : harnessProblems.length > 0 ? 'harness-problem' : 'did-not-collaborate'
+  // `ran-out-of-turns`: the only finding is the cap cutting a review short — the team collaborated, the round's budget ended before everything was sealed.
+  const onlyCap = cutByCap && findings.every(finding => finding.startsWith('ran out of turns'))
+  const outcome: TeamRoundOutcome = problems.length === 0 ? 'passed' : harnessProblems.length > 0 ? 'harness-problem' : onlyCap ? 'ran-out-of-turns' : 'did-not-collaborate'
   return { passed: problems.length === 0, outcome, problems, harnessProblems, findings, notes, behaviors, facts: { turns, speakingPersonas: speaking, handoffLines, imageLineId, opinionsAboutImage: opinions, askedPerson, answeredByHarness } }
 }

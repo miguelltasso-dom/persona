@@ -12,7 +12,8 @@ const MENTIONS = /(?:^|\s)@\S+/gu
 const POLITE = /^(?:por favor|pf|oi|olá|ola|bom dia|boa tarde|boa noite)[\s,.:;!-]*/iu
 const WANT = /^(?:eu\s+)?(?:preciso|precisamos|quero|queremos|gostaria|gostaríamos|gostariamos|precisava|queria)\s+(?:de\s+|que\s+)?/iu
 const ASK = /^(?:você\s+|voce\s+)?(?:poderia|poderiam|pode|podem|consegue|conseguem)\s+/iu
-const VERB = /^(?:faça|faca|façam|facam|fazer|monte|montem|montar|crie|criem|criar|escreva|escrevam|escrever|prepare|preparem|preparar|produza|produzam|produzir|elabore|elaborem|elaborar|redija|redijam|redigir|desenhe|desenhem|desenhar|planeje|planejem|planejar|organize|organizem|organizar|revise|revisem|revisar)(?:\s+|$)/iu
+// The formal imperative ("faça", "monte") and the informal one people really type ("faz", "monta", "cria"), with the "me"/"nos" they put before it.
+const VERB = /^(?:(?:me|nos)\s+)?(?:faça|faca|façam|facam|faz|fazer|monte|montem|monta|montar|crie|criem|cria|criar|escreva|escrevam|escreve|escrever|prepare|preparem|prepara|preparar|produza|produzam|produz|produzir|elabore|elaborem|elabora|elaborar|redija|redijam|redige|redigir|desenhe|desenhem|desenha|desenhar|planeje|planejem|planeja|planejar|organize|organizem|organiza|organizar|revise|revisem|revisa|revisar)(?:\s+|$)/iu
 const YOU = /^(?:você|voce)\s+/iu
 /** Filler at the end of a subject: "... do nosso produto", "... da minha loja" (a possessive or demonstrative phrase). */
 const FILLER_TAIL = /\s+(?:d[aeo]s?|para|pel[ao]s?|em|n[aoe]s?)\s+(?:(?:a|o|as|os)\s+)?(?:nosso|nossa|nossos|nossas|meu|minha|meus|minhas|seu|sua|seus|suas|deste|desta|desse|dessa|este|esta|esse|essa)\b.*$/iu

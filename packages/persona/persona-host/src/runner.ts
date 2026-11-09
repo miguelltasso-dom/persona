@@ -15,6 +15,7 @@ import {
   effectiveToolLevel,
   resolveRunner,
   RunnerResolveError,
+  toolNameFromEvent,
   type PermissionGate,
   type PersonaRunnerSpec,
   type NormalizedReport,
@@ -289,9 +290,23 @@ export async function resolveHostRunner(
   return session
 }
 
-/** Last streamed model text for a live runner (empty on fake/scripted). */
+/** What stands in for her words when a turn spoke only between tools and ended on one (never the monologue, never a placeholder). */
+export const NO_FINAL_WORDS = 'Terminei a minha parte.'
+
+/**
+ * Whether this event is a tool call (`tool:<name>`): the text before it is thinking aloud and the answer is what she writes after the last one (P0-2).
+ * @param event - Streamed event.
+ */
+function isToolCallEvent(event: RunEvent): boolean {
+  const name = toolNameFromEvent(event)
+  return name !== undefined && event.type === 'report' && event.report.summary.startsWith('tool:') && /^[\w:./-]{1,120}$/u.test(name)
+}
+
+/** Last streamed model text for a live runner (empty on fake/scripted): the text AFTER the last tool of the turn, never the pieces between tools. */
 export interface TextCapture {
   last: string
+  /** Text was written before a tool and dropped (it was thinking aloud): with `last` empty the turn has no words of its own, see {@link NO_FINAL_WORDS}. */
+  narrated?: boolean
   report?: NormalizedReport
   reportAt?: string
   firstAt?: number
@@ -333,6 +348,15 @@ export function emitRunnerPartial(runner: Runner, text: string): void {
  */
 export function lastRunnerText(runner: Runner): string {
   return captures.get(runner)?.last.trim() ?? ''
+}
+
+/**
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @returns Whether the latest turn wrote text between tools and nothing after the last one (the text is empty but she did speak).
+ */
+export function lastRunnerNarrated(runner: Runner): boolean {
+  const capture = captures.get(runner)
+  return capture?.narrated === true && capture.last.trim() === ''
 }
 
 /**
@@ -379,6 +403,13 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
       delete capture.ask
       delete capture.report
       delete capture.reportAt
+      delete capture.narrated
+    }
+    if (isToolCallEvent(event)) {
+      // P0-2: a tool closes the piece of text before it (thinking aloud: "Vou verificar…"). What a persona says is the LAST text after the LAST tool:
+      // the thread, the bilhete, the review and the opinion never carry the monologue between tools.
+      if (capture.last.trim() !== '') capture.narrated = true
+      capture.last = ''
     }
     if (event.type === 'delta') {
       const first = capture.last === ''
@@ -403,7 +434,8 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
       const question = event.report.question
       if (typeof question === 'string' && question !== '') capture.question = question
       if (event.report.ask !== undefined) capture.ask = event.report.ask
-      if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '') {
+      // The adapter's placeholder ("turn ended") is not words: a turn with nothing to say stays empty (the host then has its own sentence).
+      if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '' && event.report.summary !== 'turn ended') {
         capture.last = event.report.summary
       }
     }

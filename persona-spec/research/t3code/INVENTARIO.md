@@ -51,7 +51,7 @@ Contagem sobre os 842 itens: **314 PEGAR · 341 ADAPTAR · 187 IGNORAR**. Estado
 
 - **A Persona já tem, e é igual ou melhor:** atividade agrupada com rosto (`primitives/Pooled.tsx`), limites por conta (`usage/UsageLimits.tsx`), F6 entre áreas (`shell/area-navigation.ts`), citação (`chat/MessageQuoteToolbar.tsx`), composer com memória (`chat/ChannelComposer.tsx`), markdown seguro (`chat/markdown/MarkdownBody.tsx`), Revisar com antes/depois (`review/simple/`), onboarding com 1ª entrega (`onboarding/OnboardingFirstDeliveryStep.tsx`), locale pt-BR (o T3 **não tem i18n**).
 - **A Persona tem o controle mas ele não faz nada:** `/` comandos (5 de 6), chip de autonomia, "Lembrar depois", "Concluir assunto", Retomar no limite, `/limites` com número fixo. São os P0 do UX-BEYOND e aparecem aqui como `parcial`.
-- **A Persona não tem:** terminal (§6), SnapShot (§18), sistema de atalhos remapeáveis (§9), busca full-text nas mensagens (§8.6), find dentro da conversa (§8.13), rewind de turno (§3.33), fila real com steer (§3.35), notificação que dispara (§13.1), webhooks (§17.7), convidado (§15.22), checkpoint por turno (§12.27), handoff com orçamento de contexto (§20), explorador de arquivos com editor e visualizadores (§21), navegador com anotação sobre a página (§22), instalação/atualização de CLI com diagnóstico (§25), resposta visual em página (§26.1).
+- **A Persona não tem:** terminal **na tela** (§6 — o backend `ctx.terminals` existe, sem UI e sem persistência), SnapShot (§18), sistema de atalhos remapeáveis (§9), busca full-text nas mensagens (§8.6), find dentro da conversa (§8.13), rewind de turno (§3.33), fila real com steer (§3.35), notificação que dispara (§13.1), webhooks (§17.7), convidado (§15.22), checkpoint por turno (§12.27), handoff com orçamento de contexto (§20), explorador de arquivos com editor e visualizadores (§21), navegador com anotação sobre a página (§22), instalação/atualização de CLI com diagnóstico (§25), resposta visual em página (§26.1).
 - **O T3 tem e a Persona deve recusar:** default `full-access` (§4.2), telemetria ligada por padrão (§16.22), editor de tema (§10.9), 23 seções de configuração (§10.1), PR completo (§5.26-5.32), worktree por thread (§12.1-12.9).
 
 ## Cobertura (o que foi lido)
@@ -61,6 +61,18 @@ Contagem sobre os 842 itens: **314 PEGAR · 341 ADAPTAR · 187 IGNORAR**. Estado
 **Código do T3:** `apps/web/src/components/**` (chat, composer, sidebar, settings, diffs, pullRequest, files, preview, device, cloud, permissions, terminal, ui, onboarding, guest, promptLinks, search, usage), `apps/web/src/*.ts` (keybindings, composer-*, thread*, browser*, appearance*, theme*, workspaceFocus, sidebarTree, questionAttachments), `apps/server/src/**` (orchestration-v2, terminal, git, vcs, device, cloud, provider, persistence, preview, workspace, auth, telemetry, secrets, mcp), `packages/contracts`, `packages/client-runtime`, `packages/provider-*`, `packages/shared`, `apps/desktop/src/**` (window, updates, snapShot, preview, backend, ipc, app, telemetry), `apps/mobile/src/**` e `scripts/` (build, release, launcher).
 
 **O que NÃO está aqui:** detalhes de protocolo interno do Effect (ver `DESEMPENHO.md`), e o conteúdo de `docs/operations/` fora do que afeta release e empacotamento.
+
+## Divisão com o inventário do backend
+
+`INVENTARIO-BACKEND.md` (Zinc) cobre o **mecanismo**: protocolo RPC, auth/escopo, event sourcing, projeções, ciclo de sessão/turno, adaptadores de provedor, checkpoints, MCP, git/worktree, terminal PTY, packaging. Este arquivo cobre **o que a pessoa vê e faz** e cita arquivo de servidor só quando ele é o dono do comportamento descrito.
+
+Onde os dois se encostam, o de cá descreve a interação e o de lá o mecanismo: §4 ↔ RuntimePolicy/DispatchModeLimit; §6 ↔ terminal/Manager; §7 ↔ settlement/deleção/fork; §12 ↔ GitVcsDriverCore/CheckpointStore; §16 ↔ AnalyticsService/DesktopUpdates; §20 ↔ handoffBudget/ContextHandoffService; §24 ↔ EnvironmentAuth/ConnectReachability; §25 ↔ instalação de provider.
+
+**Duas divergências de tamanho, resolvidas assim:**
+- **Terminal (§6):** o backend já existe (`packages/terminal` → `ctx.terminals`, `packages/terminal-bash`). O trabalho é expor a UI e persistir a sessão — não construir PTY. Por isso o §6 aqui é `ADAPTAR` no topo, não `PEGAR` de ponta a ponta.
+- **Handoff (§20):** o backend de lá chama de `ADAPTAR/M`; aqui o orçamento de contexto é `PEGAR/G`, porque a Persona tem troca de contexto entre personas mas **não** tem a contabilidade por token nem a recuperação do histórico omitido.
+
+**Duas correções que o inventário do backend trouxe para este:** `packages/terminal` (acima) e `packages/compaction` (§3.24 — a compactação existe, o divisor no fio não).
 
 ---
 
@@ -124,7 +136,7 @@ O composer do T3 é o componente mais trabalhado do produto: **45 interações d
 
 | # | O que faz | Onde | Persona | Recomendação | Tam. |
 |---|---|---|---|---|---|
-| 2.1 | Editor Tiptap com Markdown estilizado ao vivo (negrito, itálico, tachado, código, listas, tarefas, citação, título, régua, bloco de código) e serialização de volta para Markdown | `apps/web/src/components/ComposerPromptEditorTiptap.tsx:696`; `apps/web/src/composer-rich-text-doc.ts:1461` | não — `ChannelComposer.tsx` é textarea | ADAPTAR: é o maior salto de qualidade do composer, e o T3 é a prova de que dá para fazer sem perder o Markdown | G |
+| 2.1 | Editor Tiptap com Markdown estilizado ao vivo (negrito, itálico, tachado, código, listas, tarefas, citação, título, régua, bloco de código) e serialização de volta para Markdown | `apps/web/src/components/ComposerPromptEditorTiptap.tsx:696`; `apps/web/src/composer-rich-text-doc.ts:1461` | não — `chat/ChannelComposer.tsx` é textarea | ADAPTAR: é o maior salto de qualidade do composer, e o T3 é a prova de que dá para fazer sem perder o Markdown | G |
 | 2.2 | Os marcadores Markdown aparecem como texto quando o cursor entra no trecho estilizado e somem quando ele sai | `apps/web/src/composer-markdown-source.ts:537`; `:250` | não | PEGAR: resolve o pior problema do editor rico (não saber o que vai ser enviado) | M |
 | 2.3 | Atalhos de formatação `mod+B`, `mod+I`, `mod+shift+S` (tachado) e `mod+E` (código) | `apps/web/src/composer-markdown-source.ts:561` | não | PEGAR | P |
 | 2.4 | Enter envia; Shift+Enter quebra linha | `apps/web/src/components/chat/composerCommandKey.ts:201`; `composer-logic.ts:59` | sim | IGNORAR | P |
@@ -153,10 +165,10 @@ O composer do T3 é o componente mais trabalhado do produto: **45 interações d
 | 2.27 | Arrastar uma menção da árvore de arquivos ou um PR para o composer insere o contexto no fim do texto | `chat/composerMentionDrag.ts:55` | não | ADAPTAR | M |
 | 2.28 | Colar arquivos ou imagens do clipboard anexa ao rascunho | `chat/ChatComposer.tsx:2667` | parcial | ADAPTAR | M |
 | 2.29 | Imagens são comprimidas/redimensionadas e HEIC/HEIF convertidos para JPEG antes de anexar | `chat/useComposerAttachmentIntake.ts:263`; `lib/imageCompression.ts:475` | não | PEGAR: no Windows a pessoa cola print de iPhone e nada abre | M |
-| 2.30 | Colagem de texto ≥ 32 KiB (ou que estouraria o limite) vira anexo `.txt`; `mod+shift+V` mantém inline | `packages/client-runtime/src/textPaste.ts:31`; `ChatComposer.tsx:1096` | sim — `ChannelComposer.tsx` | IGNORAR: já temos, inclusive o escape | P |
+| 2.30 | Colagem de texto ≥ 32 KiB (ou que estouraria o limite) vira anexo `.txt`; `mod+shift+V` mantém inline | `packages/client-runtime/src/textPaste.ts:31`; `ChatComposer.tsx:1096` | sim — `chat/ChannelComposer.tsx` | IGNORAR: já temos, inclusive o escape | P |
 | 2.31 | Mensagem limitada a 120.000 caracteres, com aviso dizendo quantos excedem | `chat/composerSubmission.ts:12`; `ComposerPromptLengthValidation.tsx:1` | não | PEGAR | P |
-| 2.32 | Rascunho por thread (texto, anexos, contextos, modelo, modo) persistido em localStorage | `apps/web/src/composerDraftStore.ts:113`; `:127` | parcial — `ChannelComposer.tsx` guarda só o texto | PEGAR: o rascunho precisa levar anexos e modelo junto | G |
-| 2.33 | Botão de envio vira "Fila" ou "Direcionar" durante o turno e alterna com `mod` pressionado | `chat/ComposerPrimaryActions.tsx:118`; `:310` | parcial — `ChannelComposer.tsx` tem o balão, sem alternância | PEGAR: junto do P0-18 | M |
+| 2.32 | Rascunho por thread (texto, anexos, contextos, modelo, modo) persistido em localStorage | `apps/web/src/composerDraftStore.ts:113`; `:127` | parcial — `chat/ChannelComposer.tsx` guarda só o texto | PEGAR: o rascunho precisa levar anexos e modelo junto | G |
+| 2.33 | Botão de envio vira "Fila" ou "Direcionar" durante o turno e alterna com `mod` pressionado | `chat/ComposerPrimaryActions.tsx:118`; `:310` | parcial — `chat/ChannelComposer.tsx` tem o balão, sem alternância | PEGAR: junto do P0-18 | M |
 | 2.34 | Composer vazio durante o turno mostra só "Interromper" | `chat/ComposerPrimaryActions.tsx:269`; `:145` | sim — `ChannelComposer.tsx:260` | IGNORAR | P |
 | 2.35 | Mensagens na fila aparecem como cartões com "Mandar agora", editar (lápis) e remover | `chat/QueuedRunsControl.tsx:293`; `:328`; `:360` | parcial — `chat/QueuedMessageBubble.tsx` | ADAPTAR: o lápis que edita no lugar é o que falta | M |
 | 2.36 | Editar mensagem da fila carrega texto e anexos no composer, salva no lugar e restaura o rascunho anterior | `chat/useQueuedRunEdit.ts:229`; `:304`; `ChatView.tsx:2757` | não | PEGAR: "restaura o rascunho anterior" é o detalhe que evita perder texto | M |
@@ -167,7 +179,7 @@ O composer do T3 é o componente mais trabalhado do produto: **45 interações d
 | 2.41 | Medidor de contexto em anel com popover (usado/máximo, total processado, compactação automática) | `chat/ContextWindowMeter.tsx:22` | parcial — `chat/TurnContextDrawer.tsx` com números fixos | ADAPTAR: mesma forma, dado real (P0-28) | M |
 | 2.42 | Custo acumulado no popover do medidor | `chat/ContextWindowMeter.tsx:140` | não | ADAPTAR: só com preço real (COTA-NAO-DOLAR-SPEC) | P |
 | 2.43 | Ditado por voz pelo microfone ou `mod+shift+d`, com preparar/gravando/transcrevendo, cancelar e confirmar | `chat/ComposerSpeechButton.tsx:181`; `packages/shared/src/keybindings.ts:72` | não | ADAPTAR: alto valor para "falar com a equipe", mas exige transcrição real | G |
-| 2.44 | `mod+S` guarda prompt e anexos num stash; com composer vazio restaura o único ou abre o menu | `chat/useComposerStash.ts:71`; `packages/shared/src/keybindings.ts:92` | sim — `ChannelComposer.tsx` | IGNORAR: já temos | M |
+| 2.44 | `mod+S` guarda prompt **e anexos** num stash; com composer vazio restaura o único ou abre o menu | `chat/useComposerStash.ts:71`; `packages/shared/src/keybindings.ts:92` | parcial — `chat/ChannelComposer.tsx:564` guarda o texto e só os **nomes** dos anexos | ADAPTAR: o bolso precisa levar os anexos, não só os nomes | M |
 | 2.45 | O mesmo composer vira resposta a pergunta do agente, com anexos próprios do rascunho da pergunta | `chat/ChatComposer.tsx:652` | parcial | ADAPTAR | M |
 
 **Notas da área:**
@@ -197,7 +209,7 @@ Nota de contexto: a Persona já tem `chat/markdown/MarkdownBody.tsx` (markdown s
 | 3.7 | Linha "Thinking" ao vivo, com brilho animado e prévia de 4 linhas do raciocínio | `apps/web/src/components/chat/TimelineWorkGroupRows.tsx:493-510`; `:361-405` | parcial — `chat/TypingIndicator.tsx` | ADAPTAR: "pensando" com o que ela está fazendo, não só um pontinho | M |
 | 3.8 | Trace de raciocínio expandido em markdown, com scroll interno que segue o fim enquanto transmite | `apps/web/src/components/chat/TimelineWorkEntryRow.tsx:121-143`; `WorkLog.tsx:120-160` | não | ADAPTAR: só se o motor expuser raciocínio | M |
 | 3.9 | Agrupa chamadas de ferramenta num cabeçalho com resumo ("Rodou 2 comandos…") e contagem dos ocultos | `apps/web/src/components/chat/MessagesTimeline.logic.ts:2035-2050`; `TimelineWorkGroupRows.tsx:588-610` | sim — `primitives/Pooled.tsx` (`ActivityGroup`) | IGNORAR: o nosso já tem rosto e linguagem de gente | G |
-| 3.10 | Grupo expandido vira lista virtualizada com altura máxima `min(18rem, 50dvh)` e scroll próprio | `apps/web/src/components/chat/TimelineWorkGroupRows.tsx:125-240`; `:263-265` | parcial — `FixedRowVirtualScroller.tsx` existe | ADAPTAR: o teto de altura com scroll próprio é o que falta | G |
+| 3.10 | Grupo expandido vira lista virtualizada com altura máxima `min(18rem, 50dvh)` e scroll próprio | `apps/web/src/components/chat/TimelineWorkGroupRows.tsx:125-240`; `:263-265` | parcial — `primitives/FixedRowVirtualScroller.tsx` existe | ADAPTAR: o teto de altura com scroll próprio é o que falta | G |
 | 3.11 | Cada chamada expande para comando, entrada e saída; saída longa segue o fim ao vivo | `apps/web/src/components/chat/TimelineWorkEntryRow.tsx:537-570`; `WorkLog.tsx:120-160` | parcial | ADAPTAR | M |
 | 3.12 | Ferramenta que falhou ganha ícone/realce destrutivo e rótulo acessível "Tool call failed" | `apps/web/src/components/chat/TimelineWorkEntryRow.tsx:275-300`; `:455-470` | sim — `ActivityGroup` marca falha fora da contagem de feitos | IGNORAR | M |
 | 3.13 | Erro do turno vira linha no fio com mensagem e "Retry" quando é falha de preparação | `apps/web/src/components/chat/TimelineWorkEntryRow.tsx:209-268` | sim — `primitives/RunErrorCard.tsx` | IGNORAR | M |
@@ -211,8 +223,8 @@ Nota de contexto: a Persona já tem `chat/markdown/MarkdownBody.tsx` (markdown s
 | 3.21 | Estado de trabalho honesto: "Working for 0:42", "Setting up worktree…" ou "Compacting for 0:12", com cronômetro | `apps/web/src/components/chat/TimelineWorkGroupRows.tsx:278-330`; `:114-120` | parcial | PEGAR: cronômetro honesto é o antídoto do spinner mentiroso | M |
 | 3.22 | Dobra o turno concluído em "Worked for 22s"/"Continued for 20s", carregando o histórico só ao expandir | `apps/web/src/components/chat/MessagesTimeline.logic.ts:1169-1216`; `MessagesTimeline.tsx:1652-1690` | não | PEGAR: é o que mantém um fio de 200 turnos legível | G |
 | 3.23 | Tentativa superada por um steer vira dobra "Cut off by a steer" separada | `apps/web/src/components/chat/MessagesTimeline.tsx:1692-1720`; `MessagesTimeline.logic.ts:1857-1865` | não | ADAPTAR: depende do steer real | M |
-| 3.24 | Divisor de compactação de contexto no fio, com contagem antes → depois em tokens | `apps/web/src/components/chat/MessagesTimeline.tsx:1545-1580` | não | ADAPTAR: a Persona compacta; hoje isso é invisível | M |
-| 3.25 | Card de arquivos alterados abaixo da resposta (árvore, totais, "Open diff") | `apps/web/src/components/chat/TimelineAssistantRows.tsx:63-70`; `ChangedFilesTree.tsx:30-140` | sim — `review/simple/ReviewFileList.tsx` | IGNORAR | G |
+| 3.24 | Divisor de compactação de contexto no fio, com contagem antes → depois em tokens | `apps/web/src/components/chat/MessagesTimeline.tsx:1545-1580` | parcial — `packages/compaction` compacta, mas o fio não mostra | ADAPTAR: a Persona compacta; hoje isso é invisível | M |
+| 3.25 | Card de arquivos alterados **abaixo da resposta** (árvore, totais, "Open diff") | `apps/web/src/components/chat/TimelineAssistantRows.tsx:63-70`; `ChangedFilesTree.tsx:30-140` | parcial — `review/simple/ReviewFileList.tsx` existe, mas só dentro do `DraftReviewPanel`, não no fio | ADAPTAR: o cartão no fim da resposta é o que evita abrir o Revisar para saber o que mudou | G |
 | 3.26 | Diff completo no painel direito por turno/ferramenta, anotável, aberto por "Open diff" | `apps/web/src/components/DiffPanel.tsx:1426-1440`; `V2ItemInspector.tsx:287-301` | parcial — `review/simple/DraftReviewPanel.tsx` | ADAPTAR | G |
 | 3.27 | Imagens no markdown com estado de carregando/indisponível, fallback copiável e clique para expandir | `apps/web/src/components/chat/ChatMarkdownMedia.tsx:157-250` | parcial | ADAPTAR | M |
 | 3.28 | HTML publicado roda em iframe sandbox, ajusta a altura e abre em tela cheia | `apps/web/src/components/chat/HtmlRenderFrame.tsx:23-124`; `files/BrowserDocumentFrame.tsx:324-328` | não | IGNORAR: não é o nosso produto | G |
@@ -225,12 +237,12 @@ Nota de contexto: a Persona já tem `chat/markdown/MarkdownBody.tsx` (markdown s
 | 3.35 | Fila: mostra 3, envia agora, edita e cancela, com estado otimista antes do servidor | `apps/web/src/components/chat/QueuedRunsControl.tsx:56`; `:280-320` | parcial — `chat/QueuedMessageBubble.tsx`, fila local (P0-18) | PEGAR: o "mostra 3 e esconde o resto" é o que falta | G |
 | 3.36 | Follow-up configurável (enfileirar vs steer) e marcador "Steer" na mensagem enviada | `apps/web/src/components/chat/ChatComposer.tsx:1197-1202`; `TimelineUserMessageRow.tsx:1049-1072` | parcial | ADAPTAR | M |
 | 3.37 | Scroll segue o fim; ao sair, aparece a pílula "Scroll to end" com resumo ("2 na fila", aguardando) | `apps/web/src/components/chat/useTimelineFollow.ts:70`; `TimelineOverlays.tsx:26-51`; `ChatView.tsx:3133-3136` | não | PEGAR: é o F-3 do Flint, com o resumo que faltava | G |
-| 3.38 | Divisores de sistema no fio: "Run interrupted", "New session", troca de modelo/esforço, handoff e fork | `apps/web/src/components/chat/V2LifecycleRow.tsx:80-105`; `:602-646` | parcial — `chat/HarnessEventLine.tsx`, `ActionEventLine.tsx` | ADAPTAR | M |
+| 3.38 | Divisores de sistema no fio: "Run interrupted", "New session", troca de modelo/esforço, handoff e fork | `apps/web/src/components/chat/V2LifecycleRow.tsx:80-105`; `:602-646` | parcial — `chat/HarnessEventLine.tsx`, `chat/ActionEventLine.tsx` | ADAPTAR | M |
 | 3.39 | Fim do turno notifica por toast in-app com "Open thread", som, notificação desktop e badge do dock | `apps/web/src/components/ThreadNotificationCoordinator.tsx:133-210` | parcial — `apps/desktop/src/notifications.ts` pronto, renderer não chama (P0-16) | PEGAR: é o P0-16 | M |
 | 3.40 | Medidor de contexto no composer: anel de uso, tokens e custo estimado no popover | `apps/web/src/components/chat/ContextWindowMeter.tsx:35-146` | parcial — `chat/TurnContextDrawer.tsx` com números fixos (P0-28) | ADAPTAR: mesma forma, dado real | M |
 | 3.41 | Cartão de aprovação pendente aparece inline no lugar da chamada de ferramenta | `apps/web/src/components/chat/TimelinePendingApprovalRow.tsx:34`; `MessagesTimeline.tsx:1267-1269` | sim — `approvals/` | IGNORAR | M |
 | 3.42 | Prompt de automação aparece como bolha dobrada com resumo e link para a automação | `apps/web/src/components/chat/TimelineUserMessageRow.tsx:280-380` | não | ADAPTAR: junto do §17 | P |
-| 3.43 | Rodapé da timeline mostra o que a thread faz agora: atenção, trabalho em background, sincronização e meta | `apps/web/src/components/chat/ThreadNow.tsx:83-102` | parcial — `chat/TeamLine.tsx`, `TypingIndicator.tsx` | ADAPTAR: é o "agora" que a Persona promete | M |
+| 3.43 | Rodapé da timeline mostra o que a thread faz agora: atenção, trabalho em background, sincronização e meta | `apps/web/src/components/chat/ThreadNow.tsx:83-102` | parcial — `chat/TeamLine.tsx`, `chat/TypingIndicator.tsx` | ADAPTAR: é o "agora" que a Persona promete | M |
 
 **Notas da área:**
 - **Não existe cursor piscante** no T3: o streaming só marca `data-streaming` e faz fade-in dos blocos novos (`apps/web/src/index.css:2209`). Também **não há "regenerar resposta"** nem reação em mensagens; a única regeneração é de título de thread (`apps/web/src/components/Sidebar.logic.ts:619-631`).
@@ -273,7 +285,7 @@ A Persona tem o **inbox de aprovações** (`approvals/ApprovalsInboxV2.tsx`, `In
 | 4.21 | Fila de aprovações: várias na mesma thread, cada uma respondível; a primeira é a ativa do composer | `apps/web/src/components/chat/usePendingThreadRequests.ts:260`; `MessagesTimeline.logic.ts:1523-1529` | parcial — `approvals/ReactiveApprovalsList.tsx` | ADAPTAR | M |
 | 4.22 | Aprovações novas ficam "seguradas" (não respondíveis) por 1,5 s enquanto você digita | `apps/web/src/components/chat/composerTypingGuard.ts:1`; `:24-40` | não | PEGAR: evita Enter acidental aprovando comando | P |
 | 4.23 | Aprovação de subagente aparece na conversa pai com o nome da filha | `packages/client-runtime/src/state/threadRequests.ts:358-380`; `chat/ChildThreadApprovals.tsx:78-90` | não | PEGAR: a Persona delega; a aprovação tem que subir | M |
-| 4.24 | Status "Aprovação"/"Aguardando" na sidebar, no inbox e na aba do painel | `sidebar/Sidebar.logic.ts:1096-1101`; `client-runtime/src/state/threadInbox.ts:202-206` | parcial — `shell/rail-team.ts` | ADAPTAR | M |
+| 4.24 | Status "Aprovação"/"Aguardando" na sidebar, no inbox e na aba do painel | `sidebar/Sidebar.logic.ts:1096-1101`; `client-runtime/src/state/threadInbox.ts:202-206` | parcial — `shell/RailTeam.tsx` | ADAPTAR | M |
 | 4.25 | Notificação "Approval needed" no desktop/web e push no celular, com card para responder do mobile | `apps/web/src/components/ThreadNotificationCoordinator.tsx:133-135`; `apps/mobile/.../PendingApprovalCard.tsx:27-38` | não | PEGAR: junto do §13 | G |
 | 4.26 | Registro persistido da decisão: status, `resolvedAt`, `decision` e `feedback` | `packages/contracts/src/orchestrationV2.ts:1236-1238`; `docs/user/activity-log.md:29` | parcial — `decisions/` | ADAPTAR: a auditoria do MAESTRO.md pede exatamente isso | M |
 | 4.27 | Cada modo vira approval policy + sandbox do provedor (`readOnly` / `workspaceWrite` / `dangerFullAccess`) | `apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts:719-755` | não | PEGAR | G |
@@ -295,18 +307,18 @@ A Persona tem o **inbox de aprovações** (`approvals/ApprovalsInboxV2.tsx`, `In
 
 ## §5 · Diff, revisão e source control
 
-A Persona tem o "Revisar" (`review/simple/DraftReviewPanel.tsx`, `ReviewFileList.tsx`, `BeforeAfterText.tsx`, `ConflictChoices.tsx`, `ProjectHistoryView.tsx`) — que é melhor que o do T3 no **produto** (antes/depois por tipo, Desfazer 30 dias) e muito mais pobre no **motor de diff** (sem virtualização, sem busca, sem árvore, sem PR).
+A Persona tem o "Revisar" (`review/simple/DraftReviewPanel.tsx`, `review/simple/ReviewFileList.tsx`, `review/simple/BeforeAfterText.tsx`, `ConflictChoices.tsx`, `ProjectHistoryView.tsx`) — que é melhor que o do T3 no **produto** (antes/depois por tipo, Desfazer 30 dias) e muito mais pobre no **motor de diff** (sem virtualização, sem busca, sem árvore, sem PR).
 
 | # | O que faz | Onde | Persona | Recomendação | Tam. |
 |---|---|---|---|---|---|
 | 5.1 | Seletor de escopo do diff: Changes, Uncommitted, Latest turn e Turn N | `apps/web/src/components/DiffPanel.tsx:824`; `:859` | parcial — `review/simple/DraftReviewPanel.tsx` | PEGAR: "o que mudou neste turno" é a pergunta que a pessoa faz | M |
 | 5.2 | Comparação contra ref base em combobox buscável, incluindo refs só remotas | `apps/web/src/components/DiffPanel.tsx:1015`; `:1030` | não | ADAPTAR | M |
 | 5.3 | Revisão commit a commit pela lista "Commits" do branch | `apps/web/src/components/DiffPanel.tsx:898` | não | ADAPTAR | M |
-| 5.4 | Alternância entre diff empilhado e lado a lado | `apps/web/src/components/DiffPanel.tsx:1172` | parcial — `BeforeAfterText.tsx` | ADAPTAR | P |
+| 5.4 | Alternância entre diff empilhado e lado a lado | `apps/web/src/components/DiffPanel.tsx:1172` | parcial — `review/simple/BeforeAfterText.tsx` | ADAPTAR | P |
 | 5.5 | Quebra de linha no diff | `apps/web/src/components/DiffPanel.tsx:1194` | não | PEGAR: barato e resolve arquivo de texto longo | P |
 | 5.6 | Ignorar mudanças de espaço em branco | `apps/web/src/components/DiffPanel.tsx:1214` | não | PEGAR: sem isso, formatação esconde a mudança real | P |
 | 5.7 | Ocultar arquivos de teste do diff, com contagem dos ocultos | `apps/web/src/components/DiffPanel.tsx:1237`; `diffs/useHideTestFiles.ts:5` | não | ADAPTAR: para a Persona, "ocultar arquivos irrelevantes" | P |
-| 5.8 | Árvore de arquivos alterados com status git, seleção, revelar e expandir/recolher pastas | `apps/web/src/components/diffs/DiffFileTree.tsx:189`; `:146` | parcial — `ReviewFileList.tsx` | ADAPTAR: a árvore com status é melhor que a lista | M |
+| 5.8 | Árvore de arquivos alterados com status git, seleção, revelar e expandir/recolher pastas | `apps/web/src/components/diffs/DiffFileTree.tsx:189`; `:146` | parcial — `review/simple/ReviewFileList.tsx` | ADAPTAR: a árvore com status é melhor que a lista | M |
 | 5.9 | Viewer virtualizado com highlight, cabeçalhos fixos e separadores de hunk expansíveis | `apps/web/src/components/diffs/StyledDiffCodeView.tsx:220`; `:242` | não | ADAPTAR: virtualização só se a Persona mostrar diffs grandes | G |
 | 5.10 | Busca dentro do diff (`mod+F`) com realce, navegação e salto para arquivo dobrado | `apps/web/src/components/diffs/codeViewSearch.test.ts:5`; `patches/@pierre%2Fdiffs@1.6.1.patch:368` | não | PEGAR: é o que falta para revisar mudança grande | G |
 | 5.11 | Carregamento sob demanda dos patches por arquivo (4 primeiros, resto ao rolar) | `apps/web/src/components/diffs/useReviewFilePatches.ts:22`; `DiffFileLoadingBoundary.tsx:8` | não | PEGAR: o mesmo padrão do §DESEMPENHO 1.33 | M |
@@ -349,11 +361,13 @@ A Persona tem o "Revisar" (`review/simple/DraftReviewPanel.tsx`, `ReviewFileList
 
 ## §6 · Terminal
 
-**A Persona não tem terminal nenhum.** É a maior ausência funcional depois do SnapShot. Não é só "um xterm": o valor está em (a) a sessão viver no host e sobreviver à navegação, (b) o agente e a pessoa compartilharem o mesmo shell, e (c) o trecho do terminal virar contexto no composer.
+**Correção importante:** a Persona **tem o backend** — `packages/terminal` expõe `ctx.terminals` (sessões PTY com id opaco, isolamento por dono, limpeza aguardada) e `packages/terminal-bash` registra o backend bash/pwsh sob a política de sandbox, com detecção de prontidão e saída limitada. O que **não existe** é a superfície: nenhuma tela, nenhum drawer, nenhum atalho, e as sessões **morrem no restart** (o README diz "do not survive a restart"). Então o trabalho é expor o que já temos + persistência, não construir um terminal do zero.
+
+Não é só "um xterm": o valor está em (a) a sessão viver no host e sobreviver à navegação, (b) o agente e a pessoa compartilharem o mesmo shell, e (c) o trecho do terminal virar contexto no composer.
 
 | # | O que faz | Onde | Persona | Recomendação | Tam. |
 |---|---|---|---|---|---|
-| 6.1 | Botão no cabeçalho da thread e `mod+j` abrem/fecham o drawer de terminal da thread | `apps/web/src/components/chat/PanelLayoutControls.tsx:91`; `packages/shared/src/keybindings.ts:66` | não | ADAPTAR: a Persona roda CLIs nativas; ver o que elas fazem é metade do valor | P |
+| 6.1 | Botão no cabeçalho da thread e `mod+j` abrem/fecham o drawer de terminal da thread | `apps/web/src/components/chat/PanelLayoutControls.tsx:91`; `packages/shared/src/keybindings.ts:66` | parcial — `ctx.terminals` existe, sem UI | ADAPTAR: a Persona roda CLIs nativas; ver o que elas fazem é metade do valor | P |
 | 6.2 | `+` e `mod+n` criam um terminal novo, ou reusam a sessão existente quando o drawer está vazio | `apps/web/src/components/chat/useChatTerminalActions.ts:185` | não | PEGAR: reusar em vez de empilhar é o detalhe que evita 6 terminais mortos | P |
 | 6.3 | Split horizontal/vertical do grupo ativo (`mod+d` / `mod+shift+d`), limitado a 4 terminais por grupo | `apps/web/src/components/ThreadTerminalDrawer.tsx:1300`; `:1656` | não | ADAPTAR: 4 é um bom teto | M |
 | 6.4 | Sidebar de abas quando há mais de um terminal, com cabeçalhos de grupo e fechar por aba | `apps/web/src/components/ThreadTerminalDrawer.tsx:1652`; `:1385` | não | ADAPTAR | M |
@@ -361,8 +375,8 @@ A Persona tem o "Revisar" (`review/simple/DraftReviewPanel.tsx`, `ReviewFileList
 | 6.6 | Estado do drawer por thread (aberto, altura, ids, grupos, ativo) persiste em localStorage | `apps/web/src/terminalUiStateStore.ts:22`; `:769` | não | PEGAR | M |
 | 6.7 | Até 10 drawers de threads com terminal ficam montados fora da tela para preservar as sessões ao navegar | `apps/web/src/components/chat/ChatTerminalDrawers.tsx:71`; `ChatView.logic.ts:113` | não | PEGAR: sem isso, trocar de conversa mata o processo | M |
 | 6.8 | Terminal nasce no cwd do projeto/worktree, com o env dos scripts do projeto | `apps/web/src/components/PersistentThreadTerminals.tsx:177`; `:186` | não | PEGAR | P |
-| 6.9 | PTY, ciclo de vida e histórico vivem no servidor; o cliente anexa (operate) ou só observa (read) | `apps/web/src/state/terminalSessions.ts:138`; `apps/server/src/terminal/Manager.ts:182` | não | PEGAR: é a arquitetura certa para a Persona (host local) | G |
-| 6.10 | Reconexão reanexa com `resume`; terminal desconhecido reabre o shell e restaura o histórico do disco | `packages/client-runtime/src/state/terminal.ts:61`; `Manager.ts:2984` | não | PEGAR | M |
+| 6.9 | PTY, ciclo de vida e histórico vivem no servidor; o cliente anexa (operate) ou só observa (read) | `apps/web/src/state/terminalSessions.ts:138`; `apps/server/src/terminal/Manager.ts:182` | parcial — `ctx.terminals` já é owner-scoped; falta o histórico e o modo "observar" | PEGAR: é a arquitetura certa para a Persona (host local) | G |
+| 6.10 | Reconexão reanexa com `resume`; terminal desconhecido reabre o shell e restaura o histórico do disco | `packages/client-runtime/src/state/terminal.ts:61`; `Manager.ts:2984` | não — as nossas sessões morrem no restart | PEGAR: é a diferença entre "terminal" e "terminal que serve" | M |
 | 6.11 | Renderer Ghostty (libghostty-vt em WebAssembly) desenha em canvas, com uma instância WASM por aba do navegador | `apps/web/src/terminal/ghostty/core.ts:234`; `runtime.ts:240` | não | ADAPTAR: xterm.js é mais barato; o WASM é otimização de nicho | G |
 | 6.12 | Links no output: URL abre preview ou navegador, caminho de arquivo abre no editor, com validação de existência | `apps/web/src/components/ThreadTerminalDrawer.tsx:1041`; `apps/web/src/terminal-links.ts:33` | não | PEGAR: é o que faz o terminal ser útil e não só decorativo | M |
 | 6.13 | Menu de contexto: Add to chat, Copy, Paste, Select all e Jump to latest | `apps/web/src/components/ThreadTerminalDrawer.tsx:419`; `:902` | não | ADAPTAR | M |
@@ -373,7 +387,7 @@ A Persona tem o "Revisar" (`review/simple/DraftReviewPanel.tsx`, `ReviewFileList
 | 6.18 | Atalhos do app são interceptados antes do shell quando o terminal tem foco; teclas de edição viram sequências do terminal | `apps/web/src/components/ThreadTerminalDrawer.tsx:1002`; `apps/web/src/keybindings.ts:288` | não | PEGAR: sem isso, `Ctrl+K` no terminal quebra o shell | M |
 | 6.19 | Altura do drawer ajustável por arrasto (mín. 180 px, máx. 75% da viewport), gravada ao soltar | `apps/web/src/components/ThreadTerminalDrawer.tsx:111`; `:1701` | não | PEGAR | P |
 | 6.20 | Fit do grid ao painel e resize do PTY; com vários viewers vale o menor grid por eixo | `apps/web/src/terminal/ghostty/surface.ts:868`; `Manager.ts:1732` | não | ADAPTAR | M |
-| 6.21 | Histórico limitado a 5.000 linhas e 8 MiB no servidor (512 KiB no cliente), persistido e lido só pela cauda | `apps/server/src/terminal/Manager.ts:94`; `:1989` | não | PEGAR: o teto é o que impede o app de crescer sem limite | G |
+| 6.21 | Histórico limitado a 5.000 linhas e 8 MiB no servidor (512 KiB no cliente), persistido e lido só pela cauda | `apps/server/src/terminal/Manager.ts:94`; `:1989` | não — o nosso `terminal-bash` só tem saída limitada, sem histórico persistido | PEGAR: o teto é o que impede o app de crescer sem limite | G |
 | 6.22 | Shell padrão `pwsh.exe` no Windows e `$SHELL`/`bash` nos demais, com cadeia de fallback | `apps/server/src/terminal/Manager.ts:514`; `:608` | não | PEGAR: no Windows é `pwsh` ou `powershell` — importa para a Persona | P |
 | 6.23 | Env do PTY herda o ambiente, remove `T3CODE_`/`VITE_`/blocklist, sobrepõe env de runtime e força `COLORTERM=truecolor` | `apps/server/src/terminal/Manager.ts:1352` | não | PEGAR: a blocklist evita vazar segredo para o shell | M |
 | 6.24 | Título da aba vem do comando filho em execução, com fallback "Terminal N" | `apps/server/src/terminal/Manager.ts:379`; `packages/shared/src/terminalLabels.ts:12` | não | PEGAR | M |
@@ -668,7 +682,7 @@ A Persona trata "quem responde" como persona/motor (`chat/ResponderMenu.tsx`, `p
 | 11.26 | Banner "Usage limit reached" com "Resume at reset", "Snooze until reset"/"Wake now" | `apps/web/src/components/chat/UsageLimitRecoveryBanner.tsx:32` | parcial (P0-19) | PEGAR: é o P0-19 | G |
 | 11.27 | Preferências para retomar automaticamente e sonegar threads limitadas até o reset | `apps/web/src/components/settings/SettingsPanels.tsx:1626` | não | PEGAR: junto do 11.26 | P |
 | 11.28 | Cartão de detalhes da thread com janelas restantes e barra de contexto com a marca de compactação | `apps/web/src/components/chat/ThreadDetailsUsage.tsx:43` | parcial — `chat/TurnContextDrawer.tsx` | ADAPTAR: a marca "aqui ele resume" é o que falta | M |
-| 11.29 | Página Usage com Cost/Tokens/Limits e janelas 24 h/7/30/90 dias | `apps/web/src/components/usage/UsagePage.tsx:177` | parcial — `usage/UsageTokenPanel.tsx`, `LocalInsights.tsx` | ADAPTAR: as janelas de tempo são o que falta | G |
+| 11.29 | Página Usage com Cost/Tokens/Limits e janelas 24 h/7/30/90 dias | `apps/web/src/components/usage/UsagePage.tsx:177` | parcial — `usage/UsageTokenPanel.tsx`, `usage/LocalInsights.tsx` | ADAPTAR: as janelas de tempo são o que falta | G |
 | 11.30 | Visão geral: total, sessões, participação por provedor, aviso de registro sem preço | `apps/web/src/components/usage/UsagePage.tsx:585` | parcial | ADAPTAR | M |
 | 11.31 | Gráfico de uso por provedor ao longo de dias/horas, com breakdown por modelo ou por tempo | `apps/web/src/components/usage/UsageProviderChart.tsx:408` | não | ADAPTAR: gráfico só se houver dado real | M |
 | 11.32 | Diálogo do modelo com custo, tokens, custo por 1M, cache hit, tendência e "Set price" | `apps/web/src/components/usage/UsageModelDialog.tsx:36` | não | ADAPTAR | M |
@@ -766,7 +780,7 @@ A Persona tem a **mecânica** pronta (`apps/desktop/src/notifications.ts`, `apps
 | 13.12 | Título da janela mostra o nome do ambiente | `apps/desktop/src/window/DesktopWindow.ts:697` | não | ADAPTAR: "Persona — #geral" identifica a janela na barra | P |
 | 13.13 | Anúncios `aria-live` para leitor de tela (Working, Needs approval, Needs your input, Done, Failed, Stopped) na thread aberta e nas de background | `apps/web/src/components/chat/ThreadActivityAnnouncer.tsx:14`; `BackgroundThreadAnnouncer.tsx:33` | não | PEGAR: a Persona trabalha sozinha; quem não vê a tela precisa saber | M |
 | 13.14 | Linha de "precisa de você" no fim da timeline com `role="alert"` | `apps/web/src/components/chat/ThreadNow.tsx:97` | parcial | ADAPTAR | P |
-| 13.15 | Pílula de status na sidebar: Pending Approval, Awaiting Input, Working, Waiting, Failed, Plan Ready, Completed | `apps/web/src/components/Sidebar.logic.ts:1091` | parcial — `shell/rail-team.ts`, `chat/TeamLine.tsx` | ADAPTAR: a pílula precisa dizer **o quê**, não só o estado | P |
+| 13.15 | Pílula de status na sidebar: Pending Approval, Awaiting Input, Working, Waiting, Failed, Plan Ready, Completed | `apps/web/src/components/Sidebar.logic.ts:1091` | parcial — `shell/RailTeam.tsx`, `chat/TeamLine.tsx` | ADAPTAR: a pílula precisa dizer **o quê**, não só o estado | P |
 | 13.16 | Menu de soneca com presets e "Custom…" | `apps/web/src/components/Sidebar.tsx:2330` | não (P1-20) | PEGAR: é o "Lembrar depois" do T3-UX-HARVEST §10 | M |
 | 13.17 | Diálogo de soneca por data/hora ou duração, validando horário futuro | `apps/web/src/components/CustomSnoozeDialog.tsx:41` | não | PEGAR | M |
 | 13.18 | Permissão de notificação no mobile e canal Android "agent-alerts" com importance HIGH | `apps/mobile/src/features/agent-awareness/notificationPermissions.ts:33` | n/a | IGNORAR | M |
@@ -805,14 +819,14 @@ A Persona já tem `EmptyState`, `Skeleton`, `Toast`/`ToastRegion`, `PanelBoundar
 | 14.2 | Esqueleto com formas `block`/`card`/`pill`, animação só sob `motion-safe` | `apps/web/src/components/ui/skeleton.tsx:16` | sim — `primitives/` `Skeleton` | IGNORAR | P |
 | 14.3 | Spinner com `role="status"` e `aria-label="Loading"`, que pausa fora da viewport, com aba oculta ou reduced-motion | `apps/web/src/components/ui/spinner.tsx:23`; `apps/web/src/lib/visibleAnimation.ts:24` | parcial | PEGAR: a pausa é o item de GPU mais barato do inventário | P |
 | 14.4 | Vazio "sem projeto": herói "What should we work on?" com "Add project" e "Start without a project" | `apps/web/src/components/NoProjectsHero.tsx:13` | sim — `overview/`, `onboarding/` | IGNORAR | P |
-| 14.5 | Vazio "sem thread": "Pick a thread to continue" com cabeçalho "No active thread" | `apps/web/src/components/NoActiveThreadState.tsx:6` | sim | IGNORAR | P |
+| 14.5 | Vazio "sem thread": "Pick a thread to continue" com cabeçalho "No active thread" | `apps/web/src/components/NoActiveThreadState.tsx:6` | parcial — `overview/OverviewView.tsx` cobre o estado, sem o texto de "escolha uma conversa" | ADAPTAR | P |
 | 14.6 | Vazio "sem computador": "No computer connected"/"This computer is off" com passos numerados, login e link de download | `apps/web/src/components/HostedEmptyState.tsx:21` | parcial — `chat/EngineMissingBanner.tsx` | ADAPTAR: os passos numerados com comando copiável | M |
 | 14.7 | Vazio "sem terminal" com botão de nova sessão (desabilitado sem permissão) | `apps/web/src/components/ThreadTerminalDrawer.tsx:1817` | n/a — não temos terminal | IGNORAR: só existe com terminal (§6) | P |
 | 14.8 | Vazio do diff em 4 variantes: sem thread, projeto não é git, sem turno concluído, sem mudança líquida | `apps/web/src/components/DiffPanel.tsx:1283`; `:1291`; `:1368` | parcial — `review/simple/` | PEGAR: as 4 variantes evitam o "vazio genérico" | P |
 | 14.9 | Vazio do preview: "No preview yet" com instrução, ou lista de recentes e servidores descobertos | `apps/web/src/components/preview/PreviewEmptyState.tsx:41` | n/a | IGNORAR | P |
 | 14.10 | Vazio da lista de PRs em 4 variantes (sem projeto, nada sob filtro, sem PR, busca vazia) com "Clear search"/"Check again"/"Load more" | `apps/web/src/components/pullRequest/PullRequestListEmptyState.tsx:48` | não | ADAPTAR: a mesma lógica para Quadros/Arquivos/Rotinas | M |
 | 14.11 | Vazio da sidebar: "No projects yet" com botão inline, ou "No threads yet"/"No threads in {projeto} yet" | `apps/web/src/components/Sidebar.tsx:3638` | parcial | ADAPTAR: é o PB-5 do UX-BEYOND | P |
-| 14.12 | Busca de threads na sidebar: `role="status"` com "Searching thread messages…" ou "No threads found" | `apps/web/src/components/Sidebar.tsx:3282` | parcial — `shell/ConnectedSearchView.tsx` | ADAPTAR | P |
+| 14.12 | Busca de threads na sidebar: `role="status"` com "Searching thread messages…" ou "No threads found" | `apps/web/src/components/Sidebar.tsx:3282` | parcial — `remote/ConnectedSearchView.tsx` | ADAPTAR | P |
 | 14.13 | Paleta sem resultado: "No matching commands, projects, or threads." ou "No matching actions." | `apps/web/src/components/CommandPaletteResults.tsx:37` | parcial | ADAPTAR | P |
 | 14.14 | Composer sem provider: "No provider available" ou "Open provider settings" com ícone de alerta | `apps/web/src/components/chat/ComposerControlsBar.tsx:267` | sim — `chat/EngineMissingBanner.tsx` | IGNORAR | P |
 | 14.15 | Sem conta: item "Sign in to T3 Connect" na sidebar | `apps/web/src/components/clerk/T3ConnectSidebarSignIn.tsx:61` | não | IGNORAR: a Persona é local-first | P |
@@ -855,13 +869,13 @@ A Persona já tem `EmptyState`, `Skeleton`, `Toast`/`ToastRegion`, `PanelBoundar
 
 ## §15 · Onboarding e links de entrada
 
-A Persona tem o onboarding próprio (`onboarding/OnboardingWizard.tsx`, `OnboardingFirstDeliveryStep.tsx`, `TeamIntroQueue.tsx`, `VaultCofrePanel.tsx`) e importadores (`importers/ImportWizard.tsx`, `bring-context/`). O que o T3 tem a mais é a **detecção de prontidão por máquina** e o **link de convidado**.
+A Persona tem o onboarding próprio (`onboarding/OnboardingWizard.tsx`, `onboarding/OnboardingFirstDeliveryStep.tsx`, `TeamIntroQueue.tsx`, `VaultCofrePanel.tsx`) e importadores (`importers/ImportWizard.tsx`, `bring-context/`). O que o T3 tem a mais é a **detecção de prontidão por máquina** e o **link de convidado**.
 
 | # | O que faz | Onde | Persona | Recomendação | Tam. |
 |---|---|---|---|---|---|
 | 15.1 | Gate de primeira execução decide entre app ou wizard; após 4 s mostra "Ainda conectando" com Recarregar, e settings ilegíveis mostram "Não consegui ler as configurações" com Tentar de novo | `onboarding/FirstRunGate.tsx:31`; `:92`; `:171` | parcial — `onboarding/OnboardingShellOverlay.tsx` | ADAPTAR: o timeout de 4 s com saída é o que falta | M |
 | 15.2 | O wizard só abre sozinho na rota inicial; link direto abre normal | `FirstRunGate.tsx:163`; `onboarding/firstRun.logic.ts:148` | parcial | PEGAR: quem clica num link não quer o wizard na cara | P |
-| 15.3 | Pular o setup fechando o diálogo, e retomar depois por `/welcome` | `WelcomeWizard.tsx:229`; `routes/welcome.tsx:26` | parcial — `onboarding-persistence.ts` | ADAPTAR | P |
+| 15.3 | Pular o setup fechando o diálogo, e retomar depois por `/welcome` | `WelcomeWizard.tsx:229`; `routes/welcome.tsx:26` | parcial — `shell/onboarding-persistence.ts` | ADAPTAR | P |
 | 15.4 | Passo Connect lista computadores com checkbox, estado ("Off", "Cliente não suportado" + erro) e auto-seleção dos descobertos | `WelcomeWizard.tsx:353`; `:129` | n/a | IGNORAR: a Persona é um host | M |
 | 15.5 | Opção de conta descobre as máquinas e mostra o comando para rodar em cada uma | `WelcomeWizard.tsx:475`; `:544` | n/a | IGNORAR | G |
 | 15.6 | "Adicionar computador" expande formulário de pareamento com validação e erro inline | `WelcomeWizard.tsx:555`; `:633` | n/a | IGNORAR | M |
@@ -874,7 +888,7 @@ A Persona tem o onboarding próprio (`onboarding/OnboardingWizard.tsx`, `Onboard
 | 15.13 | Projetos agrupados por repositório, com seleção default de repos git ativos em 30 dias com ≥3 conversas e Select all/none | `onboarding/projectImport.logic.ts:4`; `WelcomeWizard.tsx:1477` | não | PEGAR: o default inteligente é o que evita 40 checkboxes | M |
 | 15.14 | Importar cria o projeto e importa threads por candidato, com toast de contagem e aviso de histórico parcial | `WelcomeWizard.tsx:1307`; `:192`; `:1547` | parcial | ADAPTAR | G |
 | 15.15 | Limites do scan/import: 100 transcripts, 4 GiB e 100.000 registros por projeto; 200 mensagens e 32 MiB por conversa | `apps/server/src/project/AgentSessionScanner.ts:71`; `:75` | não | PEGAR: sem teto, importar trava o app | M |
-| 15.16 | Ao concluir, abre uma thread nova no projeto importado | `routes/welcome.tsx:42` | sim — `OnboardingFirstDeliveryStep.tsx` | IGNORAR: a nossa 1ª entrega é melhor | P |
+| 15.16 | Ao concluir, abre uma thread nova no projeto importado | `routes/welcome.tsx:42` | sim — `onboarding/OnboardingFirstDeliveryStep.tsx` | IGNORAR: a nossa 1ª entrega é melhor | P |
 | 15.17 | Home sem projetos oferece "Adicionar projeto" e "Começar sem projeto" | `NoProjectsHero.tsx:38`; `:46` | parcial | ADAPTAR | P |
 | 15.18 | Copiar prompt link do rascunho pela paleta, com toast e limite de 8.000 caracteres | `CommandPalette.tsx:1364`; `promptLinks/copyPromptLink.ts:22` | não | ADAPTAR: útil para o LAUNCH-KIT da Persona | M |
 | 15.19 | Landing do prompt link mostra o prompt, alerta de caracteres ocultos e escolha app/desktop com "Lembrar minha escolha" | `promptLinks/HostedPromptLinkLanding.tsx:22`; `:166` | não | ADAPTAR: junto do marketing | M |
@@ -915,7 +929,7 @@ A Persona tem a **máquina** de atualização (`apps/desktop/src/update-coordina
 | 16.5 | Instala e reinicia após confirmação que **avisa sobre tarefas interrompidas** | `apps/desktop/src/updates/DesktopUpdates.ts:827`; `desktopUpdate.logic.ts:123` | não | PEGAR: a Persona trabalha sozinha; reiniciar sem avisar mata trabalho | M |
 | 16.6 | Falha de instalação mantém janelas abertas, reinicia os backends parados e grava estado de erro "install" | `apps/desktop/src/updates/DesktopUpdates.ts:813-830`; `DesktopUpdates.test.ts:503` | não | PEGAR: recuperação de update quebrado é obrigação de app instalado | M |
 | 16.7 | Detecta que o app reiniciou na versão antiga e oferece retry, sem reinstalar sozinho | `apps/desktop/src/updates/updateMachine.ts:220`; `DesktopUpdates.ts:685` | não | PEGAR: evita o loop de "atualiza e não muda" | P |
-| 16.8 | Canal Stable/Nightly no autoUpdater (prerelease, changelog completo, downgrade bloqueado) | `apps/desktop/src/updates/DesktopUpdates.ts:513`; `updateChannels.ts:4` | parcial — `updates/electron-updater/channel.ts` | ADAPTAR | P |
+| 16.8 | Canal Stable/Nightly no autoUpdater (prerelease, changelog completo, downgrade bloqueado) | `apps/desktop/src/updates/DesktopUpdates.ts:513`; `updateChannels.ts:4` | parcial — `apps/desktop/src/updates/electron-updater/channel.ts` | ADAPTAR | P |
 | 16.9 | Troca de trilha move o app e todas as máquinas conectadas, bloqueando se o banco tem migração não suportada | `apps/web/src/components/settings/UpdateTrackSwitchDialog.tsx:35`; `sidebar/updateEverything.logic.ts:158` | não | IGNORAR: multi-máquina não é o nosso v1 | G |
 | 16.10 | "Atualizar tudo": provedores, servidores atrasados e, por fim, o app desktop | `apps/web/src/components/sidebar/useUpdateEverything.ts:51` | não | IGNORAR | G |
 | 16.11 | Diálogo de confirmação lista máquinas, as puladas com motivo, e conta threads interrompidas/retomáveis | `apps/web/src/components/sidebar/UpdateEverythingDialog.tsx:67`; `:223` | não | ADAPTAR: a contagem de threads interrompidas vale mesmo com uma máquina | M |
@@ -958,13 +972,13 @@ A Persona tem a **máquina** de atualização (`apps/desktop/src/update-coordina
 
 ## §17 · Tarefas agendadas e webhooks
 
-A Persona tem **Rotinas** (`client/routines/`), que é o mesmo conceito na metade do caminho: agenda e editor, sem destino por execução, sem webhook, sem assinatura, sem filtros, sem dedupe.
+A Persona tem **Rotinas** (`routines/`), que é o mesmo conceito na metade do caminho: agenda e editor, sem destino por execução, sem webhook, sem assinatura, sem filtros, sem dedupe.
 
 | # | O que faz | Onde | Persona | Recomendação | Tam. |
 |---|---|---|---|---|---|
-| 17.1 | Lista de tarefas agendadas com filtro por ambiente e por projeto, e criação/edição numa tela só | `apps/web/src/components/settings/ScheduledTasksSettings.tsx:1`; `:307` | parcial — `client/routines/RoutinesView.tsx` | ADAPTAR: a nossa lista é por rotina; falta o filtro por projeto | M |
+| 17.1 | Lista de tarefas agendadas com filtro por ambiente e por projeto, e criação/edição numa tela só | `apps/web/src/components/settings/ScheduledTasksSettings.tsx:1`; `:307` | parcial — `routines/RoutinesView.tsx` | ADAPTAR: a nossa lista é por rotina; falta o filtro por projeto | M |
 | 17.2 | Agendamento por hora fixa usa o fuso do **ambiente**, não o do aparelho | `docs/user/project-settings.md` §Scheduled tasks | não | PEGAR: evita "rodou 3 h errado" quando o desktop muda de fuso | P |
-| 17.3 | Opção **Uma vez** agenda uma execução única no fuso de quem criou | `docs/user/project-settings.md` §Scheduled tasks | parcial — `client/routines/routine-schedule.ts` | ADAPTAR | P |
+| 17.3 | Opção **Uma vez** agenda uma execução única no fuso de quem criou | `docs/user/project-settings.md` §Scheduled tasks | parcial — `routines/routine-schedule.ts` | ADAPTAR | P |
 | 17.4 | **Destino** por execução: thread nova a cada rodada, mesma conversa, ou sessão nova na mesma thread (contexto não cresce) | `apps/web/src/components/settings/ScheduledTasksSettings.tsx:1172` | não | PEGAR: é o que impede a rotina de virar uma thread infinita e caríssima | M |
 | 17.5 | Cada tarefa pode ser editada, pausada, retomada, rodada na hora e apagada; webhook não roda na hora | `apps/web/src/components/chat/ThreadAutomationsPanel.tsx:211` | parcial | ADAPTAR | M |
 | 17.6 | Painel de automações **dentro da thread**: mostra as tarefas daquela conversa e leva para a gestão | `apps/web/src/components/chat/ThreadAutomationsPanel.tsx:43`; `:142` | não | PEGAR: a rotina precisa aparecer onde o trabalho acontece | M |

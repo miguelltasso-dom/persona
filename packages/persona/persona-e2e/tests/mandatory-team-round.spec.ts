@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest'
 import { cleanChildEnv } from '../src/clean-env.ts'
 import { fakeRunnerSignature } from '../src/ledger-evidence.ts'
 import { ARTIFACTS_DIR, REPO_ROOT } from '../src/paths.ts'
-import { ATTACHMENT_NAME, CAST, DELIVERY_END, PreflightRefusal, runTeamRound, type TeamRoundResult } from '../src/team-round-driver.ts'
+import { ART_FILE, ATTACHMENT_NAME, CAST, DELIVERY_END, PreflightRefusal, runTeamRound, type TeamRoundResult } from '../src/team-round-driver.ts'
 import { ledgerWarnings } from '../src/team-round-guard.ts'
 import { describeBehaviors } from '../src/team-round-verdict.ts'
 import { gitCommit, libHash, manifestChanges, treeFingerprint, treeManifest, type TreeManifest } from '../src/tree-fingerprint.ts'
@@ -61,7 +61,7 @@ function summarize(result: TeamRoundResult): Record<string, unknown> {
     // Keel 07/11: WHICH of the six behaviors happened and by which road (the host's plan or the model's choice), so a pass on "split + sealed review" is not read as "the model chose to collaborate".
     behaviorsVia: result.transcript === undefined ? null : describeBehaviors(result.transcript, result.morningBrief),
     threadLines: result.threadLines, reading: { shown: result.reading.shown, hidden: result.reading.hidden },
-    stubImageTurns: result.stubImageTurns ?? null, stubRequestTurns: result.stubRequestTurns ?? null, answeredAsks: result.answeredAsks, askStopped: result.askStopped ?? null,
+    stubImageTurns: result.stubImageTurns ?? null, stubRequestTurns: result.stubRequestTurns ?? null, stubProof: result.stubProof ?? null, draftProof: result.draftProof ?? null, answeredAsks: result.answeredAsks, askStopped: result.askStopped ?? null,
     asks: result.transcript?.asks ?? null, quota: result.quota, morningBrief: result.morningBrief ?? null, diagnostics: result.diagnostics ?? null, hostSoftLines: result.hostSoftLines, shots: result.shots,
     notes: result.transcript === undefined ? null : { count: result.transcript.notes.length, notes: result.transcript.notes },
     reviews: result.transcript === undefined ? null : result.transcript.reviews,
@@ -103,8 +103,32 @@ describe('TEAM-10 ensaio com o fake — mesma configuração da rodada real (0 I
     // parts answer with a long delivery that ends in DELIVERY_END, so a reviewer's Task must carry it. Recorded in the proof always; it FAILS the rehearsal when
     // `PERSONA_TEAM10_FULL_NOTE=1` (turned on for the next real attempt, once Tally/Bolt deliver the fix).
     const reviewTexts = result.transcript?.reviewAssignments ?? []
-    const wholeDelivery = reviewTexts.length > 0 && reviewTexts.every(text => text.includes(DELIVERY_END))
+    const promptsWhole = result.reviewPromptsWhole
+    // Bolt 07/11: the whole delivery is in the PROMPT of the reviewer's turn (`<entrega>` block), not in the card note — that is what the stub saw.
+    const wholeDelivery = promptsWhole !== undefined ? promptsWhole.turns > 0 && promptsWhole.whole === promptsWhole.turns : reviewTexts.length > 0 && reviewTexts.every(text => text.includes(DELIVERY_END))
     if (process.env.PERSONA_TEAM10_FULL_NOTE === '1' && !wholeDelivery) problems.push(`the reviewer's Task does not carry the WHOLE delivery (${String(reviewTexts.filter(text => !text.includes(DELIVERY_END)).length)} of ${String(reviewTexts.length)} review Task(s) miss its last words "${DELIVERY_END}"): the review note is clipped`)
+    // Attempt 4 (Atlas D-099, conditions 2): the art is a FILE in the Task's DRAFT of a project WITH a folder — never in the real folder before Apply — and the persona was started in the
+    // writing mode of the contract (Tally P0-1): acceptEdits + the file tools, cwd = the draft.
+    const draft = result.draftProof
+    if (draft === undefined) problems.push('no draft proof was collected')
+    else {
+      // Only the ART part writes the art (Atlas 07/11, P0-1: the stub no longer writes it in every turn); who ELSE holds it is the shared-files rule below, not a count of the writers.
+      const withArt = draft.drafts.filter(item => item.artBytes > 0)
+      if (withArt.length < 1) problems.push(`no draft holds the art file "${ART_FILE}" (non-empty): the art part did not save it: ${JSON.stringify(draft.drafts)}`)
+      if (draft.realFolderFiles.some(name => name === ART_FILE)) problems.push('the art file is already in the REAL folder before Apply/Revisar')
+      if (!draft.writerArgvs.some(argv => /--permission-mode\s+acceptEdits/u.test(argv) && /--tools\s+\S*Write/u.test(argv))) problems.push(`no turn started with "--permission-mode acceptEdits" and the Write tool (argv: ${draft.writerArgvs.join(' | ') || 'none'})`)
+      if (!draft.turnCwds.some(cwd => draft.drafts.some(item => item.directory === cwd))) problems.push(`no turn ran inside a Task draft directory (cwds: ${draft.turnCwds.join(' | ')})`)
+    }
+    // The three P0 of the real round of 07/11 (Atlas read attempt 4 and held the delivery; Keel 09/11). RED on a tree that still has them, green when Bolt (P0-1) and Tally (P0-2/P0-3) close:
+    //   P0-1 shared files  — the drafts on disk (the request's attachment in every receiving Task, the bilhete's files in the colleague's draft, the reviewer holds what the author saved, every
+    //                        file a Task is told about exists where it works) + the stub's own look at its working directory when each turn started + no file recreated for a missing copy;
+    //   P0-2 narration     — nothing of what the model says between tool calls in the thread, bilhete, review or opinion ("Vou começar…", "Nenhum arquivo…", "contém.Nenhum");
+    //   P0-3 jargon / PNG  — no "ferramenta de shell", nobody asks anybody to export a PNG, and the persona is TOLD the app makes the PNG of an SVG by itself.
+    const p0Problems = (result.verdict?.harnessProblems ?? []).filter(problem => /^P0-/u.test(problem))
+    problems.push(...p0Problems, ...(result.stubProof?.problems ?? []))
+    if (result.stubProof === undefined) problems.push('the stub proof (P0-1 cwd look, tool calls, tool catalog) was not collected')
+    // The opinion of the team (behavior 4) must be exercised: the request asks for it in plain words and the rehearsal must show the round.
+    // (Keel 17:24) a stub cannot call ask_team_opinion (a tool of the model): behavior 4 is proven by Forge's dry with the REAL CLI + a fake endpoint on this same fingerprint, recorded in the proof, not here.
     // Behavior 5 of D-097 (Keel 07/11): the peer review runs to its SEAL ("Revisado por"). The stub answers the reviewer's Task with the first-line verdict the host reads in words, so a
     // fake with no review, or a review that did not seal, means the review pipeline is broken in this tree (the real round would only waste a turn of the reviewer on it).
     const behaviors = result.verdict?.behaviors
@@ -144,7 +168,8 @@ describe('TEAM-10 ensaio com o fake — mesma configuração da rodada real (0 I
       run, problems, hostFlags: result.preflight.hostFlags ?? null, turns: result.ledger?.turns ?? null, stubImageTurns: result.stubImageTurns ?? null, stubRequestTurns: result.stubRequestTurns ?? null,
       note: 'the verdict of a fake round is expected to REJECT (scripted answers, no real handoffs); what is proven is the plumbing: preflight, seeding, image, ledger, transcript',
       verdictOnFake: result.verdict?.problems ?? null, behaviorsOnFake: result.verdict?.behaviors ?? null, reviewsOnFake: result.transcript?.reviews ?? null,
-      fullDeliveryInReview: wholeDelivery, reviewTasks: reviewTexts.length, fullNoteRequired: process.env.PERSONA_TEAM10_FULL_NOTE === '1',
+      draftProof: result.draftProof ?? null, fullDeliveryInReview: wholeDelivery, reviewTasks: reviewTexts.length, fullNoteRequired: process.env.PERSONA_TEAM10_FULL_NOTE === '1',
+      p0: { problems: [...p0Problems, ...(result.stubProof?.problems ?? [])], stub: result.stubProof ?? null, textRules: 'src/team-p0-rules.ts', filesRules: 'src/team-draft-checks.ts' },
     }, null, 2))
     expect(problems, `see ${outDir}`).toEqual([])
   }, 12 * 60_000)

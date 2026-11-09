@@ -194,13 +194,16 @@ describe('the request is NATURAL (D-097): no word that switches a team tool on',
   it('the TEAM-10 request names nobody and carries no "peça…/depois o…/opinião da equipe" trigger — whether the team collaborates is the model\'s decision', async () => {
     const { REQUEST_TEXT, CAST, ATTACHMENT_NAME } = await import('../src/team-round-driver.ts')
     // Attempt 3 (Atlas 07/11, Bolt's text): natural AND self-sufficient — attempt 2 had no facts, so the Téo (rightly) asked the person and the round measured nothing.
-    expect(REQUEST_TEXT).toBe('Faz o cartaz da promoção do pão de queijo da Padaria Lua para o Instagram: 2 por R$ 9 de sexta a domingo, pedidos pelo WhatsApp (11) 91234-5678. Preciso do texto e da arte; a foto é o rascunho atual.')
+    // Attempt 4 (Atlas D-099): the same request plus ONE human phrase asking for the opinion of the team — no tool name, no @, no handoff trigger.
+    const PHRASE = ' Quero a opinião do time sobre a arte antes de eu aprovar.'
+    expect(REQUEST_TEXT).toBe(`Faz o cartaz da promoção do pão de queijo da Padaria Lua para o Instagram: 2 por R$ 9 de sexta a domingo, pedidos pelo WhatsApp (11) 91234-5678. Preciso do texto e da arte; a foto é o rascunho atual.${PHRASE}`)
+    expect(REQUEST_TEXT).not.toMatch(/ask_|pass_forward|ferramenta/iu)
     expect(REQUEST_TEXT, 'the offer, the price, the days and the channel are in the request').toMatch(/pão de queijo.*2 por R\$ 9.*sexta a domingo.*WhatsApp/u)
     expect(REQUEST_TEXT, 'both parts are asked for the way a person says it').toMatch(/texto e da arte/u)
     expect(REQUEST_TEXT.length, 'far beyond the ~80 characters the first attempt\'s title was cut at').toBeGreaterThan(150)
     expect(REQUEST_TEXT).not.toMatch(/@/u)
     for (const member of CAST) expect(REQUEST_TEXT.toLowerCase(), member.name).not.toContain(member.name.toLowerCase())
-    expect(REQUEST_TEXT).not.toMatch(/\b(?:pe[çc]a|pe[çc]am|pedir|depois\s+o|em\s+seguida|opini|equipe|time|colega)/iu)
+    expect(REQUEST_TEXT.replace(PHRASE, '')).not.toMatch(/\b(?:pe[çc]a|pe[çc]am|pedir|depois\s+o|em\s+seguida|opini|equipe|time|colega)/iu)
     expect(ATTACHMENT_NAME).toMatch(/\.png$/u)
   })
 })

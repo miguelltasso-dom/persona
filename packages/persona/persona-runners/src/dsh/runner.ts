@@ -143,6 +143,7 @@ export function createDshRunner(options: DshRunnerOptions): Runner {
           yield { type: 'report', at, report: { state: 'progress', summary: event.text } }
         } else if (event.type === 'tool') {
           yield { type: 'report', at: eventTime(now), report: { state: 'progress', summary: `tool:${event.name}` } }
+          live.partialText = '' // P0-2: the answer is the text after the last tool, never the pieces between them
           const elapsed = event.elapsedMs ?? 0
           if (elapsed > backgroundShellAfterMs) {
             yield {

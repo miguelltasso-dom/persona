@@ -139,7 +139,7 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
     },
   },
   ask_team_opinion: {
-    description: 'Ask the team for a short opinion on your draft (text and/or attached images); each reply is marked liked / suggestion / attention. Rounds cost the person time and money and are limited: use only when worth it, then decide and go on.',
+    description: 'Ask the team for a short opinion on your draft (text and/or attached images); each reply is marked liked / suggestion / attention. Rounds cost the person time and money and are limited: use only when worth it, then decide and go on. Art goes as an SVG saved in your draft: the host turns it into a PNG by itself when it is delivered or shown to the team, so never ask anyone to export a PNG.',
     inputSchema: {
       'type': 'object',
       'additionalProperties': false,
@@ -200,7 +200,7 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
     },
   },
   ask_colleague: {
-    description: 'Ask a colleague for help with part of YOUR task and wait for their delivery. Limited per task and per day; not someone already in this chain; two levels at most. After it succeeds, finish what you can and end your turn saying what you wait for; do not do their part. The colleague does NOT see your answer or this conversation: put what they need in done/files, never "below".',
+    description: 'Ask a colleague for help with part of YOUR task and wait for their delivery. Limited per task and per day; not someone already in this chain; two levels at most. After it succeeds, finish what you can and end your turn saying what you wait for; do not do their part. The colleague does NOT see your answer or this conversation: put what they need in done/files, never "below". Art goes as an SVG saved in your draft: the host turns it into a PNG by itself when it is delivered or shown to the team, so never ask anyone to export a PNG.',
     inputSchema: {
       'type': 'object',
       'additionalProperties': false,
@@ -246,7 +246,7 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
     },
   },
   pass_forward: {
-    description: 'Pass the work on to a colleague with a note: your part is done, the next is theirs, and you do not wait. Same limits as asking for help. Then deliver YOUR part; never theirs. Your whole answer of this turn goes along automatically: in the note say only what is missing and what you decided.',
+    description: 'Pass the work on to a colleague with a note: your part is done, the next is theirs, and you do not wait. Same limits as asking for help. Then deliver YOUR part; never theirs. Your whole answer of this turn goes along automatically: in the note say only what is missing and what you decided. Art goes as an SVG saved in your draft: the host turns it into a PNG by itself when it is delivered or shown to the team, so never ask anyone to export a PNG.',
     inputSchema: {
       'type': 'object',
       'additionalProperties': false,

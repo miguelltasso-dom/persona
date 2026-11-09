@@ -60,4 +60,17 @@ describe('a short human title for one part of a request (EQUIPE-REAL-SPEC §0)',
     expect(humanTaskTitle('arte', 'faça o cartaz para o nosso evento de sexta')).toBe('Arte do cartaz')
     expect(humanTaskTitle('texto', 'preciso do cardápio de inverno')).toBe('Texto do cardápio de inverno')
   })
+
+  it('TEAM-10 attempt 4 (P1): the INFORMAL imperative ("Faz o cartaz…", "Cria…", "Me monta…") is a verb too — a part never reads "Arte de Faz o cartaz…"', () => {
+    const request = 'Faz o cartaz da promoção do pão de queijo da Padaria Lua para o Instagram: 2 por R$ 9 de sexta a domingo, pedidos pelo WhatsApp (11) 91234-5678.'
+    const title = humanTaskTitle('Arte', request)
+    expect(title.startsWith('Arte do cartaz da promoção do pão de')).toBe(true)
+    expect(title).not.toMatch(/faz/iu)
+    expect(title.length).toBeLessThanOrEqual(TASK_TITLE_MAX)
+    expect(humanTaskTitle('Texto', request).startsWith('Texto do cartaz da promoção')).toBe(true)
+    expect(humanTaskTitle('arte', 'cria o cartaz da feira')).toBe('Arte do cartaz da feira')
+    expect(humanTaskTitle('texto', 'Me escreve o texto do post')).toBe('Texto do post')
+    expect(humanTaskTitle('arte', 'Por favor, me monta a arte da campanha de Natal')).toBe('Arte da campanha de Natal')
+    expect(subjectOf('Prepara o relatório de vendas.')).toEqual({ subject: 'relatório de vendas', article: 'o' })
+  })
 })

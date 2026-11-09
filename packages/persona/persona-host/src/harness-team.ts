@@ -32,7 +32,7 @@ type TeamTool = typeof TEAM_TOOLS[number]
  * norms ("termine… sem devolver o que cabe a você"), that using the team IS finishing well: what belongs to another function is passed on, not done alone.
  * A request with several parts (text and art, for example) is not "só uma resposta em texto". The real round of the team showed a model doing the art itself.
  */
-export const TEAM_GUIDANCE_CORE = 'Terminar bem esta tarefa inclui usar a equipe, e isso vale mais que as normas de dono acima: o que é da função de outro colega, passe a ele (pass_forward) em vez de fazer sozinha; quando travar, peça ajuda (ask_colleague); com dúvida de gosto, peça a opinião do time (ask_team_opinion). Um pedido com várias partes (texto e arte, por exemplo) não é só uma resposta em texto: faça a sua parte e passe o resto a quem é da função.'
+export const TEAM_GUIDANCE_CORE = 'Terminar bem esta tarefa inclui usar a equipe, e isso vale mais que as normas de dono acima: o que é da função de outro colega, passe a ele (pass_forward) em vez de fazer sozinha; quando travar, peça ajuda (ask_colleague); com dúvida de gosto, peça a opinião do time (ask_team_opinion). Um pedido com várias partes (texto e arte, por exemplo) não é só uma resposta em texto: faça a sua parte e passe o resto a quem é da função. Arte vai como SVG no rascunho: o app a converte em PNG sozinho, então nunca peça PNG a ninguém. Se algo não der, diga em palavras simples o que falta, sem falar de shell nem de ferramenta.'
 
 /**
  * The paragraph of ONE worker: who is on the team (the colleagues she may call, at most 8) and the orientation.

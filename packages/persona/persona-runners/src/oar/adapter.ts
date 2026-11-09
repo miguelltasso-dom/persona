@@ -203,6 +203,11 @@ function cacheFromVendor(total: object): Pick<RunnerUsage, 'cacheReadTokens' | '
   }
 }
 
+/** A tool call, as the adapter reports it (`tool:<name>`). The text of the persona before it is her thinking aloud, never her answer (P0-2). */
+function isToolCall(event: RunEvent): boolean {
+  return event.type === 'report' && /^tool:[\w:./-]{1,120}$/u.test(event.report.summary)
+}
+
 function eventText(event: Event): string | undefined {
   if (event.kind === 'text_delta') return event.text
   const record = event as Event & { text?: string; delta?: string; content?: string }
@@ -520,6 +525,9 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
           }
           pending.push(mapped)
           if (mapped.type === 'ended') live.finished = true
+          // P0-2: what the persona writes between tools is her thinking aloud ("Vou verificar…"); her answer is the text AFTER the last tool, so the
+          // cumulative text restarts here (the pieces were glued into one line in the TEAM-10 attempt 4: "…contém.Nenhum arquivo…").
+          if (isToolCall(mapped)) live.partialText = ''
         }
       }
       settleIfIdle(live, now)

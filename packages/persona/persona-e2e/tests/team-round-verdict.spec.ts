@@ -39,7 +39,7 @@ const NOTE: TranscriptNote = {
 }
 
 function transcript(overrides: Partial<TeamTranscript> = {}): TeamTranscript {
-  return { lines: GOOD_LINES, tickets: [], ledger: ledger([{}, {}, {}]), names: {}, personas: ['Bia', 'Téo', 'Atlas'], leaks: [], ignoredTypes: {}, notes: [NOTE], reviews: [], asks: [], splitTasks: 0, splitAssignments: [], reviewAssignments: [], ...overrides }
+  return { lines: GOOD_LINES, tickets: [], ledger: ledger([{}, {}, {}]), names: {}, personas: ['Bia', 'Téo', 'Atlas'], leaks: [], ignoredTypes: {}, notes: [NOTE], reviews: [], asks: [], splitTasks: 0, splitAssignments: [], reviewAssignments: [], draftDirectories: [], ...overrides }
 }
 
 describe('evaluateTeamRound', () => {

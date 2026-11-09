@@ -91,6 +91,7 @@ import { ExecutionBudget } from './budget.ts'
 import { silenceUntilOf } from './proactivity.ts'
 import { HeldMessages, heldLine } from './held-messages.ts'
 import { draftFilesOfTurn, filesSavedBody } from './draft-turn-files.ts'
+import { sanitizeUploadName } from './media-detect.ts'
 import { MessageFlags } from './message-flags.ts'
 import { warmKeySuffix } from './connector-policy.ts'
 import { firstMention, mentionsOf } from './mentions.ts'
@@ -115,11 +116,13 @@ import {
   autonomyLevelOf,
   createHostRunner,
   lastRunnerAsk,
+  lastRunnerNarrated,
   lastRunnerQuestion,
   lastRunnerReport,
   lastRunnerReportAt,
   setRunnerPartialSink,
   lastRunnerText,
+  NO_FINAL_WORDS,
   permissionFor,
   runnerHomeOf,
   specFromConnection,
@@ -2494,7 +2497,10 @@ export class Orchestration {
         const held = this.actions?.settle(runner, { ticketId: ticket.id, failed: lastRunnerReport(runner)?.state === 'failed', stopped: stoppedNow })
         if (stoppedNow) continue // Parar: the ticket already ended as stopped by the person
         const report = lastRunnerReport(runner)
-        const live = this.takeLive(runner)
+        // P0-2: her words are the text after her last tool. A turn that spoke only between tools (and ended on one) has no words of its own: ONE short
+        // human sentence stands in (the line, the bilhete and the review carry it), never the monologue and never the adapter's placeholder.
+        const finalWords = this.takeLive(runner)
+        const live = finalWords !== '' ? finalWords : lastRunnerNarrated(runner) ? NO_FINAL_WORDS : ''
         await this.noteDraftFiles(event, executor, ticket, turnFrom)
         // A turn of a real CLI that called no report tool ends with the adapter's placeholder (“turn ended”, persona-runners oar/adapter.ts): the words of
         // the delivery are what she said. The Task's report, the review request and the hand-off hook must carry THOSE words, not the placeholder.
@@ -3433,7 +3439,8 @@ export class Orchestration {
         mandateActorId: event.actorId,
         assignment: [
           `Pedido da pessoa: “${clip(event.body, 1500)}”`,
-          ...(files.length === 0 ? [] : [`Anexos do pedido: ${files.join(', ')}.`]),
+          // The REAL path in the part's draft (draft-inbox.ts copies the original attachments to `inputs/<name>`), never just the bare name.
+          ...(files.length === 0 ? [] : [`Anexos do pedido: ${files.map(name => `inputs/${sanitizeUploadName(name)}`).join(', ')}.`]),
           `Sua parte: ${label}.${others.length === 0 ? '' : ` O resto do pedido foi para ${joinNames(others.map(item => `${item.persona.name} (${joinNames(item.cues)})`))}: não faça a parte deles.`}`,
           'Faça a sua parte e entregue o resultado em texto (e os arquivos no projeto, se for o caso).',
         ].join('\n'),

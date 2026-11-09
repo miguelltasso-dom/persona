@@ -84,10 +84,12 @@ describe('team transcript', () => {
     // the bilhete is read from the Task side, with names, and is NOT a thread line
     expect(transcript.notes).toEqual([expect.objectContaining({ from: 'Bia', to: 'Téo', title: 'Arte do cartaz', status: 'delivered', done: ['Texto do cartaz pronto'], needed: ['Imagem do pão de queijo'], files: ['cartaz/texto.md'], decisions: ['Tom: alegre'] })])
     expect(transcript.lines[2]!.attachments).toEqual(['cartaz.png'])
+    // (P0-1, 09/11) a Ticket also says where it came from (`trigger`) and what the worker was handed (`assignment`): the shared-files rule reads "Anexos do pedido" and "Arquivos:" from it
     expect(transcript.tickets).toEqual([
       { id: 't1', title: 'Cartaz da promoção', stage: 'person', assignmentState: 'running', ended: false },
-      { id: 't2', title: 'Arte do cartaz', stage: 'person', assignmentState: 'running', ended: false },
+      expect.objectContaining({ id: 't2', title: 'Arte do cartaz', stage: 'person', assignmentState: 'running', ended: false, trigger: 'h1', assignment: expect.stringContaining('<bilhete>') }),
     ])
+    expect(transcript.drafts).toEqual([]) // the seeded home has no worktrees: nothing to read, and the shared-files rule then has nothing to say
     // positive proof: the colleague's Ticket (origin.triggerId = 'h1') carries the bilhete
     expect(transcript.notes[0]).toMatchObject({ id: 'h1', colleagueReceived: true, colleagueTicketId: 't2' })
     expect(transcript.ledger).toMatchObject({ turns: 1, inputTokens: 9000, outputTokens: 400, allMeasured: true })
@@ -134,7 +136,7 @@ describe('team transcript', () => {
     const db = new DatabaseSync(join(home, 'db', 'persona.db'))
     // the person attached "foto.png" to her own request; the handoff lists it among its files, next to a real project file
     db.prepare("INSERT INTO attachment VALUES ('a-foto', 'm1', 'foto.png')").run()
-    db.prepare("UPDATE screen_doc SET body = json_set(body, '$.note.files', json('[\"cartaz/texto.md\",\"foto.png\"]')) WHERE kind = 'handoff'").run()
+    db.prepare("UPDATE screen_doc SET body = json_set(body, '$.note.files', json('[\"cartaz/texto.md\",\"foto.png\",\"artes/loja/cartaz-final.svg\"]')) WHERE kind = 'handoff'").run()
     const message = db.prepare('INSERT INTO event VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)')
     message.run('m13', 'channel:geral', 13, 'message', 'O foto.png não mostra pão de queijo: é um gráfico com um círculo vermelho.', 'p-teo', '2026-11-05T10:03:00.000Z', 13)
     message.run('m14', 'channel:geral', 14, 'message', 'Guardei o rascunho em cartaz/texto.md para a revisão.', 'p-teo', '2026-11-05T10:03:10.000Z', 14)
@@ -142,8 +144,12 @@ describe('team transcript', () => {
     message.run('m16', 'channel:geral', 16, 'message', 'O bilhete foi cortado logo após a menção ao SVG; não consegui conferir a arte.', 'p-bia', '2026-11-05T10:03:30.000Z', 16)
     // a typed REVIEW line carries the reviewer's own points (model words), so the word there is not the host copying the note either
     message.run('m17', 'channel:geral', 17, 'review', 'Lia pediu ajustes a Téo: Reenviar o SVG completo. O bilhete foi cortado após o SVG.', 'owner', '2026-11-05T10:03:40.000Z', 17)
+    // D-099: the product announces a saved art file in the thread; the persona then cites its path — neither is the note leaking
+    message.run('m18', 'channel:geral', 18, 'message', 'Téo salvou cartaz-final.svg no rascunho', 'p-teo', '2026-11-05T10:03:50.000Z', 18)
+    message.run('m19', 'channel:geral', 19, 'message', 'O arquivo artes/loja/cartaz-final.svg está no rascunho.', 'p-teo', '2026-11-05T10:04:00.000Z', 19)
     db.close()
     const leaks = readTeamTranscript(home)!.leaks.join('\n')
+    expect(leaks, 'a file the product announces ("salvou … no rascunho") and its path are public').not.toMatch(/m1[89]:/u)
     expect(leaks, 'the name of the person\'s own attachment is public to her').not.toContain('m13:')
     expect(leaks, 'a bilhete file that was NOT attached by the person still leaks').toContain('m14: bilhete text in the thread: "cartaz/texto.md"')
     expect(leaks, 'a line the HOST wrote (a typed team line) must never carry the word').toContain('m15: handoff note ("bilhete") visible in the thread')

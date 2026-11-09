@@ -1,5 +1,13 @@
 # Cobalt — relato (builder de backend novo; HT-5)
 
+## 09/11 — Linha de base v1.1 no app INSTALADO (Setup 941fd2a5) — "sem janela" não reproduz
+
+**Feito.** Instalei o Setup final (`C:\p8c\Persona-Setup.exe`, sha256 `941fd2a5…127d`, commit `3660c033a5`) em `C:\p8perf` (silencioso, 51,7 s, exit 0) e rodei o `perf-probe.mjs` (5 execuções: 1 fria + 4 quentes) sob `with-lock build`. Números completos em `persona-spec/research/perf/MEDICAO.md` §7.
+
+**Números.** Instalado 1,18 GiB / 8.218 arquivos; asar 248.585.695 B / 20.944 arquivos; unpacked 254,1 MiB; runtime 266,8 MB; locales 50,6 MB; mingit 96,2 MB; instalador 329,6 MiB. RAM parada **945,5 MB** (main 160, GPU 272,5, renderer 171,5, host 288,5, utility 52,5); CPU parado GPU **56%**, renderer 11%, host 3%. O host sobe o servidor Web em **7,5 s**; o shell chega em **10,1 s** no rig do Muse.
+
+**Veredito do "sem janela".** **NÃO reproduz fora do probe.** O `perf-probe` spawna com `windowsHide: true` (o SO esconde a janela) e o watcher bloqueia o event loop por 180 s. Pelo rig do Muse (`startInstalledDesktop`, CDP, home limpa, fake CLI): página **754 ms**, shell **10.073 ms**, `readyState=complete`, `visibilityState=visible`, `hasFocus=true`; screenshot CDP em `.maestri/tmp/cobalt/rig-check.png`. Por `Start-Process` normal (sem `windowsHide`): janela **VISÍVEL** em < 15 s (pid 31896, hwnd 3803202, título "Persona"); print real `.maestri/tmp/cobalt/start-process-screen.png` mostra o onboarding (passo 1 de 5). O `perf-p0.patch`/`perf-diet.patch` continuam para a v1.2 e aplicam limpo em `3660c033a5`. **Próximo:** corrigir o probe (janela/CDP em paralelo, `windowsHide: false` para a janela do SO) e refazer a linha de base com a janela visível.
+
 ## 07/11 — HT-5 ENTREGUE: canais e assuntos como ferramentas de produto (`contracts/harness-channels.md`)
 
 **O que é.** As 5 ferramentas da persona para canais e assuntos, exatamente no contrato do Bolt: `channel_create`, `channel_archive`,
@@ -197,3 +205,23 @@ diagnóstico no comentário. O resto do spec (fila do host, reload, steer, Parar
 **incluindo as amostras `example: true`** (1 + 4 = 5; nunca chegam ao host, então nunca ao badge). Home limpo: batem quando toda aprovação aberta é
 decisão bloqueante e não há Cofre nem Tarefa esperando. Conserto mínimo: um seletor só, contando as linhas abertas de 'now' **sem** `example`; dono
 **Ember** (caixa V2); Prism/Flint só se o badge mudar.
+
+---
+
+## 07/11 — Desempenho (missão do Atlas): medição, plano e dieta
+
+- **`persona-spec/research/perf/MEDICAO.md`** — o que foi medido: instalador NSIS **328 MiB**, app **1,2 GB** (asar 291 MB/27.472 arquivos,
+  `app.asar.unpacked` 255 MB com LibreOffice 183 + sherpa 23 + sharp 19 + Cursor 11, `primary-runtime` 255 MB com Python 145 + Node 90 + pnpm 21,
+  locales 49 MB); host pronto **~0,9 s / 93 MB** (Zinc). **Achado P0:** a janela só nasce **depois** de `backend.start` (`main.ts:825`/`:1915`) —
+  ~0,9 s de tela inexistente. **Bloqueio:** o único artefato empacotado que restou (`.desktop-build` de 04/11) não abre (falta
+  `dsh-desktop-host/config/electron.cordis.patch.yml` no asar; o `verify-persona-package.mjs:23` exige esse arquivo) — sem número de runtime do
+  app até o Setup final.
+- **`persona-spec/research/perf/PLANO.md`** — metas (janela < 1 s, tela útil < 2 s, RAM parada < 300 MB, instalador ≤ 250 MiB), ordem das
+  mudanças (P0 janela-antes-do-host + compile cache; P1 gh lazy, warmups no 1º pedido, code splitting; P2 locales/asar/runtime sob demanda),
+  Rust/Go **não** e Tauri **não agora** (com o número e o custo).
+- **`persona-spec/research/perf/DIETA.md`** — auditoria de tamanho com os cortes e o ganho estimado: instalador 328 MiB → **~185 MiB** (LibreOffice
+  183 MB e Python 145 MB sob demanda, locales pt/en, experimentais fora, pnpm sob demanda); < 150 MiB pede Cursor/sharp opcionais.
+- **P0 em patch:** `C:/p8w-cobalt/.maestri/tmp/cobalt/perf-p0.patch` (3 hunks em `apps/desktop/src/main.ts`: janela+splash antes de
+  `backend.start`; `module.enableCompileCache` no main + `NODE_COMPILE_CACHE` no host). Regerar sobre a base do corte; medir no Setup final.
+- **Probe:** `C:/p8w-cobalt/scripts/persona/perf-probe.mjs` (5 execuções, 1 fria + 4 quentes; janela/CDP/primeira tela/host/RAM por processo/CPU
+  parado; JSON por execução). Testes do desktop na cópia: 2383, 20 vermelhos, todos pré-existentes/ambiente (nenhum no caminho do patch).

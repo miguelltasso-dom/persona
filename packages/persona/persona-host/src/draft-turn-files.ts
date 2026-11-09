@@ -29,6 +29,8 @@ export const DRAFT_READ_MAX_BYTES = 25 * 1024 * 1024
 const THUMB_SOURCE_MAX_BYTES = 10 * 1024 * 1024
 /** The clock of the file system and the clock of the process can differ by a few milliseconds. */
 const CLOCK_SLACK_MS = 250
+/** What the HOST puts in a draft (the person's attachments in `inputs/`, a colleague's copies in `recebidos/`: draft-inbox.ts) is never something the persona saved. */
+const HOST_PUT = /^(?:inputs|recebidos)\//u
 
 const MIME: Readonly<Record<string, string>> = {
   svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
@@ -160,7 +162,7 @@ export interface DraftFilesOfTurn {
  * @param input - Draft, turn start, Task and persona.
  */
 export async function draftFilesOfTurn(input: DraftFilesOfTurn): Promise<DraftFileView[]> {
-  const changed = changedSince(input.root, input.since).slice(0, DRAFT_FILES_MAX)
+  const changed = changedSince(input.root, input.since).filter(path => !HOST_PUT.test(path)).slice(0, DRAFT_FILES_MAX)
   if (changed.length === 0) return []
   const svgs = changed.filter(path => /\.svg$/iu.test(path))
   const siblings = svgs.length === 0 ? undefined : await renderSvgSiblings(input.root, { only: svgs })

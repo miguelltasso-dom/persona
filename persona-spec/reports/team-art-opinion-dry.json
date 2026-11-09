@@ -1,0 +1,100 @@
+{
+  "note": "D-090 dry proof (opinion round with the art): real PersonaHost, real claude CLI through the product runner stack + HT-0 gateway, fake Anthropic endpoint, zero model, zero spend. Re-run 09/11 on the FINAL tree (Keel GO 18:09).",
+  "ok": true,
+  "tree": {
+    "commit": "bc28dac5c206febabb50c16f0b1c1995db415397",
+    "fingerprintStart": "sha256:c3acdc8f70ff4366bf60e6d3f9a2053c8708da2b015447f1bca1ca9612657ab8",
+    "fingerprintEnd": "sha256:c3acdc8f70ff4366bf60e6d3f9a2053c8708da2b015447f1bca1ca9612657ab8",
+    "unchanged": true,
+    "lib": {
+      "hash": "1688d21b689f2205d420960f6816c994798dd6dc",
+      "files": 2281
+    }
+  },
+  "spend": {
+    "realModelTurns": 0,
+    "tokens": 0,
+    "fakeEndpointRequests": 4,
+    "ceiling": "same as 07/11 dry: 4 requests to the fake endpoint, 0 real turns"
+  },
+  "checks": {
+    "green": 7,
+    "total": 7
+  },
+  "rows": [
+    {
+      "scenario": "setup",
+      "check": "the installed claude CLI is available and logged in through the throwaway account (API key env)",
+      "ok": true,
+      "why": "[{\"id\":\"dsh\",\"phase\":\"ready\",\"available\":true,\"loggedIn\":false},{\"id\":\"claude\",\"phase\":\"ready\",\"available\":true,\"loggedIn\":true},{\"id\":\"codex\",\"phase\":\"ready\",\"available\":true,\"loggedIn\":true},{\"id\":\"opencode\",\"phase\":\"checking\",\"available\":true,\"loggedIn\":false},{\"id\":\"cursor\",\"phase\":\"ready\",\"available\":true,\"loggedIn\":false},{\"id\":\"ollama\",\"phase\":\"ready\",\"available\":false,\"loggedIn\":false},{\"id\":\"lmstudio\",\"phase\":\"ready\",\"available\":false,\"loggedIn\":false}]"
+    },
+    {
+      "scenario": "setup",
+      "check": "product defaults are ON in this process",
+      "ok": true,
+      "why": "{\"teamwork\":true,\"fanout\":true,\"startOnBoardMove\":true,\"productTools\":true,\"defaults\":\"production\"}"
+    },
+    {
+      "scenario": "art",
+      "check": "(a) ask_team_opinion ACCEPTED draft.files = [\"cartaz-arte.svg\"]: the model called it with the file and read an ok round (no refusal, no note about the art)",
+      "ok": true,
+      "why": "steps=bia-art>opinion-reader>opinion-reader>bia-after-art result={\"ok\":true,\"state\":\"done\",\"round\":1,\"roundsLeft\":1,\"opinions\":\"Opiniões da equipe sobre \\\"O que vocês acham da arte do cartaz?\\\" (rodada 1 de 2). São dados para"
+    },
+    {
+      "scenario": "art",
+      "check": "(b) the colleague's prompt carries the art as a PNG image (SVG -> PNG by sharp): exactly ONE image, image/png, PNG signature — the SVG itself is not an image",
+      "ok": true,
+      "why": "readers=[{\"images\":1,\"types\":[\"image/png\"],\"magic\":[\"89504e470d0a1a0a\"]},{\"images\":0,\"types\":[],\"magic\":[]}]"
+    },
+    {
+      "scenario": "art",
+      "check": "(c) opinion.files is on the request line of the thread: the SVG with its path, type, Task, persona and a PNG thumbnail; the person's attachments stay empty",
+      "ok": true,
+      "why": "{\"path\":\"cartaz-arte.svg\",\"name\":\"cartaz-arte.svg\",\"mime\":\"image/svg+xml\",\"taskId\":\"a2d466bc232462bf2d572ff54d9ffd72\",\"personaId\":\"bia\",\"size\":348,\"thumb\":\"data:image/png;base64,iVBORw0K\"}"
+    },
+    {
+      "scenario": "art",
+      "check": "(d) the turn left ONE typed line \"salvou … no rascunho\" with the SVG and its PNG sibling (pngPath), and the PNG is a file of the draft (Revisar lists both)",
+      "ok": true,
+      "why": "lines=1 files=[\"cartaz-arte.svg->cartaz-arte.png\"] png=true"
+    },
+    {
+      "scenario": "art",
+      "check": "(e) the round closed in the thread (request, reply, consolidation) and Bia finished her Task",
+      "ok": true,
+      "why": "opinionLines=3 bia=ready"
+    }
+  ],
+  "requests": [
+    {
+      "step": "bia-art",
+      "lastKind": "prompt",
+      "offered": [
+        "mcp__persona__ask_colleague",
+        "mcp__persona__ask_team_opinion",
+        "mcp__persona__pass_forward",
+        "mcp__persona__persona_ask"
+      ]
+    },
+    {
+      "step": "opinion-reader",
+      "lastKind": "prompt",
+      "offered": []
+    },
+    {
+      "step": "opinion-reader",
+      "lastKind": "prompt",
+      "offered": []
+    },
+    {
+      "step": "bia-after-art",
+      "lastKind": "tool_result",
+      "offered": [
+        "mcp__persona__ask_colleague",
+        "mcp__persona__ask_team_opinion",
+        "mcp__persona__pass_forward",
+        "mcp__persona__persona_ask"
+      ]
+    }
+  ]
+}

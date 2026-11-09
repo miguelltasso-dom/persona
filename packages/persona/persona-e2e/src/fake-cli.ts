@@ -15,7 +15,19 @@ export interface FakeCliOptions {
   /** The reply of model turn N is element N, the last repeats (env `FAKE_CLI_REPLIES`, a JSON array): script a whole conversation. */
   readonly replies?: readonly string[]
   /** The FIRST rule whose regex matches the text of the user turn decides the reply (env `FAKE_CLI_RULES`): content-based, independent of the turn number. */
-  readonly rules?: readonly { readonly match: string; readonly reply: string }[]
+  readonly rules?: readonly { readonly match: string; readonly reply: string; /** What the model says BETWEEN its tool calls before the final `reply` (each is emitted as a text block + a tool call + the result). */ readonly narration?: readonly string[] }[]
+  /**
+   * Content-based writes (env `FAKE_CLI_WRITE_RULES`): the turn whose prompt matches writes `file` (relative, in the working directory). `fillIn: true` plays the model that does not find a file
+   * its prompt tells it about and MAKES ONE: it writes only when the file is missing, and the log says `recreated: true` (P0-1: the file was not shared).
+   */
+  readonly writeRules?: readonly { readonly match: string; readonly file: string; readonly content?: string; readonly fillIn?: boolean }[]
+  /**
+   * The stub as a SCRIPTED model (env `FAKE_CLI_TOOL_CALLS`): when the prompt matches, call these tools of the product (`pass_forward`, `ask_colleague`…) through the MCP server the CLI was
+   * given, in order, after the turn's writes. `once` runs the rule in its first matching turn only. Logged as `toolcall` events (ok + the first words of the answer).
+   */
+  readonly toolCalls?: readonly { readonly match: string; readonly once?: boolean; readonly calls: readonly { readonly tool: string; readonly args: Readonly<Record<string, unknown>> }[] }[]
+  /** Log, once per stub process, the tools the CLI was offered with their descriptions (env `FAKE_CLI_TOOLS_PROBE=1`): the persona-facing text of the product. */
+  readonly toolsProbe?: boolean
   /** During a turn, write this RELATIVE text file in the stub's working directory (the task draft): a real revision to review (env `FAKE_CLI_WRITE_FILE`). */
   readonly writeFile?: string
   /** Text of that file (env `FAKE_CLI_WRITE_CONTENT`). */
@@ -33,13 +45,32 @@ export interface FakeCliOptions {
   readonly needles?: readonly string[]
 }
 
-const WRITE_ENVS = ['FAKE_CLI_RULES', 'FAKE_CLI_REPLIES', 'FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT', 'FAKE_CLI_FAIL_FILE', 'FAKE_CLI_NEEDLES'] as const
+const WRITE_ENVS = ['FAKE_CLI_RULES', 'FAKE_CLI_REPLIES', 'FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_WRITE_RULES', 'FAKE_CLI_TOOL_CALLS', 'FAKE_CLI_TOOLS_PROBE', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT', 'FAKE_CLI_FAIL_FILE', 'FAKE_CLI_NEEDLES'] as const
 
 /** One line of the stub's invocation log (`FAKE_CLI_LOG`). */
 export interface FakeCliInvocation {
   readonly at: number
-  /** `invoke` = process started (probes, `--version`, sessions); `turn` = a user turn was answered. */
-  readonly event: 'invoke' | 'turn'
+  /**
+   * `invoke` = process started (probes, `--version`, sessions); `turn` = a user turn was answered; `write` = a file the stub wrote in its working directory; `toolcall` = a tool of the
+   * product the scripted model called; `tools` = the tools the CLI was offered. (`string & {}` keeps the literals readable while a new event name never breaks a reader.)
+   */
+  readonly event: 'invoke' | 'turn' | 'write' | 'toolcall' | 'tools' | (string & {})
+  /** `turn`/`write`/`toolcall`: which stub process (a warm session answers several turns) and which turn of it. */
+  readonly proc?: number
+  readonly seq?: number
+  /** `turn` only: what the working directory held when the turn STARTED (path with `/`, size, SHA-256) and, for the files its prompt promises ("Anexos do pedido", "Arquivos:"), whether each was there. */
+  readonly cwdFiles?: ReadonlyArray<{ readonly p: string; readonly s: number; readonly h: string | null }>
+  readonly promptPaths?: ReadonlyArray<{ readonly p: string; readonly present: boolean }>
+  /** `write`: the relative file, the SHA-256 of its content, and `recreated` when the stub wrote it because the file was missing (it was not shared). */
+  readonly file?: string
+  readonly sha?: string
+  readonly recreated?: boolean
+  /** `toolcall`: which tool, whether the product accepted the call, and the first words of its answer. */
+  readonly toolName?: string
+  readonly ok?: boolean
+  readonly text?: string
+  /** `tools`: the tools the CLI was offered, with the description the product wrote for the persona. */
+  readonly tools?: ReadonlyArray<{ readonly name: string; readonly description: string }>
   readonly tool: string
   readonly argv: readonly string[]
   readonly pid: number
@@ -179,6 +210,9 @@ export function withFakeCliOnPath(options?: FakeCliOptions): FakeCliPathScope {
   }
   if (options?.replies !== undefined) process.env.FAKE_CLI_REPLIES = JSON.stringify(options.replies)
   if (options?.rules !== undefined) process.env.FAKE_CLI_RULES = JSON.stringify(options.rules)
+  if (options?.writeRules !== undefined) process.env.FAKE_CLI_WRITE_RULES = JSON.stringify(options.writeRules)
+  if (options?.toolCalls !== undefined) process.env.FAKE_CLI_TOOL_CALLS = JSON.stringify(options.toolCalls)
+  if (options?.toolsProbe === true) process.env.FAKE_CLI_TOOLS_PROBE = '1'
   if (options?.writeFile !== undefined) process.env.FAKE_CLI_WRITE_FILE = options.writeFile
   if (options?.writeContent !== undefined) process.env.FAKE_CLI_WRITE_CONTENT = options.writeContent
   if (options?.conflictDir !== undefined) process.env.FAKE_CLI_CONFLICT_DIR = options.conflictDir

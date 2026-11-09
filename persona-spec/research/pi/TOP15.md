@@ -24,7 +24,7 @@
 
 ## Detalhe dos cinco primeiros
 
-**1. Resposta truncada.** O Pi falha **todas** as tool calls de uma mensagem com `stopReason: "length"` (`pi:packages/agent/src/agent-loop.ts:488`). Motivo: o corte de tokens pode ter partido o JSON dos argumentos; executar é pior que falhar. Na Persona, o runner normaliza o report, mas não há regra explícita. Prova: um runner roteirizado que devolve uma chamada com argumento cortado ⇒ a Tarefa recebe erro claro, nenhuma ferramenta roda, e a linha não mente.
+**1. Resposta truncada.** O Pi falha **todas** as tool calls de uma mensagem com `stopReason: "length"` (`pi:packages/agent/src/agent-loop.ts:488`). Motivo: o corte de tokens pode ter partido o JSON dos argumentos; executar é pior que falhar. Na Persona, o runner normaliza o report, mas não há regra explícita — no CLI quem corta é o próprio CLI; a regra vale para o loop DSH. Prova: um runner roteirizado que devolve uma chamada com argumento cortado ⇒ a Tarefa recebe erro claro, nenhuma ferramenta roda, e a linha não mente.
 
 **2. Custo auxiliar.** O Pi grava uma entrada `usage` para trabalho que não é mensagem (resumo, cache warm) e soma no total (`pi:.../session-manager.ts:1255`). Na Persona, o livro é por turno; compactação, rodada de opinião e revisão não têm linha. Prova: uma Tarefa com 1 compactação e 1 opinião ⇒ o livro tem 3+ linhas e o cartão mostra o total real; o teste compara com um número fixo.
 

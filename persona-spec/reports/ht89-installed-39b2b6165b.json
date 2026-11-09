@@ -1,0 +1,58 @@
+{
+  "ok": true,
+  "note": "HT-8/9 PACKAGED gate against the person's own claude; fake endpoint; zero model",
+  "claudeBin": "claude",
+  "claudeVersion": "2.1.321 (Claude Code)",
+  "lib": "C:\\p8wbc28dac5c2\\apps\\desktop\\.desktop-build\\targets\\win-x64\\unsigned-artifacts\\win-unpacked\\resources\\app.asar\\dsh\\node_modules\\@deepseek-ai\\dsh-persona-runners\\lib\\index.js",
+  "scenarios": [
+    {
+      "name": "nada aprovado: nega e pede",
+      "expectRan": false,
+      "ran": false,
+      "requests": 1,
+      "ok": true
+    },
+    {
+      "name": "aprovado ESTE hash: executa",
+      "expectRan": true,
+      "ran": true,
+      "requests": 0,
+      "ok": true
+    },
+    {
+      "name": "aprovado OUTRO hash: nega",
+      "expectRan": false,
+      "ran": false,
+      "requests": 1,
+      "ok": true
+    },
+    {
+      "name": "classe send pre-liberada: executa",
+      "expectRan": true,
+      "ran": true,
+      "requests": 0,
+      "ok": true
+    },
+    {
+      "name": "so leitura pre-liberada: nega o envio",
+      "expectRan": false,
+      "ran": false,
+      "requests": 1,
+      "ok": true
+    },
+    {
+      "name": "gate FORA DO AR (sem regra allow): continua negado",
+      "expectRan": false,
+      "ran": false,
+      "requests": 0,
+      "ok": true
+    },
+    {
+      "name": "gate desarmado (fora de turno): nega",
+      "expectRan": false,
+      "ran": false,
+      "requests": 0,
+      "ok": true
+    }
+  ]
+}

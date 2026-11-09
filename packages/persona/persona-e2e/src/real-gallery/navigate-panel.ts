@@ -202,19 +202,39 @@ export async function navigateGalleryPanel(page: Page, spec: GalleryPanelSpec): 
 
   if (MORE_PANELS.has(spec.slug)) await ensureNavGroupExpanded(page, 'more', 'Mais')
 
+  const toChannel = spec.slug === 'geral' || spec.slug === 'canais'
   if (spec.kind === 'settings') {
     await clickNav(page, /configura/i)
+  } else if (toChannel) {
+    // CV-1 (the lilac rail): "Canais" is the SECTION HEAD of the channels, a toggle that starts EXPANDED with "#geral" in it. The legacy rail had "Canais" as a nav item, so the old step clicked it
+    // blindly — on the current rail that click COLLAPSES the group and hides "#geral": the boot smoke failed for it (09/11) as soon as the shipped client lib was rebuilt. Open the head only
+    // when the channel is hidden.
+    await openChannelsGroup(page, spec.navLabel)
   } else {
     await clickNav(page, spec.navLabel)
   }
 
-  if (spec.slug === 'geral') {
+  if (toChannel) {
     const geral = page.getByRole('button', { name: '#geral' })
-    if (await geral.count() > 0) await geral.click({ timeout: 30_000 })
+    if (await geral.count() > 0) await geral.first().click({ timeout: 30_000 })
     else await page.getByText('#geral').first().click({ timeout: 30_000 }).catch(() => {})
   }
 
   await waitAfterNavigation(page, spec)
+}
+
+/**
+ * Make "#geral" reachable without ever collapsing it: nothing to do when the channel is already listed; otherwise open the "Canais" head only if it says it is collapsed
+ * (`aria-expanded="false"`), or click it when it is a plain nav item of the legacy rail (no `aria-expanded`).
+ */
+async function openChannelsGroup(page: Page, label: string): Promise<void> {
+  await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 120_000 })
+  if (await page.getByRole('button', { name: '#geral' }).count() > 0) return
+  const head = page.getByRole('button', { name: label, exact: true }).first()
+  if (await head.count() === 0) return
+  if (await head.getAttribute('aria-expanded') === 'true') return
+  await head.scrollIntoViewIfNeeded({ timeout: 60_000 }).catch(() => {})
+  await head.click({ timeout: 60_000 })
 }
 
 async function waitAfterNavigation(page: Page, spec: GalleryPanelSpec): Promise<void> {

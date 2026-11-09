@@ -1,5 +1,18 @@
 # Muse — Diretor de Design (relatos)
 
+## ✅ 09/11 19:25 — ACEITE DO INSTALADO v1.1 (Setup 39b2b6165b, sha256 4acf5b7a…9a04; cliente lib 6c 1688d21b)
+- **Escuro:** 24/24 cenas × 1440/960/200% (pré-aceite 72/72).
+- **Claro:** 24/24 (72/72 no 3660c033a5, com o mesmo cliente); geral/dm/personas refeitos no Setup novo (9/9).
+- Axe 0. Nenhum P0.
+- **O fio da tentativa 5** lê como equipe: só a resposta final, opiniões em palavras simples, a arte como arquivo.
+- **v1.1.x (nas notas):**
+  - o interruptor sem pasta aparece ligado;
+  - o avatar 'E' na fila;
+  - a pontuação dupla no corte ('….');
+  - as abas de Configurações cortadas a 200%;
+  - os 2 'Decide o rotineiro' (a confirmar).
+- **Pastas:** `.maestri/tmp/shots/design/accept-installed/{3660c033a5,39b2b6165b}-v11`.
+
 ## ▶ RETOMADA (07/11, ordem do Miguel via Atlas: força total até fechar a v1.1)
 - **Fila:** o aceite final em lote do bundle 5, na ordem Quill → Ember → Prism → Lumen → Flint, só o que passar no pré-aceite do Ember. Depois, a varredura do instalado do corte.
 - **Novo:** `.maestri/tmp/muse/accept-installed-v11.mts` (a varredura do INSTALADO com os padrões de produção, PERSONA_THEME real e a sonda do pré-aceite em cada captura; 23 cenas × 3 tamanhos × 2 temas) + `scripts/persona/preaccept-manifests/muse-installed.json`.

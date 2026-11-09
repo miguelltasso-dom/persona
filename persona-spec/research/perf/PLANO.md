@@ -7,42 +7,45 @@ Medição: `MEDICAO.md` (app/Electron/instalador, Cobalt) + `HOST-BOOT.md` (host
 
 | Meta | Hoje | Onde |
 | --- | --- | --- |
-| Janela na tela | **não medido** (o artefato empacotado que sobrou não abre); por código, a janela só nasce depois de `backend.start` | `MEDICAO.md` §2/§4 |
-| Primeira tela útil | **não medido** (idem) | `MEDICAO.md` §4 |
-| RAM parada | **não medido** no app; host ~93 MB | `MEDICAO.md` §4, `HOST-BOOT.md` |
-| Instalador | **328 MiB** (1,2 GB instalado) | `MEDICAO.md` §1 |
-| Host pronto | **~0,9 s / 93 MB** (não é o gargalo) | `HOST-BOOT.md` |
+| Janela na tela | **6,9–8,5 s** (medido 09/11 no instalado v1.1, janela visível) | `MEDICAO.md` §7 |
+| Primeira tela útil | **9,2–11,7 s** (shell; meta < 2 s) | `MEDICAO.md` §7 |
+| RAM parada | **1,1 GB** (host 413–414 MB, GPU 270 MB); host do Zinc 93 MB | `MEDICAO.md` §7, `HOST-BOOT.md` |
+| Instalador | **329,6 MiB** (1,18 GiB instalado) | `MEDICAO.md` §7 |
+| Host pronto | servidor Web **7,5 s**; shell ~9–12 s | `MEDICAO.md` §7 |
 
 Metas propostas: **janela < 1 s**, **primeira tela útil < 2 s**, **RAM parada < 300 MB**, **instalador ≤ 250 MiB** (sem tocar no produto),
-medidos pelo `perf-probe.mjs` no mesmo artefato. **Antes de qualquer otimização, o corte precisa de um artefato que abra** (ver `MEDICAO.md` §4).
+medidos pelo `perf-probe-visible.mjs` no mesmo artefato. O artefato do corte **abre** (janela visível em 6,9–8,5 s; shell em 9,2–11,7 s; `MEDICAO.md` §7); o probe antigo media com `windowsHide` e ficou como referência do artefato.
 
 ## 2. O que pesa (com número)
 
-1. **A janela espera o host.** `reconcileBackend` (`apps/desktop/src/main.ts:825`) faz `await backend.start(...)` antes de `openInitialWindow`
-   (`:1915`); o host leva ~0,9 s (Zinc) e o Electron mais o boot do main. O splash (`attachBootUi`, `:962`) só cobre o renderer, que nem existe
-   ainda. **É o maior ganho de percepção e o mais barato.**
-2. **Carga de módulo + construtor do host:** ~0,45 s + ~0,51 s no bundle (Zinc). O compile cache do V8 pré-gerado no empacotamento corta a
-   carga no primeiro start depois de instalar/atualizar (T3 2.14/3.15).
+1. **A janela espera o host.** `reconcileBackend` (`apps/desktop/src/main.ts:829-835`) faz `await backend.start(...)` antes de `openInitialWindow`
+   (`:1915`); no instalado v1.1 a janela visível só aparece em **6,9–8,5 s** e o shell em **9,2–11,7 s** (`MEDICAO.md` §7). O splash
+   (`attachBootUi`, `:962`) só cobre o renderer, que nem existe ainda. **É o maior ganho de percepção e o mais barato.**
+2. **Carga de módulo + construtor do host:** ~0,45 s + ~0,51 s no bundle do `persona-host` (Zinc), mas o **perfil completo** sobe o servidor
+   Web em **7,5 s** no instalado (`MEDICAO.md` §7); o `persona-host` sozinho não explica o boot. O compile cache do V8 pré-gerado no
+   empacotamento corta a carga no primeiro start depois de instalar/atualizar (T3 2.14/3.15).
 3. **`gh --version` síncrono no construtor:** 160–240 ms (picos 0,5–3,5 s), sempre, mesmo sem GitHub.
 4. **Warmups de CLI/conectores/prewarm/scheduler no construtor:** em segundo plano, mas disputam CPU/RSS com a primeira tela (Zinc: no
    fonte+tsx o construtor cai de 5,2–7,1 s para 0,74 s com o bloco adiado).
 5. **Renderer/bundle:** `client-ui-persona/lib/client.js` 3,6 MB no asar, carregado no boot; o T3 faz code splitting por rota + `router.load()`
    antes do primeiro render (T3 1.1/1.3).
-6. **Instalador:** 26.415 arquivos de `node_modules` do host no asar (524 MB) + 255 MB de nativos + 255 MB do runtime primário + 49 MB de locales
-   (só pt-BR/en-US são usados). O NSIS comprime para 328 MiB, mas instalar/atualizar escreve 1,2 GB.
-7. **Migrações/índices no frio:** 116–553 ms (picos 0,7–3,3 s) — só importa se aparecer no instalado (Zinc).
+6. **Instalador:** o asar final tem **20.944 arquivos / 248.585.695 B** + 254,1 MiB de `app.asar.unpacked` + 266,8 MB de runtime + 50,6 MB de
+   locales + 96,2 MB de mingit (`MEDICAO.md` §7); o NSIS final é **329,6 MiB** e instala **1,18 GiB**.
+7. **Migrações/índices no frio:** 116–553 ms (picos 0,7–3,3 s) no `persona-host` (Zinc); no instalado a diferença fria/quente foi ~1,6 s na
+   janela e ~2,5 s no shell (`MEDICAO.md` §7), sem isolar migrações.
 
 ## 3. Mudanças em TypeScript, em ordem (ganho esperado × risco)
 
 > Dieta de tamanho (instalador ≤ 250 MiB): `DIETA.md` — os cortes de LibreOffice (183 MB), Python (145 MB), locales (47 MB), experimentais (72 MB)
 > e pnpm (21 MB) levam o instalador de 328 MiB para ~185 MiB; a < 150 MiB pede Cursor/sharp opcionais.
 
-### P0 — a janela nasce antes do host (percepção, ~0,9 s+) — **PATCH PRONTO** (`perf-p0.patch`)
+### P0 — a janela nasce antes do host (percepção, ~5 s de tela) — **PATCH PRONTO** (`perf-p0.patch`)
 - `reconcileBackend` cria a janela e carrega `dsh-app://app/` (o splash já é servido pelo protocolo do main) **antes** de `backend.start`; o host
   sobe em paralelo e o cliente espera no `dshDesktopBoot.ready()` (o IPC de boot já espera `startup`). O splash existente (`boot-ui.ts`) cobre a
   espera; nada de tela inexistente.
-- Arquivo: `apps/desktop/src/main.ts` (3 hunks). Ganho esperado: janela **< 1 s** (hoje = host ~0,9 s + Electron + renderer). Risco: baixo.
-- **Medição:** bloqueada até haver um artefato que abra (ver `MEDICAO.md` §4); o probe mede `window` × `host` e prova a inversão.
+- Arquivo: `apps/desktop/src/main.ts` (3 hunks). Ganho esperado: janela/splash visível em **~1–2 s** (hoje a janela visível aparece em
+  **6,9–8,5 s**, depois do `backend.start`); o shell continua em **9,2–11,7 s** até o host/renderer. Risco: baixo.
+- **Medição:** com o `perf-probe-visible.mjs` no próximo artefato; a linha de base v1.1 (janela 6,9–8,5 s, shell 9,2–11,7 s) está em `MEDICAO.md` §7.
 - **Patch:** `C:/p8w-cobalt/.maestri/tmp/cobalt/perf-p0.patch` (3 hunks em `apps/desktop/src/main.ts`, sobre a base de 07/11; regerar sobre a base do corte).
   Testes do desktop na cópia: 2383, 20 vermelhos — todos pré-existentes/ambiente (assets `persona-assets/brand` ausentes no snapshot, `app` do
   Electron indefinido no harness de `welcome-startup`, empacotamento/credenciais); nenhum no caminho que o patch toca.

@@ -27,6 +27,16 @@ Não editei contrato nem `src` para não cruzar com os donos (Bolt/Tally/Probe) 
 - Os **7 fios** que ainda não têm motor (§2b): B5 `handoff.nudged` + marca de "já cutucou", B6 `offer_help`, C1 checkpoint 70% do `tokenBudget`, C2 imagem no `persona_ask`, D3 nota de saída determinística, D5 `suggestedPersonaId`, E1 gatilho do brain no fim da Tarefa. É trabalho de v1.2 (pós-corte), barato: ligação + teto, não motor novo.
 - Medição, script ou leitura de transcrito, se o Keel preferir.
 
+## Achados sem dono da tentativa 5 (diagnóstico, 09/11; leitura, 0 IA)
+
+**1. A mesma foto do pedido entra duas vezes no rascunho, com dois nomes.** Sessão do Téo (`09612a`): `inputs/foto.png` **e** `inputs/425aaacf-5061-48d0-9eb0-cb0e65d9ff0a-foto.png`. Causa: dois caminhos de encaminhamento com nomes diferentes — o P0-1 (`handoffs.ts:536 requestFiles`) chama `media.stageAttachments(…, false)` e copia para `inputs/<nome>` (`media.ts:206`); o TEAM-5 (`media.stageTurnImages`, `media.ts:225`) copia a mesma imagem para `inputs/<id>-<nome>` (`media.ts:236`). O filtro do `requestFiles` só olha `inputs/<nome>`, então não vê a cópia com id. **Conserto barato (v1.1.x):** em `stageTurnImages`, se `inputs/<sanitizeUploadName(name)>` já existe com o mesmo conteúdo, usar esse caminho em vez de copiar de novo; o prefixo de id fica só quando o nome simples estiver ocupado por outro arquivo.
+
+**2. A arte foi feita duas vezes (duas Tarefas para o Téo).** O split já deu a arte ao Téo (`Lia: Dividi assim: Téo — Arte; Bia — Texto`) e a Bia passou a MESMA arte ao Téo (`Bia passou para Téo: Arte do cartaz…`), abrindo uma segunda Tarefa (sessões `09612a` e `7ececa`; dois SVGs: `cartaz-pao-de-queijo.svg` e `arte-cartaz-padaria-lua.svg`). Não é bug de host — ele honrou o `pass_forward` — mas é desperdício de turno no pior lugar (orçamento). **Conserto (v1.1.x):** o host funde o `pass_forward` numa Tarefa já aberta do mesmo destinatário quando a parte é a mesma (mesmo título/função) e o remetente é o dono da outra parte; ou o prompt do worker diz que a parte que já é do colega não precisa ser passada de novo.
+
+**3. A revisora pediu exportação do SVG.** Sessão `ec9daf` (Lia): `Glob **/cartaz-pao-de-queijo.*` achou `.svg` e `.png`; ela pediu "Substituir `cartaz-pao-de-queijo.png` por uma exportação do SVG". O host já gera o PNG irmão ao salvar o SVG; o modelo não confiou. O reforço do Tally (`review-step.ts:294`, 18:29) ataca exatamente isso.
+
+**4. O teto de 12 turnos cortou a revisão no meio.** A Lia fez 2 `persona_ask` (número do WhatsApp e PNG antigo) e cada um gastou turno; o 12/12 chegou antes do selo. Não é defeito (Probe: `ran-out-of-turns`), mas a pergunta 2 (PNG antigo) podia ter ido junto com a 1.
+
 ## Pendência de canal
 
 Meu terminal não está conectado ao post-it `Persona · Status` (`maestri note edit` recusa), então o marco não foi escrito lá; o resumo foi para `.maestri/inbox/Keel/20261109-172329-Jade.md`.

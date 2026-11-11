@@ -10,6 +10,11 @@
   animation: persona-onboarding-fade var(--motion-base) var(--ease-enter);
 }
 
+/* D-101: an unfocused window keeps no continuous backdrop blur; the scrim stays a static surface (Prism/Muse own the look). */
+body[data-persona-unfocused] .scrim {
+  backdrop-filter: none;
+}
+
 /* margin:auto centra quando cabe e, quando o painel é mais alto que a janela, alinha ao topo e rola (grid+center cortava a banda). */
 .panel {
   box-sizing: border-box;

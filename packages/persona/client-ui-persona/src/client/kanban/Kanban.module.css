@@ -142,7 +142,9 @@
   position: relative;
   cursor: grab;
   touch-action: none;
-  will-change: transform, opacity;
+  /* D-101: a permanent will-change promoted every card to a compositor layer (VRAM + layers while idle). `isolation`
+     keeps the stacking context the card menu needs, and only the dragged card asks for a layer. */
+  isolation: isolate;
   transition: transform var(--motion-base, 220ms) var(--ease-spring, ease),
     box-shadow var(--motion-base, 220ms) var(--ease-standard, ease),
     opacity var(--motion-fast, 140ms) ease;
@@ -159,7 +161,7 @@
 }
 
 /*
- * The card's own ⋯ menu hangs BELOW it. `will-change` makes every card a stacking context, so the menu's z-index stays inside its card and the NEXT card (later in the
+ * The card's own ⋯ menu hangs BELOW it. `isolation: isolate` makes every card a stacking context, so the menu's z-index stays inside its card and the NEXT card (later in the
  * column) painted over it: "Mover para…" was hidden behind the card below (found in the real shell; jsdom has no layout). The card whose menu is open (or that has focus) rises over its neighbours.
  */
 .ticket:has(.cardMenu),
@@ -169,6 +171,7 @@
 
 .ticketDragging {
   cursor: grabbing;
+  will-change: transform, opacity;
   transform: scale(1.02) rotate(1deg);
   box-shadow: var(--persona-shadow-lift, 0 12px 28px color-mix(in srgb, var(--persona-ink) 18%, transparent));
   z-index: 2;

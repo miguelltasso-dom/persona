@@ -99,10 +99,15 @@
   border: 0;
 }
 
-/* UX-GUIDE §2.3: nothing animates while the window is hidden (set by installPersonaColorScheme). */
-body[data-persona-hidden] [data-persona-shell] *,
-body[data-persona-hidden] [data-persona-shell] *::before,
-body[data-persona-hidden] [data-persona-shell] *::after {
+/* UX-GUIDE §2.3: nothing animates while the window is hidden or unfocused (set by installPersonaColorScheme).
+   The selectors are not scoped to [data-persona-shell]: the onboarding scrim and the overlays live outside the shell and
+   are exactly what kept the compositor busy on the onboarding screen (49-61% of a core in the probe). */
+body[data-persona-hidden] *,
+body[data-persona-hidden] *::before,
+body[data-persona-hidden] *::after,
+body[data-persona-unfocused] *,
+body[data-persona-unfocused] *::before,
+body[data-persona-unfocused] *::after {
   animation-play-state: paused !important;
 }
 

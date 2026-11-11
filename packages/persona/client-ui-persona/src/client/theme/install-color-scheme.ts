@@ -105,14 +105,23 @@ export function installPersonaColorScheme(): () => void {
   }
 }
 
-/** UX-GUIDE §2.3: pause every ambient loop (breathing, blink, seals, shimmer) while the window is hidden. */
+/** UX-GUIDE §2.3: pause every ambient loop (breathing, blink, seals, shimmer) while the window is hidden or unfocused. */
 function installAmbientPause(): () => void {
   const sync = (): void => {
     const body = document.body as HTMLElement | null
     if (body === null) return
     body.toggleAttribute('data-persona-hidden', document.hidden)
+    // D-101: a visible-but-unfocused window (second monitor, user in another app) kept every loop at full rate; the
+    // compositor only stops when the document is hidden. Focus is the missing signal.
+    body.toggleAttribute('data-persona-unfocused', !document.hidden && !document.hasFocus())
   }
   document.addEventListener('visibilitychange', sync)
+  window.addEventListener('focus', sync)
+  window.addEventListener('blur', sync)
   sync()
-  return () => { document.removeEventListener('visibilitychange', sync) }
+  return () => {
+    document.removeEventListener('visibilitychange', sync)
+    window.removeEventListener('focus', sync)
+    window.removeEventListener('blur', sync)
+  }
 }

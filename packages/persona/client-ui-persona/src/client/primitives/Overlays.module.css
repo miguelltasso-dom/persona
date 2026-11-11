@@ -12,6 +12,11 @@
   animation: persona-fade-in var(--motion-base) var(--ease-enter);
 }
 
+/* D-101: an unfocused window keeps no continuous backdrop blur; the scrim stays a static surface (Prism/Muse own the look). */
+body[data-persona-unfocused] .scrim {
+  backdrop-filter: none;
+}
+
 .modal {
   box-sizing: border-box;
   /* Muse (achado do Quill, 640×360 = zoom 200%): header and footer stay put, only the body scrolls, so the

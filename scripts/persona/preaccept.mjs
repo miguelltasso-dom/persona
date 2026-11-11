@@ -3,19 +3,21 @@
 //   node scripts/persona/preaccept.mjs --manifest scripts/persona/preaccept-manifests/<dono>.json [--dir <capturas>] [--out <pasta>] [--log <arquivo>]… [--report-only] [--legacy-ok]
 //   node scripts/persona/preaccept.mjs --init --dir <capturas> --owner <Nome> [--template "{scene}-{scheme}-{viewport}"]   (esboça o manifesto a partir das imagens que existem)
 //
-// O manifesto diz o que se espera: { owner, bundle, dir, scenes:[{id, allowCurrency?, shell?}], schemes?, viewports?, roster?, fileTemplate?, schemeNames?, viewportNames?, sizes?, logs?, skipChecks? }.
+// O manifesto diz o que se espera: { owner, bundle, dir, scenes:[{id, allowCurrency?, allowExample?, allowPopover?, allowPessoa?, shell?}], schemes?, viewports?, roster?, fileTemplate?, schemeNames?, viewportNames?, sizes?, logs?, skipChecks? }.
 // Para cada cena × tema × tamanho confere: cobertura (imagem existe, não está em branco), axe crítico/sério, alvos ≥ 24 px (target-size), overflow horizontal,
-// console limpo, texto proibido (lista tipada), artigo antes de nome de persona, tema certo, folhagem do trilho, imagens quebradas, ícones vazios e foco visível no 1º Tab.
+// console limpo, texto proibido (lista tipada; inclui RealTurnCapError e "NOVA VERSÃO:" cru), artigo antes de nome de persona, tema certo, folhagem do trilho, imagens quebradas, ícones vazios e foco visível no 1º Tab.
+// D-103c (11/11): também REPROVA "a pessoa" na fala de persona (`fala`), chip "Exemplo" (`exemplo`), inicial no lugar do rosto (`rosto`), chip/controle duplicado no composer (`composer`)
+// e popover cobrindo mensagem (`popover`); a sonda v3 mede, sidecar antigo = INCOMPLETO (`--legacy-ok` em lote antigo). `allowExample`/`allowPopover`/`allowPessoa` dispensam UMA regra numa cena e aparecem no relatório.
 // A fonte é a sonda (`<captura>.probe.json`, gravada por `preaccept-probe.mjs`); lotes antigos ainda dão axe/overflow/tema pelos logs (`--log`).
 // Saída: preaccept-report.json + preaccept-report.md (PASSOU / FALHOU / INCOMPLETO por cena e a razão; "pronto para a Muse" = só o que passou em todos os modos).
 // Sai com 1 se alguma cena não está pronta (use --report-only para sempre sair com 0).
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildReport, evaluateScene, parseLegacyLog, parseLegacyReportJson, plan, renderMarkdown, verdictOf, DEFAULT_ROSTER, DEFAULT_SCHEMES, DEFAULT_VIEWPORTS } from './preaccept-lib.mjs'
+import { buildReport, evaluateScene, parseLegacyLog, parseLegacyReportJson, plan, renderMarkdown, verdictOf, D103C_CHECKS, DEFAULT_ROSTER, DEFAULT_SCHEMES, DEFAULT_VIEWPORTS } from './preaccept-lib.mjs'
 
 /** O que só a sonda dá: em lote antigo (--legacy-ok) fica de fora quando não há como saber; axe, overflow e cobertura continuam exigidos. */
-const SONDA_ONLY = new Set(['console', 'proibidos', 'artigo', 'folhagem', 'imagens', 'icones', 'foco', 'tema', 'alvos'])
+const SONDA_ONLY = new Set(['console', 'proibidos', 'artigo', 'folhagem', 'imagens', 'icones', 'foco', 'tema', 'alvos', ...D103C_CHECKS])
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
 function parseArgs(argv) {
@@ -142,7 +144,7 @@ async function main() {
     const png = existsSync(pngPath) ? pngInfo(pngPath) : undefined
     const probePath = join(dir, `${row.file}.probe.json`)
     const probe = existsSync(probePath) ? readJson(probePath) : undefined
-    const checks = evaluateScene(row, { png, probe, legacy: legacyFor(row, manifest, legacySources) }, { roster, sizes: manifest.sizes }).filter(check => !skip.has(check.check) && !(legacyOk && check.status === 'nao-verificado' && SONDA_ONLY.has(check.check) && probe === undefined))
+    const checks = evaluateScene(row, { png, probe, legacy: legacyFor(row, manifest, legacySources) }, { roster, sizes: manifest.sizes }).filter(check => !skip.has(check.check) && !(legacyOk && check.status === 'nao-verificado' && SONDA_ONLY.has(check.check) && (probe === undefined || D103C_CHECKS.includes(check.check))))
     results.set(row.file, { checks, verdict: verdictOf(checks) })
   }
   const report = buildReport(manifest, rows, results)

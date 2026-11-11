@@ -7759,7 +7759,8 @@ export default class PersonaHost extends TypertRemoteService {
       projectId,
       personaId: stored.personaId,
       provider: stored.engine,
-      model: stored.engine,
+      // D-100: the model the call really ran on (`haiku`, `opus`…); the engine only stands in for a row that never recorded one.
+      model: stored.model ?? stored.engine,
       window: usagePortKind(stored.kind),
       kind: stored.kind,
       inputTokens: stored.inputTokens,

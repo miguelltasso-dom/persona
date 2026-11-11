@@ -18,7 +18,9 @@ export function minBytesFor(png) {
 }
 
 /** As checagens, na ordem em que aparecem no relatório. */
-export const CHECKS = ['cobertura', 'axe', 'alvos', 'overflow', 'dialogo', 'console', 'proibidos', 'artigo', 'tema', 'folhagem', 'imagens', 'icones', 'foco']
+export const CHECKS = ['cobertura', 'axe', 'alvos', 'overflow', 'dialogo', 'console', 'proibidos', 'artigo', 'fala', 'exemplo', 'tema', 'folhagem', 'imagens', 'icones', 'rosto', 'composer', 'popover', 'foco']
+/** D-103c: as checagens que só a sonda v3 mede (sidecar antigo = não verificado; `--legacy-ok` as dispensa em lote antigo). */
+export const D103C_CHECKS = ['fala', 'exemplo', 'rosto', 'composer', 'popover']
 
 /** A lista de proibidos NA TELA (pt e en). `re` roda sobre o texto visível da cena; `id` é estável (vai no relatório). */
 export const PROHIBITED = [
@@ -41,6 +43,9 @@ export const PROHIBITED = [
   { id: 'marcador', label: '[[ (marcador do host)', re: /\[\[/u },
   { id: 'persona-tool', label: 'persona_ (ferramenta interna)', re: /\bpersona_[a-z]/u },
   { id: 'em-andamento-avulso', label: '"Em andamento:" avulso', re: /(^|\n)\s*Em andamento:/u },
+  // D-103c: o nome do erro interno do teto de turnos e o marcador "NOVA VERSÃO:" do host nunca aparecem escritos (o host tira o marcador antes de mostrar; o parser dele ignora a caixa, esta regra também).
+  { id: 'real-turn-cap-error', label: 'RealTurnCapError (nome de erro interno)', re: /RealTurnCap\w*/u },
+  { id: 'nova-versao-cru', label: '"NOVA VERSÃO:" cru (marcador do host)', re: /NOVA\s+VERS[ÃA]O\s*:/iu },
   // Dinheiro: US$ nunca; "$ 12" (dólar solto) só passa quando a cena diz que mostra dinheiro de verdade (`allowCurrency`).
   { id: 'us-dolar', label: 'US$', re: /US\$/u },
   { id: 'dolar', label: '$ + número', re: /(^|[^A-Za-z])\$\s?\d/u, unlessScene: 'allowCurrency' },
@@ -105,6 +110,29 @@ export function articleBeforePersona(text, roster = DEFAULT_ROSTER) {
   return soft === null ? [] : [{ rule: 'a-antes-de-persona', label: '"a" antes de nome de persona (preposição ou artigo?)', severity: 'aviso', sample: sampleAround(body, soft.index, soft[0].length) }]
 }
 
+/** "a pessoa" na boca da persona (D-103c): a persona fala COM a pessoa ("você") ou pelo nome, nunca dela em 3ª pessoa. "uma/essa/cada pessoa" e "as pessoas" não casam. */
+const PESSOA_RE = /(?<![\p{L}\p{N}])(?:a|à|da|pela|na|pra)\s+pessoa(?![\p{L}\p{N}])/iu
+
+/** `speeches` = o texto de cada balão de PERSONA (a sonda; sem o nome, a hora e os botões). */
+export function findPessoaInSpeech(speeches) {
+  const found = []
+  for (const speech of speeches ?? []) {
+    const body = String(speech ?? '')
+    const match = PESSOA_RE.exec(body)
+    if (match !== null) found.push({ rule: 'a-pessoa', label: '"a pessoa" na fala de persona', sample: sampleAround(body, match.index, match[0].length) })
+  }
+  return found
+}
+
+/** O selo "Exemplo" dos cartões de amostra do dev-seed: tem de ser o texto INTEIRO do chip. */
+const EXAMPLE_CHIP_RE = /^(?:exemplo|example|sample)$/iu
+
+/** Chips "Exemplo" na cena: a lista da sonda v3; sem ela, as linhas do texto visível que são só o selo. */
+export function findExampleChips({ chips, text } = {}) {
+  if (Array.isArray(chips)) return chips.filter(label => EXAMPLE_CHIP_RE.test(String(label).trim()))
+  return String(text ?? '').split(/\r?\n/u).map(line => line.trim()).filter(line => EXAMPLE_CHIP_RE.test(line))
+}
+
 function escapeRe(text) { return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&') }
 
 function sampleAround(text, index, length) {
@@ -137,6 +165,10 @@ export function plan(manifest) {
           viewport,
           file: fileNameFor(manifest, spec.id, scheme, viewport),
           allowCurrency: spec.allowCurrency === true,
+          // D-103c: dispensas POR CENA (o relatório as lista para a 2ª leitura): a cena existe para mostrar o selo "Exemplo", um popover aberto de propósito, ou a persona escreve texto para um cliente ("a pessoa que comprar…").
+          ...(spec.allowExample === true || manifest.allowExample === true ? { allowExample: true } : {}),
+          ...(spec.allowPopover === true || manifest.allowPopover === true ? { allowPopover: true } : {}),
+          ...(spec.allowPessoa === true || manifest.allowPessoa === true ? { allowPessoa: true } : {}),
           // Uma cena que a Muse (ou o dono) já REJEITOU não volta como "pronta" só porque a máquina não achou defeito: `rejected: "motivo"` no manifesto.
           ...(typeof spec.rejected === 'string' && spec.rejected.trim() !== '' ? { rejected: spec.rejected.trim() } : {}),
           // A folhagem só se espera em cenas do shell inteiro (`shell !== false`) e nos tamanhos largos.
@@ -219,6 +251,23 @@ export function evaluateScene(row, { png, probe, legacy }, { roster = DEFAULT_RO
     else add('artigo', 'ok', articles.length === 0 ? '' : `aviso: “${articles[0].sample}” (preposição ou artigo?)`)
   }
 
+  // D-103c · fala de persona: nada de "a pessoa" (3ª pessoa) no balão da persona. Só a sonda v3 separa o balão de persona do resto da tela.
+  if (probe === undefined) add('fala', 'nao-verificado', 'sem sonda')
+  else if (probe.personaSpeech === undefined) add('fala', 'nao-verificado', staleProbe(probe, 'a fala das personas'))
+  else if (row.allowPessoa === true) add('fala', 'ok')
+  else {
+    const said = findPessoaInSpeech(probe.personaSpeech)
+    add('fala', said.length === 0 ? 'ok' : 'falhou', said.slice(0, 3).map(item => `${item.label}: “${item.sample}”`).join(' | '))
+  }
+
+  // D-103c · chip "Exemplo": o selo das amostras do dev-seed nunca aparece numa captura de aceite (é dado inventado, não trabalho de verdade).
+  if (text === undefined && probe?.exampleChips === undefined) add('exemplo', 'nao-verificado', 'sem sonda nem texto visível')
+  else if (row.allowExample === true) add('exemplo', 'ok')
+  else {
+    const chips = findExampleChips({ chips: probe?.exampleChips, text })
+    add('exemplo', chips.length === 0 ? 'ok' : 'falhou', chips.length === 0 ? '' : `chip “${chips[0]}” numa captura de aceite${chips.length > 1 ? ` (x${chips.length})` : ''}: é amostra do dev-seed, não trabalho de verdade`)
+  }
+
   const dark = probe !== undefined ? probe.darkTheme : legacy?.theme === undefined ? undefined : legacy.theme === 'true'
   if (dark === undefined) add('tema', 'nao-verificado', 'sem sonda nem log do tema')
   else add('tema', dark === (row.scheme === 'dark') ? 'ok' : 'falhou', dark === (row.scheme === 'dark') ? '' : `a cena é ${row.scheme} e o body diz data-ds-dark-theme=${String(dark)}`)
@@ -231,20 +280,41 @@ export function evaluateScene(row, { png, probe, legacy }, { roster = DEFAULT_RO
   if (probe === undefined) {
     add('imagens', 'nao-verificado', 'sem sonda')
     add('icones', 'nao-verificado', 'sem sonda')
+    add('rosto', 'nao-verificado', 'sem sonda')
+    add('composer', 'nao-verificado', 'sem sonda')
+    add('popover', 'nao-verificado', 'sem sonda')
     add('foco', 'nao-verificado', 'sem sonda')
     return checks
   }
   const brokenImages = probe.brokenImages ?? []
-  // D-069 (Muse 07/11): um avatar de retrato em inicial ("T", "N") é uma persona sem rosto. Só AVISO (um retrato que não é persona seria falso alarme); a sonda antiga não media: sem o campo, sem aviso.
-  const letterFaces = probe.initialsAvatars ?? []
-  add('imagens', brokenImages.length === 0 ? 'ok' : 'falhou', brokenImages.length > 0
-    ? brokenImages.slice(0, 3).join(' | ')
-    : letterFaces.length === 0 ? '' : `aviso: ${letterFaces.length} avatar(es) de retrato em inicial (D-069: persona nunca é letra): ${[...new Set(letterFaces)].slice(0, 4).map(letter => `“${letter}”`).join(' ')}`)
+  add('imagens', brokenImages.length === 0 ? 'ok' : 'falhou', brokenImages.slice(0, 3).join(' | '))
   const emptyIcons = probe.emptyIcons ?? []
   add('icones', emptyIcons.length === 0 ? 'ok' : 'falhou', emptyIcons.slice(0, 3).join(' | '))
+
+  // D-069 (Muse 07/11) + D-103c: uma persona nunca é uma letra ("SR" no cartão do Kanban, o "E" da fila, o "T" do Téo). Era AVISO; agora reprova.
+  if (probe.initialsAvatars === undefined) add('rosto', 'nao-verificado', staleProbe(probe, 'os rostos das personas'))
+  else {
+    const letters = [...new Set(probe.initialsAvatars)]
+    add('rosto', probe.initialsAvatars.length === 0 ? 'ok' : 'falhou', probe.initialsAvatars.length === 0 ? '' : `${probe.initialsAvatars.length} avatar(es) com inicial no lugar do rosto (persona nunca é letra): ${letters.slice(0, 4).map(letter => `“${letter}”`).join(' ')}`)
+  }
+
+  // D-103c · composer: o mesmo chip/controle (mesmo texto visível) duas vezes no composer ("Decide o rotineiro" apareceu duplicado).
+  if (probe.composerDuplicates === undefined) add('composer', 'nao-verificado', staleProbe(probe, 'o composer'))
+  else add('composer', probe.composerDuplicates.length === 0 ? 'ok' : 'falhou', probe.composerDuplicates.slice(0, 3).map(item => `“${item.label}” aparece ${item.count}× no composer`).join(' | '))
+
+  // D-103c · popover: um flutuante (não modal) que tapa de verdade o balão de uma mensagem do fio.
+  if (probe.popoverCovers === undefined) add('popover', 'nao-verificado', staleProbe(probe, 'os popovers'))
+  else if (row.allowPopover === true) add('popover', 'ok')
+  else add('popover', probe.popoverCovers.length === 0 ? 'ok' : 'falhou', probe.popoverCovers.slice(0, 3).map(item => `“${item.popover}” cobre a mensagem “${item.message}” (${item.w}×${item.h} px)`).join(' | '))
+
   if (probe.focus === undefined) add('foco', 'nao-verificado', 'a sonda não apertou Tab nesta cena')
   else add('foco', probe.focus.visible ? 'ok' : 'falhou', probe.focus.visible ? '' : `o 1º Tab não mostra foco visível (${probe.focus.element})`)
   return checks
+}
+
+/** Por que uma checagem da D-103c não foi verificada com um sidecar de sonda anterior à v3. */
+function staleProbe(probe, what) {
+  return `sidecar da sonda v${probe.version ?? 1}, sem ${what}: recapture com a sonda nova (D-103c)`
 }
 
 /** PASSOU só se nada falhou E nada ficou sem verificar; "INCOMPLETO" = não falhou mas falta sonda (captura antiga). */
@@ -358,9 +428,20 @@ export function buildReport(manifest, rows, results, { generatedAt = new Date().
       warnings.push(entry)
     }
   }
+  // D-103c: as dispensas que o dono pôs no manifesto (selo "Exemplo", popover aberto de propósito, "a pessoa" em texto para cliente): a 2ª leitura (Carbon) olha estas cenas de propósito.
+  const waivers = []
+  const waived = new Set()
+  for (const item of rows) {
+    for (const [key, rule] of [['allowExample', 'exemplo'], ['allowPopover', 'popover'], ['allowPessoa', 'fala']]) {
+      if (item[key] !== true || waived.has(`${item.scene}|${rule}`)) continue
+      waived.add(`${item.scene}|${rule}`)
+      waivers.push({ scene: item.scene, rule })
+    }
+  }
   if (oldProbeScenes.size > 0) warnings.unshift({ scene: `${oldProbeScenes.size} cena(s)`, check: 'dialogo', detail: 'sidecar da sonda v1, sem a medida de diálogo (cabe na janela, rodapé à vista): recapture com a sonda nova se a cena tiver diálogo', mode: 'lote' })
   return {
     warnings,
+    waivers,
     owner: manifest.owner ?? '?',
     bundle: manifest.bundle ?? '?',
     generatedAt,
@@ -378,7 +459,7 @@ export function renderMarkdown(report) {
   out.push(`# Pré-aceite mecânico · ${report.owner} · bundle ${report.bundle}`)
   out.push('')
   out.push(`${report.totals.scenes} cenas, ${report.totals.captures} capturas: **${report.totals.passou} passou**, ${report.totals.falhou} falhou, ${report.totals.incompleto} incompleto (falta sonda ou log). Cenas prontas para a Muse: **${report.totals.scenesReady} de ${report.totals.scenes}**.`)
-  if (report.legacyOk) out.push('\n> **Lote antigo (sem sonda).** Valem cobertura, axe e overflow (pelos logs) e o que o log der de tema; console, texto proibido, artigo, folhagem, imagens, ícones e foco NÃO foram conferidos. Recapture com o preaccept-probe antes de chamar a Muse.')
+  if (report.legacyOk) out.push('\n> **Lote antigo (sem sonda).** Valem cobertura, axe e overflow (pelos logs) e o que o log der de tema; console, texto proibido, artigo, folhagem, imagens, ícones e foco NÃO foram conferidos, nem as da D-103c (fala de persona, chip "Exemplo", rosto em inicial, composer duplicado, popover sobre mensagem) quando o sidecar é anterior à sonda v3. Recapture com o preaccept-probe antes de chamar a Muse.')
   if (report.skippedChecks.length > 0) out.push(`\n> Checagens dispensadas pelo manifesto: ${report.skippedChecks.join(', ')}.`)
   out.push('')
   out.push('## Pronto para a Muse (só o que passou em todos os modos)')
@@ -396,6 +477,13 @@ export function renderMarkdown(report) {
     out.push('')
     out.push('## Avisos (não reprovam; um olho humano decide)')
     for (const item of report.warnings) out.push(`- **${item.scene}** (${item.check}, ${item.mode}${item.otherModes > 0 ? ` e mais ${item.otherModes} modo(s)` : ''}): ${item.detail}`)
+  }
+  if ((report.waivers ?? []).length > 0) {
+    out.push('')
+    out.push('## Dispensas do manifesto (regra liberada nestas cenas; a 2ª leitura olha estas de propósito)')
+    const byScene = new Map()
+    for (const item of report.waivers) byScene.set(item.scene, [...(byScene.get(item.scene) ?? []), item.rule])
+    for (const [scene, rules] of byScene) out.push(`- **${scene}**: ${rules.join(', ')}`)
   }
   out.push('')
   out.push('## Por captura')

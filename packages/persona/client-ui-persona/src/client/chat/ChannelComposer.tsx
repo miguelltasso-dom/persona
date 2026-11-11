@@ -14,6 +14,7 @@ import { activeMentionToken, buildResponderItems, insertMention, moveResponderAc
 import { isPlacesNavEnabled } from '../shell/nav-flag.ts'
 import { LimitBanner } from './LimitBanner.tsx'
 import { ComposerToolButton } from './ComposerToolButton.tsx'
+import { clipboardImageFiles } from './clipboard-images.ts'
 import {
   COMPOSER_LARGE_PASTE_BYTES,
   clearComposerPocket,
@@ -232,6 +233,7 @@ export function ChannelComposer({
   const fieldRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const attachSeq = useRef(0)
   const fieldId = useId()
   const hintId = useId()
   const whoRespondsBalloonRef = useRef<HTMLDivElement>(null)
@@ -378,7 +380,8 @@ export function ChannelComposer({
 
   const queueFile = (file: File, pastedText?: string): void => {
     if (uploadAttachment === undefined) return
-    const key = `att-${Date.now()}-${file.name}`
+    attachSeq.current += 1
+    const key = `att-${Date.now()}-${String(attachSeq.current)}-${file.name}`
     if (pastedText !== undefined) setPastedTexts(current => ({ ...current, [key]: pastedText }))
     setPending(current => [...current, { key, name: file.name, status: 'uploading' }])
     void uploadAttachment(file).then(
@@ -487,6 +490,8 @@ export function ChannelComposer({
       return
     }
     pushSentHistory(conversationKey, text)
+    // D-103c: a dica de 1ª vez nunca fica por cima do fio depois do 1º envio.
+    dismissWhoRespondsHint()
     // IV-10: a resposta a uma pergunta da persona vai para quem a recebe (answerAttention), não para o fio como mensagem nova. Rejeitou = o texto volta ao campo.
     if (replyTarget !== undefined && onSendReply !== undefined) {
       void Promise.resolve(onSendReply(text, ids)).catch(() => { setDraft(current => (current === '' ? text : current)) })
@@ -774,6 +779,14 @@ export function ChannelComposer({
           onSelect={(event) => { setCaret(event.currentTarget.selectionStart) }}
           onPaste={(event) => {
             const text = event.clipboardData.getData('text/plain')
+            if (text.trim().length === 0 && uploadAttachment !== undefined) {
+              const images = clipboardImageFiles(event.clipboardData)
+              if (images.length > 0) {
+                event.preventDefault()
+                for (const image of images) queueFile(image)
+                return
+              }
+            }
             if (text.length < COMPOSER_LARGE_PASTE_BYTES || uploadAttachment === undefined) return
             event.preventDefault()
             queueFile(new File([text], t('composer.pasteFileName'), { type: 'text/plain' }), text)
@@ -1054,7 +1067,8 @@ export function ChannelComposer({
               </button>
             </Tooltip>
           )}
-          {responderAutonomy !== 'propose' && (
+          {/* D-103c: com o seletor visível o chip clicável dele já diz a autonomia; este só existe quando o seletor não aparece. */}
+          {responderAutonomy !== 'propose' && (responder === undefined || responderHidden) && (
             <Chip size="s" tone="plain" className={styles.autonomyChip}>
               {t(`composer.autonomy.${responderAutonomy}`)}
             </Chip>

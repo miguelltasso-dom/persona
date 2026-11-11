@@ -11,8 +11,8 @@
 // e por último aperta Tab UMA vez para ver se o foco aparece (com e sem o foco: se a região muda, o foco é visível).
 import { readFileSync, writeFileSync } from 'node:fs'
 
-/** 2 = mede o diálogo (cabe na janela, rodapé à vista). */
-export const PROBE_VERSION = 2
+/** 2 = mede o diálogo (cabe na janela, rodapé à vista). 3 = D-103c: fala das personas, chip duplicado no composer, popover sobre mensagem, chip "Exemplo", rosto em inicial. */
+export const PROBE_VERSION = 3
 
 /** Roda dentro da página; sem referências de fora (o Playwright serializa a função). */
 function inPageProbe() {
@@ -109,13 +109,91 @@ function inPageProbe() {
     dialogs.push({ label: short(dialog.getAttribute('aria-label') ?? dialog.querySelector('h1, h2, h3')?.textContent ?? '', 50), cut })
   }
 
-  // 7) Avatar de PERSONA em inicial (D-069, Muse 07/11: o "T" do Téo e o "N" da Nina): uma persona nunca é uma letra. O Avatar de retrato (classe `portrait`) sem imagem nem ícone
-  // desenha as iniciais, e só nesse modo leva `data-tone`; o círculo da PESSOA (`person`) pode ter iniciais. Só vira AVISO no relatório (o olho da Muse decide).
+  // 7) Rosto em inicial (D-069 + D-103c: o "T" do Téo, o "SR" do cartão do Kanban, o "E" da fila): uma persona nunca é uma letra. O Avatar de retrato (classe `portrait`) sem imagem nem ícone
+  // desenha as iniciais, e só nesse modo leva `data-tone`; o trilho tem o seu `span.initials`. O círculo da PESSOA (`person`) pode ter iniciais, salvo dentro da linha de uma persona.
   const initialsAvatars = []
+  const seenAvatars = new Set()
+  const addInitials = (owner, letters) => {
+    if (seenAvatars.has(owner) || initialsAvatars.length >= 20) return
+    seenAvatars.add(owner)
+    initialsAvatars.push(letters)
+  }
   for (const el of document.querySelectorAll('[data-tone]')) {
-    if (!/portrait/iu.test(String(el.getAttribute('class') ?? '')) || !rendered(el)) continue
-    initialsAvatars.push(short(el.textContent ?? '', 6))
-    if (initialsAvatars.length >= 20) break
+    if (!/portrait/iu.test(String(el.getAttribute('class') ?? '')) || !rendered(el) || el.querySelector('img, svg') !== null) continue
+    const letters = short(el.textContent ?? '', 6)
+    if (letters !== '') addInitials(el, letters)
+  }
+  for (const el of document.querySelectorAll('[class*="initials" i]')) {
+    if (el.children.length > 0 || !rendered(el)) continue
+    const letters = short(el.textContent ?? '', 6)
+    if (!/^[\p{L}\p{N}?]{1,4}$/u.test(letters)) continue
+    const owner = el.closest('[class*="avatar" i], [data-tone]') ?? el.parentElement ?? el
+    const personaRow = el.closest('[data-author]')?.getAttribute('data-author') === 'persona'
+    if (/person/iu.test(String(owner.getAttribute('class') ?? '')) && !personaRow) continue
+    addInitials(owner, letters)
+  }
+
+  // 8) A fala das PERSONAS (D-103c): o texto dos balões de persona e das respostas de opinião, sem o cromo (nome, hora, botões). É onde "a pessoa" não pode aparecer.
+  const speechRoots = [...document.querySelectorAll('[data-persona-bubble][data-author="persona"], [data-author="persona"] [data-persona-markdown], li[data-author="persona"] [class*="replyText" i]')]
+  const personaSpeech = []
+  for (const el of speechRoots) {
+    if (speechRoots.some(other => other !== el && other.contains(el)) || !rendered(el)) continue
+    const speech = String(el.textContent ?? '').replace(/\s+/gu, ' ').trim()
+    if (speech !== '') personaSpeech.push(speech.slice(0, 4000))
+    if (personaSpeech.length >= 200) break
+  }
+
+  // 9) Composer: o MESMO texto visível em dois controles/chips do composer (D-103c: o "Decide o rotineiro" aparecia duas vezes). Só o elemento mais externo conta (o chip DENTRO do botão não),
+  // e botão só de ícone fica de fora (dois "fechar" de chips diferentes são legítimos).
+  const composerDuplicates = []
+  for (const root of document.querySelectorAll('[data-persona-area="composer"]')) {
+    if (!rendered(root)) continue
+    const found = [...root.querySelectorAll('button, [role="button"], a[href], [data-chip], [class*="chip" i], [class*="badge" i], [class*="pill" i]')].filter(rendered)
+    const groups = new Map()
+    for (const el of found.filter(item => !found.some(other => other !== item && other.contains(item)))) {
+      const label = short(el.textContent ?? '', 60)
+      if (label.length < 2) continue
+      const group = groups.get(label.toLocaleLowerCase()) ?? { label, count: 0 }
+      group.count += 1
+      groups.set(label.toLocaleLowerCase(), group)
+    }
+    for (const group of groups.values()) if (group.count > 1) composerDuplicates.push(group)
+  }
+
+  // 10) Popover que COBRE mensagem (D-103c: o balão "A Coordenação distribui o pedido" que não fecha): um flutuante NÃO modal, menor que metade da janela, que tapa de verdade o balão de uma mensagem
+  // do fio (a interseção é ≥ 12×12 e o elemento no topo daquele ponto é o próprio popover; um popover por baixo da mensagem não cobre nada). Diálogo modal cobre por desenho: fica de fora.
+  const popoverCovers = []
+  const messageBoxes = [...document.querySelectorAll('[data-persona-bubble], [data-message-id]:not(:has([data-persona-bubble]))')].filter(rendered)
+  const popoverCandidates = [...document.querySelectorAll('[popover], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], dialog[open], [class*="popover" i], [class*="balloon" i]')].filter(rendered)
+  const popovers = popoverCandidates.filter(el => !popoverCandidates.some(other => other !== el && other.contains(el)))
+  const windowArea = window.innerWidth * window.innerHeight
+  for (const pop of popovers) {
+    const box = pop.getBoundingClientRect()
+    const modal = pop.getAttribute('aria-modal') === 'true' || (pop instanceof HTMLDialogElement && pop.matches(':modal'))
+    if (modal || !['fixed', 'absolute'].includes(getComputedStyle(pop).position) || box.width * box.height >= windowArea / 2) continue
+    for (const message of messageBoxes) {
+      if (message.contains(pop) || pop.contains(message)) continue
+      const rect = message.getBoundingClientRect()
+      const left = Math.max(box.left, rect.left, 0)
+      const right = Math.min(box.right, rect.right, window.innerWidth)
+      const top = Math.max(box.top, rect.top, 0)
+      const bottom = Math.min(box.bottom, rect.bottom, window.innerHeight)
+      if (right - left < 12 || bottom - top < 12) continue
+      const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2)
+      if (hit === null || !pop.contains(hit)) continue
+      popoverCovers.push({ popover: short(pop.getAttribute('aria-label') ?? pop.querySelector('h1, h2, h3, p')?.textContent ?? pop.textContent ?? '', 50), message: short(message.textContent ?? '', 50), w: Math.round(right - left), h: Math.round(bottom - top) })
+      if (popoverCovers.length >= 5) break
+    }
+  }
+
+  // 11) Chip "Exemplo" (D-103c): o selo dos cartões de amostra do dev-seed. Só o elemento mais interno cujo texto INTEIRO é o selo (o envoltório do chip não conta de novo).
+  const exampleChipRe = /^(?:exemplo|example|sample)$/iu
+  const exampleChips = []
+  for (const el of document.querySelectorAll('span, small, em, b, strong, [data-chip], [class*="chip" i], [class*="badge" i], [class*="tag" i], [class*="pill" i]')) {
+    const label = short(el.textContent ?? '', 20)
+    if (!exampleChipRe.test(label) || [...el.children].some(child => exampleChipRe.test(short(child.textContent ?? '', 20))) || !rendered(el)) continue
+    exampleChips.push(label)
+    if (exampleChips.length >= 10) break
   }
 
   // Quantos elementos o Tab pode alcançar: cena sem nenhum (cartão já respondido, estado vazio sem ação) não tem foco para mostrar.
@@ -144,6 +222,10 @@ function inPageProbe() {
     smallTargets,
     dialogs,
     initialsAvatars,
+    personaSpeech,
+    composerDuplicates,
+    popoverCovers,
+    exampleChips,
     focusableCount,
     foliageImages,
     foliageVisible,

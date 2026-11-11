@@ -803,7 +803,7 @@ export function GeneralChannelView({
               <QueuedMessageBubble
                 key={item.id}
                 t={t}
-                item={isHeldAfterStop(item, messages) ? { ...item, heldAfterStop: true } : item}
+                item={{ ...(isHeldAfterStop(item, messages) ? { ...item, heldAfterStop: true } : item), authorName: item.authorName ?? userName }}
                 {...(quotaResumeLabel === undefined || quotaBlocked !== true ? {} : { quotaUntil: quotaResumeLabel })}
                 isOnlyItem={effectiveQueued.length === 1}
                 onSendNow={handleSendQueuedNow}

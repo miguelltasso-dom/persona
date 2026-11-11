@@ -20,20 +20,31 @@ A Muse só julga **desenho**. Tudo o que uma máquina confere vem antes: `node s
    → `preaccept-report.json` + `.md` na pasta das capturas (ou `--out`). Sai com código 1 se alguma cena não está pronta (`--report-only` sempre 0).
    Só as cenas da lista **"Pronto para a Muse"** vão para ela.
 
-## O que confere (13 checagens por captura, cena × claro/escuro × 1440/960/200%)
+## O que confere (18 checagens por captura, cena × claro/escuro × 1440/960/200%)
 
 cobertura (imagem existe, não está em branco, tem texto) · axe crítico/sério 0 · alvos ≥ 24 px (`target-size` do axe; os < 24 px que ele aceita por espaçamento viram AVISO) · overflow horizontal 0 ·
 **diálogo** (a caixa inteira e o último controle/rodapé cabem na janela; a 200% ela tem 360 px de altura; sidecar da sonda v1 não media: só avisa) ·
 console limpo · texto proibido (lista da Muse, pt e en: Maestro, MCP, allowlist, runner, harness, slug, undefined, null, NaN, [object, TODO, lorem,
 mock, fixture, `$`/`US$`, cota não medida, autor com `:`, id hex ≥ 8, `@nome` no começo de título, Skill ensinada, `[[`, `persona_`, "Em andamento:" avulso) ·
 artigo antes de nome de persona ("o Atlas", "com a Nina", "A Nina terminou" reprovam; "pediu a Téo" / "Ensinar a Nina" viram **aviso**) ·
-tema certo · folhagem do trilho a 1440/960 · imagens quebradas (e AVISO de avatar de PERSONA em inicial, D-069: o "T" do Téo, o "N" da Nina; só a sonda nova mede) · ícones vazios · foco visível no 1º Tab.
+tema certo · folhagem do trilho a 1440/960 · imagens quebradas · ícones vazios · foco visível no 1º Tab.
+
+**D-103c (11/11, reforma do aceite; sonda v3) — 5 checagens novas que REPROVAM, cada uma com um caso RED e um GREEN em `preaccept.test.mjs`:**
+- `proibidos` agora também pega **`RealTurnCapError`** e **"NOVA VERSÃO:" cru** (o marcador do host; sem distinção de caixa).
+- `fala` — **"a pessoa"** (também "à/da/pela/na/pra pessoa") dentro do balão de PERSONA (`[data-persona-bubble][data-author="persona"]`, o markdown da persona e as respostas de opinião). O resto da tela não conta; "uma/essa/cada pessoa" e "as pessoas" passam.
+- `exemplo` — chip **"Exemplo"/"Example"** (o selo das amostras do dev-seed) em captura de aceite. Sem a sonda v3 vale a linha do texto que é só o selo.
+- `rosto` — **inicial no lugar do rosto** (o "SR" do cartão do Kanban, o "E" da fila, o "T" do Téo). Era AVISO (D-069), agora reprova. O círculo da PESSOA pode ter iniciais, salvo dentro da linha de uma persona.
+- `composer` — **chip/controle duplicado** no composer (`[data-persona-area="composer"]`): o mesmo texto visível em dois controles/chips (o "Decide o rotineiro" apareceu duas vezes). Só o elemento mais externo conta e botão só de ícone fica de fora.
+- `popover` — **popover cobrindo mensagens**: um flutuante NÃO modal (`position: absolute/fixed`, `aria-modal` ≠ true, menor que metade da janela) que de fato tapa um balão do fio (interseção ≥ 12×12 e o elemento no topo daquele ponto é o próprio popover; popover por baixo da mensagem não cobre). Diálogo modal cobre por desenho e fica de fora.
+
+Dispensa por cena, só quando a cena existe PARA isso (aparece na seção "Dispensas do manifesto" do relatório; a 2ª leitura olha estas cenas): `{ "id": "…", "allowExample": true }` (mostra o selo de propósito, ex.: galeria de estados), `"allowPopover": true` (menu/popover aberto de propósito), `"allowPessoa": true` (a persona escreve texto para um cliente: "a pessoa que comprar…"). As mesmas chaves no topo do manifesto valem para todas as cenas.
+Sidecar de sonda anterior à v3 (`probe.json` sem `version: 3`) = `fala`, `rosto`, `composer` e `popover` **não verificados → INCOMPLETO** (nunca PASSOU): recapture com a sonda nova (o `collectProbe` é o mesmo; nada muda no seu spec). Lote antigo: `--legacy-ok` dispensa essas quatro (o relatório avisa).
 
 Resultado por captura: **PASSOU** · **FALHOU** (com a razão) · **INCOMPLETO** (não falhou, mas falta a sonda/log para provar).
 
 ## Campos do manifesto
 
-`owner, bundle, dir, scenes:[id | {id, allowCurrency?, shell?, schemes?, viewports?, rejected? ("motivo": cena que a Muse já rejeitou nunca volta como pronta)}], schemes?, viewports?, foliageViewports?, shell? (false = sem trilho, ex.: galeria),
+`owner, bundle, dir, scenes:[id | {id, allowCurrency?, allowExample?, allowPopover?, allowPessoa?, shell?, schemes?, viewports?, rejected? ("motivo": cena que a Muse já rejeitou nunca volta como pronta)}], allowExample?, allowPopover?, allowPessoa?, schemes?, viewports?, foliageViewports?, shell? (false = sem trilho, ex.: galeria),
 roster?, fileTemplate? ("{scene}-{scheme}-{viewport}"), schemeNames?, viewportNames?, sizes?, logs?, reports?, skipChecks?`.
 
 Lotes antigos (sem sonda): `--legacy-ok` + `logs`/`reports`/`--log`/`--report` dão cobertura, axe, overflow e tema pelos logs; o resto fica de fora (o relatório avisa).

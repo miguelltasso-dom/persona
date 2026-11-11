@@ -68,7 +68,8 @@ export function QueuedMessageBubble({
     >
       <div className={styles.gutter}>
         <Avatar
-          name={item.authorName ?? 'Eu'}
+          // D-103c: o reserva é o mesmo "Você" do topo da conversa (V), nunca "Eu" (a letra E).
+          name={item.authorName ?? t('message.you')}
           src={item.authorAvatar}
           shape="person"
           size={40}

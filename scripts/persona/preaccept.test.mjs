@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { renderMarkdown } from './preaccept-lib.mjs'
-import { articleBeforePersona, buildReport, evaluateScene, fileNameFor, findAtTitles, findProhibited, minBytesFor, parseLegacyLog, parseLegacyReportJson, plan, verdictOf, MIN_PNG_BYTES } from './preaccept-lib.mjs'
+import { articleBeforePersona, buildReport, evaluateScene, fileNameFor, findAtTitles, findExampleChips, findPessoaInSpeech, findProhibited, minBytesFor, parseLegacyLog, parseLegacyReportJson, plan, verdictOf, CHECKS, MIN_PNG_BYTES } from './preaccept-lib.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const rules = (text, options) => findProhibited(text, options).map(item => item.rule)
@@ -140,29 +140,132 @@ const cleanProbe = (extra = {}) => ({
   consoleErrors: [],
   axe: [],
   focus: { visible: true, element: 'button “Aceitar”' },
+  // sonda v3 (D-103c): o que ela mede além do resto
+  initialsAvatars: [],
+  personaSpeech: [],
+  composerDuplicates: [],
+  popoverCovers: [],
+  exampleChips: [],
   ...extra,
 })
 const row = (extra = {}) => ({ scene: 'aprovacoes', scheme: 'light', viewport: '1440x900', file: 'aprovacoes-light-1440x900', allowCurrency: false, expectFoliage: true, ...extra })
 const failing = (checks) => checks.filter(item => item.status === 'falhou').map(item => item.check)
 
-test('avatar de retrato em inicial vira AVISO (D-069: persona nunca é letra); sem o campo (sonda antiga) não há aviso; imagem quebrada segue reprovando', () => {
-  const checks = evaluateScene(row(), { png: PNG, probe: cleanProbe({ initialsAvatars: ['N', 'T', 'N'] }) })
-  assert.deepEqual(failing(checks), [])
-  assert.equal(verdictOf(checks), 'PASSOU')
-  const imagens = checks.find(item => item.check === 'imagens')
-  assert.match(imagens.detail, /^aviso: 3 avatar\(es\) de retrato em inicial/u)
-  assert.match(imagens.detail, /“N” “T”/u)
-  const report = buildReport({ owner: 'x' }, [row()], new Map([[row().file, { checks, verdict: 'PASSOU' }]]))
-  assert.equal(report.warnings.length, 1)
-  assert.equal(report.warnings[0].check, 'imagens')
-  assert.equal(evaluateScene(row(), { png: PNG, probe: cleanProbe() }).find(item => item.check === 'imagens').detail, '')
-  assert.equal(failing(evaluateScene(row(), { png: PNG, probe: cleanProbe({ brokenImages: ['sem pixels: x'], initialsAvatars: ['N'] }) })).includes('imagens'), true)
-})
-
-test('cena limpa passa nas 13 checagens', () => {
+test('cena limpa passa nas 18 checagens', () => {
   const checks = evaluateScene(row(), { png: PNG, probe: cleanProbe() })
   assert.equal(verdictOf(checks), 'PASSOU', JSON.stringify(checks.filter(item => item.status !== 'ok')))
-  assert.equal(checks.length, 13)
+  assert.equal(checks.length, 18)
+  assert.deepEqual(checks.map(item => item.check).sort(), [...CHECKS].sort(), 'cada checagem da lista aparece uma vez')
+})
+
+// ---- D-103c (Keel 11/11 11:26): cada regra tem um caso RED (reprova) e um GREEN (passa). ----
+const checkOf = (checks, name) => checks.find(item => item.check === name)
+const runD103c = (probeExtra, rowExtra = {}) => evaluateScene(row(rowExtra), { png: PNG, probe: cleanProbe(probeExtra) })
+
+test('D-103c RED/GREEN · "NOVA VERSÃO:" cru e RealTurnCapError reprovam na checagem `proibidos`', () => {
+  for (const text of ['Vou trocar o título.\nNOVA VERSÃO: Compre hoje e leve dois', 'nova versao: Compre hoje', 'NOVA  VERSÃO :Cartaz']) {
+    assert.ok(rules(text).includes('nova-versao-cru'), `RED: ${text}`)
+    assert.deepEqual(failing(runD103c({ text })), ['proibidos'], text)
+  }
+  for (const text of ['RealTurnCapError: cap_reached', 'Erro RealTurnCapError no turno']) {
+    assert.ok(rules(text).includes('real-turn-cap-error'), `RED: ${text}`)
+    assert.deepEqual(failing(runD103c({ text })), ['proibidos'], text)
+  }
+  // GREEN: a mesma conversa sem o marcador (o host o tira) e a frase sem os dois pontos.
+  for (const text of ['Troquei o título. Nada mais mudou, então não há nova versão do texto.', 'A nova versão do cartaz está no rascunho', 'Precisa de você: o teto de turnos de hoje acabou']) {
+    assert.deepEqual(rules(text).filter(rule => rule === 'nova-versao-cru' || rule === 'real-turn-cap-error'), [], `GREEN: ${text}`)
+  }
+  assert.deepEqual(failing(runD103c({ text: 'Troquei o título. Fica a nova versão no rascunho.' })), [])
+})
+
+test('D-103c RED/GREEN · fala de persona com "a pessoa" reprova; só vale dentro do balão da persona', () => {
+  for (const speech of ['Avisei a pessoa que o cartaz saiu.', 'A pessoa precisa aprovar antes.', 'Vou pedir para a pessoa escolher a cor', 'Confirmei com a  pessoa', 'Mandei à pessoa o arquivo', 'o pedido da pessoa já está na fila']) {
+    const checks = runD103c({ personaSpeech: ['Oi!', speech] })
+    assert.deepEqual(failing(checks), ['fala'], `RED: ${speech}`)
+    assert.match(checkOf(checks, 'fala').detail, /a pessoa" na fala de persona/u)
+  }
+  // GREEN: você, o nome, "uma/essa/cada pessoa", plural, e a expressão fora da fala (cromo da tela: o texto geral nunca é a fala).
+  for (const speech of ['Você aprova o cartaz?', 'Miguel, o cartaz saiu.', 'Era uma pessoa difícil de agradar', 'Essa pessoa já respondeu', 'Cada pessoa vê uma versão', 'As pessoas gostaram', 'Conversa com a equipe']) {
+    assert.deepEqual(failing(runD103c({ personaSpeech: [speech] })), [], `GREEN: ${speech}`)
+  }
+  assert.deepEqual(failing(runD103c({ text: 'Pedido da pessoa\nAprovações', personaSpeech: ['Pronto, Miguel.'] })), [], 'o cromo da tela não é fala de persona')
+  // A dispensa `allowPessoa` (persona escrevendo texto para um cliente) passa e aparece no relatório.
+  assert.deepEqual(failing(runD103c({ personaSpeech: ['Compre hoje: a pessoa que levar dois ganha o terceiro.'] }, { allowPessoa: true })), [])
+  assert.deepEqual(findPessoaInSpeech(['a pessoa', 'você']).map(item => item.rule), ['a-pessoa'])
+})
+
+test('D-103c RED/GREEN · chip "Exemplo" numa captura de aceite reprova; `allowExample` dispensa; sem a sonda v3 vale a linha do texto', () => {
+  const red = runD103c({ exampleChips: ['Exemplo'] })
+  assert.deepEqual(failing(red), ['exemplo'])
+  assert.match(checkOf(red, 'exemplo').detail, /chip “Exemplo”.*amostra do dev-seed/u)
+  assert.deepEqual(failing(runD103c({ exampleChips: ['Example', 'Exemplo'] })), ['exemplo'], 'en também')
+  assert.match(checkOf(runD103c({ exampleChips: ['Example', 'Exemplo'] }), 'exemplo').detail, /x2/u)
+  assert.deepEqual(failing(runD103c({ exampleChips: [] })), [], 'GREEN: nenhum selo')
+  assert.deepEqual(failing(runD103c({ exampleChips: ['Exemplo'] }, { allowExample: true })), [], 'a cena que existe para mostrar o selo')
+  // Palavra solta no meio de frase NÃO é o selo.
+  assert.deepEqual(failing(runD103c({ text: 'Time de exemplo\nVeja um exemplo de equipe\nExemplo: Padaria Lua', exampleChips: undefined })), [])
+  assert.deepEqual(failing(runD103c({ text: 'Liberar para Bia\nExemplo\nEnviar', exampleChips: undefined })), ['exemplo'], 'a linha que é só o selo')
+  assert.deepEqual(findExampleChips({ chips: ['Exemplos', 'exemplo'] }), ['exemplo'])
+})
+
+test('D-103c RED/GREEN · iniciais no lugar do rosto ([SR], "E") reprovam; deixou de ser aviso', () => {
+  const red = runD103c({ initialsAvatars: ['SR', 'E', 'SR'] })
+  assert.deepEqual(failing(red), ['rosto'])
+  assert.match(checkOf(red, 'rosto').detail, /^3 avatar\(es\) com inicial no lugar do rosto.*“SR” “E”/u)
+  assert.equal(verdictOf(red), 'FALHOU')
+  assert.deepEqual(failing(runD103c({ initialsAvatars: [] })), [], 'GREEN: rosto de animal em todo lugar')
+  assert.equal(checkOf(runD103c({ initialsAvatars: [] }), 'imagens').detail, '', 'nada de aviso na checagem de imagens')
+  assert.equal(failing(runD103c({ brokenImages: ['sem pixels: x'], initialsAvatars: ['N'] })).join(), 'imagens,rosto', 'as duas coisas reprovam, cada uma na sua')
+})
+
+test('D-103c RED/GREEN · chip/controle duplicado no composer reprova', () => {
+  const red = runD103c({ composerDuplicates: [{ label: 'Decide o rotineiro', count: 2 }] })
+  assert.deepEqual(failing(red), ['composer'])
+  assert.match(checkOf(red, 'composer').detail, /“Decide o rotineiro” aparece 2× no composer/u)
+  assert.deepEqual(failing(runD103c({ composerDuplicates: [] })), [], 'GREEN: o chip clicável só uma vez (o conserto do Flint)')
+})
+
+test('D-103c RED/GREEN · popover cobrindo mensagens reprova; `allowPopover` dispensa', () => {
+  const covers = [{ popover: 'A Coordenação distribui o pedido', message: 'Oi! Vou dividir o pedido', w: 280, h: 96 }]
+  const red = runD103c({ popoverCovers: covers })
+  assert.deepEqual(failing(red), ['popover'])
+  assert.match(checkOf(red, 'popover').detail, /“A Coordenação distribui o pedido” cobre a mensagem “Oi! Vou dividir o pedido” \(280×96 px\)/u)
+  assert.deepEqual(failing(runD103c({ popoverCovers: [] })), [], 'GREEN: nenhum popover sobre mensagem')
+  assert.deepEqual(failing(runD103c({ popoverCovers: covers }, { allowPopover: true })), [], 'popover aberto de propósito')
+})
+
+test('D-103c · sidecar anterior à sonda v3 é INCOMPLETO (nunca PASSOU); `--legacy-ok` o dispensa; sem sonda nenhuma, as 5 ficam sem verificar', () => {
+  const { initialsAvatars: _a, personaSpeech: _b, composerDuplicates: _c, popoverCovers: _d, exampleChips: _e, ...v2 } = cleanProbe({ version: 2 })
+  const old = evaluateScene(row(), { png: PNG, probe: v2 })
+  assert.equal(verdictOf(old), 'INCOMPLETO')
+  assert.deepEqual(failing(old), [])
+  assert.deepEqual(old.filter(item => item.status === 'nao-verificado').map(item => item.check).sort(), ['composer', 'fala', 'popover', 'rosto'])
+  assert.match(checkOf(old, 'rosto').detail, /sidecar da sonda v2, sem os rostos das personas: recapture com a sonda nova \(D-103c\)/u)
+  assert.equal(checkOf(old, 'exemplo').status, 'ok', 'o chip "Exemplo" também se lê do texto visível de sidecar antigo')
+  const none = evaluateScene(row(), { png: PNG })
+  for (const name of ['fala', 'rosto', 'composer', 'popover']) assert.equal(checkOf(none, name).status, 'nao-verificado', name)
+  assert.equal(checkOf(none, 'exemplo').status, 'nao-verificado')
+  assert.equal(verdictOf(none), 'INCOMPLETO')
+})
+
+test('D-103c · as dispensas do manifesto vão para o plano e aparecem no relatório (a 2ª leitura olha estas cenas)', () => {
+  const manifest = { owner: 'T', shell: false, viewports: ['1440x900'], scenes: ['boa', { id: 'amostra', allowExample: true, allowPopover: true }, { id: 'cliente', allowPessoa: true }] }
+  const rows = plan(manifest)
+  assert.ok(rows.filter(item => item.scene === 'amostra').every(item => item.allowExample === true && item.allowPopover === true && item.allowPessoa === undefined))
+  assert.ok(rows.filter(item => item.scene === 'boa').every(item => item.allowExample === undefined && item.allowPopover === undefined && item.allowPessoa === undefined))
+  assert.ok(plan({ ...manifest, allowExample: true }).every(item => item.allowExample === true), 'o manifesto inteiro também pode dispensar (galeria de estados)')
+  const results = new Map(rows.map((item) => {
+    const checks = evaluateScene(item, { png: PNG, probe: cleanProbe({ darkTheme: item.scheme === 'dark', exampleChips: ['Exemplo'], popoverCovers: [{ popover: 'p', message: 'm', w: 20, h: 20 }], personaSpeech: ['a pessoa'] }) })
+    return [item.file, { checks, verdict: verdictOf(checks) }]
+  }))
+  const report = buildReport(manifest, rows, results)
+  assert.deepEqual(report.waivers, [{ scene: 'amostra', rule: 'exemplo' }, { scene: 'amostra', rule: 'popover' }, { scene: 'cliente', rule: 'fala' }])
+  assert.deepEqual(report.notReady.map(item => item.scene).sort(), ['amostra', 'boa', 'cliente'], 'cada uma ainda reprova no que NÃO dispensou')
+  const md = renderMarkdown(report)
+  assert.match(md, /## Dispensas do manifesto/u)
+  assert.match(md, /\*\*amostra\*\*: exemplo, popover/u)
+  assert.match(md, /\*\*cliente\*\*: fala/u)
+  assert.doesNotMatch(renderMarkdown(buildReport({ owner: 'x' }, [row()], new Map([[row().file, { checks: [], verdict: 'FALHOU' }]]))), /Dispensas/u)
 })
 
 test('cena rejeitada pela Muse (manifesto `rejected`) nunca volta como pronta, mesmo com as 13 checagens limpas (Quill 06:15)', () => {
@@ -334,6 +437,38 @@ test('linha de comando de ponta a ponta: relatório .json/.md e código de saíd
   }
 })
 
+test('D-103c · linha de comando: sidecar da sonda v2 = INCOMPLETO (código 1); `--legacy-ok` dispensa só as 5 novas; uma regra nova reprovada = FALHOU e o relatório diz qual', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'preaccept-d103c-'))
+  try {
+    const png = Buffer.alloc(MIN_PNG_BYTES + 100)
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]).copy(png)
+    png.writeUInt32BE(1440, 16)
+    png.writeUInt32BE(900, 20)
+    writeFileSync(join(dir, 'manifest.json'), JSON.stringify({ owner: 'Teste', bundle: 'd103c', shell: false, viewports: ['1440x900'], scenes: ['velha', 'composer-duplicado'] }))
+    const { initialsAvatars: _a, personaSpeech: _b, composerDuplicates: _c, popoverCovers: _d, exampleChips: _e, ...v2 } = cleanProbe({ version: 2 })
+    for (const scheme of ['light', 'dark']) {
+      writeFileSync(join(dir, `velha-${scheme}-1440x900.png`), png)
+      writeFileSync(join(dir, `velha-${scheme}-1440x900.probe.json`), JSON.stringify({ ...v2, darkTheme: scheme === 'dark' }))
+      writeFileSync(join(dir, `composer-duplicado-${scheme}-1440x900.png`), png)
+      writeFileSync(join(dir, `composer-duplicado-${scheme}-1440x900.probe.json`), JSON.stringify(cleanProbe({ version: 3, darkTheme: scheme === 'dark', composerDuplicates: [{ label: 'Decide o rotineiro', count: 2 }] })))
+    }
+    const args = [join(here, 'preaccept.mjs'), '--manifest', join(dir, 'manifest.json'), '--dir', dir]
+    const strict = spawnSync(process.execPath, args, { encoding: 'utf8' })
+    assert.equal(strict.status, 1, strict.stdout + strict.stderr)
+    assert.match(strict.stdout, /INCOMPLETO\s+velha.*sem verificar: fala, rosto, composer, popover/u)
+    assert.match(strict.stdout, /FALHOU\s+composer-duplicado.*composer \(“Decide o rotineiro” aparece 2× no composer\)/u)
+    const lenient = spawnSync(process.execPath, [...args, '--legacy-ok'], { encoding: 'utf8' })
+    assert.equal(lenient.status, 1, 'a cena com o composer duplicado continua reprovando')
+    assert.doesNotMatch(lenient.stdout, /velha/u, 'a velha passa com --legacy-ok (as 5 novas dispensadas)')
+    assert.match(lenient.stdout, /FALHOU\s+composer-duplicado/u)
+    const report = JSON.parse(readFileSync(join(dir, 'preaccept-report.json'), 'utf8'))
+    assert.deepEqual(report.readyForMuse.map(item => item.scene), ['velha'])
+    assert.deepEqual(report.waivers, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('--init esboça o manifesto a partir das imagens que existem', () => {
   const dir = mkdtempSync(join(tmpdir(), 'preaccept-init-'))
   try {
@@ -487,6 +622,117 @@ test('sonda: o axe entra numa página com CSP que bloqueia script inline e não 
     const again = await collectProbe(page, { axePath, focus: false })
     assert.equal(again.axeError, undefined)
     assert.ok(Array.isArray(again.axe))
+    await page.close()
+  } finally {
+    await browser.close()
+  }
+})
+
+// D-103c (Keel 11/11): a sonda v3 numa página de verdade, com o DOM do app (mesmas marcas: data-persona-area="composer", data-persona-bubble, role="dialog" do balão, classes avatar/initials/chip).
+// RED = o que o Carbon viu (chip duplicado, balão sobre a mensagem, "Exemplo", [SR], fala com "a pessoa", marcador cru); GREEN = o conserto do Flint (um chip só, balão fora das mensagens, rosto de animal).
+test('D-103c · sonda v3 no Chrome: RED (composer duplicado, balão sobre mensagem, "Exemplo", [SR]/"E", "a pessoa", marcador cru) e GREEN (o conserto)', async (context) => {
+  const requireFrom = createRequire(join(here, '..', '..', 'packages', 'persona', 'persona-e2e', 'package.json'))
+  let browser
+  try {
+    const { chromium } = requireFrom('playwright')
+    browser = await chromium.launch({ channel: 'chrome', headless: true })
+  } catch (error) {
+    context.skip(`sem navegador: ${String(error).slice(0, 80)}`)
+    return
+  }
+  try {
+    const { collectProbe } = await import('./preaccept-probe.mjs')
+    const goodPixel = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    const page = await browser.newPage({ viewport: { width: 900, height: 620 } })
+    const scene = ({ header = '', face, personaSpeech, composerChips, balloons, rail = '' }) => `<!doctype html><html lang="pt-BR"><head><style>
+      body{margin:0;font:16px sans-serif;background:#fff;color:#111}
+      main{position:relative;width:700px;height:620px;margin:0 auto}
+      ol{list-style:none;margin:0;padding:12px;height:400px;overflow:hidden}
+      li{margin:0 0 12px;padding:0}
+      [data-persona-bubble]{display:inline-block;padding:12px 16px;border:1px solid #888;border-radius:12px;max-width:420px}
+      form{position:absolute;left:0;right:0;bottom:0;height:150px;padding:12px;border-top:1px solid #aaa;background:#fff}
+      .chip{display:inline-flex;gap:4px;padding:2px 10px;border:1px solid #666;border-radius:99px;font-size:13px}
+      button{min-width:40px;min-height:40px} .autonomyButton{border:0;background:none;padding:0}
+      .avatar{display:inline-flex;width:32px;height:32px;border-radius:8px;border:1px solid #444;align-items:center;justify-content:center;overflow:hidden}
+      .balloon{position:absolute;z-index:40;width:280px;padding:12px;background:#ffd;border:1px solid #333}
+    </style></head><body>${header}<main>
+      <ol>
+        <li data-author="user" data-message-id="m1"><span class="avatar person" data-tone="2"><span class="initials">MA</span></span><div data-persona-bubble data-author="user"><p>Pode fazer o cartaz da loja?</p></div></li>
+        <li data-author="persona" data-message-id="m2">${face}<div data-persona-bubble data-author="persona"><div data-persona-markdown>${personaSpeech}</div></div></li>
+        <li data-author="persona" data-message-id="m3"><div data-persona-bubble data-author="persona"><div data-persona-markdown><p>Deixei a faixa maior no rascunho, Miguel.</p></div></div></li>
+      </ol>
+      ${balloons}
+      <form data-persona-area="composer" aria-label="Escreva uma mensagem">
+        <textarea aria-label="Mensagem" placeholder="Escreva uma mensagem"></textarea>
+        <div><button type="button" aria-label="Quem responde"></button>
+        <button type="button" class="autonomyButton" aria-label="Decide o rotineiro"><span class="chip"><svg width="13" height="13"><path d="M0 0h13v13z"/></svg><span>Decide o rotineiro</span></span></button>${composerChips}</div>
+        <button type="submit" aria-label="Enviar"></button>
+      </form></main>${rail}</body></html>`
+    const balloon = (title, extra = '') => `<div role="dialog" class="balloon" aria-label="${title}" ${extra}><p>${title}</p><button type="button">Entendi</button></div>`
+    // Põe o balão (o 1º com a classe .balloon) em cima do balão de mensagem m2, como o app o faz com a dica "Quem responde".
+    const overMessage = async () => page.evaluate(() => {
+      const bubble = document.querySelector('[data-message-id="m2"] [data-persona-bubble]').getBoundingClientRect()
+      const host = document.querySelector('main').getBoundingClientRect()
+      const el = document.querySelector('.balloon')
+      el.style.top = `${bubble.top - host.top + 6}px`
+      el.style.left = `${bubble.left - host.left + 20}px`
+    })
+
+    // ---- RED ----
+    await page.setContent(scene({
+      header: '<header><span class="chip">Exemplo</span></header>',
+      face: '<span class="avatar portrait" data-tone="1"><span class="initials">SR</span></span><span class="avatar person" data-tone="3"><span class="initials">E</span></span>',
+      personaSpeech: '<p>Avisei a pessoa que o cartaz saiu.</p><p>NOVA VERSÃO: Cartaz com faixa maior</p><p>RealTurnCapError</p>',
+      composerChips: '<span class="chip autonomyChip">Decide o rotineiro</span>',
+      balloons: balloon('A Coordenação distribui o pedido'),
+      rail: '<nav><span class="avatar" data-persona-area="rail-face"><span class="initials">B</span></span></nav>',
+    }))
+    await overMessage()
+    await page.waitForTimeout(200)
+    const red = await collectProbe(page, { focus: false })
+    assert.equal(red.version, 3)
+    assert.deepEqual(red.initialsAvatars, ['SR', 'E', 'B'], 'retrato em inicial, círculo dentro da linha da persona e a inicial do trilho; o círculo da pessoa (MA) não')
+    assert.equal(red.personaSpeech.length, 2, 'só os balões de persona (o da pessoa e o cromo ficam de fora)')
+    assert.match(red.personaSpeech[0], /Avisei a pessoa que o cartaz saiu\./u)
+    assert.deepEqual(red.composerDuplicates, [{ label: 'Decide o rotineiro', count: 2 }], JSON.stringify(red.composerDuplicates))
+    assert.equal(red.popoverCovers.length, 1, JSON.stringify(red.popoverCovers))
+    assert.equal(red.popoverCovers[0].popover, 'A Coordenação distribui o pedido')
+    assert.match(red.popoverCovers[0].message, /Avisei a pessoa/u)
+    assert.ok(red.popoverCovers[0].w >= 12 && red.popoverCovers[0].h >= 12)
+    assert.deepEqual(red.exampleChips, ['Exemplo'])
+    const redChecks = evaluateScene(row({ expectFoliage: false }), { png: PNG, probe: { ...red, text: `${red.text} ${'x'.repeat(20)}` } })
+    for (const name of ['proibidos', 'fala', 'exemplo', 'rosto', 'composer', 'popover']) assert.ok(failing(redChecks).includes(name), `RED: ${name} deveria reprovar (reprovou: ${failing(redChecks).join(', ')})`)
+    assert.equal(verdictOf(redChecks), 'FALHOU')
+    assert.match(checkOf(redChecks, 'proibidos').detail, /NOVA VERSÃO|RealTurnCap/u)
+
+    // ---- GREEN: o conserto ----
+    await page.setContent(scene({
+      face: `<span class="avatar portrait" data-tone="1"><img src="${goodPixel}" alt=""></span>`,
+      personaSpeech: '<p>Você aprova o cartaz, Miguel? Já deixei a faixa maior no rascunho.</p>',
+      composerChips: '',
+      // um balão na altura do composer (não toca mensagem), um modal pequeno sobre a mensagem (cobre por desenho) e um balão POR BAIXO da mensagem (não cobre nada)
+      balloons: `${balloon('Dica do composer', 'style="top:430px;left:200px"')}${balloon('Janela modal', 'aria-modal="true" style="top:30px;left:60px"')}${balloon('Atrás da mensagem', 'style="top:70px;left:40px;z-index:-1"')}`,
+      rail: '<nav><span class="avatar portrait"><img src="' + goodPixel + '" alt=""></span></nav>',
+    }))
+    await page.waitForTimeout(200)
+    const green = await collectProbe(page, { focus: false })
+    assert.deepEqual(green.initialsAvatars, [], 'a pessoa pode ter iniciais; a persona tem rosto')
+    assert.equal(green.personaSpeech.length, 2)
+    assert.deepEqual(green.composerDuplicates, [], 'um chip clicável só (o conserto do Flint em ChannelComposer.tsx)')
+    assert.deepEqual(green.popoverCovers, [], JSON.stringify(green.popoverCovers))
+    assert.deepEqual(green.exampleChips, [])
+    const greenChecks = evaluateScene(row({ expectFoliage: false }), { png: PNG, probe: { ...green, text: `${green.text} ${'x'.repeat(20)}` } })
+    assert.deepEqual(failing(greenChecks), [], JSON.stringify(greenChecks.filter(item => item.status === 'falhou')))
+    for (const name of ['fala', 'exemplo', 'rosto', 'composer', 'popover', 'proibidos']) assert.equal(checkOf(greenChecks, name).status, 'ok', name)
+
+    // O balão sobre a mensagem sem o `aria-modal` é o RED; com o balão sobre a mensagem E `allowPopover` a cena passa e vira dispensa do relatório.
+    await page.setContent(scene({ face: `<span class="avatar portrait"><img src="${goodPixel}" alt=""></span>`, personaSpeech: '<p>Oi, Miguel.</p>', composerChips: '', balloons: balloon('Menu aberto de propósito') }))
+    await overMessage()
+    const deliberate = await collectProbe(page, { focus: false })
+    assert.ok(deliberate.popoverCovers.length >= 1, 'o balão tapa a mensagem m2 (e, com o balão baixo, também a m3)')
+    assert.ok(deliberate.popoverCovers.every(item => item.popover === 'Menu aberto de propósito'))
+    assert.deepEqual(failing(evaluateScene(row({ expectFoliage: false }), { png: PNG, probe: { ...deliberate, text: `${deliberate.text} ${'x'.repeat(20)}` } })), ['popover'])
+    assert.deepEqual(failing(evaluateScene(row({ expectFoliage: false, allowPopover: true }), { png: PNG, probe: { ...deliberate, text: `${deliberate.text} ${'x'.repeat(20)}` } })), [])
     await page.close()
   } finally {
     await browser.close()

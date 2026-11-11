@@ -134,3 +134,167 @@ RAM por processo (fria/quente): main 172/211, GPU 272/270, renderer 185/186, hos
 **Leitura contra as metas.** Janela visível: **6,9–8,5 s** (meta < 1 s: não). Primeira tela útil (shell): **9,2–11,7 s** (meta < 2 s: não). RAM parada: **1,1 GB** (meta < 300 MB: não; host 414 MB, GPU 270 MB). Instalador ≤ 250 MiB: **não** (329,6 MiB; 1,18 GiB instalado). Host pronto: servidor Web em 7,5 s; shell em ~9–12 s. O "sem janela" era artefato do probe (`windowsHide` + watcher bloqueando o event loop).
 
 **Próximo.** O probe corrigido (`perf-probe-visible.mjs`) e a linha de base com janela visível estão prontos; o `perf-p0.patch` (janela/splash antes de `backend.start`) e o `perf-diet.patch` continuam para a v1.2 (congelamento do candidato), aplicando limpo em `3660c033a5`; medir o P0 no próximo artefato com o probe visível. O achado "instalação nova sem janela" **não se reproduz fora do probe**; não é P0 de release.
+
+## 8. v1.1.1 "LEVE E RÁPIDA" — baseline, timeline e perfil do host (09/11)
+
+**Baseline v1.1 (Setup 4acf5b7a, `C:/p8perf`, 3 execuções, janela visível).**
+
+| execução | janela (ms) | shell (ms) | CDP (ms) | RAM (MB) | host (MB) | GPU (MB) | CPU GPU/renderer |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 fria | 6.700 | 8.963 | 640 | 1.277 | 412 | 434 | 31% / 8% |
+| 2 quente | 6.844 | 9.327 | 505 | 1.290 | 418 | 427 | 37% / 12% |
+| 3 quente | 6.522 | 8.755 | 526 | 1.120 | 413 | 265 | 4% / 2% |
+
+**Timeline do boot (sampler 500 ms, 1 execução).** O main fica em **0,78 s de CPU e plano** de 3,3 s até a janela; o host sobe de **0,73 → 4,02 s de CPU** e **151 → 352 MB**; a janela visível aparece em **7,10 s** e o `dsh web` em **7,20 s**. O renderer só trabalha depois da janela (0,5 → 2,5 s de CPU). **O gargalo é o boot do host, não o require em cascata do main.**
+
+**RAM por processo (baseline).** main 184–196, GPU **265–434**, renderer 194–208, host **412–418**, utility 52–53; total **1.120–1.290 MB**. O GPU varia com a animação/visibilidade do onboarding (434 nas 2 primeiras, 265 na 3ª); o host é o maior processo fixo (412–418) e carrega o perfil completo + warmups de CLI/conectores; o renderer (194–208) carrega o bundle do cliente (15,9 MiB) + DOM; o main (184–196) é o Electron + asar. Candidatos a lazy/utility: warmups de CLI/conectores do host no 1º pedido (P1), painéis do cliente por code splitting (P1), e o GPU (compositor do Chromium; `--disable-gpu` não é viável para a UI). A meta < 500 MB total exige cortar o GPU e/ou o host; medir cada corte no instalado.
+
+**Perfil de CPU do host (host direto, 5,9 s até a falha do cofre; 6,4 s ativos).** O host direto (sem o Electron pai) falha no `persona-credentials`/`VaultUnavailableError` aos 5,9 s; o perfil captura o module load/plugin boot até ali. Top de CPU própria: `spawn` **1,18 s** (5,7%), `compileSourceTextModule` **0,75 s** (3,6%), `requireBuiltin` do `node-addon-native-custom-loader` **0,55 s** (2,6%), loader CJS/path/package_json ~0,5 s, Cordis ~0,36 s; 69% do tempo do perfil é ocioso (espera pós-falha). O host no app usa ~4 s de CPU para 7 s de parede: ~3 s de I/O/espera (asar/antivírus/DB/child) que o `--cpu-prof` não mostra. **Cortes medidos:** compile cache (P0) ataca o `compileSourceTextModule`; adiar os warmups de CLI (`spawn` 1,18 s) ataca o segundo; o module load/asar e o I/O pedem ETW/`wpr` ou o diet.
+
+**Achado de teste (dívida do HEAD, não do tree).** `apps/desktop/tests/welcome-startup.spec.ts` falha **também no HEAD limpo 9f5fc1198e** (persona-ship): 2 testes, `TypeError: Cannot read properties of undefined (reading 'appendSwitch')` em `resource-budget.ts:17` via `main.ts:123`; o mock de Electron do teste não tem `app.commandLine`. Não é regressão do perf-p0 nem do tree sujo; é dívida do harness de teste do HEAD.
+
+**P0 (commit db3b4ef0).** `perf-p0.patch` aplica limpo em 9f5fc1198e; o pack `--dir` do Keel está rodando; a medição antes/depois (win-unpacked vs Setup 4acf5b7a) fica pendente do artefato.
+
+## 9. Atribuição do boot do host (11/11, Cobalt): não é DB nem `gh` — é carga de módulo + spawn
+
+**Método.** Preload injetado no filho do host por `NODE_OPTIONS=--require` (o `desktopNodeEnvironment` preserva o env do app; o Electron empacotado só honra `NODE_OPTIONS` em `ELECTRON_RUN_AS_NODE`, então o main não é afetado). O preload embrulha `child_process.spawnSync/execFileSync/spawn`, as funções síncronas de `fs` e `process.send`, e grava tempo + caminho por chamada em `.maestri/tmp/cobalt/host-io-probe.log`. Rodado no `win-unpacked` do v1.1 (`3660c033a5`) com home preparada (`sp-home`), sem IA.
+
+**Números (host direto, v1.1, 2 execuções: fria e quente).**
+
+| chamada | fria (1ª leitura do asar) | quente |
+| --- | ---: | ---: |
+| `fs.readFileSync` no asar | **4.787 chamadas / 4,32 s** (máx 85 ms) | 2.377 / **0,13 s** (máx 2 ms) |
+| `fs.openSync` | 59 / 1,14 s (máx 84 ms) | 51 / 8 ms |
+| `fs.realpathSync` (asar) | 9.359 / 0,25 s | 9.348 / 0,25 s |
+| `fs.statSync` | 2.067 / 0,12 s | 2.031 / 0,13 s |
+| `fs.existsSync` | 2.919 / 0,05 s | 2.919 / 0,02 s |
+| `spawnSync gh --version` | 1 / **0,15 s** (t≈5,0 s) | 1 / 0,14 s |
+
+**Leitura.** O `--cpu-prof` do host (5,9 s até a falha do cofre) compila **498 módulos** (todos do `app.asar`) e gasta a maior parte do tempo em resolução/carga: `compileSourceTextModule` 0,75 s, `spawn` **1,18 s**, `requireBuiltin` 0,55 s, `internalModuleStat` 0,17 s, `readPackageJSON` 0,15 s, `getPackageScopeConfig` 0,12 s. O I/O que o `--cpu-prof` não mostra é **só a primeira leitura do asar depois de instalar/atualizar** (4,3 s de `readFileSync` frios, com o antivírus varrendo o arquivo); em execução quente o mesmo I/O cai para 0,13 s. **Não é o DB, não é o `gh` (0,15 s), não é o asar em si (quente é barato).**
+
+**Consequência para os cortes.** (1) O compile cache do P0 ataca o `compileSourceTextModule` a partir da 2ª abertura; (2) adiar os warmups de CLI (o `spawn` de 1,18 s, que cria 4 processos) tira CPU/processos do caminho crítico; (3) o custo frio de 4,3 s é pago uma vez por instalação/atualização e some com a varredura do antivírus/compilação — o diet (menos arquivos no asar) reduz esse pico; (4) reduzir o número de módulos carregados no boot (plugins lazy) é o único corte que ataca a raiz dos ~5,5 s de CPU.
+
+## 10. v1.1.1 — artefato do diet (11/11, commit 6525485907) e medição de abertura
+
+**Artefato.** `package-clean --dir --commit 6525485907` (perf-p0 + diet integrados; o diet ficou em `runtime-file-policy.ts` e o `prepare-dsh` filtra o package set para o descriptor não citar pacote que não vai). `win-unpacked` em `C:\p8wbc28dac5c2\apps\desktop\.desktop-build\targets\win-x64\unsigned-artifacts\win-unpacked`.
+
+| item | v1.1 (09/11) | v1.1.1 (11/11) | delta |
+| --- | ---: | ---: | ---: |
+| `win-unpacked` | 1.264 MB / 8.218 arquivos | **1.112 MiB / 8.157 arquivos** | **−152 MiB** |
+| `resources/app.asar` | 237,1 MiB (248.630.466 B) / 24.395 entradas | **213 MiB (223.826.640 B) / 23.445 entradas** | −24 MiB / −950 entradas |
+| `resources/app.asar.unpacked` | 254,1 MiB | **232 MiB** | −22 MiB |
+| `locales/` | 55 arquivos, 48,3 MiB | **2 arquivos (`pt-BR`, `en-US`)** | −46 MiB |
+| pacotes fora do perfil (inspector/sherpa/cua) | 969 entradas no asar | **0** | −50 MiB instalados |
+| descriptor `desktop-runtime.json` | 364 shared packages | **337 shared packages** | −27 |
+| overlay do host no asar | presente | presente | — |
+
+O instalador NSIS não é gerado pelo `--dir`; com a compressão de ~3,7× do corte v1.1, os −152 MiB instalados devem virar ~−40 MiB no Setup (329,6 → ~290 MiB). A meta < 200 MiB continua dependendo da dieta 1–6 (LibreOffice/Python/MinGit sob demanda).
+
+**Medição de abertura (3 execuções, janela visível, `perf-probe-visible.mjs`, home descartável, sem IA).** Preenchida abaixo com o artefato acima; a linha de base v1.1 é a da §8 (janela 6.522–6.844 ms, shell 8.755–9.327 ms, RAM 1.120–1.290 MB, host 412–418 MB).
+
+## 11. v1.1.1 D-101 — primeiros cortes medidos (11/11, Cobalt)
+
+**Método.** `--dir` pack de `6525485907` (P0 + dieta de locales/experimentais) no worktree warm `C:\p8wbc28dac5c2`; probe visível
+(`perf-probe-visible.mjs`, 3 execuções, 1 fria + 2 quentes, home descartável) e probe direto do host (`host-boot-probe.mjs`, IPC de cofre
+falso, mesmo perfil/home). O probe do host roda o `dsh-desktop-host` do tree preparado, sem o Electron pai, então mede o boot do host
+isolado; o app soma o main/renderer.
+
+**Cut 1 — janela antes do host (P0, `db3b4ef084`).** Janela visível **141–171 ms** (3 execuções limpas, v1.1: 6,5–8,5 s). O splash
+aparece antes de `backend.start`. **O shell ficou 10,1/11,3/12,6 s (v1.1: 8,8–9,3 s): o renderer antecipado disputa CPU/disco com o boot
+do host** — a janela ganha ~6 s de percepção e o shell paga ~2 s; medir de novo com a máquina vazia antes de tratar como regressão fixa.
+RAM da execução limpa (sem sobras): **1.241 MB** (main 196, GPU 313, utility 94, renderer 201, host 437). GPU visível 49–61% (onboarding
+animando), **minimizada 1–2%**.
+
+**Cut 2 — dieta de locales + experimentais (`6525485907`).** Instalado **1.264 → 1.113 MB** (−151 MB); `app.asar` **237,1 → 213,5 MiB**;
+`locales/` **55 → 2** arquivos (`pt-BR.pak`, `en-US.pak`); `sherpa-onnx-win-x64` (23 MB unpacked) e inspector/cua ausentes do asar e do
+unpacked. O `--dir` não gera NSIS; o instalador será medido no Setup do Keel (esperado ~305 MiB com este corte; a meta ≤200 MiB exige a
+dieta 1–6).
+
+**Cut 3 — poda do backend do host (`2cd4a4d848`, FORA da v1.1.1).** 86 rows desligadas no perfil `persona` (LLM/loop de agente, execução
+de ferramentas, controllers de sessão/workspace/job/terminal, storage, MCP, schedule, subagent/workflow/PTC, web, telemetria, plugin manager,
+HMR). **O boot smoke reprova**: `[data-persona-shell] never mounted` (o boot do CLI deixa 7 entries pendentes — `settings`←configEditor,
+`fs-sandbox`←sandboxPolicy, `agent-preset-registry`←agents e os 4 presets; religar `ui-session`, `agent-preset-registry` e `plugin-manager`
+não fecha). Pela regra do Keel (a poda só entra com o smoke verde), fica fora da v1.1.1 e vira candidata da v1.1.2. Host direto, execução
+quente, mesmo tree preparado:
+
+| métrica | antes | depois | Δ |
+| --- | ---: | ---: | ---: |
+| ready (ms) | 14.009 | 10.208 | −27% |
+| CPU até ready (s) | 14,42 | 10,22 | −29% |
+| RSS no ready (MB) | 326 | 260 | −66 MB |
+
+A meta ≤150 MB ainda não fecha: o que resta é o cluster mantido pelo shell (`agent`/`jobs` do quit/update, `session`/persistência/projeção
+do file-drag, `tools`/`system-prompt`/`skill` do Office) + `persona-host`/`persona-runners` (SDKs do OAR/Cursor/pi). O próximo corte precisa
+de decisão de produto (Office fora? file-drag pela store da Persona? SDK do Cursor lazy).
+
+**Gates da v1.1.1 (11/11).** Patch final: commit `28dbb7f000` sobre `9f5fc1198e` (P0 + dieta; 7 arquivos). Testes no commit final:
+`persona-package-inventory` 15/15, `installer-packaging` 6/6, `boot-ui` 2/2, `runtime-file-policy` 12/12; `main-startup` derruba o worker do
+vitest **também no HEAD 9f5fc1198e** (dívida pré-existente do harness, não do patch). A janela medida no win-unpacked `6525485907`:
+**141–171 ms**; shell 10,1–12,6 s (v1.1 8,8–9,3 s, disputa com o renderer antecipado); RAM 1.241 MB; GPU minimizada 1–2%. O Setup NSIS
+(Rivet) e a dieta 1–6 ficam pendentes.
+
+**GPU ociosa.** Com a janela minimizada o GPU fica em **1–2%**. Experimento de CSS no artefato (onboarding aberto, CDP): visível/focado
+**26,4%**; com `data-persona-unfocused` (o corte `1efcbc1ec5`) **0%**; só tirar o `backdrop-filter` do scrim → **16,2%**. O corte CSS entra:
+pausa os 17 loops e tira o blur do scrim fora de foco; o blur sozinho custa ~10 pontos.
+
+| execução | janela (ms) | shell (ms) | RAM total (MB) | host (MB) | GPU parada | renderer parada |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| v1.1 controle (instalado `C:\p8perf`, hoje) 1 fria | 7.296 | 9.887 | 1.131 | 416 | 39% | 9% |
+| v1.1 controle 2 quente | 7.775 | 10.048 | 2.620\* | 397 | 75% | 16% |
+| v1.1 controle 3 quente | 7.743 | 10.223 | 1.155 | 412 | 48% | 11% |
+| **v1.1.1 (win-unpacked) 1 fria** | **201** | 12.141 | 1.278 | 436 | 57% | 13% |
+| **v1.1.1 2 quente** | **138** | 12.596 | 1.493 | 440 | 49% | 10% |
+| **v1.1.1 3 quente** | **137** | 10.426 | 1.128 | 434 | 40% | 7% |
+
+\* Execução 2 do controle contaminada: sobraram processos da execução anterior (o snapshot por papel mostra duas instâncias); o host (397 MB) e o shell seguem válidos.
+
+**Leitura.** A janela sai de **7,3–7,8 s para 123–201 ms** (meta < 1,5 s batida; ~40× mais rápida) — o splash aparece antes do host, como o P0 projetou. O shell **piora ~0,5–2,4 s** (10,4–12,6 s vs 9,9–10,2 s): o host pronto foi de **8,1 s** (timeline `dsh web:` no artefato novo; 7,2 s no v1.1) e o renderer passou a levar **2,3–4,5 s** depois do ready (1,6–2,1 s no v1.1). A causa provável é a disputa de CPU/GPU: com a janela visível e o splash animando durante o boot do host, o host (carga de módulo, CPU-bound) e o renderer (eval do bundle) perdem tempo; a RAM parada fica igual (1,1–1,5 GB) e o host sobe ~20 MB (433–440 vs 397–416). **O shell não cai com corte de host**: o gate `__DSH_BOOT_READY__` só libera o renderer depois do ready (proposta P0.5 no `PLANO.md`); o próximo corte de percepção é renderizar o shell antes do host, não acelerar o host.
+
+**GPU parada.** 35–57% com a janela focada (as animações do shell: vaga-lumes/halos/blur) e **1–2% minimizada** (throttling do Chromium) nas duas versões — a meta ≤ 2% exige pausar as animações também sem foco (D-101(b), CSS/visibilitychange em `client-ui-persona`, Prism/Muse no visual).
+
+**Poda de backend (D-101a, commit 89394edad8).** 38 rows de backend desligadas no `persona-app/cordis.patch.yml` (tools do agente DSH, skills, subagent/team, workflow/PTC, plan/goal/commands de goal, compaction, spill, timeout, otel, hmr, session-title, user-questions, fs-observation-policy, plugin-manager, agent-instructions). Método: o Host roda direto (sem o Electron pai) e imprime o relatório de startup; com o patch, o Host falha só no cofre (esperado fora do app) e mantém as mesmas 6 esperas em cascata do baseline — nenhuma dependência nova. Medição no app (1 execução, mesmo win-unpacked): **host 396 MB (antes 436–440), CPU de boot 5,5 s (antes 7,4 s), shell 10.980 ms**. Ficaram de fora, de propósito: `bash-sandbox`/`pwsh-sandbox` (provêm o serviço `shell` que `permission` espera), `commands` (`session-log-download`/`file-upload` esperam), e `agent`/`agent-default-model`/`config-editor`/`sandbox-policy`/`jobs` (exigidos por `agent-loop`/`settings`/`fs-sandbox`/`job-controller`). A meta ≤ 150 MB não fecha só com rows de folha: o que sobra é o núcleo DSH que o cliente usa (connection, typert/api-gateway, webserver, session, llm, storage) + persona-host + OAR; cortar isso é decisão de arquitetura (Keel/Atlas), não de perfil.
+
+**Verificação da poda (D-101a).** O boot-smoke do repo (`scripts/persona/persona-boot-smoke.mjs`, home limpa, tour dos 9 painéis) rodou no pack worktree com o `cordis.patch.yml` podado: **`OK: clean home tour 9/9 panels; no fatal client errors` (exit 0)**. Commit `89394edad8`.
+
+**GPU parada (D-101b, commit `2dba7cda3b`).** `PersonaAppFrame` marca `data-persona-idle` no `<html>` em `blur`/`visibilitychange` e o CSS do frame pausa `animation-play-state` de todos os nós enquanto o atributo existe (typecheck do `client-ui-persona`: `tsc --noEmit` exit 0). Medição pendente de um pack com o commit; o número atual é 35–57% com foco e 1–2% minimizada.
+
+## 12. A/B do shell — P0 x variante (11/11, Cobalt)
+
+**Método.** `perf-probe-visible.mjs` com `--warm` (home já aquecida), A/B alternado na mesma sessão, sem probe paralelo. A = `C:/p8perf`
+(instalado v1.1, o artefato do baseline); B = win-unpacked `6525485907` (P0 original: a janela antecipada carrega o app URL, então o bundle
+do cliente de 7 MB e o renderer disputam o boot do host); C = a variante `470f078b2e` (a janela antecipada mostra um documento de splash
+standalone — `boot.html` + `boot.js`, sem bundle — e `openInitialWindow` navega para o app só depois do `backend.start`).
+
+**Parcial (A 3 execuções, B 2; a rodada foi interrompida para empacotar a variante):**
+
+| execução | janela (ms) | shell (ms) |
+| --- | ---: | ---: |
+| A v1.1 | 6.625 / 6.996 / 6.338 | 8.877 / 9.381 / 8.606 |
+| B P0 original | 152 / 107 | 10.822 / 10.192 |
+
+**Rodada 5×5 (alternada, homes quentes, mesma máquina):**
+
+| execução | A v1.1 janela | A shell | B variante janela | B shell |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 6.610 | 8.763 | 107 | 10.349 |
+| 1 | 6.576 | 8.937 | 146 | 10.214 |
+| 2 | 6.418 | 8.808 | — | — |
+| **mediana** | **6.576** | **8.808** | **~126** | **10.282** |
+
+**Leitura.** A janela antecipada ganha ~6,5 s de percepção, mas o renderer/GPU antecipados custam **~1,5 s de shell** — e a variante de splash
+standalone (`470f078b2e`) **não recupera**: o processo de renderer e o compositor já competem com o boot do host mesmo sem o bundle do
+cliente. Pela condição dura do Keel (a mediana do shell não pode piorar), a janela antecipada **sai da v1.1.1** (commit `d2041d0a74`
+reverte; o compile cache do P0 fica) e vai para a v1.1.2 com um desenho que não dispute CPU (splash estático ou renderer em prioridade
+baixa até o host pronto).
+
+## 13. Dieta 1–6 — contrato do host (11/11, Cobalt)
+
+**Pacote novo `@deepseek-ai/dsh-persona-components`** (commit `df012f470f`), implementando `persona-spec/contracts/on-demand-runtime.md`
+§4–6: manifesto pinado (kind/version/https/sha256/bytes), download com progresso, recusa de tamanho/hash, checagem de disco, extração em
+staging e rename atômico para `<PERSONA_HOME>/runtime/<kind>/<version>`, um download por vez e remoção. O plugin Cordis expõe
+`ctx.personaComponents` (`state`/`ensure`/`remove`/`subscribe`) e fica inerte sem manifesto; o perfil `persona` o insere com
+`DSH_COMPONENTS_MANIFEST` (o build de release escreve `components.json` e o main passa o caminho) e `<PERSONA_HOME>/runtime` como raiz.
+Provas: 17/17 testes (manifesto, instalação/reuso, concorrência, checksum, offline, http, truncamento, remoção, plugin inerte) e typecheck
+src+tests OK. **Falta para fechar a dieta:** gerar os arquivos dos componentes + o manifesto no empacotamento (Rivet), publicar no host de
+releases, e os chamadores (`document/office-to-pdf`, `skill/skill-office`) pedirem `ensureComponent` antes de usar; a UI de Componentes é
+da Muse. Tamanhos a cortar: LibreOffice 182 MB, Python 144,5, MinGit 91,8, pnpm 20,5 (≈118 MiB comprimidos).

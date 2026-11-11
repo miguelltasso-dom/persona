@@ -2,6 +2,24 @@
 
 Mais recente no topo.
 
+## 11/11 11:35 — PAUSA ESTRATÉGICA (ordem do Atlas via Keel): D100-1 parou na leitura, ZERO arquivos alterados, nenhum RED/GREEN ainda
+
+**Estado:** li D-100, REVISÃO-01 §A1, `orchestration.ts` (`splitByFunction` 3408, laço do `runLaunched` 2440-2627, `wakeTicket`/`releaseReady` 1495-1538, `driveTicket` 1080), `harness-team.ts`, `handoffs.ts` (bilhete/entrega/inbox/`advanceCampaign`), `function-route.ts`, `team-cards.ts` e os specs `team-function-routing`, `harness-team`, `team-offer.host`. Nenhum arquivo de código tocado, nenhum teste rodado, nenhum processo aberto. D102-2 (rascunho em pasta Git) nem foi começado.
+
+**Desenho decidido para D100-1 (retomar daqui):**
+1. **Cadeia produtora→consumidora; os tickets nascem todos agora** (cartão do plano, irmãs, "Concluído" e anexos seguem iguais). Regra pura nova `split-chain.ts`: família da parte pelas palavras do pedido (`texto`=0 < `arte`=1 < `midia`=2; exporta `familyOfCue` de `function-route.ts`); só encadeia com 2+ partes ranqueadas; cada uma espera a ranqueada anterior *viva* (pausada = não espera); outras famílias seguem em paralelo.
+2. **Consumidora nasce `waiting`:** `splitByFunction` grava doc `split_chain` (por id da mensagem) e `split_hold` (por id do filho `split:<msg>:<persona>`); no laço do `runLaunched`, antes da linha "Em andamento", se a antecessora ainda não está `ready` → `rt.engine.report(waiting, "Esperando Bia: texto")` e `continue` (sem turno pago; o hold é DERIVADO do estado da antecessora, então reinício e `driveTicket` duplo não a rodam duas vezes). O assignment da consumidora troca "não faça a parte deles" por "Bia (texto) faz antes de você; use exatamente o texto dela".
+3. **Liberação:** centralizar `ticketSettled` num `settled()` privado que, em `ready` (após revisão aprovada, ou sem revisão), chama `driveTicket` das consumidoras da cadeia (os 2 pontos `ready`: `releaseReady` 1536 e laço 2626).
+4. **Bilhete = texto INTEIRO da produtora:** em `Handoffs.waitingLine/keepDeliveries` guardar `ENTREGA` (kind `next`) sob o id filho de cada sucessora, sobrescrevendo a cada turno da produtora (a revisão pode pedir ajuste); `senderFiles` ganha o remetente da cadeia (arquivos do rascunho da produtora vão ao da consumidora); `entregaBlock/entregaImages` já servem sem mudança (primeiro Assignment da consumidora).
+5. **`TeamTools`:** dep nova `plannedFor(projectId, ticketId)` (as outras partes do plano do host); `guidanceFor` troca a frase "passe o resto a quem é da função" por "as partes de Teo (arte) e Caio (posts) já estão no plano e começam sozinhas quando você entregar: não use pass_forward para elas, não faça a parte delas"; `call('pass_forward')` para parte do plano → recusa `code: 'planned'` (guarda dura contra a 2ª arte). `team-cards.ts`: parte `waiting` também para `source: 'split'` (hoje só campanha).
+6. **Specs RED→GREEN a escrever primeiro** (`tests/split-chain.host.spec.ts` com o rig de `team-offer.host.spec.ts`: CLI + `PERSONA_PRODUCT_TOOLS=1`, `script()` do `harness-team.spec`): (a) texto+arte = 1 turno de arte, depois do turno da Bia, com o texto exato no prompt; snapshot no fim do turno da Bia mostra Teo `waiting` e só `['bia']` em `turnInputs`; (b) revisão ligada: ordem bia → lia(revisão) → teo → lia(revisão da ARTE, prompt com a arte final); (c) texto+arte+posts: caio depois de teo; (d) família independente segue em paralelo; (e) `pass_forward` da Bia ao Teo recusado, 1 ticket de Teo; (f) `driveTicket` duplo = 1 turno. Mais unitário de `split-chain` e `teamGuidance(colleagues, planned)`.
+
+**Limitação conhecida do desenho:** se a produtora for *parada* ou terminar sem entrega, a consumidora fica `waiting` visível no cartão (a pessoa decide parar ou reabrir); não há auto-cancelamento.
+
+**Vão quebrar/rever ao implementar:** `team-function-routing.spec` (hoje assume as 3 partes rodando em paralelo; com revisão ligada o milestone/`completeReview` depende da ordem), `team-cards-split.host.spec`, `thread-rule.host.spec`, `draft-inbox.spec`, `harness-hiring.spec` (citam `split:`).
+
+**Arquivos previstos (nenhum tocado):** `persona-host/src/{orchestration,harness-team,handoffs,function-route,team-cards,index}.ts`, novo `split-chain.ts`, specs `split-chain.host`, `split-chain`, `harness-team`.
+
 ## 07/11 16:46 — P0-C2 "arte como arquivo" TUDO NO TREE (svg→png, arquivos salvos por turno, opinião sobre a arte); revisão = frase; blocker TS6307 do observador; notas
 
 **Feito (todos com `with-lock check`; sem IA real):**

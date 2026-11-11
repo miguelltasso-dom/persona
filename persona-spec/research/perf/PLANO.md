@@ -45,10 +45,35 @@ medidos pelo `perf-probe-visible.mjs` no mesmo artefato. O artefato do corte **a
   espera; nada de tela inexistente.
 - Arquivo: `apps/desktop/src/main.ts` (3 hunks). Ganho esperado: janela/splash visível em **~1–2 s** (hoje a janela visível aparece em
   **6,9–8,5 s**, depois do `backend.start`); o shell continua em **9,2–11,7 s** até o host/renderer. Risco: baixo.
-- **Medição:** com o `perf-probe-visible.mjs` no próximo artefato; a linha de base v1.1 (janela 6,9–8,5 s, shell 9,2–11,7 s) está em `MEDICAO.md` §7.
+- **Medido (11/11, `MEDICAO.md` §10):** janela **123–201 ms** contra 7.296–7.775 ms do controle v1.1 na mesma máquina (meta < 1,5 s batida); shell **10,4–12,6 s** contra 9,9–10,2 s — o splash visível durante o boot do host custa ~0,5–2,4 s de shell (host pronto 8,1 s vs 7,2 s; renderer 2,3–4,5 s vs 1,6–2,1 s). O ganho de percepção é real (7 s de tela), mas o shell só cai com o P0.5 abaixo.
 - **Patch:** `C:/p8w-cobalt/.maestri/tmp/cobalt/perf-p0.patch` (3 hunks em `apps/desktop/src/main.ts`, sobre a base de 07/11; regerar sobre a base do corte).
   Testes do desktop na cópia: 2383, 20 vermelhos — todos pré-existentes/ambiente (assets `persona-assets/brand` ausentes no snapshot, `app` do
   Electron indefinido no harness de `welcome-startup`, empacotamento/credenciais); nenhum no caminho que o patch toca.
+
+### P0.5 — o renderer não carrega NADA antes do host (o gate `__DSH_BOOT_READY__`) — **PROPOSTA, decisão do Keel/Atlas**
+- Fato de código: `packages/client/web/src/boot.ts:59` faz `await __DSH_BOOT_READY__?.promise` **antes** de criar o `__ModuleLoader__` e
+  carregar qualquer módulo do cliente; no desktop o gate só resolve depois de `desktop.ready()` (o IPC `boot` espera o host). O trace do Zinc no
+  instalado mostra o renderer **ocioso de 1,1 s a 8,2 s** e só então 2,9 s de trabalho (bundle 520 ms + materialize 427 ms + eval 564 ms + fontes
+  205 ms) até o shell.
+- Consequência: com o P0 a janela/splash aparece em ~1–2 s, mas a **primeira tela útil continua = host pronto + ~2,9 s**. Nenhum corte no host
+  (compile cache, warmups, diet) muda a ordem: o renderer só começa depois do `ready`.
+- Proposta: separar o gate em dois — carregar módulos e montar o shell **imediatamente** (o splash já é HTML), e deixar o gate bloquear apenas a
+  conexão/transporte: o shell abre com o estado "acordando o time" e o `streamBaseUrl`/injections chegam quando o host responde. Arquivos:
+  `packages/client/web/src/boot.ts` (não bloquear o `ModuleLoader`), `packages/client/connection` (transporte tardio), `apps/desktop/src/preload-app.ts`
+  (um `boot.pending` + `boot.ready`), UI do estado de espera (Prism). Ganho esperado: **shell em ~2–2,5 s** em vez de 9–12 s; risco médio (mexe no
+  boot do cliente e no contrato do preload), precisa do OK do Keel/Atlas e do Prism na UI.
+- **Bloqueio descoberto (Zinc, `SEM-DSH.md`):** o `__ModuleLoader__` e o manifesto de módulos vêm das **injections do host** — sem o host não há
+  como carregar o bundle do cliente. O P0.5 exige o **cliente estático** (boot próprio, sem as injections do web-app): ~2–3 dias de protótipo
+  (Zinc estima). Sem ele, o shell não começa antes do host; com ele, o shell monta em ~1 s e conecta quando o host responde.
+- **Contrato do cliente estático (próximo passo, Cobalt):** (1) o pack gera um `index.html` estático + o manifesto de módulos do cliente
+  (`__ModuleLoader__`) a partir do bundle já empacotado — hoje esses bytes vêm de `collectIndexInjections` do host; (2) o main serve esse
+  índice em `dsh-app://app/` antes do host (o protocolo já existe) e o renderer carrega os módulos e monta o shell; (3) o `dshDesktopBoot.ready()`
+  deixa de bloquear o boot: ele entrega `streamBaseUrl`/injections quando o host responde, e o shell mostra "acordando o time" até lá; (4) o
+  `connection`/`api-remotes` aceitam transporte tardio (a primeira chamada espera o ready). O ready do main vira `{ window, staticShell }` e o do
+  host continua o mesmo — nenhuma linha do perfil é mutilada (o caminho que falhou no `authenticatedUrl`). Medição: shell < 2,5 s com o host ainda
+  subindo; o custo do host deixa de estar no caminho da primeira tela.
+- Alternativa mais barata, se o gate não puder mudar agora: **pré-aquecer o bundle do cliente** no main antes do host (request HTTP local ao próprio
+  web server quando ele subir) — não resolve o gate, só tira o `request do bundle 520 ms` do caminho depois do ready.
 
 ### P0 — compile cache V8 (runtime pronto; pré-geração no empacotamento é o passo 2) — **PATCH PRONTO**
 - Metade de runtime no `perf-p0.patch`: `module.enableCompileCache(userData/compile-cache)` no main + `NODE_COMPILE_CACHE` no ambiente do host

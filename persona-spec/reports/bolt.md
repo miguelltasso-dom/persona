@@ -1,5 +1,26 @@
 # Bolt — relato (builder de backend novo; P0 "Integração viva")
 
+## 11/11 11:50 — persistTurn grava o MODELO real (item 8 do D100-2; único item liberado na PAUSA AJUSTADA 11:43) — FEITO, STANDBY
+
+**Mudou:** `persona-host/src/index.ts` (`persistTurn`, 1 linha + comentário): `model: stored.model ?? stored.engine` (antes `stored.engine`, o que jogava todo turno no "claude" do livro de uso). Novo `persona-host/tests/persist-turn-model.spec.ts` (4 testes; arquivo meu, não toquei em spec de outro dono). CRLF do `index.ts` preservado (8135/8135).
+**RED:** 2 vermelhos pelos motivos certos (porta de uso recebia `model:'claude'` em vez de `'haiku'`; `getUsage` somava `{claude:3}` em vez de `{haiku:1, opus:2}`); os 2 de guarda já passavam (linha sem modelo mantém o motor; a linha do ledger continua intacta). Log: `.maestri/tmp/bolt/red-persist-model.log`.
+**GREEN:** `persist-turn-model` 4/4 + vizinhos que leem a mesma porta (`usage`, `eff1-ledger.host`, `estimate-history-tokens`, `estimate-calibration`, `token-opt`) = 6 arquivos, 31/31. Log: `.maestri/tmp/bolt/green-persist-model.log`.
+**check-pkg persona-host:** VERMELHO por 2 erros que NÃO são meus: `tests/stop-hard.spec.ts(130,22)` e `(130,41)` TS18048 `'request' is possibly 'undefined'` — arquivo novo (untracked, 11:20) de outro dono (trabalho de Parar/watchdog). Nenhum erro nos meus arquivos (a lista tem só esses 2). Log: `.maestri/tmp/bolt/checkpkg-persist-model.log`.
+**Nota de decisão:** `model: 'default'` ("padrão do motor com queda") é gravado como `default` no livro de uso, literalmente como o Keel pediu (`?? stored.engine` só cobre ausente). Se o Atlas preferir mostrar o motor nesse caso, é 1 linha a mais.
+**Resto do D100-2:** segue PAUSADO (0 de 7 restantes), mapa logo abaixo.
+
+## 11/11 11:35 — D100-2 (voz humana) — EM PAUSA ESTRATÉGICA (ordem do Atlas via Keel, 11:32); STANDBY
+
+**Onde parei:** só LEITURA e mapeamento; **nenhum arquivo foi alterado** (nem `src`, nem `tests`, nem spec), nenhum commit, nenhum RED/GREEN rodado ainda. Nada para desfazer.
+**Mapa que levantei (para retomar sem reler tudo):**
+- (1) "a pessoa" em texto que o modelo lê/copia para o chat: `first-request.ts:40`, `handoffs.ts:239,385,723,771`, `draft-inbox.ts:240`, `external-actions.ts:138,224,233`, `index.ts:1379`, `persona-ask-tool.ts:70,75`, `persona-asks.ts:97`, `opinion-host.ts:189,250-251,284-285`, `harness-boards/hiring/routines.ts` (mensagens de ferramenta), `fanout-plan.ts:75`, `persona-engine/src/handoff.ts:175-192`, `opinion-reply.ts:41`, `prompts/templates.ts:48,67`; instruções de persona em `persona-core/src/domain/onboarding-teams.ts` e `templates.ts`. **`orchestration.ts:2461,3453` e `harness-team.ts:165,186` são do Forge** (pedir a ele ou ao Keel).
+- (2) `readerPrompt` (`opinion-run.ts:141`) é anônimo: falta "Você é <nome>, <cargo>" e "o que você já entregou nesta tarefa". Os 2 sites de chamada: `round()` (linha ~394) e `textOnly()` (linha ~290). `answer` chega em `orchestration.answerOnce` (Forge, sem contexto de entregas), então os dados da persona leitora precisam entrar PELO PROMPT, montado em `opinion-run.ts` a partir de uma nova dep opcional (ex.: `deliveriesOf(projectId, personaId, ticketId)`).
+- (4) `parseConsolidation` (`opinion-run.ts:197`): trocar `/^\s*NOVA\s+VERS[ÃA]O\s*:\s*/imu` por `/NOVA\s+VERS[ÃA]O\s*:\s*/iu` (sem `^`); falta ainda o `OpinionBlock` recolher após consolidado (client `chat/opinion/OpinionBlock.tsx`).
+- (5) **Bloqueado por posse:** o ponto de conserto é `orchestration.ts:3021-3035` (`reportRunFailure`) e `channelLineFor` (`:3788`, `real_turn_cap` devolve `error.message`) — arquivos do Forge. Existe o spec `real-turn-cap-host.spec.ts` (ENG-1, de antes da D-100) que hoje EXIGE a frase "Precisa de você: o limite…" como fala; ele precisa ser invertido junto. Pedir OK do Keel/Forge antes de editar.
+- (8) `persistTurn` `index.ts:7762` (`model: stored.model ?? stored.engine`): não abri ainda.
+- (3) leanReport/W3, (6) WhatsApp do cliente, (7) limpeza do rascunho pela equipe: ainda não localizei os pontos (7 provavelmente `draft-files.ts`/`handoffs.ts`; 3 provavelmente `report-curation.ts`/`review.ts`).
+**O que falta:** os 8 blocos inteiros (0 de 8 feitos). Ordem sugerida ao retomar: (4) e (8) por serem pontuais → (1) → (2) → (3) → (6)/(7) → (5) com OK de posse. Testes: RED primeiro em `opinion-run.spec.ts`, `opinion-text-only.spec.ts`, novo `voice-human.spec.ts` (grep da suíte sem "a pessoa" em texto visível) + `check-pkg persona-host` e `persona-client`.
+
 ## 09/11 — P0-1 (2 restos do fake do Probe) — FECHADO (OK do Keel 17:51)
 
 **(1) A parte do split dizia `Anexos do pedido: foto.png.` mas o arquivo está em `inputs/foto.png`.** `orchestration.ts` (só a linha do `splitByFunction` + 1 import): agora cita o caminho REAL, `Anexos do pedido: inputs/<nome>.` (o fake exige "Anexos do pedido" + caminho que exista no rascunho). `turn-images-bridge.spec` atualizado (`inputs/capa.png`).

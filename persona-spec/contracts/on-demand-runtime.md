@@ -82,3 +82,15 @@ removeComponent(kind: ComponentKind): Promise<void>
 - **Muse:** a forma (progresso, offline, erro, Configurações › Componentes).
 - **Keel:** integração/corte e o gate do `verify-persona-package`.
 - **Rivet:** empacotamento (tirar os dois do asar) e o host de download/assinatura.
+
+## 9. MinGit (proposta do Cobalt, 11/11)
+
+O terceiro peso do instalador é o MinGit (**91,8 MB instalados, ~25 MiB no Setup**), hoje copiado pelo `afterPack` (`persona-mingit.mjs`).
+Ele é o único dos três que serve uma feature central (Projetos/histórico privado), então entra **por último** na fila.
+
+- **Sai do instalador base** com o mesmo `ComponentKind` novo `mingit` (o `ComponentManager` já cobre manifesto + sha256 + instalação atômica).
+- **Quando baixa:** no primeiro uso de Git quando o `resolveGitExecutable` não acha um Git no PATH (o resolvedor já prefere o PATH e só então o
+  empacotado; com o componente instalado, o caminho do store entra como `bundledExecutable`).
+- **Offline:** a feature de Git fica indisponível com a frase do §3 e o motivo; nada mais quebra.
+- **Ganho:** 329,6 → ~185 MiB de Setup (com LibreOffice + Python + pnpm já fora).
+- **Dono:** Cobalt (resolvedor) + Rivet (tirar do afterPack).

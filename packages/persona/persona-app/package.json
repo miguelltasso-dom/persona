@@ -38,6 +38,7 @@
     "@deepseek-ai/dsh-persona-runners": "workspace:*",
     "@deepseek-ai/dsh-persona-usage": "workspace:*",
     "@deepseek-ai/dsh-persona-vault": "workspace:*",
-    "@deepseek-ai/dsh-client-ui-persona": "workspace:*"
+    "@deepseek-ai/dsh-client-ui-persona": "workspace:*",
+    "@deepseek-ai/dsh-persona-components": "workspace:*"
   }
 }

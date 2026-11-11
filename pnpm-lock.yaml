@@ -13741,6 +13741,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-persona':
         specifier: workspace:*
         version: link:../client-ui-persona
+      '@deepseek-ai/dsh-persona-components':
+        specifier: workspace:*
+        version: link:../persona-components
       '@deepseek-ai/dsh-persona-host':
         specifier: workspace:*
         version: link:../persona-host
@@ -13753,6 +13756,22 @@ importers:
       '@deepseek-ai/dsh-persona-vault':
         specifier: workspace:*
         version: link:../persona-vault
+
+  packages/persona/persona-components:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      extract-zip:
+        specifier: ^2.0.1
+        version: 2.0.1(supports-color@10.2.2)
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.3
 
   packages/persona/persona-core:
     dependencies:

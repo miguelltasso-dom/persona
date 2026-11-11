@@ -616,9 +616,6 @@ async function main(): Promise<void> {
   })
   const appPreload = fileURLToPath(new URL('./preload-app.cjs', import.meta.url))
   const applicationUrl = `${SCHEME}://app/`
-  // v1.1.1 P0 variant (Cobalt): the early window paints a standalone splash document; the client bundle only loads after the Host
-  // answers `ready`, so the renderer never competes with the Host boot (the P0's shell regression).
-  const bootSplashUrl = `${SCHEME}://app${BOOT_UI_PATH}splash.html`
   let hostUrl: string | undefined
   let hostCookie: string | undefined
   const browserGuests = new DesktopBrowserGuests(() => hostUrl)
@@ -839,11 +836,8 @@ async function main(): Promise<void> {
 
   const reconcileBackend = (): Promise<void> => {
     startup ??= (async () => {
-      // v1.1.1 P0 (Cobalt, T3 2.3/2.4): the window paints the boot splash BEFORE the Host is ready; `backend.start` runs in parallel.
-      // The early document is the standalone splash (no client bundle); `openInitialWindow` loads the shell after the Host answers.
-      const earlyWindow = mainWindow ?? createMainWindow(bootSplashUrl)
-      await navigateMain(bootSplashUrl)
-      if (!isQuitting() && !earlyWindow.isDestroyed() && !earlyWindow.isVisible()) earlyWindow.show()
+      // v1.1.1 (Cobalt): the compile cache stays; the early window was measured to cost ~1.5 s of shell (the renderer competes with
+      // the Host boot) and moved to v1.1.2. The window is created after the Host answers, as in v1.1.
       await backend.start(async () => {
         await Promise.all([manager.applyRelease(), prepareHostEnvironment()])
       })
@@ -957,21 +951,12 @@ async function main(): Promise<void> {
     window.once('closed', () => { resolve() })
   })
 
-  /** Standalone splash document for the early window: boot markup + external boot script, no client bundle. */
-  const serveBootSplash = async (): Promise<Response> => {
-    const markup = await readFile(join(app.getAppPath(), 'renderer', 'persona-boot', 'boot.html'), 'utf8')
-    const params = new URLSearchParams({ first: existsSync(join(resolvePersonaProcessHome(), 'db', 'persona.db')) ? '0' : '1', lang: locale.id })
-    const html = `<!doctype html><html lang="${locale.id}"><head><meta charset="utf-8"><title>Persona</title></head>`
-      + `<body>${markup}<script defer src="${BOOT_UI_PATH}boot.js?${params.toString().replaceAll('&', '&amp;')}"></script></body></html>`
-    return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
-  }
   protocol.handle(SCHEME, (request) => {
     const url = new URL(request.url)
     // Shell-owned documents live in the application bundle and never pass through the Host.
     if (url.hostname === 'shell') return serveWebDocument(request, join(app.getAppPath(),
       url.pathname === '/design-platform.css' ? 'lib/welcome' : 'renderer'))
     if (url.hostname === 'app') {
-      if (url.pathname === `${BOOT_UI_PATH}splash.html`) return serveBootSplash()
       if (url.pathname.startsWith(BOOT_UI_PATH)) {
         const asset = new URL(request.url)
         asset.pathname = url.pathname.slice(BOOT_UI_PATH.length)
@@ -1802,10 +1787,10 @@ async function main(): Promise<void> {
       window.hide()
     }
   }
-  const createMainWindow = (initialUrl: string = applicationUrl): BrowserWindow => {
+  const createMainWindow = (): BrowserWindow => {
     const window = createWindow(appPreload, false, true)
     mainWindow = window
-    void navigateMain(initialUrl)
+    void navigateMain(applicationUrl)
       .catch((error: unknown) => { console.error(error) })
     browserGuests.bind(window, (guest, name) => shortcuts.attachGuest(window, guest, name))
     shortcuts.attach(window)

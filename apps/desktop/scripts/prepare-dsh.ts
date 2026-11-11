@@ -34,7 +34,7 @@ import {
   signMacOSRuntime,
 } from './macos-runtime.ts'
 import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
-import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
+import { desktopRuntimeFileExclusion, PERSONA_EXCLUDED_PACKAGES } from './runtime-file-policy.ts'
 import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
 
 const APP_ROOT = resolve(import.meta.dirname, '..')
@@ -150,6 +150,9 @@ async function main(): Promise<void> {
     )
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:install', () => runPnpm(['install', '--prod', '--frozen-lockfile', '--trust-lockfile']), undefined, 45 * 60_000)
     const packageSet = readDesktopCorePackageSet(BUILD_ROOT, release.version)
+    // v1.1.1 DIETA (Cobalt): the copy below skips PERSONA_EXCLUDED_PACKAGES, so the root manifest and the runtime
+    // descriptor must not name them either — runtimeMetadata reads each shared package's package.json from the tree.
+    const packagedPackages = packageSet.packages.filter(entry => !Object.hasOwn(PERSONA_EXCLUDED_PACKAGES, entry.name))
     const targetName = resolveDesktopBuildTarget()
     const target = desktopTargetPlatform(targetName)
     const modules = join(BUILD_ROOT, 'node_modules')
@@ -164,7 +167,7 @@ async function main(): Promise<void> {
     }, undefined, 20 * 60_000)
     writeFileSync(join(DSH_OUTPUT_ROOT, 'package.json'), `${JSON.stringify({
       name: '@deepseek-ai/dsh-desktop-runtime', private: true, version: release.version, type: 'module',
-      dependencies: Object.fromEntries(packageSet.packages.map(entry => [entry.name, entry.version])),
+      dependencies: Object.fromEntries(packagedPackages.map(entry => [entry.name, entry.version])),
     }, undefined, 2)}\n`)
     for (const file of DESKTOP_HOST_RUNTIME_FILES) {
       if (!existsSync(join(DSH_OUTPUT_ROOT, 'node_modules', DESKTOP_HOST_PACKAGE, file))) {
@@ -183,7 +186,7 @@ async function main(): Promise<void> {
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:primary-smoke', async () => smokePrimaryRuntime(join(RUNTIME_ROOT, 'primary-runtime')))
     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:write-descriptor', async () => {
       const writeRuntime = target.platform === 'win32' ? writeDesktopRuntimeAsync : writeDesktopRuntime
-      return writeRuntime(DSH_OUTPUT_ROOT, release, packageSet.packages.map(entry => entry.name), target)
+      return writeRuntime(DSH_OUTPUT_ROOT, release, packagedPackages.map(entry => entry.name), target)
     })
     const descriptor = await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:verify-before-smoke', () => verifyDesktopRuntime(DSH_OUTPUT_ROOT, release.version, target))
     if (!process.argv.includes('--defer-runtime-smoke')) {

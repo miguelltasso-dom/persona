@@ -12,6 +12,7 @@ import {
   resolveMacOSNotarizationEnvironment,
   resolveMacOSSigningEnvironment,
 } from './desktop-release-environment.mjs'
+
 import { notarizeMacOSDiskImageArtifact } from './notarize-macos-disk-images.mjs'
 import { verifyMacOSDiskImageSignature, verifyMacOSSignatureAfterSign } from './verify-macos-signature.mjs'
 import {
@@ -118,6 +119,8 @@ export function createElectronBuilderConfig(
       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
     },
     productName: 'Persona',
+    // v1.1.1 DIETA (Cobalt): the product speaks pt-BR and en-US; shipping every Chromium locale cost 49 MB installed (~2 MB are used).
+    electronLanguages: ['pt-BR', 'en-US'],
     // The default copyright uses author.name; this line names the product instead.
     copyright: `Copyright © ${new Date().getFullYear()} \${productName}`,
     // Unsigned builds carry their own suffix so a shared file can never pass for a release artifact.

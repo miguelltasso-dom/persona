@@ -82,6 +82,10 @@ it('applies package-specific rules inside scoped and nested dependency container
   expect(desktopRuntimeFileExclusion('outer\\node_modules\\node-pty\\prebuilds\\win32-arm64\\conpty.node', windows, 'win32-x64')).toBeDefined()
   expect(desktopRuntimeFileExclusion('outer/node_modules/unrelated/test/data.html', windows, 'win32-x64')).toBeUndefined()
   expect(desktopRuntimeFileExclusion('outer/fs-ext/build/Release/fs_ext.lib', windows, 'win32-x64')).toBeUndefined()
+  expect(desktopRuntimeFileExclusion('@deepseek-ai/dsh-experimental-inspector/lib/index.js', windows, 'win32-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('outer/node_modules/sherpa-onnx-win-x64/package.json', windows, 'win32-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('@deepseek-ai/dsh-cua/package.json', windows, 'win32-x64')).toBeDefined()
+  expect(desktopRuntimeFileExclusion('@deepseek-ai/dsh-persona-host/lib/index.js', windows, 'win32-x64')).toBeUndefined()
 })
 
 it('retains native prebuilds for the selected macOS architecture', () => {

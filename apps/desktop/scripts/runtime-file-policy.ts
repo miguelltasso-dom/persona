@@ -1,6 +1,22 @@
 /** Desktop-only omissions from already installed production npm packages. */
 
 /**
+ * Packages the Persona profile never loads (v1.1.1 diet, Cobalt). Traced by import from the product entry points
+ * (`apps/desktop/src`, `apps/desktop-host/src`, the persona packages' `src`, the `web-app` and `persona` profiles): none imports them;
+ * they ride along because the packaged `dsh` tree is the CLI's full deployment. `@earendil-works/pi-coding-agent` is NOT here on purpose:
+ * `@botiverse/oar` (the runner runtime the product loads) depends on it.
+ */
+export const PERSONA_EXCLUDED_PACKAGES: Readonly<Record<string, true>> = {
+  '@deepseek-ai/dsh-experimental-inspector': true,
+  '@deepseek-ai/dsh-experimental-inspector-profile': true,
+  '@deepseek-ai/dsh-experimental-speech-to-text-sensevoice': true,
+  'sherpa-onnx-win-x64': true,
+  '@deepseek-ai/dsh-cua': true,
+  '@deepseek-ai/dsh-cua-bundle': true,
+  '@deepseek-ai/dsh-cua-macos': true,
+}
+
+/**
  * Identify build, diagnostic and other-platform files omitted from the immutable Desktop runtime.
  * Unrecognized assets and target runtime binaries are retained. Paths name the copied
  * node_modules tree, including nested package containers.
@@ -27,6 +43,7 @@ export function desktopRuntimeFileExclusion(
   if (name.startsWith('@deepseek-ai/libreoffice-kit-')) {
     if (name !== `@deepseek-ai/libreoffice-kit-${officeEngine}`) return 'LibreOffice other platform'
   }
+  if (Object.hasOwn(PERSONA_EXCLUDED_PACKAGES, name)) return 'package outside the Persona profile'
   if (name === 'fs-ext' && /^build\/(?:Release|Debug)\/(?:obj(?:\/|$)|fs_ext\.(?:exp|lib|pdb|iobj|ipdb)$)/u.test(entry)) {
     return 'fs-ext compiler output'
   }

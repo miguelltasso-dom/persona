@@ -15,6 +15,7 @@ import {
 } from './windows-layout.ts'
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { enableCompileCache } from 'node:module'
 import { attachBootUi, BOOT_UI_PATH } from './boot-ui.ts'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -499,9 +500,16 @@ async function main(): Promise<void> {
     for (const failure of result.failures) console.warn(`desktop login shell: ${failure.shell} failed (${failure.reason})`)
     return result.environment
   })
+  // v1.1.1 P0 (Cobalt): the V8 compile cache of the main and of the Host survives launches; the first start populates it, every other one
+  // reuses it (T3 pre-generates it at packaging; we start with the runtime half, which is the same win from the second launch on).
+  const compileCacheDir = join(app.getPath('userData'), 'compile-cache')
+  try { enableCompileCache(compileCacheDir) } catch (error) { console.warn('desktop compile cache:', error instanceof Error ? error.message : String(error)) }
   let hostEnvironment: NodeJS.ProcessEnv = process.env
   const prepareHostEnvironment = async (): Promise<void> => {
-    hostEnvironment = withPersonaE2ePath(await loginShell, process.env.PERSONA_E2E_EXTRA_PATH)
+    hostEnvironment = {
+      ...withPersonaE2ePath(await loginShell, process.env.PERSONA_E2E_EXTRA_PATH),
+      NODE_COMPILE_CACHE: compileCacheDir,
+    }
   }
   let quitting = false
   let startup: Promise<void> | undefined
@@ -828,7 +836,11 @@ async function main(): Promise<void> {
 
   const reconcileBackend = (): Promise<void> => {
     startup ??= (async () => {
+      // v1.1.1 P0 (Cobalt, T3 2.3/2.4): the window paints the boot splash BEFORE the Host is ready; `backend.start` runs in parallel and the
+      // client waits on `dshDesktopBoot.ready()` (the boot IPC awaits `startup`). Before this, the window only existed after the Host answered.
+      const earlyWindow = mainWindow ?? createMainWindow()
       await navigateMain(applicationUrl)
+      if (!isQuitting() && !earlyWindow.isDestroyed() && !earlyWindow.isVisible()) earlyWindow.show()
       await backend.start(async () => {
         await Promise.all([manager.applyRelease(), prepareHostEnvironment()])
       })

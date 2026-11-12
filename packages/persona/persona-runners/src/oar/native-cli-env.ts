@@ -33,7 +33,23 @@ export function nativeSessionEnv(
   }
   if (process.env.HOME === '') env.HOME = null
   if (extra !== undefined) Object.assign(env, extra)
+  Object.assign(env, GIT_SESSION_PINS) // last: no caller overlay drops them
   return env
+}
+
+/**
+ * P0-B (auditoria final da Colheita S1): git runs programs named by the repository it is in (hooks, `core.fsmonitor`), and the persona writes repositories inside her draft. Config given
+ * through the environment beats the repository's, so every CLI session (and the shell it opens) runs git with no hooks, no fsmonitor and no bare repository found by accident.
+ * The command policy refuses `GIT_*` on a command line, so the persona cannot take them back.
+ */
+const GIT_SESSION_PINS: Readonly<Record<string, string>> = {
+  GIT_CONFIG_COUNT: '3',
+  GIT_CONFIG_KEY_0: 'core.hooksPath',
+  GIT_CONFIG_VALUE_0: '/dev/null',
+  GIT_CONFIG_KEY_1: 'core.fsmonitor',
+  GIT_CONFIG_VALUE_1: 'false',
+  GIT_CONFIG_KEY_2: 'safe.bareRepository',
+  GIT_CONFIG_VALUE_2: 'explicit',
 }
 
 /**

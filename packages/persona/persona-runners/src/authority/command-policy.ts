@@ -488,7 +488,8 @@ class Judge {
     if (operands.length === 0) { this.add('unknown', verb, 'no-operand'); return }
     for (const operand of operands) {
       if (isSecretPath(operand.text)) { this.add('secret', verb, 'secret-path'); continue }
-      if (isGitInternalPath(operand.text)) { this.add(outside, verb, 'git-internals'); continue }
+      // P0-B: the `.git` folder itself counts (`mv sub .git`, `cp -r sub .git`, `mkdir .git`): a folder that BECOMES the `.git` brings its hooks and config.
+      if (isGitInternalPath(operand.text) || pathSegments(operand.text).includes('.git')) { this.add(outside, verb, 'git-internals'); continue }
       const within = this.within(operand)
       if (within === undefined) this.add(operand.expands ? 'unknown' : outside, verb, operand.expands ? 'expands' : 'no-draft')
       else this.add(within ? inside : outside, verb, within ? 'draft-path' : 'outside-draft')
@@ -583,9 +584,9 @@ class Judge {
   private read(name: string, args: readonly Word[]): void {
     const texts = args.map(arg => arg.text.toLowerCase())
     if (name === 'find' && texts.some(text => ['-exec', '-execdir', '-ok', '-okdir', '-delete', '-fprint', '-fprint0', '-fprintf', '-fls'].includes(text))) { this.add('unknown', name, 'runs-or-deletes'); return }
-    if (name === 'sort' && texts.some(text => text === '-o' || text.startsWith('--output') || /^-[a-z]*o./u.test(text))) { this.add('unknown', name, 'writes-file'); return } // Carbon P0-05b: `-oFILE`, `-rnoFILE` write too
+    if (name === 'sort' && texts.some(text => text === '-o' || text.startsWith('--output') || /^-[a-z0-9]*o/u.test(text))) { this.add('unknown', name, 'writes-file'); return } // Carbon P0-05b: `-oFILE`, `-rnoFILE` write too; P0-A: so does a cluster that ENDS in `o` (`-uo FILE`)
     if (name === 'sort' && texts.some(text => text.startsWith('--compress-program'))) { this.add('unknown', name, 'runs-program'); return } // Carbon CP-12: the temp-file compressor is a program
-    if (name === 'tree' && texts.some(text => text === '-o' || text.startsWith('--output'))) { this.add('unknown', name, 'writes-file'); return } // Carbon CP-12
+    if (name === 'tree' && texts.some(text => text === '-o' || text.startsWith('--output') || /^-[a-z0-9]*o/u.test(text))) { this.add('unknown', name, 'writes-file'); return } // Carbon CP-12
     // Carbon CP-6: `uniq INPUT OUTPUT` writes the second operand: every path operand must lie inside the draft, as for any change.
     if (name === 'uniq' && args.filter(arg => !isFlag(arg.text)).length >= 2) { this.changeOf(name, args); return }
     if ((name === 'grep' || name === 'rg' || name === 'egrep' || name === 'fgrep') && texts.some(text => text.startsWith('--pre'))) { this.add('unknown', name, 'runs-program'); return }
@@ -706,6 +707,8 @@ class Judge {
     const flags = new Set(texts.filter(text => text.startsWith('-')))
     const verb = `git ${subName}`
     if (texts.some(text => text.startsWith('--output') || text.startsWith('--exec') || text === '--upload-pack' || text.startsWith('--upload-pack=') || text.startsWith('--receive-pack'))) { this.add('unknown', verb, 'git-runs-or-writes'); return }
+    // P0-B: `git init --template=DIR` / `--separate-git-dir=DIR` (git takes any unique prefix) fill the new `.git` from a folder the persona wrote: its hooks and config then run on the next commit.
+    if (subName === 'init' && texts.some(text => /^--(?:t|se)/u.test(text))) { this.add('unknown', verb, 'git-init-template'); return }
     // Carbon CP-4: `git grep -O<cmd>` / `--open-files-in-pager=<cmd>` run a program on the matches (case matters: `-o` is `--only-matching`, so the ORIGINAL text is read).
     if (subName === 'grep' && (texts.some(text => text.startsWith('--open-files-in-pager')) || operands.some(arg => /^-[A-Za-z0-9]*O/u.test(arg.text)))) { this.add('unknown', verb, 'git-runs-pager'); return }
     if (GIT_NEVER.has(subName)) { this.add('never', verb, 'git-credential'); return }

@@ -32,6 +32,30 @@ function after(text: string, index: number): string | undefined {
   return point === undefined ? undefined : String.fromCodePoint(point)
 }
 
+/** Lower case and no accent (`João` → `joao`): the way a name is compared, whatever was typed. */
+function fold(value: string): string {
+  return value.normalize('NFD').replace(/\p{M}+/gu, '').toLocaleLowerCase('pt-BR')
+}
+
+/**
+ * Where the folded `key` matches the text from `from`: the index right after it (any accent marks that follow are part of it), or -1. Accents and case do not count, and the text is compared character by character
+ * so the index is a real position of the ORIGINAL text (a folded name may be shorter than what was typed).
+ */
+function matchAt(body: string, from: number, key: string): number {
+  let index = from
+  let matched = 0
+  while (matched < key.length) {
+    const char = after(body, index)
+    if (char === undefined) return -1
+    const folded = fold(char)
+    if (folded !== '' && key.slice(matched, matched + folded.length) !== folded) return -1
+    matched += folded.length
+    index += char.length
+  }
+  for (let next = after(body, index); next !== undefined && fold(next) === ''; next = after(body, index)) index += next.length // a decomposed accent right after the name
+  return index
+}
+
 /**
  * Personas named in the message by an `@name`.
  * @param personas - Candidates (any order).
@@ -39,22 +63,28 @@ function after(text: string, index: number): string | undefined {
  * @returns Each named persona once, in the order they appear in the text.
  */
 export function mentionsOf<T extends Mentionable>(personas: readonly T[], body: string): T[] {
+  // Each persona is looked for in up to two forms: as typed with its spaces ("@Ana Paula") and COMPACT ("@AnaPaula": what the composer's menu writes). Accents and case never count.
   const named = personas
     .filter(persona => persona.name.trim() !== '')
-    .map(persona => ({ persona, key: persona.name.toLocaleLowerCase('pt-BR') }))
+    .flatMap((persona) => {
+      const spaced = fold(persona.name).trim().replace(/\s+/gu, ' ')
+      const compact = spaced.replace(/ /gu, '')
+      return compact === spaced ? [{ persona, key: spaced }] : [{ persona, key: spaced }, { persona, key: compact }]
+    })
     .sort((a, b) => b.key.length - a.key.length)
   const found: T[] = []
   let at = body.indexOf('@')
   while (at !== -1) {
     const prev = before(body, at)
     if (!isWord(prev) && prev !== '@') {
-      const hit = named.find((item) => {
-        const end = at + 1 + item.persona.name.length
-        return body.slice(at + 1, end).toLocaleLowerCase('pt-BR') === item.key && !isWord(after(body, end))
-      })
+      let hit: { readonly persona: T; readonly end: number } | undefined
+      for (const item of named) {
+        const end = matchAt(body, at + 1, item.key)
+        if (end !== -1 && !isWord(after(body, end))) { hit = { persona: item.persona, end }; break }
+      }
       if (hit !== undefined) {
         if (!found.includes(hit.persona)) found.push(hit.persona)
-        at = body.indexOf('@', at + 1 + hit.persona.name.length)
+        at = body.indexOf('@', hit.end)
         continue
       }
     }

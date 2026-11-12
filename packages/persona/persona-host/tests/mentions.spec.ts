@@ -36,6 +36,39 @@ it('several mentions come back once each, in the order the text names them', () 
   expect(firstMention(team, '@Mia e @Nina')?.name).toBe('Mia')
 })
 
+it('P1 (auditor): the composer writes a compound name WITHOUT the space ("@AnaPaula"): it still names Ana Paula — never the default persona, never "Ana"', () => {
+  expect(names('@AnaPaula faça o relatório')).toEqual(['Ana Paula'])
+  expect(names('@anapaula, bom dia')).toEqual(['Ana Paula'])
+  expect(names('@ANAPAULA')).toEqual(['Ana Paula'])
+  expect(names('olá @AnaPaula.')).toEqual(['Ana Paula'])
+  expect(names('@Ana Paula e @AnaPaula juntas')).toEqual(['Ana Paula']) // once, however it was written
+  expect(names('@AnaPaula e @Ana')).toEqual(['Ana Paula', 'Ana'])
+})
+
+it('the spaced form still works, and a longer name still beats a shorter one at the same spot', () => {
+  expect(names('@Ana Paula faça')).toEqual(['Ana Paula'])
+  expect(names('@ana  paula faça')).toEqual(['Ana']) // two spaces is not the name: the first word is
+  expect(names('@Anabela')).toEqual(['Anabela'])
+  expect(names('@AnaPaulaX oi')).toEqual([]) // the compact name must be WHOLE too
+})
+
+it('accents and case do not count for the match: "@joao" is João, "@Ze" is Zé, and a compound name with accents compacts', () => {
+  const accented = [{ name: 'João' }, { name: 'Zé' }, { name: 'José Carlos' }, { name: 'Ana' }]
+  const accentedNames = (body: string): string[] => mentionsOf(accented, body).map(item => item.name)
+  expect(accentedNames('@joao oi')).toEqual(['João'])
+  expect(accentedNames('@JOÃO oi')).toEqual(['João'])
+  expect(accentedNames('@Ze, venha')).toEqual(['Zé'])
+  expect(accentedNames('@josecarlos oi')).toEqual(['José Carlos'])
+  expect(accentedNames('@Jose Carlos oi')).toEqual(['José Carlos'])
+  expect(accentedNames('@JoséCarlos')).toEqual(['José Carlos'])
+  expect(accentedNames('x@joao.com')).toEqual([]) // an e-mail is still not a mention
+})
+
+it('the compact form never turns two different names into one: "@AnaPaula" is not "@Ana" followed by "Paula"', () => {
+  expect(names('@AnaPaula')).not.toContain('Ana')
+  expect(firstMention(team, '@AnaPaula, resuma o dia')?.name).toBe('Ana Paula')
+})
+
 it('no @, an empty name, or a lone @ never invents a mention', () => {
   expect(names('bom dia a todos')).toEqual([])
   expect(names('só um @ solto')).toEqual([])

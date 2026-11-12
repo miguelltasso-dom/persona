@@ -509,6 +509,7 @@
       "@deepseek-ai/dsh-persona-sync": ["./packages/persona/persona-sync/src"],
       "@deepseek-ai/dsh-persona-usage": ["./packages/persona/persona-usage/src"],
       "@deepseek-ai/dsh-persona-vault": ["./packages/persona/persona-vault/src"],
+      "@deepseek-ai/dsh-persona-components": ["./packages/persona/persona-components/src"],
       "@deepseek-ai/dsh-personalized-recommendations": ["./packages/experimental/personalized-recommendations/src"],
       "@deepseek-ai/dsh-plan-mode": ["./packages/plan/plan-mode/src"],
       "@deepseek-ai/dsh-plugin-detail": ["./packages/util/plugin-detail/src"],

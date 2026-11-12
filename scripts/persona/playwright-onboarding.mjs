@@ -27,7 +27,8 @@ export async function completePersonaOnboardingOverlay(page, opts = {}) {
   const continueBtn = () => page.getByRole('button', { name: onboardingPt.continue, exact: true })
   await page.getByPlaceholder(onboardingPt.step1Placeholder).fill(displayName)
   await continueBtn().click()
-  await page.getByText(onboardingPt.step2VaultBadge).waitFor({ state: 'visible', timeout: 30_000 })
+  // The badge text ("Memória da empresa") now also names the sidebar place and guide bubbles, so wait on the step-2 input, which is unique.
+  await page.getByPlaceholder(onboardingPt.step2Placeholder).or(page.locator('textarea').first()).first().waitFor({ state: 'visible', timeout: 30_000 })
   const vaultField = page.getByPlaceholder(onboardingPt.step2Placeholder)
   if (await vaultField.isVisible().catch(() => false)) {
     await vaultField.fill(vaultLine)

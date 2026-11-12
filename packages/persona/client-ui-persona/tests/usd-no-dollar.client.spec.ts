@@ -60,8 +60,9 @@ describe('the words of the screens that are mine say "uso", not "custo"', () => 
     expect(json('approvals.en.json')['proactive.costLabel']).toBe('Estimated usage')
     expect(json('approvals.pt.json')['inbox.section.cost']).toBe('Impacto e uso')
     expect(json('approvals.en.json')['inbox.section.cost']).toBe('Impact and usage')
-    expect(json('rules.pt.json')['limits.subtitle']).toBe('Evita barulho e uso descontrolado da sua cota')
-    expect(json('rules.en.json')['limits.subtitle']).toBe('Prevents noise and runaway quota use')
+    // "cota" is jargon for the layperson (rules-budget-plain): the plain word is "plano", and still no "custo"
+    expect(json('rules.pt.json')['limits.subtitle']).toBe('Evita barulho e gasto descontrolado do seu plano')
+    expect(json('rules.en.json')['limits.subtitle']).toBe('Prevents noise and runaway spending on your plan')
   })
 
   it('no value in Aprovações, Regras or Uso e limites talks about money (custo / cost / $)', () => {

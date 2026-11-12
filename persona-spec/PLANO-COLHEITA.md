@@ -109,3 +109,25 @@ Ordem:
 - ONDA C: 26.17 (vendas e pagamentos), 26.18 (kits por negócio), 26.19, 26.20, 26.21 e 26.11.
 As "uau" para o Miguel ver primeiro: o catálogo com 1 clique ("Conectar Mercado Pago" e a Nina responde as vendas), o gatilho "quando chegar e-mail ou pedido, a Nina cuida" e a skill por link com $ no composer.
 Regras: NADA de Composio, porque o token sairia do PC. Antes de prometer um fornecedor BR (Mercado Pago, Nuvemshop, Bling, WhatsApp), confirmar que existe um MCP oficial.
+
+## MARCO DOGFOOD (Miguel, 12/11 13:30): "a gente mesmo usando, 24 h, com acesso remoto"
+Pedido do Miguel: fechar rápido para NÓS testarmos usando de verdade. Personas controlando os quadros (kanban) de vários projetos, cada projeto com um responsável, tocando tudo sozinhas, num computador que fica ligado 24 h, com acesso remoto. Os itens 21 a 26 passam a servir a este marco, nesta ordem.
+
+O marco está pronto quando, no app instalado:
+1. PROJETOS COM RESPONSÁVEL: cada projeto tem uma persona responsável (e opcionalmente uma pessoa), visível no cabeçalho do projeto, no quadro e na Casa (item 22). Trocar o responsável é 1 clique.
+2. QUADRO QUE ANDA SOZINHO: a responsável puxa o próximo cartão, distribui para quem é da equipe, cobra quem parou, move o cartão (fila → fazendo → revisão → feito) e, ao fim do dia, posta um resumo no canal do projeto. Tudo que tem risco continua pedindo aprovação (o "segure para aprovar" do item 5). Teto de turnos e de cota por projeto, com pausa aos 95% (item 10).
+3. VÁRIOS PROJETOS EM PARALELO: 2 ou mais projetos com quadros próprios andando ao mesmo tempo, sem uma responsável mexer no quadro da outra (a cerca de projeto do R2 vale).
+4. COMPUTADOR 24 H (item 24): o PC dedicado não dorme, o app sobe sozinho com o Windows, volta sozinho de queda ou atualização, e admite turnos conforme a RAM.
+5. ACESSO REMOTO SEM CLOUDFLARE: pelo Tailscale, o Miguel abre o Persona do PC dedicado no notebook e no celular (cliente web do host, só na rede Tailscale, pareamento por código, nunca exposto à internet aberta). O relay Cloudflare (item 25) continua para convidar colegas, não para isto.
+6. "QUEM ESTÁ CUIDANDO DE QUÊ": uma visão que responde em 1 olhar, por projeto, quem é a responsável, o que cada persona está fazendo agora (item 6) e o que espera o Miguel.
+
+Ordem de ataque: 24 (estação 24 h + Tailscale + cliente remoto) e o quadro autônomo começam JÁ, em paralelo com a auditoria final (a auditoria olha uma faixa fixa, o trabalho novo não atrapalha). Depois 22 (projetos e equipes na Casa), 21 (rostos vivos), 23, 26. Só os donos de um eventual P0/P1 do Carbon param para corrigir.
+Teste de aceite: o próprio Miguel, com 2 projetos reais, deixando rodar uma noite inteira no PC dedicado, e conferindo pelo celular de manhã.
+
+### Ajuste do Miguel ao critério 5 (12/11 14:30): o celular e o web são o MESMO app, estilo Discord
+O app no celular e no navegador não é um painel reduzido de 3 telas: é a mesma Casa do desktop (item 22), adaptada ao celular como o app do Discord. Ele tem os canais, as conversas e as pessoas na lateral (gaveta no celular), e o fio de mensagens com o compositor.
+- Dá para mandar mensagem para PESSOAS (entre os humanos da equipe) e para AGENTES (personas), nos canais e nas conversas diretas.
+- Só aparecem e respondem as personas que estão ATIVAS, ou seja, cujo computador está ligado e rodando. Persona sem computador ligado não aparece como disponível (no máximo numa seção recolhida "Fora do ar", sem compositor).
+- Continuam valendo: senha e Cofre só pelo PC; o "segure para aprovar" funciona no toque; "Esta noite" e "Espera você" viram atalhos no topo da Casa no celular, e não um app separado.
+- Pessoas no mesmo Tailscale já conversam por este caminho. Convidar alguém de fora da rede continua sendo o item 23/25 (relay Cloudflare).
+- Reforço do time (Miguel, 14:30): Onyx e Cobalt deixam de ser DeepSeek e passam a ser Sonnet 5.5 xhigh, agora. Onyx = M4 (computador 24 h) com o Rivet. Cobalt = M5 (cliente web/celular estilo Discord) com o Bolt (host, pareamento) e o Prism (UI compartilhada da Casa). Zinc e Jade (DeepSeek) seguem pausados.

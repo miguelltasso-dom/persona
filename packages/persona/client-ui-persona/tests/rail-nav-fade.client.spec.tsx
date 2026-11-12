@@ -78,4 +78,16 @@ describe('esmaecido do fim da lista do rail', () => {
     act(() => { fireEvent.scroll(list) })
     expect(list.getAttribute('data-more')).toBe('true')
   })
+
+  it('rolada para baixo: o esmaecido também aparece no topo (a linha que sai não corta seca)', () => {
+    metrics = { scrollHeight: 800, clientHeight: 400 }
+    const list = mount()
+    expect(list.getAttribute('data-above')).toBe('false')
+    list.scrollTop = 120
+    act(() => { fireEvent.scroll(list) })
+    expect(list.getAttribute('data-above')).toBe('true')
+    list.scrollTop = 0
+    act(() => { fireEvent.scroll(list) })
+    expect(list.getAttribute('data-above')).toBe('false')
+  })
 })

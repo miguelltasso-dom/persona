@@ -55,7 +55,7 @@
   "account.label.opencode": "Conta do OpenCode neste computador",
   "capability.full": "Completo",
   "capability.readOnly": "Só leitura",
-  "capability.readOnly.note": "Nos conectores, este motor só lê. Enviar, publicar, pagar ou apagar não rodam por aqui.",
+  "capability.readOnly.note": "Pelo {engine}, a equipe só consulta. Enviar, publicar, pagar ou apagar não rodam por ele.",
   "accountPolicy.fixed.title": "Ficar nesta conta",
   "accountPolicy.fixed.body": "No limite, a tarefa espera a cota voltar.",
   "accountPolicy.next_on_limit.title": "Trocar sozinha para a próxima conta",

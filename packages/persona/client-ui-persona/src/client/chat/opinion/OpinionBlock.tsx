@@ -127,8 +127,11 @@ export function OpinionBlock({ t, block, team, rowTag, resolveImage, onOpenDraft
   const ask = request.opinion
   const consolidated = block.consolidated
   const consolidatedUi = consolidated?.opinion
-  // Depois de consolidado o bloco inteiro recolhe para uma linha (a pessoa abre se quiser rever).
-  const [expanded, setExpanded] = useState(consolidated === undefined)
+  // Depois de consolidado o bloco inteiro recolhe para uma linha (a pessoa abre se quiser rever). D-100 / REVISÃO-01 §B6: a consolidação chega DEPOIS que o
+  // cartão já está na tela, então o "aberto/recolhido" segue a consolidação quando ela chega, e a escolha explícita da pessoa (abrir / ocultar) vale daí em diante.
+  const [chosen, setChosen] = useState<boolean | undefined>(undefined)
+  const expanded = chosen ?? consolidated === undefined
+  const setExpanded = setChosen
   const [beforeAfter, setBeforeAfter] = useState<'before' | 'after'>('after')
   const [blindOpen, setBlindOpen] = useState(false)
   const [refOpen, setRefOpen] = useState(false)

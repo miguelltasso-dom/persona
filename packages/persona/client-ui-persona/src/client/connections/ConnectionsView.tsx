@@ -422,7 +422,7 @@ export function ConnectionsView({
                   </Button>
                 )}
               </div>
-              <EngineCapabilityNote provider={group.provider} t={t} />
+              <EngineCapabilityNote provider={group.provider} t={t} name={group.providerName} />
               <AccountList label={group.providerName}>
                 {group.accounts.map((entry) => {
                   const state = accountState(entry)

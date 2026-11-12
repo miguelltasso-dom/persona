@@ -29,6 +29,8 @@ export interface V11SessionOptions {
   readonly engine?: FakeCliOptions
   /** Hire the suggested team after onboarding (default true). */
   readonly hireTeam?: boolean
+  /** Keep the host's `PERSONA_HOME` here (it survives `close()`): the seed for the Ember leaves its state in this folder. */
+  readonly home?: string
 }
 
 export interface V11Session {
@@ -51,6 +53,7 @@ export async function openV11Session(options: V11SessionOptions = {}): Promise<V
     engine: { kind: 'fake', turnMs: 1_500, ...(options.engine ?? {}) },
     liveRunner: true,
     keepOnboarding: true,
+    ...(options.home === undefined ? {} : { home: options.home }),
     ...(options.viewport === undefined ? {} : { viewport: options.viewport }),
     ...(Object.keys(hostEnv).length === 0 ? {} : { hostEnv }),
   })

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// D-092 / USD-2: "Uso e limites" of a SUBSCRIPTION shows the quota windows, the tokens and the reset — and never money.
+// D-092 / USD-2: "Uso e limites" of a SUBSCRIPTION shows the quota windows, the AI use and the reset — and never money.
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { pt as usagePt } from '../src/client/locale/usage/locales.ts'
@@ -29,8 +29,9 @@ describe('Uso e limites (assinatura): nenhum dinheiro no DOM', () => {
     const text = container.textContent ?? ''
     expect(text.length).toBeGreaterThan(100)
     expect(text).not.toMatch(/\$|US\$|\bcusto\b|\bcost\b/iu)
-    // what it does show: the windows and the tokens
+    // what it does show: the windows and the AI use, in the layperson's words
     expect(text).toMatch(/%/u)
-    expect(text).toMatch(/tokens/u)
+    expect(text).toMatch(/uso de IA/u)
+    expect(text).not.toMatch(/\btokens?\b/iu) // Carbon P2-01: the layperson never reads "tokens"
   })
 })

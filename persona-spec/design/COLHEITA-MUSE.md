@@ -391,6 +391,72 @@ Versão final, que junta a proposta do Anvil (00:08) e a minha (00:08).
 
 ---
 
+## 31 · MARCO DOGFOOD: a responsável do projeto, "Quem cuida de quê" e o celular (Miguel 12/11 13:30; Prism na UI)
+**A prancha:**
+- as telas: `.maestri/tmp/shots/design/dogfood/` (`projeto-*`, `quem-*` e `celular-*`, claro e escuro);
+- a fonte viva: `.maestri/tmp/muse/casa-equipe/dogfood.html?tela=projeto|quem|celular`.
+
+### (a) A responsável do projeto (trocar em 1 clique)
+- **No cabeçalho do projeto**, à direita, um cartão:
+  - o rosto R2 de 56 px com o humor do momento (pensando quando trabalha) e a bolinha de estado;
+  - `Responsável` (13 px muted), embaixo `Nina cuida deste projeto` (15 px peso 600) e a linha viva `Vendas · puxando o próximo cartão` (item 6);
+  - **`Trocar ▾`** (32 px).
+- **O menu `Trocar`:**
+  - `Quem cuida de "<projeto>"?`;
+  - as personas da equipe (rosto de 32, o nome e a função), com o ✓ na atual e o chip `2 projetos` em quem já cuida de outros;
+  - embaixo, `E uma pessoa, se quiser (opcional)`, com gente em círculo;
+  - **1 clique troca**, e a linha do sistema no canal do projeto diz `Atlas agora cuida deste projeto.`
+- **A faixa viva**, acima do quadro:
+  - `● O quadro anda sozinho. Nina distribui, cobra e move os cartões. O que tem risco pede a sua aprovação.`;
+  - logo depois do texto (nunca no canto direito, que o menu `Trocar` cobre), o chip `Teto de hoje: 18 de 40` (com o title `Quantas tarefas a equipe pode fazer hoje neste projeto`; item 10) e `Pausar o quadro`.
+  - Pausado: `O quadro está parado. Nada anda até você retomar.` com `Retomar`.
+- **No quadro:**
+  - os chips do estado do cartão (o lote do Lumen);
+  - o cartão que a responsável está mexendo agora ganha o contorno tracejado `--persona-brand` (a "mão" dela);
+  - cartão sem dono: `Sem responsável` mais a linha `Nina vai distribuir às 10h`.
+- **Na Casa (§29):** o canal do projeto mostra no cabeçalho o chip `Nina cuida deste projeto`, com o rosto de 24.
+
+### (b) "Quem cuida de quê"
+- **Onde:** uma seção do **Início** (é a pergunta da manhã), com o atalho na Equipe.
+- **O conteúdo:** 1 cartão por projeto, em 2 colunas (1 coluna abaixo de 900 px):
+  - o nome, a empresa e o estado do projeto (`Andando` verde, `Parado: falta acesso` neutro, `Pausado`);
+  - o bloco da **responsável** com `Trocar`;
+  - **o que cada persona do projeto faz AGORA**, uma linha cada: o rosto de 28, o nome e a frase do passo em verde, ou `Disponível · 1 na fila`, ou `Esperando você · <o quê>`;
+  - **o que espera você**, no bloco âmbar: `1 espera você: <o quê>` com `Ver` (primário, 32 px);
+  - a barra de 8 px: feitas (verde), fazendo (âmbar) e na fila (lavanda), com a legenda `5 feitas · 2 fazendo · 3 na fila · teto de hoje: 18 de 40`.
+
+### (c) O celular e o navegador: a MESMA Casa, no jeito do app do Discord (o Miguel mudou às 14:30; dono: Cobalt, com o Bolt no host e o Prism na UI compartilhada)
+**A prancha:** `.maestri/tmp/shots/design/dogfood/celular-casa-claro|escuro.png`, com a fonte em `.maestri/tmp/muse/casa-equipe/celular-casa.html` (390 px).
+**Não é** um painel de 3 telas: é a Casa da §29, com os mesmos componentes, adaptada a 360–430 px.
+1. **A gaveta** (o rail da Casa, aberta pelo botão do topo, com o pontinho âmbar quando algo espera você):
+   - a empresa: `Padaria Lua · 2 pessoas · 4 personas no ar`;
+   - **os 2 atalhos no topo**, em cartões de 56 px: `Esta noite · 9 tarefas` e `Espera você · 2` (contagem âmbar);
+   - `Ir para…`;
+   - os canais por equipe (§29);
+   - **`Personas no ar`**: só as que estão com o computador LIGADO, com o rosto R2 e a linha do que fazem;
+   - **`Fora do ar · N`**, recolhida, com `computador desligado`;
+   - `Pessoas` (gente em círculo, com a presença);
+   - você no rodapé, com o chip `✓ Ligado ao PC`.
+   - **As linhas têm 44 a 52 px** (o toque).
+2. **O canal:**
+   - o topo de 56 px (a gaveta, `# pedidos` e o assunto, e `Quem está aqui`);
+   - o fio da §23 (os balões v5 a 15,5 px, o rosto de 32);
+   - **a aprovação com o "segure" no toque** (52 px, a largura toda), mais `Editar` e `Agora não`;
+   - a pílula `Coordenação decide` acima do compositor;
+   - o compositor em pílula de 52 px (`+`, o texto, o microfone e enviar). `@` chama alguém.
+3. **Gente com gente:** a conversa direta com uma pessoa é igual. Um `@Nina` no meio chama a persona, e ela responde ali (`chamada por você`).
+4. **A persona fora do ar:** dá para LER o histórico, **sem compositor**. No lugar dele, a arte `pc-sem-ligacao` com `Sol está fora do ar. O computador dela está desligado. A conversa volta quando ele ligar.`
+5. **`Esta noite` e `Espera você` são folhas por cima da Casa** (bottom sheet, 74 % da altura, o scrim sólido do §2.7, arrastar para baixo fecha), e não um app separado:
+   - em `Esta noite`, o resumo e os eventos;
+   - em `Espera você`, os cartões de aprovação.
+- **Fica sempre:**
+  - **senha e Cofre só no PC** (`Senha só pelo PC` com `Me lembrar no PC`);
+  - mover cartão do quadro só no PC;
+  - fora do celular na 1ª versão: Configurações, o Cofre, contratar e as Regras.
+- **O pareamento (1ª vez):** a tela `Ligar ao PC` com o código `XXXX-XXXX` de 10 min (a prancha `celular-*` anterior; o componente da Estação, §28).
+
+---
+
 ## 30 · "Acordando o time": a espera da abertura (alavanca 1, shell estático; Prism, com o transporte do Zinc)
 **O problema que resolve:** hoje o renderer fica de 8 a 12 s parado esperando o host (perf/ABERTURA.md). Com o shell estático, a casa aparece em ~2 a 3 s, e esta é a tela até o host responder.
 

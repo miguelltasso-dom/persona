@@ -138,8 +138,10 @@
   }
 }
 
-/* A member box of 130 px or less (5 members on a 900 px strip): a shorter figure, so the body never covers the next one's overlay. */
-@container persona-member (max-width: 130px) {
+/* A member box of 130 px or less (5 members on a 900 px strip): a shorter figure, so the body never covers the next one's overlay.
+   The query has NO container name on purpose: the `persona-member` container is declared in TeamChannelStrip.module.css and CSS Modules scopes the
+   name PER FILE in the bundle, so a name used here never matched in the real app. Unnamed, it asks the closest container: the member box. */
+@container (max-width: 130px) {
   .figure {
     --figure-h: 136px;
   }

@@ -17,6 +17,8 @@ export function engineCapability(provider: string): EngineCapability | undefined
 interface EngineCapabilityProps {
   readonly provider: string
   readonly t: (key: string) => string
+  /** The engine as the person reads it ("Codex"); the note names it. Absent = the provider id. */
+  readonly name?: string
 }
 
 /** Chip no cabeçalho do cartão do motor. O ícone é o UiIcon; o texto não leva ✓ nem ⚠. */
@@ -32,7 +34,7 @@ export function EngineCapabilityChip({ provider, t }: EngineCapabilityProps): Re
 }
 
 /** O aviso que o D-103a pede na tela para quem só lê: fica no cartão, não só no chip. */
-export function EngineCapabilityNote({ provider, t }: EngineCapabilityProps): ReactNode {
+export function EngineCapabilityNote({ provider, t, name }: EngineCapabilityProps): ReactNode {
   if (engineCapability(provider) !== 'read-only') return null
-  return <p className={styles.note}>{t('capability.readOnly.note')}</p>
+  return <p className={styles.note}>{t('capability.readOnly.note').replace('{engine}', name ?? provider)}</p>
 }

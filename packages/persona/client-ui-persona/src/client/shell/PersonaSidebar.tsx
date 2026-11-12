@@ -318,6 +318,7 @@ export function PersonaSidebar({
   // inteira (não rola) ou já está no fim, nada fica apagado. Medido como o Modal faz (rola? ainda tem mais abaixo?).
   const [navScrolls, setNavScrolls] = useState(false)
   const [navMore, setNavMore] = useState(false)
+  const [navAbove, setNavAbove] = useState(false)
   useEffect(() => {
     const list = navRef.current
     if (list === null) return undefined
@@ -325,6 +326,7 @@ export function PersonaSidebar({
       const scrolls = list.scrollHeight > list.clientHeight + 1
       setNavScrolls(scrolls)
       setNavMore(scrolls && list.scrollTop + list.clientHeight < list.scrollHeight - 4)
+      setNavAbove(scrolls && list.scrollTop > 4)
     }
     list.addEventListener('scroll', check, { passive: true })
     check()
@@ -439,7 +441,7 @@ export function PersonaSidebar({
         <kbd className={styles.kbd}>{t('sidebar.searchShortcut')}</kbd>
       </button>
 
-      <div className={styles.navScroll} ref={navRef} data-scrolls={navScrolls ? 'true' : 'false'} data-more={navMore ? 'true' : 'false'}>
+      <div className={styles.navScroll} ref={navRef} data-scrolls={navScrolls ? 'true' : 'false'} data-more={navMore ? 'true' : 'false'} data-above={navAbove ? 'true' : 'false'}>
         <span
           className={styles.activeIndicator}
           style={{ transform: `translateY(${indicator.offset}px)`, height: `${indicator.size}px`, opacity: indicator.visible ? 1 : 0 }}

@@ -7,8 +7,15 @@ import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 import { characterIdForPersona as hostCharacterIdOf } from './map-host-ui.ts'
 import type { PersonaView } from './persona-remote-types.ts'
 import { sortPersonasForUi } from '../team/sort-personas.ts'
+import { PERSONA_GALLERY_ANIMALS } from '../hire/gallery-animals.ts'
 
 const KNOWN: ReadonlySet<string> = new Set(['atlas', 'bento', 'nina', 'sol', 'luna'])
+
+/** The persona's OWN gallery animal (the ref without "-default"), or `undefined` when the ref is not a gallery animal. */
+function ownAnimalOf(persona: PersonaView): string | undefined {
+  const ref = persona.avatarRef.trim().toLowerCase().replace(/-default$/u, '')
+  return PERSONA_GALLERY_ANIMALS.includes(ref) ? ref : undefined
+}
 
 function characterIdForPersona(persona: PersonaView): RailPersona['characterId'] {
   const ref = persona.avatarRef.toLowerCase()
@@ -90,8 +97,9 @@ export function mapRailTeamFromLive(
     const gestor = persona.systemRoles.includes('team_manager')
     return {
       id: persona.id,
-      // The SAME animal the DM header and the stage draw (never a letter, D-069): the shared rule first, this file's guess only as a last resort.
-      characterId: hostCharacterIdOf(snap.team, persona.id) ?? characterIdForPersona(persona),
+      // Her OWN animal first (D-069, "toda persona tem um bicho"); the shared rule only knows the 5 characters with a pose and falls to 'atlas', which
+      // would draw Atlas's face on a capivara. A ref that is not a gallery animal ("neutral") keeps the shared rule, this file's guess as the last resort.
+      characterId: ownAnimalOf(persona) ?? hostCharacterIdOf(snap.team, persona.id) ?? characterIdForPersona(persona),
       name: persona.name,
       role: persona.title,
       state: railState(hostOnline, now.state, now.currentTask, snap.kanbanCards),

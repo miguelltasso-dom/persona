@@ -23,7 +23,8 @@ function uiWith(groups: readonly (readonly [Kind, string])[]): ConnectionsAccoun
   }
 }
 
-const READ_ONLY_NOTE = 'Nos conectores, este motor só lê. Enviar, publicar, pagar ou apagar não rodam por aqui.'
+/** Muse (corte 3): the note names the engine it is under ("Pelo Codex..."), in plain words (no "conectores"). */
+const noteOf = (engine: string): string => `Pelo ${engine}, a equipe só consulta. Enviar, publicar, pagar ou apagar não rodam por ele.`
 
 describe('selo honesto de capacidade por motor (D-103a)', () => {
   it('Claude mostra "Completo" com ícone, dentro do cabeçalho do próprio cartão', () => {
@@ -33,13 +34,14 @@ describe('selo honesto de capacidade por motor (D-103a)', () => {
     const chip = within(head as HTMLElement).getByText('Completo')
     expect(chip.querySelector('svg')).not.toBeNull()
     expect(screen.queryByText('Só leitura')).toBeNull()
-    expect(screen.queryByText(READ_ONLY_NOTE)).toBeNull()
+    expect(screen.queryByText(/a equipe só consulta/u)).toBeNull()
   })
 
   it('Codex, Cursor e OpenCode mostram "Só leitura" com o aviso visível em cada cartão', () => {
     render(<ConnectionsView accountsUi={uiWith([['codex', 'Codex'], ['cursor', 'Cursor'], ['opencode', 'OpenCode']])} />)
     expect(screen.getAllByText('Só leitura')).toHaveLength(3)
-    expect(screen.getAllByText(READ_ONLY_NOTE)).toHaveLength(3)
+    for (const engine of ['Codex', 'Cursor', 'OpenCode']) expect(screen.getAllByText(noteOf(engine)), engine).toHaveLength(1)
+    expect(screen.queryByText(/Nos conectores/u), 'the old jargon is gone').toBeNull()
     expect(screen.queryByText('Completo')).toBeNull()
   })
 

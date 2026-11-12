@@ -482,8 +482,9 @@
 
 /* Em um cartão ESTREITO (o "Permissões ativas" da Visão geral tem ~300 px; a @media acima olha a janela, não o cartão) o rosto, o texto e o botão lado a lado deixavam ~80 px para o texto e
    uma palavra por linha. Empilhado (Muse): 1) rosto de 24 + a frase, até 2 linhas (o title traz a frase inteira); 2) o selo e "Concedida por você" na mesma linha se couber; 3) o botão à esquerda.
-   O contêiner é o .permissionList do SecondBrain.module.css (container-name permission-list). */
-@container permission-list (max-width: 420px) {
+   O contêiner é o .permissionList do SecondBrain.module.css (container-type: inline-size), SEM NOME: o CSS Modules do bundle localiza o nome de um contêiner por arquivo, e a query de um arquivo nunca
+   casaria com o nome declarado em outro (o app real seguiu espremido enquanto a galeria, que compila do src, estava certa). A query sem nome vale para o contêiner mais próximo. */
+@container (max-width: 420px) {
   .permission {
     grid-template-columns: 24px minmax(0, 1fr);
     align-items: start;

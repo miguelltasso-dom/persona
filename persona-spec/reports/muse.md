@@ -1,5 +1,26 @@
 # Muse — Diretor de Design (relatos)
 
+## 12/11 13:40 · A Casa da Equipe aprovada pelo Miguel, a §23 no real e a passada de leigo nº 4
+- **A Casa da Equipe no formato de canais:**
+  - a prancha está em `.maestri/tmp/shots/design/casa-equipe` e a fonte viva em `.maestri/tmp/muse/casa-equipe/casa.html`;
+  - o Miguel aprovou ("essa primeira versão está linda");
+  - as specs são a §29 (a 1ª versão) e a §29b (12 microdetalhes), entregues ao Prism e ao Flint.
+- **A abertura e a instalação:**
+  - a §30 ('Acordando o time'): o Prism implementou e o design está aprovado (falta o rig de abertura no instalador com a alavanca 1);
+  - o texto de instalação para o leigo (`INSTALAR-PERSONA-LEIGO.md`), conferido com o Rivet;
+  - o 'Sair da Persona' (o feminino) foi corrigido na bandeja.
+- **ACEITES:** §23 (a galeria e depois o fio real), 19a completo, o 3º lote do Lumen, o editor de Rotinas no real e o P1-04 do cliente (sem balão vazio; 1 'digitando' por persona).
+- **Arte do Brush, toda aprovada em bloco:**
+  - os 8 glifos de equipe (no UI_PATHS, ui-glyphs 50/50);
+  - a luminária e a cena da 1ª abertura;
+  - o vazio de 'Quem está aqui';
+  - a equipe-nova;
+  - as poses 'fora até' do time inicial;
+  - as 4 reações de TODOS os 18 bichos (o tucano refeito com o bico grande).
+- **A passada de leigo nº 4** (o instalador de hoje, d463be1196): nada que trave o leigo.
+  - Abertos: Regras da casa (Lumen) e Conexões (Tally).
+- **Lição registrada:** recado do Brush pode não chegar (sandbox). Quando ele parecer parado, procurar arquivos novos em persona-assets.
+
 ## 12/11 08:45 · Colheita: o sprint de correção, os aceites e as passadas de leigo nº 2 e nº 3
 - **ACEITES escritos no Status:**
   - 5 (parte 1), 7, 10, 15 (o Cofre com o cartão 2FA) e 16 (as 2 partes);

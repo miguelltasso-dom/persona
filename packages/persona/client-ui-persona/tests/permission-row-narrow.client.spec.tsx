@@ -43,14 +43,16 @@ const LABELS = { revoke: 'Tirar permissão', confirmRevoke: 'Tirar agora', cance
 const SENTENCE = 'Atlas · Responder no WhatsApp: clientes aprovados'
 
 describe('o cartão estreito empilha a permissão (container query, não a janela)', () => {
-  const narrow = blockAfter(BRAIN_CSS, '@container permission-list (max-width: 420px)')
+  const narrow = blockAfter(BRAIN_CSS, '@container (max-width: 420px)')
 
-  it('o contêiner existe: o .permissionList do Segundo Cérebro declara permission-list (inline-size)', () => {
-    expect(rule(SECOND_BRAIN_CSS, '.permissionList')).toMatch(/container:\s*permission-list\s*\/\s*inline-size/u)
+  it('o contêiner existe: o .permissionList do Segundo Cérebro declara container-type: inline-size, SEM nome (o nome seria localizado por arquivo e a query não casaria no bundle real)', () => {
+    const list = rule(SECOND_BRAIN_CSS, '.permissionList')
+    expect(list).toMatch(/container-type:\s*inline-size/u)
+    expect(list).not.toMatch(/container(?:-name)?:\s*[a-z][\w-]*/u)
   })
 
   it('abaixo de 420 px do CARTÃO: rosto de 24 + frase na largura que sobra (a coluna do texto nunca fica em ~80 px)', () => {
-    expect(narrow, 'a regra @container permission-list (max-width: 420px) existe').not.toBe('')
+    expect(narrow, 'a regra @container (max-width: 420px) existe').not.toBe('')
     expect(rule(narrow, '.permission')).toMatch(/grid-template-columns:\s*24px\s+minmax\(0,\s*1fr\)/u)
     expect(rule(narrow, '.permissionMain'), 'os filhos do bloco de texto viram itens da grade').toMatch(/display:\s*contents/u)
   })

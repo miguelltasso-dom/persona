@@ -249,9 +249,20 @@
 /* The list ends above the foliage with a fade that says "there is more" — only while there IS more below (data-more, measured in
    PersonaSidebar). A list that fits, or one already scrolled to its end, has no fade: no item is ever dimmed with nothing below
    it (Muse, axe color-contrast on the last rail item). 24 px, not 44. */
+.navScroll[data-above='true'] {
+  mask-image: linear-gradient(to bottom, transparent, black 24px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 24px);
+}
+
 .navScroll[data-more='true'] {
   mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
   -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
+}
+
+/* Rolada nos dois sentidos: esmaece as duas pontas (a linha que sai pelo topo não fica cortada seca). */
+.navScroll[data-above='true'][data-more='true'] {
+  mask-image: linear-gradient(to bottom, transparent, black 24px, black calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black 24px, black calc(100% - 24px), transparent);
 }
 
 .group + .group {

@@ -4,6 +4,15 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 12/11 14:25 — Marco Dogfood: contrato do RESUMO DO DIA; fechamentos da tarde; "Tornar do time" em staging
+
+- **Contrato `persona-spec/contracts/marco-dogfood-resumo.md`** (para o Flint implementar, M2): 1 mensagem por projeto por dia LOCAL, autor = a responsável, montada pelo host de fatos estruturados sem modelo, nunca memória; entra pronto/andando/espera você/travou/aprendizado do time (só escopo `team`)/teto; NUNCA entra segredo, DM privada (calculado para o leitor menos privilegiado), outro projeto, cozinha técnica; fala simples, persona sem gênero, direito ao silêncio (dia vazio não posta, Janela de silêncio, pausa). 9 testes de aceite no §6. Me ofereci para o compositor puro `day-summary.ts`.
+- **P0-09 resíduo (checkpointWal no purgeSecret)** fechado: 2 vermelhos → verde (`persona-store/src/vault/repos.ts`).
+- **E2E do app real** (`persona-e2e/tests/real-r2-anvil-app.spec.ts`, no corte 2): Resumo "Editar" e DM "Pausada" verdes; Cofre pulado (o host web não tem o cofre do Windows).
+- **"Tornar do time"**: só depois do veredito do Carbon; os 7 testes vermelhos do contrato já estão em `.maestri/tmp/anvil/staging/tornar-do-time.host.spec.ts` (nada na árvore).
+
+---
+
 ## 12/11 11:13 — R2-04 (revisão do Lumen + RED do Gauge) CORRIGIDO: o registro privado saía POR ID
 
 `approveMemory`/`editMemory`/`forgetMemory` por id (`assertMemoryReachable`), "contexto usado" (`readableUsedRows`; `listUsedContext` amarra o evento ao projeto e à ACL da DM) e react/pin/unpin/edit/delete/`listMessageAudit` (`requireOwnableMessage`: linha de DM só para participante). Prova: `r2-04-private-by-id.host.spec.ts` (novo, 4/4) + 19 testes vizinhos + o spec do Gauge sem `listUsedContext`; `check-pkg persona-host` OK; lint 0. Detalhe em `colheita-s1-respostas.md`. Limite: approve/edit/forget aceitam id de qualquer tipo de registro (decisão do Keel).

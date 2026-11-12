@@ -84,4 +84,40 @@ describe('mapRailTeamFromLive', () => {
     const rows = mapRailTeamFromLive(snap, true)
     expect(rows.map(row => row.name)).toEqual(['Atlas', 'Bento', 'Luna'])
   })
+
+  // Corte 3 (Tally/Keel): a regra compartilhada só conhece os 5 personagens de pose e cai em 'atlas', então no rail uma persona de qualquer outro bicho
+  // desenhava o rosto do Atlas. O bicho PRÓPRIO da persona (D-069, "toda persona tem um bicho") vem primeiro.
+  describe('o rosto no rail é o bicho da própria persona', () => {
+    const withRefs = (rows: readonly (readonly [name: string, avatarRef: string])[]): PersonaLiveSnapshot => ({
+      ...base,
+      kanbanCards: [],
+      team: {
+        members: [],
+        personas: rows.map(([name, avatarRef]) => ({
+          id: `p-${name.toLowerCase()}`, workspaceId: 'ws', projectId: 'pp', name, title: 'Função', description: '', avatarKind: 'gallery' as const, avatarRef,
+          systemRoles: [], canRecruit: false,
+        })),
+      },
+    })
+    const faces = (snap: PersonaLiveSnapshot): Record<string, string> =>
+      Object.fromEntries(mapRailTeamFromLive(snap, true).map(row => [row.name, row.characterId]))
+
+    it('um bicho que não é dos 5 de pose mantém o próprio rosto, nunca o do Atlas', () => {
+      expect(faces(withRefs([['Capi', 'capivara'], ['Lobo', 'lobo-guara'], ['Tuca', 'tucano']])))
+        .toEqual({ Capi: 'capivara', Lobo: 'lobo-guara', Tuca: 'tucano' })
+    })
+
+    it('a referência "bicho-default" é o bicho, e o nome "Atlas" não rouba o rosto de quem escolheu outro bicho', () => {
+      expect(faces(withRefs([['Atlas', 'raposa-default']]))).toEqual({ Atlas: 'raposa' })
+    })
+
+    it('os personagens de pose seguem iguais ao que eram', () => {
+      expect(faces(withRefs([['Atlas', 'atlas'], ['Bia', 'Nina'], ['Sol', 'sol']]))).toEqual({ Atlas: 'atlas', Bia: 'nina', Sol: 'sol' })
+    })
+
+    it('uma referência que não é bicho de galeria ("neutral") mantém a regra compartilhada de antes', () => {
+      const [row] = mapRailTeamFromLive(withRefs([['Atlas', 'neutral']]), true)
+      expect(row?.characterId).toBe('atlas') // o nome Atlas, como antes
+    })
+  })
 })

@@ -55,7 +55,7 @@
   "account.label.opencode": "OpenCode account on this computer",
   "capability.full": "Full",
   "capability.readOnly": "Read only",
-  "capability.readOnly.note": "In the connectors, this engine only reads. Sending, publishing, paying or deleting don't run here.",
+  "capability.readOnly.note": "Through {engine}, the team only looks things up. Sending, publishing, paying or deleting do not run through it.",
   "accountPolicy.fixed.title": "Stay on this account",
   "accountPolicy.fixed.body": "At the limit, the task waits for the quota to come back.",
   "accountPolicy.next_on_limit.title": "Switch on its own to the next account",

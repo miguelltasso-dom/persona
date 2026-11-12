@@ -47,7 +47,8 @@ describe('proactivity UI (PROACTIVITY.md)', () => {
   it('shows rules limits, quiet windows (only when the host obeys them: HONEST-1), and log-only log', () => {
     wrap(<TriageRulesView dict={rulesPt} rules={MOCK_TRIAGE_RULES} quietWindows={MOCK_QUIET_WINDOWS} limits={MOCK_PROACTIVITY_LIMITS} triageLog={MOCK_TRIAGE_LOG} obeyed={{ quietWindows: true }} />)
     expect(screen.getByLabelText(rulesPt['limits.maxProposals'])).toBeTruthy()
-    expect(screen.getByText(/Noites de semana/i)).toBeTruthy()
+    expect(screen.getByText(/Toda noite · 22h às 7h · Toda a equipe/u)).toBeTruthy() // Muse 08:51: a linha diz o tipo e as horas, não o rótulo do mock ("Noites de semana")
+    expect(screen.getByText(/Todo dia · 0h às 23h59 · Toda a equipe/u)).toBeTruthy()
     expect(screen.getByText(/Teria aberto ticket de revisão/i)).toBeTruthy()
   })
 

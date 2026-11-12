@@ -54,14 +54,15 @@ describe('Uso e limites: nenhum dinheiro no DOM (assinatura e chave de API, pt e
     expect(text).toMatch(/%/u)
   })
 
-  it('an API-key provider (no quota window to report): the tokens, and neither a dollar nor a "US$ —" placeholder', () => {
+  it('an API-key provider (no quota window to report): the AI use, and neither a dollar nor a "US$ —" placeholder', () => {
     const { container } = render(
       <PreviewFrame brandLabel="Persona">
         <UsageLimits dict={usagePt} meters={[]} providerPools={[MOCK_USAGE_PROVIDER_POOL_NO_LIMITS]} tokenPanel={MOCK_USAGE_TOKEN_PANEL} showLimitNotice={false} />
       </PreviewFrame>,
     )
     const text = container.textContent ?? ''
-    expect(text).toMatch(/tokens/u)
+    expect(text).toMatch(/uso de IA/u)
+    expect(text).not.toMatch(/\btokens?\b/iu)
     expect(text).not.toMatch(MONEY)
   })
 

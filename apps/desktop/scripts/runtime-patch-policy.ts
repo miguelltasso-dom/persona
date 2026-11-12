@@ -26,4 +26,6 @@ export const DESKTOP_RUNTIME_PATCHES: Readonly<Record<string, DesktopRuntimePatc
 export const DESKTOP_RUNTIME_DEPENDENCY_OVERRIDES: Readonly<Record<string, string>> = {
   // The provider declares ^1.3.0; its patch is qualified against 1.3.0.
   '@earendil-works/pi-ai@^1.3.0': '1.3.0',
+  // The workspace lockfile pins extract-zip's yauzl; without the same override the packaged runtime re-resolved ^2.10 and the lockfile drift check failed (Carbon P0-01, third part).
+  'extract-zip>yauzl': '3.4.0',
 }

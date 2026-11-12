@@ -31,7 +31,8 @@ export interface HereMember {
   readonly away?: 'paused' | 'no-engine'
 }
 
-export type HereGroupId = 'owner' | 'away' | 'unassigned' | `team:${string}`
+/** `owner` | `away` | `unassigned` | `team:<id>`: a plain string on the wire (Typert has no Zod projection for a template-literal type). */
+export type HereGroupId = string
 
 export interface HereGroup {
   readonly id: HereGroupId

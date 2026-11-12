@@ -120,4 +120,4 @@ export function choiceAnswerText(card: ChoiceCard, optionId: string): string | u
 }
 
 /** The one line of the prompt that teaches a persona the marker (kept here so the format and its limits live in one place). */
-export const CHOICE_PROMPT_LINE = `Para oferecer 2 a ${String(CHOICE_MAX_OPTIONS)} caminhos ao fim da vez, termine com uma linha [[escolha: pergunta curta | opção | opção]] (pergunta até ${String(CHOICE_QUESTION_MAX)} caracteres, opção até ${String(CHOICE_LABEL_MAX)}); o cartão aparece sozinho e você encerra a vez sem esperar.`
+export const CHOICE_PROMPT_LINE = `Para oferecer 2 a ${String(CHOICE_MAX_OPTIONS)} caminhos, termine com [[escolha: pergunta curta | opção | opção]] (pergunta até ${String(CHOICE_QUESTION_MAX)} caracteres).`

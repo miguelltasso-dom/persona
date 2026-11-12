@@ -28,8 +28,9 @@ import type { RunEvent, Runner, StartTurnInput } from '../contract.ts'
 import { argsHash, boundedInput, type FlatValue } from './tool-input.ts'
 import { FILE_WRITE_TOOLS, insideRoot, targetOfFileTool } from './draft-path.ts'
 import { authorityCell, preAllowAfterOrigin, verdictFor, type AuthorityKind } from '../authority/authority-table.ts'
-import { browserToolOf, judgeBrowserTool } from '../authority/browser-policy.ts'
-import { headOfCommand, isSecretPath, judgeCommand } from '../authority/command-policy.ts'
+import { BROWSER_SERVER, browserToolOf, judgeBrowserTool } from '../authority/browser-policy.ts'
+import { redactToolOutput, secretWindowOpen } from '../authority/secret-window.ts'
+import { headOfCommand, isBroadReadRoot, isSecretPath, judgeCommand } from '../authority/command-policy.ts'
 import type { ToolLevel } from './tool-level.ts'
 
 /** Classes that never pass without asking, whatever the host lists in `preAllow`. */
@@ -126,6 +127,10 @@ export interface PermissionGateOptions {
 }
 
 interface HookEvent {
+  /** `PreToolUse` (the decision) or `PostToolUse` (the output of a browser tool, masked before the model reads it). */
+  readonly hook_event_name?: unknown
+  /** What the tool answered (PostToolUse only): a string or content blocks, whatever the CLI hands the hook. */
+  readonly tool_response?: unknown
   readonly tool_name?: unknown
   readonly tool_input?: unknown
   readonly tool_use_id?: unknown
@@ -232,13 +237,15 @@ export class PermissionGate {
    */
   static async start(options: PermissionGateOptions = {}): Promise<PermissionGate> {
     const token = options.token ?? randomBytes(32).toString('hex')
-    let gate: PermissionGate | undefined
-    const server = createServer((req, res) => { gate?.handle(req, res) })
+    // The handler exists before the gate (the gate needs the port the server listens on), so it reads the gate through a holder.
+    const holder: { gate?: PermissionGate } = {}
+    const server = createServer((req, res) => { holder.gate?.handle(req, res) })
     const port = await new Promise<number>((resolve, reject) => {
       server.once('error', reject)
       server.listen(0, '127.0.0.1', () => { resolve((server.address() as AddressInfo).port) })
     })
-    gate = new PermissionGate(server, port, token, options)
+    const gate = new PermissionGate(server, port, token, options)
+    holder.gate = gate
     return gate
   }
 
@@ -250,7 +257,11 @@ export class PermissionGate {
   /** The `--settings` fragment that installs the hook (merge it into the session's flag settings). */
   settings(): Record<string, unknown> {
     return {
-      hooks: { PreToolUse: [{ matcher: `mcp__.*|${[...FILE_WRITE_TOOLS, ...COMMAND_TOOLS, ...READ_TOOLS].join('|')}`, hooks: [{ type: 'http', url: this.url, headers: { [GATE_TOKEN_HEADER]: this.tokenValue } }] }] },
+      hooks: {
+        PreToolUse: [{ matcher: `mcp__.*|${[...FILE_WRITE_TOOLS, ...COMMAND_TOOLS, ...READ_TOOLS].join('|')}`, hooks: [{ type: 'http', url: this.url, headers: { [GATE_TOKEN_HEADER]: this.tokenValue } }] }],
+        // Carbon P0-02: what a browser tool answers is masked of any typed secret before the model reads it (the page may show it back: a "show password" toggle, a mirrored field).
+        PostToolUse: [{ matcher: `mcp__${BROWSER_SERVER}__.*`, hooks: [{ type: 'http', url: this.url, headers: { [GATE_TOKEN_HEADER]: this.tokenValue } }] }],
+      },
       allowedHttpHookUrls: [this.url],
     }
   }
@@ -260,7 +271,7 @@ export class PermissionGate {
    * @param arming - Classes allowed without asking and the approved calls.
    */
   arm(arming: GateArming = {}): void {
-    this.preAllow = new Set(preAllowAfterOrigin(arming.preAllow ?? [], { viaEmail: arming.viaEmail === true }).filter(cls => !NEVER_PRE_ALLOWED.includes(cls)))
+    this.preAllow = new Set(preAllowAfterOrigin(arming.preAllow ?? [], { viaEmail: arming.viaEmail === true, authority: arming.authority ?? 'person' }).filter(cls => !NEVER_PRE_ALLOWED.includes(cls)))
     this.approved = [...(arming.approved ?? [])]
     this.requests = []
     this.released = []
@@ -390,7 +401,7 @@ export class PermissionGate {
 
   /** COLHEITA 17: one browser tool call. Allowed = an explicit `allow` (the server is attached only with the person's grant and the turn); anything else is refused, never asked. */
   private decideBrowser(tool: string, event: HookEvent): Record<string, unknown> {
-    const judged = judgeBrowserTool(browserToolOf(tool) ?? '', event.tool_input)
+    const judged = judgeBrowserTool(browserToolOf(tool) ?? '', event.tool_input, { secretLive: secretWindowOpen() })
     if (authorityCell(this.authority, judged.kind) === 'allow') {
       const input = event.tool_input
       const url = input !== null && typeof input === 'object' && typeof (input as { url?: unknown }).url === 'string' ? (input as { url: string }).url : undefined
@@ -458,10 +469,31 @@ export class PermissionGate {
         return decision('deny', SECRET_PATH_REASON)
       }
     }
+    // Carbon P0-04: a recursive read that STARTS at the home folder (or above it, or a drive root) sweeps every secret under it in one call: refused like the secret path itself.
+    if (tool === 'Grep' || tool === 'Glob') {
+      const cwd = typeof event.cwd === 'string' && event.cwd !== '' ? event.cwd : undefined
+      const base = record.path
+      const glob = tool === 'Glob' && typeof record.pattern === 'string' ? record.pattern : ''
+      const cut = glob.search(/[*?[{]/u)
+      const globDir = cut > 0 ? glob.slice(0, cut).replace(/[\\/][^\\/]*$/u, '') : ''
+      if ((typeof base === 'string' && isBroadReadRoot(base, cwd)) || (globDir !== '' && isBroadReadRoot(globDir, cwd))) {
+        this.noteRefusal(tool, 'secret', 'read')
+        return decision('deny', SECRET_PATH_REASON)
+      }
+    }
     return {}
   }
 
+  /** Carbon P0-02: the output of a browser tool with every live secret masked; no opinion when nothing in it was a secret (the CLI keeps its own output). */
+  private decideOutput(event: HookEvent): Record<string, unknown> {
+    const tool = typeof event.tool_name === 'string' ? event.tool_name : ''
+    if (browserToolOf(tool) === undefined) return {}
+    const masked = redactToolOutput(event.tool_response)
+    return masked.changed ? { hookSpecificOutput: { hookEventName: 'PostToolUse', updatedToolOutput: masked.value } } : {}
+  }
+
   private decide(event: HookEvent): Record<string, unknown> {
+    if (event.hook_event_name === 'PostToolUse') return this.decideOutput(event)
     const tool = typeof event.tool_name === 'string' ? event.tool_name : ''
     // P0-1: a built-in tool that WRITES A FILE may only reach the draft of this task. The gate gives no opinion on a call inside it (the CLI's own permission mode decides, as before);
     // outside it, or with no path to judge, or outside an armed turn: denied. Never widens what the persona's tool policy already allows; only narrows it.
@@ -470,7 +502,11 @@ export class PermissionGate {
       const cwd = typeof event.cwd === 'string' && event.cwd !== '' ? event.cwd : undefined
       const root = this.noDraft ? undefined : this.draftRoot ?? cwd
       const target = targetOfFileTool(event.tool_input)
-      if (root === undefined || target === undefined || !insideRoot(root, target, cwd ?? root)) return decision('deny', OUTSIDE_DRAFT_REASON)
+      if (root === undefined || target === undefined || !insideRoot(root, target, cwd ?? root)) {
+        // Carbon P1-01: the refusal is on record (class and word, never the path), so the host never takes a write the gate denied for proof that something was saved.
+        this.noteRefusal(tool, 'file', 'write')
+        return decision('deny', OUTSIDE_DRAFT_REASON)
+      }
       return {}
     }
 
@@ -554,5 +590,6 @@ export function withPermissionReport(inner: Runner, gate: PermissionGate): Runne
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(input) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }

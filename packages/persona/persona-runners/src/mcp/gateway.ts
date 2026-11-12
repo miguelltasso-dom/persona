@@ -154,6 +154,11 @@ export function createMcpGateway(options: {
    * contract tests (which list every definition); the host that serves tools to a CLI sets it.
    */
   onlyWired?: boolean
+  /**
+   * Carbon P0-02: applied to the text of EVERY answer of the gateway before the model reads it (the host passes its `SecretMask`: a password it typed into a page and the six digits of a code never
+   * reach the model, whatever tool or error carried them). Absent = the answer is returned as the tool wrote it.
+   */
+  redact?: (text: string) => string
 }): McpGateway {
   const wired = (name: string): boolean => {
     const acting = options.acting ?? {}
@@ -205,6 +210,12 @@ export function createMcpGateway(options: {
       if (tokenEq(turn.lease.token, token)) return turn
     }
     return undefined
+  }
+
+  /** Carbon P0-02: the one funnel of what a tool of the product answers. The host's `redact` masks a typed secret (a Cofre password, the six digits) wherever it surfaced. */
+  const masked = async (result: Promise<McpCallResult>): Promise<McpCallResult> => {
+    const done = await result
+    return options.redact === undefined ? done : { ...done, content: options.redact(done.content) }
   }
 
   const invoke = async (
@@ -280,7 +291,7 @@ export function createMcpGateway(options: {
       if (turn === undefined) {
         return { content: 'turno desconhecido', refused: true }
       }
-      return invoke(turn, name, args, false)
+      return masked(invoke(turn, name, args, false))
     },
     approve: async (approvalId) => {
       const wait = pending.get(approvalId)
@@ -288,7 +299,7 @@ export function createMcpGateway(options: {
       pending.delete(approvalId)
       const turn = turns.get(wait.turnId)
       if (turn === undefined) return { content: 'turno encerrado', refused: true }
-      return invoke(turn, wait.name, wait.args, true)
+      return masked(invoke(turn, wait.name, wait.args, true))
     },
     deny: (approvalId) => {
       const wait = pending.get(approvalId)

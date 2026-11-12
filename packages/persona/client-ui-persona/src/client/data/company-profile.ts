@@ -7,8 +7,9 @@ import type { VaultRecordView } from '@deepseek-ai/dsh-persona-host/types'
  * @param records The Cofre records of the project.
  * @returns The profile text, trimmed, or null when nobody described the company yet.
  */
-export function companyProfileText(records: readonly Pick<VaultRecordView, 'kind' | 'status' | 'body'>[]): string | null {
-  const profile = records.find(record => record.kind === 'brief' && record.status === 'active' && record.body.trim() !== '')
+export function companyProfileText(records: readonly Pick<VaultRecordView, 'kind' | 'status' | 'body' | 'factKey'>[]): string | null {
+  // The company Ficha (CNPJ…) is a brief too (`company.card`): it is DATA the team reads, never the owner's description of the business.
+  const profile = records.find(record => record.kind === 'brief' && record.status === 'active' && record.factKey !== 'company.card' && record.body.trim() !== '')
   return profile === undefined ? null : profile.body.trim()
 }
 

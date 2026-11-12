@@ -49,7 +49,7 @@ describe('os lugares', () => {
     ])
   })
 
-  it('Configurações com os padrões do produto: Conexões · Cofre · Personas · Uso e limites · Importadores · Aparência · Sobre (sem Membros)', async () => {
+  it('Configurações com os padrões do produto: Conexões · Cofre · Personas · Uso e limites · Importadores · Aparência · Sobre (sem Membros e sem Ferramentas: a flag toolsCatalog nasce desligada)', async () => {
     setFlagDefaults(undefined)
     vi.resetModules()
     const fresh = await import('../src/client/shell/nav-places.ts')

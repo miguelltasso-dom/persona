@@ -96,6 +96,57 @@ describe('a lista', () => {
   })
 })
 
+describe('os acertos da Muse (12/11)', () => {
+  it('a linha da chave nunca repete o nome: mostra para que serve, ou a data da gravação', () => {
+    const keys = [
+      entry({ id: 'k1', kind: 'key', title: 'Mercado Pago', fields: { service: 'Mercado Pago' }, hasSecret: true, updatedAt: '2026-11-10T15:00:00Z' }),
+      entry({ id: 'k2', kind: 'key', title: 'Pix da loja', fields: { service: 'Mercado Pago' }, hasSecret: true, updatedAt: '2026-11-10T15:00:00Z' }),
+    ]
+    render(<CofreScreen {...screenWith({ groups: cofreGroups(keys) })} />)
+    expect(screen.getByText('Chave de acesso · guardada em 10/11')).toBeTruthy()
+    // 'Mercado Pago' aparece 2 vezes: o título da 1ª chave e o serviço da 2ª (o 'Pix da loja'); a 1ª NÃO repete o nome na 2ª linha.
+    expect(screen.getAllByText('Mercado Pago')).toHaveLength(2)
+  })
+
+  it('na confirmação de remover o foco cai em Manter', () => {
+    render(<CofreScreen {...screenWith()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Remover Mercado Livre' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Manter' }))
+  })
+
+  it('um campo obrigatório vazio recebe o erro e o foco, e nada é salvo', () => {
+    const onSaveLogin = vi.fn(async () => undefined)
+    render(<CofreScreen {...screenWith({ onSaveLogin })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Login' }))
+    const panel = screen.getByRole('complementary', { name: 'Novo login' })
+    fireEvent.submit((within(panel).getByLabelText('Site') as HTMLInputElement).closest('form') as HTMLFormElement)
+    expect(within(panel).getByText('Preencha Site.')).toBeTruthy()
+    expect(document.activeElement).toBe(within(panel).getByLabelText('Site'))
+    expect(onSaveLogin).not.toHaveBeenCalled()
+  })
+
+  it('Novo login mostra só "Fica guardada só neste computador."; Guardar e Cancelar têm 40 px (Button m)', () => {
+    render(<CofreScreen {...screenWith()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Login' }))
+    const panel = screen.getByRole('complementary', { name: 'Novo login' })
+    expect(within(panel).getByText('Fica guardada só neste computador.')).toBeTruthy()
+    expect(within(panel).queryByText(/Digite a senha de novo/u)).toBeNull()
+    for (const name of ['Guardar', 'Cancelar']) expect(within(panel).getByRole('button', { name }).className).toMatch(/_m_/u)
+  })
+
+  it('keepSecretOnEdit: a senha pode ficar em branco na edição e então NÃO é enviada; a dica vira a do vazio', async () => {
+    const onSaveLogin = vi.fn(async () => undefined)
+    render(<CofreScreen {...screenWith({ onSaveLogin, keepSecretOnEdit: true })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Mercado Livre' }))
+    const panel = screen.getByRole('complementary', { name: 'Editar login' })
+    expect(within(panel).getByText('Deixe em branco para manter a senha guardada.')).toBeTruthy()
+    fireEvent.submit((within(panel).getByLabelText('Senha') as HTMLInputElement).closest('form') as HTMLFormElement)
+    await waitFor(() => { expect(onSaveLogin).toHaveBeenCalledWith({ id: 'l1', site: 'mercadolivre.com.br', username: 'loja@padarialua.com.br', title: 'Mercado Livre' }) })
+  })
+})
+
 describe('remover confirma na própria linha', () => {
   it('pergunta, e só apaga depois do "Remover"; "Manter" desiste', async () => {
     const onRemove = vi.fn(async () => undefined)
@@ -147,8 +198,10 @@ describe('o painel lateral', () => {
     const password = within(panel).getByLabelText('Senha') as HTMLInputElement
     expect(password.value).toBe('')
     expect(within(panel).getByText('Digite a senha de novo para guardar a alteração.')).toBeTruthy()
+    expect(within(panel).getByText('Fica guardada só neste computador.')).toBeTruthy()
     fireEvent.submit(password.closest('form') as HTMLFormElement)
-    expect(within(panel).getByRole('alert').textContent).toContain('Preencha Senha.')
+    expect(within(panel).getByText('Digite a senha para guardar.')).toBeTruthy() // o erro fica NO CAMPO, que recebe o foco; o Guardar não ficou desabilitado
+    expect(document.activeElement).toBe(password)
     expect(onSaveLogin).not.toHaveBeenCalled()
     fireEvent.change(password, { target: { value: 'nova-senha' } })
     fireEvent.submit(password.closest('form') as HTMLFormElement)

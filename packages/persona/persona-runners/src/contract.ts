@@ -5,6 +5,8 @@
  * matches `persona-engine` and `toWorkerReport` is what `Engine.report` accepts.
  */
 
+import type { AuthorityKind } from './authority/authority-table.ts'
+
 /** Same states the engine stores on `Assignment.report.state`. */
 export type ReportState = 'progress' | 'waiting' | 'ready' | 'blocked' | 'failed' | 'dropped'
 
@@ -194,6 +196,11 @@ export interface StartTurnInput {
    * 'unavailable'` gets none. Part of the session key: a warm session opened without them is not reused.
    */
   extraMcpServers?: readonly TurnMcpServer[]
+  /**
+   * Carbon P0-03a: who THIS turn acts for, derived by the host from the real origin of the Task (a routine, an event, the team's own initiative are not a person). The runner's own gate arms with it
+   * every turn (a runner stays warm across Tasks, so it is never fixed when the runner is built). Absent = `person`, as before.
+   */
+  authority?: AuthorityKind
   /**
    * TEAM-5: images that travel with this turn (an attachment of the team channel the host already saved on this machine). Delivered as the
    * engine's native image input, never as a path in the prompt. Refused whole, in human words, when the engine does not read images or an

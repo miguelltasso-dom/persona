@@ -27,6 +27,8 @@ export interface AvatarProps {
    */
   readonly icon?: ReactNode
   readonly className?: string | undefined
+  /** COLHEITA §23 (R2): 'head' enquadra o rosto na cabeça (o busto inteiro fica fora do quadro). */
+  readonly crop?: 'head' | undefined
 }
 
 const TONES = 4
@@ -56,8 +58,9 @@ export function Avatar({
   decorative = false,
   className,
   icon,
+  crop,
 }: AvatarProps): ReactNode {
-  const classes = [styles.avatar, styles[shape], className ?? ''].filter(Boolean).join(' ')
+  const classes = [styles.avatar, styles[shape], crop === 'head' ? styles.cropHead : '', className ?? ''].filter(Boolean).join(' ')
   const a11y = decorative ? { 'aria-hidden': true as const } : { role: 'img' as const, 'aria-label': name }
   return (
     <span

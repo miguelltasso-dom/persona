@@ -38,6 +38,8 @@ export const HARNESS_VERBS: ReadonlySet<string> = new Set([
   'routine_create', 'routine_pause', 'routine_edit', 'channel_create', 'channel_rename', 'memory_edit', 'persona_hire', 'sprint_plan',
   // COLHEITA 17: what the persona did in the browser (tool + site, never a value).
   'browser_click', 'browser_fill',
+  // Item 15b / Carbon P0-02: a Cofre login typed into the page, and the day its password reached the address bar (fixed words, never the value).
+  'browser_login', 'browser_leak',
 ])
 
 /** O tempo que resta do Desfazer, legível: < 60 s → "{n} s"; < 60 min → "{n} min"; >= 1 h → "{n} h" (sempre arredondando para cima). */

@@ -56,6 +56,8 @@ export class SyncClient {
    */
   open(payload: SyncEnvelope['payload']): string {
     if ('clear' in payload) return payload.clear
+    // Sealed PER CHANNEL (E2EE): only the channel keyring opens it, never the workspace secret.
+    if (payload.alg === 'channel') throw new Error('CHANNEL_KEYRING_REQUIRED')
     return this.cipher.open(payload, this.workspaceKeyId)
   }
 

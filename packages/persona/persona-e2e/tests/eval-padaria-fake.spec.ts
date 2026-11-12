@@ -25,8 +25,7 @@ describe('Eval Padaria Lua — fake (0 IA)', () => {
     const choreography = process.env.PERSONA_EVAL_CHOREOGRAPHY === 'd100' ? 'd100' as const : undefined
     const outcome = await runPadariaEval({ engine: 'fake', repeat, outRoot: join(ARTIFACTS_DIR, 'eval-padaria'), fingerprint: before, ...(choreography === undefined ? {} : { choreography }) })
     const after = treeFingerprint(treeManifest())
-    // eslint-disable-next-line no-console
-    console.log(`\n${outcome.markdown}\nsummary: ${outcome.outDir}${after === before ? '' : `\nATENÇÃO: a árvore mudou durante a rodada (${before} → ${after}): este resultado não prova o código final`}`)
+    // the page of the run is on disk (`summary.md` in `outcome.outDir`, with the tree fingerprint it ran on); the harness keeps the console quiet
 
     // The plumbing: a round that failed before it could be read, did not settle or was killed measured nothing.
     expect(Object.values(outcome.meta.notes ?? {}), `see ${outcome.outDir}`).toEqual([])

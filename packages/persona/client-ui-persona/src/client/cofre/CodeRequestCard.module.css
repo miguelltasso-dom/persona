@@ -1,0 +1,125 @@
+/* Item 15 — o cartão "Precisa de um código" (Muse 12/11): mesma gramática do cartão de ação do Prism, com as seis caixas de 48 px. */
+.row {
+  margin: var(--persona-space-3) 0;
+  list-style: none;
+}
+
+.card {
+  min-width: 0;
+}
+
+.eyebrowRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+/* O selo de prazo: só leitura (não é controle), 24 px, ícone clock de 14 px. Aqui é sempre âmbar: a espera é de 10 min. */
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  min-height: 24px;
+  margin: 0 0 var(--persona-space-2);
+  padding: 0 var(--persona-space-2);
+  border-radius: 12px;
+  background: var(--persona-state-waiting);
+  color: var(--persona-accent-ink);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.reason {
+  margin: 0 0 var(--persona-space-3);
+  font: 400 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.box {
+  width: 48px;
+  height: 48px;
+  box-sizing: border-box;
+  padding: 0;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-space-2);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  font: 600 22px/1 var(--persona-font-text);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.box:focus-visible {
+  outline: 2px solid var(--persona-focus, var(--persona-accent-ink));
+  outline-offset: 2px;
+}
+
+.box:disabled {
+  opacity: 0.6;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--persona-danger, var(--persona-ink));
+}
+
+/* Vencido: só leitura, sem sombra e sem o âmbar (o âmbar é "esperando você"). */
+.card.expiredCard {
+  box-shadow: none;
+  border-color: var(--persona-outline-soft);
+}
+
+.expiredLine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  margin: 0 0 var(--persona-space-2);
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+}
+
+/* O que já aconteceu vira uma linha discreta, sem sombra. */
+.done {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: var(--persona-space-2) 0;
+  list-style: none;
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.doneIcon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--persona-success, var(--persona-ink-soft));
+}
+
+/* A pilha de cartões no topo de Aprovações. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

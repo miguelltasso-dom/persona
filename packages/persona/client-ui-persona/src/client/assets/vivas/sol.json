@@ -1,0 +1,45 @@
+{
+  "animal": "sol",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 203,
+    "top": 104,
+    "width": 618,
+    "height": 807
+  },
+  "size": [
+    368,
+    480
+  ],
+  "scale": 0.5947955390334573,
+  "mask": [
+    {
+      "x": -50,
+      "y": -45,
+      "w": 467,
+      "h": 388
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "sol-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "sol-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "sol-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "sol-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

@@ -67,7 +67,7 @@ describe('BringContextImportPage (Gauge BYC app findings)', () => {
     expect(screen.getByText(/1 notas?/u)).toBeTruthy()
   })
 
-  it('after "Gravar N no Cofre" the screen says what happened and offers "Ver no Cofre"', async () => {
+  it('after "Importar N" the screen says what happened and offers "Ver na Memória da empresa"', async () => {
     const onOpenVault = vi.fn()
     const persona = fakePersona()
     render(
@@ -78,14 +78,14 @@ describe('BringContextImportPage (Gauge BYC app findings)', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'A Padaria Aurora paga todo dia 5.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar resposta' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Organizar' }))
-    fireEvent.click(await screen.findByRole('button', { name: /^Gravar \d+ no Cofre$/u }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Importar \d+$/u }))
     await waitFor(() => { expect(document.querySelector('[data-persona-byc-saved]')).not.toBeNull() })
-    expect(document.querySelector('[data-persona-byc-saved]')?.textContent).toMatch(/1 item no Cofre ✓/u)
-    fireEvent.click(screen.getByRole('button', { name: 'Ver no Cofre' }))
+    expect(document.querySelector('[data-persona-byc-saved]')?.textContent).toMatch(/1 item na Memória da empresa ✓/u)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver na Memória da empresa' }))
     expect(onOpenVault).toHaveBeenCalledTimes(1)
   })
 
-  it('rules arrive UNDECIDED: nothing binds the team without an explicit accept, and "Gravar" does not write them (BYC-4d)', async () => {
+  it('rules arrive UNDECIDED (an unchecked line): nothing binds the team without an explicit accept, and "Importar" does not write them (BYC-4d)', async () => {
     const rule = { ...PROPOSAL, id: 'p2', kind: 'constraint', section: 'Regras', body: 'Nunca enviar proposta sem revisão do jurídico.' }
     const applyContextProposals = vi.fn(async () => ({ ok: true as const, value: { written: 1 } }))
     const persona = fakePersona({
@@ -100,14 +100,14 @@ describe('BringContextImportPage (Gauge BYC app findings)', () => {
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Regra: nunca enviar proposta sem revisão do jurídico.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar resposta' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Organizar' }))
-    const save = await screen.findByRole('button', { name: /^Gravar \d+ no Cofre$/u })
+    const save = await screen.findByRole('button', { name: /^Importar \d+$/u })
     // Only the fact is accepted; the rule waits, says so, and the save bar says how many are missing.
-    expect(save.textContent).toBe('Gravar 1 no Cofre')
+    expect(save.textContent).toBe('Importar 1')
     expect(screen.getByText('Falta 1 regra para você escolher')).toBeTruthy()
     expect(screen.getByText('Regras sem escolha não entram')).toBeTruthy()
     const row = screen.getByText('Nunca enviar proposta sem revisão do jurídico.').closest('li') as HTMLElement
-    expect(within(row).getByRole('button', { name: 'Aceitar' }).getAttribute('aria-pressed')).toBe('false')
-    expect(within(row).getByRole('button', { name: 'Descartar' }).getAttribute('aria-pressed')).toBe('false')
+    // item 13 §13.5: an undecided rule is an UNCHECKED line (checking it is the explicit accept)
+    expect((within(row).getByRole('checkbox', { name: 'Nunca enviar proposta sem revisão do jurídico.' }) as HTMLInputElement).checked).toBe(false)
     // Saving now writes the rule as a discard, said out loud to the host (never left to a default).
     fireEvent.click(save)
     await waitFor(() => { expect(applyContextProposals).toHaveBeenCalled() })
@@ -132,7 +132,7 @@ describe('BringContextImportPage (Gauge BYC app findings)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Aceitar todas as regras (1)' }))
     expect(screen.getByText('1 regra será obrigatória para a equipe ao gravar')).toBeTruthy()
     expect(screen.queryByText(/Falta 1 regra|Faltam/u)).toBeNull()
-    expect(screen.getByRole('button', { name: /^Gravar 2 no Cofre$/u })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Importar 2$/u })).toBeTruthy()
     // The button went away with the last pending rule.
     expect(screen.queryByRole('button', { name: /Aceitar todas as regras/u })).toBeNull()
   })

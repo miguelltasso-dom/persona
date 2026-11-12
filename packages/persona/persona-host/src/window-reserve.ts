@@ -6,7 +6,8 @@
  * conversation with everything that arrived, and a conversation the persona already answered is skipped.
  */
 
-import type { ScreenRepos, StoredEvent } from '@deepseek-ai/dsh-persona-store'
+import type { FirstDeliveryRouteDirective } from '@deepseek-ai/dsh-persona-engine'
+import type { ScreenRepos } from '@deepseek-ai/dsh-persona-store'
 import { reserveWindowLabel, type WindowReserve } from '@deepseek-ai/dsh-persona-usage'
 
 /** One row per conversation waiting for the window to renew. */
@@ -29,6 +30,11 @@ export interface WindowResumeRow {
   /** Stream sequence of the first request (what “after the pause” means, exact even when the clock does not move). */
   readonly sinceSeq: number
   readonly resetAt?: string
+  /**
+   * The host-authorized onboarding target of the held request (P0-08): the replay runs the request exactly as it would have run at the time, so the
+   * first delivery is never lost to the wait. The first one a conversation holds stays.
+   */
+  readonly firstDelivery?: FirstDeliveryRouteDirective
 }
 
 /** The person said “Continuar agora” for this window cycle. */
@@ -73,11 +79,13 @@ export class WindowResumeQueue {
     // adopts the new cycle (the caller posts the one line of the new cycle).
     const eventIds = [...existing.eventIds]
     for (const id of row.eventIds) if (!eventIds.includes(id)) eventIds.push(id)
+    const firstDelivery = existing.firstDelivery ?? row.firstDelivery
     this.screens.put(projectId, WINDOW_RESUME_KIND, row.conversationId, {
       ...existing,
       eventIds,
       responderId: existing.responderId === '' ? row.responderId : existing.responderId,
       ...(row.resetAt === undefined ? {} : { resetAt: row.resetAt }),
+      ...(firstDelivery === undefined ? {} : { firstDelivery }),
     })
     return existing.resetAt === row.resetAt ? 'merged' : 'new'
   }
@@ -124,24 +132,27 @@ export function reserveLine(reserve: WindowReserve, clock: string): string {
 }
 
 /**
- * Whether the persona already answered a later message of that conversation (nothing to replay).
- * @param events - Every live event of the project.
+ * The held requests that are still waiting for an answer (P0-08). Every held request is judged on ITS OWN: it is skipped only when the persona
+ * answered THAT message (its own final line). A quick answer to a different question, in the last 5% or after it, never erases a work request.
  * @param row - The waiting conversation.
- * @param isPersonAuthor - The host's rule for a human message.
  * @param hasFinalLine - The host's rule for a message with its final line.
- * @returns Whether the conversation can be skipped.
+ * @returns The held message ids to replay, in arrival order; empty = the conversation has nothing left to run.
  */
-export function conversationResolved(
-  events: readonly StoredEvent[],
-  row: WindowResumeRow,
-  isPersonAuthor: (event: StoredEvent) => boolean,
-  hasFinalLine: (eventId: string) => boolean,
-): boolean {
-  return events.some(event =>
-    event.streamId === row.conversationId
-    && event.seq > row.sinceSeq
-    && isPersonAuthor(event)
-    && hasFinalLine(event.id))
+export function unansweredEventIds(row: WindowResumeRow, hasFinalLine: (eventId: string) => boolean): string[] {
+  return row.eventIds.filter(id => !hasFinalLine(id))
+}
+
+/**
+ * The text of the replayed turn: the held messages in order, without the raw wire markers (`[[handoff:…]]`, `[[review:…]]`…) a colleague's
+ * line carries for the screen, which are not words for the persona.
+ * @param bodies - The held messages, oldest first.
+ * @returns The text the resumed turn reads.
+ */
+export function replayTextOf(bodies: readonly string[]): string {
+  return bodies
+    .map(body => body.replace(/\[\[[a-z][a-z-]*:[\s\S]*?\]\]/gu, '').replace(/[ \t]{2,}/gu, ' ').replace(/[ \t]+\n/gu, '\n').trim())
+    .filter(body => body !== '')
+    .join('\n\n')
 }
 
 /**

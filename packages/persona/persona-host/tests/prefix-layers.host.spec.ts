@@ -1,13 +1,14 @@
-import { CHOICE_PROMPT_LINE, PROMPT_TEMPLATES } from '@deepseek-ai/dsh-persona-engine'
+import { CHOICE_PROMPT_LINE, INDICATOR_PROMPT_LINE, PROMPT_TEMPLATES } from '@deepseek-ai/dsh-persona-engine'
+import { estimateTokens } from '@deepseek-ai/dsh-persona-core'
 import { expect } from 'vitest'
 import type PersonaHost from '../src/index.ts'
 import { PASS_TOKEN, speechRules } from '../src/speech.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
 /**
- * Item 9 (Tally, 11/11), "prefixo estável": the two paragraphs that shape EVERY answer, Rivet's line that offers the choice card (`[[escolha: …]]`) and Anvil's speech layer
- * (simple speech, the right to stay silent), live TOGETHER in the cache-stable prefix of the persona's prompt, once each, and never move into the per-turn tail. A line that drifts into
- * the tail is paid again on every message and breaks the cache of the warm session.
+ * Item 9 + 11/19a (Tally, 12/11), "prefixo estável": the paragraphs that shape EVERY answer live in the cache-stable prefix of the persona's prompt, once each, and never in the
+ * per-turn tail: Anvil's speech layer, and (for a conversation the PERSON started, and only then) Rivet's two marker lines (`[[escolha: …]]`, `[[indicador: …]]`). An initiative, a
+ * routine, a team note pay for none of them. A line that drifts into the tail is paid again on every message and breaks the cache of the warm session.
  */
 const { host } = bindHostFile()
 const SCOPE = { workspaceId: 'ws', projectId: 'pp' }
@@ -30,44 +31,55 @@ function eventOf(id: string, actorId: string, body = 'Qual o horário?', at = CL
 }
 
 const occurrences = (text: string, part: string): number => text.split(part).length - 1
-/** Where Rivet's line lives is his call (it moved out of the talk template at 01:1x): the rule is that it is NEVER in the per-turn tail, and in the prefix at most once, whatever the template says. */
-const CHOICE_IN_TALK = PROMPT_TEMPLATES.talk.includes(CHOICE_PROMPT_LINE)
 
-it('the choice-card line and the speech layer are BOTH in the stable prefix, once each, and neither is repeated in the tail', () => {
+it('a conversation the PERSON started has the speech layer AND both marker lines in the stable prefix, once each, and none of them in the tail', () => {
   const h = open()
-  const speaker = h.product.getPersona('atlas')!
-  const layers = h.orchestration.talkLayers(eventOf('e1', 'ana'), speaker, [])
-  expect(occurrences(layers.prefix, CHOICE_PROMPT_LINE)).toBe(CHOICE_IN_TALK ? 1 : 0)
-  expect(occurrences(layers.prefix, speechRules('simple'))).toBe(1)
+  const layers = h.orchestration.talkLayers(eventOf('e1', 'ana'), h.product.getPersona('atlas')!, [])
+  for (const line of [CHOICE_PROMPT_LINE, INDICATOR_PROMPT_LINE, speechRules('simple')]) expect(occurrences(layers.prefix, line)).toBe(1)
   const tail = layers.text.slice(layers.text.indexOf(layers.prefix) + layers.prefix.length)
-  expect(tail).not.toContain(CHOICE_PROMPT_LINE)
-  expect(tail).not.toContain(speechRules('simple'))
+  for (const line of [CHOICE_PROMPT_LINE, INDICATOR_PROMPT_LINE, speechRules('simple')]) expect(tail).not.toContain(line)
 })
 
-it('the prefix is byte-identical for different messages, ids and clocks of the same kind of author (the warm cache is kept)', () => {
+it('the prefix is byte-identical for different messages, ids and clocks of a person (the warm cache is kept); no word of the message decides the lines', () => {
   const h = open()
   const speaker = h.product.getPersona('atlas')!
   const a = h.orchestration.talkLayers(eventOf('e1', 'ana', 'Qual o horário?', CLOCK), speaker, [])
-  const b = h.orchestration.talkLayers(eventOf('e2', 'ana', 'Preciso de 3 posts para sexta', '2026-11-05T09:30:00.000Z'), speaker, [
+  const b = h.orchestration.talkLayers(eventOf('e2', 'ana', 'Quanto vendemos ontem? Qual o total?', '2026-11-05T09:30:00.000Z'), speaker, [
     { id: 'summary:t', kind: 'subject_summary', body: 'Resumo do assunto', required: false, restricted: false },
   ])
   expect(a.prefix).toBe(b.prefix)
   expect(a.prefix).not.toMatch(/\d{4}-\d{2}-\d{2}T/u)
 })
 
-it('the only variation of the prefix is Anvil\'s own (the right to stay silent when no person waits); the choice line is the same in both variants', () => {
+it('an initiative, a routine and a team note get NEITHER marker line (nobody reads a card there, and each of those prompts is paid by the day)', () => {
+  const h = open()
+  const speaker = h.product.getPersona('atlas')!
+  const kinds = [
+    eventOf('initiative:7', 'atlas'), // the scheduler's own message id
+    eventOf('routine-run:3', 'routine:daily'),
+    eventOf('e3', 'team:note'),
+  ]
+  for (const event of kinds) {
+    const prefix = h.orchestration.talkLayers(event, speaker, []).prefix
+    expect(prefix, event.id).not.toContain(CHOICE_PROMPT_LINE)
+    expect(prefix, event.id).not.toContain(INDICATOR_PROMPT_LINE)
+  }
+  expect(h.orchestration.talkLayers(eventOf('e3', 'team:note'), speaker, []).prefix).toContain(PASS_TOKEN) // Anvil's own variant is unchanged
+})
+
+it('MEASURE: what the two lines cost in the prefix of a person-started turn, and that an initiative does not pay them', () => {
   const h = open()
   const speaker = h.product.getPersona('atlas')!
   const person = h.orchestration.talkLayers(eventOf('e1', 'ana'), speaker, []).prefix
-  const team = h.orchestration.talkLayers(eventOf('e3', 'team:note'), speaker, []).prefix
-  expect(person).not.toContain(PASS_TOKEN)
-  expect(team).toContain(PASS_TOKEN)
-  expect(person.includes(CHOICE_PROMPT_LINE)).toBe(team.includes(CHOICE_PROMPT_LINE)) // the same in both variants, whichever it is
-  // everything before the speech paragraph is the same in both: the two variants share their whole beginning
-  const common = person.slice(0, person.indexOf(speechRules('simple')))
-  expect(team.startsWith(common)).toBe(true)
+  const initiative = h.orchestration.talkLayers(eventOf('initiative:7', 'atlas'), speaker, []).prefix
+  const lines = estimateTokens(CHOICE_PROMPT_LINE) + estimateTokens(INDICATOR_PROMPT_LINE)
+  process.stdout.write(`[item11/19a] prefixo da conversa da PESSOA: ${String(estimateTokens(person))} tokens (as 2 linhas = ${String(lines)}, ${String(Math.round((lines / (estimateTokens(person) - lines)) * 1000) / 10)}% a frio); iniciativa: ${String(estimateTokens(initiative))} tokens, sem as linhas\n`)
+  expect(estimateTokens(person)).toBeGreaterThan(estimateTokens(initiative) - 100)
 })
 
-it('the line lives in the TALK template only (Keel, 11/11 23:21): the Task worker\'s template carries no choice line; Anvil\'s speech is applied to a Task\'s OUTPUT, not to its prompt', () => {
-  expect(PROMPT_TEMPLATES.worker).not.toContain(CHOICE_PROMPT_LINE)
+it('the lines live in NO template: the host adds them (talk: for a person-started turn; worker: never, a Task output is shaped by Anvil, not taught here)', () => {
+  for (const part of Object.keys(PROMPT_TEMPLATES) as (keyof typeof PROMPT_TEMPLATES)[]) {
+    expect(PROMPT_TEMPLATES[part], part).not.toContain(CHOICE_PROMPT_LINE)
+    expect(PROMPT_TEMPLATES[part], part).not.toContain(INDICATOR_PROMPT_LINE)
+  }
 })

@@ -178,6 +178,19 @@ if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
 
 // 2. Auth / login probe
 if (/auth|login/i.test(joined)) {
+  // `FAKE_CLI_AUTH_HANG_FILE` / `FAKE_CLI_AUTH_OUT_FILE` (ABSOLUTE paths): WHILE the file exists, the tools it names (its text: `claude`, `claude,codex`) never answer the login probe (it
+  // outlasts any probe timeout: the CLI that is slow to start) / answer "not logged in" (a CONFIRMED logout). The host's environment is fixed when it starts, so a test changes the
+  // answer by creating or deleting the file (COLHEITA item 13: a timeout is "não consegui conferir", never "sem login").
+  const switched = (variable) => {
+    const file = process.env[variable]
+    try { return file && existsSync(file) ? readFileSync(file, 'utf8').split(/[\s,]+/u).filter(Boolean) : [] } catch { return [] }
+  }
+  if (switched('FAKE_CLI_AUTH_HANG_FILE').includes(tool)) await new Promise(resolve => setTimeout(resolve, 25_000)) // far past the probe's 8 s, short enough not to leave a stray process behind
+  if (switched('FAKE_CLI_AUTH_OUT_FILE').includes(tool)) {
+    if (tool === 'codex') console.log('Not logged in')
+    else console.log(JSON.stringify({ loggedIn: false, authMethod: 'none', status: 'unauthenticated', tool, source: 'persona-e2e-fake-cli' }))
+    process.exit(1)
+  }
   if (tool === 'codex') {
     console.log('Logged in using ChatGPT (fake-persona-e2e)')
     process.exit(0)

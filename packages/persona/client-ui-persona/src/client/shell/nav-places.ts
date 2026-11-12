@@ -7,6 +7,7 @@ import type { BrandIconName } from '../primitives/index.ts'
 import type { ShellKey } from '../locale/shell/locales.ts'
 import { isSettingsPersonasEnabled } from '../settings-personas/personas-flag.ts'
 import { isRemoteTeamTabEnabled } from '../members/members-flag.ts'
+import { isToolsCatalogEnabled } from '../tools/tools-flag.ts'
 import type { MainPanelId } from './create-shell-store.ts'
 
 export type PlaceId = 'overview' | 'projects' | 'approvals' | 'team' | 'memory' | 'settings'
@@ -73,9 +74,10 @@ export const NAV_PLACES: readonly NavPlace[] = [
     labelKey: 'place.memory',
     icon: 'conhecimento-memoria',
     tabs: [
-      { panel: 'secondBrain', labelKey: 'sidebar.secondBrain' },
-      { panel: 'knowledge', labelKey: 'sidebar.knowledge' },
-      { panel: 'rules', labelKey: 'sidebar.rules' },
+      // Muse (passada de leigo 12/11, L7, regra 0.3): a 1ª aba não repete o nome do lugar. "Visão geral · Páginas · Regras da casa".
+      { panel: 'secondBrain', labelKey: 'tab.memory.summary' },
+      { panel: 'knowledge', labelKey: 'tab.memory.pages' },
+      { panel: 'rules', labelKey: 'tab.memory.rules' },
     ],
   },
   {
@@ -84,6 +86,8 @@ export const NAV_PLACES: readonly NavPlace[] = [
     icon: 'configuracoes',
     tabs: [
       { panel: 'connections', labelKey: 'sidebar.connections' },
+      // Ferramentas (item 26, Muse §26): logo depois de Conexões, que continua sendo a das contas de IA. Nada de aba dentro de aba. Só com `persona.flag.toolsCatalog` (padrão DESLIGADA até o "Conectar").
+      ...(isToolsCatalogEnabled() ? [{ panel: 'tools', labelKey: 'sidebar.tools' } as const] : []),
       // Cofre (item 15, Muse 12/11): ao lado de Conexões; senha não é memória, então não vai na Memória da empresa.
       { panel: 'cofre', labelKey: 'sidebar.cofre' },
       // Personas (HT-13/EFF-1, D-090): entre Conexões e Uso, só com `persona.flag.settingsPersonas` ligada.

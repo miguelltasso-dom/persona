@@ -302,9 +302,23 @@ async function waitingOnAnswer(h: PersonaHost): Promise<Ticket> {
   return asking
 }
 
+/**
+ * Carbon P0-13: the scheduler writes INSIDE the host, not through the Remote (a bound session cannot speak as `routine:` or `team:`): for the call, the session is unbound, which is what a
+ * host-internal writer is.
+ */
+function asHost<T>(h: PersonaHost, write: () => T): T {
+  const bound = h.sessionMemberId
+  h.sessionMemberId = undefined
+  try {
+    return write()
+  } finally {
+    h.sessionMemberId = bound
+  }
+}
+
 /** A message written by the HOST for the team (a routine, the team's initiative or plan), as the scheduler writes it. */
 async function systemSays(h: PersonaHost, actorId: string, id: string, body: string): Promise<string[]> {
-  h.postMessage({ id, ...scope, streamKind: 'channel', ownerId: 'geral', body, actorId, subjectId: '' })
+  asHost(h, () => h.postMessage({ id, ...scope, streamKind: 'channel', ownerId: 'geral', body, actorId, subjectId: '' }))
   await h.orchestration.flush('pp')
   const events = stream(h)
   return events.slice(events.findIndex(item => item.id === id) + 1).filter(item => item.actorId !== actorId).map(item => item.body)
@@ -393,7 +407,7 @@ it('the team\'s own lines and a DM between two people are not waiting for that a
   h.createDm({ id: 'dm-ab', workspaceId: 'ws', projectId: 'pp', participantA: 'ana', participantB: 'beto' })
   const dm = await say(h, 'oi, tudo bem?', { kind: 'dm', owner: 'dm-ab' })
   expect(dm.lines).toEqual([])
-  h.postMessage({ id: 'routine-run:x:1', ...scope, streamKind: 'channel', ownerId: 'geral', body: 'Resumo da manhã', actorId: 'routine:manha', subjectId: '' })
+  asHost(h, () => h.postMessage({ id: 'routine-run:x:1', ...scope, streamKind: 'channel', ownerId: 'geral', body: 'Resumo da manhã', actorId: 'routine:manha', subjectId: '' }))
   await h.orchestration.flush('pp')
   expect(stream(h).filter(item => item.body === NOBODY)).toHaveLength(0)
 })

@@ -199,6 +199,11 @@ function run(harness: HarnessPorts, options: HarnessDispatchOptions, input: Harn
       // The team tools need the RUN's Task (identity of the asker), which `who` does not carry: they are composed in `withTeamTools`
       // (harness-team.ts) in front of this dispatch, like the opinion tool. Reaching here means the host did not compose them.
       return refuse('unavailable', 'O trabalho em equipe ainda não está ligado aqui.')
+    case 'conectores_ver':
+    case 'conector_usar':
+      // Item 26: the connector tools need the run's Task and the proxy, so they are composed in `withConnectorTools` (connector-proxy.ts) in front of this dispatch. Until the host composes
+      // them (the proxy has no service behind it yet) they are never announced to the model; reaching here only says so, in words.
+      return refuse('unavailable', 'Os serviços ligados ainda não estão disponíveis aqui.')
     case 'ask_vault_code': {
       if (harness.vaultCode === undefined) return refuse('unavailable', 'Pedir o código de 6 dígitos ainda não está ligado aqui.')
       const reason = text(args, 'reason')
@@ -213,14 +218,14 @@ function run(harness: HarnessPorts, options: HarnessDispatchOptions, input: Harn
         ok: true,
         requestId: result.requestId,
         expiresAt: result.expiresAt,
-        message: 'Pedi o código ao dono; ele preenche no cartão e o código vai direto para o Cofre. Nunca peça o código no chat.',
+        message: 'Pedi o código ao dono; ele preenche no cartão e o código vai direto para o Cofre. Nunca peça o código no chat. Termine este turno: quando ele preencher você é chamada de novo; aí clique no campo do código na página e chame browser_login com o mesmo login e code true.',
       })
     }
     case 'browser_login': {
       if (harness.browserLogin === undefined) return refuse('unavailable', 'Entrar com um login do Cofre ainda não está ligado aqui.')
       const login = text(args, 'login')
       if (login === undefined || login.trim() === '') return refuse('invalid', 'Diga qual login do Cofre usar.')
-      return harness.browserLogin.open(who, { login, ticketId: input.run.ticketId }).then((result) => {
+      return harness.browserLogin.open(who, { login, ticketId: input.run.ticketId, ...(args.code === true ? { code: true } : {}) }).then((result) => {
         if (!result.ok) return refuse(result.code, result.message)
         // The book keeps WHICH login was used, never the value; there is no inverse (the page stays as it is).
         return done(

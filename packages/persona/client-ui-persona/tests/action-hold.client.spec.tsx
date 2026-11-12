@@ -169,12 +169,14 @@ describe('o botão "Segure para enviar"', () => {
     await waitFor(() => { expect(onDecide).toHaveBeenCalledTimes(2) })
   })
 
-  it('quem marcou "Não perguntar de novo" (enviar/publicar) aprova com um clique; pagar e apagar nunca dispensam o segurar', async () => {
+  it('"Não perguntar de novo" NUNCA dispensa o segurar no 1º envio (P0-10): marcada, ainda é segurar; pagar e apagar nem têm a caixinha', async () => {
     const onDecide = vi.fn()
     card(ui(), onDecide)
     fireEvent.click(screen.getByRole('checkbox'))
-    expect(screen.queryByRole('button', { name: 'Segure para enviar' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    expect(screen.queryByRole('button', { name: 'Enviar' })).toBeNull()
+    fireEvent.click(holdButton()) // um clique curto só mostra a dica, não envia
+    expect(onDecide).not.toHaveBeenCalled()
+    await holdToApprove(holdButton())
     await waitFor(() => { expect(onDecide).toHaveBeenCalledWith({ approvalId: 'approval-1', choice: 'send', remember: true }) })
     cleanup()
     card(pay(), vi.fn())

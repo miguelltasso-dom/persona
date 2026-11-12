@@ -67,6 +67,8 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
   /** Channel roster; coordination persona is the default responder when present. */
   readonly members?: readonly ChannelPersonaMember[]
   readonly onSend?: ((body: string, attachmentIds?: readonly string[], options?: ComposerSendOptions) => void) | undefined
+  /** COLHEITA-S1 P1-05: o microfone do composer (aparece com o texto vazio). O pai monta; a caixa só reserva o lugar. */
+  readonly voiceSlot?: ((empty: boolean) => ReactNode) | undefined
   /** Host `attachFile` (Anvil); omit when attachments gate is off. */
   readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
   /** Overrides the #geral placeholder (DMs: "Mensagem para Nina…"). */
@@ -160,6 +162,7 @@ export function ChannelComposer({
   t,
   members = [],
   onSend,
+  voiceSlot,
   uploadAttachment,
   placeholder,
   activeSubjectColorIndex,
@@ -1096,6 +1099,7 @@ export function ChannelComposer({
               {t(`composer.autonomy.${responderAutonomy}`)}
             </Chip>
           )}
+          {voiceSlot?.(draft.trim() === '')}
           {showStop ? (
             <Tooltip content={t('composer.stop')} shortcut={['Esc']}>
               <Button

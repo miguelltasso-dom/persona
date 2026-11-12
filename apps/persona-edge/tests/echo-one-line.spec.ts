@@ -11,6 +11,8 @@ import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { unstable_dev, type Unstable_DevWorker } from 'wrangler'
 import type PersonaHost from '../../../packages/persona/persona-host/src/index.ts'
 import { openRemoteTeamHarness, type RemoteTeamHarness } from '../../../packages/persona/persona-host/tests/remote-team-harness.ts'
+import { approveAll, deviceOf } from './host-device.ts'
+import { signedAs } from './signed-fetch.ts'
 
 let edge: Unstable_DevWorker | undefined
 const profiles: RemoteTeamHarness[] = []
@@ -61,6 +63,7 @@ it('a message from the composer is one line on the sender\'s desk and one on the
   await alice.connectRemoteTeam({ ...scope, edgeUrl, channelIds: [GENERAL] })
   const invite = await alice.issueInvite({ ...scope, inviteId: 'invite-bob', token: '', role: 'member' })
   await bob.acceptInvite({ ...scope, edgeUrl, token: invite.token })
+  expect(await approveAll(alice, scope)).toBe(1) // bob asked; alice lets him in
   alice.sessionMemberId = 'alice'
   for (const [index, body] of ['Olá do Alice · 8a9b6eb3', 'segunda linha', 'preciso de um README no projeto'].entries()) {
     // The composer's call: its own id, the channel, the sender, the words.
@@ -83,7 +86,7 @@ it('a message from the composer is one line on the sender\'s desk and one on the
   }
   // The edge holds one envelope per message (nothing was pushed twice under another key).
   const stream = encodeURIComponent(`project:shared:channel:${GENERAL}`)
-  const head = await fetch(`${edgeUrl}/w/${scope.workspaceId}/sync/head?streamId=${stream}`, { headers: { 'x-persona-actor': 'alice' } })
+  const head = await signedAs(fetch, await deviceOf(alice, 'alice'))(`${edgeUrl}/w/${scope.workspaceId}/sync/head?streamId=${stream}`)
   const heads = (await head.json()) as { head: number }
   const stored = alice.events.listProject(scope.projectId).filter(event => event.streamId === `channel:${GENERAL}` && event.type === 'message')
   expect(heads.head).toBe(stored.length)

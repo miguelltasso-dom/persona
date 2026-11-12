@@ -17,7 +17,11 @@ export const PAIRING_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 export const PAIRING_LENGTH = 8
 
 /** Why a code did not pair. */
-export type PairingRefusal = 'invalido' | 'expirado' | 'usado'
+export type PairingRefusal = 'invalido' | 'expirado' | 'usado' | 'bloqueado'
+/** Carbon P0-13: wrong codes in a row that lock the book (the code has eight characters: it must not be guessable by trying). */
+export const PAIRING_MAX_MISSES = 5
+/** How long the book stays locked after {@link PAIRING_MAX_MISSES} wrong codes. A new code issued by the owner opens it again. */
+export const PAIRING_LOCK_MS = 10 * 60_000
 
 /** What the book keeps: never the code itself. */
 interface PairingEntry {
@@ -37,6 +41,8 @@ export interface PairingBookDeps {
 export class PairingBook {
   private readonly live = new Map<string, PairingEntry>()
   private readonly deps: PairingBookDeps
+  private misses = 0
+  private lockedUntil = 0
 
   /** @param deps - Clock and character source. */
   constructor(deps: PairingBookDeps = {}) {
@@ -52,6 +58,9 @@ export class PairingBook {
     const raw = Array.from({ length: PAIRING_LENGTH }, () => pick()).join('')
     const expiresAt = (this.deps.now ?? Date.now)() + PAIRING_TTL_MS
     this.live.set(hashOf(raw), { expiresAt, used: false })
+    // A new code is a new secret the guesses so far say nothing about, and only the owner asks for it: it opens the book again.
+    this.misses = 0
+    this.lockedUntil = 0
     return { code: `${raw.slice(0, 4)}-${raw.slice(4)}`, expiresAt: new Date(expiresAt).toISOString() }
   }
 
@@ -61,12 +70,22 @@ export class PairingBook {
    * @returns `ok`, or why it did not pair.
    */
   redeem(code: string): 'ok' | PairingRefusal {
+    const now = (this.deps.now ?? Date.now)()
+    if (now < this.lockedUntil) return 'bloqueado'
     const key = hashOf(code)
     const entry = this.live.get(key)
-    if (entry === undefined) return 'invalido'
+    if (entry === undefined) {
+      this.misses += 1
+      if (this.misses >= PAIRING_MAX_MISSES) {
+        this.misses = 0
+        this.lockedUntil = now + PAIRING_LOCK_MS
+      }
+      return 'invalido'
+    }
     if (entry.used) return 'usado'
-    if ((this.deps.now ?? Date.now)() >= entry.expiresAt) return 'expirado'
+    if (now >= entry.expiresAt) return 'expirado'
     entry.used = true
+    this.misses = 0
     return 'ok'
   }
 

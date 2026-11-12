@@ -33,7 +33,7 @@
 
   /* ── Type ───────────────────────────────────────────────── */
   --persona-font-display: 'Persona Fredoka', 'Fredoka', 'Nunito', ui-rounded, system-ui, sans-serif;
-  --persona-font-text: 'Persona Nunito', 'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --persona-font-text: 'Persona Geist', 'Geist', 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --persona-font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
 
   /* ── Shape ──────────────────────────────────────────────── */
@@ -67,6 +67,10 @@
   --persona-surface-raised: var(--persona-card);
   /* borda de controle (3:1, WCAG 1.4.11): usada pelo EmailRule */
   --persona-line: var(--persona-lilac-500);
+  --persona-bubble-persona: var(--persona-card);
+  --persona-bubble-user: var(--persona-lilac-200);
+  --persona-bubble-user-ink: var(--persona-ink);
+  --persona-bubble-edge: drop-shadow(0 0 .7px rgb(52 36 63 / .48)) drop-shadow(0 2px 3px rgb(52 36 63 / .10));
 
   /* ── Space (4/8 grid) ───────────────────────────────────── */
   --persona-space-1: 4px;
@@ -190,6 +194,10 @@ body:not([data-ds-dark-theme='true']),
   --persona-surface-raised: var(--persona-card);
   /* borda de controle (3:1, WCAG 1.4.11): usada pelo EmailRule */
   --persona-line: var(--persona-lilac-500);
+  --persona-bubble-persona: var(--persona-card);
+  --persona-bubble-user: var(--persona-lilac-200);
+  --persona-bubble-user-ink: var(--persona-ink);
+  --persona-bubble-edge: drop-shadow(0 0 .7px rgb(52 36 63 / .48)) drop-shadow(0 2px 3px rgb(52 36 63 / .10));
 }
 
 /* ── Dark scheme: deep plum night, never grey ───────────────
@@ -278,6 +286,10 @@ body[data-ds-dark-theme='true'],
   --persona-surface-raised: var(--persona-card);
   /* borda de controle (3:1, WCAG 1.4.11): usada pelo EmailRule */
   --persona-line: var(--persona-lilac-500);
+  --persona-bubble-persona: #2e2239;
+  --persona-bubble-user: var(--persona-lilac-800);
+  --persona-bubble-user-ink: var(--persona-ink);
+  --persona-bubble-edge: drop-shadow(0 0 .6px rgb(200 184 232 / .55)) drop-shadow(0 1px 2px rgb(0 0 0 / .35));
 }
 
 /* ── Stage categories (PROJECT-BOARDS §1): custom columns map to these; color is never the only cue ── */

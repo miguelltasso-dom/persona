@@ -54,7 +54,7 @@ export interface PayloadCipher {
  */
 export interface SyncEnvelope extends SyncRouting {
   at: string
-  payload: SealedPayload | { clear: string }
+  payload: SealedPayload | ChannelSealedPayload | { clear: string }
   shared?: true
 }
 

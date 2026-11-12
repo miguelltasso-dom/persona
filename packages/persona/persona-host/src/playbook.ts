@@ -227,11 +227,12 @@ function makeOffer(deps: PlaybookDeps, win: PlaybookWin, note: PlaybookNote, at:
   deps.screens.putCandidateSkill({ projectId: win.projectId, personaId: win.personaId, id: skillId, name: clip(note.title, 64), body: skillBody(note), origin: 'learned' })
   const conversations = new Set(note.uses.flatMap(use => (use.conversation === undefined ? [] : [use.conversation]))).size
   const days = new Set(note.uses.map(use => use.day)).size
-  const where = conversations >= OFFER_DAYS ? `em ${String(conversations)} conversas` : `em ${String(days)} dias`
-  // Plain words, no artigo for the persona, no "×": "Usado 3 vezes em 2 conversas. Virar skill deixa esse jeito pronto para usar sempre."
+  // Days when they are the proof (the common case); conversations only when that is what proved it. Never a claim the data does not back.
+  const where = days >= OFFER_DAYS ? `em ${String(days)} dias` : `em ${String(conversations)} conversas`
+  // One line of plain words, no artigo for the persona, no "×" (Atlas/Muse 12/11 02:22): "Usado 3 vezes em 2 dias." The title says WHICH way of working it is.
   deps.screens.proposeSkill({
     workspaceId: win.workspaceId, projectId: win.projectId, id: approvalId, skillId, title: `${win.personaName} aprendeu: ${note.title}`,
-    creatorPersonaId: win.personaId, question: `Usado ${String(note.uses.length)} vezes ${where}. Virar skill deixa esse jeito pronto para usar sempre.`,
+    creatorPersonaId: win.personaId, question: `Usado ${String(note.uses.length)} vezes ${where}.`,
   })
   return { skillId, approvalId, at }
 }

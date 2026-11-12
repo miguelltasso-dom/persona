@@ -24,6 +24,10 @@ it('the words of a request decide which tools are worth their tokens: nothing fo
   const both = harnessToolsNeeded('Crie um sprint e uma rotina semanal')
   expect(both).toContain('sprint_create')
   expect(both).toContain('routine_create')
+  // Item 15: only the words that ask for a second factor get the card tool.
+  expect(harnessToolsNeeded('O banco pediu o código de 6 dígitos')).toEqual(['ask_vault_code'])
+  expect(harnessToolsNeeded('Entre no portal com 2FA e baixe a nota')).toContain('ask_vault_code')
+  expect(harnessToolsNeeded('Escreva o texto da página inicial')).not.toContain('ask_vault_code')
 })
 
 function ticket(id: string, request: string): Ticket {

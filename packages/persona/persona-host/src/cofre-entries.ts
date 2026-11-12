@@ -38,7 +38,8 @@ export interface SaveLoginInput {
   readonly authorId: string
   readonly site: string
   readonly username: string
-  readonly password: string
+  /** The password; absent while EDITING (`id` set) keeps the sealed value and changes only the metadata. */
+  readonly password?: string
   readonly title?: string
   /** Existing entry to replace; absent creates a new one. */
   readonly id?: string
@@ -49,7 +50,8 @@ export interface SaveKeyInput {
   readonly projectId: string
   readonly authorId: string
   readonly service: string
-  readonly secret: string
+  /** The secret; absent while EDITING (`id` set) keeps the sealed value. */
+  readonly secret?: string
   readonly title?: string
   readonly id?: string
 }
@@ -68,6 +70,12 @@ export interface SaveCompanyInput {
 
 /** A refused Cofre entry: the message is the actionable sentence the screen shows. */
 export class CofreEntryError extends Error {}
+
+/**
+ * The ids the Cofre itself gives its entries. A project's sealed namespace ALSO holds the slots of the connectors (`connector:<provider>`, the GitHub webhook
+ * secret), the 2FA seeds (`code:<name>`) and the default slot: an id that comes from the screen can never be one of those (Carbon P0-09).
+ */
+const ENTRY_ID = /^cofre-(?:login|key|company)-[A-Za-z0-9._-]+$/u
 
 /** Stored document; it has no secret field by construction. */
 interface StoredCofreEntry {
@@ -136,8 +144,14 @@ export class CofreEntries {
   async saveLogin(input: SaveLoginInput): Promise<CofreEntryView> {
     const site = required(input.site, 'o site')
     const username = required(input.username, 'o usuário')
+    if (input.id !== undefined) this.existing(input.projectId, input.id, 'login')
     const id = input.id ?? `cofre-login-${this.newId()}`
-    await this.deps.secrets.put(input.projectId, id, input.password)
+    if (input.password === undefined) {
+      // Editing without retyping the password keeps the sealed value; a new entry has nothing to keep.
+      if (input.id === undefined || !this.deps.secrets.has(input.projectId, id)) throw new CofreEntryError('Informe a senha do login.')
+    } else {
+      await this.deps.secrets.put(input.projectId, id, input.password)
+    }
     try {
       return this.write(input.projectId, input.authorId, id, 'login', input.title ?? hostOf(site), { site, username })
     } catch (error) {
@@ -154,8 +168,13 @@ export class CofreEntries {
    */
   async saveKey(input: SaveKeyInput): Promise<CofreEntryView> {
     const service = required(input.service, 'o serviço')
+    if (input.id !== undefined) this.existing(input.projectId, input.id, 'key')
     const id = input.id ?? `cofre-key-${this.newId()}`
-    await this.deps.secrets.put(input.projectId, id, input.secret)
+    if (input.secret === undefined) {
+      if (input.id === undefined || !this.deps.secrets.has(input.projectId, id)) throw new CofreEntryError('Informe a chave.')
+    } else {
+      await this.deps.secrets.put(input.projectId, id, input.secret)
+    }
     try {
       return this.write(input.projectId, input.authorId, id, 'key', input.title ?? service, { service })
     } catch (error) {
@@ -182,6 +201,7 @@ export class CofreEntries {
     if (phone !== undefined) fields.phone = phone
     const address = optional(input.address)
     if (address !== undefined) fields.address = address
+    if (input.id !== undefined) this.existing(input.projectId, input.id, 'company')
     const id = input.id ?? `cofre-company-${this.newId()}`
     const workspaceId = this.deps.workspaceOf(input.projectId)
     if (workspaceId === undefined) throw new CofreEntryError('Não achei o espaço de trabalho deste projeto.')
@@ -203,6 +223,13 @@ export class CofreEntries {
     if (doc?.kind !== 'company') return
     const brief = this.deps.vault.findActiveFact(projectId, COMPANY_CARD_FACT)
     if (brief !== undefined) this.deps.vault.revokeRecord(brief.id)
+  }
+
+  /** A caller-chosen id must name an entry of THIS project, of this kind, that the Cofre created: never a connector slot, a 2FA seed or the default slot. */
+  private existing(projectId: string, id: string, kind: CofreEntryKind): StoredCofreEntry {
+    const doc = ENTRY_ID.test(id) ? this.deps.screens.get<StoredCofreEntry>(projectId, COFRE_ENTRY_DOC, id) : undefined
+    if (doc === undefined || doc.kind !== kind) throw new CofreEntryError('Esse item não existe mais no Cofre. Atualize a tela e tente de novo.')
+    return doc
   }
 
   private docs(projectId: string): readonly StoredCofreEntry[] {

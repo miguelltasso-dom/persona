@@ -65,6 +65,8 @@ export interface ApprovalsInboxV2Props {
   readonly onDecideConnector?: ((item: ApprovalItem, choice: ConnectorChoice) => void) | undefined
   /** HT-9 / D-095: the person's answer to the preview of an external action (Enviar · Editar · Cancelar). The generic Aceitar never sends one. */
   readonly onDecideAction?: ((decision: ActionDecision) => void | Promise<void>) | undefined
+  /** Item 16: after "Virar skill" the stamp offers "Ver em Skills" (the persona's Skills tab). No handler, no button. */
+  readonly onOpenSkills?: ((personaId: string) => void) | undefined
   readonly onRemoteRetry?: () => void
 }
 
@@ -86,6 +88,7 @@ export function ApprovalsInboxV2({
   onReply,
   onDecideConnector,
   onDecideAction,
+  onOpenSkills,
   onRemoteRetry,
 }: ApprovalsInboxV2Props): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
@@ -344,6 +347,7 @@ export function ApprovalsInboxV2({
       onApprove={() => { approve(selected) }}
       onDismiss={() => { dismiss(selected) }}
       {...(onDecideAction === undefined ? {} : { onDecideAction })}
+      {...(onOpenSkills === undefined ? {} : { onOpenSkills })}
       {...(onDecideConnector === undefined || selected.item === undefined ? {} : { onChooseConnector: (choice: ConnectorChoice) => { chooseConnector(selected, choice) } })}
       {...(onReply === undefined || selected.item?.replyTarget === undefined ? {} : { onReply: () => { onReply(selected.item!.replyTarget!) } })}
       detailsOpen={detailsFor === selected.id}

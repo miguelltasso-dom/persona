@@ -211,6 +211,63 @@ it('a Task started by a received e-mail never sends on its own: the same waiver 
   expect(waitingFor(rig.h)).toBe(true)
 })
 
+it('S1 P0-03b: the e-mail mark is CONTAGIOUS — a colleague\'s Task (handoff:) born from a Task a received e-mail started never sends on its own either', async () => {
+  const rig = open({ send: 'never' })
+  rig.plan([]) // the first Task only reads: nothing to send yet
+  say(rig.h, 'u1', '@Nina leia o email da Ana e me diga o que ela quer')
+  const rt = rig.h.orchestration.runtime('pp')
+  rt.repo.triggers.save({ ...rt.repo.triggers.get('u1')!, viaEmail: true })
+  await rig.h.orchestration.flush('pp')
+  const first = ticketOf(rig.h)!
+  expect(first.origin.triggerId).toBe('u1')
+  // The colleague's Task: its trigger is the persona's `handoff:<asker's Task>:<call>` line — the e-mail is not in ITS origin at all.
+  const at = new Date().toISOString()
+  rt.repo.tickets.save({
+    id: 't-colleague', title: 'Responder a Ana', decisionId: first.decisionId, mandate: first.mandate, channels: first.channels,
+    assignments: [{ id: 't-colleague-a1', state: 'running', createdAt: at, startedAt: at }], inputs: [], undelivered: [],
+    createdAt: at, updatedAt: at, origin: { triggerId: `handoff:${first.id}:c1`, triggerIds: [`handoff:${first.id}:c1`] },
+    execution: { name: 'Nina', directory: '.', assignment: 'Responda a Ana com a confirmação dos bolos' },
+  })
+  rig.plan([{ tool: SEND, input: MAIL_A }])
+  await rig.h.orchestration.driveTicket('pp', 't-colleague')
+  await rig.h.orchestration.flush('pp')
+  expect(rig.executed).toEqual([]) // the broadest waiver for sends does not apply: it came from someone else's e-mail
+  expect(cards(rig.h)).toHaveLength(1)
+})
+
+it('Keel 12/11 (P0-03a): with the broadest "não perguntar de novo" for sends, a routine the owner SCHEDULED sends, and the persona\'s own initiative waits for the person\'s card', async () => {
+  const rig = open({ send: 'never' })
+  rig.plan([])
+  say(rig.h, 'u1', '@Nina leia o email da Ana e me diga o que ela quer')
+  await rig.h.orchestration.flush('pp')
+  const first = ticketOf(rig.h)!
+  const rt = rig.h.orchestration.runtime('pp')
+  const at = new Date().toISOString()
+  const craft = (id: string, triggerId: string): void => {
+    rt.repo.tickets.save({
+      id, title: 'Responder a Ana', decisionId: first.decisionId, mandate: first.mandate, channels: first.channels,
+      assignments: [{ id: `${id}-a1`, state: 'running', createdAt: at, startedAt: at }], inputs: [], undelivered: [],
+      createdAt: at, updatedAt: at, origin: { triggerId, triggerIds: [triggerId] },
+      execution: { name: 'Nina', directory: '.', assignment: 'Responda a Ana com a confirmação dos bolos' },
+    })
+  }
+  // the owner scheduled it: her standing waiver is her explicit consent, so the e-mail goes
+  craft('t-routine', 'routine-run:r1:1')
+  rig.plan([{ tool: SEND, input: MAIL_A }])
+  await rig.h.orchestration.driveTicket('pp', 't-routine')
+  await rig.h.orchestration.flush('pp')
+  expect(rig.executed).toEqual([{ tool: SEND, input: MAIL_A }])
+  expect(cards(rig.h)).toHaveLength(0)
+  // the team started it by itself: nobody consented to THIS send, whatever the waiver says
+  craft('t-initiative', 'initiative:run-7')
+  rig.plan([{ tool: SEND, input: MAIL_B }])
+  await rig.h.orchestration.driveTicket('pp', 't-initiative')
+  await rig.h.orchestration.flush('pp')
+  expect(rig.executed).toEqual([{ tool: SEND, input: MAIL_A }]) // nothing new left
+  expect(cards(rig.h)).toHaveLength(1)
+  expect(cards(rig.h)[0]).toMatchObject({ status: 'pending', actionPreview: { actionClass: 'send', body: 'Oi, Ana! Confirmo os 30 bolos para sexta.' } })
+})
+
 it('a Task on a CLI that cannot stop a call has NO gate: its connector loads read-only and nothing is asked in the name of a hook that does not exist', async () => {
   const rig = open()
   rig.h.connectorPorts = { ...PORTS, permissionRequests: () => 'none' }

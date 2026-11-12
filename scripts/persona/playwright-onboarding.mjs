@@ -3,7 +3,7 @@
 const onboardingPt = {
   step1Title: 'Como podemos te chamar?',
   step1Placeholder: 'Ex.: Miguel',
-  step2VaultBadge: 'Cofre da empresa',
+  step2VaultBadge: 'Memória da empresa',
   step2Placeholder: 'Descreva em linguagem natural ou cole um texto…',
   step3Title: 'Ferramentas de IA neste computador',
   step4TemplateBlank: 'Em branco',

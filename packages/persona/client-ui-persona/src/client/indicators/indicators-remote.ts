@@ -11,6 +11,13 @@ export interface IndicatorsRemote {
   pinIndicator?(request: Record<string, unknown>): unknown
   unpinIndicator?(request: Record<string, unknown>): unknown
   refreshIndicator?(request: Record<string, unknown>): unknown
+  /** "Já vi" (optional: an older host keeps the notice until the number recovers). */
+  dismissIndicatorAlert?(request: Record<string, unknown>): unknown
+}
+
+/** Whether the host can take "Já vi". */
+export function canDismissAlert(remote: IndicatorsRemote): boolean {
+  return typeof remote.dismissIndicatorAlert === 'function'
 }
 
 export interface IndicatorsScope {
@@ -63,4 +70,9 @@ export async function unpinIndicator(remote: IndicatorsRemote, scope: Indicators
 /** "Atualizar agora" (quiet). */
 export async function refreshIndicator(remote: IndicatorsRemote, scope: IndicatorsScope, id: string): Promise<IndicatorUi> {
   return call<IndicatorUi>(remote, 'refreshIndicator', { ...scope, id })
+}
+
+/** "Já vi": the notice leaves the list; the number comes back with its alert marked as seen. */
+export async function dismissIndicatorAlert(remote: IndicatorsRemote, scope: IndicatorsScope, id: string): Promise<IndicatorUi> {
+  return call<IndicatorUi>(remote, 'dismissIndicatorAlert', { ...scope, id })
 }

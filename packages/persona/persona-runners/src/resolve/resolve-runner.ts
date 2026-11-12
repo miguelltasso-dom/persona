@@ -319,6 +319,7 @@ function withDefaultPermission(inner: Runner, permissionMode: NonNullable<StartT
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(fill(input)) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }
 
@@ -339,6 +340,7 @@ function withPinnedModel(inner: Runner, model: string): Runner {
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(fill(input)) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }
 
@@ -367,6 +369,7 @@ function withPersonaEffort(inner: Runner, effort: string): Runner {
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(fill(input)) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }
 
@@ -386,6 +389,7 @@ function withDefaultModel(inner: Runner): Runner {
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(fill(input)) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }
 
@@ -595,6 +599,9 @@ function poolKeyOf(options: ResolveRunnerOptions, spec: PersonaRunnerSpec, purpo
     permissionMode: options.permissionMode,
     toolLevel: options.toolLevel ?? '',
     ...(options.accountId === undefined ? {} : { accountId: options.accountId }),
+    // P0-05: the hook gate of a Task and the browser server are part of what the runner WAS OPENED WITH; another Task's runner must never be handed back.
+    ...(spec.kind === 'cli' && options.permissionGate !== undefined ? { gate: options.permissionGate.url } : {}),
+    ...(spec.kind === 'cli' && options.carriesBrowser === true ? { browser: true } : {}),
   })
 }
 

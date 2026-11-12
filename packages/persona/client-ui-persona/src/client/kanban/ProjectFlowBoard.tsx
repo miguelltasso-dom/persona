@@ -63,6 +63,8 @@ export interface ProjectFlowBoardProps {
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
   readonly onTeach?: ((ticketId: string, personaId: string) => void) | undefined
+  /** COLHEITA 18: a click on a card (or Enter/Space on it) opens the conversation of the task in the side panel. */
+  readonly onOpenConversation?: ((ticketId: string) => void) | undefined
 }
 
 export function ProjectFlowBoard({
@@ -92,6 +94,7 @@ export function ProjectFlowBoard({
   personaCard,
   openPersonaProfile,
   onTeach,
+  onOpenConversation,
 }: ProjectFlowBoardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -207,6 +210,7 @@ export function ProjectFlowBoard({
         {...(personaCard === undefined ? {} : { personaCard })}
         {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
         {...(onTeach !== undefined ? { onTeach } : {})}
+        {...(onOpenConversation !== undefined ? { onOpenConversation } : {})}
       />
       {editorOpen && onSaveWorkflow !== undefined && (
         <WorkflowEditorModal

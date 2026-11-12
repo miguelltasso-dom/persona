@@ -161,11 +161,10 @@ export class AccountLimiter {
 
   private leaseOf(key: string, slot: Slot): AccountLease {
     let released = false
-    let timer: ReturnType<typeof setTimeout> | undefined
     const release = (): void => {
       if (released) return
       released = true
-      if (timer !== undefined) clearTimeout(timer)
+      clearTimeout(timer) // (`timer` is set right below, before `release` can ever be called)
       const next = slot.queue.shift()
       if (next === undefined) {
         slot.active = Math.max(0, slot.active - 1)
@@ -174,7 +173,7 @@ export class AccountLimiter {
         next.grant() // the slot passes to the next call in line: `active` stays
       }
     }
-    timer = setTimeout(release, this.holdLimitMs)
+    const timer = setTimeout(release, this.holdLimitMs)
     ;(timer as { unref?: () => void }).unref?.()
     return { release }
   }
@@ -238,6 +237,7 @@ export function withAccountLimit(inner: Runner, limiter: AccountLimiter, key: st
     resume: async (input: StartTurnInput) => open(async () => inner.resume(input)),
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(input) }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
     dispose: async () => {
       for (const runId of [...leases.keys()]) release(runId)
       await inner.dispose?.()

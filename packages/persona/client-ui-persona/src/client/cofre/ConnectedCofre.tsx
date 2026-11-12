@@ -60,10 +60,17 @@ export function ConnectedCofre({ persona, useTenant, useShell }: LumenRemotePane
   // A save or a removal answers with nothing the screen needs (it reads the list again): the handlers return void.
   const quiet = async <T,>(call: () => Promise<T>): Promise<void> => { await act(call) }
   const actions = scope === null ? {} : {
-    onSaveLogin: (input: { readonly id?: string; readonly site: string; readonly username: string; readonly password: string; readonly title?: string }) =>
-      quiet(async () => unwrapRemote(await persona.saveCofreLogin({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input }))),
-    onSaveKey: (input: { readonly id?: string; readonly service: string; readonly secret: string; readonly title?: string }) =>
-      quiet(async () => unwrapRemote(await persona.saveCofreKey({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input }))),
+    onSaveLogin: (input: { readonly id?: string; readonly site: string; readonly username: string; readonly password?: string; readonly title?: string }) =>
+      quiet(async () => {
+        // The host seals whatever it receives: a login never goes without a password until it keeps the sealed one on an edit (keepSecretOnEdit stays off until then).
+        if (input.password === undefined) throw new Error(t('error.typePassword'))
+        return unwrapRemote(await persona.saveCofreLogin({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input, password: input.password }))
+      }),
+    onSaveKey: (input: { readonly id?: string; readonly service: string; readonly secret?: string; readonly title?: string }) =>
+      quiet(async () => {
+        if (input.secret === undefined) throw new Error(t('error.typeSecret'))
+        return unwrapRemote(await persona.saveCofreKey({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input, secret: input.secret }))
+      }),
     onSaveCompany: (input: { readonly id?: string; readonly legalName: string; readonly document: string; readonly email?: string; readonly phone?: string; readonly address?: string }) =>
       quiet(async () => unwrapRemote(await persona.saveCofreCompany({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input }))),
     onRemove: (id: string) => quiet(async () => unwrapRemote(await persona.removeCofreEntry({ workspaceId: scope.workspaceId, projectId: scope.projectId, id }))),

@@ -29,7 +29,7 @@ describe('harvest 19b: mailbox presets and the origin filter', () => {
     expect(emailPresetFor('ana@zoho.com')?.host).toBe('imap.zoho.com')
     expect(emailPresetFor('ana@icloud.com')?.id).toBe('icloud')
     expect(READ_ONLY_IMAP_COMMANDS).toContain('EXAMINE')
-    expect(READ_ONLY_IMAP_COMMANDS).toContain('UID FETCH (BODY.PEEK[])')
+    expect(READ_ONLY_IMAP_COMMANDS).toContain('UID FETCH (BODY.PEEK[HEADER] BODY.PEEK[TEXT]<0.32768>)')
     expect(READ_ONLY_IMAP_COMMANDS.join(' ')).not.toMatch(/\b(?:STORE|EXPUNGE|COPY|MOVE|APPEND|DELETE)\b/u)
   })
 
@@ -59,5 +59,40 @@ describe('harvest 19b: mailbox presets and the origin filter', () => {
     })
     expect(triggers.map(trigger => trigger.id)).toEqual(['mail:m1'])
     expect(dropped).toEqual(['m2', 'm3'])
+  })
+})
+
+// P0-11 (Carbon, colheita S1): the sender is the address between <...>, never the display name.
+describe('P0-11: the origin filter reads the real address', () => {
+  const spoof = message({ from: '"cliente@parceiro.com.br" <atacante@externo.com>' })
+
+  it('does not let a display name pass for the sender', () => {
+    expect(matchesEmailFilter(spoof, { from: ['parceiro.com.br'] })).toBe(false)
+    expect(matchesEmailFilter(spoof, { from: ['@parceiro.com.br'] })).toBe(false)
+    expect(matchesEmailFilter(spoof, { from: ['cliente@parceiro.com.br'] })).toBe(false)
+    expect(matchesEmailFilter(spoof, { from: ['@externo.com'] })).toBe(true) // the real sender
+  })
+
+  it('a bare domain means that domain (and its subdomains), never a piece of another one', () => {
+    expect(matchesEmailFilter(message({ from: 'Ana <ana@parceiro.com.br>' }), { from: ['parceiro.com.br'] })).toBe(true)
+    expect(matchesEmailFilter(message({ from: 'ana@mail.parceiro.com.br' }), { from: ['parceiro.com.br'] })).toBe(true)
+    expect(matchesEmailFilter(message({ from: 'ana@evilparceiro.com.br' }), { from: ['parceiro.com.br'] })).toBe(false)
+    expect(matchesEmailFilter(message({ from: 'ana@parceiro.com.br.evil.com' }), { from: ['parceiro.com.br'] })).toBe(false)
+  })
+
+  it('"@domain" is exactly that domain, a full address is exactly that address, "name@" is a local-part prefix', () => {
+    expect(matchesEmailFilter(message({ from: 'ana@parceiro.com.br' }), { from: ['@parceiro.com.br'] })).toBe(true)
+    expect(matchesEmailFilter(message({ from: 'ana@parceiro.com.br.evil.com' }), { from: ['@parceiro.com.br'] })).toBe(false)
+    expect(matchesEmailFilter(message({ from: 'Ana <ana@parceiro.com.br>' }), { from: ['ana@parceiro.com.br'] })).toBe(true)
+    expect(matchesEmailFilter(message({ from: 'banana@parceiro.com.br' }), { from: ['ana@parceiro.com.br'] })).toBe(false)
+    expect(matchesEmailFilter(message({ to: 'vendas@loja.com.br, Outro <outro@x.com>' }), { to: ['vendas@'] })).toBe(true)
+    expect(matchesEmailFilter(message({ to: 'x-vendas@loja.com.br' }), { to: ['vendas@'] })).toBe(false)
+  })
+
+  it('reads every address of a list of recipients, with or without a display name', () => {
+    const to = 'Fulano <fulano@a.com>, vendas@loja.com.br, "Beltrano, B." <b@c.com>'
+    expect(matchesEmailFilter(message({ to }), { to: ['@c.com'] })).toBe(true)
+    expect(matchesEmailFilter(message({ to }), { to: ['vendas@loja.com.br'] })).toBe(true)
+    expect(matchesEmailFilter(message({ to }), { to: ['@d.com'] })).toBe(false)
   })
 })

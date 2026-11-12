@@ -98,5 +98,18 @@
   "notice.dismiss": "Fechar aviso",
   "field.passwordHint.keep": "Deixe em branco para manter a senha guardada.",
   "field.secretHint.keep": "Deixe em branco para manter a chave guardada.",
-  "row.keyDetail": "Chave de acesso · guardada em {date}"
+  "row.keyDetail": "Chave de acesso · guardada em {date}",
+  "error.typePassword": "Digite a senha para guardar.",
+  "error.typeSecret": "Digite a chave para guardar.",
+  "code.eyebrow": "Precisa de um código",
+  "code.deadline": "Vence em {n} min",
+  "code.group": "Código de 6 dígitos",
+  "code.digit": "Dígito {n} de 6",
+  "code.send": "Enviar código",
+  "code.cancel": "Cancelar",
+  "code.sent": "Código entregue ao site. A equipe não vê.",
+  "code.cancelled": "Pedido cancelado.",
+  "code.expired": "Passou do prazo.",
+  "code.retry": "Tentar de novo",
+  "code.error": "Não deu para enviar o código. Tente de novo."
 }

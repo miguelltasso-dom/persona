@@ -9,6 +9,7 @@ import type { LumenRemotePanelProps } from '../data/lumen-inject.ts'
 import { RemoteConnectionsPanel } from '../data/lumen-remote-panels.tsx'
 import { RemoteTeamCard } from '../members/RemoteTeamCard.tsx'
 import { ConnectedBrowserProfiles } from '../browser/ConnectedBrowserProfiles.tsx'
+import { ConnectedStation } from '../station/ConnectedStation.tsx'
 import { SettingsScrollFrame } from './SettingsScrollFrame.tsx'
 import styles from './SettingsConnectionsTab.module.css'
 
@@ -19,6 +20,9 @@ export function SettingsConnectionsTab(props: LumenRemotePanelProps): ReactNode 
         <RemoteConnectionsPanel {...props} />
         <div className={styles.teamCard}>
           <ConnectedBrowserProfiles {...props} />
+        </div>
+        <div className={styles.teamCard}>
+          <ConnectedStation {...props} />
         </div>
         <div className={styles.teamCard}>
           <RemoteTeamCard {...props} />

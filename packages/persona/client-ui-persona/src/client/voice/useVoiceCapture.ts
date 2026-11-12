@@ -4,7 +4,7 @@
  * without a microphone.
  */
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { VOICE_MAX_MS } from './voice-model.ts'
 
 /** The slice of MediaRecorder this uses (a real one satisfies it). */
@@ -102,6 +102,22 @@ export function useVoiceCapture(options: VoiceCaptureOptions = {}): VoiceCapture
   const [elapsedMs, setElapsedMs] = useState(0)
   const [levels, setLevels] = useState<readonly number[]>([])
   const session = useRef<Session | null>(null)
+  // P1-05: a permissão do microfone pode chegar depois de a tela sair; `alive` e `asking` impedem fluxo solto e pedido duplicado.
+  const alive = useRef(true)
+  const asking = useRef(false)
+
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      const current = session.current
+      if (current === null) return
+      current.stopTimer()
+      current.levels.close()
+      for (const track of current.stream.getTracks()) track.stop()
+      session.current = null
+    }
+  }, [])
 
   const release = (current: Session): void => {
     current.stopTimer()
@@ -131,9 +147,22 @@ export function useVoiceCapture(options: VoiceCaptureOptions = {}): VoiceCapture
   }
 
   const start = async (): Promise<void> => {
-    if (session.current !== null) return
+    if (session.current !== null || asking.current) return
     const media = options.getUserMedia ?? ((constraints: MediaStreamConstraints) => navigator.mediaDevices.getUserMedia(constraints))
-    const stream = await media({ audio: true })
+    asking.current = true
+    let stream: VoiceStream
+    try {
+      stream = await media({ audio: true })
+    } catch (error) {
+      asking.current = false
+      throw error
+    }
+    asking.current = false
+    // A tela saiu enquanto o navegador pedia permissão: o fluxo que chegou agora não tem dono; solta as faixas.
+    if (!alive.current) {
+      for (const track of stream.getTracks()) track.stop()
+      return
+    }
     const createRecorder = options.createRecorder
     const recorder: VoiceRecorderLike = createRecorder === undefined
       ? new MediaRecorder(stream as MediaStream) as VoiceRecorderLike

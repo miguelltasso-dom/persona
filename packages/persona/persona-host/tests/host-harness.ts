@@ -27,6 +27,15 @@ export function it(name: string, fn: () => unknown, timeout: number = HOST_TEST_
   baseIt(name, fn, timeout)
 }
 
+/**
+ * Marks THIS spec file as one that opens a REAL Chrome on purpose (the only ones: browser-chrome.host.spec.ts, chrome-launch-kill-tree.spec.ts). Any other spec that reaches the real
+ * launcher fails with "real Chrome launch blocked in a test" (src/browser/launch.ts) instead of popping a browser window.
+ */
+export function allowRealChrome(): void {
+  beforeAll(() => { process.env.PERSONA_TEST_REAL_CHROME = '1' })
+  afterAll(() => { delete process.env.PERSONA_TEST_REAL_CHROME })
+}
+
 const CLOCK = '2026-11-03T15:00:00.000Z'
 
 /**
@@ -101,6 +110,8 @@ export function resetHost(host: PersonaHost, clock: string = CLOCK): void {
   backgroundWorkOf(host.orchestration, { nowMs: () => Date.parse(host.orchestration.now()) }).reset()
   host.orchestration.cancelled.clear()
   host.orchestration.warmRunners.clear()
+  // The personas' browser grants live in the BrowserHost (and its own folder), NOT in the database: a grant left by one test must never reach the next one (it made unrelated specs try to open a real Chrome).
+  for (const [personaId, profileIds] of Object.entries(host.browser.service.grantsOf())) for (const profileId of [...profileIds]) host.browser.revoke(personaId, profileId)
   host.orchestration.usedContext.clear()
   host.orchestration.stages.length = 0
   host.orchestration.liveText = undefined

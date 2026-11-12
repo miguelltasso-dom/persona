@@ -22,13 +22,45 @@ export interface ImapCredentials {
 export interface ImapReadOptions extends ImapCredentials {
   readonly mailbox?: string
   readonly limit?: number
+  /** Idle timeout of the socket. */
   readonly timeoutMs?: number
+  /** Deadline of the WHOLE session (connect, login, search and every fetch), so a slow server cannot hold the host for long. */
+  readonly totalTimeoutMs?: number
+  /** Only mail that arrived in the last N days is searched (default 14): never the whole mailbox. */
+  readonly sinceDays?: number
 }
 
 const DEFAULT_TIMEOUT_MS = 15_000
+const DEFAULT_TOTAL_TIMEOUT_MS = 60_000
+const DEFAULT_SINCE_DAYS = 14
 const DEFAULT_LIMIT = 10
 const MAX_LIMIT = 50
 const MAX_BODY_CHARS = 4_000
+/** What is asked of the server for the text of a message: the first 32 KiB, so an attachment never travels. */
+const MAX_TEXT_BYTES = 32_768
+/** No single literal of a reply may be bigger than this (a server that ignores the partial fetch cannot fill the host's memory). */
+const MAX_LITERAL_BYTES = 262_144
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
+/** CR, LF, NUL and the other control characters: none can be part of a quoted IMAP string, and a CR/LF would start another command. */
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/u
+
+/**
+ * Refuse a login or folder name that holds a control character, BEFORE any socket is opened (P0-11: a CRLF inside a quoted name was a command injection).
+ * The message names the field, never its value.
+ * @param options - What the reader was asked to do.
+ * @throws When the user, the password or the folder holds a control character.
+ */
+function assertSafeOptions(options: ImapReadOptions): void {
+  const fields: ReadonlyArray<readonly [string, string | undefined]> = [['usuário', options.user], ['senha', options.password], ['pasta', options.mailbox]]
+  for (const [label, value] of fields) {
+    if (value !== undefined && CONTROL_CHARS.test(value)) throw new Error(`imap: ${label} com caracteres de controle (quebra de linha ou nulo) não é aceito`)
+  }
+}
+
+/** `D-Mon-YYYY` in English, as IMAP `SINCE` wants it. */
+function imapDate(at: Date): string {
+  return `${String(at.getUTCDate())}-${MONTHS[at.getUTCMonth()] ?? 'Jan'}-${String(at.getUTCFullYear())}`
+}
 
 /**
  * Read the newest messages of one mailbox, read-only.
@@ -37,10 +69,13 @@ const MAX_BODY_CHARS = 4_000
  * @throws When the server refuses the login or the connection fails.
  */
 export async function readImapInbox(options: ImapReadOptions): Promise<EmailMessage[]> {
+  assertSafeOptions(options)
   const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
   const { session, socket } = await openReadOnly(options)
   try {
-    const search = await session.command('a4', 'UID SEARCH ALL')
+    // Only recent mail: never the UID list of the whole mailbox every five minutes.
+    const since = new Date(Date.now() - Math.max(options.sinceDays ?? DEFAULT_SINCE_DAYS, 1) * 86_400_000)
+    const search = await session.command('a4', `UID SEARCH SINCE ${imapDate(since)}`)
     const uids = search.lines
       .filter(line => /^\* SEARCH\b/u.test(line))
       .flatMap(line => line.replace(/^\* SEARCH\b/u, '').trim().split(/\s+/u))
@@ -49,16 +84,24 @@ export async function readImapInbox(options: ImapReadOptions): Promise<EmailMess
     const messages: EmailMessage[] = []
     let tag = 5
     for (const uid of uids) {
-      const fetched = await session.command(`a${String(tag)}`, `UID FETCH ${uid} (BODY.PEEK[])`)
+      // The header and the first bytes of the text only (P0-11): a 100 MB attachment is never downloaded into the host's memory.
+      const fetched = await session.command(`a${String(tag)}`, `UID FETCH ${uid} (BODY.PEEK[HEADER] BODY.PEEK[TEXT]<0.${String(MAX_TEXT_BYTES)}>)`)
       tag += 1
-      const raw = fetched.literals[0]
-      if (raw !== undefined) messages.push(parseEmail(raw, uid))
+      const [header, text] = fetched.literals
+      if (header !== undefined) messages.push(parseEmail(joinMessage(header, text), uid))
     }
     await session.command(`a${String(tag)}`, 'LOGOUT').catch(() => undefined)
     return messages
   } finally {
+    session.close()
     socket.destroy()
   }
+}
+
+/** The header literal (which ends with the blank line) and the first bytes of the text, as one message. */
+function joinMessage(header: Buffer, text: Buffer | undefined): Buffer {
+  const head = header.subarray(Math.max(header.length - 4, 0)).toString('latin1') === '\r\n\r\n' ? header : Buffer.concat([header, Buffer.from('\r\n\r\n')])
+  return text === undefined ? head : Buffer.concat([head, text])
 }
 
 /**
@@ -69,11 +112,13 @@ export async function readImapInbox(options: ImapReadOptions): Promise<EmailMess
  * @throws When the server refuses the login or the connection fails.
  */
 export async function probeImap(options: ImapReadOptions): Promise<{ messages: number }> {
+  assertSafeOptions(options)
   const { session, socket, messages } = await openReadOnly(options)
   try {
     await session.command('a4', 'LOGOUT').catch(() => undefined)
     return { messages }
   } finally {
+    session.close()
     socket.destroy()
   }
 }
@@ -90,9 +135,11 @@ async function openReadOnly(options: ImapReadOptions): Promise<ReadOnlySession> 
     ? tlsConnect({ host: options.host, port: options.port, servername: options.host })
     : netConnect({ host: options.host, port: options.port })
   socket.setTimeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
-  const session = new ImapSession(socket)
+  const session = new ImapSession(socket, options.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS)
   try {
     await session.connected(options.secure)
+    // The server speaks first: read its greeting (`* OK` / `* PREAUTH`) before any command, and stop on a BYE or NO.
+    await session.greeting()
     await session.command('a1', 'CAPABILITY')
     await session.command('a2', `LOGIN ${quote(options.user)} ${quote(options.password)}`)
     const examined = await session.command('a3', `EXAMINE ${quote(options.mailbox ?? 'INBOX')}`)
@@ -101,6 +148,7 @@ async function openReadOnly(options: ImapReadOptions): Promise<ReadOnlySession> 
       .find(value => value !== undefined)
     return { session, socket, messages: exists === undefined ? 0 : Number(exists) }
   } catch (error: unknown) {
+    session.close()
     socket.destroy()
     throw error
   }
@@ -148,10 +196,17 @@ class ImapSession {
   private wake: (() => void) | undefined
   private failure: Error | undefined
   private ended = false
+  /** Bytes arrived since the last time something waited for them (so a half-read line waits for MORE data, never spins on the old). */
+  private fresh = false
+  private readonly deadline: ReturnType<typeof setTimeout>
 
-  constructor(private readonly socket: Socket) {
+  constructor(private readonly socket: Socket, totalTimeoutMs: number) {
+    // The deadline of the WHOLE session (P0-11): the socket's own timeout is only an idle timeout and a slow server can keep it alive forever.
+    this.deadline = setTimeout(() => { this.abort(new Error('imap: tempo total esgotado')) }, totalTimeoutMs)
+    this.deadline.unref()
     socket.on('data', (chunk: Buffer) => {
       this.buffer = Buffer.concat([this.buffer, chunk])
+      this.fresh = true
       this.wake?.()
     })
     socket.on('error', (error: Error) => {
@@ -167,6 +222,27 @@ class ImapSession {
       socket.destroy()
       this.wake?.()
     })
+  }
+
+  /** Stop the session now: whatever waits for the server fails with `error`, and the socket is closed. */
+  abort(error: Error): void {
+    this.failure ??= error
+    this.wake?.()
+    this.socket.destroy()
+  }
+
+  /** The session is over: its deadline no longer applies. */
+  close(): void {
+    clearTimeout(this.deadline)
+  }
+
+  /**
+   * The line a server says first. Only `* OK` and `* PREAUTH` let the session go on; a `* BYE` or `* NO` is the server's refusal.
+   * @throws With the server's own words (never the login).
+   */
+  async greeting(): Promise<void> {
+    const { line } = await this.nextLine()
+    if (!/^\* (?:OK|PREAUTH)\b/iu.test(line)) throw new Error(`imap: ${line.replace(/^\*\s*/u, '').trim() || 'o servidor não cumprimentou'}`)
   }
 
   /**
@@ -213,6 +289,12 @@ class ImapSession {
       const size = /\{(\d+)\}$/u.exec(line)?.[1]
       if (size === undefined) return { line }
       const bytes = Number(size)
+      // A literal bigger than the cap is refused before it is held (P0-11): a server that ignores the partial fetch cannot fill the host's memory.
+      if (bytes > MAX_LITERAL_BYTES) {
+        const error = new Error('imap: resposta grande demais')
+        this.abort(error)
+        throw error
+      }
       while (this.buffer.length < bytes) await this.fill()
       const literal = this.buffer.subarray(0, bytes)
       this.buffer = this.buffer.subarray(bytes)
@@ -220,21 +302,30 @@ class ImapSession {
     }
   }
 
+  /**
+   * Wait for MORE bytes. Only bytes that arrived since the last wait count: waiting on a half-read line or literal used to resolve at once
+   * (the buffer was not empty), a loop of microtasks that never let the socket deliver the rest and froze the whole host on any reply that
+   * came in more than one chunk (P0-11).
+   */
   private async fill(): Promise<void> {
-    if (this.failure !== undefined) throw this.failure
-    if (this.ended) throw new Error('imap: connection closed')
-    const { promise, resolve } = Promise.withResolvers<void>()
-    this.wake = resolve
-    queueMicrotask(() => {
-      if (this.buffer.length > 0 || this.failure !== undefined || this.ended) resolve()
-    })
-    await promise
-    this.wake = undefined
-    if (this.failure !== undefined) throw this.failure
+    for (;;) {
+      if (this.failure !== undefined) throw this.failure
+      if (this.fresh) {
+        this.fresh = false
+        return
+      }
+      if (this.ended) throw new Error('imap: connection closed')
+      const { promise, resolve } = Promise.withResolvers<void>()
+      this.wake = resolve
+      await promise
+      this.wake = undefined
+    }
   }
 }
 
 function quote(value: string): string {
+  // Defense in depth: the options were already checked, and nothing with a control character is ever put in a command.
+  if (CONTROL_CHARS.test(value)) throw new Error('imap: valor com caracteres de controle não é aceito')
   return `"${value.replace(/\\/gu, '\\\\').replace(/"/gu, '\\"')}"`
 }
 
@@ -308,6 +399,8 @@ function splitMultipart(body: Buffer, boundary: string): Buffer[] {
     parts.push(body.subarray(start + marker.length + 2, next))
     start = next
   }
+  // The text is only the first bytes of the message: the part that was cut short has no boundary after it, and it is still read (never `--` of the end marker).
+  if (start >= 0 && body.subarray(start + marker.length, start + marker.length + 2).toString('latin1') !== '--') parts.push(body.subarray(start + marker.length + 2))
   return parts
 }
 

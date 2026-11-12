@@ -127,16 +127,21 @@ async function openSession(
 ): Promise<Session> {
   const sandbox = policy?.sandbox
   const pin = options.capabilities.cli === 'codex' && sandbox !== undefined
+  // Carbon P0-04: OAR reads the variable SYNCHRONOUSLY when `session()` is called (before its first await) and only there. It is set for the duration of that call alone and put back
+  // BEFORE the first await: it used to stay set across the whole opening, so a concurrent session inherited another one's mode and the last to finish left its own mode behind for good.
   const previous = pin ? process.env.OAR_CODEX_SANDBOX : undefined
-  if (pin && sandbox !== undefined) process.env.OAR_CODEX_SANDBOX = sandbox
-  try {
-    return await options.runtime.session(options.installation ?? BUNDLED, sessionOptions)
-  } finally {
-    if (pin) {
-      if (previous === undefined) delete process.env.OAR_CODEX_SANDBOX
-      else process.env.OAR_CODEX_SANDBOX = previous
+  const opening = ((): Promise<Session> => {
+    if (pin && sandbox !== undefined) process.env.OAR_CODEX_SANDBOX = sandbox
+    try {
+      return options.runtime.session(options.installation ?? BUNDLED, sessionOptions)
+    } finally {
+      if (pin) {
+        if (previous === undefined) delete process.env.OAR_CODEX_SANDBOX
+        else process.env.OAR_CODEX_SANDBOX = previous
+      }
     }
-  }
+  })()
+  return opening
 }
 
 /**

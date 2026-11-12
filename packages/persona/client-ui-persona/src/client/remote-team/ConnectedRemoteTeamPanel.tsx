@@ -1,3 +1,4 @@
+import { randomUuid } from '../remote/random-id.ts'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { InviteView, RemoteTeamAvailability, RemoteTeamState } from '@deepseek-ai/dsh-persona-host/types'
 import { isRemoteResult } from '../remote/persona-remote-unwrap.ts'
@@ -195,7 +196,7 @@ export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000, onO
       }}
       onIssueInvite={(role) => {
         void run('invite', async () => {
-          const inviteId = crypto.randomUUID()
+          const inviteId = randomUuid()
           const created = await settle(remote.issueInvite?.({ ...request, inviteId, token: '', role }))
           const token = typeof (created as { token?: unknown } | null)?.token === 'string' ? (created as { token: string }).token : ''
           // Convite do edge: o host devolve o código só nesta resposta; sem código não há o que mostrar.

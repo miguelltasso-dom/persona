@@ -47,7 +47,20 @@ export function ActionContent({ t, verb, content }: ActionContentProps): ReactNo
       {verb === 'email' && (
         <dl className={styles.fields}>
           <div><dt>{t('action.to')}</dt><dd><strong>{content.to}</strong></dd></div>
+          {/* P0-10: quem mais recebe (Cc, Cco) e o que vai junto (Anexos) aparecem; nada que o host manda fica escondido na hora de aprovar. */}
+          {content.cc !== undefined && <div><dt>{t('action.cc')}</dt><dd><strong>{content.cc}</strong></dd></div>}
+          {content.bcc !== undefined && <div><dt>{t('action.bcc')}</dt><dd><strong>{content.bcc}</strong></dd></div>}
           {content.subject !== undefined && <div><dt>{t('action.subject')}</dt><dd>{content.subject}</dd></div>}
+          {content.attachments !== undefined && content.attachments.length > 0 && (
+            <div>
+              <dt>{t('action.attachments')}</dt>
+              <dd>
+                <ul className={styles.attachments}>
+                  {content.attachments.map((name, index) => <li key={`${index}-${name}`}>{name}</li>)}
+                </ul>
+              </dd>
+            </div>
+          )}
         </dl>
       )}
       {(verb === 'email' || verb === 'post') && content.body !== undefined && <BodyBlock t={t} text={content.body} />}

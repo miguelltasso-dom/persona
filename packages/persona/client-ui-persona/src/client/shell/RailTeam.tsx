@@ -8,6 +8,7 @@ import { PERSONA_STATE_LABEL, PERSONA_STATE_OVERLAY, personaStateOf } from '../t
 import { PersonaCardPopover, UiIcon, usePersonaCardController, type PersonaNowKind } from '../primitives/index.ts'
 import { PersonaInfoCard, type PersonaCardInfo } from '../profile/PersonaInfoCard.tsx'
 import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
+import { roleAfterName } from '../chat/author-role.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import styles from './RailTeam.module.css'
 
@@ -170,7 +171,7 @@ export function RailTeam({
             const icon = PERSONA_STATE_OVERLAY[personaState]
             const label = [
               t('sidebar.team.openDm', { name: member.name }),
-              member.role,
+              roleAfterName(member.role, member.name),
               status,
               member.unread > 0 ? t('sidebar.team.unread', { count: String(member.unread) }) : '',
             ].filter(Boolean).join(' · ')
@@ -213,7 +214,8 @@ export function RailTeam({
                   {!compact && (
                     <span className={styles.text} aria-hidden="true">
                       <span className={styles.name}>{member.name}</span>
-                      <span className={styles.role}>{member.role}</span>
+                      {/* Muse (leigo): função igual ao nome ("Probe / Probe") aparece uma vez só. */}
+                      {roleAfterName(member.role, member.name) !== '' && <span className={styles.role}>{member.role}</span>}
                       <span className={styles.status}>{status}</span>
                     </span>
                   )}

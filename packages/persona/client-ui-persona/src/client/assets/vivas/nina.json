@@ -1,0 +1,45 @@
+{
+  "animal": "nina",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 114,
+    "top": 56,
+    "width": 796,
+    "height": 937
+  },
+  "size": [
+    408,
+    480
+  ],
+  "scale": 0.512273212379936,
+  "mask": [
+    {
+      "x": 23,
+      "y": 22,
+      "w": 362,
+      "h": 380
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "nina-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "nina-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "nina-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "nina-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

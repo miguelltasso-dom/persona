@@ -134,7 +134,7 @@ describe('A-4: the hire card says who, for what, and what it costs, in the host 
   it('A-4b: a Cofre card shows who proposes it (not initials of its title) and, when the host says, what changes', () => {
     const plain = approvalViewToItem({ ...baseView, id: 'v-1', kind: 'vault', title: 'Tom de voz', question: 'Atualizar?', personaName: 'Nina', personaId: 'nina' })
     const { container, rerender } = renderInbox([plain])
-    expect(screen.getByRole('heading', { level: 3, name: 'Atualizar Cofre' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3, name: 'Atualizar a Memória da empresa' })).toBeTruthy()
     expect(container.textContent).not.toContain('TV')
     expect(container.querySelector('img[src]')).not.toBeNull()
     expect(screen.queryByText(/→/)).toBeNull()
@@ -148,7 +148,7 @@ describe('A-4: the hire card says who, for what, and what it costs, in the host 
         <ApprovalsInbox dict={approvalsPt} items={[detailed]} onDecideItem={vi.fn()} />
       </PreviewFrame>,
     )
-    expect(screen.getByRole('heading', { level: 3, name: 'Atualizar no Cofre: Preço do pão' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3, name: 'Atualizar na Memória da empresa: Preço do pão' })).toBeTruthy()
     expect(screen.getByText('Preço do pão: R$ 12 → R$ 14')).toBeTruthy()
     // Half the data is no data: a "before" without an "after" is not a change line.
     expect(approvalViewToItem({ ...baseView, kind: 'vault', changeField: 'X', changeBefore: 'a' }).vaultAfter).toBeUndefined()
@@ -158,7 +158,7 @@ describe('A-4: the hire card says who, for what, and what it costs, in the host 
     const vault: ApprovalItem = { id: 'v1', kind: 'vault', title: 'Tom de voz', question: 'Atualizar registro no Cofre?', primaryKey: 'action.primary.vault' }
     renderInbox([vault])
     expect(screen.queryByRole('button', { name: 'Ver detalhes' })).toBeNull()
-    expect(screen.getByRole('heading', { level: 3, name: 'Atualizar Cofre' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 3, name: 'Atualizar a Memória da empresa' })).toBeTruthy()
   })
 
   it('the screen speaks plainly: eyebrow "Precisa de você", the new subtitle, no jargon', () => {

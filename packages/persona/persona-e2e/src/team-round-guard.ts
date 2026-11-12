@@ -33,6 +33,13 @@ export function priceWeightedInput(row: Pick<LedgerRow, 'inputTokens' | 'cacheRe
 export interface GuardOptions {
   /** REAL round: a `native` turn, or one that does not say its mode, stops the host. */
   readonly requireEnvMode?: boolean
+  /**
+   * Attempt 6 (Atlas 12/11, `atlas-ok-team10-6.txt`): stop the host the moment the RAW input of the whole round (the ledger's `inputTokens`, cache parts included — what the Carbon's gate
+   * counts) goes above this. The price-weighted limits above stay; this one is in the unit of the acceptance goal (< 120 mil), so a round that is heading for 469 mil is cut at 200 mil.
+   */
+  readonly rawRoundAbort?: number
+  /** Attempt 6: every turn of the ledger must be MEASURED (`origin: 'measured'`); an estimate or a missing origin means the ledger is not measuring per turn, and the host is stopped. */
+  readonly requireMeasured?: boolean
 }
 
 /** @returns Why the host must be killed now, or `undefined` while the round is inside its limits. */
@@ -44,6 +51,14 @@ export function ledgerGuard(ledger: LedgerEvidence | undefined, cap: number, opt
     if (native !== undefined) return `a ${native.kind} turn ran in NATIVE mode (the person's own tools and connectors loaded), not answer-only; host killed`
     // A turn that does NOT say its mode is a WARNING (see `ledgerWarnings`), not a kill: killing on silence could waste the only attempt on a kind of call that simply does not
     // book the column; a native turn that stays silent is still caught by its weight below.
+  }
+  if (options.requireMeasured === true) {
+    const unmeasured = ledger.rows.find(row => row.origin !== 'measured')
+    if (unmeasured !== undefined) return `a ${unmeasured.kind} turn is not MEASURED (origin ${JSON.stringify(unmeasured.origin)}): the ledger is not measuring per turn; host killed`
+  }
+  if (options.rawRoundAbort !== undefined) {
+    const raw = ledger.rows.reduce((sum, row) => sum + row.inputTokens, 0)
+    if (raw > options.rawRoundAbort) return `the round already spent ${String(raw)} RAW input tokens (cache included; > ${String(options.rawRoundAbort)}): host killed`
   }
   const heavy = ledger.rows.find(row => priceWeightedInput(row) > HEAVY_TURN_INPUT_TOKENS)
   if (heavy !== undefined) return `a ${heavy.kind} turn weighed ${String(Math.round(priceWeightedInput(heavy)))} price-weighted input tokens (raw ${String(heavy.inputTokens)}; > ${String(HEAVY_TURN_INPUT_TOKENS)}): it looks like the NATIVE mode, not answer-only; host killed`

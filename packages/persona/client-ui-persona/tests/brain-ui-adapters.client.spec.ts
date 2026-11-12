@@ -61,7 +61,7 @@ describe('brain-ui-adapters', () => {
     const system = page({ id: 'x', kind: 'company', title: 'T', editorHint: 'person:system' })
     // No librarian in this team: a neutral label and no borrowed portrait.
     const none = feedEditorDisplay(pt, system)
-    expect(none.who).toBe('Atualização automática da equipe')
+    expect(none.who).toBe('A equipe')
     expect(none.whoAvatar).toBeUndefined()
     // With one, her name (and her portrait when she has one).
     const named = feedEditorDisplay(pt, system, {}, { system: 'Atlas' })
@@ -75,7 +75,7 @@ describe('brain-ui-adapters', () => {
     expect(brainSourceLabel(pt, 'vault:notas.md')).toBe('vault:notas.md')
   })
 
-  it('pageToChangeItem localizes derived-index source', () => {
+  it('pageToChangeItem: the automatic index reads "A equipe atualizou …" and drops its own source line (it would only repeat it)', () => {
     const item = pageToChangeItem(pt, page({
       id: 'x',
       kind: 'rule',
@@ -83,8 +83,8 @@ describe('brain-ui-adapters', () => {
       editorHint: 'person:system',
       sources: ['derived-index'],
     }))
-    expect(item.source).toBe(pt['feed.sourceDerivedIndex'])
-    expect(item.who).toBe('Atualização automática da equipe')
+    expect(item.source).toBeUndefined()
+    expect(item.who).toBe('A equipe')
   })
 })
 

@@ -132,7 +132,7 @@ describe('o painel Equipe › Personas', () => {
     const bento = document.querySelector<HTMLElement>('[data-persona-card-id="p-bento"]')!
     expect(bento.textContent).toContain('Disponível')
     expect(bento.textContent).toContain('Sem tarefa agora')
-    expect(bento.textContent).toContain('Fila vazia')
+    expect(bento.textContent).not.toContain('Fila vazia')
     expect(bento.textContent).not.toContain('Quem cuida')
     for (const card of cards()) expect(card.textContent).not.toMatch(/p-(atlas|nina|bento)/u)
   })

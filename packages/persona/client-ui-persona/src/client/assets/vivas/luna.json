@@ -1,0 +1,45 @@
+{
+  "animal": "luna",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 160,
+    "top": 62,
+    "width": 701,
+    "height": 919
+  },
+  "size": [
+    366,
+    480
+  ],
+  "scale": 0.5223068552774756,
+  "mask": [
+    {
+      "x": 0,
+      "y": 19,
+      "w": 368,
+      "h": 388
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "luna-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "luna-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "luna-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "luna-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

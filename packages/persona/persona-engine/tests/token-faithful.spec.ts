@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { estimateTokens } from '@deepseek-ai/dsh-persona-core'
 import { describe, expect, it } from 'vitest'
+import { markerLinesFor } from '../src/prompts/turn-markers.ts'
 import {
   FAITHFUL_SCENARIO_IDS,
   LEVERS_AS_WIRED,
@@ -155,7 +156,7 @@ describe('bench fidelity', () => {
           { name: 'Bento', title: 'Revisor' },
           { name: 'Nina', title: 'Padeira-chefe' },
         ],
-        capabilities: 'resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta',
+        capabilities: 'resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta' + markerLinesFor(true), // the host appends the marker lines to a conversation the PERSON started
       },
       surface: 'talk',
       userText: message,

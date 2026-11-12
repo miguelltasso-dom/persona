@@ -4,7 +4,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Button, Card, Chip, Screen, ScreenHeader, type ChipTone } from '../primitives/index.ts'
+import { Button, Card, Chip, Screen, ScreenHeader, UiIcon, type ChipTone } from '../primitives/index.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Usage.module.css'
 import type { ActivationFunnelView, WindowReserveView } from '@deepseek-ai/dsh-persona-host/types'
@@ -176,28 +176,7 @@ export function UsageLimits({
         {...(onLimitAction === undefined ? {} : { onAction: () => { onLimitAction() } })}
       />
       {windowReserve !== null && windowReserve.state !== 'ok' && (
-        <Card padding="m" className={styles.notice} tone="accent">
-          <p>
-            {windowReserve.state === 'exhausted'
-              ? t('window.exhausted', {
-                window: reserveWindowName(t, windowReserve.windowId),
-                percent: Math.round(windowReserve.usedPercent ?? 0),
-                count: windowReserve.queued,
-              })
-              : t(windowReserve.queued === 1 ? 'window.reserve.one' : 'window.reserve', {
-                window: reserveWindowName(t, windowReserve.windowId),
-                percent: Math.round(windowReserve.usedPercent ?? 0),
-                count: windowReserve.queued,
-              })}
-          </p>
-          {reserveClock(windowReserve.resetsAt) !== '' && (
-            <p>{t('window.until', { when: reserveClock(windowReserve.resetsAt) })}</p>
-          )}
-          {windowReserve.state === 'reserve' && !windowReserve.overridden && onContinueWindow !== undefined && (
-            <Button variant="secondary" size="s" onClick={onContinueWindow}>{t('window.continue')}</Button>
-          )}
-          {windowReserve.overridden && <p>{t('window.overridden')}</p>}
-        </Card>
+        <ReserveCard t={t} reserve={windowReserve} onContinue={onContinueWindow} />
       )}
       {showLimitNotice && limitNotice !== null && (
         <Card padding="m" className={styles.notice} tone="accent">
@@ -238,17 +217,62 @@ export function UsageLimits({
   )
 }
 
-/** Human name of the official window in the reserve card ("de 5 h", "semanal"). */
-function reserveWindowName(t: (key: string) => string, windowId: string | undefined): string {
-  if (windowId === undefined) return t('window.nameSubscription')
-  if (/5h|five/iu.test(windowId)) return t('window.nameFiveHour')
-  if (/week|semana|7d/iu.test(windowId)) return t('window.nameWeek')
-  return t('window.nameSubscription')
-}
-
-/** Local `HH:MM` of the reset, or `''` when the vendor gave no clock. */
-function reserveClock(resetsAt: string | undefined): string {
+/**
+ * "às 06:06" on the same day, "segunda às 06:06" on another one; `''` when the vendor gave no clock (the line then says nothing about the hour).
+ * @param resetsAt - ISO instant of the renewal.
+ * @param now - The clock.
+ */
+export function reserveWhen(resetsAt: string | undefined, now: Date = new Date()): string {
   if (resetsAt === undefined) return ''
   const at = new Date(resetsAt)
-  return Number.isNaN(at.getTime()) ? '' : at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (Number.isNaN(at.getTime())) return ''
+  const clock = at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  const sameDay = at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth() && at.getDate() === now.getDate()
+  if (sameDay) return `às ${clock}`
+  const weekday = at.toLocaleDateString('pt-BR', { weekday: 'long' }).split('-')[0] ?? ''
+  return `${weekday} às ${clock}`
+}
+
+type UsageT = (key: string, params?: Readonly<Record<string, string | number>>) => string
+
+/**
+ * The reserve of the last 5% of the plan, in its three states (Muse, item 10): PAUSED (the only one in the attention tone: it waits for you to decide;
+ * "Continuar agora" and how many requests wait), RELEASED (the plain card, a green ✓ as its only colour, no button, no count) and SPENT (the plain card
+ * with the bar at 100%, requests are kept). No "janela", no money; the "%" only in "5%".
+ */
+function ReserveCard({ t, reserve, onContinue }: { readonly t: UsageT; readonly reserve: WindowReserveView; readonly onContinue: (() => void) | undefined }): ReactNode {
+  const when = reserveWhen(reserve.resetsAt)
+  if (reserve.overridden) {
+    return (
+      <Card padding="m" className={`${styles.reserve} ${styles.reserveCalm}`} data-window-reserve="released">
+        <Chip className={styles.reserveAction} tone="success" size="s" icon={<UiIcon name="check" size={12} />}>{t('window.released')}</Chip>
+        {when !== '' && <p className={styles.reserveWhen}>{t('window.releasedUntil', { when })}</p>}
+      </Card>
+    )
+  }
+  if (reserve.state === 'exhausted') {
+    return (
+      <Card padding="m" className={`${styles.reserve} ${styles.reserveCalm}`} data-window-reserve="exhausted">
+        <div className={styles.reserveText}>
+          <p>{t('window.exhausted')}{when !== '' && ` ${t('window.until', { when })}`}</p>
+          <p className={styles.reserveWhen}>{t('window.exhaustedKept')}</p>
+        </div>
+        <div className={styles.reserveBar} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={100} aria-label={t('window.exhausted')}>
+          <div className={styles.reserveBarFill} />
+        </div>
+      </Card>
+    )
+  }
+  return (
+    <Card padding="m" className={`${styles.notice} ${styles.reserve}`} tone="accent" data-window-reserve="paused">
+      {/* A frase e o "Volta às HH:MM" são um pensamento só: ficam juntos (vão curto); o botão vem depois, com o vão da seção. */}
+      <div className={styles.reserveText}>
+        <p>{t('window.paused')}{when !== '' && ` ${t('window.until', { when })}`}</p>
+        {reserve.queued > 0 && <p className={styles.reserveWhen}>{t(reserve.queued === 1 ? 'window.waiting.one' : 'window.waiting', { count: reserve.queued })}</p>}
+      </div>
+      {reserve.state === 'reserve' && onContinue !== undefined && (
+        <Button className={styles.reserveAction} variant="secondary" size="s" onClick={onContinue}>{t('window.continue')}</Button>
+      )}
+    </Card>
+  )
 }

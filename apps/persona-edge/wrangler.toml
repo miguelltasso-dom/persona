@@ -20,12 +20,6 @@ class_name = "WorkspaceHub"
 tag = "v1"
 new_sqlite_classes = ["WorkspaceHub"]
 
-[[d1_databases]]
-binding = "DB"
-database_name = "persona-edge"
-database_id = "00000000-0000-0000-0000-000000000000"
-migrations_dir = "migrations"
-
 [[r2_buckets]]
 binding = "BLOBS"
 bucket_name = "persona-edge-blobs"

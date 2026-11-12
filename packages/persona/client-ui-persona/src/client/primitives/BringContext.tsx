@@ -365,7 +365,18 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
                         {p.sensitive !== undefined && <Chip tone="danger" size="s" icon={<UiIcon name="alert" size={14} />}>{labels.sensitiveBlocked(p.sensitive)}</Chip>}
                         {p.conflict !== undefined && <Chip tone="info" size="s">{p.conflictKind === 'question' ? p.conflict : labels.conflict(p.conflict)}</Chip>}
                       </div>
-                      {editing === p.id ? (
+                      {/* Item 13 §13.5: each found item is ONE line with a checkbox ("desmarcar tira o item"); the button says how many are imported. */}
+                      <label className={styles.pick}>
+                        <input
+                          type="checkbox"
+                          className={styles.pickBox}
+                          checked={isAccepted}
+                          disabled={blocked}
+                          onChange={(event) => { onChoice(p.id, { ...choice, decision: event.target.checked ? 'accept' : 'discard' }) }}
+                        />
+                        <span className={styles.pickText} data-blurred={blocked ? '' : undefined} title={blocked ? undefined : choice.text}>{choice.text}</span>
+                      </label>
+                      {editing === p.id && (
                         <Textarea
                           label={labels.edit}
                           hideLabel
@@ -373,8 +384,6 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
                           value={choice.text}
                           onChange={(event) => { onChoice(p.id, { ...choice, text: event.target.value }) }}
                         />
-                      ) : (
-                        <p className={styles.itemText} data-blurred={blocked ? '' : undefined}>{choice.text}</p>
                       )}
                       <p className={styles.provenance}>{p.provenance}</p>
                       {choice.decision === 'pending' && labels.pendingRuleNote !== undefined && (
@@ -382,17 +391,8 @@ export function ProposalReview({ proposals, choices, onChoice, onSave, saving = 
                       )}
                     </div>
                     <div className={styles.itemActions}>
-                      {blocked ? (
+                      {blocked && (
                         <Button size="s" variant="ghost" onClick={() => { onChoice(p.id, { ...choice, unblocked: true, decision: 'accept' }) }}>{labels.unblock}</Button>
-                      ) : (
-                        <div className={styles.segmented} role="group" aria-label={choice.text.slice(0, 60)}>
-                          <button type="button" aria-pressed={isAccepted} onClick={() => { onChoice(p.id, { ...choice, decision: 'accept' }) }}>
-                            <UiIcon name="check" size={14} strokeWidth={2.6} />{labels.accept}
-                          </button>
-                          <button type="button" aria-pressed={choice.decision === 'discard'} onClick={() => { onChoice(p.id, { ...choice, decision: 'discard' }) }}>
-                            <UiIcon name="close" size={14} strokeWidth={2.4} />{labels.discard}
-                          </button>
-                        </div>
                       )}
                       {!blocked && (
                         <button type="button" className={styles.linkButton} onClick={() => { setEditing(editing === p.id ? null : p.id) }}>

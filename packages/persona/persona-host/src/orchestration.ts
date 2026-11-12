@@ -55,6 +55,7 @@ import {
   parseVaultRecord,
   type TurnActivityEvent,
   type TurnLedgerEntry,
+  type VaultRecord,
 } from '@deepseek-ai/dsh-persona-core'
 import {
   createCoordinationDriver,
@@ -84,7 +85,7 @@ import {
 import { compileSubjectVault } from './wave2.ts'
 import { doneEventId } from './ticket-done.ts'
 import { QuotaWaitBook, type QuotaWaitRow } from './quota-wait.ts'
-import { WindowResumeQueue, conversationResolved, reserveLine, windowClock, WINDOW_NOTICE_KIND, type WindowReserveNotice, type WindowResumeRow } from './window-reserve.ts'
+import { WindowResumeQueue, replayTextOf, reserveLine, unansweredEventIds, windowClock, WINDOW_NOTICE_KIND, type WindowReserveNotice, type WindowResumeRow } from './window-reserve.ts'
 import { backgroundWorkAllowed, ownerAnswerAllowed, type WindowReserve } from '@deepseek-ai/dsh-persona-usage'
 import { safeUsedContext } from './used-context-safety.ts'
 import { foldSubjectSummary, shouldFoldSubject, SUBJECT_RECENT } from './subject-summary.ts'
@@ -95,7 +96,10 @@ import { HeldMessages, heldLine } from './held-messages.ts'
 import { draftFilesOfTurn, filesSavedBody } from './draft-turn-files.ts'
 import { sanitizeUploadName } from './media-detect.ts'
 import { MessageFlags } from './message-flags.ts'
+import { authorityOfRun } from './run-authority.ts'
+import { cameByEmail } from './via-email.ts'
 import { warmKeySuffix } from './connector-policy.ts'
+import { isStationBusyError, type StationGate } from './station/station-gate.ts'
 import { firstMention, mentionsOf } from './mentions.ts'
 import { routeByFunction, type FunctionPart, type FunctionRoute, type RoutablePersona } from './function-route.ts'
 import { blockedSummary, chainOf, chainSentence, downstreamIds, failureLine, SPLIT_BLOCKED, SPLIT_HOLD, SPLIT_NEXT, type SplitHold, type SplitNext } from './split-chain.ts'
@@ -113,7 +117,10 @@ import { ReplyStream } from './reply-stream.ts'
 import { backgroundWorkOf, type BackgroundWork } from './background-work.ts'
 import { talkActivityRows, type TalkStep } from './talk-activity.ts'
 import { clipSpeech, PASSED_LINE, QUIET_TASK_LINE, readPass, shapeSpeech, speechLayer, streamSafe, type SpeechStyle } from './speech.ts'
+import { markerLinesFor } from './turn-markers.ts'
 import { draftInputFiles, runTurnClose, savedFilesSince, type TurnCloseLogEntry } from './turn-close-host.ts'
+import { questionOfWords, talkClosedWords, withoutRefused, type TalkClosed } from './talk-close.ts'
+import { isRulesTooBig, requiredRulesBlock, RULES_TOO_BIG_LINE } from './required-context.ts'
 import type { KnownFacts, TurnCloseVerdict } from './turn-close.ts'
 import { readSpeechStyle, saveSpeechStyle, styleRequestOf } from './speech-style.ts'
 import { ACCESS_RULE, accessLabelOf, type AccessEntry } from './access-map.ts'
@@ -149,6 +156,7 @@ import {
 } from './runner.ts'
 import { isStatusAsk, statusLine, stepWords } from './busy-status.ts'
 import { isContinueStop, stoppedLineOf } from './continue-card.ts'
+import type { ChannelReading, ChannelWire } from './channel-wire.ts'
 
 /** Sticker (Brush catalog) the persona answers a courtesy line with: a heart for thanks, a thumbs-up for the rest. Muse owns the final form. */
 export function courtesyStickerFor(body: string): 'coracao' | 'joinha' {
@@ -442,8 +450,13 @@ export class Orchestration {
   reviewOptions: HostReviewOptions = {}
   /** A question of a ticket was answered (the `answerAttention` Remote or a plain-words reply); `done` false = the sequence advanced. */
   attentionAnswered?: (info: {
-    readonly projectId: string; readonly ticketId: string; readonly attentionId: string
-    readonly optionIds: readonly string[]; readonly text: string; readonly messageId: string; readonly done: boolean
+    readonly projectId: string
+    readonly ticketId: string
+    readonly attentionId: string
+    readonly optionIds: readonly string[]
+    readonly text: string
+    readonly messageId: string
+    readonly done: boolean
   }) => void
   /**
    * A worker ended its turn with a STRUCTURED question (chips, a sequence): open it on the Ticket and post its card. `ok: false` carries a
@@ -522,6 +535,8 @@ export class Orchestration {
   browserOf: ((personaId: string, cli: string) => Promise<TurnBrowser | undefined>) | undefined = undefined
   /** The release of each runner's browser lease, keyed by the runner that holds it. */
   private browserLeases = new Map<Runner, () => void>()
+  /** P1-10 (Item 24): the dedicated station's gate: every turn asks it before it starts (off, or the RAM floor of the paired station) and a refused Task waits for it. Absent = no gate. */
+  stationGate: StationGate | undefined = undefined
   /** Persist T3 §9 rows from `Engine.report` (`assignment.reported`). */
   recordActivity: ((projectId: string, row: TurnActivityEvent) => void) | undefined = undefined
   /** Notify the host after task execution and its channel reply settle; failed means execution threw. */
@@ -530,6 +545,8 @@ export class Orchestration {
   engineReadinessOf: (() => Pick<EngineStatusView, 'state' | 'reason'>) | undefined = undefined
   /** Harvest 10: the official window that pauses the team's own work at 95% (`undefined` = the whole window is free). */
   windowReserveOf: ((projectId: string) => WindowReserve | undefined) | undefined = undefined
+  /** The machine's offset from UTC (minutes east) at an instant: a persona's silence window is the person's wall clock (S1 P1-12). The host binds it; unset = UTC. */
+  localOffsetMinutes: (iso: string) => number = () => 0
   /** Arm host reconnection polling after intake retains a message. */
   onEngineDeferred: (() => void) | undefined = undefined
   /** A Task was stopped by the quota window (IV-7): the host arms its re-check (reset clock, or a fixed period). */
@@ -649,14 +666,46 @@ export class Orchestration {
     }
   }
 
-  /** Close warm leases and Rivet's process pool (quit / pause). */
+  /**
+   * Close warm leases, stop every warm session runner (its open turn is cancelled and its CLI released) and Rivet's process pool (quit / pause).
+   * P0-12: dropping the runners from the map was not stopping them; a turn that was open kept calling tools after the host said it was closing.
+   */
   async disposeRunners(): Promise<void> {
     for (const release of this.browserLeases.values()) release()
     this.browserLeases.clear()
-    for (const runner of this.warmRunners.values()) this.actions?.release(runner)
+    const warm = [...this.warmRunners.values()]
+    for (const runner of warm) this.actions?.release(runner)
     this.warmRunners.clear()
+    await Promise.allSettled(warm.map(runner => this.disposeOf(runner)))
     await this.actions?.closeAll()
     await disposeRunnerSessions()
+  }
+
+  /**
+   * Wait for the Tasks that run in the background to settle, for at most `graceMs`: quitting does not wait for a Task to finish (it is recovered on the next boot), but the
+   * ones whose turn was just cancelled get a moment to wind down BEFORE the store closes under them.
+   * @param graceMs - The most it waits.
+   */
+  async whenBackgroundIdle(graceMs: number = 5_000): Promise<void> {
+    const grace = Promise.withResolvers<void>()
+    const timer = setTimeout(() => { grace.resolve() }, graceMs)
+    timer.unref()
+    try {
+      await Promise.race([this.backgroundWork.whenIdle(), grace.promise])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  /** Stop a warm session runner that knows how (the OAR session runner cancels its open turn and releases the CLI); a fake or an engine-side runner has nothing to stop. */
+  private async disposeOf(runner: Runner): Promise<void> {
+    const dispose: unknown = Reflect.get(runner, 'dispose')
+    if (typeof dispose !== 'function') return
+    try {
+      await Promise.resolve(dispose.call(runner))
+    } catch (error) {
+      void error // a dispose that fails has nobody left to tell: the runner is already out of the warm map
+    }
   }
 
   /**
@@ -730,7 +779,13 @@ export class Orchestration {
     const mandateActorId = firstDeliveryTarget?.mandateActorId
     if (mandateActorId === undefined && this.product.getPersona(event.actorId) !== undefined) return
     const coordination = this.coordinationOf(event.projectId)
-    const mentioned = this.mentionedPersona(event.projectId, event.body)
+    // Item 22: in a channel the message is read through the channel layer (`@Equipe`, `@equipe`, and the fence: only its members answer there).
+    const reading = firstDeliveryTarget === undefined && this.isPersonAuthor(event) ? this.channelWire?.read(event) : undefined
+    const mentioned = reading === undefined ? this.mentionedPersona(event.projectId, event.body) : reading.named[0]
+    if (reading !== undefined && (reading.addressing.outsidePersonas.length > 0 || reading.addressing.outsideTeams.length > 0)) {
+      this.noteOutside(event, reading, coordination)
+      if (reading.named.length === 0) return // nobody on this channel was named: nobody is woken, and the person was told why
+    }
     const dmPeer = streamKind === 'dm' ? this.dmPersona(ownerId, event.actorId) : undefined
     const chosen = firstDeliveryTarget === undefined
       ? ((responderId === '' ? undefined : this.product.getPersona(responderId)) ?? mentioned ?? this.threadResponderOf?.(event) ?? dmPeer)
@@ -768,7 +823,7 @@ export class Orchestration {
       return
     }
     // Harvest 10: at 95% the team's own work waits and the last 5% answers the owner. A spent window (100%) belongs to the limit flow (D-078).
-    if (this.holdForWindow(event, streamKind, ownerId, responderId, speaker, asksWork || firstDelivery !== undefined, resumeText)) return
+    if (this.holdForWindow(event, streamKind, ownerId, responderId, speaker, asksWork || firstDelivery !== undefined, resumeText, firstDelivery)) return
     const rt = this.runtime(event.projectId)
     const original = this.triggerOf(mandateActorId === undefined ? event : { ...event, actorId: mandateActorId }, streamKind, ownerId, mentioned !== undefined || streamKind === 'dm')
     const trigger = resumed ?? { ...original, ...(resumeText === undefined ? {} : { text: resumeText }), meta: { ...original.meta, responderId,
@@ -880,10 +935,24 @@ export class Orchestration {
     const only = firstDeliveryTarget?.mode === 'task' ? ticket?.id : undefined
     // `settleTask` reports its own failures and does not reject; this is the net for anything that still escapes, so one Task can
     // never take the host down (an unhandled rejection) nor leave the work chain rejected for every Task after it.
-    this.work = this.work.then(() => this.settleTask(rt, event, coordination, owner, only)).catch((error: unknown) => {
+    this.work = this.work.then(() => {
+      const task = this.settleTask(rt, event, coordination, owner, only)
+      // P1-02 / item 12: the ordinary road runs through the background book too (only `driveTicket` did): past the threshold the Task moves itself to the background, the persona says so once
+      // and the work chain is free for her channel while it keeps running (it stays tracked until it settles). The clock starts now, when the host starts the Task.
+      return ticket === undefined || owner === undefined ? task : this.backgroundWork.run(ticket.id, task, undefined, 0, () => { this.noteBackground(event, owner, ticket.id) })
+    }).catch((error: unknown) => {
       if (error instanceof Error && /not open/i.test(error.message)) return
       this.softFailure('settle-task', error)
     })
+  }
+
+  /** Item 12: ONE line, in the thread, when a Task moves to the background ("Sigo no fundo; te aviso quando terminar."). */
+  private noteBackground(event: StoredEvent, persona: StoredPersona, ticketId: string): void {
+    try {
+      this.postAs(event, persona, `background-${ticketId}`, 'Sigo no fundo; te aviso quando terminar.')
+    } catch (error: unknown) {
+      this.lastErrors.push(error instanceof Error ? error.message : String(error))
+    }
   }
 
   /**
@@ -988,10 +1057,7 @@ export class Orchestration {
       this.browserLeases.delete(runner)
       this.actions?.release(runner)
       evicted += 1
-      const dispose: unknown = Reflect.get(runner, 'dispose')
-      if (typeof dispose === 'function') {
-        void Promise.resolve(dispose.call(runner)).catch((error: unknown) => { void error })
-      }
+      void this.disposeOf(runner) // P0-12: not awaited (the person's click does not wait for a CLI), but never left running
     }
     return evicted
   }
@@ -1032,6 +1098,32 @@ export class Orchestration {
         continue
       }
       await this.driveTicket(projectId, ticket.id)
+      resumed += 1
+    }
+    return resumed
+  }
+
+  /**
+   * P1-10 (Item 24): run again, in order, the Tasks the dedicated station stopped ("sem vaga"), when it is turned on or there is memory again. Each Ticket gets a new
+   * Assignment (`retryTicket`) and runs once; a Ticket that moved on since (retried, stopped, finished) is dropped without running. A Task the station refuses again
+   * goes back to the waiting list by the same road that stopped it.
+   * @returns How many Tasks were run again.
+   */
+  async resumeStationWaiting(): Promise<number> {
+    const gate = this.stationGate
+    if (gate === undefined) return 0
+    let resumed = 0
+    for (const row of gate.takeWaiting()) {
+      const rt = this.runtime(row.projectId)
+      const ticket = rt.repo.tickets.get(row.ticketId)
+      if (ticket === undefined || ticket.ended !== undefined || latestAssignment(ticket)?.id !== row.assignmentId) continue
+      try {
+        rt.engine.retryTicket(ticket.id)
+      } catch (error) {
+        void error
+        continue
+      }
+      await this.driveTicket(row.projectId, ticket.id)
       resumed += 1
     }
     return resumed
@@ -1220,7 +1312,8 @@ export class Orchestration {
   /** CV-8: a conversation message that names two or more personas starts a block instead of being answered by the first one. */
   private startMentionsFanout(event: StoredEvent): boolean {
     if (!this.fanoutEnabled || this.onMentionsFanout === undefined) return false
-    const cited = mentionsOf(this.product.listPersonas(event.projectId), event.body)
+    const read = this.channelWire?.read(event) // Item 22: `@Equipe` calls the equipe; only the members of the channel answer
+    const cited = read !== undefined ? [...read.named] : mentionsOf(this.product.listPersonas(event.projectId), event.body)
     if (cited.length < 2) return false
     this.onMentionsFanout(event, cited)
     return true
@@ -1304,7 +1397,7 @@ export class Orchestration {
       return { started: false, reason: 'paused' }
     }
     const autonomy = new ProactivityRepos(this.store, this.now).getAutonomy(projectId, persona.id)
-    if (silenceUntilOf(this.now(), autonomy.silenceStart, autonomy.silenceEnd) > 0) {
+    if (silenceUntilOf(this.now(), autonomy.silenceStart, autonomy.silenceEnd, this.localOffsetMinutes(this.now())) > 0) {
       const until = autonomy.silenceEnd ?? ''
       say(persona, 'held', `“${ticket.title}” fica em Fazendo e começa quando acabar o silêncio de ${persona.name}${until === '' ? '' : ` (às ${until})`}.`, 'silence', until)
       return { started: false, reason: 'silence' }
@@ -1508,8 +1601,19 @@ export class Orchestration {
     const running = rt.repo.tickets.list().find(ticket => ticket.ended === undefined && latestAssignment(ticket)?.state === 'running')
     if (running === undefined) return false
     const asks = this.asksStatus(event)
+    // P1-02: a Task that already moved to the background has freed the persona: "Estou terminando…" over every message would say she is busy. Only a question about how it is going is answered.
+    if (this.backgroundWork.isBackground(running.id) && !asks) return false
     this.postStatus(rt, event, speaker, running, asks)
     return asks
+  }
+
+  /** Item 22: somebody named is not on this channel: say so right after the message (never silence, never blocking). */
+  private noteOutside(event: StoredEvent, reading: ChannelReading, speaker: StoredPersona | undefined): void {
+    const notices = this.channelWire?.noticesOf(reading) ?? []
+    if (notices.length === 0) return
+    const lineId = `coord-${event.id}-outside`
+    this.postAs(event, speaker, lineId, notices.map(notice => notice.text).join(' '))
+    if (this.screens !== undefined) new MessageFlags(this.screens).set(event.projectId, lineId, { channelNotice: notices })
   }
 
   /** Item 7: ends the Task as stopped by the person and writes the same short line "Parar" writes, in the thread of the answer. */
@@ -1531,6 +1635,9 @@ export class Orchestration {
   private asksStatus(event: StoredEvent): boolean {
     return this.isPersonAuthor(event) && isStatusAsk(event.body, this.product.listPersonas(event.projectId).map(item => item.name))
   }
+
+  /** Item 22: the channel layer (set by the host); `undefined` = every message is read as before. */
+  channelWire: ChannelWire | undefined = undefined
 
   /**
    * Item 7: the step the open turn of a Task is on, in plain words (never a tool name or a path), from the last tool the turn really called.
@@ -1806,11 +1913,20 @@ export class Orchestration {
   ): void {
     const coord = this.coordinationOf(event.projectId)
     const autonomy = coord === undefined ? undefined : new ProactivityRepos(this.store, this.now).getAutonomy(event.projectId, coord.id)
-    const silenceEnd = autonomy !== undefined && silenceUntilOf(this.now(), autonomy.silenceStart, autonomy.silenceEnd) > 0 ? (autonomy.silenceEnd ?? '') : ''
+    const silenceEnd = autonomy !== undefined && silenceUntilOf(this.now(), autonomy.silenceStart, autonomy.silenceEnd, this.localOffsetMinutes(this.now())) > 0 ? (autonomy.silenceEnd ?? '') : ''
     if (this.screens !== undefined) {
       new HeldMessages(this.screens).hold(event.projectId, { eventId: event.id, streamKind, ownerId, responderId, at: this.now() })
     }
     this.postAs(event, speaker, `coord-${event.id}-held`, heldLine(speaker.name, silenceEnd))
+  }
+
+  /**
+   * Whether the 95% window reserve is keeping this request (it runs when the window renews). The scheduler reads it so a routine held by the reserve is not sent again every cycle.
+   * @param projectId - Tenant.
+   * @param eventId - The stored request.
+   */
+  heldByWindow(projectId: string, eventId: string): boolean {
+    return this.screens !== undefined && new WindowResumeQueue(this.screens).list(projectId).some(row => row.eventIds.includes(eventId))
   }
 
   /**
@@ -1829,6 +1945,7 @@ export class Orchestration {
     speaker: StoredPersona | undefined,
     work: boolean,
     resumeText: string | undefined,
+    firstDelivery?: FirstDeliveryRouteDirective,
   ): boolean {
     if (resumeText !== undefined || pauseCommandOf(event.body) !== undefined) return false
     const reserve = this.windowReserveOf?.(event.projectId)
@@ -1849,6 +1966,7 @@ export class Orchestration {
       since: event.occurredAt,
       sinceSeq: event.seq,
       ...(reserve.resetsAt === undefined ? {} : { resetAt: reserve.resetsAt }),
+      ...(firstDelivery === undefined ? {} : { firstDelivery }),
     }
     const result = queue.hold(event.projectId, row)
     const notice = this.screens.get<WindowReserveNotice>(event.projectId, WINDOW_NOTICE_KIND, conversationId)
@@ -1878,17 +1996,9 @@ export class Orchestration {
     const rows = queue.list(projectId)
     let released = 0
     for (const row of rows) {
-      const resolved = conversationResolved(
-        this.events.listProject(projectId),
-        row,
-        event => this.isPersonAuthor(event),
-        id => this.hasFinalLine(projectId, id),
-      )
-      if (resolved) {
-        queue.drop(projectId, row.conversationId)
-        continue
-      }
-      const events = row.eventIds
+      // P0-08: every held request is judged on ITS OWN. A quick answer to a different question never erases a work request that waits; only a
+      // request the persona answered on its own is skipped, and the rest of the row still runs.
+      const events = unansweredEventIds(row, id => this.hasFinalLine(projectId, id))
         .map(id => this.events.get(id))
         .filter((event): event is StoredEvent => event !== undefined)
       if (events.length === 0) {
@@ -1896,14 +2006,14 @@ export class Orchestration {
         continue
       }
       const carrier = events.find(event => this.isPersonAuthor(event)) ?? events[0]!
-      const text = events.map(event => event.body).join('\n\n')
+      const text = replayTextOf(events.map(event => event.body))
       this.ingest(
         carrier,
         row.streamKind,
         row.ownerId,
         row.responderId,
         undefined,
-        undefined,
+        row.firstDelivery,
         `Pedidos que chegaram enquanto a janela estava cheia (retome todos, em ordem):\n\n${text}`,
       )
       queue.drop(projectId, row.conversationId)
@@ -1957,7 +2067,13 @@ export class Orchestration {
     for (const [key, runner] of this.warmRunners) {
       if (key.startsWith(own)) return runner
     }
-    return this.warmRunners.get(`${projectId}:${persona.id}:task`) ?? this.warmRunners.get(`${projectId}:${persona.id}:task:answer-only`)
+    // The key of a runner without connectors is `…:task` + `:files` (file grant) + `:browser` (the persona's browser, P0-05): every variant is HER task runner.
+    const plain = `${projectId}:${persona.id}:task`
+    for (const suffix of ['', ':files', ':browser', ':files:browser']) {
+      const hit = this.warmRunners.get(`${plain}${suffix}`)
+      if (hit !== undefined) return hit
+    }
+    return this.warmRunners.get(`${plain}:answer-only`)
   }
 
   /**
@@ -1988,9 +2104,17 @@ export class Orchestration {
     const sessionId = workerSessionId(ticketId)
     if (runner === undefined || runner.status(sessionId) !== 'running') return false
     // The open turn takes the text and answers at once: the person's request must not wait for the turn to end.
-    if (runner.steer !== undefined) return runner.steer(sessionId, requestId, text)
-    await runner.deliver(sessionId, requestId, text, 'steer')
-    return true
+    if (runner.steer === undefined) {
+      await runner.deliver(sessionId, requestId, text, 'steer')
+      return true
+    }
+    if (await runner.steer(sessionId, requestId, text)) return true
+    // S1 P0-06: the runtime did not take it into the open turn (between two steps, or it refused). The line `steer:…` was already absorbed by this ticket
+    // (`absorb` assumes the steer delivers it), so nothing else would: the person's text waits behind the open turn and is read right after it.
+    void runner.deliver(sessionId, requestId, text, 'queue').catch((error: unknown) => {
+      this.lastErrors.push(error instanceof Error ? error.message : String(error))
+    })
+    return false
   }
 
   /**
@@ -2004,10 +2128,15 @@ export class Orchestration {
     const rt = this.runtime(projectId)
     const ticket = rt.repo.tickets.get(ticketId)
     if (ticket === undefined || ticket.ended !== undefined) return false
+    // Parar marks the Task BEFORE the engine ends it: a turn that reports after this point must not post an error over the owner's decision.
+    this.stopped.add(ticketId)
     const runner = this.taskRunnerOf(projectId, ticketId)
     const live = runner !== undefined && runner.status(workerSessionId(ticketId)) === 'running'
-    if (live) this.stopped.add(ticketId)
     rt.engine.stopTicket(ticketId, reason)
+    // P1-07: EVERY road to a stop ends here (Parar of the composer, "Parar por aqui", Descartar, the card's command), so what a stop leaves behind is closed here, once: the parts of a
+    // split request that waited for this one are blocked (one honest line to the owner), and a request this Task was asked to do for a colleague is closed as not done (she is woken).
+    this.splitProducerStopped(projectId, ticketId)
+    this.ticketSettled?.({ projectId, ticketId, state: 'failed' })
     if (live) await runner.cancel(workerSessionId(ticketId), { keepInbox: true })
     return true
   }
@@ -2029,7 +2158,7 @@ export class Orchestration {
   }
 
   /** Settle the streaming message under the same id; with nothing streamed, post the reply as usual. Idempotent. */
-  private settleReply(event: StoredEvent, speaker: StoredPersona, id: string, body: string, type: string): void {
+  private settleReply(event: StoredEvent, speaker: StoredPersona | undefined, id: string, body: string, type: string): void {
     if (this.events.settlePartial(id, body, type)) return
     this.postAs(event, speaker, id, body, type)
   }
@@ -2037,7 +2166,8 @@ export class Orchestration {
   private finishStopped(event: StoredEvent, speaker: StoredPersona, replyId: string, partial: string): void {
     const text = clipWords(partial).trim()
     if (text === '') {
-      this.postAs(event, speaker, replyId, 'Resposta cancelada.')
+      // Carbon P1-03: a bubble that was already open is SETTLED (postAs does nothing when the id exists, and the bubble would spin forever).
+      this.settleReply(event, speaker, replyId, 'Resposta cancelada.', 'message')
       return
     }
     this.settleReply(event, speaker, replyId, text, 'runner')
@@ -2541,8 +2671,11 @@ export class Orchestration {
     onFirstToken?: (text: string) => void,
     answerOnly: boolean = false,
     ticketId?: string,
+    /** P0-07: the ONE conversation a talk runner serves (see `HostRunnerRequest.thread`); it is part of the key: a conversation never shares its CLI history with another. */
+    thread?: string,
   ): Promise<Runner> {
     this.mark(`resolve:${purpose}:start`)
+    this.stationGate?.admit() // P1-10: the dedicated station takes the turn or says "sem vaga" (StationBusyError) before anything is opened
     const spec = specFromConnection(persona.runner, this.loggedCliOf?.(projectId))
     // Only a Task's execution on a CLI gets connectors; conversation and the answer-only calls never do (D-081: no grant, nothing enters).
     // They are read BEFORE the key is built (HT-8/HT-9): a Task that carries connectors gets a runner of its own, because the
@@ -2557,9 +2690,13 @@ export class Orchestration {
     // runner built with the grant is never reused for a Task without a draft.
     const draftDirectory = !answerOnly && purpose === 'task' && ticketId !== undefined ? this.runtime(projectId).repo.tickets.get(ticketId)?.execution?.directory : undefined
     const taskTools = toolsForTask(persona.tools, draftDirectory, spec.kind === 'cli')
-    const key = `${projectId}:${persona.id}:${purpose}${answerOnly ? ':answer-only' : ''}${warmKeySuffix(connectors, ticketId)}${spec.kind === 'cli' && canSaveFiles(taskTools) ? ':files' : ''}`
+    const key = `${projectId}:${persona.id}:${purpose}${answerOnly ? ':answer-only' : ''}${warmKeySuffix(connectors, ticketId)}${spec.kind === 'cli' && canSaveFiles(taskTools) ? ':files' : ''}${browser === undefined ? '' : ':browser'}${purpose === 'talk' && thread !== undefined ? `:t:${thread}` : ''}`
     const cached = this.warmRunners.get(key)
     if (cached !== undefined) {
+      // P0-05: the browser is part of what the runner was opened with (the key carries it), so a runner that holds it is only ever handed to a Task that carries it, and one opened
+      // without it never serves a Task that does. The lease just opened for THIS call is redundant (the cached runner holds its own): it goes back, or the profile's turn lock leaks.
+      browser?.release()
+      this.stationGate?.track(cached)
       this.mark(`resolve:${purpose}:warm`)
       return cached
     }
@@ -2600,8 +2737,14 @@ export class Orchestration {
       ...(gate === undefined ? {} : { permissionGate: gate }),
       ...(productTools === undefined ? {} : { productTools }),
       ...(browser === undefined ? {} : { extraMcpServers: [browser.server] }),
+      // Carbon P0-03a: the runner stays warm across Tasks, so who a turn acts for is asked per turn, from the real origin of THAT Task (a Task the host cannot read is not a person's).
+      ...(purpose === 'task' && !answerOnly ? { authorityOf: (turnTicketId: string) => {
+        const turnTicket = this.runtime(projectId).repo.tickets.get(turnTicketId)
+        return turnTicket === undefined ? 'unattended' as const : authorityOfRun(turnTicket, { ticket: id => this.runtime(projectId).repo.tickets.get(id) })
+      } } : {}),
       ...(talkCwd === '' ? {} : { cwd: talkCwd }),
       ...(onFirstToken === undefined ? {} : { onFirstToken }),
+      ...(purpose === 'talk' && thread !== undefined ? { thread } : {}),
       ...(home === '' ? {} : { home }),
       ...(usage === undefined && this.recordLedger === undefined ? {} : {
         usage: {
@@ -2663,9 +2806,18 @@ export class Orchestration {
       throw error
     }
     if (gate !== undefined) this.actions?.adopt(runner, gate)
-    if (browser !== undefined) this.browserLeases.set(runner, browser.release)
+    if (browser !== undefined) {
+      this.browserLeases.set(runner, browser.release)
+      // P1-10: the profile's turn is the persona's only while she works. When this runner's turn ends (or fails) the profile goes back, so the next persona can drive it
+      // (the Chrome stays up; `release` is idempotent and does nothing once someone else holds the turn). Before, it went back only when the warm runner was evicted, and an open
+      // Chrome pins its opener with no deadline, so a second persona with the same profile was told "busy" for as long as the first one's runner stayed warm.
+      runner.onEvent((event) => {
+        if (event.type === 'idle' || event.type === 'error') this.browserLeases.get(runner)?.()
+      })
+    }
     this.usageContexts.set(runner, usageContext)
     this.warmRunners.set(key, runner)
+    this.stationGate?.track(runner)
     this.mark(`resolve:${purpose}:ready`)
     return runner
   }
@@ -2685,6 +2837,9 @@ export class Orchestration {
       question: line,
     })
     if (error.code === 'quota_exhausted' && stopped !== undefined) this.waitForQuota(event.projectId, stopped, error)
+    // P1-10 (Item 24): the dedicated station did not take the turn ("sem vaga"): the Task waits for it and runs again by itself (switch turned on, or memory back).
+    const stoppedAssignment = stopped === undefined ? undefined : latestAssignment(stopped)
+    if (error.code === 'station_busy' && stoppedAssignment !== undefined) this.stationGate?.waitFor({ projectId: event.projectId, ticketId, assignmentId: stoppedAssignment.id })
     const ticket = rt.repo.tickets.get(ticketId)
     // The line is a courtesy and the Task is already blocked above: if the store refuses the line, the board still hears that it settled.
     try {
@@ -2760,7 +2915,8 @@ export class Orchestration {
         // OPT-5 (W1): triage is support work. It runs on the cheap talk slot, not on the executor's task runner;
         // if that cannot resolve, it falls back to the executor's runner exactly as before.
         // answerOnly gives it its own runner object (no tools, deny): it never shares the talk reply's callbacks or ledger kind.
-        const triageRunner = await this.resolveFor(coordinationPersona, event.projectId, 'asked', 'talk', undefined, true).catch(() => runner)
+        // (the triage is a thread of its own: it keeps its warm process, and it shares no history with any conversation or one-shot answer)
+        const triageRunner = await this.resolveFor(coordinationPersona, event.projectId, 'asked', 'talk', undefined, true, undefined, 'triage').catch(() => runner)
         this.setRunnerUsageContext(triageRunner, 'triage')
         const driver = createCoordinationDriver({
           runner: triageRunner,
@@ -2804,7 +2960,10 @@ export class Orchestration {
         // The art (an SVG in her words) as an image for the colleague's turn, through the same bridge as a photo the person attached. No PNG = the SVG text is in the block.
         const handedImages = handed === undefined || !runnerSeesImages(runner) ? [] : (await this.entregaImagesOf?.(event.projectId, ticket.origin.triggerId, ticket.execution?.directory ?? '.')) ?? []
         const withHanded = handed === undefined ? withColleagues : `${withColleagues}\n\n${handed}${handedImages.length === 0 ? '' : '\n[Anexo: a arte em SVG acima foi convertida em PNG e vai como imagem neste pedido.]'}`
-        const assignment = guidance === undefined ? withHanded : `${withHanded}\n\n${guidance}`
+        const withGuidance = guidance === undefined ? withHanded : `${withHanded}\n\n${guidance}`
+        // Carbon RED-3: "a regra da casa vale em todo turno": the required rules (constraint/decision) reach a Task's prompt too, all of them (the conversation and the first delivery already carry them).
+        const houseRules = answerOnlyRoute ? '' : requiredRulesBlock(this.usedContext.get(event.id) ?? [])
+        const assignment = houseRules === '' ? withGuidance : `${withGuidance}\n\n${houseRules}`
         const prompt = !answerOnlyRoute ? assignment : firstDeliveryExecutionPrompt({
           fields: {
             identity: { name: executor.name, title: executor.title },
@@ -2823,7 +2982,9 @@ export class Orchestration {
         if (this.turnInputs.length > 100) this.turnInputs.shift()
         const seen = this.turnImages(event, executor, runner, [ticket.origin.triggerId, ...ticket.origin.triggerIds, ...splitParentOf(ticket.origin.triggerId)], ticket.execution?.directory ?? '.', `coord-${ticket.id}-images`)
         // COLHEITA 8/19b: a Task started by an e-mail the person received never pre-allows `send`; the person's card decides every send.
-        const runOrigin = { ...(rt.repo.triggers.get(ticket.origin.triggerId)?.viaEmail === true ? { viaEmail: true } : {}) }
+        // S1 P0-03b: the mark is contagious (a colleague's Task, a part of a split, a held batch, a later input), not only the Task's own origin.
+        // Carbon P0-03a: and who the run acts for comes from the Task's real origin (a routine, an event, the team's own initiative are not a person): the gate refuses what would need a person's decision.
+        const runOrigin = { authority: authorityOfRun(ticket, { ticket: id => rt.repo.tickets.get(id) }), ...(cameByEmail(ticket, { trigger: id => rt.repo.triggers.get(id), ticket: id => rt.repo.tickets.get(id) }) ? { viaEmail: true } : {}) }
         this.actions?.arm(runner, ticket.id, ticket.execution?.directory, runOrigin) // HT-9: what the policy lets through + what the person approved for THIS Task
         await deliverWithImages(
           runner,
@@ -2845,6 +3006,9 @@ export class Orchestration {
         // A "Pronto!" no tool backs, a question she could answer herself and a secret asked in the chat go back to her ONCE as an internal note (never in the
         // thread); after the budget (3 extra turns) her false words are replaced by an honest sentence and the Task waits with the card "Continuar".
         let rawWords = this.takeLive(runner)
+        // Parar reached the host between the turn and its report (the owner's click lands while the words are read): the Task already ended
+        // as stopped, so nothing of this turn may be posted — no error line, no "Pronto", no card.
+        if (this.stopped.delete(ticket.id)) continue
         let closing: TurnCloseVerdict | undefined
         if (this.turnClose) {
           const outcome = await runTurnClose({
@@ -2854,7 +3018,8 @@ export class Orchestration {
               || ['failed', 'blocked', 'dropped'].includes(lastRunnerReport(runner)?.state ?? '')
               || this.liveAsk !== undefined || lastRunnerAsk(runner) !== undefined || this.liveQuestion !== undefined || lastRunnerQuestion(runner) !== undefined
               || (ticket.attention === undefined && rt.repo.tickets.get(ticket.id)?.attention !== undefined),
-            tools: () => this.takeTools(runner),
+            // Carbon P1-01: a call the gate refused (outside the draft, outside the mandate, a rule) did nothing: it is not proof of work.
+            tools: () => withoutRefused(this.takeTools(runner), held?.refused ?? []),
             savedFiles: () => savedFilesSince(ticket.execution?.directory, turnFrom),
             hadTools: !answerOnlyRoute,
             // Forge: an ask_colleague she made has not come back yet (a pure read; pass_forward does not count): her turn is a wait, never a "Pronto".
@@ -2942,7 +3107,11 @@ export class Orchestration {
         }
         // Item 3: a secret asked in the chat never reaches the thread: the Task waits with the sentence that points to the Cofre.
         const secretAsk = closing?.kind === 'esperar-dono' && closing.motivo === 'segredo' ? closing.fala : undefined
-        const asked = secretAsk ?? this.takeQuestion(runner) ?? firstAskQuestion(structured)
+        const askedByTool = secretAsk ?? this.takeQuestion(runner) ?? firstAskQuestion(structured)
+        // Carbon P1-01: a turn that ENDS on a question (perguntou = espera) is a Task that waits for the owner: never `ready` (no review, no step that depends on it).
+        // Her own words stay as the line; the question is the last one she asked.
+        const askedByWords = askedByTool === undefined && closing?.kind === 'esperar-dono' && closing.motivo === 'perguntou' ? questionOfWords(saidFull) : undefined
+        const asked = askedByTool ?? askedByWords
         // Once the person answered (a later Assignment), the title/body heuristic must not ask the same thing again.
         const firstRun = ticket.assignments.length <= 1
         const ask = asked !== undefined || (firstRun && (wantsAttention(ticket.title) || wantsAttention(event.body)))
@@ -2970,7 +3139,7 @@ export class Orchestration {
         if (ask) {
           rt.engine.report(ticket.id, {
             ...(report === undefined ? {} : withoutAsk(report)),
-            state: 'waiting', summary: secretAsk ?? report?.summary ?? question, question,
+            state: 'waiting', summary: secretAsk ?? (askedByWords === undefined ? report?.summary : undefined) ?? question, question,
           })
         } else {
           const currentTicket = rt.repo.tickets.get(ticket.id)
@@ -2995,9 +3164,9 @@ export class Orchestration {
             speaker,
             doneId,
             ask
-              ? `Precisa de você: ${question}`
+              ? (askedByWords === undefined ? `Precisa de você: ${question}` : this.taskLine(event.projectId, live, question))
               : this.taskLine(event.projectId, live, this.scriptedReady(live, ticket.title)),
-            live === '' || ask ? 'message' : 'runner',
+            live === '' || (ask && askedByWords === undefined) ? 'message' : 'runner',
             stateOfPassage ? 'team:passage-done' : undefined,
           )
         }
@@ -3027,7 +3196,8 @@ export class Orchestration {
     let runner: Runner
     try {
       const contextWork = this.compileUsed(event, speaker)
-      runner = await this.resolveFor(speaker, event.projectId, 'asked', 'talk', () => { this.mark('first-token') })
+      // P0-07: the reply is served by the runner of ITS conversation (the stream, and the subject when the stream has them), never by one runner every conversation of the persona shares.
+      runner = await this.resolveFor(speaker, event.projectId, 'asked', 'talk', () => { this.mark('first-token') }, false, undefined, `${event.streamId}${event.topicId === undefined || event.topicId === '' ? '' : `#${event.topicId}`}`)
       // The reply grows in the thread as ONE message while the model writes (streaming); it settles under the same id below.
       // `streamSafe`: a silent run (the pass token, half-typed or whole) never opens a bubble, and a `<details` tag still being typed never shows.
       setRunnerPartialSink(runner, (text) => { stream.push(streamSafe(text)) })
@@ -3051,8 +3221,13 @@ export class Orchestration {
       }
       await this.noteUsage(event.projectId, speaker, `talk-${event.id}`, runner)
       // Colheita §6: the conversation turn leaves its steps in the activity book, so the collapsed "N passos · tempo" appears here too.
-      for (const row of talkActivityRows({ eventId: event.id, personaId: speaker.id, steps: this.takeToolSteps(runner) })) {
-        this.recordActivity?.(event.projectId, row)
+      // The summary is a courtesy: a bookkeeping failure must never turn the reply into an error in the person's face.
+      try {
+        for (const row of talkActivityRows({ eventId: event.id, personaId: speaker.id, steps: this.takeToolSteps(runner) })) {
+          this.recordActivity?.(event.projectId, row)
+        }
+      } catch (error: unknown) {
+        this.lastErrors.push(error instanceof Error ? error.message : String(error))
       }
     } catch (error: unknown) {
       stream.stop()
@@ -3071,8 +3246,22 @@ export class Orchestration {
       this.failReply(event, speaker, new Error('resposta vazia'))
       return
     }
+    // Item 3 (colheita), in the conversation: how the turn ENDS is decided by rules on her RAW words, before the speech layer (a "Salvei o arquivo" no tool backs is held back).
+    let words = raw
+    let replaced = false
+    if (this.turnClose && !this.scripted) {
+      try {
+        const closed = await this.closeTalkTurn(event, speaker, runner, replyId, raw)
+        if (this.cancelled.has(event.id)) { this.finishStopped(event, speaker, replyId, stream.text); return } // Parar, during an extra turn
+        words = closed.words
+        replaced = closed.replaced
+      } catch (error: unknown) {
+        this.failReply(event, speaker, error)
+        return
+      }
+    }
     // Simple speech + the right to stay silent (harvest item 4): the owner's words, technical sentences folded, the pass token never shown.
-    const spoken = shapeSpeech(raw, { style: this.speechStyleOf(event.projectId), userText: event.body, lean: finishHostTalk })
+    const spoken = shapeSpeech(words, { style: this.speechStyleOf(event.projectId), userText: event.body, lean: finishHostTalk })
     if (spoken.passed) {
       this.settlePassedReply(event, speaker, replyId)
       return
@@ -3087,11 +3276,40 @@ export class Orchestration {
           void error
         }
       }
-      this.settleReply(event, speaker, replyId, clipWords(body), live !== '' ? 'runner' : 'message')
+      this.settleReply(event, speaker, replyId, clipWords(body), live !== '' && !replaced ? 'runner' : 'message')
       if (queuedId !== undefined && this.events.has(replyId)) rt.outbox.settle(queuedId, 'sent')
     })
     this.mark('reply')
     this.deliverOutbox(rt, event, speaker)
+  }
+
+  /**
+   * Item 3 in the conversation: ask the end-of-turn rules (turn-close.ts) and, while they say "continuar", hand her the internal note in the SAME session and run the
+   * turn again. A conversation has no tools and no draft (`hadTools: false`, no saved file) and no Task to "Continuar": see talk-close.ts. The bubble that is already
+   * streaming follows the new words, and the settled message never carries a claim nothing backs.
+   */
+  private async closeTalkTurn(event: StoredEvent, speaker: StoredPersona, runner: Runner, replyId: string, raw: string): Promise<TalkClosed> {
+    const session = `talk-${event.id}`
+    const outcome = await runTurnClose({
+      words: raw,
+      hadTools: false,
+      // In a conversation the HOST acts for her (routes, forwards): "já encaminhei" can be true. Bolt: only what the host cannot do (a saved file) is still checked.
+      hostActs: true,
+      stepAside: () => this.cancelled.has(event.id),
+      tools: () => this.takeTools(runner),
+      savedFiles: () => 0,
+      known: { ownerTexts: [event.body], companyTexts: (this.usedContext.get(event.id) ?? []).filter(row => !row.restricted).map(row => row.body) },
+      rerun: async (cobranca, turn) => {
+        setRunnerPartialSink(runner, (text) => { try { this.events.updatePartial(replyId, clipWords(streamSafe(text))) } catch { /* the bubble is a courtesy */ } })
+        await runner.deliver(session, `close:${event.id}:${String(turn)}`, cobranca, 'queue')
+        await runner.whenIdle(session)
+        setRunnerPartialSink(runner, undefined)
+        await this.noteUsage(event.projectId, speaker, session, runner)
+        return this.takeLive(runner)
+      },
+    })
+    for (const entry of outcome.log) this.noteTurnClose(event.id, entry)
+    return talkClosedWords(outcome)
   }
 
   /**
@@ -3175,7 +3393,7 @@ export class Orchestration {
         functionLabel: role,
         vault: '',
         colleagues,
-        capabilities: `resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta; ${this.speechLayerFor(event)}`,
+        capabilities: `resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta; ${this.speechLayerFor(event)}${markerLinesFor(this.isPersonAuthor(event))}`,
       },
       surface: 'talk',
       userText: citeAttachments(event.body, this.attachmentNamesOf?.(event.id) ?? []),
@@ -3270,6 +3488,14 @@ export class Orchestration {
     }
   }
 
+  /** Carbon RED-3: the one plain sentence the owner reads when the house rules do not fit in a turn; once per version of the rules (their count and size), idempotent by id. */
+  private sayRulesTooBig(event: StoredEvent, speaker: StoredPersona, records: readonly VaultRecord[]): void {
+    const rules = records.filter(record => isRequiredVaultKind(record.kind) && record.visibility.kind === 'workspace')
+    const id = `rules-too-big-${event.projectId}-${String(rules.length)}-${String(rules.reduce((sum, record) => sum + record.body.length, 0))}`
+    if (this.events.has(id)) return
+    this.postAs(event, speaker, id, RULES_TOO_BIG_LINE, 'message')
+  }
+
   private async compileUsedNow(event: StoredEvent, speaker: StoredPersona): Promise<UsedContextRecord[]> {
     this.mark('compile-context')
     const vault = this.vault
@@ -3306,7 +3532,9 @@ export class Orchestration {
           snapshotRevision: this.now(),
         })
       }
-    } catch {
+    } catch (error: unknown) {
+      // Carbon RED-3: house rules bigger than the budget are never dropped (every one stays in `used` below and reaches the prompt) and never silent: the owner is told once per version of the rules.
+      if (isRulesTooBig(error)) this.sayRulesTooBig(event, speaker, records)
       // Required Cofre denied still appears in Contexto usado as restricted.
     }
     const used: UsedContextRecord[] = records.map(record => ({
@@ -3432,6 +3660,13 @@ export class Orchestration {
 
   private reportRunFailure(event: StoredEvent, speaker: StoredPersona | undefined, error: unknown): void {
     this.recordRunFailure(event, error)
+    // Parar is not a failure: a Task the owner stopped never reports one, whatever its turn or its resolve answered afterwards.
+    const stopped = this.runtime(event.projectId).repo.tickets.list()
+      .find(item => this.stopped.has(item.id) && (item.origin.triggerId === event.id || item.origin.triggerIds.includes(event.id)))
+    if (stopped !== undefined) {
+      this.stopped.delete(stopped.id)
+      return
+    }
     if (isRunnerResolveError(error)) {
       const tickets = this.runtime(event.projectId).repo.tickets.list()
         .filter(item => item.origin.triggerId === event.id)
@@ -3439,14 +3674,17 @@ export class Orchestration {
         this.reportResolveFailure(this.runtime(event.projectId), event, speaker, tickets[0].id, error)
         return
       }
-      this.postAs(event, speaker, `coord-${event.id}-reply`, channelLineFor(error, speaker?.name), 'error')
+      this.settleReply(event, speaker, `coord-${event.id}-reply`, channelLineFor(error, speaker?.name), 'error') // Carbon P1-03: settles an open bubble too
       return
     }
     // ENG-1: a refusal by the real-turn cap (D-069, fail closed) is NOT "engine unavailable": the cap stopped the turn before the CLI
     // started, and the person is told so in the cap's own words ("Nada foi iniciado."). The cap itself is untouched: it still refuses.
+    // P1-10: a refusal by the dedicated station is the same kind of thing: the turn never started and the sentence is the cause ("desligado", "sem memória").
     const failure = isRealTurnCapError(error)
       ? { code: 'real_turn_cap', message: error.message }
-      : { code: 'engine_unavailable', message: 'A execução falhou. Tente de novo ou escolha outro motor.' }
+      : isStationBusyError(error)
+        ? { code: 'station_busy', message: error.message }
+        : { code: 'engine_unavailable', message: 'A execução falhou. Tente de novo ou escolha outro motor.' }
     this.lastErrors.push(failure.message)
     if (this.lastErrors.length > 8) this.lastErrors.shift()
     const rt = this.runtime(event.projectId)
@@ -3458,7 +3696,7 @@ export class Orchestration {
       for (const ticket of tickets) this.reportResolveFailure(rt, event, speaker, ticket.id, failure)
       return
     }
-    this.postAs(event, speaker, `coord-${event.id}-reply`, failure.code === 'real_turn_cap' ? failure.message : `Não consegui responder. ${channelLineFor(failure, speaker?.name)}`, 'error')
+    this.settleReply(event, speaker, `coord-${event.id}-reply`, failure.code === 'real_turn_cap' || failure.code === 'station_busy' ? failure.message : `Não consegui responder. ${channelLineFor(failure, speaker?.name)}`, 'error') // Carbon P1-03: settles an open bubble too
   }
 
   private async noteUsage(
@@ -3628,9 +3866,11 @@ export class Orchestration {
       deleted: number
     }>
     for (const row of rows) {
-      if (!row.id.endsWith('-partial')) continue
-      const eventId = row.id.replace(/^coord-/u, '').replace(/-partial$/u, '')
-      if (this.events.has(`coord-${eventId}-reply`)) continue
+      // Carbon P1-03: the bubble of a conversation reply is `coord-<id>-reply` (type partial); only the old ids ended in `-partial`. Any partial left open is settled.
+      const isReply = row.id.endsWith('-reply')
+      if (!isReply && !row.id.endsWith('-partial')) continue
+      const eventId = row.id.replace(/^coord-/u, '').replace(/-(?:partial|reply)$/u, '')
+      if (!isReply && this.events.has(`coord-${eventId}-reply`)) continue
       const original = this.store.db.prepare(
         'SELECT body, actor_id AS actorId, subject_id AS subjectId FROM event WHERE id = ?',
       ).get(eventId) as { body: string; actorId: string; subjectId: string } | undefined
@@ -3647,6 +3887,11 @@ export class Orchestration {
         occurredAt: row.occurredAt,
         deleted: row.deleted === 1,
       }
+      if (isReply) {
+        // The owner's message was already answered in part before the app closed: keep what was written (marked as stopped), never leave it spinning.
+        this.finishStopped(event, speaker, row.id, row.body)
+        continue
+      }
       await this.finishReply(rt, event, speaker)
     }
   }
@@ -3661,7 +3906,7 @@ export class Orchestration {
    */
   private joinCollaborators(event: StoredEvent, ticket: Ticket, lead: StoredPersona | undefined): void {
     if (lead === undefined || this.screens === undefined) return
-    const others = mentionsOf(this.product.listPersonas(event.projectId), event.body)
+    const others = (this.channelWire?.read(event)?.named ?? mentionsOf(this.product.listPersonas(event.projectId), event.body))
       .filter(persona => persona.id !== lead.id)
       .slice(0, MAX_COLLABORATORS)
     if (others.length === 0) return
@@ -3859,7 +4104,8 @@ export class Orchestration {
    */
   private functionRouteOf(event: StoredEvent): FunctionRoute | undefined {
     if (this.functionRouting?.() !== true || !wantsWork(event.body)) return undefined
-    const roster: RoutablePersona[] = this.product.listPersonas(event.projectId).map(persona => ({
+    const fence = this.channelWire?.read(event)?.members // Item 22: the function route runs among the members of the channel only
+    const roster: RoutablePersona[] = this.product.listPersonas(event.projectId).filter(persona => fence === undefined || fence.includes(persona.id)).map(persona => ({
       id: persona.id, name: persona.name, title: persona.title, description: persona.description,
       coordination: persona.systemRoles.includes('coordination'),
       paused: this.isPersonaPaused(event.projectId, persona.id),
@@ -4000,7 +4246,7 @@ export class Orchestration {
     const coord = this.coordinationOf(projectId)
     if (coord === undefined) return 0
     const row = new ProactivityRepos(this.store, this.now).getAutonomy(projectId, coord.id)
-    return silenceUntilOf(this.now(), row.silenceStart, row.silenceEnd)
+    return silenceUntilOf(this.now(), row.silenceStart, row.silenceEnd, this.localOffsetMinutes(this.now()))
   }
 
   /**
@@ -4147,7 +4393,7 @@ function asidePrompt(persona: StoredPersona, question: string): string {
 }
 
 /** Suffixes of the lines (`coord-<message id>-<suffix>`) that already ANSWER a message of the person (see `hasFinalLine`). */
-const FINAL_LINE_SUFFIXES = ['reply', 'absorbed', 'paused', 'ignored', 'held', 'pause', 'split', 'status'] as const
+const FINAL_LINE_SUFFIXES = ['reply', 'absorbed', 'paused', 'ignored', 'held', 'pause', 'split', 'status', 'outside'] as const
 
 function clip(value: string, max: number): string {
   return value.length <= max ? value : value.slice(0, max)
@@ -4286,7 +4532,7 @@ function runErrorLine(payload: {
 function reportLineFor(error: { code: string; message: string }, persona?: string): string {
   const who = persona === undefined || persona === '' ? 'esta persona' : persona
   // ENG-1: the real-turn cap refused the turn before the CLI started; its own sentence is the honest cause.
-  if (error.code === 'real_turn_cap') return error.message
+  if (error.code === 'real_turn_cap' || error.code === 'station_busy') return error.message
   if (error.code === 'budget_exhausted') return `O orçamento deste mês para ${who} acabou.`
   const cli = detailOf(error)
   const provider = providerOf(cli)
@@ -4301,7 +4547,7 @@ function reportLineFor(error: { code: string; message: string }, persona?: strin
 }
 
 function channelLineFor(error: { code: string; message: string }, persona?: string): string {
-  if (error.code === 'real_turn_cap') return error.message
+  if (error.code === 'real_turn_cap' || error.code === 'station_busy') return error.message
   const cli = detailOf(error)
   const extra = persona === undefined || persona === '' ? {} : { persona }
   if (error.code === 'not_logged_in') {

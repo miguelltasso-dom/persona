@@ -1,9 +1,29 @@
 import { looksLikeCredential } from '@deepseek-ai/dsh-persona-core'
 import { expect } from 'vitest'
+import { VAULT_TELEGRAM } from '@deepseek-ai/dsh-persona-vault'
+import { GITHUB_WEBHOOK_FACT } from '../src/cofre-migrate.ts'
 import { readZipTexts } from '../src/export-md.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
 const { host } = bindHostFile()
+
+it('P0-09: the export never carries a connector token or the webhook secret, whatever the status of its record', () => {
+  const h = host()
+  h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
+  h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
+  const record = (id: string, body: string, factKey: string): void => {
+    h.vault.createRecord({ id, workspaceId: 'ws', projectId: 'pp', kind: 'memory', body, authorId: 'ana', visibility: { kind: 'workspace' }, factKey })
+  }
+  record('r-tg', '123456:token-do-telegram-no-zip', VAULT_TELEGRAM) // active, still plaintext (an older build)
+  record('r-gh', 'segredo-do-webhook-no-zip', GITHUB_WEBHOOK_FACT)
+  h.vault.revokeRecord('r-gh') // revoked rows keep their body: they must not travel either
+  h.vault.createRecord({ id: 'r-ok', workspaceId: 'ws', projectId: 'pp', kind: 'memory', body: 'A padaria abre às 7h.', authorId: 'ana', visibility: { kind: 'workspace' } })
+  const closed = h.exportProject({ workspaceId: 'ws', projectId: 'pp', includeDmIds: [] })
+  const text = [...readZipTexts(Buffer.from(closed.base64, 'base64')).values()].join('\n')
+  expect(text).not.toContain('token-do-telegram-no-zip')
+  expect(text).not.toContain('segredo-do-webhook-no-zip')
+  expect(text).toContain('A padaria abre às 7h.') // the rest of the Cofre still goes
+})
 
 it('export of a new project with empty channels does not fail', () => {
   const h = host()

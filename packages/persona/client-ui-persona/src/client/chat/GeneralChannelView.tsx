@@ -52,6 +52,10 @@ import { useStreamAnnouncement } from './use-stream-announcement.ts'
 import { TypingIndicator } from './TypingIndicator.tsx'
 import { WorkStepLine } from './work-step/WorkStepLine.tsx'
 import { TurnStepSummary } from './work-step/TurnStepSummary.tsx'
+import { StickerComposeBar } from './StickerComposeBar.tsx'
+import { VoiceComposeButton } from './voice-compose/VoiceComposeButton.tsx'
+import { AudioAttachmentSlot } from './voice-compose/AudioAttachmentSlot.tsx'
+import { sendVoiceMessage } from '../voice/voice-send.ts'
 import { typingPersona } from './typing-indicator.ts'
 import { bubbleNeedsWidth, groupPositions, type GroupPosition } from './message-grouping.ts'
 import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
@@ -110,6 +114,8 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly passThroughFollowers?: readonly { readonly name: string; readonly id?: string | undefined }[]
   readonly turnContext?: TurnContextUi | null
   readonly turnActivityLabels?: import('../primitives/Pooled.tsx').ActivityGroupProps['labels'] | undefined
+  /** COLHEITA §14 (Quill): envia a figurinha armada no composer (sem turno). */
+  readonly onSendSticker?: ((stickerId: string) => void) | undefined
   readonly onLoadTurnContext?: ((ticketId: string) => void) | undefined
   /** PRO-4 / C5b — focus the real task card on Quadros. */
   readonly onOpenTaskOnBoard?: ((ticketId: string) => void) | undefined
@@ -243,6 +249,7 @@ export function GeneralChannelView({
   passThroughFollowers = [],
   turnContext,
   turnActivityLabels,
+  onSendSticker,
   onLoadTurnContext,
   onOpenTaskOnBoard,
   onSendMessage,
@@ -318,6 +325,29 @@ export function GeneralChannelView({
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
   const [removedQueued, setRemovedQueued] = useState<QueuedMessageItem | null>(null)
   const [queueAnnounce, setQueueAnnounce] = useState('')
+  // COLHEITA §14 (Quill): a figurinha armada no composer; a dica aparece só no primeiro envio desta sessão.
+  const [armedSticker, setArmedSticker] = useState<ReactionId | null>(null)
+  const [stickerHintPending, setStickerHintPending] = useState(true)
+  // COLHEITA-S1 P1-05: o microfone do composer sobe o áudio pelo mesmo caminho das imagens (sendVoiceMessage) e posta com o anexo.
+  const renderVoiceSlot = (empty: boolean): ReactNode => (
+    <VoiceComposeButton
+      t={shellT}
+      empty={empty}
+      onSendVoice={async (recording) => {
+        if (uploadAttachment === undefined || onSendMessage === undefined) return
+        await sendVoiceMessage(
+          {
+            uploadChannelAttachment: uploadAttachment,
+            uploadDmAttachment: uploadAttachment,
+            postChannelMessage: async (body, ids) => { onSendMessage(body, ids) },
+            postDmMessage: async (body, ids) => { onSendMessage(body, ids) },
+          },
+          recording,
+          'channel',
+        )
+      }}
+    />
+  )
   /** P0-19: "A cota voltou · N mensagens saíram da fila". */
   const [quotaBackCount, setQuotaBackCount] = useState<number | null>(null)
   const queueSeq = useRef(nextQueueSeq(localQueued))
@@ -848,8 +878,35 @@ export function GeneralChannelView({
         <div className={styles.column}>
           {engineBanner}
           {asideSlot}
+          {onSendSticker !== undefined && (
+            <div className={styles.stickerDock}>
+              {armedSticker !== null && (
+                <StickerComposeBar
+                  t={t}
+                  animal={coordinationAnimal}
+                  reaction={armedSticker}
+                  showHint={stickerHintPending}
+                  onSend={(reaction) => {
+                    onSendSticker(reaction)
+                    setArmedSticker(null)
+                    setStickerHintPending(false)
+                  }}
+                  onClose={() => { setArmedSticker(null) }}
+                />
+              )}
+              {armedSticker === null && (
+                <ReactionAdder
+                  animal={coordinationAnimal}
+                  label={t('sticker.arm')}
+                  labels={reactionLabels(t)}
+                  onReact={(reaction) => { setArmedSticker(reaction) }}
+                />
+              )}
+            </div>
+          )}
           <ChannelComposer
             t={t}
+            voiceSlot={renderVoiceSlot}
             members={members}
             suppressHint={Object.values(gestorPlansById).some(plan => plan.status === 'proposed')}
             {...composerProps}
@@ -1384,7 +1441,8 @@ function ChannelMessageRow(props: {
                 name={message.authorName}
                 src={avatarFor(message.authorId)}
                 shape="portrait"
-                size={bubbles ? 32 : 48}
+                size={bubbles ? 40 : 48}
+                crop={bubbles ? 'head' : undefined}
                 decorative
               />
             </button>
@@ -1393,7 +1451,8 @@ function ChannelMessageRow(props: {
               name={message.authorName}
               src={avatarFor(message.authorId)}
               shape={isUser ? 'person' : 'portrait'}
-              size={bubbles ? 32 : 48}
+              size={bubbles ? 40 : 48}
+              crop={bubbles ? 'head' : undefined}
               decorative
             />
           )}
@@ -1426,6 +1485,9 @@ function ChannelMessageRow(props: {
             )}
           </div>
         )}
+        {message.attachments?.map(attachment => (
+          <AudioAttachmentSlot key={attachment.id} attachmentId={attachment.id} />
+        ))}
         {message.runError !== undefined && runErrorHandlers !== undefined ? (
           <div className={styles.runError}>
             <ConversationRunErrorCard

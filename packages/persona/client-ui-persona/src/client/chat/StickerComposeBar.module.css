@@ -1,0 +1,37 @@
+/* COLHEITA §14: a barra da figurinha armada no composer. Só tokens; a barra é um quadro, não um controle. */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: var(--control-h-m);
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-border-subtle);
+  border-radius: var(--control-r-m);
+  background: var(--persona-surface-raised);
+}
+
+.preview {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.emoji {
+  flex-shrink: 0;
+  width: 40px;
+  font-size: 28px;
+  line-height: 40px;
+  text-align: center;
+}
+
+.copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.hint {
+  margin: 0;
+  color: var(--persona-ink-muted);
+  font: 600 13px/18px var(--persona-font-text);
+}

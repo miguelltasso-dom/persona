@@ -1,6 +1,6 @@
 /** E9 — Persona profile with live state, overview, memory and skills tabs. */
 import { personaFaceSrc } from '../hire/persona-face.ts'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
@@ -62,6 +62,8 @@ export interface PersonaProfilePageProps {
   readonly playbookState?: PlaybookSurfaceState | undefined
   readonly playbookActions?: PlaybookActions | undefined
   readonly onPlaybookRetry?: (() => void) | undefined
+  /** Item 16 ("Virou skill · Ver em Skills"): the tab the page opens on (default: Visão geral). */
+  readonly initialTab?: 'skills' | undefined
   readonly skillRecords?: readonly SkillRecord[]
   /** Row actions of the Skills tab (activate / back to candidate / share / review). A missing one means no button. */
   readonly skillActions?: Pick<SkillsPanelProps, 'onActivate' | 'onRollback' | 'onShare' | 'onReview'>
@@ -110,6 +112,7 @@ export function PersonaProfilePage({
   playbookState,
   playbookActions,
   onPlaybookRetry,
+  initialTab,
   skillRecords,
   skillActions,
   onMessage,
@@ -123,7 +126,9 @@ export function PersonaProfilePage({
   gestorAuditItems,
 }: PersonaProfilePageProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
-  const [tab, setTab] = useState<ProfileTab>('overview')
+  const [tab, setTab] = useState<ProfileTab>(initialTab ?? 'overview')
+  // Asked from outside (the stamp's "Ver em Skills"): follow it when it changes while the page is already open.
+  useEffect(() => { if (initialTab !== undefined) setTab(initialTab) }, [initialTab])
 
   const header = (
     <ScreenHeader

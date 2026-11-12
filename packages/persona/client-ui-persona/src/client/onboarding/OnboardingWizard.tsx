@@ -392,11 +392,8 @@ export function OnboardingWizard({
             </Button>
           ) : <span />}
           <div className={styles.actionsRight}>
-            {state.step === 3 && anyHarnessReady && (
-              <Button variant="secondary" onClick={() => { actions.next() }}>
-                {t('action.skipHarness')}
-              </Button>
-            )}
+            {/* Muse (leigo L4): "Continuar sem conectar" with Claude and Codex already ready made no sense (the primary "Continuar" is the way on),
+                and with none ready connecting is required (step3.connectRequired), so the skip does not exist in step 3 any more. */}
             {state.step < 5 && !hideFooterContinue && (
               <Button
                 variant="primary"

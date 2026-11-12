@@ -44,6 +44,7 @@
   "playbook.adjust.label": "O que você costuma pedir:",
   "playbook.forget.title": "Esquecer este jeito de trabalhar",
   "playbook.forget.body": "Esquecer este jeito? A skill que já saiu dele continua.",
+  "playbook.forget.bodyPlain": "Esquecer este jeito? {name} deixa de usar.",
   "playbook.forget.keep": "Manter",
   "playbook.empty.title": "Nada aprendido ainda.",
   "playbook.empty.body": "Quando você usar uma entrega de {name}, o jeito de fazer fica anotado aqui.",

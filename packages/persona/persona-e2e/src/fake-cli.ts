@@ -45,9 +45,13 @@ export interface FakeCliOptions {
   readonly needles?: readonly string[]
   /** Input tokens each stub turn REPORTS (env `FAKE_CLI_INPUT_TOKENS`, the stub's floor; default 120): a heavy round for the eval's token gate without a model. */
   readonly inputTokens?: number
+  /** ABSOLUTE path of a switch file (env `FAKE_CLI_AUTH_OUT_FILE`): WHILE it exists, the tools its text names (`codex`, `claude,codex`) answer the login probe "not logged in" — a CONFIRMED logout. */
+  readonly authOutFile?: string
+  /** ABSOLUTE path of a switch file (env `FAKE_CLI_AUTH_HANG_FILE`): WHILE it exists, the tools its text names never answer the login probe (it outlasts the probe's timeout): "não consegui conferir", never a logout. */
+  readonly authHangFile?: string
 }
 
-const WRITE_ENVS = ['FAKE_CLI_RULES', 'FAKE_CLI_REPLIES', 'FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_WRITE_RULES', 'FAKE_CLI_TOOL_CALLS', 'FAKE_CLI_TOOLS_PROBE', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT', 'FAKE_CLI_FAIL_FILE', 'FAKE_CLI_NEEDLES', 'FAKE_CLI_INPUT_TOKENS'] as const
+const WRITE_ENVS = ['FAKE_CLI_RULES', 'FAKE_CLI_REPLIES', 'FAKE_CLI_WRITE_FILE', 'FAKE_CLI_WRITE_CONTENT', 'FAKE_CLI_WRITE_RULES', 'FAKE_CLI_TOOL_CALLS', 'FAKE_CLI_TOOLS_PROBE', 'FAKE_CLI_CONFLICT_DIR', 'FAKE_CLI_CONFLICT_CONTENT', 'FAKE_CLI_FAIL_FILE', 'FAKE_CLI_NEEDLES', 'FAKE_CLI_INPUT_TOKENS', 'FAKE_CLI_AUTH_OUT_FILE', 'FAKE_CLI_AUTH_HANG_FILE'] as const
 
 /** One line of the stub's invocation log (`FAKE_CLI_LOG`). */
 export interface FakeCliInvocation {
@@ -222,6 +226,8 @@ export function withFakeCliOnPath(options?: FakeCliOptions): FakeCliPathScope {
   if (options?.failFile !== undefined) process.env.FAKE_CLI_FAIL_FILE = options.failFile
   if (options?.needles !== undefined) process.env.FAKE_CLI_NEEDLES = JSON.stringify(options.needles)
   if (options?.inputTokens !== undefined) process.env.FAKE_CLI_INPUT_TOKENS = String(options.inputTokens)
+  if (options?.authOutFile !== undefined) process.env.FAKE_CLI_AUTH_OUT_FILE = options.authOutFile
+  if (options?.authHangFile !== undefined) process.env.FAKE_CLI_AUTH_HANG_FILE = options.authHangFile
   if (options?.reply !== undefined) {
     process.env.FAKE_CLI_REPLY = options.reply
   }

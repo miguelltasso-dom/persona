@@ -21,6 +21,7 @@ import {
   annotationTable,
   DEFAULT_TOOL_SERVER,
   PermissionGate,
+  type AuthorityKind,
   type PermissionGateOptions,
   type PermissionRequest,
 } from '@deepseek-ai/dsh-persona-runners'
@@ -77,6 +78,8 @@ export interface SettleOutcome {
   readonly cards: number
   /** One sentence for the Task's state ("Esperando você aprovar: enviar pelo Gmail"), when waiting. */
   readonly summary?: string
+  /** Carbon P1-01: the tools the gate REFUSED this turn (asked, outside the mandate, or denied by a rule), one name per call: a refused call proves nothing was done. */
+  readonly refused?: readonly string[]
 }
 
 const NAMEKEY = /[^a-z0-9]+/gu
@@ -131,7 +134,7 @@ export class ActionBridge {
    * @param draftRoot - The Task's draft folder, when it has one.
    * @param origin - What started the run: a Task started by a received e-mail never pre-allows `send`.
    */
-  arm(runner: Runner, ticketId: string, draftRoot?: string, origin: { readonly viaEmail?: boolean } = {}): void {
+  arm(runner: Runner, ticketId: string, draftRoot?: string, origin: { readonly viaEmail?: boolean; readonly authority?: AuthorityKind } = {}): void {
     const held = this.held.get(runner)
     if (held === undefined) return
     // The gate has classes, not servers: with two connectors on one Task it lets through only what BOTH allow (the stricter wins).
@@ -149,7 +152,7 @@ export class ActionBridge {
       .map(name => name.replace(/[^a-zA-Z0-9_-]/gu, '_'))
     // P0-1: a file write is allowed only INSIDE the Task draft folder; its directory is the placeholder dot when it has none (then the gate uses the turn cwd).
     const draft = draftRoot !== undefined && draftRoot !== '' && draftRoot !== '.' ? { draftRoot } : {}
-    held.gate.arm({ preAllow, approved, allowedServers, ...(locks === undefined || locks.verbs.length === 0 ? {} : { askVerbs: locks.verbs }), ...draft, ...(origin.viaEmail === true ? { viaEmail: true } : {}) })
+    held.gate.arm({ preAllow, approved, allowedServers, ...(locks === undefined || locks.verbs.length === 0 ? {} : { askVerbs: locks.verbs }), ...draft, ...(origin.viaEmail === true ? { viaEmail: true } : {}), ...(origin.authority === undefined ? {} : { authority: origin.authority }) })
     for (const doc of this.deps.actions.approvedDocs(held.projectId, ticketId)) this.deps.actions.markSending(held.projectId, doc.id)
   }
 
@@ -162,7 +165,8 @@ export class ActionBridge {
     const held = this.held.get(runner)
     if (held === undefined) return { waiting: false, cards: 0 }
     const asked = held.gate.takeRequests()
-    held.gate.takeOutOfMandate() // names only: drained so the next turn starts clean (the gate already refused them; there is nobody to ask)
+    const outside = held.gate.takeOutOfMandate() // names only: drained so the next turn starts clean (the gate already refused them; there is nobody to ask)
+    const refused = [...asked.map(item => item.tool), ...outside.map(item => item.tool), ...held.gate.takeRefusals().map(item => item.tool)]
     const released = held.gate.takeReleased() // the approved calls the gate REALLY let through (tool + hash matched), never a guess
     const interactions = held.gate.takeInteractions() // COLHEITA 17: what the browser let through (tool + site, never a value)
     held.gate.disarm()
@@ -199,9 +203,9 @@ export class ActionBridge {
       first ??= doc
     }
     if (interactions.length > 0) this.deps.onInteractions?.({ projectId: held.projectId, personaId: held.personaId, ticketId: turn.ticketId }, interactions)
-    if (cards === 0) return { waiting: false, cards: 0 }
+    if (cards === 0) return { waiting: false, cards: 0, refused }
     const verb = first?.actionClass === 'pay' ? 'pagar' : first?.actionClass === 'delete' ? 'apagar' : 'enviar'
-    return { waiting: true, cards, summary: `Esperando você aprovar: ${verb} pelo ${first?.connector.name ?? 'conector'}` }
+    return { waiting: true, cards, summary: `Esperando você aprovar: ${verb} pelo ${first?.connector.name ?? 'conector'}`, refused }
   }
 
   /**

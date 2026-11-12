@@ -16,7 +16,7 @@ import { itext } from './indicators-text.ts'
 import styles from './IndicatorBody.module.css'
 
 const LINE_W = 240
-const LINE_H = 56
+const LINE_H = 36
 const LIST_VISIBLE = 4
 
 function Arrow({ direction }: { readonly direction: 'up' | 'down' | 'flat' }): ReactNode {
@@ -74,14 +74,18 @@ export function IndicatorBody({ data }: { readonly data: IndicatorUiData }): Rea
     case 'linha': {
       const last = data.points.at(-1)
       const first = data.points[0]
+      const unit = data.unit === undefined ? '' : ` ${data.unit}`
       return (
         <div className={styles.line}>
-          <svg viewBox={`0 0 ${String(LINE_W)} ${String(LINE_H)}`} width="100%" height={LINE_H} preserveAspectRatio="none" role="img" aria-label={data.points.map(point => `${point.label}: ${String(point.value)}`).join(', ')}>
+          {/* O último valor em destaque ("18 visitas · Qui"): o leigo lê o número de hoje sem decifrar o eixo. */}
+          {last !== undefined && <p className={styles.lineLast} data-indicator-last><b>{`${String(last.value)}${unit}`}</b>{` · ${last.label}`}</p>}
+          <svg viewBox={`0 0 ${String(LINE_W)} ${String(LINE_H)}`} width="100%" height={LINE_H} preserveAspectRatio="none" role="img" aria-label={data.points.map(point => `${point.label}: ${String(point.value)}${unit}`).join(', ')}>
             <polyline points={linePoints(data.points, LINE_W, LINE_H)} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
           </svg>
+          {/* O eixo diz só os rótulos de quem trouxe o número (os dias), como nas barras: nunca "1: 10". */}
           <p className={styles.lineEnds}>
-            <span>{first === undefined ? '' : `${first.label}: ${String(first.value)}`}</span>
-            <span>{last === undefined ? '' : `${last.label}: ${String(last.value)}`}</span>
+            <span>{first?.label ?? ''}</span>
+            <span>{last?.label ?? ''}</span>
           </p>
         </div>
       )

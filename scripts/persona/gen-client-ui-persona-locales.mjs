@@ -41,6 +41,7 @@ const BUNDLES = [
   { file: 'governance', const: 'GOVERNANCE_NS', ns: 'persona.governance', keyType: 'GovernanceKey' },
   { file: 'second-brain', const: 'SECOND_BRAIN_NS', ns: 'persona.secondBrain', keyType: 'SecondBrainKey' },
   { file: 'help', const: 'HELP_NS', ns: 'persona.help', keyType: 'HelpKey' },
+  { file: 'tools', const: 'TOOLS_NS', ns: 'persona.tools', keyType: 'ToolsKey' },
 ]
 
 function readJson(name) {

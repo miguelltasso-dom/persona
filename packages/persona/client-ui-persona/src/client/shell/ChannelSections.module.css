@@ -1,0 +1,215 @@
+/* COLHEITA 22 — as seções de equipe na barra lateral (rail lilás). Sem fundo translúcido, sem animação contínua. */
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  min-width: 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rowItem {
+  display: block;
+  margin: 0;
+}
+
+/* Linha de canal: 32 px, `#` de 16 px e o nome em 15 px. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  width: 100%;
+  min-height: 32px;
+  padding: 0 var(--persona-space-3);
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  color: var(--persona-rail-ink);
+  font: 500 15px/20px var(--persona-font-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--persona-rail-field);
+}
+
+.row[data-unread] .name {
+  font-weight: 700;
+}
+
+/* Silenciado: o nome na tinta suave. */
+.row[data-muted] {
+  color: var(--persona-rail-ink-soft);
+}
+
+/* Ativo: a pílula creme de hoje. */
+.row[data-active] {
+  background: var(--persona-cream-50);
+  color: var(--persona-plum-900);
+  font-weight: 800;
+}
+
+.hash {
+  flex: 0 0 16px;
+  width: 16px;
+  text-align: center;
+  font: 700 15px/20px var(--persona-font-text);
+  opacity: 0.8;
+}
+
+.name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count,
+.seal {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-rail-field);
+  color: var(--persona-rail-ink);
+  font: 800 13px/1 var(--persona-font-text);
+}
+
+/* O selo do cabeçalho: neutro; âmbar só quando algo espera a pessoa. */
+.seal[data-needs-you] {
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+}
+
+/* Cabeçalho da seção: 32 px. */
+.section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+.toggle {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 var(--persona-space-2);
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  color: var(--persona-rail-ink);
+  font: 800 13px/20px var(--persona-font-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--persona-rail-field);
+}
+
+.chevron {
+  flex-shrink: 0;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.section:not([data-open]) .chevron {
+  transform: rotate(-90deg);
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.faces {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.face {
+  width: 16px;
+  height: 16px;
+  margin-left: -4px;
+  border: 1px solid var(--persona-rail);
+  border-radius: 5px;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* "+" de 32 px: só no hover e no foco do cabeçalho. */
+.add {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--persona-radius-m);
+  background: transparent;
+  color: var(--persona-rail-ink);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.header:hover .add,
+.header:focus-within .add {
+  opacity: 1;
+}
+
+.add:hover {
+  background: var(--persona-rail-field);
+}
+
+/* A seção abre e fecha em altura (0fr → 1fr) no tempo do painel. */
+.body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--motion-panel) var(--ease-standard);
+}
+
+.section:not([data-open]) .body {
+  grid-template-rows: 0fr;
+}
+
+.body > .rows {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .body {
+    transition-duration: var(--motion-reduced-fade);
+  }
+}

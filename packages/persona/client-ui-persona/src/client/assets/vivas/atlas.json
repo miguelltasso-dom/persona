@@ -1,0 +1,45 @@
+{
+  "animal": "atlas",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 192,
+    "top": 36,
+    "width": 637,
+    "height": 975
+  },
+  "size": [
+    314,
+    480
+  ],
+  "scale": 0.49230769230769234,
+  "mask": [
+    {
+      "x": -6,
+      "y": 51,
+      "w": 327,
+      "h": 306
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "atlas-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "atlas-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "atlas-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "atlas-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

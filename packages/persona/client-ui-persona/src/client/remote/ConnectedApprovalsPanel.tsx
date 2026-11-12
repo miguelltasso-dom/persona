@@ -26,6 +26,7 @@ import { brainValidityToRpc, grantBrainPermissionRemote } from '../data/brain-re
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import type { PersonaTenantSnapshot } from '../data/persona-tenant.ts'
 import { useRemoteProjectScope } from '../data/use-remote-project-scope.ts'
+import { ConnectedCodeRequests } from '../cofre/ConnectedCodeRequests.tsx'
 import type { ShellState } from '../shell/create-shell-store.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 
@@ -49,6 +50,8 @@ export interface ConnectedApprovalsInjected {
   openOverview?(): void
   /** IV-10 "Responder": opens the conversation where a question was asked (the channel, or that DM). Absent = no "Responder" button. */
   openConversation?(streamKind: 'channel' | 'dm', ownerId: string): void
+  /** Item 16: the stamp of a "Virar skill" offer says "Ver em Skills": opens that persona's profile on the Skills tab. Absent = no such button. */
+  openPersonaSkills?(personaId: string): void
 }
 
 export type ConnectedApprovalsPanelProps = InjectFace<ConnectedApprovalsInjected>
@@ -65,6 +68,7 @@ export function ConnectedApprovalsPanel({
   clearApprovalFocus,
   openOverview,
   openConversation,
+  openPersonaSkills,
 }: ConnectedApprovalsPanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const focusedApprovalId = useShell(state => state.focusedApprovalId ?? null)
@@ -139,6 +143,7 @@ export function ConnectedApprovalsPanel({
     // Capture-only (two dev keys): two "Liberar para {B}" example cards, tagged "Exemplo".
     items: connectorDevSampleEnabled() ? [...answerable, ...CONNECTOR_DEV_SAMPLE] : answerable,
     ...(replyOn ? { onReply: reply } : {}),
+    ...(openPersonaSkills === undefined ? {} : { onOpenSkills: openPersonaSkills }),
     proactiveSummaries: inbox.proactiveSummaries,
     focusId: focusedApprovalId ?? undefined,
     initialState: surface,
@@ -160,6 +165,8 @@ export function ConnectedApprovalsPanel({
 
   return (
     <>
+      {/* Item 15: o cartão 2FA do Cofre vai no TOPO (o prazo de 10 min manda). */}
+      <ConnectedCodeRequests persona={persona} scope={scope} />
       {approvalsInboxV2Enabled()
         ? (
           <ApprovalsInboxV2

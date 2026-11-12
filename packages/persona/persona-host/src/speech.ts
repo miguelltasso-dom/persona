@@ -346,15 +346,45 @@ export function composeSpeech(visible: string, details: readonly string[], lead:
   return `${head}\n\n<details><summary>${DETAILS_LABEL}</summary>\n\n${folded}\n\n</details>`
 }
 
+// ---- the host's structured markers ---------------------------------------------------------------------------------------------
+
+/** A complete marker, or one still arriving (not closed yet: a reply that is streaming). */
+const MARKER_SPAN = /\[\[(?:escolha|indicador):[\s\S]*?\]\]|\[\[(?:escolha|indicador):(?:(?!\]\])[\s\S])*$/giu
+
 /**
- * The 100-word channel cap for a reply that may carry a fold: the visible part is capped as before, the fold keeps its own cap.
+ * Take the structured markers out of a text: `[[escolha: …]]` (the choice card) and `[[indicador: {json}]]` (a number to pin). They are NOT prose: they stay in the
+ * message body for the host to read (`readChoiceMarker` / `readIndicatorMarker`), so the speech layer must neither fold their JSON or file names as "technical",
+ * nor count their words in the 100, nor cut one in the middle (an unclosed marker makes the reader drop the whole card as "still arriving"). (S1 P1-06)
+ * @param text - A reply.
+ * @returns The text without them, and the markers as written (a text with none comes back untouched).
+ */
+export function takeMarkers(text: string): { readonly prose: string; readonly markers: readonly string[] } {
+  if (!/\[\[(?:escolha|indicador):/iu.test(text)) return { prose: text, markers: [] }
+  const markers: string[] = []
+  const prose = text.replace(MARKER_SPAN, (found) => { markers.push(found.trim()); return '\n' }).replace(/\n{3,}/gu, '\n\n').trim()
+  return { prose, markers }
+}
+
+/**
+ * Put the markers back where a persona writes them: at the end of the message, after the words and after any fold.
+ * @param text - The shaped reply.
+ * @param markers - What {@link takeMarkers} took.
+ */
+export function putMarkers(text: string, markers: readonly string[]): string {
+  return markers.length === 0 ? text : [text.trim(), ...markers].filter(part => part !== '').join('\n\n')
+}
+
+/**
+ * The 100-word channel cap for a reply that may carry a fold: the visible part is capped as before, the fold keeps its own cap. The structured markers
+ * ({@link takeMarkers}) are kept whole and are not counted.
  * @param value - A reply.
  * @param clipVisible - The channel clip used for plain text.
  */
 export function clipSpeech(value: string, clipVisible: (text: string) => string): string {
-  if (!/<details\b/iu.test(value)) return clipVisible(value)
-  const { visible, details } = splitDetails(value)
-  return composeSpeech(visible === '' ? '' : clipVisible(visible), details)
+  const { prose, markers } = takeMarkers(value)
+  if (!/<details\b/iu.test(prose)) return putMarkers(clipVisible(prose), markers)
+  const { visible, details } = splitDetails(prose)
+  return putMarkers(composeSpeech(visible === '' ? '' : clipVisible(visible), details), markers)
 }
 
 // ---- the whole shape ---------------------------------------------------------------------------------------------------------
@@ -412,7 +442,9 @@ export function shapeSpeech(raw: string, options: ShapeOptions = {}): Spoken {
   const userText = options.userText ?? ''
   const pass = readPass(raw)
   if (pass.passed) return { text: '', passed: true, folded: false }
-  const owned = speakToOwner(pass.text.replace(/\r\n?/gu, '\n'))
+  // S1 P1-06: the structured markers are the host's, not prose: they leave before the speech rules and come back after them.
+  const { prose: unmarked, markers } = takeMarkers(pass.text)
+  const owned = speakToOwner(unmarked.replace(/\r\n?/gu, '\n'))
   const split = splitDetails(owned)
   const fold = foldLines(split.visible.split('\n'), style)
   const prose = fold.visible.join('\n').replace(/\n{3,}/gu, '\n\n').trim()
@@ -420,5 +452,5 @@ export function shapeSpeech(raw: string, options: ShapeOptions = {}): Spoken {
   const structured = fold.visible.some(line => LIST_LINE.test(line)) || /\n\s*\n/u.test(prose)
   const clipped = prose === '' ? '' : structured ? leanKeepingStructure(prose, userText, lean) : lean(prose, userText)
   const details = [...split.details, ...fold.details]
-  return { text: composeSpeech(clipped, details), passed: false, folded: fold.details.length > 0 }
+  return { text: putMarkers(composeSpeech(clipped, details), markers), passed: false, folded: fold.details.length > 0 }
 }

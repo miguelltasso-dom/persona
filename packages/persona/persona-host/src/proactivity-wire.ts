@@ -75,6 +75,8 @@ export function postTeamRequest(host: Pick<ProactivityWireHost, 'product' | 'eve
   host.orchestration.ingest(stored, 'channel', CHANNEL, request.personaId)
   const ticket = runtime.repo.tickets.list().find(item => item.origin.triggerId === stored.id)
   if (ticket !== undefined) return { ok: true, ticketId: ticket.id }
+  // S1 P1-12: the 95% window reserve keeps the request (it runs when the window renews): the caller must not send it again every cycle.
+  if (host.orchestration.heldByWindow(request.projectId, stored.id)) return { ok: false, reason: 'a reserva da janela segura o pedido até ela renovar', held: true }
   const routed = routeOf(runtime) // read after ingest, not narrowed by the reset above
   if (routed === undefined || routed.action === 'model') return { ok: false, reason: 'a mensagem foi tratada como conversa, não como tarefa' }
   return { ok: false, reason: routed.why }

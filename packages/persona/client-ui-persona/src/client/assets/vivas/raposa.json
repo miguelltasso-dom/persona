@@ -1,0 +1,45 @@
+{
+  "animal": "raposa",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 210,
+    "top": 66,
+    "width": 629,
+    "height": 924
+  },
+  "size": [
+    327,
+    480
+  ],
+  "scale": 0.5194805194805194,
+  "mask": [
+    {
+      "x": -26,
+      "y": 17,
+      "w": 366,
+      "h": 386
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "raposa-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "raposa-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "raposa-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "raposa-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

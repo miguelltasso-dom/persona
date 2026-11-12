@@ -197,24 +197,21 @@ export function connectionAccountsBundleToUi(bundle: ConnectionAccountsBundleVie
   }
 }
 
+/** How strong a probe card is when two share an id or a kind: still being checked ranks lowest, then not detected, not connected, ready. */
+function legacyRank(card: ConnectionView): number {
+  return rowRank(statusForProbe(card.available, card.loggedIn, card.error?.code), card.phase)
+}
+
 function dedupeLegacyRows(rows: readonly ConnectionView[]): ConnectionView[] {
   const byId = new Map<string, ConnectionView>()
   for (const row of rows) {
     const prev = byId.get(row.id)
-    const rank = (r: ConnectionView) => rowRank(
-      statusForProbe(r.available, r.loggedIn, r.error?.code),
-      r.phase,
-    )
-    if (prev === undefined || rank(row) > rank(prev)) byId.set(row.id, row)
+    if (prev === undefined || legacyRank(row) > legacyRank(prev)) byId.set(row.id, row)
   }
   const byKind = new Map<string, ConnectionView>()
   for (const row of byId.values()) {
     const prev = byKind.get(row.kind)
-    const rank = (r: ConnectionView) => rowRank(
-      statusForProbe(r.available, r.loggedIn, r.error?.code),
-      r.phase,
-    )
-    if (prev === undefined || rank(row) > rank(prev)) byKind.set(row.kind, row)
+    if (prev === undefined || legacyRank(row) > legacyRank(prev)) byKind.set(row.kind, row)
   }
   return [...byKind.values()]
 }

@@ -2,7 +2,7 @@
  * Open, identify, migrate, and transact against `persona.db`.
  */
 
-import { closeSync, copyFileSync, mkdirSync, openSync, readdirSync, renameSync, statSync } from 'node:fs'
+import { closeSync, copyFileSync, existsSync, mkdirSync, openSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import {
@@ -11,6 +11,7 @@ import {
 } from './constants.ts'
 import { StoreError } from './errors.ts'
 import { PERSONA_MIGRATIONS, type Migration } from './migrations.ts'
+import { hasSecretFacts, SECRET_PURGED_BODY, scrubSecretFacts } from './secret-scrub.ts'
 
 /** Options for {@link openPersonaStore}. */
 export interface OpenPersonaStoreOptions {
@@ -129,6 +130,62 @@ export class PersonaStore {
       .filter(name => name.endsWith('.db'))
       .sort((a, b) => b.localeCompare(a))
       .map(filename => ({ filename, path: join(this.backupDir, filename) }))
+  }
+
+  /**
+   * Carbon P0-09: the copies taken before the Cofre sweep (a schema migration or a manual backup) still hold a connector token in clear. Erase it
+   * there too: every backup that still has a record under one of `factKeys` loses it (all statuses, all versions) and is vacuumed so the bytes go.
+   * A backup that is not a readable Persona database is left alone (never deleted).
+   * @param factKeys - Fact keys that hold secrets.
+   * @returns How many backups were scrubbed.
+   */
+  scrubBackups(factKeys: readonly string[]): number {
+    this.assertOpen()
+    let scrubbed = 0
+    for (const backup of this.listBackups()) {
+      let copy: DatabaseSync | undefined
+      try {
+        copy = new DatabaseSync(backup.path)
+        if (!hasSecretFacts(copy, factKeys)) continue
+        copy.exec('BEGIN IMMEDIATE')
+        scrubSecretFacts(copy, factKeys)
+        copy.exec('COMMIT')
+        copy.exec('VACUUM')
+        scrubbed += 1
+      } catch {
+        try { copy?.exec('ROLLBACK') } catch { /* no transaction was open */ }
+      } finally {
+        try { copy?.close() } catch { /* already closed */ }
+      }
+    }
+    return scrubbed
+  }
+
+  /**
+   * Carbon P0-09: rows erased BEFORE `secure_delete` was on (or still in the WAL) leave their text in the file: rebuild the main database (`VACUUM`) and truncate the WAL so the
+   * old bytes are gone for good. No-op on `:memory:`. Never runs inside a transaction.
+   */
+  compactSecrets(): void {
+    this.assertOpen()
+    if (this.path === ':memory:') return
+    this.db.exec('VACUUM')
+    this.checkpointWal()
+    try { writeFileSync(this.#compactionMarker(), `${new Date().toISOString()}\n`, { mode: 0o600 }) } catch { /* the marker only saves a later rebuild: never a failure */ }
+  }
+
+  /**
+   * Carbon P0-09: whether the main file may still hold the text of a secret an OLDER build erased (a purge tombstone exists) and the one-time {@link PersonaStore.compactSecrets} has not run
+   * yet (a marker file sits next to the database once it has). A fresh install, or one with nothing ever erased, answers false.
+   */
+  needsSecretCompaction(): boolean {
+    this.assertOpen()
+    if (this.path === ':memory:' || existsSync(this.#compactionMarker())) return false
+    const row = this.db.prepare('SELECT COUNT(*) AS total FROM vault_record WHERE body = ?').get(SECRET_PURGED_BODY)
+    return Number(row?.total ?? 0) > 0
+  }
+
+  #compactionMarker(): string {
+    return join(dirname(this.path), 'secret-compaction.v1')
   }
 
   /**
@@ -323,6 +380,8 @@ function configurePragmas(db: DatabaseSync, path: string, busyTimeoutMs: number)
   db.exec('PRAGMA foreign_keys = ON')
   db.exec(`PRAGMA busy_timeout = ${Math.trunc(busyTimeoutMs)}`)
   if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
+  // Carbon P0-09: a deleted row must not keep its text in the freed page (a connector token, a webhook secret): every deletion zeroes what it frees.
+  db.exec('PRAGMA secure_delete = ON')
 }
 
 function readUserVersion(db: DatabaseSync): number {

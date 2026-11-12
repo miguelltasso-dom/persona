@@ -48,6 +48,18 @@ it('the person\'s own request (or a "desta vez") needs no grant: reads run, a ch
   }
 })
 
+it('P0-09: a permission the owner set to READ ONLY holds for the person\'s own chat request too: anything beyond reading is asked, never let through', () => {
+  for (const autonomy of AUTONOMIES) {
+    expect(decideConnectorUse({ origin: 'request', autonomy, grant: READ, actionClass: 'read' }), `${autonomy}/read`).toBe('run')
+    for (const actionClass of ['change', 'send', 'pay', 'delete'] as const) {
+      expect(decideConnectorUse({ origin: 'request', autonomy, grant: READ, actionClass }), `${autonomy}/${actionClass}`).toBe('ask-permission')
+    }
+    expect(preAllowFor({ origin: 'request', autonomy, gate: 'blocked-report', grant: READ }), `${autonomy} pre-allow`).toEqual(['read'])
+  }
+  // "Permitir desta vez" is the person's explicit yes for THAT Task: it still goes beyond the standing read permission.
+  expect(decideConnectorUse({ origin: 'once', autonomy: 'propose', grant: READ, actionClass: 'change' })).toBe('run-and-report')
+})
+
 it('the "Não perguntar de novo" box waives SEND only, and only for the persona and the connector that carry it', () => {
   const waivedSend: PermanentGrant = { access: 'write', confirm: { send: 'never', pay: 'ask', delete: 'ask' } }
   expect(decideConnectorUse({ origin: 'request', autonomy: 'propose', grant: waivedSend, actionClass: 'send' })).toBe('run-and-report')

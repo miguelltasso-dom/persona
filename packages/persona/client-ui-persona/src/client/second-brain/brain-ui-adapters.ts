@@ -207,7 +207,8 @@ export function pageToChangeItem(
   memberNames: Readonly<Record<string, string>> = {},
 ): ChangeItem {
   const editor = feedEditorDisplay(dict, page, personaNames, memberNames)
-  const source = page.sources[0] === undefined ? undefined : brainSourceDisplay(dict, page.sources[0])
+  // The automatic index is already "A equipe atualizou …": its source line ("atualizado sozinho") would only repeat it.
+  const source = page.sources[0] === undefined || page.sources[0] === 'derived-index' ? undefined : brainSourceDisplay(dict, page.sources[0])
   return {
     id: page.id,
     who: editor.who,

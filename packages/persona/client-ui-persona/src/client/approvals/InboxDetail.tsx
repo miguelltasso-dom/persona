@@ -65,6 +65,8 @@ export interface InboxDetailProps {
   readonly onDecideAction?: ((decision: ActionDecision) => void | Promise<void>) | undefined
   /** "Liberar para {B}": the choice among what the host accepts (só desta vez · sempre · agora não). A connector card has no generic Aprovar either. */
   readonly onChooseConnector?: ((choice: ConnectorChoice) => void) | undefined
+  /** Item 16: after "Virar skill" the stamp offers "Ver em Skills" (the persona's Skills tab). No handler, no button. */
+  readonly onOpenSkills?: ((personaId: string) => void) | undefined
   /** The hire's "Ver detalhes" dialog (owned by the screen so the Enter key can open it too). */
   readonly detailsOpen: boolean
   readonly onDetailsChange: (open: boolean) => void
@@ -74,7 +76,7 @@ export interface InboxDetailProps {
 }
 
 export function InboxDetail({
-  dict, row, scope, choice, onRememberChange, rememberStampNote, stamped, leaving, deciding, locked, canDecide, onApprove, onDismiss, onReply, onDecideAction, onChooseConnector, detailsOpen, onDetailsChange, onBack, focusHighlight,
+  dict, row, scope, choice, onRememberChange, rememberStampNote, stamped, leaving, deciding, locked, canDecide, onApprove, onDismiss, onReply, onDecideAction, onChooseConnector, onOpenSkills, detailsOpen, onDetailsChange, onBack, focusHighlight,
 }: InboxDetailProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const item = row.item
@@ -122,7 +124,13 @@ export function InboxDetail({
     >
       {stamped && (
         <div className={styles.stampSlot}>
-          <ApprovedStamp label={t(item?.stampKey ?? 'stamp.approved')} animate />
+          <ApprovedStamp
+            label={t(item?.stampKey ?? 'stamp.approved')}
+            animate
+            {...(item?.stampKey === 'stamp.skillOffer' && onOpenSkills !== undefined && (item.proposerPersonaId ?? '') !== ''
+              ? { actionLabel: t('stamp.skillOffer.action'), onAction: () => { onOpenSkills(item.proposerPersonaId!) } }
+              : {})}
+          />
           {rememberStampNote !== null && <p className={styles.sectionBody}>{rememberStampNote}</p>}
         </div>
       )}

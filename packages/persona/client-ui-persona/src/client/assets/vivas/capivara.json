@@ -1,0 +1,45 @@
+{
+  "animal": "capivara",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 145,
+    "top": 75,
+    "width": 729,
+    "height": 929
+  },
+  "size": [
+    377,
+    480
+  ],
+  "scale": 0.5166846071044133,
+  "mask": [
+    {
+      "x": 18,
+      "y": 12,
+      "w": 362,
+      "h": 384
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "capivara-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "capivara-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "capivara-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "capivara-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

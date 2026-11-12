@@ -21,8 +21,8 @@ export const STABLE_DOMAIN_TOOLS: readonly string[] = [
 ]
 
 const DOMAIN: ReadonlySet<string> = new Set(STABLE_DOMAIN_TOOLS)
-/** Tools that stay announced once they were offered once (COLHEITA 15b: the Cofre login needs an open browser, which comes and goes). */
-const STICKY: ReadonlySet<string> = new Set(['browser_login'])
+/** Tools that stay announced once they were offered once (COLHEITA 15b: the Cofre login needs an open browser, which comes and goes; 15: the 2FA card is opened only on a turn that needs it). */
+const STICKY: ReadonlySet<string> = new Set(['browser_login', 'ask_vault_code'])
 const REVIEW_TOOL = 'review_verdict'
 
 /** What each persona has already been offered, so a later turn never shrinks her list. */

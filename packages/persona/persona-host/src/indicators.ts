@@ -46,6 +46,12 @@ interface IndicatorRecord {
   readonly updatedAt: string
   readonly createdAt: string
   readonly alert?: { readonly pct: number; readonly text: string; readonly at: string }
+  /** "Já vi": the alert of THIS instant was seen, so it leaves the list of notices; the amber border of the card stays until the next refresh. */
+  readonly alertSeenAt?: string
+  /** Failures in a row since the last good refresh (P1-08: each one doubles the wait before the next try). */
+  readonly failures?: number
+  /** Not before this instant the timer tries again after a failure. */
+  readonly retryAt?: string
 }
 
 interface TestRecord {
@@ -100,13 +106,27 @@ export function lastDailySlot(now: Date): Date {
   return slot
 }
 
+/** The wait before the next try after `failures` failures in a row: 15, 30, 60, 120, 240 minutes, never more than 6 hours. */
+export const INDICATOR_BACKOFF_BASE_MS = 15 * 60_000
+export const INDICATOR_BACKOFF_MAX_MS = 6 * HOUR_MS
+
+/**
+ * @param failures - Failures in a row (1 = the first).
+ * @returns The wait, in milliseconds.
+ */
+export function backoffMs(failures: number): number {
+  return Math.min(INDICATOR_BACKOFF_BASE_MS * 2 ** Math.max(failures - 1, 0), INDICATOR_BACKOFF_MAX_MS)
+}
+
 /**
  * Whether an indicator is due for its quiet refresh.
  * @param schedule - `hourly` (every hour) or `daily` (every day at 08:00).
  * @param updatedAt - When it was last updated (ISO).
  * @param now - The clock.
+ * @param retryAt - After a failure, not before this instant (P1-08: a failure never makes the timer call the persona every minute).
  */
-export function isDue(schedule: IndicatorSchedule, updatedAt: string, now: Date): boolean {
+export function isDue(schedule: IndicatorSchedule, updatedAt: string, now: Date, retryAt?: string): boolean {
+  if (retryAt !== undefined && now.getTime() < Date.parse(retryAt)) return false
   const last = Date.parse(updatedAt)
   if (Number.isNaN(last)) return true
   return schedule === 'hourly' ? now.getTime() - last >= HOUR_MS : last < lastDailySlot(now).getTime()
@@ -224,12 +244,14 @@ export class Indicators {
       const current = this.deps.screens.get<IndicatorRecord>(projectId, KIND, id)
       if (current === undefined) return this.view(row) // unpinned while it was updating
       if ('failure' in fresh) {
-        const failed: IndicatorRecord = { ...current, status: 'failed', failure: fresh.failure }
+        // P1-08: a failure keeps the old value AND a wait before the next try (15, 30, 60… minutes), or the timer would call the persona every minute forever.
+        const failures = (current.failures ?? 0) + 1
+        const failed: IndicatorRecord = { ...current, status: 'failed', failure: fresh.failure, failures, retryAt: new Date(Date.parse(at) + backoffMs(failures)).toISOString() }
         this.put(failed)
         return this.view(failed)
       }
       const fired = evaluateAlert(current.data, fresh.data, alertRule(current.alertDropPct))
-      const { failure: _failure, alert: _alert, ...rest } = current
+      const { failure: _failure, alert: _alert, alertSeenAt: _seen, failures: _failures, retryAt: _retryAt, ...rest } = current
       const done: IndicatorRecord = { ...rest, data: fresh.data, status: 'ok', updatedAt: at, ...(fired === undefined ? {} : { alert: { pct: fired.pct, text: fired.text, at } }) }
       this.put(done)
       return this.view(done)
@@ -246,8 +268,9 @@ export class Indicators {
     const now = new Date(this.deps.now())
     let count = 0
     for (const projectId of this.projects()) {
+      this.recover(projectId)
       for (const row of this.records(projectId)) {
-        if (row.status === 'updating' || this.inflight.has(row.id) || !isDue(row.schedule, row.updatedAt, now)) continue
+        if (this.inflight.has(row.id) || !isDue(row.schedule, row.updatedAt, now, row.retryAt)) continue
         await this.refresh(projectId, row.id).catch(() => undefined)
         count += 1
       }
@@ -256,13 +279,47 @@ export class Indicators {
   }
 
   /**
-   * The alerts that wait for the person ("Precisa de você"): the indicators whose last refresh fell past the rule.
+   * A refresh the process died in the middle of leaves `updating` in the store and nothing running (P1-08): it goes back to the old value and the timer
+   * decides again, so a card is never "Atualizando…" forever.
    * @param projectId - Tenant.
    */
-  alerts(projectId: string): { readonly id: string; readonly title: string; readonly at: string; readonly personaId: string; readonly personaName: string }[] {
-    return this.records(projectId).flatMap(row => row.alert === undefined
-      ? []
-      : [{ id: `indicator:${row.id}:${row.alert.at}`, title: `${row.name}: ${row.alert.text}`, at: row.alert.at, personaId: row.personaId, personaName: row.personaName }])
+  recover(projectId: string): void {
+    for (const row of this.records(projectId)) {
+      if (row.status === 'updating' && !this.inflight.has(row.id)) this.put({ ...row, status: 'ok' })
+    }
+  }
+
+  /** {@link recover} for every project of the host (the boot). */
+  recoverAll(): void {
+    for (const projectId of this.projects()) this.recover(projectId)
+  }
+
+  /**
+   * The alerts that wait for the person ("Precisa de você"): the indicators whose last refresh fell past the rule and that she did not mark "Já vi".
+   * It is a NOTICE, not a decision: "Vendas de ontem caiu 31% desde ontem." (a daily number says "desde ontem", an hourly one "desde a última atualização").
+   * @param projectId - Tenant.
+   */
+  alerts(projectId: string): { readonly id: string; readonly indicatorId: string; readonly title: string; readonly at: string; readonly personaId: string; readonly personaName: string }[] {
+    return this.records(projectId).flatMap((row) => {
+      if (row.alert === undefined || row.alertSeenAt === row.alert.at) return []
+      const since = row.schedule === 'daily' ? 'desde ontem' : 'desde a última atualização'
+      return [{ id: `indicator:${row.id}:${row.alert.at}`, indicatorId: row.id, title: `${row.name} caiu ${String(row.alert.pct)}% ${since}.`, at: row.alert.at, personaId: row.personaId, personaName: row.personaName }]
+    })
+  }
+
+  /**
+   * "Já vi": the notice leaves the list; the card keeps its amber border until the next refresh. A new fall (another instant) is a new notice.
+   * @param projectId - Tenant.
+   * @param id - The indicator.
+   * @returns The indicator as the screen draws it.
+   */
+  dismissAlert(projectId: string, id: string): IndicatorView {
+    const row = this.deps.screens.get<IndicatorRecord>(projectId, KIND, id)
+    if (row === undefined) throw new IndicatorError('not-found', 'Esse número não está mais na Visão geral.')
+    if (row.alert === undefined) return this.view(row)
+    const seen: IndicatorRecord = { ...row, alertSeenAt: row.alert.at }
+    this.put(seen)
+    return this.view(seen)
   }
 
   private async ask(projectId: string, personaId: string, askId: string, name: string, was: IndicatorData, request: string): Promise<{ readonly data: IndicatorData } | { readonly failure: string }> {
@@ -298,12 +355,14 @@ export class Indicators {
   }
 
   private view(row: IndicatorRecord): IndicatorView {
+    // `updating` with nothing running is a refresh the process died in (P1-08): it reads as the old value, never as "Atualizando…" forever.
+    const status = row.status === 'updating' && !this.inflight.has(row.id) ? 'ok' as const : row.status
     return {
-      id: row.id, name: row.name, kind: row.data.kind, data: row.data, schedule: row.schedule, status: row.status, updatedAt: row.updatedAt,
+      id: row.id, name: row.name, kind: row.data.kind, data: row.data, schedule: row.schedule, status, updatedAt: row.updatedAt,
       personaId: row.personaId, personaName: row.personaName, sourceMessageId: row.sourceMessageId,
       ...(row.alertDropPct === undefined ? {} : { alertDropPct: row.alertDropPct }),
       ...(row.failure === undefined ? {} : { failure: row.failure }),
-      ...(row.alert === undefined ? {} : { alert: row.alert }),
+      ...(row.alert === undefined ? {} : { alert: { ...row.alert, ...(row.alertSeenAt === row.alert.at ? { seen: true as const } : {}) } }),
     }
   }
 }

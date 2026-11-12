@@ -101,12 +101,12 @@ export function PersonasTeamPanel({ t, roster, loading = false, onOpenPersona, o
                   <span className={styles.face}><PersonaFace entry={entry} /></span>
                   <span className={styles.text} aria-hidden="true">
                     <span className={styles.name}>{entry.name}</span>
-                    <span className={styles.role}>{entry.role}</span>
+                    {entry.role !== entry.name && <span className={styles.role}>{entry.role}</span>}
                     <span className={styles.chips}>
                       <Chip size="s" tone={PERSONA_STATE_CHIP_TONE[personaState]}>{state}</Chip>
-                      <span className={styles.queue}>
-                        {entry.queueCount > 0 ? t('overview.nowQueue', { count: String(entry.queueCount) }) : t('overview.queueEmpty')}
-                      </span>
+                      {entry.queueCount > 0 && (
+                        <span className={styles.queue}>{t('overview.nowQueue', { count: String(entry.queueCount) })}</span>
+                      )}
                     </span>
                     <span className={entry.currentTask === undefined ? `${styles.task} ${styles.taskIdle}` : styles.task}>
                       {entry.currentTask ?? t('overview.nowNoTask')}

@@ -35,7 +35,7 @@ export class VaultCodePorts implements VaultCodePort {
   open(who: HarnessIdentity, input: { readonly reason: string; readonly login?: string; readonly ticketId?: string }):
   { readonly ok: true; readonly requestId: string; readonly expiresAt: string } | { readonly ok: false; readonly code: string; readonly message: string } {
     if (!this.deps.sealable()) {
-      return { ok: false, code: 'unavailable', message: 'O Cofre não está disponível neste modo, então não consigo guardar o código com segurança. Peça à pessoa para resolver o acesso e tente de novo.' }
+      return { ok: false, code: 'unavailable', message: 'O Cofre não está disponível neste modo, então não consigo guardar o código com segurança. Diga ao dono, falando com ele: "preciso que você resolva o acesso ao Cofre". Depois tente de novo.' }
     }
     const reason = input.reason.trim()
     if (reason === '') return { ok: false, code: 'invalid', message: 'Diga em uma frase para que serve o código.' }
@@ -43,7 +43,8 @@ export class VaultCodePorts implements VaultCodePort {
       const request = this.deps.codes.open({
         projectId: who.projectId,
         personaId: who.personaId,
-        reason: input.login === undefined ? reason : `${reason} (${input.login})`,
+        reason,
+        ...(input.login === undefined ? {} : { site: input.login }),
         ...(input.ticketId === undefined ? {} : { ticketId: input.ticketId }),
       })
       return { ok: true, requestId: request.id, expiresAt: request.expiresAt }

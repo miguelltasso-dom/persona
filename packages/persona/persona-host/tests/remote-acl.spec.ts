@@ -18,6 +18,8 @@ it('every remote goes through can() except the documented list', () => {
       src.includes('requireProject') || src.includes('requireWorkspace') || src.includes('requireFileRoot')
       || src.includes('requireWrite') || src.includes('requireGovOwner') || src.includes('requireGovAvailability')
       || src.includes('actorOf') || src.includes('sessionCan')
+      // Carbon P0-13: the machine (browser, station) and the Cofre: owner only, and never a workspace without members.
+      || src.includes('requireMachineOwner') || src.includes('requireMachineRead')
       // Calls requireWrite and then also demands the workspace owner or the message's own author (engine-wait.host.spec proves it).
       || src.includes('requireEngineTriggerActor'),
       `${name} skipped can()`,

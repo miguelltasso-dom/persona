@@ -153,6 +153,18 @@ it('INJECTION: text the persona READ never authorizes a connector; only an event
   expect(h.connectorGrants.forRunner(bento, 'claude', 'task-plain')).toBeUndefined()
 })
 
+it('P0-09: the connectors are the OWNER\'s: the words of an invited MEMBER (not the owner) never authorize one, even though they are a human of the workspace', () => {
+  const h = host()
+  seed(h, REQUEST_PORTS)
+  const bento = h.product.getPersona('p2')!
+  say(h, 'mem-1', 'Por favor, envie um email para Y com o contrato', 'bia') // Bia is a member, not the owner
+  ticketFor(h, 'task-mem', 'mem-1')
+  expect(h.connectorGrants.forRunner(bento, 'claude', 'task-mem')).toBeUndefined()
+  say(h, 'own-1', 'Por favor, envie um email para Y com o contrato') // the owner's own words still are a request
+  ticketFor(h, 'task-own', 'own-1')
+  expect(h.connectorGrants.forRunner(bento, 'claude', 'task-own')?.map(item => item.id)).toEqual([GMAIL.id])
+})
+
 it('what the routing names must exist on that CLI; the first authority of a connector for a Task stays; no Task id is read-only', () => {
   const h = host()
   const ghost = { cli: 'claude', id: 'not-on-this-computer', name: 'Fantasma' }

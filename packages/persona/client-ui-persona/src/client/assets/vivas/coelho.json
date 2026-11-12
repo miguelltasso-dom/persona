@@ -1,0 +1,45 @@
+{
+  "animal": "coelho",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 199,
+    "top": 48,
+    "width": 606,
+    "height": 949
+  },
+  "size": [
+    307,
+    480
+  ],
+  "scale": 0.505795574288725,
+  "mask": [
+    {
+      "x": -10,
+      "y": 26,
+      "w": 355,
+      "h": 375
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "coelho-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "coelho-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "coelho-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "coelho-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

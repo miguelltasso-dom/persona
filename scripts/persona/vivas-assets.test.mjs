@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { loadSharp, readRgba, alphaStats } from './check-pose-register.mjs'
-import { buildVivas, cropRectOf, maskToOutput, parseMaskFile, targetSizeOf, VivasBuildError, VIVAS_MARGIN } from './vivas-assets.mjs'
+import { buildVivas, cropRectOf, maskToOutput, parseMaskFile, targetSizeOf, validateVivas, VivasBuildError, VIVAS_MARGIN } from './vivas-assets.mjs'
 
 const sharp = loadSharp()
 sharp.cache(false) // no Windows o cache do sharp segura os arquivos abertos e o rmSync da limpeza dá EPERM
@@ -73,7 +73,7 @@ test('mask.json: formas aceitas, tolerância, extras por expressão; erros claro
   const full = parseMaskFile({ mask: [1, 2, 3, 4], tolerance: { maxDiffPixels: 3 }, expressions: { pensando: { masks: [[9, 9, 2, 2]] } } })
   assert.equal(full.tolerance.maxDiffPixels, 3)
   assert.equal(full.extra.pensando.length, 1)
-  for (const [bad, re] of [[[], /objeto/u], [{}, /um dos dois/u], [{ mask: [1, 2, 3, 4], masks: [[1, 2, 3, 4]] }, /um dos dois/u], [{ mask: [1, 2, 3] }, /inteiro/u], [{ mask: [-1, 0, 3, 4] }, /negativos/u], [{ mask: [0, 0, 0, 4] }, /maiores que zero/u], [{ masks: [] }, /vazia/u], [{ mask: [1, 2, 3, 4], tolerance: { foo: 1 } }, /desconhecida/u], [{ mask: [1, 2, 3, 4], tolerance: { channelTol: -1 } }, /maior ou igual a zero/u]]) assert.throws(() => parseMaskFile(bad), re, JSON.stringify(bad))
+  for (const [bad, re] of [[[], /lista vazia/u], [{}, /um dos dois/u], [{ mask: [1, 2, 3, 4], masks: [[1, 2, 3, 4]] }, /um dos dois/u], [{ mask: [1, 2, 3] }, /inteiro/u], [{ mask: [-1, 0, 3, 4] }, /negativos/u], [{ mask: [0, 0, 0, 4] }, /maiores que zero/u], [{ masks: [] }, /vazia/u], [{ mask: [1, 2, 3, 4], tolerance: { foo: 1 } }, /desconhecida/u], [{ mask: [1, 2, 3, 4], tolerance: { channelTol: -1 } }, /maior ou igual a zero/u]]) assert.throws(() => parseMaskFile(bad), re, JSON.stringify(bad))
 })
 
 test('sem persona-assets/vivas: não faz nada e não falha (o build antigo continua igual)', async () => {
@@ -272,16 +272,97 @@ test('máscara extra só da expressão: a pata que sobe é permitida em "pensand
   } finally { e.done() }
 })
 
+test('mask.json: TODOS os formatos — array curto [x,y,w,h], array de arrays, {mask}, {masks}, {x,y,w,h} — dão as mesmas máscaras', () => {
+  const one = [{ x: 1, y: 2, w: 3, h: 4 }]
+  assert.deepEqual(parseMaskFile([1, 2, 3, 4]).masks, one)
+  assert.deepEqual(parseMaskFile([[1, 2, 3, 4]]).masks, one)
+  assert.deepEqual(parseMaskFile({ mask: [1, 2, 3, 4] }).masks, one)
+  assert.deepEqual(parseMaskFile({ masks: [[1, 2, 3, 4]] }).masks, one)
+  assert.deepEqual(parseMaskFile({ mask: { x: 1, y: 2, w: 3, h: 4 } }).masks, one)
+  assert.deepEqual(parseMaskFile([[1, 2, 3, 4], [5, 6, 7, 8]]).masks.length, 2)
+  assert.deepEqual(parseMaskFile([180, 140, 664, 620]).masks, [{ x: 180, y: 140, w: 664, h: 620 }]) // o formato real que a Brush entrega
+  for (const bad of [[], [1, 2, 3], [1, 2, 3, 4, 5], ['a', 'b', 'c', 'd'], [[1, 2, 3]], [-1, 0, 5, 5], [0, 0, 0, 5], 7, null, 'x']) assert.throws(() => parseMaskFile(bad), Error, JSON.stringify(bad))
+})
+
+test('mask.json em ARRAY e com BOM (o que a Brush entrega) passa de ponta a ponta pelo build', async () => {
+  const e = env()
+  try {
+    await happy(e)
+    writeFileSync(join(e.src, 'vivas/panda/mask.json'), `\uFEFF${JSON.stringify(FACE)}`) // [x,y,w,h] com BOM
+    const result = await e.run()
+    assert.equal(result.animals.length, 1)
+    assert.deepEqual(JSON.parse(readFileSync(join(e.out, 'vivas/panda.json'), 'utf8')).mask.length, 1)
+    writeFileSync(join(e.src, 'vivas/panda/mask.json'), `\uFEFF${JSON.stringify({ mask: FACE })}`) // objeto com BOM
+    assert.equal((await e.run()).animals.length, 1)
+  } finally { e.done() }
+})
+
+test('validateVivas: valida SEM gravar nada (é a fase que roda ANTES de o build apagar a saída); problema = VivasBuildError; sem pasta = nenhum plano', async () => {
+  const e = env()
+  try {
+    assert.deepEqual(await validateVivas({ src: e.src, sharp }), { plans: [] })
+    await happy(e)
+    const { plans } = await validateVivas({ src: e.src, sharp })
+    assert.equal(plans.length, 1)
+    assert.equal(plans[0].animal, 'panda')
+    assert.deepEqual(plans[0].expressions, ['feliz', 'pensando'])
+    assert.deepEqual(readdirSync(e.out), []) // nada foi escrito
+    await png(e.src, 'vivas/panda/feliz.png', animal({ w: 130, h: 150 }))
+    await assert.rejects(() => validateVivas({ src: e.src, sharp }), VivasBuildError)
+    assert.deepEqual(readdirSync(e.out), [])
+  } finally { e.done() }
+})
+
+test('buildVivas com os planos prontos só grava (não valida de novo); sem planos valida sozinho', async () => {
+  const e = env()
+  try {
+    await happy(e)
+    const { plans } = await validateVivas({ src: e.src, sharp })
+    const result = await e.run({ plans })
+    assert.equal(result.animals.length, 1)
+    assert.ok(outFiles(e).includes('panda-feliz.webp'))
+  } finally { e.done() }
+})
+
+test('buildVivas aceita os planos como array OU como o objeto { plans } do validateVivas (o bug de 1 token que derrubou o build real)', async () => {
+  const e = env()
+  try {
+    await happy(e)
+    const validated = await validateVivas({ src: e.src, sharp })
+    assert.equal((await e.run({ plans: validated })).animals.length, 1) // o objeto inteiro, como o build-assets passou por engano
+    rmSync(join(e.out, 'vivas'), { recursive: true, force: true })
+    assert.equal((await e.run({ plans: validated.plans })).animals.length, 1) // o array
+    assert.ok(outFiles(e).includes('panda-feliz.webp'))
+  } finally { e.done() }
+})
+
+test('arquivo que começa com "_" (rascunho / recorte de detalhe) fica na pasta e FORA do build, mesmo com canvas diferente — o caso real do lobo-guara', async () => {
+  const e = env()
+  try {
+    await happy(e)
+    await png(e.src, 'vivas/panda/_pensando-detalhe.png', animal({ w: 45, h: 56, cx: 20, cy: 28, r: 15, eyes: [] })) // outro canvas, como pensando-v3-detalhe.png (450x560 numa base 1024x1024)
+    await png(e.src, 'vivas/panda/pensando-detalhe.png', animal({ w: 45, h: 56, cx: 20, cy: 28, r: 15, eyes: [] })) // sem o "_" é expressão e reprova
+    await assert.rejects(() => e.run(), /vivas\/panda\/pensando-detalhe\.png: canvas 45×56 diferente da base 120×140/u)
+    rmSync(join(e.src, 'vivas/panda/pensando-detalhe.png'))
+    await e.run()
+    assert.deepEqual(outFiles(e), ['panda-base.webp', 'panda-feliz.webp', 'panda-pensando.webp', 'panda.json']) // nada do _detalhe
+  } finally { e.done() }
+})
+
 test('o gancho no build-assets.mjs: importa o módulo e chama buildVivas ANTES do orçamento; o arquivo continua 100% CRLF; o resto do pipeline não mudou de ordem', () => {
   const text = readFileSync(join(dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/u, '$1')), 'build-assets.mjs'), 'utf8')
   const lf = (text.match(/(?<!\r)\n/gu) ?? []).length
   const crlf = (text.match(/\r\n/gu) ?? []).length
-  assert.equal(lf, 0, 'build-assets.mjs tem LF solto: misturou final de linha')
-  assert.ok(crlf > 500)
-  assert.match(text, /import \{ buildVivas \} from '\.\/vivas-assets\.mjs'/u)
+  assert.ok(lf === 0 || crlf === 0, 'build-assets.mjs mistura CRLF e LF: edite com âncora que preserve o final de linha do arquivo') // hoje LF puro; já foi CRLF puro
+  assert.ok(lf + crlf > 500)
+  assert.match(text, /import \{ buildVivas, validateVivas \} from '\.\/vivas-assets\.mjs'/u)
   const hook = text.indexOf('await buildVivas(')
   const budget = text.indexOf('const totalBytes = manifest.reduce')
   const poses = text.indexOf("await poseDerivative(join(SRC, 'poses', file)")
   assert.ok(hook > poses && hook < budget, 'o gancho precisa ficar depois das poses e antes do cálculo do orçamento')
   assert.equal(text.split('await buildVivas(').length, 2)
+  const validate = text.indexOf('await validateVivas(')
+  const wipe = text.indexOf('rmSync(OUT')
+  assert.ok(validate > 0 && validate < wipe, 'a validação das vivas precisa vir ANTES do rmSync(OUT): uma máscara torta não pode deixar a árvore sem generated-imports.ts')
+  assert.equal(text.split('await validateVivas(').length, 2)
 })

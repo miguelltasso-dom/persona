@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url'
 import { unstable_dev, type Unstable_DevWorker } from 'wrangler'
 import { IdentityCipher, MemorySyncLog } from '../../../packages/persona/persona-core/src/sync/index.ts'
 import type { SyncEnvelope } from '../../../packages/persona/persona-core/src/sync/types.ts'
-import { HttpTransport, SyncClient, WorkspaceCipher } from '../../../packages/persona/persona-sync/src/index.ts'
+import { HttpTransport, SyncClient, WorkspaceCipher, createRequestSigner } from '../../../packages/persona/persona-sync/src/index.ts'
+import { json, newDevice, signedAs } from './signed-fetch.ts'
 
 const scriptPath = fileURLToPath(new URL('../src/index.ts', import.meta.url))
 const configPath = fileURLToPath(new URL('../wrangler.toml', import.meta.url))
@@ -16,6 +17,10 @@ const WORKSPACE = 'remote-ab'
 const STREAM = 'channel:geral'
 
 let worker: Unstable_DevWorker | undefined
+
+// Two desks, two real device identities: every call to the hub is signed with the caller's own key.
+const ana = newDevice('ana')
+const beto = newDevice('beto')
 
 beforeAll(async () => {
   worker = await unstable_dev(scriptPath, {
@@ -62,8 +67,10 @@ function envelope(overrides: Partial<SyncEnvelope> = {}): SyncEnvelope {
 
 it('two desks: invite, #geral converges, DM/task stay local, B offline/resume, revoke cuts', async () => {
   const cipher = new WorkspaceCipher('segredo-ws', 'wk1')
-  const transportA = new HttpTransport('http://edge.test', WORKSPACE, fetchImpl, 'ana')
-  const transportB = new HttpTransport('http://edge.test', WORKSPACE, fetchImpl, 'beto')
+  const transportA = new HttpTransport('http://edge.test', WORKSPACE, fetchImpl, createRequestSigner('ana', ana.identity.signing.seed))
+  const transportB = new HttpTransport('http://edge.test', WORKSPACE, fetchImpl, createRequestSigner('beto', beto.identity.signing.seed))
+  const asAna = signedAs(fetchImpl, ana)
+  const asBeto = signedAs(fetchImpl, beto)
   const deskA = new SyncClient({
     log: new MemorySyncLog(), transport: transportA, cipher, workspaceKeyId: 'wk1',
   })
@@ -77,26 +84,15 @@ it('two desks: invite, #geral converges, DM/task stay local, B offline/resume, r
     workspaceId: WORKSPACE,
     workspaceRole: 'owner' as const,
     projectIds: ['launch'],
-  }
-  const guest = {
-    kind: 'user' as const,
-    id: 'beto',
-    workspaceId: WORKSPACE,
-    workspaceRole: 'guest' as const,
-    projectIds: [] as string[],
+    keys: ana.keys,
   }
 
-  const joined = await fetchImpl(`http://edge.test/w/${WORKSPACE}/members`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(owner),
-  })
+  const joined = await asAna(`http://edge.test/w/${WORKSPACE}/members`, { method: 'POST', ...json(owner) })
   expect(joined.ok).toBe(true)
 
-  const issued = await fetchImpl(`http://edge.test/w/${WORKSPACE}/invites`, {
+  const issued = await asAna(`http://edge.test/w/${WORKSPACE}/invites`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-persona-actor': 'ana' },
-    body: JSON.stringify({
+    ...json({
       id: 'inv-ab',
       token: 'tok-ab',
       grant: { workspaceRole: 'member', projectIds: ['launch'], channelIds: ['geral'], dmIds: [] },
@@ -105,11 +101,11 @@ it('two desks: invite, #geral converges, DM/task stay local, B offline/resume, r
   })
   expect(issued.ok).toBe(true)
 
-  const redeemed = await fetchImpl(`http://edge.test/w/${WORKSPACE}/invites/tok-ab/redeem`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(guest),
-  })
+  // Beto follows the link and ASKS; he is a member only after Ana approves.
+  const asked = await asBeto(`http://edge.test/w/${WORKSPACE}/invites/tok-ab/request`, { method: 'POST', ...json({ actorId: 'beto', displayName: 'Beto', keys: beto.keys }) })
+  expect(asked.ok).toBe(true)
+  const requestId = (await asked.json() as { request: { id: string } }).request.id
+  const redeemed = await asAna(`http://edge.test/w/${WORKSPACE}/join-requests/${requestId}/approve`, { method: 'POST', ...json({ wraps: [] }) })
   const redeemedBody = await redeemed.json() as { actor: { projectIds: string[]; workspaceRole: string } }
   expect(redeemedBody.actor.projectIds).toContain('launch')
   expect(redeemedBody.actor.workspaceRole).toBe('member')
@@ -181,26 +177,19 @@ it('two desks: invite, #geral converges, DM/task stay local, B offline/resume, r
   expect(parked.log.after(STREAM, 0).map(item => item.seq)).toEqual([1, 2, 3])
   expect(parked.open(parked.log.after(STREAM, 0)[2].payload)).toBe('A enquanto B estava fora')
 
-  const revoked = await fetchImpl(`http://edge.test/w/${WORKSPACE}/invites/inv-ab/revoke`, {
-    method: 'POST',
-    headers: { 'x-persona-actor': 'ana' },
-  })
+  const revoked = await asAna(`http://edge.test/w/${WORKSPACE}/invites/inv-ab/revoke`, { method: 'POST' })
   expect(revoked.ok).toBe(true)
 
-  const cutAppend = await fetchImpl(`http://edge.test/w/${WORKSPACE}/sync/append`, {
+  const cutAppend = await asBeto(`http://edge.test/w/${WORKSPACE}/sync/append`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-persona-actor': 'beto' },
-    body: JSON.stringify(envelope({
+    ...json(envelope({
       seq: 4, idempotencyKey: 'ab-4', payload: deskB.seal('B depois da revogação'),
     })),
   })
   expect(cutAppend.status).toBe(403)
   expect(await cutAppend.json()).toMatchObject({ status: 'refused', code: 'ACCESS_REVOKED' })
 
-  const cutAfter = await fetchImpl(
-    `http://edge.test/w/${WORKSPACE}/sync/after?streamId=${STREAM}&afterSeq=0`,
-    { headers: { 'x-persona-actor': 'beto' } },
-  )
+  const cutAfter = await asBeto(`http://edge.test/w/${WORKSPACE}/sync/after?streamId=${STREAM}&afterSeq=0`)
   expect(cutAfter.status).toBe(403)
   expect(await cutAfter.json()).toMatchObject({ status: 'refused', code: 'ACCESS_REVOKED' })
 

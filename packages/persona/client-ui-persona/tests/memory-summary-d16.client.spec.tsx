@@ -29,9 +29,9 @@ function home(extra: Partial<Parameters<typeof SecondBrainHome>[0]> = {}) {
 }
 
 describe('Resumo · o título é o nome da aba', () => {
-  it('h1 "Resumo" e os textos não dizem "Segundo cérebro" nem "O bibliotecário"', () => {
+  it('h1 "Visão geral" e os textos não dizem "Segundo cérebro" nem "O bibliotecário"', () => {
     home()
-    expect(screen.getByRole('heading', { level: 1, name: 'Resumo' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'Visão geral' })).toBeTruthy()
     for (const dict of [pt, en]) {
       for (const [key, value] of Object.entries(dict)) {
         expect(value, key).not.toMatch(/Segundo cérebro|Second brain|bibliotec|librarian/iu)

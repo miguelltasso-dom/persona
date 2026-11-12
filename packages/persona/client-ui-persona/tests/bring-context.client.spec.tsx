@@ -58,7 +58,9 @@ describe('ProposalReview', () => {
     render(<Wrapper />)
     expect(screen.getByText('Bloqueado: parece um CPF')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Gravar 2 no Cofre' })).toBeTruthy()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Descartar' })[1]!)
+    // item 13 §13.5: a sensitive item is a DISABLED, unchecked line until the person unblocks it; unchecking a clean one takes it out of the count
+    expect((screen.getByRole('checkbox', { name: 'CPF 123.456.789-00' }) as HTMLInputElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Entrega só até 20 km.' }))
     expect(screen.getByRole('button', { name: 'Gravar 1 no Cofre' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Mostrar e aceitar mesmo assim' }))
     expect(screen.getByRole('button', { name: 'Gravar 2 no Cofre' })).toBeTruthy()

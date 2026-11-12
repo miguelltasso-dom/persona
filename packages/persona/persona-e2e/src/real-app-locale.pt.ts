@@ -3,7 +3,7 @@
 export const onboarding = {
   step1Title: 'Como podemos te chamar?',
   step1Placeholder: 'Ex.: Miguel',
-  step2VaultBadge: 'Cofre da empresa',
+  step2VaultBadge: 'Memória da empresa',
   step3Title: 'Ferramentas de IA neste computador',
   step4TemplateBlank: 'Em branco',
   step5Title: 'Primeira entrega',

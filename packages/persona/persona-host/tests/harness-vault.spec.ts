@@ -42,7 +42,8 @@ it('opens a pending request for the owner and answers with no digit', async () =
   expect(Object.keys(result).sort()).toEqual(['expiresAt', 'ok', 'requestId'])
   const request = codes.get('pp', result.requestId)
   expect(request?.state).toBe('pending')
-  expect(request?.reason).toContain('Banco')
+  expect(request?.reason).toBe('O banco mandou um código.')
+  expect(request?.site).toBe('Banco')
   expect(request?.ticketId).toBe('t1')
 })
 
@@ -50,4 +51,14 @@ it('refuses, and opens nothing, when the sealed store cannot keep the digits', a
   const { port: vaultCode, codes } = await port(false)
   expect(vaultCode.open(who, { reason: 'O banco mandou um código.' })).toMatchObject({ ok: false, code: 'unavailable' })
   expect(codes.list('pp')).toEqual([])
+})
+
+it('P2-01: the refusal the model relays speaks to the owner in the second person, never of "a pessoa"', async () => {
+  const { port: vaultCode } = await port(false)
+  const result = vaultCode.open(who, { reason: 'O banco mandou um código.' })
+  expect(result).toMatchObject({ ok: false, code: 'unavailable' })
+  const message = result.ok ? '' : result.message
+  expect(message).not.toMatch(/\b(?:à|a|da|de|pela)\s+pessoa\b/iu)
+  expect(message).toMatch(/você/u) // (\b is ASCII-only: it would not see the end of an accented word)
+  expect(message).toMatch(/Cofre/u)
 })

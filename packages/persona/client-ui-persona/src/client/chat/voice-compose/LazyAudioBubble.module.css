@@ -1,0 +1,24 @@
+/* COLHEITA-S1 P1-05: o botão de tocar do anexo de áudio antes de carregar. É um controle: 32 px (a régua), só tokens. */
+.play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: var(--control-h-s);
+  min-height: var(--control-h-s);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--control-r-s);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  cursor: pointer;
+}
+
+.play:focus-visible {
+  outline: 2px solid var(--persona-brand);
+  outline-offset: 2px;
+}
+
+.play[disabled] {
+  cursor: progress;
+  opacity: 0.6;
+}

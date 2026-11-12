@@ -21,12 +21,13 @@ interface BrowserCardData {
   readonly personas: readonly BrowserPersonaOption[]
 }
 
-function surfaceOf(gate: RemoteTenantGate, state: RemoteLoadState<BrowserCardData>): 'loading' | 'error' | 'empty' | 'ready' {
+/** `view` é a view MAIS NOVA (a que uma ação devolveu, senão a carregada): o vazio vem dela, nunca do carregamento antigo (P1-10: criar o 1º perfil mantinha "Nenhum perfil ainda"). */
+function surfaceOf(gate: RemoteTenantGate, state: RemoteLoadState<BrowserCardData>, view: HostBrowserView | undefined): 'loading' | 'error' | 'empty' | 'ready' {
   if (gate === 'error') return 'error'
   if (gate === 'loading') return 'loading'
   if (state.status === 'loading') return 'loading'
   if (state.status === 'error') return 'error'
-  return state.data.view.profiles.length === 0 ? 'empty' : 'ready'
+  return (view ?? state.data.view).profiles.length === 0 ? 'empty' : 'ready'
 }
 
 export function ConnectedBrowserProfiles({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
@@ -64,7 +65,7 @@ export function ConnectedBrowserProfiles({ persona, useTenant, useShell }: Lumen
 
   return (
     <BrowserProfilesCard
-      state={surfaceOf(gate, state)}
+      state={surfaceOf(gate, state, view)}
       chromeMissing={view !== undefined && view.chrome === undefined}
       profiles={view === undefined ? [] : browserRows(view, personas)}
       personas={personas}

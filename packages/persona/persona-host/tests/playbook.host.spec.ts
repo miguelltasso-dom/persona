@@ -69,7 +69,7 @@ it('three uses on ONE day make no offer; the third on a second day makes ONE: th
   expect(cards).toHaveLength(1)
   expect(cards[0]).toMatchObject({
     title: 'Bia aprendeu: Cartaz da promoção de pão de queijo',
-    question: 'Usado 4 vezes em 2 dias. Virar skill deixa esse jeito pronto para usar sempre.',
+    question: 'Usado 4 vezes em 2 dias.',
     status: 'pending', personaId: 'bia', personaName: 'Bia',
   })
   expect(cards[0]?.title).not.toMatch(/×|\ba Bia\b/u) // words, not "4×"; no article for a persona
@@ -96,7 +96,7 @@ it('one click on "Virar skill?" turns the candidate on (and the skill carries wh
   expect(candidate?.body).toContain('O dono costuma pedir: Preço maior, sem ponto de exclamação')
 
   const decided = h.screens.decide({ ...SCOPE, id: offered.approvalId, kind: 'skill', accept: true })
-  expect(decided).toMatchObject({ status: 'approved', question: expect.stringContaining('Virar skill deixa') as string })
+  expect(decided).toMatchObject({ status: 'approved', question: expect.stringMatching(/^Usado \d+ vezes em 2 dias\.$/u) as string })
   expect(h.screens.getSkillRecord('pp', offered.skillId)?.enabled).toBe(true)
 })
 
@@ -109,7 +109,7 @@ it('two conversations count like two days: three uses in ONE day but two convers
   expect(notePlaybookWin(deps(h, clock), { ...win('t3'), conversation: 'assunto-a' })?.offered).toBe(false) // one day, one conversation
   const fourth = notePlaybookWin(deps(h, clock), { ...win('t4'), conversation: 'assunto-b' })
   expect(fourth?.offered).toBe(true)
-  expect(h.screens.listApprovals('pp').find(card => card.kind === 'skill')?.question).toBe('Usado 4 vezes em 2 conversas. Virar skill deixa esse jeito pronto para usar sempre.')
+  expect(h.screens.listApprovals('pp').find(card => card.kind === 'skill')?.question).toBe('Usado 4 vezes em 2 conversas.')
 })
 
 it('"Agora não" keeps the note and offers again only after three MORE uses, as a new card; the first one stays turned down', () => {

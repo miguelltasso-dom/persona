@@ -1,0 +1,45 @@
+{
+  "animal": "tucano",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 163,
+    "top": 153,
+    "width": 742,
+    "height": 812
+  },
+  "size": [
+    439,
+    480
+  ],
+  "scale": 0.5911330049261084,
+  "mask": [
+    {
+      "x": -26,
+      "y": -50,
+      "w": 474,
+      "h": 474
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "tucano-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "tucano-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "tucano-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "tucano-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

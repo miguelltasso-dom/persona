@@ -10,7 +10,11 @@ import { isPersonaAskEnabled } from '../ask/ask-flag.ts'
 import { isTeamworkEnabled } from '../chat/teamwork-flag.ts'
 import type { DailyNowResult } from '../overview/daily-now.ts'
 import { ConnectedTeamAi } from '../team-connect/ConnectedTeamAi.tsx'
-import { ConnectedSeusNumeros } from '../indicators/SeusNumeros.tsx'
+import { SeusNumerosBound } from '../indicators/SeusNumeros.tsx'
+import { IndicatorNotices } from '../indicators/IndicatorNotices.tsx'
+import { noticesOf } from '../indicators/indicators-model.ts'
+import { spotlightIndicator } from '../indicators/spotlight-indicator.ts'
+import { useIndicators } from '../indicators/use-indicators.tsx'
 import type { TeamConnectRemoteWire } from '../team-connect/team-connect-wire.ts'
 
 export interface ConnectedOverviewInjected {
@@ -33,6 +37,8 @@ export interface ConnectedOverviewInjected {
   teamConnectRemote?: TeamConnectRemoteWire
   /** Item 19a: the host Remote for "Seus números" (`listIndicators`…). A host without the five calls (or none) = no section. */
   indicatorsRemote?: object
+  /** P1-08: re-read the Visão geral (a number's alert is born without any message, so the screen is not told otherwise). */
+  refreshLive?(): void
 }
 
 export type ConnectedOverviewViewProps = PropsLocale<'persona.shell'> & InjectFace<ConnectedOverviewInjected>
@@ -51,6 +57,7 @@ export function ConnectedOverviewView({
   loadCompanySuggestion,
   teamConnectRemote,
   indicatorsRemote,
+  refreshLive,
 }: ConnectedOverviewViewProps): ReactNode {
   const live = useLive(state => state)
   // The profile is read once per workspace (a text-only call); the loader is kept in a ref so a new function identity never re-reads it.
@@ -73,6 +80,10 @@ export function ConnectedOverviewView({
     firstDeliveryFromHost(live.firstDelivery, live.stripMembers),
   )
   const firstDeliveryPending = live.firstDelivery?.status === 'working'
+  // Item 19a: one binding feeds the "Seus números" section AND the fall notices of "Precisa de você" (a fall is a notice, never an approval).
+  const indicators = useIndicators({ remote: indicatorsRemote, tenant: live.tenant })
+  const fallNotices = useMemo(() => (indicators === undefined ? [] : noticesOf(indicators.items)), [indicators])
+  const dismissAlert = indicators?.dismissAlert
   const awayEvents = live.awayEvents.map(event => ({
     id: event.id,
     body: event.body,
@@ -102,7 +113,19 @@ export function ConnectedOverviewView({
       {...(askDailyBrief === undefined || !isTeamworkEnabled() ? {} : { onAskDailyBrief: askDailyBrief })}
       onOpenAwayTask={openAwayTask}
       teamAiSlot={<ConnectedTeamAi t={t} remote={teamConnectRemote} workspaceId={live.tenant?.workspaceId} projectId={live.tenant?.projectId} />}
-      numbersSlot={<ConnectedSeusNumeros remote={indicatorsRemote} tenant={live.tenant} />}
+      numbersSlot={indicators === undefined ? null : <SeusNumerosBound binding={indicators} onAlertsChange={refreshLive} />}
+      notices={fallNotices.length === 0
+        ? undefined
+        : {
+          count: fallNotices.length,
+          slot: (
+            <IndicatorNotices
+              notices={fallNotices}
+              onSee={(indicatorId) => { spotlightIndicator(indicatorId) }}
+              onDismiss={dismissAlert === undefined ? undefined : (indicatorId) => { void dismissAlert(indicatorId).catch(() => undefined) }}
+            />
+          ),
+        }}
     />
   )
 }

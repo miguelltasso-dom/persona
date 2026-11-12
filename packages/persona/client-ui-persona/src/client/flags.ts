@@ -29,6 +29,8 @@ export type FlagName =
   | 'engineEffort'
   | 'approvalsInboxV2'
   | 'remoteTeamTab'
+  | 'channelSections'
+  | 'toolsCatalog'
 
 export interface FlagSpec {
   /** A chave do `localStorage` (e do `window.__PERSONA_FLAGS__`, que também aceita o nome curto). */
@@ -61,6 +63,10 @@ export const FLAGS: Readonly<Record<FlagName, FlagSpec>> = {
   approvalsInboxV2: { key: 'persona.approvalsInbox.v2', defaultOn: true },
   // Cena 20 (Muse) + decisão do Keel: a aba Membros só existe com a equipe remota ligada. Padrão DESLIGADA na v1.1 (deploy externo E11 pendente).
   remoteTeamTab: { key: 'persona.flag.remoteTeamTab', defaultOn: false },
+  // Item 22 (Muse §22): equipes como seções, canais múltiplos e cabeçalho do canal. DESLIGADA até a Muse e a Ember aceitarem (ordem do Keel, 12/11).
+  channelSections: { key: 'persona.flag.channelSections', defaultOn: false },
+  // Item 26 (Muse §26 + decisão do Keel/Muse 12/11): a aba Configurações › Ferramentas só liga quando existir o fluxo "Conectar" (26.5): nenhum cartão morto ao Miguel.
+  toolsCatalog: { key: 'persona.flag.toolsCatalog', defaultOn: false },
 }
 
 export const FLAG_NAMES = Object.keys(FLAGS) as readonly FlagName[]

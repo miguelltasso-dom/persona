@@ -15,7 +15,7 @@ export interface ComponentManifestEntry {
   readonly bytes: number
   /**
    * Archive format the installer stores: `zip` (default) is extracted into the component directory; `tar.gz` is kept as
-   * `model.tar.gz`, the shape the renderer's worker loads.
+   * `model.tar.gz`, the archive layout the renderer's worker loads.
    */
   readonly format?: 'zip' | 'tar.gz'
 }

@@ -67,6 +67,8 @@ export interface ReactiveApprovalsListProps {
   readonly onDecideConnector?: (item: ApprovalItem, choice: ConnectorChoice) => void
   /** HT-9 / D-095 (kind action): Enviar · Editar · Cancelar of the external action's preview. Without it the card is read-only (no dead buttons). */
   readonly onDecideAction?: ((decision: ActionDecision) => void | Promise<void>) | undefined
+  /** Item 16: after "Virar skill" the stamp offers "Ver em Skills" (the persona's Skills tab). No handler, no button. */
+  readonly onOpenSkills?: ((personaId: string) => void) | undefined
   readonly onCelebrateAccept: (id: string, proceed: () => void) => void
 }
 
@@ -83,6 +85,7 @@ function ReactiveApprovalRow({
   onReply,
   onDecideConnector,
   onDecideAction,
+  onOpenSkills,
   onCelebrateAccept,
   decorSprig = false,
 }: ReactiveApprovalsListProps & { readonly item: ApprovalItem; readonly decorSprig?: boolean }): ReactNode {
@@ -144,7 +147,14 @@ function ReactiveApprovalRow({
       >
         {stamped && (
           <div className={styles.approvalStamp}>
-            <ApprovedStamp label={t(item.stampKey ?? 'stamp.approved')} animate seed={item.id} />
+            <ApprovedStamp
+              label={t(item.stampKey ?? 'stamp.approved')}
+              animate
+              seed={item.id}
+              {...(item.stampKey === 'stamp.skillOffer' && onOpenSkills !== undefined && (item.proposerPersonaId ?? '') !== ''
+                ? { actionLabel: t('stamp.skillOffer.action'), onAction: () => { onOpenSkills(item.proposerPersonaId!) } }
+                : {})}
+            />
             {rememberStampNote !== null && (
               <p className={styles.rememberStampNote}>{rememberStampNote}</p>
             )}
@@ -183,7 +193,10 @@ function ReactiveApprovalRow({
                 <Chip tone="accent" size="s">{item.kind === 'connector' ? connectorText(dict, 'type.connector', 'Permissão') : item.kind === 'action' ? connectorText(dict, 'type.action', 'Ação externa') : t(`type.${item.kind}`)}</Chip>
                 {item.example === true && <> <Chip tone="neutral" size="s">{t('inbox.example')}</Chip></>}
                 {item.reviewedBy !== undefined && <> <ReviewedBySeal reviewer={item.reviewedBy} label={t('review.seal', { name: item.reviewedBy.name })} /></>}
-                <h3 className={styles.question}>{cardTitle(dict, item)}</h3>
+                {item.dismissKey === undefined
+                  ? <h3 className={styles.question}>{cardTitle(dict, item)}</h3>
+                  // A quiet-playbook offer (item 16) names the way of working: two lines at most, the whole name on hover (Atlas 12/11).
+                  : <h3 className={`${styles.question} ${styles.questionClamp}`} title={cardTitle(dict, item)}>{cardTitle(dict, item)}</h3>}
                 {isHire && hireRole.length > 0 && (
                 // The role is already in the heading, so no chip repeats it here (the details dialog keeps it).
                   <p className={styles.hireWho}>
@@ -243,7 +256,7 @@ function ReactiveApprovalRow({
                     )}
                     <Button
                       variant={onReply !== undefined && item.replyTarget !== undefined ? 'secondary' : 'primary'}
-                      size="s"
+                      size={item.dismissKey === undefined ? 's' : 'm'}
                       loading={deciding}
                       onClick={acceptItem}
                       disabled={blocked || item.blindAction === true || onDecideItem === undefined || leaving || (!controlled && exitStampId !== null)}
@@ -257,7 +270,7 @@ function ReactiveApprovalRow({
                     )}
                     <Button
                       variant="secondary"
-                      size="s"
+                      size={item.dismissKey === undefined ? 's' : 'm'}
                       onClick={() => { onDecideItem?.(item, false) }}
                       disabled={onDecideItem === undefined || leaving || deciding || (!controlled && exitStampId !== null)}
                     >

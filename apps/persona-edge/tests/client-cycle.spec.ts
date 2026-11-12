@@ -3,12 +3,15 @@ import { fileURLToPath } from 'node:url'
 import { unstable_dev, type Unstable_DevWorker } from 'wrangler'
 import { IdentityCipher, MemorySyncLog } from '../../../packages/persona/persona-core/src/sync/index.ts'
 import type { SyncEnvelope } from '../../../packages/persona/persona-core/src/sync/types.ts'
-import { HttpTransport, SyncClient, WorkspaceCipher } from '../../../packages/persona/persona-sync/src/index.ts'
+import { HttpTransport, SyncClient, WorkspaceCipher, createRequestSigner } from '../../../packages/persona/persona-sync/src/index.ts'
+import { json, newDevice, signedAs } from './signed-fetch.ts'
 
 const scriptPath = fileURLToPath(new URL('../src/index.ts', import.meta.url))
 const configPath = fileURLToPath(new URL('../wrangler.toml', import.meta.url))
 
 let worker: Unstable_DevWorker | undefined
+
+const ana = newDevice('ana') // the owner of the workspace: every call below is signed with this device's key
 
 beforeAll(async () => {
   worker = await unstable_dev(scriptPath, {
@@ -24,6 +27,11 @@ beforeAll(async () => {
       watch: false,
     },
   })
+  const joined = await signedAs(fetchImpl, ana)('http://edge.test/w/cycle/members', {
+    method: 'POST',
+    ...json({ kind: 'user', id: 'ana', workspaceId: 'cycle', workspaceRole: 'owner', projectIds: [], keys: ana.keys }),
+  })
+  if (!joined.ok) throw new Error(`owner bootstrap failed: ${String(joined.status)}`)
 }, 90_000)
 
 afterAll(async () => {
@@ -54,7 +62,7 @@ function envelope(overrides: Partial<SyncEnvelope> = {}): SyncEnvelope {
 }
 
 it('two SyncClients converge on the local worker: invite, DM refused, offline resume, cipher', async () => {
-  const transport = new HttpTransport('http://edge.test', 'cycle', fetchImpl)
+  const transport = new HttpTransport('http://edge.test', 'cycle', fetchImpl, createRequestSigner('ana', ana.identity.signing.seed))
   const cipher = new WorkspaceCipher('segredo-ws', 'wk1')
   const a = new SyncClient({ log: new MemorySyncLog(), transport, cipher, workspaceKeyId: 'wk1' })
   const b = new SyncClient({ log: new MemorySyncLog(), transport, cipher, workspaceKeyId: 'wk1' })
@@ -86,10 +94,9 @@ it('two SyncClients converge on the local worker: invite, DM refused, offline re
   await b.pull('channel:geral')
   expect(a.log.after('channel:geral', 0).map(item => item.seq)).toEqual([1, 2])
   expect(b.log.after('channel:geral', 0).map(item => item.seq)).toEqual([1, 2])
-  const issued = await fetchImpl('http://edge.test/w/cycle/invites', {
+  const issued = await signedAs(fetchImpl, ana)('http://edge.test/w/cycle/invites', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
+    ...json({
       id: 'inv-c', token: 'tok-c',
       grant: { workspaceRole: 'member', projectIds: ['pp'], channelIds: ['geral'], dmIds: [] },
       ttlMs: 60_000,

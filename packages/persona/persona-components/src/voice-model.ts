@@ -1,6 +1,6 @@
 /**
  * Item 20 (Keel, 00:23): the voice model is the archive the vosk-browser project publishes for its own demo — the same public source as
- * the runtime, already in the tar.gz shape the Worker extracts (one wrapping folder, `conf/`, `am/`, `graph/` inside) and measured
+ * the runtime, already in the tar.gz layout the Worker extracts (one wrapping folder, `conf/`, `am/`, `graph/` inside) and measured
  * against the published file on 12/11/2026. The Host downloads it with the pinned sha256 and stores it as `model.tar.gz`; nothing is
  * converted here and nothing is hosted by us.
  */

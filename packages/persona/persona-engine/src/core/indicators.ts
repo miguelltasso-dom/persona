@@ -7,7 +7,7 @@
  *   número  {"tipo":"numero","nome":"Vendas de ontem","valor":"R$ 1.240","bruto":1240,"tendencia":"+12% desde ontem","direcao":"sobe","bomQuando":"sobe"}
  *   meta    {"tipo":"meta","nome":"Meta do mês","valor":18,"meta":30,"unidade":"pedidos"}
  *   barras  {"tipo":"barras","nome":"Pedidos por dia","pontos":[{"rotulo":"Seg","valor":12},{"rotulo":"Ter","valor":9}]}
- *   linha   {"tipo":"linha","nome":"Visitas","pontos":[{"rotulo":"1","valor":10},{"rotulo":"2","valor":14}]}
+ *   linha   {"tipo":"linha","nome":"Visitas ao site","pontos":[{"rotulo":"Seg","valor":10},{"rotulo":"Qui","valor":18}],"unidade":"visitas"}  (os rótulos são os dias; "unidade" é opcional)
  *   lista   {"tipo":"lista","nome":"Boletos da semana","itens":[{"texto":"Aluguel pago","estado":"ok"},{"texto":"Luz vence amanhã","estado":"atencao"}]}
  *   resumo  {"tipo":"resumo","nome":"Como foi a semana","frases":["Vendemos mais.","Dois clientes sem retorno."]}
  */
@@ -32,7 +32,7 @@ export type IndicatorData =
   | { readonly kind: 'numero'; readonly value: string; readonly raw?: number; readonly trend?: { readonly text: string; readonly direction: IndicatorDirection; readonly goodWhen: 'up' | 'down' } }
   | { readonly kind: 'meta'; readonly value: number; readonly goal: number; readonly unit?: string }
   | { readonly kind: 'barras'; readonly points: readonly { readonly label: string; readonly value: number }[] }
-  | { readonly kind: 'linha'; readonly points: readonly { readonly label: string; readonly value: number }[] }
+  | { readonly kind: 'linha'; readonly points: readonly { readonly label: string; readonly value: number }[]; readonly unit?: string }
   | { readonly kind: 'lista'; readonly items: readonly { readonly text: string; readonly state: 'ok' | 'atencao' }[] }
   | { readonly kind: 'resumo'; readonly sentences: readonly string[] }
 
@@ -109,7 +109,8 @@ function dataOf(row: Record<string, unknown>): IndicatorData | undefined {
     }
     case 'linha': {
       const points = pointsOf(row.pontos, INDICATOR_LINE_MAX, 2)
-      return points === undefined ? undefined : { kind: 'linha', points }
+      const unit = text(row.unidade, 16)
+      return points === undefined ? undefined : { kind: 'linha', points, ...(unit === undefined ? {} : { unit }) }
     }
     case 'lista': {
       if (!Array.isArray(row.itens) || row.itens.length < 1 || row.itens.length > INDICATOR_ITEMS_MAX) return undefined
@@ -191,8 +192,9 @@ export function indicatorMarkerOf(offer: IndicatorOffer): string {
     case 'meta':
       return `[[indicador: ${JSON.stringify({ ...base, valor: data.value, meta: data.goal, ...(data.unit === undefined ? {} : { unidade: data.unit }) })}]]`
     case 'barras':
-    case 'linha':
       return `[[indicador: ${JSON.stringify({ ...base, pontos: data.points.map(point => ({ rotulo: point.label, valor: point.value })) })}]]`
+    case 'linha':
+      return `[[indicador: ${JSON.stringify({ ...base, pontos: data.points.map(point => ({ rotulo: point.label, valor: point.value })), ...(data.unit === undefined ? {} : { unidade: data.unit }) })}]]`
     case 'lista':
       return `[[indicador: ${JSON.stringify({ ...base, itens: data.items.map(item => ({ texto: item.text, estado: item.state })) })}]]`
     case 'resumo':
@@ -245,7 +247,7 @@ export function evaluateAlert(previous: IndicatorData | undefined, next: Indicat
 }
 
 /**
- * The one line of the prompt that teaches a persona the indicator marker (kept here so the format and its limits live in one place). It teaches the
- * two kinds a conversation brings most (a number and a goal); the host accepts the six.
+ * The one line of the prompt that teaches a persona the indicator marker (kept here so the format and its limits live in one place). It teaches only the
+ * number (the shortest example that works); the host accepts the six kinds, the trend and `bomQuando` (default `sobe`).
  */
-export const INDICATOR_PROMPT_LINE = `Se o número que você traz vale acompanhar, termine com uma linha [[indicador: {"tipo":"numero","nome":"Vendas de ontem","valor":"R$ 1.240","bruto":1240,"tendencia":"+12% desde ontem","direcao":"sobe","bomQuando":"sobe"}]] (meta: {"tipo":"meta","nome":"…","valor":18,"meta":30}); a pessoa fixa na Visão geral com um toque.`
+export const INDICATOR_PROMPT_LINE = `Número que vale acompanhar: termine com [[indicador: {"tipo":"numero","nome":"Vendas de ontem","valor":"R$ 1.240","bruto":1240}]] (opcional: "tendencia", "direcao":"sobe|desce").`

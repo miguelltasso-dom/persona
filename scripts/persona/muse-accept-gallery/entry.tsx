@@ -127,11 +127,14 @@ const STATES: Readonly<Record<string, () => ReactNode>> = {
 }
 
 const state = window.location.hash.replace('#', '') || 'gestor-on'
-const render = STATES[state] ?? STATES['gestor-on']!
+const fallback: () => ReactNode = STATES['gestor-on'] ?? (() => null)
+const render = STATES[state] ?? fallback
 if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.body.setAttribute('data-ds-dark-theme', 'true')
 
 const fullBleed = state.startsWith('conversas-')
-createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root')
+if (rootEl === null) throw new Error('muse-accept-gallery: falta o #root no index.html')
+createRoot(rootEl).render(
   fullBleed ? <main data-gallery-state={state} data-persona-root="" style={{ color: 'var(--persona-ink)' }}>{render()}</main> : (
     <div data-persona-root="" style={{ display: 'grid', gridTemplateColumns: '260px minmax(0, 1fr)', minHeight: '100vh', background: 'var(--persona-paper)', color: 'var(--persona-ink)' }}>
       <aside style={{ background: 'var(--persona-rail)' }} aria-hidden="true" />

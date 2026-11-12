@@ -1,0 +1,45 @@
+{
+  "animal": "bento",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 176,
+    "top": 62,
+    "width": 664,
+    "height": 939
+  },
+  "size": [
+    339,
+    480
+  ],
+  "scale": 0.5111821086261981,
+  "mask": [
+    {
+      "x": 2,
+      "y": 39,
+      "w": 340,
+      "h": 318
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "bento-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "bento-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "bento-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "bento-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

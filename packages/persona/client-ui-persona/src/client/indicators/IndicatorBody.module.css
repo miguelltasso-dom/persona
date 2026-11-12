@@ -111,6 +111,17 @@
   color: var(--persona-brand);
 }
 
+.lineLast {
+  margin: 0;
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.lineLast b {
+  color: var(--persona-ink);
+  font: 800 16px/20px var(--persona-font-text);
+}
+
 .lineEnds {
   display: flex;
   justify-content: space-between;

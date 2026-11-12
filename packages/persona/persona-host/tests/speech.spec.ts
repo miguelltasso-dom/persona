@@ -2,6 +2,7 @@
  * Item 4 of the harvest: simple speech by default, technical detail folded, the right to stay silent.
  * Pure module: no host, no model. Each rule has the sentence that used to leak and the sentence that must stay.
  */
+import { readChoiceMarker, readIndicatorMarker } from '@deepseek-ai/dsh-persona-engine'
 import { describe, expect, it } from 'vitest'
 import {
   codeify,
@@ -239,6 +240,50 @@ describe('the fold and the 100-word cap', () => {
   it('composeSpeech with nothing folded is just the visible text', () => {
     expect(composeSpeech('Oi.', [])).toBe('Oi.')
     expect(composeSpeech('Oi.', ['  '])).toBe('Oi.')
+  })
+})
+
+describe('S1 P1-06: the structured markers are the host\'s, not prose — the speech layer leaves them whole', () => {
+  const INDICATOR = '[[indicador: {"tipo":"numero","nome":"Vendas de ontem","valor":"R$ 1.240","bruto":1240,"tendencia":"+12% desde ontem","direcao":"sobe","bomQuando":"sobe"}]]'
+  const FILES = '[[escolha: Qual formato prefere? | planilha.csv | relatorio.json]]'
+  const prose = (count: number): string => Array.from({ length: count }, (_, index) => `palavra${String(index)}`).join(' ')
+
+  it('an indicator keeps its JSON: its keys are not "a technical sentence" to fold or wrap in code', () => {
+    const spoken = shapeSpeech(`As vendas subiram esta semana.\n${INDICATOR}`)
+    expect(spoken.text).toContain(INDICATOR)
+    expect(spoken.text).not.toContain('<details')
+    expect(readIndicatorMarker(spoken.text).offer).toMatchObject({ name: 'Vendas de ontem', data: { kind: 'numero', value: 'R$ 1.240' } })
+    expect(readIndicatorMarker(spoken.text).text).toBe('As vendas subiram esta semana.')
+  })
+
+  it('a choice that names files keeps its labels exactly (no backticks around planilha.csv)', () => {
+    const spoken = shapeSpeech(`Posso mandar de dois jeitos.\n${FILES}`)
+    expect(spoken.text).toContain(FILES)
+    expect(readChoiceMarker(spoken.text).card?.options.map(option => option.label)).toEqual(['planilha.csv', 'relatorio.json'])
+  })
+
+  it('the 100-word clip never cuts a marker in the middle (an unclosed marker erases the whole card)', () => {
+    const raw = `${prose(95)}\n\n[[escolha: Qual caminho seguimos agora para o cliente? | primeiro | segundo | terceiro]]`
+    const clipped = clipSpeech(raw, lean)
+    const read = readChoiceMarker(clipped)
+    expect(read.card?.options).toHaveLength(3)
+    expect(read.text.split(/\s+/u).length).toBeLessThanOrEqual(100)
+    // and through the whole shape, with the channel's own clip
+    const shaped = shapeSpeech(raw, { lean })
+    expect(readChoiceMarker(shaped.text).card?.options).toHaveLength(3)
+    expect(readChoiceMarker(clipSpeech(shaped.text, lean)).card?.options).toHaveLength(3)
+  })
+
+  it('a card with a fold: the card stays outside the <details>', () => {
+    const raw = `Prontinho.\n\n<details><summary>Detalhes</summary>\n\n${prose(40)}\n\n</details>\n\n${FILES}`
+    const out = clipSpeech(raw, lean)
+    expect(out.indexOf('[[escolha:')).toBeGreaterThan(out.indexOf('</details>'))
+    expect(readChoiceMarker(out).card).toBeDefined()
+  })
+
+  it('a marker still arriving (not closed yet) is never shown half-written nor folded', () => {
+    const streaming = shapeSpeech('Posso mandar de dois jeitos. [[escolha: Qual formato prefere? | planilha.c')
+    expect(readChoiceMarker(streaming.text).text).toBe('Posso mandar de dois jeitos.')
   })
 })
 

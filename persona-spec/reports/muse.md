@@ -1,5 +1,26 @@
 # Muse — Diretor de Design (relatos)
 
+## 12/11 02:40 · Colheita, noite 1: as escolhas do Miguel, os aceites e a 1ª passada de leigo
+- **O Miguel escolheu:**
+  - a **capivara viva** (item 21, o protótipo em `.maestri/tmp/muse/capivara-viva.html`), e o time inteiro está aprovado: 17 bichos mais a capivara, por transplante de rosto (`face-transplant.py`);
+  - a **fonte C** (Geist no texto, Fredoka nos títulos), os **balões v2** e o **rosto R2** (40 px, enquadrado na cabeça). As medidas e os tokens foram ao Quill (COLHEITA-MUSE §23).
+- **ACEITES:** os itens 4, 7, 16 (parte da Memória) e 5 (parte 1).
+- **Specs novas:**
+  - §16b, Jeito de trabalhar;
+  - §21, Personas vivas, com o capricho;
+  - §22, Equipes e canais, com a gramática círculo = gente e quadrado = persona;
+  - §23, a Conversa.
+- **Decisões:**
+  - o Cofre (Configurações › Cofre, o cartão do 2FA);
+  - o 19b (o e-mail dentro de 'Quando' e o formulário do IMAP);
+  - os textos de cerca do item 22.
+- **Processo novo:**
+  - o aceite é o pré-aceite do Ember mais a Muse, sem lote ao Carbon;
+  - a **passada de leigo** a cada snapshot.
+- **A passada de leigo nº 1** (`.maestri/tmp/shots/design/leigo/snapshot1`, com `.maestri/tmp/muse/layperson-pass.mts`):
+  - os 5 tickets de antes estão corrigidos;
+  - 11 novos aos donos. O ALTO é o onboarding ainda chamar a memória de 'Cofre'.
+
 ## 11/11 22:03 · COLHEITA agentes.chat: a spec de tela entregue
 - **Spec:** `persona-spec/design/COLHEITA-MUSE.md` cobre os itens 5, 6, 11, 13, 14, 18, 19a e 20, com estados, medidas, movimento sobre os tokens que já existem e o texto PT-BR. Saiu em sala limpa: nomes nossos e nenhum nome interno deles.
 - **Decisões:**

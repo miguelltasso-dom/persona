@@ -65,7 +65,29 @@ function swallow(result: unknown): void {
   }
 }
 
+/** Carbon P0-13: how long an async Remote may take before the matrix calls it `pending` (it got past the ACL and went to work: for a persona or a guest that is a breach, like `ok`). */
+const SETTLE_MS = 1500
+
+/** Await an async Remote (a rejection is rethrown, so the caller classifies it like a sync throw); a call that does not settle in time is `pending`. */
+async function settle(result: unknown): Promise<unknown> {
+  if (result === null || typeof result !== 'object' || !('then' in result)) return result
+  const pending = Symbol('pending')
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const late = new Promise<symbol>((resolve) => { timer = setTimeout(() => resolve(pending), SETTLE_MS) })
+  const call = Promise.resolve(result)
+  call.catch(() => undefined) // a call that settles after the cap must not become an unhandled rejection
+  try {
+    const winner = await Promise.race([call, late])
+    return winner === pending ? PENDING : winner
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+const PENDING = Symbol('pending-remote')
+
 function classifyResult(result: unknown): string {
+  if (result === PENDING) return 'pending'
   if (Array.isArray(result)) return result.length === 0 ? 'empty' : 'ok'
   if (result !== null && typeof result === 'object') {
     if ('then' in result) {
@@ -87,13 +109,13 @@ function methodOf(host: PersonaHost, name: string): ((...args: unknown[]) => unk
   return typeof value === 'function' ? value as (...args: unknown[]) => unknown : undefined
 }
 
-function callRemote(h: PersonaHost, name: string, projectId: string): string {
+async function callRemote(h: PersonaHost, name: string, projectId: string): Promise<string> {
   const fn = methodOf(h, name)
   if (fn === undefined) return 'missing'
   try {
-    return classifyResult(fn.call(h, {
+    return classifyResult(await settle(fn.call(h, {
       workspaceId: 'ws', projectId, actorId: 'ana', afterSeq: 0, limit: 10,
-    }))
+    })))
   } catch (error) {
     const text = error instanceof Error ? error.message : 'error'
     if (text.includes('secret')) return 'leaked'
@@ -101,7 +123,7 @@ function callRemote(h: PersonaHost, name: string, projectId: string): string {
   }
 }
 
-it('ACL matrix: every remote × owner/member/guest/persona, and write fuzz', () => {
+it('ACL matrix: every remote × owner/member/guest/persona, and write fuzz', async () => {
   const h = host()
   seed(h)
   const remotes = remoteMethods(h).map(item => item.method)
@@ -112,7 +134,7 @@ it('ACL matrix: every remote × owner/member/guest/persona, and write fuzz', () 
     for (const role of ROLES) {
       asRole(h, role)
       const projectId = role === 'member' ? 'team' : 'pp'
-      matrix[name][role] = callRemote(h, name, projectId)
+      matrix[name][role] = await callRemote(h, name, projectId)
     }
   }
 
@@ -124,6 +146,9 @@ it('ACL matrix: every remote × owner/member/guest/persona, and write fuzz', () 
     expect(matrix[name]?.guest, `${name} guest leaked an id`).not.toBe('leaked')
     expect(matrix[name]?.persona, `${name} persona leaked an id`).not.toBe('leaked')
     expect(matrix[name]?.persona, `${name} persona must not inherit the owner`).not.toBe('ok')
+    // Carbon P0-13: an async Remote that never settles for a persona or a guest got past the ACL and went to work: that is a breach too (it used to hide behind `async`).
+    expect(matrix[name]?.persona, `${name} persona got past the ACL (async, never settled)`).not.toBe('pending')
+    expect(matrix[name]?.guest, `${name} guest got past the ACL (async, never settled)`).not.toBe('pending')
   }
 
   expect(matrix.listProjects?.owner).toBe('ok')

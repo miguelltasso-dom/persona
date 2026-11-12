@@ -1,0 +1,45 @@
+{
+  "animal": "guaxinim",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 179,
+    "top": 89,
+    "width": 690,
+    "height": 895
+  },
+  "size": [
+    370,
+    480
+  ],
+  "scale": 0.5363128491620112,
+  "mask": [
+    {
+      "x": -43,
+      "y": 5,
+      "w": 443,
+      "h": 398
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "guaxinim-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "guaxinim-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "guaxinim-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "guaxinim-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

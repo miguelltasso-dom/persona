@@ -162,6 +162,10 @@ export interface ActionPreviewWire {
   readonly personaId: string
   readonly personaName?: string
   readonly to?: string
+  /** P0-10: os outros destinatários e os anexos também aparecem na prévia (nada fica escondido na hora de aprovar). */
+  readonly cc?: string
+  readonly bcc?: string
+  readonly attachments?: readonly string[]
   readonly subject?: string
   readonly body?: string
   readonly amount?: string

@@ -190,6 +190,15 @@
   gap: var(--persona-space-2);
 }
 
+/* A régua: tudo a 40 px (Muse). O Button m já é 40; aqui nada do painel encolhe abaixo disso. */
+.panelActions > * {
+  min-height: 40px;
+}
+
+.hintLine {
+  display: block;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .panel {
     animation: none;

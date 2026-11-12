@@ -54,7 +54,7 @@ describe('harvest 19b: the inbox rule form', () => {
     fireEvent.click(screen.getByRole('button', { name: pt['edit'] }))
     expect(fireEvent.keyDown(screen.getByLabelText(pt['to.label']), { key: 'Enter' })).toBe(false)
     expect(fireEvent.keyDown(screen.getByLabelText(pt['preset.label']), { key: 'Enter' })).toBe(false)
-    expect(fireEvent.keyDown(screen.getByRole('checkbox'), { key: 'Enter' })).toBe(true)
+    expect(fireEvent.keyDown(screen.getByRole('switch'), { key: 'Enter' })).toBe(true) // the DS Switch (no native checkbox any more)
     expect(onSave).not.toHaveBeenCalled()
   })
 

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 // Muse (tickets de leigo, 12/11): (1) o rail nunca desenha a inicial de uma persona; (2) a DM com um assunto só não mostra o chip "Geral";
 // (3) as boas-vindas do produto são uma linha centrada, sem autor; (4) "Probe · Probe" aparece uma vez; (5) "1 membro" / "2 membros".
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { roleAfterName } from '../src/client/chat/author-role.ts'
 import { MessageList, type GeneralChannelViewProps } from '../src/client/chat/GeneralChannelView.tsx'
 import type { ConversationSubjectUi } from '../src/client/chat/conversation-subjects.ts'
@@ -33,6 +33,13 @@ describe('(1) o rail nunca desenha a inicial de uma persona', () => {
     expect(row.querySelector('img')).not.toBeNull()
     expect(row.querySelector('[class*="initials"]')).toBeNull() // nada de quadrado âmbar com a letra
   })
+
+  it('L2: função igual ao nome ("Probe Probe") aparece uma vez só no rail; função diferente continua', () => {
+    render(<RailTeam t={shellTranslate} collapsed={false} members={[{ ...probe, role: 'Probe' }, { ...probe, id: 'nina', characterId: 'nina', name: 'Nina', role: 'Pesquisa' }]} />)
+    const rows = Array.from(screen.getByRole('list').querySelectorAll('li'))
+    expect(rows.find(row => row.textContent?.includes('Probe'))?.textContent?.match(/Probe/gu)).toHaveLength(1)
+    expect(rows.some(row => row.textContent?.includes('Pesquisa'))).toBe(true)
+  })
 })
 
 describe('(2) a DM com um assunto só: sem o chip "Geral"', () => {
@@ -56,6 +63,21 @@ describe('(2) a DM com um assunto só: sem o chip "Geral"', () => {
 
   it('o texto do campo: "Escreva para Probe…" (e nunca "Mensagem em Geral para Probe…" com um assunto só)', () => {
     expect(t('composer.placeholderDm', { name: 'Probe' })).toBe('Escreva para Probe…')
+  })
+
+  it('L3: com um assunto só não sobra o "···" solto: só "+ Assunto", com o rótulo visível; com mais de um volta o menu e o "+" de ícone', () => {
+    const onCreate = vi.fn()
+    render(<SubjectBar t={t as never} subjects={ONE} activeSubjectId="geral" onSelect={() => undefined} onCreate={onCreate} onRename={() => undefined} hideSingleTab />)
+    expect(screen.queryByRole('button', { name: /Mais opções|Mais sobre/iu })).toBeNull()
+    expect(document.querySelector('[aria-haspopup="menu"]')).toBeNull()
+    const add = screen.getByRole('button', { name: 'Assunto' })
+    expect(add.textContent).toContain('Assunto')
+    fireEvent.click(add)
+    expect(onCreate).toHaveBeenCalledTimes(1)
+    cleanup()
+    render(<SubjectBar t={t as never} subjects={TWO} activeSubjectId="geral" onSelect={() => undefined} onCreate={() => undefined} onRename={() => undefined} hideSingleTab />)
+    expect(document.querySelector('[aria-haspopup="menu"]')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Novo assunto' })).toBeTruthy()
   })
 })
 

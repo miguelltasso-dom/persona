@@ -1,3 +1,4 @@
+import { randomUuid } from './random-id.ts'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
@@ -17,6 +18,7 @@ import { ProjectFlowBoard } from '../kanban/ProjectFlowBoard.tsx'
 import type { ShellState } from '../shell/create-shell-store.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 import { ConnectedProjectFlowBoard } from './ConnectedProjectFlowBoard.tsx'
+import { taskConversationBridgeOf } from './ConnectedTaskConversation.tsx'
 import { readKanbanScaleSeed } from '../kanban/kanban-scale-dev.ts'
 import { mockLargeKanbanCards } from '../kanban/mock-large-kanban-cards.ts'
 import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
@@ -202,7 +204,7 @@ export function ConnectedGlobalKanban({
       onClose={() => { setNewProjectOpen(false) }}
       onSelectTemplate={async (template, name) => {
         // A NEW project with its own flow — never a new flow on the project the person already has.
-        const id = `proj-${crypto.randomUUID().slice(0, 8)}`
+        const id = `proj-${randomUuid().slice(0, 8)}`
         await unwrapRemote(await persona.createProject({
           id,
           workspaceId: tenantScope.workspaceId,
@@ -295,6 +297,13 @@ export function ConnectedGlobalKanban({
     )
   }
 
+  // COLHEITA 18: a click on a card opens the conversation of the task — of the project the BOARD shows, as the person who is looking.
+  const taskConversation = taskConversationBridgeOf(
+    persona,
+    live.tenant === null ? null : { workspaceId: projectScope.workspaceId, projectId: projectScope.projectId, memberId: live.tenant.memberId },
+    live.team,
+  )
+
   return (
     <>
       <ConnectedProjectFlowBoard
@@ -315,6 +324,7 @@ export function ConnectedGlobalKanban({
         {...(selectMainPanel === undefined ? {} : { onNewTask: () => { selectMainPanel('channels') } })}
         {...(personaCard === undefined ? {} : { personaCard })}
         {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
+        {...(taskConversation === undefined ? {} : { taskConversation })}
       />
       {newProjectModal}
     </>

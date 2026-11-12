@@ -141,13 +141,15 @@ try {
             await page.evaluate(async () => { await document.fonts.ready })
             await page.waitForTimeout(500)
             mainText = (await page.locator('main').first().innerText()).trim()
+            // Scenes that click through the screen (Drive) say when they are done before the photo.
+            if (await page.locator('[data-drive]').count() > 0) await page.locator('[data-drive-done]').waitFor({ timeout: 20_000 })
           }
           if (mainText.length < 20) throw new Error(`empty screen: main has ${String(mainText.length)} characters`)
           let keyboard
           // The routine editor is a dialog over the screen: shoot the viewport (the scrim is fixed to it), like the hire details.
           const dialogState = state.startsWith('routine-editor')
           // The Cofre side panel is fixed to the window (it covers the width at 200 %): shoot the whole viewport.
-          const fullViewport = dialogState || state.startsWith('cofre-')
+          const fullViewport = dialogState || state.startsWith('cofre-') || state.startsWith('seus-numeros-modal')
           if (dialogState) await page.getByRole('dialog').waitFor({ timeout: 5000 })
           if (state === 'approvals-hire-details') {
             keyboard = await keyboardDetails(page)

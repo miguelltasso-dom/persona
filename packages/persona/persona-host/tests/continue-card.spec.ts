@@ -1,4 +1,4 @@
-import type { Ticket } from '@deepseek-ai/dsh-persona-engine'
+import { ASK_QUESTION_MAX, type Ticket } from '@deepseek-ai/dsh-persona-engine'
 import { describe, expect } from 'vitest'
 import { CONTINUE_CHIP, STOP_CHIP, continueQuestionOf, isContinueStop, offerContinueCard, stoppedLineOf } from '../src/continue-card.ts'
 import type PersonaHost from '../src/index.ts'
@@ -47,11 +47,44 @@ describe('continueQuestionOf', () => {
     expect(continueQuestionOf('Parei aqui.\n\nFalta o resto.')).toBe('Parei aqui. Falta o resto. Quer que eu continue?')
     expect(continueQuestionOf('   ')).toBe('Quer que eu continue?')
   })
-  it('stays inside the 500 characters of a question, tail included', () => {
+  it('stays inside the 300 characters a structured question allows, tail included', () => {
     const long = continueQuestionOf('x'.repeat(2000))
-    expect(long.length).toBeLessThanOrEqual(500)
+    expect(long.length).toBeLessThanOrEqual(ASK_QUESTION_MAX)
     expect(long.endsWith('… Quer que eu continue?')).toBe(true)
+    for (const size of [200, 270, 277, 278, 279, 280, 299, 300, 301, 470, 493]) {
+      expect(continueQuestionOf('a'.repeat(size) + 'b').length, `a sentence of ${String(size + 1)}`).toBeLessThanOrEqual(ASK_QUESTION_MAX)
+    }
   })
+})
+
+/** S1 P1-06: an honest sentence between 278 and 470 characters made the structured question refuse (`question_too_long`), and the card vanished without a word. */
+it('a long honest sentence still opens the card: the question is clipped to what a card allows, never dropped', () => {
+  const { h } = setup()
+  const long = `${FALA} ${FALA} ${FALA} ${FALA}`.slice(0, 420)
+  expect(long.length).toBeGreaterThan(300)
+  expect(offer(h, 't1', long)).toMatchObject({ ok: true })
+  const attention = ticketOf(h).attention!
+  expect(attention.question.length).toBeLessThanOrEqual(ASK_QUESTION_MAX)
+  expect(attention.question.endsWith('Quer que eu continue?')).toBe(true)
+  expect(attention.ask?.options).toEqual([{ id: CONTINUE_CHIP, label: 'Continuar' }, { id: STOP_CHIP, label: 'Parar por aqui' }])
+  expect(geral(h).filter(row => row.personaAsk !== undefined)).toHaveLength(1)
+})
+
+/** S1 P1-06: `/s+/gu` (no backslash) replaced the letter "s" with a space, so two spellings of the same sentence never matched. */
+it('the plain question of the controller is recognised however its lines break and whatever letters it has (the upgrade to the card)', () => {
+  const { h } = setup()
+  const plain = 'Passei os passos seguintes,\nfalta só o resto dos arquivos.'
+  h.orchestration.runtime('pp').engine.report('t1', { state: 'waiting', summary: 'Pergunta', question: plain })
+  expect(ticketOf(h).attention?.ask).toBeUndefined()
+  expect(offer(h, 't1', 'Passei os passos seguintes, falta só o resto dos arquivos.')).toMatchObject({ ok: true }) // the SAME sentence on one line: upgraded, not "already open"
+  expect(ticketOf(h).attention?.ask?.options).toHaveLength(2)
+})
+
+it('a different question that differs only by the letter "s" is NOT the controller\'s sentence', () => {
+  const { h } = setup()
+  h.orchestration.runtime('pp').engine.report('t1', { state: 'waiting', summary: 'Pergunta', question: 'Qual a cor do cartaz?' })
+  expect(offer(h, 't1', 'Qual a cor do cartaz sim?')).toMatchObject({ ok: false, reason: 'already-open' })
+  expect(ticketOf(h).attention?.question).toBe('Qual a cor do cartaz?') // untouched
 })
 
 it('opens ONE card with the honest sentence and two chips; her own words never reach the thread', () => {

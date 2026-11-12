@@ -50,6 +50,9 @@ export class PowerKeeper {
     const start = this.deps.spawn ?? ((command, args) => spawn(command, [...args], { stdio: 'ignore', windowsHide: true }))
     const child = start('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', AWAKE_SCRIPT])
     child.once('exit', () => { if (this.child === child) this.child = undefined })
+    // P0-12: powershell.exe can fail to start (ENOENT, EPERM) or die; an 'error' event with nobody listening is an uncaught exception that takes the host down.
+    // It means "no longer holding" (a later `hold` asks again); an error of a process the keeper already let go does not touch the new one.
+    child.on('error', () => { if (this.child === child) this.child = undefined })
     this.child = child
   }
 

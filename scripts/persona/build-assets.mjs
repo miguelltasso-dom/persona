@@ -8,13 +8,17 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { basename, dirname, extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { buildVivas } from './vivas-assets.mjs'
+import { buildVivas, validateVivas } from './vivas-assets.mjs'
+import { acquireLock, commitStaging, discardStaging, stagingPathOf } from './assets-swap.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const SRC = join(ROOT, 'persona-assets')
-const OUT = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets')
-// Keel 04/11: 12 MiB for the BR-P3 P1 poses + the last extras (art loads by URL per screen; nothing inlined in client.js).
-const MAX_GIT_BYTES = 12 * 1024 * 1024
+const REAL_OUT = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets')
+// COLHEITA (Gauge, Keel/Lumen 12/11): the build writes into a STAGING folder and swaps it in at the very end (assets-swap.mjs). The real assets/ is never wiped first, so a failure (even a late one)
+// or a concurrent build can no longer leave the tree without generated-imports.ts / asset-url.ts. One build at a time (lock .maestri/locks/assets-build.lock).
+const OUT = stagingPathOf(REAL_OUT)
+// Keel 12/11: 16 MiB (vivas: 18 animals x 4 webp, item 21). Keel 04/11: 12 MiB for the BR-P3 P1 poses + the last extras (art loads by URL per screen; nothing inlined in client.js).
+const MAX_GIT_BYTES = 16 * 1024 * 1024
 const AVATAR_SIZES = [256, 96, 48]
 const POSE_MAX_HEIGHT = 480
 /**
@@ -124,6 +128,9 @@ function copyTree(relDir, filter) {
 const ASSET_URL_STUB = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets/asset-url.ts')
 
 async function main() {
+  // COLHEITA item 21 (Gauge): validate the "personas vivas" sources BEFORE anything below wipes OUT. A bad mask.json / canvas then stops the build with the old assets and generated-imports.ts untouched.
+  const releaseLock = await acquireLock(join(ROOT, '.maestri/locks/assets-build.lock'), { log: console.log })
+  const vivasPlans = await validateVivas({ src: SRC, sharp })
   // Hand-written code living next to the generated assets (asset-url.ts and any other *.ts/*.tsx a builder put here, e.g. Prism's
   // persona-face.ts) survives the clean; only generated-imports.ts is rewritten. (Prism 05/11: the old clean deleted an
   // unversioned file.) Everything else under OUT is generated and is wiped.
@@ -136,15 +143,16 @@ async function main() {
       if (/\.(ts|tsx)$/u.test(entry.name) && entry.name !== 'generated-imports.ts') keep.set(abs, readFileSync(abs, 'utf8'))
     }
   }
-  collect(OUT)
+  collect(REAL_OUT)
   if (existsSync(ASSET_URL_STUB)) keep.set(ASSET_URL_STUB, readFileSync(ASSET_URL_STUB, 'utf8'))
   rmSync(OUT, { recursive: true, force: true })
   ensureDir(OUT)
   for (const [abs, text] of keep) {
-    ensureDir(dirname(abs))
-    writeFileSync(abs, text)
+    const target = join(OUT, relative(REAL_OUT, abs)) // hand-written files travel from the REAL assets/ into the staging
+    ensureDir(dirname(target))
+    writeFileSync(target, text)
   }
-  if (keep.size > 1) console.log(`kept ${String(keep.size)} hand-written file(s) under assets/: ${[...keep.keys()].map(k => k.slice(OUT.length + 1)).join(', ')}`)
+  if (keep.size > 1) console.log(`kept ${String(keep.size)} hand-written file(s) under assets/: ${[...keep.keys()].map(k => k.slice(REAL_OUT.length + 1)).join(', ')}`)
 
   copyTree('brand', (name, rel) => {
     const ext = extname(name).toLowerCase()
@@ -229,7 +237,7 @@ async function main() {
     // Muse (BR-P3 P0, UX-BEYOND + the Miguel redesign): limit, remote team, access ended, applied, empty approvals (480 → 240).
     ...['empty-limite', 'empty-equipe-remota', 'acesso-encerrado', 'sucesso-aplicado', 'empty-aprovacoes', 'sucesso-skill-aprendida', 'sucesso-convite-aceito', 'sucesso-equipe-chegou',
       // COLHEITA item 13 (Brush, approved by Muse 11/11): "ligar a assinatura para o time inteiro" (480 shown at 240).
-      'ligar-ia-equipe'].map(name => (
+      'ligar-ia-equipe', 'estacao-vazio', 'estacao-pareando', 'canal-pronto', 'convite-enviado', 'convite-aguardando'].map(name => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
     )),
     { from: 'illustrations/spot-limite.png', to: 'illustrations/spot-limite.webp', width: 192, quality: 88 },
@@ -268,6 +276,13 @@ async function main() {
       'empty-seus-numeros-noite'].map(name => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
     )),
+    // Muse (Cofre, item 15): the empty Vault, the capivara with the key and the safe; one art for light and dark (alpha), shown at 240x160 → 480.
+    { from: 'illustrations/empty-cofre.png', to: 'illustrations/empty-cofre.webp', width: 480, quality: 86 },
+    // COLHEITA item 26 (Brush, approved by Muse 12/11): 7 category illustrations of the connector catalog (no third-party logos): 512 master + 96 spot.
+    ...['vendas', 'pagamentos', 'atendimento', 'agenda-email', 'documentos', 'redes-sociais', 'gestao'].flatMap(name => ([
+      { from: `illustrations/categorias/categoria-${name}.png`, to: `illustrations/categoria-${name}.webp`, width: 512, quality: 86 },
+      { from: `illustrations/categorias/categoria-${name}-96.png`, to: `illustrations/categoria-${name}-96.webp`, width: 96, quality: 88 },
+    ])),
     // Muse (DESIGN-01 momento uau 1): "Primeira entrega pronta" stamp, shown at 96 px → 192 (2×). No text in the art.
     { from: 'illustrations/stamp-primeira-entrega.png', to: 'illustrations/stamp-primeira-entrega.webp', width: 192, quality: 88 },
     // Muse (BR-P4 P1): team scene icons for channels (96 → 48).
@@ -352,13 +367,13 @@ async function main() {
 
   // COLHEITA item 21 (Gauge, Keel 12/11): personas vivas, a block isolated in vivas-assets.mjs. ONE crop rectangle per animal (alpha box of the BASE + a fixed margin), the same
   // scale for every expression, and the build FAILS when an expression has another canvas or breaks the register (check-pose-register) against the base. The poses above are untouched.
-  await buildVivas({ src: SRC, out: OUT, sharp, track, ensureDir, log: console.log })
+  await buildVivas({ src: SRC, out: OUT, sharp, track, ensureDir, log: console.log, plans: vivasPlans.plans })
 
   const totalBytes = manifest.reduce((sum, row) => sum + row.bytes, 0)
   const summary = {
     generatedAt: new Date().toISOString(),
     source: relative(ROOT, SRC),
-    output: relative(ROOT, OUT),
+    output: relative(ROOT, REAL_OUT),
     files: manifest.length,
     totalBytes,
     withinBudget: totalBytes <= MAX_GIT_BYTES,
@@ -557,7 +572,11 @@ async function main() {
   ]
   writeFileSync(join(OUT, 'generated-imports.ts'), `${lines.join('\n')}\n`)
 
-  console.log(`Wrote ${manifest.length} files, ${(totalBytes / 1024 / 1024).toFixed(2)} MiB → ${relative(ROOT, OUT)}`)
+  // Swap the finished staging into place only when everything above worked and the budget holds; otherwise the old assets/ stay exactly as they were.
+  if (summary.withinBudget) console.log(`[assets] swapped into place (${commitStaging(REAL_OUT).mode})`)
+  else discardStaging(REAL_OUT)
+  releaseLock()
+  console.log(`Wrote ${manifest.length} files, ${(totalBytes / 1024 / 1024).toFixed(2)} MiB → ${relative(ROOT, REAL_OUT)}`)
   if (!summary.withinBudget) {
     console.error(`ERROR: asset budget exceeded (${MAX_GIT_BYTES} bytes max)`)
     process.exit(1)
@@ -565,6 +584,7 @@ async function main() {
 }
 
 main().catch((error) => {
+  discardStaging(REAL_OUT) // any failure: the real assets/ was never touched
   console.error(error)
   process.exit(1)
 })

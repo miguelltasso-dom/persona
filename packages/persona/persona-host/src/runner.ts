@@ -16,6 +16,7 @@ import {
   resolveRunner,
   RunnerResolveError,
   toolNameFromEvent,
+  type AuthorityKind,
   type PermissionGate,
   type PersonaRunnerSpec,
   type NormalizedReport,
@@ -70,11 +71,21 @@ export interface HostRunnerRequest {
    * Absent = none. A CLI with `mcpTools: 'unavailable'` receives none (the adapter drops them).
    */
   readonly extraMcpServers?: readonly TurnMcpServer[]
+  /**
+   * Carbon P0-03a: who a turn of THIS Task acts for (`person`, `routine`, `unattended`), derived from the real origin of the Task. Asked on every turn: the runner is warm across Tasks, so it is never fixed
+   * when the runner is built. Absent = `person`.
+   */
+  readonly authorityOf?: (ticketId: string) => AuthorityKind
   readonly purpose?: RunnerPurpose
   readonly projectId?: string
   readonly personaName?: string
   readonly personaTitle?: string
   readonly onFirstToken?: (text: string) => void
+  /**
+   * P0-07: the ONE conversation this talk runner serves (`<streamId>`, plus `#<subject>` when the stream has subjects). Its turns are stamped with it, so the CLI keeps a session (and a live process)
+   * of its own per conversation and a private DM never shares a history with #geral. Absent on a talk runner that answers one-shot calls (aside, opinion, indicator): each call is its own thread.
+   */
+  readonly thread?: string
   /** Talk uses an isolated home dir — never the repo checkout. */
   readonly cwd?: string
 }
@@ -285,7 +296,9 @@ export async function resolveHostRunner(
   }), capture)
   // Item 2a: one live CLI process per conversation, reopened with `--resume` when the process is gone. A talk facade is one
   // channel; a task facade serves one ticket per session.
-  const threads = withThreadResume(turn, { shared: request.purpose === 'talk' })
+  // P0-07: a talk runner that serves ONE conversation (`request.thread`: its stream, and the subject when it has one) is stamped with it, so its CLI session is that conversation's own. Any other
+  // talk runner (aside, opinion, indicator: the one-shot answers) keeps every call on a thread of its own: the old `shared` thread '' put every conversation in one CLI history.
+  const threads = withThreadResume(turn, request.purpose === 'talk' && request.thread !== undefined ? { shared: true, thread: request.thread } : { shared: false })
   const session = createOarSessionRunner({
     turn: threads,
     personaId: request.personId,
@@ -299,6 +312,8 @@ export async function resolveHostRunner(
     }),
     // COLHEITA 17: the browser of this persona's turns; the adapter drops them on a CLI without MCP.
     ...(request.extraMcpServers === undefined ? {} : { serversFor: () => request.extraMcpServers }),
+    // Carbon P0-03a: who each turn acts for, from the real origin of ITS Task (the runner is warm across Tasks).
+    ...(request.authorityOf === undefined ? {} : { authorityFor: turn => request.authorityOf?.(turn.ticketId) }),
   })
   capture.onPartial = (text) => { partialSinks.get(session)?.(text) }
   captures.set(session, capture)

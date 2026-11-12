@@ -6,22 +6,16 @@
 import { can, type AclAction, type AclResource, type Actor } from '@deepseek-ai/dsh-persona-core'
 import type { Member, ProductRepos } from '@deepseek-ai/dsh-persona-store'
 
-/** Remotes that must not require a workspace member. */
+/**
+ * Remotes that must not require a workspace member. Carbon P0-13: the Remotes that reach the MACHINE with no tenant in the request (backup, restore, WAL, diagnostics, store health, CLI skills,
+ * the directory dialog) are NOT here any more: they ask who is asking (`requireMachineOwnerLocal` / `requireMachineReadLocal`) and the ACL matrix runs them as owner, member, guest and persona.
+ */
 export const ACL_EXCEPTIONS: Record<string, string> = {
   ping: 'liveness probe, no tenant',
   getOnboarding: 'workspace may not exist yet',
   suggestFirstRequests: 'pure text derivation from the caller\'s own text; runs before the workspace exists',
   completeOnboarding: 'creates the first owner',
-  createWorkspace: 'creates the tenant; no member yet',
-  exportDiagnostics: 'local support dump; actor is the session, no client ids',
-  pickDirectory: 'Rivet OS dialog; host never opens it and has no tenant',
-  backupNow: 'local VACUUM copy; no tenant',
-  listBackups: 'local backup directory listing; no tenant',
   listStickers: 'frozen Brush catalog; no tenant',
-  checkpointWal: 'local WAL truncate; no tenant',
-  previewCliSkills: 'local Claude/Codex skill scan; no tenant',
-  getStoreHealth: 'local db health; no tenant',
-  restoreBackup: 'local backup restore; no tenant',
   ensureVoiceModel: 'item 20: installs the pinned voice model on demand; machine-wide public file, no tenant',
   voiceModelState: 'item 20: whether the voice model is installed; machine-wide, no tenant',
   listEmailPresets: 'item 19b: frozen catalog of Brazilian mail-provider presets (host and port); no tenant, no secret',

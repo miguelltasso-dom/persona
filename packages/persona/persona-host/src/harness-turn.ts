@@ -11,8 +11,12 @@ import { allowsTool, HARNESS_TOOLS, openTurnTools, type HarnessToolName, type Mc
 import { ASK_TOOL } from './persona-ask-tool.ts'
 import type { StableTools } from './tool-stability.ts'
 
-/** The tools that coordinate (they do not touch the person's files or the world): offered to every persona, whatever her file/shell grant (D-097). */
-const COORDINATION: ReadonlySet<string> = new Set([ASK_TOOL, 'ask_colleague', 'pass_forward', 'ask_team_opinion', 'review_verdict'])
+/**
+ * The tools that coordinate (they do not touch the person's files or the world): offered to every persona, whatever her file/shell grant (D-097).
+ * Carbon P1-04: `ask_vault_code` (opens a card the owner fills) and `browser_login` (types a Cofre login into the browser of a profile the owner lent her) are coordination too: the usual Task has no draft
+ * folder, so no file grant, and without these two it could never log in anywhere. Each is still offered only where it can act (see `neededToolNames`).
+ */
+const COORDINATION: ReadonlySet<string> = new Set([ASK_TOOL, 'ask_colleague', 'pass_forward', 'ask_team_opinion', 'review_verdict', 'ask_vault_code', 'browser_login'])
 
 /** One turn of a Task, as the OAR session runner reports it. */
 export interface ProductToolsTurn {
@@ -28,6 +32,8 @@ export type ProductToolsOpener = (turn: ProductToolsTurn) => TurnToolSet | undef
 const BOARD = /\b(?:cart(?:ão|ao|ões|oes)|quadro|kanban|coluna|colunas|backlog|mov(?:a|er|e|endo)\s+(?:o|a|os|as)?\s*(?:cart|tarefa)|fazendo|a fazer)\b/iu
 const SPRINT = /\bsprints?\b/iu
 const HIRE = /\b(?:contrat(?:e|a|ar|ando|ação|acao)|recrut(?:e|a|ar)|novo\s+colega|nova\s+pessoa|nova\s+persona)\b/iu
+// Item 15: the words that ask for a second factor (a six-digit code by SMS/WhatsApp, 2FA, two steps). Only these get `ask_vault_code`: the tool opens a card the owner fills.
+const SECOND_FACTOR = /\b(?:2fa|dois\s+fatores|duas\s+etapas|autentica(?:ç|c)(?:ã|a)o\s+(?:em|de)\s+dois\s+fatores|c(?:ó|o)digo\s+(?:de\s+)?(?:\d+\s+d(?:í|i)gitos|verifica(?:ç|c)(?:ã|a)o|confirma(?:ç|c)(?:ã|a)o|seguran(?:ç|c)a|acesso|sms)|c(?:ó|o)digo\s+(?:que\s+)?(?:chegou|enviado|recebido)|c(?:ó|o)digo\s+(?:por|via)\s+(?:sms|whatsapp|e-?mail)|token\s+(?:do\s+banco|sms))/iu
 const ROUTINE = /\b(?:rotinas?|todo\s+dia|todos\s+os\s+dias|toda\s+(?:segunda|terça|quarta|quinta|sexta|semana|manhã)|toda\s+semana|semanalmente|diariamente|mensalmente|a\s+cada\s+\d+\s*(?:h|hora|horas)|agend(?:a|ar|e)|lembrete)\b/iu
 
 /**
@@ -43,6 +49,7 @@ export function harnessToolsNeeded(text: string): HarnessToolName[] {
     for (const name of ['board_list', 'sprint_list', 'sprint_create', 'sprint_plan', 'sprint_start', 'sprint_close'] as const) wanted.add(name)
   }
   if (ROUTINE.test(text)) for (const name of ['routine_list', 'routine_create', 'routine_update', 'routine_pause'] as const) wanted.add(name)
+  if (SECOND_FACTOR.test(text)) wanted.add('ask_vault_code')
   return HARNESS_TOOLS.filter(name => wanted.has(name))
 }
 
@@ -70,9 +77,11 @@ export interface ProductToolsRules {
  */
 export function neededToolNames(rules: ProductToolsRules, turn: Pick<ProductToolsTurn, 'personaId' | 'ticketId'>): string[] {
   const own = [...harnessToolsNeeded(rules.taskTextOf(turn.ticketId)), ...(rules.teamToolsOf?.(turn) ?? []), ASK_TOOL]
-  // COLHEITA 15b: the Cofre login is offered only where it can act: the turn has the browser and the Cofre has a login.
-  if (rules.browserLoginOf?.(turn) === true) own.push('browser_login')
-  return rules.stable === undefined ? own : rules.stable.memory.offer(rules.stable.key, own)
+  // COLHEITA 15b: the Cofre login is offered only where it can act: the turn has the browser and the Cofre has a login. Carbon P1-04: and so is the card for the six digits, whatever the words of the request
+  // say (a login page may ask for a code nobody mentioned).
+  if (rules.browserLoginOf?.(turn) === true) own.push('browser_login', 'ask_vault_code')
+  const unique = [...new Set(own)]
+  return rules.stable === undefined ? unique : rules.stable.memory.offer(rules.stable.key, unique)
 }
 
 /**

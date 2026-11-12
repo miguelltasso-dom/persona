@@ -25,6 +25,8 @@ export interface CofreCodeRequestView {
   readonly ticketId?: string
   /** Why the code is needed, in the persona's own words ("o site mandou um código por WhatsApp"). */
   readonly reason: string
+  /** The login the persona said the code is for (the site or service), never a secret. */
+  readonly site?: string
   readonly state: CofreCodeState
   readonly createdAt: string
   readonly expiresAt: string
@@ -40,6 +42,8 @@ export interface OpenCodeRequestInput {
   readonly personaId: string
   readonly reason: string
   readonly ticketId?: string
+  /** The login the code is for (site or service), as the persona said it; truncated, never a secret. */
+  readonly site?: string
 }
 
 /** Stored request; the digits are never here. */
@@ -49,6 +53,7 @@ interface StoredCodeRequest {
   readonly personaId: string
   readonly ticketId?: string
   readonly reason: string
+  readonly site?: string
   readonly state: 'pending' | 'filled' | 'taken' | 'cancelled'
   readonly createdAt: string
   readonly expiresAt: string
@@ -62,6 +67,8 @@ export interface CofreCodesDeps {
   readonly now?: () => string
   readonly newId?: () => string
   readonly ttlMs?: number
+  /** Carbon P1-04: the owner filled a request (the view carries the state, never the digits): the host wakes the persona's Task. */
+  readonly onFilled?: (view: CofreCodeRequestView) => void
 }
 
 /**
@@ -93,6 +100,7 @@ export class CofreCodes {
   open(input: OpenCodeRequestInput): CofreCodeRequestView {
     const reason = input.reason.trim()
     if (reason === '') throw new CofreCodeError('Diga para que serve o código.')
+    const site = input.site?.trim().slice(0, 60) ?? ''
     const createdAt = this.now()
     const request: StoredCodeRequest = {
       id: `cofre-code-${this.newId()}`,
@@ -100,6 +108,7 @@ export class CofreCodes {
       personaId: input.personaId,
       ...(input.ticketId === undefined ? {} : { ticketId: input.ticketId }),
       reason,
+      ...(site === '' ? {} : { site }),
       state: 'pending',
       createdAt,
       expiresAt: new Date(this.nowMs() + this.ttlMs).toISOString(),
@@ -126,7 +135,9 @@ export class CofreCodes {
     await this.deps.secrets.put(projectId, `code:${id}`, digits)
     const filled: StoredCodeRequest = { ...request, state: 'filled', filledAt: this.now() }
     this.deps.screens.put(projectId, COFRE_CODE_DOC, id, filled)
-    return this.view(filled)
+    const view = this.view(filled)
+    try { this.deps.onFilled?.(view) } catch (error) { void error } // waking the Task is the host's business: it never undoes the fill
+    return view
   }
 
   /**
@@ -137,7 +148,11 @@ export class CofreCodes {
    */
   async take(projectId: string, id: string): Promise<string | undefined> {
     const request = this.stored(projectId, id)
-    if (this.stateOf(request) !== 'filled') return undefined
+    if (this.stateOf(request) !== 'filled') {
+      // A filled code nobody used in time is never handed over, and its digits do not stay sealed.
+      if (request.state === 'filled') await this.dropSecret(projectId, id)
+      return undefined
+    }
     const digits = await this.deps.secrets.read(projectId, `code:${id}`)
     await this.deps.secrets.drop(projectId, `code:${id}`)
     this.deps.screens.put(projectId, COFRE_CODE_DOC, id, { ...request, state: 'taken' })
@@ -145,12 +160,60 @@ export class CofreCodes {
   }
 
   /**
+   * Read the digits WITHOUT spending them: the host types them into the page first and only then {@link CofreCodes.take}s them, so a page that had no field for them does not burn the owner's code.
+   * Host-only, never a model-facing path.
+   * @param projectId - Tenant.
+   * @param id - Request id.
+   * @returns The six digits, or undefined when the request is not filled (or it expired).
+   */
+  async peek(projectId: string, id: string): Promise<string | undefined> {
+    const request = this.stored(projectId, id)
+    if (this.stateOf(request) !== 'filled') return undefined
+    return this.deps.secrets.read(projectId, `code:${id}`)
+  }
+
+  /**
+   * The newest request a persona's Task has that the owner already filled and nobody used.
+   * @param projectId - Tenant.
+   * @param who - The persona and the Task that asked.
+   * @returns The request (never the digits), or undefined.
+   */
+  filledFor(projectId: string, who: { readonly personaId: string; readonly ticketId: string }): CofreCodeRequestView | undefined {
+    return this.list(projectId)
+      .filter(request => request.personaId === who.personaId && request.ticketId === who.ticketId && request.state === 'filled')
+      .sort((a, b) => (b.filledAt ?? '').localeCompare(a.filledAt ?? ''))[0]
+  }
+
+  /**
+   * The owner cancels a request: the digits she may already have filled do not stay sealed.
    * @param projectId - Tenant.
    * @param id - Request id.
    */
-  cancel(projectId: string, id: string): void {
+  async cancel(projectId: string, id: string): Promise<void> {
     const request = this.stored(projectId, id)
     this.deps.screens.put(projectId, COFRE_CODE_DOC, id, { ...request, state: 'cancelled' })
+    await this.dropSecret(projectId, id)
+  }
+
+  /**
+   * Drop the sealed digits of every filled request that expired and of every cancelled one (nothing else is touched).
+   * @param projectId - Tenant.
+   * @returns How many sealed slots were dropped.
+   */
+  async sweep(projectId: string): Promise<number> {
+    let dropped = 0
+    for (const request of this.deps.screens.list<StoredCodeRequest>(projectId, COFRE_CODE_DOC)) {
+      const dead = request.state === 'cancelled' || (request.state === 'filled' && this.stateOf(request) === 'expired')
+      if (dead && this.deps.secrets.has(projectId, `code:${request.id}`)) {
+        await this.dropSecret(projectId, request.id)
+        dropped += 1
+      }
+    }
+    return dropped
+  }
+
+  private async dropSecret(projectId: string, id: string): Promise<void> {
+    try { await this.deps.secrets.drop(projectId, `code:${id}`) } catch (error) { void error } // an empty slot is already what was wanted
   }
 
   /**
@@ -179,6 +242,8 @@ export class CofreCodes {
 
   private stateOf(request: StoredCodeRequest): CofreCodeState {
     if (request.state === 'pending' && this.nowMs() > Date.parse(request.expiresAt)) return 'expired'
+    // A filled code stays usable for the same time a request waits, counted from the fill (the owner may fill at the last minute).
+    if (request.state === 'filled' && request.filledAt !== undefined && this.nowMs() > Date.parse(request.filledAt) + this.ttlMs) return 'expired'
     return request.state
   }
 
@@ -189,6 +254,7 @@ export class CofreCodes {
       personaId: request.personaId,
       ...(request.ticketId === undefined ? {} : { ticketId: request.ticketId }),
       reason: request.reason,
+      ...(request.site === undefined ? {} : { site: request.site }),
       state: this.stateOf(request),
       createdAt: request.createdAt,
       expiresAt: request.expiresAt,

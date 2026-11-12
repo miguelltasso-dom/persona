@@ -92,7 +92,8 @@ const SECRET_PATHS: readonly RegExp[] = [
  * @param path - A path as written in a tool call (`/` or `\`, relative or absolute, `~` allowed).
  */
 export function isSecretPath(path: string): boolean {
-  const flat = path.trim().replace(/\\/gu, '/').replace(/\/{2,}/gu, '/').toLowerCase()
+  // Carbon P0-04: Windows ignores a trailing dot or space of a segment (`.ssh.`, `.env.`): the pattern must see the name Windows opens.
+  const flat = pathSegments(path).join('/')
   return SECRET_PATHS.some(pattern => pattern.test(flat))
 }
 
@@ -291,6 +292,68 @@ function isFlag(text: string): boolean {
   return text.startsWith('-') && text.length > 1
 }
 
+/** Carbon P0-04: a value written INSIDE an option (`-Destination:C:\x`, `--target-directory=/x`) is a path like any operand; the option and its value are judged apart. */
+const OPTION_WITH_VALUE = /^(--?[A-Za-z][A-Za-z0-9-]*)[:=](.+)$/su
+
+function withOptionValues(args: readonly Word[]): Word[] {
+  const out: Word[] = []
+  for (const arg of args) {
+    const match = isFlag(arg.text) ? OPTION_WITH_VALUE.exec(arg.text) : null
+    if (match === null) { out.push(arg); continue }
+    out.push({ text: match[1] ?? '', expands: false }, { text: match[2] ?? '', expands: arg.expands })
+  }
+  return out
+}
+
+/** A wildcard the shell (or a PowerShell cmdlet, quoted or not) expands to file names that cannot be read from the text. */
+const GLOB_CHARS = /[*?]|\[[^\]]+\]/u
+
+/**
+ * A glob that can reach beyond the draft or a hidden or secret name: absolute, home-relative, UNC, with a `..` segment, or in a path with a hidden segment
+ * (`.ss?/id_ed25519`, `.e*`, `.config/*`). A plain relative glob (`*.md`, `src/*.ts`) stays what it was.
+ */
+function isRiskyGlob(text: string): boolean {
+  if (!GLOB_CHARS.test(text)) return false
+  if (/^(~|\/|\\|[A-Za-z]:)/u.test(text)) return true
+  const segments = text.replace(/\\/gu, '/').split('/')
+  return segments.includes('..') || segments.some(segment => segment.startsWith('.') && segment !== '.')
+}
+
+function markRiskyGlob(word: Word): Word {
+  return word.expands || !isRiskyGlob(word.text) ? word : { text: word.text, expands: true }
+}
+
+/** The segments of a path as Windows reads them: lower case, `/`-separated, a trailing dot or space of a segment ignored (`.ssh.` IS `.ssh`). */
+function pathSegments(path: string): string[] {
+  return path.trim().replace(/\\/gu, '/').replace(/\/{2,}/gu, '/').toLowerCase().split('/')
+    .map(segment => (segment === '.' || segment === '..' ? segment : segment.replace(/[. ]+$/u, '')))
+}
+
+/** Carbon P0-04: a path strictly INSIDE a `.git` directory (a hook, the config...): a raw write there is code that runs later; git itself manages those files. */
+function isGitInternalPath(path: string): boolean {
+  const segments = pathSegments(path)
+  const at = segments.lastIndexOf('.git')
+  return at >= 0 && at < segments.length - 1
+}
+
+/** Options of git whose NEXT word is a value that is not a path (a message, an author, a date...). */
+const GIT_VALUE_OPTIONS: ReadonlySet<string> = new Set(['-m', '--message', '--author', '--date', '--trailer', '-s', '-S', '--gpg-sign', '-u', '--cleanup', '--reuse-message', '-c', '-C'])
+
+/** The operands of a git change that look like paths. A quoted path with a space IS a path; only the VALUE of a message-like option is not. */
+function gitPathOperands(operands: readonly Word[]): Word[] {
+  const paths: Word[] = []
+  for (let at = 0; at < operands.length; at += 1) {
+    const arg = operands[at]
+    if (arg === undefined) continue
+    if (isFlag(arg.text)) {
+      if (GIT_VALUE_OPTIONS.has(arg.text) || /^-[A-Za-z]*m$/u.test(arg.text)) at += 1
+      continue
+    }
+    if (/[\\/.]/u.test(arg.text) && !/^[0-9a-f]{7,40}$/iu.test(arg.text)) paths.push(arg)
+  }
+  return paths
+}
+
 /** True for `/dev/null`, `nul`, `$null`: a sink, not a file. */
 function isSink(text: string): boolean {
   const flat = text.toLowerCase()
@@ -303,6 +366,23 @@ function isBroadTarget(path: string): boolean {
   if (flat === '' || flat === '/' || flat === '~' || flat === '*' || /^[a-z]:$/u.test(flat) || flat === '$home' || flat === '%userprofile%' || flat === '$env:userprofile') return true
   if (/^[a-z]:\/(users|program files( \(x86\))?|programdata)$/u.test(flat) || /^[a-z]:\/windows(\/.*)?$/u.test(flat)) return true
   return flat === homedir().replace(/\\/gu, '/').toLowerCase()
+}
+
+/**
+ * Carbon P0-04: a folder a recursive read (`Grep`, `Glob`) must not START from: a drive or filesystem root, the home folder, or a folder ABOVE the home (`C:\Users`): every secret
+ * under it would be swept by one call. A folder UNDER the home (documents, the draft) is not broad. A relative path is read from `cwd`.
+ * @param path - The `path` of the tool call, as written.
+ * @param cwd - The working folder of the call, to resolve a relative path.
+ */
+export function isBroadReadRoot(path: string, cwd?: string): boolean {
+  const written = path.trim()
+  if (written === '') return false
+  if (isBroadTarget(written)) return true
+  const flat = (value: string): string => value.replace(/\\/gu, '/').replace(/\/+$/u, '').toLowerCase()
+  const absolute = isAbsolute(shellPath(written)) || cwd === undefined ? resolve(shellPath(written)) : resolve(cwd, shellPath(written))
+  const target = flat(absolute)
+  const home = flat(homedir())
+  return target === '' || /^[a-z]:$/u.test(target) || home === target || home.startsWith(`${target}/`)
 }
 
 class Judge {
@@ -337,6 +417,7 @@ class Judge {
     if (operands.length === 0) { this.add('unknown', verb, 'no-operand'); return }
     for (const operand of operands) {
       if (isSecretPath(operand.text)) { this.add('secret', verb, 'secret-path'); continue }
+      if (isGitInternalPath(operand.text)) { this.add(outside, verb, 'git-internals'); continue }
       const within = this.within(operand)
       if (within === undefined) this.add(operand.expands ? 'unknown' : outside, verb, operand.expands ? 'expands' : 'no-draft')
       else this.add(within ? inside : outside, verb, within ? 'draft-path' : 'outside-draft')
@@ -351,11 +432,12 @@ class Judge {
 
   private redirectsOf(simple: Simple, verb: string): void {
     for (const redirect of simple.redirects) {
-      const target = redirect.target
+      const target = redirect.target === undefined ? undefined : markRiskyGlob(redirect.target)
       if (target === undefined) { this.add('unknown', verb, 'redirect-without-target'); continue }
       if (isSink(target.text)) continue
       if (redirect.op === '<') { this.secretOperands(verb === '' ? '<' : verb, [target]); if (isSecretPath(target.text)) this.add('secret', verb, 'secret-input'); continue }
       if (isSecretPath(target.text)) { this.add('secret', verb, 'secret-path'); continue }
+      if (isGitInternalPath(target.text)) { this.add('outside-change', verb === '' ? redirect.op : verb, 'git-internals'); continue }
       const within = this.within(target)
       if (within === undefined) this.add(target.expands ? 'unknown' : 'outside-change', verb === '' ? redirect.op : verb, target.expands ? 'expands' : 'no-draft')
       else this.add(within ? 'draft-change' : 'outside-change', verb === '' ? redirect.op : verb, within ? 'draft-redirect' : 'outside-redirect')
@@ -375,7 +457,7 @@ class Judge {
     if (words.length === 0) { this.redirectsOf(simple, ''); return }
     const head = words[0]
     if (head === undefined) return
-    const rest = words.slice(1)
+    const rest = words.slice(1).map(markRiskyGlob)
     const name = programName(head.text)
     if (head.expands || name === undefined) { this.add('unknown', head.text, head.expands ? 'name-expands' : 'path-qualified-program'); this.redirectsOf(simple, head.text); return }
     this.redirectsOf(simple, name)
@@ -398,9 +480,9 @@ class Judge {
       this.add(action === 'publish' || action === 'deploy' || action === 'login' || action === 'adduser' ? 'send' : 'unknown', name, action === 'publish' || action === 'deploy' ? 'publish' : 'runs-unread-code')
       return
     }
-    if (DELETE_NAMES.has(name)) { this.deleteOf(name, args); return }
-    if (CHANGE_NAMES.has(name)) { this.changeOf(name, args); return }
-    if (READ_NAMES.has(name)) { this.read(name, args); return }
+    if (DELETE_NAMES.has(name)) { this.deleteOf(name, withOptionValues(args)); return }
+    if (CHANGE_NAMES.has(name)) { this.changeOf(name, withOptionValues(args)); return }
+    if (READ_NAMES.has(name)) { this.read(name, withOptionValues(args)); return }
     this.add('unknown', name, 'not-listed')
   }
 
@@ -437,6 +519,7 @@ class Judge {
     if (targets.length === 0) { this.add('unknown', name, 'no-operand'); return }
     for (const target of targets) {
       if (isSecretPath(target.text)) { this.add('secret', name, 'secret-path'); continue }
+      if (isGitInternalPath(target.text)) { this.add('delete', name, 'git-internals'); continue }
       if (isBroadTarget(target.text)) { this.add('never', name, 'broad-target'); continue }
       const within = this.within(target)
       if (within === undefined) this.add(target.expands ? 'unknown' : 'delete', name, target.expands ? 'expands' : 'no-draft')
@@ -578,10 +661,13 @@ class Judge {
     }
     if (GIT_READ.has(subName)) { this.secretOperands(verb, operands); this.add('read', verb, 'git-read'); return }
     if (GIT_DRAFT_CHANGE.has(subName)) {
-      const paths = operands.filter(arg => !isFlag(arg.text) && /[\\/.]/u.test(arg.text) && !/^[0-9a-f]{7,40}$/iu.test(arg.text) && !arg.text.includes(' '))
-      for (const path of paths) {
-        const within = this.within(path)
+      // Carbon P0-04: with NO draft known nothing is "inside" it; a quoted path with a space is still a path; a raw path into .git/ is never a draft change.
+      if (this.draftRoot === undefined) { this.add('outside-change', verb, 'no-draft'); return }
+      for (const path of gitPathOperands(operands)) {
+        const within = this.within(markRiskyGlob(path))
         if (isSecretPath(path.text)) this.add('secret', verb, 'secret-path')
+        else if (isGitInternalPath(path.text)) this.add('outside-change', verb, 'git-internals')
+        else if (within === undefined) this.add(path.expands || isRiskyGlob(path.text) ? 'unknown' : 'outside-change', verb, path.expands || isRiskyGlob(path.text) ? 'expands' : 'no-draft')
         else if (within === false) this.add('outside-change', verb, 'outside-draft')
       }
       this.add('draft-change', verb, 'git-draft-change')

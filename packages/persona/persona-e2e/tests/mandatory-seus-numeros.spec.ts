@@ -30,6 +30,13 @@ async function theme(page: Page, dark: boolean, zoom: 1 | 2): Promise<void> {
   const tip = page.getByRole('button', { name: 'Entendi' })
   if (await tip.isVisible()) await tip.click()
   await page.waitForTimeout(700)
+  // The Visão geral is taller than the window (and taller still at 200%): bring "Seus números" into view so every capture frames the section.
+  // (Only when the section is on screen: waiting for an absent element would burn the action timeout on every thread or modal capture.)
+  const section = page.locator('[data-seus-numeros]')
+  if (await section.count() > 0) {
+    await section.first().scrollIntoViewIfNeeded()
+    await page.waitForTimeout(400)
+  }
 }
 
 async function shots(page: Page, name: string): Promise<void> {
@@ -105,7 +112,7 @@ describe.skipIf(!run).sequential('Colheita 19a · Seus números, no app real', (
     await dialog.waitFor({ state: 'visible', timeout: 20_000 })
     expect(await dialog.getByRole('button', { name: 'Fixar', exact: true }).isDisabled()).toBe(true)
     expect(await dialog.getByText('Teste antes de fixar: assim você vê o número de verdade.').isVisible()).toBe(true)
-    await dialog.getByRole('checkbox', { name: 'Avisar quando cair mais de 20%' }).check()
+    await dialog.getByRole('switch', { name: 'Avisar quando cair mais de 20%' }).click()
     await shots(page, 'modal-antes-do-teste')
     const before = (await channelMessages(page, tenant)).length
     await dialog.getByRole('button', { name: 'Testar agora' }).click()
@@ -145,6 +152,14 @@ describe.skipIf(!run).sequential('Colheita 19a · Seus números, no app real', (
     expect(await cardLocator.getByText('R$ 900').isVisible()).toBe(true)
     expect(await cardLocator.getByText(/Caiu 31%/u).isVisible()).toBe(true)
     expect((await channelMessages(page, tenant)).length, 'a atualização é muda: nada em canal ou DM').toBe(quiet)
+    // P1-08: o alerta também espera a pessoa onde a Visão geral lê o que precisa dela ("Precisa de você"), nunca como mensagem.
+    const alertLine = page.getByText('Vendas de ontem caiu 31% desde ontem.').first()
+    const seen = await until(page, async () => (await alertLine.isVisible()) ? true : undefined, 60_000, 1_000)
+    if (seen !== true) {
+      await page.screenshot({ path: join(SHOTS, 'falha-alerta-visao-geral.png') })
+      const overview = await hostRpcOk<{ readonly needsYou: ReadonlyArray<{ readonly id: string; readonly title: string }> }>(page, 'getOverview', { workspaceId: tenant.workspaceId, projectId: tenant.projectId })
+      throw new Error(`o alerta não apareceu na Visão geral; o host devolve needsYou=${JSON.stringify(overview.needsYou.map(item => item.title))}; texto da tela: ${(await page.locator('body').innerText()).slice(0, 600)}`)
+    }
     await shots(page, 'alerta')
     const alerted = await hostRpcOk<ReadonlyArray<{ readonly alert?: { readonly pct: number } }>>(page, 'listIndicators', { workspaceId: tenant.workspaceId, projectId: tenant.projectId })
     expect(alerted[0]?.alert?.pct).toBe(31)

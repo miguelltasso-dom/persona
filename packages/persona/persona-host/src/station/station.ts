@@ -6,8 +6,9 @@
  */
 
 import { admit, RAM_FLOOR_BYTES, RAM_PER_CLI_BYTES, type Admission, type WarmCli } from './admission.ts'
-import { PairingBook } from './pairing.ts'
+import { PairingBook, type PairingRefusal } from './pairing.ts'
 import { PowerKeeper } from './power.ts'
+import type { StationState } from './station-store.ts'
 import { readTailscale, type TailscaleStatus } from './tailscale.ts'
 import type { StationPairingCode, StationView } from '../types.ts'
 
@@ -25,6 +26,10 @@ export interface StationDeps {
   readonly tailscale?: () => Promise<TailscaleStatus>
   /** Whether the station accepts turns; default true. */
   readonly active?: () => boolean
+  /** P1-10: what the machine remembered from the last launch (paired, turned off); default not paired, on. */
+  readonly initial?: StationState
+  /** P1-10: called when the pairing or the on/off switch changes, so it survives a restart. */
+  readonly persist?: (state: StationState) => void
 }
 
 /** The dedicated station of this machine. */
@@ -41,7 +46,22 @@ export class Station {
     this.deps = deps
     this.pairing = deps.pairing ?? new PairingBook()
     this.power = deps.power ?? new PowerKeeper()
-    this.on = deps.active?.() ?? true
+    this.on = deps.active?.() ?? deps.initial?.running ?? true
+    this.paired = deps.initial?.paired ?? false
+  }
+
+  /** @returns Whether this machine is the paired dedicated station (the RAM floor and the awake request apply only then). */
+  isPaired(): boolean {
+    return this.paired
+  }
+
+  /** @returns Whether the person left the station on (the default). */
+  isRunning(): boolean {
+    return this.on
+  }
+
+  private remember(): void {
+    this.deps.persist?.({ paired: this.paired, running: this.on })
   }
 
   /** Issue the code the person reads on their own PC. */
@@ -54,16 +74,25 @@ export class Station {
    * @param code - What was typed.
    * @returns `ok` when the station is now paired.
    */
-  redeem(code: string): 'ok' | 'invalido' | 'expirado' | 'usado' {
+  redeem(code: string): 'ok' | PairingRefusal {
     const result = this.pairing.redeem(code)
-    if (result === 'ok') this.paired = true
+    if (result === 'ok') {
+      this.paired = true
+      this.remember()
+    }
     return result
   }
 
-  /** Turn the station on or off (off stops accepting turns and lets Windows sleep). */
-  setRunning(on: boolean): void {
+  /**
+   * Turn the station on or off (off stops accepting turns and lets Windows sleep).
+   * @param on - The new state.
+   * @param options - `remember: false` for the host going away (quit / pause): that is NOT the person's switch, so nothing is written and the next launch finds the
+   * station as they left it (a restart must never turn the team off).
+   */
+  setRunning(on: boolean, options: { readonly remember?: boolean } = {}): void {
     this.on = on
     if (!on) this.power.release()
+    if (options.remember !== false) this.remember()
   }
 
   /**

@@ -1,3 +1,4 @@
+/* oxlint-disable @stylistic/max-len, typescript/no-non-null-assertion -- galeria interna de capturas (dados de exemplo), fora do app */
 // Ember: gallery of screens I build, with sample data in the app's frame (rail width kept so 960 px and 200 % zoom are honest).
 // Built by scripts/persona/ember-gallery.mjs; `#state` picks what is drawn. Not shipped with the app.
 import { createRoot } from 'react-dom/client'
@@ -40,6 +41,18 @@ import type { MemoryRow } from '../../../packages/persona/client-ui-persona/src/
 import { CofreScreen, type CofreScreenProps } from '../../../packages/persona/client-ui-persona/src/client/cofre/CofreScreen.tsx'
 import { cofreGroups, type HostCofreEntry } from '../../../packages/persona/client-ui-persona/src/client/cofre/cofre-wire.ts'
 import { pt as cofrePt } from '../../../packages/persona/client-ui-persona/src/client/locale/cofre/locales.ts'
+import type { ApprovalView, PlaybookNoteView } from '@deepseek-ai/dsh-persona-host/types'
+import { ReactiveApprovalsList } from '../../../packages/persona/client-ui-persona/src/client/approvals/ReactiveApprovalsList.tsx'
+import { PlaybookPanel } from '../../../packages/persona/client-ui-persona/src/client/playbook/PlaybookPanel.tsx'
+import { IndicatorOffer } from '../../../packages/persona/client-ui-persona/src/client/indicators/IndicatorOffer.tsx'
+import { SeusNumeros } from '../../../packages/persona/client-ui-persona/src/client/indicators/SeusNumeros.tsx'
+import type { IndicatorUi, IndicatorUiData } from '../../../packages/persona/client-ui-persona/src/client/indicators/indicators-model.ts'
+import { IndicatorsProvider } from '../../../packages/persona/client-ui-persona/src/client/indicators/use-indicators.tsx'
+import { CodeRequestCard, type CodeRequestRow } from '../../../packages/persona/client-ui-persona/src/client/cofre/CodeRequestCard.tsx'
+import { BoardColumn, BoardColumns } from '../../../packages/persona/client-ui-persona/src/client/primitives/Board.tsx'
+import { SecondBrainShell } from '../../../packages/persona/client-ui-persona/src/client/second-brain/SecondBrainShell.tsx'
+import type { BrainHomeView, BrainPageView } from '@deepseek-ai/dsh-persona-host/types'
+import type { PersonaRemoteClient } from '../../../packages/persona/client-ui-persona/src/client/data/lumen-inject.ts'
 import { MarkdownBody } from '../../../packages/persona/client-ui-persona/src/client/chat/markdown/MarkdownBody.tsx'
 
 // ---- A-4: hire cards. A host that sends role + description + measured tasks; an older host that sends only the name; a vault card.
@@ -167,16 +180,47 @@ function ClickLater({ selector, children }: { readonly selector: string; readonl
 function Drive({ steps, children }: { readonly steps: readonly { readonly role: string; readonly name: string }[]; readonly children: ReactNode }): ReactNode {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const ids: number[] = []
-    steps.forEach((step, index) => {
-      ids.push(window.setTimeout(() => {
-        const nodes = Array.from(document.querySelectorAll<HTMLElement>(step.role === 'menuitem' ? '[role=menuitem]' : 'button'))
-        const hit = nodes.find(node => (node.getAttribute('aria-label') ?? node.textContent ?? '').trim() === step.name)
-        hit?.click()
-      }, 350 * (index + 1)))
-    })
-    return () => { ids.forEach((id) => { window.clearTimeout(id) }) }
+    let alive = true
+    const find = (step: { readonly role: string; readonly name: string }): HTMLElement | undefined => {
+      const nodes = Array.from(document.querySelectorAll<HTMLElement>(step.role === 'menuitem' ? '[role=menuitem]' : 'button'))
+      return nodes.find((node) => {
+        const label = (node.getAttribute('aria-label') ?? node.textContent ?? '').trim()
+        return step.name.endsWith('*') ? label.startsWith(step.name.slice(0, -1)) : label === step.name
+      })
+    }
+    const sleep = (ms: number): Promise<void> => new Promise((resolve) => { window.setTimeout(resolve, ms) })
+    void (async () => {
+      for (const step of steps) {
+        // Waits for the control to exist (menus, panels and async buttons mount after the previous click), up to 6 s.
+        for (let tries = 0; tries < 60 && alive; tries += 1) {
+          const hit = find(step)
+          if (hit !== undefined) { hit.click(); break }
+          await sleep(100)
+        }
+        await sleep(400)
+      }
+      await sleep(700)
+      if (alive) ref.current?.setAttribute('data-drive-done', '1')
+    })()
+    return () => { alive = false }
   }, [steps])
+  return <div ref={ref} data-drive="1">{children}</div>
+}
+/** Types digits into the six boxes of the code card (React-aware: native setter + input event), once drawn. */
+function TypeIn({ digits, children }: { readonly digits: string; readonly children: ReactNode }): ReactNode {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+      Array.from(digits).forEach((digit, index) => {
+        const box = ref.current?.querySelector<HTMLInputElement>('input[aria-label="Dígito ' + String(index + 1) + ' de 6"]')
+        if (box === null || box === undefined) return
+        setter?.call(box, digit)
+        box.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+    }, 400)
+    return () => { window.clearTimeout(id) }
+  }, [digits])
   return <div ref={ref}>{children}</div>
 }
 const thread = (children: ReactNode): ReactNode => <div style={{ maxWidth: 760 }}>{children}</div>
@@ -278,7 +322,98 @@ const cofreT = ((key: string, params?: Readonly<Record<string, string | number>>
 const cofre = (over: Partial<CofreScreenProps> = {}): ReactNode => (
   <CofreScreen state="ready" groups={cofreGroups(COFRE_ENTRIES)} sealable onSaveLogin={async () => {}} onSaveKey={async () => {}} onSaveCompany={async () => {}} onRemove={async () => {}} onRetry={() => {}} t={cofreT} {...over} />
 )
+// Item 16 fatia 2 (Anvil): aba "Jeito de trabalhar" (4 estágios) e o cartão "Virar skill" em Aprovações. Dados de exemplo.
+const pbDay = (back: number): string => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate() - back, 12).toISOString() }
+const pbRow = (over: Partial<PlaybookNoteView> & Pick<PlaybookNoteView, 'id' | 'title'>): PlaybookNoteView => ({ personaId: 'bia', uses: 1, lastAt: pbDay(1), stage: 'learning', progress: 1, goal: 3, adjustments: [], ...over })
+const PB_ROWS: readonly PlaybookNoteView[] = [
+  pbRow({ id: 'n1', title: 'Resposta ao cliente sobre a entrega' }),
+  pbRow({ id: 'n2', title: 'Legenda do post de sexta', uses: 3, progress: 3, stage: 'ready', lastAt: pbDay(0) }),
+  pbRow({ id: 'n3', title: 'Cartaz da promoção de pão de queijo', uses: 3, progress: 3, stage: 'offered', approvalId: 'skill-offer-pb-bia-x', adjustments: ['Preço maior', 'Sem ponto de exclamação', 'Fundo claro', 'Letra grande'] }),
+  pbRow({ id: 'n4', title: 'Foto de produto com fundo claro', uses: 4, progress: 3, stage: 'skill', lastAt: '2025-03-04T12:00:00.000Z' }),
+]
+const pbPanel = (rows: readonly PlaybookNoteView[] = PB_ROWS): ReactNode => <PlaybookPanel personaName="Bia" rows={rows} actions={{ onForget: async () => {}, onDecide: () => {} }} onMessage={() => {}} />
+const SKILL_OFFER: ApprovalView = { id: 'skill-offer-pb-bia-x', kind: 'skill', title: 'Bia aprendeu: cartaz da promoção de pão de queijo', question: 'Usado 3 vezes em 2 dias.', status: 'pending', personaId: 'bia', personaName: 'Bia' }
+const skillOffer = (): ReactNode => (
+  <div role="list" style={{ maxWidth: 560 }}><ReactiveApprovalsList dict={approvalsPt} items={[approvalViewToItem(SKILL_OFFER)]} scopeFor={() => undefined} exitStampId={null} rememberFor={() => ({ grant: false, validity: 'once' })} rememberStampNote={null} onRememberChange={() => {}} onCelebrateAccept={() => {}} onDecideItem={() => {}} /></div>
+)
+// Item 19a (Rivet): "Seus números" na Visão geral (grade, vazio) e "Fixar na Visão geral" na conversa (oferta + modal). Dados de exemplo.
+const numAt = (hour: number): string => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, 0, 0).toISOString() }
+const numCard = (id: string, name: string, data: IndicatorUiData, extra: Partial<IndicatorUi> = {}): IndicatorUi => ({
+  id: 'ind:' + id, name, data, schedule: 'daily', status: 'ok', updatedAt: numAt(8), personaName: 'Nina', sourceMessageId: id, ...extra,
+})
+const NUM_CARDS: readonly IndicatorUi[] = [
+  numCard('a', 'Vendas de ontem', { kind: 'numero', value: 'R$ 1.240', raw: 1240, trend: { text: '+12% desde ontem', direction: 'up', goodWhen: 'up' } }),
+  numCard('b', 'Pedidos da semana', { kind: 'numero', value: '9', raw: 9, trend: { text: '-31% desde ontem', direction: 'down', goodWhen: 'up' } }, { alert: { pct: 31, text: 'Caiu 31% desde ontem', at: numAt(8) } }),
+  numCard('c', 'Meta do mês', { kind: 'meta', value: 18, goal: 30, unit: 'pedidos' }),
+  numCard('d', 'Vendas por dia', { kind: 'barras', points: [{ label: 'Seg', value: 12 }, { label: 'Ter', value: 9 }, { label: 'Qua', value: 15 }, { label: 'Qui', value: 11 }] }),
+  numCard('e', 'Visitas ao site', { kind: 'linha', points: [{ label: 'Seg', value: 10 }, { label: 'Ter', value: 14 }, { label: 'Qua', value: 12 }, { label: 'Qui', value: 18 }] }, { schedule: 'hourly' }),
+  numCard('f', 'Encomendas de sexta', { kind: 'lista', items: [{ text: 'Bolo de cenoura · 12', state: 'ok' }, { text: 'Pão de queijo · 40', state: 'atencao' }] }),
+  numCard('g', 'Resumo do dia', { kind: 'resumo', sentences: ['Vendemos mais que ontem.', 'Dois clientes ficaram sem retorno.'] }, { status: 'updating' }),
+  numCard('h', 'Avaliações da loja', { kind: 'numero', value: '4,8' }, { status: 'failed', failure: 'Não consegui falar com a loja.', updatedAt: numAt(6) }),
+]
+const NUM_OFFER = { messageId: 'm-1', name: 'Vendas de ontem', data: NUM_CARDS[0]!.data }
+const numHost = (): Record<string, () => Promise<unknown>> => {
+  const kept: IndicatorUi[] = []
+  return {
+    listIndicators: () => Promise.resolve([...kept]),
+    testIndicator: () => Promise.resolve({ testId: 'itest:1', name: 'Vendas de ontem', data: { kind: 'numero', value: 'R$ 1.300', raw: 1300 } }),
+    pinIndicator: () => Promise.resolve(NUM_CARDS[0]!),
+    unpinIndicator: () => Promise.resolve(true),
+    refreshIndicator: () => Promise.resolve(NUM_CARDS[0]!),
+  }
+}
+const numOffer = (): ReactNode => (
+  <IndicatorsProvider remote={numHost()} tenant={{ workspaceId: 'ws', projectId: 'pp' }}><ul style={{ maxWidth: 560, listStyle: 'none', padding: 0 }}><IndicatorOffer offer={NUM_OFFER} personaName="Nina" /></ul></IndicatorsProvider>
+)
+// Item 15 (Lumen): o cartão "Precisa de um código" (2FA) em 3 estados. Dados de exemplo; nenhum código real.
+const codeRow = (over: Partial<CodeRequestRow> = {}): CodeRequestRow => ({
+  id: 'r1', personaName: 'Bia', faceSrc: personaFaceSrc('bia', 'bia'), site: 'Mercado Livre', reason: 'O site mandou um código por WhatsApp para entrar na conta da loja.',
+  state: 'pending', expiresAt: new Date(Date.now() + 9 * 60_000).toISOString(), ...over,
+})
+const codeCard = (row: CodeRequestRow): ReactNode => thread(<CodeRequestCard row={row} t={cofreT} rowTag="div" onFill={async () => {}} onCancel={async () => {}} onRetry={() => {}} />)
+// Passada de leigo (Lumen L5/L6/L7). Dados de exemplo.
+const LEIGO_LABELS = { backlog: 'A fazer', in_progress: 'Fazendo', in_review: 'Em revisão', blocked: 'Bloqueado', done: 'Feito' }
+const leigoCard = (id: string, title: string, column: KanbanCardModel['column'], extra: Partial<KanbanCardModel> = {}): ReactNode => (
+  <KanbanCard dict={kanbanPt} card={{ id, title, projectId: 'p1', projectName: 'Padaria Lua', teamId: 't1', teamName: 'Marketing', column, waitingEvent: false, blocked: false, reviewApproved: false, ...extra }} draggingId={null} showProject={false} columnLabels={LEIGO_LABELS as never} onDragStart={() => {}} onDragEnd={() => {}} />
+)
+const leigoColumns = (): ReactNode => (
+  <BoardColumns label="Quadro da equipe">
+    <BoardColumn name="A fazer" category="todo" categoryLabel="A fazer" count={1} emptyLabel="Nada aqui">{leigoCard('c0', 'Legenda do post de sexta', 'backlog')}</BoardColumn>
+    <BoardColumn name="Fazendo" category="doing" categoryLabel="Em andamento" count={1} emptyLabel="Nada aqui">{leigoCard('c1', 'Tabela de preços da semana', 'in_progress', { assignee: { id: 'nina', name: 'Nina', initials: 'N' }, assigneeState: 'working' })}</BoardColumn>
+    <BoardColumn name="Revisão do cliente" category="review" categoryLabel="Em revisão" count={1} emptyLabel="Nada aqui">{leigoCard('c2', 'Cartaz da promoção', 'in_review', { assignee: { id: 'bia', name: 'Bia', initials: 'B' }, assigneeState: 'resting' })}</BoardColumn>
+    <BoardColumn name="Feito" category="done" categoryLabel="Concluído" count={1} emptyLabel="Nada aqui">{leigoCard('c3', 'Foto do pão de queijo', 'done', { assignee: { id: 'bia', name: 'Bia', initials: 'B' }, assigneeState: 'resting' })}</BoardColumn>
+  </BoardColumns>
+)
+const brainPageOf = (id: string, title: string, kind: BrainPageView['kind'], body = 'Corpo da página.'): BrainPageView => ({
+  id, slug: id, title, kind, body, revision: 1, links: [], sources: [], editorHint: 'persona:nina', updatedAt: new Date().toISOString(), restricted: false,
+})
+const BRAIN_START = brainPageOf('start', 'Comece aqui', 'company', '# Comece aqui\n\nO cardápio, os horários e as regras da casa ficam nas páginas ao lado.')
+const BRAIN_HOME: BrainHomeView = { startHereId: 'start', changedToday: [BRAIN_START], activeGrants: [], contradictions: [], leftover: [] }
+const brainClient = (): PersonaRemoteClient => ({
+  getBrainPage: async () => ({ ok: true, value: BRAIN_START }), listBrainVersions: async () => ({ ok: true, value: [] }),
+  putBrainPage: async () => ({ ok: true, value: BRAIN_START }), restoreBrainPage: async () => ({ ok: true, value: BRAIN_START }),
+}) as unknown as PersonaRemoteClient
+const brainShell = (): ReactNode => (
+  <SecondBrainShell persona={brainClient()} scope={{ workspaceId: 'ws', projectId: 'proj' }} actorId="owner" home={BRAIN_HOME} pages={[BRAIN_START]} grants={[]} personaNames={{ nina: 'Nina' }} memberNames={{ owner: 'Você' }} surfaceState="ready" />
+)
 const STATES: Readonly<Record<string, () => ReactNode>> = {
+  'quadro-colunas': () => leigoColumns(),
+  'cartao-feito': () => <div style={{ display: 'grid', gap: 12, maxWidth: 340 }}>{leigoCard('d1', 'Cartaz da promoção', 'done', { assignee: { id: 'bia', name: 'Bia', initials: 'B' }, assigneeState: 'resting' })}{leigoCard('d2', 'Tabela de preços da semana', 'in_progress', { assignee: { id: 'nina', name: 'Nina', initials: 'N' }, assigneeState: 'working' })}</div>,
+  'memoria-empresa': () => brainShell(),
+  'cofre-codigo-pedindo': () => <TypeIn digits="4829">{codeCard(codeRow())}</TypeIn>,
+  'cofre-codigo-entregue': () => codeCard(codeRow({ state: 'filled' })),
+  'cofre-codigo-vencido': () => codeCard(codeRow({ state: 'expired', expiresAt: new Date(Date.now() - 60_000).toISOString() })),
+  'cofre-editar-login-erro': () => <Drive steps={[{ role: 'button', name: 'Editar Mercado Livre' }, { role: 'button', name: 'Guardar' }]}>{cofre()}</Drive>,
+  'seus-numeros-grade': () => <SeusNumeros items={NUM_CARDS} loaded onRefresh={async () => {}} onUnpin={async () => {}} />,
+  'seus-numeros-vazio': () => <SeusNumeros items={[]} loaded />,
+  'seus-numeros-oferta': () => numOffer(),
+  'seus-numeros-modal': () => <Drive steps={[{ role: 'button', name: 'Fixar na Visão geral' }]}>{numOffer()}</Drive>,
+  'seus-numeros-modal-testado': () => <Drive steps={[{ role: 'button', name: 'Fixar na Visão geral' }, { role: 'button', name: 'Testar agora' }]}>{numOffer()}</Drive>,
+  'playbook-jeitos': () => pbPanel(),
+  'playbook-vazio': () => pbPanel([]),
+  'playbook-esquecer-skill': () => <Drive steps={[{ role: 'button', name: 'Esquecer*' }]}>{pbPanel([PB_ROWS[3]!])}</Drive>,
+  'playbook-esquecer': () => <Drive steps={[{ role: 'button', name: 'Esquecer*' }]}>{pbPanel([PB_ROWS[0]!, PB_ROWS[2]!])}</Drive>,
+  'approvals-skill-offer': () => skillOffer(),
   'cofre-lista': () => cofre(),
   'cofre-vazio': () => cofre({ groups: cofreGroups([]) }),
   'cofre-novo-login': () => <Drive steps={[{ role: 'button', name: 'Adicionar' }, { role: 'menuitem', name: 'Login' }]}>{cofre()}</Drive>,

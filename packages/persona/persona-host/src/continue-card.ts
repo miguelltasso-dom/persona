@@ -18,7 +18,7 @@
  * Never used for the D-069 cap of a real run (`RealTurnCapError`): that one must keep refusing, a click is not an authorization.
  */
 
-import { normalizeAskQuestions, type Ticket, type WorkerReport } from '@deepseek-ai/dsh-persona-engine'
+import { ASK_QUESTION_MAX, normalizeAskQuestions, type Ticket, type WorkerReport } from '@deepseek-ai/dsh-persona-engine'
 
 /** Chip ids: the host reads them back to know what the person chose. */
 export const CONTINUE_CHIP = 'continuar'
@@ -51,8 +51,11 @@ export function isContinueStop(
 export function stoppedLineOf(title: string): string {
   return `Parado. “${title}” ficou parada. É só pedir de novo.`
 }
-/** The structured question allows 500 characters: the sentence is clipped to leave room for the tail. */
-const SENTENCE_MAX = 470
+/**
+ * A structured question allows {@link ASK_QUESTION_MAX} characters, tail included: the sentence is clipped to leave room for " Quer que eu continue?".
+ * (S1 P1-06: it used to be 470, so a sentence of 278–470 characters made the engine refuse the question and the card vanished without a word.)
+ */
+const SENTENCE_MAX = ASK_QUESTION_MAX - ASK_TAIL.length - 1
 
 export type ContinueCardResult =
   | { readonly ok: true; readonly askId: string }
@@ -79,7 +82,7 @@ export function continueQuestionOf(fala: string): string {
   return clipped === '' ? ASK_TAIL : `${clipped} ${ASK_TAIL}`
 }
 
-const flat = (value: string): string => value.replace(/s+/gu, ' ').trim()
+const flat = (value: string): string => value.replace(/\s+/gu, ' ').trim()
 
 /**
  * Open the "Continuar" card on a Ticket whose turn the controller refused to close.

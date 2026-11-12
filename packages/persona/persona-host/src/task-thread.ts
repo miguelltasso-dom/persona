@@ -19,8 +19,10 @@ import type { TaskConversationView, UsedContextRecord } from './types.ts'
 export const TASK_THREAD_PREFIX = 'task:'
 /** `screen_doc` kind: the read cursor of one person in one thread (key `<ticketId>:<personId>`). */
 const READ = 'task_thread_read'
-/** The most messages read to count a thread (a card shows "99+" far before it). */
-const COUNT_CAP = 200
+/** A thread is read in pages of this many events, to the very end (a thread has no ceiling: the count, the unread and the last seq must stay true as it grows). */
+const PAGE = 200
+/** Safety only: the most pages read in one pass (40 000 events), far above any real thread. */
+const MAX_PAGES = 200
 /** The most characters of the Task's last report the persona reads. */
 const REPORT_MAX = 600
 
@@ -130,33 +132,52 @@ export class TaskThreads {
     const where = this.deps.orchestration.conversationOfTicket(projectId, ticketId)
     if (where === undefined) return undefined
     const topicId = taskThreadId(ticketId)
-    let events: readonly StoredEvent[] = []
-    try {
-      events = this.deps.events.listTopic(`${where.streamKind}:${where.ownerId}`, { id: actorId }, topicId, 0, COUNT_CAP).events
-    } catch {
-      return { topicId, count: 0, unread: 0, lastSeq: 0 } // not readable by this person: the card still opens the thread, which answers with an empty page
-    }
-    const shown = events.filter(row => (row.type === 'message' || row.type === 'runner') && !isTechnicalAuthor(row.actorId)) // what a person wrote or a persona said (`runner` = her live words)
     const readSeq = this.deps.screens.get<{ seq: number }>(projectId, READ, `${ticketId}:${actorId}`)?.seq ?? 0
-    return {
-      topicId,
-      count: shown.length,
-      unread: shown.filter(row => row.seq > readSeq && row.actorId !== actorId).length,
-      lastSeq: events.at(-1)?.seq ?? 0,
-    }
+    return { topicId, ...(this.scan(`${where.streamKind}:${where.ownerId}`, topicId, actorId, readSeq) ?? { count: 0, unread: 0, lastSeq: 0 }) } // unreadable by this person: the card still opens the thread, which answers with an empty page
   }
 
   /**
-   * The person read the thread up to `seq` (never backwards).
+   * Read a thread to its end, a page at a time, and count: the messages (what a person wrote or a persona said — `runner` is her live words), the ones after `readSeq` that somebody else wrote, and the last seq.
+   * Nothing is kept: a thread of any size costs only the pages.
+   */
+  private scan(streamId: string, topicId: string, actorId: string, readSeq: number): { count: number; unread: number; lastSeq: number } | undefined {
+    let count = 0
+    let unread = 0
+    let lastSeq = 0
+    let after = 0
+    try {
+      for (let page = 0; page < MAX_PAGES; page += 1) {
+        const got = this.deps.events.listTopic(streamId, { id: actorId }, topicId, after, PAGE)
+        for (const row of got.events) {
+          if ((row.type !== 'message' && row.type !== 'runner') || isTechnicalAuthor(row.actorId)) continue
+          count += 1
+          if (row.seq > readSeq && row.actorId !== actorId) unread += 1
+        }
+        lastSeq = got.events.at(-1)?.seq ?? lastSeq
+        if (got.events.length < PAGE) break
+        after = got.nextSeq
+      }
+    } catch {
+      return undefined
+    }
+    return { count, unread, lastSeq }
+  }
+
+  /**
+   * The person read the thread up to `seq`: never backwards, and never past the last message that exists (a cursor in the future would silence the thread for good).
    * @param projectId - Tenant.
    * @param ticketId - The Task.
    * @param actorId - Who read.
    * @param seq - The last seq she saw.
    */
   markRead(projectId: string, ticketId: string, actorId: string, seq: number): void {
+    const where = this.deps.orchestration.conversationOfTicket(projectId, ticketId)
+    if (where === undefined) return
+    const last = this.scan(`${where.streamKind}:${where.ownerId}`, taskThreadId(ticketId), actorId, Number.MAX_SAFE_INTEGER)?.lastSeq ?? 0
+    const bounded = Math.min(seq, last)
     const key = `${ticketId}:${actorId}`
     const kept = this.deps.screens.get<{ seq: number }>(projectId, READ, key)?.seq ?? 0
-    if (seq > kept) this.deps.screens.put(projectId, READ, key, { seq })
+    if (bounded > kept) this.deps.screens.put(projectId, READ, key, { seq: bounded })
   }
 
   /**

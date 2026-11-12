@@ -217,6 +217,9 @@ export function ConnectedDirectMessagesView({
         onRetrySend={(messageId) => { void liveStore.retryFailedSend?.(messageId) }}
         onResumePersona={personaId => liveStore.resumePersona?.(personaId)}
         {...(personaAsks === undefined ? {} : { personaAsks })}
+        // P0-10: a DM tem os mesmos controles do #geral: "Segure para enviar" no cartão de ação externa e "Desfazer" na linha da ação direta.
+        {...(liveStore.undoPersonaAction === undefined ? {} : { onUndoAction: (activityId: string) => liveStore.undoPersonaAction?.(activityId) })}
+        {...(liveStore.decideActionApproval === undefined ? {} : { onDecideAction: (decision: import('../chat/ActionPreviewCard.tsx').ActionDecision) => liveStore.decideActionApproval?.(decision) })}
         {...(reply ?? {})}
         {...(hostQueue === undefined ? {} : { hostQueue })}
         {...(turnControls === undefined ? {} : { turnControls })}

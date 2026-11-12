@@ -20,13 +20,23 @@ export const BROWSER_SERVER = 'browser'
 
 const READ_TOOLS: ReadonlySet<string> = new Set([
   'list_pages', 'select_page', 'new_page', 'close_page', 'navigate_page', 'navigate_page_history', 'wait_for', 'resize_page', 'emulate',
-  'take_snapshot', 'take_screenshot', 'take_memory_snapshot', 'list_console_messages', 'get_console_message', 'list_network_requests', 'get_network_request',
+  'take_snapshot', 'take_screenshot', 'list_console_messages', 'get_console_message', 'list_network_requests', 'get_network_request',
+  'performance_start_trace', 'performance_stop_trace', 'performance_analyze_insight', 'lighthouse_audit',
+])
+
+/**
+ * Carbon P0-02: the reads that carry RAW page data (request and response bodies, console lines, traces): a login the host just typed is in them. They are plain reads until a typed secret is live;
+ * while the host's mask window is open they are refused for everybody (`secret`).
+ */
+const RAW_READ_TOOLS: ReadonlySet<string> = new Set([
+  'list_console_messages', 'get_console_message', 'list_network_requests', 'get_network_request',
   'performance_start_trace', 'performance_stop_trace', 'performance_analyze_insight', 'lighthouse_audit',
 ])
 
 const INTERACT_TOOLS: ReadonlySet<string> = new Set(['click', 'hover', 'drag', 'press_key', 'handle_dialog'])
 const TYPING_TOOLS: ReadonlySet<string> = new Set(['fill', 'fill_form', 'type_text'])
-const NEVER_TOOLS: ReadonlySet<string> = new Set(['evaluate_script', 'upload_file'])
+/** A heap snapshot holds every value the page ever had (a typed password included): nobody needs it for a business task, so it is never allowed. */
+const NEVER_TOOLS: ReadonlySet<string> = new Set(['evaluate_script', 'upload_file', 'take_memory_snapshot'])
 
 /** Shapes of values that are credentials whatever the field they are typed into (API keys, tokens, private keys). */
 const CREDENTIAL_SHAPES: readonly RegExp[] = [
@@ -64,10 +74,12 @@ export function browserToolOf(tool: string): string | undefined {
  * What one call of a browser tool is.
  * @param name - The tool without the server prefix (`click`, `fill`, `upload_file`...).
  * @param input - The call's arguments (read only to look for a credential in what is typed).
+ * @param context - `secretLive`: the host typed a secret and its mask window is still open (the raw reads are then refused).
  */
-export function judgeBrowserTool(name: string, input?: unknown): BrowserJudgment {
+export function judgeBrowserTool(name: string, input?: unknown, context: { readonly secretLive?: boolean } = {}): BrowserJudgment {
   const tool = name.trim().toLowerCase()
   if (NEVER_TOOLS.has(tool)) return { kind: 'never', verb: tool }
+  if (context.secretLive === true && RAW_READ_TOOLS.has(tool)) return { kind: 'secret', verb: tool }
   if (READ_TOOLS.has(tool)) return { kind: 'read', verb: tool }
   if (INTERACT_TOOLS.has(tool)) return { kind: 'interact', verb: tool }
   if (TYPING_TOOLS.has(tool)) {

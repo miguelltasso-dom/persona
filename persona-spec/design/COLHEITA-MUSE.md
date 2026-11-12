@@ -391,6 +391,243 @@ Versão final, que junta a proposta do Anvil (00:08) e a minha (00:08).
 
 ---
 
+## 27 · O convite do 1º colega (item 23; arquitetura: carbon/COLABORACAO-PESSOAS.md)
+**As regras:**
+- **gente é círculo** (a foto, ou as iniciais num círculo);
+- **sem jargão**: E2EE, chave, WebSocket e Worker não aparecem; aparece `cifrado: só quem está na equipe lê`;
+- **sem emoji** na interface (os glifos do `ui-glyphs`).
+
+**1. Convidar** (quem convida é o dono):
+- **Onde:** Equipe › o botão primário `Convidar pessoa`, mais, no rail, `+ Convidar alguém` no fim de `Pessoas`.
+- **O modal (560):**
+  - a arte `convite-enviado` em 240 × 160;
+  - o título `Convidar alguém para a Padaria Lua`;
+  - o botão `Criar link de convite`;
+  - depois, o cartão do link, com o link em fonte mono, `Copiar link` (primário) e `Mandar pelo WhatsApp` (secundário, abre a conversa com o texto pronto, **sem logotipo**);
+  - a linha `Vale por 7 dias, para 1 pessoa.`;
+  - o selo `As conversas são cifradas: só quem está na equipe lê.` com o glifo `lock`.
+
+**2. Do lado de quem foi convidado (a Ana):** ao abrir o link no app, a tela tem:
+- a arte `convite-aguardando`;
+- `Pedido enviado. Esperando Miguel deixar você entrar.`;
+- `Cancelar pedido` (secundário).
+- **Link vencido:** `Este convite venceu. Peça um novo a Miguel.`
+
+**3. Na caixa do dono** (Aprovações, no topo, com âmbar, porque espera você):
+- o cartão `Ana quer entrar na Padaria Lua`, com o rosto **redondo** de 40 px e `Pelo link de 12/11`;
+- **o que ela pode** (ChoiceCards):
+  - `Conversar com a equipe` (marcado);
+  - `Também aprovar decisões do negócio`.
+- **os botões:** `Segure para deixar entrar` (o "segure" do item 5, porque é uma decisão de confiança) e `Recusar`.
+
+**4. Depois de entrar:**
+- **No app da Ana:** o trilho de empresas aparece (2ª empresa).
+- **No `#geral`:** a linha de sistema `Ana entrou na equipe.`.
+- **Os outros colegas veem `Aguardando Miguel aprovar`** nas aprovações que são só do dono (Carbon §4.5).
+- **`Pessoas`** aparece no rail, com a presença:
+  | Presença | Visual |
+  |---|---|
+  | online | a bolinha verde |
+  | ausente | o anel lavanda |
+  | fora | sem bolinha e o nome em `--persona-ink-soft` |
+
+**5. Quem responde:**
+- **Só gente:** `@Ana` sozinha não acorda nenhuma persona.
+- **O composer** num canal com 2 pessoas ou mais mostra a pílula `Conversa entre pessoas` enquanto ninguém chama uma persona. Ao citar `@Bia`, a pílula vira `Bia responde`.
+- **A pílula** é a "Quem responde" que já existe, e não um componente novo.
+
+---
+
+## 28 · A Estação de Agentes (item 24: o computador dedicado 24/7)
+**O nome na tela:** `Estação`, com a explicação sempre ao lado na 1ª vez: `Um computador que fica ligado e trabalha pela equipe quando o seu está desligado, na sua assinatura.`
+- **Sem RAM, GB, Tailscale nem IP.**
+
+**1. Onde:** Configurações › a aba **`Estação`**.
+- **O vazio:**
+  - a arte `estacao-vazio`;
+  - `Nenhum computador da equipe ainda.`;
+  - `Use um computador que possa ficar ligado (um mini-PC ou um notebook antigo).`;
+  - o botão `Ligar um computador` (primário).
+
+**2. O pareamento**, no painel de 440:
+- **Passo 1:** `No outro computador, instale a Persona e escolha "Este computador vai ser a Estação".`
+- **Passo 2:** `Digite o código que aparece lá`:
+  - 8 caixas de 48 px (`XXXX-XXXX`, com o traço fixo no meio), número tabular, colar preenche;
+  - o selo `Vale por 10 minutos` (âmbar a menos de 1 min).
+- **Enquanto liga:** a arte `estacao-pareando` e `Ligando…`.
+- **Pronto:** o carimbo `Estação Escritório ligada`.
+- **Erros:**
+  - `Esse código não confere. Confira no outro computador.`;
+  - `O código venceu. Peça um novo no outro computador.`
+
+**3. O cartão da Estação:**
+- o nome (editável) e o estado:
+  | Estado | Visual |
+  |---|---|
+  | `Ligada` | bolinha verde |
+  | `Desligada desde 14:30` | cinza |
+  | `Cheia agora: 2 tarefas esperando` | âmbar |
+- `Quem trabalha aqui`: os rostos de 24 px, mais o botão `Mudar quem trabalha aqui`;
+- dentro de `Detalhes`: `Ligação direta com o computador de Ana: ativa` (a via expressa, sem o nome técnico);
+- `Desligar a Estação` (perigo, confirma na linha).
+
+**4. Os sinais no app:**
+- **O rodapé do rail:**
+  - a pílula `Rodando neste computador` ou `Estação Escritório · ligada`;
+  - o glifo, e não emoji;
+  - clicável, abre a aba.
+- **Na linha da persona no rail:** um glifo de 12 px de "estação" quando ela mora lá, com a dica `Trabalha na Estação Escritório`. O Brush desenha o glifo `estacao`, de 24 px no padrão.
+
+**5. A tela do computador-Estação:**
+- uma tela só, calma:
+  - a luminária acesa (arte `estacao-pareando` sem a coruja, ou a cena do escritório à noite);
+  - `Esta é a Estação da Padaria Lua. Pode deixar ligada.`;
+  - `✓ O computador não vai dormir`;
+  - o link `Desligar a Estação`.
+- **Sem conversa e sem quadro:** é uma tela de vigília.
+
+---
+
+## 26 · "Ferramentas do seu negócio": catálogo, conectar, saúde (Bloco B do PLUGINS-GAP: 26.4, 26.5, 26.6, 26.7, 26.8)
+**As regras:**
+- **nenhuma palavra técnica** na tela: MCP, servidor, OAuth, token e stdio estão fora (a POWERS-SPEC);
+- **nenhum logotipo de terceiro**: o serviço é identificado pelo **nome** e pela **arte da categoria**, que o Brush desenha.
+
+### Onde
+- Configurações ganha a aba **`Ferramentas`**, logo depois de `Conexões`, que continua sendo a das contas de IA. Nada de aba dentro de aba.
+- **Cabeçalho:**
+  - o rótulo `CONFIGURAÇÕES`;
+  - o título `Ferramentas do seu negócio`;
+  - o subtítulo `Ligue as ferramentas que a sua empresa já usa. A equipe trabalha nelas por você e sempre pede antes de enviar, pagar ou apagar.`
+
+### A tela, de cima para baixo
+1. **A descoberta (26.7), uma faixa só, quando houver algo:**
+   - o texto `Encontramos 6 ferramentas no seu Claude Code e no Cursor. Trazer para a Persona?`;
+   - os botões `Trazer as 6` (primário, 40 px) e `Ver quais` (secundário).
+   - Depois de trazer, a faixa some.
+2. **`Ligadas · 3`:** a lista em cartões compactos, com 64 px de altura:
+   - a arte da categoria em 40 px;
+   - o nome em 15 px, peso 600;
+   - o chip de saúde (26.8);
+   - `⋯` com `Quem pode usar`, `Testar agora` e `Desligar`.
+3. **Os filtros:** chips de 32 px (o `FilterChips`): `Tudo · Vendas e loja · Pagamentos · Atendimento · Agenda e email · Documentos · Redes sociais · Gestão`.
+4. **A grade `Para ligar`:**
+   - cartões de 260 px de largura mínima, com 16 px de vão;
+   - **o cartão:**
+     - a arte da categoria em 64 px, no canto;
+     - o nome em Fredoka 17 px;
+     - **uma frase do que a equipe faz com ele**, em 13 px `--persona-ink-muted` (`Ver vendas e responder clientes do Mercado Livre.`);
+     - no rodapé, `Conectar` (secundário, 40 px), ou o chip `Já ligado ✓`, ou, para os que entram pela conta do Claude, `Ligar na sua conta do Claude`.
+5. **`Em breve`:** uma seção recolhida no fim, com os serviços ainda não confirmados. Os cartões ficam a 70 %, sem botão, com o chip neutro `Em breve`. Eles nunca ficam misturados com os prontos.
+6. **O rodapé:** o link de 32 px `Tenho um link ou comando` (26.6).
+
+**O vazio do filtro:** `Nada nesta categoria ainda.` + `Tenho um link ou comando`.
+
+### Conectar (26.5): no painel lateral de 440 px (o padrão do Cofre)
+1. **`Continuar no Mercado Pago`** (primário, 40 px):
+   - abre o navegador;
+   - o painel mostra `Esperando você terminar no navegador…` com o spinner de 16 px, mais `Cancelar`.
+2. **A volta:**
+   - o carimbo curto (preset `stamp`, o check desenhando o traço) com `Mercado Pago ligado`;
+   - com reduced-motion, só o fade.
+3. **`Quem pode usar?`:**
+   - **os rostos:** de 40 px (R2), marcáveis, **todos desmarcados** (o padrão é ninguém sem perguntar, D-084);
+   - **o que ele permite:** a lista em PT, agrupada (`Ler · Mudar · Enviar · Pagar · Apagar`), com o cadeado de 16 px nas que **sempre pedem**;
+   - o botão `Pronto` (primário).
+- **Sem entrada por navegador:** o assistente `Onde acho o código?` em 3 passos (o texto mais uma imagem do Brush) e o campo de senha, com `Fica guardado no Cofre deste computador.` O valor nunca volta à tela.
+
+### `Tenho um link ou comando` (26.6)
+- **O campo:** um só, com o rótulo `Cole o link ou o comando que o site mandou`.
+- **A resposta:**
+  - `Abre direto` → segue para o `Quem pode usar?`;
+  - `Pede para entrar` → segue para o passo 1;
+  - `Pede um código` → segue para o assistente.
+- **Programa local:** o aviso de **atenção** (o Notice do DS, com o ícone `alert`), opaco: `Isso roda um programa no seu computador. Só adicione se confiar em quem mandou.`, mais a caixinha **desmarcada** `Confio em quem mandou`. Só então `Adicionar` é liberado.
+
+### Saúde (26.8): o chip no cartão ligado
+| Estado | Chip | Ação | Tom |
+|---|---|---|---|
+| Funcionando | — (só a bolinha verde de 8 px) | — | — |
+| Precisa entrar de novo | `Entrar de novo` | o botão abre o passo 1 | **âmbar** (espera você) |
+| Falta permissão | `Falta permissão para criar cobrança` | `Entrar de novo` | âmbar |
+| Fora do ar agora | `Fora do ar agora` | `Tentar de novo` (a persona tenta sozinha depois) | neutro |
+| Não encontrado | `Não encontrado` | `Remover da lista` | neutro |
+
+- **No fio:** uma linha de sistema: `Nina não conseguiu ler as vendas: o Mercado Pago pediu para você entrar de novo.` mais o botão de 32 px `Entrar de novo`. O erro do fornecedor fica em `Detalhes técnicos` dobrado, sempre embaixo da nossa frase.
+- **As linhas honestas de motor**, em 13 px `--persona-ink-muted`, no topo da aba:
+  - `No Cursor, as ferramentas ainda não funcionam.`;
+  - `No Codex, todas as suas ferramentas já ficam carregadas.` (enquanto o 26.3 não fechar).
+
+### O aceite
+- Claro e escuro, a 1440, 960 e 200%;
+- a grade com os 7 filtros;
+- `Ligadas` com os 5 estados de saúde;
+- o fluxo de conectar (esperando, ligado, quem pode usar);
+- o assistente de código;
+- `Tenho um link`, com o aviso de programa local;
+- a faixa de descoberta;
+- o vazio do filtro.
+- **Sem nenhum logotipo** de terceiro.
+
+---
+
+## Arte da noite 2 (pedido do Keel, 12/11 02:57; a Muse especifica, o Brush propõe)
+**Regras de sempre:**
+- nanquim, a paleta da Direção D, alfa limpo (`alpha-clean.py`);
+- **nenhum logotipo nem marca de terceiros**;
+- rascunho com `_`, versões em `persona-assets/vivas-trabalho/`.
+
+### 1. As figurinhas de reação do time inicial (PRIORIDADE)
+- **Quem:** os bichos do modelo inicial: Atlas, Bento, Nina, Sol e Luna. A capivara já tem.
+- **As 4 de cada:**
+  | Figurinha | Gesto |
+  |---|---|
+  | `obrigada` | patas juntas + piscada |
+  | `uau` | patas no rosto, boca em "o" e risquinhos de espanto |
+  | `combinado` | o gesto de "ok" com a pata |
+  | `boa-ideia` | SEM pata: olhando para uma lâmpada grande acesa acima da cabeça (a lição da capivara: o polegar se confunde com o `joinha`) |
+- **O formato:** o mesmo do `stickers/capivara/`: busto, `.png` de 256 + `-96.png`, em `stickers/<bicho>/<reacao>.png`.
+- **A prova:** a prancha a 40 px. As 4 de um bicho não se confundem entre si nem com o `joinha`.
+
+### 2. Estação de Agentes (item 24: o computador dedicado 24/7) (PRIORIDADE)
+- **A personagem:** a **coruja** (a vigília da noite: "fica acordada pela equipe").
+- **O formato:** os vazios (3:2, 240 × 160 @1x, master 1536 × 1024 com alfa), numa versão só para claro e escuro.
+- **`estacao-vazio`:**
+  - uma mesinha com um mini-PC (uma caixinha simples, sem marca) desligado, o cabo solto e a luminária apagada;
+  - a coruja ao lado, esperando.
+  - O texto da tela será `Nenhum computador da equipe ainda.`.
+- **`estacao-pareando`:**
+  - o mini-PC ligado, com uma telinha que mostra um código abstrato (`••• •••`, **sem dígitos reais**);
+  - a coruja ligando o cabo, a luminária acesa e um pontinho verde no mini-PC.
+
+### 3. Equipes e canais (item 22)
+- **O glifo `equipe-nova`:** 24 px, no padrão `ui-glyphs`: 3 cabecinhas e um `+` pequeno no canto. Tem de ser distinto de `clientes`.
+- **`canal-pronto`:** 240 × 160, mostrado **só** no 1º vazio de um canal com membros, ao lado de `#marketing está pronto.`.
+  - A cena: 2 ou 3 bichos sentados em volta de uma mesa, com uma plaquinha `#` em pé no meio.
+  - Uma versão só.
+
+### 4. As categorias do catálogo "Ferramentas do seu negócio" (item 26)
+- **São 7:** Vendas e loja · Pagamentos · Atendimento · Agenda e email · Documentos · Redes sociais · Gestão (ERP).
+- **O formato:** **cenas de OBJETO, sem bicho** (ficam leves no cartão pequeno), em quadrado de 96 × 96 @1x (master 512 com alfa). Precisam ser lidas a 64 px.
+- **As cenas:**
+  | Categoria | Objetos |
+  |---|---|
+  | Vendas e loja | um toldo listrado e uma sacola |
+  | Pagamentos | uma maquininha de cartão e moedas |
+  | Atendimento | um fone com um balão de fala |
+  | Agenda e email | um calendário e um envelope |
+  | Documentos | uma pasta com uma folha carimbada |
+  | Redes sociais | um celular com um coração e uma câmera |
+  | Gestão (ERP) | uma prancheta com um gráfico e caixas empilhadas |
+- **A cor:** cada uma puxa um dos 7 tons `--persona-subject-0..6` como cor dominante, sem repetir.
+
+### 5. O convite do 1º colega (item 23)
+- **O formato:** 240 × 160, uma versão só.
+- **`convite-enviado`:** a capivara entrega um envelope com um selo de chave a uma porta entreaberta.
+- **`convite-aguardando`:** alguém (uma silhueta redonda, porque é gente: a gramática círculo = gente) espera do lado de fora da porta. Dentro, a luminária do dono acesa.
+
+---
+
 ## 23 · Conversa: fonte C + balões v2 + rosto R2 (escolha do Miguel, 12/11 01:06; o Quill passa para CSS e tokens reais)
 A referência visual é `.maestri/tmp/shots/design/fontes-baloes/v5/dm-C-*.png` mais `rosto/dm-R2-*.png`. O protótipo injetado é `.maestri/tmp/muse/chat-bubbles-v2.css` mais `chat-face-variants.css`: ele é a medida e **não se copia como está** (os seletores por sufixo de classe são só de captura).
 

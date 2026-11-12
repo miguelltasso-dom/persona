@@ -124,3 +124,13 @@
   width: 100%;
   height: 100%;
 }
+
+/* COLHEITA §23 (rosto R2): o busto enquadrado na cabeça, sem o corpo. Só o quadro corta; a imagem aumenta e sobe. */
+.cropHead {
+  overflow: hidden;
+}
+
+.cropHead .img {
+  transform: scale(1.42) translateY(9%);
+  transform-origin: 50% 30%;
+}

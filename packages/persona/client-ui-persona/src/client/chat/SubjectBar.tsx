@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconButton, MenuButton, UiIcon, type MenuButtonHandle, type MenuItem } from '../primitives/index.ts'
+import { Button, IconButton, MenuButton, UiIcon, type MenuButtonHandle, type MenuItem } from '../primitives/index.ts'
 import type { ConversationSubjectUi } from './conversation-subjects.ts'
 import { SUBJECT_COLOR_COUNT, subjectColorVar } from './conversation-subjects.ts'
 import styles from './SubjectBar.module.css'
@@ -247,7 +247,8 @@ export function SubjectBar({
         </form>
       ) : (
         <div className={styles.actions}>
-          {menuItems.length > 0 && active !== undefined && (
+          {/* One subject (the DM): nothing to manage yet, so no loose "···": only "+ Assunto" with its label visible (Muse, leigo L3). */}
+          {menuItems.length > 0 && active !== undefined && !(hideSingleTab && subjects.length === 1) && (
             <MenuButton
               ref={menuRef}
               label={t('subjects.more', { name: subjectDisplayName(t, active) })}
@@ -255,7 +256,19 @@ export function SubjectBar({
               variant="ghost"
             />
           )}
-          {onCreate !== undefined && (
+          {onCreate !== undefined && hideSingleTab && subjects.length === 1 && (
+            <Button
+              size="s"
+              variant="ghost"
+              disabled={full}
+              icon={<UiIcon name="plus" size={16} strokeWidth={2.4} />}
+              title={t('subjects.add')}
+              onClick={onCreate}
+            >
+              {t('subjects.addLabel')}
+            </Button>
+          )}
+          {onCreate !== undefined && !(hideSingleTab && subjects.length === 1) && (
             <IconButton
               size="s"
               variant="ghost"

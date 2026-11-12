@@ -8,6 +8,7 @@
  */
 
 import type { RunHandle, Runner as TurnRunner, StartTurnInput, TurnMcpServer, TurnToolSet } from '../contract.ts'
+import type { AuthorityKind } from '../authority/authority-table.ts'
 import type { DeliverMode, DeliverOptions, Runner, RunnerCapabilities, RunnerEvent, RunnerRole, RunnerStatus } from '../port.ts'
 import { prefixOwnerNorms } from '../proactivity/owner-prompt.ts'
 
@@ -33,6 +34,11 @@ export interface OarSessionOptions {
    * every delivered turn; absent = none. A CLI with `mcpTools: 'unavailable'` receives none.
    */
   serversFor?: (turn: { ticketId: string; assignmentId: string; personaId: string; cwd: string; role: RunnerRole }) => readonly TurnMcpServer[] | undefined
+  /**
+   * Carbon P0-03a: who ONE turn acts for (`person`, `routine`, `unattended`), derived by the host from the real origin of the turn's Task. Called on every delivered turn (the runner is warm
+   * across Tasks); the answer rides in `StartTurnInput.authority` and arms the runner's own gate. Absent = nothing is said and the gate defaults to `person`.
+   */
+  authorityFor?: (turn: { ticketId: string; assignmentId: string; personaId: string; cwd: string; role: RunnerRole }) => AuthorityKind | undefined
 }
 
 interface Live {
@@ -52,16 +58,35 @@ interface Live {
   dropped: string[]
   /** The person pressed Parar: a dropped steer must not start a turn of its own. */
   cancelled?: boolean
+  /** The turn in flight (its queued messages included): what `whenIdle` waits for. */
+  turn?: Promise<void>
 }
+
+/**
+ * The session port plus what the HOST needs to let one go. The engine's `Runner` port has no `dispose` (it is Forge's, and a fake runner has nothing to release);
+ * the host finds this one by name when it evicts a warm runner ("Assumir controle", a model or account change, a pause, quitting).
+ */
+export type OarSessionRunner = Runner & {
+  /**
+   * Stop what this session runner holds: every open turn is cancelled (the CLI stops calling tools, MCP servers and the browser included), the turn runner is
+   * released (the CLI process goes), and no more work is taken. Idempotent. A turn that does not wind down in {@link DISPOSE_SETTLE_MS} does not hold the host.
+   */
+  dispose(): Promise<void>
+}
+
+/** How long a cancelled turn gets to wind down before the turn runner is released anyway: a wedged CLI must not hang the host on quit. */
+export const DISPOSE_SETTLE_MS = 3_000
 
 /**
  * Session-port facade over an OAR turn runner (explicit permission required).
  * @param options - turn runner, run identity, and permission mode.
  */
-export function createOarSessionRunner(options: OarSessionOptions): Runner {
+export function createOarSessionRunner(options: OarSessionOptions): OarSessionRunner {
   const now = options.now ?? (() => new Date())
   const sessions = new Map<string, Live>()
   const listeners = new Set<(event: RunnerEvent) => void>()
+  /** P0-12: set once by `dispose`; from then on nothing new is started behind the back of whoever dropped this runner. */
+  let disposed = false
 
   const emit = (type: RunnerEvent['type'], sessionId: string, requestId?: string): void => {
     const event: RunnerEvent = { type, sessionId, at: now().toISOString() }
@@ -110,6 +135,8 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
       if (offered !== undefined) input.mcpTools = offered
       const extra = options.serversFor?.({ ticketId: live.ticketId, assignmentId: requestId, personaId: options.personaId, cwd: live.cwd, role: live.role })
       if (extra !== undefined && extra.length > 0) input.extraMcpServers = extra
+      const authority = options.authorityFor?.({ ticketId: live.ticketId, assignmentId: requestId, personaId: options.personaId, cwd: live.cwd, role: live.role })
+      if (authority !== undefined) input.authority = authority
       handle = await options.turn.start(input)
     } catch (error) {
       if (offered?.close !== undefined) {
@@ -127,6 +154,17 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
       throw error
     }
     live.handle = handle
+    if (disposed) {
+      // P0-12: the runner was disposed while this turn was still opening (the runtime had not answered `start` yet, so `dispose` had no handle to cancel).
+      // The turn opened behind the back of whoever dropped this runner: it is cancelled the moment it has a handle, and never streams.
+      delete live.handle
+      try {
+        await options.turn.cancel(handle)
+      } catch (error) {
+        void error // the turn runner is released by `dispose` anyway
+      }
+      return
+    }
     live.steers = new Map()
     live.read = new Set()
     for await (const event of options.turn.stream(handle)) {
@@ -155,6 +193,7 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
 
   return {
     ensureSession: (id: string, cwd: string, title: string, role: RunnerRole) => {
+      if (disposed) return Promise.reject(new Error('session runner disposed'))
       const existing = sessions.get(id)
       if (existing !== undefined) {
         existing.cwd = cwd
@@ -169,17 +208,28 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
       return Promise.resolve()
     },
     deliver: async (sessionId: string, requestId: string, text: string, mode: DeliverMode, deliverOptions?: DeliverOptions) => {
+      if (disposed) throw new Error('session runner disposed')
       const live = sessions.get(sessionId)
       if (live === undefined) throw new Error(`missing session ${sessionId}`)
       if (live.seen.has(requestId)) return
       live.seen.add(requestId)
-      // A message that arrives while the turn is open goes INTO that turn (the CLI reads it at its next step); it never
-      // opens a second turn on a busy session, which the runtime would refuse and the person's text would be lost.
-      if (live.handle !== undefined && live.status === 'running' && options.turn.steer !== undefined) {
-        const accepted = await options.turn.steer(live.handle, requestId, text)
-        if (accepted) {
-          live.steers.set(requestId, text)
-          emit('userTurnStarted', sessionId, requestId)
+      // A message that arrives while the turn is open goes INTO that turn (the CLI reads it at its next step). It never opens a second
+      // turn on a busy session: the runtime would refuse it, the open turn's tools (MCP) would be closed under its feet and the person's text
+      // would be lost (S1 P0-06). When the runtime cannot take it now (no `steer`, still opening, refused), it WAITS and runs right after the
+      // open turn, in order, as one of the turn's own queued texts.
+      const open = (): boolean => live.status === 'running' // read through a call: the turn may end while the steer is awaited
+      if (open()) {
+        if (live.handle !== undefined && options.turn.steer !== undefined) {
+          const accepted = await options.turn.steer(live.handle, requestId, text)
+          if (accepted) {
+            live.steers.set(requestId, text)
+            emit('userTurnStarted', sessionId, requestId)
+            return
+          }
+        }
+        // The turn may have ended while the steer was awaited: then this message opens the next one, below. Still open: it waits its turn.
+        if (open()) {
+          live.dropped.push(text)
           return
         }
       }
@@ -196,24 +246,44 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
         }, options.leanReport === true ? { leanReport: true } : {})
         live.ownerNorms = true
       }
-      await runTurn(live, sessionId, requestId, prompt, deliverOptions?.images)
-      // What the runtime accepted but never read goes back to the queue: it is the next turn, in order, unless the person stopped.
-      // Parar can arrive while `runTurn` is awaiting the runtime, so the flag is read through a call: TypeScript narrows the property
-      // after `live.cancelled = false` above and rejects a direct comparison as having no overlap. Every dropped text runs exactly
-      // once: a drop removes its id from `steers`, and a requeued text is the turn's own prompt, so the loop is bounded by the
-      // person's messages — a cap would silently lose the tail.
-      const stopped = (): boolean => live.cancelled === true
-      let requeued = 0
-      while (live.dropped.length > 0 && !stopped()) {
-        const next = live.dropped.shift()
-        if (next === undefined) break
-        requeued += 1
-        await runTurn(live, sessionId, `${requestId}:requeue:${String(requeued)}`, next, undefined)
+      const drive = async (): Promise<void> => {
+        try {
+          await runTurn(live, sessionId, requestId, prompt, deliverOptions?.images)
+          // What the runtime accepted but never read, and what arrived while it ran and could not be steered, goes to the queue: it is the next
+          // turn, in order, unless the person stopped. Parar can arrive while `runTurn` is awaiting the runtime, so the flag is read through a
+          // call: TypeScript narrows the property after `live.cancelled = false` above and rejects a direct comparison as having no overlap.
+          // Every queued text runs exactly once (a drop removes its id from `steers`, and a requeued text is the turn's own prompt), so the loop
+          // is bounded by the person's messages — a cap would silently lose the tail.
+          const stopped = (): boolean => live.cancelled === true
+          let requeued = 0
+          while (live.dropped.length > 0 && !stopped()) {
+            const next = live.dropped.shift()
+            if (next === undefined) break
+            requeued += 1
+            await runTurn(live, sessionId, `${requestId}:requeue:${String(requeued)}`, next, undefined)
+          }
+          live.dropped.length = 0
+        } catch (error) {
+          // A turn that fails must not leave the session "running" (every later message would wait for a turn that is not there). What was
+          // queued behind it stays, and goes after the next turn.
+          delete live.handle
+          if (live.status === 'running') { // a turn that never started already said so (runTurn)
+            live.status = 'idle'
+            emit('idle', sessionId, requestId)
+          }
+          throw error
+        }
+        live.status = 'idle'
+        emit('inputTaken', sessionId, requestId)
+        emit('idle', sessionId, requestId)
       }
-      live.dropped.length = 0
-      live.status = 'idle'
-      emit('inputTaken', sessionId, requestId)
-      emit('idle', sessionId, requestId)
+      const turn = drive()
+      live.turn = turn
+      try {
+        await turn
+      } finally {
+        if (live.turn === turn) delete live.turn
+      }
     },
     steer: async (sessionId: string, requestId: string, text: string): Promise<boolean> => {
       const live = sessions.get(sessionId)
@@ -239,11 +309,51 @@ export function createOarSessionRunner(options: OarSessionOptions): Runner {
       emit('idle', sessionId)
     },
     status: (sessionId: string) => sessions.get(sessionId)?.status ?? 'missing',
-    whenIdle: () => Promise.resolve(),
+    // The turn in flight, queued messages included. A turn that failed is its caller's error, not this wait's.
+    whenIdle: async (sessionId: string) => {
+      for (let live = sessions.get(sessionId); live?.turn !== undefined; live = sessions.get(sessionId)) {
+        await live.turn.catch(() => undefined)
+      }
+    },
     onEvent: (listener: (event: RunnerEvent) => void) => {
       listeners.add(listener)
       return () => { listeners.delete(listener) }
     },
     capabilities,
+    dispose: async () => {
+      if (disposed) return
+      disposed = true
+      const winding: Promise<unknown>[] = []
+      for (const live of sessions.values()) {
+        live.cancelled = true // a requeued text must not open a turn of its own
+        live.dropped.length = 0
+        const handle = live.handle
+        delete live.handle
+        if (handle !== undefined) {
+          winding.push((async () => {
+            try {
+              await options.turn.cancel(handle)
+            } catch (error) {
+              void error // the turn runner is released below anyway
+            }
+          })())
+        }
+        if (live.turn !== undefined) winding.push(live.turn.catch(() => undefined))
+      }
+      const deadline = Promise.withResolvers<void>()
+      const timer = setTimeout(() => { deadline.resolve() }, DISPOSE_SETTLE_MS)
+      timer.unref()
+      try {
+        await Promise.race([Promise.allSettled(winding), deadline.promise])
+      } finally {
+        clearTimeout(timer)
+      }
+      for (const live of sessions.values()) live.status = 'idle'
+      try {
+        await options.turn.dispose?.() // the CLI process and the MCP servers it carried
+      } catch (error) {
+        void error // a dispose that fails has nobody left to tell: the runner is already out of the host's warm map
+      }
+    },
   }
 }

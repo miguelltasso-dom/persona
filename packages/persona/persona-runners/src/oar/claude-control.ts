@@ -45,6 +45,19 @@ export function openClaudeControl(bin: string = 'claude'): OpenControl {
     const child = spawn(bin, [...STREAM, ...launch.args], { cwd: launch.cwd, env: childEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false })
     let buffer = ''
     let pending: { id: string; resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void } | null = null
+    /** P0-12: why the process is no longer usable (it could not start, its stdin broke, or it ended). A request made after that is refused at once. */
+    let failure: Error | undefined
+    const fail = (error: Error): void => {
+      failure ??= error
+      const waiter = pending
+      pending = null
+      waiter?.reject(failure)
+    }
+    // An 'error' event with nobody listening is an uncaught exception that takes the whole host down: ENOENT (no `claude`), EPERM, a broken stdin (EPIPE).
+    child.on('error', (error) => { fail(new Error(`claude control: ${error.message}`)) })
+    child.stdin.on('error', (error) => { fail(new Error(`claude control: ${error.message}`)) })
+    child.stderr.on('error', () => undefined)
+    child.stdout.on('error', () => undefined)
     child.stderr.on('data', () => undefined)
     child.stdout.on('data', (chunk: Buffer) => {
       buffer += String(chunk)
@@ -64,9 +77,14 @@ export function openClaudeControl(bin: string = 'claude'): OpenControl {
         }
       }
     })
-    const exited = new Promise<void>((done) => { child.on('exit', () => { done() }) })
+    // A process that ended (or never started) is "exited" for `close`; it also fails the request that was waiting for it, instead of leaving it to the 60 s timeout.
+    const exited = new Promise<void>((done) => {
+      child.on('exit', () => { fail(new Error('claude control: the process ended')); done() })
+      child.on('error', () => { done() })
+    })
     return {
       request: (subtype, params = {}) => new Promise((resolve, reject) => {
+        if (failure !== undefined) { reject(failure); return }
         const id = randomUUID()
         const timer = setTimeout(() => { pending = null; reject(new Error(`timeout ${subtype}`)) }, REQUEST_TIMEOUT_MS)
         pending = {
@@ -74,11 +92,16 @@ export function openClaudeControl(bin: string = 'claude'): OpenControl {
           resolve: (value) => { clearTimeout(timer); resolve(value) },
           reject: (error) => { clearTimeout(timer); reject(error) },
         }
-        child.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: id, request: { subtype, ...params } })}\n`)
+        try {
+          child.stdin.write(`${JSON.stringify({ type: 'control_request', request_id: id, request: { subtype, ...params } })}\n`)
+        } catch (error) {
+          fail(error instanceof Error ? error : new Error(String(error)))
+        }
       }),
       async close() {
+        if (child.pid === undefined) return // it never started: there is no process to stop
         try {
-          if (child.pid !== undefined && process.platform === 'win32') {
+          if (process.platform === 'win32') {
             // v1.1.1 (Cobalt): async taskkill; the sync execFileSync blocked the Host event loop for ~520 ms at boot (host CPU profile).
             const { promise, resolve } = Promise.withResolvers<void>()
             const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })

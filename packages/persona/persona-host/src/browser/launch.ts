@@ -7,7 +7,7 @@
  * product's data directory.
  */
 
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { createServer } from 'node:net'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -35,6 +35,8 @@ export interface LaunchChromeInput {
   readonly headless?: boolean
   /** How long to wait for the DevTools endpoint (default 20 s). */
   readonly waitMs?: number
+  /** How the process is started (tests stand a fake Chrome in here); the default is `spawn` with no stdio and no window. */
+  readonly spawnImpl?: (command: string, args: readonly string[]) => ChildProcess
 }
 
 /** The lock files Chrome leaves in a profile folder. */
@@ -109,6 +111,11 @@ async function devtoolsVersion(port: number): Promise<string | undefined> {
  * @throws Error when Chrome exits before answering or the wait times out (the message is for the log, the screen has its own words).
  */
 export async function launchChrome(input: LaunchChromeInput): Promise<ChromeSession> {
+  // Test hygiene (Gauge 12/11): under Vitest a REAL Chrome only opens in a spec that marked itself with `allowRealChrome()` (tests/host-harness.ts sets PERSONA_TEST_REAL_CHROME).
+  // Any other spec that ends up here (a grant left behind, a missing fake) fails loudly instead of popping a browser window on the person's desktop.
+  if (input.spawnImpl === undefined && process.env.VITEST !== undefined && process.env.PERSONA_TEST_REAL_CHROME !== '1') {
+    throw new Error('real Chrome launch blocked in a test: this spec is not marked as a real-Chrome spec (allowRealChrome() from host-harness.ts) and gave no spawnImpl')
+  }
   const port = await freePort()
   clearProfileLocks(input.profileDir)
   disablePasswordManager(input.profileDir)
@@ -118,9 +125,11 @@ export async function launchChrome(input: LaunchChromeInput): Promise<ChromeSess
     headless: input.headless ?? true,
     ...(input.chrome.version === undefined ? {} : { version: input.chrome.version }),
   })
-  const child = spawn(input.chrome.path, args, { stdio: 'ignore', windowsHide: true })
+  const child = (input.spawnImpl ?? ((command, argv) => spawn(command, [...argv], { stdio: 'ignore', windowsHide: true })))(input.chrome.path, args)
   const exit = { done: false }
   child.once('exit', () => { exit.done = true })
+  // P0-12: a Chrome that cannot start (the file vanished, EPERM) is an 'error' event; with nobody listening it is an uncaught exception that takes the host down.
+  child.on('error', () => { exit.done = true })
   const deadline = Date.now() + (input.waitMs ?? 20_000)
   let version: string | undefined
   while (Date.now() < deadline) {
@@ -130,22 +139,31 @@ export async function launchChrome(input: LaunchChromeInput): Promise<ChromeSess
     await new Promise(resolve => setTimeout(resolve, 120))
   }
   if (version === undefined) {
-    child.kill()
+    await killTree(child) // P0-12: the renderer, GPU and utility processes are children of this one; killing only it leaves them orphaned
     throw new Error('o Chrome não abriu a porta de depuração a tempo')
   }
   let closed = false
   const close = async (): Promise<void> => {
     if (closed) return
     closed = true
-    if (process.platform === 'win32' && child.pid !== undefined) {
-      await new Promise<void>((resolve) => {
-        const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
-        killer.once('exit', () => { resolve() })
-        killer.once('error', () => { resolve() })
-      })
-      return
-    }
-    child.kill()
+    await killTree(child)
   }
   return { port, pid: child.pid ?? -1, version, close }
+}
+
+/**
+ * Stop a Chrome and everything it started. On Windows the browser's renderer, GPU and utility processes are its children and `child.kill()` ends only the first one,
+ * so the tree goes with `taskkill /T /F`; elsewhere the process itself.
+ * @param child - The Chrome process this module started.
+ */
+async function killTree(child: ChildProcess): Promise<void> {
+  if (process.platform === 'win32' && child.pid !== undefined) {
+    await new Promise<void>((resolve) => {
+      const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      killer.once('exit', () => { resolve() })
+      killer.once('error', () => { resolve() })
+    })
+    return
+  }
+  child.kill()
 }

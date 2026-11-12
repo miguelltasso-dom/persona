@@ -27,6 +27,7 @@ function live(h: PersonaHost): Live {
   const clock = { ms: START }
   const nowIso = (): string => new Date(clock.ms).toISOString()
   h.orchestration.now = nowIso
+  h.timezoneOffsetMinutes = () => 0 // the silence windows of this spec are written on a UTC wall clock (S1 P1-12: they follow the machine's offset otherwise)
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
   h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
   for (const [id, name] of [['p1', 'Bento'], ['p2', 'Iris']] as const) {

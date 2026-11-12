@@ -32,7 +32,7 @@ export const READ_ONLY_IMAP_COMMANDS: readonly string[] = [
   'LOGIN',
   'EXAMINE',
   'UID SEARCH',
-  'UID FETCH (BODY.PEEK[])',
+  'UID FETCH (BODY.PEEK[HEADER] BODY.PEEK[TEXT]<0.32768>)',
   'LOGOUT',
 ]
 

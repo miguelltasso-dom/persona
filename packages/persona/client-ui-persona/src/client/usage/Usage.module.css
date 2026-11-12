@@ -286,3 +286,57 @@
     transition: none;
   }
 }
+
+/*
+ * O cartão da reserva dos últimos 5% da janela (item 10): a frase e "Volta às HH:MM" juntas (vão curto), o botão do tamanho do seu texto
+ * (não estica a largura do cartão) e o estado "liberado" como selo. Só tokens `--persona-*`.
+ */
+.reserve {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+/*
+ * LIBERADO e ESGOTADO são neutros (Muse/Atlas/Keel, 12/11 05:28): o fundo (--persona-card) e a borda suave do cartão comum; o âmbar de atenção é
+ * só do PAUSADO (.notice), que espera você decidir. O selo verde ✓ é o único sinal de cor do liberado. O selo e a frase andam juntos (8px).
+ */
+.reserveCalm {
+  gap: var(--persona-space-2);
+  border-color: var(--persona-border-subtle);
+}
+
+.reserveText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+}
+
+.reserveText p {
+  margin: 0;
+}
+
+.reserveWhen {
+  margin: 0; /* o <p> solto no flex trazia ~16px de margem do navegador + o vão: era o buraco de ~30px sob o selo */
+  color: var(--persona-ink-soft);
+}
+
+.reserveAction {
+  align-self: flex-start;
+  width: fit-content;
+}
+
+/* Esgotado: a barra a 100% (informação, não enfeite: sem animação). */
+.reserveBar {
+  height: 10px;
+  overflow: hidden;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-surface-alt);
+}
+
+.reserveBarFill {
+  width: 100%;
+  height: 100%;
+  background: var(--persona-warning);
+}

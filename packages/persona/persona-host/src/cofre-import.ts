@@ -166,6 +166,8 @@ function parse(csv: string): ReadResult {
     if (cells.every(cell => cell.trim() === '')) continue
     const line = index + 1
     const cell = (name: string): string => cells[column(name)]?.trim() ?? ''
+    // Carbon P1-11: a password is kept byte for byte (spaces at its ends are part of it); only the labels around it are trimmed.
+    const secret = (name: string): string => cells[column(name)] ?? ''
     const type = format === 'bitwarden' ? cell(BITWARDEN_TYPE) : ''
     if (format === 'bitwarden' && type !== '' && type !== 'login' && type !== '1') {
       rows.push({ line, title: cell('name'), site: '', username: '', password: '', problem: 'A linha não é um login (nota, cartão ou identidade).' })
@@ -173,7 +175,7 @@ function parse(csv: string): ReadResult {
     }
     const site = format === 'chrome' ? cell('url') : cell('login_uri').split(/[\s,;]+/u)[0] ?? ''
     const username = format === 'chrome' ? cell('username') : cell('login_username')
-    const password = format === 'chrome' ? cell('password') : cell('login_password')
+    const password = format === 'chrome' ? secret('password') : secret('login_password')
     const title = cell('name')
     const problem = password === ''
       ? 'A linha não tem senha.'
@@ -213,8 +215,8 @@ function parseCsv(text: string): string[][] {
       }
       continue
     }
-    if (char === '"') {
-      quoted = true
+    if (char === '"' && field === '') {
+      quoted = true // RFC 4180: a quote opens a quoted field only at its START; in the middle of an unquoted field it is just a character
     } else if (char === ',') {
       row.push(field)
       field = ''

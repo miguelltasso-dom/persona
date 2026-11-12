@@ -4,6 +4,7 @@ import {
   INDICATOR_SENTENCES_MAX,
   evaluateAlert,
   goalPercent,
+  indicatorMarkerOf,
   readIndicatorMarker,
   readRefreshAnswer,
   trendTone,
@@ -34,6 +35,14 @@ it('the other five kinds read, with their caps', () => {
   const six = Array.from({ length: INDICATOR_SENTENCES_MAX }, (_, index) => `Frase ${String(index)}.`)
   expect(readIndicatorMarker(marker({ tipo: 'resumo', nome: 'Semana', frases: six })).offer?.data.kind).toBe('resumo')
   expect(readIndicatorMarker(marker({ tipo: 'resumo', nome: 'Semana', frases: [...six, 'Demais.'] })).refused).toBe('bad_data')
+})
+
+it('the line chart takes the days as labels and an optional unit, and the marker a persona would write reads back the same', () => {
+  const row = { tipo: 'linha', nome: 'Visitas ao site', unidade: 'visitas', pontos: [{ rotulo: 'Seg', valor: 10 }, { rotulo: 'Qui', valor: 18 }] }
+  const read = readIndicatorMarker(marker(row))
+  expect(read.offer).toEqual({ name: 'Visitas ao site', data: { kind: 'linha', unit: 'visitas', points: [{ label: 'Seg', value: 10 }, { label: 'Qui', value: 18 }] } })
+  expect(readIndicatorMarker(indicatorMarkerOf(read.offer!)).offer).toEqual(read.offer)
+  expect(readIndicatorMarker(marker({ ...row, unidade: undefined })).offer?.data).toEqual({ kind: 'linha', points: [{ label: 'Seg', value: 10 }, { label: 'Qui', value: 18 }] })
 })
 
 it('a marker that is not an indicator is removed and never shows: bad JSON, unknown kind, no name, a goal of zero', () => {

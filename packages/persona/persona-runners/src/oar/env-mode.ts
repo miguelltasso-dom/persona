@@ -46,5 +46,6 @@ export function withEnvMode(inner: Runner, modes: {
     usage: annotate,
     ...(inner.prime === undefined ? {} : { prime: input => inner.prime!(input) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }

@@ -74,10 +74,12 @@ export function approvalTitle(dict: LocaleDict, item: ApprovalItem): string {
   if (item.kind === 'vault') return vaultHeading(dict, item)
   // An external action is titled by the host's own words ("Enviar um email"): there is no `action.title` copy to fall back on.
   if (item.kind === 'attention' || item.kind === 'action') return item.title
+  // Item 16: a quiet-playbook offer says WHICH way of working becomes a skill ("Bia aprendeu: Cartaz da promoção"): nobody approves in the dark (Atlas/Muse 12/11).
+  if (item.kind === 'skill' && item.dismissKey !== undefined && item.title.trim().length > 0) return item.title.trim()
   return bindLocale(dict, `${item.kind}.title`)
 }
 
-/** Heading of a Cofre card (A-4b): "Atualizar no Cofre: {campo}" when the host named the record, else "Atualizar Cofre". */
+/** Heading of a Cofre card (A-4b): "Atualizar na Memória da empresa: {campo}" when the host named the record, else "Atualizar a Memória da empresa". */
 export function vaultHeading(dict: LocaleDict, item: ApprovalItem): string {
   const field = item.vaultField?.trim() ?? ''
   if (field.length > 0) return bindLocale(dict, 'vault.titleField', { field })

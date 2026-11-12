@@ -78,8 +78,8 @@ it('one pass never overlaps the next', async () => {
   h.external.poll = async () => {
     running += 1
     max = Math.max(max, running)
-    const { promise, resolve } = Promise.withResolvers<void>()
-    setTimeout(resolve, 10)
+    const { promise, resolve } = Promise.withResolvers<undefined>()
+    setTimeout(() => { resolve(undefined) }, 10)
     await promise
     running -= 1
     return { results: [] }

@@ -100,6 +100,8 @@ export class ProactivityHost {
   houseRules: Pick<HouseRules, 'hold' | 'quietNow'> | undefined = undefined
   /** Whether the whole team is paused ("Pausar equipe"). Unset = never. */
   teamPaused: ((projectId: string) => boolean) | undefined = undefined
+  /** The machine's offset from UTC (minutes east) at an instant: the person's silence window is read on their wall clock. The host binds it; unset = UTC. */
+  offsetMinutes: (iso: string) => number = () => 0
 
   /**
    * @param product - Personas.
@@ -212,7 +214,7 @@ export class ProactivityHost {
     const autonomy = this.repos.getAutonomy(projectId, personaId)
     if (autonomy.mode === 'asked') return false
     const at = this.now()
-    if (inSilence(at, autonomy.silenceStart, autonomy.silenceEnd)) return false
+    if (inSilence(at, autonomy.silenceStart, autonomy.silenceEnd, this.offsetMinutes(at))) return false
     // HONEST-1: inside the team's quiet window nothing is started by itself (the hold is written in the window's book, once per persona and occurrence).
     if (this.houseRules?.hold(projectId, 'initiative', personaId, `iniciativa de ${this.product.getPersona(personaId)?.name ?? 'alguém da equipe'}`, at) !== undefined) return false
     const day = at.slice(0, 10)
@@ -298,7 +300,7 @@ export class ProactivityHost {
     const autonomy = this.repos.getAutonomy(projectId, personaId)
     const quiet = this.teamPaused?.(projectId) === true
       || this.houseRules?.quietNow(projectId, at) !== undefined
-      || inSilence(at, autonomy.silenceStart, autonomy.silenceEnd)
+      || inSilence(at, autonomy.silenceStart, autonomy.silenceEnd, this.offsetMinutes(at))
     return {
       ...(quiet ? { quiet: true as const } : {}),
       ...(this.orchestration.isPersonaPaused(projectId, personaId) ? { paused: true as const } : {}),
@@ -621,31 +623,46 @@ function ownsTicket(ticket: Ticket, persona: StoredPersona): boolean {
 }
 
 /**
+ * The person's wall clock: an instant shifted by the machine's offset (minutes east of UTC), still written as an ISO string (its `HH:MM` and date are the
+ * LOCAL ones). A silence window "22:00–08:00" is read on that clock, never on UTC (S1 P1-12: in Brasília it was active at 19:00 and over at 05:00).
  * @param iso - Instant.
- * @param start - `HH:MM` or undefined.
- * @param end - `HH:MM` or undefined.
+ * @param offsetMinutes - The machine's offset at that instant; 0 (UTC, and every older caller) leaves it as it is.
  */
-export function inSilence(iso: string, start: string | undefined, end: string | undefined): boolean {
+function wallClockOf(iso: string, offsetMinutes: number): string {
+  if (offsetMinutes === 0) return iso
+  const ms = Date.parse(iso)
+  return Number.isFinite(ms) ? new Date(ms + offsetMinutes * 60_000).toISOString() : iso
+}
+
+/**
+ * @param iso - Instant.
+ * @param start - `HH:MM` (the person's clock) or undefined.
+ * @param end - `HH:MM` (the person's clock) or undefined.
+ * @param offsetMinutes - The machine's offset from UTC in minutes (`PersonaHost.timezoneOffsetMinutes`); default 0 = UTC.
+ */
+export function inSilence(iso: string, start: string | undefined, end: string | undefined, offsetMinutes = 0): boolean {
   if (start === undefined || end === undefined || start === '' || end === '') return false
-  const hm = iso.slice(11, 16)
+  const hm = wallClockOf(iso, offsetMinutes).slice(11, 16)
   if (start <= end) return hm >= start && hm < end
   return hm >= start || hm < end
 }
 
 /**
- * Epoch-ms end of the current quiet window, or 0 when the instant is not silent.
+ * Epoch-ms end of the current quiet window (a real instant), or 0 when the instant is not silent.
  * @param iso - Instant.
- * @param start - `HH:MM` or undefined.
- * @param end - `HH:MM` or undefined.
+ * @param start - `HH:MM` (the person's clock) or undefined.
+ * @param end - `HH:MM` (the person's clock) or undefined.
+ * @param offsetMinutes - The machine's offset from UTC in minutes; default 0 = UTC.
  */
-export function silenceUntilOf(iso: string, start: string | undefined, end: string | undefined): number {
-  if (!inSilence(iso, start, end)) return 0
-  const date = iso.slice(0, 10)
-  const hm = iso.slice(11, 16)
-  const endMs = Date.parse(`${date}T${end}:00.000Z`)
+export function silenceUntilOf(iso: string, start: string | undefined, end: string | undefined, offsetMinutes = 0): number {
+  if (!inSilence(iso, start, end, offsetMinutes)) return 0
+  const wall = wallClockOf(iso, offsetMinutes)
+  const date = wall.slice(0, 10)
+  const hm = wall.slice(11, 16)
+  const endMs = Date.parse(`${date}T${end}:00.000Z`) // the end on the person's wall, written as if it were UTC
   if (!Number.isFinite(endMs)) return 0
-  if (start !== undefined && end !== undefined && start > end && hm >= start) return endMs + 86_400_000
-  return endMs
+  const wallEnd = start !== undefined && end !== undefined && start > end && hm >= start ? endMs + 86_400_000 : endMs
+  return wallEnd - offsetMinutes * 60_000
 }
 
 /**

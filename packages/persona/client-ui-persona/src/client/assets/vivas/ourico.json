@@ -1,0 +1,45 @@
+{
+  "animal": "ourico",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 130,
+    "top": 114,
+    "width": 749,
+    "height": 853
+  },
+  "size": [
+    421,
+    480
+  ],
+  "scale": 0.5627198124267292,
+  "mask": [
+    {
+      "x": 16,
+      "y": -8,
+      "w": 398,
+      "h": 417
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "ourico-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "ourico-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "ourico-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "ourico-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

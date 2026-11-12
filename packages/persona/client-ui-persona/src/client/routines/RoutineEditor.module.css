@@ -74,7 +74,8 @@
 
 .people {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  /* 104 px: "Coordenação" (13 px, negrito) cabe inteira dentro do cartão; a coluna de 92 px a partia no meio da palavra (Ember, app real). */
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
   gap: var(--persona-space-2);
 }
 
@@ -103,7 +104,9 @@
 .personName {
   max-width: 100%;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  /* Só quebra dentro da palavra quando ela sozinha não cabe (um nome gigante); "Coordenação decide" quebra ENTRE as palavras, nunca no meio. */
+  overflow-wrap: break-word;
+  hyphens: none;
   text-align: center;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -112,6 +115,130 @@
 
 .timeField {
   max-width: 10rem;
+}
+
+/* ---- "Quando": a clock OR an event (item 26; Muse 12/11). One exclusive choice, 40 px; the selected one also carries the check, never only the colour. ---- */
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: var(--persona-border-width) solid var(--persona-outline-control);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+  overflow: hidden;
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--persona-space-1);
+  min-height: var(--control-h-m);
+  padding: 0 var(--persona-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--persona-ink);
+  font: 800 14px/1.2 var(--persona-font-text);
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+
+.segment + .segment {
+  border-left: var(--persona-border-width) solid var(--persona-outline-control);
+}
+
+.segment:hover {
+  background: var(--persona-wash);
+}
+
+.segment[aria-checked='true'] {
+  background: var(--persona-accent-tint);
+}
+
+.segment:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--persona-focus-halo);
+}
+
+.segmentMark {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+}
+
+/* The Select of the event: the DS select at 40 px with the arrow set in from the edge. */
+.selectWrap {
+  position: relative;
+  display: flex;
+}
+
+.eventSelect {
+  width: 100%;
+  min-height: var(--control-h-m);
+  padding: 0 calc(var(--persona-space-4) + 20px) 0 var(--persona-space-3);
+  appearance: none;
+  border-color: var(--persona-outline-control);
+  font-size: 15px;
+}
+
+.selectIcon {
+  position: absolute;
+  top: 50%;
+  right: var(--persona-space-3);
+  transform: translateY(-50%);
+  color: var(--persona-ink);
+  pointer-events: none;
+}
+
+/* The strip: what the routine waits for in 2 lines ("vendas@… · com “encomenda”" / "O filtro roda antes de chamar a equipe.") and the 32 px "Editar regra". */
+.strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-wash);
+}
+
+.stripText {
+  min-width: 0;
+}
+
+.stripLine {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: 700 15px/1.35 var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.stripHint {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--persona-ink-soft);
+}
+
+/* "Não ligado": the note and the 32 px "Abrir Conexões" below it (nobody has to find the way). */
+.offNote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--persona-space-2);
+}
+
+.filterFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segment {
+    transition: none;
+  }
 }
 
 .summary {

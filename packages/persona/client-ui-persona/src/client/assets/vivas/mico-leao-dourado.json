@@ -1,0 +1,45 @@
+{
+  "animal": "mico-leao-dourado",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 100,
+    "top": 66,
+    "width": 804,
+    "height": 949
+  },
+  "size": [
+    407,
+    480
+  ],
+  "scale": 0.505795574288725,
+  "mask": [
+    {
+      "x": 30,
+      "y": 17,
+      "w": 357,
+      "h": 375
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "mico-leao-dourado-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "mico-leao-dourado-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "mico-leao-dourado-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "mico-leao-dourado-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

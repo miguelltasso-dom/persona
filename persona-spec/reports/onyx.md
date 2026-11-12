@@ -80,3 +80,17 @@
 - **Host:** `Station` no boot (`freemem()` real) + 4 remotes (`stationView`, `issueStationCode`, `pairStation`, `setStationRunning`) e tipos `StationView`/`StationPairingCode`/`StationPairRequest`/`StationRunningRequest`; Typert regenerado (40 pacotes, `stationView` no remote client).
 - **Tela:** locale `persona.station` (pt/en, gerado) pronto; o componente do cartão "Estação de Agentes" entra depois do congelamento do snapshot.
 - **Falta:** o gancho de admissão no turno (precisa da lista de CLIs quentes do Cobalt) e o pareamento remoto (item 23 do Bolt).
+
+
+## 12/11 01:54 — Congelamento do snapshot 1: dívida de oxlint e staging
+
+- **Dívida de oxlint do commit:** zero nos meus arquivos. Rodei o config staged (`scripts/run-oxlint.ts --config .oxlintrc.staged.json`) em 27 arquivos de `H/station`, `H/browser`, `harness-*`, `tool-stability`, `R/mcp/harness-tools`, `R/resolve/tool-level`, `R/oar/session` e 2 scripts: 0 erros. Nos testes/client/index só sobraram 2 avisos de `eslint-disable` não usados em `index.ts` (linhas 673 e 2960), que não são meus.
+- **Staging (congelamento):** a tela da Estação de Agentes está pronta em `.maestri/tmp/onyx/` — `StationCard.tsx`, `StationCard.module.css`, `ConnectedStation.tsx`, `station-card.client.spec.tsx`, `connected-station.client.spec.tsx` e `POS-CONGELAMENTO.txt` com os passos de aplicação. Nada em `packages/persona` ou `scripts/persona` foi tocado depois de 01:20.
+
+
+## 12/11 02:13 — Estação de Agentes aplicada (pós-congelamento)
+
+- **Tela:** `C/station/StationCard.tsx` (puro), `StationCard.module.css`, `ConnectedStation.tsx` (Remote + view) montada em Configurações › Conexões depois do cartão Navegador; locale `persona.station` (pt/en) já gerado.
+- **Testes:** `station-card.client.spec.tsx` (5: estado/RAM/fila, Tailscale só quando ausente, código mostrado uma vez e pareamento, ligar/desligar, recusa do host em palavras) e `connected-station.client.spec.tsx` (2: carrega a view e pede o código) — 8/8 com o teste da aba Conexões.
+- **Lint:** 0 erros nos arquivos novos com o config staged. **Dívida do commit:** nenhuma minha (as 2 diretivas sem uso em index.ts:673/2961 são do Forge, conforme a lista do Keel).
+- **Falta:** o gancho de admissão no turno (precisa da lista de CLIs quentes do Cobalt) e o pareamento remoto (item 23 do Bolt).

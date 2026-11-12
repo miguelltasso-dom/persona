@@ -343,6 +343,44 @@
   user-select: none;
 }
 
+/* Item 13 §13.5: one line per found item, a checkbox in front; unchecking takes the item out. The checkbox follows the control ruler (--control-h-s). */
+.pick {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-width: 0;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.pickBox {
+  flex-shrink: 0;
+  width: var(--control-h-s);
+  height: var(--control-h-s);
+  margin: 0;
+  accent-color: var(--persona-ink);
+}
+
+.pickText {
+  flex: 1;
+  min-width: 0;
+  color: var(--persona-ink);
+  font: 500 15px/22px var(--persona-font-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickText[data-blurred] {
+  filter: blur(5px);
+  user-select: none;
+}
+
+.item[data-decision='discard'] .pickText {
+  color: var(--persona-ink-soft);
+  text-decoration: line-through;
+}
+
 .provenance {
   margin: 0;
   color: var(--persona-ink-soft);

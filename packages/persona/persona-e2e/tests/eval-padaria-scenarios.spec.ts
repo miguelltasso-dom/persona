@@ -22,9 +22,7 @@ describe('Eval Padaria Lua — cenários RED fim a fim (0 IA)', () => {
     const scenarios = (asked.length === 0 ? PADARIA_SCENARIO_IDS : asked) as PadariaScenarioId[]
     const before = treeFingerprint(treeManifest())
     const outcome = await runPadariaScenarios({ outRoot: join(ARTIFACTS_DIR, 'eval-padaria'), scenarios, fingerprint: before })
-    const after = treeFingerprint(treeManifest())
-    // eslint-disable-next-line no-console
-    console.log(`\n${outcome.markdown}\nsummary: ${outcome.outDir}${after === before ? '' : `\nATENÇÃO: a árvore mudou durante a rodada (${before} → ${after})`}`)
+    // the page of the run is on disk (`summary.md` in `outcome.outDir`, with the tree fingerprint it ran on); the harness keeps the console quiet
     for (const run of outcome.runs) {
       expect(run.invalid, `${run.scenario.id}: the round is not a valid observation (see ${outcome.outDir})`).toBeUndefined()
       expect(run.verdict.missed, `${run.scenario.id}: the reader did NOT flag the defect (blind)`).toEqual([])

@@ -4,8 +4,8 @@
  * próprio modal e só então "Fixar" (primário, 48 px) é liberado. O host também recusa fixar sem teste: a trava não depende desta tela.
  */
 
-import { useState, type ReactNode } from 'react'
-import { Button, Input, Modal } from '../primitives/index.ts'
+import { useId, useState, type ReactNode } from 'react'
+import { Button, ChoiceCards, Input, Modal, Switch } from '../primitives/index.ts'
 import { IndicatorBody } from './IndicatorBody.tsx'
 import type { IndicatorOfferUi, IndicatorTestUi } from './indicators-model.ts'
 import { itext } from './indicators-text.ts'
@@ -34,6 +34,7 @@ function messageOf(error: unknown, fallback: string): string {
 }
 
 export function PinIndicatorModal({ offer, binding, onClose, onPinned }: PinIndicatorModalProps): ReactNode {
+  const alertLabelId = useId()
   const [name, setName] = useState(offer.name)
   const [schedule, setSchedule] = useState<'hourly' | 'daily'>('daily')
   const [alertOn, setAlertOn] = useState(false)
@@ -85,22 +86,21 @@ export function PinIndicatorModal({ offer, binding, onClose, onPinned }: PinIndi
     >
       <div className={styles.form} data-pin-modal>
         <Input label={itext('modal.name')} value={name} maxLength={60} onChange={(event) => { setName(event.target.value) }} />
-        <fieldset className={styles.group}>
-          <legend className={styles.legend}>{itext('modal.when')}</legend>
-          <label className={styles.choice}>
-            <input type="radio" name="indicator-schedule" checked={schedule === 'hourly'} onChange={() => { setSchedule('hourly') }} />
-            <span>{itext('modal.hourly')}</span>
-          </label>
-          <label className={styles.choice}>
-            <input type="radio" name="indicator-schedule" checked={schedule === 'daily'} onChange={() => { setSchedule('daily') }} />
-            <span>{itext('modal.daily')}</span>
-          </label>
-        </fieldset>
+        <ChoiceCards<'hourly' | 'daily'>
+          legend={itext('modal.when')}
+          name="indicator-schedule"
+          value={schedule}
+          onChange={setSchedule}
+          options={[
+            { id: 'hourly', title: itext('modal.hourly'), body: itext('modal.hourlyBody') },
+            { id: 'daily', title: itext('modal.daily'), body: itext('modal.dailyBody') },
+          ]}
+        />
         {canAlert && (
-          <label className={styles.choice}>
-            <input type="checkbox" checked={alertOn} onChange={(event) => { setAlertOn(event.target.checked) }} />
-            <span>{itext('modal.alert', { pct: ALERT_DEFAULT_PCT })}</span>
-          </label>
+          <div className={styles.switchRow}>
+            <span id={alertLabelId} className={styles.switchLabel}>{itext('modal.alert', { pct: ALERT_DEFAULT_PCT })}</span>
+            <Switch checked={alertOn} onChange={setAlertOn} labelledBy={alertLabelId} />
+          </div>
         )}
         <div className={styles.testRow}>
           <Button variant="secondary" size="m" loading={test.phase === 'testing'} onClick={() => { void runTest() }}>

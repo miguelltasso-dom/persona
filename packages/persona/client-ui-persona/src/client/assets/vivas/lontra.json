@@ -1,0 +1,45 @@
+{
+  "animal": "lontra",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 169,
+    "top": 111,
+    "width": 754,
+    "height": 865
+  },
+  "size": [
+    418,
+    480
+  ],
+  "scale": 0.5549132947976878,
+  "mask": [
+    {
+      "x": -44,
+      "y": -34,
+      "w": 469,
+      "h": 422
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "lontra-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "lontra-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "lontra-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "lontra-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

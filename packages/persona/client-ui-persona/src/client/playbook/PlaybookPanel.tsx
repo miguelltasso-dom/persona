@@ -72,7 +72,7 @@ function Adjustments({ items, t }: { readonly items: readonly string[]; readonly
   )
 }
 
-function PlaybookCard({ row, t, actions }: { readonly row: PlaybookNoteView; readonly t: T; readonly actions: PlaybookActions | undefined }): ReactNode {
+function PlaybookCard({ row, t, actions, personaName }: { readonly row: PlaybookNoteView; readonly t: T; readonly actions: PlaybookActions | undefined; readonly personaName: string }): ReactNode {
   const [asking, setAsking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -111,9 +111,11 @@ function PlaybookCard({ row, t, actions }: { readonly row: PlaybookNoteView; rea
         )}
         {asking && (
           <div className={styles.confirm} role="group" aria-label={t('playbook.forget.title')}>
-            <p className={styles.confirmText}>{t('playbook.forget.body')}</p>
+            {/* "A skill que já saiu dele continua" only when it already IS a skill (Muse 12/11); otherwise it just stops being used, by name and with no article. */}
+            <p className={styles.confirmText}>{row.stage === 'skill' ? t('playbook.forget.body') : t('playbook.forget.bodyPlain', { name: personaName })}</p>
             <div className={styles.actions}>
-              <Button variant="primary" size="s" loading={busy} onClick={() => { void confirmForget() }}>{t('forget.confirm')}</Button>
+              {/* Amber is the product's "go ahead": forgetting is the danger button (same as "Remover" in the Cofre), and "Manter" is the quiet one that holds the focus. */}
+              <Button variant="danger" size="s" loading={busy} onClick={() => { void confirmForget() }}>{t('forget.confirm')}</Button>
               <Button variant="secondary" size="s" disabled={busy} ref={keepRef} onClick={() => { setAsking(false) }}>{t('playbook.forget.keep')}</Button>
             </div>
           </div>
@@ -177,7 +179,7 @@ export function PlaybookPanel({ dict = defaultDict, personaName, rows, initialSt
     <section aria-labelledby="playbook-heading" data-persona-playbook="">
       {header}
       <ul className={styles.list}>
-        {rows.map(row => <PlaybookCard key={row.id} row={row} t={t} actions={actions} />)}
+        {rows.map(row => <PlaybookCard key={row.id} row={row} t={t} actions={actions} personaName={personaName} />)}
       </ul>
     </section>
   )

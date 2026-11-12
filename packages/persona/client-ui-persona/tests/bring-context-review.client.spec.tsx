@@ -103,7 +103,8 @@ describe('ProposalReview (BYC-4)', () => {
         />
       </PreviewFrame>,
     )
-    fireEvent.click(screen.getByRole('button', { name: pt['byc.review.discard'] }))
+    // item 13 §13.5: unchecking the line is the discard ("desmarcar tira o item")
+    fireEvent.click(screen.getByRole('checkbox', { name: PROPOSALS[0]!.text }))
     expect(onChoice).toHaveBeenCalledWith('dec-1', expect.objectContaining({ decision: 'discard' }))
   })
 })

@@ -18,8 +18,10 @@ import { isNextStepEnabled, NEXT_STEP_FLAG_KEY } from '../src/client/next-step/n
 import { isEngineEffortEnabled, ENGINE_EFFORT_FLAG_KEY } from '../src/client/profile/engine-effort-flag.ts'
 import { isTaskProposalEnabled, TASK_PROPOSAL_FLAG_KEY } from '../src/client/proposal/proposal-flag.ts'
 import { isSettingsPersonasEnabled, SETTINGS_PERSONAS_FLAG_KEY } from '../src/client/settings-personas/personas-flag.ts'
+import { CHANNEL_SECTIONS_FLAG_KEY, isChannelSectionsEnabled } from '../src/client/shell/channel-sections-flag.ts'
 import { isPlacesNavEnabled, NAV_PLACES_FLAG_KEY } from '../src/client/shell/nav-flag.ts'
 import { isTeamworkEnabled as isTeamworkTeam } from '../src/client/teamwork/teamwork-flag.ts'
+import { isToolsCatalogEnabled, TOOLS_CATALOG_FLAG_KEY } from '../src/client/tools/tools-flag.ts'
 
 type Win = { __PERSONA_FLAGS__?: Record<string, unknown> }
 const win = (): Win => window as unknown as Win
@@ -49,18 +51,20 @@ const WRAPPERS: readonly (readonly [FlagName, () => boolean, string])[] = [
   ['settingsPersonas', isSettingsPersonasEnabled, SETTINGS_PERSONAS_FLAG_KEY],
   ['engineEffort', isEngineEffortEnabled, ENGINE_EFFORT_FLAG_KEY],
   ['remoteTeamTab', isRemoteTeamTabEnabled, REMOTE_TEAM_TAB_FLAG_KEY],
+  ['channelSections', isChannelSectionsEnabled, CHANNEL_SECTIONS_FLAG_KEY],
+  ['toolsCatalog', isToolsCatalogEnabled, TOOLS_CATALOG_FLAG_KEY],
 ]
 
 describe('a tabela de padrões da v1.1', () => {
-  it('são as 14 flags persona.flag.* mais o V2 de Aprovações (a chave dele nasceu fora do prefixo)', () => {
+  it('são as 15 flags persona.flag.* mais o V2 de Aprovações (a chave dele nasceu fora do prefixo)', () => {
     expect([...FLAG_NAMES].sort()).toEqual([
-      'actionPreview', 'approvalsInboxV2', 'bubbles', 'engineEffort', 'figurinhas', 'houseDecor', 'lampLight', 'navPlaces', 'nextStep',
-      'personaAsk', 'remoteTeamTab', 'settingsPersonas', 'taskProposal', 'teamwork', 'workingControl',
+      'actionPreview', 'approvalsInboxV2', 'bubbles', 'channelSections', 'engineEffort', 'figurinhas', 'houseDecor', 'lampLight', 'navPlaces', 'nextStep',
+      'personaAsk', 'remoteTeamTab', 'settingsPersonas', 'taskProposal', 'teamwork', 'toolsCatalog', 'workingControl',
     ])
   })
 
-  it('as flags da v1.1 entram LIGADAS, salvo nextStep (corte, Muse 06:15) e remoteTeamTab (cena 20, decisão do Keel), que ficam DESLIGADAS', () => {
-    expect(FLAG_NAMES.filter(name => !FLAGS[name].defaultOn)).toEqual(['nextStep', 'remoteTeamTab'])
+  it('as flags da v1.1 entram LIGADAS, salvo nextStep (corte, Muse 06:15), remoteTeamTab (cena 20, decisão do Keel), channelSections (item 22, ordem do Keel) e toolsCatalog (item 26: sem o "Conectar" a aba teria cartões mortos), que ficam DESLIGADAS', () => {
+    expect(FLAG_NAMES.filter(name => !FLAGS[name].defaultOn)).toEqual(['nextStep', 'remoteTeamTab', 'channelSections', 'toolsCatalog'])
   })
 
   it('toda chave é "persona.flag.<nome>", salvo o V2 de Aprovações (persona.approvalsInbox.v2)', () => {
@@ -72,7 +76,7 @@ describe('a tabela de padrões da v1.1', () => {
 describe('o padrão de PRODUÇÃO (sem nenhuma escolha explícita)', () => {
   beforeEach(() => { setFlagDefaults(undefined) })
 
-  it.each(FLAG_NAMES.filter(name => name !== 'nextStep' && name !== 'remoteTeamTab'))('%s vem LIGADA', (name) => {
+  it.each(FLAG_NAMES.filter(name => name !== 'nextStep' && name !== 'remoteTeamTab' && name !== 'channelSections' && name !== 'toolsCatalog'))('%s vem LIGADA', (name) => {
     expect(readFlag(name)).toBe(true)
   })
 
@@ -80,8 +84,16 @@ describe('o padrão de PRODUÇÃO (sem nenhuma escolha explícita)', () => {
     expect(readFlag('nextStep')).toBe(false)
   })
 
+  it('channelSections vem DESLIGADA (item 22: só liga depois do aceite da Muse e da Ember)', () => {
+    expect(readFlag('channelSections')).toBe(false)
+  })
+
   it('remoteTeamTab vem DESLIGADA na v1.1 (cena 20: a aba Membros só com a equipe remota ligada)', () => {
     expect(readFlag('remoteTeamTab')).toBe(false)
+  })
+
+  it('toolsCatalog vem DESLIGADA (item 26: a aba Ferramentas só liga quando existir o "Conectar"; nenhum cartão morto)', () => {
+    expect(readFlag('toolsCatalog')).toBe(false)
   })
 
   it('a luz da luminária continua precisando dos balões (os dois ligados = a luz)', () => {

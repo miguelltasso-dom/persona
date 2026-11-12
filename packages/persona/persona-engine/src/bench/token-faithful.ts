@@ -28,6 +28,7 @@ import { ROUTER_FORBIDDEN_TOOLS } from '../ports/runner.ts'
 import { fitRowsToBudget, relevanceOverlap } from '../prompts/context-budget.ts'
 import { clipTextToTokens, composeStablePrefix, toolsForTurn, trimVariableAlreadyInPrefix, VARIABLE_LAYER_BUDGET } from '../prompts/stable-prefix.ts'
 import { capTalkContext, wrapAsData, type TalkColleague } from '../prompts/talk.ts'
+import { markerLinesFor } from '../prompts/turn-markers.ts'
 import { composePrompt, OWNER_NORMS, WORKER_LEAN_REPORT_RULE } from '../prompts/templates.ts'
 import { composeVoicePolicy, composePersonaPrompt, voiceSurfaceHint, type PersonaVoiceFields } from '../prompts/voice.ts'
 import { vigiaTick } from '../watchdog.ts'
@@ -488,7 +489,7 @@ function talkPrompt(levers: LeverSet, ctx: TalkContext): { readonly text: string
     functionLabel: ctx.speaker.id === 'atlas' ? 'coordenação' : ctx.speaker.title,
     vault: '',
     colleagues: colleaguesOf(ctx.speaker),
-    capabilities: TALK_CAPABILITIES,
+    capabilities: `${TALK_CAPABILITIES}${markerLinesFor(true)}`, // every talk turn of the bench is a conversation the PERSON started (initiatives use the template, which carries no marker line)
   }
   if (!levers.stablePrefix) {
     const vault = [FIXTURE_REQUIRED_VAULT, subject, recall].filter(part => part !== '').join('\n')

@@ -202,6 +202,17 @@ describe('a run started by a received e-mail never sends on its own (Keel, item 
     gate.arm({ preAllow: ['send'] })
     expect(await decide(gate, send, input)).toBe('allow')
   })
+
+  it('Keel 12/11: the standing waiver sends in a person\'s turn and in a routine the owner scheduled, never in an unattended run (initiative, plan, external event): that one waits for the card', async () => {
+    const gate = await start()
+    gate.arm({ preAllow: ['send'], authority: 'person' })
+    expect(await decide(gate, send, input)).toBe('allow')
+    gate.arm({ preAllow: ['send'], authority: 'routine' })
+    expect(await decide(gate, send, input)).toBe('allow') // the owner scheduled it: the waiver is her explicit consent
+    gate.arm({ preAllow: ['send'], authority: 'unattended' })
+    expect(await decide(gate, send, input)).toBe('deny')
+    expect(gate.takeRequests().map(item => [item.tool, item.actionClass])).toEqual([[send, 'send']]) // the person's card decides
+  })
 })
 
 describe('reading a secret', () => {
@@ -214,6 +225,19 @@ describe('reading a secret', () => {
     expect(await decide(gate, 'Glob', { pattern: '*.md', path: draft })).toBe('no-opinion')
     expect(await decide(gate, 'Read', { file_path: join(draft, '.env') })).toBe('deny')
     expect(gate.takeRefusals().map(item => item.kind)).toEqual(['secret', 'secret']) // the unarmed refusal belongs to no turn: `arm` cleared it
+  })
+})
+
+describe('Carbon P1-01: a call the gate refused is on record, so the host never takes it for proof', () => {
+  it('a file write outside the draft (or with nothing to judge) is listed in the turn\'s refusals; the one inside the draft is not', async () => {
+    const gate = await start()
+    gate.arm({ draftRoot: draft })
+    expect(await decide(gate, 'Write', { file_path: join(draft, 'a.svg') })).toBe('no-opinion')
+    expect(gate.takeRefusals()).toEqual([])
+    expect(await decide(gate, 'Write', { file_path: join(base, 'outside.svg') })).toBe('deny')
+    expect(await decide(gate, 'Edit', { file_path: join(base, 'outside.txt') })).toBe('deny')
+    expect(gate.takeRefusals().map(item => `${item.tool}:${item.kind}`)).toEqual(['Write:file', 'Edit:file'])
+    expect(gate.takeRefusals()).toEqual([]) // drained
   })
 })
 

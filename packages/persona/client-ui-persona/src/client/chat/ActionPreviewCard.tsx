@@ -4,8 +4,8 @@
  * a lista a apagar) e só deixa Enviar com a prévia completa. É uma mensagem da persona no fio, com a borda esquerda âmbar.
  *
  *  - Segure para enviar (o verbo muda: publicar · pagar · apagar; COLHEITA 5: 1,2 s de pressão, `HoldToApproveButton`; um clique curto só mostra a dica)
- *    · Editar (email/post: abre o conteúdo no próprio cartão, com "Salvar e enviar") · Cancelar. Quem marcou "Não perguntar de novo" (enviar/publicar)
- *    aprova com um clique. O selo de prazo ("Vale até hoje, 18h" · "Vence em 40 min") vem do `expiresAt` do host; vencido, o cartão fica só de leitura
+ *    · Editar (email/post: abre o conteúdo no próprio cartão, com "Salvar e enviar") · Cancelar. "Não perguntar de novo" (enviar/publicar) NUNCA troca
+ *    o segure por um clique no 1º envio (P0-10): ele só vale para os envios seguintes, depois que este foi aprovado. O selo de prazo ("Vale até hoje, 18h" · "Vence em 40 min") vem do `expiresAt` do host; vencido, o cartão fica só de leitura
  *    com "Pedir de novo".
  *  - A caixinha "Não perguntar de novo para {persona} no {conector}" NUNCA vem marcada e só existe em enviar/publicar: pagar e apagar sempre pedem.
  *  - Pagar e apagar levam o aviso "Isso não dá para desfazer depois."
@@ -62,13 +62,10 @@ function eyebrowText(t: ChatT, preview: ActionPreviewUi): string {
   }
 }
 
-function ctaText(t: ChatT, preview: ActionPreviewUi): string {
-  switch (preview.verb) {
-    case 'post': return t('action.cta.publish')
-    case 'pay': return t('action.cta.pay')
-    case 'delete': return t('action.cta.delete')
-    default: return t('action.send')
-  }
+/** O motivo que o host deu (`hostMessage` do erro tipado do remote, já em português); sem ele, `''` (o aviso genérico). Nunca o código técnico. */
+function failureReasonOf(error: unknown): string {
+  const host = typeof error === 'object' && error !== null ? (error as { hostMessage?: unknown }).hostMessage : undefined
+  return typeof host === 'string' ? host.trim() : ''
 }
 
 function timeOf(iso: string | undefined): string {
@@ -119,6 +116,8 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide, now }: 
   const [body, setBody] = useState(preview.body ?? '')
   const [remember, setRemember] = useState(false)
   const [busy, setBusy] = useState(false)
+  /** P0-10: o host recusou a decisão (prévia cortada, prazo, conexão): o cartão diz o motivo e deixa tentar de novo; `''` = sem motivo legível. */
+  const [failure, setFailure] = useState<string | undefined>(undefined)
   const name = preview.personaName ?? t('action.somePersona')
   const face = preview.characterId === undefined ? undefined : AVATAR_96[preview.characterId as keyof typeof AVATAR_96]
   const nowMs = useClock(now ?? Date.now, preview.status === 'pending')
@@ -164,13 +163,17 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide, now }: 
   const decide = (choice: ActionDecision['choice'], edited?: ActionDecision['edited']): Promise<void> => {
     if (onDecide === undefined || sending) return Promise.resolve()
     setBusy(true)
+    setFailure(undefined)
     const decision: ActionDecision = {
       approvalId: preview.approvalId,
       choice,
       ...(edited === undefined ? {} : { edited }),
       ...(canRemember && remember && choice !== 'cancel' && choice !== 'retry' ? { remember: true } : {}),
     }
-    return Promise.resolve(onDecide(decision)).finally(() => { setBusy(false) })
+    let pending: Promise<void>
+    try { pending = Promise.resolve(onDecide(decision)) } catch (error) { pending = Promise.reject(error) }
+    // Uma recusa do host nunca é engolida nem vira rejeição solta: vira o aviso do cartão e o botão volta a poder ser usado.
+    return pending.catch((error: unknown) => { setFailure(failureReasonOf(error)) }).finally(() => { setBusy(false) })
   }
 
   // COLHEITA 5: passou do prazo (a seleção do host ou o relógio daqui): só leitura, sem sombra, conteúdo a 60%, e "Pedir de novo".
@@ -209,8 +212,6 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide, now }: 
       </Tag>
     )
   }
-
-  const needsHold = !(canRemember && remember)
 
   return (
     <Tag className={styles.row} data-action-preview="pending" data-action-class={preview.actionClass}>
@@ -254,6 +255,9 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide, now }: 
           ? <Notice tone="warning">{t('action.missing')}</Notice>
           : preview.blind && <Notice tone="warning">{t('action.partial')}</Notice>}
         {irreversible && <Notice tone="warning">{t('action.irreversible')}</Notice>}
+        {failure !== undefined && (
+          <Notice tone="warning">{failure === '' ? t('action.failedGeneric') : t('action.failed', { reason: failure })}</Notice>
+        )}
 
         {canRemember && !editing && onDecide !== undefined && !preview.blind && (
           <label className={styles.remember}>
@@ -275,24 +279,19 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide, now }: 
               )
               : (
                 <>
-                  {preview.missing !== true && (needsHold
-                    // Pagar, apagar, enviar e publicar pedem o "segure"; só quem marcou "Não perguntar de novo" (enviar/publicar) o dispensa.
-                    ? (
-                      <HoldToApproveButton
-                        t={t}
-                        label={holdLabel(t, preview)}
-                        busyLabel={t('action.sending')}
-                        variant={preview.actionClass === 'delete' ? 'danger' : 'primary'}
-                        locked={sending}
-                        disabled={preview.blind}
-                        onConfirm={() => decide('send')}
-                      />
-                    )
-                    : (
-                      <Button size="s" variant="primary" loading={sending} disabled={preview.blind} onClick={() => { void decide('send') }}>
-                        {sending ? t('action.sending') : ctaText(t, preview)}
-                      </Button>
-                    ))}
+                  {/* P0-10: enviar, publicar, pagar e apagar SEMPRE pedem o "segure", mesmo com "Não perguntar de novo" marcada.
+                      A caixinha só vale para os próximos envios (o host a guarda quando este é aprovado); o 1º nunca é com um clique. */}
+                  {preview.missing !== true && (
+                    <HoldToApproveButton
+                      t={t}
+                      label={holdLabel(t, preview)}
+                      busyLabel={t('action.sending')}
+                      variant={preview.actionClass === 'delete' ? 'danger' : 'primary'}
+                      locked={sending}
+                      disabled={preview.blind}
+                      onConfirm={() => decide('send')}
+                    />
+                  )}
                   {canEdit && <Button size="s" variant="secondary" disabled={sending} onClick={() => { setEditing(true) }}>{t('action.edit')}</Button>}
                   <Button size="s" variant="ghost" disabled={sending} onClick={() => { void decide('cancel') }}>{t('action.cancel')}</Button>
                 </>

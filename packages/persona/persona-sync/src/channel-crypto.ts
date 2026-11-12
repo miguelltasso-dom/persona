@@ -13,7 +13,7 @@
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto'
 import type { ChannelSealedPayload } from '@deepseek-ai/dsh-persona-core'
 import { agree, generateAgreementPair, signBytes, verifyBytes } from './keys.ts'
-import { bytesOfBase64, bytesOfBase64Url, sealHeader, signedBytesOf } from './signature-web.ts'
+import { bytesOfBase64, bytesOfBase64Url, frameFields, sealHeader, signedBytesOf } from './signature-web.ts'
 
 export type ChannelCryptoCode = 'BAD_SIGNATURE' | 'BAD_CIPHERTEXT' | 'WRONG_EPOCH' | 'BAD_WRAP' | 'BAD_KEY'
 
@@ -133,11 +133,28 @@ export interface WrapContext {
 }
 
 function wrapHeader(context: WrapContext): string {
-  return `persona/key_wrap/v1\n${context.workspaceId}\n${context.channelId}\n${String(context.epoch)}\n${context.recipientId}\n${context.by}\n`
+  return `persona/key_wrap/v2|${frameFields([context.workspaceId, context.channelId, String(context.epoch), context.recipientId, context.by])}|`
 }
 
+/** The wrapper signs each field WITH its length: the ephemeral key and the ciphertext cannot trade characters. */
 function wrapSigned(header: string, epk: string, ct: string): Buffer {
-  return Buffer.concat([Buffer.from(header, 'utf8'), Buffer.from(epk, 'utf8'), Buffer.from(ct, 'utf8')])
+  return Buffer.from(frameFields([header, epk, ct]), 'utf8')
+}
+
+/**
+ * X25519 that never leaks the OpenSSL exception: a key that is the wrong size, not base64url, or of LOW ORDER (the point at infinity and the other small-order points make
+ * the shared secret a constant) is `BAD_KEY`, said in words.
+ */
+function agreeOrBadKey(secret: string, theirPublic: string): Buffer {
+  try {
+    const shared = agree(secret, theirPublic)
+    if (shared.every(byte => byte === 0)) throw new ChannelCryptoError('BAD_KEY', 'a chave pública do destinatário é de ordem baixa')
+    return shared
+  }
+  catch (error: unknown) {
+    if (error instanceof ChannelCryptoError) throw error
+    throw new ChannelCryptoError('BAD_KEY', 'a chave pública do destinatário não é utilizável')
+  }
 }
 
 function kekOf(shared: Buffer, epk: string, recipientPublic: string, header: string): Buffer {
@@ -154,7 +171,7 @@ export function wrapChannelKey(context: WrapContext, input: { readonly key: Uint
   assertKey(input.key)
   const header = wrapHeader(context)
   const ephemeral = generateAgreementPair()
-  const kek = kekOf(agree(ephemeral.secret, input.recipientAgreementPublic), ephemeral.publicKey, input.recipientAgreementPublic, header)
+  const kek = kekOf(agreeOrBadKey(ephemeral.secret, input.recipientAgreementPublic), ephemeral.publicKey, input.recipientAgreementPublic, header)
   const ct = gcmSeal(kek, header, input.key).toString('base64')
   return { epoch: context.epoch, by: context.by, epk: ephemeral.publicKey, ct, sig: signBytes(input.signingSeed, wrapSigned(header, ephemeral.publicKey, ct)) }
 }
@@ -199,6 +216,14 @@ export class ChannelKeyring {
 
   get(channelId: string, epoch: number): Buffer | undefined {
     return this.keys.get(`${channelId}\n${String(epoch)}`)
+  }
+
+  /** @returns Every epoch this device holds a key for on the channel, oldest first (the history a new member is wrapped). */
+  epochsOf(channelId: string): number[] {
+    return [...this.keys.keys()].flatMap((id) => {
+      const [channel, epoch] = id.split('\n')
+      return channel === channelId ? [Number(epoch)] : []
+    }).sort((a, b) => a - b)
   }
 
   /** @returns The newest epoch this device holds for the channel (`undefined` when it holds none: it is not a member, or was removed). */

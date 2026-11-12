@@ -60,7 +60,8 @@ export function TeamConnectDialog({ t, open, ai, connect, accountId, starting, r
   if (ended) {
     footer = <Button variant="primary" size="l" onClick={onClose}>{t('teamAi.close')}</Button>
   } else if (running) {
-    footer = <Button variant="primary" size="l" loading disabled>{t('teamAi.starting')}</Button>
+    // Sem os pontinhos animados do `loading`: o progresso é a lista andando (informação), não um enfeite que gira sem parar (Muse §rule 5; pré-aceite `gpu`).
+    footer = <Button variant="primary" size="l" disabled>{t('teamAi.starting')}</Button>
   } else {
     footer = (
       <Button variant="primary" size="l" disabled={total < 1 || accountId === undefined} onClick={onStart}>

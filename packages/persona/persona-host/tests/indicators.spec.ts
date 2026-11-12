@@ -140,7 +140,7 @@ it('pin validations: a name, a schedule, a sensible alert, and a test that is no
   expect((await fault(() => ctx.h.pinIndicator({ ...SCOPE, testId: test.testId, name: 'X', schedule: 'daily' }))).message).toContain('Teste de novo')
 })
 
-it('the quiet refresh: the new value replaces the old, a fall past the rule raises the alert ONLY in "Precisa de você", and no message is written to any conversation', async () => {
+it('the quiet refresh: the new value replaces the old, a fall past the rule raises the alert on the card (a NOTICE, never an attention event), and no message is written to any conversation', async () => {
   const ctx = setup()
   const view = await pinned(ctx, { alertDropPct: 20 })
   const before = geral(ctx.h).length
@@ -155,9 +155,8 @@ it('the quiet refresh: the new value replaces the old, a fall past the rule rais
   try {
     const frame = await stream.next()
     if (frame.done) throw new Error('attention-stream-ended')
-    expect(frame.value.events.find(row => row.id.startsWith('indicator:'))).toMatchObject({
-      kind: 'needs-you', title: 'Vendas de ontem: Caiu 31% desde a última atualização', personaName: 'Nina',
-    })
+    // a fall is a NOTICE (Muse, P1-08): not an attention event, so it never becomes an approval or a count in the rail
+    expect(frame.value.events.some(row => row.id.startsWith('indicator:'))).toBe(false)
   } finally {
     abort.abort()
     await stream.return?.()
@@ -205,4 +204,103 @@ it('due rules: hourly is 60 minutes; daily is "after the last 08:00 slot"', () =
   expect(isDue('daily', new Date(2026, 10, 11, 20, 0, 0).toISOString(), now)).toBe(true) // updated last evening
   const early = new Date(2026, 10, 12, 7, 0, 0) // local 07:00: the slot is yesterday's
   expect(lastDailySlot(early).getDate()).toBe(11)
+})
+
+// P1-08 (Carbon, colheita S1): no storm of model calls after a failure, no "Atualizando…" forever after a restart, and the alert is SEEN.
+it('a failed refresh backs off (15, 30, 60 minutes…): the timer never calls the persona again every minute', async () => {
+  const ctx = setup()
+  await pinned(ctx, { schedule: 'hourly' })
+  const calls = (): number => ctx.asked.length
+  const base = calls() // the test that was needed to pin
+  const tickAt = async (at: string, answer: string | Error): Promise<number> => {
+    ctx.clock.now = at
+    ctx.answers.length = 0 // only the answer of THIS tick: a tick that waits must not leave one behind for the next
+    ctx.answers.push(answer)
+    return ctx.h.indicators.tick()
+  }
+  expect(await tickAt('2026-11-12T12:01:00.000Z', new Error('A loja caiu.'))).toBe(1) // an hour after the pin: due, and it fails
+  expect(calls()).toBe(base + 1)
+  expect(await tickAt('2026-11-12T12:02:00.000Z', new Error('A loja caiu.'))).toBe(0) // the next minute: waiting, NOT another call
+  expect(await tickAt('2026-11-12T12:10:00.000Z', new Error('A loja caiu.'))).toBe(0)
+  expect(calls()).toBe(base + 1)
+  expect(await tickAt('2026-11-12T12:17:00.000Z', new Error('A loja caiu.'))).toBe(1) // the first wait (15 min) is over: one more try, fails again
+  expect(await tickAt('2026-11-12T12:40:00.000Z', new Error('A loja caiu.'))).toBe(0) // the second wait is 30 min: 23 min later it still waits
+  expect(await tickAt('2026-11-12T12:48:00.000Z', marker({ ...SALES, valor: 'R$ 1.400', bruto: 1400 }))).toBe(1) // 31 min later: tries, and it works
+  expect(ctx.h.listIndicators(SCOPE)[0]).toMatchObject({ status: 'ok', data: { value: 'R$ 1.400' } })
+  expect(ctx.h.listIndicators(SCOPE)[0]?.failure).toBeUndefined()
+  // success clears the wait: back to the plain hourly schedule
+  expect(await tickAt('2026-11-12T13:18:00.000Z', marker({ ...SALES, valor: 'R$ 1.410', bruto: 1410 }))).toBe(0)
+  expect(await tickAt('2026-11-12T13:49:00.000Z', marker({ ...SALES, valor: 'R$ 1.420', bruto: 1420 }))).toBe(1)
+})
+
+it('a refresh interrupted by a restart does not stay "Atualizando…" forever: it reads as the old value and runs again', async () => {
+  const ctx = setup()
+  const view = await pinned(ctx, { schedule: 'hourly' })
+  const row = ctx.h.screens.screens.get<Record<string, unknown>>('pp', 'indicator', view.id)
+  ctx.h.screens.screens.put('pp', 'indicator', view.id, { ...row, status: 'updating' }) // the process died in the middle of the refresh
+  expect(ctx.h.listIndicators(SCOPE)[0]?.status).toBe('ok')
+  ctx.clock.now = '2026-11-12T12:05:00.000Z'
+  ctx.answers.push(marker({ ...SALES, valor: 'R$ 1.350', bruto: 1350 }))
+  expect(await ctx.h.indicators.tick()).toBe(1)
+  expect(ctx.h.listIndicators(SCOPE)[0]).toMatchObject({ status: 'ok', data: { value: 'R$ 1.350' } })
+})
+
+it('the fall is a NOTICE the Visão geral draws from the numbers (its alert), never a decision: it is not in needsYou (the Aprovações count), and goes away when the number recovers or is unpinned', async () => {
+  const ctx = setup()
+  const view = await pinned(ctx, { alertDropPct: 20 })
+  const decisions = (): number => ctx.h.getOverview(SCOPE).needsYou.filter(item => item.title.includes('Vendas de ontem')).length
+  const notices = (): string[] => ctx.h.indicators.alerts(SCOPE.projectId).map(alert => alert.title)
+  expect(notices()).toEqual([])
+  ctx.clock.now = '2026-11-12T12:30:00.000Z'
+  ctx.answers.push(marker({ ...SALES, valor: 'R$ 900', bruto: 900 }))
+  await ctx.h.refreshIndicator({ ...SCOPE, id: view.id })
+  expect(ctx.h.listIndicators(SCOPE)[0]?.alert).toMatchObject({ pct: 31 }) // the screen draws the notice from this
+  expect(notices()).toEqual(['Vendas de ontem caiu 31% desde ontem.'])
+  expect(decisions()).toBe(0) // not a decision: the rail number and the Aprovações list never see it
+  ctx.clock.now = '2026-11-12T13:40:00.000Z'
+  ctx.answers.push(marker({ ...SALES, valor: 'R$ 950', bruto: 950 }))
+  await ctx.h.refreshIndicator({ ...SCOPE, id: view.id })
+  expect(notices()).toEqual([])
+  expect(ctx.h.listIndicators(SCOPE)[0]?.alert).toBeUndefined()
+  ctx.clock.now = '2026-11-12T14:50:00.000Z'
+  ctx.answers.push(marker({ ...SALES, valor: 'R$ 500', bruto: 500 }))
+  await ctx.h.refreshIndicator({ ...SCOPE, id: view.id })
+  expect(notices()).toHaveLength(1)
+  expect(decisions()).toBe(0)
+  ctx.h.unpinIndicator({ ...SCOPE, id: view.id })
+  expect(notices()).toEqual([])
+  expect(ctx.h.listIndicators(SCOPE)).toEqual([])
+})
+
+// Muse 05:22: the fall is a NOTICE ("Vendas de ontem caiu 31% desde ontem."); "Já vi" takes it off the list, the card keeps its amber border
+// (alert.seen) until the next refresh, and a NEW fall is a new notice.
+it('"Já vi" takes the notice off the list; the card keeps its alert as seen; the next fall is a new notice', async () => {
+  const ctx = setup()
+  const view = await pinned(ctx, { alertDropPct: 20 })
+  ctx.clock.now = '2026-11-12T12:30:00.000Z'
+  ctx.answers.push(marker({ ...SALES, valor: 'R$ 900', bruto: 900 }))
+  await ctx.h.refreshIndicator({ ...SCOPE, id: view.id })
+  const notices = (): string[] => ctx.h.indicators.alerts(SCOPE.projectId).map(alert => alert.title)
+  expect(notices()).toEqual(['Vendas de ontem caiu 31% desde ontem.'])
+  expect(ctx.h.listIndicators(SCOPE)[0]?.alert?.seen).toBeUndefined()
+
+  const dismissed = ctx.h.dismissIndicatorAlert({ ...SCOPE, id: view.id })
+  expect(dismissed.alert).toMatchObject({ pct: 31, seen: true })
+  expect(notices()).toEqual([]) // off the list…
+  expect(ctx.h.listIndicators(SCOPE)[0]?.alert).toMatchObject({ pct: 31, seen: true }) // …but the card still carries the amber border
+  expect(ctx.h.dismissIndicatorAlert({ ...SCOPE, id: view.id }).alert).toMatchObject({ seen: true }) // twice is harmless
+
+  // another fall, even without a recovery in between, is ANOTHER notice (a different instant)
+  ctx.clock.now = '2026-11-12T13:40:00.000Z'
+  ctx.answers.push(marker({ ...SALES, valor: 'R$ 500', bruto: 500 }))
+  await ctx.h.refreshIndicator({ ...SCOPE, id: view.id })
+  expect(notices()).toEqual(['Vendas de ontem caiu 44% desde ontem.'])
+  expect(ctx.h.listIndicators(SCOPE)[0]?.alert?.seen).toBeUndefined()
+
+  // a number that recovers has no alert to dismiss; an unknown one says so in plain words
+  ctx.clock.now = '2026-11-12T14:50:00.000Z'
+  ctx.answers.push(marker({ ...SALES, valor: 'R$ 950', bruto: 950 }))
+  await ctx.h.refreshIndicator({ ...SCOPE, id: view.id })
+  expect(ctx.h.dismissIndicatorAlert({ ...SCOPE, id: view.id }).alert).toBeUndefined()
+  expect((await fault(() => ctx.h.dismissIndicatorAlert({ ...SCOPE, id: 'does-not-exist' }))).message).toContain('não está mais')
 })

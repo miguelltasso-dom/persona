@@ -93,7 +93,7 @@ export interface TaskProposalDeps {
   readonly product: Pick<ProductRepos, 'getPersona' | 'listPersonas' | 'listChannels'>
   readonly screens: ScreenRepos
   readonly events: Pick<EventRepos, 'append' | 'has'>
-  readonly proactivity: Pick<ProactivityHost, 'getAutonomy'>
+  readonly proactivity: Pick<ProactivityHost, 'getAutonomy'> & { readonly offsetMinutes?: (iso: string) => number }
   readonly orchestration: { now(): string; runtime(projectId: string): { readonly repo: { readonly tickets: { list(): Ticket[] } } } }
   /** Goal objective of the project's active sprint, when there is one. */
   readonly activeGoal: (projectId: string) => string | undefined
@@ -123,7 +123,7 @@ export class TaskProposalHost implements TaskProposalPort {
     if (persona === undefined || persona.projectId !== projectId) return 0
     const autonomy = this.deps.proactivity.getAutonomy(projectId, personaId)
     if (autonomy.mode !== 'propose') return 0
-    if (inSilence(nowIso, autonomy.silenceStart, autonomy.silenceEnd)) return 0 // the quiet window is the person's
+    if (inSilence(nowIso, autonomy.silenceStart, autonomy.silenceEnd, this.deps.proactivity.offsetMinutes?.(nowIso) ?? 0)) return 0 // the quiet window is the person's (on their wall clock)
     const records = this.records(projectId)
     const live = records.filter(row => row.status === 'queued' || (row.status === 'open' && !proposalExpired(row.openedAt, nowIso)))
     const stats = this.statsOf(personaId, nowIso)

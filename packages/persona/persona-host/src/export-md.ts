@@ -15,6 +15,7 @@ import {
   type SqliteGovernanceRepos,
   type VaultRepos,
 } from '@deepseek-ai/dsh-persona-store'
+import { SECRET_FACT_KEYS } from './cofre-migrate.ts'
 
 /** Who and what to pack. */
 export interface ExportRequest {
@@ -100,6 +101,8 @@ export function exportMarkdown(
       files.set(`${prefix}dms/${slug(dm.id)}.md`, redact(`# DM ${dm.id}\n\n${body}\n`))
     }
     for (const record of vault.listRecords(project.id)) {
+      // Carbon P0-09: a connector token / the webhook secret an older build kept as a record body never travels, whatever the status of the record.
+      if (record.factKey !== undefined && SECRET_FACT_KEYS.includes(record.factKey)) continue
       files.set(
         `${prefix}cofre/${slug(record.kind)}-${slug(record.id)}.md`,
         redact(`# ${record.kind}\n\n${record.body}\n`),

@@ -11,6 +11,7 @@ let clock = '2026-11-03T23:00:00.000Z'
 function seed(h: PersonaHost): void {
   clock = '2026-11-03T23:00:00.000Z'
   h.orchestration.now = () => clock
+  h.timezoneOffsetMinutes = () => 0 // this spec writes its silence window on a UTC wall clock (S1 P1-12: it follows the machine's offset otherwise)
   h.createWorkspace({ id: 'ws', name: 'Acme', personalProjectId: 'pp' })
   h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
   h.createPersona({

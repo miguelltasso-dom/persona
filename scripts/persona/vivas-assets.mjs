@@ -1,7 +1,7 @@
 // PERSONAS VIVAS (Gauge 12/11, item 21): o bloco do pipeline de assets que mantém o REGISTRO IDÊNTICO entre as expressões de um mesmo animal.
 // Chamado pelo build-assets.mjs (um gancho de poucas linhas); o pipeline antigo das poses não é tocado.
 //
-//   fonte : persona-assets/vivas/<animal>/{base,pensando,feliz,esperando,…}.png   (TODOS no mesmo canvas, o da base) + mask.json
+//   fonte : persona-assets/vivas/<animal>/{base,pensando,feliz,esperando,…}.png   (TODOS no mesmo canvas, o da base) + mask.json   (arquivo que começa com "_", ex. _pensando-detalhe.png, é rascunho/recorte e é ignorado)
 //   saída : client/assets/vivas/<animal>-<expressao>.webp   (a base sai como <animal>-base.webp) + <animal>.json (retângulo de corte, escala, máscara já no sistema de saída)
 //
 // Regras (qualquer violação FALHA o build, listando todos os problemas de todos os animais, e nada é gravado):
@@ -10,7 +10,7 @@
 //   3. o corte é UM retângulo por animal: caixa do alfa da BASE + margem fixa (VIVAS_MARGIN px), nunca calculado por pose;
 //   4. a escala é UMA por animal: se a altura do corte passa de VIVAS_MAX_HEIGHT, todas encolhem pela mesma escala para o mesmo tamanho exato (nunca cada uma por si).
 //
-// mask.json:  { "mask": [x,y,w,h] }  ou  { "masks": [[x,y,w,h], …] }  (também aceita {x,y,w,h}); coordenadas no canvas da FONTE.
+// mask.json:  [x,y,w,h]  ou  [[x,y,w,h], …]  (forma curta)  ou  { "mask": [x,y,w,h] }  ou  { "masks": [[x,y,w,h], …] }  (também aceita {x,y,w,h}; BOM ok); coordenadas no canvas da FONTE.
 //   opcional: "expressions": { "pensando": { "masks": [[x,y,w,h]] } }   → áreas EXTRAS só daquela expressão (ex.: a pata que sobe)
 //   opcional: "tolerance": { "maxDiffPixels": N, "maxDiffRatio": R, "channelTol": N, "bboxTol": PX, "centroidTol": PX }   (padrão: tudo 0 / 1 px / 0,5 px)
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
@@ -73,8 +73,10 @@ const rectsOf = (list, where) => {
 }
 
 /** @returns {{ masks: {x,y,w,h}[], extra: Record<string, {x,y,w,h}[]>, tolerance: Record<string, number> }} */
-export function parseMaskFile(json) {
-  if (json === null || typeof json !== 'object' || Array.isArray(json)) throw new Error('mask.json precisa ser um objeto')
+export function parseMaskFile(input) {
+  // Forma curta (a que a Brush entrega): [x,y,w,h] = um retângulo; [[x,y,w,h], …] = vários.
+  const json = Array.isArray(input) ? (input.length === 4 && input.every(Number.isInteger) ? { mask: input } : { masks: input }) : input
+  if (json === null || typeof json !== 'object') throw new Error('mask.json precisa ser um objeto ou um array de retângulos')
   const hasOne = json.mask !== undefined
   const hasMany = json.masks !== undefined
   if (hasOne === hasMany) throw new Error('mask.json precisa de "mask" (um retângulo) OU "masks" (uma lista), um dos dois')
@@ -98,7 +100,7 @@ async function planAnimal(dir, animal, sharp, margin) {
   const at = (file) => `vivas/${animal}/${file}`
   if (!NAME.test(animal)) return { problems: [`vivas/${animal}: nome de pasta inválido (use minúsculas, números e hífen)`] }
   const files = readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile())
-  const pngs = files.filter((e) => extname(e.name).toLowerCase() === '.png').map((e) => e.name)
+  const pngs = files.filter((e) => extname(e.name).toLowerCase() === '.png' && !e.name.startsWith('_')).map((e) => e.name) // "_nome.png" = rascunho/detalhe: fica na pasta e fora do build
   for (const name of pngs) {
     if (!NAME.test(name.slice(0, -4)) || extname(name) !== '.png') problems.push(`${at(name)}: nome de expressão inválido (use minúsculas, números e hífen, extensão .png)`)
   }
@@ -158,12 +160,13 @@ async function writeAnimal(plan, { out, sharp, track, ensureDir, margin, maxHeig
 }
 
 /**
- * O gancho do build-assets.mjs. Sem persona-assets/vivas = não faz nada. Com ela: valida TODOS os animais; havendo qualquer problema lança VivasBuildError e não grava nada.
- * @param {{ src: string, out: string, sharp: any, track: (rel: string, abs: string) => void, ensureDir?: (dir: string) => void, log?: (m: string) => void, margin?: number, maxHeight?: number, quality?: number }} env
+ * FASE 1, para chamar NO COMEÇO do build (antes de limpar a pasta de saída): valida TODOS os animais e devolve os planos. Havendo qualquer problema lança VivasBuildError: o build para
+ * antes de apagar um único asset, então uma máscara torta da Brush nunca deixa a árvore sem generated-imports.ts. Sem persona-assets/vivas = { plans: [] }.
+ * @param {{ src: string, sharp: any, margin?: number }} env
  */
-export async function buildVivas({ src, out, sharp, track, ensureDir = (dir) => mkdirSync(dir, { recursive: true }), log = () => undefined, margin = VIVAS_MARGIN, maxHeight = VIVAS_MAX_HEIGHT, quality = VIVAS_QUALITY }) {
+export async function validateVivas({ src, sharp, margin = VIVAS_MARGIN }) {
   const root = join(src, 'vivas')
-  if (!existsSync(root) || !statSync(root).isDirectory()) return { animals: [] }
+  if (!existsSync(root) || !statSync(root).isDirectory()) return { plans: [] }
   const animals = readdirSync(root, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort()
   const problems = []
   const plans = []
@@ -173,6 +176,17 @@ export async function buildVivas({ src, out, sharp, track, ensureDir = (dir) => 
     if (result.plan !== undefined) plans.push(result.plan)
   }
   if (problems.length > 0) throw new VivasBuildError(problems)
+  return { plans }
+}
+
+/**
+ * FASE 2 (o gancho do build-assets.mjs, depois das poses). Com `plans` (de validateVivas) só grava; sem eles valida aqui mesmo. Sem persona-assets/vivas = não faz nada.
+ * @param {{ src: string, out: string, sharp: any, track: (rel: string, abs: string) => void, ensureDir?: (dir: string) => void, log?: (m: string) => void, margin?: number, maxHeight?: number, quality?: number, plans?: any[] }} env
+ */
+export async function buildVivas({ src, out, sharp, track, ensureDir = (dir) => mkdirSync(dir, { recursive: true }), log = () => undefined, margin = VIVAS_MARGIN, maxHeight = VIVAS_MAX_HEIGHT, quality = VIVAS_QUALITY, plans: planned }) {
+  // `plans` pode ser o array de planos OU o objeto { plans } que validateVivas devolve (passar o objeto inteiro derrubou o build real depois do clean: aceita os dois).
+  const plans = planned === undefined ? (await validateVivas({ src, sharp, margin })).plans : Array.isArray(planned) ? planned : planned.plans
+  if (plans.length === 0) return { animals: [] }
   const built = []
   for (const plan of plans) built.push(await writeAnimal(plan, { out, sharp, track, ensureDir, margin, maxHeight, quality }))
   if (built.length > 0) log(`vivas: ${String(built.length)} animal(is), ${String(built.reduce((n, a) => n + a.expressions.length, 0))} expressões, corte único por animal`)

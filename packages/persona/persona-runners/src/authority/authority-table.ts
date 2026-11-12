@@ -97,17 +97,24 @@ export function worstOf(kinds: readonly ActionKind[]): ActionKind {
 export interface RunOrigin {
   /** The run started from an e-mail the person RECEIVED: its text was written by someone else. */
   readonly viaEmail?: boolean
+  /** Who the run acts for (default `person`). */
+  readonly authority?: AuthorityKind
 }
 
 /**
- * The origin rule: a run that started from a received e-mail NEVER sends on its own. Whatever the persona's standing permission pre-allows, `send` is taken out for such a run, so a
- * send always reaches the person's card (the exact call, once); a routine or an unattended run has nobody to ask and is refused. `pay` and `delete` are never pre-allowed anywhere.
+ * The origin rules for what may run without asking. `pay` and `delete` are never pre-allowed anywhere.
+ *  - A run that started from a received e-mail NEVER sends on its own: whatever the persona's standing permission pre-allows, `send` is taken out, so a send always reaches the person's
+ *    card (the exact call, once).
+ *  - An UNATTENDED run (the persona's own initiative, a plan of the Coordenação, an external event) never has `send`, `pay` or `delete` pre-allowed either, waiver or not (Keel, 12/11): it
+ *    needs the person's card. The owner's "não perguntar de novo" is consent to what she asks for or schedules herself, not to what the team starts by itself.
+ *  - A routine the owner SCHEDULED keeps her standing permission: it is her explicit consent ("mande o resumo toda segunda por e-mail").
  * @param classes - The connector action classes the persona may do without asking.
  * @param origin - What started the run.
  * @returns The classes still allowed without asking.
  */
 export function preAllowAfterOrigin(classes: readonly ActionClass[], origin: RunOrigin = {}): ActionClass[] {
-  return origin.viaEmail === true ? classes.filter(cls => cls !== 'send') : [...classes]
+  const unattended = origin.authority === 'unattended'
+  return classes.filter(cls => !(origin.viaEmail === true && cls === 'send') && !(unattended && (cls === 'send' || cls === 'pay' || cls === 'delete')))
 }
 
 /**

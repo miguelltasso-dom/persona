@@ -17,6 +17,7 @@ const OUT = join(ROOT, 'packages/persona/client-ui-persona/src/client/theme/font
 const faces = [
   { family: 'Persona Fredoka', file: 'fredoka-latin.woff2', weight: '300 700', stretch: '75% 125%' },
   { family: 'Persona Nunito', file: 'nunito-latin.woff2', weight: '200 1000', stretch: 'normal' },
+  { family: 'Persona Geist', file: 'geist-variable.woff2', weight: '100 900', stretch: 'normal' },
 ]
 
 const css = [

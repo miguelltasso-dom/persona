@@ -52,7 +52,7 @@ export const pt = {
   'empty.column.todo': 'Nada na fila ainda',
   'empty.column.doing': 'Nada em andamento agora',
   'empty.column.review': 'Nada em revisão agora',
-  'empty.column.needs_you': 'Nada esperando você',
+  'empty.column.needs_you': 'Nada esperando por você',
   'empty.column.done': 'Nada concluído ainda',
   'empty.column.blocked': 'Nenhum travamento',
   'empty.addTask': '+ Tarefa',
@@ -90,6 +90,11 @@ export const pt = {
   'thread.loading': 'Abrindo a conversa…',
   'thread.error': 'Não deu para abrir a conversa agora. Tente de novo.',
   'thread.retry': 'Tentar de novo',
+  'thread.sendFailed': 'Não deu para enviar. Tente de novo.',
+  'thread.detail.project': 'Projeto',
+  'thread.detail.column': 'Etapa',
+  'thread.detail.assignee': 'Quem cuida',
+  'thread.detail.due': 'Prazo',
   'card.flowField': '{label} · {value}',
   'chip.dependencyCount': 'Depende de {count}',
   'chip.evidenceCount': '{count} anexos',
@@ -267,6 +272,7 @@ export const pt = {
   'projects.history.back': 'Voltar ao quadro',
   'projects.options': 'Opções',
   'boards.filterLabel': 'Filtrar projetos',
+  'card.doneBy': 'Feito por {name}',
 } as const
 
 /** English copy. */
@@ -356,6 +362,11 @@ export const en = {
   'thread.loading': 'Opening the conversation…',
   'thread.error': 'Couldn\'t open the conversation right now. Try again.',
   'thread.retry': 'Try again',
+  'thread.sendFailed': 'Couldn\'t send it. Try again.',
+  'thread.detail.project': 'Project',
+  'thread.detail.column': 'Stage',
+  'thread.detail.assignee': 'Looking after it',
+  'thread.detail.due': 'Due',
   'card.flowField': '{label} · {value}',
   'chip.dependencyCount': 'Depends on {count}',
   'chip.evidenceCount': '{count} attachments',
@@ -533,6 +544,7 @@ export const en = {
   'projects.history.back': 'Back to the board',
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
+  'card.doneBy': 'Done by {name}',
 } as const
 
 export const zh = {
@@ -621,6 +633,11 @@ export const zh = {
   'thread.loading': 'Opening the conversation…',
   'thread.error': 'Couldn\'t open the conversation right now. Try again.',
   'thread.retry': 'Try again',
+  'thread.sendFailed': 'Couldn\'t send it. Try again.',
+  'thread.detail.project': 'Project',
+  'thread.detail.column': 'Stage',
+  'thread.detail.assignee': 'Looking after it',
+  'thread.detail.due': 'Due',
   'card.flowField': '{label} · {value}',
   'chip.dependencyCount': 'Depends on {count}',
   'chip.evidenceCount': '{count} attachments',
@@ -798,6 +815,7 @@ export const zh = {
   'projects.history.back': 'Back to the board',
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
+  'card.doneBy': 'Done by {name}',
 } as const
 export const ja = {
   'header.eyebrow': 'Work',
@@ -885,6 +903,11 @@ export const ja = {
   'thread.loading': 'Opening the conversation…',
   'thread.error': 'Couldn\'t open the conversation right now. Try again.',
   'thread.retry': 'Try again',
+  'thread.sendFailed': 'Couldn\'t send it. Try again.',
+  'thread.detail.project': 'Project',
+  'thread.detail.column': 'Stage',
+  'thread.detail.assignee': 'Looking after it',
+  'thread.detail.due': 'Due',
   'card.flowField': '{label} · {value}',
   'chip.dependencyCount': 'Depends on {count}',
   'chip.evidenceCount': '{count} attachments',
@@ -1062,6 +1085,7 @@ export const ja = {
   'projects.history.back': 'Back to the board',
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
+  'card.doneBy': 'Done by {name}',
 } as const
 export const es = {
   'header.eyebrow': 'Work',
@@ -1149,6 +1173,11 @@ export const es = {
   'thread.loading': 'Opening the conversation…',
   'thread.error': 'Couldn\'t open the conversation right now. Try again.',
   'thread.retry': 'Try again',
+  'thread.sendFailed': 'Couldn\'t send it. Try again.',
+  'thread.detail.project': 'Project',
+  'thread.detail.column': 'Stage',
+  'thread.detail.assignee': 'Looking after it',
+  'thread.detail.due': 'Due',
   'card.flowField': '{label} · {value}',
   'chip.dependencyCount': 'Depends on {count}',
   'chip.evidenceCount': '{count} attachments',
@@ -1326,6 +1355,7 @@ export const es = {
   'projects.history.back': 'Back to the board',
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
+  'card.doneBy': 'Done by {name}',
 } as const
 export const fr = {
   'header.eyebrow': 'Work',
@@ -1413,6 +1443,11 @@ export const fr = {
   'thread.loading': 'Opening the conversation…',
   'thread.error': 'Couldn\'t open the conversation right now. Try again.',
   'thread.retry': 'Try again',
+  'thread.sendFailed': 'Couldn\'t send it. Try again.',
+  'thread.detail.project': 'Project',
+  'thread.detail.column': 'Stage',
+  'thread.detail.assignee': 'Looking after it',
+  'thread.detail.due': 'Due',
   'card.flowField': '{label} · {value}',
   'chip.dependencyCount': 'Depends on {count}',
   'chip.evidenceCount': '{count} attachments',
@@ -1590,6 +1625,7 @@ export const fr = {
   'projects.history.back': 'Back to the board',
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
+  'card.doneBy': 'Done by {name}',
 } as const
 export const de = {
   'header.eyebrow': 'Work',
@@ -1677,6 +1713,11 @@ export const de = {
   'thread.loading': 'Opening the conversation…',
   'thread.error': 'Couldn\'t open the conversation right now. Try again.',
   'thread.retry': 'Try again',
+  'thread.sendFailed': 'Couldn\'t send it. Try again.',
+  'thread.detail.project': 'Project',
+  'thread.detail.column': 'Stage',
+  'thread.detail.assignee': 'Looking after it',
+  'thread.detail.due': 'Due',
   'card.flowField': '{label} · {value}',
   'chip.dependencyCount': 'Depends on {count}',
   'chip.evidenceCount': '{count} attachments',
@@ -1854,6 +1895,7 @@ export const de = {
   'projects.history.back': 'Back to the board',
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
+  'card.doneBy': 'Done by {name}',
 } as const
 export const ru = {
   'header.eyebrow': 'Work',
@@ -1941,6 +1983,11 @@ export const ru = {
   'thread.loading': 'Opening the conversation…',
   'thread.error': 'Couldn\'t open the conversation right now. Try again.',
   'thread.retry': 'Try again',
+  'thread.sendFailed': 'Couldn\'t send it. Try again.',
+  'thread.detail.project': 'Project',
+  'thread.detail.column': 'Stage',
+  'thread.detail.assignee': 'Looking after it',
+  'thread.detail.due': 'Due',
   'card.flowField': '{label} · {value}',
   'chip.dependencyCount': 'Depends on {count}',
   'chip.evidenceCount': '{count} attachments',
@@ -2118,6 +2165,7 @@ export const ru = {
   'projects.history.back': 'Back to the board',
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
+  'card.doneBy': 'Done by {name}',
 } as const
 
 export type KanbanKey = keyof typeof pt

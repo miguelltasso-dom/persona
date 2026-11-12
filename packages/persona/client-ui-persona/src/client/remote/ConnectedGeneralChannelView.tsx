@@ -26,6 +26,7 @@ import { includeOpinionTextOnly, opinionTextOnlyRemoteFrom } from './opinion-tex
 import type { OpinionActions } from '../chat/opinion/OpinionBlock.tsx'
 import { useConnectedPersonaAsks } from '../ask/use-connected-persona-asks.ts'
 import { IndicatorsProvider } from '../indicators/use-indicators.tsx'
+import { AudioAttachmentContext } from '../chat/voice-compose/AudioAttachmentSlot.tsx'
 import { useConnectedTaskProposals } from '../proposal/use-connected-task-proposals.ts'
 import { useConnectedReply } from '../answer/use-connected-reply.ts'
 
@@ -201,112 +202,121 @@ export function ConnectedGeneralChannelView({
     defaultLabel: shellT('personasTab.engine.defaultChip'),
   })
   return (
-    <IndicatorsProvider remote={engineRemote} tenant={live.tenant}>
-      <GeneralChannelView
-        t={t}
-        shellT={shellT}
-        slashActions={slashActions}
-        asideSlot={aside.card}
-        onOpenApprovalItem={onOpenApprovalItem}
-        onUndoInitiativeGrant={liveStore.undoInitiativeGrant === undefined ? undefined : approvalId => liveStore.undoInitiativeGrant?.(approvalId)}
-        onDecideInitiative={liveStore.decideInitiativeApproval === undefined ? undefined : (approvalId, choice) => liveStore.decideInitiativeApproval?.(approvalId, choice)}
-        onUndoAction={liveStore.undoPersonaAction === undefined ? undefined : activityId => liveStore.undoPersonaAction?.(activityId)}
-        onDecideAction={liveStore.decideActionApproval === undefined ? undefined : decision => liveStore.decideActionApproval?.(decision)}
-        dailyBriefActions={{
-          ...(onOpenApprovals === undefined ? {} : { onOpenApprovals }),
-          ...(onOpenBoard === undefined ? {} : { onOpenBoard }),
-          ...(onOpenRoutines === undefined ? {} : { onOpenRoutines }),
-          ...(openTaskOnBoard === undefined ? {} : { onOpenTask: openTaskOnBoard }),
-        }}
-        engineLimits={engineLimits}
-        onOpenLimits={loadEngineLimits}
-        onRetrySend={(messageId) => { void liveStore.retryFailedSend?.(messageId) }}
-        onResumePersona={personaId => liveStore.resumePersona?.(personaId)}
-        {...(personaAsks === undefined ? {} : { personaAsks })}
-        {...(taskProposals === undefined ? {} : { taskProposals })}
-        {...(reply ?? {})}
-        {...fanout}
-        members={live.stripMembers}
-        loading={!live.ready}
-        team={live.team}
-        // P0-30: as mensagens que o host não recebeu ficam no fim do fio, marcadas "Não enviado".
-        messages={[...subjects.filteredMessages, ...(live.failedSends ?? []).filter(row => row.streamKind === 'channel').map(row => row.message)]}
-        subjectBar={{
-          subjects: subjects.subjects,
-          activeSubjectId: subjects.activeSubjectId,
-          onSelect: subjects.selectSubject,
-          onCreate: subjects.createSubject,
-          onRename: subjects.renameSubject,
-          onArchive: subjects.archiveSubject,
-          archived: subjects.archived,
-          onReopen: subjects.reopenSubject,
-          editingSubjectId: subjects.editingSubjectId,
-          panelId: 'persona-channel-subject-panel',
-        }}
-        subjectsLoadError={subjects.subjectsError}
-        onRetrySubjects={subjects.retrySubjects}
-        composerSubjectPlaceholder={t('composer.placeholderInSubject', {
-          subject: subjectDisplayName(t, subjects.activeSubject),
-        })}
-        composerSubjectColorIndex={subjects.activeSubject.colorIndex}
-        subjectMoveTargets={subjects.subjects}
-        onMoveMessageSubject={subjects.moveMessageToSubject}
-        onUndoMoveMessage={(messageId, revertSubjectId) => {
-          subjects.moveMessageToSubject(messageId, revertSubjectId)
-        }}
-        {...(personaCard === undefined ? {} : { personaCard })}
-        {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
-        {...(onOpenPersonaDm === undefined ? {} : { onOpenPersonaDm })}
-        passThroughFollowers={live.passThroughFollowers}
-        turnContext={live.turnContext}
-        turnActivityLabels={turnActivityLabels}
-        onLoadTurnContext={loadTurnContext}
-        {...(openTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard: openTaskOnBoard })}
-        onBuildTeam={onBuildTeam}
-        onSendMessage={(body, attachmentIds, options?: { readonly fanout?: 'everyone' | 'relevant'; readonly opinionFor?: string }) => { void postChannelMessage(body, attachmentIds, options) }}
-        {...(hostQueue === undefined ? {} : { hostQueue })}
-        {...(turnControls === undefined ? {} : { turnControls })}
-        opinionActions={opinionActions}
-        uploadAttachment={file => uploadChannelAttachment(file)}
-        {...(live.tenant === null ? {} : { memberId: live.tenant.memberId })}
-        onToggleReaction={(messageId, stickerId) => {
-          toggleMessageReaction('channel', messageId, stickerId)
-        }}
-        gestorPlansById={live.gestorPlansById}
-        gestorPlanAdjustingIds={live.gestorPlanAdjustingIds}
-        onApproveGestorPlan={(planId) => { void liveStore.approveGestorPlan(planId) }}
-        onRejectGestorPlan={(planId) => { void liveStore.rejectGestorPlan(planId) }}
-        onFeedbackGestorPlan={(planId, comment) => {
-          void liveStore.feedbackGestorPlan(planId, t('gestorPlan.adjustFeedbackBody', { comment }))
-        }}
-        quotaBlocked={composerHints.quotaBlocked}
-        quotaKnown={composerHints.quotaKnown === true}
-        {...(composerHints.quotaResumeLabel === undefined
-          ? {}
-          : { quotaResumeLabel: composerHints.quotaResumeLabel })}
-        responderAutonomy={composerHints.responderAutonomy}
-        {...(responderEngine === undefined ? {} : { responderEngine })}
-        onResumeQuota={() => { void liveStore.refresh() }}
-        {...(onOpenConnections === undefined ? {} : { onSwapAccount: onOpenConnections })}
-        {...(onOpenUsage === undefined ? {} : { onSeeUsage: onOpenUsage })}
-        {...(onOpenHelp === undefined ? {} : { onOpenHelp })}
-        {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
-        {...(onOpenApprovals === undefined ? {} : { onOpenNotifications: onOpenApprovals, notificationsCount: openBlockingCount(live.decisions) })}
-        {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
-        conversationKey={ownerId === null ? 'channel:geral' : `channel:${ownerId}`}
-        {...(engineRemote === undefined ? {} : {
-          engineBanner: (
-            <ConnectedEngineBanner
-              t={t}
-              engineRemote={engineRemote}
-              workspaceId={live.tenant?.workspaceId}
-              projectId={live.tenant?.projectId}
-              onConnect={onOpenConnections}
-            />
-          ),
-        })}
-      />
-    </IndicatorsProvider>
+    <AudioAttachmentContext.Provider
+      value={{
+        t: shellT,
+        check: attachmentId => liveStore.isAudioAttachment?.(attachmentId) ?? Promise.resolve(null),
+        load: attachmentId => liveStore.loadAudioAttachment?.(attachmentId) ?? Promise.resolve(null),
+      }}
+    >
+      <IndicatorsProvider remote={engineRemote} tenant={live.tenant}>
+        <GeneralChannelView
+          t={t}
+          shellT={shellT}
+          slashActions={slashActions}
+          asideSlot={aside.card}
+          onOpenApprovalItem={onOpenApprovalItem}
+          onUndoInitiativeGrant={liveStore.undoInitiativeGrant === undefined ? undefined : approvalId => liveStore.undoInitiativeGrant?.(approvalId)}
+          onDecideInitiative={liveStore.decideInitiativeApproval === undefined ? undefined : (approvalId, choice) => liveStore.decideInitiativeApproval?.(approvalId, choice)}
+          onUndoAction={liveStore.undoPersonaAction === undefined ? undefined : activityId => liveStore.undoPersonaAction?.(activityId)}
+          onDecideAction={liveStore.decideActionApproval === undefined ? undefined : decision => liveStore.decideActionApproval?.(decision)}
+          dailyBriefActions={{
+            ...(onOpenApprovals === undefined ? {} : { onOpenApprovals }),
+            ...(onOpenBoard === undefined ? {} : { onOpenBoard }),
+            ...(onOpenRoutines === undefined ? {} : { onOpenRoutines }),
+            ...(openTaskOnBoard === undefined ? {} : { onOpenTask: openTaskOnBoard }),
+          }}
+          engineLimits={engineLimits}
+          onOpenLimits={loadEngineLimits}
+          onRetrySend={(messageId) => { void liveStore.retryFailedSend?.(messageId) }}
+          onResumePersona={personaId => liveStore.resumePersona?.(personaId)}
+          {...(personaAsks === undefined ? {} : { personaAsks })}
+          {...(taskProposals === undefined ? {} : { taskProposals })}
+          {...(reply ?? {})}
+          {...fanout}
+          members={live.stripMembers}
+          loading={!live.ready}
+          team={live.team}
+          // P0-30: as mensagens que o host não recebeu ficam no fim do fio, marcadas "Não enviado".
+          messages={[...subjects.filteredMessages, ...(live.failedSends ?? []).filter(row => row.streamKind === 'channel').map(row => row.message)]}
+          subjectBar={{
+            subjects: subjects.subjects,
+            activeSubjectId: subjects.activeSubjectId,
+            onSelect: subjects.selectSubject,
+            onCreate: subjects.createSubject,
+            onRename: subjects.renameSubject,
+            onArchive: subjects.archiveSubject,
+            archived: subjects.archived,
+            onReopen: subjects.reopenSubject,
+            editingSubjectId: subjects.editingSubjectId,
+            panelId: 'persona-channel-subject-panel',
+          }}
+          subjectsLoadError={subjects.subjectsError}
+          onRetrySubjects={subjects.retrySubjects}
+          composerSubjectPlaceholder={t('composer.placeholderInSubject', {
+            subject: subjectDisplayName(t, subjects.activeSubject),
+          })}
+          composerSubjectColorIndex={subjects.activeSubject.colorIndex}
+          subjectMoveTargets={subjects.subjects}
+          onMoveMessageSubject={subjects.moveMessageToSubject}
+          onUndoMoveMessage={(messageId, revertSubjectId) => {
+            subjects.moveMessageToSubject(messageId, revertSubjectId)
+          }}
+          {...(personaCard === undefined ? {} : { personaCard })}
+          {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
+          {...(onOpenPersonaDm === undefined ? {} : { onOpenPersonaDm })}
+          passThroughFollowers={live.passThroughFollowers}
+          turnContext={live.turnContext}
+          onSendSticker={(stickerId) => { void liveStore.sendStickerMessage?.(stickerId) }}
+          turnActivityLabels={turnActivityLabels}
+          onLoadTurnContext={loadTurnContext}
+          {...(openTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard: openTaskOnBoard })}
+          onBuildTeam={onBuildTeam}
+          onSendMessage={(body, attachmentIds, options?: { readonly fanout?: 'everyone' | 'relevant'; readonly opinionFor?: string }) => { void postChannelMessage(body, attachmentIds, options) }}
+          {...(hostQueue === undefined ? {} : { hostQueue })}
+          {...(turnControls === undefined ? {} : { turnControls })}
+          opinionActions={opinionActions}
+          uploadAttachment={file => uploadChannelAttachment(file)}
+          {...(live.tenant === null ? {} : { memberId: live.tenant.memberId })}
+          onToggleReaction={(messageId, stickerId) => {
+            toggleMessageReaction('channel', messageId, stickerId)
+          }}
+          gestorPlansById={live.gestorPlansById}
+          gestorPlanAdjustingIds={live.gestorPlanAdjustingIds}
+          onApproveGestorPlan={(planId) => { void liveStore.approveGestorPlan(planId) }}
+          onRejectGestorPlan={(planId) => { void liveStore.rejectGestorPlan(planId) }}
+          onFeedbackGestorPlan={(planId, comment) => {
+            void liveStore.feedbackGestorPlan(planId, t('gestorPlan.adjustFeedbackBody', { comment }))
+          }}
+          quotaBlocked={composerHints.quotaBlocked}
+          quotaKnown={composerHints.quotaKnown === true}
+          {...(composerHints.quotaResumeLabel === undefined
+            ? {}
+            : { quotaResumeLabel: composerHints.quotaResumeLabel })}
+          responderAutonomy={composerHints.responderAutonomy}
+          {...(responderEngine === undefined ? {} : { responderEngine })}
+          onResumeQuota={() => { void liveStore.refresh() }}
+          {...(onOpenConnections === undefined ? {} : { onSwapAccount: onOpenConnections })}
+          {...(onOpenUsage === undefined ? {} : { onSeeUsage: onOpenUsage })}
+          {...(onOpenHelp === undefined ? {} : { onOpenHelp })}
+          {...(onOpenSearch === undefined ? {} : { onOpenSearch })}
+          {...(onOpenApprovals === undefined ? {} : { onOpenNotifications: onOpenApprovals, notificationsCount: openBlockingCount(live.decisions) })}
+          {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
+          conversationKey={ownerId === null ? 'channel:geral' : `channel:${ownerId}`}
+          {...(engineRemote === undefined ? {} : {
+            engineBanner: (
+              <ConnectedEngineBanner
+                t={t}
+                engineRemote={engineRemote}
+                workspaceId={live.tenant?.workspaceId}
+                projectId={live.tenant?.projectId}
+                onConnect={onOpenConnections}
+              />
+            ),
+          })}
+        />
+      </IndicatorsProvider>
+    </AudioAttachmentContext.Provider>
   )
 }
 

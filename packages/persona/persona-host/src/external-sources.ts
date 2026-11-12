@@ -80,6 +80,11 @@ export class ExternalSourcesHost {
   emailReader: ((secret: string) => Promise<readonly EmailMessage[]>) | undefined
   /** Harvest 19b: the project's inbox rule, read at the origin (before any Trigger exists). */
   emailFilter: (projectId: string) => EmailArrivalFilter | undefined = () => undefined
+  /**
+   * Item 26: the routines that listen to a source take their events HERE, before the engine sees them (the filter runs in code: an event nobody asked for costs
+   * nothing). What they leave goes on as a conversation, as always. Default: nobody listens. The host wires the real one.
+   */
+  routineEvents: (projectId: string, triggers: readonly Trigger[]) => Trigger[] = (_projectId, triggers) => [...triggers]
   /** Shared slot counter for Rivet `withSourceRequest` (X-4). */
   budget: ProcessBudget = createProcessBudget(SOURCE_REQUEST_CAP)
 
@@ -154,7 +159,7 @@ export class ExternalSourcesHost {
     }
     return {
       results: [
-        ...receiveExternalBatch(engine, triggers),
+        ...receiveExternalBatch(engine, this.routineEvents(projectId, triggers)),
         ...Array.from({ length: filtered }, () => 'filtered' as const),
       ],
     }

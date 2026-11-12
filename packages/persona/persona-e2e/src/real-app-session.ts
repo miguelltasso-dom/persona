@@ -134,7 +134,8 @@ export async function completeOnboardingOverlay(page: Page): Promise<void> {
 
   await page.getByPlaceholder(onboarding.step1Placeholder).fill('Probe E2E')
   await continueBtn().click()
-  await page.getByText(onboarding.step2VaultBadge).waitFor({ state: 'visible' })
+  // The badge text is also the rail's "Memória da empresa" item and part of the step's own copy: scope it to the step (strict mode).
+  await page.getByLabel('Sobre a empresa').getByText(onboarding.step2VaultBadge, { exact: true }).waitFor({ state: 'visible' })
   await page.getByPlaceholder('Descreva em linguagem natural ou cole um texto…').fill('Empresa fictícia para E2E.')
   await continueBtn().click()
   await page.getByRole('heading', { name: onboarding.step3Title }).waitFor({ state: 'visible' })

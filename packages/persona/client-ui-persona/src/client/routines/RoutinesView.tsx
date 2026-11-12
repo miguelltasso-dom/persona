@@ -9,7 +9,8 @@ import { PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSur
 import styles from './Routines.module.css'
 import editorStyles from './RoutineEditor.module.css'
 import { WEEK_DAYS, type QuietWindow, type RoutineRun } from './mock-data.ts'
-import { RoutineEditorModal, type EditorPersona, type EditorProject, type RoutineDraft, type RoutineSaved } from './RoutineEditorModal.tsx'
+import { RoutineEditorModal, type EditorPersona, type EditorProject, type EventOption, type RoutineDraft, type RoutineSaved } from './RoutineEditorModal.tsx'
+import type { RoutineEventWire } from './routine-trigger.ts'
 import { DEFAULT_WHEN, describeWhen, weekRangeLabel, whenFromRrule } from './routine-schedule.ts'
 import { pt as defaultDict } from '../locale/routines/locales.ts'
 import { NextStepBar } from '../next-step/NextStepBar.tsx'
@@ -40,6 +41,8 @@ export interface RoutineRow {
   readonly catchUp?: 'skip' | 'run_once' | 'run_all' | undefined
   readonly silenceStart?: string | undefined
   readonly silenceEnd?: string | undefined
+  /** Item 26: the event the routine waits for (the host sends it only for a routine that starts by an event; `rrule` is then not a time). */
+  readonly trigger?: RoutineEventWire | undefined
 }
 
 /** What the screen can do to routines. A missing handler is a missing button: nothing here is drawn without an action. */
@@ -55,8 +58,10 @@ export interface RoutineActions {
   readonly onDelete?: ((row: RoutineRow) => Promise<void>) | undefined
   /** Brings a deleted routine back (the "Desfazer" of the delete toast). */
   readonly onRestore?: ((row: RoutineRow) => Promise<void>) | undefined
-  /** Harvest 19b: the inbox rule section (built by the panel; absent = no section). */
-  readonly emailRule?: ReactNode | undefined
+  /** Item 26: the events a routine can wait for, with whether each connector is on. Absent = the clock only (the editor shows no choice). */
+  readonly eventOptions?: readonly EventOption[] | undefined
+  /** Opens Conexões ("Abrir Conexões" next to the "Não ligado" note of an event). Absent = no button. */
+  readonly onOpenConnections?: (() => void) | undefined
 }
 
 const UNDO_MS = 6000
@@ -157,12 +162,14 @@ export function RoutinesView({
 
   const draftOf = (row: RoutineRow | undefined, projectId: string): RoutineDraft => {
     if (row === undefined) return { prompt: '', when: DEFAULT_WHEN, projectId }
-    const when = whenFromRrule(row.rrule)
+    // An event routine has no time: its rule is not "a schedule this editor does not write", so nothing is kept as a stored rule.
+    const when = row.trigger === undefined ? whenFromRrule(row.rrule) : undefined
     return {
       id: row.id,
       prompt: row.prompt.length > 0 ? row.prompt : row.name,
       when,
-      ...(when === undefined ? { keepRrule: row.rrule } : {}),
+      ...(when === undefined && row.trigger === undefined ? { keepRrule: row.rrule } : {}),
+      ...(row.trigger === undefined ? {} : { trigger: row.trigger }),
       ownerPersonaId: row.ownerPersonaId,
       projectId: row.projectId,
       paused: row.paused,
@@ -181,7 +188,8 @@ export function RoutinesView({
         projects={actions.projects}
         onSave={actions.onSave}
         isTeamRoutine={editor.row?.system === true}
-        emailRule={actions.emailRule}
+        eventOptions={actions.eventOptions}
+        onOpenConnections={actions.onOpenConnections}
         onClose={() => { setEditor(null) }}
         {...(editor.row === undefined || actions.onTogglePause === undefined
           ? {}
@@ -285,7 +293,7 @@ export function RoutinesView({
           <h2 id="routines-list-heading" className={styles.sectionTitle}>{t('list.title')}</h2>
           <ul className={editorStyles.list}>
             {routineRows.map((row) => {
-              const when = whenFromRrule(row.rrule)
+              const when = row.trigger === undefined ? whenFromRrule(row.rrule) : undefined
               const whenText = when === undefined ? readableSchedule(row, t('list.custom')) : describeWhen(t, when)
               // D-069 (Muse): a routine of the team itself (owner = the Coordenação, no persona) has no portrait: the team icon in a neutral disc (RoutineEditor.module.css `.ownerSystemAvatar`), never a letter.
               const who = row.ownerName ?? t('list.coordination')

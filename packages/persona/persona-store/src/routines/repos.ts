@@ -64,14 +64,18 @@ export interface UpdateRoutineInput {
 export class RoutineRepos {
   readonly store: PersonaStore
   readonly now: () => string
+  /** The machine's offset from UTC (minutes east) at an instant: a routine's quiet window ("22:00–08:00") is the person's wall clock, not UTC. */
+  readonly offsetMinutes: (iso: string) => number
 
   /**
    * @param store - Open store.
    * @param now - Instant factory.
+   * @param offsetMinutes - Offset factory; default UTC.
    */
-  constructor(store: PersonaStore, now: () => string = () => new Date().toISOString()) {
+  constructor(store: PersonaStore, now: () => string = () => new Date().toISOString(), offsetMinutes: (iso: string) => number = () => 0) {
     this.store = store
     this.now = now
+    this.offsetMinutes = offsetMinutes
   }
 
   /**
@@ -238,7 +242,7 @@ export class RoutineRepos {
       const routines = db.prepare('SELECT * FROM routine WHERE project_id = ? AND paused = 0').all(projectId).map(readRoutine)
       const claimed: RoutineRun[] = []
       for (const routine of routines) {
-        if (inSilence(now, routine.silenceStart, routine.silenceEnd)) continue
+        if (inSilence(now, routine.silenceStart, routine.silenceEnd, this.offsetMinutes(now))) continue
         const due = db.prepare(
           "SELECT * FROM routine_run WHERE routine_id = ? AND status = 'pending' AND scheduled_for <= ? ORDER BY scheduled_for ASC, id ASC",
         ).all(routine.id, now).map(readRun)
@@ -323,9 +327,11 @@ function pickDue(due: RoutineRun[], catchUp: CatchUp): RoutineRun[] {
   return due
 }
 
-function inSilence(now: string, start?: string, end?: string): boolean {
+function inSilence(now: string, start: string | undefined, end: string | undefined, offsetMinutes: number): boolean {
   if (start === undefined || end === undefined) return false
-  const hm = now.slice(11, 16)
+  const ms = Date.parse(now)
+  const wall = offsetMinutes === 0 || !Number.isFinite(ms) ? now : new Date(ms + offsetMinutes * 60_000).toISOString()
+  const hm = wall.slice(11, 16)
   if (hm.length !== 5) return false
   if (start <= end) return hm >= start && hm < end
   return hm >= start || hm < end

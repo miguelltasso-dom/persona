@@ -178,9 +178,11 @@ describe('the budget: 3 extra turns, one per reason, progress after the first', 
     expect(turn({ words: 'Pronto, enviei o arquivo.', tools: [] }, first.state).verdict.kind).toBe('cartao-continuar')
     expect(turn({ words: 'Pronto, enviei o arquivo.', tools: ['Read'] }, first.state).verdict.kind).toBe('continuar')
   })
-  it('a give-up or a known-answer question that is repeated after being sent back is let through, never looped', () => {
+  it('a give-up repeated after being sent back is never looped and never "feito": the Continuar card (Carbon P1-01); a known-answer question repeated is a real wait', () => {
     const state: TurnCloseState = { pushes: ['desistiu-cedo'] }
-    expect(kindOf({ words: 'Não consegui abrir o arquivo.', tools: [] }, state)).toBe('feito')
+    expect(turn({ words: 'Não consegui abrir o arquivo.', tools: [] }, state).verdict).toMatchObject({ kind: 'cartao-continuar', motivo: 'limite' })
+    const known = { ownerTexts: ['Meu zap é (11) 91234-5678'] }
+    expect(kindOf({ words: 'Qual é o WhatsApp da padaria?', tools: [], known }, { pushes: ['pergunta-ja-respondida'] })).toBe('esperar-dono')
   })
   it('a chain can add up to 3 and no more', () => {
     let state = FRESH_TURN_CLOSE
@@ -284,5 +286,29 @@ describe('relato de terceiro e fato do passado não são afirmação dela', () =
   it('"ele disse que foi salvo" é relato; o que ela mesma diz depois ("salvei") continua contando', () => {
     expect(kindOf({ words: 'Ele disse que o arquivo foi salvo, mas não consegui abrir.', tools: ['Read'] })).toBe('feito')
     expect(kindOf({ words: 'A Bia disse que estava ok. Salvei o cartaz em cartaz.svg.' })).toBe('continuar')
+  })
+})
+
+describe('a turn where the HOST acts for her (the conversation): routing and scheduling can be true, a file never is', () => {
+  it('"já encaminhei", "agendei" and a bare "Pronto!" are not judged (the host routed or scheduled it); the other rules still hold', () => {
+    expect(kindOf({ words: 'Já encaminhei o pedido para a Bia.', hadTools: false, hostActs: true })).toBe('feito')
+    expect(kindOf({ words: 'Agendei a conversa com a Bia para amanhã.', hadTools: false, hostActs: true })).toBe('feito')
+    expect(kindOf({ words: 'Pronto!', hadTools: false, hostActs: true })).toBe('feito')
+    // without the fact the same words are held (the Task turn, where only her tools prove it)
+    expect(kindOf({ words: 'Já encaminhei o pedido para a Bia.', hadTools: false })).toBe('continuar')
+    expect(turn({ words: 'Me passe a senha do Instagram, por favor.', hadTools: false, hostActs: true }).verdict).toMatchObject({ kind: 'continuar', motivo: 'pediu-segredo' })
+    expect(turn({ words: 'Qual é o WhatsApp da padaria?', hadTools: false, hostActs: true, known: { ownerTexts: ['meu zap é 11 98888-7777'] } }).verdict)
+      .toMatchObject({ kind: 'continuar', motivo: 'pergunta-ja-respondida' })
+    expect(turn({ words: 'Quer que eu ajuste o tom?', hadTools: false, hostActs: true }).verdict).toMatchObject({ kind: 'esperar-dono', motivo: 'perguntou' })
+  })
+
+  it('a FILE claim is still held in the conversation (the host never saves a file there): "Salvei a planilha" and "Fiz o cartaz" with nothing saved', () => {
+    const held = turn({ words: 'Salvei a planilha na pasta do projeto.', hadTools: false, hostActs: true })
+    expect(held.verdict).toMatchObject({ kind: 'continuar', motivo: 'sem-prova', rule: 'sem-prova:file' })
+    expect(held.verdict.kind === 'continuar' ? held.verdict.cobranca : '').toMatch(/não tem ferramentas/u)
+    expect(kindOf({ words: 'Fiz o cartaz da promoção com as cores da marca.', hadTools: false, hostActs: true })).toBe('continuar')
+    expect(kindOf({ words: 'Planilha criada e salva.', hadTools: false, hostActs: true })).toBe('continuar')
+    // honest words in the conversation pass: the copy is in the message
+    expect(kindOf({ words: 'Fiz o texto abaixo para o cartaz: “Pão quentinho toda manhã na Padaria Lua. Venha provar!”', hadTools: false, hostActs: true })).toBe('feito')
   })
 })

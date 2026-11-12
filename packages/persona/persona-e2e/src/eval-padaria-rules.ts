@@ -58,7 +58,7 @@ export interface JargonFinding { readonly where: string; readonly rule: JargonRu
 /** The headings of a case file in bold ("**O que não fiz e por quê:**", "**Decisões que tomei:**", "**Feito**", "**Entrega:**"). A copy label ("**Título:** Pão de queijo") is not one. */
 const PRONTUARIO = /\*\*\s*(?:o que (?:eu )?(?:fiz|n[ãa]o fiz|deixei)|decis[õo]es|entregues?|entrega|feito|falta|faltou|arquivos?|formato|pr[óo]ximos passos|pend[êe]ncias|observa[çc][õo]es|opini[ãa]o do time|resumo|status)\b[^*\n]{0,60}\*\*/iu
 /** A folder path to a file: segments joined by a slash that end in a file extension ("inputs/foto.png", "artes/x/y.svg"), a drive path, a `worktrees` folder. A URL and "sexta/domingo" are not. */
-const CAMINHO = /(?<![:/\w.-])(?:[A-Za-z]:\\[^\s`'"]+|(?:\.{1,2}\/|\/)?[\w.-]+(?:\/[\w.-]+)+\.(?:svg|png|jpe?g|webp|gif|md|txt|json|ts|tsx|js|mjs|css|html|pdf|csv|db|log))(?![\w/])|\bworktrees\b/iu
+const CAMINHO = /(?<![:/\w.-])(?:[A-Z]:\\[^\s`'"]+|(?:\.{1,2}\/|\/)?[\w.-]+(?:\/[\w.-]+)+\.(?:svg|png|jpe?g|webp|gif|md|txt|json|ts|tsx|js|mjs|css|html|pdf|csv|db|log))(?![\w/])|\bworktrees\b/iu
 /** A 32-hex Task id, or a long hex run that mixes digits and letters (a commit or a hash). */
 const ID_HASH = /\b[0-9a-f]{32}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{12,40}\b/iu
 const HTTP_CODE = /\bHTTP\s*\d{3}\b|\b(?:erro|status|c[óo]digo)\s+(?:4|5)\d{2}\b/iu

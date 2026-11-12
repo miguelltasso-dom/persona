@@ -172,6 +172,9 @@ it('Direcionar agora falls back to a normal send when the open turn refuses the 
   const view = await h.steerWorkingTurn({ ...queueKey, text: 'use a cor azul' })
   expect(view.mode).toBe('sent')
   expect(geral(h).find(message => message.id === view.messageId)?.steeredPersonaId).toBeUndefined()
+  // S1 P0-06: the text is NOT lost. The line `steer:…` is absorbed by the open turn's ticket (nothing else would deliver it), so the host itself puts it
+  // behind the open turn, once, and the runner reads it right after the step.
+  expect(log).toEqual(['deliver:worker-t1:queue:use a cor azul'])
 })
 
 it('Parar cancels the open turn keeping the queue, ends the task as stopped, and leaves a flagged line', async () => {

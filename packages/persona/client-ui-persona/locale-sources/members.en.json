@@ -16,7 +16,7 @@
   "action.revoke": "End access",
   "sync.title": "What syncs",
   "sync.projects": "Authorized projects and tasks",
-  "sync.vault": "Vault (per visibility)",
+  "sync.vault": "Company memory (per visibility)",
   "sync.never": "DMs never leave the device",
   "status.pending": "Invite pending",
   "status.active": "Active",

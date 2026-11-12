@@ -202,7 +202,9 @@ export function KanbanCard({
             {...(card.assignee === undefined ? { icon: <BrandIcon name="equipe" size={13} />, className: styles.unassignedAvatar } : {})}
           />
         )}
-        <Chip tone={PERSONA_STATE_CHIP_TONE[workState]} size="s">{stateLabel}</Chip>
+        {card.column === 'done'
+          ? (card.assignee === undefined ? null : <Chip tone="neutral" size="s" data-card-done-by="">{t('card.doneBy', { name: assigneeName })}</Chip>)
+          : <Chip tone={PERSONA_STATE_CHIP_TONE[workState]} size="s">{stateLabel}</Chip>}
         <TaskThreadBadge dict={dict} thread={card.thread} />
         {showApprovalStamp && <Chip tone="success" size="s" data-card-approved="">{t('stamp.approved')}</Chip>}
         {(onMoveCard !== undefined || onMoveFlowColumn !== undefined) && (

@@ -54,7 +54,7 @@
   "subtitle.edit": "Adjust who they are, what they can do and how much they act on their own.",
   "builder.title": "Describe who you need",
   "builder.hint": "In one sentence: the job, the tone and the tools. Coordination drafts it for you to review.",
-  "builder.placeholder": "E.g.: Someone to answer customers calmly and check the Vault before promising deadlines.",
+  "builder.placeholder": "E.g.: Someone to answer customers calmly and check company memory before promising deadlines.",
   "builder.action": "Generate draft",
   "avatar.label": "Appearance",
   "avatar.tabs": "Image source",

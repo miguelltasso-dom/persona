@@ -56,6 +56,9 @@ export function decideConnectorUse(input: ConnectorUseInput): ConnectorDecision 
   if (actionClass === 'read') return 'run'
   // A `read` permission covers reading on her own initiative; anything that changes or sends needs `write` (a request needs no grant).
   if (origin === 'initiative' && grant?.access !== 'write') return 'ask-permission'
+  // Carbon P0-09: "só leitura" is a CEILING the owner set for her, not a default: a chat request cannot lift it. Only a "Permitir desta vez" (`once`) can,
+  // because that is the person's explicit yes for that Task.
+  if (origin === 'request' && grant?.access === 'read') return 'ask-permission'
   if (actionClass === 'change') return 'run-and-report'
   if (actionClass === 'send') {
     if (autonomy === 'act' || grant?.confirm.send === 'never') return 'run-and-report'

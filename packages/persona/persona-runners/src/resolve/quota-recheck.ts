@@ -134,5 +134,6 @@ export function withQuotaRecheck(inner: Runner, options: QuotaRecheckOptions): R
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(input) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }

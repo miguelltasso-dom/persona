@@ -1,0 +1,45 @@
+{
+  "animal": "tamandua",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 131,
+    "top": 98,
+    "width": 743,
+    "height": 889
+  },
+  "size": [
+    401,
+    480
+  ],
+  "scale": 0.5399325084364455,
+  "mask": [
+    {
+      "x": 15,
+      "y": 1,
+      "w": 381,
+      "h": 400
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "tamandua-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "tamandua-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "tamandua-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "tamandua-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

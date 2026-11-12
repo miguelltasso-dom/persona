@@ -165,9 +165,11 @@ export function ChangeFeed({ items, label, empty }: { readonly items: readonly C
             <div className={styles.feedText}>
               <p>
                 <b>{item.who}</b> {item.verb}{' '}
+                {'“'}
                 {item.onOpen !== undefined
                   ? <button type="button" className={styles.pageLink} onClick={item.onOpen}>{item.pageTitle}</button>
                   : <span className={styles.pageName}>{item.pageTitle}</span>}
+                {'”'}{' '}
                 <Chip size="s" tone="neutral" className={styles.typeChip}>{item.pageType}</Chip>
               </p>
               {item.source !== undefined && <p className={styles.feedSource}>{item.source}</p>}

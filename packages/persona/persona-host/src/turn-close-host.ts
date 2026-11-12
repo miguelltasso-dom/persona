@@ -51,6 +51,8 @@ export interface TurnCloseRun {
   readonly hadTools: boolean
   /** A hand-off she asked for is tracked and still pending. */
   readonly waitingColleague?: () => boolean
+  /** The host acts for her in this turn (the conversation): her send/schedule/finish claims are not judged, a file claim still is (see `TurnCloseFacts.hostActs`). */
+  readonly hostActs?: boolean
   readonly known: KnownFacts
   /** Run one more turn with an internal note and return her raw words of THAT turn. The host settles the turn (usage, gate) inside. */
   readonly rerun: (cobranca: string, turn: number) => Promise<string>
@@ -80,6 +82,7 @@ export async function runTurnClose(run: TurnCloseRun): Promise<TurnCloseOutcome>
       savedFiles: run.savedFiles(),
       hadTools: run.hadTools,
       waitingColleague: run.waitingColleague?.() === true,
+      hostActs: run.hostActs === true,
       known: run.known,
     }, state)
     state = ruled.state

@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-12T02:35:49.392Z",
+    "generatedAt": "2026-11-12T08:11:50.051Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 792,
-    "totalBytes": 11483480,
+    "files": 940,
+    "totalBytes": 14376797,
     "withinBudget": true
   },
   "files": [
@@ -753,6 +753,26 @@
       "bytes": 35438
     },
     {
+      "rel": "illustrations/estacao-vazio.webp",
+      "bytes": 32688
+    },
+    {
+      "rel": "illustrations/estacao-pareando.webp",
+      "bytes": 35618
+    },
+    {
+      "rel": "illustrations/canal-pronto.webp",
+      "bytes": 35862
+    },
+    {
+      "rel": "illustrations/convite-enviado.webp",
+      "bytes": 36270
+    },
+    {
+      "rel": "illustrations/convite-aguardando.webp",
+      "bytes": 33140
+    },
+    {
       "rel": "illustrations/spot-limite.webp",
       "bytes": 7204
     },
@@ -933,6 +953,66 @@
       "bytes": 30722
     },
     {
+      "rel": "illustrations/empty-cofre.webp",
+      "bytes": 19236
+    },
+    {
+      "rel": "illustrations/categoria-vendas.webp",
+      "bytes": 33150
+    },
+    {
+      "rel": "illustrations/categoria-vendas-96.webp",
+      "bytes": 4970
+    },
+    {
+      "rel": "illustrations/categoria-pagamentos.webp",
+      "bytes": 41360
+    },
+    {
+      "rel": "illustrations/categoria-pagamentos-96.webp",
+      "bytes": 5524
+    },
+    {
+      "rel": "illustrations/categoria-atendimento.webp",
+      "bytes": 39664
+    },
+    {
+      "rel": "illustrations/categoria-atendimento-96.webp",
+      "bytes": 5630
+    },
+    {
+      "rel": "illustrations/categoria-agenda-email.webp",
+      "bytes": 37758
+    },
+    {
+      "rel": "illustrations/categoria-agenda-email-96.webp",
+      "bytes": 5092
+    },
+    {
+      "rel": "illustrations/categoria-documentos.webp",
+      "bytes": 23994
+    },
+    {
+      "rel": "illustrations/categoria-documentos-96.webp",
+      "bytes": 3926
+    },
+    {
+      "rel": "illustrations/categoria-redes-sociais.webp",
+      "bytes": 35024
+    },
+    {
+      "rel": "illustrations/categoria-redes-sociais-96.webp",
+      "bytes": 5240
+    },
+    {
+      "rel": "illustrations/categoria-gestao.webp",
+      "bytes": 27338
+    },
+    {
+      "rel": "illustrations/categoria-gestao-96.webp",
+      "bytes": 4288
+    },
+    {
       "rel": "illustrations/stamp-primeira-entrega.webp",
       "bytes": 7544
     },
@@ -1009,8 +1089,16 @@
       "bytes": 5530
     },
     {
+      "rel": "stickers/atlas-boa-ideia.webp",
+      "bytes": 6390
+    },
+    {
       "rel": "stickers/atlas-bom-dia.webp",
       "bytes": 5826
+    },
+    {
+      "rel": "stickers/atlas-combinado.webp",
+      "bytes": 6450
     },
     {
       "rel": "stickers/atlas-comemorando.webp",
@@ -1029,6 +1117,10 @@
       "bytes": 5246
     },
     {
+      "rel": "stickers/atlas-obrigada.webp",
+      "bytes": 6352
+    },
+    {
       "rel": "stickers/atlas-pensando.webp",
       "bytes": 5402
     },
@@ -1037,12 +1129,24 @@
       "bytes": 4982
     },
     {
+      "rel": "stickers/atlas-uau.webp",
+      "bytes": 6772
+    },
+    {
       "rel": "stickers/bento-ate-amanha.webp",
       "bytes": 5826
     },
     {
+      "rel": "stickers/bento-boa-ideia.webp",
+      "bytes": 6536
+    },
+    {
       "rel": "stickers/bento-bom-dia.webp",
       "bytes": 6478
+    },
+    {
+      "rel": "stickers/bento-combinado.webp",
+      "bytes": 6480
     },
     {
       "rel": "stickers/bento-comemorando.webp",
@@ -1061,6 +1165,10 @@
       "bytes": 5816
     },
     {
+      "rel": "stickers/bento-obrigada.webp",
+      "bytes": 5950
+    },
+    {
       "rel": "stickers/bento-pensando.webp",
       "bytes": 5264
     },
@@ -1069,12 +1177,16 @@
       "bytes": 5320
     },
     {
+      "rel": "stickers/bento-uau.webp",
+      "bytes": 5794
+    },
+    {
       "rel": "stickers/capivara-ate-amanha.webp",
       "bytes": 5514
     },
     {
       "rel": "stickers/capivara-boa-ideia.webp",
-      "bytes": 6948
+      "bytes": 5390
     },
     {
       "rel": "stickers/capivara-bom-dia.webp",
@@ -1313,8 +1425,16 @@
       "bytes": 5440
     },
     {
+      "rel": "stickers/luna-boa-ideia.webp",
+      "bytes": 6442
+    },
+    {
       "rel": "stickers/luna-bom-dia.webp",
       "bytes": 5696
+    },
+    {
+      "rel": "stickers/luna-combinado.webp",
+      "bytes": 6440
     },
     {
       "rel": "stickers/luna-comemorando.webp",
@@ -1333,12 +1453,20 @@
       "bytes": 5700
     },
     {
+      "rel": "stickers/luna-obrigada.webp",
+      "bytes": 5854
+    },
+    {
       "rel": "stickers/luna-pensando.webp",
       "bytes": 5662
     },
     {
       "rel": "stickers/luna-rindo.webp",
       "bytes": 6540
+    },
+    {
+      "rel": "stickers/luna-uau.webp",
+      "bytes": 7064
     },
     {
       "rel": "stickers/mico-leao-dourado-ate-amanha.webp",
@@ -1377,8 +1505,16 @@
       "bytes": 7202
     },
     {
+      "rel": "stickers/nina-boa-ideia.webp",
+      "bytes": 7150
+    },
+    {
       "rel": "stickers/nina-bom-dia.webp",
       "bytes": 8116
+    },
+    {
+      "rel": "stickers/nina-combinado.webp",
+      "bytes": 8902
     },
     {
       "rel": "stickers/nina-comemorando.webp",
@@ -1397,12 +1533,20 @@
       "bytes": 7536
     },
     {
+      "rel": "stickers/nina-obrigada.webp",
+      "bytes": 7892
+    },
+    {
       "rel": "stickers/nina-pensando.webp",
       "bytes": 7110
     },
     {
       "rel": "stickers/nina-rindo.webp",
       "bytes": 7304
+    },
+    {
+      "rel": "stickers/nina-uau.webp",
+      "bytes": 8948
     },
     {
       "rel": "stickers/ourico-ate-amanha.webp",
@@ -1505,8 +1649,16 @@
       "bytes": 5284
     },
     {
+      "rel": "stickers/sol-boa-ideia.webp",
+      "bytes": 5772
+    },
+    {
       "rel": "stickers/sol-bom-dia.webp",
       "bytes": 6054
+    },
+    {
+      "rel": "stickers/sol-combinado.webp",
+      "bytes": 5860
     },
     {
       "rel": "stickers/sol-comemorando.webp",
@@ -1525,12 +1677,20 @@
       "bytes": 5246
     },
     {
+      "rel": "stickers/sol-obrigada.webp",
+      "bytes": 5552
+    },
+    {
       "rel": "stickers/sol-pensando.webp",
       "bytes": 5476
     },
     {
       "rel": "stickers/sol-rindo.webp",
       "bytes": 4988
+    },
+    {
+      "rel": "stickers/sol-uau.webp",
+      "bytes": 5866
     },
     {
       "rel": "stickers/tamandua-ate-amanha.webp",
@@ -1655,6 +1815,78 @@
     {
       "rel": "avatars/capivara-blink-48.webp",
       "bytes": 1734
+    },
+    {
+      "rel": "avatars/capivara-feliz-candidato-colheita-256.webp",
+      "bytes": 11966
+    },
+    {
+      "rel": "avatars/capivara-feliz-candidato-colheita-96.webp",
+      "bytes": 3696
+    },
+    {
+      "rel": "avatars/capivara-feliz-candidato-colheita-48.webp",
+      "bytes": 1690
+    },
+    {
+      "rel": "avatars/capivara-feliz-256.webp",
+      "bytes": 12000
+    },
+    {
+      "rel": "avatars/capivara-feliz-96.webp",
+      "bytes": 3702
+    },
+    {
+      "rel": "avatars/capivara-feliz-48.webp",
+      "bytes": 1728
+    },
+    {
+      "rel": "avatars/capivara-pensando-blink-candidato-colheita-256.webp",
+      "bytes": 11542
+    },
+    {
+      "rel": "avatars/capivara-pensando-blink-candidato-colheita-96.webp",
+      "bytes": 3568
+    },
+    {
+      "rel": "avatars/capivara-pensando-blink-candidato-colheita-48.webp",
+      "bytes": 1630
+    },
+    {
+      "rel": "avatars/capivara-pensando-blink-256.webp",
+      "bytes": 11634
+    },
+    {
+      "rel": "avatars/capivara-pensando-blink-96.webp",
+      "bytes": 3618
+    },
+    {
+      "rel": "avatars/capivara-pensando-blink-48.webp",
+      "bytes": 1684
+    },
+    {
+      "rel": "avatars/capivara-pensando-candidato-colheita-256.webp",
+      "bytes": 11702
+    },
+    {
+      "rel": "avatars/capivara-pensando-candidato-colheita-96.webp",
+      "bytes": 3558
+    },
+    {
+      "rel": "avatars/capivara-pensando-candidato-colheita-48.webp",
+      "bytes": 1662
+    },
+    {
+      "rel": "avatars/capivara-pensando-256.webp",
+      "bytes": 11716
+    },
+    {
+      "rel": "avatars/capivara-pensando-96.webp",
+      "bytes": 3616
+    },
+    {
+      "rel": "avatars/capivara-pensando-48.webp",
+      "bytes": 1690
     },
     {
       "rel": "avatars/capivara-256.webp",
@@ -3175,6 +3407,366 @@
     {
       "rel": "poses/tucano-trabalhando.webp",
       "bytes": 26762
+    },
+    {
+      "rel": "vivas/atlas-base.webp",
+      "bytes": 27916
+    },
+    {
+      "rel": "vivas/atlas-feliz.webp",
+      "bytes": 28880
+    },
+    {
+      "rel": "vivas/atlas-pensando.webp",
+      "bytes": 27822
+    },
+    {
+      "rel": "vivas/atlas-pensando-blink.webp",
+      "bytes": 27470
+    },
+    {
+      "rel": "vivas/atlas.json",
+      "bytes": 675
+    },
+    {
+      "rel": "vivas/bento-base.webp",
+      "bytes": 26914
+    },
+    {
+      "rel": "vivas/bento-feliz.webp",
+      "bytes": 27290
+    },
+    {
+      "rel": "vivas/bento-pensando.webp",
+      "bytes": 26736
+    },
+    {
+      "rel": "vivas/bento-pensando-blink.webp",
+      "bytes": 26434
+    },
+    {
+      "rel": "vivas/bento.json",
+      "bytes": 673
+    },
+    {
+      "rel": "vivas/capivara-base.webp",
+      "bytes": 28160
+    },
+    {
+      "rel": "vivas/capivara-feliz.webp",
+      "bytes": 27958
+    },
+    {
+      "rel": "vivas/capivara-pensando.webp",
+      "bytes": 27830
+    },
+    {
+      "rel": "vivas/capivara-pensando-blink.webp",
+      "bytes": 27150
+    },
+    {
+      "rel": "vivas/capivara.json",
+      "bytes": 689
+    },
+    {
+      "rel": "vivas/cervo-base.webp",
+      "bytes": 34274
+    },
+    {
+      "rel": "vivas/cervo-feliz.webp",
+      "bytes": 34840
+    },
+    {
+      "rel": "vivas/cervo-pensando.webp",
+      "bytes": 34772
+    },
+    {
+      "rel": "vivas/cervo-pensando-blink.webp",
+      "bytes": 34418
+    },
+    {
+      "rel": "vivas/cervo.json",
+      "bytes": 673
+    },
+    {
+      "rel": "vivas/coelho-base.webp",
+      "bytes": 28168
+    },
+    {
+      "rel": "vivas/coelho-feliz.webp",
+      "bytes": 29176
+    },
+    {
+      "rel": "vivas/coelho-pensando.webp",
+      "bytes": 28770
+    },
+    {
+      "rel": "vivas/coelho-pensando-blink.webp",
+      "bytes": 28110
+    },
+    {
+      "rel": "vivas/coelho.json",
+      "bytes": 679
+    },
+    {
+      "rel": "vivas/coruja-base.webp",
+      "bytes": 32262
+    },
+    {
+      "rel": "vivas/coruja-feliz.webp",
+      "bytes": 32782
+    },
+    {
+      "rel": "vivas/coruja-pensando.webp",
+      "bytes": 32950
+    },
+    {
+      "rel": "vivas/coruja-pensando-blink.webp",
+      "bytes": 31470
+    },
+    {
+      "rel": "vivas/coruja.json",
+      "bytes": 680
+    },
+    {
+      "rel": "vivas/guaxinim-base.webp",
+      "bytes": 31330
+    },
+    {
+      "rel": "vivas/guaxinim-feliz.webp",
+      "bytes": 31940
+    },
+    {
+      "rel": "vivas/guaxinim-pensando.webp",
+      "bytes": 31690
+    },
+    {
+      "rel": "vivas/guaxinim-pensando-blink.webp",
+      "bytes": 30628
+    },
+    {
+      "rel": "vivas/guaxinim.json",
+      "bytes": 689
+    },
+    {
+      "rel": "vivas/lobo-guara-base.webp",
+      "bytes": 29054
+    },
+    {
+      "rel": "vivas/lobo-guara-feliz.webp",
+      "bytes": 30228
+    },
+    {
+      "rel": "vivas/lobo-guara-pensando.webp",
+      "bytes": 29550
+    },
+    {
+      "rel": "vivas/lobo-guara-pensando-blink.webp",
+      "bytes": 29178
+    },
+    {
+      "rel": "vivas/lobo-guara.json",
+      "bytes": 701
+    },
+    {
+      "rel": "vivas/lontra-base.webp",
+      "bytes": 31292
+    },
+    {
+      "rel": "vivas/lontra-feliz.webp",
+      "bytes": 31566
+    },
+    {
+      "rel": "vivas/lontra-pensando.webp",
+      "bytes": 30252
+    },
+    {
+      "rel": "vivas/lontra-pensando-blink.webp",
+      "bytes": 29682
+    },
+    {
+      "rel": "vivas/lontra.json",
+      "bytes": 682
+    },
+    {
+      "rel": "vivas/luna-base.webp",
+      "bytes": 27828
+    },
+    {
+      "rel": "vivas/luna-feliz.webp",
+      "bytes": 28422
+    },
+    {
+      "rel": "vivas/luna-pensando.webp",
+      "bytes": 27898
+    },
+    {
+      "rel": "vivas/luna-pensando-blink.webp",
+      "bytes": 27060
+    },
+    {
+      "rel": "vivas/luna.json",
+      "bytes": 668
+    },
+    {
+      "rel": "vivas/mico-leao-dourado-base.webp",
+      "bytes": 28424
+    },
+    {
+      "rel": "vivas/mico-leao-dourado-feliz.webp",
+      "bytes": 29354
+    },
+    {
+      "rel": "vivas/mico-leao-dourado-pensando.webp",
+      "bytes": 29090
+    },
+    {
+      "rel": "vivas/mico-leao-dourado-pensando-blink.webp",
+      "bytes": 28794
+    },
+    {
+      "rel": "vivas/mico-leao-dourado.json",
+      "bytes": 733
+    },
+    {
+      "rel": "vivas/nina-base.webp",
+      "bytes": 36820
+    },
+    {
+      "rel": "vivas/nina-feliz.webp",
+      "bytes": 37628
+    },
+    {
+      "rel": "vivas/nina-pensando.webp",
+      "bytes": 37492
+    },
+    {
+      "rel": "vivas/nina-pensando-blink.webp",
+      "bytes": 37162
+    },
+    {
+      "rel": "vivas/nina.json",
+      "bytes": 668
+    },
+    {
+      "rel": "vivas/ourico-base.webp",
+      "bytes": 36550
+    },
+    {
+      "rel": "vivas/ourico-feliz.webp",
+      "bytes": 37114
+    },
+    {
+      "rel": "vivas/ourico-pensando.webp",
+      "bytes": 36830
+    },
+    {
+      "rel": "vivas/ourico-pensando-blink.webp",
+      "bytes": 35958
+    },
+    {
+      "rel": "vivas/ourico.json",
+      "bytes": 680
+    },
+    {
+      "rel": "vivas/panda-base.webp",
+      "bytes": 27368
+    },
+    {
+      "rel": "vivas/panda-feliz.webp",
+      "bytes": 28164
+    },
+    {
+      "rel": "vivas/panda-pensando.webp",
+      "bytes": 27500
+    },
+    {
+      "rel": "vivas/panda-pensando-blink.webp",
+      "bytes": 27432
+    },
+    {
+      "rel": "vivas/panda.json",
+      "bytes": 674
+    },
+    {
+      "rel": "vivas/raposa-base.webp",
+      "bytes": 31498
+    },
+    {
+      "rel": "vivas/raposa-feliz.webp",
+      "bytes": 31902
+    },
+    {
+      "rel": "vivas/raposa-pensando.webp",
+      "bytes": 32056
+    },
+    {
+      "rel": "vivas/raposa-pensando-blink.webp",
+      "bytes": 31636
+    },
+    {
+      "rel": "vivas/raposa.json",
+      "bytes": 680
+    },
+    {
+      "rel": "vivas/sol-base.webp",
+      "bytes": 27412
+    },
+    {
+      "rel": "vivas/sol-feliz.webp",
+      "bytes": 28288
+    },
+    {
+      "rel": "vivas/sol-pensando.webp",
+      "bytes": 26760
+    },
+    {
+      "rel": "vivas/sol-pensando-blink.webp",
+      "bytes": 26352
+    },
+    {
+      "rel": "vivas/sol.json",
+      "bytes": 667
+    },
+    {
+      "rel": "vivas/tamandua-base.webp",
+      "bytes": 30758
+    },
+    {
+      "rel": "vivas/tamandua-feliz.webp",
+      "bytes": 31372
+    },
+    {
+      "rel": "vivas/tamandua-pensando.webp",
+      "bytes": 31234
+    },
+    {
+      "rel": "vivas/tamandua-pensando-blink.webp",
+      "bytes": 31186
+    },
+    {
+      "rel": "vivas/tamandua.json",
+      "bytes": 688
+    },
+    {
+      "rel": "vivas/tucano-base.webp",
+      "bytes": 27092
+    },
+    {
+      "rel": "vivas/tucano-feliz.webp",
+      "bytes": 27556
+    },
+    {
+      "rel": "vivas/tucano-pensando.webp",
+      "bytes": 27622
+    },
+    {
+      "rel": "vivas/tucano-pensando-blink.webp",
+      "bytes": 27400
+    },
+    {
+      "rel": "vivas/tucano.json",
+      "bytes": 682
     }
   ]
 }

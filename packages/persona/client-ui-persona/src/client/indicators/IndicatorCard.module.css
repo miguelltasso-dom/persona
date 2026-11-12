@@ -22,6 +22,13 @@
   border-left: 3px solid var(--persona-accent);
 }
 
+/* "Ver o número": o anel de foco do DS por 1,5 s (o atributo vem de spotlight-indicator.ts); o foco real fica no cartão sem virar parada de Tab. */
+.card[data-spotlight='true'] {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--persona-focus-halo);
+}
+
 .head {
   display: flex;
   align-items: center;
@@ -75,7 +82,12 @@
   color: var(--persona-warning);
 }
 
+/* "Ver por quê" é controle: alvo de 32 px (a régua) SEM mudar o visual: a margem negativa devolve a folga e o rodapé não cresce. */
 .why {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin: -6px 0;
   padding: 0;
   border: 0;
   background: transparent;

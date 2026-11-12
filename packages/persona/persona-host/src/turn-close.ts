@@ -61,6 +61,11 @@ export interface TurnCloseFacts {
   readonly hadTools: boolean
   /** A hand-off she asked for is tracked and still pending (Forge's `pendingFromPersonaIn`). */
   readonly waitingColleague?: boolean
+  /**
+   * The HOST acts for her in this turn (the conversation routes, hands over, schedules): what she says she SENT, SCHEDULED or FINISHED can be true, so those claims are not
+   * judged. A FILE is different: the host never saves one in a conversation, so "salvei a planilha" without a file is always false and is still held.
+   */
+  readonly hostActs?: boolean
   readonly known?: KnownFacts
 }
 
@@ -73,6 +78,8 @@ export const FRESH_TURN_CLOSE: TurnCloseState = { pushes: [] }
 
 /** What the owner reads when her false "done" is held back. Plain words, no tool names. */
 export const SEM_PROVA_FALA = 'Eu ia dizer que estava pronto, mas nada foi feito de verdade: nenhum arquivo foi salvo e nada foi enviado.'
+/** What the owner reads when she gave up twice without ever trying a tool (the extra turn did not change it). */
+export const DESISTIU_FALA = 'Parei sem tentar nada por conta própria. Se você quiser, eu continuo.'
 /** What the owner reads when a secret was asked in the chat. */
 export const SEGREDO_FALA = 'Preciso de um acesso (senha, chave ou código) para seguir. Isso nunca vai pelo chat: guarde no Cofre e eu uso de lá.'
 
@@ -86,6 +93,11 @@ const MARKER = /\[\[[a-z][a-z0-9_-]*:[\s\S]*?\]\]/giu
 
 function withoutMarkers(text: string): string {
   return text.replace(MARKER, ' ').replace(/\r\n?/gu, '\n')
+}
+
+/** The technical fold of item 4 (a CLOSED `<details>…</details>`): not what the owner reads as her closing words, so a "?" inside it is no question and a "?" before it still is. An unclosed one is left alone: it never swallows the question. */
+function withoutFold(text: string): string {
+  return text.replace(/<details[\s\S]*?<\/details>/giu, ' ')
 }
 
 /** A line that introduces content she is handing over ("Aqui vai a descrição:", "Segue o texto:"): what follows, up to the next blank line, is the deliverable. */
@@ -184,7 +196,10 @@ const PASSIVE_FILE_STRONG = passive('salv(?:ad)?[oa]s?|(?:gravad|exportad|anexad
 const PASSIVE_SCHEDULE = passive('(?:agendad|programad|marcad|configurad)[oa]s?')
 const PASSIVE_MADE = passive('(?:criad|gerad|atualizad|editad|finalizad|montad|produzid|preparad|desenhad)[oa]s?')
 
-type ClaimClass = 'file' | 'file-weak' | 'send' | 'schedule' | 'generic'
+type ClaimClass = 'file' | 'file-weak' | 'send' | 'schedule' | 'destroy' | 'generic'
+
+/** What she says she REMOVED or MOVED ("Já apaguei o arquivo", "Removi a pasta antiga"): even where the host acts for her (a conversation: it forwards, it schedules) it never deletes, moves or installs anything. */
+const DESTROY_CLAIM = whole('apaguei|deletei|excluí|exclui|removi|limpei|descartei|renomeei|movi|copiei|instalei|desinstalei')
 
 function claimClassOf(sentence: string): ClaimClass | undefined {
   if (sentence.includes('?')) return undefined
@@ -197,6 +212,8 @@ function claimClassOf(sentence: string): ClaimClass | undefined {
   if (unnegated(place)) return 'file'
   const weak = FILE_WEAK.exec(sentence)
   if (unnegated(weak) && FILE_OBJECT.test(sentence.slice(weak!.index)) && !TEXT_OBJECT.test(sentence.slice(weak!.index + weak![0].length, weak!.index + weak![0].length + 24))) return 'file-weak'
+  const gone = DESTROY_CLAIM.exec(sentence)
+  if (unnegated(gone) && FILE_OBJECT.test(sentence.slice(gone!.index))) return 'destroy'
   if (unnegated(SEND_CLAIM.exec(sentence)) || unnegated(SEND_CLAIM_EN.exec(sentence))) return 'send'
   if (unnegated(SCHEDULE_CLAIM.exec(sentence))) return 'schedule'
   if (!BY_AGENT.test(sentence) && !PAST_FACT.test(sentence)) {
@@ -251,11 +268,13 @@ function claimGap(facts: TurnCloseFacts): ClaimGap | undefined {
     const kind = claimClassOf(sentence)
     if (kind === 'file' && !wrote) return { what: 'file' }
     if (kind === 'file-weak' && !wrote && !quoted) return { what: 'file' }
-    if (kind === 'send' && !sent) return { what: 'send' }
-    if (kind === 'schedule' && work.length === 0) return { what: 'schedule' }
+    if (kind === 'send' && !sent && facts.hostActs !== true) return { what: 'send' }
+    if (kind === 'schedule' && work.length === 0 && facts.hostActs !== true) return { what: 'schedule' }
+    // The host never deletes or moves anything for her, so no `hostActs` excuse; and a saved file proves nothing was removed: only a work tool does.
+    if (kind === 'destroy' && work.length === 0) return { what: 'destroy' }
   }
   const opened = scan.some(sentence => claimClassOf(sentence) === 'generic')
-  if (opened && !wrote && !hasSubstance(facts.words)) return { what: 'generic' }
+  if (opened && !wrote && facts.hostActs !== true && !hasSubstance(facts.words)) return { what: 'generic' }
   return undefined
 }
 
@@ -264,6 +283,7 @@ const WHAT: Record<ClaimClass, string> = {
   'file-weak': 'salvou ou criou um arquivo',
   send: 'enviou ou publicou algo',
   schedule: 'agendou ou configurou algo',
+  destroy: 'apagou, moveu ou alterou um arquivo',
   generic: 'terminou o trabalho',
 }
 
@@ -271,7 +291,7 @@ const WHAT: Record<ClaimClass, string> = {
 
 /** @param words - Her words. @returns Whether the LAST thing she wrote is a question (a sticker, an emoji or a closing mark after it does not count). */
 export function terminaPerguntando(words: string): boolean {
-  const cleaned = withoutMarkers(words).trim().replace(/[\s"'”’)\]}*_~`.\p{Extended_Pictographic}‍️]+$/u, '')
+  const cleaned = withoutFold(withoutMarkers(words)).trim().replace(/[\s"'”’)\]}*_~`.\p{Extended_Pictographic}\p{Emoji_Modifier}‍️]+$/u, '')
   if (/[?？؟]$/u.test(cleaned)) return true
   // A request for a decision with no question mark ("Me diga se posso mandar hoje.") is an open question too; a courtesy ("me avise se precisar") is not.
   const last = sentencesOf(cleaned).at(-1) ?? ''
@@ -282,7 +302,7 @@ const ASKS_FOR_DECISION = /(?:\bme (?:diga|avise|responda|confirme)\b|\bconfirme
 const JUST_COURTESY = /\bse (?:precisar|quiser|tiver|necess[áa]rio|houver|surgir|desejar)\b/iu
 
 function lastQuestion(words: string): string {
-  const asked = sentencesOf(proseOf(words)).filter(sentence => /[?？؟]/u.test(sentence))
+  const asked = sentencesOf(proseOf(withoutFold(words))).filter(sentence => /[?？؟]/u.test(sentence))
   return asked.at(-1) ?? ''
 }
 
@@ -335,6 +355,34 @@ const PREFERENCE = /prefer\w+|escolh\w+|gost\w+|quer que|deseja|melhor/iu
 
 export interface KnownAnswer { readonly label: string; readonly where: string; readonly value: string }
 
+/** A datum compared by what it IS (a phone by its digits without the country code, an e-mail in lower case), not by how it is written. */
+function datumKey(value: string): string {
+  const digits = value.replace(/\D/gu, '')
+  return digits.length >= 8 ? digits.replace(/^55(?=\d{10,11}$)/u, '') : value.trim().toLowerCase()
+}
+
+/**
+ * Carbon P1-01: a CONFIRMATION of a datum the owner already gave ("O WhatsApp (11) 91234-5678 é o número real?") carries the datum itself. When the very same one is in what the
+ * host knows, the question is answered already; a DIFFERENT number is a real doubt and goes to the owner.
+ */
+function confirmedDatum(question: string, known: KnownFacts): KnownAnswer | undefined {
+  for (const kind of KNOWN_KINDS) {
+    if (kind.datum === undefined || !kind.ask.test(question)) continue
+    const given = kind.datum.exec(question)
+    if (given === null) continue
+    const wanted = datumKey(given[0])
+    const sources: ReadonlyArray<readonly [string, string]> = [
+      ...known.ownerTexts.map(text => [text, 'na conversa'] as const),
+      ...(known.companyTexts ?? []).map(text => [text, 'no cadastro da empresa'] as const),
+    ]
+    for (const [text, where] of sources) {
+      const hit = kind.datum.exec(text)
+      if (hit !== null && datumKey(hit[0]) === wanted) return { label: kind.label, where, value: hit[0].trim() }
+    }
+  }
+  return undefined
+}
+
 function knownAnswerFor(words: string, known: KnownFacts | undefined): KnownAnswer | undefined {
   return knownAnswerToQuestion(lastQuestion(words), known)
 }
@@ -347,6 +395,8 @@ function knownAnswerFor(words: string, known: KnownFacts | undefined): KnownAnsw
  */
 export function knownAnswerToQuestion(question: string, known: KnownFacts | undefined): KnownAnswer | undefined {
   if (known === undefined) return undefined
+  const confirmed = confirmedDatum(question, known)
+  if (confirmed !== undefined) return confirmed
   if (question === '' || PREFERENCE.test(question) || !WANTS_THE_THING.test(question)) return undefined
   for (const kind of KNOWN_KINDS) {
     if (!kind.ask.test(question)) continue
@@ -414,6 +464,11 @@ export function closeTurn(facts: TurnCloseFacts, state: TurnCloseState = FRESH_T
     return stay({ kind: 'esperar-dono', motivo: 'perguntou', rule: 'perguntou=espera' })
   }
 
-  if (gaveUpWithoutTrying(facts) && roomFor('desistiu-cedo')) return push('desistiu-cedo', GAVE_UP_NOTE, 'desistiu-sem-tentar')
+  if (gaveUpWithoutTrying(facts)) {
+    if (roomFor('desistiu-cedo')) return push('desistiu-cedo', GAVE_UP_NOTE, 'desistiu-sem-tentar')
+    // Carbon P1-01: sent back FOR THIS REASON and she gave up AGAIN without trying a single tool: her refusal is not "feito"; the owner is offered to continue.
+    // (A "não consegui" after a false claim was sent back is another story: she did try, the call was refused: it is her honest limit and goes through.)
+    if (state.pushes.includes('desistiu-cedo')) return stay({ kind: 'cartao-continuar', motivo: 'limite', fala: DESISTIU_FALA, rule: 'desistiu-sem-tentar:orcamento' })
+  }
   return stay({ kind: 'feito', rule: 'ok' })
 }

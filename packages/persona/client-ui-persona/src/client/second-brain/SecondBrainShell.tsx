@@ -1,3 +1,4 @@
+import { randomUuid } from '../remote/random-id.ts'
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { BrainGrantView, BrainHomeView, BrainKindView, BrainPageView, ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
@@ -139,7 +140,7 @@ export function SecondBrainShell({
   /** Creates the page the person described (any type), then opens it to be written. */
   const createPage = useCallback(async (title: string, kind: BrainKindView) => {
     if (scope === null) return
-    const id = `page-${crypto.randomUUID()}`
+    const id = `page-${randomUuid()}`
     await putBrainPageRemote(persona, {
       workspaceId: scope.workspaceId,
       projectId: scope.projectId,

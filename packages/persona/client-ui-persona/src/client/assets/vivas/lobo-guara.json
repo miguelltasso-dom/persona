@@ -1,0 +1,45 @@
+{
+  "animal": "lobo-guara",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 200,
+    "top": 19,
+    "width": 596,
+    "height": 987
+  },
+  "size": [
+    290,
+    480
+  ],
+  "scale": 0.48632218844984804,
+  "mask": [
+    {
+      "x": -54,
+      "y": 15,
+      "w": 411,
+      "h": 370
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "lobo-guara-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "lobo-guara-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "lobo-guara-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "lobo-guara-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

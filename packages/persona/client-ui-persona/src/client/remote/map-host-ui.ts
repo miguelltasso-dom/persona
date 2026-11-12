@@ -466,6 +466,10 @@ export interface ActionPreviewUi {
   readonly personaName?: string
   readonly characterId?: PersonaCharacterId
   readonly to?: string
+  /** P0-10: os outros destinatários e os anexos aparecem na prévia (o host manda; nada fica escondido na hora de aprovar). */
+  readonly cc?: string
+  readonly bcc?: string
+  readonly attachments?: readonly string[]
   readonly subject?: string
   readonly body?: string
   readonly amount?: string
@@ -557,6 +561,9 @@ export interface DeliveryCardUi {
 /** O conteúdo de uma ação externa já limpo: o que a prévia mostra e o que o "Ver" mostra depois (só leitura). */
 export interface ActionContentUi {
   readonly to?: string
+  readonly cc?: string
+  readonly bcc?: string
+  readonly attachments?: readonly string[]
   readonly subject?: string
   readonly body?: string
   readonly amount?: string
@@ -643,6 +650,8 @@ export function mapFanoutLine(event: MessageView): FanoutLineUi | undefined {
 }
 
 export interface ChannelMessageUi {
+  /** COLHEITA-S1 P1-05: anexos da mensagem (só os ids). A bolha de áudio pede o tipo quando a mensagem aparece e os bytes só ao tocar. */
+  readonly attachments?: readonly { readonly id: string }[]
   readonly id: string
   readonly authorId: string
   readonly authorName: string
@@ -745,6 +754,9 @@ export function mapActionPreview(event: MessageView, team: TeamView): ActionPrev
   const failureReason = clean(preview.failureReason)
   const sentAt = clean(preview.sentAt)
   const expiresAt = clean(preview.expiresAt)
+  const cc = clean(preview.cc)
+  const bcc = clean(preview.bcc)
+  const attachments = (preview.attachments ?? []).map(name => name.trim()).filter(name => name !== '')
   return {
     approvalId: preview.approvalId,
     actionClass: preview.actionClass,
@@ -754,6 +766,9 @@ export function mapActionPreview(event: MessageView, team: TeamView): ActionPrev
     ...(personaName === '' ? {} : { personaName }),
     ...(persona === undefined ? {} : { characterId: resolveCharacterId(persona, persona.id) }),
     ...(to === undefined ? {} : { to }),
+    ...(cc === undefined ? {} : { cc }),
+    ...(bcc === undefined ? {} : { bcc }),
+    ...(attachments.length === 0 ? {} : { attachments }),
     ...(subject === undefined ? {} : { subject }),
     ...(body === undefined ? {} : { body }),
     ...(amount === undefined ? {} : { amount }),
@@ -1124,6 +1139,7 @@ export function mapMessage(
     ...(teamReview === undefined ? {} : { teamReview }),
     ...(taskProposal === undefined ? {} : { taskProposal }),
     ...(steeredName === undefined ? {} : { steeredPersonaName: steeredName }),
+    ...((event.attachmentIds ?? []).length === 0 ? {} : { attachments: (event.attachmentIds ?? []).map(id => ({ id })) }),
     ...(event.streaming === true ? { streaming: true as const } : {}),
     ...(event.stopped === true ? { stopped: true as const } : {}),
     ...(typeof event.replyToId === 'string' && event.replyToId !== '' ? { replyToId: event.replyToId } : {}),

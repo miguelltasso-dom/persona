@@ -14,6 +14,7 @@ export type MainPanelId =
   | 'files'
   | 'usage'
   | 'connections'
+  | 'tools'
   | 'cofre'
   | 'channels'
   | 'directMessages'
@@ -48,6 +49,8 @@ export interface ShellState {
   readonly profilePersonaId: string | null
   /** Profile panel shows {@link ConnectedPersonaEditor} instead of the summary hero. */
   readonly profileEditorOpen: boolean
+  /** Item 16 ("Ver em Skills"): the profile opens on this tab; dropped as soon as another persona or another panel is chosen. */
+  readonly profileInitialTab?: 'skills' | null | undefined
   /** PB-5: Quadros opens this project once (consumed by ConnectedGlobalKanban). */
   readonly boardsFocusProjectId: string | null
   /** PRO-4: Visão geral → cartão no quadro global (consumed by ConnectedGlobalKanban). */
@@ -89,6 +92,8 @@ export interface ShellActions {
   unlockOnboardingForFirstDelivery(): void
   dismissOnboarding(): void
   setProfilePersonaId(personaId: string | null): void
+  /** Item 16: that persona's profile, on the Skills tab ("Virou skill · Ver em Skills"). */
+  openPersonaSkills(personaId: string): void
   /** Open persona editor on the profile panel (existing persona). */
   openPersonaEditor(personaId: string): void
   closePersonaEditor(): void
@@ -155,6 +160,7 @@ export function createShellStore(): {
         activePanel,
         searchOpen: false,
         ...(activePanel !== 'help' ? { helpDocId: null, helpTab: null } : {}),
+        ...(activePanel !== 'profile' ? { profileInitialTab: null } : {}),
       })
     },
     openSearch: () => {
@@ -192,7 +198,10 @@ export function createShellStore(): {
       })
     },
     setProfilePersonaId: (profilePersonaId) => {
-      store.set({ ...store.getSnapshot(), profilePersonaId })
+      store.set({ ...store.getSnapshot(), profilePersonaId, profileInitialTab: null })
+    },
+    openPersonaSkills: (personaId) => {
+      store.set({ ...store.getSnapshot(), activePanel: 'profile', searchOpen: false, profilePersonaId: personaId, profileEditorOpen: false, profileInitialTab: 'skills' })
     },
     openPersonaEditor: (personaId) => {
       store.set({

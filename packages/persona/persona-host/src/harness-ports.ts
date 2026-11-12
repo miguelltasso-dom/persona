@@ -33,7 +33,7 @@ export interface BrowserLoginPort {
    * @param input - The Cofre login as the person named it, and the Task that asked.
    * @returns Whether it was typed, with the sentence the model reads; never the password, never the page.
    */
-  open(who: HarnessIdentity, input: { readonly login: string; readonly ticketId: string }):
+  open(who: HarnessIdentity, input: { readonly login: string; readonly ticketId: string; readonly code?: boolean }):
   Promise<{ readonly ok: true; readonly typed: boolean; readonly message: string } | { readonly ok: false; readonly code: string; readonly message: string }>
 }
 

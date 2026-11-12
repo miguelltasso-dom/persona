@@ -65,6 +65,10 @@ export interface SessionPoolKey {
   connectors?: string
   /** HT-11: the person's skills are on. A runner opened with them must not be handed to a call that has them off. */
   skills?: boolean
+  /** P0-05: the URL of the permission gate the runner's hook points at (a gate lives and dies with its Task: a runner opened for another one talks to a closed port). */
+  gate?: string
+  /** P0-05: the runner carries the product's browser server (a persona with a profile grant): one opened without it must not serve a call that has it, nor the reverse. */
+  browser?: boolean
 }
 
 /**
@@ -72,7 +76,7 @@ export interface SessionPoolKey {
  * @param input - Persona, project, purpose, runner, model, cwd.
  */
 export function sessionPoolKey(input: SessionPoolKey): string {
-  return `${input.personaId}|${input.projectId}|${input.purpose}|${input.provider}|${input.model}|${input.cwd ?? ''}|${input.permissionMode ?? ''}|${input.toolLevel ?? ''}|${input.accountId ?? ''}${input.effort === undefined ? '' : `|${input.effort}`}${input.connectors === undefined ? '' : `|c:${input.connectors}`}${input.skills === true ? '|k:1' : ''}`
+  return `${input.personaId}|${input.projectId}|${input.purpose}|${input.provider}|${input.model}|${input.cwd ?? ''}|${input.permissionMode ?? ''}|${input.toolLevel ?? ''}|${input.accountId ?? ''}${input.effort === undefined ? '' : `|${input.effort}`}${input.connectors === undefined ? '' : `|c:${input.connectors}`}${input.skills === true ? '|k:1' : ''}${input.gate === undefined ? '' : `|g:${input.gate}`}${input.browser === true ? '|b:1' : ''}`
 }
 
 interface Slot<T> {

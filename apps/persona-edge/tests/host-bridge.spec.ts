@@ -8,6 +8,8 @@ import { unstable_dev, type Unstable_DevWorker } from 'wrangler'
 import type PersonaHost from '../../../packages/persona/persona-host/src/index.ts'
 import { openRemoteTeamHarness, type RemoteTeamHarness } from '../../../packages/persona/persona-host/tests/remote-team-harness.ts'
 import { RemoteTeamHost } from '../../../packages/persona/persona-host/src/remote-team.ts'
+import { deviceOf } from './host-device.ts'
+import { newDevice, signedAs } from './signed-fetch.ts'
 
 let edge: Unstable_DevWorker | undefined
 const profiles: RemoteTeamHarness[] = []
@@ -64,35 +66,39 @@ it('bridges a newly posted channel message, isolates DM/other channels, resumes 
   expect(JSON.stringify(a.store.db.prepare('SELECT body FROM screen_doc').all())).not.toContain(invite.token)
   await b.acceptInvite({ ...scope, edgeUrl, token: invite.token })
   expect(b.getRemoteTeamState(scope)?.role).toBe('member')
+  // Following the link only ASKED: bob waits (offline, pending) until alice approves, and alice sees the security code to confirm with him.
+  expect(b.getRemoteTeamState(scope)).toMatchObject({ status: 'offline', errorCode: 'PENDING_APPROVAL' })
+  const waiting = await a.remoteTeam.joinRequests(scope)
+  expect(waiting).toEqual([expect.objectContaining({ actorId: 'bob', securityCode: expect.stringMatching(/^[0-9a-f]{4}( [0-9a-f]{4}){4}$/u) })])
+  await a.remoteTeam.approveJoinRequest(scope, waiting[0]?.id ?? '')
+  const asBob = signedAs(fetch, await deviceOf(b, 'bob'))
+  const asAlice = signedAs(fetch, await deviceOf(a, 'alice'))
   expect(await a.listRemoteMembers(scope)).toEqual(expect.arrayContaining([
     expect.objectContaining({ actorId: 'alice', displayName: 'alice', role: 'owner', status: 'active' }),
     expect.objectContaining({ actorId: 'bob', displayName: 'bob', role: 'member', inviteId: invite.id, status: 'active' }),
   ]))
-  const deniedMembers = await fetch(`${edgeUrl}/w/${scope.workspaceId}/members?projectId=shared`, {
-    headers: { 'x-persona-actor': 'stranger' },
-  })
-  expect(deniedMembers.status).toBe(403)
-  const deniedProjectMembers = await fetch(`${edgeUrl}/w/${scope.workspaceId}/members?projectId=not-granted`, {
-    headers: { 'x-persona-actor': 'bob' },
-  })
+  const deniedMembers = await signedAs(fetch, newDevice('stranger'))(`${edgeUrl}/w/${scope.workspaceId}/members?projectId=shared`)
+  expect(deniedMembers.status).toBe(401) // a stranger is not even a member: the hub does not know that key
+  const deniedProjectMembers = await asBob(`${edgeUrl}/w/${scope.workspaceId}/members?projectId=not-granted`)
   expect(deniedProjectMembers.status).toBe(403)
   const guestInvite = await a.issueInvite({ ...scope, inviteId: 'guest-proof', token: '', role: 'guest' })
-  const guestRedeem = await fetch(`${edgeUrl}/w/${scope.workspaceId}/invites/redeem`, {
+  // The guest asks with a body that CLAIMS owner rights and private projects: the hub ignores every claim, and what the owner approves is only the invite's grant.
+  const guestDevice = newDevice('guest-proof')
+  const guestAsk = await signedAs(fetch, guestDevice)(`${edgeUrl}/w/${scope.workspaceId}/invites/${guestInvite.token}/request`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ token: guestInvite.token, actor: { kind: 'user', id: 'guest-proof', workspaceId: scope.workspaceId,
-      workspaceRole: 'owner', projectIds: ['private-project'], dmIds: ['private-dm'], displayName: 'Convidada' } }),
+    body: JSON.stringify({ actorId: 'guest-proof', displayName: 'Convidada', keys: guestDevice.keys,
+      workspaceRole: 'owner', projectIds: ['private-project'], dmIds: ['private-dm'] }),
   })
-  expect(guestRedeem.status).toBe(200)
-  const guest = await guestRedeem.json()
+  expect(guestAsk.status).toBe(200)
+  const guestRequest = (await guestAsk.json()) as { request: { id: string } }
+  const guest = await a.remoteTeam.approveJoinRequest(scope, guestRequest.request.id)
   expect(guest).toMatchObject({ actor: { workspaceRole: 'guest', projectIds: ['shared'] } })
   expect(JSON.stringify(guest)).not.toContain('private-project')
   expect(JSON.stringify(guest)).not.toContain('private-dm')
   await expect(b.issueInvite({ ...scope, inviteId: 'escalate', token: '', role: 'member' })).rejects.toThrow('forbidden')
   await expect(b.connectRemoteTeam({ ...scope, edgeUrl, channelIds: [GENERAL, 'local'] }))
     .rejects.toThrow('remote-team-owner-required')
-  const forbiddenChannel = await fetch(`${edgeUrl}/w/${scope.workspaceId}/sync/after?streamId=project:shared:channel:local`, {
-    headers: { 'x-persona-actor': 'bob' },
-  })
+  const forbiddenChannel = await asBob(`${edgeUrl}/w/${scope.workspaceId}/sync/after?streamId=project:shared:channel:local`)
   expect(forbiddenChannel.status).toBe(403)
   expect(await forbiddenChannel.json()).toMatchObject({ code: 'CHANNEL_NOT_GRANTED' })
 
@@ -114,8 +120,11 @@ it('bridges a newly posted channel message, isolates DM/other channels, resumes 
   expect(b.listTasks(scope)).toEqual([])
   await b.syncRemoteTeam(scope)
   expect(channel(b).filter(body => body === 'Mensagem NOVA só do A')).toHaveLength(1)
+  // bob holds everything the edge holds (alice's message and the line the coordination wrote beside it): the exact count is not what this proves
+  const headOf = async (): Promise<number> => ((await (await asAlice(`${edgeUrl}/w/${scope.workspaceId}/sync/head?streamId=${encodeURIComponent(STREAM)}`)).json()) as { head: number }).head
   const firstCursor = b.getRemoteTeamState(scope)?.cursors[STREAM]
-  expect(firstCursor).toBe(1)
+  expect(firstCursor).toBe(await headOf())
+  expect(firstCursor).toBeGreaterThanOrEqual(1)
 
   say(a, 'offline-message', 'A publicou enquanto B estava fora')
   await a.syncRemoteTeam(scope)
@@ -125,12 +134,11 @@ it('bridges a newly posted channel message, isolates DM/other channels, resumes 
   try {
     await restored.sync(scope)
     expect(channel(b)).toContain('A publicou enquanto B estava fora')
-    expect(restored.state(scope)?.cursors[STREAM]).toBe(2)
+    expect(restored.state(scope)?.cursors[STREAM]).toBe(await headOf())
+    expect(restored.state(scope)?.cursors[STREAM]).toBeGreaterThan(firstCursor ?? 0)
     await a.revokeMember({ ...scope, inviteId: invite.id })
     expect((await a.listRemoteMembers(scope)).find(row => row.actorId === 'bob')?.status).toBe('revoked')
-    const deniedRoster = await fetch(`${edgeUrl}/w/${scope.workspaceId}/members?projectId=shared`, {
-      headers: { 'x-persona-actor': 'bob' },
-    })
+    const deniedRoster = await asBob(`${edgeUrl}/w/${scope.workspaceId}/members?projectId=shared`)
     expect(deniedRoster.status).toBe(403)
     say(a, 'after-revoke', 'B não pode receber esta')
     await a.syncRemoteTeam(scope)
@@ -143,9 +151,7 @@ it('bridges a newly posted channel message, isolates DM/other channels, resumes 
   } finally {
     await restored.dispose()
   }
-  const remote = await fetch(`${edgeUrl}/w/${scope.workspaceId}/sync/after?streamId=${encodeURIComponent(STREAM)}&afterSeq=0`, {
-    headers: { 'x-persona-actor': 'alice' },
-  })
+  const remote = await asAlice(`${edgeUrl}/w/${scope.workspaceId}/sync/after?streamId=${encodeURIComponent(STREAM)}&afterSeq=0`)
   const remoteBody = await remote.text()
   expect(remoteBody).not.toContain('DM nunca sai')
   expect(remoteBody).not.toContain('Canal não autorizado')

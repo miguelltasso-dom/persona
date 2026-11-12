@@ -46,7 +46,7 @@
   "empty.column.todo": "Nada na fila ainda",
   "empty.column.doing": "Nada em andamento agora",
   "empty.column.review": "Nada em revisão agora",
-  "empty.column.needs_you": "Nada esperando você",
+  "empty.column.needs_you": "Nada esperando por você",
   "empty.column.done": "Nada concluído ainda",
   "empty.column.blocked": "Nenhum travamento",
   "empty.addTask": "+ Tarefa",
@@ -84,6 +84,11 @@
   "thread.loading": "Abrindo a conversa…",
   "thread.error": "Não deu para abrir a conversa agora. Tente de novo.",
   "thread.retry": "Tentar de novo",
+  "thread.sendFailed": "Não deu para enviar. Tente de novo.",
+  "thread.detail.project": "Projeto",
+  "thread.detail.column": "Etapa",
+  "thread.detail.assignee": "Quem cuida",
+  "thread.detail.due": "Prazo",
   "card.flowField": "{label} · {value}",
   "chip.dependencyCount": "Depende de {count}",
   "chip.evidenceCount": "{count} anexos",
@@ -260,5 +265,6 @@
   "projects.history.open": "Histórico",
   "projects.history.back": "Voltar ao quadro",
   "projects.options": "Opções",
-  "boards.filterLabel": "Filtrar projetos"
+  "boards.filterLabel": "Filtrar projetos",
+  "card.doneBy": "Feito por {name}"
 }

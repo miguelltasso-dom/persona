@@ -8,6 +8,7 @@ import {
   type SyncEnvelope,
   type SyncLog,
 } from '@deepseek-ai/dsh-persona-core'
+import type { RequestSigner } from './request-sign.ts'
 
 /** Result of one upload. */
 export interface PushResult {
@@ -85,28 +86,28 @@ export class HttpTransport implements SyncTransport {
   readonly baseUrl: string
   readonly workspaceId: string
   readonly fetchImpl: typeof fetch
-  readonly actorId?: string
+  /** Signs every request (Ed25519): the hub knows who calls by this proof, never by a header the caller sets. */
+  readonly signer?: RequestSigner
 
   /**
    * @param baseUrl - Worker origin, no trailing slash.
    * @param workspaceId - Workspace.
    * @param fetchImpl - Injected fetch (tests).
-   * @param actorId - Desktop member; sent as `x-persona-actor` so revoke can cut sync.
+   * @param signer - This device's signer (the member's id and Ed25519 seed). Without one every call to a hub is refused with 401.
    */
-  constructor(baseUrl: string, workspaceId: string, fetchImpl: typeof fetch = fetch, actorId?: string) {
+  constructor(baseUrl: string, workspaceId: string, fetchImpl: typeof fetch = fetch, signer?: RequestSigner) {
     this.baseUrl = baseUrl
     this.workspaceId = workspaceId
     this.fetchImpl = fetchImpl
-    if (actorId !== undefined) this.actorId = actorId
+    if (signer !== undefined) this.signer = signer
   }
 
   /**
    * @param extra - Request headers to merge.
+   * @param request - What is about to be sent (the signature covers it).
    */
-  headers(extra: Record<string, string> = {}): Record<string, string> {
-    return this.actorId === undefined
-      ? extra
-      : { ...extra, 'x-persona-actor': this.actorId }
+  headers(extra: Record<string, string> = {}, request?: { readonly method: string; readonly target: string; readonly body?: string | Uint8Array }): Record<string, string> {
+    return this.signer === undefined || request === undefined ? extra : { ...extra, authorization: this.signer.authorize(request) }
   }
 
   /**
@@ -114,10 +115,12 @@ export class HttpTransport implements SyncTransport {
    */
   async append(envelope: SyncEnvelope): Promise<PushResult> {
     try {
-      const response = await this.fetchImpl(`${this.baseUrl}/w/${this.workspaceId}/sync/append`, {
+      const target = `/w/${this.workspaceId}/sync/append`
+      const sent = JSON.stringify(envelope)
+      const response = await this.fetchImpl(`${this.baseUrl}${target}`, {
         method: 'POST',
-        headers: this.headers({ 'content-type': 'application/json' }),
-        body: JSON.stringify(envelope),
+        headers: this.headers({ 'content-type': 'application/json' }, { method: 'POST', target, body: sent }),
+        body: sent,
       })
       const body: unknown = await response.json()
       if (typeof body !== 'object' || body === null) return { status: 'offline', seq: 0 }
@@ -134,10 +137,8 @@ export class HttpTransport implements SyncTransport {
    */
   async after(streamId: string, afterSeq: number): Promise<readonly SyncEnvelope[]> {
     try {
-      const response = await this.fetchImpl(
-        `${this.baseUrl}/w/${this.workspaceId}/sync/after?streamId=${encodeURIComponent(streamId)}&afterSeq=${afterSeq}`,
-        { headers: this.headers() },
-      )
+      const target = `/w/${this.workspaceId}/sync/after?streamId=${encodeURIComponent(streamId)}&afterSeq=${afterSeq}`
+      const response = await this.fetchImpl(`${this.baseUrl}${target}`, { headers: this.headers({}, { method: 'GET', target }) })
       const body: unknown = await response.json()
       if (!response.ok) {
         const code = typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string'

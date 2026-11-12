@@ -29,13 +29,15 @@
   "files": [
     "lib/index.js",
     "lib/client.js",
+    "lib/client.vosk-module.js",
     "lib/assets",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
   "dependencies": {
     "@deepseek-ai/dsh-persona-core": "workspace:*",
-    "@deepseek-ai/dsh-persona-host": "workspace:*"
+    "@deepseek-ai/dsh-persona-host": "workspace:*",
+    "@deepseek-ai/dsh-util-crypto": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

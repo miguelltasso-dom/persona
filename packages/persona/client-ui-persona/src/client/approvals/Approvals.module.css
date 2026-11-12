@@ -137,6 +137,16 @@
   color: var(--persona-ink);
 }
 
+/* A title that names a way of working (item 16): two lines at most, "…" after that; the whole name is in the title attribute (hover). */
+.questionClamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
 .context {
   margin: 0;
   font-size: 0.9375rem;

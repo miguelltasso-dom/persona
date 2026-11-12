@@ -1,0 +1,75 @@
+/* COLHEITA 18 — o Quadro e o painel da conversa lado a lado. Fechado, o invólucro some (`display: contents`): o Quadro fica onde sempre esteve. */
+.layout {
+  display: contents;
+}
+
+.layout[data-task-conversation-open] {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+/* O quadro encolhe e rola; o painel (440 px) fica à direita. */
+.layout[data-task-conversation-open] > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+}
+
+/* O miolo da conversa da tarefa: o fio rola, o campo de escrever fica embaixo. */
+.conversation {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--persona-space-3) var(--persona-space-4);
+}
+
+.composer {
+  flex: 0 0 auto;
+  padding: var(--persona-space-3) var(--persona-space-4) var(--persona-space-4);
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.note {
+  margin: 0;
+  padding: var(--persona-space-6) var(--persona-space-4);
+  text-align: center;
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  margin: 0;
+  padding: var(--persona-space-4);
+}
+
+.details div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.details dt {
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.details dd {
+  margin: 0;
+  font: 500 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}

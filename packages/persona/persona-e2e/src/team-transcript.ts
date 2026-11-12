@@ -322,7 +322,12 @@ export function readTeamTranscript(home: string): TeamTranscript | undefined {
       const asks: TranscriptAsk[] = []
       const lines: TranscriptLine[] = table(db, 'event')
         ? (db.prepare('SELECT id, stream_id, type, body, actor_id, occurred_at, occurred_at_utc FROM event WHERE deleted = 0 AND type IN (' + VISIBLE_EVENT_TYPES.map(() => '?').join(', ') + ') ORDER BY occurred_at_utc, seq').all(...VISIBLE_EVENT_TYPES) as Array<{
-          id: string; stream_id: string; type: string; body: string; actor_id: string; occurred_at: string
+          id: string
+          stream_id: string
+          type: string
+          body: string
+          actor_id: string
+          occurred_at: string
         }>).filter(row => !TECHNICAL_ACTOR.test(row.actor_id)).map((row) => {
           const ask = askOf(row.id, row.body, names)
           if (ask !== undefined) asks.push(ask)
@@ -340,7 +345,11 @@ export function readTeamTranscript(home: string): TeamTranscript | undefined {
         : []
       const tickets: TranscriptTicket[] = table(db, 'engine_ticket')
         ? (db.prepare('SELECT id, stage, assignment_state, ended, body FROM engine_ticket ORDER BY updated_at').all() as Array<{
-          id: string; stage: string; assignment_state: string | null; ended: number; body: string
+          id: string
+          stage: string
+          assignment_state: string | null
+          ended: number
+          body: string
         }>).map((row) => {
           let title = row.id
           let trigger: string | undefined
@@ -535,7 +544,11 @@ export function readRecentEvents(home: string, limit = 40): Array<{ id: string; 
     try {
       if (!table(db, 'event')) return []
       const rows = db.prepare('SELECT id, stream_id, type, actor_id, body FROM event WHERE deleted = 0 ORDER BY occurred_at_utc DESC, seq DESC LIMIT ?').all(limit) as Array<{
-        id: string; stream_id: string; type: string; actor_id: string; body: string
+        id: string
+        stream_id: string
+        type: string
+        actor_id: string
+        body: string
       }>
       return rows.reverse().map(row => ({ id: row.id, stream: row.stream_id, type: row.type, author: row.actor_id, body: row.body.replace(/\s+/gu, ' ').slice(0, 220) }))
     } finally {

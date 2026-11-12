@@ -1,0 +1,45 @@
+{
+  "animal": "cervo",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 175,
+    "top": 20,
+    "width": 670,
+    "height": 984
+  },
+  "size": [
+    327,
+    480
+  ],
+  "scale": 0.4878048780487805,
+  "mask": [
+    {
+      "x": 2,
+      "y": 58,
+      "w": 325,
+      "h": 303
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "cervo-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "cervo-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "cervo-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "cervo-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

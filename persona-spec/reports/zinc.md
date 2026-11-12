@@ -181,3 +181,62 @@ Mesma classe do H15b: o segredo do webhook do GitHub era lido do corpo de um reg
 - Leitura: **nenhum remote novo** — `listTurnActivity` já serve; a UI da Quill pede com `subjectId` = id da mensagem respondida (contrato enviado a ela).
 
 **Provas.** `talk-activity.spec` 2/2: turno com 3 ferramentas (Read, Bash, Write) gera 1 grupo com 3 passos, kinds `command/file/read` (ordem do fold: kind e depois hora), instantes preservados e status `done`; turno sem ferramenta não gera nada. `check-pkg persona-host` OK. CRLF de `orchestration.ts` preservado.
+
+## Parar — diagnóstico do bug (aberto, pós-congelamento)
+
+**Sintoma (Gauge/Forge).** O dono aperta Parar numa persona trabalhando e o fio ganha "Não consegui responder." + cartão `engine_unavailable`: ele parou de propósito e lê que o motor caiu.
+
+**Causa (fechada por leitura do fluxo).** Em `settleTask` o host lê `stoppedNow = this.stopped.delete(ticket.id)` ANTES do turno. O Parar chega em `takeLive(runner)` (depois dessa leitura) e `runTicketCommand('stop')` chamava `engine.stopTicket` direto — sem marcar `stopped` e sem cancelar o turno vivo. A Tarefa termina como `stopped` (humano), mas o laço segue: o report do runner é `failed` e a linha ~2911 posta `runErrorLine(engine_unavailable)`.
+
+**Conserto (parcial já no tree).** `runTicketCommand('stop')` agora roteia por `orchestration.stopTicketRun` (cancela o turno vivo e marca o stop) — typecheck OK, `acceptance-item1-parada`/`conductor` 12/12.
+
+**Falta (fila pós-congelamento).** (1) `stopTicketRun` marca `stopped` sempre que a Tarefa está aberta (hoje só com runner `running`); (2) `settleTask` consome o stop logo após `takeLive` e `continue`; (3) `reportRunFailure`/`reportResolveFailure` saem cedo, sem linha, quando a Tarefa está em `stopped`. Repro: `tests/acceptance-parar-sem-erro.red.ts` (Gauge), fora da suíte; verde → renomear para `.host.spec.ts`.
+
+## Parar — FECHADO (12/11 02:20)
+
+Conserto aplicado: `stopTicketRun` marca `stopped` sempre que a Tarefa está aberta (não só com runner `running`); `settleTask` consome o stop logo após `takeLive` e dá `continue` (nada do turno é postado); `reportRunFailure` sai cedo, sem linha, quando a Tarefa está em `stopped`. O repro do Gauge passou e virou `tests/acceptance-parar-sem-erro.host.spec.ts` (na suíte). Regressão: `acceptance-item1-parada` + `conductor` + as duas `-red` + `background-work` + `talk-activity` = 23/23.
+
+## Cofre — remotes pedidos por Lumen/Flint (FECHADO, 12/11 02:20)
+
+- `cofreStatus({workspaceId, projectId}) => { sealable }` (campo `cofreSealable`, do `canSealCofre`): a tela desabilita Logins/Chaves sem DPAPI antes de tentar salvar.
+- `saveConnectorSecret({provider, secret})` sela em `connector:<provider>` — o slot que `CofreSecretVault.get` lê (19b: formulário IMAP) — e `connectorSecretState({provider}) => { hasSecret }`, sem nunca devolver o segredo. `CofreHost.putSecret`/`hasSecret` são a fachada.
+- `CofreCodeRequestView.site?: string`: o login que a persona informou (truncado em 60, sem segredo); `VaultCodePorts` grava em `site` em vez de colar no `reason`.
+- `saveCofreLogin`/`saveCofreKey` com `id` e `password`/`secret` ausente mantêm o selado e só atualizam metadados; sem `id` ou sem slot, recusam com frase clara.
+- Hook do #6 endurecido: `recordActivity` em try/catch (bookkeeping nunca vira erro na cara da pessoa).
+- Provas: `cofre-host` 7/7 (4 casos novos), `harness-vault` 2/2, `cofre-2fa` 2/2, `talk-activity` 2/2. Lint dos meus arquivos (src + tests) com `node node_modules/oxlint/bin/oxlint --config .oxlintrc.staged.json`: exit 0.
+
+## Item 26.4 — catálogo "Ferramentas do seu negócio" (host, FECHADO 12/11 02:31)
+
+Fatia 26.4 do PLUGINS-GAP, lado HOST (a tela fica com Lumen/Muse consumindo o remote).
+
+- `H/connector-catalog.ts` (novo): catálogo curado com 35 ferramentas de pequeno negócio BR, 7 categorias (Vendas e loja · Pagamentos · Atendimento · Agenda e e-mail · Documentos · Redes sociais · Gestão), uma frase PT por cartão e o `via` do documento: `claude-account` (Gmail/Agenda/Drive/Planilhas, os da conta claude.ai), `official` (Stripe, Shopify, Notion — os únicos com servidor oficial listado SEM "(confirmar)"), `token` (Telegram/Slack/Discord/IMAP, que já existem como fontes) e `unconfirmed` para todo o resto.
+- Regra de promessa: `promised = via !== 'unconfirmed'`; entrada não confirmada é "Em breve" e nunca oferece "Conectar". Só `official` carrega `url`, e só quando o documento a lista (nada inventado).
+- `linked` é decidido no host: cruza os grants do time (`ConnectorGrantsHost.list`) e os conectores da conta (`ConnectorPorts.availableConnectors('claude')`), por nome normalizado.
+- Remote aditivo `getConnectorCatalog(ProjectScopeRequest) => ConnectorCatalogView` (leitura, `requireProject`); tipos re-exportados em `H/types.ts`.
+- Provas: `connector-catalog.spec` 3/3 (toda entrada tem categoria/frase/via; unconfirmed sem URL e sem promessa; grant e conta marcam `linked`; host novo responde com nada ligado). Lint exit 0; `check-pkg persona-host` só com o erro do `remote-team.ts` (Bolt).
+
+## Item 26.8 — saúde dos conectores em PT (host, FECHADO 12/11 02:35)
+
+- `H/connector-health.ts` (novo): `connectorHealth({ grants, available, connections, tokens, personaNameOf })` devolve uma linha por conector com `state` (`ok|reconnect|offline|permission|missing`), `action` (`none|reconnect|retry|remove`) e a frase em PT montada aqui — o texto cru do fornecedor nunca entra nela.
+- Regras: conector sumiu da lista da CLI → `missing`/`remove`; CLI não instalada → `offline`/`retry`; CLI deslogada → `reconnect`/`reconnect`; sondagem ainda rodando (`phase: 'checking'`) → **nenhuma linha** (nunca "sem login"); provedor com token sem slot → `reconnect`, com slot → `ok`.
+- `TOKEN_PROVIDERS` (IMAP, SMTP, Telegram, Slack, Discord, CalDAV) com os nomes da tela.
+- Remote aditivo `getConnectorHealth(ProjectScopeRequest)` (leitura): cruza grants, `ConnectorPorts.availableConnectors` das 4 CLIs, `connections.list()` e `cofre.hasSecret(projectId, connector:<provider>)`.
+- Fora desta fatia (dependem do proxy 26.1): "Testar agora" e a checagem leve de 15 min.
+- Provas: `connector-health.spec` 4/4. Lint exit 0; `check-pkg persona-host` só com o erro do `remote-team.ts` (Bolt).
+
+## Item 26.10/26.11 — importar skill por link do GitHub (host, FECHADO 12/11 02:50)
+
+- `H/skill-import.ts` (novo, puro): `parseSkillLink` (github.com/o/r, /tree/ref/path, /blob/ref/.../SKILL.md; outra origem = undefined), `readArchive` (tar.gz em memória: ≤8 MB, ≤200 arquivos, ≤512 KB por arquivo, recusa caminho com `..`/absoluto/drive, ignora symlink e diretório, só texto), `frontmatter` (name/description obrigatórios), `skillCandidates` (marca `hasScripts`; script NUNCA roda), `skillHash`, `archiveUrl` (só codeload.github.com).
+- `H/skill-import-host.ts` (novo): `preview` (baixa com `redirect: 'error'` — nenhum salto de host — e sem dado do usuário), `import` (grava via `ScreensHost.importSkill`), `refresh` (mesmo hash = nada muda; hash novo = `stageSkillUpdate`, espera aprovação) e `approve`.
+- `H/screens.ts`: `StoredSkill` ganhou `source`/`untrusted`; `importSkill`, `stageSkillUpdate`, `pendingSkillUpdate`, `approveSkillUpdate` (histórico preservado, então o `rollbackSkill` existente desfaz). `SkillView` no fio ganhou `source?`/`untrusted?`.
+- `H/index.ts`: remotes `previewSkillImport`, `importSkills`, `refreshSkill`, `approveSkillUpdate` (leitura com `requireProject`, escrita com `requireWrite`; `SkillImportError` vira `HostRemoteFault('invalid-payload', frase PT)`).
+- Conteúdo importado é DADO: `untrusted: true` no doc e no fio; nenhuma ferramenta é pedida e nenhuma regra muda por causa dele.
+- Provas: `skill-import.spec` 6/6 (parser; traversal/symlink/tamanho/contagem; frontmatter; scripts marcados; preview só em codeload com redirect recusado; import com source+untrusted; refresh igual = nada, novo = espera aprovação e aprova v2; link não-GitHub recusado sem download). Lint exit 0; `check-pkg persona-host` OK.
+
+## Item 26 onda B — tokens OAuth de MCP no Cofre (host, FECHADO 12/11 02:55)
+
+- `H/oauth-vault.ts` (novo): `OAuthVault` com duas metades — segredo em slot selado `oauth:<provider>:<account>` (DPAPI, via `CofreSecrets`) e metadado não-secreto em `screen_doc` (`oauth_credential`). `save`, `tokens` (host-only), `rotate`, `drop`, `list`.
+- Rotação serializada por conexão: duas chamadas concorrentes fazem UMA chamada de rede (o provedor recusa a segunda tentativa de refresh); a segunda espera e recebe o mesmo resultado.
+- `H/index.ts`: campo `oauthVault` + remote de leitura `listOAuthCredentials` (metadados, nunca token). Nenhum remote, evento ou prompt carrega token.
+- Contrato para o Lumen (proxy MCP da onda B): `persona-spec/contracts/mcp-oauth-cofre.md`.
+- Provas: `oauth-vault.spec` 4/4 (metadado visível e token selado; rotação concorrente = 1 chamada e metadado atualizado; drop limpa os dois; valor ilegível e conexão ausente recusam com `OAuthVaultError`). Lint exit 0; `check-pkg persona-host` OK.

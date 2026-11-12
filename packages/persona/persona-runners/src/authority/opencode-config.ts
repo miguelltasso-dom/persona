@@ -12,6 +12,7 @@
  *  - `edit` is `allow` only with a file grant and a draft; `external_directory` is always `deny`, so a tool never reaches outside the project directory of the session
  *    (the draft). OpenCode defines the project directory as the Git root of the working directory: a draft that sits inside a larger repository reaches that whole repository;
  *  - `webfetch` follows the web grant;
+ *  - everything else is `deny` by default (`"*": "deny"`), and the reading tools (`read`, `glob`, `grep`, `list`) are allowed explicitly;
  *  - reading files is not held back: OpenCode reads anything the person's user can read.
  * Pure: builds a JSON string.
  */
@@ -34,6 +35,12 @@ type Action = 'allow' | 'deny'
 /** The permission block (exported for tests). */
 export function opencodePermission(grants: OpenCodeGrants, writing: boolean): Record<string, Action> {
   return {
+    // Carbon P0-04: deny by default (a tool this file does not know is closed), then the rules below, which win because they come after.
+    '*': 'deny',
+    read: 'allow',
+    glob: 'allow',
+    grep: 'allow',
+    list: 'allow',
     edit: writing && grants.files === 'write' ? 'allow' : 'deny',
     bash: 'deny',
     webfetch: grants.web === 'none' ? 'deny' : 'allow',

@@ -1,10 +1,9 @@
 /**
- * D1 DDL applied one statement at a time (D1 `exec` splits on newlines).
+ * The hub's own tables, in the Durable Object's SQLite (there is NO D1: the DO already holds log, roster, invites and keys next to the code that uses them).
+ * One statement per entry, each on a single line.
  */
 
-import { SYNC_LOG_SCHEMA } from './sql-log.ts'
-
-/** Invite + webhook tables for DO sqlite and D1. Single-line — D1 rejects newline-split DDL. */
+/** Invite, webhook, roster, join request, key wrap, key epoch and replay tables. */
 export const EDGE_STATEMENTS: readonly string[] = [
   'CREATE TABLE IF NOT EXISTS invite (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, token TEXT NOT NULL, expires_at INTEGER NOT NULL, used_at INTEGER, revoked_at INTEGER, body TEXT NOT NULL)',
   'CREATE UNIQUE INDEX IF NOT EXISTS invite_token ON invite (workspace_id, token)',
@@ -12,21 +11,13 @@ export const EDGE_STATEMENTS: readonly string[] = [
   'CREATE TABLE IF NOT EXISTS member (actor_id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, invite_id TEXT, revoked_at INTEGER, body TEXT NOT NULL)',
   'CREATE INDEX IF NOT EXISTS member_workspace ON member (workspace_id, revoked_at)',
   'CREATE INDEX IF NOT EXISTS member_invite ON member (invite_id)',
+  // F2: a person asks to join through an invite link; they are NOT a member until the owner approves.
+  'CREATE TABLE IF NOT EXISTS join_request (id TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, invite_id TEXT NOT NULL, actor_id TEXT NOT NULL, decided_at INTEGER, body TEXT NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS join_request_invite ON join_request (invite_id)',
+  // The channel key sealed for one member (opaque to the hub) and the channel's current key epoch.
+  'CREATE TABLE IF NOT EXISTS key_wrap (workspace_id TEXT NOT NULL, channel_id TEXT NOT NULL, epoch INTEGER NOT NULL, recipient_id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (workspace_id, channel_id, epoch, recipient_id))',
+  'CREATE INDEX IF NOT EXISTS key_wrap_recipient ON key_wrap (channel_id, recipient_id)',
+  'CREATE TABLE IF NOT EXISTS channel_epoch (workspace_id TEXT NOT NULL, channel_id TEXT NOT NULL, epoch INTEGER NOT NULL, rotated_by TEXT NOT NULL, rotated_at INTEGER NOT NULL, PRIMARY KEY (workspace_id, channel_id))',
+  // Request signatures already seen (anti-replay): in SQLite so a hibernation does not forget them.
+  'CREATE TABLE IF NOT EXISTS seen_sig (sig TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)',
 ]
-
-/**
- * @param sql - Possibly multi-statement DDL.
- * @returns Individual statements.
- */
-export function splitSql(sql: string): string[] {
-  return sql.split(';').map(part => part.trim()).filter(part => part.length > 0)
-}
-
-/**
- * @param db - D1 binding.
- */
-export async function ensureEdgeSchema(db: D1Database): Promise<void> {
-  for (const sql of [...splitSql(SYNC_LOG_SCHEMA), ...EDGE_STATEMENTS]) {
-    await db.prepare(sql).run()
-  }
-}

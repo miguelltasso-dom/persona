@@ -1,0 +1,45 @@
+{
+  "animal": "panda",
+  "canvas": [
+    1024,
+    1024
+  ],
+  "margin": 8,
+  "crop": {
+    "left": 109,
+    "top": 67,
+    "width": 808,
+    "height": 947
+  },
+  "size": [
+    410,
+    480
+  ],
+  "scale": 0.5068637803590285,
+  "mask": [
+    {
+      "x": 25,
+      "y": 16,
+      "w": 358,
+      "h": 376
+    }
+  ],
+  "expressions": {
+    "base": {
+      "file": "panda-base.webp",
+      "extraMask": []
+    },
+    "feliz": {
+      "file": "panda-feliz.webp",
+      "extraMask": []
+    },
+    "pensando": {
+      "file": "panda-pensando.webp",
+      "extraMask": []
+    },
+    "pensando-blink": {
+      "file": "panda-pensando-blink.webp",
+      "extraMask": []
+    }
+  }
+}

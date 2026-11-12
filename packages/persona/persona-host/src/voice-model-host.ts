@@ -3,9 +3,18 @@
  * pinned sha256 and extracts it; this hands the renderer the `model.tar.gz` its worker loads. The renderer never reaches the network.
  */
 
+import { statSync } from 'node:fs'
+import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import { voiceModelArchive } from '@deepseek-ai/dsh-persona-components'
+import { VOICE_MODEL_ARCHIVE, voiceModelArchive } from '@deepseek-ai/dsh-persona-components'
 import type { VoiceModelBytesView, VoiceModelStateView } from './types.ts'
+
+/** How long the last packed archive is kept (a burst of calls, the renderer retrying): it is 43 MB of base64, it must not stay for good. */
+const PACKED_KEEP_MS = 30_000
+
+/** Carbon P0-13: the last archive packed, so a call does not read 32 MB and encode 43 MB again for the same file. */
+let packed: { readonly key: string; readonly view: VoiceModelBytesView } | undefined
+let packedTimer: ReturnType<typeof setTimeout> | undefined
 
 /**
  * What the Host has installed for the voice model, without touching the network.
@@ -32,6 +41,15 @@ export async function ensureVoiceModelBytes(ctx: Context): Promise<VoiceModelByt
   const installed = await components.ensure('stt')
   if (installed.state === 'failed') return { state: 'failed', reason: installed.reason }
   if (installed.state !== 'installed') return { state: 'unavailable' }
+  // The same file (path, version, size and time) answers with what was packed before: the work is done once, the install check above still runs every call.
+  let key: string | undefined
+  try {
+    const stat = statSync(join(installed.path, VOICE_MODEL_ARCHIVE))
+    key = `${installed.path}|${installed.version}|${String(stat.size)}|${String(stat.mtimeMs)}`
+  } catch {
+    key = undefined
+  }
+  if (key !== undefined && packed?.key === key) return packed.view
   let archive: Buffer
   try {
     archive = voiceModelArchive(installed.path)
@@ -39,5 +57,12 @@ export async function ensureVoiceModelBytes(ctx: Context): Promise<VoiceModelByt
     // The directory exists without the archive: a corrupt install, not a transient failure. The person is told to try again.
     return { state: 'failed', reason: 'checksum' }
   }
-  return { state: 'ready', version: installed.version, base64: archive.toString('base64'), bytes: archive.byteLength }
+  const view: VoiceModelBytesView = { state: 'ready', version: installed.version, base64: archive.toString('base64'), bytes: archive.byteLength }
+  if (key !== undefined) {
+    packed = { key, view }
+    if (packedTimer !== undefined) clearTimeout(packedTimer)
+    packedTimer = setTimeout(() => { packed = undefined }, PACKED_KEEP_MS)
+    packedTimer.unref()
+  }
+  return view
 }

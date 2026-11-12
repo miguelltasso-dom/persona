@@ -66,6 +66,8 @@ describe('textos', () => {
     [{ verb: 'persona_hire', target: 'Bolota' }, 'Nina contratou Bolota'],
     [{ verb: 'browser_click', target: 'loja.exemplo.com.br' }, 'Nina clicou em loja.exemplo.com.br'],
     [{ verb: 'browser_fill', target: 'loja.exemplo.com.br' }, 'Nina preencheu em loja.exemplo.com.br'],
+    [{ verb: 'browser_login', target: 'Gmail da loja' }, 'Nina entrou com o login Gmail da loja'],
+    [{ verb: 'browser_leak', target: 'Gmail da loja' }, 'Nina fechou a aba do login Gmail da loja: a senha apareceu no endereço da página'],
     [{ verb: 'verbo_que_ninguem_conhece', connectorName: 'Quadros', target: 'Logo da padaria' }, 'Nina mexeu em “Logo da padaria” · Quadros'],
   ] as const)('%j', (extra, text) => {
     const { subject: _s, ...base } = wire()

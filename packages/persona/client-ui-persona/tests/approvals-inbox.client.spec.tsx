@@ -105,7 +105,7 @@ describe('the screen: list on the left, detail on the right', () => {
     const list = screen.getByRole('listbox', { name: approvalsPt['inbox.listLabel'] as string })
     expect(within(list).getByRole('group', { name: 'Precisa de você agora, 3' })).toBeTruthy()
     expect(within(list).getByRole('group', { name: 'Propostas, 1' })).toBeTruthy()
-    expect(within(list).getByRole('group', { name: 'Cofre, 1' })).toBeTruthy()
+    expect(within(list).getByRole('group', { name: 'Memória da empresa, 1' })).toBeTruthy()
     expect(rows()).toHaveLength(5)
     expect(selectedRow()?.getAttribute('data-decision-id')).toBe('hire-1')
     expect(screen.getByRole('heading', { level: 2, name: 'Contratar uma persona para revisar cláusulas de rescisão?' })).toBeTruthy()
@@ -130,7 +130,7 @@ describe('the screen: list on the left, detail on the right', () => {
   it('clicking a row shows that card: a Cofre card says what changes, before → after, and who proposed it', () => {
     mount()
     fireEvent.click(rows().find(row => row.getAttribute('data-decision-id') === 'vault-1')!)
-    expect(screen.getByRole('heading', { level: 2, name: 'Atualizar no Cofre: Preço do pão' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Atualizar na Memória da empresa: Preço do pão' })).toBeTruthy()
     const detail = document.querySelector('[data-persona-approval-detail="vault-1"]') as HTMLElement
     expect(within(detail).getByText('R$ 12')).toBeTruthy()
     expect(within(detail).getByText('R$ 14')).toBeTruthy()
@@ -232,7 +232,7 @@ describe('the batch: only the low-risk ones, one confirmation that lists them, o
     mount({ onDecideItem, onUndoDecision })
     fireEvent.click(screen.getByRole('button', { name: 'Aprovar 2 de risco baixo' }))
     const dialog = screen.getByRole('dialog', { name: 'Aprovar 2 de risco baixo?' })
-    expect(within(dialog).getByText('Atualizar no Cofre: Preço do pão')).toBeTruthy()
+    expect(within(dialog).getByText('Atualizar na Memória da empresa: Preço do pão')).toBeTruthy()
     expect(within(dialog).getByText('Nova skill proposta')).toBeTruthy()
     expect(within(dialog).queryByText(/Contratar/)).toBeNull()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Aprovar 2' }))
@@ -263,7 +263,7 @@ describe('the states', () => {
   it('empty: a celebration with one way out, only when there is one', () => {
     const onOpenOverview = vi.fn()
     mount({ items: [], proactiveSummaries: [], onOpenOverview })
-    expect(screen.getByText('Nada esperando você')).toBeTruthy()
+    expect(screen.getByText('Nada esperando por você')).toBeTruthy()
     expect(screen.getByText('A equipe segue trabalhando. Quando precisarem de você, aparece aqui.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Ver o que a equipe está fazendo' }))
     expect(onOpenOverview).toHaveBeenCalledTimes(1)

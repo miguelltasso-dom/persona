@@ -13689,6 +13689,9 @@ importers:
       '@deepseek-ai/dsh-persona-host':
         specifier: workspace:*
         version: link:../persona-host
+      '@deepseek-ai/dsh-util-crypto':
+        specifier: workspace:*
+        version: link:../../util/crypto
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~

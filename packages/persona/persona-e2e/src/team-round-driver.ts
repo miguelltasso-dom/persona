@@ -29,6 +29,9 @@ import { evaluateTeamRound, type TeamRoundVerdict } from './team-round-verdict.t
 import { humanizeLine, readTeamTranscript, renderTranscriptMarkdown, type TeamTranscript } from './team-transcript.ts'
 import { channelMessages, personasOf, postAsPerson, v11Tenant, type HostMessage, type V11Tenant } from './v11-helpers.ts'
 
+/** Attempt 6 (Atlas `atlas-ok-team10-6.txt`, 12/11): "ABORTE NA HORA se a entrada BRUTA somada passar de 200 mil". The goal of the round is < 120 mil. */
+export const REAL_ROUND_RAW_INPUT_ABORT = 200_000
+
 /** Thrown for every refusal BEFORE the request is posted: nothing was asked of the model, so nothing was spent (the budget does not count it as an attempt). */
 export class PreflightRefusal extends Error {}
 
@@ -414,7 +417,8 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
     for (;;) {
       await page.waitForTimeout(1_500)
       const ledger = liveLedger()
-      const guard = ledgerGuard(ledger, options.cap, { requireEnvMode: real })
+      // Attempt 6 (Atlas OK 12/11): on the REAL round the host is also stopped at 200 mil RAW input (the goal is < 120 mil) or when the ledger stops measuring per turn.
+      const guard = ledgerGuard(ledger, options.cap, { requireEnvMode: real, ...(real ? { rawRoundAbort: REAL_ROUND_RAW_INPUT_ABORT, requireMeasured: true } : {}) })
       if (guard !== undefined) { aborted = guard; break }
       if (real && unreadable > 40) { aborted = 'the ledger could not be read for 60 s: the cost cannot be watched; host killed'; break }
       const answeredBefore = answerer.answered.length

@@ -8,17 +8,18 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Button, Card, Chip, EmptyState, IconButton, Input, MenuButton, UiIcon, type MenuItem } from '../primitives/index.ts'
+import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import type { CofreKey } from '../locale/cofre/locales.ts'
-import { cofreIsEmpty, type CofreGroups, type CofreKind, type CofreRowView, type HostImportPreview, type HostImportResult } from './cofre-wire.ts'
+import { cofreIsEmpty, shortDate, type CofreGroups, type CofreKind, type CofreRowView, type HostImportPreview, type HostImportResult } from './cofre-wire.ts'
 import { CofreImportDialog } from './CofreImportDialog.tsx'
 import styles from './CofreScreen.module.css'
 
 type T = (key: CofreKey, params?: Readonly<Record<string, string | number>>) => string
 
 /** What a Login form sends. `id` present = editing: the password is typed again. */
-export interface CofreLoginInput { readonly id?: string; readonly site: string; readonly username: string; readonly password: string; readonly title?: string }
+export interface CofreLoginInput { readonly id?: string; readonly site: string; readonly username: string; readonly password?: string; readonly title?: string }
 /** What a Chave form sends. */
-export interface CofreKeyInput { readonly id?: string; readonly service: string; readonly secret: string; readonly title?: string }
+export interface CofreKeyInput { readonly id?: string; readonly service: string; readonly secret?: string; readonly title?: string }
 /** What the company form sends. */
 export interface CofreCompanyInput {
   readonly id?: string
@@ -40,6 +41,11 @@ export interface CofreScreenProps {
   readonly onSaveKey?: (input: CofreKeyInput) => Promise<void>
   readonly onSaveCompany?: (input: CofreCompanyInput) => Promise<void>
   readonly onRemove?: (id: string) => Promise<void>
+  /**
+   * The host keeps the sealed secret when an edit arrives without one (Zinc, 12/11). Then the secret field may stay blank on edit ("Deixe em branco para manter"). Off by default: today the
+   * host seals whatever it receives, so a blank would ERASE the saved password and the screen asks for it again.
+   */
+  readonly keepSecretOnEdit?: boolean
   /** Import logins from a Chrome/Bitwarden CSV: both handlers are needed (preview first, then the same text to commit). */
   readonly onPreviewImport?: (csv: string) => Promise<HostImportPreview>
   readonly onCommitImport?: (csv: string) => Promise<HostImportResult>
@@ -55,6 +61,14 @@ interface PanelState {
 }
 
 const ICON: Record<CofreKind, 'lock' | 'file'> = { login: 'lock', key: 'lock', company: 'file' }
+
+/** The second line of a row. A key never repeats its name (Muse): what it is for when that says something else, otherwise when it was saved. */
+function detailLine(item: CofreRowView, t: T): string {
+  if (item.kind !== 'key') return item.detail
+  if (item.detail !== '' && item.detail.trim().toLowerCase() !== item.title.trim().toLowerCase()) return item.detail
+  const date = shortDate(item.updatedAt)
+  return date === '' ? '' : t('row.keyDetail', { date })
+}
 
 function messageOf(failure: unknown, fallback: string): string {
   return failure instanceof Error && failure.message !== '' ? failure.message : fallback
@@ -120,7 +134,7 @@ export function CofreScreen(props: CofreScreenProps): ReactNode {
       <span className={styles.rowIcon} aria-hidden="true"><UiIcon name={ICON[item.kind]} size={20} /></span>
       <div className={styles.rowText}>
         <p className={styles.rowTitle}>{item.title}</p>
-        {item.detail !== '' && <p className={styles.rowDetail}>{item.detail}</p>}
+        {detailLine(item, t) !== '' && <p className={styles.rowDetail}>{detailLine(item, t)}</p>}
       </div>
       {item.kind !== 'company' && item.hasSecret && (
         <Chip size="s" tone="neutral" icon={<UiIcon name="lock" size={14} />}>{t(item.kind === 'key' ? 'badge.key' : 'badge.password')}</Chip>
@@ -129,7 +143,7 @@ export function CofreScreen(props: CofreScreenProps): ReactNode {
         <div className={styles.confirm} role="group" aria-label={t('action.removeNamed', { title: item.title })}>
           <span className={styles.confirmText}>{t('remove.confirm', { title: item.title })}</span>
           <Button variant="danger" disabled={busy} onClick={() => { void remove(item.id) }}>{t('remove.yes')}</Button>
-          <Button variant="ghost" disabled={busy} onClick={() => { setRemoving(undefined) }}>{t('remove.no')}</Button>
+          <Button variant="ghost" autoFocus disabled={busy} onClick={() => { setRemoving(undefined) }}>{t('remove.no')}</Button>
         </div>
       ) : (
         <div className={styles.rowActions}>
@@ -176,7 +190,7 @@ export function CofreScreen(props: CofreScreenProps): ReactNode {
           </div>
         )}
         {emptyCofre && (
-          <EmptyState compact title={t('empty.title')} body={t('empty.body')} action={addMenu ?? undefined} secondaryAction={importButton ?? undefined} />
+          <EmptyState compact illustration={ILLUSTRATIONS['empty-cofre']} artSize={240} title={t('empty.title')} body={t('empty.body')} action={addMenu ?? undefined} secondaryAction={importButton ?? undefined} />
         )}
         {props.state === 'ready' && !cofreIsEmpty(groups) && (
           <>
@@ -229,7 +243,10 @@ function EntryPanel({ panel, props, onClose }: PanelProps): ReactNode {
   const editing = panel.row !== undefined
   const fields = panel.row?.fields ?? {}
   const titleId = useId()
-  const firstRef = useRef<HTMLInputElement>(null)
+  const firstRef = useRef<HTMLInputElement | null>(null)
+  const secretRef = useRef<HTMLInputElement>(null)
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [values, setValues] = useState<Record<string, string>>(() => ({ ...fields, ...(panel.row === undefined ? {} : { title: panel.row.title }) }))
   const [secret, setSecret] = useState('')
   const [busy, setBusy] = useState(false)
@@ -237,7 +254,10 @@ function EntryPanel({ panel, props, onClose }: PanelProps): ReactNode {
 
   useEffect(() => { firstRef.current?.focus() }, [])
 
-  const set = (key: string, value: string): void => { setValues(current => ({ ...current, [key]: value })) }
+  const set = (key: string, value: string): void => {
+    setValues(current => ({ ...current, [key]: value }))
+    setFieldErrors(current => (current[key] === undefined ? current : Object.fromEntries(Object.entries(current).filter(([name]) => name !== key))))
+  }
   const val = (key: string): string => values[key] ?? ''
   const required: readonly { readonly key: string; readonly label: CofreKey }[] = panel.kind === 'login'
     ? [{ key: 'site', label: 'field.site' }, { key: 'username', label: 'field.username' }]
@@ -245,10 +265,21 @@ function EntryPanel({ panel, props, onClose }: PanelProps): ReactNode {
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault()
+    // A missing value is an error ON ITS FIELD, and the first one takes the focus: Save is never disabled in silence (Muse).
+    const missing: Record<string, string> = {}
     for (const item of required) {
-      if (val(item.key).trim() === '') { setError(t('error.required', { field: t(item.label) })); return }
+      if (val(item.key).trim() === '') missing[item.key] = t('error.required', { field: t(item.label) })
     }
-    if (panel.kind !== 'company' && secret === '') { setError(t('error.required', { field: t(panel.kind === 'login' ? 'field.password' : 'field.secret') })); return }
+    if (panel.kind !== 'company' && secret === '' && !(editing && props.keepSecretOnEdit === true)) missing.secret = t(panel.kind === 'login' ? 'error.typePassword' : 'error.typeSecret')
+    if (Object.keys(missing).length > 0) {
+      setFieldErrors(missing)
+      setError(undefined)
+      const first = [...required.map(item => item.key), 'secret'].find(key => missing[key] !== undefined)
+      if (first === 'secret') secretRef.current?.focus()
+      else if (first !== undefined) inputRefs.current[first]?.focus()
+      return
+    }
+    setFieldErrors({})
     const id = panel.row?.id
     const title = val('title').trim()
     const optional = (key: string): { [k: string]: string } => (val(key).trim() === '' ? {} : { [key]: val(key).trim() })
@@ -256,9 +287,9 @@ function EntryPanel({ panel, props, onClose }: PanelProps): ReactNode {
     setError(undefined)
     try {
       if (panel.kind === 'login' && props.onSaveLogin !== undefined) {
-        await props.onSaveLogin({ ...(id === undefined ? {} : { id }), site: val('site').trim(), username: val('username').trim(), password: secret, ...(title === '' ? {} : { title }) })
+        await props.onSaveLogin({ ...(id === undefined ? {} : { id }), site: val('site').trim(), username: val('username').trim(), ...(secret === '' ? {} : { password: secret }), ...(title === '' ? {} : { title }) })
       } else if (panel.kind === 'key' && props.onSaveKey !== undefined) {
-        await props.onSaveKey({ ...(id === undefined ? {} : { id }), service: val('service').trim(), secret, ...(title === '' ? {} : { title }) })
+        await props.onSaveKey({ ...(id === undefined ? {} : { id }), service: val('service').trim(), ...(secret === '' ? {} : { secret }), ...(title === '' ? {} : { title }) })
       } else if (panel.kind === 'company' && props.onSaveCompany !== undefined) {
         await props.onSaveCompany({ ...(id === undefined ? {} : { id }), legalName: val('legalName').trim(), document: val('document').trim(), ...optional('email'), ...optional('phone'), ...optional('address') })
       }
@@ -279,7 +310,8 @@ function EntryPanel({ panel, props, onClose }: PanelProps): ReactNode {
       value={val(key)}
       onChange={(event) => { set(key, event.target.value) }}
       autoComplete="off"
-      {...(extra.first === true ? { ref: firstRef } : {})}
+      ref={(element) => { inputRefs.current[key] = element; if (extra.first === true) firstRef.current = element }}
+      {...(fieldErrors[key] === undefined ? {} : { error: fieldErrors[key] })}
       {...(extra.placeholder === undefined ? {} : { placeholder: extra.placeholder })}
       {...(extra.type === undefined ? {} : { type: extra.type })}
       {...(extra.hint === undefined ? {} : { hint: extra.hint })}
@@ -303,7 +335,9 @@ function EntryPanel({ panel, props, onClose }: PanelProps): ReactNode {
               value={secret}
               onChange={(event) => { setSecret(event.target.value) }}
               autoComplete="new-password"
-              hint={t(editing ? 'field.passwordHint.edit' : 'field.passwordHint.new')}
+              ref={secretRef}
+              {...(fieldErrors.secret === undefined ? {} : { error: fieldErrors.secret })}
+              hint={<><span className={styles.hintLine}>{editing ? t(props.keepSecretOnEdit === true ? 'field.passwordHint.keep' : 'field.passwordHint.edit') : null}</span><span className={styles.hintLine}>{t('field.passwordHint.new')}</span></>}
             />
             {text('title', 'field.title')}
           </>
@@ -317,7 +351,9 @@ function EntryPanel({ panel, props, onClose }: PanelProps): ReactNode {
               value={secret}
               onChange={(event) => { setSecret(event.target.value) }}
               autoComplete="new-password"
-              hint={t(editing ? 'field.secretHint.edit' : 'field.secretHint.new')}
+              ref={secretRef}
+              {...(fieldErrors.secret === undefined ? {} : { error: fieldErrors.secret })}
+              hint={<><span className={styles.hintLine}>{editing ? t(props.keepSecretOnEdit === true ? 'field.secretHint.keep' : 'field.secretHint.edit') : null}</span><span className={styles.hintLine}>{t('field.secretHint.new')}</span></>}
             />
             {text('title', 'field.title')}
           </>
@@ -333,8 +369,8 @@ function EntryPanel({ panel, props, onClose }: PanelProps): ReactNode {
         )}
         {error !== undefined && <p className={styles.error} role="alert">{error}</p>}
         <div className={styles.panelActions}>
-          <Button type="submit" variant="primary" disabled={busy}>{t('action.save')}</Button>
-          <Button type="button" variant="ghost" onClick={onClose}>{t('action.cancel')}</Button>
+          <Button type="submit" variant="primary" size="m" disabled={busy}>{t('action.save')}</Button>
+          <Button type="button" variant="ghost" size="m" onClick={onClose}>{t('action.cancel')}</Button>
         </div>
       </form>
     </aside>

@@ -12,7 +12,7 @@ export type IndicatorUiData =
   | { readonly kind: 'numero'; readonly value: string; readonly raw?: number; readonly trend?: { readonly text: string; readonly direction: IndicatorUiDirection; readonly goodWhen: 'up' | 'down' } }
   | { readonly kind: 'meta'; readonly value: number; readonly goal: number; readonly unit?: string }
   | { readonly kind: 'barras'; readonly points: readonly { readonly label: string; readonly value: number }[] }
-  | { readonly kind: 'linha'; readonly points: readonly { readonly label: string; readonly value: number }[] }
+  | { readonly kind: 'linha'; readonly points: readonly { readonly label: string; readonly value: number }[]; readonly unit?: string }
   | { readonly kind: 'lista'; readonly items: readonly { readonly text: string; readonly state: 'ok' | 'atencao' }[] }
   | { readonly kind: 'resumo'; readonly sentences: readonly string[] }
 
@@ -25,9 +25,38 @@ export interface IndicatorUi {
   readonly status: 'ok' | 'updating' | 'failed'
   readonly failure?: string
   readonly updatedAt: string
-  readonly alert?: { readonly pct: number; readonly text: string; readonly at: string }
+  /** `seen`: she marked "Já vi" (the notice left the list; the card keeps its border until the next refresh). */
+  readonly alert?: { readonly pct: number; readonly text: string; readonly at: string; readonly seen?: true }
   readonly personaName: string
   readonly sourceMessageId: string
+}
+
+/** A fall of a pinned number, as a NOTICE in "Precisa de você" (not a decision: nothing to approve). */
+export interface IndicatorNoticeUi {
+  /** `<indicator id>:<instant of the fall>`: a new fall is a new notice. */
+  readonly id: string
+  readonly indicatorId: string
+  /** "Vendas de ontem caiu 31% desde ontem." */
+  readonly title: string
+  readonly personaName: string
+}
+
+/**
+ * The notices the numbers raise right now: the cards whose last refresh fell past the rule and that she did not mark "Já vi". A daily number says
+ * "desde ontem", an hourly one "desde a última atualização" (the same words the host uses for its own attention line).
+ * @param items - The pinned numbers.
+ */
+export function noticesOf(items: readonly Pick<IndicatorUi, 'id' | 'name' | 'schedule' | 'alert' | 'personaName'>[]): readonly IndicatorNoticeUi[] {
+  return items.flatMap((item) => {
+    if (item.alert === undefined || item.alert.seen === true) return []
+    const since = itext(item.schedule === 'daily' ? 'notice.sinceDaily' : 'notice.sinceLast')
+    return [{
+      id: `${item.id}:${item.alert.at}`,
+      indicatorId: item.id,
+      title: itext('notice.fell', { name: item.name, pct: item.alert.pct, since }),
+      personaName: item.personaName,
+    }]
+  })
 }
 
 /** What a persona offered in a message ("Fixar na Visão geral" pins it). */

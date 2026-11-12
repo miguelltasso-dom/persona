@@ -54,7 +54,8 @@ describe('Configurações › Personas (esqueleto)', () => {
     vi.resetModules()
     const on = await import('../src/client/shell/nav-places.ts')
     const tabs = on.NAV_PLACES.find(place => place.id === 'settings')!.tabs.map(tab => tab.panel)
-    // Cofre (item 15) fica ao lado de Conexões; Personas entra depois dele e antes de Uso.
+    // O Cofre (item 15) fica logo depois de Conexões; Personas entra depois dele e antes de Uso. (Ferramentas, item 26, só com a flag toolsCatalog.)
+    expect(tabs).not.toContain('tools')
     expect(tabs.indexOf('cofre')).toBe(tabs.indexOf('connections') + 1)
     expect(tabs.indexOf('personas')).toBe(tabs.indexOf('cofre') + 1)
     expect(tabs.indexOf('usage')).toBe(tabs.indexOf('personas') + 1)

@@ -33,8 +33,8 @@ function alive(pid: number): boolean {
 async function until(check: () => boolean, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (!check() && Date.now() < deadline) {
-    const { promise, resolve } = Promise.withResolvers<void>()
-    setTimeout(resolve, 100)
+    const { promise, resolve } = Promise.withResolvers<undefined>()
+    setTimeout(() => { resolve(undefined) }, 100)
     await promise
   }
 }

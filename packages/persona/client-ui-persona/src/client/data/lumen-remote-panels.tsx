@@ -11,10 +11,13 @@ import type {
   ProjectScopeRequest,
   RunnerSwapPolicy,
   WindowReserveView,
+  EmailConnectionTestView,
+  EmailConnectionView,
   EmailFilterView,
   EmailPresetView,
 } from '@deepseek-ai/dsh-persona-host/types'
 import { ApprovalsInbox, type ApprovalRememberChoice } from '../approvals/ApprovalsInbox.tsx'
+import type { ActionDecision } from '../chat/ActionPreviewCard.tsx'
 import type { ApprovalItem } from '../approvals/mock-data.ts'
 import { SecondBrainShell } from '../second-brain/SecondBrainShell.tsx'
 import { ConnectionsView, type PolicyPersona } from '../connections/ConnectionsView.tsx'
@@ -22,10 +25,11 @@ import { FilesView } from '../files/FilesView.tsx'
 import type { FileEntry } from '../files/mock-data.ts'
 import { KnowledgeVault } from '../knowledge/KnowledgeVault.tsx'
 import { RoutinesView, type RoutineActions, type RoutineRow } from '../routines/RoutinesView.tsx'
-import type { EditorPersona, EditorProject } from '../routines/RoutineEditorModal.tsx'
+import type { EditorPersona, EditorProject, EventOption } from '../routines/RoutineEditorModal.tsx'
+import { EVENT_SOURCES, readEventWire, type EventSourceId, type RoutineEventWire } from '../routines/routine-trigger.ts'
 import { routineNameFromPrompt, type RoutineScheduleWire, type RoutineWire } from '../routines/routine-wire.ts'
 import { UsageLimits } from '../usage/UsageLimits.tsx'
-import { EmailRuleForm } from '../email-rule/EmailRuleForm.tsx'
+import { EmailRuleForm, type EmailCredentialInput } from '../email-rule/EmailRuleForm.tsx'
 import { TriageRulesView } from '../rules/TriageRulesView.tsx'
 import { PersonaProfilePage } from '../profile/PersonaProfilePage.tsx'
 import type { PersonaProfileSnapshot } from '../profile/mock-data.ts'
@@ -58,6 +62,7 @@ import { personaImpactToUi } from './adapters/insights.ts'
 import { currentUsagePeriod, usageBookToMeters } from './adapters/usage.ts'
 import { officialQuotasToProviderPools, usageMetersWithoutQuotaDuplicates } from './adapters/usage-pooled.ts'
 import { usagePanelToUi } from './adapters/usage-panel.ts'
+import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { loadUsagePanelRemote } from './usage-panel-remote.ts'
 import { MOCK_USAGE_TOKEN_PANEL } from '../usage/mock-usage-token-panel.ts'
 import { readClientDevSeedEnabled } from '../remote/persona-dev-seed.ts'
@@ -126,6 +131,8 @@ function remotePanelSurface<T>(
 }
 
 const COORD_ROUTINE_PROMPT = 'Sugira 3 rotinas para a nossa equipe com horário e dono.'
+/** Item 26: the Cofre slot each event source reads (`connectorSecretState`): a routine only listens to what the person connected. */
+const EVENT_PROVIDER: Readonly<Record<EventSourceId, string>> = { email: 'imap', telegram: 'telegram', slack: 'slack', discord: 'discord', calendar: 'caldav' }
 const FILES_EMPTY_PROMPT = 'Preciso de uma entrega de arquivo para este projeto — o que você sugere?'
 
 type IssueInviteWire = PersonaRemoteClient & {
@@ -349,7 +356,7 @@ export function RemoteFilesPanel({ persona, useTenant, useShell, sendToPersona }
 }
 
 /** Rotinas (Equipe › Rotinas, DESIGN-01 #10): the routines of the WHOLE team, so the workspace's own project, never the Projetos place's project of the moment. */
-export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: LumenRemotePanelProps): ReactNode {
+export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona, selectMainPanel }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
@@ -388,28 +395,25 @@ export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: Lumen
       projects,
     }
   }, [persona, workspaceId, projectId])
-  // Harvest 19b: the inbox rule as a human phrase in the routine editor (same rule the Connections card saves).
-  const [emailRule, setEmailRule] = useState<{ readonly presets: readonly EmailPresetView[]; readonly filter: EmailFilterView } | null>(null)
+  // Item 26: which sources are connected (a routine only listens to what the person connected: the credential is in the Cofre). Nothing secret comes back, only "there is one".
+  const [connected, setConnected] = useState<Readonly<Record<EventSourceId, boolean>> | null>(null)
   useEffect(() => {
     if (workspaceId === undefined || projectId === undefined) return undefined
-    let alive = true
+    const stateWire = persona as PersonaRemoteClient & { connectorSecretState?(request: { workspaceId: string; projectId: string; provider: string }): Promise<RemoteResult<{ readonly hasSecret: boolean }>> }
+    if (typeof stateWire.connectorSecretState !== 'function') return undefined
+    const live = { current: true }
     void (async () => {
-      try {
-        const [presets, filter] = await Promise.all([
-          persona.listEmailPresets().then(unwrapRemote),
-          persona.getEmailFilter({ workspaceId, projectId }).then(unwrapRemote),
-        ])
-        if (alive) setEmailRule({ presets, filter })
-      } catch {
-        if (alive) setEmailRule(null)
-      }
+      const entries = await Promise.all(EVENT_SOURCES.map(async (source) => {
+        try {
+          const state = await unwrapRemote(await stateWire.connectorSecretState({ workspaceId, projectId, provider: EVENT_PROVIDER[source] }))
+          return [source, state.hasSecret] as const
+        } catch {
+          return [source, false] as const
+        }
+      }))
+      if (live.current) setConnected(Object.fromEntries(entries) as Record<EventSourceId, boolean>)
     })()
-    return () => { alive = false }
-  }, [persona, workspaceId, projectId])
-  const saveEmailRule = useCallback(async (filter: EmailFilterView) => {
-    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
-    const saved = await unwrapRemote(await persona.putEmailFilter({ workspaceId, projectId, filter }))
-    setEmailRule(current => current === null ? null : { ...current, filter: saved })
+    return () => { live.current = false }
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const schedules = state.status === 'ready' ? state.data.schedules : []
@@ -434,6 +438,7 @@ export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: Lumen
       catchUp: schedule.catchUp,
       silenceStart: schedule.silenceStart,
       silenceEnd: schedule.silenceEnd,
+      trigger: readEventWire(schedule.trigger),
     }
   })
   // A new routine takes the person's zone, "skip" and no quiet window; a restored one brings back what it had (the host
@@ -449,6 +454,8 @@ export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: Lumen
     catchUp?: 'skip' | 'run_once' | 'run_all' | undefined
     silenceStart?: string | undefined
     silenceEnd?: string | undefined
+    /** Item 26: the event it waits for (then `rrule` is ignored by the host). */
+    trigger?: RoutineEventWire | undefined
   }) => {
     if (workspaceId === undefined) return
     await unwrapRemote(await routineWire.createRoutine({
@@ -463,8 +470,11 @@ export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: Lumen
       silenceEnd: request.silenceEnd ?? '',
       prompt: request.prompt,
       ...(request.ownerPersonaId === undefined ? {} : { ownerPersonaId: request.ownerPersonaId }),
+      ...(request.trigger === undefined ? {} : { trigger: request.trigger }),
     }))
   }, [routineWire, workspaceId])
+  // Item 26: one entry per source, with whether its connector is on (the editor offers a trigger only for what the person connected).
+  const eventOptions: readonly EventOption[] | undefined = connected === null ? undefined : EVENT_SOURCES.map(source => ({ source, connected: connected[source] }))
   const routineActions: RoutineActions | undefined = workspaceId === undefined || projectId === undefined || typeof routineWire.createRoutine !== 'function'
     ? undefined
     : {
@@ -472,12 +482,13 @@ export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: Lumen
       projects: state.status === 'ready' ? state.data.projects : [{ id: projectId, name: projectId }],
       defaultProjectId: projectId,
       canEdit: typeof routineWire.updateRoutine === 'function',
-      ...(emailRule === null ? {} : {
-        emailRule: <EmailRuleForm variant="phrase" presets={emailRule.presets} filter={emailRule.filter} onSave={saveEmailRule} />,
-      }),
+      ...(eventOptions === undefined ? {} : { eventOptions }),
+      ...(selectMainPanel === undefined ? {} : { onOpenConnections: () => { selectMainPanel('connections') } }),
       onSave: async (saved) => {
         if (saved.id === undefined) {
-          await createRoutineFrom({ id: `routine-${crypto.randomUUID()}`, projectId: saved.projectId, prompt: saved.prompt, rrule: saved.rrule, ownerPersonaId: saved.ownerPersonaId })
+          await createRoutineFrom({
+            id: `routine-${randomUUID()}`, projectId: saved.projectId, prompt: saved.prompt, rrule: saved.rrule, ownerPersonaId: saved.ownerPersonaId, trigger: saved.trigger,
+          })
         } else if (routineWire.updateRoutine !== undefined) {
           await unwrapRemote(await routineWire.updateRoutine({
             workspaceId,
@@ -485,7 +496,9 @@ export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: Lumen
             id: saved.id,
             name: routineNameFromPrompt(saved.prompt),
             prompt: saved.prompt,
-            rrule: saved.rrule,
+            // The trigger is said ALWAYS on an edit: an event, or `schedule` (leaving an event needs its time, which `rrule` carries).
+            trigger: saved.trigger ?? { kind: 'schedule' },
+            ...(saved.trigger === undefined ? { rrule: saved.rrule } : {}),
             ...(saved.ownerPersonaId === undefined ? {} : { ownerPersonaId: saved.ownerPersonaId }),
           }))
         }
@@ -517,6 +530,7 @@ export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: Lumen
             catchUp: row.catchUp,
             silenceStart: row.silenceStart,
             silenceEnd: row.silenceEnd,
+            trigger: row.trigger, // an event routine comes back as an event (its `rrule` is not a time)
           })
           if (row.paused && typeof routineWire.pauseRoutine === 'function') {
             await unwrapRemote(await routineWire.pauseRoutine({ workspaceId, projectId: row.projectId, id: row.id, paused: true }))
@@ -534,7 +548,7 @@ export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: Lumen
   const putQuiet = (persona as PersonaRemoteClient & { putQuietWindow?(request: { workspaceId: string; projectId: string; id: string; label: string; start: string; end: string }): Promise<RemoteResult<unknown>> }).putQuietWindow
   const onAddQuietWindow = useCallback(async (window: { readonly label: string; readonly start: string; readonly end: string }) => {
     if (workspaceId === undefined || projectId === undefined || putQuiet === undefined) return
-    await unwrapRemote(await putQuiet.call(persona, { workspaceId, projectId, id: `quiet-${crypto.randomUUID()}`, ...window }))
+    await unwrapRemote(await putQuiet.call(persona, { workspaceId, projectId, id: `quiet-${randomUUID()}`, ...window }))
     retry()
   }, [persona, putQuiet, workspaceId, projectId, retry])
   const onAskSuggestions = useCallback(async () => {
@@ -726,6 +740,32 @@ export function RemoteConnectionsPanel({ persona, useTenant, useShell, selectMai
     const saved = await unwrapRemote(await persona.putEmailFilter({ workspaceId, projectId, filter }))
     setEmailRule(current => current === null ? null : { ...current, filter: saved })
   }, [persona, workspaceId, projectId])
+  // Harvest 19b: the mailbox account (never its password) and the read-only login test behind "Testar conexão". Absent when the host predates them.
+  const [emailConnection, setEmailConnection] = useState<EmailConnectionView | undefined>(undefined)
+  useEffect(() => {
+    if (workspaceId === undefined || projectId === undefined) return undefined
+    let alive = true
+    void (async () => {
+      try {
+        const view = await persona.getEmailConnection({ workspaceId, projectId }).then(unwrapRemote)
+        if (alive) setEmailConnection(view)
+      } catch {
+        if (alive) setEmailConnection(undefined)
+      }
+    })()
+    return () => { alive = false }
+  }, [persona, workspaceId, projectId])
+  const testEmailConnection = useCallback(async (input: Partial<EmailCredentialInput>): Promise<EmailConnectionTestView> => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    return unwrapRemote(await persona.testEmailConnection({ workspaceId, projectId, ...input }))
+  }, [persona, workspaceId, projectId])
+  // The password goes to the Cofre in `connector:imap` (the slot the poller reads) and is never read back: the screen asks the host for the account state again.
+  const saveEmailCredential = useCallback(async (input: EmailCredentialInput): Promise<void> => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    const secret = JSON.stringify({ host: input.host, user: input.user, password: input.password, port: input.port, secure: input.secure })
+    await unwrapRemote(await persona.saveConnectorSecret({ workspaceId, projectId, provider: 'imap', secret }))
+    setEmailConnection(await persona.getEmailConnection({ workspaceId, projectId }).then(unwrapRemote))
+  }, [persona, workspaceId, projectId])
   const onSwapPolicyChange = useCallback(async (policy: RunnerSwapPolicy, policyScope: RunnerSwapPolicyScope, personaId?: string) => {
     if (scope === null) throw new Error('no-scope')
     await persistRunnerSwapPolicy(persona, {
@@ -772,7 +812,14 @@ export function RemoteConnectionsPanel({ persona, useTenant, useShell, selectMai
       onRenameAccount={onRenameAccount}
       onRemoveAccount={onRemoveAccount}
       emailRule={emailRule === null ? undefined : (
-        <EmailRuleForm presets={emailRule.presets} filter={emailRule.filter} onSave={saveEmailRule} />
+        <EmailRuleForm
+          presets={emailRule.presets}
+          filter={emailRule.filter}
+          onSave={saveEmailRule}
+          connection={emailConnection}
+          onTest={emailConnection === undefined ? undefined : testEmailConnection}
+          onSaveCredential={emailConnection === undefined ? undefined : saveEmailCredential}
+        />
       )}
     />
   )
@@ -831,12 +878,33 @@ export function RemoteApprovalsPanel({ persona, useTenant, useShell }: LumenRemo
     }
     reload()
   }
+  /** P0-10: o cartão de ação externa ("Segure para enviar" · Editar · Cancelar) decide direto no host (`kind: 'action'`); sem isto o cartão era só leitura, sem botão. */
+  const decideAction = async (decision: ActionDecision): Promise<void> => {
+    if (scope === null) return
+    try {
+      await unwrapRemote(await persona.decideApproval({
+        workspaceId: scope.workspaceId,
+        projectId: scope.projectId,
+        kind: 'action',
+        id: decision.approvalId,
+        choice: decision.choice,
+        ...(decision.edited === undefined ? {} : { edited: decision.edited }),
+        ...(decision.remember === true ? { remember: true } : {}),
+      } as unknown as Parameters<typeof persona.decideApproval>[0]))
+    } catch (error) {
+      // A recusa do host chega ao cartão com as palavras do host (`hostMessage`, como o `PersonaRemoteError`): o cartão a mostra e deixa tentar de novo.
+      const message = error instanceof Error ? error.message : ''
+      throw Object.assign(error instanceof Error ? error : new Error(message), { hostMessage: message })
+    }
+    reload()
+  }
   return (
     <ApprovalsInbox
       items={items}
       proactiveSummaries={proactiveSummaries}
       focusId={shell.focusedApprovalId ?? undefined}
       initialState={remotePanelSurface(gate, state, () => inboxEmpty)}
+      onDecideAction={decideAction}
       onRemoteRetry={() => { retryBootstrap(); retry(); reload() }}
       onDecideItem={(item, accept, remember) => {
         if (item.kind === 'connector') { void decide(item.id, item.kind, accept, undefined, undefined, accept ? 'once' : 'not-now'); return }
@@ -1032,6 +1100,8 @@ export function RemoteProfilePanel({
   const profilePersonaId = useShell((state: ShellState) => state.profilePersonaId)
   const profileActorId = useTenant(tenant => tenant.scope?.actorId ?? 'owner')
   const profileEditorOpen = useShell((state: ShellState) => state.profileEditorOpen)
+  // Item 16: "Virou skill · Ver em Skills" opens this profile on the Skills tab.
+  const profileInitialTab = useShell((state: ShellState) => state.profileInitialTab ?? undefined)
   const hireMode = profilePersonaId === HIRE_PERSONA_PROFILE_ID
   const showPersonaEditor = hireMode || profileEditorOpen
   const workspaceId = scope?.workspaceId
@@ -1301,6 +1371,7 @@ export function RemoteProfilePanel({
       initialState="ready"
       memoryRows={memoryRows}
       memoryActions={memoryActions}
+      {...(profileInitialTab === undefined ? {} : { initialTab: profileInitialTab })}
       {...(playbook === undefined ? {} : {
         playbookRows: playbook.rows,
         playbookState: playbook.failed ? 'error' as const : 'ready' as const,
@@ -1334,8 +1405,8 @@ export function RemoteMembersPanel({ persona, useTenant, useShell, openHelp }: L
     await unwrapRemote(await (persona as IssueInviteWire).issueInvite({
       workspaceId: scope.workspaceId,
       projectId: scope.projectId,
-      inviteId: crypto.randomUUID(),
-      token: crypto.randomUUID(),
+      inviteId: randomUUID(),
+      token: randomUUID(),
       role: 'member',
     }))
     retry()

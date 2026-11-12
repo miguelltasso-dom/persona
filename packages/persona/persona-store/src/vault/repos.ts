@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto'
 import { parseVaultRecord, type VaultRecord } from '@deepseek-ai/dsh-persona-core'
 import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
 import { StoreError } from '../errors.ts'
+import { SECRET_PURGED_BODY, scrubSecretFacts } from '../secret-scrub.ts'
 import { integer, jsonValue, optionalText, run, text } from '../sql.ts'
 import type { PersonaStore } from '../store.ts'
 import { chunkExtracted } from './chunk.ts'
@@ -85,8 +86,6 @@ export interface CreateVaultDocumentInput {
   readonly visibility: VaultRecord['visibility']
 }
 
-/** Body left in place of a secret that moved to the sealed store: the record is revoked, so it is a tombstone, not knowledge. */
-const SECRET_PURGED_BODY = 'Conteúdo movido para o Cofre.'
 
 /**
  * Persist and query the company vault for one project tenant.
@@ -235,6 +234,15 @@ export class VaultRepos {
       run(db, 'UPDATE vault_record SET body = ?, fact_key = NULL, status = ? WHERE id = ?', [SECRET_PURGED_BODY, 'revoked', id])
       run(db, 'DELETE FROM vault_version WHERE target_kind = ? AND target_id = ?', ['record', id])
     })
+  }
+
+  /**
+   * Erase every record under one of `factKeys` whatever its status (a rotated token leaves a REVOKED row that keeps its body) and all their versions.
+   * @param factKeys - Fact keys that hold secrets.
+   * @returns How many records were erased.
+   */
+  purgeSecretFacts(factKeys: readonly string[]): number {
+    return this.store.tx(db => scrubSecretFacts(db, factKeys))
   }
 
   /**

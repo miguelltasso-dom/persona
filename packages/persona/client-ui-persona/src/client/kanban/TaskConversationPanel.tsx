@@ -55,7 +55,7 @@ export function TaskConversationPanel({ dict, title, columnLabel, caring, tab, o
   useEffect(() => {
     titleRef.current?.focus()
     return () => { returnFocusTo?.()?.focus() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount/unmount
+    // Only on mount and unmount: the focus must not jump back when the parent re-renders.
   }, [])
 
   const finish = (): void => {
@@ -75,7 +75,7 @@ export function TaskConversationPanel({ dict, title, columnLabel, caring, tab, o
       node?.removeEventListener('animationend', onEnd)
       window.clearTimeout(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `finish` only reads refs and the latest onClose
+    // `finish` only reads refs and the latest onClose, so the effect restarts only when the panel starts closing.
   }, [closing])
 
   const onPanelKeyDown = (event: KeyboardEvent<HTMLElement>): void => {

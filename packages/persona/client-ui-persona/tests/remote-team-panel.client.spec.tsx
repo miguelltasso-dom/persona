@@ -213,8 +213,8 @@ describe('Equipe remota — conectada', () => {
     const buttons = screen.getAllByRole('button', { name: 'Encerrar acesso' })
     expect(buttons).toHaveLength(1)
     fireEvent.click(buttons[0]!)
-    const dialog = screen.getByRole('dialog', { name: 'Encerrar o acesso desta pessoa?' })
-    expect(within(dialog).getByText('A pessoa deixa de ver os canais compartilhados a partir de agora. O que ela já viu continua com ela.')).toBeTruthy()
+    const dialog = screen.getByRole('dialog', { name: 'Encerrar este acesso?' })
+    expect(within(dialog).getByText('Quem entrou deixa de ver os canais compartilhados a partir de agora. O que já foi visto continua visto.')).toBeTruthy()
     expect(onRevoke).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
     expect(onRevoke).not.toHaveBeenCalled()
@@ -317,7 +317,7 @@ describe('Equipe remota — estados honestos', () => {
   it('revogado: acesso encerrado, nada de enviar/receber/convidar; só um novo convite reabre', () => {
     panel({ state: state({ status: 'revoked', role: 'member' }) })
     expect(screen.getByText('Acesso encerrado')).toBeTruthy()
-    expect(screen.getByText('A pessoa dona da equipe encerrou o seu acesso. O que já estava aqui continua aqui.')).toBeTruthy()
+    expect(screen.getByText('Quem criou a equipe encerrou o seu acesso. O que já estava aqui continua aqui.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Sincronizar agora' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Gerar convite' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Conectar' })).toBeNull()
@@ -454,6 +454,6 @@ describe('Equipe remota — "Acesso encerrado" com o nome de quem encerrou (Muse
 
   it('sem saber quem foi: a frase de antes, sem nome inventado', () => {
     panel({ state: state({ status: 'revoked', role: 'member', actorId: 'b2' }) })
-    expect(screen.getByText('A pessoa dona da equipe encerrou o seu acesso. O que já estava aqui continua aqui.')).toBeTruthy()
+    expect(screen.getByText('Quem criou a equipe encerrou o seu acesso. O que já estava aqui continua aqui.')).toBeTruthy()
   })
 })

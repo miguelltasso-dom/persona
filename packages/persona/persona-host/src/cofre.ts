@@ -3,12 +3,15 @@
  * sealed store. The screen reads this one object; the secrets never leave the vault.
  */
 
-import { CofreCodes } from './cofre-2fa.ts'
+import { CofreCodes, type CofreCodeRequestView } from './cofre-2fa.ts'
 import { CofreEntries, type CofreEntriesDeps } from './cofre-entries.ts'
 import { CofreImport } from './cofre-import.ts'
 
 /** What the Cofre needs from the host. */
-export type CofreHostDeps = CofreEntriesDeps
+export interface CofreHostDeps extends CofreEntriesDeps {
+  /** Carbon P1-04: the owner filled a six-digit request (the view never carries the digits): the host wakes the persona's Task. */
+  readonly onCodeFilled?: (view: CofreCodeRequestView) => void
+}
 
 /**
  * One Cofre per host, shared by every project.
@@ -34,6 +37,7 @@ export class CofreHost {
       secrets: deps.secrets,
       ...(deps.now === undefined ? {} : { now: deps.now }),
       ...(deps.newId === undefined ? {} : { newId: deps.newId }),
+      ...(deps.onCodeFilled === undefined ? {} : { onFilled: deps.onCodeFilled }),
     })
   }
 
@@ -45,5 +49,24 @@ export class CofreHost {
    */
   async secretOf(projectId: string, slot: string): Promise<string | undefined> {
     return this.deps.secrets.read(projectId, slot)
+  }
+
+  /**
+   * Seal one value in a Cofre slot. Host-only: a connector token written by the person's own form, the E2EE identity.
+   * @param projectId - Tenant.
+   * @param slot - Slot id (`connector:<provider>`).
+   * @param secret - Plaintext; the vault refuses an empty value.
+   */
+  async putSecret(projectId: string, slot: string, secret: string): Promise<void> {
+    await this.deps.secrets.put(projectId, slot, secret)
+  }
+
+  /**
+   * @param projectId - Tenant.
+   * @param slot - Slot id (`connector:<provider>`).
+   * @returns Whether the slot holds a sealed value, without decrypting it.
+   */
+  hasSecret(projectId: string, slot: string): boolean {
+    return this.deps.secrets.has(projectId, slot)
   }
 }

@@ -77,7 +77,8 @@ export function withNativeGate(inner: Runner, own: PermissionGate | undefined, a
   if (own === undefined) return inner
   const arm = (input: StartTurnInput): void => {
     const draft = input.cwd !== '' && input.cwd !== '.' ? { draftRoot: input.cwd } : { noDraft: true }
-    own.arm({ ...draft, allowedServers: [], authority })
+    // Carbon P0-03a: the turn says who it acts for (the host derives it from the Task's real origin); the argument is only the default.
+    own.arm({ ...draft, allowedServers: [], authority: input.authority ?? authority })
   }
   return {
     ...inner,

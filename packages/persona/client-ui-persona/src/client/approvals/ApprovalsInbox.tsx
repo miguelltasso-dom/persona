@@ -66,6 +66,8 @@ export interface ApprovalsInboxProps {
   readonly onDecideAction?: ((decision: ActionDecision) => void | Promise<void>) | undefined
   /** IV-10 "Responder": a question in words (the card carries its `replyTarget`) takes the person to the thread where it was asked. No handler, no button. */
   readonly onReply?: ((target: ReplyTarget) => void) | undefined
+  /** Item 16: after "Virar skill" the stamp offers "Ver em Skills" (the persona's Skills tab). No handler, no button. */
+  readonly onOpenSkills?: ((personaId: string) => void) | undefined
   readonly onRemoteRetry?: () => void
 }
 
@@ -80,6 +82,7 @@ export function ApprovalsInbox({
   onDecideProactive,
   onDecideConnector,
   onDecideAction,
+  onOpenSkills,
   onRemoteRetry,
 }: ApprovalsInboxProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
@@ -233,6 +236,7 @@ export function ApprovalsInbox({
               })}
               {...(onDecideConnector === undefined ? {} : { onDecideConnector })}
               {...(onDecideAction === undefined ? {} : { onDecideAction })}
+              {...(onOpenSkills === undefined ? {} : { onOpenSkills })}
               {...(onReply === undefined ? {} : { onReply })}
               onCelebrateAccept={celebrateAccept}
             />

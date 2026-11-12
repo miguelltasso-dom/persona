@@ -2,6 +2,7 @@
 
 import type { BrandIconName } from '../primitives/index.ts'
 import type { ShellKey } from '../locale/shell/locales.ts'
+import { isToolsCatalogEnabled } from '../tools/tools-flag.ts'
 import type { MainPanelId } from './create-shell-store.ts'
 
 /** Window event: Ctrl K asks Busca to focus (and select) its field. */
@@ -57,6 +58,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
       { panel: 'files', labelKey: 'sidebar.files', icon: 'arquivos' },
       { panel: 'rules', labelKey: 'sidebar.rules', icon: 'quadro' },
       { panel: 'connections', labelKey: 'sidebar.connections', icon: 'skills' },
+      // Item 26: só com `persona.flag.toolsCatalog` (padrão DESLIGADA até o "Conectar", 26.5).
+      ...(isToolsCatalogEnabled() ? [{ panel: 'tools', labelKey: 'sidebar.tools', icon: 'skills' } as const] : []),
       { panel: 'usage', labelKey: 'sidebar.usage', icon: 'uso-e-limites' },
     ],
   },

@@ -153,7 +153,9 @@ describe('o cartão (flag persona.flag.actionPreview; cada botão só com destin
     const second = vi.fn()
     card(email(), second)
     fireEvent.click(screen.getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    // P0-10: marcada a caixinha, o 1º envio AINDA pede o segurar (o "Enviar" de um clique não existe).
+    expect(screen.queryByRole('button', { name: 'Enviar' })).toBeNull()
+    await holdToApprove(screen.getByRole('button', { name: 'Segure para enviar' }))
     await waitFor(() => { expect(second).toHaveBeenCalledTimes(1) })
     expect(second.mock.calls[0]![0]).toEqual({ approvalId: 'approval-1', choice: 'send', remember: true })
   })

@@ -91,6 +91,12 @@ const UI_PATHS = {
   estoque: <path d="m12 3 8 4.2v9.6L12 21l-8-4.2V7.2L12 3ZM4 7.2l8 4.3 8-4.3M12 11.5V21M8 5.2l8 4.2" />,
   agenda: <><rect x="4" y="5" width="16" height="15" rx="2" /><path d="M8 3v4M16 3v4M4 9h16M8 13h2M14 13h2M8 16h2" /></>,
   'contatos-sem-resposta': <><path d="M13.5 17H8l-4 3V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6" /><circle cx="18" cy="17" r="4" /><path d="M18 14.8v2.4l1.5.9" /></>,
+  // Cofre (item 15): a chave das linhas de "Chaves".
+  key: <><circle cx="8" cy="8" r="4" /><path d="m10.9 10.9 8.6 8.6M15.7 15.7l2-2M17.8 17.8l2-2" /></>,
+  // Item 24: a persona que trabalha na Estação (o mini-PC sempre ligado).
+  estacao: <><rect x="3" y="7" width="18" height="10" rx="2.5" /><path d="M6.5 11v2M9 11v2M6 19h2M16 19h2" /><circle cx="17" cy="12" r="0.7" /></>,
+  // Item 22: "Nova equipe" (o '+' é o que o separa de 'clientes').
+  'equipe-nova': <><circle cx="7.5" cy="8.5" r="2.8" /><path d="M2.5 19v-1a5 5 0 0 1 10 0v1zM14 10a2.5 2.5 0 0 1 0 4.8M14.7 15.2a4 4 0 0 1 3.4 3.8M19 2.5v5M16.5 5h5" /></>,
 } as const satisfies Record<string, ReactNode>
 
 export type UiIconName = keyof typeof UI_PATHS

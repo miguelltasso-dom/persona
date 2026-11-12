@@ -9,6 +9,7 @@
 import type { ProductRepos, Routine, RoutineRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
 import { MORNING_ROUTINE_PREFIX } from './morning-brief-host.ts'
 import { nextRoutineRun, ROUTINE_SPEC_KIND, type RoutineSpecDoc } from './proactivity-scheduler.ts'
+import { describeTrigger, EVENT_RRULE, readTrigger, triggerOfRoutine, type RoutineTrigger } from './routine-events.ts'
 import { RemoteFault } from './remote-guard.ts'
 import { describeRrule, parseRrule, RruleError } from './rrule-lite.ts'
 import type { RoutineView } from './types.ts'
@@ -71,6 +72,16 @@ export function checkRoutineRrule(rule: unknown): string {
   return text
 }
 
+/**
+ * Item 26: the trigger as it arrives from the screen (untrusted). Absent = the schedule.
+ * @param raw - `{ kind: 'schedule' }` or `{ kind: 'event', source, filter }`.
+ */
+export function checkRoutineTrigger(raw: unknown): RoutineTrigger {
+  const read = readTrigger(raw)
+  if (read.ok) return read.trigger
+  throw invalid(read.reason === 'source' ? 'Esse evento não dá para escutar. Escolha um da lista.' : 'Esse gatilho não é aceito. Escolha um horário ou um evento pela lista.')
+}
+
 /** @param zone - IANA time zone. */
 export function checkRoutineTimeZone(zone: unknown): string {
   const text = textOf(zone, 'Fuso horário').trim()
@@ -126,9 +137,15 @@ export function checkRoutineOwner(product: ProductRepos, projectId: string, owne
  * @param projectId - Tenant.
  * @param routineId - Routine id.
  */
-export function readRoutineSpec(screens: ScreenRepos, projectId: string, routineId: string): { prompt: string; ownerPersonaId: string } {
+export function readRoutineSpec(screens: ScreenRepos, projectId: string, routineId: string): { prompt: string; ownerPersonaId: string; trigger: RoutineTrigger } {
   const spec = screens.get<RoutineSpecDoc>(projectId, ROUTINE_SPEC_KIND, routineId)
-  return { prompt: spec?.prompt ?? '', ownerPersonaId: spec?.personaId ?? '' }
+  return { prompt: spec?.prompt ?? '', ownerPersonaId: spec?.personaId ?? '', trigger: storedTriggerOf(spec) }
+}
+
+/** The trigger a spec document holds, read back as untrusted. */
+function storedTriggerOf(spec: RoutineSpecDoc | undefined): RoutineTrigger {
+  const read = readTrigger(spec?.trigger)
+  return read.ok ? read.trigger : { kind: 'schedule' }
 }
 
 /**
@@ -142,15 +159,18 @@ export function writeRoutineSpec(
   screens: ScreenRepos,
   projectId: string,
   routineId: string,
-  spec: { readonly prompt: string; readonly ownerPersonaId: string },
+  spec: { readonly prompt: string; readonly ownerPersonaId: string; readonly trigger?: RoutineTrigger },
 ): void {
-  if (spec.prompt === '' && spec.ownerPersonaId === '') {
+  // Item 26: an absent trigger keeps the stored one (a persona editing the prompt must not turn "quando chegar e-mail" into nothing).
+  const trigger = spec.trigger ?? storedTriggerOf(screens.get<RoutineSpecDoc>(projectId, ROUTINE_SPEC_KIND, routineId))
+  if (spec.prompt === '' && spec.ownerPersonaId === '' && trigger.kind === 'schedule') {
     screens.delete(projectId, ROUTINE_SPEC_KIND, routineId)
     return
   }
   const doc: RoutineSpecDoc = {
     ...(spec.ownerPersonaId === '' ? {} : { personaId: spec.ownerPersonaId }),
     ...(spec.prompt === '' ? {} : { prompt: spec.prompt }),
+    ...(trigger.kind === 'event' ? { trigger } : {}),
   }
   screens.put(projectId, ROUTINE_SPEC_KIND, routineId, doc)
 }
@@ -161,8 +181,9 @@ export function writeRoutineSpec(
  * @param spec - What/who.
  * @param nowMs - Clock.
  */
-export function routineViewOf(routine: Routine, spec: { readonly prompt: string; readonly ownerPersonaId: string }, nowMs: number): RoutineView {
-  const next = routine.paused ? undefined : nextRoutineRun(routine, nowMs)
+export function routineViewOf(routine: Routine, spec: { readonly prompt: string; readonly ownerPersonaId: string; readonly trigger?: RoutineTrigger }, nowMs: number): RoutineView {
+  const trigger = triggerOfRoutine(routine.rrule, spec.trigger)
+  const next = routine.paused || routine.rrule === EVENT_RRULE ? undefined : nextRoutineRun(routine, nowMs)
   return {
     id: routine.id,
     projectId: routine.projectId,
@@ -173,8 +194,9 @@ export function routineViewOf(routine: Routine, spec: { readonly prompt: string;
     catchUp: routine.catchUp,
     prompt: spec.prompt,
     ...(spec.ownerPersonaId === '' ? {} : { ownerPersonaId: spec.ownerPersonaId }),
-    humanSchedule: describeRrule(routine.rrule),
+    humanSchedule: trigger.kind === 'event' ? describeTrigger(trigger) : routine.rrule === EVENT_RRULE ? 'Quando acontecer algo' : describeRrule(routine.rrule),
     nextRunAt: next === undefined ? '' : new Date(next).toISOString(),
+    ...(trigger.kind === 'event' ? { trigger } : {}),
     ...(routine.id.startsWith(INITIATIVE_ROUTINE_PREFIX) || routine.id.startsWith(MORNING_ROUTINE_PREFIX) ? { system: true as const } : {}),
   }
 }

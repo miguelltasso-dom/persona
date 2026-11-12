@@ -269,7 +269,7 @@ function finishProposal(base: Omit<BringContextProposal, 'status' | 'blocked' | 
     duplicateOf: duplicate?.id ?? '',
     conflictQuestion: fixed === undefined
       ? ''
-      : `O Cofre já tem: “${fixed.body}”. A colagem diz: “${base.body}”. Qual vale?`,
+      : `A Memória da empresa já tem: “${fixed.body}”. A colagem diz: “${base.body}”. Qual vale?`,
     status,
   }
 }

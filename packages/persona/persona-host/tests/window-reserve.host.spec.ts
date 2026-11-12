@@ -2,7 +2,7 @@ import { expect } from 'vitest'
 import { persistProbeQuota } from '../src/official-quota-persist.ts'
 import PersonaHost from '../src/index.ts'
 import { postTeamRequest } from '../src/proactivity-wire.ts'
-import { WindowResumeQueue } from '../src/window-reserve.ts'
+import { WindowResumeQueue, replayTextOf } from '../src/window-reserve.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
 /**
@@ -123,18 +123,76 @@ it('steps aside at 100% (the limit flow owns it) and still spends the last 5% on
   expect(h.orchestration.runtime('pp').repo.tickets.list().some(ticket => ticket.execution?.assignment?.includes('lista de preços'))).toBe(true)
 })
 
-it('does not replay a conversation the persona already answered', async () => {
+/** The line a held message gets when the persona answers THAT message on its own (what `hasFinalLine` reads). */
+function answerOn(h: PersonaHost, messageId: string): void {
+  h.events.append({
+    id: `coord-${messageId}-reply`, workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral', type: 'message',
+    body: 'Já resolvi isso.', actorId: 'coord', subjectId: '', occurredAt: '2026-11-11T19:30:00.000Z',
+  })
+}
+
+// P0-08 (Carbon, colheita S1): a quick answer in the last 5% must NEVER erase a work request that is waiting for the renewal.
+it('keeps a held work request when the persona answered a DIFFERENT quick question afterwards', async () => {
   const h = host()
   seed(h)
   quota(h, 97)
-  await say(h, 'Faça a lista de preços novos')
-  await say(h, 'Como você está hoje?')
+  const work = await say(h, 'Faça a lista de preços novos')
+  expect(work.lines.some(line => line.includes('A janela 5 h está em 97%'))).toBe(true)
+  const chat = await say(h, 'Como você está hoje?')
+  expect(chat.lines.length).toBeGreaterThan(0) // she answered the quick question (the last 5% is for that)
+  expect(queue(h)).toHaveLength(1)
+  expect(queue(h)[0]?.eventIds).toHaveLength(1) // and only the work request waits
+
+  quota(h, 30, '2026-11-11T22:00:00.000Z')
+  expect(h.orchestration.releaseWindowQueue('pp')).toBe(1)
+  await h.orchestration.flush('pp')
+  const tickets = h.orchestration.runtime('pp').repo.tickets.list()
+  expect(tickets).toHaveLength(1)
+  expect(tickets[0]?.execution?.assignment).toContain('lista de preços')
+  expect(tickets[0]?.execution?.assignment).not.toContain('Como você está hoje')
+  expect(queue(h)).toHaveLength(0)
+})
+
+it('skips a held request that was answered ON ITS OWN, and nothing else', async () => {
+  const h = host()
+  seed(h)
+  quota(h, 97)
+  const first = await say(h, 'Faça a lista de preços novos')
+  answerOn(h, first.id)
 
   quota(h, 30, '2026-11-11T22:00:00.000Z')
   expect(h.orchestration.releaseWindowQueue('pp')).toBe(0)
   await h.orchestration.flush('pp')
   expect(h.orchestration.runtime('pp').repo.tickets.list()).toHaveLength(0)
   expect(queue(h)).toHaveLength(0)
+})
+
+it('replays only the held requests that are still unanswered when one of them was answered', async () => {
+  const h = host()
+  seed(h)
+  quota(h, 97)
+  const first = await say(h, 'Faça a lista de preços novos')
+  await say(h, 'Faça o cartaz da promoção')
+  answerOn(h, first.id)
+
+  quota(h, 30, '2026-11-11T22:00:00.000Z')
+  expect(h.orchestration.releaseWindowQueue('pp')).toBe(1)
+  await h.orchestration.flush('pp')
+  const tickets = h.orchestration.runtime('pp').repo.tickets.list()
+  expect(tickets).toHaveLength(1)
+  expect(tickets[0]?.execution?.assignment).toContain('cartaz da promoção')
+  expect(tickets[0]?.execution?.assignment).not.toContain('lista de preços')
+})
+
+it('the replay text never carries the raw wire markers of a held message, and the row remembers the first delivery of its request', () => {
+  expect(replayTextOf(['Faça a lista de preços', 'Pedido da Nina para a Bia\n[[handoff:{"id":"h1","from":"nina"}]]'])).toBe('Faça a lista de preços\n\nPedido da Nina para a Bia')
+  expect(replayTextOf(['só [[review:{"x":1}]] texto'])).toBe('só texto')
+  const book = new WindowResumeQueue(host().screens.screens)
+  const row = { conversationId: 'channel:geral', streamKind: 'channel' as const, ownerId: 'geral', eventIds: ['e1'], responderId: '', since: 'a', sinceSeq: 1,
+    firstDelivery: { executorId: 'coord', title: 'Primeira entrega', mandateActorId: 'ana' } }
+  expect(book.hold('pp', row)).toBe('new')
+  expect(book.hold('pp', { ...row, eventIds: ['e2'], firstDelivery: { executorId: 'other', title: 'Outra' } })).toBe('merged')
+  expect(book.list('pp')[0]).toMatchObject({ eventIds: ['e1', 'e2'], firstDelivery: { executorId: 'coord', title: 'Primeira entrega' } })
 })
 
 it('keeps a routine request out of the model and never answers it with silence', async () => {

@@ -41,6 +41,7 @@ import type { HouseRules } from './house-rules.ts'
 import { MORNING_ROUTINE_PREFIX } from './morning-brief-host.ts'
 import type { ProactivityHost } from './proactivity.ts'
 import { inSilence } from './proactivity.ts'
+import { EVENT_DOC_KIND, EVENT_RRULE, isEventRunId, type RoutineEventDoc, type RoutineTrigger } from './routine-events.ts'
 import { nextOccurrence, occurrencesBetween, RruleError, zonedParts } from './rrule-lite.ts'
 import { doneEventId } from './ticket-done.ts'
 import type { TeamStateBook } from './team-state.ts'
@@ -65,6 +66,8 @@ const MAX_LEASE_ATTEMPTS = 3
 export interface RoutineSpecDoc {
   readonly personaId?: string
   readonly prompt?: string
+  /** Item 26: what starts the routine when it is not the clock (an event of a connected source). Absent = the schedule. Only read when the row's rrule is `EVENT`. */
+  readonly trigger?: RoutineTrigger
 }
 
 /** The slice of a governance routine charge the scheduler needs. */
@@ -96,7 +99,10 @@ export interface TeamRequest {
 }
 
 /** Whether the pipeline turned a {@link TeamRequest} into a Ticket (the pre-router may refuse: silence, budget, injection…). */
-export type PostResult = { readonly ok: true; readonly ticketId: string } | { readonly ok: false; readonly reason: string }
+export type PostResult =
+  | { readonly ok: true; readonly ticketId: string }
+  /** `held`: the 95% window reserve already keeps the request (it runs when the window renews): not a refusal to retry every cycle. */
+  | { readonly ok: false; readonly reason: string; readonly held?: true }
 
 /** The engine/orchestration surface the scheduler reads and drives. */
 export interface SchedulerOrchestration {
@@ -495,6 +501,7 @@ export class ProactivityScheduler {
     const resumedAt = Date.parse(this.deps.teamState.get(projectId).resumedAt)
     for (const routine of this.deps.routines.list(projectId)) {
       if (routine.paused) continue
+      if (routine.rrule === EVENT_RRULE) continue // item 26: event-driven, it has no time: the intake queues its runs when an event arrives
       try {
         const anchor = Date.parse(routine.createdAt)
         const last = this.deps.routines.listRuns(routine.id)[0]
@@ -597,6 +604,12 @@ export class ProactivityScheduler {
       return 'skipped'
     }
     const prompt = spec?.prompt?.trim() ?? ''
+    // Item 26: a run an event started carries the event as fenced external data AFTER the request, never as the request itself.
+    const event = isEventRunId(run.id) ? deps.screens.get<RoutineEventDoc>(projectId, EVENT_DOC_KIND, run.id) : undefined
+    if (isEventRunId(run.id) && event === undefined) {
+      this.audit(projectId, 'sched:routine_skipped', routine.id, `A rotina “${routine.name}” foi chamada por um evento que já não está guardado: não rodou.`, nowIso, run.id)
+      return 'skipped'
+    }
     const persona = deps.product.getPersona(personaId)
     if (persona === undefined || persona.projectId !== projectId) {
       this.audit(projectId, 'sched:routine_skipped', routine.id, `A rotina “${routine.name}” aponta para uma persona que não existe mais.`, nowIso, run.id)
@@ -609,11 +622,17 @@ export class ProactivityScheduler {
     if (!this.mayStartModel(projectId, persona, deps.proactivity.getAutonomy(projectId, persona.id), nowIso)) return 'skipped'
     const posted = deps.postRequest({
       workspaceId, projectId, id: `routine-run:${run.id}:${String(run.attempt)}`, actorId: `routine:${routine.id}`, personaId: persona.id, kind: 'routine',
-      body: `@${persona.name} ${prompt === '' ? `Faça a rotina “${routine.name}” agora e relate com evidência.` : prompt}`,
+      body: `@${persona.name} ${prompt === '' ? `Faça a rotina “${routine.name}” agora e relate com evidência.` : prompt}${event === undefined ? '' : `\n\n${event.text}`}`,
     })
+    if (!posted.ok && posted.held === true) {
+      // S1 P1-12: the window reserve already keeps this request (it goes when the window renews). Retrying every cycle queued it once more each time.
+      this.audit(projectId, 'sched:routine_run', routine.id, `Rotina “${routine.name}”: ${persona.name} começa quando a janela renovar.`, nowIso, `${run.id}:held`)
+      return 'done'
+    }
     if (!posted.ok) return this.defer(run, routine, posted.reason, nowIso)
     this.spend(projectId, persona.id, nowIso)
-    this.audit(projectId, 'sched:routine_run', routine.id, `Rotina “${routine.name}”: ${persona.name} começou.`, nowIso, run.id)
+    if (event !== undefined) deps.screens.delete(projectId, EVENT_DOC_KIND, run.id) // the text now lives in the request itself
+    this.audit(projectId, 'sched:routine_run', routine.id, `Rotina “${routine.name}”: ${persona.name} começou${event === undefined ? '' : ' ao receber um evento'}.`, nowIso, run.id)
     return 'model'
   }
 
@@ -767,7 +786,7 @@ export class ProactivityScheduler {
     if (goal === undefined) return
     const autonomy = deps.proactivity.getAutonomy(projectId, coordination.id)
     if (autonomy.mode === 'asked') return
-    if (inSilence(nowIso, autonomy.silenceStart, autonomy.silenceEnd)) {
+    if (inSilence(nowIso, autonomy.silenceStart, autonomy.silenceEnd, deps.proactivity.offsetMinutes(nowIso))) {
       this.audit(projectId, 'sched:silence', coordination.id, `${coordination.name} está na janela de silêncio: o planejamento espera.`, nowIso, `plan-silence:${nowIso.slice(0, 13)}`)
       return
     }

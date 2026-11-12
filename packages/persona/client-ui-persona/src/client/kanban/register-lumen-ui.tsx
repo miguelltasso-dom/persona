@@ -11,6 +11,7 @@ import {
   RemoteUsagePanel,
 } from '../data/lumen-remote-panels.tsx'
 import { SettingsConnectionsTab } from '../shell/SettingsConnectionsTab.tsx'
+import { SettingsToolsTab } from '../shell/SettingsToolsTab.tsx'
 import { SettingsCofreTab } from '../cofre/SettingsCofreTab.tsx'
 import { ConnectedGlobalKanban } from '../remote/ConnectedGlobalKanban.tsx'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
@@ -81,6 +82,10 @@ import {
   de as cofreDe, en as cofreEn, es as cofreEs, fr as cofreFr, ja as cofreJa, COFRE_NS,
   pt as cofrePt, ru as cofreRu, zh as cofreZh, type CofreKey,
 } from '../locale/cofre/locales.ts'
+import {
+  de as toolsDe, en as toolsEn, es as toolsEs, fr as toolsFr, ja as toolsJa, TOOLS_NS,
+  pt as toolsPt, ru as toolsRu, zh as toolsZh, type ToolsKey,
+} from '../locale/tools/locales.ts'
 import { ConnectedOrgChartPanel } from '../remote/ConnectedOrgChartPanel.tsx'
 import { ConnectedTeamHealthPanel } from '../remote/ConnectedTeamHealthPanel.tsx'
 
@@ -102,6 +107,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'persona.governance': GovernanceKey
     'persona.secondBrain': SecondBrainKey
     'persona.cofre': CofreKey
+    'persona.tools': ToolsKey
   }
 }
 
@@ -149,6 +155,9 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
   ctx.effect(() => ctx.locale.register(COFRE_NS, {
     zh: cofreZh, en: cofreEn, ja: cofreJa, es: cofreEs, fr: cofreFr, de: cofreDe, ru: cofreRu, pt: cofrePt,
   }), 'persona: cofre dictionaries')
+  ctx.effect(() => ctx.locale.register(TOOLS_NS, {
+    zh: toolsZh, en: toolsEn, ja: toolsJa, es: toolsEs, fr: toolsFr, de: toolsDe, ru: toolsRu, pt: toolsPt,
+  }), 'persona: tools dictionaries')
   ctx.effect(() => ctx.locale.register(REVIEW_NS, {
     zh: reviewZh, en: reviewEn, ja: reviewJa, es: reviewEs, fr: reviewFr, de: reviewDe, ru: reviewRu, pt: reviewPt,
   }), 'persona: review dictionaries')
@@ -248,6 +257,8 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
     { key: 'files', locale: FILES_NS, Panel: RemoteFilesPanel },
     { key: 'usage', locale: USAGE_NS, Panel: RemoteUsagePanel },
     { key: 'connections', locale: CONNECTIONS_NS, Panel: SettingsConnectionsTab },
+    // Item 26: "Ferramentas do seu negócio", logo depois de Conexões (que continua sendo a das contas de IA).
+    { key: 'tools', locale: TOOLS_NS, Panel: SettingsToolsTab },
     { key: 'cofre', locale: COFRE_NS, Panel: SettingsCofreTab },
   ] as const
 

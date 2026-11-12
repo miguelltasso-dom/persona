@@ -87,6 +87,17 @@
   font-weight: 800;
 }
 
+/* P0-10: a lista de anexos dentro do campo "Anexos" (um nome por linha, sem marcador). */
+.attachments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attachments li {
+  overflow-wrap: anywhere;
+}
+
 .bodyWrap {
   margin: 0 0 var(--persona-space-2);
 }

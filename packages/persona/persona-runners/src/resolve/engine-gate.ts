@@ -125,5 +125,6 @@ export function withEngineConnectorPolicy(inner: Runner, cli: CliKind | string, 
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(input) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }

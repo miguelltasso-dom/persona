@@ -84,6 +84,11 @@
   "thread.loading": "Opening the conversation…",
   "thread.error": "Couldn't open the conversation right now. Try again.",
   "thread.retry": "Try again",
+  "thread.sendFailed": "Couldn't send it. Try again.",
+  "thread.detail.project": "Project",
+  "thread.detail.column": "Stage",
+  "thread.detail.assignee": "Looking after it",
+  "thread.detail.due": "Due",
   "card.flowField": "{label} · {value}",
   "chip.dependencyCount": "Depends on {count}",
   "chip.evidenceCount": "{count} attachments",
@@ -260,5 +265,6 @@
   "projects.history.open": "History",
   "projects.history.back": "Back to the board",
   "projects.options": "Options",
-  "boards.filterLabel": "Filter projects"
+  "boards.filterLabel": "Filter projects",
+  "card.doneBy": "Done by {name}"
 }

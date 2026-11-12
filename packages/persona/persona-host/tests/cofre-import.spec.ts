@@ -54,6 +54,28 @@ it('commits only the new rows and seals their passwords', async () => {
   expect(await secrets.read('pp', saved?.id ?? '')).toBe('senha-1')
 })
 
+it('Carbon P1-11: a password is kept BYTE FOR BYTE: spaces at the ends are part of it (the import never trims a secret)', async () => {
+  const { import: importer, entries, secrets } = await cofre()
+  const csv = ['name,url,username,password', 'Portal,https://p.com,ana,"  senha com espaço  "', 'Outro,https://o.com,bia, sem-aspas '].join('\r\n')
+  expect((await importer.commit('pp', 'ana', csv)).imported).toBe(2)
+  const byTitle = (title: string): string => entries.list('pp').find(entry => entry.title === title)?.id ?? ''
+  expect(await secrets.read('pp', byTitle('Portal'))).toBe('  senha com espaço  ')
+  expect(await secrets.read('pp', byTitle('Outro'))).toBe(' sem-aspas ')
+})
+
+it('Carbon P1-11: a quote in the MIDDLE of an unquoted field is just a character, and the columns of every row after it stay aligned', async () => {
+  const { import: importer, entries, secrets } = await cofre()
+  const csv = ['name,url,username,password', 'Um,https://um.com,ana,abc"def', 'Dois,https://dois.com,bia,segundo-segredo', 'Tres,https://tres.com,cris,"com ""aspas"" dentro"'].join('\r\n')
+  const preview = importer.preview('pp', csv)
+  expect(preview.entries.map(entry => `${entry.line}:${entry.title}:${entry.username}`)).toEqual(['2:Um:ana', '3:Dois:bia', '4:Tres:cris'])
+  expect(preview.ignored).toEqual([])
+  await importer.commit('pp', 'ana', csv)
+  const byTitle = (title: string): string => entries.list('pp').find(entry => entry.title === title)?.id ?? ''
+  expect(await secrets.read('pp', byTitle('Um'))).toBe('abc"def')
+  expect(await secrets.read('pp', byTitle('Dois'))).toBe('segundo-segredo')
+  expect(await secrets.read('pp', byTitle('Tres'))).toBe('com "aspas" dentro')
+})
+
 it('reads the Bitwarden export, ignores non-login rows and keeps quoted commas', async () => {
   const { import: importer, entries, secrets } = await cofre()
   const csv = [

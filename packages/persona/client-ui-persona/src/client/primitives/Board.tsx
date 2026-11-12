@@ -20,6 +20,31 @@ const EMPTY_ART: Readonly<Record<StageCategory, string>> = {
   blocked: 'empty-col-blocked',
 }
 
+/** The plain ways to name a stage by its own words, so a column called so does not repeat the stage under its name (pt and en; accents and case do not matter). */
+const PLAIN_STAGE_NAMES: Readonly<Record<StageCategory, readonly string[]>> = {
+  todo: ['a fazer', 'to do', 'todo', 'backlog'],
+  doing: ['fazendo', 'em andamento', 'in progress', 'doing'],
+  review: ['em revisao', 'revisao', 'in review', 'review'],
+  needs_you: ['precisa de voce', 'needs you'],
+  done: ['feito', 'concluido', 'concluida', 'done'],
+  blocked: ['bloqueado', 'blocked'],
+}
+
+function plainText(text: string): string {
+  return text.trim().toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+}
+
+/**
+ * Whether a column's name already says its stage ("Fazendo" for the doing stage): then the stage line under the name is a repeat and is not drawn.
+ * @param name - The column's name as the person sees it.
+ * @param category - The stage the column belongs to.
+ * @param categoryLabel - The translated stage label.
+ */
+export function nameSaysStage(name: string, category: StageCategory, categoryLabel: string): boolean {
+  const own = plainText(name)
+  return own === plainText(categoryLabel) || PLAIN_STAGE_NAMES[category].includes(own)
+}
+
 /** data-attribute value for CSS (`needs_you` → `needs-you`). */
 function categoryAttr(category: StageCategory): string {
   return category.replace('_', '-')
@@ -122,7 +147,7 @@ export function BoardColumn({
           <Chip size="s" tone={wipTone}>{wipLimit === undefined ? count : `${count}/${wipLimit}`}</Chip>
           {actions}
         </div>
-        <p className={styles.columnCategory}>{categoryLabel}</p>
+        {!nameSaysStage(name, category, categoryLabel) && <p className={styles.columnCategory}>{categoryLabel}</p>}
       </header>
       <div className={styles.columnBody}>
         {count === 0 ? (

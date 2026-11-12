@@ -99,6 +99,71 @@ function listOf(input: Readonly<Record<string, unknown>>): string[] | undefined 
   return undefined
 }
 
+/** What the person changed, as ONE text: a plain string, or the `{ subject, body }` the card's edit mode sends. Anything else is nothing. */
+function editedText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (typeof value !== 'object' || value === null) return ''
+  const row = value as { readonly subject?: unknown; readonly body?: unknown }
+  const subject = typeof row.subject === 'string' ? row.subject.trim() : ''
+  const body = typeof row.body === 'string' ? row.body.trim() : ''
+  return [subject === '' ? '' : `Assunto: ${subject}`, body].filter(part => part !== '').join('\n')
+}
+
+/** The fields of a call the card knows how to SHOW. Anything else with a value is something the person would approve blind. */
+const SHOWN_FIELDS: ReadonlySet<string> = new Set([
+  'to', 'recipient', 'recipients', 'email', 'destinatario', 'channel', 'cc', 'bcc', 'subject', 'assunto', 'title',
+  'body', 'text', 'message', 'content', 'corpo', 'html', 'amount', 'valor', 'value', 'total', 'payee', 'beneficiary',
+  'reference', 'ref', 'memo', 'description', 'items', 'ids', 'files', 'paths', 'targets', 'names', 'attachments', 'anexos',
+])
+const ATTACHMENT_FIELDS: readonly string[] = ['attachments', 'anexos']
+/** How much of each field the card keeps; a longer value is CUT, so the preview is not all of what would go out. */
+const FIELD_CAPS: ReadonlyArray<readonly [readonly string[], number]> = [
+  [['to', 'recipient', 'recipients', 'email', 'destinatario', 'channel'], 300], [['cc'], 300], [['bcc'], 300],
+  [['subject', 'assunto', 'title'], 200], [['body', 'text', 'message', 'content', 'corpo', 'html'], 4000],
+  [['amount', 'valor', 'value', 'total'], 40], [['payee', 'beneficiary'], 200], [['reference', 'ref', 'memo', 'description'], 200],
+]
+const LIST_MAX = 20
+
+const filled = (value: unknown): boolean => value !== undefined && value !== null && !(typeof value === 'string' && value.trim() === '') && !(Array.isArray(value) && value.length === 0)
+const plainItem = (item: unknown): boolean => typeof item === 'string' || typeof item === 'number'
+const attachmentName = (item: unknown): string | undefined => {
+  if (typeof item === 'string' && item.trim() !== '') return item
+  if (typeof item !== 'object' || item === null) return undefined
+  const row = item as { readonly name?: unknown; readonly filename?: unknown }
+  const name = typeof row.name === 'string' ? row.name : typeof row.filename === 'string' ? row.filename : ''
+  return name.trim() === '' ? undefined : name
+}
+
+/** The names of the attachments of a call, up to {@link LIST_MAX}, each as the card shows it. */
+function attachmentsOf(input: Readonly<Record<string, unknown>>): string[] | undefined {
+  for (const field of ATTACHMENT_FIELDS) {
+    const value = input[field]
+    if (Array.isArray(value) && value.length > 0) return value.flatMap((item): string[] => { const name = attachmentName(item); return name === undefined ? [] : [clip(name, 200)] }).slice(0, LIST_MAX)
+  }
+  return undefined
+}
+
+/**
+ * What the card does NOT show of the real call. `masked`: a field the card cannot display (an unknown one, or a known one with a shape it cannot
+ * write). `truncated`: a field the card shows CUT. Either one means the preview is not all of what would go out: it cannot be approved blind.
+ */
+function visibility(doc: ExternalActionDoc): { readonly truncated: boolean; readonly masked: boolean } {
+  const input = doc.requestedInput
+  const masked = Object.entries(input).some(([key, value]) => {
+    if (!filled(value)) return false
+    if (!SHOWN_FIELDS.has(key)) return true
+    if (ATTACHMENT_FIELDS.includes(key)) return !Array.isArray(value) || value.some(item => attachmentName(item) === undefined)
+    return !(plainItem(value) || (Array.isArray(value) && value.every(plainItem)))
+  })
+  const fieldCut = FIELD_CAPS.some(([names, max]) => (pick(input, names) ?? '').length > max)
+  const listCut = ['items', 'ids', 'files', 'paths', 'targets', 'names'].some((field) => {
+    const value = input[field]
+    return Array.isArray(value) && (value.length > LIST_MAX || value.some(item => plainItem(item) && String(item).length > 200))
+  })
+  const attachmentCut = ATTACHMENT_FIELDS.some((field) => { const value = input[field]; return Array.isArray(value) && (value.length > LIST_MAX || value.some(item => (attachmentName(item) ?? '').length > 200)) })
+  return { truncated: fieldCut || listCut || attachmentCut, masked }
+}
+
 /** The host side of the preview card of an external action. */
 export class ExternalActions {
   /** @param deps - Host parts. */
@@ -216,7 +281,7 @@ export class ExternalActions {
    * @returns The card as it is now and whether the call may now be let through (the Task must be reopened).
    */
   decide(
-    request: { readonly workspaceId: string; readonly projectId: string; readonly id: string; readonly choice: ActionChoice; readonly edited?: string; readonly remember?: boolean },
+    request: { readonly workspaceId: string; readonly projectId: string; readonly id: string; readonly choice: ActionChoice; readonly edited?: string | { readonly subject?: string; readonly body?: string }; readonly remember?: boolean },
     actorId: string,
   ): { readonly card: ApprovalView; readonly approved: ExternalActionDoc | undefined } {
     this.expire(request.projectId)
@@ -234,7 +299,8 @@ export class ExternalActions {
       return { card: this.cardOf(closed), approved: undefined }
     }
     if (request.choice === 'edit') {
-      const edited = (request.edited ?? '').replace(/\r\n/gu, '\n').trim()
+      // P0-10: the card sends `{ subject, body }` (an object), a plain caller sends a string; both become ONE text, anything else is empty.
+      const edited = editedText(request.edited).replace(/\r\n/gu, '\n').trim()
       if (edited === '') throw new RemoteFault('invalid-payload', 'Escreva o que você quer mudar antes de pedir o ajuste.')
       const adjusted: ExternalActionDoc = { ...doc, status: 'adjusted', decidedBy: actorId, decidedAt: now, edited: clip(edited, 2000) }
       this.save(adjusted)
@@ -243,7 +309,8 @@ export class ExternalActions {
       return { card: this.cardOf(adjusted), approved: undefined }
     }
     // Enviar / Pagar / Apagar: what the person saw must be what goes out.
-    if (doc.truncated || doc.masked) {
+    const seen = visibility(doc)
+    if (doc.truncated || doc.masked || seen.truncated || seen.masked) {
       throw new RemoteFault('invalid-payload', 'A prévia está cortada ou tem uma parte escondida: não dá para aprovar sem ver tudo. Peça um ajuste.')
     }
     const persona = this.deps.product.getPersona(doc.personaId)
@@ -294,16 +361,23 @@ export class ExternalActions {
     const to = pick(input, ['to', 'recipient', 'recipients', 'email', 'destinatario', 'channel'])
     const items = doc.actionClass === 'delete' ? listOf(input) : undefined
     const amount = pick(input, ['amount', 'valor', 'value', 'total'])
+    const cc = pick(input, ['cc'])
+    const bcc = pick(input, ['bcc'])
+    const attachments = attachmentsOf(input)
+    const seen = visibility(doc)
     const preview: ActionPreviewView = {
       actionClass: doc.actionClass, verb: doc.verb, connectorName: doc.connector.name,
       ...(to === undefined ? {} : { to: clip(to, 300) }),
+      ...(cc === undefined ? {} : { cc: clip(cc, 300) }),
+      ...(bcc === undefined ? {} : { bcc: clip(bcc, 300) }),
+      ...(attachments === undefined ? {} : { attachments }),
       ...(pick(input, ['subject', 'assunto', 'title']) === undefined ? {} : { subject: clip(pick(input, ['subject', 'assunto', 'title']) ?? '', 200) }),
       ...(pick(input, ['body', 'text', 'message', 'content', 'corpo', 'html']) === undefined ? {} : { body: clip(pick(input, ['body', 'text', 'message', 'content', 'corpo', 'html']) ?? '', 4000) }),
       ...(amount === undefined ? {} : { amount: clip(amount, 40) }),
       ...(doc.actionClass === 'pay' && pick(input, ['payee', 'beneficiary', 'recipient', 'to']) !== undefined ? { payee: clip(pick(input, ['payee', 'beneficiary', 'recipient', 'to']) ?? '', 200) } : {}),
       ...(pick(input, ['reference', 'ref', 'memo', 'description']) === undefined ? {} : { reference: clip(pick(input, ['reference', 'ref', 'memo', 'description']) ?? '', 200) }),
       ...(items === undefined ? {} : { items, count: items.length }),
-      truncated: doc.truncated, masked: doc.masked, requestedByPerson: doc.requestedByPerson, status,
+      truncated: doc.truncated || seen.truncated, masked: doc.masked || seen.masked, requestedByPerson: doc.requestedByPerson, status,
       canRemember: doc.actionClass === 'send' || doc.actionClass === 'post',
       ...(doc.status === 'sent' && to !== undefined ? { sentTo: clip(to, 300) } : {}),
       ...(doc.sentAt === undefined ? {} : { sentAt: doc.sentAt }),

@@ -148,7 +148,7 @@ describe('RemoteSecondBrainPanel · Resumo com dados reais', () => {
   it('host sem createVaultRecord: nenhum convite (controle falso é pior que nenhum)', async () => {
     const { persona } = client({ withCreate: false })
     mount(persona)
-    await waitFor(() => { expect(screen.getByRole('heading', { level: 1, name: 'Resumo' })).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByRole('heading', { level: 1, name: 'Visão geral' })).toBeTruthy() })
     expect(screen.queryByRole('button', { name: 'Descrever a empresa em 3 frases' })).toBeNull()
   })
 
@@ -160,11 +160,12 @@ describe('RemoteSecondBrainPanel · Resumo com dados reais', () => {
     expect(document.body.textContent).not.toMatch(/bibliotec/iu)
   })
 
-  it('sem persona nenhuma que sirva: "Atualização automática da equipe"', async () => {
+  it('sem persona nenhuma que sirva: "A equipe atualizou …" (ator do sistema)', async () => {
     const { persona } = client({ personas: [personaRow('sol', 'Sol', 'Relacionamento')] })
     mount(persona)
     await waitFor(() => { expect(screen.getByText('Missão remota')).toBeTruthy() })
-    expect(document.body.textContent).toMatch(/Atualização automática da equipe/u)
+    expect(document.body.textContent).toMatch(/A equipe/u)
+    expect(document.body.textContent).not.toMatch(/Atualização automática da equipe|atualizado sozinho/u)
   })
 })
 

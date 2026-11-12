@@ -43,6 +43,8 @@ import { readHandoffNote, readReviewing, readWorkPath, type HandoffNoteUi, type 
 import { isTeamworkSampleCardId, teamworkDevSampleEnabled, teamworkSampleCards, teamworkSamplePersona } from '../teamwork/teamwork-dev-sample.ts'
 import { WorkPathSheet } from '../teamwork/WorkPathSheet.tsx'
 import type { ConversationSubjectUi } from '../chat/conversation-subjects.ts'
+import { ConnectedTaskConversation, type TaskConversationBridge } from './ConnectedTaskConversation.tsx'
+import conversationStyles from './ConnectedTaskConversation.module.css'
 
 export interface ConnectedProjectFlowBoardProps {
   readonly persona: PersonaRemoteClient
@@ -61,6 +63,8 @@ export interface ConnectedProjectFlowBoardProps {
   readonly channelSubjects?: readonly ConversationSubjectUi[]
   /** Where a new task starts (the conversation with the team). */
   readonly onNewTask?: (() => void) | undefined
+  /** COLHEITA 18: with it, a click on a card opens the conversation of the task in a side panel; without it the cards are as they were. */
+  readonly taskConversation?: TaskConversationBridge | undefined
 }
 
 function canProposeWorkflow(client: PersonaRemoteClient): boolean {
@@ -85,8 +89,11 @@ export function ConnectedProjectFlowBoard({
   onNewTask,
   switcher,
   onNewProject,
+  taskConversation,
 }: ConnectedProjectFlowBoardProps): ReactNode {
   const [reloadToken, setReloadToken] = useState(0)
+  /** COLHEITA 18: the card whose conversation is open in the side panel (`null` = closed). */
+  const [conversationCardId, setConversationCardId] = useState<string | null>(null)
   /** New copy: the same words if this build's generated locale does not carry the keys yet. */
   const tr = (key: string, fallback: string): string => {
     const text = t(key)
@@ -212,6 +219,8 @@ export function ConnectedProjectFlowBoard({
     openPath: (cardId) => { setPathCardId(cardId) },
   }
   const pathCard = pathCardId === null ? undefined : flow?.cards.find(card => card.id === pathCardId)
+  // COLHEITA 18: the card whose conversation is open; a card that left the board (deleted, another project) closes the panel on its own.
+  const openConversationCard = conversationCardId === null ? undefined : flow?.cards.find(card => card.id === conversationCardId)
   // HT-3 (behind persona.flag.teamwork): "{nome} começou agora" on the card the PERSON just moved to Fazendo, only when that persona's current task IS the card.
   const startedNow = useStartedNow({
     enabled: isTeamworkEnabled(),
@@ -436,69 +445,84 @@ export function ConnectedProjectFlowBoard({
   return (
     <TeamworkProvider value={teamworkValue}>
       <StartedNowProvider value={startedNow}>
-        <ProjectFlowBoard
-          dict={kanbanDict}
-          flow={flow}
-          surfaceState={surfaceState}
-          {...(sprint !== undefined ? { currentSprint: sprint } : {})}
-          switcher={switcher}
-          onNewProject={onNewProject}
-          {...(onWorkspaceTabChange === undefined ? {} : { onOpenHistory: () => { onWorkspaceTabChange('history') } })}
-          onMoveCard={(ticketId, columnId) => { void onMoveCard(ticketId, columnId) }}
-          onOpenReview={(ticketId) => {
-            const card = flow.cards.find(row => row.id === ticketId)
-            if (card !== undefined) setReviewTarget({ id: ticketId, title: card.title })
-          }}
-          onRetry={reload}
-          onNewTask={onNewTask}
-          onPlanSprint={() => { onWorkspaceTabChange?.('sprints') }}
-          workflowFields={board?.workflow.fields ?? []}
-          onSaveWorkflow={async (columns, destByRemoved, fields) => {
-            await unwrapRemote(await persona.updateWorkflow({
-              workspaceId: scope.workspaceId,
-              projectId: scope.projectId,
-              columns,
-              fields,
-              ...(Object.keys(destByRemoved).length > 0 ? { destByRemoved } : {}),
-            }))
-            reload()
-          }}
-          {...(sprint !== undefined
-            ? {
-              onConfirmCloseSprint: (leftover) => {
-                void (async () => {
-                  const closed = await unwrapRemote(
-                    await persona.closeSprint({
-                      workspaceId: scope.workspaceId,
-                      projectId: scope.projectId,
-                      sprintId: sprint.id,
-                      leftover,
-                      confirmed: true,
-                    }) as RemoteResult<CloseSprintView>,
-                  )
-                  if (closed.summary.trim().length > 0) {
-                    setSprintCloseSummary(closed.summary)
-                  }
-                  reload()
-                })()
-              },
-            }
-            : {})}
-          freshApprovalStampIds={freshApprovalIds}
-          celebrationNode={paw.node}
-          {...(proposeEnabled
-            ? {
-              workflowProposal,
-              workflowProposalPending: proposalPending,
-              workflowProposalAcceptPending: acceptProposalPending,
-              onRequestWorkflowProposal: requestWorkflowProposal,
-              onAcceptWorkflowProposal: acceptWorkflowProposal,
-              onDismissWorkflowProposal: dismissWorkflowProposal,
-            }
-            : {})}
-          {...(personaCard === undefined ? {} : { personaCard })}
-          {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
-        />
+        {/* COLHEITA 18: the board and the conversation panel side by side; with the panel closed the wrapper is `display: contents` (the board is where it was). */}
+        <div className={conversationStyles.layout} data-task-conversation-open={openConversationCard === undefined ? undefined : ''}>
+          <ProjectFlowBoard
+            dict={kanbanDict}
+            flow={flow}
+            surfaceState={surfaceState}
+            {...(taskConversation === undefined ? {} : { onOpenConversation: (ticketId: string) => { setConversationCardId(ticketId) } })}
+            {...(sprint !== undefined ? { currentSprint: sprint } : {})}
+            switcher={switcher}
+            onNewProject={onNewProject}
+            {...(onWorkspaceTabChange === undefined ? {} : { onOpenHistory: () => { onWorkspaceTabChange('history') } })}
+            onMoveCard={(ticketId, columnId) => { void onMoveCard(ticketId, columnId) }}
+            onOpenReview={(ticketId) => {
+              const card = flow.cards.find(row => row.id === ticketId)
+              if (card !== undefined) setReviewTarget({ id: ticketId, title: card.title })
+            }}
+            onRetry={reload}
+            onNewTask={onNewTask}
+            onPlanSprint={() => { onWorkspaceTabChange?.('sprints') }}
+            workflowFields={board?.workflow.fields ?? []}
+            onSaveWorkflow={async (columns, destByRemoved, fields) => {
+              await unwrapRemote(await persona.updateWorkflow({
+                workspaceId: scope.workspaceId,
+                projectId: scope.projectId,
+                columns,
+                fields,
+                ...(Object.keys(destByRemoved).length > 0 ? { destByRemoved } : {}),
+              }))
+              reload()
+            }}
+            {...(sprint !== undefined
+              ? {
+                onConfirmCloseSprint: (leftover) => {
+                  void (async () => {
+                    const closed = await unwrapRemote(
+                      await persona.closeSprint({
+                        workspaceId: scope.workspaceId,
+                        projectId: scope.projectId,
+                        sprintId: sprint.id,
+                        leftover,
+                        confirmed: true,
+                      }) as RemoteResult<CloseSprintView>,
+                    )
+                    if (closed.summary.trim().length > 0) {
+                      setSprintCloseSummary(closed.summary)
+                    }
+                    reload()
+                  })()
+                },
+              }
+              : {})}
+            freshApprovalStampIds={freshApprovalIds}
+            celebrationNode={paw.node}
+            {...(proposeEnabled
+              ? {
+                workflowProposal,
+                workflowProposalPending: proposalPending,
+                workflowProposalAcceptPending: acceptProposalPending,
+                onRequestWorkflowProposal: requestWorkflowProposal,
+                onAcceptWorkflowProposal: acceptWorkflowProposal,
+                onDismissWorkflowProposal: dismissWorkflowProposal,
+              }
+              : {})}
+            {...(personaCard === undefined ? {} : { personaCard })}
+            {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
+          />
+          {taskConversation !== undefined && openConversationCard !== undefined && (
+            <ConnectedTaskConversation
+              key={openConversationCard.id}
+              bridge={taskConversation}
+              kanbanDict={kanbanDict}
+              card={openConversationCard}
+              columnLabel={flow.columns.find(column => column.id === openConversationCard.columnId)?.name}
+              onClose={() => { setConversationCardId(null) }}
+              returnFocusTo={() => document.querySelector<HTMLElement>(`[data-persona-kanban-card="${openConversationCard.id}"]`)}
+            />
+          )}
+        </div>
         {reviewTarget !== null && (
           <KanbanReviewSheet
             persona={persona}

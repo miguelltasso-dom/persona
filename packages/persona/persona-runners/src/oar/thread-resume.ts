@@ -12,6 +12,11 @@ import type { RunEvent, RunHandle, Runner, StartTurnInput } from '../contract.ts
 export interface ThreadResumeOptions {
   /** Talk: every session of this facade is the same conversation (one channel). Task: each session is its own conversation. */
   shared: boolean
+  /**
+   * P0-07: with `shared`, WHICH conversation the facade serves (the host's stream, plus the subject when the stream has them): every turn of the facade is stamped with it and keeps its own CLI
+   * session. Absent = the single unnamed thread, which is only right for a facade that serves exactly one conversation.
+   */
+  thread?: string
 }
 
 /**
@@ -25,7 +30,7 @@ export function withThreadResume(turn: Runner, options: ThreadResumeOptions): Ru
   /** The thread of each live run, so a retried run's new native id lands on the right thread. */
   const threadOfRun = new Map<string, string>()
 
-  const threadOf = (input: StartTurnInput): string => (options.shared ? '' : input.ticketId)
+  const threadOf = (input: StartTurnInput): string => (options.shared ? (options.thread ?? '') : input.ticketId)
 
   const begin = async (start: (input: StartTurnInput) => Promise<RunHandle>, input: StartTurnInput): Promise<RunHandle> => {
     const threadKey = threadOf(input)
@@ -35,7 +40,15 @@ export function withThreadResume(turn: Runner, options: ThreadResumeOptions): Ru
       threadKey,
       ...(input.resumeSessionId === undefined && remembered !== undefined ? { resumeSessionId: remembered } : {}),
     }
-    const handle = await start(next)
+    let handle: RunHandle
+    try {
+      handle = await start(next)
+    } catch (error: unknown) {
+      // P0-07: a remembered id that could not be reopened is dead. The adapter only falls back to a fresh session for "session not found"; any other failure (a corrupted session, another
+      // cwd) used to leave the id here and poison every later turn of the thread. Forget it: the next turn opens a fresh one.
+      if (remembered !== undefined && next.resumeSessionId === remembered) native.delete(threadKey)
+      throw error
+    }
     native.set(threadKey, handle.sessionId)
     threadOfRun.set(handle.runId, threadKey)
     return handle

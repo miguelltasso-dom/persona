@@ -83,6 +83,13 @@ export class CofreMigration {
         }
       }
     }
+    // Carbon P0-09: what is left under those fact keys is a ROTATED token (a revoked row keeps its body, and its versions) and the copies taken before
+    // this sweep (schema-migration backups). None of it may keep a token in clear.
+    const purged = this.deps.vault.purgeSecretFacts(SECRET_FACT_KEYS)
+    this.deps.vault.store.scrubBackups(SECRET_FACT_KEYS)
+    // A row erased leaves its text in the page and in the WAL until they are rewritten: when the sweep moved or erased anything, rebuild the main file and truncate the WAL.
+    // And ONCE for an install whose older sweep already ran (nothing left to move now) but whose free pages still hold the old text.
+    if (migrated > 0 || purged > 0 || this.deps.vault.store.needsSecretCompaction()) this.deps.vault.store.compactSecrets()
     return { migrated }
   }
 }

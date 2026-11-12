@@ -160,6 +160,7 @@ export {
   type EmailPreset,
 } from './sources/email-presets.ts'
 export {
+  probeImap,
   readImapInbox,
   readImapInboxFromSecret,
   type ImapCredentials,
@@ -282,7 +283,7 @@ export {
 } from './memory/ai-memory.ts'
 export { createOarRunner, requireExplicitPermission, type OarRunnerOptions } from './oar/adapter.ts'
 export { withThreadResume, type ThreadResumeOptions } from './oar/thread-resume.ts'
-export { createOarSessionRunner, type OarSessionOptions } from './oar/session.ts'
+export { createOarSessionRunner, type OarSessionOptions, type OarSessionRunner } from './oar/session.ts'
 export { resolveGitExecutable, GitUnavailableError, type GitResolution, type GitResolutionOptions, type GitVersionProbe } from './resolve/git.ts'
 export { createWindowsHistoryFileOps, WindowsHistoryFileError, type WindowsHistoryIo, type WindowsHistoryFileOptions, type WindowsFileFailure } from './workspace/windows-files.ts'
 export { CLAUDE_CAPABILITIES, createClaudeRunner, type ClaudeRunnerOptions } from './oar/claude.ts'
@@ -588,4 +589,5 @@ export { headOfCommand, isSecretPath, judgeCommand, type CommandContext, type Co
 export { CLI_GATES, cliAuthorityReport, gateOf, hasBrowserGate, hasCommandGate, hasDraftWriteGate, type CliAuthorityReport, type CliGate, type GateKind } from './authority/cli-gates.ts'
 export { nativeGateFor, needsNativeGate, withNativeGate, type NativeGate } from './authority/native-gate.ts'
 export { BROWSER_SERVER, browserToolOf, judgeBrowserTool, type BrowserJudgment } from './authority/browser-policy.ts'
+export { redactToolOutput, registerSecretWindow, secretWindowOpen } from './authority/secret-window.ts'
 export { OPENCODE_CONFIG_ENV, opencodeConfigContent, opencodePermission, type OpenCodeGrants } from './authority/opencode-config.ts'

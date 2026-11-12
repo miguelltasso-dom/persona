@@ -98,5 +98,18 @@
   "notice.dismiss": "Dismiss notice",
   "field.passwordHint.keep": "Leave blank to keep the saved password.",
   "field.secretHint.keep": "Leave blank to keep the saved key.",
-  "row.keyDetail": "Access key · saved {date}"
+  "row.keyDetail": "Access key · saved {date}",
+  "error.typePassword": "Type the password to save.",
+  "error.typeSecret": "Type the key to save.",
+  "code.eyebrow": "Needs a code",
+  "code.deadline": "Expires in {n} min",
+  "code.group": "6-digit code",
+  "code.digit": "Digit {n} of 6",
+  "code.send": "Send code",
+  "code.cancel": "Cancel",
+  "code.sent": "Code delivered to the site. The team does not see it.",
+  "code.cancelled": "Request cancelled.",
+  "code.expired": "Time ran out.",
+  "code.retry": "Try again",
+  "code.error": "Could not send the code. Try again."
 }

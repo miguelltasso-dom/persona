@@ -4,7 +4,7 @@
  * frase que ensina a pedir um número. A atualização é muda: nada aqui posta mensagem; o alerta vai só para "Precisa de você".
  */
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { PersonaTenantScope } from '../remote/persona-remote-types.ts'
 import { houseEmptyArt } from '../decor/HouseDecor.tsx'
 import { EmptyState, Skeleton } from '../primitives/index.ts'
@@ -64,15 +64,35 @@ export interface ConnectedSeusNumerosProps {
   /** The host Remote (`ctx.remote.persona`); a host without the five calls (or none) draws nothing. */
   readonly remote: object | undefined
   readonly tenant: Pick<PersonaTenantScope, 'workspaceId' | 'projectId'> | null
+  /**
+   * The alerts of the numbers changed (one fell, or one recovered or was unpinned): the Visão geral reads "Precisa de você" again. A quiet refresh writes no
+   * message, so nothing else would tell the screen (P1-08).
+   */
+  readonly onAlertsChange?: (() => void) | undefined
 }
 
 /** The section wired to the host. Nothing at all when the host cannot keep numbers (an old host, a fake). */
-export function ConnectedSeusNumeros({ remote, tenant }: ConnectedSeusNumerosProps): ReactNode {
+export function ConnectedSeusNumeros({ remote, tenant, onAlertsChange }: ConnectedSeusNumerosProps): ReactNode {
   const binding = useIndicators({ remote, tenant })
-  return binding === undefined ? null : <SeusNumerosBound binding={binding} />
+  return binding === undefined ? null : <SeusNumerosBound binding={binding} onAlertsChange={onAlertsChange} />
 }
 
-function SeusNumerosBound({ binding }: { readonly binding: IndicatorsBinding }): ReactNode {
+/** What the alerts look like right now: the same string means the Visão geral already shows them. */
+export function alertsSignature(items: readonly IndicatorUi[]): string {
+  return items.flatMap(item => (item.alert === undefined ? [] : [`${item.id}:${item.alert.at}`])).sort().join('|')
+}
+
+/** The section for a binding the caller already holds (the Visão geral reads the same binding for its fall notices). */
+export function SeusNumerosBound({ binding, onAlertsChange }: { readonly binding: IndicatorsBinding; readonly onAlertsChange?: (() => void) | undefined }): ReactNode {
+  const signature = alertsSignature(binding.items)
+  const seen = useRef('')
+  const callback = useRef(onAlertsChange)
+  callback.current = onAlertsChange
+  useEffect(() => {
+    if (!binding.loaded || signature === seen.current) return
+    seen.current = signature
+    callback.current?.()
+  }, [binding.loaded, signature])
   return (
     <SeusNumeros
       items={binding.items}

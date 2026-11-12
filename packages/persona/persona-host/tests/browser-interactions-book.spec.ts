@@ -15,6 +15,7 @@ describe('the browser interactions of a turn reach the activity book', () => {
       disarm: () => undefined,
       takeRequests: () => [],
       takeOutOfMandate: () => [],
+      takeRefusals: () => [],
       takeReleased: () => [],
       takeInteractions: () => [
         { tool: 'click', verb: 'click', site: 'loja.exemplo.com.br' },

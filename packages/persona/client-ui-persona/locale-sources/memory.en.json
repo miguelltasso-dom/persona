@@ -44,6 +44,7 @@
   "playbook.adjust.label": "What you usually ask for:",
   "playbook.forget.title": "Forget this way of working",
   "playbook.forget.body": "Forget this? The skill already made from it stays.",
+  "playbook.forget.bodyPlain": "Forget this? {name} stops using it.",
   "playbook.forget.keep": "Keep",
   "playbook.empty.title": "Nothing learned yet.",
   "playbook.empty.body": "When you use a delivery from {name}, how it was done is noted here.",

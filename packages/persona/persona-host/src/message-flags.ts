@@ -4,6 +4,7 @@
  */
 
 import type { ScreenRepos } from '@deepseek-ai/dsh-persona-store'
+import type { ChannelNotice } from './channel-notices.ts'
 import type { DraftFileView, FanoutLineView, HarnessActionView, OpinionView, StateLineView, TaskWithView } from './types.ts'
 
 const KIND = 'message_flags'
@@ -28,6 +29,8 @@ export interface MessageFlagsDoc {
   readonly stateLine?: StateLineView
   /** P0-C2: the line says what a persona SAVED in the draft during one turn (typed; the thumbnails live here, so they survive Aplicar and Descartar). */
   readonly filesSaved?: { readonly files: readonly DraftFileView[] }
+  /** Item 22: the line is the "fence" notice of a channel (someone named is not on it): the buttons it offers. */
+  readonly channelNotice?: readonly ChannelNotice[]
   /** CV-8: THIS message (the person's) started a block: it is answered by the block, so the recovery sweep must not answer it again. */
   readonly fanoutId?: string
 }

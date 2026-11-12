@@ -72,12 +72,18 @@ const KIND_VAULT = 'vault_proposal'
 const KIND_SKILL_PROP = 'skill_proposal'
 const KIND_MEMORY = 'memory_proposal'
 const KIND_SKILL = 'skill'
+/** Item 26.10/26.11: a version downloaded from the skill's source, waiting for the person's approval. */
+const KIND_SKILL_UPDATE = 'skill_update'
 const KIND_LOG = 'triage_log'
 const LIMITS_ID = 'default'
 
 interface StoredSkill extends SkillRecord {
   readonly history: readonly string[]
   readonly sharedWithTeam: boolean
+  /** Item 26.10: where an imported skill came from (absent for one the person wrote). */
+  readonly source?: { readonly url: string; readonly ref: string; readonly hash: string }
+  /** Item 26.10: the body came from outside: it is DATA, never instructions to the host. */
+  readonly untrusted?: boolean
 }
 
 interface MemoryProposal {
@@ -671,6 +677,80 @@ export class ScreensHost {
   }
 
   /**
+   * Item 26.10: write a skill that came from outside. The body is marked untrusted (data, never instructions) and carries its source, so
+   * "Atualizar" can tell the same content from a new one.
+   * @param projectId - Tenant.
+   * @param input - The skill and where it came from.
+   * @returns The stored skill.
+   */
+  importSkill(projectId: string, input: {
+    readonly id: string
+    readonly name: string
+    readonly body: string
+    readonly sharedWithTeam: boolean
+    readonly source: { readonly url: string; readonly ref: string; readonly hash: string }
+  }): SkillView {
+    const current = this.screens.get<StoredSkill>(projectId, KIND_SKILL, input.id)
+    const stored: StoredSkill = {
+      id: input.id,
+      name: input.name,
+      version: current === undefined ? 1 : current.version,
+      scope: input.sharedWithTeam ? 'team' : 'persona',
+      origin: 'library',
+      body: input.body,
+      enabled: true,
+      history: current === undefined ? [input.body] : [...current.history, input.body],
+      sharedWithTeam: input.sharedWithTeam,
+      source: input.source,
+      untrusted: true,
+    }
+    this.screens.put(projectId, KIND_SKILL, input.id, stored)
+    return toSkillView(stored)
+  }
+
+  /**
+   * Item 26.10/26.11: a new version downloaded from the source waits here until the person approves it.
+   * @param projectId - Tenant.
+   * @param input - Skill id, the new body and its hash.
+   */
+  stageSkillUpdate(projectId: string, input: { readonly id: string; readonly body: string; readonly hash: string }): void {
+    this.screens.put(projectId, KIND_SKILL_UPDATE, input.id, { id: input.id, body: input.body, hash: input.hash, at: this.now() })
+  }
+
+  /**
+   * @param projectId - Tenant.
+   * @param id - Skill id.
+   * @returns The update waiting for approval, if any.
+   */
+  pendingSkillUpdate(projectId: string, id: string): { readonly id: string; readonly body: string; readonly hash: string } | undefined {
+    return this.screens.get<{ id: string; body: string; hash: string }>(projectId, KIND_SKILL_UPDATE, id)
+  }
+
+  /**
+   * Item 26.11: apply the staged update (the history keeps the previous body, so "Desfazer" still works).
+   * @param projectId - Tenant.
+   * @param id - Skill id.
+   * @returns The updated skill, or undefined when nothing was waiting.
+   */
+  approveSkillUpdate(projectId: string, id: string): SkillView | undefined {
+    const pending = this.pendingSkillUpdate(projectId, id)
+    if (pending === undefined) return undefined
+    const current = this.screens.get<StoredSkill>(projectId, KIND_SKILL, id)
+    if (current === undefined) return undefined
+    const next = nextSkillVersion({ ...current, body: pending.body }, pending.body)
+    const stored: StoredSkill = {
+      ...current,
+      body: next.body,
+      version: next.version,
+      history: [...current.history, pending.body],
+      ...(current.source === undefined ? {} : { source: { ...current.source, hash: pending.hash } }),
+    }
+    this.screens.put(projectId, KIND_SKILL, id, stored)
+    this.screens.delete(projectId, KIND_SKILL_UPDATE, id)
+    return toSkillView(stored)
+  }
+
+  /**
    * User-imported persona. Always pending — never applies itself.
    * @param request - Tenant, id, creator, full spec.
    */
@@ -922,5 +1002,7 @@ function toSkillView(skill: StoredSkill): SkillView {
     status: skill.enabled ? 'active' : 'candidate',
     body: skill.body,
     sharedWithTeam: skill.sharedWithTeam,
+    ...(skill.source === undefined ? {} : { source: skill.source }),
+    ...(skill.untrusted === true ? { untrusted: true } : {}),
   }
 }

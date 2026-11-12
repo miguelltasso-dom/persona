@@ -22,7 +22,15 @@ export const REMOTE_RATE_MAX = 2_000
 /** Writes stay tighter than reads. */
 export const REMOTE_RATE_WRITE_MAX = 240
 const TEST_RATE_MAX = 10_000
-const WRITE = /^(create|update|put|delete|grant|post|move|accept|reject|enqueue|drop|flush|edit|propose|resolve|comment|record|set|claim|fire|confirm|issue|redeem|schedule|pause|complete|apply|import|wipe|open|plan|start|close|approve|revoke|cancel|ack|tick|backup|restore|checkpoint|draft|invite|connect|sync|retry|dismiss|undo)/u
+/**
+ * Carbon P0-13: a few Remotes cost far more than a read, or can be GUESSED, so each carries its OWN strict limit (per peer, per method), the same in the app and in tests:
+ * the pairing code (eight characters: five tries in ten minutes; the PairingBook locks too) and the voice model (about 43 MB moved per answer).
+ */
+export const REMOTE_STRICT_LIMITS: Readonly<Record<string, { readonly max: number; readonly windowMs: number }>> = {
+  pairStation: { max: 5, windowMs: 600_000 },
+  ensureVoiceModel: { max: 5, windowMs: 60_000 },
+}
+const WRITE = /^(create|update|put|delete|grant|post|move|accept|reject|enqueue|drop|flush|edit|propose|resolve|comment|record|set|claim|fire|confirm|issue|redeem|schedule|pause|complete|apply|import|wipe|open|plan|start|close|approve|revoke|cancel|ack|tick|backup|restore|checkpoint|draft|invite|connect|sync|retry|dismiss|undo|save|remove|fill|take|release|rename|pair|pin(?!g)|unpin|refresh|forget|answer|continue|ensure|stop|steer)/u
 
 const IdField = z.string().max(200)
 
@@ -179,11 +187,13 @@ export class RemoteGuard {
   private touchRate(method: string): void {
     const key = `${this.peerOf()}:${method}`
     const now = this.now()
-    const cap = WRITE.test(method) ? this.writeRateMax : this.rateMax
-    const fresh = (this.hits.get(key) ?? []).filter(at => now - at < this.rateWindowMs)
+    const strict = REMOTE_STRICT_LIMITS[method]
+    const cap = strict?.max ?? (WRITE.test(method) ? this.writeRateMax : this.rateMax)
+    const windowMs = strict?.windowMs ?? this.rateWindowMs
+    const fresh = (this.hits.get(key) ?? []).filter(at => now - at < windowMs)
     if (fresh.length >= cap) {
       const oldest = fresh[0] ?? now
-      const retryAfterMs = Math.max(1, this.rateWindowMs - (now - oldest))
+      const retryAfterMs = Math.max(1, windowMs - (now - oldest))
       throw new RemoteFault('rate-limited', 'rate-limited', { retryAfterMs })
     }
     fresh.push(now)

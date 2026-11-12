@@ -1,0 +1,222 @@
+/* Configurações › Ferramentas (item 26). Tokens only; the category art is a plain glyph in a disc until the Brush's scenes land (never a logo). */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font: 800 13px/1.2 var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--persona-ink-soft);
+}
+
+/* ---- Ligadas: compact rows, 64 px ---- */
+.linkedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.linkedRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: 64px;
+  padding: 0 var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+}
+
+.linkedName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 15px/1.25 var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.linkedHealth {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* "Funcionando": only the green dot (8 px), never a word; the state also has its name for a screen reader. */
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--persona-success);
+}
+
+/* ---- the art of a category ---- */
+.artSmall,
+.artLarge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  background: var(--persona-wash);
+  color: var(--persona-ink);
+}
+
+.artSmall {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--persona-radius-m);
+}
+
+.artLarge {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--persona-radius-l, var(--persona-radius-m));
+}
+
+/* The Brush's art of the category (96 px master): 40 px in a row, 64 px in a card. */
+.artImgSmall,
+.artImgLarge {
+  display: block;
+  flex: none;
+  object-fit: contain;
+}
+
+.artImgSmall {
+  width: 40px;
+  height: 40px;
+}
+
+.artImgLarge {
+  width: 64px;
+  height: 64px;
+}
+
+/* ---- filters + the grid "Para ligar" ---- */
+.filters {
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--persona-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gridItem {
+  display: flex;
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--persona-space-2);
+}
+
+.cardName {
+  margin: var(--persona-space-1) 0 0;
+  font: 500 17px/1.25 var(--persona-font-display, var(--persona-font-text));
+  color: var(--persona-ink);
+}
+
+.cardSentence {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--persona-ink-soft);
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  margin-top: auto;
+  padding-top: var(--persona-space-2);
+}
+
+/* ---- Em breve: collapsed, 70 %, no button ---- */
+.soon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.soonSummary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-height: 32px;
+  font: 800 13px/1.2 var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+  cursor: pointer;
+  list-style: none;
+}
+
+.soonSummary::-webkit-details-marker {
+  display: none;
+}
+
+.soonSummary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--persona-focus-halo);
+  border-radius: var(--persona-radius-s, 6px);
+}
+
+.soonIcon {
+  flex: none;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.soon[open] > .soonSummary .soonIcon {
+  transform: rotate(90deg);
+}
+
+/*
+ * "Em breve": the card reads at 70 % (Muse): its art, its name and its sentence. The chip "Em breve" stays at full strength (a small label at 70 % fails 4.5:1 in the light theme,
+ * axe), and the sentence uses the full ink so at 70 % it still reads at 4.5:1 or better in both themes.
+ */
+.cardSoon .artLarge,
+.cardSoon .artImgLarge,
+.cardSoon .cardName,
+.cardSoon .cardSentence {
+  opacity: 0.7;
+}
+
+.cardSoon .cardSentence {
+  color: var(--persona-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .soonIcon {
+    transition: none;
+  }
+}

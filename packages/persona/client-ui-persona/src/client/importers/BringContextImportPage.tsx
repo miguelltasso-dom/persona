@@ -20,6 +20,7 @@ import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as bycDict } from '../locale/onboarding/locales.ts'
 import { pt as importersDict } from '../locale/importers/locales.ts'
+import { randomUuid } from '../remote/random-id.ts'
 import {
   Button,
   Card,
@@ -45,7 +46,7 @@ export interface BringContextImportPageProps {
   readonly persona: PersonaRemoteClient
   readonly actorId: string
   readonly locale?: 'pt' | 'en' | undefined
-  /** "Ver no Cofre" after saving. Without it the confirmation has no shortcut. */
+  /** "Ver na Memória da empresa" after saving. Without it the confirmation has no shortcut. */
   readonly onOpenVault?: (() => void) | undefined
 }
 
@@ -317,7 +318,7 @@ export function BringContextImportPage({
             onAdd={() => {
               const trimmed = paste.trim()
               if (trimmed.length === 0) return
-              const id = `paste-${crypto.randomUUID()}`
+              const id = `paste-${randomUuid()}`
               setPasted(prev => [...prev, { id, source: provider, text: trimmed }])
               setPaste('')
               setSavedCount(null)

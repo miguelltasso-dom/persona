@@ -52,12 +52,15 @@ import {
   type GestorWire,
 } from '../data/gestor-remote.ts'
 import { mergeArrivingFlags } from './gestor-arriving.ts'
+import { isChannelSectionsEnabled } from '../shell/channel-sections-flag.ts'
 import { conversationScopeFromStreamKey, conversationStreamKey } from '../chat/conversation-stream-key.ts'
 import { mapConversationSubjectsBundle, type MappedConversationSubjects } from '../chat/map-conversation-subjects.ts'
 import { PersonaRemoteError } from './persona-remote-unwrap.ts'
 import { mapUsedContextRecord } from './map-used-context.ts'
 import { mapTurnActivityFolds, type TurnActivityGroupWire } from './map-turn-activity-folds.ts'
 import { mapReplyActivity, type ReplyActivityUi } from './map-reply-activity.ts'
+import { randomUuid } from './random-id.ts'
+import { attachmentRemoteOf, audioMetaOf, audioObjectUrl, durationFromAttachmentName, resolveAudioAttachment } from '../chat/voice-compose/attachment-audio.ts'
 import {
   DEFAULT_CONVERSATION_SUBJECT_ID,
   DEFAULT_CONVERSATION_SUBJECTS,
@@ -115,6 +118,8 @@ function hostStreamTopicId(activeTopicId: string | undefined): string | undefine
 
 export interface PersonaLiveSnapshot {
   readonly ready: boolean
+  /** Item 22 (behind `persona.flag.channelSections`): the channel being read and written; `null`/absent = the tenant's own (#geral), as ever. */
+  readonly selectedChannelId?: string | null | undefined
   readonly tenant: PersonaTenantScope | null
   readonly team: TeamView | null
   readonly nowRows: readonly PersonaNowSnapshot[]
@@ -241,6 +246,12 @@ export interface PersonaLiveStore {
   loadTurnContext(ticketId: string): Promise<void>
   /** COLHEITA §6 (Quill): pede a atividade de uma resposta (uma vez por resposta). */
   loadReplyActivity?(subjectId: string): Promise<void>
+  /** COLHEITA §14 (Quill): figurinha sozinha no composer (sem turno). */
+  sendStickerMessage?(stickerId: string): Promise<void>
+  /** COLHEITA-S1 P1-05: o anexo é áudio? (só o tipo; quando a mensagem aparece). */
+  isAudioAttachment?(attachmentId: string): Promise<number | null>
+  /** COLHEITA-S1 P1-05: os bytes do áudio ao tocar; devolve a URL do objeto (ou null). */
+  loadAudioAttachment?(attachmentId: string): Promise<string | null>
   postDmMessage(body: string, attachmentIds?: readonly string[]): Promise<void>
   toggleMessageReaction(
     streamKind: 'channel' | 'dm',
@@ -415,6 +426,17 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     eventId: string
     stickerId: string
   }): import('./persona-remote-types.ts').MessageView
+  sendSticker?(request: {
+    workspaceId: string
+    projectId: string
+    streamKind: 'channel' | 'dm'
+    ownerId: string
+    id: string
+    stickerId: string
+    actorId?: string | undefined
+    topicId?: string | undefined
+    subjectId?: string | undefined
+  }): import('./persona-remote-types.ts').MessageView
   unreactToMessage?(request: {
     workspaceId: string
     projectId: string
@@ -525,6 +547,9 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   const remote = unwrapPersonaRemote(rawRemote)
   const bootstrapWire = rawRemote as unknown as TenantBootstrapRemote
   const store = createSnapshotStore<PersonaLiveSnapshot>(EMPTY)
+  /** Item 22: the channel being read and written. Without the flag (or with none chosen) it is the tenant's own, exactly as before. */
+  const channelOf = (scope: { readonly channelId: string }): string =>
+    (isChannelSectionsEnabled() ? store.getSnapshot().selectedChannelId : null) ?? scope.channelId
   let tenant: PersonaTenantScope | null = null
   let hostOnboardingSink: ((firstUse: boolean) => void) | null = null
   let messageStreamAbort: AbortController | null = null
@@ -636,7 +661,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     stopMessageStream()
     if (tenant === null) return
     const memberId = tenant.memberId
-    followStream('channel', tenant.channelId, (snap, frame) => {
+    followStream('channel', channelOf(tenant), (snap, frame) => {
       if (snap.team === null) return snap
       const taskTitleById = new Map(snap.kanbanCards.map(card => [card.id, card.title]))
       return {
@@ -666,7 +691,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     try {
       const scope = tenant
       const prior = store.getSnapshot()
-      const channelWireTopicId = hostStreamTopicId(activeTopicByStream.get(streamTopicKey('channel', scope.channelId)))
+      const channelWireTopicId = hostStreamTopicId(activeTopicByStream.get(streamTopicKey('channel', channelOf(scope))))
       const [now, away, overview, team, projects, tasks, page, dmRows] = await Promise.all([
         Promise.resolve(remote.getOverviewNow(scope)),
         Promise.resolve(remote.getWhileAway(scope)),
@@ -677,7 +702,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         Promise.resolve(remote.listMessages({
           ...scope,
           streamKind: 'channel',
-          ownerId: scope.channelId,
+          ownerId: channelOf(scope),
           actorId: scope.memberId,
           afterSeq: 0,
           limit: 200,
@@ -783,7 +808,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
               workspaceId: scope.workspaceId,
               projectId: scope.projectId,
               streamKind: 'channel',
-              ownerId: scope.channelId,
+              ownerId: channelOf(scope),
             })),
             null,
           )
@@ -924,7 +949,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
 
   const uploadChannelAttachment = async (file: File): Promise<{ id: string; name: string }> => {
     if (tenant === null) throw new Error('no-tenant')
-    return attachStreamFile('channel', tenant.channelId, file)
+    return attachStreamFile('channel', channelOf(tenant), file)
   }
 
   const uploadDmAttachment = async (file: File): Promise<{ id: string; name: string }> => {
@@ -950,14 +975,14 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       reactions: [],
     }
     store.set({ ...snap, messages: [...snap.messages, optimistic] })
-    const topicId = activeTopicByStream.get(streamTopicKey('channel', scope.channelId))
+    const topicId = activeTopicByStream.get(streamTopicKey('channel', channelOf(scope)))
     try {
       await Promise.resolve(remote.postMessage({
         id: `msg-${Date.now()}`,
         workspaceId: scope.workspaceId,
         projectId: scope.projectId,
         streamKind: 'channel',
-        ownerId: scope.channelId,
+        ownerId: channelOf(scope),
         actorId: scope.memberId,
         subjectId: scope.memberId,
         body: trimmed,
@@ -968,7 +993,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       }))
     } catch {
       // P0-30: o host não recebeu. A mensagem não fica no fio como se tivesse sido enviada: vira "Não enviado · Tentar de novo".
-      markSendFailed('channel', scope.channelId, optimistic, attachmentIds, options.fanout, options.opinionFor)
+      markSendFailed('channel', channelOf(scope), optimistic, attachmentIds, options.fanout, options.opinionFor)
       return
     }
     await refresh()
@@ -1186,6 +1211,42 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     patchMessageReactions(streamKind, eventId, team, tenant.memberId, taskTitleById, view)
   }
 
+  // COLHEITA §14 (Quill): figurinha sozinha no composer. Vai ao fio como mensagem da pessoa; o host não acorda turno nenhum.
+  const sendStickerMessage = async (stickerId: string): Promise<void> => {
+    if (tenant === null || remote.sendSticker === undefined) return
+    const scope = tenant
+    const topicId = activeTopicByStream.get(streamTopicKey('channel', channelOf(scope)))
+    try {
+      await Promise.resolve(remote.sendSticker({
+        id: `sticker-${randomUuid()}`,
+        workspaceId: scope.workspaceId,
+        projectId: scope.projectId,
+        streamKind: 'channel',
+        ownerId: channelOf(scope),
+        actorId: scope.memberId,
+        stickerId,
+        ...(topicId === undefined || topicId === '' ? {} : { topicId }),
+      }))
+    } catch {
+      return
+    }
+    await refresh()
+  }
+
+  // COLHEITA-S1 P1-05: o áudio de um anexo do fio. Ao aparecer, só o tipo; ao tocar, os bytes viram uma URL de objeto.
+  // Devolve null se não for áudio; senão a duração escrita no nome da gravação (0 quando o nome não traz).
+  const isAudioAttachment = async (attachmentId: string): Promise<number | null> => {
+    if (tenant === null) return null
+    const meta = await audioMetaOf(attachmentRemoteOf(remote), { workspaceId: tenant.workspaceId, projectId: tenant.projectId }, attachmentId)
+    if (meta === null) return null
+    return durationFromAttachmentName(meta.name) ?? 0
+  }
+  const loadAudioAttachment = async (attachmentId: string): Promise<string | null> => {
+    if (tenant === null) return null
+    const audio = await resolveAudioAttachment(attachmentRemoteOf(remote), { workspaceId: tenant.workspaceId, projectId: tenant.projectId }, attachmentId)
+    return audio === null ? null : audioObjectUrl(audio)
+  }
+
   const postDmMessage = async (body: string, attachmentIds: readonly string[] = []): Promise<void> => {
     if (tenant === null) return
     const dmId = store.getSnapshot().selectedDmId
@@ -1281,7 +1342,9 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     if (tenant === null) throw new Error('action: unavailable')
     const host = remote as unknown as { undoPersonaAction?: (request: { workspaceId: string; projectId: string; activityId: string }) => unknown }
     if (typeof host.undoPersonaAction !== 'function') throw new Error('action: unavailable')
-    await Promise.resolve(host.undoPersonaAction({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, activityId }))
+    const answer = await Promise.resolve(host.undoPersonaAction({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, activityId })) as { undone?: unknown } | undefined
+    // P0-10: só um Desfazer que o host de fato fez (ou já tinha feito) vira "Desfeito"; `undone: false` (outro Desfazer em curso) é falha, nunca um "Desfeito" falso.
+    if (answer?.undone === false) throw new Error('action: not undone')
     await refresh()
   }
 
@@ -1932,6 +1995,9 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     openFirstAvailableDm,
     loadTurnContext,
     loadReplyActivity,
+    sendStickerMessage,
+    isAudioAttachment,
+    loadAudioAttachment,
     postDmMessage,
     toggleMessageReaction,
     commitOnboardingRoster,

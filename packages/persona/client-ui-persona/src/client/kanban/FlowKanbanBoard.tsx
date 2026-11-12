@@ -43,6 +43,8 @@ export interface FlowKanbanBoardProps {
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
   readonly onTeach?: ((ticketId: string, personaId: string) => void) | undefined
+  /** COLHEITA 18: a click on a card (or Enter/Space on it) opens the conversation of the task. */
+  readonly onOpenConversation?: ((ticketId: string) => void) | undefined
 }
 
 interface FlowColumnCardsProps {
@@ -58,6 +60,7 @@ interface FlowColumnCardsProps {
   readonly markLocalMove: (cardId: string) => void
   readonly onOpenReview?: (ticketId: string) => void
   readonly onTeach?: ((ticketId: string, personaId: string) => void) | undefined
+  readonly onOpenConversation?: ((ticketId: string) => void) | undefined
   readonly freshApprovalStampIds?: ReadonlySet<string>
   readonly assigneeCardTrigger?: KanbanCardProps['assigneeCardTrigger']
   readonly setLiveMessage: (message: string) => void
@@ -88,6 +91,7 @@ function renderFlowKanbanCard(props: FlowColumnCardsProps, card: FlowCardModel):
       }}
       {...(onOpenReview !== undefined ? { onOpenReview } : {})}
       {...(props.onTeach !== undefined ? { onTeach: props.onTeach } : {})}
+      {...(props.onOpenConversation !== undefined ? { onOpenConversation: props.onOpenConversation } : {})}
       approvalStampFresh={freshApprovalStampIds?.has(card.id) ?? false}
       {...(assigneeCardTrigger === undefined ? {} : { assigneeCardTrigger })}
     />
@@ -136,6 +140,7 @@ export function FlowKanbanBoard({
   personaCard,
   openPersonaProfile,
   onTeach,
+  onOpenConversation,
 }: FlowKanbanBoardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const onTeachHandler = onTeach ?? (personaCard !== undefined
@@ -302,6 +307,7 @@ export function FlowKanbanBoard({
                     markLocalMove={markLocalMove}
                     {...(onOpenReview === undefined ? {} : { onOpenReview })}
                     {...(onTeachHandler === undefined ? {} : { onTeach: onTeachHandler })}
+                    {...(onOpenConversation === undefined ? {} : { onOpenConversation })}
                     {...(freshApprovalStampIds === undefined ? {} : { freshApprovalStampIds })}
                     {...(assigneeCardTrigger === undefined ? {} : { assigneeCardTrigger })}
                     setLiveMessage={setLiveMessage}

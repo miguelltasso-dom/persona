@@ -47,6 +47,7 @@
 .check {
   display: flex;
   align-items: center;
+  min-height: var(--control-h-s);
   gap: 0.5rem;
   font-size: 0.875rem;
   color: var(--persona-ink);
@@ -55,6 +56,120 @@
 .actions {
   display: flex;
   gap: 0.5rem;
+}
+
+/* Os dois blocos do formulário (Muse, 12/11): "Conta" em cima, o divisor, "O que a equipe lê" embaixo. */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.blockTitle {
+  margin: 0;
+  font-family: var(--persona-font-text);
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 750;
+  color: var(--persona-ink);
+}
+
+.divider {
+  width: 100%;
+  margin: 0.25rem 0;
+  border: 0;
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.serverDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* "Detalhes do servidor": o mesmo chevron que gira dos detalhes da fala simples (sem o triângulo nativo). */
+.policySummary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  min-height: var(--control-h-s);
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--persona-ink);
+  list-style: none;
+}
+
+.policySummary::-webkit-details-marker {
+  display: none;
+}
+
+.policySummary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--persona-focus-halo);
+}
+
+.summaryIcon {
+  flex: none;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.serverDetails[open] > .policySummary .summaryIcon {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summaryIcon {
+    transition: none;
+  }
+}
+
+/* O Provedor: o Select do DS a 40 px (régua), com a seta recuada da borda. */
+.selectWrap {
+  position: relative;
+  display: flex;
+}
+
+.row .providerSelect {
+  width: 100%;
+  min-height: var(--control-h-m);
+  padding: 0 calc(var(--persona-space-4) + 20px) 0 var(--persona-space-3);
+  appearance: none;
+  border-color: var(--persona-outline-control);
+  font-size: 15px;
+}
+
+.selectIcon {
+  position: absolute;
+  top: 50%;
+  right: var(--persona-space-3);
+  transform: translateY(-50%);
+  color: var(--persona-ink);
+  pointer-events: none;
+}
+
+/* Senha salva: "••••••" e o botão "Trocar" (32 px); o segredo nunca volta à tela. */
+.savedPassword {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dots {
+  min-width: 6ch;
+  color: var(--persona-ink);
+  letter-spacing: 0.15em;
+}
+
+/* A linha de estado do teste: neutra enquanto nada aconteceu, verde ao conectar, vermelha ao falhar. */
+.status {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-soft);
 }
 
 .ok {

@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ReactiveApprovalsList } from '../src/client/approvals/ReactiveApprovalsList.tsx'
 import { approvalViewToItem, isSkillOffer } from '../src/client/data/adapters/approvals.ts'
 import { pt as approvalsPt } from '../src/client/locale/approvals/locales.ts'
+import { Button } from '../src/client/primitives/index.ts'
+import { createShellStore } from '../src/client/shell/create-shell-store.ts'
 import { PlaybookPanel } from '../src/client/playbook/PlaybookPanel.tsx'
 import { PersonaProfilePage } from '../src/client/profile/PersonaProfilePage.tsx'
 import { MOCK_PROFILE_ATLAS } from '../src/client/profile/mock-data.ts'
@@ -23,6 +25,16 @@ const row = (over: Partial<PlaybookNoteView> & Pick<PlaybookNoteView, 'id' | 'ti
 
 const LEARNING = row({ id: 'n1', title: 'Resposta ao cliente sobre a entrega' })
 const WAITING = row({ id: 'n2', title: 'Legenda do post de sexta', uses: 3, progress: 3, stage: 'ready', lastAt: TODAY })
+/** The CSS-module class tokens that make a Button "s" (32 px) vs "m" (40 px), and "danger" vs "primary" (amber): read off real buttons, never hard-coded. */
+function buttonTokens(): { readonly s: string; readonly m: string; readonly danger: string; readonly primary: string } {
+  const { container, unmount } = render(<><Button size="s" variant="secondary">a</Button><Button size="m" variant="secondary">b</Button><Button variant="danger">c</Button><Button variant="primary">d</Button></>)
+  const [small, medium, danger, primary] = [...container.querySelectorAll('button')].map(node => new Set(node.className.split(/\s+/u)))
+  unmount()
+  const only = (a: Set<string>, b: Set<string>): string => [...a].find(token => !b.has(token)) ?? ''
+  return { s: only(small!, medium!), m: only(medium!, small!), danger: only(danger!, primary!), primary: only(primary!, danger!) }
+}
+const classesOf = (name: string): readonly string[] => screen.getByRole('button', { name }).className.split(/\s+/u)
+
 const OFFERED = row({ id: 'n3', title: 'Cartaz da promoção de pão de queijo', uses: 3, progress: 3, stage: 'offered', approvalId: 'skill-offer-pb-bia-x', adjustments: ['Preço maior', 'Sem ponto de exclamação', 'Fundo claro', 'Letra grande'] })
 const SKILL = row({ id: 'n4', title: 'Foto de produto com fundo claro', uses: 4, progress: 3, stage: 'skill', lastAt: '2025-03-04T12:00:00.000Z' })
 
@@ -102,6 +114,35 @@ describe('PlaybookPanel: Esquecer', () => {
     render(<PlaybookPanel personaName="Bia" rows={[LEARNING]} />)
     expect(screen.queryByRole('button', { name: 'Esquecer' })).toBeNull()
   })
+
+  it('"Sim, esquecer" is the DANGER button (amber is the product\'s "go ahead"), and "Manter" is the quiet one with the focus (Muse 12/11)', () => {
+    const tokens = buttonTokens()
+    expect(tokens.danger).not.toBe('')
+    render(<PlaybookPanel personaName="Bia" rows={[LEARNING]} actions={{ onForget: vi.fn().mockResolvedValue(undefined) }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Esquecer' }))
+    expect(classesOf('Sim, esquecer')).toContain(tokens.danger)
+    expect(classesOf('Sim, esquecer')).not.toContain(tokens.primary)
+    expect(classesOf('Manter')).not.toContain(tokens.danger)
+    expect(classesOf('Manter')).not.toContain(tokens.primary)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Manter' }))
+  })
+
+  it('"A skill que já saiu dele continua." only when the way of working already IS a skill; otherwise "{nome} deixa de usar." (no article)', () => {
+    const ask = (rows: PlaybookNoteView[]): string => {
+      const { container, unmount } = render(<PlaybookPanel personaName="Bia" rows={rows} actions={{ onForget: vi.fn().mockResolvedValue(undefined) }} />)
+      fireEvent.click(screen.getByRole('button', { name: 'Esquecer' }))
+      const text = container.querySelector('[role="group"] p')?.textContent ?? ''
+      unmount()
+      return text
+    }
+    expect(ask([SKILL])).toBe('Esquecer este jeito? A skill que já saiu dele continua.')
+    for (const one of [LEARNING, WAITING, OFFERED]) {
+      const text = ask([one])
+      expect(text).toBe('Esquecer este jeito? Bia deixa de usar.')
+      expect(text).not.toContain('skill')
+      expect(text).not.toMatch(/\b(?:a|à|o|ao) Bia\b/u)
+    }
+  })
 })
 
 describe('PlaybookPanel: the states (text only)', () => {
@@ -144,16 +185,17 @@ describe('PlaybookPanel: the states (text only)', () => {
 describe('Aprovações: the offer card', () => {
   const offer = (over: Partial<ApprovalView> = {}): ApprovalView => ({
     id: 'skill-offer-pb-bia-x', kind: 'skill', title: 'Bia aprendeu: Legenda do post de sexta',
-    question: 'Usado 3 vezes em 2 dias. Virar skill deixa esse jeito pronto para usar sempre.',
+    question: 'Usado 3 vezes em 2 dias.',
     status: 'pending', personaId: 'bia', personaName: 'Bia', ...over,
   })
-  const listOf = (view: ApprovalView, onDecideItem = vi.fn()) => {
+  const listOf = (view: ApprovalView, onDecideItem = vi.fn(), extra: { readonly exitStampId?: string; readonly onOpenSkills?: (personaId: string) => void } = {}) => {
     render(
       <ReactiveApprovalsList
         dict={approvalsPt}
         items={[approvalViewToItem(view)]}
         scopeFor={() => undefined}
-        exitStampId={null}
+        exitStampId={extra.exitStampId ?? null}
+        {...(extra.onOpenSkills === undefined ? {} : { onOpenSkills: extra.onOpenSkills })}
         rememberFor={() => ({ grant: false, validity: 'once' })}
         rememberStampNote={null}
         onRememberChange={() => {}}
@@ -176,10 +218,36 @@ describe('Aprovações: the offer card', () => {
     expect(screen.getByRole('button', { name: 'Virar skill' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Dispensar' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Revisar skill' })).toBeNull()
-    expect(document.body.textContent).toContain('Usado 3 vezes em 2 dias. Virar skill deixa esse jeito pronto para usar sempre.')
+    expect(document.body.textContent).toContain('Usado 3 vezes em 2 dias.')
+    expect(document.body.textContent).not.toContain('Virar skill deixa') // one line of use, then the buttons (Atlas 12/11)
     fireEvent.click(screen.getByRole('button', { name: 'Agora não' }))
     expect(onDecideItem).toHaveBeenCalledOnce()
     expect(onDecideItem.mock.calls[0]?.[1]).toBe(false)
+  })
+
+  it('says WHICH way of working becomes a skill: "Bia aprendeu: …" is the title, the chip stays "Skill", "Nova skill proposta" is gone', () => {
+    listOf(offer())
+    expect(screen.getByRole('heading', { name: 'Bia aprendeu: Legenda do post de sexta' })).toBeTruthy()
+    expect(screen.getByText('Skill')).toBeTruthy()
+    expect(document.body.textContent).not.toContain('Nova skill proposta')
+  })
+
+  it('a long name is cut at two lines and the whole name is on hover (title attribute); the full text is always in the page', () => {
+    const long = 'Bia aprendeu: Cartaz da promoção de pão de queijo com o preço grande, o fundo claro e a letra bem grande para ler de longe'
+    listOf(offer({ title: long }))
+    const heading = screen.getByRole('heading', { name: long })
+    expect(heading.getAttribute('title')).toBe(long)
+    expect(heading.className).toMatch(/Clamp/u)
+  })
+
+  it('both buttons are 40 px ("m"), not the 32 px of the other cards (Muse 12/11)', () => {
+    const tokens = buttonTokens()
+    expect(tokens.m).not.toBe('')
+    listOf(offer())
+    for (const name of ['Virar skill', 'Agora não']) {
+      expect(classesOf(name)).toContain(tokens.m)
+      expect(classesOf(name)).not.toContain(tokens.s)
+    }
   })
 
   it('any other skill card keeps its own words (nothing else changes)', () => {
@@ -187,11 +255,51 @@ describe('Aprovações: the offer card', () => {
     expect(screen.getByRole('button', { name: 'Revisar skill' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Dispensar' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Virar skill' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Nova skill proposta' })).toBeTruthy() // the generic card keeps its generic title
+    expect(classesOf('Dispensar')).toContain(buttonTokens().s)
+  })
+
+  it('after "Virar skill" the stamp says "Virou skill" with "Ver em Skills" beside it, and the button opens THAT persona\'s Skills', () => {
+    const onOpenSkills = vi.fn()
+    listOf(offer(), vi.fn(), { exitStampId: 'skill-offer-pb-bia-x', onOpenSkills })
+    expect(screen.getByText('Virou skill')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Ver em Skills' }))
+    expect(onOpenSkills).toHaveBeenCalledWith('bia')
+  })
+
+  it('no handler, no "Ver em Skills" (never a dead button); and the stamp of any other card never gets it', () => {
+    listOf(offer(), vi.fn(), { exitStampId: 'skill-offer-pb-bia-x' })
+    expect(screen.queryByRole('button', { name: 'Ver em Skills' })).toBeNull()
+    cleanup()
+    listOf(offer({ id: 'skill-7', title: 'Nova skill' }), vi.fn(), { exitStampId: 'skill-7', onOpenSkills: vi.fn() })
+    expect(screen.queryByRole('button', { name: 'Ver em Skills' })).toBeNull()
+    expect(screen.getByText('Aprovado')).toBeTruthy()
   })
 
   it('no article before the persona\'s name on the card', () => {
     listOf(offer())
     expect(document.body.textContent).not.toMatch(/\b(?:a|à|o|ao) Bia\b/u)
+  })
+})
+
+describe('"Ver em Skills": the shell opens the profile on the Skills tab', () => {
+  it('openPersonaSkills selects that persona and the tab; choosing another persona or another panel drops it', () => {
+    const { store, actions } = createShellStore()
+    actions.openPersonaSkills('bia')
+    expect(store.getSnapshot()).toMatchObject({ activePanel: 'profile', profilePersonaId: 'bia', profileEditorOpen: false, profileInitialTab: 'skills' })
+    actions.setProfilePersonaId('bento') // another persona from a card: the normal first tab
+    expect(store.getSnapshot().profileInitialTab).toBeNull()
+    actions.openPersonaSkills('bia')
+    actions.selectPanel('approvals')
+    expect(store.getSnapshot().profileInitialTab).toBeNull()
+  })
+
+  it('the profile page opens on Skills when asked, and on Visão geral otherwise', () => {
+    const { unmount } = render(<PersonaProfilePage snapshot={MOCK_PROFILE_ATLAS} initialTab="skills" />)
+    expect(screen.getByRole('tab', { name: 'Skills' }).getAttribute('aria-selected')).toBe('true')
+    unmount()
+    render(<PersonaProfilePage snapshot={MOCK_PROFILE_ATLAS} />)
+    expect(screen.getByRole('tab', { name: 'Visão geral' }).getAttribute('aria-selected')).toBe('true')
   })
 })
 

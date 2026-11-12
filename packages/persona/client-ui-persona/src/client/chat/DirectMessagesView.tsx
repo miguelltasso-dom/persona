@@ -7,6 +7,7 @@ import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
 import { PERSONA_STATE_CHIP_TONE, PERSONA_STATE_LABEL, PERSONA_STATE_POSE, personaStateOf } from '../team/persona-state.ts'
 import { Avatar, BrandIcon, Button, Chip, EmptyState, MenuButton, Skeleton, Toast, ToastRegion, UiIcon, type ChipTone } from '../primitives/index.ts'
 import { subjectDisplayName } from './SubjectBar.tsx'
+import { roleAfterName } from './author-role.ts'
 import { useCallback, useEffect, useState } from 'react'
 import type { HostQueueControls } from './host-queue.ts'
 import type { HostTurnControls } from './host-turn.ts'
@@ -117,6 +118,9 @@ export interface DirectMessagesViewProps {
   /** IV-10: "Responder" a uma pergunta da persona (o chip e o envio que chama answerAttention). */
   readonly replyTarget?: { readonly id: string; readonly label: string; readonly onClear: () => void } | undefined
   readonly onSendReply?: ((text: string, attachmentIds: readonly string[]) => Promise<void>) | undefined
+  /** P0-10: a decisão do cartão de ação externa ("Segure para enviar") e o "Desfazer" da linha da ação direta: a DM tem os MESMOS controles do #geral. Sem handler, só leitura. */
+  readonly onDecideAction?: ((decision: import('./ActionPreviewCard.tsx').ActionDecision) => void | Promise<void>) | undefined
+  readonly onUndoAction?: ((activityId: string) => void | Promise<void>) | undefined
 }
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
@@ -165,6 +169,8 @@ export function DirectMessagesView({
   turnControls,
   replyTarget,
   onSendReply,
+  onDecideAction,
+  onUndoAction,
 }: DirectMessagesViewProps): ReactNode {
   const [isNewDmModalOpen, setIsNewDmModalOpen] = useState(false)
   const [moveToast, setMoveToast] = useState<{ readonly messageId: string; readonly subjectLabel: string; readonly revertSubjectId: string } | null>(null)
@@ -329,7 +335,8 @@ export function DirectMessagesView({
                 {listInRail
                   ? <h1 className={styles.threadTitle}>{selected.peerName}</h1>
                   : <h2 className={styles.threadTitle}>{selected.peerName}</h2>}
-                {selected.role !== undefined && (
+                {/* Muse (leigo): função igual ao nome não repete ("Probe / Probe"). */}
+                {selected.role !== undefined && roleAfterName(selected.role, selected.peerName) !== '' && (
                   <p className={styles.threadRole}>
                     {isPlacesNavEnabled() && selected.workingOn !== undefined
                       ? t('dm.roleWorking', { role: selected.role, task: selected.workingOn })
@@ -418,6 +425,8 @@ export function DirectMessagesView({
                   {...(onRetrySend === undefined ? {} : { onRetrySend })}
                   {...(onResumePersona === undefined ? {} : { onResumePersona })}
                   {...(personaAsks === undefined ? {} : { personaAsks })}
+                  {...(onDecideAction === undefined ? {} : { onDecideAction })}
+                  {...(onUndoAction === undefined ? {} : { onUndoAction })}
                   {...(turnContext?.ticketId === undefined ? {} : { turnActivityTicketId: turnContext.ticketId })}
                   {...(turnContext?.activityFolds === undefined ? {} : { turnActivityFolds: turnContext.activityFolds })}
                   {...(turnActivityLabels === undefined ? {} : { turnActivityLabels })}

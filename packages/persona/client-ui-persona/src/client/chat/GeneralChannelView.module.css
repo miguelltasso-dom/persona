@@ -351,18 +351,26 @@
  * balões, cantos de dentro fechados). Os cartões estruturados continuam cartões: ficam na coluna dos balões, fora de qualquer balão.
  * Sem fundo translúcido atrás de texto (nada de color-mix … transparent): o balão é sólido.
  */
+/* COLHEITA §14 (Quill): a faixa da figurinha armada e o botão de armar, logo acima do composer. */
+.stickerDock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin-bottom: var(--persona-space-2);
+}
+
 .bubbleRow {
   position: relative;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  column-gap: 10px;
-  margin-top: 16px;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 12px;
+  margin-top: 18px;
   padding: 0 var(--persona-space-3);
 }
 
 .bubbleRow[data-group='middle'],
 .bubbleRow[data-group='last'] {
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 /* A pessoa: sem rosto, tudo alinhado à direita. */
@@ -381,7 +389,7 @@
 .bubbleRow .gutter {
   display: flex;
   justify-content: center;
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 /* A hora de uma mensagem do meio do grupo aparece ao passar o mouse, no lugar do rosto. */
@@ -402,13 +410,13 @@
   min-width: 0;
 }
 
-/* "Nome · função · hora" acima do 1º balão da persona. */
+/* "Nome · função · hora" acima do 1º balão da persona (COLHEITA §23: 13 px, peso 600, 5 px embaixo). */
 .bubbleRow .meta {
   display: flex;
   align-items: baseline;
   gap: 0;
-  margin-bottom: 6px;
-  font: 800 13px/18px var(--persona-font-text);
+  margin-bottom: 5px;
+  font: 600 13px/18px var(--persona-font-text);
   color: var(--persona-ink);
 }
 
@@ -422,48 +430,100 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Muse 07/11: "Nina· Pesquisa · 12:43". O `.meta` do balão é flex com gap 0, e o espaço inicial do item (" · Pesquisa") some na colapsagem de espaços do item flex:
+/* Muse 07/11: "Nina· Pesquisa · 12:43". O `.meta` do balão é flex com gap 0, e o espaço inicial do item (" · Pesquisa") some na colapsagem de espaços do item flex
    a margem devolve o espaço que o texto perdeu (o texto continua "Nome · função · hora"). */
 .bubbleRow .metaSoft {
   margin-inline-start: 0.3em;
 }
 
-/* O balão. Persona: creme (card), ponta no canto perto do rosto. Pessoa: lilás, ponta embaixo à direita. */
+/* COLHEITA §23 (fonte C + balões v2): o balão não tem borda; o anel vem do drop-shadow de --persona-bubble-edge, e a cauda
+   ganha o mesmo anel. 640 px, 16 px, entrelinha 1,55, peso 400. Só tokens. */
 .bubble {
   position: relative;
   box-sizing: border-box;
   width: fit-content;
-  max-width: min(100%, 680px);
-  padding: 10px 14px;
-  background: var(--persona-card);
-  border: 1.5px solid var(--persona-outline-soft);
-  border-radius: 6px 18px 18px 18px;
-  box-shadow: 0 1px 0 var(--persona-outline-soft);
+  max-width: min(100%, 640px);
+  padding: 11px 16px 12px;
+  border: 0;
+  border-radius: 0 20px 20px 20px;
+  background: var(--persona-bubble-persona);
+  box-shadow: none;
+  filter: var(--persona-bubble-edge);
   color: var(--persona-ink);
-  font: 500 15px/23px var(--persona-font-text);
+  font: 400 16px/1.55 var(--persona-font-text);
 }
 
 .bubble[data-wide] {
-  max-width: min(100%, 860px);
+  max-width: min(100%, 640px);
 }
 
-/* Persona em grupo: o canto de baixo perto do rosto fecha (6) até o último. */
-.bubble[data-author='persona'][data-position='first'],
+/* Persona: o raio por posição do grupo (§23). */
+.bubble[data-author='persona'][data-position='single'] {
+  border-radius: 0 20px 20px 20px;
+}
+
+.bubble[data-author='persona'][data-position='first'] {
+  border-radius: 0 20px 20px 6px;
+}
+
 .bubble[data-author='persona'][data-position='middle'] {
-  border-radius: 6px 18px 18px 6px;
+  border-radius: 6px 20px 20px 6px;
 }
 
+.bubble[data-author='persona'][data-position='last'] {
+  border-radius: 6px 20px 20px 20px;
+}
+
+/* A cauda da persona (single e first): ::after com máscara; a cor herda do balão e o anel vem do filter. */
+.bubble[data-author='persona'][data-position='single']::after,
+.bubble[data-author='persona'][data-position='first']::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -11px;
+  width: 13px;
+  height: 17px;
+  background: inherit;
+  -webkit-mask: radial-gradient(circle at 0 100%, transparent 12.5px, #000 13px);
+  mask: radial-gradient(circle at 0 100%, transparent 12.5px, #000 13px);
+}
+
+/* Você: lilás de --persona-bubble-user, no máximo 560 px (78%). */
 .bubble[data-author='user'] {
-  max-width: min(80%, 600px);
-  background: var(--persona-wash-strong);
-  border-radius: 18px 18px 6px 18px;
+  max-width: min(78%, 560px);
+  background: var(--persona-bubble-user);
+  color: var(--persona-bubble-user-ink);
   box-shadow: none;
 }
 
-/* Pessoa em grupo: o canto de cima à direita fecha a partir do 2º. */
-.bubble[data-author='user'][data-position='middle'],
+.bubble[data-author='user'][data-position='single'] {
+  border-radius: 20px 20px 0 20px;
+}
+
+.bubble[data-author='user'][data-position='first'] {
+  border-radius: 20px 20px 6px 20px;
+}
+
+.bubble[data-author='user'][data-position='middle'] {
+  border-radius: 20px 6px 6px 20px;
+}
+
 .bubble[data-author='user'][data-position='last'] {
-  border-radius: 18px 6px 6px 18px;
+  border-radius: 20px 6px 0 20px;
+}
+
+/* A cauda da pessoa (single e last): embaixo à direita. */
+.bubble[data-author='user'][data-position='single']::after,
+.bubble[data-author='user'][data-position='last']::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: -11px;
+  width: 13px;
+  height: 17px;
+  background: inherit;
+  -webkit-mask: radial-gradient(circle at 100% 0, transparent 12.5px, #000 13px);
+  mask: radial-gradient(circle at 100% 0, transparent 12.5px, #000 13px);
 }
 
 /* "Você · hora" embaixo do balão da pessoa (e o chip "Direcionou …"). */
@@ -471,8 +531,8 @@
   display: flex;
   align-items: center;
   gap: var(--persona-space-2);
-  margin-top: 3px;
-  font: 600 11px/16px var(--persona-font-text);
+  margin: 4px 6px 0 0;
+  font: 500 13px/18px var(--persona-font-text);
   color: var(--persona-ink-soft);
   font-variant-numeric: tabular-nums;
 }
@@ -481,8 +541,36 @@
 .bubbleRow .text {
   margin: 0;
   font: inherit;
-  color: var(--persona-ink);
+  color: inherit;
   overflow-wrap: anywhere;
+}
+
+/* Ritmo dentro do balão (§23): parágrafo 0 0 .55em; listas .35em 0 .55em com recuo 1.3em; item .2em 0. */
+.bubble p {
+  margin: 0 0 0.55em;
+}
+
+.bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.bubble ul,
+.bubble ol {
+  margin: 0.35em 0 0.55em;
+  padding-left: 1.3em;
+}
+
+.bubble li {
+  padding: 0.2em 0;
+}
+
+.bubble li::marker {
+  color: var(--persona-ink-soft);
+  font-weight: 600;
+}
+
+.bubble strong {
+  font-weight: 700;
 }
 
 .reactions {

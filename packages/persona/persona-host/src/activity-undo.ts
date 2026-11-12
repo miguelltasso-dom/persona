@@ -151,7 +151,8 @@ export interface ActivityUndoHost {
   readonly events: Pick<EventRepos, 'append' | 'has' | 'get' | 'touch'>
   readonly product: Pick<ProductRepos, 'getPersona' | 'getProject'>
   readonly orchestration: { readonly now: () => string }
-  moveTicket(request: MoveTicketRequest): unknown
+  /** Puts a card back WITHOUT starting a persona (the person's own `moveTicket` does start one). */
+  moveTicketBack(request: MoveTicketRequest): unknown
   deleteSprint(request: SprintIdRequest): unknown
   planSprint(request: PlanSprintRequest): unknown
   deleteRoutine(request: DeleteRoutineRequest): unknown
@@ -164,7 +165,7 @@ export interface ActivityUndoHost {
 /** One inverse, performed by the host's own method. @param host - The host. @param call - The typed inverse. */
 function runUndoCall(host: ActivityUndoHost, call: UndoCall): unknown {
   switch (call.remote) {
-    case 'moveTicket': return host.moveTicket(call.request)
+    case 'moveTicket': return host.moveTicketBack(call.request)
     case 'deleteSprint': return host.deleteSprint(call.request)
     case 'planSprint': return host.planSprint(call.request)
     case 'deleteRoutine': return host.deleteRoutine(call.request)
@@ -234,6 +235,8 @@ export function activitySentence(name: string, doc: ActivityDoc): string {
     case 'routine_update': return `${name} editou a rotina “${title}”.`
     case 'routine_pause': return `${name} mudou a pausa da rotina “${title}”.`
     case 'persona_hire': return `${name} contratou ${title}.`
+    case 'browser_login': return `${name} entrou com o login “${title}”.`
+    case 'browser_leak': return `${name} fechou a aba do login “${title}”: a senha apareceu no endereço da página.`
     default: return `${name} mexeu em “${title}”.`
   }
 }

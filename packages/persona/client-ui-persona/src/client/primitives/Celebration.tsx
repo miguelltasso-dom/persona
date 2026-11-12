@@ -8,6 +8,7 @@ import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, ty
 import { ACCENTS, AVATAR_96 } from '../assets/generated-imports.ts'
 import { houseStampUrl } from '../decor/HouseDecor.tsx'
 import { Avatar } from './Avatar.tsx'
+import { Button } from './Button.tsx'
 import { UiIcon } from './icons.tsx'
 import styles from './Celebration.module.css'
 
@@ -147,15 +148,18 @@ export interface ApprovedStampProps {
   readonly animate?: boolean
   /** A stable text of the card (its id): with the house ornaments on, it picks the drawn stamp ("feito", "boa!", "uau!"). */
   readonly seed?: string
+  /** An action next to the stamp ("Ver em Skills"). Drawn only together with `onAction`: an action with no handler is not a button. */
+  readonly actionLabel?: string
+  readonly onAction?: () => void
 }
 
 /** Brush "aprovado" paw stamp: pressed onto a card once when the human approves (peak-end). */
-export function ApprovedStamp({ label, size = 64, animate = true, seed }: ApprovedStampProps): ReactNode {
+export function ApprovedStamp({ label, size = 64, animate = true, seed, actionLabel, onAction }: ApprovedStampProps): ReactNode {
   const url = ACCENTS['stamp-aprovado']
   const fallbackSeed = useId()
   // BR-P4 #12 (behind persona.flag.houseDecor): the drawn stamp. The word in the art is decoration; the real text stays below.
   const drawn = houseStampUrl(seed ?? fallbackSeed)
-  return (
+  const stamp = (
     <span
       className={styles.stamp}
       data-animate={animate ? '' : undefined}
@@ -167,6 +171,14 @@ export function ApprovedStamp({ label, size = 64, animate = true, seed }: Approv
       {drawn !== undefined && <img className={styles.stampArt} src={drawn} alt="" aria-hidden="true" />}
       {url !== undefined && <span className={styles.stampMark} style={{ '--stamp-url': `url("${url}")` } as CSSProperties} aria-hidden="true" />}
       <span className={styles.stampText} aria-hidden="true">{label}</span>
+    </span>
+  )
+  if (actionLabel === undefined || onAction === undefined) return stamp
+  // The stamp stays a read-only image; the action is a real button beside it, never inside it.
+  return (
+    <span className={styles.stampRow}>
+      {stamp}
+      <Button size="s" variant="ghost" onClick={onAction}>{actionLabel}</Button>
     </span>
   )
 }

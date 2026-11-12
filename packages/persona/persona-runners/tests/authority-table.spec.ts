@@ -77,6 +77,16 @@ describe('the origin rule: a run started by a received e-mail never sends on its
     preAllowAfterOrigin(given, { viaEmail: true })
     expect(given).toEqual(['send', 'read'])
   })
+
+  it('Keel 12/11: an UNATTENDED run (the persona\'s own initiative, a plan, an external event) never has send, pay or delete pre-allowed, waiver or not; a scheduled routine keeps the owner\'s waiver', () => {
+    expect(preAllowAfterOrigin(['read', 'change', 'send', 'pay', 'delete'], { authority: 'unattended' })).toEqual(['read', 'change'])
+    expect(preAllowAfterOrigin(['read', 'send'], { authority: 'unattended', viaEmail: false })).toEqual(['read'])
+    // a routine the owner scheduled is the owner's explicit consent: the standing "não perguntar de novo" still lets its send through
+    expect(preAllowAfterOrigin(['read', 'change', 'send'], { authority: 'routine' })).toEqual(['read', 'change', 'send'])
+    expect(preAllowAfterOrigin(['read', 'change', 'send'], { authority: 'person' })).toEqual(['read', 'change', 'send'])
+    // the e-mail mark still applies to a routine (an event run is unattended anyway)
+    expect(preAllowAfterOrigin(['read', 'send'], { authority: 'routine', viaEmail: true })).toEqual(['read'])
+  })
 })
 
 describe('the gate of each CLI (fail closed where nothing is proven)', () => {

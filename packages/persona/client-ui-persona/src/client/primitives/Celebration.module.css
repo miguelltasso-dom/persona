@@ -221,6 +221,13 @@
 }
 
 /* Approved stamp (Brush accents/stamp-aprovado.svg, currentColor via mask). */
+.stampRow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
 .stamp {
   display: inline-flex;
   flex-direction: column;

@@ -11,6 +11,7 @@ import { Card, ChoiceCards, Screen, ScreenHeader, Switch, type ChoiceCardOption 
 import { THEME_CHOICES, type ThemeBridge, type ThemeChoice } from '../theme/theme-preference.ts'
 import { isStickersEnabled } from '../figurinhas/figurinhas-flag.ts'
 import { StickersSection } from '../figurinhas/StickersSection.tsx'
+import { SoundsSection } from '../voice/SoundsSection.tsx'
 import { SettingsScrollFrame } from './SettingsScrollFrame.tsx'
 import { useShortcutTips } from './shortcut-tips-preference.ts'
 import styles from './AppearanceSettingsPanel.module.css'
@@ -84,6 +85,8 @@ export function AppearanceSettingsPanel({ t, themeBridge }: AppearanceSettingsPa
           />
         </Card>
         {isStickersEnabled() && <StickersSection t={t} />}
+        {/* P1-05 (Carbon): os sons discretos ficam na Aparência (a opção de Muse, item 20). Sem isto nenhuma tela os monta. */}
+        <SoundsSection t={t} />
         <Card as="section" padding="m">
           <div className={styles.tipsRow}>
             <div className={styles.tipsText}>

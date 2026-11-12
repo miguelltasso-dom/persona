@@ -189,6 +189,8 @@ export function registerPrismScreens(
       teamConnectRemote: ctx.remote.persona as unknown as TeamConnectRemoteWire,
       // Item 19a: "Seus números" talks to the same host Remote (the section only draws when the host has the five calls).
       indicatorsRemote: ctx.remote.persona,
+      // P1-08: a number's alert is born without any message; its section asks the live store to re-read the Visão geral.
+      refreshLive: () => { void live.refresh() },
       decideDecision: (decisionId: string, accept: boolean) => { void live.decide?.(decisionId, accept) },
       // IV-10 "Responder": the conversation where the question was asked (the channel, or that DM).
       openConversation: (streamKind: 'channel' | 'dm', ownerId: string) => {
@@ -355,6 +357,8 @@ export function registerPrismScreens(
       clearApprovalFocus: () => { shellHandle.actions.clearFocusedApproval() },
       // The empty inbox's way out: "Ver o que a equipe está fazendo".
       openOverview: () => { shellHandle.actions.selectPanel('overview') },
+      // Item 16: the stamp "Virou skill · Ver em Skills" opens that persona's profile on the Skills tab.
+      openPersonaSkills: (personaId: string) => { shellHandle.actions.openPersonaSkills(personaId) },
       // IV-10 "Responder": the conversation where the question was asked (the channel, or that DM).
       openConversation: (streamKind: 'channel' | 'dm', ownerId: string) => {
         if (streamKind === 'dm') {

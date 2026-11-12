@@ -32,6 +32,8 @@ export interface CofreRowView {
   /** The non-secret fields, to fill the edit form. */
   readonly fields: Readonly<Record<string, string>>
   readonly hasSecret: boolean
+  /** When it was last saved (ISO), for the key row's second line. */
+  readonly updatedAt: string
 }
 
 /** What the three groups hold. */
@@ -61,6 +63,7 @@ export function cofreGroups(entries: readonly HostCofreEntry[]): CofreGroups {
     detail: detailOf(entry),
     fields: entry.fields,
     hasSecret: entry.hasSecret,
+    updatedAt: entry.updatedAt,
   }))
   return {
     company: rows.find(row => row.kind === 'company'),
@@ -75,6 +78,16 @@ export function cofreGroups(entries: readonly HostCofreEntry[]): CofreGroups {
  */
 export function cofreIsEmpty(groups: CofreGroups): boolean {
   return groups.company === undefined && groups.logins.length === 0 && groups.keys.length === 0
+}
+
+/**
+ * "10/11": the day and month of an ISO date, for a row's second line. Empty when the text is not a date.
+ * @param iso - An ISO date-time.
+ */
+export function shortDate(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
 /** One CSV row that would enter the Cofre (the host never sends the password). */

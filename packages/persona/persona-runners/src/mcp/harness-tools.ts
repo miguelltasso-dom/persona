@@ -38,6 +38,10 @@ export const HARNESS_TOOLS = [
   'ask_vault_code',
   // COLHEITA 15b: type the Cofre password into the page of its own site. The value never reaches the model and never appears in the answer.
   'browser_login',
+  // Item 26 (onda B): the services the person connected, behind the product's own proxy. TWO fixed tools, never one per service tool: the list the CLI sees does not change between
+  // turns (a warm session stays warm) and the hundreds of tools of a service are not paid by every turn. The grants, the classes of action, the previews and the credential are the HOST's.
+  'conectores_ver',
+  'conector_usar',
 ] as const
 
 export type HarnessToolName = typeof HARNESS_TOOLS[number]
@@ -324,7 +328,8 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
   ask_vault_code: {
     description: 'Ask the owner for the six-digit code a site sent by SMS or WhatsApp. The card opens in Aprovações and she fills it there; '
       + 'the code goes to the Cofre and never to you, so never ask her to type it in the chat and never wait for the digits in your answer. '
-      + 'Use it only when a login you are working on needs the second factor.',
+      + 'Always say which login it is for: the code is typed later only into the page of that login. Use it only when a login you are working on needs the second factor. '
+      + 'End your turn after opening the card; when she fills it you are woken, then click the field of the code on the page and call browser_login with the same login and code true.',
     inputSchema: {
       'type': 'object',
       'additionalProperties': false,
@@ -338,7 +343,7 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
         },
         'login': {
           'type': 'string',
-          'description': 'Which login (site or service) the code is for, when it is not obvious.',
+          'description': 'The Cofre login the code is for, as the person named it (title, user or site). Needed to type the code later.',
         },
       },
     },
@@ -346,7 +351,7 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
   browser_login: {
     description: 'Type a password the person keeps in the Cofre into the login page of its own site, in the browser of this turn. '
       + 'Name the login as the person sees it in the Cofre (title, user or site). The password never reaches you and is never shown: '
-      + 'the answer only says whether it was typed. When the site then asks for a code, use ask_vault_code.',
+      + 'the answer only says whether it was typed. When the site then asks for a code, use ask_vault_code; after the owner fills the card, click the code field and call this tool again with code true.',
     inputSchema: {
       'type': 'object',
       'additionalProperties': false,
@@ -357,6 +362,50 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
         'login': {
           'type': 'string',
           'description': 'The Cofre login to use, as the person named it (title, user or site).',
+        },
+        'code': {
+          'type': 'boolean',
+          'description': 'true to type the six-digit code the owner filled on the card (ask_vault_code) into the field you focused, instead of the password. The code never reaches you.',
+        },
+      },
+    },
+  },
+  conectores_ver: {
+    description: 'See the services the person connected that you may use in this task and, naming one, what you can do in it. Call it before conector_usar: '
+      + 'it says which services there are, which actions are open to you and which ones the person confirms first. Never ask the person for a password or a key: the app holds the access.',
+    inputSchema: {
+      'type': 'object',
+      'additionalProperties': false,
+      'properties': {
+        'conector': {
+          'type': 'string',
+          'description': 'The service, as conectores_ver named it. Leave empty to list the services.',
+        },
+      },
+    },
+  },
+  conector_usar: {
+    description: 'Do one action in a connected service, as conectores_ver listed it. Reading runs at once; what changes or sends something waits for the person where the rules say so '
+      + '(the answer then says a card was opened: finish what you can and say what you are waiting for). Never put a password or a key in the arguments.',
+    inputSchema: {
+      'type': 'object',
+      'additionalProperties': false,
+      'required': [
+        'conector',
+        'ferramenta',
+      ],
+      'properties': {
+        'conector': {
+          'type': 'string',
+          'description': 'The service, as conectores_ver named it.',
+        },
+        'ferramenta': {
+          'type': 'string',
+          'description': 'The action, exactly as conectores_ver listed it for that service.',
+        },
+        'argumentos': {
+          'type': 'object',
+          'description': 'What the action needs, as conectores_ver described it.',
         },
       },
     },

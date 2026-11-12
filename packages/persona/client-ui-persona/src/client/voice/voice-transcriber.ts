@@ -143,6 +143,9 @@ export function createVoskTranscriber(
   return {
     close,
     transcribe: async (blob) => {
+      // P1-05: uma transcrição nova cancela a janela ociosa que a anterior deixou correndo; senão o modelo some no meio da fala.
+      window.clearTimeout(idle)
+      idle = undefined
       const loaded = await model()
       const audio = await decode(blob)
       const active = new loaded.KaldiRecognizer(audio.sampleRate)
@@ -161,12 +164,11 @@ export function createVoskTranscriber(
         resolve(parts.join(' ').trim())
       }
       let quiet: number | undefined
-      let deadline: number | undefined
       const stopTimers = (): void => {
         window.clearTimeout(deadline)
         window.clearTimeout(quiet)
       }
-      deadline = window.setTimeout(() => { stopTimers(); fail('timeout') }, timeoutMs)
+      const deadline = window.setTimeout(() => { stopTimers(); fail('timeout') }, timeoutMs)
       // The worker answers in order: every segment it finalized, then the tail `retrieveFinalResult` asks for. A short quiet window
       // after the last event is what tells "the recognizer is done" apart from "more segments are coming".
       const settle = (): void => {

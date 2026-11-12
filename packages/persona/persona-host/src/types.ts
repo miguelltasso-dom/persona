@@ -7,6 +7,18 @@ import type {
   TurnLayerSizes,
 } from '@deepseek-ai/dsh-persona-core'
 import type { UsageFold, UsageOrigin } from '@deepseek-ai/dsh-persona-usage'
+import type { ChannelNotice } from './channel-notices.ts'
+import type { RoutineTrigger } from './routine-events.ts'
+
+/** Item 26: the wire types of a routine's trigger live in routine-events.ts and are public through this subpath (Typert reads them here). */
+export type { EventFilter, EventSource, RoutineEventTrigger, RoutineTrigger } from './routine-events.ts'
+
+/** Item 22: the wire types of the channel views live in their own files and are public through this subpath (Typert reads them here). */
+export type { DirectoryChannelKind } from './channel-directory.ts'
+export type { ChannelNotice, EmptyChannelNotice } from './channel-notices.ts'
+export type {
+  ChannelHeaderMemberView, ChannelHeaderView, ChannelLayoutView, ChannelRowView, ChannelSectionView, MentionOptionsRequest, MentionOptionView,
+} from './channel-views.ts'
 import type { IndicatorData, Opt8MeasuredEvidence } from '@deepseek-ai/dsh-persona-engine'
 
 export type { OfficialQuota, UsageFold, UsageOrigin, UsageRecord, UsageWindow } from '@deepseek-ai/dsh-persona-usage'
@@ -707,6 +719,8 @@ export interface MessageView {
    * `body` is the Portuguese fallback sentence; the screen writes its own. Only with `Config.teamwork`.
    */
   readonly filesSaved?: { readonly files: readonly DraftFileView[] }
+  /** Item 22: the line says someone named is not on this channel; the buttons (Pôr no canal, Agora não, Ir para) come from here, the words stay in the body. */
+  readonly channelNotice?: readonly ChannelNotice[]
 }
 
 /**
@@ -1334,6 +1348,11 @@ export interface CreateRoutineRequest {
   readonly prompt?: string
   /** IV-9 “Quem faz”: a persona of the project. Absent or `''` ⇒ the Coordenação decides. */
   readonly ownerPersonaId?: string
+  /**
+   * Item 26 “Quando”: absent or `{ kind: 'schedule' }` = the clock (`rrule`, `catchUp`). `{ kind: 'event', source, filter }` = when something happens in a source the person
+   * connected; `rrule` and `catchUp` are then ignored. Refused when the source is not connected (the team could not read it).
+   */
+  readonly trigger?: RoutineTrigger
 }
 
 /** Routine card. */
@@ -1353,6 +1372,8 @@ export interface RoutineView {
   readonly humanSchedule: string
   /** Next due instant (ISO); `''` when paused or unknown. */
   readonly nextRunAt: string
+  /** Item 26: present only when the routine starts by an event (then `humanSchedule` says it in words and `nextRunAt` is `''`). */
+  readonly trigger?: RoutineTrigger
   /** `true` on the routines the team keeps for each persona (`initiative:<id>`): they can be paused and edited, never deleted. */
   readonly system?: true
 }
@@ -1382,6 +1403,8 @@ export interface UpdateRoutineRequest {
   readonly catchUp?: 'skip' | 'run_once' | 'run_all'
   readonly silenceStart?: string
   readonly silenceEnd?: string
+  /** Item 26: change when the routine starts (see {@link CreateRoutineRequest.trigger}). Leaving an event for a time needs `rrule` too. Absent = unchanged. */
+  readonly trigger?: RoutineTrigger
 }
 
 /** Delete a routine with its “what/who” document and its runs. Creating the same id again is allowed (Desfazer). */
@@ -1595,8 +1618,8 @@ export interface IndicatorView {
   readonly failure?: string
   readonly updatedAt: string
   readonly alertDropPct?: number
-  /** The last refresh fell past the alert rule. */
-  readonly alert?: { readonly pct: number; readonly text: string; readonly at: string }
+  /** The last refresh fell past the alert rule. `seen`: she marked "Já vi" (the notice left the list; the card keeps its border until the next refresh). */
+  readonly alert?: { readonly pct: number; readonly text: string; readonly at: string; readonly seen?: true }
   readonly personaId: string
   readonly personaName: string
   readonly sourceMessageId: string
@@ -1661,6 +1684,8 @@ export interface VaultRecordView {
   readonly kind: 'brief' | 'constraint' | 'decision' | 'memory'
   readonly body: string
   readonly status: 'active' | 'revoked'
+  /** The fact this record states (`company.card` is the company Ficha): absent for an ordinary record. Lets a screen tell the Ficha from the owner's own description (Carbon P1-11). */
+  readonly factKey?: string
 }
 
 /** Cofre v2: one Login, Chave or the company Ficha (never a secret; `hasSecret` says whether one is kept). */
@@ -1678,6 +1703,22 @@ export type {
 
 /** Cofre v2: the six-digit request the owner fills (never the digits). */
 export type { CofreCodeRequestView, CofreCodeState } from './cofre-2fa.ts'
+
+/** Item 26.4: the curated business-tool catalog the screen renders (cards with `linked` and `promised` decided by the host). */
+export type {
+  ConnectorCatalogCardView,
+  ConnectorCatalogEntry,
+  ConnectorCatalogView,
+  ConnectorCategory,
+  ConnectorVia,
+} from './connector-catalog.ts'
+
+/** Item 26.8: one health line per connector (state, action and the PT sentence the screen shows). */
+export type {
+  ConnectorHealthAction,
+  ConnectorHealthState,
+  ConnectorHealthView,
+} from './connector-health.ts'
 
 /** Item 13 "Ligar a IA para a equipe toda": what `getTeamAi`, `connectTeam`, `getTeamConnect` and `retryTeamPersona` take and return (contract: persona-spec/contracts/team-connect.md). */
 export type {
@@ -1701,7 +1742,8 @@ export interface SaveCofreLoginRequest {
   readonly projectId: string
   readonly site: string
   readonly username: string
-  readonly password: string
+  /** Absent while EDITING (`id` set) keeps the sealed password and changes only the metadata. */
+  readonly password?: string
   readonly title?: string
   /** Existing entry to replace; absent creates one. */
   readonly id?: string
@@ -1712,7 +1754,8 @@ export interface SaveCofreKeyRequest {
   readonly workspaceId: string
   readonly projectId: string
   readonly service: string
-  readonly secret: string
+  /** Absent while EDITING (`id` set) keeps the sealed secret. */
+  readonly secret?: string
   readonly title?: string
   readonly id?: string
 }
@@ -1741,6 +1784,32 @@ export interface CofreImportRequest {
   readonly workspaceId: string
   readonly projectId: string
   readonly csv: string
+}
+
+/** Whether the Cofre can seal secrets on this machine (DPAPI available). */
+export interface CofreStatusView {
+  readonly sealable: boolean
+}
+
+/** Seal a connector token in its own slot (`connector:<provider>`), where the readers look. */
+export interface SaveConnectorSecretRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  /** Vault provider id (`imap`, `telegram`, `slack`, …). */
+  readonly provider: string
+  readonly secret: string
+}
+
+/** Ask whether a connector slot holds a sealed value. */
+export interface ConnectorSecretRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly provider: string
+}
+
+/** Presence of a connector token, never its value. */
+export interface ConnectorSecretStateView {
+  readonly hasSecret: boolean
 }
 
 /** The owner fills the six digits of a request. */
@@ -2719,6 +2788,8 @@ export interface RoutineScheduleView {
   readonly nextRunAt: string
   /** `true` on the routines the team keeps for each persona; never deletable. */
   readonly system?: true
+  /** Item 26: present only when the routine starts by an event (`rrule` is then not a time; `humanSchedule` says it in words). */
+  readonly trigger?: RoutineTrigger
   readonly runs: readonly RoutineRunView[]
 }
 
@@ -2760,6 +2831,10 @@ export interface ActionPreviewView {
   readonly verb: string
   readonly connectorName: string
   readonly to?: string
+  /** P0-10: the other recipients and the attachments are SHOWN (a call with a hidden `bcc` or file is never approved blind). */
+  readonly cc?: string
+  readonly bcc?: string
+  readonly attachments?: readonly string[]
   readonly subject?: string
   readonly body?: string
   readonly amount?: string
@@ -2927,6 +3002,10 @@ export interface SkillView {
   readonly status: 'active' | 'candidate'
   readonly body: string
   readonly sharedWithTeam: boolean
+  /** Item 26.10: where an imported skill came from (absent for one the person wrote). */
+  readonly source?: { readonly url: string; readonly ref: string; readonly hash: string }
+  /** Item 26.10: the body came from outside and is DATA, never instructions to the host. */
+  readonly untrusted?: boolean
 }
 
 /** Create or replace a skill. */
@@ -2946,6 +3025,44 @@ export interface ReviseSkillRequest {
   readonly id: string
   readonly body: string
 }
+
+/** Item 26.10: preview a skill from a GitHub link (nothing is written). */
+export interface PreviewSkillImportRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly url: string
+}
+
+/** Item 26.10: bring the chosen skills of the preview in. */
+export interface ImportSkillsRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly url: string
+  readonly names: readonly string[]
+  readonly sharedWithTeam: boolean
+}
+
+/** Item 26.10/26.11: ask the source for a new version of an imported skill. */
+export interface RefreshSkillRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+}
+
+/** What the refresh found: same content changes nothing; a new one waits for approval. */
+export interface SkillRefreshView {
+  readonly changed: boolean
+  readonly pending: boolean
+}
+
+/** Item 26.10: what a GitHub link would bring in, before anything is written. */
+export type {
+  ArchiveFile,
+  IgnoredFile,
+  SkillCandidate,
+  SkillImportPreview,
+  SkillLink,
+} from './skill-import.ts'
 
 /** Whether `gh` is on PATH. */
 export interface GithubAvailableView {
@@ -3892,6 +4009,33 @@ export interface EmailFilterView {
   readonly preset?: string
 }
 
+/** Harvest 19b — the mailbox credential state. The password is never part of it. */
+export interface EmailConnectionView {
+  readonly connected: boolean
+  readonly host?: string
+  readonly port?: number
+  readonly secure?: boolean
+  readonly user?: string
+}
+
+/** Harvest 19b — one read-only login test; absent fields use the stored credential. */
+export interface TestEmailConnectionRequest extends ProjectScopeRequest {
+  readonly host?: string
+  readonly port?: number
+  readonly secure?: boolean
+  readonly user?: string
+  readonly password?: string
+}
+
+/** Harvest 19b — what “Testar conexão” found. */
+export interface EmailConnectionTestView {
+  readonly ok: boolean
+  /** Messages in the folder (EXAMINE), when the login worked. */
+  readonly messages?: number
+  /** Why it failed, in categories the screen turns into one honest sentence. */
+  readonly error?: 'login' | 'network' | 'tls' | 'no-credential' | 'unknown'
+}
+
 /** Save the inbox rule of one project. */
 export interface PutEmailFilterRequest {
   readonly workspaceId: string
@@ -4829,3 +4973,5 @@ export type VoiceModelStateView =
   | { readonly state: 'absent' }
   | { readonly state: 'unavailable' }
   | { readonly state: 'failed'; readonly reason: ComponentFailure }
+export type { OAuthCredentialView } from './oauth-vault.ts'
+export type { SendStickerRequest } from './sticker-send.ts'

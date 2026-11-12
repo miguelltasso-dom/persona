@@ -80,6 +80,8 @@ const INBOX = 'handoff_inbox'
 export const ENTREGA_MAX = 24_000
 /** A review request whose bilhete (cut at this) already holds the whole delivery needs no second copy. */
 const NOTE_LINE_MAX = 290
+/** P1-07: a turn of the sender this short, after a much longer delivery, is something she said AFTER it (an adjustment), not a new delivery. */
+const FOLLOW_UP_MAX = 400
 
 /** What the host keeps of the sender's words for the prompt of the colleague (never for the card, never for the thread). */
 interface EntregaDoc {
@@ -439,14 +441,19 @@ export class Handoffs {
    * @param words - What the sender wrote in the turn that just ended.
    */
   private keepEntrega(projectId: string, requestId: string, kind: 'review' | 'next', from: StoredPersona, ticket: Ticket, words: string): void {
-    const text = words.replace(/\r\n/gu, '\n').trim()
-    if (text === '' || (kind === 'review' && text.length <= NOTE_LINE_MAX)) return
+    const said = words.replace(/\r\n/gu, '\n').trim()
+    if (said === '' || (kind === 'review' && said.length <= NOTE_LINE_MAX)) return
+    // P1-07: a SHORT turn after a review ("Ajustei o telefone.") is what she SAID after her delivery, not a new delivery: it must not replace the whole text the next part is to read.
+    // The text she delivered stays and what she said after it follows, so the consumer reads both (the adjustment is never lost either).
+    const before = kind === 'next' ? this.deps.screens.get<EntregaDoc>(projectId, ENTREGA, requestId) : undefined
+    const followUp = before !== undefined && before.kind === 'next' && said.length <= FOLLOW_UP_MAX && before.text.length >= said.length * 3
+    const text = followUp ? `${before.text}\n\n— Depois da revisão, ${from.name} disse: ${said}` : said
     const long = text.length > ENTREGA_MAX
     const file = long ? this.spillEntrega(ticket, requestId, text) : undefined
     const arts = spillArts(ticket.execution?.directory, requestId, text, confineWorktreeWrite) // item 9b: the big art of her words, as files in her draft
     const doc: EntregaDoc = {
       kind, fromName: from.name, text: long ? text.slice(0, ENTREGA_MAX) : text,
-      ...(long ? { cut: { total: text.length, ...(file === undefined ? {} : { file }) } } : {}),
+      ...(long ? { cut: { total: text.length, ...(file === undefined ? {} : { file }) } } : followUp && before.cut !== undefined ? { cut: before.cut } : {}),
       ...(arts.length === 0 ? {} : { arts }),
     }
     this.deps.screens.put(projectId, ENTREGA, requestId, doc)

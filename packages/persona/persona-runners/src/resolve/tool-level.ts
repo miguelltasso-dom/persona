@@ -9,7 +9,7 @@ export type ToolLevel = 'none' | 'read' | 'write'
 const RANK: Record<ToolLevel, number> = { none: 0, read: 1, write: 2 }
 
 const WRITE = /^(?:bash|powershell|shell|write|edit|str_replace|apply_patch|rm|delete|notebook_edit|persona_report|persona_browser_act|persona_computer_click|persona_computer_type|persona_telegram_send|persona_email_send|brain_propose|gestor_hire|gestor_allocate|gestor_reorganize|gestor_assemble)$/iu
-const READ = /^(?:read|glob|grep|list|ls|search|web_fetch|persona_recall|persona_ask|persona_browser_open|persona_browser_read|persona_computer_screenshot|brain_search|brain_read|board_list|sprint_list|routine_list|review_verdict|ask_colleague|pass_forward|ask_team_opinion|ask_vault_code|browser_login|toolsearch)$/iu
+const READ = /^(?:read|glob|grep|list|ls|search|web_fetch|persona_recall|persona_ask|persona_browser_open|persona_browser_read|persona_computer_screenshot|brain_search|brain_read|board_list|sprint_list|routine_list|review_verdict|ask_colleague|pass_forward|ask_team_opinion|ask_vault_code|browser_login|conectores_ver|conector_usar|toolsearch)$/iu
 // D-097: asking a colleague, passing work on and asking the team's opinion are COORDINATION, not acts on the person's files or the world: they work for a persona with
 // no file/shell grant too (the host holds their ACL: the persona's own switch, the caps, the circle, and the colleague's Task runs with the COLLEAGUE's grant).
 // `ToolSearch` is the CLI's own lookup of a tool's schema (it only loads a definition into the context; no side effect). The CLI defers the schemas of an MCP
@@ -153,5 +153,6 @@ export function withToolLevel(inner: Runner, level: ToolLevel): Runner {
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(input) }),
     ...(inner.dispose === undefined ? {} : { dispose: () => inner.dispose!() }),
+    ...(inner.steer === undefined ? {} : { steer: (...args: Parameters<NonNullable<Runner['steer']>>) => inner.steer!(...args) }),
   }
 }

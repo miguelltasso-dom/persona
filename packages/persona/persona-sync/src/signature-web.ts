@@ -3,12 +3,18 @@
  * The Durable Object imports this file to check who signed a sealed payload without ever holding a channel key.
  *
  * Wire format (documented in `persona-spec/contracts/e2ee-channel.md`):
- *   header = "persona/seal/v1\n<workspaceId>\n<streamId>\n<epoch>\n<authorId>\n"
+ *   header = "persona/seal/v2|" + frame(workspaceId, streamId, epoch, authorId) + "|"        frame = each field as "<UTF-8 byte length>:<field>"
  *   signed bytes = utf8(header) || ciphertext bytes            (ciphertext = iv(12) || tag(16) || body)
  *   signature    = Ed25519 over the signed bytes, base64url
  */
 
-import type { ChannelSealedPayload } from '@deepseek-ai/dsh-persona-core'
+/** The fields of a sealed channel payload this module reads (structural: `ChannelSealedPayload` of persona-core satisfies it, and the Worker needs no other package). */
+export interface SealedChannelFields {
+  readonly epoch: number
+  readonly authorId: string
+  readonly ciphertext: string
+  readonly sig: string
+}
 
 /** What the signature and the encryption are bound to: a payload cannot be moved to another channel, epoch or author. */
 export interface SealContext {
@@ -18,12 +24,21 @@ export interface SealContext {
   readonly authorId: string
 }
 
-/** @param context - Where the payload lives. @returns The header both the AAD of the encryption and the signature carry. */
-export function sealHeader(context: SealContext): string {
-  return `persona/seal/v1\n${context.workspaceId}\n${context.streamId}\n${String(context.epoch)}\n${context.authorId}\n`
+const utf8 = new TextEncoder()
+
+/**
+ * Fields as `<UTF-8 byte length>:<field>`, one after the other. The length decides where a field ends, so NO value (a newline, a colon, a digit) can move a boundary: unlike a
+ * separator, it cannot be forged by the content ("a\nb"+"c" and "a"+"b\nc" are different frames).
+ * @param fields - Any strings.
+ */
+export function frameFields(fields: readonly string[]): string {
+  return fields.map(field => `${String(utf8.encode(field).length)}:${field}`).join('')
 }
 
-const utf8 = new TextEncoder()
+/** @param context - Where the payload lives. @returns The header both the AAD of the encryption and the signature carry. */
+export function sealHeader(context: SealContext): string {
+  return `persona/seal/v2|${frameFields([context.workspaceId, context.streamId, String(context.epoch), context.authorId])}|`
+}
 
 /** @param text - base64url. @returns Its bytes (`undefined` when it is not valid base64url). */
 export function bytesOfBase64Url(text: string): Uint8Array | undefined {
@@ -48,7 +63,7 @@ export function base64UrlOfBytes(bytes: Uint8Array): string {
 }
 
 /** @param sealed - A sealed payload. @returns The bytes that are signed (header || ciphertext), or undefined when the ciphertext is not base64. */
-export function signedBytesOf(sealed: ChannelSealedPayload, context: { readonly workspaceId: string; readonly streamId: string }): Uint8Array | undefined {
+export function signedBytesOf(sealed: SealedChannelFields, context: { readonly workspaceId: string; readonly streamId: string }): Uint8Array | undefined {
   const body = bytesOfBase64(sealed.ciphertext)
   if (body === undefined) return undefined
   const header = utf8.encode(sealHeader({ ...context, epoch: sealed.epoch, authorId: sealed.authorId }))
@@ -79,7 +94,7 @@ export function bytesOfBase64(text: string): Uint8Array | undefined {
  * @param authorSigningPublic - The author's Ed25519 public key (base64url, raw 32 bytes), from the roster.
  */
 export async function verifySealedSignature(
-  sealed: ChannelSealedPayload,
+  sealed: SealedChannelFields,
   context: { readonly workspaceId: string; readonly streamId: string },
   authorSigningPublic: string,
 ): Promise<boolean> {

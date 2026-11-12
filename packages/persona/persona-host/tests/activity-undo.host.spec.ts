@@ -176,5 +176,7 @@ describe('activitySentence', () => {
     expect(activitySentence('Bia', doc({ verb: 'board_card_move', after: 'Fazendo' }))).toBe('Bia moveu “Post de sexta” para Fazendo.')
     expect(activitySentence('Bia', doc({ verb: 'board_card_create' }))).toBe('Bia criou a tarefa “Post de sexta”.')
     expect(activitySentence('Bia', doc({ verb: 'unknown_verb' }))).toBe('Bia mexeu em “Post de sexta”.')
+    expect(activitySentence('Bia', doc({ verb: 'browser_login' }))).toBe('Bia entrou com o login “Post de sexta”.')
+    expect(activitySentence('Bia', doc({ verb: 'browser_leak' }))).toBe('Bia fechou a aba do login “Post de sexta”: a senha apareceu no endereço da página.')
   })
 })

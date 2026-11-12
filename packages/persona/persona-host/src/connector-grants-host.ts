@@ -11,6 +11,7 @@ import {
   type TicketConnectorAuth, type TicketConnectorAuthRepos,
 } from '@deepseek-ai/dsh-persona-store'
 import { normalizeToolName } from './connector-catalog.ts'
+import { grantLineIdOf } from './connector-handle.ts'
 import { humanAuthoredRequests, preAllowFor, type AuthoredEvent, type ConnectorAutonomy, type PermissionGate } from './connector-policy.ts'
 import type { Orchestration } from './orchestration.ts'
 import { RemoteFault } from './remote-guard.ts'
@@ -18,6 +19,7 @@ import type { HostConnectorGrant } from './runner.ts'
 import type { ConnectorGrantCostView, ConnectorGrantView, ConnectorRef } from './types.ts'
 
 export type { HostConnectorGrant }
+export { auditBodyForReader, connectorHandleOf } from './connector-handle.ts'
 
 /**
  * How a connector can reach the persona. `local`: a definition the runner can copy from the CLI's config here. `account`: a connector of the
@@ -336,8 +338,9 @@ export class ConnectorGrantsHost {
 
   /** One line in the #geral of the project where the person did it (Muse §2). Revoking posts nothing there, only Atividade. */
   private announce(workspaceId: string, projectId: string, persona: StoredPersona, grant: StoredConnectorGrant): void {
-    const id = `connector-grant:${persona.id}:${grant.cli}:${grant.connectorId}:${grant.grantedAt}`
-    if (this.deps.events.has(id)) return
+    // CONN-3: the line's id never carries the connector's id (an account connector's is the proxy URL, key included): a stable handle instead. A line written before this (the old id) still counts as written.
+    const id = grantLineIdOf(persona.id, grant.cli, grant.connectorId, grant.grantedAt)
+    if (this.deps.events.has(id) || this.deps.events.has(`connector-grant:${persona.id}:${grant.cli}:${grant.connectorId}:${grant.grantedAt}`)) return
     const speaker = this.deps.product.listPersonas(projectId).find(row => row.systemRoles.includes('coordination')) ?? persona
     this.deps.events.append({
       id, workspaceId, projectId, streamKind: 'channel', ownerId: this.deps.geralOf(workspaceId, projectId), type: 'message',

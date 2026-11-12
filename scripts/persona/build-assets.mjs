@@ -289,6 +289,7 @@ async function main() {
       { from: `illustrations/categorias/categoria-${name}.png`, to: `illustrations/categoria-${name}.webp`, width: 512, quality: 86 },
       { from: `illustrations/categorias/categoria-${name}-96.png`, to: `illustrations/categoria-${name}-96.webp`, width: 96, quality: 88 },
     ])),
+    { from: 'illustrations/equipe-nova.png', to: 'illustrations/equipe-nova.webp', width: 480, quality: 86 },
     // Casa da equipe: lamp, empty attendance, first opening, and creation category.
     ...[['acordando-luminaria', 320], ['quem-aqui-vazio', 400], ['acordando-primeira-vez', 480]].map(([name, width]) => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width, quality: 86 }

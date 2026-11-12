@@ -117,6 +117,7 @@ import { MAX_IMAGE_BYTES, MAX_TURN_IMAGES, type SkippedImage, type TurnImage } f
 import { collaboratorViews, joinNames, MAX_COLLABORATORS, putCollaborators } from './ticket-collaborators.ts'
 import { ReplyStream } from './reply-stream.ts'
 import { backgroundWorkOf, type BackgroundWork } from './background-work.ts'
+import { withoutExternalData } from './routine-events.ts'
 import { talkActivityRows, type TalkStep } from './talk-activity.ts'
 import { clipSpeech, PASSED_LINE, QUIET_TASK_LINE, readPass, shapeSpeech, speechLayer, streamSafe, type SpeechStyle } from './speech.ts'
 import { markerLinesFor } from './turn-markers.ts'
@@ -320,8 +321,9 @@ export class ProjectRuntime {
     const parsed = Date.parse(trigger.at)
     const at = Number.isFinite(parsed) ? parsed : 0
     const firstDelivery = ports.firstDelivery?.(trigger)
+    const judged = withoutExternalData(trigger.text) // P1-07 C: the pre-router judges the REQUEST; what somebody else wrote (fenced external data) is data, not a request
     const result = preRoute({
-      text: trigger.text,
+      text: judged,
       senderId: trigger.actor.id,
       threadKey,
       at,
@@ -341,7 +343,7 @@ export class ProjectRuntime {
       triggerId: trigger.id,
     })
     this.routeLog.remember({
-      text: trigger.text, senderId: trigger.actor.id, threadKey, at,
+      text: judged, senderId: trigger.actor.id, threadKey, at,
     })
     this.persistRouteWindow()
     // @mention picks the speaker in ingest; it must not auto-accept a ticket.

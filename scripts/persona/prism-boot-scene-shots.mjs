@@ -11,8 +11,8 @@ import { extname, join, normalize } from 'node:path'
 const root = 'C:/Users/migue/dev/persona'
 const require = createRequire(`${root}/packages/persona/persona-e2e/package.json`)
 const { chromium } = require('playwright')
-const bootDir = `${root}/apps/desktop/renderer/persona-boot`
-const outDir = `${root}/.maestri/tmp/shots/design/boot-acordando`
+const bootDir = process.env.BOOT_DIR ?? `${root}/apps/desktop/renderer/persona-boot`
+const outDir = process.env.BOOT_OUT ?? `${root}/.maestri/tmp/shots/design/boot-acordando`
 mkdirSync(outDir, { recursive: true })
 
 const TYPES = { '.css': 'text/css', '.js': 'text/javascript', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' }
@@ -89,12 +89,33 @@ try {
         await page.evaluate(() => window.__bridge.phase('starting'))
         await page.clock.runFor(6000); await page.waitForTimeout(80); await shot('4-ainda-abrindo'); await probe('4-ainda-abrindo')
         await page.clock.runFor(20_000); await page.waitForTimeout(400); await shot('5-erro'); await probe('5-erro')
-        await page.getByRole('button', { name: 'Ver o que aconteceu' }).click()
+        await page.getByText('Detalhes para o suporte').click()
         await page.waitForTimeout(150); await shot('6-erro-detalhes')
         report.push({ state: 'errors', suffix, errors })
         await context.close()
       }
     }
+  }
+  // The first opening (no remembered faces): the animals arriving at the office instead of the lamp and the faces (Muse 12/11).
+  for (const { name: schemeName, scheme } of SCHEMES) {
+    const first = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: scheme })
+    const firstPage = await first.newPage()
+    const firstErrors = []
+    firstPage.on('console', message => { if (message.type() === 'error') firstErrors.push(message.text()) })
+    await first.addInitScript(BRIDGE)
+    await firstPage.clock.install()
+    await firstPage.goto(`${base}/?lang=pt-BR&first=1`)
+    await firstPage.clock.runFor(450)
+    await firstPage.waitForTimeout(900)
+    await firstPage.screenshot({ path: `${outDir}/2-primeira-vez-${schemeName}-1280.png` })
+    report.push({ state: 'primeira-vez', suffix: `${schemeName}-1280`, ...(await firstPage.evaluate(() => {
+      const root = document.getElementById('persona-boot-overlay').shadowRoot
+      const picture = root.querySelector('.first img')
+      return { variant: root.querySelector('.boot').dataset.variant, status: root.getElementById('boot-status').textContent,
+        opacity: getComputedStyle(root.querySelector('.first')).opacity, pictureLoaded: picture.complete && picture.naturalWidth > 0,
+        lampHidden: getComputedStyle(root.querySelector('.lamp')).display === 'none', facesHidden: getComputedStyle(root.querySelector('.faces')).display === 'none' }
+    })), errors: firstErrors })
+    await first.close()
   }
   // The "host answers in time" path: the app paints at 700 ms and the overlay crossfades out over it.
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' })
@@ -122,9 +143,13 @@ for (const row of report) {
   if (row.suffix?.includes('reduzido') && row.state === '2-acordando' && row.dotsAnimation !== 'none') problems.push(`${row.suffix}: dots still animate`)
   if (row.htmlBackground !== undefined && row.htmlBackground === 'rgb(255, 255, 255)') problems.push(`${row.suffix} ${row.state}: white html background`)
   if (['0-trilho', '1-chegando', '2-acordando', '3-arrumando', '4-ainda-abrindo'].includes(row.state) && row.focusable !== 0) problems.push(`${row.suffix} ${row.state}: ${row.focusable} focusable`)
-  if (row.state === '5-erro' && row.focusable !== 3) problems.push(`${row.suffix}: error state has ${row.focusable} focusable, expected 3`)
+  if (row.state === '5-erro' && row.focusable !== 2) problems.push(`${row.suffix}: error state has ${row.focusable} focusable, expected 2 (Retry + the folded details)`)
   if (row.state === 'errors' && row.errors.length > 0) problems.push(`${row.suffix}: console errors ${row.errors.join(' | ')}`)
   if (row.state === 'handover' && (!row.overlayRemoved || row.rootHidden)) problems.push('handover did not remove the overlay')
+  if (row.state === 'primeira-vez') {
+    if (row.variant !== 'first' || row.opacity !== '1' || !row.pictureLoaded || !row.lampHidden || !row.facesHidden) problems.push(`${row.suffix}: first-opening scene not right ${JSON.stringify(row)}`)
+    if (row.errors.length > 0) problems.push(`${row.suffix}: console errors ${row.errors.join(' | ')}`)
+  }
 }
 if (problems.length > 0) { console.log(`PROBLEMS:\n${problems.join('\n')}`); process.exitCode = 1 } else console.log('ALL MEASURED CHECKS OK')
 console.log(JSON.stringify(report.filter(row => row.state === 'errors' || row.state === 'handover' || row.state === '2-acordando' || row.state === '5-erro'), null, 1))

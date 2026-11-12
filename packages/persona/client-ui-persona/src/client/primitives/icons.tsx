@@ -97,6 +97,15 @@ const UI_PATHS = {
   estacao: <><rect x="3" y="7" width="18" height="10" rx="2.5" /><path d="M6.5 11v2M9 11v2M6 19h2M16 19h2" /><circle cx="17" cy="12" r="0.7" /></>,
   // Item 22: "Nova equipe" (o '+' é o que o separa de 'clientes').
   'equipe-nova': <><circle cx="7.5" cy="8.5" r="2.8" /><path d="M2.5 19v-1a5 5 0 0 1 10 0v1zM14 10a2.5 2.5 0 0 1 0 4.8M14.7 15.2a4 4 0 0 1 3.4 3.8M19 2.5v5M16.5 5h5" /></>,
+  // Casa da Equipe (§29): o glifo de cada equipe (Brush, 12/11).
+  'equipe-geral': <path d="M3 10.5 12 3l9 7.5M5.5 9v11h13V9M9.5 20v-6h5v6" />,
+  'equipe-vendas': <path d="M5 8h14l1.1 11H3.9L5 8ZM9 9V7a3 3 0 0 1 6 0v2" />,
+  'equipe-atendimento': <><path d="M5.5 5h13A2.5 2.5 0 0 1 21 7.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4 3v-3a2.5 2.5 0 0 1-3-2.5v-7A2.5 2.5 0 0 1 5.5 5Z" /><path d="M12 14s-3-1.8-3-3.6a1.7 1.7 0 0 1 3-1 1.7 1.7 0 0 1 3 1C15 12.2 12 14 12 14Z" /></>,
+  'equipe-redes': <><rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M10 5h4M11 19h2M12 15s-3-1.8-3-3.6a1.7 1.7 0 0 1 3-1 1.7 1.7 0 0 1 3 1C15 13.2 12 15 12 15Z" /></>,
+  'equipe-criacao': <><path d="m4 19 1-3L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19l-4 1 0-1ZM14.8 6.2l3 3M5 5l5 5M14 14l2 2" /><path d="M16 16c1.8-1.2 3 .1 3 1.5 0 1.4.7 1.8 1.5 2-2.2 1.3-5 1-5.5-.7-.3-1 .1-2 1-2.8Z" /></>,
+  'equipe-coordenacao': <><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /><path d="M9 3h6l1 3H8l1-3ZM8.5 13l2.3 2.3 4.7-5" /></>,
+  'equipe-financeiro': <><circle cx="12" cy="12" r="9" /><path d="M14.8 8.4c-.6-.6-1.5-.9-2.8-.9-1.7 0-2.8.8-2.8 2s1 1.8 2.8 2.2 2.8 1 2.8 2.3-1.1 2.1-2.8 2.1c-1.3 0-2.4-.4-3-1.1M12 5.8v12.4" /></>,
+  'equipe-producao': <path d="M9 5V4a3 3 0 0 1 6 0v1M9 5c-.4 2.3-1.4 3.7-3 5v9.5h12V10c-1.6-1.3-2.6-2.7-3-5H9ZM6 11l-2 1.5M18 11l2 1.5M9 14h6v2.5H9z" />,
 } as const satisfies Record<string, ReactNode>
 
 export type UiIconName = keyof typeof UI_PATHS

@@ -48,6 +48,7 @@ import { cachedEngineReadiness } from './engine-readiness.ts'
 import { TeamConnect, type ConnectTeamRequest, type RetryTeamPersonaRequest, type StartResult, type TeamAiView, type TeamConnectView } from './team-connect.ts'
 import { teamConnectPorts } from './team-connect-host.ts'
 import { ConnectorGrantsHost, type ConnectorPorts } from './connector-grants-host.ts'
+import { auditBodyForReader, connectorHandleOf, eventIdForReader } from './connector-handle.ts'
 import { connectorCatalog, type ConnectorCatalogView } from './connector-catalog.ts'
 import { connectorHealth, TOKEN_PROVIDERS, type ConnectorHealthView } from './connector-health.ts'
 import { SkillImportError, SkillImportHost } from './skill-import-host.ts'
@@ -116,8 +117,16 @@ import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { offerContinueCard } from './continue-card.ts'
 import { directoryOverTeamChannels, type ChannelDirectory } from './channel-directory.ts'
+import { BootMarks } from './boot-marks.ts'
 import { EquipeDesk, EquipeDeskError, FAULT_OF, type ArrangeChannelsRequest, type EquipeLayoutView } from './equipe-desk.ts'
 import { ChannelWire } from './channel-wire.ts'
+import { houseOver, originsOf, type HouseWirePorts } from './channel-house-wire.ts'
+import type { ChannelHouse } from './channel-house.ts'
+import type { HereGroup } from './channel-here.ts'
+import type { MessageOrigin } from './channel-origins.ts'
+import type { ChannelSuggestion } from './channel-suggestions.ts'
+import type { ChannelUnread, UnreadMember } from './channel-unread.ts'
+import type { AckChannelReadRequest, ChannelOriginsRequest } from './types.ts'
 import { channelHeaderViewOf, channelLayoutViewOf, mentionOptionsOf, type ChannelHeaderView, type ChannelLayoutView, type MentionOptionsRequest, type MentionOptionView, type ViewPersona } from './channel-views.ts'
 import { createProactivityScheduler, postTeamRequest } from './proactivity-wire.ts'
 import { TaskProposalHost } from './task-proposals.ts'
@@ -156,7 +165,7 @@ import { collaboratorPrompt, countFanout, fanoutCalls, fanoutPrompt, planFanout,
 import { collaboratorViews, getCollaborators } from './ticket-collaborators.ts'
 import { WorkingControl } from './working-control.ts'
 import { ensureVoiceModelBytes, voiceModelStateOf } from './voice-model-host.ts'
-import { maskDmApprovalCard, PRIVATE_DM_TASK_TITLE, ticketSeenByActor, withoutDmWords } from './dm-ticket-view.ts'
+import { maskDmApprovalCard, PRIVATE_DM_TASK_TITLE, ticketOfActionCard, ticketSeenByActor, withoutDmWords } from './dm-ticket-view.ts'
 import { resolveMailHost } from './mail-host-guard.ts'
 import type {
   GetAsideAskRequest,
@@ -819,6 +828,8 @@ export default class PersonaHost extends TypertRemoteService {
   static inject = ['typert']
 
   readonly store: PersonaStore
+  /** Boot diet (Forge 10:31): the host's own boot marks, ms since the process started; ONE "bootMarks" line goes to stderr when the projects are armed. */
+  private readonly bootMarks = new BootMarks()
   readonly product: ProductRepos
   readonly events: EventRepos
   readonly vault: VaultRepos
@@ -980,12 +991,14 @@ export default class PersonaHost extends TypertRemoteService {
    */
   constructor(ctx: Context, config: Config = { databasePath: '' }) {
     super(ctx, 'personaHost', { namespace: 'persona' })
+    this.bootMarks.mark('ctor-start')
     this.engineRetryPollMs = config.engineRetryPollMs ?? 15000
     if (!Number.isInteger(this.engineRetryPollMs) || this.engineRetryPollMs < 0) throw new Error('invalid-engine-retry-poll-ms')
     this.externalPollMs = config.externalPollMs ?? 300_000
     if (!Number.isInteger(this.externalPollMs) || this.externalPollMs < 0) throw new Error('invalid-external-poll-ms')
     ensureProductionRealCli()
     this.store = openPersonaStore({ path: resolvePersonaDatabasePath(config.databasePath) })
+    this.bootMarks.mark('store-open')
     this.product = new ProductRepos(this.store)
     this.events = new EventRepos(this.store)
     this.vault = new VaultRepos(this.store)
@@ -1829,7 +1842,7 @@ export default class PersonaHost extends TypertRemoteService {
         // that was retired) says so in one diagnostics line and never takes the whole host down.
         try {
           for (const persona of this.product.listPersonas(project.id)) this.governance.registerPersona(persona)
-          this.teamChannels.reconcile(project.id) // heals a base that already had teams: their channels are born here
+          this.bootMarks.time('reconcile', () => this.teamChannels.reconcile(project.id)) // heals a base that already had teams: their channels are born here
           this.scheduler.arm(project.id)
           this.remoteTeam.resume({ workspaceId: workspace.id, projectId: project.id })
         } catch (error: unknown) {
@@ -1837,6 +1850,8 @@ export default class PersonaHost extends TypertRemoteService {
         }
       }
     }
+    this.bootMarks.mark('projects-done')
+    if (process.env.VITEST !== 'true') process.stderr.write(`${this.bootMarks.line()}\n`)
     ctx.effect(() => async () => {
       this.engineReadinessDisposed = true
       this.backgroundStarted = true // a host that closes before the delay never starts the background work
@@ -2617,7 +2632,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listAudit(request: WorkspaceScopeRequest): GovernanceAuditView[] {
     this.requireWorkspace(request)
-    return this.governance.listAudit(request.workspaceId)
+    return this.governance.listAudit(request.workspaceId).map(row => ({ ...row, body: auditBodyForReader(row.action, row.body) })) // CONN-1: the proxy URL of an account connector carries a key: it never leaves in the audit
   }
 
   /**
@@ -3176,6 +3191,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     return channelLayoutViewOf(this.channelDirectory, request.projectId, this.viewRoster(request.projectId), {
       humanCount: this.product.listMembers(request.workspaceId).filter(member => member.role !== 'guest').length,
+      companyName: this.product.getWorkspace(request.workspaceId)?.name ?? '',
       // A category the person made shows at once, even empty (else it would vanish the moment it is created); the automatic sections need a channel anyway.
       showEmptySections: true,
     })
@@ -3226,6 +3242,100 @@ export default class PersonaHost extends TypertRemoteService {
   listMentionOptions(request: MentionOptionsRequest): MentionOptionView[] {
     this.requireProject(request)
     return mentionOptionsOf(this.channelDirectory, request.projectId, request.channelId, this.viewRoster(request.projectId))
+  }
+
+  private houseCache: ChannelHouse | undefined
+
+  /** Casa da Equipe: the house the channel screens ask (built on first use). */
+  private house(): ChannelHouse {
+    return this.houseCache ??= houseOver(this.houseWire())
+  }
+
+  /** The person asking, as the unread count needs her (handle and name for the `@` calls). */
+  private houseMember(workspaceId: string): UnreadMember | undefined {
+    const actor = this.actorOf(workspaceId)
+    const member = actor === undefined ? undefined : this.product.getMember(actor.id)
+    return member === undefined ? undefined : { id: member.id, handle: member.handle, displayName: member.displayName }
+  }
+
+  private houseWire(): HouseWirePorts {
+    return {
+      events: this.events,
+      lastSeqOf: streamId => (this.store.db.prepare('SELECT last_seq AS lastSeq FROM stream_cursor WHERE stream_id = ?').get(streamId) as { lastSeq: number } | undefined)?.lastSeq ?? 0,
+      directory: this.channelDirectory,
+      reads: this.screens.screens,
+      shown: event => this.shownInThread(event),
+      personas: projectId => this.proactivity.overviewNow(projectId).personas.map(row => ({
+        id: row.personaId, name: row.name, title: row.title, state: row.state,
+        paused: this.proactivity.restFacts(projectId, row.personaId).paused === true,
+        noEngine: this.orchestration.engineReadinessOf?.().state === 'unavailable', // a definitive "no AI to answer"; "checking" is not a logout
+        ...(row.sentence === undefined ? {} : { sentence: row.sentence }),
+      })),
+      tickets: projectId => this.orchestration.runtime(projectId).repo.tickets.list().map(ticket => ({ id: ticket.id, triggerId: ticket.origin.triggerId })),
+      routineName: (projectId, routineId) => {
+        const routine = this.routines.get(routineId)
+        return routine?.projectId === projectId ? routine.name : undefined
+      },
+    }
+  }
+
+  /**
+   * Casa da Equipe H1: the unread figures of every channel of the project, for the person asking (a channel she never looked at starts at its last line: the history is not new).
+   * @param request - Project.
+   */
+  @Remote
+  getChannelUnread(request: ProjectScopeRequest): ChannelUnread[] {
+    this.requireProject(request)
+    const me = this.houseMember(request.workspaceId)
+    return me === undefined ? [] : this.house().unread(request.projectId, me)
+  }
+
+  /**
+   * Casa da Equipe H1: the person read the channel up to `seq` (her OWN mark: only forward, never past the last line). Answers the channel's figures after it.
+   * @param request - Channel and the last line read.
+   */
+  @Remote
+  ackChannelRead(request: AckChannelReadRequest): ChannelUnread {
+    this.requireProject(request)
+    this.ownChannel(request)
+    if (!Number.isInteger(request.seq) || request.seq < 0) throw new HostRemoteFault('invalid-payload', 'seq deve ser um inteiro a partir de 0.')
+    const me = this.houseMember(request.workspaceId)
+    if (me === undefined) throw new HostRemoteFault('forbidden', 'Entre na equipe para marcar como lido.')
+    return this.house().markRead(request.projectId, request.channelId, me, request.seq)
+  }
+
+  /**
+   * Casa da Equipe H2: "Quem está aqui" of a channel: the owner, each equipe (only who is on THIS channel), who has none, and "Fora agora" last.
+   * @param request - Channel.
+   */
+  @Remote
+  getChannelHere(request: ChannelScopeRequest): HereGroup[] {
+    this.requireProject(request)
+    this.ownChannel(request)
+    const owner = this.product.listMembers(request.workspaceId).find(member => member.role === 'owner')
+    return this.house().here(request.projectId, request.channelId, owner === undefined ? undefined : { id: owner.id, name: owner.displayName })
+  }
+
+  /**
+   * Casa da Equipe H3: where a line came from. The chip of each line a routine made (never a guess: the others are not in the answer).
+   * @param request - Project and the ids on screen.
+   */
+  @Remote
+  getMessageOrigins(request: ChannelOriginsRequest): Record<string, MessageOrigin> {
+    this.requireProject(request)
+    if (!Array.isArray(request.messageIds) || request.messageIds.some(id => typeof id !== 'string')) throw new HostRemoteFault('invalid-payload', 'messageIds deve ser uma lista de ids.')
+    return originsOf(this.house(), { events: this.events }, request.projectId, request.messageIds)
+  }
+
+  /**
+   * Casa da Equipe H4: the 3 starters of an empty channel, made from who is on it.
+   * @param request - Channel.
+   */
+  @Remote
+  getChannelSuggestions(request: ChannelScopeRequest): ChannelSuggestion[] {
+    this.requireProject(request)
+    this.ownChannel(request)
+    return this.house().suggestions(request.projectId, request.channelId)
   }
 
   private viewRoster(projectId: string): ViewPersona[] {
@@ -3632,7 +3742,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listConnectorGrants(request: ListConnectorGrantsRequest): ConnectorGrantView[] {
     this.requireProject(request)
-    return this.connectorGrants.list(request.workspaceId, request.personaId)
+    const grants = this.connectorGrants.list(request.workspaceId, request.personaId)
+    // CONN-1: only the owner's screen holds the id of an account connector (the proxy URL, with a key in it) to take it back; any other member gets a handle.
+    const owner = this.product.listMembers(request.workspaceId).length === 0 || this.actorOf(request.workspaceId)?.workspaceRole === 'owner'
+    return owner ? grants : grants.map(grant => ({ ...grant, connectorId: connectorHandleOf(grant.connectorId) }))
   }
 
   /**
@@ -4999,7 +5112,13 @@ export default class PersonaHost extends TypertRemoteService {
     const card = this.listApprovals(request).find(row => row.id === request.id && row.kind === 'action')
     if (card === undefined) throw new Error('approval-not-found')
     const actor = this.actorOf(request.workspaceId)
-    if (actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    // Policy 12/11 (Keel): an action born in a DM is decided ONLY by who is in the DM (the one who asked; the workspace owner when she is in it). The owner outside the DM reads the neutral
+    // card and cannot approve or refuse it. An action born in a channel keeps the old rule: the workspace owner.
+    const ticketId = ticketOfActionCard(request.id)
+    if (this.orchestration.conversationOfTicket(request.projectId, ticketId)?.streamKind === 'dm') {
+      if (actor === undefined || !this.ticketSeenFor(request.workspaceId)(request.projectId, ticketId)) throw new HostRemoteFault('forbidden', 'Esta aprovação é de quem pediu na conversa.')
+    } else if (actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    if (actor === undefined) throw new Error('forbidden')
     const { card: decided, approved } = this.externalActions.decide({
       workspaceId: request.workspaceId, projectId: request.projectId, id: request.id, choice,
       ...(request.edited === undefined ? {} : { edited: request.edited }), ...(request.remember === undefined ? {} : { remember: request.remember }),
@@ -9087,6 +9206,8 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   private requireProject(request: { workspaceId: string; projectId: string }): void {
+    const firstCall = this.bootMarks.firstCallLine()
+    if (firstCall !== undefined && process.env.VITEST !== 'true') process.stderr.write(`${firstCall}\n`) // the first screen call: how long the person waited for the host
     this.requireWorkspace(request)
     const project = this.product.getProject(request.projectId)
     if (project === undefined || project.workspaceId !== request.workspaceId) {
@@ -9384,6 +9505,7 @@ export default class PersonaHost extends TypertRemoteService {
     const flags = event.projectId === undefined ? {} : this.messageFlags.of(event.projectId, event.id)
     return {
       ...toMessageView(event),
+      ...(event.id.startsWith('connector-grant:') ? { id: eventIdForReader(event.id) } : {}), // CONN-3: a grant line written before the handle existed carries the proxy URL (key included) in its id
       ...this.markerViews(event),
       // An older base holds lines written with no speaker (the literal "coordination"): the thread shows the Coordination persona, never an id nobody can name.
       ...(event.actorId !== 'coordination' || event.projectId === undefined ? {} : this.coordinationAuthor(event.projectId)),

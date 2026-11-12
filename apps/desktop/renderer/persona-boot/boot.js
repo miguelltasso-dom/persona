@@ -8,26 +8,25 @@
       firstRun: 'Na primeira vez leva até um minuto.',
       placeOverview: 'Visão geral', placeProjects: 'Projetos', placeApprovals: 'Aprovações', placeTeam: 'Equipe', placeMemory: 'Memória da empresa',
       errorTitle: 'Não conseguimos abrir a Persona', errorTimeout: 'Não deu para abrir a casa agora.',
-      errorGeneric: 'Isso costuma se resolver tentando de novo. Se continuar, reinicie o computador.',
+      errorGeneric: 'Isso costuma se resolver tentando de novo. Se continuar, feche a Persona pela bandeja e abra de novo.',
       errorLocked: 'Outra cópia da Persona pode estar aberta. Feche-a e tente de novo.',
       errorProfile: 'Algo nos dados locais não abriu. Seus arquivos continuam salvos.',
-      retry: 'Tentar de novo', copyDiag: 'Ver o que aconteceu', copied: 'Diagnóstico copiado', details: 'Detalhes para o suporte',
+      retry: 'Tentar de novo', details: 'Detalhes para o suporte', diagNote: 'Já copiamos isto para você colar no suporte.',
     },
     en: {
       waking: 'Waking up the team…', arranging: 'Getting the house ready…', slow: 'Still opening.', busy: 'Your computer is busy, it’ll be done soon.',
       firstRun: 'The first time can take up to a minute.',
       placeOverview: 'Overview', placeProjects: 'Projects', placeApprovals: 'Approvals', placeTeam: 'Team', placeMemory: 'Company memory',
       errorTitle: 'We couldn’t open Persona', errorTimeout: 'We couldn’t open the house right now.',
-      errorGeneric: 'Trying again usually fixes it. If it keeps happening, restart your computer.',
+      errorGeneric: 'Trying again usually fixes it. If it keeps happening, close Persona from the tray and open it again.',
       errorLocked: 'Another copy of Persona may be open. Close it and try again.',
       errorProfile: 'Something in the local data didn’t open. Your files are still safe.',
-      retry: 'Try again', copyDiag: 'See what happened', copied: 'Diagnostics copied', details: 'Details for support',
+      retry: 'Try again', details: 'Details for support', diagNote: 'We copied this so you can paste it to support.',
     },
   }
   // Faces that ship with the boot assets (animal ids only, never names). Anything else read from storage is ignored.
   var FACES = ['atlas', 'bento', 'capivara', 'cervo', 'coelho', 'coruja', 'guaxinim', 'lobo-guara', 'lontra', 'luna', 'mico-leao-dourado', 'nina', 'ourico', 'panda', 'raposa', 'sol', 'tamandua', 'tucano']
   var FACES_KEY = 'persona.boot.faces.v1'
-  var FIRST_FACES = ['atlas', 'bento', 'nina']
   var FACES_MAX = 5
   var SCENE_DELAY = 400 // a host that answers sooner never shows the scene
   var FACE_GAP = 120, FACE_ENTER = 360 // must match boot.css
@@ -60,15 +59,15 @@
   function later(ms, fn) { timers.push(setTimeout(fn, ms)) }
   function clear() { timers.forEach(clearTimeout); timers = [] }
 
-  // What the scene knows before the host answers: the ids of the last session's faces (the shell writes them), else the onboarding trio.
+  // What the scene knows before the host answers: the ids of the last session's faces (the shell writes them). None saved = the first opening,
+  // which has its own scene (the animals arriving at the office with their backpacks) instead of faces.
   function rememberedFaces() {
+    var out = []
     try {
       var saved = JSON.parse(localStorage.getItem(FACES_KEY) || 'null')
-      var out = []
       if (Array.isArray(saved)) saved.forEach(function (id) { if (out.length < FACES_MAX && FACES.indexOf(id) >= 0 && out.indexOf(id) < 0) out.push(id) })
-      if (out.length > 0) return out
-    } catch (e) { /* storage blocked or corrupt: the trio */ }
-    return FIRST_FACES
+    } catch (e) { out = [] /* storage blocked or corrupt: the first-opening scene */ }
+    return out
   }
 
   var failed = false // the host reported a failure: the app never takes over by itself
@@ -98,7 +97,9 @@
       face.appendChild(img); facesBox.appendChild(face)
     })
     sceneOn = true; sceneAt = Date.now()
-    minStay = (ids.length - 1) * FACE_GAP + FACE_ENTER + 60 // the scene stays at least until the last face has arrived
+    // The scene stays at least until its last piece has arrived: the last face, or the single first-opening picture.
+    minStay = (ids.length > 0 ? (ids.length - 1) * FACE_GAP : 0) + FACE_ENTER + 60
+    boot.dataset.variant = ids.length > 0 ? 'faces' : 'first'
     boot.dataset.scene = 'on'
     renderStatus()
   }
@@ -114,6 +115,7 @@
     boot.dataset.state = 'splash'
     error.hidden = true; splash.hidden = false
     slow = false; phase = 'starting'
+    resetDetails()
     if (sceneOn) renderStatus(); else later(SCENE_DELAY, showScene)
     later(SLOW_AFTER, function () { slow = true; renderStatus() })
     later(timeoutMs, function () { showError(false) })
@@ -125,24 +127,28 @@
     boot.dataset.state = 'error'
     root.getElementById('boot-error-title').textContent = hostFailure ? t.errorTitle : t.errorTimeout
     root.getElementById('boot-error-body').textContent = t[cause]
+    if (!hostFailure) diag.textContent = 'boot_timeout'
     splash.hidden = true; error.hidden = false
     root.getElementById('boot-retry').focus()
   }
   root.getElementById('boot-retry').addEventListener('click', function () { showSplash(); bridge.retry().catch(function () { showError(true) }) })
-  var copyBtn = root.getElementById('boot-copy')
-  copyBtn.addEventListener('click', function () {
-    var done = function () { copyBtn.textContent = t.copied; setTimeout(function () { copyBtn.textContent = t.copyDiag }, 1800) }
-    bridge.diagnostic().then(function (text) {
-      root.getElementById('boot-diag').textContent = text
-      root.getElementById('boot-details').open = true
-      done()
-    }, function () { showError(true) })
+  // One way to the support details, folded: opening it the first time also asks main for the diagnostic (version, code, logs folder), which
+  // main copies to the clipboard, and says so. The code line stays what the failure or the timeout reported.
+  var details = root.getElementById('boot-details')
+  var diag = root.getElementById('boot-diag')
+  var diagNote = root.getElementById('boot-diag-note')
+  var diagAsked = false
+  function resetDetails() { diagAsked = false; details.open = false; diagNote.hidden = true; diag.textContent = 'boot_timeout' }
+  details.addEventListener('toggle', function () {
+    if (!details.open || diagAsked) return
+    diagAsked = true
+    bridge.diagnostic().then(function (text) { diag.textContent = diag.textContent + '\n' + text; diagNote.hidden = false }, function () { diagAsked = false })
   })
   // Esc never closes the boot window (spec).
   root.addEventListener('keydown', function (e) { if (e.key === 'Escape') e.preventDefault() })
 
   var unsubscribe = bridge.subscribe(function (detail) {
-    root.getElementById('boot-diag').textContent = detail.code + ' · ' + detail.message
+    diag.textContent = detail.code + ' · ' + detail.message
     showError(true)
   })
   // Optional channel from main (Rivet): the host answered. Absent = the scene follows the clock only.

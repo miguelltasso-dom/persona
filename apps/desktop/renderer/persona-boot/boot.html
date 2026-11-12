@@ -16,7 +16,8 @@
 
   <div class="stage">
     <section class="splash" aria-labelledby="boot-status">
-      <div class="lamp" aria-hidden="true"><img src="/__persona-boot-ui__/assets/lamp.webp" alt="" width="92" height="114"></div>
+      <div class="first" aria-hidden="true"><img src="/__persona-boot-ui__/assets/primeira-vez.webp" alt="" width="320" height="180"></div>
+      <div class="lamp" aria-hidden="true"><img src="/__persona-boot-ui__/assets/lamp.webp" alt="" width="110" height="160"></div>
       <div class="faces" aria-hidden="true"></div>
       <div class="phrase">
         <p class="status" id="boot-status" role="status" aria-live="polite"></p>
@@ -28,14 +29,14 @@
     <section class="error" aria-labelledby="boot-error-title" hidden>
       <img class="pose" src="/__persona-boot-ui__/assets/atlas-erro.webp" alt="" width="180" height="180">
       <h1 id="boot-error-title" tabindex="-1" data-i18n="errorTitle">Não conseguimos abrir a Persona</h1>
-      <p class="body" id="boot-error-body" data-i18n="errorGeneric">Isso costuma se resolver tentando de novo. Se continuar, reinicie o computador.</p>
+      <p class="body" id="boot-error-body" data-i18n="errorGeneric">Isso costuma se resolver tentando de novo. Se continuar, feche a Persona pela bandeja e abra de novo.</p>
       <div class="actions">
         <button type="button" class="primary" id="boot-retry" data-i18n="retry">Tentar de novo</button>
-        <button type="button" class="link" id="boot-copy" data-i18n="copyDiag">Ver o que aconteceu</button>
       </div>
       <details class="details" id="boot-details">
         <summary data-i18n="details">Detalhes para o suporte</summary>
         <code id="boot-diag">boot_timeout</code>
+        <p class="note" id="boot-diag-note" hidden data-i18n="diagNote">Já copiamos isto para você colar no suporte.</p>
       </details>
     </section>
   </div>

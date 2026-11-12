@@ -7,6 +7,7 @@
 import { expect } from 'vitest'
 import type PersonaHost from '../src/index.ts'
 import type { ConnectorPorts } from '../src/connector-grants-host.ts'
+import { connectorHandleOf } from '../src/connector-handle.ts'
 import { SCOPE, it, openJourney, say, seedJourney } from './journeys/journey-host.ts'
 
 const GMAIL = { cli: 'claude', id: `https://proxy.example.test/v1/mcp/${'0f'.repeat(24)}`, name: 'Gmail' }
@@ -57,7 +58,7 @@ it('the colleague cannot use the connector the person\'s words need: the request
     id: cardId, kind: 'connector', status: 'pending', personaId: 'teo', personaName: 'Teo', title: 'Liberar o Gmail para Teo',
     question: 'Bia pediu a Teo “Rascunho do email”, mas Teo não pode usar o Gmail.',
     connector: {
-      reason: 'colleague', connectorName: 'Gmail', cli: 'claude', connectorId: GMAIL.id, access: 'read',
+      reason: 'colleague', connectorName: 'Gmail', cli: 'claude', connectorId: connectorHandleOf(GMAIL.id), access: 'read', // CONN-3: the card carries the HANDLE, never the proxy URL (key included)
       requestedByPersonaId: 'bia', requestedByPersonaName: 'Bia', taskTitle: 'Rascunho do email', options: ['once', 'always', 'not-now'],
     },
   })

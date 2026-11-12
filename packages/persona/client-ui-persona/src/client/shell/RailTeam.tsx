@@ -35,6 +35,8 @@ export interface RailPersona {
   readonly draftFiles?: number | undefined
   readonly quiet?: boolean | undefined
   readonly paused?: boolean | undefined
+  /** What she does NOW, in the host's plain words ("escrevendo a legenda"; `PersonaNowView.sentence`): only while she works and the host knows the step. */
+  readonly step?: string | undefined
   /** Unread count in the DM thread with this persona. */
   readonly unread: number
   /** Has the Gestor de equipe function (GESTOR-SPEC): baton mark on the avatar. */

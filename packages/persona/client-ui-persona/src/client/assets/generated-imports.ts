@@ -12,6 +12,7 @@ import pose_atlas_disponivel_blink from './poses/atlas-disponivel-blink.webp'
 import pose_atlas_disponivel_tail from './poses/atlas-disponivel-tail.webp'
 import pose_atlas_disponivel from './poses/atlas-disponivel.webp'
 import pose_atlas_erro from './poses/atlas-erro.webp'
+import pose_atlas_fora_ate from './poses/atlas-fora-ate.webp'
 import pose_atlas_lendo from './poses/atlas-lendo.webp'
 import pose_atlas_offline from './poses/atlas-offline.webp'
 import pose_atlas_pensando_1 from './poses/atlas-pensando-1.webp'
@@ -30,6 +31,7 @@ import pose_bento_disponivel_blink from './poses/bento-disponivel-blink.webp'
 import pose_bento_disponivel_tail from './poses/bento-disponivel-tail.webp'
 import pose_bento_disponivel from './poses/bento-disponivel.webp'
 import pose_bento_erro from './poses/bento-erro.webp'
+import pose_bento_fora_ate from './poses/bento-fora-ate.webp'
 import pose_bento_lendo from './poses/bento-lendo.webp'
 import pose_bento_offline from './poses/bento-offline.webp'
 import pose_bento_pensando_1 from './poses/bento-pensando-1.webp'
@@ -155,6 +157,7 @@ import pose_luna_disponivel_blink from './poses/luna-disponivel-blink.webp'
 import pose_luna_disponivel_tail from './poses/luna-disponivel-tail.webp'
 import pose_luna_disponivel from './poses/luna-disponivel.webp'
 import pose_luna_erro from './poses/luna-erro.webp'
+import pose_luna_fora_ate from './poses/luna-fora-ate.webp'
 import pose_luna_lendo from './poses/luna-lendo.webp'
 import pose_luna_offline from './poses/luna-offline.webp'
 import pose_luna_pensando_1 from './poses/luna-pensando-1.webp'
@@ -188,6 +191,7 @@ import pose_nina_disponivel_blink from './poses/nina-disponivel-blink.webp'
 import pose_nina_disponivel_tail from './poses/nina-disponivel-tail.webp'
 import pose_nina_disponivel from './poses/nina-disponivel.webp'
 import pose_nina_erro from './poses/nina-erro.webp'
+import pose_nina_fora_ate from './poses/nina-fora-ate.webp'
 import pose_nina_lendo from './poses/nina-lendo.webp'
 import pose_nina_offline from './poses/nina-offline.webp'
 import pose_nina_pensando_1 from './poses/nina-pensando-1.webp'
@@ -251,6 +255,7 @@ import pose_sol_disponivel_blink from './poses/sol-disponivel-blink.webp'
 import pose_sol_disponivel_tail from './poses/sol-disponivel-tail.webp'
 import pose_sol_disponivel from './poses/sol-disponivel.webp'
 import pose_sol_erro from './poses/sol-erro.webp'
+import pose_sol_fora_ate from './poses/sol-fora-ate.webp'
 import pose_sol_lendo from './poses/sol-lendo.webp'
 import pose_sol_offline from './poses/sol-offline.webp'
 import pose_sol_pensando_1 from './poses/sol-pensando-1.webp'
@@ -557,6 +562,7 @@ import ill_categoria_redes_sociais from './illustrations/categoria-redes-sociais
 import ill_categoria_redes_sociais_96 from './illustrations/categoria-redes-sociais-96.webp'
 import ill_categoria_gestao from './illustrations/categoria-gestao.webp'
 import ill_categoria_gestao_96 from './illustrations/categoria-gestao-96.webp'
+import ill_equipe_nova from './illustrations/equipe-nova.webp'
 import ill_acordando_luminaria from './illustrations/acordando-luminaria.webp'
 import ill_quem_aqui_vazio from './illustrations/quem-aqui-vazio.webp'
 import ill_acordando_primeira_vez from './illustrations/acordando-primeira-vez.webp'
@@ -617,53 +623,77 @@ import sticker_capivara_pensando from './stickers/capivara-pensando.webp'
 import sticker_capivara_rindo from './stickers/capivara-rindo.webp'
 import sticker_capivara_uau from './stickers/capivara-uau.webp'
 import sticker_cervo_ate_amanha from './stickers/cervo-ate-amanha.webp'
+import sticker_cervo_boa_ideia from './stickers/cervo-boa-ideia.webp'
 import sticker_cervo_bom_dia from './stickers/cervo-bom-dia.webp'
+import sticker_cervo_combinado from './stickers/cervo-combinado.webp'
 import sticker_cervo_comemorando from './stickers/cervo-comemorando.webp'
 import sticker_cervo_coracao from './stickers/cervo-coracao.webp'
 import sticker_cervo_feito from './stickers/cervo-feito.webp'
 import sticker_cervo_joinha from './stickers/cervo-joinha.webp'
+import sticker_cervo_obrigada from './stickers/cervo-obrigada.webp'
 import sticker_cervo_pensando from './stickers/cervo-pensando.webp'
 import sticker_cervo_rindo from './stickers/cervo-rindo.webp'
+import sticker_cervo_uau from './stickers/cervo-uau.webp'
 import sticker_coelho_ate_amanha from './stickers/coelho-ate-amanha.webp'
+import sticker_coelho_boa_ideia from './stickers/coelho-boa-ideia.webp'
 import sticker_coelho_bom_dia from './stickers/coelho-bom-dia.webp'
+import sticker_coelho_combinado from './stickers/coelho-combinado.webp'
 import sticker_coelho_comemorando from './stickers/coelho-comemorando.webp'
 import sticker_coelho_coracao from './stickers/coelho-coracao.webp'
 import sticker_coelho_feito from './stickers/coelho-feito.webp'
 import sticker_coelho_joinha from './stickers/coelho-joinha.webp'
+import sticker_coelho_obrigada from './stickers/coelho-obrigada.webp'
 import sticker_coelho_pensando from './stickers/coelho-pensando.webp'
 import sticker_coelho_rindo from './stickers/coelho-rindo.webp'
+import sticker_coelho_uau from './stickers/coelho-uau.webp'
 import sticker_coruja_ate_amanha from './stickers/coruja-ate-amanha.webp'
+import sticker_coruja_boa_ideia from './stickers/coruja-boa-ideia.webp'
 import sticker_coruja_bom_dia from './stickers/coruja-bom-dia.webp'
+import sticker_coruja_combinado from './stickers/coruja-combinado.webp'
 import sticker_coruja_comemorando from './stickers/coruja-comemorando.webp'
 import sticker_coruja_coracao from './stickers/coruja-coracao.webp'
 import sticker_coruja_feito from './stickers/coruja-feito.webp'
 import sticker_coruja_joinha from './stickers/coruja-joinha.webp'
+import sticker_coruja_obrigada from './stickers/coruja-obrigada.webp'
 import sticker_coruja_pensando from './stickers/coruja-pensando.webp'
 import sticker_coruja_rindo from './stickers/coruja-rindo.webp'
+import sticker_coruja_uau from './stickers/coruja-uau.webp'
 import sticker_guaxinim_ate_amanha from './stickers/guaxinim-ate-amanha.webp'
+import sticker_guaxinim_boa_ideia from './stickers/guaxinim-boa-ideia.webp'
 import sticker_guaxinim_bom_dia from './stickers/guaxinim-bom-dia.webp'
+import sticker_guaxinim_combinado from './stickers/guaxinim-combinado.webp'
 import sticker_guaxinim_comemorando from './stickers/guaxinim-comemorando.webp'
 import sticker_guaxinim_coracao from './stickers/guaxinim-coracao.webp'
 import sticker_guaxinim_feito from './stickers/guaxinim-feito.webp'
 import sticker_guaxinim_joinha from './stickers/guaxinim-joinha.webp'
+import sticker_guaxinim_obrigada from './stickers/guaxinim-obrigada.webp'
 import sticker_guaxinim_pensando from './stickers/guaxinim-pensando.webp'
 import sticker_guaxinim_rindo from './stickers/guaxinim-rindo.webp'
+import sticker_guaxinim_uau from './stickers/guaxinim-uau.webp'
 import sticker_lobo_guara_ate_amanha from './stickers/lobo-guara-ate-amanha.webp'
+import sticker_lobo_guara_boa_ideia from './stickers/lobo-guara-boa-ideia.webp'
 import sticker_lobo_guara_bom_dia from './stickers/lobo-guara-bom-dia.webp'
+import sticker_lobo_guara_combinado from './stickers/lobo-guara-combinado.webp'
 import sticker_lobo_guara_comemorando from './stickers/lobo-guara-comemorando.webp'
 import sticker_lobo_guara_coracao from './stickers/lobo-guara-coracao.webp'
 import sticker_lobo_guara_feito from './stickers/lobo-guara-feito.webp'
 import sticker_lobo_guara_joinha from './stickers/lobo-guara-joinha.webp'
+import sticker_lobo_guara_obrigada from './stickers/lobo-guara-obrigada.webp'
 import sticker_lobo_guara_pensando from './stickers/lobo-guara-pensando.webp'
 import sticker_lobo_guara_rindo from './stickers/lobo-guara-rindo.webp'
+import sticker_lobo_guara_uau from './stickers/lobo-guara-uau.webp'
 import sticker_lontra_ate_amanha from './stickers/lontra-ate-amanha.webp'
+import sticker_lontra_boa_ideia from './stickers/lontra-boa-ideia.webp'
 import sticker_lontra_bom_dia from './stickers/lontra-bom-dia.webp'
+import sticker_lontra_combinado from './stickers/lontra-combinado.webp'
 import sticker_lontra_comemorando from './stickers/lontra-comemorando.webp'
 import sticker_lontra_coracao from './stickers/lontra-coracao.webp'
 import sticker_lontra_feito from './stickers/lontra-feito.webp'
 import sticker_lontra_joinha from './stickers/lontra-joinha.webp'
+import sticker_lontra_obrigada from './stickers/lontra-obrigada.webp'
 import sticker_lontra_pensando from './stickers/lontra-pensando.webp'
 import sticker_lontra_rindo from './stickers/lontra-rindo.webp'
+import sticker_lontra_uau from './stickers/lontra-uau.webp'
 import sticker_luna_ate_amanha from './stickers/luna-ate-amanha.webp'
 import sticker_luna_boa_ideia from './stickers/luna-boa-ideia.webp'
 import sticker_luna_bom_dia from './stickers/luna-bom-dia.webp'
@@ -677,13 +707,17 @@ import sticker_luna_pensando from './stickers/luna-pensando.webp'
 import sticker_luna_rindo from './stickers/luna-rindo.webp'
 import sticker_luna_uau from './stickers/luna-uau.webp'
 import sticker_mico_leao_dourado_ate_amanha from './stickers/mico-leao-dourado-ate-amanha.webp'
+import sticker_mico_leao_dourado_boa_ideia from './stickers/mico-leao-dourado-boa-ideia.webp'
 import sticker_mico_leao_dourado_bom_dia from './stickers/mico-leao-dourado-bom-dia.webp'
+import sticker_mico_leao_dourado_combinado from './stickers/mico-leao-dourado-combinado.webp'
 import sticker_mico_leao_dourado_comemorando from './stickers/mico-leao-dourado-comemorando.webp'
 import sticker_mico_leao_dourado_coracao from './stickers/mico-leao-dourado-coracao.webp'
 import sticker_mico_leao_dourado_feito from './stickers/mico-leao-dourado-feito.webp'
 import sticker_mico_leao_dourado_joinha from './stickers/mico-leao-dourado-joinha.webp'
+import sticker_mico_leao_dourado_obrigada from './stickers/mico-leao-dourado-obrigada.webp'
 import sticker_mico_leao_dourado_pensando from './stickers/mico-leao-dourado-pensando.webp'
 import sticker_mico_leao_dourado_rindo from './stickers/mico-leao-dourado-rindo.webp'
+import sticker_mico_leao_dourado_uau from './stickers/mico-leao-dourado-uau.webp'
 import sticker_nina_ate_amanha from './stickers/nina-ate-amanha.webp'
 import sticker_nina_boa_ideia from './stickers/nina-boa-ideia.webp'
 import sticker_nina_bom_dia from './stickers/nina-bom-dia.webp'
@@ -697,13 +731,17 @@ import sticker_nina_pensando from './stickers/nina-pensando.webp'
 import sticker_nina_rindo from './stickers/nina-rindo.webp'
 import sticker_nina_uau from './stickers/nina-uau.webp'
 import sticker_ourico_ate_amanha from './stickers/ourico-ate-amanha.webp'
+import sticker_ourico_boa_ideia from './stickers/ourico-boa-ideia.webp'
 import sticker_ourico_bom_dia from './stickers/ourico-bom-dia.webp'
+import sticker_ourico_combinado from './stickers/ourico-combinado.webp'
 import sticker_ourico_comemorando from './stickers/ourico-comemorando.webp'
 import sticker_ourico_coracao from './stickers/ourico-coracao.webp'
 import sticker_ourico_feito from './stickers/ourico-feito.webp'
 import sticker_ourico_joinha from './stickers/ourico-joinha.webp'
+import sticker_ourico_obrigada from './stickers/ourico-obrigada.webp'
 import sticker_ourico_pensando from './stickers/ourico-pensando.webp'
 import sticker_ourico_rindo from './stickers/ourico-rindo.webp'
+import sticker_ourico_uau from './stickers/ourico-uau.webp'
 import sticker_panda_ate_amanha from './stickers/panda-ate-amanha.webp'
 import sticker_panda_bom_dia from './stickers/panda-bom-dia.webp'
 import sticker_panda_comemorando from './stickers/panda-comemorando.webp'
@@ -762,6 +800,7 @@ registerPoseUrl('atlas-disponivel-blink', pose_atlas_disponivel_blink)
 registerPoseUrl('atlas-disponivel-tail', pose_atlas_disponivel_tail)
 registerPoseUrl('atlas-disponivel', pose_atlas_disponivel)
 registerPoseUrl('atlas-erro', pose_atlas_erro)
+registerPoseUrl('atlas-fora-ate', pose_atlas_fora_ate)
 registerPoseUrl('atlas-lendo', pose_atlas_lendo)
 registerPoseUrl('atlas-offline', pose_atlas_offline)
 registerPoseUrl('atlas-pensando-1', pose_atlas_pensando_1)
@@ -780,6 +819,7 @@ registerPoseUrl('bento-disponivel-blink', pose_bento_disponivel_blink)
 registerPoseUrl('bento-disponivel-tail', pose_bento_disponivel_tail)
 registerPoseUrl('bento-disponivel', pose_bento_disponivel)
 registerPoseUrl('bento-erro', pose_bento_erro)
+registerPoseUrl('bento-fora-ate', pose_bento_fora_ate)
 registerPoseUrl('bento-lendo', pose_bento_lendo)
 registerPoseUrl('bento-offline', pose_bento_offline)
 registerPoseUrl('bento-pensando-1', pose_bento_pensando_1)
@@ -905,6 +945,7 @@ registerPoseUrl('luna-disponivel-blink', pose_luna_disponivel_blink)
 registerPoseUrl('luna-disponivel-tail', pose_luna_disponivel_tail)
 registerPoseUrl('luna-disponivel', pose_luna_disponivel)
 registerPoseUrl('luna-erro', pose_luna_erro)
+registerPoseUrl('luna-fora-ate', pose_luna_fora_ate)
 registerPoseUrl('luna-lendo', pose_luna_lendo)
 registerPoseUrl('luna-offline', pose_luna_offline)
 registerPoseUrl('luna-pensando-1', pose_luna_pensando_1)
@@ -938,6 +979,7 @@ registerPoseUrl('nina-disponivel-blink', pose_nina_disponivel_blink)
 registerPoseUrl('nina-disponivel-tail', pose_nina_disponivel_tail)
 registerPoseUrl('nina-disponivel', pose_nina_disponivel)
 registerPoseUrl('nina-erro', pose_nina_erro)
+registerPoseUrl('nina-fora-ate', pose_nina_fora_ate)
 registerPoseUrl('nina-lendo', pose_nina_lendo)
 registerPoseUrl('nina-offline', pose_nina_offline)
 registerPoseUrl('nina-pensando-1', pose_nina_pensando_1)
@@ -1001,6 +1043,7 @@ registerPoseUrl('sol-disponivel-blink', pose_sol_disponivel_blink)
 registerPoseUrl('sol-disponivel-tail', pose_sol_disponivel_tail)
 registerPoseUrl('sol-disponivel', pose_sol_disponivel)
 registerPoseUrl('sol-erro', pose_sol_erro)
+registerPoseUrl('sol-fora-ate', pose_sol_fora_ate)
 registerPoseUrl('sol-lendo', pose_sol_lendo)
 registerPoseUrl('sol-offline', pose_sol_offline)
 registerPoseUrl('sol-pensando-1', pose_sol_pensando_1)
@@ -1282,53 +1325,77 @@ export const STICKERS: Readonly<Record<string, string>> = {
   'capivara-rindo': sticker_capivara_rindo,
   'capivara-uau': sticker_capivara_uau,
   'cervo-ate-amanha': sticker_cervo_ate_amanha,
+  'cervo-boa-ideia': sticker_cervo_boa_ideia,
   'cervo-bom-dia': sticker_cervo_bom_dia,
+  'cervo-combinado': sticker_cervo_combinado,
   'cervo-comemorando': sticker_cervo_comemorando,
   'cervo-coracao': sticker_cervo_coracao,
   'cervo-feito': sticker_cervo_feito,
   'cervo-joinha': sticker_cervo_joinha,
+  'cervo-obrigada': sticker_cervo_obrigada,
   'cervo-pensando': sticker_cervo_pensando,
   'cervo-rindo': sticker_cervo_rindo,
+  'cervo-uau': sticker_cervo_uau,
   'coelho-ate-amanha': sticker_coelho_ate_amanha,
+  'coelho-boa-ideia': sticker_coelho_boa_ideia,
   'coelho-bom-dia': sticker_coelho_bom_dia,
+  'coelho-combinado': sticker_coelho_combinado,
   'coelho-comemorando': sticker_coelho_comemorando,
   'coelho-coracao': sticker_coelho_coracao,
   'coelho-feito': sticker_coelho_feito,
   'coelho-joinha': sticker_coelho_joinha,
+  'coelho-obrigada': sticker_coelho_obrigada,
   'coelho-pensando': sticker_coelho_pensando,
   'coelho-rindo': sticker_coelho_rindo,
+  'coelho-uau': sticker_coelho_uau,
   'coruja-ate-amanha': sticker_coruja_ate_amanha,
+  'coruja-boa-ideia': sticker_coruja_boa_ideia,
   'coruja-bom-dia': sticker_coruja_bom_dia,
+  'coruja-combinado': sticker_coruja_combinado,
   'coruja-comemorando': sticker_coruja_comemorando,
   'coruja-coracao': sticker_coruja_coracao,
   'coruja-feito': sticker_coruja_feito,
   'coruja-joinha': sticker_coruja_joinha,
+  'coruja-obrigada': sticker_coruja_obrigada,
   'coruja-pensando': sticker_coruja_pensando,
   'coruja-rindo': sticker_coruja_rindo,
+  'coruja-uau': sticker_coruja_uau,
   'guaxinim-ate-amanha': sticker_guaxinim_ate_amanha,
+  'guaxinim-boa-ideia': sticker_guaxinim_boa_ideia,
   'guaxinim-bom-dia': sticker_guaxinim_bom_dia,
+  'guaxinim-combinado': sticker_guaxinim_combinado,
   'guaxinim-comemorando': sticker_guaxinim_comemorando,
   'guaxinim-coracao': sticker_guaxinim_coracao,
   'guaxinim-feito': sticker_guaxinim_feito,
   'guaxinim-joinha': sticker_guaxinim_joinha,
+  'guaxinim-obrigada': sticker_guaxinim_obrigada,
   'guaxinim-pensando': sticker_guaxinim_pensando,
   'guaxinim-rindo': sticker_guaxinim_rindo,
+  'guaxinim-uau': sticker_guaxinim_uau,
   'lobo-guara-ate-amanha': sticker_lobo_guara_ate_amanha,
+  'lobo-guara-boa-ideia': sticker_lobo_guara_boa_ideia,
   'lobo-guara-bom-dia': sticker_lobo_guara_bom_dia,
+  'lobo-guara-combinado': sticker_lobo_guara_combinado,
   'lobo-guara-comemorando': sticker_lobo_guara_comemorando,
   'lobo-guara-coracao': sticker_lobo_guara_coracao,
   'lobo-guara-feito': sticker_lobo_guara_feito,
   'lobo-guara-joinha': sticker_lobo_guara_joinha,
+  'lobo-guara-obrigada': sticker_lobo_guara_obrigada,
   'lobo-guara-pensando': sticker_lobo_guara_pensando,
   'lobo-guara-rindo': sticker_lobo_guara_rindo,
+  'lobo-guara-uau': sticker_lobo_guara_uau,
   'lontra-ate-amanha': sticker_lontra_ate_amanha,
+  'lontra-boa-ideia': sticker_lontra_boa_ideia,
   'lontra-bom-dia': sticker_lontra_bom_dia,
+  'lontra-combinado': sticker_lontra_combinado,
   'lontra-comemorando': sticker_lontra_comemorando,
   'lontra-coracao': sticker_lontra_coracao,
   'lontra-feito': sticker_lontra_feito,
   'lontra-joinha': sticker_lontra_joinha,
+  'lontra-obrigada': sticker_lontra_obrigada,
   'lontra-pensando': sticker_lontra_pensando,
   'lontra-rindo': sticker_lontra_rindo,
+  'lontra-uau': sticker_lontra_uau,
   'luna-ate-amanha': sticker_luna_ate_amanha,
   'luna-boa-ideia': sticker_luna_boa_ideia,
   'luna-bom-dia': sticker_luna_bom_dia,
@@ -1342,13 +1409,17 @@ export const STICKERS: Readonly<Record<string, string>> = {
   'luna-rindo': sticker_luna_rindo,
   'luna-uau': sticker_luna_uau,
   'mico-leao-dourado-ate-amanha': sticker_mico_leao_dourado_ate_amanha,
+  'mico-leao-dourado-boa-ideia': sticker_mico_leao_dourado_boa_ideia,
   'mico-leao-dourado-bom-dia': sticker_mico_leao_dourado_bom_dia,
+  'mico-leao-dourado-combinado': sticker_mico_leao_dourado_combinado,
   'mico-leao-dourado-comemorando': sticker_mico_leao_dourado_comemorando,
   'mico-leao-dourado-coracao': sticker_mico_leao_dourado_coracao,
   'mico-leao-dourado-feito': sticker_mico_leao_dourado_feito,
   'mico-leao-dourado-joinha': sticker_mico_leao_dourado_joinha,
+  'mico-leao-dourado-obrigada': sticker_mico_leao_dourado_obrigada,
   'mico-leao-dourado-pensando': sticker_mico_leao_dourado_pensando,
   'mico-leao-dourado-rindo': sticker_mico_leao_dourado_rindo,
+  'mico-leao-dourado-uau': sticker_mico_leao_dourado_uau,
   'nina-ate-amanha': sticker_nina_ate_amanha,
   'nina-boa-ideia': sticker_nina_boa_ideia,
   'nina-bom-dia': sticker_nina_bom_dia,
@@ -1362,13 +1433,17 @@ export const STICKERS: Readonly<Record<string, string>> = {
   'nina-rindo': sticker_nina_rindo,
   'nina-uau': sticker_nina_uau,
   'ourico-ate-amanha': sticker_ourico_ate_amanha,
+  'ourico-boa-ideia': sticker_ourico_boa_ideia,
   'ourico-bom-dia': sticker_ourico_bom_dia,
+  'ourico-combinado': sticker_ourico_combinado,
   'ourico-comemorando': sticker_ourico_comemorando,
   'ourico-coracao': sticker_ourico_coracao,
   'ourico-feito': sticker_ourico_feito,
   'ourico-joinha': sticker_ourico_joinha,
+  'ourico-obrigada': sticker_ourico_obrigada,
   'ourico-pensando': sticker_ourico_pensando,
   'ourico-rindo': sticker_ourico_rindo,
+  'ourico-uau': sticker_ourico_uau,
   'panda-ate-amanha': sticker_panda_ate_amanha,
   'panda-bom-dia': sticker_panda_bom_dia,
   'panda-comemorando': sticker_panda_comemorando,
@@ -1516,6 +1591,7 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'categoria-redes-sociais-96': ill_categoria_redes_sociais_96,
   'categoria-gestao': ill_categoria_gestao,
   'categoria-gestao-96': ill_categoria_gestao_96,
+  'equipe-nova': ill_equipe_nova,
   'acordando-luminaria': ill_acordando_luminaria,
   'quem-aqui-vazio': ill_quem_aqui_vazio,
   'acordando-primeira-vez': ill_acordando_primeira_vez,

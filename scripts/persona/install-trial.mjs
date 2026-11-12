@@ -10,7 +10,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { closeSync, existsSync, mkdtempSync, openSync, readSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readSync, readdirSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -124,7 +124,34 @@ export function trialVerdict(result) {
   if (!result.installed?.mingit?.cmdGit || !result.installed?.mingit?.ucrtGit) problems.push('MinGit incomplete')
   if (result.uninstaller === null) problems.push('no uninstaller was installed')
   else if (result.uninstallExit !== 0) problems.push(`uninstaller exited ${String(result.uninstallExit)}`)
+  if (result.dataKept === false) problems.push('the uninstaller deleted the person\'s data (%APPDATA%\\Persona): deleteAppDataOnUninstall is on')
   return { ok: problems.length === 0, problems }
+}
+
+/**
+ * Plants a file where `deleteAppDataOnUninstall` would delete it: the app's userData (`%APPDATA%\Persona`). The person's team and conversations
+ * live in `~/.persona`, which the uninstaller never touches; this is the worst case it could reach.
+ * @param appData - The roaming app-data folder (default: the real one).
+ * @returns The planted file, or `undefined` where there is no app-data folder.
+ */
+export function plantDataSentinel(appData = process.env.APPDATA) {
+  if (appData === undefined || appData === '') return undefined
+  const dir = join(appData, 'Persona')
+  const createdDir = !existsSync(dir)
+  mkdirSync(dir, { recursive: true })
+  const path = join(dir, `.install-trial-${String(Date.now())}.txt`)
+  writeFileSync(path, 'planted by install-trial: if the uninstaller deletes this file it also deletes the person\'s data\n')
+  return { path, dir, createdDir }
+}
+
+/**
+ * Takes the sentinel away, and the folder only when this trial created it and it is empty. Never throws.
+ * @param sentinel - From {@link plantDataSentinel}.
+ */
+export function dropDataSentinel(sentinel) {
+  if (sentinel === undefined) return
+  try { rmSync(sentinel.path, { force: true }) } catch { /* best effort */ }
+  if (sentinel.createdDir) { try { rmdirSync(sentinel.dir) } catch { /* not empty: something else was put there */ } }
 }
 
 /**
@@ -143,6 +170,8 @@ export function runInstallTrial(setup, deps = {}) {
   const installMs = now() - t0
   const installedState = inspect(dest)
   const uninstaller = ['Uninstall Persona.exe', 'Uninstall.exe'].map(name => join(dest, name)).find(path => (deps.exists ?? existsSync)(path))
+  // Data planted where an uninstaller could delete it. Only a REAL run plants (a test with a fake `run` never touches the developer's APPDATA).
+  const sentinel = deps.plantSentinel === undefined ? (deps.run === undefined ? plantDataSentinel() : undefined) : deps.plantSentinel()
   let uninstallMs = null
   let uninstallExit = null
   if (uninstaller !== undefined) {
@@ -153,6 +182,8 @@ export function runInstallTrial(setup, deps = {}) {
     uninstallMs = now() - u0
     uninstallExit = undone.status
   }
+  const dataKept = sentinel === undefined || uninstaller === undefined ? null : (deps.exists ?? existsSync)(sentinel.path)
+  ;(deps.dropSentinel ?? dropDataSentinel)(sentinel)
   const cleanup = remove(dest)
   const result = {
     dest,
@@ -162,6 +193,7 @@ export function runInstallTrial(setup, deps = {}) {
     uninstaller: uninstaller ?? null,
     uninstallMs,
     uninstallExit,
+    dataKept,
     cleanup,
   }
   return { ...result, verdict: trialVerdict(result) }

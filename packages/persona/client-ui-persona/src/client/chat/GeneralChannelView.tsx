@@ -50,6 +50,7 @@ import type { HostQueueControls } from './host-queue.ts'
 import type { HostTurnControls } from './host-turn.ts'
 import { useStreamAnnouncement } from './use-stream-announcement.ts'
 import { TypingIndicator } from './TypingIndicator.tsx'
+import { typingLineMembers } from './typing-line-members.ts'
 import { WorkStepLine } from './work-step/WorkStepLine.tsx'
 import { TurnStepSummary } from './work-step/TurnStepSummary.tsx'
 import { StickerComposeBar } from './StickerComposeBar.tsx'
@@ -57,6 +58,8 @@ import { VoiceComposeButton } from './voice-compose/VoiceComposeButton.tsx'
 import { AudioAttachmentSlot } from './voice-compose/AudioAttachmentSlot.tsx'
 import { sendVoiceAfterTranscription, type VoiceTranscribe } from '../voice/voice-send.ts'
 import { typingPersona } from './typing-indicator.ts'
+import { useThreadAnchor } from './use-thread-anchor.ts'
+import { isChannelSectionsEnabled } from '../shell/channel-sections-flag.ts'
 import { bubbleNeedsWidth, groupPositions, type GroupPosition } from './message-grouping.ts'
 import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
 import { ReactionAdder, reactionIdFromEmoji } from './ReactionAdder.tsx'
@@ -70,6 +73,7 @@ import { resolveHostPersonaId } from '../remote/map-host-ui.ts'
 import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge.ts'
 import type { TeamView } from '../remote/persona-remote-types.ts'
 import type { TurnContextActivityFoldUi, TurnContextUi } from '../remote/turn-context-ui.ts'
+import type { ReplyActivityUi } from '../remote/map-reply-activity.ts'
 import { PersonaCardPopoverHost, usePersonaCardController } from '../profile/PersonaCardPopoverHost.tsx'
 import { ConversationRunErrorCard } from './ConversationRunErrorCard.tsx'
 import { HarnessEventLine } from './HarnessEventLine.tsx'
@@ -128,6 +132,9 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
   /** P1-03 (Carbon): o transcritor da voz. Sem ele o microfone não aparece (nada de voz pela metade). */
   readonly voiceTranscriber?: VoiceTranscribe | undefined
+  /** COLHEITA §6 (Quill): a atividade de cada resposta de persona, por id da mensagem respondida (o pedido sai uma vez). */
+  readonly replyActivity?: Readonly<Record<string, ReplyActivityUi>> | undefined
+  readonly onNeedReplyActivity?: ((subjectId: string) => void) | undefined
   /** Empty-team CTA in the banner (Prism wires: open onboarding/team builder). */
   readonly onBuildTeam?: (() => void) | undefined
   /** Header ? → Ajuda (guide canais). */
@@ -281,6 +288,8 @@ export function GeneralChannelView({
   asideSlot,
   uploadAttachment,
   voiceTranscriber,
+  replyActivity,
+  onNeedReplyActivity,
   team = null,
   personaCard,
   openPersonaProfile,
@@ -362,9 +371,10 @@ export function GeneralChannelView({
               'channel',
               transcribe,
               { onDownloading: () => { setVoiceStatus(shellT('voice.downloadingFirstUse')) } },
-            )
+            ).catch(() => ({ status: 'failed' as const }))
+            // Keel 13:17: se o envio falhar, a frase de download sai e a de falha entra (nada fica "Baixando…" parado).
             setVoiceStatus(undefined)
-            setVoiceWarning(outcome.status === 'unavailable' ? shellT('voice.transcribeUnavailable') : undefined)
+            setVoiceWarning(outcome.status === 'unavailable' ? shellT('voice.transcribeUnavailable') : outcome.status === 'failed' ? shellT('voice.sendFailed') : undefined)
           }}
         />
         {voiceStatus === undefined ? null : <span role="status" className={styles.voiceWarning}>{voiceStatus}</span>}
@@ -644,6 +654,8 @@ export function GeneralChannelView({
   const stripRef = useRef<HTMLDivElement>(null)
   const { collapsed: stageCollapsed, showStage } = useStageCollapsed(scrollRef, stripRef, members.length > 0 && !loading)
   const lastId = messages[messages.length - 1]?.id
+  // Casa (item 22, atrás de `channelSections`): cada canal lembra onde a pessoa estava e o fio volta ali, sem animação; no fim, abre no fim (microdetalhe 11).
+  useThreadAnchor(scrollRef, conversationKey, messages.length, !loading, isChannelSectionsEnabled())
   // P1-4: "{persona} está escrevendo…" (atrás da mesma flag do controle de trabalho: só com `turnControls`).
   const typing = turnControls === undefined ? null : typingPersona(messages, members)
   const typingId = typing?.id ?? ''
@@ -821,6 +833,8 @@ export function GeneralChannelView({
               />
             ) : (
               <MessageList
+                replyActivity={replyActivity}
+                onNeedReplyActivity={onNeedReplyActivity}
                 t={t}
                 team={team}
                 messages={messages}
@@ -892,8 +906,13 @@ export function GeneralChannelView({
                 onRemove={handleRemoveQueued}
               />
             ))}
-            {typing !== null && <TypingIndicator t={t} member={typing} />}
-            {typing !== null && <WorkStepLine t={t} member={typing} />}
+            {/* Keel 12:38: embaixo só quem trabalha SEM partial aberto na própria linha (cada persona aparece uma vez). Parar: typingPersona, intacto. */}
+            {turnControls === undefined ? null : typingLineMembers(messages, members, typing).map(member => (
+              <Fragment key={member.id}>
+                <TypingIndicator t={t} member={member} />
+                <WorkStepLine t={t} member={member} />
+              </Fragment>
+            ))}
           </div>
         </div>
       </div>
@@ -1011,7 +1030,12 @@ export function GeneralChannelView({
 }
 
 /** Grouped message stream with day pill (shared by #geral and DMs). */
-export function MessageList({ t, team = null, messages: allMessages, gestorPlansById = {}, gestorPlanAdjustingIds = {}, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, onLoadTurnContext, onOpenTaskOnBoard, personaCardTrigger, memberId, onToggleReaction, userStickerAnimal, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers, onRetrySend, onResumePersona, onContinue, fanoutTeamName, dailyBriefActions, onDecideAction, onUndoAction, onDecideInitiative, personaAsks, taskProposals, opinionActions, onUndoInitiativeGrant, onOpenApprovalItem }: {
+/** COLHEITA §6 (Quill): a atividade da resposta que cita esta mensagem (o id é o `replyToId` da resposta). */
+function replyActivityFor(activity: Readonly<Record<string, ReplyActivityUi>> | undefined, replyToId: string | undefined): ReplyActivityUi | undefined {
+  return replyToId === undefined || activity === undefined ? undefined : activity[replyToId]
+}
+
+export function MessageList({ replyActivity, onNeedReplyActivity, t, team = null, messages: allMessages, gestorPlansById = {}, gestorPlanAdjustingIds = {}, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, onLoadTurnContext, onOpenTaskOnBoard, personaCardTrigger, memberId, onToggleReaction, userStickerAnimal, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers, onRetrySend, onResumePersona, onContinue, fanoutTeamName, dailyBriefActions, onDecideAction, onUndoAction, onDecideInitiative, personaAsks, taskProposals, opinionActions, onUndoInitiativeGrant, onOpenApprovalItem }: {
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly team?: TeamView | null
   readonly messages: readonly ChannelMessageUi[]
@@ -1055,6 +1079,9 @@ export function MessageList({ t, team = null, messages: allMessages, gestorPlans
   readonly userStickerAnimal?: string | undefined
   readonly subjectMoveTargets?: readonly ConversationSubjectUi[] | undefined
   readonly onMoveMessageSubject?: ((messageId: string, subjectId: string) => void) | undefined
+  /** COLHEITA §6 (Quill): atividade de cada resposta; o pedido sai uma vez por resposta. */
+  readonly replyActivity?: Readonly<Record<string, ReplyActivityUi>> | undefined
+  readonly onNeedReplyActivity?: ((subjectId: string) => void) | undefined
   /** T3 §9 — inline activity on the message row that cites this ticket (when turn context is loaded). */
   readonly turnActivityTicketId?: string | undefined
   readonly turnActivityFolds?: readonly TurnContextActivityFoldUi[] | undefined
@@ -1113,6 +1140,8 @@ export function MessageList({ t, team = null, messages: allMessages, gestorPlans
     ...(onMoveMessageSubject === undefined ? {} : { onMoveMessageSubject }),
     ...(turnActivityTicketId === undefined ? {} : { turnActivityTicketId }),
     ...(turnActivityFolds === undefined ? {} : { turnActivityFolds }),
+    ...(() => { const found = replyActivityFor(replyActivity, messages[index]?.replyToId); return found === undefined ? {} : { replyActivity: found } })(),
+    ...(onNeedReplyActivity === undefined ? {} : { onNeedReplyActivity }),
     ...(turnActivityLabels === undefined ? {} : { turnActivityLabels }),
     ...(runErrorHandlers === undefined ? {} : { runErrorHandlers }),
     ...(onRetrySend === undefined ? {} : { onRetrySend }),
@@ -1344,6 +1373,8 @@ export function MessageList({ t, team = null, messages: allMessages, gestorPlans
 }
 
 function ChannelMessageRow(props: {
+  readonly replyActivity?: ReplyActivityUi | undefined
+  readonly onNeedReplyActivity?: ((subjectId: string) => void) | undefined
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly team: TeamView | null
   readonly message: ChannelMessageUi
@@ -1378,7 +1409,7 @@ function ChannelMessageRow(props: {
   readonly onRetrySend?: ((messageId: string) => void) | undefined
   readonly onContinue?: ((messageId: string) => void) | undefined
 }): ReactNode {
-  const { t, message, team, gestorPlansById, gestorPlanAdjustingIds, position, bubbles, onLoadTurnContext, onOpenTaskOnBoard, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, memberId, onToggleReaction, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers, onRetrySend } = props
+  const { replyActivity, onNeedReplyActivity, t, message, team, gestorPlansById, gestorPlanAdjustingIds, position, bubbles, onLoadTurnContext, onOpenTaskOnBoard, onApproveGestorPlan, onRejectGestorPlan, onRequestGestorPlanAdjust, memberId, onToggleReaction, subjectMoveTargets, onMoveMessageSubject, turnActivityTicketId, turnActivityFolds, turnActivityLabels, runErrorHandlers, onRetrySend } = props
   const inlineActivity = message.ticketId !== undefined
     && turnActivityTicketId === message.ticketId
     && turnActivityFolds !== undefined
@@ -1435,11 +1466,23 @@ function ChannelMessageRow(props: {
 
   // FL-11: a resposta que ainda cresce (cursor-bloco âmbar no fim do texto, só visual; o leitor de tela recebe aria-busy e UM aviso).
   const streamingAttrs = message.streaming === true ? { 'data-streaming': '', 'aria-busy': true as const } : {}
+  // COLHEITA-S1 P1-04 (Carbon; Muse 10:46): partial em streaming com corpo vazio (o host esvazia na correção de fim de turno) não vira balão
+  // vazio: fica o indicador "digitando" na linha da persona, com a mesma altura do balão, até o texto voltar.
+  const emptyPartial = message.streaming === true && !isUser && message.body.trim() === ''
+  const partialMember = {
+    id: (message.authorPersonaId ?? message.authorId) as ChannelPersonaMember['id'],
+    name: message.authorName,
+    role: authorRole ?? '',
+    state: 'working' as const,
+    systemRoles: [] as const,
+  }
   // FL-11: "Continuar" manda "Continue de onde parou."; a mensagem leva o chip pequeno "Retomada" (Muse 19:10).
   const resumeText = t('stream.resumeText')
   const resumedChip = isUser && (message.body === resumeText || (message.body.startsWith('@') && message.body.endsWith(` ${resumeText}`)))
     ? <Chip size="s" tone="plain">{t('stream.resumedChip')}</Chip>
     : null
+  // COLHEITA §6 (Quill): a resposta de uma persona pede a atividade do turno que a respondeu (uma vez; a loja deduplica).
+  useEffect(() => { if (!isUser && message.replyToId !== undefined) onNeedReplyActivity?.(message.replyToId) }, [isUser, message.replyToId, onNeedReplyActivity])
   const RowTag = props.rowTag === 'div' ? 'div' : 'li'
   const rowRole = props.rowTag === 'div' ? { role: 'listitem' as const } : {}
 
@@ -1486,7 +1529,12 @@ function ChannelMessageRow(props: {
         </div>
       )}
       <div className={styles.body}>
-        {bubbles && !continued && !isUser && (
+        {!isUser && replyActivity !== undefined && (replyActivity.items.length > 0 || replyActivity.moreCount > 0) && (
+          <div className={styles.replySteps}>
+            <TurnStepSummary t={t} items={replyActivity.items} moreCount={replyActivity.moreCount} />
+          </div>
+        )}
+        {bubbles && !continued && !isUser && !emptyPartial && (
           <div className={styles.meta}>
             <span className={styles.author}>{message.authorName}</span>
             <span className={styles.metaSoft}>
@@ -1526,6 +1574,8 @@ function ChannelMessageRow(props: {
               handlers={runErrorHandlers}
             />
           </div>
+        ) : emptyPartial ? (
+          <TypingIndicator t={t} member={partialMember} />
         ) : showsBubble ? (
           // CV-9: o texto mora num BALÃO (a pessoa em lilás à direita, a persona em creme à esquerda). IV-3: as respostas das
           // personas são markdown (listas, tabelas, código, links), nunca HTML cru; o que a pessoa escreve continua texto simples.

@@ -29,6 +29,7 @@ import type { ConversationsSource } from './conversations-source.ts'
 import { rovingVerticalKey } from './rail-roving-focus.ts'
 import { buildChannelSections, NO_SECTION_KEY } from './channel-sections.ts'
 import { ChannelSections } from './ChannelSections.tsx'
+import { isChannelSectionsEnabled } from './channel-sections-flag.ts'
 import styles from './ConversationsRail.module.css'
 
 export interface ConversationsRailProps {
@@ -277,12 +278,15 @@ function PersonRow({ person, density, t, active, openConversation, onKeyDown }: 
   const target: ConversationTarget = { kind: 'dm', personaId: person.id }
   const isActive = sameConversation(active, target)
   const state = personaStateOf(person)
-  const label = personLabel(t, person)
   const full = density === 'full'
+  // Casa (item 22, atrás de `channelSections`): rosto R2 de 40 px e a linha "cargo · o que faz agora" (Muse §29), em vez de nome + cargo na mesma linha.
+  const casa = full && isChannelSectionsEnabled()
+  const label = personLabel(t, person, casa)
+  const casaLine = casa ? [roleAfterName(person.role, person.name), nowPhrase(t, person)].filter(Boolean).join(' · ') : ''
   return (
     <button
       type="button"
-      className={`${styles.row} ${full ? styles.rowFull : styles.rowCompact}`}
+      className={[styles.row, full ? styles.rowFull : styles.rowCompact, casa ? styles.rowCasa : ''].filter(Boolean).join(' ')}
       data-conversation-row=""
       data-conversation-kind="dm"
       data-persona-id={person.id}
@@ -295,18 +299,28 @@ function PersonRow({ person, density, t, active, openConversation, onKeyDown }: 
       <Avatar
         name={person.name}
         src={PORTRAITS[person.characterId ?? person.id]}
-        size={full ? 32 : 24}
+        size={casa ? 40 : full ? 32 : 24}
         shape="portrait"
+        {...(casa ? { crop: 'head' as const } : {})}
         state={state}
         decorative
       />
       <span className={styles.text}>
-        <span className={styles.title}>
-          <span className={styles.name}>{person.name}</span>
-          {/* Muse L2: quando a função é a mesma palavra do nome ("Probe Probe"), ela aparece uma vez só. */}
-          {roleAfterName(person.role, person.name) !== '' && <span className={styles.role}>{roleAfterName(person.role, person.name)}</span>}
-        </span>
-        {full && person.lastLine !== undefined && person.lastLine !== '' && <span className={styles.last}>{person.lastLine}</span>}
+        {casa ? (
+          <>
+            <span className={styles.title}><span className={styles.name}>{person.name}</span></span>
+            <span className={styles.last}>{casaLine}</span>
+          </>
+        ) : (
+          <>
+            <span className={styles.title}>
+              <span className={styles.name}>{person.name}</span>
+              {/* Muse L2: quando a função é a mesma palavra do nome ("Probe Probe"), ela aparece uma vez só. */}
+              {roleAfterName(person.role, person.name) !== '' && <span className={styles.role}>{roleAfterName(person.role, person.name)}</span>}
+            </span>
+            {full && person.lastLine !== undefined && person.lastLine !== '' && <span className={styles.last}>{person.lastLine}</span>}
+          </>
+        )}
       </span>
       {full && person.timeLabel !== undefined && person.unread === 0 && <span className={styles.time}>{person.timeLabel}</span>}
       {person.unread > 0 && <span className={styles.badge} aria-hidden="true">{unreadBadgeText(person.unread)}</span>}
@@ -314,12 +328,22 @@ function PersonRow({ person, density, t, active, openConversation, onKeyDown }: 
   )
 }
 
-/** Nome acessível de uma pessoa: "Abrir DM com Nina · Pesquisa · Trabalhando · 2 não lidas". */
-function personLabel(t: T, person: ConversationPerson): string {
+/**
+ * O que a persona faz agora, para a linha da Casa: a frase do host ("escrevendo a legenda" -> "Escrevendo a legenda"), que só existe enquanto
+ * ela trabalha; sem ela, o estado de sempre (a mesma palavra do vocabulário único). Nunca uma frase inventada aqui.
+ */
+function nowPhrase(t: T, person: ConversationPerson): string {
+  const step = person.step?.trim() ?? ''
+  if (step !== '') return `${step.charAt(0).toLocaleUpperCase()}${step.slice(1)}`
+  return t(PERSONA_STATE_LABEL[personaStateOf(person)])
+}
+
+/** Nome acessível de uma pessoa: "Abrir DM com Nina · Pesquisa · Trabalhando · 2 não lidas" (na Casa, a frase do que faz agora no lugar do estado). */
+function personLabel(t: T, person: ConversationPerson, casa = false): string {
   return [
     t('sidebar.team.openDm', { name: person.name }),
     roleAfterName(person.role, person.name),
-    t(PERSONA_STATE_LABEL[personaStateOf(person)]),
+    casa ? nowPhrase(t, person) : t(PERSONA_STATE_LABEL[personaStateOf(person)]),
     person.unread > 0 ? t('sidebar.team.unread', { count: String(person.unread) }) : '',
   ].filter(Boolean).join(' · ')
 }

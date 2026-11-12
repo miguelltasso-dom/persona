@@ -190,9 +190,8 @@
 }
 
 .permissionScope {
-  margin: 0;
   color: var(--persona-ink-soft);
-  font: 400 13px/18px var(--persona-font-text);
+  font-weight: 400;
 }
 
 .permissionMeta {
@@ -478,5 +477,43 @@
 
   .permission > :last-child {
     grid-column: 1 / -1;
+  }
+}
+
+/* Em um cartão ESTREITO (o "Permissões ativas" da Visão geral tem ~300 px; a @media acima olha a janela, não o cartão) o rosto, o texto e o botão lado a lado deixavam ~80 px para o texto e
+   uma palavra por linha. Empilhado (Muse): 1) rosto de 24 + a frase, até 2 linhas (o title traz a frase inteira); 2) o selo e "Concedida por você" na mesma linha se couber; 3) o botão à esquerda.
+   O contêiner é o .permissionList do SecondBrain.module.css (container-name permission-list). */
+@container permission-list (max-width: 420px) {
+  .permission {
+    grid-template-columns: 24px minmax(0, 1fr);
+    align-items: start;
+    row-gap: var(--persona-space-2);
+  }
+
+  /* os filhos do bloco de texto passam a ser itens da grade: a frase na coluna 2, a meta e o botão na largura toda */
+  .permissionMain {
+    display: contents;
+  }
+
+  .permissionTitle {
+    grid-column: 2;
+    grid-row: 1;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .permissionMeta {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--persona-ink-soft);
+    font: 400 13px/18px var(--persona-font-text);
+  }
+
+  .permission > :last-child {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }

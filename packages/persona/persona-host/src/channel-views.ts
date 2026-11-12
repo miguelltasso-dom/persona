@@ -9,6 +9,7 @@
 import type { ChannelDirectory, DirectoryChannelKind } from './channel-directory.ts'
 import { channelLayoutOf } from './channel-layout.ts'
 import { emptyChannelNotice, namesLine, teamMentionLabel, type EmptyChannelNotice } from './channel-notices.ts'
+import { equipeIconOf, type EquipeIcon } from './equipe-icon.ts'
 
 /** The roster as the views read it: persona ids and names in roster order. */
 export interface ViewPersona {
@@ -31,6 +32,8 @@ export interface ChannelSectionView {
   readonly name: string | null
   /** The equipe this section is; absent for a section made by hand. */
   readonly teamId?: string
+  /** The glyph of the equipe (`UiIcon equipe-…`, 16 px beside the name); present exactly when `teamId` is. */
+  readonly icon?: EquipeIcon
   /** Up to 3 persona ids of the equipe in roster order: the 16 px faces of the header. */
   readonly faceIds: readonly string[]
   readonly channels: readonly ChannelRowView[]
@@ -40,6 +43,10 @@ export interface ChannelLayoutView {
   readonly sections: readonly ChannelSectionView[]
   /** Real people in the workspace (the owner counts). The sidebar's "Pessoas" section shows only from the 2nd one on. */
   readonly humanCount: number
+  /** The company's name (the workspace's), for the bar's top line ("Padaria Lua · 2 pessoas · 5 personas"); absent or empty when unknown. */
+  readonly companyName?: string
+  /** Personas of the project (its roster). */
+  readonly personaCount?: number
 }
 
 /** Most faces a section header shows. */
@@ -57,7 +64,7 @@ export function channelLayoutViewOf(
   directory: ChannelDirectory,
   projectId: string,
   roster: readonly ViewPersona[],
-  options: { readonly showEmptySections?: boolean; readonly humanCount?: number } = {},
+  options: { readonly showEmptySections?: boolean; readonly humanCount?: number; readonly companyName?: string } = {},
 ): ChannelLayoutView {
   const teams = directory.teams(projectId)
   const rosterIds = roster.map(persona => persona.id)
@@ -68,6 +75,8 @@ export function channelLayoutViewOf(
   })
   return {
     humanCount: Math.max(0, Math.floor(options.humanCount ?? 0)),
+    ...(options.companyName === undefined ? {} : { companyName: options.companyName }),
+    personaCount: roster.length,
     sections: sections.map((section) => {
       const team = section.category?.teamId === undefined ? undefined : teams.find(item => item.id === section.category?.teamId)
       const faceIds = team === undefined ? [] : rosterIds.filter(id => team.personaIds.includes(id)).slice(0, SECTION_FACES_MAX)
@@ -75,6 +84,7 @@ export function channelLayoutViewOf(
         id: section.category?.id ?? null,
         name: section.category?.name ?? null,
         ...(section.category?.teamId === undefined ? {} : { teamId: section.category.teamId }),
+        ...(team === undefined ? {} : { icon: equipeIconOf(team.name, team.icon) }),
         faceIds,
         channels: section.channels.map(channel => ({
           id: channel.id, name: channel.name, kind: channel.kind, ...(channel.teamId === undefined ? {} : { teamId: channel.teamId }),
@@ -98,6 +108,8 @@ export interface ChannelHeaderView {
   /** The equipe of the channel, when it has one (the neutral chip). */
   readonly teamId?: string
   readonly teamName?: string
+  /** The glyph of that equipe (`UiIcon equipe-…`) for the header chip; present exactly when `teamId` is. */
+  readonly teamIcon?: EquipeIcon
   /** Who is on the channel now, in roster order (personas; people come with real people in the same chat). */
   readonly members: readonly ChannelHeaderMemberView[]
   /** "Respondem aqui: Lia, Téo e Bia" (more than 3: "Lia, Téo e mais 4"); '' when nobody is on the channel. */
@@ -128,7 +140,7 @@ export function channelHeaderViewOf(
   return {
     channelId,
     name: channel.name,
-    ...(team === undefined ? {} : { teamId: team.id, teamName: team.name }),
+    ...(team === undefined ? {} : { teamId: team.id, teamName: team.name, teamIcon: equipeIconOf(team.name, team.icon) }),
     members,
     respondem: names.length === 0 ? '' : `Respondem aqui: ${namesLine(names)}`,
     empty: emptyChannelNotice(channel.name, names),

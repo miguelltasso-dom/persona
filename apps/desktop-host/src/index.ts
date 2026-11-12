@@ -16,6 +16,7 @@ import { localDragResource } from './file-drag.ts'
 
 import { installDesktopUpdateTaskControl } from './update-tasks.ts'
 import { installDesktopQuitInspection } from './quit-inspection.ts'
+import { delayHostReadyForTest } from './test-host-delay.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
 import { installOfficeEngineResolution } from './office-engine.ts'
 import { installOperationDiagnostics } from './operation-diagnostics.ts'
@@ -143,6 +144,7 @@ async function main(): Promise<void> {
   installPlatformSessionPublisher(ctx, (session) => {
     if (process.connected) process.send?.({ type: 'platform-session', session })
   })
+  await delayHostReadyForTest(process.env) // boot-estatico: test-only (PERSONA_TEST_HOST_DELAY_MS); holds the ready back and nothing else
   const url = ctx.connection.authenticatedUrl(`${ctx.webServer.protocol}//127.0.0.1:${String(ctx.webServer.port)}`)
   if (process.connected) process.send?.({ type: 'ready', url, injections: ctx.webServer.collectIndexInjections(ctx.connection.browserPeer) }, (error) => { if (error !== null) console.error(error) })
 }

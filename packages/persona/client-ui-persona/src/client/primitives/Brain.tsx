@@ -107,14 +107,14 @@ export interface PermissionRowProps {
 /** One remembered permission; Revoke asks once inline and takes effect immediately. */
 export function PermissionRow({ scope, grantedBy, validityText, expired = false, usage, onRevoke, labels, revoked = false }: PermissionRowProps): ReactNode {
   const [confirming, setConfirming] = useState(false)
+  const detail = [scope.target, scope.limits].filter(Boolean).join(' · ')
+  // ONE sentence in every layout ("Atlas · Responder no WhatsApp: clientes aprovados"), real text; the narrow card clamps it to two lines and the title keeps the whole of it.
+  const sentence = [scope.persona + ' · ' + scope.action, detail].filter(part => part !== '').join(': ')
   return (
     <li className={styles.permission} data-state={revoked ? 'revoked' : expired ? 'expired' : 'active'}>
-      <Avatar name={scope.persona} src={scope.personaAvatar} size={40} shape="portrait" decorative />
+      <Avatar name={scope.persona} src={scope.personaAvatar} size={24} shape="portrait" decorative />
       <div className={styles.permissionMain}>
-        <p className={styles.permissionTitle}><b>{scope.persona}</b> · {scope.action}</p>
-        {(scope.target !== undefined || scope.limits !== undefined) && (
-          <p className={styles.permissionScope}>{[scope.target, scope.limits].filter(Boolean).join(' · ')}</p>
-        )}
+        <p className={styles.permissionTitle} title={sentence}><b>{scope.persona}</b> · {scope.action}{detail !== '' && <span className={styles.permissionScope}>{': ' + detail}</span>}</p>
         <p className={styles.permissionMeta}>
           <Chip size="s" tone={revoked || expired ? 'neutral' : 'success'}>{revoked ? labels.revoked : validityText}</Chip>
           <span>{grantedBy}</span>

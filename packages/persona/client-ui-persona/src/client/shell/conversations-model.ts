@@ -33,6 +33,8 @@ export interface ConversationPerson {
   readonly draftFiles?: number | undefined
   readonly quiet?: boolean | undefined
   readonly paused?: boolean | undefined
+  /** O que faz AGORA, nas palavras do host ("escrevendo a legenda"): só enquanto trabalha (Casa, atrás de `channelSections`). */
+  readonly step?: string | undefined
   readonly teamId: string | null
   readonly teamName: string | null
   /** Mensagens não lidas na DM com esta pessoa. */

@@ -16,6 +16,8 @@ export interface DirectoryTeam {
   readonly name: string
   /** Persona ids, any order (the roster order of the project is what answers use). */
   readonly personaIds: readonly string[]
+  /** The glyph the PERSON kept for the equipe (one of the eight `equipe-…`); absent = the name decides (`equipe-icon.ts`). */
+  readonly icon?: string
 }
 
 /** A named, ordered section of the sidebar that opens and closes (the open/closed state is each person's, on the screen, not here). */
@@ -124,7 +126,7 @@ export interface TeamChannelsBridgeDeps {
   /** persona id → sector id. */
   readonly sectorOf: (projectId: string) => ReadonlyMap<string, string>
   /** The equipes the PERSON assembled (item 22, H22). A mirror of a sector (`sourceId`) is the sector itself: it adds no equipe. Absent = none. */
-  readonly equipes?: (projectId: string) => readonly { readonly id: string; readonly name: string; readonly sourceId?: string; readonly archivedAt?: string; readonly personaIds: readonly string[] }[]
+  readonly equipes?: (projectId: string) => readonly { readonly id: string; readonly name: string; readonly sourceId?: string; readonly archivedAt?: string; readonly icon?: string; readonly personaIds: readonly string[] }[]
   /** The categories the person made by hand. Absent = none. */
   readonly categories?: (projectId: string) => readonly { readonly id: string; readonly name: string; readonly position: number }[]
   /** Where the person put channels: channel id → category and order. A placement wins over the automatic section of a team channel. Absent = none. */
@@ -151,7 +153,7 @@ export function directoryOverTeamChannels(deps: TeamChannelsBridgeDeps): Channel
           name: sector.name,
           personaIds: [...sectorOf].filter(([, sectorId]) => sectorId === sector.id).map(([personaId]) => personaId),
         })),
-        ...own.map(equipe => ({ id: equipe.id, name: equipe.name, personaIds: equipe.personaIds })),
+        ...own.map(equipe => ({ id: equipe.id, name: equipe.name, personaIds: equipe.personaIds, ...(equipe.icon === undefined ? {} : { icon: equipe.icon }) })),
       ]
     },
     // The app makes ONE section per equipe (the screen shows no difference between "equipe" and "categoria"): the section of an equipe exists

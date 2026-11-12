@@ -191,6 +191,16 @@ export interface ChannelScopeRequest {
   readonly channelId: string
 }
 
+/** Casa da Equipe H1: the person read the channel up to this line (her own mark; it only moves forward and never goes past the last line). */
+export interface AckChannelReadRequest extends ChannelScopeRequest {
+  readonly seq: number
+}
+
+/** Casa da Equipe H3: the lines on screen (at most 200 are looked at); the author of each is read from the store, never from the caller. */
+export interface ChannelOriginsRequest extends ProjectScopeRequest {
+  readonly messageIds: readonly string[]
+}
+
 /** CV-6: rename (1–32 characters, no `#`, unique in the project; a channel the person renamed is never renamed back by the organogram). */
 export interface RenameChannelRequest extends ChannelScopeRequest {
   readonly name: string
@@ -5058,4 +5068,8 @@ export type VoiceModelStateView =
   | { readonly state: 'failed'; readonly reason: ComponentFailure }
 export type { OAuthCredentialView } from './oauth-vault.ts'
 export type { ArrangeAction, ArrangeChannelsRequest, ChannelCategoryView, EquipeLayoutView, EquipeView } from './equipe-desk.ts'
+export type { ChannelUnread } from './channel-unread.ts'
+export type { HereGroup, HereGroupId, HereMember } from './channel-here.ts'
+export type { MessageOrigin } from './channel-origins.ts'
+export type { ChannelSuggestion } from './channel-suggestions.ts'
 export type { SendStickerRequest } from './sticker-send.ts'

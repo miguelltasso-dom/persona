@@ -28,6 +28,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-4);
+  /* the narrow card of the Visão geral stacks each permission (primitives/Brain.module.css, @container permission-list) */
+  container: permission-list / inline-size;
 }
 
 .homeLayout {
@@ -141,7 +143,8 @@
   text-align: left;
   cursor: pointer;
   font: inherit;
-  color: var(--persona-accent);
+  /* Ember 12:34: --persona-accent is the FILL amber (1.8:1 on the cream: axe color-contrast SERIOUS); the text token is the dark amber (5.1-6.0:1) */
+  color: var(--persona-accent-text);
 }
 
 .sparseHero {

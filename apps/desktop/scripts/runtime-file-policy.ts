@@ -13,7 +13,7 @@ export const PERSONA_EXCLUDED_PACKAGES: Readonly<Record<string, true>> = {
   'sherpa-onnx-win-x64': true,
   '@deepseek-ai/dsh-cua': true,
   '@deepseek-ai/dsh-cua-bundle': true,
-  '@deepseek-ai/dsh-cua-macos': true,
+  '@deepseek-ai/dsh-experimental-cua-macos': true,
 }
 
 /**

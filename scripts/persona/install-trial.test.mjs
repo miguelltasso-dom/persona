@@ -1,10 +1,12 @@
 // node --test scripts/persona/install-trial.test.mjs
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { REQUIRED_LITERALS, countLiterals, inspectInstalled, removeTreeSoft, runInstallTrial, trialVerdict } from './install-trial.mjs'
+import {
+  REQUIRED_LITERALS, countLiterals, dropDataSentinel, inspectInstalled, plantDataSentinel, removeTreeSoft, runInstallTrial, trialVerdict,
+} from './install-trial.mjs'
 
 const err = (code) => Object.assign(new Error(code), { code })
 
@@ -83,7 +85,8 @@ function trial(overrides = {}) {
   const result = runInstallTrial('C:/p8c/Persona-Setup.exe', {
     mkdtemp: () => 'C:/tmp/persona-nsis-x',
     now: clock,
-    exists: (path) => String(path).endsWith('Uninstall Persona.exe'),
+    exists: (path) => String(path).endsWith('Uninstall Persona.exe') || (overrides.sentinelKept === true && path === overrides.sentinel?.path),
+    ...('sentinel' in overrides ? { plantSentinel: () => overrides.sentinel, dropSentinel: (sentinel) => overrides.dropped?.push(sentinel) } : {}),
     inspect: () => overrides.installed ?? goodInstalled,
     run: (cmd, args, timeout) => { calls.push({ cmd, args, timeout }); return { status: calls.length === 1 ? (overrides.installExit ?? 0) : (overrides.uninstallExit ?? 0) } },
     remove: () => overrides.cleanup ?? { removed: true, attempts: 1 },
@@ -98,6 +101,52 @@ test('runInstallTrial: silent install into the temp dir, inspect BEFORE uninstal
   assert.deepEqual(calls[1]?.args, ['/S', '_?=C:/tmp/persona-nsis-x'])
   assert.equal(result.verdict.ok, true)
   assert.deepEqual(result.verdict.problems, [])
+})
+
+// The Muse's "[Rivet confirma]": uninstalling must NOT delete the person's data. A file is planted where `deleteAppDataOnUninstall` would delete it
+// (%APPDATA%\Persona, the app's userData) and must still be there after the uninstaller ran.
+const sentinel = { path: 'C:/Users/x/AppData/Roaming/Persona/.install-trial-1.txt', dir: 'C:/Users/x/AppData/Roaming/Persona', createdDir: false }
+
+test('runInstallTrial: the data planted before the uninstall is still there afterwards, and the sentinel is taken away', () => {
+  const dropped = []
+  const { result } = trial({ sentinel, sentinelKept: true, dropped })
+  assert.equal(result.dataKept, true)
+  assert.equal(result.verdict.ok, true)
+  assert.deepEqual(dropped, [sentinel])
+})
+
+test('runInstallTrial: an uninstaller that deletes the data folder is a PROBLEM, named (deleteAppDataOnUninstall is on)', () => {
+  const dropped = []
+  const { result } = trial({ sentinel, sentinelKept: false, dropped })
+  assert.equal(result.dataKept, false)
+  assert.equal(result.verdict.ok, false)
+  assert.match(result.verdict.problems.join('|'), /deleted the person's data/u)
+  assert.deepEqual(dropped, [sentinel]) // it still cleans up after itself
+})
+
+test('runInstallTrial: where nothing could be planted (no APPDATA) nothing is judged', () => {
+  const { result } = trial({ sentinel: undefined })
+  assert.equal(result.dataKept, null)
+  assert.equal(result.verdict.ok, true)
+})
+
+test('plantDataSentinel / dropDataSentinel: plant in a temp "APPDATA"; remove the file and ONLY a folder this call created', () => {
+  const appData = mkdtempSync(join(tmpdir(), 'persona-appdata-'))
+  try {
+    const fresh = plantDataSentinel(appData)
+    assert.equal(fresh.createdDir, true)
+    assert.equal(existsSync(fresh.path), true)
+    dropDataSentinel(fresh)
+    assert.equal(existsSync(fresh.dir), false) // it made the folder, so it takes it away
+    mkdirSync(join(appData, 'Persona'), { recursive: true })
+    writeFileSync(join(appData, 'Persona', 'settings.json'), '{}')
+    const kept = plantDataSentinel(appData)
+    assert.equal(kept.createdDir, false)
+    dropDataSentinel(kept)
+    assert.equal(existsSync(kept.path), false)
+    assert.equal(existsSync(join(appData, 'Persona', 'settings.json')), true) // the person's own file is never touched
+    assert.equal(plantDataSentinel(''), undefined)
+  } finally { rmSync(appData, { recursive: true, force: true }) }
 })
 
 test('runInstallTrial: a temp directory that cannot be removed is a warning, the verdict stays green', () => {

@@ -9,7 +9,7 @@
  * O onboarding escolhe a equipe em branco, e uma equipe em branco não responde: o teste contrata a equipe sugerida como um usuário faz.
  * Uma instância pesada: rode sob a trava `build`.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { assertConsoleClean, watchConsole } from '../src/console-tripwire.ts'
@@ -99,6 +99,8 @@ describe.skipIf(!run)(`B8 Tier 2 — tema REAL do app (${useInstalled ? 'Setup i
         await page.emulateMedia({ colorScheme: null })
         await page.waitForTimeout(1_000)
         const seen = await page.evaluate(MEASURE_THEME) as { prefersDark: boolean; bodyAttr: string | null; htmlHasAttr: boolean; shellBg: string }
+        // The evidence of HOW the app was launched and what it printed (the theme pin is the main process's: `PERSONA_THEME` in its env -> `nativeTheme.themeSource`): kept beside the captures.
+        writeFileSync(join(dir, `theme-${theme}-boot.log`), `PERSONA_THEME=${env.PERSONA_THEME} home=${desktop.home} userData=${desktop.userData}\nseen=${JSON.stringify(seen)}\n---\n${desktop.log().slice(-8_000)}\n`)
         expect(seen.prefersDark, `o app resolveu prefers-color-scheme ${theme}`).toBe(theme === 'dark')
         if (theme === 'dark') expect(seen.bodyAttr, 'data-ds-dark-theme no <body>').toBe('true')
         else expect(seen.bodyAttr, 'no claro o atributo fica AUSENTE').toBeNull()

@@ -88,10 +88,12 @@ describe('desktop package-set selection', () => {
     const files = [
       'package/lib/index.js',
       'package/lib/cli.js',
+      'package/config/electron.cordis.patch.yml', // required since the Persona profile layer: the packaged host loads it (the verifier checks it too)
     ]
     expect(() => {
       assertDesktopHostPackageFiles(files)
     }).not.toThrow()
+    expect(() => { assertDesktopHostPackageFiles(files.slice(0, 2)) }).toThrow(/electron\.cordis\.patch\.yml/u)
     expect(() => {
       assertDesktopHostPackageFiles(files.slice(1))
     }).toThrow(/lib\/index\.js/u)

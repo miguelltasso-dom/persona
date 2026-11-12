@@ -224,9 +224,10 @@ export function DirectMessagesView({
               'dm',
               transcribe,
               { onDownloading: () => { setDmVoiceStatus(shellT('voice.downloadingFirstUse')) } },
-            )
+            ).catch(() => ({ status: 'failed' as const }))
+            // Keel 13:17: se o envio falhar, a frase de download sai e a de falha entra.
             setDmVoiceStatus(undefined)
-            setDmVoiceWarning(outcome.status === 'unavailable' ? shellT('voice.transcribeUnavailable') : undefined)
+            setDmVoiceWarning(outcome.status === 'unavailable' ? shellT('voice.transcribeUnavailable') : outcome.status === 'failed' ? shellT('voice.sendFailed') : undefined)
           }}
         />
         {dmVoiceStatus === undefined ? null : <span role="status" className={styles.voiceWarning}>{dmVoiceStatus}</span>}

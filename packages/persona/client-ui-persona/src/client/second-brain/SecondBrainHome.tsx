@@ -25,6 +25,7 @@ import {
   contradictionSides,
   countPagesByKind,
   grantActionLabel,
+  grantUsageLabel,
   grantIsActive,
   grantTargetLabel,
   brainPageTitle,
@@ -371,7 +372,7 @@ export function SecondBrainHome({
                       scope={grantScope(dict, grant, personaNames, personaAvatars)}
                       grantedBy={t('permissions.grantedByYou')}
                       validityText={grantValidityLabel(dict, grant)}
-                      usage={grant.useCount > 0 ? t('permissions.usage', { count: grant.useCount }) : undefined}
+                      usage={grant.useCount > 0 ? grantUsageLabel(dict, grant.useCount) : undefined}
                       labels={{
                         revoke: t('permissions.revoke'),
                         confirmRevoke: t('permissions.confirmRevoke'),

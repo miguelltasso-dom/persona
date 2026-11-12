@@ -1332,8 +1332,8 @@ describe('desktop main startup', () => {
 
   // Persona startup supports Portuguese and English; upstream Chinese falls back to English.
   it.each([
-    ['pt', 'pt-BR', 'Não conseguimos abrir a Persona', 'Isso costuma se resolver tentando de novo. Se continuar, reinicie o computador.'],
-    ['zh-CN', 'en', 'We couldn’t open Persona', 'Trying again usually fixes it. If it keeps happening, restart your computer.'],
+    ['pt', 'pt-BR', 'Não conseguimos abrir a Persona', 'Isso costuma se resolver tentando de novo. Se continuar, feche a Persona pela bandeja e abra de novo.'],
+    ['zh-CN', 'en', 'We couldn’t open Persona', 'Trying again usually fixes it. If it keeps happening, close Persona from the tray and open it again.'],
   ] as const)('retains supported cached startup language and falls back for unsupported %s after a Host crash', async (cached, displayed, title, body) => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
     const directory = join(harness.app.getPath('userData'), 'desktop')
@@ -2639,7 +2639,7 @@ describe('desktop main startup', () => {
     const detail = { code: 'boot_failed', message: 'client mount failed' }
     expect(window.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState, detail)
     expect(bootFailureView('en', detail)).toEqual({ language: 'en', title: 'We couldn’t open Persona',
-      body: 'Trying again usually fixes it. If it keeps happening, restart your computer.',
+      body: 'Trying again usually fixes it. If it keeps happening, close Persona from the tray and open it again.',
       diagnostic: 'boot_failed · client mount failed', visible: true })
     expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'host', phase: 'startup',
       error: new Error('client mount failed') }))
@@ -2668,7 +2668,7 @@ describe('desktop main startup', () => {
     const detail = { code: 'boot_failed', message: 'runtime resources missing' }
     await vi.waitFor(() => { expect(window.webContents.send).toHaveBeenCalledWith(DESKTOP_IPC.bootState, detail) })
     expect(bootFailureView('en', detail)).toEqual({ language: 'en', title: 'We couldn’t open Persona',
-      body: 'Trying again usually fixes it. If it keeps happening, restart your computer.',
+      body: 'Trying again usually fixes it. If it keeps happening, close Persona from the tray and open it again.',
       diagnostic: 'boot_failed · runtime resources missing', visible: true })
     expect(writeCrashReport).toHaveBeenCalledWith(harness.app.getPath('logs'), expect.objectContaining({ source: 'host', phase: 'startup',
       error: new Error('runtime resources missing') }))
@@ -3011,7 +3011,7 @@ describe('desktop main startup', () => {
     await startup
     expect(harness.windows[0]!.urls).not.toContain('http://127.0.0.1:3080/?token=test')
     expect(bootFailureView('en', detail)).toEqual({ language: 'en', title: 'We couldn’t open Persona',
-      body: 'Trying again usually fixes it. If it keeps happening, restart your computer.',
+      body: 'Trying again usually fixes it. If it keeps happening, close Persona from the tray and open it again.',
       diagnostic: 'boot_failed · backend exited during startup preferences', visible: true })
     expect(harness.windows[0]!.isDestroyed()).toBe(false)
     expect(harness.windows[0]!.show).not.toHaveBeenCalled()

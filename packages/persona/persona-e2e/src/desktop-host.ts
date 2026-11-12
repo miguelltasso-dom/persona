@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { mkdir, rm } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -11,6 +12,30 @@ import { cleanChildEnv } from './clean-env.ts'
 import { launchDirect, launchUnderLock } from './locked-launch.ts'
 
 const execFileAsync = promisify(execFile)
+
+/**
+ * The dev launch (`pnpm start:desktop` = `tsx scripts/dev.ts --skip-build`) runs the BUILT main (`apps/desktop/lib/main.js`) and never rebuilds it: when the sources are newer, a run exercises OLD code (Rivet 12/11: the
+ * main was 8 days old, had no theme pin, so the light theme test read dark and the dark one passed "for free"). Pure.
+ * @param builtAtMs - mtime of `lib/main.js` (`undefined` = it does not exist).
+ * @param newestSourceMs - mtime of the newest file under `apps/desktop/src`.
+ * @returns Why the run would NOT exercise today's desktop (empty = the build is current).
+ */
+export function desktopBuildProblems(builtAtMs: number | undefined, newestSourceMs: number): string[] {
+  const fix = 'rode `pnpm --filter @deepseek-ai/dsh-desktop run build` sob a trava build antes (ou PERSONA_DESKTOP_ALLOW_STALE=1 para rodar assim mesmo)'
+  if (builtAtMs === undefined) return [`apps/desktop/lib/main.js não existe: ${fix}`]
+  if (newestSourceMs <= builtAtMs + 60_000) return []
+  return [`apps/desktop/lib/main.js (${new Date(builtAtMs).toISOString()}) é mais velho que o código do desktop (${new Date(newestSourceMs).toISOString()}): o dev launch roda o main VELHO; ${fix}`]
+}
+
+/** The mtime of the newest file under a folder (recursive). */
+function newestMtimeMs(dir: string): number {
+  let newest = 0
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    newest = Math.max(newest, entry.isDirectory() ? newestMtimeMs(path) : statSync(path).mtimeMs)
+  }
+  return newest
+}
 
 export interface StartDesktopOptions {
   home?: string
@@ -25,6 +50,8 @@ export interface DesktopHostHandle {
   readonly home: string
   readonly userData: string
   readonly rendererPort: number
+  /** What the dev launch (`pnpm start:desktop`: pnpm and the main process) printed so far: the evidence when the app did something the test did not expect (the theme pin, a missing window). */
+  log(): string
   stop(): Promise<void>
 }
 
@@ -68,6 +95,11 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
       'Electron binary not installed — run `pnpm --filter @deepseek-ai/dsh-desktop exec install-electron` (Rivet A3a)',
     )
   }
+
+  // The dev launch does not rebuild: refuse to prove anything about a stale main (see {@link desktopBuildProblems}).
+  const built = join(REPO_ROOT, 'apps', 'desktop', 'lib', 'main.js')
+  const stale = desktopBuildProblems(existsSync(built) ? statSync(built).mtimeMs : undefined, newestMtimeMs(join(REPO_ROOT, 'apps', 'desktop', 'src')))
+  if (stale.length > 0 && process.env.PERSONA_DESKTOP_ALLOW_STALE !== '1') throw new Error(`desktop: ${stale.join('; ')}`)
 
   const id = randomUUID()
   const runRoot = join(E2E_TMP_ROOT, `e2e-desktop-${id}`)
@@ -159,7 +191,7 @@ export async function startDesktop(options: StartDesktopOptions = {}): Promise<D
     }
   }
 
-  return { page, home, userData, rendererPort, stop }
+  return { page, home, userData, rendererPort, log: () => launch.output.text(), stop }
 }
 
 /**

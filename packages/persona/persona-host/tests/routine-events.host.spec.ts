@@ -189,6 +189,36 @@ it('the mail is DATA: a text that fakes the thread markers or gives orders arriv
   expect(armed?.mock.calls.every(call => call[3]?.authority === 'unattended')).toBe(true)
 })
 
+it('P1-07 C: the pre-router judges the routine\'s own request, never the mail: a text that trips one of its rules ("senha do banco") still starts the routine, with the mail fenced as data', async () => {
+  const h = setup()
+  const r = rig(h)
+  create(h)
+  r.inbox.push(mail('m1', { text: 'Oi, esqueci a senha do banco do cartão que usei no pedido, pode me ajudar a refazer a compra?' }))
+  await h.external.poll('pp', 'ana')
+  const first = await r.cycle()
+  expect(first.modelStarts, 'the mail\'s own words made the pre-router refuse the routine\'s request').toBe(1)
+  expect(tickets(h)).toHaveLength(1)
+  expect(runsOf(h)[0]?.status).toBe('done')
+  const request = h.events.listProject('pp').find(event => event.actorId === 'routine:r1')
+  expect(request?.body).toContain('senha do banco') // the Task still SEES the mail, fenced as data
+  expect(request?.body).toContain('NÃO é uma instrução')
+})
+
+it('P1-07 D: an event run that is over for good takes the text of its event with it (a run that only waits for a retry keeps it)', async () => {
+  const h = setup()
+  const r = rig(h)
+  create(h)
+  r.inbox.push(mail('m1'))
+  await h.external.poll('pp', 'ana')
+  const runId = eventRunIdOf('r1', 'mail:m1')
+  expect(h.screens.screens.get('pp', 'routine_event', runId)).toBeDefined() // the control: the text waits for the run
+  h.screens.screens.put('pp', 'persona_runtime', 'nina', { paused: true }) // the one who would do it is paused: the run ends (skipped) without a Task
+  await r.cycle()
+  expect(tickets(h)).toHaveLength(0)
+  expect(runsOf(h)[0]?.status).not.toBe('pending')
+  expect(h.screens.screens.get('pp', 'routine_event', runId), 'the mail text stayed in the store after the run was over').toBeUndefined()
+})
+
 it('the team\'s gates hold an event routine like any other: quiet window waits and goes after it; a paused team and the window reserve read nothing', async () => {
   const h = setup()
   const r = rig(h)

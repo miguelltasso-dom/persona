@@ -88,7 +88,9 @@ it('the table is the one the owners approved, by surface', () => {
   const by = (surface: string): string[] => Object.entries(SURFACE_REMOTES).filter(([, value]) => value === surface).map(([name]) => name).sort()
   expect(by('station')).toEqual(['issueStationCode', 'pairStation', 'setStationRunning', 'stationView'])
   expect(by('skillImport')).toEqual(['approveSkillUpdate', 'importSkills', 'previewSkillImport', 'refreshSkill'])
-  expect(by('channels')).toEqual(['getChannelHeader', 'getChannelLayout', 'getEquipeLayout', 'listMentionOptions', 'updateChannelLayout'])
+  expect(by('channels')).toEqual([
+    'ackChannelRead', 'getChannelHeader', 'getChannelHere', 'getChannelLayout', 'getChannelSuggestions', 'getChannelUnread', 'getEquipeLayout', 'getMessageOrigins', 'listMentionOptions', 'updateChannelLayout',
+  ]) // + the Casa da Equipe (12/11, Keel's order 09:41: the host of the Casa behind `channels`)
   expect(by('invite')).toEqual([
     'acceptInvite', 'cancelJoinRequest', 'connectRemoteTeam', 'createInviteLink', 'decideJoinRequest', 'getJoinStatus', 'getPersonaSheetStatus', 'getPresence', 'getRemoteTeamAvailability',
     'getRemoteTeamState', 'joinTeamFromLink', 'listJoinRequests', 'listRemoteMembers', 'previewInvite', 'reviewPersonaSheet', 'revokeMember', 'syncRemoteTeam',

@@ -153,7 +153,10 @@ export async function mainText(page: Page): Promise<string> {
 
 /** Open "Contratar persona" → the structure assistant (step 1). */
 export async function openStructureAssistant(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Contratar persona' }).click()
+  const hire = page.getByRole('button', { name: 'Contratar persona' })
+  // NAV-SPEC A-1 (navPlaces ON by default): the old rail's "Contratar persona" moved into the team panel of the "Equipe" place; with the old rail the button is already on screen.
+  if (await hire.count() === 0) await page.getByRole('button', { name: 'Equipe', exact: true }).click()
+  await hire.first().click()
   await page.getByRole('heading', { name: 'Monte uma equipe que faça sentido' }).waitFor({ state: 'visible', timeout: 30_000 })
 }
 

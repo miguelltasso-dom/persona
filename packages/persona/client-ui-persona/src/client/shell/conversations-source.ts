@@ -60,6 +60,7 @@ export function mapConversationsSource(input: MapConversationsInput): Conversati
       ...(persona.draftFiles === undefined ? {} : { draftFiles: persona.draftFiles }),
       ...(persona.quiet === undefined ? {} : { quiet: persona.quiet }),
       ...(persona.paused === undefined ? {} : { paused: persona.paused }),
+      ...(persona.step === undefined ? {} : { step: persona.step }),
       teamId: sector?.id ?? null,
       teamName: sector?.title ?? null,
       unread: persona.unread,

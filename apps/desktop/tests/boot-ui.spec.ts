@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { attachBootUi } from '../src/boot-ui.ts'
 
@@ -111,6 +111,25 @@ describe('Acordando o time: the static copies follow the app', () => {
     expect([...listed].sort()).toEqual(shipped)
     const source = readdirSync(new URL('../../../packages/persona/client-ui-persona/src/client/assets/avatars/', import.meta.url))
     for (const id of listed) expect(source, id).toContain(`${id}-96.webp`)
+  })
+
+  it('every asset the markup, the stylesheet and the script point to is shipped', () => {
+    const shipped = (path: string): boolean => existsSync(new URL(`../renderer/persona-boot/${path}`, import.meta.url))
+    const markup = boot('boot.html')
+    const fromMarkup = [...markup.matchAll(/\/__persona-boot-ui__\/(assets\/[\w./-]+)/gu)].map(match => match[1]!)
+    // Muse (12/11): the lamp, the first-opening picture and the symbol are part of the scene.
+    expect(fromMarkup).toEqual(expect.arrayContaining(['assets/lamp.webp', 'assets/primeira-vez.webp', 'assets/symbol.svg', 'assets/atlas-erro.webp']))
+    for (const path of fromMarkup) expect(shipped(path), path).toBe(true)
+    for (const match of boot('boot.css').matchAll(/url\((assets\/[\w./-]+)\)/gu)) expect(shipped(match[1]!), match[1]).toBe(true)
+    for (const match of boot('boot-fonts.css').matchAll(/url\((assets\/[\w./-]+)\)/gu)) expect(shipped(match[1]!), match[1]).toBe(true)
+    expect(boot('boot.js')).toContain("'/__persona-boot-ui__/assets/faces/'")
+  })
+
+  it('the first-opening scene shows neither the lamp nor the faces, and fades in with the others under reduced motion', () => {
+    const css = boot('boot.css')
+    expect(css).toContain("[data-variant='first'] .lamp, [data-variant='first'] .faces { display: none; }")
+    expect(css).toMatch(/\[data-scene='on'\] \.first \{ animation: arrive /u)
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^]*\[data-scene='on'\] \.first,/u)
   })
 
   it('the rail labels equal the shell locale labels (pt and en)', () => {

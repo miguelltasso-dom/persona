@@ -59,6 +59,16 @@ export const BUDGET_PRESETS: Readonly<Record<Exclude<BudgetPreset, 'custom'>, Pr
 /** Rough size of a "tarefa média" for the plain-language estimate (Rivet calibrates from UsageStore). */
 export const TOKENS_PER_MEDIUM_TASK = 10_000
 
+/** "50.000": a count with its thousands separator on the screen (Muse, passada de leigo 4: "50000" is a raw number). */
+export function formatCount(value: number): string {
+  return value.toLocaleString('pt-BR')
+}
+
+/** What was typed in a count field: only its digits count ("1.200.000", "1 200 000" and "1200000" are the same number); empty is 0. */
+export function countOf(text: string): number {
+  return Number(text.replace(/[^0-9]/gu, '')) || 0
+}
+
 export function presetOf(limits: ProactivityLimits): BudgetPreset {
   for (const [id, preset] of Object.entries(BUDGET_PRESETS) as [Exclude<BudgetPreset, 'custom'>, ProactivityLimits][]) {
     if (preset.maxProposalsPerDay === limits.maxProposalsPerDay
@@ -196,7 +206,6 @@ export function TriageRulesView({
                 proposals: BUDGET_PRESETS[id].maxProposalsPerDay,
                 tasks: tasksPerMonth(BUDGET_PRESETS[id].tokensPerPersonaMonth),
               }),
-              ...(id === 'normal' ? { badge: t('preset.recommended') } : {}),
             })),
             { id: 'custom' as const, title: t('preset.custom'), body: t('preset.customBody') },
           ]}
@@ -204,35 +213,33 @@ export function TriageRulesView({
         {preset === 'custom' && (
           <div className={styles.fieldGrid}>
             <Input
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
               label={t('limits.maxProposals')}
               hint={t('limits.maxProposalsHint')}
-              value={String(limits.maxProposalsPerDay)}
+              value={formatCount(limits.maxProposalsPerDay)}
               onChange={(e) => {
-                setLimits({ ...limits, maxProposalsPerDay: Number(e.target.value) || 0 })
+                setLimits({ ...limits, maxProposalsPerDay: countOf(e.target.value) })
               }}
             />
             <Input
-              type="number"
-              min={0}
-              step={10_000}
+              type="text"
+              inputMode="numeric"
               label={t('limits.tokensPersona')}
               hint={t('preset.tasksHint', { tasks: tasksPerMonth(limits.tokensPerPersonaMonth) })}
-              value={String(limits.tokensPerPersonaMonth)}
+              value={formatCount(limits.tokensPerPersonaMonth)}
               onChange={(e) => {
-                setLimits({ ...limits, tokensPerPersonaMonth: Number(e.target.value) || 0 })
+                setLimits({ ...limits, tokensPerPersonaMonth: countOf(e.target.value) })
               }}
             />
             <Input
-              type="number"
-              min={0}
-              step={10_000}
+              type="text"
+              inputMode="numeric"
               label={t('limits.tokensProject')}
               hint={t('preset.tasksHint', { tasks: tasksPerMonth(limits.tokensPerProjectMonth) })}
-              value={String(limits.tokensPerProjectMonth)}
+              value={formatCount(limits.tokensPerProjectMonth)}
               onChange={(e) => {
-                setLimits({ ...limits, tokensPerProjectMonth: Number(e.target.value) || 0 })
+                setLimits({ ...limits, tokensPerProjectMonth: countOf(e.target.value) })
               }}
             />
           </div>

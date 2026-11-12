@@ -102,6 +102,9 @@ function accountCount(ui: ConnectionsAccountsUi): number {
 /** Ids crus que o host manda como nome da conta padrão viram nome humano (Muse §5.2 #12). Match exato: um nome que o usuário digitou fica como está. */
 function accountDisplayLabel(label: string, t: (key: string) => string): string {
   if (label === 'claude') return t('account.label.claude')
+  if (label === 'codex') return t('account.label.codex')
+  if (label === 'cursor') return t('account.label.cursor')
+  if (label === 'opencode') return t('account.label.opencode')
   if (label === 'dsh') return t('account.label.dsh')
   return label
 }
@@ -402,7 +405,7 @@ export function ConnectionsView({
     body = (
       <>
         <p className={styles.note}>{t('valueFirst.note')}</p>
-        <Notice tone="info">{t('wave2.termsNotice')}</Notice>
+        <Notice tone="neutral">{t('wave2.termsNotice')}</Notice>
 
         <div className={styles.providerList}>
           {ui.groups.map(group => (

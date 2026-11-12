@@ -2,11 +2,21 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { expect, it } from 'vitest'
-import { desktopRuntimeFileExclusion } from '../scripts/runtime-file-policy.ts'
+import { PERSONA_EXCLUDED_PACKAGES, desktopRuntimeFileExclusion } from '../scripts/runtime-file-policy.ts'
 import { verifyDesktopRuntime, writeDesktopRuntime } from '../src/runtime-tree.ts'
 import { runtimeFixture } from './runtime-fixture.ts'
 
 const windows = { platform: 'win32' as const, arch: 'x64' }
+
+// Carbon P2-01/P2-03: the table named `@deepseek-ai/dsh-cua-macos`, which is not a package, so the macOS provider
+// was never excluded (and only a macOS pack could notice).
+it('names the CUA packages by their REAL package.json name: a wrong name excludes nothing', () => {
+  for (const directory of ['cua', 'cua-bundle', 'cua-macos']) {
+    const manifest = JSON.parse(readFileSync(join(import.meta.dirname, '../../../packages/experimental', directory, 'package.json'), 'utf8')) as { name: string }
+    expect(PERSONA_EXCLUDED_PACKAGES[manifest.name], `${directory} (${manifest.name}) must be excluded from the Persona runtime`).toBe(true)
+  }
+  expect(Object.keys(PERSONA_EXCLUDED_PACKAGES)).not.toContain('@deepseek-ai/dsh-cua-macos')
+})
 
 it('omits development artifacts while preserving executable modules, assets and license files', async () => {
   const root = mkdtempSync(join(tmpdir(), 'desktop-file-policy-'))

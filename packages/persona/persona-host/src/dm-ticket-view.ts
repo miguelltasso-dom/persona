@@ -44,6 +44,15 @@ export function ticketOfActionCard(id: string): string {
  */
 export function maskDmApprovalCard(card: ApprovalView, seen: (ticketId: string) => boolean): ApprovalView {
   if (card.kind === 'attention') return seen(card.id) ? card : { ...card, title: PRIVATE_DM_TASK_TITLE, question: PRIVATE_DM_TASK_TITLE }
+  if (card.kind === 'connector') {
+    // The request to use a connector quotes the Task it is for (its title) and the reason the persona gave: for a Task born in a DM, neither is for those outside it.
+    const taskId = card.connector?.taskId
+    if (card.connector === undefined || taskId === undefined || seen(taskId)) return card
+    const { taskTitle, purpose, ...rest } = card.connector
+    void taskTitle
+    void purpose
+    return { ...card, question: `${card.personaName} precisa do ${card.connector.connectorName} para uma tarefa de uma conversa privada.`, connector: rest }
+  }
   if (card.kind !== 'action' || card.actionPreview === undefined || seen(ticketOfActionCard(card.id))) return card
   const neutral = Object.fromEntries(Object.entries(card.actionPreview).filter(([key]) => !ACTION_PREVIEW_WORDS.has(key))) as unknown as ActionPreviewView
   return { ...card, actionPreview: neutral }

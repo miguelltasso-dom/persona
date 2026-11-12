@@ -416,6 +416,21 @@ const brainClient = (): PersonaRemoteClient => ({
   getBrainPage: async () => ({ ok: true, value: BRAIN_START }), listBrainVersions: async () => ({ ok: true, value: [] }),
   putBrainPage: async () => ({ ok: true, value: BRAIN_START }), restoreBrainPage: async () => ({ ok: true, value: BRAIN_START }),
 }) as unknown as PersonaRemoteClient
+const BRAIN_GRANT_PAGE = brainPageOf('g1', 'reply-whatsapp · clientes-aprovados', 'permission', 'Permissão')
+const BRAIN_GRANT_PAGE2 = brainPageOf('g2', 'send-email · fornecedores', 'permission', 'Permissão')
+const BRAIN_HOME_GRANTS: BrainHomeView = {
+  startHereId: 'start',
+  changedToday: [BRAIN_START, BRAIN_GRANT_PAGE],
+  activeGrants: [
+    { id: 'gr1', pageId: 'g1', personaId: 'atlas', action: 'reply-whatsapp', target: 'clientes-aprovados', validity: 'until-revoke', useCount: 3 },
+    { id: 'gr2', pageId: 'g2', personaId: 'nina', action: 'send-email', target: 'fornecedores', validity: '7d', useCount: 1 },
+  ],
+  contradictions: [],
+  leftover: [],
+}
+const brainShellGrants = (): ReactNode => (
+  <SecondBrainShell persona={brainClient()} scope={{ workspaceId: 'ws', projectId: 'proj' }} actorId="owner" home={BRAIN_HOME_GRANTS} pages={[BRAIN_START, BRAIN_GRANT_PAGE, BRAIN_GRANT_PAGE2]} grants={[]} personaNames={{ atlas: 'Atlas', nina: 'Nina' }} memberNames={{ owner: 'Você' }} surfaceState="ready" />
+)
 const brainShell = (): ReactNode => (
   <SecondBrainShell persona={brainClient()} scope={{ workspaceId: 'ws', projectId: 'proj' }} actorId="owner" home={BRAIN_HOME} pages={[BRAIN_START]} grants={[]} personaNames={{ nina: 'Nina' }} memberNames={{ owner: 'Você' }} surfaceState="ready" />
 )
@@ -451,6 +466,9 @@ const STATES: Readonly<Record<string, () => ReactNode>> = {
   'tarefa-detalhes': () => leigoDetalhes(),
   'cartao-feito': () => <div style={{ display: 'grid', gap: 12, maxWidth: 340 }}>{leigoCard('d1', 'Cartaz da promoção', 'done', { assignee: { id: 'bia', name: 'Bia', initials: 'B' }, assigneeState: 'resting' })}{leigoCard('d2', 'Tabela de preços da semana', 'in_progress', { assignee: { id: 'nina', name: 'Nina', initials: 'N' }, assigneeState: 'working' })}</div>,
   'memoria-empresa': () => brainShell(),
+  'memoria-permissoes': () => brainShellGrants(),
+  'memoria-permissoes-tirar': () => <Drive steps={[{ role: 'button', name: 'Tirar permissão*' }]}>{brainShellGrants()}</Drive>,
+  'memoria-permissoes-tela': () => <Drive steps={[{ role: 'button', name: 'Permissões' }]}>{brainShellGrants()}</Drive>,
   'cofre-codigo-pedindo': () => <TypeIn digits="4829">{codeCard(codeRow())}</TypeIn>,
   'cofre-codigo-entregue': () => codeCard(codeRow({ state: 'filled' })),
   'cofre-codigo-vencido': () => codeCard(codeRow({ state: 'expired', expiresAt: new Date(Date.now() - 60_000).toISOString() })),

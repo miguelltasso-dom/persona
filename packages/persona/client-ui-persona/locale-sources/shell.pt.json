@@ -266,6 +266,7 @@
   "sounds.medium": "Médio",
   "voice.record": "Gravar áudio",
   "voice.discard": "Descartar",
+  "voice.sendFailed": "Não consegui enviar o áudio. Tente de novo.",
   "voice.downloadingFirstUse": "Baixando o ouvido da Persona (1ª vez)…",
   "voice.transcribeUnavailable": "Não consegui transcrever o áudio agora, então a mensagem não foi enviada. Grave de novo quando a voz estiver disponível.",
   "voice.send": "Enviar áudio",

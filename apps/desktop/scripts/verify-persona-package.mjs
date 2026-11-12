@@ -7,6 +7,7 @@ import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { freePort } from '../../../scripts/persona/free-port.mjs'
 import { prepareVaultProof, readVaultProof } from './persona-vault-proof.mjs'
+import { componentsGateOf } from './components-gate.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 const require = createRequire(import.meta.url)
@@ -66,6 +67,11 @@ let imageGate
   if (rasterized.ok !== true) throw new Error(`The packaged runtime cannot rasterize an SVG with sharp (the v1.1 image features need it): ${rasterized.error ?? JSON.stringify(rasterized)}`)
   imageGate = rasterized
 }
+// D-101 (item 20): the manifest of on-demand components travels with the app; without it the voice model stays 'unavailable' (the model itself is
+// downloaded on demand, so only the manifest is judged here).
+const componentsGate = componentsGateOf(join(dirname(exe), 'resources'))
+console.log(`COMPONENTS ${JSON.stringify(componentsGate)}`)
+if (!componentsGate.ok) throw new Error(`The package has no valid components.json with the voice model (D-101): ${componentsGate.problems.join('; ')}`)
 const results = []
 // --real-theme: pin the REAL native theme per run through PERSONA_THEME (P0-7) instead of faking dark by writing the DOM attribute.
 const realTheme = process.argv.includes('--real-theme')
@@ -183,4 +189,4 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
     writeFileSync(join(output, dark ? 'dark.log' : 'light.log'), log.join(''))
   }
 }
-writeFileSync(join(output, 'proof.json'), JSON.stringify({ commit: manifest.dshBuildCommit, archive, engineGate, imageGate, results }, null, 2) + '\n')
+writeFileSync(join(output, 'proof.json'), JSON.stringify({ commit: manifest.dshBuildCommit, archive, engineGate, imageGate, componentsGate, results }, null, 2) + '\n')

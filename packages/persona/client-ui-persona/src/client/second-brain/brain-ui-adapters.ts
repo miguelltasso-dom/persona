@@ -114,9 +114,11 @@ export function brainSourceDisplay(dict: LocaleDict, source: string): string | u
 }
 
 const SLUG = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/u
+/** An ACTION slug may carry dots (the host's own verbs: `skill.activate`, `action.send`); a TARGET may not (`notas.md` is a file name, not words). */
+const ACTION_SLUG = /^[a-z0-9]+(?:[-_.][a-z0-9]+)*$/u
 
 function slugWords(slug: string): string {
-  return slug.replace(/[-_]+/gu, ' ')
+  return slug.replace(/[-_.]+/gu, ' ')
 }
 
 /** A permission's action as a sentence part: a known label, else the slug as plain words ("Reply whatsapp" beats `reply-whatsapp`). */
@@ -124,23 +126,32 @@ export function grantActionLabel(dict: LocaleDict, action: string): string {
   const key = `grant.action.${action}`
   const known = bindLocale(dict, key)
   if (known !== key) return known
-  if (!SLUG.test(action)) return action
-  const words = slugWords(action)
-  return `${words.charAt(0).toUpperCase()}${words.slice(1)}`
+  if (!ACTION_SLUG.test(action)) return action
+  // Ember 12:34: a verb the dictionary does not know never reads as loose English ("Send invoice"): it says it is an action and keeps the words in parentheses.
+  return bindLocale(dict, 'grant.action.unknown', { name: slugWords(action) })
 }
 
 export function grantTargetLabel(dict: LocaleDict, target: string): string {
   const key = `grant.target.${target}`
   const known = bindLocale(dict, key)
   if (known !== key) return known
+  // Ember 12:34: a target is never a URL on the screen (an account connector id is its proxy URL WITH THE KEY inside), and an opaque `skill:<id>` / `vault:<id>` says what it is.
+  if (target.includes('://')) return bindLocale(dict, 'grant.target.service')
+  const kind = /^(skill|vault):/u.exec(target)?.[1]
+  if (kind !== undefined) return bindLocale(dict, `grant.target.${kind}`)
   return SLUG.test(target) ? slugWords(target) : target
+}
+
+/** "Usada 1 vez" / "Usada 3 vezes": the singular is its own sentence (Ember 12:34: "Usada 1 vezes"). */
+export function grantUsageLabel(dict: LocaleDict, count: number): string {
+  return count === 1 ? bindLocale(dict, 'permissions.usageOne') : bindLocale(dict, 'permissions.usage', { count })
 }
 
 /** The page's title for people: a permission page is titled `action · target` by the host. */
 export function brainPageTitle(dict: LocaleDict, page: BrainPageView): string {
   if (page.kind !== 'permission') return page.title
   const [action, target] = page.title.split(' · ').map(part => part.trim())
-  if (action === undefined || !SLUG.test(action)) return page.title
+  if (action === undefined || !ACTION_SLUG.test(action)) return page.title
   const head = grantActionLabel(dict, action)
   return target === undefined || target === '' ? head : `${head}: ${grantTargetLabel(dict, target)}`
 }

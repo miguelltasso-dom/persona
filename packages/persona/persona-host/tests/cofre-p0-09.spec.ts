@@ -137,3 +137,21 @@ it('the backup made BEFORE the sweep does not keep the token in clear either (it
   expect(bytes.includes('token-novo-do-telegram')).toBe(false)
   expect(bytes.includes('token-antigo-do-telegram')).toBe(false)
 })
+
+it('Keel 12:15: erasing a secret leaves nothing in the WAL either, by itself: purgeSecretFacts truncates the log (no manual checkpoint is needed to read clean bytes)', async () => {
+  const { handle, vault } = await setup()
+  vault.createRecord({ id: 'r-wal', workspaceId: 'ws', projectId: 'pp', kind: 'memory', body: '777777:token-no-wal-do-telegram', authorId: 'ana', visibility: { kind: 'workspace' }, factKey: VAULT_TELEGRAM })
+  vault.purgeSecretFacts([VAULT_TELEGRAM])
+  const wal = existsSync(`${handle.path}-wal`) ? readFileSync(`${handle.path}-wal`) : Buffer.alloc(0)
+  expect(readFileSync(handle.path).includes('token-no-wal-do-telegram'), 'the main file').toBe(false)
+  expect(wal.includes('token-no-wal-do-telegram'), 'the WAL').toBe(false)
+})
+
+it('Keel 12:15: the same for purgeSecret(id), the erasure of ONE record by id', async () => {
+  const { handle, vault } = await setup()
+  vault.createRecord({ id: 'r-wal2', workspaceId: 'ws', projectId: 'pp', kind: 'memory', body: '888888:outro-token-no-wal', authorId: 'ana', visibility: { kind: 'workspace' }, factKey: VAULT_TELEGRAM })
+  vault.purgeSecret('r-wal2')
+  const wal = existsSync(`${handle.path}-wal`) ? readFileSync(`${handle.path}-wal`) : Buffer.alloc(0)
+  expect(readFileSync(handle.path).includes('outro-token-no-wal'), 'the main file').toBe(false)
+  expect(wal.includes('outro-token-no-wal'), 'the WAL').toBe(false)
+})

@@ -3,6 +3,7 @@
  */
 
 import { looksLikeCredential } from '@deepseek-ai/dsh-persona-core'
+import { audioMimeBySignature } from './media-audio.ts'
 
 /** Per-file cap for message attachments. */
 export const MAX_FILE_BYTES = 8 * 1024 * 1024
@@ -110,6 +111,11 @@ export function detectUpload(bytes: Uint8Array, rawName: string, kind: 'attachme
   if (bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && /\.docx$/iu.test(name)) {
     if (kind === 'avatar') throw new Error('type-rejected')
     return finish('application/vnd.openxmlformats-officedocument.wordprocessingml.document', name, bytes)
+  }
+  // P1 voz (Keel 13:17): o áudio do MediaRecorder (WebM/EBML, OGG) é anexo; reconhecido pela assinatura, só para anexo.
+  if (kind === 'attachment') {
+    const audio = audioMimeBySignature(bytes)
+    if (audio !== undefined) return finish(audio, name, bytes)
   }
   if (kind === 'avatar') throw new Error('type-rejected')
   if (isText(bytes)) {

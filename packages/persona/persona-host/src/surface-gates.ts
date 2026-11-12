@@ -102,6 +102,7 @@ export const SURFACE_REMOTES: Readonly<Record<string, Surface>> = {
   getPersonaSheetStatus: 'invite', reviewPersonaSheet: 'invite',
   // channels (item 22, Flint)
   getChannelLayout: 'channels', getChannelHeader: 'channels', getEquipeLayout: 'channels', updateChannelLayout: 'channels', listMentionOptions: 'channels',
+  getChannelUnread: 'channels', ackChannelRead: 'channels', getChannelHere: 'channels', getMessageOrigins: 'channels', getChannelSuggestions: 'channels', // Casa da Equipe
   // skillImport (item 26.10, Flint)
   previewSkillImport: 'skillImport', importSkills: 'skillImport', refreshSkill: 'skillImport', approveSkillUpdate: 'skillImport',
   // station (item 24, Prism)

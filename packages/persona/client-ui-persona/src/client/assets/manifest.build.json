@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-12T14:34:33.094Z",
+    "generatedAt": "2026-11-12T16:12:23.625Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 945,
-    "totalBytes": 14494207,
+    "files": 983,
+    "totalBytes": 14845191,
     "withinBudget": true
   },
   "files": [
@@ -1013,6 +1013,10 @@
       "bytes": 4288
     },
     {
+      "rel": "illustrations/equipe-nova.webp",
+      "bytes": 42150
+    },
+    {
       "rel": "illustrations/acordando-luminaria.webp",
       "bytes": 13786
     },
@@ -1253,8 +1257,16 @@
       "bytes": 7046
     },
     {
+      "rel": "stickers/cervo-boa-ideia.webp",
+      "bytes": 6334
+    },
+    {
       "rel": "stickers/cervo-bom-dia.webp",
       "bytes": 7864
+    },
+    {
+      "rel": "stickers/cervo-combinado.webp",
+      "bytes": 7126
     },
     {
       "rel": "stickers/cervo-comemorando.webp",
@@ -1273,6 +1285,10 @@
       "bytes": 8158
     },
     {
+      "rel": "stickers/cervo-obrigada.webp",
+      "bytes": 6840
+    },
+    {
       "rel": "stickers/cervo-pensando.webp",
       "bytes": 6564
     },
@@ -1281,12 +1297,24 @@
       "bytes": 7976
     },
     {
+      "rel": "stickers/cervo-uau.webp",
+      "bytes": 6168
+    },
+    {
       "rel": "stickers/coelho-ate-amanha.webp",
       "bytes": 5642
     },
     {
+      "rel": "stickers/coelho-boa-ideia.webp",
+      "bytes": 5620
+    },
+    {
       "rel": "stickers/coelho-bom-dia.webp",
       "bytes": 6026
+    },
+    {
+      "rel": "stickers/coelho-combinado.webp",
+      "bytes": 6074
     },
     {
       "rel": "stickers/coelho-comemorando.webp",
@@ -1305,6 +1333,10 @@
       "bytes": 5978
     },
     {
+      "rel": "stickers/coelho-obrigada.webp",
+      "bytes": 6188
+    },
+    {
       "rel": "stickers/coelho-pensando.webp",
       "bytes": 6424
     },
@@ -1313,12 +1345,24 @@
       "bytes": 6502
     },
     {
+      "rel": "stickers/coelho-uau.webp",
+      "bytes": 5710
+    },
+    {
       "rel": "stickers/coruja-ate-amanha.webp",
       "bytes": 7284
     },
     {
+      "rel": "stickers/coruja-boa-ideia.webp",
+      "bytes": 5974
+    },
+    {
       "rel": "stickers/coruja-bom-dia.webp",
       "bytes": 6664
+    },
+    {
+      "rel": "stickers/coruja-combinado.webp",
+      "bytes": 6966
     },
     {
       "rel": "stickers/coruja-comemorando.webp",
@@ -1337,6 +1381,10 @@
       "bytes": 6742
     },
     {
+      "rel": "stickers/coruja-obrigada.webp",
+      "bytes": 6370
+    },
+    {
       "rel": "stickers/coruja-pensando.webp",
       "bytes": 5692
     },
@@ -1345,12 +1393,24 @@
       "bytes": 8068
     },
     {
+      "rel": "stickers/coruja-uau.webp",
+      "bytes": 6180
+    },
+    {
       "rel": "stickers/guaxinim-ate-amanha.webp",
       "bytes": 6248
     },
     {
+      "rel": "stickers/guaxinim-boa-ideia.webp",
+      "bytes": 5868
+    },
+    {
       "rel": "stickers/guaxinim-bom-dia.webp",
       "bytes": 6102
+    },
+    {
+      "rel": "stickers/guaxinim-combinado.webp",
+      "bytes": 6740
     },
     {
       "rel": "stickers/guaxinim-comemorando.webp",
@@ -1369,6 +1429,10 @@
       "bytes": 6540
     },
     {
+      "rel": "stickers/guaxinim-obrigada.webp",
+      "bytes": 6380
+    },
+    {
       "rel": "stickers/guaxinim-pensando.webp",
       "bytes": 5822
     },
@@ -1377,12 +1441,24 @@
       "bytes": 7484
     },
     {
+      "rel": "stickers/guaxinim-uau.webp",
+      "bytes": 6178
+    },
+    {
       "rel": "stickers/lobo-guara-ate-amanha.webp",
       "bytes": 6816
     },
     {
+      "rel": "stickers/lobo-guara-boa-ideia.webp",
+      "bytes": 5678
+    },
+    {
       "rel": "stickers/lobo-guara-bom-dia.webp",
       "bytes": 7218
+    },
+    {
+      "rel": "stickers/lobo-guara-combinado.webp",
+      "bytes": 6414
     },
     {
       "rel": "stickers/lobo-guara-comemorando.webp",
@@ -1401,6 +1477,10 @@
       "bytes": 7074
     },
     {
+      "rel": "stickers/lobo-guara-obrigada.webp",
+      "bytes": 6314
+    },
+    {
       "rel": "stickers/lobo-guara-pensando.webp",
       "bytes": 5196
     },
@@ -1409,12 +1489,24 @@
       "bytes": 7138
     },
     {
+      "rel": "stickers/lobo-guara-uau.webp",
+      "bytes": 5960
+    },
+    {
       "rel": "stickers/lontra-ate-amanha.webp",
       "bytes": 5856
     },
     {
+      "rel": "stickers/lontra-boa-ideia.webp",
+      "bytes": 5312
+    },
+    {
       "rel": "stickers/lontra-bom-dia.webp",
       "bytes": 5812
+    },
+    {
+      "rel": "stickers/lontra-combinado.webp",
+      "bytes": 6380
     },
     {
       "rel": "stickers/lontra-comemorando.webp",
@@ -1433,12 +1525,20 @@
       "bytes": 6136
     },
     {
+      "rel": "stickers/lontra-obrigada.webp",
+      "bytes": 5386
+    },
+    {
       "rel": "stickers/lontra-pensando.webp",
       "bytes": 6330
     },
     {
       "rel": "stickers/lontra-rindo.webp",
       "bytes": 6860
+    },
+    {
+      "rel": "stickers/lontra-uau.webp",
+      "bytes": 5910
     },
     {
       "rel": "stickers/luna-ate-amanha.webp",
@@ -1493,8 +1593,16 @@
       "bytes": 6938
     },
     {
+      "rel": "stickers/mico-leao-dourado-boa-ideia.webp",
+      "bytes": 6050
+    },
+    {
       "rel": "stickers/mico-leao-dourado-bom-dia.webp",
       "bytes": 6610
+    },
+    {
+      "rel": "stickers/mico-leao-dourado-combinado.webp",
+      "bytes": 6860
     },
     {
       "rel": "stickers/mico-leao-dourado-comemorando.webp",
@@ -1513,12 +1621,20 @@
       "bytes": 7054
     },
     {
+      "rel": "stickers/mico-leao-dourado-obrigada.webp",
+      "bytes": 6624
+    },
+    {
       "rel": "stickers/mico-leao-dourado-pensando.webp",
       "bytes": 7006
     },
     {
       "rel": "stickers/mico-leao-dourado-rindo.webp",
       "bytes": 7954
+    },
+    {
+      "rel": "stickers/mico-leao-dourado-uau.webp",
+      "bytes": 6448
     },
     {
       "rel": "stickers/nina-ate-amanha.webp",
@@ -1573,8 +1689,16 @@
       "bytes": 5456
     },
     {
+      "rel": "stickers/ourico-boa-ideia.webp",
+      "bytes": 5936
+    },
+    {
       "rel": "stickers/ourico-bom-dia.webp",
       "bytes": 5756
+    },
+    {
+      "rel": "stickers/ourico-combinado.webp",
+      "bytes": 6760
     },
     {
       "rel": "stickers/ourico-comemorando.webp",
@@ -1593,12 +1717,20 @@
       "bytes": 5984
     },
     {
+      "rel": "stickers/ourico-obrigada.webp",
+      "bytes": 6566
+    },
+    {
       "rel": "stickers/ourico-pensando.webp",
       "bytes": 6012
     },
     {
       "rel": "stickers/ourico-rindo.webp",
       "bytes": 6336
+    },
+    {
+      "rel": "stickers/ourico-uau.webp",
+      "bytes": 6578
     },
     {
       "rel": "stickers/panda-ate-amanha.webp",
@@ -2325,6 +2457,10 @@
       "bytes": 30452
     },
     {
+      "rel": "poses/atlas-fora-ate.webp",
+      "bytes": 20932
+    },
+    {
       "rel": "poses/atlas-lendo.webp",
       "bytes": 24490
     },
@@ -2395,6 +2531,10 @@
     {
       "rel": "poses/bento-erro.webp",
       "bytes": 30930
+    },
+    {
+      "rel": "poses/bento-fora-ate.webp",
+      "bytes": 19036
     },
     {
       "rel": "poses/bento-lendo.webp",
@@ -2897,6 +3037,10 @@
       "bytes": 32484
     },
     {
+      "rel": "poses/luna-fora-ate.webp",
+      "bytes": 19914
+    },
+    {
       "rel": "poses/luna-lendo.webp",
       "bytes": 24722
     },
@@ -3027,6 +3171,10 @@
     {
       "rel": "poses/nina-erro.webp",
       "bytes": 38604
+    },
+    {
+      "rel": "poses/nina-fora-ate.webp",
+      "bytes": 28200
     },
     {
       "rel": "poses/nina-lendo.webp",
@@ -3279,6 +3427,10 @@
     {
       "rel": "poses/sol-erro.webp",
       "bytes": 30360
+    },
+    {
+      "rel": "poses/sol-fora-ate.webp",
+      "bytes": 20860
     },
     {
       "rel": "poses/sol-lendo.webp",

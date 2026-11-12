@@ -340,6 +340,25 @@ describe('swap rule: team and one persona', () => {
     expect(screen.queryByText('dsh')).toBeNull()
   })
 
+  it('o id cru "codex" da conta Codex vira "Conta do Codex neste computador" como o do Claude (Muse, passada de leigo: o texto do Codex)', () => {
+    const codex = seat({ id: 'codex:codex', accountLabel: 'codex', status: 'ready', name: 'Codex', kind: 'codex' })
+    render(<ConnectionsView accountsUi={ui([], { groups: [{ provider: 'codex', providerName: 'Codex', accounts: [codex] }], swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={async () => {}} />)
+    expect(screen.getByText('Conta do Codex neste computador')).toBeTruthy()
+    expect(screen.queryByText('codex')).toBeNull()
+  })
+
+  it('a conta sem janela publicada diz "Sem estimativa oficial do limite", nunca "da cota" (Muse, passada de leigo)', () => {
+    render(<ConnectionsView accountsUi={ui([personal])} />)
+    expect(screen.getAllByText('Sem estimativa oficial do limite').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/estimativa oficial da cota/u)).toBeNull()
+  })
+
+  it('o aviso dos termos de uso é o aviso NEUTRO do DS, não a caixa azul de informação (Muse, passada de leigo)', () => {
+    render(<ConnectionsView accountsUi={ui([personal])} />)
+    const note = screen.getByText(pt['wave2.termsNotice']).closest('[role="note"]')
+    expect(note?.getAttribute('data-tone')).toBe('neutral')
+  })
+
   it('com uma conta só, "Quando uma conta chegar ao limite" fica recolhido (details fechado) abaixo das contas', () => {
     const { container } = render(<ConnectionsView accountsUi={ui([personal], { swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={async () => {}} />)
     const details = container.querySelector('details')

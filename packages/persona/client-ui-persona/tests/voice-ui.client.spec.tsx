@@ -139,7 +139,7 @@ describe('o envio da mensagem de voz', () => {
     const { store, uploaded, channel, dm } = target()
     const sent = await sendVoiceMessage(store, { blob: new Blob(['abc'], { type: 'audio/webm' }), durationMs: 12_000, levels: [] }, 'channel')
     expect(sent.id).toBe('att-channel')
-    expect(uploaded[0]?.name).toBe('audio-12s.webm')
+    expect(uploaded[0]?.name).toBe('voz-12s.webm')
     expect(uploaded[0]?.type).toBe('audio/webm')
     expect(channel).toEqual([{ body: '', ids: ['att-channel'] }])
     expect(dm).toEqual([])

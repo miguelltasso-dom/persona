@@ -35,16 +35,16 @@ export async function readTenant(page: Page): Promise<Tenant> {
  * Call one persona Remote exactly as the browser client does.
  * @param page - Authenticated page (its context carries the auth cookie).
  * @param method - Remote name without the `persona/` prefix.
- * @param request - The single request object.
+ * @param request - The single request object; omit it for a Remote that takes NO arguments (`voiceModelState`: the gateway refuses a stray `request` field).
  */
-export async function hostRpc<T>(page: Page, method: string, request: Record<string, unknown>): Promise<RpcResult<T>> {
+export async function hostRpc<T>(page: Page, method: string, request?: Record<string, unknown>): Promise<RpcResult<T>> {
   const origin = new URL(page.url()).origin
   const response = await page.context().request.post(`${origin}/api/persona/${method}`, {
     data: {
       type: 'client-request',
       rpcId: `gauge-${Math.random().toString(36).slice(2)}`,
       method: `persona/${method}`,
-      payload: { args: { request } },
+      payload: { args: request === undefined ? {} : { request } },
     },
   })
   const body = await response.json() as RpcEnvelope<T>
@@ -55,7 +55,7 @@ export async function hostRpc<T>(page: Page, method: string, request: Record<str
 }
 
 /** Same as {@link hostRpc} but throws on failure (seeding). */
-export async function hostRpcOk<T>(page: Page, method: string, request: Record<string, unknown>): Promise<T> {
+export async function hostRpcOk<T>(page: Page, method: string, request?: Record<string, unknown>): Promise<T> {
   const result = await hostRpc<T>(page, method, request)
   if (!result.ok) throw new Error(`${method} failed: ${result.error ?? 'unknown'}`)
   return result.value as T

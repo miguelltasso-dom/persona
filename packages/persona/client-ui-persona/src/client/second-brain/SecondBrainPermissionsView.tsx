@@ -9,7 +9,7 @@ import { Card, FixedRowVirtualScroller, PermissionRow, Screen, ScreenHeader, Tab
 const GRANT_ROW_PX = 76
 const GRANT_VIRTUAL_MIN = 40
 import { pt as defaultDict } from '../locale/second-brain/locales.ts'
-import { grantActionLabel, grantTargetLabel, personaPortrait } from './brain-ui-adapters.ts'
+import { grantActionLabel, grantTargetLabel, grantUsageLabel, personaPortrait } from './brain-ui-adapters.ts'
 import styles from './SecondBrain.module.css'
 
 type GrantFilter = 'active' | 'expired' | 'revoked'
@@ -115,7 +115,7 @@ export function SecondBrainPermissionsView({
                   validityText={grantValidityLabel(dict, grant)}
                   expired={grantExpired(grant)}
                   revoked={grant.revokedAt !== undefined}
-                  usage={grant.useCount > 0 ? t('permissions.usage', { count: grant.useCount }) : undefined}
+                  usage={grant.useCount > 0 ? grantUsageLabel(dict, grant.useCount) : undefined}
                   labels={{
                     revoke: t('permissions.revoke'),
                     confirmRevoke: t('permissions.confirmRevoke'),
@@ -139,7 +139,7 @@ export function SecondBrainPermissionsView({
                 validityText={grantValidityLabel(dict, grant)}
                 expired={grantExpired(grant)}
                 revoked={grant.revokedAt !== undefined}
-                usage={grant.useCount > 0 ? t('permissions.usage', { count: grant.useCount }) : undefined}
+                usage={grant.useCount > 0 ? grantUsageLabel(dict, grant.useCount) : undefined}
                 labels={{
                   revoke: t('permissions.revoke'),
                   confirmRevoke: t('permissions.confirmRevoke'),

@@ -379,6 +379,11 @@
   justify-content: flex-end;
 }
 
+/* COLHEITA §6 (Quill): o resumo "N passos" recolhido acima da resposta da persona. */
+.replySteps {
+  margin: 0 0 var(--persona-space-1);
+}
+
 /* COLHEITA-S1 P1-03: aviso do microfone quando a transcrição não está disponível (dentro do composer). */
 .voiceWarning {
   font: 400 13px/18px var(--persona-font-text);

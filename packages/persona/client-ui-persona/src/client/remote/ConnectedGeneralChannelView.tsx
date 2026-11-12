@@ -18,6 +18,8 @@ import { useEngineLimits } from './use-engine-limits.ts'
 import { openBlockingCount } from '../decisions/decision-selectors.ts'
 import { defaultChannelResponderId } from '../chat/default-channel-responder.ts'
 import { resolveHostPersonaId } from './map-host-ui.ts'
+import { isChannelSectionsEnabled } from '../shell/channel-sections-flag.ts'
+import { mapChannelHeader } from '../chat/channel-header.ts'
 import { useConnectedAside } from './use-connected-aside.tsx'
 import { useConnectedFanout } from './use-connected-fanout.ts'
 import { useConnectedHostQueue } from './use-connected-host-queue.ts'
@@ -106,7 +108,10 @@ export function ConnectedGeneralChannelView({
     return () => { alive = false }
   }, [liveStore])
   const composerHints = live.channelComposerHints
-  const ownerId = live.tenant?.channelId ?? null
+  // Casa (item 22, atrás de `channelSections`): o canal escolhido na barra; sem escolha (ou com a flag desligada), o #geral de sempre.
+  const sections = isChannelSectionsEnabled()
+  const ownerId = (sections ? live.selectedChannelId : null) ?? live.tenant?.channelId ?? null
+  const channelHeader = sections ? mapChannelHeader(live.channelHeader) : undefined
   const subjectStreamKey = ownerId === null ? null : conversationStreamKey('channel', ownerId)
   const subjects = useHostConversationSubjects(liveStore, subjectStreamKey, live.messages, {
     defaultName: n => t('subjects.defaultName', { n }),
@@ -244,6 +249,7 @@ export function ConnectedGeneralChannelView({
           {...(taskProposals === undefined ? {} : { taskProposals })}
           {...(reply ?? {})}
           {...fanout}
+          {...(channelHeader === undefined ? {} : { channelHeader })}
           members={live.stripMembers}
           loading={!live.ready}
           team={live.team}
@@ -278,6 +284,8 @@ export function ConnectedGeneralChannelView({
           passThroughFollowers={live.passThroughFollowers}
           turnContext={live.turnContext}
           voiceTranscriber={voiceTranscriber}
+          replyActivity={live.replyActivity}
+          onNeedReplyActivity={(subjectId) => { void liveStore.loadReplyActivity?.(subjectId) }}
           onSendSticker={(stickerId) => { void liveStore.sendStickerMessage?.(stickerId) }}
           turnActivityLabels={turnActivityLabels}
           onLoadTurnContext={loadTurnContext}

@@ -15,6 +15,7 @@ import {
 import type { ChannelHeaderView, ChannelLayoutView, CompleteOnboardingRequest } from '@deepseek-ai/dsh-persona-host/types'
 import { writeOnboardingCacheComplete, writeOnboardingDisplayName } from '../shell/onboarding-persistence.ts'
 import { rememberBootFaces } from '../shell/boot-faces.ts'
+import { isAbortedByUnload } from './unload-abort.ts'
 import { applyMessageStreamFrame, type MessageStreamFrame } from './apply-message-stream.ts'
 import { enrichKanbanCardsFromHost } from './map-host-ui.ts'
 import type { KanbanCardModel } from '../kanban/types.ts'
@@ -898,7 +899,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       if (Date.now() - channelLayoutAt > 5_000) void refreshChannelLayout()
       await publishHostOnboardingState()
     } catch (error) {
-      console.error('[persona] refresh falhou', error)
+      // Probe P3: o fetch em voo abortado pelo descarregamento da página não é falha do host (e escondia as de verdade).
+      if (!isAbortedByUnload(error)) console.error('[persona] refresh falhou', error)
       const prior = store.getSnapshot()
       if (tenant !== null) {
         store.set({

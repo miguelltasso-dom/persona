@@ -21,19 +21,25 @@ function characterIdForPersona(persona: PersonaView): RailPersona['characterId']
   return ref.slice(0, 32) || persona.id
 }
 
-/** The facts the one state vocabulary needs besides the activity (draft files, silence window, pause), copied from the stage member. */
-function stateFactsOf(member: ChannelPersonaMember): Pick<RailPersona, 'draftFiles' | 'quiet' | 'paused'> {
+type StateFacts = Pick<RailPersona, 'draftFiles' | 'quiet' | 'paused' | 'step'>
+
+/**
+ * The facts the one state vocabulary needs besides the activity (draft files, silence window, pause), copied from the stage member, and the
+ * step she is on NOW (the host's own words, only while she works: never invented here).
+ */
+function stateFactsOf(member: ChannelPersonaMember): StateFacts {
   return {
     ...(member.draftFiles === undefined ? {} : { draftFiles: member.draftFiles }),
     ...(member.quiet === undefined ? {} : { quiet: member.quiet }),
     ...(member.paused === undefined ? {} : { paused: member.paused }),
+    ...(member.step === undefined ? {} : { step: member.step }),
   }
 }
 
 function nowForPersona(
   snap: PersonaLiveSnapshot,
   persona: PersonaView,
-): { readonly state: PersonaWorkUiState; readonly currentTask?: string; readonly facts: Pick<RailPersona, 'draftFiles' | 'quiet' | 'paused'> } {
+): { readonly state: PersonaWorkUiState; readonly currentTask?: string; readonly facts: StateFacts } {
   const row = snap.nowRows.find(r => r.member.name === persona.name)
   if (row !== undefined) {
     const facts = stateFactsOf(row.member)

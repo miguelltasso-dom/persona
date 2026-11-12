@@ -16,6 +16,7 @@
 
 import type { ProductRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
 import type { ConnectorGrantsHost } from './connector-grants-host.ts'
+import { connectorHandleOf } from './connector-handle.ts'
 import { RemoteFault } from './remote-guard.ts'
 import type { ActionChoice, ActionClass, ActionPreviewView, ActionPreviewWire, ApprovalView, ConnectorRef } from './types.ts'
 
@@ -407,7 +408,7 @@ export class ExternalActions {
       question: `${name} quer ${verbWord} pelo ${doc.connector.name}. Confira antes.`,
       status: doc.status === 'pending' ? 'pending' : doc.status === 'cancelled' || doc.status === 'adjusted' || doc.status === 'failed' ? 'rejected' : 'approved',
       personaId: doc.personaId, personaName: name, actionPreview: preview,
-      permissionAction: `action.${doc.actionClass}`, permissionTarget: `${doc.connector.cli}:${doc.connector.id}`,
+      permissionAction: `action.${doc.actionClass}`, permissionTarget: `${doc.connector.cli}:${connectorHandleOf(doc.connector.id)}`, // CONN-3: the handle, never the proxy URL (key included)
     }
   }
 }

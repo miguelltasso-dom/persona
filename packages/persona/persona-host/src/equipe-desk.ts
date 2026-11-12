@@ -14,6 +14,7 @@ import {
   type Equipe,
   type EquipeRepos,
 } from '@deepseek-ai/dsh-persona-store'
+import { equipeIconOf } from './equipe-icon.ts'
 
 /** A refusal with a stable code and the sentence the screen shows. */
 export class EquipeDeskError extends Error {
@@ -30,6 +31,7 @@ export interface EquipeView {
   readonly name: string
   readonly position: number
   readonly color?: string
+  /** The glyph (`UiIcon equipe-…`): the one the person kept if it is one of the eight, else the name's default; always present on what the host sends. */
   readonly icon?: string
   /** It mirrors an organogram sector: its members come from the organogram and are not edited here. */
   readonly mirrorsSector: boolean
@@ -247,7 +249,7 @@ function viewOfEquipe(equipe: Equipe): EquipeView {
     name: equipe.name,
     position: equipe.position,
     ...(equipe.color === undefined ? {} : { color: equipe.color }),
-    ...(equipe.icon === undefined ? {} : { icon: equipe.icon }),
+    icon: equipeIconOf(equipe.name, equipe.icon), // always one of the eight `equipe-…` glyphs: the one the person kept, else the name's
     mirrorsSector: equipe.sourceId !== undefined,
     personaIds: equipe.personaIds,
     archived: equipe.archivedAt !== undefined,

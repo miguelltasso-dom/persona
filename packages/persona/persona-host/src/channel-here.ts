@@ -4,6 +4,7 @@
  */
 
 import type { DirectoryTeam } from './channel-directory.ts'
+import { equipeIconOf, type EquipeIcon } from './equipe-icon.ts'
 
 /** What the host knows of one persona on the channel. */
 export interface HerePersona {
@@ -35,6 +36,8 @@ export type HereGroupId = 'owner' | 'away' | 'unassigned' | `team:${string}`
 export interface HereGroup {
   readonly id: HereGroupId
   readonly name: string
+  /** The glyph of the equipe (`UiIcon equipe-…`); present only on a `team:<id>` group. */
+  readonly icon?: EquipeIcon
   readonly members: readonly HereMember[]
 }
 
@@ -69,7 +72,7 @@ export function hereGroups(input: {
     const ids = new Set(team.personaIds)
     const members = onChannel.filter(persona => ids.has(persona.id) && !placed.has(persona.id) && away(persona) === undefined)
     for (const persona of members) placed.add(persona.id)
-    if (members.length > 0) groups.push({ id: `team:${team.id}`, name: team.name, members: members.map(member) })
+    if (members.length > 0) groups.push({ id: `team:${team.id}`, name: team.name, icon: equipeIconOf(team.name, team.icon), members: members.map(member) })
   }
   const loose = onChannel.filter(persona => !placed.has(persona.id) && away(persona) === undefined)
   if (loose.length > 0) groups.push({ id: 'unassigned', name: 'Sem equipe', members: loose.map(member) })

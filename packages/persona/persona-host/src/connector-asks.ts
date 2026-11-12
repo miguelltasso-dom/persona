@@ -10,6 +10,7 @@
 
 import type { ProductRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
 import type { ConnectorGrantsHost } from './connector-grants-host.ts'
+import { connectorHandleOf } from './connector-handle.ts'
 import { RemoteFault } from './remote-guard.ts'
 import type { ApprovalView, ConnectorAskChoice, ConnectorAskView, ConnectorDecisionView, ConnectorRef } from './types.ts'
 
@@ -154,7 +155,8 @@ export class ConnectorAsks {
     const name = persona?.name ?? 'a persona'
     const asker = doc.requestedByPersonaId === undefined ? undefined : this.deps.product.getPersona(doc.requestedByPersonaId)
     const connector: ConnectorAskView = {
-      reason: doc.reason, connectorName: doc.connector.name, cli: doc.connector.cli, connectorId: doc.connector.id, access: doc.access,
+      // CONN-3: whoever reads the card gets the HANDLE of an account connector (its id is the proxy URL, key included); the decision uses the card's own id and the real id stays in the stored ask.
+      reason: doc.reason, connectorName: doc.connector.name, cli: doc.connector.cli, connectorId: connectorHandleOf(doc.connector.id), access: doc.access,
       options: CHOICES,
       ...(doc.requestedByPersonaId === undefined ? {} : { requestedByPersonaId: doc.requestedByPersonaId }),
       ...(asker === undefined ? {} : { requestedByPersonaName: asker.name }),
@@ -168,7 +170,7 @@ export class ConnectorAsks {
     return {
       id: doc.id, kind: 'connector', title: `Liberar o ${doc.connector.name} para ${name}`, question, status: doc.status,
       personaId: doc.personaId, personaName: name, connector,
-      permissionAction: 'connector.release', permissionTarget: `${doc.connector.cli}:${doc.connector.id}`,
+      permissionAction: 'connector.release', permissionTarget: `${doc.connector.cli}:${connectorHandleOf(doc.connector.id)}`,
     }
   }
 }

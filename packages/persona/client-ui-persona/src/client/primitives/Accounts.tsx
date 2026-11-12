@@ -151,14 +151,14 @@ export function AccountPolicyPicker({ legend, value, onChange, copy, policies = 
 }
 
 export interface NoticeProps {
-  readonly tone?: 'info' | 'warning'
+  readonly tone?: 'info' | 'warning' | 'neutral'
   /** Ícone próprio (ex.: `clock` para "a caminho"). Padrão: `info` (i) no tom info, `alert` no warning; a interrogação `help` é só para ajuda. */
   readonly icon?: UiIconName
   readonly title?: string | undefined
   readonly children: ReactNode
 }
 
-/** Honest note / caution box (info-tint or warning-tint), always with an icon and text. */
+/** Honest note / caution box (info-tint, warning-tint or the calm `neutral` surface of the DS: what is not news, like terms of use), always with an icon and text. */
 export function Notice({ tone = 'info', icon, title, children }: NoticeProps): ReactNode {
   return (
     <div className={styles.notice} data-tone={tone} role="note">

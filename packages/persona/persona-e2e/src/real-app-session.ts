@@ -52,6 +52,10 @@ export interface OpenRealPersonaAppOptions {
   cleanHostEnv?: boolean
   /** Keep the host's `PERSONA_HOME` here (it survives `close()`), so the database can be read and copied after the run. */
   home?: string
+  /** Extra Chromium flags, e.g. the fake microphone of the voice E2E (`--use-fake-device-for-media-stream --use-file-for-fake-audio-capture=<wav>`). */
+  browserArgs?: string[]
+  /** Browser permissions granted to the context, e.g. `['microphone']`. */
+  permissions?: string[]
 }
 
 /**
@@ -71,10 +75,11 @@ export async function openRealPersonaApp(options: OpenRealPersonaAppOptions = {}
     ...(Object.keys(hostEnv).length === 0 ? {} : { env: hostEnv }),
   })
   const { chromium } = await import('playwright')
-  const browser = await chromium.launch({ channel: 'chrome' })
+  const browser = await chromium.launch({ channel: 'chrome', ...(options.browserArgs === undefined ? {} : { args: options.browserArgs }) })
   const context = await browser.newContext({
     locale: 'pt-BR',
     viewport: options.viewport ?? { width: 1440, height: 900 },
+    ...(options.permissions === undefined ? {} : { permissions: options.permissions }),
   })
   if (options.dismissOnboardingViaStorage || options.devSeed || options.orgChartScaleSeed !== undefined) {
     await context.addInitScript(({ onboarding, seed, orgScale }: { onboarding: boolean; seed: boolean; orgScale: string | null }) => {

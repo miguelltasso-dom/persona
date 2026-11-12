@@ -152,6 +152,23 @@ export function eventEnvelope(event: EventFacts): string {
   return lines.filter(line => line !== '').join('\n')
 }
 
+const EXTERNAL_OPEN = /DADO EXTERNO \([^)\n]*\), escrito por outra pessoa\./u
+const EXTERNAL_CLOSE = '--- fim do dado externo ---'
+
+/**
+ * What the pre-router must judge in a message that carries external data (P1-07): the REQUEST, never the fenced text somebody else wrote — a mail that says "senha do banco" is a mail, not a request
+ * out of scope. The block runs from its first mark to the LAST closing mark, so a text that forges a closing mark early cannot leave its tail outside the fence; with no closing mark the rest of the
+ * message is the block. A message with no external data comes back as it is.
+ * @param text - The message the routine posted (its request, then {@link eventEnvelope}).
+ */
+export function withoutExternalData(text: string): string {
+  const open = EXTERNAL_OPEN.exec(text)
+  if (open === null) return text
+  const close = text.lastIndexOf(EXTERNAL_CLOSE)
+  const after = close < open.index ? '' : text.slice(close + EXTERNAL_CLOSE.length)
+  return `${text.slice(0, open.index)}${after}`.trim()
+}
+
 /**
  * What the `routine.rrule` column holds for a routine that starts by an event: it has no time, so the scheduler never materializes an occurrence for it.
  * The row's column is the ONE switch ("is this routine event-driven?"); the filter itself lives in the routine's spec document.

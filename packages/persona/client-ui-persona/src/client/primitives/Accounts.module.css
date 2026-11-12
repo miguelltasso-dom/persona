@@ -148,6 +148,10 @@
   background: var(--persona-warning-tint);
 }
 
+.notice[data-tone='neutral'] {
+  background: var(--persona-surface-alt);
+}
+
 .noticeIcon {
   flex: 0 0 auto;
   padding-top: 1px;
@@ -156,6 +160,10 @@
 
 .notice[data-tone='warning'] .noticeIcon {
   color: var(--persona-warning);
+}
+
+.notice[data-tone='neutral'] .noticeIcon {
+  color: var(--persona-ink-muted);
 }
 
 .noticeTitle {

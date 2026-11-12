@@ -266,6 +266,7 @@
   "sounds.medium": "Medium",
   "voice.record": "Record audio",
   "voice.discard": "Discard",
+  "voice.sendFailed": "I couldn't send the audio. Try again.",
   "voice.downloadingFirstUse": "Downloading Persona's ear (first time)…",
   "voice.transcribeUnavailable": "I couldn't transcribe the audio right now, so the message was not sent. Record again when voice is available.",
   "voice.send": "Send audio",

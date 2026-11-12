@@ -76,28 +76,36 @@ it('never shows the scene when the host answers within 400 ms', async () => {
   expect(sceneOf(shadow)).toBe('off')
 })
 
-it('arrives with the onboarding trio on the first open and with the last session faces afterwards', async () => {
+const variantOf = (shadow: ShadowRoot): string => shadow.querySelector<HTMLElement>('.boot')!.dataset.variant!
+
+it('shows the first-opening picture when no face is remembered, and the last session faces afterwards', async () => {
   const first = open()
   await vi.advanceTimersByTimeAsync(450)
-  expect(faces(first.shadow)).toEqual(['atlas', 'bento', 'nina'])
+  // Muse (12/11): the first opening has its own scene (the animals arriving at the office), not faces.
+  expect(variantOf(first.shadow)).toBe('first')
+  expect(faces(first.shadow)).toEqual([])
+  expect(first.shadow.querySelector<HTMLImageElement>('.first img')!.getAttribute('src')).toBe('/__persona-boot-ui__/assets/primeira-vez.webp')
+  expect(status(first.shadow)).toBe('Acordando o time…')
   window.dispatchEvent(new Event('pagehide'))
   window.localStorage.setItem(FACES_KEY, JSON.stringify(['capivara', 'nina', 'nina', 'lobo-guara', '../../evil', 'tucano', 'coelho', 'panda']))
   const next = open()
   await vi.advanceTimersByTimeAsync(450)
+  expect(variantOf(next.shadow)).toBe('faces')
   // Duplicates and ids that are not shipped faces are dropped; at most 5 stay.
   expect(faces(next.shadow)).toEqual(['capivara', 'nina', 'lobo-guara', 'tucano', 'coelho'])
 })
 
-it('falls back to the trio when the remembered faces are unusable', async () => {
+it('falls back to the first-opening picture when the remembered faces are unusable', async () => {
   window.localStorage.setItem(FACES_KEY, '{"not":"a list"}')
   const a = open()
   await vi.advanceTimersByTimeAsync(450)
-  expect(faces(a.shadow)).toEqual(['atlas', 'bento', 'nina'])
+  expect(variantOf(a.shadow)).toBe('first')
   window.dispatchEvent(new Event('pagehide'))
   window.localStorage.setItem(FACES_KEY, JSON.stringify(['x', 7, null]))
   const b = open()
   await vi.advanceTimersByTimeAsync(450)
-  expect(faces(b.shadow)).toEqual(['atlas', 'bento', 'nina'])
+  expect(variantOf(b.shadow)).toBe('first')
+  expect(faces(b.shadow)).toEqual([])
 })
 
 it('changes the phrase with the facts: host answered → "Arrumando a casa…"', async () => {
@@ -158,16 +166,50 @@ it('shows the honest error after 25 s with focus on "Tentar de novo", and Retry 
   expect(status(shadow)).toBe('Acordando o time…')
 })
 
-it('"Ver o que aconteceu" opens the support details with the diagnostic', async () => {
+it('the error has ONE way to the support details: folded, and the first opening loads the diagnostic once', async () => {
   const { shadow, bridge } = open()
   await vi.advanceTimersByTimeAsync(26_000)
-  const button = shadow.getElementById('boot-copy') as HTMLButtonElement
-  expect(button.textContent).toBe('Ver o que aconteceu')
-  button.click()
+  // Muse (12/11): "Ver o que aconteceu" is gone; the only secondary path is the folded "Detalhes para o suporte".
+  expect(shadow.getElementById('boot-copy')).toBeNull()
+  expect([...shadow.querySelectorAll('.error button')].map(button => button.textContent)).toEqual(['Tentar de novo'])
+  const details = shadow.getElementById('boot-details') as HTMLDetailsElement
+  expect(details.open).toBe(false)
+  expect(details.querySelector('summary')!.textContent).toBe('Detalhes para o suporte')
+  expect(shadow.getElementById('boot-diag')!.textContent).toBe('boot_timeout')
+  expect(bridge.diagnostic).not.toHaveBeenCalled()
+  expect(shadow.getElementById('boot-diag-note')!.hidden).toBe(true)
+  details.open = true
+  details.dispatchEvent(new Event('toggle'))
   await vi.advanceTimersByTimeAsync(0)
   expect(bridge.diagnostic).toHaveBeenCalledOnce()
-  expect(shadow.getElementById('boot-diag')!.textContent).toBe('Persona 1.0 · boot_timeout · C:\\logs')
-  expect((shadow.getElementById('boot-details') as HTMLDetailsElement).open).toBe(true)
+  expect(shadow.getElementById('boot-diag')!.textContent).toBe('boot_timeout\nPersona 1.0 · boot_timeout · C:\\logs')
+  expect(shadow.getElementById('boot-diag-note')!.hidden).toBe(false)
+  expect(shadow.getElementById('boot-diag-note')!.textContent).toBe('Já copiamos isto para você colar no suporte.')
+  // Closing and opening again does not ask again.
+  details.open = false; details.dispatchEvent(new Event('toggle'))
+  details.open = true; details.dispatchEvent(new Event('toggle'))
+  await vi.advanceTimersByTimeAsync(0)
+  expect(bridge.diagnostic).toHaveBeenCalledOnce()
+})
+
+it('the retry closes the details again, and a host failure keeps its own code line in front of the diagnostic', async () => {
+  const { shadow, bridge } = open()
+  bridge.fail({ code: 'boot_failed', message: 'Forced startup failure' })
+  const details = shadow.getElementById('boot-details') as HTMLDetailsElement
+  details.open = true; details.dispatchEvent(new Event('toggle'))
+  await vi.advanceTimersByTimeAsync(0)
+  expect(shadow.getElementById('boot-diag')!.textContent).toBe('boot_failed · Forced startup failure\nPersona 1.0 · boot_timeout · C:\\logs')
+  const retry = shadow.getElementById('boot-retry') as HTMLButtonElement
+  retry.click()
+  expect(details.open).toBe(false)
+  expect(shadow.getElementById('boot-diag-note')!.hidden).toBe(true)
+})
+
+it('the error copy no longer tells people to restart the computer', async () => {
+  const { shadow } = open()
+  await vi.advanceTimersByTimeAsync(26_000)
+  expect(shadow.getElementById('boot-error-body')!.textContent)
+    .toBe('Isso costuma se resolver tentando de novo. Se continuar, feche a Persona pela bandeja e abra de novo.')
 })
 
 it('a timeout is not a verdict: when the app paints after the error, it takes over', async () => {
@@ -192,9 +234,10 @@ it('a host failure is a verdict: painting never hides it', async () => {
   expect(shadow.querySelector<HTMLElement>('.error')!.hidden).toBe(false)
 })
 
-it('once the scene started it stays until the last face has arrived, then crossfades out', async () => {
+it('once the scene started it stays until its last piece has arrived, then crossfades out', async () => {
   const { shadow, overlay } = open()
-  await vi.advanceTimersByTimeAsync(500) // scene started at 400 ms with 3 faces: min stay = 2 × 120 + 360 + 60 = 660 ms
+  // The scene started at 400 ms; the first-opening picture arrives in 360 ms, so the minimum stay is 360 + 60 = 420 ms.
+  await vi.advanceTimersByTimeAsync(500)
   paintApp()
   await vi.advanceTimersByTimeAsync(300) // 800 ms
   expect(overlay.classList.contains('leaving')).toBe(false)
@@ -204,6 +247,17 @@ it('once the scene started it stays until the last face has arrived, then crossf
   expect(document.getElementById('root')!.hidden).toBe(false)
   overlay.dispatchEvent(new Event('transitionend'))
   expect(overlay.isConnected).toBe(false)
+})
+
+it('with five faces the scene waits for the fifth: 4 × 120 + 360 + 60 = 900 ms after it started', async () => {
+  window.localStorage.setItem(FACES_KEY, JSON.stringify(['capivara', 'nina', 'lobo-guara', 'tucano', 'coelho']))
+  const { overlay } = open()
+  await vi.advanceTimersByTimeAsync(500)
+  paintApp()
+  await vi.advanceTimersByTimeAsync(600) // 1100 ms
+  expect(overlay.classList.contains('leaving')).toBe(false)
+  await vi.advanceTimersByTimeAsync(400) // 1500 ms
+  expect(overlay.classList.contains('leaving')).toBe(true)
 })
 
 it('speaks English when the shell language is not Portuguese', async () => {

@@ -236,6 +236,7 @@ export class VaultRepos {
         run(db, 'DELETE FROM vault_version WHERE target_kind = ? AND target_id = ?', ['record', id])
       })
     })
+    this.#forgetLog()
   }
 
   /**
@@ -244,7 +245,17 @@ export class VaultRepos {
    * @returns How many records were erased.
    */
   purgeSecretFacts(factKeys: readonly string[]): number {
-    return this.store.withSecureDelete(() => this.store.tx(db => scrubSecretFacts(db, factKeys)))
+    const erased = this.store.withSecureDelete(() => this.store.tx(db => scrubSecretFacts(db, factKeys)))
+    if (erased > 0) this.#forgetLog()
+    return erased
+  }
+
+  /**
+   * Keel 12:15: `secure_delete` zeroes the freed page in the main file, but the WAL still holds the page images WRITTEN BEFORE (the insert that carried the token): truncate the log so the old
+   * bytes are gone from it too. Best effort: a purge made inside a caller's transaction cannot checkpoint (the boot compaction does it later), and that must never fail the erasure.
+   */
+  #forgetLog(): void {
+    try { this.store.checkpointWal() } catch { /* the caller's transaction is open: the next checkpoint truncates it */ }
   }
 
   /**

@@ -536,13 +536,27 @@ export class ProactivityScheduler {
         ? this.runInitiative(workspaceId, projectId, routine, run, nowIso)
         : this.runCustom(workspaceId, projectId, routine, run, nowIso)
       deps.routines.complete(run.id)
+      this.dropEventDocWhenOver(projectId, run)
       return outcome
     } catch (error: unknown) {
       deps.routines.fail(run.id)
+      this.dropEventDocWhenOver(projectId, run)
       this.remember(error)
       this.audit(projectId, 'sched:error', routine.id, `A rotina “${routine.name}” falhou: ${message(error)}`, nowIso, run.id)
       return 'skipped'
     }
+  }
+
+  /**
+   * P1-07 D: an event run that is OVER (done, skipped or failed for good) no longer needs the text of its event: the document goes. A run that waits for a retry (pending) keeps it.
+   * @param projectId - Tenant.
+   * @param run - The run that just ran.
+   */
+  private dropEventDocWhenOver(projectId: string, run: RoutineRun): void {
+    if (!isEventRunId(run.id)) return
+    const now = this.deps.routines.listRuns(run.routineId).find(item => item.id === run.id)
+    if (now?.status === 'pending') return
+    this.deps.screens.delete(projectId, EVENT_DOC_KIND, run.id)
   }
 
   private runInitiative(workspaceId: string, projectId: string, routine: Routine, run: RoutineRun, nowIso: string): 'model' | 'done' | 'skipped' {
